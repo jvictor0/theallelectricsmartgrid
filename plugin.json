@@ -15,8 +15,8 @@
     "modules":
     [
         {
-            "slug": "LatticeExpander",
-            "name": "LatticeExpander",
+            "slug": "LameJuis",
+            "name": "LameJuis",
             "description": "Logic Matrix and Just Intonation Sequencer.",
             "tags":
             [
