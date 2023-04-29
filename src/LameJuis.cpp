@@ -93,25 +93,28 @@ bool LameJuis::LogicOperation::GetValue(InputVector inputVector)
     return ret;
 }
 
-LameJuis::MatrixEvalResult LameJuis::EvalMatrix(InputVector inputVector)
+LameJuis::MatrixEvalResultWithPitch LameJuis::EvalMatrix(InputVector inputVector)
 {
     using namespace LameJuisConstants;
-    MatrixEvalResult result;
-
-    for (size_t i = 0; i < x_numOperations; ++i)
+    MatrixEvalResult& result = m_evalResults[inputVector.m_bits];
+    
+    if (!m_isEvaluated[inputVector.m_bits])
     {
-        size_t outputId = m_operations[i].GetOutputTarget();
-        ++result.m_total[outputId];
-        bool isHigh = m_operations[i].GetValue(inputVector);
-        if (isHigh)
+        result.Clear();
+        for (size_t i = 0; i < x_numOperations; ++i)
         {
-            ++result.m_high[outputId];
+            size_t outputId = m_operations[i].GetOutputTarget();
+            bool isHigh = m_operations[i].GetValue(inputVector);
+            if (isHigh)
+            {
+                ++result.m_high[outputId];
+            }
         }
+
+        m_isEvaluated[inputVector.m_bits] = true;
     }
 
-    result.SetPitch(m_accumulators);
-
-    return result;
+    return MatrixEvalResultWithPitch(result, m_accumulators);
 }
 
 LameJuis::InputVectorIterator::InputVectorIterator(InputVector coMuteVector, InputVector defaultVector)
@@ -136,35 +139,12 @@ LameJuis::InputVector
 LameJuis::InputVectorIterator::Get()
 {
     InputVector result = m_defaultVector;
-
+    
     // Shift the bits of m_ordinal into the set positions of the co muted vector.
-    // This is run many times, so unrolling the loop actually helps.
     //
-    // In GCC, the comment causes warnings to be supressed...
-    //
-    switch (m_coMuteSize)
+    for (ssize_t i = m_coMuteSize - 1; i >= 0; --i)
     {
-        case 6:
-            result.Set(m_forwardingIndices[5], (m_ordinal & (1 << 5)) >> 5);
-            // fallthrough
-        case 5:
-            result.Set(m_forwardingIndices[4], (m_ordinal & (1 << 4)) >> 4);
-            // fallthrough
-        case 4:
-            result.Set(m_forwardingIndices[3], (m_ordinal & (1 << 3)) >> 3);
-            // fallthrough
-        case 3:
-            result.Set(m_forwardingIndices[2], (m_ordinal & (1 << 2)) >> 2);
-            // fallthrough
-        case 2:
-            result.Set(m_forwardingIndices[1], (m_ordinal & (1 << 1)) >> 1);
-            // fallthrough
-        case 1:
-            result.Set(m_forwardingIndices[0], (m_ordinal & (1 << 0)) >> 0);
-            // fallthrough
-        case 0:
-        default:
-            break;
+        result.SetFromBitVector(m_forwardingIndices[i], m_ordinal);
     }
 
     return result;
@@ -195,27 +175,41 @@ LameJuis::Accumulator::GetPitch()
     return x_voltages[static_cast<size_t>(GetInterval())] + m_intervalCV->getVoltage();
 }
 
-LameJuis::MatrixEvalResult
-LameJuis::Output::ComputePitch(LameJuis* matrix, LameJuis::InputVector defaultVector)
+LameJuis::MatrixEvalResultWithPitch
+LameJuis::Output::CacheForSingleInputVector::ComputePitch(
+    LameJuis* matrix,
+    LameJuis::Output* output,
+    LameJuis::InputVector defaultVector,
+    float percentile)
 {
-    using namespace LameJuisConstants;   
-    
-    MatrixEvalResult preResult[1 << x_numInputs];
-    InputVectorIterator itr = GetInputVectorIterator(defaultVector);
-    for (; !itr.Done(); itr.Next())
+    if (!m_isEvaluated)
     {
-        preResult[itr.m_ordinal] = matrix->EvalMatrix(itr.Get());
+        INFO("Evaluating %d", defaultVector.m_bits);
+        InputVectorIterator itr = output->GetInputVectorIterator(defaultVector);
+        for (; !itr.Done(); itr.Next())
+        {
+            m_cachedResults[itr.m_ordinal] = matrix->EvalMatrix(itr.Get());
+        }
+
+        m_numResults = itr.m_ordinal;
+
+        std::sort(m_cachedResults, m_cachedResults + m_numResults);
+        
+        m_isEvaluated = true;
     }
 
-    size_t numResults = itr.m_ordinal;
-    std::sort(preResult, preResult + numResults);
-
-    float percentile = m_coMuteState.GetPercentile();
-    ssize_t ix = static_cast<size_t>(percentile * numResults);
-    ix = std::min<ssize_t>(ix, numResults - 1);
+    ssize_t ix = static_cast<size_t>(percentile * m_numResults);
+    ix = std::min<ssize_t>(ix, m_numResults - 1);
     ix = std::max<ssize_t>(ix, 0);
+    return m_cachedResults[ix];
+}
 
-    return preResult[ix];
+
+LameJuis::MatrixEvalResultWithPitch
+LameJuis::Output::ComputePitch(LameJuis* matrix, LameJuis::InputVector defaultVector)
+{
+    float percentile = m_coMuteState.GetPercentile();
+    return m_outputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, percentile);
 }
 
 LameJuis::LameJuis()
@@ -285,6 +279,55 @@ LameJuis::LameJuis()
     rightExpander.consumerMessage = m_rightMessages[1];
 }
 
+void LameJuis::CheckMatrixChangedAndInvalidateCache()
+{
+    using namespace LameJuisConstants;
+
+    // Check if the matrix has changed, and if it has, invalidate all caches.
+    //
+    bool anyChanged = false;
+    for (size_t i = 0; i < x_numOperations; ++i)
+    {
+        if (m_operations[i].AnySwitchChanged())
+        {
+            anyChanged = true;
+        }
+    }
+
+    if (anyChanged)
+    {
+        ClearCaches();
+    }
+
+    // Check if any pitches have changed, and if so, invalidate all caches.
+    // This means LameJuis will use a lot more CPU if a user is modulating the intervals.
+    //
+    for (size_t i = 0; i < x_numAccumulators; ++i)
+    {
+        if (m_accumulators[i].HasChanged())
+        {
+            anyChanged = true;
+        }
+    }
+
+    if (anyChanged)
+    {
+        INFO("clearing output cache");
+        ClearOutputCaches();
+    }
+
+    // Finally, check if any co-mute states have changed, and invalidate the cache just of that output.
+    //
+    for (size_t i = 0; i < x_numAccumulators; ++i)
+    {
+        if (m_outputs[i].HasCoMutesChanged())
+        {
+            INFO("Clearing output %lu cache", i);
+            m_outputs[i].ClearAllCaches();
+        }
+    }
+}
+
 LameJuis::InputVector
 LameJuis::ProcessInputs()
 {
@@ -320,11 +363,11 @@ void LameJuis::ProcessOutputs(InputVector defaultVector, float dt)
 
     for (size_t i = 0; i < x_numAccumulators; ++i)
     {
-        MatrixEvalResult res = m_outputs[i].ComputePitch(this, defaultVector);
+        MatrixEvalResultWithPitch res = m_outputs[i].ComputePitch(this, defaultVector);
         m_outputs[i].SetPitch(res.m_pitch, dt);
         for (size_t j = 0; j < x_numAccumulators; ++j)
         {
-            msg.m_position[i][j] = res.m_high[j];
+            msg.m_position[i][j] = res.m_result.m_high[j];
         }
     }
 
@@ -333,6 +376,7 @@ void LameJuis::ProcessOutputs(InputVector defaultVector, float dt)
 
 void LameJuis::process(const ProcessArgs& args)
 {
+    CheckMatrixChangedAndInvalidateCache();
     InputVector defaultVector = ProcessInputs();
     ProcessOperations(defaultVector);
     ProcessOutputs(defaultVector, args.sampleTime);

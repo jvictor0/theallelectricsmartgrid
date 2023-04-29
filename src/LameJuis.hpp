@@ -40,9 +40,24 @@ struct LameJuis : Module
         void Init(rack::engine::Param* swtch)
         {
             m_switch = swtch;
+            m_value = GetSwitchVal();
         }
         
         SwitchVal GetSwitchVal();
+
+        SwitchVal m_value;
+
+        bool HasChanged()
+        {
+            SwitchVal newVal = GetSwitchVal();
+            if (m_value != newVal)
+            {
+                m_value = newVal;
+                return true;
+            }
+
+            return false;
+        }
         
         rack::engine::Param* m_switch = nullptr;
     };
@@ -74,6 +89,11 @@ struct LameJuis : Module
             {
                 m_bits &= ~(1 << i);
             }
+        }
+
+        void SetFromBitVector(size_t i, uint8_t other)
+        {
+            m_bits = (m_bits & ~(1 << i)) | (other & (1 << i));
         }
 
         size_t CountSetBits();
@@ -141,6 +161,24 @@ struct LameJuis : Module
             return x_numAccumulators - static_cast<size_t>(GetSwitchVal()) - 1;
         }
 
+        bool AnySwitchChanged()
+        {
+            using namespace LameJuisConstants;
+            bool result = false;
+            for (size_t i = 0; i < x_numInputs; ++i)
+            {
+                if (m_elements[i].HasChanged())
+                {
+                    result = true;
+
+                    // Don't break, need to set 'm_value' on the entire matrix.
+                    //
+                }              
+            }
+
+            return result;
+        }
+
         rack::engine::Param* m_switch = nullptr;
         rack::engine::Param* m_operatorKnob = nullptr;
         rack::engine::Light* m_light = nullptr;
@@ -195,6 +233,8 @@ struct LameJuis : Module
         rack::engine::Param* m_intervalKnob = nullptr;
         rack::engine::Input* m_intervalCV = nullptr;
 
+        float m_value;
+
         Interval GetInterval();
 
         int GetSemitones()
@@ -203,6 +243,18 @@ struct LameJuis : Module
         }
 
         float GetPitch();
+
+        bool HasChanged()
+        {
+            float newValue = GetPitch();
+            if (newValue != m_value)
+            {
+                m_value = newValue;
+                return true;
+            }
+
+            return false;
+        }
 
         void Init(
             rack::engine::Param* intervalKnob,
@@ -222,11 +274,15 @@ struct LameJuis : Module
             for (size_t i = 0; i < x_numAccumulators; ++i)
             {
                 m_high[i] = 0;
-                m_total[i] = 0;
             }
         }
 
-        void SetPitch(Accumulator* accumulators)
+        void Clear()
+        {
+            memset(m_high, 0, LameJuisConstants::x_numAccumulators);
+        }
+
+        float ComputePitch(Accumulator* accumulators) const
         {
             using namespace LameJuisConstants;
             
@@ -236,20 +292,54 @@ struct LameJuis : Module
                 result += accumulators[i].GetPitch() * m_high[i];
             }
 
-            m_pitch = result;
+            return result;
+        }
+        
+        uint8_t m_high[LameJuisConstants::x_numAccumulators];
+    };
+
+    void ClearCaches()
+    {
+        using namespace LameJuisConstants;
+        memset(m_isEvaluated, 0, sizeof(m_isEvaluated));
+        ClearOutputCaches();
+    }
+
+    void ClearOutputCaches()
+    {
+        using namespace LameJuisConstants;
+        
+        for (size_t i = 0; i < x_numAccumulators; ++i)
+        {
+            m_outputs[i].ClearAllCaches();
+        }
+    }
+
+    struct MatrixEvalResultWithPitch
+    {
+        MatrixEvalResultWithPitch()
+            : m_pitch(0)
+        {
         }
 
-        bool operator<(const MatrixEvalResult& other) const
+        MatrixEvalResultWithPitch(
+            const MatrixEvalResult& result,
+            Accumulator* accumulators)
+            : m_result(result)
+            , m_pitch(result.ComputePitch(accumulators))
+        {
+        }
+
+        bool operator<(const MatrixEvalResultWithPitch& other) const
         {
             return m_pitch < other.m_pitch;
         }
         
-        uint8_t m_high[LameJuisConstants::x_numAccumulators];
-        uint8_t m_total[LameJuisConstants::x_numAccumulators];
+        MatrixEvalResult m_result;
         float m_pitch;
     };
 
-    MatrixEvalResult EvalMatrix(InputVector inputVector);
+    MatrixEvalResultWithPitch EvalMatrix(InputVector inputVector);
 
     struct InputVectorIterator
     {
@@ -277,6 +367,20 @@ struct LameJuis : Module
         {
             return m_switch->getValue() < 0.5;
         }
+
+        bool HasChanged()
+        {
+            bool newValue = IsCoMuted();
+            if (m_value != newValue)
+            {
+                m_value = newValue;
+                return true;
+            }
+
+            return false;
+        }
+
+        bool m_value;
         
         rack::engine::Param* m_switch = nullptr;
     };
@@ -311,6 +415,22 @@ struct LameJuis : Module
             result = std::max(result, 0.f);
             return result;
         }
+
+        bool HasChanged()
+        {
+            using namespace LameJuisConstants;
+            
+            bool anyChanged = false;
+            for (size_t i = 0; i < x_numAccumulators; ++i)
+            {
+                if (m_switches[i].HasChanged())
+                {
+                    anyChanged = true;
+                }
+            }
+
+            return anyChanged;
+        }
         
         CoMuteSwitch m_switches[LameJuisConstants::x_numInputs];
         rack::engine::Param* m_percentileKnob = nullptr;
@@ -319,6 +439,29 @@ struct LameJuis : Module
 
     struct Output
     {
+        struct CacheForSingleInputVector
+        {
+            CacheForSingleInputVector() :
+                m_isEvaluated(false)
+            {
+            }
+            
+            void ClearCache()
+            {
+                m_isEvaluated = false;
+            }
+            
+            MatrixEvalResultWithPitch ComputePitch(
+                LameJuis* matrix,
+                LameJuis::Output* output,
+                LameJuis::InputVector defaultVector,
+                float percentile);
+            
+            MatrixEvalResultWithPitch m_cachedResults[1 << LameJuisConstants::x_numInputs];
+            size_t m_numResults;
+            bool m_isEvaluated;
+        };
+        
         rack::engine::Output* m_mainOut = nullptr;
         rack::engine::Output* m_triggerOut = nullptr;
         rack::engine::Light* m_triggerLight = nullptr;
@@ -326,7 +469,23 @@ struct LameJuis : Module
         float m_pitch = 0.0;
         CoMuteState m_coMuteState;
 
-        MatrixEvalResult ComputePitch(LameJuis* matrix, InputVector defaultVector);
+        CacheForSingleInputVector m_outputCaches[1 << LameJuisConstants::x_numInputs];
+
+        void ClearAllCaches()
+        {
+            using namespace LameJuisConstants;
+            for (size_t i = 0; i < (1 << LameJuisConstants::x_numInputs); ++i)
+            {
+                m_outputCaches[i].ClearCache();
+            }
+        }
+
+        bool HasCoMutesChanged()
+        {
+            return m_coMuteState.HasChanged();
+        }
+
+        MatrixEvalResultWithPitch ComputePitch(LameJuis* matrix, InputVector defaultVector);
        
         void SetPitch(float pitch, float dt)
         {
@@ -363,6 +522,7 @@ struct LameJuis : Module
         }
     };
 
+    void CheckMatrixChangedAndInvalidateCache();
     InputVector ProcessInputs();
     void ProcessOperations(InputVector defaultVector);
     void ProcessOutputs(InputVector defaultVector, float dt);
@@ -391,6 +551,9 @@ struct LameJuis : Module
 
     void process(const ProcessArgs& args) override;
 
+    MatrixEvalResult m_evalResults[1 << LameJuisConstants::x_numInputs];
+    bool m_isEvaluated[1 << LameJuisConstants::x_numInputs];
+    
     Input m_inputs[LameJuisConstants::x_numInputs];
     LogicOperation m_operations[LameJuisConstants::x_numOperations];
     Accumulator m_accumulators[LameJuisConstants::x_numAccumulators];
