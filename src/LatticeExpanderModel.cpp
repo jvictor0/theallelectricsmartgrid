@@ -33,7 +33,9 @@ struct LatticeExpanderWidget : ModuleWidget
     static constexpr float x_lightStartXHP = 2.0;
     static constexpr float x_lightStartYHP = 10.0;
     static constexpr float x_lightSpaceHP = 0.5;
+    static constexpr float x_testXSpacHP = -0.2;
 
+    
     CustomTextFieldWidget* m_noteValues[LatticeExpanderConstants::x_gridSize][LatticeExpanderConstants::x_gridSize];	
 
     Vec GetLightMM(size_t x, size_t y, LatticeExpanderConstants::LightColor color)
@@ -53,7 +55,7 @@ struct LatticeExpanderWidget : ModuleWidget
         using namespace LatticeExpanderConstants;   
 
         Vec lightMM = GetLightMM(x, y, LightColor::Red);
-        return Vec(lightMM.x - 2.5, lightMM.y);
+        return Vec(lightMM.x + x_testXSpacHP * x_hp, lightMM.y);
     }
 
     LatticeExpanderWidget(LatticeExpander* module)
