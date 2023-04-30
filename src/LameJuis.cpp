@@ -142,9 +142,9 @@ LameJuis::InputVectorIterator::Get()
     
     // Shift the bits of m_ordinal into the set positions of the co muted vector.
     //
-    for (ssize_t i = m_coMuteSize - 1; i >= 0; --i)
+    for (size_t i = 0; i < m_coMuteSize; ++i)
     {
-        result.SetFromBitVector(m_forwardingIndices[i], m_ordinal);
+        result.Set(m_forwardingIndices[i], InputVector(m_ordinal).Get(i));
     }
 
     return result;
@@ -184,7 +184,6 @@ LameJuis::Output::CacheForSingleInputVector::ComputePitch(
 {
     if (!m_isEvaluated)
     {
-        INFO("Evaluating %d", defaultVector.m_bits);
         InputVectorIterator itr = output->GetInputVectorIterator(defaultVector);
         for (; !itr.Done(); itr.Next())
         {
@@ -254,7 +253,7 @@ LameJuis::LameJuis()
     
     for (size_t i = 0; i < x_numAccumulators; ++i)
     {
-        configParam(GetAccumulatorIntervalKnobId(i), 0.f, 8.f, 0.f, "Accum Interval Knob " + std::to_string(i));
+        configParam(GetAccumulatorIntervalKnobId(i), 0.f, 11.f, 0.f, "Accum Interval Knob " + std::to_string(i));
         configParam(GetPitchPercentileKnobId(i), 0.f, 1.f, 0.f, "Voice Percentile Knob " + std::to_string(i));
 
         configInput(GetIntervalCVInputId(i), "Interval CV In " + std::to_string(i));
@@ -288,7 +287,7 @@ void LameJuis::CheckMatrixChangedAndInvalidateCache()
     bool anyChanged = false;
     for (size_t i = 0; i < x_numOperations; ++i)
     {
-        if (m_operations[i].AnySwitchChanged())
+        if (m_operations[i].AnyThingChanged())
         {
             anyChanged = true;
         }
@@ -312,7 +311,6 @@ void LameJuis::CheckMatrixChangedAndInvalidateCache()
 
     if (anyChanged)
     {
-        INFO("clearing output cache");
         ClearOutputCaches();
     }
 
@@ -322,7 +320,6 @@ void LameJuis::CheckMatrixChangedAndInvalidateCache()
     {
         if (m_outputs[i].HasCoMutesChanged())
         {
-            INFO("Clearing output %lu cache", i);
             m_outputs[i].ClearAllCaches();
         }
     }

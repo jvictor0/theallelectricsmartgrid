@@ -82,6 +82,11 @@ namespace Lattice
 
             return m_buf;
         }
+
+        void WriteCentsToBuf(uint32_t cents)
+        {
+            sprintf(m_buf, "%u", cents);
+        }
         
         char m_buf[16];
     };

@@ -91,11 +91,6 @@ struct LameJuis : Module
             }
         }
 
-        void SetFromBitVector(size_t i, uint8_t other)
-        {
-            m_bits = (m_bits & ~(1 << i)) | (other & (1 << i));
-        }
-
         size_t CountSetBits();
 
         uint8_t m_bits;
@@ -179,12 +174,40 @@ struct LameJuis : Module
             return result;
         }
 
+        bool AnyThingChanged()
+        {
+            bool anyChanged = false;
+            if (AnySwitchChanged())
+            {
+                anyChanged = true;
+            }
+
+            Operator op = GetOperator();
+            if (op != m_operatorValue)
+            {
+                m_operatorValue = op;
+                anyChanged = true;
+            }
+
+            SwitchVal sv = GetSwitchVal();
+            if (sv != m_switchValue)
+            {
+                m_switchValue = sv;
+                anyChanged = true;
+            }
+
+            return anyChanged;
+        }
+
         rack::engine::Param* m_switch = nullptr;
         rack::engine::Param* m_operatorKnob = nullptr;
         rack::engine::Light* m_light = nullptr;
         rack::engine::Output* m_output = nullptr;
         InputVector m_active;
         InputVector m_inverted;
+
+        Operator m_operatorValue;
+        SwitchVal m_switchValue;
 
         LameJuis::MatrixElement m_elements[LameJuisConstants::x_numInputs];
     };
@@ -206,29 +229,37 @@ struct LameJuis : Module
 
         static constexpr float x_voltages[] = {
             0 /*Off*/,
-            0.09310940439 /*half step = log_2(16/15)*/,
-            0.16992500144231237/*whole tone = log_2(9/8)*/,
-            0.2630344058337938 /*minor third = log_2(6/5)*/,
+            1.0 /*octave = log_2(2)*/,
+            0.5849625007211562 /*pefect fifth = log_2(3/2)*/,
             0.32192809488736235 /*major third = log_2(5/4)*/,
             0.4150374992788437 /*perfect fourth = log_2(4/3)*/,
-            0.5849625007211562 /*pefect fifth = log_2(3/2)*/,
-            0.8073549220576041 /*minor seventh = log_2(7/4)*/,
-            1.0 /*octave = log_2(2)*/
+            0.2630344058337938 /*minor third = log_2(6/5)*/,
+            0.16992500144231237/*whole tone = log_2(9/8)*/,
+            0.09310940439 /*half step = log_2(16/15)*/,
+            0.8073549220576041 /*log_2(7/4)*/,
+            0.45943161863 /*log_2(11/8)*/,
+            0.70043971814 /*log_2(13/8)*/,
+            0.95419631038 /*log_2(31/16)*/,
         };
 
         // Fake semitones map for the expander.
         //
         static constexpr int x_semitones[] = {
             0 /*Off*/,
-            1 /*half step*/,
-            2 /*whole tone*/,
-            3 /*minor third*/,
-            4 /*major third = log_2(5/4)*/,
-            5 /*perfect fourth*/,
+            0 /*octave*/,
             7 /*pefect fifth*/,
-            10 /*minor seventh*/,
-            0 /*octave*/
+            4 /*major third*/,
+            5 /*perfect fourth*/,
+            3 /*minor third*/,
+            2 /*whole tone*/,
+            1 /*half step*/,
+            0 /*7/4*/,
+            0 /*11/8*/,
+            0 /*13/8*/,
+            0 /*31/16*/,
         };
+
+        static constexpr size_t x_end12EDOLikeIx = 8;
         
         rack::engine::Param* m_intervalKnob = nullptr;
         rack::engine::Input* m_intervalCV = nullptr;
@@ -240,6 +271,15 @@ struct LameJuis : Module
         int GetSemitones()
         {
             return x_semitones[static_cast<int>(GetInterval())];
+        }
+
+        bool Is12EDOLike()
+        {
+            // More sophisticated analysis could work here, but honestly if the user provides an analog
+            // interval just have the expander display in cents (that is, say its not 12-EDO-like).
+            //
+            return m_intervalCV->getVoltage() == 0 &&
+                static_cast<size_t>(GetInterval()) < x_end12EDOLikeIx;
         }
 
         float GetPitch();
@@ -421,7 +461,7 @@ struct LameJuis : Module
             using namespace LameJuisConstants;
             
             bool anyChanged = false;
-            for (size_t i = 0; i < x_numAccumulators; ++i)
+            for (size_t i = 0; i < x_numInputs; ++i)
             {
                 if (m_switches[i].HasChanged())
                 {
@@ -534,6 +574,8 @@ struct LameJuis : Module
         for (size_t i = 0; i < x_numAccumulators; ++i)
         {
             msg.m_intervalSemitones[i] = m_accumulators[i].GetSemitones();
+            msg.m_intervalVoltages[i] = m_accumulators[i].GetPitch();
+            msg.m_is12EDOLike[i] = m_accumulators[i].Is12EDOLike();
         }
         
         if (rightExpander.module && rightExpander.module->model == modelLatticeExpander)

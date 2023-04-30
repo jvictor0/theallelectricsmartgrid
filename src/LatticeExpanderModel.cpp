@@ -48,6 +48,14 @@ struct LatticeExpanderWidget : ModuleWidget
                    x_hp * (x_lightStartYHP + y * x_lightSpacingHP + yOffset));
     }
 
+    Vec GetTextBoxMM(size_t x, size_t y)
+    {
+        using namespace LatticeExpanderConstants;   
+
+        Vec lightMM = GetLightMM(x, y, LightColor::Red);
+        return Vec(lightMM.x - 2.5, lightMM.y);
+    }
+
     LatticeExpanderWidget(LatticeExpander* module)
     {
         using namespace LatticeExpanderConstants;   
@@ -83,7 +91,7 @@ struct LatticeExpanderWidget : ModuleWidget
         {
             for (size_t y = 0; y < x_gridSize; ++y)
             {
-                m_noteValues[x][y] = createWidget<CustomTextFieldWidget>(mm2px(GetLightMM(x, y, LightColor::Red)));
+                m_noteValues[x][y] = createWidget<CustomTextFieldWidget>(mm2px(GetTextBoxMM(x, y)));
                 m_noteValues[x][y]->box.size = mm2px(Vec(8 * x_hp * x_lightSpaceHP, 4 * x_hp * x_lightSpaceHP));
                 m_noteValues[x][y]->Init(module, x, y);
                 addChild(m_noteValues[x][y]);
