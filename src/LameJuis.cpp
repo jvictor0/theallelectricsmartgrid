@@ -20,15 +20,20 @@ void LameJuis::Input::SetValue(LameJuis::Input* prev)
         m_value = m_schmittTrigger.isHigh();
         if (m_value && !oldValue)
         {
-            ++m_counter;
+            // Count down instead of up so each input is high on its "even" beats.
+            //
+            --m_counter;
         }
     }
     
-    // Each input (except the first) is normaled to divide-by-two of the previous input.
+    // Each input (except the first) is normaled to divide-by-two of the previous input,
+    // but in order to keep the phases in line, they are actually a divide-by-2-to-the-n
+    // of first plugged input above, where n is the number of unplugged inputs between.
+    // This is easiest to implement as cascading counters.
     //
     else if (prev)
     {
-        m_value = prev->m_counter % 2;
+        m_value = prev->m_counter % 2 == 0;
         m_counter = prev->m_counter / 2;        
     }
 
