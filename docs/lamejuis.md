@@ -9,7 +9,7 @@ permalink: /lamejuis
 
 ## Video Manual
 
-Find video tutorial [here](https://youtu.be/vQx_pSbcf3U).
+Find video tutorial [https://www.youtube.com/watch?v=vQx_pSbcf3U](here).
 
 ## Overview
 
