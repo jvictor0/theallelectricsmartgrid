@@ -33,7 +33,7 @@ void LameJuis::Input::SetValue(LameJuis::Input* prev)
     //
     else if (prev)
     {
-        m_value = prev->m_counter % 2 == 0;
+        m_value = prev->m_counter % 2 != 0;
         m_counter = prev->m_counter / 2;        
     }
 
