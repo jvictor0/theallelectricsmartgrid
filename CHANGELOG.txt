@@ -3,3 +3,6 @@
 -- Added 12-EDO Mode
 -- Consistent naming (inputs are letters, voices are numbers).
 -- Switches now show their value as a string-enum
+
+### 2.0.2 (2023-08-06)
+-- Fix bug in interval labels

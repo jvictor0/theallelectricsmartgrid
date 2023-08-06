@@ -257,6 +257,7 @@ struct LameJuis : Module
                     "Perfect Fourth",
                     "Minor Third",
                     "Whole Step",
+                    "Half Step",
                     "Seventh Harmonic",
                     "Eleventh Harmonic",
                     "Thirteenth Harmonic",
