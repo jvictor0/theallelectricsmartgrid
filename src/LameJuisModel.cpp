@@ -29,6 +29,82 @@ struct LameJuisWidget : ModuleWidget
     static constexpr float x_firstCoMuteXHP = 29.5;
     static constexpr float x_firstCoMuteYHP = 15.75;
 
+	struct RandomizeParamsItem : MenuItem
+    {
+        enum class ParamGroup
+        {
+            Matrix = 0,
+            Intervals = 1,
+            CoMutes = 2,
+            Percentiles = 3,
+            All = 4,
+            NumGroups = 5
+        };
+
+        static const char* ParamGroupToString(ParamGroup pg)
+        {
+            switch (pg)
+            {
+                case ParamGroup::Matrix: return "Matrix";
+                case ParamGroup::Intervals: return "Intervals";
+                case ParamGroup::CoMutes: return "CoMutes";
+                case ParamGroup::Percentiles: return "Percentiles";
+                case ParamGroup::All: return "All";
+                default: return nullptr;                    
+            }
+        }
+
+        int m_level;
+        ParamGroup m_group;
+		LameJuis* m_module;
+
+        RandomizeParamsItem(ParamGroup group, int level, LameJuis* module)
+            : m_level(level)
+            , m_group(group)
+            , m_module(module)
+        {
+            if (m_group == ParamGroup::Percentiles)
+            {
+                text = "Randomize Percentiles";
+            }
+            else
+            {
+                text = "Level " + std::to_string(m_level);
+            }
+        }
+
+        ~RandomizeParamsItem()
+        {
+        }
+        
+		void onAction(const event::Action &e) override
+        {
+            switch (m_group)
+            {
+                case ParamGroup::Matrix:
+                    m_module->RandomizeMatrix(m_level);
+                    break;
+                case ParamGroup::Intervals:
+                    m_module->RandomizeIntervals(m_level);
+                    break;
+                case ParamGroup::CoMutes:
+                    m_module->RandomizeCoMutes(m_level);
+                    break;
+                case ParamGroup::Percentiles:
+                    m_module->RandomizePercentiles();
+                    break;
+                case ParamGroup::All:
+                    m_module->RandomizeMatrix(m_level);
+                    m_module->RandomizeIntervals(m_level);
+                    m_module->RandomizePercentiles();
+                    m_module->RandomizeCoMutes(m_level);
+                    break;
+                default:
+                    break;
+            }
+		}		
+	};
+    
     Vec GetInputJackMM(size_t inputId)
     {
         return Vec(x_hp + 2.5,
@@ -197,6 +273,51 @@ struct LameJuisWidget : ModuleWidget
 
         }
 	}
+
+    void appendContextMenu(Menu *menu) override
+    {
+        LameJuis* lameJuis = dynamic_cast<LameJuis*>(module);
+        
+        MenuLabel* randomLabel = new MenuLabel();
+		randomLabel->text = "Randomize";
+		menu->addChild(randomLabel);
+
+        menu->addChild(new MenuSeparator);
+        
+        for (int i = 0; i < static_cast<int>(RandomizeParamsItem::ParamGroup::NumGroups); ++i)
+        {
+            RandomizeParamsItem::ParamGroup group = static_cast<RandomizeParamsItem::ParamGroup>(i);
+            if (group == RandomizeParamsItem::ParamGroup::Percentiles)
+            {
+                RandomizeParamsItem* randomizeStackMuteItem = new RandomizeParamsItem(group, 0 /*level*/, lameJuis);
+                menu->addChild(randomizeStackMuteItem);
+            }
+            else
+            {
+                auto createSubmenu = [group, lameJuis] (ui::Menu* subMenu)
+                {
+                    for (size_t level = 0; level < 3; ++level)
+                    {                    
+                        RandomizeParamsItem* randomizeStackMuteItem = new RandomizeParamsItem(group, level, lameJuis);
+                        subMenu->addChild(randomizeStackMuteItem);
+                    }
+                };
+
+                menu->addChild(createSubmenuItem(
+                                   std::string("Randomize ") + RandomizeParamsItem::ParamGroupToString(group),
+                                   "",
+                                   createSubmenu));
+            }
+        }
+
+        menu->addChild(new MenuSeparator);
+
+		menu->addChild(createBoolMenuItem(
+                           "12 EDO Mode",
+                           "",
+                           [lameJuis]() { return lameJuis->m_12EDOMode; },
+                           [lameJuis](bool newVal) { lameJuis->m_12EDOMode = newVal; }));
+    }
 };
 
 Model* modelLameJuis = createModel<LameJuis, LameJuisWidget>("LameJuis");

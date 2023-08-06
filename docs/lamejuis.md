@@ -34,7 +34,7 @@ Because going up a perfect fifth and then a major third is the same as going up 
 
 So the game becomes this: find a way to draw patterns on that grid.  Thats where the logic comes in.  A few logic operations (on the same inputs) are assigned to different intervals.  Count up the number of "high" gates for each interval and get a position on the grid.
 
-One more note, (and this can mostly be ignored except by people who love tuning): because the intervals are laid out on a grid where the relationships between notes are very well defined, it makes complete sense to use "Just Intervals" instead of 12-EDO intervals.  That means the frequency ratio between a note and its neighbor to the right is exactly 3/2, and its neighbor to the top is 5/4.  Don't worry, its easy to make sequences where very pure tuning won't really sound wrong.  The pure intervals can produce a delightful "buzzing" effect in many cases, or sound "very xenharmonic" if thats what you're going for.  For musicians who are happy thinking just about 12-EDO, this detail can simply be ignored.
+One more note, (and this can mostly be ignored except by people who love tuning): because the intervals are laid out on a grid where the relationships between notes are very well defined, it makes complete sense to use "Just Intervals" instead of 12-EDO intervals.  That means the frequency ratio between a note and its neighbor to the right is exactly 3/2, and its neighbor to the top is 5/4.  Don't worry, its easy to make sequences where very pure tuning won't really sound wrong.  The pure intervals can produce a delightful "buzzing" effect in many cases, or sound "very xenharmonic" if thats what you're going for.  For musicians who are happy thinking just about 12-EDO, this detail can simply be ignored, or right-click and select '12-EDO mode'.
 
 ## Inputs
 
@@ -48,6 +48,10 @@ The six identical inputs are processed by six identical logic operations.  Each 
 
 You may notice some operations like NAND are not included.  This is because it is not needed, given the ability to negate individual inputs.  For instance, A NAND B is the same as (NOT A) OR (NOT B).  This is called De-Morgan's law and can be fun to think through if you haven't seen it before.  Similarly, there is no CV over the state of the matrix, but instead variation comes from logic operations changing their response as slower changing gates go from low to high and back again.  For instance, A AND F will go up and down as A changes when F is high, but as soon as F goes low the gate will stay low until F comes back.  The logic matrix becomes surprisingly intuitive after you play with it a bit, and its very easy to just start flipping switches and see what comes out.  You can see the tips and trick section for tips and tricks.
 
+## 12-EDO Mode
+
+If you don't want to learn what a comma is, or if you want to use LameJuis alongside a regular 12-EDO sequence, right-click and select 12-EDO-mode.  This will make the interval selector pick 12-EDO intervals, and commas (potentially harsh sounds when jumping between far-away spots in the lattice) will disapear.
+
 ## Intervals
 
 Each logic operation is finally routed by the final three-position "Interval Select" switch (3) to one of three intervals.  These intervals are determined by the three "Interval" knobs (4) and their corresponding CV input (F).  When the operation outputs high, the pitch moves up by the selected interval (before co-muting), and is unaffected otherwise.  Let's say the top interval is P5, and the middle interval is M3.  If there are two matrix rows with high outputs with interval select set to P5, and one row with high output with interval set to M3, the pitch produced will be two fifths and one third up, which happens to be a major seventh.  To say another way, for each of the three possible positions of the interval selector switch, count the number of logic operations which are currently high, and go up by that interval, that many times.
@@ -58,19 +62,19 @@ The value of the "Interval CV" (F) input is added to the interval from the knob 
 
 The interval knob is arranged so more familiar ratios are found on the CCW side, and more esoteric intervals on the CW side.  The intervals labeled in familiar ways are very close to western 12-EO intervals, but insead of irrationals like 2^{7/12} for a perfect fifth, Just frequency ratios like 3/2 are used. The following ratios are used:
 
-- Off: 1/1: unison
-- 8va: 2/1: an octave up
-- P5: 3/2: the third harmonic, an octave down
-- M3: 5/4: the fifth harmonic, two octaves down
-- P4: 4/3: an octave up, a fifth down
-- m3: 6/5: a fifth up, a major third down
-- M2: 9/8: two fifths up, an octave down
-- m2: 16/15: an octave up, a fifth and a major third down
-- [7/4](https://en.xen.wiki/w/7/4): The 7th harmonic, two octaves down.  A flat minor seventh.  Used in barbershop quarter, African and blues.
-- [11/8](https://en.xen.wiki/w/7/4): The 11th harmonic, three octaves down.  A half-flat tritone.
-- [13/8](https://en.xen.wiki/w/7/4): The 13th harmonic, three octaves down.  A neutral sixth. 
-- [31/16](https://en.xen.wiki/w/7/4): The 31st harmonic, four octaves down.  A flat octave, used by La Monte Young.
-
+- Off: 1/1: unison.
+- 8va: 2/1: an octave up.
+- P5: 3/2: the third harmonic, an octave down.
+- M3: 5/4: the fifth harmonic, two octaves down.
+- P4: 4/3: an octave up, a fifth down.
+- m3: 6/5: a fifth up, a major third down.
+- M2: 9/8: two fifths up, an octave down.
+- m2: 16/15: an octave up, a fifth and a major third down.
+- [7/4](https://en.xen.wiki/w/7/4): The 7th harmonic, two octaves down.  A flat minor seventh.  Used in barbershop quarter, African and blues.  Is a minor 7th in 12-EDO-mode.
+- [11/8](https://en.xen.wiki/w/11/8): The 11th harmonic, three octaves down.  A half-flat tritone.    Is a tritone in 12-EDO-mode.
+- [13/8](https://en.xen.wiki/w/13/8): The 13th harmonic, three octaves down.  A neutral sixth. Is a minor sixth in 12-EDO-mode.
+- [31/16](https://en.xen.wiki/w/31/16): The 31st harmonic, four octaves down.  A flat octave, used by La Monte Young.  Is a major seventh in 12-EDO-mode.
+}
 The algorithm described above produces the melody that will come out if all co-mutes are tuned off (the middle position).  And the melodies are quite fascinating.  No music theory knowledge was used to construct them, no scale chosen, and yet the feeling of key, cadence, theme and variation arise naturally, depending on the switch positions.  All we did was some binary logic and multiplied some fractions, yet the result definitively sounds like something.  Depending on the configuration, melodies can go from quite familiar to exotic and xen, but there's a quality about it which, at least to my ears, sounds musical.
 
 ## Co-Muting
@@ -89,18 +93,26 @@ As far as I'm aware, this is a novel method for generated sequences.  It isn't a
 
 The lattice expander won't change what LameJuis is up to, but it can help with visualization.  The X-coordinate is the top interval, the Y-coordinate is the middle interval.  It will change the layout as the bottom interval changes (I can't make it 3-d, sorry), and switch to cents if non 12-EDO intervals (or user-provided intervals) are used.  Just slap it to the right of LameJuis and watch the lights blink.
 
+For some lovely vocal harmonies using a similar visualization, check out Gary Garrett's [Flying Dream](https://www.youtube.com/watch?app=desktop&v=jA1C9VFqJKo).
+
+## Randomizer
+
+There are several randomizer functions, that will randomize parameters to different levels of chaos.  Level 0 is the most tame, level 3 means flip all the switches and see what happens.  Just right-click to find em.
+
 ## Tips and Tricks
 
 - Try lots of different inputs.  Clock dividers, Euclidean rhythms, Bournouli gates, clocks with different phases and duty cycles all sound good.  
 - There is no "RESET" for the inputs, since LameJuis is supposed to be stateless, not a "step sequencer".  Putting a resettable clock divider in powers-of-2 mode and routing the dividers accordingly allows will let you reset it.
+- LameJuis can be somewhat sensitive to buffer delays on the gate inputs.  If you get extra unwanted triggers, try using a single sample-and-hold before the inputs to make all clocks change at the same time.
 - Use the "off" interval.  Six equations is a lot, you can spare one to just use as an extra logic out/gate sequencer/end-of-cycle output.  Or use it strategically to create a key change.
 - AND logics will be low more of the time and sound like they add upwards motion to the melodies.  OR logics will be high most of the time and add downwards motion to the logic.  The more inputs are active the more "most of the time" is.
 - XOR logics will be the most chaotic and unpredictable.  For instance, A XOR F will invert the phase of A when F goes high.  An XOR with many inputs will create a complex rhythm.
 - Sequence the percentile CVs.  LameJuis can weirdly abosorb weirdness in the sequence, so changing parameters of the sequence, like the speed or skipping steps, tends to sound good.  
 - Use the logic outs for tambre, or for drums.  It sounds very cohesive.
 - Use Grande Microtonal Notes and the Interval CV input to get whatever EDO you want.  For instance, say you want to compose in 19-EDO, but you don't know anything about it.  First use [xenharmonic wiki](https://en.xen.wiki/w/Main_Page) to figure out that the the 11th and 6th step of 19 EDO correspond to the fifth and major third, respectively.  Pick those on Microtonal Notes, route those to LameJuis's Interval CV and and you're ready to start --annoying your loved ones-- making microtonal music.
-- Play the co-mutes.  Just try things with them. 
+- Play the co-mutes.  Just try things with them.  Right click and try randomizing them.
 - Use the lattice expander.  It just helps.
+- General trick for modules like this, use [8Face](https://library.vcvrack.com/Stoermelder-P1/EightFace).  Find a pattern you like, mess it up and come back, all as performance gestures.
 
 ## Thank you
 

@@ -58,6 +58,8 @@ struct LameJuis : Module
 
             return false;
         }
+
+        void Randomize(int level);
         
         rack::engine::Param* m_switch = nullptr;
     };
@@ -104,8 +106,20 @@ struct LameJuis : Module
             And = 1,
             Xor = 2,
             AtLeastTwo = 3,
-            Majority = 4
+            Majority = 4,
+            NumOperations = 5,
         };
+
+        static std::vector<std::string> GetLogicNames()
+        {
+            return std::vector<std::string>({
+                    "Or",
+                    "And",
+                    "Xor",
+                    "At Least Two",
+                    "Majority"
+                });
+        }
         
         enum class SwitchVal : char
         {
@@ -199,6 +213,8 @@ struct LameJuis : Module
             return anyChanged;
         }
 
+        void Randomize(int level);
+
         rack::engine::Param* m_switch = nullptr;
         rack::engine::Param* m_operatorKnob = nullptr;
         rack::engine::Light* m_light = nullptr;
@@ -217,16 +233,36 @@ struct LameJuis : Module
         enum class Interval
         {
             Off = 0,
-            HalfStep = 1,
-            WholeStep = 2,
-            MinorThird = 3,
-            MajorThird = 4,
-            PerfectFourth = 5,
-            PerfectFifth = 6,
-            MinorSeventh = 7,
-            Octave = 8
+            Octave = 1,
+            PerfectFifth = 2,
+            MajorThird = 3,
+            PerfectFourth = 4,
+            MinorThird = 5,            
+            WholeStep = 6,
+            HalfStep = 7,
+            SevenHarm = 8,
+            ElevenHarm = 9,
+            ThirteenHarm = 10,
+            ThirtyOneHarm = 11,
+            NumIntervals = 12,
         };
 
+        static std::vector<std::string> GetIntervalNames()
+        {
+            return std::vector<std::string>({
+                    "Off",
+                    "Octave",
+                    "Perfect Fifth",
+                    "Major Third",
+                    "Perfect Fourth",
+                    "Minor Third",
+                    "Whole Step",
+                    "Seventh Harmonic",
+                    "Eleventh Harmonic",
+                    "Thirteenth Harmonic",
+                    "Thirty-First Harmonic"});
+        }
+        
         static constexpr float x_voltages[] = {
             0 /*Off*/,
             1.0 /*octave = log_2(2)*/,
@@ -266,6 +302,8 @@ struct LameJuis : Module
 
         float m_value;
 
+        bool* m_12EDOMode;
+
         Interval GetInterval();
 
         int GetSemitones()
@@ -298,11 +336,15 @@ struct LameJuis : Module
 
         void Init(
             rack::engine::Param* intervalKnob,
-            rack::engine::Input* intervalCV)
+            rack::engine::Input* intervalCV,
+            bool* twelveEDOMode)
         {
             m_intervalKnob = intervalKnob;
             m_intervalCV = intervalCV;
+            m_12EDOMode = twelveEDOMode;
         }
+
+        void Randomize(int level);
     };
 
     struct MatrixEvalResult
@@ -471,6 +513,9 @@ struct LameJuis : Module
 
             return anyChanged;
         }
+
+        void RandomizeCoMutes(int level);
+        void RandomizePercentiles();
         
         CoMuteSwitch m_switches[LameJuisConstants::x_numInputs];
         rack::engine::Param* m_percentileKnob = nullptr;
@@ -560,6 +605,16 @@ struct LameJuis : Module
             m_triggerLight = triggerLight;
             m_coMuteState.Init(percentileKnob, percentileCV);
         }
+
+        void RandomizeCoMutes(int level)
+        {
+            m_coMuteState.RandomizeCoMutes(level);
+        }
+
+        void RandomizePercentiles()
+        {
+            m_coMuteState.RandomizePercentiles();
+        }
     };
 
     void CheckMatrixChangedAndInvalidateCache();
@@ -591,10 +646,20 @@ struct LameJuis : Module
     {
     }
 
+    void RandomizeMatrix(int level);
+    void RandomizeIntervals(int level);
+    void RandomizeCoMutes(int level);
+    void RandomizePercentiles();
+
     void process(const ProcessArgs& args) override;
 
+	json_t* dataToJson() override;
+    void dataFromJson(json_t* rootJ) override;
+    
     MatrixEvalResult m_evalResults[1 << LameJuisConstants::x_numInputs];
     bool m_isEvaluated[1 << LameJuisConstants::x_numInputs];
+
+    bool m_12EDOMode;
     
     Input m_inputs[LameJuisConstants::x_numInputs];
     LogicOperation m_operations[LameJuisConstants::x_numOperations];
