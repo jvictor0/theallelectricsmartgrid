@@ -6,3 +6,6 @@
 
 ### 2.0.2 (2023-08-06)
 -- Fix bug in interval labels
+
+### 2.0.3 (2023-08-08)
+-- Change brand to The All Electric Smart Grid :)
