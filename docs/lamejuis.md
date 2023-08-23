@@ -5,7 +5,7 @@ nav_exclude: true
 permalink: /lamejuis
 ---
 
-### LaMeJuIS
+# LaMeJuIS
 
 ![Expression]({{ "/LameJuisFrontPanel.png" | relative_url }})
 

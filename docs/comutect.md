@@ -5,7 +5,7 @@ nav_exclude: true
 permalink: /comutect
 ---
 
-### Co-Muting: More ways to understand it
+# Co-Muting: More ways to understand it
 
 ## On Language
 
