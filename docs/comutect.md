@@ -2,8 +2,10 @@
 layout: page
 title: Co-muting: More ways to understand it
 nav_exclude: true
-permalink: /lamejuis
+permalink: /comutect
 ---
+
+### Co-Muting: More ways to understand it
 
 ## On Language
 
@@ -27,7 +29,7 @@ $$\iota_{2,4} : I^4 \sim I\times \{0,\}\times I\times \{0,\}\times I\times I \to
 
 to be the inclusion.  Then to mute inputs 2 and 4, simply compute the pullback $i^*F_M:I^4\to\mathbb{P}$.  All I've done is used way to fancy language to describe a simple idea. But it highlights something: although this is musically useful, it uses a non-canonical map, which makes category theory nerds anxious.  It can also be accomplished with an external muting module.
 
-To see co-muting, first let $A$ denote the product of the non-co-muted inputs and B the product of the comuted inputs, so we have
+To see co-muting, first let $A$ denote the product of the non-co-muted inputs and $B$ the product of the comuted inputs, so we have
 
 $$A\times B \sim I^6$$
 
