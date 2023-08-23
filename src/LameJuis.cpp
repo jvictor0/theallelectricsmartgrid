@@ -10,6 +10,7 @@ void LameJuis::Input::SetValue(LameJuis::Input* prev)
 {
     using namespace LameJuisConstants;
     bool oldValue = m_value;
+    m_changed = false;
         
     // If a cable is connected, use that value.
     //
@@ -39,6 +40,7 @@ void LameJuis::Input::SetValue(LameJuis::Input* prev)
 
     if (oldValue != m_value)
     {
+        m_changed = true;
         m_light->setBrightness(m_value ? 1.f : 0.f);
     }
 }
@@ -411,9 +413,9 @@ LameJuis::Output::CacheForSingleInputVector::ComputePitch(
 
 
 LameJuis::MatrixEvalResultWithPitch
-LameJuis::Output::ComputePitch(LameJuis* matrix, LameJuis::InputVector defaultVector)
+LameJuis::Output::ComputePitch(LameJuis* matrix, LameJuis::InputVector defaultVector, size_t chan)
 {
-    float percentile = m_coMuteState.GetPercentile();
+    float percentile = m_coMuteState.GetPercentile(chan);
     return m_outputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, percentile);
 }
 
@@ -490,6 +492,8 @@ LameJuis::LameJuis()
     rightExpander.consumerMessage = m_rightMessages[1];
 
     m_12EDOMode = false;
+    m_timeQuantizeMode = false;
+    m_firstStep = true;
 }
 
 void LameJuis::CheckMatrixChangedAndInvalidateCache()
@@ -574,12 +578,19 @@ void LameJuis::ProcessOutputs(InputVector defaultVector, float dt)
 
     for (size_t i = 0; i < x_numAccumulators; ++i)
     {
-        MatrixEvalResultWithPitch res = m_outputs[i].ComputePitch(this, defaultVector);
-        m_outputs[i].SetPitch(res.m_pitch, dt);
-        for (size_t j = 0; j < x_numAccumulators; ++j)
+        size_t chans = m_outputs[i].SetPolyChans();
+        msg.m_polyChans[i] = m_outputs[i].IsPlugged() ? chans : 0;
+        for (size_t j = 0; j < chans; ++j)
         {
-            msg.m_position[i][j] = res.m_result.m_high[j];
+            MatrixEvalResultWithPitch res = m_outputs[i].ComputePitch(this, defaultVector, j);
+            m_outputs[i].SetPitch(res.m_pitch, dt, j);
+            for (size_t k = 0; k < x_numAccumulators; ++k)
+            {
+                msg.m_position[i][j][k] = res.m_result.m_high[k];
+            }
         }
+
+        ProcessTriggers(dt);
     }
 
     SendExpanderMessage(msg);
@@ -649,8 +660,17 @@ void LameJuis::RandomizePercentiles()
 
 void LameJuis::process(const ProcessArgs& args)
 {
-    CheckMatrixChangedAndInvalidateCache();
     InputVector defaultVector = ProcessInputs();
+
+    if (!ShouldDoStep())
+    {
+        ProcessTriggers(args.sampleTime);
+        return;
+    }
+
+    m_firstStep = false;
+    
+    CheckMatrixChangedAndInvalidateCache();
     ProcessOperations(defaultVector);
     ProcessOutputs(defaultVector, args.sampleTime);
 }
@@ -659,6 +679,7 @@ json_t* LameJuis::dataToJson()
 {
     json_t* rootJ = json_object();
     json_object_set_new(rootJ, "12EDOMode", json_boolean(m_12EDOMode));
+    json_object_set_new(rootJ, "TimeQuantizeMode", json_boolean(m_timeQuantizeMode));
     return rootJ;
 }
 
@@ -668,5 +689,11 @@ void LameJuis::dataFromJson(json_t* rootJ)
     if (twelveEDOModeJ)
     {
         m_12EDOMode = json_boolean_value(twelveEDOModeJ);
+	}
+
+    json_t* timeQuantizeModeJ = json_object_get(rootJ, "TimeQuantizeMode");
+    if (timeQuantizeModeJ)
+    {
+        m_timeQuantizeMode = json_boolean_value(timeQuantizeModeJ);
 	}
 };

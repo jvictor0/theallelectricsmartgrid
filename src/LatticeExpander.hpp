@@ -10,7 +10,8 @@ struct LatticeExpanderMessage
     int m_intervalSemitones[LameJuisConstants::x_numAccumulators];
     float m_intervalVoltages[LameJuisConstants::x_numAccumulators];
     bool m_is12EDOLike[LameJuisConstants::x_numAccumulators];
-    int m_position[LameJuisConstants::x_numAccumulators][LameJuisConstants::x_numAccumulators];
+    int m_position[LameJuisConstants::x_numAccumulators][LameJuisConstants::x_maxPoly][LameJuisConstants::x_numAccumulators];
+    size_t m_polyChans[LameJuisConstants::x_numAccumulators];
 
     LatticeExpanderMessage()
     {
@@ -109,24 +110,31 @@ struct LatticeExpander : Module
     //
     void PickCurZVal()
     {
+        using namespace LatticeExpanderConstants;
         LatticeExpanderMessage* msg = static_cast<LatticeExpanderMessage*>(leftExpander.consumerMessage);
 
-        // Ugly code, but just check for sets of 2-out-of-three.
+        size_t histZVals[x_gridSize];
+        memset(histZVals, 0, sizeof(histZVals));
+
+        // Make histogram of z values.
         //
-        if (msg->m_position[0][2] == msg->m_position[1][2] ||
-            msg->m_position[0][2] == msg->m_position[2][2])
+        for (size_t i = 0; i < LameJuisConstants::x_numAccumulators; ++i)
         {
-            m_curZVal = msg->m_position[0][2];
+            for (size_t j = 0; j < msg->m_polyChans[i]; ++j)
+            {
+                ++histZVals[msg->m_position[i][j][2]];
+            }
         }
-        else if (msg->m_position[1][2] == msg->m_position[2][2])
+
+        // Pick most populous Z value.  On ties lowest wins.
+        //
+        m_curZVal = 0;
+        for (size_t i = 0; i < x_gridSize; ++i)
         {
-            m_curZVal = msg->m_position[1][2];
-        }
-        else
-        {
-            // They are all three different, so pick the first voice.
-            //
-            m_curZVal = msg->m_position[0][2];
+            if (histZVals[m_curZVal] < histZVals[i])
+            {
+                m_curZVal = i;                
+            }
         }
     }
 
@@ -149,15 +157,31 @@ struct LatticeExpander : Module
     {        
         using namespace LatticeExpanderConstants;
         LatticeExpanderMessage* msg = static_cast<LatticeExpanderMessage*>(leftExpander.consumerMessage);
-        
+
+        // Clear the lights
+        //
+        for (size_t i = 0; i < x_gridSize; ++i)
+        {
+            for (size_t j = 0; j < x_gridSize; ++j)
+            {                
+                for (size_t k = 0; k < LameJuisConstants::x_numAccumulators; ++k)
+                {
+                    LightColor color = static_cast<LightColor>(k);                
+                    lights[GetLatticeLightId(i, j, color)].setBrightness(0.f);
+                }
+            }
+        }
+
+        // Set the lights
+        //
         for (size_t i = 0; i < LameJuisConstants::x_numAccumulators; ++i)
         {
-            if (msg->m_position[i][0] != m_prevMessage.m_position[i][0] ||
-                msg->m_position[i][1] != m_prevMessage.m_position[i][1] ||
-                (msg->m_position[i][2] == m_curZVal) != (m_prevMessage.m_position[i][2] == m_prevZVal))
+            for (size_t j = 0; j < msg->m_polyChans[i]; ++j)
             {
-                SetLightFromArray(m_prevMessage.m_position[i], i, false);
-                SetLightFromArray(msg->m_position[i], i, true);
+                if (msg->m_position[i][j][2] == m_curZVal)
+                {
+                    SetLightFromArray(msg->m_position[i][j], i);
+                }
             }
         }
     }
@@ -211,7 +235,7 @@ struct LatticeExpander : Module
         }
     }
 
-    void SetLightFromArray(int* values, size_t accumId, bool value)
+    void SetLightFromArray(int* values, size_t accumId)
     {
         using namespace LatticeExpanderConstants;
 
@@ -219,12 +243,11 @@ struct LatticeExpander : Module
         
         // Do nothing if the position is off the grid.
         //
-        size_t expectedZVal = value ? m_curZVal : m_prevZVal;
         if (static_cast<size_t>(values[0]) < x_gridSize &&
             static_cast<size_t>(values[1]) < x_gridSize &&
-            static_cast<size_t>(values[2]) == expectedZVal)
+            static_cast<size_t>(values[2]) == static_cast<size_t>(m_curZVal))
         {
-            lights[GetLatticeLightId(values[0], values[1], color)].setBrightness(value ? 1.f : 0.f);
+            lights[GetLatticeLightId(values[0], values[1], color)].setBrightness(1.f);
         }        
     }
 

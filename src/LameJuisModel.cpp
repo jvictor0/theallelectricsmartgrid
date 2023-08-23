@@ -317,6 +317,12 @@ struct LameJuisWidget : ModuleWidget
                            "",
                            [lameJuis]() { return lameJuis->m_12EDOMode; },
                            [lameJuis](bool newVal) { lameJuis->m_12EDOMode = newVal; }));
+
+		menu->addChild(createBoolMenuItem(
+                           "Time Quantize Mode",
+                           "",
+                           [lameJuis]() { return lameJuis->m_timeQuantizeMode; },
+                           [lameJuis](bool newVal) { lameJuis->m_timeQuantizeMode = newVal; }));
     }
 };
 

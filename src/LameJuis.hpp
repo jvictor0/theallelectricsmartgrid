@@ -15,6 +15,7 @@ struct LameJuis : Module
         rack::engine::Light* m_light = nullptr;
         bool m_value = false;
         uint8_t m_counter = 0;
+        bool m_changed;
 
         void Init(
             rack::engine::Input* port,
@@ -23,6 +24,7 @@ struct LameJuis : Module
             m_port = port;
             m_light = light;
             m_counter = 0;
+            m_changed = false;
         }
         
         void SetValue(Input* prev);
@@ -489,14 +491,36 @@ struct LameJuis : Module
         {
             m_percentileKnob = percentileKnob;
             m_percentileCV = percentileCV;
+            m_polyChans = 0;
         }
 
-        float GetPercentile()
+        size_t GetPolyChans()
         {
-            float result = m_percentileKnob->getValue() + m_percentileCV->getVoltage() / 5.0;
+            return std::max<size_t>(m_percentileCV->getChannels(), 1);
+        }
+
+        float GetPercentile(size_t chan)
+        {
+            m_percentileCVValue[chan] = m_percentileCV->getVoltage(chan);
+            float result = m_percentileKnob->getValue() + m_percentileCVValue[chan] / 5.0;
             result = std::min(result, 1.f);
             result = std::max(result, 0.f);
             return result;
+        }
+
+        bool PercentileCVChanged()
+        {
+            if (GetPolyChans() != m_polyChans)
+            {
+                return true;
+            }
+            
+            for (size_t i = 0; i < GetPolyChans(); ++i)
+            {
+                return m_percentileCVValue[i] != m_percentileCV->getVoltage(i);
+            }
+
+            return false;
         }
 
         bool HasChanged()
@@ -521,6 +545,8 @@ struct LameJuis : Module
         CoMuteSwitch m_switches[LameJuisConstants::x_numInputs];
         rack::engine::Param* m_percentileKnob = nullptr;
         rack::engine::Input* m_percentileCV = nullptr;
+        float m_percentileCVValue[LameJuisConstants::x_maxPoly];
+        size_t m_polyChans;
     };
 
     struct Output
@@ -551,12 +577,22 @@ struct LameJuis : Module
         rack::engine::Output* m_mainOut = nullptr;
         rack::engine::Output* m_triggerOut = nullptr;
         rack::engine::Light* m_triggerLight = nullptr;
-        rack::dsp::PulseGenerator m_pulseGen;
-        float m_pitch = 0.0;
+        rack::dsp::PulseGenerator m_pulseGen[LameJuisConstants::x_maxPoly];
+        float m_pitch[LameJuisConstants::x_maxPoly];
         CoMuteState m_coMuteState;
 
         CacheForSingleInputVector m_outputCaches[1 << LameJuisConstants::x_numInputs];
 
+        bool PercentileCVChanged()
+        {
+            return m_coMuteState.PercentileCVChanged();
+        }
+
+        size_t GetPolyChans()
+        {
+            return m_coMuteState.GetPolyChans();
+        }
+        
         void ClearAllCaches()
         {
             using namespace LameJuisConstants;
@@ -571,24 +607,42 @@ struct LameJuis : Module
             return m_coMuteState.HasChanged();
         }
 
-        MatrixEvalResultWithPitch ComputePitch(LameJuis* matrix, InputVector defaultVector);
+        MatrixEvalResultWithPitch ComputePitch(LameJuis* matrix, InputVector defaultVector, size_t chan);
        
-        void SetPitch(float pitch, float dt)
+        void SetPitch(float pitch, float dt, size_t chan)
         {
-            bool changedThisFrame = (pitch != m_pitch);
-            m_pitch = pitch;
-            m_mainOut->setVoltage(pitch);
+            bool changedThisFrame = (pitch != m_pitch[chan]);
+            m_pitch[chan] = pitch;
+            m_mainOut->setVoltage(pitch, chan);
 
             if (changedThisFrame)
             {
-                m_pulseGen.trigger(0.01);
+                m_pulseGen[chan].trigger(0.01);
             }
-
-            bool trig = m_pulseGen.process(dt);
-            m_triggerOut->setVoltage(trig ? 5.f : 0.f);
-            m_triggerLight->setBrightness(trig ? 1.f : 0.f);
         }
 
+        size_t SetPolyChans()
+        {
+            size_t chans = GetPolyChans();
+            m_coMuteState.m_polyChans = chans;
+            m_mainOut->setChannels(chans);
+            m_triggerOut->setChannels(chans);
+            return chans;
+        }
+        
+        void ProcessTriggers(float dt)
+        {
+            bool anyTrig = false;
+            for (size_t i = 0; i < m_coMuteState.m_polyChans; ++i)
+            {
+                bool trig = m_pulseGen[i].process(dt);
+                m_triggerOut->setVoltage(trig ? 5.f : 0.f, i);
+                anyTrig = anyTrig || trig;
+            }
+
+            m_triggerLight->setBrightness(anyTrig ? 1.f : 0.f);
+        }
+        
         InputVectorIterator GetInputVectorIterator(InputVector defaultVector)
         {
             return InputVectorIterator(m_coMuteState.GetCoMuteVector(), defaultVector);
@@ -616,12 +670,28 @@ struct LameJuis : Module
         {
             m_coMuteState.RandomizePercentiles();
         }
+
+        bool IsPlugged()
+        {
+            return m_mainOut->isConnected() || m_triggerOut->isConnected();
+        }
     };
 
     void CheckMatrixChangedAndInvalidateCache();
     InputVector ProcessInputs();
     void ProcessOperations(InputVector defaultVector);
     void ProcessOutputs(InputVector defaultVector, float dt);
+
+    void ProcessTriggers(float dt)
+    {
+        using namespace LameJuisConstants;
+        
+        for (size_t i = 0; i < x_numAccumulators; ++i)
+        {
+            m_outputs[i].ProcessTriggers(dt);
+        }
+    }
+            
 
     void SendExpanderMessage(LatticeExpanderMessage msg)
     {
@@ -652,6 +722,34 @@ struct LameJuis : Module
     void RandomizeCoMutes(int level);
     void RandomizePercentiles();
 
+    bool ShouldDoStep()
+    {
+        using namespace LameJuisConstants;           
+
+        if (!m_timeQuantizeMode || m_firstStep)
+        {
+            return true;
+        }
+
+        for (size_t i = 0; i < x_numInputs; ++i)
+        {
+            if (m_inputs[i].m_changed)
+            {
+                return true;
+            }
+        }
+
+        for (size_t i = 0; i < x_numAccumulators; ++i)
+        {
+            if (m_outputs[i].PercentileCVChanged())
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    
     void process(const ProcessArgs& args) override;
 
 	json_t* dataToJson() override;
@@ -661,7 +759,9 @@ struct LameJuis : Module
     bool m_isEvaluated[1 << LameJuisConstants::x_numInputs];
 
     bool m_12EDOMode;
-    
+    bool m_timeQuantizeMode;
+    bool m_firstStep;
+
     Input m_inputs[LameJuisConstants::x_numInputs];
     LogicOperation m_operations[LameJuisConstants::x_numOperations];
     Accumulator m_accumulators[LameJuisConstants::x_numAccumulators];

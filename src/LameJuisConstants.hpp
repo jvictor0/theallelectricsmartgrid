@@ -2,6 +2,8 @@
 
 namespace LameJuisConstants
 {
+    static constexpr size_t x_maxPoly = 16;
+
     enum class ParamType : int
     {
         MatrixSwitch = 0,

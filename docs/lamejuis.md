@@ -50,7 +50,7 @@ You may notice some operations like NAND are not included.  This is because it i
 
 ## 12-EDO Mode
 
-If you don't want to learn what a comma is, or if you want to use LameJuis alongside a regular 12-EDO sequence, right-click and select 12-EDO-mode.  This will make the interval selector pick 12-EDO intervals, and commas (potentially harsh sounds when jumping between far-away spots in the lattice) will disapear.
+If you don't want to learn what a comma is, or if you want to use LameJuis alongside a regular 12-EDO sequence, right-click and select 12-EDO-mode.  This will make the interval selector pick 12-EDO intervals, and commas (potentially harsh sounds when jumping between far-away spots in the lattice) will disapear.  
 
 ## Intervals
 
@@ -89,15 +89,23 @@ These pitches are available at the three voice outputs (C).  The trigger output 
 
 As far as I'm aware, this is a novel method for generated sequences.  It isn't as tricky to learn as it might seem, just play with the switches.  Co-muting the left few inputs tends to produces harmonically coherent melodies.  Voices with more co-muted inputs tend to play more sparesly.  Multiple voices with the same inputs co-muted but different positions for the percentile knob tend to form a bits of counterpoint and interlocked rhythms.
 
+## Polyphony
+
+Sending a polyphonic input to the percentile CV yeilds a polyphonic output for the corresponding voice's pitch and gate outs.  Send several sequences, or just several static offsets, to the percentile CV in and get polyphonic outputs, sharing the co-mutes and percentile knob offset.  Even just static 0V and 5V signals can get nice independent counterpunctual lines.  
+
 ## Lattice Expander
 
 The lattice expander won't change what LameJuis is up to, but it can help with visualization.  The X-coordinate is the top interval, the Y-coordinate is the middle interval.  It will change the layout as the bottom interval changes (I can't make it 3-d, sorry), and switch to cents if non 12-EDO intervals (or user-provided intervals) are used.  Just slap it to the right of LameJuis and watch the lights blink.
 
-For some lovely vocal harmonies using a similar visualization, check out Gary Garrett's [Flying Dream](https://www.youtube.com/watch?app=desktop&v=jA1C9VFqJKo).
+For some glorious vocal harmonies using a similar visualization, check out Gary Garrett's [Flying Dream](https://www.youtube.com/watch?app=desktop&v=jA1C9VFqJKo).
 
 ## Randomizer
 
 There are several randomizer functions, that will randomize parameters to different levels of chaos.  Level 0 is the most tame, level 3 means flip all the switches and see what happens.  Just right-click to find em.
+
+## Time-Quantize Mode
+
+In this mode, switch and knob values are only read when an input gate or percentile CV changes value.  This can make it easier to time chanes, especially when using the mouse.  Keep in mind, however, some co-muted inputs could be running faster than any audible, musical pulse.  Find it in the right-click menu.
 
 ## Tips and Tricks
 
@@ -111,6 +119,7 @@ There are several randomizer functions, that will randomize parameters to differ
 - Use the logic outs for tambre, or for drums.  It sounds very cohesive.
 - Use Grande Microtonal Notes and the Interval CV input to get whatever EDO you want.  For instance, say you want to compose in 19-EDO, but you don't know anything about it.  First use [xenharmonic wiki](https://en.xen.wiki/w/Main_Page) to figure out that the the 11th and 6th step of 19 EDO correspond to the fifth and major third, respectively.  Pick those on Microtonal Notes, route those to LameJuis's Interval CV and and you're ready to start --annoying your loved ones-- making microtonal music.
 - Play the co-mutes.  Just try things with them.  Right click and try randomizing them.
+- You can use the interval CV in as a sort of transpose.  AND of nothing is always true, so set one equation to AND, route to an unused interval, and that interval CV becomes a "transpose" input.
 - Use the lattice expander.  It just helps.
 - General trick for modules like this, use [8Face](https://library.vcvrack.com/Stoermelder-P1/EightFace).  Find a pattern you like, mess it up and come back, all as performance gestures.
 
