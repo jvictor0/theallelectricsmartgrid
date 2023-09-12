@@ -21,6 +21,12 @@ void LameJuis::Input::SetValue(LameJuis::Input* prev)
         m_value = m_schmittTrigger.isHigh();
         if (m_value && !oldValue)
         {
+            if (m_value && m_reset)
+            {
+                m_resetAcknowledged = true;
+                m_counter = 0;
+            }
+            
             // Count down instead of up so each input is high on its "even" beats.
             //
             --m_counter;
@@ -34,8 +40,13 @@ void LameJuis::Input::SetValue(LameJuis::Input* prev)
     //
     else if (prev)
     {
+        if (m_reset)
+        {
+            m_resetAcknowledged = true;
+        }
+
         m_value = prev->m_counter % 2 != 0;
-        m_counter = prev->m_counter / 2;        
+        m_counter = prev->m_counter / 2;
     }
 
     if (oldValue != m_value)
@@ -443,7 +454,8 @@ LameJuis::LameJuis()
         {
             configSwitch(GetPitchCoMuteSwitchId(i, j), 0.f, 1.f, 1.f, "Co-Mute Switch " + inputName + "," + std::to_string(j+1), {"Co-Muted", "On"});
             m_outputs[j].m_coMuteState.m_switches[i].Init(
-                &params[GetPitchCoMuteSwitchId(i, j)]);
+                &params[GetPitchCoMuteSwitchId(i, j)],
+                &lights[GetCoMuteLightId(i, j)]);
         }
 
         m_inputs[i].Init(
@@ -488,6 +500,9 @@ LameJuis::LameJuis()
             &inputs[GetPitchPercentileCVInputId(i)]);
     }
 
+    m_resetPort = &inputs[GetResetInputId()];
+    m_reset = false;
+    
     rightExpander.producerMessage = m_rightMessages[0];
     rightExpander.consumerMessage = m_rightMessages[1];
 
@@ -548,6 +563,8 @@ LameJuis::ProcessInputs()
 {
     using namespace LameJuisConstants;
 
+    ProcessReset();
+    
     InputVector result;
     for (size_t i = 0; i < x_numInputs; ++i)
     {
@@ -557,6 +574,32 @@ LameJuis::ProcessInputs()
 
     return result;
 }
+
+void LameJuis::ProcessReset()
+{
+    using namespace LameJuisConstants;
+    
+    for (size_t i = 0; i < x_numInputs; ++i)
+    {
+        if (m_inputs[i].m_resetAcknowledged)
+        {
+            m_inputs[i].m_reset = false;
+            m_inputs[i].m_resetAcknowledged = false;
+        }
+    }
+
+    float resetCableValue = m_resetPort->getVoltage();
+    m_resetSchmittTrigger.process(resetCableValue);
+    if (!m_reset && m_resetSchmittTrigger.isHigh())
+    {
+        for (size_t i = 0; i < x_numInputs; ++i)
+        {
+            m_inputs[i].m_reset = true;
+        }
+    }
+    
+    m_reset = m_resetSchmittTrigger.isHigh();
+}    
 
 void LameJuis::ProcessOperations(InputVector defaultVector)
 {

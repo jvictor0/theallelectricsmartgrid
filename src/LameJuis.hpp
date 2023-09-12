@@ -16,6 +16,8 @@ struct LameJuis : Module
         bool m_value = false;
         uint8_t m_counter = 0;
         bool m_changed;
+        bool m_reset;
+        bool m_resetAcknowledged;
 
         void Init(
             rack::engine::Input* port,
@@ -25,6 +27,8 @@ struct LameJuis : Module
             m_light = light;
             m_counter = 0;
             m_changed = false;
+            m_reset = false;
+            m_resetAcknowledged = false;
         }
         
         void SetValue(Input* prev);
@@ -443,9 +447,14 @@ struct LameJuis : Module
     
     struct CoMuteSwitch
     {        
-        void Init(rack::engine::Param* swtch)
+        void Init(
+            rack::engine::Param* swtch,
+            rack::engine::Light* light)
         {
             m_switch = swtch;
+            m_light = light;
+            m_value = false;
+            m_light->setBrightness(1.f);
         }
         
         bool IsCoMuted()
@@ -458,6 +467,7 @@ struct LameJuis : Module
             bool newValue = IsCoMuted();
             if (m_value != newValue)
             {
+                m_light->setBrightness(newValue ? 0.f : 1.f);
                 m_value = newValue;
                 return true;
             }
@@ -473,6 +483,7 @@ struct LameJuis : Module
         bool m_value;
         
         rack::engine::Param* m_switch = nullptr;
+        rack::engine::Light* m_light = nullptr;
     };
 
     struct CoMuteState
@@ -685,6 +696,7 @@ struct LameJuis : Module
         }
     };
 
+    void ProcessReset();
     void CheckMatrixChangedAndInvalidateCache();
     InputVector ProcessInputs();
     void ProcessOperations(InputVector defaultVector);
@@ -776,6 +788,10 @@ struct LameJuis : Module
     bool m_timeQuantizeMode;
     bool m_firstStep;
 
+    rack::engine::Input* m_resetPort = nullptr;
+    rack::dsp::TSchmittTrigger<float> m_resetSchmittTrigger;
+    bool m_reset;
+    
     Input m_inputs[LameJuisConstants::x_numInputs];
     LogicOperation m_operations[LameJuisConstants::x_numOperations];
     Accumulator m_accumulators[LameJuisConstants::x_numAccumulators];

@@ -84,14 +84,16 @@ namespace LameJuisConstants
         MainInput = 0,
         PitchPercentileCV = 1,
         IntervalCV = 2,
-        NumInputTypes = 3,
+        ResetInput = 3,
+        NumInputTypes = 4,
     };
 
     static constexpr size_t x_numInputsPerType[] =
     {
         x_numInputs,
         x_numAccumulators,
-        x_numAccumulators
+        x_numAccumulators,
+        1
     };
 
     static constexpr size_t x_inputStartPerType[] =
@@ -99,7 +101,8 @@ namespace LameJuisConstants
         0,
         x_numInputsPerType[0],
         x_numInputsPerType[0] + x_numInputsPerType[1],
-        x_numInputsPerType[0] + x_numInputsPerType[1] + x_numInputsPerType[2]
+        x_numInputsPerType[0] + x_numInputsPerType[1] + x_numInputsPerType[2],
+        x_numInputsPerType[0] + x_numInputsPerType[1] + x_numInputsPerType[2] + x_numInputsPerType[3]
     };
 
     static constexpr size_t GetInputId(InputType inputType, size_t inputId)
@@ -120,6 +123,11 @@ namespace LameJuisConstants
     static constexpr size_t GetIntervalCVInputId(size_t accumulatorId)
     {
         return GetInputId(InputType::IntervalCV, accumulatorId);
+    }
+
+    static constexpr size_t GetResetInputId()
+    {
+        return GetInputId(InputType::ResetInput, 0);
     }
 
     static constexpr size_t GetNumInputs()
@@ -180,14 +188,16 @@ namespace LameJuisConstants
         InputLight = 0,
         OperationLight = 1,
         TriggerLight = 2,
-        NumLightTypes = 3
+        CoMuteLight = 3,
+        NumLightTypes = 4
     };
 
     static constexpr size_t x_numLightsPerType[] =
     {
         x_numInputs,
         x_numOperations,
-        x_numAccumulators
+        x_numAccumulators,
+        x_numInputs * x_numAccumulators
     };
 
     static constexpr size_t x_lightStartPerType[] =
@@ -195,7 +205,8 @@ namespace LameJuisConstants
         0,
         x_numLightsPerType[0],
         x_numLightsPerType[0] + x_numLightsPerType[1],
-        x_numLightsPerType[0] + x_numLightsPerType[1] + x_numLightsPerType[2]
+        x_numLightsPerType[0] + x_numLightsPerType[1] + x_numLightsPerType[2],
+        x_numLightsPerType[0] + x_numLightsPerType[1] + x_numLightsPerType[2] + x_numLightsPerType[3]
     };
 
     static constexpr size_t GetLightId(LightType lightType, size_t lightId)
@@ -216,6 +227,11 @@ namespace LameJuisConstants
     static constexpr size_t GetTriggerLightId(size_t lightId)
     {
         return GetLightId(LightType::TriggerLight, lightId);
+    }
+
+    static constexpr size_t GetCoMuteLightId(size_t inputId, size_t accumulatorId)
+    {
+        return GetLightId(LightType::CoMuteLight, inputId + accumulatorId * x_numInputs);
     }
 
     static constexpr size_t GetNumLights()

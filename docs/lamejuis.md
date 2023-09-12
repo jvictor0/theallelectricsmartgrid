@@ -40,7 +40,7 @@ One more note, (and this can mostly be ignored except by people who love tuning)
 
 ## Inputs
 
-LameJuis has six gate inputs (A) on the left side of the module labeled A-F.  Each input is normalled to a divide-by-2 clock divider (flip flop) of the input above, meaning you can run the entire sequencer on a single clock at the A-input and get cascading clock dividers the other inputs.  Running in this mode can feel a lot like a 64-step sequencer, but by sending other sorts of gate patterns you can get all sorts of behaviors out of LameJuis.
+LameJuis has six gate inputs (A) on the left side of the module labeled A-F.  Each input is normalled to a divide-by-2 clock divider (flip flop) of the input above, meaning you can run the entire sequencer on a single clock at the A-input and get cascading clock dividers the other inputs.  Running in this mode can feel a lot like a 64-step sequencer, but by sending other sorts of gate patterns you can get all sorts of behaviors out of LameJuis.  Sending a trigger to the reset input will reset the clock dividers for unplugged inputs the next time the input above goes high.
 
 Quick note about conventions: although you can plug any gate patterns into LameJuis you want, things become easier to explain/motivate if we assume the top inputs are changing faster than the bottom inputs.  Then we can say the top inputs represent melodic movement while the middle inputs represent chord progression and bottom inputs represent song form (since melodies move faster than chords, which move faster than song form).  This is, of course, just a thing in our brains, but our brains are so used to hearing music organized in this way we might as well exploit this hierarchy.  From the perspective of how the sequencer actually works, all six inputs are identical.
 
@@ -112,7 +112,6 @@ In this mode, switch and knob values are only read when an input gate or percent
 ## Tips and Tricks
 
 - Try lots of different inputs.  Clock dividers, Euclidean rhythms, Bournouli gates, clocks with different phases and duty cycles all sound good.  
-- There is no "RESET" for the inputs, since LameJuis is supposed to be stateless, not a "step sequencer".  Putting a resettable clock divider in powers-of-2 mode and routing the dividers accordingly allows will let you reset it.
 - LameJuis can be somewhat sensitive to buffer delays on the gate inputs.  If you get extra unwanted triggers, try using a single sample-and-hold before the inputs to make all clocks change at the same time.
 - Use the "off" interval.  Six equations is a lot, you can spare one to just use as an extra logic out/gate sequencer/end-of-cycle output.  Or use it strategically to create a key change.
 - AND logics will be low more of the time and sound like they add upwards motion to the melodies.  OR logics will be high most of the time and add downwards motion to the logic.  The more inputs are active the more "most of the time" is.
@@ -131,3 +130,4 @@ Special thanks to guitarist and educator Jacob Pek who's [Fundamental Harmonic M
 
 Special thanks to my partner who doesn't mind that I spend my time this way so long as I use headphones.
 
+Special thanks to Dave from [Venom](https://library.vcvrack.com/Venom) for making the front panel.

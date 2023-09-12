@@ -2,33 +2,53 @@
 
 struct LameJuisWidget : ModuleWidget
 {
-    static constexpr float x_hp = 5.08;
+    static constexpr float x_reset_x = 122.329;
+    static constexpr float x_intervalCV_x = 28.7505;
+    static constexpr float x_intervalKnob_x = 76.935;
+    static constexpr float x_interval_y[] = 
+    {
+        178.8435,
+        251.6045,
+        324.3655
+    };
 
-    static constexpr float x_jackLightOffsetHP = 1.0;
-    static constexpr float x_jackStartYHP = 4.25;
-    static constexpr float x_jackSpacingXHP = 2.5;
-    static constexpr float x_jackSpacingYHP = 3.0;
+    static constexpr float x_input_x = 172.3505;
 
-    static constexpr float x_firstMatrixSwitchXHP = 13.25;
-    static constexpr float x_firstMatrixSwitchYHP = 3.35;
-    static constexpr float x_switchSpacingXHP = 1.5;
-    static constexpr float x_rowYSpacing = 3.5;
+    static constexpr float x_s_x[] = 
+    {
+        210.7505, 
+        250.7505,
+        290.7505,
+        330.7505,
+        370.7505, 
+        410.7505
+    };
 
-    static constexpr float x_operationKnobXHP = 23.5;
-    static constexpr float x_firstOperatorKnobYHP = 3.15;
+    static constexpr float x_v_x[] = 
+    {
+        481.6295,
+        521.6295,
+        561.6295
+    };
 
-    static constexpr float x_operationSwitchXHP = 25.75;
+    static constexpr float x_a_y[] = 
+    {
+        56.2495,
+        89.2095,
+        122.1695,
+        155.1295,
+        188.0895,
+        221.0495
+    };
 
-    static constexpr float x_firstKnobMatrixXHP = 30.375;
-    static constexpr float x_firstKnobMatrixYHP = 2.825;
-    static constexpr float x_knobMatrixSpacingYHP = 4.0;
+    static constexpr float x_pitchSelect_y = 258.338;
+    static constexpr float x_pitchCV_y = 292.8555;
+    static constexpr float x_logicOut_y = 322.6875;
+    static constexpr float x_voltOct_y = 352.9875;
 
-    static constexpr float x_secondKnobMatrixXHP = 35.25;
-    static constexpr float x_secondKnobMatrixYHP = 4.0;
+    static constexpr float x_lightOffset = 18;
+    static constexpr float x_cornerLightOffset = 12;
     
-    static constexpr float x_firstCoMuteXHP = 29.5;
-    static constexpr float x_firstCoMuteYHP = 15.75;
-
 	struct RandomizeParamsItem : MenuItem
     {
         enum class ParamGroup
@@ -105,76 +125,84 @@ struct LameJuisWidget : ModuleWidget
 		}		
 	};
     
-    Vec GetInputJackMM(size_t inputId)
+    Vec GetResetJackPX()
     {
-        return Vec(x_hp + 2.5,
-                   x_hp * (x_jackStartYHP + inputId * x_jackSpacingYHP));
+        return Vec(x_reset_x, x_a_y[0]);
     }
 
-    Vec JackToLight(Vec jackPos)
+    Vec GetInputJackPX(size_t inputId)
     {
-        return jackPos.plus(Vec(x_hp * x_jackLightOffsetHP, - x_hp * x_jackLightOffsetHP));
+        return Vec(x_input_x, x_a_y[inputId]);
     }
 
-    Vec GetOperationOutputJackMM(size_t operationId)
+    Vec JackToLightRight(Vec jackPos)
     {
-        return GetInputJackMM(operationId).plus(Vec(x_hp * x_jackSpacingXHP, 0));
-    }
-
-    Vec GetMainOutputJackMM(size_t accumulatorId)
-    {
-        return GetInputJackMM(2 * accumulatorId).plus(Vec(2 * x_hp * x_jackSpacingXHP, 0));
-    }
-
-    Vec GetTriggerOutputJackMM(size_t accumulatorId)
-    {
-        return GetInputJackMM(2 * accumulatorId + 1).plus(Vec(2 * x_hp * x_jackSpacingXHP, 0));
-    }
-
-    Vec GetPitchPercentileJackMM(size_t accumulatorId)
-    {
-        return GetInputJackMM(accumulatorId).plus(Vec(3 * x_hp * x_jackSpacingXHP, 0));
-    }
-
-    Vec GetIntervalInputJackMM(size_t accumulatorId)
-    {
-        return GetInputJackMM(accumulatorId + 3).plus(Vec(3 * x_hp * x_jackSpacingXHP, 0));
+        return jackPos.plus(Vec(x_lightOffset, 0));
     }
     
-    Vec GetMatrixSwitchMM(size_t inputId, size_t operationId)
+    Vec JackToLightDown(Vec jackPos)
     {
-        return Vec(x_hp * (x_firstMatrixSwitchXHP + inputId * x_switchSpacingXHP),
-                   x_hp * (x_firstMatrixSwitchYHP + operationId * x_rowYSpacing));
+        return jackPos.plus(Vec(0, x_lightOffset));
     }
 
-    Vec GetOperatorKnobMM(size_t operationId)
+    Vec JackToLightDownRight(Vec jackPos)
     {
-        return Vec(x_hp * x_operationKnobXHP,
-                   x_hp * (x_firstOperatorKnobYHP + operationId * x_rowYSpacing));
+        return jackPos.plus(Vec(x_cornerLightOffset, x_cornerLightOffset));
+    }
+            
+    Vec GetOperationOutputJackPX(size_t operationId)
+    {
+        return Vec(x_s_x[operationId], x_logicOut_y);
     }
 
-    Vec GetOperationSwitchMM(size_t operationId)
+    Vec GetMainOutputJackPX(size_t accumulatorId)
     {
-        return Vec(x_hp * x_operationSwitchXHP,
-                   x_hp * (x_firstMatrixSwitchYHP + operationId * x_rowYSpacing));
+        return Vec(x_v_x[accumulatorId], x_voltOct_y);
     }
 
-    Vec GetIntervalKnobMM(size_t accumulatorId)
+    Vec GetTriggerOutputJackPX(size_t accumulatorId)
     {
-        return Vec(x_hp * x_firstKnobMatrixXHP,
-                   x_hp * (x_firstKnobMatrixYHP + accumulatorId * x_knobMatrixSpacingYHP));
+        return Vec(x_v_x[accumulatorId], x_logicOut_y);
     }
 
-    Vec GetPercentileKnobMM(size_t accumulatorId)
+    Vec GetPitchPercentileJackPX(size_t accumulatorId)
     {
-        return Vec(x_hp * x_secondKnobMatrixXHP,
-                   x_hp * (x_secondKnobMatrixYHP + accumulatorId * x_knobMatrixSpacingYHP));
+        return Vec(x_v_x[accumulatorId], x_pitchCV_y);
     }
 
-    Vec GetCoMuteSwitchMM(size_t inputId, size_t accumulatorId)
+    Vec GetIntervalInputJackPX(size_t accumulatorId)
     {
-        return Vec(x_hp * (x_firstCoMuteXHP + inputId * x_switchSpacingXHP),
-                   x_hp * (x_firstCoMuteYHP + accumulatorId * x_rowYSpacing));
+        return Vec(x_intervalCV_x, x_interval_y[accumulatorId]);
+    }
+    
+    Vec GetMatrixSwitchPX(size_t inputId, size_t operationId)
+    {
+        return Vec(x_s_x[operationId], x_a_y[inputId]);
+    }
+
+    Vec GetOperatorKnobPX(size_t operationId)
+    {
+        return Vec(x_s_x[operationId], x_pitchSelect_y);
+    }
+
+    Vec GetOperationSwitchPX(size_t operationId)
+    {
+        return Vec(x_s_x[operationId], x_pitchCV_y);
+    }
+
+    Vec GetIntervalKnobPX(size_t accumulatorId)
+    {
+        return Vec(x_intervalKnob_x, x_interval_y[accumulatorId]);
+    }
+
+    Vec GetPercentileKnobPX(size_t accumulatorId)
+    {
+        return Vec(x_v_x[accumulatorId], x_pitchSelect_y);
+    }
+
+    Vec GetCoMuteSwitchPX(size_t inputId, size_t accumulatorId)
+    {
+        return Vec(x_v_x[accumulatorId], x_a_y[inputId]);
     }
 
 	LameJuisWidget(LameJuis* module)
@@ -192,48 +220,49 @@ struct LameJuisWidget : ModuleWidget
         for (size_t i = 0; i < x_numInputs; ++i)
         {
             addInput(createInputCentered<PJ301MPort>(
-                         mm2px(GetInputJackMM(i)),
+                         GetInputJackPX(i),
                          module,
                          GetMainInputId(i)));
 
              addChild(createLightCentered<MediumLight<RedLight>>(
-                          mm2px(JackToLight(GetInputJackMM(i))),
+                          JackToLightRight(GetInputJackPX(i)),
                           module,
                           GetInputLightId(i)));
 
             for (size_t j = 0; j < x_numOperations; ++j)
             {
-                addParam(createParamCentered<NKK>(
-                             mm2px(GetMatrixSwitchMM(i, j)),
+                addParam(createParamCentered<BefacoSwitch>(
+                             GetMatrixSwitchPX(i, j),
                              module,
                              GetMatrixSwitchId(i, j)));
             }
 
             for (size_t j = 0; j < x_numAccumulators; ++j)
             {
-                addParam(createParamCentered<NKK>(
-                             mm2px(GetCoMuteSwitchMM(i, j)),
+                addParam(createLightParamCentered<VCVLightBezelLatch<MediumSimpleLight<WhiteLight>>>(
+                             GetCoMuteSwitchPX(i, j),
                              module,
-                             GetPitchCoMuteSwitchId(i, j)));                
+                             GetPitchCoMuteSwitchId(i, j),
+                             GetCoMuteLightId(i, j)));                
             }
         }
 
         for (size_t i = 0; i < x_numOperations; ++i)
         {
-            addParam(createParamCentered<RoundBlackSnapKnob>(
-                         mm2px(GetOperatorKnobMM(i)),
+            addParam(createParamCentered<RoundSmallBlackKnob>(
+                         GetOperatorKnobPX(i),
                          module,
                          GetOperatorKnobId(i)));
-            addParam(createParamCentered<NKK>(
-                         mm2px(GetOperationSwitchMM(i)),
+            addParam(createParamCentered<BefacoSwitch>(
+                         GetOperationSwitchPX(i),
                          module,
                          GetOperationSwitchId(i)));
             addOutput(createOutputCentered<PJ301MPort>(
-                          mm2px(GetOperationOutputJackMM(i)),
+                          GetOperationOutputJackPX(i),
                           module,
                           GetOperationOutputId(i)));            
             addChild(createLightCentered<MediumLight<RedLight>>(
-                         mm2px(JackToLight(GetOperationOutputJackMM(i))),
+                         JackToLightDown(GetOperationOutputJackPX(i)),
                          module,
                          GetOperationLightId(i)));
         }
@@ -241,37 +270,42 @@ struct LameJuisWidget : ModuleWidget
         for (size_t i = 0; i < x_numAccumulators; ++i)
         {
             addOutput(createOutputCentered<PJ301MPort>(
-                          mm2px(GetMainOutputJackMM(i)),
+                          GetMainOutputJackPX(i),
                           module,
                           GetMainOutputId(i)));
             addOutput(createOutputCentered<PJ301MPort>(
-                          mm2px(GetTriggerOutputJackMM(i)),
+                          GetTriggerOutputJackPX(i),
                           module,
                           GetTriggerOutputId(i)));
             addChild(createLightCentered<MediumLight<RedLight>>(
-                         mm2px(JackToLight(GetTriggerOutputJackMM(i))),
+                         JackToLightDownRight(GetTriggerOutputJackPX(i)),
                          module,
                          GetTriggerLightId(i)));
 
             addInput(createInputCentered<PJ301MPort>(
-                         mm2px(GetIntervalInputJackMM(i)),
+                         GetIntervalInputJackPX(i),
                          module,
                          GetIntervalCVInputId(i)));
             addInput(createInputCentered<PJ301MPort>(
-                          mm2px(GetPitchPercentileJackMM(i)),
+                          GetPitchPercentileJackPX(i),
                           module,
                           GetPitchPercentileCVInputId(i)));
             
-            addParam(createParamCentered<RoundBlackSnapKnob>(
-                         mm2px(GetIntervalKnobMM(i)),
+            addParam(createParamCentered<RoundBigBlackKnob>(
+                         GetIntervalKnobPX(i),
                          module,
                          GetAccumulatorIntervalKnobId(i)));
             addParam(createParamCentered<RoundBlackKnob>(
-                         mm2px(GetPercentileKnobMM(i)),
+                         GetPercentileKnobPX(i),
                          module,
                          GetPitchPercentileKnobId(i)));
 
         }
+
+        addInput(createInputCentered<PJ301MPort>(
+                     GetResetJackPX(),
+                     module,
+                     GetResetInputId()));
 	}
 
     void appendContextMenu(Menu *menu) override
@@ -325,5 +359,10 @@ struct LameJuisWidget : ModuleWidget
                            [lameJuis](bool newVal) { lameJuis->m_timeQuantizeMode = newVal; }));
     }
 };
+
+constexpr float LameJuisWidget::x_interval_y[];
+constexpr float LameJuisWidget::x_s_x[];
+constexpr float LameJuisWidget::x_v_x[];
+constexpr float LameJuisWidget::x_a_y[];
 
 Model* modelLameJuis = createModel<LameJuis, LameJuisWidget>("LameJuis");
