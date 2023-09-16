@@ -465,6 +465,11 @@ struct LameJuis : Module
             return false;
         }
 
+        bool IsOrWasOn()
+        {
+            return !IsCoMuted() || !m_value;
+        }
+
         bool m_value;
         
         rack::engine::Param* m_switch = nullptr;
@@ -735,7 +740,13 @@ struct LameJuis : Module
         {
             if (m_inputs[i].m_changed)
             {
-                return true;
+                for (size_t j = 0; j < x_numAccumulators; ++j)
+                {
+                    if (m_outputs[j].m_coMuteState.m_switches[i].IsOrWasOn())
+                    {
+                        return true;
+                    }
+                }
             }
         }
 
