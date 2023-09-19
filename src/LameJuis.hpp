@@ -522,7 +522,10 @@ struct LameJuis : Module
             
             for (size_t i = 0; i < GetPolyChans(); ++i)
             {
-                return m_percentileCVValue[i] != m_percentileCV->getVoltage(i);
+                if (m_percentileCVValue[i] != m_percentileCV->getVoltage(i))
+                {
+                    return true;
+                }
             }
 
             return false;
