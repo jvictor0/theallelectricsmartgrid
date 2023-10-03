@@ -6,7 +6,10 @@ Enum FloatToEnum(float in)
     return static_cast<Enum>(static_cast<int>(in + 0.5));
 }
 
-void LameJuis::Input::SetValue(LameJuis::Input* prev)
+void LameJuis::Input::Preprocess(
+    size_t inputId,
+    LameJuis::Input* prev,
+    LameJuis::PreprocessState& preprocessState)
 {
     using namespace LameJuisConstants;
     bool oldValue = m_value;
@@ -53,6 +56,7 @@ void LameJuis::Input::SetValue(LameJuis::Input* prev)
     {
         m_changed = true;
         m_light->setBrightness(m_value ? 1.f : 0.f);
+        preprocessState.m_inputChanged[inputId] = true;
     }
 }
 
@@ -131,6 +135,7 @@ bool LameJuis::LogicOperation::GetValue(InputVector inputVector)
         case Operator::Xor: ret = (countHigh % 2 == 1); break;
         case Operator::AtLeastTwo: ret = (countHigh >= 2); break;
         case Operator::Majority: ret = (2 * countHigh > countTotal); break;
+        case Operator::Off: ret = false; break;
         case Operator::NumOperations: ret = false; break;
     }
 
@@ -284,20 +289,6 @@ LameJuis::Accumulator::GetInterval()
     return FloatToEnum<Interval>(m_intervalKnob->getValue());
 }
 
-float
-LameJuis::Accumulator::GetPitch()
-{
-    float preResult = x_voltages[static_cast<size_t>(GetInterval())] + m_intervalCV->getVoltage();
-    if (*m_12EDOMode)
-    {
-        return static_cast<float>(static_cast<int>(preResult * 12 + 0.5)) / 12.0;
-    }
-    else
-    {
-        return preResult;
-    }
-}
-
 void
 LameJuis::Accumulator::Randomize(int level)
 {
@@ -426,7 +417,7 @@ LameJuis::Output::CacheForSingleInputVector::ComputePitch(
 LameJuis::MatrixEvalResultWithPitch
 LameJuis::Output::ComputePitch(LameJuis* matrix, LameJuis::InputVector defaultVector, size_t chan)
 {
-    float percentile = m_coMuteState.GetPercentile(chan);
+    float percentile = m_coMuteState.m_percentileCVValue[chan];
     return m_outputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, percentile);
 }
 
@@ -466,7 +457,7 @@ LameJuis::LameJuis()
     for (size_t i = 0; i < x_numOperations; ++i)
     {
         configSwitch(GetOperationSwitchId(i), 0.f, 2.f, 1.f, "Interval select", {"Bottom", "Middle", "Top"});
-        configSwitch(GetOperatorKnobId(i), 0.f, 4.f, 0.f, "Logic Operator" + std::to_string(i), LogicOperation::GetLogicNames());
+        configSwitch(GetOperatorKnobId(i), 0.f, 5.f, 0.f, "Logic Operator" + std::to_string(i), LogicOperation::GetLogicNames());
         configOutput(GetOperationOutputId(i), "Logic Out " + std::to_string(i));
 
         m_operations[i].Init(
@@ -511,70 +502,6 @@ LameJuis::LameJuis()
     m_firstStep = true;
 }
 
-void LameJuis::CheckMatrixChangedAndInvalidateCache()
-{
-    using namespace LameJuisConstants;
-
-    // Check if the matrix has changed, and if it has, invalidate all caches.
-    //
-    bool anyChanged = false;
-    for (size_t i = 0; i < x_numOperations; ++i)
-    {
-        if (m_operations[i].AnyThingChanged())
-        {
-            anyChanged = true;
-        }
-    }
-
-    if (anyChanged)
-    {
-        ClearCaches();
-    }
-
-    // Check if any pitches have changed, and if so, invalidate all caches.
-    // This means LameJuis will use a lot more CPU if a user is modulating the intervals.
-    //
-    for (size_t i = 0; i < x_numAccumulators; ++i)
-    {
-        if (m_accumulators[i].HasChanged())
-        {
-            anyChanged = true;
-        }
-    }
-
-    if (anyChanged)
-    {
-        ClearOutputCaches();
-    }
-
-    // Finally, check if any co-mute states have changed, and invalidate the cache just of that output.
-    //
-    for (size_t i = 0; i < x_numAccumulators; ++i)
-    {
-        if (m_outputs[i].HasCoMutesChanged())
-        {
-            m_outputs[i].ClearAllCaches();
-        }
-    }
-}
-
-LameJuis::InputVector
-LameJuis::ProcessInputs()
-{
-    using namespace LameJuisConstants;
-
-    ProcessReset();
-    
-    InputVector result;
-    for (size_t i = 0; i < x_numInputs; ++i)
-    {
-        m_inputs[i].SetValue(i > 0 ? &m_inputs[i - 1] : nullptr);
-        result.Set(i, m_inputs[i].m_value);
-    }
-
-    return result;
-}
-
 void LameJuis::ProcessReset()
 {
     using namespace LameJuisConstants;
@@ -601,19 +528,27 @@ void LameJuis::ProcessReset()
     m_reset = m_resetSchmittTrigger.isHigh();
 }    
 
-void LameJuis::ProcessOperations(InputVector defaultVector)
+void LameJuis::ProcessOperations(
+    PreprocessState& preprocessState,
+    InputVector defaultVector)
 {
     using namespace LameJuisConstants;
     
     for (size_t i = 0; i < x_numOperations; ++i)
     {
         m_operations[i].SetBitVectors();
-        bool value = m_operations[i].GetValue(defaultVector);
-        m_operations[i].SetOutput(value);
+        if (preprocessState.m_recomputeLogic[i])
+        {
+            bool value = m_operations[i].GetValue(defaultVector);
+            m_operations[i].SetOutput(value);
+        }
     }
 }
 
-void LameJuis::ProcessOutputs(InputVector defaultVector, float dt)
+void LameJuis::ProcessOutputs(
+    PreprocessState& preprocessState,
+    InputVector defaultVector,
+    float dt)
 {
     using namespace LameJuisConstants;
 
@@ -625,11 +560,15 @@ void LameJuis::ProcessOutputs(InputVector defaultVector, float dt)
         msg.m_polyChans[i] = m_outputs[i].IsPlugged() ? chans : 0;
         for (size_t j = 0; j < chans; ++j)
         {
-            MatrixEvalResultWithPitch res = m_outputs[i].ComputePitch(this, defaultVector, j);
-            m_outputs[i].SetPitch(res.m_pitch, dt, j);
+            if (preprocessState.m_recomputeVoice[i][j])
+            {
+                MatrixEvalResultWithPitch res = m_outputs[i].ComputePitch(this, defaultVector, j);
+                m_outputs[i].SetPitch(res, dt, j);
+            }
+
             for (size_t k = 0; k < x_numAccumulators; ++k)
             {
-                msg.m_position[i][j][k] = res.m_result.m_high[k];
+                msg.m_position[i][j][k] = m_outputs[i].m_pitch[j].m_result.m_high[k];
             }
         }
 
@@ -703,19 +642,21 @@ void LameJuis::RandomizePercentiles()
 
 void LameJuis::process(const ProcessArgs& args)
 {
-    InputVector defaultVector = ProcessInputs();
-
-    if (!ShouldDoStep())
+    using namespace LameJuisConstants;
+    
+    PreprocessState preprocessState(m_timeQuantizeMode);
+    Preprocess(preprocessState);
+    
+    InputVector defaultVector;
+    for (size_t i = 0; i < x_numInputs; ++i)
     {
-        ProcessTriggers(args.sampleTime);
-        return;
-    }
-
+        defaultVector.Set(i, m_inputs[i].m_value);
+    }  
+    
     m_firstStep = false;
     
-    CheckMatrixChangedAndInvalidateCache();
-    ProcessOperations(defaultVector);
-    ProcessOutputs(defaultVector, args.sampleTime);
+    ProcessOperations(preprocessState, defaultVector);
+    ProcessOutputs(preprocessState, defaultVector, args.sampleTime);
 }
 
 json_t* LameJuis::dataToJson()

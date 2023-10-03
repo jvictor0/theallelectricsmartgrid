@@ -7,6 +7,49 @@
 struct LameJuis : Module
 {
     LatticeExpanderMessage m_rightMessages[2][1];
+
+    struct PreprocessState
+    {
+        PreprocessState(bool timeQuantizeMode)
+        {
+            using namespace LameJuisConstants;
+
+            m_timeQuantizeMode = timeQuantizeMode;
+            m_invalidateCache = false;
+            
+            for (size_t i = 0; i < LameJuisConstants::x_numInputs; ++i)
+            {
+                m_inputChanged[i] = false;
+            }
+
+            for (size_t i = 0; i < LameJuisConstants::x_numAccumulators; ++i)
+            {
+                for (size_t j = 0; j < LameJuisConstants::x_maxPoly; ++j)
+                {
+                    m_recomputeVoice[i][j] = false;
+                }
+            }
+
+            for (size_t i = 0; i < LameJuisConstants::x_numOperations; ++i)
+            {
+                m_recomputeLogic[i] = false;
+            }
+        }
+
+        void SetRecomputeVoice(size_t voiceId)
+        {
+            for (size_t i = 0; i < LameJuisConstants::x_maxPoly; ++i)
+            {
+                m_recomputeVoice[voiceId][i] = true;
+            }
+        }
+        
+        bool m_timeQuantizeMode;
+        bool m_invalidateCache;
+        bool m_inputChanged[LameJuisConstants::x_numInputs];
+        bool m_recomputeVoice[LameJuisConstants::x_numAccumulators][LameJuisConstants::x_maxPoly];
+        bool m_recomputeLogic[LameJuisConstants::x_numOperations];
+    };
     
     struct Input
     {
@@ -31,7 +74,7 @@ struct LameJuis : Module
             m_resetAcknowledged = false;
         }
         
-        void SetValue(Input* prev);
+        void Preprocess(size_t inputId, Input* prev, PreprocessState& preprocessState);
     };
 
     struct MatrixElement
@@ -47,22 +90,35 @@ struct LameJuis : Module
         {
             m_switch = swtch;
             m_value = GetSwitchVal();
+            m_changed = false;
+            m_armed = true;
         }
         
         SwitchVal GetSwitchVal();
 
         SwitchVal m_value;
+        bool m_changed;
+        bool m_armed;
 
-        bool HasChanged()
+        void Preprocess(PreprocessState& preprocessState)
         {
             SwitchVal newVal = GetSwitchVal();
             if (m_value != newVal)
             {
                 m_value = newVal;
-                return true;
+                m_changed = true;
+                preprocessState.m_invalidateCache = true;
+                m_armed = true;
             }
+            else
+            {
+                if (m_value != SwitchVal::Muted)
+                {
+                    m_armed = true;
+                }
 
-            return false;
+                m_changed = false;
+            }
         }
 
         void Randomize(int level);
@@ -113,7 +169,8 @@ struct LameJuis : Module
             Xor = 2,
             AtLeastTwo = 3,
             Majority = 4,
-            NumOperations = 5,
+            Off = 5,
+            NumOperations = 6,
         };
 
         static std::vector<std::string> GetLogicNames()
@@ -123,7 +180,8 @@ struct LameJuis : Module
                     "And",
                     "Xor",
                     "At Least Two",
-                    "Majority"
+                    "Majority",
+                    "Off"
                 });
         }
         
@@ -142,7 +200,7 @@ struct LameJuis : Module
             using namespace LameJuisConstants;
             for (size_t i = 0; i < x_numInputs; ++i)
             {
-                MatrixElement::SwitchVal switchVal = m_elements[i].GetSwitchVal();
+                MatrixElement::SwitchVal switchVal = m_elements[i].m_value;
                 m_active.Set(i, switchVal != MatrixElement::SwitchVal::Muted);
                 m_inverted.Set(i, switchVal == MatrixElement::SwitchVal::Inverted);
             }
@@ -156,6 +214,8 @@ struct LameJuis : Module
         {
             m_switch = swtch;
             m_operatorKnob = operatorKnob;
+            m_switchChanged = false;
+            m_operatorChanged = false;
             m_output = output;
             m_light = light;
         }            
@@ -173,50 +233,50 @@ struct LameJuis : Module
         size_t GetOutputTarget()
         {
             using namespace LameJuisConstants;
-            return x_numAccumulators - static_cast<size_t>(GetSwitchVal()) - 1;
+            return x_numAccumulators - static_cast<size_t>(m_switchValue) - 1;
         }
 
-        bool AnySwitchChanged()
+        void Preprocess(size_t operatorId, PreprocessState& preprocessState)
         {
             using namespace LameJuisConstants;
-            bool result = false;
+
             for (size_t i = 0; i < x_numInputs; ++i)
             {
-                if (m_elements[i].HasChanged())
-                {
-                    result = true;
-
-                    // Don't break, need to set 'm_value' on the entire matrix.
-                    //
-                }              
+                m_elements[i].Preprocess(preprocessState);
             }
-
-            return result;
-        }
-
-        bool AnyThingChanged()
-        {
-            bool anyChanged = false;
-            if (AnySwitchChanged())
-            {
-                anyChanged = true;
-            }
-
+            
             Operator op = GetOperator();
             if (op != m_operatorValue)
             {
                 m_operatorValue = op;
-                anyChanged = true;
+                m_operatorChanged = true;
+                preprocessState.m_invalidateCache = true;
             }
 
             SwitchVal sv = GetSwitchVal();
             if (sv != m_switchValue)
             {
                 m_switchValue = sv;
-                anyChanged = true;
+                m_switchChanged = true;
+                preprocessState.m_invalidateCache = true;
             }
 
-            return anyChanged;
+            for (size_t i = 0; i < x_numInputs; ++i)
+            {
+                if (preprocessState.m_inputChanged[i] &&
+                    (!preprocessState.m_timeQuantizeMode || m_elements[i].m_armed))
+                {
+                    preprocessState.m_recomputeLogic[operatorId] = true;
+                }
+            }
+
+            if (preprocessState.m_recomputeLogic[operatorId])
+            {
+                for (size_t i = 0; i < x_numInputs; ++i)
+                {
+                    m_elements[i].m_armed = false;
+                }
+            }
         }
 
         void Randomize(int level);
@@ -229,7 +289,9 @@ struct LameJuis : Module
         InputVector m_inverted;
 
         Operator m_operatorValue;
+        bool m_operatorChanged;
         SwitchVal m_switchValue;
+        bool m_switchChanged;
 
         LameJuis::MatrixElement m_elements[LameJuisConstants::x_numInputs];
     };
@@ -307,15 +369,22 @@ struct LameJuis : Module
         rack::engine::Param* m_intervalKnob = nullptr;
         rack::engine::Input* m_intervalCV = nullptr;
 
-        float m_value;
+        Interval m_intervalKnobValue;
+        bool m_intervalKnobChanged;
 
+        float m_intervalCVValue;
+        bool m_intervalCVChanged;
+        
+        float m_value;
+        bool m_changed;
+        
         bool* m_12EDOMode;
 
         Interval GetInterval();
 
         int GetSemitones()
         {
-            return x_semitones[static_cast<int>(GetInterval())];
+            return x_semitones[static_cast<int>(m_intervalKnobValue)];
         }
 
         bool Is12EDOLike()
@@ -323,22 +392,42 @@ struct LameJuis : Module
             // More sophisticated analysis could work here, but honestly if the user provides an analog
             // interval just have the expander display in cents (that is, say its not 12-EDO-like).
             //
-            return m_intervalCV->getVoltage() == 0 &&
-                static_cast<size_t>(GetInterval()) < x_end12EDOLikeIx;
+            return m_intervalCVValue == 0 &&
+                static_cast<size_t>(m_intervalKnobValue) < x_end12EDOLikeIx;
         }
 
-        float GetPitch();
-
-        bool HasChanged()
+        void Preprocess(PreprocessState& preprocessState)
         {
-            float newValue = GetPitch();
-            if (newValue != m_value)
+            m_intervalKnobChanged = false;
+            m_intervalCVChanged = false;
+            m_changed = false;
+            
+            Interval newInterval = GetInterval();
+            if (newInterval != m_intervalKnobValue)
             {
-                m_value = newValue;
-                return true;
+                m_intervalKnobChanged = true;
+                m_intervalKnobValue = newInterval;
             }
 
-            return false;
+            float newIntervalCVValue = m_intervalCV->getVoltage();
+            if (newIntervalCVValue != m_intervalCVValue)
+            {
+                m_intervalCVChanged = true;
+                m_intervalCVValue = newIntervalCVValue;
+            }
+
+            float newValue = x_voltages[static_cast<size_t>(m_intervalKnobValue)] + m_intervalCVValue;
+            if (*m_12EDOMode)
+            {
+                newValue = static_cast<float>(static_cast<int>(newValue * 12 + 0.5)) / 12.0;
+            }
+
+            if (newValue != m_value)
+            {
+                m_changed = true;
+                m_value = newValue;
+                preprocessState.m_invalidateCache = true;
+            }
         }
 
         void Init(
@@ -349,6 +438,12 @@ struct LameJuis : Module
             m_intervalKnob = intervalKnob;
             m_intervalCV = intervalCV;
             m_12EDOMode = twelveEDOMode;
+            m_intervalKnobValue = Interval::Off;
+            m_intervalKnobChanged = false;
+            m_intervalCVValue = 0;
+            m_intervalCVChanged = false;
+            m_value = 0;
+            m_changed = false;
         }
 
         void Randomize(int level);
@@ -378,10 +473,30 @@ struct LameJuis : Module
             float result = 0;
             for (size_t i = 0; i < x_numAccumulators; ++i)
             {
-                result += accumulators[i].GetPitch() * m_high[i];
+                result += accumulators[i].m_value * m_high[i];
             }
 
             return result;
+        }
+
+        bool operator==(const MatrixEvalResult& other)
+        {
+            using namespace LameJuisConstants;
+            
+            for (size_t i = 0; i < x_numAccumulators; ++i)
+            {
+                if (m_high[i] != other.m_high[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        bool operator!=(const MatrixEvalResult& other)
+        {
+            return !(*this == other);
         }
         
         uint8_t m_high[LameJuisConstants::x_numAccumulators];
@@ -454,6 +569,7 @@ struct LameJuis : Module
             m_switch = swtch;
             m_light = light;
             m_value = false;
+            m_changed = false;
             m_light->setBrightness(1.f);
         }
         
@@ -462,25 +578,23 @@ struct LameJuis : Module
             return m_switch->getValue() < 0.5;
         }
 
-        bool HasChanged()
+        void Preprocess(PreprocessState& preprocessState)
         {
             bool newValue = IsCoMuted();
             if (m_value != newValue)
             {
                 m_light->setBrightness(newValue ? 0.f : 1.f);
                 m_value = newValue;
-                return true;
+                m_changed = true;
             }
-
-            return false;
-        }
-
-        bool IsOrWasOn()
-        {
-            return !IsCoMuted() || !m_value;
+            else
+            {
+                m_changed = false;
+            }
         }
 
         bool m_value;
+        bool m_changed;
         
         rack::engine::Param* m_switch = nullptr;
         rack::engine::Light* m_light = nullptr;
@@ -495,7 +609,7 @@ struct LameJuis : Module
             InputVector result;
             for (size_t i = 0; i < x_numInputs; ++i)
             {
-                result.Set(i, m_switches[i].IsCoMuted());
+                result.Set(i, m_switches[i].m_value);
             }
 
             return result;
@@ -508,6 +622,8 @@ struct LameJuis : Module
             m_percentileKnob = percentileKnob;
             m_percentileCV = percentileCV;
             m_polyChans = 0;
+            m_chansChanged = false;
+            m_comuteChanged = false;
         }
 
         size_t GetPolyChans()
@@ -517,45 +633,52 @@ struct LameJuis : Module
 
         float GetPercentile(size_t chan)
         {
-            m_percentileCVValue[chan] = m_percentileCV->getVoltage(chan);
-            float result = m_percentileKnob->getValue() + m_percentileCVValue[chan] / 5.0;
+            float percentile = m_percentileCV->getVoltage(chan);
+            float result = m_percentileKnob->getValue() + percentile / 5.0;
             result = std::min(result, 1.f);
             result = std::max(result, 0.f);
             return result;
         }
 
-        bool PercentileCVChanged()
+        void Preprocess(size_t outputId, PreprocessState& preprocessState)
         {
+            using namespace LameJuisConstants;
+
+            m_comuteChanged = false;
+            
+            for (size_t i = 0; i < x_numInputs; ++i)
+            {
+                m_switches[i].Preprocess(preprocessState);
+                if (m_switches[i].m_changed)
+                {
+                    m_comuteChanged = true;
+                }
+            }
+            
             if (GetPolyChans() != m_polyChans)
             {
-                return true;
+                m_polyChans = GetPolyChans();
+                m_chansChanged = true;
+            }
+            else
+            {
+                m_chansChanged = false;
             }
             
             for (size_t i = 0; i < GetPolyChans(); ++i)
             {
-                if (m_percentileCVValue[i] != m_percentileCV->getVoltage(i))
+                float newPercentile = GetPercentile(i);
+                if (m_percentileCVValue[i] != newPercentile)
                 {
-                    return true;
+                    m_percentileCVValue[i] = newPercentile;
+                    m_percentileCVChanged[i] = true;
+                    preprocessState.m_recomputeVoice[outputId][i] = true;
+                }
+                else
+                {
+                    m_percentileCVChanged[i] = false;
                 }
             }
-
-            return false;
-        }
-
-        bool HasChanged()
-        {
-            using namespace LameJuisConstants;
-            
-            bool anyChanged = false;
-            for (size_t i = 0; i < x_numInputs; ++i)
-            {
-                if (m_switches[i].HasChanged())
-                {
-                    anyChanged = true;
-                }
-            }
-
-            return anyChanged;
         }
 
         void RandomizeCoMutes(int level);
@@ -565,7 +688,10 @@ struct LameJuis : Module
         rack::engine::Param* m_percentileKnob = nullptr;
         rack::engine::Input* m_percentileCV = nullptr;
         float m_percentileCVValue[LameJuisConstants::x_maxPoly];
+        bool m_percentileCVChanged[LameJuisConstants::x_maxPoly];
         size_t m_polyChans;
+        bool m_chansChanged;
+        bool m_comuteChanged;
     };
 
     struct Output
@@ -597,19 +723,14 @@ struct LameJuis : Module
         rack::engine::Output* m_triggerOut = nullptr;
         rack::engine::Light* m_triggerLight = nullptr;
         rack::dsp::PulseGenerator m_pulseGen[LameJuisConstants::x_maxPoly];
-        float m_pitch[LameJuisConstants::x_maxPoly];
+        MatrixEvalResultWithPitch m_pitch[LameJuisConstants::x_maxPoly];
         CoMuteState m_coMuteState;
 
         CacheForSingleInputVector m_outputCaches[1 << LameJuisConstants::x_numInputs];
 
-        bool PercentileCVChanged()
-        {
-            return m_coMuteState.PercentileCVChanged();
-        }
-
         size_t GetPolyChans()
         {
-            return m_coMuteState.GetPolyChans();
+            return m_coMuteState.m_polyChans;
         }
         
         void ClearAllCaches()
@@ -621,18 +742,23 @@ struct LameJuis : Module
             }
         }
 
-        bool HasCoMutesChanged()
+        void Preprocess(size_t outputId, PreprocessState& preprocessState)
         {
-            return m_coMuteState.HasChanged();
+            m_coMuteState.Preprocess(outputId, preprocessState);
+            if (m_coMuteState.m_comuteChanged)
+            {
+                ClearAllCaches();
+            }
         }
 
         MatrixEvalResultWithPitch ComputePitch(LameJuis* matrix, InputVector defaultVector, size_t chan);
        
-        void SetPitch(float pitch, float dt, size_t chan)
+        void SetPitch(MatrixEvalResultWithPitch pitch, float dt, size_t chan)
         {
-            bool changedThisFrame = (pitch != m_pitch[chan]);
+            bool changedThisFrame = pitch.m_result != m_pitch[chan].m_result &&
+                pitch.m_pitch != m_pitch[chan].m_pitch;
             m_pitch[chan] = pitch;
-            m_mainOut->setVoltage(pitch, chan);
+            m_mainOut->setVoltage(pitch.m_pitch, chan);
 
             if (changedThisFrame)
             {
@@ -697,10 +823,8 @@ struct LameJuis : Module
     };
 
     void ProcessReset();
-    void CheckMatrixChangedAndInvalidateCache();
-    InputVector ProcessInputs();
-    void ProcessOperations(InputVector defaultVector);
-    void ProcessOutputs(InputVector defaultVector, float dt);
+    void ProcessOperations(PreprocessState& preprocessState, InputVector defaultVector);
+    void ProcessOutputs(PreprocessState& preprocessState, InputVector defaultVector, float dt);
 
     void ProcessTriggers(float dt)
     {
@@ -720,7 +844,7 @@ struct LameJuis : Module
         for (size_t i = 0; i < x_numAccumulators; ++i)
         {
             msg.m_intervalSemitones[i] = m_accumulators[i].GetSemitones();
-            msg.m_intervalVoltages[i] = m_accumulators[i].GetPitch();
+            msg.m_intervalVoltages[i] = m_accumulators[i].m_value;
             msg.m_is12EDOLike[i] = m_accumulators[i].Is12EDOLike();
         }
         
@@ -742,13 +866,30 @@ struct LameJuis : Module
     void RandomizeCoMutes(int level);
     void RandomizePercentiles();
 
-    bool ShouldDoStep()
+    void Preprocess(PreprocessState& preprocessState)
     {
-        using namespace LameJuisConstants;           
+        using namespace LameJuisConstants;
 
-        if (!m_timeQuantizeMode || m_firstStep)
+        ProcessReset();
+        
+        for (size_t i = 0; i < x_numInputs; ++i)
         {
-            return true;
+            m_inputs[i].Preprocess(i, i > 0 ? &m_inputs[i - 1] : nullptr, preprocessState);
+        }
+
+        for (size_t i = 0; i < x_numOperations; ++i)
+        {
+            m_operations[i].Preprocess(i, preprocessState);
+        }
+
+        for (size_t i = 0; i < x_numAccumulators; ++i)
+        {
+            m_accumulators[i].Preprocess(preprocessState);
+        }
+
+        for (size_t i = 0; i < x_numAccumulators; ++i)
+        {
+            m_outputs[i].Preprocess(i, preprocessState);
         }
 
         for (size_t i = 0; i < x_numInputs; ++i)
@@ -757,23 +898,18 @@ struct LameJuis : Module
             {
                 for (size_t j = 0; j < x_numAccumulators; ++j)
                 {
-                    if (m_outputs[j].m_coMuteState.m_switches[i].IsOrWasOn())
+                    if (!m_outputs[j].m_coMuteState.m_switches[i].m_value)
                     {
-                        return true;
+                        preprocessState.SetRecomputeVoice(j);
                     }
                 }
             }
         }
 
-        for (size_t i = 0; i < x_numAccumulators; ++i)
+        if (preprocessState.m_invalidateCache)
         {
-            if (m_outputs[i].PercentileCVChanged())
-            {
-                return true;
-            }
+            ClearCaches();
         }
-
-        return false;
     }
     
     void process(const ProcessArgs& args) override;
