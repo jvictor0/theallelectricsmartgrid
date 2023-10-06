@@ -11,7 +11,7 @@ permalink: /lamejuis
 
 ## Video Manual
 
-Find video tutorial [here](https://youtu.be/vQx_pSbcf3U).
+Find video tutorial [here](https://youtu.be/vQx_pSbcf3U).  Note: the front panel has changed and in particular the switches have been transposed.  What once were rows are now columns.
 
 ## Overview
 
@@ -40,13 +40,13 @@ One more note, (and this can mostly be ignored except by people who love tuning)
 
 ## Inputs
 
-LameJuis has six gate inputs (A) on the left side of the module labeled A-F.  Each input is normalled to a divide-by-2 clock divider (flip flop) of the input above, meaning you can run the entire sequencer on a single clock at the A-input and get cascading clock dividers the other inputs.  Running in this mode can feel a lot like a 64-step sequencer, but by sending other sorts of gate patterns you can get all sorts of behaviors out of LameJuis.  Sending a trigger to the reset input will reset the clock dividers for unplugged inputs the next time the input above goes high.
+LameJuis has six gate inputs on the left side of the module labeled A-F.  Each input is normalled to a divide-by-2 clock divider (flip flop) of the input above, meaning you can run the entire sequencer on a single clock at the A-input and get cascading clock dividers the other inputs.  Running in this mode can feel a lot like a 64-step sequencer, but by sending other sorts of gate patterns you can get all sorts of behaviors out of LameJuis.  Sending a trigger to the reset input (left side of the panel) will reset the clock dividers for unplugged inputs the next time the input above goes high.
 
 Quick note about conventions: although you can plug any gate patterns into LameJuis you want, things become easier to explain/motivate if we assume the top inputs are changing faster than the bottom inputs.  Then we can say the top inputs represent melodic movement while the middle inputs represent chord progression and bottom inputs represent song form (since melodies move faster than chords, which move faster than song form).  This is, of course, just a thing in our brains, but our brains are so used to hearing music organized in this way we might as well exploit this hierarchy.  From the perspective of how the sequencer actually works, all six inputs are identical.
 
 ## Logic Matrix
 
-The six identical inputs are processed by six identical logic operations.  Each operation is a row in the large switch matrix in the middle of the module.  The first six switches (1), labeled A-F, determine which inputs are processed by the operation.  The switches are three position switches.  In the "up" position, the input is part of the operation.  In the middle position, it is ignored.  In the down position, the input is "negated", so treated as low if its high and high if its low.  The knob (2) selects the logic operation.  So, for instance, if the first switch is up, the third switch is down and the rest are neutral, the operation will apply to A and (NOT C).  The gate output of each operation is available at the corresponding Logic Out output (B).  The outputs are unaffected by melodic parameters like co-mutes and intervals (which will be discussed later), so already LameJuis is a highly configurable six-in-six-out logic module!
+The six identical inputs are processed by six identical logic operations.  Each operation is a column in the large switch matrix in the middle of the module.  The first six switches (each column), labeled A-F, determine which inputs are processed by the operation.  The switches are three position switches.  In the "up" position, the input is part of the operation.  In the middle position, it is ignored.  In the down position, the input is "negated", so treated as low if its high and high if its low.  The knob (knobs at the bottom of each column) selects the logic operation.  So, for instance, if the first switch is up, the third switch is down and the rest are neutral, the operation will apply to A and (NOT C).  The gate output of each operation is available at the corresponding Logic Out output (bottom of each column).  The outputs are unaffected by melodic parameters like co-mutes and intervals (which will be discussed later), so already LameJuis is a highly configurable six-in-six-out logic module!
 
 You may notice some operations like NAND are not included.  This is because it is not needed, given the ability to negate individual inputs.  For instance, A NAND B is the same as (NOT A) OR (NOT B).  This is called De-Morgan's law and can be fun to think through if you haven't seen it before.  Similarly, there is no CV over the state of the matrix, but instead variation comes from logic operations changing their response as slower changing gates go from low to high and back again.  For instance, A AND F will go up and down as A changes when F is high, but as soon as F goes low the gate will stay low until F comes back.  The logic matrix becomes surprisingly intuitive after you play with it a bit, and its very easy to just start flipping switches and see what comes out.  You can see the tips and trick section for tips and tricks.
 
@@ -56,11 +56,11 @@ If you don't want to learn what a comma is, or if you want to use LameJuis along
 
 ## Intervals
 
-Each logic operation is finally routed by the final three-position "Interval Select" switch (3) to one of three intervals.  These intervals are determined by the three "Interval" knobs (4) and their corresponding CV input (F).  When the operation outputs high, the pitch moves up by the selected interval (before co-muting), and is unaffected otherwise.  Let's say the top interval is P5, and the middle interval is M3.  If there are two matrix rows with high outputs with interval select set to P5, and one row with high output with interval set to M3, the pitch produced will be two fifths and one third up, which happens to be a major seventh.  To say another way, for each of the three possible positions of the interval selector switch, count the number of logic operations which are currently high, and go up by that interval, that many times.
+Each logic operation is finally routed by the final three-position "Interval Select" switch (below the logic select knob) to one of three intervals.  These intervals are determined by the three "Interval" knobs and their corresponding CV input (left side of the panel).  When the operation outputs high, the pitch moves up by the selected interval (before co-muting), and is unaffected otherwise.  Let's say the top interval is P5, and the middle interval is M3.  If there are two matrix rows with high outputs with interval select set to P5, and one row with high output with interval set to M3, the pitch produced will be two fifths and one third up, which happens to be a major seventh.  To say another way, for each of the three possible positions of the interval selector switch, count the number of logic operations which are currently high, and go up by that interval, that many times.
 
 Sounds confusing?  It isn't, but it is hard to explain in words. Try watching the demo video if it's not clicking.
 
-The value of the "Interval CV" (F) input is added to the interval from the knob (4).  Thus if the knob is "Off", the Interval CV is used (so 12 EDO intervals can be supplied, or other just ratios or microtonal generators, or an offset from a slider). 
+The value of the "Interval CV" is volt per octave input is added to the interval from the knob.  Thus if the knob is "Off", the Interval CV is used (so 12 EDO intervals can be supplied, or other just ratios or microtonal generators, or an offset from a slider). 
 
 The interval knob is arranged so more familiar ratios are found on the CCW side, and more esoteric intervals on the CW side.  The intervals labeled in familiar ways are very close to western 12-EO intervals, but insead of irrationals like 2^{7/12} for a perfect fifth, Just frequency ratios like 3/2 are used. The following ratios are used:
 
@@ -81,19 +81,21 @@ The algorithm described above produces the melody that will come out if all co-m
 
 ## Co-Muting
 
-The above algorithm produces a single melody, which has a kind of jolted quality to it.  Co-muting, and the associated percentile knob (5) and CV input (E), allow the single matrix described above to produce multiple interlocking lines while producing "smoother" melodies.  The idea is as follows: start by assuming each input is a flip-flop of the one above.  Then, for instance, you might hear A and B as a melody outlining a chord progression defined by C, D and E which changes from a "verse" to "chorus" based on F (these, of course, are just stories the composer tells themselves!).  How can you create a bass-line from this?  Well, we're saying that the state of inputs (C,D,E,F) defines an implied chord that is played as A and B vary.  As A and B vary, up to four pitches are played, so why not say the bass just plays the lowest of the four!  Its an entirely simplistic idea, but it the results just sound right.
+The above algorithm produces a single melody, which has a kind of jolted quality to it.  Co-muting, and the associated pitch select knob and CV input, allow the single matrix described above to produce multiple interlocking lines while producing "smoother" melodies.  The idea is as follows: start by assuming each input is a flip-flop of the one above.  Then, for instance, you might hear A and B as a melody outlining a chord progression defined by C, D and E which changes from a "verse" to "chorus" based on F (these, of course, are just stories the composer tells themselves!).  How can you create a bass-line from this?  Well, we're saying that the state of inputs (C,D,E,F) defines an implied chord that is played as A and B vary.  As A and B vary, up to four pitches are played, so why not say the bass just plays the lowest of the four!  Its an entirely simplistic idea, but it the results just sound right.
 
-Co-muting generalizes this idea, and its very fun, performable and sequencable.  Each of the three identical voices has six co-mute switches (6) and a percentile knob (5) with CV input.  For each voice, the values of the co-muted inputs are ignored.   However, instead of being set to zero, the switch matrix is evaluated at all possible values of the co-muted inputs.  The results are sorted, and based off the percentile knob and CV one of the values is selected.  For instance, if A and B are comuted, the matrix will be evaluated as if A and B were both high, both low, A high/B low, and B high/A low.  If the percentile knob+CV is fully counter-clockwise, the lowest of the four is chosen, while if fully clockwise the highest is chosen, and a middle value if its in the middle.  In other words, among possible pitches which the matrix can produce leaving the non-co-muted values fixed and trying every possible co-muted value, pick the one which, from low-to-high, matches percentile input+CV.  
+Co-muting generalizes this idea, and its very fun, performable and sequencable.  Each of the three identical voices has six co-mute buttons (right side of the module, each column is a voice, each row is an input) and a pitch select knob (below the co-mute buttons) with CV input.  For each voice, the values of the co-muted inputs are ignored.   However, instead of being set to zero, the switch matrix is evaluated at all possible values of the co-muted inputs.  The results are sorted, and based off the pitch select knob and CV one of the values is selected.  For instance, if A and B are comuted, the matrix will be evaluated as if A and B were both high, both low, A high/B low, and B high/A low.  If the pitch select knob+CV is fully counter-clockwise, the lowest of the four is chosen, while if fully clockwise the highest is chosen, and a middle value if its in the middle.  In other words, among possible pitches which the matrix can produce leaving the non-co-muted values fixed and trying every possible co-muted value, pick the one which, from low-to-high, matches pitch select input+CV.  
 
-The percentile CV input has a 5 volt range.  Comuting the leftmost few positions and sending a CV sequence into the interval intput makes LameJuis into an almost quantizer-like module.  It isn't quite: a quantizer picks the closest note while this picks from a fixed set of notes (which change when the un-co-muted inputs change), but it can take a 0-5V CV sequence and make a melody from it.  
+You can think of co-mutes as units of repetition.  If using the default clock dividers as inputs, the highest non-co-muted input will determine the speed that voice will go.  Higher co-mutes will cause repetition, and the pitch select knob/CV will change what gets repeated to the higher or lower option.  Mixing co-mutes and sequencing the pitch selects can give a performer a huge number of highly coherent patterns to jump between, which are delightfully intuitive and yet unexpected.  The pitch select inputs are polyphonic, allowing this method to scale to a huge number of voices (even just sending polyphonic offset yields a delightful ensemble of interlocked patterns).
 
-These pitches are available at the three voice outputs (C).  The trigger output (D) produces a gate whenever these values change.
+The pitch select CV input has a 5 volt range.  Comuting the leftmost few positions and sending a CV sequence into the interval intput makes LameJuis into an almost quantizer-like module.  It isn't quite: a quantizer picks the closest note while this picks from a fixed set of notes (which change when the un-co-muted inputs change), but it can take a 0-5V CV sequence and make a melody from it.  
 
-As far as I'm aware, this is a novel method for generated sequences.  It isn't as tricky to learn as it might seem, just play with the switches.  Co-muting the left few inputs tends to produces harmonically coherent melodies.  Voices with more co-muted inputs tend to play more sparesly.  Multiple voices with the same inputs co-muted but different positions for the percentile knob tend to form a bits of counterpoint and interlocked rhythms.
+These pitches are available at the three voice outputs (bottom right corner).  The trigger output produces a gate whenever these values change.
+
+As far as I'm aware, this is a novel method for generated sequences.  It isn't as tricky to learn as it might seem, just play with the switches.  Co-muting the left few inputs tends to produces harmonically coherent melodies.  Voices with more co-muted inputs tend to play more sparesly.  Multiple voices with the same inputs co-muted but different positions for the pitch select knob tend to form a bits of counterpoint and interlocked rhythms.
 
 ## Polyphony
 
-Sending a polyphonic input to the percentile CV yeilds a polyphonic output for the corresponding voice's pitch and gate outs.  Send several sequences, or just several static offsets, to the percentile CV in and get polyphonic outputs, sharing the co-mutes and percentile knob offset.  Even just static 0V and 5V signals can get nice independent counterpunctual lines.  
+Sending a polyphonic input to the pitch select CV yeilds a polyphonic output for the corresponding voice's pitch and gate outs.  Send several sequences, or just several static offsets, to the pitch select CV in and get polyphonic outputs, sharing the co-mutes and pitch select knob offset.  Even just static 0V and 5V signals can get nice independent counterpunctual lines.  
 
 ## Lattice Expander
 
@@ -107,16 +109,20 @@ There are several randomizer functions, that will randomize parameters to differ
 
 ## Time-Quantize Mode
 
-In this mode, switch and knob values are only read when an input gate or percentile CV changes value.  This can make it easier to time chanes, especially when using the mouse.  Keep in mind, however, some co-muted inputs could be running faster than any audible, musical pulse.  Find it in the right-click menu.
+In this mode, switch and knob values are only read when an input gate or pitch select CV changes value.  This can make it easier to time changes, especially when using the mouse.  This mode is strongly recommended, because it prevents glitches, and makes LameJuis a very interactive instrument to play with.  Find it in the right-click menu.
+
+## Clock Input
+
+LameJuis can be computationally expensive, and can be very sensitive to things changing on slightly different frames.  If this input (left side of the panel) is connected, steps will be skipped in less the clock in put receives a pulse.  In some cases, a brief trigger delay can be very helpful.
 
 ## Tips and Tricks
 
 - Try lots of different inputs.  Clock dividers, Euclidean rhythms, Bournouli gates, clocks with different phases and duty cycles all sound good.  
-- LameJuis can be somewhat sensitive to buffer delays on the gate inputs.  If you get extra unwanted triggers, try using a single sample-and-hold before the inputs to make all clocks change at the same time.
+- LameJuis can be somewhat sensitive to buffer delays on the gate inputs.  If you get extra unwanted triggers, try using the clocking put.
 - Use the "off" interval.  Six equations is a lot, you can spare one to just use as an extra logic out/gate sequencer/end-of-cycle output.  Or use it strategically to create a key change.
 - AND logics will be low more of the time and sound like they add upwards motion to the melodies.  OR logics will be high most of the time and add downwards motion to the logic.  The more inputs are active the more "most of the time" is.
 - XOR logics will be the most chaotic and unpredictable.  For instance, A XOR F will invert the phase of A when F goes high.  An XOR with many inputs will create a complex rhythm.
-- Sequence the percentile CVs.  LameJuis can weirdly abosorb weirdness in the sequence, so changing parameters of the sequence, like the speed or skipping steps, tends to sound good.  
+- Sequence the pitch select CVs.  LameJuis can weirdly abosorb weirdness in the sequence, so changing parameters of the sequence, like the speed or skipping steps, tends to sound good.  
 - Use the logic outs for tambre, or for drums.  It sounds very cohesive.
 - Use Grande Microtonal Notes and the Interval CV input to get whatever EDO you want.  For instance, say you want to compose in 19-EDO, but you don't know anything about it.  First use [xenharmonic wiki](https://en.xen.wiki/w/Main_Page) to figure out that the the 11th and 6th step of 19 EDO correspond to the fifth and major third, respectively.  Pick those on Microtonal Notes, route those to LameJuis's Interval CV and and you're ready to start --annoying your loved ones-- making microtonal music.
 - Play the co-mutes.  Just try things with them.  Right click and try randomizing them.
@@ -130,4 +136,4 @@ Special thanks to guitarist and educator Jacob Pek who's [Fundamental Harmonic M
 
 Special thanks to my partner who doesn't mind that I spend my time this way so long as I use headphones.
 
-Special thanks to Dave from [Venom](https://library.vcvrack.com/Venom) for making the front panel.
+Special thanks to Dave Benham from [Venom](https://library.vcvrack.com/Venom) for making the front panel.

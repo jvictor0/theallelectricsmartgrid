@@ -36,6 +36,18 @@ struct LameJuis : Module
             }
         }
 
+        void SetInvalidateCache()
+        {
+            m_invalidateCache = true;
+            if (!m_timeQuantizeMode)
+            {
+                for (size_t i = 0; i < LameJuisConstants::x_numAccumulators; ++i)
+                {
+                    SetRecomputeVoice(i);
+                }
+            }
+        }
+        
         void SetRecomputeVoice(size_t voiceId)
         {
             for (size_t i = 0; i < LameJuisConstants::x_maxPoly; ++i)
@@ -107,7 +119,7 @@ struct LameJuis : Module
             {
                 m_value = newVal;
                 m_changed = true;
-                preprocessState.m_invalidateCache = true;
+                preprocessState.SetInvalidateCache();
                 m_armed = true;
             }
             else
@@ -250,7 +262,7 @@ struct LameJuis : Module
             {
                 m_operatorValue = op;
                 m_operatorChanged = true;
-                preprocessState.m_invalidateCache = true;
+                preprocessState.SetInvalidateCache();
             }
 
             SwitchVal sv = GetSwitchVal();
@@ -258,7 +270,7 @@ struct LameJuis : Module
             {
                 m_switchValue = sv;
                 m_switchChanged = true;
-                preprocessState.m_invalidateCache = true;
+                preprocessState.SetInvalidateCache();
             }
 
             for (size_t i = 0; i < x_numInputs; ++i)
@@ -426,7 +438,7 @@ struct LameJuis : Module
             {
                 m_changed = true;
                 m_value = newValue;
-                preprocessState.m_invalidateCache = true;
+                preprocessState.SetInvalidateCache();
             }
         }
 
@@ -747,6 +759,11 @@ struct LameJuis : Module
             m_coMuteState.Preprocess(outputId, preprocessState);
             if (m_coMuteState.m_comuteChanged)
             {
+                if (!preprocessState.m_timeQuantizeMode)
+                {
+                    preprocessState.SetRecomputeVoice(outputId);
+                }
+
                 ClearAllCaches();
             }
         }
@@ -911,6 +928,25 @@ struct LameJuis : Module
             ClearCaches();
         }
     }
+
+    bool ShouldDoStep()
+    {
+        if (!m_clockPort->isConnected())
+        {
+            return true;
+        }
+        
+        float clockCableValue = m_clockPort->getVoltage();
+        m_clockSchmittTrigger.process(clockCableValue);
+        bool result = false;
+        if (!m_clockHigh && m_clockSchmittTrigger.isHigh())
+        {
+            result = true;
+        }
+    
+        m_clockHigh = m_clockSchmittTrigger.isHigh();
+        return result;
+    }
     
     void process(const ProcessArgs& args) override;
 
@@ -922,14 +958,17 @@ struct LameJuis : Module
 
     bool m_12EDOMode;
     bool m_timeQuantizeMode;
-    bool m_firstStep;
 
     rack::engine::Input* m_resetPort = nullptr;
+    rack::engine::Input* m_clockPort = nullptr;
     rack::dsp::TSchmittTrigger<float> m_resetSchmittTrigger;
+    rack::dsp::TSchmittTrigger<float> m_clockSchmittTrigger;
     bool m_reset;
+    bool m_clockHigh;
     
     Input m_inputs[LameJuisConstants::x_numInputs];
     LogicOperation m_operations[LameJuisConstants::x_numOperations];
     Accumulator m_accumulators[LameJuisConstants::x_numAccumulators];
     Output m_outputs[LameJuisConstants::x_numAccumulators];
 };
+    

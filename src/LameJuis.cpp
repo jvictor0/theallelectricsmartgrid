@@ -502,13 +502,14 @@ LameJuis::LameJuis()
     configInput(GetClockInputId(), "Clock");
     m_resetPort = &inputs[GetResetInputId()];
     m_reset = false;
+
+    m_clockPort = &inputs[GetClockInputId()];
     
     rightExpander.producerMessage = m_rightMessages[0];
     rightExpander.consumerMessage = m_rightMessages[1];
 
     m_12EDOMode = false;
-    m_timeQuantizeMode = false;
-    m_firstStep = true;
+    m_timeQuantizeMode = true;
 }
 
 void LameJuis::ProcessReset()
@@ -652,6 +653,12 @@ void LameJuis::RandomizePercentiles()
 void LameJuis::process(const ProcessArgs& args)
 {
     using namespace LameJuisConstants;
+
+    if (!ShouldDoStep())
+    {
+        ProcessTriggers(args.sampleTime);
+        return;
+    }
     
     PreprocessState preprocessState(m_timeQuantizeMode);
     Preprocess(preprocessState);
@@ -661,8 +668,6 @@ void LameJuis::process(const ProcessArgs& args)
     {
         defaultVector.Set(i, m_inputs[i].m_value);
     }  
-    
-    m_firstStep = false;
     
     ProcessOperations(preprocessState, defaultVector);
     ProcessOutputs(preprocessState, defaultVector, args.sampleTime);

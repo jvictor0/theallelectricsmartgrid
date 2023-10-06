@@ -17,7 +17,9 @@
 ### 2.0.5 (2023-09-13)
 -- Improve stability of time quantize mode
 
-### 3.0.0 (2023-09-13)
+### 2.1.0 (2023-10-06)
 -- New beautiful front panel.
 -- Add reset input.
-
+-- Add clock input.
+-- Continue to improve time quantize mode.
+-- Make time quantize mode the default.

@@ -256,7 +256,6 @@ struct LameJuisWidget : ModuleWidget
 
         for (size_t i = 0; i < x_numOperations; ++i)
         {
-//            addParam(createParamCentered<RoundSmallBlackKnob>(
             addParam(createParamCentered<Trimpot>(
                          GetOperatorKnobPX(i),
                          module,
