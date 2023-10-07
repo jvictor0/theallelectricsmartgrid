@@ -176,10 +176,10 @@ struct LameJuis : Module
         static std::vector<std::string> GetLogicNames()
         {
             return std::vector<std::string>({
-                    "Or",
-                    "And",
-                    "Xor",
-                    "At Least Two",
+                    "OR",
+                    "AND",
+                    "XOR",
+                    "At least two",
                     "Majority",
                     "Off"
                 });

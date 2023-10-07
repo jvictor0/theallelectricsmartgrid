@@ -432,18 +432,18 @@ LameJuis::LameJuis()
     {
         std::string inputName = "";
         inputName += ('A' + i);
-        configInput(GetMainInputId(i), "Input " + inputName);
+        configInput(GetMainInputId(i), "Gate " + inputName);
         
         for (size_t j = 0; j < x_numOperations; ++j)
         {
-            std::string switchName = "Switch " + inputName + "," + std::to_string(j);
+            std::string switchName = "Step " + std::to_string(j+1) + " gate " + inputName;
             configSwitch(GetMatrixSwitchId(i, j), 0.f, 2.f, 1.f, switchName, {"Inverted","Off","On"});
             m_operations[j].m_elements[i].Init(&params[GetMatrixSwitchId(i, j)]);
         }
 
         for (size_t j = 0; j < x_numAccumulators; ++j)
         {
-            configSwitch(GetPitchCoMuteSwitchId(i, j), 0.f, 1.f, 1.f, "Co-Mute Switch " + inputName + "," + std::to_string(j+1), {"Co-Muted", "On"});
+            configSwitch(GetPitchCoMuteSwitchId(i, j), 0.f, 1.f, 1.f, "Voice " + std::to_string(j+1) + " co-mute " + inputName, {"Co-Muted", "On"});
             m_outputs[j].m_coMuteState.m_switches[i].Init(
                 &params[GetPitchCoMuteSwitchId(i, j)],
                 &lights[GetCoMuteLightId(i, j)]);
@@ -456,9 +456,9 @@ LameJuis::LameJuis()
     
     for (size_t i = 0; i < x_numOperations; ++i)
     {
-        configSwitch(GetOperationSwitchId(i), 0.f, 2.f, 1.f, "Interval select", {"Bottom", "Middle", "Top"});
-        configSwitch(GetOperatorKnobId(i), 0.f, 5.f, 0.f, "Logic Operator" + std::to_string(i), LogicOperation::GetLogicNames());
-        configOutput(GetOperationOutputId(i), "Logic Out " + std::to_string(i));
+        configSwitch(GetOperationSwitchId(i), 0.f, 2.f, 1.f, "Step " + std::to_string(i+1) + " interval", {"Bottom", "Middle", "Top"});
+        configSwitch(GetOperatorKnobId(i), 0.f, 5.f, 0.f, "Step " + std::to_string(i+1) + " operator", LogicOperation::GetLogicNames());
+        configOutput(GetOperationOutputId(i), "Step " + std::to_string(i+1) + " gate");
 
         m_operations[i].Init(
             &params[GetOperationSwitchId(i)],
@@ -467,16 +467,23 @@ LameJuis::LameJuis()
             &lights[GetOperationLightId(i)]);
     }
     
+    configSwitch(GetAccumulatorIntervalKnobId(0), 0.f, 11.f, 0.f, "Top interval", Accumulator::GetIntervalNames());
+    configInput(GetIntervalCVInputId(0), "Top interval CV");
+
+    configSwitch(GetAccumulatorIntervalKnobId(1), 0.f, 11.f, 0.f, "Middle interval", Accumulator::GetIntervalNames());
+    configInput(GetIntervalCVInputId(1), "Middle interval CV");
+
+    configSwitch(GetAccumulatorIntervalKnobId(2), 0.f, 11.f, 0.f, "Bottom interval", Accumulator::GetIntervalNames());
+    configInput(GetIntervalCVInputId(2), "Bottom interval CV");
+
     for (size_t i = 0; i < x_numAccumulators; ++i)
     {
-        configSwitch(GetAccumulatorIntervalKnobId(i), 0.f, 11.f, 0.f, "Accum Interval Knob " + std::to_string(i+1), Accumulator::GetIntervalNames());
-        configParam(GetPitchPercentileKnobId(i), 0.f, 1.f, 0.f, "Voice Percentile Knob " + std::to_string(i+1));
+        std::string name = "Voice " + std::to_string(i+1);
+        configParam(GetPitchPercentileKnobId(i), 0.f, 1.f, 0.f, name + " pitch select");
+        configInput(GetPitchPercentileCVInputId(i), name + " pitch select CV");
 
-        configInput(GetIntervalCVInputId(i), "Interval CV In " + std::to_string(i+1));
-        configInput(GetPitchPercentileCVInputId(i), "Pitch Percentile CV in " + std::to_string(i+1));
-
-        configOutput(GetMainOutputId(i), "Pitch Out " + std::to_string(i+1));
-        configOutput(GetTriggerOutputId(i), "Trigger " + std::to_string(i+1));
+        configOutput(GetMainOutputId(i), name + " V/Oct");
+        configOutput(GetTriggerOutputId(i), name + " trigger");
 
         m_accumulators[i].Init(
             &params[GetAccumulatorIntervalKnobId(i)],
@@ -491,6 +498,8 @@ LameJuis::LameJuis()
             &inputs[GetPitchPercentileCVInputId(i)]);
     }
 
+    configInput(GetResetInputId(), "Reset");
+    configInput(GetClockInputId(), "Clock");
     m_resetPort = &inputs[GetResetInputId()];
     m_reset = false;
     

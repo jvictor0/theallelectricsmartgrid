@@ -85,7 +85,8 @@ namespace LameJuisConstants
         PitchPercentileCV = 1,
         IntervalCV = 2,
         ResetInput = 3,
-        NumInputTypes = 4,
+        ClockInput = 4,
+        NumInputTypes = 5,
     };
 
     static constexpr size_t x_numInputsPerType[] =
@@ -93,6 +94,7 @@ namespace LameJuisConstants
         x_numInputs,
         x_numAccumulators,
         x_numAccumulators,
+        1,
         1
     };
 
@@ -102,7 +104,8 @@ namespace LameJuisConstants
         x_numInputsPerType[0],
         x_numInputsPerType[0] + x_numInputsPerType[1],
         x_numInputsPerType[0] + x_numInputsPerType[1] + x_numInputsPerType[2],
-        x_numInputsPerType[0] + x_numInputsPerType[1] + x_numInputsPerType[2] + x_numInputsPerType[3]
+        x_numInputsPerType[0] + x_numInputsPerType[1] + x_numInputsPerType[2] + x_numInputsPerType[3],
+        x_numInputsPerType[0] + x_numInputsPerType[1] + x_numInputsPerType[2] + x_numInputsPerType[3] + x_numInputsPerType[4]
     };
 
     static constexpr size_t GetInputId(InputType inputType, size_t inputId)
@@ -129,6 +132,11 @@ namespace LameJuisConstants
     {
         return GetInputId(InputType::ResetInput, 0);
     }
+    
+    static constexpr size_t GetClockInputId()
+    {
+        return GetInputId(InputType::ClockInput, 0);
+    }  
 
     static constexpr size_t GetNumInputs()
     {

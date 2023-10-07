@@ -2,7 +2,9 @@
 
 struct LameJuisWidget : ModuleWidget
 {
-    static constexpr float x_reset_x = 122.329;
+    static constexpr float x_reset_x = 94.3505;
+    static constexpr float x_reset_y = 111.1385;
+    static constexpr float x_clock_x = 42.3505;
     static constexpr float x_intervalCV_x = 28.7505;
     static constexpr float x_intervalKnob_x = 76.935;
     static constexpr float x_interval_y[] = 
@@ -127,7 +129,12 @@ struct LameJuisWidget : ModuleWidget
     
     Vec GetResetJackPX()
     {
-        return Vec(x_reset_x, x_a_y[0]);
+        return Vec(x_reset_x, x_reset_y);
+    }
+
+    Vec GetClockJackPX()
+    {
+        return Vec(x_clock_x, x_reset_y);
     }
 
     Vec GetInputJackPX(size_t inputId)
@@ -249,7 +256,8 @@ struct LameJuisWidget : ModuleWidget
 
         for (size_t i = 0; i < x_numOperations; ++i)
         {
-            addParam(createParamCentered<RoundSmallBlackKnob>(
+//            addParam(createParamCentered<RoundSmallBlackKnob>(
+            addParam(createParamCentered<Trimpot>(
                          GetOperatorKnobPX(i),
                          module,
                          GetOperatorKnobId(i)));
@@ -306,7 +314,11 @@ struct LameJuisWidget : ModuleWidget
                      GetResetJackPX(),
                      module,
                      GetResetInputId()));
-	}
+        addInput(createInputCentered<PJ301MPort>(
+                     GetClockJackPX(),
+                     module,
+                     GetClockInputId()));
+    }
 
     void appendContextMenu(Menu *menu) override
     {
