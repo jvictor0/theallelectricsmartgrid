@@ -656,6 +656,7 @@ void LameJuis::process(const ProcessArgs& args)
 
     if (!ShouldDoStep())
     {
+        ProcessReset();
         ProcessTriggers(args.sampleTime);
         return;
     }
