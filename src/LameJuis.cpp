@@ -581,10 +581,9 @@ void LameJuis::ProcessOutputs(
                 msg.m_position[i][j][k] = m_outputs[i].m_pitch[j].m_result.m_high[k];
             }
         }
-
-        ProcessTriggers(dt);
     }
 
+    ProcessTriggers(dt);
     SendExpanderMessage(msg);
 }
 
@@ -672,6 +671,8 @@ void LameJuis::process(const ProcessArgs& args)
     
     ProcessOperations(preprocessState, defaultVector);
     ProcessOutputs(preprocessState, defaultVector, args.sampleTime);
+
+    m_lastInput = defaultVector;
 }
 
 json_t* LameJuis::dataToJson()

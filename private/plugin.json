@@ -1,0 +1,30 @@
+{
+    "slug": "TheAllElectricSmartGridPrivateReserve",
+    "name": "The All Electric Smart Grid Private Reserve",
+    "version": "2.0.0",
+    "license": "GPL-3.0-only",
+    "brand": "The All Electric Smart Grid Private Reserve",
+    "author": "Joyo Victor",
+    "authorEmail": "joyofresh@gmail.com",
+    "authorUrl": "",
+    "pluginUrl": "",
+    "manualUrl": "",
+    "sourceUrl": "https://github.com/jvictor0/theallelectricsmartgrid",
+    "donateUrl": "",
+    "changelogUrl": "",
+    "modules":
+    [
+        {
+            "slug": "MultiFunctionKnob",
+            "name": "Multi Function Knob",
+            "description": "Multi Function Knobs",
+            "tags":
+            [
+		"Utility"
+            ],
+            "keywords":
+            [
+            ]
+        }
+    ]
+}

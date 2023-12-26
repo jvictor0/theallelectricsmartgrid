@@ -779,7 +779,7 @@ struct LameJuis : Module
 
             if (changedThisFrame)
             {
-                m_pulseGen[chan].trigger(0.01);
+                m_pulseGen[chan].trigger(0.001);
             }
         }
 
@@ -926,6 +926,14 @@ struct LameJuis : Module
         if (preprocessState.m_invalidateCache)
         {
             ClearCaches();
+	    for (size_t i = 0; i < x_numAccumulators; ++i)
+	    {
+   	        size_t chans = m_outputs[i].GetPolyChans();
+		for (size_t j = 0; j < chans; ++j)
+		{
+		    m_outputs[i].m_pitch[j] = m_outputs[i].ComputePitch(this, m_lastInput, j);
+		}
+            }
         }
     }
 
@@ -965,6 +973,8 @@ struct LameJuis : Module
     rack::dsp::TSchmittTrigger<float> m_clockSchmittTrigger;
     bool m_reset;
     bool m_clockHigh;
+
+    InputVector m_lastInput;
     
     Input m_inputs[LameJuisConstants::x_numInputs];
     LogicOperation m_operations[LameJuisConstants::x_numOperations];
