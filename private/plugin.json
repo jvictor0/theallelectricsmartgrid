@@ -25,6 +25,28 @@
             "keywords":
             [
             ]
+        },
+        {
+            "slug": "MatrixThing",
+            "name": "MatrixThing",
+            "description": "MatrixThing",
+            "tags":
+            [
+		"Utility"
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "PolyCV-CC",
+            "name": "PolyCV to MIDI CC",
+            "description": "Converts CV to MIDI CC and sends to an external device",
+            "manualUrl": "https://vcvrack.com/manual/Core#CV-CC",
+            "tags": [
+                "External",
+                "MIDI"
+            ]
         }
     ]
 }
