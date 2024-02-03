@@ -11,7 +11,11 @@ extern Plugin* pluginInstance;
 extern Model* modelMultiFunctionKnob;
 extern Model* modelMatrixThing;
 extern Model* modelPolyCV_MIDICC;
-
+extern Model* modelPercentileSequencer;
+extern Model* modelMultiPhasorGate;
+extern Model* modelGangedRandomLFO;
+extern Model* modelTheoryOfTime;
+extern Model* modelTheNonagon;
 
 template <class TChoice>
 struct Grid16MidiDisplay : MidiDisplay {

@@ -2,119 +2,14 @@
 #include "plugin.hpp"
 #include <cstddef>
 #include <cmath>
+#include "BlinkLight.hpp"
 
 struct MatrixThing : Module
 {
-
-    static constexpr float x_blinkDelay = 0.01;
-    static constexpr float x_blinkTime = 0.01;
-    static constexpr float x_flashTime = 0.01;
-
     static constexpr size_t x_maxPoly = 16;
     static constexpr size_t x_numRows = 9;
 
-    static float Flip(float in)
-    {
-        if (in > 0)
-        {
-            return 0;
-        }
-        else
-        {
-            return 10.0;
-        }
-    }
-
-    static float CFlip(bool c, float in)
-    {
-        return c ? Flip(in) : in;
-    }
-    
-    struct Block
-    {
-        bool m_wasUp;
-        float m_value;
-        float m_timeToBlink;
-        float m_timeBlinking;
-        bool m_blink;
-        bool m_flash;
-
-        Block()
-            : m_wasUp(false)
-            , m_value(0)
-            , m_timeToBlink(0)
-            , m_timeBlinking(0)
-            , m_blink(false)
-            , m_flash(false)
-        {
-        }
-        
-        void SetVal(float val)
-        {
-            if (val > 0)
-            {
-                m_timeToBlink = x_blinkDelay;
-                
-                if (!m_wasUp)
-                {
-                    if (m_value == val)
-                    {
-                        m_value = 0;
-                    }
-                    else
-                    {
-                        m_value = val;
-                    }
-
-                    m_wasUp = true;
-                }
-            }
-            else
-            {
-                if (m_wasUp)
-                {
-                    m_timeToBlink = x_blinkDelay;
-                    m_wasUp = false;
-                }
-            }
-        }
-
-        void Process(float dt, float val)
-        {
-            SetVal(val);
-            
-            if (m_timeToBlink > 0)
-            {
-                m_blink = false;
-                m_timeToBlink -= dt;
-                if (m_timeToBlink < 0)
-                {
-                    m_timeBlinking = x_blinkTime;
-                }
-            }
-            else if (m_timeBlinking > 0)
-            {
-                m_blink = true;
-                m_timeBlinking -= dt;
-            }
-            else
-            {
-                m_blink = false;
-            }
-        }
-
-        float GetLight(bool flash)
-        {
-            if (!m_flash || m_value == 0)
-            {
-                return CFlip(m_blink, m_value);
-            }
-            else
-            {
-                return CFlip(flash, m_value);
-            }
-        }
-    };
+    static constexpr float x_flashTime = 0.01;
 
     struct Row
     {
@@ -136,14 +31,14 @@ struct MatrixThing : Module
             m_blinkTrig[chan].process(v);
             if (m_blinkTrig[chan].isHigh())
             {
-                m_blocks[chan].m_timeBlinking = x_blinkTime;
+                m_blocks[chan].Blink();
             }
         }
         
         void SetVCA(size_t chan, float v)
         {
             m_vca[chan] = v;
-            m_blocks[chan].m_flash = v > 0;
+            m_blocks[chan].SetFlash(v > 0);
         }
         
         bool ShouldSample(float v)

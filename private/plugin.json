@@ -39,6 +39,64 @@
             ]
         },
         {
+            "slug": "PercentileSequencer",
+            "name": "PercentileSequencer",
+            "description": "PercentileSequencer",
+            "tags":
+            [
+		"Sequencer"
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "MultiPhasorGate",
+            "name": "MultiPhasorGate",
+            "description": "MultiPhasorGate",
+            "tags":
+            [
+		"Sequencer"
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "GangedRandomLFO",
+            "name": "GangedRandomLFO",
+            "description": "GangedRandomLFO",
+            "tags":
+            [
+		"LFO"
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "TheoryOfTime",
+            "name": "TheoryOfTime",
+            "description": "TheoryOfTime",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "TheNonagon",
+            "name": "TheNonagon",
+            "description": "TheNonagon",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
             "slug": "PolyCV-CC",
             "name": "PolyCV to MIDI CC",
             "description": "Converts CV to MIDI CC and sends to an external device",
