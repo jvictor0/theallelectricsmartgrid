@@ -26,15 +26,33 @@ struct Color
     uint8_t m_color;
 
     static Color Off;
+    static Color Dim;
     static Color White;
+    static Color Red;
+    static Color Yellow;
+    static Color Green;
+    static Color SeaGreen;
     static Color Ocean;
+    static Color Blue;
     static Color Fuscia;
+    static Color Magenta;
+    static Color Purple;
+    static Color DimPurple;
 };
 
 Color Color::Off(0);
+Color Color::Dim(1);
 Color Color::White(3);
+Color Color::Red(5);
+Color Color::Yellow(13);
+Color Color::Green(21);
+Color Color::SeaGreen(25);
 Color Color::Ocean(33);
+Color Color::Blue(45);
 Color Color::Fuscia(53);
+Color Color::Magenta(80);
+Color Color::Purple(81);
+Color Color::DimPurple(82);
 
 struct ColorScheme
 {
@@ -53,13 +71,17 @@ struct ColorScheme
         return m_colors.size();
     }
 
-    ColorScheme(std::vector<Color>& colors)
+    ColorScheme(const std::vector<Color>& colors)
         : m_colors(colors)
     {
     }
     
     std::vector<Color> m_colors;
+
+    static ColorScheme Whites;
 };
+
+ColorScheme ColorScheme::Whites(std::vector<Color>({1, 2, 3}));
 
 struct Cell
 {
@@ -70,7 +92,10 @@ struct Cell
 
     bool m_pressureSensitive;
     
-    virtual Color GetColor() = 0;
+    virtual Color GetColor()
+    {
+        return Color::Off;
+    }
 
     virtual void OnPress(uint8_t velocity)
     {
@@ -98,7 +123,47 @@ struct Cell
     }
 };
 
-template<class StateClass>
+struct NoFlash
+{
+    bool IsFlashing()
+    {
+        return false;
+    }
+};
+
+struct BoolFlash
+{
+    bool* m_flash;
+    BoolFlash(bool* flash) : m_flash(flash)
+    {
+    }
+
+    bool IsFlashing()
+    {
+        return *m_flash;
+    }
+};
+
+template<class StateClass = size_t>
+struct Flash
+{
+    StateClass* m_state;
+    StateClass m_myState;
+    Flash(
+        StateClass* state,
+        StateClass myState)
+        : m_state(state)
+        , m_myState(myState)
+    {
+    }
+
+    bool IsFlashing()
+    {
+        return *m_state == m_myState;
+    }
+};
+
+template<class StateClass, class FlashClass = NoFlash>
 struct StateCell : public Cell
 {
     Color m_offColor;
@@ -107,7 +172,7 @@ struct StateCell : public Cell
     Color m_onFlashColor;
 
     StateClass* m_state;
-    bool* m_flash;
+    FlashClass m_flash;
 
     StateClass m_myState;
     StateClass m_offState;
@@ -132,7 +197,7 @@ struct StateCell : public Cell
         Color offFlashColor,
         Color onFlashColor,
         StateClass* state,
-        bool* flash,
+        FlashClass flash,
         StateClass myState,
         StateClass offState,
         Mode mode)
@@ -155,13 +220,13 @@ struct StateCell : public Cell
         StateClass myState,
         StateClass offState = 0,        
         Mode mode = Mode::Toggle) 
-        : StateCell(offColor, onColor, onColor, offColor, state, nullptr, myState, offState, mode)
+        : StateCell(offColor, onColor, onColor, offColor, state, FlashClass(), myState, offState, mode)
     {
     }
 
     virtual Color GetColor() override
     {
-        if (m_flash && *m_flash)
+        if (m_flash.IsFlashing())
         {
             return (*m_state) == m_myState ? m_onFlashColor : m_offFlashColor;
         }
@@ -200,6 +265,40 @@ struct StateCell : public Cell
             *m_state = m_offState;
         }
     }
+};
+
+template<class StateClass>
+struct CycleCell : Cell
+{
+    ColorScheme m_colors;
+    StateClass* m_state;
+
+    virtual ~CycleCell()
+    {
+    }
+
+    CycleCell(
+        ColorScheme colorScheme,
+        StateClass* state)
+        : m_colors(colorScheme)
+        , m_state(state)
+    {
+    }
+
+    void Cycle()
+    {
+        *m_state = static_cast<StateClass>((static_cast<size_t>(*m_state) + 1) % m_colors.size());
+    }
+
+    virtual Color GetColor() override
+    {        
+        return m_colors[static_cast<size_t>(*m_state)];
+    }
+
+    virtual void OnPress(uint8_t) override
+    {
+        Cycle();
+    }    
 };
 
 static constexpr int x_gridSize = 8;
@@ -359,12 +458,12 @@ struct CompositeGrid : public Grid
     
     std::vector<std::shared_ptr<Grid>> m_grids;
 
-    void AddGrid(Grid* grid, int xOff, int yOff)
+    void AddGrid(int xOff, int yOff, Grid* grid)
     {
-        AddGrid(std::shared_ptr<Grid>(grid), xOff, yOff);
+        AddGrid(xOff, yOff, std::shared_ptr<Grid>(grid));
     }
 
-    void AddGrid(std::shared_ptr<Grid> grid, int xOff, int yOff)
+    void AddGrid(int xOff, int yOff, std::shared_ptr<Grid> grid)
     {
         m_grids.push_back(grid);
         for (int i = grid->XStart(); i < grid->XEnd(); ++i)
@@ -396,7 +495,7 @@ struct CompositeGrid : public Grid
 struct GridUnion
 {
     std::vector<std::shared_ptr<Grid>> m_grids;
-    std::shared_ptr<Grid> m_menuGrids[x_maxChannels];
+    std::vector<std::shared_ptr<Grid>> m_menuGrids;
     size_t m_pageIx[x_maxChannels];
     size_t m_numChannels;
     GridBounds m_unionBounds;
@@ -413,6 +512,26 @@ struct GridUnion
         AddGrid(std::shared_ptr<Grid>(grid));
     }
 
+    int XStart()
+    {
+        return m_unionBounds.m_xStart;
+    }
+    
+    int XEnd()
+    {
+        return m_unionBounds.m_xEnd;
+    }
+
+    int YStart()
+    {
+        return m_unionBounds.m_yStart;
+    }
+    
+    int YEnd()
+    {
+        return m_unionBounds.m_yEnd;
+    }
+    
     void AddGrid(std::shared_ptr<Grid> grid)
     {
         m_grids.push_back(grid);
@@ -432,7 +551,7 @@ struct GridUnion
 
     void AddMenu(std::shared_ptr<Grid> grid)
     {
-        m_menuGrids[m_numChannels] = grid;
+        m_menuGrids.push_back(grid);
         m_pageIx[m_numChannels] = 0;
         ++m_numChannels;
     }
@@ -546,12 +665,14 @@ struct Fader : public Grid
         size_t m_fromBottom;
         float m_multiplier;
         bool m_isNoOp;
+        bool m_isUpper;
         
         FaderCell(Fader* owner, int fromBottom)
             : m_owner(owner)
             , m_fromBottom(fromBottom)
             , m_multiplier(1)
             , m_isNoOp(false)
+            , m_isUpper(false)
         {
             if (m_owner->m_pressureSensitive)
             {
@@ -574,7 +695,8 @@ struct Fader : public Grid
                 }
                 else
                 {
-                    for (size_t i = m_owner->Height() - 1; i > m_fromBottom; --i)
+                    m_isUpper = true;
+                    for (int i = m_owner->Height() - 1; i > static_cast<int>(m_fromBottom); --i)
                     {
                         m_multiplier /= 4;
                     }
@@ -632,19 +754,16 @@ struct Fader : public Grid
             {
                 case Mode::Relative:
                 {
-                    if (m_multiplier > 0)
+                    if (m_isUpper)
                     {
                         m_owner->m_target = 1;
                     }
-                    else if (m_multiplier < 0)
+                    else
                     {
                         m_owner->m_target = m_owner->IsBipolar() ? -1 : 0;
                     }
                     
-                    if (m_multiplier != 0)
-                    {
-                        SetSpeed(velocity);
-                    }                            
+                    SetSpeed(velocity);
                     
                     break;
                 }
@@ -696,6 +815,9 @@ struct Fader : public Grid
         , m_colorScheme(colorScheme)
         , m_minSpeed(minSpeed)
         , m_maxSpeed(maxSpeed)
+        , m_maxValue(maxValue)
+        , m_minValue(minValue)
+        , m_state(state)
         , m_pressureSensitive(pressureSensitive)
         , m_structure(structure)
         , m_mode(mode)
@@ -797,6 +919,11 @@ struct Message
     {
     }
 
+    static Message Off(int x, int y)
+    {
+        return Message(x, y, 0, Mode::NoteOff);
+    }
+
     Message(
         std::pair<int, int> xy,
         uint8_t velocity,
@@ -851,6 +978,7 @@ struct Message
                 return Message(NoteToLPPos(msg.getNote()), 0, Mode::NoteOff);
 			} 
 			case 0x9:
+            case 0xb:
             {
 				if (msg.getValue() > 0)
                 {
@@ -864,7 +992,8 @@ struct Message
 			case 0xa:
             {
                 return Message(NoteToLPPos(msg.getNote()), msg.getValue(), Mode::Pressure);
-			} 
+			}
+                
 			default:
             {
                 return Message();
@@ -874,24 +1003,7 @@ struct Message
 
     void PopulateMessage(midi::Message& msg)
     {
-        switch (m_mode)
-        {
-            case Mode::NoteOff:
-            {
-                msg.setStatus(0x8);
-                break;
-            }
-            case Mode::NoteOn:
-            {
-                msg.setStatus(0x9);
-                break;
-            }
-            default:
-            {
-                return;
-            }
-        }
-        
+        msg.setStatus(0xb);        
 		msg.setNote(LPPosToNote(m_x, m_y));
 		msg.setValue(m_velocity);
         msg.setChannel(1);
@@ -951,6 +1063,7 @@ struct MidiInterchangeSingle
     {
         m_input.setDriverId(x_loopbackId);
         m_output.setDriverId(x_loopbackId);
+        ClearLastSent();
     }
 
     void ClearLastSent()
@@ -1129,19 +1242,13 @@ struct MidiInterchange
         {
             Grid* grid = grids->GetPage(i);
             Grid* menu = grids->GetMenu(i);
-            for (int j = grid->XStart(); j < grid->XEnd(); ++j)
+            for (Grid* g : {grid, menu})
             {
-                for (int k = grid->YStart(); k < grid->YEnd(); ++k)
+                for (int j = g->XStart(); j < g->XEnd(); ++j)
                 {
-                    Cell* cell = menu->Get(j, k);
-                    if (cell)
+                    for (int k = g->YStart(); k < g->YEnd(); ++k)
                     {
-                        Message msg(j, k, cell);
-                        m_channels[i].Send(msg, frame);
-                    }
-                    else
-                    {
-                        cell = grid->Get(j, k);
+                        Cell* cell = g->Get(j, k);
                         if (cell)
                         {
                             Message msg(j, k, cell);

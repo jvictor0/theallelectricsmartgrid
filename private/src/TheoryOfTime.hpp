@@ -211,6 +211,15 @@ struct MusicalTime
     {
         float m_t;
         TimeBit::Input m_input[x_numBits];
+
+        Input()
+        {
+            m_t = 0;
+            for (size_t i = 1; i < x_numBits; ++i)
+            {
+                m_input[i].m_parentIx = i - 1;
+            }
+        }
     };
 
     void Process(Input& in)
@@ -258,7 +267,7 @@ struct MusicalTimeWithClock
 
     struct Input
     {
-        Input() : m_freq(1.0/16)
+        Input() : m_freq(1.0/4)
         {
         }
         
