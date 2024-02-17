@@ -5,6 +5,7 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <atomic>
 
 namespace SmartGrid
 {
@@ -14,7 +15,12 @@ static constexpr size_t x_maxChannels = 8;
 
 struct Color
 {
-    Color(uint8_t c) : m_color(c)
+    constexpr Color()
+        : m_color(0)
+    {
+    }
+    
+    constexpr Color(uint8_t c) : m_color(c)
     {
     }
 
@@ -22,37 +28,30 @@ struct Color
     {
         return m_color == c.m_color;
     }
-    
+
+    bool operator != (const Color& c)
+    {
+        return m_color != c.m_color;
+    }
+   
     uint8_t m_color;
 
     static Color Off;
     static Color Dim;
+    static Color Grey;
     static Color White;
     static Color Red;
+    static Color Orange;
     static Color Yellow;
     static Color Green;
     static Color SeaGreen;
     static Color Ocean;
     static Color Blue;
     static Color Fuscia;
-    static Color Magenta;
+    static Color Indigo;
     static Color Purple;
     static Color DimPurple;
 };
-
-Color Color::Off(0);
-Color Color::Dim(1);
-Color Color::White(3);
-Color Color::Red(5);
-Color Color::Yellow(13);
-Color Color::Green(21);
-Color Color::SeaGreen(25);
-Color Color::Ocean(33);
-Color Color::Blue(45);
-Color Color::Fuscia(53);
-Color Color::Magenta(80);
-Color Color::Purple(81);
-Color Color::DimPurple(82);
 
 struct ColorScheme
 {
@@ -75,36 +74,81 @@ struct ColorScheme
         : m_colors(colors)
     {
     }
+
+    static ColorScheme Hues(Color c)
+    {
+        uint8_t cbit = c.m_color;
+        return ColorScheme(std::vector<Color>({cbit + 2, cbit + 1, cbit}));
+    }
     
     std::vector<Color> m_colors;
 
     static ColorScheme Whites;
+    static ColorScheme Rainbow;
+    static ColorScheme Reds;
+    static ColorScheme Greens;
+    static ColorScheme Blues;
+    static ColorScheme RedHues;
+    static ColorScheme GreenHues;
+    static ColorScheme BlueHues;
 };
-
-ColorScheme ColorScheme::Whites(std::vector<Color>({1, 2, 3}));
-
+    
 struct Cell
 {
     virtual ~Cell()
     {
-        m_pressureSensitive = false;
     }
 
     bool m_pressureSensitive;
+    bool m_velocity;
+
+    Cell()
+    {
+        m_pressureSensitive = false;
+        m_velocity = false;
+    }
     
     virtual Color GetColor()
     {
         return Color::Off;
     }
 
+    bool IsPressed()
+    {
+        return m_velocity > 0;
+    }
+
+    void OnPressStatic(uint8_t velocity)
+    {
+        if (!IsPressed())
+        {
+            m_velocity = velocity;
+            OnPress(velocity);
+        }
+        else if (m_pressureSensitive)
+        {
+            m_velocity = velocity;
+            OnPressureChange(velocity);
+        }
+    }
+
     virtual void OnPress(uint8_t velocity)
     {
     }
 
+    void OnReleaseStatic()
+    {
+        if (IsPressed())
+        {
+            m_velocity = 0;
+            OnRelease();
+        }
+    }
+    
     virtual void OnRelease()
     {
     }
-
+    
     virtual void OnPressureChange(uint8_t velocity)
     {
     }
@@ -118,7 +162,15 @@ struct Cell
     {
         if (m_pressureSensitive)
         {
-            OnPressureChange(velocity);
+            m_velocity = velocity;
+            if (IsPressed())
+            {                
+                OnPressureChange(velocity);
+            }
+            else
+            {
+                OnPress(velocity);
+            }            
         }
     }
 };
@@ -302,106 +354,250 @@ struct CycleCell : Cell
 };
 
 static constexpr int x_gridSize = 8;
+static constexpr int x_gridXMin = -1;
+static constexpr int x_gridXMax = 9;
+static constexpr int x_gridYMin = -2;
+static constexpr int x_gridYMax = 9;
+static constexpr size_t x_gridMaxSize = 11;
 
-struct GridBounds
+struct Message
 {
-    static constexpr int x_bigNum = 100;
-
-    GridBounds(int xStart, int yStart, int xEnd, int yEnd)
-        : m_xStart(xStart)
-        , m_yStart(yStart)
-        , m_xEnd(xEnd)
-        , m_yEnd(yEnd)
+    enum class Mode : int
     {
-    }
-
-    GridBounds(int xEnd, int yEnd)
-        : GridBounds(0, 0, xEnd, yEnd)
+        NoMessage,
+        Note,
+        Color
+    };
+    
+    int m_x;
+    int m_y;
+    uint8_t m_velocity;
+    Color m_color;
+    Mode m_mode;
+    
+    Message()
+        : m_mode(Mode::NoMessage)
     {
-    }
-
-    GridBounds()
-        : GridBounds(x_bigNum, x_bigNum, -x_bigNum, -x_bigNum)
-    {
-    }
-
-    GridBounds Expand(GridBounds other)
-    {
-        return GridBounds(
-            std::min(m_xStart, other.m_xStart),
-            std::min(m_yStart, other.m_yStart),
-            std::max(m_xEnd, other.m_xEnd),
-            std::max(m_yEnd, other.m_yEnd));
     }
     
-    int m_xStart;
-    int m_yStart;
-    int m_xEnd;
-    int m_yEnd;
+    Message(
+        int x,
+        int y,
+        uint8_t velocity)
+        : m_x(x)
+        , m_y(y)
+        , m_velocity(velocity)
+        , m_mode(velocity == 0xFF ? Mode::NoMessage : Mode::Note)
+    {
+    }
+
+    Message(
+        int x,
+        int y,
+        Color color)
+        : m_x(x)
+        , m_y(y)
+        , m_color(color)
+        , m_mode(Mode::Color)
+    {
+    }
+
+    static Message Off(int x, int y)
+    {
+        return Message(x, y, 0);
+    }
+    
+    Message(
+        std::pair<int, int> xy,
+        uint8_t velocity)
+        : m_x(xy.first)
+        , m_y(xy.second)
+        , m_velocity(velocity)
+        , m_mode(velocity == 0xFF ? Mode::NoMessage : Mode::Note)
+    {
+    }
+    
+    Message(Cell* cell, int x, int y)
+        : m_x(x)
+        , m_y(y)
+    {
+        m_color = cell->GetColor();
+        m_mode = Mode::Color;
+    }
+    
+    bool NoMessage()
+    {
+        return m_mode == Mode::NoMessage;
+    }
+    
+    static uint8_t LPPosToNote(int x, int y)
+    {
+        return 11 + 10 * y + x;
+    }
+    
+    static std::pair<int, int> NoteToLPPos(uint8_t note)
+    {
+        int y = (note - 11) / 10;
+        int x = (note - 11) % 10;
+        return std::make_pair(x, y);
+    }
+    
+    static Message FromLPMidi(const midi::Message& msg)
+    {
+        switch (msg.getStatus())
+        {
+			case 0x8:
+            {
+                return Message(NoteToLPPos(msg.getNote()), 0);
+			} 
+			case 0x9:
+            case 0xb:
+            {
+				if (msg.getValue() > 0)
+                {
+                    return Message(NoteToLPPos(msg.getNote()), msg.getValue());
+                }
+                else
+                {
+                    return Message(NoteToLPPos(msg.getNote()), 0);
+                }
+            } 
+            case 0xa:
+            {
+                return Message(NoteToLPPos(msg.getNote()), msg.getValue());
+            }
+            
+            default:
+            {
+                return Message();
+            }
+        }
+    }
+    
+    void PopulateMessage(midi::Message& msg)
+    {
+        msg.setStatus(0xb);        
+		msg.setNote(LPPosToNote(m_x, m_y));
+		msg.setValue(m_color.m_color);
+        msg.setChannel(1);
+    }
 };
 
-struct Grid
-{
-    static constexpr size_t x_maxSize = 12;
-    bool m_needsProcess;
-    GridBounds m_bounds;
+static constexpr size_t x_numGridIds = 128;
 
-    std::shared_ptr<Cell> m_grid[x_maxSize][x_maxSize];
+struct GridIdAllocator
+{
+    std::atomic<bool> m_isAllocated[x_numGridIds];
+
+    GridIdAllocator()
+    {
+        for (size_t i = 0; i < x_numGridIds; ++i)
+        {
+            m_isAllocated[i] = false;
+        }
+    }
+
+    size_t Alloc()
+    {
+        for (size_t i = 0; i < x_numGridIds; ++i)
+        {
+            if (!m_isAllocated[i].exchange(true))
+            {
+                return i;
+            }
+        }
+
+        WARN("SmartGrid Grid Id Allocator cannot allocate %lu Smart Grids", x_numGridIds);
+        return x_numGridIds;
+    }
+
+    void Free(size_t id)
+    {
+        m_isAllocated[id].store(false);
+    }
+};
+
+extern GridIdAllocator g_gridIds;
+
+struct AbstractGrid
+{
+    size_t m_gridId;
+    
+    virtual ~AbstractGrid()
+    {
+        if (m_gridId != x_numGridIds)
+        {
+            g_gridIds.Free(m_gridId);
+        }
+    }
+    
+    static constexpr float x_busIOInterval = 0.05;
+    float m_timeToNextBusIO;
+    
+    AbstractGrid()
+    {
+        m_gridId = g_gridIds.Alloc();
+        m_timeToNextBusIO = -1;
+    }
+
+    template<typename Iter>
+    void Apply(Iter start, Iter end)
+    {
+        while (start != end)
+        {
+            Message msg = *start;
+            if (!msg.NoMessage())
+            {
+                Apply(msg);
+            }
+
+            ++start;
+        }
+    }
+
+    void OutputToBus();
+    void ApplyFromBus(bool ignoreChanged);
+    
+    virtual void Apply(Message msg) = 0;
+    virtual Color GetColor(int i, int j) = 0;
+    
+    virtual void Process(float dt)
+    {
+    }
+
+    void ProcessStatic(float dt)
+    {
+        Process(dt);
+
+        m_timeToNextBusIO -= dt;
+        if (m_timeToNextBusIO <= 0)
+        {
+            m_timeToNextBusIO = x_busIOInterval;
+            ApplyFromBus(false /*ignoreChanged*/);
+            OutputToBus();
+        }
+    }
+
+    void AllOff()
+    {
+        for (int i = x_gridXMin; i < x_gridXMax; ++i)
+        {
+            for (int j = x_gridYMin; j < x_gridYMax; ++j)
+            {
+                Apply(Message::Off(i, j));
+            }
+        }        
+    }
+};
+
+struct Grid : public AbstractGrid
+{
+    std::shared_ptr<Cell> m_grid[x_gridMaxSize][x_gridMaxSize];
 
     virtual ~Grid()
     {
     }
     
-    Grid()
-    {
-    }
-
-    Grid(int width, int height)
-        : Grid(0, 0, width, height)
-    {
-    }
-
-    Grid(int xStart, int yStart, int xEnd, int yEnd)
-        : m_bounds(xStart, yStart, xEnd, yEnd)
-    {
-        m_needsProcess = false;
-    }
-
-    int XStart()
-    {
-        return m_bounds.m_xStart;
-    }
-    
-    int YStart()
-    {
-        return m_bounds.m_yStart;
-    }
-    
-    int XEnd()
-    {
-        return m_bounds.m_xEnd;
-    }
-    
-    int YEnd()
-    {
-        return m_bounds.m_yEnd;
-    }
-
-    size_t Width()
-    {
-        return XEnd() - XStart();
-    }
-
-    size_t Height()
-    {
-        return YEnd() - YStart();
-    }
-    
-    void SetNeedsProcess()
-    {
-        m_needsProcess = true;
-    }
-
     std::shared_ptr<Cell>& GetShared(size_t i, size_t j)
     {
         return m_grid[i + 1][j + 2];
@@ -422,20 +618,26 @@ struct Grid
         m_grid[i + 1][j + 2] = cell;
     }
 
-    Color GetColor(int i, int j)
+    virtual Color GetColor(int i, int j) override
     {
         return Get(i, j) ? Get(i, j)->GetColor() : Color::Off;
     }
 
-    virtual void Process(float dt)
+    virtual void Apply(Message msg) override
     {
-    }
-
-    void ProcessStatic(float dt)
-    {
-        if (m_needsProcess)
+        if (msg.m_mode == Message::Mode::Note)
         {
-            Process(dt);
+            if (Get(msg.m_x, msg.m_y))
+            {
+                if (msg.m_velocity == 0)
+                {
+                    Get(msg.m_x, msg.m_y)->OnReleaseStatic();
+                }
+                else
+                {
+                    Get(msg.m_x, msg.m_y)->OnPressStatic(msg.m_velocity);
+                }
+            }
         }
     }
 };
@@ -446,16 +648,10 @@ struct CompositeGrid : public Grid
     {
     }
 
-    CompositeGrid(int xEnd, int yEnd)
-        : CompositeGrid(0, 0, xEnd, yEnd)
+    CompositeGrid()
     {
     }
-    
-    CompositeGrid(int xStart, int yStart, int xEnd, int yEnd)
-        : Grid(xStart, yStart, xEnd, yEnd)
-    {
-    }    
-    
+        
     std::vector<std::shared_ptr<Grid>> m_grids;
 
     void AddGrid(int xOff, int yOff, Grid* grid)
@@ -466,20 +662,15 @@ struct CompositeGrid : public Grid
     void AddGrid(int xOff, int yOff, std::shared_ptr<Grid> grid)
     {
         m_grids.push_back(grid);
-        for (int i = grid->XStart(); i < grid->XEnd(); ++i)
+        for (int i = x_gridXMin; i < x_gridXMax; ++i)
         {
-            for (int j = grid->YStart(); j < grid->YEnd(); ++j)
+            for (int j = x_gridYMin; j < x_gridYMax; ++j)
             {
                 if (grid->Get(i, j))
                 {
-                    Put(i - xOff, j - yOff, grid->GetShared(i, j));
+                    Put(i + xOff, j + yOff, grid->GetShared(i, j));
                 }
             }
-        }
-
-        if (m_grids.back()->m_needsProcess)
-        {
-            SetNeedsProcess();
         }
     }
 
@@ -492,18 +683,118 @@ struct CompositeGrid : public Grid
     }
 };
 
+#include "SmartBus.hpp"
+
+struct GridHolder
+{
+    std::vector<std::shared_ptr<AbstractGrid>> m_grids;
+    
+    void AddGrid(AbstractGrid* grid)
+    {
+        AddGrid(std::shared_ptr<AbstractGrid>(grid));
+    }
+
+    void AddGrid(std::shared_ptr<AbstractGrid> grid)
+    {
+        m_grids.push_back(grid);
+    }
+
+    AbstractGrid* Get(size_t ix)
+    {
+        return m_grids[ix].get();
+    }
+
+    size_t GridId(size_t ix)
+    {
+        return Get(ix)->m_gridId;
+    }
+
+    void Process(float dt)
+    {
+        for (std::shared_ptr<AbstractGrid>& grid : m_grids)
+        {
+            grid->ProcessStatic(dt);
+        }
+    }    
+};
+
+struct GridSwitcher : AbstractGrid
+{
+    size_t m_gridId;
+    size_t m_lastGridId;
+    std::shared_ptr<AbstractGrid> m_menuGrid;
+
+    virtual ~GridSwitcher()
+    {
+    }
+    
+    GridSwitcher(AbstractGrid* menu)
+        : m_gridId(x_numGridIds)
+        , m_lastGridId(x_numGridIds)
+        , m_menuGrid(std::shared_ptr<AbstractGrid>(menu))
+    {
+    }
+
+    GridSwitcher(std::shared_ptr<AbstractGrid> menu)
+        : m_gridId(x_numGridIds)
+        , m_lastGridId(x_numGridIds)
+        , m_menuGrid(menu)
+    {
+    }
+
+    virtual void Apply(Message msg) override
+    {
+        m_menuGrid->Apply(msg);
+        if (m_gridId != x_numGridIds)
+        {
+            g_smartBus.PutVelocity(m_gridId, msg.m_x, msg.m_y, msg.m_velocity);
+        }
+    }
+
+    virtual Color GetColor(int i, int j) override
+    {
+        Color c = m_menuGrid->GetColor(i, j);
+        if (c != Color::Off)
+        {
+            return c;
+        }
+        
+        if (m_gridId != x_numGridIds)
+        {
+            return g_smartBus.GetColor(m_gridId, i, j);
+        }
+        else
+        {
+            return Color::Off;
+        }
+    }
+
+    virtual void Process(float dt) override
+    {
+        m_menuGrid->ProcessStatic(dt);
+
+        if (m_lastGridId != m_gridId)
+        {
+            if (m_lastGridId != x_numGridIds)
+            {
+                g_smartBus.ClearVelocities(m_lastGridId);
+            }
+            
+            m_lastGridId = m_gridId;
+        }
+    }
+};
+
 struct GridUnion
 {
     std::vector<std::shared_ptr<Grid>> m_grids;
     std::vector<std::shared_ptr<Grid>> m_menuGrids;
     size_t m_pageIx[x_maxChannels];
+    size_t m_lastPageIx[x_maxChannels];
     size_t m_numChannels;
-    GridBounds m_unionBounds;
-    bool m_needsProcess;
 
     GridUnion()
         : m_numChannels(0)
-        , m_needsProcess(false)
     {
     }        
     
@@ -512,36 +803,9 @@ struct GridUnion
         AddGrid(std::shared_ptr<Grid>(grid));
     }
 
-    int XStart()
-    {
-        return m_unionBounds.m_xStart;
-    }
-    
-    int XEnd()
-    {
-        return m_unionBounds.m_xEnd;
-    }
-
-    int YStart()
-    {
-        return m_unionBounds.m_yStart;
-    }
-    
-    int YEnd()
-    {
-        return m_unionBounds.m_yEnd;
-    }
-    
     void AddGrid(std::shared_ptr<Grid> grid)
     {
         m_grids.push_back(grid);
-
-        if (m_grids.back()->m_needsProcess)
-        {
-            m_needsProcess = true;
-        }
-
-        m_unionBounds = m_unionBounds.Expand(grid->m_bounds);
     }
 
     void AddMenu(Grid* grid)
@@ -553,6 +817,7 @@ struct GridUnion
     {
         m_menuGrids.push_back(grid);
         m_pageIx[m_numChannels] = 0;
+        m_lastPageIx[m_numChannels] = 0;
         ++m_numChannels;
     }
 
@@ -568,11 +833,19 @@ struct GridUnion
 
     void Process(float dt)
     {
-        if (m_needsProcess)
+        for (std::shared_ptr<Grid>& grid : m_grids)
         {
-            for (std::shared_ptr<Grid>& grid : m_grids)
+            grid->ProcessStatic(dt);
+        }
+
+        for (size_t i = 0; i < m_numChannels; ++i)
+        {
+            // Send an 'OnRelease' to any pushed down cell on page change.
+            //
+            if (m_lastPageIx[i] != m_pageIx[i])
             {
-                grid->ProcessStatic(dt);
+                m_lastPageIx[i] = m_pageIx[i];
+                GetPage(i)->AllOff();
             }
         }
     }    
@@ -583,6 +856,8 @@ struct Fader : public Grid
     virtual ~Fader()
     {
     }
+    
+    size_t m_height;
     
     ColorScheme m_colorScheme;
     float m_minSpeed;
@@ -663,79 +938,73 @@ struct Fader : public Grid
     {
         Fader* m_owner;
         size_t m_fromBottom;
-        float m_multiplier;
-        bool m_isNoOp;
-        bool m_isUpper;
+        int m_fromCenter;
+        uint8_t m_velocity;
         
         FaderCell(Fader* owner, int fromBottom)
             : m_owner(owner)
             , m_fromBottom(fromBottom)
-            , m_multiplier(1)
-            , m_isNoOp(false)
-            , m_isUpper(false)
+            , m_velocity(0)
         {
             if (m_owner->m_pressureSensitive)
             {
                 SetPressureSensitive();
             }
 
-            if (m_owner->m_mode == Mode::Relative)
+            m_fromCenter = m_fromBottom - m_owner->m_height / 2;
+            if (m_owner->m_height % 2 == 0 && m_fromBottom >= m_owner->m_height / 2)
             {
-                if (m_owner->Height() % 2 == 1 && m_fromBottom == m_owner->Height() / 2)
-                {
-                    m_isNoOp = true;            
-                    m_multiplier = 0;
-                }
-                else if (m_fromBottom < m_owner->Height() / 2)
-                {
-                    for (size_t i = 0; i < m_fromBottom; ++i)
-                    {
-                        m_multiplier /= 4;
-                    }
-                }
-                else
-                {
-                    m_isUpper = true;
-                    for (int i = m_owner->Height() - 1; i > static_cast<int>(m_fromBottom); --i)
-                    {
-                        m_multiplier /= 4;
-                    }
-                }
+                // If there is no exact middle, bump the upper half to have non-zero 'm_fromCenter'.
+                //
+                ++m_fromCenter;
             }
         }
 
         virtual Color GetColor() override
         {
-            if (m_owner->IsBipolar())
+            if (m_owner->IsBipolar() &&
+                (m_fromCenter == 0 ||
+                 (std::abs<int>(m_fromCenter) < std::abs<int>(m_owner->m_posFromCenter) &&
+                  (m_fromCenter > 0) == (m_owner->m_posFromCenter > 0))))
             {
-                return Color::Off;                        
+                return m_owner->m_colorScheme.back();
+            }
+            else if (!m_owner->IsBipolar() &&
+                     m_fromBottom < m_owner->m_posFromBottom)
+            {
+                return m_owner->m_colorScheme.back();
+            }
+            else if (m_fromBottom == m_owner->m_posFromBottom)
+            {
+                size_t ix = static_cast<size_t>(m_owner->m_valueWithinCell * m_owner->m_colorScheme.size());
+                ix = std::max<size_t>(0, std::min(m_owner->m_colorScheme.size() - 1, ix));
+                return m_owner->m_colorScheme[ix];
             }
             else
             {
-                if (m_fromBottom < m_owner->m_posFromBottom)
-                {
-                    return m_owner->m_colorScheme.back();
-                }
-                else if (m_fromBottom == m_owner->m_posFromBottom)
-                {
-                    size_t ix = static_cast<size_t>(m_owner->m_valueWithinCell * m_owner->m_colorScheme.size());
-                    ix = std::max<size_t>(0, std::min(m_owner->m_colorScheme.size() - 1, ix));
-                    return m_owner->m_colorScheme[ix];
-                }
-                else
-                {
-                    return Color::Off;                        
-                }
+                return Color::Off;                        
             }
         }
         
-        void SetSpeed(uint8_t velocity)
+        float GetSpeed()
         {
-            m_owner->m_moving = true;
-            float frac = m_multiplier * static_cast<float>(velocity) / x_maxVelocity;
-            float speed = m_owner->m_minSpeed + (m_owner->m_maxSpeed - m_owner->m_minSpeed) * frac;
+            uint8_t vel = m_velocity;
+            if (m_owner->m_mode == Mode::Relative)
+            {
+                size_t towardsCenter = m_owner->m_height / 2 - std::abs(m_fromCenter);
+                vel = vel >> (2 * towardsCenter);
+            }
 
-            m_owner->m_speed = speed;
+            float frac = static_cast<float>(vel) / x_maxVelocity;
+            float speed = m_owner->m_minSpeed + (m_owner->m_maxSpeed - m_owner->m_minSpeed) * frac;
+            return speed;
+        }
+
+        float GetNonReducedSpeed()
+        {
+            float frac = static_cast<float>(m_velocity) / x_maxVelocity;
+            float speed = m_owner->m_minSpeed + (m_owner->m_maxSpeed - m_owner->m_minSpeed) * frac;
+            return speed;
         }
 
         void Stop()
@@ -745,60 +1014,104 @@ struct Fader : public Grid
         
         virtual void OnPress(uint8_t velocity) override
         {
-            if (m_isNoOp)
-            {
-                return;
-            }
-            
-            switch (m_owner->m_mode)
-            {
-                case Mode::Relative:
-                {
-                    if (m_isUpper)
-                    {
-                        m_owner->m_target = 1;
-                    }
-                    else
-                    {
-                        m_owner->m_target = m_owner->IsBipolar() ? -1 : 0;
-                    }
-                    
-                    SetSpeed(velocity);
-                    
-                    break;
-                }
-                case Mode::Absolute:
-                {
-                    break;
-                }
-            }
+            m_velocity = velocity;
+            m_owner->SetSpeedAndTarget();
         }
         
         virtual void OnRelease() override
         {
-            if (m_isNoOp)
-            {
-                return;
-            }
-            
-            if (m_owner->m_mode == Mode::Relative)
-            {
-                Stop();
-            }
+            m_velocity = 0;
+            m_owner->SetSpeedAndTarget();
         }
 
         virtual void OnPressureChange(uint8_t velocity) override
         {
-            if (m_owner->m_moving)
-            {
-                SetSpeed(velocity);
-            }
+            OnPress(velocity);
         }
         
         virtual ~FaderCell()
         {
         }
     };
+
+    void SetSpeedAndTarget()
+    {
+        float speed = 0;
+        bool isEven = m_height % 2 == 0;
+        bool isCenterTouched = Get(0, m_height / 2)->IsPressed();
+        bool isNonCenterTouched = false;
+        if (isCenterTouched && isEven)
+        {
+            isCenterTouched = Get(0, m_height / 2 - 1)->IsPressed();
+        }
+        
+        for (size_t i = 0; i < m_height; ++i)
+        {            
+            FaderCell* cell = static_cast<FaderCell*>(Get(0, i));
+            if (cell->IsPressed())
+            {
+                if ((!isEven && cell->m_fromCenter != 0) || std::abs(cell->m_fromCenter) != 1)
+                {
+                    isNonCenterTouched = true;
+                }
+                
+                if (m_mode == Mode::Relative)
+                {
+                    float speedComponent = cell->GetSpeed();
+                    if (cell->m_fromCenter > 0)
+                    {
+                        speed += speedComponent;
+                    }
+                    else if (cell->m_fromCenter < 0)
+                    {
+                        speed -= speedComponent;
+                    }
+                }
+                else
+                {
+                }
+            }
+        }
+
+        if (m_mode == Mode::Relative)
+        {
+            if (IsBipolar() && isCenterTouched && !isNonCenterTouched)
+            {
+                // Make sure zero is easy to get at for bipolar faders.
+                //
+                m_target = 0;
+                m_speed = static_cast<FaderCell*>(Get(0, m_height / 2))->GetNonReducedSpeed();
+                m_moving = true;
+            }
+            else if (!IsBipolar() && isCenterTouched && !isEven)
+            {
+                // For odd size relative unipolar faders, the middle button is auto-stop!
+                //
+                m_moving = false;
+            }
+            else if (speed != 0)
+            {
+                m_speed = std::abs(speed);
+                m_moving = true;
+                if (speed > 0)
+                {
+                    m_target = 1;
+                }
+                else if (IsBipolar())
+                {
+                    m_target = -1;
+                }
+                else
+                {
+                    m_target = 0;
+                }
+            }
+            else
+            {
+                m_moving = false;
+            }
+        }
+    }    
     
     Fader(
         float* state,
@@ -811,21 +1124,22 @@ struct Fader : public Grid
         bool pressureSensitive = true,
         Structure structure = Structure::Linear,
         Mode mode = Mode::Relative)
-        : Grid(1 /*width*/, height)
+        : m_height(height)
         , m_colorScheme(colorScheme)
         , m_minSpeed(minSpeed)
         , m_maxSpeed(maxSpeed)
         , m_maxValue(maxValue)
         , m_minValue(minValue)
         , m_state(state)
+        , m_speed(0)
+        , m_moving(false)
         , m_pressureSensitive(pressureSensitive)
         , m_structure(structure)
         , m_mode(mode)
     {
-        SetNeedsProcess();
-        for (int i = YStart(); i < YEnd(); ++i)
+        for (int i = 0; i < height; ++i)
         {
-            Put(0, i, new FaderCell(this, i - YStart()));
+            Put(0, i, new FaderCell(this, i));
         }
 
         if (IsExponential())
@@ -834,21 +1148,51 @@ struct Fader : public Grid
         }
 
         m_lastAbsState = *m_state;
+
+        ComputeFaderPos(Normalize(*m_state));
     }
 
     float m_valueWithinCell;
     size_t m_posFromBottom;
+    int m_posFromCenter;
     
     void ComputeFaderPos(float normState)
     {
         if (IsBipolar())
         {
+            size_t h = m_height / 2;
+            float perBlock = std::abs(h * normState);
+            float posFromCenter = std::max<size_t>(0, std::min<size_t>(h - 1, static_cast<size_t>(perBlock)));
+            if (normState < 0)
+            {
+                m_posFromBottom = h - posFromCenter - 1;
+                m_valueWithinCell = std::max<float>(0, std::min<float>(1, perBlock - m_posFromBottom));
+            }
+            else
+            {
+                if (m_height % 2 == 1)
+                {
+                    m_posFromBottom = h + posFromCenter + 1;
+                }
+                else
+                {                
+                    m_posFromBottom = h + posFromCenter;
+                }
+            }
+            
+            m_valueWithinCell = std::max<float>(0, std::min<float>(1, perBlock - posFromCenter));
         }
         else
         {
-            float perBlock = Height() * normState;
-            m_posFromBottom = std::max<size_t>(0, std::min<size_t>(Height() - 1, static_cast<size_t>(perBlock)));
+            float perBlock = m_height * normState;
+            m_posFromBottom = std::max<size_t>(0, std::min<size_t>(m_height - 1, static_cast<size_t>(perBlock)));
             m_valueWithinCell = std::max<float>(0, std::min<float>(1, perBlock - m_posFromBottom));
+        }
+
+        m_posFromCenter = m_posFromBottom - m_height / 2;
+        if (m_height % 2 == 0 && m_posFromBottom >= m_height / 2)
+        {
+            ++m_posFromCenter;
         }
     }
 
@@ -885,155 +1229,6 @@ struct Fader : public Grid
             m_lastAbsState = *m_state;
         }
     }    
-};
-
-struct Message
-{
-    enum class Mode : int
-    {
-        NoMessage,
-        NoteOn,
-        NoteOff,
-        Pressure
-    };
-    
-    int m_x;
-    int m_y;
-    uint8_t m_velocity;
-    Mode m_mode;
-
-    Message()
-        : m_mode(Mode::NoMessage)
-    {
-    }
-    
-    Message(
-        int x,
-        int y,
-        uint8_t velocity,
-        Mode mode)
-        : m_x(x)
-        , m_y(y)
-        , m_velocity(velocity)
-        , m_mode(mode)
-    {
-    }
-
-    static Message Off(int x, int y)
-    {
-        return Message(x, y, 0, Mode::NoteOff);
-    }
-
-    Message(
-        std::pair<int, int> xy,
-        uint8_t velocity,
-        Mode mode)
-        : m_x(xy.first)
-        , m_y(xy.second)
-        , m_velocity(velocity)
-        , m_mode(mode)
-    {
-    }
-
-    Message(int x, int y, Cell* cell)
-        : m_x(x)
-        , m_y(y)
-    {
-        Color c = cell->GetColor();
-        if (c == Color::Off)
-        {
-            m_velocity = 0;
-            m_mode = Mode::NoteOff;
-        }
-        else
-        {
-            m_velocity = c.m_color;
-            m_mode = Mode::NoteOn;
-        }
-    }
-
-    bool NoMessage()
-    {
-        return m_mode == Mode::NoMessage;
-    }
-
-    static uint8_t LPPosToNote(int x, int y)
-    {
-        return 11 + 10 * y + x;
-    }
-
-    static std::pair<int, int> NoteToLPPos(uint8_t note)
-    {
-        int y = (note - 11) / 10;
-        int x = (note - 11) % 10;
-        return std::make_pair(x, y);
-    }
-
-    static Message FromLPMidi(const midi::Message& msg)
-    {
-        switch (msg.getStatus())
-        {
-			case 0x8:
-            {
-                return Message(NoteToLPPos(msg.getNote()), 0, Mode::NoteOff);
-			} 
-			case 0x9:
-            case 0xb:
-            {
-				if (msg.getValue() > 0)
-                {
-                    return Message(NoteToLPPos(msg.getNote()), msg.getValue(), Mode::NoteOn);
-				}
-				else
-                {
-                    return Message(NoteToLPPos(msg.getNote()), 0, Mode::NoteOff);
-    			}
-			} 
-			case 0xa:
-            {
-                return Message(NoteToLPPos(msg.getNote()), msg.getValue(), Mode::Pressure);
-			}
-                
-			default:
-            {
-                return Message();
-            }
-		}
-    }
-
-    void PopulateMessage(midi::Message& msg)
-    {
-        msg.setStatus(0xb);        
-		msg.setNote(LPPosToNote(m_x, m_y));
-		msg.setValue(m_velocity);
-        msg.setChannel(1);
-    }
-
-    void Apply(Cell* cell)
-    {
-        switch (m_mode)
-        {
-            case Mode::NoteOff:
-            {
-                cell->OnRelease();
-                break;
-            }
-            case Mode::NoteOn:
-            {
-                cell->OnPress(m_velocity);
-                break;
-            }
-            case Mode::Pressure:
-            {
-                cell->OnPressureChange(m_velocity);
-                break;
-            }
-            default:
-            {
-                break;
-            }
-        }
-    }
 };
 
 struct MidiInterchangeSingle
@@ -1116,10 +1311,28 @@ struct MidiInterchangeSingle
         if (m_lastSent[msg.getNote()] == 0xFF || m_lastSent[msg.getNote()] != message.m_velocity)
         {
             m_output.sendMessage(msg);
-            m_lastSent[msg.getNote()] = message.m_velocity;
+            m_lastSent[msg.getNote()] = message.m_color.m_color;
         }
     }
 
+    void SendIfSet(Message& message, int64_t frame)
+    {
+        if (!IsActive())
+        {
+            return;
+        }
+
+        midi::Message msg;
+        message.PopulateMessage(msg);
+        msg.setFrame(frame);
+        
+        if (m_lastSent[msg.getNote()] != 0xFF)
+        {
+            m_output.sendMessage(msg);
+            m_lastSent[msg.getNote()] = message.m_color.m_color;
+        }
+    }
+    
     Message Pop(int64_t frame)
     {
         if (!IsActive())
@@ -1153,6 +1366,33 @@ struct MidiInterchangeSingle
                 return;
             }
         }        
+    }
+
+    void ApplyMidi(int64_t frame, AbstractGrid* grid)
+    {
+        while (true)
+        {
+            Message msg = Pop(frame);
+            if (msg.NoMessage())
+            {
+                break;
+            }
+            
+            grid->Apply(msg);
+        }
+    }
+
+    void SendMidi(int64_t frame, AbstractGrid* grid)
+    {
+        for (int i = x_gridXMin; i < x_gridXMax; ++i)
+        {
+            for (int j = x_gridYMin; j < x_gridYMax; ++j)
+            {
+                Color c = grid->GetColor(i, j);
+                Message msg(i, j, c);
+                Send(msg, frame);
+            }
+        }
     }
 };
 
@@ -1218,20 +1458,9 @@ struct MidiInterchange
                 {
                     break;
                 }
-                
-                Cell* cell = menu->Get(msg.m_x, msg.m_y);
-                if (cell)
-                {
-                    msg.Apply(cell);
-                }
-                else
-                {
-                    cell = grid->Get(msg.m_x, msg.m_y);
-                    if (cell)
-                    {
-                        msg.Apply(cell);
-                    }                    
-                }
+
+                grid->Apply(msg);
+                menu->Apply(msg);
             }
         }
     }
@@ -1242,18 +1471,29 @@ struct MidiInterchange
         {
             Grid* grid = grids->GetPage(i);
             Grid* menu = grids->GetMenu(i);
-            for (Grid* g : {grid, menu})
+            for (int j = x_gridXMin; j < x_gridXMax; ++j)
             {
-                for (int j = g->XStart(); j < g->XEnd(); ++j)
-                {
-                    for (int k = g->YStart(); k < g->YEnd(); ++k)
+                for (int k = x_gridYMin; k < x_gridYMax; ++k)
+                {                    
+                    Cell* cell = menu->Get(j, k);
+                    if (cell)
                     {
-                        Cell* cell = g->Get(j, k);
+                        Message msg(cell, j, k);
+                        m_channels[i].Send(msg, frame);
+                    }
+                    else
+                    {
+                        cell = grid->Get(j, k);
                         if (cell)
                         {
-                            Message msg(j, k, cell);
+                            Message msg(cell, j, k);
                             m_channels[i].Send(msg, frame);
                         }
+                        else
+                        {
+                            Message msg = Message::Off(j, k);
+                            m_channels[i].SendIfSet(msg, frame);
+                        }                        
                     }
                 }
             }
@@ -1264,7 +1504,8 @@ struct MidiInterchange
 struct SmartGrid
 {
     MidiInterchange m_midi;
-    GridUnion* m_grids;
+    std::vector<std::shared_ptr<AbstractGrid>> m_grids;
+    GridHolder m_gridHolder;
     float m_timeToCheck;
     static constexpr float x_checkTime = 0.01;
 
@@ -1275,29 +1516,65 @@ struct SmartGrid
 
     Input m_state;
 
-    SmartGrid(GridUnion* grids) :
-        m_grids(grids),
+    SmartGrid() :
         m_timeToCheck(-1)
     {
     }
 
+    void AddToplevelGrid(AbstractGrid* grid)
+    {
+        AddToplevelGrid(std::shared_ptr<AbstractGrid>(grid));
+    }
+
+    void AddToplevelGrid(std::shared_ptr<AbstractGrid> grid)
+    {
+        m_grids.push_back(grid);
+        m_gridHolder.AddGrid(grid);
+    }
+
+    void AddGrid(AbstractGrid* grid)
+    {
+        m_gridHolder.AddGrid(grid);
+    }
+
+    void AddGrid(std::shared_ptr<AbstractGrid> grid)
+    {
+        m_gridHolder.AddGrid(grid);
+    }
+
+    void ApplyMidi(int64_t frame)
+    {
+        for (size_t i = 0; i < m_midi.m_numActive; ++i)
+        {
+            m_midi.m_channels[i].ApplyMidi(frame, m_grids[i].get());
+        }
+    }
+
+    void SendMidi(int64_t frame)
+    {
+        for (size_t i = 0; i < m_midi.m_numActive; ++i)
+        {
+            m_midi.m_channels[i].SendMidi(frame, m_grids[i].get());
+        }
+    }
+    
     void BeforeModuleProcess(float dt, int64_t frame)
     {
         m_timeToCheck -= dt;
         if (m_timeToCheck < 0)
         {
             m_midi.ProcessActive(m_state.m_midiSwitchInput, frame);
-            m_midi.ApplyMidi(frame, m_grids);
+            ApplyMidi(frame);
         }
 
-        m_grids->Process(dt);        
+        m_gridHolder.Process(dt);        
     }
 
     void AfterModuleProcess(int64_t frame)
     {
         if (m_timeToCheck < 0)
         {            
-            m_midi.SendMidi(frame, m_grids);
+            SendMidi(frame);
             m_timeToCheck = x_checkTime;
         }
     }

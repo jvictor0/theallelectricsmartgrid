@@ -49,6 +49,14 @@ struct TimeBit
         m_pingPong = false;
     }
 
+    void Stop()
+    {
+        m_pos = 0;
+        m_prePos = 0;
+        m_top = true;
+        m_state = State::x_init;
+    }
+    
     TimeBit* GetParent();
 
     float ApplyMult(float t)
@@ -196,14 +204,18 @@ struct MusicalTime
     static constexpr size_t x_numBits = 8;
     TimeBit m_bits[x_numBits];
     bool m_gate[x_numBits];
-    bool m_change;
+    bool m_change[x_numBits];
+    bool m_anyChange;
+    bool m_running;
 
     MusicalTime()
     {
-        m_change = false;
+        m_anyChange = false;
+        m_running = false;
         for (size_t i = 0; i < x_numBits; ++i)
         {
             m_bits[i].Init(i, this);
+            m_change[i] = false;
         }
     }
     
@@ -211,6 +223,7 @@ struct MusicalTime
     {
         float m_t;
         TimeBit::Input m_input[x_numBits];
+        bool m_running;
 
         Input()
         {
@@ -224,23 +237,47 @@ struct MusicalTime
 
     void Process(Input& in)
     {
-        m_bits[0].SetDirectly(in.m_t);
-        for (size_t i = 1; i < x_numBits; ++i)
+        if (in.m_running)
         {
-            m_bits[i].Process(in.m_input[i]);
-        }
-
-        m_change = false;
-
-        for (size_t i = 0; i < x_numBits; ++i)
-        {
-            bool gate = GetPos(i) < 0.5;
-            if (m_gate[i] != gate)
+            m_running = true;
+            m_bits[0].SetDirectly(in.m_t);
+            for (size_t i = 1; i < x_numBits; ++i)
             {
-                m_change = true;
+                m_bits[i].Process(in.m_input[i]);
             }
-
-            m_gate[i] = gate;
+            
+            m_anyChange = false;
+            
+            for (size_t i = 0; i < x_numBits; ++i)
+            {
+                m_change[i] = false;
+                bool gate = GetPos(i) < 0.5;
+                if (m_gate[i] != gate)
+                {
+                    m_change[i] = true;
+                    m_anyChange = true;
+                }
+                
+                m_gate[i] = gate;
+            }
+        }
+        else if (m_running)
+        {
+            // It was running, but a stop was requested.
+            // Stop All bits, and set 'm_anyChange' so others can react.
+            //
+            m_running = false;
+            m_anyChange = true;
+            for (size_t i = 0; i < x_numBits; ++i)
+            {
+                m_bits[i].Stop();
+                m_gate[i] = false;
+                m_change[i] = true;
+            }            
+        }
+        else
+        {
+            m_anyChange = false;
         }
     }
 
@@ -277,11 +314,18 @@ struct MusicalTimeWithClock
 
     void Process(float dt, Input& input)
     {
-        float dx = dt * input.m_freq;
-        m_phasor += dx;
-        m_phasor = m_phasor - floor(m_phasor);
-        input.m_input.m_t = m_phasor;
+        if (input.m_input.m_running)
+        {
+            float dx = dt * input.m_freq;
+            m_phasor += dx;
+            m_phasor = m_phasor - floor(m_phasor);
+        }
+        else
+        {
+            m_phasor = 0;
+        }
 
+        input.m_input.m_t = m_phasor;
         m_musicalTime.Process(input.m_input);
     }
 };
@@ -359,7 +403,7 @@ struct TheoryOfTime : Module
             outputs[x_gateOut].setVoltage(m_musicalTime.GetGate(i) ? 10 : 0, i);
         }
 
-        outputs[x_trigOut].setVoltage(m_musicalTime.m_change ? 10 : 0);
+        outputs[x_trigOut].setVoltage(m_musicalTime.m_anyChange ? 10 : 0);
     }
 
     static constexpr size_t x_inputId = 0;

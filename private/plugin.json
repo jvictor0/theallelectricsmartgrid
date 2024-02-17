@@ -97,6 +97,17 @@
             ]
         },
         {
+            "slug": "PhasorEnvelope",
+            "name": "PhasorEnvelope",
+            "description": "PhasorEnvelope",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
             "slug": "PolyCV-CC",
             "name": "PolyCV to MIDI CC",
             "description": "Converts CV to MIDI CC and sends to an external device",

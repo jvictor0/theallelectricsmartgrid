@@ -11,12 +11,29 @@ struct MultiPhasorGateInternal
 
     struct Input
     {
-        float m_trigs[x_maxPoly];
+        bool m_trigs[x_maxPoly];
         float m_phasors[x_maxPoly];
         size_t m_numTrigs;
         size_t m_numPhasors;
-        float m_phasorSelector[x_maxPoly];
+        bool m_phasorSelector[x_maxPoly][x_maxPoly];
         float m_gateFrac[x_maxPoly];
+
+        Input()
+            : m_numTrigs(0)
+            , m_numPhasors(0)
+        {
+            for (size_t i = 0; i < x_maxPoly; ++i)
+            {
+                m_trigs[i] = false;
+                m_phasors[i] = 0;
+                m_gateFrac[i] = 0.5;
+                for (size_t j = 0; j < x_maxPoly; ++j)
+                {
+                    m_phasorSelector[i][j] = false;
+                }
+
+            }
+        }
     };
     
     MultiPhasorGateInternal()
@@ -24,6 +41,7 @@ struct MultiPhasorGateInternal
         for (size_t i = 0; i < x_maxPoly; ++i)
         {
             m_gate[i] = false;
+            m_phasorOut[i] = 0;
         }
     }
     
@@ -31,64 +49,80 @@ struct MultiPhasorGateInternal
     {
         PhasorBounds()
             : m_low(0)
+            , m_start(0)
             , m_high(0)
         {
         }
         
         float m_low;
+        float m_start;
         float m_high;
 
-        void Set(float phase, float gateFrac)
+        void Set(float phase)
         {
-            if (phase >= 5)
+            m_start = phase;
+            if (phase >= 0.5)
             {
-                m_low = 5 + (phase - 5) * (1 - gateFrac);
-                m_high = 10 - (10 - phase) * (1 - gateFrac);
+                m_low = 0.5;
+                m_high = 1;
             }
             else
             {
-                m_low = phase * (1 - gateFrac);
-                m_high = 5 - (5 - phase) * (1 - gateFrac);
+                m_low = 0;
+                m_high = 0.5;
             }
         }
 
-        bool Check(float phase)
+        bool Check(float phase, float* phasorOut, float gateFrac)
         {
-            return m_low < phase && phase < m_high;
+            float lowPhase = 1 - (phase - m_low) / (m_start - m_low);
+            float highPhase = 1 - (m_high - phase) / (m_high - m_start);
+            *phasorOut = std::max(lowPhase, highPhase);            
+            return *phasorOut < gateFrac;
         }
     };
 
     bool m_gate[x_maxPoly];
-    Trig m_trigs[x_maxPoly];
+    bool m_set[x_maxPoly];
+    float m_phasorOut[x_maxPoly];
     PhasorBounds m_bounds[x_maxPoly][x_maxPoly];
 
     void Process(Input& input)
     {
         for (size_t i = 0; i < input.m_numTrigs; ++i)
         {
-            if (m_gate[i])
+            if (m_set[i])
             {
+                float phasorOut = 0;
                 for (size_t j = 0; j < input.m_numPhasors; ++j)
                 {
-                    if (input.m_phasorSelector[j])
+                    if (input.m_phasorSelector[i][j])
                     {
-                        if (!m_bounds[i][j].Check(input.m_phasors[j]))
+                        float thisPhase = 0;
+                        if (!m_bounds[i][j].Check(input.m_phasors[j], &thisPhase, input.m_gateFrac[i]))
                         {
                             m_gate[i] = false;
-                            break;
                         }
+                        
+                        phasorOut = std::max(thisPhase, phasorOut);
                     }
                 }
-            }
-            else
-            {
-                if (m_trigs[i].Process(input.m_trigs[i]))
+            
+                if (phasorOut >= 1)
                 {
-                    m_gate[i] = true;
-                    for (size_t j = 0; j < input.m_numPhasors; ++j)
-                    {
-                        m_bounds[i][j].Set(input.m_phasors[j], input.m_gateFrac[i] / 10);
-                    }
+                    phasorOut = 0;
+                    m_set[i] = false;
+                }
+                m_phasorOut[i] = phasorOut;
+            }
+
+            if (!m_gate[i] && input.m_trigs[i])
+            {
+                m_gate[i] = true;
+                m_set[i] = true;
+                for (size_t j = 0; j < input.m_numPhasors; ++j)
+                {
+                    m_bounds[i][j].Set(input.m_phasors[j]);
                 }
             }
         }
@@ -131,7 +165,7 @@ struct MultiPhasorGate : Module
 
     float GetPhasor(size_t i)
     {
-        return inputs[PhasorInId()].getVoltage(i);
+        return inputs[PhasorInId()].getVoltage(i) / 10;
     }
 
     size_t GetNumTrigs()
@@ -146,7 +180,7 @@ struct MultiPhasorGate : Module
 
     float GetGateFrac(size_t i)
     {
-        return inputs[GateFracInId()].getVoltage(i);
+        return inputs[GateFracInId()].getVoltage(i) / 10;
     }
 
     float GetPhasorSelector(size_t phasorId)
@@ -177,7 +211,7 @@ struct MultiPhasorGate : Module
         m_state.m_numPhasors = GetNumPhasors();
         for (size_t i = 0; i < m_state.m_numPhasors; ++i)
         {
-            m_state.m_phasorSelector[i] = GetPhasorSelector(i);
+            //            m_state.m_phasorSelector[i] = GetPhasorSelector(i);
         }
 
         for (size_t i = 0; i < m_state.m_numTrigs; ++i)
