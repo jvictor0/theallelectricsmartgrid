@@ -31,7 +31,6 @@ struct MultiPhasorGateInternal
                 {
                     m_phasorSelector[i][j] = false;
                 }
-
             }
         }
     };
@@ -42,6 +41,10 @@ struct MultiPhasorGateInternal
         {
             m_gate[i] = false;
             m_phasorOut[i] = 0;
+            for (size_t j = 0; j < x_maxPoly; ++j)
+            {
+                m_phasorSelector[i][j] = false;
+            }            
         }
     }
     
@@ -73,12 +76,11 @@ struct MultiPhasorGateInternal
             }
         }
 
-        bool Check(float phase, float* phasorOut, float gateFrac)
+        float GetPhase(float phase)
         {
             float lowPhase = 1 - (phase - m_low) / (m_start - m_low);
             float highPhase = 1 - (m_high - phase) / (m_high - m_start);
-            *phasorOut = std::max(lowPhase, highPhase);            
-            return *phasorOut < gateFrac;
+            return std::max(lowPhase, highPhase);            
         }
     };
 
@@ -86,6 +88,7 @@ struct MultiPhasorGateInternal
     bool m_set[x_maxPoly];
     float m_phasorOut[x_maxPoly];
     PhasorBounds m_bounds[x_maxPoly][x_maxPoly];
+    bool m_phasorSelector[x_maxPoly][x_maxPoly];
 
     void Process(Input& input)
     {
@@ -96,10 +99,10 @@ struct MultiPhasorGateInternal
                 float phasorOut = 0;
                 for (size_t j = 0; j < input.m_numPhasors; ++j)
                 {
-                    if (input.m_phasorSelector[i][j])
+                    if (m_phasorSelector[i][j])
                     {
-                        float thisPhase = 0;
-                        if (!m_bounds[i][j].Check(input.m_phasors[j], &thisPhase, input.m_gateFrac[i]))
+                        float thisPhase = m_bounds[i][j].GetPhase(input.m_phasors[j]);
+                        if (input.m_gateFrac[i] <= thisPhase)
                         {
                             m_gate[i] = false;
                         }
@@ -113,6 +116,7 @@ struct MultiPhasorGateInternal
                     phasorOut = 0;
                     m_set[i] = false;
                 }
+                
                 m_phasorOut[i] = phasorOut;
             }
 
@@ -123,6 +127,7 @@ struct MultiPhasorGateInternal
                 for (size_t j = 0; j < input.m_numPhasors; ++j)
                 {
                     m_bounds[i][j].Set(input.m_phasors[j]);
+                    m_phasorSelector[i][j] = input.m_phasorSelector[i][j];
                 }
             }
         }

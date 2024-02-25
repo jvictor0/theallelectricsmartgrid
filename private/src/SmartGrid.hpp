@@ -41,14 +41,23 @@ struct Color
     static Color Grey;
     static Color White;
     static Color Red;
+    static Color DimRed;
     static Color Orange;
+    static Color DimOrange;
     static Color Yellow;
+    static Color DimYellow;
     static Color Green;
+    static Color DimGreen;
     static Color SeaGreen;
+    static Color DimSeaGreen;
     static Color Ocean;
+    static Color DimOcean;
     static Color Blue;
+    static Color DimBlue;
     static Color Fuscia;
+    static Color DimFuscia;
     static Color Indigo;
+    static Color DimIndigo;
     static Color Purple;
     static Color DimPurple;
 };
@@ -75,6 +84,10 @@ struct ColorScheme
     {
     }
 
+    ColorScheme()
+    {
+    }
+
     static ColorScheme Hues(Color c)
     {
         uint8_t cbit = c.m_color;
@@ -89,6 +102,8 @@ struct ColorScheme
     static ColorScheme Greens;
     static ColorScheme Blues;
     static ColorScheme RedHues;
+    static ColorScheme OrangeHues;
+    static ColorScheme YellowHues;
     static ColorScheme GreenHues;
     static ColorScheme BlueHues;
 };
@@ -319,13 +334,27 @@ struct StateCell : public Cell
     }
 };
 
-template<class StateClass>
+template<class StateClass, class FlashClass=NoFlash>
 struct CycleCell : Cell
 {
     ColorScheme m_colors;
+    ColorScheme m_flashColors;
     StateClass* m_state;
+    FlashClass m_flash;
 
     virtual ~CycleCell()
+    {
+    }
+
+    CycleCell(
+        ColorScheme colorScheme,
+        ColorScheme flashColorScheme,
+        StateClass* state,
+        FlashClass flash)
+        : m_colors(colorScheme)
+        , m_flashColors(flashColorScheme)
+        , m_state(state)
+        , m_flash(flash)
     {
     }
 
@@ -343,8 +372,15 @@ struct CycleCell : Cell
     }
 
     virtual Color GetColor() override
-    {        
-        return m_colors[static_cast<size_t>(*m_state)];
+    {
+        if (m_flash.IsFlashing())
+        {
+            return m_flashColors[static_cast<size_t>(*m_state)];
+        }
+        else
+        {
+            return m_colors[static_cast<size_t>(*m_state)];
+        }
     }
 
     virtual void OnPress(uint8_t) override
@@ -432,13 +468,45 @@ struct Message
     
     static uint8_t LPPosToNote(int x, int y)
     {
+        // Remap y to match the bottom two button rows of LPProMk3
+        //
+        if (y == -1)
+        {
+            y = 9;
+        }
+        else if (y == -2)
+        {
+            y = -1;
+        }
+        
         return 11 + 10 * y + x;
     }
     
     static std::pair<int, int> NoteToLPPos(uint8_t note)
     {
+        if (note < 10)
+        {
+            // The LaunchpadPro's bottom two rows are in the "wrong" order.
+            // Remap.
+            //
+            return std::make_pair(note - 1, -2);
+        }
+        
         int y = (note - 11) / 10;
         int x = (note - 11) % 10;
+
+        // Send overflows -1
+        //
+        if (y == 9)
+        {
+            y = -1;
+        }
+        
+        if (x == 9)
+        {
+            x = -1;
+        }                
+        
         return std::make_pair(x, y);
     }
     
@@ -565,6 +633,16 @@ struct AbstractGrid
     {
     }
 
+    virtual Color GetOnColor()
+    {
+        return Color::White;
+    }
+
+    virtual Color GetOffColor()
+    {
+        return Color::Dim;
+    }
+
     void ProcessStatic(float dt)
     {
         Process(dt);
@@ -593,10 +671,40 @@ struct AbstractGrid
 struct Grid : public AbstractGrid
 {
     std::shared_ptr<Cell> m_grid[x_gridMaxSize][x_gridMaxSize];
+    Color m_onColor;
+    Color m_offColor;
 
     virtual ~Grid()
     {
     }
+
+    Grid(Color onColor, Color offColor)
+        : m_onColor(onColor)
+        , m_offColor(offColor)
+    {
+    }
+
+    Grid()
+        : m_onColor(Color::White)
+        , m_offColor(Color::Dim)
+    {
+    }
+
+    void SetColors(Color on, Color off)
+    {
+        m_onColor = on;
+        m_offColor = off;
+    }
+
+    virtual Color GetOnColor() override
+    {
+        return m_onColor;
+    }        
+
+    virtual Color GetOffColor() override
+    {
+        return m_offColor;
+    }        
     
     std::shared_ptr<Cell>& GetShared(size_t i, size_t j)
     {
@@ -689,14 +797,25 @@ struct GridHolder
 {
     std::vector<std::shared_ptr<AbstractGrid>> m_grids;
     
-    void AddGrid(AbstractGrid* grid)
+    size_t AddGrid(AbstractGrid* grid)
     {
-        AddGrid(std::shared_ptr<AbstractGrid>(grid));
+        return AddGrid(std::shared_ptr<AbstractGrid>(grid));
     }
 
-    void AddGrid(std::shared_ptr<AbstractGrid> grid)
+    size_t AddGrid(std::shared_ptr<AbstractGrid> grid)
     {
         m_grids.push_back(grid);
+        return grid->m_gridId;
+    }
+
+    Color GetOnColor(size_t gridIx)
+    {
+        return g_smartBus.GetOnColor(GridId(gridIx));
+    }
+
+    Color GetOffColor(size_t gridIx)
+    {
+        return g_smartBus.GetOffColor(GridId(gridIx));
     }
 
     AbstractGrid* Get(size_t ix)
@@ -709,6 +828,11 @@ struct GridHolder
         return Get(ix)->m_gridId;
     }
 
+    size_t Size()
+    {
+        return m_grids.size();
+    }
+
     void Process(float dt)
     {
         for (std::shared_ptr<AbstractGrid>& grid : m_grids)
@@ -718,9 +842,9 @@ struct GridHolder
     }    
 };
 
-struct GridSwitcher : AbstractGrid
+struct GridSwitcher : public AbstractGrid
 {
-    size_t m_gridId;
+    size_t m_selectedGridId;
     size_t m_lastGridId;
     std::shared_ptr<AbstractGrid> m_menuGrid;
 
@@ -729,39 +853,51 @@ struct GridSwitcher : AbstractGrid
     }
     
     GridSwitcher(AbstractGrid* menu)
-        : m_gridId(x_numGridIds)
+        : m_selectedGridId(x_numGridIds)
         , m_lastGridId(x_numGridIds)
         , m_menuGrid(std::shared_ptr<AbstractGrid>(menu))
     {
     }
 
     GridSwitcher(std::shared_ptr<AbstractGrid> menu)
-        : m_gridId(x_numGridIds)
+        : m_selectedGridId(x_numGridIds)
         , m_lastGridId(x_numGridIds)
         , m_menuGrid(menu)
     {
     }
 
+    virtual size_t GetGridId()
+    {
+        return m_selectedGridId;
+    }
+
     virtual void Apply(Message msg) override
     {
-        m_menuGrid->Apply(msg);
-        if (m_gridId != x_numGridIds)
+        if (m_menuGrid)
         {
-            g_smartBus.PutVelocity(m_gridId, msg.m_x, msg.m_y, msg.m_velocity);
+            m_menuGrid->Apply(msg);
+        }
+        
+        if (m_selectedGridId != x_numGridIds)
+        {
+            g_smartBus.PutVelocity(m_selectedGridId, msg.m_x, msg.m_y, msg.m_velocity);
         }
     }
 
     virtual Color GetColor(int i, int j) override
     {
-        Color c = m_menuGrid->GetColor(i, j);
-        if (c != Color::Off)
+        if (m_menuGrid)
         {
-            return c;
+            Color c = m_menuGrid->GetColor(i, j);
+            if (c != Color::Off)
+            {
+                return c;
+            }
         }
         
-        if (m_gridId != x_numGridIds)
+        if (m_selectedGridId != x_numGridIds)
         {
-            return g_smartBus.GetColor(m_gridId, i, j);
+            return g_smartBus.GetColor(m_selectedGridId, i, j);
         }
         else
         {
@@ -771,16 +907,21 @@ struct GridSwitcher : AbstractGrid
 
     virtual void Process(float dt) override
     {
-        m_menuGrid->ProcessStatic(dt);
+        if (m_menuGrid)
+        {
+            m_menuGrid->ProcessStatic(dt);
+        }
 
-        if (m_lastGridId != m_gridId)
+        m_selectedGridId = GetGridId();
+
+        if (m_lastGridId != m_selectedGridId)
         {
             if (m_lastGridId != x_numGridIds)
             {
                 g_smartBus.ClearVelocities(m_lastGridId);
             }
             
-            m_lastGridId = m_gridId;
+            m_lastGridId = m_selectedGridId;
         }
     }
 };
@@ -904,6 +1045,8 @@ struct Fader : public Grid
     float m_target;
     float m_speed;
     bool m_moving;
+    bool m_targetingBipolarZero;
+    bool m_isBipolarZero;
 
     bool m_pressureSensitive;
 
@@ -962,7 +1105,19 @@ struct Fader : public Grid
 
         virtual Color GetColor() override
         {
-            if (m_owner->IsBipolar() &&
+            if (m_owner->IsBipolar() && m_owner->m_isBipolarZero)
+            {
+                if (m_fromCenter == 0 ||
+                    (m_owner->m_height % 2 == 0 && std::abs(m_fromCenter) <= 1))
+                {
+                    return m_owner->m_colorScheme[0];
+                }
+                else
+                {
+                    return Color::Off;
+                }
+            }
+            else if (m_owner->IsBipolar() &&
                 (m_fromCenter == 0 ||
                  (std::abs<int>(m_fromCenter) < std::abs<int>(m_owner->m_posFromCenter) &&
                   (m_fromCenter > 0) == (m_owner->m_posFromCenter > 0))))
@@ -1040,6 +1195,7 @@ struct Fader : public Grid
         bool isEven = m_height % 2 == 0;
         bool isCenterTouched = Get(0, m_height / 2)->IsPressed();
         bool isNonCenterTouched = false;
+        bool anyTouched = false;
         if (isCenterTouched && isEven)
         {
             isCenterTouched = Get(0, m_height / 2 - 1)->IsPressed();
@@ -1050,6 +1206,7 @@ struct Fader : public Grid
             FaderCell* cell = static_cast<FaderCell*>(Get(0, i));
             if (cell->IsPressed())
             {
+                anyTouched = true;
                 if ((!isEven && cell->m_fromCenter != 0) || std::abs(cell->m_fromCenter) != 1)
                 {
                     isNonCenterTouched = true;
@@ -1075,13 +1232,20 @@ struct Fader : public Grid
 
         if (m_mode == Mode::Relative)
         {
-            if (IsBipolar() && isCenterTouched && !isNonCenterTouched)
+            if (isNonCenterTouched || !anyTouched)
+            {
+                m_targetingBipolarZero = false;
+            }
+            
+            if (IsBipolar() &&
+                (m_targetingBipolarZero || (isCenterTouched && !isNonCenterTouched)))
             {
                 // Make sure zero is easy to get at for bipolar faders.
                 //
                 m_target = 0;
                 m_speed = static_cast<FaderCell*>(Get(0, m_height / 2))->GetNonReducedSpeed();
                 m_moving = true;
+                m_targetingBipolarZero = true;
             }
             else if (!IsBipolar() && isCenterTouched && !isEven)
             {
@@ -1133,6 +1297,8 @@ struct Fader : public Grid
         , m_state(state)
         , m_speed(0)
         , m_moving(false)
+        , m_targetingBipolarZero(false)
+        , m_isBipolarZero(false)
         , m_pressureSensitive(pressureSensitive)
         , m_structure(structure)
         , m_mode(mode)
@@ -1163,10 +1329,15 @@ struct Fader : public Grid
             size_t h = m_height / 2;
             float perBlock = std::abs(h * normState);
             float posFromCenter = std::max<size_t>(0, std::min<size_t>(h - 1, static_cast<size_t>(perBlock)));
+            m_isBipolarZero = false;
             if (normState < 0)
             {
                 m_posFromBottom = h - posFromCenter - 1;
                 m_valueWithinCell = std::max<float>(0, std::min<float>(1, perBlock - m_posFromBottom));
+            }
+            else if (normState == 0)
+            {
+                m_isBipolarZero = true;
             }
             else
             {
@@ -1532,14 +1703,14 @@ struct SmartGrid
         m_gridHolder.AddGrid(grid);
     }
 
-    void AddGrid(AbstractGrid* grid)
+    size_t AddGrid(AbstractGrid* grid)
     {
-        m_gridHolder.AddGrid(grid);
+        return m_gridHolder.AddGrid(grid);
     }
 
-    void AddGrid(std::shared_ptr<AbstractGrid> grid)
+    size_t AddGrid(std::shared_ptr<AbstractGrid> grid)
     {
-        m_gridHolder.AddGrid(grid);
+        return m_gridHolder.AddGrid(grid);
     }
 
     void ApplyMidi(int64_t frame)
@@ -1578,6 +1749,12 @@ struct SmartGrid
             m_timeToCheck = x_checkTime;
         }
     }
+};
+
+enum class ControllerShape : int
+{
+    LaunchPadX = 0,
+    LaunchPadPro = 1        
 };
 
 }

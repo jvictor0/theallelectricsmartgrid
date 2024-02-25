@@ -131,8 +131,17 @@ typedef SmartBusGeneric<Color> SmartBusOutput;
 
 struct SmartBus
 {
+    size_t x_smartBusVersion = 1;
+    size_t m_version;
     SmartBusInput m_input;
     SmartBusOutput m_output;
+    std::atomic<Color> m_onColor;
+    std::atomic<Color> m_offColor;
+
+    SmartBus()
+        : m_version(1)
+    {
+    }
 };
 
 struct SmartBusHolder
@@ -157,6 +166,26 @@ struct SmartBusHolder
     Color GetColor(size_t gridId, int x, int y)
     {
         return Get(gridId)->m_output.Get(x, y);
+    }
+
+    Color GetOnColor(size_t gridId)
+    {
+        return m_buses[gridId].m_onColor.load();
+    }
+
+    Color GetOffColor(size_t gridId)
+    {
+        return m_buses[gridId].m_offColor.load();
+    }
+
+    void SetOnColor(size_t gridId, Color c)
+    {
+         m_buses[gridId].m_onColor.store(c);
+    }
+
+    void SetOffColor(size_t gridId, Color c)
+    {
+         m_buses[gridId].m_offColor.store(c);
     }
 
     uint8_t GetVelocity(size_t gridId, int x, int y)
@@ -233,6 +262,9 @@ inline void AbstractGrid::OutputToBus()
                 g_smartBus.PutColor(m_gridId, i, j, GetColor(i, j));
             }
         }
+
+        g_smartBus.SetOnColor(m_gridId, GetOnColor());
+        g_smartBus.SetOffColor(m_gridId, GetOffColor());
     }
 }
 

@@ -210,6 +210,7 @@ struct LameJuisInternal
             for (size_t i = 0; i < x_numInputs; ++i)
             {
                 m_elements[i] = MatrixSwitch::Muted;
+                m_highParticipant[i] = false;
             }
 
             for (size_t i = 0; i < x_numInputs + 1; ++i)
@@ -317,7 +318,11 @@ struct LameJuisInternal
                 }
 
                 GetTotalAndHigh(*input.m_inputVector, &m_countTotal, &m_countHigh);            
-                m_gate = ComputeOperation(m_countTotal, m_countHigh);
+                m_gate = ComputeOperation(m_countTotal, m_countHigh);                
+                for (size_t i = 0; i < x_numInputs; ++i)
+                {
+                    m_highParticipant[i] = m_gate && input.m_inputVector->Get(i) && m_active.Get(i);
+                }
             }
         }
 
@@ -329,6 +334,7 @@ struct LameJuisInternal
         SwitchVal m_switch;
         size_t m_countTotal;
         size_t m_countHigh;
+        bool m_highParticipant[x_numInputs];
         bool m_gate;
 
         LameJuisInternal* m_owner;
@@ -559,9 +565,7 @@ struct LameJuisInternal
     }
 
     void ClearLastStep()
-    {
-        
-        
+    {               
         for (size_t i = 0; i < x_numAccumulators; ++i)
         {
             m_outputs[i].ClearLastStep();
@@ -720,7 +724,8 @@ struct LameJuisInternal
                 
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
-                    if (m_coMutes[i] != input.m_coMutes[i])
+                    if (m_coMutes[i] != input.m_coMutes[i] &&
+                        m_owner->m_owner->m_inputs[i].m_changed)
                     {
                         m_coMutes[i] = input.m_coMutes[i];
                         m_owner->m_needsInvalidateCache = true;
@@ -829,7 +834,7 @@ struct LameJuisInternal
             {
                 if (!m_lastStepEvaluated)
                 {
-                    m_pitch[i] = ComputePitch(m_owner, *input.m_inputVector, i);
+                    m_pitch[i] = ComputePitch(m_owner, *input.m_prevVector, i);
                 }
                 
                 SetPitch(ComputePitch(m_owner, *input.m_inputVector, i), i);
@@ -877,8 +882,7 @@ struct LameJuisInternal
         bool m_reset;
 
         void SetInputVectors(LameJuisInternal* owner)
-        {
-            
+        {            
             for (size_t i = 0; i < x_numInputs; ++i)
             {
                 m_inputVector.Set(i, owner->m_inputs[i].m_value);

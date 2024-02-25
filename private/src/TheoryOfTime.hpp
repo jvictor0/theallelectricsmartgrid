@@ -43,8 +43,8 @@ struct TimeBit
         m_prePos = 0;
         m_top = true;
         m_state = State::x_init;
-        m_swing = 0.5;
-        m_swagger = 0.5;
+        m_swing = 0;
+        m_swagger = 0;
         m_mult = 1;
         m_pingPong = false;
     }
@@ -83,13 +83,13 @@ struct TimeBit
     
     float ApplySwing(float t)
     {
-        if (t < m_swing)
+        if (t < m_swing / 2 + 0.5)
         {
-            return Interpolate(0, 0, m_swing, m_swagger, t);
+            return Interpolate(0, 0, m_swing / 2 + 0.5, m_swagger / 2 + 0.5, t);
         }
         else
         {
-            return Interpolate(m_swing, m_swagger, 1, 1, t);
+            return Interpolate(m_swing / 2 + 0.5, m_swagger / 2 + 0.5, 1, 1, t);
         }
     }
 
@@ -100,16 +100,18 @@ struct TimeBit
         float m_swagger;
         size_t m_mult;
         bool m_pingPong;
-        float m_rand;
+        float* m_rand;
         RGen m_gen;
+        float* m_globalHomotopy;
 
         Input()
             : m_parentIx(0)
-            , m_swing(0.5)
-            , m_swagger(0.5)
+            , m_swing(0.0)
+            , m_swagger(0.0)
             , m_mult(2)
             , m_pingPong(false)
-            , m_rand(0)
+            , m_rand(nullptr)
+            , m_globalHomotopy(nullptr)
         {
         }
     };
@@ -140,8 +142,10 @@ struct TimeBit
 
     void ReadSwing(Input& input)
     {
-        m_swing = (1 - input.m_rand) * m_swing + input.m_rand * (0.5 + (m_swing - 0.5) * input.m_gen.UniGen());
-        m_swagger = (1 - input.m_rand) * m_swagger + input.m_rand * (0.5 + (m_swagger - 0.5) * input.m_gen.UniGen());        
+        float rand = input.m_rand ? *input.m_rand : 0;
+        float globalHomo = input.m_globalHomotopy ? *input.m_globalHomotopy : 1;
+        m_swing = globalHomo * ((1 - rand) * input.m_swing + rand * input.m_swing * input.m_gen.UniGen());
+        m_swagger = globalHomo * ((1 - rand) * input.m_swagger + rand * input.m_swagger * input.m_gen.UniGen());
     }
 
     void Process(Input& input)
@@ -223,14 +227,24 @@ struct MusicalTime
     {
         float m_t;
         TimeBit::Input m_input[x_numBits];
+        float m_rand;
+        float m_globalHomotopy;
         bool m_running;
 
         Input()
         {
             m_t = 0;
-            for (size_t i = 1; i < x_numBits; ++i)
+            m_rand = 0;
+            m_globalHomotopy = 1;
+            for (size_t i = 0; i < x_numBits; ++i)
             {
-                m_input[i].m_parentIx = i - 1;
+                if (i > 0)
+                {
+                    m_input[i].m_parentIx = i - 1;
+                }
+
+                m_input[i].m_rand = &m_rand;
+                m_input[i].m_globalHomotopy = &m_globalHomotopy;
             }
         }
     };
@@ -374,7 +388,7 @@ struct TheoryOfTime : Module
             m_state.m_input[i].m_swing = inputs[x_swingInId].getVoltage(i - 1) / 20 + 0.5;
             m_state.m_input[i].m_swagger = 0.5;
             m_state.m_input[i].m_pingPong = inputs[x_pingPongInId].getVoltage(i - 1) > 0;
-            m_state.m_input[i].m_rand = inputs[x_randomInId].getVoltage() / 10;
+            //            m_state.m_input[i].m_rand = inputs[x_randomInId].getVoltage() / 10;
             if (inputs[x_zeroInId].getVoltage(i - 1) > 0)
             {
                 m_state.m_input[i].m_mult = 0;
