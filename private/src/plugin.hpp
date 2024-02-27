@@ -16,7 +16,10 @@ extern Model* modelMultiPhasorGate;
 extern Model* modelGangedRandomLFO;
 extern Model* modelTheoryOfTime;
 extern Model* modelTheNonagon;
+extern Model* modelGridJnctLPP3;
 extern Model* modelPhasorEnvelope;
+extern Model* modelGridCnct;
+extern Model* modelFaderBank;
 
 template <class TChoice>
 struct Grid16MidiDisplay : MidiDisplay {

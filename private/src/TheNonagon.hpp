@@ -1182,8 +1182,7 @@ struct TheNonagonSmartGrid
         TheNonagonInternal* m_nonagon;
         TheNonagonSmartGrid* m_owner;
         TheNonagonGridSwitcher(TheNonagonSmartGrid* owner)
-            : MenuGridSwitcher(new SmartGrid::MenuGrid())
-            , m_state(&owner->m_state)
+            : m_state(&owner->m_state)
             , m_nonagon(&owner->m_nonagon)
             , m_owner(owner)
         {

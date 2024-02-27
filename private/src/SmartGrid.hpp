@@ -16,26 +16,52 @@ static constexpr size_t x_maxChannels = 8;
 struct Color
 {
     constexpr Color()
-        : m_color(0)
+        : m_red(0)
+        , m_green(0)
+        , m_blue(0)
+        , m_unused(1)
     {
     }
     
-    constexpr Color(uint8_t c) : m_color(c)
+    constexpr Color(uint8_t r, uint8_t g, uint8_t b)
+        : m_red(r)
+        , m_green(g)
+        , m_blue(b)
+        , m_unused(0)
     {
     }
 
-    bool operator == (const Color& c)
+    constexpr Color(uint8_t r, uint8_t g, uint8_t b, uint8_t u)
+        : m_red(r)
+        , m_green(g)
+        , m_blue(b)
+        , m_unused(u)
     {
-        return m_color == c.m_color;
     }
 
-    bool operator != (const Color& c)
+    uint32_t To32Bit() const
     {
-        return m_color != c.m_color;
+        return (m_red << 24) | (m_green << 16) | (m_blue << 8) | m_unused;
     }
+
+    bool operator == (const Color& c) const
+    {
+        return To32Bit() == c.To32Bit();
+    }
+
+    bool operator != (const Color& c) const
+    {
+        return !(*this == c);
+    }
+
+    uint8_t ToLPVelocity();
    
-    uint8_t m_color;
+    uint8_t m_red;
+    uint8_t m_green;
+    uint8_t m_blue;
+    uint8_t m_unused;
 
+    static Color InvalidColor;
     static Color Off;
     static Color Dim;
     static Color Grey;
@@ -90,8 +116,22 @@ struct ColorScheme
 
     static ColorScheme Hues(Color c)
     {
-        uint8_t cbit = c.m_color;
-        return ColorScheme(std::vector<Color>({cbit + 2, cbit + 1, cbit}));
+        uint8_t maxPrime = std::max(c.m_red, std::max(c.m_green, c.m_blue));
+        c.m_red *= 255 / maxPrime;
+        c.m_green *= 255 / maxPrime;
+        c.m_blue *= 255 / maxPrime;
+
+        std::vector<Color> result;
+        while (c.m_red > 8 || c.m_green > 8 || c.m_blue > 8)
+        {
+            result.push_back(c);
+            c.m_red /= 2;
+            c.m_green /= 2;
+            c.m_blue /= 2;
+        }
+
+        std::reverse(result.begin(), result.end());
+        return ColorScheme(result);
     }
     
     std::vector<Color> m_colors;
@@ -546,7 +586,7 @@ struct Message
     {
         msg.setStatus(0xb);        
 		msg.setNote(LPPosToNote(m_x, m_y));
-		msg.setValue(m_color.m_color);
+		msg.setValue(m_color.ToLPVelocity());
         msg.setChannel(1);
     }
 };
@@ -1407,36 +1447,47 @@ struct MidiInterchangeSingle
     midi::InputQueue m_input;
     midi::Output m_output;
     int m_device;
+    bool m_isLoopback;
 
     static constexpr size_t x_maxNote = 128;
 
-    uint8_t m_lastSent[x_maxNote];
+    Color m_lastSent[x_maxNote];
 
     MidiInterchangeSingle()
-        : m_device(-1)
+        : MidiInterchangeSingle(true)
     {
-        Init();
+    }
+    
+    MidiInterchangeSingle(bool isLoopback)
+        : m_device(-1)
+        , m_isLoopback(isLoopback)
+    {
+        if (m_isLoopback)
+        {
+            Init();
+        }
+
+        ClearLastSent();
     }
     
     static constexpr int x_loopbackId = -12;
 
     bool IsActive()
     {
-        return m_device >= 0;
+        return !m_isLoopback || m_device >= 0;
     }
     
     void Init()
     {
         m_input.setDriverId(x_loopbackId);
         m_output.setDriverId(x_loopbackId);
-        ClearLastSent();
     }
 
     void ClearLastSent()
     {
         for (size_t i = 0; i < x_maxNote; ++i)
         {
-            m_lastSent[i] = 0xFF;
+            m_lastSent[i] = Color::InvalidColor;
         }
     }
 
@@ -1479,10 +1530,10 @@ struct MidiInterchangeSingle
         message.PopulateMessage(msg);
         msg.setFrame(frame);
 
-        if (m_lastSent[msg.getNote()] == 0xFF || m_lastSent[msg.getNote()] != message.m_velocity)
+        if (m_lastSent[msg.getNote()] == Color::InvalidColor || m_lastSent[msg.getNote()] != message.m_color)
         {
             m_output.sendMessage(msg);
-            m_lastSent[msg.getNote()] = message.m_color.m_color;
+            m_lastSent[msg.getNote()] = message.m_color;
         }
     }
 
@@ -1497,10 +1548,10 @@ struct MidiInterchangeSingle
         message.PopulateMessage(msg);
         msg.setFrame(frame);
         
-        if (m_lastSent[msg.getNote()] != 0xFF)
+        if (m_lastSent[msg.getNote()] != Color::InvalidColor)
         {
             m_output.sendMessage(msg);
-            m_lastSent[msg.getNote()] = message.m_color.m_color;
+            m_lastSent[msg.getNote()] = message.m_color;
         }
     }
     
@@ -1539,6 +1590,23 @@ struct MidiInterchangeSingle
         }        
     }
 
+    void ApplyMidiToBus(int64_t frame, size_t gridId)
+    {
+        if (gridId != x_numGridIds)
+        {
+            while (true)
+            {
+                Message msg = Pop(frame);
+                if (msg.NoMessage())
+                {
+                    break;
+                }
+                
+                g_smartBus.PutVelocity(gridId, msg.m_x, msg.m_y, msg.m_velocity);
+            }
+        }
+    }
+
     void ApplyMidi(int64_t frame, AbstractGrid* grid)
     {
         while (true)
@@ -1550,6 +1618,21 @@ struct MidiInterchangeSingle
             }
             
             grid->Apply(msg);
+        }
+    }
+
+    void SendMidiFromBus(int64_t frame, size_t gridId)
+    {
+        if (gridId != x_numGridIds)
+        {
+            for (auto itr = g_smartBus.OutputBegin(gridId, false /*ignoreChanged*/); itr != g_smartBus.OutputEnd(); ++itr)
+            {
+                Message msg = *itr;
+                if (!msg.NoMessage())
+                {
+                    Send(msg, frame);
+                }
+            }                                                                       
         }
     }
 
@@ -1754,7 +1837,7 @@ struct SmartGrid
 enum class ControllerShape : int
 {
     LaunchPadX = 0,
-    LaunchPadPro = 1        
+    LaunchPadProMk3 = 1
 };
 
 }

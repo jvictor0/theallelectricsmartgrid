@@ -17,6 +17,9 @@ void init(Plugin* p) {
 	p->addModel(modelTheoryOfTime);
 	p->addModel(modelTheNonagon);
 	p->addModel(modelPhasorEnvelope);
+	p->addModel(modelGridJnctLPP3);
+	p->addModel(modelGridCnct);
+	p->addModel(modelFaderBank);
 
 	// Any other plugin initialization may go here.
 	// As an alternative, consider lazy-loading assets and lookup tables when your module is created to reduce startup times of Rack.

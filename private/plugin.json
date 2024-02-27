@@ -97,6 +97,39 @@
             ]
         },
         {
+            "slug": "GridJnctLPP3",
+            "name": "GridJnctLPP3",
+            "description": "GridJnctLPP3",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "GridCnct",
+            "name": "GridCnct",
+            "description": "GridCnct",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "FaderBank",
+            "name": "FaderBank",
+            "description": "FaderBank",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
             "slug": "PhasorEnvelope",
             "name": "PhasorEnvelope",
             "description": "PhasorEnvelope",
