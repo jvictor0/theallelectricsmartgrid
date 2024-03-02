@@ -19,7 +19,7 @@ struct Color
         : m_red(0)
         , m_green(0)
         , m_blue(0)
-        , m_unused(1)
+        , m_unused(0)
     {
     }
     
@@ -54,8 +54,6 @@ struct Color
         return !(*this == c);
     }
 
-    uint8_t ToLPVelocity();
-   
     uint8_t m_red;
     uint8_t m_green;
     uint8_t m_blue;
@@ -122,7 +120,7 @@ struct ColorScheme
         c.m_blue *= 255 / maxPrime;
 
         std::vector<Color> result;
-        while (c.m_red > 8 || c.m_green > 8 || c.m_blue > 8)
+        while (c.m_red > 48 || c.m_green > 48 || c.m_blue > 48)
         {
             result.push_back(c);
             c.m_red /= 2;
@@ -580,15 +578,7 @@ struct Message
                 return Message();
             }
         }
-    }
-    
-    void PopulateMessage(midi::Message& msg)
-    {
-        msg.setStatus(0xb);        
-		msg.setNote(LPPosToNote(m_x, m_y));
-		msg.setValue(m_color.ToLPVelocity());
-        msg.setChannel(1);
-    }
+    }    
 };
 
 static constexpr size_t x_numGridIds = 128;
@@ -964,72 +954,6 @@ struct GridSwitcher : public AbstractGrid
             m_lastGridId = m_selectedGridId;
         }
     }
-};
-
-struct GridUnion
-{
-    std::vector<std::shared_ptr<Grid>> m_grids;
-    std::vector<std::shared_ptr<Grid>> m_menuGrids;
-    size_t m_pageIx[x_maxChannels];
-    size_t m_lastPageIx[x_maxChannels];
-    size_t m_numChannels;
-
-    GridUnion()
-        : m_numChannels(0)
-    {
-    }        
-    
-    void AddGrid(Grid* grid)
-    {
-        AddGrid(std::shared_ptr<Grid>(grid));
-    }
-
-    void AddGrid(std::shared_ptr<Grid> grid)
-    {
-        m_grids.push_back(grid);
-    }
-
-    void AddMenu(Grid* grid)
-    {
-        AddMenu(std::shared_ptr<Grid>(grid));
-    }
-
-    void AddMenu(std::shared_ptr<Grid> grid)
-    {
-        m_menuGrids.push_back(grid);
-        m_pageIx[m_numChannels] = 0;
-        m_lastPageIx[m_numChannels] = 0;
-        ++m_numChannels;
-    }
-
-    Grid* GetPage(size_t channel)
-    {
-        return m_grids[m_pageIx[channel]].get();
-    }
-
-    Grid* GetMenu(size_t channel)
-    {
-        return m_menuGrids[channel].get();
-    }
-
-    void Process(float dt)
-    {
-        for (std::shared_ptr<Grid>& grid : m_grids)
-        {
-            grid->ProcessStatic(dt);
-        }
-
-        for (size_t i = 0; i < m_numChannels; ++i)
-        {
-            // Send an 'OnRelease' to any pushed down cell on page change.
-            //
-            if (m_lastPageIx[i] != m_pageIx[i])
-            {
-                m_lastPageIx[i] = m_pageIx[i];
-                GetPage(i)->AllOff();
-            }
-        }
-    }    
 };
 
 struct Fader : public Grid
@@ -1442,6 +1366,62 @@ struct Fader : public Grid
     }    
 };
 
+struct LPRGBSysEx
+{
+    static constexpr size_t x_maxMessages = x_gridMaxSize * x_gridMaxSize;
+    struct ColorSpec
+    {
+        uint8_t m_pos;
+        Color m_color;
+    };
+
+    ColorSpec m_messages[x_maxMessages];
+    size_t m_numMessages;
+
+    LPRGBSysEx()
+        : m_numMessages(0)
+    {
+    }
+
+    void Add(uint8_t pos, Color c)
+    {
+        m_messages[m_numMessages].m_pos = pos;
+        m_messages[m_numMessages].m_color = c;
+        ++m_numMessages;
+    }
+
+    bool Empty()
+    {
+        return m_numMessages == 0;
+    }
+
+    void Populate(midi::Message& msg, int64_t frame)
+    {
+        msg.setFrame(frame);
+        msg.bytes.clear();
+        msg.bytes.reserve(8 + 5 * m_numMessages + 1);
+        
+        msg.bytes.push_back(240);
+        msg.bytes.push_back(0);
+        msg.bytes.push_back(32);
+        msg.bytes.push_back(41);
+        msg.bytes.push_back(2);
+        msg.bytes.push_back(14);
+        msg.bytes.push_back(3);
+
+        for (size_t i = 0; i < m_numMessages; ++i)
+        {
+            msg.bytes.push_back(3);
+            msg.bytes.push_back(m_messages[i].m_pos);
+            msg.bytes.push_back(m_messages[i].m_color.m_red / 2);
+            msg.bytes.push_back(m_messages[i].m_color.m_green / 2);
+            msg.bytes.push_back(m_messages[i].m_color.m_blue / 2);
+        }
+        
+        msg.bytes.push_back(247);
+    }
+};
+
 struct MidiInterchangeSingle
 {    
     midi::InputQueue m_input;
@@ -1519,39 +1499,19 @@ struct MidiInterchangeSingle
         SetLoopbackDevice(-1, frame);
     }
 
-    void Send(Message& message, int64_t frame)
+    void PrepareSysExSend(Message& message, LPRGBSysEx& sysEx)
     {
         if (!IsActive())
         {
             return;
         }
 
-        midi::Message msg;
-        message.PopulateMessage(msg);
-        msg.setFrame(frame);
+        uint8_t pos = Message::LPPosToNote(message.m_x, message.m_y);
 
-        if (m_lastSent[msg.getNote()] == Color::InvalidColor || m_lastSent[msg.getNote()] != message.m_color)
+        if (m_lastSent[pos] == Color::InvalidColor || m_lastSent[pos] != message.m_color)
         {
-            m_output.sendMessage(msg);
-            m_lastSent[msg.getNote()] = message.m_color;
-        }
-    }
-
-    void SendIfSet(Message& message, int64_t frame)
-    {
-        if (!IsActive())
-        {
-            return;
-        }
-
-        midi::Message msg;
-        message.PopulateMessage(msg);
-        msg.setFrame(frame);
-        
-        if (m_lastSent[msg.getNote()] != Color::InvalidColor)
-        {
-            m_output.sendMessage(msg);
-            m_lastSent[msg.getNote()] = message.m_color;
+            m_lastSent[pos] = message.m_color;
+            sysEx.Add(pos, message.m_color);
         }
     }
     
@@ -1625,27 +1585,43 @@ struct MidiInterchangeSingle
     {
         if (gridId != x_numGridIds)
         {
+            LPRGBSysEx sysEx;
             for (auto itr = g_smartBus.OutputBegin(gridId, false /*ignoreChanged*/); itr != g_smartBus.OutputEnd(); ++itr)
             {
                 Message msg = *itr;
                 if (!msg.NoMessage())
                 {
-                    Send(msg, frame);
+                    PrepareSysExSend(msg, sysEx);
                 }
-            }                                                                       
+            }
+
+            if (!sysEx.Empty())
+            {
+                midi::Message msg;
+                sysEx.Populate(msg, frame);
+                m_output.sendMessage(msg);
+            }
         }
     }
 
     void SendMidi(int64_t frame, AbstractGrid* grid)
     {
+        LPRGBSysEx sysEx;
         for (int i = x_gridXMin; i < x_gridXMax; ++i)
         {
             for (int j = x_gridYMin; j < x_gridYMax; ++j)
             {
                 Color c = grid->GetColor(i, j);
                 Message msg(i, j, c);
-                Send(msg, frame);
+                PrepareSysExSend(msg, sysEx);
             }
+        }
+
+        if (!sysEx.Empty())
+        {
+            midi::Message msg;
+            sysEx.Populate(msg, frame);
+            m_output.sendMessage(msg);
         }
     }
 };
@@ -1698,61 +1674,6 @@ struct MidiInterchange
             }
         }
     }
-
-    void ApplyMidi(int64_t frame, GridUnion* grids)
-    {
-        for (size_t i = 0; i < m_numActive; ++i)
-        {
-            Grid* grid = grids->GetPage(i);
-            Grid* menu = grids->GetMenu(i);
-            while (true)
-            {
-                Message msg = m_channels[i].Pop(frame);
-                if (msg.NoMessage())
-                {
-                    break;
-                }
-
-                grid->Apply(msg);
-                menu->Apply(msg);
-            }
-        }
-    }
-
-    void SendMidi(int64_t frame, GridUnion* grids)
-    {
-        for (size_t i = 0; i < m_numActive; ++i)
-        {
-            Grid* grid = grids->GetPage(i);
-            Grid* menu = grids->GetMenu(i);
-            for (int j = x_gridXMin; j < x_gridXMax; ++j)
-            {
-                for (int k = x_gridYMin; k < x_gridYMax; ++k)
-                {                    
-                    Cell* cell = menu->Get(j, k);
-                    if (cell)
-                    {
-                        Message msg(cell, j, k);
-                        m_channels[i].Send(msg, frame);
-                    }
-                    else
-                    {
-                        cell = grid->Get(j, k);
-                        if (cell)
-                        {
-                            Message msg(cell, j, k);
-                            m_channels[i].Send(msg, frame);
-                        }
-                        else
-                        {
-                            Message msg = Message::Off(j, k);
-                            m_channels[i].SendIfSet(msg, frame);
-                        }                        
-                    }
-                }
-            }
-        }
-    }    
 };
 
 struct SmartGrid

@@ -2,6 +2,7 @@
 #include "SmartGrid.hpp"
 #include "PeriodChecker.hpp"
 #include "MidiWidget.hpp"
+#include "SmartGridWidget.hpp"
 
 namespace SmartGrid
 {
@@ -649,7 +650,7 @@ struct GridJnctWidget : ModuleWidget
 {
     static constexpr float x_sep = 25;
     static constexpr float x_xStart = 50;
-    static constexpr float x_yStart = 350;
+    static constexpr float x_yStart = 375;
 
     Vec GetPos(MenuButtonRow::RowPos pos, size_t ix, bool isIn)
     {
@@ -659,7 +660,7 @@ struct GridJnctWidget : ModuleWidget
         if (pos == MenuButtonRow::RowPos::Left ||
             pos == MenuButtonRow::RowPos::Right)
         {
-            y = x_yStart - x_sep * ix - 4 * x_sep;
+            y = x_yStart - x_sep * ix - 5 * x_sep;
             if (pos == MenuButtonRow::RowPos::Left)
             {
                 x = x_xStart;
@@ -682,7 +683,7 @@ struct GridJnctWidget : ModuleWidget
             x = x_xStart + x_sep * ix + 2 * x_sep;
             if (pos == MenuButtonRow::RowPos::Top)
             {
-                y = x_yStart - x_sep * x_gridSize - 5 * x_sep;
+                y = x_yStart - x_sep * x_gridSize - 6 * x_sep;
                 if (!isIn)
                 {
                     y += x_sep;
@@ -721,8 +722,10 @@ struct GridJnctWidget : ModuleWidget
             addOutput(createOutputCentered<PJ301MPort>(GetPos(pairPos.first, pairPos.second, false), module, i));
         }
         
-        addOutput(createOutputCentered<PJ301MPort>(Vec(125, 100), module, module->x_gridIdOutId));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(175, 100), module, module->x_activeGridIdOutId));
+        addOutput(createOutputCentered<PJ301MPort>(Vec(375, 100), module, module->x_gridIdOutId));
+        addOutput(createOutputCentered<PJ301MPort>(Vec(425, 100), module, module->x_activeGridIdOutId));
+
+        AddSmartGridWidget(this, x_xStart + 50, x_yStart - 150, module ? &module->m_switcher.m_gridId : nullptr);
     }        
 };
 
@@ -825,5 +828,6 @@ struct GridCnctWidget : public ModuleWidget
 
 typedef GridJnct<ControllerShape::LaunchPadProMk3> GridJnctLPP3;
 typedef GridJnctWidget<ControllerShape::LaunchPadProMk3> GridJnctLPP3Widget;
+
 
 }

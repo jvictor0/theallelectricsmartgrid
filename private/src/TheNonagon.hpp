@@ -1360,10 +1360,10 @@ struct TheNonagonSmartGrid
         m_smartGrid.m_state.m_midiSwitchInput.m_numChannels = 2;
         m_smartGrid.m_state.m_midiSwitchInput.m_channels[0] = 0;
         m_smartGrid.m_state.m_midiSwitchInput.m_channels[0] = 1;
-    }
-
+    }    
+    
     void Process(float dt, uint64_t frame)
-    {
+    {        
         m_smartGrid.BeforeModuleProcess(dt, frame);
         m_nonagon.Process(dt, m_state);
         m_smartGrid.AfterModuleProcess(frame);

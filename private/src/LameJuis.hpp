@@ -321,7 +321,9 @@ struct LameJuisInternal
                 m_gate = ComputeOperation(m_countTotal, m_countHigh);                
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
-                    m_highParticipant[i] = m_gate && input.m_inputVector->Get(i) && m_active.Get(i);
+                    bool up = input.m_inputVector->Get(i);
+                    bool proper = m_inverted.Get(i) ? !up : up;
+                    m_highParticipant[i] = m_gate && proper && m_active.Get(i);
                 }
             }
         }
