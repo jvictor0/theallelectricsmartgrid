@@ -2,7 +2,6 @@
 #include "plugin.hpp"
 #include <cstddef>
 #include <cmath>
-#include "BlinkLight.hpp"
 #include "Trig.hpp"
 #include "NormGen.hpp"
 
@@ -344,119 +343,93 @@ struct MusicalTimeWithClock
     }
 };
 
-struct TheoryOfTime : Module
-{
-    MusicalTime::Input m_state;
-    MusicalTime m_musicalTime;
+// struct TheoryOfTime : Module
+// {
+//     MusicalTime::Input m_state;
+//     MusicalTime m_musicalTime;
 
-    static constexpr float x_timeToCheck = 0.05;    
-    float m_timeToCheck;
+//     static constexpr float x_timeToCheck = 0.05;    
+//     float m_timeToCheck;
 
-    TheoryOfTime()
-    {
-        config(0, x_numInputs, x_numOutputs, 0);
+//     TheoryOfTime()
+//     {
+//         config(0, x_numInputs, x_numOutputs, 0);
         
-        m_timeToCheck = -1;
+//         m_timeToCheck = -1;
 
-        configInput(x_inputId, "Phasor Input");
-        configInput(x_multInId, "Mult Input");
-        configInput(x_swingInId, "Swing input");
-        configInput(x_pingPongInId, "Ping Pong Input");
-        configInput(x_rebaseInId, "Rebase Input");
-        configInput(x_zeroInId, "Zero Input");
-        configInput(x_randomInId, "Random Input");
+//         configInput(x_inputId, "Phasor Input");
+//         configInput(x_multInId, "Mult Input");
+//         configInput(x_swingInId, "Swing input");
+//         configInput(x_pingPongInId, "Ping Pong Input");
+//         configInput(x_rebaseInId, "Rebase Input");
+//         configInput(x_zeroInId, "Zero Input");
+//         configInput(x_randomInId, "Random Input");
 
-        configOutput(x_phasorOut, "Phasor Output");
-        configOutput(x_gateOut, "Gate Output");
-        configOutput(x_trigOut, "Trig Output");
-    }    
+//         configOutput(x_phasorOut, "Phasor Output");
+//         configOutput(x_gateOut, "Gate Output");
+//         configOutput(x_trigOut, "Trig Output");
+//     }    
 
-    void CheckInputs()
-    {
-        for (size_t i = 1; i < MusicalTime::x_numBits; ++i)
-        {
-            if (i > 1)
-            {
-                m_state.m_input[i].m_parentIx = inputs[x_rebaseInId].getVoltage(i - 1) > 0 ? i - 2 : i - 1;
-            }
-            else
-            {
-                m_state.m_input[i].m_parentIx = i - 1;
-            }
+//     void CheckInputs()
+//     {
+//         for (size_t i = 1; i < MusicalTime::x_numBits; ++i)
+//         {
+//             if (i > 1)
+//             {
+//                 m_state.m_input[i].m_parentIx = inputs[x_rebaseInId].getVoltage(i - 1) > 0 ? i - 2 : i - 1;
+//             }
+//             else
+//             {
+//                 m_state.m_input[i].m_parentIx = i - 1;
+//             }
 
-            m_state.m_input[i].m_mult = std::floor(inputs[x_multInId].getVoltage(i - 1) + 0.5);
-            m_state.m_input[i].m_swing = inputs[x_swingInId].getVoltage(i - 1) / 20 + 0.5;
-            m_state.m_input[i].m_swagger = 0.5;
-            m_state.m_input[i].m_pingPong = inputs[x_pingPongInId].getVoltage(i - 1) > 0;
-            //            m_state.m_input[i].m_rand = inputs[x_randomInId].getVoltage() / 10;
-            if (inputs[x_zeroInId].getVoltage(i - 1) > 0)
-            {
-                m_state.m_input[i].m_mult = 0;
-            }
-        }
+//             m_state.m_input[i].m_mult = std::floor(inputs[x_multInId].getVoltage(i - 1) + 0.5);
+//             m_state.m_input[i].m_swing = inputs[x_swingInId].getVoltage(i - 1) / 20 + 0.5;
+//             m_state.m_input[i].m_swagger = 0.5;
+//             m_state.m_input[i].m_pingPong = inputs[x_pingPongInId].getVoltage(i - 1) > 0;
+//             //            m_state.m_input[i].m_rand = inputs[x_randomInId].getVoltage() / 10;
+//             if (inputs[x_zeroInId].getVoltage(i - 1) > 0)
+//             {
+//                 m_state.m_input[i].m_mult = 0;
+//             }
+//         }
 
-        outputs[x_phasorOut].setChannels(MusicalTime::x_numBits);
-        outputs[x_gateOut].setChannels(MusicalTime::x_numBits);
-    }
+//         outputs[x_phasorOut].setChannels(MusicalTime::x_numBits);
+//         outputs[x_gateOut].setChannels(MusicalTime::x_numBits);
+//     }
     
-    void process(const ProcessArgs &args) override
-    {
-        m_state.m_t = inputs[x_inputId].getVoltage() / 10;
-        m_timeToCheck -= args.sampleTime;
-        if (m_timeToCheck < 0)
-        {
-            CheckInputs();
-            m_timeToCheck = x_timeToCheck;
-        }
+//     void process(const ProcessArgs &args) override
+//     {
+//         m_state.m_t = inputs[x_inputId].getVoltage() / 10;
+//         m_timeToCheck -= args.sampleTime;
+//         if (m_timeToCheck < 0)
+//         {
+//             CheckInputs();
+//             m_timeToCheck = x_timeToCheck;
+//         }
 
-        m_musicalTime.Process(m_state);
+//         m_musicalTime.Process(m_state);
 
-        for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
-        {
-            outputs[x_phasorOut].setVoltage(m_musicalTime.GetPos(i) * 10, i);
-            outputs[x_gateOut].setVoltage(m_musicalTime.GetGate(i) ? 10 : 0, i);
-        }
+//         for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
+//         {
+//             outputs[x_phasorOut].setVoltage(m_musicalTime.GetPos(i) * 10, i);
+//             outputs[x_gateOut].setVoltage(m_musicalTime.GetGate(i) ? 10 : 0, i);
+//         }
 
-        outputs[x_trigOut].setVoltage(m_musicalTime.m_anyChange ? 10 : 0);
-    }
+//         outputs[x_trigOut].setVoltage(m_musicalTime.m_anyChange ? 10 : 0);
+//     }
 
-    static constexpr size_t x_inputId = 0;
-    static constexpr size_t x_multInId = 1;
-    static constexpr size_t x_swingInId = 2;
-    static constexpr size_t x_pingPongInId = 3;
-    static constexpr size_t x_rebaseInId = 4;
-    static constexpr size_t x_zeroInId = 5;
-    static constexpr size_t x_randomInId = 6;
-    static constexpr size_t x_numInputs = 7;
+//     static constexpr size_t x_inputId = 0;
+//     static constexpr size_t x_multInId = 1;
+//     static constexpr size_t x_swingInId = 2;
+//     static constexpr size_t x_pingPongInId = 3;
+//     static constexpr size_t x_rebaseInId = 4;
+//     static constexpr size_t x_zeroInId = 5;
+//     static constexpr size_t x_randomInId = 6;
+//     static constexpr size_t x_numInputs = 7;
 
-    static constexpr size_t x_phasorOut = 0;
-    static constexpr size_t x_gateOut = 1;
-    static constexpr size_t x_trigOut = 2;
-    static constexpr size_t x_numOutputs = 3;
-};
-
-struct TheoryOfTimeWidget : ModuleWidget
-{
-    TheoryOfTimeWidget(TheoryOfTime* module)
-    {
-        setModule(module);
-        setPanel(createPanel(asset::plugin(pluginInstance, "res/TheoryOfTime.svg")));
-        
-        float rowOff = 25;
-        float rowStart = 50;
-        
-        float rowPos = 75;
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 0 * rowOff, rowPos), module, module->x_inputId));
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 1 * rowOff, rowPos), module, module->x_multInId));
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 2 * rowOff, rowPos), module, module->x_swingInId));
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 3 * rowOff, rowPos), module, module->x_pingPongInId));
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 4 * rowOff, rowPos), module, module->x_rebaseInId));
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 5 * rowOff, rowPos), module, module->x_zeroInId));
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 6 * rowOff, rowPos), module, module->x_randomInId));
-        
-        rowPos += 50;
-        addOutput(createOutputCentered<PJ301MPort>(Vec(rowStart + 0 * rowOff, rowPos), module, module->x_phasorOut));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(rowStart + 1 * rowOff, rowPos), module, module->x_gateOut));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(rowStart + 2 * rowOff, rowPos), module, module->x_trigOut));
-    }
-};
+//     static constexpr size_t x_phasorOut = 0;
+//     static constexpr size_t x_gateOut = 1;
+//     static constexpr size_t x_trigOut = 2;
+//     static constexpr size_t x_numOutputs = 3;
+// };

@@ -15,71 +15,12 @@
     "modules":
     [
         {
-            "slug": "MultiFunctionKnob",
-            "name": "Multi Function Knob",
-            "description": "Multi Function Knobs",
-            "tags":
-            [
-		"Utility"
-            ],
-            "keywords":
-            [
-            ]
-        },
-        {
-            "slug": "MatrixThing",
-            "name": "MatrixThing",
-            "description": "MatrixThing",
-            "tags":
-            [
-		"Utility"
-            ],
-            "keywords":
-            [
-            ]
-        },
-        {
-            "slug": "PercentileSequencer",
-            "name": "PercentileSequencer",
-            "description": "PercentileSequencer",
-            "tags":
-            [
-		"Sequencer"
-            ],
-            "keywords":
-            [
-            ]
-        },
-        {
-            "slug": "MultiPhasorGate",
-            "name": "MultiPhasorGate",
-            "description": "MultiPhasorGate",
-            "tags":
-            [
-		"Sequencer"
-            ],
-            "keywords":
-            [
-            ]
-        },
-        {
             "slug": "GangedRandomLFO",
             "name": "GangedRandomLFO",
             "description": "GangedRandomLFO",
             "tags":
             [
 		"LFO"
-            ],
-            "keywords":
-            [
-            ]
-        },
-        {
-            "slug": "TheoryOfTime",
-            "name": "TheoryOfTime",
-            "description": "TheoryOfTime",
-            "tags":
-            [
             ],
             "keywords":
             [
@@ -138,16 +79,6 @@
             ],
             "keywords":
             [
-            ]
-        },
-        {
-            "slug": "PolyCV-CC",
-            "name": "PolyCV to MIDI CC",
-            "description": "Converts CV to MIDI CC and sends to an external device",
-            "manualUrl": "https://vcvrack.com/manual/Core#CV-CC",
-            "tags": [
-                "External",
-                "MIDI"
             ]
         }
     ]

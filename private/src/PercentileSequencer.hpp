@@ -2,7 +2,6 @@
 #include "plugin.hpp"
 #include <cstddef>
 #include <cmath>
-#include "BlinkLight.hpp"
 #include "Trig.hpp"
 #include "SmartGrid.hpp"
 
@@ -269,151 +268,122 @@ struct PercentileSequencerClockSelectCell : public SmartGrid::Cell
     }
 };
 
-struct PercentileSequencer : Module
-{
-    static constexpr size_t x_maxPoly = 16;
-    static constexpr size_t x_numSteps = 8;
-    static constexpr size_t x_numSequences = 3;
-    static constexpr size_t x_numScales = 2;
-    static constexpr size_t x_numClocks = 1;
-    static constexpr size_t x_numResets = 1;
+// struct PercentileSequencer : Module
+// {
+//     static constexpr size_t x_maxPoly = 16;
+//     static constexpr size_t x_numSteps = 8;
+//     static constexpr size_t x_numSequences = 3;
+//     static constexpr size_t x_numScales = 2;
+//     static constexpr size_t x_numClocks = 1;
+//     static constexpr size_t x_numResets = 1;
 
-    static constexpr float x_timeToCheckButtons = 0.05;    
+//     static constexpr float x_timeToCheckButtons = 0.05;    
 
-    PercentileSequencerInternal m_sequencer;
-    PercentileSequencerInternal::Input m_state;
-    float m_timeToCheck;
+//     PercentileSequencerInternal m_sequencer;
+//     PercentileSequencerInternal::Input m_state;
+//     float m_timeToCheck;
 
-    void process(const ProcessArgs &args) override
-    {
-        if (m_timeToCheck < 0)
-        {
-            m_timeToCheck = x_timeToCheckButtons;
-        }
+//     void process(const ProcessArgs &args) override
+//     {
+//         if (m_timeToCheck < 0)
+//         {
+//             m_timeToCheck = x_timeToCheckButtons;
+//         }
 
-        m_timeToCheck -= args.sampleTime;
+//         m_timeToCheck -= args.sampleTime;
 
-    }
+//     }
     
-    size_t SequencerValueId(size_t seq)
-    {
-        return seq;
-    }
+//     size_t SequencerValueId(size_t seq)
+//     {
+//         return seq;
+//     }
 
-    size_t StepButtonId(size_t seq)
-    {
-        return SequencerValueId(x_numSequences) + seq;
-    }
+//     size_t StepButtonId(size_t seq)
+//     {
+//         return SequencerValueId(x_numSequences) + seq;
+//     }
 
-    size_t ScaleId(size_t which)
-    {
-        return StepButtonId(x_numSequences) + which;
-    }
+//     size_t ScaleId(size_t which)
+//     {
+//         return StepButtonId(x_numSequences) + which;
+//     }
 
-    size_t ClockId()
-    {
-        return ScaleId(2);
-    }
+//     size_t ClockId()
+//     {
+//         return ScaleId(2);
+//     }
 
-    size_t ResetId()
-    {
-        return ClockId() + 1;
-    }
-    size_t NumInputs()
-    {
-        return ResetId() + 1;
-    }
+//     size_t ResetId()
+//     {
+//         return ClockId() + 1;
+//     }
+//     size_t NumInputs()
+//     {
+//         return ResetId() + 1;
+//     }
 
-    float GetSequencerValue(size_t seq, size_t step)
-    {
-        return inputs[SequencerValueId(seq)].getVoltage(step);
-    }
+//     float GetSequencerValue(size_t seq, size_t step)
+//     {
+//         return inputs[SequencerValueId(seq)].getVoltage(step);
+//     }
 
-    float GetStepButton(size_t seq, size_t voice, size_t step)
-    {
-        return inputs[StepButtonId(seq)].getVoltage(8 * voice + step);
-    }
+//     float GetStepButton(size_t seq, size_t voice, size_t step)
+//     {
+//         return inputs[StepButtonId(seq)].getVoltage(8 * voice + step);
+//     }
 
-    float GetScale(size_t seq, size_t which)
-    {
-        return inputs[ScaleId(which)].getVoltage(seq);
-    }
+//     float GetScale(size_t seq, size_t which)
+//     {
+//         return inputs[ScaleId(which)].getVoltage(seq);
+//     }
 
-    float GetClock(size_t seq)
-    {
-        return inputs[ClockId()].getVoltage(seq);
-    }
+//     float GetClock(size_t seq)
+//     {
+//         return inputs[ClockId()].getVoltage(seq);
+//     }
 
-    float GetReset(size_t seq)
-    {
-        return inputs[ResetId()].getVoltage(seq);
-    }
+//     float GetReset(size_t seq)
+//     {
+//         return inputs[ResetId()].getVoltage(seq);
+//     }
 
-    size_t OutputId(size_t seq)
-    {
-        return seq;
-    }
+//     size_t OutputId(size_t seq)
+//     {
+//         return seq;
+//     }
 
-    size_t LightId(size_t seq)
-    {
-        return OutputId(x_numSequences) + seq;
-    }
+//     size_t LightId(size_t seq)
+//     {
+//         return OutputId(x_numSequences) + seq;
+//     }
 
-    void SetOutput(size_t seq, size_t voice, float val)
-    {
-        outputs[OutputId(seq)].setVoltage(val, voice);
-    }
-    void SetLight(size_t seq, size_t voice, size_t step, float val)
-    {
-        outputs[LightId(seq)].setVoltage(val, x_numSteps * voice + step);
-    }
+//     void SetOutput(size_t seq, size_t voice, float val)
+//     {
+//         outputs[OutputId(seq)].setVoltage(val, voice);
+//     }
+//     void SetLight(size_t seq, size_t voice, size_t step, float val)
+//     {
+//         outputs[LightId(seq)].setVoltage(val, x_numSteps * voice + step);
+//     }
     
-    PercentileSequencer()
-    {
-        m_timeToCheck = -1;
-        config(0, NumInputs(), 6, 0);
+//     PercentileSequencer()
+//     {
+//         m_timeToCheck = -1;
+//         config(0, NumInputs(), 6, 0);
 
-        for (size_t i = 0; i < x_numSequences; ++i)
-        {
-            configInput(SequencerValueId(i), ("Sequece In " + std::to_string(i)).c_str());
-            configInput(StepButtonId(i), ("Steps Button " + std::to_string(i)).c_str());
-            configOutput(OutputId(i),("Sequence Output " + std::to_string(i)).c_str());
-            configOutput(LightId(i),("Sequence Light " + std::to_string(i)).c_str());
-        }
+//         for (size_t i = 0; i < x_numSequences; ++i)
+//         {
+//             configInput(SequencerValueId(i), ("Sequece In " + std::to_string(i)).c_str());
+//             configInput(StepButtonId(i), ("Steps Button " + std::to_string(i)).c_str());
+//             configOutput(OutputId(i),("Sequence Output " + std::to_string(i)).c_str());
+//             configOutput(LightId(i),("Sequence Light " + std::to_string(i)).c_str());
+//         }
         
-        configInput(ScaleId(0), "Seq Scale");
-        configInput(ScaleId(1), "Seq Distance");
-        configInput(ClockId(), "Clock in");
-        configInput(ResetId(), "Reset in");
-    }    
-};
-
-struct PercentileSequencerWidget : ModuleWidget
-{
-    PercentileSequencerWidget(PercentileSequencer* module)
-    {
-        setModule(module);
-        setPanel(createPanel(asset::plugin(pluginInstance, "res/PercentileSequencer.svg")));
-        
-        float rowOff = 25;
-        float rowStart = 50;
-        
-        for (size_t i = 0; i < module->x_numSequences; ++i)
-        {
-            float rowPos = 100 + i * 30;
-            addInput(createInputCentered<PJ301MPort>(Vec(rowStart, rowPos), module, module->SequencerValueId(i)));
-            addInput(createInputCentered<PJ301MPort>(Vec(rowStart + rowOff, rowPos), module, module->StepButtonId(i)));
-            addOutput(createOutputCentered<PJ301MPort>(Vec(rowStart + 2 * rowOff, rowPos), module, module->OutputId(i)));
-            addOutput(createOutputCentered<PJ301MPort>(Vec(rowStart + 3 * rowOff, rowPos), module, module->LightId(i)));
-        }
-
-
-        size_t lastPos = 150 + module->x_numSequences * 30;
-        
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 0.5 * rowOff, lastPos), module, module->ScaleId(0)));
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 1.5 * rowOff, lastPos), module, module->ScaleId(1)));
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 2.5 * rowOff, lastPos), module, module->ClockId()));
-        addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 3.5 * rowOff, lastPos), module, module->ResetId()));
-    }
-};
+//         configInput(ScaleId(0), "Seq Scale");
+//         configInput(ScaleId(1), "Seq Distance");
+//         configInput(ClockId(), "Clock in");
+//         configInput(ResetId(), "Reset in");
+//     }    
+// };
 

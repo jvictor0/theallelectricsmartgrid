@@ -2,7 +2,6 @@
 #include "plugin.hpp"
 #include <cstddef>
 #include <cmath>
-#include "BlinkLight.hpp"
 #include "Trig.hpp"
 
 struct MultiPhasorGateInternal
