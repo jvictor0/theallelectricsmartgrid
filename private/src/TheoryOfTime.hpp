@@ -5,12 +5,113 @@
 #include "Trig.hpp"
 #include "NormGen.hpp"
 
-inline float Interpolate(float x1, float y1, float x2, float y2, float xp)
+
+inline float Circlize(float x)
+{
+    return x - floor(x);
+}
+
+inline float Interpolate(float x1, float x2, float y1, float y2, float xp)
 {
     return y1 + (y2 - y1) * (xp - x1) / (x2 - x1);
 }
 
+inline float CircleDist(float x1, float x2)
+{
+    return std::min(std::abs(x2 - x1), 1 - std::abs(x2 - x1));
+}
+
 struct MusicalTime;
+
+struct LinearPeice
+{
+    enum class BoundState : int
+    {
+        Under,
+        In,
+        Over
+    };
+
+    float m_x1;
+    float m_x2;
+    float m_y1;
+    float m_y2;
+    bool m_empty;
+
+    LinearPeice()
+        : LinearPeice(0, 0, 0, 0)
+    {
+        m_empty = true;
+    }
+    
+    LinearPeice(float x1, float x2, float y1, float y2)
+    {
+        m_x1 = x1;
+        m_x2 = x2;
+        m_y1 = y1;
+        m_y2 = y2;
+        m_empty = false;
+    }
+
+    LinearPeice SetOver(float x2, float y2)
+    {
+        return LinearPeice(m_x2, x2, m_y2, y2);
+    }
+
+    LinearPeice SetUnder(float x1, float y1)
+    {
+        return LinearPeice(x1, m_x1, y1, m_y1);
+    }
+
+    static LinearPeice Empty()
+    {
+        return LinearPeice();
+    }
+
+    LinearPeice Compose(LinearPeice other)
+    {
+        float x1 = ::Interpolate(0, 1, other.m_x1, other.m_x2, m_x1);
+        float x2 = ::Interpolate(0, 1, other.m_x1, other.m_x2, m_x2);
+        return LinearPeice(
+            x1,
+            x2, 
+            Interpolate(other.Interpolate(x1)),
+            Interpolate(other.Interpolate(x2)));
+    }
+
+    BoundState Check(float x)
+    {
+        if (m_empty)
+        {
+            return BoundState::Under;
+        }
+        else if (m_x1 <= x && x <= m_x2)
+        {
+            return BoundState::In;
+        }
+        else if (CircleDist(m_x1, x) < CircleDist(m_x2, x))
+        {
+            return BoundState::Under;
+        }
+        else
+        {
+            return BoundState::Over;
+        }
+    }
+
+    float Interpolate(float x)
+    {
+        return ::Interpolate(m_x1, m_x2, m_y1, m_y2, x);
+    }
+
+    std::string ToString()
+    {
+        return "<" + std::to_string(m_x1) + ", " +
+            std::to_string(m_x2) + ", " +
+            std::to_string(m_y1) + ", " +
+            std::to_string(m_y2) + ">";
+    }
+};
 
 struct TimeBit
 {
@@ -21,13 +122,14 @@ struct TimeBit
         x_running
     };
     
+    LinearPeice m_lp;
     MusicalTime* m_owner;
     size_t m_ix;
     size_t m_parentIx;
     float m_swing;
     float m_swagger;
     float m_pos;
-    float m_prePos;
+    size_t m_parentFloor;
     size_t m_mult;
     bool m_top;
     State m_state;
@@ -39,7 +141,7 @@ struct TimeBit
         m_owner = owner;
         m_parentIx = ix - 1;
         m_pos = 0;
-        m_prePos = 0;
+        m_parentFloor = 0;
         m_top = true;
         m_state = State::x_init;
         m_swing = 0;
@@ -51,44 +153,59 @@ struct TimeBit
     void Stop()
     {
         m_pos = 0;
-        m_prePos = 0;
+        m_parentFloor = 0;
         m_top = true;
         m_state = State::x_init;
+        m_lp = LinearPeice::Empty();
     }
     
     TimeBit* GetParent();
 
+    LinearPeice MakeLP(float parentPos, size_t* parentFloor)
+    {
+        *parentFloor = floor(parentPos * m_mult);
+        float pfFloat = static_cast<float>(*parentFloor);
+        LinearPeice result = LinearPeice(pfFloat / m_mult, (pfFloat + 1) / m_mult, 0, 1);
+        if (m_pingPong)
+        {
+            result = MakePingPongLP(result.Interpolate(parentPos)).Compose(result);
+        }
+        
+        result = MakeSwingLP(result.Interpolate(parentPos)).Compose(result);
+        return result;
+    }
+    
     float ApplyMult(float t)
     {
         float preres = m_mult * t;
         return preres - floor(preres);
     }
 
-    float ApplyPingPong(float t)
+    LinearPeice MakePingPongLP(float t)
     {
         if (!m_pingPong)
         {
-            return t;
+            return LinearPeice(0, 1, 0, 1);
         }
         else if (t < 0.5)
         {
-            return 2 * t;
+            return LinearPeice(0, 0.5, 0, 1);
         }
         else
         {
-            return 1 - 2 * (t - 0.5);
+            return LinearPeice(0.5, 1, 1, 0);
         }
     }
     
-    float ApplySwing(float t)
+    LinearPeice MakeSwingLP(float t)
     {
         if (t < m_swing / 2 + 0.5)
         {
-            return Interpolate(0, 0, m_swing / 2 + 0.5, m_swagger / 2 + 0.5, t);
+            return LinearPeice(0, m_swing / 2 + 0.5, 0, m_swagger / 2 + 0.5);
         }
         else
         {
-            return Interpolate(m_swing / 2 + 0.5, m_swagger / 2 + 0.5, 1, 1, t);
+            return LinearPeice(m_swing / 2 + 0.5, 1, m_swagger / 2 + 0.5, 1);
         }
     }
 
@@ -173,31 +290,34 @@ struct TimeBit
                     return;
                 }
             }
+
+            m_top = parent->m_top;
         }
 
         TimeBit* parent = GetParent();
         float inT = parent->m_pos;
-        float newPrePos = ApplyMult(inT);
-        m_top = false;
-        if (std::abs(newPrePos - m_prePos) > 0.5 || newPrePos == 0)
+        if (m_lp.Check(inT) != LinearPeice::BoundState::In)
         {
-            m_top = true;
-            ReadSwing(input);
+            size_t newParentFloor;
+            m_lp = MakeLP(inT, &newParentFloor);
+            if (newParentFloor != m_parentFloor)
+            {
+                m_top = true;
+                m_parentFloor = newParentFloor;
+            }
         }
 
-        m_prePos = newPrePos;
-        m_pos = ApplySwing(ApplyPingPong(newPrePos));
+        m_pos = m_lp.Interpolate(inT);
     }
 
     void SetDirectly(float t)
     {
         m_top = false;
-        if (std::abs(t - m_prePos) > 0.5)
+        if (std::abs(t - m_pos) > 0.5)
         {
             m_top = true;
         }
 
-        m_prePos = t;
         m_pos = t;
     }
 };

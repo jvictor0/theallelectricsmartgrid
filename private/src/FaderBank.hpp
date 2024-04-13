@@ -17,7 +17,7 @@ struct FaderBankSmartGrid : public CompositeGrid
             : Fader(
                 &m_state,
                 x_gridSize,
-                ColorScheme::Whites,
+                Color::White,
                 0 /*minValue*/,
                 10 /*maxValue*/)
             , m_state(0)
@@ -30,10 +30,12 @@ struct FaderBankSmartGrid : public CompositeGrid
         {
             bool m_outputConnected;
             bool m_inputConnected;
+            Color m_color;
 
             Input()
                 : m_outputConnected(false)
                 , m_inputConnected(false)
+                , m_color(Color::White)
             {
             }
         };
@@ -42,6 +44,7 @@ struct FaderBankSmartGrid : public CompositeGrid
         {
             m_inputConnected = input.m_inputConnected;
             m_outputConnected = input.m_outputConnected;
+            m_color = input.m_color;
         }
     };
     
@@ -101,12 +104,13 @@ struct FaderBank : public Module
     
     FaderBank()
     {
-        config(0, x_gridSize, x_gridSize + 1, 0);
+        config(x_gridSize, x_gridSize, x_gridSize + 1, 0);
 
         for (size_t i = 0; i < x_gridSize; ++i)
         {
             configInput(i, ("Fader " + std::to_string(i)).c_str());
             configOutput(i, ("Fader " + std::to_string(i)).c_str());
+            configParam(i, 0, 1, 1, ("Color " + std::to_string(i)).c_str());
         }
 
         configOutput(x_gridIdOutId, "Grid Id");
@@ -118,6 +122,7 @@ struct FaderBank : public Module
         {
             m_state.m_inputs[i].m_outputConnected = outputs[i].isConnected();
             m_state.m_inputs[i].m_inputConnected = inputs[i].isConnected();
+            m_state.m_inputs[i].m_color = Color::ZDecodeFloat(params[i].getValue());
         }
     }
 
@@ -156,6 +161,7 @@ struct FaderBankWidget : public ModuleWidget
             float rowPos = 100 + i * 30;
             addOutput(createOutputCentered<PJ301MPort>(Vec(rowStart, rowPos), module, i));
             addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 50, rowPos), module, i));
+            addParam(createParamCentered<Trimpot>(Vec(rowStart + 100, rowPos), module, i));
         }
     }
 };

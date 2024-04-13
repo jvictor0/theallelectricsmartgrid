@@ -10,7 +10,8 @@ struct TimbreAndMute
     struct TimbreAndMuteSingleVoice
     {
         TimbreAndMuteSingleVoice()
-            : m_timbre(0)
+            : m_preTimbre(0)
+            , m_timbre(0)
             , m_trig(false)
             , m_muted(false)
         {
@@ -74,7 +75,9 @@ struct TimbreAndMute
                     m_on[i] = input.m_on[i];
                 }
 
-                m_timbre = (*input.m_timbreMult) * static_cast<float>(onAndArmed) / static_cast<float>(armed);
+                m_preTimbre = static_cast<float>(onAndArmed) / static_cast<float>(armed);
+                m_timbre = (*input.m_timbreMult) * m_preTimbre;
+                m_countHigh = onAndArmed;
             }
             else
             {
@@ -84,6 +87,8 @@ struct TimbreAndMute
         
         bool m_armed[x_numInBits];
         bool m_on[x_numInBits];
+        size_t m_countHigh;
+        float m_preTimbre;
         float m_timbre;
         bool m_trig;
         bool m_muted;
@@ -96,7 +101,6 @@ struct TimbreAndMute
         TimbreAndMuteSingleVoice::Input m_input[x_numVoices];
         bool m_on[x_numInBits];
         bool m_canPassIfOn[x_numTrios][x_numInBits + 1];
-        float m_slew[x_numTrios];
         float m_timbreMult[x_numTrios];
         
         Input()
@@ -123,7 +127,6 @@ struct TimbreAndMute
 
             for (size_t i = 0; i < x_numTrios; ++i)
             {
-                m_slew[i] = 0;
                 m_timbreMult[i] = 0;
             }
         }

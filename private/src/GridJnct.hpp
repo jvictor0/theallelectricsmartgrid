@@ -3,6 +3,7 @@
 #include "PeriodChecker.hpp"
 #include "MidiWidget.hpp"
 #include "SmartGridWidget.hpp"
+#include "StateSaver.hpp"
 
 namespace SmartGrid
 {
@@ -369,7 +370,7 @@ struct MenuGrid : public AbstractGrid
             }
             else if (m_gateOutConnected)
             {
-                return m_gateOut ? Color::White : Color::Dim;
+                return m_gateOut ? Color::White : Color::White.Dim();
             }
             else
             {
@@ -504,7 +505,7 @@ struct MenuGrid : public AbstractGrid
 
     struct Input
     {
-        MenuButton::Input m_inputs[x_numMenuRows][x_gridSize];        
+        MenuButton::Input m_inputs[x_numMenuRows][x_gridSize];
     };    
 
     void ProcessInput(Input& input)
@@ -540,7 +541,7 @@ struct MenuGridSwitcher : public GridSwitcher
     }
 
     virtual size_t GetGridId() override
-    {
+    {        
         return GetMenuGrid()->GetSelectedGridId();
     }
 };
@@ -733,11 +734,15 @@ struct GridCnct : public Module
 {
     MidiInterchangeSingle m_midi;
     size_t m_gridId;
+
+    StateSaver m_stateSaver;
+    
     GridCnct()
         : m_midi(false)
     {
         m_gridId = x_numGridIds;
         config(0, 1, 0, 0);
+        m_stateSaver.Insert("Shape", &m_midi.m_shape);
     }
 
     void process(const ProcessArgs& args) override
@@ -780,6 +785,7 @@ struct GridCnct : public Module
 		json_t* rootJ = json_object();
 		json_object_set_new(rootJ, "midiIn", m_midi.m_input.toJson());
 		json_object_set_new(rootJ, "midiOut", m_midi.m_output.toJson());
+        json_object_set_new(rootJ, "state", m_stateSaver.ToJSON());
 		return rootJ;
 	}
 
@@ -795,6 +801,12 @@ struct GridCnct : public Module
 		if (midiJ)
         {
 			m_midi.m_output.fromJson(midiJ);
+        }
+
+        midiJ = json_object_get(rootJ, "state");
+        if (midiJ)
+        {
+            m_stateSaver.SetFromJSON(midiJ);
         }
 	}
 };
@@ -822,7 +834,25 @@ struct GridCnctWidget : public ModuleWidget
 		addChild(midiOutputWidget);
 
         addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(50, 50)), module, 0));
-        
+    }
+
+    void appendContextMenu(Menu *menu) override
+    {
+        GridCnct* gw = dynamic_cast<GridCnct*>(module);
+
+        menu->addChild(new MenuSeparator);
+
+        menu->addChild(createCheckMenuItem(
+                           "Controller LPX",
+                           "",
+                           [gw]() { return gw->m_midi.m_shape == ControllerShape::LaunchPadX; },
+                           [gw]() { gw->m_midi.m_shape = ControllerShape::LaunchPadX; }));
+        menu->addChild(createCheckMenuItem(
+                           "Controller LPProMk3",
+                           "",
+                           [gw]() { return gw->m_midi.m_shape == ControllerShape::LaunchPadProMk3; },
+                           [gw]() { gw->m_midi.m_shape = ControllerShape::LaunchPadProMk3; }));
+
 	}
 };
 

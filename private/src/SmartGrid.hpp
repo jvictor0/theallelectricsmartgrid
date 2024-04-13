@@ -54,6 +54,64 @@ struct Color
         return !(*this == c);
     }
 
+    size_t ZEncode()
+    {
+        size_t result = 0;
+        for (size_t i = 0; i < 8; ++i)
+        {
+            result |= static_cast<size_t>((m_red >> i) & 1) << (3 * i);
+            result |= static_cast<size_t>((m_green >> i) & 1) << (3 * i + 1);
+            result |= static_cast<size_t>((m_blue >> i) & 1) << (3 * i + 2);
+        }
+        
+        return result;        
+    }
+
+    static Color ZDecode(size_t x)
+    {
+        Color result;
+        for (size_t i = 0; i < 8; ++i)
+        {
+            result.m_red |= ((x >> (3 * i)) & 1) << i;
+            result.m_green |= ((x >> (3 * i + 1)) & 1) << i;
+            result.m_blue |= ((x >> (3 * i + 2)) & 1) << i;
+        }
+
+        return result;
+    }
+
+    float ZEncodeFloat()
+    {
+        return static_cast<float>(ZEncode()) / static_cast<float>(1 << 24);
+    }
+
+    static Color ZDecodeFloat(float x)
+    {
+        return ZDecode(std::min<size_t>((1 << 24) - 1, static_cast<size_t>(x * (1 << 24))));
+    }
+
+    Color AdjustBrightness(float x)
+    {
+        return Color(std::max<int>(0, std::min<int>(x * m_red, 255)),
+                     std::max<int>(0, std::min<int>(x * m_green, 255)),
+                     std::max<int>(0, std::min<int>(x * m_blue, 255)));
+    }
+
+    Color Dim()
+    {
+        return AdjustBrightness(1.0 / 8.0);
+    }
+
+    Color Saturate()
+    {
+        uint8_t maxPrime = std::max(m_red, std::max(m_green, m_blue));
+        Color c = *this;
+        c.m_red *= 255 / maxPrime;
+        c.m_green *= 255 / maxPrime;
+        c.m_blue *= 255 / maxPrime;
+        return c;
+    }
+
     uint8_t m_red;
     uint8_t m_green;
     uint8_t m_blue;
@@ -61,29 +119,18 @@ struct Color
 
     static Color InvalidColor;
     static Color Off;
-    static Color Dim;
     static Color Grey;
     static Color White;
     static Color Red;
-    static Color DimRed;
     static Color Orange;
-    static Color DimOrange;
     static Color Yellow;
-    static Color DimYellow;
     static Color Green;
-    static Color DimGreen;
     static Color SeaGreen;
-    static Color DimSeaGreen;
     static Color Ocean;
-    static Color DimOcean;
     static Color Blue;
-    static Color DimBlue;
     static Color Fuscia;
-    static Color DimFuscia;
     static Color Indigo;
-    static Color DimIndigo;
     static Color Purple;
-    static Color DimPurple;
 };
 
 struct ColorScheme
@@ -114,10 +161,7 @@ struct ColorScheme
 
     static ColorScheme Hues(Color c)
     {
-        uint8_t maxPrime = std::max(c.m_red, std::max(c.m_green, c.m_blue));
-        c.m_red *= 255 / maxPrime;
-        c.m_green *= 255 / maxPrime;
-        c.m_blue *= 255 / maxPrime;
+        c = c.Saturate();
 
         std::vector<Color> result;
         while (c.m_red > 48 || c.m_green > 48 || c.m_blue > 48)
@@ -434,6 +478,12 @@ static constexpr int x_gridYMin = -2;
 static constexpr int x_gridYMax = 9;
 static constexpr size_t x_gridMaxSize = 11;
 
+enum class ControllerShape : int
+{
+    LaunchPadX = 0,
+    LaunchPadProMk3 = 1
+};
+
 struct Message
 {
     enum class Mode : int
@@ -498,6 +548,18 @@ struct Message
         m_color = cell->GetColor();
         m_mode = Mode::Color;
     }
+
+    bool ShapeSupports(ControllerShape shape)
+    {
+        if (shape == ControllerShape::LaunchPadX &&
+            (m_x < 0 || m_y < 0))
+        {
+            return false;
+        }
+
+        return true;
+    }
+    
     
     bool NoMessage()
     {
@@ -670,7 +732,7 @@ struct AbstractGrid
 
     virtual Color GetOffColor()
     {
-        return Color::Dim;
+        return GetOnColor().Dim();
     }
 
     void ProcessStatic(float dt)
@@ -714,9 +776,15 @@ struct Grid : public AbstractGrid
     {
     }
 
+    Grid(Color onColor)
+        : m_onColor(onColor)
+        , m_offColor(onColor.Dim())
+    {
+    }
+
     Grid()
         : m_onColor(Color::White)
-        , m_offColor(Color::Dim)
+        , m_offColor(Color::White.Dim())
     {
     }
 
@@ -724,6 +792,12 @@ struct Grid : public AbstractGrid
     {
         m_onColor = on;
         m_offColor = off;
+    }
+
+    void SetColors(Color on)
+    {
+        m_onColor = on;
+        m_offColor = on.Dim();
     }
 
     virtual Color GetOnColor() override
@@ -800,12 +874,32 @@ struct CompositeGrid : public Grid
     void AddGrid(int xOff, int yOff, std::shared_ptr<Grid> grid)
     {
         m_grids.push_back(grid);
+        Place(xOff, yOff, grid.get());
+    }
+
+    void AddGrid(Grid* grid)
+    {
+        AddGrid(std::shared_ptr<Grid>(grid));
+    }
+
+    void AddGrid(std::shared_ptr<Grid> grid)
+    {
+        m_grids.push_back(grid);
+    }
+
+    void Place(int xOff, int yOff, Grid* grid)
+    {
         for (int i = x_gridXMin; i < x_gridXMax; ++i)
         {
             for (int j = x_gridYMin; j < x_gridYMax; ++j)
             {
                 if (grid->Get(i, j))
                 {
+                    if (Get(i + xOff, j + yOff))
+                    {
+                        Get(i + xOff, j + yOff)->OnReleaseStatic();
+                    }
+                    
                     Put(i + xOff, j + yOff, grid->GetShared(i, j));
                 }
             }
@@ -935,6 +1029,17 @@ struct GridSwitcher : public AbstractGrid
         }
     }
 
+    virtual Color GetOnColor() override
+    {
+        return g_smartBus.GetOnColor(m_selectedGridId);
+    }        
+
+    virtual Color GetOffColor() override
+    {
+        return g_smartBus.GetOffColor(m_selectedGridId);
+    }        
+
+
     virtual void Process(float dt) override
     {
         if (m_menuGrid)
@@ -964,7 +1069,7 @@ struct Fader : public Grid
     
     size_t m_height;
     
-    ColorScheme m_colorScheme;
+    Color m_color;
     float m_minSpeed;
     float m_maxSpeed;
 
@@ -1074,7 +1179,7 @@ struct Fader : public Grid
                 if (m_fromCenter == 0 ||
                     (m_owner->m_height % 2 == 0 && std::abs(m_fromCenter) <= 1))
                 {
-                    return m_owner->m_colorScheme[0];
+                    return m_owner->m_color.Dim();
                 }
                 else
                 {
@@ -1086,18 +1191,16 @@ struct Fader : public Grid
                  (std::abs<int>(m_fromCenter) < std::abs<int>(m_owner->m_posFromCenter) &&
                   (m_fromCenter > 0) == (m_owner->m_posFromCenter > 0))))
             {
-                return m_owner->m_colorScheme.back();
+                return m_owner->m_color;
             }
             else if (!m_owner->IsBipolar() &&
                      m_fromBottom < m_owner->m_posFromBottom)
             {
-                return m_owner->m_colorScheme.back();
+                return m_owner->m_color;
             }
             else if (m_fromBottom == m_owner->m_posFromBottom)
             {
-                size_t ix = static_cast<size_t>(m_owner->m_valueWithinCell * m_owner->m_colorScheme.size());
-                ix = std::max<size_t>(0, std::min(m_owner->m_colorScheme.size() - 1, ix));
-                return m_owner->m_colorScheme[ix];
+                return m_owner->m_color.AdjustBrightness(m_owner->m_valueWithinCell);
             }
             else
             {
@@ -1244,7 +1347,7 @@ struct Fader : public Grid
     Fader(
         float* state,
         int height,
-        ColorScheme colorScheme,
+        Color color,
         float minValue = 0,
         float maxValue = 1,
         float minSpeed = 1,
@@ -1253,7 +1356,7 @@ struct Fader : public Grid
         Structure structure = Structure::Linear,
         Mode mode = Mode::Relative)
         : m_height(height)
-        , m_colorScheme(colorScheme)
+        , m_color(color)
         , m_minSpeed(minSpeed)
         , m_maxSpeed(maxSpeed)
         , m_maxValue(maxValue)
@@ -1377,9 +1480,11 @@ struct LPRGBSysEx
 
     ColorSpec m_messages[x_maxMessages];
     size_t m_numMessages;
+    ControllerShape m_shape;
 
-    LPRGBSysEx()
+    LPRGBSysEx(ControllerShape shape)
         : m_numMessages(0)
+        , m_shape(shape)
     {
     }
 
@@ -1406,7 +1511,16 @@ struct LPRGBSysEx
         msg.bytes.push_back(32);
         msg.bytes.push_back(41);
         msg.bytes.push_back(2);
-        msg.bytes.push_back(14);
+        
+        if (m_shape == ControllerShape::LaunchPadX)
+        {
+            msg.bytes.push_back(12);
+        }
+        else if (m_shape == ControllerShape::LaunchPadProMk3)
+        {
+            msg.bytes.push_back(14);
+        }
+
         msg.bytes.push_back(3);
 
         for (size_t i = 0; i < m_numMessages; ++i)
@@ -1432,6 +1546,12 @@ struct MidiInterchangeSingle
     static constexpr size_t x_maxNote = 128;
 
     Color m_lastSent[x_maxNote];
+    ControllerShape m_shape;
+
+    void SetShape(ControllerShape shape)
+    {
+        m_shape = shape;
+    }
 
     MidiInterchangeSingle()
         : MidiInterchangeSingle(true)
@@ -1441,6 +1561,7 @@ struct MidiInterchangeSingle
     MidiInterchangeSingle(bool isLoopback)
         : m_device(-1)
         , m_isLoopback(isLoopback)
+        , m_shape(ControllerShape::LaunchPadX)
     {
         if (m_isLoopback)
         {
@@ -1506,6 +1627,11 @@ struct MidiInterchangeSingle
             return;
         }
 
+        if (!message.ShapeSupports(m_shape))
+        {
+            return;
+        }
+        
         uint8_t pos = Message::LPPosToNote(message.m_x, message.m_y);
 
         if (m_lastSent[pos] == Color::InvalidColor || m_lastSent[pos] != message.m_color)
@@ -1585,8 +1711,8 @@ struct MidiInterchangeSingle
     {
         if (gridId != x_numGridIds)
         {
-            LPRGBSysEx sysEx;
-            for (auto itr = g_smartBus.OutputBegin(gridId, false /*ignoreChanged*/); itr != g_smartBus.OutputEnd(); ++itr)
+            LPRGBSysEx sysEx(m_shape);
+            for (auto itr = g_smartBus.OutputBegin(gridId, true /*ignoreChanged*/); itr != g_smartBus.OutputEnd(); ++itr)
             {
                 Message msg = *itr;
                 if (!msg.NoMessage())
@@ -1606,7 +1732,7 @@ struct MidiInterchangeSingle
 
     void SendMidi(int64_t frame, AbstractGrid* grid)
     {
-        LPRGBSysEx sysEx;
+        LPRGBSysEx sysEx(m_shape);
         for (int i = x_gridXMin; i < x_gridXMax; ++i)
         {
             for (int j = x_gridYMin; j < x_gridYMax; ++j)
@@ -1753,12 +1879,6 @@ struct SmartGrid
             m_timeToCheck = x_checkTime;
         }
     }
-};
-
-enum class ControllerShape : int
-{
-    LaunchPadX = 0,
-    LaunchPadProMk3 = 1
 };
 
 }
