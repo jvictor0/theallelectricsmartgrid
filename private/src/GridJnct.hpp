@@ -4,6 +4,7 @@
 #include "MidiWidget.hpp"
 #include "SmartGridWidget.hpp"
 #include "StateSaver.hpp"
+#include "ColorHelper.hpp"
 
 namespace SmartGrid
 {
@@ -90,16 +91,16 @@ struct MenuButtonRow
         {
             case RowPos::Top:
             {
-                return x_gridSize;
+                return x_gridYMin;
             }
             case RowPos::Bottom:
             {
-                return x_gridYMin + 1;
+                return x_gridYMax - 2;
             }
             case RowPos::SubBottom:
             case RowPos::Unused:
             {
-                return x_gridYMin;
+                return x_gridYMax - 1;
             }
             case RowPos::Right:
             case RowPos::Left:
@@ -111,15 +112,15 @@ struct MenuButtonRow
 
     static RowPos GetPos(int i, int j)
     {
-        if (j == x_gridSize && 0 <= i && i < x_gridSize)
+        if (j == x_gridYMin && 0 <= i && i < x_gridSize)
         {
             return RowPos::Top;
         }
-        else if (j == x_gridYMin + 1 && 0 <= i && i < x_gridSize)
+        else if (j == x_gridYMax - 2 && 0 <= i && i < x_gridSize)
         {
             return RowPos::Bottom;
         }
-        else if (j == x_gridYMin && 0 <= i && i < x_gridSize)
+        else if (j == x_gridYMax - 1 && 0 <= i && i < x_gridSize)
         {
             return RowPos::SubBottom;
         }
@@ -143,15 +144,15 @@ struct MenuButtonRow
         {
             case RowPos::Top:
             {
-                return j == x_gridSize && m_start <= i && i < m_end;
+                return j == x_gridYMin && m_start <= i && i < m_end;
             }
             case RowPos::Bottom:
             {
-                return j == x_gridYMin + 1 && m_start <= i && i < m_end;
+                return j == x_gridYMax - 2 && m_start <= i && i < m_end;
             }
             case RowPos::SubBottom:
             {
-                return j == x_gridYMin && m_start <= i && i < m_end;
+                return j == x_gridYMax - 1 && m_start <= i && i < m_end;
             }
             case RowPos::Right:
             {
@@ -289,9 +290,10 @@ struct MenuGrid : public AbstractGrid
     {
     }
 
-    MenuGrid()
+    MenuGrid(StateSaver& saver)
         : m_selectedAbsPos(x_invalidAbsPos)
     {
+        saver.Insert("SelectedAbsPos", &m_selectedAbsPos);
     }
 
     size_t AbsPos(MenuButtonRow::RowPos pos, size_t ix)
@@ -306,23 +308,35 @@ struct MenuGrid : public AbstractGrid
     
     struct MenuButton : public Cell
     {
+        enum class Mode : int
+        {
+            Grid,
+            Momentary,
+            Toggle
+        };
+
         bool m_gateOut;
         bool m_gateOutConnected;
-        bool m_hasGrid;
+        bool m_hasInput;
         size_t m_gridId;
         size_t m_absPos;
         MenuGrid* m_owner;
-
+        Color m_color;
+        Mode m_mode;
+        
         struct Input
         {
             bool m_gateOutConnected;
-            bool m_hasGrid;
+            bool m_hasInput;
             size_t m_gridId;
+            Mode m_mode;
+            ColorDecode m_color;
 
             Input()
                 : m_gateOutConnected(false)
-                , m_hasGrid(false)
+                , m_hasInput(false)
                 , m_gridId(x_numGridIds)
+                , m_mode(Mode::Grid)
             {
             }
         };
@@ -334,26 +348,45 @@ struct MenuGrid : public AbstractGrid
         MenuButton(MenuGrid* owner, size_t absPos)
             : m_gateOut(false)
             , m_gateOutConnected(false)
-            , m_hasGrid(false)
+            , m_hasInput(false)
             , m_gridId(x_numGridIds)
             , m_absPos(absPos)
             , m_owner(owner)
+            , m_color(Color::Off)
+            , m_mode(Mode::Grid)
         {
         }
 
         void Process(Input& input)
         {
             m_gateOutConnected = input.m_gateOutConnected;
-            m_hasGrid = input.m_hasGrid;
-            bool gridIdChanged = input.m_gridId != m_gridId;
-            m_gridId = input.m_gridId;
-            if (IsSelected() && gridIdChanged && m_hasGrid)
+            m_mode = input.m_mode;
+            m_hasInput = input.m_hasInput;
+            if (m_mode == Mode::Grid)
             {
-                m_owner->Select(this);
+                bool gridIdChanged = input.m_gridId != m_gridId;
+                m_gridId = input.m_gridId;
+                bool hasGridId = m_gridId != x_numGridIds;
+                if (IsSelected() && gridIdChanged && hasGridId)
+                {
+                    m_owner->Select(this);
+                }
+                else if (IsSelected() && !hasGridId)
+                {
+                    m_owner->DeSelect();
+                }
             }
-            else if (IsSelected() && !m_hasGrid)
+            else
             {
-                m_owner->DeSelect();
+                if (IsSelected())
+                {
+                    m_owner->DeSelect();
+                }
+                                
+                if (input.m_hasInput)
+                {
+                    m_color = input.m_color.m_color;
+                }
             }
         }
 
@@ -364,32 +397,58 @@ struct MenuGrid : public AbstractGrid
 
         virtual Color GetColor() override
         {
-            if (m_hasGrid)
+            if (m_mode == Mode::Grid)
             {
-                return IsSelected() ? g_smartBus.GetOnColor(m_gridId) : g_smartBus.GetOffColor(m_gridId);
-            }
-            else if (m_gateOutConnected)
-            {
-                return m_gateOut ? Color::White : Color::White.Dim();
+                if (m_hasInput && m_gridId != x_numGridIds)
+                {
+                    return IsSelected() ? g_smartBus.GetOnColor(m_gridId) : g_smartBus.GetOffColor(m_gridId);
+                }
+                else if (m_gateOutConnected)
+                {
+                    return m_gateOut ? Color::White : Color::White.Dim();
+                }
+                else
+                {
+                    return Color::Off;
+                }
             }
             else
             {
-                return Color::Off;
+                if (m_hasInput)
+                {
+                    return m_color;
+                }
+                else
+                {
+                    return m_gateOut ? Color::White : Color::White.Dim();
+                }
             }
         }
 
         virtual void OnPress(uint8_t) override
         {
-            if (m_hasGrid)
+            if (m_hasInput && m_mode == Mode::Grid)
             {
-                m_owner->Select(this);
+                if (m_gridId != x_numGridIds)
+                {
+                    m_owner->Select(this);
+                    m_gateOut = true;
+                }
+            }
+            else if (m_gateOutConnected &&
+                     (!m_gateOut || m_mode == Mode::Momentary))
+            {
                 m_gateOut = true;
             }
-            else if (m_gateOutConnected && !m_gateOut)
+            else
             {
-                m_gateOut = true;
+                m_gateOut = false;
             }
-            else if (m_gateOutConnected)
+        }
+
+        virtual void OnRelease() override
+        {
+            if (m_mode == Mode::Momentary)
             {
                 m_gateOut = false;
             }
@@ -480,7 +539,7 @@ struct MenuGrid : public AbstractGrid
     void SetGridId(MenuButtonRow::RowPos pos, size_t ix, size_t gridId)
     {
         static_cast<MenuButton*>(Get(pos, ix))->m_gridId = gridId;
-        static_cast<MenuButton*>(Get(pos, ix))->m_hasGrid = true;
+        static_cast<MenuButton*>(Get(pos, ix))->m_hasInput = true;
     }
 
     virtual Color GetColor(int i, int j) override
@@ -530,8 +589,8 @@ struct MenuGridSwitcher : public GridSwitcher
     {
     }
 
-    MenuGridSwitcher()
-        : GridSwitcher(new MenuGrid())
+    MenuGridSwitcher(StateSaver& saver)
+        : GridSwitcher(new MenuGrid(saver))
     {
     }
 
@@ -568,20 +627,23 @@ struct GridJnct : Module
         return GetNumButtonRows() * x_gridSize;
     }
 
+    static constexpr size_t x_numParams = GetNumIOIds();
+    
     static constexpr size_t x_numInputs = GetNumIOIds();
     
     static constexpr size_t x_gridIdOutId = GetNumIOIds();
     static constexpr size_t x_activeGridIdOutId = x_gridIdOutId + 1;
     static constexpr size_t x_numOutputs = x_activeGridIdOutId + 1;
 
-
+    StateSaver m_stateSaver;
     MenuGridSwitcher m_switcher;
     MenuGrid::Input m_state;
     PeriodChecker m_periodChecker;
 
     GridJnct()
+        : m_switcher(m_stateSaver)
     {
-        config(0, GetNumIOIds(), x_numOutputs, 0);
+        config(x_numParams, GetNumIOIds(), x_numOutputs, 0);
 
         for (size_t i = 0; i < GetNumButtonRows(); ++i)
         {
@@ -593,6 +655,7 @@ struct GridJnct : Module
             auto pairPos = m_switcher.GetMenuGrid()->PairPos(i);
             configInput(i, (MenuButtonRow::RowPosToString(pairPos.first) + " " + std::to_string(pairPos.second) + " Grid Id "));
             configOutput(i, (MenuButtonRow::RowPosToString(pairPos.first) + " " + std::to_string(pairPos.second) + " Gate "));
+            configSwitch(i, 0, 2, 0, (MenuButtonRow::RowPosToString(pairPos.first) + " " + std::to_string(pairPos.second) + " Mode "), {"Grid", "Momentary", "Toggle"});
         }
 
         configOutput(x_gridIdOutId, "Grid Id");
@@ -607,14 +670,25 @@ struct GridJnct : Module
             size_t posIx = static_cast<size_t>(pairPos.first);
             MenuGrid::MenuButton::Input& input = m_state.m_inputs[posIx][pairPos.second];
             input.m_gateOutConnected = outputs[i].isConnected();
-            input.m_hasGrid = inputs[i].isConnected();
-            size_t gridId = static_cast<size_t>(inputs[i].getVoltage() + 0.5);
-            if (gridId > x_numGridIds)
+            input.m_mode = static_cast<MenuGrid::MenuButton::Mode>(static_cast<int>(params[i].getValue()));
+            input.m_hasInput = inputs[i].isConnected();
+            if (input.m_mode == MenuGrid::MenuButton::Mode::Grid)
             {
-                gridId = x_numGridIds;
+                size_t gridId = static_cast<size_t>(inputs[i].getVoltage() + 0.5);
+                if (gridId > x_numGridIds)
+                {
+                    gridId = x_numGridIds;
+                }
+                
+                input.m_gridId = gridId;
             }
-            
-            input.m_gridId = gridId;
+            else
+            {
+                if (input.m_hasInput)
+                {
+                    input.m_color.Process(Color::FloatToZ(inputs[i].getVoltage() / 10));
+                }
+            }
         }
     }
 
@@ -632,6 +706,16 @@ struct GridJnct : Module
 
         outputs[x_gridIdOutId].setVoltage(m_switcher.m_gridId);
         outputs[x_activeGridIdOutId].setVoltage(m_switcher.m_selectedGridId);        
+    }
+
+    json_t* dataToJson() override
+    {
+        return m_stateSaver.ToJSON();
+    }
+
+    void dataFromJson(json_t* rootJ) override
+    {
+        m_stateSaver.SetFromJSON(rootJ);
     }
 
     void process(const ProcessArgs &args) override
@@ -661,7 +745,7 @@ struct GridJnctWidget : ModuleWidget
         if (pos == MenuButtonRow::RowPos::Left ||
             pos == MenuButtonRow::RowPos::Right)
         {
-            y = x_yStart - x_sep * ix - 5 * x_sep;
+            y = x_yStart - x_sep * (x_gridSize - ix - 1) - 5 * x_sep;
             if (pos == MenuButtonRow::RowPos::Left)
             {
                 x = x_xStart;
@@ -721,6 +805,9 @@ struct GridJnctWidget : ModuleWidget
             auto pairPos = module->m_switcher.GetMenuGrid()->PairPos(i);
             addInput(createInputCentered<PJ301MPort>(GetPos(pairPos.first, pairPos.second, true), module, i));
             addOutput(createOutputCentered<PJ301MPort>(GetPos(pairPos.first, pairPos.second, false), module, i));
+            size_t xPos = static_cast<size_t>(pairPos.first) * 25 + 375;
+            size_t yPos = 125 + pairPos.second * 25;
+            addParam(createParamCentered<Trimpot>(Vec(xPos, yPos), module, i));
         }
         
         addOutput(createOutputCentered<PJ301MPort>(Vec(375, 100), module, module->x_gridIdOutId));

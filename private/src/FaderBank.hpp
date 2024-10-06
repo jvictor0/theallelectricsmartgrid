@@ -1,5 +1,6 @@
 #pragma once
 #include "SmartGrid.hpp"
+#include "StateSaver.hpp"
 #include "plugin.hpp"
 
 namespace SmartGrid
@@ -48,13 +49,14 @@ struct FaderBankSmartGrid : public CompositeGrid
         }
     };
     
-    FaderBankSmartGrid()
+    FaderBankSmartGrid(StateSaver& saver)
         : CompositeGrid()
     {
         for (size_t i = 0; i < x_gridSize; ++i)
         {
             m_faders[i].reset(new BankedFader());
             AddGrid(i, 0, m_faders[i]);
+            saver.Insert("Value", i, &m_faders[i]->m_state);
         }
     }
 
@@ -97,20 +99,25 @@ struct FaderBankSmartGrid : public CompositeGrid
 
 struct FaderBank : public Module
 {
+    StateSaver m_stateSaver;
     FaderBankSmartGrid m_faderBank;
     FaderBankSmartGrid::Input m_state;
+
+    static constexpr size_t x_colorIn = x_gridSize;
 
     static constexpr size_t x_gridIdOutId = x_gridSize;
     
     FaderBank()
+        : m_faderBank(m_stateSaver)
     {
-        config(x_gridSize, x_gridSize, x_gridSize + 1, 0);
+        config(x_gridSize, 2 * x_gridSize, x_gridSize + 1, 0);
 
         for (size_t i = 0; i < x_gridSize; ++i)
         {
             configInput(i, ("Fader " + std::to_string(i)).c_str());
             configOutput(i, ("Fader " + std::to_string(i)).c_str());
             configParam(i, 0, 1, 1, ("Color " + std::to_string(i)).c_str());
+            configInput(x_colorIn + i, ("Color " + std::to_string(i)).c_str());
         }
 
         configOutput(x_gridIdOutId, "Grid Id");
@@ -122,7 +129,14 @@ struct FaderBank : public Module
         {
             m_state.m_inputs[i].m_outputConnected = outputs[i].isConnected();
             m_state.m_inputs[i].m_inputConnected = inputs[i].isConnected();
-            m_state.m_inputs[i].m_color = Color::ZDecodeFloat(params[i].getValue());
+            if (inputs[x_colorIn + i].isConnected())
+            {
+                m_state.m_inputs[i].m_color = Color::ZDecodeFloat(inputs[x_colorIn + i].getVoltage() / 10);
+            }
+            else
+            {
+                m_state.m_inputs[i].m_color = Color::ZDecodeFloat(params[i].getValue());
+            }
         }
     }
 
@@ -134,6 +148,16 @@ struct FaderBank : public Module
         }
 
         outputs[x_gridIdOutId].setVoltage(m_faderBank.m_gridId);
+    }
+
+    json_t* dataToJson() override
+    {
+        return m_stateSaver.ToJSON();
+    }
+
+    void dataFromJson(json_t* rootJ) override
+    {
+        m_stateSaver.SetFromJSON(rootJ);
     }
 
     void process(const ProcessArgs &args) override
@@ -161,6 +185,7 @@ struct FaderBankWidget : public ModuleWidget
             float rowPos = 100 + i * 30;
             addOutput(createOutputCentered<PJ301MPort>(Vec(rowStart, rowPos), module, i));
             addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 50, rowPos), module, i));
+            addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 75, rowPos), module, x_gridSize + i));
             addParam(createParamCentered<Trimpot>(Vec(rowStart + 100, rowPos), module, i));
         }
     }

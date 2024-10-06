@@ -4,21 +4,236 @@
 #include <cmath>
 #include "Trig.hpp"
 #include "NormGen.hpp"
+#include <iomanip>
+#include <sstream>
+#include <numeric>
 
-
-inline float Circlize(float x)
+inline uint64_t gcd(uint64_t a, uint64_t b)
 {
-    return x - floor(x);
+   if (b == 0)
+   return a;
+   return gcd(b, a % b);
 }
 
-inline float Interpolate(float x1, float x2, float y1, float y2, float xp)
+struct Fixed
 {
-    return y1 + (y2 - y1) * (xp - x1) / (x2 - x1);
+    static constexpr uint64_t x_base = 72055526400000000;
+    uint64_t m_val;
+
+    Fixed() : m_val(0)
+    {
+    }
+
+    explicit constexpr Fixed(uint64_t num, uint64_t den)
+        : m_val(num * x_base / den)
+    {
+    }
+
+    explicit constexpr Fixed(uint64_t x)
+        : m_val(x)
+    {
+    }
+
+    static Fixed FromInt(uint64_t x)
+    {
+        return Fixed(x);
+    }
+
+    static Fixed FromDouble(double x)
+    {
+        return Fixed(x * x_base);
+    }
+    
+    float Float()
+    {
+        return static_cast<double>(m_val) / x_base;
+    }
+
+    Fixed operator*(uint64_t x)
+    {
+        unsigned __int128 val = m_val;
+        return FromInt(val * x);
+    }
+
+    // Fixed operator/(uint64_t x)
+    // {
+    //     return Fixed(m_val / x);
+    // }
+
+    Fixed operator+(Fixed x)
+    {
+        unsigned __int128 val = m_val;
+        return FromInt(val + x.m_val);
+    }
+
+    Fixed Negate()
+    {
+        return Fixed(x_base - m_val);
+    }
+
+    Fixed operator-(Fixed x)
+    {
+        assert(x <= (*this));
+        Fixed result = FromInt(m_val - x.m_val);
+        return result;
+    }
+    
+    bool operator==(Fixed x)
+    {
+        return m_val == x.m_val;
+    }
+
+    bool operator!=(Fixed x)
+    {
+        return m_val != x.m_val;
+    }
+
+    bool operator<(Fixed x)
+    {
+        return m_val < x.m_val;
+    }
+
+    bool operator<=(Fixed x)
+    {
+        return m_val <= x.m_val;
+    }
+
+    bool operator>=(Fixed x)
+    {
+        return m_val >= x.m_val;
+    }
+
+    bool operator>(Fixed x)
+    {
+        return m_val > x.m_val;
+    }
+
+    Fixed Min(Fixed x)
+    {
+        return (*this) <= x ? (*this) : x;
+    }
+
+    Fixed Max(Fixed x)
+    {
+        return (*this) >= x ? (*this) : x;
+    }
+
+    Fixed TimesRat(Fixed num, Fixed den)
+    {
+        unsigned __int128 val = m_val;
+        val = val * num.m_val;
+        val = val / den.m_val;
+        Fixed result = FromInt(val);
+        return result;
+    }
+
+    Fixed Round(uint64_t x)
+    {
+        return Fixed((m_val / x) * x);
+    }
+
+    Fixed Reduce(uint64_t* integer)
+    {
+        *integer = m_val / x_base;
+        return Fixed(m_val % x_base);
+    }
+
+    Fixed Reduce()
+    {
+        uint64_t i;
+        return Reduce(&i);
+    }
+
+    static constexpr Fixed One()
+    {
+        return Fixed(x_base);
+    }
+
+    static constexpr Fixed Half()
+    {
+        return Fixed(1, 2);
+    }
+
+    bool Gate()
+    {
+        return (*this) < Half();
+    }
+
+    std::string Frac()
+    {
+        uint64_t g = gcd(x_base, m_val);
+        return std::to_string(m_val) + " (" + std::to_string(m_val / g) + "/" + std::to_string(x_base / g) + ")";
+    }
+
+    std::string Str()
+    {
+        return std::to_string(Float());
+    }
+};
+
+inline Fixed Interpolate(Fixed x1, Fixed x2, Fixed y1, Fixed y2, Fixed xp)
+{
+    if (x1.Float() > 1 ||
+        x2.Float() > 1 ||
+        y1.Float() > 1 ||
+        y2.Float() > 1 ||
+        xp.Float() > 1)
+    {
+        INFO("Interp %f %f %f %f %f",
+             x1.Float() ,
+             x2.Float() ,
+              y1.Float() ,
+             y2.Float() ,
+             xp.Float());
+        assert(false);
+    }
+
+    if (y2 < y1)
+    {
+        return Interpolate(x2, x1, y2, y1, xp);
+    }
+    
+    if ((x2 >= x1) != (xp >= x1) && xp != x1)
+    {
+        INFO("Interp %f %f %f %f %f",
+             x1.Float() ,
+             x2.Float() ,
+              y1.Float() ,
+             y2.Float() ,
+             xp.Float());
+        INFO("Interp %s %s %s %s %s",
+             x1.Frac().c_str() ,
+             x2.Frac().c_str() ,
+             y1.Frac().c_str() ,
+             y2.Frac().c_str() ,
+             xp.Frac().c_str());
+        assert(false);
+    }
+    
+    Fixed ratNum = x2 >= x1 ? xp - x1 : x1 - xp;
+    Fixed ratDen = x2 >= x1 ? x2 - x1 : x1 - x2;
+    
+    Fixed result = y1 + (y2 - y1).TimesRat(ratNum, ratDen);
+
+    if (Fixed::One() < result)
+    {
+        INFO("Interp %s %s %s %s %s -> %s",
+             x1.Frac().c_str() ,
+             x2.Frac().c_str() ,
+             y1.Frac().c_str() ,
+             y2.Frac().c_str() ,
+             xp.Frac().c_str(),
+             result.Frac().c_str());
+        assert(false);
+    }
+        
+    return result;
 }
 
-inline float CircleDist(float x1, float x2)
+inline Fixed CircleDist(Fixed x1, Fixed x2)
 {
-    return std::min(std::abs(x2 - x1), 1 - std::abs(x2 - x1));
+    Fixed diff = x1 < x2 ? x2 - x1 : x1 - x2;
+    return Fixed(std::min(diff.m_val, Fixed::x_base - diff.m_val));
 }
 
 struct MusicalTime;
@@ -32,33 +247,33 @@ struct LinearPeice
         Over
     };
 
-    float m_x1;
-    float m_x2;
-    float m_y1;
-    float m_y2;
+    Fixed m_x1;
+    Fixed m_x2;
+    Fixed m_y1;
+    Fixed m_y2;
     bool m_empty;
 
     LinearPeice()
-        : LinearPeice(0, 0, 0, 0)
+        : LinearPeice(Fixed(0), Fixed(0), Fixed(0), Fixed(0))
     {
         m_empty = true;
     }
     
-    LinearPeice(float x1, float x2, float y1, float y2)
+    LinearPeice(Fixed x1, Fixed x2, Fixed y1, Fixed y2)
+        : m_x1(x1)
+        , m_x2(x2)
+        , m_y1(y1)
+        , m_y2(y2)
+        , m_empty(false)
     {
-        m_x1 = x1;
-        m_x2 = x2;
-        m_y1 = y1;
-        m_y2 = y2;
-        m_empty = false;
     }
 
-    LinearPeice SetOver(float x2, float y2)
+    LinearPeice SetOver(Fixed x2, Fixed y2)
     {
         return LinearPeice(m_x2, x2, m_y2, y2);
     }
 
-    LinearPeice SetUnder(float x1, float y1)
+    LinearPeice SetUnder(Fixed x1, Fixed y1)
     {
         return LinearPeice(x1, m_x1, y1, m_y1);
     }
@@ -70,22 +285,71 @@ struct LinearPeice
 
     LinearPeice Compose(LinearPeice other)
     {
-        float x1 = ::Interpolate(0, 1, other.m_x1, other.m_x2, m_x1);
-        float x2 = ::Interpolate(0, 1, other.m_x1, other.m_x2, m_x2);
-        return LinearPeice(
-            x1,
-            x2, 
-            Interpolate(other.Interpolate(x1)),
-            Interpolate(other.Interpolate(x2)));
+        Fixed y1 = other.m_y1 <= other.m_y2 ? m_x1.Max(other.m_y1) : m_x2.Max(other.m_y2);
+        Fixed y2 = other.m_y1 <= other.m_y2 ? m_x2.Min(other.m_y2) : m_x1.Min(other.m_y1);
+        if (y1 < other.m_y1.Min(other.m_y2) ||
+            y2 < other.m_y1.Min(other.m_y2) ||
+            y1 > other.m_y1.Max(other.m_y2) ||
+            y2 > other.m_y1.Max(other.m_y2))
+        {
+            INFO("COMPOSE %f %s, %f %s <- %s o %s", y1.Float(), y1.Frac().c_str(), y2.Float(), y2.Frac().c_str(), ToString().c_str(), other.ToString().c_str());
+            INFO("C %d %d %d %d",
+                 y1 < other.m_y1.Min(other.m_y2) ,
+                 y2 < other.m_y1.Min(other.m_y2) ,
+                 y1 > other.m_y1.Max(other.m_y2) ,
+                 y2 > other.m_y1.Max(other.m_y2));
+            assert(false);
+        }
+        
+        Fixed x1 = other.Invert(y1);
+        Fixed x2 = other.Invert(y2);
+        if (x2 < x1 ||
+            x1 < other.m_x1 ||
+            other.m_x2 < x1 ||
+            x2 < other.m_x1 ||
+            other.m_x2 < x2)
+        {
+            INFO("COMPOSE %f -> %f, %f -> %f %s o %s", y1.Float(), x1.Float(), y2.Float(), x2.Float(),ToString().c_str(), other.ToString().c_str());
+            INFO("C %d %d %d %d %d",
+                 x2 < x1 ,
+                 x1 < other.m_x1 ,
+                 other.m_x2 < x1 ,
+                 x2 < other.m_x1 ,
+                 other.m_x2 < x2);
+            assert(false);
+        }
+
+        Fixed z1 = other.Interpolate(x1);
+        Fixed z2 = other.Interpolate(x2);
+        
+        if (z1 < m_x1 ||
+            m_x2 < z1 ||
+            z2 < m_x1 ||
+            m_x2 < z2 ||
+            y1 != z1 ||
+            y2 != z2)
+        {
+            INFO("COMPOSE %f -> %f -> %f, %f -> %f -> %f %s o %s", y1.Float(), x1.Float(), z1.Float(), y2.Float(), x2.Float(), z2.Float(), ToString().c_str(), other.ToString().c_str());
+            INFO("C %d %d %d %d %d %d",
+                 z1 < m_x1 ,
+                 m_x2 < z1 ,
+                 z2 < m_x1 ,
+                 m_x2 < z2,
+                 y1 != z1,
+                 y2 != z2);
+            assert(false);
+        }
+        
+        return LinearPeice(x1, x2, Interpolate(y1), Interpolate(y2));
     }
 
-    BoundState Check(float x)
+    BoundState Check(Fixed x)
     {
         if (m_empty)
         {
             return BoundState::Under;
         }
-        else if (m_x1 <= x && x <= m_x2)
+        else if (m_x1 <= x && x < m_x2)
         {
             return BoundState::In;
         }
@@ -99,17 +363,46 @@ struct LinearPeice
         }
     }
 
-    float Interpolate(float x)
+    Fixed Interpolate(Fixed x)
     {
+        if (x == Fixed(0) && m_x1 != Fixed(0) && m_x2 == Fixed::One())
+        {
+            return m_y2;
+        }
+        else if (x == Fixed::One() && m_x2 != Fixed::One() && m_x1 == Fixed(0))
+        {
+            return m_y1;
+        }
+        
         return ::Interpolate(m_x1, m_x2, m_y1, m_y2, x);
+    }
+
+    Fixed Invert(Fixed y)
+    {
+        if (y == m_y1)
+        {
+            return m_x1;
+        }
+        else if (y == m_y2)
+        {
+            return m_x2;
+        }
+        else if (m_y1 <= m_y2)
+        {
+            return LinearPeice(m_y1, m_y2, m_x1, m_x2).Interpolate(y);
+        }
+        else
+        {
+            return LinearPeice(m_y2, m_y1, m_x2, m_x1).Interpolate(y);
+        }
     }
 
     std::string ToString()
     {
-        return "<" + std::to_string(m_x1) + ", " +
-            std::to_string(m_x2) + ", " +
-            std::to_string(m_y1) + ", " +
-            std::to_string(m_y2) + ">";
+        return "<" + m_x1.Str() + ", " +
+            m_x2.Str() + ", " +
+            m_y1.Str() + ", " +
+            m_y2.Str() + ">";
     }
 };
 
@@ -126,10 +419,10 @@ struct TimeBit
     MusicalTime* m_owner;
     size_t m_ix;
     size_t m_parentIx;
-    float m_swing;
-    float m_swagger;
-    float m_pos;
-    size_t m_parentFloor;
+    Fixed m_swing;
+    Fixed m_swagger;
+    Fixed m_pos;
+    uint64_t m_parentFloor;
     size_t m_mult;
     bool m_top;
     State m_state;
@@ -140,19 +433,19 @@ struct TimeBit
         m_ix = ix;        
         m_owner = owner;
         m_parentIx = ix - 1;
-        m_pos = 0;
+        m_pos = Fixed(0);
         m_parentFloor = 0;
         m_top = true;
         m_state = State::x_init;
-        m_swing = 0;
-        m_swagger = 0;
+        m_swing = Fixed::Half();
+        m_swagger = Fixed::Half();
         m_mult = 1;
         m_pingPong = false;
     }
 
     void Stop()
     {
-        m_pos = 0;
+        m_pos = Fixed(0);
         m_parentFloor = 0;
         m_top = true;
         m_state = State::x_init;
@@ -161,51 +454,61 @@ struct TimeBit
     
     TimeBit* GetParent();
 
-    LinearPeice MakeLP(float parentPos, size_t* parentFloor)
+    // std::string Rep()
+    // {
+    //     std::stringstream stream;
+    //     stream << std::fixed << std::setprecision(10) << m_pos;
+    //     std::string s = stream.str();
+    //     return "(" + std::to_string(m_ix) + ", " + std::to_string(m_pos < 0.5) + ", " + s + ", " + std::to_string(m_mult) + ")";
+    // }
+
+    LinearPeice MakeLP(Fixed parentPos, uint64_t* parentFloor)
     {
-        *parentFloor = floor(parentPos * m_mult);
-        float pfFloat = static_cast<float>(*parentFloor);
-        LinearPeice result = LinearPeice(pfFloat / m_mult, (pfFloat + 1) / m_mult, 0, 1);
+        (parentPos * m_mult).Reduce(parentFloor);
+        assert(*parentFloor < m_mult);
+        LinearPeice result = LinearPeice(Fixed(*parentFloor, m_mult), Fixed(*parentFloor + 1, m_mult), Fixed(0), Fixed::One());
+        //INFO("Make LP %lu %s (%llu)", m_ix, result.ToString().c_str(), *parentFloor);
         if (m_pingPong)
         {
+            //INFO("PP %f -> %f", parentPos.Float(), result.Interpolate(parentPos).Float());
             result = MakePingPongLP(result.Interpolate(parentPos)).Compose(result);
+            //INFO("PP %s", result.ToString().c_str());
         }
-        
-        result = MakeSwingLP(result.Interpolate(parentPos)).Compose(result);
+
+        //INFO("Swing %f -> %f", parentPos.Float(), result.Interpolate(parentPos).Float());
+        if (m_mult % 2 == 0 || *parentFloor != m_mult / 2)
+        {
+            result = MakeSwingLP(result.Interpolate(parentPos)).Compose(result);
+        }
+        //INFO("Swung %s", result.ToString().c_str());
         return result;
     }
     
-    float ApplyMult(float t)
-    {
-        float preres = m_mult * t;
-        return preres - floor(preres);
-    }
-
-    LinearPeice MakePingPongLP(float t)
+    LinearPeice MakePingPongLP(Fixed t)
     {
         if (!m_pingPong)
         {
-            return LinearPeice(0, 1, 0, 1);
+            return LinearPeice(Fixed(0), Fixed::One(), Fixed(0), Fixed::One());
         }
-        else if (t < 0.5)
+        else if (t < Fixed::Half())
         {
-            return LinearPeice(0, 0.5, 0, 1);
+            return LinearPeice(Fixed(0), Fixed::Half(), Fixed(0), Fixed::One());
         }
         else
         {
-            return LinearPeice(0.5, 1, 1, 0);
+            return LinearPeice(Fixed::Half(), Fixed::One(), Fixed::One(), Fixed(0));
         }
     }
     
-    LinearPeice MakeSwingLP(float t)
+    LinearPeice MakeSwingLP(Fixed t)
     {
-        if (t < m_swing / 2 + 0.5)
+        if (t < m_swing)
         {
-            return LinearPeice(0, m_swing / 2 + 0.5, 0, m_swagger / 2 + 0.5);
+            return LinearPeice(Fixed(0), m_swing, Fixed(0), m_swagger);
         }
         else
         {
-            return LinearPeice(m_swing / 2 + 0.5, 1, m_swagger / 2 + 0.5, 1);
+            return LinearPeice(m_swing, Fixed::One(), m_swagger, Fixed::One());
         }
     }
 
@@ -241,7 +544,7 @@ struct TimeBit
         else if (m_parentIx != input.m_parentIx)
         {
             m_top = true;
-            m_pos = 0;
+            m_pos = Fixed(0);
             m_state = State::x_waiting;
         }
 
@@ -260,8 +563,13 @@ struct TimeBit
     {
         float rand = input.m_rand ? *input.m_rand : 0;
         float globalHomo = input.m_globalHomotopy ? *input.m_globalHomotopy : 1;
-        m_swing = globalHomo * ((1 - rand) * input.m_swing + rand * input.m_swing * input.m_gen.UniGen());
-        m_swagger = globalHomo * ((1 - rand) * input.m_swagger + rand * input.m_swagger * input.m_gen.UniGen());
+        float swingFloat = globalHomo * ((1 - rand) * input.m_swing + rand * input.m_swing * input.m_gen.UniGen());
+        float swaggerFloat = globalHomo * ((1 - rand) * input.m_swagger + rand * input.m_swagger * input.m_gen.UniGen());
+        m_swing = Fixed::FromDouble(swingFloat / 2.5 + 0.5);
+        m_swagger = Fixed::FromDouble(swaggerFloat / 2.5 + 0.5);
+
+        size_t effectiveMult = m_pingPong ? 2 * m_mult : m_mult;
+        m_swing = m_swing.Round(effectiveMult);
     }
 
     void Process(Input& input)
@@ -295,10 +603,10 @@ struct TimeBit
         }
 
         TimeBit* parent = GetParent();
-        float inT = parent->m_pos;
-        if (m_lp.Check(inT) != LinearPeice::BoundState::In)
+        Fixed inT = parent->m_pos;
+        if (parent->m_top || m_lp.Check(inT) != LinearPeice::BoundState::In)
         {
-            size_t newParentFloor;
+            uint64_t newParentFloor;
             m_lp = MakeLP(inT, &newParentFloor);
             if (newParentFloor != m_parentFloor)
             {
@@ -308,17 +616,27 @@ struct TimeBit
         }
 
         m_pos = m_lp.Interpolate(inT);
+        if (Fixed::One() < m_pos)
+        {
+            INFO("Big pos %f, %lu %f", m_pos.Float(), m_ix, inT.Float());
+            assert(false);
+        }
+
+        if (m_pos == Fixed::One())
+        {
+            m_pos = Fixed(0);
+        }
     }
 
     void SetDirectly(float t)
     {
         m_top = false;
-        if (std::abs(t - m_pos) > 0.5)
+        if (std::abs(t - m_pos.Float()) > 0.5)
         {
             m_top = true;
         }
 
-        m_pos = t;
+        m_pos = Fixed::FromDouble(t);
     }
 };
 
@@ -341,6 +659,17 @@ struct MusicalTime
             m_change[i] = false;
         }
     }
+
+    // std::string Rep()
+    // {
+    //     std::string result = "<";
+    //     for (size_t i = 0; i < x_numBits; ++i)
+    //     {
+    //         result += m_bits[i].Rep() + " ";
+    //     }
+
+    //     return result + ">";
+    // }
     
     struct Input
     {
@@ -416,7 +745,7 @@ struct MusicalTime
 
     float GetPos(size_t ix)
     {
-        return m_bits[ix].m_pos;        
+        return m_bits[ix].m_pos.Float();
     }
 
     bool GetGate(size_t ix)
@@ -434,6 +763,8 @@ struct MusicalTimeWithClock
 {
     MusicalTime m_musicalTime;
     float m_phasor;
+    std::string m_lastChange;
+    float m_lastChangeTime;
 
     struct Input
     {
@@ -445,8 +776,14 @@ struct MusicalTimeWithClock
         float m_freq;        
     };
 
+    MusicalTimeWithClock()
+        : m_phasor(0), m_lastChangeTime(0)
+    {
+    }
+
     void Process(float dt, Input& input)
     {
+        m_lastChangeTime += dt;
         if (input.m_input.m_running)
         {
             float dx = dt * input.m_freq;
@@ -460,6 +797,173 @@ struct MusicalTimeWithClock
 
         input.m_input.m_t = m_phasor;
         m_musicalTime.Process(input.m_input);
+
+        if (m_musicalTime.m_anyChange)
+        {
+            if (m_lastChangeTime < 0.001)
+            {
+                INFO("Change time %f", m_lastChangeTime);
+                // INFO("BEFORE: %s", m_lastChange.c_str());
+                //                INFO("AFTER:  %s", m_musicalTime.Rep().c_str());
+            }
+
+            m_lastChangeTime = 0;
+            // m_lastChange = m_musicalTime.Rep();
+        }
+    }
+};
+
+struct GreggInternal
+{
+    struct Input
+    {
+        size_t m_numSteps;
+        int m_offsetStep;
+        size_t m_mainTBIx;
+        bool m_jumpAtTop[MusicalTime::x_numBits];
+        int m_sectionIx;
+        
+        Input()
+            : m_numSteps(16)
+            , m_offsetStep(-1)
+            , m_mainTBIx(0)
+            , m_sectionIx(-1)
+        {
+            for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
+            {
+                m_jumpAtTop[i] = false;
+            }
+        }
+    };
+
+    struct Output
+    {
+        float m_out;
+    };
+
+    GreggInternal(MusicalTime* time)
+        : m_time(time)
+        , m_offsetStep(-1)
+        , m_offsetFromOffsetStep(0)
+        , m_step(0)
+        , m_outStep(0)
+        , m_sectionStart(0)
+        , m_sectionEnd(0)
+        , m_sectionStartIx(-1)
+        , m_sectionEndIx(-1)
+    {
+        for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
+        {
+            m_jumpAtTop[i] = false;
+            m_offsetFromJumpAtTop[i] = 0;
+            m_startFromJumpAtTop[i] = 0;
+            m_lastTop[i] = 0;
+        }
+    }
+
+    MusicalTime* m_time;    
+    Output m_output;
+    int m_offsetStep;
+    float m_offsetFromOffsetStep;
+    int m_step;
+    int m_outStep;
+    bool m_jumpAtTop[MusicalTime::x_numBits];
+    float m_startFromJumpAtTop[MusicalTime::x_numBits];
+    float m_offsetFromJumpAtTop[MusicalTime::x_numBits];
+    float m_lastTop[MusicalTime::x_numBits];
+    float m_sectionStart;
+    float m_sectionEnd;
+    int m_sectionStartIx;
+    int m_sectionEndIx;    
+
+    void Process(Input& input)
+    {
+        float mainPhasor = m_time->m_bits[input.m_mainTBIx].m_pos.Float();
+
+        int step = static_cast<int>(mainPhasor * input.m_numSteps) % input.m_numSteps;
+        if (step != m_step)
+        {
+            if (m_offsetStep != input.m_offsetStep)
+            {
+                if (input.m_offsetStep >= 0)
+                {
+                    int stepsToOffset = input.m_offsetStep - step;
+                    m_offsetFromOffsetStep = static_cast<float>(stepsToOffset) / input.m_numSteps;
+                }
+                else
+                {
+                    m_offsetFromOffsetStep = 0;
+                }
+
+                m_offsetStep = input.m_offsetStep;
+            }
+
+            for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
+            {
+                if (!m_jumpAtTop[i] && input.m_jumpAtTop[i])
+                {
+                    m_jumpAtTop[i] = true;
+                    m_startFromJumpAtTop[i] = mainPhasor;
+                    m_offsetFromJumpAtTop[i] = 0;
+                }
+                else if (m_jumpAtTop[i] && !input.m_jumpAtTop[i])
+                {
+                    m_jumpAtTop[i] = false;
+                    m_offsetFromJumpAtTop[i] = 0;
+                }
+            }
+            
+            m_step = step;
+        }
+
+        for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
+        {
+            if (m_time->m_bits[i].m_top)
+            {
+                m_lastTop[i] = mainPhasor;
+            }
+        }        
+        
+        if (input.m_sectionIx == -1)
+        {
+            m_sectionStartIx = -1;
+            m_sectionEndIx = -1;
+        }
+        else if (input.m_sectionIx != m_sectionStartIx)
+        {
+            m_sectionStartIx = input.m_sectionIx;
+            m_sectionStart = m_lastTop[m_sectionStartIx];
+        }
+        else if (m_sectionEndIx == -1 && m_time->m_bits[m_sectionStartIx].m_top)
+        {
+            m_sectionEndIx = input.m_sectionIx;
+            m_sectionEnd = m_lastTop[m_sectionStartIx];
+        }
+                
+        float out = mainPhasor;
+        if (m_sectionEndIx != -1)
+        {
+            float sec = m_time->m_bits[m_sectionEndIx].m_pos.Float();
+            out = m_sectionStart + (m_sectionEnd - m_sectionStart) * sec;
+        }
+        
+        out += m_offsetFromOffsetStep;
+        for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
+        {
+            if (m_jumpAtTop[i])
+            {
+                if (m_time->m_bits[i].m_top)
+                {
+                    m_offsetFromJumpAtTop[i] = mainPhasor - m_startFromJumpAtTop[i];
+                }
+
+                out += m_offsetFromJumpAtTop[i];
+            }
+        }
+                
+        out = out - floor(out);
+        m_outStep = static_cast<int>(out * input.m_numSteps) % input.m_numSteps;
+        m_output.m_out = out;
     }
 };
 

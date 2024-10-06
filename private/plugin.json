@@ -71,6 +71,83 @@
             ]
         },
         {
+            "slug": "MxDJ",
+            "name": "MxDJ",
+            "description": "MxDJ",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "SampleRateDivider",
+            "name": "SampleRateDivider",
+            "description": "SampleRateDivider",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },        
+        {
+            "slug": "ColorHelper",
+            "name": "ColorHelper",
+            "description": "ColorHelper",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "ButtonBank",
+            "name": "ButtonBank",
+            "description": "ButtonBank",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "MasterSwitch",
+            "name": "MasterSwitch",
+            "description": "MasterSwitch",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "SmartCanvas",
+            "name": "SmartCanvas",
+            "description": "SmartCanvas",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "PolyCC",
+            "name": "PolyCC",
+            "description": "PolyCC",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
             "slug": "PhasorEnvelope",
             "name": "PhasorEnvelope",
             "description": "PhasorEnvelope",

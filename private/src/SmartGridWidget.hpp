@@ -25,14 +25,11 @@ struct GridWidget : LightWidget
         Color color = Color::Off;
         if (m_gridId)
         {
-            INFO("Grid-idying");
             size_t gridId = *m_gridId;
             if (gridId < x_numGridIds)
             {
                 color = g_smartBus.GetColor(gridId, m_x, m_y);
             }
-
-            INFO("Done");
         }
 
         NVGcolor nvgc = nvgRGBA(color.m_red, color.m_green, color.m_blue, 255);

@@ -1,4 +1,4 @@
-#pragma once
+
 #include "SmartGrid.hpp"
 #include "GridJnct.hpp"
 #include "TheoryOfTime.hpp"
@@ -9,6 +9,9 @@
 #include "MultiPhasorGate.hpp"
 #include "PercentileSequencer.hpp"
 #include "TrioOctaveSwitches.hpp"
+#include "NonagonPanner.hpp"
+#include "Trig.hpp"
+#include "ClockSelectCell.hpp"
 
 struct TheNonagonInternal
 {
@@ -17,7 +20,7 @@ struct TheNonagonInternal
     static constexpr size_t x_numTrios = 3;
     static constexpr size_t x_voicesPerTrio = 3;
     static constexpr size_t x_numGridIds = 16;
-    static constexpr size_t x_numExtraTimbres = 1;
+    static constexpr size_t x_numExtraTimbres = 3;
 
     struct Input
     {
@@ -25,15 +28,17 @@ struct TheNonagonInternal
         LameJuisInternal::Input m_lameJuisInput;
         TimbreAndMute::Input m_timbreAndMuteInput;
         MultiPhasorGateInternal::Input m_multiPhasorGateInput;
-        PercentileSequencerInternal::Input m_percentileSequencerInput;
+        NonagonIndexArp::Input m_arpInput;
         TrioOctaveSwitches::Input m_trioOctaveSwitchesInput;
+        Orbiter::Input m_pannerInput;
         bool m_mute[x_numVoices];
         float m_extraTimbre[x_numTrios][x_numExtraTimbres];
         bool m_running;
         bool m_recording;
         
         Input()
-            : m_running(false)
+            : m_timbreAndMuteInput(m_mute)
+            , m_running(false)
             , m_recording(false)
         {
             for (size_t i = 0; i < x_numVoices; ++i)
@@ -47,6 +52,11 @@ struct TheNonagonInternal
                 {
                     m_extraTimbre[i][j] = 0;
                 }
+
+                for (size_t j = 0; j < x_voicesPerTrio; ++j)
+                {
+                    
+                }
             }
         }
     };
@@ -55,11 +65,15 @@ struct TheNonagonInternal
     LameJuisInternal m_lameJuis;
     TimbreAndMute m_timbreAndMute;
     MultiPhasorGateInternal m_multiPhasorGate;
-    PercentileSequencerInternal m_percentileSequencer;
+    Orbiter m_panner;
+    NonagonIndexArp m_indexArp;
     bool m_muted[x_numVoices];
     bool m_gateAck[x_numVoices];
+    double m_timer;
+    Trig m_timerTrig;
 
     TheNonagonInternal()
+        : m_timer(0)
     {
         for (size_t i = 0; i < x_numVoices; ++i)
         {
@@ -77,6 +91,7 @@ struct TheNonagonInternal
         float m_gridId[x_numGridIds];
         float m_extraTimbre[x_numVoices][x_numExtraTimbres];
         bool m_recording;
+        float m_totPhasors[x_numTimeBits];
 
         Output()
         {
@@ -92,6 +107,11 @@ struct TheNonagonInternal
                     m_extraTimbre[i][j] = 0;
                 }
             }
+
+            for (size_t i = 0; i < x_numTimeBits; ++i)
+            {
+                m_totPhasors[i] = 0;
+            }
             
             m_recording = false;
         }
@@ -104,7 +124,7 @@ struct TheNonagonInternal
         bool m_bit;
     };
 
-    TimeBit m_time[x_numTimeBits];
+    TimeBit m_time[x_numTimeBits + 1];
 
     bool* TimeBit(size_t i)
     {
@@ -118,6 +138,7 @@ struct TheNonagonInternal
 
     void SetLameJuisInput(Input& input)
     {
+        m_time[x_numTimeBits].m_bit = m_theoryOfTime.m_musicalTime.m_gate[0];
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {
             m_time[i].m_bit = m_theoryOfTime.m_musicalTime.m_gate[x_numTimeBits - i];
@@ -128,8 +149,22 @@ struct TheNonagonInternal
         {
             for (size_t j = 0; j < x_voicesPerTrio; ++j)
             {
-                float percentile = m_percentileSequencer.GetVal(i, j);
-                input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_percentiles[j] = percentile;
+                if (input.m_arpInput.m_clockSelect[i] >= 0)
+                {
+                    input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_usePercentile[j] = false;
+                    input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_harmonic[j] = false;
+                    IndexArp* arp = &m_indexArp.m_committedArp[i * x_voicesPerTrio + j];
+                    input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_indexArp[j] = arp;
+                    arp = &m_indexArp.m_arp[i * x_voicesPerTrio + j];
+                    input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_preIndexArp[j] = arp;
+                }
+                else
+                {
+                    input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_usePercentile[j] = true;
+                    input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_harmonic[j] = true;
+                    float percentile = 1.0 / 2.0 * j;
+                    input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_percentiles[j] = percentile;
+                }
             }
         }
     }
@@ -149,7 +184,7 @@ struct TheNonagonInternal
 
         for (size_t i = 0; i < LameJuisInternal::x_numOperations; ++i)
         {
-            input.m_timbreAndMuteInput.m_on[i] = m_lameJuis.m_operations[i].m_gate;
+            input.m_timbreAndMuteInput.m_on[i] = m_lameJuis.m_inputs[i].m_value;
         }
     }
 
@@ -162,7 +197,7 @@ struct TheNonagonInternal
 
         for (size_t i = 0; i < x_numTimeBits + 1; ++i)
         {
-            input.m_multiPhasorGateInput.m_phasors[i] = m_theoryOfTime.m_musicalTime.m_bits[x_numTimeBits - i].m_pos;
+            input.m_multiPhasorGateInput.m_phasors[i] = m_theoryOfTime.m_musicalTime.m_bits[x_numTimeBits - i].m_pos.Float();
             if (i < x_numTimeBits)
             {
                 for (size_t j = 0; j < x_numVoices; ++j)
@@ -175,7 +210,7 @@ struct TheNonagonInternal
 
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            int voiceClock = input.m_percentileSequencerInput.m_clockSelect[i / x_voicesPerTrio];
+            int voiceClock = input.m_arpInput.m_clockSelect[i / x_voicesPerTrio];
             if (voiceClock >= 0)
             {
                 input.m_multiPhasorGateInput.m_phasorSelector[i][voiceClock] = true;
@@ -183,11 +218,11 @@ struct TheNonagonInternal
         }
     }
 
-    void SetPercentileSequencerInputs(Input& input)
+    void SetIndexArpInputs(Input& input)
     {
         for (size_t i = 0; i < x_numTimeBits + 1; ++i)
         {            
-            input.m_percentileSequencerInput.m_clocks[i] = m_theoryOfTime.m_musicalTime.m_change[x_numTimeBits - i];
+            input.m_arpInput.m_clocks[i] = m_theoryOfTime.m_musicalTime.m_change[x_numTimeBits - i];
         }
     }    
 
@@ -207,7 +242,7 @@ struct TheNonagonInternal
                     
                     for (size_t j = 0; j < x_numExtraTimbres; ++j)
                     {
-                        m_output.m_extraTimbre[i][j] = input.m_extraTimbre[i / x_voicesPerTrio][j] * m_timbreAndMute.m_voices[i].m_preTimbre;
+                        m_output.m_extraTimbre[i][j] = m_timbreAndMute.m_voices[i].m_preTimbre;
                     }
                 }
                 else
@@ -226,17 +261,51 @@ struct TheNonagonInternal
             m_output.m_phasor[i] = m_muted[i] ? 0 : m_multiPhasorGate.m_phasorOut[i];
         }
 
+        for (size_t i = 0; i < x_numTimeBits; ++i)
+        {
+            m_output.m_totPhasors[i] = input.m_multiPhasorGateInput.m_phasors[x_numTimeBits - i];
+        }
+
         m_output.m_recording = input.m_recording;
+    }
+
+    void ProcessTimer(float dt, Input& input)
+    {
+        if (m_timerTrig.Process(input.m_recording))
+        {
+            m_timer = 0;
+        }
+
+        m_timer += dt;
+    }
+
+    float GetTimerFragment(size_t ix)
+    {
+        double tot = m_timer / (60 * 30);
+        if (tot < static_cast<double>(ix) / 16)
+        {
+            return 0;
+        }
+        else if (static_cast<double>(ix + 1) / 16 <= tot)
+        {
+            return 1;
+        }
+        else
+        {
+            return (tot - static_cast<double>(ix) / 16) / (1.0 / 16);
+        }
     }
 
     void Process(float dt, Input& input)
     {
+        ProcessTimer(dt, input);
         SetTheoryOfTimeInput(input);
         m_theoryOfTime.Process(dt, input.m_theoryOfTimeInput);
+        m_panner.Process(dt, input.m_pannerInput);
         if (m_theoryOfTime.m_musicalTime.m_anyChange)
         {
-            SetPercentileSequencerInputs(input);
-            m_percentileSequencer.Process(input.m_percentileSequencerInput);
+            SetIndexArpInputs(input);
+            m_indexArp.Process(input.m_arpInput);
             
             SetLameJuisInput(input);
             m_lameJuis.Process(input.m_lameJuisInput);
@@ -264,9 +333,22 @@ struct TheNonagonSmartGrid
         return m_stateSaver.ToJSON();
     }
 
+    void SaveJSON()
+    {
+        const char* fname = "/Users/joyo/theallelectricsmartgrid/patches/nonagon_dump.json";
+        json_dump_file(ToJSON(), fname, 0);
+    }
+
     void SetFromJSON(json_t* jin)
     {
         m_stateSaver.SetFromJSON(jin);
+    }
+
+    void LoadJSON()
+    {
+        const char* fname = "/Users/joyo/theallelectricsmartgrid/patches/nonagon_dump.json";
+        json_error_t error;
+        SetFromJSON(json_load_file(fname, 0, &error));
     }
     
     SmartGrid::Cell* TimeBitCell(size_t ix)
@@ -286,17 +368,6 @@ struct TheNonagonSmartGrid
                         SmartGrid::Color::White /*offColor*/,
                         SmartGrid::Color::Green /*onColor*/,
                         &m_state.m_running,
-                        true,
-                        false,
-                        SmartGrid::StateCell<bool>::Mode::Toggle);
-    }
-
-    SmartGrid::Cell* RecordingCell()
-    {
-        return new SmartGrid::StateCell<bool>(
-                        SmartGrid::Color::White /*offColor*/,
-                        SmartGrid::Color::Red /*onColor*/,
-                        &m_state.m_recording,
                         true,
                         false,
                         SmartGrid::StateCell<bool>::Mode::Toggle);
@@ -375,17 +446,18 @@ struct TheNonagonSmartGrid
         return VoiceColor(static_cast<Trio>(absVoice / TheNonagonInternal::x_voicesPerTrio), absVoice % TheNonagonInternal::x_voicesPerTrio);
     }
 
-    size_t m_numPercentileSeqClockSelectsHeld[TheNonagonInternal::x_numVoices];
-    size_t m_numPercentileSeqClockSelectsMaxHeld[TheNonagonInternal::x_numVoices];
+    size_t m_numClockSelectsHeld[TheNonagonInternal::x_numVoices];
+    size_t m_numClockSelectsMaxHeld[TheNonagonInternal::x_numVoices];
+    bool m_shift;
     
-    SmartGrid::Cell* PercentileSeqClockSelectCell(Trio trio, size_t clockIx)
+    SmartGrid::Cell* MkClockSelectCell(Trio trio, size_t clockIx)
     {
         size_t trioIx = static_cast<size_t>(trio);
-        return new PercentileSequencerClockSelectCell(
-            &m_state.m_percentileSequencerInput,
+        return new ClockSelectCell(
+            &m_state.m_arpInput,
             trioIx,
-            &m_numPercentileSeqClockSelectsHeld[trioIx],
-            &m_numPercentileSeqClockSelectsMaxHeld[trioIx],
+            &m_numClockSelectsHeld[trioIx],
+            &m_numClockSelectsMaxHeld[trioIx],
             clockIx,
             TrioColor(trio).Dim(),
             SmartGrid::Color::White,
@@ -398,7 +470,7 @@ struct TheNonagonSmartGrid
         {
             size_t voiceIx = static_cast<size_t>(t) * TheNonagonInternal::x_voicesPerTrio + i;
             int xPos = (i == 0) ? x : x + 1;
-            int yPos = (i < 2) ? y + 1 : y;
+            int yPos = (i < 2) ? y - 1 : y;
             grid->Put(xPos, yPos, new SmartGrid::StateCell<bool, SmartGrid::BoolFlash>(
                           SmartGrid::Color::White.Dim(),
                           VoiceColor(t, i),
@@ -417,13 +489,19 @@ struct TheNonagonSmartGrid
         TheNonagonInternal::Input* m_state;
         TheNonagonInternal* m_nonagon;
         TheNonagonSmartGrid* m_owner;
-        TheoryOfTimeTopologyPage(TheNonagonSmartGrid* owner)
+        bool m_isPan;
+        MusicalTime::Input* m_timeState;
+        
+        TheoryOfTimeTopologyPage(TheNonagonSmartGrid* owner, bool isPan)
             : SmartGrid::CompositeGrid()
             , m_state(&owner->m_state)
             , m_nonagon(&owner->m_nonagon)
             , m_owner(owner)
+            , m_isPan(isPan)
         {
             SetColors(SmartGrid::Color::Fuscia, SmartGrid::Color::Fuscia.Dim());
+            m_timeState = &m_state->m_theoryOfTimeInput.m_input;
+
             InitGrid();
         }
         
@@ -431,54 +509,56 @@ struct TheNonagonSmartGrid
         {
             for (size_t i = 1; i < 1 + TheNonagonInternal::x_numTimeBits; ++i)
             {
-                size_t xPos = SmartGrid::x_gridSize - i - 1;
+                size_t xPos = SmartGrid::x_gridSize - i - 2;
                 if (i != 1)
                 {
                     for (size_t mult = 2; mult <= 5; ++mult)
                     {
                         Put(
                             xPos,
-                            SmartGrid::x_gridSize - mult + 1,
+                            mult - 2,
                             new SmartGrid::StateCell<size_t>(
                                 SmartGrid::Color::Fuscia /*offColor*/,
                                 SmartGrid::Color::White /*onColor*/,
-                                &m_state->m_theoryOfTimeInput.m_input.m_input[i].m_mult,
+                                &m_timeState->m_input[i].m_mult,
                                 mult,
                                 1,
                                 SmartGrid::StateCell<size_t>::Mode::Toggle));
                     }
-
-                    Put(xPos, 1, new SmartGrid::StateCell<bool>(
+                    
+                    Put(xPos, 6, new SmartGrid::StateCell<bool>(
                             SmartGrid::Color::Ocean /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
-                            &m_state->m_theoryOfTimeInput.m_input.m_input[i].m_pingPong,
+                            &m_timeState->m_input[i].m_pingPong,
                             true,
                             false,
                             SmartGrid::StateCell<bool>::Mode::Toggle));
                     
                     m_owner->m_stateSaver.Insert(
-                        "TheoryOfTimeMult", i, &m_state->m_theoryOfTimeInput.m_input.m_input[i].m_mult);
+                        "TheoryOfTimeMult", i, &m_timeState->m_input[i].m_mult);
                     m_owner->m_stateSaver.Insert(
-                        "TheoryOfTimePingPong", i, &m_state->m_theoryOfTimeInput.m_input.m_input[i].m_pingPong);
+                        "TheoryOfTimePingPong", i, &m_timeState->m_input[i].m_pingPong);
                 }
-
+                
                 if (2 < i)
                 {
-                    Put(xPos, 3, new SmartGrid::StateCell<size_t>(
+                    Put(xPos, 4, new SmartGrid::StateCell<size_t>(
                             SmartGrid::Color::Ocean /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
-                            &m_state->m_theoryOfTimeInput.m_input.m_input[i].m_parentIx,
+                            &m_timeState->m_input[i].m_parentIx,
                             i - 2,
                             i - 1,
                             SmartGrid::StateCell<size_t>::Mode::Toggle));
                     m_owner->m_stateSaver.Insert(
-                        "TheoryOfTimeParentIx", i, &m_state->m_theoryOfTimeInput.m_input.m_input[i].m_parentIx);
+                        "TheoryOfTimeParentIx", i, &m_timeState->m_input[i].m_parentIx);
                 }
-
-                Put(xPos, 0, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits - i));
+                
+                Put(xPos, 7, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits - i));
             }
 
-            AddGrid(0, 0, new SmartGrid::Fader(
+            Put(6, 7, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits));
+            
+            AddGrid(7, 0, new SmartGrid::Fader(
                         &m_state->m_theoryOfTimeInput.m_freq,
                         SmartGrid::x_gridSize,
                         SmartGrid::Color::White,
@@ -488,18 +568,43 @@ struct TheNonagonSmartGrid
                         100  /*maxChangeSpeed*/,
                         true /*pressureSensitive*/,
                         SmartGrid::Fader::Structure::Exponential));
-
             m_owner->m_stateSaver.Insert(
                 "TheoryOfTimeFreq", &m_state->m_theoryOfTimeInput.m_freq);
+        }
+    };
 
-            for (Trio t : {Trio::Fire, Trio::Earth, Trio::Water})
+    struct PhasorSelectorCell : public SmartGrid::Cell
+    {
+        int m_srcIx;
+        PhasorSwitcher* m_trg;
+        SmartGrid::Color m_color;
+
+        PhasorSelectorCell(int srcIx, PhasorSwitcher* trg, SmartGrid::Color color)
+        {
+            m_srcIx = srcIx;
+            m_trg = trg;
+            m_color = color;
+        }
+        
+        virtual SmartGrid::Color GetColor() override
+        {
+            if (m_srcIx == m_trg->m_valIx)
             {
-                size_t muteY = 6 - static_cast<size_t>(t) * 2;
-                m_owner->PlaceMutes(t, 6, muteY, this);
+                return m_color.Interpolate(SmartGrid::Color::White, m_trg->Get());
             }
-            
-            Put(6, 1, m_owner->StartStopCell());
-            Put(7, 1, m_owner->RecordingCell());
+            else if (m_srcIx == m_trg->m_desiredIx)
+            {
+                return SmartGrid::Color::White;
+            }
+            else
+            {
+                return m_color;
+            }
+        }
+        
+        virtual void OnPress(uint8_t velocity) override
+        {
+            m_trg->Desire(m_srcIx);
         }        
     };
 
@@ -604,11 +709,11 @@ struct TheNonagonSmartGrid
         {
             for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits + 1; ++i)
             {
-                if (i < TheNonagonInternal::x_numTimeBits)
+                Put(i, 7, m_owner->TimeBitCell(i));
+                if (i < TheNonagonInternal::x_numTimeBits - 2)
                 {
-                    Put(i, 0, m_owner->TimeBitCell(i));
                     size_t theoryIx = TheNonagonInternal::x_numTimeBits - i;
-                    Put(i, 1, new SmartGrid::StateCell<size_t>(
+                    Put(i, 6, new SmartGrid::StateCell<size_t>(
                             SmartGrid::Color::Ocean /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
                             &m_state->m_theoryOfTimeInput.m_input.m_input[theoryIx].m_parentIx,
@@ -621,8 +726,8 @@ struct TheNonagonSmartGrid
                 for (Trio t : {Trio::Fire, Trio::Earth, Trio::Water})
                 {
                     size_t tId = static_cast<size_t>(t);
-                    size_t coMuteY = 7 - tId * 2;
-                    size_t seqY = coMuteY - 1;
+                    size_t coMuteY = tId * 2;
+                    size_t seqY = coMuteY + 1;
                     if (i < TheNonagonInternal::x_numTimeBits)
                     {
                         Put(i, coMuteY, new SmartGrid::StateCell<bool>(
@@ -636,14 +741,13 @@ struct TheNonagonSmartGrid
                             "LameJuisCoMute", i, tId, &m_state->m_lameJuisInput.m_outputInput[tId].m_coMuteInput.m_coMutes[i]);
                     }
 
-                    Put(i, seqY, m_owner->PercentileSeqClockSelectCell(t, i));
+                    Put(i, seqY, m_owner->MkClockSelectCell(t, i));
 
                     m_owner->PlaceMutes(t, 6, seqY, this);
                 }                                
             }
 
-            Put(6, 1, m_owner->StartStopCell());
-            Put(7, 1, m_owner->RecordingCell());
+            Put(7, 7, m_owner->StartStopCell());
         }
     };
     
@@ -695,11 +799,11 @@ struct TheNonagonSmartGrid
                         SmartGrid::Color::Yellow.Dim(), SmartGrid::Color::White.Dim(), SmartGrid::Color::Ocean.Dim()}));
             for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits; ++i)
             {
-                Put(i, 1, m_owner->TimeBitCell(i));
+                Put(i, 6, m_owner->TimeBitCell(i));
 
                 for (size_t j = 0; j < LameJuisInternal::x_numOperations; ++j)
                 {
-                    Put(i, j + 2, new SmartGrid::CycleCell<LameJuisInternal::MatrixSwitch, SmartGrid::BoolFlash>(
+                    Put(i, SmartGrid::x_gridSize - j - 3, new SmartGrid::CycleCell<LameJuisInternal::MatrixSwitch, SmartGrid::BoolFlash>(
                             dimColorScheme,
                             colorScheme,
                             &m_state->m_lameJuisInput.m_operationInput[j].m_elements[i],
@@ -708,14 +812,11 @@ struct TheNonagonSmartGrid
                         "LameJuisMatrixSwitch", i, j, &m_state->m_lameJuisInput.m_operationInput[j].m_elements[i]);
                 }
 
-                Put(6, i + 2, m_owner->OutBitCell(i));
-                Put(7, i + 2, m_owner->EquationOutputSwitch(i));
+                Put(6, SmartGrid::x_gridSize - i - 3, m_owner->OutBitCell(i));
+                Put(7, SmartGrid::x_gridSize - i - 3, m_owner->EquationOutputSwitch(i));
                 m_owner->m_stateSaver.Insert(
                     "LameJuisEquationOutputSwitch", i, &m_state->m_lameJuisInput.m_operationInput[i].m_switch);
             }
-
-            Put(6, 1, m_owner->StartStopCell());
-            Put(7, 1, m_owner->RecordingCell());
         }
     };
 
@@ -746,12 +847,13 @@ struct TheNonagonSmartGrid
 
             virtual SmartGrid::Color GetColor() override
             {
+                SmartGrid::Color c = SmartGrid::StateCell<bool, SmartGrid::Flash<size_t>>::GetColor();
                 if (m_nonagon->m_lameJuis.m_operations[m_i].m_countTotal < static_cast<size_t>(m_j))
                 {
-                    return SmartGrid::Color::Off;
+                    return c.Dim();
                 }
 
-                return SmartGrid::StateCell<bool, SmartGrid::Flash<size_t>>::GetColor();
+                return c;
             }
         };
         
@@ -774,16 +876,13 @@ struct TheNonagonSmartGrid
             {
                 for (size_t j = 0; j < TheNonagonInternal::x_numTimeBits + 1; ++j)
                 {
-                    Put(j, i + 2, new Cell(i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_direct[j], m_nonagon));
+                    Put(j, SmartGrid::x_gridSize - i - 3, new Cell(i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_direct[j], m_nonagon));
                     m_owner->m_stateSaver.Insert(
                         "LameJuisLHS", i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_direct[j]);
                 }
 
-                Put(7, i + 2, m_owner->EquationOutputSwitch(i));                
+                Put(7, SmartGrid::x_gridSize - i - 3, m_owner->EquationOutputSwitch(i));                
             }
-
-            Put(6, 1, m_owner->StartStopCell());
-            Put(7, 1, m_owner->RecordingCell());
         }
     };
 
@@ -809,7 +908,7 @@ struct TheNonagonSmartGrid
                 for (size_t j = 0; j < static_cast<size_t>(LameJuisInternal::Accumulator::Interval::NumIntervals); ++j)
                 {
                     size_t xPos = 2 * i + (j == 0 || 6 < j ? 1 : 0);
-                    size_t yPos = j == 0 ? 2 : (7 - (j - 1) % 6);
+                    size_t yPos = j == 0 ? 5 : (j - 1) % 6;
                     Put(xPos, yPos, new SmartGrid::StateCell<LameJuisInternal::Accumulator::Interval>(
                             EquationColor(i),
                             SmartGrid::Color::White,
@@ -821,171 +920,289 @@ struct TheNonagonSmartGrid
                         "LameJuisInterval", i, &m_state->m_lameJuisInput.m_accumulatorInput[i].m_interval);
                 }
             }
-
-            Put(6, 1, m_owner->StartStopCell());
-            Put(7, 1, m_owner->RecordingCell());
         }
     };
 
-    struct PercentileSequencerSubPage : public SmartGrid::CompositeGrid
+    static SmartGrid::Color FadeColor(Trio trio, int ord, int ordMax)
+    {
+        if (ordMax % 2 == 1 && ord == ordMax / 2)
+        {
+            return TrioColor(trio);
+        }
+        else
+        {
+            bool low = ord < ordMax / 2;
+            size_t trioIx = static_cast<size_t>(trio);
+            Trio o = static_cast<Trio>((low ? trioIx + 2 : trioIx + 1) % 3);
+            float perc;
+            if (low)
+            {
+                perc = 0.5 + static_cast<float>(ord) / ordMax;
+            }
+            else
+            {
+                perc = 1.0 - static_cast<float>(ord) / (2 * ordMax);
+            }
+            
+            return TrioColor(o).Interpolate(TrioColor(trio), perc);
+        }
+    }
+    
+    struct LameJuisSeqPaletteCell : public SmartGrid::Cell
+    {
+        Trio m_trio;
+        LameJuisInternal* m_lameJuis;
+        LameJuisInternal::Input* m_state;
+        size_t m_ix;
+
+        LameJuisSeqPaletteCell(
+            Trio trio,
+            LameJuisInternal* lameJuis,
+            LameJuisInternal::Input* state,
+            size_t ix)
+            : m_trio(trio)
+            , m_lameJuis(lameJuis)
+            , m_state(state)
+            , m_ix(ix)
+        {
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            size_t trioIx = static_cast<size_t>(m_trio);
+            LameJuisInternal::SeqPaletteState s = m_lameJuis->GetSeqPaletteState(trioIx, m_ix, m_state->m_inputVector);
+            SmartGrid::Color c = BaseColor(s);
+            if (!s.m_isCur)
+            {
+                return c.AdjustBrightness(0.6);
+            }
+            else
+            {
+                return c;
+            }
+        }
+
+        SmartGrid::Color BaseColor(LameJuisInternal::SeqPaletteState s)
+        {
+            if (s.m_ordMax % 2 == 1 && s.m_ord == s.m_ordMax / 2)
+            {
+                return TrioColor(m_trio);
+            }
+            else
+            {
+                bool low = s.m_ord < s.m_ordMax / 2;
+                size_t trioIx = static_cast<size_t>(m_trio);
+                Trio o = static_cast<Trio>((low ? trioIx + 2 : trioIx + 1) % 3);
+                float perc;
+                if (low)
+                {
+                    perc = 0.5 + static_cast<float>(s.m_ord) / s.m_ordMax;
+                }
+                else
+                {
+                    perc = 1.0 - static_cast<float>(s.m_ord) / (2 * s.m_ordMax);
+                }
+
+                return TrioColor(o).Interpolate(TrioColor(m_trio), perc);
+            }
+        }
+    };
+
+    struct LameJuisSeqPalettePage : public SmartGrid::Grid
     {
         TheNonagonInternal::Input* m_state;
         TheNonagonInternal* m_nonagon;
         TheNonagonSmartGrid* m_owner;
         Trio m_trio;
-        PercentileSequencerSubPage(TheNonagonSmartGrid* owner, Trio t)
-            : SmartGrid::CompositeGrid()
+        LameJuisSeqPalettePage(TheNonagonSmartGrid* owner, Trio t)
+            : SmartGrid::Grid()
             , m_state(&owner->m_state)
             , m_nonagon(&owner->m_nonagon)
             , m_owner(owner)
             , m_trio(t)
         {
-            SetColors(TrioColor(m_trio), TrioColor(m_trio).Dim());
+            SetColors(TrioColor(t), TrioColor(t).Dim());
             InitGrid();
-        }        
-        
+        }
+
         void InitGrid()
         {
-            size_t trioIx = static_cast<size_t>(m_trio);
-            for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits + 1; ++i)
+            for (size_t i = 0; i < SmartGrid::x_gridSize; ++i)
             {
-                size_t coMuteY = 1;
-                size_t seqY = 0;
-                if (i < TheNonagonInternal::x_numTimeBits)
+                for (size_t j = 0; j < SmartGrid::x_gridSize; ++j)
                 {
-                    Put(i, coMuteY, new SmartGrid::StateCell<bool>(
-                            SmartGrid::Color::White /*offColor*/,
-                            TrioColor(m_trio) /*onColor*/,                            
-                            &m_state->m_lameJuisInput.m_outputInput[trioIx].m_coMuteInput.m_coMutes[i],
-                            true,
-                            false,
-                            SmartGrid::StateCell<bool>::Mode::Toggle));
+                    size_t ix = i * SmartGrid::x_gridSize + j;
+                    Put(i, j, new LameJuisSeqPaletteCell(
+                            m_trio,
+                            &m_nonagon->m_lameJuis,
+                            &m_state->m_lameJuisInput,
+                            ix));
                 }
-                
-                Put(i, seqY, m_owner->PercentileSeqClockSelectCell(m_trio, i));
             }
-                
-            for (size_t i = 0; i < PercentileSequencerInternal::x_numSteps; ++i)
-            {
-                for (size_t j = 0; j < 2; ++j)
-                {
-                    Put(i, 3 - j, new SmartGrid::StateCell<size_t, SmartGrid::Flash<size_t>>(
-                            VoiceColor(m_trio, 2 * j) /*offColor*/,
-                            SmartGrid::Color::Grey,
-                            SmartGrid::Color::White,
-                            SmartGrid::Color::White,
-                            &m_state->m_percentileSequencerInput.m_input[trioIx].m_selectorIn[j].m_seqLen,
-                            SmartGrid::Flash<size_t>(&m_nonagon->m_percentileSequencer.m_sequencer[trioIx].m_stepSelector[j].m_curStep, i),
-                            i,
-                            0,
-                            SmartGrid::StateCell<size_t, SmartGrid::Flash<size_t>>::Mode::SetOnly));
-                }
-                
-                AddGrid(i, 4, new SmartGrid::Fader(
-                            &m_state->m_percentileSequencerInput.m_input[trioIx].m_sequence[i],
-                            SmartGrid::x_gridSize - 4,
-                            TrioColor(m_trio),
-                            0 /*min*/,
-                            1.0 /*max*/,
-                            0.1 /*minChangeSpeed*/,
-                            100  /*maxChangeSpeed*/,
-                            true /*pressureSensitive*/,
-                            SmartGrid::Fader::Structure::Linear));
-                m_owner->m_stateSaver.Insert(
-                    "SequencerValue", trioIx, i, &m_state->m_percentileSequencerInput.m_input[trioIx].m_sequence[i]);            
-
-            }
-
-            for (size_t i = 0; i < 2; ++i)
-            {
-                m_owner->m_stateSaver.Insert(
-                    "PercentileSequenceLen", trioIx, i, &m_state->m_percentileSequencerInput.m_input[trioIx].m_selectorIn[i].m_seqLen);
-            }
-
-            m_owner->PlaceMutes(m_trio, 6, 0, this);
-
-            m_owner->m_stateSaver.Insert(
-                "PercentileSequenceClockSelect", trioIx, &m_state->m_percentileSequencerInput.m_clockSelect[trioIx]);
-            m_owner->m_stateSaver.Insert(
-                "PercentileSequenceResetSelect", trioIx, &m_state->m_percentileSequencerInput.m_resetSelect[trioIx]);
         }
     };
-
-    struct PercentileSequencerPages : public SmartGrid::GridSwitcher
+    
+    struct IndexArpPage : public SmartGrid::Grid
     {
         TheNonagonInternal::Input* m_state;
         TheNonagonInternal* m_nonagon;
         TheNonagonSmartGrid* m_owner;
-        PercentileSequencerPages(TheNonagonSmartGrid* owner)
-            : GridSwitcher(nullptr)
+        Trio m_trio;
+        IndexArpPage(TheNonagonSmartGrid* owner, Trio t)
+            : SmartGrid::Grid()
             , m_state(&owner->m_state)
             , m_nonagon(&owner->m_nonagon)
             , m_owner(owner)
+            , m_trio(t)
         {
-        }        
-
-        virtual size_t GetGridId() override
-        {
-            switch (m_owner->m_activeTrio)
-            {
-                case Trio::Fire: return m_owner->m_percentileSequencerFireGridId;
-                case Trio::Earth: return m_owner->m_percentileSequencerEarthGridId;
-                case Trio::Water: return m_owner->m_percentileSequencerWaterGridId;
-                default: return m_owner->m_percentileSequencerFireGridId;
-            }
-        }
-    };
-
-    struct PercentileSequencerFaderPage : public SmartGrid::CompositeGrid
-    {
-        TheNonagonInternal::Input* m_state;
-        TheNonagonInternal* m_nonagon;
-        TheNonagonSmartGrid* m_owner;        
-        PercentileSequencerFaderPage(TheNonagonSmartGrid* owner)
-            : SmartGrid::CompositeGrid()
-            , m_state(&owner->m_state)
-            , m_nonagon(&owner->m_nonagon)
-            , m_owner(owner)
-        {
+            SetColors(TrioColor(t), TrioColor(t).Dim());
             InitGrid();
         }
 
+        struct RhythmCell : public SmartGrid::Cell
+        {
+            IndexArp::Input* m_state;
+            IndexArp* m_arp;
+            int m_ix;
+            bool* m_shift;
+            Trio m_trio;
+            SmartGrid::Color m_color;
+
+            RhythmCell(
+                IndexArp::Input* state,
+                IndexArp* arp,
+                int ix,
+                bool* shift,
+                Trio trio)
+                : m_state(state)
+                , m_arp(arp)
+                , m_ix(ix)
+                , m_shift(shift)
+                , m_trio(trio)
+            {
+            }
+            
+            virtual void OnPress(uint8_t velocity) override
+            {
+                if (*m_shift)
+                {
+                    m_state->m_rhythmLength = m_ix + 1;
+                }
+                else
+                {
+                    m_state->m_rhythm[m_ix] = !m_state->m_rhythm[m_ix];
+                }
+            }
+            
+            virtual SmartGrid::Color GetColor() override
+            {
+                if (m_state->m_rhythmLength <= m_ix)
+                {
+                    return SmartGrid::Color::Off;
+                }
+
+                SmartGrid::Color result;
+                if (m_arp->m_rhythmIndex != m_ix)
+                {
+                    result = SmartGrid::Color::White;
+                }
+                else
+                {
+                    result = FadeColor(m_trio, m_arp->m_index, m_arp->m_size);
+                }
+
+                if (!m_state->m_rhythm[m_ix])
+                {
+                    result = result.Dim();
+                }
+
+                return result;
+            }            
+        };
+
         void InitGrid()
         {
-            for (Trio t : {Trio::Fire, Trio::Earth, Trio::Water})
+            size_t tId = static_cast<size_t>(m_trio);
+            for (size_t i = 0; i < TheNonagonInternal::x_voicesPerTrio; ++i)
             {
-                size_t tId = static_cast<size_t>(t);
-                size_t xPos = 2 * tId;
-                AddGrid(xPos, 0, new SmartGrid::Fader(
-                            &m_state->m_percentileSequencerInput.m_input[tId].m_sequenceScale,
-                            SmartGrid::x_gridSize,
-                            TrioColor(t),
-                            0 /*min*/,
-                            1.0 /*max*/,
-                            0.1 /*minChangeSpeed*/,
-                            100  /*maxChangeSpeed*/,
-                            true /*pressureSensitive*/,
-                            SmartGrid::Fader::Structure::Linear));
-                AddGrid(xPos + 1, 0, new SmartGrid::Fader(
-                            &m_state->m_percentileSequencerInput.m_input[tId].m_tenorDistance,
-                            SmartGrid::x_gridSize,
-                            TrioColor(t),
-                            0 /*min*/,
-                            1.0 /*max*/,
-                            0.1 /*minChangeSpeed*/,
-                            100  /*maxChangeSpeed*/,
-                            true /*pressureSensitive*/,
-                            SmartGrid::Fader::Structure::Linear));
+                size_t voice = tId * TheNonagonInternal::x_voicesPerTrio + i;
+                size_t yPos = i;
+
+                Put(0, yPos, new SmartGrid::StateCell<bool>(
+                        TrioColor(m_trio) /*offColor*/,                            
+                        SmartGrid::Color::White /*onColor*/,
+                        &m_state->m_arpInput.m_input[voice].m_up,
+                        true,
+                        false,
+                        SmartGrid::StateCell<bool>::Mode::Toggle));
+                Put(1, yPos, new SmartGrid::StateCell<bool>(
+                        TrioColor(m_trio) /*offColor*/,                            
+                        SmartGrid::Color::White /*onColor*/,
+                        &m_state->m_arpInput.m_input[voice].m_cycle,
+                        true,
+                        false,
+                        SmartGrid::StateCell<bool>::Mode::Toggle));
+
+                for (size_t j = 0; j < 2; ++j)
+                {
+                    Put(2 + j, yPos, new SmartGrid::BinaryCell<int>(
+                            FadeColor(m_trio, 1, 6) /*offColor*/,                            
+                            FadeColor(m_trio, 1, 6).Interpolate(SmartGrid::Color::White, 0.7) /*onColor*/,
+                            1 - j,
+                            &m_state->m_arpInput.m_input[voice].m_offset));
+                    Put(4 + j, yPos, new SmartGrid::BinaryCell<int>(
+                            FadeColor(m_trio, 2, 6) /*offColor*/,                            
+                            FadeColor(m_trio, 2, 6).Interpolate(SmartGrid::Color::White, 0.7) /*onColor*/,
+                            1 - j,
+                            &m_state->m_arpInput.m_input[voice].m_intervalSubOne));
+                    Put(6 + j, yPos, new SmartGrid::BinaryCell<int>(
+                            FadeColor(m_trio, 3, 6) /*offColor*/,                            
+                            FadeColor(m_trio, 3, 6).Interpolate(SmartGrid::Color::White, 0.7) /*onColor*/,
+                            1 - j,
+                            &m_state->m_arpInput.m_input[voice].m_motiveInterval));                            
+                }
+
                 m_owner->m_stateSaver.Insert(
-                    "SequenceScale", tId, &m_state->m_percentileSequencerInput.m_input[tId].m_sequenceScale);
+                    "IndexArpUp", voice, &m_state->m_arpInput.m_input[voice].m_up);
                 m_owner->m_stateSaver.Insert(
-                    "TenorDistance", tId, &m_state->m_percentileSequencerInput.m_input[tId].m_tenorDistance);
+                    "IndexArpCycle", voice, &m_state->m_arpInput.m_input[voice].m_cycle);
+                m_owner->m_stateSaver.Insert(
+                    "IndexArpOffset", voice, &m_state->m_arpInput.m_input[voice].m_offset);
+                m_owner->m_stateSaver.Insert(
+                    "IndexArpIntervalSubOne", voice, &m_state->m_arpInput.m_input[voice].m_intervalSubOne);
+                m_owner->m_stateSaver.Insert(
+                    "IndexArpMotiveInterval", voice, &m_state->m_arpInput.m_input[voice].m_motiveInterval);
                 
-                m_owner->PlaceMutes(t, 6, SmartGrid::x_gridSize - 2 - 2 * tId, this);
+                for (size_t j = 0; j < SmartGrid::x_gridSize; ++j)
+                {
+                    Put(j, yPos + 3, new RhythmCell(
+                            &m_state->m_arpInput.m_input[voice],
+                            &m_nonagon->m_indexArp.m_arp[voice],
+                            j,
+                            &m_owner->m_shift,
+                            m_trio));
+                    m_owner->m_stateSaver.Insert(
+                        "IndexArpRhythm", voice, j, &m_state->m_arpInput.m_input[voice].m_rhythm[j]);
+                }
+
+                m_owner->m_stateSaver.Insert(
+                    "IndexArpRhythmLength", voice, &m_state->m_arpInput.m_input[voice].m_rhythmLength);
+
             }
 
-            Put(6, 1, m_owner->StartStopCell());
-            Put(7, 1, m_owner->RecordingCell());
+            Put(7, 7, new SmartGrid::StateCell<bool>(
+                SmartGrid::Color::White.Dim() /*offColor*/,
+                SmartGrid::Color::White /*onColor*/,
+                &m_owner->m_shift,
+                true,
+                false,
+                SmartGrid::StateCell<bool>::Mode::Momentary));
+
+
+            m_owner->m_stateSaver.Insert(
+                "IndexArpClockSelect", tId, &m_state->m_arpInput.m_clockSelect[tId]);
+            m_owner->m_stateSaver.Insert(
+                "IndexArpResetSelect", tId, &m_state->m_arpInput.m_resetSelect[tId]);
         }
     };
     
@@ -1024,7 +1241,8 @@ struct TheNonagonSmartGrid
                 size_t trioIx = static_cast<size_t>(m_trio);
                 for (size_t i = TheNonagonInternal::x_voicesPerTrio * trioIx; i < TheNonagonInternal::x_voicesPerTrio * (trioIx + 1); ++i)
                 {
-                    if (m_nonagon->m_timbreAndMute.m_voices[i].m_countHigh == m_count)
+                    if (m_nonagon->m_timbreAndMute.m_voices[i].m_countHigh == m_count &&
+                        m_nonagon->m_multiPhasorGate.m_gate[i])
                     {
                         return true;
                     }
@@ -1034,20 +1252,6 @@ struct TheNonagonSmartGrid
             }
         };
 
-        enum class FaderType
-        {
-            Timbre = 0,
-            SequencerRange = 1
-        };
-
-        FaderType m_currentFader;
-        FaderType m_placedFader;
-
-        std::shared_ptr<Grid> m_extraTimbreFader;
-        std::shared_ptr<Grid> m_timbreMultFader;
-        std::shared_ptr<Grid> m_sequencerScaleFader;
-        std::shared_ptr<Grid> m_tenorDistanceFader;
-        
         void InitGrid()
         {
             size_t trioIx = static_cast<size_t>(m_trio);
@@ -1057,7 +1261,7 @@ struct TheNonagonSmartGrid
                 {
                     size_t voiceIx = trioIx * TheNonagonInternal::x_voicesPerTrio + j;
                     SmartGrid::Color c = VoiceColor(m_trio, j);
-                    Put(j, i + 2, new SmartGrid::StateCell<bool, SmartGrid::BoolFlash>(
+                    Put(i, j, new SmartGrid::StateCell<bool, SmartGrid::BoolFlash>(
                             SmartGrid::Color::White.Dim() /*offColor*/,
                             c /*onColor*/,
                             SmartGrid::Color::Grey /*offFlashColor*/,
@@ -1074,7 +1278,7 @@ struct TheNonagonSmartGrid
 
             for (size_t i = 0; i < LameJuisInternal::x_numOperations + 1; ++i)
             {
-                Put(5, i + 1, new SmartGrid::StateCell<bool, CountHighFlash>(
+                Put(i, 3, new SmartGrid::StateCell<bool, CountHighFlash>(
                         SmartGrid::Color::White.Dim() /*offColor*/,
                         SmartGrid::ColorScheme::Rainbow[i].Dim() /*onColor*/,
                         SmartGrid::Color::Grey /*offFlashColor*/,
@@ -1087,59 +1291,10 @@ struct TheNonagonSmartGrid
                 m_owner->m_stateSaver.Insert(
                     "TimbreAndMuteCountHighSelect", trioIx, i, &m_state->m_timbreAndMuteInput.m_canPassIfOn[trioIx][i]);
             }            
-
-            m_extraTimbreFader.reset(new SmartGrid::Fader(
-                        &m_state->m_extraTimbre[trioIx][0],
-                        SmartGrid::x_gridSize,
-                        TrioColor(m_trio),
-                        0 /*minSlew*/,
-                        1.0 /*maxSlew*/,
-                        0.1 /*minChangeSpeed*/,
-                        100  /*maxChangeSpeed*/,
-                        true /*pressureSensitive*/,
-                        SmartGrid::Fader::Structure::Linear));
-            m_timbreMultFader.reset(new SmartGrid::Fader(
-                        &m_state->m_timbreAndMuteInput.m_timbreMult[trioIx],
-                        SmartGrid::x_gridSize,
-                        TrioColor(m_trio),
-                        -1.0 /*minMult*/,
-                        1.0 /*maxMult*/,
-                        0.1 /*minChangeSpeed*/,
-                        100  /*maxChangeSpeed*/,
-                        true /*pressureSensitive*/,
-                        SmartGrid::Fader::Structure::Bipolar));
-            m_sequencerScaleFader.reset(new SmartGrid::Fader(
-                            &m_state->m_percentileSequencerInput.m_input[trioIx].m_sequenceScale,
-                            SmartGrid::x_gridSize,
-                            TrioColor(m_trio),
-                            0 /*min*/,
-                            1.0 /*max*/,
-                            0.1 /*minChangeSpeed*/,
-                            100  /*maxChangeSpeed*/,
-                            true /*pressureSensitive*/,
-                            SmartGrid::Fader::Structure::Linear));
-            m_tenorDistanceFader.reset(new SmartGrid::Fader(
-                            &m_state->m_percentileSequencerInput.m_input[trioIx].m_tenorDistance,
-                            SmartGrid::x_gridSize,
-                            TrioColor(m_trio),
-                            0 /*min*/,
-                            1.0 /*max*/,
-                            0.1 /*minChangeSpeed*/,
-                            100  /*maxChangeSpeed*/,
-                            true /*pressureSensitive*/,
-                            SmartGrid::Fader::Structure::Linear));
-
-            AddGrid(6, 0, m_extraTimbreFader);            
-            AddGrid(7, 0, m_timbreMultFader);
-            AddGrid(m_sequencerScaleFader);
-            AddGrid(m_tenorDistanceFader);
-
-            m_placedFader = FaderType::Timbre;
-            m_currentFader = FaderType::Timbre;
             
             for (int i = -3; i < 3; ++i)
             {
-                Put(3, 5 + i, new SmartGrid::StateCell<int>(
+                Put(5 + i, 4, new SmartGrid::StateCell<int>(
                         TrioCompanionColor(m_trio),
                         SmartGrid::Color::White /*onColor*/,
                         &m_state->m_trioOctaveSwitchesInput.m_octave[trioIx],
@@ -1151,7 +1306,7 @@ struct TheNonagonSmartGrid
             for (size_t i = 0; i < 4; ++i)
             {
                 TrioOctaveSwitches::Spread spread = static_cast<TrioOctaveSwitches::Spread>(i);
-                Put(4, 4 + i, new SmartGrid::StateCell<TrioOctaveSwitches::Spread>(
+                Put(4 + i, 5, new SmartGrid::StateCell<TrioOctaveSwitches::Spread>(
                         TrioCompanionColor(m_trio),
                         SmartGrid::Color::White /*onColor*/,
                         &m_state->m_trioOctaveSwitchesInput.m_spread[trioIx],
@@ -1160,56 +1315,24 @@ struct TheNonagonSmartGrid
                         SmartGrid::StateCell<TrioOctaveSwitches::Spread>::Mode::SetOnly));
             }
 
-            for (size_t i = 0; i < 2; ++i)
-            {
-                FaderType ft = static_cast<FaderType>(i);
-                Put(i, 1, new SmartGrid::StateCell<FaderType>(
-                        TrioCompanionColor(m_trio),
-                        SmartGrid::Color::White /*onColor*/,
-                        &m_currentFader,
-                        ft,
-                        ft,
-                        SmartGrid::StateCell<FaderType>::Mode::SetOnly));
-            }
+            SmartGrid::ColorScheme colorScheme(std::vector<SmartGrid::Color>({
+                            SmartGrid::Color::White.Dim(),
+                            TrioCompanionColor(m_trio),
+                            SmartGrid::Color::White}));
+            Put(6, 6, new SmartGrid::CycleCell<TimbreAndMute::MonoMode>(
+                    colorScheme,
+                    &m_state->m_timbreAndMuteInput.m_monoMode[trioIx]));
+
+            m_owner->m_stateSaver.Insert(
+                "MonoMode", trioIx, &m_state->m_timbreAndMuteInput.m_monoMode[trioIx]);
+
             
-            m_owner->PlaceMutes(m_trio, 3, 0, this);
+            m_owner->PlaceMutes(m_trio, 6, 6, this);
             
             m_owner->m_stateSaver.Insert(
                 "TrioOctave", trioIx, &m_state->m_trioOctaveSwitchesInput.m_octave[trioIx]);
             m_owner->m_stateSaver.Insert(
                 "TrioSpread", trioIx, &m_state->m_trioOctaveSwitchesInput.m_spread[trioIx]);            
-            m_owner->m_stateSaver.Insert(
-                "TimbreAndMuteExtraTimbre", trioIx, &m_state->m_extraTimbre[trioIx][0]);            
-            m_owner->m_stateSaver.Insert(
-                "TimbreAndMuteFaderType", trioIx, &m_currentFader);            
-            m_owner->m_stateSaver.Insert(
-                "TimbreAndMuteTimbreMult", trioIx, &m_state->m_timbreAndMuteInput.m_timbreMult[trioIx]);
-        }
-
-        virtual void Process(float dt) override
-        {
-            if (m_currentFader != m_placedFader)
-            {
-                switch (m_currentFader)
-                {
-                    case FaderType::Timbre:
-                    {
-                        Place(6, 0, m_extraTimbreFader.get());
-                        Place(7, 0, m_timbreMultFader.get());
-                        break;
-                    }
-                    case FaderType::SequencerRange:
-                    {
-                        Place(6, 0, m_sequencerScaleFader.get());
-                        Place(7, 0, m_tenorDistanceFader.get());
-                        break;
-                    }                    
-                }
-                
-                m_placedFader = m_currentFader;
-            }
-            
-            SmartGrid::CompositeGrid::Process(dt);
         }
     };
 
@@ -1245,11 +1368,12 @@ struct TheNonagonSmartGrid
     size_t m_lameJuisMatrixGridId;
     size_t m_lameJuisLHSGridId;
     size_t m_lameJuisIntervalGridId;
-    size_t m_percentileSequencerFireGridId;
-    size_t m_percentileSequencerEarthGridId;
-    size_t m_percentileSequencerWaterGridId;
-    size_t m_percentileSequencerPagesGridId;
-    size_t m_percentileSequencerFaderGridId;
+    size_t m_indexArpFireGridId;
+    size_t m_indexArpEarthGridId;
+    size_t m_indexArpWaterGridId;
+    size_t m_lameJuisSeqPaletteFireGridId;
+    size_t m_lameJuisSeqPaletteEarthGridId;
+    size_t m_lameJuisSeqPaletteWaterGridId;
     size_t m_timbreAndMuteFireGridId;
     size_t m_timbreAndMuteEarthGridId;
     size_t m_timbreAndMuteWaterGridId;
@@ -1261,7 +1385,8 @@ struct TheNonagonSmartGrid
         TheNonagonInternal* m_nonagon;
         TheNonagonSmartGrid* m_owner;
         TheNonagonGridSwitcher(TheNonagonSmartGrid* owner, size_t ix)
-            : m_state(&owner->m_state)
+            : SmartGrid::MenuGridSwitcher(owner->m_stateSaver)
+            , m_state(&owner->m_state)
             , m_nonagon(&owner->m_nonagon)
             , m_owner(owner)
         {
@@ -1271,84 +1396,6 @@ struct TheNonagonSmartGrid
 
         void InitGrid()
         {
-            GetMenuGrid()->AddMenuRow(SmartGrid::MenuButtonRow::RowPos::Bottom);
-            GetMenuGrid()->AddMenuRow(SmartGrid::MenuButtonRow::RowPos::SubBottom);
-            GetMenuGrid()->AddMenuRow(SmartGrid::MenuButtonRow::RowPos::Right, false, 0, 3);
-
-            // Theory Of Time
-            //
-            GetMenuGrid()->SetGridId(                
-                SmartGrid::MenuButtonRow::RowPos::Bottom,
-                0,
-                m_owner->m_theoryOfTimeTopologyGridId);
-            GetMenuGrid()->SetGridId(                
-                SmartGrid::MenuButtonRow::RowPos::Bottom,
-                2,
-                m_owner->m_theoryOfTimeSwingGridId);
-            GetMenuGrid()->SetGridId(                
-                SmartGrid::MenuButtonRow::RowPos::Bottom,
-                3,
-                m_owner->m_theoryOfTimeSwaggerGridId);
-            
-            // LaMeJuIS
-            //
-            GetMenuGrid()->SetGridId(                
-                SmartGrid::MenuButtonRow::RowPos::SubBottom,
-                0,
-                m_owner->m_lameJuisCoMuteGridId);
-            GetMenuGrid()->SetGridId(                
-                SmartGrid::MenuButtonRow::RowPos::SubBottom,
-                1,
-                m_owner->m_lameJuisMatrixGridId);
-            GetMenuGrid()->SetGridId(                
-                SmartGrid::MenuButtonRow::RowPos::SubBottom,
-                2,
-                m_owner->m_lameJuisLHSGridId);
-            GetMenuGrid()->SetGridId(                
-                SmartGrid::MenuButtonRow::RowPos::SubBottom,
-                3,
-                m_owner->m_lameJuisIntervalGridId);
-
-            
-            // Sequencers
-            //
-            GetMenuGrid()->SetGridId(                
-                SmartGrid::MenuButtonRow::RowPos::Bottom,
-                4,
-                m_owner->m_percentileSequencerPagesGridId);
-            GetMenuGrid()->SetGridId(                
-                SmartGrid::MenuButtonRow::RowPos::Bottom,
-                1,
-                m_owner->m_percentileSequencerFaderGridId);
-            
-            // Articulation
-            //
-            GetMenuGrid()->SetGridId(                
-                SmartGrid::MenuButtonRow::RowPos::Bottom,
-                5,
-                m_owner->m_timbreAndMutePagesGridId);
-            
-            GetMenuGrid()->Put(SmartGrid::MenuButtonRow::RowPos::Right, 0, new SmartGrid::StateCell<Trio>(
-                                   SmartGrid::Color::Blue.Dim(),
-                                   SmartGrid::Color::Blue,
-                                   &m_owner->m_activeTrio,
-                                   Trio::Water,
-                                   Trio::Water,
-                                   SmartGrid::StateCell<Trio>::Mode::SetOnly));
-            GetMenuGrid()->Put(SmartGrid::MenuButtonRow::RowPos::Right, 1, new SmartGrid::StateCell<Trio>(
-                                   SmartGrid::Color::Green.Dim(),
-                                   SmartGrid::Color::Green,
-                                   &m_owner->m_activeTrio,
-                                   Trio::Earth,
-                                   Trio::Earth,
-                                   SmartGrid::StateCell<Trio>::Mode::SetOnly));
-            GetMenuGrid()->Put(SmartGrid::MenuButtonRow::RowPos::Right, 2, new SmartGrid::StateCell<Trio>(
-                                   SmartGrid::Color::Red.Dim(),
-                                   SmartGrid::Color::Red,
-                                   &m_owner->m_activeTrio,
-                                   Trio::Fire,
-                                   Trio::Fire,
-                                   SmartGrid::StateCell<Trio>::Mode::SetOnly));            
         }        
     };
         
@@ -1382,8 +1429,9 @@ struct TheNonagonSmartGrid
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
             m_state.m_multiPhasorGateInput.m_phasorSelector[i][TheNonagonInternal::x_numTimeBits] = true;
-            m_numPercentileSeqClockSelectsHeld[i] = 0;
-            m_numPercentileSeqClockSelectsMaxHeld[i] = 0;
+            m_numClockSelectsHeld[i] = 0;
+            m_numClockSelectsMaxHeld[i] = 0;
+            m_shift = false;
             m_stateSaver.Insert("Mute", i, &m_state.m_mute[i]);                                
         }        
     }
@@ -1392,10 +1440,10 @@ struct TheNonagonSmartGrid
     {
         // TheoryOfTime
         //
-        m_theoryOfTimeTopologyGridId = m_smartGrid.AddGrid(new TheoryOfTimeTopologyPage(this));
+        m_theoryOfTimeTopologyGridId = m_smartGrid.AddGrid(new TheoryOfTimeTopologyPage(this, false /*isPan*/));
         m_theoryOfTimeSwingGridId = m_smartGrid.AddGrid(new TheoryOfTimeSwingAndSwaggerPage(this, true));
         m_theoryOfTimeSwaggerGridId = m_smartGrid.AddGrid(new TheoryOfTimeSwingAndSwaggerPage(this, false));
- 
+        
         // LaMeJuIS
         //
         m_lameJuisCoMuteGridId = m_smartGrid.AddGrid(new LameJuisCoMutePage(this));
@@ -1405,19 +1453,23 @@ struct TheNonagonSmartGrid
  
         // Sequencers
         //
-        m_percentileSequencerFireGridId = m_smartGrid.AddGrid(new PercentileSequencerSubPage(this, Trio::Fire));
-        m_percentileSequencerEarthGridId = m_smartGrid.AddGrid(new PercentileSequencerSubPage(this, Trio::Earth));
-        m_percentileSequencerWaterGridId = m_smartGrid.AddGrid(new PercentileSequencerSubPage(this, Trio::Water));
-        m_percentileSequencerFaderGridId = m_smartGrid.AddGrid(new PercentileSequencerFaderPage(this));
-        m_percentileSequencerPagesGridId = m_smartGrid.AddGrid(new PercentileSequencerPages(this));
-         
+        m_indexArpFireGridId = m_smartGrid.AddGrid(new IndexArpPage(this, Trio::Fire));
+        m_indexArpEarthGridId = m_smartGrid.AddGrid(new IndexArpPage(this, Trio::Earth));
+        m_indexArpWaterGridId = m_smartGrid.AddGrid(new IndexArpPage(this, Trio::Water));
+
+        // Palettes
+        //
+        // m_lameJuisSeqPaletteFireGridId = m_smartGrid.AddGrid(new LameJuisSeqPalettePage(this, Trio::Fire));
+        // m_lameJuisSeqPaletteEarthGridId = m_smartGrid.AddGrid(new LameJuisSeqPalettePage(this, Trio::Earth));
+        // m_lameJuisSeqPaletteWaterGridId = m_smartGrid.AddGrid(new LameJuisSeqPalettePage(this, Trio::Water));
+        
         // Articulation
         //
         m_timbreAndMuteFireGridId = m_smartGrid.AddGrid(new TimbreAndMuteSubPage(this, Trio::Fire));
         m_timbreAndMuteEarthGridId = m_smartGrid.AddGrid(new TimbreAndMuteSubPage(this, Trio::Earth));
         m_timbreAndMuteWaterGridId = m_smartGrid.AddGrid(new TimbreAndMuteSubPage(this, Trio::Water));
         m_timbreAndMutePagesGridId = m_smartGrid.AddGrid(new TimbreAndMutePages(this));
-        
+
         m_smartGrid.AddToplevelGrid(new SmartGrid::GridSwitcher(new TheNonagonGridSwitcher(this, 0)));
         m_smartGrid.AddToplevelGrid(new SmartGrid::GridSwitcher(new TheNonagonGridSwitcher(this, 1)));
         m_stateSaver.Insert("ActiveTrio", &m_activeTrio);
@@ -1438,16 +1490,26 @@ struct TheNonagonSmartGrid
 struct TheNonagon : Module
 {
     TheNonagonSmartGrid m_nonagon;
+    Trig m_saveTrig;
+    Trig m_loadTrig;
 
     TheNonagon()
     {
-        config(0, 0, 2 + 12 + 3 + 3, 0);
+        config(0, 3, 2 + 12 + 3 + 4 + 3, 0);
 
+        configInput(0, "Save");
+        configInput(1, "Load");
+        configInput(2, "Radius");
+        
         configOutput(0, "VoltPerOct Output");
         configOutput(1, "Gate Output");
         configOutput(14, "Recording Output");
         configOutput(15, "Timbre Output");
         configOutput(16, "Phasor Output");
+        configOutput(20, "PanX");
+        configOutput(21, "PanY");
+        configOutput(22, "PanZ");
+        configOutput(23, "Tot Phasor");
 
         for (size_t i = 0; i < 3; ++i)
         {
@@ -1472,6 +1534,16 @@ struct TheNonagon : Module
     
     void process(const ProcessArgs &args) override
     {
+        if (m_saveTrig.Process(inputs[0].getVoltage()))
+        {
+            m_nonagon.SaveJSON();
+        }
+
+        if (m_loadTrig.Process(inputs[1].getVoltage()))
+        {
+            m_nonagon.LoadJSON();
+        }
+        
         outputs[0].setChannels(TheNonagonInternal::x_numVoices);
         outputs[1].setChannels(TheNonagonInternal::x_numVoices);
         outputs[15].setChannels(TheNonagonInternal::x_numVoices);
@@ -1479,6 +1551,10 @@ struct TheNonagon : Module
         outputs[17].setChannels(TheNonagonInternal::x_numVoices);
         outputs[18].setChannels(TheNonagonInternal::x_numVoices);
         outputs[19].setChannels(TheNonagonInternal::x_numVoices);
+        outputs[20].setChannels(TheNonagonInternal::x_numVoices);
+        outputs[21].setChannels(TheNonagonInternal::x_numVoices);
+        outputs[22].setChannels(TheNonagonInternal::x_numVoices);
+        outputs[23].setChannels(6);
         
         m_nonagon.Process(args.sampleTime, args.frame);
 
@@ -1491,47 +1567,51 @@ struct TheNonagon : Module
             for (size_t j = 0; j < 3; ++j)
             {
                 outputs[17 + j].setVoltage(m_nonagon.m_nonagon.m_output.m_extraTimbre[i][j] * 10, i);
-            }
+                outputs[20 + j].setVoltage(5 + 5 * m_nonagon.m_nonagon.m_panner.m_output.m_pos[i][j], i);
+            }            
         }
 
-        outputs[2].setVoltage(m_nonagon.m_theoryOfTimeTopologyGridId);
+        outputs[2].setVoltage(m_nonagon.m_theoryOfTimeTopologyGridId, 0);
         outputs[3].setVoltage(m_nonagon.m_theoryOfTimeSwingGridId);
         outputs[4].setVoltage(m_nonagon.m_theoryOfTimeSwaggerGridId);
-        outputs[5].setVoltage(m_nonagon.m_lameJuisCoMuteGridId);
+        outputs[5].setVoltage(m_nonagon.m_lameJuisCoMuteGridId, 0);
         outputs[6].setVoltage(m_nonagon.m_lameJuisMatrixGridId);
         outputs[7].setVoltage(m_nonagon.m_lameJuisLHSGridId);
         outputs[8].setVoltage(m_nonagon.m_lameJuisIntervalGridId);
-        outputs[10].setVoltage(m_nonagon.m_percentileSequencerFaderGridId);
 
-        outputs[9].setChannels(9);
-        outputs[11].setChannels(6);
-        outputs[9].setVoltage(m_nonagon.m_state.m_running ? 10 : 0, 0);
-        for (size_t i = 0; i < 6; ++i)
+        // outputs[9].setChannels(2);
+        // outputs[9].setVoltage(m_nonagon.m_state.m_running ? 10 : 0, 0);
+        // float pos = m_nonagon.m_nonagon.m_theoryOfTime.m_musicalTime.m_bits[0].m_pos;
+        // pos *= 32 * 24;
+        // bool clk = pos - floor(pos) < 0.5;
+        
+        // outputs[9].setVoltage(clk ? 10 : 0, 1);
+        outputs[9].setChannels(16);
+        for (size_t i = 0; i < 16; ++i)
         {
-            float pos = m_nonagon.m_nonagon.m_theoryOfTime.m_musicalTime.m_bits[6 - i].m_pos;
-            outputs[11].setVoltage(pos, i);
-            if (i < 4)
-            {
-                bool clk = pos < 0.5;
-                outputs[9].setVoltage(clk ? 10 : 0, 2 * i + 1);
-                pos *= 3;
-                clk = pos - floor(pos) < 0.5;
-                outputs[9].setVoltage(clk ? 10 : 0, 2 * i + 2);
-            }
+            outputs[9].setVoltage(SmartGrid::Color(0, std::min<int>(255, 256 * m_nonagon.m_nonagon.GetTimerFragment(i)), 0).ZEncodeFloat() * 10, i);
         }
 
-
+        outputs[11].setChannels(3);
         outputs[12].setChannels(3);
         outputs[13].setChannels(3);
 
+        outputs[11].setVoltage(m_nonagon.m_lameJuisSeqPaletteFireGridId, 0);
+        outputs[11].setVoltage(m_nonagon.m_lameJuisSeqPaletteEarthGridId, 1);
+        outputs[11].setVoltage(m_nonagon.m_lameJuisSeqPaletteWaterGridId, 2);
         outputs[12].setVoltage(m_nonagon.m_timbreAndMuteFireGridId, 0);
         outputs[12].setVoltage(m_nonagon.m_timbreAndMuteEarthGridId, 1);
         outputs[12].setVoltage(m_nonagon.m_timbreAndMuteWaterGridId, 2);
-        outputs[13].setVoltage(m_nonagon.m_percentileSequencerFireGridId, 0);
-        outputs[13].setVoltage(m_nonagon.m_percentileSequencerEarthGridId, 1);
-        outputs[13].setVoltage(m_nonagon.m_percentileSequencerWaterGridId, 2);
+        outputs[13].setVoltage(m_nonagon.m_indexArpFireGridId, 0);
+        outputs[13].setVoltage(m_nonagon.m_indexArpEarthGridId, 1);
+        outputs[13].setVoltage(m_nonagon.m_indexArpWaterGridId, 2);
 
         outputs[14].setVoltage(m_nonagon.m_nonagon.m_output.m_recording ? 10 : 0);
+
+        for (size_t i = 0; i < 6; ++i)
+        {
+            outputs[23].setVoltage(m_nonagon.m_nonagon.m_output.m_totPhasors[i], i);
+        }
     }
 };
 
@@ -1542,6 +1622,10 @@ struct TheNonagonWidget : ModuleWidget
         setModule(module);
         setPanel(createPanel(asset::plugin(pluginInstance, "res/TheNonagon.svg")));
 
+        addInput(createInputCentered<PJ301MPort>(Vec(250, 100), module, 0));
+        addInput(createInputCentered<PJ301MPort>(Vec(250, 150), module, 1));
+        addInput(createInputCentered<PJ301MPort>(Vec(250, 200), module, 2));
+        
         addOutput(createOutputCentered<PJ301MPort>(Vec(175, 100), module, 0));
         addOutput(createOutputCentered<PJ301MPort>(Vec(125, 100), module, 1));        
         
@@ -1559,8 +1643,12 @@ struct TheNonagonWidget : ModuleWidget
         addOutput(createOutputCentered<PJ301MPort>(Vec(175, 225), module, 16));
 
         addOutput(createOutputCentered<PJ301MPort>(Vec(125, 250), module, 17));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(175, 250), module, 18));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(225, 255), module, 19));                
+        addOutput(createOutputCentered<PJ301MPort>(Vec(125, 275), module, 18));
+        addOutput(createOutputCentered<PJ301MPort>(Vec(125, 300), module, 19));                
+        addOutput(createOutputCentered<PJ301MPort>(Vec(200, 100), module, 20));
+        addOutput(createOutputCentered<PJ301MPort>(Vec(200, 125), module, 21));
+        addOutput(createOutputCentered<PJ301MPort>(Vec(200, 150), module, 22));
+        addOutput(createOutputCentered<PJ301MPort>(Vec(200, 200), module, 23));
 
     }
 };

@@ -22,4 +22,9 @@ struct RGen
     {
         return m_uni(m_gen);
     }
+
+    size_t RangeGen(size_t max)
+    {
+        return static_cast<size_t>(UniGen() * max);
+    }
 };

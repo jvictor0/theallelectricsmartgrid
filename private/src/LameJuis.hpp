@@ -2,6 +2,7 @@
 #include "plugin.hpp"
 #include <cstddef>
 #include "LameJuisConstants.hpp"
+#include "IndexArp.hpp"
 
 struct LameJuisInternal
 {
@@ -593,6 +594,11 @@ struct LameJuisInternal
         {
             return std::tie(m_pitch, m_result) < std::tie(other.m_pitch, other.m_result);
         }
+
+        void OctaveReduce()
+        {
+            m_pitch = m_pitch - std::floor(m_pitch);
+        }
         
         MatrixEvalResult m_result;
         float m_pitch;
@@ -682,6 +688,12 @@ struct LameJuisInternal
                 bool m_coMutes[x_numInputs];
                 size_t m_polyChans;
                 float m_percentiles[x_maxPoly];
+                bool m_harmonic[x_maxPoly];
+                bool m_usePercentile[x_maxPoly];
+                int m_index[x_maxPoly];
+                int m_octave[x_maxPoly];
+                IndexArp* m_indexArp[x_maxPoly];
+                IndexArp* m_preIndexArp[x_maxPoly];
                 
                 Input()
                 {                
@@ -689,6 +701,17 @@ struct LameJuisInternal
                     for (size_t i = 0; i < x_numInputs; ++i)
                     {
                         m_coMutes[i] = false;
+                    }
+                    
+                    for (size_t i = 0; i < x_maxPoly; ++i)
+                    {
+                        m_percentiles[i] = 0;
+                        m_harmonic[i] = false;
+                        m_usePercentile[i] = false;
+                        m_index[i] = 0;
+                        m_octave[i] = 0;
+                        m_indexArp[i] = nullptr;
+                        m_preIndexArp[i] = nullptr;
                     }
                 }
             };
@@ -712,6 +735,17 @@ struct LameJuisInternal
                     m_coMutes[i] = false;
                 }
 
+                for (size_t i = 0; i < x_maxPoly; ++i)
+                {
+                    m_percentiles[i] = 0;
+                    m_harmonic[i] = false;
+                    m_usePercentile[i] = false;
+                    m_index[i] = 0;
+                    m_octave[i] = 0;
+                    m_indexArp[i] = nullptr;
+                    m_preIndexArp[i] = nullptr;
+                }
+
                 m_owner = owner;
             }
             
@@ -722,6 +756,11 @@ struct LameJuisInternal
                 for (size_t i = 0; i < m_polyChans; ++i)
                 {
                     m_percentiles[i] = input.m_percentiles[i];
+                    m_harmonic[i] = input.m_harmonic[i];
+                    m_usePercentile[i] = input.m_usePercentile[i];
+                    m_octave[i] = input.m_octave[i];
+                    m_indexArp[i] = input.m_indexArp[i];
+                    m_preIndexArp[i] = input.m_preIndexArp[i];
                 }
                 
                 for (size_t i = 0; i < x_numInputs; ++i)
@@ -737,10 +776,17 @@ struct LameJuisInternal
             
             bool m_coMutes[x_numInputs];
             float m_percentiles[x_maxPoly];
+            bool m_harmonic[x_maxPoly];
+            bool m_usePercentile[x_maxPoly];
+            int m_index[x_maxPoly];
+            int m_octave[x_maxPoly];
+            IndexArp* m_indexArp[x_maxPoly];
+            IndexArp* m_preIndexArp[x_maxPoly];
             size_t m_polyChans;
             Output* m_owner;
         };
 
+        template<bool Harmonic>
         struct CacheForSingleInputVector
         {
             CacheForSingleInputVector() :
@@ -757,7 +803,21 @@ struct LameJuisInternal
                 LameJuisInternal* matrix,
                 LameJuisInternal::Output* output,
                 LameJuisInternal::InputVector defaultVector,
-                float percentile)
+                size_t chan)
+            {
+                Eval(matrix, output, defaultVector);
+
+                int octave;
+                ssize_t ix = GetIx(output, chan, &octave);
+                MatrixEvalResultWithPitch result = m_cachedResults[ix];
+                result.m_pitch += octave;
+                return result;
+            }
+
+            void Eval(
+                LameJuisInternal* matrix,
+                LameJuisInternal::Output* output,
+                LameJuisInternal::InputVector defaultVector)
             {
                 if (!m_isEvaluated)
                 {
@@ -765,23 +825,69 @@ struct LameJuisInternal
                     for (; !itr.Done(); itr.Next())
                     {
                         m_cachedResults[itr.m_ordinal] = matrix->EvalMatrix(itr.Get());
+                        if (!Harmonic)
+                        {
+                            m_cachedResults[itr.m_ordinal].OctaveReduce();
+                        }
                     }
                     
                     m_numResults = itr.m_ordinal;
                     
                     std::sort(m_cachedResults, m_cachedResults + m_numResults);
+
+                    size_t cur = 0;
+                    m_resultOrd[0] = 0;
+                    m_reverseIndex[0] = 0;
+                    for (size_t i = 1; i < m_numResults; ++i)
+                    {
+                        if (m_cachedResults[i].m_pitch != m_cachedResults[i - 1].m_pitch)
+                        {
+                            ++cur;
+                            m_reverseIndex[cur] = i;
+                        }
+
+                        m_resultOrd[i] = cur;
+                    }
+                    
+                    m_numDistinctResults = cur + 1;
                     
                     m_isEvaluated = true;
                 }
-                
+            }
+
+            ssize_t GetIx(LameJuisInternal::Output* output, size_t chan, int* octave)
+            {
+                *octave = output->m_coMuteState.m_octave[chan];
+                if (output->m_coMuteState.m_usePercentile[chan])
+                {
+                    return PercentileToIx(output->m_coMuteState.m_percentiles[chan]);
+                }
+                else if (output->m_coMuteState.m_indexArp[chan])
+                {
+                    int result;
+                    output->m_coMuteState.m_preIndexArp[chan]->Get(m_numDistinctResults, &result, octave);
+                    output->m_coMuteState.m_indexArp[chan]->Get(m_numDistinctResults, &result, octave);
+                    return m_reverseIndex[result];
+                }
+                else
+                {
+                    return m_reverseIndex[output->m_coMuteState.m_index[chan]];
+                }
+            }
+            
+            ssize_t PercentileToIx(float percentile)
+            {
                 ssize_t ix = static_cast<size_t>(percentile * m_numResults);
                 ix = std::min<ssize_t>(ix, m_numResults - 1);
                 ix = std::max<ssize_t>(ix, 0);
-                return m_cachedResults[ix];
+                return ix;
             }                          
             
             MatrixEvalResultWithPitch m_cachedResults[1 << x_numInputs];
+            size_t m_resultOrd[1 << x_numInputs];
+            size_t m_reverseIndex[1 << x_numInputs];
             size_t m_numResults;
+            size_t m_numDistinctResults;
             bool m_isEvaluated;
         };
 
@@ -797,7 +903,8 @@ struct LameJuisInternal
         MatrixEvalResultWithPitch m_pitch[x_maxPoly];
         CoMuteState m_coMuteState;
 
-        CacheForSingleInputVector m_outputCaches[1 << x_numInputs];
+        CacheForSingleInputVector<true> m_harmonicOutputCaches[1 << x_numInputs];
+        CacheForSingleInputVector<false> m_melodicOutputCaches[1 << x_numInputs];
         bool m_lastStepEvaluated;
 
         LameJuisInternal* m_owner;
@@ -811,7 +918,8 @@ struct LameJuisInternal
         {            
             for (size_t i = 0; i < (1 << x_numInputs); ++i)
             {
-                m_outputCaches[i].ClearCache();
+                m_harmonicOutputCaches[i].ClearCache();
+                m_melodicOutputCaches[i].ClearCache();
             }
 
             ClearLastStep();
@@ -847,8 +955,15 @@ struct LameJuisInternal
 
         MatrixEvalResultWithPitch ComputePitch(LameJuisInternal* matrix, InputVector defaultVector, size_t chan)
         {
-            float percentile = m_coMuteState.m_percentiles[chan];
-            return m_outputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, percentile);
+            bool harmonic = m_coMuteState.m_harmonic[chan];
+            if (harmonic)
+            {
+                return m_harmonicOutputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, chan);
+            }
+            else
+            {
+                return m_melodicOutputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, chan);
+            }
         }            
        
         void SetPitch(MatrixEvalResultWithPitch pitch, size_t chan)
@@ -872,6 +987,52 @@ struct LameJuisInternal
         }
     };
 
+    struct SeqPaletteState
+    {
+        SeqPaletteState()
+            : m_ord(0)
+            , m_ordMax(1)
+            , m_isCur(false)
+        {
+        }
+        
+        size_t m_ord;
+        size_t m_ordMax;
+        bool m_isCur;
+    };
+    
+    SeqPaletteState GetSeqPaletteState(
+        size_t outputId,
+        size_t ix,
+        InputVector input)
+    {
+        constexpr size_t x_tot = 1 << x_numInputs;
+        Output& o = m_outputs[outputId];
+        Output::CacheForSingleInputVector<true>& c = o.m_harmonicOutputCaches[input.m_bits];
+        SeqPaletteState result;
+        if (!c.m_isEvaluated)
+        {
+            return result;
+        }
+
+        result.m_ordMax = c.m_resultOrd[c.m_numResults - 1] + 1;
+        size_t repeats = x_tot / c.m_numResults;
+        size_t rIx = ix / repeats;
+        result.m_ord = c.m_resultOrd[rIx];
+        
+        for (size_t i = 0; i < o.GetPolyChans(); ++i)
+        {
+            size_t pIx = c.GetIx(&o, i, nullptr);
+            if (pIx == rIx)
+            {
+                result.m_isCur = true;
+                break;
+            }
+        }
+        
+        return result;
+    }        
+    
     struct Input
     {        
         InputBit::Input m_inputBitInput[x_numInputs];

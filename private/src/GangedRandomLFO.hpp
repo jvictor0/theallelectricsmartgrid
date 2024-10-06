@@ -225,6 +225,35 @@ struct GangedRandomLFO : Module
         return static_cast<size_t>(params[NumGangsParamId()].getValue() + 0.5);
     }
 
+    size_t OffsetInId(size_t out)
+    {
+        return out;
+    }    
+
+    size_t XFadeInId(size_t out)
+    {
+        return OffsetInId(x_outs) + out;
+    }
+
+    size_t NumInputs()
+    {
+        return XFadeInId(x_outs);
+    }    
+
+    float Normalize(size_t out, size_t chan, float val)
+    {
+        if (inputs[XFadeInId(out)].isConnected())
+        {
+            float fd = inputs[XFadeInId(out)].getVoltage(chan % inputs[XFadeInId(out)].getChannels()) / 10;
+            float off = inputs[OffsetInId(out)].getVoltage(chan % inputs[OffsetInId(out)].getChannels());
+            return (1 - fd) * off + fd * val;
+        }
+        else
+        {
+            return val;
+        }
+    }
+
     size_t OutputId(size_t out)
     {
         return out;
@@ -247,6 +276,7 @@ struct GangedRandomLFO : Module
 
     void SetOutput(size_t out, size_t chan, float val)
     {
+        val = Normalize(out, chan, val);
         val = std::max<float>(0, std::min<float>(val, 10));
         outputs[OutputId(out)].setVoltage(val, chan);
     }
@@ -288,7 +318,7 @@ struct GangedRandomLFO : Module
 
     GangedRandomLFO()
     {
-        config(NumParams(), 0, NumOutputs(), 0);
+        config(NumParams(), NumInputs(), NumOutputs(), 0);
 
         configParam(TimeParamId(), 0.1, 600, 45, "Time (secs)");
         configParam(SigmaParamId(), 0.1, 20, 2, "Sigma");
@@ -298,6 +328,8 @@ struct GangedRandomLFO : Module
         for (size_t i = 0; i < x_outs; ++i)
         {
             configOutput(OutputId(i), ("Output " + std::to_string(i)));
+            configInput(OffsetInId(i), ("Offset " + std::to_string(i)));
+            configInput(XFadeInId(i), ("XFade " + std::to_string(i)));
         }
     }
 };
@@ -316,12 +348,14 @@ struct GangedRandomLFOWidget : ModuleWidget
         addParam(createParamCentered<Trimpot>(Vec(100 + 2 * dx, 100), module, module->GangSizeParamId()));
         addParam(createParamCentered<Trimpot>(Vec(100 + 3 * dx, 100), module, module->NumGangsParamId()));
 
-        float rowStart = 50;
+        float rowStart = 25;
         
         for (size_t i = 0; i < module->x_outs; ++i)
         {
             float rowPos = 100 + i * 30;
-            addOutput(createOutputCentered<PJ301MPort>(Vec(rowStart, rowPos), module, module->OutputId(i)));
+            addInput(createInputCentered<PJ301MPort>(Vec(rowStart, rowPos), module, module->OffsetInId(i)));
+            addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 25, rowPos), module, module->XFadeInId(i)));
+            addOutput(createOutputCentered<PJ301MPort>(Vec(rowStart + 50, rowPos), module, module->OutputId(i)));
         }
     }
 };

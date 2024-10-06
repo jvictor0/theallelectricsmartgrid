@@ -118,13 +118,20 @@ struct PercentileSequencerInternal
                 
                 if (m_advanced[1])
                 {
-                    float tenorVal = input.m_sequence[m_stepSelector[1].m_curStep]- 1;
+                    float tenorVal = input.m_sequence[m_stepSelector[1].m_curStep] - 1;
                     m_tenor = tenorMax + (tenorMax - tenorMin) * tenorVal * input.m_sequenceScale;
                 }
 
                 float altoSeq = (input.m_sequence[m_stepSelector[0].m_curStep] + input.m_sequence[m_stepSelector[1].m_curStep]) / 2 - 0.5;                    
                 m_alto = (bassMax + tenorMin) / 2 + (tenorMin - bassMax) * altoSeq * input.m_sequenceScale;
             }
+        }
+
+        void ProcessNoClock(Input& input)
+        {
+            m_bass = 0;                
+            m_tenor = input.m_tenorDistance;
+            m_alto = input.m_tenorDistance / 2;
         }
 
         float& GetVal(size_t voice)
@@ -189,6 +196,10 @@ struct PercentileSequencerInternal
             else
             {
                 input.m_input[i].SetClock(false);
+                if (input.m_clocks[0])
+                {
+                    m_sequencer[i].ProcessNoClock(input.m_input[i]);
+                }
             }
             
             m_sequencer[i].Process(input.m_input[i]);
@@ -201,102 +212,6 @@ struct PercentileSequencerInternal
     }
 };
 
-struct PercentileSequencerClockSelectCell : public SmartGrid::Cell
-{
-    virtual ~PercentileSequencerClockSelectCell()
-    {
-    }
-
-    PercentileSequencerInternal::Input* m_state;
-    size_t m_trio;
-    size_t* m_numHeld;
-    size_t* m_maxHeld;
-    int m_myClock;
-    SmartGrid::Color m_offColor;
-    SmartGrid::Color m_clockColor;
-    SmartGrid::Color m_resetColor;
-    bool m_unsetOnRelease;
-
-    PercentileSequencerClockSelectCell(
-        PercentileSequencerInternal::Input* state,
-        size_t trio,
-        size_t* numHeld,
-        size_t* maxHeld,
-        int myClock,
-        SmartGrid::Color offColor,
-        SmartGrid::Color clockColor,
-        SmartGrid::Color resetColor)
-        : m_state(state)
-        , m_trio(trio)
-        , m_numHeld(numHeld)
-        , m_maxHeld(maxHeld)
-        , m_myClock(myClock)
-        , m_offColor(offColor)
-        , m_clockColor(clockColor)
-        , m_resetColor(resetColor)
-        , m_unsetOnRelease(false)
-    {
-    }
-
-    virtual void OnPress(uint8_t) override
-    {
-        ++(*m_numHeld);
-        
-        if (*m_numHeld == 1)
-        {
-            if (m_state->m_clockSelect[m_trio] == m_myClock)
-            {
-                m_unsetOnRelease = true;
-            }
-            else
-            {
-                m_state->m_clockSelect[m_trio] = m_myClock;
-            }
-            
-            m_state->m_resetSelect[m_trio] = -1;
-        }
-        else if (*m_numHeld == 2)
-        {
-            m_state->m_resetSelect[m_trio] = m_myClock;
-        }
-
-        *m_maxHeld = std::max<size_t>(*m_maxHeld, *m_numHeld);
-    }
-
-    virtual void OnRelease() override
-    {
-        --(*m_numHeld);
-        
-        if (*m_numHeld == 0)
-        {
-            m_state->m_externalReset[m_trio] = true;
-            if (*m_maxHeld == 1 && m_unsetOnRelease)
-            {
-                m_state->m_clockSelect[m_trio] = -1;
-            }
-            
-            *m_maxHeld = 0;
-        }
-
-        m_unsetOnRelease = false;
-    }
-
-    virtual SmartGrid::Color GetColor() override
-    {
-        if (m_state->m_clockSelect[m_trio] == m_myClock)
-        {
-            return m_clockColor;
-        }
-        else if (m_state->m_resetSelect[m_trio] == m_myClock)
-        {
-            return m_resetColor;
-        }
-        else
-        {
-            return m_offColor;
-        }
-    }
-};
 
 // struct PercentileSequencer : Module
 // {

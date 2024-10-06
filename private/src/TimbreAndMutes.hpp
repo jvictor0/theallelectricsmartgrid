@@ -6,6 +6,13 @@ struct TimbreAndMute
     static constexpr size_t x_voicesPerTrio = 3;
     static constexpr size_t x_numTrios = 3;
     static constexpr size_t x_numInBits = 6;
+
+    enum class MonoMode : int
+    {
+        Poly = 0,
+        Trio = 1,
+        Global = 2
+    };
     
     struct TimbreAndMuteSingleVoice
     {
@@ -27,13 +34,11 @@ struct TimbreAndMute
             bool m_armed[x_numInBits];
             bool* m_on;
             bool* m_canPassIfOn;
-            float* m_timbreMult;
             bool m_trigIn;
             
             Input()
                 : m_on(nullptr)
                 , m_canPassIfOn(nullptr)
-                , m_timbreMult(nullptr)
                 , m_trigIn(false)
             {
                 for (size_t i = 0; i < x_numInBits; ++i)
@@ -76,13 +81,19 @@ struct TimbreAndMute
                 }
 
                 m_preTimbre = static_cast<float>(onAndArmed) / static_cast<float>(armed);
-                m_timbre = (*input.m_timbreMult) * m_preTimbre;
+                m_timbre = m_preTimbre;
                 m_countHigh = onAndArmed;
             }
             else
             {
                 m_muted = true;
             }
+        }
+
+        void UnTrig()
+        {
+            m_trig = false;
+            m_muted = true;
         }
         
         bool m_armed[x_numInBits];
@@ -101,15 +112,16 @@ struct TimbreAndMute
         TimbreAndMuteSingleVoice::Input m_input[x_numVoices];
         bool m_on[x_numInBits];
         bool m_canPassIfOn[x_numTrios][x_numInBits + 1];
-        float m_timbreMult[x_numTrios];
+        MonoMode m_monoMode[x_numTrios];
+        bool* m_mutes;
         
-        Input()
+        Input(bool* mutes)
+            : m_mutes(mutes)
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {
                 m_input[i].m_on = m_on;
                 m_input[i].m_canPassIfOn = m_canPassIfOn[i / x_voicesPerTrio];
-                m_input[i].m_timbreMult = &m_timbreMult[i / x_voicesPerTrio];
             }
 
             for (size_t i = 0; i < x_numInBits; ++i)
@@ -127,16 +139,36 @@ struct TimbreAndMute
 
             for (size_t i = 0; i < x_numTrios; ++i)
             {
-                m_timbreMult[i] = 0;
+                m_monoMode[i] = MonoMode::Poly;
             }
         }
     };
     
     void Process(Input& input)
     {
-        for (size_t i = 0; i < x_numVoices; ++i)
+        bool globalTrig = false;
+        for (int i = x_numTrios - 1; i >= 0; --i)
         {
-            m_voices[i].Process(input.m_input[i]);
+            bool trioTrig = false;
+            for (size_t j = 0; j < x_voicesPerTrio; ++j)
+            {
+                size_t ix = i * x_voicesPerTrio + j;
+                if ((trioTrig && input.m_monoMode[i] == MonoMode::Trio) ||
+                    (globalTrig && input.m_monoMode[i] == MonoMode::Global))
+                {
+                    input.m_input[ix].m_trigIn = false;
+                }
+                
+                m_voices[ix].Process(input.m_input[ix]);
+                if (m_voices[ix].m_trig && !input.m_mutes[ix])
+                {
+                    trioTrig = true;
+                    if (input.m_monoMode[i] == MonoMode::Global)
+                    {
+                        globalTrig = true;
+                    }
+                }
+            }
         }
     }
 };

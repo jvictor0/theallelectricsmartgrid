@@ -82,12 +82,22 @@ struct Color
 
     float ZEncodeFloat()
     {
-        return static_cast<float>(ZEncode()) / static_cast<float>(1 << 24);
+        return ZToFloat(ZEncode());
     }
 
     static Color ZDecodeFloat(float x)
     {
-        return ZDecode(std::min<size_t>((1 << 24) - 1, static_cast<size_t>(x * (1 << 24))));
+        return ZDecode(FloatToZ(x));
+    }
+
+    static size_t FloatToZ(float x)
+    {
+        return std::min<size_t>((1 << 24) - 1, static_cast<size_t>(x * (1 << 24)));
+    }
+
+    static float ZToFloat(size_t z)
+    {
+        return static_cast<float>(z) / static_cast<float>(1 << 24);
     }
 
     Color AdjustBrightness(float x)
@@ -110,6 +120,25 @@ struct Color
         c.m_green *= 255 / maxPrime;
         c.m_blue *= 255 / maxPrime;
         return c;
+    }
+
+    Color Interpolate(Color other, float position)
+    {
+        if (position <= 0)
+        {
+            return *this;
+        }
+        else if (position >= 1)
+        {
+            return other;
+        }
+        else
+        {
+            return Color(
+                static_cast<float>(m_red) + (static_cast<float>(other.m_red) - static_cast<float>(m_red)) * position,
+                static_cast<float>(m_green) + (static_cast<float>(other.m_green) - static_cast<float>(m_green)) * position,
+                static_cast<float>(m_blue) + (static_cast<float>(other.m_blue) - static_cast<float>(m_blue)) * position);
+        }
     }
 
     uint8_t m_red;
@@ -197,12 +226,12 @@ struct Cell
     }
 
     bool m_pressureSensitive;
-    bool m_velocity;
+    uint8_t m_velocity;
 
     Cell()
     {
         m_pressureSensitive = false;
-        m_velocity = false;
+        m_velocity = 0;
     }
     
     virtual Color GetColor()
@@ -471,11 +500,49 @@ struct CycleCell : Cell
     }    
 };
 
+template<class StateClass>
+struct BinaryCell : Cell
+{
+    Color m_offColor;
+    Color m_onColor;
+    StateClass m_mask;
+    StateClass* m_state;
+
+    BinaryCell(
+        Color offColor,
+        Color onColor,
+        size_t ix,
+        StateClass* state)
+        : m_offColor(offColor)
+        , m_onColor(onColor)
+        , m_mask(1 << ix)
+        , m_state(state)
+    {
+    }
+
+    virtual Color GetColor() override
+    {
+        if (m_mask & (*m_state))
+        {
+            return m_onColor;
+        }
+        else
+        {
+            return m_offColor;
+        }
+    }
+
+    virtual void OnPress(uint8_t) override
+    {
+        *m_state = (*m_state) ^ m_mask;
+    }
+};
+
 static constexpr int x_gridSize = 8;
 static constexpr int x_gridXMin = -1;
 static constexpr int x_gridXMax = 9;
-static constexpr int x_gridYMin = -2;
-static constexpr int x_gridYMax = 9;
+static constexpr int x_gridYMin = -1;
+static constexpr int x_gridYMax = 10;
 static constexpr size_t x_gridMaxSize = 11;
 
 enum class ControllerShape : int
@@ -568,6 +635,8 @@ struct Message
     
     static uint8_t LPPosToNote(int x, int y)
     {
+        y = x_gridSize - y - 1;
+        
         // Remap y to match the bottom two button rows of LPProMk3
         //
         if (y == -1)
@@ -589,7 +658,7 @@ struct Message
             // The LaunchpadPro's bottom two rows are in the "wrong" order.
             // Remap.
             //
-            return std::make_pair(note - 1, -2);
+            return std::make_pair(note - 1, 9);
         }
         
         int y = (note - 11) / 10;
@@ -605,9 +674,10 @@ struct Message
         if (x == 9)
         {
             x = -1;
+            y += 1;
         }                
         
-        return std::make_pair(x, y);
+        return std::make_pair(x, x_gridSize - y - 1);
     }
     
     static Message FromLPMidi(const midi::Message& msg)
@@ -643,7 +713,7 @@ struct Message
     }    
 };
 
-static constexpr size_t x_numGridIds = 128;
+static constexpr size_t x_numGridIds = 256;
 
 struct GridIdAllocator
 {
@@ -1372,7 +1442,7 @@ struct Fader : public Grid
     {
         for (int i = 0; i < height; ++i)
         {
-            Put(0, i, new FaderCell(this, i));
+            Put(0, i, new FaderCell(this, height - i - 1));
         }
 
         if (IsExponential())
