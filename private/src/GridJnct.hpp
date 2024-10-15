@@ -817,6 +817,70 @@ struct GridJnctWidget : ModuleWidget
     }        
 };
 
+struct MidiDeviceRemember
+{
+    int m_deviceId;
+    midi::Port* m_port;
+    PeriodChecker m_periodChecker;
+    std::string m_lastConnectedName;
+    ControllerShape* m_shape;
+
+    void TryFindByName()
+    {
+        if (m_port)
+        {
+            for (int deviceId : m_port->getDeviceIds())
+            {
+                if (m_port->getDeviceName(deviceId) == m_lastConnectedName)
+                {
+                    m_port->setDeviceId(deviceId);
+                    m_deviceId = deviceId;
+                    InferShape();
+                    return;
+                }
+            }
+        }
+    }
+    
+    void Process(float dt)
+    {
+        if (m_periodChecker.Process(dt))
+        {
+            if (m_deviceId == -1 && !m_lastConnectedName.empty())
+            {
+                TryFindByName();
+            }
+
+            if (m_deviceId != m_port->deviceId && m_deviceId != -1)
+            {
+                m_deviceId = m_port->deviceId;
+                m_lastConnectedName = m_port->getDeviceName(m_deviceId);
+                InferShape();
+            }
+        }
+    }
+
+    void InferShape()
+    {
+        if (m_lastConnectedName.find("Launchpad Pro MK3") != std::string::npos)
+        {
+            *m_shape = ControllerShape::LaunchPadProMk3;
+        }
+        else if (m_lastConnectedName.find("Launchpad X") != std::string::npos)
+        {
+            *m_shape = ControllerShape::LaunchPadX;
+        }
+    }
+    
+    MidiDeviceRemember(midi::Port* port, ControllerShape* shape)
+        : m_deviceId(port->deviceId)
+        , m_port(port)
+        , m_periodChecker(1)
+        , m_shape(shape)
+    {
+    }            
+};
+
 struct GridCnct : public Module
 {
     MidiInterchangeSingle m_midi;
@@ -910,37 +974,23 @@ struct GridCnctWidget : public ModuleWidget
 		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-        StoermelderPackOne::MidiWidget<>* midiInputWidget = createWidget<StoermelderPackOne::MidiWidget<>>(Vec(10.0f, 36.4f));
-		midiInputWidget->box.size = Vec(130.0f, 67.0f);
-		midiInputWidget->setMidiPort(module ? &module->m_midi.m_input : NULL);
+        MidiWidget* midiInputWidget = createWidget<MidiWidget>(Vec(10.0f, 36.4f));
+		midiInputWidget->box.size = Vec(130.0f, 44.6f);
+		midiInputWidget->SetMidiPort(module ? &module->m_midi.m_input : NULL, false);
 		addChild(midiInputWidget);
 
-		StoermelderPackOne::MidiWidget<>* midiOutputWidget = createWidget<StoermelderPackOne::MidiWidget<>>(Vec(10.0f, 107.4f));
-		midiOutputWidget->box.size = Vec(130.0f, 67.0f);
-		midiOutputWidget->setMidiPort(module ? &module->m_midi.m_output : NULL);
+		MidiWidget* midiOutputWidget = createWidget<MidiWidget>(Vec(10.0f, 85.0f));
+		midiOutputWidget->box.size = Vec(130.0f, 44.6f);
+		midiOutputWidget->SetMidiPort(module ? &module->m_midi.m_output : NULL, false);
 		addChild(midiOutputWidget);
+
+        ShapeWidget* shapeWidget = createWidget<ShapeWidget>(Vec(10.0f, 133.6f));
+        shapeWidget->box.size = Vec(130.0f, 22.3f);
+        shapeWidget->SetShape(module ? &module->m_midi.m_shape : nullptr);
+        addChild(shapeWidget);
 
         addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(50, 50)), module, 0));
     }
-
-    void appendContextMenu(Menu *menu) override
-    {
-        GridCnct* gw = dynamic_cast<GridCnct*>(module);
-
-        menu->addChild(new MenuSeparator);
-
-        menu->addChild(createCheckMenuItem(
-                           "Controller LPX",
-                           "",
-                           [gw]() { return gw->m_midi.m_shape == ControllerShape::LaunchPadX; },
-                           [gw]() { gw->m_midi.m_shape = ControllerShape::LaunchPadX; }));
-        menu->addChild(createCheckMenuItem(
-                           "Controller LPProMk3",
-                           "",
-                           [gw]() { return gw->m_midi.m_shape == ControllerShape::LaunchPadProMk3; },
-                           [gw]() { gw->m_midi.m_shape = ControllerShape::LaunchPadProMk3; }));
-
-	}
 };
 
 typedef GridJnct<ControllerShape::LaunchPadProMk3> GridJnctLPP3;

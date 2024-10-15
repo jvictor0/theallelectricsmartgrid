@@ -1,189 +1,278 @@
 #pragma once
 #include "plugin.hpp"
-#include "LedDisplayCenterChoiceEx.hpp"
 
-namespace StoermelderPackOne {
+namespace SmartGrid
+{
 
+struct MidiDriverDisplayChoice : LedDisplayChoice
+{
+    struct MidiDriverItem : ui::MenuItem
+    {
+        midi::Port* m_port;
+        int m_driverId;
+        void onAction(const event::Action& e) override
+        {
+            m_port->setDriverId(m_driverId);
+        }
+    };
 
-struct MidiDriverItem : ui::MenuItem {
-	midi::Port* port;
-	int driverId;
-	void onAction(const event::Action& e) override {
-		port->setDriverId(driverId);
-	}
-};
-
-template <class DRIVERITEM = MidiDriverItem>
-struct MidiDriverChoice : LedDisplayCenterChoiceEx {
-	midi::Port* port;
-	void onAction(const event::Action& e) override {
-		if (!port)
+	midi::Port* m_port;
+    
+	void onAction(const event::Action& e) override
+    {
+		if (!m_port)
+        {
 			return;
+        }
+        
 		createContextMenu();
 	}
 
-	virtual ui::Menu* createContextMenu() {
+	virtual ui::Menu* createContextMenu()
+    {
 		ui::Menu* menu = createMenu();
 		menu->addChild(createMenuLabel("MIDI driver"));
-		for (int driverId : midi::getDriverIds()) {
-			DRIVERITEM* item = new DRIVERITEM;
-			item->port = port;
-			item->driverId = driverId;
+		for (int driverId : midi::getDriverIds())
+        {
+			MidiDriverItem* item = new MidiDriverItem;
+			item->m_port = m_port;
+			item->m_driverId = driverId;
 			item->text = midi::getDriver(driverId)->getName();
-			item->rightText = CHECKMARK(item->driverId == port->driverId);
+			item->rightText = CHECKMARK(item->m_driverId == m_port->driverId);
 			menu->addChild(item);
 		}
+        
 		return menu;
 	}
 
-	void step() override {
-		text = port ? port->getDriver()->getName() : "";
-		if (text.empty()) {
-			text = "(No driver)";
-			color.a = 0.5f;
-		}
-		else {
-			color.a = 1.f;
-		}
+	void step() override
+    {
+		text = m_port ? m_port->getDriver()->getName() : "(No driver)";
 	}
 };
 
+struct MidiDeviceDisplayChoice : LedDisplayChoice {
 
-struct MidiDeviceItem : ui::MenuItem {
-	midi::Port* port;
-	int deviceId;
-	void onAction(const event::Action& e) override {
-		port->setDeviceId(deviceId);
-	}
-};
-
-template <class DEVICEITEM = MidiDeviceItem>
-struct MidiDeviceChoice : LedDisplayCenterChoiceEx {
-	midi::Port* port;
-	void onAction(const event::Action& e) override {
-		if (!port)
+    struct MidiDeviceItem : ui::MenuItem
+    {
+        midi::Port* m_port;
+        int m_deviceId;
+        void onAction(const event::Action& e) override
+        {
+            m_port->setDeviceId(m_deviceId);
+        }
+    };
+    
+	midi::Port* m_port;
+	void onAction(const event::Action& e) override
+    {
+		if (!m_port)
+        {
 			return;
+        }
+        
 		createContextMenu();
 	}
 
-	virtual ui::Menu* createContextMenu() {
+	virtual ui::Menu* createContextMenu()
+    {
 		ui::Menu* menu = createMenu();
 		menu->addChild(createMenuLabel("MIDI device"));
-		{
-			DEVICEITEM* item = new DEVICEITEM;
-			item->port = port;
-			item->deviceId = -1;
-			item->text = "(No device)";
-			item->rightText = CHECKMARK(item->deviceId == port->deviceId);
+        MidiDeviceItem* nullItem = new MidiDeviceItem;
+        nullItem->m_port = m_port;
+        nullItem->m_deviceId = -1;
+        nullItem->text = "(No device)";
+        nullItem->rightText = CHECKMARK(nullItem->m_deviceId == m_port->deviceId);
+        menu->addChild(nullItem);
+        
+		for (int deviceId : m_port->getDeviceIds())
+        {
+			MidiDeviceItem* item = new MidiDeviceItem;
+			item->m_port = m_port;
+			item->m_deviceId = deviceId;
+			item->text = m_port->getDeviceName(deviceId);
+			item->rightText = CHECKMARK(item->m_deviceId == m_port->deviceId);
 			menu->addChild(item);
 		}
-		for (int deviceId : port->getDeviceIds()) {
-			DEVICEITEM* item = new DEVICEITEM;
-			item->port = port;
-			item->deviceId = deviceId;
-			item->text = port->getDeviceName(deviceId);
-			item->rightText = CHECKMARK(item->deviceId == port->deviceId);
-			menu->addChild(item);
-		}
+        
 		return menu;
 	}
 
-	void step() override {
-		text = port ? port->getDeviceName(port->deviceId) : "";
-		if (text.empty()) {
-			text = "(No device)";
-			color.a = 0.5f;
-		}
-		else {
-			color.a = 1.f;
-		}
+	void step() override
+    {
+		text = m_port ? m_port->getDeviceName(m_port->deviceId) : "(No device)";
 	}
 };
 
+struct MidiChannelDisplayChoice : LedDisplayChoice
+{
+    struct MidiChannelItem : ui::MenuItem
+    {
+        midi::Port* m_port;
+        int m_channel;
+        void onAction(const event::Action& e) override
+        {
+            m_port->channel = m_channel;
+        }
+    };
 
-struct MidiChannelItem : ui::MenuItem {
-	midi::Port* port;
-	int channel;
-	void onAction(const event::Action& e) override {
-		port->channel = channel;
-	}
-};
-
-template <class CHANNELITEM = MidiChannelItem>
-struct MidiChannelChoice : LedDisplayCenterChoiceEx {
-	midi::Port* port;
-	void onAction(const event::Action& e) override {
-		if (!port)
+	midi::Port* m_port;
+	void onAction(const event::Action& e) override
+    {
+		if (!m_port)
+        {
 			return;
+        }
+        
 		createContextMenu();
 	}
 
-	virtual ui::Menu* createContextMenu() {
+	virtual ui::Menu* createContextMenu()
+    {
 		ui::Menu* menu = createMenu();
 		menu->addChild(createMenuLabel("MIDI channel"));
-		for (int channel : port->getChannels()) {
-			CHANNELITEM* item = new CHANNELITEM;
-			item->port = port;
-			item->channel = channel;
-			item->text = port->getChannelName(channel);
-			item->rightText = CHECKMARK(item->channel == port->channel);
+		for (int channel : m_port->getChannels())
+        {
+			MidiChannelItem* item = new MidiChannelItem;
+			item->m_port = m_port;
+			item->m_channel = channel;
+			item->text = m_port->getChannelName(channel);
+			item->rightText = CHECKMARK(item->m_channel == m_port->channel);
 			menu->addChild(item);
 		}
+        
 		return menu;
 	}
 
-	void step() override {
-		text = port ? port->getChannelName(port->channel) : "Channel 1";
+	void step() override
+    {
+		text = m_port ? m_port->getChannelName(m_port->channel) : "Channel 1";
 	}
 };
 
 
-template <class TDRIVER = MidiDriverChoice<>, class TDEVICE = MidiDeviceChoice<>, class TCHANNEL = MidiChannelChoice<>>
-struct MidiWidget : LedDisplay {
-	TDRIVER* driverChoice;
-	LedDisplaySeparator* driverSeparator;
-	TDEVICE* deviceChoice;
-	LedDisplaySeparator* deviceSeparator;
-	TCHANNEL* channelChoice;
+struct MidiWidget : LedDisplay
+{
+	MidiDriverDisplayChoice* m_driverChoice;
+	MidiDeviceDisplayChoice* m_deviceChoice;
+	MidiChannelDisplayChoice* m_channelChoice;
 
-	void setMidiPort(midi::Port* port) {
+	void SetMidiPort(midi::Port* port, bool includeChannel)
+    {
 		clearChildren();
 		math::Vec pos;
 
-		TDRIVER* driverChoice = createWidget<TDRIVER>(pos);
-		driverChoice->box.size = Vec(box.size.x, 22.15f);
-		//driverChoice->textOffset = Vec(6.f, 14.7f);
-		driverChoice->color = nvgRGB(0xf0, 0xf0, 0xf0);
-		driverChoice->port = port;
-		addChild(driverChoice);
-		pos = driverChoice->box.getBottomLeft();
-		this->driverChoice = driverChoice;
+        m_driverChoice = createWidget<MidiDriverDisplayChoice>(pos);
+		m_driverChoice->box.size = Vec(box.size.x, 22.15f);
+		m_driverChoice->color = nvgRGB(0xf0, 0xf0, 0xf0);
+		m_driverChoice->m_port = port;
+		addChild(m_driverChoice);
+		pos = m_driverChoice->box.getBottomLeft();
 
-		this->driverSeparator = createWidget<LedDisplaySeparator>(pos);
-		this->driverSeparator->box.size.x = box.size.x;
-		addChild(this->driverSeparator);
+		auto driverSeparator = createWidget<LedDisplaySeparator>(pos);
+		driverSeparator->box.size.x = box.size.x;
+		addChild(driverSeparator);
 
-		TDEVICE* deviceChoice = createWidget<TDEVICE>(pos);
-		deviceChoice->box.size = Vec(box.size.x, 22.15f);
-		//deviceChoice->textOffset = Vec(6.f, 14.7f);
-		deviceChoice->color = nvgRGB(0xf0, 0xf0, 0xf0);
-		deviceChoice->port = port;
-		addChild(deviceChoice);
-		pos = deviceChoice->box.getBottomLeft();
-		this->deviceChoice = deviceChoice;
+        m_deviceChoice = createWidget<MidiDeviceDisplayChoice>(pos);
+		m_deviceChoice->box.size = Vec(box.size.x, 22.15f);
+		m_deviceChoice->color = nvgRGB(0xf0, 0xf0, 0xf0);
+		m_deviceChoice->m_port = port;
+		addChild(m_deviceChoice);
+		pos = m_deviceChoice->box.getBottomLeft();
 
-		this->deviceSeparator = createWidget<LedDisplaySeparator>(pos);
-		this->deviceSeparator->box.size.x = box.size.x;
-		addChild(this->deviceSeparator);
+        if (includeChannel)
+        {
+            auto deviceSeparator = createWidget<LedDisplaySeparator>(pos);
+            deviceSeparator->box.size.x = box.size.x;
+            addChild(deviceSeparator);
 
-		TCHANNEL* channelChoice = createWidget<TCHANNEL>(pos);
-		channelChoice->box.size = Vec(box.size.x, 22.15f);
-		//channelChoice->textOffset = Vec(6.f, 14.7f);
-		channelChoice->color = nvgRGB(0xf0, 0xf0, 0xf0);
-		channelChoice->port = port;
-		addChild(channelChoice);
-		this->channelChoice = channelChoice;
+            m_channelChoice = createWidget<MidiChannelDisplayChoice>(pos);
+            m_channelChoice->box.size = Vec(box.size.x, 22.15f);
+            m_channelChoice->color = nvgRGB(0xf0, 0xf0, 0xf0);
+            m_channelChoice->m_port = port;
+            addChild(m_channelChoice);
+        }
 	}
 };
 
-} // namespace StoermelderPackOne
+struct ShapeDisplayChoice : LedDisplayChoice
+{
+    struct ShapeItem : ui::MenuItem
+    {
+        ShapeItem(ControllerShape* shape, ControllerShape myShape)
+        {
+            m_shape = shape;
+            m_myShape = myShape;
+        }
+
+        ControllerShape* m_shape;
+        ControllerShape m_myShape;
+
+        void onAction(const event::Action& e) override
+        {
+            *m_shape = m_myShape;
+        }
+    };
+
+    ControllerShape* m_shape;
+
+    ShapeDisplayChoice(ControllerShape* shape)
+    {
+        m_shape = shape;
+    }
+
+    ShapeDisplayChoice()
+    {
+        m_shape = nullptr;
+    }
+
+    void onAction(const event::Action& e) override
+    {
+        if (!m_shape)
+        {
+            return;
+        }
+
+        createContextMenu();
+    }
+
+    virtual ui::Menu* createContextMenu()
+    {
+        ui::Menu* menu = createMenu();
+        menu->addChild(createMenuLabel("Shape"));
+        for (int i = 0; i < static_cast<int>(ControllerShape::NumShapes); i++)
+        {
+            ControllerShape myShape = static_cast<ControllerShape>(i);
+            ShapeItem* item = new ShapeItem(m_shape, myShape);
+
+            item->text = ControllerShapeToString(myShape);
+            item->rightText = CHECKMARK(*m_shape == myShape);
+            menu->addChild(item);
+        }
+
+        return menu;
+    }
+
+    void step() override
+    {
+        text = m_shape ? ControllerShapeToString(*m_shape) : "(No shape)";
+    }
+};
+
+struct ShapeWidget : LedDisplay
+{
+    ShapeDisplayChoice* m_shapeChoice;
+
+    void SetShape(ControllerShape* shape)
+    {
+        clearChildren();
+
+        m_shapeChoice = createWidget<ShapeDisplayChoice>(Vec(0, 0));
+        m_shapeChoice->box.size = Vec(box.size.x, 22.15f);
+        m_shapeChoice->color = nvgRGB(0xf0, 0xf0, 0xf0);
+        m_shapeChoice->m_shape = shape;
+        addChild(m_shapeChoice);
+    }
+};
+
+}

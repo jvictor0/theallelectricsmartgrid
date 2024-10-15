@@ -1,4 +1,4 @@
-#pragma once
+10*cb#pragma once
 #include "plugin.hpp"
 
 namespace StoermelderPackOne {

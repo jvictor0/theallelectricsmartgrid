@@ -1319,7 +1319,7 @@ struct TheNonagonSmartGrid
                             SmartGrid::Color::White.Dim(),
                             TrioCompanionColor(m_trio),
                             SmartGrid::Color::White}));
-            Put(6, 6, new SmartGrid::CycleCell<TimbreAndMute::MonoMode>(
+            Put(6, 7, new SmartGrid::CycleCell<TimbreAndMute::MonoMode>(
                     colorScheme,
                     &m_state->m_timbreAndMuteInput.m_monoMode[trioIx]));
 
@@ -1327,7 +1327,7 @@ struct TheNonagonSmartGrid
                 "MonoMode", trioIx, &m_state->m_timbreAndMuteInput.m_monoMode[trioIx]);
 
             
-            m_owner->PlaceMutes(m_trio, 6, 6, this);
+            m_owner->PlaceMutes(m_trio, 6, 7, this);
             
             m_owner->m_stateSaver.Insert(
                 "TrioOctave", trioIx, &m_state->m_trioOctaveSwitchesInput.m_octave[trioIx]);

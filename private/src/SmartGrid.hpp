@@ -548,8 +548,28 @@ static constexpr size_t x_gridMaxSize = 11;
 enum class ControllerShape : int
 {
     LaunchPadX = 0,
-    LaunchPadProMk3 = 1
+    LaunchPadProMk3 = 1,
+    NumShapes = 2
 };
+
+inline const char* ControllerShapeToString(ControllerShape shape)
+{
+    switch (shape)
+    {
+        case ControllerShape::LaunchPadX:
+        {
+            return "LaunchPadX";
+        }
+        case ControllerShape::LaunchPadProMk3:
+        {
+            return "LaunchPadProMk3";
+        }
+        default:
+        {
+            return "Unknown";
+        }
+    }
+}
 
 struct Message
 {

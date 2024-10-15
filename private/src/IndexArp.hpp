@@ -127,7 +127,7 @@ struct IndexArp
         }
 
         offset %= size;
-        while (index < -size)
+        while (index < 0)
         {
             index += size;
         }

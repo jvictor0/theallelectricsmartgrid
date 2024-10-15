@@ -97,9 +97,9 @@ struct PolyCCWidget : public ModuleWidget
 		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		StoermelderPackOne::MidiWidget<>* midiOutputWidget = createWidget<StoermelderPackOne::MidiWidget<>>(Vec(10.0f, 107.4f));
+		SmartGrid::MidiWidget* midiOutputWidget = createWidget<SmartGrid::MidiWidget>(Vec(10.0f, 107.4f));
 		midiOutputWidget->box.size = Vec(130.0f, 67.0f);
-		midiOutputWidget->setMidiPort(module ? &module->m_output : NULL);
+		midiOutputWidget->SetMidiPort(module ? &module->m_output : NULL, true);
 		addChild(midiOutputWidget);
 
         for (size_t i = 0; i < 4; ++i)
