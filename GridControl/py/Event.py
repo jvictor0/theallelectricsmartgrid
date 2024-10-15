@@ -85,3 +85,5 @@ def SendEvents(socket, events):
     buffer[1] = struct.pack("B", len(events))
     for i, event in enumerate(events):
         event.Serialize(buffer, 2 + i * (1 + Event.NumValues(event.typ)))
+
+    socket.Write(buffer)

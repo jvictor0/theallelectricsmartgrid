@@ -32,7 +32,10 @@ class Socket:
     def FillBuffer(self):
         if self.buffer_head == self.buffer_tail:
             self.buffer_head = 0
-            self.buffer_tail = self.fd.recv_into(self.buffer)
+            try:
+                self.buffer_tail = self.fd.recv_into(self.buffer)
+            except BlockingIOError:
+                pass
 
     def Write(self, buffer):
         self.fd.sendall(buffer)
