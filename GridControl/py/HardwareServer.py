@@ -14,7 +14,7 @@ def PressCallback(x, y, edge):
         velocity = 0
         
     for client_socket in g_client_sockets:
-        Events.SendEvents(client_socket, [Event.Event(Event.EVENT_GRID_TOUCH, Grid.PosToIndex(x, y), [velocity])]) 
+        Event.SendEvents(client_socket, [Event.Event(Event.EVENT_GRID_TOUCH, Event.PosToIndex((x, y)), [velocity])]) 
 
 if __name__ == "__main__":
     Grid.InitGrid(PressCallback)

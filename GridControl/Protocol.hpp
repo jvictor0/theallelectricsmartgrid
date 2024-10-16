@@ -55,6 +55,11 @@ struct Protocol
         }
     }
 
+    bool IsConnected() const
+    {
+        return m_socket.IsOpen();
+    }
+    
     void Connect(const char* ip, uint16_t port)
     {
         m_socket.Connect(ip, port);

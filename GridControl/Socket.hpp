@@ -61,6 +61,11 @@ struct Socket
         }
     }
 
+    bool IsOpen() const
+    {
+        return m_fd != -1;
+    }
+    
     void Connect(const char* host, uint16_t port)
     {
         Close();

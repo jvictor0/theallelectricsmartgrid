@@ -25,9 +25,9 @@ class Event:
             assert False, typ
 
     def Serialize(self, buffer, offset):
-        buffer[offset] = struct.pack("B", self.index)
+        buffer[offset] = self.index
         for i in range(self.NumValues(self.typ)):
-            buffer[offset + 1] = struct.pack("B", self.value[i])
+            buffer[offset + 1] = self.value[i]
 
     @staticmethod
     def Deserialize(buffer, offset, typ):
@@ -81,8 +81,8 @@ def SendEvents(socket, events):
         return
     
     buffer = bytearray(2 + len(events) * (1 + Event.NumValues(events[0].typ)))
-    buffer[0] = struct.pack("B", events[0].typ)
-    buffer[1] = struct.pack("B", len(events))
+    buffer[0] = events[0].typ
+    buffer[1] = len(events)
     for i, event in enumerate(events):
         event.Serialize(buffer, 2 + i * (1 + Event.NumValues(event.typ)))
 
