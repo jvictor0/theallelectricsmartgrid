@@ -1626,6 +1626,7 @@ struct LPRGBSysEx
     }
 };
 
+#ifndef CARDINAL
 struct MidiInterchangeSingle
 {    
     midi::InputQueue m_input;
@@ -1970,5 +1971,7 @@ struct SmartGrid
         }
     }
 };
+
+#endif
 
 }

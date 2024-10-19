@@ -20,3 +20,4 @@ extern Model* modelButtonBank;
 extern Model* modelMasterSwitch;
 extern Model* modelSmartCanvas;
 extern Model* modelPolyCC;
+extern Model* modelSampleRateDivider;
