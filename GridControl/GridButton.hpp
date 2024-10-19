@@ -25,3 +25,56 @@ struct GridButton
         return std::make_pair(ToX(index), ToY(index));
     }
 };
+
+struct ColorRemember
+{
+    struct Color
+    {
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+        uint8_t empty;
+
+        Color(uint8_t r, uint8_t g, uint8_t b)
+            : r(r), g(g), b(b), empty(0)
+        {
+        }
+
+        Color()
+            : r(0), g(0), b(0), empty(1)
+        {
+        }
+
+        bool operator==(const Color& other) const
+        {
+            return r == other.r && g == other.g && b == other.b && empty == other.empty;
+        }
+    };
+
+    Color m_colors[GridButton::x_gridX][GridButton::x_gridY];
+
+    void Clear()
+    {
+        for (size_t x = 0; x < GridButton::x_gridX; ++x)
+        {
+            for (size_t y = 0; y < GridButton::x_gridY; ++y)
+            {
+                m_colors[x][y] = Color();
+            }
+        }
+    }
+
+    bool Remember(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b)
+    {
+        Color color(r, g, b);
+
+        if (m_colors[x][y] == color)
+        {
+            return false;
+        }
+
+        m_colors[x][y] = color;
+
+        return true;
+    }
+};

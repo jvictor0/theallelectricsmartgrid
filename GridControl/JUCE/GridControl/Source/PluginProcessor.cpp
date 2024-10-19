@@ -163,6 +163,7 @@ void GridControlAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     }
     
     buffer.clear();
+    m_midiWriter.Clear();
  
     juce::MidiBuffer processedMidi;
 
@@ -170,12 +171,28 @@ void GridControlAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     m_protocol.GetEvents(events);
     for (const Event &event : events)
     {
-        if (event.m_type == Event::Type::GridTouch)
+        m_midiWriter.Write(event);
+    }
+
+    m_midiWriter.Close();
+    
+    for (auto buf : m_midiWriter)
+    {
+        juce::MidiMessage message(buf.data(), buf.size());
+        processedMidi.addEvent(message, 0);
+    }
+
+    for (const juce::MidiMessageMetadata metadata : midiMessages)
+    {
+        MidiReader reader(metadata.getMessage().getRawData(), metadata.getMessage().getRawDataSize());
+        Event event;
+        while (reader.GetNextEvent(event))
         {
-            auto message = juce::MidiMessage::noteOn(1, 64, event.GetVelocity());
-            processedMidi.addEvent(message, 0);
+            m_protocol.AddEvent(event);
         }
     }
+
+    m_protocol.SendEvents();
 
     midiMessages.swapWith(processedMidi);
 }

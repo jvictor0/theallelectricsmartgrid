@@ -55,6 +55,8 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     Protocol m_protocol;
+    MidiWriter m_midiWriter;
+    
 private:
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GridControlAudioProcessor)

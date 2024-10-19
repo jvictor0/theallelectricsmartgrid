@@ -8,9 +8,9 @@ struct Event
 {
     enum class Type : uint8_t
     {
-        None,
-        GridTouch,
-        GridColor,
+        GridTouch = 0,
+        GridColor = 1,
+        NumTypes = 2
     };
 
     Type m_type;
@@ -18,7 +18,7 @@ struct Event
     uint8_t m_value[4];
 
     Event()
-        : m_type(Type::None),
+        : m_type(Type::NumTypes),
           m_index(0)
     {
     }
@@ -31,7 +31,7 @@ struct Event
             return 1;
         case Type::GridColor:
             return 3;
-        case Type::None:
+        case Type::NumTypes:
         default:
             throw std::runtime_error("Invalid event type");
         }
@@ -82,5 +82,15 @@ struct Event
         socket->Read(reinterpret_cast<char*>(&event.m_index), sizeof(event.m_index), true);
         socket->Read(reinterpret_cast<char*>(&event.m_value), sizeof(uint8_t) * NumValues(type), true);
         return event;
+    }
+
+    bool RememberColor(ColorRemember& cr) const
+    {
+        if (m_type != Type::GridColor)
+        {
+            return true;
+        }
+
+        return cr.Remember(GetX(), GetY(), m_value[0], m_value[1], m_value[2]);
     }
 };
