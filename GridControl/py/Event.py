@@ -1,7 +1,7 @@
 import struct
 
-EVENT_GRID_TOUCH = 1
-EVENT_GRID_COLOR = 2
+EVENT_GRID_TOUCH = 0
+EVENT_GRID_COLOR = 1
 
 def IndexToPos(index):
     return (index % 20, index // 20)
@@ -73,6 +73,7 @@ def GetEvents(socket):
     for i in range(num_events):
         offset = i * (1 + Event.NumValues(typ))
         events.append(Event.Deserialize(buffer, offset, typ))
+        print(events[-1])
 
     return events
 

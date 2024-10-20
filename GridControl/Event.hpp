@@ -23,6 +23,48 @@ struct Event
     {
     }
 
+    bool operator==(const Event& other) const
+    {
+        if (m_type != other.m_type)
+        {
+            return false;
+        }
+
+        if (m_index != other.m_index)
+        {
+            return false;
+        }
+
+        for (size_t i = 0; i < NumValues(m_type); ++i)
+        {
+            if (m_value[i] != other.m_value[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool operator!=(const Event& other) const
+    {
+        return !(*this == other);
+    }
+
+    std::string ToString() const
+    {
+        switch (m_type)
+        {
+        case Type::GridTouch:
+            return "GridTouch(" + std::to_string(GetX()) + ", " + std::to_string(GetY()) + ", " + std::to_string(GetVelocity()) + ")";
+        case Type::GridColor:
+            return "GridColor(" + std::to_string(GetX()) + ", " + std::to_string(GetY()) + ", " + std::to_string(m_value[0]) + ", " + std::to_string(m_value[1]) + ", " + std::to_string(m_value[2]) + ")";
+        case Type::NumTypes:
+        default:
+            return "Invalid";
+        }
+    }
+
     static size_t NumValues(Type type)
     {
         switch (type)

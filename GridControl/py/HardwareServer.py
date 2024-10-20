@@ -14,7 +14,9 @@ def PressCallback(x, y, edge):
         velocity = 0
         
     for client_socket in g_client_sockets:
-        Event.SendEvents(client_socket, [Event.Event(Event.EVENT_GRID_TOUCH, Event.PosToIndex((x, y)), [velocity])]) 
+        Event.SendEvents(client_socket, [Event.Event(Event.EVENT_GRID_TOUCH, Event.PosToIndex((x, y)), [velocity])])
+
+        print("semding press %d %d"%(x,y))
 
 if __name__ == "__main__":
     Grid.InitGrid(PressCallback)
@@ -36,6 +38,7 @@ if __name__ == "__main__":
                 for event in events:
                     pos = event.GetPos()
                     Grid.GridColor(pos[0], pos[1], event.GetColor())
+                    print("received grid color")
 
                 if len(events) > 0:
                     Grid.ShowGrid()

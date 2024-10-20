@@ -18,9 +18,11 @@ int main()
             event.SetGridIndex(i, j);
             event.SetGridColor(255 * static_cast<double>(i) / 9, 255 * static_cast<double>(9 - i) / 9, 255 * static_cast<double>(j) / 8);
             protocol.AddEvent(event);
+            TestMidiRoundTrip(event);
             event.SetGridIndex(i + 10, j);
             event.SetGridColor(255 * static_cast<double>(9 - i) / 9, 255 * static_cast<double>(j) / 8, 255 * static_cast<double>(i) / 9);
             protocol.AddEvent(event);
+            TestMidiRoundTrip(event);
         }
     }
 
@@ -32,6 +34,7 @@ int main()
         protocol.GetEvents(events);
         for (const Event &event : events)
         {
+            TestMidiRoundTrip(event);
             if (event.m_type == Event::Type::GridTouch && event.GetVelocity() > 0)
             {
                 int i = event.GetX();
@@ -57,6 +60,7 @@ int main()
                 }
 
                 protocol.AddEvent(responseEvent);
+                TestMidiRoundTrip(responseEvent);
             }
         }
 

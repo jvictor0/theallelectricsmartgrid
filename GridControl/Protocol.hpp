@@ -3,6 +3,7 @@
 #include "Event.hpp"
 #include <vector>
 #include <cstdint>
+#include <cassert>
 
 struct Protocol
 {
@@ -229,6 +230,8 @@ struct MidiReader
     MidiReader(const uint8_t* data, size_t size)
         : m_data(data)
         , m_size(size)
+        , m_events(0)
+        , m_type(Event::Type::NumTypes)
     {
         if (m_size < 5)
         {
@@ -238,8 +241,8 @@ struct MidiReader
 
         m_events = m_data[4];
         m_type = static_cast<Event::Type>(m_data[3]);
-        data += 5;
-        size -= 5;
+        m_data += 5;
+        m_size -= 5;
     }
 
     bool GetNextEvent(Event& event)
@@ -277,3 +280,27 @@ struct MidiReader
         return true;
     }
 };
+
+inline void TestMidiRoundTrip(Event event)
+{
+    MidiWriter writer;
+    writer.Write(event);
+    writer.Close();
+
+    bool success = false;
+    for (std::vector<uint8_t>& buffer : writer)
+    {
+        assert(!success);
+        MidiReader reader(buffer.data(), buffer.size());
+        Event readEvent;
+        success = reader.GetNextEvent(readEvent);
+        assert(success);
+        if (event != readEvent)
+        {
+            printf("Event mismatch %s vs %s\n", event.ToString().c_str(), readEvent.ToString().c_str());
+            assert(false);
+        }
+    }
+
+    assert(success);
+}
