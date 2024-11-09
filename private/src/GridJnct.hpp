@@ -5,10 +5,6 @@
 #include "StateSaver.hpp"
 #include "ColorHelper.hpp"
 
-#ifdef CARDINAL
-#include "CardinalMidiInterchange.hpp"
-#endif
-
 namespace SmartGrid
 {
 
@@ -823,7 +819,7 @@ struct GridJnctWidget : ModuleWidget
 typedef GridJnct<ControllerShape::LaunchPadProMk3> GridJnctLPP3;
 typedef GridJnctWidget<ControllerShape::LaunchPadProMk3> GridJnctLPP3Widget;
 
-#ifndef CARDINAL
+#ifndef SMART_BOX
 #include "MidiWidget.hpp"
 
 
@@ -891,8 +887,6 @@ struct MidiDeviceRemember
     }            
 };
 
-#endif 
-
 struct GridCnct : public Module
 {
     MidiInterchangeSingle m_midi;
@@ -901,15 +895,11 @@ struct GridCnct : public Module
     StateSaver m_stateSaver;
     
     GridCnct()
-#ifndef CARDINAL
         : m_midi(false)
-#endif
     {
         m_gridId = x_numGridIds;
         config(0, 1, 0, 0);
-#ifndef CARDINAL
         m_stateSaver.Insert("Shape", &m_midi.m_shape);
-#endif
     }
 
     void process(const ProcessArgs& args) override
@@ -931,18 +921,14 @@ struct GridCnct : public Module
 
         if (gridId != m_gridId)
         {
-#ifndef CARDINAL
             m_midi.ClearLastSent();
-#endif
             m_gridId = gridId;
         }
 
-#ifndef CARDINAL
         if (m_gridId == x_numGridIds)
         {
             m_midi.Drain(args.frame);
         }
-#endif
 
         if (m_gridId != x_numGridIds)
         {
@@ -954,19 +940,16 @@ struct GridCnct : public Module
     json_t* dataToJson() override
     {
 		json_t* rootJ = json_object();
-#ifndef CARDINAL
 
 		json_object_set_new(rootJ, "midiIn", m_midi.m_input.toJson());
 		json_object_set_new(rootJ, "midiOut", m_midi.m_output.toJson());
         
         json_object_set_new(rootJ, "state", m_stateSaver.ToJSON());
-#endif
 		return rootJ;
 	}
 
 	void dataFromJson(json_t* rootJ) override
     {
-#ifndef CARDINAL
         json_t* midiJ = json_object_get(rootJ, "midiIn");
 		if (midiJ)
         {
@@ -984,7 +967,6 @@ struct GridCnct : public Module
         {
             m_stateSaver.SetFromJSON(midiJ);
         }
-#endif
 	}
 };
 
@@ -1000,7 +982,6 @@ struct GridCnctWidget : public ModuleWidget
 		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-#ifndef CARDINAL
         MidiWidget* midiInputWidget = createWidget<MidiWidget>(Vec(10.0f, 36.4f));
 		midiInputWidget->box.size = Vec(130.0f, 44.6f);
 		midiInputWidget->SetMidiPort(module ? &module->m_midi.m_input : NULL, false);
@@ -1015,10 +996,11 @@ struct GridCnctWidget : public ModuleWidget
         shapeWidget->box.size = Vec(130.0f, 22.3f);
         shapeWidget->SetShape(module ? &module->m_midi.m_shape : nullptr);
         addChild(shapeWidget);
-#endif
 
         addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(50, 50)), module, 0));
     }
 };
+
+#endif
 
 }

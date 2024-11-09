@@ -1,4 +1,4 @@
-
+import socket
 
 class Socket:
     def __init__(self, fd = None):
@@ -6,6 +6,7 @@ class Socket:
         self.buffer = bytearray(4096)
         self.buffer_head = 0
         self.buffer_tail = 0
+        self.SetNonBlocking()
 
     def SetNonBlocking(self):
         self.fd.setblocking(False)
@@ -37,5 +38,29 @@ class Socket:
             except BlockingIOError:
                 pass
 
+    def HasData(self):
+        return self.buffer_head != self.buffer_tail
+            
     def Write(self, buffer):
         self.fd.sendall(buffer)
+
+    def Close(self):
+        self.fd.close()
+
+    def IsStillConnected(self):
+        try:
+            data = self.fd.recv(1, socket.MSG_PEEK)
+            if len(data) == 0:
+                return False
+
+            return True
+        except BlockingIOError:
+            return True
+        except ConnectionResetError:
+            return False
+        except Exception as e:
+            print("IsStillConnected: %s" % e)
+            return False
+        
+    def __del__(self):
+        self.Close()

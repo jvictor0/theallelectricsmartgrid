@@ -17,10 +17,10 @@ struct Socket
 {
     static constexpr size_t x_bufferSize = 4096;
     int m_fd;
-    char m_buffer[x_bufferSize];
+    uint8_t m_buffer[x_bufferSize];
     size_t m_bufferHead;
     size_t m_bufferTail;
-    std::vector<char> m_writeBuffer;
+    std::vector<uint8_t> m_writeBuffer;
 
     Socket()
         : m_fd(-1)
@@ -121,7 +121,7 @@ struct Socket
         return x_bufferSize - m_bufferTail;
     }
 
-    size_t Read(char* buffer, size_t size, bool block)
+    size_t Read(uint8_t* buffer, size_t size, bool block)
     {
         bool did = false;
         size_t totalBytesRead = 0;
@@ -193,7 +193,7 @@ struct Socket
         }
     }
 
-    void Write(const char* buffer, size_t size)
+    void Write(const uint8_t* buffer, size_t size)
     {
         m_writeBuffer.insert(m_writeBuffer.end(), buffer, buffer + size);
     }

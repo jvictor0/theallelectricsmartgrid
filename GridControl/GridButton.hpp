@@ -24,6 +24,11 @@ struct GridButton
     {
         return std::make_pair(ToX(index), ToY(index));
     }
+
+    static bool InRange(int x, int y)
+    {
+        return x >= 0 && x < x_gridX && y >= 0 && y < x_gridY;
+    }
 };
 
 struct ColorRemember

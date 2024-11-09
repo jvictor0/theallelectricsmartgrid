@@ -113,16 +113,16 @@ struct Event
 
     void Serialize(Socket* socket) const
     {
-        socket->Write(reinterpret_cast<const char*>(&m_index), sizeof(m_index));
-        socket->Write(reinterpret_cast<const char*>(&m_value), sizeof(uint8_t) * NumValues(m_type));
+        socket->Write(reinterpret_cast<const uint8_t*>(&m_index), sizeof(m_index));
+        socket->Write(reinterpret_cast<const uint8_t*>(&m_value), sizeof(uint8_t) * NumValues(m_type));
     }
 
     static Event Deserialize(Socket* socket, Type type)
     {
         Event event;
         event.m_type = type;
-        socket->Read(reinterpret_cast<char*>(&event.m_index), sizeof(event.m_index), true);
-        socket->Read(reinterpret_cast<char*>(&event.m_value), sizeof(uint8_t) * NumValues(type), true);
+        socket->Read(reinterpret_cast<uint8_t*>(&event.m_index), sizeof(event.m_index), true);
+        socket->Read(reinterpret_cast<uint8_t*>(&event.m_value), sizeof(uint8_t) * NumValues(type), true);
         return event;
     }
 

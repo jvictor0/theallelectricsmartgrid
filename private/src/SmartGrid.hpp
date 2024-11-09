@@ -1626,7 +1626,7 @@ struct LPRGBSysEx
     }
 };
 
-#ifndef CARDINAL
+#ifndef SMART_BOX
 struct MidiInterchangeSingle
 {    
     midi::InputQueue m_input;

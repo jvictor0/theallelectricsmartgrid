@@ -41,6 +41,12 @@ class Event:
     def GetPos(self):
         return IndexToPos(self.index)
 
+    def GetX(self):
+        return self.GetPos()[0]
+
+    def GetY(self):
+        return self.GetPos()[1]
+    
     def SetPos(self, pos):
         self.index = PosToIndex(pos)
 
@@ -73,7 +79,6 @@ def GetEvents(socket):
     for i in range(num_events):
         offset = i * (1 + Event.NumValues(typ))
         events.append(Event.Deserialize(buffer, offset, typ))
-        print(events[-1])
 
     return events
 

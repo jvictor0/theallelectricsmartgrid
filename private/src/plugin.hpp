@@ -13,6 +13,7 @@ extern Model* modelTheNonagon;
 extern Model* modelGridJnctLPP3;
 extern Model* modelPhasorEnvelope;
 extern Model* modelGridCnct;
+extern Model* modelSmartBoxCnct;
 extern Model* modelFaderBank;
 extern Model* modelMxDJ;
 extern Model* modelColorHelper;

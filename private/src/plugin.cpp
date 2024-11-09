@@ -4,10 +4,12 @@
 #include "GridJnct.hpp"
 #include "FaderBank.hpp"
 
-#ifndef CARDINAL
+#ifndef SMART_BOX
 #include "MxDJ.hpp"
 #include "PolyCC.hpp"
 #include "TheNonagon.hpp"
+#else
+#include "SmartBox.hpp"
 #endif
 
 #include "SampleRateDivider.hpp"
@@ -25,12 +27,16 @@ Model* modelColorHelper = createModel<SmartGrid::ColorHelper, SmartGrid::ColorHe
 Model* modelButtonBank = createModel<SmartGrid::ButtonBank, SmartGrid::ButtonBankWidget>("ButtonBank");
 Model* modelMasterSwitch = createModel<MasterSwitch, MasterSwitchWidget>("MasterSwitch");
 Model* modelSmartCanvas = createModel<SmartGrid::SmartCanvas, SmartGrid::SmartCanvasWidget>("SmartCanvas");
-Model* modelGridCnct = createModel<SmartGrid::GridCnct, SmartGrid::GridCnctWidget>("GridCnct");
 
-#ifndef CARDINAL
+#ifdef SMART_BOX
+Model* modelSmartBoxCnct = createModel<SmartGrid::SmartBoxCnct, SmartGrid::SmartBoxCnctWidget>("SmartBoxCnct");
+#endif
+
+#ifndef SMART_BOX
 Model* modelTheNonagon = createModel<TheNonagon, TheNonagonWidget>("TheNonagon");
 Model* modelMxDJ = createModel<MxDJ, MxDJWidget>("MxDJ");
 Model* modelPolyCC = createModel<PolyCC, PolyCCWidget>("PolyCC");
+Model* modelGridCnct = createModel<SmartGrid::GridCnct, SmartGrid::GridCnctWidget>("GridCnct");
 
 Plugin* pluginInstance;
 

@@ -4,6 +4,7 @@ int main()
 {
     Protocol protocol;
     protocol.Connect("127.0.0.1", 7040);
+    protocol.Handshake(1);
 
     bool on[20][8];
 
