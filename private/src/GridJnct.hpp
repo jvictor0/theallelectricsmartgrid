@@ -30,6 +30,7 @@ struct MenuButtonRow
             case RowPos::Bottom: return "Bottom";
             case RowPos::SubBottom: return "SubBottom";
             case RowPos::Unused: return "";
+            default: return "";
         }
     }
 
@@ -37,26 +38,26 @@ struct MenuButtonRow
     int m_start;
     int m_end;
 
-    std::shared_ptr<Cell> m_cells[x_gridSize];
-    bool m_isMenuButton[x_gridSize];
+    std::shared_ptr<Cell> m_cells[x_baseGridSize];
+    bool m_isMenuButton[x_baseGridSize];
 
     MenuButtonRow()
         : m_pos(RowPos::Unused)
-        , m_start(x_gridSize)
-        , m_end(x_gridSize)
+        , m_start(x_baseGridSize)
+        , m_end(x_baseGridSize)
     {
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             m_isMenuButton[i] = false;
         }
     }    
     
-    MenuButtonRow(RowPos pos, int start=0, int end=x_gridSize)
+    MenuButtonRow(RowPos pos, int start=0, int end=x_baseGridSize)
         : m_pos(pos)
         , m_start(start)
         , m_end(end)
     {
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             m_isMenuButton[i] = false;
         }
@@ -74,13 +75,14 @@ struct MenuButtonRow
             }
             case RowPos::Right:
             {
-                return x_gridSize;
+                return x_baseGridSize;
             }
             case RowPos::Left:
             case RowPos::Unused:
             {
                 return x_gridXMin;
             }
+            default: return 0;
         }
     }
 
@@ -106,28 +108,29 @@ struct MenuButtonRow
             {
                 return ix;
             }
+            default: return 0;
         }
     }
 
     static RowPos GetPos(int i, int j)
     {
-        if (j == x_gridYMin && 0 <= i && i < x_gridSize)
+        if (j == x_gridYMin && 0 <= i && i < x_baseGridSize)
         {
             return RowPos::Top;
         }
-        else if (j == x_gridYMax - 2 && 0 <= i && i < x_gridSize)
+        else if (j == x_gridYMax - 2 && 0 <= i && i < x_baseGridSize)
         {
             return RowPos::Bottom;
         }
-        else if (j == x_gridYMax - 1 && 0 <= i && i < x_gridSize)
+        else if (j == x_gridYMax - 1 && 0 <= i && i < x_baseGridSize)
         {
             return RowPos::SubBottom;
         }
-        else if (i == x_gridSize && 0 <= j && j < x_gridSize)
+        else if (i == x_baseGridSize && 0 <= j && j < x_baseGridSize)
         {
             return RowPos::Right;
         }
-        else if (i == x_gridXMin && 0 <= j && j < x_gridSize)
+        else if (i == x_gridXMin && 0 <= j && j < x_baseGridSize)
         {
             return RowPos::Left;
         }
@@ -155,13 +158,14 @@ struct MenuButtonRow
             }
             case RowPos::Right:
             {
-                return i == x_gridSize && m_start <= j && j < m_end;
+                return i == x_baseGridSize && m_start <= j && j < m_end;
             }        
             case RowPos::Left:
             {
                 return i == x_gridXMin && m_start <= j && j < m_end;
             }
             case RowPos::Unused:
+            default:
             {
                 return false;
             }
@@ -189,6 +193,7 @@ struct MenuButtonRow
                 return j;
             }
             case RowPos::Unused:
+            default:
             {
                 return -1;
             }
@@ -283,7 +288,7 @@ struct MenuGrid : public AbstractGrid
 {
     static constexpr size_t x_numMenuRows = 5;
     MenuButtonRow m_menuButtonRows[x_numMenuRows];
-    static constexpr size_t x_invalidAbsPos = x_numMenuRows * x_gridSize;
+    static constexpr size_t x_invalidAbsPos = x_numMenuRows * x_baseGridSize;
 
     virtual ~MenuGrid()
     {
@@ -297,12 +302,12 @@ struct MenuGrid : public AbstractGrid
 
     size_t AbsPos(MenuButtonRow::RowPos pos, size_t ix)
     {
-        return static_cast<size_t>(pos) * x_gridSize + ix;
+        return static_cast<size_t>(pos) * x_baseGridSize + ix;
     }
 
     std::pair<MenuButtonRow::RowPos, size_t> PairPos(size_t absPos)
     {
-        return std::make_pair(static_cast<MenuButtonRow::RowPos>(absPos / x_gridSize), absPos % x_gridSize);
+        return std::make_pair(static_cast<MenuButtonRow::RowPos>(absPos / x_baseGridSize), absPos % x_baseGridSize);
     }
     
     struct MenuButton : public Cell
@@ -517,7 +522,7 @@ struct MenuGrid : public AbstractGrid
         m_selectedAbsPos = x_invalidAbsPos;
     }
 
-    void AddMenuRow(MenuButtonRow::RowPos pos, bool populate=true, int start=0, int end=x_gridSize)
+    void AddMenuRow(MenuButtonRow::RowPos pos, bool populate=true, int start=0, int end=x_baseGridSize)
     {        
         m_menuButtonRows[static_cast<size_t>(pos)] = MenuButtonRow(pos, start, end);
         if (populate)
@@ -563,7 +568,7 @@ struct MenuGrid : public AbstractGrid
 
     struct Input
     {
-        MenuButton::Input m_inputs[x_numMenuRows][x_gridSize];
+        MenuButton::Input m_inputs[x_numMenuRows][x_baseGridSize];
     };    
 
     void ProcessInput(Input& input)
@@ -623,7 +628,7 @@ struct GridJnct : Module
 
     static constexpr size_t GetNumIOIds()
     {
-        return GetNumButtonRows() * x_gridSize;
+        return GetNumButtonRows() * x_baseGridSize;
     }
 
     static constexpr size_t x_numParams = GetNumIOIds();
@@ -744,7 +749,7 @@ struct GridJnctWidget : ModuleWidget
         if (pos == MenuButtonRow::RowPos::Left ||
             pos == MenuButtonRow::RowPos::Right)
         {
-            y = x_yStart - x_sep * (x_gridSize - ix - 1) - 5 * x_sep;
+            y = x_yStart - x_sep * (x_baseGridSize - ix - 1) - 5 * x_sep;
             if (pos == MenuButtonRow::RowPos::Left)
             {
                 x = x_xStart;
@@ -755,7 +760,7 @@ struct GridJnctWidget : ModuleWidget
             }
             else
             {
-                x = x_xStart + x_gridSize * x_sep + 3 * x_sep;
+                x = x_xStart + x_baseGridSize * x_sep + 3 * x_sep;
                 if (!isIn)
                 {
                     x -= x_sep;
@@ -767,7 +772,7 @@ struct GridJnctWidget : ModuleWidget
             x = x_xStart + x_sep * ix + 2 * x_sep;
             if (pos == MenuButtonRow::RowPos::Top)
             {
-                y = x_yStart - x_sep * x_gridSize - 6 * x_sep;
+                y = x_yStart - x_sep * x_baseGridSize - 6 * x_sep;
                 if (!isIn)
                 {
                     y += x_sep;

@@ -509,7 +509,7 @@ struct TheNonagonSmartGrid
         {
             for (size_t i = 1; i < 1 + TheNonagonInternal::x_numTimeBits; ++i)
             {
-                size_t xPos = SmartGrid::x_gridSize - i - 2;
+                size_t xPos = SmartGrid::x_baseGridSize - i - 2;
                 if (i != 1)
                 {
                     for (size_t mult = 2; mult <= 5; ++mult)
@@ -560,7 +560,7 @@ struct TheNonagonSmartGrid
             
             AddGrid(7, 0, new SmartGrid::Fader(
                         &m_state->m_theoryOfTimeInput.m_freq,
-                        SmartGrid::x_gridSize,
+                        SmartGrid::x_baseGridSize,
                         SmartGrid::Color::White,
                         1.0/128 /*minHz*/,
                         8.0 /*maxHz*/,
@@ -637,7 +637,7 @@ struct TheNonagonSmartGrid
         {
             AddGrid(0, 0, new SmartGrid::Fader(
                         &m_state->m_theoryOfTimeInput.m_input.m_rand,
-                        SmartGrid::x_gridSize,
+                        SmartGrid::x_baseGridSize,
                         SmartGrid::Color::White,
                         0 /*min*/,
                         1.0 /*max*/,
@@ -645,9 +645,9 @@ struct TheNonagonSmartGrid
                         100  /*maxChangeSpeed*/,
                         true /*pressureSensitive*/,
                         SmartGrid::Fader::Structure::Linear));
-            AddGrid(SmartGrid::x_gridSize - 1, 0, new SmartGrid::Fader(
+            AddGrid(SmartGrid::x_baseGridSize - 1, 0, new SmartGrid::Fader(
                         &m_state->m_theoryOfTimeInput.m_input.m_globalHomotopy,
-                        SmartGrid::x_gridSize,
+                        SmartGrid::x_baseGridSize,
                         SmartGrid::Color::White,
                         0 /*min*/,
                         1.0 /*max*/,
@@ -664,7 +664,7 @@ struct TheNonagonSmartGrid
 
             for (size_t i = 1; i < 1 + TheNonagonInternal::x_numTimeBits; ++i)
             {
-                size_t xPos = SmartGrid::x_gridSize - i - 1;
+                size_t xPos = SmartGrid::x_baseGridSize - i - 1;
                 float* state;
                 if (m_swing)
                 {
@@ -679,7 +679,7 @@ struct TheNonagonSmartGrid
                 
                 AddGrid(xPos, 0, new SmartGrid::Fader(
                             state,
-                            SmartGrid::x_gridSize,
+                            SmartGrid::x_baseGridSize,
                             m_swing ? SmartGrid::Color::Orange : SmartGrid::Color::Yellow,
                             -1 /*min*/,
                             1 /*max*/,
@@ -803,7 +803,7 @@ struct TheNonagonSmartGrid
 
                 for (size_t j = 0; j < LameJuisInternal::x_numOperations; ++j)
                 {
-                    Put(i, SmartGrid::x_gridSize - j - 3, new SmartGrid::CycleCell<LameJuisInternal::MatrixSwitch, SmartGrid::BoolFlash>(
+                    Put(i, SmartGrid::x_baseGridSize - j - 3, new SmartGrid::CycleCell<LameJuisInternal::MatrixSwitch, SmartGrid::BoolFlash>(
                             dimColorScheme,
                             colorScheme,
                             &m_state->m_lameJuisInput.m_operationInput[j].m_elements[i],
@@ -812,8 +812,8 @@ struct TheNonagonSmartGrid
                         "LameJuisMatrixSwitch", i, j, &m_state->m_lameJuisInput.m_operationInput[j].m_elements[i]);
                 }
 
-                Put(6, SmartGrid::x_gridSize - i - 3, m_owner->OutBitCell(i));
-                Put(7, SmartGrid::x_gridSize - i - 3, m_owner->EquationOutputSwitch(i));
+                Put(6, SmartGrid::x_baseGridSize - i - 3, m_owner->OutBitCell(i));
+                Put(7, SmartGrid::x_baseGridSize - i - 3, m_owner->EquationOutputSwitch(i));
                 m_owner->m_stateSaver.Insert(
                     "LameJuisEquationOutputSwitch", i, &m_state->m_lameJuisInput.m_operationInput[i].m_switch);
             }
@@ -876,12 +876,12 @@ struct TheNonagonSmartGrid
             {
                 for (size_t j = 0; j < TheNonagonInternal::x_numTimeBits + 1; ++j)
                 {
-                    Put(j, SmartGrid::x_gridSize - i - 3, new Cell(i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_direct[j], m_nonagon));
+                    Put(j, SmartGrid::x_baseGridSize - i - 3, new Cell(i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_direct[j], m_nonagon));
                     m_owner->m_stateSaver.Insert(
                         "LameJuisLHS", i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_direct[j]);
                 }
 
-                Put(7, SmartGrid::x_gridSize - i - 3, m_owner->EquationOutputSwitch(i));                
+                Put(7, SmartGrid::x_baseGridSize - i - 3, m_owner->EquationOutputSwitch(i));                
             }
         }
     };
@@ -1027,11 +1027,11 @@ struct TheNonagonSmartGrid
 
         void InitGrid()
         {
-            for (size_t i = 0; i < SmartGrid::x_gridSize; ++i)
+            for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
-                for (size_t j = 0; j < SmartGrid::x_gridSize; ++j)
+                for (size_t j = 0; j < SmartGrid::x_baseGridSize; ++j)
                 {
-                    size_t ix = i * SmartGrid::x_gridSize + j;
+                    size_t ix = i * SmartGrid::x_baseGridSize + j;
                     Put(i, j, new LameJuisSeqPaletteCell(
                             m_trio,
                             &m_nonagon->m_lameJuis,
@@ -1173,7 +1173,7 @@ struct TheNonagonSmartGrid
                 m_owner->m_stateSaver.Insert(
                     "IndexArpMotiveInterval", voice, &m_state->m_arpInput.m_input[voice].m_motiveInterval);
                 
-                for (size_t j = 0; j < SmartGrid::x_gridSize; ++j)
+                for (size_t j = 0; j < SmartGrid::x_baseGridSize; ++j)
                 {
                     Put(j, yPos + 3, new RhythmCell(
                             &m_state->m_arpInput.m_input[voice],

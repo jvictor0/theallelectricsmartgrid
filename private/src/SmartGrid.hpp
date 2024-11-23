@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <vector>
 #include <atomic>
+#include "DebugLog.hpp"
 
 namespace SmartGrid
 {
@@ -538,12 +539,24 @@ struct BinaryCell : Cell
     }
 };
 
-static constexpr int x_gridSize = 8;
+static constexpr int x_baseGridSize = 8;
+
+#ifndef SMART_BOX
 static constexpr int x_gridXMin = -1;
 static constexpr int x_gridXMax = 9;
-static constexpr int x_gridYMin = -1;
-static constexpr int x_gridYMax = 10;
-static constexpr size_t x_gridMaxSize = 11;
+static constexpr int x_gridYMin = -2;
+static constexpr int x_gridYMax = 9;
+static constexpr int x_gridMaxSize = 11;
+#else
+static constexpr int x_gridXMin = 0;
+static constexpr int x_gridXMax = 20;
+static constexpr int x_gridYMin = 0;
+static constexpr int x_gridYMax = 8;
+static constexpr int x_gridMaxSize = 20;
+#endif
+
+static constexpr int x_gridXSize = x_gridXMax - x_gridXMin;
+static constexpr int x_gridYSize = x_gridYMax - x_gridYMin;
 
 enum class ControllerShape : int
 {
@@ -655,7 +668,7 @@ struct Message
     
     static uint8_t LPPosToNote(int x, int y)
     {
-        y = x_gridSize - y - 1;
+        y = x_baseGridSize - y - 1;
         
         // Remap y to match the bottom two button rows of LPProMk3
         //
@@ -697,7 +710,7 @@ struct Message
             y += 1;
         }                
         
-        return std::make_pair(x, x_gridSize - y - 1);
+        return std::make_pair(x, x_baseGridSize - y - 1);
     }
     
     static Message FromLPMidi(const midi::Message& msg)
@@ -902,22 +915,22 @@ struct Grid : public AbstractGrid
     
     std::shared_ptr<Cell>& GetShared(size_t i, size_t j)
     {
-        return m_grid[i + 1][j + 2];
+        return m_grid[i - x_gridXMin][j - x_gridYMin];
     }
 
     Cell* Get(size_t i, size_t j)
     {
-        return m_grid[i + 1][j + 2].get();        
+        return m_grid[i - x_gridXMin][j - x_gridYMin].get();        
     }       
 
     void Put(int i, int j, Cell* cell)
     {
-        m_grid[i + 1][j + 2].reset(cell);
+        m_grid[i - x_gridXMin][j - x_gridYMin].reset(cell);
     }
 
     void Put(int i, int j, std::shared_ptr<Cell> cell)
     {
-        m_grid[i + 1][j + 2] = cell;
+        m_grid[i - x_gridXMin][j - x_gridYMin] = cell;
     }
 
     virtual Color GetColor(int i, int j) override

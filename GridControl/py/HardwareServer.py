@@ -19,5 +19,5 @@ def StartServices():
 if __name__ == "__main__":
     Grid.InitGrid()
     mgr = Client.ClientManager()
-    StartServices()
+#    StartServices()
     mgr.DoLoop()

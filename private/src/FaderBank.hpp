@@ -17,7 +17,7 @@ struct FaderBankSmartGrid : public CompositeGrid
         BankedFader()
             : Fader(
                 &m_state,
-                x_gridSize,
+                x_baseGridSize,
                 Color::White,
                 0 /*minValue*/,
                 10 /*maxValue*/)
@@ -52,7 +52,7 @@ struct FaderBankSmartGrid : public CompositeGrid
     FaderBankSmartGrid(StateSaver& saver)
         : CompositeGrid()
     {
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             m_faders[i].reset(new BankedFader());
             AddGrid(i, 0, m_faders[i]);
@@ -63,7 +63,7 @@ struct FaderBankSmartGrid : public CompositeGrid
     virtual void Apply(Message msg) override
     {
         if (msg.m_x >= 0 &&
-            msg.m_x < x_gridSize &&
+            msg.m_x < x_baseGridSize &&
             m_faders[msg.m_x]->m_outputConnected)
         {
             CompositeGrid::Apply(msg);
@@ -72,7 +72,7 @@ struct FaderBankSmartGrid : public CompositeGrid
     
     virtual Color GetColor(int i, int j) override
     {
-        if (i >= 0 && i < x_gridSize && m_faders[i]->m_outputConnected)
+        if (i >= 0 && i < x_baseGridSize && m_faders[i]->m_outputConnected)
         {
             return CompositeGrid::GetColor(i, j);
         }
@@ -81,16 +81,16 @@ struct FaderBankSmartGrid : public CompositeGrid
     }
 
     
-    std::shared_ptr<BankedFader> m_faders[x_gridSize];
+    std::shared_ptr<BankedFader> m_faders[x_baseGridSize];
 
     struct Input
     {
-        BankedFader::Input m_inputs[x_gridSize];
+        BankedFader::Input m_inputs[x_baseGridSize];
     };
 
     void ProcessInput(Input& input)
     {
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             m_faders[i]->ProcessInput(input.m_inputs[i]);
         }
@@ -103,16 +103,16 @@ struct FaderBank : public Module
     FaderBankSmartGrid m_faderBank;
     FaderBankSmartGrid::Input m_state;
 
-    static constexpr size_t x_colorIn = x_gridSize;
+    static constexpr size_t x_colorIn = x_baseGridSize;
 
-    static constexpr size_t x_gridIdOutId = x_gridSize;
+    static constexpr size_t x_gridIdOutId = x_baseGridSize;
     
     FaderBank()
         : m_faderBank(m_stateSaver)
     {
-        config(x_gridSize, 2 * x_gridSize, x_gridSize + 1, 0);
+        config(x_baseGridSize, 2 * x_baseGridSize, x_baseGridSize + 1, 0);
 
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             configInput(i, ("Fader " + std::to_string(i)).c_str());
             configOutput(i, ("Fader " + std::to_string(i)).c_str());
@@ -125,7 +125,7 @@ struct FaderBank : public Module
 
     void ReadState()
     {
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             m_state.m_inputs[i].m_outputConnected = outputs[i].isConnected();
             m_state.m_inputs[i].m_inputConnected = inputs[i].isConnected();
@@ -142,7 +142,7 @@ struct FaderBank : public Module
 
     void SetOutputs()
     {
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             outputs[i].setVoltage(m_faderBank.m_faders[i]->m_state);
         }
@@ -180,12 +180,12 @@ struct FaderBankWidget : public ModuleWidget
 
         float rowStart = 50;
         
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             float rowPos = 100 + i * 30;
             addOutput(createOutputCentered<PJ301MPort>(Vec(rowStart, rowPos), module, i));
             addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 50, rowPos), module, i));
-            addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 75, rowPos), module, x_gridSize + i));
+            addInput(createInputCentered<PJ301MPort>(Vec(rowStart + 75, rowPos), module, x_baseGridSize + i));
             addParam(createParamCentered<Trimpot>(Vec(rowStart + 100, rowPos), module, i));
         }
     }

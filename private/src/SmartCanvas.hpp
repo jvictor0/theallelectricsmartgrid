@@ -8,6 +8,14 @@ namespace SmartGrid
 
 struct SmartCanvasInternal : public AbstractGrid
 {
+#ifndef SMART_BOX
+    static constexpr int x_gridXSize = 8;
+    static constexpr int x_gridYSize = 8;
+#else
+    static constexpr int x_gridXSize = 20;
+    static constexpr int x_gridYSize = 8;
+#endif
+    
     virtual ~SmartCanvasInternal()
     {
     }
@@ -32,8 +40,8 @@ struct SmartCanvasInternal : public AbstractGrid
             , m_srcY(0)
             , m_trgX(0)
             , m_trgY(0)
-            , m_lenX(x_gridSize)
-            , m_lenY(x_gridSize)
+            , m_lenX(x_gridXSize)
+            , m_lenY(x_gridYSize)
             , m_flipX(false)
             , m_flipY(false)
             , m_rotate(0)
@@ -44,19 +52,19 @@ struct SmartCanvasInternal : public AbstractGrid
         {
             if (m_flipX)
             {
-                x = x_gridSize - x - 1;
+                x = x_gridXSize - x - 1;
             }
 
             if (m_flipY)
             {
-                y = x_gridSize - y - 1;
+                y = x_gridYSize - y - 1;
             }
 
             int rotate = m_rotate;
             while (rotate > 0)
             {
                 int xp = y;
-                int yp = x_gridSize - x - 1;
+                int yp = x_gridYSize - x - 1;
                 x = xp;
                 y = yp;
                 --rotate;
@@ -69,7 +77,7 @@ struct SmartCanvasInternal : public AbstractGrid
         {
             x = x - m_trgX + m_srcX;
             y = y - m_trgY + m_srcY;
-            if (x < 0 || x_gridSize <= x || y < 0 || x_gridSize <= y)
+            if (x < 0 || x_gridXSize <= x || y < 0 || x_gridYSize <= y)
             {
                 *outOfBounds = true;
                 return std::pair<int, int>(0, 0);
@@ -88,8 +96,8 @@ struct SmartCanvasInternal : public AbstractGrid
         {
             return m_trgX <= x && x < m_trgX + m_lenX &&
                    m_trgY <= y && y < m_trgY + m_lenY &&
-                   0 <= x && x < x_gridSize &&
-                   0 <= y && y < x_gridSize;
+                   0 <= x && x < x_gridXSize &&
+                   0 <= y && y < x_gridYSize;
         }
         
         struct Input
@@ -112,8 +120,8 @@ struct SmartCanvasInternal : public AbstractGrid
                 , m_srcY(0)
                 , m_trgX(0)
                 , m_trgY(0)
-                , m_lenX(x_gridSize)
-                , m_lenY(x_gridSize)
+                , m_lenX(x_gridXSize)
+                , m_lenY(x_gridYSize)
                 , m_flipX(false)
                 , m_flipY(false)
                 , m_rotate(0)
@@ -241,9 +249,10 @@ struct SmartCanvas : Module
             {
                 std::string xy = j == 0 ? "X" : "Y";
                 size_t offset = 2 * i + j;
-                configSwitch(x_srcXYParam + offset, 0, 7, 0, "Source " + xy + " Pos Element " + std::to_string(i));
-                configSwitch(x_trgXYParam + offset, 0, 7, 0, "Target " + xy + " Pos Element " + std::to_string(i));
-                configSwitch(x_lenXYParam + offset, 1, 8, 8, (j == 0 ? "Width Element " : "Height Element ") + std::to_string(i));
+                size_t size = j == 0 ? SmartCanvasInternal::x_gridXSize : SmartCanvasInternal::x_gridYSize;
+                configSwitch(x_srcXYParam + offset, 0, size - 1, 0, "Source " + xy + " Pos Element " + std::to_string(i));
+                configSwitch(x_trgXYParam + offset, 0, size - 1, 0, "Target " + xy + " Pos Element " + std::to_string(i));
+                configSwitch(x_lenXYParam + offset, 0, size, size, (j == 0 ? "Width Element " : "Height Element ") + std::to_string(i));
                 configSwitch(x_flipXYParam + offset, 0, 1, 0, "Flip " + xy + " Element " + std::to_string(i));
 
                 configInput(x_srcXYIn + offset, xy + " CV Element " + std::to_string(i));

@@ -15,12 +15,12 @@ struct SmartBusGeneric
     
     void Put(int i, int j, BusInput payload)
     {
-        Store(i + 1, j + 2, payload);
+        Store(i - x_gridXMin, j - x_gridYMin, payload);
     }
 
     BusInput Get(int i, int j)
     {
-        return Load(i + 1, j + 2);
+        return Load(i - x_gridXMin, j - x_gridYMin);
     }
 
     void Store(size_t i, size_t j, BusInput payload)

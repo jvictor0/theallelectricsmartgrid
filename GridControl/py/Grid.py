@@ -1,5 +1,6 @@
 import time
 import board
+import datetime
 from adafruit_neotrellis.neotrellis import NeoTrellis
 from adafruit_neotrellis.multitrellis import MultiTrellis
 import GridId
@@ -15,6 +16,9 @@ trellis.brightness = 1.0
 
 grid_events = []
 needs_show = False
+
+def FormatTimestamp():
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 
 def GridColor(x, y, color):
     global needs_show
@@ -32,7 +36,7 @@ def PressCallback(x, y, edge):
         velocity = 0
         
     grid_events.append(Event.Event(Event.EVENT_GRID_TOUCH, Event.PosToIndex((x, y)), [velocity]))
-    print("press %d %d %d" % (x, y, velocity))
+    print(FormatTimestamp(), "press %d %d %d" % (x, y, velocity))
     
 def InitGrid():
     print("InitGrid")

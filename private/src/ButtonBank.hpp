@@ -12,8 +12,15 @@ struct ButtonBankInternal : Grid
     Color m_offColor;
     Color m_onColor;
     bool m_momentary;
-    size_t m_width[x_gridSize];
+    size_t m_width[x_baseGridSize];
     VoiceAllocator<CellVoice> m_voiceAllocator;
+
+
+#ifndef SMART_BOX
+    static constexpr size_t x_maxWidth = x_baseGridSize;
+#else
+    static constexpr size_t x_maxWidth = 16;
+#endif
 
     struct BankedButton : public Cell
     {
@@ -120,12 +127,12 @@ struct ButtonBankInternal : Grid
         , m_onColor(Color::White)
         , m_momentary(false)
     {
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
-            m_width[i] = x_gridSize;
-            for (size_t j = 0; j < x_gridSize; ++j)
+            m_width[i] = x_maxWidth;
+            for (size_t j = 0; j < x_maxWidth; ++j)
             {
-                Put(i, j, new BankedButton(i, j, this));
+                Put(j, i, new BankedButton(j, i, this));
             }
         }
     }
@@ -135,8 +142,8 @@ struct ButtonBankInternal : Grid
         ColorDecode m_offColor;
         ColorDecode m_onColor;
         bool m_momentary;
-        size_t m_width[x_gridSize];
-        BankedButton::Input m_input[x_gridSize][x_gridSize];
+        size_t m_width[x_baseGridSize];
+        BankedButton::Input m_input[x_maxWidth][x_baseGridSize];
         size_t m_maxPolyphony;
 
         Input()
@@ -145,9 +152,9 @@ struct ButtonBankInternal : Grid
             , m_momentary(false)
             , m_maxPolyphony(0)
         {
-            for (size_t i = 0; i < x_gridSize; ++i)
+            for (size_t i = 0; i < x_baseGridSize; ++i)
             {
-                m_width[i] = x_gridSize;
+                m_width[i] = x_maxWidth;
             }
         }
     };
@@ -159,11 +166,11 @@ struct ButtonBankInternal : Grid
     
     void Clear()
     {
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_maxWidth; ++i)
         {
-            for (size_t j = 0; j < x_gridSize; ++j)
+            for (size_t j = 0; j < x_baseGridSize; ++j)
             {
-                static_cast<BankedButton*>(Get(j, i))->m_state = false;
+                static_cast<BankedButton*>(Get(i, j))->m_state = false;
             }
         }
     }
@@ -179,7 +186,7 @@ struct ButtonBankInternal : Grid
             Clear();
         }
         
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             m_width[i] = input.m_width[i];
             for (size_t j = 0; j < m_width[i]; ++j)
@@ -198,19 +205,19 @@ struct ButtonBank : Module
     static constexpr size_t x_onColorParam = x_momentaryParam + 1;
     static constexpr size_t x_offColorParam = x_onColorParam + 1;
     static constexpr size_t x_widthParam = x_offColorParam + 1;
-    static constexpr size_t x_polyphonyParam = x_widthParam + x_gridSize;
+    static constexpr size_t x_polyphonyParam = x_widthParam + x_baseGridSize;
     static constexpr size_t x_numParams = x_polyphonyParam + 1;
 
     static constexpr size_t x_momentaryIn = 0;
     static constexpr size_t x_onColorIn = x_momentaryIn + 1;
     static constexpr size_t x_offColorIn = x_onColorIn + 1;
     static constexpr size_t x_rowColorIn = x_offColorIn + 1;
-    static constexpr size_t x_numIns = x_rowColorIn + x_gridSize;
+    static constexpr size_t x_numIns = x_rowColorIn + x_baseGridSize;
 
     static constexpr size_t x_gridIdOut = 0;
     static constexpr size_t x_gateOut = x_gridIdOut + 1;
-    static constexpr size_t x_velocityOut = x_gateOut + x_gridSize;
-    static constexpr size_t x_polyXOut = x_velocityOut + x_gridSize;
+    static constexpr size_t x_velocityOut = x_gateOut + x_baseGridSize;
+    static constexpr size_t x_polyXOut = x_velocityOut + x_baseGridSize;
     static constexpr size_t x_polyYOut = x_polyXOut + 1;
     static constexpr size_t x_polyVelocityOut = x_polyYOut + 1;
     static constexpr size_t x_polyGateOut = x_polyVelocityOut + 1;
@@ -241,9 +248,9 @@ struct ButtonBank : Module
         configOutput(x_polyVelocityOut, "Poly Velocity");
         configOutput(x_polyGateOut, "Poly Gate");
 
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
-            configSwitch(x_widthParam + i, 0, 8, 8, "Row Width " + std::to_string(i));
+            configSwitch(x_widthParam + i, 0, 16, 16, "Row Width " + std::to_string(i));
             configInput(x_rowColorIn + i, "Poly Row Color " + std::to_string(i));
             configOutput(x_gateOut + i, "Poly Gates Row " + std::to_string(i));
             configOutput(x_velocityOut + i, "Poly Velocity Row " + std::to_string(i));
@@ -282,7 +289,7 @@ struct ButtonBank : Module
 
         size_t row = 0;
         size_t chan = 0;
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             m_state.m_width[i] = static_cast<size_t>(params[x_widthParam + i].getValue());
             if (inputs[x_rowColorIn + i].isConnected() || !m_overflowPorts)
@@ -313,7 +320,7 @@ struct ButtonBank : Module
     {
         size_t row = 0;
         size_t chan = 0;
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             if (outputs[x_gateOut + i].isConnected() || outputs[x_velocityOut + i].isConnected() || !m_overflowPorts)
             {
@@ -412,7 +419,7 @@ struct ButtonBankWidget : public ModuleWidget
         addOutput(createOutputCentered<ThemedPJ301MPort>(Vec(300, 275), module, module->x_polyVelocityOut));
         addOutput(createOutputCentered<ThemedPJ301MPort>(Vec(300, 300), module, module->x_polyGateOut));
         
-        for (size_t i = 0; i < x_gridSize; ++i)
+        for (size_t i = 0; i < x_baseGridSize; ++i)
         {
             float xPos = 100;
             float yPos = 100 + 25 * i;

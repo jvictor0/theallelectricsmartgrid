@@ -61,9 +61,9 @@ inline void AddSmartGridWidget(
     float yOff,
     size_t* gridId)
 {
-    for (size_t i = 0; i < x_gridSize; ++i)
+    for (size_t i = 0; i < x_baseGridSize; ++i)
     {
-        for (size_t j = 0; j < x_gridSize; ++j)
+        for (size_t j = 0; j < x_baseGridSize; ++j)
         {
             Vec pos = Vec(xOff + i * 25 - 12.5, yOff - j * 25 + 12.5);
             auto* gridWidget = createWidget<GridWidget>(pos);

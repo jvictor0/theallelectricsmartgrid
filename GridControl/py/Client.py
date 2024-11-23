@@ -193,6 +193,8 @@ class ClientManager:
         for client_id, event in self.GetClientEvents():
             if event.typ == Event.EVENT_GRID_COLOR:
                 self.ProcessColorEvent(client_id, event)
+
+        Grid.ShowGrid()
                     
     def GetAndProcessGridEvents(self):
         for event in Grid.GetEvents():
@@ -222,5 +224,4 @@ class ClientManager:
             self.AcceptConnection()
             self.GetAndProcessEvents()
             self.SendEvents()
-            Grid.ShowGrid()
             time.sleep(0.02)
