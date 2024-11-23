@@ -324,7 +324,7 @@ struct TheNonagonSmartGrid
 {
     TheNonagonInternal::Input m_state;
     TheNonagonInternal m_nonagon;
-    SmartGrid::SmartGrid m_smartGrid;
+    SmartGrid::GridHolder m_gridHolder;
 
     StateSaver m_stateSaver;
 
@@ -1440,50 +1440,44 @@ struct TheNonagonSmartGrid
     {
         // TheoryOfTime
         //
-        m_theoryOfTimeTopologyGridId = m_smartGrid.AddGrid(new TheoryOfTimeTopologyPage(this, false /*isPan*/));
-        m_theoryOfTimeSwingGridId = m_smartGrid.AddGrid(new TheoryOfTimeSwingAndSwaggerPage(this, true));
-        m_theoryOfTimeSwaggerGridId = m_smartGrid.AddGrid(new TheoryOfTimeSwingAndSwaggerPage(this, false));
+        m_theoryOfTimeTopologyGridId = m_gridHolder.AddGrid(new TheoryOfTimeTopologyPage(this, false /*isPan*/));
+        m_theoryOfTimeSwingGridId = m_gridHolder.AddGrid(new TheoryOfTimeSwingAndSwaggerPage(this, true));
+        m_theoryOfTimeSwaggerGridId = m_gridHolder.AddGrid(new TheoryOfTimeSwingAndSwaggerPage(this, false));
         
         // LaMeJuIS
         //
-        m_lameJuisCoMuteGridId = m_smartGrid.AddGrid(new LameJuisCoMutePage(this));
-        m_lameJuisMatrixGridId = m_smartGrid.AddGrid(new LameJuisMatrixPage(this));
-        m_lameJuisLHSGridId = m_smartGrid.AddGrid(new LameJuisLHSPage(this));
-        m_lameJuisIntervalGridId = m_smartGrid.AddGrid(new LameJuisIntervalPage(this));
+        m_lameJuisCoMuteGridId = m_gridHolder.AddGrid(new LameJuisCoMutePage(this));
+        m_lameJuisMatrixGridId = m_gridHolder.AddGrid(new LameJuisMatrixPage(this));
+        m_lameJuisLHSGridId = m_gridHolder.AddGrid(new LameJuisLHSPage(this));
+        m_lameJuisIntervalGridId = m_gridHolder.AddGrid(new LameJuisIntervalPage(this));
  
         // Sequencers
         //
-        m_indexArpFireGridId = m_smartGrid.AddGrid(new IndexArpPage(this, Trio::Fire));
-        m_indexArpEarthGridId = m_smartGrid.AddGrid(new IndexArpPage(this, Trio::Earth));
-        m_indexArpWaterGridId = m_smartGrid.AddGrid(new IndexArpPage(this, Trio::Water));
+        m_indexArpFireGridId = m_gridHolder.AddGrid(new IndexArpPage(this, Trio::Fire));
+        m_indexArpEarthGridId = m_gridHolder.AddGrid(new IndexArpPage(this, Trio::Earth));
+        m_indexArpWaterGridId = m_gridHolder.AddGrid(new IndexArpPage(this, Trio::Water));
 
         // Palettes
         //
-        // m_lameJuisSeqPaletteFireGridId = m_smartGrid.AddGrid(new LameJuisSeqPalettePage(this, Trio::Fire));
-        // m_lameJuisSeqPaletteEarthGridId = m_smartGrid.AddGrid(new LameJuisSeqPalettePage(this, Trio::Earth));
-        // m_lameJuisSeqPaletteWaterGridId = m_smartGrid.AddGrid(new LameJuisSeqPalettePage(this, Trio::Water));
+        // m_lameJuisSeqPaletteFireGridId = m_gridHolder.AddGrid(new LameJuisSeqPalettePage(this, Trio::Fire));
+        // m_lameJuisSeqPaletteEarthGridId = m_gridHolder.AddGrid(new LameJuisSeqPalettePage(this, Trio::Earth));
+        // m_lameJuisSeqPaletteWaterGridId = m_gridHolder.AddGrid(new LameJuisSeqPalettePage(this, Trio::Water));
         
         // Articulation
         //
-        m_timbreAndMuteFireGridId = m_smartGrid.AddGrid(new TimbreAndMuteSubPage(this, Trio::Fire));
-        m_timbreAndMuteEarthGridId = m_smartGrid.AddGrid(new TimbreAndMuteSubPage(this, Trio::Earth));
-        m_timbreAndMuteWaterGridId = m_smartGrid.AddGrid(new TimbreAndMuteSubPage(this, Trio::Water));
-        m_timbreAndMutePagesGridId = m_smartGrid.AddGrid(new TimbreAndMutePages(this));
+        m_timbreAndMuteFireGridId = m_gridHolder.AddGrid(new TimbreAndMuteSubPage(this, Trio::Fire));
+        m_timbreAndMuteEarthGridId = m_gridHolder.AddGrid(new TimbreAndMuteSubPage(this, Trio::Earth));
+        m_timbreAndMuteWaterGridId = m_gridHolder.AddGrid(new TimbreAndMuteSubPage(this, Trio::Water));
+        m_timbreAndMutePagesGridId = m_gridHolder.AddGrid(new TimbreAndMutePages(this));
 
-        m_smartGrid.AddToplevelGrid(new SmartGrid::GridSwitcher(new TheNonagonGridSwitcher(this, 0)));
-        m_smartGrid.AddToplevelGrid(new SmartGrid::GridSwitcher(new TheNonagonGridSwitcher(this, 1)));
         m_stateSaver.Insert("ActiveTrio", &m_activeTrio);
-
-        m_smartGrid.m_state.m_midiSwitchInput.m_numChannels = 2;
-        m_smartGrid.m_state.m_midiSwitchInput.m_channels[0] = 0;
-        m_smartGrid.m_state.m_midiSwitchInput.m_channels[0] = 1;
     }    
     
     void Process(float dt, uint64_t frame)
-    {        
-        m_smartGrid.BeforeModuleProcess(dt, frame);
+    {
+        std::ignore = frame;
+        m_gridHolder.Process(dt);
         m_nonagon.Process(dt, m_state);
-        m_smartGrid.AfterModuleProcess(frame);
     }
 };
 
