@@ -250,7 +250,7 @@ struct ButtonBank : Module
 
         for (size_t i = 0; i < x_baseGridSize; ++i)
         {
-            configSwitch(x_widthParam + i, 0, 16, 16, "Row Width " + std::to_string(i));
+            configSwitch(x_widthParam + i, 0, ButtonBankInternal::x_maxWidth, ButtonBankInternal::x_maxWidth, "Row Width " + std::to_string(i));
             configInput(x_rowColorIn + i, "Poly Row Color " + std::to_string(i));
             configOutput(x_gateOut + i, "Poly Gates Row " + std::to_string(i));
             configOutput(x_velocityOut + i, "Poly Velocity Row " + std::to_string(i));

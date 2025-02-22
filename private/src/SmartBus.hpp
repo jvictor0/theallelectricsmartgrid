@@ -5,17 +5,17 @@
 template<class BusInput>
 struct SmartBusGeneric
 {
-    std::atomic<bool> m_changed;
+    std::atomic<uint64_t> m_epoch;
     std::atomic<BusInput> m_messages[x_gridMaxSize][x_gridMaxSize];
 
     SmartBusGeneric()
-        : m_changed(false)
+        : m_epoch(0)
     {
     }
     
-    void Put(int i, int j, BusInput payload)
-    {
-        Store(i - x_gridXMin, j - x_gridYMin, payload);
+    void Put(int i, int j, BusInput payload, bool* changed)
+    {        
+        Store(i - x_gridXMin, j - x_gridYMin, payload, changed);
     }
 
     BusInput Get(int i, int j)
@@ -23,12 +23,12 @@ struct SmartBusGeneric
         return Load(i - x_gridXMin, j - x_gridYMin);
     }
 
-    void Store(size_t i, size_t j, BusInput payload)
-    {
+    void Store(size_t i, size_t j, BusInput payload, bool* changed)
+    {        
         BusInput newPayload = m_messages[i][j].exchange(payload);
         if (payload != newPayload)
         {
-            m_changed.store(true);
+            *changed = true;
         }
     }
 
@@ -100,22 +100,18 @@ struct SmartBusGeneric
         }
     };
 
-    Iterator begin(bool ignoreChanged)
+    Iterator begin(uint64_t* epoch)
     {
-        if (ignoreChanged)
-        {
-            return Iterator(this);
-        }
-                
         // If nothing has changed, don't bother.
         //
-        if (!m_changed.load())
-        {
+        uint64_t newEpoch = m_epoch.load();
+        if (newEpoch == *epoch)
+        {            
             return end();
         }
         else
         {
-            m_changed.store(false);
+            *epoch = newEpoch;
             return Iterator(this);
         }
     }
@@ -153,14 +149,34 @@ struct SmartBusHolder
         return &m_buses[gridId];
     }
 
-    void PutColor(size_t gridId, int x, int y, Color c)
+    void PutColor(size_t gridId, int x, int y, Color c, bool* changed)
     {
-        Get(gridId)->m_output.Put(x, y, c);
+        Get(gridId)->m_output.Put(x, y, c, changed);
+    }
+
+    void PutVelocity(size_t gridId, int x, int y, uint8_t v, bool* changed)
+    {
+        Get(gridId)->m_input.Put(x, y, v, changed);
     }
 
     void PutVelocity(size_t gridId, int x, int y, uint8_t v)
     {
-        Get(gridId)->m_input.Put(x, y, v);
+        bool changed = false;
+        PutVelocity(gridId, x, y, v, &changed);
+        if (changed)
+        {
+            IncrementEpoch(gridId);
+        }
+    }
+
+    void PutColor(size_t gridId, int x, int y, Color c)
+    {
+        bool changed = false;
+        PutColor(gridId, x, y, c, &changed);
+        if (changed)
+        {
+            IncrementEpoch(gridId);
+        }
     }
 
     Color GetColor(size_t gridId, int x, int y)
@@ -193,48 +209,73 @@ struct SmartBusHolder
         return Get(gridId)->m_input.Get(x, y);
     }
 
-    SmartBusInput::Iterator InputBegin(size_t gridId, bool ignoreChanged)
+    void IncrementEpoch(size_t gridId)
     {
-        return Get(gridId)->m_input.begin(ignoreChanged);
+        Get(gridId)->m_input.m_epoch.fetch_add(1);
+        Get(gridId)->m_output.m_epoch.fetch_add(1);
     }
 
-    SmartBusOutput::Iterator OutputBegin(size_t gridId, bool ignoreChanged)
+    SmartBusInput::Iterator InputBegin(size_t gridId, uint64_t* epoch)
     {
-        return Get(gridId)->m_output.begin(ignoreChanged);
+        auto itr = Get(gridId)->m_input.begin(epoch);
+        return itr;
+    }
+
+    SmartBusOutput::Iterator OutputBegin(size_t gridId, uint64_t* epoch)
+    {
+        return Get(gridId)->m_output.begin(epoch);
     }
 
     void ClearVelocities(size_t gridId)
     {
+        bool changed = false;
         for (int i = x_gridXMin; i < x_gridXMax; ++i)
         {
             for (int j = x_gridYMin; j < x_gridYMax; ++j)
             {
-                PutVelocity(gridId, i, j, 0);
+                PutVelocity(gridId, i, j, 0, &changed);
             }
-        }        
-    }
+        }
 
-    void ForwardVelocity(size_t gridSrc, size_t gridTrg)
-    {
-        for (auto itr = InputBegin(gridSrc, false /*ignoreChanged*/); itr != InputEnd(); ++itr)
+        if (changed)
         {
-            Message m = *itr;
-            if (!m.NoMessage())
-            {
-                PutVelocity(gridTrg, m.m_x, m.m_y, m.m_velocity);
-            }
+            IncrementEpoch(gridId);
         }
     }
 
-    void ForwardColors(size_t gridSrc, size_t gridTrg)
+    void ForwardVelocity(size_t gridSrc, size_t gridTrg, uint64_t* epoch)
     {
-        for (auto itr = OutputBegin(gridSrc, false /*ignoreChanged*/); itr != OutputEnd(); ++itr)
+        bool changed = false;
+        for (auto itr = InputBegin(gridSrc, epoch); itr != InputEnd(); ++itr)
         {
             Message m = *itr;
             if (!m.NoMessage())
             {
-                PutColor(gridSrc, m.m_x, m.m_y, m.m_color);
+                PutVelocity(gridTrg, m.m_x, m.m_y, m.m_velocity, &changed);
             }
+        }
+
+        if (changed)
+        {
+            IncrementEpoch(gridTrg);
+        }
+    }
+
+    void ForwardColors(size_t gridSrc, size_t gridTrg, uint64_t* epoch)
+    {
+        bool changed = false;
+        for (auto itr = OutputBegin(gridSrc, epoch); itr != OutputEnd(); ++itr)
+        {
+            Message m = *itr;
+            if (!m.NoMessage())
+            {
+                PutColor(gridSrc, m.m_x, m.m_y, m.m_color, &changed);
+            }
+        }
+
+        if (changed)
+        {
+            IncrementEpoch(gridTrg);
         }
     }
     
@@ -255,23 +296,28 @@ inline void AbstractGrid::OutputToBus()
 {
     if (m_gridId != x_numGridIds)
     {
+        bool changed = false;
         for (int i = x_gridXMin; i < x_gridXMax; ++i)
         {
             for (int j = x_gridYMin; j < x_gridYMax; ++j)
             {
-                g_smartBus.PutColor(m_gridId, i, j, GetColor(i, j));
+                g_smartBus.PutColor(m_gridId, i, j, GetColor(i, j), &changed);
             }
         }
 
         g_smartBus.SetOnColor(m_gridId, GetOnColor());
         g_smartBus.SetOffColor(m_gridId, GetOffColor());
+        if (changed)
+        {
+            g_smartBus.IncrementEpoch(m_gridId);
+        }
     }
 }
 
-inline void AbstractGrid::ApplyFromBus(bool ignoreChanged)
+inline void AbstractGrid::ApplyFromBus()
 {
     if (m_gridId != x_numGridIds)
     {
-        Apply(g_smartBus.InputBegin(m_gridId, ignoreChanged), g_smartBus.InputEnd());
+        Apply(g_smartBus.InputBegin(m_gridId, &m_gridInputEpoch), g_smartBus.InputEnd());
     }
 }

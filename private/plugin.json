@@ -71,6 +71,17 @@
             ]
         },
         {
+            "slug": "VectorPhaseShaper",
+            "name": "VectorPhaseShaper",
+            "description": "VectorPhaseShaper",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
             "slug": "MxDJ",
             "name": "MxDJ",
             "description": "MxDJ",
@@ -107,6 +118,39 @@
             "slug": "ButtonBank",
             "name": "ButtonBank",
             "description": "ButtonBank",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "EncoderBank",
+            "name": "EncoderBank",
+            "description": "EncoderBank",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "PolyXFader",
+            "name": "PolyXFader",
+            "description": "PolyXFader",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "HarmonicFlipflop",
+            "name": "HarmonicFlipflop",
+            "description": "HarmonicFlipflop",
             "tags":
             [
             ],

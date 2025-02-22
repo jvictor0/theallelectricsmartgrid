@@ -4,6 +4,9 @@
 #include "SmartGridWidget.hpp"
 #include "StateSaver.hpp"
 #include "ColorHelper.hpp"
+#ifndef SMART_BOX
+#include "MidiWidget.hpp"
+#endif
 
 namespace SmartGrid
 {
@@ -297,6 +300,7 @@ struct MenuGrid : public AbstractGrid
     MenuGrid(StateSaver& saver)
         : m_selectedAbsPos(x_invalidAbsPos)
     {
+        RemoveGridId();
         saver.Insert("SelectedAbsPos", &m_selectedAbsPos);
     }
 
@@ -825,7 +829,6 @@ typedef GridJnct<ControllerShape::LaunchPadProMk3> GridJnctLPP3;
 typedef GridJnctWidget<ControllerShape::LaunchPadProMk3> GridJnctLPP3Widget;
 
 #ifndef SMART_BOX
-#include "MidiWidget.hpp"
 
 
 struct MidiDeviceRemember
@@ -896,11 +899,13 @@ struct GridCnct : public Module
 {
     MidiInterchangeSingle m_midi;
     size_t m_gridId;
+    uint64_t m_gridColorEpoch;
 
     StateSaver m_stateSaver;
     
     GridCnct()
         : m_midi(false)
+        , m_gridColorEpoch(0)
     {
         m_gridId = x_numGridIds;
         config(0, 1, 0, 0);
@@ -928,6 +933,7 @@ struct GridCnct : public Module
         {
             m_midi.ClearLastSent();
             m_gridId = gridId;
+            m_gridColorEpoch = 0;
         }
 
         if (m_gridId == x_numGridIds)
@@ -938,7 +944,7 @@ struct GridCnct : public Module
         if (m_gridId != x_numGridIds)
         {
             m_midi.ApplyMidiToBus(args.frame, m_gridId);
-            m_midi.SendMidiFromBus(args.frame, m_gridId);
+            m_midi.SendMidiFromBus(args.frame, m_gridId, &m_gridColorEpoch);
         }
     }
 

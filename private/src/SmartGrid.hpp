@@ -544,8 +544,8 @@ static constexpr int x_baseGridSize = 8;
 #ifndef SMART_BOX
 static constexpr int x_gridXMin = -1;
 static constexpr int x_gridXMax = 9;
-static constexpr int x_gridYMin = -2;
-static constexpr int x_gridYMax = 9;
+static constexpr int x_gridYMin = -1;
+static constexpr int x_gridYMax = 10;
 static constexpr int x_gridMaxSize = 11;
 #else
 static constexpr int x_gridXMin = 0;
@@ -562,7 +562,9 @@ enum class ControllerShape : int
 {
     LaunchPadX = 0,
     LaunchPadProMk3 = 1,
-    NumShapes = 2
+    LaunchPadMiniMk3 = 2,
+    MidiFighterTwister = 3,
+    NumShapes = 4
 };
 
 inline const char* ControllerShapeToString(ControllerShape shape)
@@ -577,6 +579,14 @@ inline const char* ControllerShapeToString(ControllerShape shape)
         {
             return "LaunchPadProMk3";
         }
+        case ControllerShape::LaunchPadMiniMk3:
+        {
+            return "LaunchPadMiniMk3";
+        }
+        case ControllerShape::MidiFighterTwister:
+        {
+            return "MidiFighterTwister";
+        }
         default:
         {
             return "Unknown";
@@ -590,7 +600,8 @@ struct Message
     {
         NoMessage,
         Note,
-        Color
+        Color,
+        Increment
     };
     
     int m_x;
@@ -611,7 +622,19 @@ struct Message
         : m_x(x)
         , m_y(y)
         , m_velocity(velocity)
-        , m_mode(velocity == 0xFF ? Mode::NoMessage : Mode::Note)
+        , m_mode(Mode::Note)
+    {
+    }
+
+    Message(
+        int x,
+        int y,
+        uint8_t velocity,
+        Mode mode)
+        : m_x(x)
+        , m_y(y)
+        , m_velocity(velocity)
+        , m_mode(mode)
     {
     }
 
@@ -637,7 +660,7 @@ struct Message
         : m_x(xy.first)
         , m_y(xy.second)
         , m_velocity(velocity)
-        , m_mode(velocity == 0xFF ? Mode::NoMessage : Mode::Note)
+        , m_mode(Mode::Note)
     {
     }
     
@@ -657,6 +680,18 @@ struct Message
             return false;
         }
 
+        if (shape == ControllerShape::LaunchPadMiniMk3 &&
+            (m_x < 0 || m_y < 0))
+        {
+            return false;
+        }
+
+        if (shape == ControllerShape::MidiFighterTwister &&
+            (m_x < 0 || m_y < 0 || m_x >= 4 || m_y >= 4))
+        {
+            return false;
+        }
+
         return true;
     }
     
@@ -664,6 +699,69 @@ struct Message
     bool NoMessage()
     {
         return m_mode == Mode::NoMessage;
+    }
+
+    void Populate(ControllerShape shape, int64_t frame, midi::Message* messages)
+    {
+        if (shape == ControllerShape::MidiFighterTwister)
+        {
+            uint8_t cc = 4 * m_y + m_x;
+            for (int i = 0; i < 3; ++i)
+            {
+                messages[i].setFrame(frame);
+                messages[i].setChannel(i);
+                messages[i].setStatus(0xb);
+                messages[i].setNote(cc);
+            }
+
+            messages[0].setValue(m_color.m_red / 2);
+            messages[1].setValue(std::min<uint8_t>(126, std::max<uint8_t>(1, m_color.m_green / 2)));
+            messages[2].setValue(m_color.m_blue);
+        }
+    }
+
+    static Message Decode(ControllerShape shape, const midi::Message& msg)
+    {
+        switch (shape)
+        {
+            case ControllerShape::LaunchPadX:
+            {
+                return FromLPMidi(msg);
+            }
+            case ControllerShape::LaunchPadProMk3:
+            {
+                return FromLPMidi(msg);
+            }
+            case ControllerShape::LaunchPadMiniMk3:
+            {
+                return FromLPMidi(msg);
+            }
+            case ControllerShape::MidiFighterTwister:
+            {
+                return FromMidiFighterTwister(msg);
+            }
+            default:
+            {
+                return Message();
+            }
+        }
+    }
+
+    static Message FromMidiFighterTwister(const midi::Message& msg)
+    {
+        if (msg.getStatus() == 0xb)
+        {
+            if (msg.getChannel() == 0)
+            {
+                return Message(msg.getNote() % 4, msg.getNote() / 4, msg.getValue(), Mode::Increment);
+            }
+            else if (msg.getChannel() == 1)
+            {
+                return Message(msg.getNote() % 4 + 4, msg.getNote() / 4, msg.getValue(), Mode::Note);
+            }
+        }
+
+        return Message();
     }
     
     static uint8_t LPPosToNote(int x, int y)
@@ -785,6 +883,7 @@ extern GridIdAllocator g_gridIds;
 struct AbstractGrid
 {
     size_t m_gridId;
+    uint64_t m_gridInputEpoch;
     
     virtual ~AbstractGrid()
     {
@@ -793,13 +892,24 @@ struct AbstractGrid
             g_gridIds.Free(m_gridId);
         }
     }
+
+    void RemoveGridId()
+    {
+        if (m_gridId != x_numGridIds)
+        {
+            g_gridIds.Free(m_gridId);
+        }
+
+        m_gridId = x_numGridIds;
+    }
     
-    static constexpr float x_busIOInterval = 0.05;
+    static constexpr float x_busIOInterval = 0.005;
     float m_timeToNextBusIO;
     
     AbstractGrid()
     {
         m_gridId = g_gridIds.Alloc();
+        m_gridInputEpoch = 0;
         m_timeToNextBusIO = -1;
     }
 
@@ -819,7 +929,7 @@ struct AbstractGrid
     }
 
     void OutputToBus();
-    void ApplyFromBus(bool ignoreChanged);
+    void ApplyFromBus();
     
     virtual void Apply(Message msg) = 0;
     virtual Color GetColor(int i, int j) = 0;
@@ -842,11 +952,11 @@ struct AbstractGrid
     {
         Process(dt);
 
+        ApplyFromBus();
         m_timeToNextBusIO -= dt;
         if (m_timeToNextBusIO <= 0)
         {
             m_timeToNextBusIO = x_busIOInterval;
-            ApplyFromBus(false /*ignoreChanged*/);
             OutputToBus();
         }
     }
@@ -1473,6 +1583,7 @@ struct Fader : public Grid
         , m_structure(structure)
         , m_mode(mode)
     {
+        RemoveGridId();
         for (int i = 0; i < height; ++i)
         {
             Put(0, i, new FaderCell(this, height - i - 1));
@@ -1651,6 +1762,7 @@ struct MidiInterchangeSingle
 
     Color m_lastSent[x_maxNote];
     ControllerShape m_shape;
+    int m_frameSinceLastReceive;
 
     void SetShape(ControllerShape shape)
     {
@@ -1666,6 +1778,7 @@ struct MidiInterchangeSingle
         : m_device(-1)
         , m_isLoopback(isLoopback)
         , m_shape(ControllerShape::LaunchPadX)
+        , m_frameSinceLastReceive(0)
     {
         if (m_isLoopback)
         {
@@ -1760,9 +1873,10 @@ struct MidiInterchangeSingle
                 return Message();
             }
 
-            Message ret = Message::FromLPMidi(msg);
+            Message ret = Message::Decode(m_shape, msg);
             if (!ret.NoMessage())
             {
+                m_frameSinceLastReceive = 0;
                 return ret;
             }
         }
@@ -1791,9 +1905,27 @@ struct MidiInterchangeSingle
                 {
                     break;
                 }
-                
-                g_smartBus.PutVelocity(gridId, msg.m_x, msg.m_y, msg.m_velocity);
+
+                if (msg.m_mode == Message::Mode::Increment)
+                {
+                    int currentVelocity = static_cast<int8_t>(g_smartBus.GetVelocity(gridId, msg.m_x, msg.m_y));
+                    int delta = msg.m_velocity - 64;
+                    int newVelocity = std::max(-128, std::min(127, currentVelocity + delta));
+                    g_smartBus.PutVelocity(gridId, msg.m_x, msg.m_y, newVelocity);
+                }
+                else
+                {
+                    g_smartBus.PutVelocity(gridId, msg.m_x, msg.m_y, msg.m_velocity);
+                }
             }
+
+            if (m_frameSinceLastReceive == 2 &&
+                m_shape == ControllerShape::MidiFighterTwister)
+            {
+                g_smartBus.ClearVelocities(gridId);
+            }
+            
+            ++m_frameSinceLastReceive;
         }
     }
 
@@ -1806,17 +1938,29 @@ struct MidiInterchangeSingle
             {
                 break;
             }
-            
+
             grid->Apply(msg);
         }
     }
 
-    void SendMidiFromBus(int64_t frame, size_t gridId)
+    void SendMidiFromBus(int64_t frame, size_t gridId, uint64_t* epoch)
+    {
+        if (m_shape == ControllerShape::MidiFighterTwister)
+        {
+            SendMidiFromBusMessages(frame, gridId, epoch);
+        }
+        else
+        {
+            SendMidiFromBusSysEx(frame, gridId, epoch);
+        }
+    }
+
+    void SendMidiFromBusSysEx(int64_t frame, size_t gridId, uint64_t* epoch)
     {
         if (gridId != x_numGridIds)
         {
             LPRGBSysEx sysEx(m_shape);
-            for (auto itr = g_smartBus.OutputBegin(gridId, true /*ignoreChanged*/); itr != g_smartBus.OutputEnd(); ++itr)
+            for (auto itr = g_smartBus.OutputBegin(gridId, epoch); itr != g_smartBus.OutputEnd(); ++itr)
             {
                 Message msg = *itr;
                 if (!msg.NoMessage())
@@ -1830,6 +1974,32 @@ struct MidiInterchangeSingle
                 midi::Message msg;
                 sysEx.Populate(msg, frame);
                 m_output.sendMessage(msg);
+            }
+        }
+    }
+
+    void SendMidiFromBusMessages(int64_t frame, size_t gridId, uint64_t* epoch)
+    {
+        if (gridId != x_numGridIds)
+        {
+            for (auto itr = g_smartBus.OutputBegin(gridId, epoch); itr != g_smartBus.OutputEnd(); ++itr)
+            {
+                Message msg = *itr;
+                if (!msg.NoMessage() && msg.ShapeSupports(m_shape))
+                {
+                    midi::Message midiMsg[3];
+                    msg.Populate(m_shape, frame, midiMsg);
+                    int channel = m_output.getChannel();
+                    
+                    m_output.setChannel(midiMsg[0].getChannel());
+                    m_output.sendMessage(midiMsg[0]);
+                    m_output.setChannel(midiMsg[1].getChannel());
+                    m_output.sendMessage(midiMsg[1]);
+                    m_output.setChannel(midiMsg[2].getChannel());
+                    m_output.sendMessage(midiMsg[2]);
+
+                    m_output.setChannel(channel);
+                }
             }
         }
     }

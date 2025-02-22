@@ -1,8 +1,11 @@
 #include "plugin.hpp"
 #include "GangedRandomLFO.hpp"
 #include "PhasorEnvelope.hpp"
+#include "PolyXFader.hpp"
+#include "HarmonicFlipflop.hpp"
 #include "GridJnct.hpp"
 #include "FaderBank.hpp"
+#include "VectorPhaseShaper.hpp"
 
 #ifndef SMART_BOX
 #include "MxDJ.hpp"
@@ -15,6 +18,7 @@
 #include "SampleRateDivider.hpp"
 #include "ColorHelper.hpp"
 #include "ButtonBank.hpp"
+#include "EncoderBank.hpp"
 #include "MasterSwitch.hpp"
 #include "SmartCanvas.hpp"
 
@@ -22,9 +26,13 @@ Model* modelGangedRandomLFO = createModel<GangedRandomLFO, GangedRandomLFOWidget
 Model* modelPhasorEnvelope = createModel<PhasorEnvelope, PhasorEnvelopeWidget>("PhasorEnvelope");
 Model* modelGridJnctLPP3 = createModel<SmartGrid::GridJnctLPP3, SmartGrid::GridJnctLPP3Widget>("GridJnctLPP3");
 Model* modelFaderBank = createModel<SmartGrid::FaderBank, SmartGrid::FaderBankWidget>("FaderBank");
+Model* modelVectorPhaseShaper = createModel<VectorPhaseShaper, VectorPhaseShaperWidget>("VectorPhaseShaper");
 Model* modelSampleRateDivider = createModel<SampleRateDivider, SampleRateDividerWidget>("SampleRateDivider");
 Model* modelColorHelper = createModel<SmartGrid::ColorHelper, SmartGrid::ColorHelperWidget>("ColorHelper");
 Model* modelButtonBank = createModel<SmartGrid::ButtonBank, SmartGrid::ButtonBankWidget>("ButtonBank");
+Model* modelEncoderBank = createModel<SmartGrid::EncoderBank, SmartGrid::EncoderBankWidget>("EncoderBank");
+Model* modelPolyXFader = createModel<PolyXFader, PolyXFaderWidget>("PolyXFader");
+Model* modelHarmonicFlipflop = createModel<HarmonicFlipflop, HarmonicFlipflopWidget>("HarmonicFlipflop");
 Model* modelMasterSwitch = createModel<MasterSwitch, MasterSwitchWidget>("MasterSwitch");
 Model* modelSmartCanvas = createModel<SmartGrid::SmartCanvas, SmartGrid::SmartCanvasWidget>("SmartCanvas");
 
@@ -50,10 +58,14 @@ void init(Plugin* p) {
 	p->addModel(modelGridJnctLPP3);
 	p->addModel(modelGridCnct);
 	p->addModel(modelFaderBank);
+	p->addModel(modelVectorPhaseShaper);
 	p->addModel(modelMxDJ);
     p->addModel(modelSampleRateDivider);
 	p->addModel(modelColorHelper);
 	p->addModel(modelButtonBank);
+	p->addModel(modelPolyXFader);
+	p->addModel(modelHarmonicFlipflop);
+	p->addModel(modelEncoderBank);
     p->addModel(modelMasterSwitch);
 	p->addModel(modelPolyCC);
 	p->addModel(modelSmartCanvas);

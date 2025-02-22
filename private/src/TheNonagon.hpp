@@ -30,7 +30,12 @@ struct TheNonagonInternal
         MultiPhasorGateInternal::Input m_multiPhasorGateInput;
         NonagonIndexArp::Input m_arpInput;
         TrioOctaveSwitches::Input m_trioOctaveSwitchesInput;
-        Orbiter::Input m_pannerInput;
+        Orbiter::Input m_pannerInput;        
+
+        int m_indexArpIntervalSelect[x_numVoices];
+        int m_indexArpOffsetSelect[x_numVoices];
+        int m_indexArpMotiveIxSelect[x_numVoices];
+        
         bool m_mute[x_numVoices];
         float m_extraTimbre[x_numTrios][x_numExtraTimbres];
         bool m_running;
@@ -89,7 +94,9 @@ struct TheNonagonInternal
         float m_voltPerOct[x_numVoices];
         float m_timbre[x_numVoices];
         float m_gridId[x_numGridIds];
+        float m_extraTimbreTrg[x_numVoices][x_numExtraTimbres];
         float m_extraTimbre[x_numVoices][x_numExtraTimbres];
+        FixedSlew m_extraTimbreSlew[x_numVoices][x_numExtraTimbres];
         bool m_recording;
         float m_totPhasors[x_numTimeBits];
 
@@ -105,6 +112,7 @@ struct TheNonagonInternal
                 for (size_t j = 0; j < x_numExtraTimbres; ++j)                
                 {
                     m_extraTimbre[i][j] = 0;
+                    m_extraTimbreTrg[i][j] = 0;
                 }
             }
 
@@ -224,6 +232,21 @@ struct TheNonagonInternal
         {            
             input.m_arpInput.m_clocks[i] = m_theoryOfTime.m_musicalTime.m_change[x_numTimeBits - i];
         }
+
+        for (size_t i = 0; i < x_numVoices; ++i)
+        {
+            const int num = LameJuisInternal::Output::CacheForSingleInputVector<false>::x_octaveBuckets;
+            const int intervals[] = {0, num / 7, num * 7 / 24, num * 5 / 12, num * 7 / 12 };
+            assert(input.m_indexArpIntervalSelect[i]  < 4);
+            assert(input.m_indexArpOffsetSelect[i] < 4);
+            assert(input.m_indexArpMotiveIxSelect[i] < 4);
+            assert(input.m_indexArpIntervalSelect[i] >= 0);
+            assert(input.m_indexArpOffsetSelect[i] >= 0);
+            assert(input.m_indexArpMotiveIxSelect[i] >= 0);
+            input.m_arpInput.m_input[i].m_interval = intervals[input.m_indexArpIntervalSelect[i] + 1];
+            input.m_arpInput.m_input[i].m_offset = intervals[input.m_indexArpOffsetSelect[i]];
+            input.m_arpInput.m_input[i].m_motiveInterval = intervals[input.m_indexArpMotiveIxSelect[i]];
+        }
     }    
 
     void SetOutputs(Input& input)
@@ -236,13 +259,14 @@ struct TheNonagonInternal
                 {
                     m_output.m_gate[i] = true;
                     m_muted[i] = false;
-                    float preOctave = m_lameJuis.m_outputs[i / x_voicesPerTrio].m_pitch[i % x_voicesPerTrio].m_pitch;
+                    auto& result = m_lameJuis.m_outputs[i / x_voicesPerTrio].m_pitch[i % x_voicesPerTrio];
+                    float preOctave = result.m_pitch;
                     m_output.m_voltPerOct[i] = input.m_trioOctaveSwitchesInput.Octavize(preOctave, i);
                     m_output.m_timbre[i] = m_timbreAndMute.m_voices[i].m_timbre;
                     
                     for (size_t j = 0; j < x_numExtraTimbres; ++j)
                     {
-                        m_output.m_extraTimbre[i][j] = m_timbreAndMute.m_voices[i].m_preTimbre;
+                        m_output.m_extraTimbreTrg[i][j] = result.Timbre(j);
                     }
                 }
                 else
@@ -259,11 +283,16 @@ struct TheNonagonInternal
             }
 
             m_output.m_phasor[i] = m_muted[i] ? 0 : m_multiPhasorGate.m_phasorOut[i];
+
+            for (size_t j = 0; j < x_numExtraTimbres; ++j)
+            {
+                m_output.m_extraTimbre[i][j] = m_output.m_extraTimbreSlew[i][j].Process(m_output.m_extraTimbreTrg[i][j]);
+            }
         }
 
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {
-            m_output.m_totPhasors[i] = input.m_multiPhasorGateInput.m_phasors[x_numTimeBits - i];
+            m_output.m_totPhasors[i] = input.m_multiPhasorGateInput.m_phasors[x_numTimeBits - i - 1];
         }
 
         m_output.m_recording = input.m_recording;
@@ -271,7 +300,7 @@ struct TheNonagonInternal
 
     void ProcessTimer(float dt, Input& input)
     {
-        if (m_timerTrig.Process(input.m_recording))
+        if (m_timerTrig.Process(input.m_running))
         {
             m_timer = 0;
         }
@@ -322,11 +351,12 @@ struct TheNonagonInternal
 
 struct TheNonagonSmartGrid
 {
-    TheNonagonInternal::Input m_state;
+    TheNonagonInternal::Input m_state;    
     TheNonagonInternal m_nonagon;
     SmartGrid::GridHolder m_gridHolder;
 
-    StateSaver m_stateSaver;
+    ScenedStateSaver m_stateSaver;
+    ScenedStateSaver::Input m_stateSaverState;
 
     json_t* ToJSON()
     {
@@ -1149,17 +1179,17 @@ struct TheNonagonSmartGrid
                             FadeColor(m_trio, 1, 6) /*offColor*/,                            
                             FadeColor(m_trio, 1, 6).Interpolate(SmartGrid::Color::White, 0.7) /*onColor*/,
                             1 - j,
-                            &m_state->m_arpInput.m_input[voice].m_offset));
+                            &m_state->m_indexArpOffsetSelect[voice]));
                     Put(4 + j, yPos, new SmartGrid::BinaryCell<int>(
                             FadeColor(m_trio, 2, 6) /*offColor*/,                            
                             FadeColor(m_trio, 2, 6).Interpolate(SmartGrid::Color::White, 0.7) /*onColor*/,
                             1 - j,
-                            &m_state->m_arpInput.m_input[voice].m_intervalSubOne));
+                            &m_state->m_indexArpIntervalSelect[voice]));
                     Put(6 + j, yPos, new SmartGrid::BinaryCell<int>(
                             FadeColor(m_trio, 3, 6) /*offColor*/,                            
                             FadeColor(m_trio, 3, 6).Interpolate(SmartGrid::Color::White, 0.7) /*onColor*/,
                             1 - j,
-                            &m_state->m_arpInput.m_input[voice].m_motiveInterval));                            
+                            &m_state->m_indexArpMotiveIxSelect[voice]));                            
                 }
 
                 m_owner->m_stateSaver.Insert(
@@ -1167,11 +1197,11 @@ struct TheNonagonSmartGrid
                 m_owner->m_stateSaver.Insert(
                     "IndexArpCycle", voice, &m_state->m_arpInput.m_input[voice].m_cycle);
                 m_owner->m_stateSaver.Insert(
-                    "IndexArpOffset", voice, &m_state->m_arpInput.m_input[voice].m_offset);
+                    "IndexArpOffset", voice, &m_state->m_indexArpOffsetSelect[voice]);
                 m_owner->m_stateSaver.Insert(
-                    "IndexArpIntervalSubOne", voice, &m_state->m_arpInput.m_input[voice].m_intervalSubOne);
+                    "IndexArpInterval", voice, &m_state->m_indexArpIntervalSelect[voice]);
                 m_owner->m_stateSaver.Insert(
-                    "IndexArpMotiveInterval", voice, &m_state->m_arpInput.m_input[voice].m_motiveInterval);
+                    "IndexArpMotiveInterval", voice, &m_state->m_indexArpMotiveIxSelect[voice]);
                 
                 for (size_t j = 0; j < SmartGrid::x_baseGridSize; ++j)
                 {
@@ -1336,31 +1366,6 @@ struct TheNonagonSmartGrid
         }
     };
 
-    struct TimbreAndMutePages : public SmartGrid::GridSwitcher
-    {
-        TheNonagonInternal::Input* m_state;
-        TheNonagonInternal* m_nonagon;
-        TheNonagonSmartGrid* m_owner;
-        TimbreAndMutePages(TheNonagonSmartGrid* owner)
-            : GridSwitcher(nullptr)
-            , m_state(&owner->m_state)
-            , m_nonagon(&owner->m_nonagon)
-            , m_owner(owner)
-        {
-        }        
-
-        virtual size_t GetGridId() override
-        {
-            switch (m_owner->m_activeTrio)
-            {
-                case Trio::Fire: return m_owner->m_timbreAndMuteFireGridId;
-                case Trio::Earth: return m_owner->m_timbreAndMuteEarthGridId;
-                case Trio::Water: return m_owner->m_timbreAndMuteWaterGridId;
-                default: return m_owner->m_timbreAndMuteFireGridId;
-            }
-        }
-    };
-
     size_t m_theoryOfTimeTopologyGridId;
     size_t m_theoryOfTimeSwingGridId;
     size_t m_theoryOfTimeSwaggerGridId;
@@ -1377,34 +1382,14 @@ struct TheNonagonSmartGrid
     size_t m_timbreAndMuteFireGridId;
     size_t m_timbreAndMuteEarthGridId;
     size_t m_timbreAndMuteWaterGridId;
-    size_t m_timbreAndMutePagesGridId;
     
-    struct TheNonagonGridSwitcher : public SmartGrid::MenuGridSwitcher
-    {
-        TheNonagonInternal::Input* m_state;
-        TheNonagonInternal* m_nonagon;
-        TheNonagonSmartGrid* m_owner;
-        TheNonagonGridSwitcher(TheNonagonSmartGrid* owner, size_t ix)
-            : SmartGrid::MenuGridSwitcher(owner->m_stateSaver)
-            , m_state(&owner->m_state)
-            , m_nonagon(&owner->m_nonagon)
-            , m_owner(owner)
-        {
-            InitGrid();
-            m_owner->m_stateSaver.Insert("PagePos", ix, &GetMenuGrid()->m_selectedAbsPos);                                
-        }        
-
-        void InitGrid()
-        {
-        }        
-    };
-        
     Trio m_activeTrio;
     
     TheNonagonSmartGrid()
     {
         InitState();
         InitGrid();
+        m_stateSaver.Finalize();
     }
 
     void InitState()
@@ -1468,14 +1453,27 @@ struct TheNonagonSmartGrid
         m_timbreAndMuteFireGridId = m_gridHolder.AddGrid(new TimbreAndMuteSubPage(this, Trio::Fire));
         m_timbreAndMuteEarthGridId = m_gridHolder.AddGrid(new TimbreAndMuteSubPage(this, Trio::Earth));
         m_timbreAndMuteWaterGridId = m_gridHolder.AddGrid(new TimbreAndMuteSubPage(this, Trio::Water));
-        m_timbreAndMutePagesGridId = m_gridHolder.AddGrid(new TimbreAndMutePages(this));
 
         m_stateSaver.Insert("ActiveTrio", &m_activeTrio);
-    }    
+    }
+
+    void HandleSceneTrigger(bool shift, int scene)
+    {
+        if (shift)
+        {
+            INFO("Saving scene %d", scene);
+            m_stateSaver.CopyToScene(scene);
+        }
+        else
+        {
+            m_stateSaverState.ProcessTrigger(scene);
+        }
+    }
     
     void Process(float dt, uint64_t frame)
     {
         std::ignore = frame;
+        m_stateSaver.Process(m_stateSaverState);
         m_gridHolder.Process(dt);
         m_nonagon.Process(dt, m_state);
     }
@@ -1486,10 +1484,11 @@ struct TheNonagon : Module
     TheNonagonSmartGrid m_nonagon;
     Trig m_saveTrig;
     Trig m_loadTrig;
+    Trig m_sceneTrig[8];
 
     TheNonagon()
     {
-        config(0, 3, 2 + 12 + 3 + 4 + 3, 0);
+        config(0, 6, 2 + 12 + 3 + 4 + 3, 0);
 
         configInput(0, "Save");
         configInput(1, "Load");
@@ -1514,6 +1513,10 @@ struct TheNonagon : Module
         {
             configOutput(i + 2, ("Aux Fader " + std::to_string(i)).c_str());
         }
+
+        configInput(3, "Scene Blend");
+        configInput(4, "Scene Select");
+        configInput(5, "Scene Shift");
     }
 
     json_t* dataToJson() override
@@ -1525,19 +1528,23 @@ struct TheNonagon : Module
     {
         m_nonagon.SetFromJSON(rootJ);
     }
+
+    void HandlesSceneInputs()
+    {
+        m_nonagon.m_stateSaverState.m_blend = inputs[3].getVoltage() / 10;
+        for (size_t i = 0; i < 8; ++i)
+        {
+            if (m_sceneTrig[i].Process(inputs[4].getVoltage(i)))
+            {
+                INFO("Scene %d", i);
+                m_nonagon.HandleSceneTrigger(inputs[5].getVoltage() > 0, i);
+            }
+        }
+    }
     
     void process(const ProcessArgs &args) override
     {
-        if (m_saveTrig.Process(inputs[0].getVoltage()))
-        {
-            m_nonagon.SaveJSON();
-        }
-
-        if (m_loadTrig.Process(inputs[1].getVoltage()))
-        {
-            m_nonagon.LoadJSON();
-        }
-        
+        HandlesSceneInputs();
         outputs[0].setChannels(TheNonagonInternal::x_numVoices);
         outputs[1].setChannels(TheNonagonInternal::x_numVoices);
         outputs[15].setChannels(TheNonagonInternal::x_numVoices);
@@ -1604,7 +1611,7 @@ struct TheNonagon : Module
 
         for (size_t i = 0; i < 6; ++i)
         {
-            outputs[23].setVoltage(m_nonagon.m_nonagon.m_output.m_totPhasors[i], i);
+            outputs[23].setVoltage(10 * m_nonagon.m_nonagon.m_output.m_totPhasors[i], i);
         }
     }
 };
@@ -1644,6 +1651,9 @@ struct TheNonagonWidget : ModuleWidget
         addOutput(createOutputCentered<PJ301MPort>(Vec(200, 150), module, 22));
         addOutput(createOutputCentered<PJ301MPort>(Vec(200, 200), module, 23));
 
+        addInput(createInputCentered<PJ301MPort>(Vec(250, 250), module, 3));
+        addInput(createInputCentered<PJ301MPort>(Vec(250, 275), module, 4));
+        addInput(createInputCentered<PJ301MPort>(Vec(250, 300), module, 5));
     }
 };
     

@@ -499,12 +499,14 @@ struct LameJuisInternal
             for (size_t i = 0; i < x_numAccumulators; ++i)
             {
                 m_high[i] = 0;
+                m_total[i] = 0;
             }
         }
 
         void Clear()
         {
             memset(m_high, 0, x_numAccumulators);
+            memset(m_total, 0, x_numAccumulators);
         }
 
         float ComputePitch(Accumulator* accumulators) const
@@ -548,8 +550,25 @@ struct LameJuisInternal
 
             return false;
         }
+
+        float Timbre(size_t i) const
+        {
+            if (m_high[i] == 0)
+            {
+                return 0;
+            }
+            else if (m_high[i] == m_total[i])
+            {
+                return 1;
+            }
+            else
+            {
+                return static_cast<float>(m_high[i]) / m_total[i];
+            }
+        }
         
         uint8_t m_high[x_numAccumulators];
+        uint8_t m_total[x_numAccumulators];
     };
 
     void ClearCaches()
@@ -595,9 +614,16 @@ struct LameJuisInternal
             return std::tie(m_pitch, m_result) < std::tie(other.m_pitch, other.m_result);
         }
 
-        void OctaveReduce()
+        void OctaveReduce(float lowest)
         {
+            m_pitch -= lowest;
             m_pitch = m_pitch - std::floor(m_pitch);
+            m_pitch += lowest;
+        }
+
+        float Timbre(size_t i) const
+        {
+            return m_result.Timbre(i);
         }
         
         MatrixEvalResult m_result;
@@ -616,6 +642,7 @@ struct LameJuisInternal
             {
                 size_t outputId = m_operations[i].GetOutputTarget();
                 bool isHigh = m_operations[i].GetValue(inputVector);
+                ++result.m_total[outputId];
                 if (isHigh)
                 {
                     ++result.m_high[outputId];
@@ -822,31 +849,74 @@ struct LameJuisInternal
                 if (!m_isEvaluated)
                 {
                     InputVectorIterator itr = output->GetInputVectorIterator(defaultVector);
+                    float lowest = 999;
                     for (; !itr.Done(); itr.Next())
                     {
                         m_cachedResults[itr.m_ordinal] = matrix->EvalMatrix(itr.Get());
-                        if (!Harmonic)
-                        {
-                            m_cachedResults[itr.m_ordinal].OctaveReduce();
-                        }
+                        lowest = std::min(lowest, m_cachedResults[itr.m_ordinal].m_pitch);
                     }
                     
                     m_numResults = itr.m_ordinal;
+
+                    if (!Harmonic)
+                    {
+                        lowest = lowest - std::floor(lowest);
+                        for (size_t i = 0; i < m_numResults; ++i)
+                        {                            
+                            m_cachedResults[i].OctaveReduce(lowest);
+                        }
+                    }
                     
                     std::sort(m_cachedResults, m_cachedResults + m_numResults);
 
                     size_t cur = 0;
                     m_resultOrd[0] = 0;
                     m_reverseIndex[0] = 0;
+                    m_octaveReverseIndex[0] = 0;
+                    size_t octaveCur = 0;
                     for (size_t i = 1; i < m_numResults; ++i)
                     {
                         if (m_cachedResults[i].m_pitch != m_cachedResults[i - 1].m_pitch)
                         {
                             ++cur;
                             m_reverseIndex[cur] = i;
+
+                            if (!Harmonic)
+                            {
+                                float reduced = m_cachedResults[i].m_pitch - lowest;
+                                size_t octaveIndex = reduced * x_octaveBuckets;
+                                assert(octaveIndex >= octaveCur);
+                                assert(reduced < 1);
+                                assert(reduced >= 0);
+                                for (size_t j = 0; j < (octaveIndex - octaveCur) / 2; ++j)
+                                {
+                                    m_octaveReverseIndex[octaveCur + j] = m_octaveReverseIndex[octaveCur];
+                                }
+
+                                for (size_t j = (octaveIndex - octaveCur) / 2; j < octaveIndex - octaveCur; ++j)
+                                {
+                                    m_octaveReverseIndex[octaveCur + j] = i;
+                                }
+
+                                m_octaveReverseIndex[octaveIndex] = i;
+                                octaveCur = octaveIndex;
+                            }
                         }
 
                         m_resultOrd[i] = cur;
+                    }
+
+                    if (!Harmonic)
+                    {
+                        for (size_t i = 0; i < (x_octaveBuckets - octaveCur) / 2; ++i)
+                        {
+                            m_octaveReverseIndex[octaveCur + i] = m_octaveReverseIndex[octaveCur];
+                        }
+
+                        for (size_t i = (x_octaveBuckets - octaveCur) / 2; i < x_octaveBuckets - octaveCur; ++i)
+                        {
+                            m_octaveReverseIndex[octaveCur + i] = 0;
+                        }
                     }
                     
                     m_numDistinctResults = cur + 1;
@@ -865,9 +935,14 @@ struct LameJuisInternal
                 else if (output->m_coMuteState.m_indexArp[chan])
                 {
                     int result;
-                    output->m_coMuteState.m_preIndexArp[chan]->Get(m_numDistinctResults, &result, octave);
-                    output->m_coMuteState.m_indexArp[chan]->Get(m_numDistinctResults, &result, octave);
-                    return m_reverseIndex[result];
+                    output->m_coMuteState.m_preIndexArp[chan]->Get(x_octaveBuckets , &result, octave);
+                    output->m_coMuteState.m_indexArp[chan]->Get(x_octaveBuckets, &result, octave);
+                    if (m_octaveReverseIndex[result] >= m_numResults)
+                    {
+                        assert(false);
+                    }
+                    
+                    return m_octaveReverseIndex[result];
                 }
                 else
                 {
@@ -889,6 +964,8 @@ struct LameJuisInternal
             size_t m_numResults;
             size_t m_numDistinctResults;
             bool m_isEvaluated;
+            static constexpr size_t x_octaveBuckets = 48;
+            size_t m_octaveReverseIndex[x_octaveBuckets];
         };
 
         struct Input

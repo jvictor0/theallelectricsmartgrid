@@ -29,7 +29,7 @@ struct IndexArp
         bool m_clock;
         bool m_reset;
         int m_offset;
-        int m_intervalSubOne;
+        int m_interval;
         bool m_cycle;
         bool m_rhythm[x_rhythmLength];
         int m_rhythmLength;
@@ -40,7 +40,7 @@ struct IndexArp
             : m_clock(false)
             , m_reset(true)
             , m_offset(0)
-            , m_intervalSubOne(0)
+            , m_interval(0)
             , m_cycle(false)
             , m_rhythmLength(x_rhythmLength)
             , m_up(true)
@@ -106,7 +106,7 @@ struct IndexArp
             offset = size - offset;
         }
 
-        int index = m_preIndex * (m_state.m_intervalSubOne + 1);
+        int index = m_preIndex * m_state.m_interval;
         
         if (m_state.m_cycle)
         {
