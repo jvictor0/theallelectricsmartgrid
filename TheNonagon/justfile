@@ -1,0 +1,48 @@
+# justfile
+
+# Set your actual app scheme and bundle ID
+SCHEME := "TheNonagon"
+BUNDLE_ID := "TheAllElectricSmartGrid.TheNonagon"
+
+# Device identifiers
+SIMULATOR := "iPad Air 13-inch (M3)"
+PHYSICAL_DEVICE := "00008122-001439681EA1001C"
+
+# Build for simulator
+builds:
+    xcodebuild \
+        -scheme {{SCHEME}} \
+        -destination 'platform=iOS Simulator,name={{SIMULATOR}}' \
+        -derivedDataPath build \
+        clean build
+
+# Build for physical device
+buildd:
+    xcodebuild \
+        -scheme {{SCHEME}} \
+        -destination 'platform=iOS,id={{PHYSICAL_DEVICE}}' \
+        -derivedDataPath build \
+        -allowProvisioningUpdates \
+        clean build
+
+# Install to simulator
+installs:
+    xcrun simctl install booted build/Build/Products/Debug-iphonesimulator/{{SCHEME}}.app
+
+# Install to physical device
+installd:
+    ios-deploy --id "{{PHYSICAL_DEVICE}}" --bundle build/Build/Products/Debug-iphoneos/{{SCHEME}}.app
+
+# Launch on simulator
+launchs:
+    xcrun simctl launch booted {{BUNDLE_ID}}
+
+# Boot simulator
+boots:
+    xcrun simctl boot "{{SIMULATOR}}"
+
+# Quick simulator build and run
+runs: builds installs launchs
+
+# Quick physical device build and run
+rund: buildd installd
