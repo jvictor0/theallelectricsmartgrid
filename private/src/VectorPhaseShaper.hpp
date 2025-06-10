@@ -152,12 +152,13 @@ struct VectorPhaseShaperInternal
     }                    
 };
 
+template<size_t N>
 struct Detour
 {
-    VectorPhaseShaperInternal m_vps[2];
-    float m_modPhase[2];
-    float m_modFreq[2];
-    bool m_which;
+    VectorPhaseShaperInternal m_vps[N];
+    float m_modPhase[N];
+    float m_modFreq[N];
+    size_t m_which;
     float m_phase;
     float m_voct;
     float m_freq;
@@ -165,39 +166,46 @@ struct Detour
     const WaveTable* m_sinWaveTable;
 
     Detour()
-        : m_modPhase{0, 0}
-        , m_modFreq{0, 0}
-        , m_which(false)
+        : m_which(0)
         , m_phase(0)
         , m_voct(NAN)
         , m_freq(0)
         , m_out(0)
     {
         m_sinWaveTable = &WaveTable::GetSine();
+
+        for (size_t i = 0; i < N; ++i)
+        {
+            m_modPhase[i] = 0;
+            m_modFreq[i] = 0;
+        }
     }
     
     struct Input
     {
         float m_voct;
 
-        float m_modBlend[2];
-        float m_modAmount[2];
-        float m_modDMult[2];
-        float m_modVMult[2];
-        float m_modFreqOffset[2];
-        float m_modVPhaseOffset[2];
+        float m_modBlend[N];
+        float m_modAmount[N];
+        float m_modDMult[N];
+        float m_modVMult[N];
+        float m_modFreqOffset[N];
+        float m_modVPhaseOffset[N];
         
-        VectorPhaseShaperInternal::Input m_vps[2];
+        VectorPhaseShaperInternal::Input m_vps[N];
 
         Input()
             : m_voct(0)
-            , m_modBlend{0, 0}
-            , m_modAmount{0, 0}
-            , m_modDMult{1, 1}
-            , m_modVMult{1, 1}
-            , m_modFreqOffset{0, 0}
-            , m_modVPhaseOffset{0.25, 0.25}
         {
+            for (size_t i = 0; i < N; ++i)
+            {
+                m_modBlend[i] = 0;
+                m_modAmount[i] = 0;
+                m_modDMult[i] = 1;
+                m_modVMult[i] = 1;
+                m_modFreqOffset[i] = 0;
+                m_modVPhaseOffset[i] = 0.25;
+            }
         }
     };
     
@@ -208,12 +216,16 @@ struct Detour
             m_voct = input.m_voct;
             m_freq = PhaseUtils::VOctToNatural(input.m_voct, delta);
 
-            m_vps[0].SetFreq(m_voct, delta);
-            m_vps[1].SetFreq(m_voct, delta);
+            for (size_t which = 0; which < N; ++which)
+            {
+                m_vps[which].SetFreq(m_voct, delta);
+            }
         }
 
-        m_modFreq[0] = PhaseUtils::VOctToNatural(m_voct + input.m_modFreqOffset[0], delta);
-        m_modFreq[1] = PhaseUtils::VOctToNatural(m_voct + input.m_modFreqOffset[1], delta);
+        for (size_t which = 0; which < N; ++which)
+        {
+            m_modFreq[which] = PhaseUtils::VOctToNatural(m_voct + input.m_modFreqOffset[which], delta);
+        }
     }
     
     void UpdatePhase()
@@ -222,10 +234,10 @@ struct Detour
         while (m_phase >= 1)
         {
             m_phase -= 1;
-            m_which = !m_which;
+            m_which = (m_which + 1) % N;
         }
 
-        for (size_t i = 0; i < 2; ++i)
+        for (size_t i = 0; i < N; ++i)
         {
             m_modPhase[i] += m_modFreq[i];
             while (m_modPhase[i] >= 1)
@@ -239,7 +251,7 @@ struct Detour
 
     void SetDV(const Input& input)
     {
-        for (size_t which = 0; which < 2; ++which)
+        for (size_t which = 0; which < N; ++which)
         {
             if (input.m_modAmount[which] == 0)
             {
@@ -276,25 +288,26 @@ struct Detour
     }
 };
 
+template<size_t N = 2>
 struct VectorPhaseShaper : Module
 {
     IOMgr m_ioMgr;
     IOMgr::Output* m_out;
     IOMgr::Input* m_voct;
-    IOMgr::Input* m_d[2];
-    IOMgr::Input* m_v[2];
-    IOMgr::Input* m_modBlend[2];
-    IOMgr::Input* m_modAmount[2];
-    IOMgr::Input* m_modDMult[2];
-    IOMgr::Input* m_modVMult[2];
-    IOMgr::Input* m_modFreqOffset[2];
-    IOMgr::Input* m_modVPhaseOffset[2];
+    IOMgr::Input* m_d[N];
+    IOMgr::Input* m_v[N];
+    IOMgr::Input* m_modBlend[N];
+    IOMgr::Input* m_modAmount[N];
+    IOMgr::Input* m_modDMult[N];
+    IOMgr::Input* m_modVMult[N];
+    IOMgr::Input* m_modFreqOffset[N];
+    IOMgr::Input* m_modVPhaseOffset[N];
 
-    Detour m_detour[16];
-    Detour::Input m_state[16];
+    Detour<N> m_detour[16];
+    typename Detour<N>::Input m_state[16];
 
-    IOMgr::Output* m_dOut[2];
-    IOMgr::Output* m_vOut[2];
+    IOMgr::Output* m_dOut[N];
+    IOMgr::Output* m_vOut[N];
     
    VectorPhaseShaper()
         : m_ioMgr(this)
@@ -309,7 +322,7 @@ struct VectorPhaseShaper : Module
             m_voct->SetTarget(i, &m_state[i].m_voct);
         }
         
-        for (int which = 0; which < 2; ++which)
+        for (size_t which = 0; which < N; ++which)
         {
             m_d[which] = m_ioMgr.AddInput("D" + std::to_string(which + 1), true);
             m_d[which]->m_scale = 0.1;
@@ -331,7 +344,7 @@ struct VectorPhaseShaper : Module
 
             m_modFreqOffset[which] = m_ioMgr.AddInput("Mod Freq Offset" + std::to_string(which + 1), true);
             m_modFreqOffset[which]->m_scale = 0.1;
-            m_modFreqOffset[which]->m_offset = -1;
+            m_modFreqOffset[which]->m_offset = 1 - N;
             
             m_modVPhaseOffset[which] = m_ioMgr.AddInput("Mod V Phase Offset" + std::to_string(which + 1), true);
             m_modVPhaseOffset[which]->m_scale = 0.1;
@@ -377,18 +390,27 @@ struct VectorPhaseShaper : Module
         m_ioMgr.SetOutputs();
     }
 };
-    
+
+template<size_t N>
 struct VectorPhaseShaperWidget : public ModuleWidget
 {
-    VectorPhaseShaperWidget(VectorPhaseShaper* module)
+    VectorPhaseShaperWidget(VectorPhaseShaper<N>* module)
     {
         setModule(module);
-        setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/VectorPhaseShaper.svg")));
+
+        if (N == 1)
+        {
+            setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/VectorPhaseShaper.svg")));
+        }
+        else
+        {
+            setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/DeDeTour.svg")));
+        }
 
         if (module)
         {
             module->m_voct->Widget(this, 1, 10);
-            for (int i = 0; i < 2; ++i)
+            for (size_t i = 0; i < N; ++i)
             {
                 module->m_d[i]->Widget(this, 2 + 2 * i, 10);
                 module->m_v[i]->Widget(this, 3 + 2 * i, 10);

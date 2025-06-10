@@ -54,3 +54,28 @@ struct FixedSlew
         return m_val;
     }
 };
+
+struct OPSlew
+{
+    float m_val;
+    float m_alpha;
+
+    OPSlew() : m_val(0), m_alpha(0)
+    {
+    }
+
+    OPSlew(float alpha) : m_val(0), m_alpha(alpha)
+    {
+    }
+
+    void SetAlphaFromTime(float tau, float dt)
+    {
+        m_alpha = dt / (tau + dt);
+    }
+
+    float Process(float trg)
+    {
+        m_val += m_alpha * (trg - m_val);
+        return m_val;
+    }
+};

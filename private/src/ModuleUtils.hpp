@@ -9,7 +9,12 @@ struct IOMgr
     static float Clamp(float min, float max, float value)
     {
         return std::min(std::max(min, value), max);
-    }   
+    }
+
+    static float Exp(float value, float base=30)
+    {
+        return (pow(base, value) - 1) / (base - 1);
+    }
     
     enum class Type : int
     {
@@ -227,6 +232,11 @@ struct IOMgr
                 
                 m_value.FromFloat(i, m_scale * m_module->inputs[m_id].getVoltage(i) + m_offset);
             }
+        }
+
+        float Get(int id)
+        {
+            return m_scale * m_module->inputs[m_id].getVoltage(i) + m_offset;
         }
 
         void Config()

@@ -71,9 +71,20 @@
             ]
         },
         {
-            "slug": "VectorPhaseShaper",
+            "slug": "VectorPhaseShaperOne",
             "name": "VectorPhaseShaper",
             "description": "VectorPhaseShaper",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "VectorPhaseShaper",
+            "name": "DeDetour",
+            "description": "DeDetour",
             "tags":
             [
             ],
@@ -85,6 +96,17 @@
             "slug": "MxDJ",
             "name": "MxDJ",
             "description": "MxDJ",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "SaturationBlock",
+            "name": "SaturationBlock",
+            "description": "SaturationBlock",
             "tags":
             [
             ],
@@ -140,6 +162,50 @@
             "slug": "PolyXFader",
             "name": "PolyXFader",
             "description": "PolyXFader",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "LissajousLFO",
+            "name": "LissajousLFO",
+            "description": "LissajousLFO",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "QuadDelay",
+            "name": "QuadDelay",
+            "description": "QuadDelay",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "QuadReverb",
+            "name": "QuadReverb",
+            "description": "QuadReverb",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "QuadMixer",
+            "name": "QuadMixer",
+            "description": "QuadMixer",
             "tags":
             [
             ],

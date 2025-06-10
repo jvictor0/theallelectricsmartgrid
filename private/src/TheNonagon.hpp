@@ -30,7 +30,6 @@ struct TheNonagonInternal
         MultiPhasorGateInternal::Input m_multiPhasorGateInput;
         NonagonIndexArp::Input m_arpInput;
         TrioOctaveSwitches::Input m_trioOctaveSwitchesInput;
-        Orbiter::Input m_pannerInput;        
 
         int m_indexArpIntervalSelect[x_numVoices];
         int m_indexArpOffsetSelect[x_numVoices];
@@ -70,7 +69,6 @@ struct TheNonagonInternal
     LameJuisInternal m_lameJuis;
     TimbreAndMute m_timbreAndMute;
     MultiPhasorGateInternal m_multiPhasorGate;
-    Orbiter m_panner;
     NonagonIndexArp m_indexArp;
     bool m_muted[x_numVoices];
     bool m_gateAck[x_numVoices];
@@ -310,7 +308,7 @@ struct TheNonagonInternal
 
     float GetTimerFragment(size_t ix)
     {
-        double tot = m_timer / (60 * 30);
+        double tot = m_timer / (60 * 20);
         if (tot < static_cast<double>(ix) / 16)
         {
             return 0;
@@ -330,7 +328,6 @@ struct TheNonagonInternal
         ProcessTimer(dt, input);
         SetTheoryOfTimeInput(input);
         m_theoryOfTime.Process(dt, input.m_theoryOfTimeInput);
-        m_panner.Process(dt, input.m_pannerInput);
         if (m_theoryOfTime.m_musicalTime.m_anyChange)
         {
             SetIndexArpInputs(input);
@@ -357,6 +354,8 @@ struct TheNonagonSmartGrid
 
     ScenedStateSaver m_stateSaver;
     ScenedStateSaver::Input m_stateSaverState;
+
+    json_t* m_savedJSON;
 
     json_t* ToJSON()
     {
@@ -586,22 +585,14 @@ struct TheNonagonSmartGrid
                 Put(xPos, 7, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits - i));
             }
 
-            Put(6, 7, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits));
-            
-            AddGrid(7, 0, new SmartGrid::Fader(
-                        &m_state->m_theoryOfTimeInput.m_freq,
-                        SmartGrid::x_baseGridSize,
-                        SmartGrid::Color::White,
-                        1.0/128 /*minHz*/,
-                        8.0 /*maxHz*/,
-                        0.02 /*minChangeSpeed*/,
-                        100  /*maxChangeSpeed*/,
-                        true /*pressureSensitive*/,
-                        SmartGrid::Fader::Structure::Exponential));
-            m_owner->m_stateSaver.Insert(
-                "TheoryOfTimeFreq", &m_state->m_theoryOfTimeInput.m_freq);
+            Put(6, 7, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits));            
         }
     };
+
+    void SetFrequency(float voct)
+    {
+        m_state.m_theoryOfTimeInput.m_freq = pow(2, voct) / 128;
+    }
 
     struct PhasorSelectorCell : public SmartGrid::Cell
     {
@@ -946,9 +937,10 @@ struct TheNonagonSmartGrid
                             static_cast<LameJuisInternal::Accumulator::Interval>(j),
                             LameJuisInternal::Accumulator::Interval::Off,
                             SmartGrid::StateCell<LameJuisInternal::Accumulator::Interval>::Mode::SetOnly));
-                    m_owner->m_stateSaver.Insert(
-                        "LameJuisInterval", i, &m_state->m_lameJuisInput.m_accumulatorInput[i].m_interval);
                 }
+
+                m_owner->m_stateSaver.Insert(
+                    "LameJuisInterval", i, &m_state->m_lameJuisInput.m_accumulatorInput[i].m_interval);
             }
         }
     };
@@ -1386,6 +1378,7 @@ struct TheNonagonSmartGrid
     Trio m_activeTrio;
     
     TheNonagonSmartGrid()
+        : m_savedJSON(nullptr)
     {
         InitState();
         InitGrid();
@@ -1461,7 +1454,6 @@ struct TheNonagonSmartGrid
     {
         if (shift)
         {
-            INFO("Saving scene %d", scene);
             m_stateSaver.CopyToScene(scene);
         }
         else
@@ -1488,7 +1480,7 @@ struct TheNonagon : Module
 
     TheNonagon()
     {
-        config(0, 6, 2 + 12 + 3 + 4 + 3, 0);
+        config(0, 7, 2 + 12 + 3 + 4 + 3, 0);
 
         configInput(0, "Save");
         configInput(1, "Load");
@@ -1517,26 +1509,60 @@ struct TheNonagon : Module
         configInput(3, "Scene Blend");
         configInput(4, "Scene Select");
         configInput(5, "Scene Shift");
+
+        configInput(6, "Speed");
     }
 
     json_t* dataToJson() override
     {
-        return m_nonagon.ToJSON();
+        if (m_nonagon.m_savedJSON)
+        {
+            return json_incref(m_nonagon.m_savedJSON);
+        }
+        else
+        {
+            return m_nonagon.ToJSON();
+        }
+    }
+
+    void SaveJSON()
+    {
+        json_decref(m_nonagon.m_savedJSON);
+        m_nonagon.m_savedJSON = nullptr;
+        m_nonagon.m_savedJSON = dataToJson();
+    }
+
+    void LoadSavedJSON()
+    {
+        if (m_nonagon.m_savedJSON)
+        {
+            m_nonagon.SetFromJSON(m_nonagon.m_savedJSON);
+        }
     }
 
     void dataFromJson(json_t* rootJ) override
     {
         m_nonagon.SetFromJSON(rootJ);
+        m_nonagon.m_savedJSON = json_incref(rootJ);
     }
 
     void HandlesSceneInputs()
     {
+        if (m_saveTrig.Process(inputs[0].getVoltage()))
+        {
+            SaveJSON();
+        }
+        
+        if (m_loadTrig.Process(inputs[1].getVoltage()))
+        {
+            LoadSavedJSON();
+        }
+        
         m_nonagon.m_stateSaverState.m_blend = inputs[3].getVoltage() / 10;
         for (size_t i = 0; i < 8; ++i)
         {
             if (m_sceneTrig[i].Process(inputs[4].getVoltage(i)))
             {
-                INFO("Scene %d", i);
                 m_nonagon.HandleSceneTrigger(inputs[5].getVoltage() > 0, i);
             }
         }
@@ -1557,6 +1583,7 @@ struct TheNonagon : Module
         outputs[22].setChannels(TheNonagonInternal::x_numVoices);
         outputs[23].setChannels(6);
         
+        m_nonagon.SetFrequency(inputs[6].getVoltage());
         m_nonagon.Process(args.sampleTime, args.frame);
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
@@ -1568,7 +1595,6 @@ struct TheNonagon : Module
             for (size_t j = 0; j < 3; ++j)
             {
                 outputs[17 + j].setVoltage(m_nonagon.m_nonagon.m_output.m_extraTimbre[i][j] * 10, i);
-                outputs[20 + j].setVoltage(5 + 5 * m_nonagon.m_nonagon.m_panner.m_output.m_pos[i][j], i);
             }            
         }
 
@@ -1654,6 +1680,7 @@ struct TheNonagonWidget : ModuleWidget
         addInput(createInputCentered<PJ301MPort>(Vec(250, 250), module, 3));
         addInput(createInputCentered<PJ301MPort>(Vec(250, 275), module, 4));
         addInput(createInputCentered<PJ301MPort>(Vec(250, 300), module, 5));
+        addInput(createInputCentered<PJ301MPort>(Vec(275, 300), module, 6));
     }
 };
     

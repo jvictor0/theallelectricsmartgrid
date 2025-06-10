@@ -639,6 +639,7 @@ struct EncoderBank : Module
     EncoderBankInternal m_bank;
     EncoderBankInternal::Input m_state;
     bool m_saveJSON;
+    bool m_loadJSON;
 
     json_t* m_savedJSON;
     
@@ -662,6 +663,7 @@ struct EncoderBank : Module
 
     IOMgr::Trigger* m_revertToDefault;
     IOMgr::Trigger* m_saveJSONTrigger;
+    IOMgr::Trigger* m_loadJSONTrigger;
 
     IOMgr::Param* m_numTracks;
     IOMgr::Param* m_numVoices;
@@ -745,6 +747,10 @@ struct EncoderBank : Module
         m_saveJSONTrigger->SetTrigger(0, &m_saveJSON);
         m_saveJSON = false;
 
+        m_loadJSONTrigger = m_ioMgr.AddTrigger("Load JSON", false);
+        m_loadJSONTrigger->SetTrigger(0, &m_loadJSON);
+        m_loadJSON = false;
+
         m_ioMgr.Config();
     }
 
@@ -795,6 +801,12 @@ struct EncoderBank : Module
                 SaveJSON();
                 m_saveJSON = false;
             }
+
+            if (m_loadJSON)
+            {
+                LoadSavedJSON();
+                m_loadJSON = false;
+            }
         }
 
         m_bank.ProcessStatic(args.sampleTime);
@@ -805,7 +817,7 @@ struct EncoderBank : Module
     json_t* dataToJson() override
     {
         json_t* rootJ = json_object();
-        json_t* encoders = json_array();
+        json_t* encoders = nullptr;
 
         if (m_savedJSON)
         {
@@ -813,6 +825,7 @@ struct EncoderBank : Module
         }
         else
         {
+            encoders = json_array();
             for (int i = 0; i < 4; ++i)
             {
                 for (int j = 0; j < 4; ++j)
@@ -829,8 +842,28 @@ struct EncoderBank : Module
     void SaveJSON()
     {
         json_decref(m_savedJSON);
-        m_savedJSON = nullptr;
-        std::ignore = dataToJson();
+        m_savedJSON = json_array();
+        for (int i = 0; i < 4; ++i)
+        {
+            for (int j = 0; j < 4; ++j)
+            {
+                json_array_append_new(m_savedJSON, m_bank.GetBase(i, j)->ToJSON());
+            }
+        }
+    }
+
+    void LoadSavedJSON()
+    {
+        if (m_savedJSON)
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                for (int j = 0; j < 4; ++j)
+                {
+                    m_bank.GetBase(i, j)->FromJSON(json_array_get(m_savedJSON, i * 4 + j));
+                }
+            }
+        }
     }
 
     void dataFromJson(json_t* rootJ) override
@@ -906,6 +939,7 @@ struct EncoderBankWidget : public ModuleWidget
             module->m_sceneLight->Widget(this, 6, 10);
             module->m_revertToDefault->Widget(this, 7, 10);
             module->m_saveJSONTrigger->Widget(this, 8, 10);
+            module->m_loadJSONTrigger->Widget(this, 9, 10);
 
             module->m_numTracks->Widget(this, 3, 11);
             module->m_numVoices->Widget(this, 4, 11);

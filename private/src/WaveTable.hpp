@@ -64,8 +64,8 @@ struct WaveTable
 
     static const WaveTable& GetSine()
     {
-        s_cosine.GenerateSine();
-        return s_cosine;
+        s_sine.GenerateSine();
+        return s_sine;
     }
 };
 
