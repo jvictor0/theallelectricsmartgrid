@@ -183,6 +183,7 @@ struct PhasorEnvelopeInternal
     }
 };
 
+#ifndef IOS_BUILD
 struct PhasorEnvelope : Module
 {
     static constexpr size_t x_maxPoly = 16;
@@ -364,3 +365,4 @@ struct PhasorEnvelopeWidget : ModuleWidget
         }
     }
 };
+#endif

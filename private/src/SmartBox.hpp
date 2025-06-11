@@ -85,6 +85,7 @@ struct MidiInterchangeSingle
     }    
 };
 
+#ifndef IOS_BUILD
 struct SmartBoxCnct : public Module
 {
     MidiInterchangeSingle m_midi;
@@ -153,5 +154,6 @@ struct SmartBoxCnctWidget : public ModuleWidget
         addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(50, 50)), module, 0));
     }
 };
+#endif
 
 }

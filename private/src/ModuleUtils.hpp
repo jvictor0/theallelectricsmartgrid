@@ -234,10 +234,10 @@ struct IOMgr
             }
         }
 
-        float Get(int id)
-        {
-            return m_scale * m_module->inputs[m_id].getVoltage(i) + m_offset;
-        }
+        // float Get(int id)
+        // {
+        //     return m_scale * m_module->inputs[m_id].getVoltage(i) + m_offset;
+        // }
 
         void Config()
         {

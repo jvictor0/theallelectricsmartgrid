@@ -288,6 +288,7 @@ struct Detour
     }
 };
 
+#ifndef IOS_BUILD
 template<size_t N = 2>
 struct VectorPhaseShaper : Module
 {
@@ -429,3 +430,4 @@ struct VectorPhaseShaperWidget : public ModuleWidget
         }
     }
 };
+#endif

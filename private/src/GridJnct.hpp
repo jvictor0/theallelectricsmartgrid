@@ -613,6 +613,7 @@ struct MenuGridSwitcher : public GridSwitcher
     }
 };
 
+#ifndef IOS_BUILD
 template<ControllerShape Shape>
 struct GridJnct : Module
 {
@@ -830,7 +831,6 @@ typedef GridJnctWidget<ControllerShape::LaunchPadProMk3> GridJnctLPP3Widget;
 
 #ifndef SMART_BOX
 
-
 struct MidiDeviceRemember
 {
     int m_deviceId;
@@ -1012,6 +1012,7 @@ struct GridCnctWidget : public ModuleWidget
     }
 };
 
+#endif
 #endif
 
 }

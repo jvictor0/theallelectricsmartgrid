@@ -3,6 +3,7 @@
 #include "StateSaver.hpp"
 #include "plugin.hpp"
 
+#ifndef IOS_BUILD
 struct MasterSwitch : Module
 {
     static constexpr size_t x_maxSteps = 64;
@@ -363,3 +364,4 @@ struct MasterSwitchWidget : ModuleWidget
         addInput(createInput<PJ301MPort>(Vec(50, 70), module, MasterSwitch::x_resetIn));
     }
 };
+#endif

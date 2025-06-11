@@ -172,6 +172,7 @@ struct ColorHelperChannel
     }
 };
 
+#ifndef IOS_BUILD
 struct ColorHelper : Module
 {
     static constexpr size_t x_maxPoly = 16;
@@ -380,5 +381,6 @@ struct ColorHelperWidget : ModuleWidget
         addOutput(createOutputCentered<PJ301MPort>(Vec(250, yPos), module, module->x_interpOut));
     }
 };
+#endif
 
 }

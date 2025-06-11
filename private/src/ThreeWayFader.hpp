@@ -2,6 +2,7 @@
 
 #include "ModuleUtils.hpp"
 
+#ifndef IOS_BUILD
 struct ThreeWayFader : Module
 {
     float m_input[16][3];
@@ -80,6 +81,7 @@ struct ThreeWayFaderWidget : public ModuleWidget
         }
     }
 };
+#endif
             
 
 

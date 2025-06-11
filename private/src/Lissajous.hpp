@@ -85,6 +85,7 @@ struct LissajousLFOInternal
     }
 };
             
+#ifndef IOS_BUILD
 struct LissajousLFO : Module
 {
     LissajousLFOInternal m_lfo[16];
@@ -197,3 +198,4 @@ struct LissajousLFOWidget : public ModuleWidget
         }
     }
 };
+#endif

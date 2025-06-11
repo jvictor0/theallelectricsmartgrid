@@ -3,7 +3,7 @@
 
 namespace SmartGrid
 {
-
+#ifndef IOS_BUILD
 struct MidiDriverDisplayChoice : LedDisplayChoice
 {
     struct MidiDriverItem : ui::MenuItem
@@ -274,5 +274,5 @@ struct ShapeWidget : LedDisplay
         addChild(m_shapeChoice);
     }
 };
-
+#endif
 }

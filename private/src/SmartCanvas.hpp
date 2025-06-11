@@ -217,6 +217,7 @@ struct SmartCanvasInternal : public AbstractGrid
     }
 };
 
+#ifndef IOS_BUILD
 struct SmartCanvas : Module
 {
     SmartCanvasInternal m_canvas;
@@ -350,5 +351,6 @@ struct SmartCanvasWidget : ModuleWidget
         addOutput(createOutputCentered<PJ301MPort>(Vec(50, 300), module, module->x_gridIdOut));
     }
 };
+#endif
 
 }

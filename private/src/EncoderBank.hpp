@@ -634,6 +634,7 @@ struct EncoderBankInternal : public EncoderGrid
     }
 };
 
+#ifndef IOS_BUILD
 struct EncoderBank : Module
 {
     EncoderBankInternal m_bank;
@@ -909,13 +910,13 @@ struct EncoderBankWidget : public ModuleWidget
     
     EncoderBankWidget(EncoderBank* module)
     {
-		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/EncoderBank.svg")));
+        setModule(module);
+        setPanel(createPanel(asset::plugin(pluginInstance, "res/EncoderBank.svg")));
 
-		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, 0)));
+        addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+        addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
         if (module)
         {
@@ -953,5 +954,6 @@ struct EncoderBankWidget : public ModuleWidget
         menu->addChild(new SetDefaultItem(dynamic_cast<EncoderBank*>(module)));
     }
 };
+#endif
 
 }

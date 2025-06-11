@@ -5,6 +5,8 @@
 #include <cmath>
 #include "Trig.hpp"
 #include "NormGen.hpp"
+#include "GangedRandomLFO.hpp"
+
 
 typedef linalg::aliases::float3 Vector;
 typedef linalg::aliases::float4 Quat;

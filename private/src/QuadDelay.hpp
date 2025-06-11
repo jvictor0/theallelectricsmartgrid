@@ -149,6 +149,7 @@ struct QuadDelayInternal
     }           
 };
 
+#ifndef IOS_BUILD
 template<bool IsReverb>
 struct QuadDelay : Module
 {
@@ -303,6 +304,7 @@ struct QuadDelayWidget : public ModuleWidget
         }
     }
 };
+#endif
             
 
 

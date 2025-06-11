@@ -3,7 +3,7 @@
 
 namespace SmartGrid
 {
-
+#ifndef IOS_BUILD
 struct GridWidget : LightWidget
 {
     int m_x;
@@ -75,5 +75,5 @@ inline void AddSmartGridWidget(
         }
     }
 }
-
+#endif
 }

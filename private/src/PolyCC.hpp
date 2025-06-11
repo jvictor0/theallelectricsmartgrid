@@ -2,6 +2,7 @@
 #include "plugin.hpp"
 #include "PeriodChecker.hpp"
 
+#ifndef IOS_BUILD
 struct PolyCC : public Module
 {
     midi::Output m_output;
@@ -111,3 +112,4 @@ struct PolyCCWidget : public ModuleWidget
         }
     }
 };
+#endif

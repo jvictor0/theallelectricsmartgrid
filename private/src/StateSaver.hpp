@@ -1,7 +1,18 @@
 #pragma once
 #include "plugin.hpp"
 #include <string>
+#include <random>
 #include <vector>
+#include <cassert>
+#include <cstring>
+
+extern "C"
+{
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-volatile"
+    #include <jansson.h>
+#pragma clang diagnostic pop
+}  
 
 template<size_t NumScenes>
 struct StateSaverTemp

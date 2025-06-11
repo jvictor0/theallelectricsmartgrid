@@ -2,12 +2,14 @@
 #include <stdint.h>
 #include <os/log.h>
 #include "RGBColor.h"
+#include "NonagonHolder.h"
 
 struct TheNonagonBridgeState 
 {
     TheNonagonBridgeState() 
       : m_counter(0) 
     {}
+    
     ~TheNonagonBridgeState() {}
     
     void HandlePress(int x, int y) {}

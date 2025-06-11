@@ -97,6 +97,7 @@ struct FaderBankSmartGrid : public CompositeGrid
     }
 };
 
+#ifndef IOS_BUILD
 struct FaderBank : public Module
 {
     StateSaver m_stateSaver;
@@ -190,5 +191,6 @@ struct FaderBankWidget : public ModuleWidget
         }
     }
 };
+#endif
 
 }

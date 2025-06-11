@@ -147,6 +147,7 @@ struct PolyXFaderInternal
     }
 };
             
+#ifndef IOS_BUILD
 struct PolyXFader : Module
 {
     PolyXFaderInternal m_fader[16];
@@ -249,3 +250,4 @@ struct PolyXFaderWidget : public ModuleWidget
         }
     }
 };
+#endif

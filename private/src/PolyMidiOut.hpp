@@ -2,6 +2,7 @@
 #include "plugin.hpp"
 #include "ModuleUtils.hpp"
 
+#ifndef IOS_BUILD
 struct PolyMidi : public Module
 {
     midi::Output m_output;
@@ -114,3 +115,4 @@ struct PolyMidiWidget : public ModuleWidget
         }
     }
 };
+#endif

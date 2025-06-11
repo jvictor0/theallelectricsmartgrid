@@ -197,6 +197,7 @@ struct ButtonBankInternal : Grid
     }
 };
 
+#ifndef IOS_BUILD
 struct ButtonBank : Module
 {
     static constexpr size_t x_maxPoly = 16;
@@ -430,5 +431,6 @@ struct ButtonBankWidget : public ModuleWidget
         }
     }
 };
+#endif
 
 }

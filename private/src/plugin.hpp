@@ -1,6 +1,7 @@
 #pragma once
-#include <rack.hpp>
 
+#ifndef IOS_BUILD
+#include <rack.hpp>
 
 using namespace rack;
 
@@ -32,3 +33,9 @@ extern Model* modelMasterSwitch;
 extern Model* modelSmartCanvas;
 extern Model* modelPolyCC;
 extern Model* modelSampleRateDivider;
+
+#else
+// iOS build stubs
+struct Plugin {};
+struct Model {};
+#endif

@@ -3,6 +3,7 @@
 #include "Filter.hpp"
 #include "ModuleUtils.hpp"
 
+#ifndef IOS_BUILD
 struct SaturationBlock : Module
 {
     TanhSaturator<true> m_saturator[16];
@@ -99,3 +100,4 @@ struct SaturationBlockWidget : ModuleWidget
         }
     }
 };
+#endif

@@ -1,5 +1,4 @@
-
-
+#ifndef IOS_BUILD
 struct SampleRateDivider : public Module
 {
     static constexpr size_t x_maxPoly = 16;
@@ -62,3 +61,4 @@ struct SampleRateDividerWidget : ModuleWidget
         addOutput(createOutput<PJ301MPort>(Vec(10, 90), module, 0));
     }
 };
+#endif

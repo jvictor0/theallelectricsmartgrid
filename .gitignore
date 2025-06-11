@@ -31,4 +31,83 @@
 *.out
 *.app
 
+*~# Xcode
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xcscmblueprint
+
+# SwiftPM
+.build/
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Archives
+*.xcarchive
+
+# Playground
+timeline.xctimeline
+playground.xcworkspace
+
+# App data
+*.moved-aside
+*.xcuserstate
+
+# Other
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.app.dSYM
+
+# User-specific
+*.swp
+*.swo
+*.orig
+
+# IDE
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Xcode Patch
+*.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings 
+
 *~
+
+private/dist/*
+dist/*

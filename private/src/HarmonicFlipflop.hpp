@@ -1,5 +1,6 @@
 #include "ModuleUtils.hpp"
 
+#ifndef IOS_BUILD
 struct HarmonicFlipflop : Module
 {
     float m_log2Harmonics[12];
@@ -89,3 +90,4 @@ struct HarmonicFlipflopWidget : public ModuleWidget
         }
     }
 };
+#endif

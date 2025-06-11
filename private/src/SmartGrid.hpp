@@ -1,5 +1,6 @@
 #pragma once
 #include "plugin.hpp"
+#include "ios_stubs.hpp"
 #include <memory>
 #include <cstddef>
 #include <cmath>
@@ -1401,7 +1402,7 @@ struct Fader : public Grid
             }
             else if (m_owner->IsBipolar() &&
                 (m_fromCenter == 0 ||
-                 (std::abs<int>(m_fromCenter) < std::abs<int>(m_owner->m_posFromCenter) &&
+                 (std::abs(m_fromCenter) < std::abs(m_owner->m_posFromCenter) &&
                   (m_fromCenter > 0) == (m_owner->m_posFromCenter > 0))))
             {
                 return m_owner->m_color;

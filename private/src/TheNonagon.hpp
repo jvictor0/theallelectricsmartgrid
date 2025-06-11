@@ -1,4 +1,3 @@
-
 #include "SmartGrid.hpp"
 #include "GridJnct.hpp"
 #include "TheoryOfTime.hpp"
@@ -12,6 +11,8 @@
 #include "NonagonPanner.hpp"
 #include "Trig.hpp"
 #include "ClockSelectCell.hpp"
+#include "GangedRandomLFO.hpp"
+#include "Slew.hpp"
 
 struct TheNonagonInternal
 {
@@ -1471,6 +1472,7 @@ struct TheNonagonSmartGrid
     }
 };
 
+#ifndef IOS_BUILD
 struct TheNonagon : Module
 {
     TheNonagonSmartGrid m_nonagon;
@@ -1683,4 +1685,5 @@ struct TheNonagonWidget : ModuleWidget
         addInput(createInputCentered<PJ301MPort>(Vec(275, 300), module, 6));
     }
 };
+#endif
     

@@ -449,6 +449,7 @@ struct MxDJInternal
     std::thread m_loadThread;
 };
 
+#ifndef IOS_BUILD
 struct MxDJ : Module
 {
     MxDJInternal m_dj;
@@ -493,3 +494,5 @@ struct MxDJWidget : ModuleWidget
         addInput(createInputCentered<PJ301MPort>(Vec(175, 200), module, 2));
     }
 };
+#endif
+

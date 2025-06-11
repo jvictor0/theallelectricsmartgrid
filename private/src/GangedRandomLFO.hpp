@@ -173,6 +173,7 @@ struct ManyGangedRandomLFO
     }
 };
 
+#ifndef IOS_BUILD
 struct GangedRandomLFO : Module
 {
     static constexpr size_t x_outs = 8;
@@ -359,3 +360,4 @@ struct GangedRandomLFOWidget : ModuleWidget
         }
     }
 };
+#endif

@@ -71,6 +71,7 @@ struct QuadMixerInternal
     }
 };
 
+#ifndef IOS_BUILD
 struct QuadMixer : Module
 {
     QuadMixerInternal m_internal;
@@ -187,5 +188,6 @@ struct QuadMixerWidget : public ModuleWidget
         }
     }
 };
+#endif
             
 

@@ -133,6 +133,7 @@ struct MultiPhasorGateInternal
     }    
 };
 
+#ifndef IOS_BUILD
 struct MultiPhasorGate : Module
 {
     static constexpr size_t x_maxPoly = 16;
@@ -286,3 +287,4 @@ struct MultiPhasorGateWidget : ModuleWidget
         addOutput(createOutputCentered<PJ301MPort>(Vec(175, 100), module, module->GateOutId()));
     }    
 };
+#endif
