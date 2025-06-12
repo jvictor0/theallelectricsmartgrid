@@ -1360,21 +1360,37 @@ struct TheNonagonSmartGrid
     };
 
     size_t m_theoryOfTimeTopologyGridId;
+    SmartGrid::Grid* m_theoryOfTimeTopologyGrid;
     size_t m_theoryOfTimeSwingGridId;
+    SmartGrid::Grid* m_theoryOfTimeSwingGrid;
     size_t m_theoryOfTimeSwaggerGridId;
+    SmartGrid::Grid* m_theoryOfTimeSwaggerGrid;
     size_t m_lameJuisCoMuteGridId;
+    SmartGrid::Grid* m_lameJuisCoMuteGrid;
     size_t m_lameJuisMatrixGridId;
+    SmartGrid::Grid* m_lameJuisMatrixGrid;
     size_t m_lameJuisLHSGridId;
+    SmartGrid::Grid* m_lameJuisLHSGrid;
     size_t m_lameJuisIntervalGridId;
+    SmartGrid::Grid* m_lameJuisIntervalGrid;
     size_t m_indexArpFireGridId;
+    SmartGrid::Grid* m_indexArpFireGrid;
     size_t m_indexArpEarthGridId;
+    SmartGrid::Grid* m_indexArpEarthGrid;
     size_t m_indexArpWaterGridId;
+    SmartGrid::Grid* m_indexArpWaterGrid;
     size_t m_lameJuisSeqPaletteFireGridId;
+    SmartGrid::Grid* m_lameJuisSeqPaletteFireGrid;
     size_t m_lameJuisSeqPaletteEarthGridId;
+    SmartGrid::Grid* m_lameJuisSeqPaletteEarthGrid;
     size_t m_lameJuisSeqPaletteWaterGridId;
+    SmartGrid::Grid* m_lameJuisSeqPaletteWaterGrid;
     size_t m_timbreAndMuteFireGridId;
+    SmartGrid::Grid* m_timbreAndMuteFireGrid;
     size_t m_timbreAndMuteEarthGridId;
+    SmartGrid::Grid* m_timbreAndMuteEarthGrid;
     size_t m_timbreAndMuteWaterGridId;
+    SmartGrid::Grid* m_timbreAndMuteWaterGrid;
     
     Trio m_activeTrio;
     
@@ -1419,34 +1435,61 @@ struct TheNonagonSmartGrid
     {
         // TheoryOfTime
         //
-        m_theoryOfTimeTopologyGridId = m_gridHolder.AddGrid(new TheoryOfTimeTopologyPage(this, false /*isPan*/));
-        m_theoryOfTimeSwingGridId = m_gridHolder.AddGrid(new TheoryOfTimeSwingAndSwaggerPage(this, true));
-        m_theoryOfTimeSwaggerGridId = m_gridHolder.AddGrid(new TheoryOfTimeSwingAndSwaggerPage(this, false));
+        m_theoryOfTimeTopologyGrid = new TheoryOfTimeTopologyPage(this, false /*isPan*/);
+        m_theoryOfTimeTopologyGridId = m_gridHolder.AddGrid(m_theoryOfTimeTopologyGrid);
+        
+        m_theoryOfTimeSwingGrid = new TheoryOfTimeSwingAndSwaggerPage(this, true);
+        m_theoryOfTimeSwingGridId = m_gridHolder.AddGrid(m_theoryOfTimeSwingGrid);
+        
+        m_theoryOfTimeSwaggerGrid = new TheoryOfTimeSwingAndSwaggerPage(this, false);
+        m_theoryOfTimeSwaggerGridId = m_gridHolder.AddGrid(m_theoryOfTimeSwaggerGrid);
         
         // LaMeJuIS
         //
-        m_lameJuisCoMuteGridId = m_gridHolder.AddGrid(new LameJuisCoMutePage(this));
-        m_lameJuisMatrixGridId = m_gridHolder.AddGrid(new LameJuisMatrixPage(this));
-        m_lameJuisLHSGridId = m_gridHolder.AddGrid(new LameJuisLHSPage(this));
-        m_lameJuisIntervalGridId = m_gridHolder.AddGrid(new LameJuisIntervalPage(this));
+        m_lameJuisCoMuteGrid = new LameJuisCoMutePage(this);
+        m_lameJuisCoMuteGridId = m_gridHolder.AddGrid(m_lameJuisCoMuteGrid);
+        
+        m_lameJuisMatrixGrid = new LameJuisMatrixPage(this);
+        m_lameJuisMatrixGridId = m_gridHolder.AddGrid(m_lameJuisMatrixGrid);
+        
+        m_lameJuisLHSGrid = new LameJuisLHSPage(this);
+        m_lameJuisLHSGridId = m_gridHolder.AddGrid(m_lameJuisLHSGrid);
+        
+        m_lameJuisIntervalGrid = new LameJuisIntervalPage(this);
+        m_lameJuisIntervalGridId = m_gridHolder.AddGrid(m_lameJuisIntervalGrid);
  
         // Sequencers
         //
-        m_indexArpFireGridId = m_gridHolder.AddGrid(new IndexArpPage(this, Trio::Fire));
-        m_indexArpEarthGridId = m_gridHolder.AddGrid(new IndexArpPage(this, Trio::Earth));
-        m_indexArpWaterGridId = m_gridHolder.AddGrid(new IndexArpPage(this, Trio::Water));
+        m_indexArpFireGrid = new IndexArpPage(this, Trio::Fire);
+        m_indexArpFireGridId = m_gridHolder.AddGrid(m_indexArpFireGrid);
+        
+        m_indexArpEarthGrid = new IndexArpPage(this, Trio::Earth);
+        m_indexArpEarthGridId = m_gridHolder.AddGrid(m_indexArpEarthGrid);
+        
+        m_indexArpWaterGrid = new IndexArpPage(this, Trio::Water);
+        m_indexArpWaterGridId = m_gridHolder.AddGrid(m_indexArpWaterGrid);
 
         // Palettes
         //
-        // m_lameJuisSeqPaletteFireGridId = m_gridHolder.AddGrid(new LameJuisSeqPalettePage(this, Trio::Fire));
-        // m_lameJuisSeqPaletteEarthGridId = m_gridHolder.AddGrid(new LameJuisSeqPalettePage(this, Trio::Earth));
-        // m_lameJuisSeqPaletteWaterGridId = m_gridHolder.AddGrid(new LameJuisSeqPalettePage(this, Trio::Water));
+        // m_lameJuisSeqPaletteFireGrid = new LameJuisSeqPalettePage(this, Trio::Fire);
+        // m_lameJuisSeqPaletteFireGridId = m_gridHolder.AddGrid(m_lameJuisSeqPaletteFireGrid);
+        
+        // m_lameJuisSeqPaletteEarthGrid = new LameJuisSeqPalettePage(this, Trio::Earth);
+        // m_lameJuisSeqPaletteEarthGridId = m_gridHolder.AddGrid(m_lameJuisSeqPaletteEarthGrid);
+        
+        // m_lameJuisSeqPaletteWaterGrid = new LameJuisSeqPalettePage(this, Trio::Water);
+        // m_lameJuisSeqPaletteWaterGridId = m_gridHolder.AddGrid(m_lameJuisSeqPaletteWaterGrid);
         
         // Articulation
         //
-        m_timbreAndMuteFireGridId = m_gridHolder.AddGrid(new TimbreAndMuteSubPage(this, Trio::Fire));
-        m_timbreAndMuteEarthGridId = m_gridHolder.AddGrid(new TimbreAndMuteSubPage(this, Trio::Earth));
-        m_timbreAndMuteWaterGridId = m_gridHolder.AddGrid(new TimbreAndMuteSubPage(this, Trio::Water));
+        m_timbreAndMuteFireGrid = new TimbreAndMuteSubPage(this, Trio::Fire);
+        m_timbreAndMuteFireGridId = m_gridHolder.AddGrid(m_timbreAndMuteFireGrid);
+        
+        m_timbreAndMuteEarthGrid = new TimbreAndMuteSubPage(this, Trio::Earth);
+        m_timbreAndMuteEarthGridId = m_gridHolder.AddGrid(m_timbreAndMuteEarthGrid);
+        
+        m_timbreAndMuteWaterGrid = new TimbreAndMuteSubPage(this, Trio::Water);
+        m_timbreAndMuteWaterGridId = m_gridHolder.AddGrid(m_timbreAndMuteWaterGrid);
 
         m_stateSaver.Insert("ActiveTrio", &m_activeTrio);
     }

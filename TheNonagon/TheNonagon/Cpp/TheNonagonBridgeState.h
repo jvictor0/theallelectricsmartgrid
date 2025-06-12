@@ -7,27 +7,32 @@
 struct TheNonagonBridgeState 
 {
     TheNonagonBridgeState() 
-      : m_counter(0) 
-    {}
+    {
+    }
+
+    ~TheNonagonBridgeState() 
+    {
+    }
     
-    ~TheNonagonBridgeState() {}
-    
-    void HandlePress(int x, int y) {}
-    void HandleRelease(int x, int y) {}
+    void HandlePress(int x, int y)
+    {
+        m_holder.HandlePress(x, y);
+    }
+
+    void HandleRelease(int x, int y) 
+    {
+        m_holder.HandleRelease(x, y);
+    }
     
     RGBColor GetColor(int x, int y) 
     {
-        // Simple proof of concept: animate red and green channels based on x, y, and m_counter
-        uint8_t r = (uint8_t)((x * 16 + m_counter) % 256);
-        uint8_t g = (uint8_t)((y * 32 + m_counter) % 256);
-        uint8_t b = (uint8_t)((m_counter + x + y) % 256);
-        return RGBColor(r, g, b);
+        return m_holder.GetColor(x, y);
     }
     
     void Process() 
     {
-        m_counter++;
+        m_holder.m_nonagon.Process(1.0f/60.0f, 0);
     }
     
-    uint32_t m_counter;
+    NonagonHolder m_holder;
 }; 

@@ -250,13 +250,19 @@ struct Cell
     {
         if (!IsPressed())
         {
+            INFO("NONAGON_DEBUG: Cell::OnPressStatic - velocity=%d", velocity);
             m_velocity = velocity;
             OnPress(velocity);
         }
         else if (m_pressureSensitive)
         {
+            INFO("NONAGON_DEBUG: Cell::OnPressStatic - pressure sensitive - velocity=%d", velocity);
             m_velocity = velocity;
             OnPressureChange(velocity);
+        }
+        else
+        {
+            INFO("NONAGON_DEBUG: Cell::OnPressStatic - already pressed - velocity=%d", velocity);
         }
     }
 
@@ -421,18 +427,27 @@ struct StateCell : public Cell
         switch (m_mode)
         {
             case Mode::Momentary:
+            {
+                INFO("NONAGON_DEBUG: StateCell::OnPress - Momentary mode, setting state to %d", static_cast<int>(m_myState));
+                *m_state = m_myState;
+                break;
+            }
             case Mode::SetOnly:
             {
+                INFO("NONAGON_DEBUG: StateCell::OnPress - SetOnly mode, setting state to %d", static_cast<int>(m_myState));
                 *m_state = m_myState;
                 break;
             }
             case Mode::Toggle:
             {
-                *m_state = (*m_state) == m_myState ? m_offState : m_myState;
+                StateClass newState = (*m_state) == m_myState ? m_offState : m_myState;
+                INFO("NONAGON_DEBUG: StateCell::OnPress - Toggle mode, changing state from %d to %d", static_cast<int>(*m_state), static_cast<int>(newState));
+                *m_state = newState;
                 break;
             }
             case Mode::ShowOnly:
             {
+                INFO("NONAGON_DEBUG: StateCell::OnPress - ShowOnly mode, no state change");
                 break;
             }
         }
@@ -442,6 +457,7 @@ struct StateCell : public Cell
     {
         if (m_mode == Mode::Momentary)
         {
+            INFO("StateCell::OnRelease - Momentary mode, resetting state to %d", static_cast<int>(m_offState));
             *m_state = m_offState;
         }
     }
@@ -1049,20 +1065,33 @@ struct Grid : public AbstractGrid
         return Get(i, j) ? Get(i, j)->GetColor() : Color::Off;
     }
 
+    void OnPress(int x, int y, uint8_t velocity)
+    {
+        if (Get(x, y))
+        { 
+            Get(x, y)->OnPressStatic(velocity);
+        }
+    }
+
+    void OnRelease(int x, int y)
+    {
+        if (Get(x, y))
+        {
+            Get(x, y)->OnReleaseStatic();
+        }
+    }
+
     virtual void Apply(Message msg) override
     {
         if (msg.m_mode == Message::Mode::Note)
         {
-            if (Get(msg.m_x, msg.m_y))
+            if (msg.m_velocity == 0)
             {
-                if (msg.m_velocity == 0)
-                {
-                    Get(msg.m_x, msg.m_y)->OnReleaseStatic();
-                }
-                else
-                {
-                    Get(msg.m_x, msg.m_y)->OnPressStatic(msg.m_velocity);
-                }
+                OnRelease(msg.m_x, msg.m_y);
+            }
+            else
+            {
+                OnPress(msg.m_x, msg.m_y, msg.m_velocity);
             }
         }
     }

@@ -8,9 +8,15 @@
 import SwiftUI
 
 struct ContentView: View {
-    private let m_bridge = TheNonagonBridge()
-    @StateObject private var m_viewModel = ButtonGridViewModel(bridge: TheNonagonBridge())
+    private static let x_sharedBridge = TheNonagonBridge()
+    private let m_bridge = ContentView.x_sharedBridge
+    @StateObject private var m_viewModel: ButtonGridViewModel
     @State private var m_displayLoopController: DisplayLoopController?
+    
+    init() {
+        // Create the view model with the shared bridge instance
+        _m_viewModel = StateObject(wrappedValue: ButtonGridViewModel(bridge: ContentView.x_sharedBridge))
+    }
     
     var body: some View {
         ButtonGridView(viewModel: m_viewModel)
