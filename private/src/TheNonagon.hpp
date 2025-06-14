@@ -1506,9 +1506,8 @@ struct TheNonagonSmartGrid
         }
     }
     
-    void Process(float dt, uint64_t frame)
+    void Process(float dt)
     {
-        std::ignore = frame;
         m_stateSaver.Process(m_stateSaverState);
         m_gridHolder.Process(dt);
         m_nonagon.Process(dt, m_state);
@@ -1629,7 +1628,7 @@ struct TheNonagon : Module
         outputs[23].setChannels(6);
         
         m_nonagon.SetFrequency(inputs[6].getVoltage());
-        m_nonagon.Process(args.sampleTime, args.frame);
+        m_nonagon.Process(args.sampleTime);
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {

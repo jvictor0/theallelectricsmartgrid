@@ -35,18 +35,13 @@ class DisplayLoopController
     
     @objc private func DisplayLoop() 
     {
-        // Process the bridge state
-        m_bridge.Process()
-        
         // Update colors for all buttons
         for y in 0..<8 
         {
             for x in 0..<16 
             {
                 let color = m_bridge.GetColor(x: x, y: y)
-                let swiftColor = SwiftUI.Color(red: Double(color.m_red) / 255.0,
-                                     green: Double(color.m_green) / 255.0,
-                                     blue: Double(color.m_blue) / 255.0)
+                let swiftColor = color;
                 m_buttonView.SetButtonColor(x: x, y: y, color: swiftColor)
             }
         }

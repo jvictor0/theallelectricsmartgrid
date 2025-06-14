@@ -1,10 +1,11 @@
 import Foundation
+import SwiftUI
 
-class TheNonagonBridge 
+public class TheNonagonBridge 
 {
     private var m_state: UnsafeMutableRawPointer?
     
-    init() 
+    public init() 
     {
         m_state = createTheNonagonBridgeState()
     }
@@ -17,7 +18,7 @@ class TheNonagonBridge
         }
     }
     
-    func HandlePress(x: Int, y: Int) 
+    public func HandlePress(x: Int, y: Int) 
     {
         if let state = m_state 
         {
@@ -25,7 +26,7 @@ class TheNonagonBridge
         }
     }
     
-    func HandleRelease(x: Int, y: Int) 
+    public func HandleRelease(x: Int, y: Int) 
     {
         if let state = m_state 
         {
@@ -33,21 +34,39 @@ class TheNonagonBridge
         }
     }
 
-    func GetColor(x: Int, y: Int) -> RGBColor 
+    public func GetColor(x: Int, y: Int) -> Color 
     {
         var color = RGBColor(m_red: 0, m_green: 0, m_blue: 0)
         if let state = m_state 
         {
             getTheNonagonBridgeStateColor(state, Int32(x), Int32(y), &color)
         }
-        return color
+        return Color(red: Double(color.m_red) / 255.0, green: Double(color.m_green) / 255.0, blue: Double(color.m_blue) / 255.0)
     }
-
-    func Process() 
+    
+    public func HandleRightMenuPress(index: Int) 
     {
         if let state = m_state 
         {
-            processTheNonagonBridgeState(state)
+            handleTheNonagonBridgeStateRightMenuPress(state, Int32(index))
+        }
+    }
+    
+    public func GetRightMenuColor(index: Int) -> Color 
+    {
+        var color = RGBColor(m_red: 0, m_green: 0, m_blue: 0)
+        if let state = m_state 
+        {
+            getTheNonagonBridgeStateRightMenuColor(state, Int32(index), &color)
+        }
+        return Color(red: Double(color.m_red) / 255.0, green: Double(color.m_green) / 255.0, blue: Double(color.m_blue) / 255.0)
+    }
+
+    public func Process(_ audioBuffer: UnsafeMutablePointer<UnsafeMutablePointer<Float>?>, _ numChannels: Int32, _ numFrames: Int32) 
+    {
+        if let state = m_state 
+        {
+            processTheNonagonBridgeState(state, audioBuffer, numChannels, numFrames)
         }
     }
 } 

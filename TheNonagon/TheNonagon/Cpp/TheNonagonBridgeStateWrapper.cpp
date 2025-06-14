@@ -30,9 +30,22 @@ extern "C"
             *outColor = static_cast<TheNonagonBridgeState*>(instance)->GetColor(x, y);
         }
     }
-
-    void processTheNonagonBridgeState(void* instance)
+    
+    void handleTheNonagonBridgeStateRightMenuPress(void* instance, int index)
     {
-        static_cast<TheNonagonBridgeState*>(instance)->Process();
+        static_cast<TheNonagonBridgeState*>(instance)->HandleRightMenuPress(index);
+    }
+    
+    void getTheNonagonBridgeStateRightMenuColor(void* instance, int index, struct RGBColor* outColor)
+    {
+        if (outColor)
+        {
+            *outColor = static_cast<TheNonagonBridgeState*>(instance)->GetRightMenuColor(index);
+        }
+    }
+
+    void processTheNonagonBridgeState(void* instance, float** audioBuffer, int32_t numChannels, int32_t numFrames)
+    {
+        static_cast<TheNonagonBridgeState*>(instance)->Process(audioBuffer, numChannels, numFrames);
     }
 } 

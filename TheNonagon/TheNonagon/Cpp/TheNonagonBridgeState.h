@@ -29,9 +29,27 @@ struct TheNonagonBridgeState
         return m_holder.GetColor(x, y);
     }
     
-    void Process() 
+    void HandleRightMenuPress(int index)
     {
-        m_holder.m_nonagon.Process(1.0f/60.0f, 0);
+        m_holder.HandleRightMenuPress(index);
+    }
+    
+    RGBColor GetRightMenuColor(int index)
+    {
+        return m_holder.GetRightMenuColor(index);
+    }
+    
+    void Process(float** audioBuffer, int32_t numChannels, int32_t numFrames) 
+    {
+        for (int32_t frame = 0; frame < numFrames; ++frame)
+        {
+            m_holder.Process(1.0f/48000.0f);
+            
+            for (int32_t channel = 0; channel < numChannels; ++channel)
+            {
+                audioBuffer[channel][frame] = 0.0f;
+            }
+        }
     }
     
     NonagonHolder m_holder;
