@@ -3,6 +3,7 @@
 #define IOS_BUILD
 #include "TheNonagon.hpp"
 #include "CircularQueue.h"
+#include "MidiBus.h"
 #include <thread>
 
 struct NonagonGridRouter
@@ -11,6 +12,7 @@ struct NonagonGridRouter
     SmartGrid::Grid* m_leftGrid;
     SmartGrid::Grid* m_rightGrid;
     size_t m_gridIndex;
+    CircularQueue<SmartGrid::Message, 1024> m_ioQueue;
 
     NonagonGridRouter(TheNonagonSmartGrid* nonagon)
     {  
@@ -22,6 +24,27 @@ struct NonagonGridRouter
     
     ~NonagonGridRouter()
     {
+    }
+
+    void ProcessMessages()
+    {
+        SmartGrid::Message message;
+        while (m_ioQueue.Pop(message))
+        {
+            ProcessMessage(message);
+        }
+    }
+
+    void ProcessMessage(SmartGrid::Message& message)
+    {
+        if (message.m_velocity > 0)
+        {
+            HandlePress(message.m_x, message.m_y);
+        }
+        else
+        {
+            HandleRelease(message.m_x, message.m_y);
+        }
     }
 
     void HandlePress(int x, int y)
@@ -48,6 +71,16 @@ struct NonagonGridRouter
         }
     }
 
+    void QueuePress(int x, int y)
+    {
+        m_ioQueue.Push(SmartGrid::Message(x, y, 128));
+    }
+    
+    void QueueRelease(int x, int y)
+    {
+        m_ioQueue.Push(SmartGrid::Message(x, y, 0));
+    }
+
     RGBColor GetColor(int x, int y)
     {
         SmartGrid::Color color;
@@ -65,59 +98,100 @@ struct NonagonGridRouter
 
     void HandleRightMenuPress(int index)
     {
-        if (index == 0)
-        {
-            m_leftGrid = m_nonagon->m_lameJuisCoMuteGrid;
-            m_rightGrid = m_nonagon->m_theoryOfTimeTopologyGrid;
-        }
-        else if (index == 1)
-        {
-            m_leftGrid = m_nonagon->m_theoryOfTimeSwingGrid;
-            m_rightGrid = m_nonagon->m_lameJuisIntervalGrid;
-        }
-        else if (index == 2)
-        {
-            m_leftGrid = m_nonagon->m_timbreAndMuteFireGrid;
-            m_rightGrid = m_nonagon->m_indexArpFireGrid;
-        }
-        else if (index == 3)
-        {
-            m_leftGrid = m_nonagon->m_timbreAndMuteEarthGrid;
-            m_rightGrid = m_nonagon->m_indexArpEarthGrid;
-        }
-        else if (index == 4)
-        {
-            m_leftGrid = m_nonagon->m_timbreAndMuteWaterGrid;
-            m_rightGrid = m_nonagon->m_indexArpWaterGrid;
-        }
-
+        m_leftGrid = GetLeftGridByIndex(index);
+        m_rightGrid = GetRightGridByIndex(index);
         m_gridIndex = index;
     }
 
     RGBColor GetRightMenuColor(int index)
     {
-        if (index == 0)
+        SmartGrid::Color color;
+        if (index == m_gridIndex)
         {
-            return RGBColor(1.0f, 1.0f, 1.0f);
+            color = GetRightGridByIndex(index)->m_onColor;
+
         }
-        else if (index == 1)
+        else
         {
-            return RGBColor(1.0f, 1.0f, 1.0f);
-        }
-        else if (index == 2)
-        {
-            return RGBColor(1.0f, 1.0f, 1.0f);
-        }
-        else if (index == 3)
-        {
-            return RGBColor(1.0f, 1.0f, 1.0f);
-        }
-        else if (index == 4)
-        {
-            return RGBColor(1.0f, 1.0f, 1.0f);
+            color = GetRightGridByIndex(index)->m_offColor;
         }
 
-        return RGBColor(0.0f, 0.0f, 0.0f);
+        return RGBColor(color.m_red, color.m_green, color.m_blue);
+    }
+
+    SmartGrid::Grid* GetLeftGridByIndex(size_t index)
+    {
+        switch (index)
+        {
+            case 0: return m_nonagon->m_lameJuisCoMuteGrid;
+            case 1: return m_nonagon->m_theoryOfTimeSwingGrid;
+            case 2: return m_nonagon->m_lameJuisMatrixGrid;
+            case 3: return m_nonagon->m_timbreAndMuteFireGrid;
+            case 4: return m_nonagon->m_timbreAndMuteEarthGrid;
+            case 5: return m_nonagon->m_timbreAndMuteWaterGrid;
+            default: return m_nonagon->m_lameJuisCoMuteGrid;
+        }
+    }
+
+    SmartGrid::Grid* GetRightGridByIndex(size_t index)
+    {
+        switch (index)
+        {
+            case 0: return m_nonagon->m_theoryOfTimeTopologyGrid;
+            case 1: return m_nonagon->m_lameJuisIntervalGrid;
+            case 2: return m_nonagon->m_lameJuisLHSGrid;
+            case 3: return m_nonagon->m_indexArpFireGrid;
+            case 4: return m_nonagon->m_indexArpEarthGrid;
+            case 5: return m_nonagon->m_indexArpWaterGrid;
+            default: return m_nonagon->m_theoryOfTimeTopologyGrid;
+        }
+    }
+};
+
+struct NonagonMidiSender
+{
+    MidiBus* m_midiBus;
+    TheNonagonSmartGrid* m_nonagon;
+
+    NonagonMidiSender(MidiBus* midiBus, TheNonagonSmartGrid* nonagon)
+    {
+        m_midiBus = midiBus;
+        m_nonagon = nonagon;
+    }
+
+    void SendVoltPerOctave(int channel, float volts)
+    {
+        if (m_midiBus->IsChannelPlaying(channel))
+        {
+            return;
+        }
+
+        int note = 12 * volts + 60;
+        float prePitchBend = 12 * volts + 60 - note;
+        int pitchBend = prePitchBend * 4096;
+        m_midiBus->SendNoteOnIfOff(note, 127, channel);
+        m_midiBus->SendPitchBend(pitchBend, channel);
+    }
+
+    void StopNote(int channel)
+    {
+        m_midiBus->SendNoteOff(channel);
+    }
+
+    void SendMidiNotes()
+    {
+        TheNonagonInternal::Output& output = m_nonagon->m_nonagon.m_output;
+        for (int i = 0; i < TheNonagonInternal::x_numVoices; i++)
+        {
+            if (output.m_gate[i])
+            {
+                SendVoltPerOctave(i, output.m_voltPerOct[i]);
+            }
+            else
+            {
+                StopNote(i);
+            }
+        }
     }
 };
 
@@ -125,11 +199,13 @@ struct NonagonHolder
 {
     TheNonagonSmartGrid m_nonagon;
     NonagonGridRouter m_gridRouter;
-    CircularQueue<SmartGrid::Message, 1024> m_ioQueue;
-    std::thread m_ioThread;
+    NonagonMidiSender m_midiSender;
+
+    MidiBus m_midiBus;
 
     NonagonHolder() 
         : m_gridRouter(&m_nonagon)
+        , m_midiSender(&m_midiBus, &m_nonagon)
     {
     }
     
@@ -137,41 +213,21 @@ struct NonagonHolder
     { 
     }
 
-    void ProcessMessages()
-    {
-        SmartGrid::Message message;
-        while (m_ioQueue.Pop(message))
-        {
-            ProcessMessage(message);
-        }
-    }
-
-    void ProcessMessage(SmartGrid::Message& message)
-    {
-        if (message.m_velocity > 0)
-        {
-            m_gridRouter.HandlePress(message.m_x, message.m_y);
-        }
-        else
-        {
-            m_gridRouter.HandleRelease(message.m_x, message.m_y);
-        }
-    }
-
     void Process(float dt)
     {
         m_nonagon.Process(dt);
-        ProcessMessages();
+        m_midiSender.SendMidiNotes();
+        m_gridRouter.ProcessMessages();
     }
 
     void HandlePress(int x, int y)
     {
-        m_ioQueue.Push(SmartGrid::Message(x, y, 128));
+        m_gridRouter.QueuePress(x, y);
     }
     
     void HandleRelease(int x, int y)
     {
-        m_ioQueue.Push(SmartGrid::Message(x, y, 0));
+        m_gridRouter.QueueRelease(x, y);
     }
 
     RGBColor GetColor(int x, int y)

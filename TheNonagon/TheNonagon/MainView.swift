@@ -5,12 +5,14 @@ struct MainView: View
     private static let x_sharedBridge = TheNonagonBridge()
     private let m_bridge = MainView.x_sharedBridge
     @StateObject private var m_viewModel: ButtonGridViewModel
+    @StateObject private var m_rightMenuViewModel: RightMenuViewModel
     @State private var m_displayLoopController: DisplayLoopController?
     @State private var m_audioEngineController: AudioEngineController?
     
     init() 
     {
         _m_viewModel = StateObject(wrappedValue: ButtonGridViewModel(bridge: MainView.x_sharedBridge))
+        _m_rightMenuViewModel = StateObject(wrappedValue: RightMenuViewModel(bridge: MainView.x_sharedBridge))
     }
     
     var body: some View 
@@ -40,13 +42,17 @@ struct MainView: View
             }
             
             // Right Menu
-            RightMenuView(bridge: m_bridge)
+            RightMenuView(viewModel: m_rightMenuViewModel)
                 .frame(width: 100)
                 .background(Color.gray.opacity(0.2))
         }
         .onAppear 
         {
-            m_displayLoopController = DisplayLoopController(bridge: m_bridge, buttonView: m_viewModel)
+            m_displayLoopController = DisplayLoopController(
+                bridge: m_bridge, 
+                buttonView: m_viewModel,
+                rightMenuView: m_rightMenuViewModel
+            )
             m_audioEngineController = AudioEngineController(bridge: m_bridge)
         }
     }

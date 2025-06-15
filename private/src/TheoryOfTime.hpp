@@ -15,33 +15,33 @@ inline uint64_t gcd(uint64_t a, uint64_t b)
    return gcd(b, a % b);
 }
 
-struct Fixed
+struct FixedPointNumber
 {
     static constexpr uint64_t x_base = 72055526400000000;
     uint64_t m_val;
 
-    Fixed() : m_val(0)
+    FixedPointNumber() : m_val(0)
     {
     }
 
-    explicit constexpr Fixed(uint64_t num, uint64_t den)
+    explicit constexpr FixedPointNumber(uint64_t num, uint64_t den)
         : m_val(num * x_base / den)
     {
     }
 
-    explicit constexpr Fixed(uint64_t x)
+    explicit constexpr FixedPointNumber(uint64_t x)
         : m_val(x)
     {
     }
 
-    static Fixed FromInt(uint64_t x)
+    static FixedPointNumber FromInt(uint64_t x)
     {
-        return Fixed(x);
+        return FixedPointNumber(x);
     }
 
-    static Fixed FromDouble(double x)
+    static FixedPointNumber FromDouble(double x)
     {
-        return Fixed(x * x_base);
+        return FixedPointNumber(x * x_base);
     }
     
     float Float()
@@ -49,7 +49,7 @@ struct Fixed
         return static_cast<double>(m_val) / x_base;
     }
 
-    Fixed operator*(uint64_t x)
+    FixedPointNumber operator*(uint64_t x)
     {
         unsigned __int128 val = m_val;
         return FromInt(val * x);
@@ -60,98 +60,98 @@ struct Fixed
     //     return Fixed(m_val / x);
     // }
 
-    Fixed operator+(Fixed x)
+    FixedPointNumber operator+(FixedPointNumber x)
     {
         unsigned __int128 val = m_val;
         return FromInt(val + x.m_val);
     }
 
-    Fixed Negate()
+    FixedPointNumber Negate()
     {
-        return Fixed(x_base - m_val);
+        return FixedPointNumber(x_base - m_val);
     }
 
-    Fixed operator-(Fixed x)
+    FixedPointNumber operator-(FixedPointNumber x)
     {
         assert(x <= (*this));
-        Fixed result = FromInt(m_val - x.m_val);
+        FixedPointNumber result = FromInt(m_val - x.m_val);
         return result;
     }
     
-    bool operator==(Fixed x)
+    bool operator==(FixedPointNumber x)
     {
         return m_val == x.m_val;
     }
 
-    bool operator!=(Fixed x)
+    bool operator!=(FixedPointNumber x)
     {
         return m_val != x.m_val;
     }
 
-    bool operator<(Fixed x)
+    bool operator<(FixedPointNumber x)
     {
         return m_val < x.m_val;
     }
 
-    bool operator<=(Fixed x)
+    bool operator<=(FixedPointNumber x)
     {
         return m_val <= x.m_val;
     }
 
-    bool operator>=(Fixed x)
+    bool operator>=(FixedPointNumber x)
     {
         return m_val >= x.m_val;
     }
 
-    bool operator>(Fixed x)
+    bool operator>(FixedPointNumber x)
     {
         return m_val > x.m_val;
     }
 
-    Fixed Min(Fixed x)
+    FixedPointNumber Min(FixedPointNumber x)
     {
         return (*this) <= x ? (*this) : x;
     }
 
-    Fixed Max(Fixed x)
+    FixedPointNumber Max(FixedPointNumber x)
     {
         return (*this) >= x ? (*this) : x;
     }
 
-    Fixed TimesRat(Fixed num, Fixed den)
+    FixedPointNumber TimesRat(FixedPointNumber num, FixedPointNumber den)
     {
         unsigned __int128 val = m_val;
         val = val * num.m_val;
         val = val / den.m_val;
-        Fixed result = FromInt(val);
+        FixedPointNumber result = FromInt(val);
         return result;
     }
 
-    Fixed Round(uint64_t x)
+    FixedPointNumber Round(uint64_t x)
     {
-        return Fixed((m_val / x) * x);
+        return FixedPointNumber((m_val / x) * x);
     }
 
-    Fixed Reduce(uint64_t* integer)
+    FixedPointNumber Reduce(uint64_t* integer)
     {
         *integer = m_val / x_base;
-        return Fixed(m_val % x_base);
+        return FixedPointNumber(m_val % x_base);
     }
 
-    Fixed Reduce()
+    FixedPointNumber Reduce()
     {
         uint64_t i;
         return Reduce(&i);
     }
 
-    static constexpr Fixed One()
+    static constexpr FixedPointNumber One()
     {
-        return Fixed(x_base);
+        return FixedPointNumber(x_base);
     }
 
-    static constexpr Fixed Half()
+    static constexpr FixedPointNumber Half()
     {
-        return Fixed(1, 2);
+        return FixedPointNumber(1, 2);
     }
 
     bool Gate()
@@ -171,7 +171,7 @@ struct Fixed
     }
 };
 
-inline Fixed Interpolate(Fixed x1, Fixed x2, Fixed y1, Fixed y2, Fixed xp)
+inline FixedPointNumber Interpolate(FixedPointNumber x1, FixedPointNumber x2, FixedPointNumber y1, FixedPointNumber y2, FixedPointNumber xp)
 {
     if (x1.Float() > 1 ||
         x2.Float() > 1 ||
@@ -210,12 +210,12 @@ inline Fixed Interpolate(Fixed x1, Fixed x2, Fixed y1, Fixed y2, Fixed xp)
         assert(false);
     }
     
-    Fixed ratNum = x2 >= x1 ? xp - x1 : x1 - xp;
-    Fixed ratDen = x2 >= x1 ? x2 - x1 : x1 - x2;
+    FixedPointNumber ratNum = x2 >= x1 ? xp - x1 : x1 - xp;
+    FixedPointNumber ratDen = x2 >= x1 ? x2 - x1 : x1 - x2;
     
-    Fixed result = y1 + (y2 - y1).TimesRat(ratNum, ratDen);
+    FixedPointNumber result = y1 + (y2 - y1).TimesRat(ratNum, ratDen);
 
-    if (Fixed::One() < result)
+    if (FixedPointNumber::One() < result)
     {
         INFO("Interp %s %s %s %s %s -> %s",
              x1.Frac().c_str() ,
@@ -230,10 +230,10 @@ inline Fixed Interpolate(Fixed x1, Fixed x2, Fixed y1, Fixed y2, Fixed xp)
     return result;
 }
 
-inline Fixed CircleDist(Fixed x1, Fixed x2)
+inline FixedPointNumber CircleDist(FixedPointNumber x1, FixedPointNumber x2)
 {
-    Fixed diff = x1 < x2 ? x2 - x1 : x1 - x2;
-    return Fixed(std::min(diff.m_val, Fixed::x_base - diff.m_val));
+    FixedPointNumber diff = x1 < x2 ? x2 - x1 : x1 - x2;
+    return FixedPointNumber(std::min(diff.m_val, FixedPointNumber::x_base - diff.m_val));
 }
 
 struct MusicalTime;
@@ -247,19 +247,19 @@ struct LinearPeice
         Over
     };
 
-    Fixed m_x1;
-    Fixed m_x2;
-    Fixed m_y1;
-    Fixed m_y2;
+    FixedPointNumber m_x1;
+    FixedPointNumber m_x2;
+    FixedPointNumber m_y1;
+    FixedPointNumber m_y2;
     bool m_empty;
 
     LinearPeice()
-        : LinearPeice(Fixed(0), Fixed(0), Fixed(0), Fixed(0))
-    {
+        : LinearPeice(FixedPointNumber(0), FixedPointNumber(0), FixedPointNumber(0), FixedPointNumber(0))
+    {   
         m_empty = true;
     }
     
-    LinearPeice(Fixed x1, Fixed x2, Fixed y1, Fixed y2)
+    LinearPeice(FixedPointNumber x1, FixedPointNumber x2, FixedPointNumber y1, FixedPointNumber y2)
         : m_x1(x1)
         , m_x2(x2)
         , m_y1(y1)
@@ -268,12 +268,12 @@ struct LinearPeice
     {
     }
 
-    LinearPeice SetOver(Fixed x2, Fixed y2)
+    LinearPeice SetOver(FixedPointNumber x2, FixedPointNumber y2)
     {
         return LinearPeice(m_x2, x2, m_y2, y2);
     }
 
-    LinearPeice SetUnder(Fixed x1, Fixed y1)
+    LinearPeice SetUnder(FixedPointNumber x1, FixedPointNumber y1)
     {
         return LinearPeice(x1, m_x1, y1, m_y1);
     }
@@ -285,8 +285,8 @@ struct LinearPeice
 
     LinearPeice Compose(LinearPeice other)
     {
-        Fixed y1 = other.m_y1 <= other.m_y2 ? m_x1.Max(other.m_y1) : m_x2.Max(other.m_y2);
-        Fixed y2 = other.m_y1 <= other.m_y2 ? m_x2.Min(other.m_y2) : m_x1.Min(other.m_y1);
+        FixedPointNumber y1 = other.m_y1 <= other.m_y2 ? m_x1.Max(other.m_y1) : m_x2.Max(other.m_y2);
+        FixedPointNumber y2 = other.m_y1 <= other.m_y2 ? m_x2.Min(other.m_y2) : m_x1.Min(other.m_y1);
         if (y1 < other.m_y1.Min(other.m_y2) ||
             y2 < other.m_y1.Min(other.m_y2) ||
             y1 > other.m_y1.Max(other.m_y2) ||
@@ -301,8 +301,8 @@ struct LinearPeice
             assert(false);
         }
         
-        Fixed x1 = other.Invert(y1);
-        Fixed x2 = other.Invert(y2);
+        FixedPointNumber x1 = other.Invert(y1);
+        FixedPointNumber x2 = other.Invert(y2);
         if (x2 < x1 ||
             x1 < other.m_x1 ||
             other.m_x2 < x1 ||
@@ -319,8 +319,8 @@ struct LinearPeice
             assert(false);
         }
 
-        Fixed z1 = other.Interpolate(x1);
-        Fixed z2 = other.Interpolate(x2);
+        FixedPointNumber z1 = other.Interpolate(x1);
+        FixedPointNumber z2 = other.Interpolate(x2);
         
         if (z1 < m_x1 ||
             m_x2 < z1 ||
@@ -343,7 +343,7 @@ struct LinearPeice
         return LinearPeice(x1, x2, Interpolate(y1), Interpolate(y2));
     }
 
-    BoundState Check(Fixed x)
+    BoundState Check(FixedPointNumber x)
     {
         if (m_empty)
         {
@@ -363,13 +363,13 @@ struct LinearPeice
         }
     }
 
-    Fixed Interpolate(Fixed x)
+    FixedPointNumber Interpolate(FixedPointNumber x)
     {
-        if (x == Fixed(0) && m_x1 != Fixed(0) && m_x2 == Fixed::One())
+        if (x == FixedPointNumber(0) && m_x1 != FixedPointNumber(0) && m_x2 == FixedPointNumber::One())
         {
             return m_y2;
         }
-        else if (x == Fixed::One() && m_x2 != Fixed::One() && m_x1 == Fixed(0))
+        else if (x == FixedPointNumber::One() && m_x2 != FixedPointNumber::One() && m_x1 == FixedPointNumber(0))
         {
             return m_y1;
         }
@@ -377,7 +377,7 @@ struct LinearPeice
         return ::Interpolate(m_x1, m_x2, m_y1, m_y2, x);
     }
 
-    Fixed Invert(Fixed y)
+    FixedPointNumber Invert(FixedPointNumber y)
     {
         if (y == m_y1)
         {
@@ -419,9 +419,9 @@ struct TimeBit
     MusicalTime* m_owner;
     size_t m_ix;
     size_t m_parentIx;
-    Fixed m_swing;
-    Fixed m_swagger;
-    Fixed m_pos;
+    FixedPointNumber m_swing;
+    FixedPointNumber m_swagger;
+    FixedPointNumber m_pos;
     uint64_t m_parentFloor;
     size_t m_mult;
     bool m_top;
@@ -433,19 +433,19 @@ struct TimeBit
         m_ix = ix;        
         m_owner = owner;
         m_parentIx = ix - 1;
-        m_pos = Fixed(0);
+        m_pos = FixedPointNumber(0);
         m_parentFloor = 0;
         m_top = true;
         m_state = State::x_init;
-        m_swing = Fixed::Half();
-        m_swagger = Fixed::Half();
+        m_swing = FixedPointNumber::Half();
+        m_swagger = FixedPointNumber::Half();
         m_mult = 1;
         m_pingPong = false;
     }
 
     void Stop()
     {
-        m_pos = Fixed(0);
+        m_pos = FixedPointNumber(0);
         m_parentFloor = 0;
         m_top = true;
         m_state = State::x_init;
@@ -462,11 +462,15 @@ struct TimeBit
     //     return "(" + std::to_string(m_ix) + ", " + std::to_string(m_pos < 0.5) + ", " + s + ", " + std::to_string(m_mult) + ")";
     // }
 
-    LinearPeice MakeLP(Fixed parentPos, uint64_t* parentFloor)
+    LinearPeice MakeLP(FixedPointNumber  parentPos, uint64_t* parentFloor)
     {
         (parentPos * m_mult).Reduce(parentFloor);
         assert(*parentFloor < m_mult);
-        LinearPeice result = LinearPeice(Fixed(*parentFloor, m_mult), Fixed(*parentFloor + 1, m_mult), Fixed(0), Fixed::One());
+        LinearPeice result = LinearPeice(
+            FixedPointNumber(*parentFloor, m_mult), 
+            FixedPointNumber(*parentFloor + 1, m_mult), 
+            FixedPointNumber(0),
+            FixedPointNumber::One());
         //INFO("Make LP %lu %s (%llu)", m_ix, result.ToString().c_str(), *parentFloor);
         if (m_pingPong)
         {
@@ -484,31 +488,31 @@ struct TimeBit
         return result;
     }
     
-    LinearPeice MakePingPongLP(Fixed t)
+    LinearPeice MakePingPongLP(FixedPointNumber t)
     {
         if (!m_pingPong)
-        {
-            return LinearPeice(Fixed(0), Fixed::One(), Fixed(0), Fixed::One());
+        {   
+            return LinearPeice(FixedPointNumber(0), FixedPointNumber::One(), FixedPointNumber(0), FixedPointNumber::One());
         }
-        else if (t < Fixed::Half())
+        else if (t < FixedPointNumber::Half())
         {
-            return LinearPeice(Fixed(0), Fixed::Half(), Fixed(0), Fixed::One());
+            return LinearPeice(FixedPointNumber(0), FixedPointNumber::Half(), FixedPointNumber(0), FixedPointNumber::One());
         }
         else
         {
-            return LinearPeice(Fixed::Half(), Fixed::One(), Fixed::One(), Fixed(0));
+            return LinearPeice(FixedPointNumber::Half(), FixedPointNumber::One(), FixedPointNumber::One(), FixedPointNumber(0));
         }
     }
     
-    LinearPeice MakeSwingLP(Fixed t)
+    LinearPeice MakeSwingLP(FixedPointNumber t)
     {
         if (t < m_swing)
         {
-            return LinearPeice(Fixed(0), m_swing, Fixed(0), m_swagger);
+            return LinearPeice(FixedPointNumber(0), m_swing, FixedPointNumber(0), m_swagger);
         }
         else
         {
-            return LinearPeice(m_swing, Fixed::One(), m_swagger, Fixed::One());
+            return LinearPeice(m_swing, FixedPointNumber::One(), m_swagger, FixedPointNumber::One());
         }
     }
 
@@ -544,7 +548,7 @@ struct TimeBit
         else if (m_parentIx != input.m_parentIx)
         {
             m_top = true;
-            m_pos = Fixed(0);
+            m_pos = FixedPointNumber(0);
             m_state = State::x_waiting;
         }
 
@@ -565,8 +569,8 @@ struct TimeBit
         float globalHomo = input.m_globalHomotopy ? *input.m_globalHomotopy : 1;
         float swingFloat = globalHomo * ((1 - rand) * input.m_swing + rand * input.m_swing * input.m_gen.UniGen());
         float swaggerFloat = globalHomo * ((1 - rand) * input.m_swagger + rand * input.m_swagger * input.m_gen.UniGen());
-        m_swing = Fixed::FromDouble(swingFloat / 2.5 + 0.5);
-        m_swagger = Fixed::FromDouble(swaggerFloat / 2.5 + 0.5);
+        m_swing = FixedPointNumber::FromDouble(swingFloat / 2.5 + 0.5);
+        m_swagger = FixedPointNumber::FromDouble(swaggerFloat / 2.5 + 0.5);
 
         size_t effectiveMult = m_pingPong ? 2 * m_mult : m_mult;
         m_swing = m_swing.Round(effectiveMult);
@@ -603,7 +607,7 @@ struct TimeBit
         }
 
         TimeBit* parent = GetParent();
-        Fixed inT = parent->m_pos;
+        FixedPointNumber inT = parent->m_pos;
         if (parent->m_top || m_lp.Check(inT) != LinearPeice::BoundState::In)
         {
             uint64_t newParentFloor;
@@ -616,15 +620,15 @@ struct TimeBit
         }
 
         m_pos = m_lp.Interpolate(inT);
-        if (Fixed::One() < m_pos)
+        if (FixedPointNumber::One() < m_pos)
         {
             INFO("Big pos %f, %lu %f", m_pos.Float(), m_ix, inT.Float());
             assert(false);
         }
 
-        if (m_pos == Fixed::One())
+        if (m_pos == FixedPointNumber::One())
         {
-            m_pos = Fixed(0);
+            m_pos = FixedPointNumber(0);
         }
     }
 
@@ -636,7 +640,7 @@ struct TimeBit
             m_top = true;
         }
 
-        m_pos = Fixed::FromDouble(t);
+        m_pos = FixedPointNumber::FromDouble(t);
     }
 };
 

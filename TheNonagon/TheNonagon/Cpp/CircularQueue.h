@@ -16,7 +16,7 @@ struct CircularQueue
             return false;
         }
 
-        m_data[m_head] = value;
+        m_data[m_head % N] = value;
         m_head++;
         return true;
     }
@@ -28,7 +28,7 @@ struct CircularQueue
             return false;
         }
 
-        value = m_data[m_tail];
+        value = m_data[m_tail % N];
         m_tail++;
         return true;
     }
