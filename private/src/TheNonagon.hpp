@@ -75,9 +75,11 @@ struct TheNonagonInternal
     bool m_gateAck[x_numVoices];
     double m_timer;
     Trig m_timerTrig;
+    int m_numRunning;
 
     TheNonagonInternal()
         : m_timer(0)
+        , m_numRunning(0)
     {
         for (size_t i = 0; i < x_numVoices; ++i)
         {
@@ -140,7 +142,7 @@ struct TheNonagonInternal
 
     void SetTheoryOfTimeInput(Input& input)
     {
-        input.m_theoryOfTimeInput.m_input.m_running = input.m_running;
+        input.m_theoryOfTimeInput.m_input.m_running = input.m_running || m_numRunning > 0;
     }
 
     void SetLameJuisInput(Input& input)
@@ -250,11 +252,12 @@ struct TheNonagonInternal
 
     void SetOutputs(Input& input)
     {
+        m_numRunning = 0;
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             if (m_multiPhasorGate.m_gate[i] && !m_gateAck[i])
             {                                
-                if (!input.m_mute[i])
+                if (!input.m_mute[i] && input.m_running)
                 {
                     m_output.m_gate[i] = true;
                     m_muted[i] = false;
@@ -282,6 +285,10 @@ struct TheNonagonInternal
             }
 
             m_output.m_phasor[i] = m_muted[i] ? 0 : m_multiPhasorGate.m_phasorOut[i];
+            if (m_output.m_gate[i])
+            {
+                ++m_numRunning;
+            }
 
             for (size_t j = 0; j < x_numExtraTimbres; ++j)
             {
@@ -341,8 +348,16 @@ struct TheNonagonInternal
             m_timbreAndMute.Process(input.m_timbreAndMuteInput);
         }
 
-        SetMultiPhasorGateInputs(input);
-        m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
+        if (m_theoryOfTime.m_musicalTime.m_running)
+        {
+            SetMultiPhasorGateInputs(input);
+            m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
+        }
+        else
+        {
+            m_multiPhasorGate.Reset();
+        }
+
         SetOutputs(input);
     }
 };

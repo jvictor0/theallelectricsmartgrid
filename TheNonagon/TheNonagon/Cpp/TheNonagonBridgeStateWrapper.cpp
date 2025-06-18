@@ -48,4 +48,14 @@ extern "C"
     {
         static_cast<TheNonagonBridgeState*>(instance)->Process(audioBuffer, numChannels, numFrames);
     }
+    
+    void setTheNonagonBridgeStateMidiInput(void* instance, int32_t index)
+    {
+        static_cast<TheNonagonBridgeState*>(instance)->SetMidiInput(index);
+    }
+    
+    void setTheNonagonBridgeStateMidiOutput(void* instance, int32_t index)
+    {
+        static_cast<TheNonagonBridgeState*>(instance)->SetMidiOutput(index);
+    }
 } 

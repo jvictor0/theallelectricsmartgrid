@@ -139,6 +139,14 @@ struct MidiBus
     MIDIClientRef m_client;
     MIDIPortRef m_outputPort;
     MIDIEndpointRef m_dest;
+    std::atomic<int> m_desiredOutputIndex;
+    int m_outputIndex;
+
+    void SetOutput(int index)
+    {
+        INFO("Setting desired MIDI output to %d", index);
+        m_desiredOutputIndex = index;
+    }
 
     void InitMIDI()
     {
@@ -149,7 +157,14 @@ struct MidiBus
 
         if (numDests > 0)
         {
-            m_dest = MIDIGetDestination(numDests - 1);
+            m_desiredOutputIndex = 0;
+            m_outputIndex = m_desiredOutputIndex;
+            m_dest = MIDIGetDestination(m_outputIndex);
+        }
+        else
+        {
+            m_desiredOutputIndex = -1;
+            m_outputIndex = m_desiredOutputIndex;
         }
     }
 
@@ -157,6 +172,13 @@ struct MidiBus
     {
         while (m_running) 
         {
+            if (m_outputIndex != m_desiredOutputIndex)
+            {
+                m_outputIndex = m_desiredOutputIndex;
+                m_dest = MIDIGetDestination(m_outputIndex);
+                INFO("MIDI output changed to %d", m_outputIndex);
+            }
+
             MidiMessage message;
             while (m_buffer.Pop(message)) 
             {

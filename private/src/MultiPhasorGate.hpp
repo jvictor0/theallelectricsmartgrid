@@ -46,6 +46,15 @@ struct MultiPhasorGateInternal
             }            
         }
     }
+
+    void Reset()
+    {
+        for (size_t i = 0; i < x_maxPoly; ++i)
+        {
+            m_gate[i] = false;
+            m_phasorOut[i] = 0;
+        }
+    }
     
     struct PhasorBounds
     {

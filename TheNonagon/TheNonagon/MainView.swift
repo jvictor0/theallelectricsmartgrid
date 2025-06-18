@@ -6,6 +6,7 @@ struct MainView: View
     private let m_bridge = MainView.x_sharedBridge
     @StateObject private var m_viewModel: ButtonGridViewModel
     @StateObject private var m_rightMenuViewModel: RightMenuViewModel
+    @StateObject private var m_leftMenuViewModel: LeftMenuViewModel
     @State private var m_displayLoopController: DisplayLoopController?
     @State private var m_audioEngineController: AudioEngineController?
     
@@ -13,6 +14,7 @@ struct MainView: View
     {
         _m_viewModel = StateObject(wrappedValue: ButtonGridViewModel(bridge: MainView.x_sharedBridge))
         _m_rightMenuViewModel = StateObject(wrappedValue: RightMenuViewModel(bridge: MainView.x_sharedBridge))
+        _m_leftMenuViewModel = StateObject(wrappedValue: LeftMenuViewModel(bridge: MainView.x_sharedBridge))
     }
     
     var body: some View 
@@ -20,12 +22,7 @@ struct MainView: View
         HStack(spacing: 0) 
         {
             // Left Menu
-            VStack 
-            {
-                Spacer()
-            }
-            .frame(width: 100)
-            .background(Color.gray.opacity(0.2))
+            LeftMenuView(viewModel: m_leftMenuViewModel)
             
             // Center Content with Button Grid
             VStack(spacing: 0) 

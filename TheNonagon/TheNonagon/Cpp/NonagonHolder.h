@@ -193,6 +193,11 @@ struct NonagonMidiSender
             }
         }
     }
+
+    void SetMidiOutput(int32_t index)
+    {
+        m_midiBus->SetOutput(index);
+    }
 };
 
 struct NonagonHolder
@@ -243,5 +248,16 @@ struct NonagonHolder
     RGBColor GetRightMenuColor(int index)
     {
         return m_gridRouter.GetRightMenuColor(index);
+    }
+    
+    void SetMidiInput(int32_t index)
+    {
+        std::ignore = index;
+        // m_midiBus.SetInput(index);
+    }
+    
+    void SetMidiOutput(int32_t index)
+    {
+        m_midiSender.SetMidiOutput(index);
     }
 };  

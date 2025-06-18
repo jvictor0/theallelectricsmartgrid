@@ -52,5 +52,15 @@ struct TheNonagonBridgeState
         }
     }
     
+    void SetMidiInput(int32_t index)
+    {
+        m_holder.SetMidiInput(index);
+    }
+    
+    void SetMidiOutput(int32_t index)
+    {
+        m_holder.SetMidiOutput(index);
+    }
+    
     NonagonHolder m_holder;
 }; 

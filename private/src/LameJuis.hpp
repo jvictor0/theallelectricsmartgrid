@@ -1130,6 +1130,14 @@ struct LameJuisInternal
             }
         }
 
+        void ClearPrevVector()
+        {
+            for (size_t i = 0; i < x_numInputs; ++i)
+            {
+                m_prevVector.Set(i, false);
+            }
+        }
+
         Input()
         {
             m_reset = false;

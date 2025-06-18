@@ -69,4 +69,20 @@ public class TheNonagonBridge
             processTheNonagonBridgeState(state, audioBuffer, numChannels, numFrames)
         }
     }
+    
+    public func SetMidiInput(_ index: Int) 
+    {
+        if let state = m_state 
+        {
+            setTheNonagonBridgeStateMidiInput(state, Int32(index))
+        }
+    }
+    
+    public func SetMidiOutput(_ index: Int) 
+    {
+        if let state = m_state 
+        {
+            setTheNonagonBridgeStateMidiOutput(state, Int32(index))
+        }
+    }
 } 
