@@ -1,8 +1,10 @@
 import Foundation
 import SwiftUI
 
-public class TheNonagonBridge 
+public class TheNonagonBridge: ObservableObject
 {
+    @Published var buttonColors: [[[Color]]] = Array(repeating: Array(repeating: Array(repeating: Color.gray, count: 8), count: 8), count: Int(GridHandle_NumGrids.rawValue))
+
     private var m_state: UnsafeMutableRawPointer?
     
     public init() 
@@ -18,28 +20,28 @@ public class TheNonagonBridge
         }
     }
     
-    public func HandlePress(x: Int, y: Int) 
+    public func HandlePress(gridHandle: GridHandle, x: Int, y: Int) 
     {
         if let state = m_state 
         {
-            handleTheNonagonBridgeStatePress(state, Int32(x), Int32(y))
+            handleTheNonagonBridgeStatePress(state, gridHandle, Int32(x), Int32(y))
         }
     }
     
-    public func HandleRelease(x: Int, y: Int) 
+    public func HandleRelease(gridHandle: GridHandle, x: Int, y: Int) 
     {
         if let state = m_state 
         {
-            handleTheNonagonBridgeStateRelease(state, Int32(x), Int32(y))
+            handleTheNonagonBridgeStateRelease(state, gridHandle, Int32(x), Int32(y))
         }
     }
 
-    public func GetColor(x: Int, y: Int) -> Color 
+    public func GetColor(gridHandle: GridHandle, x: Int, y: Int) -> Color 
     {
         var color = RGBColor(m_red: 0, m_green: 0, m_blue: 0)
         if let state = m_state 
         {
-            getTheNonagonBridgeStateColor(state, Int32(x), Int32(y), &color)
+            getTheNonagonBridgeStateColor(state, gridHandle, Int32(x), Int32(y), &color)
         }
         return Color(red: Double(color.m_red) / 255.0, green: Double(color.m_green) / 255.0, blue: Double(color.m_blue) / 255.0)
     }
@@ -83,6 +85,20 @@ public class TheNonagonBridge
         if let state = m_state 
         {
             setTheNonagonBridgeStateMidiOutput(state, Int32(index))
+        }
+    }
+
+    public func PopulateButtonColors()
+    {
+        for gridHandle in 0..<Int(GridHandle_NumGrids.rawValue)
+        {
+            for x in 0..<8
+            {
+                for y in 0..<8
+                {
+                    buttonColors[gridHandle][x][y] = GetColor(gridHandle: GridHandle(UInt32(gridHandle)), x: x, y: y)
+                }
+            }
         }
     }
 } 

@@ -4,17 +4,17 @@ struct MainView: View
 {
     private static let x_sharedBridge = TheNonagonBridge()
     private let m_bridge = MainView.x_sharedBridge
-    @StateObject private var m_viewModel: ButtonGridViewModel
     @StateObject private var m_rightMenuViewModel: RightMenuViewModel
     @StateObject private var m_leftMenuViewModel: LeftMenuViewModel
+    @StateObject private var m_bottomMenuViewModel: BottomMenuViewModel
     @State private var m_displayLoopController: DisplayLoopController?
     @State private var m_audioEngineController: AudioEngineController?
     
     init() 
     {
-        _m_viewModel = StateObject(wrappedValue: ButtonGridViewModel(bridge: MainView.x_sharedBridge))
         _m_rightMenuViewModel = StateObject(wrappedValue: RightMenuViewModel(bridge: MainView.x_sharedBridge))
         _m_leftMenuViewModel = StateObject(wrappedValue: LeftMenuViewModel(bridge: MainView.x_sharedBridge))
+        _m_bottomMenuViewModel = StateObject(wrappedValue: BottomMenuViewModel(bridge: MainView.x_sharedBridge))
     }
     
     var body: some View 
@@ -27,15 +27,10 @@ struct MainView: View
             // Center Content with Button Grid
             VStack(spacing: 0) 
             {
-                ButtonGridView(viewModel: m_viewModel)
+                ButtonGridView(bridge: m_bridge, gridHandle: GridHandle_LameJuisCoMute)
                 
                 // Bottom Menu
-                HStack 
-                {
-                    Spacer()
-                }
-                .frame(height: 60)
-                .background(Color.gray.opacity(0.2))
+                BottomMenuView(viewModel: m_bottomMenuViewModel)
             }
             
             // Right Menu
@@ -47,7 +42,6 @@ struct MainView: View
         {
             m_displayLoopController = DisplayLoopController(
                 bridge: m_bridge, 
-                buttonView: m_viewModel,
                 rightMenuView: m_rightMenuViewModel
             )
             m_audioEngineController = AudioEngineController(bridge: m_bridge)

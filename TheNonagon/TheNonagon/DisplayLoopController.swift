@@ -6,13 +6,11 @@ class DisplayLoopController
 {
     private var m_displayLink: CADisplayLink?
     private let m_bridge: TheNonagonBridge
-    private let m_buttonView: ButtonGridViewModel
     private let m_rightMenuView: RightMenuViewModel
     
-    init(bridge: TheNonagonBridge, buttonView: ButtonGridViewModel, rightMenuView: RightMenuViewModel) 
+    init(bridge: TheNonagonBridge, rightMenuView: RightMenuViewModel) 
     {
         self.m_bridge = bridge
-        self.m_buttonView = buttonView
         self.m_rightMenuView = rightMenuView
         SetupDisplayLink()
     }
@@ -37,15 +35,7 @@ class DisplayLoopController
     
     @objc private func DisplayLoop() 
     {
-        // Update colors for all buttons
-        for y in 0..<8 
-        {
-            for x in 0..<16 
-            {
-                let color = m_bridge.GetColor(x: x, y: y)
-                m_buttonView.SetButtonColor(x: x, y: y, color: color)
-            }
-        }
+        m_bridge.PopulateButtonColors()
         
         // Update colors for right menu buttons
         for index in 0..<RightMenuViewModel.x_ButtonCount 

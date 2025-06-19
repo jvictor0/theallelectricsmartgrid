@@ -13,21 +13,21 @@ extern "C"
         delete static_cast<TheNonagonBridgeState*>(instance);
     }
 
-    void handleTheNonagonBridgeStatePress(void* instance, int x, int y)
+    void handleTheNonagonBridgeStatePress(void* instance, GridHandle gridHandle, int x, int y)
     {
-        static_cast<TheNonagonBridgeState*>(instance)->HandlePress(x, y);
+        static_cast<TheNonagonBridgeState*>(instance)->HandlePress(gridHandle, x, y);
     }
 
-    void handleTheNonagonBridgeStateRelease(void* instance, int x, int y)
+    void handleTheNonagonBridgeStateRelease(void* instance, GridHandle gridHandle, int x, int y)
     {
-        static_cast<TheNonagonBridgeState*>(instance)->HandleRelease(x, y);
+        static_cast<TheNonagonBridgeState*>(instance)->HandleRelease(gridHandle, x, y);
     }
 
-    void getTheNonagonBridgeStateColor(void* instance, int x, int y, struct RGBColor* outColor)
+    void getTheNonagonBridgeStateColor(void* instance, GridHandle gridHandle, int x, int y, struct RGBColor* outColor)
     {
         if (outColor)
         {
-            *outColor = static_cast<TheNonagonBridgeState*>(instance)->GetColor(x, y);
+            *outColor = static_cast<TheNonagonBridgeState*>(instance)->GetColor(gridHandle, x, y);
         }
     }
     

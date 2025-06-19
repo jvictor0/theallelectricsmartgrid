@@ -3,6 +3,7 @@
 #include <os/log.h>
 #include "RGBColor.h"
 #include "NonagonHolder.h"
+#include "GridHandle.h"
 
 struct TheNonagonBridgeState 
 {
@@ -14,19 +15,19 @@ struct TheNonagonBridgeState
     {
     }
     
-    void HandlePress(int x, int y)
+    void HandlePress(GridHandle gridHandle, int x, int y)
     {
-        m_holder.HandlePress(x, y);
+        m_holder.HandlePress(gridHandle, x, y);
     }
 
-    void HandleRelease(int x, int y) 
+    void HandleRelease(GridHandle gridHandle, int x, int y) 
     {
-        m_holder.HandleRelease(x, y);
+        m_holder.HandleRelease(gridHandle, x, y);
     }
     
-    RGBColor GetColor(int x, int y) 
+    RGBColor GetColor(GridHandle gridHandle, int x, int y) 
     {
-        return m_holder.GetColor(x, y);
+        return m_holder.GetColor(gridHandle, x, y);
     }
     
     void HandleRightMenuPress(int index)

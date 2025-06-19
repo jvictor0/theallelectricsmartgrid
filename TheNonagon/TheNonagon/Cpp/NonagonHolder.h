@@ -4,15 +4,40 @@
 #include "TheNonagon.hpp"
 #include "CircularQueue.h"
 #include "MidiBus.h"
+#include "GridHandle.h"
 #include <thread>
 
 struct NonagonGridRouter
 {
+    struct Message
+    {
+        int m_x;
+        int m_y;
+        int m_velocity;
+        GridHandle m_gridHandle;
+
+        Message()
+            : m_x(0)
+            , m_y(0)
+            , m_velocity(0)
+            , m_gridHandle(GridHandle_NumGrids)
+        {
+        }
+
+        Message(GridHandle gridHandle, int x, int y, int velocity)
+            : m_x(x)
+            , m_y(y)
+            , m_velocity(velocity)
+            , m_gridHandle(gridHandle)
+        {
+        }
+    };
+
     TheNonagonSmartGrid* m_nonagon;
     SmartGrid::Grid* m_leftGrid;
     SmartGrid::Grid* m_rightGrid;
     size_t m_gridIndex;
-    CircularQueue<SmartGrid::Message, 1024> m_ioQueue;
+    CircularQueue<Message, 1024> m_ioQueue;
 
     NonagonGridRouter(TheNonagonSmartGrid* nonagon)
     {  
@@ -28,30 +53,30 @@ struct NonagonGridRouter
 
     void ProcessMessages()
     {
-        SmartGrid::Message message;
+        Message message;
         while (m_ioQueue.Pop(message))
         {
             ProcessMessage(message);
         }
     }
 
-    void ProcessMessage(SmartGrid::Message& message)
+    void ProcessMessage(Message& message)
     {
         if (message.m_velocity > 0)
         {
-            HandlePress(message.m_x, message.m_y);
+            HandlePress(message.m_gridHandle, message.m_x, message.m_y);
         }
         else
         {
-            HandleRelease(message.m_x, message.m_y);
+            HandleRelease(message.m_gridHandle, message.m_x, message.m_y);
         }
     }
 
-    void HandlePress(int x, int y)
+    void HandlePress(GridHandle gridHandle, int x, int y)
     {
         if (x < 8)
         {
-            m_leftGrid->OnPress(x, y, 128);
+            GetGridByHandle(gridHandle)->OnPress(x, y, 128);
         }
         else
         {
@@ -59,11 +84,11 @@ struct NonagonGridRouter
         }
     }
 
-    void HandleRelease(int x, int y)
+    void HandleRelease(GridHandle gridHandle, int x, int y)
     {
         if (x < 8)
         {
-            m_leftGrid->OnRelease(x, y);
+            GetGridByHandle(gridHandle)->OnRelease(x, y);
         }
         else
         {
@@ -71,22 +96,22 @@ struct NonagonGridRouter
         }
     }
 
-    void QueuePress(int x, int y)
+    void QueuePress(GridHandle gridHandle, int x, int y)
     {
-        m_ioQueue.Push(SmartGrid::Message(x, y, 128));
+        m_ioQueue.Push(Message(gridHandle, x, y, 128));
     }
     
-    void QueueRelease(int x, int y)
+    void QueueRelease(GridHandle gridHandle, int x, int y)
     {
-        m_ioQueue.Push(SmartGrid::Message(x, y, 0));
+        m_ioQueue.Push(Message(gridHandle, x, y, 0));
     }
 
-    RGBColor GetColor(int x, int y)
+    RGBColor GetColor(GridHandle gridHandle, int x, int y)
     {
         SmartGrid::Color color;
         if (x < 8)
         {
-            color = m_leftGrid->GetColor(x, y);
+            color = GetGridByHandle(gridHandle)->GetColor(x, y);
         }
         else
         {
@@ -144,6 +169,26 @@ struct NonagonGridRouter
             case 4: return m_nonagon->m_indexArpEarthGrid;
             case 5: return m_nonagon->m_indexArpWaterGrid;
             default: return m_nonagon->m_theoryOfTimeTopologyGrid;
+        }
+    }
+
+    SmartGrid::Grid* GetGridByHandle(GridHandle handle)
+    {
+        switch (handle)
+        {
+            case GridHandle_LameJuisCoMute: return m_nonagon->m_lameJuisCoMuteGrid;
+            case GridHandle_TheoryOfTimeSwing: return m_nonagon->m_theoryOfTimeSwingGrid;
+            case GridHandle_LameJuisMatrix: return m_nonagon->m_lameJuisMatrixGrid;
+            case GridHandle_TimbreAndMuteFire: return m_nonagon->m_timbreAndMuteFireGrid;
+            case GridHandle_TimbreAndMuteEarth: return m_nonagon->m_timbreAndMuteEarthGrid;
+            case GridHandle_TimbreAndMuteWater: return m_nonagon->m_timbreAndMuteWaterGrid;
+            case GridHandle_TheoryOfTimeTopology: return m_nonagon->m_theoryOfTimeTopologyGrid;
+            case GridHandle_LameJuisInterval: return m_nonagon->m_lameJuisIntervalGrid;
+            case GridHandle_LameJuisLHS: return m_nonagon->m_lameJuisLHSGrid;
+            case GridHandle_IndexArpFire: return m_nonagon->m_indexArpFireGrid;
+            case GridHandle_IndexArpEarth: return m_nonagon->m_indexArpEarthGrid;
+            case GridHandle_IndexArpWater: return m_nonagon->m_indexArpWaterGrid;
+            default: return nullptr;
         }
     }
 };
@@ -225,19 +270,19 @@ struct NonagonHolder
         m_gridRouter.ProcessMessages();
     }
 
-    void HandlePress(int x, int y)
+    void HandlePress(GridHandle gridHandle, int x, int y)
     {
-        m_gridRouter.QueuePress(x, y);
+        m_gridRouter.QueuePress(gridHandle, x, y);
     }
     
-    void HandleRelease(int x, int y)
+    void HandleRelease(GridHandle gridHandle, int x, int y)
     {
-        m_gridRouter.QueueRelease(x, y);
+        m_gridRouter.QueueRelease(gridHandle, x, y);
     }
 
-    RGBColor GetColor(int x, int y)
+    RGBColor GetColor(GridHandle gridHandle, int x, int y)
     {
-        return m_gridRouter.GetColor(x, y);
+        return m_gridRouter.GetColor(gridHandle, x, y);
     }
 
     void HandleRightMenuPress(int index)
@@ -253,7 +298,7 @@ struct NonagonHolder
     void SetMidiInput(int32_t index)
     {
         std::ignore = index;
-        // m_midiBus.SetInput(index);
+        //m_midiBus.SetInput(index);
     }
     
     void SetMidiOutput(int32_t index)
