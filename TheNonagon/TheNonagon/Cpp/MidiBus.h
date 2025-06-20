@@ -52,11 +52,27 @@ struct MidiMessage
         m_data[1] = (value >> 7) & 0x7F;
         m_data[2] = value & 0x7F;
     }
+
+    bool IsTransportStart() const
+    {
+        return m_data[0] == 0xFA;
+    }
+
+    bool IsTransportStop() const
+    {
+        return m_data[0] == 0xFC;
+    }
+
+    bool IsClock() const
+    {
+        return m_data[0] == 0xF8;
+    }
 };
 
 struct MidiBus
 {
-    CircularQueue<MidiMessage, 8192> m_buffer;
+    CircularQueue<MidiMessage, 8192> m_inputBuffer;
+    CircularQueue<MidiMessage, 8192> m_outputBuffer;
     uint8_t m_lastNoteSent[16];
     std::thread m_midiSendThread;
     std::atomic<bool> m_running;
@@ -81,7 +97,7 @@ struct MidiBus
 
     void SendMessage(MidiMessage& message)
     {
-        m_buffer.Push(message);
+        m_inputBuffer.Push(message);
     }
 
     void SendNoteOn(uint8_t note, uint8_t velocity, uint8_t channel)
@@ -138,22 +154,70 @@ struct MidiBus
 
     MIDIClientRef m_client;
     MIDIPortRef m_outputPort;
+    MIDIPortRef m_inputPort;
     MIDIEndpointRef m_dest;
+    MIDIEndpointRef m_src;
     std::atomic<int> m_desiredOutputIndex;
+    std::atomic<int> m_desiredInputIndex;
     int m_outputIndex;
+    int m_inputIndex;
 
     void SetOutput(int index)
     {
-        INFO("Setting desired MIDI output to %d", index);
+        INFO("Setting desired MIDI output to %d\n", index);
         m_desiredOutputIndex = index;
+    }
+
+    void SetInput(int index)
+    {
+        INFO("Setting desired MIDI input to %d\n", index);
+        m_desiredInputIndex = index;
+    }
+
+    static void MidiInputCallback(const MIDIPacketList* pktList, void* readProcRefCon, void* srcConnRefCon)
+    {
+        MidiBus* midiBus = static_cast<MidiBus*>(readProcRefCon);
+        const MIDIPacket* packet = &pktList->packet[0];
+        
+        for (int i = 0; i < pktList->numPackets; i++)
+        {
+            MidiMessage message;
+            message.m_timestamp = packet->timeStamp;
+            message.m_size = packet->length > 3 ? 3 : packet->length;
+            
+            for (int j = 0; j < message.m_size; j++)
+            {
+                message.m_data[j] = packet->data[j];
+            }
+            
+            midiBus->m_outputBuffer.Push(message);
+            
+            packet = MIDIPacketNext(packet);
+        }
+    }
+
+    bool PopIfTimestampReached(UInt64 timestamp, MidiMessage& message)
+    {
+        MidiMessage peekMessage;
+        if (m_outputBuffer.Peek(peekMessage))
+        {
+            if (peekMessage.m_timestamp <= timestamp)
+            {
+                return m_outputBuffer.Pop(message);
+            }
+        }
+
+        return false;
     }
 
     void InitMIDI()
     {
         MIDIClientCreate(CFSTR("TheNonagon"), nullptr, nullptr, &m_client);
         MIDIOutputPortCreate(m_client, CFSTR("TheNonagonOutPort"), &m_outputPort);
+        MIDIInputPortCreate(m_client, CFSTR("TheNonagonInPort"), MidiInputCallback, this, &m_inputPort);
 
         ItemCount numDests = MIDIGetNumberOfDestinations();
+        ItemCount numSources = MIDIGetNumberOfSources();
 
         if (numDests > 0)
         {
@@ -166,6 +230,19 @@ struct MidiBus
             m_desiredOutputIndex = -1;
             m_outputIndex = m_desiredOutputIndex;
         }
+
+        if (numSources > 0)
+        {
+            m_desiredInputIndex = 0;
+            m_inputIndex = m_desiredInputIndex;
+            m_src = MIDIGetSource(m_inputIndex);
+            MIDIPortConnectSource(m_inputPort, m_src, nullptr);
+        }
+        else
+        {
+            m_desiredInputIndex = -1;
+            m_inputIndex = m_desiredInputIndex;
+        }
     }
 
     void SendLoop()
@@ -175,14 +252,33 @@ struct MidiBus
             if (m_outputIndex != m_desiredOutputIndex)
             {
                 m_outputIndex = m_desiredOutputIndex;
-                m_dest = MIDIGetDestination(m_outputIndex);
-                INFO("MIDI output changed to %d", m_outputIndex);
+                if (m_outputIndex >= 0)
+                {
+                    m_dest = MIDIGetDestination(m_outputIndex);
+                    INFO("MIDI output changed to %d\n", m_outputIndex);
+                }
+            }
+
+            if (m_inputIndex != m_desiredInputIndex)
+            {
+                if (m_inputIndex >= 0)
+                {
+                    MIDIPortDisconnectSource(m_inputPort, m_src);
+                }
+                
+                m_inputIndex = m_desiredInputIndex;
+                if (m_inputIndex >= 0)
+                {
+                    m_src = MIDIGetSource(m_inputIndex);
+                    MIDIPortConnectSource(m_inputPort, m_src, nullptr);
+                    INFO("MIDI input changed to %d\n", m_inputIndex);
+                }
             }
 
             MidiMessage message;
-            while (m_buffer.Pop(message)) 
+            while (m_inputBuffer.Pop(message)) 
             {
-                if (!m_dest)
+                if (!m_dest || m_outputIndex < 0)
                 {
                     continue;
                 }
@@ -201,7 +297,7 @@ struct MidiBus
                     OSStatus result = MIDISend(m_outputPort, m_dest, &pktList);
                     if (result != noErr) 
                     {
-                        INFO("MIDISend failed: %d", result);
+                        INFO("MIDISend failed: %d\n", result);
                     }
                 }
             }

@@ -6,6 +6,8 @@
 #include "MidiBus.h"
 #include "GridHandle.h"
 #include <thread>
+#include <CoreAudio/CoreAudioTypes.h>
+
 
 struct NonagonGridRouter
 {
@@ -245,17 +247,56 @@ struct NonagonMidiSender
     }
 };
 
+struct NonagonMidiReceiver
+{
+    MidiBus* m_midiBus;
+    TheNonagonSmartGrid* m_nonagon;
+
+    NonagonMidiReceiver(MidiBus* midiBus, TheNonagonSmartGrid* nonagon)
+    {
+        m_midiBus = midiBus;
+        m_nonagon = nonagon;
+    }
+
+    void ProcessMessages(UInt64 timestamp)
+    {
+        MidiMessage message;
+        while (m_midiBus->PopIfTimestampReached(timestamp, message))
+        {
+            ProcessMessage(message);
+        }
+    }
+
+    void ProcessMessage(MidiMessage& message)
+    {
+        if (message.IsTransportStart())
+        {
+            m_nonagon->m_state.m_running = true;
+        }
+        else if (message.IsTransportStop())
+        {
+            m_nonagon->m_state.m_running = false;
+        }
+    }
+
+    void SetMidiInput(int32_t index)
+    {
+        m_midiBus->SetInput(index);
+    }
+};
+
 struct NonagonHolder
 {
     TheNonagonSmartGrid m_nonagon;
     NonagonGridRouter m_gridRouter;
     NonagonMidiSender m_midiSender;
-
+    NonagonMidiReceiver m_midiReceiver;
     MidiBus m_midiBus;
 
     NonagonHolder() 
         : m_gridRouter(&m_nonagon)
         , m_midiSender(&m_midiBus, &m_nonagon)
+        , m_midiReceiver(&m_midiBus, &m_nonagon)
     {
     }
     
@@ -263,8 +304,9 @@ struct NonagonHolder
     { 
     }
 
-    void Process(float dt)
+    void Process(float dt, UInt64 frameTimestamp)
     {
+        m_midiReceiver.ProcessMessages(frameTimestamp);
         m_nonagon.Process(dt);
         m_midiSender.SendMidiNotes();
         m_gridRouter.ProcessMessages();
@@ -297,8 +339,7 @@ struct NonagonHolder
     
     void SetMidiInput(int32_t index)
     {
-        std::ignore = index;
-        //m_midiBus.SetInput(index);
+        m_midiReceiver.SetMidiInput(index);
     }
     
     void SetMidiOutput(int32_t index)

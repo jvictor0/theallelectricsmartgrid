@@ -44,9 +44,9 @@ extern "C"
         }
     }
 
-    void processTheNonagonBridgeState(void* instance, float** audioBuffer, int32_t numChannels, int32_t numFrames)
+    void processTheNonagonBridgeState(void* instance, float** audioBuffer, int32_t numChannels, int32_t numFrames, AudioTimeStamp timestamp)
     {
-        static_cast<TheNonagonBridgeState*>(instance)->Process(audioBuffer, numChannels, numFrames);
+        static_cast<TheNonagonBridgeState*>(instance)->Process(audioBuffer, numChannels, numFrames, timestamp);
     }
     
     void setTheNonagonBridgeStateMidiInput(void* instance, int32_t index)

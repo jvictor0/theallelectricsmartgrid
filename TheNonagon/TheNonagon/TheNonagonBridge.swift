@@ -64,11 +64,11 @@ public class TheNonagonBridge: ObservableObject
         return Color(red: Double(color.m_red) / 255.0, green: Double(color.m_green) / 255.0, blue: Double(color.m_blue) / 255.0)
     }
 
-    public func Process(_ audioBuffer: UnsafeMutablePointer<UnsafeMutablePointer<Float>?>, _ numChannels: Int32, _ numFrames: Int32) 
+    public func Process(_ audioBuffer: UnsafeMutablePointer<UnsafeMutablePointer<Float>?>, _ numChannels: Int32, _ numFrames: Int32, _ timestamp: AudioTimeStamp) 
     {
         if let state = m_state 
         {
-            processTheNonagonBridgeState(state, audioBuffer, numChannels, numFrames)
+            processTheNonagonBridgeState(state, audioBuffer, numChannels, numFrames, timestamp)
         }
     }
     

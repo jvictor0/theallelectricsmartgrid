@@ -13,7 +13,7 @@ public class AudioEngineController
 
     private func setupAudio()
     {
-        let sourceNode = AVAudioSourceNode { [weak self] _, _, frameCount, audioBufferList in
+        let sourceNode = AVAudioSourceNode { [weak self] _, timestamp, frameCount, audioBufferList in
             guard let self = self else { return noErr }
             
             let abl = UnsafeMutableAudioBufferListPointer(audioBufferList)
@@ -30,7 +30,7 @@ public class AudioEngineController
 
             channelPointers.withUnsafeMutableBufferPointer { ptr in
                 guard let baseAddress = ptr.baseAddress else { return }
-                self.m_bridge.Process(baseAddress, Int32(numChannels), Int32(numFrames))
+                self.m_bridge.Process(baseAddress, Int32(numChannels), Int32(numFrames), timestamp.pointee)
             }
 
             return noErr

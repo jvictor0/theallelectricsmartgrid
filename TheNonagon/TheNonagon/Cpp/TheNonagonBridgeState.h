@@ -1,9 +1,11 @@
 #pragma once
 #include <stdint.h>
 #include <os/log.h>
+#include <CoreAudio/CoreAudioTypes.h>
 #include "RGBColor.h"
 #include "NonagonHolder.h"
 #include "GridHandle.h"
+#include "MidiUtils.h"
 
 struct TheNonagonBridgeState 
 {
@@ -40,11 +42,12 @@ struct TheNonagonBridgeState
         return m_holder.GetRightMenuColor(index);
     }
     
-    void Process(float** audioBuffer, int32_t numChannels, int32_t numFrames) 
+    void Process(float** audioBuffer, int32_t numChannels, int32_t numFrames, AudioTimeStamp timestamp) 
     {
         for (int32_t frame = 0; frame < numFrames; ++frame)
         {
-            m_holder.Process(1.0f/48000.0f);
+            UInt64 frameTimestamp = AudioFrameToHostTime(timestamp, frame, 48000.0);
+            m_holder.Process(1.0f/48000.0f, frameTimestamp);
             
             for (int32_t channel = 0; channel < numChannels; ++channel)
             {

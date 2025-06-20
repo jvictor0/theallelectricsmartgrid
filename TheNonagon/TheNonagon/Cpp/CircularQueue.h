@@ -32,4 +32,15 @@ struct CircularQueue
         m_tail++;
         return true;
     }
+
+    bool Peek(T& value)
+    {
+        if (m_head == m_tail)
+        {
+            return false;
+        }
+
+        value = m_data[m_tail % N];
+        return true;
+    }
 };

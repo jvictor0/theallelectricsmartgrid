@@ -27,12 +27,16 @@ struct MainView: View
             // Center Content with Button Grid
             VStack(spacing: 0) 
             {
-                ButtonGridView(bridge: m_bridge, gridHandle: GridHandle_LameJuisCoMute)
+                HStack(spacing: 2)
+                {
+                    CoMuteView(bridge: m_bridge)
+                    TheoryOfTimeView(bridge: m_bridge)
+                }
                 
                 // Bottom Menu
                 BottomMenuView(viewModel: m_bottomMenuViewModel)
             }
-            
+        
             // Right Menu
             RightMenuView(viewModel: m_rightMenuViewModel)
                 .frame(width: 100)

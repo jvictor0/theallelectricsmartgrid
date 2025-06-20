@@ -4,6 +4,7 @@
 #include <cmath>
 #include "Trig.hpp"
 #include "NormGen.hpp"
+#include "Tick2Phaser.hpp"
 #include <iomanip>
 #include <sstream>
 #include <numeric>
@@ -769,15 +770,29 @@ struct MusicalTimeWithClock
     float m_phasor;
     std::string m_lastChange;
     float m_lastChangeTime;
+    Tick2Phaser m_tick2Phasor;  
+
+    enum class ClockMode
+    {
+        x_internal,
+        x_external,
+        x_tick2Phaser
+    };
 
     struct Input
     {
-        Input() : m_freq(1.0/4)
+        Input() 
+          : m_clockMode(ClockMode::x_internal)
+          , m_freq(1.0/4)
+          , m_timeIn(0)
         {
         }
         
+        ClockMode m_clockMode;
         MusicalTime::Input m_input;
         float m_freq;        
+        float m_timeIn;
+        Tick2Phaser::Input m_tick2PhasorInput;
     };
 
     MusicalTimeWithClock()
@@ -790,13 +805,27 @@ struct MusicalTimeWithClock
         m_lastChangeTime += dt;
         if (input.m_input.m_running)
         {
-            float dx = dt * input.m_freq;
-            m_phasor += dx;
-            m_phasor = m_phasor - floor(m_phasor);
+            if (input.m_clockMode == ClockMode::x_internal)
+            {
+                float dx = dt * input.m_freq;
+                m_phasor += dx;
+                m_phasor = m_phasor - floor(m_phasor);
+            }
+            else if (input.m_clockMode == ClockMode::x_external)
+            {
+                m_phasor = input.m_timeIn;
+            }
         }
         else
         {
             m_phasor = 0;
+            m_tick2Phasor.m_reset = true;
+        }
+        
+        if (input.m_clockMode == ClockMode::x_tick2Phaser)
+        {
+            m_tick2Phasor.Process(input.m_tick2PhasorInput);
+            m_phasor = m_tick2Phasor.m_output;
         }
 
         input.m_input.m_t = m_phasor;
