@@ -8,11 +8,11 @@
 #include "MultiPhasorGate.hpp"
 #include "PercentileSequencer.hpp"
 #include "TrioOctaveSwitches.hpp"
-#include "NonagonPanner.hpp"
 #include "Trig.hpp"
 #include "ClockSelectCell.hpp"
 #include "GangedRandomLFO.hpp"
 #include "Slew.hpp"
+#include "ModuleUtils.hpp"
 
 struct TheNonagonInternal
 {
@@ -609,41 +609,6 @@ struct TheNonagonSmartGrid
     {
         m_state.m_theoryOfTimeInput.m_freq = pow(2, voct) / 128;
     }
-
-    struct PhasorSelectorCell : public SmartGrid::Cell
-    {
-        int m_srcIx;
-        PhasorSwitcher* m_trg;
-        SmartGrid::Color m_color;
-
-        PhasorSelectorCell(int srcIx, PhasorSwitcher* trg, SmartGrid::Color color)
-        {
-            m_srcIx = srcIx;
-            m_trg = trg;
-            m_color = color;
-        }
-        
-        virtual SmartGrid::Color GetColor() override
-        {
-            if (m_srcIx == m_trg->m_valIx)
-            {
-                return m_color.Interpolate(SmartGrid::Color::White, m_trg->Get());
-            }
-            else if (m_srcIx == m_trg->m_desiredIx)
-            {
-                return SmartGrid::Color::White;
-            }
-            else
-            {
-                return m_color;
-            }
-        }
-        
-        virtual void OnPress(uint8_t velocity) override
-        {
-            m_trg->Desire(m_srcIx);
-        }        
-    };
 
     struct TheoryOfTimeSwingAndSwaggerPage : public SmartGrid::CompositeGrid
     {
@@ -1533,43 +1498,172 @@ struct TheNonagonSmartGrid
 struct TheNonagon : Module
 {
     TheNonagonSmartGrid m_nonagon;
+    IOMgr m_ioMgr;
     Trig m_saveTrig;
     Trig m_loadTrig;
     Trig m_sceneTrig[8];
 
+    // IOMgr Inputs
+    //
+    IOMgr::Input* m_saveInput;
+    IOMgr::Input* m_loadInput;
+    IOMgr::Input* m_radiusInput;
+    IOMgr::Input* m_sceneBlendInput;
+    IOMgr::Input* m_sceneSelectInput;
+    IOMgr::Input* m_sceneShiftInput;
+    IOMgr::Input* m_speedInput;
+
+    // IOMgr Outputs
+    //
+    IOMgr::Output* m_voltPerOctOutput;
+    IOMgr::Output* m_gateOutput;
+    IOMgr::Output* m_theoryOfTimeTopologyOutput;
+    IOMgr::Output* m_theoryOfTimeSwingOutput;
+    IOMgr::Output* m_theoryOfTimeSwaggerOutput;
+    IOMgr::Output* m_lameJuisCoMuteOutput;
+    IOMgr::Output* m_lameJuisMatrixOutput;
+    IOMgr::Output* m_lameJuisRHSOutput;
+    IOMgr::Output* m_lameJuisIntervalOutput;
+    IOMgr::Output* m_timerFragmentsOutput;
+    IOMgr::Output* m_unused1Output;
+    IOMgr::Output* m_lameJuisSeqPaletteOutput;
+    IOMgr::Output* m_timbreAndMuteOutput;
+    IOMgr::Output* m_indexArpOutput;
+    IOMgr::Output* m_recordingOutput;
+    IOMgr::Output* m_timbreOutput;
+    IOMgr::Output* m_phasorOutput;
+
+    IOMgr::Output* m_extraTimbre1Output;
+    IOMgr::Output* m_extraTimbre2Output;
+    IOMgr::Output* m_extraTimbre3Output;
+    IOMgr::Output* m_unused5Output;
+    IOMgr::Output* m_unused6Output;
+    IOMgr::Output* m_unused7Output;
+    IOMgr::Output* m_totPhasorOutput;
+
+    // Timer fragments storage
+    float m_timerFragments[16];
+
     TheNonagon()
+        : m_ioMgr(this)
     {
-        config(0, 7, 2 + 12 + 3 + 4 + 3, 0);
+        // Initialize IOMgr Inputs
+        m_saveInput = m_ioMgr.AddInput("Save", false);
+        m_loadInput = m_ioMgr.AddInput("Load", false);
+        m_radiusInput = m_ioMgr.AddInput("Radius", false);
+        m_sceneBlendInput = m_ioMgr.AddInput("Scene Blend", true);
+        m_sceneSelectInput = m_ioMgr.AddInput("Scene Select", true);
+        m_sceneShiftInput = m_ioMgr.AddInput("Scene Shift", true);
+        m_speedInput = m_ioMgr.AddInput("Speed", false);
 
-        configInput(0, "Save");
-        configInput(1, "Load");
-        configInput(2, "Radius");
-        
-        configOutput(0, "VoltPerOct Output");
-        configOutput(1, "Gate Output");
-        configOutput(14, "Recording Output");
-        configOutput(15, "Timbre Output");
-        configOutput(16, "Phasor Output");
-        configOutput(20, "PanX");
-        configOutput(21, "PanY");
-        configOutput(22, "PanZ");
-        configOutput(23, "Tot Phasor");
+        // Initialize IOMgr Outputs
+        //
+        m_voltPerOctOutput = m_ioMgr.AddOutput("VoltPerOct Output", true);
+        m_gateOutput = m_ioMgr.AddOutput("Gate Output", true);
+        m_theoryOfTimeTopologyOutput = m_ioMgr.AddOutput("TheoryOfTime Topology", false);
+        m_theoryOfTimeSwingOutput = m_ioMgr.AddOutput("TheoryOfTime Swing", false);
+        m_theoryOfTimeSwaggerOutput = m_ioMgr.AddOutput("TheoryOfTime Swagger", false);
+        m_lameJuisCoMuteOutput = m_ioMgr.AddOutput("LameJuis CoMute", false);
+        m_lameJuisMatrixOutput = m_ioMgr.AddOutput("LameJuis Matrix", false);
+        m_lameJuisRHSOutput = m_ioMgr.AddOutput("LameJuis RHS", false);
+        m_lameJuisIntervalOutput = m_ioMgr.AddOutput("LameJuis Interval", false);
+        m_timerFragmentsOutput = m_ioMgr.AddOutput("Timer Fragments", false);
+        m_unused1Output = m_ioMgr.AddOutput("Unused 1", false);
+        m_lameJuisSeqPaletteOutput = m_ioMgr.AddOutput("LameJuis SeqPalette", false);
+        m_timbreAndMuteOutput = m_ioMgr.AddOutput("TimbreAndMute", false);
+        m_indexArpOutput = m_ioMgr.AddOutput("IndexArp", false);
 
-        for (size_t i = 0; i < 3; ++i)
+        m_recordingOutput = m_ioMgr.AddOutput("Recording", false);
+        m_timbreOutput = m_ioMgr.AddOutput("Timbre", true);
+        m_phasorOutput = m_ioMgr.AddOutput("Phasor", true);
+        m_extraTimbre1Output = m_ioMgr.AddOutput("Extra Timbre 1", false);
+        m_extraTimbre2Output = m_ioMgr.AddOutput("Extra Timbre 2", false);
+        m_extraTimbre3Output = m_ioMgr.AddOutput("Extra Timbre 3", false);
+
+        m_unused5Output = m_ioMgr.AddOutput("Unused 5", false);
+        m_unused6Output = m_ioMgr.AddOutput("Unused 6", false);
+        m_unused7Output = m_ioMgr.AddOutput("Unused 7", false);
+        m_totPhasorOutput = m_ioMgr.AddOutput("Tot Phasor", true);
+
+        // Set up grid ID outputs (single channel)
+        //
+        m_theoryOfTimeTopologyOutput->SetSource(0, &m_nonagon.m_theoryOfTimeTopologyGridId);
+        m_theoryOfTimeSwingOutput->SetSource(0, &m_nonagon.m_theoryOfTimeSwingGridId);
+        m_theoryOfTimeSwaggerOutput->SetSource(0, &m_nonagon.m_theoryOfTimeSwaggerGridId);
+        m_lameJuisCoMuteOutput->SetSource(0, &m_nonagon.m_lameJuisCoMuteGridId);
+        m_lameJuisMatrixOutput->SetSource(0, &m_nonagon.m_lameJuisMatrixGridId);
+        m_lameJuisRHSOutput->SetSource(0, &m_nonagon.m_lameJuisRHSGridId);
+        m_lameJuisIntervalOutput->SetSource(0, &m_nonagon.m_lameJuisIntervalGridId);
+
+        // Set up multi-channel grid ID outputs
+        //
+        m_lameJuisSeqPaletteOutput->SetSource(0, &m_nonagon.m_lameJuisSeqPaletteFireGridId);
+        m_lameJuisSeqPaletteOutput->SetSource(1, &m_nonagon.m_lameJuisSeqPaletteEarthGridId);
+        m_lameJuisSeqPaletteOutput->SetSource(2, &m_nonagon.m_lameJuisSeqPaletteWaterGridId);
+
+        m_timbreAndMuteOutput->SetSource(0, &m_nonagon.m_timbreAndMuteFireGridId);
+        m_timbreAndMuteOutput->SetSource(1, &m_nonagon.m_timbreAndMuteEarthGridId);
+        m_timbreAndMuteOutput->SetSource(2, &m_nonagon.m_timbreAndMuteWaterGridId);
+
+        m_indexArpOutput->SetSource(0, &m_nonagon.m_indexArpFireGridId);
+        m_indexArpOutput->SetSource(1, &m_nonagon.m_indexArpEarthGridId);
+        m_indexArpOutput->SetSource(2, &m_nonagon.m_indexArpWaterGridId);
+
+        // Set up voice outputs (multi-channel)
+        //
+        for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
-            configOutput(i + 17, ("Extra Timbre " + std::to_string(i)).c_str());
+            m_voltPerOctOutput->SetSource(i, &m_nonagon.m_nonagon.m_output.m_voltPerOct[i]);
+            m_gateOutput->SetSource(i, &m_nonagon.m_nonagon.m_output.m_gate[i]);
+            m_timbreOutput->SetSource(i, &m_nonagon.m_nonagon.m_output.m_timbre[i]);
+            m_phasorOutput->SetSource(i, &m_nonagon.m_nonagon.m_output.m_phasor[i]);
         }
 
-        for (size_t i = 0; i < 12; ++i)
+        // Set up extra timbre outputs (multi-channel)
+        //
+        for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
-            configOutput(i + 2, ("Aux Fader " + std::to_string(i)).c_str());
+            m_extraTimbre1Output->SetSource(i, &m_nonagon.m_nonagon.m_output.m_extraTimbre[i][0]);
+            m_extraTimbre2Output->SetSource(i, &m_nonagon.m_nonagon.m_output.m_extraTimbre[i][1]);
+            m_extraTimbre3Output->SetSource(i, &m_nonagon.m_nonagon.m_output.m_extraTimbre[i][2]);
         }
 
-        configInput(3, "Scene Blend");
-        configInput(4, "Scene Select");
-        configInput(5, "Scene Shift");
+        // Set up recording output
+        //
+        m_recordingOutput->SetSource(0, &m_nonagon.m_nonagon.m_output.m_recording);
 
-        configInput(6, "Speed");
+        // Set up tot phasor output (6 channels)
+        //
+        for (size_t i = 0; i < 6; ++i)
+        {
+            m_totPhasorOutput->SetSource(i, &m_nonagon.m_nonagon.m_output.m_totPhasors[i]);
+        }
+
+        // Set up timer fragments output (16 channels)
+        //
+        for (size_t i = 0; i < 16; ++i)
+        {
+            m_timerFragmentsOutput->SetSource(i, &m_timerFragments[i]);
+        }
+
+        // Set channel counts
+        //
+        m_voltPerOctOutput->SetChannels(TheNonagonInternal::x_numVoices);
+        m_gateOutput->SetChannels(TheNonagonInternal::x_numVoices);
+        m_timbreOutput->SetChannels(TheNonagonInternal::x_numVoices);
+        m_phasorOutput->SetChannels(TheNonagonInternal::x_numVoices);
+        m_timerFragmentsOutput->SetChannels(16);
+        m_lameJuisSeqPaletteOutput->SetChannels(3);
+        m_timbreAndMuteOutput->SetChannels(3);
+        m_indexArpOutput->SetChannels(3);
+        m_totPhasorOutput->SetChannels(6);
+        m_extraTimbre1Output->SetChannels(TheNonagonInternal::x_numVoices);
+        m_extraTimbre2Output->SetChannels(TheNonagonInternal::x_numVoices);
+        m_extraTimbre3Output->SetChannels(TheNonagonInternal::x_numVoices);
+
+        // Configure IOMgr
+        //
+        m_ioMgr.Config();
     }
 
     json_t* dataToJson() override
@@ -1607,97 +1701,42 @@ struct TheNonagon : Module
 
     void HandlesSceneInputs()
     {
-        if (m_saveTrig.Process(inputs[0].getVoltage()))
+        if (m_saveTrig.Process(m_saveInput->Get(0)))
         {
             SaveJSON();
         }
         
-        if (m_loadTrig.Process(inputs[1].getVoltage()))
+        if (m_loadTrig.Process(m_loadInput->Get(0)))
         {
             LoadSavedJSON();
         }
         
-        m_nonagon.m_stateSaverState.m_blend = inputs[3].getVoltage() / 10;
+        m_nonagon.m_stateSaverState.m_blend = m_sceneBlendInput->Get(0) / 10;
         for (size_t i = 0; i < 8; ++i)
         {
-            if (m_sceneTrig[i].Process(inputs[4].getVoltage(i)))
+            if (m_sceneTrig[i].Process(m_sceneSelectInput->Get(i)))
             {
-                m_nonagon.HandleSceneTrigger(inputs[5].getVoltage() > 0, i);
+                m_nonagon.HandleSceneTrigger(m_sceneShiftInput->Get(0) > 0, i);
             }
         }
     }
     
     void process(const ProcessArgs &args) override
     {
+        m_ioMgr.Process();
         HandlesSceneInputs();
-        outputs[0].setChannels(TheNonagonInternal::x_numVoices);
-        outputs[1].setChannels(TheNonagonInternal::x_numVoices);
-        outputs[15].setChannels(TheNonagonInternal::x_numVoices);
-        outputs[16].setChannels(TheNonagonInternal::x_numVoices);
-        outputs[17].setChannels(TheNonagonInternal::x_numVoices);
-        outputs[18].setChannels(TheNonagonInternal::x_numVoices);
-        outputs[19].setChannels(TheNonagonInternal::x_numVoices);
-        outputs[20].setChannels(TheNonagonInternal::x_numVoices);
-        outputs[21].setChannels(TheNonagonInternal::x_numVoices);
-        outputs[22].setChannels(TheNonagonInternal::x_numVoices);
-        outputs[23].setChannels(6);
         
-        m_nonagon.SetFrequency(inputs[6].getVoltage());
+        m_nonagon.SetFrequency(m_speedInput->Get(0));
         m_nonagon.Process(args.sampleTime);
 
-        for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
-        {
-            outputs[0].setVoltage(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], i);
-            outputs[1].setVoltage(m_nonagon.m_nonagon.m_output.m_gate[i] ? 10 : 0, i);
-            outputs[15].setVoltage(m_nonagon.m_nonagon.m_output.m_timbre[i] * 10, i);
-            outputs[16].setVoltage(m_nonagon.m_nonagon.m_output.m_phasor[i] * 10, i);
-            for (size_t j = 0; j < 3; ++j)
-            {
-                outputs[17 + j].setVoltage(m_nonagon.m_nonagon.m_output.m_extraTimbre[i][j] * 10, i);
-            }            
-        }
-
-        outputs[2].setVoltage(m_nonagon.m_theoryOfTimeTopologyGridId, 0);
-        outputs[3].setVoltage(m_nonagon.m_theoryOfTimeSwingGridId);
-        outputs[4].setVoltage(m_nonagon.m_theoryOfTimeSwaggerGridId);
-        outputs[5].setVoltage(m_nonagon.m_lameJuisCoMuteGridId, 0);
-        outputs[6].setVoltage(m_nonagon.m_lameJuisMatrixGridId);
-        outputs[7].setVoltage(m_nonagon.m_lameJuisRHSGridId);
-        outputs[8].setVoltage(m_nonagon.m_lameJuisIntervalGridId);
-
-        // outputs[9].setChannels(2);
-        // outputs[9].setVoltage(m_nonagon.m_state.m_running ? 10 : 0, 0);
-        // float pos = m_nonagon.m_nonagon.m_theoryOfTime.m_musicalTime.m_bits[0].m_pos;
-        // pos *= 32 * 24;
-        // bool clk = pos - floor(pos) < 0.5;
-        
-        // outputs[9].setVoltage(clk ? 10 : 0, 1);
-        outputs[9].setChannels(16);
+        // Set up timer fragments output
+        //
         for (size_t i = 0; i < 16; ++i)
         {
-            outputs[9].setVoltage(SmartGrid::Color(0, std::min<int>(255, 256 * m_nonagon.m_nonagon.GetTimerFragment(i)), 0).ZEncodeFloat() * 10, i);
+            m_timerFragments[i] = SmartGrid::Color(0, std::min<int>(255, 256 * m_nonagon.m_nonagon.GetTimerFragment(i)), 0).ZEncodeFloat() * 10;
         }
 
-        outputs[11].setChannels(3);
-        outputs[12].setChannels(3);
-        outputs[13].setChannels(3);
-
-        outputs[11].setVoltage(m_nonagon.m_lameJuisSeqPaletteFireGridId, 0);
-        outputs[11].setVoltage(m_nonagon.m_lameJuisSeqPaletteEarthGridId, 1);
-        outputs[11].setVoltage(m_nonagon.m_lameJuisSeqPaletteWaterGridId, 2);
-        outputs[12].setVoltage(m_nonagon.m_timbreAndMuteFireGridId, 0);
-        outputs[12].setVoltage(m_nonagon.m_timbreAndMuteEarthGridId, 1);
-        outputs[12].setVoltage(m_nonagon.m_timbreAndMuteWaterGridId, 2);
-        outputs[13].setVoltage(m_nonagon.m_indexArpFireGridId, 0);
-        outputs[13].setVoltage(m_nonagon.m_indexArpEarthGridId, 1);
-        outputs[13].setVoltage(m_nonagon.m_indexArpWaterGridId, 2);
-
-        outputs[14].setVoltage(m_nonagon.m_nonagon.m_output.m_recording ? 10 : 0);
-
-        for (size_t i = 0; i < 6; ++i)
-        {
-            outputs[23].setVoltage(10 * m_nonagon.m_nonagon.m_output.m_totPhasors[i], i);
-        }
+        m_ioMgr.SetOutputs();
     }
 };
 
@@ -1708,38 +1747,43 @@ struct TheNonagonWidget : ModuleWidget
         setModule(module);
         setPanel(createPanel(asset::plugin(pluginInstance, "res/TheNonagon.svg")));
 
-        addInput(createInputCentered<PJ301MPort>(Vec(250, 100), module, 0));
-        addInput(createInputCentered<PJ301MPort>(Vec(250, 150), module, 1));
-        addInput(createInputCentered<PJ301MPort>(Vec(250, 200), module, 2));
-        
-        addOutput(createOutputCentered<PJ301MPort>(Vec(175, 100), module, 0));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(125, 100), module, 1));        
-        
-        for (size_t i = 0; i < 8; ++i)
-        {            
-            addOutput(createOutputCentered<PJ301MPort>(Vec(25, 100 + 25 * i), module, 2 + i));
+        if (module)
+        {
+            // Inputs - arranged in a grid pattern
+            module->m_saveInput->Widget(this, 1, 1);
+            module->m_loadInput->Widget(this, 1, 2);
+            module->m_radiusInput->Widget(this, 1, 3);
+            module->m_sceneBlendInput->Widget(this, 1, 4);
+            module->m_sceneSelectInput->Widget(this, 1, 5);
+            module->m_sceneShiftInput->Widget(this, 1, 6);
+            module->m_speedInput->Widget(this, 1, 7);
+
+            // Outputs - arranged in a grid pattern
+            module->m_voltPerOctOutput->Widget(this, 2, 1);
+            module->m_gateOutput->Widget(this, 2, 2);
+            module->m_theoryOfTimeTopologyOutput->Widget(this, 2, 3);
+            module->m_theoryOfTimeSwingOutput->Widget(this, 2, 4);
+            module->m_theoryOfTimeSwaggerOutput->Widget(this, 2, 5);
+            module->m_lameJuisCoMuteOutput->Widget(this, 2, 6);
+            module->m_lameJuisMatrixOutput->Widget(this, 2, 7);
+            module->m_lameJuisRHSOutput->Widget(this, 2, 8);
+            module->m_lameJuisIntervalOutput->Widget(this, 3, 1);
+            module->m_timerFragmentsOutput->Widget(this, 3, 2);
+            module->m_unused1Output->Widget(this, 3, 3);
+            module->m_lameJuisSeqPaletteOutput->Widget(this, 3, 4);
+            module->m_timbreAndMuteOutput->Widget(this, 3, 5);
+            module->m_indexArpOutput->Widget(this, 3, 6);
+            module->m_recordingOutput->Widget(this, 3, 7);
+            module->m_timbreOutput->Widget(this, 3, 8);
+            module->m_phasorOutput->Widget(this, 4, 1);
+            module->m_extraTimbre1Output->Widget(this, 4, 2);
+            module->m_extraTimbre2Output->Widget(this, 4, 3);
+            module->m_extraTimbre3Output->Widget(this, 4, 4);
+            module->m_unused5Output->Widget(this, 4, 5);
+            module->m_unused6Output->Widget(this, 4, 6);
+            module->m_unused7Output->Widget(this, 4, 7);
+            module->m_totPhasorOutput->Widget(this, 4, 8);
         }
-        for (size_t i = 0; i < 4; ++i)
-        {            
-            addOutput(createOutputCentered<PJ301MPort>(Vec(75, 100 + 25 * i), module, 10 + i));
-        }
-
-        addOutput(createOutputCentered<PJ301MPort>(Vec(125, 200), module, 14));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(175, 200), module, 15));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(175, 225), module, 16));
-
-        addOutput(createOutputCentered<PJ301MPort>(Vec(125, 250), module, 17));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(125, 275), module, 18));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(125, 300), module, 19));                
-        addOutput(createOutputCentered<PJ301MPort>(Vec(200, 100), module, 20));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(200, 125), module, 21));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(200, 150), module, 22));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(200, 200), module, 23));
-
-        addInput(createInputCentered<PJ301MPort>(Vec(250, 250), module, 3));
-        addInput(createInputCentered<PJ301MPort>(Vec(250, 275), module, 4));
-        addInput(createInputCentered<PJ301MPort>(Vec(250, 300), module, 5));
-        addInput(createInputCentered<PJ301MPort>(Vec(275, 300), module, 6));
     }
 };
 #endif

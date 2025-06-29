@@ -1,6 +1,6 @@
 #pragma once
 
-#define IOS_BUILD
+
 #include "TheNonagon.hpp"
 #include "CircularQueue.h"
 #include "MidiBus.h"

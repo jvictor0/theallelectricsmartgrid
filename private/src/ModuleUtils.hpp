@@ -1,4 +1,7 @@
 #pragma once
+
+#ifndef IOS_BUILD
+
 #include "plugin.hpp"
 #include <vector>
 #include <string>
@@ -234,10 +237,10 @@ struct IOMgr
             }
         }
 
-        // float Get(int id)
-        // {
-        //     return m_scale * m_module->inputs[m_id].getVoltage(i) + m_offset;
-        // }
+        float Get(int channel)
+        {
+            return m_scale * m_module->inputs[m_id].getVoltage(channel) + m_offset;
+        }
 
         void Config()
         {
@@ -804,3 +807,4 @@ struct IOMgr
     }    
 };
 
+#endif

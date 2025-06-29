@@ -1,4 +1,9 @@
 #pragma once
+
+// Suppress integer precision warnings from private source files
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
+
 #include <stdint.h>
 #include <os/log.h>
 #include <CoreAudio/CoreAudioTypes.h>
@@ -7,6 +12,8 @@
 #include "GridHandle.h"
 #include "MidiUtils.h"
 #include "MidiSettings.h"
+
+#pragma GCC diagnostic pop
 
 struct TheNonagonBridgeState 
 {

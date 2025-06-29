@@ -136,7 +136,7 @@ struct SettingsView: View
                             Text(dest.name).tag(dest.id)
                         }
                     }
-                    .onChange(of: m_viewModel.m_selectedMidiInput) { newValue in
+                    .onChange(of: m_viewModel.m_selectedMidiInput) { oldValue, newValue in
                         m_viewModel.SetMidiInput(newValue)
                     }
                 }
@@ -149,7 +149,7 @@ struct SettingsView: View
                             Text(dest.name).tag(dest.id)
                         }
                     }
-                    .onChange(of: m_viewModel.m_selectedMidiOutput) { newValue in
+                    .onChange(of: m_viewModel.m_selectedMidiOutput) { oldValue, newValue in
                         m_viewModel.SetMidiOutput(newValue)
                     }
                 }
@@ -159,12 +159,12 @@ struct SettingsView: View
                     VStack(spacing: 8) 
                     {
                         Toggle("Send Clock", isOn: $m_viewModel.m_sendClock)
-                            .onChange(of: m_viewModel.m_sendClock) { _ in
+                            .onChange(of: m_viewModel.m_sendClock) { oldValue, newValue in
                                 m_viewModel.UpdateMidiSettings()
                             }
                         
                         Toggle("Receive Clock", isOn: $m_viewModel.m_receiveClock)
-                            .onChange(of: m_viewModel.m_receiveClock) { _ in
+                            .onChange(of: m_viewModel.m_receiveClock) { oldValue, newValue in
                                 m_viewModel.UpdateMidiSettings()
                             }
                     }
@@ -175,12 +175,12 @@ struct SettingsView: View
                     VStack(spacing: 8) 
                     {
                         Toggle("Send Transport", isOn: $m_viewModel.m_sendTransport)
-                            .onChange(of: m_viewModel.m_sendTransport) { _ in
+                            .onChange(of: m_viewModel.m_sendTransport) { oldValue, newValue in
                                 m_viewModel.UpdateMidiSettings()
                             }
                         
                         Toggle("Receive Transport", isOn: $m_viewModel.m_receiveTransport)
-                            .onChange(of: m_viewModel.m_receiveTransport) { _ in
+                            .onChange(of: m_viewModel.m_receiveTransport) { oldValue, newValue in
                                 m_viewModel.UpdateMidiSettings()
                             }
                     }
@@ -191,12 +191,12 @@ struct SettingsView: View
                     VStack(spacing: 8) 
                     {
                         Toggle("Send Program Change", isOn: $m_viewModel.m_sendProgramChange)
-                            .onChange(of: m_viewModel.m_sendProgramChange) { _ in
+                            .onChange(of: m_viewModel.m_sendProgramChange) { oldValue, newValue in
                                 m_viewModel.UpdateMidiSettings()
                             }
                         
                         Toggle("Receive Program Change", isOn: $m_viewModel.m_receiveProgramChange)
-                            .onChange(of: m_viewModel.m_receiveProgramChange) { _ in
+                            .onChange(of: m_viewModel.m_receiveProgramChange) { oldValue, newValue in
                                 m_viewModel.UpdateMidiSettings()
                             }
                     }
