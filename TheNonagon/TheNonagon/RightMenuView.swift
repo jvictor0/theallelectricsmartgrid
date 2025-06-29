@@ -2,13 +2,15 @@ import SwiftUI
 
 class RightMenuViewModel: ObservableObject 
 {
-    static let x_ButtonCount: Int = 6
+    static let x_ButtonCount: Int = 2
     @Published var buttonColors: [Color] = Array(repeating: Color.gray, count: x_ButtonCount)
     private let m_bridge: TheNonagonBridge
+    private let m_centerViewModel: CenterViewModel
     
-    init(bridge: TheNonagonBridge) 
+    init(bridge: TheNonagonBridge, centerViewModel: CenterViewModel) 
     {
         self.m_bridge = bridge
+        self.m_centerViewModel = centerViewModel
     }
     
     func SetButtonColor(index: Int, color: Color) 
@@ -16,9 +18,14 @@ class RightMenuViewModel: ObservableObject
         buttonColors[index] = color
     }
     
-    func HandlePress(index: Int) 
+    func SetModeToTheoryOfTime() 
     {
-        m_bridge.HandleRightMenuPress(index: index)
+        m_centerViewModel.mode = .TheoryOfTime
+    }
+    
+    func SetModeToGrid() 
+    {
+        m_centerViewModel.mode = .Grid
     }
 }
 
@@ -30,17 +37,38 @@ struct RightMenuView: View
     {
         VStack(spacing: 10) 
         {
-            ForEach(0..<RightMenuViewModel.x_ButtonCount) { index in
-                Button(action: 
-                {
-                    viewModel.HandlePress(index: index)
-                }) 
-                {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(viewModel.buttonColors[index])
-                        .frame(height: 40)
-                }
+            // First button - Theory of Time
+            Button(action: 
+            {
+                viewModel.SetModeToTheoryOfTime()
+            }) 
+            {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(viewModel.buttonColors[0])
+                    .frame(height: 40)
+                    .overlay(
+                        Text("Theory")
+                            .foregroundColor(.white)
+                            .font(.caption)
+                    )
             }
+            
+            // Second button - Grid
+            Button(action: 
+            {
+                viewModel.SetModeToGrid()
+            }) 
+            {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(viewModel.buttonColors[1])
+                    .frame(height: 40)
+                    .overlay(
+                        Text("Grid")
+                            .foregroundColor(.white)
+                            .font(.caption)
+                    )
+            }
+            
             Spacer()
         }
         .padding(.top, 20)
@@ -49,5 +77,7 @@ struct RightMenuView: View
 
 #Preview 
 {
-    RightMenuView(viewModel: RightMenuViewModel(bridge: TheNonagonBridge()))
+    let bridge = TheNonagonBridge()
+    let centerViewModel = CenterViewModel(bridge: bridge)
+    RightMenuView(viewModel: RightMenuViewModel(bridge: bridge, centerViewModel: centerViewModel))
 } 

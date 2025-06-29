@@ -857,7 +857,7 @@ struct TheNonagonSmartGrid
         }
     };
 
-    struct LameJuisLHSPage : public SmartGrid::Grid
+    struct LameJuisRHSPage : public SmartGrid::Grid
     {
         struct Cell : public SmartGrid::StateCell<bool, SmartGrid::Flash<size_t>>
         {
@@ -897,7 +897,7 @@ struct TheNonagonSmartGrid
         TheNonagonInternal::Input* m_state;
         TheNonagonInternal* m_nonagon;
         TheNonagonSmartGrid* m_owner;        
-        LameJuisLHSPage(TheNonagonSmartGrid* owner)
+        LameJuisRHSPage(TheNonagonSmartGrid* owner)
             : SmartGrid::Grid()
             , m_state(&owner->m_state)
             , m_nonagon(&owner->m_nonagon)
@@ -915,7 +915,7 @@ struct TheNonagonSmartGrid
                 {
                     Put(j, SmartGrid::x_baseGridSize - i - 3, new Cell(i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_direct[j], m_nonagon));
                     m_owner->m_stateSaver.Insert(
-                        "LameJuisLHS", i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_direct[j]);
+                        "LameJuisRHS", i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_direct[j]);
                 }
 
                 Put(7, SmartGrid::x_baseGridSize - i - 3, m_owner->EquationOutputSwitch(i));                
@@ -1384,8 +1384,8 @@ struct TheNonagonSmartGrid
     SmartGrid::Grid* m_lameJuisCoMuteGrid;
     size_t m_lameJuisMatrixGridId;
     SmartGrid::Grid* m_lameJuisMatrixGrid;
-    size_t m_lameJuisLHSGridId;
-    SmartGrid::Grid* m_lameJuisLHSGrid;
+    size_t m_lameJuisRHSGridId;
+    SmartGrid::Grid* m_lameJuisRHSGrid;
     size_t m_lameJuisIntervalGridId;
     SmartGrid::Grid* m_lameJuisIntervalGrid;
     size_t m_indexArpFireGridId;
@@ -1467,8 +1467,8 @@ struct TheNonagonSmartGrid
         m_lameJuisMatrixGrid = new LameJuisMatrixPage(this);
         m_lameJuisMatrixGridId = m_gridHolder.AddGrid(m_lameJuisMatrixGrid);
         
-        m_lameJuisLHSGrid = new LameJuisLHSPage(this);
-        m_lameJuisLHSGridId = m_gridHolder.AddGrid(m_lameJuisLHSGrid);
+        m_lameJuisRHSGrid = new LameJuisRHSPage(this);
+        m_lameJuisRHSGridId = m_gridHolder.AddGrid(m_lameJuisRHSGrid);
         
         m_lameJuisIntervalGrid = new LameJuisIntervalPage(this);
         m_lameJuisIntervalGridId = m_gridHolder.AddGrid(m_lameJuisIntervalGrid);
@@ -1662,7 +1662,7 @@ struct TheNonagon : Module
         outputs[4].setVoltage(m_nonagon.m_theoryOfTimeSwaggerGridId);
         outputs[5].setVoltage(m_nonagon.m_lameJuisCoMuteGridId, 0);
         outputs[6].setVoltage(m_nonagon.m_lameJuisMatrixGridId);
-        outputs[7].setVoltage(m_nonagon.m_lameJuisLHSGridId);
+        outputs[7].setVoltage(m_nonagon.m_lameJuisRHSGridId);
         outputs[8].setVoltage(m_nonagon.m_lameJuisIntervalGridId);
 
         // outputs[9].setChannels(2);

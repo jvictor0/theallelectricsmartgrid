@@ -49,13 +49,8 @@ extern "C"
         static_cast<TheNonagonBridgeState*>(instance)->Process(audioBuffer, numChannels, numFrames, timestamp);
     }
     
-    void setTheNonagonBridgeStateMidiInput(void* instance, int32_t index)
+    struct MidiSettings* getTheNonagonBridgeStateMidiSettings(void* instance)
     {
-        static_cast<TheNonagonBridgeState*>(instance)->SetMidiInput(index);
+        return &static_cast<TheNonagonBridgeState*>(instance)->GetMidiSettings();
     }
-    
-    void setTheNonagonBridgeStateMidiOutput(void* instance, int32_t index)
-    {
-        static_cast<TheNonagonBridgeState*>(instance)->SetMidiOutput(index);
-    }
-} 
+}

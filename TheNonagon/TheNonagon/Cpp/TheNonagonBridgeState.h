@@ -6,10 +6,12 @@
 #include "NonagonHolder.h"
 #include "GridHandle.h"
 #include "MidiUtils.h"
+#include "MidiSettings.h"
 
 struct TheNonagonBridgeState 
 {
     TheNonagonBridgeState() 
+      : m_holder(&m_midiSettings)
     {
     }
 
@@ -44,6 +46,7 @@ struct TheNonagonBridgeState
     
     void Process(float** audioBuffer, int32_t numChannels, int32_t numFrames, AudioTimeStamp timestamp) 
     {
+        UpdateMidiSettings();
         for (int32_t frame = 0; frame < numFrames; ++frame)
         {
             UInt64 frameTimestamp = AudioFrameToHostTime(timestamp, frame, 48000.0);
@@ -56,15 +59,16 @@ struct TheNonagonBridgeState
         }
     }
     
-    void SetMidiInput(int32_t index)
+    MidiSettings& GetMidiSettings()
     {
-        m_holder.SetMidiInput(index);
+        return m_midiSettings;
     }
     
-    void SetMidiOutput(int32_t index)
+    void UpdateMidiSettings()
     {
-        m_holder.SetMidiOutput(index);
+        m_holder.UpdateMidiSettings();
     }
     
+    MidiSettings m_midiSettings;
     NonagonHolder m_holder;
 }; 

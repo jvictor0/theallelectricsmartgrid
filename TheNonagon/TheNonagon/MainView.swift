@@ -4,6 +4,7 @@ struct MainView: View
 {
     private static let x_sharedBridge = TheNonagonBridge()
     private let m_bridge = MainView.x_sharedBridge
+    @StateObject private var m_centerViewModel: CenterViewModel
     @StateObject private var m_rightMenuViewModel: RightMenuViewModel
     @StateObject private var m_leftMenuViewModel: LeftMenuViewModel
     @StateObject private var m_bottomMenuViewModel: BottomMenuViewModel
@@ -12,7 +13,9 @@ struct MainView: View
     
     init() 
     {
-        _m_rightMenuViewModel = StateObject(wrappedValue: RightMenuViewModel(bridge: MainView.x_sharedBridge))
+        let centerViewModel = CenterViewModel(bridge: MainView.x_sharedBridge)
+        _m_centerViewModel = StateObject(wrappedValue: centerViewModel)
+        _m_rightMenuViewModel = StateObject(wrappedValue: RightMenuViewModel(bridge: MainView.x_sharedBridge, centerViewModel: centerViewModel))
         _m_leftMenuViewModel = StateObject(wrappedValue: LeftMenuViewModel(bridge: MainView.x_sharedBridge))
         _m_bottomMenuViewModel = StateObject(wrappedValue: BottomMenuViewModel(bridge: MainView.x_sharedBridge))
     }
@@ -27,11 +30,7 @@ struct MainView: View
             // Center Content with Button Grid
             VStack(spacing: 0) 
             {
-                HStack(spacing: 2)
-                {
-                    CoMuteView(bridge: m_bridge)
-                    TheoryOfTimeView(bridge: m_bridge)
-                }
+                CenterView(viewModel: m_centerViewModel)
                 
                 // Bottom Menu
                 BottomMenuView(viewModel: m_bottomMenuViewModel)

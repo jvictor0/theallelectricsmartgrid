@@ -72,22 +72,15 @@ public class TheNonagonBridge: ObservableObject
         }
     }
     
-    public func SetMidiInput(_ index: Int) 
+    public func GetMidiSettings() -> UnsafeMutablePointer<MidiSettings>? 
     {
         if let state = m_state 
         {
-            setTheNonagonBridgeStateMidiInput(state, Int32(index))
+            return getTheNonagonBridgeStateMidiSettings(state)
         }
+        return nil
     }
     
-    public func SetMidiOutput(_ index: Int) 
-    {
-        if let state = m_state 
-        {
-            setTheNonagonBridgeStateMidiOutput(state, Int32(index))
-        }
-    }
-
     public func PopulateButtonColors()
     {
         for gridHandle in 0..<Int(GridHandle_NumGrids.rawValue)

@@ -10,7 +10,7 @@ typedef enum
     GridHandle_TimbreAndMuteWater = 5,
     GridHandle_TheoryOfTimeTopology = 6,
     GridHandle_LameJuisInterval = 7,
-    GridHandle_LameJuisLHS = 8,
+    GridHandle_LameJuisRHS = 8,
     GridHandle_IndexArpFire = 9,
     GridHandle_IndexArpEarth = 10,
     GridHandle_IndexArpWater = 11,

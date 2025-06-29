@@ -53,6 +53,24 @@ struct MidiMessage
         m_data[2] = value & 0x7F;
     }
 
+    void SetTransportStart()
+    {
+        SetStatus(0xFA);
+        m_size = 1;
+    }
+
+    void SetTransportStop()
+    {
+        SetStatus(0xFC);
+        m_size = 1;
+    }
+
+    void SetClock()
+    {
+        SetStatus(0xF8);
+        m_size = 1;
+    }
+
     bool IsTransportStart() const
     {
         return m_data[0] == 0xFA;
@@ -71,8 +89,9 @@ struct MidiMessage
 
 struct MidiBus
 {
-    CircularQueue<MidiMessage, 8192> m_inputBuffer;
     CircularQueue<MidiMessage, 8192> m_outputBuffer;
+    CircularQueue<MidiMessage, 8192> m_inputBuffer;
+    UInt64 m_sendTimestamp;
     uint8_t m_lastNoteSent[16];
     std::thread m_midiSendThread;
     std::atomic<bool> m_running;
@@ -97,7 +116,8 @@ struct MidiBus
 
     void SendMessage(MidiMessage& message)
     {
-        m_inputBuffer.Push(message);
+        message.m_timestamp = m_sendTimestamp;
+        m_outputBuffer.Push(message);
     }
 
     void SendNoteOn(uint8_t note, uint8_t velocity, uint8_t channel)
@@ -147,6 +167,27 @@ struct MidiBus
         SendMessage(message);
     }
 
+    void SendTransportStart()
+    {
+        MidiMessage message;
+        message.SetTransportStart();
+        SendMessage(message);
+    }
+
+    void SendTransportStop()
+    {
+        MidiMessage message;
+        message.SetTransportStop();
+        SendMessage(message);
+    }
+
+    void SendClock()
+    {
+        MidiMessage message;
+        message.SetClock();
+        SendMessage(message);
+    }
+
     bool IsChannelPlaying(uint8_t channel)
     {
         return m_lastNoteSent[channel] != 255;
@@ -190,7 +231,7 @@ struct MidiBus
                 message.m_data[j] = packet->data[j];
             }
             
-            midiBus->m_outputBuffer.Push(message);
+            midiBus->m_inputBuffer.Push(message);
             
             packet = MIDIPacketNext(packet);
         }
@@ -199,11 +240,11 @@ struct MidiBus
     bool PopIfTimestampReached(UInt64 timestamp, MidiMessage& message)
     {
         MidiMessage peekMessage;
-        if (m_outputBuffer.Peek(peekMessage))
+        if (m_inputBuffer.Peek(peekMessage))
         {
             if (peekMessage.m_timestamp <= timestamp)
             {
-                return m_outputBuffer.Pop(message);
+                return m_inputBuffer.Pop(message);
             }
         }
 
@@ -276,7 +317,7 @@ struct MidiBus
             }
 
             MidiMessage message;
-            while (m_inputBuffer.Pop(message)) 
+            while (m_outputBuffer.Pop(message)) 
             {
                 if (!m_dest || m_outputIndex < 0)
                 {

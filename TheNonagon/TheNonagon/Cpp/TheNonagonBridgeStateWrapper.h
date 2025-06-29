@@ -3,6 +3,7 @@
 #include <CoreAudio/CoreAudioTypes.h>
 #include "RGBColor.h"
 #include "GridHandle.h"
+#include "MidiSettings.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,8 +17,7 @@ void getTheNonagonBridgeStateColor(void* instance, GridHandle gridHandle, int x,
 void handleTheNonagonBridgeStateRightMenuPress(void* instance, int index);
 void getTheNonagonBridgeStateRightMenuColor(void* instance, int index, struct RGBColor* outColor);
 void processTheNonagonBridgeState(void* instance, float** audioBuffer, int32_t numChannels, int32_t numFrames, AudioTimeStamp timestamp);
-void setTheNonagonBridgeStateMidiInput(void* instance, int32_t index);
-void setTheNonagonBridgeStateMidiOutput(void* instance, int32_t index);
+struct MidiSettings* getTheNonagonBridgeStateMidiSettings(void* instance);
 
 #ifdef __cplusplus
 }

@@ -5,9 +5,9 @@
 #include "CircularQueue.h"
 #include "MidiBus.h"
 #include "GridHandle.h"
+#include "MidiSettings.h"
 #include <thread>
 #include <CoreAudio/CoreAudioTypes.h>
-
 
 struct NonagonGridRouter
 {
@@ -166,7 +166,7 @@ struct NonagonGridRouter
         {
             case 0: return m_nonagon->m_theoryOfTimeTopologyGrid;
             case 1: return m_nonagon->m_lameJuisIntervalGrid;
-            case 2: return m_nonagon->m_lameJuisLHSGrid;
+            case 2: return m_nonagon->m_lameJuisRHSGrid;
             case 3: return m_nonagon->m_indexArpFireGrid;
             case 4: return m_nonagon->m_indexArpEarthGrid;
             case 5: return m_nonagon->m_indexArpWaterGrid;
@@ -186,7 +186,7 @@ struct NonagonGridRouter
             case GridHandle_TimbreAndMuteWater: return m_nonagon->m_timbreAndMuteWaterGrid;
             case GridHandle_TheoryOfTimeTopology: return m_nonagon->m_theoryOfTimeTopologyGrid;
             case GridHandle_LameJuisInterval: return m_nonagon->m_lameJuisIntervalGrid;
-            case GridHandle_LameJuisLHS: return m_nonagon->m_lameJuisLHSGrid;
+            case GridHandle_LameJuisRHS: return m_nonagon->m_lameJuisRHSGrid;
             case GridHandle_IndexArpFire: return m_nonagon->m_indexArpFireGrid;
             case GridHandle_IndexArpEarth: return m_nonagon->m_indexArpEarthGrid;
             case GridHandle_IndexArpWater: return m_nonagon->m_indexArpWaterGrid;
@@ -199,11 +199,14 @@ struct NonagonMidiSender
 {
     MidiBus* m_midiBus;
     TheNonagonSmartGrid* m_nonagon;
+    bool m_isTransportRunning;
+    MidiSettings* m_midiSettings;
 
-    NonagonMidiSender(MidiBus* midiBus, TheNonagonSmartGrid* nonagon)
+    NonagonMidiSender(MidiBus* midiBus, TheNonagonSmartGrid* nonagon, MidiSettings* midiSettings)
     {
         m_midiBus = midiBus;
         m_nonagon = nonagon;
+        m_midiSettings = midiSettings;
     }
 
     void SendVoltPerOctave(int channel, float volts)
@@ -225,6 +228,32 @@ struct NonagonMidiSender
         m_midiBus->SendNoteOff(channel);
     }
 
+    void SendMidi(UInt64 frameTimestamp)
+    {
+        m_midiBus->m_sendTimestamp = frameTimestamp;
+        SendTransport();
+        SendMidiNotes();
+    }
+
+    void SendTransport()
+    {
+        if (m_isTransportRunning != m_nonagon->m_state.m_running)
+        {
+            m_isTransportRunning = m_nonagon->m_state.m_running;
+            if (m_midiSettings->m_sendTransport)
+            {
+                if (m_isTransportRunning)
+                {
+                    m_midiBus->SendTransportStart();
+                }
+                else
+                {
+                    m_midiBus->SendTransportStop();
+                }
+            }
+        }
+    }
+
     void SendMidiNotes()
     {
         TheNonagonInternal::Output& output = m_nonagon->m_nonagon.m_output;
@@ -240,26 +269,24 @@ struct NonagonMidiSender
             }
         }
     }
-
-    void SetMidiOutput(int32_t index)
-    {
-        m_midiBus->SetOutput(index);
-    }
 };
 
 struct NonagonMidiReceiver
 {
     MidiBus* m_midiBus;
     TheNonagonSmartGrid* m_nonagon;
+    MidiSettings* m_midiSettings;
 
-    NonagonMidiReceiver(MidiBus* midiBus, TheNonagonSmartGrid* nonagon)
+    NonagonMidiReceiver(MidiBus* midiBus, TheNonagonSmartGrid* nonagon, MidiSettings* midiSettings)
     {
         m_midiBus = midiBus;
         m_nonagon = nonagon;
+        m_midiSettings = midiSettings;
     }
 
     void ProcessMessages(UInt64 timestamp)
     {
+        SetupClockMode();
         MidiMessage message;
         while (m_midiBus->PopIfTimestampReached(timestamp, message))
         {
@@ -267,21 +294,33 @@ struct NonagonMidiReceiver
         }
     }
 
-    void ProcessMessage(MidiMessage& message)
+    void SetupClockMode()
     {
-        if (message.IsTransportStart())
+        if (m_midiSettings->m_receiveClock)
         {
-            m_nonagon->m_state.m_running = true;
+            m_nonagon->m_state.m_theoryOfTimeInput.m_clockMode = MusicalTimeWithClock::ClockMode::Tick2Phasor;
+            m_nonagon->m_state.m_theoryOfTimeInput.m_tick2PhasorInput.m_tick = false;
         }
-        else if (message.IsTransportStop())
+        else
         {
-            m_nonagon->m_state.m_running = false;
+            m_nonagon->m_state.m_theoryOfTimeInput.m_clockMode = MusicalTimeWithClock::ClockMode::Internal;
         }
     }
 
-    void SetMidiInput(int32_t index)
+    void ProcessMessage(MidiMessage& message)
     {
-        m_midiBus->SetInput(index);
+        if (m_midiSettings->m_receiveTransport && message.IsTransportStart())
+        {
+            m_nonagon->m_state.m_running = true;
+        }
+        else if (m_midiSettings->m_receiveTransport && message.IsTransportStop())
+        {
+            m_nonagon->m_state.m_running = false;
+        }
+        else if (m_midiSettings->m_receiveClock && message.IsClock())
+        {
+            m_nonagon->m_state.m_theoryOfTimeInput.m_tick2PhasorInput.m_tick = true;
+        }
     }
 };
 
@@ -292,11 +331,13 @@ struct NonagonHolder
     NonagonMidiSender m_midiSender;
     NonagonMidiReceiver m_midiReceiver;
     MidiBus m_midiBus;
+    MidiSettings* m_midiSettings;
 
-    NonagonHolder() 
+    NonagonHolder(MidiSettings* midiSettings) 
         : m_gridRouter(&m_nonagon)
-        , m_midiSender(&m_midiBus, &m_nonagon)
-        , m_midiReceiver(&m_midiBus, &m_nonagon)
+        , m_midiSender(&m_midiBus, &m_nonagon, midiSettings)
+        , m_midiReceiver(&m_midiBus, &m_nonagon, midiSettings)
+        , m_midiSettings(midiSettings)
     {
     }
     
@@ -308,7 +349,7 @@ struct NonagonHolder
     {
         m_midiReceiver.ProcessMessages(frameTimestamp);
         m_nonagon.Process(dt);
-        m_midiSender.SendMidiNotes();
+        m_midiSender.SendMidi(frameTimestamp);
         m_gridRouter.ProcessMessages();
     }
 
@@ -337,13 +378,9 @@ struct NonagonHolder
         return m_gridRouter.GetRightMenuColor(index);
     }
     
-    void SetMidiInput(int32_t index)
+    void UpdateMidiSettings()
     {
-        m_midiReceiver.SetMidiInput(index);
-    }
-    
-    void SetMidiOutput(int32_t index)
-    {
-        m_midiSender.SetMidiOutput(index);
+        m_midiBus.SetInput(m_midiSettings->m_sourceIndex);
+        m_midiBus.SetOutput(m_midiSettings->m_destinationIndex);
     }
 };  
