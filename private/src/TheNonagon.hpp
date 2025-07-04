@@ -162,10 +162,7 @@ struct TheNonagonInternal
                 {
                     input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_usePercentile[j] = false;
                     input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_harmonic[j] = false;
-                    IndexArp* arp = &m_indexArp.m_committedArp[i * x_voicesPerTrio + j];
-                    input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_indexArp[j] = arp;
-                    arp = &m_indexArp.m_arp[i * x_voicesPerTrio + j];
-                    input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_preIndexArp[j] = arp;
+                    input.m_lameJuisInput.m_outputInput[i].m_coMuteInput.m_toQuantize[j] = m_indexArp.m_arp[i * x_voicesPerTrio + j].m_output;
                 }
                 else
                 {
@@ -232,21 +229,6 @@ struct TheNonagonInternal
         for (size_t i = 0; i < x_numTimeBits + 1; ++i)
         {            
             input.m_arpInput.m_clocks[i] = m_theoryOfTime.m_musicalTime.m_change[x_numTimeBits - i];
-        }
-
-        for (size_t i = 0; i < x_numVoices; ++i)
-        {
-            const int num = LameJuisInternal::Output::CacheForSingleInputVector<false>::x_octaveBuckets;
-            const int intervals[] = {0, num / 7, num * 7 / 24, num * 5 / 12, num * 7 / 12 };
-            assert(input.m_indexArpIntervalSelect[i]  < 4);
-            assert(input.m_indexArpOffsetSelect[i] < 4);
-            assert(input.m_indexArpMotiveIxSelect[i] < 4);
-            assert(input.m_indexArpIntervalSelect[i] >= 0);
-            assert(input.m_indexArpOffsetSelect[i] >= 0);
-            assert(input.m_indexArpMotiveIxSelect[i] >= 0);
-            input.m_arpInput.m_input[i].m_interval = intervals[input.m_indexArpIntervalSelect[i] + 1];
-            input.m_arpInput.m_input[i].m_offset = intervals[input.m_indexArpOffsetSelect[i]];
-            input.m_arpInput.m_input[i].m_motiveInterval = intervals[input.m_indexArpMotiveIxSelect[i]];
         }
     }    
 
@@ -951,73 +933,60 @@ struct TheNonagonSmartGrid
         }
     }
     
-    struct LameJuisSeqPaletteCell : public SmartGrid::Cell
-    {
-        Trio m_trio;
-        LameJuisInternal* m_lameJuis;
-        LameJuisInternal::Input* m_state;
-        size_t m_ix;
 
-        LameJuisSeqPaletteCell(
-            Trio trio,
-            LameJuisInternal* lameJuis,
-            LameJuisInternal::Input* state,
-            size_t ix)
-            : m_trio(trio)
-            , m_lameJuis(lameJuis)
-            , m_state(state)
-            , m_ix(ix)
+    struct SheafViewCell : public SmartGrid::Cell
+    {
+        int m_x;
+        int m_y;
+        Trio m_trio;
+        TheNonagonSmartGrid* m_owner;
+
+        SheafViewCell(int x, int y, Trio trio, TheNonagonSmartGrid* owner)
+            : m_x(x)
+            , m_y(y)
+            , m_trio(trio)
+            , m_owner(owner)
         {
         }
 
         virtual SmartGrid::Color GetColor() override
         {
-            size_t trioIx = static_cast<size_t>(m_trio);
-            LameJuisInternal::SeqPaletteState s = m_lameJuis->GetSeqPaletteState(trioIx, m_ix, m_state->m_inputVector);
-            SmartGrid::Color c = BaseColor(s);
-            if (!s.m_isCur)
+            size_t outputId = static_cast<size_t>(m_trio);
+            LameJuisInternal::GridSheafView::CellInfo cellInfo = m_owner->m_nonagon.m_lameJuis.GetCellInfo(outputId, static_cast<uint8_t>(m_x), static_cast<uint8_t>(m_y));
+
+            SmartGrid::Color baseColor = SmartGrid::Color(
+                cellInfo.m_localHarmonicPosition.Timbre256(0),
+                cellInfo.m_localHarmonicPosition.Timbre256(1),
+                cellInfo.m_localHarmonicPosition.Timbre256(2));
+            baseColor = baseColor.Interpolate(TrioColor(m_trio), 0.3);
+            if (!cellInfo.m_isCurrentSlice)
             {
-                return c.AdjustBrightness(0.6);
+                 return baseColor.AdjustBrightness(0.20);
             }
             else
             {
-                return c;
-            }
-        }
-
-        SmartGrid::Color BaseColor(LameJuisInternal::SeqPaletteState s)
-        {
-            if (s.m_ordMax % 2 == 1 && s.m_ord == s.m_ordMax / 2)
-            {
-                return TrioColor(m_trio);
-            }
-            else
-            {
-                bool low = s.m_ord < s.m_ordMax / 2;
-                size_t trioIx = static_cast<size_t>(m_trio);
-                Trio o = static_cast<Trio>((low ? trioIx + 2 : trioIx + 1) % 3);
-                float perc;
-                if (low)
+                for (size_t i = 0; i < TheNonagonInternal::x_voicesPerTrio; ++i)
                 {
-                    perc = 0.5 + static_cast<float>(s.m_ord) / s.m_ordMax;
-                }
-                else
-                {
-                    perc = 1.0 - static_cast<float>(s.m_ord) / (2 * s.m_ordMax);
+                    size_t voiceIndex = outputId * TheNonagonInternal::x_voicesPerTrio + i;
+                    if (cellInfo.m_isPlaying[i] && m_owner->m_nonagon.m_output.m_gate[voiceIndex])
+                    {
+                        return baseColor;
+                    }
                 }
 
-                return TrioColor(o).Interpolate(TrioColor(m_trio), perc);
+                return baseColor.AdjustBrightness(0.66);
             }
         }
     };
 
-    struct LameJuisSeqPalettePage : public SmartGrid::Grid
+    struct SheafViewGrid : public SmartGrid::Grid
     {
         TheNonagonInternal::Input* m_state;
         TheNonagonInternal* m_nonagon;
         TheNonagonSmartGrid* m_owner;
         Trio m_trio;
-        LameJuisSeqPalettePage(TheNonagonSmartGrid* owner, Trio t)
+        
+        SheafViewGrid(TheNonagonSmartGrid* owner, Trio t)
             : SmartGrid::Grid()
             , m_state(&owner->m_state)
             , m_nonagon(&owner->m_nonagon)
@@ -1034,12 +1003,7 @@ struct TheNonagonSmartGrid
             {
                 for (size_t j = 0; j < SmartGrid::x_baseGridSize; ++j)
                 {
-                    size_t ix = i * SmartGrid::x_baseGridSize + j;
-                    Put(i, j, new LameJuisSeqPaletteCell(
-                            m_trio,
-                            &m_nonagon->m_lameJuis,
-                            &m_state->m_lameJuisInput,
-                            ix));
+                    Put(i, j, new SheafViewCell(SmartGrid::x_baseGridSize - i - 1, SmartGrid::x_baseGridSize - j - 1, m_trio, m_owner));
                 }
             }
         }
@@ -1111,7 +1075,7 @@ struct TheNonagonSmartGrid
                 }
                 else
                 {
-                    result = FadeColor(m_trio, m_arp->m_index, m_arp->m_size);
+                    result = SmartGrid::Color::Red;
                 }
 
                 if (!m_state->m_rhythm[m_ix])
@@ -1130,51 +1094,6 @@ struct TheNonagonSmartGrid
             {
                 size_t voice = tId * TheNonagonInternal::x_voicesPerTrio + i;
                 size_t yPos = i;
-
-                Put(0, yPos, new SmartGrid::StateCell<bool>(
-                        TrioColor(m_trio) /*offColor*/,                            
-                        SmartGrid::Color::White /*onColor*/,
-                        &m_state->m_arpInput.m_input[voice].m_up,
-                        true,
-                        false,
-                        SmartGrid::StateCell<bool>::Mode::Toggle));
-                Put(1, yPos, new SmartGrid::StateCell<bool>(
-                        TrioColor(m_trio) /*offColor*/,                            
-                        SmartGrid::Color::White /*onColor*/,
-                        &m_state->m_arpInput.m_input[voice].m_cycle,
-                        true,
-                        false,
-                        SmartGrid::StateCell<bool>::Mode::Toggle));
-
-                for (size_t j = 0; j < 2; ++j)
-                {
-                    Put(2 + j, yPos, new SmartGrid::BinaryCell<int>(
-                            FadeColor(m_trio, 1, 6) /*offColor*/,                            
-                            FadeColor(m_trio, 1, 6).Interpolate(SmartGrid::Color::White, 0.7) /*onColor*/,
-                            1 - j,
-                            &m_state->m_indexArpOffsetSelect[voice]));
-                    Put(4 + j, yPos, new SmartGrid::BinaryCell<int>(
-                            FadeColor(m_trio, 2, 6) /*offColor*/,                            
-                            FadeColor(m_trio, 2, 6).Interpolate(SmartGrid::Color::White, 0.7) /*onColor*/,
-                            1 - j,
-                            &m_state->m_indexArpIntervalSelect[voice]));
-                    Put(6 + j, yPos, new SmartGrid::BinaryCell<int>(
-                            FadeColor(m_trio, 3, 6) /*offColor*/,                            
-                            FadeColor(m_trio, 3, 6).Interpolate(SmartGrid::Color::White, 0.7) /*onColor*/,
-                            1 - j,
-                            &m_state->m_indexArpMotiveIxSelect[voice]));                            
-                }
-
-                m_owner->m_stateSaver.Insert(
-                    "IndexArpUp", voice, &m_state->m_arpInput.m_input[voice].m_up);
-                m_owner->m_stateSaver.Insert(
-                    "IndexArpCycle", voice, &m_state->m_arpInput.m_input[voice].m_cycle);
-                m_owner->m_stateSaver.Insert(
-                    "IndexArpOffset", voice, &m_state->m_indexArpOffsetSelect[voice]);
-                m_owner->m_stateSaver.Insert(
-                    "IndexArpInterval", voice, &m_state->m_indexArpIntervalSelect[voice]);
-                m_owner->m_stateSaver.Insert(
-                    "IndexArpMotiveInterval", voice, &m_state->m_indexArpMotiveIxSelect[voice]);
                 
                 for (size_t j = 0; j < SmartGrid::x_baseGridSize; ++j)
                 {
@@ -1359,12 +1278,12 @@ struct TheNonagonSmartGrid
     SmartGrid::Grid* m_indexArpEarthGrid;
     size_t m_indexArpWaterGridId;
     SmartGrid::Grid* m_indexArpWaterGrid;
-    size_t m_lameJuisSeqPaletteFireGridId;
-    SmartGrid::Grid* m_lameJuisSeqPaletteFireGrid;
-    size_t m_lameJuisSeqPaletteEarthGridId;
-    SmartGrid::Grid* m_lameJuisSeqPaletteEarthGrid;
-    size_t m_lameJuisSeqPaletteWaterGridId;
-    SmartGrid::Grid* m_lameJuisSeqPaletteWaterGrid;
+    size_t m_sheafViewGridFireGridId;
+    SmartGrid::Grid* m_sheafViewGridFireGrid;
+    size_t m_sheafViewGridEarthGridId;
+    SmartGrid::Grid* m_sheafViewGridEarthGrid;
+    size_t m_sheafViewGridWaterGridId;
+    SmartGrid::Grid* m_sheafViewGridWaterGrid;
     size_t m_timbreAndMuteFireGridId;
     SmartGrid::Grid* m_timbreAndMuteFireGrid;
     size_t m_timbreAndMuteEarthGridId;
@@ -1451,14 +1370,14 @@ struct TheNonagonSmartGrid
 
         // Palettes
         //
-        // m_lameJuisSeqPaletteFireGrid = new LameJuisSeqPalettePage(this, Trio::Fire);
-        // m_lameJuisSeqPaletteFireGridId = m_gridHolder.AddGrid(m_lameJuisSeqPaletteFireGrid);
+        m_sheafViewGridFireGrid = new SheafViewGrid(this, Trio::Fire);
+        m_sheafViewGridFireGridId = m_gridHolder.AddGrid(m_sheafViewGridFireGrid);
         
-        // m_lameJuisSeqPaletteEarthGrid = new LameJuisSeqPalettePage(this, Trio::Earth);
-        // m_lameJuisSeqPaletteEarthGridId = m_gridHolder.AddGrid(m_lameJuisSeqPaletteEarthGrid);
+        m_sheafViewGridEarthGrid = new SheafViewGrid(this, Trio::Earth);
+        m_sheafViewGridEarthGridId = m_gridHolder.AddGrid(m_sheafViewGridEarthGrid);
         
-        // m_lameJuisSeqPaletteWaterGrid = new LameJuisSeqPalettePage(this, Trio::Water);
-        // m_lameJuisSeqPaletteWaterGridId = m_gridHolder.AddGrid(m_lameJuisSeqPaletteWaterGrid);
+        m_sheafViewGridWaterGrid = new SheafViewGrid(this, Trio::Water);
+        m_sheafViewGridWaterGridId = m_gridHolder.AddGrid(m_sheafViewGridWaterGrid);
         
         // Articulation
         //
@@ -1513,6 +1432,17 @@ struct TheNonagon : Module
     IOMgr::Input* m_sceneShiftInput;
     IOMgr::Input* m_speedInput;
 
+    // IndexArp Inputs
+    //
+    IOMgr::Input* m_indexArpZoneHeightInput;
+    IOMgr::Input* m_indexArpZoneOverlapInput;
+    IOMgr::Input* m_indexArpOffsetInput;
+    IOMgr::Input* m_indexArpIntervalInput;
+    IOMgr::Input* m_indexArpPageIntervalInput;
+    IOMgr::Input* m_indexArpOffsetSpreadInput;
+    IOMgr::Input* m_indexArpIntervalSpreadInput;
+    IOMgr::Input* m_indexArpPageIntervalSpreadInput;
+
     // IOMgr Outputs
     //
     IOMgr::Output* m_voltPerOctOutput;
@@ -1526,7 +1456,7 @@ struct TheNonagon : Module
     IOMgr::Output* m_lameJuisIntervalOutput;
     IOMgr::Output* m_timerFragmentsOutput;
     IOMgr::Output* m_unused1Output;
-    IOMgr::Output* m_lameJuisSeqPaletteOutput;
+    IOMgr::Output* m_sheafViewGridOutput;
     IOMgr::Output* m_timbreAndMuteOutput;
     IOMgr::Output* m_indexArpOutput;
     IOMgr::Output* m_recordingOutput;
@@ -1556,6 +1486,23 @@ struct TheNonagon : Module
         m_sceneShiftInput = m_ioMgr.AddInput("Scene Shift", true);
         m_speedInput = m_ioMgr.AddInput("Speed", false);
 
+        // Initialize IndexArp Inputs
+        m_indexArpZoneHeightInput = m_ioMgr.AddInput("IndexArp Zone Height", true);
+        m_indexArpZoneOverlapInput = m_ioMgr.AddInput("IndexArp Zone Overlap", true);
+        m_indexArpZoneOverlapInput->m_scale = 0.1;
+        m_indexArpOffsetInput = m_ioMgr.AddInput("IndexArp Offset", true);
+        m_indexArpOffsetInput->m_scale = 0.1;
+        m_indexArpIntervalInput = m_ioMgr.AddInput("IndexArp Interval", true);
+        m_indexArpIntervalInput->m_scale = 0.1;
+        m_indexArpPageIntervalInput = m_ioMgr.AddInput("IndexArp Page Interval", true);
+        m_indexArpPageIntervalInput->m_scale = 0.1;
+        m_indexArpOffsetSpreadInput = m_ioMgr.AddInput("IndexArp Offset Spread", true);
+        m_indexArpOffsetSpreadInput->m_scale = 0.1;
+        m_indexArpIntervalSpreadInput = m_ioMgr.AddInput("IndexArp Interval Spread", true);
+        m_indexArpIntervalSpreadInput->m_scale = 0.1;
+        m_indexArpPageIntervalSpreadInput = m_ioMgr.AddInput("IndexArp Page Interval Spread", true);
+        m_indexArpPageIntervalSpreadInput->m_scale = 0.1;
+
         // Initialize IOMgr Outputs
         //
         m_voltPerOctOutput = m_ioMgr.AddOutput("VoltPerOct Output", true);
@@ -1569,7 +1516,7 @@ struct TheNonagon : Module
         m_lameJuisIntervalOutput = m_ioMgr.AddOutput("LameJuis Interval", false);
         m_timerFragmentsOutput = m_ioMgr.AddOutput("Timer Fragments", false);
         m_unused1Output = m_ioMgr.AddOutput("Unused 1", false);
-        m_lameJuisSeqPaletteOutput = m_ioMgr.AddOutput("LameJuis SeqPalette", false);
+        m_sheafViewGridOutput = m_ioMgr.AddOutput("SheafView Grid", false);
         m_timbreAndMuteOutput = m_ioMgr.AddOutput("TimbreAndMute", false);
         m_indexArpOutput = m_ioMgr.AddOutput("IndexArp", false);
 
@@ -1597,9 +1544,9 @@ struct TheNonagon : Module
 
         // Set up multi-channel grid ID outputs
         //
-        m_lameJuisSeqPaletteOutput->SetSource(0, &m_nonagon.m_lameJuisSeqPaletteFireGridId);
-        m_lameJuisSeqPaletteOutput->SetSource(1, &m_nonagon.m_lameJuisSeqPaletteEarthGridId);
-        m_lameJuisSeqPaletteOutput->SetSource(2, &m_nonagon.m_lameJuisSeqPaletteWaterGridId);
+        m_sheafViewGridOutput->SetSource(0, &m_nonagon.m_sheafViewGridFireGridId);
+        m_sheafViewGridOutput->SetSource(1, &m_nonagon.m_sheafViewGridEarthGridId);
+        m_sheafViewGridOutput->SetSource(2, &m_nonagon.m_sheafViewGridWaterGridId);
 
         m_timbreAndMuteOutput->SetSource(0, &m_nonagon.m_timbreAndMuteFireGridId);
         m_timbreAndMuteOutput->SetSource(1, &m_nonagon.m_timbreAndMuteEarthGridId);
@@ -1653,13 +1600,36 @@ struct TheNonagon : Module
         m_timbreOutput->SetChannels(TheNonagonInternal::x_numVoices);
         m_phasorOutput->SetChannels(TheNonagonInternal::x_numVoices);
         m_timerFragmentsOutput->SetChannels(16);
-        m_lameJuisSeqPaletteOutput->SetChannels(3);
+        m_sheafViewGridOutput->SetChannels(3);
         m_timbreAndMuteOutput->SetChannels(3);
         m_indexArpOutput->SetChannels(3);
         m_totPhasorOutput->SetChannels(6);
         m_extraTimbre1Output->SetChannels(TheNonagonInternal::x_numVoices);
         m_extraTimbre2Output->SetChannels(TheNonagonInternal::x_numVoices);
         m_extraTimbre3Output->SetChannels(TheNonagonInternal::x_numVoices);
+
+        // Set channel counts for IndexArp inputs
+        m_indexArpZoneHeightInput->SetChannels(TheNonagonInternal::x_numTrios);
+        m_indexArpZoneOverlapInput->SetChannels(TheNonagonInternal::x_numTrios);
+        m_indexArpOffsetInput->SetChannels(TheNonagonInternal::x_numTrios);
+        m_indexArpIntervalInput->SetChannels(TheNonagonInternal::x_numTrios);
+        m_indexArpPageIntervalInput->SetChannels(TheNonagonInternal::x_numTrios);
+        m_indexArpOffsetSpreadInput->SetChannels(TheNonagonInternal::x_numTrios);
+        m_indexArpIntervalSpreadInput->SetChannels(TheNonagonInternal::x_numTrios);
+        m_indexArpPageIntervalSpreadInput->SetChannels(TheNonagonInternal::x_numTrios);
+
+        // Set targets for IndexArp inputs
+        for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
+        {
+            m_indexArpZoneHeightInput->SetTarget(i, &m_nonagon.m_state.m_arpInput.m_zoneHeight[i]);
+            m_indexArpZoneOverlapInput->SetTarget(i, &m_nonagon.m_state.m_arpInput.m_zoneOverlap[i]);
+            m_indexArpOffsetInput->SetTarget(i, &m_nonagon.m_state.m_arpInput.m_offset[i]);
+            m_indexArpIntervalInput->SetTarget(i, &m_nonagon.m_state.m_arpInput.m_interval[i]);
+            m_indexArpPageIntervalInput->SetTarget(i, &m_nonagon.m_state.m_arpInput.m_pageInterval[i]);
+            m_indexArpOffsetSpreadInput->SetTarget(i, &m_nonagon.m_state.m_arpInput.m_offsetSpread[i]);
+            m_indexArpIntervalSpreadInput->SetTarget(i, &m_nonagon.m_state.m_arpInput.m_intervalSpread[i]);
+            m_indexArpPageIntervalSpreadInput->SetTarget(i, &m_nonagon.m_state.m_arpInput.m_pageIntervalSpread[i]);
+        }
 
         // Configure IOMgr
         //
@@ -1758,31 +1728,41 @@ struct TheNonagonWidget : ModuleWidget
             module->m_sceneShiftInput->Widget(this, 1, 6);
             module->m_speedInput->Widget(this, 1, 7);
 
-            // Outputs - arranged in a grid pattern
-            module->m_voltPerOctOutput->Widget(this, 2, 1);
-            module->m_gateOutput->Widget(this, 2, 2);
-            module->m_theoryOfTimeTopologyOutput->Widget(this, 2, 3);
-            module->m_theoryOfTimeSwingOutput->Widget(this, 2, 4);
-            module->m_theoryOfTimeSwaggerOutput->Widget(this, 2, 5);
-            module->m_lameJuisCoMuteOutput->Widget(this, 2, 6);
-            module->m_lameJuisMatrixOutput->Widget(this, 2, 7);
-            module->m_lameJuisRHSOutput->Widget(this, 2, 8);
-            module->m_lameJuisIntervalOutput->Widget(this, 3, 1);
-            module->m_timerFragmentsOutput->Widget(this, 3, 2);
-            module->m_unused1Output->Widget(this, 3, 3);
-            module->m_lameJuisSeqPaletteOutput->Widget(this, 3, 4);
-            module->m_timbreAndMuteOutput->Widget(this, 3, 5);
-            module->m_indexArpOutput->Widget(this, 3, 6);
-            module->m_recordingOutput->Widget(this, 3, 7);
-            module->m_timbreOutput->Widget(this, 3, 8);
-            module->m_phasorOutput->Widget(this, 4, 1);
-            module->m_extraTimbre1Output->Widget(this, 4, 2);
-            module->m_extraTimbre2Output->Widget(this, 4, 3);
-            module->m_extraTimbre3Output->Widget(this, 4, 4);
-            module->m_unused5Output->Widget(this, 4, 5);
-            module->m_unused6Output->Widget(this, 4, 6);
-            module->m_unused7Output->Widget(this, 4, 7);
-            module->m_totPhasorOutput->Widget(this, 4, 8);
+            // IndexArp Inputs - in column 2
+            module->m_indexArpZoneHeightInput->Widget(this, 2, 1);
+            module->m_indexArpZoneOverlapInput->Widget(this, 2, 2);
+            module->m_indexArpOffsetInput->Widget(this, 2, 3);
+            module->m_indexArpIntervalInput->Widget(this, 2, 4);
+            module->m_indexArpPageIntervalInput->Widget(this, 2, 5);
+            module->m_indexArpOffsetSpreadInput->Widget(this, 2, 6);
+            module->m_indexArpIntervalSpreadInput->Widget(this, 2, 7);
+            module->m_indexArpPageIntervalSpreadInput->Widget(this, 2, 8);
+
+            // Outputs - arranged in a grid pattern (shifted by +1 in x)
+            module->m_voltPerOctOutput->Widget(this, 3, 1);
+            module->m_gateOutput->Widget(this, 3, 2);
+            module->m_theoryOfTimeTopologyOutput->Widget(this, 3, 3);
+            module->m_theoryOfTimeSwingOutput->Widget(this, 3, 4);
+            module->m_theoryOfTimeSwaggerOutput->Widget(this, 3, 5);
+            module->m_lameJuisCoMuteOutput->Widget(this, 3, 6);
+            module->m_lameJuisMatrixOutput->Widget(this, 3, 7);
+            module->m_lameJuisRHSOutput->Widget(this, 3, 8);
+            module->m_lameJuisIntervalOutput->Widget(this, 4, 1);
+            module->m_timerFragmentsOutput->Widget(this, 4, 2);
+            module->m_unused1Output->Widget(this, 4, 3);
+            module->m_sheafViewGridOutput->Widget(this, 4, 4);
+            module->m_timbreAndMuteOutput->Widget(this, 4, 5);
+            module->m_indexArpOutput->Widget(this, 4, 6);
+            module->m_recordingOutput->Widget(this, 4, 7);
+            module->m_timbreOutput->Widget(this, 4, 8);
+            module->m_phasorOutput->Widget(this, 5, 1);
+            module->m_extraTimbre1Output->Widget(this, 5, 2);
+            module->m_extraTimbre2Output->Widget(this, 5, 3);
+            module->m_extraTimbre3Output->Widget(this, 5, 4);
+            module->m_unused5Output->Widget(this, 5, 5);
+            module->m_unused6Output->Widget(this, 5, 6);
+            module->m_unused7Output->Widget(this, 5, 7);
+            module->m_totPhasorOutput->Widget(this, 5, 8);
         }
     }
 };

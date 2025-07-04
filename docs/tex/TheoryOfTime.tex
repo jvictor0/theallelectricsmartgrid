@@ -1,0 +1,102 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\usepackage{tikz}
+\usepackage{hyperref}
+\geometry{margin=1in}
+
+\title{The All Electric Smart Grid}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Chapter 1: The Theory of Time}
+
+At the foundation of our system lies a formalism we call the \emph{Theory of Time}.  
+This theory provides a continuous, hierarchical notion of musical time, which acts as the master clock of our system.  
+It is not merely a global tempo or LFO, but a rich system of composable mappings that track temporal structure at multiple levels.  
+The main loop is modeled as a continuous, basepoint-preserving map from the real line to the circle:
+\[
+\phi: \mathbb{R} \to S^1.
+\]
+This map defines the global phase.
+After this, we construct a system of maps between circles, which we only require to be continuous and basepoint-preserving.
+
+\paragraph{Hierarchical Time Chains.}  
+A simple example of a temporal hierarchy is a linear chain of maps:
+\[
+\mathbb{R} \xrightarrow{\times 2} S^1 \xrightarrow{\times 2} S^1 \xrightarrow{\times 2} \cdots \xrightarrow{\times 2} S^1
+\]
+resulting in the composite $\mathbb{R} \to S^1$ being "twice as fast" as the previous.  
+This chain could represent the subdivision of a 4-bar loop into smaller units: 2 bars, 1 bar, half notes, quarter notes, eighth notes, and so on.  
+Each circle in the chain represents a periodic structure, and composition of these maps traces the temporal unfolding of nested periodicities.
+
+\paragraph{Polyrhythmic Structures.}  
+Polyrhythms are naturally expressed as a single circle mapping into multiple circles.
+We visualize this as follows:
+\begin{center}
+\begin{tikzpicture}[node distance=2.5cm, auto]
+  \node (S1a) {$S^1$};
+  \node (S1b) [right of=S1a] {$S^1$};
+  \node (S1c) [below of=S1a] {$S^1$};
+
+  \draw[->] (S1a) to node[above] {\small $\times 2$} (S1b);
+  \draw[->] (S1a) to node[left] {\small $\times 3$} (S1c);
+\end{tikzpicture}
+\end{center}
+Here, the top-left $S^1$ maps to two separate $S^1$s: one to the right scaled by 2, and one downward scaled by 3.
+Each path defines a different temporal grid derived from a common circle.
+This allows simultaneous subdivision into incompatible rhythmic cycles—creating interlocking polyrhythmic structures.
+For instance, if the source circle represented a quarter note, the top right circle would represent an eighth note, while the bottom circle would represent an eighth note triplet.
+
+\paragraph{Structure of Time Maps.}  
+Every time map $\phi: S^1 \to S^1$ can be expressed as the sum of an integer rotation and a nullhomotopic map:
+\[
+\phi(x) = d \cdot x + f(x) \mod 1,
+\]
+where $d \in \mathbb{Z}$ is the degree (i.e., how many times the domain winds around the circle) and $f$ is nullhomotopic.  
+The degree parameter is only read when the domain is at the base point, ensuring that even abrupt changes in the topological type of the map do not produce discontinuities in phase, thereby allowing seamless transitions between non-homotopic maps.  
+This is especially useful in performance settings where temporal feel may shift live.
+
+\paragraph{Groove and Expressiveness.}  
+The nullhomotopic component $f$ allows for expressive reshaping of the temporal curve.  
+These deformations can introduce swing, funk, or microtiming deviations that preserve overall loop structure while breaking uniform subdivision.  
+This highlights the composability of these time maps: they can be chained, branched, and transformed in structured ways.
+
+\paragraph{Performance Stability.}  
+Modifying a time map within a chain affects all its descendants—every higher-frequency temporal structure defined relative to it.  
+However, the slower-changing structure defined by the circles coming before remains fixed, providing a stable scaffolding during performance.  
+This allows performers and composers to modify local groove without destabilizing the global rhythmic grid, for instance switching from eighth notes to triplets without moving the bar line.
+
+\paragraph{Terminology and Topological Perspective.}  
+In classical synthesis contexts, such maps are often referred to as \emph{phasors}.  
+However, we prefer to emphasize their role as morphisms in a diagram of circles, rather than viewing them as mere sawtooth waveforms.  
+This shift in perspective better reflects their structural and categorical roles in the Smart Grid, facilitating the gestures described above.
+
+\paragraph{Applications and Partitioning.}  
+Time maps can drive a variety of processes: sample playback, LFOs, envelopes, or control voltages.  
+However, their most important role in this system is to \emph{partition time}.  
+Let $T^n$ be the n-torus
+\[
+T^n = S^1 \times S^1 \cdots S^1
+\]
+By composing a sequence of circle maps, we obtain a final composite map:
+\[
+\mathbb{R} \xrightarrow{\Phi} T^n,
+\]
+Let $I=\{0,1\}$.  
+To extract binary rhythmic structure from $\Phi$, we define a quantization map $q: S^1 \to I$ by thresholding:
+\[
+q(x) = \begin{cases} 1 & \text{if } x \in \left[0, \frac{1}{2}\right) \\ 0 & \text{otherwise} \end{cases},
+\]
+Applying $q$ to each component of $\Phi$ gives a map $Q: T^n \to I^n$ and hence a composite:
+\[
+\psi = Q \circ \Phi : \mathbb{R} \to I^n.
+\]
+This final map assigns to each moment in time a bitstring that describes which temporal partitions are active.  
+These bitstrings form the basis of rhythmic structure throughout the All Electric Smart Grid.
+
+\end{document}

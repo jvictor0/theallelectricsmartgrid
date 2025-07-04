@@ -4,23 +4,20 @@ struct IndexArp
 {
     static constexpr size_t x_rhythmLength = 8;
     
-    int m_preIndex;
+    int m_index;
     int m_motiveIndex;
     int m_rhythmIndex;
     int m_lastMotiveLength;
     bool m_resetNextClock;
-
-    int m_size;
-    int m_index;
+    float m_output;
 
     IndexArp()
-        : m_preIndex(0)
+        : m_index(0)
         , m_motiveIndex(0)
         , m_rhythmIndex(0)
         , m_lastMotiveLength(0)
         , m_resetNextClock(false)
-        , m_size(1)
-        , m_index(0)
+        , m_output(0.0f)
     {
     }
     
@@ -28,32 +25,89 @@ struct IndexArp
     {
         bool m_clock;
         bool m_reset;
-        int m_offset;
-        int m_interval;
+
+        float m_offset;
+        float m_interval;
+        float m_min;
+        float m_max;
+        bool m_invert;
+        bool m_retro;
         bool m_cycle;
+        float m_pageInterval;
         bool m_rhythm[x_rhythmLength];
         int m_rhythmLength;
-        bool m_up;
-        int m_motiveInterval;
 
         Input()
             : m_clock(false)
             , m_reset(true)
             , m_offset(0)
             , m_interval(0)
+            , m_min(0)
+            , m_max(0)
+            , m_invert(false)
+            , m_retro(false)
             , m_cycle(false)
+            , m_pageInterval(0)
             , m_rhythmLength(x_rhythmLength)
-            , m_up(true)
-            , m_motiveInterval(0)
         {
             for (size_t i = 0; i < x_rhythmLength; ++i)
             {
                 m_rhythm[i] = true;
             }
-        }                         
-    };
+        }      
 
-    Input m_state;
+        float GetOutput(int index, int pageIndex)
+        {
+            index = GetPhysicalIndex(index);
+            float result = m_offset + index * m_interval + pageIndex * m_pageInterval;
+            if (m_cycle)
+            {
+                result = result - 2 * std::floor(result);
+                if (result > 1)
+                {
+                    result = 2 - result;
+                }
+            }
+            else
+            {
+                result = result - std::floor(result);
+            }
+
+            if (m_invert)
+            {
+                result = 1 - result;
+            }
+
+            result = m_min + result * (m_max - m_min);
+            return result;
+        }                 
+
+        int GetPhysicalIndex(int index)
+        {
+            if (m_retro)
+            {
+                int numNotes = NumNotes();
+                return numNotes - index;
+            }
+            else
+            {
+                return index;
+            }
+        }
+
+        int NumNotes() const
+        {
+            int result = 0;
+            for (size_t i = 0; i < x_rhythmLength; ++i)
+            {
+                if (m_rhythm[i])
+                {
+                    ++result;
+                }
+            }
+            return result;
+        }
+    };
 
     void Process(Input& input)
     {
@@ -68,94 +122,31 @@ struct IndexArp
             {
                 Reset(input);
             }
-            else
+
+            ++m_rhythmIndex;
+
+            if (m_rhythmIndex >= input.m_rhythmLength)
             {
-                ++m_rhythmIndex;
-                if (input.m_rhythm[m_rhythmIndex % input.m_rhythmLength])
-                {
-                    ++m_preIndex;
-                    if (m_rhythmIndex >= input.m_rhythmLength)
-                    {
-                        m_rhythmIndex %= input.m_rhythmLength;
-                        ++m_motiveIndex;
-                        m_lastMotiveLength = m_preIndex;
-                        m_preIndex = 0;
-                    }
-                }
+                m_rhythmIndex %= input.m_rhythmLength;
+                ++m_motiveIndex;
+                m_lastMotiveLength = m_index;
+                m_index = -1;
+            }    
 
-                //INFO("preIndex %d rhythmIndex %d motiveIndex %d", m_preIndex, m_rhythmIndex,m_motiveIndex);
+            if (input.m_rhythm[m_rhythmIndex])
+            {
+                ++m_index;
+                 m_output = input.GetOutput(m_index, m_motiveIndex);
             }
-
-            m_state = input;
         }
     }
 
     void Reset(Input& input)
     {
-        m_preIndex = 0;
-        m_rhythmIndex = 0;
+        m_index = -1;
+        m_rhythmIndex = -1;
         m_motiveIndex = 0;
         m_resetNextClock = false;
-    }
-
-    void Get(int size, int* ix, int* octave)
-    {
-        int offset = m_state.m_offset;
-        if (!m_state.m_up)
-        {
-            offset = size - offset;
-        }
-
-        int index = m_preIndex * m_state.m_interval;
-        
-        if (m_state.m_cycle)
-        {
-            offset += m_state.m_motiveInterval * (m_motiveIndex / 2);
-            if (m_motiveIndex % 2 == 1)
-            {
-                index = m_lastMotiveLength - index;
-            }
-        }
-        else
-        {
-            offset += m_state.m_motiveInterval * m_motiveIndex;
-        }
-
-        if (!m_state.m_up)
-        {
-            index = size - index;
-        }
-
-        offset %= size;
-        while (index < 0)
-        {
-            index += size;
-        }
-
-        if (2 * size < index)
-        {
-            index %= 2 * size;
-        }
-        
-        int preResult = offset + index;
-        *octave = preResult / size;
-        while (preResult < 0)
-        {
-            preResult += size;
-            *octave -= 1;
-        }
-
-        *ix = preResult % size;
-
-        m_size = size;
-        m_index = *ix;
-
-        if (*ix < 0 || *ix >= size)
-        {
-            INFO("preix %d motiv %d ix %d off %d ix %d oct %d size %d",
-                 m_preIndex, m_motiveIndex, index, offset, *ix, *octave, size);
-            assert(false);
-        }
     }
 };
 
@@ -167,7 +158,6 @@ struct NonagonIndexArp
     static constexpr size_t x_numVoices = 9;
 
     IndexArp m_arp[x_numVoices];
-    IndexArp m_committedArp[x_numVoices];
     
     struct Input
     {
@@ -176,7 +166,46 @@ struct NonagonIndexArp
         int m_clockSelect[x_numTrios];
         int m_resetSelect[x_numTrios];
         bool m_externalReset;
-        int m_commit[x_numVoices];
+
+        float m_zoneHeight[x_numTrios];
+        float m_zoneOverlap[x_numTrios];
+        float m_offset[x_numTrios];
+        float m_interval[x_numTrios];
+        float m_pageInterval[x_numTrios];
+        float m_offsetSpread[x_numTrios];
+        float m_intervalSpread[x_numTrios];
+        float m_pageIntervalSpread[x_numTrios];
+        
+        bool m_invert[x_numTrios];
+        bool m_retro[x_numTrios];
+        bool m_cycle[x_numTrios];        
+
+        void SetTrioInputs()
+        {
+            for (size_t i = 0; i < x_numTrios; ++i)
+            {                
+                for (size_t j = 0; j < x_voicesPerTrio; ++j)
+                {
+                    if (j == 0)
+                    {
+                        m_input[i * x_voicesPerTrio + j].m_min = 0;
+                    }
+                    else 
+                    {
+                        m_input[i * x_voicesPerTrio + j].m_min = m_input[i * x_voicesPerTrio + j - 1].m_max - m_zoneHeight[i] * m_zoneOverlap[i];
+                    }
+                    
+                    m_input[i * x_voicesPerTrio + j].m_max = m_input[i * x_voicesPerTrio + j].m_min + m_zoneHeight[i];
+
+                    m_input[i * x_voicesPerTrio + j].m_offset = m_offset[i] + j * m_offsetSpread[i] / x_voicesPerTrio;
+                    m_input[i * x_voicesPerTrio + j].m_interval = m_interval[i] + j * m_intervalSpread[i] / x_voicesPerTrio;
+                    m_input[i * x_voicesPerTrio + j].m_pageInterval = m_pageInterval[i] + j * m_pageIntervalSpread[i] / x_voicesPerTrio;
+                    m_input[i * x_voicesPerTrio + j].m_invert = m_invert[i];
+                    m_input[i * x_voicesPerTrio + j].m_retro = m_retro[i];
+                    m_input[i * x_voicesPerTrio + j].m_cycle = m_cycle[i];
+                }
+            }
+        }
 
         Input()
         {
@@ -189,11 +218,6 @@ struct NonagonIndexArp
             {
                 m_clockSelect[i] = 0;
                 m_resetSelect[i] = -1;
-            }
-
-            for (size_t i = 0; i < x_numVoices; ++i)
-            {
-                m_commit[i] = i;
             }
 
             m_externalReset = true;
@@ -215,17 +239,10 @@ struct NonagonIndexArp
     void Process(Input& input)
     {
         input.SetClocks();
+        input.SetTrioInputs();
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             m_arp[i].Process(input.m_input[i]);
-        }
-
-        for (size_t i = 0; i < x_numVoices; ++i)
-        {
-            if (input.m_commit[i] != -1)
-            {
-                m_committedArp[i] = m_arp[input.m_commit[i]];
-            }
         }
     }
 };

@@ -2,7 +2,6 @@
 #include "plugin.hpp"
 #include <cstddef>
 #include "LameJuisConstants.hpp"
-#include "IndexArp.hpp"
 
 struct LameJuisInternal
 {
@@ -127,6 +126,16 @@ struct LameJuisInternal
                 };
             
             return x_bitsSet[m_bits & 0x0F] + x_bitsSet[m_bits >> 4];
+        }
+
+        std::string ToString() 
+        {
+            std::string ret;
+            for (size_t i = 0; i < 6; ++i)
+            {
+                ret += Get(i) ? "1" : "0";
+            }
+            return ret;
         }
 
         uint8_t m_bits;
@@ -566,6 +575,22 @@ struct LameJuisInternal
                 return static_cast<float>(m_high[i]) / m_total[i];
             }
         }
+
+        uint8_t Timbre256(size_t i) const
+        {
+            if (m_high[i] == 0)
+            {
+                return 0;
+            }
+            else if (m_high[i] == m_total[i])
+            {
+                return 255;
+            }
+            else
+            {
+                return static_cast<uint8_t>(m_high[i] * 255 / m_total[i]);
+            }
+        }
         
         uint8_t m_high[x_numAccumulators];
         uint8_t m_total[x_numAccumulators];
@@ -614,11 +639,14 @@ struct LameJuisInternal
             return std::tie(m_pitch, m_result) < std::tie(other.m_pitch, other.m_result);
         }
 
-        void OctaveReduce(float lowest)
+        bool operator<(float pitch) const
         {
-            m_pitch -= lowest;
+            return m_pitch < pitch;
+        }
+
+        void OctaveReduce()
+        {
             m_pitch = m_pitch - std::floor(m_pitch);
-            m_pitch += lowest;
         }
 
         float Timbre(size_t i) const
@@ -630,9 +658,8 @@ struct LameJuisInternal
         float m_pitch;
     };
 
-    MatrixEvalResultWithPitch EvalMatrix(InputVector inputVector)
+    MatrixEvalResult EvalMatrixBase(InputVector inputVector)
     {
-        
         MatrixEvalResult& result = m_evalResults[inputVector.m_bits];
         
         if (!m_isEvaluated[inputVector.m_bits])
@@ -652,26 +679,40 @@ struct LameJuisInternal
             m_isEvaluated[inputVector.m_bits] = true;
         }
         
-        return MatrixEvalResultWithPitch(result, m_accumulators);
+        return result;
     }
 
-    struct InputVectorIterator
+    MatrixEvalResultWithPitch EvalMatrix(InputVector inputVector)
     {
-        uint8_t m_ordinal = 0;
-        InputVector m_coMuteVector;
-        size_t m_coMuteSize = 0;
-        InputVector m_defaultVector;
+        return MatrixEvalResultWithPitch(EvalMatrixBase(inputVector), m_accumulators);
+    }
+
+    struct TimeSliceOrdinalConverter
+    {
+        InputVector m_lens;
+        size_t m_lensCoDimension;
         size_t m_forwardingIndices[x_numInputs];
 
-        InputVectorIterator(InputVector coMuteVector, InputVector defaultVector)
-            : m_coMuteVector(coMuteVector)
-            , m_coMuteSize(m_coMuteVector.CountSetBits())
-            , m_defaultVector(defaultVector)
+        TimeSliceOrdinalConverter()
+            : m_lens(0)
+            , m_lensCoDimension(0)
         {
+        }
+
+        TimeSliceOrdinalConverter(InputVector lens)
+        {
+            SetLens(lens);
+        }
+
+        void SetLens(InputVector lens)
+        {
+            m_lens = lens;
+            m_lensCoDimension = x_numInputs - lens.CountSetBits();
+            
             size_t j = 0;
-            for (size_t i = 0; i < m_coMuteSize; ++i)
+            for (size_t i = 0; i < m_lensCoDimension; ++i)
             {
-                while (!m_coMuteVector.Get(j))
+                while (!m_lens.Get(j))
                 {
                     ++j;
                 }
@@ -681,18 +722,83 @@ struct LameJuisInternal
             }
         }
 
-        InputVector Get()
+        InputVector Convert(uint8_t ordinal)
         {
-            InputVector result = m_defaultVector;
-            
-            // Shift the bits of m_ordinal into the set positions of the co muted vector.
+            InputVector result(0);
+            // Shift the bits of ordinal into the unset positions of the lens.
             //
-            for (size_t i = 0; i < m_coMuteSize; ++i)
+            for (size_t i = 0; i < m_lensCoDimension; ++i)
             {
-                result.Set(m_forwardingIndices[i], InputVector(m_ordinal).Get(i));
+                result.Set(m_forwardingIndices[i], InputVector(ordinal).Get(i));
             }
             
             return result;
+        }
+    };
+
+    struct TimeSliceClassOrdinalConverter
+    {
+        InputVector m_lens;
+        size_t m_lensCoDimension;
+        size_t m_forwardingIndices[x_numInputs];
+
+        TimeSliceClassOrdinalConverter()
+            : m_lens(0)
+            , m_lensCoDimension(0)
+        {
+        }
+
+        TimeSliceClassOrdinalConverter(InputVector lens)
+        {
+            SetLens(lens);
+        }
+
+        void SetLens(InputVector lens)
+        {
+            m_lens = lens;
+            m_lensCoDimension = x_numInputs - lens.CountSetBits();
+            
+            size_t j = 0;
+            for (size_t i = 0; i < m_lensCoDimension; ++i)
+            {
+                while (m_lens.Get(j))
+                {
+                    ++j;
+                }
+                
+                m_forwardingIndices[i] = j;
+                ++j;
+            }
+        }
+
+        InputVector Convert(InputVector representative, uint8_t ordinal)
+        {
+            // Shift the bits of ordinal into the set positions of the lens.
+            //
+            for (size_t i = 0; i < m_lensCoDimension; ++i)
+            {
+                representative.Set(m_forwardingIndices[i], InputVector(ordinal).Get(i));
+            }
+
+            return representative;
+        }
+    };
+
+    struct TimeSliceClassIterator
+    {
+        uint8_t m_ordinal = 0;
+        InputVector m_defaultVector;
+        TimeSliceClassOrdinalConverter m_converter;
+
+        TimeSliceClassIterator(InputVector lens, InputVector defaultVector)
+            : m_defaultVector(defaultVector)
+            , m_converter(lens)
+        {
+        }
+
+        InputVector Get()
+        {
+            return m_converter.Convert(m_defaultVector, m_ordinal);
         }
         
         void Next()
@@ -702,10 +808,123 @@ struct LameJuisInternal
         
         bool Done()
         {
-            return (1 << m_coMuteSize) <= m_ordinal;
+            return (1 << m_converter.m_lensCoDimension) <= m_ordinal;
         }        
     };
-    
+
+    struct TimeSliceIterator
+    {
+        uint8_t m_ordinal = 0;
+        TimeSliceOrdinalConverter m_converter;
+
+        TimeSliceIterator(InputVector lens)
+            : m_converter(lens)
+        {
+        }
+
+        InputVector Get()
+        {
+            return m_converter.Convert(m_ordinal);
+        }
+        
+        void Next()
+        {
+            ++m_ordinal;
+        }
+        
+        bool Done()
+        {
+            return (1 << m_converter.m_lensCoDimension) <= m_ordinal;
+        }        
+    };
+
+    struct GridSheafView
+    {
+        static constexpr size_t x_gridSizeBits = 3;
+        static constexpr size_t x_gridSize = 1 << x_gridSizeBits;
+        
+        struct CellInfo
+        {
+            InputVector m_baseTimeSlice;
+            bool m_isCurrentSlice;
+            MatrixEvalResult m_localHarmonicPosition;
+            bool m_isPlaying[x_maxPoly];
+        };   
+
+        struct TimeSliceXYConverter
+        {
+            InputVector m_lens;
+            size_t m_lensCoDimension;
+            size_t m_forwardingIndex[x_numInputs];
+
+            void SetLens(InputVector lens)
+            {
+                m_lens = lens;
+                m_lensCoDimension = x_numInputs - lens.CountSetBits();
+                
+                // First populate a backward index
+                //
+                size_t j = 0;
+                for (size_t i = 0; i < x_numInputs; ++i)
+                {
+                    if (!lens.Get(i))
+                    {
+                        m_forwardingIndex[i] = j / 2 + x_gridSizeBits * (j % 2);
+                        ++j;
+                    }
+                    else
+                    {
+                        size_t readIx = i - j;
+                        m_forwardingIndex[i] = readIx + (m_lensCoDimension + 1) / 2 < x_gridSizeBits
+                                         ? readIx + (m_lensCoDimension + 1) / 2
+                                         : readIx + m_lensCoDimension;
+                    }
+                }
+            }
+
+            InputVector Convert(uint8_t x, uint8_t y) 
+            {
+                InputVector xy(x | (y << x_gridSizeBits));
+                InputVector result;
+                for (size_t i = 0; i < x_numInputs; ++i)
+                {
+                    result.Set(i, xy.Get(m_forwardingIndex[i]));
+                }
+
+                return result;
+            }
+        };
+
+        TimeSliceXYConverter m_timeSliceXYConverter;
+        InputVector m_cellBaseTimeSlices[x_gridSize][x_gridSize];
+
+        bool LensEquivalent(InputVector a, InputVector b)
+        {
+            // Check if two input vectors are equivalent under the lens
+            // This means they differ only in positions where the lens is 0
+            //
+            uint8_t diff = a.m_bits ^ b.m_bits;
+            return (diff & m_timeSliceXYConverter.m_lens.m_bits) == 0;
+        }
+
+        void SetLens(InputVector lens)
+        {
+            m_timeSliceXYConverter.SetLens(lens);
+            ComputeCells();
+        }
+
+        void ComputeCells()
+        {
+            for (uint8_t x = 0; x < x_gridSize; ++x)
+            {
+                for (uint8_t y = 0; y < x_gridSize; ++y)
+                {
+                    m_cellBaseTimeSlices[x][y] = m_timeSliceXYConverter.Convert(x, y);
+                }
+            }
+        }   
+    };   
+
     struct Output
     {
         struct CoMuteState
@@ -717,10 +936,8 @@ struct LameJuisInternal
                 float m_percentiles[x_maxPoly];
                 bool m_harmonic[x_maxPoly];
                 bool m_usePercentile[x_maxPoly];
-                int m_index[x_maxPoly];
+                float m_toQuantize[x_maxPoly];
                 int m_octave[x_maxPoly];
-                IndexArp* m_indexArp[x_maxPoly];
-                IndexArp* m_preIndexArp[x_maxPoly];
                 
                 Input()
                 {                
@@ -735,20 +952,18 @@ struct LameJuisInternal
                         m_percentiles[i] = 0;
                         m_harmonic[i] = false;
                         m_usePercentile[i] = false;
-                        m_index[i] = 0;
+                        m_toQuantize[i] = 0;
                         m_octave[i] = 0;
-                        m_indexArp[i] = nullptr;
-                        m_preIndexArp[i] = nullptr;
                     }
                 }
             };
             
-            InputVector GetCoMuteVector()
+            InputVector GetLens()
             {                                
                 InputVector result;
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
-                    result.Set(i, m_coMutes[i]);
+                    result.Set(i, !m_coMutes[i]);
                 }
 
                 return result;
@@ -767,10 +982,8 @@ struct LameJuisInternal
                     m_percentiles[i] = 0;
                     m_harmonic[i] = false;
                     m_usePercentile[i] = false;
-                    m_index[i] = 0;
+                    m_toQuantize[i] = 0;
                     m_octave[i] = 0;
-                    m_indexArp[i] = nullptr;
-                    m_preIndexArp[i] = nullptr;
                 }
 
                 m_owner = owner;
@@ -785,9 +998,8 @@ struct LameJuisInternal
                     m_percentiles[i] = input.m_percentiles[i];
                     m_harmonic[i] = input.m_harmonic[i];
                     m_usePercentile[i] = input.m_usePercentile[i];
+                    m_toQuantize[i] = input.m_toQuantize[i];
                     m_octave[i] = input.m_octave[i];
-                    m_indexArp[i] = input.m_indexArp[i];
-                    m_preIndexArp[i] = input.m_preIndexArp[i];
                 }
                 
                 for (size_t i = 0; i < x_numInputs; ++i)
@@ -805,10 +1017,8 @@ struct LameJuisInternal
             float m_percentiles[x_maxPoly];
             bool m_harmonic[x_maxPoly];
             bool m_usePercentile[x_maxPoly];
-            int m_index[x_maxPoly];
+            float m_toQuantize[x_maxPoly];
             int m_octave[x_maxPoly];
-            IndexArp* m_indexArp[x_maxPoly];
-            IndexArp* m_preIndexArp[x_maxPoly];
             size_t m_polyChans;
             Output* m_owner;
         };
@@ -834,9 +1044,17 @@ struct LameJuisInternal
             {
                 Eval(matrix, output, defaultVector);
 
-                int octave;
-                ssize_t ix = GetIx(output, chan, &octave);
-                MatrixEvalResultWithPitch result = m_cachedResults[ix];
+                int octave = output->m_coMuteState.m_octave[chan];
+                MatrixEvalResultWithPitch result;
+                if (output->m_coMuteState.m_usePercentile[chan])
+                {
+                    result = m_cachedResults[PercentileToIx(output->m_coMuteState.m_percentiles[chan])];
+                }
+                else 
+                {
+                    result = Quantize(output->m_coMuteState.m_toQuantize[chan]);
+                }
+
                 result.m_pitch += octave;
                 return result;
             }
@@ -848,22 +1066,19 @@ struct LameJuisInternal
             {
                 if (!m_isEvaluated)
                 {
-                    InputVectorIterator itr = output->GetInputVectorIterator(defaultVector);
-                    float lowest = 999;
+                    TimeSliceClassIterator itr = output->GetInputVectorIterator(defaultVector);
                     for (; !itr.Done(); itr.Next())
                     {
                         m_cachedResults[itr.m_ordinal] = matrix->EvalMatrix(itr.Get());
-                        lowest = std::min(lowest, m_cachedResults[itr.m_ordinal].m_pitch);
                     }
                     
                     m_numResults = itr.m_ordinal;
 
                     if (!Harmonic)
                     {
-                        lowest = lowest - std::floor(lowest);
                         for (size_t i = 0; i < m_numResults; ++i)
                         {                            
-                            m_cachedResults[i].OctaveReduce(lowest);
+                            m_cachedResults[i].OctaveReduce();
                         }
                     }
                     
@@ -872,81 +1087,21 @@ struct LameJuisInternal
                     size_t cur = 0;
                     m_resultOrd[0] = 0;
                     m_reverseIndex[0] = 0;
-                    m_octaveReverseIndex[0] = 0;
-                    size_t octaveCur = 0;
+
                     for (size_t i = 1; i < m_numResults; ++i)
                     {
                         if (m_cachedResults[i].m_pitch != m_cachedResults[i - 1].m_pitch)
                         {
                             ++cur;
                             m_reverseIndex[cur] = i;
-
-                            if (!Harmonic)
-                            {
-                                float reduced = m_cachedResults[i].m_pitch - lowest;
-                                size_t octaveIndex = reduced * x_octaveBuckets;
-                                assert(octaveIndex >= octaveCur);
-                                assert(reduced < 1);
-                                assert(reduced >= 0);
-                                for (size_t j = 0; j < (octaveIndex - octaveCur) / 2; ++j)
-                                {
-                                    m_octaveReverseIndex[octaveCur + j] = m_octaveReverseIndex[octaveCur];
-                                }
-
-                                for (size_t j = (octaveIndex - octaveCur) / 2; j < octaveIndex - octaveCur; ++j)
-                                {
-                                    m_octaveReverseIndex[octaveCur + j] = i;
-                                }
-
-                                m_octaveReverseIndex[octaveIndex] = i;
-                                octaveCur = octaveIndex;
-                            }
                         }
 
                         m_resultOrd[i] = cur;
-                    }
-
-                    if (!Harmonic)
-                    {
-                        for (size_t i = 0; i < (x_octaveBuckets - octaveCur) / 2; ++i)
-                        {
-                            m_octaveReverseIndex[octaveCur + i] = m_octaveReverseIndex[octaveCur];
-                        }
-
-                        for (size_t i = (x_octaveBuckets - octaveCur) / 2; i < x_octaveBuckets - octaveCur; ++i)
-                        {
-                            m_octaveReverseIndex[octaveCur + i] = 0;
-                        }
                     }
                     
                     m_numDistinctResults = cur + 1;
                     
                     m_isEvaluated = true;
-                }
-            }
-
-            ssize_t GetIx(LameJuisInternal::Output* output, size_t chan, int* octave)
-            {
-                *octave = output->m_coMuteState.m_octave[chan];
-                if (output->m_coMuteState.m_usePercentile[chan])
-                {
-                    return PercentileToIx(output->m_coMuteState.m_percentiles[chan]);
-                }
-                else if (output->m_coMuteState.m_indexArp[chan])
-                {
-                    int result;
-                    output->m_coMuteState.m_preIndexArp[chan]->Get(x_octaveBuckets , &result, octave);
-                    output->m_coMuteState.m_indexArp[chan]->Get(x_octaveBuckets, &result, octave);
-                    if (m_octaveReverseIndex[result] >= m_numResults)
-                    {
-                        assert(false);
-                    }
-                    
-                    return m_octaveReverseIndex[result];
-                }
-                else
-                {
-                    return m_reverseIndex[output->m_coMuteState.m_index[chan]];
                 }
             }
             
@@ -956,7 +1111,40 @@ struct LameJuisInternal
                 ix = std::min<ssize_t>(ix, m_numResults - 1);
                 ix = std::max<ssize_t>(ix, 0);
                 return ix;
-            }                          
+            }             
+
+            MatrixEvalResultWithPitch Quantize(float pitch)
+            {
+                int octave = std::floor(pitch);
+                float pitchModOctave = pitch - octave;
+                MatrixEvalResultWithPitch result = QuantizeModOctave(pitchModOctave);
+                result.m_pitch += octave;
+                return result;
+            }
+
+            MatrixEvalResultWithPitch QuantizeModOctave(float pitch)
+            {
+                auto itr = std::lower_bound(m_cachedResults, m_cachedResults + m_numResults, pitch);
+                if (itr == m_cachedResults && itr->m_pitch - pitch > pitch + 1 - m_cachedResults[m_numResults - 1].m_pitch)
+                {
+                    return m_cachedResults[m_numResults - 1];
+                }
+                else if (itr == m_cachedResults + m_numResults) 
+                {
+                    if (pitch - m_cachedResults[m_numResults - 1].m_pitch > m_cachedResults[0].m_pitch - pitch + 1)
+                    {
+                        return m_cachedResults[0];
+                    }
+                    else
+                    {
+                        return m_cachedResults[m_numResults - 1];
+                    }
+                }
+                else
+                {
+                    return *itr;
+                }
+            }
             
             MatrixEvalResultWithPitch m_cachedResults[1 << x_numInputs];
             size_t m_resultOrd[1 << x_numInputs];
@@ -964,8 +1152,6 @@ struct LameJuisInternal
             size_t m_numResults;
             size_t m_numDistinctResults;
             bool m_isEvaluated;
-            static constexpr size_t x_octaveBuckets = 48;
-            size_t m_octaveReverseIndex[x_octaveBuckets];
         };
 
         struct Input
@@ -979,6 +1165,8 @@ struct LameJuisInternal
         bool m_trigger[x_maxPoly];
         MatrixEvalResultWithPitch m_pitch[x_maxPoly];
         CoMuteState m_coMuteState;
+
+        GridSheafView m_gridSheafView;
 
         CacheForSingleInputVector<true> m_harmonicOutputCaches[1 << x_numInputs];
         CacheForSingleInputVector<false> m_melodicOutputCaches[1 << x_numInputs];
@@ -1001,6 +1189,8 @@ struct LameJuisInternal
 
             ClearLastStep();
 
+            m_gridSheafView.SetLens(m_coMuteState.GetLens());
+
             m_needsInvalidateCache = false;
         }
 
@@ -1016,7 +1206,7 @@ struct LameJuisInternal
             {
                 ClearOutputCaches();
             }
-            
+                    
             for (size_t i = 0; i < GetPolyChans(); ++i)
             {
                 if (!m_lastStepEvaluated)
@@ -1028,6 +1218,21 @@ struct LameJuisInternal
             }
             
             m_lastStepEvaluated = true;            
+        }
+
+        GridSheafView::CellInfo GetCellInfo(uint8_t x, uint8_t y)
+        {
+            GridSheafView::CellInfo cellInfo;
+            cellInfo.m_baseTimeSlice = m_gridSheafView.m_cellBaseTimeSlices[x][y];
+            InputVector currentBaseSlice = m_owner->m_inputVector;
+            cellInfo.m_isCurrentSlice = m_gridSheafView.LensEquivalent(currentBaseSlice, cellInfo.m_baseTimeSlice);
+            cellInfo.m_localHarmonicPosition = m_owner->EvalMatrixBase(cellInfo.m_baseTimeSlice);
+            for (size_t i = 0; i < GetPolyChans(); ++i)
+            {
+                cellInfo.m_isPlaying[i] = m_pitch[i].m_result == cellInfo.m_localHarmonicPosition;
+            }
+
+            return cellInfo;
         }
 
         MatrixEvalResultWithPitch ComputePitch(LameJuisInternal* matrix, InputVector defaultVector, size_t chan)
@@ -1051,9 +1256,9 @@ struct LameJuisInternal
             m_pitch[chan] = pitch;
         }
                 
-        InputVectorIterator GetInputVectorIterator(InputVector defaultVector)
+        TimeSliceClassIterator GetInputVectorIterator(InputVector defaultVector)
         {
-            return InputVectorIterator(m_coMuteState.GetCoMuteVector(), defaultVector);
+            return TimeSliceClassIterator(m_coMuteState.GetLens(), defaultVector);
         }
         
         void Init(LameJuisInternal* owner)
@@ -1064,51 +1269,10 @@ struct LameJuisInternal
         }
     };
 
-    struct SeqPaletteState
+    GridSheafView::CellInfo GetCellInfo(size_t outputId, uint8_t x, uint8_t y)
     {
-        SeqPaletteState()
-            : m_ord(0)
-            , m_ordMax(1)
-            , m_isCur(false)
-        {
-        }
-        
-        size_t m_ord;
-        size_t m_ordMax;
-        bool m_isCur;
-    };
-    
-    SeqPaletteState GetSeqPaletteState(
-        size_t outputId,
-        size_t ix,
-        InputVector input)
-    {
-        constexpr size_t x_tot = 1 << x_numInputs;
-        Output& o = m_outputs[outputId];
-        Output::CacheForSingleInputVector<true>& c = o.m_harmonicOutputCaches[input.m_bits];
-        SeqPaletteState result;
-        if (!c.m_isEvaluated)
-        {
-            return result;
-        }
-
-        result.m_ordMax = c.m_resultOrd[c.m_numResults - 1] + 1;
-        size_t repeats = x_tot / c.m_numResults;
-        size_t rIx = ix / repeats;
-        result.m_ord = c.m_resultOrd[rIx];
-        
-        for (size_t i = 0; i < o.GetPolyChans(); ++i)
-        {
-            size_t pIx = c.GetIx(&o, i, nullptr);
-            if (pIx == rIx)
-            {
-                result.m_isCur = true;
-                break;
-            }
-        }
-        
-        return result;
-    }        
+        return m_outputs[outputId].GetCellInfo(x, y);
+    }   
     
     struct Input
     {        
@@ -1168,6 +1332,7 @@ struct LameJuisInternal
         }
 
         input.SetInputVectors(this);
+        m_inputVector = input.m_inputVector;
 
         for (size_t i = 0; i < x_numOperations; ++i)
         {
@@ -1190,6 +1355,7 @@ struct LameJuisInternal
         }
     }
 
+    InputVector m_inputVector;
     MatrixEvalResult m_evalResults[1 << x_numInputs];
     bool m_isEvaluated[1 << x_numInputs];
 

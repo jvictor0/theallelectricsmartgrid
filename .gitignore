@@ -111,3 +111,6 @@ playground.xcworkspace
 
 private/dist/*
 dist/*
+
+*.aux
+*.log

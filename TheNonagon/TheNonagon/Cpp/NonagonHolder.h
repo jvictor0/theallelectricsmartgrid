@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "TheNonagon.hpp"
 #include "CircularQueue.h"
 #include "MidiBus.h"

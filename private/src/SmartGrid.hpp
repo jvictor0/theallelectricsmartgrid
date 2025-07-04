@@ -250,19 +250,13 @@ struct Cell
     {
         if (!IsPressed())
         {
-            INFO("NONAGON_DEBUG: Cell::OnPressStatic - velocity=%d", velocity);
             m_velocity = velocity;
             OnPress(velocity);
         }
         else if (m_pressureSensitive)
         {
-            INFO("NONAGON_DEBUG: Cell::OnPressStatic - pressure sensitive - velocity=%d", velocity);
             m_velocity = velocity;
             OnPressureChange(velocity);
-        }
-        else
-        {
-            INFO("NONAGON_DEBUG: Cell::OnPressStatic - already pressed - velocity=%d", velocity);
         }
     }
 
@@ -428,26 +422,22 @@ struct StateCell : public Cell
         {
             case Mode::Momentary:
             {
-                INFO("NONAGON_DEBUG: StateCell::OnPress - Momentary mode, setting state to %d", static_cast<int>(m_myState));
                 *m_state = m_myState;
                 break;
             }
             case Mode::SetOnly:
             {
-                INFO("NONAGON_DEBUG: StateCell::OnPress - SetOnly mode, setting state to %d", static_cast<int>(m_myState));
                 *m_state = m_myState;
                 break;
             }
             case Mode::Toggle:
             {
                 StateClass newState = (*m_state) == m_myState ? m_offState : m_myState;
-                INFO("NONAGON_DEBUG: StateCell::OnPress - Toggle mode, changing state from %d to %d", static_cast<int>(*m_state), static_cast<int>(newState));
                 *m_state = newState;
                 break;
             }
             case Mode::ShowOnly:
             {
-                INFO("NONAGON_DEBUG: StateCell::OnPress - ShowOnly mode, no state change");
                 break;
             }
         }
@@ -457,7 +447,6 @@ struct StateCell : public Cell
     {
         if (m_mode == Mode::Momentary)
         {
-            INFO("StateCell::OnRelease - Momentary mode, resetting state to %d", static_cast<int>(m_offState));
             *m_state = m_offState;
         }
     }
