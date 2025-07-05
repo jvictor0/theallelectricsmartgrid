@@ -88,14 +88,14 @@ struct LameJuisInternal
         Normal = 2
     };
 
-    struct InputVector
+    struct BitVector
     {
-        InputVector()
+        BitVector()
             : m_bits(0)
         {
         }
 
-        InputVector(uint8_t bits)
+        BitVector(uint8_t bits)
             : m_bits(bits)
         {
         }
@@ -140,6 +140,28 @@ struct LameJuisInternal
 
         uint8_t m_bits;
     };
+
+    struct Lens : public BitVector
+    {
+        Lens()
+            : BitVector(0)
+        {
+        }
+
+        Lens(uint8_t bits)
+            : BitVector(bits)
+        {
+        }
+
+        bool Equivalent(BitVector a, BitVector b) const
+        {
+            // Check if two input vectors are equivalent under the lens
+            // This means they differ only in positions where the lens is 0
+            //
+            uint8_t diff = a.m_bits ^ b.m_bits;
+            return (diff & m_bits) == 0;
+        }
+    };
     
     struct LogicOperation
     {
@@ -180,7 +202,7 @@ struct LameJuisInternal
             bool m_direct[x_numInputs + 1];
             SwitchVal m_switch;
             MatrixSwitch m_elements[x_numInputs];
-            InputVector* m_inputVector;
+            BitVector* m_inputVector;
 
             Input()
             {
@@ -229,7 +251,7 @@ struct LameJuisInternal
             }
         }
 
-        void GetTotalAndHigh(InputVector inputVector, size_t* countTotal, size_t* countHigh)
+        void GetTotalAndHigh(BitVector inputVector, size_t* countTotal, size_t* countHigh)
         {
             // And with m_active to mute the muted inputs.
             // Xor with m_inverted to invert the inverted ones.
@@ -263,7 +285,7 @@ struct LameJuisInternal
             return ret;
         }
 
-        bool GetValue(InputVector inputVector)
+        bool GetValue(BitVector inputVector)
         {
             size_t countTotal;
             size_t countHigh;
@@ -338,8 +360,8 @@ struct LameJuisInternal
             }
         }
 
-        InputVector m_active;
-        InputVector m_inverted;
+        BitVector m_active;
+        BitVector m_inverted;
 
         Operator m_operator;
         bool m_direct[x_numInputs + 1];
@@ -576,6 +598,20 @@ struct LameJuisInternal
             }
         }
 
+        size_t RotateAvoidOffset(size_t toAvoid)
+        {
+            size_t minIx = 0;
+            for (size_t i = 0; i < x_numAccumulators; ++i)
+            {
+                if (m_total[i] < m_total[minIx])
+                {
+                    minIx = i;
+                }
+            }
+
+            return (toAvoid - minIx) % x_numAccumulators;
+        }
+
         uint8_t Timbre256(size_t i) const
         {
             if (m_high[i] == 0)
@@ -658,7 +694,7 @@ struct LameJuisInternal
         float m_pitch;
     };
 
-    MatrixEvalResult EvalMatrixBase(InputVector inputVector)
+    MatrixEvalResult EvalMatrixBase(BitVector inputVector)
     {
         MatrixEvalResult& result = m_evalResults[inputVector.m_bits];
         
@@ -682,14 +718,14 @@ struct LameJuisInternal
         return result;
     }
 
-    MatrixEvalResultWithPitch EvalMatrix(InputVector inputVector)
+    MatrixEvalResultWithPitch EvalMatrix(BitVector inputVector)
     {
         return MatrixEvalResultWithPitch(EvalMatrixBase(inputVector), m_accumulators);
     }
 
     struct TimeSliceOrdinalConverter
     {
-        InputVector m_lens;
+        Lens m_lens;
         size_t m_lensCoDimension;
         size_t m_forwardingIndices[x_numInputs];
 
@@ -699,12 +735,12 @@ struct LameJuisInternal
         {
         }
 
-        TimeSliceOrdinalConverter(InputVector lens)
+        TimeSliceOrdinalConverter(Lens lens)
         {
             SetLens(lens);
         }
 
-        void SetLens(InputVector lens)
+        void SetLens(Lens lens)
         {
             m_lens = lens;
             m_lensCoDimension = x_numInputs - lens.CountSetBits();
@@ -722,14 +758,14 @@ struct LameJuisInternal
             }
         }
 
-        InputVector Convert(uint8_t ordinal)
+        BitVector Convert(uint8_t ordinal)
         {
-            InputVector result(0);
+            BitVector result(0);
             // Shift the bits of ordinal into the unset positions of the lens.
             //
             for (size_t i = 0; i < m_lensCoDimension; ++i)
             {
-                result.Set(m_forwardingIndices[i], InputVector(ordinal).Get(i));
+                result.Set(m_forwardingIndices[i], BitVector(ordinal).Get(i));
             }
             
             return result;
@@ -738,7 +774,7 @@ struct LameJuisInternal
 
     struct TimeSliceClassOrdinalConverter
     {
-        InputVector m_lens;
+        Lens m_lens;
         size_t m_lensCoDimension;
         size_t m_forwardingIndices[x_numInputs];
 
@@ -748,12 +784,12 @@ struct LameJuisInternal
         {
         }
 
-        TimeSliceClassOrdinalConverter(InputVector lens)
+        TimeSliceClassOrdinalConverter(Lens lens)
         {
             SetLens(lens);
         }
 
-        void SetLens(InputVector lens)
+        void SetLens(Lens lens)
         {
             m_lens = lens;
             m_lensCoDimension = x_numInputs - lens.CountSetBits();
@@ -771,13 +807,13 @@ struct LameJuisInternal
             }
         }
 
-        InputVector Convert(InputVector representative, uint8_t ordinal)
+        BitVector Convert(BitVector representative, uint8_t ordinal)
         {
             // Shift the bits of ordinal into the set positions of the lens.
             //
             for (size_t i = 0; i < m_lensCoDimension; ++i)
             {
-                representative.Set(m_forwardingIndices[i], InputVector(ordinal).Get(i));
+                representative.Set(m_forwardingIndices[i], BitVector(ordinal).Get(i));
             }
 
             return representative;
@@ -787,16 +823,16 @@ struct LameJuisInternal
     struct TimeSliceClassIterator
     {
         uint8_t m_ordinal = 0;
-        InputVector m_defaultVector;
+        BitVector m_defaultVector;
         TimeSliceClassOrdinalConverter m_converter;
 
-        TimeSliceClassIterator(InputVector lens, InputVector defaultVector)
+        TimeSliceClassIterator(Lens lens, BitVector defaultVector)
             : m_defaultVector(defaultVector)
             , m_converter(lens)
         {
         }
 
-        InputVector Get()
+        BitVector Get()
         {
             return m_converter.Convert(m_defaultVector, m_ordinal);
         }
@@ -817,12 +853,12 @@ struct LameJuisInternal
         uint8_t m_ordinal = 0;
         TimeSliceOrdinalConverter m_converter;
 
-        TimeSliceIterator(InputVector lens)
+        TimeSliceIterator(Lens lens)
             : m_converter(lens)
         {
         }
 
-        InputVector Get()
+        BitVector Get()
         {
             return m_converter.Convert(m_ordinal);
         }
@@ -845,7 +881,7 @@ struct LameJuisInternal
         
         struct CellInfo
         {
-            InputVector m_baseTimeSlice;
+            BitVector m_baseTimeSlice;
             bool m_isCurrentSlice;
             MatrixEvalResult m_localHarmonicPosition;
             bool m_isPlaying[x_maxPoly];
@@ -853,11 +889,11 @@ struct LameJuisInternal
 
         struct TimeSliceXYConverter
         {
-            InputVector m_lens;
+            Lens m_lens;
             size_t m_lensCoDimension;
             size_t m_forwardingIndex[x_numInputs];
 
-            void SetLens(InputVector lens)
+            void SetLens(Lens lens)
             {
                 m_lens = lens;
                 m_lensCoDimension = x_numInputs - lens.CountSetBits();
@@ -882,10 +918,10 @@ struct LameJuisInternal
                 }
             }
 
-            InputVector Convert(uint8_t x, uint8_t y) 
+            BitVector Convert(uint8_t x, uint8_t y) 
             {
-                InputVector xy(x | (y << x_gridSizeBits));
-                InputVector result;
+                BitVector xy(x | (y << x_gridSizeBits));
+                BitVector result;
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
                     result.Set(i, xy.Get(m_forwardingIndex[i]));
@@ -896,18 +932,14 @@ struct LameJuisInternal
         };
 
         TimeSliceXYConverter m_timeSliceXYConverter;
-        InputVector m_cellBaseTimeSlices[x_gridSize][x_gridSize];
+        BitVector m_cellBaseTimeSlices[x_gridSize][x_gridSize];
 
-        bool LensEquivalent(InputVector a, InputVector b)
+        bool LensEquivalent(BitVector a, BitVector b)
         {
-            // Check if two input vectors are equivalent under the lens
-            // This means they differ only in positions where the lens is 0
-            //
-            uint8_t diff = a.m_bits ^ b.m_bits;
-            return (diff & m_timeSliceXYConverter.m_lens.m_bits) == 0;
+            return m_timeSliceXYConverter.m_lens.Equivalent(a, b);
         }
 
-        void SetLens(InputVector lens)
+        void SetLens(Lens lens)
         {
             m_timeSliceXYConverter.SetLens(lens);
             ComputeCells();
@@ -958,9 +990,9 @@ struct LameJuisInternal
                 }
             };
             
-            InputVector GetLens()
+            Lens GetLens()
             {                                
-                InputVector result;
+                Lens result;
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
                     result.Set(i, !m_coMutes[i]);
@@ -1024,9 +1056,9 @@ struct LameJuisInternal
         };
 
         template<bool Harmonic>
-        struct CacheForSingleInputVector
+        struct CacheForSingleBitVector
         {
-            CacheForSingleInputVector() :
+            CacheForSingleBitVector() :
                 m_isEvaluated(false)
             {
             }
@@ -1039,7 +1071,7 @@ struct LameJuisInternal
             MatrixEvalResultWithPitch ComputePitch(
                 LameJuisInternal* matrix,
                 LameJuisInternal::Output* output,
-                LameJuisInternal::InputVector defaultVector,
+                LameJuisInternal::BitVector defaultVector,
                 size_t chan)
             {
                 Eval(matrix, output, defaultVector);
@@ -1062,11 +1094,11 @@ struct LameJuisInternal
             void Eval(
                 LameJuisInternal* matrix,
                 LameJuisInternal::Output* output,
-                LameJuisInternal::InputVector defaultVector)
+                LameJuisInternal::BitVector defaultVector)
             {
                 if (!m_isEvaluated)
                 {
-                    TimeSliceClassIterator itr = output->GetInputVectorIterator(defaultVector);
+                    TimeSliceClassIterator itr = output->GetBitVectorIterator(defaultVector);
                     for (; !itr.Done(); itr.Next())
                     {
                         m_cachedResults[itr.m_ordinal] = matrix->EvalMatrix(itr.Get());
@@ -1157,8 +1189,8 @@ struct LameJuisInternal
         struct Input
         {
             CoMuteState::Input m_coMuteInput;
-            InputVector* m_prevVector;
-            InputVector* m_inputVector;
+            BitVector* m_prevVector;
+            BitVector* m_inputVector;
         };
 
         bool m_needsInvalidateCache;
@@ -1168,8 +1200,8 @@ struct LameJuisInternal
 
         GridSheafView m_gridSheafView;
 
-        CacheForSingleInputVector<true> m_harmonicOutputCaches[1 << x_numInputs];
-        CacheForSingleInputVector<false> m_melodicOutputCaches[1 << x_numInputs];
+        CacheForSingleBitVector<true> m_harmonicOutputCaches[1 << x_numInputs];
+        CacheForSingleBitVector<false> m_melodicOutputCaches[1 << x_numInputs];
         bool m_lastStepEvaluated;
 
         LameJuisInternal* m_owner;
@@ -1224,7 +1256,7 @@ struct LameJuisInternal
         {
             GridSheafView::CellInfo cellInfo;
             cellInfo.m_baseTimeSlice = m_gridSheafView.m_cellBaseTimeSlices[x][y];
-            InputVector currentBaseSlice = m_owner->m_inputVector;
+            BitVector currentBaseSlice = m_owner->m_inputVector;
             cellInfo.m_isCurrentSlice = m_gridSheafView.LensEquivalent(currentBaseSlice, cellInfo.m_baseTimeSlice);
             cellInfo.m_localHarmonicPosition = m_owner->EvalMatrixBase(cellInfo.m_baseTimeSlice);
             for (size_t i = 0; i < GetPolyChans(); ++i)
@@ -1235,7 +1267,7 @@ struct LameJuisInternal
             return cellInfo;
         }
 
-        MatrixEvalResultWithPitch ComputePitch(LameJuisInternal* matrix, InputVector defaultVector, size_t chan)
+        MatrixEvalResultWithPitch ComputePitch(LameJuisInternal* matrix, BitVector defaultVector, size_t chan)
         {
             bool harmonic = m_coMuteState.m_harmonic[chan];
             if (harmonic)
@@ -1256,7 +1288,7 @@ struct LameJuisInternal
             m_pitch[chan] = pitch;
         }
                 
-        TimeSliceClassIterator GetInputVectorIterator(InputVector defaultVector)
+        TimeSliceClassIterator GetBitVectorIterator(BitVector defaultVector)
         {
             return TimeSliceClassIterator(m_coMuteState.GetLens(), defaultVector);
         }
@@ -1281,8 +1313,8 @@ struct LameJuisInternal
         Accumulator::Input m_accumulatorInput[x_numAccumulators];
         Output::Input m_outputInput[x_numAccumulators];
 
-        InputVector m_inputVector;
-        InputVector m_prevVector;
+        BitVector m_inputVector;
+        BitVector m_prevVector;
         bool m_reset;
 
         void SetInputVectors(LameJuisInternal* owner)
@@ -1355,7 +1387,7 @@ struct LameJuisInternal
         }
     }
 
-    InputVector m_inputVector;
+    BitVector m_inputVector;
     MatrixEvalResult m_evalResults[1 << x_numInputs];
     bool m_isEvaluated[1 << x_numInputs];
 

@@ -954,11 +954,14 @@ struct TheNonagonSmartGrid
             size_t outputId = static_cast<size_t>(m_trio);
             LameJuisInternal::GridSheafView::CellInfo cellInfo = m_owner->m_nonagon.m_lameJuis.GetCellInfo(outputId, static_cast<uint8_t>(m_x), static_cast<uint8_t>(m_y));
 
+            size_t rotateOffset = cellInfo.m_localHarmonicPosition.RotateAvoidOffset(outputId);
             SmartGrid::Color baseColor = SmartGrid::Color(
-                cellInfo.m_localHarmonicPosition.Timbre256(0),
-                cellInfo.m_localHarmonicPosition.Timbre256(1),
-                cellInfo.m_localHarmonicPosition.Timbre256(2));
+                cellInfo.m_localHarmonicPosition.Timbre256((rotateOffset + 0) % TheNonagonInternal::x_numTrios),
+                cellInfo.m_localHarmonicPosition.Timbre256((rotateOffset + 1) % TheNonagonInternal::x_numTrios),
+                cellInfo.m_localHarmonicPosition.Timbre256((rotateOffset + 2) % TheNonagonInternal::x_numTrios));
+            
             baseColor = baseColor.Interpolate(TrioColor(m_trio), 0.3);
+
             if (!cellInfo.m_isCurrentSlice)
             {
                  return baseColor.AdjustBrightness(0.20);

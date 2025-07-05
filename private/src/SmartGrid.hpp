@@ -143,6 +143,17 @@ struct Color
         }
     }
 
+    uint8_t& operator[] (size_t i)
+    {
+        switch (i)
+        {
+            case 0: return m_red;
+            case 1: return m_green;
+            case 2: return m_blue;
+            default: return m_unused;
+        }
+    }
+
     uint8_t m_red;
     uint8_t m_green;
     uint8_t m_blue;
