@@ -2,6 +2,7 @@
 
 #ifndef IOS_BUILD
 #include <rack.hpp>
+#include <osdialog.h>
 
 using namespace rack;
 

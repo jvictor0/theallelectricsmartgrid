@@ -3,6 +3,10 @@
 #include "QuadUtils.hpp"
 #include "DelayLine.hpp"
 #include "QuadLFO.hpp"
+#include "WavWriter.hpp"
+#include <filesystem>
+#include <iomanip>
+#include <sstream>
 
 struct QuadMixerInternal
 {
@@ -11,6 +15,7 @@ struct QuadMixerInternal
     QuadFloat m_output;
     QuadFloat m_send[x_numSends];
     const WaveTable* m_sin;
+    MultichannelWavWriter m_wavWriter;
 
     QuadMixerInternal()
     {
@@ -46,6 +51,16 @@ struct QuadMixerInternal
         }
     };
 
+    bool Open(size_t numInputs, const std::string& filename, uint32_t sampleRate)
+    {
+        return m_wavWriter.OpenQuad(static_cast<uint16_t>(numInputs + x_numSends), filename, sampleRate);
+    }
+
+    void Close()
+    {
+        m_wavWriter.Close();
+    }
+
     void Process(const Input& input)
     {
         m_output = QuadFloat();
@@ -57,7 +72,13 @@ struct QuadMixerInternal
         for (size_t i = 0; i < input.m_numInputs; ++i)
         {
             QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i], m_sin);
-            m_output += pan * input.m_gain[i];
+            QuadFloat postFader = pan * input.m_gain[i];
+            m_output += postFader;
+            
+            // Write post-fader input to wave file
+            //
+            m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(i), postFader);
+            
             for (size_t j = 0; j < x_numSends; ++j)
             {
                 m_send[j] += pan * input.m_sendGain[i][j];
@@ -66,7 +87,12 @@ struct QuadMixerInternal
 
         for (size_t j = 0; j < x_numSends; ++j)
         {
-            m_output += input.m_return[j] * input.m_returnGain[j];
+            QuadFloat postReturn = input.m_return[j] * input.m_returnGain[j];
+            m_output += postReturn;
+            
+            // Write post-return to wave file
+            //
+            m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(input.m_numInputs + j), postReturn);
         }
     }
 };
@@ -76,6 +102,9 @@ struct QuadMixer : Module
 {
     QuadMixerInternal m_internal;
     QuadMixerInternal::Input m_state;
+    std::string m_recordingDirectory;
+    bool m_isRecording = false;
+    float m_recGateValue = 0.0f;
 
     IOMgr m_ioMgr;
     IOMgr::Input* m_input;
@@ -85,6 +114,7 @@ struct QuadMixer : Module
     IOMgr::Input* m_y;
     IOMgr::Input* m_return[QuadMixerInternal::x_numSends];
     IOMgr::Input* m_returnGain[QuadMixerInternal::x_numSends];
+    IOMgr::Input* m_recGate;
 
     IOMgr::Output* m_output;
     IOMgr::Output* m_send[QuadMixerInternal::x_numSends];
@@ -144,6 +174,9 @@ struct QuadMixer : Module
             m_returnGain[i]->SetTarget(0, &m_state.m_returnGain[i]);
         }
 
+        m_recGate = m_ioMgr.AddInput("Record Gate", true);
+        m_recGate->SetTarget(0, &m_recGateValue);
+
         m_ioMgr.Config();
         m_output->SetChannels(4);
 
@@ -153,13 +186,81 @@ struct QuadMixer : Module
         }
     }
 
+    void StartRecording(size_t sampleRate)
+    {
+        if (m_isRecording)
+        {
+            return;
+        }
+
+        // Find an empty slot
+        //
+        size_t ordinal = 1;
+        std::string filename;
+        
+        do
+        {
+            std::ostringstream oss;
+            oss << m_recordingDirectory << "/recording-" << std::setfill('0') << std::setw(5) << ordinal << ".wav";
+            filename = oss.str();
+            ordinal++;
+            INFO("filename: %s", filename.c_str());
+        } while (rack::system::exists(filename));
+
+        // Open the wave writer with the appropriate number of channels
+        //
+        if (!m_internal.Open(m_input->m_value.m_channels, filename, sampleRate))
+        {
+            assert(false);
+        }   
+
+        m_isRecording = true;
+    }
+
+    void StopRecording()
+    {
+        if (!m_isRecording)
+        {
+            return;
+        }
+
+        m_internal.Close();
+        m_isRecording = false;
+    }
+
     void process(const ProcessArgs &args) override
     {
         m_ioMgr.Process();
         m_state.m_numInputs = m_input->m_value.m_channels;
+
+        if (m_recGateValue >= 5.0f)
+        {
+            StartRecording(args.sampleRate);
+        }
+        else 
+        {
+            StopRecording();
+        }
+        
         m_internal.Process(m_state);
         m_ioMgr.SetOutputs();
-    }        
+    }
+
+    virtual json_t* dataToJson() override
+    {
+        json_t* rootJ = json_object();
+        json_object_set_new(rootJ, "recordingDirectory", json_string(m_recordingDirectory.c_str()));
+        return rootJ;
+    }
+
+    virtual void dataFromJson(json_t* rootJ) override
+    {
+        json_t* dirJ = json_object_get(rootJ, "recordingDirectory");
+        if (dirJ)
+        {
+            m_recordingDirectory = json_string_value(dirJ);
+        }
+    }
 };
 
 struct QuadMixerWidget : public ModuleWidget
@@ -175,6 +276,7 @@ struct QuadMixerWidget : public ModuleWidget
             module->m_gain->Widget(this, 1, 2);
             module->m_x->Widget(this, 1, 3);
             module->m_y->Widget(this, 1, 4);
+            module->m_recGate->Widget(this, 1, 5);
 
             for (size_t i = 0; i < QuadMixerInternal::x_numSends; ++i)
             {
@@ -186,6 +288,39 @@ struct QuadMixerWidget : public ModuleWidget
 
             module->m_output->Widget(this, 2 + QuadMixerInternal::x_numSends, 1);
         }
+    }
+
+    void appendContextMenu(Menu* menu) override
+    {
+        QuadMixer* module = dynamic_cast<QuadMixer*>(this->module);
+        if (!module)
+        {
+            return;
+        }
+
+        menu->addChild(new MenuSeparator());
+
+        // Add menu item to select recording directory
+        //
+        menu->addChild(createSubmenuItem("Recording Directory", "", [=](Menu* menu) {
+            // Show current directory
+            //
+            std::string currentDir = module->m_recordingDirectory.empty() ? "Not set" : module->m_recordingDirectory;
+            menu->addChild(createMenuLabel("Current: " + currentDir));
+            
+            menu->addChild(new MenuSeparator());
+            
+            // Add option to select directory
+            //
+            menu->addChild(createMenuItem("Select Directory", "", [=]() {
+                const char* path = osdialog_file(OSDIALOG_OPEN_DIR, module->m_recordingDirectory.empty() ? nullptr : module->m_recordingDirectory.c_str(), nullptr, nullptr);
+                if (path)
+                {
+                    module->m_recordingDirectory = path;
+                    free((void*)path);
+                }
+            }));
+        }));
     }
 };
 #endif
