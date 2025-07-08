@@ -23,12 +23,16 @@ struct VectorPhaseShaperInternal
 
     struct Input
     {
+        bool m_useVoct;
         float m_voct;
+        float m_freq;
         float m_v;
         float m_d;
 
         Input()
-            : m_voct(0)
+            : m_useVoct(true)
+            , m_voct(0)
+            , m_freq(0)
             , m_v(0.5)
             , m_d(0.5)
         {
@@ -37,7 +41,16 @@ struct VectorPhaseShaperInternal
 
     void Process(const Input& input, float deltaT)
     {
-        SetFreq(input.m_voct, deltaT);
+        if (input.m_useVoct)
+        {
+            SetFreq(input.m_voct, deltaT);
+        }
+        else
+        {
+            m_freq = input.m_freq;
+            SetDScale();
+        }
+
         SetDV(input.m_d, input.m_v);
         UpdatePhase();
         Evaluate();
@@ -64,6 +77,11 @@ struct VectorPhaseShaperInternal
             m_freq = PhaseUtils::VOctToNatural(voct, delta);
         }
 
+        SetDScale();
+    }
+
+    void SetDScale()
+    {
         // 4 * freq / d < 0.5
         // 8 * freq < d
         // dScale = max(0, 1 - 16 * freq)
