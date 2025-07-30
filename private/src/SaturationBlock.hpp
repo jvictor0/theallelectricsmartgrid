@@ -11,6 +11,7 @@ struct SaturationBlock : Module
 
     float m_base[16];
     float m_width[16];
+    float m_saturationGain[16];
 
     float m_inputValue[16];
     float m_outputValue[16];
@@ -49,7 +50,7 @@ struct SaturationBlock : Module
         for (size_t i = 0; i < 16; ++i)
         {
             m_input->SetTarget(i, &m_inputValue[i]);
-            m_saturationInputGain->SetTarget(i, &m_saturator[i].m_inputGain);
+            m_saturationInputGain->SetTarget(i, &m_saturationGain[i]);
             m_bwBase->SetTarget(i, &m_base[i]);
             m_bwWidth->SetTarget(i, &m_width[i]);
             m_output->SetSource(i, &m_outputValue[i]);
@@ -76,6 +77,7 @@ struct SaturationBlock : Module
         m_output->SetChannels(m_input->m_value.m_channels);
         for (int i = 0; i < m_input->m_value.m_channels; ++i)
         {
+            m_saturator[i].SetInputGain(m_saturationGain[i]);
             m_outputValue[i] = m_baseWidthFilter[i].Process(m_saturator[i].Process(m_inputValue[i]));
         }
 

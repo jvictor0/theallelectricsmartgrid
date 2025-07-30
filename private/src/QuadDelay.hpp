@@ -4,6 +4,7 @@
 #include "DelayLine.hpp"
 #include "QuadLFO.hpp"
 #include "Filter.hpp"
+#include "PhaseUtils.hpp"
 
 template<bool IsReverb>
 struct QuadDelayInternal
@@ -41,6 +42,8 @@ struct QuadDelayInternal
     
     QuadAllPassFilter m_preFeedbackFilter;
     PostFeedbackFilter m_postFeedbackFilter;
+
+    TanhSaturator<true> m_saturator;
 
     QuadFloat m_output;
 
@@ -82,9 +85,11 @@ struct QuadDelayInternal
     }
 
     QuadDelayInternal()
+        : m_saturator(0.5f)
     {
         SetAPFGain(0.6);
         SetAPFDelayTimes();
+        m_lfo.SetSlew(1.0 / (64.0 * 0.05), 1.0 / 48000.0);
     }
     
     struct Input
@@ -94,7 +99,7 @@ struct QuadDelayInternal
         float m_delayTimeSamples;
         float m_feedback;
         float m_rotate;
-        float m_widen;
+        QuadFloat m_widen;
         float m_modDepth;
 
         float m_bffBase;
@@ -106,7 +111,7 @@ struct QuadDelayInternal
             : m_delayTimeSamples(64)
             , m_feedback(0.5)
             , m_rotate(0)
-            , m_widen(0)
+            , m_widen(1.0, 1.0, 1.0, 1.0)
         {
         }
 
@@ -129,24 +134,90 @@ struct QuadDelayInternal
 
         QuadFloat GetBaseDelayTime()
         {
-            QuadFloat widenOffset(0.78615137775, 1.0, 0.86803398875, 0.89701964951);
-            return QuadFloat(m_delayTimeSamples, m_delayTimeSamples, m_delayTimeSamples, m_delayTimeSamples) + widenOffset * m_widen;
+            return QuadFloat(m_delayTimeSamples, m_delayTimeSamples, m_delayTimeSamples, m_delayTimeSamples) * m_widen;
         }
     };
 
-    void Process(Input& input)
+    QuadFloat Process(Input& input)
     {
         m_lfo.Process(input.m_lfoInput);
         QuadFloat delayTime = input.GetBaseDelayTime();
-        delayTime += m_lfo.m_output * delayTime * (input.m_modDepth / 2);
+        delayTime += m_lfo.m_output * 1000 * input.m_modDepth;
 
         m_postFeedbackFilter.SetBFFBaseWidth(input.m_bffBase, input.m_bffWidth);
 
         QuadFloat qInput = IsReverb ? m_inputFilter.Process(input.m_input) : input.m_input;
         qInput = qInput + m_preFeedbackFilter.Process(input.m_return) * input.m_feedback;
+        qInput = m_saturator.Process(qInput);
         m_delayLine.Write(qInput);
         m_output = m_postFeedbackFilter.Process(input.TransformOutput(m_delayLine.Read(delayTime)));
+        return m_output;
     }           
+};
+
+template<bool IsReverb>
+struct QuadDelayInputSetter
+{
+    PhaseUtils::ExpParam m_delayTime;
+    PhaseUtils::ExpParam m_dampingBase;
+    PhaseUtils::ExpParam m_dampingWidth;
+    PhaseUtils::ExpParam m_modFreq;
+
+    PhaseUtils::ExpParam m_wideners[4];
+
+    DelayTimeSynchronizer m_delayTimeSynchronizer;
+
+    OPLowPassFilter m_delayTimeFilter;
+    OPLowPassFilter m_modDepthFilter;
+
+    QuadDelayInputSetter()
+      : m_delayTime(60.0, 1024.0 * 60.0)
+      , m_dampingBase(1.0 / 2048.0, 0.5)
+      , m_dampingWidth(1.0, 2048.0)
+      , m_modFreq(0.05 / 48000.0, 1024.0 * 0.05 / 48000.0)
+      , m_wideners{
+        PhaseUtils::ExpParam(1.0, 0.978615137775),
+        PhaseUtils::ExpParam(1.0, 1.0),
+        PhaseUtils::ExpParam(1.0, 0.986803398875),
+        PhaseUtils::ExpParam(1.0, 0.989701964951)
+      }
+    {
+        m_delayTimeFilter.SetAlphaFromNatFreq(1.0 / 48000.0);
+        m_modDepthFilter.SetAlphaFromNatFreq(1.0 / 48000.0);
+    }
+
+    void SetDelayTime(float delayTime, float tempoFreq, typename QuadDelayInternal<IsReverb>::Input& input)
+    {
+        if (!IsReverb)
+        {
+            delayTime = m_delayTime.Update(delayTime);
+            input.m_delayTimeSamples = m_delayTimeSynchronizer.Update(tempoFreq, delayTime);
+        }
+        else
+        {
+            input.m_delayTimeSamples = m_delayTime.Update(m_delayTimeFilter.Process(delayTime));
+        }
+    }
+
+    void SetDamping(float dampingBase, float dampingWidth, typename QuadDelayInternal<IsReverb>::Input& input)
+    {
+        input.m_bffBase = m_dampingBase.Update(dampingBase);
+        input.m_bffWidth = m_dampingWidth.Update(dampingWidth);
+    }
+    
+    void SetModulation(float modFreq, float modDepth, typename QuadDelayInternal<IsReverb>::Input& input)
+    {
+        input.m_modDepth = m_modDepthFilter.Process(modDepth);
+        input.m_lfoInput.m_freq = m_modFreq.Update(modFreq);
+    }
+
+    void SetWiden(float widen, typename QuadDelayInternal<IsReverb>::Input& input)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            input.m_widen[i] = m_wideners[i].Update(widen);
+        }
+    }
 };
 
 #ifndef IOS_BUILD
@@ -204,7 +275,6 @@ struct QuadDelay : Module
         
         m_widen = m_ioMgr.AddInput("Widen", true);
         m_widen->m_scale = 0.1;
-        m_widen->SetTarget(0, &m_state.m_widen);
 
         m_modulationVOct = m_ioMgr.AddInput("Modulation VOct", true);
         m_modulationVOct->m_scale = 0.5;
@@ -258,7 +328,6 @@ struct QuadDelay : Module
         m_state.m_bffBase = powf(2, m_logDampingBFFBase) / 2048;
         m_state.m_bffWidth = powf(2, m_logDampingBFFWidth);
         
-
         m_internal.Process(m_state);
         m_ioMgr.SetOutputs();
     }

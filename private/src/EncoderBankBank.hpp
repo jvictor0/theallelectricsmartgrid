@@ -1,0 +1,204 @@
+#pragma once
+
+#include "EncoderBank.hpp"
+
+template <size_t NumBanks>
+struct EncoderBankBankInternal
+{
+    SmartGrid::EncoderBankInternal m_banks[NumBanks];
+    int m_selectedBank;
+    size_t m_selectedGridId;
+    SmartGrid::Color m_color[NumBanks];
+
+    json_t* m_savedJSON;
+
+    static constexpr size_t x_controlFrameRate = 16;
+    size_t m_frame;
+
+    struct Input
+    {
+        SmartGrid::BankedEncoderCell::Input m_bankedEncoderCellInput[NumBanks][4][4];
+        SmartGrid::EncoderBankInternal::Input m_bankedEncoderInternalInput;
+
+        void SetInput(size_t ix)
+        {
+            for (size_t i = 0; i < 4; ++i)
+            {
+                for (size_t j = 0; j < 4; ++j)
+                {
+                    m_bankedEncoderInternalInput.m_cellInput[i][j] = m_bankedEncoderCellInput[ix][i][j];
+                }
+            }
+        }
+
+        void SetColor(size_t ix, SmartGrid::Color color)
+        {
+            uint8_t hue = color.ToTwister();
+            for (size_t i = 0; i < 4; ++i)
+            {
+                for (size_t j = 0; j < 4; ++j)
+                {
+                    m_bankedEncoderCellInput[ix][i][j].m_twisterColor = hue;
+                }
+            }
+        }
+
+        void SetConnected(size_t bank, size_t i, size_t j)
+        {
+            m_bankedEncoderCellInput[bank][i][j].m_connected = true;
+        }
+    };
+
+    EncoderBankBankInternal()
+        : m_savedJSON(nullptr)
+    {
+        SelectGrid(0);
+    }
+
+    void Process(Input& input, float dt)
+    {
+        m_frame++;
+        input.m_bankedEncoderInternalInput.m_modulatorValues.ComputeChanged();
+        m_selectedGridId = m_selectedBank >= 0 ? m_banks[m_selectedBank].m_gridId : SmartGrid::x_numGridIds;
+
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            input.SetInput(i);
+            m_banks[i].ProcessStatic(dt);
+            m_banks[i].ProcessInput(input.m_bankedEncoderInternalInput, m_frame % x_controlFrameRate == 0);
+        }
+    }
+
+    float GetValue(size_t ix, size_t i, size_t j, size_t channel)
+    {
+        return m_banks[ix].GetBase(i, j)->m_output[channel];
+    }
+
+    uint64_t GetGridId(size_t ix)
+    {
+        return m_banks[ix].m_gridId;
+    }
+
+    uint64_t GetCurrentGridId()
+    {
+        return m_selectedGridId;
+    }
+
+    void SelectGrid(uint64_t ix)
+    {
+        if (m_selectedBank >= 0)
+        {
+            m_banks[m_selectedBank].Deselect();
+        }
+
+        m_selectedBank = ix;
+        m_selectedGridId = m_selectedBank >= 0 ? m_banks[m_selectedBank].m_gridId : SmartGrid::x_numGridIds;
+    }
+
+    void ResetGrid(uint64_t ix)
+    {
+        m_banks[ix].RevertToDefault();
+    }
+
+    SmartGrid::Color GetSelectorColor(int ix)
+    {
+        return m_selectedBank == ix ? m_color[ix] : m_color[ix].Dim();
+    }
+
+    void SetColor(size_t ix, SmartGrid::Color color, Input& input)
+    {
+        m_color[ix] = color;
+        input.SetColor(ix, color);
+    }
+
+    void Config(size_t bank, size_t i, size_t j, float defaultValue, std::string name, Input& input)
+    {
+        std::ignore = name;
+        m_banks[bank].GetBase(i, j)->m_defaultValue = defaultValue;
+        m_banks[bank].GetBase(i, j)->SetValueAllScenesAllTracks(defaultValue);
+        input.SetConnected(bank, i, j);
+    }
+
+    void SetModulatorType(size_t index, SmartGrid::BankedEncoderCell::EncoderType type)
+    {
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            m_banks[i].SetModulatorType(index, type);
+        }
+    }
+
+    json_t* ToJSON()
+    {
+        if (m_savedJSON)
+        {
+            json_incref(m_savedJSON);
+            return m_savedJSON;
+        }
+
+        json_t* rootJ = json_object();
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            std::string key = "Bank" + std::to_string(i);
+            json_object_set_new(rootJ, key.c_str(), m_banks[i].ToJSON());
+        }
+    
+        return rootJ;
+    }
+
+    void FromJSON(json_t* rootJ)
+    {
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            std::string key = "Bank" + std::to_string(i);
+            json_t* bankJ = json_object_get(rootJ, key.c_str());
+            if (bankJ)
+            {
+                m_banks[i].FromJSON(bankJ);
+            }
+        }
+
+        json_incref(rootJ);
+
+        if (m_savedJSON)
+        {
+            json_decref(m_savedJSON);
+        }
+
+        m_savedJSON = rootJ;
+    }
+
+    void SaveJSON()
+    {
+        if (m_savedJSON)
+        {
+            json_decref(m_savedJSON);
+            m_savedJSON = nullptr;
+        }
+
+        m_savedJSON = ToJSON();
+    }
+
+    void LoadSavedJSON()
+    {
+        if (m_savedJSON)
+        {
+            FromJSON(m_savedJSON);
+        }
+    }
+
+    void CopyToScene(int scene)
+    {
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            m_banks[i].CopyToScene(scene);
+        }
+    }
+
+    void RevertToDefault()
+    {
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            m_banks[i].RevertToDefault();
+        }
+    }
+};

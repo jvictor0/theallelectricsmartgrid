@@ -169,16 +169,23 @@ struct IOMgr
         float m_scale;
         bool m_isAudio;
         TransposeMode m_transposeMode;
+        bool m_isExp;
+        float m_prevLogVal[16];
         
         Input(int id, Module* module, std::string name, bool isAudio)
         {
             m_id = id;
             m_module = module;
             m_name = name;
-            m_offset = 0;
+            m_offset = 0;   
             m_scale = 1;
             m_isAudio = isAudio;
             m_transposeMode = TransposeMode::None;
+            m_isExp = false;
+            for (int i = 0; i < 16; ++i)
+            {
+                m_prevLogVal[i] = NAN;
+            }
         }
 
         void SetTransposeMode()
@@ -233,13 +240,40 @@ struct IOMgr
                     break;
                 }
                 
-                m_value.FromFloat(i, m_scale * m_module->inputs[m_id].getVoltage(i) + m_offset);
+                if (m_isExp)
+                {
+                    if (m_prevLogVal[i] != m_module->inputs[m_id].getVoltage(i))
+                    {
+                        m_prevLogVal[i] = m_module->inputs[m_id].getVoltage(i);
+                        m_value.FromFloat(i, m_scale * std::powf(2, m_prevLogVal[i]) + m_offset);
+                    }
+                }
+                else
+                {
+                    m_value.FromFloat(i, m_scale * m_module->inputs[m_id].getVoltage(i) + m_offset);
+                }
             }
         }
 
         float Get(int channel)
         {
-            return m_scale * m_module->inputs[m_id].getVoltage(channel) + m_offset;
+            if (m_isExp)
+            {
+                return m_scale * std::powf(2, m_module->inputs[m_id].getVoltage(channel)) + m_offset;
+            }
+            else
+            {
+                return m_scale * m_module->inputs[m_id].getVoltage(channel) + m_offset;
+            }
+        }
+
+        void MakeVoltPerOctave()
+        {
+            m_isExp = true;
+            static const float x_middleC = 261.6256f;
+            static const float x_sampleRate = 48000;
+            m_scale = x_middleC / x_sampleRate;
+            m_offset = 0;
         }
 
         void Config()

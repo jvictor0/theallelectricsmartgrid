@@ -4,6 +4,8 @@
 
 struct OPLowPassFilter
 {
+    static constexpr float x_maxCutoff = 0.499f;
+    
     float m_alpha;
     float m_output;
 
@@ -21,6 +23,9 @@ struct OPLowPassFilter
 
     void SetAlphaFromNatFreq(float cyclesPerSample)
     {
+        cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
+        assert(cyclesPerSample > 0);
+
         float rc = 1.0f / (2.0f * M_PI * cyclesPerSample);
         m_alpha = 1.0f / (rc + 1.0f);
     }                             
@@ -28,6 +33,8 @@ struct OPLowPassFilter
 
 struct OPHighPassFilter
 {
+    static constexpr float x_maxCutoff = 0.499f;
+    
     float m_alpha;
     float m_output;
     float m_prevInput;
@@ -49,6 +56,9 @@ struct OPHighPassFilter
 
     void SetAlphaFromNatFreq(float cyclesPerSample)
     {
+        cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
+        assert(cyclesPerSample > 0);
+
         float rc = 1.0f / (2.0f * M_PI * cyclesPerSample);
         m_alpha = rc / (rc + 1.0f);
     }
@@ -157,16 +167,44 @@ template<bool Normalize>
 struct TanhSaturator
 {
     float m_inputGain;
+    float m_tanhGain;
 
     TanhSaturator()
         : m_inputGain(1.0f)
     {
     }
 
+    TanhSaturator(float gain)
+        : m_inputGain(1.0)
+    {
+        SetInputGain(gain);
+    }
+
+    void SetInputGain(float gain)
+    {
+        if (gain != m_inputGain)
+        {
+            m_inputGain = gain;
+            m_tanhGain = std::tanh(m_inputGain);
+        }
+    }
+
     float Process(float input)
     {
         float scaledInput = m_inputGain * input;
         float output = std::tanh(scaledInput);
-        return Normalize ? output / std::tanh(m_inputGain) : output;
+        m_tanhGain = std::tanh(m_inputGain);
+        return Normalize ? output / m_tanhGain : output;
+    }
+
+    QuadFloat Process(const QuadFloat& input)
+    {
+        QuadFloat output;
+        for (int i = 0; i < 4; ++i)
+        {
+            output[i] = Process(input[i]);
+        }
+
+        return output;
     }
 };

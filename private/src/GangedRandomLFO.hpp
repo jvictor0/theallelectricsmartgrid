@@ -122,7 +122,7 @@ struct GangedRandomLFOInternal
     {
         m_time = 0;
         m_deadline = std::abs(input.m_gen.NormGen() * x_timeSigma) + 1;
-        float trgCenter = 10 * input.m_gen.UniGen();
+        float trgCenter = input.m_gen.UniGen();
         for (size_t i = 0; i < input.m_gangSize; ++i)
         {
             m_src[i] = m_pos[i];
@@ -142,7 +142,7 @@ struct GangedRandomLFOInternal
 
     void Init(Input& input)
     {
-        float posCenter = 10 * input.m_gen.UniGen();
+        float posCenter = input.m_gen.UniGen();
         for (size_t i = 0; i < x_maxSize; ++i)
         {
             m_pos[i] = posCenter + input.m_sigma * input.m_gen.NormGen();
@@ -213,7 +213,7 @@ struct GangedRandomLFO : Module
 
     float GetSigma()
     {
-        return params[SigmaParamId()].getValue();
+        return params[SigmaParamId()].getValue() / 10;
     }
 
     size_t GetGangSize()
@@ -278,7 +278,7 @@ struct GangedRandomLFO : Module
     void SetOutput(size_t out, size_t chan, float val)
     {
         val = Normalize(out, chan, val);
-        val = std::max<float>(0, std::min<float>(val, 10));
+        val = std::max<float>(0, std::min<float>(val, 1)) * 10;
         outputs[OutputId(out)].setVoltage(val, chan);
     }
 

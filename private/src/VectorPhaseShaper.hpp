@@ -20,6 +20,7 @@ struct VectorPhaseShaperInternal
     float m_c;
     float m_out;
     float m_dScale;
+    float m_phaseMod;
 
     struct Input
     {
@@ -28,6 +29,7 @@ struct VectorPhaseShaperInternal
         float m_freq;
         float m_v;
         float m_d;
+        float m_phaseMod;
 
         Input()
             : m_useVoct(true)
@@ -35,6 +37,7 @@ struct VectorPhaseShaperInternal
             , m_freq(0)
             , m_v(0.5)
             , m_d(0.5)
+            , m_phaseMod(0)
         {
         }
     };
@@ -52,6 +55,7 @@ struct VectorPhaseShaperInternal
         }
 
         SetDV(input.m_d, input.m_v);
+        m_phaseMod = input.m_phaseMod;
         UpdatePhase();
         Evaluate();
     }
@@ -62,8 +66,13 @@ struct VectorPhaseShaperInternal
         , m_voct(NAN)
         , m_freq(0)
         , m_v(0)
+        , m_floorV(0)
         , m_d(0)
+        , m_b(0)
+        , m_c(0)
         , m_out(0)
+        , m_dScale(1.0f)
+        , m_phaseMod(0)
     {
         m_waveTable = &WaveTable::GetCosine();
         SetDV(0.5, 0.5);
@@ -131,19 +140,21 @@ struct VectorPhaseShaperInternal
     {
         float d = (m_d - 0.5) * m_dScale + 0.5;
         float phi_vps;
-        if (m_phase < d)
+        float phase = m_phase + m_phaseMod;
+        phase = phase - std::floor(phase);
+        if (phase < d)
         {
-            phi_vps = m_phase * m_v / d;
+            phi_vps = phase * m_v / d;
         }
         else
         {
-            phi_vps = m_v + (m_phase - d) * (1 - m_v) / (1 - d);
+            phi_vps = m_v + (phase - d) * (1 - m_v) / (1 - d);
         }
 
         if (!NeedsAntiAlias(phi_vps))
         {
             phi_vps = fmod(phi_vps, 1);
-            m_out = - m_waveTable->Evaluate(phi_vps) * 5;
+            m_out = - m_waveTable->Evaluate(phi_vps);
         }
         else
         {
@@ -151,20 +162,13 @@ struct VectorPhaseShaperInternal
             {
                 float phi_as = fmod(phi_vps, 1) / (2 * m_b);
                 float s = - m_waveTable->Evaluate(phi_as);
-                m_out = ((1 - m_c) * s - 1 - m_c) * 2.5;
+                m_out = ((1 - m_c) * s - 1 - m_c) / 2;
             }
             else
             {
                 float phi_as = fmod(phi_vps - 0.5, 1) / (2 * (m_b - 0.5)) + 0.5;
                 float s = - m_waveTable->Evaluate(phi_as);
-                if (true || 0.5 < phi_as)
-                {
-                    m_out = ((1 + m_c) * s + 1 - m_c) * 2.5;
-                }
-                else
-                {
-                    m_out = s * 5;
-                }
+                m_out = ((1 + m_c) * s + 1 - m_c) / 2;
             }
         }
     }                    
@@ -332,6 +336,7 @@ struct VectorPhaseShaper : Module
         : m_ioMgr(this)
     {
         m_out = m_ioMgr.AddOutput("Out", true);
+        m_out->m_scale = 5;
         m_voct = m_ioMgr.AddInput("VOct", true);
         m_voct->m_offset = 1;
 

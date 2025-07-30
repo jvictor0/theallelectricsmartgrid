@@ -3,6 +3,8 @@
 #include "Slew.hpp"
 #include "WaveTable.hpp"
 #include "QuadUtils.hpp"
+#include "PhaseUtils.hpp"
+#include "Filter.hpp"
 
 struct DelayLine
 {
@@ -229,5 +231,53 @@ struct QuadParallelAllPassFilter
         {
             m_allPassFilter[i].SetGain(gain);
         }
+    }
+};
+
+struct DelayTimeSynchronizer
+{
+    double m_approxDelaySamples;
+    double m_tempoFreq;
+    double m_logOutDelaySamples;
+    double m_outDelaySamples;
+
+    OPLowPassFilter m_filter;
+
+    DelayTimeSynchronizer()
+        : m_approxDelaySamples(0.0)
+        , m_tempoFreq(0.0)
+        , m_logOutDelaySamples(0.0)
+        , m_outDelaySamples(0.0)
+    {
+        m_filter.SetAlphaFromNatFreq(0.3 / 48000.0);
+    }
+
+    double Update(double tempoFreq, double delaySamples)
+    {
+        if (tempoFreq != m_tempoFreq || delaySamples != m_approxDelaySamples)
+        {
+            m_tempoFreq = tempoFreq;
+            m_approxDelaySamples = delaySamples;
+
+            double nearestPow2 = std::pow(2.0, std::floor(std::log2(delaySamples * tempoFreq)));
+            double nearestDottedPow2 = std::pow(2.0, std::floor(std::log2(delaySamples * tempoFreq * 3.0))) / 3.0;
+//            double nearestTripletPow2 = std::pow(2.0, std::floor(std::log2(delaySamples * tempoFreq / 3.0)));
+            double bestFactor = std::max(nearestPow2, nearestDottedPow2);
+
+            m_logOutDelaySamples = std::log2(bestFactor / tempoFreq);
+        }
+
+        double processedDelaySamples = m_filter.Process(m_logOutDelaySamples);
+        if (processedDelaySamples != m_logOutDelaySamples)
+        {
+            m_outDelaySamples = std::pow(2.0, processedDelaySamples);
+        }
+        else
+        {
+            assert(m_outDelaySamples <= delaySamples);
+            assert(delaySamples / 2 <= m_outDelaySamples);
+        }
+
+        return m_outDelaySamples;
     }
 };

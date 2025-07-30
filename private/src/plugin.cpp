@@ -25,6 +25,8 @@
 #include "EncoderBank.hpp"
 #include "MasterSwitch.hpp"
 #include "SmartCanvas.hpp"
+#include "SquiggleBoy.hpp"
+#include "TheNonagonSquiggleBoy.hpp"
 
 Model* modelGangedRandomLFO = createModel<GangedRandomLFO, GangedRandomLFOWidget>("GangedRandomLFO");
 Model* modelPhasorEnvelope = createModel<PhasorEnvelope, PhasorEnvelopeWidget>("PhasorEnvelope");
@@ -45,6 +47,8 @@ Model* modelHarmonicFlipflop = createModel<HarmonicFlipflop, HarmonicFlipflopWid
 Model* modelMasterSwitch = createModel<MasterSwitch, MasterSwitchWidget>("MasterSwitch");
 Model* modelSmartCanvas = createModel<SmartGrid::SmartCanvas, SmartGrid::SmartCanvasWidget>("SmartCanvas");
 Model* modelSaturationBlock = createModel<SaturationBlock, SaturationBlockWidget>("SaturationBlock");
+Model* modelSquiggleBoy = createModel<SquiggleBoyModule, SquiggleBoyWidget>("SquiggleBoy");
+Model* modelTheNonagonSquiggleBoyQuadLaunchpadTwister = createModel<TheNonagonSquiggleBoyQuadLaunchpadTwisterModule, TheNonagonSquiggleBoyQuadLaunchpadTwisterWidget>("TheNonagonSquiggleBoyQuadLaunchpadTwister");
 
 #ifdef SMART_BOX
 Model* modelSmartBoxCnct = createModel<SmartGrid::SmartBoxCnct, SmartGrid::SmartBoxCnctWidget>("SmartBoxCnct");
@@ -85,5 +89,7 @@ void init(Plugin* p) {
     p->addModel(modelMasterSwitch);
 	p->addModel(modelPolyCC);
 	p->addModel(modelSmartCanvas);
+	p->addModel(modelSquiggleBoy);
+	p->addModel(modelTheNonagonSquiggleBoyQuadLaunchpadTwister);
 }
 #endif

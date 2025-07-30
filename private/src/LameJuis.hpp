@@ -138,6 +138,16 @@ struct LameJuisInternal
             return ret;
         }
 
+        bool operator==(BitVector other) const
+        {
+            return m_bits == other.m_bits;
+        }
+
+        bool operator!=(BitVector other) const
+        {
+            return m_bits != other.m_bits;
+        }
+
         uint8_t m_bits;
     };
 
@@ -160,6 +170,11 @@ struct LameJuisInternal
             //
             uint8_t diff = a.m_bits ^ b.m_bits;
             return (diff & m_bits) == 0;
+        }
+
+        BitVector Canonicalize(BitVector timeSlice) const
+        {
+            return BitVector(m_bits & timeSlice.m_bits);
         }
     };
     
@@ -659,6 +674,7 @@ struct LameJuisInternal
     {
         MatrixEvalResultWithPitch()
             : m_pitch(0)
+            , m_isMuted(false)
         {
         }
 
@@ -667,6 +683,7 @@ struct LameJuisInternal
             Accumulator* accumulators)
             : m_result(result)
             , m_pitch(result.ComputePitch(accumulators))
+            , m_isMuted(false)
         {
         }
 
@@ -692,6 +709,7 @@ struct LameJuisInternal
         
         MatrixEvalResult m_result;
         float m_pitch;
+        bool m_isMuted;
     };
 
     MatrixEvalResult EvalMatrixBase(BitVector inputVector)
@@ -726,12 +744,12 @@ struct LameJuisInternal
     struct TimeSliceOrdinalConverter
     {
         Lens m_lens;
-        size_t m_lensCoDimension;
+        size_t m_lensDimension;
         size_t m_forwardingIndices[x_numInputs];
 
         TimeSliceOrdinalConverter()
             : m_lens(0)
-            , m_lensCoDimension(0)
+            , m_lensDimension(0)
         {
         }
 
@@ -743,10 +761,10 @@ struct LameJuisInternal
         void SetLens(Lens lens)
         {
             m_lens = lens;
-            m_lensCoDimension = x_numInputs - lens.CountSetBits();
+            m_lensDimension = lens.CountSetBits();
             
             size_t j = 0;
-            for (size_t i = 0; i < m_lensCoDimension; ++i)
+            for (size_t i = 0; i < m_lensDimension; ++i)
             {
                 while (!m_lens.Get(j))
                 {
@@ -763,7 +781,7 @@ struct LameJuisInternal
             BitVector result(0);
             // Shift the bits of ordinal into the unset positions of the lens.
             //
-            for (size_t i = 0; i < m_lensCoDimension; ++i)
+            for (size_t i = 0; i < m_lensDimension; ++i)
             {
                 result.Set(m_forwardingIndices[i], BitVector(ordinal).Get(i));
             }
@@ -870,7 +888,7 @@ struct LameJuisInternal
         
         bool Done()
         {
-            return (1 << m_converter.m_lensCoDimension) <= m_ordinal;
+            return (1 << m_converter.m_lensDimension) <= m_ordinal;
         }        
     };
 
@@ -885,6 +903,7 @@ struct LameJuisInternal
             bool m_isCurrentSlice;
             MatrixEvalResult m_localHarmonicPosition;
             bool m_isPlaying[x_maxPoly];
+            bool m_isMuted;
         };   
 
         struct TimeSliceXYConverter
@@ -1081,6 +1100,7 @@ struct LameJuisInternal
                 if (output->m_coMuteState.m_usePercentile[chan])
                 {
                     result = m_cachedResults[PercentileToIx(output->m_coMuteState.m_percentiles[chan])];
+                    result.m_pitch += std::floor(output->m_coMuteState.m_percentiles[chan]);
                 }
                 else 
                 {
@@ -1139,6 +1159,7 @@ struct LameJuisInternal
             
             ssize_t PercentileToIx(float percentile)
             {
+                percentile = percentile - std::floor(percentile);
                 ssize_t ix = static_cast<size_t>(percentile * m_numResults);
                 ix = std::min<ssize_t>(ix, m_numResults - 1);
                 ix = std::max<ssize_t>(ix, 0);
@@ -1186,6 +1207,69 @@ struct LameJuisInternal
             bool m_isEvaluated;
         };
 
+        struct SheafMutes
+        {
+            uint64_t m_mutes[x_numOperations + 1][x_numOperations + 1][x_numOperations + 1];
+
+            bool Get(Lens lens, BitVector timeSlice, MatrixEvalResult result)
+            {
+                uint64_t mask = static_cast<uint64_t>(1) << lens.Canonicalize(timeSlice).m_bits;
+                return (m_mutes[result.m_high[0]][result.m_high[1]][result.m_high[2]] & mask) != 0;
+            }
+
+            void Set(BitVector timeSlice, MatrixEvalResult result, bool mute)
+            {
+                uint64_t mask = static_cast<uint64_t>(1) << timeSlice.m_bits;
+                if (mute)
+                {
+                    m_mutes[result.m_high[0]][result.m_high[1]][result.m_high[2]] |= mask;
+                }
+                else
+                {
+                    m_mutes[result.m_high[0]][result.m_high[1]][result.m_high[2]] &= ~mask;
+                }
+            }
+
+            void SetTimeSlice(Lens lens, BitVector timeSlice, MatrixEvalResult result, bool mute)
+            {
+                TimeSliceClassIterator iter(lens, timeSlice);
+                while (!iter.Done())
+                {
+                    Set(iter.Get(), result, mute);
+                    iter.Next();
+                }
+            }
+
+            void AddState(size_t index, ScenedStateSaver* saver)
+            {
+                for (size_t i = 0; i < x_numOperations + 1; ++i)
+                {
+                    for (size_t j = 0; j < x_numOperations + 1; ++j)
+                    {
+                        for (size_t k = 0; k < x_numOperations + 1; ++k)
+                        {
+                            size_t offset = i + (x_numOperations + 1) * (j + (x_numOperations + 1) * k);
+                            saver->Insert("SheafMute", index, offset, &m_mutes[i][j][k]);
+                        }
+                    }
+                }
+            }
+
+            void Init(LameJuisInternal* owner)
+            {
+                for (size_t i = 0; i < x_numOperations + 1; ++i)
+                {
+                    for (size_t j = 0; j < x_numOperations + 1; ++j)
+                    {
+                        for (size_t k = 0; k < x_numOperations + 1; ++k)
+                        {
+                            m_mutes[i][j][k] = 0;
+                        }
+                    }
+                }
+            }
+        };
+
         struct Input
         {
             CoMuteState::Input m_coMuteInput;
@@ -1205,6 +1289,8 @@ struct LameJuisInternal
         bool m_lastStepEvaluated;
 
         LameJuisInternal* m_owner;
+
+        SheafMutes m_sheafMutes;
 
         size_t GetPolyChans()
         {
@@ -1246,7 +1332,8 @@ struct LameJuisInternal
                     m_pitch[i] = ComputePitch(m_owner, *input.m_prevVector, i);
                 }
                 
-                SetPitch(ComputePitch(m_owner, *input.m_inputVector, i), i);
+                bool timeSliceChanged = !m_coMuteState.GetLens().Equivalent(*input.m_inputVector, *input.m_prevVector);
+                SetPitch(ComputePitch(m_owner, *input.m_inputVector, i), i, timeSliceChanged);
             }
             
             m_lastStepEvaluated = true;            
@@ -1259,6 +1346,7 @@ struct LameJuisInternal
             BitVector currentBaseSlice = m_owner->m_inputVector;
             cellInfo.m_isCurrentSlice = m_gridSheafView.LensEquivalent(currentBaseSlice, cellInfo.m_baseTimeSlice);
             cellInfo.m_localHarmonicPosition = m_owner->EvalMatrixBase(cellInfo.m_baseTimeSlice);
+            cellInfo.m_isMuted = GetSheafMute(cellInfo.m_baseTimeSlice, cellInfo.m_localHarmonicPosition);
             for (size_t i = 0; i < GetPolyChans(); ++i)
             {
                 cellInfo.m_isPlaying[i] = m_pitch[i].m_result == cellInfo.m_localHarmonicPosition;
@@ -1270,20 +1358,25 @@ struct LameJuisInternal
         MatrixEvalResultWithPitch ComputePitch(LameJuisInternal* matrix, BitVector defaultVector, size_t chan)
         {
             bool harmonic = m_coMuteState.m_harmonic[chan];
+            MatrixEvalResultWithPitch result;
             if (harmonic)
             {
-                return m_harmonicOutputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, chan);
+                result = m_harmonicOutputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, chan);
             }
             else
             {
-                return m_melodicOutputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, chan);
+                result = m_melodicOutputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, chan);
             }
+
+            result.m_isMuted = GetSheafMute(defaultVector, result.m_result);
+            return result;
         }            
        
-        void SetPitch(MatrixEvalResultWithPitch pitch, size_t chan)
+        void SetPitch(MatrixEvalResultWithPitch pitch, size_t chan, bool timeSliceChanged)
         {
             bool newTrigger = (pitch.m_result != m_pitch[chan].m_result &&
                                pitch.m_pitch != m_pitch[chan].m_pitch);
+            newTrigger = (newTrigger || (timeSliceChanged && m_pitch[chan].m_isMuted)) && !pitch.m_isMuted;
             m_trigger[chan] = newTrigger;
             m_pitch[chan] = pitch;
         }
@@ -1291,6 +1384,16 @@ struct LameJuisInternal
         TimeSliceClassIterator GetBitVectorIterator(BitVector defaultVector)
         {
             return TimeSliceClassIterator(m_coMuteState.GetLens(), defaultVector);
+        }
+
+        void ToggleSheafMute(GridSheafView::CellInfo& cellInfo)
+        {
+            m_sheafMutes.SetTimeSlice(m_coMuteState.GetLens(), cellInfo.m_baseTimeSlice, cellInfo.m_localHarmonicPosition, !cellInfo.m_isMuted);
+        }
+
+        bool GetSheafMute(BitVector timeSlice, MatrixEvalResult result)
+        {
+            return m_sheafMutes.Get(m_coMuteState.GetLens(), timeSlice, result);
         }
         
         void Init(LameJuisInternal* owner)
@@ -1305,6 +1408,22 @@ struct LameJuisInternal
     {
         return m_outputs[outputId].GetCellInfo(x, y);
     }   
+
+    // This does not exactly follow our data model (setting things from Input), but fuck it computing this is annoying
+    //
+    void ToggleSheafMute(size_t outputId, uint8_t x, uint8_t y)
+    {
+        GridSheafView::CellInfo cellInfo = GetCellInfo(outputId, x, y);
+        m_outputs[outputId].ToggleSheafMute(cellInfo);
+    }
+
+    void AddSheafMuteState(ScenedStateSaver* saver)
+    {
+        for (size_t i = 0; i < x_numAccumulators; ++i)
+        {
+            m_outputs[i].m_sheafMutes.AddState(i, saver);
+        }
+    }
     
     struct Input
     {        

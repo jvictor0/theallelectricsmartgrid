@@ -17,6 +17,7 @@ Color Color::Blue(0,60,249);
 Color Color::Fuscia(255,71,250);
 Color Color::Indigo(56,61,249);
 Color Color::Purple(134,63,249);
+Color Color::Pink(255,101,92);
 
 ColorScheme ColorScheme::Whites(std::vector<Color>({Color::White.Dim(), Color::Grey, Color::White}));
 ColorScheme ColorScheme::Rainbow(std::vector<Color>({

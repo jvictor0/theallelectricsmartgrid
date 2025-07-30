@@ -34,6 +34,8 @@ extern Model* modelMasterSwitch;
 extern Model* modelSmartCanvas;
 extern Model* modelPolyCC;
 extern Model* modelSampleRateDivider;
+extern Model* modelSquiggleBoy;
+extern Model* modelTheNonagonSquiggleBoyQuadLaunchpadTwister;
 
 #else
 // iOS build stubs

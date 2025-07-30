@@ -56,6 +56,14 @@ struct MultichannelWavWriter
     uint64_t m_samplesWritten = 0;
     std::string m_filename;
 
+    MultichannelWavWriter()
+      : m_sampleRate(48000)
+      , m_numChannels(0)
+      , m_isOpen(false)
+      , m_samplesWritten(0)
+    {
+    }
+
     ~MultichannelWavWriter()
     {
         Close();

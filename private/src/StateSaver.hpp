@@ -5,6 +5,7 @@
 #include <vector>
 #include <cassert>
 #include <cstring>
+#include <cmath>
 
 extern "C"
 {
@@ -79,12 +80,44 @@ struct StateSaverTemp
                 }
             }
 
-            memcpy(m_ptr, m_buf + m_curScene * m_len, m_len);
+            SetVal(m_ptr, m_buf + m_curScene * m_len, m_len);
         }
 
         void SaveValToScene()
         {
             CopyToScene(m_curScene);
+        }
+
+        void SetVal(void* dst, void* src, size_t len)
+        {
+            switch (len)
+            {
+                case 1:
+                {
+                    *reinterpret_cast<uint8_t*>(dst) = *reinterpret_cast<uint8_t*>(src);
+                    break;
+                }
+                case 2:
+                {
+                    *reinterpret_cast<uint16_t*>(dst) = *reinterpret_cast<uint16_t*>(src);
+                    break;
+                }
+                case 4:
+                {
+                    *reinterpret_cast<uint32_t*>(dst) = *reinterpret_cast<uint32_t*>(src);
+                    break;
+                }
+                case 8:
+                {
+                    *reinterpret_cast<uint64_t*>(dst) = *reinterpret_cast<uint64_t*>(src);
+                    break;
+                }
+                default:
+                {
+                    assert(false);
+                    break;
+                }
+            }
         }
 
         void LoadValFromScene(int scene)
@@ -95,13 +128,13 @@ struct StateSaverTemp
             }
 
             SaveValToScene();
-            memcpy(m_ptr, m_buf + scene * m_len, m_len);
+            SetVal(m_ptr, m_buf + scene * m_len, m_len);
             m_curScene = scene;
         }
 
         void CopyToScene(int scene)
         {
-            memcpy(m_buf + scene * m_len, m_ptr, m_len);
+            SetVal(m_buf + scene * m_len, m_ptr, m_len);
         }
 
         void HandleSceneInfoChange(SceneInfo& info)
@@ -178,6 +211,10 @@ struct StateSaverTemp
     void Finalize()
     {
         SetBoundaries();
+        for (size_t i = 1; i < NumScenes; ++i)
+        {
+            CopyToScene(i);
+        }
     }
 
     std::vector<std::pair<std::string, State>> m_state;
@@ -207,19 +244,55 @@ struct StateSaverTemp
                 m_left = scene;
             }
         }
+
+        void SetLeftScene(int scene)
+        {
+            m_left = scene;
+        }
+
+        void SetRightScene(int scene)
+        {
+            m_right = scene;
+        }
     };
 
     void Process(Input& input)
     {
-        if (m_sceneInfo.m_left != input.m_left || m_sceneInfo.m_right != input.m_right || m_sceneInfo.m_blend != input.m_blend)
+        if (m_sceneInfo.m_left != input.m_left)
         {
             m_sceneInfo.m_left = input.m_left;
+            HandleBlendChanges(0, m_sceneInfo.m_blend);
+        }
+
+        if (m_sceneInfo.m_right != input.m_right)
+        {
             m_sceneInfo.m_right = input.m_right;
+            HandleBlendChanges(1, m_sceneInfo.m_blend);
+        }
+
+        if (m_sceneInfo.m_blend != input.m_blend)
+        {
+            HandleBlendChanges(m_sceneInfo.m_blend, input.m_blend);
             m_sceneInfo.m_blend = input.m_blend;
-            for (auto& s : m_state)
-            {
-                s.second.HandleSceneInfoChange(m_sceneInfo);
-            }        
+        }
+    }
+
+    void HandleBlendChanges(float oldBlend, float newBlend)
+    {
+        if (newBlend < oldBlend)
+        {
+            std::swap(oldBlend, newBlend);
+        }
+
+        size_t minIx = std::max(0, static_cast<int>(oldBlend * (m_state.size() + 1)) - 1);
+        size_t maxIx = std::min(m_state.size() - 1, static_cast<size_t>(std::ceil(newBlend * (m_state.size() + 1))));
+
+        assert(minIx == 0 || m_state[minIx - 1].second.m_boundary < oldBlend);
+        assert(maxIx == m_state.size() - 1 || m_state[maxIx].second.m_boundary > newBlend);
+
+        for (size_t i = minIx; i < maxIx; ++i)
+        {
+            m_state[i].second.HandleSceneInfoChange(m_sceneInfo);
         }
     }
 

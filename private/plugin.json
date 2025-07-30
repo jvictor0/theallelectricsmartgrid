@@ -267,6 +267,28 @@
             "keywords":
             [
             ]
+        },
+        {
+            "slug": "SquiggleBoy",
+            "name": "SquiggleBoy",
+            "description": "SquiggleBoy",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
+        },
+        {
+            "slug": "TheNonagonSquiggleBoyQuadLaunchpadTwister",
+            "name": "TheNonagonSquiggleBoyQuadLaunchpadTwister",
+            "description": "TheNonagonSquiggleBoyQuadLaunchpadTwister",
+            "tags":
+            [
+            ],
+            "keywords":
+            [
+            ]
         }
     ]
 }

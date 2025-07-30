@@ -20,6 +20,97 @@ float VOctToNatural(float vOct, float deltaT)
     return HzToNatural(VOctToHz(vOct), deltaT);
 }
 
+struct ExpParam
+{
+    float m_baseParam;
+    float m_expParam;
+    float m_base;
+    float m_factor;
+
+    ExpParam(float base)
+        : m_baseParam(0)
+        , m_expParam(1)
+        , m_base(base)
+        , m_factor(1)
+    {
+    }
+
+    explicit ExpParam(float min, float max)
+        : m_baseParam(0)
+        , m_expParam(min)
+        , m_base(max / min)
+        , m_factor(min)
+    {
+    }
+
+    float Update(float value)
+    {
+        if (m_baseParam != value)
+        {
+            m_baseParam = value;
+            m_expParam = m_factor * std::powf(m_base, value);
+        }
+
+        return m_expParam;
+    }
+};
+
+struct SimpleOsc
+{
+    float m_phase;
+    ExpParam m_phaseDelta;
+
+    SimpleOsc()
+        : m_phase(0)
+        , m_phaseDelta(0.025f / 44100.0f, 1.0f / 44100.0f)
+    {
+    }
+
+    void SetPhaseDelta(float phaseDelta)
+    {
+        m_phaseDelta.Update(phaseDelta);
+    }
+
+    void Process()
+    {
+        m_phase += m_phaseDelta.m_expParam;
+        if (m_phase >= 1.0f)
+        {
+            m_phase -= 1.0f;
+        }
+    }
+};
+
+struct ZeroedExpParam
+{
+    float m_base;
+    float m_expParam;
+    float m_baseParam;
+
+    ZeroedExpParam(float base)
+        : m_base(base)
+        , m_expParam(0)
+        , m_baseParam(0)
+    {
+    }
+
+    ZeroedExpParam()
+        : ZeroedExpParam(20)
+    {
+    }
+
+    float Update(float value)
+    {
+        if (m_baseParam != value)
+        {
+            m_baseParam = value;
+            m_expParam = (std::powf(m_base, value) - 1) / (m_base - 1);
+        }
+
+        return m_expParam;
+    }  
+};
+
 float SyncedEval(
     const WaveTable* waveTable,
     float phase,

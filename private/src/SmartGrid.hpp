@@ -8,6 +8,7 @@
 #include <vector>
 #include <atomic>
 #include "DebugLog.hpp"
+#include "HSV.hpp"
 
 namespace SmartGrid
 {
@@ -154,6 +155,11 @@ struct Color
         }
     }
 
+    uint8_t ToTwister()
+    {
+        return RGB2MFTHue(m_red, m_green, m_blue);
+    }
+
     uint8_t m_red;
     uint8_t m_green;
     uint8_t m_blue;
@@ -173,6 +179,7 @@ struct Color
     static Color Fuscia;
     static Color Indigo;
     static Color Purple;
+    static Color Pink;
 };
 
 struct ColorScheme

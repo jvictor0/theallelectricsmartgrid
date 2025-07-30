@@ -16,6 +16,8 @@ struct MultiPhasorGateInternal
         size_t m_numPhasors;
         bool m_phasorSelector[x_maxPoly][x_maxPoly];
         float m_gateFrac[x_maxPoly];
+        bool m_newTrigCanStart[x_maxPoly];
+        bool m_mute[x_maxPoly];
 
         Input()
             : m_numTrigs(0)
@@ -23,6 +25,7 @@ struct MultiPhasorGateInternal
         {
             for (size_t i = 0; i < x_maxPoly; ++i)
             {
+                m_newTrigCanStart[i] = false;
                 m_trigs[i] = false;
                 m_phasors[i] = 0;
                 m_gateFrac[i] = 0.5;
@@ -30,6 +33,8 @@ struct MultiPhasorGateInternal
                 {
                     m_phasorSelector[i][j] = false;
                 }
+
+                m_mute[i] = false;
             }
         }
     };
@@ -38,7 +43,10 @@ struct MultiPhasorGateInternal
     {
         for (size_t i = 0; i < x_maxPoly; ++i)
         {
+            m_trig[i] = false;
             m_gate[i] = false;
+            m_set[i] = false;
+            m_preGate[i] = false;
             m_phasorOut[i] = 0;
             for (size_t j = 0; j < x_maxPoly; ++j)
             {
@@ -52,6 +60,7 @@ struct MultiPhasorGateInternal
         for (size_t i = 0; i < x_maxPoly; ++i)
         {
             m_gate[i] = false;
+            m_preGate[i] = false;
             m_phasorOut[i] = 0;
         }
     }
@@ -92,7 +101,10 @@ struct MultiPhasorGateInternal
         }
     };
 
+    bool m_anyGate;
     bool m_gate[x_maxPoly];
+    bool m_preGate[x_maxPoly];
+    bool m_trig[x_maxPoly];
     bool m_set[x_maxPoly];
     float m_phasorOut[x_maxPoly];
     PhasorBounds m_bounds[x_maxPoly][x_maxPoly];
@@ -100,8 +112,11 @@ struct MultiPhasorGateInternal
 
     void Process(Input& input)
     {
+        m_anyGate = false;
         for (size_t i = 0; i < input.m_numTrigs; ++i)
         {
+            m_trig[i] = input.m_trigs[i] && input.m_newTrigCanStart[i] && !input.m_mute[i];
+
             if (m_set[i])
             {
                 float phasorOut = 0;
@@ -110,9 +125,11 @@ struct MultiPhasorGateInternal
                     if (m_phasorSelector[i][j])
                     {
                         float thisPhase = m_bounds[i][j].GetPhase(input.m_phasors[j]);
-                        if (input.m_gateFrac[i] <= thisPhase)
+                        if (input.m_gateFrac[i] <= thisPhase &&
+                            (input.m_gateFrac[i] < 1.0 || !input.m_newTrigCanStart[i] || input.m_mute[i]))
                         {
                             m_gate[i] = false;
+                            m_preGate[i] = false;
                         }
                         
                         phasorOut = std::max(thisPhase, phasorOut);
@@ -127,10 +144,21 @@ struct MultiPhasorGateInternal
                 
                 m_phasorOut[i] = phasorOut;
             }
-
-            if (!m_gate[i] && input.m_trigs[i])
+            else if (m_preGate[i] && 
+                     (input.m_gateFrac[i] < 1.0 || !input.m_newTrigCanStart[i] || input.m_mute[i]))
             {
-                m_gate[i] = true;
+                m_gate[i] = false;
+                m_preGate[i] = false;
+            }
+
+            if (input.m_trigs[i] && input.m_newTrigCanStart[i])
+            {
+                if (!input.m_mute[i])
+                {
+                    m_gate[i] = true;
+                }
+
+                m_preGate[i] = true;
                 m_set[i] = true;
                 for (size_t j = 0; j < input.m_numPhasors; ++j)
                 {
@@ -138,8 +166,87 @@ struct MultiPhasorGateInternal
                     m_phasorSelector[i][j] = input.m_phasorSelector[i][j];
                 }
             }
+
+            if (m_gate[i])
+            {
+                m_anyGate = true;
+            }
         }
     }    
+
+    struct NonagonTrigLogic
+    {
+        static constexpr size_t x_numVoices = 9;
+        static constexpr size_t x_numTrios = 3;
+        static constexpr size_t x_voicesPerTrio = x_numVoices / x_numTrios;
+
+        bool m_pitchChanged[x_numVoices];
+        bool m_earlyMuted[x_numVoices];
+        bool m_subTrigger[x_numVoices];
+        bool m_mute[x_numVoices];
+
+        bool m_trigOnSubTrigger[x_numTrios];
+        bool m_trigOnPitchChanged[x_numTrios];
+
+        bool m_interrupt[x_numTrios][x_numTrios];
+
+        int m_unisonMaster[x_numTrios];
+
+        bool m_running;
+
+        NonagonTrigLogic()
+            : m_running(false)
+        {
+            for (size_t i = 0; i < x_numVoices; ++i)
+            {
+                m_pitchChanged[i] = false;
+                m_earlyMuted[i] = false;
+                m_subTrigger[i] = false;
+                m_mute[i] = false;
+            }
+
+            for (size_t i = 0; i < x_numTrios; ++i)
+            {
+                m_trigOnSubTrigger[i] = false;
+                m_trigOnPitchChanged[i] = true;
+                m_unisonMaster[i] = -1;
+
+                for (size_t j = 0; j < x_numTrios; ++j)
+                {
+                    m_interrupt[i][j] = false;
+                }
+            }
+        }
+
+        void SetInput(Input& input)
+        {
+            for (size_t i = 0; i < x_maxPoly; ++i)
+            {
+                size_t trioId = i / x_voicesPerTrio;
+                size_t ixToCheck = m_unisonMaster[trioId] == -1 ? i : m_unisonMaster[trioId];
+                input.m_mute[i] = m_mute[i];
+                input.m_trigs[i] = (m_trigOnSubTrigger[trioId] && m_subTrigger[ixToCheck]) || 
+                                   (m_trigOnPitchChanged[trioId] && m_pitchChanged[ixToCheck]);
+                input.m_trigs[i] &= !m_earlyMuted[ixToCheck];
+                input.m_newTrigCanStart[i] = m_running && !m_earlyMuted[ixToCheck];
+
+
+                for (size_t j = 0; j < i; ++j)
+                {
+                    size_t jTrioId = j / x_voicesPerTrio;
+                    if (jTrioId == trioId && m_unisonMaster[trioId] != -1)
+                    {
+                        continue;
+                    }
+
+                    if (m_interrupt[trioId][jTrioId] && input.m_trigs[j] && !input.m_mute[j])
+                    {
+                        input.m_trigs[i] = false;
+                    }
+                }
+            }
+        }
+    };
 };
 
 #ifndef IOS_BUILD

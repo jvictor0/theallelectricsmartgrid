@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <sstream>
+#include "Noise.hpp"
 
 struct QuadMixerInternal
 {
@@ -16,6 +17,10 @@ struct QuadMixerInternal
     QuadFloat m_send[x_numSends];
     const WaveTable* m_sin;
     MultichannelWavWriter m_wavWriter;
+    std::string m_recordingDirectory;
+    bool m_isRecording = false;
+    TanhSaturator<true> m_saturator;
+    PinkNoise m_pinkNoise;
 
     QuadMixerInternal()
     {
@@ -32,9 +37,11 @@ struct QuadMixerInternal
         float m_y[16];
         QuadFloat m_return[x_numSends];
         float m_returnGain[x_numSends];
+        bool m_noiseMode;
 
         Input()
         {
+            m_noiseMode = false;
             m_numInputs = 0;
             for (size_t i = 0; i < 16; ++i)
             {
@@ -61,39 +68,119 @@ struct QuadMixerInternal
         m_wavWriter.Close();
     }
 
-    void Process(const Input& input)
+    void StartRecording(size_t numInputs, uint32_t sampleRate)
+    {
+        if (m_isRecording || m_recordingDirectory.empty())
+        {
+            return;
+        }
+
+        // Find an empty slot
+        //
+        size_t ordinal = 1;
+        std::string filename;
+        
+        do
+        {
+            std::ostringstream oss;
+            oss << m_recordingDirectory << "/recording-" << std::setfill('0') << std::setw(5) << ordinal << ".wav";
+            filename = oss.str();
+            ordinal++;
+            INFO("filename: %s", filename.c_str());
+        } while (rack::system::exists(filename));
+
+        // Open the wave writer with the appropriate number of channels
+        //
+        if (!Open(numInputs, filename, sampleRate))
+        {
+            assert(false);
+        }   
+
+        m_isRecording = true;
+    }
+
+    void StopRecording()
+    {
+        if (!m_isRecording)
+        {
+            return;
+        }
+
+        Close();
+        m_isRecording = false;
+    }
+
+    void ToggleRecording(size_t numChannels, uint32_t sampleRate)
+    {
+        if (m_isRecording)
+        {
+            StopRecording();
+        }
+        else
+        {
+            StartRecording(numChannels, sampleRate);
+        }
+    }
+
+    void ProcessInputs(const Input& input)
     {
         m_output = QuadFloat();
         for (size_t i = 0; i < x_numSends; ++i)
         {
             m_send[i] = QuadFloat();
         }
-
-        for (size_t i = 0; i < input.m_numInputs; ++i)
+            
+        if (input.m_noiseMode)
         {
-            QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i], m_sin);
-            QuadFloat postFader = pan * input.m_gain[i];
-            m_output += postFader;
-            
-            // Write post-fader input to wave file
-            //
-            m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(i), postFader);
-            
+            float pink = m_pinkNoise.Generate();
+            m_output += QuadFloat(pink, pink, pink, pink);
+            for (size_t i = 0; i < input.m_numInputs; ++i)
+            {
+                m_output += QuadFloat(input.m_input[i], input.m_input[i], input.m_input[i], input.m_input[i]) * input.m_gain[i];
+            }
+        }
+        else
+        {
+            for (size_t i = 0; i < input.m_numInputs; ++i)
+            {
+                QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i], m_sin);
+                QuadFloat postFader = pan * input.m_gain[i];
+                m_output += postFader;
+                
+                // Write post-fader input to wave file
+                //
+                m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(i), postFader);
+                
+                for (size_t j = 0; j < x_numSends; ++j)
+                {
+                    m_send[j] += pan * input.m_sendGain[i][j];
+                }
+            }
+        }
+    }
+
+    QuadFloat ProcessReturns(const Input& input)
+    {
+        if (!input.m_noiseMode)
+        {
             for (size_t j = 0; j < x_numSends; ++j)
             {
-                m_send[j] += pan * input.m_sendGain[i][j];
+                QuadFloat postReturn = input.m_return[j] * input.m_returnGain[j];
+                m_output += postReturn;
+                
+                // Write post-return to wave file
+                //
+                m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(input.m_numInputs + j), postReturn);
             }
         }
 
-        for (size_t j = 0; j < x_numSends; ++j)
-        {
-            QuadFloat postReturn = input.m_return[j] * input.m_returnGain[j];
-            m_output += postReturn;
-            
-            // Write post-return to wave file
-            //
-            m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(input.m_numInputs + j), postReturn);
-        }
+        return m_saturator.Process(m_output);
+    }
+
+    QuadFloat Process(const Input& input)
+    {
+        ProcessInputs(input);
+        return ProcessReturns(input);
     }
 };
 
@@ -102,8 +189,6 @@ struct QuadMixer : Module
 {
     QuadMixerInternal m_internal;
     QuadMixerInternal::Input m_state;
-    std::string m_recordingDirectory;
-    bool m_isRecording = false;
     float m_recGateValue = 0.0f;
 
     IOMgr m_ioMgr;
@@ -186,48 +271,6 @@ struct QuadMixer : Module
         }
     }
 
-    void StartRecording(size_t sampleRate)
-    {
-        if (m_isRecording)
-        {
-            return;
-        }
-
-        // Find an empty slot
-        //
-        size_t ordinal = 1;
-        std::string filename;
-        
-        do
-        {
-            std::ostringstream oss;
-            oss << m_recordingDirectory << "/recording-" << std::setfill('0') << std::setw(5) << ordinal << ".wav";
-            filename = oss.str();
-            ordinal++;
-            INFO("filename: %s", filename.c_str());
-        } while (rack::system::exists(filename));
-
-        // Open the wave writer with the appropriate number of channels
-        //
-        if (!m_internal.Open(m_input->m_value.m_channels, filename, sampleRate))
-        {
-            assert(false);
-        }   
-
-        m_isRecording = true;
-    }
-
-    void StopRecording()
-    {
-        if (!m_isRecording)
-        {
-            return;
-        }
-
-        m_internal.Close();
-        m_isRecording = false;
-    }
-
     void process(const ProcessArgs &args) override
     {
         m_ioMgr.Process();
@@ -235,11 +278,11 @@ struct QuadMixer : Module
 
         if (m_recGateValue >= 5.0f)
         {
-            StartRecording(args.sampleRate);
+            m_internal.StartRecording(m_state.m_numInputs + QuadMixerInternal::x_numSends, args.sampleRate);
         }
         else 
         {
-            StopRecording();
+            m_internal.StopRecording();
         }
         
         m_internal.Process(m_state);
@@ -249,7 +292,7 @@ struct QuadMixer : Module
     virtual json_t* dataToJson() override
     {
         json_t* rootJ = json_object();
-        json_object_set_new(rootJ, "recordingDirectory", json_string(m_recordingDirectory.c_str()));
+        json_object_set_new(rootJ, "recordingDirectory", json_string(m_internal.m_recordingDirectory.c_str()));
         return rootJ;
     }
 
@@ -258,7 +301,7 @@ struct QuadMixer : Module
         json_t* dirJ = json_object_get(rootJ, "recordingDirectory");
         if (dirJ)
         {
-            m_recordingDirectory = json_string_value(dirJ);
+            m_internal.m_recordingDirectory = json_string_value(dirJ);
         }
     }
 };
@@ -305,7 +348,7 @@ struct QuadMixerWidget : public ModuleWidget
         menu->addChild(createSubmenuItem("Recording Directory", "", [=](Menu* menu) {
             // Show current directory
             //
-            std::string currentDir = module->m_recordingDirectory.empty() ? "Not set" : module->m_recordingDirectory;
+            std::string currentDir = module->m_internal.m_recordingDirectory.empty() ? "Not set" : module->m_internal.m_recordingDirectory;
             menu->addChild(createMenuLabel("Current: " + currentDir));
             
             menu->addChild(new MenuSeparator());
@@ -313,10 +356,10 @@ struct QuadMixerWidget : public ModuleWidget
             // Add option to select directory
             //
             menu->addChild(createMenuItem("Select Directory", "", [=]() {
-                const char* path = osdialog_file(OSDIALOG_OPEN_DIR, module->m_recordingDirectory.empty() ? nullptr : module->m_recordingDirectory.c_str(), nullptr, nullptr);
+                const char* path = osdialog_file(OSDIALOG_OPEN_DIR, module->m_internal.m_recordingDirectory.empty() ? nullptr : module->m_internal.m_recordingDirectory.c_str(), nullptr, nullptr);
                 if (path)
                 {
-                    module->m_recordingDirectory = path;
+                    module->m_internal.m_recordingDirectory = path;
                     free((void*)path);
                 }
             }));

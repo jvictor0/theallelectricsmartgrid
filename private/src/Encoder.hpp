@@ -1,3 +1,5 @@
+#pragma once
+
 #include "SmartGrid.hpp"
 
 namespace SmartGrid
@@ -441,6 +443,19 @@ struct StateEncoderCell : public EncoderCell
     {
         float delta = value - GetNormalizedValueForTrack(m_sceneManager->m_track);
         Increment(delta);
+    }
+
+    void SetValueAllScenesAllTracks(float value)
+    {
+        for (size_t i = 0; i < x_maxPoly; ++i)
+        {
+            for (size_t j = 0; j < SceneManager::x_numScenes; ++j)
+            {
+                m_values[i][j] = value;
+            }
+
+            SetStateForTrack(i);
+        }
     }
 };
 
