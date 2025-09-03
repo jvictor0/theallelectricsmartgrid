@@ -1248,8 +1248,11 @@ struct LameJuisInternal
                     {
                         for (size_t k = 0; k < x_numOperations + 1; ++k)
                         {
-                            size_t offset = i + (x_numOperations + 1) * (j + (x_numOperations + 1) * k);
-                            saver->Insert("SheafMute", index, offset, &m_mutes[i][j][k]);
+                            if (i + j + k <= x_numOperations)
+                            {
+                                size_t offset = i + (x_numOperations + 1) * (j + (x_numOperations + 1) * k);
+                                saver->Insert("SheafMute", index, offset, &m_mutes[i][j][k]);
+                            }
                         }
                     }
                 }

@@ -419,7 +419,7 @@ struct TimeBit
     LinearPeice m_lp;
     MusicalTime* m_owner;
     size_t m_ix;
-    size_t m_parentIx;
+    int m_parentIx;
     FixedPointNumber m_swing;
     FixedPointNumber m_swagger;
     FixedPointNumber m_pos;
@@ -428,6 +428,7 @@ struct TimeBit
     bool m_top;
     State m_state;
     bool m_pingPong;
+    size_t m_topLevelWinding;
 
     void Init(size_t ix, MusicalTime* owner)
     {
@@ -442,6 +443,7 @@ struct TimeBit
         m_swagger = FixedPointNumber::Half();
         m_mult = 1;
         m_pingPong = false;
+        m_topLevelWinding = 0;
     }
 
     void Stop()
@@ -451,6 +453,48 @@ struct TimeBit
         m_top = true;
         m_state = State::x_init;
         m_lp = LinearPeice::Empty();
+        m_topLevelWinding = 0;
+    }
+
+    int MonodromyNumber(int resetIx)
+    {
+        if (static_cast<int>(m_ix) == resetIx)
+        {
+            return 0;
+        }
+        else if (m_pingPong)
+        {
+            bool thisGate = m_pos < FixedPointNumber::Half();
+            return thisGate ? 0 : 1;
+        }
+        else if (m_parentIx < 0)
+        {
+            bool thisGate = m_pos < FixedPointNumber::Half();
+            return 2 * m_topLevelWinding + (thisGate ? 0 : 1);
+        }
+        else
+        {
+            uint64_t preResult;
+            bool thisGate = m_pos < FixedPointNumber::Half();
+            if (m_mult % 2 == 0)
+            {
+                preResult = m_parentFloor % (m_mult / 2);
+            }
+            else
+            {
+                if (GetParent()->m_pos <= FixedPointNumber::Half())
+                {
+                    preResult = m_parentFloor;
+                }
+                else
+                {
+                    ((GetParent()->m_pos - FixedPointNumber::Half()) * m_mult).Reduce(&preResult);
+                    thisGate = !thisGate;
+                }
+            }   
+
+            return 2 * preResult + (thisGate ? 0 : 1) + m_mult * GetParent()->MonodromyNumber(resetIx);
+        }
     }
     
     TimeBit* GetParent();
@@ -519,7 +563,7 @@ struct TimeBit
 
     struct Input
     {
-        size_t m_parentIx;
+        int m_parentIx;
         float m_swing;
         float m_swagger;
         size_t m_mult;
@@ -631,6 +675,11 @@ struct TimeBit
         {
             m_pos = FixedPointNumber(0);
         }
+
+        if (m_top)
+        {
+            m_topLevelWinding = m_pingPong ? 0 : (m_mult * parent->m_topLevelWinding);
+        }
     }
 
     void SetDirectly(float t)
@@ -639,6 +688,7 @@ struct TimeBit
         if (std::abs(t - m_pos.Float()) > 0.5)
         {
             m_top = true;
+            ++m_topLevelWinding;
         }
 
         m_pos = FixedPointNumber::FromDouble(t);
@@ -757,10 +807,20 @@ struct MusicalTime
     {
         return m_gate[ix];
     }
+
+    int MonodromyNumber(int clockIx, int resetIx)
+    {
+        return m_bits[clockIx].MonodromyNumber(resetIx);
+    }
 };
 
 inline TimeBit* TimeBit::GetParent()
 {
+    if (m_parentIx < 0)
+    {
+        return nullptr;
+    }
+
     return &m_owner->m_bits[m_parentIx];
 }
 
@@ -796,8 +856,14 @@ struct MusicalTimeWithClock
     };
 
     MusicalTimeWithClock()
-        : m_phasor(0), m_lastChangeTime(0)
+        : m_phasor(0)
+        , m_lastChangeTime(0)
     {
+    }
+
+    int MonodromyNumber(int clockIx, int resetIx)
+    {
+        return m_musicalTime.MonodromyNumber(clockIx, resetIx);
     }
 
     void Process(float dt, Input& input)
@@ -846,247 +912,3 @@ struct MusicalTimeWithClock
     }
 };
 
-struct GreggInternal
-{
-    struct Input
-    {
-        size_t m_numSteps;
-        int m_offsetStep;
-        size_t m_mainTBIx;
-        bool m_jumpAtTop[MusicalTime::x_numBits];
-        int m_sectionIx;
-        
-        Input()
-            : m_numSteps(16)
-            , m_offsetStep(-1)
-            , m_mainTBIx(0)
-            , m_sectionIx(-1)
-        {
-            for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
-            {
-                m_jumpAtTop[i] = false;
-            }
-        }
-    };
-
-    struct Output
-    {
-        float m_out;
-    };
-
-    GreggInternal(MusicalTime* time)
-        : m_time(time)
-        , m_offsetStep(-1)
-        , m_offsetFromOffsetStep(0)
-        , m_step(0)
-        , m_outStep(0)
-        , m_sectionStart(0)
-        , m_sectionEnd(0)
-        , m_sectionStartIx(-1)
-        , m_sectionEndIx(-1)
-    {
-        for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
-        {
-            m_jumpAtTop[i] = false;
-            m_offsetFromJumpAtTop[i] = 0;
-            m_startFromJumpAtTop[i] = 0;
-            m_lastTop[i] = 0;
-        }
-    }
-
-    MusicalTime* m_time;    
-    Output m_output;
-    int m_offsetStep;
-    float m_offsetFromOffsetStep;
-    int m_step;
-    int m_outStep;
-    bool m_jumpAtTop[MusicalTime::x_numBits];
-    float m_startFromJumpAtTop[MusicalTime::x_numBits];
-    float m_offsetFromJumpAtTop[MusicalTime::x_numBits];
-    float m_lastTop[MusicalTime::x_numBits];
-    float m_sectionStart;
-    float m_sectionEnd;
-    int m_sectionStartIx;
-    int m_sectionEndIx;    
-
-    void Process(Input& input)
-    {
-        float mainPhasor = m_time->m_bits[input.m_mainTBIx].m_pos.Float();
-
-        int step = static_cast<int>(mainPhasor * input.m_numSteps) % input.m_numSteps;
-        if (step != m_step)
-        {
-            if (m_offsetStep != input.m_offsetStep)
-            {
-                if (input.m_offsetStep >= 0)
-                {
-                    int stepsToOffset = input.m_offsetStep - step;
-                    m_offsetFromOffsetStep = static_cast<float>(stepsToOffset) / input.m_numSteps;
-                }
-                else
-                {
-                    m_offsetFromOffsetStep = 0;
-                }
-
-                m_offsetStep = input.m_offsetStep;
-            }
-
-            for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
-            {
-                if (!m_jumpAtTop[i] && input.m_jumpAtTop[i])
-                {
-                    m_jumpAtTop[i] = true;
-                    m_startFromJumpAtTop[i] = mainPhasor;
-                    m_offsetFromJumpAtTop[i] = 0;
-                }
-                else if (m_jumpAtTop[i] && !input.m_jumpAtTop[i])
-                {
-                    m_jumpAtTop[i] = false;
-                    m_offsetFromJumpAtTop[i] = 0;
-                }
-            }
-            
-            m_step = step;
-        }
-
-        for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
-        {
-            if (m_time->m_bits[i].m_top)
-            {
-                m_lastTop[i] = mainPhasor;
-            }
-        }        
-        
-        if (input.m_sectionIx == -1)
-        {
-            m_sectionStartIx = -1;
-            m_sectionEndIx = -1;
-        }
-        else if (input.m_sectionIx != m_sectionStartIx)
-        {
-            m_sectionStartIx = input.m_sectionIx;
-            m_sectionStart = m_lastTop[m_sectionStartIx];
-        }
-        else if (m_sectionEndIx == -1 && m_time->m_bits[m_sectionStartIx].m_top)
-        {
-            m_sectionEndIx = input.m_sectionIx;
-            m_sectionEnd = m_lastTop[m_sectionStartIx];
-        }
-                
-        float out = mainPhasor;
-        if (m_sectionEndIx != -1)
-        {
-            float sec = m_time->m_bits[m_sectionEndIx].m_pos.Float();
-            out = m_sectionStart + (m_sectionEnd - m_sectionStart) * sec;
-        }
-        
-        out += m_offsetFromOffsetStep;
-        for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
-        {
-            if (m_jumpAtTop[i])
-            {
-                if (m_time->m_bits[i].m_top)
-                {
-                    m_offsetFromJumpAtTop[i] = mainPhasor - m_startFromJumpAtTop[i];
-                }
-
-                out += m_offsetFromJumpAtTop[i];
-            }
-        }
-                
-        out = out - floor(out);
-        m_outStep = static_cast<int>(out * input.m_numSteps) % input.m_numSteps;
-        m_output.m_out = out;
-    }
-};
-
-// struct TheoryOfTime : Module
-// {
-//     MusicalTime::Input m_state;
-//     MusicalTime m_musicalTime;
-
-//     static constexpr float x_timeToCheck = 0.05;    
-//     float m_timeToCheck;
-
-//     TheoryOfTime()
-//     {
-//         config(0, x_numInputs, x_numOutputs, 0);
-        
-//         m_timeToCheck = -1;
-
-//         configInput(x_inputId, "Phasor Input");
-//         configInput(x_multInId, "Mult Input");
-//         configInput(x_swingInId, "Swing input");
-//         configInput(x_pingPongInId, "Ping Pong Input");
-//         configInput(x_rebaseInId, "Rebase Input");
-//         configInput(x_zeroInId, "Zero Input");
-//         configInput(x_randomInId, "Random Input");
-
-//         configOutput(x_phasorOut, "Phasor Output");
-//         configOutput(x_gateOut, "Gate Output");
-//         configOutput(x_trigOut, "Trig Output");
-//     }    
-
-//     void CheckInputs()
-//     {
-//         for (size_t i = 1; i < MusicalTime::x_numBits; ++i)
-//         {
-//             if (i > 1)
-//             {
-//                 m_state.m_input[i].m_parentIx = inputs[x_rebaseInId].getVoltage(i - 1) > 0 ? i - 2 : i - 1;
-//             }
-//             else
-//             {
-//                 m_state.m_input[i].m_parentIx = i - 1;
-//             }
-
-//             m_state.m_input[i].m_mult = std::floor(inputs[x_multInId].getVoltage(i - 1) + 0.5);
-//             m_state.m_input[i].m_swing = inputs[x_swingInId].getVoltage(i - 1) / 20 + 0.5;
-//             m_state.m_input[i].m_swagger = 0.5;
-//             m_state.m_input[i].m_pingPong = inputs[x_pingPongInId].getVoltage(i - 1) > 0;
-//             //            m_state.m_input[i].m_rand = inputs[x_randomInId].getVoltage() / 10;
-//             if (inputs[x_zeroInId].getVoltage(i - 1) > 0)
-//             {
-//                 m_state.m_input[i].m_mult = 0;
-//             }
-//         }
-
-//         outputs[x_phasorOut].setChannels(MusicalTime::x_numBits);
-//         outputs[x_gateOut].setChannels(MusicalTime::x_numBits);
-//     }
-    
-//     void process(const ProcessArgs &args) override
-//     {
-//         m_state.m_t = inputs[x_inputId].getVoltage() / 10;
-//         m_timeToCheck -= args.sampleTime;
-//         if (m_timeToCheck < 0)
-//         {
-//             CheckInputs();
-//             m_timeToCheck = x_timeToCheck;
-//         }
-
-//         m_musicalTime.Process(m_state);
-
-//         for (size_t i = 0; i < MusicalTime::x_numBits; ++i)
-//         {
-//             outputs[x_phasorOut].setVoltage(m_musicalTime.GetPos(i) * 10, i);
-//             outputs[x_gateOut].setVoltage(m_musicalTime.GetGate(i) ? 10 : 0, i);
-//         }
-
-//         outputs[x_trigOut].setVoltage(m_musicalTime.m_anyChange ? 10 : 0);
-//     }
-
-//     static constexpr size_t x_inputId = 0;
-//     static constexpr size_t x_multInId = 1;
-//     static constexpr size_t x_swingInId = 2;
-//     static constexpr size_t x_pingPongInId = 3;
-//     static constexpr size_t x_rebaseInId = 4;
-//     static constexpr size_t x_zeroInId = 5;
-//     static constexpr size_t x_randomInId = 6;
-//     static constexpr size_t x_numInputs = 7;
-
-//     static constexpr size_t x_phasorOut = 0;
-//     static constexpr size_t x_gateOut = 1;
-//     static constexpr size_t x_trigOut = 2;
-//     static constexpr size_t x_numOutputs = 3;
-// };

@@ -200,16 +200,40 @@ struct TheNonagonInternal
         {            
             bool ticked = m_theoryOfTime.m_musicalTime.m_change[x_numTimeBits - i];
             input.m_arpInput.m_clocks[i] = ticked;
-            for (size_t j = 0; j < x_numVoices; ++j)
-            {                    
-                bool coMute = m_lameJuis.m_outputs[j / x_voicesPerTrio].m_coMuteState.m_coMutes[i];
-                if (!coMute && ticked)
-                {
-                    input.m_arpInput.m_input[j].m_read = true;
+            if (m_theoryOfTime.m_musicalTime.m_anyChange)
+            {
+                for (size_t j = 0; j < x_numVoices; ++j)
+                {                    
+                    bool coMute = m_lameJuis.m_outputs[j / x_voicesPerTrio].m_coMuteState.m_coMutes[i];
+                    if (!coMute && ticked)
+                    {
+                        input.m_arpInput.m_input[j].m_read = true;
+                    }
                 }
             }
         }
-    }    
+
+        if (m_theoryOfTime.m_musicalTime.m_anyChange)
+        {
+            for (size_t j = 0; j < x_numTrios; ++j)
+            {                    
+                if (input.m_arpInput.m_clockSelect[j] < 0)
+                {
+                    input.m_arpInput.m_totalIndex[j] = 0;
+                }
+                else if (input.m_arpInput.m_clocks[input.m_arpInput.m_clockSelect[j]])
+                {
+                    input.m_arpInput.m_totalIndex[j] = m_theoryOfTime.m_musicalTime.MonodromyNumber(
+                        x_numTimeBits - input.m_arpInput.m_clockSelect[j],
+                        x_numTimeBits - input.m_arpInput.m_resetSelect[j]);
+                    if (j == 0)
+                    {
+                        INFO("totalIndex: %d", input.m_arpInput.m_totalIndex[j]);
+                    }
+                }
+            }
+        }
+    }
 
     void SetOutputs(Input& input)
     {
@@ -268,7 +292,6 @@ struct TheNonagonInternal
         else
         {
             m_multiPhasorGate.Reset();
-            m_indexArp.ArmReset();
         }
 
         SetOutputs(input);
@@ -505,13 +528,13 @@ struct TheNonagonSmartGrid
                 
                 if (2 < i)
                 {
-                    Put(xPos, 4, new SmartGrid::StateCell<size_t>(
+                    Put(xPos, 4, new SmartGrid::StateCell<int>(
                             SmartGrid::Color::Ocean /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
                             &m_timeState->m_input[i].m_parentIx,
                             i - 2,
                             i - 1,
-                            SmartGrid::StateCell<size_t>::Mode::Toggle));
+                            SmartGrid::StateCell<int>::Mode::Toggle));
                     m_owner->m_stateSaver.Insert(
                         "TheoryOfTimeParentIx", i, &m_timeState->m_input[i].m_parentIx);
                 }
@@ -633,14 +656,13 @@ struct TheNonagonSmartGrid
                 if (i < TheNonagonInternal::x_numTimeBits - 2)
                 {
                     size_t theoryIx = TheNonagonInternal::x_numTimeBits - i;
-                    Put(i, 6, new SmartGrid::StateCell<size_t>(
+                    Put(i, 6, new SmartGrid::StateCell<int>(
                             SmartGrid::Color::Ocean /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
                             &m_state->m_theoryOfTimeInput.m_input.m_input[theoryIx].m_parentIx,
                             theoryIx - 2,
                             theoryIx - 1,
-                            SmartGrid::StateCell<size_t>::Mode::Toggle));
-
+                            SmartGrid::StateCell<int>::Mode::Toggle));
                 }
                     
                 for (Trio t : {Trio::Fire, Trio::Earth, Trio::Water})

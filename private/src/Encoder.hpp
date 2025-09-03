@@ -5,60 +5,10 @@
 namespace SmartGrid
 {
 
-struct EncoderAccumulator
-{
-    static constexpr int x_internalTicks = 512;
-    static constexpr double x_speed = 0.005 / x_internalTicks;
-    int m_ticks;
-    
-    EncoderAccumulator()
-        : m_ticks(0)
-    {
-    }
-
-    void AccumTicks(int ticks)
-    {
-        m_ticks += ticks * x_internalTicks;
-    }
-
-    bool IsAtRest() const
-    {
-        return m_ticks == 0;
-    }
-
-    double Process()
-    {
-        if (m_ticks == 0)
-        {
-            return 0;
-        }
-        else if (m_ticks > 0)
-        {
-            --m_ticks;
-            return x_speed;
-        }
-        else
-        {
-            ++m_ticks;
-            return -x_speed;
-        }
-    }
-};
-
 struct EncoderCell : public Cell
 {
-    EncoderAccumulator m_encoderAccumulator;
     uint8_t m_lastVelocity;
-
-    void Process()
-    {
-        Increment(m_encoderAccumulator.Process());
-    }
-
-    bool IsAtRest() const
-    {
-        return m_encoderAccumulator.IsAtRest();
-    }
+    static constexpr float x_speed = 0.005;
 
     EncoderCell()
         : m_lastVelocity(0)
@@ -78,7 +28,7 @@ struct EncoderCell : public Cell
     virtual void OnPress(uint8_t velocity) override
     {
         int8_t svelocity = velocity;
-        m_encoderAccumulator.AccumTicks(svelocity);
+        Increment(svelocity * x_speed);
         m_lastVelocity = velocity;
     }
 
@@ -90,7 +40,7 @@ struct EncoderCell : public Cell
     virtual void OnPressureChange(uint8_t velocity) override
     {
         int8_t svelocity = velocity - m_lastVelocity;
-        m_encoderAccumulator.AccumTicks(svelocity);
+        Increment(svelocity * x_speed);
         m_lastVelocity = velocity;
     }
 
@@ -165,8 +115,13 @@ struct StateEncoderCell : public EncoderCell
             }
         };
 
-        void Process(const Input& input, bool* changed)
+        void Process(const Input& input, bool* changed, bool* changedScene)
         {
+            if (input.m_scene1 != m_scene1 || input.m_scene2 != m_scene2)
+            {
+                *changedScene = true;
+            }
+
             if (input.m_blendFactor != m_blendFactor || input.m_scene1 != m_scene1 || input.m_scene2 != m_scene2)
             {
                 m_blendFactor = input.m_blendFactor;
@@ -388,11 +343,18 @@ struct StateEncoderCell : public EncoderCell
         {
             SetStateForTrack(i);
         }
+
+        PostSetState();
+    }
+
+    virtual void PostSetState()
+    {
     }
 
     void SetStateForTrack(size_t track)
     {
         *m_state[track] = GetValue(track);
+        PostSetState();
     }
 
     virtual void Increment(float delta) override
@@ -461,12 +423,10 @@ struct StateEncoderCell : public EncoderCell
 
 struct EncoderGrid : public Grid
 {
-    bool m_allAtRest;
     static constexpr int x_width = 4;
     static constexpr int x_height = 4;
 
     EncoderGrid()
-        : m_allAtRest(false)
     {
     }
     
@@ -490,36 +450,12 @@ struct EncoderGrid : public Grid
             {
                 HandlePress(msg.m_x - x_width, msg.m_y);
             }
-
-            m_allAtRest = false;
         }        
     }
     
     EncoderCell* GetEncoderCell(int x, int y)
     {
         return static_cast<EncoderCell*>(Get(x, y));
-    }
-    
-    virtual void Process(float) override
-    {
-        if (m_allAtRest)
-        {
-            return;
-        }
-
-        m_allAtRest = true;
-        for (int x = 0; x < x_width; ++x)
-        {
-            for (int y = 0; y < x_height; ++y)
-            {
-                EncoderCell* cell = GetEncoderCell(x, y);
-                cell->Process();
-                if (!cell->IsAtRest())
-                {
-                    m_allAtRest = false;
-                }
-            }
-        }
     }
 };
 

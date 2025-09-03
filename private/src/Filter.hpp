@@ -31,6 +31,58 @@ struct OPLowPassFilter
     }                             
 };
 
+template<size_t Size>
+struct BulkFilter
+{   
+    static constexpr float x_maxCutoff = 0.499f;
+    float m_alpha;
+    alignas(16) float m_target[Size];
+    alignas(16) float m_output[Size];
+
+    BulkFilter()
+        : m_alpha(0.0f)
+        , m_output{0.0f}
+    {
+        SetAlphaFromNatFreq(500.0 / 48000.0);
+
+        assert(reinterpret_cast<uintptr_t>(m_output) % 16 == 0);
+        assert(reinterpret_cast<uintptr_t>(m_target) % 16 == 0);
+
+        memset(m_output, 0, Size * sizeof(float));
+        memset(m_target, 0, Size * sizeof(float));
+    }
+
+    void SetAlphaFromNatFreq(float cyclesPerSample)
+    {
+        cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
+        assert(cyclesPerSample > 0);
+
+        float rc = 1.0f / (2.0f * M_PI * cyclesPerSample);
+        m_alpha = 1.0f / (rc + 1.0f);
+    }  
+
+    void LoadTarget(size_t n, size_t offset, float* target)
+    {
+        memcpy(m_target + offset, target, n * sizeof(float));
+    }
+
+    void Process(size_t n)
+    {
+        float* target = static_cast<float*>(__builtin_assume_aligned(m_target, 16));
+        float* output = static_cast<float*>(__builtin_assume_aligned(m_output, 16));
+        float alpha = m_alpha;
+        float oneMinusAlpha = 1.0f - m_alpha;
+
+        n = ((n + 3) / 4) * 4;
+
+        //#pragma clang loop vectorize(enable) interleave(enable)
+        for (size_t i = 0; i < n; ++i)
+        {
+            output[i] = alpha * target[i] + oneMinusAlpha * output[i];
+        }
+    }
+};
+
 struct OPHighPassFilter
 {
     static constexpr float x_maxCutoff = 0.499f;

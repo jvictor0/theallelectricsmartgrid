@@ -12,7 +12,7 @@ struct EncoderBankBankInternal
 
     json_t* m_savedJSON;
 
-    static constexpr size_t x_controlFrameRate = 16;
+    static constexpr size_t x_controlFrameRate = 8;
     size_t m_frame;
 
     struct Input
@@ -65,13 +65,24 @@ struct EncoderBankBankInternal
         {
             input.SetInput(i);
             m_banks[i].ProcessStatic(dt);
-            m_banks[i].ProcessInput(input.m_bankedEncoderInternalInput, m_frame % x_controlFrameRate == 0);
+            if (m_frame % x_controlFrameRate == 0)
+            {                
+                m_banks[i].ProcessInput(input.m_bankedEncoderInternalInput);
+            }
+
+            m_banks[i].ProcessBulkFilter();
         }
+
     }
 
     float GetValue(size_t ix, size_t i, size_t j, size_t channel)
     {
-        return m_banks[ix].GetBase(i, j)->m_output[channel];
+        return m_banks[ix].GetValue(i, j, channel);
+    }
+
+    float GetValueNoSlew(size_t ix, size_t i, size_t j, size_t channel)
+    {
+        return m_banks[ix].GetValueNoSlew(i, j, channel);
     }
 
     uint64_t GetGridId(size_t ix)
