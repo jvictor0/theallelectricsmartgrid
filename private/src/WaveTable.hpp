@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cassert>
+
+
 struct WaveTable
 {
     static const int x_tableSize = 1024;
@@ -69,5 +72,5 @@ struct WaveTable
     }
 };
 
-WaveTable WaveTable::s_cosine;
-WaveTable WaveTable::s_sine;
+inline WaveTable WaveTable::s_cosine;
+inline WaveTable WaveTable::s_sine;

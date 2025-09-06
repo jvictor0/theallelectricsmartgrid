@@ -272,8 +272,9 @@ struct StateSaverTemp
 
         if (m_sceneInfo.m_blend != input.m_blend)
         {
-            HandleBlendChanges(m_sceneInfo.m_blend, input.m_blend);
+            float oldBlend = m_sceneInfo.m_blend;
             m_sceneInfo.m_blend = input.m_blend;
+            HandleBlendChanges(oldBlend, input.m_blend);
         }
     }
 
@@ -288,7 +289,7 @@ struct StateSaverTemp
         size_t maxIx = std::min(m_state.size() - 1, static_cast<size_t>(std::ceil(newBlend * (m_state.size() + 1))));
 
         assert(minIx == 0 || m_state[minIx - 1].second.m_boundary < oldBlend);
-        assert(maxIx == m_state.size() - 1 || m_state[maxIx].second.m_boundary > newBlend);
+        assert(maxIx == m_state.size() - 1 || newBlend < m_state[maxIx].second.m_boundary);
 
         for (size_t i = minIx; i < maxIx; ++i)
         {

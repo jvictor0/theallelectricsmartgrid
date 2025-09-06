@@ -2,6 +2,8 @@
 #include <vector>
 #include <cstdint>
 #include <cmath>
+#include <string>
+#include <sys/stat.h>
 
 #ifndef IOS_BUILD
 #include "rack.hpp"
@@ -114,8 +116,21 @@ namespace midi
     };
 }
 
+namespace rack
+{
+    namespace system
+    {
+        inline bool exists(const std::string& filename)
+        {
+            struct stat buffer;
+            return (stat(filename.c_str(), &buffer) == 0);
+        }
+    }
+}
 
-#define WARN(...) os_log(OS_LOG_DEFAULT, __VA_ARGS__)
-#define INFO(...) os_log(OS_LOG_DEFAULT, __VA_ARGS__)
+#include <JuceHeader.h>
+
+#define WARN(...) juce::Logger::writeToLog(juce::String::formatted(__VA_ARGS__))
+#define INFO(...) juce::Logger::writeToLog(juce::String::formatted(__VA_ARGS__))
 
 #endif 

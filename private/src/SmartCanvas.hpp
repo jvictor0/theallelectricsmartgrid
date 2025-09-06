@@ -180,7 +180,7 @@ struct SmartCanvasInternal : public AbstractGrid
                 std::pair<int, int> coords = m_elems[i].GetSrcCoords(msg.m_x, msg.m_y, &oob);
                 if (!oob)
                 {
-                    g_smartBus.PutVelocity(m_elems[i].m_gridId, coords.first, coords.second, msg.m_velocity);
+                    SmartBusPutVelocity(m_elems[i].m_gridId, coords.first, coords.second, msg.m_velocity);
                     break;
                 }
             }
@@ -198,7 +198,7 @@ struct SmartCanvasInternal : public AbstractGrid
                 std::pair<int, int> coords = m_elems[i].GetSrcCoords(x, y, &oob);
                 if (!oob)
                 {
-                    return g_smartBus.GetColor(m_elems[i].m_gridId, coords.first, coords.second);
+                    return SmartBusGetColor(m_elems[i].m_gridId, coords.first, coords.second);
                 }
             }
         }

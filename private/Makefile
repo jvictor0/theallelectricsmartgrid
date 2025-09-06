@@ -2,9 +2,9 @@
 RACK_DIR ?= /Users/joyo/Rack
 
 # FLAGS will be passed to both the C and C++ compiler
-FLAGS +=
+FLAGS += -std=c++17
 CFLAGS +=
-CXXFLAGS +=-funroll-loops
+CXXFLAGS += -funroll-loops
 
 
 # Careful about linking to shared libraries, since you can't assume much about the user's environment and library search path.

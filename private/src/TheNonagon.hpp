@@ -226,10 +226,6 @@ struct TheNonagonInternal
                     input.m_arpInput.m_totalIndex[j] = m_theoryOfTime.m_musicalTime.MonodromyNumber(
                         x_numTimeBits - input.m_arpInput.m_clockSelect[j],
                         x_numTimeBits - input.m_arpInput.m_resetSelect[j]);
-                    if (j == 0)
-                    {
-                        INFO("totalIndex: %d", input.m_arpInput.m_totalIndex[j]);
-                    }
                 }
             }
         }

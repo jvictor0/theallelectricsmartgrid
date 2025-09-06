@@ -28,7 +28,7 @@ struct GridWidget : LightWidget
             size_t gridId = *m_gridId;
             if (gridId < x_numGridIds)
             {
-                color = g_smartBus.GetColor(gridId, m_x, m_y);
+                color = SmartBusGetColor(gridId, m_x, m_y);
             }
         }
 

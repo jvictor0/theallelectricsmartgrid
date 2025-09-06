@@ -4,18 +4,18 @@
 
 namespace PhaseUtils
 {
-float HzToNatural(float hz, float deltaT)
+inline float HzToNatural(float hz, float deltaT)
 {
     return hz * deltaT;
 }
 
-float VOctToHz(float vOct)
+inline float VOctToHz(float vOct)
 {
     static const float x_middleC = 261.6256f;
     return powf(2.0f, vOct) * x_middleC;
 }
 
-float VOctToNatural(float vOct, float deltaT)
+inline float VOctToNatural(float vOct, float deltaT)
 {
     return HzToNatural(VOctToHz(vOct), deltaT);
 }
@@ -111,7 +111,7 @@ struct ZeroedExpParam
     }  
 };
 
-float SyncedEval(
+inline float SyncedEval(
     const WaveTable* waveTable,
     float phase,
     float mult,

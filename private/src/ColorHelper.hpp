@@ -1,5 +1,5 @@
 #pragma once
-#include "SmartGrid.hpp"
+#include "Color.hpp"
 #include "plugin.hpp"
 #include <algorithm>
 

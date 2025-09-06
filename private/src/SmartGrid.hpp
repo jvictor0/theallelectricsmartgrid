@@ -9,235 +9,19 @@
 #include <atomic>
 #include "DebugLog.hpp"
 #include "HSV.hpp"
+#include "Color.hpp"
+#include "MessageIn.hpp"
 
 namespace SmartGrid
 {
 
+template<class BusInput>
+struct SmartBusGeneric;
+
+typedef SmartBusGeneric<Color> SmartBusColor;
+
 static uint8_t x_maxVelocity = 127;
 static constexpr size_t x_maxChannels = 8;
-
-struct Color
-{
-    constexpr Color()
-        : m_red(0)
-        , m_green(0)
-        , m_blue(0)
-        , m_unused(0)
-    {
-    }
-    
-    constexpr Color(uint8_t r, uint8_t g, uint8_t b)
-        : m_red(r)
-        , m_green(g)
-        , m_blue(b)
-        , m_unused(0)
-    {
-    }
-
-    constexpr Color(uint8_t r, uint8_t g, uint8_t b, uint8_t u)
-        : m_red(r)
-        , m_green(g)
-        , m_blue(b)
-        , m_unused(u)
-    {
-    }
-
-    uint32_t To32Bit() const
-    {
-        return (m_red << 24) | (m_green << 16) | (m_blue << 8) | m_unused;
-    }
-
-    bool operator == (const Color& c) const
-    {
-        return To32Bit() == c.To32Bit();
-    }
-
-    bool operator != (const Color& c) const
-    {
-        return !(*this == c);
-    }
-
-    size_t ZEncode()
-    {
-        size_t result = 0;
-        for (size_t i = 0; i < 8; ++i)
-        {
-            result |= static_cast<size_t>((m_red >> i) & 1) << (3 * i);
-            result |= static_cast<size_t>((m_green >> i) & 1) << (3 * i + 1);
-            result |= static_cast<size_t>((m_blue >> i) & 1) << (3 * i + 2);
-        }
-        
-        return result;        
-    }
-
-    static Color ZDecode(size_t x)
-    {
-        Color result;
-        for (size_t i = 0; i < 8; ++i)
-        {
-            result.m_red |= ((x >> (3 * i)) & 1) << i;
-            result.m_green |= ((x >> (3 * i + 1)) & 1) << i;
-            result.m_blue |= ((x >> (3 * i + 2)) & 1) << i;
-        }
-
-        return result;
-    }
-
-    float ZEncodeFloat()
-    {
-        return ZToFloat(ZEncode());
-    }
-
-    static Color ZDecodeFloat(float x)
-    {
-        return ZDecode(FloatToZ(x));
-    }
-
-    static size_t FloatToZ(float x)
-    {
-        return std::min<size_t>((1 << 24) - 1, static_cast<size_t>(x * (1 << 24)));
-    }
-
-    static float ZToFloat(size_t z)
-    {
-        return static_cast<float>(z) / static_cast<float>(1 << 24);
-    }
-
-    Color AdjustBrightness(float x)
-    {
-        return Color(std::max<int>(0, std::min<int>(x * m_red, 255)),
-                     std::max<int>(0, std::min<int>(x * m_green, 255)),
-                     std::max<int>(0, std::min<int>(x * m_blue, 255)));
-    }
-
-    Color Dim()
-    {
-        return AdjustBrightness(1.0 / 8.0);
-    }
-
-    Color Saturate()
-    {
-        uint8_t maxPrime = std::max(m_red, std::max(m_green, m_blue));
-        Color c = *this;
-        c.m_red *= 255 / maxPrime;
-        c.m_green *= 255 / maxPrime;
-        c.m_blue *= 255 / maxPrime;
-        return c;
-    }
-
-    Color Interpolate(Color other, float position)
-    {
-        if (position <= 0)
-        {
-            return *this;
-        }
-        else if (position >= 1)
-        {
-            return other;
-        }
-        else
-        {
-            return Color(
-                static_cast<float>(m_red) + (static_cast<float>(other.m_red) - static_cast<float>(m_red)) * position,
-                static_cast<float>(m_green) + (static_cast<float>(other.m_green) - static_cast<float>(m_green)) * position,
-                static_cast<float>(m_blue) + (static_cast<float>(other.m_blue) - static_cast<float>(m_blue)) * position);
-        }
-    }
-
-    uint8_t& operator[] (size_t i)
-    {
-        switch (i)
-        {
-            case 0: return m_red;
-            case 1: return m_green;
-            case 2: return m_blue;
-            default: return m_unused;
-        }
-    }
-
-    uint8_t ToTwister()
-    {
-        return RGB2MFTHue(m_red, m_green, m_blue);
-    }
-
-    uint8_t m_red;
-    uint8_t m_green;
-    uint8_t m_blue;
-    uint8_t m_unused;
-
-    static Color InvalidColor;
-    static Color Off;
-    static Color Grey;
-    static Color White;
-    static Color Red;
-    static Color Orange;
-    static Color Yellow;
-    static Color Green;
-    static Color SeaGreen;
-    static Color Ocean;
-    static Color Blue;
-    static Color Fuscia;
-    static Color Indigo;
-    static Color Purple;
-    static Color Pink;
-};
-
-struct ColorScheme
-{
-    Color back()
-    {
-        return m_colors.back();
-    }
-
-    Color operator[] (size_t ix)
-    {
-        return m_colors[ix];
-    }
-
-    size_t size()
-    {
-        return m_colors.size();
-    }
-
-    ColorScheme(const std::vector<Color>& colors)
-        : m_colors(colors)
-    {
-    }
-
-    ColorScheme()
-    {
-    }
-
-    static ColorScheme Hues(Color c)
-    {
-        c = c.Saturate();
-
-        std::vector<Color> result;
-        while (c.m_red > 48 || c.m_green > 48 || c.m_blue > 48)
-        {
-            result.push_back(c);
-            c.m_red /= 2;
-            c.m_green /= 2;
-            c.m_blue /= 2;
-        }
-
-        std::reverse(result.begin(), result.end());
-        return ColorScheme(result);
-    }
-    
-    std::vector<Color> m_colors;
-
-    static ColorScheme Whites;
-    static ColorScheme Rainbow;
-    static ColorScheme Reds;
-    static ColorScheme Greens;
-    static ColorScheme Blues;
-    static ColorScheme RedHues;
-    static ColorScheme OrangeHues;
-    static ColorScheme YellowHues;
-    static ColorScheme GreenHues;
-    static ColorScheme BlueHues;
-};
     
 struct Cell
 {
@@ -902,7 +686,28 @@ struct GridIdAllocator
     }
 };
 
+#ifndef IOS_BUILD
 extern GridIdAllocator g_gridIds;
+
+inline size_t AllocGridId()
+{
+    return g_gridIds.Alloc();
+}
+
+inline void FreeGridId(size_t id)
+{
+    g_gridIds.Free(id);
+}
+#else
+inline size_t AllocGridId()
+{
+    return x_numGridIds;
+}
+
+inline void FreeGridId(size_t id)
+{
+}
+#endif
 
 struct AbstractGrid
 {
@@ -913,7 +718,7 @@ struct AbstractGrid
     {
         if (m_gridId != x_numGridIds)
         {
-            g_gridIds.Free(m_gridId);
+            FreeGridId(m_gridId);
         }
     }
 
@@ -921,7 +726,7 @@ struct AbstractGrid
     {
         if (m_gridId != x_numGridIds)
         {
-            g_gridIds.Free(m_gridId);
+            FreeGridId(m_gridId);
         }
 
         m_gridId = x_numGridIds;
@@ -932,7 +737,7 @@ struct AbstractGrid
     
     AbstractGrid()
     {
-        m_gridId = g_gridIds.Alloc();
+        m_gridId = AllocGridId();
         m_gridInputEpoch = 0;
         m_timeToNextBusIO = -1;
     }
@@ -952,11 +757,16 @@ struct AbstractGrid
         }
     }
 
+    void OutputToBus(SmartBusColor* bus);
     void OutputToBus();
     void ApplyFromBus();
     
     virtual void Apply(Message msg) = 0;
     virtual Color GetColor(int i, int j) = 0;
+
+    virtual void Apply(MessageIn msg)
+    {
+    }
     
     virtual void Process(float dt)
     {
@@ -1102,6 +912,26 @@ struct Grid : public AbstractGrid
             }
         }
     }
+
+    virtual void Apply(MessageIn msg) override
+    {
+        if (msg.m_mode == MessageIn::Mode::PadPress ||
+            msg.m_mode == MessageIn::Mode::PadPressure)
+        {
+            if (msg.m_amount == 0)
+            {
+                OnRelease(msg.m_x, msg.m_y);
+            }
+            else
+            {
+                OnPress(msg.m_x, msg.m_y, msg.m_amount);
+            }
+        }
+        else if (msg.m_mode == MessageIn::Mode::PadRelease)
+        {
+            OnRelease(msg.m_x, msg.m_y);
+        }
+    }
 };
 
 struct CompositeGrid : public Grid
@@ -1184,12 +1014,12 @@ struct GridHolder
 
     Color GetOnColor(size_t gridIx)
     {
-        return g_smartBus.GetOnColor(GridId(gridIx));
+        return SmartBusGetOnColor(GridId(gridIx));
     }
 
     Color GetOffColor(size_t gridIx)
     {
-        return g_smartBus.GetOffColor(GridId(gridIx));
+        return SmartBusGetOffColor(GridId(gridIx));
     }
 
     AbstractGrid* Get(size_t ix)
@@ -1254,7 +1084,7 @@ struct GridSwitcher : public AbstractGrid
         
         if (m_selectedGridId != x_numGridIds)
         {
-            g_smartBus.PutVelocity(m_selectedGridId, msg.m_x, msg.m_y, msg.m_velocity);
+            SmartBusPutVelocity(m_selectedGridId, msg.m_x, msg.m_y, msg.m_velocity);
         }
     }
 
@@ -1271,7 +1101,7 @@ struct GridSwitcher : public AbstractGrid
         
         if (m_selectedGridId != x_numGridIds)
         {
-            return g_smartBus.GetColor(m_selectedGridId, i, j);
+            return SmartBusGetColor(m_selectedGridId, i, j);
         }
         else
         {
@@ -1281,12 +1111,12 @@ struct GridSwitcher : public AbstractGrid
 
     virtual Color GetOnColor() override
     {
-        return g_smartBus.GetOnColor(m_selectedGridId);
+        return SmartBusGetOnColor(m_selectedGridId);
     }        
 
     virtual Color GetOffColor() override
     {
-        return g_smartBus.GetOffColor(m_selectedGridId);
+        return SmartBusGetOffColor(m_selectedGridId);
     }        
 
 
@@ -1303,7 +1133,7 @@ struct GridSwitcher : public AbstractGrid
         {
             if (m_lastGridId != x_numGridIds)
             {
-                g_smartBus.ClearVelocities(m_lastGridId);
+                SmartBusClearVelocities(m_lastGridId);
             }
             
             m_lastGridId = m_selectedGridId;
@@ -1945,21 +1775,21 @@ struct MidiInterchangeSingle
 
                 if (msg.m_mode == Message::Mode::Increment)
                 {
-                    int currentVelocity = static_cast<int8_t>(g_smartBus.GetVelocity(gridId, msg.m_x, msg.m_y));
+                    int currentVelocity = static_cast<int8_t>(SmartBusGetVelocity(gridId, msg.m_x, msg.m_y));
                     int delta = msg.m_velocity - 64;
                     int newVelocity = std::max(-128, std::min(127, currentVelocity + delta));
-                    g_smartBus.PutVelocity(gridId, msg.m_x, msg.m_y, newVelocity);
+                    SmartBusPutVelocity(gridId, msg.m_x, msg.m_y, newVelocity);
                 }
                 else
                 {
-                    g_smartBus.PutVelocity(gridId, msg.m_x, msg.m_y, msg.m_velocity);
+                    SmartBusPutVelocity(gridId, msg.m_x, msg.m_y, msg.m_velocity);
                 }
             }
 
             if (m_frameSinceLastReceive == 2 &&
                 m_shape == ControllerShape::MidiFighterTwister)
             {
-                g_smartBus.ClearVelocities(gridId);
+                SmartBusClearVelocities(gridId);
             }
             
             ++m_frameSinceLastReceive;
@@ -1997,7 +1827,7 @@ struct MidiInterchangeSingle
         if (gridId != x_numGridIds)
         {
             LPRGBSysEx sysEx(m_shape);
-            for (auto itr = g_smartBus.OutputBegin(gridId, epoch); itr != g_smartBus.OutputEnd(); ++itr)
+            for (auto itr = SmartBusOutputBegin(gridId, epoch); itr != SmartBusOutputEnd(); ++itr)
             {
                 Message msg = *itr;
                 if (!msg.NoMessage())
@@ -2019,7 +1849,7 @@ struct MidiInterchangeSingle
     {
         if (gridId != x_numGridIds)
         {
-            for (auto itr = g_smartBus.OutputBegin(gridId, epoch); itr != g_smartBus.OutputEnd(); ++itr)
+            for (auto itr = SmartBusOutputBegin(gridId, epoch); itr != SmartBusOutputEnd(); ++itr)
             {
                 Message msg = *itr;
                 if (!msg.NoMessage() && msg.ShapeSupports(m_shape))

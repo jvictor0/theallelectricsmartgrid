@@ -49,7 +49,7 @@ struct MidiInterchangeSingle
                     {
                         case Event::Type::GridTouch:
                         {
-                            g_smartBus.PutVelocity(gridId, event.GetX(), event.GetY(), event.GetVelocity());
+                            SmartBusPutVelocity(gridId, event.GetX(), event.GetY(), event.GetVelocity());
                             break;
                         }
                         default:
@@ -67,7 +67,7 @@ struct MidiInterchangeSingle
         if (gridId != x_numGridIds)
         {
             m_multiWriter.Clear();
-            for (auto itr = g_smartBus.OutputBegin(gridId, true /*ignoreChanged*/); itr != g_smartBus.OutputEnd(); ++itr)
+            for (auto itr = SmartBusOutputBegin(gridId, true /*ignoreChanged*/); itr != SmartBusOutputEnd(); ++itr)
             {
                 Message msg = *itr;
                 if (!msg.NoMessage() && GridButton::InRange(msg.m_x, msg.m_y))

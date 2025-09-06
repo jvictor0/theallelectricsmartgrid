@@ -39,6 +39,7 @@ struct EncoderBankBankInternal
                 for (size_t j = 0; j < 4; ++j)
                 {
                     m_bankedEncoderCellInput[ix][i][j].m_twisterColor = hue;
+                    m_bankedEncoderCellInput[ix][i][j].m_color = color;
                 }
             }
         }
@@ -212,4 +213,21 @@ struct EncoderBankBankInternal
             m_banks[i].RevertToDefault();
         }
     }
+
+    void Apply(SmartGrid::MessageIn msg)
+    {
+        if (m_selectedBank >= 0)
+        {
+            m_banks[m_selectedBank].Apply(msg);
+        }
+    }
+
+    void PopulateUIState(EncoderBankUIState* uiState)
+    {
+        if (m_selectedBank >= 0)
+        {
+            m_banks[m_selectedBank].PopulateUIState(uiState);
+        }
+    }
+
 };

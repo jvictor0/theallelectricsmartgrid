@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SmartGrid.hpp"
+#include "StateSaver.hpp"
 
 namespace SmartGrid
 {
@@ -42,6 +43,11 @@ struct EncoderCell : public Cell
         int8_t svelocity = velocity - m_lastVelocity;
         Increment(svelocity * x_speed);
         m_lastVelocity = velocity;
+    }
+
+    void HandleIncDec(int64_t delta)
+    {
+        Increment(delta * x_speed);
     }
 
     virtual float GetNormalizedValue() = 0;

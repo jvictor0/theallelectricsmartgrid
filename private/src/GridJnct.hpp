@@ -409,7 +409,7 @@ struct MenuGrid : public AbstractGrid
             {
                 if (m_hasInput && m_gridId != x_numGridIds)
                 {
-                    return IsSelected() ? g_smartBus.GetOnColor(m_gridId) : g_smartBus.GetOffColor(m_gridId);
+                    return IsSelected() ? SmartBusGetOnColor(m_gridId) : SmartBusGetOffColor(m_gridId);
                 }
                 else if (m_gateOutConnected)
                 {

@@ -3,6 +3,9 @@
 #include "Encoder.hpp"
 #include "ModuleUtils.hpp"
 #include "BitSet.hpp"
+#include "Filter.hpp"
+#include "MessageIn.hpp"
+#include "EncoderUIState.hpp"
 
 namespace SmartGrid
 {
@@ -224,11 +227,13 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             if (m_type == EncoderType::ModulatorAmount)
             {
-                m_twisterColor = 124 + 67 * (depth - 1);
+                m_twisterColor = (124 + 67 * (depth - 1)) / 2;
+                m_color = Color::FromTwister(m_twisterColor);
             }
             else
             {
-                m_twisterColor = 124 + 67 * depth;
+                m_twisterColor = (124 + 67 * depth) / 2;
+                m_color = Color::FromTwister(m_twisterColor);
             }
         }
         else
@@ -352,10 +357,12 @@ struct BankedEncoderCell : public StateEncoderCell
     struct Input
     {
         uint8_t m_twisterColor;
+        Color m_color;
         bool m_connected;
 
         Input()
             : m_twisterColor(1)
+            , m_color(Color(0, 0, 0))
             , m_connected(false)
         {
         }
@@ -364,6 +371,7 @@ struct BankedEncoderCell : public StateEncoderCell
     void ProcessInput(Input& input)
     {
         m_twisterColor = input.m_twisterColor;
+        m_color = input.m_color;
         m_connected = input.m_connected;
     }
 
@@ -581,6 +589,7 @@ struct BankedEncoderCell : public StateEncoderCell
                     
     BankedEncoderCell* m_parent;
     uint8_t m_twisterColor;
+    Color m_color;
     float m_brightness;
     float m_ringValue;
     bool m_connected;
@@ -613,6 +622,9 @@ struct EncoderBankInternal : public EncoderGrid
     BulkFilter<16 * 16> m_bulkFilter;
     size_t m_totalVoices;
     size_t m_activeEncoderPrefix;
+    size_t m_numTracks;
+    size_t m_numVoices;
+    size_t m_currentTrack;
 
     void PutAndSetVisible(int x, int y, std::shared_ptr<BankedEncoderCell> cell)
     {
@@ -727,6 +739,10 @@ struct EncoderBankInternal : public EncoderGrid
 
     void ProcessInput(Input& input)
     {
+        m_numTracks = input.m_numTracks;
+        m_numVoices = input.m_numVoices;
+        m_currentTrack = input.m_sceneManagerInput.m_track;
+
         SetNumTracks(input.m_numTracks);
 
         if (input.m_sceneChange < BankedEncoderCell::SceneManager::x_numScenes)
@@ -778,6 +794,7 @@ struct EncoderBankInternal : public EncoderGrid
             for (int j = 0; j < 4; ++j)
             {                    
                     input.m_cellInput[i][j].m_twisterColor = input.m_cellInput[0][0].m_twisterColor;
+                    input.m_cellInput[i][j].m_color = input.m_cellInput[0][0].m_color;
                     GetBase(i, j)->ProcessInput(input.m_cellInput[i][j]);
             }
         }
@@ -908,6 +925,52 @@ struct EncoderBankInternal : public EncoderGrid
     {
         return m_bulkFilter.m_target[(i * 4 + j) * m_totalVoices + channel];
     }
+
+    virtual void Apply(MessageIn msg) override
+    {
+        if (msg.m_mode == MessageIn::Mode::EncoderIncDec)
+        {
+            std::shared_ptr<BankedEncoderCell> cell = std::static_pointer_cast<BankedEncoderCell>(GetShared(msg.m_x, msg.m_y));
+            cell->HandleIncDec(msg.m_amount);
+        }
+        else if (msg.m_mode == MessageIn::Mode::EncoderPush)
+        {
+            HandlePress(msg.m_x, msg.m_y);
+        }
+    }
+
+    void PopulateUIState(EncoderBankUIState* uiState)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            for (int j = 0; j < 4; ++j)
+            {
+                std::shared_ptr<BankedEncoderCell> cell = std::static_pointer_cast<BankedEncoderCell>(GetShared(i, j));
+
+                if (cell->m_connected)
+                {
+                    uiState->SetColor(i, j, cell->m_color);
+                    uiState->SetBrightness(i, j, cell->m_brightness);
+                    for (size_t k = 0; k < m_numTracks * m_numVoices; ++k)
+                    {
+                        uiState->SetValue(i, j, k, cell->m_output[k]);
+                    }
+                }
+                else
+                {
+                    uiState->SetBrightness(i, j, 0);
+                    for (size_t k = 0; k < m_numTracks * m_numVoices; ++k)
+                    {
+                        uiState->SetValue(i, j, k, 0);
+                    }
+                }
+            }
+        }
+
+        uiState->SetNumTracks(m_numTracks);
+        uiState->SetNumVoices(m_numVoices);
+        uiState->SetCurrentTrack(m_currentTrack);
+    }
 };
 
 #ifndef IOS_BUILD
@@ -991,12 +1054,6 @@ struct EncoderBankIOManager
 
         m_loadJSONTrigger = m_ioMgr->AddTrigger("Load JSON", false);
         m_loadJSONTrigger->SetTrigger(0, &m_loadJSON);
-    }
-
-    void ProcessControlFrame()
-    {
-        m_saveJSON = false;
-        m_loadJSON = false;
     }
 };
 

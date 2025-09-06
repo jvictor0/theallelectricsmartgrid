@@ -37,6 +37,11 @@ struct CircularQueue
         return true;
     }
 
+    void Pop()
+    {
+        m_tail.fetch_add(1);
+    }
+
     bool Peek(T& value)
     {
         if (m_head.load() == m_tail.load())

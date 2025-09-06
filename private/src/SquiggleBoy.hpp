@@ -9,6 +9,11 @@
 #include "LadderFilter.hpp"
 #include "ADSR.hpp"
 #include "BitCrush.hpp"
+#include "Lissajous.hpp"
+#include "QuadMixer.hpp"
+#include "QuadDelay.hpp"
+#include "PolyXFader.hpp"
+#include "GangedRandomLFO.hpp"
 
 struct SquiggleBoyVoice
 {
@@ -476,6 +481,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     bool m_shift;
 
+    struct UIState
+    {
+        EncoderBankUIState m_encoderBankUIState;
+    };
+
     struct Input
     {
         EncoderBankBankInternal<x_numVoiceBanks>::Input m_voiceEncoderBankInput;
@@ -925,6 +935,18 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             m_globalEncoderBank.ResetGrid(ix - SquiggleBoy::x_numVoices);
         }
+    }
+
+    void Apply(SmartGrid::MessageIn msg)
+    {
+        m_voiceEncoderBank.Apply(msg);
+        m_globalEncoderBank.Apply(msg);
+    }
+
+    void PopulateUIState(UIState* uiState)
+    {
+        m_voiceEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
+        m_globalEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
     }
 
     void Process(Input& input, float deltaT)
