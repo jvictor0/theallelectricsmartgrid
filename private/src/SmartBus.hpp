@@ -23,6 +23,11 @@ struct SmartBusGeneric
         return Load(i - x_gridXMin, j - x_gridYMin);
     }
 
+    std::atomic<BusInput>* GetAtomic(int i, int j)
+    {
+        return &m_messages[i - x_gridXMin][j - x_gridYMin];
+    }
+
     void Store(size_t i, size_t j, BusInput payload, bool* changed)
     {        
         BusInput newPayload = m_messages[i][j].exchange(payload);

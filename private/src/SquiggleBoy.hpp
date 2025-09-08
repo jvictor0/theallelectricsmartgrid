@@ -476,6 +476,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     static constexpr size_t x_numGlobalBanks = 3;
     EncoderBankBankInternal<x_numGlobalBanks> m_globalEncoderBank;
 
+    static constexpr size_t x_numFaders = 16;
+
     size_t m_selectedAbsoluteEncoderBank;
     size_t m_selectedGridId;
 
@@ -495,7 +497,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         float m_sheafyModulators[x_numVoices][3];
 
-        float m_faders[8];
+        float m_faders[x_numFaders];
 
         float m_totalPhasor[SquiggleBoyVoice::SquiggleLFO::x_numPhasors];
 
@@ -520,7 +522,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_sheafyModulators[i][2] = 0;
             }
 
-            for (size_t i = 0; i < 8; ++i)
+            for (size_t i = 0; i < x_numFaders; ++i)
             {
                 m_faders[i] = 0;
             }
@@ -601,6 +603,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_selectedAbsoluteEncoderBank = encoderBank;
             SelectGridId();
         }
+    }
+
+    bool AreVoiceEncodersActive()
+    {
+        return m_voiceEncoderBank.m_selectedBank >= 0;
     }
 
     struct SelectorCell : SmartGrid::Cell

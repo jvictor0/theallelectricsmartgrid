@@ -4,6 +4,7 @@
 //==============================================================================
 MainComponent::MainComponent()
     : m_configPage(nullptr)
+    , m_wrldBuildrGrid(nullptr)
     , m_configButton("⚙")
     , m_backButton("← Back")
     , m_showingConfig(false)
@@ -35,10 +36,18 @@ MainComponent::MainComponent()
     addAndMakeVisible(m_backButton);
     m_backButton.setVisible(false);
     
+    // Set up world builder grid
+    m_wrldBuildrGrid = std::make_unique<WrldBuildrComponent>(&m_nonagon);
+    addAndMakeVisible(m_wrldBuildrGrid.get());
+    
     // Ensure config page starts closed
     m_showingConfig = false;
 
     setAudioChannels(0, 4);
+
+    // Start the 60 FPS timer for re-rendering
+    //
+    startTimer(1000 / 60); // 60 FPS
 
     LoadConfig();
 }
@@ -86,6 +95,12 @@ void MainComponent::resized()
     {
         m_configPage->setBounds(bounds);
     }
+    else if (m_wrldBuildrGrid && !m_showingConfig)
+    {
+        // Let the world builder grid handle its own sizing and positioning
+        //
+        m_wrldBuildrGrid->setBounds(bounds);
+    }
 }
 
 //==============================================================================
@@ -106,6 +121,11 @@ void MainComponent::OnConfigButtonClicked()
         m_configPage->setVisible(true);
     }
     
+    if (m_wrldBuildrGrid)
+    {
+        m_wrldBuildrGrid->setVisible(false);
+    }
+    
     resized();
     repaint();
 }
@@ -122,8 +142,21 @@ void MainComponent::OnBackButtonClicked()
         m_configPage.reset();
     }
     
+    if (m_wrldBuildrGrid)
+    {
+        m_wrldBuildrGrid->setVisible(true);
+    }
+    
     resized();
     repaint();
 
     SaveConfig();
+}
+
+//==============================================================================
+void MainComponent::timerCallback()
+{
+    // Re-renderthe component at 60 FPS
+    //
+    repaint();
 }

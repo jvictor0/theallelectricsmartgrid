@@ -949,6 +949,7 @@ struct EncoderBankInternal : public EncoderGrid
 
                 if (cell->m_connected)
                 {
+                    uiState->SetConnected(i, j, true);
                     uiState->SetColor(i, j, cell->m_color);
                     uiState->SetBrightness(i, j, cell->m_brightness);
                     for (size_t k = 0; k < m_numTracks * m_numVoices; ++k)
@@ -958,6 +959,7 @@ struct EncoderBankInternal : public EncoderGrid
                 }
                 else
                 {
+                    uiState->SetConnected(i, j, false);
                     uiState->SetBrightness(i, j, 0);
                     for (size_t k = 0; k < m_numTracks * m_numVoices; ++k)
                     {

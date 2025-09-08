@@ -5,6 +5,7 @@
 #include "NonagonWrapper.hpp"
 #include "ConfigPage.hpp"
 #include "IOUtils.hpp"
+#include "WrldBuildrComponent.hpp"
 
 class MainComponentMenuBarModel;
 
@@ -13,7 +14,7 @@ class MainComponentMenuBarModel;
     This component lives inside our window, and this is where you should put all
     your controls and content.
 */
-class MainComponent  : public juce::AudioAppComponent
+class MainComponent  : public juce::AudioAppComponent, public juce::Timer
 {
 public:
     //==============================================================================
@@ -104,6 +105,7 @@ public:
     //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
+    void timerCallback() override;
 
 private:
     //==============================================================================
@@ -113,6 +115,7 @@ private:
     NonagonWrapper m_nonagon;
 
     std::unique_ptr<ConfigPage> m_configPage;
+    std::unique_ptr<WrldBuildrComponent> m_wrldBuildrGrid;
     juce::TextButton m_configButton;
     juce::TextButton m_backButton;
     bool m_showingConfig;

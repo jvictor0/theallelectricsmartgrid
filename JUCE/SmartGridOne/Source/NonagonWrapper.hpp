@@ -2,15 +2,7 @@
 
 #include <JuceHeader.h>
 #include "MidiUtils.hpp"
-
-#define IOS_BUILD
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
-#include "TheNonagonSquiggleBoy.hpp"
-#include "LaunchPadMidi.hpp"
-#include "TwisterMidi.hpp"
-#pragma GCC diagnostic pop
-#undef IOS_BUILD
+#include "SmartGridInclude.hpp"
 
 struct NonagonWrapperQuadLaunchpadTwister
 {
@@ -367,6 +359,11 @@ struct NonagonWrapperQuadLaunchpadTwister
         }
     }
 
+    PadUIGrid MkLaunchPadUIGrid(int index)
+    {
+        return m_nonagon.MkLaunchPadUIGrid(index);
+    }
+
     TheNonagonSquiggleBoyQuadLaunchpadTwister m_nonagon;
     MidiInputHandler m_midiInputHandler[TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numRoutes];
     MidiLaunchpadOutputHandler m_midiLaunchpadOutputHandler;
@@ -374,13 +371,52 @@ struct NonagonWrapperQuadLaunchpadTwister
     TheNonagonSquiggleBoyInternal* m_internal;
 };
 
+struct NonagonWrapperWrldBldr
+{
+    NonagonWrapperWrldBldr(TheNonagonSquiggleBoyInternal* internal)
+        : m_nonagon(internal)
+        , m_internal(internal)
+    {
+    }
+
+    void ProcessSample(size_t timestamp)
+    {
+        m_nonagon.ProcessSample(timestamp);
+    }
+
+    void ProcessFrame()
+    {
+        m_nonagon.ProcessFrame();
+    }
+
+    PadUIGrid MkLaunchPadUIGrid(TheNonagonSquiggleBoyWrldBldr::Routes route)
+    {
+        return m_nonagon.MkLaunchPadUIGrid(route);
+    }
+
+    EncoderBankUI MkEncoderBankUI()
+    {
+        return m_nonagon.MkEncoderBankUI();
+    }
+
+    AnalogUI MkAnalogUI(int ix)
+    {
+        return m_nonagon.MkAnalogUI(ix);
+    }
+
+    TheNonagonSquiggleBoyWrldBldr m_nonagon;
+    TheNonagonSquiggleBoyInternal* m_internal;
+}; 
+
 struct NonagonWrapper
 {
     TheNonagonSquiggleBoyInternal m_internal;
     NonagonWrapperQuadLaunchpadTwister m_quadLaunchpadTwister;
+    NonagonWrapperWrldBldr m_wrldBldr;
 
     NonagonWrapper()
         : m_quadLaunchpadTwister(&m_internal)
+        , m_wrldBldr(&m_internal)
     {
     }
     
@@ -402,12 +438,14 @@ struct NonagonWrapper
     QuadFloat ProcessSample(size_t timestamp)
     {
         m_quadLaunchpadTwister.ProcessSample(timestamp);
+        m_wrldBldr.ProcessSample(timestamp);
         return m_internal.Process();
     }
 
     void ProcessFrame()
     {
         m_quadLaunchpadTwister.ProcessFrame();
+        m_wrldBldr.ProcessFrame();
         m_internal.PopulateUIState();
     }
 
@@ -445,6 +483,26 @@ struct NonagonWrapper
     {
         m_internal.FromJSON(patch);
         m_internal.SaveJSON();
+    }
+
+    PadUIGrid MkLaunchPadUIGridQuadLaunchpadTwister(int index)
+    {
+        return m_quadLaunchpadTwister.MkLaunchPadUIGrid(index);
+    }
+
+    PadUIGrid MkLaunchPadUIGridWrldBldr(TheNonagonSquiggleBoyWrldBldr::Routes route)
+    {
+        return m_wrldBldr.MkLaunchPadUIGrid(route);
+    }
+
+    EncoderBankUI MkEncoderBankUI()
+    {
+        return m_wrldBldr.MkEncoderBankUI();
+    }
+
+    AnalogUI MkAnalogUI(int ix)
+    {
+        return m_wrldBldr.MkAnalogUI(ix);
     }
 
     void Process(const juce::AudioSourceChannelInfo& bufferToFill)
