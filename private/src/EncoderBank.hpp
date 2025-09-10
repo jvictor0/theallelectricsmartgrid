@@ -793,9 +793,7 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (int j = 0; j < 4; ++j)
             {                    
-                    input.m_cellInput[i][j].m_twisterColor = input.m_cellInput[0][0].m_twisterColor;
-                    input.m_cellInput[i][j].m_color = input.m_cellInput[0][0].m_color;
-                    GetBase(i, j)->ProcessInput(input.m_cellInput[i][j]);
+                GetBase(i, j)->ProcessInput(input.m_cellInput[i][j]);
             }
         }
 

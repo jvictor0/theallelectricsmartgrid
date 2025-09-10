@@ -39,7 +39,14 @@ struct EncoderBankBankInternal
                 for (size_t j = 0; j < 4; ++j)
                 {
                     m_bankedEncoderCellInput[ix][i][j].m_twisterColor = hue;
-                    m_bankedEncoderCellInput[ix][i][j].m_color = color;
+                    if (j < 2)
+                    {
+                        m_bankedEncoderCellInput[ix][i][j].m_color = color;
+                    }
+                    else
+                    {
+                        m_bankedEncoderCellInput[ix][i][j].m_color = color.Similar();
+                    }
                 }
             }
         }

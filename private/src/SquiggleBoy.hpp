@@ -645,7 +645,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_voiceEncoderBank.SetColor(2, SmartGrid::Color::Orange, input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.SetColor(3, SmartGrid::Color::Blue, input.m_voiceEncoderBankInput);
         m_globalEncoderBank.SetColor(0, SmartGrid::Color::Pink, input.m_globalEncoderBankInput);
-        m_globalEncoderBank.SetColor(1, SmartGrid::Color::Purple, input.m_globalEncoderBankInput);
+        m_globalEncoderBank.SetColor(1, SmartGrid::Color::Fuscia, input.m_globalEncoderBankInput);
         m_globalEncoderBank.SetColor(2, SmartGrid::Color::Yellow, input.m_globalEncoderBankInput);
 
         m_voiceEncoderBank.Config(0, 1, 0, 1.0 / 8.0, "VCO 1 V", input.m_voiceEncoderBankInput);

@@ -157,6 +157,59 @@ namespace SmartGrid
             return c;
         }
 
+        Color VeryDifferent() const
+        {
+            if (m_red < m_green)
+            {
+                if (m_green < m_blue)
+                {
+                    // red < green < blue
+                    //
+                    return Color(m_blue, m_green, m_red);
+                }
+                else if (m_red < m_blue)
+                {
+                    // red < blue < green
+                    //
+                    return Color(m_green, m_red, m_blue);
+                }
+                else
+                {
+                    // blue < red < green
+                    //
+                    return Color(m_red, m_blue, m_green);
+                }
+            }
+            else if (m_green < m_blue)
+            {
+                // green < red < blue
+                //
+                return Color(m_red, m_blue, m_green);
+            }
+            else if (m_green < m_blue)
+            {
+                // blue < green < red
+                //
+                return Color(m_blue, m_green, m_red);
+            }
+            else
+            {
+                // green < blue < red
+                //
+                return Color(m_green, m_red, m_blue);
+            }
+        }
+
+        Color Similar() const
+        {
+            return Interpolate(VeryDifferent(), 0.25);
+        }
+
+        std::string ToString() const
+        {
+            return "(" + std::to_string(m_red) + ", " + std::to_string(m_green) + ", " + std::to_string(m_blue) + ")";
+        }
+
         uint8_t m_red;
         uint8_t m_green;
         uint8_t m_blue;
@@ -251,7 +304,7 @@ namespace SmartGrid
     inline const Color Color::Fuscia{255, 71, 250};
     inline const Color Color::Indigo{56, 61, 249};
     inline const Color Color::Purple{134, 63, 249};
-    inline const Color Color::Pink{255, 101, 92};
+    inline const Color Color::Pink{255, 50, 120};
 
     // ColorScheme inline definitions (not constexpr due to std::vector)
     inline ColorScheme ColorScheme::Whites{std::vector<Color>({Color::White.Dim(), Color::Grey, Color::White})};
