@@ -64,20 +64,20 @@ struct NonagonWrapperQuadLaunchpadTwister
             }
         }
 
-        json_t* ToJSON()
+        JSON ToJSON()
         {
-            json_t* rootJ = json_object();
-            json_object_set_new(rootJ, "route_id", json_integer(m_routeId));
-            json_object_set_new(rootJ, "midi_input", json_string(m_name.toUTF8()));
+            JSON rootJ = JSON::Object();
+            rootJ.SetNew("route_id", JSON::Integer(m_routeId));
+            rootJ.SetNew("midi_input", JSON::String(m_name.toUTF8()));
             return rootJ;
         }
 
-        void FromJSON(json_t* rootJ)
+        void FromJSON(JSON rootJ)
         {
-            json_t* nameJ = json_object_get(rootJ, "midi_input");
-            if (nameJ)
+            JSON nameJ = rootJ.Get("midi_input");
+            if (!nameJ.IsNull())
             {
-                m_name = json_string_value(nameJ);
+                m_name = juce::String(nameJ.StringValue());
             }
         
             AttemptConnect();
@@ -150,32 +150,32 @@ struct NonagonWrapperQuadLaunchpadTwister
             }
         }
 
-        json_t* ToJSON()
+        JSON ToJSON()
         {
-            json_t* rootJ = json_object();
+            JSON rootJ = JSON::Object();
             for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
             {
-                json_object_set_new(rootJ, std::string("launchpad_output_" + std::to_string(i)).c_str(), json_string(m_name[i].toUTF8()));
-                json_object_set_new(rootJ, std::string("launchpad_output_shape_" + std::to_string(i)).c_str(), json_integer(static_cast<int>(m_sysexWriter[i].m_shape)));
+                rootJ.SetNew(std::string("launchpad_output_" + std::to_string(i)).c_str(), JSON::String(m_name[i].toUTF8()));
+                rootJ.SetNew(std::string("launchpad_output_shape_" + std::to_string(i)).c_str(), JSON::Integer(static_cast<int>(m_sysexWriter[i].m_shape)));
             }
 
             return rootJ;
         }
 
-        void FromJSON(json_t* rootJ)
+        void FromJSON(JSON rootJ)
         {
             for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
             {
-                json_t* nameJ = json_object_get(rootJ, std::string("launchpad_output_" + std::to_string(i)).c_str());
-                if (nameJ)
+                JSON nameJ = rootJ.Get(std::string("launchpad_output_" + std::to_string(i)).c_str());
+                if (!nameJ.IsNull())
                 {
-                    m_name[i] = json_string_value(nameJ);
+                    m_name[i] = juce::String(nameJ.StringValue());
                 }
 
-                json_t* shapeJ = json_object_get(rootJ, std::string("launchpad_output_shape_" + std::to_string(i)).c_str());
-                if (shapeJ)
+                JSON shapeJ = rootJ.Get(std::string("launchpad_output_shape_" + std::to_string(i)).c_str());
+                if (!shapeJ.IsNull())
                 {
-                    m_sysexWriter[i].m_shape = static_cast<SmartGrid::ControllerShape>(json_integer_value(shapeJ));
+                    m_sysexWriter[i].m_shape = static_cast<SmartGrid::ControllerShape>(shapeJ.IntegerValue());
                 }
             }
 
@@ -237,19 +237,19 @@ struct NonagonWrapperQuadLaunchpadTwister
             }
         }
 
-        json_t* ToJSON()
+        JSON ToJSON()
         {
-            json_t* rootJ = json_object();
-            json_object_set_new(rootJ, "midi_output", json_string(m_name.toUTF8()));
+            JSON rootJ = JSON::Object();
+            rootJ.SetNew("midi_output", JSON::String(m_name.toUTF8()));
             return rootJ;
         }
 
-        void FromJSON(json_t* rootJ)
+        void FromJSON(JSON rootJ)
         {
-            json_t* nameJ = json_object_get(rootJ, "midi_output");
-            if (nameJ)
+            JSON nameJ = rootJ.Get("midi_output");
+            if (!nameJ.IsNull())
             {
-                m_name = json_string_value(nameJ);
+                m_name = juce::String(nameJ.StringValue());
             }
 
             AttemptConnect();
@@ -321,39 +321,39 @@ struct NonagonWrapperQuadLaunchpadTwister
         m_midiTwisterOutputHandler.Process();
     }
 
-    json_t* ConfigToJSON()
+    JSON ConfigToJSON()
     {
-        json_t* rootJ = json_object();
+        JSON rootJ = JSON::Object();
         for (size_t i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numRoutes; ++i)
         {
-            json_object_set_new(rootJ, std::string("midi_input_" + std::to_string(i)).c_str(), m_midiInputHandler[i].ToJSON());
+            rootJ.SetNew(std::string("midi_input_" + std::to_string(i)).c_str(), m_midiInputHandler[i].ToJSON());
         }
 
-        json_object_set_new(rootJ, std::string("launchpad_outputs").c_str(), m_midiLaunchpadOutputHandler.ToJSON());
-        json_object_set_new(rootJ, std::string("twister_output").c_str(), m_midiTwisterOutputHandler.ToJSON());
+        rootJ.SetNew(std::string("launchpad_outputs").c_str(), m_midiLaunchpadOutputHandler.ToJSON());
+        rootJ.SetNew(std::string("twister_output").c_str(), m_midiTwisterOutputHandler.ToJSON());
 
         return rootJ;
     }
 
-    void ConfigFromJSON(json_t* config)
+    void ConfigFromJSON(JSON config)
     {
         for (size_t i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numRoutes; ++i)
         {
-            json_t* inputJ = json_object_get(config, std::string("midi_input_" + std::to_string(i)).c_str());
-            if (inputJ)
+            JSON inputJ = config.Get(std::string("midi_input_" + std::to_string(i)).c_str());
+            if (!inputJ.IsNull())
             {
                 m_midiInputHandler[i].FromJSON(inputJ);
             }
         }
 
-        json_t* launchpadOutputsJ = json_object_get(config, std::string("launchpad_outputs").c_str());
-        if (launchpadOutputsJ)
+        JSON launchpadOutputsJ = config.Get(std::string("launchpad_outputs").c_str());
+        if (!launchpadOutputsJ.IsNull())
         {   
             m_midiLaunchpadOutputHandler.FromJSON(launchpadOutputsJ);
         }
 
-        json_t* midiTwisterOutputJ = json_object_get(config, std::string("twister_output").c_str());
-        if (midiTwisterOutputJ)
+        JSON midiTwisterOutputJ = config.Get(std::string("twister_output").c_str());
+        if (!midiTwisterOutputJ.IsNull())
         {
             m_midiTwisterOutputHandler.FromJSON(midiTwisterOutputJ);
         }
@@ -464,22 +464,22 @@ struct NonagonWrapper
         return m_quadLaunchpadTwister.GetControllerShape(index);
     }
 
-    json_t* ConfigToJSON()
+    JSON ConfigToJSON()
     {
         return m_quadLaunchpadTwister.ConfigToJSON();
     }
 
-    void ConfigFromJSON(json_t* config)
+    void ConfigFromJSON(JSON config)
     {
         m_quadLaunchpadTwister.ConfigFromJSON(config);
     }
 
-    json_t* ToJSON()
+    JSON ToJSON()
     {
         return m_internal.ToJSON();
     }
     
-    void FromJSON(json_t* patch)
+    void FromJSON(JSON patch)
     {
         m_internal.FromJSON(patch);
         m_internal.SaveJSON();
@@ -513,7 +513,7 @@ struct NonagonWrapper
         {
             size_t timestamp = static_cast<size_t>(wallclockUs + i * (1000.0 / 48.0));
             QuadFloat output = ProcessSample(timestamp);
-            for (int j = 0; j < 4; ++j)
+            for (int j = 0; j < std::min(4, bufferToFill.buffer->getNumChannels()); ++j)
             {
                 bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = output[j];
             }

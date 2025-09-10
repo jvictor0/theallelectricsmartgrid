@@ -5,8 +5,8 @@
 MainComponent::MainComponent()
     : m_configPage(nullptr)
     , m_wrldBuildrGrid(nullptr)
-    , m_configButton("⚙")
-    , m_backButton("← Back")
+    , m_configButton("Config")
+    , m_backButton("Back")
     , m_showingConfig(false)
     , m_menuBarModel(std::make_unique<MainComponentMenuBarModel>(this))
     , m_menuBar(m_menuBarModel.get())
@@ -17,7 +17,7 @@ MainComponent::MainComponent()
     addAndMakeVisible(m_menuBar);
     
     // Set up config button
-    m_configButton.setButtonText("⛭");
+    m_configButton.setButtonText("Config");
     m_configButton.setSize(40, 40);
     m_configButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
     m_configButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);

@@ -907,23 +907,23 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_globalEncoderBank.LoadSavedJSON();
     }
 
-    json_t* ToJSON()
+    JSON ToJSON()
     {
-        json_t* rootJ = json_object();
-        json_object_set_new(rootJ, "voiceEncoderBank", m_voiceEncoderBank.ToJSON());
-        json_object_set_new(rootJ, "globalEncoderBank", m_globalEncoderBank.ToJSON());
-        json_object_set_new(rootJ, "recordingDirectory", json_string(GetRecordingDirectory().c_str()));
+        JSON rootJ = JSON::Object();
+        rootJ.SetNew("voiceEncoderBank", m_voiceEncoderBank.ToJSON());
+        rootJ.SetNew("globalEncoderBank", m_globalEncoderBank.ToJSON());
+        rootJ.SetNew("recordingDirectory", JSON::String(GetRecordingDirectory().c_str()));
         return rootJ;
     }
 
-    void FromJSON(json_t* rootJ)
+    void FromJSON(JSON rootJ)
     {
-        m_voiceEncoderBank.FromJSON(json_object_get(rootJ, "voiceEncoderBank"));
-        m_globalEncoderBank.FromJSON(json_object_get(rootJ, "globalEncoderBank"));
-        json_t* recordingDirectoryJ = json_object_get(rootJ, "recordingDirectory");
-        if (recordingDirectoryJ)
+        m_voiceEncoderBank.FromJSON(rootJ.Get("voiceEncoderBank"));
+        m_globalEncoderBank.FromJSON(rootJ.Get("globalEncoderBank"));
+        JSON recordingDirectoryJ = rootJ.Get("recordingDirectory");
+        if (!recordingDirectoryJ.IsNull())
         {
-            SetRecordingDirectory(json_string_value(recordingDirectoryJ));
+            SetRecordingDirectory(recordingDirectoryJ.StringValue());
         }
     }
 

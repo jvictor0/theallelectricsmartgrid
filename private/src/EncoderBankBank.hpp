@@ -10,7 +10,7 @@ struct EncoderBankBankInternal
     size_t m_selectedGridId;
     SmartGrid::Color m_color[NumBanks];
 
-    json_t* m_savedJSON;
+    JSON m_savedJSON;
 
     static constexpr size_t x_controlFrameRate = 8;
     size_t m_frame;
@@ -51,7 +51,7 @@ struct EncoderBankBankInternal
     };
 
     EncoderBankBankInternal()
-        : m_savedJSON(nullptr)
+        : m_savedJSON(JSON::Null())
     {
         SelectGrid(0);
     }
@@ -139,52 +139,46 @@ struct EncoderBankBankInternal
         }
     }
 
-    json_t* ToJSON()
+    JSON ToJSON()
     {
-        if (m_savedJSON)
+        if (!m_savedJSON.IsNull())
         {
-            json_incref(m_savedJSON);
-            return m_savedJSON;
+            return m_savedJSON.Incref();
         }
 
-        json_t* rootJ = json_object();
+        JSON rootJ = JSON::Object();
         for (size_t i = 0; i < NumBanks; ++i)
         {
             std::string key = "Bank" + std::to_string(i);
-            json_object_set_new(rootJ, key.c_str(), m_banks[i].ToJSON());
+            rootJ.SetNew(key.c_str(), m_banks[i].ToJSON());
         }
     
         return rootJ;
     }
 
-    void FromJSON(json_t* rootJ)
+    void FromJSON(JSON rootJ)
     {
         for (size_t i = 0; i < NumBanks; ++i)
         {
             std::string key = "Bank" + std::to_string(i);
-            json_t* bankJ = json_object_get(rootJ, key.c_str());
-            if (bankJ)
+            JSON bankJ = rootJ.Get(key.c_str());
+            if (!bankJ.IsNull())
             {
                 m_banks[i].FromJSON(bankJ);
             }
         }
 
-        json_incref(rootJ);
+        JSON increfRoot = rootJ.Incref();
 
-        if (m_savedJSON)
-        {
-            json_decref(m_savedJSON);
-        }
-
-        m_savedJSON = rootJ;
+        m_savedJSON = increfRoot;
     }
 
     void SaveJSON()
     {
-        if (m_savedJSON)
+        if (!m_savedJSON.IsNull())
         {
-            json_decref(m_savedJSON);
-            m_savedJSON = nullptr;
+            m_savedJSON.Decref();
+            m_savedJSON = JSON::Null();
         }
 
         m_savedJSON = ToJSON();
@@ -192,7 +186,7 @@ struct EncoderBankBankInternal
 
     void LoadSavedJSON()
     {
-        if (m_savedJSON)
+        if (!m_savedJSON.IsNull())
         {
             FromJSON(m_savedJSON);
         }

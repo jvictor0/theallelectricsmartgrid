@@ -291,17 +291,18 @@ struct QuadMixer : Module
 
     virtual json_t* dataToJson() override
     {
-        json_t* rootJ = json_object();
-        json_object_set_new(rootJ, "recordingDirectory", json_string(m_internal.m_recordingDirectory.c_str()));
-        return rootJ;
+        JSON rootJ = JSON::Object();
+        rootJ.SetNew("recordingDirectory", JSON::String(m_internal.m_recordingDirectory.c_str()));
+        return rootJ.m_json;
     }
 
     virtual void dataFromJson(json_t* rootJ) override
     {
-        json_t* dirJ = json_object_get(rootJ, "recordingDirectory");
-        if (dirJ)
+        JSON root = JSON(rootJ);
+        JSON dirJ = root.Get("recordingDirectory");
+        if (!dirJ.IsNull())
         {
-            m_internal.m_recordingDirectory = json_string_value(dirJ);
+            m_internal.m_recordingDirectory = dirJ.StringValue();
         }
     }
 };

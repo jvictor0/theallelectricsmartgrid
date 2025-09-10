@@ -7,13 +7,11 @@
 #include <cstring>
 #include <cmath>
 
-extern "C"
-{
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-volatile"
-    #include <jansson.h>
-#pragma clang diagnostic pop
-}  
+#ifndef IOS_BUILD
+#include "JanssonAdapter.hpp"
+#else
+#include "JuceSon.hpp"
+#endif
 
 template<size_t NumScenes>
 struct StateSaverTemp
@@ -49,24 +47,24 @@ struct StateSaverTemp
             assert(len <= 8);
         }
 
-        json_t* ToJSON()
+        JSON ToJSON()
         {
             SaveValToScene();
-            json_t* ret = json_array();
+            JSON ret = JSON::Array();
             for (size_t s = 0; s < NumScenes; ++s)
             {
                 for (size_t i = 0; i < m_len; ++i)
                 {
-                    json_array_append(ret, json_integer(m_buf[s * m_len + i]));
+                    ret.Append(JSON::Integer(m_buf[s * m_len + i]));
                 }
             }
 
             return ret;
         }
 
-        void SetFromJSON(json_t* jin)
+        void SetFromJSON(JSON jin)
         {
-            size_t len = json_array_size(jin);
+            size_t len = jin.Size();
             for (size_t s = 0; s < NumScenes; ++s)
             {
                 if (len <= s * m_len)
@@ -76,7 +74,7 @@ struct StateSaverTemp
                 
                 for (size_t i = 0; i < m_len; ++i)
                 {
-                    m_buf[s * m_len + i] = json_integer_value(json_array_get(jin, s * m_len + i));
+                    m_buf[s * m_len + i] = jin.GetAt(s * m_len + i).IntegerValue();
                 }
             }
 
@@ -174,23 +172,23 @@ struct StateSaverTemp
         m_state.push_back(std::make_pair(name + "_" + std::to_string(i) + "_" + std::to_string(j), Mk(t)));
     }
     
-    json_t* ToJSON()
+    JSON ToJSON()
     {
-        json_t* rootJ = json_object();
+        JSON rootJ = JSON::Object();
         for (auto& s : m_state)
         {
-            json_object_set_new(rootJ, s.first.c_str(), s.second.ToJSON());
+            rootJ.SetNew(s.first.c_str(), s.second.ToJSON());
         }
 
         return rootJ;
     }
 
-    void SetFromJSON(json_t* rootJ)
+    void SetFromJSON(JSON rootJ)
     {
         for (auto& s : m_state)
         {
-            json_t* val = json_object_get(rootJ, s.first.c_str());
-            if (val)
+            JSON val = rootJ.Get(s.first.c_str());
+            if (!val.IsNull())
             {
                 s.second.SetFromJSON(val);
             }

@@ -130,12 +130,13 @@ struct SmartBoxCnct : public Module
 
     json_t* dataToJson() override
     {
-		json_t* rootJ = json_object();
-		return rootJ;
+		JSON rootJ = JSON::Object();
+		return rootJ.m_json;
 	}
 
 	void dataFromJson(json_t* rootJ) override
     {
+		JSON root = JSON(rootJ);
 	}
 };
 

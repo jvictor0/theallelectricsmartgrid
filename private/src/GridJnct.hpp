@@ -950,35 +950,36 @@ struct GridCnct : public Module
 
     json_t* dataToJson() override
     {
-		json_t* rootJ = json_object();
+		JSON rootJ = JSON::Object();
 
-		json_object_set_new(rootJ, "midiIn", m_midi.m_input.toJson());
-		json_object_set_new(rootJ, "midiOut", m_midi.m_output.toJson());
+		rootJ.SetNew("midiIn", m_midi.m_input.toJson());
+		rootJ.SetNew("midiOut", m_midi.m_output.toJson());
         
-        json_object_set_new(rootJ, "state", m_stateSaver.ToJSON());
-		return rootJ;
+        rootJ.SetNew("state", m_stateSaver.ToJSON());
+		return rootJ.m_json;
 	}
 
 	void dataFromJson(json_t* rootJ) override
     {
-        json_t* midiJ = json_object_get(rootJ, "midiIn");
-		if (midiJ)
+        JSON root = JSON(rootJ);
+        JSON midiJ = root.Get("midiIn");
+		if (!midiJ.IsNull())
         {
-			m_midi.m_input.fromJson(midiJ);
+			m_midi.m_input.fromJson(midiJ.m_json);
         }
 
-        midiJ = json_object_get(rootJ, "midiOut");
-		if (midiJ)
+        midiJ = root.Get("midiOut");
+		if (!midiJ.IsNull())
         {
-			m_midi.m_output.fromJson(midiJ);
+			m_midi.m_output.fromJson(midiJ.m_json);
         }
 
-        midiJ = json_object_get(rootJ, "state");
-        if (midiJ)
+        midiJ = root.Get("state");
+        if (!midiJ.IsNull())
         {
             m_stateSaver.SetFromJSON(midiJ);
         }
-	}
+    }
 };
 
 struct GridCnctWidget : public ModuleWidget

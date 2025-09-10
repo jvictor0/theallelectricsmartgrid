@@ -36,31 +36,28 @@ public:
 
     void SaveConfig()
     {
-        json_t* config = json_object();
-        json_object_set_new(config, "nonagon_config", m_nonagon.ConfigToJSON());
-        json_object_set_new(config, "file_config", m_fileManager.ToJSON());
+        JSON config = JSON::Object();
+        config.SetNew("nonagon_config", m_nonagon.ConfigToJSON());
+        config.SetNew("file_config", m_fileManager.ToJSON());
         FileManager::PersistConfig(config);
-        json_decref(config);
     }
 
     void LoadConfig()
     {
-        json_t* config = FileManager::LoadConfig();
-        if (config)
+        JSON config = FileManager::LoadConfig();
+        if (!config.IsNull())
         {
-            json_t* nonagonConfig = json_object_get(config, "nonagon_config");
-            if (nonagonConfig)
+            JSON nonagonConfig = config.Get("nonagon_config");
+            if (!nonagonConfig.IsNull())
             {
                 m_nonagon.ConfigFromJSON(nonagonConfig);
             }
 
-            json_t* fileConfig = json_object_get(config, "file_config");
-            if (fileConfig)
+            JSON fileConfig = config.Get("file_config");
+            if (!fileConfig.IsNull())
             {
                 m_fileManager.FromJSON(fileConfig);
             }
-
-            json_decref(config);
 
             LoadCurrentPatch();
         }
@@ -68,38 +65,32 @@ public:
 
     void SavePatch()
     {
-        json_t* json = m_nonagon.ToJSON();
+        JSON json = m_nonagon.ToJSON();
         m_fileManager.SavePatch(json);
-        json_decref(json);
     }
 
     void SavePatchAs()
     {
-        json_t* json = m_nonagon.ToJSON();
+        JSON json = m_nonagon.ToJSON();
         m_fileManager.SavePatchAs(json);
-        json_decref(json);
     }
 
     void LoadPatch(juce::String filename)
     {
-        json_t* patch = m_fileManager.LoadPatch(filename);
-        if (patch)
+        JSON patch = m_fileManager.LoadPatch(filename);
+        if (!patch.IsNull())
         {
             m_nonagon.FromJSON(patch);
         }
-
-        json_decref(patch);
     }
 
     void LoadCurrentPatch()
     {
-        json_t* patch = m_fileManager.LoadCurrentPatch();
-        if (patch)
+        JSON patch = m_fileManager.LoadCurrentPatch();
+        if (!patch.IsNull())
         {
             m_nonagon.FromJSON(patch);
         }
-
-        json_decref(patch);
     }
 
     //==============================================================================

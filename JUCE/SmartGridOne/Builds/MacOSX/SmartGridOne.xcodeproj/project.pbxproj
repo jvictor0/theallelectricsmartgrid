@@ -401,14 +401,9 @@
 				INFOPLIST_FILE = Info-App.plist;
 				INFOPLIST_PREPROCESS = NO;
 				INSTALL_PATH = "$(HOME)/Applications";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"\"/opt/homebrew/lib\"",
-				);
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_HEADER_SEARCH_PATHS = "$(SRCROOT)/../../JuceLibraryCode $(HOME)/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include";
-				OTHER_LDFLAGS = "-ljansson -I/opt/homebrew/include";
 				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.SmartGridOne;
 				PRODUCT_NAME = "SmartGridOne";
 				USE_HEADERMAP = NO;
@@ -469,13 +464,8 @@
 				INFOPLIST_FILE = Info-App.plist;
 				INFOPLIST_PREPROCESS = NO;
 				INSTALL_PATH = "$(HOME)/Applications";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"\"/opt/homebrew/lib\"",
-				);
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_HEADER_SEARCH_PATHS = "$(SRCROOT)/../../JuceLibraryCode $(HOME)/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include";
-				OTHER_LDFLAGS = "-ljansson -I/opt/homebrew/include";
 				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.SmartGridOne;
 				PRODUCT_NAME = "SmartGridOne";
 				USE_HEADERMAP = NO;

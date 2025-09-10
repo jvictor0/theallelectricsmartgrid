@@ -220,7 +220,7 @@ struct MultiPhasorGateInternal
 
         void SetInput(Input& input)
         {
-            for (size_t i = 0; i < x_maxPoly; ++i)
+            for (size_t i = 0; i < x_numVoices; ++i)
             {
                 size_t trioId = i / x_voicesPerTrio;
                 size_t ixToCheck = m_unisonMaster[trioId] == -1 ? i : m_unisonMaster[trioId];

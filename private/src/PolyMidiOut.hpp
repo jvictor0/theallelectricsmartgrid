@@ -67,22 +67,23 @@ struct PolyMidi : public Module
 
     json_t* dataToJson() override
     {
-		json_t* rootJ = json_object();
-		json_object_set_new(rootJ, "midiOut", m_output.toJson());
-        json_object_set_new(rootJ, "state", m_stateSaver.ToJSON());
-		return rootJ;
+		JSON rootJ = JSON::Object();
+		rootJ.SetNew("midiOut", m_output.toJson());
+        rootJ.SetNew("state", m_stateSaver.ToJSON());
+		return rootJ.m_json;
 	}
 
 	void dataFromJson(json_t* rootJ) override
     {
-        json_t* midiJ = json_object_get(rootJ, "midiOut");
-		if (midiJ)
+        JSON root = JSON(rootJ);
+        JSON midiJ = root.Get("midiOut");
+		if (!midiJ.IsNull())
         {
-			m_output.fromJson(midiJ);
+			m_output.fromJson(midiJ.m_json);
         }
 
-        midiJ = json_object_get(rootJ, "state");
-        if (midiJ)
+        midiJ = root.Get("state");
+        if (!midiJ.IsNull())
         {
             m_stateSaver.SetFromJSON(midiJ);
         }

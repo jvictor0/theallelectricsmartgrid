@@ -68,11 +68,11 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoy.SaveJSON();
     }
 
-    json_t* ToJSON()
+    JSON ToJSON()
     {
-        json_t* rootJ = json_object();
-        json_object_set_new(rootJ, "nonagon", m_nonagon.ToJSON());
-        json_object_set_new(rootJ, "squiggleBoy", m_squiggleBoy.ToJSON());
+        JSON rootJ = JSON::Object();
+        rootJ.SetNew("nonagon", m_nonagon.ToJSON());
+        rootJ.SetNew("squiggleBoy", m_squiggleBoy.ToJSON());
         return rootJ;
     }
 
@@ -82,16 +82,16 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoy.LoadSavedJSON();
     }
 
-    void FromJSON(json_t* rootJ)
+    void FromJSON(JSON rootJ)
     {
-        json_t* nonagonJ = json_object_get(rootJ, "nonagon");
-        if (nonagonJ)
+        JSON nonagonJ = rootJ.Get("nonagon");
+        if (!nonagonJ.IsNull())
         {
             m_nonagon.FromJSON(nonagonJ);
         }
 
-        json_t* squiggleBoyJ = json_object_get(rootJ, "squiggleBoy");
-        if (squiggleBoyJ)
+        JSON squiggleBoyJ = rootJ.Get("squiggleBoy");
+        if (!squiggleBoyJ.IsNull())
         {
             m_squiggleBoy.FromJSON(squiggleBoyJ);
         }

@@ -403,71 +403,71 @@ struct BankedEncoderCell : public StateEncoderCell
         m_forceUpdate = false;
     }
 
-    json_t* ToJSON() 
+    JSON ToJSON() 
     {
-        json_t* rootJ = json_object();
-        json_object_set_new(rootJ, "values", StateEncoderCell::ToJSON());
+        JSON rootJ = JSON::Object();
+        rootJ.SetNew("values", StateEncoderCell::ToJSON());
         if (m_modulators.m_numActiveModulators > 0)
         {
-            json_t* modulatorsJ = json_array();
+            JSON modulatorsJ = JSON::Array();
             for (size_t i = 0; i < x_numModulators; ++i)
             {
                 if (m_modulators.m_modulators[i].get())
                 {
-                    json_array_append_new(modulatorsJ, m_modulators.m_modulators[i]->ToJSON());
+                    modulatorsJ.AppendNew(m_modulators.m_modulators[i]->ToJSON());
                 }
                 else
                 {
-                    json_array_append_new(modulatorsJ, json_null());
+                    modulatorsJ.AppendNew(JSON::Null());
                 }
             }
 
-            json_object_set_new(rootJ, "modulators", modulatorsJ);
+            rootJ.SetNew("modulators", modulatorsJ);
         }
 
         if (m_type == EncoderType::GestureParam)
         {
-            json_t* activeJ = json_array();
+            JSON activeJ = JSON::Array();
             for (size_t i = 0; i < StateEncoderCell::SceneManager::x_numScenes; ++i)
             {
                 for (size_t j = 0; j < 16; ++j)
                 {
-                    json_array_append_new(activeJ, json_boolean(m_isActive[i][j]));
+                    activeJ.AppendNew(JSON::Boolean(m_isActive[i][j]));
                 }
             }
 
-            json_object_set_new(rootJ, "active", activeJ);
+            rootJ.SetNew("active", activeJ);
         }
 
-        json_object_set_new(rootJ, "defaultValue", json_real(m_defaultValue));
+        rootJ.SetNew("defaultValue", JSON::Real(m_defaultValue));
 
         return rootJ;
     }
 
-    void FromJSON(json_t* rootJ)
+    void FromJSON(JSON rootJ)
     {
-        json_t* valuesJ = json_object_get(rootJ, "values");
-        if (valuesJ)
+        JSON valuesJ = rootJ.Get("values");
+        if (!valuesJ.IsNull())
         {
             StateEncoderCell::FromJSON(valuesJ);
         }        
 
-        json_t* defaultValueJ = json_object_get(rootJ, "defaultValue");
-        if (defaultValueJ)
+        JSON defaultValueJ = rootJ.Get("defaultValue");
+        if (!defaultValueJ.IsNull())
         {
-            m_defaultValue = json_real_value(defaultValueJ);
+            m_defaultValue = defaultValueJ.RealValue();
         }
         
-        json_t* modulatorsJ = json_object_get(rootJ, "modulators");
+        JSON modulatorsJ = rootJ.Get("modulators");
         m_modulators.ClearAll();
-        if (modulatorsJ)
+        if (!modulatorsJ.IsNull())
         {
             for (size_t i = 0; i < x_numModulators; ++i)
             {
-                json_t* modulatorJ = json_array_get(modulatorsJ, i);
-                if (modulatorJ)
+                JSON modulatorJ = modulatorsJ.GetAt(i);
+                if (!modulatorJ.IsNull())
                 {
-                    if (json_is_null(modulatorJ))
+                    if (modulatorJ.IsNull())
                     {
                         m_modulators.m_modulators[i] = nullptr;
                     }
@@ -488,14 +488,14 @@ struct BankedEncoderCell : public StateEncoderCell
             }
         }
 
-        json_t* activeJ = json_object_get(rootJ, "active");
-        if (activeJ)
+        JSON activeJ = rootJ.Get("active");
+        if (!activeJ.IsNull())
         {
             for (size_t i = 0; i < StateEncoderCell::SceneManager::x_numScenes; ++i)
             {
                 for (size_t j = 0; j < 16; ++j)
                 {
-                    m_isActive[i][j] = json_boolean_value(json_array_get(activeJ, i * 16 + j));
+                    m_isActive[i][j] = activeJ.GetAt(i * 16 + j).BooleanValue();
                 }
             }
         }
@@ -891,27 +891,27 @@ struct EncoderBankInternal : public EncoderGrid
         m_modulatorTypes[index] = type;
     }
 
-    json_t* ToJSON()
+    JSON ToJSON()
     {
-        json_t* rootJ = json_array();
+        JSON rootJ = JSON::Array();
         for (size_t i = 0; i < 4; ++i)
         {
             for (size_t j = 0; j < 4; ++j)
             {
-                json_array_append_new(rootJ, GetBase(i, j)->ToJSON());
+                rootJ.AppendNew(GetBase(i, j)->ToJSON());
             }
         }
 
         return rootJ;
     }
 
-    void FromJSON(json_t* rootJ)
+    void FromJSON(JSON rootJ)
     {
         for (size_t i = 0; i < 4; ++i)
         {
             for (size_t j = 0; j < 4; ++j)
             {
-                GetBase(i, j)->FromJSON(json_array_get(rootJ, i * 4 + j));
+                GetBase(i, j)->FromJSON(rootJ.GetAt(i * 4 + j));
             }
         }
     }    
@@ -1064,7 +1064,7 @@ struct EncoderBank : Module
     EncoderBankInternal m_bank;
     EncoderBankInternal::Input m_state;
 
-    json_t* m_savedJSON;
+    JSON m_savedJSON;
     
     IOMgr m_ioMgr;
     IOMgr::Output* m_output[4][4];
@@ -1077,7 +1077,7 @@ struct EncoderBank : Module
     EncoderBankIOManager m_bankIOMgr;
 
     EncoderBank()
-        : m_savedJSON(nullptr)
+        : m_savedJSON(JSON::Null())
         , m_ioMgr(this)
         , m_bankIOMgr(&m_ioMgr, &m_state)
     {
@@ -1187,38 +1187,37 @@ struct EncoderBank : Module
 
     json_t* dataToJson() override
     {
-        json_t* rootJ = json_object();
-        json_t* encoders = nullptr;
+        JSON rootJ = JSON::Object();
+        JSON encoders;
 
-        if (m_savedJSON)
+        if (!m_savedJSON.IsNull())
         {
-            encoders = json_incref(m_savedJSON);
+            encoders = m_savedJSON.Incref();
         }
         else
         {
-            encoders = json_array();
+            encoders = JSON::Array();
             for (int i = 0; i < 4; ++i)
             {
                 for (int j = 0; j < 4; ++j)
                 {
-                    json_array_append_new(encoders, m_bank.GetBase(i, j)->ToJSON());
+                    encoders.AppendNew(m_bank.GetBase(i, j)->ToJSON());
                 }
             }
         }
 
-        json_object_set_new(rootJ, "encoders", encoders);
-        return rootJ;
+        rootJ.SetNew("encoders", encoders);
+        return static_cast<json_t*>(rootJ.ToJsonT());
     }
 
     void SaveJSON()
     {
-        json_decref(m_savedJSON);
         m_savedJSON = m_bank.ToJSON();
     }
 
     void LoadSavedJSON()
     {
-        if (m_savedJSON)
+        if (!m_savedJSON.IsNull())
         {
             m_bank.FromJSON(m_savedJSON);
         }
@@ -1226,20 +1225,21 @@ struct EncoderBank : Module
 
     void dataFromJson(json_t* rootJ) override
     {
-        json_t* encoders = json_object_get(rootJ, "encoders");
+        JSON root = JSON::FromJsonT(rootJ);
+        JSON encoders = root.Get("encoders");
 
-        if (encoders)
+        if (!encoders.IsNull())
         {
             for (int i = 0; i < 4; ++i)
             {
                 for (int j = 0; j < 4; ++j)
                 {
-                    m_bank.GetBase(i, j)->FromJSON(json_array_get(encoders, i * 4 + j));
+                    m_bank.GetBase(i, j)->FromJSON(encoders.GetAt(i * 4 + j));
                 }
             }
         }
 
-        m_savedJSON = json_incref(encoders);
+        m_savedJSON = encoders.Incref();
     }
 
     void SetAsDefault()

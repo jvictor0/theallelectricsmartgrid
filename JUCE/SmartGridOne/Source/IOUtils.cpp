@@ -2,7 +2,7 @@
 #include "MainComponent.h"
 
 //==============================================================================
-void FileManager::PersistConfig(json_t* config)
+void FileManager::PersistConfig(JSON config)
 {
     juce::File configDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("SmartGridOne");
     configDir.createDirectory(); 
@@ -13,14 +13,13 @@ void FileManager::PersistConfig(json_t* config)
 
     juce::Logger::writeToLog("Saving Config: " + configFile.getFullPathName());
 
-    char* configStr = json_dumps(config, JSON_ENCODE_ANY);
-
-    configFile.replaceWithText(configStr);
-
-    free(static_cast<void*>(configStr));
+    char* configStr = config.Dumps(JSON_ENCODE_ANY);
+    juce::String configString(configStr);
+    free(configStr);
+    configFile.replaceWithText(configString);
 }    
 
-json_t* FileManager::LoadConfig()
+JSON FileManager::LoadConfig()
 {
     juce::File configDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("SmartGridOne");
     configDir.createDirectory(); 
@@ -29,33 +28,32 @@ json_t* FileManager::LoadConfig()
 
     if (!configFile.exists())
     {
-        return nullptr;
+        return JSON::Null();
     }
 
     juce::Logger::writeToLog("Loading Config: " + configFile.getFullPathName());
 
     juce::String configString = configFile.loadFileAsString();
-    json_t* config = json_loads(configString.toUTF8().getAddress(), 0, nullptr);
-
-    return config;
+    return JSON::Loads(configString.toUTF8().getAddress(), 0, nullptr);
 }
 
-void FileManager::PersistJSON(json_t* json, juce::String filename)
+void FileManager::PersistJSON(JSON json, juce::String filename)
 {
     juce::File file(filename);
-    char* jsonStr = json_dumps(json, JSON_ENCODE_ANY);
-    file.replaceWithText(jsonStr);
-    free(static_cast<void*>(jsonStr));
+    char* jsonStr = json.Dumps(JSON_ENCODE_ANY);
+    juce::String jsonString(jsonStr);
+    free(jsonStr);
+    file.replaceWithText(jsonString);
 }
 
-json_t* FileManager::LoadJSON(juce::String filename)
+JSON FileManager::LoadJSON(juce::String filename)
 {
     juce::File file(filename);
     juce::String jsonString = file.loadFileAsString();
-    return json_loads(jsonString.toUTF8().getAddress(), 0, nullptr);
+    return JSON::Loads(jsonString.toUTF8().getAddress(), 0, nullptr);
 }
 
-void FileManager::SavePatch(json_t* json)
+void FileManager::SavePatch(JSON json)
 {
     if (m_fileChooser.get())
     {
@@ -70,7 +68,6 @@ void FileManager::SavePatch(json_t* json)
         m_fileChooser = std::make_unique<juce::FileChooser>("Save Patch", smartGridDir, "*.json");
         int flags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles;
         
-        json_incref(json);
         m_fileChooser->launchAsync(flags, [this, json](const juce::FileChooser& chooser)
         {
             m_currentPatchFilename = chooser.getResult().getFullPathName();
@@ -80,7 +77,6 @@ void FileManager::SavePatch(json_t* json)
                 PersistJSON(json, m_currentPatchFilename);
             }
             
-            json_decref(json);
             m_fileChooser.reset(); // Release the FileChooser
             m_mainComponent->SaveConfig();
         });
@@ -92,44 +88,44 @@ void FileManager::SavePatch(json_t* json)
     }
 }
 
-void FileManager::SavePatchAs(json_t* json)
+void FileManager::SavePatchAs(JSON json)
 {
     m_currentPatchFilename = "";
     SavePatch(json);
 }
 
-json_t* FileManager::LoadPatch(juce::String filename)
+JSON FileManager::LoadPatch(juce::String filename)
 {
     juce::Logger::writeToLog("Load Patch: " + filename);
-    json_t* json = LoadJSON(filename);
+    JSON json = LoadJSON(filename);
     m_currentPatchFilename = filename;
     return json;
 }
 
-json_t* FileManager::LoadCurrentPatch()
+JSON FileManager::LoadCurrentPatch()
 {
     if (m_currentPatchFilename.isEmpty())
     {
-        return nullptr;
+        return JSON::Null();
     }
     
     juce::Logger::writeToLog("Load Current Patch: " + m_currentPatchFilename);
     return LoadPatch(m_currentPatchFilename);
 }
 
-json_t* FileManager::ToJSON()
+JSON FileManager::ToJSON()
 {
-    json_t* json = json_object();
-    json_object_set_new(json, "filename", json_string(m_currentPatchFilename.toUTF8().getAddress()));
+    JSON json = JSON::Object();
+    json.SetNew("filename", JSON::String(m_currentPatchFilename.toUTF8().getAddress()));
     return json;
 }
 
-void FileManager::FromJSON(json_t* json)
+void FileManager::FromJSON(JSON json)
 {
-    json_t* filenameJ = json_object_get(json, "filename");
-    if (filenameJ)
+    JSON filenameJ = json.Get("filename");
+    if (!filenameJ.IsNull())
     {
-        m_currentPatchFilename = json_string_value(filenameJ);
+        m_currentPatchFilename = juce::String(filenameJ.StringValue());
     }
     else
     {

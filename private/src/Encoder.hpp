@@ -218,35 +218,35 @@ struct StateEncoderCell : public EncoderCell
     bool m_exponential;
     SceneManager* m_sceneManager;
 
-    json_t* ToJSON()
+    JSON ToJSON()
     {
-        json_t* root = json_object();
-        json_t* values = json_array();
+        JSON root = JSON::Object();
+        JSON values = JSON::Array();
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
-            json_t* sceneValues = json_array();
+            JSON sceneValues = JSON::Array();
             for (size_t j = 0; j < m_numTracks; ++j)
             {
-                json_array_append_new(sceneValues, json_real(m_values[j][i]));
+                sceneValues.AppendNew(JSON::Real(m_values[j][i]));
             }
             
-            json_array_append_new(values, sceneValues);
+            values.AppendNew(sceneValues);
         }
         
-        json_object_set_new(root, "values", values);
+        root.SetNew("values", values);
         return root;
     }
 
-    void FromJSON(json_t* root)
+    void FromJSON(JSON root)
     {
-        json_t* values = json_object_get(root, "values");
+        JSON values = root.Get("values");
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
-            json_t* sceneValues = json_array_get(values, i);
-            m_numTracks = json_array_size(sceneValues);
+            JSON sceneValues = values.GetAt(i);
+            m_numTracks = sceneValues.Size();
             for (size_t j = 0; j < m_numTracks; ++j)
             {
-                m_values[j][i] = json_real_value(json_array_get(sceneValues, j));
+                m_values[j][i] = sceneValues.GetAt(j).RealValue();
             }
         }
 
