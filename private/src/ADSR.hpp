@@ -64,20 +64,24 @@ struct ADSR
     };
 
     State m_state;
+    bool m_changed;
     float m_output;
 
     ADSR()
         : m_state(State::Idle)
+        , m_changed(false)
         , m_output(0.0f)
     {
     }
 
     float Process(Input& input)
     {
+        m_changed = false;
         if (input.m_gate)
         {
             if (m_state == State::Idle || m_state == State::DecayNoGate || m_state == State::Release || input.m_trig)
             {
+                m_changed = m_state != State::Attack;
                 m_state = State::Attack;
             }
         }
@@ -85,10 +89,12 @@ struct ADSR
         {
             if (m_state == State::Decay || m_state == State::Attack)
             {                
+                m_changed = m_state != State::DecayNoGate;
                 m_state = State::DecayNoGate;
             } 
             else if (m_state == State::Sustain)
             {
+                m_changed = m_state != State::Release;
                 m_state = State::Release;
             }
         }
@@ -119,11 +125,13 @@ struct ADSR
                 {
                     if (m_state == State::Decay)
                     {
+                        m_changed = m_state != State::Sustain;
                         m_state = State::Sustain;
                         m_output = input.m_sustainLevel;
                     }
                     else
                     {
+                        m_changed = m_state != State::Release;
                         m_state = State::Release;
                     }
                 }
@@ -140,6 +148,7 @@ struct ADSR
                 m_output -= input.m_releaseIncrement;
                 if (m_output <= 0.0f)
                 {
+                    m_changed = m_state != State::Idle;
                     m_state = State::Idle;
                     m_output = 0.0f;
                 }

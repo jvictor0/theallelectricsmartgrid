@@ -187,9 +187,21 @@ struct PadComponent : public juce::Component
         m_isPressed = true;
     }
     
+    void OnPress(size_t timestamp)
+    {
+        m_padUI.OnPress(timestamp);
+        m_isPressed = true;
+    }
+    
     void mouseUp(const juce::MouseEvent& event) override
     {
         m_padUI.OnRelease(event.eventTime.getMilliseconds() * 1000);
+        m_isPressed = false;
+    }
+    
+    void OnRelease(size_t timestamp)
+    {
+        m_padUI.OnRelease(timestamp);
         m_isPressed = false;
     }
     

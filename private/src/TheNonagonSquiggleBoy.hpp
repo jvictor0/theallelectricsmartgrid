@@ -228,6 +228,8 @@ struct TheNonagonSquiggleBoyInternal
 
         m_output = m_squiggleBoy.m_output;
 
+        m_squiggleBoyUIState.m_scopeWriter.AdvanceIndex();
+
         return m_output;
     }
 
@@ -262,6 +264,7 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.Config(m_squiggleBoyState);
         ConfigureEncoders();
+        m_squiggleBoy.SetupAudioScopeWriters(&m_squiggleBoyUIState.m_scopeWriter);
     }
 
     struct SaveLoadJSONCell : SmartGrid::Cell

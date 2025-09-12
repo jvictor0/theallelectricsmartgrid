@@ -505,6 +505,16 @@ struct NonagonWrapper
         return m_wrldBldr.MkAnalogUI(ix);
     }
 
+    ScopeWriter* GetAudioScopeWriter()
+    {
+        return &m_internal.m_squiggleBoyUIState.m_scopeWriter;
+    }
+
+    TheNonagonSquiggleBoyWrldBldr::DisplayMode GetDisplayMode()
+    {
+        return m_wrldBldr.m_nonagon.m_uiState.m_displayMode.load();
+    }
+
     void Process(const juce::AudioSourceChannelInfo& bufferToFill)
     {
         double wallclockUs = juce::Time::getMillisecondCounterHiRes() * 1000;

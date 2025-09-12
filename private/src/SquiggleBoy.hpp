@@ -14,9 +14,19 @@
 #include "QuadDelay.hpp"
 #include "PolyXFader.hpp"
 #include "GangedRandomLFO.hpp"
+#include "ScopeWriter.hpp"
 
 struct SquiggleBoyVoice
 {
+    enum class AudioScopes : size_t
+    {
+        VCO1 = 0,
+        VCO2 = 1,
+        PostFilter = 2,
+        PostAmp = 3,
+        NumScopes = 4
+    };
+
     struct VCOSection
     {
         static constexpr size_t x_oversample = 4;
@@ -29,7 +39,10 @@ struct SquiggleBoyVoice
 
         ButterworthFilter m_antiAliasFilter;
 
+        bool m_top;
         float m_output;
+
+        ScopeWriterHolder m_scopeWriter[2];
 
         struct Input
         {
@@ -77,6 +90,8 @@ struct SquiggleBoyVoice
                 std::powf(2, (2 * m_driftLFO[1].Process() - 1) * m_state.m_driftFreqFactor)
             };
 
+            bool top[2] = {false, false};
+
             for (size_t i = 0; i < x_oversample; ++i)
             {
                 float interp = (i + 1) / static_cast<float>(x_oversample);
@@ -101,6 +116,9 @@ struct SquiggleBoyVoice
                 vcoInput[1].m_phaseMod = m_vco[0].m_out * (m_state.m_crossModIndex[1] + interp * (input.m_crossModIndex[1] - m_state.m_crossModIndex[1]));
                 m_vco[1].Process(vcoInput[1], 0 /*unused*/);
 
+                top[0] = top[0] || m_vco[0].m_top;
+                top[1] = top[1] || m_vco[1].m_top;
+
                 float fade = m_state.m_fade + interp * (input.m_fade - m_state.m_fade);
                 float mixed = m_vco[0].m_out * std::cos(fade * M_PI / 2) + m_vco[1].m_out * std::sin(fade * M_PI / 2);
 
@@ -115,8 +133,22 @@ struct SquiggleBoyVoice
                 m_output += m_antiAliasFilter.Process(saturated);
             }
 
+            m_scopeWriter[0].Write(m_vco[0].m_out);
+            m_scopeWriter[1].Write(m_vco[1].m_out);
+            if (top[0])
+            {
+                m_scopeWriter[0].RecordStart();
+            }
+
+            if (top[1])
+            {
+                m_scopeWriter[1].RecordStart();
+            }
+
             m_output /= x_oversample;
             m_state = input;
+
+            m_top = top[0];
 
             return m_output;
         }
@@ -132,6 +164,8 @@ struct SquiggleBoyVoice
         SampleRateReducer m_sampleRateReducer;
 
         float m_output;
+
+        ScopeWriterHolder m_scopeWriter;
 
         FilterSection()
             : m_output(0)
@@ -169,7 +203,7 @@ struct SquiggleBoyVoice
             }
         };
         
-        float Process(Input& input, float vcoOutput)
+        float Process(Input& input, float vcoOutput, bool top)
         {
             m_highPassFilter.SetAlphaFromNatFreq(input.m_vcoBaseFreq * input.m_bwBase.m_expParam);
             m_lowPassFilter.SetAlphaFromNatFreq(input.m_vcoBaseFreq * input.m_bwBase.m_expParam * input.m_bwWidth.m_expParam);
@@ -185,6 +219,12 @@ struct SquiggleBoyVoice
             m_sampleRateReducer.SetFreq(input.m_vcoBaseFreq * input.m_sampleRateReducerFreq.m_expParam);
             m_output = m_sampleRateReducer.Process(m_output);
 
+            m_scopeWriter.Write(m_output);
+            if (top)
+            {
+                m_scopeWriter.RecordStart();
+            }
+
             return m_output;
         }
     };
@@ -195,12 +235,16 @@ struct SquiggleBoyVoice
 
         float m_output;
 
+        ScopeWriterHolder m_scopeWriter;
+
         struct Input
         {
             ADSR::InputSetter m_adsrInputSetter;
             ADSR::Input m_adsrInput;
 
             PhaseUtils::ZeroedExpParam m_gain;
+
+            ScopeWriterHolder m_scopeWriter;
 
             void SetADSR(float attack, float decay, float sustain, float release)
             {
@@ -220,7 +264,20 @@ struct SquiggleBoyVoice
         float Process(Input& input, float filterOutput)
         {
             float adsrEnv = m_adsr.Process(input.m_adsrInput);
-            m_output = input.m_gain.m_expParam * adsrEnv * filterOutput;
+            float preFader = adsrEnv * filterOutput;
+            
+            m_scopeWriter.Write(preFader);
+            if (input.m_adsrInput.m_trig)
+            {
+                m_scopeWriter.RecordStart();
+            }
+
+            if (m_adsr.m_changed && m_adsr.m_state == ADSR::State::Idle)
+            {
+                m_scopeWriter.RecordEnd();
+            }
+
+            m_output = input.m_gain.m_expParam * preFader;
 
             return m_output;
         }
@@ -301,6 +358,14 @@ struct SquiggleBoyVoice
         }
     };
 
+    void SetupAudioScopeWriters(ScopeWriter* scopeWriter, size_t voiceIx)
+    {
+        m_vco.m_scopeWriter[0] = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(AudioScopes::VCO1));
+        m_vco.m_scopeWriter[1] = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(AudioScopes::VCO2));
+        m_filter.m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(AudioScopes::PostFilter));
+        m_amp.m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(AudioScopes::PostAmp));
+    }
+
     OPLowPassFilter m_baseFreqSlew;
     PhaseUtils::ExpParam m_baseFreqSlewAmount;
     VCOSection m_vco;
@@ -350,7 +415,7 @@ struct SquiggleBoyVoice
     float Processs(Input& input)
     {
         m_output = m_vco.Process(input.m_vcoInput);
-        m_output = m_filter.Process(input.m_filterInput, m_output);
+        m_output = m_filter.Process(input.m_filterInput, m_output, m_vco.m_top);
         m_output = m_amp.Process(input.m_ampInput, m_output);
         m_pan.Process(input.m_panInput);
         m_squiggleLFO[0].Process(input.m_squiggleLFOInput[0]);
@@ -408,6 +473,14 @@ struct SquiggleBoy
             m_globalGangedRandomLFOInput[i].m_time = 6.0;
             m_globalGangedRandomLFOInput[i].m_sigma = 0.2;
             m_globalGangedRandomLFOInput[i].m_numGangs = 1;
+        }
+    }
+
+    void SetupAudioScopeWriters(ScopeWriter* scopeWriter)
+    {
+        for (size_t i = 0; i < x_numVoices; ++i)
+        {
+            m_voices[i].SetupAudioScopeWriters(scopeWriter, i);
         }
     }
 
@@ -486,6 +559,12 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     struct UIState
     {
         EncoderBankUIState m_encoderBankUIState;
+        ScopeWriter m_scopeWriter;
+
+        UIState()
+            : m_scopeWriter(x_numVoices, static_cast<size_t>(SquiggleBoyVoice::AudioScopes::NumScopes))
+        {
+        }
     };
 
     struct Input
@@ -954,6 +1033,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         m_voiceEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
         m_globalEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
+        uiState->m_scopeWriter.Publish();
     }
 
     void Process(Input& input, float deltaT)

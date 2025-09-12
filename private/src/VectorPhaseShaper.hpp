@@ -21,6 +21,7 @@ struct VectorPhaseShaperInternal
     float m_out;
     float m_dScale;
     float m_phaseMod;
+    bool m_top;
 
     struct Input
     {
@@ -73,6 +74,7 @@ struct VectorPhaseShaperInternal
         , m_out(0)
         , m_dScale(1.0f)
         , m_phaseMod(0)
+        , m_top(false)
     {
         m_waveTable = &WaveTable::GetCosine();
         SetDV(0.5, 0.5);
@@ -113,9 +115,11 @@ struct VectorPhaseShaperInternal
     
     void UpdatePhase()
     {
+        m_top = false;
         m_phase += m_freq;
         while (m_phase >= 1)
         {
+            m_top = true;
             m_phase -= 1;
         }
     }

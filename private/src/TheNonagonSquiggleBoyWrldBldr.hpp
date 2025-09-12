@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TheNonagonSquiggleBoy.hpp"
+#include "ShiftedCell.hpp"
 
 struct TheNonagonSquiggleBoyWrldBldr
 {
@@ -9,10 +10,14 @@ struct TheNonagonSquiggleBoyWrldBldr
         ComuteAndTheory = 0,
         Matrix = 1,
         Intervals = 2,
-        Water = 3,
-        Earth = 4,
-        Fire = 5,
-        NumGrids = 6,
+        SubSequencer = 3,
+        NumGrids = 4,
+    };
+
+    enum class DisplayMode : uint8_t
+    {
+        Controller,
+        AudioScope
     };
 
     SmartGrid::Grid* GetLeftGrid(GridsMode mode)
@@ -25,12 +30,20 @@ struct TheNonagonSquiggleBoyWrldBldr
                 return m_internal->m_nonagon.m_lameJuisMatrixGrid;
             case GridsMode::Intervals:
                 return m_internal->m_nonagon.m_lameJuisCoMuteGrid;
-            case GridsMode::Water:
-                return m_internal->m_nonagon.m_sheafViewGridWaterGrid;
-            case GridsMode::Earth:
-                return m_internal->m_nonagon.m_sheafViewGridEarthGrid;
-            case GridsMode::Fire:
-                return m_internal->m_nonagon.m_sheafViewGridFireGrid;
+            case GridsMode::SubSequencer:
+            {
+                switch (m_internal->m_activeTrio)
+                {
+                    case TheNonagonSmartGrid::Trio::Water:
+                        return m_internal->m_nonagon.m_sheafViewGridWaterGrid;
+                    case TheNonagonSmartGrid::Trio::Earth:
+                        return m_internal->m_nonagon.m_sheafViewGridEarthGrid;
+                    case TheNonagonSmartGrid::Trio::Fire:
+                        return m_internal->m_nonagon.m_sheafViewGridFireGrid;
+                    case TheNonagonSmartGrid::Trio::NumTrios:
+                        return nullptr;
+                }
+            }
             default:
                 return nullptr;
         }
@@ -46,12 +59,20 @@ struct TheNonagonSquiggleBoyWrldBldr
                 return m_internal->m_nonagon.m_lameJuisRHSGrid;
             case GridsMode::Intervals:
                 return m_internal->m_nonagon.m_lameJuisIntervalGrid;
-            case GridsMode::Water:
-                return m_internal->m_nonagon.m_indexArpWaterGrid;
-            case GridsMode::Earth:
-                return m_internal->m_nonagon.m_indexArpEarthGrid;
-            case GridsMode::Fire:
-                return m_internal->m_nonagon.m_indexArpFireGrid;
+            case GridsMode::SubSequencer:
+            {
+                switch (m_internal->m_activeTrio)
+                {
+                    case TheNonagonSmartGrid::Trio::Water:
+                        return m_internal->m_nonagon.m_indexArpWaterGrid;
+                    case TheNonagonSmartGrid::Trio::Earth:
+                        return m_internal->m_nonagon.m_indexArpEarthGrid;
+                    case TheNonagonSmartGrid::Trio::Fire:
+                        return m_internal->m_nonagon.m_indexArpFireGrid;
+                    case TheNonagonSmartGrid::Trio::NumTrios:
+                        return nullptr;
+                }
+            }
             default:
                 return nullptr;
         }
@@ -94,7 +115,51 @@ struct TheNonagonSquiggleBoyWrldBldr
 
         virtual void OnPress(uint8_t velocity) override
         {
+            m_owner->m_uiState.m_displayMode.store(DisplayMode::Controller);
             m_owner->SetGridsMode(m_mode);
+        }
+    };
+
+    struct SetDisplayModeCell : SmartGrid::Cell
+    {
+        TheNonagonSquiggleBoyWrldBldr* m_owner;
+        DisplayMode m_mode;
+        SetDisplayModeCell(TheNonagonSquiggleBoyWrldBldr* owner, DisplayMode mode)
+            : m_owner(owner)
+            , m_mode(mode)
+        {
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            return m_owner->m_uiState.m_displayMode.load() == m_mode ? SmartGrid::Color::Yellow : SmartGrid::Color::Yellow.Dim();
+        }
+
+        virtual void OnPress(uint8_t velocity) override
+        {
+            m_owner->m_uiState.m_displayMode.store(m_mode);
+        }
+    };
+
+    struct SetActiveTrioCell : SmartGrid::Cell
+    {
+        TheNonagonSquiggleBoyWrldBldr* m_owner;
+        TheNonagonSmartGrid::Trio m_trio;
+        SetActiveTrioCell(TheNonagonSquiggleBoyWrldBldr* owner, TheNonagonSmartGrid::Trio trio)
+            : m_owner(owner)
+        {
+            m_trio = trio;
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            return m_owner->m_internal->m_activeTrio == m_trio ? TheNonagonSmartGrid::TrioColor(m_trio) : TheNonagonSmartGrid::TrioColor(m_trio).Dim();
+        }
+
+        virtual void OnPress(uint8_t velocity) override
+        {
+            m_owner->m_internal->SetActiveTrio(m_trio);
+            m_owner->SetGridsMode(m_owner->m_gridsMode);
         }
     };
 
@@ -114,6 +179,8 @@ struct TheNonagonSquiggleBoyWrldBldr
                 Put(i, 1, new SetGridsModeCell(owner, static_cast<GridsMode>(i)));
             }
 
+            Put(SmartGrid::x_baseGridSize - 1, 1, new SetDisplayModeCell(owner, DisplayMode::AudioScope));
+
             for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numGlobalBanks; ++i)
             {
                 Put(i, 2, new SquiggleBoyWithEncoderBank::SelectorCell(
@@ -126,18 +193,64 @@ struct TheNonagonSquiggleBoyWrldBldr
                 Put(i, 3, new SquiggleBoyWithEncoderBank::SelectorCell(&owner->m_internal->m_squiggleBoy, i));
             }
 
-            Put(0, 4, owner->m_internal->MakeRunningCell());
-            Put(0, 5, new TheNonagonSquiggleBoyInternal::RecordCell(owner->m_internal));
-            Put(1, 4, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(owner->m_internal, true));
-            Put(1, 5, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(owner->m_internal, false));
-            Put(3, 4, owner->m_internal->MakeNoiseModeCell());
-            Put(3, 5, new TheNonagonSquiggleBoyInternal::RevertToDefaultCell(owner->m_internal));
+            for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
+            {
+                int xPos = 2 + 2 * i;
+                Put(xPos, 1, new ShiftedCell(
+                    std::shared_ptr<SmartGrid::Cell>(new SetActiveTrioCell(m_owner, static_cast<TheNonagonSmartGrid::Trio>(i))),
+                    GetShared(xPos, 1),
+                    &m_owner->m_internal->m_sceneState.m_shift));
+
+                Put(xPos, 0, new ShiftedCell(
+                    std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(i), 0)),
+                    GetShared(xPos, 0),
+                    &m_owner->m_internal->m_sceneState.m_shift));
+
+                Put(xPos + 1, 0, new ShiftedCell(
+                    std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(i), 1)),
+                    GetShared(xPos + 1, 0),
+                    &m_owner->m_internal->m_sceneState.m_shift));
+
+                Put(xPos + 1, 1, new ShiftedCell(
+                    std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(i), 2)),
+                    GetShared(xPos + 1, 1),
+                    &m_owner->m_internal->m_sceneState.m_shift));
+            }
+
+            Put(0, 0, new ShiftedCell(
+                nullptr,
+                GetShared(0, 0),
+                &m_owner->m_internal->m_sceneState.m_shift));
+
+            Put(0, 1, new ShiftedCell(
+                nullptr,
+                GetShared(0, 1),
+                &m_owner->m_internal->m_sceneState.m_shift));
+
+            Put(1, 0, new ShiftedCell(
+                nullptr,
+                GetShared(1, 0),
+                &m_owner->m_internal->m_sceneState.m_shift));
+
+            Put(1, 1, new ShiftedCell(
+                nullptr,
+                GetShared(1, 1),
+                &m_owner->m_internal->m_sceneState.m_shift));
+                
+            Put(0, 4, m_owner->m_internal->MakeRunningCell());
+            Put(0, 5, new TheNonagonSquiggleBoyInternal::RecordCell(m_owner->m_internal));
+            Put(1, 4, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, true));
+            Put(1, 5, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, false));
+            Put(3, 4, m_owner->m_internal->MakeNoiseModeCell());
+            Put(3, 5, new TheNonagonSquiggleBoyInternal::RevertToDefaultCell(m_owner->m_internal));
+
+            Put(0, 6, m_owner->m_internal->MakeShiftCell());
 
             for (size_t i = 0; i < 4; ++i)
             {
                 for (size_t j = 0; j < 2; ++j)
                 {
-                    Put(i + 4, j + 4, new TimerCell(&owner->m_internal->m_timer, 2 * (i + 4 * j)));
+                    Put(i + 4, j + 4, new TimerCell(&m_owner->m_internal->m_timer, 2 * (i + 4 * j)));
                 }
             }
         }
@@ -146,29 +259,10 @@ struct TheNonagonSquiggleBoyWrldBldr
     void SetGridsMode(GridsMode mode)
     {
         m_gridsMode = mode;
-        m_leftGrid.SetGrid(GetLeftGrid(mode));
-        m_rightGrid.SetGrid(GetRightGrid(mode));
-        switch (mode)
+        if (mode != GridsMode::NumGrids)
         {
-            case GridsMode::Water:
-            {
-                m_internal->SetActiveTrio(TheNonagonSmartGrid::Trio::Water);
-                break;
-            }
-            case GridsMode::Earth:
-            {
-                m_internal->SetActiveTrio(TheNonagonSmartGrid::Trio::Earth);
-                break;
-            }
-            case GridsMode::Fire:
-            {
-                m_internal->SetActiveTrio(TheNonagonSmartGrid::Trio::Fire);
-                break;
-            }
-            default:
-            {
-                break;
-            }
+            m_leftGrid.SetGrid(GetLeftGrid(mode));
+            m_rightGrid.SetGrid(GetRightGrid(mode));
         }
     }
 
@@ -228,6 +322,12 @@ struct TheNonagonSquiggleBoyWrldBldr
     struct UIState
     {
         SmartGrid::SmartBusColor m_colorBus[3];
+        std::atomic<DisplayMode> m_displayMode;
+
+        UIState()
+            : m_displayMode(DisplayMode::Controller)
+        {
+        }
     };
 
     void WriteUIState(UIState& uiState)

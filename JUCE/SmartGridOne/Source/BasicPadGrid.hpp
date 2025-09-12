@@ -116,25 +116,11 @@ struct BasicPadGrid : public juce::Component
         UpdatePadPositions();
     }
     
-    // Get a specific pad by grid coordinates (in global grid space)
+    // Get a specific pad by grid coordinates (in local grid space)
     //
     PadComponent* GetPad(int x, int y)
     {
-        if (x >= m_startX && x < m_endX && y >= m_startY && y < m_endY)
-        {
-            // Convert global coordinates to local index
-            //
-            int localX = x - m_startX;
-            int localY = y - m_startY;
-            int index = localY * m_gridWidth + localX;
-            
-            if (index >= 0 && index < m_pads.size())
-            {
-                return m_pads[index].get();
-            }
-        }
-
-        return nullptr;
+        return GetPad(y * m_gridWidth + x);
     }
     
     // Get pad by local index (0 to gridWidth*gridHeight-1)
@@ -147,6 +133,22 @@ struct BasicPadGrid : public juce::Component
         }
 
         return nullptr;
+    }
+
+    void OnPress(int x, int y, size_t timestamp)
+    {
+        if (GetPad(x, y))
+        {
+            GetPad(x, y)->OnPress(timestamp);
+        }
+    }
+
+    void OnRelease(int x, int y, size_t timestamp)
+    {
+        if (GetPad(x, y))
+        {
+            GetPad(x, y)->OnRelease(timestamp);
+        }
     }
 };
 

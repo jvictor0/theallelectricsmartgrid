@@ -5,6 +5,7 @@
 #include "EncoderGrid.hpp"
 #include "FaderComponent.hpp"
 #include "JoyStickComponent.hpp"
+#include "ScopeComponent.hpp"
 #include "SmartGridInclude.hpp"
 
 struct BasicPadGridHolder
@@ -30,7 +31,22 @@ struct BasicPadGridHolder
         m_gridX = gridX;
         m_gridY = gridY;
     }
-    
+
+    void OnPress(int x, int y, size_t timestamp)
+    {
+        if (m_padGrid)
+        {
+            m_padGrid->OnPress(x, y, timestamp);
+        }
+    }
+
+    void OnRelease(int x, int y, size_t timestamp)
+    {
+        if (m_padGrid)
+        {
+            m_padGrid->OnRelease(x, y, timestamp);
+        }
+    }
     void SetBounds(int cellSize, int mainGridX, int mainGridY)
     {
         if (m_padGrid)
@@ -159,6 +175,49 @@ struct JoyStickHolder
     }
 };
 
+struct ScopeComponentHolder
+{
+    std::unique_ptr<ScopeComponent> m_scopeComponent;
+    int m_gridX;
+    int m_gridY;
+    int m_scopeWidth;
+    int m_scopeHeight;
+    
+    ScopeComponentHolder(std::unique_ptr<ScopeComponent> scopeComponent, int gridX, int gridY, int scopeWidth, int scopeHeight)
+        : m_scopeComponent(std::move(scopeComponent))
+        , m_gridX(gridX)
+        , m_gridY(gridY)
+        , m_scopeWidth(scopeWidth)
+        , m_scopeHeight(scopeHeight)
+    {
+    }
+    
+    void SetPosition(int gridX, int gridY)
+    {
+        m_gridX = gridX;
+        m_gridY = gridY;
+    }
+    
+    void SetSize(int scopeWidth, int scopeHeight)
+    {
+        m_scopeWidth = scopeWidth;
+        m_scopeHeight = scopeHeight;
+    }
+    
+    void SetBounds(int cellSize, int mainGridX, int mainGridY)
+    {
+        if (m_scopeComponent)
+        {
+            int scopeX = mainGridX + (m_gridX * cellSize);
+            int scopeY = mainGridY + (m_gridY * cellSize);
+            int scopeWidth = m_scopeWidth * cellSize;
+            int scopeHeight = m_scopeHeight * cellSize;
+            
+            m_scopeComponent->setBounds(scopeX, scopeY, scopeWidth, scopeHeight);
+        }
+    }
+};
+
 struct WrldBuildrComponent : public juce::Component
 {
     static constexpr int x_gridWidth = 24;
@@ -191,12 +250,48 @@ struct WrldBuildrComponent : public juce::Component
     std::unique_ptr<JoyStickHolder> m_joyStickReturn;
     std::unique_ptr<JoyStickHolder> m_joyStickFixed;
 
+    std::unique_ptr<ScopeComponentHolder> m_audioScope[4];
+
     bool m_drawGrid;
+
+    bool m_initialized;
+
+    bool m_shiftDownLastKeyStateChanged;
+
+    virtual bool keyStateChanged(bool isKeyDown) override
+    {
+        bool shiftDown = juce::ModifierKeys::getCurrentModifiers().isShiftDown();
+        if (shiftDown == m_shiftDownLastKeyStateChanged)
+        {
+            // Not a shift press, don't care.
+            //
+            return false;
+        }
+
+        m_shiftDownLastKeyStateChanged = shiftDown;
+        shiftDown = !shiftDown;
+
+        if (shiftDown)
+        {
+            size_t timestamp = 0;
+            m_leftArcadeGrid->OnPress(0, 0, timestamp);
+            return true;
+        }
+        else
+        {
+            size_t timestamp = 0;
+            m_leftArcadeGrid->OnRelease(0, 0, timestamp);
+            return true;
+        }
+    }
     
     WrldBuildrComponent(NonagonWrapper* nonagonWrapper)
     {
+        m_initialized = false;
+        m_shiftDownLastKeyStateChanged = true;
         m_nonagon = nonagonWrapper;
         setSize(800, 600); // Default size
+        setWantsKeyboardFocus(true);
         
         m_drawGrid = false;
         
@@ -273,6 +368,17 @@ struct WrldBuildrComponent : public juce::Component
         m_joyStickFixed = std::make_unique<JoyStickHolder>(std::move(joyStickReturn), 4, 4);
         addAndMakeVisible(m_joyStickFixed->m_joyStick.get());
 
+        for (int i = 0; i < 4; ++i)
+        {
+            auto audioScope = std::make_unique<ScopeComponent>(0, i, m_nonagon->GetAudioScopeWriter());
+            int xPos = i == 0 ? 0 : 8 * (i - 1);
+            int yPos = i == 0 ? 0 : 8;
+            m_audioScope[i] = std::make_unique<ScopeComponentHolder>(std::move(audioScope), xPos, yPos, 8, 8);
+            addAndMakeVisible(m_audioScope[i]->m_scopeComponent.get());
+        }
+
+        m_initialized = true;
+
         // Calculate initial layout
         //
         CalculateGridLayout();
@@ -319,7 +425,6 @@ struct WrldBuildrComponent : public juce::Component
         }
     }
     
-private:
     void CalculateGridLayout()
     {
         auto bounds = getLocalBounds();
@@ -357,78 +462,84 @@ private:
             m_gridY = (availableHeight - m_gridHeight) / 2;
         }
     }
+
+    void SetDisplayMode()
+    {
+        switch (m_nonagon->GetDisplayMode())
+        {
+            case TheNonagonSquiggleBoyWrldBldr::DisplayMode::Controller:
+            {
+                SetDisplayModeController(true);
+                SetDisplayModeAudioScope(false);
+                break;
+            }
+            case TheNonagonSquiggleBoyWrldBldr::DisplayMode::AudioScope:
+            {
+                SetDisplayModeController(false);
+                SetDisplayModeAudioScope(true);
+                break;
+            }
+        }
+    }
+
+    void SetDisplayModeController(bool isVisible)
+    {
+        m_leftPadGrid->m_padGrid->setVisible(isVisible);
+        m_rightPadGrid->m_padGrid->setVisible(isVisible);
+        m_leftTopGrid->m_padGrid->setVisible(isVisible);
+        m_timerGrid->m_padGrid->setVisible(isVisible);
+        
+        for (int i = 0; i < 8; ++i)
+        {
+            m_faderGrids[i]->m_fader->setVisible(isVisible);
+        }
+
+        m_xFader->m_fader->setVisible(isVisible);
+        m_joyStickReturn->m_joyStick->setVisible(isVisible);
+        m_joyStickFixed->m_joyStick->setVisible(isVisible);
+    }
+
+    void SetDisplayModeAudioScope(bool isVisible)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            m_audioScope[i]->m_scopeComponent->setVisible(isVisible);
+        }
+    }
     
     void UpdatePadGridPosition()
     {
-        if (m_leftPadGrid)
+        if (!m_initialized)
         {
-            m_leftPadGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
+            return;
         }
 
-        if (m_rightPadGrid)
-        {
-            m_rightPadGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
-        }
-
-        if (m_bottomCenterGrid)
-        {
-            m_bottomCenterGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
-        }
-
-        if (m_belowEncodersGrid)
-        {
-            m_belowEncodersGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
-        }
-
-        if (m_leftTopGrid)
-        {
-            m_leftTopGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
-        }
-
-        if (m_timerGrid)
-        {
-            m_timerGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
-        }
-
-        if (m_leftArcadeGrid)
-        {
-            m_leftArcadeGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
-        }
-
-        if (m_rightArcadeGrid)
-        {
-            m_rightArcadeGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
-        }
+        m_leftPadGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_rightPadGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_bottomCenterGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_belowEncodersGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_leftTopGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_timerGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_leftArcadeGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_rightArcadeGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
 
         for (int i = 0; i < 4; ++i)
         {
-            if (m_encoderGrids[i])
-            {
-                m_encoderGrids[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
-            }
+            m_encoderGrids[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
         }
 
         for (int i = 0; i < 8; ++i)
         {
-            if (m_faderGrids[i])
-            {
-                m_faderGrids[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
-            }
+            m_faderGrids[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
         }
 
-        if (m_xFader)
-        {
-            m_xFader->SetBounds(m_cellSize, m_gridX, m_gridY);
-        }
+        m_xFader->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_joyStickReturn->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_joyStickFixed->SetBounds(m_cellSize, m_gridX, m_gridY);
 
-        if (m_joyStickReturn)
+        for (int i = 0; i < 4; ++i)
         {
-            m_joyStickReturn->SetBounds(m_cellSize, m_gridX, m_gridY);
-        }
-
-        if (m_joyStickFixed)
-        {
-            m_joyStickFixed->SetBounds(m_cellSize, m_gridX, m_gridY);
+            m_audioScope[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
         }
     }
 };

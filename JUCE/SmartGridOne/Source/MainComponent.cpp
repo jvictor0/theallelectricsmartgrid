@@ -158,5 +158,6 @@ void MainComponent::timerCallback()
 {
     // Re-renderthe component at 60 FPS
     //
+    m_wrldBuildrGrid->SetDisplayMode();
     repaint();
 }

@@ -450,20 +450,25 @@ struct TheNonagonSmartGrid
     {
         for (size_t i = 0; i < TheNonagonInternal::x_voicesPerTrio; ++i)
         {
-            size_t voiceIx = static_cast<size_t>(t) * TheNonagonInternal::x_voicesPerTrio + i;
             int xPos = (i == 0) ? x : x + 1;
             int yPos = (i < 2) ? y - 1 : y;
-            grid->Put(xPos, yPos, new SmartGrid::StateCell<bool, SmartGrid::BoolFlash>(
-                          SmartGrid::Color::White.Dim(),
-                          VoiceColor(t, i),
-                          SmartGrid::Color::Grey,
-                          TrioColor(t),
-                          &m_state.m_trigLogic.m_mute[static_cast<size_t>(t) * TheNonagonInternal::x_voicesPerTrio + i],
-                          SmartGrid::BoolFlash(&m_nonagon.m_multiPhasorGate.m_preGate[voiceIx]),
-                          false,
-                          true,
-                          SmartGrid::StateCell<bool, SmartGrid::BoolFlash>::Mode::Toggle));
+            grid->Put(xPos, yPos, MakeMuteCell(t, i));
         }
+    }
+
+    SmartGrid::Cell* MakeMuteCell(Trio t, size_t voiceOffset)
+    {
+        size_t voiceIx = static_cast<size_t>(t) * TheNonagonInternal::x_voicesPerTrio + voiceOffset;
+        return new SmartGrid::StateCell<bool, SmartGrid::BoolFlash>(
+            SmartGrid::Color::White.Dim(),
+            VoiceColor(voiceIx),
+            SmartGrid::Color::Grey,
+            TrioColor(t),
+            &m_state.m_trigLogic.m_mute[voiceIx],
+            SmartGrid::BoolFlash(&m_nonagon.m_multiPhasorGate.m_preGate[voiceIx]),
+            false,
+            true,
+            SmartGrid::StateCell<bool, SmartGrid::BoolFlash>::Mode::Toggle);
     }
     
     struct TheoryOfTimeTopologyPage : public SmartGrid::CompositeGrid
