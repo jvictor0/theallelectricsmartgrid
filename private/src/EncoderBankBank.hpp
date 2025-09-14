@@ -55,6 +55,11 @@ struct EncoderBankBankInternal
         {
             m_bankedEncoderCellInput[bank][i][j].m_connected = true;
         }
+
+        void SelectGesture(int gesture)
+        {
+            m_bankedEncoderInternalInput.m_selectedGesture = gesture;
+        }
     };
 
     EncoderBankBankInternal()
@@ -66,7 +71,11 @@ struct EncoderBankBankInternal
     void Process(Input& input, float dt)
     {
         m_frame++;
-        input.m_bankedEncoderInternalInput.m_modulatorValues.ComputeChanged();
+        if (m_frame % x_controlFrameRate == 0)
+        {
+            input.m_bankedEncoderInternalInput.m_modulatorValues.ComputeChanged();
+        }
+        
         m_selectedGridId = m_selectedBank >= 0 ? m_banks[m_selectedBank].m_gridId : SmartGrid::x_numGridIds;
 
         for (size_t i = 0; i < NumBanks; ++i)
@@ -230,5 +239,4 @@ struct EncoderBankBankInternal
             m_banks[m_selectedBank].PopulateUIState(uiState);
         }
     }
-
 };

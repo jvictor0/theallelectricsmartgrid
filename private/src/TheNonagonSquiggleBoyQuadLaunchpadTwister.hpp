@@ -80,6 +80,7 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
             for (int i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
                 Put(i, SmartGrid::x_baseGridSize + 1, new TheNonagonSquiggleBoyInternal::SceneSelectorCell(owner->m_internal, i));
+                Put(i, SmartGrid::x_baseGridSize, new TheNonagonSquiggleBoyInternal::GestureSelectorCell(owner->m_internal, i));
             }
 
             Put(-1, 5, owner->MakeNoiseModeCell());

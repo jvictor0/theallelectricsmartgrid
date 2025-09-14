@@ -15,6 +15,7 @@
 #include "PolyXFader.hpp"
 #include "GangedRandomLFO.hpp"
 #include "ScopeWriter.hpp"
+#include "Blink.hpp"
 
 struct SquiggleBoyVoice
 {
@@ -512,6 +513,7 @@ struct SquiggleBoy
 
         m_reverbState.m_input = m_mixer.m_send[1] + m_mixerState.m_return[0] * m_delayToReverbSend;
         m_mixerState.m_return[1] = m_reverb.Process(m_reverbState);
+        m_reverbState.m_return = m_mixerState.m_return[1];
     }
 
     void Process()
@@ -583,6 +585,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         PhaseUtils::ExpParam m_tempo;
 
         bool m_shift;
+        int m_selectedGesture;
 
         float GetGainFader(size_t i)
         {
@@ -592,6 +595,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         Input()
             : m_tempo(1.0 / 64.0, 4.0)
             , m_shift(false)
+            , m_selectedGesture(-1)
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {
@@ -634,6 +638,19 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_blendFactor = blendFactor;
             m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_blendFactor = blendFactor;
+        }
+
+        void SelectGesture(int gesture)
+        {
+            m_selectedGesture = gesture;
+            m_voiceEncoderBankInput.SelectGesture(gesture);
+            m_globalEncoderBankInput.SelectGesture(gesture);
+        }    
+
+        void SetBlink(bool blink)
+        {
+            m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_blink = blink;
+            m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_blink = blink;
         }
     };
 
@@ -807,18 +824,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_globalEncoderBank.Config(1, 3, 2, 1.0, "Reverb Return", input.m_globalEncoderBankInput);
 
         m_globalEncoderBank.Config(2, 0, 0, 0.5, "Tempo", input.m_globalEncoderBankInput);
-
-        m_voiceEncoderBank.SetModulatorType(0, SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
-        m_voiceEncoderBank.SetModulatorType(1, SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
-        m_voiceEncoderBank.SetModulatorType(12, SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
-        m_voiceEncoderBank.SetModulatorType(13, SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
-        m_voiceEncoderBank.SetModulatorType(14, SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
-
-        m_globalEncoderBank.SetModulatorType(0, SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
-        m_globalEncoderBank.SetModulatorType(1, SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
-        m_globalEncoderBank.SetModulatorType(12, SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
-        m_globalEncoderBank.SetModulatorType(13, SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
-        m_globalEncoderBank.SetModulatorType(14, SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
     }
 
     SquiggleBoyWithEncoderBank()
@@ -831,9 +836,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         SmartGrid::BankedEncoderCell::ModulatorValues& modulatorValues = input.m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_modulatorValues;
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            modulatorValues.m_value[0][i] = input.m_faders[0];
-            modulatorValues.m_value[1][i] = input.m_faders[1];
-
             modulatorValues.m_value[2][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[0].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
             modulatorValues.m_value[3][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[1].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
 
@@ -848,10 +850,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             modulatorValues.m_value[10][i] = input.m_sheafyModulators[i][2];
 
             modulatorValues.m_value[11][i] = static_cast<float>(i % x_numTracks) / (x_numTracks - 1);
-            
-            modulatorValues.m_value[12][i] = input.m_faders[2];
-            modulatorValues.m_value[13][i] = input.m_faders[3];
-            modulatorValues.m_value[14][i] = input.m_faders[4];
+        }
+
+        for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
+        {
+            modulatorValues.m_gestureWeights[i] = input.m_faders[i];
         }
     }
 
@@ -859,15 +862,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         SmartGrid::BankedEncoderCell::ModulatorValues& modulatorValues = input.m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_modulatorValues;
 
-        modulatorValues.m_value[0][0] = input.m_faders[0];
-        modulatorValues.m_value[1][0] = input.m_faders[1];
-
         modulatorValues.m_value[2][0] = std::min(1.0f, std::max(0.0f, m_globalGangedRandomLFO[0].m_lfos[0].m_pos[0]));
         modulatorValues.m_value[3][0] = std::min(1.0f, std::max(0.0f, m_globalGangedRandomLFO[1].m_lfos[0].m_pos[0]));
 
-        modulatorValues.m_value[12][0] = input.m_faders[2];
-        modulatorValues.m_value[13][0] = input.m_faders[3];
-        modulatorValues.m_value[14][0] = input.m_faders[4];    
+        for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
+        {
+            modulatorValues.m_gestureWeights[i] = input.m_faders[i];
+        }
     }
 
     void SetEncoderParameters(Input& input)

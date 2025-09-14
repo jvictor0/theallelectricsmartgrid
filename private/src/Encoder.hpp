@@ -349,21 +349,14 @@ struct StateEncoderCell : public EncoderCell
         {
             SetStateForTrack(i);
         }
-
-        PostSetState();
-    }
-
-    virtual void PostSetState()
-    {
     }
 
     void SetStateForTrack(size_t track)
     {
         *m_state[track] = GetValue(track);
-        PostSetState();
     }
 
-    virtual void Increment(float delta) override
+    void IncrementInternal(float delta)
     {
         if (delta == 0)
         {
@@ -410,7 +403,7 @@ struct StateEncoderCell : public EncoderCell
     void SetToValue(float value)
     {
         float delta = value - GetNormalizedValueForTrack(m_sceneManager->m_track);
-        Increment(delta);
+        IncrementInternal(delta);
     }
 
     void SetValueAllScenesAllTracks(float value)

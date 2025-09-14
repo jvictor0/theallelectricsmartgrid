@@ -62,6 +62,8 @@ struct TheNonagonSquiggleBoyInternal
 
     AnalogUIState<1 + SquiggleBoyWithEncoderBank::x_numFaders> m_analogUIState;
 
+    Blink m_blink;
+
     void SaveJSON()
     {
         m_nonagon.SaveJSON();
@@ -216,6 +218,9 @@ struct TheNonagonSquiggleBoyInternal
 
     QuadFloat Process()
     {
+        m_blink.Process();
+        m_squiggleBoyState.SetBlink(m_blink.m_blink);
+
         m_timer += 1.0 / 48000.0;
 
         SetExternalInputs();
@@ -325,6 +330,42 @@ struct TheNonagonSquiggleBoyInternal
         virtual void OnPress(uint8_t velocity) override
         {
             m_owner->m_sceneState.HandlePress(m_scene, m_owner);
+        }
+    };
+
+    struct GestureSelectorCell : SmartGrid::Cell
+    {
+        TheNonagonSquiggleBoyInternal* m_owner;
+        int m_gesture;
+
+        GestureSelectorCell(TheNonagonSquiggleBoyInternal* owner, int gesture)
+            : m_owner(owner)
+            , m_gesture(gesture)
+        {
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            if (m_owner->m_squiggleBoyState.m_selectedGesture == m_gesture)
+            {
+                return SmartGrid::Color::Red;
+            }
+            else
+            {
+                return SmartGrid::Color::Grey;
+            }
+        }
+
+        virtual void OnPress(uint8_t velocity) override
+        {
+            if (m_owner->m_squiggleBoyState.m_selectedGesture == m_gesture)
+            {
+                m_owner->m_squiggleBoyState.SelectGesture(-1);
+            }
+            else
+            {
+                m_owner->m_squiggleBoyState.SelectGesture(m_gesture);
+            }
         }
     };
 

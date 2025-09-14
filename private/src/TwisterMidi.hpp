@@ -164,7 +164,8 @@ namespace SmartGrid
 
                 if (m_phase == 0)
                 {
-                    return m_owner->m_color[m_x][m_y] != m_encoderBankState->GetColor(m_x, m_y);
+                    return m_owner->m_color[m_x][m_y] != m_encoderBankState->GetColor(m_x, m_y) &&
+                           m_encoderBankState->GetBrightness(m_x, m_y) > 0;
                 }
                 else if (m_phase == 1)
                 {
@@ -194,18 +195,23 @@ namespace SmartGrid
                 if (m_phase == 0)
                 {
                     Color color = m_encoderBankState->GetColor(m_x, m_y);
+                    m_owner->m_color[m_x][m_y] = color;
                     uint8_t mfTwisterCode = color.ToTwister();
                     return BasicMidi::CC(0, -1, 1 /*channel*/, TwisterMidi::PosToNote(m_x, m_y), mfTwisterCode);
                 }
                 else if (m_phase == 1)
                 {
-                    uint8_t brightness = 17 + m_encoderBankState->GetBrightness(m_x, m_y) * 30;
+                    float brightnessF = m_encoderBankState->GetBrightness(m_x, m_y);
+                    uint8_t brightness = 17 + brightnessF * 30;
+                    m_owner->m_brightness[m_x][m_y] = brightnessF;
                     return BasicMidi::CC(0, -1, 2 /*channel*/, TwisterMidi::PosToNote(m_x, m_y), brightness);
                 }
                 else if (m_phase == 2)
                 {
                     size_t currentTrack = m_encoderBankState->GetCurrentTrack() * m_encoderBankState->GetNumVoices();
-                    uint8_t value = m_encoderBankState->GetValue(m_x, m_y, currentTrack) * 127;
+                    float valueF = m_encoderBankState->GetValue(m_x, m_y, currentTrack);
+                    uint8_t value = valueF * 127;
+                    m_owner->m_values[m_x][m_y] = valueF;
                     return BasicMidi::CC(0, -1, 0 /*channel*/, TwisterMidi::PosToNote(m_x, m_y), value);
                 }
                 else
