@@ -70,6 +70,16 @@ struct WaveTable
         s_sine.GenerateSine();
         return s_sine;
     }
+
+    float StartValue() const
+    {
+        return m_table[0];
+    }
+
+    float CenterValue() const
+    {
+        return m_table[x_tableSize / 2];
+    }
 };
 
 inline WaveTable WaveTable::s_cosine;

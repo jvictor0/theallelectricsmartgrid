@@ -216,7 +216,7 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoyState.SetBlendFactor(m_sceneState.m_blendFactor);
     }
 
-    QuadFloat Process()
+    QuadFloat ProcessSample()
     {
         m_blink.Process();
         m_squiggleBoyState.SetBlink(m_blink.m_blink);
@@ -229,13 +229,19 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.Process(1.0 / 48000.0);
         
         SetSquiggleBoyInputs();
-        m_squiggleBoy.Process(m_squiggleBoyState, 1.0 / 48000.0);
+        m_squiggleBoy.ProcessSample(m_squiggleBoyState, 1.0 / 48000.0);
 
         m_output = m_squiggleBoy.m_output;
 
         m_squiggleBoyUIState.m_scopeWriter.AdvanceIndex();
 
         return m_output;
+    }
+
+    void ProcessFrame()
+    {
+        m_squiggleBoy.ProcessFrame();
+        PopulateUIState();
     }
 
     void PopulateUIState()

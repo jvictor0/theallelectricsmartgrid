@@ -16,6 +16,7 @@
 #include "GangedRandomLFO.hpp"
 #include "ScopeWriter.hpp"
 #include "Blink.hpp"
+#include "RandomWaveTable.hpp"
 
 struct SquiggleBoyVoice
 {
@@ -45,11 +46,17 @@ struct SquiggleBoyVoice
 
         ScopeWriterHolder m_scopeWriter[2];
 
+        OPLowPassFilter m_wtBlendFilter[2];
+
         struct Input
         {
             float m_v[2];
             float m_d[2];
             float m_baseFreq;
+
+            float m_cosBlend[2];
+            float m_wtBlend[2];
+
             PhaseUtils::ExpParam m_offsetFreqFactor;
             float m_driftFreqFactor;
 
@@ -62,14 +69,20 @@ struct SquiggleBoyVoice
             float m_saturationGain;
 
             Input()
-                : m_baseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
-                , m_offsetFreqFactor(4)
+                : m_v{0.5, 0.5}
+                , m_d{0.5, 0.5}
+                , m_baseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
+                , m_cosBlend{0, 0}
+                , m_wtBlend{0, 0}    
+                , m_offsetFreqFactor(4)         
                 , m_driftFreqFactor(0)
                 , m_crossModIndex{0, 0}
                 , m_fade(0)
                 , m_bitCrushAmount(0)
                 , m_saturationGain(0.25)
+
             {
+
             }
         };
 
@@ -79,6 +92,8 @@ struct SquiggleBoyVoice
             : m_output(0)
         {
             m_antiAliasFilter.SetCyclesPerSample(0.40 / x_oversample);
+            m_wtBlendFilter[0].SetAlphaFromNatFreq(1000.0 / 48000.0);
+            m_wtBlendFilter[1].SetAlphaFromNatFreq(1000.0 / 48000.0);
         }
 
         float Process(const Input& input)
@@ -92,6 +107,7 @@ struct SquiggleBoyVoice
             };
 
             bool top[2] = {false, false};
+            float wtBlend[2] = {m_wtBlendFilter[0].Process(input.m_wtBlend[0]), m_wtBlendFilter[1].Process(input.m_wtBlend[1])}; 
 
             for (size_t i = 0; i < x_oversample; ++i)
             {
@@ -102,10 +118,14 @@ struct SquiggleBoyVoice
                 vcoInput[0].m_useVoct = false;
                 vcoInput[1].m_useVoct = false;
                 
-                vcoInput[0].m_v = m_state.m_v[0] + interp * (input.m_v[0] - m_state.m_v[0]);
-                vcoInput[1].m_v = m_state.m_v[1] + interp * (input.m_v[1] - m_state.m_v[1]);
-                vcoInput[0].m_d = m_state.m_d[0] + interp * (input.m_d[0] - m_state.m_d[0]);
-                vcoInput[1].m_d = m_state.m_d[1] + interp * (input.m_d[1] - m_state.m_d[1]);
+                for (int j = 0; j < 2; ++j)
+                {
+                    vcoInput[j].m_v = m_state.m_v[j] + interp * (input.m_v[j] - m_state.m_v[j]);
+                    vcoInput[j].m_d = m_state.m_d[j] + interp * (input.m_d[j] - m_state.m_d[j]);
+                    vcoInput[j].m_cosBlend = m_state.m_cosBlend[j] + interp * (input.m_cosBlend[j] - m_state.m_cosBlend[j]);
+                    vcoInput[j].m_wtBlend = m_state.m_wtBlend[j] + interp * (wtBlend[j] - m_state.m_wtBlend[j]);
+                }
+
                 vcoInput[0].m_phaseMod = (m_state.m_crossModIndex[0] + interp * (input.m_crossModIndex[0] - m_state.m_crossModIndex[0])) * m_vco[1].m_out;
                 vcoInput[0].m_freq = (m_state.m_baseFreq + interp * (input.m_baseFreq - m_state.m_baseFreq)) / x_oversample;
                 vcoInput[1].m_freq = vcoInput[0].m_freq * (m_state.m_offsetFreqFactor.m_expParam + interp * (input.m_offsetFreqFactor.m_expParam - m_state.m_offsetFreqFactor.m_expParam));
@@ -430,9 +450,12 @@ struct SquiggleBoy
 {
     static constexpr size_t x_numVoices = 9;
     static constexpr size_t x_numTracks = 3;
+    static constexpr size_t x_voicesPerTrack = x_numVoices / x_numTracks;
+
+    SquiggleBoyWaveTableGenerator m_waveTableGenerator[2];
 
     SquiggleBoyVoice m_voices[x_numVoices];
-    ManyGangedRandomLFO m_gangedRandomLFO[2];
+    ManyGangedRandomLFO m_gangedRandomLFO[4];
     ManyGangedRandomLFO m_globalGangedRandomLFO[2];
 
     QuadMixerInternal m_mixer;
@@ -443,7 +466,7 @@ struct SquiggleBoy
     QuadFloat m_output;
 
     SquiggleBoyVoice::Input m_state[x_numVoices];
-    ManyGangedRandomLFO::Input m_gangedRandomLFOInput[2];
+    ManyGangedRandomLFO::Input m_gangedRandomLFOInput[4];
     ManyGangedRandomLFO::Input m_globalGangedRandomLFOInput[2];
     QuadMixerInternal::Input m_mixerState;
 
@@ -457,24 +480,31 @@ struct SquiggleBoy
 
     PhaseUtils::SimpleOsc m_panPhase;
 
+    bool m_firstFrame;
+
     SquiggleBoy()
     {
         m_mixerState.m_numInputs = x_numVoices;
         m_delayToReverbSend = 0.0;
         m_reverbToDelaySend = 0.0;
 
-        for (size_t i = 0; i < 2; ++i)
+        for (size_t i = 0; i < 4; ++i)
         {
             m_gangedRandomLFOInput[i].m_gangSize = x_numVoices / x_numTracks;
             m_gangedRandomLFOInput[i].m_time = 6.0;
             m_gangedRandomLFOInput[i].m_sigma = 0.2;
             m_gangedRandomLFOInput[i].m_numGangs = x_numTracks;
 
-            m_globalGangedRandomLFOInput[i].m_gangSize = 1;
-            m_globalGangedRandomLFOInput[i].m_time = 6.0;
-            m_globalGangedRandomLFOInput[i].m_sigma = 0.2;
-            m_globalGangedRandomLFOInput[i].m_numGangs = 1;
+            if (i < 2)
+            {
+                m_globalGangedRandomLFOInput[i].m_gangSize = 1;
+                m_globalGangedRandomLFOInput[i].m_time = 6.0;
+                m_globalGangedRandomLFOInput[i].m_sigma = 0.2;
+                m_globalGangedRandomLFOInput[i].m_numGangs = 1;
+            }
         }
+
+        m_firstFrame = true;
     }
 
     void SetupAudioScopeWriters(ScopeWriter* scopeWriter)
@@ -516,12 +546,105 @@ struct SquiggleBoy
         m_reverbState.m_return = m_mixerState.m_return[1];
     }
 
-    void Process()
+    void InitRandomWaveTables()
     {
+        for (size_t i = 0; i < 2; ++i)
+        {
+            for (size_t j = 0; j < x_numTracks; ++j)
+            {
+                m_waveTableGenerator[i].Clear();
+                m_waveTableGenerator[i].GenerateCompletely();
+                for (size_t k = 0; k < x_voicesPerTrack; ++k)
+                {
+                    m_waveTableGenerator[i].SetLeft(&m_voices[j * x_voicesPerTrack + k].m_vco.m_vco[i]);
+                }
+
+                m_waveTableGenerator[i].Clear();
+                m_waveTableGenerator[i].GenerateCompletely();
+                for (size_t k = 0; k < x_voicesPerTrack; ++k)
+                {
+                    m_waveTableGenerator[i].SetRight(&m_voices[j * x_voicesPerTrack + k].m_vco.m_vco[i]);
+                }
+            }
+
+            m_waveTableGenerator[i].Clear();
+        }
+    }
+
+    void ProcessWaveTableGenerators()
+    {
+        for (size_t i = 0; i < 2; ++i)
+        {
+            m_waveTableGenerator[i].ProcessFrame();
+            if (m_waveTableGenerator[i].IsReady())
+            {
+                for (size_t j = 0; j < x_numTracks; ++j)
+                {
+                    bool needRight = m_waveTableGenerator[i].m_rightVisible[j];
+                    bool needLeft = m_waveTableGenerator[i].m_leftVisible[j];
+                    for (size_t k = 0; k < x_voicesPerTrack; ++k)
+                    {
+                        if (m_gangedRandomLFO[2 + i].m_lfos[j].m_pos[k] < 1)
+                        {
+                            needLeft = false;
+                            m_waveTableGenerator[i].m_leftVisible[j] = true;
+                        }
+
+                        if (m_gangedRandomLFO[2 + i].m_lfos[j].m_pos[k] > 0)
+                        {
+                            needRight = false;
+                            m_waveTableGenerator[i].m_rightVisible[j] = true;
+                        }
+                    }
+
+                    if (needRight)
+                    {
+                        INFO("New right wavetable for VCO %zu track %zu", i, j);
+                        for (size_t k = 0; k < x_voicesPerTrack; ++k)
+                        {
+                            m_waveTableGenerator[i].SetRight(&m_voices[j * x_voicesPerTrack + k].m_vco.m_vco[i]);
+                        }
+
+                        m_waveTableGenerator[i].m_rightVisible[j] = false;
+                        m_waveTableGenerator[i].Clear();
+                    }
+
+                    if (needLeft)
+                    {
+                        INFO("New left wavetable for VCO %zu track %zu", i, j);
+                        for (size_t k = 0; k < x_voicesPerTrack; ++k)
+                        {
+                            m_waveTableGenerator[i].SetLeft(&m_voices[j * x_voicesPerTrack + k].m_vco.m_vco[i]);
+                        }
+
+                        m_waveTableGenerator[i].m_leftVisible[j] = false;
+                        m_waveTableGenerator[i].Clear();
+                    }
+                }                
+            }
+        }
+    }
+
+
+    void ProcessFrame()
+    {
+        ProcessWaveTableGenerators();
+    }
+
+    void ProcessSample()
+    {
+        if (m_firstFrame)
+        {
+            m_firstFrame = false;
+            InitRandomWaveTables();
+        }
+
         m_panPhase.Process();
 
         m_gangedRandomLFO[0].Process(1.0 / 48000.0, m_gangedRandomLFOInput[0]);
         m_gangedRandomLFO[1].Process(1.0 / 48000.0, m_gangedRandomLFOInput[1]);
+        m_gangedRandomLFO[2].Process(1.0 / 48000.0, m_gangedRandomLFOInput[2]);
+        m_gangedRandomLFO[3].Process(1.0 / 48000.0, m_gangedRandomLFOInput[3]);
 
         m_globalGangedRandomLFO[0].Process(1.0 / 48000.0, m_globalGangedRandomLFOInput[0]);
         m_globalGangedRandomLFO[1].Process(1.0 / 48000.0, m_globalGangedRandomLFOInput[1]);
@@ -744,6 +867,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_globalEncoderBank.SetColor(1, SmartGrid::Color::Fuscia, input.m_globalEncoderBankInput);
         m_globalEncoderBank.SetColor(2, SmartGrid::Color::Yellow, input.m_globalEncoderBankInput);
 
+        m_voiceEncoderBank.Config(0, 0, 0, 0, "VCO 1 Cos Blend", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(0, 0, 1, 0, "VCO 2 Cos Blend", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(0, 1, 0, 1.0 / 8.0, "VCO 1 V", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(0, 1, 1, 1.0 / 8.0, "VCO 2 V", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(0, 2, 0, 0.5, "VCO 1 D", input.m_voiceEncoderBankInput);  
@@ -835,7 +960,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         SmartGrid::BankedEncoderCell::ModulatorValues& modulatorValues = input.m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_modulatorValues;
         for (size_t i = 0; i < x_numVoices; ++i)
-        {
+        {            
             modulatorValues.m_value[2][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[0].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
             modulatorValues.m_value[3][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[1].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
 
@@ -877,12 +1002,18 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             m_voices[i].m_baseFreqSlew.SetAlphaFromNatFreq(m_voices[i].m_baseFreqSlewAmount.Update(1.0 - m_voiceEncoderBank.GetValue(2, 3, 1, i)));
             m_state[i].m_vcoInput.m_baseFreq = m_voices[i].m_baseFreqSlew.Process(input.m_baseFreq[i]);
+            m_state[i].m_vcoInput.m_cosBlend[0] = m_voiceEncoderBank.GetValue(0, 0, 0, i);
+            m_state[i].m_vcoInput.m_cosBlend[1] = m_voiceEncoderBank.GetValue(0, 0, 1, i);
+            m_state[i].m_vcoInput.m_wtBlend[0] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[2].m_lfos[i / x_voicesPerTrack].m_pos[i % x_voicesPerTrack]));
+            m_state[i].m_vcoInput.m_wtBlend[1] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[3].m_lfos[i / x_voicesPerTrack].m_pos[i % x_voicesPerTrack]));
+
             m_state[i].m_vcoInput.m_v[0] = m_voiceEncoderBank.GetValue(0, 1, 0, i) * 4.0;
             m_state[i].m_vcoInput.m_v[1] = m_voiceEncoderBank.GetValue(0, 1, 1, i) * 4.0;
             m_state[i].m_vcoInput.m_d[0] = m_voiceEncoderBank.GetValue(0, 2, 0, i);
             m_state[i].m_vcoInput.m_d[1] = m_voiceEncoderBank.GetValue(0, 2, 1, i);
             m_state[i].m_vcoInput.m_crossModIndex[0] = m_voiceEncoderBank.GetValue(0, 3, 0, i);
             m_state[i].m_vcoInput.m_crossModIndex[1] = m_voiceEncoderBank.GetValue(0, 3, 1, i);
+
             m_state[i].m_vcoInput.m_fade = m_voiceEncoderBank.GetValue(0, 0, 2, i);
             m_state[i].m_vcoInput.m_saturationGain = m_voiceEncoderBank.GetValue(0, 1, 2, i) * 4 + 0.25;
             m_state[i].m_vcoInput.m_bitCrushAmount = m_voiceEncoderBank.GetValue(0, 2, 2, i);
@@ -1037,7 +1168,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         uiState->m_scopeWriter.Publish();
     }
 
-    void Process(Input& input, float deltaT)
+    void ProcessSample(Input& input, float deltaT)
     {
         m_shift = input.m_shift;
         input.m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_shift = m_shift;
@@ -1051,7 +1182,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         SetEncoderParameters(input);
 
-        SquiggleBoy::Process();
+        SquiggleBoy::ProcessSample();
     }
 };
 

@@ -3,7 +3,8 @@
 
 struct RGen
 {
-    std::default_random_engine m_gen;
+    static std::random_device s_rd;
+    static std::mt19937 s_gen;
     std::normal_distribution<float> m_norm;
     std::uniform_real_distribution<float> m_uni;
 
@@ -15,12 +16,12 @@ struct RGen
     
     float NormGen()
     {
-        return m_norm(m_gen);
+        return m_norm(s_gen);
     }
 
     float UniGen()
     {
-        return m_uni(m_gen);
+        return m_uni(s_gen);
     }
 
     size_t RangeGen(size_t max)
@@ -28,3 +29,6 @@ struct RGen
         return static_cast<size_t>(UniGen() * max);
     }
 };
+
+inline std::random_device RGen::s_rd;
+inline std::mt19937 RGen::s_gen(s_rd());

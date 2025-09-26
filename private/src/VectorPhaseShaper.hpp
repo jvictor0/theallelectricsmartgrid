@@ -6,10 +6,12 @@
 #include "WaveTable.hpp"
 #include "PhaseUtils.hpp"
 #include "ModuleUtils.hpp"
+#include "MorphingWaveTable.hpp"
 
 struct VectorPhaseShaperInternal
 {
     const WaveTable* m_waveTable;
+    MorphingWaveTable m_morphingWaveTable;
     float m_phase;
     float m_voct;
     float m_freq;
@@ -31,6 +33,9 @@ struct VectorPhaseShaperInternal
         float m_v;
         float m_d;
         float m_phaseMod;
+        float m_cosBlend;
+        float m_wtBlend;
+        float m_maxFreq;
 
         Input()
             : m_useVoct(true)
@@ -39,11 +44,14 @@ struct VectorPhaseShaperInternal
             , m_v(0.5)
             , m_d(0.5)
             , m_phaseMod(0)
+            , m_cosBlend(0)
+            , m_wtBlend(0)
+            , m_maxFreq(0.1)
         {
         }
     };
 
-    void Process(const Input& input, float deltaT)
+    void Process(Input& input, float deltaT)
     {
         if (input.m_useVoct)
         {
@@ -58,7 +66,7 @@ struct VectorPhaseShaperInternal
         SetDV(input.m_d, input.m_v);
         m_phaseMod = input.m_phaseMod;
         UpdatePhase();
-        Evaluate();
+        Evaluate(input);
     }
     
     VectorPhaseShaperInternal()
@@ -140,7 +148,7 @@ struct VectorPhaseShaperInternal
         }
     };
 
-    void Evaluate()
+    void Evaluate(Input& input)
     {
         float d = (m_d - 0.5) * m_dScale + 0.5;
         float phi_vps;
@@ -158,24 +166,38 @@ struct VectorPhaseShaperInternal
         if (!NeedsAntiAlias(phi_vps))
         {
             phi_vps = fmod(phi_vps, 1);
-            m_out = - m_waveTable->Evaluate(phi_vps);
+            m_out = - m_morphingWaveTable.Evaluate(phi_vps, m_freq, input.m_maxFreq, input.m_cosBlend, input.m_wtBlend);
         }
         else
         {
             if (m_b < 0.5)
             {
                 float phi_as = fmod(phi_vps, 1) / (2 * m_b);
-                float s = - m_waveTable->Evaluate(phi_as);
-                m_out = ((1 - m_c) * s - 1 - m_c) / 2;
+                float s = - m_morphingWaveTable.Evaluate(phi_as, m_freq, input.m_maxFreq, input.m_cosBlend, input.m_wtBlend);                
+                
+                float offset = m_morphingWaveTable.StartValue(input.m_cosBlend, input.m_wtBlend);
+                
+                m_out = (1 - m_c) * (s + offset) / 2 - offset;
             }
             else
             {
                 float phi_as = fmod(phi_vps - 0.5, 1) / (2 * (m_b - 0.5)) + 0.5;
-                float s = - m_waveTable->Evaluate(phi_as);
-                m_out = ((1 + m_c) * s + 1 - m_c) / 2;
+                float s = - m_morphingWaveTable.Evaluate(phi_as, m_freq, input.m_maxFreq, input.m_cosBlend, input.m_wtBlend);
+                float offset = m_morphingWaveTable.CenterValue(input.m_cosBlend, input.m_wtBlend);            
+                m_out = (1 + m_c) * (s + offset) / 2 - offset;                
             }
         }
-    }                    
+    }            
+    
+    AdaptiveWaveTable* SetLeft(AdaptiveWaveTable* left)
+    {
+        return m_morphingWaveTable.SetLeft(left);
+    }
+    
+    AdaptiveWaveTable* SetRight(AdaptiveWaveTable* right)
+    {
+        return m_morphingWaveTable.SetRight(right);
+    }                
 };
 
 template<size_t N>
@@ -304,12 +326,12 @@ struct Detour
         }
     }
 
-    void Process(const Input& input, float deltaT)
+    void Process(Input& input, float deltaT)
     {
         SetFreq(input, deltaT);
         UpdatePhase();
         SetDV(input);
-        m_vps[m_which].Evaluate();
+        m_vps[m_which].Evaluate(input.m_vps[m_which]);
         m_out = m_vps[m_which].m_out;
     }
 };

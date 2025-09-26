@@ -439,14 +439,14 @@ struct NonagonWrapper
     {
         m_quadLaunchpadTwister.ProcessSample(timestamp);
         m_wrldBldr.ProcessSample(timestamp);
-        return m_internal.Process();
+        return m_internal.ProcessSample();
     }
 
     void ProcessFrame()
     {
         m_quadLaunchpadTwister.ProcessFrame();
         m_wrldBldr.ProcessFrame();
-        m_internal.PopulateUIState();
+        m_internal.ProcessFrame();
     }
 
     juce::MidiInput* GetMidiInputQuadLaunchpadTwister(int index)
