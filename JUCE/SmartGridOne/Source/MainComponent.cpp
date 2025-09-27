@@ -15,7 +15,7 @@ MainComponent::MainComponent()
     
     // Set up config button
     m_configButton.setButtonText("Config");
-    m_configButton.setSize(40, 40);
+    m_configButton.setSize(50, 50);
     m_configButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
     m_configButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
     m_configButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
@@ -41,6 +41,14 @@ MainComponent::MainComponent()
     m_fileButton.setColour(juce::TextButton::buttonOnColourId, juce::Colours::lightgrey);
     m_fileButton.onClick = [this]() { OnFileButtonClicked(); };
     addAndMakeVisible(m_fileButton);
+    
+    // Set up CPU label
+    m_cpuLabel.setSize(50, 50);
+    m_cpuLabel.setText("0%", juce::dontSendNotification);
+    m_cpuLabel.setJustificationType(juce::Justification::centred);
+    m_cpuLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+    m_cpuLabel.setColour(juce::Label::backgroundColourId, juce::Colours::darkgrey);
+    addAndMakeVisible(m_cpuLabel);
     
     // Set up world builder grid
     m_wrldBuildrGrid = std::make_unique<WrldBuildrComponent>(&m_nonagon);
@@ -108,6 +116,9 @@ void MainComponent::resized()
     
     // File button directly below config button, same size
     m_fileButton.setBounds(rightPanel.removeFromTop(50));
+    
+    // CPU label below file button, same size
+    m_cpuLabel.setBounds(rightPanel.removeFromTop(50));
     
     // Back button in top left (only visible when showing config or file)
     if (m_showingConfig || m_showingFile)
@@ -206,7 +217,7 @@ void MainComponent::OnFileButtonClicked()
             [this]() { m_fileManager.ChooseSaveFile(false); },
             [this]() { m_fileManager.ChooseSaveFile(true); }
         );
-        
+
         addAndMakeVisible(m_filePage.get());
     }
     
@@ -247,5 +258,9 @@ void MainComponent::timerCallback()
     //
     HandleStateInterchange();
     m_wrldBuildrGrid->SetDisplayMode();
+    
+    // Update CPU label
+    m_cpuLabel.setText(juce::String(deviceManager.getCpuUsage() * 100.0, 1) + "%", juce::dontSendNotification);
+    
     repaint();
 }

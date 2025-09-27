@@ -104,6 +104,8 @@ private:
     juce::TextButton m_configButton;
     juce::TextButton m_backButton;
     juce::TextButton m_fileButton;
+    juce::Label m_cpuLabel;
+    
     bool m_showingConfig;
     bool m_showingFile;
 

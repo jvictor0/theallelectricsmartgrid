@@ -193,6 +193,18 @@ struct TheNonagonSquiggleBoyWrldBldr
                 Put(i, 3, new SquiggleBoyWithEncoderBank::SelectorCell(&owner->m_internal->m_squiggleBoy, i));
             }
 
+            for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
+            {
+                Put(i, 2, new ShiftedCell(
+                    GetShared(i, 2),
+                    std::shared_ptr<SmartGrid::Cell>(new TheNonagonSquiggleBoyInternal::GestureSelectorCell(m_owner->m_internal, i)),
+                    &m_owner->m_internal->m_sceneState.m_shift));
+                Put(i, 3, new ShiftedCell(
+                    GetShared(i, 3),
+                    std::shared_ptr<SmartGrid::Cell>(new TheNonagonSquiggleBoyInternal::GestureSelectorCell(m_owner->m_internal, i + SmartGrid::x_baseGridSize)),
+                    &m_owner->m_internal->m_sceneState.m_shift));
+            }
+
             for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
             {
                 int xPos = 2 + 2 * i;

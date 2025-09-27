@@ -30,6 +30,19 @@ struct BasicWaveTable
 
     float Evaluate(float phase) const
     {
+        return EvaluateLinear(phase);
+    }
+
+    float EvaluateLinear(float phase) const
+    {
+        float pos = phase * x_tableSize;
+        int index = static_cast<int>(std::floor(pos)) % x_tableSize;
+        float frac = pos - static_cast<float>(index);
+        return m_table[index] * (1.0f - frac) + m_table[index + 1] * frac;
+    }
+
+    float EvaluateCubic(float phase) const
+    {
         float pos = phase * x_tableSize;
         int index = static_cast<int>(std::floor(pos)) % x_tableSize;
         float frac = pos - static_cast<float>(index);
