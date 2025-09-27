@@ -46,6 +46,12 @@ void FileManager::PersistJSON(JSON json, juce::String filename)
     file.replaceWithText(jsonString);
 }
 
+void FileManager::SavePatch(JSON json)
+{
+    INFO("Saving Patch: %s", m_currentPatchFilename.toUTF8().getAddress());
+    PersistJSON(json, m_currentPatchFilename);
+}
+
 JSON FileManager::LoadJSON(juce::String filename)
 {
     juce::File file(filename);
@@ -53,14 +59,14 @@ JSON FileManager::LoadJSON(juce::String filename)
     return JSON::Loads(jsonString.toUTF8().getAddress(), 0, nullptr);
 }
 
-void FileManager::SavePatch(JSON json)
+void FileManager::ChooseSaveFile(bool saveAs)
 {
     if (m_fileChooser.get())
     {
         return;
     }
 
-    if (m_currentPatchFilename.isEmpty())
+    if (m_currentPatchFilename.isEmpty() || saveAs)
     {
         juce::File smartGridDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SmartGridOne");
         smartGridDir.createDirectory();
@@ -68,13 +74,13 @@ void FileManager::SavePatch(JSON json)
         m_fileChooser = std::make_unique<juce::FileChooser>("Save Patch", smartGridDir, "*.json");
         int flags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles;
         
-        m_fileChooser->launchAsync(flags, [this, json](const juce::FileChooser& chooser)
+        m_fileChooser->launchAsync(flags, [this](const juce::FileChooser& chooser)
         {
             m_currentPatchFilename = chooser.getResult().getFullPathName();
             if (!m_currentPatchFilename.isEmpty())
             {
                 juce::Logger::writeToLog("Save Patch As: " + m_currentPatchFilename);
-                PersistJSON(json, m_currentPatchFilename);
+                m_mainComponent->RequestSave();
             }
             
             m_fileChooser.reset(); // Release the FileChooser
@@ -83,34 +89,46 @@ void FileManager::SavePatch(JSON json)
     }
     else
     {
-        juce::Logger::writeToLog("Save Patch: " + m_currentPatchFilename);
-        PersistJSON(json, m_currentPatchFilename);
+        m_mainComponent->RequestSave();
     }
 }
 
-void FileManager::SavePatchAs(JSON json)
+void FileManager::ChooseLoadFile()
 {
-    m_currentPatchFilename = "";
-    SavePatch(json);
+    if (m_fileChooser.get())
+    {
+        return;
+    }
+
+    juce::File smartGridDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SmartGridOne");
+    smartGridDir.createDirectory();
+    
+    m_fileChooser = std::make_unique<juce::FileChooser>("Load Patch", smartGridDir, "*.json");
+    int flags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+    
+    m_fileChooser->launchAsync(flags, [this](const juce::FileChooser& chooser)
+    {
+        juce::String filename = chooser.getResult().getFullPathName();
+        if (!filename.isEmpty())
+        {
+            juce::Logger::writeToLog("Load Patch: " + filename);
+            LoadPatch(filename);
+        }
+        
+        m_fileChooser.reset(); // Release the FileChooser
+        m_mainComponent->SaveConfig();
+    });
 }
 
-JSON FileManager::LoadPatch(juce::String filename)
+void FileManager::LoadPatch(juce::String filename)
 {
     juce::Logger::writeToLog("Load Patch: " + filename);
-    JSON json = LoadJSON(filename);
-    m_currentPatchFilename = filename;
-    return json;
-}
-
-JSON FileManager::LoadCurrentPatch()
-{
-    if (m_currentPatchFilename.isEmpty())
-    {
-        return JSON::Null();
+    JSON patch = LoadJSON(filename);
+    if (!patch.IsNull())
+    {   
+        m_currentPatchFilename = filename;
+        m_mainComponent->RequestLoad(patch);
     }
-    
-    juce::Logger::writeToLog("Load Current Patch: " + m_currentPatchFilename);
-    return LoadPatch(m_currentPatchFilename);
 }
 
 JSON FileManager::ToJSON()

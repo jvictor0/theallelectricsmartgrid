@@ -474,17 +474,6 @@ struct NonagonWrapper
         m_quadLaunchpadTwister.ConfigFromJSON(config);
     }
 
-    JSON ToJSON()
-    {
-        return m_internal.ToJSON();
-    }
-    
-    void FromJSON(JSON patch)
-    {
-        m_internal.FromJSON(patch);
-        m_internal.SaveJSON();
-    }
-
     PadUIGrid MkLaunchPadUIGridQuadLaunchpadTwister(int index)
     {
         return m_quadLaunchpadTwister.MkLaunchPadUIGrid(index);
@@ -508,6 +497,11 @@ struct NonagonWrapper
     ScopeWriter* GetAudioScopeWriter()
     {
         return &m_internal.m_squiggleBoyUIState.m_scopeWriter;
+    }
+
+    StateInterchange* GetStateInterchange()
+    {
+        return &m_internal.m_stateInterchange;
     }
 
     TheNonagonSquiggleBoyWrldBldr::DisplayMode GetDisplayMode()

@@ -303,35 +303,14 @@ struct TheNonagonSmartGrid
     ScenedStateSaver m_stateSaver;
     ScenedStateSaver::Input m_stateSaverState;
 
-    JSON m_savedJSON;
-
     JSON ToJSON()
     {
         return m_stateSaver.ToJSON();
     }    
 
-    void SaveJSON()
-    {
-        if (!m_savedJSON.IsNull())
-        {
-            m_savedJSON.Decref();
-            m_savedJSON = JSON::Null();
-        }
-
-        m_savedJSON = ToJSON();
-    }
-
     void FromJSON(JSON jin)
     {
         m_stateSaver.SetFromJSON(jin);
-    }
-
-    void LoadSavedJSON()
-    {
-        if (!m_savedJSON.IsNull())
-        {
-            m_stateSaver.SetFromJSON(m_savedJSON);
-        }
     }
     
     SmartGrid::Cell* TimeBitCell(size_t ix)
@@ -1221,8 +1200,7 @@ struct TheNonagonSmartGrid
     bool m_isStandalone;
     
     TheNonagonSmartGrid(bool isStandalone)
-        : m_savedJSON(JSON::Null())
-        , m_isStandalone(isStandalone)
+        : m_isStandalone(isStandalone)
     {
         InitState();
         InitGrid();

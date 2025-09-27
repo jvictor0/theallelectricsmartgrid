@@ -10,8 +10,6 @@ struct EncoderBankBankInternal
     size_t m_selectedGridId;
     SmartGrid::Color m_color[NumBanks];
 
-    JSON m_savedJSON;
-
     static constexpr size_t x_controlFrameRate = 8;
     size_t m_frame;
 
@@ -63,7 +61,6 @@ struct EncoderBankBankInternal
     };
 
     EncoderBankBankInternal()
-        : m_savedJSON(JSON::Null())
     {
         SelectGrid(0);
     }
@@ -157,11 +154,6 @@ struct EncoderBankBankInternal
 
     JSON ToJSON()
     {
-        if (!m_savedJSON.IsNull())
-        {
-            return m_savedJSON.Incref();
-        }
-
         JSON rootJ = JSON::Object();
         for (size_t i = 0; i < NumBanks; ++i)
         {
@@ -185,27 +177,6 @@ struct EncoderBankBankInternal
         }
 
         JSON increfRoot = rootJ.Incref();
-
-        m_savedJSON = increfRoot;
-    }
-
-    void SaveJSON()
-    {
-        if (!m_savedJSON.IsNull())
-        {
-            m_savedJSON.Decref();
-            m_savedJSON = JSON::Null();
-        }
-
-        m_savedJSON = ToJSON();
-    }
-
-    void LoadSavedJSON()
-    {
-        if (!m_savedJSON.IsNull())
-        {
-            FromJSON(m_savedJSON);
-        }
     }
 
     void CopyToScene(int scene)

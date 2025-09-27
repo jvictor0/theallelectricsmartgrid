@@ -35,7 +35,6 @@ struct FixedAllocator
         }
 
         int index = m_freeQueue[m_freeQueueTail % N];
-        INFO("Allocating %d", index);
         m_freeQueueTail++;
         return &m_data[index];
     }
@@ -45,7 +44,6 @@ struct FixedAllocator
         assert(Available() < N);        
 
         int index = ptr - m_data;
-        INFO("Freeing %d", index);
         m_freeQueue[m_freeQueueHead % N] = index;
         m_freeQueueHead++;
     }

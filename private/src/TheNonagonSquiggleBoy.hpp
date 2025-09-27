@@ -6,6 +6,7 @@
 #include "MessageInBus.hpp"
 #include "PadUI.hpp"
 #include "AnalogUIState.hpp"
+#include "StateInterchange.hpp"
 
 struct TheNonagonSquiggleBoyInternal
 {
@@ -64,11 +65,7 @@ struct TheNonagonSquiggleBoyInternal
 
     Blink m_blink;
 
-    void SaveJSON()
-    {
-        m_nonagon.SaveJSON();
-        m_squiggleBoy.SaveJSON();
-    }
+    StateInterchange m_stateInterchange;
 
     JSON ToJSON()
     {
@@ -76,12 +73,6 @@ struct TheNonagonSquiggleBoyInternal
         rootJ.SetNew("nonagon", m_nonagon.ToJSON());
         rootJ.SetNew("squiggleBoy", m_squiggleBoy.ToJSON());
         return rootJ;
-    }
-
-    void LoadSavedJSON()
-    {
-        m_nonagon.LoadSavedJSON();
-        m_squiggleBoy.LoadSavedJSON();
     }
 
     void FromJSON(JSON rootJ)
@@ -216,6 +207,25 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoyState.SetBlendFactor(m_sceneState.m_blendFactor);
     }
 
+    void HandleStateInterchange()
+    {
+        if (m_stateInterchange.IsSaveRequested())
+        {
+            INFO("Save JSON request received");
+            JSON toSave = ToJSON();
+            INFO("JSON serialized");
+            m_stateInterchange.AckSaveRequested(toSave);
+        }
+
+        if (m_stateInterchange.IsLoadRequested())
+        {
+            INFO("Load JSON request received");
+            FromJSON(m_stateInterchange.GetToLoad());
+            INFO("JSON deserialized");
+            m_stateInterchange.AckLoadCompleted();
+        }
+    }
+
     QuadFloat ProcessSample()
     {
         m_blink.Process();
@@ -242,6 +252,7 @@ struct TheNonagonSquiggleBoyInternal
     {
         m_squiggleBoy.ProcessFrame();
         PopulateUIState();
+        HandleStateInterchange();
     }
 
     void PopulateUIState()
@@ -299,11 +310,21 @@ struct TheNonagonSquiggleBoyInternal
         {
             if (m_save)
             {
-                m_owner->SaveJSON();
+                bool success = m_owner->m_stateInterchange.RequestSave();
+                if (success)
+                {
+                    INFO("Save requested");
+                }
+                else
+                {
+                    INFO("Save requested failed");
+                }
             }
             else
             {
-                m_owner->LoadSavedJSON();
+                INFO("Loading saved JSON");
+                m_owner->FromJSON(m_owner->m_stateInterchange.m_lastSave);
+                INFO("Loaded saved JSON");
             }
         }
     };

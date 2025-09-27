@@ -17,10 +17,16 @@ struct FileManager
     static void PersistJSON(JSON json, juce::String filename);
     static JSON LoadJSON(juce::String filename);
 
+    void ChooseSaveFile(bool saveAs);
+    void ChooseLoadFile();
     void SavePatch(JSON json);
-    void SavePatchAs(JSON json);
-    JSON LoadPatch(juce::String filename);
-    JSON LoadCurrentPatch();
+    void LoadPatch(juce::String filename);
+
+    void LoadCurrentPatch()
+    {
+        LoadPatch(m_currentPatchFilename);
+    }
+
     JSON ToJSON();
     void FromJSON(JSON json);
 

@@ -4,10 +4,9 @@
 
 #include "NonagonWrapper.hpp"
 #include "ConfigPage.hpp"
+#include "FilePage.hpp"
 #include "IOUtils.hpp"
 #include "WrldBuildrComponent.hpp"
-
-class MainComponentMenuBarModel;
 
 //==============================================================================
 /*
@@ -59,38 +58,30 @@ public:
                 m_fileManager.FromJSON(fileConfig);
             }
 
-            LoadCurrentPatch();
+            m_fileManager.LoadCurrentPatch();
         }
     }
 
-    void SavePatch()
+    void HandleStateInterchange()
     {
-        JSON json = m_nonagon.ToJSON();
-        m_fileManager.SavePatch(json);
-    }
-
-    void SavePatchAs()
-    {
-        JSON json = m_nonagon.ToJSON();
-        m_fileManager.SavePatchAs(json);
-    }
-
-    void LoadPatch(juce::String filename)
-    {
-        JSON patch = m_fileManager.LoadPatch(filename);
-        if (!patch.IsNull())
+        StateInterchange* stateInterchange = m_nonagon.GetStateInterchange();
+        if (stateInterchange->IsSavePending())
         {
-            m_nonagon.FromJSON(patch);
+            INFO("Saving patch to file");
+            JSON toSave = stateInterchange->GetToSave();
+            m_fileManager.SavePatch(toSave);
+            stateInterchange->AckSaveCompleted();
         }
     }
 
-    void LoadCurrentPatch()
+    void RequestSave()
     {
-        JSON patch = m_fileManager.LoadCurrentPatch();
-        if (!patch.IsNull())
-        {
-            m_nonagon.FromJSON(patch);
-        }
+        m_nonagon.GetStateInterchange()->RequestSave();
+    }
+
+    void RequestLoad(JSON patch)
+    {
+        m_nonagon.GetStateInterchange()->RequestLoad(patch);
     }
 
     //==============================================================================
@@ -102,19 +93,21 @@ private:
     //==============================================================================
     void OnConfigButtonClicked();
     void OnBackButtonClicked();
+    void OnFileButtonClicked();
+    void OnFileBackButtonClicked();
 
     NonagonWrapper m_nonagon;
 
     std::unique_ptr<ConfigPage> m_configPage;
+    std::unique_ptr<FilePage> m_filePage;
     std::unique_ptr<WrldBuildrComponent> m_wrldBuildrGrid;
     juce::TextButton m_configButton;
     juce::TextButton m_backButton;
+    juce::TextButton m_fileButton;
     bool m_showingConfig;
+    bool m_showingFile;
 
     FileManager m_fileManager{this};
-
-    std::unique_ptr<MainComponentMenuBarModel> m_menuBarModel;
-    juce::MenuBarComponent m_menuBar;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };

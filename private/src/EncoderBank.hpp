@@ -420,6 +420,7 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         ZeroModulatorsCurrentScene();
         SetToValue(m_defaultValue);
+        SetForceUpdateRecursive();
     }
 
     virtual uint8_t GetTwisterColor() override
@@ -728,6 +729,8 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             SetModulatorsAffecting();
         }
+
+        m_forceUpdate = true;
     }
 
     void FillModulators(StateEncoderCell::SceneManager* sceneManager)
@@ -1362,8 +1365,6 @@ struct EncoderBank : Module
     EncoderBankInternal m_bank;
     EncoderBankInternal::Input m_state;
 
-    JSON m_savedJSON;
-    
     IOMgr m_ioMgr;
     IOMgr::Output* m_output[4][4];
     IOMgr::Output* m_gridId;
@@ -1375,8 +1376,7 @@ struct EncoderBank : Module
     EncoderBankIOManager m_bankIOMgr;
 
     EncoderBank()
-        : m_savedJSON(JSON::Null())
-        , m_ioMgr(this)
+        : m_ioMgr(this)
         , m_bankIOMgr(&m_ioMgr, &m_state)
     {
         m_color = m_ioMgr.AddParam("Color", 0, 254, 64, false);        
@@ -1457,18 +1457,6 @@ struct EncoderBank : Module
             }
 
             SetSceneLight();
-
-            if (m_bankIOMgr.m_saveJSON)
-            {
-                SaveJSON();
-                m_bankIOMgr.m_saveJSON = false;
-            }
-
-            if (m_bankIOMgr.m_loadJSON)
-            {
-                LoadSavedJSON();
-                m_bankIOMgr.m_loadJSON = false;
-            }
         }
 
         m_state.m_modulatorValues.ComputeChanged();
@@ -1488,37 +1476,17 @@ struct EncoderBank : Module
         JSON rootJ = JSON::Object();
         JSON encoders;
 
-        if (!m_savedJSON.IsNull())
+        encoders = JSON::Array();
+        for (int i = 0; i < 4; ++i)
         {
-            encoders = m_savedJSON.Incref();
-        }
-        else
-        {
-            encoders = JSON::Array();
-            for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 4; ++j)
             {
-                for (int j = 0; j < 4; ++j)
-                {
-                    encoders.AppendNew(m_bank.GetBase(i, j)->ToJSON());
-                }
+                encoders.AppendNew(m_bank.GetBase(i, j)->ToJSON());
             }
         }
 
         rootJ.SetNew("encoders", encoders);
         return static_cast<json_t*>(rootJ.ToJsonT());
-    }
-
-    void SaveJSON()
-    {
-        m_savedJSON = m_bank.ToJSON();
-    }
-
-    void LoadSavedJSON()
-    {
-        if (!m_savedJSON.IsNull())
-        {
-            m_bank.FromJSON(m_savedJSON);
-        }
     }
 
     void dataFromJson(json_t* rootJ) override
@@ -1536,8 +1504,6 @@ struct EncoderBank : Module
                 }
             }
         }
-
-        m_savedJSON = encoders.Incref();
     }
 
     void SetAsDefault()

@@ -938,7 +938,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         // No rotate for reverb
         //
         m_globalEncoderBank.Config(1, 2, 0, 0.1, "Reverb Mod Speed", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 3, 0, 0.99, "Reverb Feedback", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(1, 3, 0, 0.75, "Reverb Feedback", input.m_globalEncoderBankInput);
         m_globalEncoderBank.Config(1, 0, 1, 0.3, "Reverb Damp Base", input.m_globalEncoderBankInput);
         m_globalEncoderBank.Config(1, 1, 1, 0.5, "Reverb Damp Width", input.m_globalEncoderBankInput);
         m_globalEncoderBank.Config(1, 2, 1, 0, "Reverb Mod Depth", input.m_globalEncoderBankInput);
@@ -1105,18 +1105,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         input.m_tempo.Update(m_globalEncoderBank.GetValue(2, 0, 0, 0));
     }   
-
-    void SaveJSON()
-    {
-        m_voiceEncoderBank.SaveJSON();
-        m_globalEncoderBank.SaveJSON();
-    }
-    
-    void LoadSavedJSON()
-    {
-        m_voiceEncoderBank.LoadSavedJSON();
-        m_globalEncoderBank.LoadSavedJSON();
-    }
 
     JSON ToJSON()
     {
