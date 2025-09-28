@@ -499,9 +499,24 @@ struct NonagonWrapper
         return &m_internal.m_squiggleBoyUIState.m_scopeWriter;
     }
 
+    SquiggleBoyWithEncoderBank::UIState* GetSquiggleBoyUIState()
+    {
+        return &m_internal.m_squiggleBoyUIState;
+    }
+
+    SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode GetVisualDisplayMode()
+    {
+        return m_internal.m_squiggleBoyUIState.m_visualDisplayMode.load();
+    }
+
     StateInterchange* GetStateInterchange()
     {
         return &m_internal.m_stateInterchange;
+    }
+
+    NonagonNoteWriter* GetNoteWriter()
+    {
+        return &m_internal.m_nonagon.m_nonagon.m_noteWriter;
     }
 
     TheNonagonSquiggleBoyWrldBldr::DisplayMode GetDisplayMode()

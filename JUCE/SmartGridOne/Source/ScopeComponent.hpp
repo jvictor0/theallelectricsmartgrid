@@ -76,3 +76,128 @@ struct ScopeComponent : public juce::Component
                    bounds.getX() + width, bounds.getY() + height * 0.5f, 1.0f);
     }
 };
+
+struct SoundStageComponent : public juce::Component
+{
+    static constexpr size_t x_scopeIx = 4;
+    static constexpr size_t x_numVoices = 9;
+    std::atomic<float>* m_xPos;
+    std::atomic<float>* m_yPos;
+    std::atomic<float>* m_volume;
+    ScopeWriter* m_scopeWriter;
+
+    SoundStageComponent(std::atomic<float>* xPos, std::atomic<float>* yPos, std::atomic<float>* volume, ScopeWriter* scopeWriter)
+        : m_xPos(xPos)
+        , m_yPos(yPos)
+        , m_volume(volume)
+        , m_scopeWriter(scopeWriter)
+    {
+        setSize(400, 200);
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        // Fill background
+        //
+        g.fillAll(juce::Colours::black);
+        
+        // Get bounds for drawing
+        //
+        auto bounds = getLocalBounds().toFloat();
+        auto width = bounds.getWidth();
+        auto height = bounds.getHeight();
+        auto border = 0.1;
+
+        for (size_t i = 0; i < x_numVoices; ++i)
+        {
+            auto centerX = width * m_xPos[i].load() * (1 - border) + border * width / 2;
+            auto centerY = height * m_yPos[i].load() * (1 - border) + border * height / 2;
+
+            float radius = (0.01 + 0.3 * m_volume[i].load()) * std::min(width, height);
+
+            SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
+            g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
+            g.fillEllipse(centerX - radius, centerY - radius, radius * 2, radius * 2);
+        }
+    }
+};
+
+struct MelodyRollComponent : public juce::Component
+{
+    NonagonNoteWriter* m_nonagonNoteWriter;
+
+    MelodyRollComponent(NonagonNoteWriter* nonagonNoteWriter)
+        : m_nonagonNoteWriter(nonagonNoteWriter)
+    {
+        setSize(400, 200);
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        // Fill background
+        //
+        g.fillAll(juce::Colours::black);
+
+        // Get bounds for drawing
+        //
+        auto bounds = getLocalBounds().toFloat();
+        auto width = bounds.getWidth();
+        auto height = bounds.getHeight();
+
+        float maxPitch;
+        float minPitch;
+        float curPosition;
+
+        ssize_t startIndex;
+        ssize_t endIndex;
+    
+        while (true)
+        {
+            startIndex = m_nonagonNoteWriter->GetLastStartIndex();
+
+            maxPitch = m_nonagonNoteWriter->GetMaxPitch();
+            minPitch = m_nonagonNoteWriter->GetMinPitch();
+            curPosition = m_nonagonNoteWriter->GetCurPosition();
+            endIndex = m_nonagonNoteWriter->GetIndex();
+
+            if (startIndex == m_nonagonNoteWriter->GetLastStartIndex())
+            {
+                break;
+            }
+        }
+
+        for (ssize_t ix = endIndex - 1; ix >= 0; --ix)
+        {
+            if (endIndex - ix > NonagonNoteWriter::x_numEvents)
+            {
+                break;
+            }
+
+            NonagonNoteWriter::EventData eventData = m_nonagonNoteWriter->Get(ix);
+            if (ix < startIndex && eventData.m_startPosition <= curPosition)
+            {
+                break;
+            }
+
+            float endPosition = eventData.m_endPosition;
+            if (endPosition == -1)
+            {
+                endPosition = curPosition;
+            }
+
+            float pitch = eventData.m_voltPerOct;
+            float position = eventData.m_startPosition;
+
+            float screenY = maxPitch == minPitch ? height * 0.5f : height * (1 - (pitch - minPitch) / (maxPitch - minPitch));
+            float border = 0.05;
+            screenY = screenY * (1 - border) + height * border / 2;
+
+            float screenXStart = width * position;
+            float screenXEnd = width * endPosition;
+
+            SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(eventData.m_voiceIx);
+            g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
+            g.drawLine(screenXStart, screenY, screenXEnd, screenY, 1.0f);
+        }
+    }
+};

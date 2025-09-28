@@ -22,6 +22,10 @@ struct QuadMixerInternal
     TanhSaturator<true> m_saturator;
     PinkNoise m_pinkNoise;
 
+    float m_volumeOut[16];
+    float m_returnVolume[x_numSends];
+    static constexpr float x_smoothingAlpha = 0.0007;
+
     QuadMixerInternal()
     {
         m_sin = &WaveTable::GetSine();
@@ -146,7 +150,9 @@ struct QuadMixerInternal
                 QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i], m_sin);
                 QuadFloat postFader = pan * input.m_gain[i];
                 m_output += postFader;
-                
+
+                m_volumeOut[i] = m_volumeOut[i] * (1 - x_smoothingAlpha) + std::abs(input.m_input[i] * input.m_gain[i]) * x_smoothingAlpha;
+
                 // Write post-fader input to wave file
                 //
                 m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(i), postFader);
@@ -168,6 +174,8 @@ struct QuadMixerInternal
                 QuadFloat postReturn = input.m_return[j] * input.m_returnGain[j];
                 m_output += postReturn;
                 
+                m_returnVolume[j] = m_returnVolume[j] * (1 - x_smoothingAlpha) + std::abs(postReturn.Sum()) * x_smoothingAlpha;
+
                 // Write post-return to wave file
                 //
                 m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(input.m_numInputs + j), postReturn);

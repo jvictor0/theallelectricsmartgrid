@@ -177,13 +177,13 @@ struct JoyStickHolder
 
 struct ScopeComponentHolder
 {
-    std::unique_ptr<ScopeComponent> m_scopeComponent;
+    std::unique_ptr<juce::Component> m_scopeComponent;
     int m_gridX;
     int m_gridY;
     int m_scopeWidth;
     int m_scopeHeight;
     
-    ScopeComponentHolder(std::unique_ptr<ScopeComponent> scopeComponent, int gridX, int gridY, int scopeWidth, int scopeHeight)
+    ScopeComponentHolder(std::unique_ptr<juce::Component> scopeComponent, int gridX, int gridY, int scopeWidth, int scopeHeight)
         : m_scopeComponent(std::move(scopeComponent))
         , m_gridX(gridX)
         , m_gridY(gridY)
@@ -251,6 +251,9 @@ struct WrldBuildrComponent : public juce::Component
     std::unique_ptr<JoyStickHolder> m_joyStickFixed;
 
     std::unique_ptr<ScopeComponentHolder> m_audioScope[4];
+
+    std::unique_ptr<ScopeComponentHolder> m_soundStage;
+    std::unique_ptr<ScopeComponentHolder> m_melodyRoll;
 
     bool m_drawGrid;
 
@@ -377,6 +380,16 @@ struct WrldBuildrComponent : public juce::Component
             addAndMakeVisible(m_audioScope[i]->m_scopeComponent.get());
         }
 
+        SquiggleBoyWithEncoderBank::UIState* uiState = m_nonagon->GetSquiggleBoyUIState();
+
+        auto soundStage = std::make_unique<SoundStageComponent>(uiState->m_xPos, uiState->m_yPos, uiState->m_volume, m_nonagon->GetAudioScopeWriter());
+        m_soundStage = std::make_unique<ScopeComponentHolder>(std::move(soundStage), 0, 0, 8, 8);
+        addAndMakeVisible(m_soundStage->m_scopeComponent.get());
+
+        auto melodyRoll = std::make_unique<MelodyRollComponent>(m_nonagon->GetNoteWriter());
+        m_melodyRoll = std::make_unique<ScopeComponentHolder>(std::move(melodyRoll), 0, 8, 24, 8);
+        addAndMakeVisible(m_melodyRoll->m_scopeComponent.get());
+
         m_initialized = true;
 
         // Calculate initial layout
@@ -471,12 +484,28 @@ struct WrldBuildrComponent : public juce::Component
             {
                 SetDisplayModeController(true);
                 SetDisplayModeAudioScope(false);
+                SetDisplayModePanAndMelody(false);
                 break;
             }
-            case TheNonagonSquiggleBoyWrldBldr::DisplayMode::AudioScope:
+            case TheNonagonSquiggleBoyWrldBldr::DisplayMode::Visualizer:
             {
-                SetDisplayModeController(false);
-                SetDisplayModeAudioScope(true);
+                switch (m_nonagon->GetVisualDisplayMode())
+                {
+                    case SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Voice:
+                    {
+                        SetDisplayModeController(false);
+                        SetDisplayModeAudioScope(true);
+                        SetDisplayModePanAndMelody(false);
+                        break;
+                    }
+                    case SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::PanAndMelody:
+                    {
+                        SetDisplayModeController(false);
+                        SetDisplayModeAudioScope(false);
+                        SetDisplayModePanAndMelody(true);
+                        break;
+                    }
+                }
                 break;
             }
         }
@@ -505,6 +534,12 @@ struct WrldBuildrComponent : public juce::Component
         {
             m_audioScope[i]->m_scopeComponent->setVisible(isVisible);
         }
+    }
+
+    void SetDisplayModePanAndMelody(bool isVisible)
+    {
+        m_soundStage->m_scopeComponent->setVisible(isVisible);
+        m_melodyRoll->m_scopeComponent->setVisible(isVisible);
     }
     
     void UpdatePadGridPosition()
@@ -541,5 +576,8 @@ struct WrldBuildrComponent : public juce::Component
         {
             m_audioScope[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
         }
+
+        m_soundStage->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_melodyRoll->SetBounds(m_cellSize, m_gridX, m_gridY);
     }
 };

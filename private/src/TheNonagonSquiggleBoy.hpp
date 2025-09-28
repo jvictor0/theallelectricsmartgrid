@@ -236,7 +236,7 @@ struct TheNonagonSquiggleBoyInternal
         SetExternalInputs();
 
         SetNonagonInputs();
-        m_nonagon.Process(1.0 / 48000.0);
+        m_nonagon.ProcessSample(1.0 / 48000.0);
         
         SetSquiggleBoyInputs();
         m_squiggleBoy.ProcessSample(m_squiggleBoyState, 1.0 / 48000.0);
@@ -251,6 +251,7 @@ struct TheNonagonSquiggleBoyInternal
     void ProcessFrame()
     {
         m_squiggleBoy.ProcessFrame();
+        m_nonagon.ProcessFrame();
         PopulateUIState();
         HandleStateInterchange();
     }

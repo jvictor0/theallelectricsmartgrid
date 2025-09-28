@@ -60,6 +60,8 @@ struct TheNonagonInternal
         }
     };
     
+    NonagonNoteWriter m_noteWriter;
+
     MusicalTimeWithClock m_theoryOfTime;
     LameJuisInternal m_lameJuis;
     MultiPhasorGateInternal m_multiPhasorGate;
@@ -247,9 +249,25 @@ struct TheNonagonInternal
                 {
                     m_output.m_extraTimbreTrg[i][j] = result.Timbre(j);
                 }
+
+                NonagonNoteWriter::EventData eventData;
+                eventData.m_voiceIx = i;
+                eventData.m_voltPerOct = m_output.m_voltPerOct[i];
+                eventData.m_startPosition = m_theoryOfTime.m_musicalTime.m_bits[0].m_pos.Float();
+                for (size_t j = 0; j < x_numExtraTimbres; ++j)
+                {
+                    eventData.m_timbre[j] = m_output.m_extraTimbre[i][j];
+                }
+
+                m_noteWriter.RecordNote(eventData);
             }
             else if (!m_multiPhasorGate.m_gate[i])
             {
+                if (m_output.m_gate[i])
+                {
+                    m_noteWriter.RecordNoteEnd(i, m_theoryOfTime.m_musicalTime.m_bits[0].m_pos.Float());
+                }
+                
                 m_output.m_gate[i] = false;
             }
 
@@ -271,6 +289,12 @@ struct TheNonagonInternal
     {
         SetTheoryOfTimeInput(input);
         m_theoryOfTime.Process(dt, input.m_theoryOfTimeInput);
+
+        if (m_theoryOfTime.m_musicalTime.m_bits[0].m_top)
+        {
+            m_noteWriter.RecordStartIndex();
+        }
+
         if (m_theoryOfTime.m_musicalTime.m_anyChange)
         {
             SetIndexArpInputs(input);
@@ -1343,11 +1367,21 @@ struct TheNonagonSmartGrid
     {
         m_stateSaverState.m_blend = blendFactor;
     }
+
+    void PopulateUIState()
+    {
+        m_nonagon.m_noteWriter.SetCurPosition(m_nonagon.m_theoryOfTime.m_musicalTime.m_bits[0].m_pos.Float());
+    }
     
-    void Process(float dt)
+    void ProcessSample(float dt)
     {
         m_stateSaver.Process(m_stateSaverState);
         m_gridHolder.Process(dt);
         m_nonagon.Process(dt, m_state);
+    }
+
+    void ProcessFrame()
+    {
+        PopulateUIState();
     }
 };

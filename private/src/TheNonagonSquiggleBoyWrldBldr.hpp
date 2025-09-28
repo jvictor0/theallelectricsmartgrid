@@ -17,7 +17,7 @@ struct TheNonagonSquiggleBoyWrldBldr
     enum class DisplayMode : uint8_t
     {
         Controller,
-        AudioScope
+        Visualizer
     };
 
     SmartGrid::Grid* GetLeftGrid(GridsMode mode)
@@ -179,7 +179,7 @@ struct TheNonagonSquiggleBoyWrldBldr
                 Put(i, 1, new SetGridsModeCell(owner, static_cast<GridsMode>(i)));
             }
 
-            Put(SmartGrid::x_baseGridSize - 1, 1, new SetDisplayModeCell(owner, DisplayMode::AudioScope));
+            Put(SmartGrid::x_baseGridSize - 1, 1, new SetDisplayModeCell(owner, DisplayMode::Visualizer));
 
             for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numGlobalBanks; ++i)
             {

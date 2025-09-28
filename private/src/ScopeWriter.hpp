@@ -247,3 +247,165 @@ struct ScopeReaderFactory
         return ScopeReader(m_scopeWriter, m_voiceIx, m_scopeIx, m_numXSamples, m_numCycles);
     }
 };
+
+template<typename T>
+struct PeriodicEventWriter
+{
+    static constexpr size_t x_numEvents = 16384;
+    T m_events[x_numEvents];
+    std::atomic<ssize_t> m_index;
+    std::atomic<ssize_t> m_lastStartIndex;
+
+    PeriodicEventWriter()
+        : m_index(0)
+        , m_lastStartIndex(0)
+    {
+    }
+
+    void RecordStartIndex()
+    {
+        m_lastStartIndex.store(m_index.load());
+    }
+
+    ssize_t RecordEvent(T& value)
+    {
+        ssize_t index = m_index.load();
+        m_events[index % x_numEvents] = value;
+        m_index.store(m_index.load() + 1);
+        return index;
+    }
+
+    T& Get(ssize_t index)
+    {
+        return m_events[index % x_numEvents];
+    }
+};
+
+struct NonagonNoteWriter
+{
+    static constexpr size_t x_numVoices = 9;
+    struct EventData
+    {
+        uint8_t m_voiceIx;
+        float m_voltPerOct;
+        float m_startPosition;
+        float m_endPosition;
+        float m_timbre[3];
+
+        EventData()
+            : m_voiceIx(0)
+            , m_voltPerOct(0)
+            , m_startPosition(0)
+            , m_endPosition(-1)
+            , m_timbre{0, 0, 0}
+        {
+        }
+    };
+
+    static constexpr size_t x_numEvents = PeriodicEventWriter<EventData>::x_numEvents;
+
+    PeriodicEventWriter<EventData> m_events;
+
+    ssize_t m_lastNoteIndex[x_numVoices];
+    std::atomic<float> m_minPitch;
+    std::atomic<float> m_maxPitch;
+    std::atomic<float> m_lastPeriodMinPitch;
+    std::atomic<float> m_lastPeriodMaxPitch;
+    std::atomic<float> m_curPosition;
+
+    NonagonNoteWriter()
+    {
+        for (size_t i = 0; i < x_numVoices; ++i)
+        {
+            m_lastNoteIndex[i] = -1;
+        }
+    }
+
+    void RecordNote(EventData& eventData)
+    {
+        bool isFirstEvent = m_events.m_lastStartIndex.load() == m_events.m_index.load();
+        if (m_lastNoteIndex[eventData.m_voiceIx] != -1)
+        {
+            RecordNoteEnd(eventData.m_voiceIx, eventData.m_startPosition);
+        }
+
+        m_lastNoteIndex[eventData.m_voiceIx] = m_events.RecordEvent(eventData);
+
+        if (isFirstEvent)
+        {
+            m_minPitch.store(eventData.m_voltPerOct);
+            m_maxPitch.store(eventData.m_voltPerOct);
+        }
+        else
+        {
+            m_minPitch.store(std::min(m_minPitch.load(), eventData.m_voltPerOct));
+            m_maxPitch.store(std::max(m_maxPitch.load(), eventData.m_voltPerOct));
+        }
+    }
+
+    void RecordNoteEnd(size_t voiceIx, float startPosition)
+    {
+        ssize_t currentIndex = m_events.m_index.load();
+        if (m_lastNoteIndex[voiceIx] != -1 && currentIndex - m_lastNoteIndex[voiceIx] < x_numEvents)
+        {
+            assert(m_events.m_events[m_lastNoteIndex[voiceIx] % x_numEvents].m_voiceIx == voiceIx);
+            m_events.m_events[m_lastNoteIndex[voiceIx] % x_numEvents].m_endPosition = startPosition;
+        }
+
+        m_lastNoteIndex[voiceIx] = -1;
+    }
+
+    void RecordStartIndex()
+    {
+        m_lastPeriodMinPitch.store(m_minPitch.load());
+        m_lastPeriodMaxPitch.store(m_maxPitch.load());
+
+        m_events.RecordStartIndex();
+
+        for (size_t i = 0; i < x_numVoices; ++i)
+        {
+            if (m_lastNoteIndex[i] != -1 && m_events.m_index.load() - m_lastNoteIndex[i] < x_numEvents)
+            {
+                EventData eventData = m_events.m_events[m_lastNoteIndex[i] % x_numEvents];
+                RecordNoteEnd(i, 1.0);
+                eventData.m_startPosition = 0;
+                RecordNote(eventData);
+            }
+        }
+    }
+
+    void SetCurPosition(float position)
+    {
+        m_curPosition.store(position);
+    }
+
+    float GetCurPosition()
+    {
+        return m_curPosition.load();
+    }
+
+    EventData& Get(ssize_t index)
+    {
+        return m_events.Get(index);
+    }
+
+    ssize_t GetIndex()
+    {
+        return m_events.m_index.load();
+    }
+
+    ssize_t GetLastStartIndex()
+    {
+        return m_events.m_lastStartIndex.load();
+    }
+    
+    float GetMinPitch()
+    {
+        return std::min(m_minPitch.load(), m_lastPeriodMinPitch.load());
+    }
+
+    float GetMaxPitch()
+    {
+        return std::max(m_maxPitch.load(), m_lastPeriodMaxPitch.load());
+    }
+};

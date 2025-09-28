@@ -625,7 +625,6 @@ struct SquiggleBoy
         }
     }
 
-
     void ProcessFrame()
     {
         ProcessWaveTableGenerators();
@@ -683,12 +682,45 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     struct UIState
     {
+        enum class VisualDisplayMode
+        {
+            Voice,
+            PanAndMelody
+        };
+
+        std::atomic<VisualDisplayMode> m_visualDisplayMode;
+
         EncoderBankUIState m_encoderBankUIState;
         ScopeWriter m_scopeWriter;
+
+        std::atomic<float> m_xPos[x_numVoices];
+        std::atomic<float> m_yPos[x_numVoices];
+        std::atomic<float> m_volume[x_numVoices];
+
+        void SetPos(size_t i, float x, float y)
+        {
+            m_xPos[i].store(x);
+            m_yPos[i].store(y);
+        }
+
+        void SetVolume(size_t i, float volume)
+        {
+            m_volume[i].store(volume);
+        }
+
+        std::pair<float, float> GetPos(size_t i)
+        {
+            return std::make_pair(m_xPos[i].load(), m_yPos[i].load());
+        }
 
         UIState()
             : m_scopeWriter(x_numVoices, static_cast<size_t>(SquiggleBoyVoice::AudioScopes::NumScopes))
         {
+            for (size_t i = 0; i < x_numVoices; ++i)
+            {
+                m_xPos[i] = 0;
+                m_yPos[i] = 0;
+            }
         }
     };
 
@@ -1154,6 +1186,21 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_voiceEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
         m_globalEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
         uiState->m_scopeWriter.Publish();
+        
+        for (size_t i = 0; i < x_numVoices; ++i)
+        {
+            uiState->SetPos(i, m_voices[i].m_pan.m_outputX, m_voices[i].m_pan.m_outputY);
+            uiState->SetVolume(i, m_mixer.m_volumeOut[i]);
+        }
+
+        if (m_selectedAbsoluteEncoderBank == 2)
+        {
+            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::PanAndMelody);
+        }
+        else
+        {
+            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Voice);
+        }
     }
 
     void ProcessSample(Input& input, float deltaT)
