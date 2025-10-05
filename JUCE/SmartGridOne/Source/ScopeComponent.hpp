@@ -260,16 +260,54 @@ struct AnalyserComponent : public juce::Component
 
     int* m_voiceOffset;
 
-    AnalyserComponent(WindowedFFT windowedFFT, std::atomic<size_t>* voiceIx, int* voiceOffset)
+    SquiggleBoyWithEncoderBank::UIState::FilterParams* m_filterParams;
+
+    bool m_logX;
+
+    float m_bucketLogX[DiscreteFourierTransform::x_maxComponents];
+    float m_bucketExpX[DiscreteFourierTransform::x_maxComponents];
+
+    AnalyserComponent(
+        WindowedFFT windowedFFT, 
+        std::atomic<size_t>* voiceIx, 
+        int* voiceOffset, 
+        SquiggleBoyWithEncoderBank::UIState::FilterParams* filterParams)
         : m_voiceIx(voiceIx)
         , m_voiceOffset(voiceOffset)
+        , m_filterParams(filterParams)
+        , m_logX(true)
     {
         for (size_t i = 0; i < x_voicesPerTrack; ++i)
         {
             m_windowedFFT[i] = windowedFFT;
         }
 
+        float m = static_cast<float>(DiscreteFourierTransform::x_maxComponents);
+        for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
+        {
+            m_bucketLogX[i] = std::log(static_cast<float>(i)) / std::log(m - 1);
+        }
+
+        for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
+        {
+            m_bucketExpX[i] = std::pow(m - 1, static_cast<float>(i) / m) / (2 * m);
+        }
+
         setSize(400, 200);
+    }
+
+    float FilterResponse(size_t i, float freq)
+    {
+        float lpAlpha = m_filterParams[i].m_lpAlpha.load();
+        float hpAlpha = m_filterParams[i].m_hpAlpha.load();
+        float ladderAlpha = m_filterParams[i].m_ladderAlpha.load();
+        float ladderResonance = m_filterParams[i].m_ladderResonance.load();
+
+        float lpResponse = OPLowPassFilter::FrequencyResponse(lpAlpha, freq);
+        float hpResponse = OPHighPassFilter::FrequencyResponse(hpAlpha, freq);
+        float ladderResponse = LadderFilter::FrequencyResponse(ladderAlpha, ladderResonance, freq);
+
+        return lpResponse * hpResponse * ladderResponse;
     }
 
     void paint(juce::Graphics& g) override
@@ -305,11 +343,12 @@ struct AnalyserComponent : public juce::Component
             path.startNewSubPath(0, height);
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
 
-            for (size_t j = 0; j < DiscreteFourierTransform::x_maxComponents; ++j)
+            for (size_t j = 1; j < DiscreteFourierTransform::x_maxComponents; ++j)
             {
                 float y = (m_windowedFFT[i].m_filters[j].m_output + 100) / 100;
                 float screenY = height * (1 - y);
-                float screenX = width * j / DiscreteFourierTransform::x_maxComponents;
+                float x = m_logX ? m_bucketLogX[j] : static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
+                float screenX = width * x;
                 g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
                 path.lineTo(screenX, screenY);
             }
@@ -317,6 +356,23 @@ struct AnalyserComponent : public juce::Component
             path.lineTo(width, height);
             g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
             g.strokePath(path, juce::PathStrokeType(1.0f));
+
+            juce::Path filterPath;
+            filterPath.startNewSubPath(0, height);
+            for (size_t j = 0; j < DiscreteFourierTransform::x_maxComponents; ++j)
+            {
+                float freq = m_logX ? m_bucketExpX[j] : static_cast<float>(j) / (2 * DiscreteFourierTransform::x_maxComponents);
+                float y = FilterResponse(i, freq);
+                float screenY = height * (1 - y / 2);
+                float x = static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
+                float screenX = width * x;
+                g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
+                filterPath.lineTo(screenX, screenY);
+            }
+
+            filterPath.lineTo(width, height);
+            g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
+            g.strokePath(filterPath, juce::PathStrokeType(1.0f));
         }
     }
 };

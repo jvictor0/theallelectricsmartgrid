@@ -9,17 +9,15 @@ struct RandomLFO
     OPLowPassFilter m_filter;
     int m_sampleCount;
     int m_samplesToChange;
-    std::mt19937 m_rng;
-    std::uniform_real_distribution<float> m_distribution;
+    static std::mt19937 s_rng;
+    static std::uniform_real_distribution<float> s_distribution;
 
     RandomLFO()
         : m_trg(0)
         , m_sampleCount(0)
         , m_samplesToChange(64)
-        , m_rng(std::random_device{}())
-        , m_distribution(0.0f, 1.0f)
     {
-        m_trg = m_distribution(m_rng);
+        m_trg = s_distribution(s_rng);
         m_filter.SetAlphaFromNatFreq(0.05 / 48000);
         m_filter.m_output = m_trg;
     }
@@ -29,7 +27,7 @@ struct RandomLFO
         ++m_sampleCount;
         if (m_sampleCount >= m_samplesToChange)
         {
-            m_trg = m_distribution(m_rng);
+            m_trg = s_distribution(s_rng);
             m_sampleCount = 0;
         }
 
@@ -37,3 +35,6 @@ struct RandomLFO
         return m_filter.m_output;
     }
 };
+
+inline std::mt19937 RandomLFO::s_rng;
+inline std::uniform_real_distribution<float> RandomLFO::s_distribution(0.0f, 1.0f);

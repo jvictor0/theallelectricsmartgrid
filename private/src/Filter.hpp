@@ -1,6 +1,7 @@
 #pragma once
 
 #include "QuadUtils.hpp"
+#include <cmath>
 
 struct OPLowPassFilter
 {
@@ -26,9 +27,24 @@ struct OPLowPassFilter
         cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
         assert(cyclesPerSample > 0);
 
-        float rc = 1.0f / (2.0f * M_PI * cyclesPerSample);
-        m_alpha = 1.0f / (rc + 1.0f);
-    }                             
+        float omega = 2.0f * M_PI * cyclesPerSample;   // radians per sample
+        m_alpha = 1.0f - std::exp(-omega);
+        // float rc = 1.0f / (2.0f * M_PI * cyclesPerSample);
+        // m_alpha = 1.0f / (rc + 1.0f);
+    }
+
+    static float FrequencyResponse(float alpha, float freq)
+    {
+        // Calculate normalized frequency (omega)
+        //
+        float omega = 2.0f * M_PI * freq;
+        float cosOmega = std::cos(omega);
+        
+        // OPLowPassFilter transfer function: H(z) = alpha / (1 - (1-alpha)z^-1)
+        // Magnitude response: |H(e^jω)| = alpha / sqrt(1 + (1-alpha)^2 - 2(1-alpha)cos(ω))
+        //
+        return alpha / std::sqrt(1.0f + (1.0f - alpha) * (1.0f - alpha) - 2.0f * (1.0f - alpha) * cosOmega);
+    }
 };
 
 template<size_t Size>
@@ -57,8 +73,10 @@ struct BulkFilter
         cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
         assert(cyclesPerSample > 0);
 
-        float rc = 1.0f / (2.0f * M_PI * cyclesPerSample);
-        m_alpha = 1.0f / (rc + 1.0f);
+        float omega = 2.0f * M_PI * cyclesPerSample;   // radians per sample
+        m_alpha = 1.0f - std::exp(-omega);
+        // float rc = 1.0f / (2.0f * M_PI * cyclesPerSample);
+        // m_alpha = 1.0f / (rc + 1.0f);
     }  
 
     void LoadTarget(size_t n, size_t offset, float* target)
@@ -111,8 +129,23 @@ struct OPHighPassFilter
         cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
         assert(cyclesPerSample > 0);
 
-        float rc = 1.0f / (2.0f * M_PI * cyclesPerSample);
-        m_alpha = rc / (rc + 1.0f);
+        float omega = 2.0f * M_PI * cyclesPerSample;   // radians per sample
+        m_alpha = std::exp(-omega);
+    }
+
+    static float FrequencyResponse(float alpha, float freq)
+    {
+        // Calculate normalized frequency (omega)
+        //
+        float omega = 2.0f * M_PI * freq;
+        float cosOmega = std::cos(omega);
+        
+        // OPHighPassFilter transfer function: H(z) = alpha * (1 - z^-1) / (1 - alpha * z^-1)
+        // Magnitude response: |H(e^jω)| = alpha * sqrt(2(1-cos(ω))) / sqrt(1 + alpha^2 - 2*alpha*cos(ω))
+        // Using identity: sqrt(2(1-cos(ω))) = 2|sin(ω/2)|
+        //
+        float sinOmegaOver2 = std::sin(omega / 2.0f);
+        return alpha * 2.0f * std::abs(sinOmegaOver2) / std::sqrt(1.0f + alpha * alpha - 2.0f * alpha * cosOmega);
     }
 };
 

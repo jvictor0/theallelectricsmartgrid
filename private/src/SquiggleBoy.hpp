@@ -43,8 +43,6 @@ struct SquiggleBoyVoice
         static constexpr size_t x_oversample = 4;
         VectorPhaseShaperInternal m_vco[2];
 
-        RandomLFO m_driftLFO[2];
-
         BitRateReducer m_bitRateReducer;
         TanhSaturator<true> m_saturator;
 
@@ -67,7 +65,7 @@ struct SquiggleBoyVoice
             float m_wtBlend[2];
 
             PhaseUtils::ExpParam m_offsetFreqFactor;
-            float m_driftFreqFactor;
+            PhaseUtils::ExpParam m_detune;
 
             float m_crossModIndex[2];
 
@@ -84,7 +82,7 @@ struct SquiggleBoyVoice
                 , m_cosBlend{0, 0}
                 , m_wtBlend{0, 0}    
                 , m_offsetFreqFactor(4)         
-                , m_driftFreqFactor(0)
+                , m_detune(1.03)
                 , m_crossModIndex{0, 0}
                 , m_fade(0)
                 , m_bitCrushAmount(0)
@@ -108,12 +106,6 @@ struct SquiggleBoyVoice
         float Process(const Input& input)
         {
             m_output = 0;
-
-            float driftFactor[2] = 
-            {
-                std::powf(2, (2 * m_driftLFO[0].Process() - 1) * m_state.m_driftFreqFactor), 
-                std::powf(2, (2 * m_driftLFO[1].Process() - 1) * m_state.m_driftFreqFactor)
-            };
 
             bool top[2] = {false, false};
             float wtBlend[2] = {m_wtBlendFilter[0].Process(input.m_wtBlend[0]), m_wtBlendFilter[1].Process(input.m_wtBlend[1])}; 
@@ -139,8 +131,8 @@ struct SquiggleBoyVoice
                 vcoInput[0].m_freq = (m_state.m_baseFreq + interp * (input.m_baseFreq - m_state.m_baseFreq)) / x_oversample;
                 vcoInput[1].m_freq = vcoInput[0].m_freq * (m_state.m_offsetFreqFactor.m_expParam + interp * (input.m_offsetFreqFactor.m_expParam - m_state.m_offsetFreqFactor.m_expParam));
 
-                vcoInput[0].m_freq *= driftFactor[0];
-                vcoInput[1].m_freq *= driftFactor[1];
+                vcoInput[0].m_freq *= m_state.m_detune.m_expParam;
+                vcoInput[1].m_freq /= m_state.m_detune.m_expParam;
 
                 m_vco[0].Process(vcoInput[0], 0 /*unused*/);
                 vcoInput[1].m_phaseMod = m_vco[0].m_out * (m_state.m_crossModIndex[1] + interp * (input.m_crossModIndex[1] - m_state.m_crossModIndex[1]));
@@ -223,7 +215,7 @@ struct SquiggleBoyVoice
 
             Input()
                 : m_bwBase(0.25f, 1024.0f)
-                , m_bwWidth(1.0f, 1024.0f)
+                , m_bwWidth(1.0f, 4096.0f)
                 , m_vcoBaseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
                 , m_ladderCutoffFactor(0.25f, 1024.0f)
                 , m_ladderResonance(0)
@@ -715,6 +707,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             Control,
         };
 
+        struct FilterParams
+        {
+            std::atomic<float> m_hpAlpha;
+            std::atomic<float> m_lpAlpha;
+            std::atomic<float> m_ladderAlpha;
+            std::atomic<float> m_ladderResonance;
+        };
+
         std::atomic<VisualDisplayMode> m_visualDisplayMode;
 
         EncoderBankUIState m_encoderBankUIState;
@@ -723,9 +723,19 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         std::atomic<size_t> m_activeTrack;
 
+        FilterParams m_filterParams[x_numVoices];
+
         std::atomic<float> m_xPos[x_numVoices];
         std::atomic<float> m_yPos[x_numVoices];
         std::atomic<float> m_volume[x_numVoices];
+
+        void SetFilterParams(size_t i, float hpAlpha, float lpAlpha, float ladderAlpha, float ladderResonance)
+        {
+            m_filterParams[i].m_hpAlpha.store(hpAlpha);
+            m_filterParams[i].m_lpAlpha.store(lpAlpha);
+            m_filterParams[i].m_ladderAlpha.store(ladderAlpha);
+            m_filterParams[i].m_ladderResonance.store(ladderResonance);
+        }
 
         void SetPos(size_t i, float x, float y)
         {
@@ -1091,7 +1101,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_vcoInput.m_bitCrushAmount = m_voiceEncoderBank.GetValue(0, 2, 2, i);
             m_state[i].m_filterInput.m_sampleRateReducerFreq.Update(1 - m_voiceEncoderBank.GetValue(0, 3, 2, i));
             m_state[i].m_vcoInput.m_offsetFreqFactor.Update(m_voiceEncoderBank.GetValue(0, 0, 3, i));
-            m_state[i].m_vcoInput.m_driftFreqFactor = m_voiceEncoderBank.GetValue(0, 1, 3, i) / 24;
+            m_state[i].m_vcoInput.m_detune.Update(m_voiceEncoderBank.GetValue(0, 1, 3, i));
             
             m_state[i].m_filterInput.m_vcoBaseFreq = m_voices[i].m_baseFreqSlew.m_output;            
             m_state[i].m_filterInput.m_bwBase.Update(m_voiceEncoderBank.GetValue(0, 2, 3, i));
@@ -1239,6 +1249,12 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             uiState->SetPos(i, m_voices[i].m_pan.m_outputX, m_voices[i].m_pan.m_outputY);
             uiState->SetVolume(i, m_mixer.m_volumeOut[i]);
+
+            float hpAlpha = m_voices[i].m_filter.m_highPassFilter.m_alpha;
+            float lpAlpha = m_voices[i].m_filter.m_lowPassFilter.m_alpha;
+            float ladderAlpha = m_voices[i].m_filter.m_ladderFilter.m_stage4.m_alpha;
+            float ladderResonance = m_voices[i].m_filter.m_ladderFilter.m_feedback;
+            uiState->SetFilterParams(i, hpAlpha, lpAlpha, ladderAlpha, ladderResonance);
         }
 
         if (m_selectedAbsoluteEncoderBank == 0)

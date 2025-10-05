@@ -29,9 +29,13 @@ struct LadderFilter
 
     float Process(float input)
     {
+        float Cpi = std::pow(m_stage4.m_alpha / (2.0f - m_stage4.m_alpha), 4.0f);
+        float kSafe = 0.9f / (Cpi + 1e-8f);
+        float kEff  = std::min(m_feedback, kSafe);
+
         // Apply resonance feedback
         //
-        float feedbackInput = input - m_feedback * m_stage4.m_output;
+        float feedbackInput = input - kEff * m_stage4.m_output;
 
         feedbackInput = m_feedbackSaturator.Process(feedbackInput);
 
@@ -45,7 +49,7 @@ struct LadderFilter
         // Output gain compensation to counter resonance-induced passband drop
         // Maintains approximately unity DC gain as resonance increases
         //
-        float compensatedOut = stage4Out * (1.0f + m_feedback);
+        float compensatedOut = stage4Out * (1.0f + kEff);
 
         return m_outputSaturator.Process(compensatedOut);
     }
@@ -76,5 +80,48 @@ struct LadderFilter
         m_stage2.m_output = 0.0f;
         m_stage3.m_output = 0.0f;
         m_stage4.m_output = 0.0f;
+    }
+
+    static float FrequencyResponse(float alpha, float feedback, float freq)
+    {
+        // Calculate normalized frequency (omega)
+        //
+        float omega = 2.0f * M_PI * freq;
+        float cosOmega = std::cos(omega);
+        float sinOmega = std::sin(omega);
+        
+        // Single stage complex frequency response for OPLowPassFilter
+        // H(z) = alpha / (1 - (1-alpha)z^-1)
+        // H(e^jω) = alpha / (1 - (1-alpha)e^-jω)
+        //         = alpha / (1 - (1-alpha)(cos(ω) - j*sin(ω)))
+        //         = alpha / ((1 - (1-alpha)cos(ω)) + j*(1-alpha)sin(ω))
+        //
+        float realPart = 1.0f - (1.0f - alpha) * cosOmega;
+        float imagPart = (1.0f - alpha) * sinOmega;
+        float denominator = realPart * realPart + imagPart * imagPart;
+        
+        // Complex H = (alpha * realPart + j * alpha * imagPart) / denominator
+        // |H| = alpha / sqrt(denominator)
+        //
+        float singleStageMagnitude = alpha / std::sqrt(denominator);
+        float singleStagePhase = std::atan2(imagPart, realPart);
+        
+        // Four cascaded stages: magnitude^4, phase * 4
+        //
+        float fourStageMagnitude = singleStageMagnitude * singleStageMagnitude * singleStageMagnitude * singleStageMagnitude;
+        float fourStagePhase = singleStagePhase * 4.0f;
+        
+        // Apply feedback: H_total = H^4 / (1 + feedback * H^4)
+        // This requires complex arithmetic
+        //
+        float feedbackReal = 1.0f + feedback * fourStageMagnitude * std::cos(fourStagePhase);
+        float feedbackImag = feedback * fourStageMagnitude * std::sin(fourStagePhase);
+        float feedbackDenominator = feedbackReal * feedbackReal + feedbackImag * feedbackImag;
+        
+        float totalMagnitude = fourStageMagnitude / std::sqrt(feedbackDenominator);
+        
+        // Apply gain compensation (1 + feedback) to maintain unity DC gain
+        //
+        return totalMagnitude * (1.0f + feedback);
     }
 }; 

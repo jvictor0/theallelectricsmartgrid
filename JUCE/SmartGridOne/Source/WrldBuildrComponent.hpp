@@ -399,7 +399,8 @@ struct WrldBuildrComponent : public juce::Component
         auto analyzer = std::make_unique<AnalyserComponent>(
             WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SquiggleBoyVoice::AudioScopes::PostAmp)), 
             &uiState->m_activeTrack, 
-            &m_scopeVoiceOffset);
+            &m_scopeVoiceOffset,
+            uiState->m_filterParams);
         m_analyzer = std::make_unique<ScopeComponentHolder>(std::move(analyzer), 16, 8, 8, 8);
         addAndMakeVisible(m_analyzer->m_scopeComponent.get());
 
