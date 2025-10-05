@@ -101,6 +101,8 @@ struct MultiPhasorGateInternal
         }
     };
 
+    static constexpr float x_almostOne = 0.999;
+
     bool m_anyGate;
     bool m_gate[x_maxPoly];
     bool m_preGate[x_maxPoly];
@@ -126,7 +128,7 @@ struct MultiPhasorGateInternal
                     {
                         float thisPhase = m_bounds[i][j].GetPhase(input.m_phasors[j]);
                         if (input.m_gateFrac[i] <= thisPhase &&
-                            (input.m_gateFrac[i] < 1.0 || !input.m_newTrigCanStart[i] || input.m_mute[i]))
+                            (input.m_gateFrac[i] < x_almostOne || !input.m_newTrigCanStart[i] || input.m_mute[i]))
                         {
                             m_gate[i] = false;
                             m_preGate[i] = false;
@@ -145,7 +147,7 @@ struct MultiPhasorGateInternal
                 m_phasorOut[i] = phasorOut;
             }
             else if (m_preGate[i] && 
-                     (input.m_gateFrac[i] < 1.0 || !input.m_newTrigCanStart[i] || input.m_mute[i]))
+                     (input.m_gateFrac[i] < x_almostOne || !input.m_newTrigCanStart[i] || input.m_mute[i]))
             {
                 m_gate[i] = false;
                 m_preGate[i] = false;

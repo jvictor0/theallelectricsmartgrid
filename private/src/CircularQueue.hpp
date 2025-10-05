@@ -25,6 +25,21 @@ struct CircularQueue
         return true;
     }
 
+    T* NextToPush()
+    {
+        if (m_head.load() - m_tail.load() == N)
+        {
+            return nullptr;
+        }
+
+        return &m_data[m_head.load() % N];
+    }
+
+    void CompletePush()
+    {
+        m_head.fetch_add(1);
+    }
+
     bool Pop(T& value)
     {
         if (m_head.load() == m_tail.load())
@@ -35,6 +50,18 @@ struct CircularQueue
         value = m_data[m_tail.load() % N];
         m_tail.fetch_add(1);
         return true;
+    }
+
+    T* PopPtr()
+    {
+        if (m_head.load() == m_tail.load())
+        {
+            return nullptr;
+        }
+
+        T* value = &m_data[m_tail.load() % N];
+        m_tail.fetch_add(1);
+        return value;
     }
 
     void Pop()
@@ -133,7 +160,7 @@ struct CircularByteQueue : public CircularQueue<ByteBuffer<BufferSize>, QueueSiz
             {
                 // Queue is full, sleep and try again
                 //
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
             }
 
             m_nextToSend.Clear();

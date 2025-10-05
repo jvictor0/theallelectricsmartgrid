@@ -210,4 +210,9 @@ struct EncoderBankBankInternal
             m_banks[m_selectedBank].PopulateUIState(uiState);
         }
     }
+
+    int GetCurrentTrack()
+    {
+        return m_banks[0].GetCurrentTrack();
+    }
 };

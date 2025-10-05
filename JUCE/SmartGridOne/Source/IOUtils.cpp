@@ -16,6 +16,10 @@ void FileManager::PersistConfig(JSON config)
     char* configStr = config.Dumps(JSON_ENCODE_ANY);
     juce::String configString(configStr);
     free(configStr);
+
+    juce::Logger::writeToLog("Saving Config: " + configFile.getFullPathName() + " (" + std::to_string(configString.length()) + " bytes)");
+
+
     configFile.replaceWithText(configString);
 }    
 
@@ -30,10 +34,10 @@ JSON FileManager::LoadConfig()
     {
         return JSON::Null();
     }
-
-    juce::Logger::writeToLog("Loading Config: " + configFile.getFullPathName());
-
     juce::String configString = configFile.loadFileAsString();
+
+    juce::Logger::writeToLog("Loading Config: " + configFile.getFullPathName() + " (" + std::to_string(configString.length()) + " bytes)");
+
     return JSON::Loads(configString.toUTF8().getAddress(), 0, nullptr);
 }
 
@@ -43,12 +47,14 @@ void FileManager::PersistJSON(JSON json, juce::String filename)
     char* jsonStr = json.Dumps(JSON_ENCODE_ANY);
     juce::String jsonString(jsonStr);
     free(jsonStr);
+
+    juce::Logger::writeToLog("Saving JSON: " + filename + " (" + std::to_string(jsonString.length()) + " bytes)");
+   
     file.replaceWithText(jsonString);
 }
 
 void FileManager::SavePatch(JSON json)
 {
-    INFO("Saving Patch: %s", m_currentPatchFilename.toUTF8().getAddress());
     PersistJSON(json, m_currentPatchFilename);
 }
 
@@ -56,6 +62,9 @@ JSON FileManager::LoadJSON(juce::String filename)
 {
     juce::File file(filename);
     juce::String jsonString = file.loadFileAsString();
+
+    juce::Logger::writeToLog("Loading JSON: " + filename + " (" + std::to_string(jsonString.length()) + " bytes)");
+
     return JSON::Loads(jsonString.toUTF8().getAddress(), 0, nullptr);
 }
 
@@ -91,6 +100,32 @@ void FileManager::ChooseSaveFile(bool saveAs)
     {
         m_mainComponent->RequestSave();
     }
+}
+
+void FileManager::PickRecordingDirectory()
+{
+    juce::File smartGridDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SmartGridOne");
+    smartGridDir.createDirectory();
+    
+    m_fileChooser = std::make_unique<juce::FileChooser>("Pick Recording Directory", smartGridDir);
+    int flags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories;
+    
+    m_fileChooser->launchAsync(flags, [this](const juce::FileChooser& chooser)
+    {
+        juce::String directory = chooser.getResult().getFullPathName();
+        if (!directory.isEmpty())
+        {
+            juce::Logger::writeToLog("Pick Recording Directory: " + directory);
+            m_mainComponent->SetRecordingDirectory(directory.toUTF8().getAddress());
+        }
+    });
+}
+
+void FileManager::SetDefaultRecordingDirectory()
+{
+    juce::File smartGridDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SmartGridOne");
+    smartGridDir.createDirectory();
+    m_mainComponent->SetRecordingDirectory((smartGridDir.getFullPathName() + "/Recordings").toUTF8().getAddress());
 }
 
 void FileManager::ChooseLoadFile()

@@ -5,17 +5,29 @@
 
 struct ScopeComponent : public juce::Component
 {
+    enum class ScopeType
+    {
+        Audio,
+        Control,
+    };
+
+    static constexpr size_t x_voicesPerTrack = 3;
     ScopeReaderFactory m_scopeReaderFactory;
-    static constexpr size_t x_numXSamples = 256;
-    size_t m_voiceIx;
+    static constexpr size_t x_numXSamples = 1024;
+    std::atomic<size_t>* m_voiceIx;
     size_t m_scopeIx;
     ScopeWriter* m_scopeWriter;
 
-    ScopeComponent(size_t voiceIx, size_t scopeIx, ScopeWriter* scopeWriter)
-        : m_scopeReaderFactory(scopeWriter, voiceIx, scopeIx, x_numXSamples, 1)
+    int* m_voiceOffset;
+    ScopeType m_scopeType;
+
+    ScopeComponent(std::atomic<size_t>* voiceIx, size_t scopeIx, ScopeWriter* scopeWriter, int* voiceOffset, ScopeType scopeType)
+        : m_scopeReaderFactory(scopeWriter, voiceIx->load(), scopeIx, x_numXSamples, 1)
         , m_voiceIx(voiceIx)
         , m_scopeIx(scopeIx)
         , m_scopeWriter(scopeWriter)
+        , m_voiceOffset(voiceOffset)
+        , m_scopeType(scopeType)
     {
         setSize(400, 200);
     }
@@ -32,48 +44,88 @@ struct ScopeComponent : public juce::Component
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
         
-        // Create scope reader
-        //
-        ScopeReader scopeReader = m_scopeReaderFactory.Create();
+
+        int voiceOffset = *m_voiceOffset;
+        int numLoops = voiceOffset == -1 ? x_voicesPerTrack : 1;
+
+        size_t voiceIxFixed = m_voiceIx->load() * x_voicesPerTrack;
         
-        // Create path for oscilloscope curve
-        //
-        juce::Path scopePath;
-        bool firstPoint = true;
-        
-        // Draw the oscilloscope curve
-        //
-        for (int x = 0; x < x_numXSamples; ++x)
+        for (int i = 0; i < numLoops; ++i)
         {
-            float y = scopeReader.Get(x);
-            
-            // Convert to screen coordinates
-            // y is typically in range [-1, 1], convert to [0, height]
-            //
-            float screenX = bounds.getX() + (static_cast<float>(x) / static_cast<float>(x_numXSamples - 1)) * width;
-            float screenY = bounds.getY() + height * 0.5f - (y * height * 0.4f);
-            
-            if (firstPoint)
+            size_t voiceIx = voiceIxFixed;
+
+            if (voiceOffset != -1)
             {
-                scopePath.startNewSubPath(screenX, screenY);
-                firstPoint = false;
+                voiceIx += voiceOffset;
             }
             else
             {
-                scopePath.lineTo(screenX, screenY);
+                voiceIx += i;
             }
+
+            m_scopeReaderFactory.SetVoiceIx(voiceIx);
+
+            // Create scope reader
+            //
+            ScopeReader scopeReader = m_scopeReaderFactory.Create();
+            
+            // Create path for oscilloscope curve
+            //
+            juce::Path scopePath;
+            bool firstPoint = true;
+            
+            // Draw the oscilloscope curve
+            //
+            for (int x = 0; x < x_numXSamples; ++x)
+            {
+                float y = scopeReader.Get(x);
+                
+                // Convert to screen coordinates
+                // y is typically in range [-1, 1], convert to [0, height]
+                //
+                float screenX = bounds.getX() + (static_cast<float>(x) / static_cast<float>(x_numXSamples - 1)) * width;
+                float screenY;
+                if (m_scopeType == ScopeType::Audio)
+                {
+                    screenY = bounds.getY() + height * 0.5f - (y * height * 0.4f);
+                }
+                else
+                {
+                    screenY = bounds.getY() + height * (1.0 - y * 0.9f - 0.05f);
+                }
+                
+                if (firstPoint)
+                {
+                    scopePath.startNewSubPath(screenX, screenY);
+                    firstPoint = false;
+                }
+                else
+                {
+                    scopePath.lineTo(screenX, screenY);
+                }
+            }
+            
+            // Draw the curve
+            //
+            SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
+            g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
+            g.strokePath(scopePath, juce::PathStrokeType(1.0f));
+            
+            // Draw center line
+            //
+            g.setColour(juce::Colours::darkgrey);
+            g.drawLine(bounds.getX(), bounds.getY() + height * 0.5f, 
+                    bounds.getX() + width, bounds.getY() + height * 0.5f, 1.0f);
         }
-        
-        // Draw the curve
-        //
-        g.setColour(juce::Colours::green);
-        g.strokePath(scopePath, juce::PathStrokeType(1.0f));
-        
-        // Draw center line
-        //
-        g.setColour(juce::Colours::darkgrey);
-        g.drawLine(bounds.getX(), bounds.getY() + height * 0.5f, 
-                   bounds.getX() + width, bounds.getY() + height * 0.5f, 1.0f);
+    }
+
+    void mouseDown(const juce::MouseEvent& event) override
+    {
+        ++(*m_voiceOffset);
+        if (*m_voiceOffset == x_voicesPerTrack)
+        {
+            *m_voiceOffset = -1;
+        }
     }
 };
 
@@ -84,13 +136,11 @@ struct SoundStageComponent : public juce::Component
     std::atomic<float>* m_xPos;
     std::atomic<float>* m_yPos;
     std::atomic<float>* m_volume;
-    ScopeWriter* m_scopeWriter;
-
-    SoundStageComponent(std::atomic<float>* xPos, std::atomic<float>* yPos, std::atomic<float>* volume, ScopeWriter* scopeWriter)
+    
+    SoundStageComponent(std::atomic<float>* xPos, std::atomic<float>* yPos, std::atomic<float>* volume)
         : m_xPos(xPos)
         , m_yPos(yPos)
         , m_volume(volume)
-        , m_scopeWriter(scopeWriter)
     {
         setSize(400, 200);
     }
@@ -111,7 +161,7 @@ struct SoundStageComponent : public juce::Component
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             auto centerX = width * m_xPos[i].load() * (1 - border) + border * width / 2;
-            auto centerY = height * m_yPos[i].load() * (1 - border) + border * height / 2;
+            auto centerY = height * (1 - m_yPos[i].load()) * (1 - border) + border * height / 2;
 
             float radius = (0.01 + 0.3 * m_volume[i].load()) * std::min(width, height);
 
@@ -198,6 +248,75 @@ struct MelodyRollComponent : public juce::Component
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(eventData.m_voiceIx);
             g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
             g.drawLine(screenXStart, screenY, screenXEnd, screenY, 1.0f);
+        }
+    }
+};
+
+struct AnalyserComponent : public juce::Component
+{
+    static constexpr size_t x_voicesPerTrack = 3;
+    WindowedFFT m_windowedFFT[x_voicesPerTrack];
+    std::atomic<size_t>* m_voiceIx;
+
+    int* m_voiceOffset;
+
+    AnalyserComponent(WindowedFFT windowedFFT, std::atomic<size_t>* voiceIx, int* voiceOffset)
+        : m_voiceIx(voiceIx)
+        , m_voiceOffset(voiceOffset)
+    {
+        for (size_t i = 0; i < x_voicesPerTrack; ++i)
+        {
+            m_windowedFFT[i] = windowedFFT;
+        }
+
+        setSize(400, 200);
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        // Fill background
+        //
+        g.fillAll(juce::Colours::black);
+
+        auto bounds = getLocalBounds().toFloat();
+        auto width = bounds.getWidth();
+        auto height = bounds.getHeight();
+
+        int voiceOffset = *m_voiceOffset;
+
+        size_t baseVoiceIx = m_voiceIx->load() * x_voicesPerTrack;
+        size_t numLoops = 1;
+        if (voiceOffset == -1)
+        {
+            numLoops = x_voicesPerTrack;
+        }
+
+        for (size_t i = 0; i < numLoops; ++i)
+        {
+            size_t voiceIx = baseVoiceIx + voiceOffset;
+            if (voiceOffset == -1)
+            {
+                voiceIx = baseVoiceIx + i;
+            }
+
+            m_windowedFFT[i].Compute(voiceIx);
+
+            juce::Path path;
+            path.startNewSubPath(0, height);
+            SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
+
+            for (size_t j = 0; j < DiscreteFourierTransform::x_maxComponents; ++j)
+            {
+                float y = (m_windowedFFT[i].m_filters[j].m_output + 100) / 100;
+                float screenY = height * (1 - y);
+                float screenX = width * j / DiscreteFourierTransform::x_maxComponents;
+                g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
+                path.lineTo(screenX, screenY);
+            }
+        
+            path.lineTo(width, height);
+            g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
+            g.strokePath(path, juce::PathStrokeType(1.0f));
         }
     }
 };

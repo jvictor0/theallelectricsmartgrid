@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include "AdaptiveWaveTable.hpp"
 
 struct ScopeWriter
 {
@@ -44,6 +45,16 @@ struct ScopeWriter
     size_t GetPhysicalIndex(size_t scope, size_t voice, size_t index)
     {
         return (index * m_voices * m_scopes + scope * m_voices + voice) % x_bufferSize;
+    }
+
+    size_t MaxIndexes()
+    {
+        return x_bufferSize / (m_voices * m_scopes);
+    }
+
+    float ReadSample(size_t scope, size_t voice, size_t index)
+    {
+        return m_buffer[GetPhysicalIndex(scope, voice, index)];
     }
 
     float Read(size_t scope, size_t voice, double index)
@@ -145,6 +156,76 @@ struct ScopeWriterHolder
     }
 };
 
+struct WindowedFFT
+{
+    DiscreteFourierTransform m_dft;
+    OPLowPassFilter m_filters[DiscreteFourierTransform::x_maxComponents];
+    ScopeWriter* m_scopeWriter;
+    size_t m_scopeIx;
+
+    WindowedFFT()
+        : m_scopeWriter(nullptr)
+        , m_scopeIx(0)
+    {
+        for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
+        {
+            m_filters[i].SetAlphaFromNatFreq(4.0 / 60.0);
+        }
+        
+        m_dft.Init();
+    }
+
+    WindowedFFT(ScopeWriter* scopeWriter, size_t scopeIx)
+        : m_scopeWriter(scopeWriter)
+        , m_scopeIx(scopeIx)
+    {
+        for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
+        {
+            m_filters[i].SetAlphaFromNatFreq(4.0 / 60.0);
+        }
+        
+        m_dft.Init();
+    }
+
+    void operator=(const WindowedFFT& other)
+    {
+        m_scopeWriter = other.m_scopeWriter;
+        m_scopeIx = other.m_scopeIx;
+    }
+
+    void Compute(size_t voiceIx)
+    {
+        m_dft.Init();
+        BasicWaveTable waveTable;
+        size_t endIndex = m_scopeWriter->m_publishedIndex.load();
+        size_t startSample = endIndex - BasicWaveTable::x_tableSize;
+        for (size_t j = 0; j < BasicWaveTable::x_tableSize; ++j)
+        {
+            float value = m_scopeWriter->ReadSample(m_scopeIx, voiceIx, startSample + j);
+            waveTable.m_table[j] = value;
+        }
+
+        // Hann window
+        //
+        for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
+        {
+            float phase = juce::MathConstants<float>::twoPi * i / (BasicWaveTable::x_tableSize - 1);
+            float hann  = 0.5f * (1.0f - std::cos(phase));
+            waveTable.m_table[i] *= hann;
+        }
+
+        m_dft.Transform(waveTable);
+
+        for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
+        {
+            float re= m_dft.m_components[i].real();
+            float im = m_dft.m_components[i].imag();
+            float mag = std::max(0.00001f, 2 * std::sqrtf(re * re + im * im));
+            m_filters[i].Process(20 * std::log10f(mag));
+        }
+    }
+};
+
 struct ScopeReader
 {
     ScopeWriter* m_scopeWriter;
@@ -157,6 +238,8 @@ struct ScopeReader
     size_t m_transferIndex;
     size_t m_postTransferIndex;
 
+    bool m_empty;
+
     ScopeReader(
         ScopeWriter* scopeWriter, 
         size_t voiceIx, 
@@ -167,6 +250,7 @@ struct ScopeReader
         , m_voiceIx(voiceIx)
         , m_scopeIx(scopeIx)
         , m_numXSamples(numXSamples)
+        , m_empty(false)
     {
         size_t lastStartIndexIndex = m_scopeWriter->m_startIndexIndex[m_scopeIx][m_voiceIx].load();
         m_startIndex = m_scopeWriter->m_startIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 1) % ScopeWriter::x_numStartIndices];
@@ -190,6 +274,10 @@ struct ScopeReader
             // No transfer.
             //
             m_transferXSample = m_numXSamples;
+            if (m_scopeWriter->MaxIndexes() < m_transferIndex - m_startIndex)
+            {
+                m_empty = true;
+            }
         }
         else
         {
@@ -203,7 +291,11 @@ struct ScopeReader
 
     float Get(size_t sample)
     {
-        if (sample < m_transferXSample)
+        if (m_empty)
+        {
+            return 0;
+        }
+        else if (sample < m_transferXSample)
         {
             double wayThrough = static_cast<double>(sample) / static_cast<double>(m_transferXSample);
             double index = m_startIndex + wayThrough * (m_transferIndex - m_startIndex);
@@ -240,6 +332,16 @@ struct ScopeReaderFactory
         , m_numXSamples(numXSamples)
         , m_numCycles(numCycles)
     {
+    }
+
+    void SetVoiceIx(size_t voiceIx)
+    {
+        m_voiceIx = voiceIx;
+    }
+
+    void SetScopeIx(size_t scopeIx)
+    {
+        m_scopeIx = scopeIx;
     }
 
     ScopeReader Create()

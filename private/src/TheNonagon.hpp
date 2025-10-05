@@ -81,6 +81,7 @@ struct TheNonagonInternal
         float m_extraTimbre[x_numVoices][x_numExtraTimbres];
         FixedSlew m_extraTimbreSlew[x_numVoices][x_numExtraTimbres];
         float m_totPhasors[x_numTimeBits];
+        bool m_totTop[x_numTimeBits];
 
         Output()
         {
@@ -100,6 +101,7 @@ struct TheNonagonInternal
             for (size_t i = 0; i < x_numTimeBits; ++i)
             {
                 m_totPhasors[i] = 0;
+                m_totTop[i] = false;
             }
         }
     };
@@ -282,6 +284,7 @@ struct TheNonagonInternal
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {
             m_output.m_totPhasors[i] = input.m_multiPhasorGateInput.m_phasors[x_numTimeBits - i - 1];
+            m_output.m_totTop[i] = m_theoryOfTime.m_musicalTime.m_bits[i + 1].m_top;
         }
     }
 

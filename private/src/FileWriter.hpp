@@ -10,7 +10,7 @@
 struct FileWriter
 {
     static constexpr size_t x_bufferSize = 4096;
-    static constexpr size_t x_queueSize = 10;
+    static constexpr size_t x_queueSize = 1024;
     
     CircularByteQueue<x_bufferSize, x_queueSize> m_queue;
     std::atomic<bool> m_done{false};

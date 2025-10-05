@@ -231,6 +231,8 @@ struct WrldBuildrComponent : public juce::Component
     int m_gridY;
     int m_gridWidth;
     int m_gridHeight;
+
+    int m_scopeVoiceOffset;
     
     std::unique_ptr<BasicPadGridHolder> m_leftPadGrid;
     std::unique_ptr<BasicPadGridHolder> m_rightPadGrid;
@@ -250,7 +252,13 @@ struct WrldBuildrComponent : public juce::Component
     std::unique_ptr<JoyStickHolder> m_joyStickReturn;
     std::unique_ptr<JoyStickHolder> m_joyStickFixed;
 
-    std::unique_ptr<ScopeComponentHolder> m_audioScope[4];
+    std::unique_ptr<ScopeComponentHolder> m_vcoOneScope;
+    std::unique_ptr<ScopeComponentHolder> m_vcoTwoScope;
+    std::unique_ptr<ScopeComponentHolder> m_postFilterScope;
+    std::unique_ptr<ScopeComponentHolder> m_postAmpScope;
+    std::unique_ptr<ScopeComponentHolder> m_controlScope[4];
+
+    std::unique_ptr<ScopeComponentHolder> m_analyzer;
 
     std::unique_ptr<ScopeComponentHolder> m_soundStage;
     std::unique_ptr<ScopeComponentHolder> m_melodyRoll;
@@ -297,7 +305,7 @@ struct WrldBuildrComponent : public juce::Component
         setWantsKeyboardFocus(true);
         
         m_drawGrid = false;
-        
+        m_scopeVoiceOffset = 0;
         // Create the 8x8 pad grid for the range 0,0,8,8
         //
         auto leftPadGrid = std::make_unique<BasicPadGrid>(m_nonagon->MkLaunchPadUIGridWrldBldr(TheNonagonSquiggleBoyWrldBldr::Routes::LeftGrid), 0, 0, 8, 8);
@@ -371,18 +379,40 @@ struct WrldBuildrComponent : public juce::Component
         m_joyStickFixed = std::make_unique<JoyStickHolder>(std::move(joyStickReturn), 4, 4);
         addAndMakeVisible(m_joyStickFixed->m_joyStick.get());
 
-        for (int i = 0; i < 4; ++i)
-        {
-            auto audioScope = std::make_unique<ScopeComponent>(0, i, m_nonagon->GetAudioScopeWriter());
-            int xPos = i == 0 ? 0 : 8 * (i - 1);
-            int yPos = i == 0 ? 0 : 8;
-            m_audioScope[i] = std::make_unique<ScopeComponentHolder>(std::move(audioScope), xPos, yPos, 8, 8);
-            addAndMakeVisible(m_audioScope[i]->m_scopeComponent.get());
-        }
-
         SquiggleBoyWithEncoderBank::UIState* uiState = m_nonagon->GetSquiggleBoyUIState();
 
-        auto soundStage = std::make_unique<SoundStageComponent>(uiState->m_xPos, uiState->m_yPos, uiState->m_volume, m_nonagon->GetAudioScopeWriter());
+        for (int i = 0; i < 4; ++i)
+        {
+            auto audioScope = std::make_unique<ScopeComponent>(&uiState->m_activeTrack, i, m_nonagon->GetAudioScopeWriter(), &m_scopeVoiceOffset, ScopeComponent::ScopeType::Audio);
+            int xPos = i == 0 ? 0 : 8 * (i - 1);
+            if (i == 3)
+            {
+                xPos = 0;
+            }
+
+            int yPos = i == 0 ? 0 : 8;
+            std::unique_ptr<ScopeComponentHolder>& scope = i == 0 ? m_vcoOneScope : i == 1 ? m_vcoTwoScope : i == 2 ? m_postFilterScope : m_postAmpScope;
+            scope = std::make_unique<ScopeComponentHolder>(std::move(audioScope), xPos, yPos, 8, 8);
+            addAndMakeVisible(scope->m_scopeComponent.get());
+        }
+
+        auto analyzer = std::make_unique<AnalyserComponent>(
+            WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SquiggleBoyVoice::AudioScopes::PostAmp)), 
+            &uiState->m_activeTrack, 
+            &m_scopeVoiceOffset);
+        m_analyzer = std::make_unique<ScopeComponentHolder>(std::move(analyzer), 16, 8, 8, 8);
+        addAndMakeVisible(m_analyzer->m_scopeComponent.get());
+
+        for (int i = 0; i < 4; ++i)
+        {
+            auto controlScope = std::make_unique<ScopeComponent>(&uiState->m_activeTrack, i, m_nonagon->GetControlScopeWriter(), &m_scopeVoiceOffset, ScopeComponent::ScopeType::Control);
+            int xPos = i == 0 ? 0 : 8 * (i - 1);
+            int yPos = i == 0 ? 0 : 8;
+            m_controlScope[i] = std::make_unique<ScopeComponentHolder>(std::move(controlScope), xPos, yPos, 8, 8);
+            addAndMakeVisible(m_controlScope[i]->m_scopeComponent.get());
+        }
+
+        auto soundStage = std::make_unique<SoundStageComponent>(uiState->m_xPos, uiState->m_yPos, uiState->m_volume);
         m_soundStage = std::make_unique<ScopeComponentHolder>(std::move(soundStage), 0, 0, 8, 8);
         addAndMakeVisible(m_soundStage->m_scopeComponent.get());
 
@@ -483,32 +513,51 @@ struct WrldBuildrComponent : public juce::Component
             case TheNonagonSquiggleBoyWrldBldr::DisplayMode::Controller:
             {
                 SetDisplayModeController(true);
-                SetDisplayModeAudioScope(false);
-                SetDisplayModePanAndMelody(false);
+                RemoveVisualizers();
                 break;
             }
             case TheNonagonSquiggleBoyWrldBldr::DisplayMode::Visualizer:
             {
-                switch (m_nonagon->GetVisualDisplayMode())
-                {
-                    case SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Voice:
-                    {
-                        SetDisplayModeController(false);
-                        SetDisplayModeAudioScope(true);
-                        SetDisplayModePanAndMelody(false);
-                        break;
-                    }
-                    case SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::PanAndMelody:
-                    {
-                        SetDisplayModeController(false);
-                        SetDisplayModeAudioScope(false);
-                        SetDisplayModePanAndMelody(true);
-                        break;
-                    }
-                }
+                SetDisplayModeController(false);
+                SetVisualizerVisibility(m_nonagon->GetVisualDisplayMode());
                 break;
             }
         }
+    }
+
+    void RemoveVisualizers()
+    {
+        m_vcoOneScope->m_scopeComponent->setVisible(false);
+        m_vcoTwoScope->m_scopeComponent->setVisible(false);
+        m_postFilterScope->m_scopeComponent->setVisible(false);
+        m_postAmpScope->m_scopeComponent->setVisible(false);
+        m_analyzer->m_scopeComponent->setVisible(false);
+        
+        for (int i = 0; i < 4; ++i)
+        {
+            m_controlScope[i]->m_scopeComponent->setVisible(false);
+        }
+
+        m_soundStage->m_scopeComponent->setVisible(false);
+        m_melodyRoll->m_scopeComponent->setVisible(false);
+    }
+
+    void SetVisualizerVisibility(SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode visualDisplayMode)
+    {
+        m_vcoOneScope->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Voice);
+        m_vcoTwoScope->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Voice);
+        m_postFilterScope->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Filter || 
+                                                        visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Voice);
+        m_postAmpScope->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Filter);
+        m_analyzer->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Voice ||
+                                                visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Filter);
+        for (int i = 0; i < 4; ++i)
+        {
+            m_controlScope[i]->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Control);
+        }
+
+        m_soundStage->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::PanAndMelody);
+        m_melodyRoll->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::PanAndMelody);
     }
 
     void SetDisplayModeController(bool isVisible)
@@ -517,7 +566,7 @@ struct WrldBuildrComponent : public juce::Component
         m_rightPadGrid->m_padGrid->setVisible(isVisible);
         m_leftTopGrid->m_padGrid->setVisible(isVisible);
         m_timerGrid->m_padGrid->setVisible(isVisible);
-        
+         
         for (int i = 0; i < 8; ++i)
         {
             m_faderGrids[i]->m_fader->setVisible(isVisible);
@@ -527,21 +576,7 @@ struct WrldBuildrComponent : public juce::Component
         m_joyStickReturn->m_joyStick->setVisible(isVisible);
         m_joyStickFixed->m_joyStick->setVisible(isVisible);
     }
-
-    void SetDisplayModeAudioScope(bool isVisible)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_audioScope[i]->m_scopeComponent->setVisible(isVisible);
-        }
-    }
-
-    void SetDisplayModePanAndMelody(bool isVisible)
-    {
-        m_soundStage->m_scopeComponent->setVisible(isVisible);
-        m_melodyRoll->m_scopeComponent->setVisible(isVisible);
-    }
-    
+        
     void UpdatePadGridPosition()
     {
         if (!m_initialized)
@@ -572,9 +607,16 @@ struct WrldBuildrComponent : public juce::Component
         m_joyStickReturn->SetBounds(m_cellSize, m_gridX, m_gridY);
         m_joyStickFixed->SetBounds(m_cellSize, m_gridX, m_gridY);
 
+        m_vcoOneScope->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_vcoTwoScope->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_postFilterScope->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_postAmpScope->SetBounds(m_cellSize, m_gridX, m_gridY);
+
+        m_analyzer->SetBounds(m_cellSize, m_gridX, m_gridY);
+
         for (int i = 0; i < 4; ++i)
         {
-            m_audioScope[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
+            m_controlScope[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
         }
 
         m_soundStage->SetBounds(m_cellSize, m_gridX, m_gridY);

@@ -1,4 +1,5 @@
 #include "MainComponent.h"
+#include "AsyncLogger.hpp"
 
 //==============================================================================
 MainComponent::MainComponent()
@@ -57,12 +58,13 @@ MainComponent::MainComponent()
     // Ensure config page starts closed
     m_showingConfig = false;
 
-    setAudioChannels(0, 4);
+    setAudioChannels(0, 5);
 
     // Start the 60 FPS timer for re-rendering
     //
     startTimer(1000 / 60); // 60 FPS
 
+    m_fileManager.SetDefaultRecordingDirectory();
     LoadConfig();
     
     // Force initial layout calculation after everything is set up
@@ -148,7 +150,7 @@ void MainComponent::OnConfigButtonClicked()
 {
     if (!m_configPage)
     {
-        m_configPage = std::make_unique<ConfigPage>(&m_nonagon);
+        m_configPage = std::make_unique<ConfigPage>(&m_nonagon, &m_configuration);
         addAndMakeVisible(m_configPage.get());
     }
     
@@ -215,7 +217,8 @@ void MainComponent::OnFileButtonClicked()
         m_filePage = std::make_unique<FilePage>(
             [this]() { m_fileManager.ChooseLoadFile(); },
             [this]() { m_fileManager.ChooseSaveFile(false); },
-            [this]() { m_fileManager.ChooseSaveFile(true); }
+            [this]() { m_fileManager.ChooseSaveFile(true); },
+            [this]() { m_fileManager.PickRecordingDirectory(); }
         );
 
         addAndMakeVisible(m_filePage.get());
@@ -263,4 +266,6 @@ void MainComponent::timerCallback()
     m_cpuLabel.setText(juce::String(deviceManager.getCpuUsage() * 100.0, 1) + "%", juce::dontSendNotification);
     
     repaint();
+
+    AsyncLogQueue::s_instance.DoLog();
 }

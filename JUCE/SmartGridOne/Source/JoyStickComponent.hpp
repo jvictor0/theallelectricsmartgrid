@@ -14,7 +14,7 @@ struct JoyStickComponent : public juce::Component
     AnalogUI m_yNegative;
     bool m_return;
 
-    JoyStickComponent(AnalogUI xPositive, AnalogUI xNegative, AnalogUI yPositive, AnalogUI yNegative, bool ret)
+    JoyStickComponent(AnalogUI yPositive, AnalogUI xPositive, AnalogUI yNegative, AnalogUI xNegative, bool ret)
         : m_xPositive(xPositive)
         , m_xNegative(xNegative)
         , m_yPositive(yPositive)

@@ -8,23 +8,25 @@
 #include <iomanip>
 #include <sstream>
 #include "Noise.hpp"
+#include "QuadMasterChain.hpp"
 
 struct QuadMixerInternal
 {
     static constexpr size_t x_numSends = 2;
 
-    QuadFloat m_output;
+    QuadFloatWithSub m_output;
     QuadFloat m_send[x_numSends];
     const WaveTable* m_sin;
     MultichannelWavWriter m_wavWriter;
     std::string m_recordingDirectory;
     bool m_isRecording = false;
-    TanhSaturator<true> m_saturator;
     PinkNoise m_pinkNoise;
 
     float m_volumeOut[16];
     float m_returnVolume[x_numSends];
     static constexpr float x_smoothingAlpha = 0.0007;
+
+    QuadMasterChain m_masterChain;
 
     QuadMixerInternal()
     {
@@ -42,6 +44,8 @@ struct QuadMixerInternal
         QuadFloat m_return[x_numSends];
         float m_returnGain[x_numSends];
         bool m_noiseMode;
+
+        QuadMasterChain::Input m_masterChainInput;
 
         Input()
         {
@@ -64,7 +68,7 @@ struct QuadMixerInternal
 
     bool Open(size_t numInputs, const std::string& filename, uint32_t sampleRate)
     {
-        return m_wavWriter.OpenQuad(static_cast<uint16_t>(numInputs + x_numSends), filename, sampleRate);
+        return m_wavWriter.OpenQuad(static_cast<uint16_t>(numInputs + x_numSends + 1), filename, sampleRate);
     }
 
     void Close()
@@ -87,11 +91,13 @@ struct QuadMixerInternal
         do
         {
             std::ostringstream oss;
-            oss << m_recordingDirectory << "/recording-" << std::setfill('0') << std::setw(5) << ordinal << ".wav";
+            oss << m_recordingDirectory << "/recording-" << std::setfill('0') << std::setw(5) << ordinal;
             filename = oss.str();
             ordinal++;
-            INFO("filename: %s", filename.c_str());
-        } while (rack::system::exists(filename));
+        } 
+        while (rack::system::exists(filename + ".wav") || rack::system::exists(filename + ".wv"));
+
+        filename += ".wav";
 
         // Open the wave writer with the appropriate number of channels
         //
@@ -128,7 +134,7 @@ struct QuadMixerInternal
 
     void ProcessInputs(const Input& input)
     {
-        m_output = QuadFloat();
+        m_output.m_output = QuadFloat();
         for (size_t i = 0; i < x_numSends; ++i)
         {
             m_send[i] = QuadFloat();
@@ -137,10 +143,10 @@ struct QuadMixerInternal
         if (input.m_noiseMode)
         {
             float pink = m_pinkNoise.Generate();
-            m_output += QuadFloat(pink, pink, pink, pink);
+            m_output.m_output += QuadFloat(pink, pink, pink, pink);
             for (size_t i = 0; i < input.m_numInputs; ++i)
             {
-                m_output += QuadFloat(input.m_input[i], input.m_input[i], input.m_input[i], input.m_input[i]) * input.m_gain[i];
+                m_output.m_output += QuadFloat(input.m_input[i], input.m_input[i], input.m_input[i], input.m_input[i]) * input.m_gain[i];
             }
         }
         else
@@ -149,7 +155,7 @@ struct QuadMixerInternal
             {
                 QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i], m_sin);
                 QuadFloat postFader = pan * input.m_gain[i];
-                m_output += postFader;
+                m_output.m_output += postFader;
 
                 m_volumeOut[i] = m_volumeOut[i] * (1 - x_smoothingAlpha) + std::abs(input.m_input[i] * input.m_gain[i]) * x_smoothingAlpha;
 
@@ -165,27 +171,27 @@ struct QuadMixerInternal
         }
     }
 
-    QuadFloat ProcessReturns(const Input& input)
+    QuadFloatWithSub ProcessReturns(const Input& input)
     {
         if (!input.m_noiseMode)
         {
             for (size_t j = 0; j < x_numSends; ++j)
             {
                 QuadFloat postReturn = input.m_return[j] * input.m_returnGain[j];
-                m_output += postReturn;
+                m_output.m_output += postReturn;
                 
                 m_returnVolume[j] = m_returnVolume[j] * (1 - x_smoothingAlpha) + std::abs(postReturn.Sum()) * x_smoothingAlpha;
 
-                // Write post-return to wave file
-                //
                 m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(input.m_numInputs + j), postReturn);
             }
         }
 
-        return m_saturator.Process(m_output);
+        m_output = m_masterChain.Process(input.m_masterChainInput, m_output.m_output);
+        m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(input.m_numInputs + x_numSends), m_output.m_output);
+        return m_output;
     }
 
-    QuadFloat Process(const Input& input)
+    QuadFloatWithSub Process(const Input& input)
     {
         ProcessInputs(input);
         return ProcessReturns(input);
@@ -238,7 +244,7 @@ struct QuadMixer : Module
 
         for (size_t j = 0; j < 4; ++j)
         {
-            m_output->SetSource(j, &m_internal.m_output[j]);
+            m_output->SetSource(j, &m_internal.m_output.m_output[j]);
         }
 
         for (size_t i = 0; i < QuadMixerInternal::x_numSends; ++i)

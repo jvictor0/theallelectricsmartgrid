@@ -57,7 +57,7 @@ struct TheNonagonSquiggleBoyInternal
 
     TheNonagonSmartGrid::Trio m_activeTrio;
 
-    QuadFloat m_output;
+    QuadFloatWithSub m_output;
 
     double m_timer;
 
@@ -66,6 +66,11 @@ struct TheNonagonSquiggleBoyInternal
     Blink m_blink;
 
     StateInterchange m_stateInterchange;
+
+    void SetRecordingDirectory(const char* directory)
+    {
+        m_squiggleBoy.SetRecordingDirectory(directory);
+    }
 
     JSON ToJSON()
     {
@@ -160,6 +165,7 @@ struct TheNonagonSquiggleBoyInternal
             for (size_t j = 0; j < SquiggleBoyVoice::SquiggleLFO::x_numPhasors; ++j)
             {
                 m_squiggleBoyState.m_totalPhasor[j] = m_nonagon.m_nonagon.m_output.m_totPhasors[j];
+                m_squiggleBoyState.m_totalTop[j] = m_nonagon.m_nonagon.m_output.m_totTop[j];
             }
 
             m_squiggleBoyState.m_sheafyModulators[i][0] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][0];
@@ -167,6 +173,7 @@ struct TheNonagonSquiggleBoyInternal
             m_squiggleBoyState.m_sheafyModulators[i][2] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][2];
         }
 
+        m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.m_musicalTime.m_bits[0].m_top;
         m_squiggleBoyState.m_shift = m_sceneState.m_shift;
 
         SetLeftScene(m_sceneState.m_leftScene);
@@ -226,7 +233,7 @@ struct TheNonagonSquiggleBoyInternal
         }
     }
 
-    QuadFloat ProcessSample()
+    QuadFloatWithSub ProcessSample()
     {
         m_blink.Process();
         m_squiggleBoyState.SetBlink(m_blink.m_blink);
@@ -243,7 +250,8 @@ struct TheNonagonSquiggleBoyInternal
 
         m_output = m_squiggleBoy.m_output;
 
-        m_squiggleBoyUIState.m_scopeWriter.AdvanceIndex();
+        m_squiggleBoyUIState.m_audioScopeWriter.AdvanceIndex();
+        m_squiggleBoyUIState.m_controlScopeWriter.AdvanceIndex();
 
         return m_output;
     }
@@ -287,7 +295,7 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.Config(m_squiggleBoyState);
         ConfigureEncoders();
-        m_squiggleBoy.SetupAudioScopeWriters(&m_squiggleBoyUIState.m_scopeWriter);
+        m_squiggleBoy.SetupScopeWriters(&m_squiggleBoyUIState.m_audioScopeWriter, &m_squiggleBoyUIState.m_controlScopeWriter);
     }
 
     struct SaveLoadJSONCell : SmartGrid::Cell
@@ -481,7 +489,7 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual void OnPress(uint8_t velocity) override
         {
-            // m_owner->m_squiggleBoy.ToggleRecording();
+            m_owner->m_squiggleBoy.ToggleRecording();
             m_owner->m_timer = 0;
         }
     };

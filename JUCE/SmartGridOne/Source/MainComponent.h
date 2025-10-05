@@ -7,6 +7,7 @@
 #include "FilePage.hpp"
 #include "IOUtils.hpp"
 #include "WrldBuildrComponent.hpp"
+#include "Configuration.hpp"
 
 //==============================================================================
 /*
@@ -22,15 +23,34 @@ public:
 
     virtual void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override
     {
+        m_nonagon.PrepareToPlay(samplesPerBlockExpected, sampleRate);
+        m_sampleRate = sampleRate;
     }
 
     virtual void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override
     {
-        m_nonagon.Process(bufferToFill);
+        auto start = juce::Time::getHighResolutionTicks();
+        
+        m_configuration.m_forceStereo = bufferToFill.buffer->getNumChannels() < 4;
+        m_configuration.m_stereo = m_configuration.m_stereo || m_configuration.m_forceStereo;
+        m_nonagon.Process(bufferToFill, m_configuration.m_stereo);
+
+        auto end = juce::Time::getHighResolutionTicks();
+        auto duration = juce::Time::highResolutionTicksToSeconds(end - start);
+        if (static_cast<double>(bufferToFill.numSamples) / m_sampleRate < duration)
+        {
+            INFO("Audio xrun %f ms / %f ms", duration * 1000, static_cast<double>(bufferToFill.numSamples * 1000) / m_sampleRate);
+        }
     }
 
     virtual void releaseResources() override
     {
+    }
+
+    void SetRecordingDirectory(const char* directory)
+    {
+        INFO("Setting recording directory to: %s", directory);
+        m_nonagon.SetRecordingDirectory(directory);
     }
 
     void SaveConfig()
@@ -97,6 +117,7 @@ private:
     void OnFileBackButtonClicked();
 
     NonagonWrapper m_nonagon;
+    Configuration m_configuration;
 
     std::unique_ptr<ConfigPage> m_configPage;
     std::unique_ptr<FilePage> m_filePage;
@@ -108,6 +129,8 @@ private:
     
     bool m_showingConfig;
     bool m_showingFile;
+
+    double m_sampleRate;
 
     FileManager m_fileManager{this};
 

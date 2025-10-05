@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "MidiUtils.hpp"
 #include "SmartGridInclude.hpp"
+#include "QuadDownSample.hpp"
 
 struct NonagonWrapperQuadLaunchpadTwister
 {
@@ -413,11 +414,17 @@ struct NonagonWrapper
     TheNonagonSquiggleBoyInternal m_internal;
     NonagonWrapperQuadLaunchpadTwister m_quadLaunchpadTwister;
     NonagonWrapperWrldBldr m_wrldBldr;
+    QuadDownSampler m_quadDownSampler;
 
     NonagonWrapper()
         : m_quadLaunchpadTwister(&m_internal)
         , m_wrldBldr(&m_internal)
     {
+    }
+
+    void PrepareToPlay(int numSamples, double sampleRate)
+    {
+        m_quadDownSampler.PrepareToPlay(numSamples, sampleRate);
     }
     
     void OpenInputQuadLaunchpadTwister(int index, const juce::String &deviceIdentifier)
@@ -435,7 +442,7 @@ struct NonagonWrapper
         m_quadLaunchpadTwister.OpenTwisterOutput(deviceIdentifier);
     }
 
-    QuadFloat ProcessSample(size_t timestamp)
+    QuadFloatWithSub ProcessSample(size_t timestamp)
     {
         m_quadLaunchpadTwister.ProcessSample(timestamp);
         m_wrldBldr.ProcessSample(timestamp);
@@ -496,7 +503,12 @@ struct NonagonWrapper
 
     ScopeWriter* GetAudioScopeWriter()
     {
-        return &m_internal.m_squiggleBoyUIState.m_scopeWriter;
+        return &m_internal.m_squiggleBoyUIState.m_audioScopeWriter;
+    }
+
+    ScopeWriter* GetControlScopeWriter()
+    {
+        return &m_internal.m_squiggleBoyUIState.m_controlScopeWriter;
     }
 
     SquiggleBoyWithEncoderBank::UIState* GetSquiggleBoyUIState()
@@ -524,18 +536,40 @@ struct NonagonWrapper
         return m_wrldBldr.m_nonagon.m_uiState.m_displayMode.load();
     }
 
-    void Process(const juce::AudioSourceChannelInfo& bufferToFill)
+    void SetRecordingDirectory(const char* directory)
+    {
+        m_internal.m_squiggleBoy.SetRecordingDirectory(directory);
+    }
+
+    void Process(const juce::AudioSourceChannelInfo& bufferToFill, bool stereo)
     {
         double wallclockUs = juce::Time::getMillisecondCounterHiRes() * 1000;
+
+        size_t numChannels = stereo ? 2 : 4;
 
         for (int i = 0; i < bufferToFill.numSamples; ++i)
         {
             size_t timestamp = static_cast<size_t>(wallclockUs + i * (1000.0 / 48.0));
-            QuadFloat output = ProcessSample(timestamp);
-            for (int j = 0; j < std::min(4, bufferToFill.buffer->getNumChannels()); ++j)
+            QuadFloatWithSub output = ProcessSample(timestamp);
+            for (int j = 0; j < numChannels; ++j)
             {
-                bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = output[j];
+                bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = output.m_output[j];
             }
+
+            if (stereo)
+            {
+                m_quadDownSampler.AddBackSamples(output.m_output, i);
+            }
+
+            if (bufferToFill.buffer->getNumChannels() > 4)
+            {
+                bufferToFill.buffer->getWritePointer(4, bufferToFill.startSample)[i] = output.m_sub;
+            }
+        }
+
+        if (stereo)
+        {
+            m_quadDownSampler.ProcessReverb(bufferToFill);
         }
 
         ProcessFrame();

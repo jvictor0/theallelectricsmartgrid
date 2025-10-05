@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "NonagonWrapper.hpp"
+#include "Configuration.hpp"
 
 //==============================================================================
 /*
@@ -13,7 +14,7 @@ public:
     static constexpr size_t x_numControllers = 6;
 
     //==============================================================================
-    ConfigPage(NonagonWrapper* nonagon)
+    ConfigPage(NonagonWrapper* nonagon, Configuration* configuration)
         : m_nonagon(nonagon)
         , m_sections{
             ControllerSection("Launchpad Top Left", ControllerSection::Type::Launchpad),
@@ -23,6 +24,7 @@ public:
             ControllerSection("Twister", ControllerSection::Type::Twister),
             ControllerSection("Faders", ControllerSection::Type::Generic),
         }
+        , m_configuration(configuration)
     {
         // Add sections to the component
         for (int i = 0; i < x_numControllers; ++i)
@@ -38,9 +40,17 @@ public:
             m_sections[i].m_controllerShapeCombo.onChange = [this, i]() { OnControllerShapeChanged(i); };
         }
         
+        // Set up stereo checkbox
+        //
+        m_stereoCheckbox.setButtonText("Stereo");
+        m_stereoCheckbox.setSize(100, 30);
+        addAndMakeVisible(m_stereoCheckbox);
+        m_stereoCheckbox.onClick = [this]() { OnStereoCheckboxChanged(); };
+        
         PopulateMidiDevices();
         PopulateControllerShapes();
         RefreshCurrentValues();
+        RefreshStereoCheckbox();
     }
 
     ~ConfigPage() override
@@ -61,6 +71,13 @@ public:
     {
         auto bounds = getLocalBounds();
         bounds.removeFromTop(60); // Space for title
+        
+        // Position stereo checkbox at the top
+        //
+        auto stereoBounds = bounds.removeFromTop(40);
+        m_stereoCheckbox.setBounds(stereoBounds.removeFromLeft(150).reduced(5));
+        
+        bounds.removeFromTop(10); // Spacing
         
         const int sectionHeight = 80; // Fixed height for each section
         const int labelWidth = 150;
@@ -93,7 +110,6 @@ public:
         }
     }
 
-private:
     struct ControllerSection
     {
         juce::Label m_titleLabel;
@@ -318,12 +334,26 @@ private:
         m_sections[sectionIndex].ApplySettings(m_nonagon, sectionIndex, m_midiInputIds, m_midiOutputIds);
     }
 
+    void OnStereoCheckboxChanged()
+    {
+        m_configuration->m_stereo = m_stereoCheckbox.getToggleState();
+    }
+    
+    void RefreshStereoCheckbox()
+    {
+        m_stereoCheckbox.setToggleState(m_configuration->m_stereo, juce::dontSendNotification);
+        m_stereoCheckbox.setEnabled(!m_configuration->m_forceStereo);
+    }
+
     NonagonWrapper* m_nonagon;
     ControllerSection m_sections[x_numControllers];
     juce::StringArray m_midiInputNames;
     juce::StringArray m_midiOutputNames;
     juce::StringArray m_midiInputIds;
     juce::StringArray m_midiOutputIds;
+    juce::ToggleButton m_stereoCheckbox;
+
+    Configuration* m_configuration;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ConfigPage)
 };

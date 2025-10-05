@@ -39,6 +39,33 @@ struct BiquadSection
     {
         m_x1 = m_x2 = m_y1 = m_y2 = 0.0f;
     }
+
+    void SetCoefficients(float cosw, float sinw, float q, bool isHighPass = false)
+    {
+        float alpha = sinw / (2.0f * q);
+        float a0 = 1.0f + alpha;
+        float a2 = 1.0f - alpha;
+        
+        float b0, b1, b2;
+        if (isHighPass)
+        {
+            b0 = (1.0f + cosw) / 2.0f;
+            b1 = -(1.0f + cosw);
+            b2 = (1.0f + cosw) / 2.0f;
+        }
+        else
+        {
+            b0 = (1.0f - cosw) / 2.0f;
+            b1 = 1.0f - cosw;
+            b2 = (1.0f - cosw) / 2.0f;
+        }
+
+        m_b0 = b0 / a0;
+        m_b1 = b1 / a0;
+        m_b2 = b2 / a0;
+        m_a1 = -2.0f * cosw / a0;
+        m_a2 = a2 / a0;
+    }
 };
 
 struct ButterworthFilter
@@ -89,65 +116,12 @@ struct ButterworthFilter
         float q3 = 1.0f / (2.0f * std::cos(5.0f * M_PI / 16.0f));
         float q4 = 1.0f / (2.0f * std::cos(7.0f * M_PI / 16.0f));
 
-        // First biquad section
+        // Set coefficients for all biquad sections
         //
-        float alpha1 = sinw / (2.0f * q1);
-        float a0_1 = 1.0f + alpha1;
-        float a2_1 = 1.0f - alpha1;
-        float b0_1 = (1.0f - cosw) / 2.0f;
-        float b1_1 = 1.0f - cosw;
-        float b2_1 = (1.0f - cosw) / 2.0f;
-
-        m_biquad1.m_b0 = b0_1 / a0_1;
-        m_biquad1.m_b1 = b1_1 / a0_1;
-        m_biquad1.m_b2 = b2_1 / a0_1;
-        m_biquad1.m_a1 = -2.0f * cosw / a0_1;
-        m_biquad1.m_a2 = a2_1 / a0_1;
-
-        // Second biquad section
-        //
-        float alpha2 = sinw / (2.0f * q2);
-        float a0_2 = 1.0f + alpha2;
-        float a2_2 = 1.0f - alpha2;
-        float b0_2 = (1.0f - cosw) / 2.0f;
-        float b1_2 = 1.0f - cosw;
-        float b2_2 = (1.0f - cosw) / 2.0f;
-
-        m_biquad2.m_b0 = b0_2 / a0_2;
-        m_biquad2.m_b1 = b1_2 / a0_2;
-        m_biquad2.m_b2 = b2_2 / a0_2;
-        m_biquad2.m_a1 = -2.0f * cosw / a0_2;
-        m_biquad2.m_a2 = a2_2 / a0_2;
-
-        // Third biquad section
-        //
-        float alpha3 = sinw / (2.0f * q3);
-        float a0_3 = 1.0f + alpha3;
-        float a2_3 = 1.0f - alpha3;
-        float b0_3 = (1.0f - cosw) / 2.0f;
-        float b1_3 = 1.0f - cosw;
-        float b2_3 = (1.0f - cosw) / 2.0f;
-
-        m_biquad3.m_b0 = b0_3 / a0_3;
-        m_biquad3.m_b1 = b1_3 / a0_3;
-        m_biquad3.m_b2 = b2_3 / a0_3;
-        m_biquad3.m_a1 = -2.0f * cosw / a0_3;
-        m_biquad3.m_a2 = a2_3 / a0_3;
-
-        // Fourth biquad section
-        //
-        float alpha4 = sinw / (2.0f * q4);
-        float a0_4 = 1.0f + alpha4;
-        float a2_4 = 1.0f - alpha4;
-        float b0_4 = (1.0f - cosw) / 2.0f;
-        float b1_4 = 1.0f - cosw;
-        float b2_4 = (1.0f - cosw) / 2.0f;
-
-        m_biquad4.m_b0 = b0_4 / a0_4;
-        m_biquad4.m_b1 = b1_4 / a0_4;
-        m_biquad4.m_b2 = b2_4 / a0_4;
-        m_biquad4.m_a1 = -2.0f * cosw / a0_4;
-        m_biquad4.m_a2 = a2_4 / a0_4;
+        m_biquad1.SetCoefficients(cosw, sinw, q1, false);
+        m_biquad2.SetCoefficients(cosw, sinw, q2, false);
+        m_biquad3.SetCoefficients(cosw, sinw, q3, false);
+        m_biquad4.SetCoefficients(cosw, sinw, q4, false);
     }
 
     void Reset()

@@ -1274,6 +1274,11 @@ struct EncoderBankInternal : public EncoderGrid
         uiState->SetNumVoices(m_sharedEncoderState.m_numVoices);
         uiState->SetCurrentTrack(m_sharedEncoderState.m_currentTrack);
     }
+
+    int GetCurrentTrack()
+    {
+        return m_sharedEncoderState.m_currentTrack;
+    }
 };
 
 #ifndef IOS_BUILD

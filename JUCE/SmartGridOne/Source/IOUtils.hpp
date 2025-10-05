@@ -18,7 +18,9 @@ struct FileManager
     static JSON LoadJSON(juce::String filename);
 
     void ChooseSaveFile(bool saveAs);
+    void PickRecordingDirectory();
     void ChooseLoadFile();
+    void SetDefaultRecordingDirectory();
     void SavePatch(JSON json);
     void LoadPatch(juce::String filename);
 

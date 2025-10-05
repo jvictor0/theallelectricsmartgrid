@@ -29,6 +29,15 @@ struct SquiggleBoyVoice
         NumScopes = 4
     };
 
+    enum class ControlScopes : size_t
+    {
+        LFO1 = 0,
+        LFO2 = 1,
+        GangedRandom1 = 2,
+        GangedRandom2 = 3,
+        NumScopes = 4
+    };
+
     struct VCOSection
     {
         static constexpr size_t x_oversample = 4;
@@ -219,7 +228,7 @@ struct SquiggleBoyVoice
                 , m_ladderCutoffFactor(0.25f, 1024.0f)
                 , m_ladderResonance(0)
                 , m_envDepth(0)
-                , m_sampleRateReducerFreq(0.25f, 1024.0f)
+                , m_sampleRateReducerFreq(1.0f, 2048.0f)
             {
             }
         };
@@ -343,6 +352,8 @@ struct SquiggleBoyVoice
         OPLowPassFilter m_shSlew;
         float m_output;
 
+        ScopeWriterHolder m_scopeWriter;
+
         struct Input
         {
             PolyXFaderInternal::Input m_polyXFaderInput;
@@ -369,6 +380,13 @@ struct SquiggleBoyVoice
             
             m_output = m_shSlew.Process(m_shValue) * input.m_shFade + lfoOut * (1 - input.m_shFade);
 
+            m_scopeWriter.Write(m_output);
+
+            if (m_polyXFader.m_top)
+            {
+                m_scopeWriter.RecordStart();
+            }
+
             return m_output;
         }
 
@@ -385,6 +403,12 @@ struct SquiggleBoyVoice
         m_vco.m_scopeWriter[1] = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(AudioScopes::VCO2));
         m_filter.m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(AudioScopes::PostFilter));
         m_amp.m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(AudioScopes::PostAmp));
+    }
+
+    void SetupControlScopeWriters(ScopeWriter* scopeWriter, size_t voiceIx)
+    {
+        m_squiggleLFO[0].m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(ControlScopes::LFO1));
+        m_squiggleLFO[1].m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(ControlScopes::LFO2));
     }
 
     OPLowPassFilter m_baseFreqSlew;
@@ -463,7 +487,7 @@ struct SquiggleBoy
     QuadDelayInternal<false> m_delay;
     QuadDelayInternal<true> m_reverb;
  
-    QuadFloat m_output;
+    QuadFloatWithSub m_output;
 
     SquiggleBoyVoice::Input m_state[x_numVoices];
     ManyGangedRandomLFO::Input m_gangedRandomLFOInput[4];
@@ -507,11 +531,12 @@ struct SquiggleBoy
         m_firstFrame = true;
     }
 
-    void SetupAudioScopeWriters(ScopeWriter* scopeWriter)
+    void SetupScopeWriters(ScopeWriter* audioScopeWriter, ScopeWriter* controlScopeWriter)
     {
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            m_voices[i].SetupAudioScopeWriters(scopeWriter, i);
+            m_voices[i].SetupAudioScopeWriters(audioScopeWriter, i);
+            m_voices[i].SetupControlScopeWriters(controlScopeWriter, i);
         }
     }
 
@@ -685,13 +710,18 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         enum class VisualDisplayMode
         {
             Voice,
-            PanAndMelody
+            Filter,
+            PanAndMelody,
+            Control,
         };
 
         std::atomic<VisualDisplayMode> m_visualDisplayMode;
 
         EncoderBankUIState m_encoderBankUIState;
-        ScopeWriter m_scopeWriter;
+        ScopeWriter m_audioScopeWriter;
+        ScopeWriter m_controlScopeWriter;
+
+        std::atomic<size_t> m_activeTrack;
 
         std::atomic<float> m_xPos[x_numVoices];
         std::atomic<float> m_yPos[x_numVoices];
@@ -714,7 +744,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
 
         UIState()
-            : m_scopeWriter(x_numVoices, static_cast<size_t>(SquiggleBoyVoice::AudioScopes::NumScopes))
+            : m_audioScopeWriter(x_numVoices, static_cast<size_t>(SquiggleBoyVoice::AudioScopes::NumScopes))
+            , m_controlScopeWriter(x_numVoices, static_cast<size_t>(SquiggleBoyVoice::ControlScopes::NumScopes))
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {
@@ -736,6 +767,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         float m_faders[x_numFaders];
 
         float m_totalPhasor[SquiggleBoyVoice::SquiggleLFO::x_numPhasors];
+        bool m_totalTop[SquiggleBoyVoice::SquiggleLFO::x_numPhasors];
+        bool m_top;
 
         PhaseUtils::ExpParam m_tempo;
 
@@ -775,6 +808,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         void SelectTrack(int track)
         {
             m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_track = track;
+        }
+
+        size_t GetCurrentTrack()
+        {
+            return m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_track;
         }
 
         void SetLeftScene(int scene)
@@ -889,6 +927,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_values = input.m_totalPhasor;
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_values = input.m_totalPhasor;
+            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_top = input.m_totalTop;
+            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_top = input.m_totalTop;
         }
 
         m_voiceEncoderBank.SetColor(0, SmartGrid::Color::Red, input.m_voiceEncoderBankInput);
@@ -1143,7 +1183,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         JSON rootJ = JSON::Object();
         rootJ.SetNew("voiceEncoderBank", m_voiceEncoderBank.ToJSON());
         rootJ.SetNew("globalEncoderBank", m_globalEncoderBank.ToJSON());
-        rootJ.SetNew("recordingDirectory", JSON::String(GetRecordingDirectory().c_str()));
+        if (GetRecordingDirectory().length() > 0)
+        {
+            rootJ.SetNew("recordingDirectory", JSON::String(GetRecordingDirectory().c_str()));
+        }
+
         return rootJ;
     }
 
@@ -1152,7 +1196,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_voiceEncoderBank.FromJSON(rootJ.Get("voiceEncoderBank"));
         m_globalEncoderBank.FromJSON(rootJ.Get("globalEncoderBank"));
         JSON recordingDirectoryJ = rootJ.Get("recordingDirectory");
-        if (!recordingDirectoryJ.IsNull())
+        if (!recordingDirectoryJ.IsNull() && strlen(recordingDirectoryJ.StringValue()) > 0)
         {
             SetRecordingDirectory(recordingDirectoryJ.StringValue());
         }
@@ -1185,7 +1229,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         m_voiceEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
         m_globalEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
-        uiState->m_scopeWriter.Publish();
+
+        uiState->m_activeTrack.store(m_voiceEncoderBank.GetCurrentTrack());
+
+        uiState->m_audioScopeWriter.Publish();
+        uiState->m_controlScopeWriter.Publish();
         
         for (size_t i = 0; i < x_numVoices; ++i)
         {
@@ -1193,9 +1241,21 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             uiState->SetVolume(i, m_mixer.m_volumeOut[i]);
         }
 
-        if (m_selectedAbsoluteEncoderBank == 2)
+        if (m_selectedAbsoluteEncoderBank == 0)
+        {
+            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Voice);
+        }
+        else if (m_selectedAbsoluteEncoderBank == 1)
+        {
+            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Filter);
+        }
+        else if (m_selectedAbsoluteEncoderBank == 2)
         {
             uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::PanAndMelody);
+        }
+        else if (m_selectedAbsoluteEncoderBank == 3)
+        {
+            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Control);
         }
         else
         {

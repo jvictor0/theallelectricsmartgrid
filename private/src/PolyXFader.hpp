@@ -7,6 +7,7 @@ struct PolyXFaderInternal
     struct Input
     {
         float* m_values;
+        bool* m_top;
 
         const WaveTable* m_waveTable;
 
@@ -36,7 +37,7 @@ struct PolyXFaderInternal
         {
             float mult = m_mult;
             float amp = 1;
-            float t = m_values[i] + m_phaseShift;
+            float t = m_values[i] + m_phaseShift + 0.75;
             t = (t - std::floorf(t)) * mult;
             float floorMult = std::floorf(mult);
 
@@ -63,8 +64,16 @@ struct PolyXFaderInternal
         
         float Shape(float shape, float in)
         {
-            float fullShape = (- m_waveTable->Evaluate(in / 2) + 1) / 2;
-            return in * shape + fullShape * (1 - shape);
+            if (shape < 0.5)
+            {
+                shape *= 2;
+                float fullShape = (- m_waveTable->Evaluate(in / 2) + 1) / 2;
+                return in * shape + fullShape * (1 - shape);
+            }
+            else
+            {
+                return in;
+            }
         }
     };
 
@@ -75,15 +84,24 @@ struct PolyXFaderInternal
         , m_slew(1.0/128)
         , m_output(0.0f)
     {
+        for (size_t i = 0; i < 16; ++i)
+        {
+            m_valuesPreQuantize[i] = 0;
+            m_valuesPostQuantize[i] = 0;
+            m_weights[i] = 0;
+        }
     }
     
-    float m_size;
+    size_t m_size;
     float m_slope;
     float m_center;
+    float m_valuesPreQuantize[16];
+    float m_valuesPostQuantize[16];
     float m_weights[16];
     float m_totalWeight;
     FixedSlew m_slew;
     float m_output;    
+    bool m_top;
 
     float ComputeWeight(size_t index)
     {
@@ -120,6 +138,7 @@ struct PolyXFaderInternal
             m_slope = input.m_slope;
             m_center = input.m_center;
             m_totalWeight = 0.0f;
+
             for (size_t i = 0; i < m_size; ++i)
             {
                 m_weights[i] = ComputeWeight(i);
@@ -133,17 +152,49 @@ struct PolyXFaderInternal
             return;
         }
         
+        bool first = false;
         for (size_t i = 0; i < m_size; ++i)
         {
             if (m_weights[i] != 0)
             {
-                output += input.ComputePhase(i) * m_weights[i];
+                if (!first)
+                {
+                    first = true;
+                    m_top = input.m_top[i];
+                }
+
+                m_valuesPostQuantize[i] = Quantize(input, i, input.ComputePhase(i));
+                output += m_valuesPostQuantize[i] * m_weights[i];
             }
         }
 
         output /= m_totalWeight;
 
         m_output = m_slew.Process(output);
+    }
+
+    float Quantize(Input& input, size_t i, float value)
+    {
+        if (input.m_shape <= 0.5)
+        {
+            m_valuesPreQuantize[i] = value;
+            return value;
+        }
+        else
+        {
+            int numBits = std::max<int>(0, std::round(16 * (1 - input.m_shape)));
+            float thisQuanized = std::round(value * (1 << numBits)) / (1 << numBits);
+            float oldQuanized = std::round(m_valuesPreQuantize[i] * (1 << numBits)) / (1 << numBits);
+            if (thisQuanized == oldQuanized)
+            {
+                return m_valuesPostQuantize[i];
+            }
+            else
+            {
+                m_valuesPreQuantize[i] = value;
+                return thisQuanized;
+            }
+        }   
     }
 };
             

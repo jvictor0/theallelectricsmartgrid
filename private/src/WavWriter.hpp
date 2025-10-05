@@ -29,13 +29,18 @@ struct Rf64Header
     // fmt chunk
     //
     char fmtId[4] = {'f', 'm', 't', ' '};
-    uint32_t fmtSize = 16;
-    uint16_t audioFormat = 1; 
+    uint32_t fmtSize = 40;
+    uint16_t audioFormat = 0xFFFE; 
     uint16_t numChannels;
     uint32_t sampleRate;
     uint32_t byteRate;
     uint16_t blockAlign;
     uint16_t bitsPerSample = 24;
+
+    uint16_t cbSize = 22;
+    uint16_t validBitsPerSample = 24;
+    uint32_t channelMask = 0;
+    uint8_t  subFormat[16] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71};
     
     // data chunk
     //
