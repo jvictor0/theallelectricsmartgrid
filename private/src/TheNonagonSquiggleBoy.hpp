@@ -285,6 +285,11 @@ struct TheNonagonSquiggleBoyInternal
         {
             m_analogUIState.SetValue(i + 1, m_squiggleBoyState.m_faders[i]);
         }
+
+        for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
+        {
+            m_squiggleBoyUIState.SetMuted(i, m_nonagon.m_state.m_trigLogic.m_mute[i]);
+        }
     }
 
     TheNonagonSquiggleBoyInternal()

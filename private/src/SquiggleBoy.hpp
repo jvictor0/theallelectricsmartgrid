@@ -496,6 +496,8 @@ struct SquiggleBoy
 
     PhaseUtils::SimpleOsc m_panPhase;
 
+    RGen m_rGen;
+
     bool m_firstFrame;
 
     SquiggleBoy()
@@ -728,6 +730,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         std::atomic<float> m_xPos[x_numVoices];
         std::atomic<float> m_yPos[x_numVoices];
         std::atomic<float> m_volume[x_numVoices];
+
+        std::atomic<bool> m_muted[x_numVoices];
+
+        void SetMuted(size_t i, bool muted)
+        {
+            m_muted[i].store(muted);
+        }
 
         void SetFilterParams(size_t i, float hpAlpha, float lpAlpha, float ladderAlpha, float ladderResonance)
         {
@@ -1057,6 +1066,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             modulatorValues.m_value[10][i] = input.m_sheafyModulators[i][2];
 
             modulatorValues.m_value[11][i] = static_cast<float>(i % x_numTracks) / (x_numTracks - 1);
+
+            modulatorValues.m_value[14][i] = m_rGen.UniGen();
         }
 
         for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
@@ -1071,6 +1082,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         modulatorValues.m_value[2][0] = std::min(1.0f, std::max(0.0f, m_globalGangedRandomLFO[0].m_lfos[0].m_pos[0]));
         modulatorValues.m_value[3][0] = std::min(1.0f, std::max(0.0f, m_globalGangedRandomLFO[1].m_lfos[0].m_pos[0]));
+
+        modulatorValues.m_value[14][0] = m_rGen.UniGen();
 
         for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
         {

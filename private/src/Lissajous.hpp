@@ -37,7 +37,7 @@ struct LissajousLFOInternal
             float ampX = 1;
             float ampY = 1;
             t += m_phaseShift;
-            float tx = (t - std::floorf(t)) * m_multX;
+            float tx = (t + 0.25 - std::floorf(t + 0.25)) * m_multX;
             float ty = (t - std::floorf(t)) * m_multY;
             float floorMultX = std::floorf(m_multX);
             float floorMultY = std::floorf(m_multY);
@@ -63,7 +63,7 @@ struct LissajousLFOInternal
             }
 
             return std::make_pair(
-                m_radius * ampX * m_cosTable->Evaluate(tx) + (1 - m_radius) * m_centerX,
+                m_radius * ampX * m_sinTable->Evaluate(tx) + (1 - m_radius) * m_centerX,
                 m_radius * ampY * m_sinTable->Evaluate(ty) + (1 - m_radius) * m_centerY);
         }
     };

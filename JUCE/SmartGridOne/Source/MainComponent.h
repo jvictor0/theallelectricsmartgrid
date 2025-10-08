@@ -56,7 +56,9 @@ public:
     void SaveConfig()
     {
         JSON config = JSON::Object();
-        config.SetNew("nonagon_config", m_nonagon.ConfigToJSON());
+        JSON nonagonConfig = m_nonagon.ConfigToJSON();
+        nonagonConfig.SetNew("stereo", JSON::Boolean(m_configuration.m_stereo));
+        config.SetNew("nonagon_config", nonagonConfig);
         config.SetNew("file_config", m_fileManager.ToJSON());
         FileManager::PersistConfig(config);
     }
@@ -70,6 +72,10 @@ public:
             if (!nonagonConfig.IsNull())
             {
                 m_nonagon.ConfigFromJSON(nonagonConfig);
+                if (nonagonConfig.HasKey("stereo"))
+                {
+                    m_configuration.m_stereo = nonagonConfig.Get("stereo").BooleanValue();
+                }
             }
 
             JSON fileConfig = config.Get("file_config");

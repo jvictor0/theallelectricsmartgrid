@@ -221,8 +221,17 @@ struct WindowedFFT
             float re= m_dft.m_components[i].real();
             float im = m_dft.m_components[i].imag();
             float mag = std::max(0.00001f, 2 * std::sqrtf(re * re + im * im));
-            m_filters[i].Process(20 * std::log10f(mag));
+            m_filters[i].Process(mag);
         }
+    }
+
+    float GetMagDb(float freq)
+    {
+        size_t ix = static_cast<size_t>(freq * 2 * DiscreteFourierTransform::x_maxComponents);
+        float wayThrough = freq * 2 * DiscreteFourierTransform::x_maxComponents - ix;
+        size_t ix2 = std::min(ix + 1, DiscreteFourierTransform::x_maxComponents - 1);
+        float mag = m_filters[ix].m_output * (1 - wayThrough) + m_filters[ix2].m_output * wayThrough;
+        return 20 * std::log10f(mag);
     }
 };
 

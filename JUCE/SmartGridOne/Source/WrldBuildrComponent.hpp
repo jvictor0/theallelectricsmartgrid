@@ -305,7 +305,8 @@ struct WrldBuildrComponent : public juce::Component
         setWantsKeyboardFocus(true);
         
         m_drawGrid = false;
-        m_scopeVoiceOffset = 0;
+        m_scopeVoiceOffset = -1;
+        
         // Create the 8x8 pad grid for the range 0,0,8,8
         //
         auto leftPadGrid = std::make_unique<BasicPadGrid>(m_nonagon->MkLaunchPadUIGridWrldBldr(TheNonagonSquiggleBoyWrldBldr::Routes::LeftGrid), 0, 0, 8, 8);
@@ -383,7 +384,7 @@ struct WrldBuildrComponent : public juce::Component
 
         for (int i = 0; i < 4; ++i)
         {
-            auto audioScope = std::make_unique<ScopeComponent>(&uiState->m_activeTrack, i, m_nonagon->GetAudioScopeWriter(), &m_scopeVoiceOffset, ScopeComponent::ScopeType::Audio);
+            auto audioScope = std::make_unique<ScopeComponent>(i, m_nonagon->GetAudioScopeWriter(), &m_scopeVoiceOffset, ScopeComponent::ScopeType::Audio, uiState);
             int xPos = i == 0 ? 0 : 8 * (i - 1);
             if (i == 3)
             {
@@ -398,15 +399,14 @@ struct WrldBuildrComponent : public juce::Component
 
         auto analyzer = std::make_unique<AnalyserComponent>(
             WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SquiggleBoyVoice::AudioScopes::PostAmp)), 
-            &uiState->m_activeTrack, 
             &m_scopeVoiceOffset,
-            uiState->m_filterParams);
+            uiState);
         m_analyzer = std::make_unique<ScopeComponentHolder>(std::move(analyzer), 16, 8, 8, 8);
         addAndMakeVisible(m_analyzer->m_scopeComponent.get());
 
         for (int i = 0; i < 4; ++i)
         {
-            auto controlScope = std::make_unique<ScopeComponent>(&uiState->m_activeTrack, i, m_nonagon->GetControlScopeWriter(), &m_scopeVoiceOffset, ScopeComponent::ScopeType::Control);
+            auto controlScope = std::make_unique<ScopeComponent>(i, m_nonagon->GetControlScopeWriter(), &m_scopeVoiceOffset, ScopeComponent::ScopeType::Control, uiState);
             int xPos = i == 0 ? 0 : 8 * (i - 1);
             int yPos = i == 0 ? 0 : 8;
             m_controlScope[i] = std::make_unique<ScopeComponentHolder>(std::move(controlScope), xPos, yPos, 8, 8);

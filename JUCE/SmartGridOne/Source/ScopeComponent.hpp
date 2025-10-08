@@ -17,15 +17,17 @@ struct ScopeComponent : public juce::Component
     std::atomic<size_t>* m_voiceIx;
     size_t m_scopeIx;
     ScopeWriter* m_scopeWriter;
+    SquiggleBoyWithEncoderBank::UIState* m_uiState;
 
     int* m_voiceOffset;
     ScopeType m_scopeType;
 
-    ScopeComponent(std::atomic<size_t>* voiceIx, size_t scopeIx, ScopeWriter* scopeWriter, int* voiceOffset, ScopeType scopeType)
-        : m_scopeReaderFactory(scopeWriter, voiceIx->load(), scopeIx, x_numXSamples, 1)
-        , m_voiceIx(voiceIx)
+    ScopeComponent(size_t scopeIx, ScopeWriter* scopeWriter, int* voiceOffset, ScopeType scopeType, SquiggleBoyWithEncoderBank::UIState* uiState)
+        : m_scopeReaderFactory(scopeWriter, uiState->m_activeTrack.load(), scopeIx, x_numXSamples, 1)
+        , m_voiceIx(&uiState->m_activeTrack)
         , m_scopeIx(scopeIx)
         , m_scopeWriter(scopeWriter)
+        , m_uiState(uiState)
         , m_voiceOffset(voiceOffset)
         , m_scopeType(scopeType)
     {
@@ -61,6 +63,10 @@ struct ScopeComponent : public juce::Component
             else
             {
                 voiceIx += i;
+                if (m_uiState->m_muted[voiceIx].load())
+                {
+                    continue;
+                }
             }
 
             m_scopeReaderFactory.SetVoiceIx(voiceIx);
@@ -260,6 +266,7 @@ struct AnalyserComponent : public juce::Component
 
     int* m_voiceOffset;
 
+    SquiggleBoyWithEncoderBank::UIState* m_uiState;
     SquiggleBoyWithEncoderBank::UIState::FilterParams* m_filterParams;
 
     bool m_logX;
@@ -269,12 +276,12 @@ struct AnalyserComponent : public juce::Component
 
     AnalyserComponent(
         WindowedFFT windowedFFT, 
-        std::atomic<size_t>* voiceIx, 
         int* voiceOffset, 
-        SquiggleBoyWithEncoderBank::UIState::FilterParams* filterParams)
-        : m_voiceIx(voiceIx)
+        SquiggleBoyWithEncoderBank::UIState* uiState)
+        : m_voiceIx(&uiState->m_activeTrack)
         , m_voiceOffset(voiceOffset)
-        , m_filterParams(filterParams)
+        , m_uiState(uiState)
+        , m_filterParams(uiState->m_filterParams)
         , m_logX(true)
     {
         for (size_t i = 0; i < x_voicesPerTrack; ++i)
@@ -335,6 +342,10 @@ struct AnalyserComponent : public juce::Component
             if (voiceOffset == -1)
             {
                 voiceIx = baseVoiceIx + i;
+                if (m_uiState->m_muted[voiceIx].load())
+                {
+                    continue;
+                }
             }
 
             m_windowedFFT[i].Compute(voiceIx);
@@ -345,9 +356,10 @@ struct AnalyserComponent : public juce::Component
 
             for (size_t j = 1; j < DiscreteFourierTransform::x_maxComponents; ++j)
             {
-                float y = (m_windowedFFT[i].m_filters[j].m_output + 100) / 100;
+                float freq = m_logX ? m_bucketExpX[j] : static_cast<float>(j) / (2 * DiscreteFourierTransform::x_maxComponents);
+                float y = (m_windowedFFT[i].GetMagDb(freq) + 100) / 100;
                 float screenY = height * (1 - y);
-                float x = m_logX ? m_bucketLogX[j] : static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
+                float x = static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
                 float screenX = width * x;
                 g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
                 path.lineTo(screenX, screenY);
@@ -357,12 +369,14 @@ struct AnalyserComponent : public juce::Component
             g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
             g.strokePath(path, juce::PathStrokeType(1.0f));
 
+            color = color.Interpolate(SmartGrid::Color::White, 0.5f);
             juce::Path filterPath;
             filterPath.startNewSubPath(0, height);
             for (size_t j = 0; j < DiscreteFourierTransform::x_maxComponents; ++j)
             {
                 float freq = m_logX ? m_bucketExpX[j] : static_cast<float>(j) / (2 * DiscreteFourierTransform::x_maxComponents);
-                float y = FilterResponse(i, freq);
+                float y = FilterResponse(voiceIx, freq);
+                y = (20 * std::log10f(std::max(0.00001f, y)) + 100) / 100;
                 float screenY = height * (1 - y / 2);
                 float x = static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
                 float screenX = width * x;
@@ -373,6 +387,15 @@ struct AnalyserComponent : public juce::Component
             filterPath.lineTo(width, height);
             g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
             g.strokePath(filterPath, juce::PathStrokeType(1.0f));
+        }
+    }
+
+    void mouseDown(const juce::MouseEvent& event) override
+    {
+        ++(*m_voiceOffset);
+        if (*m_voiceOffset == x_voicesPerTrack)
+        {
+            *m_voiceOffset = -1;
         }
     }
 };
