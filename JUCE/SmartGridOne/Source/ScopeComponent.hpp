@@ -271,7 +271,6 @@ struct AnalyserComponent : public juce::Component
 
     bool m_logX;
 
-    float m_bucketLogX[DiscreteFourierTransform::x_maxComponents];
     float m_bucketExpX[DiscreteFourierTransform::x_maxComponents];
 
     AnalyserComponent(
@@ -290,11 +289,6 @@ struct AnalyserComponent : public juce::Component
         }
 
         float m = static_cast<float>(DiscreteFourierTransform::x_maxComponents);
-        for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
-        {
-            m_bucketLogX[i] = std::log(static_cast<float>(i)) / std::log(m - 1);
-        }
-
         for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
         {
             m_bucketExpX[i] = std::pow(m - 1, static_cast<float>(i) / m) / (2 * m);
@@ -396,6 +390,62 @@ struct AnalyserComponent : public juce::Component
         if (*m_voiceOffset == x_voicesPerTrack)
         {
             *m_voiceOffset = -1;
+        }
+    }
+};
+
+struct QuadAnalyserComponent : public juce::Component
+{
+    QuadWindowedFFT m_quadWindowedFFT;
+    SquiggleBoyWithEncoderBank::UIState* m_uiState;
+    size_t m_scopeIx;
+
+    float m_bucketExpX[DiscreteFourierTransform::x_maxComponents];
+
+    QuadAnalyserComponent(SquiggleBoyWithEncoderBank::UIState* uiState, size_t scopeIx)
+        : m_quadWindowedFFT(&uiState->m_quadScopeWriter, scopeIx)
+        , m_uiState(uiState)
+    {
+        float m = static_cast<float>(DiscreteFourierTransform::x_maxComponents);
+        for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
+        {
+            m_bucketExpX[i] = std::pow(m - 1, static_cast<float>(i) / m) / (2 * m);
+        }
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(juce::Colours::black);
+
+        auto bounds = getLocalBounds().toFloat();
+        auto width = bounds.getWidth();
+        auto height = bounds.getHeight();
+
+        m_quadWindowedFFT.Compute();
+
+        for (size_t x = 0; x < 3; ++x)
+        {
+            for (size_t y = 0; y < 3; ++y)
+            {
+                juce::Path path;
+                path.startNewSubPath(width * x / 3, height * (y + 1) / 3);
+
+                for (size_t j = 1; j < DiscreteFourierTransform::x_maxComponents; ++j)
+                {
+                    float freq = m_bucketExpX[j];
+                    float yc = (m_quadWindowedFFT.GetMagDb(x, y, freq) + 100) / 100;
+                    float screenYc = height * (1 - yc);
+                    screenYc = screenYc / 3 + height * y / 3;
+                    float xc = static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
+                    float screenXc = width * xc;
+                    screenXc = screenXc / 3 + width * x / 3;
+                    path.lineTo(screenXc, screenYc);
+                }
+
+                path.lineTo(width * (x + 1) / 3, height * (y + 1) / 3);
+                g.setColour(juce::Colours::white);
+                g.strokePath(path, juce::PathStrokeType(1.0f));
+            }
         }
     }
 };

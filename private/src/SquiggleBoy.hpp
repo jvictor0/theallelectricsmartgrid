@@ -38,6 +38,14 @@ struct SquiggleBoyVoice
         NumScopes = 4
     };
 
+    enum class QuadScopes : size_t
+    {
+        Delay = 0,
+        Reverb = 1,
+        Master = 2,
+        NumScopes = 3
+    };
+    
     struct VCOSection
     {
         static constexpr size_t x_oversample = 4;
@@ -468,10 +476,20 @@ struct SquiggleBoy
     static constexpr size_t x_numTracks = 3;
     static constexpr size_t x_voicesPerTrack = x_numVoices / x_numTracks;
 
+    struct MixerInput : QuadMixerInternal::Input
+    {
+        ScopeWriterHolder m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::NumScopes)];
+
+        MixerInput()
+        {
+        }
+    };
+
     SquiggleBoyWaveTableGenerator m_waveTableGenerator[2];
 
     SquiggleBoyVoice m_voices[x_numVoices];
     ManyGangedRandomLFO m_gangedRandomLFO[4];
+    ManyGangedRandomLFO m_quadGangedRandomLFO[2];
     ManyGangedRandomLFO m_globalGangedRandomLFO[2];
 
     QuadMixerInternal m_mixer;
@@ -483,8 +501,9 @@ struct SquiggleBoy
 
     SquiggleBoyVoice::Input m_state[x_numVoices];
     ManyGangedRandomLFO::Input m_gangedRandomLFOInput[4];
+    ManyGangedRandomLFO::Input m_quadGangedRandomLFOInput[2];
     ManyGangedRandomLFO::Input m_globalGangedRandomLFOInput[2];
-    QuadMixerInternal::Input m_mixerState;
+    MixerInput m_mixerState;
 
     QuadDelayInputSetter<false> m_delayInputSetter;
     QuadDelayInputSetter<true> m_reverbInputSetter;
@@ -519,19 +538,14 @@ struct SquiggleBoy
                 m_globalGangedRandomLFOInput[i].m_time = 6.0;
                 m_globalGangedRandomLFOInput[i].m_sigma = 0.2;
                 m_globalGangedRandomLFOInput[i].m_numGangs = 1;
+                m_quadGangedRandomLFOInput[i].m_gangSize = 4;
+                m_quadGangedRandomLFOInput[i].m_time = 6.0;
+                m_quadGangedRandomLFOInput[i].m_sigma = 0.2;
+                m_quadGangedRandomLFOInput[i].m_numGangs = 1;
             }
         }
 
         m_firstFrame = true;
-    }
-
-    void SetupScopeWriters(ScopeWriter* audioScopeWriter, ScopeWriter* controlScopeWriter)
-    {
-        for (size_t i = 0; i < x_numVoices; ++i)
-        {
-            m_voices[i].SetupAudioScopeWriters(audioScopeWriter, i);
-            m_voices[i].SetupControlScopeWriters(controlScopeWriter, i);
-        }
     }
 
     const std::string& GetRecordingDirectory() const
@@ -681,6 +695,15 @@ struct SquiggleBoy
         ProcessSends();
 
         m_output = m_mixer.ProcessReturns(m_mixerState);
+
+        WriteQuadScopes();
+    }
+
+    void WriteQuadScopes()
+    {
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay)].Write(m_mixerState.m_return[0]);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb)].Write(m_mixerState.m_return[1]);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master)].Write(m_mixer.m_output.m_output);
     }
 };
 
@@ -689,7 +712,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     static constexpr size_t x_numVoiceBanks = 4;
     EncoderBankBankInternal<x_numVoiceBanks> m_voiceEncoderBank;
 
-    static constexpr size_t x_numGlobalBanks = 3;
+    static constexpr size_t x_numQuadBanks = 2;
+    EncoderBankBankInternal<x_numQuadBanks> m_quadEncoderBank;
+
+    static constexpr size_t x_numGlobalBanks = 1;
     EncoderBankBankInternal<x_numGlobalBanks> m_globalEncoderBank;
 
     static constexpr size_t x_numFaders = 16;
@@ -707,6 +733,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             Filter,
             PanAndMelody,
             Control,
+            Master
         };
 
         struct FilterParams
@@ -722,6 +749,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         EncoderBankUIState m_encoderBankUIState;
         ScopeWriter m_audioScopeWriter;
         ScopeWriter m_controlScopeWriter;
+        ScopeWriter m_quadScopeWriter;
 
         std::atomic<size_t> m_activeTrack;
 
@@ -765,6 +793,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         UIState()
             : m_audioScopeWriter(x_numVoices, static_cast<size_t>(SquiggleBoyVoice::AudioScopes::NumScopes))
             , m_controlScopeWriter(x_numVoices, static_cast<size_t>(SquiggleBoyVoice::ControlScopes::NumScopes))
+            , m_quadScopeWriter(4, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::NumScopes))
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {
@@ -772,12 +801,32 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_yPos[i] = 0;
             }
         }
+
+        void AdvanceScopeIndices()
+        {
+            m_audioScopeWriter.AdvanceIndex();
+            m_controlScopeWriter.AdvanceIndex();
+            m_quadScopeWriter.AdvanceIndex();
+        }
     };
+
+    void SetupScopeWriters(UIState* uiState)
+    {
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master));
+        for (size_t i = 0; i < x_numVoices; ++i)
+        {
+            m_voices[i].SetupAudioScopeWriters(&uiState->m_audioScopeWriter, i);
+            m_voices[i].SetupControlScopeWriters(&uiState->m_controlScopeWriter, i);
+        }
+    }
 
     struct Input
     {
         EncoderBankBankInternal<x_numVoiceBanks>::Input m_voiceEncoderBankInput;
         EncoderBankBankInternal<x_numGlobalBanks>::Input m_globalEncoderBankInput;
+        EncoderBankBankInternal<x_numQuadBanks>::Input m_quadEncoderBankInput;
 
         float m_baseFreq[x_numVoices];
 
@@ -800,7 +849,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
 
         Input()
-            : m_tempo(1.0 / 64.0, 4.0)
+            : m_tempo(1.0 / (64.0 * 48000.0), 4.0 / 48000.0)
             , m_shift(false)
             , m_selectedGesture(-1)
         {
@@ -822,6 +871,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_numVoices = 1;
             m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_numTracks = 1;
+
+            m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_numVoices = 4;
+            m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_numTracks = 1;
         }
 
         void SelectTrack(int track)
@@ -838,18 +890,21 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene1 = scene;
             m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene1 = scene;
+            m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene1 = scene;
         }
 
         void SetRightScene(int scene)
         {
             m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene2 = scene;
             m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene2 = scene;
+            m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene2 = scene;
         }
 
         void SetBlendFactor(float blendFactor)
         {
             m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_blendFactor = blendFactor;
             m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_blendFactor = blendFactor;
+            m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_blendFactor = blendFactor;
         }
 
         void SelectGesture(int gesture)
@@ -857,12 +912,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_selectedGesture = gesture;
             m_voiceEncoderBankInput.SelectGesture(gesture);
             m_globalEncoderBankInput.SelectGesture(gesture);
+            m_quadEncoderBankInput.SelectGesture(gesture);
         }    
 
         void SetBlink(bool blink)
         {
             m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_blink = blink;
             m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_blink = blink;
+            m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_blink = blink;
         }
     };
 
@@ -871,13 +928,22 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         if (m_selectedAbsoluteEncoderBank < x_numVoiceBanks)
         {
             m_voiceEncoderBank.SelectGrid(m_selectedAbsoluteEncoderBank);
+            m_quadEncoderBank.SelectGrid(-1);
             m_globalEncoderBank.SelectGrid(-1);
             m_selectedGridId = m_voiceEncoderBank.m_selectedGridId;
         }
+        else if (m_selectedAbsoluteEncoderBank < x_numVoiceBanks + x_numQuadBanks)
+        {
+            m_quadEncoderBank.SelectGrid(m_selectedAbsoluteEncoderBank - x_numVoiceBanks);
+            m_voiceEncoderBank.SelectGrid(-1);
+            m_globalEncoderBank.SelectGrid(-1);
+            m_selectedGridId = m_quadEncoderBank.m_selectedGridId;
+        }
         else
         {
-            m_globalEncoderBank.SelectGrid(m_selectedAbsoluteEncoderBank - x_numVoiceBanks);
+            m_globalEncoderBank.SelectGrid(m_selectedAbsoluteEncoderBank - x_numVoiceBanks - x_numQuadBanks);
             m_voiceEncoderBank.SelectGrid(-1);
+            m_quadEncoderBank.SelectGrid(-1);
             m_selectedGridId = m_globalEncoderBank.m_selectedGridId;
         }
     }
@@ -888,9 +954,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             return m_voiceEncoderBank.GetSelectorColor(ordinal);
         }
+        else if (ordinal < x_numVoiceBanks + x_numQuadBanks)
+        {
+            return m_quadEncoderBank.GetSelectorColor(ordinal - x_numVoiceBanks);
+        }
         else
         {
-            return m_globalEncoderBank.GetSelectorColor(ordinal - x_numVoiceBanks);
+            return m_globalEncoderBank.GetSelectorColor(ordinal - x_numVoiceBanks - x_numQuadBanks);
         }
     }
 
@@ -898,6 +968,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         m_voiceEncoderBank.CopyToScene(scene);
         m_globalEncoderBank.CopyToScene(scene);
+        m_quadEncoderBank.CopyToScene(scene);
     }
 
     void SelectEncoderBank(size_t encoderBank)
@@ -954,9 +1025,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_voiceEncoderBank.SetColor(1, SmartGrid::Color::Green, input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.SetColor(2, SmartGrid::Color::Orange, input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.SetColor(3, SmartGrid::Color::Blue, input.m_voiceEncoderBankInput);
-        m_globalEncoderBank.SetColor(0, SmartGrid::Color::Pink, input.m_globalEncoderBankInput);
-        m_globalEncoderBank.SetColor(1, SmartGrid::Color::Fuscia, input.m_globalEncoderBankInput);
-        m_globalEncoderBank.SetColor(2, SmartGrid::Color::Yellow, input.m_globalEncoderBankInput);
+        m_quadEncoderBank.SetColor(0, SmartGrid::Color::Pink, input.m_quadEncoderBankInput);
+        m_quadEncoderBank.SetColor(1, SmartGrid::Color::Fuscia, input.m_quadEncoderBankInput);
+        m_globalEncoderBank.SetColor(0, SmartGrid::Color::Yellow, input.m_globalEncoderBankInput);
 
         m_voiceEncoderBank.Config(0, 0, 0, 0, "VCO 1 Cos Blend", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(0, 0, 1, 0, "VCO 2 Cos Blend", input.m_voiceEncoderBankInput);
@@ -1012,34 +1083,33 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_voiceEncoderBank.Config(3, 3, 2 * i + 1, 0, "LFO " + std::to_string(i + 1) + " Sample And Hold", input.m_voiceEncoderBankInput);
         }
 
-        m_globalEncoderBank.Config(0, 0, 0, 0.75, "Delay Time", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 1, 0, 0.25, "Delay Rotate", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 2, 0, 0, "Delay Mod Speed", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 3, 0, 0.75, "Delay Feedback", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 0, 1, 0.4, "Delay Damp Base", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 1, 1, 0.3, "Delay Damp Width", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 2, 1, 0.1, "Delay Mod Depth", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 3, 1, 0, "Reverb Send", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 0, 2, 0, "Delay Time Skew", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 1, 2, 1.0, "Delay Mod Phase Skew", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 2, 2, 0, "Delay Cross Mod", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 3, 2, 1.0, "Delay Return", input.m_globalEncoderBankInput);
+        m_quadEncoderBank.Config(0, 0, 0, 0.75, "Delay Time", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 1, 0, 0.75, "Delay Time Factor", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 3, 0, 0.75, "Delay Feedback", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 0, 1, 0.4, "Delay Damp Base", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 1, 1, 0.3, "Delay Damp Width", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 3, 1, 0, "Reverb Send", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 0, 2, 0, "Delay Widen", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 1, 2, 0.25, "Delay Rotate", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 0, 3, 0, "Delay Mod Depth", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 1, 3, 0, "Delay Mod Speed", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 2, 3, 1.0, "Delay Mod Phase Skew", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 3, 3, 1.0, "Delay Return", input.m_quadEncoderBankInput);
 
-        m_globalEncoderBank.Config(1, 0, 0, 0.5, "Reverb Time", input.m_globalEncoderBankInput);
+        m_quadEncoderBank.Config(1, 0, 0, 0.5, "Reverb Time", input.m_quadEncoderBankInput);
         // No rotate for reverb
         //
-        m_globalEncoderBank.Config(1, 2, 0, 0.1, "Reverb Mod Speed", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 3, 0, 0.75, "Reverb Feedback", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 0, 1, 0.3, "Reverb Damp Base", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 1, 1, 0.5, "Reverb Damp Width", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 2, 1, 0, "Reverb Mod Depth", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 3, 1, 0, "Delay Send", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 0, 2, 1.0, "Reverb Time Skew", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 1, 2, 1.0, "Reverb Mod Phase Skew", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 2, 2, 0, "Reverb Cross Mod", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 3, 2, 1.0, "Reverb Return", input.m_globalEncoderBankInput);
+        m_quadEncoderBank.Config(1, 3, 0, 0.75, "Reverb Feedback", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 0, 1, 0.3, "Reverb Damp Base", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 1, 1, 0.5, "Reverb Damp Width", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 3, 1, 0, "Delay Send", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 0, 2, 1.0, "Reverb Widen", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 0, 3, 0, "Reverb Mod Depth", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 1, 3, 1.0, "Reverb Mod Phase Skew", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 2, 3, 0.1, "Reverb Mod Speed", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 3, 3, 1.0, "Reverb Return", input.m_quadEncoderBankInput);
 
-        m_globalEncoderBank.Config(2, 0, 0, 0.5, "Tempo", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(0, 0, 0, 0.5, "Tempo", input.m_globalEncoderBankInput);
     }
 
     SquiggleBoyWithEncoderBank()
@@ -1074,6 +1144,29 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             modulatorValues.m_gestureWeights[i] = input.m_faders[i];
         }
+    }
+
+    void SetQuadModulators(Input& input)
+    {
+        SmartGrid::BankedEncoderCell::ModulatorValues& modulatorValues = input.m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_modulatorValues;
+    
+        for (size_t i = 0; i < 4; ++i)
+        {
+            modulatorValues.m_value[2][i] = std::min(1.0f, std::max(0.0f, m_quadGangedRandomLFO[0].m_lfos[0].m_pos[i]));
+            modulatorValues.m_value[3][i] = std::min(1.0f, std::max(0.0f, m_quadGangedRandomLFO[1].m_lfos[0].m_pos[i]));
+
+            modulatorValues.m_value[4][i] = m_delay.m_lfo.m_output[i] / 2.0 + 0.5;
+            modulatorValues.m_value[5][i] = m_reverb.m_lfo.m_output[i] / 2.0 + 0.5;
+
+            modulatorValues.m_value[11][i] = static_cast<float>(i % 4) / 3;
+
+            modulatorValues.m_value[14][i] = m_rGen.UniGen();
+        }
+
+        for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
+        {
+            modulatorValues.m_gestureWeights[i] = input.m_faders[i];
+        }    
     }
 
     void SetGlobalModulators(Input& input)
@@ -1164,41 +1257,50 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].SetGates();
         }
 
-        m_delayInputSetter.SetDelayTime(m_globalEncoderBank.GetValue(0, 0, 0, 0), input.m_tempo.m_expParam, m_delayState);
-        m_delayState.m_rotate = m_globalEncoderBank.GetValue(0, 1, 0, 0);
-        m_delayInputSetter.SetModulation(
-            m_globalEncoderBank.GetValue(0, 2, 0, 0), 
-            m_globalEncoderBank.GetValue(0, 2, 1, 0),
-            m_delayState);
-        m_delayState.m_feedback = m_globalEncoderBank.GetValue(0, 3, 0, 0);
-        m_delayInputSetter.SetDamping(
-            m_globalEncoderBank.GetValue(0, 0, 1, 0),
-            m_globalEncoderBank.GetValue(0, 1, 1, 0),
-            m_delayState);
-        m_delayToReverbSend = m_globalEncoderBank.GetValue(0, 3, 1, 0);
-        m_delayInputSetter.SetWiden(m_globalEncoderBank.GetValue(0, 0, 2, 0), m_delayState);
-        m_delayState.m_lfoInput.m_phaseOffset = m_globalEncoderBank.GetValue(0, 1, 2, 0);
-        m_delayState.m_lfoInput.m_crossDepth = m_globalEncoderBank.GetValue(0, 2, 2, 0);
-        m_mixerState.m_returnGain[0] = m_globalEncoderBank.GetValue(0, 3, 2, 0);
+        for (int i = 0; i < 4; ++i)
+        {
+            m_delayInputSetter.SetDelayTime(
+                i, 
+                m_quadEncoderBank.GetValue(0, 0, 0, i), 
+                input.m_tempo.m_expParam, 
+                m_quadEncoderBank.GetValue(0, 1, 0, i), 
+                m_delayState);
+            m_delayInputSetter.SetRotate(i, m_quadEncoderBank.GetValue(0, 1, 2, i), m_delayState);
+            m_delayInputSetter.SetModulation(
+                i,
+                m_quadEncoderBank.GetValue(0, 1, 3, i), 
+                m_quadEncoderBank.GetValue(0, 0, 3, i),
+                m_delayState);
+            m_delayInputSetter.SetFeedback(i, m_quadEncoderBank.GetValue(0, 3, 0, i), m_delayState);
+            m_delayInputSetter.SetDamping(
+                i,
+                m_quadEncoderBank.GetValue(0, 0, 1, i),
+                m_quadEncoderBank.GetValue(0, 1, 1, i),
+                m_delayState);
+            m_delayToReverbSend = m_quadEncoderBank.GetValue(0, 3, 1, 0);
+            m_delayInputSetter.SetWiden(i, m_quadEncoderBank.GetValue(0, 0, 2, i), m_delayState);
+            m_delayState.m_lfoInput.m_phaseKnob[i] = m_quadEncoderBank.GetValue(0, 2, 3, i);
+            m_mixerState.m_returnGain[0] = m_quadEncoderBank.GetValue(0, 3, 3, 0);
 
-        m_reverbInputSetter.SetDelayTime(m_globalEncoderBank.GetValue(1, 0, 0, 0), 0, m_reverbState);
-        m_reverbState.m_rotate = m_globalEncoderBank.GetValue(1, 1, 0, 0);
-        m_reverbInputSetter.SetModulation(
-            m_globalEncoderBank.GetValue(1, 2, 0, 0),
-            m_globalEncoderBank.GetValue(1, 2, 1, 0),
-            m_reverbState);
-        m_reverbState.m_feedback = m_globalEncoderBank.GetValue(1, 3, 0, 0);
-        m_reverbInputSetter.SetDamping(
-            m_globalEncoderBank.GetValue(1, 0, 1, 0),
-            m_globalEncoderBank.GetValue(1, 1, 1, 0),
-            m_reverbState);
-        m_reverbToDelaySend = m_globalEncoderBank.GetValue(1, 3, 1, 0);
-        m_reverbInputSetter.SetWiden(m_globalEncoderBank.GetValue(1, 0, 2, 0), m_reverbState);
-        m_reverbState.m_lfoInput.m_phaseOffset = m_globalEncoderBank.GetValue(1, 1, 2, 0);
-        m_reverbState.m_lfoInput.m_crossDepth = m_globalEncoderBank.GetValue(1, 2, 2, 0);
-        m_mixerState.m_returnGain[1] = m_globalEncoderBank.GetValue(1, 3, 2, 0);
+            m_reverbInputSetter.SetReverbTime(i, m_quadEncoderBank.GetValue(1, 0, 0, i), m_reverbState);
+            m_reverbInputSetter.SetModulation(
+                i,
+                m_quadEncoderBank.GetValue(1, 1, 3, i),
+                m_quadEncoderBank.GetValue(1, 0, 3, i),
+                m_reverbState);
+            m_reverbInputSetter.SetFeedback(i, m_quadEncoderBank.GetValue(1, 3, 0, i), m_reverbState);
+            m_reverbInputSetter.SetDamping(
+                i,
+                m_quadEncoderBank.GetValue(1, 0, 1, i),
+                m_quadEncoderBank.GetValue(1, 1, 1, i),
+                m_reverbState);
+            m_reverbToDelaySend = m_quadEncoderBank.GetValue(1, 3, 1, 0);
+            m_reverbInputSetter.SetWiden(i, m_quadEncoderBank.GetValue(1, 0, 2, i), m_reverbState);
+            m_reverbState.m_lfoInput.m_phaseKnob[i] = m_quadEncoderBank.GetValue(1, 2, 3, i);
+            m_mixerState.m_returnGain[1] = m_quadEncoderBank.GetValue(1, 3, 3, 0);
+        }
 
-        input.m_tempo.Update(m_globalEncoderBank.GetValue(2, 0, 0, 0));
+        input.m_tempo.Update(m_globalEncoderBank.GetValue(0, 0, 0, 0));
     }   
 
     JSON ToJSON()
@@ -1206,6 +1308,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         JSON rootJ = JSON::Object();
         rootJ.SetNew("voiceEncoderBank", m_voiceEncoderBank.ToJSON());
         rootJ.SetNew("globalEncoderBank", m_globalEncoderBank.ToJSON());
+        rootJ.SetNew("quadEncoderBank", m_quadEncoderBank.ToJSON());
         if (GetRecordingDirectory().length() > 0)
         {
             rootJ.SetNew("recordingDirectory", JSON::String(GetRecordingDirectory().c_str()));
@@ -1217,6 +1320,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     void FromJSON(JSON rootJ)
     {
         m_voiceEncoderBank.FromJSON(rootJ.Get("voiceEncoderBank"));
+        m_quadEncoderBank.FromJSON(rootJ.Get("quadEncoderBank"));
         m_globalEncoderBank.FromJSON(rootJ.Get("globalEncoderBank"));
         JSON recordingDirectoryJ = rootJ.Get("recordingDirectory");
         if (!recordingDirectoryJ.IsNull() && strlen(recordingDirectoryJ.StringValue()) > 0)
@@ -1232,13 +1336,17 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void ResetGrid(uint64_t ix)
     {
-        if (ix < SquiggleBoy::x_numVoices)
+        if (ix < SquiggleBoyWithEncoderBank::x_numVoiceBanks)
         {
             m_voiceEncoderBank.ResetGrid(ix);
         }
+        else if (ix < SquiggleBoyWithEncoderBank::x_numVoiceBanks + SquiggleBoyWithEncoderBank::x_numQuadBanks)
+        {
+            m_quadEncoderBank.ResetGrid(ix - SquiggleBoyWithEncoderBank::x_numVoiceBanks);
+        }
         else
         {
-            m_globalEncoderBank.ResetGrid(ix - SquiggleBoy::x_numVoices);
+            m_globalEncoderBank.ResetGrid(ix - SquiggleBoyWithEncoderBank::x_numVoiceBanks - SquiggleBoyWithEncoderBank::x_numQuadBanks);
         }
     }
 
@@ -1246,18 +1354,21 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         m_voiceEncoderBank.Apply(msg);
         m_globalEncoderBank.Apply(msg);
+        m_quadEncoderBank.Apply(msg);
     }
 
     void PopulateUIState(UIState* uiState)
     {
         m_voiceEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
+        m_quadEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
         m_globalEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
-
+        
         uiState->m_activeTrack.store(m_voiceEncoderBank.GetCurrentTrack());
 
         uiState->m_audioScopeWriter.Publish();
         uiState->m_controlScopeWriter.Publish();
-        
+        uiState->m_quadScopeWriter.Publish();
+
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             uiState->SetPos(i, m_voices[i].m_pan.m_outputX, m_voices[i].m_pan.m_outputY);
@@ -1286,6 +1397,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Control);
         }
+        else if (m_selectedAbsoluteEncoderBank >= x_numVoiceBanks)
+        {
+            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Master);
+        }
         else
         {
             uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Voice);
@@ -1296,12 +1411,15 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         m_shift = input.m_shift;
         input.m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_shift = m_shift;
+        input.m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_shift = m_shift;
         input.m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_shift = m_shift;
 
         SetVoiceModulators(input);
         SetGlobalModulators(input);
+        SetQuadModulators(input);
 
         m_voiceEncoderBank.Process(input.m_voiceEncoderBankInput, deltaT);
+        m_quadEncoderBank.Process(input.m_quadEncoderBankInput, deltaT);
         m_globalEncoderBank.Process(input.m_globalEncoderBankInput, deltaT);
 
         SetEncoderParameters(input);
@@ -1309,101 +1427,3 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         SquiggleBoy::ProcessSample();
     }
 };
-
-#ifndef IOS_BUILD
-struct SquiggleBoyModule : Module
-{
-    IOMgr m_ioMgr;
-    SquiggleBoyWithEncoderBank m_squiggleBoy;
-    SquiggleBoyWithEncoderBank::Input m_state;
-    
-    // I/O pointers
-    //
-    IOMgr::Input* m_vpoInput;
-    IOMgr::Output* m_gridIdOutput;
-    IOMgr::Output* m_mainOutput;
-
-    IOMgr::Input* m_pageSelectInput;
-    IOMgr::Input* m_gateInput;
-
-    SquiggleBoyModule()
-        : m_ioMgr(this)
-    {
-        m_squiggleBoy.Config(m_state);
-
-        // Add volt per octave input
-        //
-        m_vpoInput = m_ioMgr.AddInput("V/Oct", false);
-        m_vpoInput->MakeVoltPerOctave();
-        for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
-        {
-            m_vpoInput->SetTarget(i, &m_state.m_baseFreq[i]);
-        }
-
-        // Add grid id output
-        //
-        m_gridIdOutput = m_ioMgr.AddOutput("Grid ID", false);
-        m_gridIdOutput->SetSource(0, &m_squiggleBoy.m_selectedGridId);
-
-        // Add main output
-        //
-        m_mainOutput = m_ioMgr.AddOutput("Main", true);
-        m_mainOutput->m_scale = 5;
-        m_mainOutput->SetChannels(4);
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_mainOutput->SetSource(i, &m_squiggleBoy.m_output[i]);
-        }
-
-        m_pageSelectInput = m_ioMgr.AddInput("Page Select", false);
-        m_pageSelectInput->SetChannels(1);
-        m_pageSelectInput->SetTarget(0, &m_squiggleBoy.m_selectedAbsoluteEncoderBank);
-
-        m_gateInput = m_ioMgr.AddInput("Gate", true);
-        for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
-        {
-            m_gateInput->SetTarget(i, &m_squiggleBoy.m_state[i].m_gate);
-        }
-
-        m_ioMgr.Config();
-    }
-
-    void SelectGridId()
-    {
-        m_squiggleBoy.SelectGridId();
-    }
-
-    void process(const ProcessArgs &args) override
-    {
-        m_ioMgr.Process();
-        if (m_ioMgr.IsControlFrame())
-        {
-            SelectGridId();
-        }
-
-        m_squiggleBoy.Process(m_state, args.sampleTime);
-        m_ioMgr.SetOutputs();
-    }
-};
-
-struct SquiggleBoyWidget : public ModuleWidget
-{
-    SquiggleBoyWidget(SquiggleBoyModule* module)
-    {
-        setModule(module);
-        setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/SquiggleBoy.svg")));
-
-        // Add widgets
-        //
-        if (module)
-        {
-            module->m_vpoInput->Widget(this, 1, 1);
-            module->m_gridIdOutput->Widget(this, 1, 2);
-            module->m_mainOutput->Widget(this, 1, 3);
-            module->m_pageSelectInput->Widget(this, 1, 4);
-            module->m_gateInput->Widget(this, 1, 5);
-        }
-    }
-};
-#endif
-

@@ -71,11 +71,13 @@ public:
             JSON nonagonConfig = config.Get("nonagon_config");
             if (!nonagonConfig.IsNull())
             {
-                m_nonagon.ConfigFromJSON(nonagonConfig);
-                if (nonagonConfig.HasKey("stereo"))
+                JSON stereoJ = nonagonConfig.Get("stereo");
+                if (!stereoJ.IsNull())
                 {
-                    m_configuration.m_stereo = nonagonConfig.Get("stereo").BooleanValue();
+                    m_configuration.m_stereo = stereoJ.BooleanValue();
                 }
+             
+                m_nonagon.ConfigFromJSON(nonagonConfig);
             }
 
             JSON fileConfig = config.Get("file_config");

@@ -6,11 +6,61 @@
 #include "PhaseUtils.hpp"
 #include "Filter.hpp"
 
+template<size_t Size = 1 << 16>
 struct DelayLine
 {
-    static constexpr size_t x_maxDelaySamples = 1 << 16;
+    static constexpr size_t x_maxDelaySamples = Size;
     float m_delayLine[x_maxDelaySamples] = {0.0f};
     size_t m_index;
+
+    struct XFader
+    {
+        static constexpr float x_fadeIncr = 1.0 / (48000.0 * 0.005);
+
+        float m_left;
+        float m_right;
+        float m_fade;
+        bool m_fadeDone;
+        bool m_leftSet;
+
+        XFader()
+            : m_left(0.0f)
+            , m_right(0.0f)
+            , m_fade(0.0f)
+            , m_fadeDone(true)
+            , m_leftSet(false)
+        {
+        }
+
+        void Process()
+        {
+            if (!m_fadeDone)
+            {
+                m_fade += x_fadeIncr;
+                if (m_fade >= 1.0f)
+                {
+                    m_fadeDone = true;
+                    m_left = m_right;
+                }
+            }
+        }
+
+        void Start(float right)
+        {
+            if (!m_leftSet)
+            {
+                m_left = right;
+                m_leftSet = true;
+                m_fadeDone = true;
+            }
+            else
+            {
+                m_right = right;
+                m_fade = 0.0f;
+                m_fadeDone = false;
+            }
+        }
+    };
 
     DelayLine()
         : m_index(0)
@@ -59,6 +109,20 @@ struct DelayLine
         float alpha = index - std::floor(index);
         
         return m_delayLine[i0] + alpha * (c + alpha * (d + alpha * e)) / 2;
+    }
+
+    float Read(XFader fader)
+    {
+        if (fader.m_fadeDone)
+        {
+            return Read(fader.m_left);
+        }
+        else
+        {
+            float readLeft = Read(fader.m_left);
+            float readRight = Read(fader.m_right);
+            return readLeft * (1.0f - fader.m_fade) + readRight * fader.m_fade;
+        }
     }
 };
 
@@ -132,9 +196,38 @@ struct ParallelAllPassFilter
     }
 };
 
+template<size_t Size>
 struct QuadDelayLine
 {
-    DelayLine m_delayLine[4];
+    DelayLine<Size> m_delayLine[4];
+
+    struct QuadXFader
+    {
+        typename DelayLine<Size>::XFader m_fader[4];
+
+        QuadXFader ScaleOffset(QuadFloat scale, QuadFloat offset)
+        {
+            QuadXFader result;
+            for (size_t i = 0; i < 4; ++i)
+            {
+                result.m_fader[i].m_left = scale[i] * m_fader[i].m_left + offset[i];
+                result.m_fader[i].m_right = scale[i] * m_fader[i].m_right + offset[i];
+                result.m_fader[i].m_fade = m_fader[i].m_fade;
+                result.m_fader[i].m_fadeDone = m_fader[i].m_fadeDone;
+                result.m_fader[i].m_leftSet = m_fader[i].m_leftSet;
+            }
+
+            return result;
+        }
+
+        void Process()
+        {
+            for (size_t i = 0; i < 4; ++i)
+            {
+                m_fader[i].Process();
+            }
+        }
+    };
 
     void Write(QuadFloat x)
     {
@@ -151,6 +244,15 @@ struct QuadDelayLine
             m_delayLine[1].Read(delaySamples[1]),
             m_delayLine[2].Read(delaySamples[2]),
             m_delayLine[3].Read(delaySamples[3]));
+    }
+
+    QuadFloat Read(QuadXFader fader)
+    {
+        return QuadFloat(
+            m_delayLine[0].Read(fader.m_fader[0]),
+            m_delayLine[1].Read(fader.m_fader[1]),
+            m_delayLine[2].Read(fader.m_fader[2]),
+            m_delayLine[3].Read(fader.m_fader[3]));
     }
 };
 
@@ -238,46 +340,56 @@ struct DelayTimeSynchronizer
 {
     double m_approxDelaySamples;
     double m_tempoFreq;
-    double m_logOutDelaySamples;
+    double m_outDelaySamplesFactor;
     double m_outDelaySamples;
+    float m_factor;
 
-    OPLowPassFilter m_filter;
+    OPLowPassFilter m_tempoFilter;
 
     DelayTimeSynchronizer()
         : m_approxDelaySamples(0.0)
         , m_tempoFreq(0.0)
-        , m_logOutDelaySamples(0.0)
+        , m_outDelaySamplesFactor(0.0)
         , m_outDelaySamples(0.0)
+        , m_factor(0.0)
     {
-        m_filter.SetAlphaFromNatFreq(0.3 / 48000.0);
+        m_tempoFilter.SetAlphaFromNatFreq(0.3 / 48000.0);
     }
 
-    double Update(double tempoFreq, double delaySamples)
+    template<class XFaderType>
+    void Update(XFaderType& fader, double tempoFreq, double delaySamples, double factor)
     {
-        if (tempoFreq != m_tempoFreq || delaySamples != m_approxDelaySamples)
+        tempoFreq = m_tempoFilter.Process(tempoFreq);
+        
+        size_t factorIx = std::round(factor * 4);
+        float possibleFactors[5] = {1.0 / 5, 1.0 / 3, 1.0, 3.0, 5.0};
+        factor = possibleFactors[factorIx];
+
+        if (tempoFreq != m_tempoFreq || delaySamples != m_approxDelaySamples || factor != m_factor)
         {
             m_tempoFreq = tempoFreq;
-            m_approxDelaySamples = delaySamples;
+            if (!fader.m_fadeDone)
+            {
+                fader.m_right = m_outDelaySamplesFactor / tempoFreq;
+            }
+            else
+            {
+                m_approxDelaySamples = delaySamples;
+                m_factor = factor;
 
-            double nearestPow2 = std::pow(2.0, std::floor(std::log2(delaySamples * tempoFreq)));
-            double nearestDottedPow2 = std::pow(2.0, std::floor(std::log2(delaySamples * tempoFreq * 3.0))) / 3.0;
-//            double nearestTripletPow2 = std::pow(2.0, std::floor(std::log2(delaySamples * tempoFreq / 3.0)));
-            double bestFactor = std::max(nearestPow2, nearestDottedPow2);
+                double delaySamplesFactor = std::pow(2.0, std::floor(std::log2(delaySamples * tempoFreq / factor))) * factor;
+                m_outDelaySamples = delaySamplesFactor / tempoFreq;
 
-            m_logOutDelaySamples = std::log2(bestFactor / tempoFreq);
+                if (delaySamplesFactor != m_outDelaySamplesFactor)
+                {
+                    m_outDelaySamplesFactor = delaySamplesFactor;
+                    fader.Start(m_outDelaySamples);
+                }
+                else
+                {
+                    fader.m_left = m_outDelaySamples;
+                }
+            }
         }
-
-        double processedDelaySamples = m_filter.Process(m_logOutDelaySamples);
-        if (processedDelaySamples != m_logOutDelaySamples)
-        {
-            m_outDelaySamples = std::pow(2.0, processedDelaySamples);
-        }
-        else
-        {
-            assert(m_outDelaySamples <= delaySamples);
-            assert(delaySamples / 2 <= m_outDelaySamples);
-        }
-
-        return m_outDelaySamples;
     }
 };

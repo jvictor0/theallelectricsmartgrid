@@ -288,10 +288,10 @@ struct TheNonagonInternal
         }
     }
 
-    void Process(float dt, Input& input)
+    void Process(Input& input)
     {
         SetTheoryOfTimeInput(input);
-        m_theoryOfTime.Process(dt, input.m_theoryOfTimeInput);
+        m_theoryOfTime.Process(input.m_theoryOfTimeInput);
 
         if (m_theoryOfTime.m_musicalTime.m_bits[0].m_top)
         {
@@ -1380,7 +1380,7 @@ struct TheNonagonSmartGrid
     {
         m_stateSaver.Process(m_stateSaverState);
         m_gridHolder.Process(dt);
-        m_nonagon.Process(dt, m_state);
+        m_nonagon.Process(m_state);
     }
 
     void ProcessFrame()

@@ -250,8 +250,7 @@ struct TheNonagonSquiggleBoyInternal
 
         m_output = m_squiggleBoy.m_output;
 
-        m_squiggleBoyUIState.m_audioScopeWriter.AdvanceIndex();
-        m_squiggleBoyUIState.m_controlScopeWriter.AdvanceIndex();
+        m_squiggleBoyUIState.AdvanceScopeIndices();
 
         return m_output;
     }
@@ -277,7 +276,10 @@ struct TheNonagonSquiggleBoyInternal
         }
         else
         {
-            m_squiggleBoyUIState.m_encoderBankUIState.SetIndicatorColor(0, SmartGrid::Color::White);
+            for (size_t i = 0; i < 4; ++i)
+            {                
+                m_squiggleBoyUIState.m_encoderBankUIState.SetIndicatorColor(i, SmartGrid::Color::White);
+            }
         }
 
         m_analogUIState.SetValue(0, m_sceneState.m_blendFactor);
@@ -300,7 +302,7 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.Config(m_squiggleBoyState);
         ConfigureEncoders();
-        m_squiggleBoy.SetupScopeWriters(&m_squiggleBoyUIState.m_audioScopeWriter, &m_squiggleBoyUIState.m_controlScopeWriter);
+        m_squiggleBoy.SetupScopeWriters(&m_squiggleBoyUIState);
     }
 
     struct SaveLoadJSONCell : SmartGrid::Cell

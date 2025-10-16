@@ -195,6 +195,14 @@ struct QuadOPLowPassFilter
             m_filters[i].m_alpha = m_filters[0].m_alpha;
         }
     }
+
+    void SetAlphaFromNatFreq(QuadFloat cyclesPerSample)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            m_filters[i].SetAlphaFromNatFreq(cyclesPerSample[i]);
+        }
+    }
 };
 
 struct QuadOPHighPassFilter
@@ -218,6 +226,14 @@ struct QuadOPHighPassFilter
         for (int i = 1; i < 4; ++i)
         {
             m_filters[i].m_alpha = m_filters[0].m_alpha;
+        }
+    }
+
+    void SetAlphaFromNatFreq(QuadFloat cyclesPerSample)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            m_filters[i].SetAlphaFromNatFreq(cyclesPerSample[i]);
         }
     }
 };
@@ -244,6 +260,14 @@ struct QuadOPBaseWidthFilter
         {
             m_filters[i].m_highPassFilter.m_alpha = m_filters[0].m_highPassFilter.m_alpha;
             m_filters[i].m_lowPassFilter.m_alpha = m_filters[0].m_lowPassFilter.m_alpha;
+        }
+    }
+
+    void SetBaseWidth(QuadFloat base, QuadFloat width)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            m_filters[i].SetBaseWidth(base[i], width[i]);
         }
     }
 };

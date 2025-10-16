@@ -27,6 +27,11 @@ struct ExpParam
     float m_base;
     float m_factor;
 
+    ExpParam()
+        : ExpParam(2.0f)
+    {
+    }
+
     ExpParam(float base)
         : m_baseParam(0)
         , m_expParam(1)

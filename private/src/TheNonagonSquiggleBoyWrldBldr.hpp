@@ -181,11 +181,18 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             Put(SmartGrid::x_baseGridSize - 1, 1, new SetDisplayModeCell(owner, DisplayMode::Visualizer));
 
-            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numGlobalBanks; ++i)
+            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numQuadBanks; ++i)
             {
                 Put(i, 2, new SquiggleBoyWithEncoderBank::SelectorCell(
                     &owner->m_internal->m_squiggleBoy,
                     i + SquiggleBoyWithEncoderBank::x_numVoiceBanks));
+            }
+
+            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numGlobalBanks; ++i)
+            {
+                Put(i + SquiggleBoyWithEncoderBank::x_numQuadBanks, 2, new SquiggleBoyWithEncoderBank::SelectorCell(
+                    &owner->m_internal->m_squiggleBoy,
+                    i + SquiggleBoyWithEncoderBank::x_numVoiceBanks + SquiggleBoyWithEncoderBank::x_numQuadBanks));
             }
 
             for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numVoiceBanks; ++i)

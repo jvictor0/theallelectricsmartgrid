@@ -139,6 +139,17 @@ struct ScopeWriterHolder
         }
     }
 
+    void Write(QuadFloat value)
+    {
+        for (size_t i = 0; i < 4; ++i)
+        {
+            if (m_scopeWriter)
+            {
+                m_scopeWriter->Write(m_scopeIx, m_voiceIx + i, value[i]);
+            }
+        }
+    }
+
     void RecordStart()
     {
         if (m_scopeWriter)
@@ -193,15 +204,15 @@ struct WindowedFFT
         m_scopeIx = other.m_scopeIx;
     }
 
-    void Compute(size_t voiceIx)
+    static void Compute(DiscreteFourierTransform& dft, ScopeWriter* scopeWriter, size_t scopeIx, size_t voiceIx, size_t endIndex)
     {
-        m_dft.Init();
         BasicWaveTable waveTable;
-        size_t endIndex = m_scopeWriter->m_publishedIndex.load();
+        dft.Init();
+
         size_t startSample = endIndex - BasicWaveTable::x_tableSize;
         for (size_t j = 0; j < BasicWaveTable::x_tableSize; ++j)
         {
-            float value = m_scopeWriter->ReadSample(m_scopeIx, voiceIx, startSample + j);
+            float value = scopeWriter->ReadSample(scopeIx, voiceIx, startSample + j);
             waveTable.m_table[j] = value;
         }
 
@@ -214,11 +225,17 @@ struct WindowedFFT
             waveTable.m_table[i] *= hann;
         }
 
-        m_dft.Transform(waveTable);
+        dft.Transform(waveTable);
+    }
 
+    void Compute(size_t voiceIx)
+    {
+        size_t endIndex = m_scopeWriter->m_publishedIndex.load();
+        Compute(m_dft, m_scopeWriter, m_scopeIx, voiceIx, endIndex);
+    
         for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
         {
-            float re= m_dft.m_components[i].real();
+            float re = m_dft.m_components[i].real();
             float im = m_dft.m_components[i].imag();
             float mag = std::max(0.00001f, 2 * std::sqrtf(re * re + im * im));
             m_filters[i].Process(mag);
@@ -231,6 +248,120 @@ struct WindowedFFT
         float wayThrough = freq * 2 * DiscreteFourierTransform::x_maxComponents - ix;
         size_t ix2 = std::min(ix + 1, DiscreteFourierTransform::x_maxComponents - 1);
         float mag = m_filters[ix].m_output * (1 - wayThrough) + m_filters[ix2].m_output * wayThrough;
+        return 20 * std::log10f(mag);
+    }
+};
+
+struct QuadWindowedFFT
+{
+    DiscreteFourierTransform m_dft[4];
+    OPLowPassFilter m_filtersCorner[4][DiscreteFourierTransform::x_maxComponents];
+    OPLowPassFilter m_filtersEdge[4][DiscreteFourierTransform::x_maxComponents];
+    OPLowPassFilter m_filtersCenter[DiscreteFourierTransform::x_maxComponents];
+    ScopeWriter* m_scopeWriter;
+    size_t m_scopeIx;
+
+    QuadWindowedFFT()
+        : m_scopeWriter(nullptr)
+        , m_scopeIx(0)
+    {
+        for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
+        {
+            for (size_t j = 0; j < 4; ++j)
+            {
+                m_filtersCorner[j][i].SetAlphaFromNatFreq(4.0 / 60.0);
+                m_filtersEdge[j][i].SetAlphaFromNatFreq(4.0 / 60.0);
+            }
+
+            m_filtersCenter[i].SetAlphaFromNatFreq(4.0 / 60.0);
+        }
+        
+        for (size_t i = 0; i < 4; ++i)
+        {
+            m_dft[i].Init();
+        }
+    }
+
+    QuadWindowedFFT(ScopeWriter* scopeWriter, size_t scopeIx)
+        : QuadWindowedFFT()
+    {
+        m_scopeWriter = scopeWriter;
+        m_scopeIx = scopeIx;
+    }
+
+    void Compute()
+    {
+        size_t endIndex = m_scopeWriter->m_publishedIndex.load();
+        for (size_t i = 0; i < 4; ++i)
+        {
+            WindowedFFT::Compute(m_dft[i], m_scopeWriter, m_scopeIx, i, endIndex);
+        }
+
+        for (size_t i = 0; i < 4; ++i)
+        {
+            for (size_t j = 0; j < DiscreteFourierTransform::x_maxComponents; ++j)
+            {
+                std::complex<float> cornerCompDirect = m_dft[i].m_components[j];
+                std::complex<float> cornerComp = m_dft[i].m_components[j];
+                for (size_t k = 0; k < 4; ++k)
+                {
+                    if (k != i)
+                    {
+                        cornerComp -= m_dft[k].m_components[j] / std::complex<float>(3.0f, 0.0f);
+                    }
+                }
+
+                float mag = std::max(0.00001f, std::min(std::abs(cornerCompDirect), std::abs(cornerComp)));
+                m_filtersCorner[i][j].Process(mag);
+
+                std::complex<float> edgeDirect = (m_dft[i].m_components[j] + m_dft[(i + 1) % 4].m_components[j]) / std::complex<float>(2.0f, 0.0f);
+                std::complex<float> edge = edgeDirect - (m_dft[(i + 2) % 4].m_components[j] + m_dft[(i + 3) % 4].m_components[j]) / std::complex<float>(2.0f, 0.0f);
+                mag = std::max(0.00001f, std::min(std::abs(edgeDirect), std::abs(edge)));
+                m_filtersEdge[i][j].Process(mag);
+            }
+        }
+
+        for (size_t j = 0; j < DiscreteFourierTransform::x_maxComponents; ++j)
+        {
+            std::complex<float> comp(0.0f, 0.0f);
+            for (size_t i = 0; i < 4; ++i)
+            {
+                comp += m_dft[i].m_components[j] / std::complex<float>(4.0f, 0.0f);
+            }
+
+            float mag = std::max(0.00001f, std::abs(comp));
+            m_filtersCenter[j].Process(mag);
+        }
+    }
+
+    float GetMagDb(int x, int y, float freq)
+    {
+        OPLowPassFilter* filter;
+        if (x == 1 && y == 1)
+        {
+            filter = m_filtersCenter;
+        }
+        else if (x == 1)
+        {
+            filter = m_filtersEdge[y == 0 ? 0 : 2];
+        }
+        else if (y == 1)
+        {
+            filter = m_filtersEdge[x == 0 ? 3 : 1];
+        }
+        else if (x == 0)
+        {
+            filter = m_filtersCorner[y == 0 ? 0 : 3];
+        }
+        else
+        {
+            filter = m_filtersCorner[y == 0 ? 1 : 2];
+        }
+
+        size_t ix = static_cast<size_t>(freq * 2 * DiscreteFourierTransform::x_maxComponents);
+        float wayThrough = freq * 2 * DiscreteFourierTransform::x_maxComponents - ix;
+        size_t ix2 = std::min(ix + 1, DiscreteFourierTransform::x_maxComponents - 1);
+        float mag = filter[ix].m_output * (1 - wayThrough) + filter[ix2].m_output * wayThrough;
         return 20 * std::log10f(mag);
     }
 };

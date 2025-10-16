@@ -171,6 +171,21 @@ struct QuadFloat
         return result;
     }
 
+    QuadFloat RotateLinear(QuadFloat angle)
+    {
+        QuadFloat result;
+        for (int i = 0; i < 4; ++i)
+        {
+            float angleI = angle[i] * 4;
+            size_t index = static_cast<size_t>(angleI);
+            float lerp = angleI - static_cast<float>(index);
+
+            result[i] = m_values[(i + index) % 4] * (1 - lerp) + m_values[(i + index + 1) % 4] * lerp;
+        }
+
+        return result;
+    }
+
     QuadFloat Rotate90()
     {
         return QuadFloat(m_values[3], m_values[0], m_values[1], m_values[2]);
@@ -188,6 +203,11 @@ struct QuadFloat
     float Sum() const
     {
         return m_values[0] + m_values[1] + m_values[2] + m_values[3];
+    }
+
+    float Average() const
+    {
+        return (m_values[0] + m_values[1] + m_values[2] + m_values[3]) / 4;
     }
     
     QuadFloat Widen(float amount) const

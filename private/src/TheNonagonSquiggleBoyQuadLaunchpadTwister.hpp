@@ -145,11 +145,18 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
                 Put(i, SmartGrid::x_baseGridSize + 1, new SquiggleBoyWithEncoderBank::SelectorCell(&owner->m_internal->m_squiggleBoy, i));
             }
 
-            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numGlobalBanks; ++i)
+            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numQuadBanks; ++i)
             {
-                Put(i, SmartGrid::x_baseGridSize , new SquiggleBoyWithEncoderBank::SelectorCell(
+                Put(i, SmartGrid::x_baseGridSize, new SquiggleBoyWithEncoderBank::SelectorCell(
                     &owner->m_internal->m_squiggleBoy,
                     i + SquiggleBoyWithEncoderBank::x_numVoiceBanks));
+            }
+
+            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numGlobalBanks; ++i)
+            {
+                Put(i + SquiggleBoyWithEncoderBank::x_numQuadBanks, SmartGrid::x_baseGridSize , new SquiggleBoyWithEncoderBank::SelectorCell(
+                    &owner->m_internal->m_squiggleBoy,
+                    i + SquiggleBoyWithEncoderBank::x_numVoiceBanks + SquiggleBoyWithEncoderBank::x_numQuadBanks));
             }
 
             Put(SmartGrid::x_baseGridSize - 1, SmartGrid::x_baseGridSize + 1, owner->MakeShiftCell());

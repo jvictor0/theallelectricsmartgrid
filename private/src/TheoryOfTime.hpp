@@ -866,15 +866,14 @@ struct MusicalTimeWithClock
         return m_musicalTime.MonodromyNumber(clockIx, resetIx);
     }
 
-    void Process(float dt, Input& input)
+    void Process(Input& input)
     {
-        m_lastChangeTime += dt;
+        m_lastChangeTime += 1.0 / 48000.0;
         if (input.m_input.m_running)
         {
             if (input.m_clockMode == ClockMode::Internal)
             {
-                float dx = dt * input.m_freq;
-                m_phasor += dx;
+                m_phasor += input.m_freq;
                 m_phasor = m_phasor - floor(m_phasor);
             }
             else if (input.m_clockMode == ClockMode::External)
