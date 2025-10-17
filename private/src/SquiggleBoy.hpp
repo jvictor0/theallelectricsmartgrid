@@ -207,6 +207,7 @@ struct SquiggleBoyVoice
             PhaseUtils::ExpParam m_bwBase;
             PhaseUtils::ExpParam m_bwWidth;
             float m_vcoBaseFreq;
+            float m_ladderBaseFreq;
             PhaseUtils::ExpParam m_ladderCutoffFactor;
             float m_ladderResonance;
             float m_envDepth;
@@ -265,10 +266,14 @@ struct SquiggleBoyVoice
 
         float m_output;
 
+        OPLowPassFilter m_freqDependentGainSlew;
+        float m_freqDependentGainTarget;
+
         ScopeWriterHolder m_scopeWriter;
 
         struct Input
         {
+            float m_vcoTargetFreq;
             ADSR::InputSetter m_adsrInputSetter;
             ADSR::Input m_adsrInput;
 
@@ -289,12 +294,26 @@ struct SquiggleBoyVoice
         AmpSection()
             : m_output(0)
         {
+            m_freqDependentGainSlew.SetAlphaFromNatFreq(250.0f / 48000.0f);
         }
 
         float Process(Input& input, float filterOutput)
         {
-            float adsrEnv = m_adsr.Process(input.m_adsrInput);
-            float preFader = adsrEnv * filterOutput;
+            if (input.m_adsrInput.m_trig)
+            {
+                if (input.m_vcoTargetFreq * 48000 < 100)
+                {
+                    m_freqDependentGainTarget = 1.0;
+                }
+                else
+                {
+                    m_freqDependentGainTarget = 1.0 / std::sqrtf(input.m_vcoTargetFreq * 48000 / 100);
+                }
+            }
+
+            float freqDependentGain = m_freqDependentGainSlew.Process(m_freqDependentGainTarget);
+            float adsrEnv = std::powf(m_adsr.Process(input.m_adsrInput), 2.0f);
+            float preFader = adsrEnv * freqDependentGain * filterOutput;
             
             m_scopeWriter.Write(preFader);
             if (input.m_adsrInput.m_trig)
@@ -412,6 +431,7 @@ struct SquiggleBoyVoice
     }
 
     OPLowPassFilter m_baseFreqSlew;
+    OPLowPassFilter m_ladderFreqSlew;
     PhaseUtils::ExpParam m_baseFreqSlewAmount;
     VCOSection m_vco;
     FilterSection m_filter;
@@ -829,6 +849,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         EncoderBankBankInternal<x_numQuadBanks>::Input m_quadEncoderBankInput;
 
         float m_baseFreq[x_numVoices];
+        float m_ladderBaseFreq[x_numVoices];
 
         float m_sheafyModulators[x_numVoices][3];
 
@@ -856,6 +877,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             for (size_t i = 0; i < x_numVoices; ++i)
             {
                 m_baseFreq[i] = PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0);
+                m_ladderBaseFreq[i] = PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0);
                 m_sheafyModulators[i][0] = 0;
                 m_sheafyModulators[i][1] = 0;
                 m_sheafyModulators[i][2] = 0;
@@ -1188,7 +1210,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            m_voices[i].m_baseFreqSlew.SetAlphaFromNatFreq(m_voices[i].m_baseFreqSlewAmount.Update(1.0 - m_voiceEncoderBank.GetValue(2, 3, 1, i)));
+            float freqSlewAmount = m_voices[i].m_baseFreqSlewAmount.Update(1.0 - m_voiceEncoderBank.GetValue(2, 3, 1, i));
+            m_voices[i].m_baseFreqSlew.SetAlphaFromNatFreq(freqSlewAmount);
+            m_voices[i].m_ladderFreqSlew.SetAlphaFromNatFreq(freqSlewAmount);
             m_state[i].m_vcoInput.m_baseFreq = m_voices[i].m_baseFreqSlew.Process(input.m_baseFreq[i]);
             m_state[i].m_vcoInput.m_cosBlend[0] = m_voiceEncoderBank.GetValue(0, 0, 0, i);
             m_state[i].m_vcoInput.m_cosBlend[1] = m_voiceEncoderBank.GetValue(0, 0, 1, i);
@@ -1209,7 +1233,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_vcoInput.m_offsetFreqFactor.Update(m_voiceEncoderBank.GetValue(0, 0, 3, i));
             m_state[i].m_vcoInput.m_detune.Update(m_voiceEncoderBank.GetValue(0, 1, 3, i));
             
-            m_state[i].m_filterInput.m_vcoBaseFreq = m_voices[i].m_baseFreqSlew.m_output;            
+            m_state[i].m_filterInput.m_vcoBaseFreq = m_voices[i].m_baseFreqSlew.m_output;
+            m_state[i].m_filterInput.m_ladderBaseFreq = m_voices[i].m_ladderFreqSlew.Process(input.m_ladderBaseFreq[i]);
             m_state[i].m_filterInput.m_bwBase.Update(m_voiceEncoderBank.GetValue(0, 2, 3, i));
             m_state[i].m_filterInput.m_bwWidth.Update(m_voiceEncoderBank.GetValue(0, 3, 3, i));
 
@@ -1223,6 +1248,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_voiceEncoderBank.GetValue(1, 2, 0, i), 
                 m_voiceEncoderBank.GetValue(1, 3, 0, i));
 
+            m_state[i].m_ampInput.m_vcoTargetFreq = input.m_baseFreq[i];
             m_state[i].m_ampInput.SetADSR(
                 m_voiceEncoderBank.GetValue(1, 0, 2, i), 
                 m_voiceEncoderBank.GetValue(1, 1, 2, i), 

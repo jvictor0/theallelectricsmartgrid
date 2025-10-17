@@ -157,6 +157,7 @@ struct TheNonagonSquiggleBoyInternal
             if (m_nonagon.m_nonagon.m_multiPhasorGate.m_trig[i])            
             {
                 m_squiggleBoyState.m_baseFreq[i] = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
+                m_squiggleBoyState.m_ladderBaseFreq[i] = std::pow(m_squiggleBoyState.m_baseFreq[i], 0.7);
             }
 
             m_squiggleBoy.m_state[i].m_gate = m_nonagon.m_nonagon.m_output.m_gate[i];
