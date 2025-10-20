@@ -17,6 +17,7 @@
 #include "ScopeWriter.hpp"
 #include "Blink.hpp"
 #include "RandomWaveTable.hpp"
+#include "MultibandSaturator.hpp"
 
 struct SquiggleBoyVoice
 {
@@ -43,7 +44,8 @@ struct SquiggleBoyVoice
         Delay = 0,
         Reverb = 1,
         Master = 2,
-        NumScopes = 3
+        Stereo = 3,
+        NumScopes = 4
     };
     
     struct VCOSection
@@ -63,13 +65,15 @@ struct SquiggleBoyVoice
 
         OPLowPassFilter m_wtBlendFilter[2];
 
+        PhaseUtils::ExpParam m_morphHarmonics[2];
+
         struct Input
         {
             float m_v[2];
             float m_d[2];
             float m_baseFreq;
 
-            float m_cosBlend[2];
+            float m_morphHarmonics[2];
             float m_wtBlend[2];
 
             PhaseUtils::ExpParam m_offsetFreqFactor;
@@ -87,7 +91,7 @@ struct SquiggleBoyVoice
                 : m_v{0.5, 0.5}
                 , m_d{0.5, 0.5}
                 , m_baseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
-                , m_cosBlend{0, 0}
+                , m_morphHarmonics{0.0, 0.0}
                 , m_wtBlend{0, 0}    
                 , m_offsetFreqFactor(4)         
                 , m_detune(1.03)
@@ -95,9 +99,7 @@ struct SquiggleBoyVoice
                 , m_fade(0)
                 , m_bitCrushAmount(0)
                 , m_saturationGain(0.25)
-
             {
-
             }
         };
 
@@ -131,7 +133,6 @@ struct SquiggleBoyVoice
                 {
                     vcoInput[j].m_v = m_state.m_v[j] + interp * (input.m_v[j] - m_state.m_v[j]);
                     vcoInput[j].m_d = m_state.m_d[j] + interp * (input.m_d[j] - m_state.m_d[j]);
-                    vcoInput[j].m_cosBlend = m_state.m_cosBlend[j] + interp * (input.m_cosBlend[j] - m_state.m_cosBlend[j]);
                     vcoInput[j].m_wtBlend = m_state.m_wtBlend[j] + interp * (wtBlend[j] - m_state.m_wtBlend[j]);
                 }
 
@@ -141,6 +142,11 @@ struct SquiggleBoyVoice
 
                 vcoInput[0].m_freq *= m_state.m_detune.m_expParam;
                 vcoInput[1].m_freq /= m_state.m_detune.m_expParam;
+
+                for (int j = 0; j < 2; ++j)
+                {
+                    vcoInput[j].m_morphHarmonics = m_morphHarmonics[j].Update(vcoInput[j].m_freq, vcoInput[j].m_maxFreq, input.m_morphHarmonics[j]);
+                }
 
                 m_vco[0].Process(vcoInput[0], 0 /*unused*/);
                 vcoInput[1].m_phaseMod = m_vco[0].m_out * (m_state.m_crossModIndex[1] + interp * (input.m_crossModIndex[1] - m_state.m_crossModIndex[1]));
@@ -269,6 +275,8 @@ struct SquiggleBoyVoice
         OPLowPassFilter m_freqDependentGainSlew;
         float m_freqDependentGainTarget;
 
+        ATanSaturator<true> m_outputSaturator;
+
         ScopeWriterHolder m_scopeWriter;
 
         struct Input
@@ -295,6 +303,7 @@ struct SquiggleBoyVoice
             : m_output(0)
         {
             m_freqDependentGainSlew.SetAlphaFromNatFreq(250.0f / 48000.0f);
+            m_outputSaturator.SetInputGain(0.5f);
         }
 
         float Process(Input& input, float filterOutput)
@@ -308,6 +317,11 @@ struct SquiggleBoyVoice
                 else
                 {
                     m_freqDependentGainTarget = 1.0 / std::sqrtf(input.m_vcoTargetFreq * 48000 / 100);
+                }
+
+                if (m_adsr.m_state != ADSR::State::Idle)
+                {
+                    m_scopeWriter.RecordEnd();
                 }
             }
 
@@ -327,6 +341,7 @@ struct SquiggleBoyVoice
             }
 
             m_output = input.m_gain.m_expParam * preFader;
+            m_output = m_outputSaturator.Process(m_output);
 
             return m_output;
         }
@@ -517,7 +532,7 @@ struct SquiggleBoy
     QuadDelayInternal<false> m_delay;
     QuadDelayInternal<true> m_reverb;
  
-    QuadFloatWithSub m_output;
+    QuadFloatWithStereoAndSub m_output;
 
     SquiggleBoyVoice::Input m_state[x_numVoices];
     ManyGangedRandomLFO::Input m_gangedRandomLFOInput[4];
@@ -723,7 +738,8 @@ struct SquiggleBoy
     {
         m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay)].Write(m_mixerState.m_return[0]);
         m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb)].Write(m_mixerState.m_return[1]);
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master)].Write(m_mixer.m_output.m_output);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master)].Write(m_output.m_output);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Stereo)].Write(m_output.m_stereoOutput.CombineToQuad(m_mixer.m_quadToStereoMixdown.m_output));
     }
 };
 
@@ -735,7 +751,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     static constexpr size_t x_numQuadBanks = 2;
     EncoderBankBankInternal<x_numQuadBanks> m_quadEncoderBank;
 
-    static constexpr size_t x_numGlobalBanks = 1;
+    static constexpr size_t x_numGlobalBanks = 2;
     EncoderBankBankInternal<x_numGlobalBanks> m_globalEncoderBank;
 
     static constexpr size_t x_numFaders = 16;
@@ -753,7 +769,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             Filter,
             PanAndMelody,
             Control,
-            Master
+            Delay,
+            Reverb,
+            QuadMaster,
+            StereoMaster
         };
 
         struct FilterParams
@@ -777,9 +796,52 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         std::atomic<float> m_xPos[x_numVoices];
         std::atomic<float> m_yPos[x_numVoices];
-        std::atomic<float> m_volume[x_numVoices];
+
+        MeterReader m_voiceMeterReader[x_numVoices];
+        QuadMeterReader m_returnMeterReader[QuadMixerInternal::x_numSends];
+        QuadMeterReader m_quadMasterMeterReader;
+        StereoMeterReader m_stereoMasterMeterReader;
+
+        MultibandSaturator<4, 2>::UIState m_stereoMasteringChainUIState;
+
+        QuadDelayInternal<false>::UIState m_delayUIState;
+        QuadDelayInternal<true>::UIState m_reverbUIState;
 
         std::atomic<bool> m_muted[x_numVoices];
+
+        void ReadMeters()
+        {
+            for (size_t i = 0; i < x_numVoices; ++i)
+            {
+                m_voiceMeterReader[i].Process();
+            }
+
+            for (size_t i = 0; i < QuadMixerInternal::x_numSends; ++i)
+            {
+                m_returnMeterReader[i].Process();
+            }
+
+            m_quadMasterMeterReader.Process();
+            m_stereoMasterMeterReader.Process();
+        }
+
+        void SetMeterReaders(QuadMixerInternal* mixer)
+        {
+            for (size_t i = 0; i < x_numVoices; ++i)
+            {
+                m_voiceMeterReader[i].m_meter = &mixer->m_voiceMeters[i];
+            }
+            
+            for (size_t i = 0; i < QuadMixerInternal::x_numSends; ++i)
+            {
+                m_returnMeterReader[i].SetMeterReaders(&mixer->m_returnMeters[i]);
+            }
+
+            m_quadMasterMeterReader.SetMeterReaders(&mixer->m_masterMeter);
+            m_stereoMasterMeterReader.SetMeterReaders(&mixer->m_stereoMeter);
+
+            mixer->m_stereoMasteringChain.m_saturator.SetupUIState(&m_stereoMasteringChainUIState);
+        }
 
         void SetMuted(size_t i, bool muted)
         {
@@ -798,11 +860,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             m_xPos[i].store(x);
             m_yPos[i].store(y);
-        }
-
-        void SetVolume(size_t i, float volume)
-        {
-            m_volume[i].store(volume);
         }
 
         std::pair<float, float> GetPos(size_t i)
@@ -835,11 +892,19 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Stereo)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Stereo));
+        
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             m_voices[i].SetupAudioScopeWriters(&uiState->m_audioScopeWriter, i);
             m_voices[i].SetupControlScopeWriters(&uiState->m_controlScopeWriter, i);
         }
+    }
+
+    void SetupUIState(UIState* uiState)
+    {
+        uiState->SetMeterReaders(&m_mixer);
+        SetupScopeWriters(uiState);
     }
 
     struct Input
@@ -1050,6 +1115,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_quadEncoderBank.SetColor(0, SmartGrid::Color::Pink, input.m_quadEncoderBankInput);
         m_quadEncoderBank.SetColor(1, SmartGrid::Color::Fuscia, input.m_quadEncoderBankInput);
         m_globalEncoderBank.SetColor(0, SmartGrid::Color::Yellow, input.m_globalEncoderBankInput);
+        m_globalEncoderBank.SetColor(1, SmartGrid::Color::SeaGreen, input.m_globalEncoderBankInput);
 
         m_voiceEncoderBank.Config(0, 0, 0, 0, "VCO 1 Cos Blend", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(0, 0, 1, 0, "VCO 2 Cos Blend", input.m_voiceEncoderBankInput);
@@ -1132,6 +1198,16 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_quadEncoderBank.Config(1, 3, 3, 1.0, "Reverb Return", input.m_quadEncoderBankInput);
 
         m_globalEncoderBank.Config(0, 0, 0, 0.5, "Tempo", input.m_globalEncoderBankInput);
+
+        m_globalEncoderBank.Config(1, 0, 2, 4.0 / 5.0, "Low Eq", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(1, 1, 2, 4.0 / 5.0, "Low Mid Eq", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(1, 2, 2, 4.0 / 5.0, "High Mid Eq", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(1, 3, 2, 4.0 / 5.0, "High Eq", input.m_globalEncoderBankInput);
+        
+        m_globalEncoderBank.Config(1, 0, 3, 0.5, "Low Band Cutoff", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(1, 1, 3, 0.5, "Mid Band Cutoff", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(1, 2, 3, 0.5, "High Band Cutoff", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(1, 3, 3, 4.0 / 5.0, "Master Gain", input.m_globalEncoderBankInput);
     }
 
     SquiggleBoyWithEncoderBank()
@@ -1214,8 +1290,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_voices[i].m_baseFreqSlew.SetAlphaFromNatFreq(freqSlewAmount);
             m_voices[i].m_ladderFreqSlew.SetAlphaFromNatFreq(freqSlewAmount);
             m_state[i].m_vcoInput.m_baseFreq = m_voices[i].m_baseFreqSlew.Process(input.m_baseFreq[i]);
-            m_state[i].m_vcoInput.m_cosBlend[0] = m_voiceEncoderBank.GetValue(0, 0, 0, i);
-            m_state[i].m_vcoInput.m_cosBlend[1] = m_voiceEncoderBank.GetValue(0, 0, 1, i);
+            m_state[i].m_vcoInput.m_morphHarmonics[0] = m_voiceEncoderBank.GetValue(0, 0, 0, i);
+            m_state[i].m_vcoInput.m_morphHarmonics[1] = m_voiceEncoderBank.GetValue(0, 0, 1, i);
             m_state[i].m_vcoInput.m_wtBlend[0] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[2].m_lfos[i / x_voicesPerTrack].m_pos[i % x_voicesPerTrack]));
             m_state[i].m_vcoInput.m_wtBlend[1] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[3].m_lfos[i / x_voicesPerTrack].m_pos[i % x_voicesPerTrack]));
 
@@ -1323,10 +1399,19 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_reverbToDelaySend = m_quadEncoderBank.GetValue(1, 3, 1, 0);
             m_reverbInputSetter.SetWiden(i, m_quadEncoderBank.GetValue(1, 0, 2, i), m_reverbState);
             m_reverbState.m_lfoInput.m_phaseKnob[i] = m_quadEncoderBank.GetValue(1, 2, 3, i);
-            m_mixerState.m_returnGain[1] = m_quadEncoderBank.GetValue(1, 3, 3, 0);
+            m_mixerState.m_returnGain[1] = m_quadEncoderBank.GetValue(1, 3, 3, 0) / 2;
         }
 
         input.m_tempo.Update(m_globalEncoderBank.GetValue(0, 0, 0, 0));
+
+        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_gain[0].Update(m_globalEncoderBank.GetValue(1, 0, 2, 0));
+        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_gain[1].Update(m_globalEncoderBank.GetValue(1, 1, 2, 0));
+        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_gain[2].Update(m_globalEncoderBank.GetValue(1, 2, 2, 0));
+        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_gain[3].Update(m_globalEncoderBank.GetValue(1, 3, 2, 0));
+        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_crossoverFreq[0].Update(m_globalEncoderBank.GetValue(1, 0, 3, 0));
+        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_crossoverFreq[1].Update(m_globalEncoderBank.GetValue(1, 1, 3, 0));
+        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_crossoverFreq[2].Update(m_globalEncoderBank.GetValue(1, 2, 3, 0));
+        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_masterGain.Update(m_globalEncoderBank.GetValue(1, 3, 3, 0));        
     }   
 
     JSON ToJSON()
@@ -1395,10 +1480,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         uiState->m_controlScopeWriter.Publish();
         uiState->m_quadScopeWriter.Publish();
 
+        uiState->ReadMeters();
+
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             uiState->SetPos(i, m_voices[i].m_pan.m_outputX, m_voices[i].m_pan.m_outputY);
-            uiState->SetVolume(i, m_mixer.m_volumeOut[i]);
 
             float hpAlpha = m_voices[i].m_filter.m_highPassFilter.m_alpha;
             float lpAlpha = m_voices[i].m_filter.m_lowPassFilter.m_alpha;
@@ -1406,6 +1492,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             float ladderResonance = m_voices[i].m_filter.m_ladderFilter.m_feedback;
             uiState->SetFilterParams(i, hpAlpha, lpAlpha, ladderAlpha, ladderResonance);
         }
+
+        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.PopulateUIState(&uiState->m_stereoMasteringChainUIState);
+        m_delay.PopulateUIState(&uiState->m_delayUIState);
+        m_reverb.PopulateUIState(&uiState->m_reverbUIState);
 
         if (m_selectedAbsoluteEncoderBank == 0)
         {
@@ -1423,9 +1513,21 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Control);
         }
-        else if (m_selectedAbsoluteEncoderBank >= x_numVoiceBanks)
+        else if (m_selectedAbsoluteEncoderBank == x_numVoiceBanks + x_numQuadBanks)
         {
-            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Master);
+            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::QuadMaster);
+        }
+        else if (m_selectedAbsoluteEncoderBank == x_numVoiceBanks + x_numQuadBanks + 1)
+        {
+            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::StereoMaster);
+        }
+        else if (m_selectedAbsoluteEncoderBank == x_numVoiceBanks)
+        {
+            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Delay);
+        }
+        else if (m_selectedAbsoluteEncoderBank == x_numVoiceBanks + 1)
+        {
+            uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Reverb);
         }
         else
         {

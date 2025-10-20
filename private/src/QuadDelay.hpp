@@ -131,13 +131,29 @@ struct QuadDelayInternal
         }
     };
 
+    struct UIState
+    {
+        std::atomic<float> m_hpAlpha[4];
+        std::atomic<float> m_lpAlpha[4];
+    };
+
+    void PopulateUIState(UIState* uiState)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            uiState->m_hpAlpha[i].store(m_postFeedbackFilter.m_bff.m_filters[i].m_highPassFilter.m_alpha);
+            uiState->m_lpAlpha[i].store(m_postFeedbackFilter.m_bff.m_filters[i].m_lowPassFilter.m_alpha);
+        }
+    }
+
     QuadFloat Process(Input& input)
     {
         m_lfo.Process(input.m_lfoInput);
         m_postFeedbackFilter.SetBFFBaseWidth(input.m_bffBase, input.m_bffWidth);
 
         QuadFloat qInput = IsReverb ? m_inputFilter.Process(input.m_input) : input.m_input;
-        qInput = qInput + m_preFeedbackFilter.Process(input.m_return) * input.m_feedback;
+        QuadFloat retrn = IsReverb ? m_preFeedbackFilter.Process(input.m_return) : input.m_return;
+        qInput = qInput + retrn * input.m_feedback;
         qInput = m_saturator.Process(qInput);
         m_delayLine.Write(qInput);
 

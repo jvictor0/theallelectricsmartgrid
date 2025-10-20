@@ -6,16 +6,13 @@
 
 struct MorphingWaveTable
 {
-    const WaveTable* m_base;
     AdaptiveWaveTable* m_left;
     AdaptiveWaveTable* m_right;
 
     MorphingWaveTable()
-        : m_base(nullptr)
-        , m_left(nullptr)
+        : m_left(nullptr)
         , m_right(nullptr)
     {
-        m_base = &WaveTable::GetCosine();
     }
     
     AdaptiveWaveTable* SetLeft(AdaptiveWaveTable* left)
@@ -32,29 +29,21 @@ struct MorphingWaveTable
         return old;
     }
 
-    float Evaluate(float phase, float freq, float maxFreq, float baseBlend, float blend)
+    float Evaluate(float phase, float freq, float maxFreq, float blend)
     {
-        float base = m_base->Evaluate(phase);
         float left = m_left->Evaluate(phase, freq, maxFreq);
         float right = m_right->Evaluate(phase, freq, maxFreq);
-        return base * (1 - baseBlend) + baseBlend * (left * (1 - blend) + right * blend);
+        return left * (1 - blend) + right * blend;
     }
 
-    float StartValue(float baseBlend, float blend) const
+    float StartValue(float blend, float freq, float maxFreq)
     {
-        float base = m_base->StartValue();
-        float left = m_left->StartValue();
-        float right = m_right->StartValue();
-        return base * (1 - baseBlend) + baseBlend * (left * (1 - blend) + right * blend);
-
+        return Evaluate(0, freq, maxFreq, blend);
     }
 
-    float CenterValue(float baseBlend, float blend) const
+    float CenterValue(float blend, float freq, float maxFreq)
     {
-        float base = m_base->CenterValue();
-        float left = m_left->CenterValue();
-        float right = m_right->CenterValue();
-        return base * (1 - baseBlend) + baseBlend * (left * (1 - blend) + right * blend);
+        return Evaluate(0.5, freq, maxFreq, blend);
     }
 };
 

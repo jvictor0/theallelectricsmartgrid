@@ -2,6 +2,7 @@
 
 #include "QuadUtils.hpp"
 #include <cmath>
+#include <complex>
 
 struct OPLowPassFilter
 {
@@ -33,17 +34,30 @@ struct OPLowPassFilter
         // m_alpha = 1.0f / (rc + 1.0f);
     }
 
-    static float FrequencyResponse(float alpha, float freq)
+    static std::complex<float> TransferFunction(float alpha, float freq)
     {
         // Calculate normalized frequency (omega)
         //
         float omega = 2.0f * M_PI * freq;
         float cosOmega = std::cos(omega);
+        float sinOmega = std::sin(omega);
         
         // OPLowPassFilter transfer function: H(z) = alpha / (1 - (1-alpha)z^-1)
-        // Magnitude response: |H(e^jω)| = alpha / sqrt(1 + (1-alpha)^2 - 2(1-alpha)cos(ω))
+        // H(e^jω) = alpha / (1 - (1-alpha)e^-jω)
+        //         = alpha / (1 - (1-alpha)(cos(ω) - j*sin(ω)))
+        //         = alpha / ((1 - (1-alpha)cos(ω)) + j*(1-alpha)sin(ω))
         //
-        return alpha / std::sqrt(1.0f + (1.0f - alpha) * (1.0f - alpha) - 2.0f * (1.0f - alpha) * cosOmega);
+        float den_real = 1.0f - (1.0f - alpha) * cosOmega;
+        float den_imag = (1.0f - alpha) * sinOmega;
+        
+        std::complex<float> numerator(alpha, 0.0f);
+        std::complex<float> denominator(den_real, den_imag);
+        return numerator / denominator;
+    }
+
+    static float FrequencyResponse(float alpha, float freq)
+    {
+        return std::abs(TransferFunction(alpha, freq));
     }
 };
 
@@ -133,19 +147,33 @@ struct OPHighPassFilter
         m_alpha = std::exp(-omega);
     }
 
-    static float FrequencyResponse(float alpha, float freq)
+    static std::complex<float> TransferFunction(float alpha, float freq)
     {
         // Calculate normalized frequency (omega)
         //
         float omega = 2.0f * M_PI * freq;
         float cosOmega = std::cos(omega);
+        float sinOmega = std::sin(omega);
         
         // OPHighPassFilter transfer function: H(z) = alpha * (1 - z^-1) / (1 - alpha * z^-1)
-        // Magnitude response: |H(e^jω)| = alpha * sqrt(2(1-cos(ω))) / sqrt(1 + alpha^2 - 2*alpha*cos(ω))
-        // Using identity: sqrt(2(1-cos(ω))) = 2|sin(ω/2)|
+        // H(e^jω) = alpha * (1 - e^-jω) / (1 - alpha * e^-jω)
+        //         = alpha * (1 - (cos(ω) - j*sin(ω))) / (1 - alpha * (cos(ω) - j*sin(ω)))
+        //         = alpha * ((1 - cos(ω)) + j*sin(ω)) / ((1 - alpha*cos(ω)) + j*alpha*sin(ω))
         //
-        float sinOmegaOver2 = std::sin(omega / 2.0f);
-        return alpha * 2.0f * std::abs(sinOmegaOver2) / std::sqrt(1.0f + alpha * alpha - 2.0f * alpha * cosOmega);
+        float num_real = alpha * (1.0f - cosOmega);
+        float num_imag = alpha * sinOmega;
+        
+        float den_real = 1.0f - alpha * cosOmega;
+        float den_imag = alpha * sinOmega;
+        
+        std::complex<float> numerator(num_real, num_imag);
+        std::complex<float> denominator(den_real, den_imag);
+        return numerator / denominator;
+    }
+
+    static float FrequencyResponse(float alpha, float freq)
+    {
+        return std::abs(TransferFunction(alpha, freq));
     }
 };
 
@@ -302,8 +330,57 @@ struct TanhSaturator
     {
         float scaledInput = m_inputGain * input;
         float output = std::tanh(scaledInput);
-        m_tanhGain = std::tanh(m_inputGain);
         return Normalize ? output / m_tanhGain : output;
+    }
+
+    QuadFloat Process(const QuadFloat& input)
+    {
+        QuadFloat output;
+        for (int i = 0; i < 4; ++i)
+        {
+            output[i] = Process(input[i]);
+        }
+
+        return output;
+    }
+};
+
+template<bool Normalize>
+struct ATanSaturator
+{
+    float m_inputGain;
+    float m_atanGain;
+
+    ATanSaturator()
+        : m_inputGain(1.0f)
+    {
+    }
+
+    ATanSaturator(float gain)
+        : m_inputGain(1.0)
+    {
+        SetInputGain(gain);
+    }
+
+    float Saturate(float input)
+    {
+        return std::atan(input * M_PI / 2) / (M_PI / 2);
+    }
+
+    void SetInputGain(float gain)
+    {
+        if (gain != m_inputGain)
+        {
+            m_inputGain = gain;
+            m_atanGain = Saturate(m_inputGain);
+        }
+    }
+
+    float Process(float input)
+    {
+        float scaledInput = m_inputGain * input;
+        float output = Saturate(scaledInput);
+        return Normalize ? output / m_atanGain : output;
     }
 
     QuadFloat Process(const QuadFloat& input)

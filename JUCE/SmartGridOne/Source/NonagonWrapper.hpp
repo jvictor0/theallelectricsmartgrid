@@ -3,7 +3,6 @@
 #include <JuceHeader.h>
 #include "MidiUtils.hpp"
 #include "SmartGridInclude.hpp"
-#include "QuadDownSample.hpp"
 
 struct NonagonWrapperQuadLaunchpadTwister
 {
@@ -414,7 +413,6 @@ struct NonagonWrapper
     TheNonagonSquiggleBoyInternal m_internal;
     NonagonWrapperQuadLaunchpadTwister m_quadLaunchpadTwister;
     NonagonWrapperWrldBldr m_wrldBldr;
-    QuadDownSampler m_quadDownSampler;
 
     NonagonWrapper()
         : m_quadLaunchpadTwister(&m_internal)
@@ -424,7 +422,6 @@ struct NonagonWrapper
 
     void PrepareToPlay(int numSamples, double sampleRate)
     {
-        m_quadDownSampler.PrepareToPlay(numSamples, sampleRate);
     }
     
     void OpenInputQuadLaunchpadTwister(int index, const juce::String &deviceIdentifier)
@@ -442,7 +439,7 @@ struct NonagonWrapper
         m_quadLaunchpadTwister.OpenTwisterOutput(deviceIdentifier);
     }
 
-    QuadFloatWithSub ProcessSample(size_t timestamp)
+    QuadFloatWithStereoAndSub ProcessSample(size_t timestamp)
     {
         m_quadLaunchpadTwister.ProcessSample(timestamp);
         m_wrldBldr.ProcessSample(timestamp);
@@ -550,26 +547,27 @@ struct NonagonWrapper
         for (int i = 0; i < bufferToFill.numSamples; ++i)
         {
             size_t timestamp = static_cast<size_t>(wallclockUs + i * (1000.0 / 48.0));
-            QuadFloatWithSub output = ProcessSample(timestamp);
-            for (int j = 0; j < numChannels; ++j)
-            {
-                bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = output.m_output[j];
-            }
-
+            QuadFloatWithStereoAndSub output = ProcessSample(timestamp);
+            
             if (stereo)
             {
-                m_quadDownSampler.AddBackSamples(output.m_output, i);
+                for (int j = 0; j < numChannels; ++j)
+                {
+                    bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = output.m_stereoOutput[j];
+                }
+            }
+            else
+            {
+                for (int j = 0; j < numChannels; ++j)
+                {
+                    bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = output.m_output[j];
+                }
             }
 
             if (bufferToFill.buffer->getNumChannels() > 4)
             {
                 bufferToFill.buffer->getWritePointer(4, bufferToFill.startSample)[i] = output.m_sub;
             }
-        }
-
-        if (stereo)
-        {
-            m_quadDownSampler.ProcessReverb(bufferToFill);
         }
 
         ProcessFrame();

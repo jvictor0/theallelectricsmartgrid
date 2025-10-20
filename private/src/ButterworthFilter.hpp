@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <complex>
 
 struct BiquadSection
 {
@@ -66,11 +67,47 @@ struct BiquadSection
         m_a1 = -2.0f * cosw / a0;
         m_a2 = a2 / a0;
     }
+
+    static std::complex<float> TransferFunction(float cosw, float sinw, float q, float freq, bool isHighPass = false)
+    {
+        BiquadSection biquad;
+        biquad.SetCoefficients(cosw, sinw, q, isHighPass);
+
+        // Evaluate transfer function at frequency
+        // H(e^jω) = (b0 + b1*e^-jω + b2*e^-j2ω) / (1 + a1*e^-jω + a2*e^-j2ω)
+        //
+        float omega = 2.0f * M_PI * freq;
+        float cos_omega = std::cos(omega);
+        float sin_omega = std::sin(omega);
+        float cos_2omega = std::cos(2.0f * omega);
+        float sin_2omega = std::sin(2.0f * omega);
+
+        // Numerator: b0 + b1*e^-jω + b2*e^-j2ω
+        //
+        float num_real = biquad.m_b0 + biquad.m_b1 * cos_omega + biquad.m_b2 * cos_2omega;
+        float num_imag = -biquad.m_b1 * sin_omega - biquad.m_b2 * sin_2omega;
+
+        // Denominator: 1 + a1*e^-jω + a2*e^-j2ω
+        //
+        float den_real = 1.0f + biquad.m_a1 * cos_omega + biquad.m_a2 * cos_2omega;
+        float den_imag = -biquad.m_a1 * sin_omega - biquad.m_a2 * sin_2omega;
+
+        // Return complex transfer function
+        //
+        std::complex<float> numerator(num_real, num_imag);
+        std::complex<float> denominator(den_real, den_imag);
+        return numerator / denominator;
+    }
+
+    static float FrequencyResponse(float cosw, float sinw, float q, float freq, bool isHighPass = false)
+    {
+        return std::abs(TransferFunction(cosw, sinw, q, freq, isHighPass));
+    }
 };
 
 struct ButterworthFilter
 {
-    static constexpr float x_minCyclesPerSample = 0.001f;
+    static constexpr float x_minCyclesPerSample = 0.0001f;
     static constexpr float x_maxCyclesPerSample = 0.499f;
 
     BiquadSection m_biquad1;

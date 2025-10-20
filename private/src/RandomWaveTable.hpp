@@ -273,7 +273,7 @@ struct RandomWaveTable
     void GenerateWaveTable(BasicWaveTable& waveTable)
     {
         DiscreteFourierTransform dft;
-        
+         
         dft.m_components[1] = std::complex<float>(0.5, 0);
         
         for (int i = 2; i < DiscreteFourierTransform::x_maxComponents; ++i)
@@ -283,6 +283,25 @@ struct RandomWaveTable
 
         dft.InverseTransform(waveTable, DiscreteFourierTransform::x_maxComponents);
         waveTable.NormalizeAmplitude();
+    }
+
+    void GenerateLevel(AdaptiveWaveTable& waveTable)
+    {
+        size_t level = waveTable.m_levelComponents[waveTable.m_levelsReady];
+
+        DiscreteFourierTransform dft;
+        
+        dft.m_components[1] = std::complex<float>(0.5, 0);
+        
+        for (size_t i = 2; i < std::min(level / 8 + 1, DiscreteFourierTransform::x_maxComponents); ++i)
+        {
+            WriteDistortedHarmonic(i, m_coefficients[i], dft);
+        }
+
+        dft.InverseTransform(waveTable.m_levels[waveTable.m_levelsReady], DiscreteFourierTransform::x_maxComponents);
+        waveTable.m_levels[waveTable.m_levelsReady].NormalizeAmplitude();
+        
+        ++waveTable.m_levelsReady;
     }
 
     void GenerateWaveTable(AdaptiveWaveTable& waveTable)
@@ -325,9 +344,16 @@ struct RandomWaveTable
                 return;
             }
 
-            if (!m_waveTables[i]->IsReady())
+            if (!m_waveTables[i]->m_dftReady)
             {
-                m_waveTables[i]->GenerateIncrementally();
+                m_waveTables[i]->m_dft.Transform(m_waveTables[i]->m_waveTable);
+                m_waveTables[i]->m_dftReady = true;
+                return;
+            }
+
+            if (m_waveTables[i]->m_levelsReady < AdaptiveWaveTable::x_maxLevels)
+            {
+                GenerateLevel(*m_waveTables[i]);
                 return;
             }
         }
@@ -379,13 +405,13 @@ struct SquiggleBoyWaveTableGenerator
         while (m_randomWaveTable.m_waveTableCount < x_gangSize)
         {
             AdaptiveWaveTable* waveTable = m_waveTableAllocator.Allocate();
-            assert(waveTable);
-            waveTable->Init();
+            
             if (!waveTable)
             {
                 return;
             }
 
+            waveTable->Init();
             m_randomWaveTable.AddWaveTable(waveTable);
         }
 

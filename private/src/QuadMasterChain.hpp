@@ -3,11 +3,20 @@
 #include "QuadUtils.hpp"
 #include "LinkwitzRileyCrossover.hpp"
 #include "Filter.hpp"
+#include "StereoUtils.hpp"
 
-struct QuadFloatWithSub
+struct QuadFloatWithStereoAndSub
 {
     QuadFloat m_output;
+    StereoFloat m_stereoOutput;
     float m_sub;
+
+    QuadFloatWithStereoAndSub()
+    {
+        m_output = QuadFloat();
+        m_stereoOutput = StereoFloat();
+        m_sub = 0.0f;
+    }
 };
 
 struct QuadMasterChain
@@ -25,7 +34,7 @@ struct QuadMasterChain
     TanhSaturator<false> m_saturator;
     LinkwitzRileyCrossover m_linkwitzRileyCrossover[4];
 
-    QuadFloatWithSub m_output;
+    QuadFloatWithStereoAndSub m_output;
 
     QuadMasterChain()
     {
@@ -35,10 +44,11 @@ struct QuadMasterChain
         }
     }
 
-    QuadFloatWithSub Process(const Input& input, QuadFloat in)
+    QuadFloatWithStereoAndSub Process(const Input& input, QuadFloat in)
     {
         m_saturator.SetInputGain(input.m_saturationGain);
         m_output.m_sub = 0;
+
         for (size_t i = 0; i < 4; ++i)
         {
             LinkwitzRileyCrossover::CrossoverOutput crossover = m_linkwitzRileyCrossover[i].Process(in[i]);

@@ -316,9 +316,9 @@ namespace SmartGrid
             Color::Blue,
             Color::Indigo,
             Color::Purple})};
-    inline ColorScheme ColorScheme::Reds{std::vector<Color>({Color(255,101,92), Color(218,70,250), Color(255,44,101)})};
-    inline ColorScheme ColorScheme::Greens{std::vector<Color>({Color(67,247,104), Color(1,79,12), Color(0,101,67)})};
-    inline ColorScheme ColorScheme::Blues{std::vector<Color>({Color(79,105,250), Color(0,184,252), Color(73,158,251)})};
+    inline ColorScheme ColorScheme::Reds{std::vector<Color>({Color(255,101,92), Color(218,70,150), Color(255,50,24)})};
+    inline ColorScheme ColorScheme::Greens{std::vector<Color>({Color(67,247,104), Color(35,179,12), Color(0,101,67)})};
+    inline ColorScheme ColorScheme::Blues{std::vector<Color>({Color(79,74,250), Color(0,134,252), Color(100,36,251)})};
     inline ColorScheme ColorScheme::RedHues{std::vector<Color>({
         Color::Red.Saturate().AdjustBrightness(1.0f/128.0f),
         Color::Red.Saturate().AdjustBrightness(1.0f/64.0f),

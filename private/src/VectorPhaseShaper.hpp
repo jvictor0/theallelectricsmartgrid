@@ -33,7 +33,7 @@ struct VectorPhaseShaperInternal
         float m_v;
         float m_d;
         float m_phaseMod;
-        float m_cosBlend;
+        float m_morphHarmonics;
         float m_wtBlend;
         float m_maxFreq;
 
@@ -44,7 +44,7 @@ struct VectorPhaseShaperInternal
             , m_v(0.5)
             , m_d(0.5)
             , m_phaseMod(0)
-            , m_cosBlend(0)
+            , m_morphHarmonics(1.0)
             , m_wtBlend(0)
             , m_maxFreq(0.1)
         {
@@ -163,27 +163,29 @@ struct VectorPhaseShaperInternal
             phi_vps = m_v + (phase - d) * (1 - m_v) / (1 - d);
         }
 
+        float maxHarmonics = input.m_morphHarmonics;
+        
         if (!NeedsAntiAlias(phi_vps))
         {
             phi_vps = fmod(phi_vps, 1);
-            m_out = - m_morphingWaveTable.Evaluate(phi_vps, m_freq, input.m_maxFreq, input.m_cosBlend, input.m_wtBlend);
+            m_out = - m_morphingWaveTable.Evaluate(phi_vps, m_freq, maxHarmonics, input.m_wtBlend);
         }
         else
         {
             if (m_b < 0.5)
             {
                 float phi_as = fmod(phi_vps, 1) / (2 * m_b);
-                float s = - m_morphingWaveTable.Evaluate(phi_as, m_freq, input.m_maxFreq, input.m_cosBlend, input.m_wtBlend);                
+                float s = - m_morphingWaveTable.Evaluate(phi_as, m_freq, maxHarmonics, input.m_wtBlend);                
                 
-                float offset = m_morphingWaveTable.StartValue(input.m_cosBlend, input.m_wtBlend);
+                float offset = m_morphingWaveTable.StartValue(input.m_wtBlend, m_freq, maxHarmonics);
                 
                 m_out = (1 - m_c) * (s + offset) / 2 - offset;
             }
             else
             {
                 float phi_as = fmod(phi_vps - 0.5, 1) / (2 * (m_b - 0.5)) + 0.5;
-                float s = - m_morphingWaveTable.Evaluate(phi_as, m_freq, input.m_maxFreq, input.m_cosBlend, input.m_wtBlend);
-                float offset = m_morphingWaveTable.CenterValue(input.m_cosBlend, input.m_wtBlend);            
+                float s = - m_morphingWaveTable.Evaluate(phi_as, m_freq, maxHarmonics, input.m_wtBlend);
+                float offset = m_morphingWaveTable.CenterValue(input.m_wtBlend, m_freq, maxHarmonics);            
                 m_out = (1 + m_c) * (s + offset) / 2 - offset;                
             }
         }

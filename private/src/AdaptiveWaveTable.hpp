@@ -86,18 +86,34 @@ struct BasicWaveTable
         return max;
     }
 
+    float RMSAmplitude() const
+    {
+        float sum = 0;
+        for (size_t i = 0; i < x_tableSize; ++i)
+        {
+            sum += m_table[i] * m_table[i];
+        }
+
+        return std::sqrt(sum / x_tableSize);
+    }
+
     void NormalizeAmplitude()
     {
-        float max = Amplitude();
+        float rms = RMSAmplitude();
 
-        if (max == 0)
+        if (rms < 0.00000001)
         {
+            for (size_t i = 0; i < x_tableSize; ++i)
+            {
+                m_table[i] = 0;
+            }
+
             return;
         }
 
         for (size_t i = 0; i < x_tableSize; ++i)
         {
-            m_table[i] /= max;
+            m_table[i] /= (rms * sqrt(2));
         }
     }
 
@@ -227,7 +243,7 @@ struct DiscreteFourierTransform
     {
         // Limit components to available range
         //
-        size_t componentsToUse = (maxComponents > x_maxComponents) ? x_maxComponents : maxComponents;
+        size_t componentsToUse = ((maxComponents + 1) > x_maxComponents) ? x_maxComponents : maxComponents + 1;
         
         // Clear the wave table
         //
@@ -257,8 +273,7 @@ struct DiscreteFourierTransform
             {
                 workspace[BasicWaveTable::x_tableSize - k] = std::conj(workspace[k]);
             }
-        }
-        
+        }        
 
         // Perform inverse FFT
         //
@@ -312,7 +327,7 @@ struct DiscreteFourierTransform
 struct AdaptiveWaveTable
 {
     static constexpr size_t x_maxLevels = 16;
-    static constexpr float m_levelsBase = 1.5874f;
+    static constexpr float m_levelsBase = 1.2f;
     BasicWaveTable m_waveTable;
     DiscreteFourierTransform m_dft;
     BasicWaveTable m_levels[x_maxLevels];
@@ -324,12 +339,14 @@ struct AdaptiveWaveTable
     
     AdaptiveWaveTable()
     {
-        float components = 1;
-        for (size_t i = 0; i < x_maxLevels; ++i)
+        float components = 16;
+        m_levelComponents[0] = 1;
+        for (size_t i = 1; i < x_maxLevels; ++i)
         {
             m_levelComponents[i] = static_cast<size_t>(components);
-            components = std::max(components * m_levelsBase, std::floor(components) + 1);
+            components = std::max(components * m_levelsBase, std::floor(components) + 8);
             assert(m_levelComponents[i] < BasicWaveTable::x_tableSize);
+            INFO("level %lu harmonics %lu", i, m_levelComponents[i]);
         }
 
         m_waveTableReady = false;
@@ -373,27 +390,13 @@ struct AdaptiveWaveTable
         for (size_t i = 0; i < x_maxLevels; ++i)
         {
             m_dft.InverseTransform(m_levels[i], m_levelComponents[i]);
+            m_levels[i].NormalizeAmplitude();
         }
 
         m_levelsReady = x_maxLevels;
     }
 
-    void GenerateIncrementally()
-    {
-        if (!m_dftReady)
-        {
-            m_dftReady = true;
-            m_dft.Transform(m_waveTable);
-            return;
-        }
-
-        if (m_levelsReady < x_maxLevels)
-        {
-            m_dft.InverseTransform(m_levels[m_levelsReady], m_levelComponents[m_levelsReady]);
-            m_levelsReady++;
-            return;
-        }
-    }
+    size_t m_lastLevel;
 
     float Evaluate(float phase, float freq, float maxFreq)
     {
@@ -402,21 +405,29 @@ struct AdaptiveWaveTable
             return 0;
         }
 
-        size_t maxComponents = maxFreq / freq;
+        float maxComponents = maxFreq / freq;
         auto itr = std::lower_bound(m_levelComponents, m_levelComponents + x_maxLevels, maxComponents);
+        size_t level = itr - m_levelComponents;
+        if (level != m_lastLevel)
+        {
+            m_lastLevel = level;            
+        }
+
         if (itr == m_levelComponents + x_maxLevels)
         {
             return m_levels[x_maxLevels - 1].Evaluate(phase);
         }
-        else if (*itr == maxComponents)
+        else if (itr == m_levelComponents)
         {
-            return m_levels[itr - m_levelComponents].Evaluate(phase);
+            return m_levels[0].Evaluate(phase);
         }
         else
         {
             float lower = m_levels[itr - m_levelComponents - 1].Evaluate(phase);
             float upper = m_levels[itr - m_levelComponents].Evaluate(phase);
             float wayThrough = static_cast<float>(maxComponents - *(itr - 1)) / static_cast<float>(*itr - *(itr - 1));
+            assert(wayThrough >= 0);
+            assert(wayThrough <= 1);
             return lower * (1 - wayThrough) + upper * wayThrough;
         }
     }

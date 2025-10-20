@@ -2,6 +2,7 @@
 
 #include "SmartGridInclude.hpp"
 #include <JuceHeader.h>
+#include "PathDrawer.hpp"
 
 struct ScopeComponent : public juce::Component
 {
@@ -139,14 +140,11 @@ struct SoundStageComponent : public juce::Component
 {
     static constexpr size_t x_scopeIx = 4;
     static constexpr size_t x_numVoices = 9;
-    std::atomic<float>* m_xPos;
-    std::atomic<float>* m_yPos;
-    std::atomic<float>* m_volume;
+
+    SquiggleBoyWithEncoderBank::UIState* m_uiState;
     
-    SoundStageComponent(std::atomic<float>* xPos, std::atomic<float>* yPos, std::atomic<float>* volume)
-        : m_xPos(xPos)
-        , m_yPos(yPos)
-        , m_volume(volume)
+    SoundStageComponent(SquiggleBoyWithEncoderBank::UIState* uiState)
+        : m_uiState(uiState)
     {
         setSize(400, 200);
     }
@@ -162,14 +160,17 @@ struct SoundStageComponent : public juce::Component
         auto bounds = getLocalBounds().toFloat();
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
-        auto border = 0.1;
+        auto border = 0.15;
 
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            auto centerX = width * m_xPos[i].load() * (1 - border) + border * width / 2;
-            auto centerY = height * (1 - m_yPos[i].load()) * (1 - border) + border * height / 2;
+            float xPos = m_uiState->m_xPos[i].load();
+            float yPos = m_uiState->m_yPos[i].load();
+            float volume = m_uiState->m_voiceMeterReader[i].GetRMSLinear();
+            auto centerX = width * xPos * (1 - border) + border * width / 2;
+            auto centerY = height * (1 - yPos) * (1 - border) + border * height / 2;
 
-            float radius = (0.01 + 0.3 * m_volume[i].load()) * std::min(width, height);
+            float radius = (0.01 + 0.5 * volume) * std::min(width, height);
 
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
             g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
@@ -351,7 +352,7 @@ struct AnalyserComponent : public juce::Component
             for (size_t j = 1; j < DiscreteFourierTransform::x_maxComponents; ++j)
             {
                 float freq = m_logX ? m_bucketExpX[j] : static_cast<float>(j) / (2 * DiscreteFourierTransform::x_maxComponents);
-                float y = (m_windowedFFT[i].GetMagDb(freq) + 100) / 100;
+                float y = (m_windowedFFT[i].GetMagDb(freq) + 60) / 60;
                 float screenY = height * (1 - y);
                 float x = static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
                 float screenX = width * x;
@@ -370,7 +371,7 @@ struct AnalyserComponent : public juce::Component
             {
                 float freq = m_logX ? m_bucketExpX[j] : static_cast<float>(j) / (2 * DiscreteFourierTransform::x_maxComponents);
                 float y = FilterResponse(voiceIx, freq);
-                y = (20 * std::log10f(std::max(0.00001f, y)) + 100) / 100;
+                y = PathDrawer::AmpToDbNormalized(y);
                 float screenY = height * (1 - y / 2);
                 float x = static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
                 float screenX = width * x;
@@ -399,19 +400,86 @@ struct QuadAnalyserComponent : public juce::Component
     QuadWindowedFFT m_quadWindowedFFT;
     SquiggleBoyWithEncoderBank::UIState* m_uiState;
     size_t m_scopeIx;
+    bool m_eigen;
+
+    enum class FilterType
+    {
+        Delay,
+        Reverb,
+        None
+    };
+
+    FilterType m_filterType;
 
     float m_bucketExpX[DiscreteFourierTransform::x_maxComponents];
 
-    QuadAnalyserComponent(SquiggleBoyWithEncoderBank::UIState* uiState, size_t scopeIx)
+    QuadAnalyserComponent(SquiggleBoyWithEncoderBank::UIState* uiState, size_t scopeIx, bool eigen, FilterType filterType)
         : m_quadWindowedFFT(&uiState->m_quadScopeWriter, scopeIx)
         , m_uiState(uiState)
+        , m_eigen(eigen)
+        , m_filterType(filterType)
     {
-        float m = static_cast<float>(DiscreteFourierTransform::x_maxComponents);
-        for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
-        {
-            m_bucketExpX[i] = std::pow(m - 1, static_cast<float>(i) / m) / (2 * m);
-        }
     }
+
+    struct QuadDFTFn
+    {
+        QuadWindowedFFT* m_quadWindowedFFT;
+        bool m_eigen;
+        size_t m_speakerIx;
+
+        QuadDFTFn(QuadWindowedFFT* quadWindowedFFT, bool eigen, size_t speakerIx)
+            : m_quadWindowedFFT(quadWindowedFFT)
+            , m_eigen(eigen)
+            , m_speakerIx(speakerIx)
+        {
+        }
+
+        float operator()(float freq) const
+        {
+            return PathDrawer::NormalizeDb(m_quadWindowedFFT->GetMagDb(m_speakerIx, freq));
+        }
+    };
+
+    struct FilterDrawFn
+    {
+        SquiggleBoyWithEncoderBank::UIState* m_uiState;
+        FilterType m_filterType;
+        size_t m_speakerIx;
+
+        FilterDrawFn(SquiggleBoyWithEncoderBank::UIState* uiState, FilterType filterType, size_t speakerIx)
+            : m_uiState(uiState)
+            , m_filterType(filterType)
+            , m_speakerIx(speakerIx)
+        {
+        }
+
+        float operator()(float freq) const
+        {
+            float hpAlpha = 0.0f;
+            float lpAlpha = 0.0f;
+            switch (m_filterType)
+            {
+                case FilterType::Delay:
+                {
+                    hpAlpha = m_uiState->m_delayUIState.m_hpAlpha[m_speakerIx].load();
+                    lpAlpha = m_uiState->m_delayUIState.m_lpAlpha[m_speakerIx].load();
+                    break;
+                }
+                case FilterType::Reverb:
+                {
+                    hpAlpha = m_uiState->m_reverbUIState.m_hpAlpha[m_speakerIx].load();
+                    lpAlpha = m_uiState->m_reverbUIState.m_lpAlpha[m_speakerIx].load();
+                    break;
+                }
+                case FilterType::None:
+                    return 0.0f;
+            }
+
+            float response = OPLowPassFilter::FrequencyResponse(lpAlpha, freq);
+            response *= OPHighPassFilter::FrequencyResponse(hpAlpha, freq);
+            return PathDrawer::AmpToDbNormalized(response) / 2;
+        }
+    };
 
     void paint(juce::Graphics& g) override
     {
@@ -423,28 +491,17 @@ struct QuadAnalyserComponent : public juce::Component
 
         m_quadWindowedFFT.Compute();
 
-        for (size_t x = 0; x < 3; ++x)
+        for (size_t x = 0; x < 2; ++x)
         {
-            for (size_t y = 0; y < 3; ++y)
+            for (size_t y = 0; y < 2; ++y)
             {
-                juce::Path path;
-                path.startNewSubPath(width * x / 3, height * (y + 1) / 3);
+                size_t speakerIx = y == 0 ? 3 - x : x;
+                PathDrawer pathDrawer(height / 2, width / 2, width * x / 2, height * (1 - y) / 2);
+                QuadDFTFn fn(&m_quadWindowedFFT, m_eigen, speakerIx);
+                pathDrawer.DrawPath(g, juce::Colours::white, fn);
 
-                for (size_t j = 1; j < DiscreteFourierTransform::x_maxComponents; ++j)
-                {
-                    float freq = m_bucketExpX[j];
-                    float yc = (m_quadWindowedFFT.GetMagDb(x, y, freq) + 100) / 100;
-                    float screenYc = height * (1 - yc);
-                    screenYc = screenYc / 3 + height * y / 3;
-                    float xc = static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
-                    float screenXc = width * xc;
-                    screenXc = screenXc / 3 + width * x / 3;
-                    path.lineTo(screenXc, screenYc);
-                }
-
-                path.lineTo(width * (x + 1) / 3, height * (y + 1) / 3);
-                g.setColour(juce::Colours::white);
-                g.strokePath(path, juce::PathStrokeType(1.0f));
+                FilterDrawFn filterDrawFn(m_uiState, m_filterType, speakerIx);
+                pathDrawer.DrawPath(g, juce::Colours::white, filterDrawFn);
             }
         }
     }

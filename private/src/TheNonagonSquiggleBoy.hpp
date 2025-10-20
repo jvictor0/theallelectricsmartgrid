@@ -57,7 +57,7 @@ struct TheNonagonSquiggleBoyInternal
 
     TheNonagonSmartGrid::Trio m_activeTrio;
 
-    QuadFloatWithSub m_output;
+    QuadFloatWithStereoAndSub m_output;
 
     double m_timer;
 
@@ -234,7 +234,7 @@ struct TheNonagonSquiggleBoyInternal
         }
     }
 
-    QuadFloatWithSub ProcessSample()
+    QuadFloatWithStereoAndSub ProcessSample()
     {
         m_blink.Process();
         m_squiggleBoyState.SetBlink(m_blink.m_blink);
@@ -303,7 +303,7 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.Config(m_squiggleBoyState);
         ConfigureEncoders();
-        m_squiggleBoy.SetupScopeWriters(&m_squiggleBoyUIState);
+        m_squiggleBoy.SetupUIState(&m_squiggleBoyUIState);
     }
 
     struct SaveLoadJSONCell : SmartGrid::Cell

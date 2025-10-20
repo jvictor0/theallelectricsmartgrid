@@ -2,11 +2,12 @@
 
 #include <cmath>
 #include <algorithm>
+#include <complex>
 #include "ButterworthFilter.hpp"
 
 struct LinkwitzRileyCrossover
 {
-    static constexpr float x_minCyclesPerSample = 0.001f;
+    static constexpr float x_minCyclesPerSample = 0.0001f;
     static constexpr float x_maxCyclesPerSample = 0.499f;
 
     // Low-pass filter: two biquad sections
@@ -30,6 +31,12 @@ struct LinkwitzRileyCrossover
     {
         float m_lowPass;
         float m_highPass;
+    };
+
+    struct ComplexCrossoverOutput
+    {
+        std::complex<float> m_lowPass;
+        std::complex<float> m_highPass;
     };
 
     CrossoverOutput Process(float input)
@@ -69,6 +76,30 @@ struct LinkwitzRileyCrossover
         m_lowBiquad2.SetCoefficients(cosw, sinw, q2, false);
         m_highBiquad1.SetCoefficients(cosw, sinw, q1, true);
         m_highBiquad2.SetCoefficients(cosw, sinw, q2, true);
+    }
+
+    static ComplexCrossoverOutput TransferFunction(float cutoffFreq, float freq)
+    {
+        cutoffFreq = std::min(x_maxCyclesPerSample, cutoffFreq);
+
+        float omega = 2.0f * M_PI * cutoffFreq;
+        float cosw = std::cos(omega);
+        float sinw = std::sin(omega);
+        float q1 = 1.0f / (2.0f * std::cos(M_PI / 8.0f));
+        float q2 = 1.0f / (2.0f * std::cos(3.0f * M_PI / 8.0f));
+
+        std::complex<float> lowPassResponse1 = BiquadSection::TransferFunction(cosw, sinw, q1, freq);
+        std::complex<float> lowPassResponse2 = BiquadSection::TransferFunction(cosw, sinw, q2, freq);
+        std::complex<float> highPassResponse1 = BiquadSection::TransferFunction(cosw, sinw, q1, freq, true);
+        std::complex<float> highPassResponse2 = BiquadSection::TransferFunction(cosw, sinw, q2, freq, true);
+
+        return {lowPassResponse1 * lowPassResponse2, highPassResponse1 * highPassResponse2};
+    }
+
+    static CrossoverOutput FrequencyResponse(float cutoffFreq, float freq)
+    {
+        ComplexCrossoverOutput complex = TransferFunction(cutoffFreq, freq);
+        return {std::abs(complex.m_lowPass), std::abs(complex.m_highPass)};
     }
 
     void Reset()

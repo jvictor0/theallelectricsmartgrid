@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include "WaveTable.hpp"
+#include "AsyncLogger.hpp"
 
 namespace PhaseUtils
 {
@@ -24,6 +25,7 @@ struct ExpParam
 {
     float m_baseParam;
     float m_expParam;
+    float m_max;
     float m_base;
     float m_factor;
 
@@ -35,6 +37,7 @@ struct ExpParam
     ExpParam(float base)
         : m_baseParam(0)
         , m_expParam(1)
+        , m_max(base)
         , m_base(base)
         , m_factor(1)
     {
@@ -43,6 +46,7 @@ struct ExpParam
     explicit ExpParam(float min, float max)
         : m_baseParam(0)
         , m_expParam(min)
+        , m_max(max)
         , m_base(max / min)
         , m_factor(min)
     {
@@ -54,6 +58,20 @@ struct ExpParam
         {
             m_baseParam = value;
             m_expParam = m_factor * std::powf(m_base, value);
+        }
+
+        return m_expParam;
+    }
+
+    float Update(float min, float max, float value)
+    {
+        if (m_baseParam != value || m_max != max || m_factor != min)
+        {
+            m_factor = min;
+            m_max = max;
+            m_base = max / min;
+            m_expParam = m_factor * std::powf(m_base, value);
+            m_baseParam = value;
         }
 
         return m_expParam;

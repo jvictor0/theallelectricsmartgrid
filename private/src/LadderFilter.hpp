@@ -2,6 +2,7 @@
 
 #include "Filter.hpp"
 #include <cmath>
+#include <complex>
 
 struct LadderFilter
 {
@@ -14,17 +15,18 @@ struct LadderFilter
     OPLowPassFilter m_stage4;
 
     TanhSaturator<true> m_feedbackSaturator;
-    TanhSaturator<true> m_outputSaturator;
 
     float m_cutoff;
     float m_feedback;
 
+    float m_output;
+
     LadderFilter()
         : m_cutoff(0.1f)
         , m_feedback(0.0f)
+        , m_output(0.0f)
     {
         m_feedbackSaturator.SetInputGain(0.5f);
-        m_outputSaturator.SetInputGain(0.5f);
     }
 
     float Process(float input)
@@ -51,7 +53,8 @@ struct LadderFilter
         //
         float compensatedOut = stage4Out * (1.0f + kEff);
 
-        return m_outputSaturator.Process(compensatedOut);
+        m_output = compensatedOut;
+        return m_output;
     }
 
     void SetCutoff(float cutoff)
@@ -82,7 +85,7 @@ struct LadderFilter
         m_stage4.m_output = 0.0f;
     }
 
-    static float FrequencyResponse(float alpha, float feedback, float freq)
+    static std::complex<float> TransferFunction(float alpha, float feedback, float freq)
     {
         // Calculate normalized frequency (omega)
         //
@@ -98,30 +101,28 @@ struct LadderFilter
         //
         float realPart = 1.0f - (1.0f - alpha) * cosOmega;
         float imagPart = (1.0f - alpha) * sinOmega;
-        float denominator = realPart * realPart + imagPart * imagPart;
         
-        // Complex H = (alpha * realPart + j * alpha * imagPart) / denominator
-        // |H| = alpha / sqrt(denominator)
-        //
-        float singleStageMagnitude = alpha / std::sqrt(denominator);
-        float singleStagePhase = std::atan2(imagPart, realPart);
+        std::complex<float> singleStage(alpha, 0.0f);
+        std::complex<float> singleStageDen(realPart, imagPart);
+        singleStage = singleStage / singleStageDen;
         
-        // Four cascaded stages: magnitude^4, phase * 4
+        // Four cascaded stages: H^4
         //
-        float fourStageMagnitude = singleStageMagnitude * singleStageMagnitude * singleStageMagnitude * singleStageMagnitude;
-        float fourStagePhase = singleStagePhase * 4.0f;
+        std::complex<float> fourStage = singleStage * singleStage * singleStage * singleStage;
         
         // Apply feedback: H_total = H^4 / (1 + feedback * H^4)
-        // This requires complex arithmetic
         //
-        float feedbackReal = 1.0f + feedback * fourStageMagnitude * std::cos(fourStagePhase);
-        float feedbackImag = feedback * fourStageMagnitude * std::sin(fourStagePhase);
-        float feedbackDenominator = feedbackReal * feedbackReal + feedbackImag * feedbackImag;
-        
-        float totalMagnitude = fourStageMagnitude / std::sqrt(feedbackDenominator);
+        std::complex<float> feedbackTerm(1.0f, 0.0f);
+        feedbackTerm = feedbackTerm + feedback * fourStage;
+        std::complex<float> totalTransfer = fourStage / feedbackTerm;
         
         // Apply gain compensation (1 + feedback) to maintain unity DC gain
         //
-        return totalMagnitude * (1.0f + feedback);
+        return totalTransfer * (1.0f + feedback);
+    }
+
+    static float FrequencyResponse(float alpha, float feedback, float freq)
+    {
+        return std::abs(TransferFunction(alpha, feedback, freq));
     }
 }; 

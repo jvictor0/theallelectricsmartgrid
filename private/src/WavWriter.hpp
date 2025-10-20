@@ -2,6 +2,7 @@
 
 #include "FileWriter.hpp"
 #include "QuadUtils.hpp"
+#include "StereoUtils.hpp"
 #include <cstring>
 #include <cstdint>
 #include <algorithm>
@@ -164,7 +165,20 @@ struct MultichannelWavWriter
         //
         for (uint16_t i = 0; i < 4; ++i)
         {
-            WriteSample(4 * channel + i, quadSample[i]);
+            WriteSample(channel + i, quadSample[i]);
+        }
+    }
+
+    void WriteSample(uint16_t channel, const StereoFloat& stereoSample)
+    {
+        if (!m_isOpen || m_numChannels < 2)
+        {
+            assert(false);
+        }
+        
+        for (size_t i = 0; i < 2; ++i)
+        {
+            WriteSample(channel + i, stereoSample[i]);
         }
     }
 
@@ -181,6 +195,14 @@ struct MultichannelWavWriter
         if (m_isOpen)
         {
             WriteSample(channel, quadSample);
+        }
+    }
+
+    void WriteSampleIfOpen(uint16_t channel, const StereoFloat& stereoSample)
+    {
+        if (m_isOpen)
+        {
+            WriteSample(channel, stereoSample);
         }
     }
     

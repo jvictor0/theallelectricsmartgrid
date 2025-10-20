@@ -9,12 +9,15 @@
 #include <sstream>
 #include "Noise.hpp"
 #include "QuadMasterChain.hpp"
+#include "StereoMasteringChain.hpp"
+#include "QuadToStereoMixdown.hpp"
+#include "Metering.hpp"
 
 struct QuadMixerInternal
 {
     static constexpr size_t x_numSends = 2;
 
-    QuadFloatWithSub m_output;
+    QuadFloatWithStereoAndSub m_output;
     QuadFloat m_send[x_numSends];
     const WaveTable* m_sin;
     MultichannelWavWriter m_wavWriter;
@@ -22,11 +25,16 @@ struct QuadMixerInternal
     bool m_isRecording = false;
     PinkNoise m_pinkNoise;
 
-    float m_volumeOut[16];
-    float m_returnVolume[x_numSends];
+    Meter m_voiceMeters[16];
+    QuadMeter m_returnMeters[x_numSends];
+    QuadMeter m_masterMeter;
+    StereoMeter m_stereoMeter;
+
     static constexpr float x_smoothingAlpha = 0.0007;
 
     QuadMasterChain m_masterChain;
+    QuadToStereoMixdown m_quadToStereoMixdown;
+    StereoMasteringChain m_stereoMasteringChain;
 
     QuadMixerInternal()
     {
@@ -46,6 +54,7 @@ struct QuadMixerInternal
         bool m_noiseMode;
 
         QuadMasterChain::Input m_masterChainInput;
+        StereoMasteringChain::Input m_stereoMasteringChainInput;
 
         Input()
         {
@@ -68,7 +77,7 @@ struct QuadMixerInternal
 
     bool Open(size_t numInputs, const std::string& filename, uint32_t sampleRate)
     {
-        return m_wavWriter.OpenQuad(static_cast<uint16_t>(numInputs + x_numSends + 1), filename, sampleRate);
+        return m_wavWriter.Open(static_cast<uint16_t>(numInputs + x_numSends + 1) * 4 + 2, filename, sampleRate);
     }
 
     void Close()
@@ -135,6 +144,7 @@ struct QuadMixerInternal
     void ProcessInputs(const Input& input)
     {
         m_output.m_output = QuadFloat();
+        m_quadToStereoMixdown.Clear();
         for (size_t i = 0; i < x_numSends; ++i)
         {
             m_send[i] = QuadFloat();
@@ -147,21 +157,24 @@ struct QuadMixerInternal
             for (size_t i = 0; i < input.m_numInputs; ++i)
             {
                 m_output.m_output += QuadFloat(input.m_input[i], input.m_input[i], input.m_input[i], input.m_input[i]) * input.m_gain[i];
+                m_quadToStereoMixdown.MixSample(0.5, 0.5, input.m_input[i] * input.m_gain[i]);
             }
         }
         else
         {
             for (size_t i = 0; i < input.m_numInputs; ++i)
             {
+                m_quadToStereoMixdown.MixSample(input.m_x[i], input.m_y[i], input.m_input[i] * input.m_gain[i]);
+
                 QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i], m_sin);
                 QuadFloat postFader = pan * input.m_gain[i];
                 m_output.m_output += postFader;
 
-                m_volumeOut[i] = m_volumeOut[i] * (1 - x_smoothingAlpha) + std::abs(input.m_input[i] * input.m_gain[i]) * x_smoothingAlpha;
+                m_voiceMeters[i].Process(input.m_input[i] * input.m_gain[i]);
 
                 // Write post-fader input to wave file
                 //
-                m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(i), postFader);
+                m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(i), postFader);
                 
                 for (size_t j = 0; j < x_numSends; ++j)
                 {
@@ -171,27 +184,34 @@ struct QuadMixerInternal
         }
     }
 
-    QuadFloatWithSub ProcessReturns(const Input& input)
+    QuadFloatWithStereoAndSub ProcessReturns(const Input& input)
     {
         if (!input.m_noiseMode)
         {
             for (size_t j = 0; j < x_numSends; ++j)
             {
+                m_quadToStereoMixdown.MixQuadSample(input.m_return[j] * input.m_returnGain[j]);
                 QuadFloat postReturn = input.m_return[j] * input.m_returnGain[j];
                 m_output.m_output += postReturn;
                 
-                m_returnVolume[j] = m_returnVolume[j] * (1 - x_smoothingAlpha) + std::abs(postReturn.Sum()) * x_smoothingAlpha;
+                m_returnMeters[j].Process(postReturn);
 
-                m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(input.m_numInputs + j), postReturn);
+                m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(input.m_numInputs + j), postReturn);
             }
         }
 
         m_output = m_masterChain.Process(input.m_masterChainInput, m_output.m_output);
-        m_wavWriter.WriteSampleIfOpen(static_cast<uint16_t>(input.m_numInputs + x_numSends), m_output.m_output);
+        m_wavWriter.WriteSampleIfOpen(4 *static_cast<uint16_t>(input.m_numInputs + x_numSends), m_output.m_output);
+        m_masterMeter.Process(m_output.m_output);
+
+        m_output.m_stereoOutput = m_stereoMasteringChain.Process(input.m_stereoMasteringChainInput, m_quadToStereoMixdown.m_output);
+        m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(input.m_numInputs + x_numSends + 1), m_output.m_stereoOutput);
+        m_stereoMeter.Process(m_output.m_stereoOutput);
+
         return m_output;
     }
 
-    QuadFloatWithSub Process(const Input& input)
+    QuadFloatWithStereoAndSub Process(const Input& input)
     {
         ProcessInputs(input);
         return ProcessReturns(input);
