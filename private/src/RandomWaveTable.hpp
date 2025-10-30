@@ -270,16 +270,54 @@ struct RandomWaveTable
         }
     }
 
+    void FillHarmonicsBandLimited(DiscreteFourierTransform& dft, size_t maxHarmonic)
+    {
+        maxHarmonic = std::min(maxHarmonic, DiscreteFourierTransform::x_maxComponents - 2);
+
+        double s_ww = 0.0;
+        double s_aa = 0.0;
+        double s_wa = 0.0;
+        double s_wx = 0.0;
+        double s_ax = 0.0;
+
+        for (int64_t i = 0; i < maxHarmonic; ++i)
+        {
+            const double w = static_cast<double>(i + 2);               // 2,3,4,...
+            const double s = (i % 2 == 0) ? 1.0 : -1.0;                 // +,-,+,-,...
+            const double a = s * w;                                     // 2,-3,4,-5,...
+
+            s_ww += w * w;
+            s_aa += a * a;                                              // equals s_ww, but keep explicit
+            s_wa += w * a;                                              // = sum s_i * w_i^2
+            s_wx += w * static_cast<double>(m_coefficients[i + 2]);
+            s_ax += a * static_cast<double>(m_coefficients[i + 2]);
+        }
+
+        const double det = s_ww * s_aa - s_wa * s_wa;
+
+        assert(det > 0e-30);
+
+        const double c1 = ( s_aa * s_wx - s_wa * s_ax) / det;
+        const double c2 = (-s_wa * s_wx + s_ww * s_ax) / det;
+
+        for (int64_t i = 0; i < maxHarmonic; ++i)
+        {
+            const double w = static_cast<double>(i + 2);
+            const double s = (i % 2 == 0) ? 1.0 : -1.0;
+            const double a = s * w;
+
+            const double corr = c1 * w + c2 * a;
+            dft.m_components[i + 2] = std::complex<float>(static_cast<float>(static_cast<double>(m_coefficients[i + 2]) - corr), 0);
+        }
+    }
+
     void GenerateWaveTable(BasicWaveTable& waveTable)
     {
         DiscreteFourierTransform dft;
          
         dft.m_components[1] = std::complex<float>(0.5, 0);
         
-        for (int i = 2; i < DiscreteFourierTransform::x_maxComponents; ++i)
-        {
-            WriteDistortedHarmonic(i, m_coefficients[i], dft);            
-        }
+        FillHarmonicsBandLimited(dft, DiscreteFourierTransform::x_maxComponents - 2);
 
         dft.InverseTransform(waveTable, DiscreteFourierTransform::x_maxComponents);
         waveTable.NormalizeAmplitude();
@@ -293,9 +331,9 @@ struct RandomWaveTable
         
         dft.m_components[1] = std::complex<float>(0.5, 0);
         
-        for (size_t i = 2; i < std::min(level / 8 + 1, DiscreteFourierTransform::x_maxComponents); ++i)
+        if (level >= 3)
         {
-            WriteDistortedHarmonic(i, m_coefficients[i], dft);
+            FillHarmonicsBandLimited(dft, level - 1);
         }
 
         dft.InverseTransform(waveTable.m_levels[waveTable.m_levelsReady], DiscreteFourierTransform::x_maxComponents);

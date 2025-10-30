@@ -326,8 +326,8 @@ struct DiscreteFourierTransform
 
 struct AdaptiveWaveTable
 {
-    static constexpr size_t x_maxLevels = 16;
-    static constexpr float m_levelsBase = 1.2f;
+    static constexpr size_t x_maxLevels = 25;
+    static constexpr float m_levelsBase = 1.3f;
     BasicWaveTable m_waveTable;
     DiscreteFourierTransform m_dft;
     BasicWaveTable m_levels[x_maxLevels];
@@ -339,12 +339,12 @@ struct AdaptiveWaveTable
     
     AdaptiveWaveTable()
     {
-        float components = 16;
+        float components = 3;
         m_levelComponents[0] = 1;
         for (size_t i = 1; i < x_maxLevels; ++i)
         {
             m_levelComponents[i] = static_cast<size_t>(components);
-            components = std::max(components * m_levelsBase, std::floor(components) + 8);
+            components = std::max(components * m_levelsBase, std::floor(components) + 1);
             assert(m_levelComponents[i] < BasicWaveTable::x_tableSize);
             INFO("level %lu harmonics %lu", i, m_levelComponents[i]);
         }

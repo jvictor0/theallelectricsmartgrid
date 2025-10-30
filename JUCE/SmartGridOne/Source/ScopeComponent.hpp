@@ -397,28 +397,36 @@ struct AnalyserComponent : public juce::Component
 
 struct QuadAnalyserComponent : public juce::Component
 {
-    QuadWindowedFFT m_quadWindowedFFT;
-    SquiggleBoyWithEncoderBank::UIState* m_uiState;
-    size_t m_scopeIx;
-    bool m_eigen;
-
-    enum class FilterType
+    enum class Type
     {
         Delay,
         Reverb,
-        None
+        Master
     };
 
-    FilterType m_filterType;
+    QuadWindowedFFT m_quadWindowedFFT[3];
+    SquiggleBoyWithEncoderBank::UIState* m_uiState;
+    bool m_eigen;
+    bool m_drawAll;
 
-    float m_bucketExpX[DiscreteFourierTransform::x_maxComponents];
+    Type m_type;
 
-    QuadAnalyserComponent(SquiggleBoyWithEncoderBank::UIState* uiState, size_t scopeIx, bool eigen, FilterType filterType)
-        : m_quadWindowedFFT(&uiState->m_quadScopeWriter, scopeIx)
-        , m_uiState(uiState)
+    QuadAnalyserComponent(SquiggleBoyWithEncoderBank::UIState* uiState, bool eigen, Type type)
+        : m_uiState(uiState)
         , m_eigen(eigen)
-        , m_filterType(filterType)
+        , m_drawAll(!eigen)
+        , m_type(type)
     {
+        if (m_type == Type::Master)
+        {
+            m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master));
+        }
+        else
+        {
+            m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay));
+            m_quadWindowedFFT[1] = QuadWindowedFFT(&uiState->m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb));
+            m_quadWindowedFFT[2] = QuadWindowedFFT(&uiState->m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Dry));
+        }
     }
 
     struct QuadDFTFn
@@ -436,19 +444,19 @@ struct QuadAnalyserComponent : public juce::Component
 
         float operator()(float freq) const
         {
-            return PathDrawer::NormalizeDb(m_quadWindowedFFT->GetMagDb(m_speakerIx, freq));
+            return PathDrawer::NormalizeDb(m_quadWindowedFFT->GetMagDb(m_speakerIx, freq, m_eigen));
         }
     };
 
     struct FilterDrawFn
     {
         SquiggleBoyWithEncoderBank::UIState* m_uiState;
-        FilterType m_filterType;
+        Type m_type;
         size_t m_speakerIx;
 
-        FilterDrawFn(SquiggleBoyWithEncoderBank::UIState* uiState, FilterType filterType, size_t speakerIx)
+        FilterDrawFn(SquiggleBoyWithEncoderBank::UIState* uiState, Type type, size_t speakerIx)
             : m_uiState(uiState)
-            , m_filterType(filterType)
+            , m_type(type)
             , m_speakerIx(speakerIx)
         {
         }
@@ -457,21 +465,21 @@ struct QuadAnalyserComponent : public juce::Component
         {
             float hpAlpha = 0.0f;
             float lpAlpha = 0.0f;
-            switch (m_filterType)
+            switch (m_type)
             {
-                case FilterType::Delay:
+                case Type::Delay:
                 {
                     hpAlpha = m_uiState->m_delayUIState.m_hpAlpha[m_speakerIx].load();
                     lpAlpha = m_uiState->m_delayUIState.m_lpAlpha[m_speakerIx].load();
                     break;
                 }
-                case FilterType::Reverb:
+                case Type::Reverb:
                 {
                     hpAlpha = m_uiState->m_reverbUIState.m_hpAlpha[m_speakerIx].load();
                     lpAlpha = m_uiState->m_reverbUIState.m_lpAlpha[m_speakerIx].load();
                     break;
                 }
-                case FilterType::None:
+                case Type::Master:
                     return 0.0f;
             }
 
@@ -485,11 +493,45 @@ struct QuadAnalyserComponent : public juce::Component
     {
         g.fillAll(juce::Colours::black);
 
+        if (m_drawAll && m_type != Type::Master)
+        {
+            if (!m_eigen)
+            {
+                DrawOne(g, 2, Type::Master, SmartGrid::Color::Yellow);
+            }
+            
+            if (m_type == Type::Delay)
+            {
+                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia);
+                DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink);
+            }
+            else if (m_type == Type::Reverb)
+            {
+                DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink);
+                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia);
+            }
+        }
+        else if (m_type == Type::Master)
+        {
+            DrawOne(g, 0, Type::Master, SmartGrid::Color::Yellow);
+        }
+        else if (m_type == Type::Delay)
+        {
+            DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink);
+        }
+        else if (m_type == Type::Reverb)
+        {
+            DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia);
+        }
+    }
+
+    void DrawOne(juce::Graphics&g, size_t fftIx, Type type, SmartGrid::Color color)
+    {
         auto bounds = getLocalBounds().toFloat();
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
 
-        m_quadWindowedFFT.Compute();
+        m_quadWindowedFFT[fftIx].Compute();
 
         for (size_t x = 0; x < 2; ++x)
         {
@@ -497,12 +539,21 @@ struct QuadAnalyserComponent : public juce::Component
             {
                 size_t speakerIx = y == 0 ? 3 - x : x;
                 PathDrawer pathDrawer(height / 2, width / 2, width * x / 2, height * (1 - y) / 2);
-                QuadDFTFn fn(&m_quadWindowedFFT, m_eigen, speakerIx);
-                pathDrawer.DrawPath(g, juce::Colours::white, fn);
+                QuadDFTFn fn(&m_quadWindowedFFT[fftIx], m_eigen, speakerIx);
+                juce::Colour juceColor(color.m_red, color.m_green, color.m_blue);
+                pathDrawer.DrawPath(g, juceColor, fn);
 
-                FilterDrawFn filterDrawFn(m_uiState, m_filterType, speakerIx);
-                pathDrawer.DrawPath(g, juce::Colours::white, filterDrawFn);
+                if (type != Type::Master)
+                {
+                    FilterDrawFn filterDrawFn(m_uiState, type, speakerIx);
+                    pathDrawer.DrawPath(g, juceColor, filterDrawFn);
+                }
             }
         }
+    }
+
+    void mouseDown(const juce::MouseEvent& event) override
+    {
+        m_drawAll = !m_drawAll;
     }
 };

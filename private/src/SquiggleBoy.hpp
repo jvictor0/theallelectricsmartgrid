@@ -44,8 +44,9 @@ struct SquiggleBoyVoice
         Delay = 0,
         Reverb = 1,
         Master = 2,
-        Stereo = 3,
-        NumScopes = 4
+        Dry = 3,
+        Stereo = 4,
+        NumScopes = 5
     };
     
     struct VCOSection
@@ -79,7 +80,7 @@ struct SquiggleBoyVoice
             PhaseUtils::ExpParam m_offsetFreqFactor;
             PhaseUtils::ExpParam m_detune;
 
-            float m_crossModIndex[2];
+            PhaseUtils::ZeroedExpParam m_crossModIndex[2];
 
             float m_fade;
 
@@ -95,11 +96,12 @@ struct SquiggleBoyVoice
                 , m_wtBlend{0, 0}    
                 , m_offsetFreqFactor(4)         
                 , m_detune(1.03)
-                , m_crossModIndex{0, 0}
                 , m_fade(0)
                 , m_bitCrushAmount(0)
                 , m_saturationGain(0.25)
             {
+                m_crossModIndex[0] = PhaseUtils::ZeroedExpParam(2.0);
+                m_crossModIndex[1] = PhaseUtils::ZeroedExpParam(2.0);
             }
         };
 
@@ -136,7 +138,7 @@ struct SquiggleBoyVoice
                     vcoInput[j].m_wtBlend = m_state.m_wtBlend[j] + interp * (wtBlend[j] - m_state.m_wtBlend[j]);
                 }
 
-                vcoInput[0].m_phaseMod = (m_state.m_crossModIndex[0] + interp * (input.m_crossModIndex[0] - m_state.m_crossModIndex[0])) * m_vco[1].m_out;
+                vcoInput[0].m_phaseMod = (m_state.m_crossModIndex[0].m_expParam + interp * (input.m_crossModIndex[0].m_expParam - m_state.m_crossModIndex[0].m_expParam)) * m_vco[1].m_out;
                 vcoInput[0].m_freq = (m_state.m_baseFreq + interp * (input.m_baseFreq - m_state.m_baseFreq)) / x_oversample;
                 vcoInput[1].m_freq = vcoInput[0].m_freq * (m_state.m_offsetFreqFactor.m_expParam + interp * (input.m_offsetFreqFactor.m_expParam - m_state.m_offsetFreqFactor.m_expParam));
 
@@ -149,7 +151,7 @@ struct SquiggleBoyVoice
                 }
 
                 m_vco[0].Process(vcoInput[0], 0 /*unused*/);
-                vcoInput[1].m_phaseMod = m_vco[0].m_out * (m_state.m_crossModIndex[1] + interp * (input.m_crossModIndex[1] - m_state.m_crossModIndex[1]));
+                vcoInput[1].m_phaseMod = m_vco[0].m_out * (m_state.m_crossModIndex[1].m_expParam + interp * (input.m_crossModIndex[1].m_expParam - m_state.m_crossModIndex[1].m_expParam));
                 m_vco[1].Process(vcoInput[1], 0 /*unused*/);
 
                 top[0] = top[0] || m_vco[0].m_top;
@@ -727,6 +729,8 @@ struct SquiggleBoy
 
         m_mixer.ProcessInputs(m_mixerState);
 
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Dry)].Write(m_mixer.m_output.m_output);
+
         ProcessSends();
 
         m_output = m_mixer.ProcessReturns(m_mixerState);
@@ -892,6 +896,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Dry)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Dry));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Stereo)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Stereo));
         
         for (size_t i = 0; i < x_numVoices; ++i)
@@ -1295,12 +1300,12 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_vcoInput.m_wtBlend[0] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[2].m_lfos[i / x_voicesPerTrack].m_pos[i % x_voicesPerTrack]));
             m_state[i].m_vcoInput.m_wtBlend[1] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[3].m_lfos[i / x_voicesPerTrack].m_pos[i % x_voicesPerTrack]));
 
-            m_state[i].m_vcoInput.m_v[0] = m_voiceEncoderBank.GetValue(0, 1, 0, i) * 4.0;
-            m_state[i].m_vcoInput.m_v[1] = m_voiceEncoderBank.GetValue(0, 1, 1, i) * 4.0;
+            m_state[i].m_vcoInput.m_v[0] = m_voiceEncoderBank.GetValue(0, 1, 0, i);
+            m_state[i].m_vcoInput.m_v[1] = m_voiceEncoderBank.GetValue(0, 1, 1, i);
             m_state[i].m_vcoInput.m_d[0] = m_voiceEncoderBank.GetValue(0, 2, 0, i);
             m_state[i].m_vcoInput.m_d[1] = m_voiceEncoderBank.GetValue(0, 2, 1, i);
-            m_state[i].m_vcoInput.m_crossModIndex[0] = m_voiceEncoderBank.GetValue(0, 3, 0, i);
-            m_state[i].m_vcoInput.m_crossModIndex[1] = m_voiceEncoderBank.GetValue(0, 3, 1, i);
+            m_state[i].m_vcoInput.m_crossModIndex[0].Update(m_voiceEncoderBank.GetValue(0, 3, 0, i));
+            m_state[i].m_vcoInput.m_crossModIndex[1].Update(m_voiceEncoderBank.GetValue(0, 3, 1, i));
 
             m_state[i].m_vcoInput.m_fade = m_voiceEncoderBank.GetValue(0, 0, 2, i);
             m_state[i].m_vcoInput.m_saturationGain = m_voiceEncoderBank.GetValue(0, 1, 2, i) * 4 + 0.25;
