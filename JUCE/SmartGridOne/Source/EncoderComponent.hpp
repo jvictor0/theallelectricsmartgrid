@@ -96,7 +96,7 @@ struct EncoderComponent : public juce::Component
     virtual void mouseDrag(const juce::MouseEvent& event) override
     {
         size_t timestamp = event.eventTime.getMilliseconds() * 1000;
-        float sensitivity = 0.1;
+        float sensitivity = 0.2;
         
         juce::Point<float> currentPosition = event.position;
         float deltaX = currentPosition.x - m_lastMousePosition.x;

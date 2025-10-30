@@ -1232,7 +1232,7 @@ struct EncoderBankInternal : public EncoderGrid
         if (msg.m_mode == MessageIn::Mode::EncoderIncDec)
         {
             std::shared_ptr<BankedEncoderCell> cell = std::static_pointer_cast<BankedEncoderCell>(GetShared(msg.m_x, msg.m_y));
-            cell->HandleIncDec(msg.m_amount);
+            cell->HandleIncDec(msg.m_timestamp, msg.m_amount);
         }
         else if (msg.m_mode == MessageIn::Mode::EncoderPush)
         {

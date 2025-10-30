@@ -117,7 +117,16 @@ struct ScopeComponent : public juce::Component
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
             g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
             g.strokePath(scopePath, juce::PathStrokeType(1.0f));
-            
+
+            if (m_scopeType == ScopeType::Control)
+            {
+                float markerX = bounds.getX() + (static_cast<float>(scopeReader.m_transferXSample) / static_cast<float>(x_numXSamples - 1)) * width;
+                float y = scopeReader.Get(scopeReader.m_transferXSample);
+                float markerY = bounds.getY() + height * (1.0 - y * 0.9f - 0.05f);
+                g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
+                float markerRadius = 3.0f;
+                g.fillEllipse(markerX - markerRadius, markerY - markerRadius, markerRadius * 2, markerRadius * 2);
+            }
             // Draw center line
             //
             g.setColour(juce::Colours::darkgrey);

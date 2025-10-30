@@ -9,10 +9,18 @@ namespace SmartGrid
 struct EncoderCell : public Cell
 {
     uint8_t m_lastVelocity;
-    static constexpr float x_speed = 0.005;
+    static constexpr float x_minSpeed = 0.0001f;
+    static constexpr float x_maxSpeed = 1.0f / 128.0f;
+    static constexpr float x_pressSpeed = 0.005f;
+    size_t m_lastTimestamp;
+    int m_lastDeltaSign;
+    float m_lastSpeed;
 
     EncoderCell()
         : m_lastVelocity(0)
+        , m_lastTimestamp(0)
+        , m_lastDeltaSign(0)
+        , m_lastSpeed(x_minSpeed)
     {
         SetPressureSensitive();
     }
@@ -29,7 +37,7 @@ struct EncoderCell : public Cell
     virtual void OnPress(uint8_t velocity) override
     {
         int8_t svelocity = velocity;
-        Increment(svelocity * x_speed);
+        Increment(svelocity * x_pressSpeed);
         m_lastVelocity = velocity;
     }
 
@@ -41,13 +49,91 @@ struct EncoderCell : public Cell
     virtual void OnPressureChange(uint8_t velocity) override
     {
         int8_t svelocity = velocity - m_lastVelocity;
-        Increment(svelocity * x_speed);
+        Increment(svelocity * x_pressSpeed);
         m_lastVelocity = velocity;
     }
 
-    void HandleIncDec(int64_t delta)
+    void HandleIncDec(size_t timestamp, int64_t delta)
     {
-        Increment(delta * x_speed);
+        if (delta == 0)
+        {
+            return;
+        }
+
+        int currentSign = (delta > 0) ? 1 : -1;
+        
+        // Reset acceleration if direction changed or too much time passed
+        //
+        static constexpr size_t x_resetTimeUs = 200000;
+        bool resetAcceleration = false;
+        
+        if (m_lastTimestamp == 0)
+        {
+            resetAcceleration = true;
+        }
+        else if (m_lastDeltaSign != 0 && currentSign != m_lastDeltaSign)
+        {
+            resetAcceleration = true;
+        }
+        else if (m_lastTimestamp < timestamp && x_resetTimeUs < (timestamp - m_lastTimestamp))
+        {
+            resetAcceleration = true;
+        }
+
+        float speed = x_minSpeed;
+        
+        if (resetAcceleration)
+        {
+            speed = x_minSpeed;
+        }
+        else if (m_lastTimestamp < timestamp)
+        {
+            // Calculate scaling factor based on time delta
+            // Faster movements (shorter time) = higher scaling (accelerate)
+            // Slower movements (longer time) = lower scaling (maintain speed)
+            //
+            size_t timeDeltaUs = timestamp - m_lastTimestamp;
+            
+            // Map time delta to scaling factor
+            // 5ms (5000us) = 2.0x (double the speed)
+            // 50ms (50000us) = 1.0x (keep same speed)
+            //
+            static constexpr size_t x_fastTimeUs = 5000;
+            static constexpr size_t x_slowTimeUs = 50000;
+            
+            float scaleFactor = 1.0f;
+            
+            if (timeDeltaUs <= x_fastTimeUs)
+            {
+                scaleFactor = 2.0f;
+            }
+            else if (x_slowTimeUs <= timeDeltaUs)
+            {
+                scaleFactor = 1.0f;
+            }
+            else
+            {
+                // Linear interpolation from 2.0 to 1.0
+                //
+                float t = static_cast<float>(timeDeltaUs - x_fastTimeUs) / static_cast<float>(x_slowTimeUs - x_fastTimeUs);
+                scaleFactor = 2.0f * (1.0f - t) + 1.0f * t;
+            }
+            
+            // Apply scaling to last speed and clamp
+            //
+            speed = m_lastSpeed * scaleFactor;
+            speed = std::max(x_minSpeed, std::min(x_maxSpeed, speed));
+        }
+        else
+        {
+            speed = m_lastSpeed;
+        }
+        
+        m_lastTimestamp = timestamp;
+        m_lastDeltaSign = currentSign;
+        m_lastSpeed = speed;
+        
+        Increment(delta * speed);
     }
 
     virtual float GetNormalizedValue() = 0;
