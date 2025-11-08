@@ -154,14 +154,13 @@ struct TheNonagonSquiggleBoyInternal
     {
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
-            if (m_nonagon.m_nonagon.m_multiPhasorGate.m_trig[i])            
+            if (m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i].m_trig)            
             {
                 m_squiggleBoyState.m_baseFreq[i] = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
                 m_squiggleBoyState.m_ladderBaseFreq[i] = std::pow(m_squiggleBoyState.m_baseFreq[i], 0.7);
             }
 
-            m_squiggleBoy.m_state[i].m_gate = m_nonagon.m_nonagon.m_output.m_gate[i];
-            m_squiggleBoy.m_state[i].m_trig = m_nonagon.m_nonagon.m_multiPhasorGate.m_trig[i];
+            m_squiggleBoy.m_state[i].m_adspControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i];
 
             for (size_t j = 0; j < SquiggleBoyVoice::SquiggleLFO::x_numPhasors; ++j)
             {
@@ -174,7 +173,7 @@ struct TheNonagonSquiggleBoyInternal
             m_squiggleBoyState.m_sheafyModulators[i][2] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][2];
         }
 
-        m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.m_musicalTime.m_bits[0].m_top;
+        m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_top;
         m_squiggleBoyState.m_shift = m_sceneState.m_shift;
 
         SetLeftScene(m_sceneState.m_leftScene);
@@ -190,8 +189,6 @@ struct TheNonagonSquiggleBoyInternal
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
-            m_nonagon.m_state.m_multiPhasorGateInput.m_gateFrac[i] = m_squiggleBoy.m_voiceEncoderBank.GetValue(1, 3, 3, i);
-
             m_nonagon.m_state.m_arpInput.m_zoneHeight[i] = m_squiggleBoy.m_voiceEncoderBank.GetValue(2, 0, 2, i);
             m_nonagon.m_state.m_arpInput.m_zoneOverlap[i] = m_squiggleBoy.m_voiceEncoderBank.GetValue(2, 1, 2, i);
             m_nonagon.m_state.m_arpInput.m_offset[i] = m_squiggleBoy.m_voiceEncoderBank.GetValue(2, 0, 3, i);

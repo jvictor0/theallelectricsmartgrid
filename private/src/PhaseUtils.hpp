@@ -122,6 +122,26 @@ struct ZeroedExpParam
     {
     }
 
+    void SetBaseByCenter(float center)
+    {
+        // (sqrt(base) - 1) / (base - 1) = center
+        // sqrt(base) - 1 = center * (base - 1)
+        // sqrt(base) - 1 = center * base - center
+        // sqrt(base) = center * base - center + 1
+        // sqrt(base) - center * base = 1 - center
+        // base^0.5 - center * base = 1 - center
+        // Let x = sqrt(base), then x^2 = base
+        // x - center * x^2 = 1 - center
+        // center * x^2 - x + (1 - center) = 0
+        // Using quadratic formula: x = (1 ± sqrt(1 - 4*center*(1-center))) / (2*center)
+        // We want the positive solution that gives base > 1
+        //        
+        float discriminant = 1 - 4 * center * (1 - center);
+        float sqrt_base = (1 + std::sqrt(discriminant)) / (2 * center);
+        m_base = sqrt_base * sqrt_base;
+        m_expParam = (std::powf(m_base, m_baseParam) - 1) / (m_base - 1);
+    }
+
     float Update(float value)
     {
         if (m_baseParam != value)

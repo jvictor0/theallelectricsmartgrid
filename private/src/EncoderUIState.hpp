@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include "SmartGrid.hpp"
+#include "AtomicString.hpp"
 
 struct EncoderUIState
 {
@@ -25,6 +26,7 @@ struct EncoderUIState
 struct EncoderBankUIState
 {
     EncoderUIState m_states[4][4];
+    AtomicString m_strings[4][4];
 
     std::atomic<SmartGrid::Color> m_indicatorColor[16];
 
@@ -123,6 +125,11 @@ struct EncoderBankUIState
     void SetConnected(size_t i, size_t j, bool connected)
     {
         m_states[i][j].m_connected.store(connected);
+    }
+
+    void SetFromFloat(size_t i, size_t j, float value, const char* units)
+    {
+        m_strings[i][j].SetFromFloat(value, units);
     }
 };
 

@@ -1,796 +1,306 @@
 #pragma once
-#include "plugin.hpp"
-#include <cstddef>
-#include <cmath>
-#include "Trig.hpp"
-#include "NormGen.hpp"
+
 #include "Tick2Phasor.hpp"
-#include <iomanip>
-#include <sstream>
-#include <numeric>
 
-inline uint64_t gcd(uint64_t a, uint64_t b)
+struct TheoryOfTimeBase;
+
+struct TimeLoop
 {
-   if (b == 0)
-   return a;
-   return gcd(b, a % b);
-}
-
-struct FixedPointNumber
-{
-    static constexpr uint64_t x_base = 72055526400000000;
-    uint64_t m_val;
-
-    FixedPointNumber() : m_val(0)
-    {
-    }
-
-    explicit constexpr FixedPointNumber(uint64_t num, uint64_t den)
-        : m_val(num * x_base / den)
-    {
-    }
-
-    explicit constexpr FixedPointNumber(uint64_t x)
-        : m_val(x)
-    {
-    }
-
-    static FixedPointNumber FromInt(uint64_t x)
-    {
-        return FixedPointNumber(x);
-    }
-
-    static FixedPointNumber FromDouble(double x)
-    {
-        return FixedPointNumber(x * x_base);
-    }
-    
-    float Float()
-    {
-        return static_cast<double>(m_val) / x_base;
-    }
-
-    FixedPointNumber operator*(uint64_t x)
-    {
-        unsigned __int128 val = m_val;
-        return FromInt(val * x);
-    }
-
-    // Fixed operator/(uint64_t x)
-    // {
-    //     return Fixed(m_val / x);
-    // }
-
-    FixedPointNumber operator+(FixedPointNumber x)
-    {
-        unsigned __int128 val = m_val;
-        return FromInt(val + x.m_val);
-    }
-
-    FixedPointNumber Negate()
-    {
-        return FixedPointNumber(x_base - m_val);
-    }
-
-    FixedPointNumber operator-(FixedPointNumber x)
-    {
-        assert(x <= (*this));
-        FixedPointNumber result = FromInt(m_val - x.m_val);
-        return result;
-    }
-    
-    bool operator==(FixedPointNumber x)
-    {
-        return m_val == x.m_val;
-    }
-
-    bool operator!=(FixedPointNumber x)
-    {
-        return m_val != x.m_val;
-    }
-
-    bool operator<(FixedPointNumber x)
-    {
-        return m_val < x.m_val;
-    }
-
-    bool operator<=(FixedPointNumber x)
-    {
-        return m_val <= x.m_val;
-    }
-
-    bool operator>=(FixedPointNumber x)
-    {
-        return m_val >= x.m_val;
-    }
-
-    bool operator>(FixedPointNumber x)
-    {
-        return m_val > x.m_val;
-    }
-
-    FixedPointNumber Min(FixedPointNumber x)
-    {
-        return (*this) <= x ? (*this) : x;
-    }
-
-    FixedPointNumber Max(FixedPointNumber x)
-    {
-        return (*this) >= x ? (*this) : x;
-    }
-
-    FixedPointNumber TimesRat(FixedPointNumber num, FixedPointNumber den)
-    {
-        unsigned __int128 val = m_val;
-        val = val * num.m_val;
-        val = val / den.m_val;
-        FixedPointNumber result = FromInt(val);
-        return result;
-    }
-
-    FixedPointNumber Round(uint64_t x)
-    {
-        return FixedPointNumber((m_val / x) * x);
-    }
-
-    FixedPointNumber Reduce(uint64_t* integer)
-    {
-        *integer = m_val / x_base;
-        return FixedPointNumber(m_val % x_base);
-    }
-
-    FixedPointNumber Reduce()
-    {
-        uint64_t i;
-        return Reduce(&i);
-    }
-
-    static constexpr FixedPointNumber One()
-    {
-        return FixedPointNumber(x_base);
-    }
-
-    static constexpr FixedPointNumber Half()
-    {
-        return FixedPointNumber(1, 2);
-    }
-
-    bool Gate()
-    {
-        return (*this) < Half();
-    }
-
-    std::string Frac()
-    {
-        uint64_t g = gcd(x_base, m_val);
-        return std::to_string(m_val) + " (" + std::to_string(m_val / g) + "/" + std::to_string(x_base / g) + ")";
-    }
-
-    std::string Str()
-    {
-        return std::to_string(Float());
-    }
-};
-
-inline FixedPointNumber Interpolate(FixedPointNumber x1, FixedPointNumber x2, FixedPointNumber y1, FixedPointNumber y2, FixedPointNumber xp)
-{
-    if (x1.Float() > 1 ||
-        x2.Float() > 1 ||
-        y1.Float() > 1 ||
-        y2.Float() > 1 ||
-        xp.Float() > 1)
-    {
-        INFO("Interp %f %f %f %f %f",
-             x1.Float() ,
-             x2.Float() ,
-              y1.Float() ,
-             y2.Float() ,
-             xp.Float());
-        assert(false);
-    }
-
-    if (y2 < y1)
-    {
-        return Interpolate(x2, x1, y2, y1, xp);
-    }
-    
-    if ((x2 >= x1) != (xp >= x1) && xp != x1)
-    {
-        INFO("Interp %f %f %f %f %f",
-             x1.Float() ,
-             x2.Float() ,
-              y1.Float() ,
-             y2.Float() ,
-             xp.Float());
-        INFO("Interp %s %s %s %s %s",
-             x1.Frac().c_str() ,
-             x2.Frac().c_str() ,
-             y1.Frac().c_str() ,
-             y2.Frac().c_str() ,
-             xp.Frac().c_str());
-        assert(false);
-    }
-    
-    FixedPointNumber ratNum = x2 >= x1 ? xp - x1 : x1 - xp;
-    FixedPointNumber ratDen = x2 >= x1 ? x2 - x1 : x1 - x2;
-    
-    FixedPointNumber result = y1 + (y2 - y1).TimesRat(ratNum, ratDen);
-
-    if (FixedPointNumber::One() < result)
-    {
-        INFO("Interp %s %s %s %s %s -> %s",
-             x1.Frac().c_str() ,
-             x2.Frac().c_str() ,
-             y1.Frac().c_str() ,
-             y2.Frac().c_str() ,
-             xp.Frac().c_str(),
-             result.Frac().c_str());
-        assert(false);
-    }
-        
-    return result;
-}
-
-inline FixedPointNumber CircleDist(FixedPointNumber x1, FixedPointNumber x2)
-{
-    FixedPointNumber diff = x1 < x2 ? x2 - x1 : x1 - x2;
-    return FixedPointNumber(std::min(diff.m_val, FixedPointNumber::x_base - diff.m_val));
-}
-
-struct MusicalTime;
-
-struct LinearPeice
-{
-    enum class BoundState : int
-    {
-        Under,
-        In,
-        Over
-    };
-
-    FixedPointNumber m_x1;
-    FixedPointNumber m_x2;
-    FixedPointNumber m_y1;
-    FixedPointNumber m_y2;
-    bool m_empty;
-
-    LinearPeice()
-        : LinearPeice(FixedPointNumber(0), FixedPointNumber(0), FixedPointNumber(0), FixedPointNumber(0))
-    {   
-        m_empty = true;
-    }
-    
-    LinearPeice(FixedPointNumber x1, FixedPointNumber x2, FixedPointNumber y1, FixedPointNumber y2)
-        : m_x1(x1)
-        , m_x2(x2)
-        , m_y1(y1)
-        , m_y2(y2)
-        , m_empty(false)
-    {
-    }
-
-    LinearPeice SetOver(FixedPointNumber x2, FixedPointNumber y2)
-    {
-        return LinearPeice(m_x2, x2, m_y2, y2);
-    }
-
-    LinearPeice SetUnder(FixedPointNumber x1, FixedPointNumber y1)
-    {
-        return LinearPeice(x1, m_x1, y1, m_y1);
-    }
-
-    static LinearPeice Empty()
-    {
-        return LinearPeice();
-    }
-
-    LinearPeice Compose(LinearPeice other)
-    {
-        FixedPointNumber y1 = other.m_y1 <= other.m_y2 ? m_x1.Max(other.m_y1) : m_x2.Max(other.m_y2);
-        FixedPointNumber y2 = other.m_y1 <= other.m_y2 ? m_x2.Min(other.m_y2) : m_x1.Min(other.m_y1);
-        if (y1 < other.m_y1.Min(other.m_y2) ||
-            y2 < other.m_y1.Min(other.m_y2) ||
-            y1 > other.m_y1.Max(other.m_y2) ||
-            y2 > other.m_y1.Max(other.m_y2))
-        {
-            INFO("COMPOSE %f %s, %f %s <- %s o %s", y1.Float(), y1.Frac().c_str(), y2.Float(), y2.Frac().c_str(), ToString().c_str(), other.ToString().c_str());
-            INFO("C %d %d %d %d",
-                 y1 < other.m_y1.Min(other.m_y2) ,
-                 y2 < other.m_y1.Min(other.m_y2) ,
-                 y1 > other.m_y1.Max(other.m_y2) ,
-                 y2 > other.m_y1.Max(other.m_y2));
-            assert(false);
-        }
-        
-        FixedPointNumber x1 = other.Invert(y1);
-        FixedPointNumber x2 = other.Invert(y2);
-        if (x2 < x1 ||
-            x1 < other.m_x1 ||
-            other.m_x2 < x1 ||
-            x2 < other.m_x1 ||
-            other.m_x2 < x2)
-        {
-            INFO("COMPOSE %f -> %f, %f -> %f %s o %s", y1.Float(), x1.Float(), y2.Float(), x2.Float(),ToString().c_str(), other.ToString().c_str());
-            INFO("C %d %d %d %d %d",
-                 x2 < x1 ,
-                 x1 < other.m_x1 ,
-                 other.m_x2 < x1 ,
-                 x2 < other.m_x1 ,
-                 other.m_x2 < x2);
-            assert(false);
-        }
-
-        FixedPointNumber z1 = other.Interpolate(x1);
-        FixedPointNumber z2 = other.Interpolate(x2);
-        
-        if (z1 < m_x1 ||
-            m_x2 < z1 ||
-            z2 < m_x1 ||
-            m_x2 < z2 ||
-            y1 != z1 ||
-            y2 != z2)
-        {
-            INFO("COMPOSE %f -> %f -> %f, %f -> %f -> %f %s o %s", y1.Float(), x1.Float(), z1.Float(), y2.Float(), x2.Float(), z2.Float(), ToString().c_str(), other.ToString().c_str());
-            INFO("C %d %d %d %d %d %d",
-                 z1 < m_x1 ,
-                 m_x2 < z1 ,
-                 z2 < m_x1 ,
-                 m_x2 < z2,
-                 y1 != z1,
-                 y2 != z2);
-            assert(false);
-        }
-        
-        return LinearPeice(x1, x2, Interpolate(y1), Interpolate(y2));
-    }
-
-    BoundState Check(FixedPointNumber x)
-    {
-        if (m_empty)
-        {
-            return BoundState::Under;
-        }
-        else if (m_x1 <= x && x < m_x2)
-        {
-            return BoundState::In;
-        }
-        else if (CircleDist(m_x1, x) < CircleDist(m_x2, x))
-        {
-            return BoundState::Under;
-        }
-        else
-        {
-            return BoundState::Over;
-        }
-    }
-
-    FixedPointNumber Interpolate(FixedPointNumber x)
-    {
-        if (x == FixedPointNumber(0) && m_x1 != FixedPointNumber(0) && m_x2 == FixedPointNumber::One())
-        {
-            return m_y2;
-        }
-        else if (x == FixedPointNumber::One() && m_x2 != FixedPointNumber::One() && m_x1 == FixedPointNumber(0))
-        {
-            return m_y1;
-        }
-        
-        return ::Interpolate(m_x1, m_x2, m_y1, m_y2, x);
-    }
-
-    FixedPointNumber Invert(FixedPointNumber y)
-    {
-        if (y == m_y1)
-        {
-            return m_x1;
-        }
-        else if (y == m_y2)
-        {
-            return m_x2;
-        }
-        else if (m_y1 <= m_y2)
-        {
-            return LinearPeice(m_y1, m_y2, m_x1, m_x2).Interpolate(y);
-        }
-        else
-        {
-            return LinearPeice(m_y2, m_y1, m_x2, m_x1).Interpolate(y);
-        }
-    }
-
-    std::string ToString()
-    {
-        return "<" + m_x1.Str() + ", " +
-            m_x2.Str() + ", " +
-            m_y1.Str() + ", " +
-            m_y2.Str() + ">";
-    }
-};
-
-struct TimeBit
-{
-    enum class State : int
-    {
-        x_init,
-        x_waiting,
-        x_running
-    };
-    
-    LinearPeice m_lp;
-    MusicalTime* m_owner;
-    size_t m_ix;
-    int m_parentIx;
-    FixedPointNumber m_swing;
-    FixedPointNumber m_swagger;
-    FixedPointNumber m_pos;
-    uint64_t m_parentFloor;
-    size_t m_mult;
-    bool m_top;
-    State m_state;
+    int m_index;
+    int m_parentIndex;
+    int m_parentMult;
     bool m_pingPong;
-    size_t m_topLevelWinding;
+    bool m_gate;
+    bool m_gateChanged;
+    bool m_top;
+    int m_position;
+    int m_prevPosition;
+    int m_loopSize;
+    float m_phasor;
 
-    void Init(size_t ix, MusicalTime* owner)
+    TheoryOfTimeBase* m_owner;
+
+    struct Input
     {
-        m_ix = ix;        
-        m_owner = owner;
-        m_parentIx = ix - 1;
-        m_pos = FixedPointNumber(0);
-        m_parentFloor = 0;
-        m_top = true;
-        m_state = State::x_init;
-        m_swing = FixedPointNumber::Half();
-        m_swagger = FixedPointNumber::Half();
-        m_mult = 1;
-        m_pingPong = false;
-        m_topLevelWinding = 0;
+        int m_parentIndex;
+        int m_parentMult;
+        bool m_pingPong;
+
+        Input()
+        {
+            m_parentIndex = 0;
+            m_parentMult = 1;
+            m_pingPong = false;
+        }
+    };
+
+    bool ProcessDirectly(float phasor)
+    {
+        m_phasor = phasor;
+        bool oldGate = m_gate;
+        m_prevPosition = m_position;
+        m_position = floor(phasor * m_loopSize);
+        m_gate = m_position < m_loopSize / 2;
+        m_gateChanged = oldGate != m_gate;
+        m_top = (m_position == 0 && m_prevPosition == m_loopSize - 1) || (m_position == m_loopSize - 1 && m_prevPosition == 0);
+        return m_prevPosition != m_position;
+    }
+
+    bool IsPingPonging()
+    {
+        return m_pingPong && GetParent()->m_position / m_loopSize == m_parentMult - 1;
+    }
+
+    void Process()
+    {
+        assert(GetParent());
+        int position = GetParent()->m_position % m_loopSize;
+        if (IsPingPonging())
+        {
+            position = m_loopSize - position - 1;
+        }
+
+        m_position = position;
+        m_prevPosition = m_position;
+        m_gate = m_position < m_loopSize / 2;
+        m_gateChanged = GetMaster()->m_position / (m_loopSize / 2) != GetMaster()->m_prevPosition / (m_loopSize / 2);
+        m_top = (m_position == 0 && m_prevPosition == m_loopSize - 1) || (m_position == m_loopSize - 1 && m_prevPosition == 0) || GetParent()->m_top;
+    }
+
+    void ProcessPhasor()
+    {
+        float phasor = GetParent()->m_phasor * m_parentMult;
+        phasor = phasor - floor(phasor);
+        if (IsPingPonging())
+        {
+            phasor = 1 - phasor;
+        }
+
+        m_phasor = phasor;
     }
 
     void Stop()
     {
-        m_pos = FixedPointNumber(0);
-        m_parentFloor = 0;
+        m_gate = false;
+        m_gateChanged = true;
         m_top = true;
-        m_state = State::x_init;
-        m_lp = LinearPeice::Empty();
-        m_topLevelWinding = 0;
+        m_position = 0;
+        m_prevPosition = 0;
+        m_phasor = 0;
     }
 
-    int MonodromyNumber(int resetIx)
+    bool HandleInput(const Input& input)
     {
-        if (static_cast<int>(m_ix) == resetIx)
+        if (GetParent()->m_top)
         {
-            return 0;
-        }
-        else if (m_pingPong)
-        {
-            bool thisGate = m_pos < FixedPointNumber::Half();
-            return thisGate ? 0 : 1;
-        }
-        else if (m_parentIx < 0)
-        {
-            bool thisGate = m_pos < FixedPointNumber::Half();
-            return 2 * m_topLevelWinding + (thisGate ? 0 : 1);
-        }
-        else
-        {
-            uint64_t preResult;
-            bool thisGate = m_pos < FixedPointNumber::Half();
-            if (m_mult % 2 == 0)
+            bool result = false;
+            if (input.m_pingPong != m_pingPong || input.m_parentMult != m_parentMult)
             {
-                preResult = m_parentFloor % (m_mult / 2);
+                m_pingPong = input.m_pingPong;
+                m_parentMult = input.m_parentMult;
+                result = true;
             }
-            else
+
+            if (input.m_parentIndex != m_parentIndex)
             {
-                if (GetParent()->m_pos <= FixedPointNumber::Half())
+                int oldParentIndex = m_parentIndex;
+                m_parentIndex = input.m_parentIndex;
+                if (GetParent()->m_top)
                 {
-                    preResult = m_parentFloor;
+                    result = true;
                 }
                 else
                 {
-                    ((GetParent()->m_pos - FixedPointNumber::Half()) * m_mult).Reduce(&preResult);
-                    thisGate = !thisGate;
+                    m_parentIndex = oldParentIndex;
                 }
-            }   
+            }            
 
-            return 2 * preResult + (thisGate ? 0 : 1) + m_mult * GetParent()->MonodromyNumber(resetIx);
+            return result;
         }
+
+        return false;
     }
-    
-    TimeBit* GetParent();
 
-    // std::string Rep()
-    // {
-    //     std::stringstream stream;
-    //     stream << std::fixed << std::setprecision(10) << m_pos;
-    //     std::string s = stream.str();
-    //     return "(" + std::to_string(m_ix) + ", " + std::to_string(m_pos < 0.5) + ", " + s + ", " + std::to_string(m_mult) + ")";
-    // }
-
-    LinearPeice MakeLP(FixedPointNumber  parentPos, uint64_t* parentFloor)
+    int MonodromyNumber(int resetIndex, bool external)
     {
-        (parentPos * m_mult).Reduce(parentFloor);
-        assert(*parentFloor < m_mult);
-        LinearPeice result = LinearPeice(
-            FixedPointNumber(*parentFloor, m_mult), 
-            FixedPointNumber(*parentFloor + 1, m_mult), 
-            FixedPointNumber(0),
-            FixedPointNumber::One());
-        //INFO("Make LP %lu %s (%llu)", m_ix, result.ToString().c_str(), *parentFloor);
-        if (m_pingPong)
+        if (m_index == resetIndex)
         {
-            //INFO("PP %f -> %f", parentPos.Float(), result.Interpolate(parentPos).Float());
-            result = MakePingPongLP(result.Interpolate(parentPos)).Compose(result);
-            //INFO("PP %s", result.ToString().c_str());
+            return external && !m_gate ? 1 : 0;
         }
-
-        //INFO("Swing %f -> %f", parentPos.Float(), result.Interpolate(parentPos).Float());
-        if (m_mult % 2 == 0 || *parentFloor != m_mult / 2)
+        else if (!GetParent())
         {
-            result = MakeSwingLP(result.Interpolate(parentPos)).Compose(result);
+            return GlobalWinding() * (external ? 2 : 1) + (external && !m_gate ? 1 : 0);
         }
-        //INFO("Swung %s", result.ToString().c_str());
-        return result;
-    }
-    
-    LinearPeice MakePingPongLP(FixedPointNumber t)
-    {
-        if (!m_pingPong)
-        {   
-            return LinearPeice(FixedPointNumber(0), FixedPointNumber::One(), FixedPointNumber(0), FixedPointNumber::One());
-        }
-        else if (t < FixedPointNumber::Half())
+        else if (!IsPingPonging())
         {
-            return LinearPeice(FixedPointNumber(0), FixedPointNumber::Half(), FixedPointNumber(0), FixedPointNumber::One());
+            int monodromyRelParent = GetParent()->m_position / (external ? m_loopSize / 2 : m_loopSize);
+            int parentMonodromyNumber = GetParent()->MonodromyNumber(resetIndex, false);
+            int mult = (m_pingPong ? m_parentMult - 2 : m_parentMult) * (external ? 2 : 1);
+            int result = monodromyRelParent + mult * parentMonodromyNumber;
+            return result;
         }
         else
         {
-            return LinearPeice(FixedPointNumber::Half(), FixedPointNumber::One(), FixedPointNumber::One(), FixedPointNumber(0));
-        }
-    }
-    
-    LinearPeice MakeSwingLP(FixedPointNumber t)
-    {
-        if (t < m_swing)
-        {
-            return LinearPeice(FixedPointNumber(0), m_swing, FixedPointNumber(0), m_swagger);
-        }
-        else
-        {
-            return LinearPeice(m_swing, FixedPointNumber::One(), m_swagger, FixedPointNumber::One());
-        }
-    }
-
-    struct Input
-    {
-        int m_parentIx;
-        float m_swing;
-        float m_swagger;
-        size_t m_mult;
-        bool m_pingPong;
-        float* m_rand;
-        RGen m_gen;
-        float* m_globalHomotopy;
-
-        Input()
-            : m_parentIx(0)
-            , m_swing(0.0)
-            , m_swagger(0.0)
-            , m_mult(2)
-            , m_pingPong(false)
-            , m_rand(nullptr)
-            , m_globalHomotopy(nullptr)
-        {
-        }
-    };
-
-    void Read(Input& input)
-    {
-        if (m_state == State::x_init)
-        {
-            m_state = State::x_running;
-        }
-        else if (m_parentIx != input.m_parentIx)
-        {
-            m_top = true;
-            m_pos = FixedPointNumber(0);
-            m_state = State::x_waiting;
-        }
-
-        m_parentIx = input.m_parentIx;
-        if (GetParent()->m_top)
-        {
-            m_state = State::x_running;            
-        }
-        
-        m_mult = input.m_mult;
-        m_pingPong = input.m_pingPong;
-        ReadSwing(input);
-    }
-
-    void ReadSwing(Input& input)
-    {
-        float rand = input.m_rand ? *input.m_rand : 0;
-        float globalHomo = input.m_globalHomotopy ? *input.m_globalHomotopy : 1;
-        float swingFloat = globalHomo * ((1 - rand) * input.m_swing + rand * input.m_swing * input.m_gen.UniGen());
-        float swaggerFloat = globalHomo * ((1 - rand) * input.m_swagger + rand * input.m_swagger * input.m_gen.UniGen());
-        m_swing = FixedPointNumber::FromDouble(swingFloat / 2.5 + 0.5);
-        m_swagger = FixedPointNumber::FromDouble(swaggerFloat / 2.5 + 0.5);
-
-        size_t effectiveMult = m_pingPong ? 2 * m_mult : m_mult;
-        m_swing = m_swing.Round(effectiveMult);
-    }
-
-    void Process(Input& input)
-    {
-        if (m_state == State::x_init)
-        {
-            Read(input);
-        }
-        
-        if (m_state == State::x_waiting)
-        {
-            Read(input);
-            if (m_state == State::x_waiting)
+            int monodromyRelParent;
+            if (external)
             {
-                return;
+                monodromyRelParent = m_gate ? 2 * m_parentMult - 4 : 2 * m_parentMult - 3;
             }
-        }
-        else
-        {
-            TimeBit* parent = GetParent();
-            if (parent->m_top)
+            else
             {
-                Read(input);
-                if (m_state == State::x_waiting)
-                {
-                    return;
-                }
+                monodromyRelParent = m_parentMult - 2;
             }
 
-            m_top = parent->m_top;
+            int parentMonodromyNumber = GetParent()->MonodromyNumber(resetIndex, false);
+            int result = monodromyRelParent + (m_parentMult - 2) * parentMonodromyNumber * (external ? 2 : 1);
+            return result;
         }
+    }   
 
-        TimeBit* parent = GetParent();
-        FixedPointNumber inT = parent->m_pos;
-        if (parent->m_top || m_lp.Check(inT) != LinearPeice::BoundState::In)
-        {
-            uint64_t newParentFloor;
-            m_lp = MakeLP(inT, &newParentFloor);
-            if (newParentFloor != m_parentFloor)
-            {
-                m_top = true;
-                m_parentFloor = newParentFloor;
-            }
-        }
+    TimeLoop* GetParent();
 
-        m_pos = m_lp.Interpolate(inT);
-        if (FixedPointNumber::One() < m_pos)
-        {
-            INFO("Big pos %f, %lu %f", m_pos.Float(), m_ix, inT.Float());
-            assert(false);
-        }
+    TimeLoop* GetMaster();
 
-        if (m_pos == FixedPointNumber::One())
-        {
-            m_pos = FixedPointNumber(0);
-        }
-
-        if (m_top)
-        {
-            m_topLevelWinding = m_pingPong ? 0 : (m_mult * parent->m_topLevelWinding);
-        }
-    }
-
-    void SetDirectly(float t)
-    {
-        m_top = false;
-        if (std::abs(t - m_pos.Float()) > 0.5)
-        {
-            m_top = true;
-            ++m_topLevelWinding;
-        }
-
-        m_pos = FixedPointNumber::FromDouble(t);
-    }
+    int GlobalWinding();
 };
 
-struct MusicalTime
+struct TheoryOfTimeBase
 {
-    static constexpr size_t x_numBits = 8;
-    TimeBit m_bits[x_numBits];
-    bool m_gate[x_numBits];
-    bool m_change[x_numBits];
+    static constexpr int x_numLoops = 6;
+    TimeLoop m_loops[x_numLoops];
+    int m_globalWinding;
     bool m_anyChange;
     bool m_running;
 
-    MusicalTime()
-    {
-        m_anyChange = false;
-        m_running = false;
-        for (size_t i = 0; i < x_numBits; ++i)
-        {
-            m_bits[i].Init(i, this);
-            m_change[i] = false;
-        }
-    }
+    float m_phasor;
+    bool m_top;
 
-    // std::string Rep()
-    // {
-    //     std::string result = "<";
-    //     for (size_t i = 0; i < x_numBits; ++i)
-    //     {
-    //         result += m_bits[i].Rep() + " ";
-    //     }
-
-    //     return result + ">";
-    // }
-    
     struct Input
     {
-        float m_t;
-        TimeBit::Input m_input[x_numBits];
-        float m_rand;
-        float m_globalHomotopy;
+        float m_phasor;
+        float m_phaseOffset;
+        bool m_top;
+        TimeLoop::Input m_input[x_numLoops];
         bool m_running;
 
         Input()
         {
-            m_t = 0;
-            m_rand = 0;
-            m_globalHomotopy = 1;
-            for (size_t i = 0; i < x_numBits; ++i)
+            m_phasor = 0;
+            m_phaseOffset = 0;
+            m_top = false;
+            m_running = false;
+            for (int i = 0; i < x_numLoops; ++i)
             {
-                if (i > 0)
-                {
-                    m_input[i].m_parentIx = i - 1;
-                }
-
-                m_input[i].m_rand = &m_rand;
-                m_input[i].m_globalHomotopy = &m_globalHomotopy;
+                m_input[i].m_parentIndex = i + 1;
             }
         }
     };
 
-    void Process(Input& in)
+    TheoryOfTimeBase()
     {
-        if (in.m_running)
+        m_running = false;
+        m_anyChange = false;
+        m_globalWinding = 0;
+        for (int i = 0; i < x_numLoops; ++i)
+        {
+            m_loops[i].m_owner = this;
+            m_loops[i].m_index = i;
+            m_loops[i].m_parentIndex = i + 1;
+        }
+    }
+    
+    void SetLoopSizes()
+    {
+        for (int i = 0; i < x_numLoops; ++i)
+        {
+            m_loops[i].m_loopSize = 1;
+        }
+
+        for (int i = 0; i < x_numLoops; ++i)
+        {
+            if (m_loops[i].GetParent())
+            {
+                m_loops[i].GetParent()->m_loopSize = std::lcm(m_loops[i].GetParent()->m_loopSize, m_loops[i].m_loopSize * m_loops[i].m_parentMult);
+            }
+        }
+
+        for (int i = 0; i < x_numLoops; ++i)
+        {
+            m_loops[i].m_loopSize *= 2;
+        }
+    }
+
+    void ProcessRunning(Input& input)
+    {
+        if (!m_running)
         {
             m_running = true;
-            m_bits[0].SetDirectly(in.m_t);
-            for (size_t i = 1; i < x_numBits; ++i)
+            for (int i = x_numLoops - 2; i >= 0; --i)
             {
-                m_bits[i].Process(in.m_input[i]);
+                m_loops[i].m_parentIndex = input.m_input[i].m_parentIndex;
+                m_loops[i].m_parentMult = input.m_input[i].m_parentMult;
+                m_loops[i].m_pingPong = input.m_input[i].m_pingPong;
             }
-            
-            m_anyChange = false;
-            
-            for (size_t i = 0; i < x_numBits; ++i)
+
+            SetLoopSizes();
+        }
+
+        m_phasor = input.m_phasor;
+        m_top = input.m_top;
+        if (m_top)
+        {
+            ++m_globalWinding;
+        }
+
+        m_anyChange = false;
+        float directPhasor = input.m_phasor + input.m_phaseOffset;
+        directPhasor = directPhasor - floor(directPhasor);
+        m_anyChange = GetMasterLoop()->ProcessDirectly(directPhasor);
+        if (m_anyChange)
+        {
+            bool resetLoopSize = false;
+            for (int i = x_numLoops - 2; i >= 0; --i)
             {
-                m_change[i] = false;
-                bool gate = GetPos(i) < 0.5;
-                if (m_gate[i] != gate)
+                m_loops[i].Process();
+                if (m_loops[i].HandleInput(input.m_input[i]))
                 {
-                    m_change[i] = true;
-                    m_anyChange = true;
+                    resetLoopSize = true;
                 }
-                
-                m_gate[i] = gate;
             }
+
+            if (resetLoopSize)
+            {
+                SetLoopSizes();
+            }
+        }
+
+        for (int i = x_numLoops - 2; i >= 0; --i)
+        {
+            if (!m_anyChange)
+            {
+                m_loops[i].m_gateChanged = false;
+                m_loops[i].m_top = false;
+            }
+
+            m_loops[i].ProcessPhasor();
+        }
+    }
+
+    void Process(Input& input)
+    {
+        if (input.m_running)
+        {
+            ProcessRunning(input);
         }
         else if (m_running)
         {
-            // It was running, but a stop was requested.
-            // Stop All bits, and set 'm_anyChange' so others can react.
-            //
             m_running = false;
             m_anyChange = true;
-            for (size_t i = 0; i < x_numBits; ++i)
+            m_globalWinding = 0;
+            for (int i = 0; i < x_numLoops; ++i)
             {
-                m_bits[i].Stop();
-                m_gate[i] = false;
-                m_change[i] = true;
-            }            
+                m_loops[i].Stop();
+            }
         }
         else
         {
@@ -798,39 +308,40 @@ struct MusicalTime
         }
     }
 
-    float GetPos(size_t ix)
+    TimeLoop* GetMasterLoop()
     {
-        return m_bits[ix].m_pos.Float();
+        return &m_loops[x_numLoops - 1];
     }
 
-    bool GetGate(size_t ix)
+    int GetLoopMultiplier(int loopIndex)
     {
-        return m_gate[ix];
-    }
-
-    int MonodromyNumber(int clockIx, int resetIx)
-    {
-        return m_bits[clockIx].MonodromyNumber(resetIx);
+        return GetMasterLoop()->m_loopSize / (m_loops[loopIndex].m_loopSize / 2);
     }
 };
 
-inline TimeBit* TimeBit::GetParent()
+inline TimeLoop* TimeLoop::GetParent()
 {
-    if (m_parentIx < 0)
+    if (m_parentIndex < 0 || TheoryOfTimeBase::x_numLoops <= m_parentIndex)
     {
         return nullptr;
     }
 
-    return &m_owner->m_bits[m_parentIx];
+    return &m_owner->m_loops[m_parentIndex];
 }
 
-struct MusicalTimeWithClock
+inline TimeLoop* TimeLoop::GetMaster()
 {
-    MusicalTime m_musicalTime;
-    float m_phasor;
-    std::string m_lastChange;
-    float m_lastChangeTime;
-    Tick2Phasor m_tick2Phasor;  
+    return m_owner->GetMasterLoop();
+}
+
+inline int TimeLoop::GlobalWinding()
+{
+    return m_owner->m_globalWinding;
+}
+
+struct TheoryOfTime : public TheoryOfTimeBase
+{
+    Tick2Phasor m_tick2Phasor;
 
     enum class ClockMode : int 
     {
@@ -839,7 +350,7 @@ struct MusicalTimeWithClock
         Tick2Phasor
     };
 
-    struct Input
+    struct Input : public TheoryOfTimeBase::Input
     {
         Input() 
           : m_clockMode(ClockMode::Internal)
@@ -849,65 +360,49 @@ struct MusicalTimeWithClock
         }
         
         ClockMode m_clockMode;
-        MusicalTime::Input m_input;
         float m_freq;        
         float m_timeIn;
         Tick2Phasor::Input m_tick2PhasorInput;
     };
 
-    MusicalTimeWithClock()
-        : m_phasor(0)
-        , m_lastChangeTime(0)
-    {
-    }
-
     int MonodromyNumber(int clockIx, int resetIx)
     {
-        return m_musicalTime.MonodromyNumber(clockIx, resetIx);
+        return m_loops[clockIx].MonodromyNumber(resetIx, true);
+    }
+
+    TheoryOfTime()
+    {
     }
 
     void Process(Input& input)
     {
-        m_lastChangeTime += 1.0 / 48000.0;
-        if (input.m_input.m_running)
+        if (input.m_running)
         {
             if (input.m_clockMode == ClockMode::Internal)
             {
-                m_phasor += input.m_freq;
-                m_phasor = m_phasor - floor(m_phasor);
+                input.m_phasor += input.m_freq;
+                input.m_top = 1.0f <= input.m_phasor;
+                input.m_phasor = input.m_phasor - floor(input.m_phasor);
             }
             else if (input.m_clockMode == ClockMode::External)
             {
-                m_phasor = input.m_timeIn;
+                input.m_top = std::abs(input.m_timeIn - input.m_phasor) > 0.5f;
+                input.m_phasor = input.m_timeIn;
             }
         }
         else
         {
-            m_phasor = 0;
+            input.m_phasor = 0;
             m_tick2Phasor.m_reset = true;
         }
         
         if (input.m_clockMode == ClockMode::Tick2Phasor)
         {
             m_tick2Phasor.Process(input.m_tick2PhasorInput);
-            m_phasor = m_tick2Phasor.m_output;
+            input.m_top = std::abs(m_tick2Phasor.m_output - input.m_phasor) > 0.5f;
+            input.m_phasor = m_tick2Phasor.m_output;
         }
 
-        input.m_input.m_t = m_phasor;
-        m_musicalTime.Process(input.m_input);
-
-        if (m_musicalTime.m_anyChange)
-        {
-            if (m_lastChangeTime < 0.001)
-            {
-                INFO("Change time %f", m_lastChangeTime);
-                // INFO("BEFORE: %s", m_lastChange.c_str());
-                //                INFO("AFTER:  %s", m_musicalTime.Rep().c_str());
-            }
-
-            m_lastChangeTime = 0;
-            // m_lastChange = m_musicalTime.Rep();
-        }
+        TheoryOfTimeBase::Process(input);
     }
 };
-

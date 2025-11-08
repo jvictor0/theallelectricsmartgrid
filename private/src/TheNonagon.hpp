@@ -26,7 +26,7 @@ struct TheNonagonInternal
 
     struct Input
     {
-        MusicalTimeWithClock::Input m_theoryOfTimeInput;
+        TheoryOfTime::Input m_theoryOfTimeInput;
         LameJuisInternal::Input m_lameJuisInput;
         MultiPhasorGateInternal::NonagonTrigLogic m_trigLogic;
         MultiPhasorGateInternal::Input m_multiPhasorGateInput;
@@ -62,7 +62,7 @@ struct TheNonagonInternal
     
     NonagonNoteWriter m_noteWriter;
 
-    MusicalTimeWithClock m_theoryOfTime;
+    TheoryOfTime m_theoryOfTime;
     LameJuisInternal m_lameJuis;
     MultiPhasorGateInternal m_multiPhasorGate;
     NonagonIndexArp m_indexArp;
@@ -113,25 +113,16 @@ struct TheNonagonInternal
         bool m_bit;
     };
 
-    TimeBit m_time[x_numTimeBits + 1];
-
-    bool* TimeBit(size_t i)
-    {
-        return &m_time[i].m_bit;
-    }
-
     void SetTheoryOfTimeInput(Input& input)
     {
-        input.m_theoryOfTimeInput.m_input.m_running = input.m_running || m_multiPhasorGate.m_anyGate;
+        input.m_theoryOfTimeInput.m_running = input.m_running || m_multiPhasorGate.m_anyGate;
     }
 
     void SetLameJuisInput(Input& input)
     {
-        m_time[x_numTimeBits].m_bit = m_theoryOfTime.m_musicalTime.m_gate[0];
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {
-            m_time[i].m_bit = m_theoryOfTime.m_musicalTime.m_gate[x_numTimeBits - i];
-            input.m_lameJuisInput.m_inputBitInput[i].m_value = m_time[i].m_bit;
+            input.m_lameJuisInput.m_inputBitInput[i].m_value = m_theoryOfTime.m_loops[i].m_gate;
         }
 
         for (size_t i = 0; i < x_numTrios; ++i)
@@ -162,7 +153,7 @@ struct TheNonagonInternal
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             bool pitchChanged = m_lameJuis.m_outputs[i / x_voicesPerTrio].m_trigger[i % x_voicesPerTrio];
-            bool anyChange = m_theoryOfTime.m_musicalTime.m_anyChange;
+            bool anyChange = m_theoryOfTime.m_anyChange;
             input.m_trigLogic.m_pitchChanged[i] = anyChange && pitchChanged;
             input.m_trigLogic.m_earlyMuted[i] = m_lameJuis.m_outputs[i / x_voicesPerTrio].m_pitch[i % x_voicesPerTrio].m_isMuted;
             input.m_trigLogic.m_subTrigger[i] = m_indexArp.m_arp[i].m_triggered && anyChange;
@@ -170,26 +161,27 @@ struct TheNonagonInternal
 
         input.m_trigLogic.SetInput(input.m_multiPhasorGateInput);
 
-        for (size_t i = 0; i < x_numTimeBits + 1; ++i)
-        {
-            input.m_multiPhasorGateInput.m_phasors[i] = m_theoryOfTime.m_musicalTime.m_bits[x_numTimeBits - i].m_pos.Float();
-            if (i < x_numTimeBits)
-            {
-                for (size_t j = 0; j < x_numVoices; ++j)
-                {                    
-                    bool coMute = m_lameJuis.m_outputs[j / x_voicesPerTrio].m_coMuteState.m_coMutes[i];
-                    input.m_multiPhasorGateInput.m_phasorSelector[j][i] = !coMute;
-                }
-            }
-        }
+        input.m_multiPhasorGateInput.m_phasor = m_theoryOfTime.m_phasor;
 
         for (size_t i = 0; i < x_numVoices; ++i)
         {
+            int denom = 1;
             int voiceClock = input.m_arpInput.m_clockSelect[i / x_voicesPerTrio];
             if (voiceClock >= 0)
             {
-                input.m_multiPhasorGateInput.m_phasorSelector[i][voiceClock] = true;
+                denom = m_theoryOfTime.GetLoopMultiplier(voiceClock);
             }
+
+            for (size_t j = 0; j < x_numVoices; ++j)
+            {                    
+                bool coMute = m_lameJuis.m_outputs[j / x_voicesPerTrio].m_coMuteState.m_coMutes[i];
+                if (!coMute)
+                {
+                    denom = std::lcm(denom, m_theoryOfTime.GetLoopMultiplier(j));
+                }
+            }
+
+            input.m_multiPhasorGateInput.m_phasorDenominator[i] = denom;
         }
     }
 
@@ -200,11 +192,11 @@ struct TheNonagonInternal
             input.m_arpInput.m_input[j].m_read = false;
         }
 
-        for (size_t i = 0; i < x_numTimeBits + 1; ++i)
+        for (size_t i = 0; i < x_numTimeBits; ++i)
         {            
-            bool ticked = m_theoryOfTime.m_musicalTime.m_change[x_numTimeBits - i];
+            bool ticked = m_theoryOfTime.m_loops[i].m_gateChanged;
             input.m_arpInput.m_clocks[i] = ticked;
-            if (m_theoryOfTime.m_musicalTime.m_anyChange)
+            if (m_theoryOfTime.m_anyChange)
             {
                 for (size_t j = 0; j < x_numVoices; ++j)
                 {                    
@@ -217,7 +209,7 @@ struct TheNonagonInternal
             }
         }
 
-        if (m_theoryOfTime.m_musicalTime.m_anyChange)
+        if (m_theoryOfTime.m_anyChange)
         {
             for (size_t j = 0; j < x_numTrios; ++j)
             {                    
@@ -225,11 +217,11 @@ struct TheNonagonInternal
                 {
                     input.m_arpInput.m_totalIndex[j] = 0;
                 }
-                else if (input.m_arpInput.m_clocks[input.m_arpInput.m_clockSelect[j]])
+                else if (m_theoryOfTime.m_loops[input.m_arpInput.m_clockSelect[j]].m_gateChanged)
                 {
-                    input.m_arpInput.m_totalIndex[j] = m_theoryOfTime.m_musicalTime.MonodromyNumber(
-                        x_numTimeBits - input.m_arpInput.m_clockSelect[j],
-                        x_numTimeBits - input.m_arpInput.m_resetSelect[j]);
+                    input.m_arpInput.m_totalIndex[j] = m_theoryOfTime.MonodromyNumber(
+                        input.m_arpInput.m_clockSelect[j],
+                        input.m_arpInput.m_resetSelect[j]);
                 }
             }
         }
@@ -239,7 +231,7 @@ struct TheNonagonInternal
     {
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            if (m_multiPhasorGate.m_trig[i])
+            if (m_multiPhasorGate.m_adspControl[i].m_trig)
             {                                
                 m_output.m_gate[i] = true;
                 size_t pitchIx = input.m_trigLogic.m_unisonMaster[i / x_voicesPerTrio] == -1 ? i : input.m_trigLogic.m_unisonMaster[i / x_voicesPerTrio];
@@ -255,7 +247,7 @@ struct TheNonagonInternal
                 NonagonNoteWriter::EventData eventData;
                 eventData.m_voiceIx = i;
                 eventData.m_voltPerOct = m_output.m_voltPerOct[i];
-                eventData.m_startPosition = m_theoryOfTime.m_musicalTime.m_bits[0].m_pos.Float();
+                eventData.m_startPosition = m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_phasor;
                 for (size_t j = 0; j < x_numExtraTimbres; ++j)
                 {
                     eventData.m_timbre[j] = m_output.m_extraTimbre[i][j];
@@ -267,13 +259,13 @@ struct TheNonagonInternal
             {
                 if (m_output.m_gate[i])
                 {
-                    m_noteWriter.RecordNoteEnd(i, m_theoryOfTime.m_musicalTime.m_bits[0].m_pos.Float());
+                    m_noteWriter.RecordNoteEnd(i, m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_phasor);
                 }
                 
                 m_output.m_gate[i] = false;
             }
 
-            m_output.m_phasor[i] = m_multiPhasorGate.m_phasorOut[i];
+            m_output.m_phasor[i] = m_multiPhasorGate.m_adspControl[i].m_phasor;
 
             for (size_t j = 0; j < x_numExtraTimbres; ++j)
             {
@@ -283,8 +275,8 @@ struct TheNonagonInternal
 
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {
-            m_output.m_totPhasors[i] = input.m_multiPhasorGateInput.m_phasors[x_numTimeBits - i - 1];
-            m_output.m_totTop[i] = m_theoryOfTime.m_musicalTime.m_bits[i + 1].m_top;
+            m_output.m_totPhasors[i] = m_theoryOfTime.m_loops[i].m_phasor;
+            m_output.m_totTop[i] = m_theoryOfTime.m_loops[i].m_top;
         }
     }
 
@@ -293,12 +285,12 @@ struct TheNonagonInternal
         SetTheoryOfTimeInput(input);
         m_theoryOfTime.Process(input.m_theoryOfTimeInput);
 
-        if (m_theoryOfTime.m_musicalTime.m_bits[0].m_top)
+        if (m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_top)
         {
             m_noteWriter.RecordStartIndex();
         }
 
-        if (m_theoryOfTime.m_musicalTime.m_anyChange)
+        if (m_theoryOfTime.m_anyChange)
         {
             SetIndexArpInputs(input);
             m_indexArp.Process(input.m_arpInput);
@@ -307,7 +299,7 @@ struct TheNonagonInternal
             m_lameJuis.Process(input.m_lameJuisInput);
         }
 
-        if (m_theoryOfTime.m_musicalTime.m_running)
+        if (m_theoryOfTime.m_running)
         {
             SetMultiPhasorGateInputs(input);
             m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
@@ -345,7 +337,7 @@ struct TheNonagonSmartGrid
         return new SmartGrid::StateCell<bool>(
                         SmartGrid::Color::Off /*offColor*/,
                         SmartGrid::Color::White /*onColor*/,
-                        m_nonagon.TimeBit(ix),
+                        &m_nonagon.m_theoryOfTime.m_loops[ix].m_gate,
                         true,
                         false,
                         SmartGrid::StateCell<bool>::Mode::ShowOnly);
@@ -483,7 +475,7 @@ struct TheNonagonSmartGrid
         TheNonagonInternal* m_nonagon;
         TheNonagonSmartGrid* m_owner;
         bool m_isPan;
-        MusicalTime::Input* m_timeState;
+        TheoryOfTimeBase::Input* m_timeState;
         
         TheoryOfTimeTopologyPage(TheNonagonSmartGrid* owner, bool isPan)
             : SmartGrid::CompositeGrid()
@@ -493,60 +485,58 @@ struct TheNonagonSmartGrid
             , m_isPan(isPan)
         {
             SetColors(SmartGrid::Color::Fuscia, SmartGrid::Color::Fuscia.Dim());
-            m_timeState = &m_state->m_theoryOfTimeInput.m_input;
+            m_timeState = &m_state->m_theoryOfTimeInput;
 
             InitGrid();
         }
         
         void InitGrid()
         {
-            for (size_t i = 1; i < 1 + TheNonagonInternal::x_numTimeBits; ++i)
+            for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits - 1; ++i)
             {
-                size_t xPos = SmartGrid::x_baseGridSize - i - 2;
-                if (i != 1)
+                size_t xPos = i;
+
+                for (size_t mult = 2; mult <= 5; ++mult)
                 {
-                    for (size_t mult = 2; mult <= 5; ++mult)
-                    {
-                        Put(
-                            xPos,
-                            mult - 2,
-                            new SmartGrid::StateCell<size_t>(
-                                SmartGrid::Color::Fuscia /*offColor*/,
-                                SmartGrid::Color::White /*onColor*/,
-                                &m_timeState->m_input[i].m_mult,
-                                mult,
-                                1,
-                                SmartGrid::StateCell<size_t>::Mode::Toggle));
-                    }
-                    
-                    Put(xPos, 6, new SmartGrid::StateCell<bool>(
-                            SmartGrid::Color::Ocean /*offColor*/,
+                    Put(
+                        xPos,
+                        mult - 2,
+                        new SmartGrid::StateCell<int>(
+                            SmartGrid::Color::Fuscia /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
-                            &m_timeState->m_input[i].m_pingPong,
-                            true,
-                            false,
-                            SmartGrid::StateCell<bool>::Mode::Toggle));
-                    
-                    m_owner->m_stateSaver.Insert(
-                        "TheoryOfTimeMult", i, &m_timeState->m_input[i].m_mult);
-                    m_owner->m_stateSaver.Insert(
-                        "TheoryOfTimePingPong", i, &m_timeState->m_input[i].m_pingPong);
+                            &m_timeState->m_input[i].m_parentMult,
+                            mult,
+                            1,
+                            SmartGrid::StateCell<int>::Mode::Toggle));
                 }
                 
-                if (2 < i)
+                Put(xPos, 6, new SmartGrid::StateCell<bool>(
+                        SmartGrid::Color::Ocean /*offColor*/,
+                        SmartGrid::Color::White /*onColor*/,
+                        &m_timeState->m_input[i].m_pingPong,
+                        true,
+                        false,
+                        SmartGrid::StateCell<bool>::Mode::Toggle));
+                
+                m_owner->m_stateSaver.Insert(
+                    "TheoryOfTimeMult", i, &m_timeState->m_input[i].m_parentMult);
+                m_owner->m_stateSaver.Insert(
+                    "TheoryOfTimePingPong", i, &m_timeState->m_input[i].m_pingPong);
+                
+                if (i < TheNonagonInternal::x_numTimeBits - 2)
                 {
                     Put(xPos, 4, new SmartGrid::StateCell<int>(
                             SmartGrid::Color::Ocean /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
-                            &m_timeState->m_input[i].m_parentIx,
-                            i - 2,
-                            i - 1,
+                            &m_timeState->m_input[i].m_parentIndex,
+                            i + 2,
+                            i + 1,
                             SmartGrid::StateCell<int>::Mode::Toggle));
                     m_owner->m_stateSaver.Insert(
-                        "TheoryOfTimeParentIx", i, &m_timeState->m_input[i].m_parentIx);
+                        "TheoryOfTimeParentIx", i, &m_timeState->m_input[i].m_parentIndex);
                 }
                 
-                Put(xPos, 7, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits - i));
+                Put(xPos, 7, m_owner->TimeBitCell(i));
             }
 
             Put(6, 7, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits));            
@@ -557,89 +547,6 @@ struct TheNonagonSmartGrid
     {
         m_state.m_theoryOfTimeInput.m_freq = pow(2, voct) / 128;
     }
-
-    struct TheoryOfTimeSwingAndSwaggerPage : public SmartGrid::CompositeGrid
-    {
-        TheNonagonInternal::Input* m_state;
-        TheNonagonInternal* m_nonagon;
-        TheNonagonSmartGrid* m_owner;
-        bool m_swing;
-        TheoryOfTimeSwingAndSwaggerPage(TheNonagonSmartGrid* owner, bool swing)
-            : SmartGrid::CompositeGrid()
-            , m_state(&owner->m_state)
-            , m_nonagon(&owner->m_nonagon)
-            , m_owner(owner)
-            , m_swing(swing)
-        {
-            if (m_swing)
-            {
-                SetColors(SmartGrid::Color::Orange, SmartGrid::Color::Orange.Dim());
-            }
-            else
-            {
-                SetColors(SmartGrid::Color::Yellow, SmartGrid::Color::Yellow.Dim());
-            }
-            
-            InitGrid();
-        }
-        
-        void InitGrid()
-        {
-            AddGrid(0, 0, new SmartGrid::Fader(
-                        &m_state->m_theoryOfTimeInput.m_input.m_rand,
-                        SmartGrid::x_baseGridSize,
-                        SmartGrid::Color::White,
-                        0 /*min*/,
-                        1.0 /*max*/,
-                        0.1 /*minChangeSpeed*/,
-                        100  /*maxChangeSpeed*/,
-                        true /*pressureSensitive*/,
-                        SmartGrid::Fader::Structure::Linear));
-            AddGrid(SmartGrid::x_baseGridSize - 1, 0, new SmartGrid::Fader(
-                        &m_state->m_theoryOfTimeInput.m_input.m_globalHomotopy,
-                        SmartGrid::x_baseGridSize,
-                        SmartGrid::Color::White,
-                        0 /*min*/,
-                        1.0 /*max*/,
-                        0.1 /*minChangeSpeed*/,
-                        100  /*maxChangeSpeed*/,
-                        true /*pressureSensitive*/,
-                        SmartGrid::Fader::Structure::Linear));
-
-            if (m_swing)
-            {
-                m_owner->m_stateSaver.Insert("TheoryOfTimeSwingSwaggerRand", &m_state->m_theoryOfTimeInput.m_input.m_rand);
-                m_owner->m_stateSaver.Insert("TheoryOfTimeSwingSwaggerGlobalHomotopy", &m_state->m_theoryOfTimeInput.m_input.m_globalHomotopy);
-            }
-
-            for (size_t i = 1; i < 1 + TheNonagonInternal::x_numTimeBits; ++i)
-            {
-                size_t xPos = SmartGrid::x_baseGridSize - i - 1;
-                float* state;
-                if (m_swing)
-                {
-                    state = &m_state->m_theoryOfTimeInput.m_input.m_input[i].m_swing;
-                }
-                else
-                {
-                    state = &m_state->m_theoryOfTimeInput.m_input.m_input[i].m_swagger;
-                }
-
-                m_owner->m_stateSaver.Insert("TheoryOfTimeSwingSwagger", i, m_swing, state);
-                
-                AddGrid(xPos, 0, new SmartGrid::Fader(
-                            state,
-                            SmartGrid::x_baseGridSize,
-                            m_swing ? SmartGrid::Color::Orange : SmartGrid::Color::Yellow,
-                            -1 /*min*/,
-                            1 /*max*/,
-                            0.1 /*minChangeSpeed*/,
-                            100  /*maxChangeSpeed*/,
-                            true /*pressureSensitive*/,
-                            SmartGrid::Fader::Structure::Bipolar));
-            }
-        }
-    };
 
     struct LameJuisCoMutePage : public SmartGrid::Grid
     {
@@ -657,18 +564,17 @@ struct TheNonagonSmartGrid
         
         void InitGrid()
         {
-            for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits + 1; ++i)
+            for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits; ++i)
             {
                 Put(i, 7, m_owner->TimeBitCell(i));
                 if (i < TheNonagonInternal::x_numTimeBits - 2)
                 {
-                    size_t theoryIx = TheNonagonInternal::x_numTimeBits - i;
                     Put(i, 6, new SmartGrid::StateCell<int>(
                             SmartGrid::Color::Ocean /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
-                            &m_state->m_theoryOfTimeInput.m_input.m_input[theoryIx].m_parentIx,
-                            theoryIx - 2,
-                            theoryIx - 1,
+                            &m_state->m_theoryOfTimeInput.m_input[i].m_parentIndex,
+                            i + 2,
+                            i + 1,
                             SmartGrid::StateCell<int>::Mode::Toggle));
                 }
                     
@@ -677,18 +583,16 @@ struct TheNonagonSmartGrid
                     size_t tId = static_cast<size_t>(t);
                     size_t coMuteY = tId * 2;
                     size_t seqY = coMuteY + 1;
-                    if (i < TheNonagonInternal::x_numTimeBits)
-                    {
-                        Put(i, coMuteY, new SmartGrid::StateCell<bool>(
-                                SmartGrid::Color::White /*offColor*/,
-                                TrioColor(t) /*onColor*/,                            
-                                &m_state->m_lameJuisInput.m_outputInput[tId].m_coMuteInput.m_coMutes[i],
-                                true,
-                                false,
-                                SmartGrid::StateCell<bool>::Mode::Toggle));
-                        m_owner->m_stateSaver.Insert(
-                            "LameJuisCoMute", i, tId, &m_state->m_lameJuisInput.m_outputInput[tId].m_coMuteInput.m_coMutes[i]);
-                    }
+
+                    Put(i, coMuteY, new SmartGrid::StateCell<bool>(
+                            SmartGrid::Color::White /*offColor*/,
+                            TrioColor(t) /*onColor*/,                            
+                            &m_state->m_lameJuisInput.m_outputInput[tId].m_coMuteInput.m_coMutes[i],
+                            true,
+                            false,
+                            SmartGrid::StateCell<bool>::Mode::Toggle));
+                    m_owner->m_stateSaver.Insert(
+                        "LameJuisCoMute", i, tId, &m_state->m_lameJuisInput.m_outputInput[tId].m_coMuteInput.m_coMutes[i]);
 
                     Put(i, seqY, m_owner->MkClockSelectCell(t, i));
 
@@ -1199,10 +1103,6 @@ struct TheNonagonSmartGrid
 
     size_t m_theoryOfTimeTopologyGridId;
     SmartGrid::Grid* m_theoryOfTimeTopologyGrid;
-    size_t m_theoryOfTimeSwingGridId;
-    SmartGrid::Grid* m_theoryOfTimeSwingGrid;
-    size_t m_theoryOfTimeSwaggerGridId;
-    SmartGrid::Grid* m_theoryOfTimeSwaggerGrid;
     size_t m_lameJuisCoMuteGridId;
     SmartGrid::Grid* m_lameJuisCoMuteGrid;
     size_t m_lameJuisMatrixGridId;
@@ -1252,10 +1152,8 @@ struct TheNonagonSmartGrid
         }
 
         m_state.m_multiPhasorGateInput.m_numTrigs = TheNonagonInternal::x_numVoices;
-        m_state.m_multiPhasorGateInput.m_numPhasors = TheNonagonInternal::x_numTimeBits + 1;
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
-            m_state.m_multiPhasorGateInput.m_phasorSelector[i][TheNonagonInternal::x_numTimeBits] = true;
             m_numClockSelectsHeld[i] = 0;
             m_numClockSelectsMaxHeld[i] = 0;
             m_stateSaver.Insert("Mute", i, &m_state.m_trigLogic.m_mute[i]);                                
@@ -1268,12 +1166,6 @@ struct TheNonagonSmartGrid
         //
         m_theoryOfTimeTopologyGrid = new TheoryOfTimeTopologyPage(this, false /*isPan*/);
         m_theoryOfTimeTopologyGridId = m_gridHolder.AddGrid(m_theoryOfTimeTopologyGrid);
-        
-        m_theoryOfTimeSwingGrid = new TheoryOfTimeSwingAndSwaggerPage(this, true);
-        m_theoryOfTimeSwingGridId = m_gridHolder.AddGrid(m_theoryOfTimeSwingGrid);
-        
-        m_theoryOfTimeSwaggerGrid = new TheoryOfTimeSwingAndSwaggerPage(this, false);
-        m_theoryOfTimeSwaggerGridId = m_gridHolder.AddGrid(m_theoryOfTimeSwaggerGrid);
         
         // LaMeJuIS
         //
@@ -1325,8 +1217,6 @@ struct TheNonagonSmartGrid
     void RemoveGridIds()
     {
         m_theoryOfTimeTopologyGrid->RemoveGridId();
-        m_theoryOfTimeSwingGrid->RemoveGridId();
-        m_theoryOfTimeSwaggerGrid->RemoveGridId();
         m_lameJuisCoMuteGrid->RemoveGridId();
         m_lameJuisMatrixGrid->RemoveGridId();
         m_lameJuisRHSGrid->RemoveGridId();
@@ -1373,7 +1263,7 @@ struct TheNonagonSmartGrid
 
     void PopulateUIState()
     {
-        m_nonagon.m_noteWriter.SetCurPosition(m_nonagon.m_theoryOfTime.m_musicalTime.m_bits[0].m_pos.Float());
+        m_nonagon.m_noteWriter.SetCurPosition(m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_phasor);
     }
     
     void ProcessSample(float dt)

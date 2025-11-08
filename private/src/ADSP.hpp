@@ -2,16 +2,36 @@
 
 #include "PhaseUtils.hpp"
 
-struct ADSR
+struct ADSP
 {
     enum class State : int
     {
         Idle,
         Attack,
         Decay,
-        DecayNoGate,
-        Sustain,
-        Release
+        SustainPhasor,
+        Release,
+    };
+
+    struct ADSPControl
+    {
+        float m_phasor;
+        bool m_release;
+        bool m_trig;
+
+        ADSPControl()
+            : m_phasor(0.0f)
+            , m_release(false)
+            , m_trig(false)
+        {
+        }
+
+        void Reset()
+        {
+            m_phasor = 0.0f;
+            m_release = false;
+            m_trig = false;
+        }
     };
     
     struct Input
@@ -20,8 +40,10 @@ struct ADSR
         float m_decayIncrement;
         float m_sustainLevel;
         float m_releaseIncrement;
+        float m_phasorMult;
 
-        bool m_gate;
+        float m_phasor;
+        bool m_release;
         bool m_trig;
 
         Input()
@@ -29,9 +51,16 @@ struct ADSR
             , m_decayIncrement(0.0f)
             , m_sustainLevel(0.0f)
             , m_releaseIncrement(0.0f)
-            , m_gate(false)
+            , m_release(false)
             , m_trig(false)
         {
+        }
+
+        void Set(ADSPControl& control)
+        {
+            m_phasor = control.m_phasor;
+            m_release = control.m_release;
+            m_trig = control.m_trig;
         }
     };
 
@@ -42,24 +71,26 @@ struct ADSR
         static constexpr float x_attackTimeMax = 2.5f;
         static constexpr float x_decayTimeMin = 0.01f;
         static constexpr float x_decayTimeMax = 10.0f;
+        static constexpr float x_maxPhasorMult = 8.0f;
 
         PhaseUtils::ExpParam m_attack;
         PhaseUtils::ExpParam m_decay;
-        PhaseUtils::ExpParam m_release;
+        PhaseUtils::ZeroedExpParam m_phasorMult;
 
         InputSetter()
             : m_attack(1 / (x_sampleRate * x_attackTimeMax), 1 / (x_sampleRate * x_attackTimeMin))
             , m_decay(1 / (x_sampleRate * x_decayTimeMax), 1 / (x_sampleRate * x_decayTimeMin))
-            , m_release(1 / (x_sampleRate * x_decayTimeMax), 1 / (x_sampleRate * x_decayTimeMin))
         {
+            m_phasorMult.SetBaseByCenter(2.0 / x_maxPhasorMult);
         }
 
-        void Set(float attack, float decay, float sustain, float release, Input& input)
+        void Set(float attack, float decay, float sustain, float phasorMult, Input& input)
         {
             input.m_attackIncrement = m_attack.Update(1.0 - attack);
             input.m_decayIncrement = m_decay.Update(1.0 - decay);
             input.m_sustainLevel = sustain;
-            input.m_releaseIncrement = m_release.Update(1.0 - release);
+            input.m_releaseIncrement = 1.0 / x_sampleRate;
+            input.m_phasorMult = x_maxPhasorMult * m_phasorMult.Update(1.0 - phasorMult);
         }
     };
 
@@ -67,43 +98,36 @@ struct ADSR
     bool m_changed;
     float m_output;
 
-    ADSR()
-        : m_state(State::Idle)
-        , m_changed(false)
-        , m_output(0.0f)
+    ADSP()
+      : m_state(State::Idle)
+      , m_changed(false)
+      , m_output(0.0f)
     {
+    }
+
+    float SustainPhasor(Input& input)
+    {
+        return input.m_sustainLevel * (1.0 - input.m_phasor * input.m_phasorMult);
     }
 
     float Process(Input& input)
     {
         m_changed = false;
-        if (input.m_gate)
+        if (input.m_trig)
         {
-            if (m_state == State::Idle || m_state == State::DecayNoGate || m_state == State::Release || input.m_trig)
-            {
-                m_changed = m_state != State::Attack;
-                m_state = State::Attack;
-            }
+            m_changed = m_state != State::Attack;
+            m_state = State::Attack;
         }
-        else
+        else if (input.m_release && m_state != State::Release && m_state != State::Idle)
         {
-            if (m_state == State::Decay || m_state == State::Attack)
-            {                
-                m_changed = m_state != State::DecayNoGate;
-                m_state = State::DecayNoGate;
-            } 
-            else if (m_state == State::Sustain)
-            {
-                m_changed = m_state != State::Release;
-                m_state = State::Release;
-            }
+            m_changed = m_state != State::Release;
+            m_state = State::Release;
         }
 
         switch (m_state)
         {
             case State::Idle:
             {
-                // Do nothing in idle state
                 break;
             }
             case State::Attack:
@@ -111,7 +135,7 @@ struct ADSR
                 m_output += input.m_attackIncrement;
                 if (m_output >= 1.0f)
                 {
-                    m_state = input.m_gate ? State::Decay : State::DecayNoGate;
+                    m_state = State::Decay;
                     m_output = 1.0f;
                     m_changed = true;
                 }
@@ -119,29 +143,34 @@ struct ADSR
                 break;
             }
             case State::Decay:
-            case State::DecayNoGate:
             {
                 m_output -= input.m_decayIncrement;
-                if (m_output <= input.m_sustainLevel)
+                float sustainPhasor = SustainPhasor(input);
+                if (m_output <= sustainPhasor)
                 {
-                    if (m_state == State::Decay)
-                    {
-                        m_changed = m_state != State::Sustain;
-                        m_state = State::Sustain;
-                        m_output = input.m_sustainLevel;
-                    }
-                    else
-                    {
-                        m_changed = m_state != State::Release;
-                        m_state = State::Release;
-                    }
+                    m_changed = true;
+                    m_state = State::SustainPhasor;
+                    m_output = sustainPhasor;
+                }
+                else if (m_output <= 0.0f)
+                {
+                    m_changed = true;
+                    m_state = State::Idle;
+                    m_output = 0.0f;
                 }
 
                 break;
             }
-            case State::Sustain:
+            case State::SustainPhasor:
             {
-                m_output = input.m_sustainLevel;
+                m_output = SustainPhasor(input);
+                if (m_output <= 0.0f)
+                {
+                    m_changed = true;
+                    m_state = State::Idle;
+                    m_output = 0.0f;
+                }
+
                 break;
             }
             case State::Release:
@@ -149,7 +178,7 @@ struct ADSR
                 m_output -= input.m_releaseIncrement;
                 if (m_output <= 0.0f)
                 {
-                    m_changed = m_state != State::Idle;
+                    m_changed = true;
                     m_state = State::Idle;
                     m_output = 0.0f;
                 }

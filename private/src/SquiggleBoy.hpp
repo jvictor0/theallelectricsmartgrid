@@ -7,7 +7,7 @@
 #include "PhaseUtils.hpp"
 #include "RandomLFO.hpp"
 #include "LadderFilter.hpp"
-#include "ADSR.hpp"
+#include "ADSP.hpp"
 #include "BitCrush.hpp"
 #include "Lissajous.hpp"
 #include "QuadMixer.hpp"
@@ -197,7 +197,7 @@ struct SquiggleBoyVoice
         OPLowPassFilter m_lowPassFilter;
         OPHighPassFilter m_highPassFilter;
         LadderFilter m_ladderFilter;
-        ADSR m_adsr;
+        ADSP m_adsp;
 
         SampleRateReducer m_sampleRateReducer;
 
@@ -220,14 +220,14 @@ struct SquiggleBoyVoice
             float m_ladderResonance;
             float m_envDepth;
 
-            ADSR::InputSetter m_adsrInputSetter;
-            ADSR::Input m_adsrInput;
+            ADSP::InputSetter m_adspInputSetter;
+            ADSP::Input m_adspInput;
 
             PhaseUtils::ExpParam m_sampleRateReducerFreq;
 
-            void SetADSR(float attack, float decay, float sustain, float release)
+            void SetADSP(float attack, float decay, float sustain, float phasorMult)
             {
-                m_adsrInputSetter.Set(attack, decay, sustain, release, m_adsrInput);
+                m_adspInputSetter.Set(attack, decay, sustain, phasorMult, m_adspInput);
             }
 
             Input()
@@ -247,8 +247,8 @@ struct SquiggleBoyVoice
             m_highPassFilter.SetAlphaFromNatFreq(input.m_vcoBaseFreq * input.m_bwBase.m_expParam);
             m_lowPassFilter.SetAlphaFromNatFreq(input.m_vcoBaseFreq * input.m_bwBase.m_expParam * input.m_bwWidth.m_expParam);
 
-            float adsrEnv = m_adsr.Process(input.m_adsrInput);
-            m_ladderFilter.SetCutoff(input.m_vcoBaseFreq * input.m_ladderCutoffFactor.m_expParam * std::powf(2.0f, input.m_envDepth * adsrEnv));
+            float adspEnv = m_adsp.Process(input.m_adspInput);
+            m_ladderFilter.SetCutoff(input.m_vcoBaseFreq * input.m_ladderCutoffFactor.m_expParam * std::powf(2.0f, input.m_envDepth * adspEnv));
             m_ladderFilter.SetResonance(input.m_ladderResonance);
 
             m_output = m_lowPassFilter.Process(vcoOutput);
@@ -270,7 +270,7 @@ struct SquiggleBoyVoice
 
     struct AmpSection
     {
-        ADSR m_adsr;
+        ADSP m_adsp;
 
         float m_output;
 
@@ -284,16 +284,16 @@ struct SquiggleBoyVoice
         struct Input
         {
             float m_vcoTargetFreq;
-            ADSR::InputSetter m_adsrInputSetter;
-            ADSR::Input m_adsrInput;
+            ADSP::InputSetter m_adspInputSetter;
+            ADSP::Input m_adspInput;
 
             PhaseUtils::ZeroedExpParam m_gain;
 
             ScopeWriterHolder m_scopeWriter;
 
-            void SetADSR(float attack, float decay, float sustain, float release)
+            void SetADSP(float attack, float decay, float sustain, float phasorMult)
             {
-                m_adsrInputSetter.Set(attack, decay, sustain, release, m_adsrInput);
+                m_adspInputSetter.Set(attack, decay, sustain, phasorMult, m_adspInput);
             }
 
             Input()
@@ -310,7 +310,7 @@ struct SquiggleBoyVoice
 
         float Process(Input& input, float filterOutput)
         {
-            if (input.m_adsrInput.m_trig)
+            if (input.m_adspInput.m_trig)
             {
                 if (input.m_vcoTargetFreq * 48000 < 100)
                 {
@@ -321,23 +321,23 @@ struct SquiggleBoyVoice
                     m_freqDependentGainTarget = 1.0 / std::sqrtf(input.m_vcoTargetFreq * 48000 / 100);
                 }
 
-                if (m_adsr.m_state != ADSR::State::Idle)
+                if (m_adsp.m_state != ADSP::State::Idle)
                 {
                     m_scopeWriter.RecordEnd();
                 }
             }
 
             float freqDependentGain = m_freqDependentGainSlew.Process(m_freqDependentGainTarget);
-            float adsrEnv = std::powf(m_adsr.Process(input.m_adsrInput), 2.0f);
-            float preFader = adsrEnv * freqDependentGain * filterOutput;
+            float adspEnv = std::powf(m_adsp.Process(input.m_adspInput), 2.0f);
+            float preFader = adspEnv * freqDependentGain * filterOutput;
             
             m_scopeWriter.Write(preFader);
-            if (input.m_adsrInput.m_trig)
+            if (input.m_adspInput.m_trig)
             {
                 m_scopeWriter.RecordStart();
             }
 
-            if (m_adsr.m_changed && m_adsr.m_state == ADSR::State::Idle)
+            if (m_adsp.m_changed && m_adsp.m_state == ADSP::State::Idle)
             {
                 m_scopeWriter.RecordEnd();
             }
@@ -460,8 +460,7 @@ struct SquiggleBoyVoice
 
     struct Input
     {
-        bool m_gate;
-        bool m_trig;
+        ADSP::ADSPControl m_adspControl;
 
         VCOSection::Input m_vcoInput;
         FilterSection::Input m_filterInput;
@@ -470,21 +469,16 @@ struct SquiggleBoyVoice
         SquiggleLFO::Input m_squiggleLFOInput[2];
 
         Input()
-            : m_gate(false)
-            , m_trig(false)
         {
         }
 
         void SetGates()
         {
-            m_filterInput.m_adsrInput.m_gate = m_gate;
-            m_filterInput.m_adsrInput.m_trig = m_trig;
+            m_filterInput.m_adspInput.Set(m_adspControl);
+            m_ampInput.m_adspInput.Set(m_adspControl);
 
-            m_ampInput.m_adsrInput.m_gate = m_gate;
-            m_ampInput.m_adsrInput.m_trig = m_trig;
-
-            m_squiggleLFOInput[0].m_trig = m_trig;
-            m_squiggleLFOInput[1].m_trig = m_trig;
+            m_squiggleLFOInput[0].m_trig = m_adspControl.m_trig;
+            m_squiggleLFOInput[1].m_trig = m_adspControl.m_trig;
         }
     };
 
@@ -1143,19 +1137,18 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_voiceEncoderBank.Config(1, 0, 1, 1, "Filter Cutoff", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(1, 1, 1, 0, "Filter Resonance", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(1, 3, 1, 0, "Filter Env Depth", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 0, 0, 0, "Filter ADSR Attack", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 1, 0, 0.2, "Filter ADSR Decay", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 2, 0, 0, "Filter ADSR Sustain", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 3, 0, 0.5, "Filter ADSR Release", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(1, 0, 0, 0, "Filter ADSP Attack", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(1, 1, 0, 0.2, "Filter ADSP Decay", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(1, 2, 0, 0, "Filter ADSP Sustain", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(1, 3, 0, 0.5, "Filter ADSP Phasor Mult", input.m_voiceEncoderBankInput);
 
-        m_voiceEncoderBank.Config(1, 0, 2, 0, "Amp ADSR Attack", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 1, 2, 0.3, "Amp ADSR Decay", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 2, 2, 0.5, "Amp ADSR Sustain", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 3, 2, 0.5, "Amp ADSR Release", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(1, 0, 2, 0, "Amp ADSP Attack", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(1, 1, 2, 0.3, "Amp ADSP Decay", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(1, 2, 2, 0.5, "Amp ADSP Sustain", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(1, 3, 2, 0.5, "Amp ADSP Phasor Mult", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(1, 0, 3, 1, "Amp Gain", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(1, 1, 3, 0, "Delay Send", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(1, 2, 3, 0, "Reverb Send", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 3, 3, 0.5, "Gate Length", input.m_voiceEncoderBankInput);
 
         m_voiceEncoderBank.Config(2, 0, 0, 1, "Pan Radius", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(2, 1, 0, 0, "Pan Phase Shift", input.m_voiceEncoderBankInput);
@@ -1228,8 +1221,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             modulatorValues.m_value[2][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[0].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
             modulatorValues.m_value[3][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[1].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
 
-            modulatorValues.m_value[4][i] = m_voices[i].m_filter.m_adsr.m_output;
-            modulatorValues.m_value[5][i] = m_voices[i].m_amp.m_adsr.m_output;
+            modulatorValues.m_value[4][i] = m_voices[i].m_filter.m_adsp.m_output;
+            modulatorValues.m_value[5][i] = m_voices[i].m_amp.m_adsp.m_output;
 
             modulatorValues.m_value[6][i] = m_voices[i].m_squiggleLFO[0].m_output;
             modulatorValues.m_value[7][i] = m_voices[i].m_squiggleLFO[1].m_output;
@@ -1323,14 +1316,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_filterInput.m_ladderResonance = m_voiceEncoderBank.GetValue(1, 1, 1, i);
             m_state[i].m_filterInput.m_envDepth = m_voiceEncoderBank.GetValue(1, 3, 1, i) * 10;
 
-            m_state[i].m_filterInput.SetADSR(
+            m_state[i].m_filterInput.SetADSP(
                 m_voiceEncoderBank.GetValue(1, 0, 0, i), 
                 m_voiceEncoderBank.GetValue(1, 1, 0, i), 
                 m_voiceEncoderBank.GetValue(1, 2, 0, i), 
                 m_voiceEncoderBank.GetValue(1, 3, 0, i));
 
             m_state[i].m_ampInput.m_vcoTargetFreq = input.m_baseFreq[i];
-            m_state[i].m_ampInput.SetADSR(
+            m_state[i].m_ampInput.SetADSP(
                 m_voiceEncoderBank.GetValue(1, 0, 2, i), 
                 m_voiceEncoderBank.GetValue(1, 1, 2, i), 
                 m_voiceEncoderBank.GetValue(1, 2, 2, i), 
