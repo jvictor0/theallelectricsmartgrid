@@ -122,10 +122,10 @@ struct MeterDrawer
 
 struct VoiceMeterComponent : public juce::Component
 {
-    SquiggleBoyWithEncoderBank::UIState* m_uiState;
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     MeterDrawer m_meterDrawer[TheNonagonInternal::x_numVoices];
 
-    VoiceMeterComponent(SquiggleBoyWithEncoderBank::UIState* uiState)
+    VoiceMeterComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
         : m_uiState(uiState)
     {
         setSize(400, 200);
@@ -137,8 +137,8 @@ struct VoiceMeterComponent : public juce::Component
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
-            float rmsdBFS = m_uiState->m_voiceMeterReader[i].GetRMSDbFS();
-            float peakdBFS = m_uiState->m_voiceMeterReader[i].GetPeakDbFS();
+            float rmsdBFS = m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[i].GetRMSDbFS();
+            float peakdBFS = m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[i].GetPeakDbFS();
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
             m_meterDrawer[i].m_height = getHeight() / TheNonagonInternal::x_voicesPerTrio;
             m_meterDrawer[i].m_width = getWidth() / TheNonagonInternal::x_voicesPerTrio;

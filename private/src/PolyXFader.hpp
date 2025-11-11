@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ModuleUtils.hpp"
 #include "Slew.hpp"
 #include "WaveTable.hpp"
@@ -21,6 +23,8 @@ struct PolyXFaderInternal
         float m_slope;
         float m_center;
 
+        float m_externalWeights[16];
+
         Input()
             : m_values(nullptr)
             , m_attackFrac(0.0f)
@@ -31,6 +35,10 @@ struct PolyXFaderInternal
             , m_center(0.0f)
         {
             m_waveTable = &WaveTable::GetCosine();
+            for (size_t i = 0; i < 16; ++i)
+            {
+                m_externalWeights[i] = 1.0f;
+            }
         }
 
         float ComputePhase(size_t i)
@@ -152,19 +160,14 @@ struct PolyXFaderInternal
             return;
         }
         
-        bool first = false;
+        m_top = true;
         for (size_t i = 0; i < m_size; ++i)
         {
             if (m_weights[i] != 0)
             {
-                if (!first)
-                {
-                    first = true;
-                    m_top = input.m_top[i];
-                }
-
+                m_top = m_top && input.m_top[i];
                 m_valuesPostQuantize[i] = Quantize(input, i, input.ComputePhase(i));
-                output += m_valuesPostQuantize[i] * m_weights[i];
+                output += m_valuesPostQuantize[i] * m_weights[i] * input.m_externalWeights[i];
             }
         }
 
@@ -197,108 +200,3 @@ struct PolyXFaderInternal
         }   
     }
 };
-            
-#ifndef IOS_BUILD
-struct PolyXFader : Module
-{
-    PolyXFaderInternal m_fader[16];
-    PolyXFaderInternal::Input m_state[16];
-    float m_values[16];
-
-    IOMgr m_ioMgr;
-    IOMgr::Input* m_input;
-    IOMgr::Input* m_slope;
-    IOMgr::Input* m_center;
-    IOMgr::Input* m_mult;
-    IOMgr::Input* m_attackFrac;
-    IOMgr::Input* m_shape;
-    IOMgr::Input* m_phaseShift;
-    IOMgr::Output* m_output;
-
-    PolyXFader()
-        : m_ioMgr(this)
-    {
-        m_input = m_ioMgr.AddInput("Input", true);
-        m_input->m_scale = 0.1;
-        
-        m_slope = m_ioMgr.AddInput("Slope", true);
-        m_slope->m_scale = 0.1;
-        m_center = m_ioMgr.AddInput("Center", true);
-        m_center->m_scale = 0.1;
-
-        m_mult = m_ioMgr.AddInput("Mult", true);
-        m_mult->m_scale = 16.0 / 10.0;
-        m_mult->m_offset = 1.0;
-
-        m_attackFrac = m_ioMgr.AddInput("Skew", true);
-        m_attackFrac->m_scale = 0.1;
-
-        m_shape = m_ioMgr.AddInput("shape", true);
-        m_shape->m_scale = 0.1;
-
-        m_phaseShift = m_ioMgr.AddInput("Phase Shift", true);
-        m_phaseShift->m_scale = 0.1;
-        
-        m_output = m_ioMgr.AddOutput("Output", true);
-        m_output->m_scale = 10;
-
-        for (size_t i = 0; i < 16; ++i)
-        {
-            m_input->SetTarget(i, &m_values[i]);
-            m_slope->SetTarget(i, &m_state[i].m_slope);
-            m_center->SetTarget(i, &m_state[i].m_center);
-
-            m_mult->SetTarget(i, &m_state[i].m_mult);
-            m_attackFrac->SetTarget(i, &m_state[i].m_attackFrac);
-            m_shape->SetTarget(i, &m_state[i].m_shape);
-            m_phaseShift->SetTarget(i, &m_state[i].m_phaseShift);
-            
-            m_output->SetSource(i, &m_fader[i].m_output);
-            m_state[i].m_values = m_values;
-        }
-
-        m_ioMgr.Config();
-    }
-
-    void process(const ProcessArgs &args) override
-    {
-        m_ioMgr.Process();
-        m_output->SetChannels(m_center->m_value.m_channels);
-        for (int i = 0; i < m_center->m_value.m_channels; ++i)
-        {
-            m_state[i].m_size = m_input->m_value.m_channels;
-            m_fader[i].Process(m_state[i]);
-        }
-
-        m_ioMgr.SetOutputs();
-    }
-};
-
-struct PolyXFaderWidget : public ModuleWidget
-{
-    PolyXFaderWidget(PolyXFader* module)
-    {
-		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/PolyXFader.svg")));
-
-		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
-        if (module)
-        {
-            module->m_input->Widget(this, 1, 1);
-            module->m_slope->Widget(this, 2, 1);
-            module->m_center->Widget(this, 3, 1);
-
-            module->m_mult->Widget(this, 1, 2);
-            module->m_attackFrac->Widget(this, 2, 2);
-            module->m_shape->Widget(this, 3, 2);
-            module->m_phaseShift->Widget(this, 5, 2);
-
-            module->m_output->Widget(this, 1, 5);
-        }
-    }
-};
-#endif

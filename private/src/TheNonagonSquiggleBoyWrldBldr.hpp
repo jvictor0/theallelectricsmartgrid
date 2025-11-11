@@ -399,11 +399,11 @@ struct TheNonagonSquiggleBoyWrldBldr
 
     EncoderBankUI MkEncoderBankUI()
     {
-        return EncoderBankUI(static_cast<int>(Routes::Encoder), &m_internal->m_squiggleBoyUIState.m_encoderBankUIState, &m_messageBus);
+        return EncoderBankUI(static_cast<int>(Routes::Encoder), &m_internal->m_uiState.m_squiggleBoyUIState.m_encoderBankUIState, &m_messageBus);
     }
 
     AnalogUI MkAnalogUI(int ix)
     {
-        return m_internal->m_analogUIState.MkAnalogUI(static_cast<int>(Routes::Analog), ix, &m_messageBus);
+        return m_internal->m_uiState.m_analogUIState.MkAnalogUI(static_cast<int>(Routes::Analog), ix, &m_messageBus);
     }
 };

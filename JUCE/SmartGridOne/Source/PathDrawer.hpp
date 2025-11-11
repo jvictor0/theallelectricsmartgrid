@@ -4,7 +4,7 @@
 
 struct PathDrawer
 {
-    static constexpr size_t x_numPoints = 512;
+    static constexpr size_t x_numPoints = 1024;
 
     float m_height;
     float m_width;
@@ -12,6 +12,7 @@ struct PathDrawer
     float m_yMin;
 
     bool m_logX;
+    bool m_scaleY;
 
     float m_bucketExpX[x_numPoints];
 
@@ -21,6 +22,7 @@ struct PathDrawer
         , m_xMin(0)
         , m_yMin(0)
         , m_logX(true)
+        , m_scaleY(false)
     {
         ComputeBucketExpX();
     }
@@ -31,6 +33,7 @@ struct PathDrawer
         , m_xMin(xMin)
         , m_yMin(yMin)
         , m_logX(true)
+        , m_scaleY(false)
     {
         ComputeBucketExpX();
     }
@@ -64,10 +67,29 @@ struct PathDrawer
     {
         juce::Path path;
 
+        float yScale = 1;
+        float yOffset = 0;
+        if (m_scaleY)
+        {
+            float minY = std::numeric_limits<float>::max();
+            float maxY = std::numeric_limits<float>::min();
+            for (size_t j = 0; j < x_numPoints; ++j)
+            {
+                float xIn = m_logX ? m_bucketExpX[j] : static_cast<float>(j) / x_numPoints;
+                float y = fn(xIn);
+                minY = std::min(minY, y);
+                maxY = std::max(maxY, y);
+            }
+
+            yScale = 1 / (maxY - minY);
+            yOffset = -minY;
+        }
+
         for (size_t j = 0; j < x_numPoints; ++j)
         {
-            float xIn = m_logX ? m_bucketExpX[j] : static_cast<float>(j) / (2 * x_numPoints);
+            float xIn = m_logX ? m_bucketExpX[j] : static_cast<float>(j);
             float y = fn(xIn);
+            y = yScale * y + yOffset;
             float screenY = m_height * (1 - y);
             float x = static_cast<float>(j) / static_cast<float>(x_numPoints);
             float screenX = m_width * x;

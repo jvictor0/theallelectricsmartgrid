@@ -112,12 +112,7 @@ struct MultiPhasorGateInternal
 
             if (m_set[i])
             {
-                int winding = m_bounds[i].m_circleDistanceTracker.m_now.m_winding;
                 float thisPhase = m_bounds[i].Process(input.m_phasor);
-                if (winding != m_bounds[i].m_circleDistanceTracker.m_now.m_winding)
-                {
-                    INFO("Winding changed? %d -> %d", winding, m_bounds[i].m_circleDistanceTracker.m_now.m_winding);
-                }
 
                 if (0.5 <= thisPhase)
                 {

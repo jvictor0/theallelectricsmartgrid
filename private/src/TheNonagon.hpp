@@ -59,6 +59,22 @@ struct TheNonagonInternal
             }
         }
     };
+
+    struct UIState
+    {
+        TheoryOfTime::UIState m_theoryOfTimeUIState;
+        std::atomic<int> m_loopMultiplier[x_numTrios];
+
+        int GetLoopMultiplier(int trioIndex)
+        {
+            return m_loopMultiplier[trioIndex].load();
+        }
+
+        void SetLoopMultiplier(int trioIndex, int value)
+        {
+            m_loopMultiplier[trioIndex].store(value);
+        }
+    };
     
     NonagonNoteWriter m_noteWriter;
 
@@ -161,7 +177,7 @@ struct TheNonagonInternal
 
         input.m_trigLogic.SetInput(input.m_multiPhasorGateInput);
 
-        input.m_multiPhasorGateInput.m_phasor = m_theoryOfTime.m_phasor;
+        input.m_multiPhasorGateInput.m_phasor = m_theoryOfTime.GetMasterLoop()->m_phasor;
 
         for (size_t i = 0; i < x_numVoices; ++i)
         {
@@ -172,9 +188,9 @@ struct TheNonagonInternal
                 denom = m_theoryOfTime.GetLoopMultiplier(voiceClock);
             }
 
-            for (size_t j = 0; j < x_numVoices; ++j)
+            for (size_t j = 0; j < x_numTimeBits; ++j)
             {                    
-                bool coMute = m_lameJuis.m_outputs[j / x_voicesPerTrio].m_coMuteState.m_coMutes[i];
+                bool coMute = m_lameJuis.m_outputs[i / x_voicesPerTrio].m_coMuteState.m_coMutes[j];
                 if (!coMute)
                 {
                     denom = std::lcm(denom, m_theoryOfTime.GetLoopMultiplier(j));
@@ -247,7 +263,7 @@ struct TheNonagonInternal
                 NonagonNoteWriter::EventData eventData;
                 eventData.m_voiceIx = i;
                 eventData.m_voltPerOct = m_output.m_voltPerOct[i];
-                eventData.m_startPosition = m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_phasor;
+                eventData.m_startPosition = m_theoryOfTime.m_phasorIndependent;
                 for (size_t j = 0; j < x_numExtraTimbres; ++j)
                 {
                     eventData.m_timbre[j] = m_output.m_extraTimbre[i][j];
@@ -259,7 +275,7 @@ struct TheNonagonInternal
             {
                 if (m_output.m_gate[i])
                 {
-                    m_noteWriter.RecordNoteEnd(i, m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_phasor);
+                    m_noteWriter.RecordNoteEnd(i, m_theoryOfTime.m_phasorIndependent);
                 }
                 
                 m_output.m_gate[i] = false;
@@ -276,7 +292,7 @@ struct TheNonagonInternal
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {
             m_output.m_totPhasors[i] = m_theoryOfTime.m_loops[i].m_phasor;
-            m_output.m_totTop[i] = m_theoryOfTime.m_loops[i].m_top;
+            m_output.m_totTop[i] = m_theoryOfTime.m_loops[i].m_topIndependent;
         }
     }
 
@@ -285,7 +301,7 @@ struct TheNonagonInternal
         SetTheoryOfTimeInput(input);
         m_theoryOfTime.Process(input.m_theoryOfTimeInput);
 
-        if (m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_top)
+        if (m_theoryOfTime.m_topIndependent)
         {
             m_noteWriter.RecordStartIndex();
         }
@@ -1229,6 +1245,11 @@ struct TheNonagonSmartGrid
         m_sheafViewGridWaterGrid->RemoveGridId();
     }
 
+    void SetupMonoScopeWriter(ScopeWriter* scopeWriter)
+    {
+        m_nonagon.m_theoryOfTime.SetupMonoScopeWriter(scopeWriter);
+    }
+
     void HandleSceneTrigger(bool shift, int scene)
     {
         if (shift)
@@ -1261,9 +1282,14 @@ struct TheNonagonSmartGrid
         m_stateSaverState.m_blend = blendFactor;
     }
 
-    void PopulateUIState()
+    void PopulateUIState(TheNonagonInternal::UIState* uiState)
     {
-        m_nonagon.m_noteWriter.SetCurPosition(m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_phasor);
+        m_nonagon.m_noteWriter.SetCurPosition(m_nonagon.m_theoryOfTime.m_phasorIndependent);
+        m_nonagon.m_theoryOfTime.PopulateUIState(&uiState->m_theoryOfTimeUIState);
+        for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
+        {
+            uiState->SetLoopMultiplier(i, m_state.m_multiPhasorGateInput.m_phasorDenominator[i * TheNonagonInternal::x_voicesPerTrio]);
+        }
     }
     
     void ProcessSample(float dt)
@@ -1273,8 +1299,8 @@ struct TheNonagonSmartGrid
         m_nonagon.Process(m_state);
     }
 
-    void ProcessFrame()
+    void ProcessFrame(TheNonagonInternal::UIState* uiState)
     {
-        PopulateUIState();
+        PopulateUIState(uiState);
     }
 };

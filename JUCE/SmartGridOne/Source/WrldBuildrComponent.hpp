@@ -263,6 +263,7 @@ struct WrldBuildrComponent : public juce::Component
     std::unique_ptr<ScopeComponentHolder> m_voiceMeter;
     std::unique_ptr<ScopeComponentHolder> m_analyzer;
     std::unique_ptr<ScopeComponentHolder> m_quadAnalyzer[2];
+    std::unique_ptr<ScopeComponentHolder> m_theoryOfTimeScope;
 
     std::unique_ptr<ScopeComponentHolder> m_soundStage;
     std::unique_ptr<ScopeComponentHolder> m_melodyRoll;
@@ -390,7 +391,11 @@ struct WrldBuildrComponent : public juce::Component
         m_joyStickFixed = std::make_unique<JoyStickHolder>(std::move(joyStickReturn), 4, 4);
         addAndMakeVisible(m_joyStickFixed->m_joyStick.get());
 
-        SquiggleBoyWithEncoderBank::UIState* uiState = m_nonagon->GetSquiggleBoyUIState();
+        auto theoryOfTimeScope = std::make_unique<TheoryOfTimeScopeComponent>(m_nonagon->GetUIState());
+        m_theoryOfTimeScope = std::make_unique<ScopeComponentHolder>(std::move(theoryOfTimeScope), 8, 8, 8, 8);
+        addAndMakeVisible(m_theoryOfTimeScope->m_scopeComponent.get());
+
+        TheNonagonSquiggleBoyInternal::UIState* uiState = m_nonagon->GetUIState();
 
         for (int i = 0; i < 4; ++i)
         {
@@ -587,6 +592,8 @@ struct WrldBuildrComponent : public juce::Component
             m_reverbAnalyzer[i]->m_scopeComponent->setVisible(false);
         }
 
+        m_theoryOfTimeScope->m_scopeComponent->setVisible(false);
+
         for (int i = 0; i < 4; ++i)
         {
             m_controlScope[i]->m_scopeComponent->setVisible(false);
@@ -616,6 +623,8 @@ struct WrldBuildrComponent : public juce::Component
             m_delayAnalyzer[i]->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Delay);
             m_reverbAnalyzer[i]->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Reverb);
         }
+
+        m_theoryOfTimeScope->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::QuadMaster);
 
         for (int i = 0; i < 4; ++i)
         {
@@ -688,6 +697,8 @@ struct WrldBuildrComponent : public juce::Component
             m_delayAnalyzer[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
             m_reverbAnalyzer[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
         }
+
+        m_theoryOfTimeScope->SetBounds(m_cellSize, m_gridX, m_gridY);
 
         for (int i = 0; i < 4; ++i)
         {

@@ -192,7 +192,7 @@ struct NonagonWrapperQuadLaunchpadTwister
 
         MidiTwisterOutputHandler(TheNonagonSquiggleBoyInternal* owner)
             : m_owner(owner)
-            , m_midiWriter(&owner->m_squiggleBoyUIState.m_encoderBankUIState)
+            , m_midiWriter(&owner->m_uiState.m_squiggleBoyUIState.m_encoderBankUIState)
         {
         }
 
@@ -500,22 +500,32 @@ struct NonagonWrapper
 
     ScopeWriter* GetAudioScopeWriter()
     {
-        return &m_internal.m_squiggleBoyUIState.m_audioScopeWriter;
+        return &m_internal.m_uiState.m_squiggleBoyUIState.m_audioScopeWriter;
     }
 
     ScopeWriter* GetControlScopeWriter()
     {
-        return &m_internal.m_squiggleBoyUIState.m_controlScopeWriter;
+        return &m_internal.m_uiState.m_squiggleBoyUIState.m_controlScopeWriter;
+    }
+
+    TheNonagonSquiggleBoyInternal::UIState* GetUIState()
+    {
+        return &m_internal.m_uiState;
     }
 
     SquiggleBoyWithEncoderBank::UIState* GetSquiggleBoyUIState()
     {
-        return &m_internal.m_squiggleBoyUIState;
+        return &m_internal.m_uiState.m_squiggleBoyUIState;
+    }
+
+    TheNonagonInternal::UIState* GetNonagonUIState()
+    {
+        return &m_internal.m_uiState.m_nonagonUIState;
     }
 
     SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode GetVisualDisplayMode()
     {
-        return m_internal.m_squiggleBoyUIState.m_visualDisplayMode.load();
+        return m_internal.m_uiState.m_squiggleBoyUIState.m_visualDisplayMode.load();
     }
 
     StateInterchange* GetStateInterchange()

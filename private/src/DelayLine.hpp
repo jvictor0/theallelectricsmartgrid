@@ -97,7 +97,11 @@ struct DelayLine
         // use cubic interpolation
         //
         float index = m_index - delaySamples + 2 * x_maxDelaySamples;
+        return ReadAtIndex(index);
+    }
 
+    float ReadAtIndex(float index)
+    {
         size_t iSub1 = static_cast<size_t>(index - 1) % x_maxDelaySamples;
         size_t i0 = (iSub1 + 1) % x_maxDelaySamples;
         size_t i1 = (iSub1 + 2) % x_maxDelaySamples;
@@ -123,6 +127,69 @@ struct DelayLine
             float readRight = Read(fader.m_right);
             return readLeft * (1.0f - fader.m_fade) + readRight * fader.m_fade;
         }
+    }
+
+    float ReadAsBuffer(double bufferSamples, double bufferPhase, double bufferPos, size_t curIndex)
+    {
+        double index;
+        if (bufferPos <= bufferPhase)
+        {
+            index = curIndex - bufferSamples * (bufferPhase - bufferPos);
+        }
+        else
+        {
+            index = curIndex - bufferSamples * (1.0 - (bufferPos - bufferPhase));
+        }
+
+        if (x_maxDelaySamples <= curIndex - index)
+        {
+            return 0;
+        }
+
+        return ReadAtIndex(index);
+    }
+
+    struct UIState
+    {
+        std::atomic<size_t> m_index;
+        std::atomic<DelayLine<Size>*> m_delayLine;
+
+        UIState()
+            : m_index(0)
+            , m_delayLine(nullptr)
+        {
+        }
+
+        void SetIndex(size_t index)
+        {
+            m_index.store(index);
+        }
+
+        size_t GetIndex()
+        {
+            return m_index.load();
+        }
+
+        void SetDelayLine(DelayLine<Size>* delayLine)
+        {
+            m_delayLine.store(delayLine);
+        }
+
+        DelayLine<Size>* GetDelayLine()
+        {
+            return m_delayLine.load();
+        }
+
+        float ReadAsBuffer(double bufferSamples, double bufferPhase, double bufferPos)
+        {
+            return GetDelayLine()->ReadAsBuffer(bufferSamples, bufferPhase, bufferPos, GetIndex());
+        }
+    };
+
+    void PopulateUIState(UIState* uiState)
+    {
+        uiState->SetIndex(m_index);
+        uiState->SetDelayLine(this);
     }
 };
 

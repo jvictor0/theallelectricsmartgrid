@@ -6,22 +6,22 @@
 
 struct MultibandEQComponent : public juce::Component
 {
-    SquiggleBoyWithEncoderBank::UIState* m_uiState;
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     WindowedFFT m_windowedFFT[4];
 
-    MultibandEQComponent(SquiggleBoyWithEncoderBank::UIState* uiState)
+    MultibandEQComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
         : m_uiState(uiState)
     {
         setSize(400, 200);
         for (size_t i = 0; i < 4; ++i)
         {
-            m_windowedFFT[i] = WindowedFFT(&m_uiState->m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Stereo));
+            m_windowedFFT[i] = WindowedFFT(&m_uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Stereo));
         }
     }
 
     MultibandSaturator<4, 2>::UIState* GetMasteringChainUIState()
     {
-        return &m_uiState->m_stereoMasteringChainUIState;
+        return &m_uiState->m_squiggleBoyUIState.m_stereoMasteringChainUIState;
     }
 
     struct EQResponseDrawer
@@ -57,9 +57,9 @@ struct MultibandEQComponent : public juce::Component
 
 struct MultibandGainReductionComponent : public juce::Component
 {
-    SquiggleBoyWithEncoderBank::UIState* m_uiState;
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
 
-    MultibandGainReductionComponent(SquiggleBoyWithEncoderBank::UIState* uiState)
+    MultibandGainReductionComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
         : m_uiState(uiState)
     {
         setSize(400, 200);
@@ -67,7 +67,7 @@ struct MultibandGainReductionComponent : public juce::Component
 
     MultibandSaturator<4, 2>::UIState* GetMasteringChainUIState()
     {
-        return &m_uiState->m_stereoMasteringChainUIState;
+        return &m_uiState->m_squiggleBoyUIState.m_stereoMasteringChainUIState;
     }
 
     void paint(juce::Graphics& g) override

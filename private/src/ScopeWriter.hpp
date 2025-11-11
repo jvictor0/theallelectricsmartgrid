@@ -345,6 +345,9 @@ struct ScopeReader
     size_t m_transferIndex;
     size_t m_postTransferIndex;
 
+    float m_startY;
+    float m_prevStartY;
+
     bool m_empty;
 
     ScopeReader(
@@ -362,6 +365,10 @@ struct ScopeReader
         size_t lastStartIndexIndex = m_scopeWriter->m_startIndexIndex[m_scopeIx][m_voiceIx].load();
         m_startIndex = m_scopeWriter->m_startIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 1) % ScopeWriter::x_numStartIndices];
         size_t prevStartIndex = m_scopeWriter->m_startIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 2) % ScopeWriter::x_numStartIndices];
+
+        m_startY = m_scopeWriter->Read(m_scopeIx, m_voiceIx, m_startIndex);
+        m_prevStartY = m_scopeWriter->Read(m_scopeIx, m_voiceIx, prevStartIndex);
+
         m_transferIndex = m_scopeWriter->m_publishedIndex.load() - 1;
         size_t endIndex = m_scopeWriter->m_endIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 1) % ScopeWriter::x_numStartIndices];
         if (m_startIndex < endIndex)

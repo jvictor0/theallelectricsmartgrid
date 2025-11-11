@@ -133,6 +133,7 @@ struct QuadDelayInternal
 
     struct UIState
     {
+        DelayLine<x_delayLineSize>::UIState m_delayLineUIState[4];
         std::atomic<float> m_hpAlpha[4];
         std::atomic<float> m_lpAlpha[4];
     };
@@ -143,6 +144,7 @@ struct QuadDelayInternal
         {
             uiState->m_hpAlpha[i].store(m_postFeedbackFilter.m_bff.m_filters[i].m_highPassFilter.m_alpha);
             uiState->m_lpAlpha[i].store(m_postFeedbackFilter.m_bff.m_filters[i].m_lowPassFilter.m_alpha);
+            m_delayLine[i].PopulateUIState(&uiState->m_delayLineUIState[i]);
         }
     }
 
@@ -186,7 +188,7 @@ struct QuadDelayInputSetter
     PhaseUtils::ExpParam m_modFreq[4];
 
     PhaseUtils::ExpParam m_wideners[4];
-    PhaseUtils::ExpParam m_modDepth[4];
+    PhaseUtils::ZeroedExpParam m_modDepth[4];
 
     PhaseUtils::ZeroedExpParam m_feedback[4];
 
@@ -215,6 +217,7 @@ struct QuadDelayInputSetter
             m_delayTimeFilter[i].SetAlphaFromNatFreq(1.0 / 48000.0);
             m_modDepthFilter[i].SetAlphaFromNatFreq(1.0 / 48000.0);
             m_rotateFilter[i].SetAlphaFromNatFreq(0.25 / 48000.0);
+            m_feedback[i].SetBaseByCenter(0.25)
         }
     }
 
@@ -237,7 +240,7 @@ struct QuadDelayInputSetter
     
     void SetModulation(int i, float modFreq, float modDepth, typename QuadDelayInternal<IsReverb>::Input& input)
     {
-        input.m_modDepth[i] = m_modDepthFilter[i].Process(modDepth);
+        input.m_modDepth[i] = m_modDepthFilter[i].Process(m_modDepth[i].Update(modDepth));
         input.m_lfoInput.m_freq[i] = m_modFreq[i].Update(modFreq);
     }
 
@@ -254,6 +257,6 @@ struct QuadDelayInputSetter
 
     void SetFeedback(int i, float feedback, typename QuadDelayInternal<IsReverb>::Input& input)
     {
-        input.m_feedback[i] = m_feedback[i].Update(feedback);
+        input.m_feedback[i] = 1.25 * m_feedback[i].Update(feedback);
     }
 };

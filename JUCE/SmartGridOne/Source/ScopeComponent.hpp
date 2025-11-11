@@ -18,14 +18,14 @@ struct ScopeComponent : public juce::Component
     std::atomic<size_t>* m_voiceIx;
     size_t m_scopeIx;
     ScopeWriter* m_scopeWriter;
-    SquiggleBoyWithEncoderBank::UIState* m_uiState;
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
 
     int* m_voiceOffset;
     ScopeType m_scopeType;
 
-    ScopeComponent(size_t scopeIx, ScopeWriter* scopeWriter, int* voiceOffset, ScopeType scopeType, SquiggleBoyWithEncoderBank::UIState* uiState)
-        : m_scopeReaderFactory(scopeWriter, uiState->m_activeTrack.load(), scopeIx, x_numXSamples, 1)
-        , m_voiceIx(&uiState->m_activeTrack)
+    ScopeComponent(size_t scopeIx, ScopeWriter* scopeWriter, int* voiceOffset, ScopeType scopeType, TheNonagonSquiggleBoyInternal::UIState* uiState)
+        : m_scopeReaderFactory(scopeWriter, uiState->m_squiggleBoyUIState.m_activeTrack.load(), scopeIx, x_numXSamples, 1)
+        , m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
         , m_scopeIx(scopeIx)
         , m_scopeWriter(scopeWriter)
         , m_uiState(uiState)
@@ -64,7 +64,7 @@ struct ScopeComponent : public juce::Component
             else
             {
                 voiceIx += i;
-                if (m_uiState->m_muted[voiceIx].load())
+                if (m_uiState->m_squiggleBoyUIState.m_muted[voiceIx].load())
                 {
                     continue;
                 }
@@ -150,9 +150,9 @@ struct SoundStageComponent : public juce::Component
     static constexpr size_t x_scopeIx = 4;
     static constexpr size_t x_numVoices = 9;
 
-    SquiggleBoyWithEncoderBank::UIState* m_uiState;
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     
-    SoundStageComponent(SquiggleBoyWithEncoderBank::UIState* uiState)
+    SoundStageComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
         : m_uiState(uiState)
     {
         setSize(400, 200);
@@ -173,9 +173,9 @@ struct SoundStageComponent : public juce::Component
 
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            float xPos = m_uiState->m_xPos[i].load();
-            float yPos = m_uiState->m_yPos[i].load();
-            float volume = m_uiState->m_voiceMeterReader[i].GetRMSLinear();
+            float xPos = m_uiState->m_squiggleBoyUIState.m_xPos[i].load();
+            float yPos = m_uiState->m_squiggleBoyUIState.m_yPos[i].load();
+            float volume = m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[i].GetRMSLinear();
             auto centerX = width * xPos * (1 - border) + border * width / 2;
             auto centerY = height * (1 - yPos) * (1 - border) + border * height / 2;
 
@@ -276,7 +276,7 @@ struct AnalyserComponent : public juce::Component
 
     int* m_voiceOffset;
 
-    SquiggleBoyWithEncoderBank::UIState* m_uiState;
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     SquiggleBoyWithEncoderBank::UIState::FilterParams* m_filterParams;
 
     bool m_logX;
@@ -286,11 +286,11 @@ struct AnalyserComponent : public juce::Component
     AnalyserComponent(
         WindowedFFT windowedFFT, 
         int* voiceOffset, 
-        SquiggleBoyWithEncoderBank::UIState* uiState)
-        : m_voiceIx(&uiState->m_activeTrack)
+        TheNonagonSquiggleBoyInternal::UIState* uiState)
+        : m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
         , m_voiceOffset(voiceOffset)
         , m_uiState(uiState)
-        , m_filterParams(uiState->m_filterParams)
+        , m_filterParams(uiState->m_squiggleBoyUIState.m_filterParams)
         , m_logX(true)
     {
         for (size_t i = 0; i < x_voicesPerTrack; ++i)
@@ -346,7 +346,7 @@ struct AnalyserComponent : public juce::Component
             if (voiceOffset == -1)
             {
                 voiceIx = baseVoiceIx + i;
-                if (m_uiState->m_muted[voiceIx].load())
+                if (m_uiState->m_squiggleBoyUIState.m_muted[voiceIx].load())
                 {
                     continue;
                 }
@@ -414,13 +414,13 @@ struct QuadAnalyserComponent : public juce::Component
     };
 
     QuadWindowedFFT m_quadWindowedFFT[3];
-    SquiggleBoyWithEncoderBank::UIState* m_uiState;
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     bool m_eigen;
     bool m_drawAll;
 
     Type m_type;
 
-    QuadAnalyserComponent(SquiggleBoyWithEncoderBank::UIState* uiState, bool eigen, Type type)
+    QuadAnalyserComponent(TheNonagonSquiggleBoyInternal::UIState* uiState, bool eigen, Type type)
         : m_uiState(uiState)
         , m_eigen(eigen)
         , m_drawAll(!eigen)
@@ -428,13 +428,13 @@ struct QuadAnalyserComponent : public juce::Component
     {
         if (m_type == Type::Master)
         {
-            m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master));
+            m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master));
         }
         else
         {
-            m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay));
-            m_quadWindowedFFT[1] = QuadWindowedFFT(&uiState->m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb));
-            m_quadWindowedFFT[2] = QuadWindowedFFT(&uiState->m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Dry));
+            m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay));
+            m_quadWindowedFFT[1] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb));
+            m_quadWindowedFFT[2] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Dry));
         }
     }
 
@@ -459,11 +459,11 @@ struct QuadAnalyserComponent : public juce::Component
 
     struct FilterDrawFn
     {
-        SquiggleBoyWithEncoderBank::UIState* m_uiState;
+        TheNonagonSquiggleBoyInternal::UIState* m_uiState;
         Type m_type;
         size_t m_speakerIx;
 
-        FilterDrawFn(SquiggleBoyWithEncoderBank::UIState* uiState, Type type, size_t speakerIx)
+        FilterDrawFn(TheNonagonSquiggleBoyInternal::UIState* uiState, Type type, size_t speakerIx)
             : m_uiState(uiState)
             , m_type(type)
             , m_speakerIx(speakerIx)
@@ -478,14 +478,14 @@ struct QuadAnalyserComponent : public juce::Component
             {
                 case Type::Delay:
                 {
-                    hpAlpha = m_uiState->m_delayUIState.m_hpAlpha[m_speakerIx].load();
-                    lpAlpha = m_uiState->m_delayUIState.m_lpAlpha[m_speakerIx].load();
+                    hpAlpha = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_hpAlpha[m_speakerIx].load();
+                    lpAlpha = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_lpAlpha[m_speakerIx].load();
                     break;
                 }
                 case Type::Reverb:
                 {
-                    hpAlpha = m_uiState->m_reverbUIState.m_hpAlpha[m_speakerIx].load();
-                    lpAlpha = m_uiState->m_reverbUIState.m_lpAlpha[m_speakerIx].load();
+                    hpAlpha = m_uiState->m_squiggleBoyUIState.m_reverbUIState.m_hpAlpha[m_speakerIx].load();
+                    lpAlpha = m_uiState->m_squiggleBoyUIState.m_reverbUIState.m_lpAlpha[m_speakerIx].load();
                     break;
                 }
                 case Type::Master:
@@ -564,5 +564,77 @@ struct QuadAnalyserComponent : public juce::Component
     void mouseDown(const juce::MouseEvent& event) override
     {
         m_drawAll = !m_drawAll;
+    }
+};
+
+struct TheoryOfTimeScopeComponent : public juce::Component
+{
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
+
+    TheoryOfTimeScopeComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
+        : m_uiState(uiState)
+    {
+        setSize(400, 200);
+    }
+    
+    struct DrawFn
+    {
+        ScopeReader m_scopeReader;
+        float m_mod;
+
+        DrawFn(ScopeReaderFactory* scopeReaderFactory, float mod)
+            : m_scopeReader(scopeReaderFactory->Create())
+            , m_mod(mod)
+        {
+        }
+
+        float operator()(float x) 
+        {
+            float y = m_scopeReader.Get(x);
+            return std::fmod(y, m_mod) / m_mod;
+        }
+    };
+
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(juce::Colours::black);
+
+        auto bounds = getLocalBounds().toFloat();
+        auto width = bounds.getWidth();
+        auto height = bounds.getHeight();
+
+        ScopeReaderFactory scopeReaderFactory(
+            &m_uiState->m_squiggleBoyUIState.m_monoScopeWriter, 
+            0, 
+            static_cast<size_t>(SquiggleBoyVoice::MonoScopes::TheoryOfTime), 
+            PathDrawer::x_numPoints, 
+            1);
+        DrawFn drawFn(&scopeReaderFactory, 1.0 / m_uiState->m_nonagonUIState.m_theoryOfTimeUIState.m_timeYModAmount.load());
+        PathDrawer pathDrawer(height, width, 0, 0);
+        pathDrawer.m_logX = false;
+
+        size_t trioIx = m_uiState->m_squiggleBoyUIState.m_activeTrack.load();
+        int yMod = m_uiState->m_nonagonUIState.m_theoryOfTimeUIState.GetTimeYModAmount();
+        int loopMultiplier = m_uiState->m_nonagonUIState.GetLoopMultiplier(trioIx);
+        float drawPos = drawFn.m_scopeReader.Get(drawFn.m_scopeReader.m_transferXSample);
+        int offset = floor(drawPos * yMod);
+
+        for (int i = offset * loopMultiplier / yMod; i <= (offset + 1) * loopMultiplier / yMod; ++i)
+        {
+            float y = std::fmod(static_cast<float>(i) / loopMultiplier, 1.0 / yMod) * yMod;
+            float yScreen = bounds.getY() + height * (1.0 - y);
+            SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(trioIx);
+            g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
+            g.drawLine(bounds.getX(), yScreen, bounds.getX() + width, yScreen, 1.0f);
+        }
+
+        pathDrawer.DrawPath(g, juce::Colours::white, drawFn);        
+
+        float markerX = bounds.getX() + (static_cast<float>(drawFn.m_scopeReader.m_transferXSample) / static_cast<float>(PathDrawer::x_numPoints - 1)) * width;
+        float y = drawFn(drawFn.m_scopeReader.m_transferXSample);
+        float markerY = bounds.getY() + height * (1.0 - y);
+        g.setColour(juce::Colours::white);
+        float markerRadius = 3.0f;
+        g.fillEllipse(markerX - markerRadius, markerY - markerRadius, markerRadius * 2, markerRadius * 2);
     }
 };

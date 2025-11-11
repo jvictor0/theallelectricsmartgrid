@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Tick2Phasor.hpp"
+#include "PolyXFader.hpp"
+#include "CircleTracker.hpp"
+#include <atomic>
 
 struct TheoryOfTimeBase;
 
@@ -13,10 +16,12 @@ struct TimeLoop
     bool m_gate;
     bool m_gateChanged;
     bool m_top;
+    bool m_topIndependent;
     int m_position;
     int m_prevPosition;
     int m_loopSize;
     float m_phasor;
+    float m_phasorIndependent;
 
     TheoryOfTimeBase* m_owner;
 
@@ -34,15 +39,17 @@ struct TimeLoop
         }
     };
 
-    bool ProcessDirectly(float phasor)
+    bool ProcessDirectly(float phasor, float phasorIndependent)
     {
         m_phasor = phasor;
+        m_phasorIndependent = phasorIndependent;
         bool oldGate = m_gate;
         m_prevPosition = m_position;
         m_position = floor(phasor * m_loopSize);
         m_gate = m_position < m_loopSize / 2;
         m_gateChanged = oldGate != m_gate;
         m_top = (m_position == 0 && m_prevPosition == m_loopSize - 1) || (m_position == m_loopSize - 1 && m_prevPosition == 0);
+        m_topIndependent = TopIndependent(m_loopSize);
         return m_prevPosition != m_position;
     }
 
@@ -60,8 +67,8 @@ struct TimeLoop
             position = m_loopSize - position - 1;
         }
 
-        m_position = position;
         m_prevPosition = m_position;
+        m_position = position;
         m_gate = m_position < m_loopSize / 2;
         m_gateChanged = GetMaster()->m_position / (m_loopSize / 2) != GetMaster()->m_prevPosition / (m_loopSize / 2);
         m_top = (m_position == 0 && m_prevPosition == m_loopSize - 1) || (m_position == m_loopSize - 1 && m_prevPosition == 0) || GetParent()->m_top;
@@ -77,6 +84,14 @@ struct TimeLoop
         }
 
         m_phasor = phasor;
+        m_topIndependent = TopIndependent(m_loopSize);
+
+        m_phasorIndependent = GetParent()->m_phasorIndependent * m_parentMult;
+        m_phasorIndependent = m_phasorIndependent - floor(m_phasorIndependent);
+        if (IsPingPonging())
+        {
+            m_phasorIndependent = 1 - m_phasorIndependent;
+        }
     }
 
     void Stop()
@@ -158,28 +173,30 @@ struct TimeLoop
     }   
 
     TimeLoop* GetParent();
-
     TimeLoop* GetMaster();
 
     int GlobalWinding();
+    bool TopIndependent(int loopSize);
 };
 
 struct TheoryOfTimeBase
 {
     static constexpr int x_numLoops = 6;
     TimeLoop m_loops[x_numLoops];
-    int m_globalWinding;
     bool m_anyChange;
     bool m_running;
 
-    float m_phasor;
-    bool m_top;
+    float m_phasorIndependent;
+    bool m_topIndependent;
+    int m_positionIndependent;
+    int m_prevPositionIndependent;
+    CircleTracker m_globalPhase;
 
     struct Input
     {
         float m_phasor;
         float m_phaseOffset;
-        bool m_top;
+        bool m_phasorTop;
         TimeLoop::Input m_input[x_numLoops];
         bool m_running;
 
@@ -187,7 +204,7 @@ struct TheoryOfTimeBase
         {
             m_phasor = 0;
             m_phaseOffset = 0;
-            m_top = false;
+            m_phasorTop = false;
             m_running = false;
             for (int i = 0; i < x_numLoops; ++i)
             {
@@ -200,7 +217,6 @@ struct TheoryOfTimeBase
     {
         m_running = false;
         m_anyChange = false;
-        m_globalWinding = 0;
         for (int i = 0; i < x_numLoops; ++i)
         {
             m_loops[i].m_owner = this;
@@ -240,22 +256,29 @@ struct TheoryOfTimeBase
                 m_loops[i].m_parentIndex = input.m_input[i].m_parentIndex;
                 m_loops[i].m_parentMult = input.m_input[i].m_parentMult;
                 m_loops[i].m_pingPong = input.m_input[i].m_pingPong;
+                m_globalPhase.Reset(0);
             }
 
             SetLoopSizes();
-        }
 
-        m_phasor = input.m_phasor;
-        m_top = input.m_top;
-        if (m_top)
-        {
-            ++m_globalWinding;
-        }
+            for (int i = 0; i < x_numLoops; ++i)
+            {
+                m_loops[i].m_position = m_loops[i].m_loopSize - 1;
+            }
+
+            m_positionIndependent = GetMasterLoop()->m_loopSize - 1;
+        }               
+
+        m_phasorIndependent = input.m_phasor;
+        m_topIndependent = input.m_phasorTop;
+        m_prevPositionIndependent = m_positionIndependent;
+        m_positionIndependent = floor(m_phasorIndependent * GetMasterLoop()->m_loopSize);
 
         m_anyChange = false;
         float directPhasor = input.m_phasor + input.m_phaseOffset;
         directPhasor = directPhasor - floor(directPhasor);
-        m_anyChange = GetMasterLoop()->ProcessDirectly(directPhasor);
+        m_globalPhase.Process(directPhasor);
+        m_anyChange = GetMasterLoop()->ProcessDirectly(directPhasor, m_phasorIndependent);
         if (m_anyChange)
         {
             bool resetLoopSize = false;
@@ -296,7 +319,6 @@ struct TheoryOfTimeBase
         {
             m_running = false;
             m_anyChange = true;
-            m_globalWinding = 0;
             for (int i = 0; i < x_numLoops; ++i)
             {
                 m_loops[i].Stop();
@@ -336,12 +358,21 @@ inline TimeLoop* TimeLoop::GetMaster()
 
 inline int TimeLoop::GlobalWinding()
 {
-    return m_owner->m_globalWinding;
+    return m_owner->m_globalPhase.m_winding;
+}
+
+inline bool TimeLoop::TopIndependent(int loopSize)
+{
+    int pos = m_owner->m_positionIndependent % loopSize;
+    int prevPos = m_owner->m_prevPositionIndependent % loopSize;
+    return (pos == 0 && prevPos == loopSize - 1) || (pos == loopSize - 1 && prevPos == 0) || (GetParent() && GetParent()->m_topIndependent);
 }
 
 struct TheoryOfTime : public TheoryOfTimeBase
 {
     Tick2Phasor m_tick2Phasor;
+    PolyXFaderInternal m_phaseModLFO;
+    ScopeWriterHolder m_scopeWriter;
 
     enum class ClockMode : int 
     {
@@ -356,18 +387,79 @@ struct TheoryOfTime : public TheoryOfTimeBase
           : m_clockMode(ClockMode::Internal)
           , m_freq(1.0/4)
           , m_timeIn(0)
+          , m_lfoMult(1, 16)
         {
+            m_phaseModLFOInput.m_size = x_numLoops;
+            m_phaseModLFOInput.m_values = m_phasorValues;
+            m_phaseModLFOInput.m_top = m_phasorTops;
+            m_modIndex = 0;
+            m_phaseModLFOInput.m_phaseShift = -0.75;
+
+            m_modIndex.SetBaseByCenter(0.25);
         }
         
         ClockMode m_clockMode;
         float m_freq;        
         float m_timeIn;
         Tick2Phasor::Input m_tick2PhasorInput;
+        PolyXFaderInternal::Input m_phaseModLFOInput;
+        float m_phasorValues[x_numLoops];
+        bool m_phasorTops[x_numLoops];
+        PhaseUtils::ZeroedExpParam m_modIndex;
+        PhaseUtils::ExpParam m_lfoMult;
     };
+
+    struct UIState
+    {
+        std::atomic<int> m_timeYModAmount;
+
+        float GetTimeYModAmount()
+        {
+            return m_timeYModAmount.load();
+        }
+
+        void SetTimeYModAmount(float value)
+        {
+            m_timeYModAmount.store(value);
+        }
+    };
+
+    void PopulateUIState(UIState* uiState)
+    {
+        int lfoLoopSize = 1;
+        for (int i = 0; i < x_numLoops; ++i)
+        {
+            if (m_phaseModLFO.m_weights[i] > 0 && m_loops[i].m_loopSize > 0)
+            {
+                lfoLoopSize = std::lcm(lfoLoopSize, m_loops[i].m_loopSize);
+            }
+        }
+
+        uiState->m_timeYModAmount.store(GetMasterLoop()->m_loopSize / lfoLoopSize);
+    }
 
     int MonodromyNumber(int clockIx, int resetIx)
     {
         return m_loops[clockIx].MonodromyNumber(resetIx, true);
+    }
+
+    void ProcessPhaseModLFO(Input& input)
+    {
+        for (int i = 0; i < x_numLoops; ++i)
+        {
+            input.m_phasorValues[i] = m_loops[i].m_phasorIndependent;
+            input.m_phasorTops[i] = m_loops[i].m_topIndependent;
+            input.m_phaseModLFOInput.m_externalWeights[i] = static_cast<float>(m_loops[i].m_loopSize) / GetMasterLoop()->m_loopSize;
+        }
+
+        input.m_phaseModLFOInput.m_mult = input.m_lfoMult.m_expParam;
+        m_phaseModLFO.Process(input.m_phaseModLFOInput);
+        input.m_phaseOffset = - 2 * input.m_modIndex.m_expParam * m_phaseModLFO.m_output;
+    }
+
+    void SetupMonoScopeWriter(ScopeWriter* scopeWriter)
+    {
+        m_scopeWriter = ScopeWriterHolder(scopeWriter, 0, static_cast<size_t>(SquiggleBoyVoice::MonoScopes::TheoryOfTime));
     }
 
     TheoryOfTime()
@@ -381,12 +473,12 @@ struct TheoryOfTime : public TheoryOfTimeBase
             if (input.m_clockMode == ClockMode::Internal)
             {
                 input.m_phasor += input.m_freq;
-                input.m_top = 1.0f <= input.m_phasor;
+                input.m_phasorTop = 1.0f <= input.m_phasor;
                 input.m_phasor = input.m_phasor - floor(input.m_phasor);
             }
             else if (input.m_clockMode == ClockMode::External)
             {
-                input.m_top = std::abs(input.m_timeIn - input.m_phasor) > 0.5f;
+                input.m_phasorTop = std::abs(input.m_timeIn - input.m_phasor) > 0.5f;
                 input.m_phasor = input.m_timeIn;
             }
         }
@@ -399,10 +491,18 @@ struct TheoryOfTime : public TheoryOfTimeBase
         if (input.m_clockMode == ClockMode::Tick2Phasor)
         {
             m_tick2Phasor.Process(input.m_tick2PhasorInput);
-            input.m_top = std::abs(m_tick2Phasor.m_output - input.m_phasor) > 0.5f;
+            input.m_phasorTop = std::abs(m_tick2Phasor.m_output - input.m_phasor) > 0.5f;
             input.m_phasor = m_tick2Phasor.m_output;
         }
 
+        ProcessPhaseModLFO(input);
+
         TheoryOfTimeBase::Process(input);
+
+        m_scopeWriter.Write(m_globalPhase.m_phase);
+        if (m_phaseModLFO.m_top)
+        {
+            m_scopeWriter.RecordStart();
+        }
     }
 };

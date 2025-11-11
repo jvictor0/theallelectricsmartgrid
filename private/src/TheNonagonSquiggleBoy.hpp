@@ -50,18 +50,23 @@ struct TheNonagonSquiggleBoyInternal
     SceneState m_sceneState;
 
     SquiggleBoyWithEncoderBank m_squiggleBoy;
-    SquiggleBoyWithEncoderBank::Input m_squiggleBoyState;
-    SquiggleBoyWithEncoderBank::UIState m_squiggleBoyUIState;
+    struct UIState
+    {
+        SquiggleBoyWithEncoderBank::UIState m_squiggleBoyUIState;
+        TheNonagonInternal::UIState m_nonagonUIState;
+        AnalogUIState<1 + SquiggleBoyWithEncoderBank::x_numFaders> m_analogUIState;
+    };
 
+    SquiggleBoyWithEncoderBank::Input m_squiggleBoyState;
     TheNonagonSmartGrid m_nonagon;
+
+    UIState m_uiState;
 
     TheNonagonSmartGrid::Trio m_activeTrio;
 
     QuadFloatWithStereoAndSub m_output;
 
     double m_timer;
-
-    AnalogUIState<1 + SquiggleBoyWithEncoderBank::x_numFaders> m_analogUIState;
 
     Blink m_blink;
 
@@ -187,6 +192,13 @@ struct TheNonagonSquiggleBoyInternal
 
         m_nonagon.m_state.m_theoryOfTimeInput.m_freq = m_squiggleBoyState.m_tempo.m_expParam;
 
+        m_nonagon.m_state.m_theoryOfTimeInput.m_phaseModLFOInput.m_attackFrac = m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 2, 0);
+        m_nonagon.m_state.m_theoryOfTimeInput.m_lfoMult.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 2, 0));
+        m_nonagon.m_state.m_theoryOfTimeInput.m_phaseModLFOInput.m_shape = m_squiggleBoy.m_globalEncoderBank.GetValue(0, 2, 2, 0);
+        m_nonagon.m_state.m_theoryOfTimeInput.m_phaseModLFOInput.m_center = 1 - m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 3, 0);
+        m_nonagon.m_state.m_theoryOfTimeInput.m_phaseModLFOInput.m_slope = m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 3, 0);
+        m_nonagon.m_state.m_theoryOfTimeInput.m_modIndex.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 3, 3, 0));
+
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
             m_nonagon.m_state.m_arpInput.m_zoneHeight[i] = m_squiggleBoy.m_voiceEncoderBank.GetValue(2, 0, 2, i);
@@ -248,7 +260,7 @@ struct TheNonagonSquiggleBoyInternal
 
         m_output = m_squiggleBoy.m_output;
 
-        m_squiggleBoyUIState.AdvanceScopeIndices();
+        m_uiState.m_squiggleBoyUIState.AdvanceScopeIndices();
 
         return m_output;
     }
@@ -256,39 +268,39 @@ struct TheNonagonSquiggleBoyInternal
     void ProcessFrame()
     {
         m_squiggleBoy.ProcessFrame();
-        m_nonagon.ProcessFrame();
+        m_nonagon.ProcessFrame(&m_uiState.m_nonagonUIState);
         PopulateUIState();
         HandleStateInterchange();
     }
 
     void PopulateUIState()
     {
-        m_squiggleBoy.PopulateUIState(&m_squiggleBoyUIState);
+        m_squiggleBoy.PopulateUIState(&m_uiState.m_squiggleBoyUIState);
         if (m_squiggleBoy.AreVoiceEncodersActive())
         {
             for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
             {
                 SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
-                m_squiggleBoyUIState.m_encoderBankUIState.SetIndicatorColor(i, color);
+                m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetIndicatorColor(i, color);
             }
         }
         else
         {
             for (size_t i = 0; i < 4; ++i)
             {                
-                m_squiggleBoyUIState.m_encoderBankUIState.SetIndicatorColor(i, SmartGrid::Color::White);
+                m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetIndicatorColor(i, SmartGrid::Color::White);
             }
         }
 
-        m_analogUIState.SetValue(0, m_sceneState.m_blendFactor);
+        m_uiState.m_analogUIState.SetValue(0, m_sceneState.m_blendFactor);
         for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
         {
-            m_analogUIState.SetValue(i + 1, m_squiggleBoyState.m_faders[i]);
+            m_uiState.m_analogUIState.SetValue(i + 1, m_squiggleBoyState.m_faders[i]);
         }
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
-            m_squiggleBoyUIState.SetMuted(i, m_nonagon.m_state.m_trigLogic.m_mute[i]);
+            m_uiState.m_squiggleBoyUIState.SetMuted(i, m_nonagon.m_state.m_trigLogic.m_mute[i]);
         }
     }
 
@@ -300,7 +312,8 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.Config(m_squiggleBoyState);
         ConfigureEncoders();
-        m_squiggleBoy.SetupUIState(&m_squiggleBoyUIState);
+        m_squiggleBoy.SetupUIState(&m_uiState.m_squiggleBoyUIState);
+        m_nonagon.SetupMonoScopeWriter(&m_uiState.m_squiggleBoyUIState.m_monoScopeWriter);
     }
 
     struct SaveLoadJSONCell : SmartGrid::Cell

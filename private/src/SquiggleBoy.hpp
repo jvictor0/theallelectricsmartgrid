@@ -39,6 +39,12 @@ struct SquiggleBoyVoice
         NumScopes = 4
     };
 
+    enum class MonoScopes : size_t
+    {
+        TheoryOfTime = 0,
+        NumScopes = 1
+    };
+
     enum class QuadScopes : size_t
     {
         Delay = 0,
@@ -787,6 +793,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         ScopeWriter m_audioScopeWriter;
         ScopeWriter m_controlScopeWriter;
         ScopeWriter m_quadScopeWriter;
+        ScopeWriter m_monoScopeWriter;
 
         std::atomic<size_t> m_activeTrack;
 
@@ -869,6 +876,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             : m_audioScopeWriter(x_numVoices, static_cast<size_t>(SquiggleBoyVoice::AudioScopes::NumScopes))
             , m_controlScopeWriter(x_numVoices, static_cast<size_t>(SquiggleBoyVoice::ControlScopes::NumScopes))
             , m_quadScopeWriter(4, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::NumScopes))
+            , m_monoScopeWriter(1, static_cast<size_t>(SquiggleBoyVoice::MonoScopes::NumScopes))
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {
@@ -882,6 +890,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_audioScopeWriter.AdvanceIndex();
             m_controlScopeWriter.AdvanceIndex();
             m_quadScopeWriter.AdvanceIndex();
+            m_monoScopeWriter.AdvanceIndex();
         }
     };
 
@@ -1197,6 +1206,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         m_globalEncoderBank.Config(0, 0, 0, 0.5, "Tempo", input.m_globalEncoderBankInput);
 
+        m_globalEncoderBank.Config(0, 0, 2, 0.5, "Tempo LFO Skew", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(0, 1, 2, 0, "Tempo LFO Mult", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(0, 2, 2, 0.5, "Tempo LFO Shape", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(0, 0, 3, 0.75, "Tempo LFO Center", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(0, 1, 3, 0, "Tempo LFO Slope", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(0, 3, 3, 0, "Tempo LFO Index", input.m_globalEncoderBankInput);
+
         m_globalEncoderBank.Config(1, 0, 2, 4.0 / 5.0, "Low Eq", input.m_globalEncoderBankInput);
         m_globalEncoderBank.Config(1, 1, 2, 4.0 / 5.0, "Low Mid Eq", input.m_globalEncoderBankInput);
         m_globalEncoderBank.Config(1, 2, 2, 4.0 / 5.0, "High Mid Eq", input.m_globalEncoderBankInput);
@@ -1344,7 +1360,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_state[i].m_squiggleLFOInput[j].m_polyXFaderInput.m_attackFrac = m_voiceEncoderBank.GetValue(3, 0, 2 * j, i);
                 m_state[i].m_squiggleLFOInput[j].m_mult.Update(m_voiceEncoderBank.GetValue(3, 1, 2 * j, i));
                 m_state[i].m_squiggleLFOInput[j].m_polyXFaderInput.m_shape = m_voiceEncoderBank.GetValue(3, 2, 2 * j, i);
-                m_state[i].m_squiggleLFOInput[j].m_polyXFaderInput.m_center = m_voiceEncoderBank.GetValue(3, 0, 2 * j + 1, i);
+                m_state[i].m_squiggleLFOInput[j].m_polyXFaderInput.m_center = 1 - m_voiceEncoderBank.GetValue(3, 0, 2 * j + 1, i);
                 m_state[i].m_squiggleLFOInput[j].m_polyXFaderInput.m_slope = m_voiceEncoderBank.GetValue(3, 1, 2 * j + 1, i);
                 m_state[i].m_squiggleLFOInput[j].m_polyXFaderInput.m_phaseShift = m_voiceEncoderBank.GetValue(3, 2, 2 * j + 1, i) * (static_cast<float>(i % x_numTracks) / x_numTracks);
                 m_state[i].m_squiggleLFOInput[j].m_shFade = m_voiceEncoderBank.GetValue(3, 3, 2 * j + 1, i);
@@ -1477,7 +1493,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         uiState->m_audioScopeWriter.Publish();
         uiState->m_controlScopeWriter.Publish();
         uiState->m_quadScopeWriter.Publish();
-
+        uiState->m_monoScopeWriter.Publish();
+        
         uiState->ReadMeters();
 
         for (size_t i = 0; i < x_numVoices; ++i)
