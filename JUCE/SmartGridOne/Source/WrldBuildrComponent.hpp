@@ -417,7 +417,7 @@ struct WrldBuildrComponent : public juce::Component
         addAndMakeVisible(m_voiceMeter->m_scopeComponent.get());
 
         auto analyzer = std::make_unique<AnalyserComponent>(
-            WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SquiggleBoyVoice::AudioScopes::PostAmp)), 
+            WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp)), 
             &m_scopeVoiceOffset,
             uiState);
         m_analyzer = std::make_unique<ScopeComponentHolder>(std::move(analyzer), 16, 8, 8, 8);

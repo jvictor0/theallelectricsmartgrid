@@ -1,5 +1,6 @@
 #pragma once
 
+#include "QuadUtils.hpp"
 #include "SquiggleBoy.hpp"
 #include "TheNonagon.hpp"
 #include "TimerCell.hpp"
@@ -190,14 +191,16 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.m_state.m_shift = m_sceneState.m_shift;
         m_nonagon.m_state.m_running = m_sceneState.m_running;
 
-        m_nonagon.m_state.m_theoryOfTimeInput.m_freq = m_squiggleBoyState.m_tempo.m_expParam;
+        TheoryOfTime::Input& theoryOfTimeInput = m_nonagon.m_state.m_theoryOfTimeInput;
+        
+        theoryOfTimeInput.m_freq = m_squiggleBoyState.m_tempo.m_expParam;
 
-        m_nonagon.m_state.m_theoryOfTimeInput.m_phaseModLFOInput.m_attackFrac = m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 2, 0);
-        m_nonagon.m_state.m_theoryOfTimeInput.m_lfoMult.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 2, 0));
-        m_nonagon.m_state.m_theoryOfTimeInput.m_phaseModLFOInput.m_shape = m_squiggleBoy.m_globalEncoderBank.GetValue(0, 2, 2, 0);
-        m_nonagon.m_state.m_theoryOfTimeInput.m_phaseModLFOInput.m_center = 1 - m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 3, 0);
-        m_nonagon.m_state.m_theoryOfTimeInput.m_phaseModLFOInput.m_slope = m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 3, 0);
-        m_nonagon.m_state.m_theoryOfTimeInput.m_modIndex.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 3, 3, 0));
+        theoryOfTimeInput.m_phaseModLFOInput.m_attackFrac = theoryOfTimeInput.m_lfoSkewFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 2, 0));
+        theoryOfTimeInput.m_lfoMult.Update(theoryOfTimeInput.m_lfoMultFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 2, 0)));
+        theoryOfTimeInput.m_phaseModLFOInput.m_shape = theoryOfTimeInput.m_lfoShapeFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 2, 2, 0));
+        theoryOfTimeInput.m_phaseModLFOInput.m_center = 1 - theoryOfTimeInput.m_lfoCenterFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 3, 0));
+        theoryOfTimeInput.m_phaseModLFOInput.m_slope = theoryOfTimeInput.m_lfoSlopeFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 3, 0));
+        theoryOfTimeInput.m_modIndex.Update(theoryOfTimeInput.m_lfoIndexFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 3, 3, 0)));
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
@@ -222,6 +225,7 @@ struct TheNonagonSquiggleBoyInternal
     {
         m_nonagon.SetBlendFactor(m_sceneState.m_blendFactor);
         m_squiggleBoyState.SetBlendFactor(m_sceneState.m_blendFactor);
+
     }
 
     void HandleStateInterchange()
@@ -311,6 +315,7 @@ struct TheNonagonSquiggleBoyInternal
     {
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.Config(m_squiggleBoyState);
+        m_squiggleBoy.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
         ConfigureEncoders();
         m_squiggleBoy.SetupUIState(&m_uiState.m_squiggleBoyUIState);
         m_nonagon.SetupMonoScopeWriter(&m_uiState.m_squiggleBoyUIState.m_monoScopeWriter);

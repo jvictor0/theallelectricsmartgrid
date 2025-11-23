@@ -70,13 +70,14 @@ struct AsyncLogQueue
     {
         while (true)
         {
-            LogMessage* message = m_queue.PopPtr();
+            LogMessage* message = m_queue.PeekPtr();
             if (message == nullptr)
             {
                 break;
             }
 
             juce::Logger::writeToLog(message->m_message);
+            m_queue.Pop();
         }
 
         size_t missed = m_missed.exchange(0);
@@ -91,5 +92,5 @@ struct AsyncLogQueue
   
 inline AsyncLogQueue AsyncLogQueue::s_instance;
 
-#define INFO(...) AsyncLogQueue::s_instance.Log(__VA_ARGS__)
-//#define INFO(...) juce::Logger::writeToLog(juce::String::formatted(__VA_ARGS__))
+//#define INFO(...) AsyncLogQueue::s_instance.Log(__VA_ARGS__)
+#define INFO(...) juce::Logger::writeToLog(juce::String::formatted(__VA_ARGS__))

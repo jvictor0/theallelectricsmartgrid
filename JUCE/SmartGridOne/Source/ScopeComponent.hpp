@@ -428,13 +428,13 @@ struct QuadAnalyserComponent : public juce::Component
     {
         if (m_type == Type::Master)
         {
-            m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Master));
+            m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Master));
         }
         else
         {
-            m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Delay));
-            m_quadWindowedFFT[1] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Reverb));
-            m_quadWindowedFFT[2] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Dry));
+            m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Delay));
+            m_quadWindowedFFT[1] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Reverb));
+            m_quadWindowedFFT[2] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Dry));
         }
     }
 
@@ -462,24 +462,37 @@ struct QuadAnalyserComponent : public juce::Component
         TheNonagonSquiggleBoyInternal::UIState* m_uiState;
         Type m_type;
         size_t m_speakerIx;
+        size_t m_frame;
 
         FilterDrawFn(TheNonagonSquiggleBoyInternal::UIState* uiState, Type type, size_t speakerIx)
             : m_uiState(uiState)
             , m_type(type)
             , m_speakerIx(speakerIx)
         {
+            if (m_type == Type::Delay)
+            {
+                m_frame = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_delayLineUIState[m_speakerIx].GetFrame();
+            }
         }
 
         float operator()(float freq) const
         {
             float hpAlpha = 0.0f;
             float lpAlpha = 0.0f;
+            float grainSize = 0.0f;
+            float grainResponse = 1.0;
             switch (m_type)
             {
                 case Type::Delay:
                 {
                     hpAlpha = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_hpAlpha[m_speakerIx].load();
                     lpAlpha = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_lpAlpha[m_speakerIx].load();
+                    grainSize = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_grainSize[m_speakerIx].load();
+                    if (512 < grainSize)
+                    {
+                        grainResponse = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_delayLineUIState[m_speakerIx].FrequencyResponse(m_frame, freq);
+                    }
+
                     break;
                 }
                 case Type::Reverb:
@@ -494,6 +507,8 @@ struct QuadAnalyserComponent : public juce::Component
 
             float response = OPLowPassFilter::FrequencyResponse(lpAlpha, freq);
             response *= OPHighPassFilter::FrequencyResponse(hpAlpha, freq);
+            response *= grainResponse;
+
             return PathDrawer::AmpToDbNormalized(response) / 2;
         }
     };
@@ -606,7 +621,7 @@ struct TheoryOfTimeScopeComponent : public juce::Component
         ScopeReaderFactory scopeReaderFactory(
             &m_uiState->m_squiggleBoyUIState.m_monoScopeWriter, 
             0, 
-            static_cast<size_t>(SquiggleBoyVoice::MonoScopes::TheoryOfTime), 
+            static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime), 
             PathDrawer::x_numPoints, 
             1);
         DrawFn drawFn(&scopeReaderFactory, 1.0 / m_uiState->m_nonagonUIState.m_theoryOfTimeUIState.m_timeYModAmount.load());

@@ -8,5 +8,6 @@
 #include "TwisterMidi.hpp"
 #include "SmartBus.hpp"
 #include "TheNonagonSquiggleBoyWrldBldr.hpp"
+#include "SmartGridOneScopeEnums.hpp"
 #pragma GCC diagnostic pop
 #undef IOS_BUILD

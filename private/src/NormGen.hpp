@@ -19,9 +19,19 @@ struct RGen
         return m_norm(s_gen);
     }
 
+    float NormGen(float mu, float sigma)
+    {
+        return m_norm(s_gen) * sigma + mu;
+    }
+
     float UniGen()
     {
         return m_uni(s_gen);
+    }
+
+    float UniGenRange(float min, float max)
+    {
+        return UniGen() * (max - min) + min;
     }
 
     size_t RangeGen(size_t max)

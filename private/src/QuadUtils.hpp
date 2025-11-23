@@ -2,11 +2,12 @@
 
 #include "WaveTable.hpp"
 
-struct QuadFloat
+template<class Number>
+struct QuadNumber
 {
-    float m_values[4];
+    Number m_values[4];
 
-    QuadFloat(float x, float y, float z, float w)
+    QuadNumber(Number x, Number y, Number z, Number w)
     {
         m_values[0] = x;
         m_values[1] = y;
@@ -14,60 +15,60 @@ struct QuadFloat
         m_values[3] = w;
     }
 
-    QuadFloat()
+    QuadNumber()
     {
-        m_values[0] = 0.0f;
-        m_values[1] = 0.0f;
-        m_values[2] = 0.0f;
-        m_values[3] = 0.0f;
+        m_values[0] = static_cast<Number>(0);
+        m_values[1] = static_cast<Number>(0);
+        m_values[2] = static_cast<Number>(0);
+        m_values[3] = static_cast<Number>(0);
     }
 
-    float& operator[](int index)
-    {
-        return m_values[index];
-    }
-
-    const float& operator[](int index) const
+    Number& operator[](int index)
     {
         return m_values[index];
     }
 
-    QuadFloat operator+(const QuadFloat& other) const
+    const Number& operator[](int index) const
     {
-        return QuadFloat(m_values[0] + other.m_values[0], m_values[1] + other.m_values[1], m_values[2] + other.m_values[2], m_values[3] + other.m_values[3]);
+        return m_values[index];
     }
 
-    QuadFloat operator-(const QuadFloat& other) const
+    QuadNumber operator+(const QuadNumber& other) const
     {
-        return QuadFloat(m_values[0] - other.m_values[0], m_values[1] - other.m_values[1], m_values[2] - other.m_values[2], m_values[3] - other.m_values[3]);
+        return QuadNumber(m_values[0] + other.m_values[0], m_values[1] + other.m_values[1], m_values[2] + other.m_values[2], m_values[3] + other.m_values[3]);
     }
 
-    QuadFloat operator*(const QuadFloat& other) const
+    QuadNumber operator-(const QuadNumber& other) const
     {
-        return QuadFloat(m_values[0] * other.m_values[0], m_values[1] * other.m_values[1], m_values[2] * other.m_values[2], m_values[3] * other.m_values[3]);
+        return QuadNumber(m_values[0] - other.m_values[0], m_values[1] - other.m_values[1], m_values[2] - other.m_values[2], m_values[3] - other.m_values[3]);
     }
 
-    QuadFloat operator/(const QuadFloat& other) const
+    QuadNumber operator*(const QuadNumber& other) const
     {
-        return QuadFloat(m_values[0] / other.m_values[0], m_values[1] / other.m_values[1], m_values[2] / other.m_values[2], m_values[3] / other.m_values[3]);
+        return QuadNumber(m_values[0] * other.m_values[0], m_values[1] * other.m_values[1], m_values[2] * other.m_values[2], m_values[3] * other.m_values[3]);
     }
 
-    QuadFloat operator*(float scalar) const
+    QuadNumber operator/(const QuadNumber& other) const
     {
-        return QuadFloat(m_values[0] * scalar, m_values[1] * scalar, m_values[2] * scalar, m_values[3] * scalar);
+        return QuadNumber(m_values[0] / other.m_values[0], m_values[1] / other.m_values[1], m_values[2] / other.m_values[2], m_values[3] / other.m_values[3]);
     }
 
-    QuadFloat operator/(float scalar) const
+    QuadNumber operator*(Number scalar) const
     {
-        return QuadFloat(m_values[0] / scalar, m_values[1] / scalar, m_values[2] / scalar, m_values[3] / scalar);
+        return QuadNumber(m_values[0] * scalar, m_values[1] * scalar, m_values[2] * scalar, m_values[3] * scalar);
     }
 
-    QuadFloat operator-() const
+    QuadNumber operator/(Number scalar) const
     {
-        return QuadFloat(-m_values[0], -m_values[1], -m_values[2], -m_values[3]);
+        return QuadNumber(m_values[0] / scalar, m_values[1] / scalar, m_values[2] / scalar, m_values[3] / scalar);
     }
 
-    QuadFloat& operator+=(const QuadFloat& other)
+    QuadNumber operator-() const
+    {
+        return QuadNumber(-m_values[0], -m_values[1], -m_values[2], -m_values[3]);
+    }
+
+    QuadNumber& operator+=(const QuadNumber& other)
     {
         m_values[0] += other.m_values[0];
         m_values[1] += other.m_values[1];
@@ -76,7 +77,7 @@ struct QuadFloat
         return *this;
     }
 
-    QuadFloat& operator-=(const QuadFloat& other)
+    QuadNumber& operator-=(const QuadNumber& other)
     {
         m_values[0] -= other.m_values[0];
         m_values[1] -= other.m_values[1];
@@ -85,7 +86,7 @@ struct QuadFloat
         return *this;
     }
 
-    QuadFloat& operator*=(const QuadFloat& other)
+    QuadNumber& operator*=(const QuadNumber& other)
     {
         m_values[0] *= other.m_values[0];
         m_values[1] *= other.m_values[1];
@@ -94,7 +95,7 @@ struct QuadFloat
         return *this;
     }
 
-    QuadFloat& operator/=(const QuadFloat& other)
+    QuadNumber& operator/=(const QuadNumber& other)
     {
         m_values[0] /= other.m_values[0];
         m_values[1] /= other.m_values[1];
@@ -103,7 +104,7 @@ struct QuadFloat
         return *this;
     }
 
-    QuadFloat& operator*=(float scalar)
+    QuadNumber& operator*=(Number scalar)
     {
         m_values[0] *= scalar;
         m_values[1] *= scalar;
@@ -112,7 +113,7 @@ struct QuadFloat
         return *this;
     }
 
-    QuadFloat& operator/=(float scalar)
+    QuadNumber& operator/=(Number scalar)
     {
         m_values[0] /= scalar;
         m_values[1] /= scalar;
@@ -121,9 +122,9 @@ struct QuadFloat
         return *this;
     }
 
-    QuadFloat ModOne() const
+    QuadNumber ModOne() const
     {
-        QuadFloat result;
+        QuadNumber result;
         for (int i = 0; i < 4; ++i)
         {
             result[i] = m_values[i] - std::floor(m_values[i]);
@@ -140,29 +141,29 @@ struct QuadFloat
         return result;
     }
     
-    bool operator==(const QuadFloat& other) const
+    bool operator==(const QuadNumber& other) const
     {
         return m_values[0] == other.m_values[0] && m_values[1] == other.m_values[1] && m_values[2] == other.m_values[2] && m_values[3] == other.m_values[3];
     }
 
-    bool operator!=(const QuadFloat& other) const
+    bool operator!=(const QuadNumber& other) const
     {
         return m_values[0] != other.m_values[0] || m_values[1] != other.m_values[1] || m_values[2] != other.m_values[2] || m_values[3] != other.m_values[3];
     }
 
-    QuadFloat Rotate(float angle)
+    QuadNumber Rotate(Number angle)
     {
-        QuadFloat values = *this;
+        QuadNumber values = *this;
 
         angle *= 4;
         size_t index = static_cast<size_t>(angle) % 4;
         size_t nextIndex = (index + 1) % 4;
-        float lerp = angle - static_cast<float>(index);
+        Number lerp = angle - static_cast<Number>(index);
 
-        float s = std::sinf(lerp * M_PI / 2);
-        float c = std::cosf(lerp * M_PI / 2);
+        Number s = std::sin(lerp * M_PI / 2);
+        Number c = std::cos(lerp * M_PI / 2);
 
-        QuadFloat result;
+        QuadNumber result;
         for (size_t i = 0; i < 4; i++)
         {
             result[i] = (values[(i + index) % 4] * c + values[(i + nextIndex) % 4] * s) / (c + s);
@@ -171,14 +172,14 @@ struct QuadFloat
         return result;
     }
 
-    QuadFloat RotateLinear(QuadFloat angle)
+    QuadNumber RotateLinear(QuadNumber angle)
     {
-        QuadFloat result;
+        QuadNumber result;
         for (int i = 0; i < 4; ++i)
         {
-            float angleI = angle[i] * 4;
+            Number angleI = angle[i] * 4;
             size_t index = static_cast<size_t>(angleI);
-            float lerp = angleI - static_cast<float>(index);
+            Number lerp = angleI - static_cast<Number>(index);
 
             result[i] = m_values[(i + index) % 4] * (1 - lerp) + m_values[(i + index + 1) % 4] * lerp;
         }
@@ -186,43 +187,46 @@ struct QuadFloat
         return result;
     }
 
-    QuadFloat Rotate90()
+    QuadNumber Rotate90()
     {
-        return QuadFloat(m_values[3], m_values[0], m_values[1], m_values[2]);
+        return QuadNumber(m_values[3], m_values[0], m_values[1], m_values[2]);
     }
 
-    QuadFloat Hadamard()
+    QuadNumber Hadamard()
     {
-        return QuadFloat(
+        return QuadNumber(
             (m_values[0] + m_values[1] + m_values[2] + m_values[3]) / 2,
             (m_values[0] - m_values[1] + m_values[2] - m_values[3]) / 2,
             (m_values[0] + m_values[1] - m_values[2] - m_values[3]) / 2,
             (m_values[0] - m_values[1] - m_values[2] + m_values[3]) / 2);
     }
 
-    float Sum() const
+    Number Sum() const
     {
         return m_values[0] + m_values[1] + m_values[2] + m_values[3];
     }
 
-    float Average() const
+    Number Average() const
     {
         return (m_values[0] + m_values[1] + m_values[2] + m_values[3]) / 4;
     }
     
-    QuadFloat Widen(float amount) const
+    QuadNumber Widen(Number amount) const
     {
-        float sum = Sum() / 4;
-        return QuadFloat(m_values[0] + (sum - m_values[0]) * amount, m_values[1] + (sum - m_values[1]) * amount, m_values[2] + (sum - m_values[2]) * amount, m_values[3] + (sum - m_values[3]) * amount);
+        Number sum = Sum() / 4;
+        return QuadNumber(m_values[0] + (sum - m_values[0]) * amount, m_values[1] + (sum - m_values[1]) * amount, m_values[2] + (sum - m_values[2]) * amount, m_values[3] + (sum - m_values[3]) * amount);
     }
 
-    static QuadFloat Pan(float x, float y, float sample, const WaveTable* sin)
+    static QuadNumber Pan(Number x, Number y, Number sample, const WaveTable* sin)
     {
-        return QuadFloat(
+        return QuadNumber(
             sin->Evaluate((1 - x) * y / 4),
             sin->Evaluate(x * y / 4),
             sin->Evaluate(x * (1 - y) / 4),
             sin->Evaluate((1 - x) * (1 - y) / 4)) * sample;
     }
 };
+
+using QuadFloat = QuadNumber<float>;
+using QuadDouble = QuadNumber<double>;
         

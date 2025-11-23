@@ -185,7 +185,7 @@ struct TheNonagonInternal
             int voiceClock = input.m_arpInput.m_clockSelect[i / x_voicesPerTrio];
             if (voiceClock >= 0)
             {
-                denom = m_theoryOfTime.GetLoopMultiplier(voiceClock);
+                denom = m_theoryOfTime.GetLoopInternalMultiplier(voiceClock);
             }
 
             for (size_t j = 0; j < x_numTimeBits; ++j)
@@ -193,7 +193,7 @@ struct TheNonagonInternal
                 bool coMute = m_lameJuis.m_outputs[i / x_voicesPerTrio].m_coMuteState.m_coMutes[j];
                 if (!coMute)
                 {
-                    denom = std::lcm(denom, m_theoryOfTime.GetLoopMultiplier(j));
+                    denom = std::lcm(denom, m_theoryOfTime.GetLoopInternalMultiplier(j));
                 }
             }
 

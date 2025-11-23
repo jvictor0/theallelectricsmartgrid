@@ -15,7 +15,7 @@ struct MultibandEQComponent : public juce::Component
         setSize(400, 200);
         for (size_t i = 0; i < 4; ++i)
         {
-            m_windowedFFT[i] = WindowedFFT(&m_uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SquiggleBoyVoice::QuadScopes::Stereo));
+            m_windowedFFT[i] = WindowedFFT(&m_uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Stereo));
         }
     }
 

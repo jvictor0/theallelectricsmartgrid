@@ -4,11 +4,11 @@
 
 struct CircleTracker
 {
-    float m_phase;
+    double m_phase;
     int m_winding;
     bool m_top;
 
-    void Reset(float phase)
+    void Reset(double phase)
     {
         m_phase = phase;
         m_winding = 0;
@@ -20,7 +20,7 @@ struct CircleTracker
         Reset(0);
     }
 
-    void Process(float phase)
+    void Process(double phase)
     {
         if (std::abs(phase - m_phase) > 0.5f)
         {
@@ -42,12 +42,12 @@ struct CircleTracker
         m_phase = phase;
     }
 
-    float UnWind() const
+    double UnWind() const
     {
-        return m_phase + m_winding;
+        return static_cast<double>(m_phase) + m_winding;
     }
 
-    float Distance(const CircleTracker& other) const
+    double Distance(const CircleTracker& other) const
     {
         return std::abs(UnWind() - other.UnWind());
     }
@@ -58,18 +58,18 @@ struct CircleDistanceTracker
     CircleTracker m_start;
     CircleTracker m_now;
 
-    void Reset(float phase)
+    void Reset(double phase)
     {
         m_start.Reset(phase);
         m_now.Reset(phase);
     }
 
-    void Process(float phase)
+    void Process(double phase)
     {
         m_now.Process(phase);
     }
     
-    float Distance() const
+    double Distance() const
     {
         return m_now.Distance(m_start);
     }

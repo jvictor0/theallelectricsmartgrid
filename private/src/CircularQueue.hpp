@@ -64,6 +64,17 @@ struct CircularQueue
         return value;
     }
 
+    T* PeekPtr()
+    {
+        if (m_head.load() == m_tail.load())
+        {
+            return nullptr;
+        }
+
+        T* value = &m_data[m_tail.load() % N];
+        return value;
+    }
+
     void Pop()
     {
         m_tail.fetch_add(1);

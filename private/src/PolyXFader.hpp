@@ -8,7 +8,7 @@ struct PolyXFaderInternal
 {    
     struct Input
     {
-        float* m_values;
+        double* m_values;
         bool* m_top;
 
         const WaveTable* m_waveTable;
@@ -72,11 +72,15 @@ struct PolyXFaderInternal
         
         float Shape(float shape, float in)
         {
-            if (shape < 0.5)
+            if (shape < 0.45)
             {
                 shape *= 2;
                 float fullShape = (- m_waveTable->Evaluate(in / 2) + 1) / 2;
                 return in * shape + fullShape * (1 - shape);
+            }
+            else if (shape < 0.55)
+            {
+                return in;
             }
             else
             {
@@ -178,7 +182,7 @@ struct PolyXFaderInternal
 
     float Quantize(Input& input, size_t i, float value)
     {
-        if (input.m_shape <= 0.5)
+        if (input.m_shape <= 0.55)
         {
             m_valuesPreQuantize[i] = value;
             return value;

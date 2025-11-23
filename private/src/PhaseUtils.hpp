@@ -21,6 +21,44 @@ inline float VOctToNatural(float vOct, float deltaT)
     return HzToNatural(VOctToHz(vOct), deltaT);
 }
 
+inline double CubicLagrangeNonUniform(double x0, double y0, double x1, double y1, double x2, double y2, double x3, double y3, double x)
+{
+    static const double x_epsilon = 1e-12;
+    
+    // Calculate denominators for Lagrange basis polynomials
+    //
+    double d0 = (x0 - x1) * (x0 - x2) * (x0 - x3);
+    double d1 = (x1 - x0) * (x1 - x2) * (x1 - x3);
+    double d2 = (x2 - x0) * (x2 - x1) * (x2 - x3);
+    double d3 = (x3 - x0) * (x3 - x1) * (x3 - x2);
+    
+    // Check for degeneracy
+    //
+    if (std::abs(d0) < x_epsilon || std::abs(d1) < x_epsilon || 
+        std::abs(d2) < x_epsilon || std::abs(d3) < x_epsilon)
+    {
+        // Fall back to linear interpolation between middle points
+        //
+        double dx = x2 - x1;
+        if (std::abs(dx) < x_epsilon)
+        {
+            return (y1 + y2) * 0.5;
+        }
+
+        double t = (x - x1) / dx;
+        return y1 + t * (y2 - y1);
+    }
+
+    // Calculate Lagrange basis polynomials
+    //
+    double l0 = ((x - x1) * (x - x2) * (x - x3)) / d0;
+    double l1 = ((x - x0) * (x - x2) * (x - x3)) / d1;
+    double l2 = ((x - x0) * (x - x1) * (x - x3)) / d2;
+    double l3 = ((x - x0) * (x - x1) * (x - x2)) / d3;
+    
+    return y0 * l0 + y1 * l1 + y2 * l2 + y3 * l3;
+}
+
 struct ExpParam
 {
     float m_baseParam;

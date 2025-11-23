@@ -128,8 +128,8 @@ struct MultichannelWavWriter
         // Convert float sample to 24-bit integer
         // Clamp to [-1.0, 1.0] range and convert to 24-bit signed integer
         //
-        double clampedSample = std::max<double>(-10.0, std::min<double>(10.0, sample));
-        int32_t intSample = static_cast<int32_t>(std::lround(clampedSample * 838860.7));
+        double clampedSample = std::max<double>(-1.0, std::min<double>(1.0, sample));
+        int32_t intSample = static_cast<int32_t>(std::lround(clampedSample * 8388607));
         
         // Convert to bytes (little-endian, 24-bit)
         //
