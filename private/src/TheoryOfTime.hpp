@@ -23,9 +23,12 @@ struct TimeLoop
     int m_position;
     int m_prevPosition;
     int m_loopSize;
+    int m_externalLoopMult;
     double m_phasor;
     double m_phasorIndependent;
     int64_t m_globalWinding;
+    double m_glueWinding;
+    bool m_ascending;
 
     TheoryOfTimeBase* m_owner;
 
@@ -45,14 +48,21 @@ struct TimeLoop
 
     bool ProcessDirectly(double phasor, double phasorIndependent, int64_t globalWinding)
     {
+        m_ascending = m_globalWinding < globalWinding || (m_globalWinding == globalWinding && m_phasor < phasor);
         m_phasor = phasor;
         m_phasorIndependent = phasorIndependent;
         bool oldGate = m_gate;
         m_prevPosition = m_position;
         m_position = floor(phasor * m_loopSize);
+        if (std::abs(m_position - m_prevPosition) > 1)
+        {
+            m_prevPosition = (m_position - (m_ascending ? 1 : -1)) % m_loopSize;
+        }
+
         m_gate = m_position < m_loopSize / 2;
         m_gateChanged = oldGate != m_gate;
-        m_top = (m_position == 0 && m_prevPosition == m_loopSize - 1) || (m_position == m_loopSize - 1 && m_prevPosition == 0);
+        m_top = (m_position == 0 && m_prevPosition == m_loopSize - 1 && m_ascending) || 
+                (m_position == m_loopSize - 1 && m_prevPosition == 0 && !m_ascending);
         m_topIndependent = TopIndependent(m_loopSize);
         m_globalWinding = globalWinding;
         return m_prevPosition != m_position;
@@ -65,33 +75,86 @@ struct TimeLoop
 
     void Process()
     {
+        SetMembersFromParent();
+        m_globalWinding = MonodromyNumber(-1, false);
+    }
+
+    void SetMembersFromParent()
+    {
         assert(GetParent());
-        int position = GetParent()->m_position % m_loopSize;
+        m_position = GetParent()->m_position % m_loopSize;
+        m_prevPosition = GetParent()->m_prevPosition % m_loopSize;
+        m_ascending = GetParent()->m_ascending;
         if (IsPingPonging())
         {
-            position = m_loopSize - position - 1;
+            m_position = m_loopSize - m_position - 1;
+            m_prevPosition = m_loopSize - m_prevPosition - 1;
+            m_ascending = !m_ascending;
         }
 
-        m_prevPosition = m_position;
-        m_position = position;
         m_gate = m_position < m_loopSize / 2;
         m_gateChanged = GetMaster()->m_position / (m_loopSize / 2) != GetMaster()->m_prevPosition / (m_loopSize / 2);
-        m_top = (m_position == 0 && m_prevPosition == m_loopSize - 1) || (m_position == m_loopSize - 1 && m_prevPosition == 0) || GetParent()->m_top;
-        m_globalWinding = MonodromyNumber(-1, false);
+        m_top = (m_position == 0 && m_prevPosition == m_loopSize - 1 && m_ascending) || 
+                (m_position == m_loopSize - 1 && m_prevPosition == 0 && !m_ascending) || 
+                GetParent()->m_top;
     }
 
     void SetLoopSize(int loopSize)
     {
-        m_loopSize = loopSize;
-        m_prevPosition = GetParent()->m_prevPosition % loopSize;
-        m_position = GetParent()->m_position % loopSize;
-        m_globalWinding = MonodromyNumber(-1, false);
+        if (GetParent())
+        {   
+            int externalLoopMult = GetMaster()->m_loopSize / loopSize;  
+            bool oldReverseTop = m_top && !m_ascending;       
+            m_loopSize = loopSize;
+            
+            SetMembersFromParent();
+
+            int64_t winding = MonodromyNumber(-1, false);
+            double oldWinding = m_glueWinding + m_globalWinding;
+            int windingOffset = 0;
+            
+            if (m_top && !m_ascending)
+            {
+                windingOffset = 1;
+            }
+
+            if (oldReverseTop)
+            {
+                oldWinding = oldWinding + 1;
+            }
+
+            m_glueWinding = static_cast<double>(oldWinding * externalLoopMult) / m_externalLoopMult - winding - windingOffset;
+            m_globalWinding = winding;
+            m_externalLoopMult = externalLoopMult;
+        }
+        else
+        {
+            int posDiff = m_position - m_prevPosition;
+            m_position = m_position * loopSize / m_loopSize;
+            m_loopSize = loopSize;
+
+            if (m_top && m_position == 0)
+            {
+                m_prevPosition = m_loopSize - 1;
+            }
+            else if (m_top && m_position == m_loopSize - 1)
+            {
+                m_prevPosition = 0;
+            }
+            else
+            {
+                m_prevPosition = m_position - posDiff;
+            }
+
+            m_externalLoopMult = 1;
+        }
     }
 
     void ProcessPhasor()
     {
         double phasor = GetParent()->m_phasor * m_parentMult;
         phasor = phasor - GetParent()->m_position / m_loopSize;
+        
         if (IsPingPonging())
         {
             phasor = 1 - phasor;
@@ -116,6 +179,8 @@ struct TimeLoop
         m_position = 0;
         m_prevPosition = 0;
         m_phasor = 0;
+        m_globalWinding = 0;
+        m_glueWinding = 0;
     }
 
     bool HandleInput(const Input& input)
@@ -198,16 +263,18 @@ struct TimeLoop
         , m_position(0)
         , m_prevPosition(0)
         , m_loopSize(1)
+        , m_externalLoopMult(1)
         , m_phasor(0)
         , m_phasorIndependent(0)
         , m_globalWinding(0)
+        , m_glueWinding(0)
         , m_owner(nullptr)
     {
     }
 
     double GetUnwoundPhasor()
     {
-        return m_phasor + static_cast<double>(m_globalWinding);
+        return m_phasor + static_cast<double>(m_globalWinding + m_glueWinding);
     }
 
     TimeLoop* GetParent();
@@ -279,6 +346,11 @@ struct TheoryOfTimeBase
             }
         }
 
+        for (int i = x_numLoops - 2; i >= 0; --i)
+        {
+            loopSizes[i] = loopSizes[m_loops[i].m_parentIndex] / m_loops[i].m_parentMult;
+        }
+
         for (int i = x_numLoops - 1; i >= 0; --i)
         {
             m_loops[i].SetLoopSize(2 * loopSizes[i]);
@@ -323,10 +395,20 @@ struct TheoryOfTimeBase
             for (int i = x_numLoops - 2; i >= 0; --i)
             {
                 m_loops[i].Process();
+            }
+
+            bool setLoopSizes = false;
+            for (int i = x_numLoops - 2; i >= 0; --i)
+            {
                 if (m_loops[i].HandleInput(input.m_input[i]))
                 {
-                    SetLoopSizes();
+                    setLoopSizes = true;
                 }
+            }
+
+            if (setLoopSizes)
+            {
+                SetLoopSizes();
             }
         }
 

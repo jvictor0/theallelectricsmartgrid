@@ -174,6 +174,8 @@ struct QuadDelayInputSetter
     {
         input.m_grainManagerInput.m_input[i].m_grainSamples = m_grainSamples[i].Update(grainSamplesKnob);
         input.m_grainManagerInput.m_input[i].m_overlap = m_grainOverlap[i].Update(grainOverlapKnob);
+
+        input.m_grainManagerInput.m_input[i].m_sigma = 300;     
     }
 
     void SetDelayTime(
@@ -220,6 +222,17 @@ struct QuadDelayInputSetter
             ongoingFade = true;
         }
 
+        double writeHeadPosition = theoryOfTime->PhasorUnwoundSamples(m_totLoopSelector[i]);
+        if (std::abs(writeHeadPosition - input.m_writeHeadPosition[i]) > 64 && false)
+        {
+            INFO("writeHeadPosition: %f -> %f (diff %f) external loop mult %d phasor %f", 
+                input.m_writeHeadPosition[i] / theoryOfTime->LoopSamples(m_totLoopSelector[i]),
+                writeHeadPosition / theoryOfTime->LoopSamples(m_totLoopSelector[i]), 
+                std::abs(writeHeadPosition - input.m_writeHeadPosition[i]) / theoryOfTime->LoopSamples(m_totLoopSelector[i]), 
+                theoryOfTime->GetLoopExternalMultiplier(m_totLoopSelector[i]),
+                theoryOfTime->m_loops[m_totLoopSelector[i]].m_phasor);
+        }
+
         input.m_writeHeadPosition[i] = theoryOfTime->PhasorUnwoundSamples(m_totLoopSelector[i]);
 
         if (ongoingFade)
@@ -238,10 +251,7 @@ struct QuadDelayInputSetter
     void SetDamping(int i, float dampingBase, float dampingWidth, QuadDelay::Input& input)
     {
         input.m_bffBase[i] = m_dampingBase[i].Update(dampingBase);
-        input.m_bffWidth[i] = m_dampingWidth[i].Update(dampingWidth);
-        float lpfRadPerSample = 2 * M_PI * input.m_bffBase[i] * input.m_bffWidth[i];
-        const float sqrtLn2 = std::sqrt(std::log(2.0));
-        input.m_grainManagerInput.m_input[i].m_sigma = sqrtLn2 / lpfRadPerSample;        
+        input.m_bffWidth[i] = m_dampingWidth[i].Update(dampingWidth);   
     }
     
     void SetModulation(int i, float modFreq, float modDepth, QuadDelay::Input& input)

@@ -479,20 +479,13 @@ struct QuadAnalyserComponent : public juce::Component
         {
             float hpAlpha = 0.0f;
             float lpAlpha = 0.0f;
-            float grainSize = 0.0f;
-            float grainResponse = 1.0;
+
             switch (m_type)
             {
                 case Type::Delay:
                 {
                     hpAlpha = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_hpAlpha[m_speakerIx].load();
                     lpAlpha = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_lpAlpha[m_speakerIx].load();
-                    grainSize = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_grainSize[m_speakerIx].load();
-                    if (512 < grainSize)
-                    {
-                        grainResponse = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_delayLineUIState[m_speakerIx].FrequencyResponse(m_frame, freq);
-                    }
-
                     break;
                 }
                 case Type::Reverb:
@@ -507,8 +500,6 @@ struct QuadAnalyserComponent : public juce::Component
 
             float response = OPLowPassFilter::FrequencyResponse(lpAlpha, freq);
             response *= OPHighPassFilter::FrequencyResponse(hpAlpha, freq);
-            response *= grainResponse;
-
             return PathDrawer::AmpToDbNormalized(response) / 2;
         }
     };

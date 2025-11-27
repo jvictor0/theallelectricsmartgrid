@@ -9,6 +9,7 @@
 #include "NormGen.hpp"
 #include "WaveTable.hpp"
 #include "PitchShiftQuantizer.hpp"
+#include "InterleavedArray.hpp"
 
 struct XFader
 {
@@ -210,8 +211,8 @@ template<size_t Size>
 struct DelayLineMovableWriter
 {
     static constexpr size_t x_maxDelaySamples = Size;
-    float m_delayLine[x_maxDelaySamples] = {0.0f};
-    double m_writeHeadInverse[x_maxDelaySamples] = {0.0};
+    InterleavedArrayHolder<float, x_maxDelaySamples, 4> m_delayLine;
+    InterleavedArrayHolder<double, x_maxDelaySamples, 4> m_writeHeadInverse;
 
     static constexpr size_t x_scatterBufferSize = 8;
     size_t m_scatterHead;
@@ -233,6 +234,15 @@ struct DelayLineMovableWriter
         , m_lastWarpedTime(0.0)
         , m_lastTime(17700716)
     {
+    }
+
+    void SetArray(InterleavedArray<float, x_maxDelaySamples, 4>* delayLine, InterleavedArray<double, x_maxDelaySamples, 4>* writeHeadInverse, size_t foldIx)
+    {
+        m_delayLine.m_array = delayLine;
+        m_delayLine.m_foldIx = foldIx;
+        m_writeHeadInverse.m_array = writeHeadInverse;
+        m_writeHeadInverse.m_foldIx = foldIx;
+
         for (size_t i = 0; i < x_maxDelaySamples; ++i)
         {
             m_delayLine[i] = 0.0f;
@@ -298,7 +308,7 @@ struct DelayLineMovableWriter
     }
 
     template<class T>
-    T ReadAtIndex(double index, T* line)
+    T ReadAtIndex(double index, InterleavedArrayHolder<T, x_maxDelaySamples, 4>& line)
     {
         size_t iSub1 = static_cast<size_t>(index - 1 + x_maxDelaySamples) % x_maxDelaySamples;
         size_t i0 = (iSub1 + 1) % x_maxDelaySamples;
@@ -474,12 +484,8 @@ struct GrainManager
 
     float GetPitchShift(bool left)
     {
+        return 1.0;
         float result = m_pitchShiftQuantizer.Quantize(left ? m_writeHeadDerivativeLeft : m_writeHeadDerivativeRight);
-        INFO("Quantized pitch shift: %f -> %f (last %f time %f)", 
-            left ? m_writeHeadDerivativeLeft : m_writeHeadDerivativeRight,
-            result, 
-            left ? m_lastWriteHeadTimeLeft : m_lastWriteHeadTimeRight,
-            m_delayLine->m_lastTime);
         return result;
     }
 
@@ -542,8 +548,6 @@ struct GrainManager
 
     float Process(Input& input, XFader warpedTime, double sampleOffset)
     {
-        SetWriteHeadDerivative(warpedTime);
-
         float result = ProcessGrains();
         if (m_samplesToNextGrain < 1.0)
         {
@@ -554,7 +558,7 @@ struct GrainManager
             }
             else
             {
-                float gain = 2.0 / input.m_overlap;
+                float gain = 2.0 / std::sqrt(input.m_overlap);
                 Grain* grain = AllocateGrain();
                 if (grain)
                 {
@@ -789,7 +793,17 @@ struct QuadDelayLine
 template<size_t Size>
 struct QuadDelayLineMovableWriter
 {
+    InterleavedArray<float, Size, 4> m_delayLineArray;
+    InterleavedArray<double, Size, 4> m_writeHeadInverseArray;
     DelayLineMovableWriter<Size> m_delayLine[4];
+
+    QuadDelayLineMovableWriter()
+    {
+        for (size_t i = 0; i < 4; ++i)
+        {
+            m_delayLine[i].SetArray(&m_delayLineArray, &m_writeHeadInverseArray, i);
+        }
+    }
 
     void Write(QuadFloat x, QuadDouble time)
     {
