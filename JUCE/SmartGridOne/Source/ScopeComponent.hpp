@@ -479,6 +479,7 @@ struct QuadAnalyserComponent : public juce::Component
         {
             float hpAlpha = 0.0f;
             float lpAlpha = 0.0f;
+            float grainResponse = 1.0;
 
             switch (m_type)
             {

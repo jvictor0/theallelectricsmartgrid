@@ -558,7 +558,7 @@ struct GrainManager
             }
             else
             {
-                float gain = 2.0 / std::sqrt(input.m_overlap);
+                float gain = 2.0 / input.m_overlap;
                 Grain* grain = AllocateGrain();
                 if (grain)
                 {

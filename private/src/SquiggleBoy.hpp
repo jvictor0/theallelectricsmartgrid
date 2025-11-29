@@ -1348,49 +1348,44 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].SetGates();
         }
 
+        QuadDelayInputSetter::Input delayInputSetterInput;
         for (int i = 0; i < 4; ++i)
         {
-            m_delayInputSetter.SetDelayTime(
-                i, 
-                m_quadEncoderBank.GetValue(0, 1, 0, i), 
-                m_quadEncoderBank.GetValue(0, 0, 0, i),
-                m_quadEncoderBank.GetValue(0, 0, 2, i),
-                m_theoryOfTime,
-                m_delayState);
-            m_delayInputSetter.SetRotate(i, m_quadEncoderBank.GetValue(0, 1, 2, i), m_delayState);
-            m_delayInputSetter.SetModulation(
-                i,
-                m_quadEncoderBank.GetValue(0, 1, 3, i), 
-                m_quadEncoderBank.GetValue(0, 0, 3, i),
-                m_delayState);
-            m_delayInputSetter.SetFeedback(i, m_quadEncoderBank.GetValue(0, 3, 0, i), m_delayState);
-            m_delayInputSetter.SetDamping(
-                i,
-                m_quadEncoderBank.GetValue(0, 0, 1, i),
-                m_quadEncoderBank.GetValue(0, 1, 1, i),
-                m_delayState);
-            m_delayInputSetter.SetGrainParams(i, m_quadEncoderBank.GetValue(0, 2, 1, i), m_quadEncoderBank.GetValue(0, 2, 2, i), m_delayState);
-            m_delayToReverbSend = m_quadEncoderBank.GetValue(0, 3, 1, 0);
-            m_delayState.m_lfoInput.m_phaseKnob[i] = m_quadEncoderBank.GetValue(0, 2, 3, i);
-            m_mixerState.m_returnGain[0] = m_quadEncoderBank.GetValue(0, 3, 3, 0);
-
-            m_reverbInputSetter.SetReverbTime(i, m_quadEncoderBank.GetValue(1, 0, 0, i), m_reverbState);
-            m_reverbInputSetter.SetModulation(
-                i,  
-                m_quadEncoderBank.GetValue(1, 1, 3, i),
-                m_quadEncoderBank.GetValue(1, 0, 3, i),
-                m_reverbState);
-            m_reverbInputSetter.SetFeedback(i, m_quadEncoderBank.GetValue(1, 3, 0, i), m_reverbState);
-            m_reverbInputSetter.SetDamping(
-                i,
-                m_quadEncoderBank.GetValue(1, 0, 1, i),
-                m_quadEncoderBank.GetValue(1, 1, 1, i),
-                m_reverbState);
-            m_reverbToDelaySend = m_quadEncoderBank.GetValue(1, 3, 1, 0);
-            m_reverbInputSetter.SetWiden(i, m_quadEncoderBank.GetValue(1, 0, 2, i), m_reverbState);
-            m_reverbState.m_lfoInput.m_phaseKnob[i] = m_quadEncoderBank.GetValue(1, 2, 3, i);
-            m_mixerState.m_returnGain[1] = m_quadEncoderBank.GetValue(1, 3, 3, 0) / 2;
+            delayInputSetterInput.m_delayTimeFactorKnob[i] = m_quadEncoderBank.GetValue(0, 1, 0, i);
+            delayInputSetterInput.m_loopSelectorKnob[i] = m_quadEncoderBank.GetValue(0, 0, 0, i);
+            delayInputSetterInput.m_widenKnob[i] = m_quadEncoderBank.GetValue(0, 0, 2, i);
+            delayInputSetterInput.m_rotateKnob[i] = m_quadEncoderBank.GetValue(0, 1, 2, i);
+            delayInputSetterInput.m_modFreqKnob[i] = m_quadEncoderBank.GetValue(0, 1, 3, i);
+            delayInputSetterInput.m_modDepthKnob[i] = m_quadEncoderBank.GetValue(0, 0, 3, i);
+            delayInputSetterInput.m_feedbackKnob[i] = m_quadEncoderBank.GetValue(0, 3, 0, i);
+            delayInputSetterInput.m_dampingBaseKnob[i] = m_quadEncoderBank.GetValue(0, 0, 1, i);
+            delayInputSetterInput.m_dampingWidthKnob[i] = m_quadEncoderBank.GetValue(0, 1, 1, i);
+            delayInputSetterInput.m_grainSamplesKnob[i] = m_quadEncoderBank.GetValue(0, 2, 1, i);
+            delayInputSetterInput.m_grainOverlapKnob[i] = m_quadEncoderBank.GetValue(0, 2, 2, i);
+            delayInputSetterInput.m_lfoPhaseKnob[i] = m_quadEncoderBank.GetValue(0, 2, 3, i);
         }
+
+        delayInputSetterInput.m_theoryOfTime = m_theoryOfTime;
+        m_delayInputSetter.Process(delayInputSetterInput, m_delayState);
+        m_delayToReverbSend = m_quadEncoderBank.GetValue(0, 3, 1, 0);
+        m_mixerState.m_returnGain[0] = m_quadEncoderBank.GetValue(0, 3, 3, 0);
+
+        QuadReverbInputSetter::Input reverbInputSetterInput;
+        for (int i = 0; i < 4; ++i)
+        {
+            reverbInputSetterInput.m_reverbTimeKnob[i] = m_quadEncoderBank.GetValue(1, 0, 0, i);
+            reverbInputSetterInput.m_modFreqKnob[i] = m_quadEncoderBank.GetValue(1, 1, 3, i);
+            reverbInputSetterInput.m_modDepthKnob[i] = m_quadEncoderBank.GetValue(1, 0, 3, i);
+            reverbInputSetterInput.m_feedbackKnob[i] = m_quadEncoderBank.GetValue(1, 3, 0, i);
+            reverbInputSetterInput.m_dampingBaseKnob[i] = m_quadEncoderBank.GetValue(1, 0, 1, i);
+            reverbInputSetterInput.m_dampingWidthKnob[i] = m_quadEncoderBank.GetValue(1, 1, 1, i);
+            reverbInputSetterInput.m_widenKnob[i] = m_quadEncoderBank.GetValue(1, 0, 2, i);
+            reverbInputSetterInput.m_lfoPhaseKnob[i] = m_quadEncoderBank.GetValue(1, 2, 3, i);
+        }
+        
+        m_reverbInputSetter.Process(reverbInputSetterInput, m_reverbState);
+        m_reverbToDelaySend = m_quadEncoderBank.GetValue(1, 3, 1, 0);
+        m_mixerState.m_returnGain[1] = m_quadEncoderBank.GetValue(1, 3, 3, 0) / 2;
 
         input.m_tempo.Update(m_globalEncoderBank.GetValue(0, 0, 0, 0));
 

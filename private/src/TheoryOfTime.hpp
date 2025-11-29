@@ -129,23 +129,9 @@ struct TimeLoop
         }
         else
         {
-            int posDiff = m_position - m_prevPosition;
             m_position = m_position * loopSize / m_loopSize;
             m_loopSize = loopSize;
-
-            if (m_top && m_position == 0)
-            {
-                m_prevPosition = m_loopSize - 1;
-            }
-            else if (m_top && m_position == m_loopSize - 1)
-            {
-                m_prevPosition = 0;
-            }
-            else
-            {
-                m_prevPosition = m_position - posDiff;
-            }
-
+            m_prevPosition = (m_position + (m_ascending ? 1 : -1)) % m_loopSize;
             m_externalLoopMult = 1;
         }
     }
@@ -602,6 +588,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
     TheoryOfTime()
     {
+        m_masterLoopSamples = 1.0;
     }
 
     double LoopSamples(int loopIndex)

@@ -170,6 +170,33 @@ struct QuadReverbInputSetter
     OPLowPassFilter m_delayTimeFilter[4];
     OPLowPassFilter m_modDepthFilter[4];
 
+    struct Input
+    {
+        float m_reverbTimeKnob[4];
+        float m_modFreqKnob[4];
+        float m_modDepthKnob[4];
+        float m_feedbackKnob[4];
+        float m_dampingBaseKnob[4];
+        float m_dampingWidthKnob[4];
+        float m_widenKnob[4];
+        float m_lfoPhaseKnob[4];
+
+        Input()
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                m_reverbTimeKnob[i] = 0.0f;
+                m_modFreqKnob[i] = 0.0f;
+                m_modDepthKnob[i] = 0.0f;
+                m_feedbackKnob[i] = 0.0f;
+                m_dampingBaseKnob[i] = 0.0f;
+                m_dampingWidthKnob[i] = 0.0f;
+                m_widenKnob[i] = 0.0f;
+                m_lfoPhaseKnob[i] = 0.0f;
+            }
+        }
+    };
+
     QuadReverbInputSetter()
       : m_wideners
       {
@@ -191,31 +218,24 @@ struct QuadReverbInputSetter
         }
     }
 
-    void SetReverbTime(int i, float reverbTime, QuadReverb::Input& input)
+    void Process(Input& input, QuadReverb::Input& reverbInput)
     {
-        input.m_delayTimeSamples[i] = m_delayTime[i].Update(m_delayTimeFilter[i].Process(reverbTime));
-    }
+        for (int i = 0; i < 4; ++i)
+        {
+            reverbInput.m_delayTimeSamples[i] = m_delayTime[i].Update(m_delayTimeFilter[i].Process(input.m_reverbTimeKnob[i]));
 
-    void SetDamping(int i, float dampingBase, float dampingWidth, QuadReverb::Input& input)
-    {
-        input.m_bffBase[i] = m_dampingBase[i].Update(dampingBase);
-        input.m_bffWidth[i] = m_dampingWidth[i].Update(dampingWidth);
-    }
-    
-    void SetModulation(int i, float modFreq, float modDepth, QuadReverb::Input& input)
-    {
-        input.m_modDepth[i] = m_modDepthFilter[i].Process(m_modDepth[i].Update(modDepth));
-        input.m_lfoInput.m_freq[i] = m_modFreq[i].Update(modFreq);
-    }
+            reverbInput.m_bffBase[i] = m_dampingBase[i].Update(input.m_dampingBaseKnob[i]);
+            reverbInput.m_bffWidth[i] = m_dampingWidth[i].Update(input.m_dampingWidthKnob[i]);
 
-    void SetWiden(int i, float widen, QuadReverb::Input& input)
-    {
-        input.m_widen[i] = m_wideners[i].Update(widen);
-    }
+            reverbInput.m_modDepth[i] = m_modDepthFilter[i].Process(m_modDepth[i].Update(input.m_modDepthKnob[i]));
+            reverbInput.m_lfoInput.m_freq[i] = m_modFreq[i].Update(input.m_modFreqKnob[i]);
 
-    void SetFeedback(int i, float feedback, QuadReverb::Input& input)
-    {
-        input.m_feedback[i] = 1.25 * m_feedback[i].Update(feedback);
+            reverbInput.m_widen[i] = m_wideners[i].Update(input.m_widenKnob[i]);
+
+            reverbInput.m_feedback[i] = 1.25 * m_feedback[i].Update(input.m_feedbackKnob[i]);
+
+            reverbInput.m_lfoInput.m_phaseKnob[i] = input.m_lfoPhaseKnob[i];
+        }
     }
 };
 
