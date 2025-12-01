@@ -321,7 +321,7 @@ struct QuadDelayInputSetter
             delayInput.m_bffBase[i] = m_dampingBase[i].Update(input.m_dampingBaseKnob[i]);
             delayInput.m_bffWidth[i] = m_dampingWidth[i].Update(input.m_dampingWidthKnob[i]);
 
-            delayInput.m_grainManagerInput.m_input[i].m_grainSamples = m_grainSamples[i].Update(input.m_grainSamplesKnob[i]);
+            delayInput.m_grainManagerInput.m_input[i].m_grainSamples = 1024;//m_grainSamples[i].Update(input.m_grainSamplesKnob[i]);
             delayInput.m_grainManagerInput.m_input[i].m_overlap = 4;//m_grainOverlap[i].Update(input.m_grainOverlapKnob[i]);
             delayInput.m_grainManagerInput.m_input[i].m_sigma = 0;//300;
 

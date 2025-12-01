@@ -8,8 +8,8 @@
 #include "CircleTracker.hpp"
 #include "NormGen.hpp"
 #include "WaveTable.hpp"
-#include "PitchShiftQuantizer.hpp"
 #include "InterleavedArray.hpp"
+#include "Resynthesis.hpp"
 
 struct XFader
 {
@@ -371,73 +371,56 @@ struct GrainManager
     {
         Grain()
             : m_startTime(0.0)
-            , m_time(0.0)
-            , m_increment(0.0)
-            , m_samples(0.0)
             , m_gain(1.0)
-            , m_running(false)
+            , m_owner(nullptr)
         {
         }
 
         void Reset()
         {
             m_startTime = 0.0;
-            m_time = 0.0;
-            m_increment = 0.0;
-            m_samples = 0.0;
             m_gain = 1.0f;
-            m_running = false;
+            m_startWallTime = 0.0;
         }
 
-        float Window()
+        float Process()
         {
-            if (m_samples <= m_timeSinceStart)
-            {
-                m_running = false;
-                return 0.0f;
-            }
-            else
-            {
-                return 0.5 - 0.5 * m_windowTable->Evaluate(m_timeSinceStart / m_samples);
-            }
+            return m_grain.Process() * m_gain;
         }
 
-        float Process(DelayLineMovableWriter<Size>* delayLine)
-        {
-            float result = delayLine->ReadRealTime(m_time);
-            float window = Window();
-            m_time += m_increment;
-            m_timeSinceStart += 1.0;
-            result = result * window * m_gain;
-            return result;
-        }
-
-        void Start(double wallTime, double time, double samples, float gain, double pitch)
+        void Start(double wallTime, double time, float gain)
         {
             m_startTime = time;
-            m_time = time;
             m_startWallTime = wallTime;
-            m_increment = pitch;
-            m_samples = samples;
             m_gain = gain;
-            m_timeSinceStart = 0.0;
-            m_running = true;
+
+            for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
+            {
+                float window = 0.5 - 0.5 * m_grain.m_windowTable->m_table[i];
+                m_grain.m_buffer.m_table[i] = m_delayLine->ReadRealTime(time + i) * window;
+            }
+
+            DiscreteFourierTransform dft;
+            m_owner->m_resynthesizer.Analyze(m_grain.m_buffer, dft);
+            m_owner->m_resynthesizer.Synthesize(&m_grain, dft, time);
         }
 
-        double PhaseOffset()
+        bool IsRunning() const
         {
-            return m_startTime - m_startWallTime;
+            return m_grain.m_running;
         }
 
-        double m_startTime;
-        double m_time;
-        double m_increment;
-        double m_timeSinceStart;
-        double m_samples;
-        float m_gain;
-        bool m_running;
+        void SetWindowTable(const WaveTable* windowTable)
+        {
+            m_grain.m_windowTable = windowTable;
+        }
+
         double m_startWallTime;
-        const WaveTable* m_windowTable;
+        double m_startTime;
+        float m_gain;
+        Resynthesizer::Grain m_grain;
+        DelayLineMovableWriter<Size>* m_delayLine;
+        GrainManager* m_owner;
     };
 
     struct Input
@@ -463,31 +446,7 @@ struct GrainManager
     double m_samplesToNextGrain;
     double m_lastSampleOffset;
     const WaveTable* m_windowTable;
-    double m_lastWriteHeadTimeLeft;
-    double m_lastWriteHeadTimeRight;
-    double m_writeHeadDerivativeLeft;
-    double m_writeHeadDerivativeRight;
-    PitchShiftQuantizer m_pitchShiftQuantizer;
-
-    void SetWriteHeadDerivative(XFader writeHead)
-    {
-        double left = m_delayLine->GetRealTime(writeHead.m_left);
-        m_writeHeadDerivativeLeft = left - m_lastWriteHeadTimeLeft;
-        m_lastWriteHeadTimeLeft = left;
-        if (!writeHead.m_fadeDone)
-        {
-            double right = m_delayLine->GetRealTime(writeHead.m_right);
-            m_writeHeadDerivativeRight = right - m_lastWriteHeadTimeRight;
-            m_lastWriteHeadTimeRight = right;
-        }
-    }
-
-    float GetPitchShift(bool left)
-    {
-        return 1.0;
-        float result = m_pitchShiftQuantizer.Quantize(left ? m_writeHeadDerivativeLeft : m_writeHeadDerivativeRight);
-        return result;
-    }
+    Resynthesizer m_resynthesizer;
 
     void CompactGrains()
     {
@@ -510,7 +469,9 @@ struct GrainManager
         Grain* grain = m_grainsAlloc.Allocate();
         if (grain)
         {
-            grain->m_windowTable = m_windowTable;
+            grain->SetWindowTable(m_windowTable);
+            grain->m_delayLine = m_delayLine;
+            grain->m_owner = this;
             ++m_numGrains;
             m_grainsArray[m_numGrains - 1] = grain;
         }
@@ -528,8 +489,8 @@ struct GrainManager
         float result = 0.0f;
         for (size_t i = 0; i < m_numGrains; ++i)
         {
-            result += m_grainsArray[i]->Process(m_delayLine);
-            if (!m_grainsArray[i]->m_running)
+            result += m_grainsArray[i]->Process();
+            if (!m_grainsArray[i]->IsRunning())
             {
                 anyFreed = true;
                 m_grainsArray[i]->Reset();
@@ -558,26 +519,14 @@ struct GrainManager
             }
             else
             {
-                float gain = 2.0 / input.m_overlap;
+                float gain = 1.0;
                 Grain* grain = AllocateGrain();
                 if (grain)
                 {
-                    double pitch = GetPitchShift(true) + sampleOffset - m_lastSampleOffset;
-                    float timeJitter = m_rgen.NormGen(0.0, input.m_sigma);
-                    double startTime = m_delayLine->GetRealTime(warpedTime.m_left) + timeJitter + sampleOffset;
-                    grain->Start(m_delayLine->m_lastTime, startTime, input.m_grainSamples, gain * (1 - warpedTime.m_fade), pitch);
-                }
-
-                if (!warpedTime.m_fadeDone)
-                {
-                    Grain* grain = AllocateGrain();
-                    if (grain)
-                    {
-                        double pitch = GetPitchShift(false) + sampleOffset - m_lastSampleOffset;
-                        float timeJitter = m_rgen.NormGen(0.0, input.m_sigma);
-                        double startTime = m_delayLine->GetRealTime(warpedTime.m_right) + timeJitter + sampleOffset;
-                        grain->Start(m_delayLine->m_lastTime, startTime, input.m_grainSamples, gain * warpedTime.m_fade, pitch);
-                    }
+                    float warpedTimePicked = warpedTime.m_fadeDone ? warpedTime.m_left : warpedTime.m_right;
+                    double pitch = 1.0 + sampleOffset - m_lastSampleOffset;
+                    double startTime = m_delayLine->GetRealTime(warpedTimePicked) + sampleOffset;
+                    grain->Start(m_delayLine->m_lastTime, startTime, gain);
                 }
 
                 m_samplesToNextGrain = input.m_grainSamples / input.m_overlap;
@@ -596,8 +545,6 @@ struct GrainManager
     GrainManager()
         : m_delayLine(nullptr)
         , m_samplesToNextGrain(0.0)
-        , m_lastWriteHeadTimeLeft(0.0)
-        , m_lastWriteHeadTimeRight(0.0)
     {
         m_windowTable = &WaveTable::GetCosine();
         m_numGrains = 0;
@@ -605,9 +552,6 @@ struct GrainManager
         {
             m_grainsArray[i] = nullptr;
         }
-
-        m_pitchShiftQuantizer.AddNumerator(3);
-        m_pitchShiftQuantizer.FinalizeNumerators();
     }
 
     struct UIState
@@ -660,7 +604,6 @@ struct GrainManager
         uiState->m_numGrains[uiState->m_which.load()].store(0);
         for (size_t i = 0; i < m_numGrains; ++i)
         {
-            uiState->m_phaseOffsets[i][uiState->m_which.load()].store(m_grainsArray[i]->PhaseOffset());
             uiState->m_gain[i][uiState->m_which.load()].store(m_grainsArray[i]->m_gain);
         }
 
