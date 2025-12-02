@@ -11,7 +11,7 @@
 class ConfigPage : public juce::Component
 {
 public:
-    static constexpr size_t x_numControllers = 6;
+    static constexpr size_t x_numControllers = 7;
 
     //==============================================================================
     ConfigPage(NonagonWrapper* nonagon, Configuration* configuration)
@@ -21,8 +21,9 @@ public:
             ControllerSection("Launchpad Top Right", ControllerSection::Type::Launchpad),
             ControllerSection("Launchpad Bottom Left", ControllerSection::Type::Launchpad),
             ControllerSection("Launchpad Bottom Right", ControllerSection::Type::Launchpad),
-            ControllerSection("Twister", ControllerSection::Type::Twister),
+            ControllerSection("Encoder", ControllerSection::Type::Encoder),
             ControllerSection("Faders", ControllerSection::Type::Generic),
+            ControllerSection("WrldBldr", ControllerSection::Type::WrldBldr),
         }
         , m_configuration(configuration)
     {
@@ -32,12 +33,21 @@ public:
             addAndMakeVisible(m_sections[i].m_titleLabel);
             addAndMakeVisible(m_sections[i].m_midiInCombo);
             addAndMakeVisible(m_sections[i].m_midiOutCombo);
-            addAndMakeVisible(m_sections[i].m_controllerShapeCombo);
+            
+            if (m_sections[i].m_type != ControllerSection::Type::WrldBldr &&
+                m_sections[i].m_type != ControllerSection::Type::Generic)
+            {
+                addAndMakeVisible(m_sections[i].m_controllerShapeCombo);
+            }
             
             // Set up combo box listeners
             m_sections[i].m_midiInCombo.onChange = [this, i]() { OnMidiInChanged(i); };
             m_sections[i].m_midiOutCombo.onChange = [this, i]() { OnMidiOutChanged(i); };
-            m_sections[i].m_controllerShapeCombo.onChange = [this, i]() { OnControllerShapeChanged(i); };
+            
+            if (m_sections[i].m_type != ControllerSection::Type::WrldBldr)
+            {
+                m_sections[i].m_controllerShapeCombo.onChange = [this, i]() { OnControllerShapeChanged(i); };
+            }
         }
         
         // Set up stereo checkbox
@@ -100,11 +110,15 @@ public:
             // MIDI Out combo
             auto midiOutBounds = sectionBounds.removeFromLeft(comboWidth);
             m_sections[i].m_midiOutCombo.setBounds(midiOutBounds.withHeight(comboHeight));
-            sectionBounds.removeFromLeft(spacing);
             
-            // Controller Shape combo
-            auto shapeBounds = sectionBounds.removeFromLeft(comboWidth);
-            m_sections[i].m_controllerShapeCombo.setBounds(shapeBounds.withHeight(comboHeight));
+            // Controller Shape combo (only for non-WrldBldr sections)
+            if (m_sections[i].m_type != ControllerSection::Type::WrldBldr && 
+                m_sections[i].m_type != ControllerSection::Type::Generic)
+            {
+                sectionBounds.removeFromLeft(spacing);
+                auto shapeBounds = sectionBounds.removeFromLeft(comboWidth);
+                m_sections[i].m_controllerShapeCombo.setBounds(shapeBounds.withHeight(comboHeight));
+            }
             
             bounds.removeFromTop(10); // Spacing between sections
         }
@@ -120,8 +134,9 @@ public:
         enum class Type : int
         {
             Launchpad,
-            Twister,
-            Generic
+            Encoder,
+            Generic,
+            WrldBldr
         };
 
         Type m_type;
@@ -149,8 +164,21 @@ public:
 
         void SetCurrentValues(NonagonWrapper* nonagon, int index)
         {
+            juce::MidiInput* midiInput = nullptr;
+            juce::MidiOutput* midiOutput = nullptr;
+
+            if (m_type == Type::WrldBldr)
+            {
+                midiInput = nonagon->GetMidiInputWrldBldr();
+                midiOutput = nonagon->GetMidiOutputWrldBldr();
+            }
+            else
+            {
+                midiInput = nonagon->GetMidiInputQuadLaunchpadTwister(index);
+                midiOutput = nonagon->GetMidiOutputQuadLaunchpadTwister(index);
+            }
+
             // Set MIDI input
-            auto* midiInput = nonagon->GetMidiInputQuadLaunchpadTwister(index);
             if (midiInput)
             {
                 auto deviceName = midiInput->getName();
@@ -174,7 +202,6 @@ public:
             }
             
             // Set MIDI output
-            auto* midiOutput = nonagon->GetMidiOutputQuadLaunchpadTwister(index);
             if (midiOutput)
             {
                 auto deviceName = midiOutput->getName();
@@ -213,7 +240,14 @@ public:
             if (midiInIndex > 0 && midiInIndex <= m_midiInCombo.getNumItems())
             {
                 auto deviceId = midiInputIds[midiInIndex];
-                nonagon->OpenInputQuadLaunchpadTwister(index, deviceId);
+                if (m_type == Type::WrldBldr)
+                {
+                    nonagon->OpenInputWrldBldr(deviceId);
+                }
+                else
+                {
+                    nonagon->OpenInputQuadLaunchpadTwister(index, deviceId);
+                }
             }
             
             // Apply MIDI output and controller shape
@@ -230,12 +264,20 @@ public:
                     nonagon->OpenLaunchpadOutputQuadLaunchpadTwister(index, shape, deviceId);
                 }
             }
-            else if (m_type == Type::Twister)
+            else if (m_type == Type::Encoder)
             {
                 if (midiOutIndex > 0 && midiOutIndex <= m_midiOutCombo.getNumItems())
                 {
                     auto deviceId = midiOutputIds[midiOutIndex];
-                    nonagon->OpenTwisterOutputQuadLaunchpadTwister(deviceId);
+                    nonagon->OpenEncoderOutputQuadLaunchpadTwister(deviceId);
+                }
+            }
+            else if (m_type == Type::WrldBldr)
+            {
+                if (midiOutIndex > 0 && midiOutIndex <= m_midiOutCombo.getNumItems())
+                {
+                    auto deviceId = midiOutputIds[midiOutIndex];
+                    nonagon->OpenOutputWrldBldr(deviceId);
                 }
             }
         }

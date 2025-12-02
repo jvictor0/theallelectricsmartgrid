@@ -5,9 +5,10 @@
 #pragma GCC diagnostic ignored "-Wshorten-64-to-32"
 #include "TheNonagonSquiggleBoyQuadLaunchpadTwister.hpp"
 #include "LaunchPadMidi.hpp"
-#include "TwisterMidi.hpp"
+#include "EncoderMidi.hpp"
 #include "SmartBus.hpp"
 #include "TheNonagonSquiggleBoyWrldBldr.hpp"
 #include "SmartGridOneScopeEnums.hpp"
+#include "WrldBLDRMidi.hpp"
 #pragma GCC diagnostic pop
 #undef IOS_BUILD

@@ -524,7 +524,7 @@ struct GrainManager
                 if (grain)
                 {
                     float warpedTimePicked = warpedTime.m_fadeDone ? warpedTime.m_left : warpedTime.m_right;
-                    double pitch = 1.0 + sampleOffset - m_lastSampleOffset;
+                    //double pitch = 1.0 + sampleOffset - m_lastSampleOffset;
                     double startTime = m_delayLine->GetRealTime(warpedTimePicked) + sampleOffset;
                     grain->Start(m_delayLine->m_lastTime, startTime, gain);
                 }

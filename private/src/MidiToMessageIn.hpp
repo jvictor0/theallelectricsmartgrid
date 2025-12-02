@@ -3,7 +3,7 @@
 #include "MessageIn.hpp"
 #include "BasicMidi.hpp"
 #include "LaunchPadMidi.hpp"
-#include "TwisterMidi.hpp"
+#include "EncoderMidi.hpp"
 
 namespace SmartGrid
 {
@@ -14,7 +14,7 @@ namespace SmartGrid
             LaunchPad,
             Encoder,
             Param14,
-            Param7
+            Param7,
         };
 
         RouteType m_routeTypes[16];
@@ -37,7 +37,7 @@ namespace SmartGrid
             }
             else if (m_routeTypes[msg.m_routeId] == RouteType::Encoder)
             {
-                return TwisterMidi::FromMidi(msg);
+                return EncoderMidi::FromMidi(msg);
             }
             else if (m_routeTypes[msg.m_routeId] == RouteType::Param14)
             {

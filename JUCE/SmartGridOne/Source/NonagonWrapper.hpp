@@ -1,231 +1,95 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "MidiUtils.hpp"
+#include "MidiHandlers.hpp"
 #include "SmartGridInclude.hpp"
 
 struct NonagonWrapperQuadLaunchpadTwister
 {
-    struct MidiInputHandler : public juce::MidiInputCallback
+    struct QuadLaunchpadTwisterMidiHandler : MidiInputHandler
     {
-        int m_routeId;
         TheNonagonSquiggleBoyQuadLaunchpadTwister* m_owner;
-        std::unique_ptr<juce::MidiInput> m_midiInput;
-        juce::String m_name;
-  
-        MidiInputHandler()
-            : m_routeId(-1)
+
+        QuadLaunchpadTwisterMidiHandler()
+            : MidiInputHandler()
             , m_owner(nullptr)
         {
         }
 
-        MidiInputHandler(TheNonagonSquiggleBoyQuadLaunchpadTwister* owner, int routeId)
-            : m_routeId(routeId)
-            , m_owner(owner)
+        void Init(TheNonagonSquiggleBoyQuadLaunchpadTwister* owner, int routeId)
         {
+            m_routeId = routeId;
+            m_owner = owner;
         }
 
-        void Open(const juce::String &deviceIdentifier)
+        void SendMessage(SmartGrid::BasicMidi msg) override
         {
-            juce::Logger::writeToLog("Opening MIDI input: " + deviceIdentifier);
-            m_midiInput = juce::MidiInput::openDevice(deviceIdentifier, this);
-            if (m_midiInput.get())
-            {
-                m_midiInput->start();
-                m_name = m_midiInput->getName();
-                juce::Logger::writeToLog("MIDI input opened: " + deviceIdentifier + "(name " + m_midiInput->getName() + ")");
-            }
-            else
-            {
-                juce::Logger::writeToLog("MIDI input failed to open: " + deviceIdentifier);
-            }
-        }
-
-        void handleIncomingMidiMessage(juce::MidiInput* source, const juce::MidiMessage& message) override
-        {
-            if (message.getRawDataSize() == 3)
-            {
-                double timestampSeconds = message.getTimeStamp();
-                size_t timestampUs = timestampSeconds * 1000 * 1000;
-                const uint8_t* rawData = message.getRawData();
-                m_owner->SendMessage(SmartGrid::BasicMidi(timestampUs, m_routeId, rawData[0], rawData[1], rawData[2]));
-            }
-        }
-
-        void AttemptConnect()
-        {
-            if (!m_name.isEmpty() && !m_midiInput.get())
-            {
-                juce::String deviceIdentifier = MidiInputDeviceIdentifierFromName(m_name);
-                if (!deviceIdentifier.isEmpty())
-                {
-                    Open(deviceIdentifier);
-                }
-            }
-        }
-
-        JSON ToJSON()
-        {
-            JSON rootJ = JSON::Object();
-            rootJ.SetNew("route_id", JSON::Integer(m_routeId));
-            rootJ.SetNew("midi_input", JSON::String(m_name.toUTF8()));
-            return rootJ;
-        }
-
-        void FromJSON(JSON rootJ)
-        {
-            JSON nameJ = rootJ.Get("midi_input");
-            if (!nameJ.IsNull())
-            {
-                m_name = juce::String(nameJ.StringValue());
-            }
-        
-            AttemptConnect();
+            m_owner->SendMessage(msg);
         }
     };
 
-    struct MidiLaunchpadOutputHandler
+    struct MidiLaunchpadOutputHandler : ::MidiOutputHandler
     {
-        TheNonagonSquiggleBoyQuadLaunchpadTwister* m_owner;
-        std::unique_ptr<juce::MidiOutput> m_midiOutput[TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads];
-        juce::String m_name[TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads];
-        SmartGrid::LPSysexWriter m_sysexWriter[TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads];
+        SmartGrid::LPSysexWriter m_sysexWriter;
 
-        MidiLaunchpadOutputHandler(TheNonagonSquiggleBoyQuadLaunchpadTwister* owner)
-            : m_owner(owner)
+        MidiLaunchpadOutputHandler()
         {
-            for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
-            {
-                m_sysexWriter[i] = SmartGrid::LPSysexWriter(SmartGrid::ControllerShape::LaunchPadX, &m_owner->m_uiState.m_colorBus[i]);
-            }
         }
 
-        void AttemptConnect()
+        void Init(SmartGrid::ControllerShape shape, SmartGrid::SmartBusColor* colorBus)
         {
-            for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
+            m_shape = shape;
+            m_sysexWriter = SmartGrid::LPSysexWriter(shape, colorBus);
+        }
+
+        void Open(SmartGrid::ControllerShape shape, const juce::String &deviceIdentifier)
+        {
+            m_shape = shape;
+            m_sysexWriter.m_shape = shape;
+            MidiOutputHandler::Open(deviceIdentifier);
+        }
+
+        void Reset() override
+        {
+            m_sysexWriter.m_shape = m_shape;
+            m_sysexWriter.Reset();
+        }
+
+        void Process() override
+        {
+            if (m_midiOutput.get())
             {
-                if (!m_name[i].isEmpty() && !m_midiOutput[i].get())
+                uint8_t buffer[SmartGrid::LPSysexWriter::x_maxMessageSize];
+                size_t size = m_sysexWriter.Write(buffer);
+                if (size > 0)
                 {
-                    juce::String deviceIdentifier = MidiOutputDeviceIdentifierFromName(m_name[i]);
-                    if (!deviceIdentifier.isEmpty())
-                    {
-                        Open(i, m_sysexWriter[i].m_shape, deviceIdentifier);
-                    }
+                    m_midiOutput->sendMessageNow(juce::MidiMessage(buffer, static_cast<int>(size)));
                 }
             }
-        }
-
-        void Open(int index, SmartGrid::ControllerShape shape, const juce::String &deviceIdentifier)
-        {
-            juce::Logger::writeToLog(juce::String("Opening MIDI output (shape ") + juce::String(SmartGrid::ControllerShapeToString(shape)) + "): " + deviceIdentifier);
-            m_midiOutput[index] = juce::MidiOutput::openDevice(deviceIdentifier);
-            if (!m_midiOutput[index].get())
-            {
-                juce::Logger::writeToLog("MIDI output failed to open: " + deviceIdentifier);
-            }
-            else
-            {
-                m_name[index] = m_midiOutput[index]->getName();
-            }
-
-            juce::Logger::writeToLog("MIDI output opened: " + deviceIdentifier + " (name " + m_midiOutput[index]->getName() + ")");
-
-            m_sysexWriter[index].m_shape = shape;
-            m_sysexWriter[index].Reset();
-        }
-
-        void Process()
-        {
-            for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
-            {
-                if (m_midiOutput[i].get())
-                {
-                    uint8_t buffer[SmartGrid::LPSysexWriter::x_maxMessageSize];
-                    size_t size = m_sysexWriter[i].Write(buffer);
-                    if (size > 0)
-                    {
-                        m_midiOutput[i]->sendMessageNow(juce::MidiMessage(buffer, static_cast<int>(size)));
-                    }
-                }
-            }
-        }
-
-        JSON ToJSON()
-        {
-            JSON rootJ = JSON::Object();
-            for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
-            {
-                rootJ.SetNew(std::string("launchpad_output_" + std::to_string(i)).c_str(), JSON::String(m_name[i].toUTF8()));
-                rootJ.SetNew(std::string("launchpad_output_shape_" + std::to_string(i)).c_str(), JSON::Integer(static_cast<int>(m_sysexWriter[i].m_shape)));
-            }
-
-            return rootJ;
-        }
-
-        void FromJSON(JSON rootJ)
-        {
-            for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
-            {
-                JSON nameJ = rootJ.Get(std::string("launchpad_output_" + std::to_string(i)).c_str());
-                if (!nameJ.IsNull())
-                {
-                    m_name[i] = juce::String(nameJ.StringValue());
-                }
-
-                JSON shapeJ = rootJ.Get(std::string("launchpad_output_shape_" + std::to_string(i)).c_str());
-                if (!shapeJ.IsNull())
-                {
-                    m_sysexWriter[i].m_shape = static_cast<SmartGrid::ControllerShape>(shapeJ.IntegerValue());
-                }
-            }
-
-            AttemptConnect();
         }
     };
 
-    struct MidiTwisterOutputHandler
+    struct MidiEncoderOutputHandler : MidiOutputHandler
     {
-        TheNonagonSquiggleBoyInternal* m_owner;
-        std::unique_ptr<juce::MidiOutput> m_midiOutput;
-        juce::String m_name;
         SmartGrid::MFTMidiWriter m_midiWriter;
 
-        MidiTwisterOutputHandler(TheNonagonSquiggleBoyInternal* owner)
-            : m_owner(owner)
-            , m_midiWriter(&owner->m_uiState.m_squiggleBoyUIState.m_encoderBankUIState)
+        MidiEncoderOutputHandler()
+            : m_midiWriter(nullptr)
         {
+            m_shape = SmartGrid::ControllerShape::MidiFighterTwister;
         }
 
-        void AttemptConnect()
+        void Init(EncoderBankUIState* encoderBankState)
         {
-            if (!m_name.isEmpty() && !m_midiOutput.get())
-            {
-                juce::String deviceIdentifier = MidiOutputDeviceIdentifierFromName(m_name);
-                if (!deviceIdentifier.isEmpty())
-                {
-                    Open(deviceIdentifier);
-                }
-            }
+            m_midiWriter = SmartGrid::MFTMidiWriter(encoderBankState);
         }
 
-        void Open(const juce::String &deviceIdentifier)
+        void Reset() override
         {
-            juce::Logger::writeToLog("Opening MIDI output (Twister): " + deviceIdentifier);
-            m_midiOutput = juce::MidiOutput::openDevice(deviceIdentifier);
-            if (!m_midiOutput.get())
-            {
-                juce::Logger::writeToLog("MIDI output failed to open: " + deviceIdentifier);
-            }
-            else
-            {
-                m_name = m_midiOutput->getName();
-                juce::Logger::writeToLog("MIDI output opened: " + deviceIdentifier + " (name " + m_midiOutput->getName() + ")");
-            }
-
             m_midiWriter.Reset();
         }
 
-        void Process()
+        void Process() override
         {
             if (m_midiOutput.get())
             {
@@ -236,36 +100,23 @@ struct NonagonWrapperQuadLaunchpadTwister
                 }
             }
         }
-
-        JSON ToJSON()
-        {
-            JSON rootJ = JSON::Object();
-            rootJ.SetNew("midi_output", JSON::String(m_name.toUTF8()));
-            return rootJ;
-        }
-
-        void FromJSON(JSON rootJ)
-        {
-            JSON nameJ = rootJ.Get("midi_output");
-            if (!nameJ.IsNull())
-            {
-                m_name = juce::String(nameJ.StringValue());
-            }
-
-            AttemptConnect();
-        }
     };
 
     NonagonWrapperQuadLaunchpadTwister(TheNonagonSquiggleBoyInternal* internal)
         : m_nonagon(internal)
-        , m_midiLaunchpadOutputHandler(&m_nonagon)
-        , m_midiTwisterOutputHandler(internal)
         , m_internal(internal)
     {
         for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numRoutes; ++i)
         {
-            m_midiInputHandler[i] = MidiInputHandler(&m_nonagon, i);
+            m_midiInputHandler[i].Init(&m_nonagon, i);
         }
+
+        for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
+        {
+            m_midiLaunchpadOutputHandler[i].Init(SmartGrid::ControllerShape::LaunchPadX, &m_nonagon.m_uiState.m_colorBus[i]);
+        }
+
+        m_midiEncoderOutputHandler.Init(&internal->m_uiState.m_squiggleBoyUIState.m_encoderBankUIState);
     }
 
     void OpenInput(int index, const juce::String &deviceIdentifier)
@@ -275,12 +126,12 @@ struct NonagonWrapperQuadLaunchpadTwister
 
     void OpenLaunchpadOutput(int index, SmartGrid::ControllerShape shape, const juce::String &deviceIdentifier)
     {
-        m_midiLaunchpadOutputHandler.Open(index, shape, deviceIdentifier);
+        m_midiLaunchpadOutputHandler[index].Open(shape, deviceIdentifier);
     }
 
-    void OpenTwisterOutput(const juce::String &deviceIdentifier)
+    void OpenEncoderOutput(const juce::String &deviceIdentifier)
     {
-        m_midiTwisterOutputHandler.Open(deviceIdentifier);
+        m_midiEncoderOutputHandler.Open(deviceIdentifier);
     }
 
     juce::MidiInput* GetMidiInput(int index)
@@ -292,17 +143,17 @@ struct NonagonWrapperQuadLaunchpadTwister
     {
         if (index < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads)
         {
-            return m_midiLaunchpadOutputHandler.m_midiOutput[index].get();
+            return m_midiLaunchpadOutputHandler[index].m_midiOutput.get();
         }
         else
         {
-            return m_midiTwisterOutputHandler.m_midiOutput.get();
+            return m_midiEncoderOutputHandler.m_midiOutput.get();
         }
     }
 
     SmartGrid::ControllerShape GetControllerShape(int index)
     {
-        return m_midiLaunchpadOutputHandler.m_sysexWriter[index].m_shape;
+        return m_midiLaunchpadOutputHandler[index].m_shape;
     }
 
     void ProcessSample(size_t timestamp)
@@ -317,8 +168,12 @@ struct NonagonWrapperQuadLaunchpadTwister
 
     void SendMidiOutput()
     {
-        m_midiLaunchpadOutputHandler.Process();
-        m_midiTwisterOutputHandler.Process();
+        for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
+        {
+            m_midiLaunchpadOutputHandler[i].Process();
+        }
+
+        m_midiEncoderOutputHandler.Process();
     }
 
     JSON ConfigToJSON()
@@ -329,8 +184,12 @@ struct NonagonWrapperQuadLaunchpadTwister
             rootJ.SetNew(std::string("midi_input_" + std::to_string(i)).c_str(), m_midiInputHandler[i].ToJSON());
         }
 
-        rootJ.SetNew(std::string("launchpad_outputs").c_str(), m_midiLaunchpadOutputHandler.ToJSON());
-        rootJ.SetNew(std::string("twister_output").c_str(), m_midiTwisterOutputHandler.ToJSON());
+        for (size_t i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
+        {
+            rootJ.SetNew(std::string("launchpad_output_" + std::to_string(i)).c_str(), m_midiLaunchpadOutputHandler[i].ToJSON());
+        }
+
+        rootJ.SetNew(std::string("encoder_output").c_str(), m_midiEncoderOutputHandler.ToJSON());
 
         return rootJ;
     }
@@ -346,16 +205,19 @@ struct NonagonWrapperQuadLaunchpadTwister
             }
         }
 
-        JSON launchpadOutputsJ = config.Get(std::string("launchpad_outputs").c_str());
-        if (!launchpadOutputsJ.IsNull())
-        {   
-            m_midiLaunchpadOutputHandler.FromJSON(launchpadOutputsJ);
+        for (size_t i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
+        {
+            JSON launchpadOutputJ = config.Get(std::string("launchpad_output_" + std::to_string(i)).c_str());
+            if (!launchpadOutputJ.IsNull())
+            {
+                m_midiLaunchpadOutputHandler[i].FromJSON(launchpadOutputJ);
+            }
         }
 
-        JSON midiTwisterOutputJ = config.Get(std::string("twister_output").c_str());
-        if (!midiTwisterOutputJ.IsNull())
+        JSON encoderOutputJ = config.Get(std::string("encoder_output").c_str());
+        if (!encoderOutputJ.IsNull())
         {
-            m_midiTwisterOutputHandler.FromJSON(midiTwisterOutputJ);
+            m_midiEncoderOutputHandler.FromJSON(encoderOutputJ);
         }
     }
 
@@ -365,18 +227,85 @@ struct NonagonWrapperQuadLaunchpadTwister
     }
 
     TheNonagonSquiggleBoyQuadLaunchpadTwister m_nonagon;
-    MidiInputHandler m_midiInputHandler[TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numRoutes];
-    MidiLaunchpadOutputHandler m_midiLaunchpadOutputHandler;
-    MidiTwisterOutputHandler m_midiTwisterOutputHandler;
+    QuadLaunchpadTwisterMidiHandler m_midiInputHandler[TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numRoutes];
+    MidiLaunchpadOutputHandler m_midiLaunchpadOutputHandler[TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads];
+    MidiEncoderOutputHandler m_midiEncoderOutputHandler;
     TheNonagonSquiggleBoyInternal* m_internal;
 };
 
 struct NonagonWrapperWrldBldr
 {
+    struct MidiInputHandler : ::MidiInputHandler
+    {
+        TheNonagonSquiggleBoyWrldBldr* m_owner;
+
+        MidiInputHandler(TheNonagonSquiggleBoyWrldBldr* owner)
+            : ::MidiInputHandler()
+            , m_owner(owner)
+        {
+        }
+
+        void SendMessage(SmartGrid::BasicMidi msg) override
+        {
+            SmartGrid::MessageIn message = SmartGrid::WrldBLDRMidi::FromMidi(msg);
+            m_owner->SendMessage(message);
+        }
+    };
+
+    struct MidiOutputHandler : ::MidiOutputHandler
+    {
+        TheNonagonSquiggleBoyWrldBldr* m_owner;
+        SmartGrid::WrldBLDRMidiWriter m_midiWriter;
+
+        MidiOutputHandler(TheNonagonSquiggleBoyWrldBldr* owner)
+            : ::MidiOutputHandler()
+            , m_owner(owner)
+            , m_midiWriter(owner)
+        {
+        }
+
+        void Process() override
+        {
+            if (m_midiOutput.get())
+            {
+                SmartGrid::WrldBLDRMidiWriter::Iterator itr = m_midiWriter.Begin();
+                while (!itr.Done())
+                {
+                    SmartGrid::BasicMidi msg = *itr;
+                    juce::MidiMessage message(msg.m_msg, 3);
+                    m_midiOutput->sendMessageNow(message);
+                    ++itr;
+                }
+            }
+        }
+
+        void Reset() override
+        {
+            m_midiWriter.Reset();
+        }
+    };
+
     NonagonWrapperWrldBldr(TheNonagonSquiggleBoyInternal* internal)
         : m_nonagon(internal)
         , m_internal(internal)
+        , m_midiInputHandler(&m_nonagon)
+        , m_midiOutputHandler(&m_nonagon)   
     {
+    }
+
+    void OpenInput(const juce::String &deviceIdentifier)
+    {
+        m_midiInputHandler.Open(deviceIdentifier);
+    }
+
+    void OpenOutput(const juce::String &deviceIdentifier)
+    {
+        m_midiOutputHandler.Open(deviceIdentifier);
+    }
+
+    void SendMidiOutput()
+    {
+        m_midiOutputHandler.Process();
     }
 
     void ProcessSample(size_t timestamp)
@@ -404,8 +333,43 @@ struct NonagonWrapperWrldBldr
         return m_nonagon.MkAnalogUI(ix);
     }
 
+    JSON ConfigToJSON()
+    {
+        JSON rootJ = JSON::Object();
+        rootJ.SetNew("midi_input", m_midiInputHandler.ToJSON());
+        rootJ.SetNew("midi_output", m_midiOutputHandler.ToJSON());
+        return rootJ;
+    }
+
+    void ConfigFromJSON(JSON config)
+    {
+        JSON midiInputJ = config.Get("midi_input");
+        if (!midiInputJ.IsNull())
+        {
+            m_midiInputHandler.FromJSON(midiInputJ);
+        }
+
+        JSON midiOutputJ = config.Get("midi_output");
+        if (!midiOutputJ.IsNull())
+        {
+            m_midiOutputHandler.FromJSON(midiOutputJ);
+        }
+    }
+
+    juce::MidiInput* GetMidiInput()
+    {
+        return m_midiInputHandler.m_midiInput.get();
+    }
+
+    juce::MidiOutput* GetMidiOutput()
+    {
+        return m_midiOutputHandler.m_midiOutput.get();
+    }
+
     TheNonagonSquiggleBoyWrldBldr m_nonagon;
     TheNonagonSquiggleBoyInternal* m_internal;
+    MidiInputHandler m_midiInputHandler;
+    MidiOutputHandler m_midiOutputHandler;
 }; 
 
 struct NonagonWrapper
@@ -434,9 +398,9 @@ struct NonagonWrapper
         m_quadLaunchpadTwister.OpenLaunchpadOutput(index, shape, deviceIdentifier);
     }
 
-    void OpenTwisterOutputQuadLaunchpadTwister(const juce::String &deviceIdentifier)
+    void OpenEncoderOutputQuadLaunchpadTwister(const juce::String &deviceIdentifier)
     {
-        m_quadLaunchpadTwister.OpenTwisterOutput(deviceIdentifier);
+        m_quadLaunchpadTwister.OpenEncoderOutput(deviceIdentifier);
     }
 
     QuadFloatWithStereoAndSub ProcessSample(size_t timestamp)
@@ -468,14 +432,47 @@ struct NonagonWrapper
         return m_quadLaunchpadTwister.GetControllerShape(index);
     }
 
+    void OpenInputWrldBldr(const juce::String &deviceIdentifier)
+    {
+        m_wrldBldr.OpenInput(deviceIdentifier);
+    }
+
+    void OpenOutputWrldBldr(const juce::String &deviceIdentifier)
+    {
+        m_wrldBldr.OpenOutput(deviceIdentifier);
+    }
+
+    juce::MidiInput* GetMidiInputWrldBldr()
+    {
+        return m_wrldBldr.GetMidiInput();
+    }
+
+    juce::MidiOutput* GetMidiOutputWrldBldr()
+    {
+        return m_wrldBldr.GetMidiOutput();
+    }
+
     JSON ConfigToJSON()
     {
-        return m_quadLaunchpadTwister.ConfigToJSON();
+        JSON rootJ = JSON::Object();
+        rootJ.SetNew("quad_launchpad_twister", m_quadLaunchpadTwister.ConfigToJSON());
+        rootJ.SetNew("wrld_bldr", m_wrldBldr.ConfigToJSON());
+        return rootJ;
     }
 
     void ConfigFromJSON(JSON config)
     {
-        m_quadLaunchpadTwister.ConfigFromJSON(config);
+        JSON quadLaunchpadTwisterJ = config.Get("quad_launchpad_twister");
+        if (!quadLaunchpadTwisterJ.IsNull())
+        {
+            m_quadLaunchpadTwister.ConfigFromJSON(quadLaunchpadTwisterJ);
+        }
+
+        JSON wrldBldrJ = config.Get("wrld_bldr");
+        if (!wrldBldrJ.IsNull())
+        {
+            m_wrldBldr.ConfigFromJSON(wrldBldrJ);
+        }
     }
 
     PadUIGrid MkLaunchPadUIGridQuadLaunchpadTwister(int index)
@@ -582,5 +579,6 @@ struct NonagonWrapper
 
         ProcessFrame();
         m_quadLaunchpadTwister.SendMidiOutput();
+        m_wrldBldr.SendMidiOutput();
     }
 };
