@@ -57,8 +57,8 @@ try:
         v = next(values)
         for i in range(num_leds):
             msg = mido.Message('control_change',
-                               channel=CC_OUT_CH,
-                               control=CC_OUT_NUM + i,
+                               channel=CC_OUT_CH + 1,
+                               control=CC_OUT_NUM + i - 64,
                                value=v)
             outport.send(msg)
 

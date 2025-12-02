@@ -30,6 +30,18 @@ for name in mido.get_input_names():
         in_port_name = name
         break
 
+def MkMessage(num, val):
+    if num < 64:
+        return mido.Message('control_change',
+                            channel=CC_OUT_CH,
+                            control=num,
+                            value=val)
+    else:
+        return mido.Message('control_change',
+                            channel=CC_OUT_CH + 1,
+                            control=num - 64,
+                            value=val)
+
 if not out_port_name:
     raise RuntimeError(f"No MIDI OUT matches '{TARGET_NAME}'")
 
@@ -57,10 +69,7 @@ try:
         # Send alternating CC values
         v = next(values)
         for i in range(num_leds):
-            msg = mido.Message('control_change',
-                               channel=CC_OUT_CH,
-                               control=CC_OUT_NUM + i,
-                               value=v)
+            msg = MkMessage(CC_OUT_NUM + i, v)
             outport.send(msg)
 
         # Read incoming messages for a moment
@@ -80,10 +89,7 @@ try:
                     print("messages per second:", num_leds / time_delta)
                 elif msg.type == 'control_change' and msg.channel == CC_IN_CH and msg.control == 2:
                     for i in range(128):
-                        msg_clear = mido.Message('control_change',
-                                           channel=CC_OUT_CH,
-                                           control=CC_OUT_NUM + i,
-                                           value=0)
+                        msg_clear = MkMessage(CC_OUT_NUM + i, 0)
                         outport.send(msg_clear)
                     num_leds = msg.value + 1
                     print("Messages per second:", num_leds / time_delta)
