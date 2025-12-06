@@ -345,8 +345,7 @@ struct AdaptiveWaveTable
         {
             m_levelComponents[i] = static_cast<size_t>(components);
             components = std::max(components * m_levelsBase, std::floor(components) + 1);
-            assert(m_levelComponents[i] < BasicWaveTable::x_tableSize);
-            INFO("level %lu harmonics %lu", i, m_levelComponents[i]);
+            assert(m_levelComponents[i] < BasicWaveTable::x_tableSize);            
         }
 
         m_waveTableReady = false;

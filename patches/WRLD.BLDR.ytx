@@ -195,7 +195,7 @@
                 "0": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -242,7 +242,7 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
@@ -252,9 +252,9 @@
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -263,7 +263,7 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
+                        "color_range_enable": 1,
                         "parameter": 0,
                         "parameter_lsb": 0,
                         "parameter_msb": 0,
@@ -279,7 +279,7 @@
                 "1": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -326,7 +326,7 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
@@ -336,9 +336,9 @@
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -347,7 +347,7 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
+                        "color_range_enable": 1,
                         "parameter": 1,
                         "parameter_lsb": 1,
                         "parameter_msb": 0,
@@ -363,7 +363,7 @@
                 "2": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -410,7 +410,7 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
@@ -420,9 +420,9 @@
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -431,7 +431,7 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
+                        "color_range_enable": 1,
                         "parameter": 2,
                         "parameter_lsb": 2,
                         "parameter_msb": 0,
@@ -447,7 +447,7 @@
                 "3": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -494,7 +494,7 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
@@ -504,9 +504,9 @@
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -515,7 +515,7 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
+                        "color_range_enable": 1,
                         "parameter": 3,
                         "parameter_lsb": 3,
                         "parameter_msb": 0,
@@ -531,13 +531,13 @@
                 "4": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
                         "channel": 0,
                         "midi_port": 3,
-                        "parameter": 4,
+                        "parameter": 8,
                         "parameter_lsb": 4,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -559,7 +559,7 @@
                         "message": 1,
                         "channel": 1,
                         "midi_port": 3,
-                        "parameter": 4,
+                        "parameter": 8,
                         "parameter_lsb": 4,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -578,19 +578,19 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
-                        "parameter": 4,
+                        "parameter": 8,
                         "parameter_lsb": 4,
                         "color_range_enable": 0,
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -599,8 +599,8 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
-                        "parameter": 4,
+                        "color_range_enable": 1,
+                        "parameter": 8,
                         "parameter_lsb": 4,
                         "parameter_msb": 0,
                         "color": [
@@ -615,13 +615,13 @@
                 "5": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
                         "channel": 0,
                         "midi_port": 3,
-                        "parameter": 5,
+                        "parameter": 9,
                         "parameter_lsb": 5,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -643,7 +643,7 @@
                         "message": 1,
                         "channel": 1,
                         "midi_port": 3,
-                        "parameter": 5,
+                        "parameter": 9,
                         "parameter_lsb": 5,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -662,19 +662,19 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
-                        "parameter": 5,
+                        "parameter": 9,
                         "parameter_lsb": 5,
                         "color_range_enable": 0,
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -683,8 +683,8 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
-                        "parameter": 5,
+                        "color_range_enable": 1,
+                        "parameter": 9,
                         "parameter_lsb": 5,
                         "parameter_msb": 0,
                         "color": [
@@ -699,13 +699,13 @@
                 "6": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
                         "channel": 0,
                         "midi_port": 3,
-                        "parameter": 6,
+                        "parameter": 10,
                         "parameter_lsb": 6,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -727,7 +727,7 @@
                         "message": 1,
                         "channel": 1,
                         "midi_port": 3,
-                        "parameter": 6,
+                        "parameter": 10,
                         "parameter_lsb": 6,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -746,19 +746,19 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
-                        "parameter": 6,
+                        "parameter": 10,
                         "parameter_lsb": 6,
                         "color_range_enable": 0,
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -767,8 +767,8 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
-                        "parameter": 6,
+                        "color_range_enable": 1,
+                        "parameter": 10,
                         "parameter_lsb": 6,
                         "parameter_msb": 0,
                         "color": [
@@ -783,13 +783,13 @@
                 "7": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
                         "channel": 0,
                         "midi_port": 3,
-                        "parameter": 7,
+                        "parameter": 11,
                         "parameter_lsb": 7,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -811,7 +811,7 @@
                         "message": 1,
                         "channel": 1,
                         "midi_port": 3,
-                        "parameter": 7,
+                        "parameter": 11,
                         "parameter_lsb": 7,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -830,19 +830,19 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
-                        "parameter": 7,
+                        "parameter": 11,
                         "parameter_lsb": 7,
                         "color_range_enable": 0,
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -851,8 +851,8 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
-                        "parameter": 7,
+                        "color_range_enable": 1,
+                        "parameter": 11,
                         "parameter_lsb": 7,
                         "parameter_msb": 0,
                         "color": [
@@ -867,13 +867,13 @@
                 "8": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
                         "channel": 0,
                         "midi_port": 3,
-                        "parameter": 8,
+                        "parameter": 4,
                         "parameter_lsb": 8,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -895,7 +895,7 @@
                         "message": 1,
                         "channel": 1,
                         "midi_port": 3,
-                        "parameter": 8,
+                        "parameter": 4,
                         "parameter_lsb": 8,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -914,19 +914,19 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
-                        "parameter": 8,
+                        "parameter": 4,
                         "parameter_lsb": 8,
                         "color_range_enable": 0,
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -935,8 +935,8 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
-                        "parameter": 8,
+                        "color_range_enable": 1,
+                        "parameter": 4,
                         "parameter_lsb": 8,
                         "parameter_msb": 0,
                         "color": [
@@ -951,13 +951,13 @@
                 "9": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
                         "channel": 0,
                         "midi_port": 3,
-                        "parameter": 9,
+                        "parameter": 5,
                         "parameter_lsb": 9,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -979,7 +979,7 @@
                         "message": 1,
                         "channel": 1,
                         "midi_port": 3,
-                        "parameter": 9,
+                        "parameter": 5,
                         "parameter_lsb": 9,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -998,19 +998,19 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
-                        "parameter": 9,
+                        "parameter": 5,
                         "parameter_lsb": 9,
                         "color_range_enable": 0,
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -1019,8 +1019,8 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
-                        "parameter": 9,
+                        "color_range_enable": 1,
+                        "parameter": 5,
                         "parameter_lsb": 9,
                         "parameter_msb": 0,
                         "color": [
@@ -1035,13 +1035,13 @@
                 "10": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
                         "channel": 0,
                         "midi_port": 3,
-                        "parameter": 10,
+                        "parameter": 6,
                         "parameter_lsb": 10,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -1063,7 +1063,7 @@
                         "message": 1,
                         "channel": 1,
                         "midi_port": 3,
-                        "parameter": 10,
+                        "parameter": 6,
                         "parameter_lsb": 10,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -1082,19 +1082,19 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
-                        "parameter": 10,
+                        "parameter": 6,
                         "parameter_lsb": 10,
                         "color_range_enable": 0,
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -1103,8 +1103,8 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
-                        "parameter": 10,
+                        "color_range_enable": 1,
+                        "parameter": 6,
                         "parameter_lsb": 10,
                         "parameter_msb": 0,
                         "color": [
@@ -1119,13 +1119,13 @@
                 "11": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
                         "channel": 0,
                         "midi_port": 3,
-                        "parameter": 11,
+                        "parameter": 7,
                         "parameter_lsb": 11,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -1147,7 +1147,7 @@
                         "message": 1,
                         "channel": 1,
                         "midi_port": 3,
-                        "parameter": 11,
+                        "parameter": 7,
                         "parameter_lsb": 11,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -1166,19 +1166,19 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
-                        "parameter": 11,
+                        "parameter": 7,
                         "parameter_lsb": 11,
                         "color_range_enable": 0,
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -1187,8 +1187,8 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
-                        "parameter": 11,
+                        "color_range_enable": 1,
+                        "parameter": 7,
                         "parameter_lsb": 11,
                         "parameter_msb": 0,
                         "color": [
@@ -1203,7 +1203,7 @@
                 "12": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -1250,7 +1250,7 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
@@ -1260,9 +1260,9 @@
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -1271,7 +1271,7 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
+                        "color_range_enable": 1,
                         "parameter": 12,
                         "parameter_lsb": 12,
                         "parameter_msb": 0,
@@ -1287,7 +1287,7 @@
                 "13": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -1334,7 +1334,7 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
@@ -1344,9 +1344,9 @@
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -1355,7 +1355,7 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
+                        "color_range_enable": 1,
                         "parameter": 13,
                         "parameter_lsb": 13,
                         "parameter_msb": 0,
@@ -1371,7 +1371,7 @@
                 "14": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -1418,7 +1418,7 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
@@ -1428,9 +1428,9 @@
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -1439,7 +1439,7 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
+                        "color_range_enable": 1,
                         "parameter": 14,
                         "parameter_lsb": 14,
                         "parameter_msb": 0,
@@ -1455,7 +1455,7 @@
                 "15": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -1502,7 +1502,7 @@
                         "qstbn_note": 0
                     },
                     "rotation_feedback": {
-                        "mode": 2,
+                        "mode": 0,
                         "source": 7,
                         "channel": 0,
                         "message": 2,
@@ -1512,9 +1512,9 @@
                         "parameter_msb": 0,
                         "value_to_intensity": 0,
                         "color": [
-                            242,
-                            88,
-                            132
+                            255,
+                            255,
+                            255
                         ]
                     },
                     "switch_feedback": {
@@ -1523,7 +1523,7 @@
                         "message": 1,
                         "channel": 1,
                         "local_behaviour": 0,
-                        "color_range_enable": 0,
+                        "color_range_enable": 1,
                         "parameter": 15,
                         "parameter_lsb": 15,
                         "parameter_msb": 0,
@@ -1545,766 +1545,6 @@
                         "message": 2,
                         "channel": 5,
                         "parameter": 36,
-                        "parameter_lsb": 16,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u0010",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 36,
-                        "parameter_lsb": 16,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "1": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 37,
-                        "parameter_lsb": 17,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u0011",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 37,
-                        "parameter_lsb": 17,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "2": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 38,
-                        "parameter_lsb": 18,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u0012",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 38,
-                        "parameter_lsb": 18,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "3": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 39,
-                        "parameter_lsb": 19,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u0013",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 39,
-                        "parameter_lsb": 19,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "4": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 44,
-                        "parameter_lsb": 20,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u0014",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 44,
-                        "parameter_lsb": 20,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "5": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 45,
-                        "parameter_lsb": 21,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u0015",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 45,
-                        "parameter_lsb": 21,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "6": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 46,
-                        "parameter_lsb": 22,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u0016",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 46,
-                        "parameter_lsb": 22,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "7": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 47,
-                        "parameter_lsb": 23,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u0017",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 47,
-                        "parameter_lsb": 23,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "8": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 16,
-                        "parameter_lsb": 24,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u0018",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 16,
-                        "parameter_lsb": 24,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "9": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 17,
-                        "parameter_lsb": 25,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u0019",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 17,
-                        "parameter_lsb": 25,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "10": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 18,
-                        "parameter_lsb": 26,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u001a",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 18,
-                        "parameter_lsb": 26,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "11": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 19,
-                        "parameter_lsb": 27,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u001b",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 19,
-                        "parameter_lsb": 27,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "12": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 24,
-                        "parameter_lsb": 28,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u001c",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 24,
-                        "parameter_lsb": 28,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "13": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 25,
-                        "parameter_lsb": 29,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u001d",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 25,
-                        "parameter_lsb": 29,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "14": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 26,
-                        "parameter_lsb": 30,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u001e",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 26,
-                        "parameter_lsb": 30,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "15": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 27,
-                        "parameter_lsb": 31,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\u001f",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 27,
-                        "parameter_lsb": 31,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "16": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 20,
-                        "parameter_lsb": 32,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": " ",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 20,
-                        "parameter_lsb": 32,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "17": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 21,
-                        "parameter_lsb": 33,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "!",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 21,
-                        "parameter_lsb": 33,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "18": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 22,
-                        "parameter_lsb": 34,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "\"",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 22,
-                        "parameter_lsb": 34,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "19": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 23,
-                        "parameter_lsb": 35,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "#",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 23,
-                        "parameter_lsb": 35,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "20": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 28,
                         "parameter_lsb": 36,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -2324,7 +1564,7 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 28,
+                        "parameter": 36,
                         "parameter_lsb": 36,
                         "parameter_msb": 0,
                         "color": [
@@ -2336,13 +1576,13 @@
                     },
                     "value": 0
                 },
-                "21": {
+                "1": {
                     "action_config": {
                         "toggle_momentary": 0,
                         "midi_port": 3,
                         "message": 2,
                         "channel": 5,
-                        "parameter": 29,
+                        "parameter": 37,
                         "parameter_lsb": 37,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -2362,7 +1602,7 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 29,
+                        "parameter": 37,
                         "parameter_lsb": 37,
                         "parameter_msb": 0,
                         "color": [
@@ -2374,13 +1614,13 @@
                     },
                     "value": 0
                 },
-                "22": {
+                "2": {
                     "action_config": {
                         "toggle_momentary": 0,
                         "midi_port": 3,
                         "message": 2,
                         "channel": 5,
-                        "parameter": 30,
+                        "parameter": 38,
                         "parameter_lsb": 38,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -2400,7 +1640,7 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 30,
+                        "parameter": 38,
                         "parameter_lsb": 38,
                         "parameter_msb": 0,
                         "color": [
@@ -2412,13 +1652,13 @@
                     },
                     "value": 0
                 },
-                "23": {
+                "3": {
                     "action_config": {
                         "toggle_momentary": 0,
                         "midi_port": 3,
                         "message": 2,
                         "channel": 5,
-                        "parameter": 31,
+                        "parameter": 39,
                         "parameter_lsb": 39,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -2438,7 +1678,7 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 31,
+                        "parameter": 39,
                         "parameter_lsb": 39,
                         "parameter_msb": 0,
                         "color": [
@@ -2450,165 +1690,13 @@
                     },
                     "value": 0
                 },
-                "24": {
+                "4": {
                     "action_config": {
                         "toggle_momentary": 0,
                         "midi_port": 3,
                         "message": 2,
                         "channel": 5,
-                        "parameter": 32,
-                        "parameter_lsb": 40,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "(",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 32,
-                        "parameter_lsb": 40,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "25": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 33,
-                        "parameter_lsb": 41,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": ")",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 33,
-                        "parameter_lsb": 41,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "26": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 34,
-                        "parameter_lsb": 42,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "*",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 34,
-                        "parameter_lsb": 42,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "27": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 35,
-                        "parameter_lsb": 43,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "+",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 35,
-                        "parameter_lsb": 43,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "28": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 40,
+                        "parameter": 44,
                         "parameter_lsb": 44,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -2628,7 +1716,7 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 40,
+                        "parameter": 44,
                         "parameter_lsb": 44,
                         "parameter_msb": 0,
                         "color": [
@@ -2640,13 +1728,13 @@
                     },
                     "value": 0
                 },
-                "29": {
+                "5": {
                     "action_config": {
                         "toggle_momentary": 0,
                         "midi_port": 3,
                         "message": 2,
                         "channel": 5,
-                        "parameter": 41,
+                        "parameter": 45,
                         "parameter_lsb": 45,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -2666,7 +1754,7 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 41,
+                        "parameter": 45,
                         "parameter_lsb": 45,
                         "parameter_msb": 0,
                         "color": [
@@ -2678,13 +1766,13 @@
                     },
                     "value": 0
                 },
-                "30": {
+                "6": {
                     "action_config": {
                         "toggle_momentary": 0,
                         "midi_port": 3,
                         "message": 2,
                         "channel": 5,
-                        "parameter": 42,
+                        "parameter": 46,
                         "parameter_lsb": 46,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -2704,7 +1792,7 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 42,
+                        "parameter": 46,
                         "parameter_lsb": 46,
                         "parameter_msb": 0,
                         "color": [
@@ -2716,13 +1804,13 @@
                     },
                     "value": 0
                 },
-                "31": {
+                "7": {
                     "action_config": {
                         "toggle_momentary": 0,
                         "midi_port": 3,
                         "message": 2,
                         "channel": 5,
-                        "parameter": 43,
+                        "parameter": 47,
                         "parameter_lsb": 47,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -2742,8 +1830,920 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 43,
+                        "parameter": 47,
                         "parameter_lsb": 47,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "8": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 16,
+                        "parameter_lsb": 16,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0010",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 16,
+                        "parameter_lsb": 16,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "9": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 17,
+                        "parameter_lsb": 17,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0011",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 17,
+                        "parameter_lsb": 17,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "10": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 18,
+                        "parameter_lsb": 18,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0012",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 18,
+                        "parameter_lsb": 18,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "11": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 19,
+                        "parameter_lsb": 19,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0013",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 19,
+                        "parameter_lsb": 19,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "12": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 24,
+                        "parameter_lsb": 24,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0018",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 24,
+                        "parameter_lsb": 24,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "13": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 25,
+                        "parameter_lsb": 25,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0019",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 25,
+                        "parameter_lsb": 25,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "14": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 26,
+                        "parameter_lsb": 26,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u001a",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 26,
+                        "parameter_lsb": 26,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "15": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 27,
+                        "parameter_lsb": 27,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u001b",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 27,
+                        "parameter_lsb": 27,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "16": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 20,
+                        "parameter_lsb": 20,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0014",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 20,
+                        "parameter_lsb": 20,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "17": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 21,
+                        "parameter_lsb": 21,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0015",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 21,
+                        "parameter_lsb": 21,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "18": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 22,
+                        "parameter_lsb": 22,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0016",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 22,
+                        "parameter_lsb": 22,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "19": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 23,
+                        "parameter_lsb": 23,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0017",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 23,
+                        "parameter_lsb": 23,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "20": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 28,
+                        "parameter_lsb": 28,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u001c",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 28,
+                        "parameter_lsb": 28,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "21": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 29,
+                        "parameter_lsb": 29,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u001d",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 29,
+                        "parameter_lsb": 29,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "22": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 30,
+                        "parameter_lsb": 30,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u001e",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 30,
+                        "parameter_lsb": 30,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "23": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 31,
+                        "parameter_lsb": 31,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u001f",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 31,
+                        "parameter_lsb": 31,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "24": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 32,
+                        "parameter_lsb": 32,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": " ",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 32,
+                        "parameter_lsb": 32,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "25": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 33,
+                        "parameter_lsb": 33,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "!",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 33,
+                        "parameter_lsb": 33,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "26": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 34,
+                        "parameter_lsb": 34,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\"",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 34,
+                        "parameter_lsb": 34,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "27": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 35,
+                        "parameter_lsb": 35,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "#",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 35,
+                        "parameter_lsb": 35,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "28": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 40,
+                        "parameter_lsb": 40,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "(",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 40,
+                        "parameter_lsb": 40,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "29": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 41,
+                        "parameter_lsb": 41,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": ")",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 41,
+                        "parameter_lsb": 41,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "30": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 42,
+                        "parameter_lsb": 42,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "*",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 42,
+                        "parameter_lsb": 42,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "31": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 43,
+                        "parameter_lsb": 43,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "+",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 43,
+                        "parameter_lsb": 43,
                         "parameter_msb": 0,
                         "color": [
                             255,
@@ -3377,7 +3377,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "@",
+                        "key": "\u0000",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3415,7 +3415,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "A",
+                        "key": "\u0001",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3453,7 +3453,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "B",
+                        "key": "\u0002",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3491,7 +3491,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "C",
+                        "key": "\u0003",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3529,7 +3529,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "D",
+                        "key": "\u0004",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3567,7 +3567,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "E",
+                        "key": "\u0005",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3605,7 +3605,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "F",
+                        "key": "\u0006",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3643,7 +3643,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "G",
+                        "key": "\u0007",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3681,7 +3681,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "H",
+                        "key": "\b",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3719,7 +3719,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "I",
+                        "key": "\t",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3757,7 +3757,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "J",
+                        "key": "\n",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3795,7 +3795,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "K",
+                        "key": "\u000b",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3833,7 +3833,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "L",
+                        "key": "\f",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3871,7 +3871,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "M",
+                        "key": "\r",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3909,7 +3909,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "N",
+                        "key": "\u000e",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -3947,7 +3947,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "O",
+                        "key": "\u000f",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4593,7 +4593,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "P",
+                        "key": "\u0010",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4631,7 +4631,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "Q",
+                        "key": "\u0011",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4669,7 +4669,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "R",
+                        "key": "\u0012",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4707,7 +4707,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "S",
+                        "key": "\u0013",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4745,7 +4745,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "T",
+                        "key": "\u0014",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4783,7 +4783,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "U",
+                        "key": "\u0015",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4821,7 +4821,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "V",
+                        "key": "\u0016",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4859,7 +4859,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "W",
+                        "key": "\u0017",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4897,7 +4897,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "X",
+                        "key": "\u0018",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4935,7 +4935,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "Y",
+                        "key": "\u0019",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -4973,7 +4973,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "Z",
+                        "key": "\u001a",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5011,7 +5011,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "[",
+                        "key": "\u001b",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5049,7 +5049,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "\\",
+                        "key": "\u001c",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5087,7 +5087,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "]",
+                        "key": "\u001d",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5125,7 +5125,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "^",
+                        "key": "\u001e",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5163,7 +5163,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "_",
+                        "key": "\u001f",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5809,7 +5809,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "`",
+                        "key": " ",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5847,7 +5847,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "a",
+                        "key": "!",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5885,7 +5885,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "b",
+                        "key": "\"",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5923,7 +5923,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "c",
+                        "key": "#",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5961,7 +5961,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "d",
+                        "key": "$",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -5999,7 +5999,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "e",
+                        "key": "%",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -6037,7 +6037,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "f",
+                        "key": "&",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -6075,7 +6075,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "g",
+                        "key": "'",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -6113,7 +6113,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "h",
+                        "key": "(",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -6151,7 +6151,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "i",
+                        "key": ")",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -6189,7 +6189,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "j",
+                        "key": "*",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -6227,7 +6227,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "k",
+                        "key": "+",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -6265,7 +6265,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "l",
+                        "key": ",",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -6303,7 +6303,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "m",
+                        "key": "-",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -6341,7 +6341,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "n",
+                        "key": ".",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -6379,7 +6379,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "o",
+                        "key": "/",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7025,7 +7025,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "p",
+                        "key": "0",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7063,7 +7063,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "q",
+                        "key": "1",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7101,7 +7101,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "r",
+                        "key": "2",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7139,7 +7139,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "s",
+                        "key": "3",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7177,7 +7177,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "t",
+                        "key": "4",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7215,7 +7215,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "u",
+                        "key": "5",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7253,7 +7253,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "v",
+                        "key": "6",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7291,7 +7291,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "w",
+                        "key": "7",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7329,7 +7329,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "x",
+                        "key": "8",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7367,7 +7367,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "y",
+                        "key": "9",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7405,7 +7405,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "z",
+                        "key": ":",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7443,7 +7443,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "{",
+                        "key": ";",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7481,7 +7481,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "|",
+                        "key": "<",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7519,7 +7519,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "}",
+                        "key": "=",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7557,7 +7557,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "~",
+                        "key": ">",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7595,7 +7595,7 @@
                         "parameter_max": 127,
                         "parameter_max_lsb": 127,
                         "parameter_max_msb": 127,
-                        "key": "\u007f",
+                        "key": "?",
                         "modifier": 0,
                         "comment": "ytx Digi"
                     },
@@ -7777,6 +7777,614 @@
                         "message": 2,
                         "channel": 5,
                         "parameter": 0,
+                        "parameter_lsb": 0,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0000",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 0,
+                        "parameter_lsb": 0,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "165": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 1,
+                        "parameter_lsb": 1,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0001",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 1,
+                        "parameter_lsb": 1,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "166": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 2,
+                        "parameter_lsb": 2,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0002",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 2,
+                        "parameter_lsb": 2,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "167": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 3,
+                        "parameter_lsb": 3,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0003",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 3,
+                        "parameter_lsb": 3,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "168": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 4,
+                        "parameter_lsb": 4,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0004",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 4,
+                        "parameter_lsb": 4,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "169": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 5,
+                        "parameter_lsb": 5,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0005",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 5,
+                        "parameter_lsb": 5,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "170": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 6,
+                        "parameter_lsb": 6,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0006",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 6,
+                        "parameter_lsb": 6,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "171": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 7,
+                        "parameter_lsb": 7,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u0007",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 7,
+                        "parameter_lsb": 7,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "172": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 8,
+                        "parameter_lsb": 8,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\b",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 8,
+                        "parameter_lsb": 8,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "173": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 9,
+                        "parameter_lsb": 9,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\t",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 9,
+                        "parameter_lsb": 9,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "174": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 10,
+                        "parameter_lsb": 10,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\n",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 10,
+                        "parameter_lsb": 10,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "175": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 11,
+                        "parameter_lsb": 11,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u000b",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 11,
+                        "parameter_lsb": 11,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "176": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 12,
+                        "parameter_lsb": 12,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\f",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 12,
+                        "parameter_lsb": 12,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "177": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 13,
+                        "parameter_lsb": 13,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\r",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 13,
+                        "parameter_lsb": 13,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "178": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 14,
+                        "parameter_lsb": 14,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u000e",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 14,
+                        "parameter_lsb": 14,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "179": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 15,
+                        "parameter_lsb": 15,
+                        "parameter_msb": 0,
+                        "parameter_min": 0,
+                        "parameter_min_lsb": 0,
+                        "parameter_min_msb": 0,
+                        "parameter_max": 127,
+                        "parameter_max_lsb": 127,
+                        "parameter_max_msb": 127,
+                        "key": "\u000f",
+                        "modifier": 0,
+                        "comment": "ytx Digi"
+                    },
+                    "feedback_config": {
+                        "value_to_intensity": 0,
+                        "source": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "local_behaviour": 0,
+                        "color_range_enable": 1,
+                        "parameter": 15,
+                        "parameter_lsb": 15,
+                        "parameter_msb": 0,
+                        "color": [
+                            255,
+                            255,
+                            145
+                        ],
+                        "low_intensity_off_mode": 0
+                    },
+                    "value": 0
+                },
+                "180": {
+                    "action_config": {
+                        "toggle_momentary": 0,
+                        "midi_port": 3,
+                        "message": 2,
+                        "channel": 5,
+                        "parameter": 52,
                         "parameter_lsb": 52,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -7796,7 +8404,7 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 0,
+                        "parameter": 52,
                         "parameter_lsb": 52,
                         "parameter_msb": 0,
                         "color": [
@@ -7808,13 +8416,13 @@
                     },
                     "value": 0
                 },
-                "165": {
+                "181": {
                     "action_config": {
                         "toggle_momentary": 0,
                         "midi_port": 3,
                         "message": 2,
                         "channel": 5,
-                        "parameter": 1,
+                        "parameter": 53,
                         "parameter_lsb": 53,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -7834,7 +8442,7 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 1,
+                        "parameter": 53,
                         "parameter_lsb": 53,
                         "parameter_msb": 0,
                         "color": [
@@ -7846,13 +8454,13 @@
                     },
                     "value": 0
                 },
-                "166": {
+                "182": {
                     "action_config": {
                         "toggle_momentary": 0,
                         "midi_port": 3,
                         "message": 2,
                         "channel": 5,
-                        "parameter": 2,
+                        "parameter": 54,
                         "parameter_lsb": 54,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -7872,7 +8480,7 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 2,
+                        "parameter": 54,
                         "parameter_lsb": 54,
                         "parameter_msb": 0,
                         "color": [
@@ -7884,13 +8492,13 @@
                     },
                     "value": 0
                 },
-                "167": {
+                "183": {
                     "action_config": {
                         "toggle_momentary": 0,
                         "midi_port": 3,
                         "message": 2,
                         "channel": 5,
-                        "parameter": 3,
+                        "parameter": 55,
                         "parameter_lsb": 55,
                         "parameter_msb": 0,
                         "parameter_min": 0,
@@ -7910,616 +8518,8 @@
                         "channel": 5,
                         "local_behaviour": 0,
                         "color_range_enable": 1,
-                        "parameter": 3,
+                        "parameter": 55,
                         "parameter_lsb": 55,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "168": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 4,
-                        "parameter_lsb": 56,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "8",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 4,
-                        "parameter_lsb": 56,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "169": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 5,
-                        "parameter_lsb": 57,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "9",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 5,
-                        "parameter_lsb": 57,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "170": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 6,
-                        "parameter_lsb": 58,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": ":",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 6,
-                        "parameter_lsb": 58,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "171": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 7,
-                        "parameter_lsb": 59,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": ";",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 7,
-                        "parameter_lsb": 59,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "172": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 8,
-                        "parameter_lsb": 60,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "<",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 8,
-                        "parameter_lsb": 60,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "173": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 9,
-                        "parameter_lsb": 61,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "=",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 9,
-                        "parameter_lsb": 61,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "174": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 10,
-                        "parameter_lsb": 62,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": ">",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 10,
-                        "parameter_lsb": 62,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "175": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 11,
-                        "parameter_lsb": 63,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "?",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 11,
-                        "parameter_lsb": 63,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "176": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 12,
-                        "parameter_lsb": 64,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "@",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 12,
-                        "parameter_lsb": 64,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "177": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 13,
-                        "parameter_lsb": 65,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "A",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 13,
-                        "parameter_lsb": 65,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "178": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 14,
-                        "parameter_lsb": 66,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "B",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 14,
-                        "parameter_lsb": 66,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "179": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 15,
-                        "parameter_lsb": 67,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "C",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 15,
-                        "parameter_lsb": 67,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "180": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 52,
-                        "parameter_lsb": 68,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "D",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 52,
-                        "parameter_lsb": 68,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "181": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 53,
-                        "parameter_lsb": 69,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "E",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 53,
-                        "parameter_lsb": 69,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "182": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 54,
-                        "parameter_lsb": 70,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "F",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 54,
-                        "parameter_lsb": 70,
-                        "parameter_msb": 0,
-                        "color": [
-                            255,
-                            255,
-                            145
-                        ],
-                        "low_intensity_off_mode": 0
-                    },
-                    "value": 0
-                },
-                "183": {
-                    "action_config": {
-                        "toggle_momentary": 0,
-                        "midi_port": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "parameter": 55,
-                        "parameter_lsb": 71,
-                        "parameter_msb": 0,
-                        "parameter_min": 0,
-                        "parameter_min_lsb": 0,
-                        "parameter_min_msb": 0,
-                        "parameter_max": 127,
-                        "parameter_max_lsb": 127,
-                        "parameter_max_msb": 127,
-                        "key": "G",
-                        "modifier": 0,
-                        "comment": "ytx Digi"
-                    },
-                    "feedback_config": {
-                        "value_to_intensity": 0,
-                        "source": 3,
-                        "message": 2,
-                        "channel": 5,
-                        "local_behaviour": 0,
-                        "color_range_enable": 1,
-                        "parameter": 55,
-                        "parameter_lsb": 71,
                         "parameter_msb": 0,
                         "color": [
                             255,

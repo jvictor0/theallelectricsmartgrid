@@ -53,7 +53,7 @@ namespace SmartGrid
         }
     };
 
-    struct MFTMidiWriter
+    struct EncoderMidiWriter
     {
         static constexpr int x_numPhases = 3;
 
@@ -64,7 +64,7 @@ namespace SmartGrid
 
         EncoderBankUIState* m_encoderBankState;
 
-        MFTMidiWriter(EncoderBankUIState* encoderBankState)
+        EncoderMidiWriter(EncoderBankUIState* encoderBankState)
             : m_encoderBankState(encoderBankState)
         {
             for (size_t i = 0; i < 4; ++i)
@@ -95,10 +95,10 @@ namespace SmartGrid
             size_t m_x;
             size_t m_y;
             int m_phase;
-            MFTMidiWriter* m_owner;
+            EncoderMidiWriter* m_owner;
             EncoderBankUIState* m_encoderBankState;
 
-            Iterator(MFTMidiWriter* owner)
+            Iterator(EncoderMidiWriter* owner)
                 : m_x(0)
                 , m_y(0)
                 , m_phase(0)
@@ -157,7 +157,7 @@ namespace SmartGrid
                 
             bool NeedsToSend() const
             {
-                if (m_owner->m_sent[m_x][m_y])
+                if (!m_owner->m_sent[m_x][m_y])
                 {
                     return true;
                 }

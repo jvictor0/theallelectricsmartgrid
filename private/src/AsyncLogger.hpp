@@ -49,7 +49,7 @@ struct LogMessage
 
 struct AsyncLogQueue
 {
-    CircularQueue<LogMessage, 1024> m_queue;
+    CircularQueue<LogMessage, 4096> m_queue;
     std::atomic<size_t> m_missed;
 
     template<typename... Args>

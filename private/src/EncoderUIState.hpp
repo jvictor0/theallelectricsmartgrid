@@ -36,7 +36,7 @@ struct EncoderBankUIState
 
     SmartGrid::Color GetColor(size_t i, size_t j)
     {
-        return m_states[i][j].m_color.load();
+        return GetBrightness(i, j) > 0 ? m_states[i][j].m_color.load() : SmartGrid::Color::Off;
     }
 
     SmartGrid::Color GetBrightnessAdjustedColor(size_t i, size_t j)

@@ -71,7 +71,7 @@ struct NonagonWrapperQuadLaunchpadTwister
 
     struct MidiEncoderOutputHandler : MidiOutputHandler
     {
-        SmartGrid::MFTMidiWriter m_midiWriter;
+        SmartGrid::EncoderMidiWriter m_midiWriter;
 
         MidiEncoderOutputHandler()
             : m_midiWriter(nullptr)
@@ -81,7 +81,7 @@ struct NonagonWrapperQuadLaunchpadTwister
 
         void Init(EncoderBankUIState* encoderBankState)
         {
-            m_midiWriter = SmartGrid::MFTMidiWriter(encoderBankState);
+            m_midiWriter = SmartGrid::EncoderMidiWriter(encoderBankState);
         }
 
         void Reset() override
@@ -268,13 +268,29 @@ struct NonagonWrapperWrldBldr
         {
             if (m_midiOutput.get())
             {
-                SmartGrid::WrldBLDRMidiWriter::Iterator itr = m_midiWriter.Begin();
-                while (!itr.Done())
+                size_t budget = 32;
+                m_midiWriter.ProcessCoolDown();
+                for (size_t i = 0; i < SmartGrid::WrldBLDRMidiWriter::x_numColorWriters; ++i)
                 {
-                    SmartGrid::BasicMidi msg = *itr;
-                    juce::MidiMessage message(msg.m_msg, 3);
+                    SmartGrid::YaeltexColorSysexBuffer buffer;
+                    m_midiWriter.Write(buffer, budget, i);
+                    if (buffer.HasAny())
+                    {
+                        juce::MidiMessage message(buffer.m_buffer, buffer.m_size);
+                        m_midiOutput->sendMessageNow(message);
+                    }
+                }
+
+                for (auto itr = m_midiWriter.m_indicatorWriter.begin(); !itr.Done(); ++itr)
+                {
+                    if (budget == 0)
+                    {
+                        break;
+                    }
+
+                    juce::MidiMessage message((*itr).m_msg, 3);
                     m_midiOutput->sendMessageNow(message);
-                    ++itr;
+                    --budget;
                 }
             }
         }
@@ -282,6 +298,20 @@ struct NonagonWrapperWrldBldr
         void Reset() override
         {
             m_midiWriter.Reset();
+        }
+
+        void ClearLEDs()
+        {
+            if (m_midiOutput.get())
+            {
+                for (size_t i = 0; i < SmartGrid::WrldBLDRMidiWriter::x_numColorWriters; ++i)
+                {
+                    SmartGrid::YaeltexColorSysexBuffer buffer;
+                    m_midiWriter.WriteClear(buffer, i);
+                    juce::MidiMessage message(buffer.m_buffer, buffer.m_size);
+                    m_midiOutput->sendMessageNow(message);
+                }
+            }
         }
     };
 
@@ -296,16 +326,39 @@ struct NonagonWrapperWrldBldr
     void OpenInput(const juce::String &deviceIdentifier)
     {
         m_midiInputHandler.Open(deviceIdentifier);
+        if (m_midiOutputHandler.m_midiOutput.get())
+        {
+            SendHandshake();
+        }
     }
 
     void OpenOutput(const juce::String &deviceIdentifier)
     {
         m_midiOutputHandler.Open(deviceIdentifier);
+        if (m_midiInputHandler.m_midiInput.get())
+        {
+            SendHandshake();
+        }
+    }
+
+    void SendHandshake()
+    {
+        if (m_midiOutputHandler.m_midiOutput.get())
+        {
+            uint8_t sysex[] = {0xF0, 0x79, 0x74, 0x78, 0x00, 0x01, 0x00, 0x21, 0xF7};
+            juce::MidiMessage message(sysex, sizeof(sysex));
+            m_midiOutputHandler.m_midiOutput->sendMessageNow(message);
+        }
     }
 
     void SendMidiOutput()
     {
         m_midiOutputHandler.Process();
+    }
+
+    void ClearLEDs()
+    {
+        m_midiOutputHandler.ClearLEDs();
     }
 
     void ProcessSample(size_t timestamp)
@@ -353,6 +406,11 @@ struct NonagonWrapperWrldBldr
         if (!midiOutputJ.IsNull())
         {
             m_midiOutputHandler.FromJSON(midiOutputJ);
+        }
+
+        if (m_midiInputHandler.m_midiInput.get() && m_midiOutputHandler.m_midiOutput.get())
+        {
+            SendHandshake();
         }
     }
 
@@ -580,5 +638,10 @@ struct NonagonWrapper
         ProcessFrame();
         m_quadLaunchpadTwister.SendMidiOutput();
         m_wrldBldr.SendMidiOutput();
+    }
+
+    void ClearLEDs()
+    {
+        m_wrldBldr.ClearLEDs();
     }
 };

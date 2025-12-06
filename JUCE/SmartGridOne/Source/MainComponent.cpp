@@ -86,6 +86,7 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
+    m_nonagon.ClearLEDs();
     shutdownAudio();
 }
 

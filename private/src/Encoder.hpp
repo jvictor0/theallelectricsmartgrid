@@ -9,7 +9,7 @@ namespace SmartGrid
 struct EncoderCell : public Cell
 {
     uint8_t m_lastVelocity;
-    static constexpr float x_minSpeed = 0.0001f;
+    static constexpr float x_minSpeed = 0.001f;
     static constexpr float x_maxSpeed = 1.0f / 128.0f;
     static constexpr float x_pressSpeed = 0.005f;
     size_t m_lastTimestamp;

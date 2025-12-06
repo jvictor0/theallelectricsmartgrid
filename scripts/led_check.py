@@ -34,12 +34,12 @@ def MkMessage(num, val):
     if num < 64:
         return mido.Message('control_change',
                             channel=CC_OUT_CH,
-                            control=num,
+                            control=num if num > 0 else 64,
                             value=val)
     else:
         return mido.Message('control_change',
                             channel=CC_OUT_CH + 1,
-                            control=num - 64,
+                            control=num - 64 if num > 64 else num,
                             value=val)
 
 if not out_port_name:
@@ -69,7 +69,7 @@ try:
         # Send alternating CC values
         v = next(values)
         for i in range(num_leds):
-            msg = MkMessage(CC_OUT_NUM + i, v)
+            msg = MkMessage(i, v)
             outport.send(msg)
 
         # Read incoming messages for a moment
@@ -86,13 +86,13 @@ try:
                     alpha = msg.value / 127.0
                     freq = min_freq * ((max_freq / min_freq) ** alpha)
                     time_delta = 1.0 / freq
-                    print("messages per second:", num_leds / time_delta)
+                    print("messages per second:", num_leds / time_delta, "time_delta:", time_delta, "leds:", num_leds)
                 elif msg.type == 'control_change' and msg.channel == CC_IN_CH and msg.control == 2:
                     for i in range(128):
-                        msg_clear = MkMessage(CC_OUT_NUM + i, 0)
+                        msg_clear = MkMessage(i, 0)
                         outport.send(msg_clear)
                     num_leds = msg.value + 1
-                    print("Messages per second:", num_leds / time_delta)
+                    print("Messages per second:", num_leds / time_delta, "time_delta:", time_delta, "leds:", num_leds)
             time.sleep(0.001)
 
 except KeyboardInterrupt:
