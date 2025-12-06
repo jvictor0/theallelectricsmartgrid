@@ -417,13 +417,17 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual void OnPress(uint8_t velocity) override
         {
+            if (m_owner->m_squiggleBoyState.m_selectedGesture != m_gesture)
+            {
+                m_owner->m_squiggleBoyState.SelectGesture(m_gesture);
+            }
+        }
+
+        virtual void OnRelease() override
+        {
             if (m_owner->m_squiggleBoyState.m_selectedGesture == m_gesture)
             {
                 m_owner->m_squiggleBoyState.SelectGesture(-1);
-            }
-            else
-            {
-                m_owner->m_squiggleBoyState.SelectGesture(m_gesture);
             }
         }
     };
@@ -442,7 +446,7 @@ struct TheNonagonSquiggleBoyInternal
     SmartGrid::Cell* MakeRunningCell()
     {
         return new SmartGrid::StateCell<bool>(
-                SmartGrid::Color::Grey /*offColor*/,
+                SmartGrid::Color::Green.Dim() /*offColor*/,
                 SmartGrid::Color::Green /*onColor*/,
                 &m_sceneState.m_running,
                 true,
@@ -453,7 +457,7 @@ struct TheNonagonSquiggleBoyInternal
     SmartGrid::Cell* MakeNoiseModeCell()
     {
         return new SmartGrid::StateCell<bool>(
-                SmartGrid::Color::Grey /*offColor*/,
+                SmartGrid::Color::Pink /*offColor*/,
                 SmartGrid::Color::White /*onColor*/,
                 &m_squiggleBoy.m_mixerState.m_noiseMode,
                 true,
@@ -507,7 +511,7 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual SmartGrid::Color GetColor() override
         {
-            return m_owner->m_squiggleBoy.IsRecording() ? SmartGrid::Color::Red : SmartGrid::Color::Grey;
+            return m_owner->m_squiggleBoy.IsRecording() ? SmartGrid::Color::Red : SmartGrid::Color::Red.Dim();
         }
 
         virtual void OnPress(uint8_t velocity) override

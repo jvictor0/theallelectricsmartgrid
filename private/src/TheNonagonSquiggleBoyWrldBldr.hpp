@@ -163,6 +163,17 @@ struct TheNonagonSquiggleBoyWrldBldr
         }
     };
 
+    SmartGrid::Cell* MakeAuxFocusCell()
+    {
+        return new SmartGrid::StateCell<bool>(
+                SmartGrid::Color::Yellow /*offColor*/,
+                SmartGrid::Color::Purple /*onColor*/,
+                &m_auxFocus,
+                true,
+                false,
+                SmartGrid::StateCell<bool>::Mode::Toggle);
+    }
+
     struct AuxGrid : SmartGrid::Grid
     {
         TheNonagonSquiggleBoyWrldBldr* m_owner;
@@ -171,15 +182,13 @@ struct TheNonagonSquiggleBoyWrldBldr
         {
             for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
-                Put(i, 0, new TheNonagonSquiggleBoyInternal::SceneSelectorCell(owner->m_internal, i));
+                Put(i, 0, new TheNonagonSquiggleBoyInternal::GestureSelectorCell(owner->m_internal, i));
             }
 
-            for (size_t i = 0; i < static_cast<size_t>(GridsMode::NumGrids); ++i)
+            for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
-                Put(i, 1, new SetGridsModeCell(owner, static_cast<GridsMode>(i)));
+                Put(i, 1, new TheNonagonSquiggleBoyInternal::GestureSelectorCell(owner->m_internal, i + SmartGrid::x_baseGridSize));
             }
-
-            Put(SmartGrid::x_baseGridSize - 1, 1, new SetDisplayModeCell(owner, DisplayMode::Visualizer));
 
             for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numQuadBanks; ++i)
             {
@@ -204,13 +213,22 @@ struct TheNonagonSquiggleBoyWrldBldr
             {
                 Put(i, 2, new ShiftedCell(
                     GetShared(i, 2),
-                    std::shared_ptr<SmartGrid::Cell>(new TheNonagonSquiggleBoyInternal::GestureSelectorCell(m_owner->m_internal, i)),
-                    &m_owner->m_internal->m_sceneState.m_shift));
+                    std::shared_ptr<SmartGrid::Cell>(new TheNonagonSquiggleBoyInternal::SceneSelectorCell(m_owner->m_internal, i)),
+                    &m_owner->m_auxFocus));
+            }
+
+            for (size_t i = 0; i < static_cast<size_t>(GridsMode::NumGrids); ++i)
+            {
                 Put(i, 3, new ShiftedCell(
                     GetShared(i, 3),
-                    std::shared_ptr<SmartGrid::Cell>(new TheNonagonSquiggleBoyInternal::GestureSelectorCell(m_owner->m_internal, i + SmartGrid::x_baseGridSize)),
-                    &m_owner->m_internal->m_sceneState.m_shift));
+                    std::shared_ptr<SmartGrid::Cell>(new SetGridsModeCell(m_owner, static_cast<GridsMode>(i))),
+                    &m_owner->m_auxFocus));
             }
+
+            Put(SmartGrid::x_baseGridSize - 1, 3, new ShiftedCell(
+                GetShared(SmartGrid::x_baseGridSize - 1, 3),
+                std::shared_ptr<SmartGrid::Cell>(new SetDisplayModeCell(m_owner, DisplayMode::Visualizer)),
+                &m_owner->m_auxFocus));
 
             for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
             {
@@ -218,52 +236,52 @@ struct TheNonagonSquiggleBoyWrldBldr
                 Put(xPos, 1, new ShiftedCell(
                     std::shared_ptr<SmartGrid::Cell>(new SetActiveTrioCell(m_owner, static_cast<TheNonagonSmartGrid::Trio>(i))),
                     GetShared(xPos, 1),
-                    &m_owner->m_internal->m_sceneState.m_shift));
+                    &m_owner->m_auxFocus));
 
                 Put(xPos, 0, new ShiftedCell(
                     std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(i), 0)),
                     GetShared(xPos, 0),
-                    &m_owner->m_internal->m_sceneState.m_shift));
+                    &m_owner->m_auxFocus));
 
                 Put(xPos + 1, 0, new ShiftedCell(
                     std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(i), 1)),
                     GetShared(xPos + 1, 0),
-                    &m_owner->m_internal->m_sceneState.m_shift));
+                    &m_owner->m_auxFocus));
 
                 Put(xPos + 1, 1, new ShiftedCell(
                     std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(i), 2)),
                     GetShared(xPos + 1, 1),
-                    &m_owner->m_internal->m_sceneState.m_shift));
+                    &m_owner->m_auxFocus));
             }
 
             Put(0, 0, new ShiftedCell(
                 nullptr,
                 GetShared(0, 0),
-                &m_owner->m_internal->m_sceneState.m_shift));
+                &m_owner->m_auxFocus));
 
             Put(0, 1, new ShiftedCell(
                 nullptr,
                 GetShared(0, 1),
-                &m_owner->m_internal->m_sceneState.m_shift));
+                &m_owner->m_auxFocus));
 
             Put(1, 0, new ShiftedCell(
                 nullptr,
                 GetShared(1, 0),
-                &m_owner->m_internal->m_sceneState.m_shift));
+                &m_owner->m_auxFocus));
 
             Put(1, 1, new ShiftedCell(
                 nullptr,
                 GetShared(1, 1),
-                &m_owner->m_internal->m_sceneState.m_shift));
+                &m_owner->m_auxFocus));
                 
-            Put(0, 4, m_owner->m_internal->MakeRunningCell());
-            Put(0, 5, new TheNonagonSquiggleBoyInternal::RecordCell(m_owner->m_internal));
-            Put(1, 4, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, true));
-            Put(1, 5, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, false));
-            Put(3, 4, m_owner->m_internal->MakeNoiseModeCell());
-            Put(3, 5, new TheNonagonSquiggleBoyInternal::RevertToDefaultCell(m_owner->m_internal));
-
-            Put(0, 6, m_owner->m_internal->MakeShiftCell());
+            Put(0, 4, m_owner->m_internal->MakeShiftCell());
+            Put(0, 5, m_owner->MakeAuxFocusCell());
+            Put(1, 4, m_owner->m_internal->MakeRunningCell());
+            Put(1, 5, new TheNonagonSquiggleBoyInternal::RecordCell(m_owner->m_internal));
+            Put(3, 4, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, true));
+            Put(3, 5, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, false));
+            Put(2, 4, m_owner->m_internal->MakeNoiseModeCell());
+            Put(2, 5, new TheNonagonSquiggleBoyInternal::RevertToDefaultCell(m_owner->m_internal));
 
             for (size_t i = 0; i < 4; ++i)
             {
@@ -363,6 +381,7 @@ struct TheNonagonSquiggleBoyWrldBldr
     LeftGrid m_leftGrid;
     RightGrid m_rightGrid;
     AuxGrid m_auxGrid;
+    bool m_auxFocus;
     SmartGrid::MessageInBus m_messageBus;
     UIState m_uiState;
 
@@ -372,6 +391,7 @@ struct TheNonagonSquiggleBoyWrldBldr
         , m_leftGrid(this)
         , m_rightGrid(this)
         , m_auxGrid(this)
+        , m_auxFocus(false)
     {
         m_internal->SetActiveTrio(TheNonagonSmartGrid::Trio::Water);
 

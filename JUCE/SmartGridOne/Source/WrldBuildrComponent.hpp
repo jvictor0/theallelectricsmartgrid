@@ -277,40 +277,10 @@ struct WrldBuildrComponent : public juce::Component
     bool m_drawGrid;
 
     bool m_initialized;
-
-    bool m_shiftDownLastKeyStateChanged;
-
-    virtual bool keyStateChanged(bool isKeyDown) override
-    {
-        bool shiftDown = juce::ModifierKeys::getCurrentModifiers().isShiftDown();
-        if (shiftDown == m_shiftDownLastKeyStateChanged)
-        {
-            // Not a shift press, don't care.
-            //
-            return false;
-        }
-
-        m_shiftDownLastKeyStateChanged = shiftDown;
-        shiftDown = !shiftDown;
-
-        if (shiftDown)
-        {
-            size_t timestamp = 0;
-            m_leftArcadeGrid->OnPress(0, 0, timestamp);
-            return true;
-        }
-        else
-        {
-            size_t timestamp = 0;
-            m_leftArcadeGrid->OnRelease(0, 0, timestamp);
-            return true;
-        }
-    }
     
     WrldBuildrComponent(NonagonWrapper* nonagonWrapper)
     {
         m_initialized = false;
-        m_shiftDownLastKeyStateChanged = true;
         m_nonagon = nonagonWrapper;
         setSize(800, 600); // Default size
         setWantsKeyboardFocus(true);
