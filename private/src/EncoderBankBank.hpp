@@ -130,6 +130,34 @@ struct EncoderBankBankInternal
         return m_selectedBank == ix ? m_color[ix] : m_color[ix].Dim();
     }
 
+    // Returns the union of gestures affecting all banks for the specified track
+    //
+    BitSet16 GetGesturesAffectingForTrack(size_t track)
+    {
+        BitSet16 result;
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            result = result.Union(m_banks[i].GetGesturesAffectingForTrack(track));
+        }
+
+        return result;
+    }
+
+    // Returns true if the specified gesture affects the specified bank for the specified track
+    //
+    bool IsGestureAffectingBank(int gesture, size_t bank, size_t track)
+    {
+        return m_banks[bank].GetGesturesAffectingForTrack(track).Get(gesture);
+    }
+
+    void ClearGesture(int gesture)
+    {
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            m_banks[i].ClearGesture(gesture);
+        }
+    }
+
     void SetColor(size_t ix, SmartGrid::Color color, Input& input)
     {
         m_color[ix] = color;

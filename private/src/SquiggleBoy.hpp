@@ -1032,6 +1032,22 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
     }
 
+    SmartGrid::Color GetSelectorColorNoDim(size_t ordinal)
+    {
+        if (ordinal < x_numVoiceBanks)
+        {
+            return m_voiceEncoderBank.m_color[ordinal];
+        }
+        else if (ordinal < x_numVoiceBanks + x_numQuadBanks)
+        {
+            return m_quadEncoderBank.m_color[ordinal - x_numVoiceBanks];
+        }
+        else
+        {
+            return m_globalEncoderBank.m_color[ordinal - x_numVoiceBanks - x_numQuadBanks];
+        }
+    }
+
     void CopyToScene(int scene)
     {
         m_voiceEncoderBank.CopyToScene(scene);
@@ -1428,6 +1444,31 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     void RevertToDefault()
     {
         m_voiceEncoderBank.RevertToDefault();
+    }
+
+    void ClearGesture(int gesture)
+    {
+        m_voiceEncoderBank.ClearGesture(gesture);
+        m_quadEncoderBank.ClearGesture(gesture);
+        m_globalEncoderBank.ClearGesture(gesture);
+    }
+
+    // Returns true if the gesture affects the specified ordinal bank for the specified track
+    //
+    bool IsGestureAffectingBank(int gesture, size_t ordinal, size_t track)
+    {
+        if (ordinal < x_numVoiceBanks)
+        {
+            return m_voiceEncoderBank.IsGestureAffectingBank(gesture, ordinal, track);
+        }
+        else if (ordinal < x_numVoiceBanks + x_numQuadBanks)
+        {
+            return m_quadEncoderBank.IsGestureAffectingBank(gesture, ordinal - x_numVoiceBanks, track);
+        }
+        else
+        {
+            return m_globalEncoderBank.IsGestureAffectingBank(gesture, ordinal - x_numVoiceBanks - x_numQuadBanks, track);
+        }
     }
 
     void ResetGrid(uint64_t ix)

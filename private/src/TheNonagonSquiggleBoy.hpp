@@ -107,6 +107,11 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.CopyToScene(scene);
     }
 
+    void ClearGesture(int gesture)
+    {
+        m_squiggleBoy.ClearGesture(gesture);
+    }
+
     void SetRightScene(int scene)
     {
         m_sceneState.m_rightScene = scene;
@@ -417,7 +422,11 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual void OnPress(uint8_t velocity) override
         {
-            if (m_owner->m_squiggleBoyState.m_selectedGesture != m_gesture)
+            if (m_owner->m_sceneState.m_shift)
+            {
+                m_owner->ClearGesture(m_gesture);
+            }
+            else if (m_owner->m_squiggleBoyState.m_selectedGesture != m_gesture)
             {
                 m_owner->m_squiggleBoyState.SelectGesture(m_gesture);
             }

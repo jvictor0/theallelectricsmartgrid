@@ -177,6 +177,121 @@ struct TheNonagonSquiggleBoyWrldBldr
     struct AuxGrid : SmartGrid::Grid
     {
         TheNonagonSquiggleBoyWrldBldr* m_owner;
+
+        // Cell that shows gesture affectation status when a gesture is selected,
+        // otherwise behaves like a ShiftedCell
+        //
+        struct GestureAwareSelectorCell : SmartGrid::Cell
+        {
+            TheNonagonSquiggleBoyWrldBldr* m_owner;
+            std::shared_ptr<SmartGrid::Cell> m_main;
+            std::shared_ptr<SmartGrid::Cell> m_shifted;
+            size_t m_ordinal;
+
+            GestureAwareSelectorCell(
+                TheNonagonSquiggleBoyWrldBldr* owner,
+                std::shared_ptr<SmartGrid::Cell> main,
+                std::shared_ptr<SmartGrid::Cell> shifted,
+                size_t ordinal)
+                : m_owner(owner)
+                , m_main(main)
+                , m_shifted(shifted)
+                , m_ordinal(ordinal)
+            {
+            }
+
+            virtual SmartGrid::Color GetColor() override
+            {
+                int selectedGesture = m_owner->m_internal->m_squiggleBoyState.m_selectedGesture;
+                if (selectedGesture != -1)
+                {
+                    // When a gesture is selected, show if it affects this bank for the current track
+                    //
+                    size_t currentTrack = 0;
+                    if (m_ordinal < SquiggleBoyWithEncoderBank::x_numVoiceBanks)
+                    {
+                        currentTrack = m_owner->m_internal->m_squiggleBoyState.GetCurrentTrack();
+                    }
+                    
+                    if (m_owner->m_internal->m_squiggleBoy.IsGestureAffectingBank(selectedGesture, m_ordinal, currentTrack))
+                    {
+                        return m_owner->m_internal->m_squiggleBoy.GetSelectorColorNoDim(m_ordinal);
+                    }
+                    else
+                    {
+                        return SmartGrid::Color::Off;
+                    }
+                }
+
+                // Otherwise, behave like a ShiftedCell
+                //
+                if (m_owner->m_auxFocus)
+                {
+                    return m_shifted ? m_shifted->GetColor() : SmartGrid::Color::Off;
+                }
+                else
+                {
+                    return m_main ? m_main->GetColor() : SmartGrid::Color::Off;
+                }
+            }
+
+            virtual void OnPress(uint8_t velocity) override
+            {
+                if (m_owner->m_auxFocus)
+                {
+                    if (m_shifted)
+                    {
+                        m_shifted->OnPress(velocity);
+                    }
+                }
+                else
+                {
+                    if (m_main)
+                    {
+                        m_main->OnPress(velocity);
+                    }
+                }
+            }
+
+            virtual void OnRelease() override
+            {
+                if (m_owner->m_auxFocus)
+                {
+                    if (m_shifted)
+                    {
+                        m_shifted->OnRelease();
+                    }
+                }
+                else
+                {
+                    if (m_main)
+                    {
+                        m_main->OnRelease();
+                    }
+                }
+            }
+        };
+
+        // Helper to compute ordinal for row 2 cells
+        //
+        static size_t GetRow2Ordinal(size_t i)
+        {
+            if (i < SquiggleBoyWithEncoderBank::x_numQuadBanks)
+            {
+                return i + SquiggleBoyWithEncoderBank::x_numVoiceBanks;
+            }
+            else if (i < SquiggleBoyWithEncoderBank::x_numQuadBanks + SquiggleBoyWithEncoderBank::x_numGlobalBanks)
+            {
+                return i - SquiggleBoyWithEncoderBank::x_numQuadBanks + SquiggleBoyWithEncoderBank::x_numVoiceBanks + SquiggleBoyWithEncoderBank::x_numQuadBanks;
+            }
+            else
+            {
+                // Not a valid encoder bank, return a large number
+                //
+                return 255;
+            }
+        }
+
         AuxGrid(TheNonagonSquiggleBoyWrldBldr* owner)
             : m_owner(owner)
         {
@@ -211,24 +326,28 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
-                Put(i, 2, new ShiftedCell(
+                size_t ordinal = GetRow2Ordinal(i);
+                Put(i, 2, new GestureAwareSelectorCell(
+                    m_owner,
                     GetShared(i, 2),
                     std::shared_ptr<SmartGrid::Cell>(new TheNonagonSquiggleBoyInternal::SceneSelectorCell(m_owner->m_internal, i)),
-                    &m_owner->m_auxFocus));
+                    ordinal));
             }
 
             for (size_t i = 0; i < static_cast<size_t>(GridsMode::NumGrids); ++i)
             {
-                Put(i, 3, new ShiftedCell(
+                Put(i, 3, new GestureAwareSelectorCell(
+                    m_owner,
                     GetShared(i, 3),
                     std::shared_ptr<SmartGrid::Cell>(new SetGridsModeCell(m_owner, static_cast<GridsMode>(i))),
-                    &m_owner->m_auxFocus));
+                    i));
             }
 
-            Put(SmartGrid::x_baseGridSize - 1, 3, new ShiftedCell(
+            Put(SmartGrid::x_baseGridSize - 1, 3, new GestureAwareSelectorCell(
+                m_owner,
                 GetShared(SmartGrid::x_baseGridSize - 1, 3),
                 std::shared_ptr<SmartGrid::Cell>(new SetDisplayModeCell(m_owner, DisplayMode::Visualizer)),
-                &m_owner->m_auxFocus));
+                255));
 
             for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
             {
