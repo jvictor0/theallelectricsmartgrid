@@ -402,7 +402,10 @@ struct GrainManager
 
             DiscreteFourierTransform dft;
             m_owner->m_resynthesizer.Analyze(m_grain.m_buffer, dft);
-            m_owner->m_resynthesizer.Synthesize(&m_grain, dft, time);
+            
+            Resynthesizer::Input input;
+            input.m_startTime = time;            
+            m_owner->m_resynthesizer.Synthesize(&m_grain, dft, input);
         }
 
         bool IsRunning() const

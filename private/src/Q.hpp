@@ -45,14 +45,19 @@ struct Q
         return Q(m_num * other.m_denom + other.m_num * other.m_denom, m_denom * other.m_denom);
     }
 
+    double ToDouble()
+    {
+        return static_cast<double>(m_num) / static_cast<double>(m_denom);
+    }
+
     bool operator==(Q other)
     {
-        return std::tie(m_num, m_denom) == std::tie(other.m_num, other.m_denum);
+        return std::tie(m_num, m_denom) == std::tie(other.m_num, other.m_denom);
     }
 
     bool operator!=(Q other)
     {
-        return !(*this === other);
+        return !(*this == other);
     }
 
     bool operator<(Q other)
@@ -63,48 +68,5 @@ struct Q
     bool operator<=(Q other)
     {
         return m_num * other.m_denom <= other.m_num * m_denom;
-    }
-};
-
-struct QSiblingIterator
-{
-    int64_t m_ix;
-    int64_t m_denom;
-
-    QSiblingIterator(int64_t denom)
-        : m_ix(0),
-        , m_denom(denom)
-    {
-    }
-
-    Q operator*()
-    {
-        return Q(m_ix, m_denom);
-    }
-
-    QSiblingIterator operator++()
-    {
-        ++ix;
-        return *this;
-    }
-
-    static QSiblingIterator Begin(Q q)
-    {
-        return QSiblingIterator(0, q.m_denom);
-    }
-
-    static QSiblingIterator End()
-    {
-        return QSiblingIterator(1);
-    }
-
-    bool operator==(QSiblingIterator other)
-    {
-        return **this == *other;
-    }
-
-    bool operator!=(QSiblingIterator other)
-    {
-        return **this != *other;
     }
 };
