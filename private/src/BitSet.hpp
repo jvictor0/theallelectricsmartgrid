@@ -43,6 +43,11 @@ struct BitSet
         return m_bits == other.m_bits;
     }
 
+    bool operator!=(const BitSet& other) const
+    {
+        return m_bits != other.m_bits;
+    }
+
     void Clear()
     {
         m_bits = 0;

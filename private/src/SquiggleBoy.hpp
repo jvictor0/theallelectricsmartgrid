@@ -731,6 +731,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     static constexpr size_t x_numGlobalBanks = 2;
     EncoderBankBankInternal<x_numGlobalBanks> m_globalEncoderBank;
 
+    static constexpr size_t x_TotalNumBanks = x_numVoiceBanks + x_numQuadBanks + x_numGlobalBanks;
+
     static constexpr size_t x_numFaders = 16;
 
     size_t m_selectedAbsoluteEncoderBank;
@@ -908,7 +910,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         PhaseUtils::ExpParam m_tempo;
 
         bool m_shift;
-        int m_selectedGesture;
+        BitSet16 m_selectedGesture;
 
         float GetGainFader(size_t i)
         {
@@ -918,8 +920,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         Input()
             : m_tempo(1.0 / (64.0 * 48000.0), 4.0 / 48000.0)
             , m_shift(false)
-            , m_selectedGesture(-1)
         {
+            m_selectedGesture.Clear();
             for (size_t i = 0; i < x_numVoices; ++i)
             {
                 m_baseFreq[i] = PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0);
@@ -975,12 +977,20 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_blendFactor = blendFactor;
         }
 
-        void SelectGesture(int gesture)
+        void SelectGesture(int gesture, bool select)
         {
-            m_selectedGesture = gesture;
-            m_voiceEncoderBankInput.SelectGesture(gesture);
-            m_globalEncoderBankInput.SelectGesture(gesture);
-            m_quadEncoderBankInput.SelectGesture(gesture);
+            if (gesture == -1)
+            {
+                m_selectedGesture.Clear();
+            }
+            else
+            {
+                m_selectedGesture.Set(gesture, select);
+            }
+
+            m_voiceEncoderBankInput.SelectGesture(m_selectedGesture);
+            m_globalEncoderBankInput.SelectGesture(m_selectedGesture);
+            m_quadEncoderBankInput.SelectGesture(m_selectedGesture);
         }    
 
         void SetBlink(bool blink)
@@ -1453,6 +1463,24 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_globalEncoderBank.ClearGesture(gesture);
     }
 
+    // Returns the gestures affecting the specified ordinal bank for the specified track
+    //
+    BitSet16 GetGesturesAffectingBankForTrack(size_t ordinal, size_t track)
+    {
+        if (ordinal < x_numVoiceBanks)
+        {
+            return m_voiceEncoderBank.GetGesturesAffectingBankForTrack(ordinal, track);
+        }
+        else if (ordinal < x_numVoiceBanks + x_numQuadBanks)
+        {
+            return m_quadEncoderBank.GetGesturesAffectingBankForTrack(ordinal - x_numVoiceBanks, track);
+        }
+        else
+        {
+            return m_globalEncoderBank.GetGesturesAffectingBankForTrack(ordinal - x_numVoiceBanks - x_numQuadBanks, track);
+        }
+    }
+
     // Returns true if the gesture affects the specified ordinal bank for the specified track
     //
     bool IsGestureAffectingBank(int gesture, size_t ordinal, size_t track)
@@ -1469,6 +1497,25 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             return m_globalEncoderBank.IsGestureAffectingBank(gesture, ordinal - x_numVoiceBanks - x_numQuadBanks, track);
         }
+    }
+
+    // Returns true if the gesture affects any bank for any track
+    //
+    bool IsGestureAffectingAnyBank(int gesture)
+    {
+        for (size_t ordinal = 0; ordinal < x_TotalNumBanks; ++ordinal)
+        {
+            size_t numTracks = (ordinal < x_numVoiceBanks) ? x_numTracks : 1;
+            for (size_t track = 0; track < numTracks; ++track)
+            {
+                if (IsGestureAffectingBank(gesture, ordinal, track))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     void ResetGrid(uint64_t ix)

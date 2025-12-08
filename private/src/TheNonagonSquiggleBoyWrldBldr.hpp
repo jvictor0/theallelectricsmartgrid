@@ -171,12 +171,59 @@ struct TheNonagonSquiggleBoyWrldBldr
                 &m_auxFocus,
                 true,
                 false,
-                SmartGrid::StateCell<bool>::Mode::Toggle);
+                SmartGrid::StateCell<bool>::Mode::Momentary);
     }
 
     struct AuxGrid : SmartGrid::Grid
     {
         TheNonagonSquiggleBoyWrldBldr* m_owner;
+
+        // Gesture selector that tracks held count and shows pink when affecting any bank
+        //
+        struct WrldBldrGestureSelectorCell : SmartGrid::Cell
+        {
+            TheNonagonSquiggleBoyWrldBldr* m_owner;
+            int m_gesture;
+
+            WrldBldrGestureSelectorCell(TheNonagonSquiggleBoyWrldBldr* owner, int gesture)
+                : m_owner(owner)
+                , m_gesture(gesture)
+            {
+            }
+
+            virtual SmartGrid::Color GetColor() override
+            {
+                if (m_owner->m_internal->m_squiggleBoyState.m_selectedGesture.Get(m_gesture))
+                {
+                    return SmartGrid::Color::Red;
+                }
+                else if (m_owner->m_internal->m_squiggleBoy.IsGestureAffectingAnyBank(m_gesture))
+                {
+                    return SmartGrid::Color::Pink;
+                }
+                else
+                {
+                    return SmartGrid::Color::Grey;
+                }
+            }
+
+            virtual void OnPress(uint8_t velocity) override
+            {
+                if (m_owner->m_internal->m_sceneState.m_shift)
+                {
+                    m_owner->m_internal->ClearGesture(m_gesture);
+                }
+                else
+                {
+                    m_owner->m_internal->m_squiggleBoyState.SelectGesture(m_gesture, true);
+                }
+            }
+
+            virtual void OnRelease() override
+            {
+                m_owner->m_internal->m_squiggleBoyState.SelectGesture(m_gesture, false);
+            }
+        };
 
         // Cell that shows gesture affectation status when a gesture is selected,
         // otherwise behaves like a ShiftedCell
@@ -202,10 +249,9 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             virtual SmartGrid::Color GetColor() override
             {
-                int selectedGesture = m_owner->m_internal->m_squiggleBoyState.m_selectedGesture;
-                if (selectedGesture != -1)
+                if (!m_owner->m_internal->m_squiggleBoyState.m_selectedGesture.IsZero())
                 {
-                    // When a gesture is selected, show if it affects this bank for the current track
+                    // When gestures are selected, show if any affects this bank for the current track
                     //
                     size_t currentTrack = 0;
                     if (m_ordinal < SquiggleBoyWithEncoderBank::x_numVoiceBanks)
@@ -213,13 +259,17 @@ struct TheNonagonSquiggleBoyWrldBldr
                         currentTrack = m_owner->m_internal->m_squiggleBoyState.GetCurrentTrack();
                     }
                     
-                    if (m_owner->m_internal->m_squiggleBoy.IsGestureAffectingBank(selectedGesture, m_ordinal, currentTrack))
+                    BitSet16 affectingGestures = m_owner->m_internal->m_squiggleBoy.GetGesturesAffectingBankForTrack(m_ordinal, currentTrack);
+                    BitSet16 selectedAndAffecting = affectingGestures.Intersect(m_owner->m_internal->m_squiggleBoyState.m_selectedGesture);
+                    
+                    SmartGrid::Color color = m_owner->m_internal->m_squiggleBoy.GetSelectorColorNoDim(m_ordinal);
+                    if (!selectedAndAffecting.IsZero())
                     {
-                        return m_owner->m_internal->m_squiggleBoy.GetSelectorColorNoDim(m_ordinal);
+                        return color;
                     }
                     else
                     {
-                        return SmartGrid::Color::Off;
+                        return color.Dim();
                     }
                 }
 
@@ -272,39 +322,108 @@ struct TheNonagonSquiggleBoyWrldBldr
             }
         };
 
-        // Helper to compute ordinal for row 2 cells
-        //
-        static size_t GetRow2Ordinal(size_t i)
+        struct GestureVisibleCell : SmartGrid::Cell
         {
-            if (i < SquiggleBoyWithEncoderBank::x_numQuadBanks)
+            TheNonagonSquiggleBoyWrldBldr* m_owner;
+            std::shared_ptr<SmartGrid::Cell> m_main;
+            std::shared_ptr<SmartGrid::Cell> m_gesture;
+
+            GestureVisibleCell(
+                TheNonagonSquiggleBoyWrldBldr* owner,
+                std::shared_ptr<SmartGrid::Cell> main,
+                std::shared_ptr<SmartGrid::Cell> gesture)
+                : m_owner(owner)
+                , m_main(main)
+                , m_gesture(gesture)
             {
-                return i + SquiggleBoyWithEncoderBank::x_numVoiceBanks;
             }
-            else if (i < SquiggleBoyWithEncoderBank::x_numQuadBanks + SquiggleBoyWithEncoderBank::x_numGlobalBanks)
+
+            bool ShouldShowGesture()
             {
-                return i - SquiggleBoyWithEncoderBank::x_numQuadBanks + SquiggleBoyWithEncoderBank::x_numVoiceBanks + SquiggleBoyWithEncoderBank::x_numQuadBanks;
+                return m_owner->m_auxFocus || !m_owner->m_internal->m_squiggleBoyState.m_selectedGesture.IsZero();
             }
-            else
+
+            virtual SmartGrid::Color GetColor() override
             {
-                // Not a valid encoder bank, return a large number
-                //
-                return 255;
+                if (ShouldShowGesture())
+                {
+                    return m_gesture ? m_gesture->GetColor() : SmartGrid::Color::Off;
+                }
+                else
+                {
+                    return m_main ? m_main->GetColor() : SmartGrid::Color::Off;
+                }
             }
-        }
+
+            virtual void OnPress(uint8_t velocity) override
+            {
+                if (ShouldShowGesture())
+                {
+                    if (m_gesture)
+                    {
+                        m_gesture->OnPress(velocity);
+                    }
+                }
+                else
+                {
+                    if (m_main)
+                    {
+                        m_main->OnPress(velocity);
+                    }
+                }
+            }
+
+            virtual void OnRelease() override
+            {
+                if (ShouldShowGesture())
+                {
+                    if (m_gesture)
+                    {
+                        m_gesture->OnRelease();
+                    }
+                }
+                else
+                {
+                    if (m_main)
+                    {
+                        m_main->OnRelease();
+                    }
+                }
+            }
+        };
 
         AuxGrid(TheNonagonSquiggleBoyWrldBldr* owner)
             : m_owner(owner)
         {
+            // Row 0: Main = scene selectors, Aux = gesture selectors (visible when auxFocus OR numGesturesHeld > 0)
+            //
             for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
-                Put(i, 0, new TheNonagonSquiggleBoyInternal::GestureSelectorCell(owner->m_internal, i));
+                std::shared_ptr<SmartGrid::Cell> gestureCell = std::make_shared<WrldBldrGestureSelectorCell>(owner, i);
+                std::shared_ptr<SmartGrid::Cell> mainCell = std::make_shared<TheNonagonSquiggleBoyInternal::SceneSelectorCell>(m_owner->m_internal, i);
+                Put(i, 0, new GestureVisibleCell(m_owner, mainCell, gestureCell));
             }
 
+            // Row 1: Main = grid mode selectors (0-3) + display mode (7), Aux = gesture selectors
+            //
             for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
-                Put(i, 1, new TheNonagonSquiggleBoyInternal::GestureSelectorCell(owner->m_internal, i + SmartGrid::x_baseGridSize));
+                std::shared_ptr<SmartGrid::Cell> gestureCell = std::make_shared<WrldBldrGestureSelectorCell>(owner, i + SmartGrid::x_baseGridSize);
+                std::shared_ptr<SmartGrid::Cell> mainCell = nullptr;
+                if (i < static_cast<size_t>(GridsMode::NumGrids))
+                {
+                    mainCell = std::make_shared<SetGridsModeCell>(m_owner, static_cast<GridsMode>(i));
+                }
+                else if (i == SmartGrid::x_baseGridSize - 1)
+                {
+                    mainCell = std::make_shared<SetDisplayModeCell>(m_owner, DisplayMode::Visualizer);
+                }
+
+                Put(i, 1, new GestureVisibleCell(m_owner, mainCell, gestureCell));
             }
 
+            // Rows 2-3: Main = bank selectors, Aux = mutes and trio selectors (same x positions as original, y+2)
+            //
             for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numQuadBanks; ++i)
             {
                 Put(i, 2, new SquiggleBoyWithEncoderBank::SelectorCell(
@@ -326,73 +445,58 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
-                size_t ordinal = GetRow2Ordinal(i);
+                size_t ordinal = i + SquiggleBoyWithEncoderBank::x_numVoiceBanks;
+                std::shared_ptr<SmartGrid::Cell> auxCell = nullptr;
+
+                // Check if this position has a mute cell (y=2 corresponds to original y=0)
+                //
+                for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
+                {
+                    int xPos = 2 + 2 * trio;
+                    if (static_cast<int>(i) == xPos)
+                    {
+                        auxCell = std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(trio), 0));
+                    }
+                    else if (static_cast<int>(i) == xPos + 1)
+                    {
+                        auxCell = std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(trio), 1));
+                    }
+                }
+
                 Put(i, 2, new GestureAwareSelectorCell(
                     m_owner,
                     GetShared(i, 2),
-                    std::shared_ptr<SmartGrid::Cell>(new TheNonagonSquiggleBoyInternal::SceneSelectorCell(m_owner->m_internal, i)),
+                    auxCell,
                     ordinal));
             }
 
-            for (size_t i = 0; i < static_cast<size_t>(GridsMode::NumGrids); ++i)
+            for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
+                std::shared_ptr<SmartGrid::Cell> auxCell = nullptr;
+
+                // Check if this position has a trio selector or mute cell (y=3 corresponds to original y=1)
+                //
+                for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
+                {
+                    int xPos = 2 + 2 * trio;
+                    if (static_cast<int>(i) == xPos)
+                    {
+                        auxCell = std::make_shared<SetActiveTrioCell>(m_owner, static_cast<TheNonagonSmartGrid::Trio>(trio));
+                    }
+                    else if (static_cast<int>(i) == xPos + 1)
+                    {
+                        auxCell = std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(trio), 2));
+                    }
+                }
+
+                size_t ordinal = (i < SquiggleBoyWithEncoderBank::x_numVoiceBanks) ? i : 255;
                 Put(i, 3, new GestureAwareSelectorCell(
                     m_owner,
                     GetShared(i, 3),
-                    std::shared_ptr<SmartGrid::Cell>(new SetGridsModeCell(m_owner, static_cast<GridsMode>(i))),
-                    i));
+                    auxCell,
+                    ordinal));
             }
 
-            Put(SmartGrid::x_baseGridSize - 1, 3, new GestureAwareSelectorCell(
-                m_owner,
-                GetShared(SmartGrid::x_baseGridSize - 1, 3),
-                std::shared_ptr<SmartGrid::Cell>(new SetDisplayModeCell(m_owner, DisplayMode::Visualizer)),
-                255));
-
-            for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
-            {
-                int xPos = 2 + 2 * i;
-                Put(xPos, 1, new ShiftedCell(
-                    std::shared_ptr<SmartGrid::Cell>(new SetActiveTrioCell(m_owner, static_cast<TheNonagonSmartGrid::Trio>(i))),
-                    GetShared(xPos, 1),
-                    &m_owner->m_auxFocus));
-
-                Put(xPos, 0, new ShiftedCell(
-                    std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(i), 0)),
-                    GetShared(xPos, 0),
-                    &m_owner->m_auxFocus));
-
-                Put(xPos + 1, 0, new ShiftedCell(
-                    std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(i), 1)),
-                    GetShared(xPos + 1, 0),
-                    &m_owner->m_auxFocus));
-
-                Put(xPos + 1, 1, new ShiftedCell(
-                    std::shared_ptr<SmartGrid::Cell>(m_owner->m_internal->m_nonagon.MakeMuteCell(static_cast<TheNonagonSmartGrid::Trio>(i), 2)),
-                    GetShared(xPos + 1, 1),
-                    &m_owner->m_auxFocus));
-            }
-
-            Put(0, 0, new ShiftedCell(
-                nullptr,
-                GetShared(0, 0),
-                &m_owner->m_auxFocus));
-
-            Put(0, 1, new ShiftedCell(
-                nullptr,
-                GetShared(0, 1),
-                &m_owner->m_auxFocus));
-
-            Put(1, 0, new ShiftedCell(
-                nullptr,
-                GetShared(1, 0),
-                &m_owner->m_auxFocus));
-
-            Put(1, 1, new ShiftedCell(
-                nullptr,
-                GetShared(1, 1),
-                &m_owner->m_auxFocus));
-                
             Put(0, 4, m_owner->m_internal->MakeShiftCell());
             Put(0, 5, m_owner->MakeAuxFocusCell());
             Put(1, 4, m_owner->m_internal->MakeRunningCell());

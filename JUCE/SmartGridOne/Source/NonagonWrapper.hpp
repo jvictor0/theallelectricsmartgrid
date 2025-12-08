@@ -408,10 +408,15 @@ struct NonagonWrapperWrldBldr
             m_midiOutputHandler.FromJSON(midiOutputJ);
         }
 
-        if (m_midiInputHandler.m_midiInput.get() && m_midiOutputHandler.m_midiOutput.get())
+        if (IsOpen())
         {
             SendHandshake();
         }
+    }
+
+    bool IsOpen()
+    {
+        return m_midiInputHandler.m_midiInput.get() && m_midiOutputHandler.m_midiOutput.get();
     }
 
     juce::MidiInput* GetMidiInput()
@@ -595,7 +600,14 @@ struct NonagonWrapper
 
     TheNonagonSquiggleBoyWrldBldr::DisplayMode GetDisplayMode()
     {
-        return m_wrldBldr.m_nonagon.m_uiState.m_displayMode.load();
+        if (m_wrldBldr.IsOpen())
+        {
+            return TheNonagonSquiggleBoyWrldBldr::DisplayMode::Visualizer;
+        }
+        else
+        {
+            return m_wrldBldr.m_nonagon.m_uiState.m_displayMode.load();
+        }
     }
 
     void SetRecordingDirectory(const char* directory)

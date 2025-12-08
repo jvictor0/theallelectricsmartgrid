@@ -46,6 +46,28 @@ struct EncoderComponent : public juce::Component
                 g.strokePath(arcPath, juce::PathStrokeType(2.0f));
             }
 
+            // Draw the thicker, brighter arc between min and max values
+            //
+            for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(); ++i)
+            {
+                auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * (0.45f - i * 0.05f);
+                size_t voice = m_ui.m_uiState->GetNumVoices() * m_ui.m_uiState->GetCurrentTrack() + i;
+
+                float minValue = m_ui.m_uiState->GetMinValue(m_x, m_y, voice);
+                float maxValue = m_ui.m_uiState->GetMaxValue(m_x, m_y, voice);
+
+                // Convert min/max values to angles (start at 7:30 = 1.25π, 270 degree range)
+                //
+                float startAngle = juce::MathConstants<float>::pi * 1.25f + (minValue * 270.0f * juce::MathConstants<float>::pi / 180.0f);
+                float endAngle = juce::MathConstants<float>::pi * 1.25f + (maxValue * 270.0f * juce::MathConstants<float>::pi / 180.0f);
+
+                auto indicatorColor = m_ui.m_uiState->GetIndicatorColor(voice);
+                g.setColour(juce::Colour(indicatorColor.m_red, indicatorColor.m_green, indicatorColor.m_blue));
+                juce::Path minMaxArc;
+                minMaxArc.addCentredArc(centerX, centerY, radius, radius, 0.0f, startAngle, endAngle, true);
+                g.strokePath(minMaxArc, juce::PathStrokeType(3.0f));
+            }
+
             for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(); ++i)
             {
                 auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * (0.45f - i * 0.05f);

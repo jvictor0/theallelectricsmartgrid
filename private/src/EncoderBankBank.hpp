@@ -54,7 +54,7 @@ struct EncoderBankBankInternal
             m_bankedEncoderCellInput[bank][i][j].m_connected = true;
         }
 
-        void SelectGesture(int gesture)
+        void SelectGesture(const BitSet16& gesture)
         {
             m_bankedEncoderInternalInput.m_selectedGesture = gesture;
         }
@@ -141,6 +141,13 @@ struct EncoderBankBankInternal
         }
 
         return result;
+    }
+
+    // Returns the gestures affecting the specified bank for the specified track
+    //
+    BitSet16 GetGesturesAffectingBankForTrack(size_t bank, size_t track)
+    {
+        return m_banks[bank].GetGesturesAffectingForTrack(track);
     }
 
     // Returns true if the specified gesture affects the specified bank for the specified track
