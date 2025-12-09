@@ -3,9 +3,13 @@
 #include "QuadUtils.hpp"
 #include "AdaptiveWaveTable.hpp"
 #include "Q.hpp"
+#include "Slew.hpp"
 
 struct Resynthesizer
 {
+    static constexpr size_t x_hopDenom = 4;
+    static constexpr size_t x_numOscillators = 3;
+
     struct Grain
     {
         float Process()
@@ -71,19 +75,14 @@ struct Resynthesizer
             }
         }
 
-        void FixupPhases(double deltaTime)
+        void FixupPhases(float detune)
         {
             constexpr float N = static_cast<float>(BasicWaveTable::x_tableSize);
             constexpr float H = N / static_cast<float>(x_hopDenom);
 
-            if (std::abs(deltaTime) < 1e-12)
-            {
-                return;
-            }
-
             for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
             {    
-                double omegaInstantaneous = m_owner->OmegaInstantaneous(i, deltaTime);
+                double omegaInstantaneous = m_owner->m_omegaInstantaneous[i] * detune;
                 m_synthesisPhase[i] = m_synthesisPhase[i] + omegaInstantaneous * H;
             }
         }
@@ -92,7 +91,7 @@ struct Resynthesizer
         {
             for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
             {
-                float mag = gain * m_owner->m_magnitudes[i];
+                float mag = gain * m_owner->m_magnitudes[i].m_output;
                 double phase = m_synthesisPhase[i] * shift.ToDouble();
                 std::complex<float> component = std::polar(mag, static_cast<float>(phase));
 
@@ -136,41 +135,128 @@ struct Resynthesizer
 
     struct Input
     {
-        Oscillator::Input m_oscillatorInput;
+        Q m_shift[Oscillator::x_numShifts - 1];
+        float m_fade[Oscillator::x_numShifts - 1];
         double m_startTime;
+        float m_unisonGain;
+        float m_unisonDetune;
+        float m_slewUp;
+        float m_slewDown;
+
+        float GetUnisonGainForOscillator(int index)
+        {
+            if (index == 0)
+            {
+                return std::sqrt(1.0f - 2.0f * m_unisonGain * m_unisonGain / 3.0f);
+            }
+            else
+            {
+                return m_unisonGain / std::sqrt(3.0f);
+            }
+        }
+
+        Oscillator::Input MakeOscillatorInput(int index)
+        {
+            float unisonGain = GetUnisonGainForOscillator(index);
+            Oscillator::Input input;
+            input.m_gain[0] = std::max(0.0f, unisonGain * (1 - m_fade[0]));
+            input.m_gain[1] = std::max(0.0f, unisonGain * m_fade[0] * (1 - m_fade[1]));
+            input.m_gain[2] = std::max(0.0f, unisonGain * (1 - input.m_gain[0] - input.m_gain[1]));
+            input.m_shift[0] = Q(1, 1);
+            input.m_shift[1] = m_shift[0];
+            input.m_shift[2] = m_shift[1];
+            return input;
+        }
+
+        float GetUnisonDetune(int index)
+        {
+            if (index == 0)
+            {
+                return 1.0;
+            }
+            else if (index == 1)
+            {
+                return m_unisonDetune;
+            }
+            else
+            {
+                return 1.0 / m_unisonDetune;
+            }
+        }
 
         Input()
-            : m_oscillatorInput()
-            , m_startTime(0.0)
+            : m_startTime(0.0)
+            , m_unisonGain(0.0)
+            , m_unisonDetune(1.0)
+            , m_slewUp(0.5)
+            , m_slewDown(0.5)
         {
+            for (size_t i = 0; i < Oscillator::x_numShifts - 1; ++i)
+            {
+                m_shift[i] = Q(1, 1);
+                m_fade[i] = 0.0f;
+            }
         }
     };
 
     void Clear()
     {
         m_startTime = 0.0;
-        m_oscillator.Clear();
+        for (size_t i = 0; i < x_numOscillators; ++i)
+        {
+            m_oscillators[i].Clear();
+        }
+
         for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
         {
             m_analysisPhase[i] = 0.0f;
             m_analysisPhasePrev[i] = 0.0f;
-            m_magnitudes[i] = 0.0f;
+            m_trueMagnitudes[i] = 0.0f;
+            m_omegaInstantaneous[i] = 0.0f;
         }
     }
 
     Resynthesizer()
-        : m_oscillator(this)
+        : m_oscillators{ Oscillator(this), Oscillator(this), Oscillator(this) }
     {
         Clear();
     }
 
-    void ProcessPhases(DiscreteFourierTransform& dft)
+    void SetSlewUp(float cyclesPerSample)
+    {
+        float old = m_magnitudes[0].m_slewUp.m_alpha;
+        m_magnitudes[0].SetSlewUp(cyclesPerSample);
+        if (old != m_magnitudes[0].m_slewUp.m_alpha)
+        {
+            for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
+            {
+                m_magnitudes[i].m_slewUp.m_alpha = m_magnitudes[0].m_slewUp.m_alpha;
+            }
+        }
+    }
+
+    void SetSlewDown(float cyclesPerSample)
+    {
+        float old = m_magnitudes[0].m_slewDown.m_alpha;
+        m_magnitudes[0].SetSlewDown(cyclesPerSample);
+        if (old != m_magnitudes[0].m_slewDown.m_alpha)
+        {
+            for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
+            {
+                m_magnitudes[i].m_slewDown.m_alpha = m_magnitudes[0].m_slewDown.m_alpha;
+            }
+        }
+    }
+
+    void ProcessPhases(DiscreteFourierTransform& dft, double deltaTime)
     {
         for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
         {
             m_analysisPhasePrev[i] = m_analysisPhase[i];
             m_analysisPhase[i] = std::arg(dft.m_components[i]);
-            m_magnitudes[i] = std::abs(dft.m_components[i]);
+            m_trueMagnitudes[i] = std::abs(dft.m_components[i]);
+            m_magnitudes[i].Process(m_trueMagnitudes[i]);
+            SetAnalysisOmega(i, deltaTime);
         }
     }
 
@@ -186,8 +272,13 @@ struct Resynthesizer
         return twoPi * static_cast<float>(bin) / N;
     }
 
-    float OmegaInstantaneous(int bin, double deltaTime)
+    void SetAnalysisOmega(int bin, double deltaTime)
     {
+        if (std::abs(deltaTime) < 1e-12)
+        {
+            return;
+        }
+
         constexpr float twoPi = 2.0f * static_cast<float>(M_PI);
         
         float omegaBin = OmegaBin(bin);
@@ -203,33 +294,51 @@ struct Resynthesizer
 
         deltaPhi -= static_cast<float>(M_PI);
         
-        return omegaBin + deltaPhi / deltaTime;
+        float omegaAnalysis = omegaBin + deltaPhi / deltaTime;
+        float t = std::min(1.0f, m_trueMagnitudes[bin] / m_magnitudes[bin].m_output);
+        m_omegaInstantaneous[bin] = omegaAnalysis * t + (1.0f - t) * m_omegaInstantaneous[bin];
     }
 
-    void Analyze(BasicWaveTable& buffer, DiscreteFourierTransform& dft)
-    {
-        dft.Transform(buffer);
-        ProcessPhases(dft);
-    }
-
-    void Synthesize(Grain* grain, DiscreteFourierTransform& dft, Input input)
+    void Analyze(BasicWaveTable& buffer, DiscreteFourierTransform& dft, Input& input)
     {
         double deltaTime = input.m_startTime - m_startTime;
         m_startTime = input.m_startTime;
 
-        m_oscillator.FixupPhases(deltaTime);
+        SetSlewUp(input.m_slewUp);
+        SetSlewDown(input.m_slewDown);
+
+        dft.Transform(buffer);
+        ProcessPhases(dft, deltaTime);
+    }
+
+    void Synthesize(Grain* grain, DiscreteFourierTransform& dft, Input& input)
+    {
+        for (size_t i = 0; i < x_numOscillators; ++i)
+        {
+            m_oscillators[i].FixupPhases(input.GetUnisonDetune(i));
+        }
 
         DiscreteFourierTransform synthDft;
-        m_oscillator.Synthesize(synthDft, input.m_oscillatorInput);
+        for (size_t i = 0; i < x_numOscillators; ++i)
+        {
+            m_oscillators[i].Synthesize(synthDft, input.MakeOscillatorInput(i));
+        }
+
         synthDft.InverseTransform(grain->m_buffer, DiscreteFourierTransform::x_maxComponents);
         grain->Start();
     }
 
-    static constexpr size_t x_hopDenom = 4;
+    static constexpr size_t GetGrainLaunchSamples()
+    {
+        return BasicWaveTable::x_tableSize / x_hopDenom;
+    }
+
     const WaveTable* m_windowTable;
-    float m_magnitudes[DiscreteFourierTransform::x_maxComponents];
+    BiDirectionalSlew m_magnitudes[DiscreteFourierTransform::x_maxComponents];
+    float m_trueMagnitudes[DiscreteFourierTransform::x_maxComponents];
+    float m_omegaInstantaneous[DiscreteFourierTransform::x_maxComponents];
     float m_analysisPhase[DiscreteFourierTransform::x_maxComponents];
     float m_analysisPhasePrev[DiscreteFourierTransform::x_maxComponents];
     double m_startTime;
-    Oscillator m_oscillator;
+    Oscillator m_oscillators[x_numOscillators];
 };

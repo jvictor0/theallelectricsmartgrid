@@ -371,7 +371,6 @@ struct GrainManager
     {
         Grain()
             : m_startTime(0.0)
-            , m_gain(1.0)
             , m_owner(nullptr)
         {
         }
@@ -379,32 +378,28 @@ struct GrainManager
         void Reset()
         {
             m_startTime = 0.0;
-            m_gain = 1.0f;
             m_startWallTime = 0.0;
         }
 
         float Process()
         {
-            return m_grain.Process() * m_gain;
+            return m_grain.Process();
         }
 
-        void Start(double wallTime, double time, float gain)
+        void Start(double wallTime, Resynthesizer::Input& input)
         {
-            m_startTime = time;
+            m_startTime = input.m_startTime;
             m_startWallTime = wallTime;
-            m_gain = gain;
 
             for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
             {
                 float window = 0.5 - 0.5 * m_grain.m_windowTable->m_table[i];
-                m_grain.m_buffer.m_table[i] = m_delayLine->ReadRealTime(time + i) * window;
+                m_grain.m_buffer.m_table[i] = m_delayLine->ReadRealTime(input.m_startTime + i) * window;
             }
 
             DiscreteFourierTransform dft;
-            m_owner->m_resynthesizer.Analyze(m_grain.m_buffer, dft);
+            m_owner->m_resynthesizer.Analyze(m_grain.m_buffer, dft, input);
             
-            Resynthesizer::Input input;
-            input.m_startTime = time;            
             m_owner->m_resynthesizer.Synthesize(&m_grain, dft, input);
         }
 
@@ -420,24 +415,9 @@ struct GrainManager
 
         double m_startWallTime;
         double m_startTime;
-        float m_gain;
         Resynthesizer::Grain m_grain;
         DelayLineMovableWriter<Size>* m_delayLine;
         GrainManager* m_owner;
-    };
-
-    struct Input
-    {
-        size_t m_overlap;
-        double m_grainSamples;
-        double m_sigma;
-
-        Input()
-            : m_overlap(2)
-            , m_grainSamples(1.0)
-            , m_sigma(0.00)
-        {
-        }
     };
     
     static constexpr size_t x_maxGrains = 1024;
@@ -510,30 +490,25 @@ struct GrainManager
         return result;
     }
 
-    float Process(Input& input, XFader warpedTime, double sampleOffset)
+    struct Input
+    {
+        Resynthesizer::Input m_resynthInput;
+    };
+
+    float Process(double warpedTime, double sampleOffset, Input& input)
     {
         float result = ProcessGrains();
         if (m_samplesToNextGrain < 1.0)
         {
-            if (input.m_grainSamples <= 512)
+            Grain* grain = AllocateGrain();
+            if (grain)
             {
-                result += m_delayLine->ReadWithOffset(warpedTime, sampleOffset);
-                m_samplesToNextGrain = 0;
+                double startTime = m_delayLine->GetRealTime(warpedTime) + sampleOffset;
+                input.m_resynthInput.m_startTime = startTime;
+                grain->Start(m_delayLine->m_lastTime, input.m_resynthInput);
             }
-            else
-            {
-                float gain = 1.0;
-                Grain* grain = AllocateGrain();
-                if (grain)
-                {
-                    float warpedTimePicked = warpedTime.m_fadeDone ? warpedTime.m_left : warpedTime.m_right;
-                    //double pitch = 1.0 + sampleOffset - m_lastSampleOffset;
-                    double startTime = m_delayLine->GetRealTime(warpedTimePicked) + sampleOffset;
-                    grain->Start(m_delayLine->m_lastTime, startTime, gain);
-                }
 
-                m_samplesToNextGrain = input.m_grainSamples / input.m_overlap;
-            }
+            m_samplesToNextGrain = Resynthesizer::GetGrainLaunchSamples();
         }
         else
         {
@@ -562,7 +537,6 @@ struct GrainManager
         static constexpr size_t x_maxFrames = 16;
         std::atomic<double> m_phaseOffsets[x_maxGrains][x_maxFrames];
         std::atomic<size_t> m_numGrains[x_maxFrames];
-        std::atomic<float> m_gain[x_maxGrains][x_maxFrames];
         std::atomic<size_t> m_which;
 
         double GetPhaseOffset(size_t i, size_t frame)
@@ -580,11 +554,6 @@ struct GrainManager
             return (m_which.load() - 1) % x_maxFrames;
         }
 
-        float GetGain(size_t i, size_t frame)
-        {
-            return m_gain[i][frame].load();
-        }
-
         float FrequencyResponse(size_t frame, float freq)
         {
             size_t numGrains = GetNumGrains(frame);
@@ -593,8 +562,7 @@ struct GrainManager
             for (size_t i = 0; i < numGrains; ++i)
             {
                 float phaseOffset = GetPhaseOffset(i, frame);
-                float gain = GetGain(i, frame);
-                response += gain * std::exp(std::complex<float>(0.0f, omega * phaseOffset));
+                response += std::exp(std::complex<float>(0.0f, omega * phaseOffset));
             }
 
             return std::abs(response) / 2.0f;
@@ -604,12 +572,7 @@ struct GrainManager
 
     void PopulateUIState(UIState* uiState)
     {
-        uiState->m_numGrains[uiState->m_which.load()].store(0);
-        for (size_t i = 0; i < m_numGrains; ++i)
-        {
-            uiState->m_gain[i][uiState->m_which.load()].store(m_grainsArray[i]->m_gain);
-        }
-
+        uiState->m_numGrains[uiState->m_which.load()].store(0);        
         uiState->m_numGrains[uiState->m_which.load()].store(m_numGrains);
         uiState->m_which.store((uiState->m_which.load() + 1) % UIState::x_maxFrames);
     }
@@ -774,12 +737,12 @@ struct QuadDelayLineMovableWriter
 template<size_t Size>
 struct QuadGrainManager
 {
+    GrainManager<Size> m_grainManager[4];
+
     struct Input
     {
         typename GrainManager<Size>::Input m_input[4];
     };
-
-    GrainManager<Size> m_grainManager[4];
 
     QuadGrainManager(QuadDelayLineMovableWriter<Size>* delayLine)
     {
@@ -789,12 +752,12 @@ struct QuadGrainManager
         }
     }
 
-    QuadFloat Process(Input& input, QuadXFader readHead, QuadFloat sampleOffset)
+    QuadFloat Process(QuadDouble readHead, QuadFloat sampleOffset, Input& input)
     {
         QuadFloat result;
         for (size_t i = 0; i < 4; ++i)
         {
-            result[i] = m_grainManager[i].Process(input.m_input[i], readHead.m_fader[i], sampleOffset[i]);
+            result[i] = m_grainManager[i].Process(readHead[i], sampleOffset[i], input.m_input[i]);
         }
 
         return result;
@@ -877,64 +840,6 @@ struct QuadParallelAllPassFilter
         for (size_t i = 0; i < 4; ++i)
         {
             m_allPassFilter[i].SetGain(gain);
-        }
-    }
-};
-
-struct DelayTimeSynchronizer
-{
-    double m_approxDelaySamples;
-    double m_tempoFreq;
-    double m_outDelaySamplesFactor;
-    double m_outDelaySamples;
-    float m_factor;
-
-    OPLowPassFilter m_tempoFilter;
-
-    DelayTimeSynchronizer()
-        : m_approxDelaySamples(0.0)
-        , m_tempoFreq(0.0)
-        , m_outDelaySamplesFactor(0.0)
-        , m_outDelaySamples(0.0)
-        , m_factor(0.0)
-    {
-        m_tempoFilter.SetAlphaFromNatFreq(0.3 / 48000.0);
-    }
-
-    template<class XFaderType>
-    void Update(XFaderType& fader, double tempoFreq, double delaySamples, double factor)
-    {
-        tempoFreq = m_tempoFilter.Process(tempoFreq);
-        
-        size_t factorIx = std::round(factor * 4);
-        float possibleFactors[5] = {1.0 / 5, 1.0 / 3, 1.0, 3.0, 5.0};
-        factor = possibleFactors[factorIx];
-
-        if (tempoFreq != m_tempoFreq || delaySamples != m_approxDelaySamples || factor != m_factor)
-        {
-            m_tempoFreq = tempoFreq;
-            if (!fader.m_fadeDone)
-            {
-                fader.m_right = m_outDelaySamplesFactor / tempoFreq;
-            }
-            else
-            {
-                m_approxDelaySamples = delaySamples;
-                m_factor = factor;
-
-                double delaySamplesFactor = std::pow(2.0, std::floor(std::log2(delaySamples * tempoFreq / factor))) * factor;
-                m_outDelaySamples = delaySamplesFactor / tempoFreq;
-
-                if (delaySamplesFactor != m_outDelaySamplesFactor)
-                {
-                    m_outDelaySamplesFactor = delaySamplesFactor;
-                    fader.Start(m_outDelaySamples);
-                }
-                else
-                {
-                    fader.m_left = m_outDelaySamples;
-                }
-            }
         }
     }
 };

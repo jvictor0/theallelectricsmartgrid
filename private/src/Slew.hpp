@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Filter.hpp"
+
 struct Slew
 {
     float m_val;
@@ -77,5 +79,42 @@ struct OPSlew
     {
         m_val += m_alpha * (trg - m_val);
         return m_val;
+    }
+};
+
+struct BiDirectionalSlew
+{
+    float m_output;
+    OPLowPassFilter m_slewUp;
+    OPLowPassFilter m_slewDown;
+
+    BiDirectionalSlew() : m_output(0)
+    {
+    }
+
+    void SetSlewUp(float cyclesPerSample)
+    {
+        m_slewUp.SetAlphaFromNatFreq(cyclesPerSample);
+    }
+
+    void SetSlewDown(float cyclesPerSample)
+    {
+        m_slewDown.SetAlphaFromNatFreq(cyclesPerSample);
+    }
+
+    float Process(float trg)
+    {
+        if (m_output < trg)
+        {
+            m_output = m_slewUp.Process(trg);
+            m_slewDown.m_output = m_output;
+        }
+        else
+        {
+            m_output = m_slewDown.Process(trg);
+            m_slewUp.m_output = m_output;
+        }
+
+        return m_output;
     }
 };

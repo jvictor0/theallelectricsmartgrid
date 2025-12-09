@@ -230,6 +230,7 @@ namespace SmartGrid
         static const Color Indigo;
         static const Color Purple;
         static const Color Pink;
+        static const Color Cyan;
     };
 
     struct ColorScheme
@@ -303,6 +304,7 @@ namespace SmartGrid
     inline const Color Color::Blue{0, 60, 249};
     inline const Color Color::Fuscia{255, 71, 250};
     inline const Color Color::Indigo{56, 61, 249};
+    inline const Color Color::Cyan{0, 255, 255};
     inline const Color Color::Purple{134, 63, 249};
     inline const Color Color::Pink{255, 50, 120};
 

@@ -6,6 +6,7 @@
 #include "Filter.hpp"
 #include "PhaseUtils.hpp"
 #include "TheoryOfTime.hpp"
+#include "Q.hpp"
 
 struct QuadDelay
 {
@@ -51,14 +52,14 @@ struct QuadDelay
         QuadFloat m_modDepth;
 
         QuadDouble m_writeHeadPosition;
-        QuadXFader m_readHeadPosition;
+        QuadDouble m_readHeadPosition;
 
         QuadFloat m_bffBase;
         QuadFloat m_bffWidth;
 
-        QuadLFO::Input m_lfoInput; 
+        QuadLFO::Input m_lfoInput;
 
-        typename QuadGrainManager<x_delayLineSize>::Input m_grainManagerInput;
+        QuadGrainManager<x_delayLineSize>::Input m_grainManagerInput;
 
         Input()
             : m_feedback(0.5, 0.5, 0.5, 0.5)
@@ -88,9 +89,6 @@ struct QuadDelay
         {
             uiState->m_hpAlpha[i].store(m_postFeedbackFilter.m_bff.m_filters[i].m_highPassFilter.m_alpha);
             uiState->m_lpAlpha[i].store(m_postFeedbackFilter.m_bff.m_filters[i].m_lowPassFilter.m_alpha);
-            uiState->m_sigma[i].store(input.m_grainManagerInput.m_input[i].m_sigma);
-            uiState->m_overlap[i].store(input.m_grainManagerInput.m_input[i].m_overlap);
-            uiState->m_grainSize[i].store(input.m_grainManagerInput.m_input[i].m_grainSamples);
             m_grainManager.m_grainManager[i].PopulateUIState(&uiState->m_delayLineUIState[i]);
         }
     }
@@ -106,9 +104,8 @@ struct QuadDelay
         qInput = m_saturator.Process(qInput);
         m_delayLine.Write(qInput, input.m_writeHeadPosition);
 
-        QuadXFader delayPosFader = input.m_readHeadPosition; 
         QuadFloat sampleOffset = m_lfo.m_output * 1000 * input.m_modDepth;
-        QuadFloat delayedSignal = m_grainManager.Process(input.m_grainManagerInput, delayPosFader, sampleOffset);
+        QuadFloat delayedSignal = m_grainManager.Process(input.m_readHeadPosition, sampleOffset, input.m_grainManagerInput);
 
         m_output = m_postFeedbackFilter.Process(input.TransformOutput(delayedSignal));
 
@@ -122,30 +119,26 @@ struct QuadDelayInputSetter
     PhaseUtils::ExpParam m_dampingWidth[4];
     PhaseUtils::ExpParam m_modFreq[4];
 
-    PhaseUtils::ExpParam m_grainSamples[4];
-    PhaseUtils::ExpParam m_grainOverlap[4];
-
     PhaseUtils::ExpParam m_wideners[4];
     PhaseUtils::ZeroedExpParam m_modDepth[4];
 
     PhaseUtils::ZeroedExpParam m_feedback[4];
 
-    DelayTimeSynchronizer m_delayTimeSynchronizer[4];
-
     OPLowPassFilter m_modDepthFilter[4];
 
     OPLowPassFilter m_rotateFilter[4];
 
+    PhaseUtils::ExpParam m_unisonDetune[4];
+    PhaseUtils::ZeroedExpParam m_unisonGain[4];
+    PhaseUtils::ExpParam m_slewUp[4];
+    PhaseUtils::ExpParam m_slewDown[4];
+
     int m_totLoopSelector[4];
     float m_bufferFrac[4];
 
-    int m_oldTotLoopSelector[4];
-    float m_oldBufferFrac[4];
-
     double m_masterLoopSamples[4];
     bool m_running[4];
-    double m_glueLeft[4];
-    double m_glueRight[4];
+    double m_glue[4];
 
     struct Input
     {
@@ -161,6 +154,15 @@ struct QuadDelayInputSetter
         float m_grainSamplesKnob[4];
         float m_grainOverlapKnob[4];
         float m_lfoPhaseKnob[4];
+
+        float m_resynthShiftFadeKnob[4];
+        float m_resynthShiftFade2Knob[4];
+        float m_resynthUnisonDetuneKnob[4];
+        float m_resynthUnisonGainKnob[4];
+        float m_resynthShift1Knob[4];
+        float m_resynthShift2Knob[4];
+        float m_resynthSlewUpKnob[4];
+        float m_resynthSlewDownKnob[4];
 
         TheoryOfTime* m_theoryOfTime;
 
@@ -181,6 +183,15 @@ struct QuadDelayInputSetter
                 m_grainSamplesKnob[i] = 0.0f;
                 m_grainOverlapKnob[i] = 0.0f;
                 m_lfoPhaseKnob[i] = 0.0f;
+
+                m_resynthShiftFadeKnob[i] = 0.0f;
+                m_resynthShiftFade2Knob[i] = 0.0f;
+                m_resynthUnisonDetuneKnob[i] = 0.0f;
+                m_resynthUnisonGainKnob[i] = 0.0f;
+                m_resynthShift1Knob[i] = 0.0f;
+                m_resynthShift2Knob[i] = 0.0f;
+                m_resynthSlewUpKnob[i] = 0.0f;
+                m_resynthSlewDownKnob[i] = 0.0f;
             }
         }
     };
@@ -202,16 +213,18 @@ struct QuadDelayInputSetter
             m_modDepthFilter[i].SetAlphaFromNatFreq(1.0 / 48000.0);
             m_rotateFilter[i].SetAlphaFromNatFreq(1.0 / 48000.0);
             m_feedback[i].SetBaseByCenter(0.25);
-            
-            m_grainSamples[i] = PhaseUtils::ExpParam(512, 48000);
-            m_grainOverlap[i] = PhaseUtils::ExpParam(2, 128);
+
+            m_unisonDetune[i] = PhaseUtils::ExpParam(1.03);
+            m_unisonGain[i] = PhaseUtils::ZeroedExpParam(20);
+
+            // Range: 0.25 / (grain launch samples) to 0.5
+            //
+            m_slewUp[i] = PhaseUtils::ExpParam(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5);
+            m_slewDown[i] = PhaseUtils::ExpParam(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5);
 
             m_totLoopSelector[i] = TheoryOfTime::x_numLoops - 1;
             m_bufferFrac[i] = 1.0;
-            m_oldTotLoopSelector[i] = TheoryOfTime::x_numLoops - 1;
-            m_oldBufferFrac[i] = 1.0;
-            m_glueLeft[i] = 0.0;
-            m_glueRight[i] = 0.0;
+            m_glue[i] = 0.0;
             m_masterLoopSamples[i] = 1.0;
             m_running[i] = false;
         }
@@ -226,12 +239,10 @@ struct QuadDelayInputSetter
                 if (m_running[i])
                 {
                     m_running[i] = false;
-                    m_glueLeft[i] = delayInput.m_writeHeadPosition[i];
-                    m_glueRight[i] = delayInput.m_writeHeadPosition[i];
+                    m_glue[i] = delayInput.m_writeHeadPosition[i];
                 }
 
-                m_glueLeft[i] = m_glueLeft[i] + 1;
-                m_glueRight[i] = m_glueRight[i] + 1;
+                m_glue[i] = m_glue[i] + 1;
             }
             else if (!m_running[i])
             {
@@ -240,49 +251,31 @@ struct QuadDelayInputSetter
 
             if (m_masterLoopSamples[i] != input.m_theoryOfTime->m_masterLoopSamples)
             {
-                m_glueLeft[i] = delayInput.m_writeHeadPosition[i] - (delayInput.m_writeHeadPosition[i] - m_glueLeft[i]) * input.m_theoryOfTime->m_masterLoopSamples / m_masterLoopSamples[i];
-                m_glueRight[i] = delayInput.m_writeHeadPosition[i] - (delayInput.m_writeHeadPosition[i] - m_glueRight[i]) * input.m_theoryOfTime->m_masterLoopSamples / m_masterLoopSamples[i];
+                m_glue[i] = delayInput.m_writeHeadPosition[i] - (delayInput.m_writeHeadPosition[i] - m_glue[i]) * input.m_theoryOfTime->m_masterLoopSamples / m_masterLoopSamples[i];
                 m_masterLoopSamples[i] = input.m_theoryOfTime->m_masterLoopSamples;
             }
-
-            bool xFade = false;
-            bool ongoingFade = !delayInput.m_readHeadPosition.m_fader[i].m_fadeDone;
 
             float widen = m_wideners[i].Update(input.m_widenKnob[i]);
 
             int totLoopSelector = std::round((1.0 - input.m_loopSelectorKnob[i]) * (TheoryOfTime::x_numLoops - 1));
             if (totLoopSelector != m_totLoopSelector[i] && 
                 input.m_theoryOfTime->m_loops[m_totLoopSelector[i]].m_top &&
-                input.m_theoryOfTime->m_loops[totLoopSelector].m_top &&
-                !ongoingFade)
+                input.m_theoryOfTime->m_loops[totLoopSelector].m_top)
             {
-                xFade = true;
-            }
-
-            int factorIx = std::round(input.m_delayTimeFactorKnob[i] * 4);
-            float possibleBufferFracs[5] = {0.8, 2.0/3.0, 1.0, 3.0/4.0, 5.0/8.0};
-            float bufferFrac = possibleBufferFracs[factorIx];
-
-            if (bufferFrac != m_bufferFrac[i] &&
-                !ongoingFade)
-            {
-                xFade = true;
-            }
-
-            if (xFade)
-            {
-                m_oldTotLoopSelector[i] = m_totLoopSelector[i];
+                int oldTotLoopSelector = m_totLoopSelector[i];
                 m_totLoopSelector[i] = totLoopSelector;
-                m_oldBufferFrac[i] = m_bufferFrac[i];
-                m_bufferFrac[i] = bufferFrac;
 
-                delayInput.m_readHeadPosition.m_fader[i].Start(input.m_theoryOfTime->LoopSamplesFraction(totLoopSelector, bufferFrac * widen));
-                m_glueRight[i] += input.m_theoryOfTime->PhasorUnwoundSamples(m_oldTotLoopSelector[i]) - input.m_theoryOfTime->PhasorUnwoundSamples(totLoopSelector);
-
-                ongoingFade = true;
+                m_glue[i] += input.m_theoryOfTime->PhasorUnwoundSamples(oldTotLoopSelector) - input.m_theoryOfTime->PhasorUnwoundSamples(totLoopSelector);
             }
 
-            double writeHeadPosition = input.m_theoryOfTime->PhasorUnwoundSamples(m_totLoopSelector[i]) + m_glueRight[i];
+            if (input.m_theoryOfTime->m_loops[m_totLoopSelector[i]].m_top)
+            {
+                int factorIx = std::round(input.m_delayTimeFactorKnob[i] * 4);
+                float possibleBufferFracs[5] = {0.8, 2.0/3.0, 1.0, 3.0/4.0, 5.0/8.0};
+                m_bufferFrac[i] = possibleBufferFracs[factorIx];
+            }
+
+            double writeHeadPosition = input.m_theoryOfTime->PhasorUnwoundSamples(m_totLoopSelector[i]) + m_glue[i];
             if (std::abs(writeHeadPosition - delayInput.m_writeHeadPosition[i]) > 64)
             {
                 INFO("writeHeadPosition: %f -> %f (diff %f) external loop", 
@@ -293,22 +286,7 @@ struct QuadDelayInputSetter
 
             delayInput.m_writeHeadPosition[i] = writeHeadPosition;
 
-            if (ongoingFade)
-            {
-                delayInput.m_readHeadPosition.m_fader[i].m_left = input.m_theoryOfTime->LoopSamplesFraction(m_oldTotLoopSelector[i], m_oldBufferFrac[i] * widen) + m_glueLeft[i];
-                delayInput.m_readHeadPosition.m_fader[i].m_right = input.m_theoryOfTime->LoopSamplesFraction(m_totLoopSelector[i], m_bufferFrac[i] * widen) + m_glueRight[i];
-            }
-            else
-            {
-                delayInput.m_readHeadPosition.m_fader[i].m_left = input.m_theoryOfTime->LoopSamplesFraction(m_totLoopSelector[i], m_bufferFrac[i] * widen) + m_glueLeft[i];
-            }
-
-            delayInput.m_readHeadPosition.m_fader[i].Process();
-            if (delayInput.m_readHeadPosition.m_fader[i].m_fadeDone)
-            {
-                m_glueLeft[i] = m_glueRight[i];
-                ongoingFade = false;
-            }
+            delayInput.m_readHeadPosition[i] = input.m_theoryOfTime->LoopSamplesFraction(m_totLoopSelector[i], m_bufferFrac[i] * widen) + m_glue[i];
 
             float rotate = std::round(input.m_rotateKnob[i] * 4) / 4.0f;
             delayInput.m_rotate[i] = m_rotateFilter[i].Process(rotate);
@@ -321,11 +299,19 @@ struct QuadDelayInputSetter
             delayInput.m_bffBase[i] = m_dampingBase[i].Update(input.m_dampingBaseKnob[i]);
             delayInput.m_bffWidth[i] = m_dampingWidth[i].Update(input.m_dampingWidthKnob[i]);
 
-            delayInput.m_grainManagerInput.m_input[i].m_grainSamples = 1024;//m_grainSamples[i].Update(input.m_grainSamplesKnob[i]);
-            delayInput.m_grainManagerInput.m_input[i].m_overlap = 4;//m_grainOverlap[i].Update(input.m_grainOverlapKnob[i]);
-            delayInput.m_grainManagerInput.m_input[i].m_sigma = 0;//300;
-
             delayInput.m_lfoInput.m_phaseKnob[i] = input.m_lfoPhaseKnob[i];
+
+            // Resynth parameters
+            //
+            Resynthesizer::Input& resynthInput = delayInput.m_grainManagerInput.m_input[i].m_resynthInput;
+            resynthInput.m_shift[0] = Q(2, 1);
+            resynthInput.m_shift[1] = Q(1, 2);
+            resynthInput.m_fade[0] = input.m_resynthShiftFadeKnob[i];
+            resynthInput.m_fade[1] = input.m_resynthShiftFade2Knob[i];
+            resynthInput.m_unisonDetune = m_unisonDetune[i].Update(input.m_resynthUnisonDetuneKnob[i]);
+            resynthInput.m_unisonGain = m_unisonGain[i].Update(input.m_resynthUnisonGainKnob[i]);
+            resynthInput.m_slewUp = m_slewUp[i].Update(1.0f - input.m_resynthSlewUpKnob[i]);
+            resynthInput.m_slewDown = m_slewDown[i].Update(1.0f - input.m_resynthSlewDownKnob[i]);
         }
     }
 };
