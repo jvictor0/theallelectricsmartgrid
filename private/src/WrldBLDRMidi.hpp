@@ -220,7 +220,7 @@ namespace SmartGrid
                     if (!m_set[i][j] || color != m_color[i][j])
                     {
                         buffer.WriteData(i + j * 4, color);
-                        m_cooldown[i][j] = 8;
+                        m_cooldown[i][j] = 1;
                         m_set[i][j] = true;
                         m_color[i][j] = color;
                         --budget;
@@ -255,7 +255,7 @@ namespace SmartGrid
                 {
                     uint8_t cc = itr.m_x + itr.m_y * 8;
                     buffer.WriteData(cc, color);
-                    m_cooldown[itr.GetXPhysical()][itr.GetYPhysical()] = 8;
+                    m_cooldown[itr.GetXPhysical()][itr.GetYPhysical()] = 1;
                     m_set[itr.GetXPhysical()][itr.GetYPhysical()] = true;
                     m_color[itr.GetXPhysical()][itr.GetYPhysical()] = color;
                     --budget;
@@ -420,7 +420,7 @@ namespace SmartGrid
                 uint8_t value = static_cast<uint8_t>(valueF * 127);
                 m_owner->m_values[m_x][m_y] = value;
                 m_owner->m_sent[m_x][m_y] = true;
-                m_owner->m_cooldown[m_x][m_y] = 8;
+                m_owner->m_cooldown[m_x][m_y] = 1;
                 return BasicMidi::CC(0, -1, 0 /*channel*/, EncoderMidi::PosToNote(m_x, m_y), value);
             }
         };

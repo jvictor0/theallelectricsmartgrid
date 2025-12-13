@@ -13,18 +13,15 @@ struct Resynthesizer
     struct Grain
     {
         float Process()
-        {
-            if (m_index < BasicWaveTable::x_tableSize)
-            {
-                float value = m_buffer.m_table[m_index] * (0.5 - 0.5 * m_windowTable->m_table[m_index]);
-                ++m_index;
-                return value;
-            }
-            else
+        {                
+            float value = m_buffer.m_table[m_index] * (0.5 - 0.5 * m_windowTable->m_table[m_index]);
+            ++m_index;
+            if (m_index == BasicWaveTable::x_tableSize)
             {
                 m_running = false;
-                return 0.0f;
-            }        
+            }
+
+            return value;
         }
 
         void Start()
@@ -89,7 +86,8 @@ struct Resynthesizer
 
         void SynthesizeSingleShift(DiscreteFourierTransform& dft, float gain, Q shift)
         {
-            for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
+            dft.m_components[0] = std::complex<float>(0, 0);
+            for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
             {
                 float mag = gain * m_owner->m_magnitudes[i].m_output;
                 double phase = m_synthesisPhase[i] * shift.ToDouble();
@@ -125,7 +123,7 @@ struct Resynthesizer
         {
             for (size_t i = 0; i < x_numShifts; ++i)
             {
-                SynthesizeSingleShift(dft, input.m_gain[i], input.m_shift[i]);
+                SynthesizeSingleShift(dft, input.m_gain[i], input.m_shift[i]);                
             }
         }
 
@@ -250,7 +248,7 @@ struct Resynthesizer
 
     void ProcessPhases(DiscreteFourierTransform& dft, double deltaTime)
     {
-        for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
+        for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
         {
             m_analysisPhasePrev[i] = m_analysisPhase[i];
             m_analysisPhase[i] = std::arg(dft.m_components[i]);
@@ -296,7 +294,7 @@ struct Resynthesizer
         
         float omegaAnalysis = omegaBin + deltaPhi / deltaTime;
         float t = std::min(1.0f, m_trueMagnitudes[bin] / m_magnitudes[bin].m_output);
-        m_omegaInstantaneous[bin] = omegaAnalysis * t + (1.0f - t) * m_omegaInstantaneous[bin];
+        m_omegaInstantaneous[bin] = omegaAnalysis * t + (1.0f - t) * m_omegaInstantaneous[bin];        
     }
 
     void Analyze(BasicWaveTable& buffer, DiscreteFourierTransform& dft, Input& input)
@@ -321,7 +319,7 @@ struct Resynthesizer
         DiscreteFourierTransform synthDft;
         for (size_t i = 0; i < x_numOscillators; ++i)
         {
-            m_oscillators[i].Synthesize(synthDft, input.MakeOscillatorInput(i));
+            m_oscillators[i].Synthesize(synthDft, input.MakeOscillatorInput(i));        
         }
 
         synthDft.InverseTransform(grain->m_buffer, DiscreteFourierTransform::x_maxComponents);

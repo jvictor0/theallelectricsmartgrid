@@ -426,7 +426,7 @@ struct GrainManager
     size_t m_numGrains;
     DelayLineMovableWriter<Size>* m_delayLine;
     RGen m_rgen;
-    double m_samplesToNextGrain;
+    int m_samplesToNextGrain;
     double m_lastSampleOffset;
     const WaveTable* m_windowTable;
     Resynthesizer m_resynthesizer;
@@ -498,7 +498,8 @@ struct GrainManager
     float Process(double warpedTime, double sampleOffset, Input& input)
     {
         float result = ProcessGrains();
-        if (m_samplesToNextGrain < 1.0)
+        --m_samplesToNextGrain;
+        if (m_samplesToNextGrain <= 0)
         {
             Grain* grain = AllocateGrain();
             if (grain)
@@ -510,10 +511,6 @@ struct GrainManager
 
             m_samplesToNextGrain = Resynthesizer::GetGrainLaunchSamples();
         }
-        else
-        {
-            m_samplesToNextGrain -= 1.0;
-        }
 
         m_lastSampleOffset = sampleOffset;
 
@@ -522,7 +519,7 @@ struct GrainManager
 
     GrainManager()
         : m_delayLine(nullptr)
-        , m_samplesToNextGrain(0.0)
+        , m_samplesToNextGrain(0)
     {
         m_windowTable = &WaveTable::GetCosine();
         m_numGrains = 0;

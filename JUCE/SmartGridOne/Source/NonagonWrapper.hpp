@@ -268,7 +268,7 @@ struct NonagonWrapperWrldBldr
         {
             if (m_midiOutput.get())
             {
-                size_t budget = 32;
+                size_t budget = 256;
                 m_midiWriter.ProcessCoolDown();
                 for (size_t i = 0; i < SmartGrid::WrldBLDRMidiWriter::x_numColorWriters; ++i)
                 {
