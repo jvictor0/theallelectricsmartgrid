@@ -311,14 +311,13 @@ struct AnalyserComponent : public juce::Component
     {
         float lpAlpha = m_filterParams[i].m_lpAlpha.load();
         float hpAlpha = m_filterParams[i].m_hpAlpha.load();
-        float ladderAlpha = m_filterParams[i].m_ladderAlpha.load();
-        float ladderResonance = m_filterParams[i].m_ladderResonance.load();
+        float lpResonance = m_filterParams[i].m_lpResonance.load();
+        float hpResonance = m_filterParams[i].m_hpResonance.load();
 
-        float lpResponse = OPLowPassFilter::FrequencyResponse(lpAlpha, freq);
-        float hpResponse = OPHighPassFilter::FrequencyResponse(hpAlpha, freq);
-        float ladderResponse = LadderFilter::FrequencyResponse(ladderAlpha, ladderResonance, freq);
+        float lpResponse = LadderFilter::FrequencyResponse(lpAlpha, lpResonance, freq);
+        float hpResponse = LadderFilter::FrequencyResponseHP(hpAlpha, hpResonance, freq);
 
-        return lpResponse * hpResponse * ladderResponse;
+        return lpResponse * hpResponse;
     }
 
     void paint(juce::Graphics& g) override

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "QuadUtils.hpp"
+#include "AsyncLogger.hpp"
 #include <cmath>
 #include <complex>
 

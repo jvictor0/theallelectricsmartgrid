@@ -19,7 +19,9 @@ struct LadderFilter
     float m_cutoff;
     float m_feedback;
 
+    float m_input;
     float m_output;
+    float m_kEff;
 
     LadderFilter()
         : m_cutoff(0.1f)
@@ -33,13 +35,14 @@ struct LadderFilter
     {
         float Cpi = std::pow(m_stage4.m_alpha / (2.0f - m_stage4.m_alpha), 4.0f);
         float kSafe = 0.9f / (Cpi + 1e-8f);
-        float kEff  = std::min(m_feedback, kSafe);
+        m_kEff = std::min(m_feedback, kSafe);
 
         // Apply resonance feedback
         //
-        float feedbackInput = input - kEff * m_stage4.m_output;
+        float feedbackInput = input - m_kEff * m_stage4.m_output;
 
         feedbackInput = m_feedbackSaturator.Process(feedbackInput);
+        m_input = feedbackInput;
 
         // Process through the 4-pole ladder
         //
@@ -51,10 +54,20 @@ struct LadderFilter
         // Output gain compensation to counter resonance-induced passband drop
         // Maintains approximately unity DC gain as resonance increases
         //
-        float compensatedOut = stage4Out * (1.0f + kEff);
-
-        m_output = compensatedOut;
+        m_output = stage4Out * (1.0f + m_kEff);
         return m_output;
+    }
+
+    float GetHighPassOutput() const
+    {
+        float hpOut = m_input - 4 * m_stage1.m_output + 6 * m_stage2.m_output - 4 * m_stage3.m_output + m_stage4.m_output;
+        return hpOut;
+    }
+
+    float ProcessHP(float input)
+    {
+        Process(input);
+        return GetHighPassOutput();
     }
 
     void SetCutoff(float cutoff)
@@ -79,6 +92,7 @@ struct LadderFilter
 
     void Reset()
     {
+        m_input = 0.0f;
         m_stage1.m_output = 0.0f;
         m_stage2.m_output = 0.0f;
         m_stage3.m_output = 0.0f;
@@ -121,8 +135,41 @@ struct LadderFilter
         return totalTransfer * (1.0f + feedback);
     }
 
+    static std::complex<float> TransferFunctionHP(float alpha, float feedback, float freq)
+    {
+        // Calculate normalized frequency (omega)
+        //
+        float omega = 2.0f * M_PI * freq;
+        float cosOmega = std::cos(omega);
+        float sinOmega = std::sin(omega);
+        
+        // Single stage complex frequency response for OPLowPassFilter
+        // H(z) = alpha / (1 - (1-alpha)z^-1)
+        // H(e^jω) = alpha / (1 - (1-alpha)e^-jω)
+        //         = alpha / (1 - (1-alpha)(cos(ω) - j*sin(ω)))
+        //         = alpha / ((1 - (1-alpha)cos(ω)) + j*(1-alpha)sin(ω))
+        //
+        float realPart = 1.0f - (1.0f - alpha) * cosOmega;
+        float imagPart = (1.0f - alpha) * sinOmega;
+        
+        std::complex<float> singleStage(alpha, 0.0f);
+        std::complex<float> singleStageDen(realPart, imagPart);
+        singleStage = singleStage / singleStageDen;
+        
+        std::complex<float> oneMinusSingleStage = std::complex<float>(1.0f, 0.0f) - singleStage;
+        std::complex<float> oneMinusSingleStageQuad = oneMinusSingleStage * oneMinusSingleStage * oneMinusSingleStage * oneMinusSingleStage;
+
+        std::complex<float> fourStage = singleStage * singleStage * singleStage * singleStage;
+        return oneMinusSingleStageQuad / (std::complex<float>(1.0f, 0.0f) + feedback * fourStage);
+    }
+
     static float FrequencyResponse(float alpha, float feedback, float freq)
     {
         return std::abs(TransferFunction(alpha, feedback, freq));
+    }
+
+    static float FrequencyResponseHP(float alpha, float feedback, float freq)
+    {
+        return std::abs(TransferFunctionHP(alpha, feedback, freq));
     }
 }; 
