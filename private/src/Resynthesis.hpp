@@ -36,6 +36,31 @@ struct Resynthesizer
         bool m_running;
     };
 
+    struct PVDR
+    {
+        struct Entry
+        {
+            int16_t m_bin;
+            int16_t m_parent;
+            double m_delta;
+
+            Entry()
+                : m_bin(0)
+                , m_parent(0)
+                , m_delta(0.0f)
+            {
+            }
+        };
+
+        PVDR()
+            : m_size(0)
+        {
+        }
+
+        Entry m_entries[DiscreteFourierTransform::x_maxComponents];
+        size_t m_size;
+    };
+
     struct Oscillator
     {
         static constexpr size_t x_numShifts = 3;
@@ -72,15 +97,16 @@ struct Resynthesizer
             }
         }
 
-        void FixupPhases(float detune)
+        void FixupPhases(float detune, PVDR* pvdr)
         {
             constexpr float N = static_cast<float>(BasicWaveTable::x_tableSize);
             constexpr float H = N / static_cast<float>(x_hopDenom);
 
-            for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
+            for (size_t i = 0; i < pvdr->m_size; ++i)
             {    
-                double omegaInstantaneous = m_owner->m_omegaInstantaneous[i] * detune;
-                m_synthesisPhase[i] = m_synthesisPhase[i] + omegaInstantaneous * H;
+                PVDR::Entry entry = pvdr->m_entries[i];                
+                double delta = entry.m_bin == entry.m_parent ? entry.m_delta * detune : entry.m_delta;
+                m_synthesisPhase[entry.m_bin] = m_synthesisPhase[entry.m_parent] + delta * H;
             }
         }
 
