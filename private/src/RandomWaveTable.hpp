@@ -325,7 +325,7 @@ struct RandomWaveTable
 
     void GenerateLevel(AdaptiveWaveTable& waveTable)
     {
-        size_t level = waveTable.m_levelComponents[waveTable.m_levelsReady];
+        size_t level = AdaptiveWaveTable::s_levelComponents[waveTable.m_levelsReady];
 
         DiscreteFourierTransform dft;
         

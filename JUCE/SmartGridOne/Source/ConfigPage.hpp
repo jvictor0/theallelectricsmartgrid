@@ -11,7 +11,7 @@
 class ConfigPage : public juce::Component
 {
 public:
-    static constexpr size_t x_numControllers = 7;
+    static constexpr size_t x_numControllers = 8;
 
     //==============================================================================
     ConfigPage(NonagonWrapper* nonagon, Configuration* configuration)
@@ -24,6 +24,7 @@ public:
             ControllerSection("Encoder", ControllerSection::Type::Encoder),
             ControllerSection("Faders", ControllerSection::Type::Generic),
             ControllerSection("WrldBldr", ControllerSection::Type::WrldBldr),
+            ControllerSection("KMix", ControllerSection::Type::KMix),
         }
         , m_configuration(configuration)
     {
@@ -31,20 +32,31 @@ public:
         for (int i = 0; i < x_numControllers; ++i)
         {
             addAndMakeVisible(m_sections[i].m_titleLabel);
-            addAndMakeVisible(m_sections[i].m_midiInCombo);
+            
+            if (m_sections[i].m_type != ControllerSection::Type::KMix)
+            {
+                addAndMakeVisible(m_sections[i].m_midiInCombo);
+            }
+            
             addAndMakeVisible(m_sections[i].m_midiOutCombo);
             
             if (m_sections[i].m_type != ControllerSection::Type::WrldBldr &&
-                m_sections[i].m_type != ControllerSection::Type::Generic)
+                m_sections[i].m_type != ControllerSection::Type::Generic &&
+                m_sections[i].m_type != ControllerSection::Type::KMix)
             {
                 addAndMakeVisible(m_sections[i].m_controllerShapeCombo);
             }
             
             // Set up combo box listeners
-            m_sections[i].m_midiInCombo.onChange = [this, i]() { OnMidiInChanged(i); };
+            if (m_sections[i].m_type != ControllerSection::Type::KMix)
+            {
+                m_sections[i].m_midiInCombo.onChange = [this, i]() { OnMidiInChanged(i); };
+            }
+            
             m_sections[i].m_midiOutCombo.onChange = [this, i]() { OnMidiOutChanged(i); };
             
-            if (m_sections[i].m_type != ControllerSection::Type::WrldBldr)
+            if (m_sections[i].m_type != ControllerSection::Type::WrldBldr &&
+                m_sections[i].m_type != ControllerSection::Type::KMix)
             {
                 m_sections[i].m_controllerShapeCombo.onChange = [this, i]() { OnControllerShapeChanged(i); };
             }
@@ -102,10 +114,13 @@ public:
             // Title label
             m_sections[i].m_titleLabel.setBounds(sectionBounds.removeFromLeft(labelWidth).reduced(5));
             
-            // MIDI In combo
-            auto midiInBounds = sectionBounds.removeFromLeft(comboWidth);
-            m_sections[i].m_midiInCombo.setBounds(midiInBounds.withHeight(comboHeight));
-            sectionBounds.removeFromLeft(spacing);
+            // MIDI In combo (skip for KMix)
+            if (m_sections[i].m_type != ControllerSection::Type::KMix)
+            {
+                auto midiInBounds = sectionBounds.removeFromLeft(comboWidth);
+                m_sections[i].m_midiInCombo.setBounds(midiInBounds.withHeight(comboHeight));
+                sectionBounds.removeFromLeft(spacing);
+            }
             
             // MIDI Out combo
             auto midiOutBounds = sectionBounds.removeFromLeft(comboWidth);
@@ -136,7 +151,8 @@ public:
             Launchpad,
             Encoder,
             Generic,
-            WrldBldr
+            WrldBldr,
+            KMix
         };
 
         Type m_type;
@@ -172,33 +188,40 @@ public:
                 midiInput = nonagon->GetMidiInputWrldBldr();
                 midiOutput = nonagon->GetMidiOutputWrldBldr();
             }
+            else if (m_type == Type::KMix)
+            {
+                midiOutput = nonagon->GetKMixOutput();
+            }
             else
             {
                 midiInput = nonagon->GetMidiInputQuadLaunchpadTwister(index);
                 midiOutput = nonagon->GetMidiOutputQuadLaunchpadTwister(index);
             }
 
-            // Set MIDI input
-            if (midiInput)
+            // Set MIDI input (skip for KMix)
+            if (m_type != Type::KMix)
             {
-                auto deviceName = midiInput->getName();
-                int itemIndex = -1;
-                for (int i = 0; i < m_midiInCombo.getNumItems(); ++i)
+                if (midiInput)
                 {
-                    if (m_midiInCombo.getItemText(i) == deviceName)
+                    auto deviceName = midiInput->getName();
+                    int itemIndex = -1;
+                    for (int i = 0; i < m_midiInCombo.getNumItems(); ++i)
                     {
-                        itemIndex = i;
-                        break;
+                        if (m_midiInCombo.getItemText(i) == deviceName)
+                        {
+                            itemIndex = i;
+                            break;
+                        }
+                    }
+                    if (itemIndex >= 0)
+                    {
+                        m_midiInCombo.setSelectedItemIndex(itemIndex);
                     }
                 }
-                if (itemIndex >= 0)
+                else
                 {
-                    m_midiInCombo.setSelectedItemIndex(itemIndex);
+                    m_midiInCombo.setSelectedItemIndex(0); // "None" option
                 }
-            }
-            else
-            {
-                m_midiInCombo.setSelectedItemIndex(0); // "None" option
             }
             
             // Set MIDI output
@@ -234,26 +257,37 @@ public:
 
         void ApplySettings(NonagonWrapper* nonagon, int index, const juce::StringArray& midiInputIds, const juce::StringArray& midiOutputIds)
         {
-            // Apply MIDI input
+            // Apply MIDI input (skip for KMix)
             //
-            int midiInIndex = m_midiInCombo.getSelectedItemIndex();
-            if (midiInIndex > 0 && midiInIndex <= m_midiInCombo.getNumItems())
+            if (m_type != Type::KMix)
             {
-                auto deviceId = midiInputIds[midiInIndex];
-                if (m_type == Type::WrldBldr)
+                int midiInIndex = m_midiInCombo.getSelectedItemIndex();
+                if (midiInIndex > 0 && midiInIndex <= m_midiInCombo.getNumItems())
                 {
-                    nonagon->OpenInputWrldBldr(deviceId);
-                }
-                else
-                {
-                    nonagon->OpenInputQuadLaunchpadTwister(index, deviceId);
+                    auto deviceId = midiInputIds[midiInIndex];
+                    if (m_type == Type::WrldBldr)
+                    {
+                        nonagon->OpenInputWrldBldr(deviceId);
+                    }
+                    else
+                    {
+                        nonagon->OpenInputQuadLaunchpadTwister(index, deviceId);
+                    }
                 }
             }
             
             // Apply MIDI output and controller shape
             //
             int midiOutIndex = m_midiOutCombo.getSelectedItemIndex();
-            if (m_type == Type::Launchpad)
+            if (m_type == Type::KMix)
+            {
+                if (midiOutIndex > 0 && midiOutIndex <= m_midiOutCombo.getNumItems())
+                {
+                    auto deviceId = midiOutputIds[midiOutIndex];
+                    nonagon->OpenKMixOutput(deviceId);
+                }
+            }
+            else if (m_type == Type::Launchpad)
             {
                 int shapeIndex = m_controllerShapeCombo.getSelectedItemIndex();
             
@@ -317,23 +351,25 @@ public:
         
         // Populate all section combo boxes
         //
-        for (int i = 0; i < x_numControllers; ++i)
-        {
-            m_sections[i].m_midiInCombo.clear();
-            m_sections[i].m_midiOutCombo.clear();
-            
-            for (int j = 0; j < m_midiInputNames.size(); ++j)
+            for (int i = 0; i < x_numControllers; ++i)
             {
-                m_sections[i].m_midiInCombo.addItem(m_midiInputNames[j], j + 1);
-            }
-
-            if (m_sections[i].m_type != ControllerSection::Type::Generic)
-            {
-                for (int j = 0; j < m_midiOutputNames.size(); ++j)
+                if (m_sections[i].m_type != ControllerSection::Type::KMix)
                 {
-                    m_sections[i].m_midiOutCombo.addItem(m_midiOutputNames[j], j + 1);
+                    m_sections[i].m_midiInCombo.clear();
+                    for (int j = 0; j < m_midiInputNames.size(); ++j)
+                    {
+                        m_sections[i].m_midiInCombo.addItem(m_midiInputNames[j], j + 1);
+                    }
                 }
-            }
+                
+                m_sections[i].m_midiOutCombo.clear();
+                if (m_sections[i].m_type != ControllerSection::Type::Generic)
+                {
+                    for (int j = 0; j < m_midiOutputNames.size(); ++j)
+                    {
+                        m_sections[i].m_midiOutCombo.addItem(m_midiOutputNames[j], j + 1);
+                    }
+                }
             
             if (m_sections[i].m_type == ControllerSection::Type::Launchpad)
             {

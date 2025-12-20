@@ -273,6 +273,8 @@ struct WrldBuildrComponent : public juce::Component
 
     std::unique_ptr<ScopeComponentHolder> m_multibandEQ;
     std::unique_ptr<ScopeComponentHolder> m_multibandGainReduction;
+    std::unique_ptr<ScopeComponentHolder> m_sourceMixerFrequency;
+    std::unique_ptr<ScopeComponentHolder> m_sourceMixerReduction;
 
     bool m_drawGrid;
 
@@ -442,6 +444,14 @@ struct WrldBuildrComponent : public juce::Component
         m_multibandGainReduction = std::make_unique<ScopeComponentHolder>(std::move(multibandGainReduction), 16, 8, 8, 8);
         addAndMakeVisible(m_multibandGainReduction->m_scopeComponent.get());
 
+        auto sourceMixerFrequency = std::make_unique<SourceMixerFrequencyComponent>(uiState);
+        m_sourceMixerFrequency = std::make_unique<ScopeComponentHolder>(std::move(sourceMixerFrequency), 0, 8, 8, 8);
+        addAndMakeVisible(m_sourceMixerFrequency->m_scopeComponent.get());
+
+        auto sourceMixerReduction = std::make_unique<SourceMixerReductionComponent>(uiState);
+        m_sourceMixerReduction = std::make_unique<ScopeComponentHolder>(std::move(sourceMixerReduction), 0, 0, 8, 8);
+        addAndMakeVisible(m_sourceMixerReduction->m_scopeComponent.get());
+
         m_initialized = true;
 
         // Calculate initial layout
@@ -574,6 +584,8 @@ struct WrldBuildrComponent : public juce::Component
     
         m_multibandEQ->m_scopeComponent->setVisible(false);
         m_multibandGainReduction->m_scopeComponent->setVisible(false);
+        m_sourceMixerFrequency->m_scopeComponent->setVisible(false);
+        m_sourceMixerReduction->m_scopeComponent->setVisible(false);
     }
 
     void SetVisualizerVisibility(SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode visualDisplayMode)
@@ -605,6 +617,8 @@ struct WrldBuildrComponent : public juce::Component
         m_melodyRoll->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::PanAndMelody);
         m_multibandEQ->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
         m_multibandGainReduction->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
+        m_sourceMixerFrequency->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
+        m_sourceMixerReduction->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
     }
 
     void SetDisplayModeController(bool isVisible)
@@ -680,5 +694,7 @@ struct WrldBuildrComponent : public juce::Component
 
         m_multibandEQ->SetBounds(m_cellSize, m_gridX, m_gridY);
         m_multibandGainReduction->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_sourceMixerFrequency->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_sourceMixerReduction->SetBounds(m_cellSize, m_gridX, m_gridY);
     }
 };

@@ -76,7 +76,19 @@ struct AsyncLogQueue
                 break;
             }
 
-            juce::Logger::writeToLog(message->m_message);
+            auto now = std::chrono::system_clock::now();
+            std::time_t t = std::chrono::system_clock::to_time_t(now);
+            std::tm localTm;
+#if defined(_WIN32)
+            localtime_s(&localTm, &t);
+#else
+            localtime_r(&t, &localTm);
+#endif
+            juce::String timeStamp = juce::String::formatted("%02d:%02d:%02d ",
+                localTm.tm_hour,
+                localTm.tm_min,
+                localTm.tm_sec);
+            juce::Logger::writeToLog(timeStamp + juce::String(message->m_message));
             m_queue.Pop();
         }
 

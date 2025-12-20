@@ -58,10 +58,16 @@ struct TheNonagonSquiggleBoyInternal
         AnalogUIState<1 + SquiggleBoyWithEncoderBank::x_numFaders> m_analogUIState;
     };
 
+    struct IOState
+    {
+        KMixMidi m_kMixMidi;
+    };
+
     SquiggleBoyWithEncoderBank::Input m_squiggleBoyState;
     TheNonagonSmartGrid m_nonagon;
 
     UIState m_uiState;
+    IOState m_ioState;
 
     TheNonagonSmartGrid::Trio m_activeTrio;
 
@@ -252,7 +258,7 @@ struct TheNonagonSquiggleBoyInternal
         }
     }
 
-    QuadFloatWithStereoAndSub ProcessSample()
+    QuadFloatWithStereoAndSub ProcessSample(const AudioInputBuffer& audioInputBuffer)
     {
         m_blink.Process();
         m_squiggleBoyState.SetBlink(m_blink.m_blink);
@@ -265,7 +271,7 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.ProcessSample(1.0 / 48000.0);
         
         SetSquiggleBoyInputs();
-        m_squiggleBoy.ProcessSample(m_squiggleBoyState, 1.0 / 48000.0);
+        m_squiggleBoy.ProcessSample(m_squiggleBoyState, 1.0 / 48000.0, audioInputBuffer);
 
         m_output = m_squiggleBoy.m_output;
 
@@ -279,6 +285,7 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoy.ProcessFrame();
         m_nonagon.ProcessFrame(&m_uiState.m_nonagonUIState);
         PopulateUIState();
+        PopulateIOState();
         HandleStateInterchange();
     }
 
@@ -311,6 +318,11 @@ struct TheNonagonSquiggleBoyInternal
         {
             m_uiState.m_squiggleBoyUIState.SetMuted(i, m_nonagon.m_state.m_trigLogic.m_mute[i]);
         }
+    }
+
+    void PopulateIOState()
+    {
+        m_squiggleBoy.WriteKMixMidi(&m_ioState.m_kMixMidi);
     }
 
     TheNonagonSquiggleBoyInternal()

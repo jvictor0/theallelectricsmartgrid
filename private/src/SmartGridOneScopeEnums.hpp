@@ -26,6 +26,13 @@ namespace SmartGridOne
         NumScopes = 1
     };
 
+    enum class SourceScopes : size_t
+    {
+        PreFilter = 0,
+        PostFilter = 1,
+        NumScopes = 2
+    };
+
     enum class QuadScopes : size_t
     {
         Delay = 0,

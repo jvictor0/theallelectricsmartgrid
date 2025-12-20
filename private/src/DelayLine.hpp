@@ -303,7 +303,13 @@ struct DelayLineMovableWriter
             ++m_scatterHead;
         }
 
-        m_delayLine[static_cast<size_t>(m_lastTime) % x_maxDelaySamples] = x;
+        size_t index = static_cast<size_t>(m_lastTime) % x_maxDelaySamples;
+        m_delayLine[index] = x;
+        if (index == 0)
+        {
+            INFO("Delay buffer wrap around");            
+        }
+
         m_lastTime += 1.0;
     }
 

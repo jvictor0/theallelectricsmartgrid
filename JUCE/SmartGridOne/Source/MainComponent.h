@@ -33,7 +33,7 @@ public:
         
         m_configuration.m_forceStereo = bufferToFill.buffer->getNumChannels() < 4;
         m_configuration.m_stereo = m_configuration.m_stereo || m_configuration.m_forceStereo;
-        m_nonagon.Process(bufferToFill, m_configuration.m_stereo);
+        m_nonagon.Process(bufferToFill, MakeIOInfo());
 
         auto end = juce::Time::getHighResolutionTicks();
         auto duration = juce::Time::highResolutionTicksToSeconds(end - start);
@@ -41,6 +41,20 @@ public:
         {
             INFO("Audio xrun %f ms / %f ms", duration * 1000, static_cast<double>(bufferToFill.numSamples * 1000) / m_sampleRate);
         }
+    }
+
+    NonagonWrapper::IOInfo MakeIOInfo()
+    {
+        NonagonWrapper::IOInfo ioInfo;
+        auto* device = deviceManager.getCurrentAudioDevice();
+        int numInputs  = device ? device->getActiveInputChannels().countNumberOfSetBits() : 0;
+        int numOutputs = device ? device->getActiveOutputChannels().countNumberOfSetBits() : 0;
+        
+        ioInfo.m_numInputs = numInputs;
+        ioInfo.m_numOutputs = numOutputs;
+        ioInfo.m_numChannels = std::min(numOutputs, m_configuration.m_stereo ? 2 : 4);
+        ioInfo.m_stereo = m_configuration.m_stereo;
+        return ioInfo;
     }
 
     virtual void releaseResources() override
@@ -134,6 +148,7 @@ private:
     juce::TextButton m_backButton;
     juce::TextButton m_fileButton;
     juce::Label m_cpuLabel;
+    RollingBuffer<256> m_cpuUsageBuffer;
     
     bool m_showingConfig;
     bool m_showingFile;

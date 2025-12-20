@@ -328,29 +328,63 @@ struct AdaptiveWaveTable
 {
     static constexpr size_t x_maxLevels = 25;
     static constexpr float m_levelsBase = 1.3f;
+    static constexpr size_t x_lookupSize = DiscreteFourierTransform::x_maxComponents + 1;
+    
     BasicWaveTable m_waveTable;
     DiscreteFourierTransform m_dft;
     BasicWaveTable m_levels[x_maxLevels];
-    size_t m_levelComponents[x_maxLevels];
+    
+    static size_t s_levelComponents[x_maxLevels];
+    static size_t s_componentLookup[x_lookupSize];
+    static bool s_isInitialized;
 
     bool m_waveTableReady;
     bool m_dftReady;
     size_t m_levelsReady;
+    size_t m_lastLevel;
     
     AdaptiveWaveTable()
     {
-        float components = 3;
-        m_levelComponents[0] = 1;
-        for (size_t i = 1; i < x_maxLevels; ++i)
-        {
-            m_levelComponents[i] = static_cast<size_t>(components);
-            components = std::max(components * m_levelsBase, std::floor(components) + 1);
-            assert(m_levelComponents[i] < BasicWaveTable::x_tableSize);            
-        }
-
+        InitializeStatic();
+        
         m_waveTableReady = false;
         m_dftReady = false;
         m_levelsReady = 0;
+    }
+    
+    static void InitializeStatic()
+    {
+        if (s_isInitialized)
+        {
+            return;
+        }
+        
+        // Initialize level components
+        //
+        float components = 3;
+        s_levelComponents[0] = 1;
+        for (size_t i = 1; i < x_maxLevels; ++i)
+        {
+            s_levelComponents[i] = static_cast<size_t>(components);
+            components = std::max(components * m_levelsBase, std::floor(components) + 1);
+            s_levelComponents[i] = std::min(s_levelComponents[i], DiscreteFourierTransform::x_maxComponents);
+            assert(s_levelComponents[i] < BasicWaveTable::x_tableSize);
+        }
+        
+        // Initialize lookup table
+        //
+        for (size_t maxComp = 0; maxComp < x_lookupSize; ++maxComp)
+        {
+            size_t level = 0;
+            while (level < x_maxLevels - 1 && s_levelComponents[level + 1] < maxComp)
+            {
+                ++level;
+            }
+            
+            s_componentLookup[maxComp] = level;
+        }
+        
+        s_isInitialized = true;
     }
 
     bool IsReady() const
@@ -388,46 +422,82 @@ struct AdaptiveWaveTable
     {
         for (size_t i = 0; i < x_maxLevels; ++i)
         {
-            m_dft.InverseTransform(m_levels[i], m_levelComponents[i]);
+            m_dft.InverseTransform(m_levels[i], s_levelComponents[i]);
             m_levels[i].NormalizeAmplitude();
         }
 
         m_levelsReady = x_maxLevels;
     }
 
-    size_t m_lastLevel;
+    struct EvalSite
+    {
+        int m_lower;
+        int m_upper;
+        float m_wayThrough;
 
-    float Evaluate(float phase, float freq, float maxFreq)
+        void Set(int lower, int upper, float wayThrough)
+        {
+            m_lower = lower;
+            m_upper = upper;
+            m_wayThrough = wayThrough;
+        }
+    };
+
+    void EvaluateSite(float freq, float maxFreq, EvalSite& site)
     {
         if (maxFreq < freq)
         {
-            return 0;
+            site.Set(-1, -1, 0);
+            return;
         }
 
         float maxComponents = maxFreq / freq;
-        auto itr = std::lower_bound(m_levelComponents, m_levelComponents + x_maxLevels, maxComponents);
-        size_t level = itr - m_levelComponents;
+        size_t maxCompInt = static_cast<size_t>(maxComponents);
+        maxCompInt = std::min(maxCompInt, DiscreteFourierTransform::x_maxComponents);
+        
+        // Use lookup table, check if fractional part pushes us to next level
+        //
+        size_t level = s_componentLookup[maxCompInt];
+        if (level < x_maxLevels - 1 && s_levelComponents[level + 1] <= maxComponents)
+        {
+            ++level;
+        }
+        
         if (level != m_lastLevel)
         {
-            m_lastLevel = level;            
+            m_lastLevel = level;
         }
 
-        if (itr == m_levelComponents + x_maxLevels)
+        if (level == x_maxLevels - 1)
         {
-            return m_levels[x_maxLevels - 1].Evaluate(phase);
+            site.Set(x_maxLevels - 1, -1, 0);
         }
-        else if (itr == m_levelComponents)
+        else if (maxComponents >= s_levelComponents[level] && maxComponents < s_levelComponents[level + 1])
         {
-            return m_levels[0].Evaluate(phase);
+            // Interpolate between level and level + 1
+            //
+            float wayThrough = static_cast<float>(maxComponents - s_levelComponents[level]) / static_cast<float>(s_levelComponents[level + 1] - s_levelComponents[level]);
+            site.Set(static_cast<int>(level), static_cast<int>(level + 1), wayThrough);
         }
         else
         {
-            float lower = m_levels[itr - m_levelComponents - 1].Evaluate(phase);
-            float upper = m_levels[itr - m_levelComponents].Evaluate(phase);
-            float wayThrough = static_cast<float>(maxComponents - *(itr - 1)) / static_cast<float>(*itr - *(itr - 1));
-            assert(wayThrough >= 0);
-            assert(wayThrough <= 1);
-            return lower * (1 - wayThrough) + upper * wayThrough;
+            site.Set(static_cast<int>(level), -1, 0);
+        }
+    }
+    
+    float Evaluate(float phase, EvalSite& site)
+    {
+        if (site.m_lower == -1)
+        {
+            return 0;
+        }
+        else if (site.m_upper == -1)
+        {
+            return m_levels[site.m_lower].Evaluate(phase);
+        }
+        else
+        {
+            return m_levels[site.m_lower].Evaluate(phase) * (1 - site.m_wayThrough) + m_levels[site.m_upper].Evaluate(phase) * site.m_wayThrough;
         }
     }
 
@@ -441,3 +511,7 @@ struct AdaptiveWaveTable
         return m_waveTable.CenterValue();
     }
 };
+
+inline size_t AdaptiveWaveTable::s_levelComponents[AdaptiveWaveTable::x_maxLevels];
+inline size_t AdaptiveWaveTable::s_componentLookup[AdaptiveWaveTable::x_lookupSize];
+inline bool AdaptiveWaveTable::s_isInitialized = false;

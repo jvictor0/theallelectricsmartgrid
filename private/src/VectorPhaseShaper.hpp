@@ -196,6 +196,31 @@ struct VectorPhaseShaperInternal
         return (((A + B * s + C * s2) + D * s3) + E * s4) + F * s5;
     }
 
+    float HermiteQuinticSegment_C2Zero(float a, float b,
+        float y_a, float m_a,
+        float y_b, float m_b,
+        float t)
+    {
+        const float h = b - a;
+        const float invH = 1.0f / h;
+        const float s = (t - a) * invH; // [0,1]
+
+        const float B = h * m_a;
+
+        const float r1 = y_b - (y_a + B);
+        const float r2 = h * m_b - B;
+
+        const float D = 10.0f * r1 - 4.0f * r2;
+        const float E = 7.0f  * r2 - 15.0f * r1;
+        const float F = 6.0f  * r1 - 3.0f * r2;
+
+        const float s2 = s * s;
+
+        // Horner: y = y_a + s*(B + s*(0 + s*(D + s*(E + s*F))))
+        //
+        return y_a + s * (B + s2 * (D + s * (E + s * F)));
+    }
+
     float PhiVPSQuinticElbow(float phase, float v, float d)
     {
         float x = d;
@@ -207,11 +232,11 @@ struct VectorPhaseShaperInternal
         const float mR = (1.0f - y) / (1.0f - x);
 
         // Straight segments
-        auto L = [&](float tt) -> float
+        auto L = [mL](float tt) -> float
         {
             return mL * tt;
         };
-        auto R = [&](float tt) -> float
+        auto R = [mR, y, x](float tt) -> float
         {
             return y + mR * (tt - x);
         };
@@ -235,11 +260,9 @@ struct VectorPhaseShaperInternal
             //   at t=δ:   y = L(δ),        y' = mL, y'' = 0
             const float y_a = R(1.0f) - 1.0f;
             const float m_a = mR;
-            const float c_a = 0.0f;
             const float y_b = L(left_b);
             const float m_b = mL;
-            const float c_b = 0.0f;
-            return HermiteQuinticSegment(left_a, left_b, y_a, m_a, c_a, y_b, m_b, c_b, t);
+            return HermiteQuinticSegment_C2Zero(left_a, left_b, y_a, m_a, y_b, m_b, t);
         }
 
         if (t < mid_a)
@@ -251,9 +274,9 @@ struct VectorPhaseShaperInternal
         if (t <= mid_b)
         {
             // Middle elbow: L at x-δ  ->  R at x+δ  (C^2)
-            const float y_a = L(mid_a), m_a = mL, c_a = 0.0f;
-            const float y_b = R(mid_b), m_b = mR, c_b = 0.0f;
-            return HermiteQuinticSegment(mid_a, mid_b, y_a, m_a, c_a, y_b, m_b, c_b, t);
+            const float y_a = L(mid_a), m_a = mL;
+            const float y_b = R(mid_b), m_b = mR;
+            return HermiteQuinticSegment_C2Zero(mid_a, mid_b, y_a, m_a, y_b, m_b, t);
         }
 
         if (t < right_a)
@@ -267,11 +290,10 @@ struct VectorPhaseShaperInternal
         //   at t=1-δ: y = R(1-δ), y' = mR, y'' = 0
         //   at t=1:   y = L(0) + 1 (=1), y' = mL, y'' = 0
         {
-            const float y_a = R(right_a), m_a = mR, c_a = 0.0f;
+            const float y_a = R(right_a), m_a = mR;
             const float y_b = L(0.0f) + 1.0f;
             const float m_b = mL;
-            const float c_b = 0.0f;
-            return HermiteQuinticSegment(right_a, right_b, y_a, m_a, c_a, y_b, m_b, c_b, t);
+            return HermiteQuinticSegment_C2Zero(right_a, right_b, y_a, m_a, y_b, m_b, t);
         }
     }
 

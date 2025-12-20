@@ -3,6 +3,7 @@
 #include "SmartGridInclude.hpp"
 #include <JuceHeader.h>
 #include "PathDrawer.hpp"
+#include "VUBarDrawer.hpp"
 
 struct MultibandEQComponent : public juce::Component
 {
@@ -74,37 +75,127 @@ struct MultibandGainReductionComponent : public juce::Component
     {
         g.fillAll(juce::Colours::black);
 
+        VUBarDrawer vuBarDrawer(getHeight(), getWidth(), 0, 0);
+
         for (size_t i = 0; i < 5; ++i)
         {
             StereoMeterReader* meterReader = i < 4 ? &GetMasteringChainUIState()->m_meterReader[i] : &GetMasteringChainUIState()->m_masterMeterReader;
             for (size_t j = 0; j < 2; ++j)
             {
                 float rms = meterReader->GetRMSDbFSNormalized(j);
-                // float peak = meterReader->GetPeakDbFSNormalized(j);
 
                 float x0Normalized = (4 * i + 1 + j) / 21.0;
                 float x1Normalized = (4 * i + 2 + j) / 21.0;
-                float yNorm = 1 - rms;
 
-                float screenX0 = x0Normalized * getWidth();
-                float screenX1 = x1Normalized * getWidth();
-                float screenY0 = yNorm * getHeight();
-                float screenY1 = 1.0f * getHeight();
-
-                g.setColour(juce::Colours::green);
-                g.fillRect(screenX0, screenY0, screenX1 - screenX0, screenY1 - screenY0);
+                vuBarDrawer.DrawBar(g, juce::Colours::green, x0Normalized, x1Normalized, rms);
 
                 float reduction = meterReader->GetReductionDbFSNormalized(j);
-                yNorm = 1 - reduction;
                 x0Normalized = (4 * i + 0 + 3 * j) / 21.0;
                 x1Normalized = (4 * i + 1 + 3 * j) / 21.0;
-                screenX0 = x0Normalized * getWidth();
-                screenX1 = x1Normalized * getWidth();
-                screenY0 = 0;
-                screenY1 = yNorm * getHeight();
-                g.setColour(juce::Colours::red);
-                g.fillRect(screenX0, screenY0, screenX1 - screenX0, screenY1 - screenY0);
+
+                vuBarDrawer.DrawReduction(g, juce::Colours::red, x0Normalized, x1Normalized, reduction);
             }
+        }   
+    }
+};
+
+struct SourceMixerFrequencyComponent : public juce::Component
+{
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
+    WindowedFFT m_windowedFFT[SourceMixer::x_numSources][2];
+
+    SourceMixerFrequencyComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
+        : m_uiState(uiState)
+    {
+        setSize(400, 200);
+
+        for (int i = 0; i < SourceMixer::x_numSources; ++i)
+        {
+            m_windowedFFT[i][0] = WindowedFFT(&m_uiState->m_squiggleBoyUIState.m_sourceMixerScopeWriter, static_cast<size_t>(SmartGridOne::SourceScopes::PreFilter));
+            m_windowedFFT[i][1] = WindowedFFT(&m_uiState->m_squiggleBoyUIState.m_sourceMixerScopeWriter, static_cast<size_t>(SmartGridOne::SourceScopes::PostFilter));
+        }
+    }
+
+    SourceMixer::UIState* GetSourceMixerUIState()
+    {
+        return &m_uiState->m_squiggleBoyUIState.m_sourceMixerUIState;
+    }
+
+    struct ResponseDrawer
+    {
+        SourceMixer::Source::UIState* m_uiState;
+
+        ResponseDrawer(SourceMixer::Source::UIState* uiState)
+            : m_uiState(uiState)
+        {
+        }
+
+        float operator()(float freq)
+        {
+            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq)) / 2;
+        }
+    };
+
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(juce::Colours::black);
+
+        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+        {
+            m_windowedFFT[i][0].Compute(i);
+            PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
+            SmartGrid::Color color = SourceMixer::UIState::Color(i).Dim();
+            pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[i][0]);
+        }
+
+        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+        {
+            m_windowedFFT[i][1].Compute(i);
+            PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
+            SmartGrid::Color color = SourceMixer::UIState::Color(i);
+            pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[i][1]);
+        }
+
+        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+        {
+            PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
+            pathDrawer.DrawPath(g, J(SourceMixer::UIState::Color(i)), ResponseDrawer(&GetSourceMixerUIState()->m_sources[i]));
+        }
+    }
+};
+
+struct SourceMixerReductionComponent : public juce::Component
+{
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
+
+    SourceMixerReductionComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
+        : m_uiState(uiState)
+    {
+        setSize(400, 200);
+    }
+
+    SourceMixer::UIState* GetSourceMixerUIState()
+    {
+        return &m_uiState->m_squiggleBoyUIState.m_sourceMixerUIState;
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(juce::Colours::black);
+
+        VUBarDrawer vuBarDrawer(getHeight(), getWidth(), 0, 0);
+
+        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+        {
+            MeterReader* meterReader = &GetSourceMixerUIState()->m_sources[i].m_meterReader;
+            float rms = meterReader->GetRMSDbFSNormalized();
+            float reduction = meterReader->GetReductionDbFSNormalized();
+            float x0Normalized = 2 * i / static_cast<float>(2 * SourceMixer::x_numSources);
+            float x1Normalized = (2 * i + 1) / static_cast<float>(2 * SourceMixer::x_numSources);
+            float x2Normalized = (2 * i + 2) / static_cast<float>(2 * SourceMixer::x_numSources);
+
+            vuBarDrawer.DrawBar(g, J(SourceMixer::UIState::Color(i)), x0Normalized, x1Normalized, rms);
+            vuBarDrawer.DrawReduction(g, juce::Colours::red, x1Normalized, x2Normalized, reduction);
         }   
     }
 };

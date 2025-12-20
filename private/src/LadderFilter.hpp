@@ -6,7 +6,6 @@
 
 struct LadderFilter
 {
-    static constexpr float x_minCutoff = 0.001f;
     static constexpr float x_maxCutoff = 0.499f;
 
     OPLowPassFilter m_stage1;
@@ -72,7 +71,7 @@ struct LadderFilter
 
     void SetCutoff(float cutoff)
     {
-        m_cutoff = (cutoff < x_minCutoff) ? x_minCutoff : (cutoff > x_maxCutoff) ? x_maxCutoff : cutoff;
+        m_cutoff = std::min(x_maxCutoff, cutoff);
 
         // Set all stages to the same cutoff frequency
         //

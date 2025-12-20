@@ -31,8 +31,11 @@ struct MorphingWaveTable
 
     float Evaluate(float phase, float freq, float maxFreq, float blend)
     {
-        float left = m_left->Evaluate(phase, freq, maxFreq);
-        float right = m_right->Evaluate(phase, freq, maxFreq);
+        AdaptiveWaveTable::EvalSite site;
+        m_left->EvaluateSite(freq, maxFreq, site);
+        m_right->EvaluateSite(freq, maxFreq, site);
+        float left = m_left->Evaluate(phase, site);
+        float right = m_right->Evaluate(phase, site);
         return left * (1 - blend) + right * blend;
     }
 

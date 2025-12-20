@@ -315,11 +315,40 @@ struct NonagonWrapperWrldBldr
         }
     };
 
+    struct KMixMidiOutputHandler : ::MidiOutputHandler
+    {
+        TheNonagonSquiggleBoyInternal* m_internal;
+
+        KMixMidiOutputHandler(TheNonagonSquiggleBoyInternal* internal)
+            : ::MidiOutputHandler()
+            , m_internal(internal)
+        {
+        }
+
+        void Process() override
+        {
+            if (m_midiOutput.get())
+            {
+                for (auto msg : m_internal->m_ioState.m_kMixMidi)
+                {
+                    juce::MidiMessage message(msg.m_msg, 3);
+                    m_midiOutput->sendMessageNow(message);
+                }
+            }
+        }
+
+        void Reset() override
+        {
+            m_internal->m_ioState.m_kMixMidi.Reset();
+        }
+    };
+
     NonagonWrapperWrldBldr(TheNonagonSquiggleBoyInternal* internal)
         : m_nonagon(internal)
         , m_internal(internal)
         , m_midiInputHandler(&m_nonagon)
-        , m_midiOutputHandler(&m_nonagon)   
+        , m_midiOutputHandler(&m_nonagon)
+        , m_kMixMidiOutputHandler(internal)
     {
     }
 
@@ -341,6 +370,11 @@ struct NonagonWrapperWrldBldr
         }
     }
 
+    void OpenKMixOutput(const juce::String &deviceIdentifier)
+    {
+        m_kMixMidiOutputHandler.Open(deviceIdentifier);
+    }
+
     void SendHandshake()
     {
         if (m_midiOutputHandler.m_midiOutput.get())
@@ -354,6 +388,7 @@ struct NonagonWrapperWrldBldr
     void SendMidiOutput()
     {
         m_midiOutputHandler.Process();
+        m_kMixMidiOutputHandler.Process();
     }
 
     void ClearLEDs()
@@ -386,11 +421,33 @@ struct NonagonWrapperWrldBldr
         return m_nonagon.MkAnalogUI(ix);
     }
 
+
+    bool IsOpen()
+    {
+        return m_midiInputHandler.m_midiInput.get() && m_midiOutputHandler.m_midiOutput.get();
+    }
+
+    juce::MidiInput* GetMidiInput()
+    {
+        return m_midiInputHandler.m_midiInput.get();
+    }
+
+    juce::MidiOutput* GetMidiOutput()
+    {
+        return m_midiOutputHandler.m_midiOutput.get();
+    }
+
+    juce::MidiOutput* GetKMixOutput()
+    {
+        return m_kMixMidiOutputHandler.m_midiOutput.get();
+    }
+
     JSON ConfigToJSON()
     {
         JSON rootJ = JSON::Object();
         rootJ.SetNew("midi_input", m_midiInputHandler.ToJSON());
         rootJ.SetNew("midi_output", m_midiOutputHandler.ToJSON());
+        rootJ.SetNew("kmix_output", m_kMixMidiOutputHandler.ToJSON());
         return rootJ;
     }
 
@@ -408,31 +465,23 @@ struct NonagonWrapperWrldBldr
             m_midiOutputHandler.FromJSON(midiOutputJ);
         }
 
+        JSON kmixOutputJ = config.Get("kmix_output");
+        if (!kmixOutputJ.IsNull())
+        {
+            m_kMixMidiOutputHandler.FromJSON(kmixOutputJ);
+        }
+
         if (IsOpen())
         {
             SendHandshake();
         }
     }
 
-    bool IsOpen()
-    {
-        return m_midiInputHandler.m_midiInput.get() && m_midiOutputHandler.m_midiOutput.get();
-    }
-
-    juce::MidiInput* GetMidiInput()
-    {
-        return m_midiInputHandler.m_midiInput.get();
-    }
-
-    juce::MidiOutput* GetMidiOutput()
-    {
-        return m_midiOutputHandler.m_midiOutput.get();
-    }
-
     TheNonagonSquiggleBoyWrldBldr m_nonagon;
     TheNonagonSquiggleBoyInternal* m_internal;
     MidiInputHandler m_midiInputHandler;
     MidiOutputHandler m_midiOutputHandler;
+    KMixMidiOutputHandler m_kMixMidiOutputHandler;
 }; 
 
 struct NonagonWrapper
@@ -440,6 +489,14 @@ struct NonagonWrapper
     TheNonagonSquiggleBoyInternal m_internal;
     NonagonWrapperQuadLaunchpadTwister m_quadLaunchpadTwister;
     NonagonWrapperWrldBldr m_wrldBldr;
+
+    struct IOInfo
+    {
+        int m_numInputs;
+        int m_numOutputs;
+        int m_numChannels;
+        bool m_stereo;
+    };
 
     NonagonWrapper()
         : m_quadLaunchpadTwister(&m_internal)
@@ -466,11 +523,11 @@ struct NonagonWrapper
         m_quadLaunchpadTwister.OpenEncoderOutput(deviceIdentifier);
     }
 
-    QuadFloatWithStereoAndSub ProcessSample(size_t timestamp)
+    QuadFloatWithStereoAndSub ProcessSample(size_t timestamp, const AudioInputBuffer& audioInputBuffer)
     {
         m_quadLaunchpadTwister.ProcessSample(timestamp);
         m_wrldBldr.ProcessSample(timestamp);
-        return m_internal.ProcessSample();
+        return m_internal.ProcessSample(audioInputBuffer);
     }
 
     void ProcessFrame()
@@ -513,6 +570,16 @@ struct NonagonWrapper
     juce::MidiOutput* GetMidiOutputWrldBldr()
     {
         return m_wrldBldr.GetMidiOutput();
+    }
+
+    void OpenKMixOutput(const juce::String &deviceIdentifier)
+    {
+        m_wrldBldr.OpenKMixOutput(deviceIdentifier);
+    }
+
+    juce::MidiOutput* GetKMixOutput()
+    {
+        return m_wrldBldr.GetKMixOutput();
     }
 
     JSON ConfigToJSON()
@@ -615,33 +682,39 @@ struct NonagonWrapper
         m_internal.m_squiggleBoy.SetRecordingDirectory(directory);
     }
 
-    void Process(const juce::AudioSourceChannelInfo& bufferToFill, bool stereo)
+    void Process(const juce::AudioSourceChannelInfo& bufferToFill, IOInfo ioInfo)
     {
         double wallclockUs = juce::Time::getMillisecondCounterHiRes() * 1000;
 
-        size_t numChannels = stereo ? 2 : 4;
+        AudioInputBuffer audioInputBuffer;
+        audioInputBuffer.m_numInputs = std::min(ioInfo.m_numInputs, 4);
 
         for (int i = 0; i < bufferToFill.numSamples; ++i)
         {
-            size_t timestamp = static_cast<size_t>(wallclockUs + i * (1000.0 / 48.0));
-            QuadFloatWithStereoAndSub output = ProcessSample(timestamp);
-            
-            if (stereo)
+            for (int j = 0; j < audioInputBuffer.m_numInputs; ++j)
             {
-                for (int j = 0; j < numChannels; ++j)
+                audioInputBuffer.m_input[j] = bufferToFill.buffer->getReadPointer(j, bufferToFill.startSample)[i];
+            }
+
+            size_t timestamp = static_cast<size_t>(wallclockUs + i * (1000.0 / 48.0));
+            QuadFloatWithStereoAndSub output = ProcessSample(timestamp, audioInputBuffer);
+            
+            if (ioInfo.m_stereo)
+            {
+                for (int j = 0; j < ioInfo.m_numChannels; ++j)
                 {
                     bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = output.m_stereoOutput[j];
                 }
             }
             else
             {
-                for (int j = 0; j < numChannels; ++j)
+                for (int j = 0; j < ioInfo.m_numChannels; ++j)
                 {
                     bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = output.m_output[j];
                 }
             }
 
-            if (bufferToFill.buffer->getNumChannels() > 4)
+            if (ioInfo.m_numOutputs > 4)
             {
                 bufferToFill.buffer->getWritePointer(4, bufferToFill.startSample)[i] = output.m_sub;
             }

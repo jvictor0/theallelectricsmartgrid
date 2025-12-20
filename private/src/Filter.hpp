@@ -323,14 +323,20 @@ struct TanhSaturator
         if (gain != m_inputGain)
         {
             m_inputGain = gain;
-            m_tanhGain = std::tanh(m_inputGain);
+            m_tanhGain = Tanh(m_inputGain);
         }
+    }
+
+    float Tanh(float x)
+    {
+        float y = x * (27 + x * x) / (27 + 9 * x * x);
+        return std::min(1.0f, std::max(-1.0f, y));
     }
 
     float Process(float input)
     {
         float scaledInput = m_inputGain * input;
-        float output = std::tanh(scaledInput);
+        float output = Tanh(scaledInput);
         return Normalize ? output / m_tanhGain : output;
     }
 

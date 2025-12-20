@@ -10,5 +10,13 @@
 #include "TheNonagonSquiggleBoyWrldBldr.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 #include "WrldBLDRMidi.hpp"
+#include "AudioInputBuffer.hpp"
+#include "KMixMidi.hpp"
+#include "RollingBuffer.hpp"
 #pragma GCC diagnostic pop
 #undef IOS_BUILD
+
+inline juce::Colour J(SmartGrid::Color color)
+{
+    return juce::Colour(color.m_red, color.m_green, color.m_blue);
+}

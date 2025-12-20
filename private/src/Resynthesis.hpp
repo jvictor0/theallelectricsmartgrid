@@ -91,31 +91,36 @@ struct Resynthesizer
             {
                 float mag = gain * m_owner->m_magnitudes[i].m_output;
                 double phase = m_synthesisPhase[i] * shift.ToDouble();
-                std::complex<float> component = std::polar(mag, static_cast<float>(phase));
+                std::complex<float> component = m_owner->Polar(mag, phase);
 
                 double exactIndex = static_cast<double>(i) * shift.ToDouble();
-                size_t loIndex = static_cast<size_t>(exactIndex);
-                size_t hiIndex = loIndex + 1;
-                float hiFrac = static_cast<float>(exactIndex - loIndex);
-                float loFrac = 1.0f - hiFrac;
+                ApplyShiftCoefficient(dft, exactIndex, component);
+            }
+        }
 
-                if (0 < loIndex && loIndex < DiscreteFourierTransform::x_maxComponents)
-                {
-                    dft.m_components[loIndex] += component * loFrac;
-                }
-                else if (loIndex == 0)
-                {
-                    dft.m_components[hiIndex] += component * loFrac;
-                }
+        static void ApplyShiftCoefficient(DiscreteFourierTransform& dft, double exactIndex, std::complex<float> coefficient)
+        {
+            size_t loIndex = static_cast<size_t>(exactIndex);
+            size_t hiIndex = loIndex + 1;
+            float hiFrac = static_cast<float>(exactIndex - loIndex);
+            float loFrac = 1.0f - hiFrac;
 
-                if (0 < hiIndex && hiIndex < DiscreteFourierTransform::x_maxComponents)
-                {
-                    dft.m_components[hiIndex] += component * hiFrac;
-                }
-                else if (hiIndex == DiscreteFourierTransform::x_maxComponents)
-                {
-                    dft.m_components[loIndex] += component * hiFrac;
-                }
+            if (0 < loIndex && loIndex < DiscreteFourierTransform::x_maxComponents)
+            {
+                dft.m_components[loIndex] += coefficient * loFrac;
+            }
+            else if (loIndex == 0)
+            {
+                dft.m_components[hiIndex] += coefficient * loFrac;
+            }
+
+            if (0 < hiIndex && hiIndex < DiscreteFourierTransform::x_maxComponents)
+            {
+                dft.m_components[hiIndex] += coefficient * hiFrac;
+            }
+            else if (hiIndex == DiscreteFourierTransform::x_maxComponents)
+            {
+                dft.m_components[loIndex] += coefficient * hiFrac;
             }
         }
 
@@ -131,6 +136,17 @@ struct Resynthesizer
         Resynthesizer* m_owner;
     };
 
+    std::complex<float> Polar(float mag, double phase)
+    {
+        float cosArg = phase / (2 * M_PI);
+        float sinArg = cosArg + 0.75;
+        cosArg = cosArg - std::floor(cosArg);
+        sinArg = sinArg - std::floor(sinArg);
+        return std::complex<float>(
+            mag * m_cosTable->Evaluate(cosArg),
+            mag * m_cosTable->Evaluate(sinArg));
+    }
+
     struct Input
     {
         Q m_shift[Oscillator::x_numShifts - 1];
@@ -140,6 +156,10 @@ struct Resynthesizer
         float m_unisonDetune;
         float m_slewUp;
         float m_slewDown;
+        float m_rmsThreshold;
+        float m_rmsQuiet;
+        float m_rmsLoud;
+        float m_loudShift;
 
         float GetUnisonGainForOscillator(int index)
         {
@@ -188,6 +208,10 @@ struct Resynthesizer
             , m_unisonDetune(1.0)
             , m_slewUp(0.5)
             , m_slewDown(0.5)
+            , m_rmsThreshold(1.0)
+            , m_rmsQuiet(0)
+            , m_rmsLoud(1)
+            , m_loudShift(0.0)
         {
             for (size_t i = 0; i < Oscillator::x_numShifts - 1; ++i)
             {
@@ -218,6 +242,7 @@ struct Resynthesizer
         : m_oscillators{ Oscillator(this), Oscillator(this), Oscillator(this) }
     {
         Clear();
+        m_cosTable = &WaveTable::GetCosine();
     }
 
     void SetSlewUp(float cyclesPerSample)
@@ -309,6 +334,79 @@ struct Resynthesizer
         ProcessPhases(dft, deltaTime);
     }
 
+    void SpectralDistortion(DiscreteFourierTransform& dft, Input& input)
+    {
+        float rmsTotal = 0.0f;
+        float rmsQuiet = 1e-6f;
+        float rmsLoud = 1e-6f;
+
+        for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
+        {
+            float rms = dft.m_components[i].real() * dft.m_components[i].real() + dft.m_components[i].imag() * dft.m_components[i].imag();
+            if (rms < input.m_rmsQuiet * input.m_rmsThreshold)
+            {
+                rmsQuiet += rms;
+            }
+            
+            if (input.m_rmsLoud * input.m_rmsThreshold < rms)
+            {
+                rmsLoud += rms - input.m_rmsLoud * input.m_rmsThreshold;
+            }
+
+            rmsTotal += rms;
+        }
+
+        if (rmsTotal < input.m_rmsThreshold)
+        {
+            return;
+        }
+
+        float quietReduction = std::max(0.0f, std::sqrt((input.m_rmsThreshold - rmsTotal + rmsQuiet) / rmsQuiet));
+        rmsTotal = rmsTotal + (quietReduction * quietReduction - 1.0f) * rmsQuiet;
+
+        float loudReduction = 1.0;
+        if (input.m_rmsThreshold < rmsTotal)
+        {
+            loudReduction = std::max(0.0f, (input.m_rmsThreshold - rmsTotal + rmsLoud) / rmsLoud);
+        }
+
+        std::complex<float> shiftCoefficient[DiscreteFourierTransform::x_maxComponents];
+        bool anyShift = false;
+        for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
+        {
+            float rms = dft.m_components[i].real() * dft.m_components[i].real() + dft.m_components[i].imag() * dft.m_components[i].imag();
+            shiftCoefficient[i] = std::complex<float>(0, 0);
+            if (rms < input.m_rmsQuiet * input.m_rmsThreshold)
+            {
+                dft.m_components[i] *= quietReduction;
+            }           
+            else if (loudReduction < 1 && input.m_rmsLoud * input.m_rmsThreshold < rms)
+            {
+                float thresh = input.m_rmsLoud * input.m_rmsThreshold;
+                float factor = std::sqrt((thresh + (rms - thresh) * loudReduction) / rms);
+                if (0 < input.m_loudShift)
+                {
+                    anyShift = true;
+                    float mag = std::sqrt(rms);
+                    float shiftMag = mag * (1 - factor) * input.m_loudShift;
+                    shiftCoefficient[i] = std::pow(dft.m_components[i] / mag, input.m_shift[0].ToDouble());
+                    shiftCoefficient[i] *= std::complex<float>(shiftMag, 0);
+                }
+
+                dft.m_components[i] *= factor;
+            }
+        }
+
+        if (anyShift)
+        {
+            for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
+            {
+                float exactIndex = static_cast<double>(i) * input.m_shift[0].ToDouble();
+                Oscillator::ApplyShiftCoefficient(dft, exactIndex, shiftCoefficient[i]);
+            }
+        }
+    }
+
     void Synthesize(Grain* grain, DiscreteFourierTransform& dft, Input& input)
     {
         for (size_t i = 0; i < x_numOscillators; ++i)
@@ -321,6 +419,8 @@ struct Resynthesizer
         {
             m_oscillators[i].Synthesize(synthDft, input.MakeOscillatorInput(i));        
         }
+
+        SpectralDistortion(synthDft, input);
 
         synthDft.InverseTransform(grain->m_buffer, DiscreteFourierTransform::x_maxComponents);
         grain->Start();
@@ -339,4 +439,5 @@ struct Resynthesizer
     float m_analysisPhasePrev[DiscreteFourierTransform::x_maxComponents];
     double m_startTime;
     Oscillator m_oscillators[x_numOscillators];
+    const WaveTable* m_cosTable;
 };

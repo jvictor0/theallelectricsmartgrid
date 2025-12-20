@@ -58,7 +58,7 @@ MainComponent::MainComponent()
     // Ensure config page starts closed
     m_showingConfig = false;
 
-    setAudioChannels(0, 5);
+    setAudioChannels(4, 5);
 
     // Start the 60 FPS timer for re-rendering
     //
@@ -264,7 +264,9 @@ void MainComponent::timerCallback()
     m_wrldBuildrGrid->SetDisplayMode();
     
     // Update CPU label
-    m_cpuLabel.setText(juce::String(deviceManager.getCpuUsage() * 100.0, 1) + "%", juce::dontSendNotification);
+    //
+    m_cpuUsageBuffer.Write(deviceManager.getCpuUsage() * 100.0);
+    m_cpuLabel.setText(juce::String(m_cpuUsageBuffer.Max(), 1) + "%", juce::dontSendNotification);
     
     repaint();
 
