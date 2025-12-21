@@ -1,15 +1,66 @@
 #include "IOUtils.hpp"
 #include "MainComponent.h"
 
+#if JUCE_IOS || JUCE_MAC
+// Forward declaration of Objective-C++ helper function
+extern juce::String GetiCloudDocumentsPath();
+#endif
+
+//==============================================================================
+juce::File FileManager::GetSmartGridOneDirectory()
+{
+    // Always use app's Documents directory for SAVING
+    // This ensures we can always write, and it will sync to iCloud
+    juce::File smartGridDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SmartGridOne");
+    
+    // Ensure directory exists
+    smartGridDir.createDirectory();
+    
+    juce::Logger::writeToLog("GetSmartGridOneDirectory (save): " + smartGridDir.getFullPathName());
+    
+    return smartGridDir;
+}
+
+//==============================================================================
+juce::File FileManager::GetiCloudSmartGridOneDirectory()
+{
+    // Try to get iCloud Drive Documents folder for READING
+    // On iOS: May not be accessible without iCloud capability
+    juce::File iCloudDir;
+    
+#if JUCE_IOS || JUCE_MAC
+    juce::String iCloudPath = GetiCloudDocumentsPath();
+    
+    if (iCloudPath.isNotEmpty())
+    {
+        iCloudDir = juce::File(iCloudPath).getChildFile("SmartGridOne");
+        // Check if it exists and is readable (we don't need write access for reading)
+        if (iCloudDir.exists())
+        {
+            juce::Logger::writeToLog("GetiCloudSmartGridOneDirectory (read): " + iCloudDir.getFullPathName());
+            return iCloudDir;
+        }
+    }
+    
+    juce::Logger::writeToLog("GetiCloudSmartGridOneDirectory: iCloud path not available for reading");
+#endif
+    
+    // Return empty/invalid file if not available
+    return juce::File();
+}
+
 //==============================================================================
 void FileManager::PersistConfig(JSON config)
 {
     juce::File configDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("SmartGridOne");
-    configDir.createDirectory(); 
+    juce::Result dirResult = configDir.createDirectory();
+    if (dirResult.failed() && !configDir.exists())
+    {
+        juce::Logger::writeToLog("ERROR: Failed to create config directory: " + configDir.getFullPathName() + " - " + dirResult.getErrorMessage());
+        return;
+    }
 
     juce::File configFile = configDir.getChildFile("config.json");
-
-    configFile.create();
 
     juce::Logger::writeToLog("Saving Config: " + configFile.getFullPathName());
 
@@ -19,8 +70,11 @@ void FileManager::PersistConfig(JSON config)
 
     juce::Logger::writeToLog("Saving Config: " + configFile.getFullPathName() + " (" + std::to_string(configString.length()) + " bytes)");
 
-
-    configFile.replaceWithText(configString);
+    bool success = configFile.replaceWithText(configString);
+    if (!success)
+    {
+        juce::Logger::writeToLog("ERROR: Failed to save config file: " + configFile.getFullPathName());
+    }
 }    
 
 JSON FileManager::LoadConfig()
@@ -43,116 +97,182 @@ JSON FileManager::LoadConfig()
 
 void FileManager::PersistJSON(JSON json, juce::String filename)
 {
+    if (filename.isEmpty())
+    {
+        juce::Logger::writeToLog("ERROR: PersistJSON called with empty filename");
+        return;
+    }
+
     juce::File file(filename);
+    
+    // Always save to app's Documents directory (writable location)
+    // Extract just the filename and save to app Documents, even if path points to iCloud
+    juce::String fileName = file.getFileName();
+    juce::File saveDir = GetSmartGridOneDirectory();
+    juce::File saveFile = saveDir.getChildFile(fileName);
+    
+    juce::Logger::writeToLog("PersistJSON: Redirecting save to app Documents: " + saveFile.getFullPathName());
+    
+    juce::File parentDir = saveFile.getParentDirectory();
+    
+    // Create parent directory if it doesn't exist
+    if (!parentDir.exists())
+    {
+        juce::Result result = parentDir.createDirectory();
+        if (result.failed())
+        {
+            juce::Logger::writeToLog("ERROR: Failed to create directory: " + parentDir.getFullPathName() + " - " + result.getErrorMessage());
+            return;
+        }
+    }
+    
+    file = saveFile; // Use the redirected file path
+
     char* jsonStr = json.Dumps(JSON_ENCODE_ANY);
     juce::String jsonString(jsonStr);
     free(jsonStr);
 
-    juce::Logger::writeToLog("Saving JSON: " + filename + " (" + std::to_string(jsonString.length()) + " bytes)");
+    juce::Logger::writeToLog("Saving JSON: " + file.getFullPathName() + " (" + std::to_string(jsonString.length()) + " bytes)");
    
-    file.replaceWithText(jsonString);
+    // Delete existing file if it's 0 bytes (might be a placeholder from file chooser)
+    if (file.exists() && file.getSize() == 0)
+    {
+        juce::Logger::writeToLog("Deleting existing 0-byte file");
+        file.deleteFile();
+    }
+   
+    bool success = file.replaceWithText(jsonString);
+    if (!success)
+    {
+        juce::Logger::writeToLog("ERROR: replaceWithText returned false for: " + filename);
+    }
+    else
+    {
+        // Verify the file was written
+        if (file.exists())
+        {
+            int64_t fileSize = file.getSize();
+            juce::Logger::writeToLog("File saved successfully. Size: " + juce::String(fileSize) + " bytes");
+            if (fileSize == 0)
+            {
+                juce::Logger::writeToLog("WARNING: File is 0 bytes after save!");
+            }
+        }
+        else
+        {
+            juce::Logger::writeToLog("WARNING: File does not exist after save!");
+        }
+    }
 }
 
 void FileManager::SavePatch(JSON json)
 {
+    if (m_currentPatchFilename.isEmpty())
+    {
+        juce::Logger::writeToLog("WARNING: SavePatch called but no filename set, using ChooseSaveFile");
+        ChooseSaveFile(false);
+        return;
+    }
+    
     PersistJSON(json, m_currentPatchFilename);
 }
 
 JSON FileManager::LoadJSON(juce::String filename)
 {
-    juce::File file(filename);
-    juce::String jsonString = file.loadFileAsString();
+    if (filename.isEmpty())
+    {
+        juce::Logger::writeToLog("ERROR: LoadJSON called with empty filename");
+        return JSON::Null();
+    }
 
-    juce::Logger::writeToLog("Loading JSON: " + filename + " (" + std::to_string(jsonString.length()) + " bytes)");
+    juce::File file(filename);
+    
+    // If file doesn't exist at the given path, try to find it in iCloud location
+    if (!file.exists())
+    {
+        // Extract just the filename
+        juce::String fileName = file.getFileName();
+        
+        // Try iCloud location first (for reading files created on Mac)
+        juce::File iCloudDir = GetiCloudSmartGridOneDirectory();
+        if (iCloudDir.exists())
+        {
+            juce::File iCloudFile = iCloudDir.getChildFile(fileName);
+            if (iCloudFile.exists())
+            {
+                juce::Logger::writeToLog("LoadJSON: Found file in iCloud location: " + iCloudFile.getFullPathName());
+                file = iCloudFile;
+            }
+        }
+        
+        // If still not found, try app Documents location
+        if (!file.exists())
+        {
+            juce::File appDir = GetSmartGridOneDirectory();
+            juce::File appFile = appDir.getChildFile(fileName);
+            if (appFile.exists())
+            {
+                juce::Logger::writeToLog("LoadJSON: Found file in app Documents: " + appFile.getFullPathName());
+                file = appFile;
+            }
+        }
+    }
+    
+    if (!file.exists())
+    {
+        juce::Logger::writeToLog("ERROR: File does not exist: " + filename);
+        return JSON::Null();
+    }
+
+    juce::String jsonString = file.loadFileAsString();
+    if (jsonString.isEmpty())
+    {
+        juce::Logger::writeToLog("ERROR: File is empty or could not be read: " + filename);
+        return JSON::Null();
+    }
+
+    juce::Logger::writeToLog("Loading JSON: " + file.getFullPathName() + " (" + std::to_string(jsonString.length()) + " bytes)");
 
     return JSON::Loads(jsonString.toUTF8().getAddress(), 0, nullptr);
 }
 
-void FileManager::ChooseSaveFile(bool saveAs)
+void FileManager::ChooseSaveFile(bool saveAs, std::function<void(juce::String)> onFileSelected)
 {
-    if (m_fileChooser.get())
+    // Always use custom patch chooser now - no OS file chooser
+    // The callback is handled in MainComponent
+    if (!saveAs && !m_currentPatchFilename.isEmpty())
     {
-        return;
-    }
-
-    if (m_currentPatchFilename.isEmpty() || saveAs)
-    {
-        juce::File smartGridDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SmartGridOne");
-        smartGridDir.createDirectory();
-        
-        m_fileChooser = std::make_unique<juce::FileChooser>("Save Patch", smartGridDir, "*.json");
-        int flags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles;
-        
-        m_fileChooser->launchAsync(flags, [this](const juce::FileChooser& chooser)
-        {
-            m_currentPatchFilename = chooser.getResult().getFullPathName();
-            if (!m_currentPatchFilename.isEmpty())
-            {
-                juce::Logger::writeToLog("Save Patch As: " + m_currentPatchFilename);
-                m_mainComponent->RequestSave();
-            }
-            
-            m_fileChooser.reset(); // Release the FileChooser
-            m_mainComponent->SaveConfig();
-        });
-    }
-    else
-    {
+        // Just save to existing file
         m_mainComponent->RequestSave();
     }
+    // Otherwise MainComponent will show the patch chooser
 }
 
 void FileManager::PickRecordingDirectory()
 {
-    juce::File smartGridDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SmartGridOne");
-    smartGridDir.createDirectory();
-    
-    m_fileChooser = std::make_unique<juce::FileChooser>("Pick Recording Directory", smartGridDir);
-    int flags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories;
-    
-    m_fileChooser->launchAsync(flags, [this](const juce::FileChooser& chooser)
-    {
-        juce::String directory = chooser.getResult().getFullPathName();
-        if (!directory.isEmpty())
-        {
-            juce::Logger::writeToLog("Pick Recording Directory: " + directory);
-            m_mainComponent->SetRecordingDirectory(directory.toUTF8().getAddress());
-        }
-    });
+    // For now, just use the default recording directory
+    // Can be enhanced later with a custom directory chooser if needed
+    SetDefaultRecordingDirectory();
 }
 
 void FileManager::SetDefaultRecordingDirectory()
 {
-    juce::File smartGridDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SmartGridOne");
-    smartGridDir.createDirectory();
-    m_mainComponent->SetRecordingDirectory((smartGridDir.getFullPathName() + "/Recordings").toUTF8().getAddress());
+    juce::File smartGridDir = GetSmartGridOneDirectory();
+    
+    juce::File recordingsDir = smartGridDir.getChildFile("Recordings");
+    juce::Result recordingsResult = recordingsDir.createDirectory();
+    if (recordingsResult.failed() && !recordingsDir.exists())
+    {
+        juce::Logger::writeToLog("ERROR: Failed to create Recordings directory: " + recordingsResult.getErrorMessage());
+    }
+    
+    m_mainComponent->SetRecordingDirectory(recordingsDir.getFullPathName().toUTF8().getAddress());
 }
 
-void FileManager::ChooseLoadFile()
+void FileManager::ChooseLoadFile(std::function<void(juce::String)> onFileSelected)
 {
-    if (m_fileChooser.get())
-    {
-        return;
-    }
-
-    juce::File smartGridDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SmartGridOne");
-    smartGridDir.createDirectory();
-    
-    m_fileChooser = std::make_unique<juce::FileChooser>("Load Patch", smartGridDir, "*.json");
-    int flags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
-    
-    m_fileChooser->launchAsync(flags, [this](const juce::FileChooser& chooser)
-    {
-        juce::String filename = chooser.getResult().getFullPathName();
-        if (!filename.isEmpty())
-        {
-            juce::Logger::writeToLog("Load Patch: " + filename);
-            LoadPatch(filename);
-        }
-        
-        m_fileChooser.reset(); // Release the FileChooser
-        m_mainComponent->SaveConfig();
-    });
+    // Trigger callback to show custom patch chooser
+    // This will be handled in MainComponent
 }
 
 void FileManager::LoadPatch(juce::String filename)

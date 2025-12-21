@@ -75,6 +75,7 @@ struct SourceMixer
             m_output = m_hpFilter.ProcessHP(m_output);
             m_output = m_meter.ProcessAndSaturate(m_output);
             m_postFilterScopeWriter.Write(m_output);
+            m_output = 0;
             return m_output;
         }
 

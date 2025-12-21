@@ -22,6 +22,7 @@
 		71CD0FC0F37F0E68AA035F37 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D29D0429B733F5F684A3683A /* AVFoundation.framework */; };
 		76F47C1288ED62812406A3FF /* CoreMIDI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 050C837BB926E11B985F21FA /* CoreMIDI.framework */; };
 		7C3D921A962E5C14F052B487 /* IOUtils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C4160E50CEBC3FB19EF6D33A /* IOUtils.cpp */; };
+		7C3D921A962E5C14F052B488 /* iCloudHelper.mm in Sources */ = {isa = PBXBuildFile; fileRef = C4160E50CEBC3FB19EF6D33B /* iCloudHelper.mm */; };
 		818DBD6D3440385AC3FBB90C /* include_juce_gui_basics.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3A41F405CF81B28FBFF7262F /* include_juce_gui_basics.mm */; };
 		868482FD2666D07E54A86CE7 /* include_juce_audio_basics.mm in Sources */ = {isa = PBXBuildFile; fileRef = B8BAFC68F24B3C2826B28130 /* include_juce_audio_basics.mm */; };
 		8C746EFE40EED3ABD35FE745 /* include_juce_data_structures.mm in Sources */ = {isa = PBXBuildFile; fileRef = AB3A23696152F9F666403329 /* include_juce_data_structures.mm */; };
@@ -83,6 +84,7 @@
 		B64FA00042183F8906227A66 /* include_juce_audio_devices.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = include_juce_audio_devices.mm; path = ../../JuceLibraryCode/include_juce_audio_devices.mm; sourceTree = SOURCE_ROOT; };
 		B8BAFC68F24B3C2826B28130 /* include_juce_audio_basics.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = include_juce_audio_basics.mm; path = ../../JuceLibraryCode/include_juce_audio_basics.mm; sourceTree = SOURCE_ROOT; };
 		C4160E50CEBC3FB19EF6D33A /* IOUtils.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = IOUtils.cpp; path = ../../Source/IOUtils.cpp; sourceTree = SOURCE_ROOT; };
+		C4160E50CEBC3FB19EF6D33B /* iCloudHelper.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = iCloudHelper.mm; path = ../../Source/iCloudHelper.mm; sourceTree = SOURCE_ROOT; };
 		C55B8CCBE65C3B943B893BE8 /* include_juce_audio_processors.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = include_juce_audio_processors.mm; path = ../../JuceLibraryCode/include_juce_audio_processors.mm; sourceTree = SOURCE_ROOT; };
 		D137D1EE5ACAD3FF6E844926 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		D227281F0541984C39FEF4D8 /* juce_events */ = {isa = PBXFileReference; lastKnownFileType = folder; name = juce_events; path = "~/JUCE/modules/juce_events"; sourceTree = "<absolute>"; };
@@ -95,6 +97,8 @@
 		E401F58D277F589BABE0978F /* CoreImage.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreImage.framework; path = System/Library/Frameworks/CoreImage.framework; sourceTree = SDKROOT; };
 		E7F64BE469384FA441ECCC98 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		E840B8E021511E1772167837 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
+		E8F2A3B1C9D4E5F6A7B8C9D0 /* SmartGridOne.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SmartGridOne.entitlements; sourceTree = SOURCE_ROOT; };
+		E8F2A3B1C9D4E5F6A7B8C9D1 /* SmartGridOne.entitlements.minimal */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SmartGridOne.entitlements.minimal; sourceTree = SOURCE_ROOT; };
 		EBAFCCB032063ABB17E030E3 /* juce_data_structures */ = {isa = PBXFileReference; lastKnownFileType = folder; name = juce_data_structures; path = "~/JUCE/modules/juce_data_structures"; sourceTree = "<absolute>"; };
 		EBEDC1540FC56DF287E6CC19 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		EDB6AE72B99B68FDF10EFA32 /* juce_audio_formats */ = {isa = PBXFileReference; lastKnownFileType = folder; name = juce_audio_formats; path = "~/JUCE/modules/juce_audio_formats"; sourceTree = "<absolute>"; };
@@ -169,6 +173,8 @@
 			isa = PBXGroup;
 			children = (
 				D5EC54AD75CCDBBA711462C5 /* Info-App.plist */,
+				E8F2A3B1C9D4E5F6A7B8C9D0 /* SmartGridOne.entitlements */,
+				E8F2A3B1C9D4E5F6A7B8C9D1 /* SmartGridOne.entitlements.minimal */,
 				79B4E7C69A6BFAAF05F3094E /* Images.xcassets */,
 				4D10349D09416A8DF57E2878 /* LaunchScreen.storyboard */,
 			);
@@ -179,6 +185,7 @@
 			isa = PBXGroup;
 			children = (
 				C4160E50CEBC3FB19EF6D33A /* IOUtils.cpp */,
+				C4160E50CEBC3FB19EF6D33B /* iCloudHelper.mm */,
 				5CFF07F9B76CE118EF50400C /* Main.cpp */,
 				EFB4472AC130FBE7539BD1D7 /* MainComponent.h */,
 				E3AA97784906D1AD50B094EE /* MainComponent.cpp */,
@@ -340,6 +347,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7C3D921A962E5C14F052B487 /* IOUtils.cpp in Sources */,
+				7C3D921A962E5C14F052B488 /* iCloudHelper.mm in Sources */,
 				658F8B55FEBE8D6DE11BDFA1 /* Main.cpp in Sources */,
 				1896C841C0B7CFBFE42CF97D /* MainComponent.cpp in Sources */,
 				868482FD2666D07E54A86CE7 /* include_juce_audio_basics.mm in Sources */,
@@ -371,6 +379,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_LINK_OBJC_RUNTIME = NO;
+				CODE_SIGN_ENTITLEMENTS = SmartGridOne.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(PROJECT_DIR)/build/$(CONFIGURATION)";
 				DEAD_CODE_STRIPPING = YES;
@@ -434,6 +443,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_LINK_OBJC_RUNTIME = NO;
+				CODE_SIGN_ENTITLEMENTS = SmartGridOne.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(PROJECT_DIR)/build/$(CONFIGURATION)";
 				COPY_PHASE_STRIP = NO;

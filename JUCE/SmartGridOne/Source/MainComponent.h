@@ -5,6 +5,7 @@
 #include "NonagonWrapper.hpp"
 #include "ConfigPage.hpp"
 #include "FilePage.hpp"
+#include "PatchChooser.hpp"
 #include "IOUtils.hpp"
 #include "WrldBuildrComponent.hpp"
 #include "Configuration.hpp"
@@ -137,12 +138,14 @@ private:
     void OnBackButtonClicked();
     void OnFileButtonClicked();
     void OnFileBackButtonClicked();
+    void ShowPatchChooser(bool isSaveMode);
 
     NonagonWrapper m_nonagon;
     Configuration m_configuration;
 
     std::unique_ptr<ConfigPage> m_configPage;
     std::unique_ptr<FilePage> m_filePage;
+    std::unique_ptr<PatchChooser> m_patchChooser;
     std::unique_ptr<WrldBuildrComponent> m_wrldBuildrGrid;
     juce::TextButton m_configButton;
     juce::TextButton m_backButton;

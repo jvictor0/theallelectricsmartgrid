@@ -144,6 +144,14 @@ void MainComponent::resized()
         //
         m_wrldBuildrGrid->setBounds(bounds);
     }
+    
+    // Show patch chooser as overlay if visible
+    if (m_patchChooser && m_patchChooser->isVisible())
+    {
+        // Center it on screen
+        auto chooserBounds = bounds.reduced(bounds.getWidth() / 4, bounds.getHeight() / 4);
+        m_patchChooser->setBounds(chooserBounds);
+    }
 }
 
 //==============================================================================
@@ -216,9 +224,19 @@ void MainComponent::OnFileButtonClicked()
     if (!m_filePage)
     {
         m_filePage = std::make_unique<FilePage>(
-            [this]() { m_fileManager.ChooseLoadFile(); },
-            [this]() { m_fileManager.ChooseSaveFile(false); },
-            [this]() { m_fileManager.ChooseSaveFile(true); },
+            [this]() { ShowPatchChooser(false); },
+            [this]() { 
+                // Save - if no filename, show chooser, otherwise just save
+                if (m_fileManager.GetCurrentPatchFilename().isEmpty())
+                {
+                    ShowPatchChooser(true);
+                }
+                else
+                {
+                    RequestSave();
+                }
+            },
+            [this]() { ShowPatchChooser(true); },
             [this]() { m_fileManager.PickRecordingDirectory(); }
         );
 
@@ -253,6 +271,49 @@ void MainComponent::OnFileButtonClicked()
 void MainComponent::OnFileBackButtonClicked()
 {
     OnBackButtonClicked();
+}
+
+void MainComponent::ShowPatchChooser(bool isSaveMode)
+{
+    // Always recreate the chooser to ensure fresh state and correct mode
+    //
+    m_patchChooser.reset();
+    
+    m_patchChooser = std::make_unique<PatchChooser>(
+        [this, isSaveMode](juce::String filename)
+        {
+            if (isSaveMode)
+            {
+                // Set filename and trigger save
+                m_fileManager.SetCurrentPatchFilename(filename);
+                RequestSave();
+                SaveConfig();
+            }
+            else
+            {
+                m_fileManager.LoadPatch(filename);
+                SaveConfig();
+            }
+            
+            // Destroy the chooser completely
+            m_patchChooser.reset();
+            
+            // Go back to main screen
+            OnBackButtonClicked();
+        },
+        [this]()
+        {
+            // Cancel - destroy the chooser completely
+            m_patchChooser.reset();
+            resized();
+            repaint();
+        },
+        isSaveMode
+    );
+    
+    addAndMakeVisible(m_patchChooser.get());
+    resized();
+    repaint();
 }
 
 //==============================================================================
