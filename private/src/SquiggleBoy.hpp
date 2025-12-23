@@ -1250,8 +1250,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_quadEncoderBank.Config(1, 3, 1, 0.0, "Resynth Slew Down", input.m_quadEncoderBankInput);
         m_quadEncoderBank.Config(1, 0, 2, 0.0, "Resynth Shift Fade", input.m_quadEncoderBankInput);
         m_quadEncoderBank.Config(1, 1, 2, 0.0, "Resynth Shift Fade 2", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 2, 2, 0.0, "Resynth Unison Detune", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 3, 2, 0.0, "Resynth Unison Gain", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 2, 2, 0.0, "Resynth Unison Gain", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 3, 2, 0.0, "Resynth Unison Detune", input.m_quadEncoderBankInput);
         m_quadEncoderBank.Config(1, 0, 3, 0.0, "Resynth Shift 1", input.m_quadEncoderBankInput);
         m_quadEncoderBank.Config(1, 1, 3, 0.0, "Resynth Shift 2", input.m_quadEncoderBankInput);
 
@@ -1475,8 +1475,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             delayInputSetterInput.m_resynthSlewDownKnob[i] = m_quadEncoderBank.GetValue(1, 3, 1, i);
             delayInputSetterInput.m_resynthShiftFadeKnob[i] = m_quadEncoderBank.GetValue(1, 0, 2, i);
             delayInputSetterInput.m_resynthShiftFade2Knob[i] = m_quadEncoderBank.GetValue(1, 1, 2, i);
-            delayInputSetterInput.m_resynthUnisonDetuneKnob[i] = m_quadEncoderBank.GetValue(1, 2, 2, i);
-            delayInputSetterInput.m_resynthUnisonGainKnob[i] = m_quadEncoderBank.GetValue(1, 3, 2, i);
+            delayInputSetterInput.m_resynthUnisonGainKnob[i] = m_quadEncoderBank.GetValue(1, 2, 2, i);
+            delayInputSetterInput.m_resynthUnisonDetuneKnob[i] = m_quadEncoderBank.GetValue(1, 3, 2, i);
             delayInputSetterInput.m_resynthShift1Knob[i] = m_quadEncoderBank.GetValue(1, 0, 3, i);
             delayInputSetterInput.m_resynthShift2Knob[i] = m_quadEncoderBank.GetValue(1, 1, 3, i);
         }

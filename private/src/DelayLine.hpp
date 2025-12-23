@@ -403,10 +403,7 @@ struct GrainManager
                 m_grain.m_buffer.m_table[i] = m_delayLine->ReadRealTime(input.m_startTime + i) * window;
             }
 
-            DiscreteFourierTransform dft;
-            m_owner->m_resynthesizer.Analyze(m_grain.m_buffer, dft, input);
-            
-            m_owner->m_resynthesizer.Synthesize(&m_grain, dft, input);
+            m_owner->m_resynthesizer.StartGrain(&m_grain, input);
         }
 
         bool IsRunning() const
