@@ -3,7 +3,9 @@
 #include <cstdio>
 #include <cstdarg>
 #include <atomic>
+#ifndef EMBEDDED_BUILD
 #include <JuceHeader.h>
+#endif
 #include "CircularQueue.hpp"
 
 struct LogMessage
@@ -49,12 +51,15 @@ struct LogMessage
 
 struct AsyncLogQueue
 {
+#ifndef EMBEDDED_BUILD
     CircularQueue<LogMessage, 4096> m_queue;
     std::atomic<size_t> m_missed;
+#endif
 
     template<typename... Args>
     void Log(const char* format, Args... args)
     {
+#ifndef EMBEDDED_BUILD
         LogMessage* message = m_queue.NextToPush();
         if (message == nullptr)
         {
@@ -64,10 +69,12 @@ struct AsyncLogQueue
 
         message->Fill(format, args...);
         m_queue.CompletePush();
+#endif
     }
 
     void DoLog()
     {
+#ifndef EMBEDDED_BUILD
         while (true)
         {
             LogMessage* message = m_queue.PeekPtr();
@@ -97,6 +104,7 @@ struct AsyncLogQueue
         {
             juce::Logger::writeToLog(juce::String::formatted("Missed %zu messages", missed));
         }
+#endif
     }
 
     static AsyncLogQueue s_instance;

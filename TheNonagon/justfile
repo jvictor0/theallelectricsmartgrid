@@ -14,7 +14,6 @@ builds:
         -scheme {{SCHEME}} \
         -destination 'platform=iOS Simulator,name={{SIMULATOR}}' \
         -derivedDataPath build \
-        GCC_PREPROCESSOR_DEFINITIONS='IOS_BUILD=1 $(inherited)' \
         clean build
 
 # Build for physical device
@@ -24,7 +23,6 @@ buildd:
         -destination 'platform=iOS,id={{PHYSICAL_DEVICE}}' \
         -derivedDataPath build \
         -allowProvisioningUpdates \
-        GCC_PREPROCESSOR_DEFINITIONS='IOS_BUILD=1 $(inherited)' \
         clean build
 
 # Install to simulator

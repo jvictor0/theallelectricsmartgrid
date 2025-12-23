@@ -7,11 +7,7 @@
 #include <cstring>
 #include <cmath>
 
-#ifndef IOS_BUILD
-#include "JanssonAdapter.hpp"
-#else
 #include "JuceSon.hpp"
-#endif
 
 template<size_t NumScenes>
 struct StateSaverTemp

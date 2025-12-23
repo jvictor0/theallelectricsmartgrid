@@ -81,6 +81,14 @@ struct LadderFilter
         m_stage4.m_alpha = m_stage3.m_alpha;
     }
 
+    void SetAlphaDirect(float alpha)
+    {
+        m_stage1.m_alpha = alpha;
+        m_stage2.m_alpha = alpha;
+        m_stage3.m_alpha = alpha;
+        m_stage4.m_alpha = alpha;
+    }
+
     void SetResonance(float resonance)
     {
         // Calculate feedback amount based on resonance

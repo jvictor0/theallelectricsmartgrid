@@ -13,7 +13,6 @@
 #include "ClockSelectCell.hpp"
 #include "GangedRandomLFO.hpp"
 #include "Slew.hpp"
-#include "ModuleUtils.hpp"
 
 struct TheNonagonInternal
 {

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ModuleUtils.hpp"
 #include "Slew.hpp"
 #include "WaveTable.hpp"
 

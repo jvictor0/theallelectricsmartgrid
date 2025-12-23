@@ -101,6 +101,11 @@ struct ExpParam
         return m_expParam;
     }
 
+    static float Compute(float min, float max, float value)
+    {
+        return min * std::powf(max / min, value);
+    }
+
     float Update(float min, float max, float value)
     {
         if (m_baseParam != value || m_max != max || m_factor != min)
@@ -178,6 +183,11 @@ struct ZeroedExpParam
         float sqrt_base = (1 + std::sqrt(discriminant)) / (2 * center);
         m_base = sqrt_base * sqrt_base;
         m_expParam = (std::powf(m_base, m_baseParam) - 1) / (m_base - 1);
+    }
+
+    static float Compute(float base, float value)
+    {
+        return (std::powf(base, value) - 1) / (base - 1);
     }
 
     float Update(float value)

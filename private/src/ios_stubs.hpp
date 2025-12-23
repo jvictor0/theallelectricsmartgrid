@@ -6,10 +6,6 @@
 #include <sys/stat.h>
 
 #include "AsyncLogger.hpp"
-
-#ifndef IOS_BUILD
-#include "rack.hpp"
-#else
 #include <os/log.h>
 
 // Global-scope stubs for VCV Rack widget types
@@ -134,5 +130,3 @@ namespace rack
 
 #define WARN(...) juce::Logger::writeToLog(juce::String::formatted(__VA_ARGS__))
 #define DEBUG(...) juce::Logger::writeToLog(juce::String::formatted(__VA_ARGS__))
-
-#endif 

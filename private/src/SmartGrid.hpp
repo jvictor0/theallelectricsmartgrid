@@ -686,19 +686,6 @@ struct GridIdAllocator
     }
 };
 
-#ifndef IOS_BUILD
-extern GridIdAllocator g_gridIds;
-
-inline size_t AllocGridId()
-{
-    return g_gridIds.Alloc();
-}
-
-inline void FreeGridId(size_t id)
-{
-    g_gridIds.Free(id);
-}
-#else
 inline size_t AllocGridId()
 {
     return x_numGridIds;
@@ -707,7 +694,6 @@ inline size_t AllocGridId()
 inline void FreeGridId(size_t id)
 {
 }
-#endif
 
 struct AbstractGrid
 {

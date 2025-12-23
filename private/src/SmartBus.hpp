@@ -306,35 +306,19 @@ struct SmartBusHolder
     }
 };
 
-#ifndef IOS_BUILD
-extern SmartBusHolder g_smartBus;
-#endif
-
 inline SmartGrid::Color SmartBusGetOnColor(size_t gridId)
 {
-#ifndef IOS_BUILD
-    return g_smartBus.GetOnColor(gridId);
-#else
     return SmartGrid::Color::Off;
-#endif
 }
 
 inline SmartGrid::Color SmartBusGetOffColor(size_t gridId)
 {
-#ifndef IOS_BUILD
-    return g_smartBus.GetOffColor(gridId);
-#else
     return SmartGrid::Color::Off;
-#endif
 }
 
 inline SmartBusOutput::Iterator SmartBusOutputBegin(size_t gridId, uint64_t* epoch)
 {
-#ifndef IOS_BUILD
-    return g_smartBus.OutputBegin(gridId, epoch);
-#else
     return SmartBusOutput::Iterator();
-#endif
 }
 
 inline SmartBusOutput::Iterator SmartBusOutputEnd()
@@ -344,11 +328,7 @@ inline SmartBusOutput::Iterator SmartBusOutputEnd()
 
 inline SmartBusInput::Iterator SmartBusInputBegin(size_t gridId, uint64_t* epoch)
 {
-#ifndef IOS_BUILD
-    return g_smartBus.InputBegin(gridId, epoch);
-#else
     return SmartBusInput::Iterator();
-#endif
 }
 
 inline SmartBusInput::Iterator SmartBusInputEnd()
@@ -358,78 +338,38 @@ inline SmartBusInput::Iterator SmartBusInputEnd()
 
 inline void SmartBusPutVelocity(size_t gridId, int x, int y, uint8_t v)
 {
-#ifndef IOS_BUILD
-    g_smartBus.PutVelocity(gridId, x, y, v);
-#endif
 }
 
 inline void SmartBusPutColor(size_t gridId, int x, int y, Color c)
 {
-#ifndef IOS_BUILD
-    g_smartBus.PutColor(gridId, x, y, c);
-#endif
 }
 
 inline void SmartBusSetOnColor(size_t gridId, Color c)
 {
-#ifndef IOS_BUILD
-    g_smartBus.SetOnColor(gridId, c);
-#endif
 }
 
 inline void SmartBusSetOffColor(size_t gridId, Color c)
 {
-#ifndef IOS_BUILD
-    g_smartBus.SetOffColor(gridId, c);
-#endif
 }
 
 inline Color SmartBusGetColor(size_t gridId, int x, int y)
 {
-#ifndef IOS_BUILD
-    return g_smartBus.GetColor(gridId, x, y);
-#else
     return SmartGrid::Color::Off;
-#endif
 }
 
 inline uint8_t SmartBusGetVelocity(size_t gridId, int x, int y)
 {
-#ifndef IOS_BUILD
-    return g_smartBus.GetVelocity(gridId, x, y);
-#else
     return 0;
-#endif
 }
 
 inline void SmartBusClearVelocities(size_t gridId)
 {
-#ifndef IOS_BUILD
-    g_smartBus.ClearVelocities(gridId);
-#endif
 }
 
 inline void AbstractGrid::OutputToBus()
 {
     if (m_gridId != x_numGridIds)
     {
-#ifndef IOS_BUILD
-        bool changed = false;
-        for (int i = x_gridXMin; i < x_gridXMax; ++i)
-        {
-            for (int j = x_gridYMin; j < x_gridYMax; ++j)
-            {
-                g_smartBus.PutColor(m_gridId, i, j, GetColor(i, j), &changed);
-            }
-        }
-
-        g_smartBus.SetOnColor(m_gridId, GetOnColor());
-        g_smartBus.SetOffColor(m_gridId, GetOffColor());
-        if (changed)
-        {
-            g_smartBus.IncrementEpoch(m_gridId);
-        }
-#endif
     }
 }
 
