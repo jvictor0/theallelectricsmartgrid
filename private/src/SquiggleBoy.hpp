@@ -23,6 +23,7 @@
 #include "VCO.hpp"
 #include "SourceMixer.hpp"
 #include "KMixMidi.hpp"
+#include "Math.hpp"
 
 struct TheoryOfTime;
 
@@ -36,7 +37,6 @@ struct SquiggleBoyVoice
         BitRateReducer m_bitRateReducer;
         TanhSaturator<true> m_saturator;
 
-        const WaveTable* m_cosTable;
 
         ButterworthFilter m_antiAliasFilter;
 
@@ -96,7 +96,6 @@ struct SquiggleBoyVoice
             m_antiAliasFilter.SetCyclesPerSample(0.40 / x_oversample);
             m_wtBlendFilter[0].SetAlphaFromNatFreq(1000.0 / 48000.0);
             m_wtBlendFilter[1].SetAlphaFromNatFreq(1000.0 / 48000.0);
-            m_cosTable = &WaveTable::GetCosine();
         }
 
         float Process(const Input& input)
@@ -142,7 +141,7 @@ struct SquiggleBoyVoice
                 top[1] = top[1] || m_vco[1].m_top;
 
                 float fade = m_state.m_fade + interp * (input.m_fade - m_state.m_fade);
-                float mixed = m_vco[0].m_out * m_cosTable->Evaluate(fade / 4) + m_vco[1].m_out * m_cosTable->Evaluate(fade / 4 + 0.75);
+                float mixed = m_vco[0].m_out * Math::Cos2pi(fade / 4) + m_vco[1].m_out * Math::Cos2pi(fade / 4 + 0.75);
 
                 float bitCrushAmount = m_state.m_bitCrushAmount + interp * (input.m_bitCrushAmount - m_state.m_bitCrushAmount);
                 m_bitRateReducer.SetAmount(bitCrushAmount);

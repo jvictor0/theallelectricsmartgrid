@@ -1,14 +1,11 @@
 #pragma once
 #include "Slew.hpp"
-#include "WaveTable.hpp"
+#include "Math.hpp"
 
 struct LissajousLFOInternal
 {    
     struct Input
     {
-        const WaveTable* m_sinTable;
-        const WaveTable* m_cosTable;
-
         float m_multX;
         float m_multY;
 
@@ -27,8 +24,6 @@ struct LissajousLFOInternal
             , m_phaseShift(0.0f)
             , m_radius(1.0f)
         {
-            m_cosTable = &WaveTable::GetCosine();
-            m_sinTable = &WaveTable::GetSine();
         }
 
         std::pair<float, float> Compute(float t)
@@ -62,8 +57,8 @@ struct LissajousLFOInternal
             }
 
             return std::make_pair(
-                m_radius * ampX * m_sinTable->Evaluate(tx) + (1 - m_radius) * m_centerX,
-                m_radius * ampY * m_sinTable->Evaluate(ty) + (1 - m_radius) * m_centerY);
+                m_radius * ampX * Math::Sin2pi(tx) + (1 - m_radius) * m_centerX,
+                m_radius * ampY * Math::Sin2pi(ty) + (1 - m_radius) * m_centerY);
         }
     };
 

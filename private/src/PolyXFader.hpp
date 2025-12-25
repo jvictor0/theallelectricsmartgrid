@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Slew.hpp"
-#include "WaveTable.hpp"
+#include "Math.hpp"
 
 struct PolyXFaderInternal
 {    
@@ -9,8 +9,6 @@ struct PolyXFaderInternal
     {
         double* m_values;
         bool* m_top;
-
-        const WaveTable* m_waveTable;
 
         float m_attackFrac;
         float m_shape;
@@ -33,7 +31,6 @@ struct PolyXFaderInternal
             , m_slope(0.0f)
             , m_center(0.0f)
         {
-            m_waveTable = &WaveTable::GetCosine();
             for (size_t i = 0; i < 16; ++i)
             {
                 m_externalWeights[i] = 1.0f;
@@ -74,7 +71,7 @@ struct PolyXFaderInternal
             if (shape < 0.45)
             {
                 shape *= 2;
-                float fullShape = (- m_waveTable->Evaluate(in / 2) + 1) / 2;
+                float fullShape = (- Math::Cos2pi(in / 2) + 1) / 2;
                 return in * shape + fullShape * (1 - shape);
             }
             else if (shape < 0.55)

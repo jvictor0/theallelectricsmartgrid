@@ -4,13 +4,12 @@
 #include "plugin.hpp"
 #include "Slew.hpp"
 #include "Filter.hpp"
-#include "WaveTable.hpp"
 #include "PhaseUtils.hpp"
 #include "MorphingWaveTable.hpp"
+#include "Math.hpp"
 
 struct VectorPhaseShaperInternal
 {
-    const WaveTable* m_waveTable;
     MorphingWaveTable m_morphingWaveTable;
     float m_phase;
     float m_voct;
@@ -74,8 +73,7 @@ struct VectorPhaseShaperInternal
     }
     
     VectorPhaseShaperInternal()
-        : m_waveTable(nullptr)
-        , m_phase(0)
+        : m_phase(0)
         , m_voct(NAN)
         , m_freq(0)
         , m_floorV(0)
@@ -88,7 +86,6 @@ struct VectorPhaseShaperInternal
     {
         m_v.SetAlphaFromNatFreq(25.0 / 48000.0);
         m_d.SetAlphaFromNatFreq(25.0 / 48000.0);
-        m_waveTable = &WaveTable::GetCosine();
         SetDV(0.5, 0.5);
     }
 
@@ -117,7 +114,7 @@ struct VectorPhaseShaperInternal
         if (d != m_dKnob)
         {
             m_dKnob = d;
-            m_dTarget = (1.0 - m_waveTable->Evaluate(d / 2)) / 2;
+            m_dTarget = (1.0 - Math::Cos2pi(d / 2)) / 2;
         }
         
         if (v != m_vKnob)
@@ -133,7 +130,7 @@ struct VectorPhaseShaperInternal
         {
             m_floorV = std::floor(m_v.m_output);
             m_b = m_v.m_output - m_floorV;
-            m_c = m_waveTable->Evaluate(m_b);
+            m_c = Math::Cos2pi(m_b);
         }
     }
     
@@ -396,141 +393,5 @@ struct VectorPhaseShaperInternal
     {
         return m_morphingWaveTable.SetRight(right);
     }                
-};
-
-template<size_t N>
-struct Detour
-{
-    VectorPhaseShaperInternal m_vps[N];
-    float m_modPhase[N];
-    float m_modFreq[N];
-    size_t m_which;
-    float m_phase;
-    float m_voct;
-    float m_freq;
-    float m_out;
-    const WaveTable* m_sinWaveTable;
-
-    Detour()
-        : m_which(0)
-        , m_phase(0)
-        , m_voct(NAN)
-        , m_freq(0)
-        , m_out(0)
-    {
-        m_sinWaveTable = &WaveTable::GetSine();
-
-        for (size_t i = 0; i < N; ++i)
-        {
-            m_modPhase[i] = 0;
-            m_modFreq[i] = 0;
-        }
-    }
-    
-    struct Input
-    {
-        float m_voct;
-
-        float m_modBlend[N];
-        float m_modAmount[N];
-        float m_modDMult[N];
-        float m_modVMult[N];
-        float m_modFreqOffset[N];
-        float m_modVPhaseOffset[N];
-        
-        VectorPhaseShaperInternal::Input m_vps[N];
-
-        Input()
-            : m_voct(0)
-        {
-            for (size_t i = 0; i < N; ++i)
-            {
-                m_modBlend[i] = 0;
-                m_modAmount[i] = 0;
-                m_modDMult[i] = 1;
-                m_modVMult[i] = 1;
-                m_modFreqOffset[i] = 0;
-                m_modVPhaseOffset[i] = 0.25;
-            }
-        }
-    };
-    
-    void SetFreq(const Input& input, float delta)
-    {
-        if (input.m_voct != m_voct)
-        {
-            m_voct = input.m_voct;
-            m_freq = PhaseUtils::VOctToNatural(input.m_voct, delta);
-
-            for (size_t which = 0; which < N; ++which)
-            {
-                m_vps[which].SetFreq(m_voct, delta);
-            }
-        }
-
-        for (size_t which = 0; which < N; ++which)
-        {
-            m_modFreq[which] = PhaseUtils::VOctToNatural(m_voct + input.m_modFreqOffset[which], delta);
-        }
-    }
-    
-    void UpdatePhase()
-    {
-        m_phase += m_freq;
-        while (m_phase >= 1)
-        {
-            m_phase -= 1;
-            m_which = (m_which + 1) % N;
-        }
-
-        for (size_t i = 0; i < N; ++i)
-        {
-            m_modPhase[i] += m_modFreq[i];
-            while (m_modPhase[i] >= 1)
-            {
-                m_modPhase[i] -= 1;
-            }
-        }
-
-        m_vps[m_which].m_phase = m_phase;
-    }
-
-    void SetDV(const Input& input)
-    {
-        for (size_t which = 0; which < N; ++which)
-        {
-            if (input.m_modAmount[which] == 0)
-            {
-                m_vps[which].SetDV(input.m_vps[which].m_d.m_output, input.m_vps[which].m_v.m_output);
-            }
-            else
-            {
-                float dMod = PhaseUtils::SyncedEval(
-                    m_sinWaveTable,
-                    m_modPhase[which],
-                    input.m_modDMult[which],
-                    0) / 2 + 0.5;
-                float vMod = PhaseUtils::SyncedEval(
-                    m_sinWaveTable,
-                    m_modPhase[which],
-                    input.m_modVMult[which],
-                    input.m_modVPhaseOffset[which]) * 2 + 2;
-                float dBlend = input.m_modAmount[which] * std::min<float>(1, 2 * input.m_modBlend[which]);
-                float vBlend = input.m_modAmount[which] * std::min<float>(1, 2 - 2 * input.m_modBlend[which]);
-                float d = (1 - dBlend) * input.m_vps[which].m_d + dBlend * dMod;
-                float v = (1 - vBlend) * input.m_vps[which].m_v + vBlend * vMod;
-                m_vps[which].SetDV(d, v);
-            }
-        }
-    }
-
-    void Process(Input& input, float deltaT)
-    {
-        SetFreq(input, deltaT);
-        UpdatePhase();
-        SetDV(input);
-        m_vps[m_which].Evaluate(input.m_vps[m_which]);
-        m_out = m_vps[m_which].m_out;
-    }
 };
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "WaveTable.hpp"
+#include "Math.hpp"
 #include "QuadUtils.hpp"
 
 struct StereoFloat
@@ -152,11 +152,11 @@ struct StereoFloat
         return (m_values[0] + m_values[1]) / 2;
     }
 
-    static StereoFloat Pan(float x, float sample, const WaveTable* sin)
+    static StereoFloat Pan(float x, float sample)
     {
         return StereoFloat(
-            sin->Evaluate((1 - x) / 4),
-            sin->Evaluate(x / 4)) * sample;
+            Math::Sin2pi((1 - x) / 4),
+            Math::Sin2pi(x / 4)) * sample;
     }
 
     QuadFloat EmbedQuadEmpty() const

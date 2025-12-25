@@ -1,13 +1,12 @@
 #pragma once
 #include "Slew.hpp"
-#include "WaveTable.hpp"
 #include "QuadUtils.hpp"
 #include "PhaseUtils.hpp"
 #include "Filter.hpp"
 #include "CircleTracker.hpp"
 #include "NormGen.hpp"
-#include "WaveTable.hpp"
 #include "InterleavedArray.hpp"
+#include "Math.hpp"
 #include "Resynthesis.hpp"
 
 struct XFader
@@ -398,7 +397,7 @@ struct GrainManager
 
             for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
             {
-                float window = 0.5 - 0.5 * m_grain.m_windowTable->m_table[i];
+                float window = Math::Hann(i);
                 m_grain.m_buffer.m_table[i] = m_delayLine->ReadRealTime(input.m_startTime + i) * window;
             }
 
@@ -408,11 +407,6 @@ struct GrainManager
         bool IsRunning() const
         {
             return m_grain.m_running;
-        }
-
-        void SetWindowTable(const WaveTable* windowTable)
-        {
-            m_grain.m_windowTable = windowTable;
         }
 
         double m_startWallTime;
@@ -430,7 +424,6 @@ struct GrainManager
     RGen m_rgen;
     int m_samplesToNextGrain;
     double m_lastSampleOffset;
-    const WaveTable* m_windowTable;
     Resynthesizer m_resynthesizer;
 
     void CompactGrains()
@@ -454,7 +447,6 @@ struct GrainManager
         Grain* grain = m_grainsAlloc.Allocate();
         if (grain)
         {
-            grain->SetWindowTable(m_windowTable);
             grain->m_delayLine = m_delayLine;
             grain->m_owner = this;
             ++m_numGrains;
@@ -523,7 +515,6 @@ struct GrainManager
         : m_delayLine(nullptr)
         , m_samplesToNextGrain(0)
     {
-        m_windowTable = &WaveTable::GetCosine();
         m_numGrains = 0;
         for (size_t i = 0; i < x_maxGrains; ++i)
         {

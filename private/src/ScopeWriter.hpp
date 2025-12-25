@@ -256,7 +256,7 @@ struct WindowedFFT
 struct QuadWindowedFFT
 {
     DiscreteFourierTransform m_dft[4];
-    OPLowPassFilter m_filters[4][2][DiscreteFourierTransform::x_maxComponents];
+    OPLowPassFilter m_filters[4][3][DiscreteFourierTransform::x_maxComponents];
     ScopeWriter* m_scopeWriter;
     size_t m_scopeIx;
 
@@ -270,6 +270,7 @@ struct QuadWindowedFFT
             {
                 m_filters[j][0][i].SetAlphaFromNatFreq(1.0 / 60.0);
                 m_filters[j][1][i].SetAlphaFromNatFreq(1.0 / 60.0);
+                m_filters[j][2][i].SetAlphaFromNatFreq(1.0 / 60.0);
             }
         }
         
@@ -300,6 +301,7 @@ struct QuadWindowedFFT
             {
                 m_filters[i][0][j].Process(m_dft[i].m_components[j].real());
                 m_filters[i][1][j].Process(m_dft[i].m_components[j].imag());
+                m_filters[i][2][j].Process(std::abs(m_dft[i].m_components[j]));
             }
         }
     }
@@ -320,7 +322,7 @@ struct QuadWindowedFFT
         }
         else
         {
-            return std::abs(std::complex<float>(m_filters[speakerIx][0][ix].m_output, m_filters[speakerIx][1][ix].m_output));
+            return m_filters[speakerIx][2][ix].m_output;
         }
     }
 

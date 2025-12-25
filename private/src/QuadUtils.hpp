@@ -1,6 +1,6 @@
 #pragma once
 
-#include "WaveTable.hpp"
+#include "Math.hpp"
 
 template<class Number>
 struct QuadNumber
@@ -217,13 +217,13 @@ struct QuadNumber
         return QuadNumber(m_values[0] + (sum - m_values[0]) * amount, m_values[1] + (sum - m_values[1]) * amount, m_values[2] + (sum - m_values[2]) * amount, m_values[3] + (sum - m_values[3]) * amount);
     }
 
-    static QuadNumber Pan(Number x, Number y, Number sample, const WaveTable* sin)
+    static QuadNumber Pan(Number x, Number y, Number sample)
     {
         return QuadNumber(
-            sin->Evaluate((1 - x) * y / 4),
-            sin->Evaluate(x * y / 4),
-            sin->Evaluate(x * (1 - y) / 4),
-            sin->Evaluate((1 - x) * (1 - y) / 4)) * sample;
+            Math::Sin2pi((1 - x) * y / 4),
+            Math::Sin2pi(x * y / 4),
+            Math::Sin2pi(x * (1 - y) / 4),
+            Math::Sin2pi((1 - x) * (1 - y) / 4)) * sample;
     }
 };
 

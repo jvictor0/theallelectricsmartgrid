@@ -19,7 +19,6 @@ struct QuadMixerInternal
 
     QuadFloatWithStereoAndSub m_output;
     QuadFloat m_send[x_numSends];
-    const WaveTable* m_sin;
     MultichannelWavWriter m_wavWriter;
     std::string m_recordingDirectory;
     bool m_isRecording = false;
@@ -38,7 +37,6 @@ struct QuadMixerInternal
 
     QuadMixerInternal()
     {
-        m_sin = &WaveTable::GetSine();
     }
     
     struct Input
@@ -166,7 +164,7 @@ struct QuadMixerInternal
             {
                 m_quadToStereoMixdown.MixSample(input.m_x[i], input.m_y[i], input.m_input[i] * input.m_gain[i]);
 
-                QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i], m_sin);
+                QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i]);
                 QuadFloat postFader = pan * input.m_gain[i];
                 m_output.m_output += postFader;
 

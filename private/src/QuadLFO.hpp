@@ -1,13 +1,12 @@
 #pragma once
 
 #include "QuadUtils.hpp"
-#include "WaveTable.hpp"
+#include "Math.hpp"
 #include "Slew.hpp"
 
 struct QuadLFO
 {
     QuadFloat m_phase;
-    const WaveTable* m_sin;
     
     QuadFloat m_output;
 
@@ -15,9 +14,7 @@ struct QuadLFO
 
     QuadLFO()
         : m_phase(0.0f, 0.0f, 0.0f, 0.0f)
-        , m_sin(nullptr)
     {
-        m_sin = &WaveTable::GetSine();
     }
 
     void SetSlew(float freq)
@@ -92,7 +89,7 @@ struct QuadLFO
         for (int i = 0; i < 4; ++i)
         {
             m_slew[i].SetAlphaFromNatFreq(input.m_freq[i] * 2);
-            m_output[i] = m_slew[i].Process(m_sin->Evaluate(phase[i]));
+            m_output[i] = m_slew[i].Process(Math::Sin2pi(phase[i]));
         }
     }
 };

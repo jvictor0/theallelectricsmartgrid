@@ -2,7 +2,6 @@
 
 #include "AdaptiveWaveTable.hpp"
 #include "FixedAllocator.hpp"
-#include "WaveTable.hpp"
 
 struct MorphingWaveTable
 {

@@ -52,7 +52,7 @@ struct LogMessage
 struct AsyncLogQueue
 {
 #ifndef EMBEDDED_BUILD
-    CircularQueue<LogMessage, 4096> m_queue;
+    CircularQueue<LogMessage, 16384> m_queue;
     std::atomic<size_t> m_missed;
 #endif
 

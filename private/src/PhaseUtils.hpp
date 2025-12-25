@@ -1,6 +1,5 @@
 #pragma once
 #include <cmath>
-#include "WaveTable.hpp"
 #include "AsyncLogger.hpp"
 
 namespace PhaseUtils
@@ -201,25 +200,5 @@ struct ZeroedExpParam
         return m_expParam;
     }  
 };
-
-inline float SyncedEval(
-    const WaveTable* waveTable,
-    float phase,
-    float mult,
-    float offset)
-{
-    float thisPhase = fmod(phase * mult + offset, mult);
-    float floorMult = floorf(mult);
-
-    if (floorMult < thisPhase)
-    {
-        float amp = mult - floorMult;
-        return amp * waveTable->Evaluate((thisPhase - floorMult) / amp);
-    }
-    else
-    {
-        return waveTable->Evaluate(thisPhase - floorf(thisPhase));
-    }
-}
 
 } // namespace PhaseUtils

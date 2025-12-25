@@ -1,8 +1,8 @@
 #pragma once
 
 #include "QuadUtils.hpp"
-#include "WaveTable.hpp"
 #include "StereoUtils.hpp"
+#include "Math.hpp"
 #include <cmath>
 
 struct QuadToStereoMixdown
@@ -15,24 +15,18 @@ struct QuadToStereoMixdown
     QuadFloat m_rightMatrix;
     QuadFloat m_leftMatrix;
 
-    const WaveTable* m_sin;
-    const WaveTable* m_cos;
-
     QuadToStereoMixdown()
     {
-        m_sin = &WaveTable::GetSine();
-        m_cos = &WaveTable::GetCosine();
-        
         m_rightMatrix = QuadFloat(
-            m_cos->Evaluate(GetPosition(0, 1) / 4), 
-            m_cos->Evaluate(GetPosition(1, 1) / 4), 
-            m_cos->Evaluate(GetPosition(1, 0) / 4), 
-            m_cos->Evaluate(GetPosition(0, 0) / 4));
+            Math::Cos2pi(GetPosition(0, 1) / 4), 
+            Math::Cos2pi(GetPosition(1, 1) / 4), 
+            Math::Cos2pi(GetPosition(1, 0) / 4), 
+            Math::Cos2pi(GetPosition(0, 0) / 4));
         m_leftMatrix = QuadFloat(
-            m_sin->Evaluate(GetPosition(0, 1) / 4), 
-            m_sin->Evaluate(GetPosition(1, 1) / 4), 
-            m_sin->Evaluate(GetPosition(1, 0) / 4), 
-            m_sin->Evaluate(GetPosition(0, 0) / 4));
+            Math::Sin2pi(GetPosition(0, 1) / 4), 
+            Math::Sin2pi(GetPosition(1, 1) / 4), 
+            Math::Sin2pi(GetPosition(1, 0) / 4), 
+            Math::Sin2pi(GetPosition(0, 0) / 4));
     }
 
     static float GetPosition(float x, float y)
@@ -51,7 +45,9 @@ struct QuadToStereoMixdown
     void MixSample(float x, float y, float sample)
     {
         float position = GetPosition(x, y);
-        m_output += StereoFloat::Pan(position, sample, m_sin);
+        m_output += StereoFloat(
+            Math::Sin2pi((1 - position) / 4) * sample,
+            Math::Sin2pi(position / 4) * sample);
     }
 
     void MixQuadSample(QuadFloat x)
