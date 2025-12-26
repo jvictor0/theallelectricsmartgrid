@@ -74,7 +74,9 @@ struct Resynthesizer
             {
                 m_bin = bin;
                 m_isPrev = isPrev;
-                m_magnitude = isPrev ? owner->m_prevTrueMagnitudes[bin] : owner->m_trueMagnitudes[bin];
+                float analysisMag = isPrev ? owner->m_prevAnalysisMagnitudes[bin] : owner->m_analysisMagnitudes[bin];
+                float synthesisMag = isPrev ? owner->m_prevSynthesisMagnitudes[bin] : owner->m_synthesisMagnitudes[bin].m_output;
+                m_magnitude = std::max(analysisMag, synthesisMag);
             }
 
             bool operator<(const Entry& other) const
@@ -90,15 +92,15 @@ struct Resynthesizer
             float maxMag = 0.0;
             for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
             {
-                maxMag = std::max(maxMag, owner->m_trueMagnitudes[i]);
-                maxMag = std::max(maxMag, owner->m_prevTrueMagnitudes[i]);
+                maxMag = std::max(maxMag, owner->m_analysisMagnitudes[i]);
+                maxMag = std::max(maxMag, owner->m_prevAnalysisMagnitudes[i]);
             }
 
             float tolerance = maxMag * 0.00000001;
             RGen rgen;
             for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
             {
-                float mag = owner->m_trueMagnitudes[i];
+                float mag = owner->m_analysisMagnitudes[i];
                 if (mag < tolerance)
                 {
                     computed[i] = true;
@@ -169,7 +171,7 @@ struct Resynthesizer
                 parent = m_results[parentResultIdx].m_parent;
                 float omegaInstantaneous = m_owner->m_omegaInstantaneous[parent];
                 bool willAlias = Resynthesizer::WillAlias(omegaInstantaneous, bin);
-                if (willAlias && false)
+                if (willAlias)
                 {
                     delta = rgen.UniGenRange(-M_PI, M_PI);
                     parent = bin;
@@ -251,17 +253,26 @@ struct Resynthesizer
         {
             for (size_t i = 0; i < pvdr->m_size; ++i)
             {    
-                PVDR::Result result = pvdr->m_results[i];                
-                double delta = result.m_bin == result.m_parent ? result.m_delta * detune : result.m_delta;
+                PVDR::Result result = pvdr->m_results[i];  
+                double delta = result.m_delta;
+                if (result.m_bin != result.m_parent)
+                {
+                    m_owner->m_omegaInstantaneous[result.m_bin] = m_owner->m_omegaInstantaneous[result.m_parent];
+                }
+                else
+                {
+                    delta *= detune;
+                }
+                
                 m_synthesisPhase[result.m_bin] = m_synthesisPhase[result.m_parent] + delta;
             }
         }
 
         void SynthesizeNoShift(DiscreteFourierTransform& dft, float gain)
         {
-            for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
+            for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
             {
-                float mag = gain * m_owner->m_magnitudes[i].m_output;
+                float mag = gain * m_owner->m_synthesisMagnitudes[i].m_output;
                 dft.m_components[i] += m_owner->Polar(mag, m_synthesisPhase[i]);
             }
         }
@@ -300,7 +311,7 @@ struct Resynthesizer
                     targetBins[result.m_bin] < DiscreteFourierTransform::x_maxComponents &&
                     !WillAlias(m_owner->m_omegaInstantaneous[result.m_parent] * shiftDouble, targetBins[result.m_bin]))
                 {
-                    float mag = gain * m_owner->m_magnitudes[result.m_bin].m_output;
+                    float mag = gain * m_owner->m_synthesisMagnitudes[result.m_bin].m_output;
                     std::complex<float> component = m_owner->Polar(mag, phases[result.m_bin]);
                     dft.m_components[targetBins[result.m_bin]] += component;
                 }
@@ -441,8 +452,9 @@ struct Resynthesizer
         {
             m_analysisPhase[i] = 0.0f;
             m_analysisPhasePrev[i] = 0.0f;
-            m_trueMagnitudes[i] = 0.0f;
-            m_prevTrueMagnitudes[i] = 0.0f;
+            m_analysisMagnitudes[i] = 0.0f;
+            m_prevAnalysisMagnitudes[i] = 0.0f;
+            m_prevSynthesisMagnitudes[i] = 0.0f;
             m_omegaInstantaneous[i] = 0.0f;
         }
     }
@@ -455,26 +467,26 @@ struct Resynthesizer
 
     void SetSlewUp(float cyclesPerSample)
     {
-        float old = m_magnitudes[0].m_slewUp.m_alpha;
-        m_magnitudes[0].SetSlewUp(cyclesPerSample);
-        if (old != m_magnitudes[0].m_slewUp.m_alpha)
+        float old = m_synthesisMagnitudes[0].m_slewUp.m_alpha;
+        m_synthesisMagnitudes[0].SetSlewUp(cyclesPerSample);
+        if (old != m_synthesisMagnitudes[0].m_slewUp.m_alpha)
         {
             for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
             {
-                m_magnitudes[i].m_slewUp.m_alpha = m_magnitudes[0].m_slewUp.m_alpha;
+                m_synthesisMagnitudes[i].m_slewUp.m_alpha = m_synthesisMagnitudes[0].m_slewUp.m_alpha;
             }
         }
     }
 
     void SetSlewDown(float cyclesPerSample)
     {
-        float old = m_magnitudes[0].m_slewDown.m_alpha;
-        m_magnitudes[0].SetSlewDown(cyclesPerSample);
-        if (old != m_magnitudes[0].m_slewDown.m_alpha)
+        float old = m_synthesisMagnitudes[0].m_slewDown.m_alpha;
+        m_synthesisMagnitudes[0].SetSlewDown(cyclesPerSample);
+        if (old != m_synthesisMagnitudes[0].m_slewDown.m_alpha)
         {
             for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
             {
-                m_magnitudes[i].m_slewDown.m_alpha = m_magnitudes[0].m_slewDown.m_alpha;
+                m_synthesisMagnitudes[i].m_slewDown.m_alpha = m_synthesisMagnitudes[0].m_slewDown.m_alpha;
             }
         }
     }
@@ -483,12 +495,15 @@ struct Resynthesizer
     {
         for (size_t i = 1; i < DiscreteFourierTransform::x_maxComponents; ++i)
         {
-            m_analysisPhasePrev[i] = m_analysisPhase[i];
-            m_analysisPhase[i] = std::arg(dft.m_components[i]);
-            m_prevTrueMagnitudes[i] = m_trueMagnitudes[i];
-            m_trueMagnitudes[i] = std::abs(dft.m_components[i]);
-            //m_magnitudes[i].Process(m_trueMagnitudes[i]);
-            m_magnitudes[i].m_output = m_trueMagnitudes[i];
+            m_analysisPhasePrev[i] = m_analysisPhase[i];            
+            m_prevAnalysisMagnitudes[i] = m_analysisMagnitudes[i];
+            m_analysisMagnitudes[i] = std::abs(dft.m_components[i]);
+            m_prevSynthesisMagnitudes[i] = m_synthesisMagnitudes[i].m_output;
+            m_synthesisMagnitudes[i].Process(m_analysisMagnitudes[i]);
+            m_analysisPhase[i] = LerpPhase(
+                m_analysisPhasePrev[i] + m_omegaInstantaneous[i] * deltaTime,
+                std::arg(dft.m_components[i]), 
+                std::min<float>(1.0, m_analysisMagnitudes[i] / m_synthesisMagnitudes[i].m_output));
             SetAnalysisOmega(i, deltaTime);
         }
     }
@@ -517,17 +532,24 @@ struct Resynthesizer
         return M_PI / H < std::abs(omegaInstantaneous - OmegaBin(bin));
     }
 
-    float PrincArg(float arg)
+    static double PrincArg(double arg)
     {
-        constexpr float twoPi = 2.0f * static_cast<float>(M_PI);
+        constexpr double twoPi = 2.0 * M_PI;
         arg /= twoPi;
         arg = (arg - std::floor(arg)) * twoPi;
         if (M_PI < arg)
         {
-            arg -= 2 * M_PI;
+            arg -= 2.0 * M_PI;
         }
 
         return arg;
+    }
+
+    static double LerpPhase(double phi1, double phi2, double alpha)
+    {
+        double diff = phi2 - phi1;
+        diff = PrincArg(diff);
+        return phi1 + alpha * diff;
     }
 
     void SetAnalysisOmega(int bin, double deltaTime)
@@ -545,8 +567,7 @@ struct Resynthesizer
         deltaPhi = PrincArg(deltaPhi);
         
         float omegaAnalysis = omegaBin + deltaPhi / deltaTime;
-        float t = std::min(1.0f, m_trueMagnitudes[bin] / m_magnitudes[bin].m_output);
-        m_omegaInstantaneous[bin] = omegaAnalysis * t + (1.0f - t) * m_omegaInstantaneous[bin];        
+        m_omegaInstantaneous[bin] = omegaAnalysis;
     }
 
     void SpectralDistortion(DiscreteFourierTransform& dft, Input& input)
@@ -660,9 +681,10 @@ struct Resynthesizer
         return BasicWaveTable::x_tableSize / x_hopDenom;
     }
 
-    BiDirectionalSlew m_magnitudes[DiscreteFourierTransform::x_maxComponents];
-    float m_trueMagnitudes[DiscreteFourierTransform::x_maxComponents];
-    float m_prevTrueMagnitudes[DiscreteFourierTransform::x_maxComponents];
+    BiDirectionalSlew m_synthesisMagnitudes[DiscreteFourierTransform::x_maxComponents];
+    float m_analysisMagnitudes[DiscreteFourierTransform::x_maxComponents];
+    float m_prevAnalysisMagnitudes[DiscreteFourierTransform::x_maxComponents];
+    float m_prevSynthesisMagnitudes[DiscreteFourierTransform::x_maxComponents];
     float m_omegaInstantaneous[DiscreteFourierTransform::x_maxComponents];    
     float m_analysisPhase[DiscreteFourierTransform::x_maxComponents];
     float m_analysisPhasePrev[DiscreteFourierTransform::x_maxComponents];

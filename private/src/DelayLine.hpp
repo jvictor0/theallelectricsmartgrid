@@ -398,7 +398,7 @@ struct GrainManager
             for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
             {
                 float window = Math::Hann(i);
-                m_grain.m_buffer.m_table[i] = m_delayLine->ReadRealTime(input.m_startTime + i) * window;
+                m_grain.m_buffer.m_table[i] = m_delayLine->ReadRealTime(input.m_startTime + i) * window / 2;
             }
 
             m_owner->m_resynthesizer.StartGrain(&m_grain, input);
