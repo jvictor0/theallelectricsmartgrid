@@ -98,6 +98,7 @@
 		F909C557DF8B7ECE6F73F9C9 /* juce_core */ /* juce_core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = juce_core; path = "~/JUCE/modules/juce_core"; sourceTree = "<absolute>"; };
 		F9C33D9B92B11A4DB3C57374 /* juce_audio_devices */ /* juce_audio_devices */ = {isa = PBXFileReference; lastKnownFileType = folder; name = juce_audio_devices; path = "~/JUCE/modules/juce_audio_devices"; sourceTree = "<absolute>"; };
 		FEC12B73BA1003F2686DAC21 /* include_juce_audio_utils.mm */ /* include_juce_audio_utils.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = include_juce_audio_utils.mm; path = ../../JuceLibraryCode/include_juce_audio_utils.mm; sourceTree = SOURCE_ROOT; };
+		E8F2A3B1C9D4E5F6A7B8C9D2 /* SmartGridOne.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SmartGridOne.entitlements; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -162,6 +163,7 @@
 			children = (
 				D5EC54AD75CCDBBA711462C5,
 				525F6732A1DA06C3833E098B,
+				E8F2A3B1C9D4E5F6A7B8C9D2 /* SmartGridOne.entitlements */,
 			);
 			name = Resources;
 			sourceTree = "<group>";
@@ -410,7 +412,10 @@
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_HEADER_SEARCH_PATHS = "$(SRCROOT)/../../JuceLibraryCode $(HOME)/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include";
-				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.SmartGridOne;
+				CODE_SIGN_ENTITLEMENTS = SmartGridOne.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 84DCGNY7JA;
+				PRODUCT_BUNDLE_IDENTIFIER = com.theallelectricsmartgrid.smartgridone;
 				PRODUCT_NAME = "SmartGridOne";
 				USE_HEADERMAP = NO;
 				VALID_ARCHS = "i386 x86_64 arm64 arm64e";
@@ -472,7 +477,10 @@
 				INSTALL_PATH = "$(HOME)/Applications";
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_HEADER_SEARCH_PATHS = "$(SRCROOT)/../../JuceLibraryCode $(HOME)/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include";
-				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.SmartGridOne;
+				CODE_SIGN_ENTITLEMENTS = SmartGridOne.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 84DCGNY7JA;
+				PRODUCT_BUNDLE_IDENTIFIER = com.theallelectricsmartgrid.smartgridone;
 				PRODUCT_NAME = "SmartGridOne";
 				USE_HEADERMAP = NO;
 				VALID_ARCHS = "i386 x86_64 arm64 arm64e";

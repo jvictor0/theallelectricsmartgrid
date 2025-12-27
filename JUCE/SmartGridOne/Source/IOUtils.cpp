@@ -9,14 +9,30 @@ extern juce::String GetiCloudDocumentsPath();
 //==============================================================================
 juce::File FileManager::GetSmartGridOneDirectory()
 {
-    // Always use app's Documents directory for SAVING
-    // This ensures we can always write, and it will sync to iCloud
+    // Use iCloud container for saving (same location on both macOS and iOS)
+    // This ensures files sync between devices
+#if JUCE_IOS || JUCE_MAC
+    juce::String iCloudPath = GetiCloudDocumentsPath();
+    
+    if (iCloudPath.isNotEmpty())
+    {
+        juce::File documentsDir = juce::File(iCloudPath);
+        if (documentsDir.exists())
+        {
+            juce::File smartGridDir = documentsDir.getChildFile("SmartGridOne");
+            smartGridDir.createDirectory();
+            juce::Logger::writeToLog("GetSmartGridOneDirectory (save): " + smartGridDir.getFullPathName());
+            return smartGridDir;
+        }
+    }
+    
+    // Fallback to app's Documents directory if iCloud not available
+    juce::Logger::writeToLog("GetSmartGridOneDirectory: iCloud not available, using fallback");
+#endif
+    
     juce::File smartGridDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SmartGridOne");
-    
-    // Ensure directory exists
     smartGridDir.createDirectory();
-    
-    juce::Logger::writeToLog("GetSmartGridOneDirectory (save): " + smartGridDir.getFullPathName());
+    juce::Logger::writeToLog("GetSmartGridOneDirectory (save, fallback): " + smartGridDir.getFullPathName());
     
     return smartGridDir;
 }
@@ -33,10 +49,17 @@ juce::File FileManager::GetiCloudSmartGridOneDirectory()
     
     if (iCloudPath.isNotEmpty())
     {
-        iCloudDir = juce::File(iCloudPath).getChildFile("SmartGridOne");
-        // Check if it exists and is readable (we don't need write access for reading)
-        if (iCloudDir.exists())
+        juce::File documentsDir = juce::File(iCloudPath);
+        // Check if the Documents directory exists (parent of SmartGridOne)
+        if (documentsDir.exists())
         {
+            iCloudDir = documentsDir.getChildFile("SmartGridOne");
+            // Create the SmartGridOne subdirectory if it doesn't exist (for reading, this is safe)
+            // Even if empty, it allows findChildFiles to work
+            if (!iCloudDir.exists())
+            {
+                iCloudDir.createDirectory();
+            }
             juce::Logger::writeToLog("GetiCloudSmartGridOneDirectory (read): " + iCloudDir.getFullPathName());
             return iCloudDir;
         }

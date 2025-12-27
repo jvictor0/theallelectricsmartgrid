@@ -8,7 +8,7 @@
     <key>CFBundleIconFile</key>
     <string></string>
     <key>CFBundleIdentifier</key>
-    <string>com.yourcompany.SmartGridOne</string>
+    <string>com.theallelectricsmartgrid.smartgridone</string>
     <key>CFBundleName</key>
     <string>SmartGridOne</string>
     <key>CFBundleDisplayName</key>

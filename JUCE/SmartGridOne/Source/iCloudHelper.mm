@@ -86,13 +86,67 @@ juce::String GetiCloudDocumentsPath()
     
     juce::Logger::writeToLog("iCloudHelper: No accessible iCloud path found - iOS apps need iCloud capability to access iCloud Drive/Documents");
 #else
-    // On macOS, try ubiquity container first
+    // On macOS, try with explicit bundle identifier first (same as iOS)
+    NSString* bundleID = [[NSBundle mainBundle] bundleIdentifier];
+    if (bundleID != nil)
+    {
+        NSString* containerID = [@"iCloud." stringByAppendingString:bundleID];
+        NSURL* iCloudURL = [fileManager URLForUbiquityContainerIdentifier:containerID];
+        
+        if (iCloudURL != nil)
+        {
+            NSURL* documentsURL = [iCloudURL URLByAppendingPathComponent:@"Documents"];
+            NSString* pathString = [documentsURL path];
+            BOOL isDirectory = NO;
+            if ([fileManager fileExistsAtPath:pathString isDirectory:&isDirectory] && isDirectory)
+            {
+                BOOL isWritable = [fileManager isWritableFileAtPath:pathString];
+                juce::Logger::writeToLog("iCloudHelper (macOS): Found container with bundle ID: " + juce::String([pathString UTF8String]) + " (writable: " + juce::String(isWritable ? "YES" : "NO") + ")");
+                if (isWritable)
+                {
+                    return juce::String([pathString UTF8String]);
+                }
+            }
+            else
+            {
+                // Directory doesn't exist yet, create it
+                NSError* error = nil;
+                BOOL created = [fileManager createDirectoryAtURL:documentsURL withIntermediateDirectories:YES attributes:nil error:&error];
+                if (created)
+                {
+                    juce::Logger::writeToLog("iCloudHelper (macOS): Created Documents directory: " + juce::String([pathString UTF8String]));
+                    return juce::String([pathString UTF8String]);
+                }
+                else
+                {
+                    juce::Logger::writeToLog("iCloudHelper (macOS): Failed to create Documents directory: " + juce::String([[error localizedDescription] UTF8String]));
+                }
+            }
+        }
+        
+        juce::Logger::writeToLog("iCloudHelper (macOS): Container with bundle ID not available: " + juce::String([containerID UTF8String]));
+    }
+    
+    // Try nil identifier (default container - requires capability)
     NSURL* iCloudURL = [fileManager URLForUbiquityContainerIdentifier:nil];
     if (iCloudURL != nil)
     {
         NSURL* documentsURL = [iCloudURL URLByAppendingPathComponent:@"Documents"];
         NSString* pathString = [documentsURL path];
-        return juce::String([pathString UTF8String]);
+        BOOL isDirectory = NO;
+        if ([fileManager fileExistsAtPath:pathString isDirectory:&isDirectory] && isDirectory)
+        {
+            BOOL isWritable = [fileManager isWritableFileAtPath:pathString];
+            juce::Logger::writeToLog("iCloudHelper (macOS): Found default ubiquity container: " + juce::String([pathString UTF8String]) + " (writable: " + juce::String(isWritable ? "YES" : "NO") + ")");
+            if (isWritable)
+            {
+                return juce::String([pathString UTF8String]);
+            }
+        }
+    }
+    else
+    {
+        juce::Logger::writeToLog("iCloudHelper (macOS): URLForUbiquityContainerIdentifier:nil returned nil");
     }
 #endif
     

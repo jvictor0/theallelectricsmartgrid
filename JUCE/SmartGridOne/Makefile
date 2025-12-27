@@ -9,10 +9,11 @@ BUILD_DIR = Builds/MacOSX/build
 all: build
 
 build:
-	xcodebuild -project $(PROJECT) -scheme "$(SCHEME)" -configuration $(CONFIG)
+	xcodebuild -project $(PROJECT) -scheme "$(SCHEME)" -configuration $(CONFIG) -destination "generic/platform=macOS" -allowProvisioningUpdates
 
 clean:
 	xcodebuild -project $(PROJECT) -scheme "$(SCHEME)" -configuration $(CONFIG) clean
+	rm -rf $(BUILD_DIR)
 
 run: build
 	$(BUILD_DIR)/$(CONFIG)/$(APP_NAME).app/Contents/MacOS/$(APP_NAME)
