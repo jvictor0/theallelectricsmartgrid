@@ -88,6 +88,8 @@ struct MidiOutputHandler
     std::unique_ptr<juce::MidiOutput> m_midiOutput;
     juce::String m_name;
     SmartGrid::ControllerShape m_shape;
+    int m_routeId;
+    SpinLock m_mutex;
 
     MidiOutputHandler()
         : m_shape(SmartGrid::ControllerShape::LaunchPadX)
@@ -110,6 +112,7 @@ struct MidiOutputHandler
 
     void Open(const juce::String &deviceIdentifier)
     {
+        AutoLockSpin lock(m_mutex);
         juce::Logger::writeToLog(juce::String("Opening MIDI output (shape ") + juce::String(SmartGrid::ControllerShapeToString(m_shape)) + "): " + deviceIdentifier);
         m_midiOutput = juce::MidiOutput::openDevice(deviceIdentifier);
         if (!m_midiOutput.get())
@@ -151,6 +154,24 @@ struct MidiOutputHandler
         }
 
         AttemptConnect();
+    }
+
+    void SendBuffer(juce::MidiBuffer& buffer, double blockTimestampMs)
+    {
+        AutoLockSpin lock(m_mutex);
+        if (m_midiOutput.get())
+        {
+            m_midiOutput->sendBlockOfMessages(buffer, blockTimestampMs, SampleTimer::x_sampleRate);
+        }
+    }
+
+    void SendMessage(juce::MidiMessage& message)
+    {
+        AutoLockSpin lock(m_mutex);
+        if (m_midiOutput.get())
+        {
+            m_midiOutput->sendMessageNow(message);
+        }
     }
 };
 

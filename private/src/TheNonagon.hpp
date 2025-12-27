@@ -13,6 +13,8 @@
 #include "ClockSelectCell.hpp"
 #include "GangedRandomLFO.hpp"
 #include "Slew.hpp"
+#include "Tick2Phasor.hpp"
+#include "MessageOut.hpp"
 
 struct TheNonagonInternal
 {
@@ -122,6 +124,7 @@ struct TheNonagonInternal
     };
 
     Output m_output;
+    SmartGrid::MessageOutBuffer* m_messageOutBuffer;
 
     struct TimeBit
     {
@@ -1140,6 +1143,8 @@ struct TheNonagonSmartGrid
     SmartGrid::Grid* m_sheafViewGridWaterGrid;
 
     bool m_isStandalone;
+
+    SmartGrid::MessageOutBuffer* m_messageOutBuffer;
     
     TheNonagonSmartGrid(bool isStandalone)
         : m_isStandalone(isStandalone)
@@ -1247,6 +1252,13 @@ struct TheNonagonSmartGrid
     void SetupMonoScopeWriter(ScopeWriter* scopeWriter)
     {
         m_nonagon.m_theoryOfTime.SetupMonoScopeWriter(scopeWriter);
+    }
+
+    void SetupMessageOutBuffer(SmartGrid::MessageOutBuffer* messageOutBuffer)
+    {
+        m_messageOutBuffer = messageOutBuffer;
+        m_nonagon.m_messageOutBuffer = m_messageOutBuffer;
+        m_nonagon.m_theoryOfTime.SetupMessageOutBuffer(m_messageOutBuffer);
     }
 
     void HandleSceneTrigger(bool shift, int scene)

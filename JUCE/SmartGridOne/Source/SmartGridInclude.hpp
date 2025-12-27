@@ -12,6 +12,8 @@
 #include "AudioInputBuffer.hpp"
 #include "KMixMidi.hpp"
 #include "RollingBuffer.hpp"
+#include "Mutex.hpp"
+#include "SampleTimer.hpp"
 #pragma GCC diagnostic pop
 
 inline juce::Colour J(SmartGrid::Color color)

@@ -24,6 +24,7 @@ public:
 
     virtual void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override
     {
+        SampleTimer::Init(samplesPerBlockExpected);
         m_nonagon.PrepareToPlay(samplesPerBlockExpected, sampleRate);
         m_sampleRate = sampleRate;
     }

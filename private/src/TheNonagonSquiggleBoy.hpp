@@ -8,6 +8,7 @@
 #include "PadUI.hpp"
 #include "AnalogUIState.hpp"
 #include "StateInterchange.hpp"
+#include "MessageOut.hpp"
 
 struct TheNonagonSquiggleBoyInternal
 {
@@ -78,6 +79,8 @@ struct TheNonagonSquiggleBoyInternal
     Blink m_blink;
 
     StateInterchange m_stateInterchange;
+
+    SmartGrid::MessageOutBuffer m_messageOutBuffer;
 
     void SetRecordingDirectory(const char* directory)
     {
@@ -336,6 +339,7 @@ struct TheNonagonSquiggleBoyInternal
         ConfigureEncoders();
         m_squiggleBoy.SetupUIState(&m_uiState.m_squiggleBoyUIState);
         m_nonagon.SetupMonoScopeWriter(&m_uiState.m_squiggleBoyUIState.m_monoScopeWriter);
+        m_nonagon.SetupMessageOutBuffer(&m_messageOutBuffer);
     }
 
     struct SaveLoadJSONCell : SmartGrid::Cell

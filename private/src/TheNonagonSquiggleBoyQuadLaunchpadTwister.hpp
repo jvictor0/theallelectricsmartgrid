@@ -2,6 +2,7 @@
 
 #include "TheNonagonSquiggleBoy.hpp"
 #include "InteriorGrid.hpp"
+#include "SampleTimer.hpp"
 
 struct TheNonagonSquiggleBoyQuadLaunchpadTwister
 {
@@ -282,9 +283,9 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
         m_bottomRightGrid->OutputToBus(&uiState.m_colorBus[static_cast<int>(Routes::BottomRightGrid)]);
     }
 
-    void ProcessMessages(size_t timestamp)
+    void ProcessMessages()
     {
-        m_messageBus.ProcessMessages(this, timestamp);
+        m_messageBus.ProcessMessages(this, SampleTimer::GetAbsTimeUs());
     }
 
     void SendMessage(SmartGrid::MessageIn msg)
@@ -331,10 +332,10 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
         }
     }
 
-    void ProcessSample(size_t timestamp)
+    void ProcessSample()
     {
         m_gridHolder.Process(1.0 / 48000.0);
-        ProcessMessages(timestamp);
+        ProcessMessages();
     }
 
     void ProcessFrame()

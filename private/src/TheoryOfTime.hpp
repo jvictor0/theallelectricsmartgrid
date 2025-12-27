@@ -6,6 +6,7 @@
 #include "ScopeWriter.hpp"
 #include "PhaseUtils.hpp"
 #include "SmartGridOneScopeEnums.hpp"
+#include "MessageOut.hpp"
 #include <atomic>
 
 struct TheoryOfTimeBase;
@@ -477,6 +478,8 @@ inline bool TimeLoop::TopIndependent(int loopSize)
 struct TheoryOfTime : public TheoryOfTimeBase
 {
     Tick2Phasor m_tick2Phasor;
+    Phasor2Tick m_phasor2Tick;
+    SmartGrid::MessageOutBuffer* m_messageOutBuffer;
     PolyXFaderInternal m_phaseModLFO;
     ScopeWriterHolder m_scopeWriter;
     double m_masterLoopSamples;
@@ -586,6 +589,11 @@ struct TheoryOfTime : public TheoryOfTimeBase
         m_scopeWriter = ScopeWriterHolder(scopeWriter, 0, static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime));
     }
 
+    void SetupMessageOutBuffer(SmartGrid::MessageOutBuffer* messageOutBuffer)
+    {
+        m_messageOutBuffer = messageOutBuffer;
+    }
+
     TheoryOfTime()
     {
         m_masterLoopSamples = 1.0;
@@ -639,9 +647,32 @@ struct TheoryOfTime : public TheoryOfTimeBase
             input.m_phasor = m_tick2Phasor.m_output;
         }
 
+        bool wasRunning = m_running;
+
         ProcessPhaseModLFO(input);
 
         TheoryOfTimeBase::Process(input);
+
+        if (wasRunning != m_running)
+        {
+            if (m_running)
+            {
+                m_phasor2Tick.UpdateDivisions(input.m_freq);
+                m_messageOutBuffer->Push(SmartGrid::MessageOut::Start());
+            }
+            else
+            {
+                m_messageOutBuffer->Push(SmartGrid::MessageOut::Stop());
+            }
+        }
+
+        if (m_running)
+        {
+            if (m_phasor2Tick.Process(GetMasterLoop()->m_phasorIndependent))
+            {
+                m_messageOutBuffer->Push(SmartGrid::MessageOut::Clock());
+            }
+        }
 
         m_scopeWriter.Write(m_globalPhase.m_phase);
         if (m_phaseModLFO.m_top)

@@ -50,7 +50,7 @@ MainComponent::MainComponent()
     m_cpuLabel.setColour(juce::Label::textColourId, juce::Colours::white);
     m_cpuLabel.setColour(juce::Label::backgroundColourId, juce::Colours::darkgrey);
     addAndMakeVisible(m_cpuLabel);
-    
+
     // Set up world builder grid
     m_wrldBuildrGrid = std::make_unique<WrldBuildrComponent>(&m_nonagon);
     addAndMakeVisible(m_wrldBuildrGrid.get());

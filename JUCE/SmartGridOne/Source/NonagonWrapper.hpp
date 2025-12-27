@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "MidiHandlers.hpp"
 #include "SmartGridInclude.hpp"
+#include "MidiSender.hpp"
 
 struct NonagonWrapperQuadLaunchpadTwister
 {
@@ -102,9 +103,10 @@ struct NonagonWrapperQuadLaunchpadTwister
         }
     };
 
-    NonagonWrapperQuadLaunchpadTwister(TheNonagonSquiggleBoyInternal* internal)
+    NonagonWrapperQuadLaunchpadTwister(TheNonagonSquiggleBoyInternal* internal, MidiSender* midiSender)
         : m_nonagon(internal)
         , m_internal(internal)
+        , m_midiSender(midiSender)
     {
         for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numRoutes; ++i)
         {
@@ -117,6 +119,12 @@ struct NonagonWrapperQuadLaunchpadTwister
         }
 
         m_midiEncoderOutputHandler.Init(&internal->m_uiState.m_squiggleBoyUIState.m_encoderBankUIState);
+
+        m_midiSender->AllocateRoute(&m_midiLaunchpadOutputHandler[0]);
+        m_midiSender->AllocateRoute(&m_midiLaunchpadOutputHandler[1]);
+        m_midiSender->AllocateRoute(&m_midiLaunchpadOutputHandler[2]);
+        m_midiSender->AllocateRoute(&m_midiLaunchpadOutputHandler[3]);
+        m_midiSender->AllocateRoute(&m_midiEncoderOutputHandler);
     }
 
     void OpenInput(int index, const juce::String &deviceIdentifier)
@@ -156,9 +164,9 @@ struct NonagonWrapperQuadLaunchpadTwister
         return m_midiLaunchpadOutputHandler[index].m_shape;
     }
 
-    void ProcessSample(size_t timestamp)
+    void ProcessSample()
     {
-        m_nonagon.ProcessSample(timestamp);
+        m_nonagon.ProcessSample();
     }
 
     void ProcessFrame()
@@ -231,6 +239,7 @@ struct NonagonWrapperQuadLaunchpadTwister
     MidiLaunchpadOutputHandler m_midiLaunchpadOutputHandler[TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads];
     MidiEncoderOutputHandler m_midiEncoderOutputHandler;
     TheNonagonSquiggleBoyInternal* m_internal;
+    MidiSender* m_midiSender;
 };
 
 struct NonagonWrapperWrldBldr
@@ -256,11 +265,13 @@ struct NonagonWrapperWrldBldr
     {
         TheNonagonSquiggleBoyWrldBldr* m_owner;
         SmartGrid::WrldBLDRMidiWriter m_midiWriter;
+        MidiSender* m_midiSender;
 
-        MidiOutputHandler(TheNonagonSquiggleBoyWrldBldr* owner)
+        MidiOutputHandler(TheNonagonSquiggleBoyWrldBldr* owner, MidiSender* midiSender)
             : ::MidiOutputHandler()
             , m_owner(owner)
             , m_midiWriter(owner)
+            , m_midiSender(midiSender)
         {
         }
 
@@ -288,8 +299,8 @@ struct NonagonWrapperWrldBldr
                         break;
                     }
 
-                    juce::MidiMessage message((*itr).m_msg, 3);
-                    m_midiOutput->sendMessageNow(message);
+                    SmartGrid::BasicMidi msg = (*itr);
+                    m_midiSender->SendMessage(msg, m_routeId);
                     --budget;
                 }
             }
@@ -343,13 +354,17 @@ struct NonagonWrapperWrldBldr
         }
     };
 
-    NonagonWrapperWrldBldr(TheNonagonSquiggleBoyInternal* internal)
+    NonagonWrapperWrldBldr(TheNonagonSquiggleBoyInternal* internal, MidiSender* midiSender)
         : m_nonagon(internal)
         , m_internal(internal)
         , m_midiInputHandler(&m_nonagon)
-        , m_midiOutputHandler(&m_nonagon)
+        , m_midiOutputHandler(&m_nonagon, midiSender)
         , m_kMixMidiOutputHandler(internal)
+        , m_midiSender(midiSender)
     {
+        m_midiSender->AllocateRoute(&m_midiOutputHandler);
+        m_midiSender->m_clockRouteId = m_midiOutputHandler.m_routeId;
+        m_midiSender->AllocateRoute(&m_kMixMidiOutputHandler);
     }
 
     void OpenInput(const juce::String &deviceIdentifier)
@@ -396,9 +411,9 @@ struct NonagonWrapperWrldBldr
         m_midiOutputHandler.ClearLEDs();
     }
 
-    void ProcessSample(size_t timestamp)
+    void ProcessSample()
     {
-        m_nonagon.ProcessSample(timestamp);
+        m_nonagon.ProcessSample();
     }
 
     void ProcessFrame()
@@ -482,10 +497,12 @@ struct NonagonWrapperWrldBldr
     MidiInputHandler m_midiInputHandler;
     MidiOutputHandler m_midiOutputHandler;
     KMixMidiOutputHandler m_kMixMidiOutputHandler;
+    MidiSender* m_midiSender;
 }; 
 
 struct NonagonWrapper
 {
+    MidiSender m_midiSender;
     TheNonagonSquiggleBoyInternal m_internal;
     NonagonWrapperQuadLaunchpadTwister m_quadLaunchpadTwister;
     NonagonWrapperWrldBldr m_wrldBldr;
@@ -499,8 +516,8 @@ struct NonagonWrapper
     };
 
     NonagonWrapper()
-        : m_quadLaunchpadTwister(&m_internal)
-        , m_wrldBldr(&m_internal)
+        : m_quadLaunchpadTwister(&m_internal, &m_midiSender)
+        , m_wrldBldr(&m_internal, &m_midiSender)
     {
     }
 
@@ -523,11 +540,13 @@ struct NonagonWrapper
         m_quadLaunchpadTwister.OpenEncoderOutput(deviceIdentifier);
     }
 
-    QuadFloatWithStereoAndSub ProcessSample(size_t timestamp, const AudioInputBuffer& audioInputBuffer)
+    QuadFloatWithStereoAndSub ProcessSample(const AudioInputBuffer& audioInputBuffer)
     {
-        m_quadLaunchpadTwister.ProcessSample(timestamp);
-        m_wrldBldr.ProcessSample(timestamp);
-        return m_internal.ProcessSample(audioInputBuffer);
+        m_quadLaunchpadTwister.ProcessSample();
+        m_wrldBldr.ProcessSample();
+        QuadFloatWithStereoAndSub output = m_internal.ProcessSample(audioInputBuffer);
+        m_midiSender.ProcessMessagesOut(m_internal.m_messageOutBuffer, SampleTimer::GetAbsTimeUs());
+        return output;
     }
 
     void ProcessFrame()
@@ -685,6 +704,7 @@ struct NonagonWrapper
     void Process(const juce::AudioSourceChannelInfo& bufferToFill, IOInfo ioInfo)
     {
         double wallclockUs = juce::Time::getMillisecondCounterHiRes() * 1000;
+        SampleTimer::StartFrame(wallclockUs);
 
         AudioInputBuffer audioInputBuffer;
         audioInputBuffer.m_numInputs = std::min(ioInfo.m_numInputs, 4);
@@ -696,8 +716,8 @@ struct NonagonWrapper
                 audioInputBuffer.m_input[j] = bufferToFill.buffer->getReadPointer(j, bufferToFill.startSample)[i];
             }
 
-            size_t timestamp = static_cast<size_t>(wallclockUs + i * (1000.0 / 48.0));
-            QuadFloatWithStereoAndSub output = ProcessSample(timestamp, audioInputBuffer);
+            SampleTimer::IncrementSample();
+            QuadFloatWithStereoAndSub output = ProcessSample(audioInputBuffer);
             
             if (ioInfo.m_stereo)
             {

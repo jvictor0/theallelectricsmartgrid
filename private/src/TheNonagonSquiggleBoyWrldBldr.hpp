@@ -2,6 +2,7 @@
 
 #include "TheNonagonSquiggleBoy.hpp"
 #include "ShiftedCell.hpp"
+#include "SampleTimer.hpp"
 
 struct TheNonagonSquiggleBoyWrldBldr
 {
@@ -625,9 +626,9 @@ struct TheNonagonSquiggleBoyWrldBldr
         m_messageBus.SetRouteType(static_cast<int>(Routes::AuxGrid), SmartGrid::MidiToMessageIn::RouteType::LaunchPad);
     }
 
-    void ProcessSample(size_t timestamp)
+    void ProcessSample()
     {
-        ProcessMessages(timestamp);
+        ProcessMessages(SampleTimer::GetAbsTimeUs());
     }
 
     void ProcessFrame()

@@ -139,5 +139,15 @@ namespace SmartGrid
         {
             return m_msg[2];
         }
+
+        bool IsClock()
+        {
+            return m_msg[0] == x_statusClock;
+        }
+
+        size_t Size()
+        {
+            return Status() == 0xF0 ? 1 : 3;
+        }
     };
 }
