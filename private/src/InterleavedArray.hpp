@@ -5,6 +5,19 @@ struct InterleavedArray
 {
     T m_data[N * Fold];
 
+    void Clear()
+    {
+        for (size_t i = 0; i < N * Fold; ++i)
+        {
+            m_data[i] = 0.0f;
+        }
+    }
+
+    InterleavedArray()
+    {
+        Clear();
+    }
+
     T& Get(size_t foldIx, size_t index)
     {
         return m_data[index * Fold + foldIx];
@@ -19,7 +32,7 @@ struct InterleavedArrayHolder
 
     InterleavedArrayHolder()
         : m_array(nullptr)
-        ,m_foldIx(0)
+        , m_foldIx(0)
     {
     }
 

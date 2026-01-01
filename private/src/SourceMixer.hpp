@@ -15,7 +15,7 @@ struct SourceMixer
         struct Input
         {
             float m_input;
-            float m_gain;
+            PhaseUtils::ZeroedExpParam m_gain;
             PhaseUtils::ExpParam m_hpCutoff;
             PhaseUtils::ExpParam m_lpFactor;
 
@@ -67,7 +67,7 @@ struct SourceMixer
 
         float Process(const Input& input)
         {
-            m_output = input.m_input * input.m_gain;
+            m_output = input.m_input * input.m_gain.m_expParam;
             m_preFilterScopeWriter.Write(m_output);
             m_hpFilter.SetCutoff(input.m_hpCutoff.m_expParam);
             m_lpFilter.SetCutoff(input.m_hpCutoff.m_expParam * input.m_lpFactor.m_expParam);
@@ -75,7 +75,6 @@ struct SourceMixer
             m_output = m_hpFilter.ProcessHP(m_output);
             m_output = m_meter.ProcessAndSaturate(m_output);
             m_postFilterScopeWriter.Write(m_output);
-            m_output = 0;
             return m_output;
         }
 

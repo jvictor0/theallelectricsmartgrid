@@ -910,7 +910,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {        
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            kMixMidi->SetTrim(i, m_globalEncoderBank.GetValue(2, i, 3, 0));
+            float trim = std::max(0.0f, 2 * (m_globalEncoderBank.GetValue(2, i, 3, 0) - 0.5f));
+            float ccValue = std::max(0.0f, trim);
+            kMixMidi->SetTrim(i, ccValue);
         }
     }
 
@@ -1516,7 +1518,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
             m_sourceMixerState.m_sources[i].m_hpCutoff.Update(m_globalEncoderBank.GetValue(2, i, 0, 0));
-            m_sourceMixerState.m_sources[i].m_lpFactor.Update(m_globalEncoderBank.GetValue(2, i, 1, 0));            
+            m_sourceMixerState.m_sources[i].m_lpFactor.Update(m_globalEncoderBank.GetValue(2, i, 1, 0));
+            m_sourceMixerState.m_sources[i].m_gain.Update(std::min(1.0f, 2 * m_globalEncoderBank.GetValue(2, i, 3, 0)));
         }
     }   
 

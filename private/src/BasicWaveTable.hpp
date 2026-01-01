@@ -7,12 +7,13 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvla-cxx-extension"
 
-struct BasicWaveTable
+template<size_t Bits>
+struct BasicWaveTableGeneric
 {
-    static constexpr size_t x_tableSize = 1024;
+    static constexpr size_t x_tableSize = 1 << Bits;
     float m_table[x_tableSize];
 
-    BasicWaveTable()
+    BasicWaveTableGeneric()
     {
         Init();
     }
@@ -148,6 +149,9 @@ struct BasicWaveTable
         return m_table[x_tableSize / 2];
     }
 };
+
+typedef BasicWaveTableGeneric<10> BasicWaveTable;
+typedef BasicWaveTableGeneric<12> BasicWaveTable4096;
 
 #pragma clang diagnostic pop
 

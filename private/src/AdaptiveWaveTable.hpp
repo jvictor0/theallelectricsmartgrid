@@ -13,12 +13,13 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvla-cxx-extension"
 
-struct DiscreteFourierTransform
+template<size_t Bits>
+struct DiscreteFourierTransformGeneric
 {
-    static constexpr size_t x_maxComponents = BasicWaveTable::x_tableSize / 2;
+    static constexpr size_t x_maxComponents = BasicWaveTableGeneric<Bits>::x_tableSize / 2;
     std::complex<float> m_components[x_maxComponents];
 
-    DiscreteFourierTransform()
+    DiscreteFourierTransformGeneric()
     {
         Init();
     }
@@ -31,7 +32,7 @@ struct DiscreteFourierTransform
         }
     }
 
-    void Transform(const BasicWaveTable& waveTable)
+    void Transform(const BasicWaveTableGeneric<Bits>& waveTable)
     {
         // Clear existing components
         //
@@ -42,11 +43,11 @@ struct DiscreteFourierTransform
 
         // Pre-allocated workspace to avoid dynamic allocation
         //
-        std::complex<float> workspace[BasicWaveTable::x_tableSize];
+        std::complex<float> workspace[BasicWaveTableGeneric<Bits>::x_tableSize];
 
         // Convert input to complex numbers
         //
-        const size_t x_N = BasicWaveTable::x_tableSize;
+        const size_t x_N = BasicWaveTableGeneric<Bits>::x_tableSize;
         for (size_t i = 0; i < x_N; ++i)
         {
             workspace[i] = std::complex<float>(waveTable.m_table[i], 0.0f);
@@ -96,8 +97,8 @@ struct DiscreteFourierTransform
             {
                 for (size_t j = 0; j < halfLen; ++j)
                 {
-                    size_t rootOfUnityIndex = (BasicWaveTable::x_tableSize - j * BasicWaveTable::x_tableSize / len) % BasicWaveTable::x_tableSize;
-                    std::complex<float> t = Math::RootOfUnityByIndex(rootOfUnityIndex) * data[i + j + halfLen];
+                    size_t rootOfUnityIndex = (BasicWaveTableGeneric<Bits>::x_tableSize - j * BasicWaveTableGeneric<Bits>::x_tableSize / len) % BasicWaveTableGeneric<Bits>::x_tableSize;
+                    std::complex<float> t = MathGeneric<Bits>::RootOfUnityByIndex(rootOfUnityIndex) * data[i + j + halfLen];
                     std::complex<float> u = data[i + j];
                     data[i + j] = u + t;
                     data[i + j + halfLen] = u - t;
@@ -106,7 +107,7 @@ struct DiscreteFourierTransform
         }
     }
 
-    void InverseTransform(BasicWaveTable& waveTable, size_t maxComponents)
+    void InverseTransform(BasicWaveTableGeneric<Bits>& waveTable, size_t maxComponents)
     {
         // Limit components to available range
         //
@@ -114,18 +115,18 @@ struct DiscreteFourierTransform
         
         // Clear the wave table
         //
-        for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
+        for (size_t i = 0; i < BasicWaveTableGeneric<Bits>::x_tableSize; ++i)
         {
             waveTable.m_table[i] = 0.0f;
         }
         
         // Reconstruct from frequency components using inverse FFT
         //
-        std::complex<float> workspace[BasicWaveTable::x_tableSize];
+        std::complex<float> workspace[BasicWaveTableGeneric<Bits>::x_tableSize];
                 
         // Zero out unused components for band limiting
         //
-        for (size_t k = 0; k < BasicWaveTable::x_tableSize; ++k)
+        for (size_t k = 0; k < BasicWaveTableGeneric<Bits>::x_tableSize; ++k)
         {
             workspace[k] = std::complex<float>(0.0f, 0.0f);
         }
@@ -136,19 +137,19 @@ struct DiscreteFourierTransform
         {
             workspace[k] = m_components[k];
 
-            if (0 < k && k < BasicWaveTable::x_tableSize / 2)
+            if (0 < k && k < BasicWaveTableGeneric<Bits>::x_tableSize / 2)
             {
-                workspace[BasicWaveTable::x_tableSize - k] = std::conj(workspace[k]);
+                workspace[BasicWaveTableGeneric<Bits>::x_tableSize - k] = std::conj(workspace[k]);
             }
         }        
 
         // Perform inverse FFT
         //
-        IFFT(workspace, BasicWaveTable::x_tableSize);
+        IFFT(workspace, BasicWaveTableGeneric<Bits>::x_tableSize);
         
         // Extract real part and normalize
         //
-        for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
+        for (size_t i = 0; i < BasicWaveTableGeneric<Bits>::x_tableSize; ++i)
         {
             waveTable.m_table[i] = workspace[i].real();
         }
@@ -186,8 +187,8 @@ struct DiscreteFourierTransform
             {
                 for (size_t j = 0; j < halfLen; ++j)
                 {
-                    size_t rootOfUnityIndex = j * BasicWaveTable::x_tableSize / len;
-                    std::complex<float> t = Math::RootOfUnityByIndex(rootOfUnityIndex) * data[i + j + halfLen];
+                    size_t rootOfUnityIndex = j * BasicWaveTableGeneric<Bits>::x_tableSize / len;
+                    std::complex<float> t = MathGeneric<Bits>::RootOfUnityByIndex(rootOfUnityIndex) * data[i + j + halfLen];
                     std::complex<float> u = data[i + j];
                     data[i + j] = u + t;
                     data[i + j + halfLen] = u - t;
@@ -196,6 +197,9 @@ struct DiscreteFourierTransform
         }
     }
 };
+
+typedef DiscreteFourierTransformGeneric<10> DiscreteFourierTransform;
+typedef DiscreteFourierTransformGeneric<12> DiscreteFourierTransform4096;
 
 struct AdaptiveWaveTable
 {

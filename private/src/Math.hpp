@@ -4,26 +4,28 @@
 #include <cmath>
 #include "BasicWaveTable.hpp"
 
-struct Math
+template<size_t Bits>
+struct MathGeneric
 {
-    static Math s_instance;
-    BasicWaveTable m_cosTable;
-    std::complex<float> m_rootOfUnity[BasicWaveTable::x_tableSize];
+    inline static MathGeneric s_instance;
+    static constexpr size_t x_tableSize = BasicWaveTableGeneric<Bits>::x_tableSize;
+    BasicWaveTableGeneric<Bits> m_cosTable;
+    std::complex<float> m_rootOfUnity[x_tableSize];
 
-    Math()
+    MathGeneric()
     {
         // Initialize cosine wavetable
         //
-        for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
+        for (size_t i = 0; i < x_tableSize; ++i)
         {
-            m_cosTable.Write(i, cosf(2.0f * M_PI * i / BasicWaveTable::x_tableSize));
+            m_cosTable.Write(i, cosf(2.0f * M_PI * i / x_tableSize));
         }
 
         // Initialize root of unity table
         //
-        for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
+        for (size_t i = 0; i < x_tableSize; ++i)
         {
-            m_rootOfUnity[i] = std::complex<float>(cosf(2.0f * M_PI * i / BasicWaveTable::x_tableSize), sinf(2.0f * M_PI * i / BasicWaveTable::x_tableSize));
+            m_rootOfUnity[i] = std::complex<float>(cosf(2.0f * M_PI * i / x_tableSize), sinf(2.0f * M_PI * i / x_tableSize));
         }
     }
 
@@ -66,9 +68,9 @@ struct Math
         return 0.5f * (1.0f - s_instance.m_cosTable.m_table[index]);
     }
 
-    static void Hann(BasicWaveTable& table)
+    static void Hann(BasicWaveTableGeneric<Bits>& table)
     {
-        for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
+        for (size_t i = 0; i < x_tableSize; ++i)
         {
             float window = Hann(i);
             table.m_table[i] *= window;
@@ -76,5 +78,6 @@ struct Math
     }
 };
 
-inline Math Math::s_instance;
+typedef MathGeneric<10> Math;
+typedef MathGeneric<12> Math4096;
 

@@ -374,34 +374,45 @@ struct GrainManager
     struct Grain
     {
         Grain()
-            : m_startTime(0.0)
-            , m_owner(nullptr)
+            : m_owner(nullptr)
         {
         }
 
         void Reset()
         {
-            m_startTime = 0.0;
-            m_startWallTime = 0.0;
         }
 
         float Process()
         {
-            return m_grain.Process();
+            return m_grain.Process() / 1.5;
         }
 
-        void Start(double wallTime, Resynthesizer::Input& input)
+        void Start(double wallTime, Resynthesizer::Input& input, double startTime, double warpedTime)
         {
-            m_startTime = input.m_startTime;
-            m_startWallTime = wallTime;
+            Resynthesizer::Buffer prevTable;
 
-            for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
+            double rms = 0;
+
+            for (size_t i = 0; i < Resynthesizer::x_tableSize; ++i)
             {
-                float window = Math::Hann(i);
-                m_grain.m_buffer.m_table[i] = m_delayLine->ReadRealTime(input.m_startTime + i) * window / 2;
+                float window = Math4096::Hann(i);
+                m_grain.m_buffer.m_table[i] = m_delayLine->ReadRealTime(startTime + i) * window;
+                rms += m_grain.m_buffer.m_table[i] * m_grain.m_buffer.m_table[i];
             }
 
-            m_owner->m_resynthesizer.StartGrain(&m_grain, input);
+            for (size_t i = 0; i < Resynthesizer::x_tableSize; ++i)
+            {
+                float window = Math4096::Hann(i);
+                prevTable.m_table[i] = m_delayLine->ReadRealTime(startTime + i - Resynthesizer::x_H) * window;
+            }
+
+            if (rms > 1e-8)
+            {
+                INFO("+++++++++++++++++++++++");
+                INFO("%p synthesizing at wall clock time %f, warped time %f, buffer time %f", this, wallTime, warpedTime, startTime);
+            }
+
+            m_owner->m_resynthesizer.Process(prevTable, &m_grain, input);
         }
 
         bool IsRunning() const
@@ -409,8 +420,6 @@ struct GrainManager
             return m_grain.m_running;
         }
 
-        double m_startWallTime;
-        double m_startTime;
         Resynthesizer::Grain m_grain;
         DelayLineMovableWriter<Size>* m_delayLine;
         GrainManager* m_owner;
@@ -499,8 +508,7 @@ struct GrainManager
             if (grain)
             {
                 double startTime = m_delayLine->GetRealTime(warpedTime) + sampleOffset;
-                input.m_resynthInput.m_startTime = startTime;
-                grain->Start(m_delayLine->m_lastTime, input.m_resynthInput);
+                grain->Start(m_delayLine->m_lastTime, input.m_resynthInput, startTime, warpedTime);
             }
 
             m_samplesToNextGrain = Resynthesizer::GetGrainLaunchSamples();
