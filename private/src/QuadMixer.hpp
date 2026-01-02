@@ -9,7 +9,6 @@
 #include <sstream>
 #include "Noise.hpp"
 #include "QuadMasterChain.hpp"
-#include "StereoMasteringChain.hpp"
 #include "QuadToStereoMixdown.hpp"
 #include "Metering.hpp"
 
@@ -31,9 +30,8 @@ struct QuadMixerInternal
 
     static constexpr float x_smoothingAlpha = 0.0007;
 
-    QuadMasterChain m_masterChain;
+    DualMasteringChain m_masterChain;
     QuadToStereoMixdown m_quadToStereoMixdown;
-    StereoMasteringChain m_stereoMasteringChain;
 
     QuadMixerInternal()
     {
@@ -51,8 +49,7 @@ struct QuadMixerInternal
         float m_returnGain[x_numSends];
         bool m_noiseMode;
 
-        QuadMasterChain::Input m_masterChainInput;
-        StereoMasteringChain::Input m_stereoMasteringChainInput;
+        DualMasteringChain::Input m_masterChainInput;
 
         Input()
         {
@@ -198,12 +195,12 @@ struct QuadMixerInternal
             }
         }
 
-        m_output = m_masterChain.Process(input.m_masterChainInput, m_output.m_output);
+        m_output = m_masterChain.Process(input.m_masterChainInput, m_output.m_output, m_quadToStereoMixdown.m_output);
+        
         m_wavWriter.WriteSampleIfOpen(4 *static_cast<uint16_t>(input.m_numInputs + x_numSends), m_output.m_output);
-        m_masterMeter.Process(m_output.m_output);
-
-        m_output.m_stereoOutput = m_stereoMasteringChain.Process(input.m_stereoMasteringChainInput, m_quadToStereoMixdown.m_output);
         m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(input.m_numInputs + x_numSends + 1), m_output.m_stereoOutput);
+        
+        m_masterMeter.Process(m_output.m_output);
         m_stereoMeter.Process(m_output.m_stereoOutput);
 
         return m_output;

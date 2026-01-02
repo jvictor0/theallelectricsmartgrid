@@ -5,7 +5,8 @@
 template<class Number>
 struct QuadNumber
 {
-    Number m_values[4];
+    static constexpr size_t x_numChannels = 4;
+    Number m_values[x_numChannels];
 
     QuadNumber(Number x, Number y, Number z, Number w)
     {
@@ -13,6 +14,14 @@ struct QuadNumber
         m_values[1] = y;
         m_values[2] = z;
         m_values[3] = w;
+    }
+
+    QuadNumber(const Number* values)
+    {
+        m_values[0] = values[0];
+        m_values[1] = values[1];
+        m_values[2] = values[2];
+        m_values[3] = values[3];
     }
 
     QuadNumber()

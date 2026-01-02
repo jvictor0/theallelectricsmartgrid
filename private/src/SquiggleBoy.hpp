@@ -855,7 +855,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_quadMasterMeterReader.SetMeterReaders(&mixer->m_masterMeter);
             m_stereoMasterMeterReader.SetMeterReaders(&mixer->m_stereoMeter);
 
-            mixer->m_stereoMasteringChain.m_saturator.SetupUIState(&m_stereoMasteringChainUIState);
+            mixer->m_masterChain.m_stereoMasteringChain.m_saturator.SetupUIState(&m_stereoMasteringChainUIState);
         }
 
         void SetMuted(size_t i, bool muted)
@@ -1506,14 +1506,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         input.m_tempo.Update(m_globalEncoderBank.GetValue(0, 0, 0, 0));
 
-        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_gain[0].Update(m_globalEncoderBank.GetValue(1, 0, 2, 0));
-        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_gain[1].Update(m_globalEncoderBank.GetValue(1, 1, 2, 0));
-        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_gain[2].Update(m_globalEncoderBank.GetValue(1, 2, 2, 0));
-        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_gain[3].Update(m_globalEncoderBank.GetValue(1, 3, 2, 0));
-        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_crossoverFreq[0].Update(m_globalEncoderBank.GetValue(1, 0, 3, 0));
-        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_crossoverFreq[1].Update(m_globalEncoderBank.GetValue(1, 1, 3, 0));
-        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_crossoverFreq[2].Update(m_globalEncoderBank.GetValue(1, 2, 3, 0));
-        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.m_masterGain.Update(m_globalEncoderBank.GetValue(1, 3, 3, 0));        
+        m_mixerState.m_masterChainInput.SetGain(0, m_globalEncoderBank.GetValue(1, 0, 2, 0));
+        m_mixerState.m_masterChainInput.SetGain(1, m_globalEncoderBank.GetValue(1, 1, 2, 0));
+        m_mixerState.m_masterChainInput.SetGain(2, m_globalEncoderBank.GetValue(1, 2, 2, 0));
+        m_mixerState.m_masterChainInput.SetGain(3, m_globalEncoderBank.GetValue(1, 3, 2, 0));
+        m_mixerState.m_masterChainInput.SetBassFreq(m_globalEncoderBank.GetValue(1, 0, 3, 0));
+        m_mixerState.m_masterChainInput.SetCrossoverFreq(0, m_globalEncoderBank.GetValue(1, 1, 3, 0));
+        m_mixerState.m_masterChainInput.SetCrossoverFreq(1, m_globalEncoderBank.GetValue(1, 2, 3, 0));
+        m_mixerState.m_masterChainInput.SetMasterGain(m_globalEncoderBank.GetValue(1, 3, 3, 0));        
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
@@ -1529,9 +1529,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         rootJ.SetNew("voiceEncoderBank", m_voiceEncoderBank.ToJSON());
         rootJ.SetNew("globalEncoderBank", m_globalEncoderBank.ToJSON());
         rootJ.SetNew("quadEncoderBank", m_quadEncoderBank.ToJSON());
-        if (GetRecordingDirectory().length() > 0)
+        if (this->GetRecordingDirectory().length() > 0)
         {
-            rootJ.SetNew("recordingDirectory", JSON::String(GetRecordingDirectory().c_str()));
+            rootJ.SetNew("recordingDirectory", JSON::String(this->GetRecordingDirectory().c_str()));
         }
 
         return rootJ;
@@ -1545,7 +1545,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         JSON recordingDirectoryJ = rootJ.Get("recordingDirectory");
         if (!recordingDirectoryJ.IsNull() && strlen(recordingDirectoryJ.StringValue()) > 0)
         {
-            SetRecordingDirectory(recordingDirectoryJ.StringValue());
+            this->SetRecordingDirectory(recordingDirectoryJ.StringValue());
         }
     }
 
@@ -1666,7 +1666,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             uiState->SetFilterParams(i, hpAlpha, lpAlpha, hpResonance, lpResonance);
         }
 
-        m_mixerState.m_stereoMasteringChainInput.m_saturatorInput.PopulateUIState(&uiState->m_stereoMasteringChainUIState);
+        m_mixerState.m_masterChainInput.PopulateUIState(&uiState->m_stereoMasteringChainUIState);
         m_delay.PopulateUIState(&uiState->m_delayUIState, m_delayState);
         m_reverb.PopulateUIState(&uiState->m_reverbUIState);
 

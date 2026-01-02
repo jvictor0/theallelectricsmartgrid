@@ -145,47 +145,49 @@ struct MeterReader
 
     float GetReductionDbFSNormalized() const
     {
-        return std::max(0.0f, (18.0f + GetReductionDbFS()) / 18.0f);
+        return std::max(0.0f, (12.0f + GetReductionDbFS()) / 12.0f);
     }
 };
 
-struct QuadMeter
+template<size_t Size>
+struct MultichannelMeter
 {
-    Meter m_meters[4];
+    Meter m_meters[Size];
 
-    QuadMeter()
+    MultichannelMeter()
     {
     }
     
-    void Process(QuadFloat input)
+    void Process(MultiChannelFloat<Size> input)
     {
-        for (size_t i = 0; i < 4; ++i)
+        for (size_t i = 0; i < Size; ++i)
         {
             m_meters[i].Process(input[i]);
         }
     }
 };
 
-struct QuadMeterReader
+template<size_t Size>
+struct MultichannelMeterReader
 {
-    QuadMeter* m_meter;
+    MultichannelMeter<Size>* m_meter;
 
-    MeterReader m_meterReaders[4];
+    MeterReader m_meterReaders[Size];
 
-    QuadMeterReader()
+    MultichannelMeterReader()
       : m_meter(nullptr)
 
     {
     }
 
-    QuadMeterReader(QuadMeter* meter)
+    MultichannelMeterReader(MultichannelMeter<Size>* meter)
     {
         SetMeterReaders(meter);
     }
 
-    void SetMeterReaders(QuadMeter* meter)
+    void SetMeterReaders(MultichannelMeter<Size>* meter)
     {
-        for (size_t i = 0; i < 4; ++i)
+        for (size_t i = 0; i < Size; ++i)
         {
             m_meterReaders[i].m_meter = &meter->m_meters[i];
         }
@@ -195,7 +197,7 @@ struct QuadMeterReader
     
     void Process()
     {
-        for (size_t i = 0; i < 4; ++i)
+        for (size_t i = 0; i < Size; ++i)
         {
             m_meterReaders[i].Process();
         }
@@ -242,95 +244,8 @@ struct QuadMeterReader
     }
 };
 
-struct StereoMeter
-{
-    Meter m_meters[2];
+typedef MultichannelMeter<2> StereoMeter;
+typedef MultichannelMeter<4> QuadMeter;
 
-    StereoMeter()
-    {
-    }
-    
-    void Process(StereoFloat input)
-    {
-        for (size_t i = 0; i < 2; ++i)
-        {
-            m_meters[i].Process(input[i]);
-        }
-    }
-};
-
-struct StereoMeterReader
-{
-    StereoMeter* m_meter;
-
-    MeterReader m_meterReaders[2];
-
-    StereoMeterReader()
-      : m_meter(nullptr)
-
-    {
-    }
-
-    StereoMeterReader(StereoMeter* meter)
-    {
-        SetMeterReaders(meter);
-    }
-
-    void SetMeterReaders(StereoMeter* meter)
-    {
-        for (size_t i = 0; i < 2; ++i)
-        {
-            m_meterReaders[i].m_meter = &meter->m_meters[i];
-        }
-
-        m_meter = meter;
-    }
-    
-    void Process()
-    {
-        for (size_t i = 0; i < 2; ++i)
-        {
-            m_meterReaders[i].Process();
-        }
-    }
-
-    float GetRMSDbFS(size_t i) const
-    {
-        return m_meterReaders[i].GetRMSDbFS();
-    }
-    
-    float GetPeakDbFS(size_t i) const
-    {
-        return m_meterReaders[i].GetPeakDbFS();
-    }
-
-    float GetReductionDbFS(size_t i) const
-    {
-        return m_meterReaders[i].GetReductionDbFS();
-    }
-
-    float GetRMSLinear(size_t i) const
-    {
-        return m_meterReaders[i].GetRMSLinear();
-    }
-
-    float GetPeakLinear(size_t i) const
-    {
-        return m_meterReaders[i].GetPeakLinear();
-    }
-
-    float GetRMSDbFSNormalized(size_t i) const
-    {
-        return m_meterReaders[i].GetRMSDbFSNormalized();
-    }
-
-    float GetPeakDbFSNormalized(size_t i) const
-    {
-        return m_meterReaders[i].GetPeakDbFSNormalized();
-    }
-
-    float GetReductionDbFSNormalized(size_t i) const
-    {
-        return m_meterReaders[i].GetReductionDbFSNormalized();
-    }
-};
+typedef MultichannelMeterReader<2> StereoMeterReader;
+typedef MultichannelMeterReader<4> QuadMeterReader;

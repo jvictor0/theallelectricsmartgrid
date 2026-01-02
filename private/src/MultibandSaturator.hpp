@@ -13,9 +13,10 @@ struct MultibandSaturator
     LinkwitzRileyCrossover m_linkwitzRileyCrossover[NumChannels][NumBands - 1];
 
     float m_output[NumChannels];
+    float m_sub;
 
-    StereoMeter m_meter[NumBands];
-    StereoMeter m_masterMeter;
+    MultichannelMeter<NumChannels> m_meter[NumBands];
+    MultichannelMeter<NumChannels> m_masterMeter;
 
     struct UIState
     {
@@ -23,8 +24,8 @@ struct MultibandSaturator
         std::atomic<float> m_masterGain;
         std::atomic<float> m_crossoverFreq[NumBands - 1];
 
-        StereoMeterReader m_meterReader[NumBands];
-        StereoMeterReader m_masterMeterReader;
+        MultichannelMeterReader<NumChannels> m_meterReader[NumBands];
+        MultichannelMeterReader<NumChannels> m_masterMeterReader;
 
         UIState()
         {
@@ -75,7 +76,8 @@ struct MultibandSaturator
     {
         PhaseUtils::ExpParam m_gain[NumBands];
         PhaseUtils::ExpParam m_masterGain;
-        PhaseUtils::ExpParam m_crossoverFreq[NumBands - 1];
+        PhaseUtils::ExpParam m_bassFreq;
+        PhaseUtils::ExpParam m_crossoverFreqFactor[NumBands - 2];
 
         Input()
         {
@@ -88,23 +90,27 @@ struct MultibandSaturator
             m_masterGain = PhaseUtils::ExpParam(1.0 / 4.0f, 2.0f);
             m_masterGain.m_expParam = 1.0;
 
-            for (size_t i = 0; i < NumBands - 1; ++i)
+            m_bassFreq = PhaseUtils::ExpParam(0.5 / 1024.0f, 0.5 / (std::pow(1024, static_cast<float>(NumBands - 2) / (NumBands - 1))));
+            m_bassFreq.Update(0.5);
+
+            for (size_t i = 0; i < NumBands - 2; ++i)
             {
-                float lowerFreq = 0.5 / std::pow(1024, static_cast<float>(NumBands - i - 1) / (NumBands - 1));
-                float upperFreq = 0.5 / std::pow(1024, static_cast<float>(NumBands - i - 2) / (NumBands - 1));
-                m_crossoverFreq[i] = PhaseUtils::ExpParam(lowerFreq, upperFreq);
-                m_crossoverFreq[i].m_expParam = std::sqrt(lowerFreq * upperFreq);
+                m_crossoverFreqFactor[i] = PhaseUtils::ExpParam(1.0, 32.0f);
+                m_crossoverFreqFactor[i].Update(0.5);
             }
         }
 
         void PopulateUIState(UIState* uiState)
         {
+            uiState->m_crossoverFreq[0].store(m_bassFreq.m_expParam);
+            float crossoverFreq = m_bassFreq.m_expParam;
             for (size_t i = 0; i < NumBands; ++i)
             {
                 uiState->m_gain[i].store(m_gain[i].m_expParam);
-                if (i < NumBands - 1)
+                if (0 < i && i < NumBands - 1)
                 {
-                    uiState->m_crossoverFreq[i].store(m_crossoverFreq[i].m_expParam);
+                    crossoverFreq *= m_crossoverFreqFactor[i - 1].m_expParam;
+                    uiState->m_crossoverFreq[i].store(crossoverFreq);
                 }
             }
 
@@ -200,9 +206,12 @@ struct MultibandSaturator
                 bands[i][j] = 0.0f;
             }
 
-            for (size_t j = 0; j < NumBands - 1; ++j)
+            m_linkwitzRileyCrossover[i][0].SetCyclesPerSample(input.m_bassFreq.m_expParam);
+            float crossoverFreq = input.m_bassFreq.m_expParam;
+            for (size_t j = 1; j < NumBands - 1; ++j)
             {
-                m_linkwitzRileyCrossover[i][j].SetCyclesPerSample(input.m_crossoverFreq[j].m_expParam);
+                crossoverFreq *= input.m_crossoverFreqFactor[j - 1].m_expParam;
+                m_linkwitzRileyCrossover[i][j].SetCyclesPerSample(crossoverFreq);
             }
         }
 
@@ -211,7 +220,7 @@ struct MultibandSaturator
             BuildBandsRecursive(bands[i], in[i], NumBands, 0, i);
         }
 
-        float sub = 0;
+        m_sub = 0;
         for (size_t i = 0; i < NumChannels; ++i)
         {
             m_output[i] = 0.0f;
@@ -222,41 +231,26 @@ struct MultibandSaturator
 
             if (monoTheBass)
             {
-                sub += bands[i][0];
+                m_sub += bands[i][0];
             }
         }
 
         if (monoTheBass)
         {
-            sub = m_meter[0].m_meters[0].ProcessAndSaturate(input.m_gain[0].m_expParam * sub / NumChannels);
+            m_sub = m_meter[0].m_meters[0].ProcessAndSaturate(input.m_gain[0].m_expParam * m_sub / NumChannels);
         }
 
         for (size_t i = 0; i < NumChannels; ++i)
         {
-            m_output[i] += sub;
+            m_output[i] += m_sub;
             m_output[i] = m_masterMeter.m_meters[i].ProcessAndSaturate(input.m_masterGain.m_expParam * m_output[i]);
         }
     }
 
-    StereoFloat Process(const Input& input, StereoFloat in, bool monoTheBass)
+    MultiChannelFloat<NumChannels> Process(const Input& input, MultiChannelFloat<NumChannels> in, bool monoTheBass)
     {
         assert(NumChannels == 2);
-        float inputArray[2];
-        inputArray[0] = in[0];
-        inputArray[1] = in[1];
-        Process(input, inputArray, monoTheBass);
-        return StereoFloat(m_output[0], m_output[1]);
-    }
-
-    QuadFloat Process(const Input& input, QuadFloat in, bool monoTheBass)
-    {
-        assert(NumChannels == 4);
-        float inputArray[4];
-        inputArray[0] = in[0];
-        inputArray[1] = in[1];
-        inputArray[2] = in[2];
-        inputArray[3] = in[3];
-        Process(input, inputArray, monoTheBass);
-        return QuadFloat(m_output[0], m_output[1], m_output[2], m_output[3]);
+        Process(input, in.m_values, monoTheBass);
+        return MultiChannelFloat<NumChannels>(m_output);
     }
 };

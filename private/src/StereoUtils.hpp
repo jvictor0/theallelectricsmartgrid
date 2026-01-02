@@ -5,12 +5,19 @@
 
 struct StereoFloat
 {
-    float m_values[2];
+    static constexpr size_t x_numChannels = 2;
+    float m_values[x_numChannels];
 
     StereoFloat(float left, float right)
     {
         m_values[0] = left;
         m_values[1] = right;
+    }
+
+    StereoFloat(const float* values)
+    {
+        m_values[0] = values[0];
+        m_values[1] = values[1];
     }
 
     StereoFloat()
@@ -170,3 +177,20 @@ struct StereoFloat
     }
 };
 
+template <size_t Size>
+struct MultiChannelFloatTypeHolder;
+
+template <>
+struct MultiChannelFloatTypeHolder<2> 
+{
+    using type = StereoFloat;
+};
+
+template <>
+struct MultiChannelFloatTypeHolder<4> 
+{
+    using type = QuadFloat;
+};
+
+template <size_t Size>
+using MultiChannelFloat = typename MultiChannelFloatTypeHolder<Size>::type;
