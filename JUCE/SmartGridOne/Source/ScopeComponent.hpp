@@ -314,10 +314,10 @@ struct AnalyserComponent : public juce::Component
         float lpResonance = m_filterParams[i].m_lpResonance.load();
         float hpResonance = m_filterParams[i].m_hpResonance.load();
 
-        float lpResponse = LadderFilter::FrequencyResponse(lpAlpha, lpResonance, freq);
-        float hpResponse = LadderFilter::FrequencyResponseHP(hpAlpha, hpResonance, freq);
+        std::complex<float> lpResponse = LadderFilterLP::TransferFunction(lpAlpha, lpResonance, freq);
+        std::complex<float> hpResponse = LadderFilterHP::TransferFunction(hpAlpha, hpResonance, freq);
 
-        return lpResponse * hpResponse;
+        return std::abs(lpResponse * hpResponse);
     }
 
     void paint(juce::Graphics& g) override

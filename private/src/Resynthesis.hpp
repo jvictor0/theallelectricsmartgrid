@@ -288,8 +288,6 @@ struct Resynthesizer
                 return;
             }
 
-            return;
-
             double shiftDouble = shift.ToDouble();
             double phases[x_maxComponents];
             int targetBins[x_maxComponents];
@@ -395,8 +393,10 @@ struct Resynthesizer
         {
             float unisonGain = GetUnisonGainForOscillator(index);
             Oscillator::Input input;
-            input.m_gain[0] = std::max(0.0f, 1 - m_fade[0]);
-            input.m_gain[1] = std::max(0.0f, m_fade[0] * (1 - m_fade[1]));
+            float fade0 = m_fade[0] * m_fade[0] * m_fade[0] * m_fade[0];
+            float fade1 = m_fade[1] * m_fade[1] * m_fade[1] * m_fade[1];
+            input.m_gain[0] = std::max(0.0f, 1 - fade0);
+            input.m_gain[1] = std::max(0.0f, fade0 * (1 - fade1));
             input.m_gain[2] = std::max(0.0f, (1 - input.m_gain[0] - input.m_gain[1]));
             for (size_t i = 0; i < 3; ++i)
             {
@@ -679,7 +679,6 @@ struct Resynthesizer
     {
         PrimeAnalysis(previousWaveTable);
         StartGrain(grain, input);
-        PrintTopStuff();
     }
 
     void PrintTopStuff()

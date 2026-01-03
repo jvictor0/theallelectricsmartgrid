@@ -143,6 +143,38 @@ struct EncoderBankBankInternal
         return result;
     }
 
+    BitSet16 GetGesturesAffecting()
+    {
+        BitSet16 result;
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            result = result.Union(m_banks[i].GetGesturesAffecting());
+        }
+
+        return result;
+    }
+
+    SmartGrid::Color GetGestureColor(int gesture)
+    {
+        bool found = false;
+        SmartGrid::Color result = SmartGrid::Color::Off;
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            if (m_banks[i].GetGesturesAffecting().Get(gesture))
+            {
+                if (found)
+                {
+                    return SmartGrid::Color::White;
+                }
+
+                result = m_color[i];
+                found = true;
+            }
+        }
+
+        return result;
+    }
+
     // Returns the gestures affecting the specified bank for the specified track
     //
     BitSet16 GetGesturesAffectingBankForTrack(size_t bank, size_t track)

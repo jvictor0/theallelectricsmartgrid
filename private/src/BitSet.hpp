@@ -53,6 +53,11 @@ struct BitSet
         m_bits = 0;
     }
 
+    size_t Count() const
+    {
+        return __builtin_popcountll(m_bits);
+    }
+
     T m_bits;
 };
 

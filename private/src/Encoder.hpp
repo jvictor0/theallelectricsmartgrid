@@ -216,6 +216,12 @@ struct StateEncoderCell : public EncoderCell
 
             if (input.m_blendFactor != m_blendFactor || input.m_scene1 != m_scene1 || input.m_scene2 != m_scene2)
             {
+                if (input.m_blendFactor == 0 || input.m_blendFactor == 1 || 
+                    m_blendFactor == 0 || m_blendFactor == 1)
+                {
+                    *changedScene = true;
+                }
+
                 m_blendFactor = input.m_blendFactor;
                 m_scene1 = input.m_scene1;
                 m_scene2 = input.m_scene2;
@@ -286,10 +292,30 @@ struct StateEncoderCell : public EncoderCell
     {
         for (size_t i = 0; i < m_numTracks; ++i)
         {
-            if (m_values[i][m_sceneManager->m_scene1] != 0 || m_values[i][m_sceneManager->m_scene2] != 0)
+            if (m_values[i][m_sceneManager->m_scene1] != 0 && m_sceneManager->m_blendFactor < 1)
             {
                 return false;
             }
+
+            if (m_values[i][m_sceneManager->m_scene2] != 0 && m_sceneManager->m_blendFactor > 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool IsZeroCurrentSceneForTrack(size_t track)
+    {
+        if (m_values[track][m_sceneManager->m_scene1] != 0 && m_sceneManager->m_blendFactor < 1)
+        {
+            return false;
+        }
+        
+        if (m_values[track][m_sceneManager->m_scene2] != 0 && m_sceneManager->m_blendFactor > 0)
+        {
+            return false;
         }
 
         return true;

@@ -42,6 +42,18 @@ namespace SmartGridOne
         Stereo = 4,
         NumScopes = 5
     };
+
+    enum class ModulationGlyphs : size_t
+    {
+        LFO = 0,
+        ADSR = 1,
+        Sheaf = 2,
+        SmoothRandom = 3,
+        Noise = 4,
+        Quadrature = 5,
+        Spread = 6,
+        None = 7,
+    };
 }
 
 //

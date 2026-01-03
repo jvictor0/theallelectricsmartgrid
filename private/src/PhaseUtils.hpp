@@ -71,7 +71,7 @@ struct ExpParam
     {
     }
 
-    ExpParam(float base)
+    explicit ExpParam(float base)
         : m_baseParam(0)
         , m_expParam(1)
         , m_max(base)
@@ -152,7 +152,7 @@ struct ZeroedExpParam
     float m_expParam;
     float m_baseParam;
 
-    ZeroedExpParam(float base)
+    explicit ZeroedExpParam(float base)
         : m_base(base)
         , m_expParam(0)
         , m_baseParam(0)

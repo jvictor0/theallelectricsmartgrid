@@ -196,15 +196,15 @@ struct TheNonagonSquiggleBoyWrldBldr
             {
                 if (m_owner->m_internal->m_squiggleBoyState.m_selectedGesture.Get(m_gesture))
                 {
-                    return SmartGrid::Color::Red;
+                    return SmartGrid::Color::White;
                 }
                 else if (m_owner->m_internal->m_squiggleBoy.IsGestureAffectingAnyBank(m_gesture))
                 {
-                    return SmartGrid::Color::Pink;
+                    return m_owner->m_internal->m_squiggleBoy.GetGestureColor(m_gesture);
                 }
                 else
                 {
-                    return SmartGrid::Color::Grey;
+                    return SmartGrid::Color::Grey.Dim();
                 }
             }
 
@@ -252,6 +252,11 @@ struct TheNonagonSquiggleBoyWrldBldr
             {
                 if (!m_owner->m_internal->m_squiggleBoyState.m_selectedGesture.IsZero())
                 {
+                    if (SquiggleBoyWithEncoderBank::x_totalNumBanks <= m_ordinal)
+                    {
+                        return SmartGrid::Color::Off;
+                    }
+
                     // When gestures are selected, show if any affects this bank for the current track
                     //
                     size_t currentTrack = 0;

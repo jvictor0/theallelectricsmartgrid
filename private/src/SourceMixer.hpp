@@ -49,8 +49,8 @@ struct SourceMixer
 
             float FrequencyResponse(float freq)
             {
-                float lpResponse = LadderFilter::FrequencyResponse(m_lpAlpha.load(), 0.0f, freq);
-                float hpResponse = LadderFilter::FrequencyResponseHP(m_hpAlpha.load(), 0.0f, freq);
+                float lpResponse = LadderFilterLP::FrequencyResponse(m_lpAlpha.load(), 0.0f, freq);
+                float hpResponse = LadderFilterHP::FrequencyResponse(m_hpAlpha.load(), 0.0f, freq);
                 return lpResponse * hpResponse;
             }                
         };
@@ -72,7 +72,7 @@ struct SourceMixer
             m_hpFilter.SetCutoff(input.m_hpCutoff.m_expParam);
             m_lpFilter.SetCutoff(input.m_hpCutoff.m_expParam * input.m_lpFactor.m_expParam);
             m_output = m_lpFilter.Process(m_output);
-            m_output = m_hpFilter.ProcessHP(m_output);
+            m_output = m_hpFilter.Process(m_output);
             m_output = m_meter.ProcessAndSaturate(m_output);
             m_postFilterScopeWriter.Write(m_output);
             return m_output;
@@ -91,8 +91,8 @@ struct SourceMixer
 
         float m_output;
 
-        LadderFilter m_lpFilter;
-        LadderFilter m_hpFilter;
+        LadderFilterLP m_lpFilter;
+        LadderFilterHP m_hpFilter;
         Meter m_meter;
         ScopeWriterHolder m_preFilterScopeWriter;
         ScopeWriterHolder m_postFilterScopeWriter;

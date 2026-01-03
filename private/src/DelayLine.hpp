@@ -406,12 +406,6 @@ struct GrainManager
                 prevTable.m_table[i] = m_delayLine->ReadRealTime(startTime + i - Resynthesizer::x_H) * window;
             }
 
-            if (rms > 1e-8)
-            {
-                INFO("+++++++++++++++++++++++");
-                INFO("%p synthesizing at wall clock time %f, warped time %f, buffer time %f", this, wallTime, warpedTime, startTime);
-            }
-
             m_owner->m_resynthesizer.Process(prevTable, &m_grain, input);
         }
 

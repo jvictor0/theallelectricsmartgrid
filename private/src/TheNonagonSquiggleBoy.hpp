@@ -177,7 +177,6 @@ struct TheNonagonSquiggleBoyInternal
             if (m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i].m_trig)            
             {
                 m_squiggleBoyState.m_baseFreq[i] = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
-                m_squiggleBoyState.m_ladderBaseFreq[i] = std::pow(m_squiggleBoyState.m_baseFreq[i], 0.7);
             }
 
             m_squiggleBoy.m_state[i].m_adspControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i];
@@ -302,6 +301,8 @@ struct TheNonagonSquiggleBoyInternal
                 SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
                 m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetIndicatorColor(i, color);
             }
+
+            m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetMainIndicatorColor(TheNonagonSmartGrid::TrioColor(m_activeTrio));
         }
         else
         {
@@ -309,6 +310,8 @@ struct TheNonagonSquiggleBoyInternal
             {                
                 m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetIndicatorColor(i, SmartGrid::Color::White);
             }
+
+            m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetMainIndicatorColor(SmartGrid::Color::White);
         }
 
         m_uiState.m_analogUIState.SetValue(0, m_sceneState.m_blendFactor);
@@ -428,11 +431,11 @@ struct TheNonagonSquiggleBoyInternal
         {
             if (m_owner->m_squiggleBoyState.m_selectedGesture.Get(m_gesture))
             {
-                return SmartGrid::Color::Red;
+                return SmartGrid::Color::White;
             }
             else
             {
-                return SmartGrid::Color::Grey;
+                return SmartGrid::Color::Grey.Dim();
             }
         }
 

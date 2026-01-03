@@ -5,6 +5,8 @@
   <MAINGROUP id="si886g" name="SmartGridOne">
     <GROUP id="{2DDA3903-F6ED-9E0F-0737-E5B903BFA61C}" name="Source">
       <FILE id="MD2rs9" name="IOUtils.cpp" compile="1" resource="0" file="Source/IOUtils.cpp"/>
+      <FILE id="iCloudHelperMm" name="iCloudHelper.mm" compile="1" resource="0"
+            file="Source/iCloudHelper.mm"/>
       <FILE id="kKFGmW" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
       <FILE id="HwPNTB" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
       <FILE id="Lhzo5a" name="MainComponent.cpp" compile="1" resource="0"
@@ -13,6 +15,22 @@
             file="Source/ConfigPage.hpp"/>
       <FILE id="NonagonWrapperH" name="NonagonWrapper.hpp" compile="0" resource="0"
             file="Source/NonagonWrapper.hpp"/>
+    </GROUP>
+    <GROUP id="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}" name="Assets">
+      <FILE id="modBadgeLFO" name="mod_badge_LFO.png" compile="0" resource="1"
+            file="Assets/mod_badge_LFO.png"/>
+      <FILE id="modBadgeADSR" name="mod_badge_ADSR.png" compile="0" resource="1"
+            file="Assets/mod_badge_ADSR.png"/>
+      <FILE id="modBadgeSheaf" name="mod_badge_Sheaf.png" compile="0" resource="1"
+            file="Assets/mod_badge_Sheaf.png"/>
+      <FILE id="modBadgeSmoothRandom" name="mod_badge_SmoothRandom.png" compile="0" resource="1"
+            file="Assets/mod_badge_SmoothRandom.png"/>
+      <FILE id="modBadgeNoise" name="mod_badge_Noise.png" compile="0" resource="1"
+            file="Assets/mod_badge_Noise.png"/>
+      <FILE id="modBadgeQuadrature" name="mod_badge_Quadrature.png" compile="0" resource="1"
+            file="Assets/mod_badge_Quadrature.png"/>
+      <FILE id="modBadgeSpread" name="mod_badge_Spread.png" compile="0" resource="1"
+            file="Assets/mod_badge_Spread.png"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

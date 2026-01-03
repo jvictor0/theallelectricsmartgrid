@@ -502,7 +502,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
             m_phaseModLFOInput.m_size = x_numLoops;
             m_phaseModLFOInput.m_values = m_phasorValues;
             m_phaseModLFOInput.m_top = m_phasorTops;
-            m_modIndex = 0;
             m_phaseModLFOInput.m_phaseShift = -0.75;
 
             m_modIndex.SetBaseByCenter(1.0 / 16);

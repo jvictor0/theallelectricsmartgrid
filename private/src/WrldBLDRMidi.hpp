@@ -213,8 +213,7 @@ namespace SmartGrid
                     }
                     else if (m_mode == Mode::EncoderIndicator)
                     {
-                        size_t voice = m_encoderState->GetNumVoices() * m_encoderState->GetCurrentTrack();
-                        color = m_encoderState->GetIndicatorColor(voice);
+                        color = m_encoderState->GetMainIndicatorColor();
                     }
 
                     if (!m_set[i][j] || color != m_color[i][j])

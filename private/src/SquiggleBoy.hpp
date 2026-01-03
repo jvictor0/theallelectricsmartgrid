@@ -83,8 +83,8 @@ struct SquiggleBoyVoice
                 , m_bitCrushAmount(0)
                 , m_saturationGain(0.25)
             {
-                m_crossModIndex[0] = PhaseUtils::ZeroedExpParam(2.0);
-                m_crossModIndex[1] = PhaseUtils::ZeroedExpParam(2.0);
+                m_crossModIndex[0] = PhaseUtils::ZeroedExpParam(8.0);
+                m_crossModIndex[1] = PhaseUtils::ZeroedExpParam(8.0);
             }
         };
 
@@ -179,8 +179,8 @@ struct SquiggleBoyVoice
 
     struct FilterSection
     {
-        LadderFilter m_lpFilter;
-        LadderFilter m_hpFilter;
+        LadderFilterLP m_lpFilter;
+        LadderFilterHP m_hpFilter;
         ADSP m_adsp;
 
         SampleRateReducer m_sampleRateReducer;
@@ -200,8 +200,8 @@ struct SquiggleBoyVoice
             float m_ladderBaseFreq;
             PhaseUtils::ExpParam m_lpCutoffFactor;
             PhaseUtils::ExpParam m_hpCutoffFactor;
-            float m_lpResonance;
-            float m_hpResonance;
+            PhaseUtils::ZeroedExpParam m_lpResonance;
+            PhaseUtils::ZeroedExpParam m_hpResonance;
             float m_envDepth;
 
             ADSP::InputSetter m_adspInputSetter;
@@ -216,13 +216,13 @@ struct SquiggleBoyVoice
 
             Input()
                 : m_vcoBaseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
-                , m_lpCutoffFactor(1.0f, 4096.0f)
-                , m_hpCutoffFactor(0.25f, 1024.0f)
-                , m_lpResonance(0)
-                , m_hpResonance(0)
+                , m_lpCutoffFactor(0.25f, 1024.0f)
+                , m_hpCutoffFactor(0.25f, 256.0f)
                 , m_envDepth(0)
                 , m_sampleRateReducerFreq(1.0f, 2048.0f)
             {
+                m_lpResonance.SetBaseByCenter(0.125);
+                m_hpResonance.SetBaseByCenter(0.125);
             }
         };
         
@@ -231,13 +231,13 @@ struct SquiggleBoyVoice
             m_adsp.Process(input.m_adspInput);
 
             m_hpFilter.SetCutoff(input.m_vcoBaseFreq * input.m_hpCutoffFactor.m_expParam);
-            m_hpFilter.SetResonance(input.m_hpResonance);
+            m_hpFilter.SetResonance(input.m_hpResonance.m_expParam);
             m_lpFilter.SetCutoff(input.m_vcoBaseFreq * input.m_hpCutoffFactor.m_expParam * input.m_lpCutoffFactor.m_expParam);
-            m_lpFilter.SetResonance(input.m_lpResonance);
+            m_lpFilter.SetResonance(input.m_lpResonance.m_expParam);
 
             m_output = vcoOutput;
             m_output = m_lpFilter.Process(vcoOutput);
-            m_output = m_hpFilter.ProcessHP(m_output);
+            m_output = m_hpFilter.Process(m_output);
 
             m_sampleRateReducer.SetFreq(input.m_vcoBaseFreq * input.m_sampleRateReducerFreq.m_expParam);
             m_output = m_sampleRateReducer.Process(m_output);
@@ -534,8 +534,8 @@ struct SquiggleBoy
     QuadDelay::Input m_delayState;
     QuadReverb::Input m_reverbState;
     TheoryOfTime* m_theoryOfTime;
-    float m_delayToReverbSend;
-    float m_reverbToDelaySend;
+    PhaseUtils::ZeroedExpParam m_delayToReverbSend;
+    PhaseUtils::ZeroedExpParam m_reverbToDelaySend;
 
     PhaseUtils::SimpleOsc m_panPhase;
 
@@ -546,8 +546,8 @@ struct SquiggleBoy
     SquiggleBoy()
     {
         m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numSources;
-        m_delayToReverbSend = 0.0;
-        m_reverbToDelaySend = 0.0;
+        m_delayToReverbSend.m_expParam = 0.0;
+        m_reverbToDelaySend.m_expParam = 0.0;
         m_theoryOfTime = nullptr;
 
         for (size_t i = 0; i < 4; ++i)
@@ -595,11 +595,11 @@ struct SquiggleBoy
 
     void ProcessSends()
     {
-        m_delayState.m_input = m_mixer.m_send[0] + m_mixerState.m_return[1] * m_reverbToDelaySend;
+        m_delayState.m_input = m_mixer.m_send[0] + m_mixerState.m_return[1] * m_reverbToDelaySend.m_expParam;
         m_mixerState.m_return[0] = m_delay.Process(m_delayState);
         m_delayState.m_return = m_mixerState.m_return[0];
 
-        m_reverbState.m_input = m_mixer.m_send[1] + m_mixerState.m_return[0] * m_delayToReverbSend;
+        m_reverbState.m_input = m_mixer.m_send[1] + m_mixerState.m_return[0] * m_delayToReverbSend.m_expParam;
         m_mixerState.m_return[1] = m_reverb.Process(m_reverbState);
         m_reverbState.m_return = m_mixerState.m_return[1];
     }
@@ -723,9 +723,9 @@ struct SquiggleBoy
             m_mixerState.m_input[i + x_numVoices] = m_sourceMixer.m_sources[i].m_output;
             m_mixerState.m_x[i + x_numVoices] = 0.5f;
             m_mixerState.m_y[i + x_numVoices] = 0.5f;
-            m_mixerState.m_gain[i + x_numVoices] = 1.0 / std::sqrtf(SourceMixer::x_numSources);
-            m_mixerState.m_sendGain[i + x_numVoices][0] = 0;
-            m_mixerState.m_sendGain[i + x_numVoices][1] = 0;
+            m_mixerState.m_gain[i + x_numVoices].m_expParam = 1.0;
+            m_mixerState.m_sendGain[i + x_numVoices][0].m_expParam = 0;
+            m_mixerState.m_sendGain[i + x_numVoices][1].m_expParam = 0;
         }
 
         m_mixer.ProcessInputs(m_mixerState);
@@ -760,7 +760,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     static constexpr size_t x_numGlobalBanks = 3;
     EncoderBankBankInternal<x_numGlobalBanks> m_globalEncoderBank;
 
-    static constexpr size_t x_TotalNumBanks = x_numVoiceBanks + x_numQuadBanks + x_numGlobalBanks;
+    static constexpr size_t x_totalNumBanks = x_numVoiceBanks + x_numQuadBanks + x_numGlobalBanks;
 
     static constexpr size_t x_numFaders = 16;
 
@@ -1403,13 +1403,20 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_ampInput.m_subGain.Update(m_voiceEncoderBank.GetValue(0, 2, 3, i));
 
             
-            m_state[i].m_filterInput.m_vcoBaseFreq = m_voices[i].m_baseFreqSlew.m_output;
-            m_state[i].m_filterInput.m_ladderBaseFreq = m_voices[i].m_ladderFreqSlew.Process(input.m_ladderBaseFreq[i]);
+            m_state[i].m_filterInput.m_vcoBaseFreq = m_voices[i].m_baseFreqSlew.m_output;            
             
             m_state[i].m_filterInput.m_lpCutoffFactor.Update(m_voiceEncoderBank.GetValue(1, 2, 1, i));
             m_state[i].m_filterInput.m_hpCutoffFactor.Update(m_voiceEncoderBank.GetValue(1, 0, 1, i));
-            m_state[i].m_filterInput.m_lpResonance = m_voiceEncoderBank.GetValue(1, 3, 1, i);
-            m_state[i].m_filterInput.m_hpResonance = m_voiceEncoderBank.GetValue(1, 1, 1, i);
+            m_state[i].m_filterInput.m_lpResonance.Update(m_voiceEncoderBank.GetValue(1, 3, 1, i));
+            m_state[i].m_filterInput.m_hpResonance.Update(m_voiceEncoderBank.GetValue(1, 1, 1, i));
+
+            if (m_state[i].m_adspControl.m_trig)
+            {
+                input.m_ladderBaseFreq[i] = std::powf(input.m_baseFreq[i], 0.707f);     
+            }
+            
+            m_state[i].m_filterInput.m_ladderBaseFreq = m_voices[i].m_ladderFreqSlew.Process(input.m_ladderBaseFreq[i]);
+            
 
             m_state[i].m_filterInput.SetADSP(
                 m_voiceEncoderBank.GetValue(1, 0, 0, i), 
@@ -1445,9 +1452,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_state[i].m_squiggleLFOInput[j].m_shFade = m_voiceEncoderBank.GetValue(3, 3, 2 * j + 1, i);
             }
 
-            m_mixerState.m_gain[i] = m_voiceEncoderBank.GetValue(1, 0, 3, i);
-            m_mixerState.m_sendGain[i][0] = m_voiceEncoderBank.GetValue(1, 1, 3, i);
-            m_mixerState.m_sendGain[i][1] = m_voiceEncoderBank.GetValue(1, 2, 3, i);
+            m_mixerState.m_gain[i].Update(m_voiceEncoderBank.GetValue(1, 0, 3, i));
+            m_mixerState.m_sendGain[i][0].Update(m_voiceEncoderBank.GetValue(1, 1, 3, i));
+            m_mixerState.m_sendGain[i][1].Update(m_voiceEncoderBank.GetValue(1, 2, 3, i));
 
             m_state[i].SetGates();
         }
@@ -1484,8 +1491,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         delayInputSetterInput.m_theoryOfTime = m_theoryOfTime;
         m_delayInputSetter.Process(delayInputSetterInput, m_delayState);
-        m_delayToReverbSend = m_quadEncoderBank.GetValue(0, 3, 1, 0);
-        m_mixerState.m_returnGain[0] = m_quadEncoderBank.GetValue(0, 3, 3, 0);
+        m_delayToReverbSend.Update(m_quadEncoderBank.GetValue(0, 3, 1, 0));
+        m_mixerState.m_returnGain[0].Update(m_quadEncoderBank.GetValue(0, 3, 3, 0));
 
         QuadReverbInputSetter::Input reverbInputSetterInput;
         for (int i = 0; i < 4; ++i)
@@ -1501,8 +1508,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
         
         m_reverbInputSetter.Process(reverbInputSetterInput, m_reverbState);
-        m_reverbToDelaySend = m_quadEncoderBank.GetValue(2, 3, 1, 0);
-        m_mixerState.m_returnGain[1] = m_quadEncoderBank.GetValue(2, 3, 3, 0) / 2;
+        m_reverbToDelaySend.Update(m_quadEncoderBank.GetValue(2, 3, 1, 0));
+        m_mixerState.m_returnGain[1].Update(m_quadEncoderBank.GetValue(2, 3, 3, 0) / 2);
 
         input.m_tempo.Update(m_globalEncoderBank.GetValue(0, 0, 0, 0));
 
@@ -1601,21 +1608,30 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     //
     bool IsGestureAffectingAnyBank(int gesture)
     {
-        for (size_t ordinal = 0; ordinal < x_TotalNumBanks; ++ordinal)
-        {
-            size_t numTracks = (ordinal < x_numVoiceBanks) ? x_numTracks : 1;
-            for (size_t track = 0; track < numTracks; ++track)
-            {
-                if (IsGestureAffectingBank(gesture, ordinal, track))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return m_voiceEncoderBank.GetGesturesAffecting().Get(gesture) ||
+               m_quadEncoderBank.GetGesturesAffecting().Get(gesture) ||
+               m_globalEncoderBank.GetGesturesAffecting().Get(gesture);
     }
 
+    SmartGrid::Color GetGestureColor(int gesture)
+    {
+        SmartGrid::Color voiceResult = m_voiceEncoderBank.GetGestureColor(gesture);        
+        SmartGrid::Color quadResult = m_quadEncoderBank.GetGestureColor(gesture);        
+        SmartGrid::Color globalResult = m_globalEncoderBank.GetGestureColor(gesture);        
+        int found = (voiceResult != SmartGrid::Color::Off) + (quadResult != SmartGrid::Color::Off) + (globalResult != SmartGrid::Color::Off);
+        if (found > 1)
+        {
+            return SmartGrid::Color::White;
+        }
+        else if (found == 1)
+        {
+            return voiceResult != SmartGrid::Color::Off ? voiceResult : quadResult != SmartGrid::Color::Off ? quadResult : globalResult;
+        }
+        else
+        {
+            return SmartGrid::Color::Grey.Dim();
+        }
+    }
     void ResetGrid(uint64_t ix)
     {
         if (ix < SquiggleBoyWithEncoderBank::x_numVoiceBanks)
@@ -1644,6 +1660,44 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_voiceEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
         m_quadEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
         m_globalEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
+
+        SmartGrid::Color colors[3] = 
+        { 
+            SmartGrid::Color::Cyan.AdjustBrightness(0.5), 
+            SmartGrid::Color::Indigo.AdjustBrightness(0.5), 
+            SmartGrid::Color::SeaGreen.AdjustBrightness(0.5) 
+        };
+
+        uiState->m_encoderBankUIState.SetModulationGlyph(2, SmartGridOne::ModulationGlyphs::SmoothRandom, colors[0]);
+        uiState->m_encoderBankUIState.SetModulationGlyph(3, SmartGridOne::ModulationGlyphs::SmoothRandom, colors[1]);
+        uiState->m_encoderBankUIState.SetModulationGlyph(6, SmartGridOne::ModulationGlyphs::LFO, colors[2]);
+        uiState->m_encoderBankUIState.SetModulationGlyph(7, SmartGridOne::ModulationGlyphs::LFO, colors[0]);
+        uiState->m_encoderBankUIState.SetModulationGlyph(11, SmartGridOne::ModulationGlyphs::Spread, colors[1]);
+        uiState->m_encoderBankUIState.SetModulationGlyph(14, SmartGridOne::ModulationGlyphs::Noise, colors[2]);
+        if (m_selectedAbsoluteEncoderBank < x_numVoiceBanks)
+        {
+            uiState->m_encoderBankUIState.SetModulationGlyph(4, SmartGridOne::ModulationGlyphs::ADSR, colors[0]);
+            uiState->m_encoderBankUIState.SetModulationGlyph(5, SmartGridOne::ModulationGlyphs::ADSR, colors[1]);
+            uiState->m_encoderBankUIState.SetModulationGlyph(8, SmartGridOne::ModulationGlyphs::Sheaf, colors[0]);
+            uiState->m_encoderBankUIState.SetModulationGlyph(9, SmartGridOne::ModulationGlyphs::Sheaf, colors[1]);
+            uiState->m_encoderBankUIState.SetModulationGlyph(10, SmartGridOne::ModulationGlyphs::Sheaf, colors[2]);
+        }
+        else if (m_selectedAbsoluteEncoderBank < x_numVoiceBanks + x_numQuadBanks)
+        {
+            uiState->m_encoderBankUIState.SetModulationGlyph(4, SmartGridOne::ModulationGlyphs::Quadrature, SmartGrid::Color::Pink);
+            uiState->m_encoderBankUIState.SetModulationGlyph(5, SmartGridOne::ModulationGlyphs::Quadrature, SmartGrid::Color::Purple);
+            uiState->m_encoderBankUIState.SetModulationGlyph(8, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+            uiState->m_encoderBankUIState.SetModulationGlyph(9, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+            uiState->m_encoderBankUIState.SetModulationGlyph(10, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+        }
+        else
+        {
+            uiState->m_encoderBankUIState.SetModulationGlyph(4, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+            uiState->m_encoderBankUIState.SetModulationGlyph(5, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+            uiState->m_encoderBankUIState.SetModulationGlyph(8, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+            uiState->m_encoderBankUIState.SetModulationGlyph(9, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+            uiState->m_encoderBankUIState.SetModulationGlyph(10, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+        }
         
         uiState->m_activeTrack.store(m_voiceEncoderBank.GetCurrentTrack());
 
@@ -1661,8 +1715,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             float hpAlpha = m_voices[i].m_filter.m_hpFilter.m_stage4.m_alpha;
             float lpAlpha = m_voices[i].m_filter.m_lpFilter.m_stage4.m_alpha;
-            float lpResonance = m_voices[i].m_filter.m_lpFilter.m_feedback;
-            float hpResonance = m_voices[i].m_filter.m_hpFilter.m_feedback;
+            float lpResonance = m_voices[i].m_filter.m_lpFilter.m_kEff;
+            float hpResonance = m_voices[i].m_filter.m_hpFilter.m_kEff;
             uiState->SetFilterParams(i, hpAlpha, lpAlpha, hpResonance, lpResonance);
         }
 

@@ -3,6 +3,7 @@
 #include <atomic>
 #include "SmartGrid.hpp"
 #include "AtomicString.hpp"
+#include "SmartGridOneScopeEnums.hpp"
 
 struct EncoderUIState
 {
@@ -12,6 +13,8 @@ struct EncoderUIState
     std::atomic<float> m_minValues[16];
     std::atomic<float> m_maxValues[16];
     std::atomic<bool> m_connected;
+    std::atomic<BitSet16> m_modulatorsAffecting;
+    std::atomic<BitSet16> m_gesturesAffecting;
 
     EncoderUIState()
         : m_color(SmartGrid::Color::Off)
@@ -33,10 +36,23 @@ struct EncoderBankUIState
     AtomicString m_strings[4][4];
 
     std::atomic<SmartGrid::Color> m_indicatorColor[16];
+    std::atomic<SmartGrid::Color> m_mainIndicatorColor;
 
     std::atomic<int> m_numTracks;
     std::atomic<int> m_numVoices;
     std::atomic<int> m_currentTrack;
+
+    std::atomic<SmartGridOne::ModulationGlyphs> m_modulationGlyphs[16];
+    std::atomic<SmartGrid::Color> m_modulationGlyphColor[16];
+
+    EncoderBankUIState()
+    {
+        for (size_t i = 0; i < 16; ++i)
+        {
+            m_modulationGlyphs[i].store(SmartGridOne::ModulationGlyphs::None);
+            m_modulationGlyphColor[i].store(SmartGrid::Color::Off);
+        }
+    }
 
     SmartGrid::Color GetColor(size_t i, size_t j)
     {
@@ -102,7 +118,17 @@ struct EncoderBankUIState
     {
         m_indicatorColor[i].store(color);
     }
+
+    void SetMainIndicatorColor(SmartGrid::Color color)
+    {
+        m_mainIndicatorColor.store(color);
+    }
     
+    SmartGrid::Color GetMainIndicatorColor()
+    {
+        return m_mainIndicatorColor.load();
+    }
+
     void SetBrightness(size_t i, size_t j, float brightness)
     {
         m_states[i][j].m_brightness.store(brightness);
@@ -154,6 +180,42 @@ struct EncoderBankUIState
     void SetFromFloat(size_t i, size_t j, float value, const char* units)
     {
         m_strings[i][j].SetFromFloat(value, units);
+    }
+
+    void SetModulatorsAffecting(size_t i, size_t j, BitSet16 modulatorsAffecting)
+    {
+        m_states[i][j].m_modulatorsAffecting.store(modulatorsAffecting);
+    }
+
+    void SetGesturesAffecting(size_t i, size_t j, BitSet16 gesturesAffecting)
+    {
+        m_states[i][j].m_gesturesAffecting.store(gesturesAffecting);
+    }
+
+    BitSet16 GetModulatorsAffecting(size_t i, size_t j)
+    {
+        return m_states[i][j].m_modulatorsAffecting.load();
+    }
+
+    BitSet16 GetGesturesAffecting(size_t i, size_t j)
+    {
+        return m_states[i][j].m_gesturesAffecting.load();
+    }
+
+    void SetModulationGlyph(size_t i, SmartGridOne::ModulationGlyphs glyph, SmartGrid::Color color)
+    {
+        m_modulationGlyphs[i].store(glyph);
+        m_modulationGlyphColor[i].store(color);
+    }
+
+    SmartGridOne::ModulationGlyphs GetModulationGlyph(size_t i)
+    {
+        return m_modulationGlyphs[i].load();
+    }
+
+    SmartGrid::Color GetModulationGlyphColor(size_t i)
+    {
+        return m_modulationGlyphColor[i].load();
     }
 };
 
