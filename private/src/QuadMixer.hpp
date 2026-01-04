@@ -40,7 +40,9 @@ struct QuadMixerInternal
     struct Input
     {
         size_t m_numInputs;
+        size_t m_numMonoInputs;
         float m_input[16];
+        float m_monoIn[16];
         PhaseUtils::ZeroedExpParam m_gain[16];
         PhaseUtils::ZeroedExpParam m_sendGain[16][x_numSends];
         float m_x[16];
@@ -55,9 +57,11 @@ struct QuadMixerInternal
         {
             m_noiseMode = false;
             m_numInputs = 0;
+            m_numMonoInputs = 0;
             for (size_t i = 0; i < 16; ++i)
             {
                 m_input[i] = 0.0f;
+                m_monoIn[i] = 0.0f;
                 m_x[i] = 0.0f;
                 m_y[i] = 0.0f;
             }            
@@ -156,19 +160,21 @@ struct QuadMixerInternal
                 m_quadToStereoMixdown.MixSample(input.m_x[i], input.m_y[i], input.m_input[i] * input.m_gain[i].m_expParam);
 
                 QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i]);
-                QuadFloat postFader = pan * input.m_gain[i].m_expParam;
-                m_output.m_output += postFader;
 
-                m_voiceMeters[i].Process(input.m_input[i] * input.m_gain[i].m_expParam);
-
-                // Write post-fader input to wave file
-                //
-                m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(i), postFader);
-                
                 for (size_t j = 0; j < x_numSends; ++j)
                 {
                     m_send[j] += pan * input.m_sendGain[i][j].m_expParam;
                 }
+
+                QuadFloat mono = QuadFloat::Pan(0.5f, 0.5f, input.m_monoIn[i]);                
+                QuadFloat postFader = (pan + mono) * input.m_gain[i].m_expParam;
+                m_output.m_output += postFader;
+
+                m_voiceMeters[i].Process((input.m_input[i] + input.m_monoIn[i]) * input.m_gain[i].m_expParam);
+
+                // Write post-fader input to wave file
+                //
+                m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(i), postFader);
             }
         }
     }

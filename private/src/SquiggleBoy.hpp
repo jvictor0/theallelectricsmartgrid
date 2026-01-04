@@ -257,6 +257,7 @@ struct SquiggleBoyVoice
         ADSP m_adsp;
 
         float m_output;
+        float m_subOut;
 
         OPLowPassFilter m_freqDependentGainSlew;
         float m_freqDependentGainTarget;
@@ -266,6 +267,7 @@ struct SquiggleBoyVoice
         OPLowPassFilter m_subFilter;
 
         ScopeWriterHolder m_scopeWriter;
+        bool m_subRunning;
 
         struct Input
         {
@@ -275,8 +277,12 @@ struct SquiggleBoyVoice
 
             PhaseUtils::ZeroedExpParam m_gain;
             PhaseUtils::ZeroedExpParam m_subGain;
+            PhaseUtils::ExpParam m_subTanhGain;
 
             ScopeWriterHolder m_scopeWriter;
+            TanhSaturator<true> m_subTanhSaturator;
+
+            bool m_subTrig;
 
             void SetADSP(float attack, float decay, float sustain, float phasorMult)
             {
@@ -285,6 +291,8 @@ struct SquiggleBoyVoice
 
             Input()
             {
+                m_subTrig = false;
+                m_subTanhGain = PhaseUtils::ExpParam(0.125, 2.0);
             }
         };
 
@@ -294,6 +302,7 @@ struct SquiggleBoyVoice
             m_freqDependentGainSlew.SetAlphaFromNatFreq(250.0f / 48000.0f);
             m_outputSaturator.SetInputGain(0.5f);
             m_subFilter.SetAlphaFromNatFreq(170.0f / 48000.0f);
+            m_subRunning = false;
         }
 
         float Process(Input& input, float filterOutput, float sub)
@@ -313,14 +322,20 @@ struct SquiggleBoyVoice
                 {
                     m_scopeWriter.RecordEnd();
                 }
+
+                m_subRunning = input.m_subTrig;
             }
+
+            input.m_subTanhSaturator.SetInputGain(input.m_subTanhGain.m_expParam);
+            sub = input.m_subTanhSaturator.Process(sub);
 
             float freqDependentGain = m_freqDependentGainSlew.Process(m_freqDependentGainTarget);
             float adspEnv = std::powf(m_adsp.Process(input.m_adspInput), 2.0f);
-            float subGain = m_subFilter.Process(input.m_subGain.m_expParam * adspEnv);            
-            float preFader = freqDependentGain * (adspEnv * filterOutput + subGain * sub);
+            float subGain = m_subFilter.Process(m_subRunning ? input.m_subGain.m_expParam * adspEnv : 0.0f);            
+            float mainOut = freqDependentGain * adspEnv * filterOutput;
+            float subOut = freqDependentGain * subGain * sub;
             
-            m_scopeWriter.Write(preFader);
+            m_scopeWriter.Write(mainOut + m_subOut);
             if (input.m_adspInput.m_trig)
             {
                 m_scopeWriter.RecordStart();
@@ -331,7 +346,8 @@ struct SquiggleBoyVoice
                 m_scopeWriter.RecordEnd();
             }
 
-            m_output = input.m_gain.m_expParam * preFader;
+            m_subOut = subOut * input.m_gain.m_expParam;
+            m_output = mainOut * input.m_gain.m_expParam;
             m_output = m_outputSaturator.Process(m_output);
 
             return m_output;
@@ -546,6 +562,7 @@ struct SquiggleBoy
     SquiggleBoy()
     {
         m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numSources;
+        m_mixerState.m_numMonoInputs = x_numVoices;
         m_delayToReverbSend.m_expParam = 0.0;
         m_reverbToDelaySend.m_expParam = 0.0;
         m_theoryOfTime = nullptr;
@@ -713,6 +730,7 @@ struct SquiggleBoy
             m_state[i].m_panInput.m_input = m_panPhase.m_phase;
 
             m_mixerState.m_input[i] = m_voices[i].Processs(m_state[i]);
+            m_mixerState.m_monoIn[i] = m_voices[i].m_amp.m_subOut;
             m_mixerState.m_x[i] = m_voices[i].m_pan.m_outputX;
             m_mixerState.m_y[i] = m_voices[i].m_pan.m_outputY;
         }
@@ -1400,8 +1418,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_filterInput.m_sampleRateReducerFreq.Update(1 - m_voiceEncoderBank.GetValue(0, 3, 2, i));
             m_state[i].m_vcoInput.m_offsetFreqFactor.Update(m_voiceEncoderBank.GetValue(0, 0, 3, i));
             m_state[i].m_vcoInput.m_detune.Update(m_voiceEncoderBank.GetValue(0, 1, 3, i));
-            m_state[i].m_ampInput.m_subGain.Update(m_voiceEncoderBank.GetValue(0, 2, 3, i));
-
+            m_state[i].m_ampInput.m_subGain.Update(std::min<float>(1.0, m_voiceEncoderBank.GetValue(0, 2, 3, i) * 2));
+            m_state[i].m_ampInput.m_subTanhGain.Update(std::max<float>(0.0, m_voiceEncoderBank.GetValue(0, 2, 3, i) * 2 - 1.0));
             
             m_state[i].m_filterInput.m_vcoBaseFreq = m_voices[i].m_baseFreqSlew.m_output;            
             

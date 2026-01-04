@@ -177,6 +177,7 @@ struct TheNonagonSquiggleBoyInternal
             if (m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i].m_trig)            
             {
                 m_squiggleBoyState.m_baseFreq[i] = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
+                m_squiggleBoy.m_state[i].m_ampInput.m_subTrig = m_nonagon.m_state.m_trigLogic.IsUnisonMaster(i);
             }
 
             m_squiggleBoy.m_state[i].m_adspControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i];

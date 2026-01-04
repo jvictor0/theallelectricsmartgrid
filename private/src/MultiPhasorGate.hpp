@@ -155,6 +155,11 @@ struct MultiPhasorGateInternal
 
         bool m_running;
 
+        bool IsUnisonMaster(size_t voice)
+        {
+            return m_unisonMaster[voice / x_voicesPerTrio] == -1 || m_unisonMaster[voice / x_voicesPerTrio] == voice;
+        }
+
         NonagonTrigLogic()
             : m_running(false)
         {
