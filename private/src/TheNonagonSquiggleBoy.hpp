@@ -178,6 +178,11 @@ struct TheNonagonSquiggleBoyInternal
             {
                 m_squiggleBoyState.m_baseFreq[i] = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
                 m_squiggleBoy.m_state[i].m_ampInput.m_subTrig = m_nonagon.m_state.m_trigLogic.IsUnisonMaster(i);
+
+                // UNDONE(DEEP_VOCODER)
+                //
+                float ratio = m_nonagon.m_state.m_trioOctaveSwitchesInput.OctavizedRatio(i);                
+                m_squiggleBoyState.m_baseFreq[i] = m_squiggleBoy.m_sourceMixer.m_deepVocoder.Search(m_squiggleBoyState.m_baseFreq[i] / ratio, i) * ratio;
             }
 
             m_squiggleBoy.m_state[i].m_adspControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i];

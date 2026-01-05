@@ -89,22 +89,22 @@ struct Resynthesizer
             }
         };
 
-        void Analyze(Resynthesizer* owner)
+        void Analyze()
         {
             PriorityQueue<Entry, x_maxComponents * 2> queue;
             bool computed[x_maxComponents];
             float maxMag = 0.0;
             for (size_t i = 1; i < x_maxComponents; ++i)
             {
-                maxMag = std::max(maxMag, owner->m_analysisMagnitudes[i]);
-                maxMag = std::max(maxMag, owner->m_prevAnalysisMagnitudes[i]);
+                maxMag = std::max(maxMag, m_owner->m_analysisMagnitudes[i]);
+                maxMag = std::max(maxMag, m_owner->m_prevAnalysisMagnitudes[i]);
             }
 
             float tolerance = maxMag * 0.00000001;
             RGen rgen;
             for (size_t i = 1; i < x_maxComponents; ++i)
             {
-                float mag = owner->m_analysisMagnitudes[i];
+                float mag = m_owner->m_analysisMagnitudes[i];
                 if (mag < tolerance)
                 {
                     computed[i] = true;
@@ -113,7 +113,7 @@ struct Resynthesizer
                 else
                 {
                     computed[i] = false;
-                    queue.Push(Entry(i, true, owner));
+                    queue.Push(Entry(i, true, m_owner));
                 }
             }
 
@@ -128,9 +128,9 @@ struct Resynthesizer
                 {
                     if (!computed[entry.m_bin])
                     {
-                        PushResult(entry.m_bin, entry.m_bin, owner->m_omegaInstantaneous[entry.m_bin] * H, rgen, false);
+                        PushResult(entry.m_bin, entry.m_bin, m_owner->m_omegaInstantaneous[entry.m_bin] * H, rgen, false);
                         computed[entry.m_bin] = true;
-                        queue.Push(Entry(entry.m_bin, false, owner));
+                        queue.Push(Entry(entry.m_bin, false, m_owner));
                     }
                 }
                 else
@@ -140,11 +140,11 @@ struct Resynthesizer
                         PushResult(
                             entry.m_bin + 1, 
                             entry.m_bin, 
-                            owner->m_analysisPhase[entry.m_bin + 1] - owner->m_analysisPhase[entry.m_bin],
+                            m_owner->m_analysisPhase[entry.m_bin + 1] - m_owner->m_analysisPhase[entry.m_bin],
                             rgen,
                             false);
                         computed[entry.m_bin + 1] = true;
-                        queue.Push(Entry(entry.m_bin + 1, false, owner));
+                        queue.Push(Entry(entry.m_bin + 1, false, m_owner));
                     }
 
                     if (0 < entry.m_bin - 1 && !computed[entry.m_bin - 1])
@@ -152,11 +152,11 @@ struct Resynthesizer
                         PushResult(
                             entry.m_bin - 1, 
                             entry.m_bin, 
-                            owner->m_analysisPhase[entry.m_bin - 1] - owner->m_analysisPhase[entry.m_bin],
+                            m_owner->m_analysisPhase[entry.m_bin - 1] - m_owner->m_analysisPhase[entry.m_bin],
                             rgen,
                             false);
                         computed[entry.m_bin - 1] = true;
-                        queue.Push(Entry(entry.m_bin - 1, false, owner));
+                        queue.Push(Entry(entry.m_bin - 1, false, m_owner));
                     }
                 }
             }
@@ -204,10 +204,20 @@ struct Resynthesizer
             }
         }
 
+        bool IsLeader(int16_t bin)
+        {
+            return m_results[m_resultIndices[bin]].m_parent == bin && !m_results[m_resultIndices[bin]].m_small;
+        }
+
         PVDR(Resynthesizer* owner)
             : m_size(0)
             , m_owner(owner)
         {
+        }
+
+        void Clear()
+        {
+            m_size = 0;
         }
 
         Result m_results[x_maxComponents];
@@ -501,6 +511,15 @@ struct Resynthesizer
         }
     }
 
+    void PrimeFromPrevious()
+    {
+        for (size_t i = 1; i < x_maxComponents; ++i)
+        {
+            m_prevAnalysisPhase[i] = m_analysisPhase[i];
+            m_prevAnalysisMagnitudes[i] = m_analysisMagnitudes[i];
+        }
+    }
+
     void ProcessPhases(DFT& dft)
     {
         for (size_t i = 1; i < x_maxComponents; ++i)
@@ -638,6 +657,21 @@ struct Resynthesizer
         }
     }
 
+    void Analyze(PVDR* pvdr, Buffer& buffer)
+    {
+        pvdr->Clear();
+        DFT dft;
+        dft.Transform(buffer);
+        ProcessPhases(dft);
+        pvdr->Analyze();
+    }
+
+    void PrimeAndAnalyze(PVDR* pvdr, Buffer& buffer)
+    {
+        PrimeFromPrevious();
+        Analyze(pvdr, buffer);
+    }
+
     void PrimeAnalysis(Buffer& waveTable)
     {
         DFT dft;
@@ -646,17 +680,13 @@ struct Resynthesizer
     }        
 
     void StartGrain(Grain* grain, Input& input)
-    {
-        DFT dft;
+    {        
+        PVDR pvdr(this);
 
         SetSlewUp(input.m_slewUp);
         SetSlewDown(input.m_slewDown);
 
-        dft.Transform(grain->m_buffer);
-        ProcessPhases(dft);
-        
-        PVDR pvdr(this);
-        pvdr.Analyze(this);
+        Analyze(&pvdr, grain->m_buffer);
                 
         for (size_t i = 0; i < x_numOscillators; ++i)
         {

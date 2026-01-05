@@ -741,7 +741,7 @@ struct SquiggleBoy
             m_mixerState.m_input[i + x_numVoices] = m_sourceMixer.m_sources[i].m_output;
             m_mixerState.m_x[i + x_numVoices] = 0.5f;
             m_mixerState.m_y[i + x_numVoices] = 0.5f;
-            m_mixerState.m_gain[i + x_numVoices].m_expParam = 1.0;
+            m_mixerState.m_gain[i + x_numVoices].m_expParam = 0.0; // UNDONE(DEEP_VOCODER)
             m_mixerState.m_sendGain[i + x_numVoices][0].m_expParam = 0;
             m_mixerState.m_sendGain[i + x_numVoices][1].m_expParam = 0;
         }
@@ -1318,6 +1318,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_globalEncoderBank.Config(2, 3, 0, 0, "Source 4 HP", input.m_globalEncoderBankInput);
         m_globalEncoderBank.Config(2, 3, 1, 1, "Source 4 LP", input.m_globalEncoderBankInput);
         m_globalEncoderBank.Config(2, 3, 3, 0, "Source 4 Gain", input.m_globalEncoderBankInput);
+
+        // UNDONE(DEEP_VOCODER)
+        //
+        m_globalEncoderBank.Config(2, 0, 2, 0.5, "Deep Vocoder Init Deadline", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(2, 1, 2, 0.5, "Deep Vocoder Tolerance", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(2, 2, 2, 0.5, "Deep Vocoder Min Magnitude", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(2, 3, 2, 0.5, "Deep Vocoder Ratio", input.m_globalEncoderBankInput);
     }
 
     SquiggleBoyWithEncoderBank()
@@ -1546,6 +1553,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_sourceMixerState.m_sources[i].m_lpFactor.Update(m_globalEncoderBank.GetValue(2, i, 1, 0));
             m_sourceMixerState.m_sources[i].m_gain.Update(std::min(1.0f, 2 * m_globalEncoderBank.GetValue(2, i, 3, 0)));
         }
+
+        // UNDONE(DEEP_VOCODER)
+        //
+        m_sourceMixer.m_deepVocoderState.m_initDeadline.Update(m_globalEncoderBank.GetValue(2, 0, 2, 0));
+        m_sourceMixer.m_deepVocoderState.m_tolerance.Update(m_globalEncoderBank.GetValue(2, 1, 2, 0));
+        m_sourceMixer.m_deepVocoderState.m_minMagnitude.Update(m_globalEncoderBank.GetValue(2, 2, 2, 0));
+        m_sourceMixer.m_deepVocoderState.m_ratio = m_globalEncoderBank.GetValue(2, 3, 2, 0);
     }   
 
     JSON ToJSON()

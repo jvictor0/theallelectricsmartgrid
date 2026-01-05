@@ -5,6 +5,7 @@
 #include "PhaseUtils.hpp"
 #include "Metering.hpp"
 #include "AudioInputBuffer.hpp"
+#include "DeepVocoder.hpp"
 
 struct SourceMixer
 {
@@ -120,6 +121,7 @@ struct SourceMixer
     struct UIState
     {
         Source::UIState m_sources[x_numSources];
+        DeepVocoder::UIState m_deepVocoderUIState;
 
         static SmartGrid::Color Color(size_t i)
         {
@@ -156,6 +158,10 @@ struct SourceMixer
         {
             m_sources[i].PopulateUIState(&uiState->m_sources[i]);
         }
+
+        // UNDONE(DEEP_VOCODER)
+        //
+        m_deepVocoder.PopulateUIState(&uiState->m_deepVocoderUIState);
     }
 
     void SetupUIState(UIState* uiState)
@@ -172,6 +178,10 @@ struct SourceMixer
         {
             m_sources[i].Process(input.m_sources[i]);
         }
+
+        // UNDONE(DEEP_VOCODER)
+        //
+        m_deepVocoder.Process(m_sources[0].m_output, m_deepVocoderState);
     }
 
     void SetupScopeWriters(ScopeWriter* scopeWriter)
@@ -183,4 +193,9 @@ struct SourceMixer
     }
 
     Source m_sources[x_numSources];
+
+    // UNDONE(DEEP_VOCODER)
+    //
+    DeepVocoder m_deepVocoder;
+    DeepVocoder::Input m_deepVocoderState;
 };

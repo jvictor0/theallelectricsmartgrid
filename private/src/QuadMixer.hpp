@@ -158,6 +158,7 @@ struct QuadMixerInternal
             for (size_t i = 0; i < input.m_numInputs; ++i)
             {
                 m_quadToStereoMixdown.MixSample(input.m_x[i], input.m_y[i], input.m_input[i] * input.m_gain[i].m_expParam);
+                m_quadToStereoMixdown.MixSample(0.5f, 0.5f, input.m_monoIn[i] * input.m_gain[i].m_expParam);
 
                 QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i]);
 

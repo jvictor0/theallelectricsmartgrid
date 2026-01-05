@@ -62,6 +62,12 @@ struct PathDrawer
         return NormalizeDb(AmpToDb(x));
     }
 
+    static float LinearToLog(float x)
+    {
+        float m = static_cast<float>(x_numPoints);
+        return std::log(x * 2.0f * m) / std::log(m - 1.0f);
+    }
+
     template<typename Fn>
     void DrawPath(juce::Graphics& g, juce::Colour colour, Fn fn)
     {

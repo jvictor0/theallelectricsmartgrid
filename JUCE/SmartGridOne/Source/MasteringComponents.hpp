@@ -161,6 +161,31 @@ struct SourceMixerFrequencyComponent : public juce::Component
             PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
             pathDrawer.DrawPath(g, J(SourceMixer::UIState::Color(i)), ResponseDrawer(&GetSourceMixerUIState()->m_sources[i]));
         }
+
+        // UNDONE(DEEP_VOCODER)
+        //
+        size_t which = GetSourceMixerUIState()->m_deepVocoderUIState.Which();
+        size_t numFrequencies = GetSourceMixerUIState()->m_deepVocoderUIState.GetNumFrequencies(which);
+        for (size_t i = 0; i < numFrequencies; ++i)
+        {
+            float frequency = GetSourceMixerUIState()->m_deepVocoderUIState.GetFrequency(which, i);
+            float x = PathDrawer::LinearToLog(frequency) * getWidth();
+            g.setColour(juce::Colours::white);
+            g.drawLine(x, 0, x, getHeight(), 1.5f);
+        }
+
+        for (size_t i = 0; i < 9; ++i)
+        {
+            float usedOmega = GetSourceMixerUIState()->m_deepVocoderUIState.GetUsedOmega(i);
+            float x = PathDrawer::LinearToLog(usedOmega) * getWidth();
+            g.setColour(J(TheNonagonSmartGrid::VoiceColor(i)));
+            g.drawLine(x, 0, x, getHeight(), 1.5f);
+        }
+
+        float threshY = PathDrawer::AmpToDbNormalized(GetSourceMixerUIState()->m_deepVocoderUIState.GetThreshold() * 2);
+        float yCoord = getHeight() * (1.0f - threshY);
+        g.setColour(juce::Colours::white);
+        g.drawLine(0, yCoord, getWidth(), yCoord, 1.5f);
     }
 };
 

@@ -37,6 +37,11 @@ struct TrioOctaveSwitches
             return in + m_octave[trioIx] + SpreadOffset(m_spread[trioIx], voiceIx % x_voicesPerTrio);
         }
 
+        float OctavizedRatio(size_t voiceIx)
+        {
+            return powf(2.0f, Octavize(0, voiceIx));
+        }
+
         Input()
         {
             for (size_t i = 0; i < x_numTrios; ++i)
