@@ -602,7 +602,7 @@ struct SquiggleBoy
 
     void ToggleRecording()
     {
-        m_mixer.ToggleRecording(x_numVoices, 48000);
+        m_mixer.ToggleRecording(x_numVoices + SourceMixer::x_numSources, 48000);
     }
 
     void SetRecordingDirectory(const std::string& directory)
@@ -1321,8 +1321,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         // UNDONE(DEEP_VOCODER)
         //
-        m_globalEncoderBank.Config(2, 0, 2, 0.5, "Deep Vocoder Init Deadline", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 1, 2, 0.5, "Deep Vocoder Tolerance", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(2, 0, 2, 0.5, "Deep Vocoder Slew Up", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(2, 1, 2, 0.5, "Deep Vocoder Slew Down", input.m_globalEncoderBankInput);
         m_globalEncoderBank.Config(2, 2, 2, 0.5, "Deep Vocoder Min Magnitude", input.m_globalEncoderBankInput);
         m_globalEncoderBank.Config(2, 3, 2, 0.5, "Deep Vocoder Ratio", input.m_globalEncoderBankInput);
     }
@@ -1556,9 +1556,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         // UNDONE(DEEP_VOCODER)
         //
-        m_sourceMixer.m_deepVocoderState.m_initDeadline.Update(m_globalEncoderBank.GetValue(2, 0, 2, 0));
-        m_sourceMixer.m_deepVocoderState.m_tolerance.Update(m_globalEncoderBank.GetValue(2, 1, 2, 0));
-        m_sourceMixer.m_deepVocoderState.m_minMagnitude.Update(m_globalEncoderBank.GetValue(2, 2, 2, 0));
+        m_sourceMixer.m_deepVocoderState.SetSlew(m_globalEncoderBank.GetValue(2, 0, 2, 0), m_globalEncoderBank.GetValue(2, 1, 2, 0));
+        m_sourceMixer.m_deepVocoderState.m_gainThreshold.Update(m_globalEncoderBank.GetValue(2, 2, 2, 0));
         m_sourceMixer.m_deepVocoderState.m_ratio = m_globalEncoderBank.GetValue(2, 3, 2, 0);
     }   
 

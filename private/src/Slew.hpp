@@ -27,6 +27,11 @@ struct Slew
 
         return m_val;
     }
+    
+    static float Process(float src, float trg, float alpha)
+    {
+        return src + alpha * (trg - src);
+    }
 };
 
 struct FixedSlew
@@ -102,19 +107,21 @@ struct BiDirectionalSlew
         m_slewDown.SetAlphaFromNatFreq(cyclesPerSample);
     }
 
-    float Process(float trg)
+    static float Process(float src, float trg, float slewUpAlpha, float slewDownAlpha)
     {
-        if (m_output < trg)
+        if (src < trg)
         {
-            m_output = m_slewUp.Process(trg);
-            m_slewDown.m_output = m_output;
+            return src + slewUpAlpha * (trg - src);
         }
         else
         {
-            m_output = m_slewDown.Process(trg);
-            m_slewUp.m_output = m_output;
+            return src + slewDownAlpha * (trg - src);
         }
+    }
 
+    float Process(float trg)
+    {
+        m_output = Process(m_output, trg, m_slewUp.m_alpha, m_slewDown.m_alpha);
         return m_output;
     }
 };

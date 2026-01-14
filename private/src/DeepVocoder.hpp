@@ -5,273 +5,109 @@
 
 struct DeepVocoder
 {
+    static constexpr size_t x_tableSize = SpectralModel::x_tableSize;
+    static constexpr size_t x_maxComponents = SpectralModel::x_maxComponents;
+    static constexpr size_t x_H = SpectralModel::x_H;
+
     struct Input
     {
-        PhaseUtils::ExpParam m_initDeadline;
-        PhaseUtils::ExpParam m_tolerance;
-        PhaseUtils::ExpParam m_minMagnitude;
+        PhaseUtils::ExpParam m_slewUp;
+        PhaseUtils::ExpParam m_slewDown;
+        PhaseUtils::ExpParam m_gainThreshold;
         float m_ratio;
+        size_t m_numAtoms;
 
         Input()
-            : m_initDeadline(10 * 48000.0 / Resynthesizer::x_H, 10 * 60 * 48000.0 / Resynthesizer::x_H)
-            , m_tolerance(32.0 / 31.0, 5.0 / 4.0)
-            , m_minMagnitude(0.001f, 0.2f)
+            : m_slewUp(0.1f * 48000.0f / x_H, 10.0f * 48000.0f / x_H)
+            , m_slewDown(0.5f * 48000.0f / x_H, 60.0f * 48000.0f / x_H)
+            , m_gainThreshold(0.001f, 0.2f)
             , m_ratio(1.0f)
-        {
-        }
-    };
-
-    struct Frequency
-    {
-        float m_omega;
-        float m_magnitude;
-        int m_deadline;
-
-        Frequency()
-            : m_omega(0.0f)
-            , m_magnitude(0.0f)
-            , m_deadline(0)
+            , m_numAtoms(64)
         {
         }
 
-        Frequency(float omega, float magnitude, int deadline)
-            : m_omega(omega)
-            , m_magnitude(magnitude)
-            , m_deadline(deadline)
+        void SetSlew(float slewUpKnob, float slewDownKnob)
         {
+            m_slewUp.Update(slewUpKnob);
+            m_slewDown.Update(slewDownKnob);
         }
 
-        bool operator<(const Frequency& other) const
+        SpectralModel::Input MakeSpectralInput()
         {
-            return m_omega < other.m_omega;
-        }
-
-        bool IsBetter(const Frequency& other) const
-        {
-            return m_deadline > other.m_deadline ||
-                   (m_deadline == other.m_deadline && m_magnitude > other.m_magnitude);
-        }
-
-        bool Within(const Frequency& other, float tolerance) const
-        {
-            float ratio = m_omega / other.m_omega;
-            if (ratio < tolerance && 1.0f / tolerance < ratio)
-            {
-                return true;
-            }
-
-            if (std::abs(m_omega - other.m_omega) < Resynthesizer::OmegaBin(1))
-            {
-                return true;
-            }
-
-            return false;
-        }
-    };
-
-    struct FrequencyList
-    {
-        static constexpr size_t x_maxFrequencies = 4 * Resynthesizer::x_maxComponents;
-        Frequency m_frequencies[x_maxFrequencies];
-        size_t m_size;
-
-        FrequencyList()
-            : m_size(0)
-        {
-        }
-
-        void Add(const Frequency& frequency, float tolerance)
-        {
-            if (m_size >= x_maxFrequencies)
-            {
-                return;
-            }
-
-            while (m_size > 0)
-            {
-                if (m_frequencies[m_size - 1].Within(frequency, tolerance))
-                {
-                    if (m_frequencies[m_size - 1].IsBetter(frequency))
-                    {
-                        return;
-                    }
-
-                    --m_size;
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            m_frequencies[m_size] = frequency;
-            ++m_size;
-        }
-
-        void AdvanceDeadline()
-        {
-            for (size_t i = 0; i < m_size; ++i)
-            {
-                --m_frequencies[i].m_deadline;
-            }
-        }
-
-        void AdvanceFrequencyIndex(size_t& index) const
-        {
-            while (index < m_size && m_frequencies[index].m_deadline <= 0)
-            {
-                ++index;
-            }
-        }
-
-        void Merge(const FrequencyList& other, DeepVocoder& owner, Input& input)
-        {
-            size_t otherIndex = 0;
-            size_t bin = 1;
-            owner.AdvanceBinFrequency(bin, input);
-            other.AdvanceFrequencyIndex(otherIndex);            
-            while (bin < Resynthesizer::x_maxComponents && otherIndex < other.m_size)
-            {
-                Frequency newFrequency = owner.MakeFrequency(bin, input);
-                Frequency otherFrequency = other.m_frequencies[otherIndex];
-                if (newFrequency < otherFrequency)
-                {
-                    Add(newFrequency, input.m_tolerance.m_expParam);
-                    ++bin;
-                    owner.AdvanceBinFrequency(bin, input);
-                }
-                else
-                {
-                    Add(otherFrequency, input.m_tolerance.m_expParam);                    
-                    ++otherIndex;
-                    other.AdvanceFrequencyIndex(otherIndex);
-                }
-            }
-
-            while (bin < Resynthesizer::x_maxComponents)
-            {
-                Frequency newFrequency = owner.MakeFrequency(bin, input);
-                Add(newFrequency, input.m_tolerance.m_expParam);
-                ++bin;
-                owner.AdvanceBinFrequency(bin, input);
-            }
-
-            while (otherIndex < other.m_size)
-            {
-                Frequency otherFrequency = other.m_frequencies[otherIndex];
-                Add(otherFrequency, input.m_tolerance.m_expParam);
-                ++otherIndex;
-                other.AdvanceFrequencyIndex(otherIndex);
-            }
-        }
-
-        void Swap(FrequencyList& other)
-        {
-            FrequencyList temp = *this;
-            *this = other;
-            other = temp;
-        }
-
-        FrequencyList& operator=(const FrequencyList& other)
-        {
-            m_size = other.m_size;
-            for (size_t i = 0; i < m_size; ++i)
-            {
-                m_frequencies[i] = other.m_frequencies[i];
-            }
-
-            return *this;
-        }
-
-        float Search(float omega)
-        {
-            auto itr = std::lower_bound(m_frequencies, m_frequencies + m_size, Frequency(omega, 0.0f, 0));
-            if (itr == m_frequencies + m_size)
-            {
-                if (0 < m_size)
-                {
-                    return m_frequencies[m_size - 1].m_omega;
-                }
-                else
-                {
-                    return omega;
-                }
-            }
-
-            if (itr == m_frequencies)
-            {
-                return itr->m_omega;
-            }
-
-            auto prev_itr = itr - 1;
-            if (std::abs(prev_itr->m_omega - omega) <= std::abs(itr->m_omega - omega))
-            {
-                return prev_itr->m_omega;
-            }
-            else
-            {
-                return itr->m_omega;
-            }
+            SpectralModel::Input result;
+            result.m_slewUpAlpha = 1.0f - std::exp(-1.0f / m_slewUp.m_expParam);
+            result.m_slewDownAlpha = 1.0f - std::exp(-1.0f / m_slewDown.m_expParam);
+            result.m_gainThreshold = 1e-4f;
+            result.m_numAtoms = m_numAtoms;
+            return result;
         }
     };
 
     DeepVocoder()
-      : m_pvdr(&m_resynthesizer)
-      , m_index(0)
-      , m_minMagnitude(0.0f)
+        : m_index(0)
+        , m_ratio(1.0f)
+        , m_gainThreshold(0.0f)
     {
-        for (size_t i = 0; i < Resynthesizer::x_tableSize; ++i)
+        for (size_t i = 0; i < x_tableSize; ++i)
         {
             m_buffer[i] = 0.0f;
+        }
+
+        for (size_t i = 0; i < 9; ++i)
+        {
+            m_usedOmegas[i] = -1.0f;
         }
     }
 
     void Process(float inputSample, Input& input)
     {
-        m_buffer[m_index % Resynthesizer::x_tableSize] = inputSample;
+        m_buffer[m_index % x_tableSize] = inputSample;
         ++m_index;
-        if (m_index % Resynthesizer::x_H == 0)
+        if (m_index % x_H == 0)
         {
-            m_ratio = std::powf(2.0f, std::round(input.m_ratio * 5 - 2.5));
-            m_minMagnitude = input.m_minMagnitude.m_expParam;
-            Resynthesizer::Buffer buffer;
-            for (size_t i = 0; i < Resynthesizer::x_tableSize; ++i)
+            SpectralModel::Input spectralInput = input.MakeSpectralInput();
+            m_ratio = std::powf(2.0f, std::round(input.m_ratio * 5.0f - 2.5f));
+            m_gainThreshold = input.m_gainThreshold.m_expParam;
+
+            SpectralModel::Buffer buffer;
+            for (size_t i = 0; i < x_tableSize; ++i)
             {
-                buffer.m_table[i] = m_buffer[(m_index + i) % Resynthesizer::x_tableSize] * Math4096::Hann(i);
+                buffer.m_table[i] = m_buffer[(m_index + i) % x_tableSize] * Math4096::Hann(i);
             }
-         
-            m_resynthesizer.PrimeAndAnalyze(&m_pvdr, buffer);
-            FrequencyList newFrequencies;
-            m_frequencies.AdvanceDeadline();
-            newFrequencies.Merge(m_frequencies, *this, input);
-            m_frequencies.Swap(newFrequencies);
-        }
-    }
 
-    Frequency MakeFrequency(size_t bin, Input& input)
-    {
-        float omega = m_resynthesizer.m_omegaInstantaneous[bin] / (2.0f * M_PI);
-        float magnitude = m_resynthesizer.m_analysisMagnitudes[bin];
-        int deadline = std::max<int>(1, static_cast<int>(input.m_initDeadline.m_expParam) * magnitude);
-        return Frequency(omega, magnitude, deadline);
-    }
-
-    void AdvanceBinFrequency(size_t& bin, Input& input)
-    {     
-        while (bin < Resynthesizer::x_maxComponents && 
-               (!m_pvdr.IsLeader(bin) ||
-                m_resynthesizer.m_analysisMagnitudes[bin] < input.m_minMagnitude.m_expParam ||
-                std::abs(m_resynthesizer.m_omegaInstantaneous[bin]) < Resynthesizer::OmegaBin(1)))
-        {
-            ++bin;
+            m_spectralModel.ExtractAtoms(buffer, spectralInput);
         }
     }
 
     float Search(float omega, size_t index)
     {
-        float result = m_frequencies.Search(omega * m_ratio);
-        m_usedOmegas[index] = result;
-        return result / m_ratio;
+        if (m_spectralModel.m_atoms.Empty())
+        {
+            m_usedOmegas[index] = -1.0f;
+            return omega;
+        }
+
+        float targetOmega = omega * m_ratio;
+        float bestOmega = -1.0f;
+        float bestDist = std::abs(bestOmega - targetOmega);
+
+        for (size_t i = 0; i < m_spectralModel.m_atoms.Size(); ++i)
+        {
+            if (m_spectralModel.m_atoms[i].m_synthesisMagnitude < m_gainThreshold)
+            {
+                continue;
+            }
+
+            float dist = std::abs(m_spectralModel.m_atoms[i].m_synthesisOmega - targetOmega);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestOmega = m_spectralModel.m_atoms[i].m_synthesisOmega;
+            }
+        }
+
+        m_usedOmegas[index] = bestOmega;
+        return bestOmega < 0.0f ? omega : bestOmega;
     }
 
     struct UIState
@@ -280,7 +116,8 @@ struct DeepVocoder
         std::atomic<float> m_threshold;
         std::atomic<size_t> m_numFrequencies[x_uiBufferSize];
         std::atomic<size_t> m_which;
-        std::atomic<float> m_frequencies[x_uiBufferSize][FrequencyList::x_maxFrequencies];
+        std::atomic<float> m_frequencies[x_uiBufferSize][x_maxComponents];
+        std::atomic<float> m_magnitudes[x_uiBufferSize][x_maxComponents];
         std::atomic<float> m_usedOmegas[9];
 
         UIState()
@@ -290,9 +127,10 @@ struct DeepVocoder
             for (size_t i = 0; i < x_uiBufferSize; ++i)
             {
                 m_numFrequencies[i].store(0);
-                for (size_t j = 0; j < FrequencyList::x_maxFrequencies; ++j)
+                for (size_t j = 0; j < x_maxComponents; ++j)
                 {
                     m_frequencies[i][j].store(0.0f);
+                    m_magnitudes[i][j].store(0.0f);
                 }
             }
 
@@ -322,6 +160,11 @@ struct DeepVocoder
             return m_frequencies[which][index].load();
         }
 
+        float GetMagnitude(size_t which, size_t index)
+        {
+            return m_magnitudes[which][index].load();
+        }
+
         float GetUsedOmega(size_t index)
         {
             return m_usedOmegas[index].load();
@@ -330,16 +173,18 @@ struct DeepVocoder
 
     void PopulateUIState(UIState* uiState)
     {
-        uiState->m_threshold.store(m_minMagnitude);
+        uiState->m_threshold.store(m_gainThreshold);
 
         size_t which = (uiState->m_which.load() + 1) % UIState::x_uiBufferSize;
-        uiState->m_numFrequencies[which].store(0);
-        for (size_t i = 0; i < m_frequencies.m_size; ++i)
+        size_t numFreqs = m_spectralModel.m_atoms.Size();
+
+        for (size_t i = 0; i < numFreqs; ++i)
         {
-            uiState->m_frequencies[which][i].store(m_frequencies.m_frequencies[i].m_omega);
+            uiState->m_frequencies[which][i].store(m_spectralModel.m_atoms[i].m_synthesisOmega);
+            uiState->m_magnitudes[which][i].store(m_spectralModel.m_atoms[i].m_synthesisMagnitude);
         }
 
-        uiState->m_numFrequencies[which].store(m_frequencies.m_size);
+        uiState->m_numFrequencies[which].store(numFreqs);
         uiState->m_which.store(which);
 
         for (size_t i = 0; i < 9; ++i)
@@ -348,12 +193,10 @@ struct DeepVocoder
         }
     }
 
-    Resynthesizer m_resynthesizer;
-    Resynthesizer::PVDR m_pvdr;
-    float m_buffer[Resynthesizer::x_tableSize];
+    SpectralModel m_spectralModel;
+    float m_buffer[x_tableSize];
     size_t m_index;
-    FrequencyList m_frequencies;
     float m_usedOmegas[9];
     float m_ratio;
-    float m_minMagnitude;
+    float m_gainThreshold;
 };

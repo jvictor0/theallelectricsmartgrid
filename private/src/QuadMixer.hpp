@@ -7,6 +7,8 @@
 #include <filesystem>
 #include <iomanip>
 #include <sstream>
+#include <chrono>
+#include <ctime>
 #include "Noise.hpp"
 #include "QuadMasterChain.hpp"
 #include "QuadToStereoMixdown.hpp"
@@ -85,21 +87,31 @@ struct QuadMixerInternal
             return;
         }
 
-        // Find an empty slot
+        // Generate filename based on current date and time (ISO 8601 format)
         //
-        size_t ordinal = 1;
-        std::string filename;
+        auto now = std::chrono::system_clock::now();
+        auto timeT = std::chrono::system_clock::to_time_t(now);
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
         
-        do
-        {
-            std::ostringstream oss;
-            oss << m_recordingDirectory << "/recording-" << std::setfill('0') << std::setw(5) << ordinal;
-            filename = oss.str();
-            ordinal++;
-        } 
-        while (rack::system::exists(filename + ".wav") || rack::system::exists(filename + ".wv"));
-
-        filename += ".wav";
+        std::tm timeInfo;
+        localtime_r(&timeT, &timeInfo);
+        
+        std::ostringstream oss;
+        oss << m_recordingDirectory << "/recording-";
+        oss << std::setfill('0') << std::setw(4) << (timeInfo.tm_year + 1900);
+        oss << "-";
+        oss << std::setfill('0') << std::setw(2) << (timeInfo.tm_mon + 1);
+        oss << "-";
+        oss << std::setfill('0') << std::setw(2) << timeInfo.tm_mday;
+        oss << "T";
+        oss << std::setfill('0') << std::setw(2) << timeInfo.tm_hour;
+        oss << std::setfill('0') << std::setw(2) << timeInfo.tm_min;
+        oss << std::setfill('0') << std::setw(2) << timeInfo.tm_sec;
+        oss << ".";
+        oss << std::setfill('0') << std::setw(3) << ms.count();
+        oss << ".wav";
+        
+        std::string filename = oss.str();
 
         // Open the wave writer with the appropriate number of channels
         //
@@ -198,7 +210,7 @@ struct QuadMixerInternal
 
         m_output = m_masterChain.Process(input.m_masterChainInput, m_output.m_output, m_quadToStereoMixdown.m_output);
         
-        m_wavWriter.WriteSampleIfOpen(4 *static_cast<uint16_t>(input.m_numInputs + x_numSends), m_output.m_output);
+        m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(input.m_numInputs + x_numSends), m_output.m_output);
         m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(input.m_numInputs + x_numSends + 1), m_output.m_stereoOutput);
         
         m_masterMeter.Process(m_output.m_output);

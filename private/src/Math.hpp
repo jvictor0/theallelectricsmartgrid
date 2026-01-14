@@ -63,6 +63,11 @@ struct MathGeneric
         return std::complex<float>(mag * Cos(phase), mag * Sin(phase));
     }
 
+    static std::complex<float> Polar2pi(float mag, double phase)
+    {
+        return std::complex<float>(mag * Cos2pi(phase), mag * Sin2pi(phase));
+    }
+
     static float Hann(size_t index)
     {
         return 0.5f * (1.0f - s_instance.m_cosTable.m_table[index]);

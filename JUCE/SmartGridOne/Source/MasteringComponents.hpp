@@ -170,8 +170,9 @@ struct SourceMixerFrequencyComponent : public juce::Component
         {
             float frequency = GetSourceMixerUIState()->m_deepVocoderUIState.GetFrequency(which, i);
             float x = PathDrawer::LinearToLog(frequency) * getWidth();
+            float y = PathDrawer::AmpToDbNormalized(GetSourceMixerUIState()->m_deepVocoderUIState.GetMagnitude(which, i) * 2) * getHeight();
             g.setColour(juce::Colours::white);
-            g.drawLine(x, 0, x, getHeight(), 1.5f);
+            g.drawLine(x, getHeight() - y, x, getHeight(), 1.5f);
         }
 
         for (size_t i = 0; i < 9; ++i)
