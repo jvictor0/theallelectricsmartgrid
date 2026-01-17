@@ -161,19 +161,10 @@ struct QuadDelayInputSetter
         float m_lfoPhaseKnob[4];
 
         float m_resynthShiftFadeKnob[4];
-        float m_resynthShiftFade2Knob[4];
-        float m_resynthUnisonDetuneKnob[4];
-        float m_resynthUnisonGainKnob[4];
-        float m_resynthShift1Knob[4];
-        float m_resynthShift2Knob[4];
+        float m_resynthUnisonKnob[4];
+        float m_resynthShiftKnob[4];
         float m_resynthSlewUpKnob[4];
-        float m_resynthSlewDownKnob[4];
-
-        float m_resynthRmsThresholdKnob[4];
-        float m_resynthRmsQuietKnob[4];
-        float m_resynthRmsLoudKnob[4];
-        float m_resynthLoudShiftKnob[4];
-
+        
         TheoryOfTime* m_theoryOfTime;
 
         Input()
@@ -195,17 +186,9 @@ struct QuadDelayInputSetter
                 m_lfoPhaseKnob[i] = 0.0f;
 
                 m_resynthShiftFadeKnob[i] = 0.0f;
-                m_resynthShiftFade2Knob[i] = 0.0f;
-                m_resynthUnisonDetuneKnob[i] = 0.0f;
-                m_resynthUnisonGainKnob[i] = 0.0f;
-                m_resynthShift1Knob[i] = 0.0f;
-                m_resynthShift2Knob[i] = 0.0f;
-                m_resynthSlewUpKnob[i] = 0.0f;
-                m_resynthSlewDownKnob[i] = 0.0f;
-                m_resynthRmsThresholdKnob[i] = 0.0f;
-                m_resynthRmsQuietKnob[i] = 0.0f;
-                m_resynthRmsLoudKnob[i] = 0.0f;
-                m_resynthLoudShiftKnob[i] = 0.0f;
+                m_resynthUnisonKnob[i] = 0.0f;
+                m_resynthShiftKnob[i] = 0.0f;                
+                m_resynthSlewUpKnob[i] = 0.0f;                
             }
         }
     };
@@ -234,12 +217,6 @@ struct QuadDelayInputSetter
             // Range: 0.25 / (grain launch samples) to 0.5
             //
             m_slewUp[i] = PhaseUtils::ExpParam(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5);
-            m_slewDown[i] = PhaseUtils::ExpParam(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5);
-
-            m_rmsThreshold[i] = PhaseUtils::ExpParam(1e-3f, 2.0);
-            m_rmsQuiet[i] = PhaseUtils::ExpParam(1e-6f, 1.0);
-            m_rmsLoud[i] = PhaseUtils::ExpParam(1e-6f, 1.0);
-            m_loudShift[i].SetBaseByCenter(0.125);
 
             m_totLoopSelector[i] = TheoryOfTime::x_numLoops - 1;
             m_bufferFrac[i] = 1.0;
@@ -323,18 +300,28 @@ struct QuadDelayInputSetter
             // Resynth parameters
             //
             Resynthesizer::Input& resynthInput = delayInput.m_grainManagerInput.m_input[i].m_resynthInput;
-            resynthInput.m_shift[0] = Q(2, 1);
-            resynthInput.m_shift[1] = Q(1, 2);
+
+            Q possibleShifts[10] = 
+            { 
+                Q(1, 2) /* octave down*/, 
+                Q(2, 3), /* fifth down */
+                Q(3, 4), /* fourth down */
+                Q(3, 5), /* minor third down */
+                Q(4, 5), /* major third down */
+                Q(5, 4), /* major third up */
+                Q(5, 3), /* major sixth up */
+                Q(4, 3), /* fourth up */
+                Q(3, 2), /* fifth up */
+                Q(2, 1) /* octave up */
+            };
+
+            int possibleShiftIndex = std::round(input.m_resynthShiftKnob[i] * 9);
+            resynthInput.m_shift[0] = possibleShifts[possibleShiftIndex];
+
             resynthInput.m_fade[0] = input.m_resynthShiftFadeKnob[i];
-            resynthInput.m_fade[1] = input.m_resynthShiftFade2Knob[i];
-            resynthInput.m_unisonDetune = m_unisonDetune[i].Update(input.m_resynthUnisonDetuneKnob[i]);
-            resynthInput.m_unisonGain = m_unisonGain[i].Update(input.m_resynthUnisonGainKnob[i]);
+            resynthInput.m_unisonDetune = m_unisonDetune[i].Update(input.m_resynthUnisonKnob[i]);
+            resynthInput.m_unisonGain = m_unisonGain[i].Update(std::min<float>(1.0, 10 * input.m_resynthUnisonKnob[i]));
             resynthInput.m_slewUp = m_slewUp[i].Update(1.0f - input.m_resynthSlewUpKnob[i]);
-            resynthInput.m_slewDown = m_slewDown[i].Update(1.0f - input.m_resynthSlewDownKnob[i]);
-            resynthInput.m_rmsThreshold = m_rmsThreshold[i].Update(input.m_resynthRmsThresholdKnob[i]);
-            resynthInput.m_rmsQuiet = m_rmsQuiet[i].Update(input.m_resynthRmsQuietKnob[i]);
-            resynthInput.m_rmsLoud = m_rmsLoud[i].Update(resynthInput.m_rmsQuiet, 1.0, input.m_resynthRmsLoudKnob[i]);
-            resynthInput.m_loudShift = m_loudShift[i].Update(input.m_resynthLoudShiftKnob[i]);
         }
     }
 };

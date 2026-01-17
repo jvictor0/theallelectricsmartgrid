@@ -4,6 +4,8 @@
 #include <JuceHeader.h>
 #include "PathDrawer.hpp"
 #include "VUBarDrawer.hpp"
+#include "TheNonagon.hpp"
+#include "DeepVocoder.hpp"
 
 struct MultibandEQComponent : public juce::Component
 {
@@ -136,6 +138,22 @@ struct SourceMixerFrequencyComponent : public juce::Component
         }
     };
 
+    struct VShapeDrawFn
+    {
+        const DeepVocoder::UIState::VoiceUIState* m_voiceUIState;
+
+        VShapeDrawFn(const DeepVocoder::UIState::VoiceUIState* voiceUIState)
+            : m_voiceUIState(voiceUIState)
+        {
+        }
+
+        float operator()(float freq) const
+        {
+            float threshold = m_voiceUIState->MagnitudeThreshold(freq);
+            return PathDrawer::AmpToDbNormalized(threshold * 2);
+        }
+    };
+
     void paint(juce::Graphics& g) override
     {
         g.fillAll(juce::Colours::black);
@@ -164,29 +182,44 @@ struct SourceMixerFrequencyComponent : public juce::Component
 
         // UNDONE(DEEP_VOCODER)
         //
-        size_t which = GetSourceMixerUIState()->m_deepVocoderUIState.Which();
-        size_t numFrequencies = GetSourceMixerUIState()->m_deepVocoderUIState.GetNumFrequencies(which);
+        DeepVocoder::UIState* deepVocoderUIState = &m_uiState->m_squiggleBoyUIState.m_deepVocoderUIState;
+        size_t which = deepVocoderUIState->Which();
+        size_t numFrequencies = deepVocoderUIState->GetNumFrequencies(which);
         for (size_t i = 0; i < numFrequencies; ++i)
         {
-            float frequency = GetSourceMixerUIState()->m_deepVocoderUIState.GetFrequency(which, i);
+            float frequency = deepVocoderUIState->GetFrequency(which, i);
             float x = PathDrawer::LinearToLog(frequency) * getWidth();
-            float y = PathDrawer::AmpToDbNormalized(GetSourceMixerUIState()->m_deepVocoderUIState.GetMagnitude(which, i) * 2) * getHeight();
+            float y = PathDrawer::AmpToDbNormalized(deepVocoderUIState->GetMagnitude(which, i) * 2) * getHeight();
             g.setColour(juce::Colours::white);
             g.drawLine(x, getHeight() - y, x, getHeight(), 1.5f);
         }
 
-        for (size_t i = 0; i < 9; ++i)
+        for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
-            float usedOmega = GetSourceMixerUIState()->m_deepVocoderUIState.GetUsedOmega(i);
+            float usedOmega = deepVocoderUIState->GetUsedOmega(i);
             float x = PathDrawer::LinearToLog(usedOmega) * getWidth();
             g.setColour(J(TheNonagonSmartGrid::VoiceColor(i)));
-            g.drawLine(x, 0, x, getHeight(), 1.5f);
+            float bottom = (1 - PathDrawer::AmpToDbNormalized(deepVocoderUIState->m_voiceUIState[i].MagnitudeThreshold(usedOmega) * 2)) * getHeight();
+            float top = (1 - PathDrawer::AmpToDbNormalized(deepVocoderUIState->GetAtomMagnitude(i) * 2)) * getHeight();
+            g.drawLine(x, bottom, x, top, 1.5f);
         }
 
-        float threshY = PathDrawer::AmpToDbNormalized(GetSourceMixerUIState()->m_deepVocoderUIState.GetThreshold() * 2);
-        float yCoord = getHeight() * (1.0f - threshY);
-        g.setColour(juce::Colours::white);
-        g.drawLine(0, yCoord, getWidth(), yCoord, 1.5f);
+        for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
+        {
+            if (m_uiState->m_nonagonUIState.m_muted[i].load())
+            {
+                continue;
+            }
+
+            if (deepVocoderUIState->GetPitchCenter(i) <= 0.0f)
+            {
+                continue;
+            }
+
+            PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
+            SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
+            pathDrawer.DrawPath(g, J(color), VShapeDrawFn(&deepVocoderUIState->m_voiceUIState[i]));
+        }
     }
 };
 

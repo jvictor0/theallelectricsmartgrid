@@ -706,8 +706,6 @@ struct BankedEncoderCell : public StateEncoderCell
             rootJ.SetNew("active", activeJ);
         }
 
-        rootJ.SetNew("defaultValue", JSON::Real(m_defaultValue));
-
         return rootJ;
     }
 
@@ -719,12 +717,6 @@ struct BankedEncoderCell : public StateEncoderCell
             StateEncoderCell::FromJSON(valuesJ);
         }        
 
-        JSON defaultValueJ = rootJ.Get("defaultValue");
-        if (!defaultValueJ.IsNull())
-        {
-            m_defaultValue = defaultValueJ.RealValue();
-        }
-        
         JSON modulatorsJ = rootJ.Get("modulators");
         m_modulators.ClearAll();
         if (!modulatorsJ.IsNull())

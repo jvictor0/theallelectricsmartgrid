@@ -15,6 +15,7 @@
 #include "Slew.hpp"
 #include "Tick2Phasor.hpp"
 #include "MessageOut.hpp"
+#include "PhaseUtils.hpp"
 
 struct TheNonagonInternal
 {
@@ -65,6 +66,9 @@ struct TheNonagonInternal
     {
         TheoryOfTime::UIState m_theoryOfTimeUIState;
         std::atomic<int> m_loopMultiplier[x_numTrios];
+        std::atomic<bool> m_gate[x_numVoices];
+        std::atomic<bool> m_muted[x_numVoices];
+        std::atomic<float> m_cyclesPerSamplePitch[x_numVoices];
 
         int GetLoopMultiplier(int trioIndex)
         {
@@ -74,6 +78,21 @@ struct TheNonagonInternal
         void SetLoopMultiplier(int trioIndex, int value)
         {
             m_loopMultiplier[trioIndex].store(value);
+        }
+
+        void SetGate(size_t i, bool gate)
+        {
+            m_gate[i].store(gate);
+        }
+
+        void SetMuted(size_t i, bool muted)
+        {
+            m_muted[i].store(muted);
+        }
+
+        void SetCyclesPerSamplePitch(size_t i, float cyclesPerSample)
+        {
+            m_cyclesPerSamplePitch[i].store(cyclesPerSample);
         }
     };
     
@@ -1300,6 +1319,14 @@ struct TheNonagonSmartGrid
         for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
         {
             uiState->SetLoopMultiplier(i, m_state.m_multiPhasorGateInput.m_phasorDenominator[i * TheNonagonInternal::x_voicesPerTrio]);
+        }
+
+        for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
+        {
+            uiState->SetGate(i, m_nonagon.m_multiPhasorGate.m_gate[i]);
+            uiState->SetMuted(i, m_state.m_trigLogic.m_mute[i]);
+            float cyclesPerSample = PhaseUtils::VOctToNatural(m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
+            uiState->SetCyclesPerSamplePitch(i, cyclesPerSample);
         }
     }
     

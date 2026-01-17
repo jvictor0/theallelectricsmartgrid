@@ -230,7 +230,7 @@ struct QuadReverbInputSetter
             reverbInput.m_modDepth[i] = m_modDepthFilter[i].Process(m_modDepth[i].Update(input.m_modDepthKnob[i]));
             reverbInput.m_lfoInput.m_freq[i] = m_modFreq[i].Update(input.m_modFreqKnob[i]);
 
-            reverbInput.m_widen[i] = m_wideners[i].Update(input.m_widenKnob[i]);
+            reverbInput.m_widen[i] = m_wideners[i].Update(1.0 /* reverb max width */);
 
             reverbInput.m_feedback[i] = 1.25 * m_feedback[i].Update(input.m_feedbackKnob[i]);
 

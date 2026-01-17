@@ -4,6 +4,7 @@ template <typename T, size_t N>
 struct FixedAllocator
 {
     T m_data[N];
+    bool m_allocated[N];
     size_t m_index;
 
     int m_freeQueue[N];
@@ -19,6 +20,7 @@ struct FixedAllocator
         for (size_t i = 0; i < N; ++i)
         {
             m_freeQueue[i] = i;
+            m_allocated[i] = false;
         }
     }
 
@@ -36,6 +38,7 @@ struct FixedAllocator
 
         int index = m_freeQueue[m_freeQueueTail % N];
         m_freeQueueTail++;
+        m_allocated[index] = true;
         return &m_data[index];
     }
 
@@ -43,8 +46,20 @@ struct FixedAllocator
     {
         assert(Available() < N);        
 
-        int index = ptr - m_data;
+        int index = IndexOf(ptr);
         m_freeQueue[m_freeQueueHead % N] = index;
         m_freeQueueHead++;
+        m_allocated[index] = false;
+    }
+
+    int IndexOf(T* ptr) const
+    {
+        return ptr - m_data;
+    }
+
+    bool IsAllocated(T* ptr) const
+    {
+        int index = IndexOf(ptr);
+        return m_allocated[index];
     }
 };

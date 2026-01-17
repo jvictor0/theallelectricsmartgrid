@@ -5,7 +5,6 @@
 #include "PhaseUtils.hpp"
 #include "Metering.hpp"
 #include "AudioInputBuffer.hpp"
-#include "DeepVocoder.hpp"
 
 struct SourceMixer
 {
@@ -58,9 +57,6 @@ struct SourceMixer
 
         Source()
             : m_output(0.0f)
-            , m_lpFilter()
-            , m_hpFilter()
-            , m_meter()
         {
             m_lpFilter.SetResonance(0.0f);
             m_hpFilter.SetResonance(0.0f);
@@ -108,6 +104,15 @@ struct SourceMixer
     struct Input
     {
         Source::Input m_sources[x_numSources];
+        bool m_deepVocoderSend[x_numSources];
+
+        Input()
+        {
+            for (size_t i = 0; i < x_numSources; ++i)
+            {
+                m_deepVocoderSend[i] = false;
+            }
+        }
 
         void SetInputs(const AudioInputBuffer& audioInputBuffer)
         {
@@ -121,8 +126,7 @@ struct SourceMixer
     struct UIState
     {
         Source::UIState m_sources[x_numSources];
-        DeepVocoder::UIState m_deepVocoderUIState;
-
+        
         static SmartGrid::Color Color(size_t i)
         {
             if (i == 0)
@@ -158,10 +162,6 @@ struct SourceMixer
         {
             m_sources[i].PopulateUIState(&uiState->m_sources[i]);
         }
-
-        // UNDONE(DEEP_VOCODER)
-        //
-        m_deepVocoder.PopulateUIState(&uiState->m_deepVocoderUIState);
     }
 
     void SetupUIState(UIState* uiState)
@@ -178,10 +178,32 @@ struct SourceMixer
         {
             m_sources[i].Process(input.m_sources[i]);
         }
+    }
 
-        // UNDONE(DEEP_VOCODER)
-        //
-        m_deepVocoder.Process(m_sources[0].m_output, m_deepVocoderState);
+    float GetDeepVocoderInput(const Input& input)
+    {
+        float dvInput = 0.0f;
+        for (size_t i = 0; i < x_numSources; ++i)
+        {
+            if (input.m_deepVocoderSend[i])
+            {
+                dvInput += m_sources[i].m_output;
+            }
+        }
+        return dvInput;
+    }
+
+    bool IsVocoderEnabled(const Input& input)
+    {
+        for (size_t i = 0; i < x_numSources; ++i)
+        {
+            if (input.m_deepVocoderSend[i])
+            {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     void SetupScopeWriters(ScopeWriter* scopeWriter)
@@ -193,9 +215,4 @@ struct SourceMixer
     }
 
     Source m_sources[x_numSources];
-
-    // UNDONE(DEEP_VOCODER)
-    //
-    DeepVocoder m_deepVocoder;
-    DeepVocoder::Input m_deepVocoderState;
 };

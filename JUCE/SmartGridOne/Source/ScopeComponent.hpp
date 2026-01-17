@@ -64,7 +64,7 @@ struct ScopeComponent : public juce::Component
             else
             {
                 voiceIx += i;
-                if (m_uiState->m_squiggleBoyUIState.m_muted[voiceIx].load())
+                if (m_uiState->m_nonagonUIState.m_muted[voiceIx].load())
                 {
                     continue;
                 }
@@ -345,7 +345,7 @@ struct AnalyserComponent : public juce::Component
             if (voiceOffset == -1)
             {
                 voiceIx = baseVoiceIx + i;
-                if (m_uiState->m_squiggleBoyUIState.m_muted[voiceIx].load())
+                if (m_uiState->m_nonagonUIState.m_muted[voiceIx].load())
                 {
                     continue;
                 }

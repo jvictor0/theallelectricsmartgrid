@@ -125,3 +125,37 @@ struct BiDirectionalSlew
         return m_output;
     }
 };
+
+struct SlewUp
+{
+    float m_output;
+    OPLowPassFilter m_slewUp;
+
+    SlewUp() 
+        : m_output(0)
+    {
+    }
+
+    void SetSlewUp(float cyclesPerSample)
+    {
+        m_slewUp.SetAlphaFromNatFreq(cyclesPerSample);
+    }
+
+    static float Process(float src, float trg, float slewUpAlpha)
+    {
+        if (src < trg)
+        {
+            return src + slewUpAlpha * (trg - src);
+        }
+        else
+        {
+            return trg;
+        }
+    }
+
+    float Process(float trg)
+    {
+        m_output = Process(m_output, trg, m_slewUp.m_alpha);
+        return m_output;
+    }
+};

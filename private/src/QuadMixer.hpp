@@ -52,6 +52,7 @@ struct QuadMixerInternal
         QuadFloat m_return[x_numSends];
         PhaseUtils::ZeroedExpParam m_returnGain[x_numSends];
         bool m_noiseMode;
+        bool m_monitor[16];
 
         DualMasteringChain::Input m_masterChainInput;
 
@@ -60,8 +61,10 @@ struct QuadMixerInternal
             m_noiseMode = false;
             m_numInputs = 0;
             m_numMonoInputs = 0;
+            
             for (size_t i = 0; i < 16; ++i)
             {
+                m_monitor[i] = true;                
                 m_input[i] = 0.0f;
                 m_monoIn[i] = 0.0f;
                 m_x[i] = 0.0f;
@@ -169,8 +172,11 @@ struct QuadMixerInternal
         {
             for (size_t i = 0; i < input.m_numInputs; ++i)
             {
-                m_quadToStereoMixdown.MixSample(input.m_x[i], input.m_y[i], input.m_input[i] * input.m_gain[i].m_expParam);
-                m_quadToStereoMixdown.MixSample(0.5f, 0.5f, input.m_monoIn[i] * input.m_gain[i].m_expParam);
+                if (input.m_monitor[i])
+                {
+                    m_quadToStereoMixdown.MixSample(input.m_x[i], input.m_y[i], input.m_input[i] * input.m_gain[i].m_expParam);
+                    m_quadToStereoMixdown.MixSample(0.5f, 0.5f, input.m_monoIn[i] * input.m_gain[i].m_expParam);
+                }
 
                 QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i]);
 
@@ -181,7 +187,11 @@ struct QuadMixerInternal
 
                 QuadFloat mono = QuadFloat::Pan(0.5f, 0.5f, input.m_monoIn[i]);                
                 QuadFloat postFader = (pan + mono) * input.m_gain[i].m_expParam;
-                m_output.m_output += postFader;
+
+                if (input.m_monitor[i])
+                {
+                    m_output.m_output += postFader;
+                }
 
                 m_voiceMeters[i].Process((input.m_input[i] + input.m_monoIn[i]) * input.m_gain[i].m_expParam);
 

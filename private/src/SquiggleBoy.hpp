@@ -22,13 +22,34 @@
 #include "SmartGridOneScopeEnums.hpp"
 #include "VCO.hpp"
 #include "SourceMixer.hpp"
+#include "DeepVocoder.hpp"
 #include "KMixMidi.hpp"
 #include "Math.hpp"
+#include "SampleTimer.hpp"
+#include "StateSaver.hpp"
 
 struct TheoryOfTime;
 
 struct SquiggleBoyVoice
 {
+    struct VoiceConfig
+    {
+        enum class Machine : int
+        {
+            VCO = 0,
+            Thru = 1,
+        };
+
+        VoiceConfig()
+            : m_machine(Machine::VCO)
+            , m_sourceIndex(0)
+        {
+        }
+
+        Machine m_machine;
+        int m_sourceIndex;        
+    };
+
     struct VCOSection
     {
         static constexpr size_t x_oversample = 4;
@@ -207,6 +228,8 @@ struct SquiggleBoyVoice
             ADSP::InputSetter m_adspInputSetter;
             ADSP::Input m_adspInput;
 
+            VoiceConfig* m_voiceConfig;
+
             PhaseUtils::ExpParam m_sampleRateReducerFreq;
 
             void SetADSP(float attack, float decay, float sustain, float phasorMult)
@@ -230,9 +253,15 @@ struct SquiggleBoyVoice
         {
             m_adsp.Process(input.m_adspInput);
 
-            m_hpFilter.SetCutoff(input.m_vcoBaseFreq * input.m_hpCutoffFactor.m_expParam);
+            float baseFreq = input.m_vcoBaseFreq;
+            if (input.m_voiceConfig->m_machine == VoiceConfig::Machine::Thru)
+            {
+                baseFreq = 80.0 / SampleTimer::x_sampleRate;
+            }
+
+            m_hpFilter.SetCutoff(baseFreq * input.m_hpCutoffFactor.m_expParam);
             m_hpFilter.SetResonance(input.m_hpResonance.m_expParam);
-            m_lpFilter.SetCutoff(input.m_vcoBaseFreq * input.m_hpCutoffFactor.m_expParam * input.m_lpCutoffFactor.m_expParam);
+            m_lpFilter.SetCutoff(baseFreq * input.m_hpCutoffFactor.m_expParam * input.m_lpCutoffFactor.m_expParam);
             m_lpFilter.SetResonance(input.m_lpResonance.m_expParam);
 
             m_output = vcoOutput;
@@ -282,6 +311,8 @@ struct SquiggleBoyVoice
             ScopeWriterHolder m_scopeWriter;
             TanhSaturator<true> m_subTanhSaturator;
 
+            VoiceConfig* m_voiceConfig;
+
             bool m_subTrig;
 
             void SetADSP(float attack, float decay, float sustain, float phasorMult)
@@ -309,7 +340,7 @@ struct SquiggleBoyVoice
         {
             if (input.m_adspInput.m_trig)
             {
-                if (input.m_vcoTargetFreq * 48000 < 100)
+                if (input.m_vcoTargetFreq * 48000 < 100 || input.m_voiceConfig->m_machine == VoiceConfig::Machine::Thru)
                 {
                     m_freqDependentGainTarget = 1.0;
                 }
@@ -323,7 +354,7 @@ struct SquiggleBoyVoice
                     m_scopeWriter.RecordEnd();
                 }
 
-                m_subRunning = input.m_subTrig;
+                m_subRunning = input.m_subTrig && input.m_voiceConfig->m_machine == VoiceConfig::Machine::VCO;
             }
 
             input.m_subTanhSaturator.SetInputGain(input.m_subTanhGain.m_expParam);
@@ -465,6 +496,8 @@ struct SquiggleBoyVoice
 
     struct Input
     {
+        VoiceConfig m_voiceConfig;
+        SourceMixer* m_sourceMixer;
         ADSP::ADSPControl m_adspControl;
 
         VCOSection::Input m_vcoInput;
@@ -475,6 +508,8 @@ struct SquiggleBoyVoice
 
         Input()
         {
+            m_filterInput.m_voiceConfig = &m_voiceConfig;
+            m_ampInput.m_voiceConfig = &m_voiceConfig;
         }
 
         void SetGates()
@@ -495,7 +530,15 @@ struct SquiggleBoyVoice
 
     float Processs(Input& input)
     {
-        m_output = m_vco.Process(input.m_vcoInput);
+        if (input.m_voiceConfig.m_machine == VoiceConfig::Machine::VCO)
+        {
+            m_output = m_vco.Process(input.m_vcoInput);
+        }
+        else
+        {
+            m_output = input.m_sourceMixer->m_sources[input.m_voiceConfig.m_sourceIndex].m_output;
+        }
+
         m_output = m_filter.Process(input.m_filterInput, m_output, m_vco.m_top);
         m_output = m_amp.Process(input.m_ampInput, m_output, m_vco.m_sub.m_output);
         m_pan.Process(input.m_panInput);
@@ -531,6 +574,9 @@ struct SquiggleBoy
     SourceMixer m_sourceMixer;
     SourceMixer::Input m_sourceMixerState;
 
+    DeepVocoder m_deepVocoder;
+    DeepVocoder::Input m_deepVocoderState;
+
     QuadMixerInternal m_mixer;
 
     QuadDelay m_delay;
@@ -559,13 +605,21 @@ struct SquiggleBoy
 
     bool m_firstFrame;
 
+    StateSaver* m_stateSaver;
+
     SquiggleBoy()
+        : m_stateSaver(nullptr)
     {
         m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numSources;
         m_mixerState.m_numMonoInputs = x_numVoices;
         m_delayToReverbSend.m_expParam = 0.0;
         m_reverbToDelaySend.m_expParam = 0.0;
         m_theoryOfTime = nullptr;
+
+        for (size_t i = 0; i < x_numVoices; ++i)
+        {
+            m_state[i].m_sourceMixer = &m_sourceMixer;
+        }
 
         for (size_t i = 0; i < 4; ++i)
         {
@@ -724,6 +778,8 @@ struct SquiggleBoy
 
         m_globalGangedRandomLFO[0].Process(1.0 / 48000.0, m_globalGangedRandomLFOInput[0]);
         m_globalGangedRandomLFO[1].Process(1.0 / 48000.0, m_globalGangedRandomLFOInput[1]);
+        m_quadGangedRandomLFO[0].Process(1.0 / 48000.0, m_quadGangedRandomLFOInput[0]);
+        m_quadGangedRandomLFO[1].Process(1.0 / 48000.0, m_quadGangedRandomLFOInput[1]);
 
         for (size_t i = 0; i < x_numVoices; ++i)
         {
@@ -736,12 +792,15 @@ struct SquiggleBoy
         }
 
         m_sourceMixer.Process(m_sourceMixerState);
+        m_deepVocoderState.m_enabled = m_sourceMixer.IsVocoderEnabled(m_sourceMixerState);
+        float deepVocoderInput = m_sourceMixer.GetDeepVocoderInput(m_sourceMixerState);
+        m_deepVocoder.Process(deepVocoderInput, m_deepVocoderState);
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
             m_mixerState.m_input[i + x_numVoices] = m_sourceMixer.m_sources[i].m_output;
             m_mixerState.m_x[i + x_numVoices] = 0.5f;
             m_mixerState.m_y[i + x_numVoices] = 0.5f;
-            m_mixerState.m_gain[i + x_numVoices].m_expParam = 0.0; // UNDONE(DEEP_VOCODER)
+            m_mixerState.m_gain[i + x_numVoices].m_expParam = 1.0; 
             m_mixerState.m_sendGain[i + x_numVoices][0].m_expParam = 0;
             m_mixerState.m_sendGain[i + x_numVoices][1].m_expParam = 0;
         }
@@ -772,10 +831,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     static constexpr size_t x_numVoiceBanks = 4;
     EncoderBankBankInternal<x_numVoiceBanks> m_voiceEncoderBank;
 
-    static constexpr size_t x_numQuadBanks = 3;
+    static constexpr size_t x_numQuadBanks = 2;
     EncoderBankBankInternal<x_numQuadBanks> m_quadEncoderBank;
 
-    static constexpr size_t x_numGlobalBanks = 3;
+    static constexpr size_t x_numGlobalBanks = 4;
     EncoderBankBankInternal<x_numGlobalBanks> m_globalEncoderBank;
 
     static constexpr size_t x_totalNumBanks = x_numVoiceBanks + x_numQuadBanks + x_numGlobalBanks;
@@ -785,7 +844,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     size_t m_selectedAbsoluteEncoderBank;
     size_t m_selectedGridId;
 
-    bool m_shift;
+    bool m_shift;    
 
     struct UIState
     {
@@ -836,9 +895,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         QuadDelay::UIState m_delayUIState;
         QuadReverb::UIState m_reverbUIState;
 
-        std::atomic<bool> m_muted[x_numVoices];
-
         SourceMixer::UIState m_sourceMixerUIState;
+        DeepVocoder::UIState m_deepVocoderUIState;
 
         void ReadMeters()
         {
@@ -876,10 +934,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             mixer->m_masterChain.m_stereoMasteringChain.m_saturator.SetupUIState(&m_stereoMasteringChainUIState);
         }
 
-        void SetMuted(size_t i, bool muted)
-        {
-            m_muted[i].store(muted);
-        }
 
         void SetFilterParams(size_t i, float hpAlpha, float lpAlpha, float hpResonance, float lpResonance)
         {
@@ -1188,11 +1242,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_voiceEncoderBank.SetColor(2, SmartGrid::Color::Orange, input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.SetColor(3, SmartGrid::Color::Blue, input.m_voiceEncoderBankInput);
         m_quadEncoderBank.SetColor(0, SmartGrid::Color::Pink, input.m_quadEncoderBankInput);
-        m_quadEncoderBank.SetColor(1, SmartGrid::Color::Cyan, input.m_quadEncoderBankInput);
-        m_quadEncoderBank.SetColor(2, SmartGrid::Color::Fuscia, input.m_quadEncoderBankInput);
+        m_quadEncoderBank.SetColor(1, SmartGrid::Color::Fuscia, input.m_quadEncoderBankInput);
         m_globalEncoderBank.SetColor(0, SmartGrid::Color::Yellow, input.m_globalEncoderBankInput);
         m_globalEncoderBank.SetColor(1, SmartGrid::Color::SeaGreen, input.m_globalEncoderBankInput);
         m_globalEncoderBank.SetColor(2, SmartGrid::Color::White, input.m_globalEncoderBankInput);
+        m_globalEncoderBank.SetColor(3, SmartGrid::Color::Ocean, input.m_globalEncoderBankInput);
 
         m_voiceEncoderBank.Config(0, 0, 0, 0, "VCO 1 Cos Blend", input.m_voiceEncoderBankInput);
         m_voiceEncoderBank.Config(0, 0, 1, 0, "VCO 2 Cos Blend", input.m_voiceEncoderBankInput);
@@ -1251,41 +1305,26 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_quadEncoderBank.Config(0, 3, 0, 0.75, "Delay Feedback", input.m_quadEncoderBankInput);
         m_quadEncoderBank.Config(0, 0, 1, 0.4, "Delay Damp Base", input.m_quadEncoderBankInput);
         m_quadEncoderBank.Config(0, 1, 1, 0.3, "Delay Damp Width", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 2, 1, 0.5, "Delay Grain Samples", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 2, 1, 0.5, "Resynth Slew Up", input.m_quadEncoderBankInput);
         m_quadEncoderBank.Config(0, 3, 1, 0, "Reverb Send", input.m_quadEncoderBankInput);
         m_quadEncoderBank.Config(0, 0, 2, 0, "Delay Widen", input.m_quadEncoderBankInput);
         m_quadEncoderBank.Config(0, 1, 2, 0.25, "Delay Rotate", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 2, 2, 0.1, "Delay Grain Overlap", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 0, 3, 0, "Delay Mod Depth", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 1, 3, 0, "Delay Mod Speed", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 2, 3, 1.0, "Delay Mod Phase Skew", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 2, 2, 0.1, "Resynth Unison", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 1, 3, 0.0, "Resynth Shift Fade", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 2, 3, 0.0, "Resynth Shift Interval", input.m_quadEncoderBankInput);
         m_quadEncoderBank.Config(0, 3, 3, 1.0, "Delay Return", input.m_quadEncoderBankInput);
 
-        m_quadEncoderBank.Config(1, 0, 0, 1.0, "Resynth RMS Threshold", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 1, 0, 0.0, "Resynth RMS Quiet", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 2, 0, 1.0, "Resynth RMS Loud", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 3, 0, 0.0, "Resynth Loud Shift", input.m_quadEncoderBankInput);        
-        m_quadEncoderBank.Config(1, 2, 1, 0.0, "Resynth Slew Up", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 3, 1, 0.0, "Resynth Slew Down", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 0, 2, 0.0, "Resynth Shift Fade", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 1, 2, 0.0, "Resynth Shift Fade 2", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 2, 2, 0.0, "Resynth Unison Gain", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 3, 2, 0.0, "Resynth Unison Detune", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 0, 3, 0.0, "Resynth Shift 1", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 1, 3, 0.0, "Resynth Shift 2", input.m_quadEncoderBankInput);
-
-        m_quadEncoderBank.Config(2, 0, 0, 0.5, "Reverb Time", input.m_quadEncoderBankInput);
-        // No rotate for reverb
-        //
-        m_quadEncoderBank.Config(2, 3, 0, 0.75, "Reverb Feedback", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(2, 0, 1, 0.3, "Reverb Damp Base", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(2, 1, 1, 0.5, "Reverb Damp Width", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(2, 3, 1, 0, "Delay Send", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(2, 0, 2, 1.0, "Reverb Widen", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(2, 0, 3, 0, "Reverb Mod Depth", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(2, 1, 3, 1.0, "Reverb Mod Phase Skew", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(2, 2, 3, 0.1, "Reverb Mod Speed", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(2, 3, 3, 1.0, "Reverb Return", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 0, 0, 0.5, "Reverb Time", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 3, 0, 0.75, "Reverb Feedback", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 0, 1, 0.3, "Reverb Damp Base", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 1, 1, 0.5, "Reverb Damp Width", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 3, 1, 0, "Delay Send", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 1, 2, 0.1, "Delay Mod Speed", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 2, 2, 1.0, "Delay Mod Phase Shift", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 0, 3, 0, "Reverb Mod Depth", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 1, 3, 0.1, "Reverb Mod Speed", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 2, 3, 1.0, "Reverb Mod Phase Shift", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 3, 3, 1.0, "Reverb Return", input.m_quadEncoderBankInput);
 
         m_globalEncoderBank.Config(0, 0, 0, 0.5, "Tempo", input.m_globalEncoderBankInput);
 
@@ -1321,10 +1360,17 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         // UNDONE(DEEP_VOCODER)
         //
-        m_globalEncoderBank.Config(2, 0, 2, 0.5, "Deep Vocoder Slew Up", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 1, 2, 0.5, "Deep Vocoder Slew Down", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 2, 2, 0.5, "Deep Vocoder Min Magnitude", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 3, 2, 0.5, "Deep Vocoder Ratio", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(3, 0, 0, 0.5, "Deep Vocoder Slew Up", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(3, 1, 0, 0.5, "Deep Vocoder Slew Down", input.m_globalEncoderBankInput);
+        
+        for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
+        {
+            size_t row = 1 + trio;
+            m_globalEncoderBank.Config(3, 0, row, 0.5, "Deep Vocoder Gain Threshold Trio " + std::to_string(trio + 1), input.m_globalEncoderBankInput);
+            m_globalEncoderBank.Config(3, 1, row, 0.5, "Deep Vocoder Ratio Trio " + std::to_string(trio + 1), input.m_globalEncoderBankInput);
+            m_globalEncoderBank.Config(3, 2, row, 0.5, "Deep Vocoder Slope Down Trio " + std::to_string(trio + 1), input.m_globalEncoderBankInput);
+            m_globalEncoderBank.Config(3, 3, row, 0.5, "Deep Vocoder Slope Up Trio " + std::to_string(trio + 1), input.m_globalEncoderBankInput);
+        }
     }
 
     SquiggleBoyWithEncoderBank()
@@ -1487,31 +1533,25 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         QuadDelayInputSetter::Input delayInputSetterInput;
         for (int i = 0; i < 4; ++i)
         {
-            delayInputSetterInput.m_delayTimeFactorKnob[i] = m_quadEncoderBank.GetValue(0, 1, 0, i);
             delayInputSetterInput.m_loopSelectorKnob[i] = m_quadEncoderBank.GetValue(0, 0, 0, i);
-            delayInputSetterInput.m_widenKnob[i] = m_quadEncoderBank.GetValue(0, 0, 2, i);
-            delayInputSetterInput.m_rotateKnob[i] = m_quadEncoderBank.GetValue(0, 1, 2, i);
-            delayInputSetterInput.m_modFreqKnob[i] = m_quadEncoderBank.GetValue(0, 1, 3, i);
-            delayInputSetterInput.m_modDepthKnob[i] = m_quadEncoderBank.GetValue(0, 0, 3, i);
+            delayInputSetterInput.m_delayTimeFactorKnob[i] = m_quadEncoderBank.GetValue(0, 1, 0, i);
             delayInputSetterInput.m_feedbackKnob[i] = m_quadEncoderBank.GetValue(0, 3, 0, i);
+
             delayInputSetterInput.m_dampingBaseKnob[i] = m_quadEncoderBank.GetValue(0, 0, 1, i);
             delayInputSetterInput.m_dampingWidthKnob[i] = m_quadEncoderBank.GetValue(0, 1, 1, i);
-            delayInputSetterInput.m_grainSamplesKnob[i] = m_quadEncoderBank.GetValue(0, 2, 1, i);
-            delayInputSetterInput.m_grainOverlapKnob[i] = m_quadEncoderBank.GetValue(0, 2, 2, i);
-            delayInputSetterInput.m_lfoPhaseKnob[i] = m_quadEncoderBank.GetValue(0, 2, 3, i);
+            delayInputSetterInput.m_resynthSlewUpKnob[i] = m_quadEncoderBank.GetValue(0, 2, 1, i);
 
-            delayInputSetterInput.m_resynthRmsThresholdKnob[i] = m_quadEncoderBank.GetValue(1, 0, 0, i);
-            delayInputSetterInput.m_resynthRmsQuietKnob[i] = m_quadEncoderBank.GetValue(1, 1, 0, i);
-            delayInputSetterInput.m_resynthRmsLoudKnob[i] = m_quadEncoderBank.GetValue(1, 2, 0, i);
-            delayInputSetterInput.m_resynthLoudShiftKnob[i] = m_quadEncoderBank.GetValue(1, 3, 0, i);
-            delayInputSetterInput.m_resynthSlewUpKnob[i] = m_quadEncoderBank.GetValue(1, 2, 1, i);
-            delayInputSetterInput.m_resynthSlewDownKnob[i] = m_quadEncoderBank.GetValue(1, 3, 1, i);
-            delayInputSetterInput.m_resynthShiftFadeKnob[i] = m_quadEncoderBank.GetValue(1, 0, 2, i);
-            delayInputSetterInput.m_resynthShiftFade2Knob[i] = m_quadEncoderBank.GetValue(1, 1, 2, i);
-            delayInputSetterInput.m_resynthUnisonGainKnob[i] = m_quadEncoderBank.GetValue(1, 2, 2, i);
-            delayInputSetterInput.m_resynthUnisonDetuneKnob[i] = m_quadEncoderBank.GetValue(1, 3, 2, i);
-            delayInputSetterInput.m_resynthShift1Knob[i] = m_quadEncoderBank.GetValue(1, 0, 3, i);
-            delayInputSetterInput.m_resynthShift2Knob[i] = m_quadEncoderBank.GetValue(1, 1, 3, i);
+            delayInputSetterInput.m_widenKnob[i] = m_quadEncoderBank.GetValue(0, 0, 2, i);
+            delayInputSetterInput.m_rotateKnob[i] = m_quadEncoderBank.GetValue(0, 1, 2, i);
+            delayInputSetterInput.m_resynthUnisonKnob[i] = m_quadEncoderBank.GetValue(0, 2, 2, i);
+
+            delayInputSetterInput.m_resynthShiftFadeKnob[i] = m_quadEncoderBank.GetValue(0, 1, 3, i);
+            delayInputSetterInput.m_resynthShiftKnob[i] = m_quadEncoderBank.GetValue(0, 2, 3, i);
+
+            // For whatever reason, the delay's LFO is on the reverb page... And really not owned by the delay.
+            //
+            delayInputSetterInput.m_modFreqKnob[i] = m_quadEncoderBank.GetValue(1, 1, 2, i);
+            delayInputSetterInput.m_lfoPhaseKnob[i] = m_quadEncoderBank.GetValue(1, 2, 2, i);
         }
 
         delayInputSetterInput.m_theoryOfTime = m_theoryOfTime;
@@ -1522,19 +1562,20 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         QuadReverbInputSetter::Input reverbInputSetterInput;
         for (int i = 0; i < 4; ++i)
         {
-            reverbInputSetterInput.m_reverbTimeKnob[i] = m_quadEncoderBank.GetValue(2, 0, 0, i);
-            reverbInputSetterInput.m_modFreqKnob[i] = m_quadEncoderBank.GetValue(2, 1, 3, i);
-            reverbInputSetterInput.m_modDepthKnob[i] = m_quadEncoderBank.GetValue(2, 0, 3, i);
-            reverbInputSetterInput.m_feedbackKnob[i] = m_quadEncoderBank.GetValue(2, 3, 0, i);
-            reverbInputSetterInput.m_dampingBaseKnob[i] = m_quadEncoderBank.GetValue(2, 0, 1, i);
-            reverbInputSetterInput.m_dampingWidthKnob[i] = m_quadEncoderBank.GetValue(2, 1, 1, i);
-            reverbInputSetterInput.m_widenKnob[i] = m_quadEncoderBank.GetValue(2, 0, 2, i);
-            reverbInputSetterInput.m_lfoPhaseKnob[i] = m_quadEncoderBank.GetValue(2, 2, 3, i);
+            reverbInputSetterInput.m_reverbTimeKnob[i] = m_quadEncoderBank.GetValue(1, 0, 0, i);
+            reverbInputSetterInput.m_feedbackKnob[i] = m_quadEncoderBank.GetValue(1, 3, 0, i);
+
+            reverbInputSetterInput.m_dampingBaseKnob[i] = m_quadEncoderBank.GetValue(1, 0, 1, i);
+            reverbInputSetterInput.m_dampingWidthKnob[i] = m_quadEncoderBank.GetValue(1, 1, 1, i);
+
+            reverbInputSetterInput.m_modDepthKnob[i] = m_quadEncoderBank.GetValue(1, 0, 3, i);
+            reverbInputSetterInput.m_modFreqKnob[i] = m_quadEncoderBank.GetValue(1, 1, 3, i);
+            reverbInputSetterInput.m_lfoPhaseKnob[i] = m_quadEncoderBank.GetValue(1, 2, 3, i);
         }
         
         m_reverbInputSetter.Process(reverbInputSetterInput, m_reverbState);
-        m_reverbToDelaySend.Update(m_quadEncoderBank.GetValue(2, 3, 1, 0));
-        m_mixerState.m_returnGain[1].Update(m_quadEncoderBank.GetValue(2, 3, 3, 0) / 2);
+        m_reverbToDelaySend.Update(m_quadEncoderBank.GetValue(1, 3, 1, 0));
+        m_mixerState.m_returnGain[1].Update(m_quadEncoderBank.GetValue(1, 3, 3, 0) / 2);
 
         input.m_tempo.Update(m_globalEncoderBank.GetValue(0, 0, 0, 0));
 
@@ -1556,9 +1597,21 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         // UNDONE(DEEP_VOCODER)
         //
-        m_sourceMixer.m_deepVocoderState.SetSlew(m_globalEncoderBank.GetValue(2, 0, 2, 0), m_globalEncoderBank.GetValue(2, 1, 2, 0));
-        m_sourceMixer.m_deepVocoderState.m_gainThreshold.Update(m_globalEncoderBank.GetValue(2, 2, 2, 0));
-        m_sourceMixer.m_deepVocoderState.m_ratio = m_globalEncoderBank.GetValue(2, 3, 2, 0);
+        m_deepVocoderState.SetSlew(m_globalEncoderBank.GetValue(3, 0, 0, 0), m_globalEncoderBank.GetValue(3, 1, 0, 0));
+        
+        for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
+        {
+            size_t row = 1 + trio;
+            for (size_t voiceInTrio = 0; voiceInTrio < TheNonagonInternal::x_voicesPerTrio; ++voiceInTrio)
+            {
+                size_t i = trio * 3 + voiceInTrio;
+
+                m_deepVocoderState.m_voiceInput[i].m_gainThreshold.Update(m_globalEncoderBank.GetValue(3, 0, row, 0));
+                m_deepVocoderState.m_voiceInput[i].m_pitchRatioPre.Update(m_globalEncoderBank.GetValue(3, 1, row, 0));
+                m_deepVocoderState.m_voiceInput[i].m_slopeDown.Update(m_globalEncoderBank.GetValue(3, 2, row, 0));
+                m_deepVocoderState.m_voiceInput[i].m_slopeUp.Update(1.0 - m_globalEncoderBank.GetValue(3, 3, row, 0));
+            }
+        }
     }   
 
     JSON ToJSON()
@@ -1756,6 +1809,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_reverb.PopulateUIState(&uiState->m_reverbUIState);
 
         m_sourceMixer.PopulateUIState(&uiState->m_sourceMixerUIState);
+        m_deepVocoder.PopulateUIState(&uiState->m_deepVocoderUIState);
 
         if (m_selectedAbsoluteEncoderBank == 0)
         {
@@ -1778,15 +1832,16 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::QuadMaster);
         }
         else if (m_selectedAbsoluteEncoderBank == x_numVoiceBanks + x_numQuadBanks + 1 ||
-                 m_selectedAbsoluteEncoderBank == x_numVoiceBanks + x_numQuadBanks + 2)
+                 m_selectedAbsoluteEncoderBank == x_numVoiceBanks + x_numQuadBanks + 2 ||
+                 m_selectedAbsoluteEncoderBank == x_numVoiceBanks + x_numQuadBanks + 3)
         {
             uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::StereoMaster);
         }
-        else if (m_selectedAbsoluteEncoderBank == x_numVoiceBanks || m_selectedAbsoluteEncoderBank == x_numVoiceBanks + 1)
+        else if (m_selectedAbsoluteEncoderBank == x_numVoiceBanks)
         {
             uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Delay);
         }
-        else if (m_selectedAbsoluteEncoderBank == x_numVoiceBanks + 2)
+        else if (m_selectedAbsoluteEncoderBank == x_numVoiceBanks + 1)
         {
             uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Reverb);
         }

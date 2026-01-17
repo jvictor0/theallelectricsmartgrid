@@ -8,6 +8,7 @@
 #include "NormGen.hpp"
 #include "Math.hpp"
 #include "Array.hpp"
+#include "SpectralModel.hpp"
 
 struct Resynthesizer
 {
@@ -229,7 +230,7 @@ struct Resynthesizer
 
     struct Oscillator
     {
-        static constexpr size_t x_numShifts = 3;
+        static constexpr size_t x_numShifts = 2;
 
         struct Input
         {
@@ -400,18 +401,15 @@ struct Resynthesizer
             float unisonGain = GetUnisonGainForOscillator(index);
             Oscillator::Input input;
             float fade0 = m_fade[0] * m_fade[0] * m_fade[0] * m_fade[0];
-            float fade1 = m_fade[1] * m_fade[1] * m_fade[1] * m_fade[1];
             input.m_gain[0] = std::max(0.0f, 1 - fade0);
-            input.m_gain[1] = std::max(0.0f, fade0 * (1 - fade1));
-            input.m_gain[2] = std::max(0.0f, (1 - input.m_gain[0] - input.m_gain[1]));
-            for (size_t i = 0; i < 3; ++i)
+            input.m_gain[1] = std::max(0.0f, fade0);
+            for (size_t i = 0; i < Oscillator::x_numShifts; ++i)
             {
                 input.m_gain[i] *= unisonGain;
             }
 
             input.m_shift[0] = Q(1, 1);
             input.m_shift[1] = m_shift[0];
-            input.m_shift[2] = m_shift[1];
             return input;
         }
 
@@ -485,19 +483,6 @@ struct Resynthesizer
         }
     }
 
-    void SetSlewDown(float cyclesPerSample)
-    {
-        float old = m_synthesisMagnitudes[0].m_slewDown.m_alpha;
-        m_synthesisMagnitudes[0].SetSlewDown(cyclesPerSample);
-        if (old != m_synthesisMagnitudes[0].m_slewDown.m_alpha)
-        {
-            for (size_t i = 1; i < x_maxComponents; ++i)
-            {
-                m_synthesisMagnitudes[i].m_slewDown.m_alpha = m_synthesisMagnitudes[0].m_slewDown.m_alpha;
-            }
-        }
-    }
-
     void PrimePhases(DFT& dft)
     {
         for (size_t i = 1; i < x_maxComponents; ++i)
@@ -521,7 +506,7 @@ struct Resynthesizer
         for (size_t i = 1; i < x_maxComponents; ++i)
         {
             m_analysisMagnitudes[i] = std::abs(dft.m_components[i]);            
-            m_synthesisMagnitudes[i].m_output = m_analysisMagnitudes[i];
+            m_synthesisMagnitudes[i].Process(m_analysisMagnitudes[i]);
             m_analysisPhase[i] = std::arg(dft.m_components[i]) / (2.0f * M_PI);
             SetAnalysisOmega(i);
         }
@@ -674,7 +659,6 @@ struct Resynthesizer
         PVDR pvdr(this);
 
         SetSlewUp(input.m_slewUp);
-        SetSlewDown(input.m_slewDown);
 
         Analyze(&pvdr, grain->m_buffer);
                 
@@ -734,7 +718,7 @@ struct Resynthesizer
     static constexpr size_t x_N = x_tableSize;
     static constexpr size_t x_H = x_N / x_hopDenom;
     
-    BiDirectionalSlew m_synthesisMagnitudes[x_maxComponents];
+    SlewUp m_synthesisMagnitudes[x_maxComponents];
     float m_analysisMagnitudes[x_maxComponents];
     float m_prevAnalysisMagnitudes[x_maxComponents];
     float m_omegaInstantaneous[x_maxComponents];    
@@ -743,258 +727,4 @@ struct Resynthesizer
     Oscillator m_oscillators[x_numOscillators];
 };
 
-template <size_t Bits>
-struct SpectralModelGeneric
-{
-    typedef BasicWaveTableGeneric<Bits> Buffer;
-    typedef DiscreteFourierTransformGeneric<Bits> DFT;
-    static constexpr size_t x_tableSize = Buffer::x_tableSize;
-    static constexpr size_t x_maxComponents = DFT::x_maxComponents;
-    static constexpr size_t x_hopDenom = 4;
-    static constexpr size_t x_H = x_tableSize / x_hopDenom;
-    static constexpr float x_deathMag = 1e-5f;
-    static constexpr float x_mergeGainThreshold = 1e-3f;
-
-    struct Input
-    {
-        float m_gainThreshold;
-        size_t m_numAtoms;
-        float m_slewUpAlpha;
-        float m_slewDownAlpha;
-        float m_omegaDensity;
-
-        Input()
-            : m_gainThreshold(0.001f)
-            , m_numAtoms(64)
-            , m_slewUpAlpha(1.0f)
-            , m_slewDownAlpha(1.0f)
-            , m_omegaDensity(1.0 / x_tableSize)
-        {
-        }
-    };
-
-    struct AnalysisAtom
-    {
-        float m_analysisOmega;
-        float m_analysisMagnitude;
-        
-        AnalysisAtom()
-            : m_analysisOmega(0.0f)
-            , m_analysisMagnitude(0.0f)
-        {
-        }
-
-        AnalysisAtom(float analysisOmega, float analysisMagnitude)
-            : m_analysisOmega(analysisOmega)
-            , m_analysisMagnitude(analysisMagnitude)
-        {
-        }
-
-        static bool CmpReverseMagnitude(const AnalysisAtom& a, const AnalysisAtom& b)
-        {
-            return b.m_analysisMagnitude < a.m_analysisMagnitude;
-        }
-
-        static bool CmpOmega(const AnalysisAtom& a, const AnalysisAtom& b)
-        {
-            return a.m_analysisOmega < b.m_analysisOmega;
-        }
-
-        static bool CmpOmegaFloat(const AnalysisAtom& a, float omega)
-        {
-            return a.m_analysisOmega < omega;
-        }
-    };
-
-    struct Atom : public AnalysisAtom
-    {
-        float m_synthesisOmega;
-        float m_synthesisMagnitude;
-        double m_synthesisPhase;
-
-        Atom()
-            : AnalysisAtom()
-            , m_synthesisOmega(0.0f)
-            , m_synthesisMagnitude(0.0f)
-            , m_synthesisPhase(0.0f)
-        {
-        }
-
-        Atom(float analysisOmega, float analysisMagnitude, float synthesisOmega, float synthesisMagnitude, float synthesisPhase)
-            : AnalysisAtom(analysisOmega, analysisMagnitude)
-            , m_synthesisOmega(synthesisOmega)
-            , m_synthesisMagnitude(synthesisMagnitude)
-            , m_synthesisPhase(synthesisPhase)
-        {
-        }
-
-        void Merge(const AnalysisAtom& analysisAtom, Input& input)
-        {
-            m_synthesisMagnitude = BiDirectionalSlew::Process(m_synthesisMagnitude, analysisAtom.m_analysisMagnitude, input.m_slewUpAlpha, input.m_slewDownAlpha);
-            AnalysisAtom::m_analysisOmega = analysisAtom.m_analysisOmega;
-            AnalysisAtom::m_analysisMagnitude = analysisAtom.m_analysisMagnitude;
-            m_synthesisOmega = analysisAtom.m_analysisOmega;
-        }
-
-        void MergeNoMatch(Input& input)
-        {
-            m_synthesisMagnitude = Slew::Process(m_synthesisMagnitude, 0.0, input.m_slewDownAlpha);
-            AnalysisAtom::m_analysisMagnitude = 0.0;
-            m_synthesisOmega = AnalysisAtom::m_analysisOmega;
-        }
-
-        void UpdatePhase()
-        {
-            m_synthesisPhase += x_H * m_synthesisOmega;
-        }
-
-        static bool CmpReverseMagnitude(const Atom& a, const Atom& b)
-        {
-            return AnalysisAtom::CmpReverseMagnitude(a, b);
-        }
-    };
-
-    using AnalysisAtomArray = Array<AnalysisAtom, x_maxComponents>;
-    using AtomArray = Array<Atom, x_maxComponents>;
-
-    void ExtractAnalysisAtoms(DFT& dft, AnalysisAtomArray& analysisAtoms, const Input& input)
-    {
-        analysisAtoms.Clear();
-
-        // Compute magnitudes
-        //
-        float mags[x_maxComponents];
-        for (size_t i = 1; i < x_maxComponents; ++i)
-        {
-            mags[i] = std::abs(dft.m_components[i]);            
-        }
-
-        // Find local maxima and apply parabolic interpolation
-        //
-        constexpr float x_logEps = 1e-20f;
-
-        for (int k = static_cast<int>(x_maxComponents) - 2; 2 <= k; --k)
-        {
-            float mag = mags[k];
-            if (mags[k - 1] < mag && mags[k + 1] < mag && input.m_gainThreshold <= mag)
-            {
-                // Log-domain parabolic interpolation
-                //
-                float magLo = std::max(mags[k - 1], x_logEps);
-                float magMid = std::max(mag, x_logEps);
-                float magHi = std::max(mags[k + 1], x_logEps);
-
-                float alpha = std::log(magLo);
-                float beta = std::log(magMid);
-                float gamma = std::log(magHi);
-                float denom = alpha - 2.0f * beta + gamma;
-
-                float p = 0.0f;
-                float peakMag = mag;
-                if (1e-10f < std::abs(denom))
-                {
-                    p = 0.5f * (alpha - gamma) / denom;
-                    peakMag = std::exp(beta - 0.25f * (alpha - gamma) * p);
-                }
-
-                float peakOmega = (static_cast<float>(k) + p) / static_cast<float>(x_tableSize);
-                analysisAtoms.Add(AnalysisAtom(peakOmega, peakMag));
-            }
-        }
-
-        if (input.m_numAtoms < analysisAtoms.Size())
-        {
-            analysisAtoms.Sort(AnalysisAtom::CmpReverseMagnitude);
-            analysisAtoms.ShrinkIfNecessary(input.m_numAtoms);
-        }
-
-        analysisAtoms.Sort(AnalysisAtom::CmpOmega);
-    }
-
-    void SearchAndMerge(AnalysisAtomArray& analysisAtoms, Atom& atom, Input& input)
-    {
-        float lowerOmega = atom.m_analysisOmega - input.m_omegaDensity;
-        auto it = std::lower_bound(analysisAtoms.begin(), analysisAtoms.end(), lowerOmega, AnalysisAtom::CmpOmegaFloat);
-        auto bestIt = it;
-        for (; it != analysisAtoms.end(); ++it)
-        {
-            if (atom.m_analysisOmega + input.m_omegaDensity < it->m_analysisOmega)
-            {
-                break;
-            }
-            if (bestIt->m_analysisMagnitude < it->m_analysisMagnitude)
-            {
-                bestIt = it;
-            }
-        }
-
-        if (bestIt == analysisAtoms.end())
-        {
-            atom.MergeNoMatch(input);
-            return;
-        }
-
-        if (bestIt->m_analysisMagnitude / atom.m_synthesisMagnitude < x_mergeGainThreshold)
-        {
-            atom.MergeNoMatch(input);
-        }
-        else
-        {
-            atom.Merge(*bestIt, input);
-        }
-
-        for (auto forIt = bestIt; forIt != analysisAtoms.end(); ++forIt)
-        {
-            if (atom.m_analysisOmega + input.m_omegaDensity < forIt->m_analysisOmega)
-            {
-                break;
-            }
-            
-            forIt->m_analysisMagnitude = -1.0f;
-        }
-
-        for (auto revIt = bestIt - 1; analysisAtoms.begin() <= revIt; --revIt)
-        {
-            if (revIt->m_analysisOmega < atom.m_analysisOmega - input.m_omegaDensity)
-            {
-                break;
-            }
-
-            revIt->m_analysisMagnitude = -1.0f;
-        }
-    }
-
-    void ExtractAtoms(Buffer& buffer, Input& input)
-    {
-        DFT dft;
-        dft.Transform(buffer);
-        AnalysisAtomArray analysisAtoms;
-        ExtractAnalysisAtoms(dft, analysisAtoms, input);
-        m_atoms.Sort(Atom::CmpReverseMagnitude);
-        for (size_t i = 0; i < m_atoms.Size(); ++i)
-        {
-            SearchAndMerge(analysisAtoms, m_atoms[i], input);
-        }
-
-        for (AnalysisAtom& analysisAtom : analysisAtoms)
-        {
-            if (x_deathMag <= analysisAtom.m_analysisMagnitude)
-            {
-                float initMag = std::max(Slew::Process(0, analysisAtom.m_analysisMagnitude, input.m_slewUpAlpha), x_deathMag);
-                Atom newAtom(analysisAtom.m_analysisOmega, analysisAtom.m_analysisMagnitude, analysisAtom.m_analysisOmega, initMag, 0);
-                m_atoms.Add(newAtom);
-            }
-        }
-
-        m_atoms.Sort(Atom::CmpReverseMagnitude);
-        m_atoms.ShrinkIfNecessary(input.m_numAtoms);
-        while (!m_atoms.Empty() && m_atoms.Back().m_synthesisMagnitude < x_deathMag)
-        {
-            m_atoms.Pop();
-        }
-    }
-
-    AtomArray m_atoms;
-};
-
-using SpectralModel = SpectralModelGeneric<12>;
+#include "SpectralModel.hpp"

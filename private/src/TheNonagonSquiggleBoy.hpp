@@ -9,6 +9,8 @@
 #include "AnalogUIState.hpp"
 #include "StateInterchange.hpp"
 #include "MessageOut.hpp"
+#include "StateSaver.hpp"
+#include "SquiggleBoyConfig.hpp"
 
 struct TheNonagonSquiggleBoyInternal
 {
@@ -39,7 +41,7 @@ struct TheNonagonSquiggleBoyInternal
             {
                 if (m_blendFactor < 0.5)
                 {
-                    owner->SetRightScene(scene);
+                    owner->SetRightScene(scene);                    
                 }
                 else
                 {
@@ -50,6 +52,10 @@ struct TheNonagonSquiggleBoyInternal
     };
 
     SceneState m_sceneState;
+
+    StateSaver m_stateSaver;
+
+    SquiggleBoyConfigGrid m_configGrid;
 
     SquiggleBoyWithEncoderBank m_squiggleBoy;
     struct UIState
@@ -92,6 +98,7 @@ struct TheNonagonSquiggleBoyInternal
         JSON rootJ = JSON::Object();
         rootJ.SetNew("nonagon", m_nonagon.ToJSON());
         rootJ.SetNew("squiggleBoy", m_squiggleBoy.ToJSON());
+        rootJ.SetNew("stateSaver", m_stateSaver.ToJSON());
         return rootJ;
     }
 
@@ -103,11 +110,16 @@ struct TheNonagonSquiggleBoyInternal
             m_nonagon.FromJSON(nonagonJ);
         }
 
+        m_stateSaver.SetFromJSON(rootJ.Get("stateSaver"));
+
         JSON squiggleBoyJ = rootJ.Get("squiggleBoy");
         if (!squiggleBoyJ.IsNull())
         {
             m_squiggleBoy.FromJSON(squiggleBoyJ);
         }
+        
+        m_configGrid.PropagateSourceSelection();
+        m_squiggleBoy.SelectGridId();
     }
 
     void CopyToScene(int scene)
@@ -176,13 +188,20 @@ struct TheNonagonSquiggleBoyInternal
         {
             if (m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i].m_trig)            
             {
-                m_squiggleBoyState.m_baseFreq[i] = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
+                float baseFreq = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
                 m_squiggleBoy.m_state[i].m_ampInput.m_subTrig = m_nonagon.m_state.m_trigLogic.IsUnisonMaster(i);
 
                 // UNDONE(DEEP_VOCODER)
                 //
-                float ratio = m_nonagon.m_state.m_trioOctaveSwitchesInput.OctavizedRatio(i);                
-                m_squiggleBoyState.m_baseFreq[i] = m_squiggleBoy.m_sourceMixer.m_deepVocoder.Search(m_squiggleBoyState.m_baseFreq[i] / ratio, i) * ratio;
+                float ratio = m_nonagon.m_state.m_trioOctaveSwitchesInput.OctavizedRatio(i);
+                baseFreq = baseFreq / ratio;
+                m_squiggleBoy.m_deepVocoderState.m_voiceInput[i].m_pitchCenter = baseFreq;
+                m_squiggleBoy.m_deepVocoderState.m_voiceInput[i].m_pitchRatioPost = ratio;
+                baseFreq = m_squiggleBoy.m_deepVocoder.TransformNote(i, &m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i]);        
+                if (m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i].m_trig)                      
+                {
+                    m_squiggleBoyState.m_baseFreq[i] = baseFreq;
+                }
             }
 
             m_squiggleBoy.m_state[i].m_adspControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i];
@@ -326,10 +345,6 @@ struct TheNonagonSquiggleBoyInternal
             m_uiState.m_analogUIState.SetValue(i + 1, m_squiggleBoyState.m_faders[i]);
         }
 
-        for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
-        {
-            m_uiState.m_squiggleBoyUIState.SetMuted(i, m_nonagon.m_state.m_trigLogic.m_mute[i]);
-        }
     }
 
     void PopulateIOState()
@@ -342,6 +357,12 @@ struct TheNonagonSquiggleBoyInternal
         , m_activeTrio(TheNonagonSmartGrid::Trio::Fire)
         , m_timer(0)
     {
+        m_squiggleBoy.m_stateSaver = &m_stateSaver;
+        m_configGrid.Init(&m_squiggleBoy);
+        m_stateSaver.Insert("sceneStateLeft", &m_sceneState.m_leftScene);
+        m_stateSaver.Insert("sceneStateRight", &m_sceneState.m_rightScene);
+        m_stateSaver.Insert("activeTrio", &m_activeTrio);
+        m_stateSaver.Insert("selectedAbsoluteEncoderBank", &m_squiggleBoy.m_selectedAbsoluteEncoderBank);
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.Config(m_squiggleBoyState);
         m_squiggleBoy.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
