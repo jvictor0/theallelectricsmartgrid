@@ -226,6 +226,12 @@ struct QuadMixerInternal
         m_masterMeter.Process(m_output.m_output);
         m_stereoMeter.Process(m_output.m_stereoOutput);
 
+        if (m_isRecording && m_wavWriter.m_error)
+        {
+            INFO("QuadMixer error: WavWriter reported error during recording");
+            StopRecording();
+        }
+
         return m_output;
     }
 

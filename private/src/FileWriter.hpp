@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CircularQueue.hpp"
+#include "AsyncLogger.hpp"
 #include <atomic>
 #include <thread>
 #include <fstream>
@@ -14,6 +15,7 @@ struct FileWriter
     
     CircularByteQueue<x_bufferSize, x_queueSize> m_queue;
     std::atomic<bool> m_done{false};
+    std::atomic<bool> m_error{false};
     std::thread m_writeThread;
     std::ofstream m_file;
 
@@ -34,6 +36,7 @@ struct FileWriter
         }
 
         m_done = false;
+        m_error = false;
         m_writeThread = std::thread([this, filename]()
         {
             INFO("Starting write thread");
@@ -76,7 +79,9 @@ struct FileWriter
         
         if (!m_file.is_open())
         {
-            assert(false);
+            m_error = true;
+            INFO("FileWriter error: Failed to open file %s", filename.c_str());
+            return;
         }
 
         ByteBuffer<x_bufferSize> buffer;
@@ -93,7 +98,9 @@ struct FileWriter
                 
                 if (!m_file.good())
                 {
-                    assert(false);
+                    m_error = true;
+                    INFO("FileWriter error: Write failed for file %s", filename.c_str());
+                    break;
                 }
             }
             else

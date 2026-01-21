@@ -1620,10 +1620,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         rootJ.SetNew("voiceEncoderBank", m_voiceEncoderBank.ToJSON());
         rootJ.SetNew("globalEncoderBank", m_globalEncoderBank.ToJSON());
         rootJ.SetNew("quadEncoderBank", m_quadEncoderBank.ToJSON());
-        if (this->GetRecordingDirectory().length() > 0)
-        {
-            rootJ.SetNew("recordingDirectory", JSON::String(this->GetRecordingDirectory().c_str()));
-        }
 
         return rootJ;
     }
@@ -1633,11 +1629,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_voiceEncoderBank.FromJSON(rootJ.Get("voiceEncoderBank"));
         m_quadEncoderBank.FromJSON(rootJ.Get("quadEncoderBank"));
         m_globalEncoderBank.FromJSON(rootJ.Get("globalEncoderBank"));
-        JSON recordingDirectoryJ = rootJ.Get("recordingDirectory");
-        if (!recordingDirectoryJ.IsNull() && strlen(recordingDirectoryJ.StringValue()) > 0)
-        {
-            this->SetRecordingDirectory(recordingDirectoryJ.StringValue());
-        }
     }
 
     void RevertToDefault()

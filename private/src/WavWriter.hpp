@@ -3,6 +3,7 @@
 #include "FileWriter.hpp"
 #include "QuadUtils.hpp"
 #include "StereoUtils.hpp"
+#include "AsyncLogger.hpp"
 #include <cstring>
 #include <cstdint>
 #include <algorithm>
@@ -59,6 +60,7 @@ struct MultichannelWavWriter
     uint32_t m_sampleRate;
     uint16_t m_numChannels;
     bool m_isOpen = false;
+    bool m_error = false;
     uint64_t m_samplesWritten = 0;
     std::string m_filename;
 
@@ -86,6 +88,7 @@ struct MultichannelWavWriter
         m_sampleRate = sampleRate;
         m_samplesWritten = 0;
         m_filename = filename;
+        m_error = false;
         
         // Initialize RF64 header
         //
@@ -122,7 +125,9 @@ struct MultichannelWavWriter
     {
         if (!m_isOpen || channel >= m_numChannels)
         {
-            assert(false);
+            m_error = true;
+            INFO("WavWriter error: WriteSample called when not open or invalid channel (channel=%d, numChannels=%d, isOpen=%d)", channel, m_numChannels, m_isOpen);
+            return;
         }
         
         // Convert float sample to 24-bit integer
@@ -149,7 +154,12 @@ struct MultichannelWavWriter
         {
             // Verify data size is a multiple of 3 * numChannels
             //
-            assert(m_header.dataSize % (3 * m_numChannels) == 0);
+            if (m_header.dataSize % (3 * m_numChannels) != 0)
+            {
+                m_error = true;
+                INFO("WavWriter error: Data size mismatch (dataSize=%llu, expected multiple of %d)", static_cast<unsigned long long>(m_header.dataSize), 3 * m_numChannels);
+            }
+            
             m_samplesWritten++;
         }
     }
@@ -158,7 +168,9 @@ struct MultichannelWavWriter
     {
         if (!m_isOpen || m_numChannels < 4)
         {
-            assert(false);
+            m_error = true;
+            INFO("WavWriter error: WriteSample QuadFloat called when not open or insufficient channels (channel=%d, numChannels=%d, isOpen=%d)", channel, m_numChannels, m_isOpen);
+            return;
         }
         
         // Write each component of the QuadFloat to its corresponding channel
@@ -217,6 +229,14 @@ struct MultichannelWavWriter
         //
         m_fileWriter.Close();
         
+        // Check for errors from FileWriter after flush
+        //
+        if (m_fileWriter.m_error.load())
+        {
+            m_error = true;
+            INFO("WavWriter error: FileWriter reported error during close");
+        }
+        
         // Update header with final sizes
         //
         m_header.riffSize = sizeof(Rf64Header) + m_header.dataSize - 8;
@@ -227,14 +247,25 @@ struct MultichannelWavWriter
         std::ofstream file(m_filename, std::ios::binary | std::ios::in | std::ios::out);
         if (!file.is_open())
         {
-            assert(false);
+            m_error = true;
+            INFO("WavWriter error: Failed to open file for header update: %s", m_filename.c_str());
+            m_isOpen = false;
+            m_fileWriter.m_error = false;
+            return;
         }
         
         // Write updated header
         //
         file.write(reinterpret_cast<const char*>(&m_header), sizeof(Rf64Header));
+        if (!file.good())
+        {
+            m_error = true;
+            INFO("WavWriter error: Failed to write header update");
+        }
+        
         file.close();
         
         m_isOpen = false;
+        m_fileWriter.m_error = false;
     }
 }; 
