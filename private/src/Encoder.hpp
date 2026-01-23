@@ -183,6 +183,16 @@ struct StateEncoderCell : public EncoderCell
             return values[m_scene1] * (1.0f - m_blendFactor) + values[m_scene2] * m_blendFactor;
         }
 
+        bool Scene1Active()
+        {
+            return m_blendFactor < 1;
+        }
+
+        bool Scene2Active()
+        {
+            return m_blendFactor > 0;
+        }
+
         void RegisterCell(StateEncoderCell* cell)
         {
             if (m_externalState)
