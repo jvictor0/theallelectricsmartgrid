@@ -61,14 +61,18 @@ struct PhasorEnvelopeInternal
                 return 0;
             }
 
-            if (in <= m_attackFrac)
+            // Clamp attackFrac to avoid division by zero at extremes
+            //
+            float safeAttackFrac = std::max(0.001f, std::min(0.999f, m_attackFrac));
+
+            if (in <= safeAttackFrac)
             {
                 *attack = true;
-                return in / m_attackFrac;
+                return in / safeAttackFrac;
             }
             else
             {
-                float release = 1 - (in - m_attackFrac) / (1 - m_attackFrac);
+                float release = 1 - (in - safeAttackFrac) / (1 - safeAttackFrac);
                 return release;
             }
         }

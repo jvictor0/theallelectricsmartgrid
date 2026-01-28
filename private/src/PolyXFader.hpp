@@ -55,13 +55,17 @@ struct PolyXFaderInternal
                 t = t - std::floorf(t);
             }
             
-            if (t <= m_attackFrac)
+            // Clamp attackFrac to avoid division by zero at extremes
+            //
+            float safeAttackFrac = std::max(0.001f, std::min(0.999f, m_attackFrac));
+            
+            if (t <= safeAttackFrac)
             {
-                return amp * Shape(m_shape, t / m_attackFrac);
+                return amp * Shape(m_shape, t / safeAttackFrac);
             }
             else
             {
-                float decay = 1 - (t - m_attackFrac) / (1 - m_attackFrac);
+                float decay = 1 - (t - safeAttackFrac) / (1 - safeAttackFrac);
                 return amp * Shape(m_shape, decay);
             }
         }
@@ -171,7 +175,12 @@ struct PolyXFaderInternal
             }
         }
 
-        output /= m_totalWeight;
+        // Avoid division by zero if all weights are zero
+        //
+        if (m_totalWeight > 0.0f)
+        {
+            output /= m_totalWeight;
+        }
 
         m_output = m_slew.Process(output);
     }

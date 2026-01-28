@@ -7,7 +7,6 @@ struct EncoderBankBankInternal
 {
     SmartGrid::EncoderBankInternal m_banks[NumBanks];
     int m_selectedBank;
-    size_t m_selectedGridId;
     SmartGrid::Color m_color[NumBanks];
 
     static constexpr size_t x_controlFrameRate = 8;
@@ -72,13 +71,10 @@ struct EncoderBankBankInternal
         {
             input.m_bankedEncoderInternalInput.m_modulatorValues.ComputeChanged();
         }
-        
-        m_selectedGridId = m_selectedBank >= 0 ? m_banks[m_selectedBank].m_gridId : SmartGrid::x_numGridIds;
 
         for (size_t i = 0; i < NumBanks; ++i)
         {
             input.SetInput(i);
-            m_banks[i].ProcessStatic(dt);
             if (m_frame % x_controlFrameRate == 0)
             {                
                 m_banks[i].ProcessInput(input.m_bankedEncoderInternalInput);
@@ -86,7 +82,6 @@ struct EncoderBankBankInternal
 
             m_banks[i].ProcessBulkFilter();
         }
-
     }
 
     float GetValue(size_t ix, size_t i, size_t j, size_t channel)
@@ -99,17 +94,7 @@ struct EncoderBankBankInternal
         return m_banks[ix].GetValueNoSlew(i, j, channel);
     }
 
-    uint64_t GetGridId(size_t ix)
-    {
-        return m_banks[ix].m_gridId;
-    }
-
-    uint64_t GetCurrentGridId()
-    {
-        return m_selectedGridId;
-    }
-
-    void SelectGrid(uint64_t ix)
+    void SelectGrid(int ix)
     {
         if (m_selectedBank >= 0)
         {
@@ -117,7 +102,6 @@ struct EncoderBankBankInternal
         }
 
         m_selectedBank = ix;
-        m_selectedGridId = m_selectedBank >= 0 ? m_banks[m_selectedBank].m_gridId : SmartGrid::x_numGridIds;
     }
 
     void ResetGrid(uint64_t ix)

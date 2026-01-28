@@ -40,7 +40,21 @@ struct SmartBusGeneric
     BusInput Load(size_t i, size_t j)
     {
         return m_messages[i][j].load();
-    }    
+    }
+
+    void GetPhysicalFromLogical(int logicalX, int logicalY, int* outPhysicalX, int* outPhysicalY)
+    {
+        int physicalX = logicalX - x_gridXMin;
+        int physicalY = logicalY - x_gridYMin;
+
+        if (physicalX < 0 || x_gridMaxSize <= physicalX || physicalY < 0 || x_gridMaxSize <= physicalY)
+        {
+            return;
+        }
+
+        *outPhysicalX = physicalX;
+        *outPhysicalY = physicalY;
+    }
 
     struct Iterator
     {

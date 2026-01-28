@@ -842,7 +842,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     static constexpr size_t x_numFaders = 16;
 
     size_t m_selectedAbsoluteEncoderBank;
-    size_t m_selectedGridId;
 
     bool m_shift;    
 
@@ -1130,21 +1129,18 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_voiceEncoderBank.SelectGrid(m_selectedAbsoluteEncoderBank);
             m_quadEncoderBank.SelectGrid(-1);
             m_globalEncoderBank.SelectGrid(-1);
-            m_selectedGridId = m_voiceEncoderBank.m_selectedGridId;
         }
         else if (m_selectedAbsoluteEncoderBank < x_numVoiceBanks + x_numQuadBanks)
         {
             m_quadEncoderBank.SelectGrid(m_selectedAbsoluteEncoderBank - x_numVoiceBanks);
             m_voiceEncoderBank.SelectGrid(-1);
             m_globalEncoderBank.SelectGrid(-1);
-            m_selectedGridId = m_quadEncoderBank.m_selectedGridId;
         }
         else
         {
             m_globalEncoderBank.SelectGrid(m_selectedAbsoluteEncoderBank - x_numVoiceBanks - x_numQuadBanks);
             m_voiceEncoderBank.SelectGrid(-1);
             m_quadEncoderBank.SelectGrid(-1);
-            m_selectedGridId = m_globalEncoderBank.m_selectedGridId;
         }
     }
 

@@ -795,7 +795,7 @@ struct AbstractGrid
 
 struct Grid : public AbstractGrid
 {
-    std::shared_ptr<Cell> m_grid[x_gridMaxSize][x_gridMaxSize];
+    std::unique_ptr<Cell> m_grid[x_gridMaxSize][x_gridMaxSize];
     Color m_onColor;
     Color m_offColor;
 
@@ -842,11 +842,6 @@ struct Grid : public AbstractGrid
     {
         return m_offColor;
     }        
-    
-    std::shared_ptr<Cell>& GetShared(size_t i, size_t j)
-    {
-        return m_grid[i - x_gridXMin][j - x_gridYMin];
-    }
 
     Cell* Get(size_t i, size_t j)
     {
@@ -856,11 +851,6 @@ struct Grid : public AbstractGrid
     void Put(int i, int j, Cell* cell)
     {
         m_grid[i - x_gridXMin][j - x_gridYMin].reset(cell);
-    }
-
-    void Put(int i, int j, std::shared_ptr<Cell> cell)
-    {
-        m_grid[i - x_gridXMin][j - x_gridYMin] = cell;
     }
 
     virtual Color GetColor(int i, int j) override
@@ -930,51 +920,16 @@ struct CompositeGrid : public Grid
     {
     }
         
-    std::vector<std::shared_ptr<Grid>> m_grids;
-
-    void AddGrid(int xOff, int yOff, Grid* grid)
-    {
-        AddGrid(xOff, yOff, std::shared_ptr<Grid>(grid));
-    }
-
-    void AddGrid(int xOff, int yOff, std::shared_ptr<Grid> grid)
-    {
-        m_grids.push_back(grid);
-        Place(xOff, yOff, grid.get());
-    }
+    std::vector<std::unique_ptr<Grid>> m_grids;
 
     void AddGrid(Grid* grid)
     {
-        AddGrid(std::shared_ptr<Grid>(grid));
-    }
-
-    void AddGrid(std::shared_ptr<Grid> grid)
-    {
-        m_grids.push_back(grid);
-    }
-
-    void Place(int xOff, int yOff, Grid* grid)
-    {
-        for (int i = x_gridXMin; i < x_gridXMax; ++i)
-        {
-            for (int j = x_gridYMin; j < x_gridYMax; ++j)
-            {
-                if (grid->Get(i, j))
-                {
-                    if (Get(i + xOff, j + yOff))
-                    {
-                        Get(i + xOff, j + yOff)->OnReleaseStatic();
-                    }
-                    
-                    Put(i + xOff, j + yOff, grid->GetShared(i, j));
-                }
-            }
-        }
+        m_grids.push_back(std::unique_ptr<Grid>(grid));
     }
 
     virtual void Process(float dt) override
     {
-        for (std::shared_ptr<Grid>& grid : m_grids)
+        for (std::unique_ptr<Grid>& grid : m_grids)
         {
             grid->ProcessStatic(dt);
         }

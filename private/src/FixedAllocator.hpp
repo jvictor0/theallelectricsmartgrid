@@ -1,5 +1,9 @@
 #pragma once
 
+#include <vector>
+#include <cassert>
+#include <utility>
+
 template <typename T, size_t N>
 struct FixedAllocator
 {
@@ -54,7 +58,13 @@ struct FixedAllocator
 
     int IndexOf(T* ptr) const
     {
-        return ptr - m_data;
+        return static_cast<int>(ptr - m_data);
+    }
+
+    bool ComesFrom(T* ptr) const
+    {
+        int index = IndexOf(ptr);
+        return index >= 0 && index < static_cast<int>(N);
     }
 
     bool IsAllocated(T* ptr) const
@@ -63,3 +73,162 @@ struct FixedAllocator
         return m_allocated[index];
     }
 };
+
+template <typename T, size_t N>
+struct SegmentedAllocator
+{
+    std::vector<FixedAllocator<T, N>*> m_segments;
+
+    SegmentedAllocator()
+    {
+        for (size_t i = 0; i < 4; ++i)
+        {
+            m_segments.push_back(new FixedAllocator<T, N>());
+        }
+    }
+
+    ~SegmentedAllocator()
+    {
+        for (auto* seg : m_segments)
+        {
+            delete seg;
+        }
+    }
+
+    T* Allocate()
+    {
+        for (auto* seg : m_segments)
+        {
+            if (seg->Available() > 0)
+            {
+                return seg->Allocate();
+            }
+        }
+
+        // No available slots, create new segment
+        //
+        auto* newSeg = new FixedAllocator<T, N>();
+        m_segments.push_back(newSeg);
+        return newSeg->Allocate();
+    }
+
+    void Free(T* ptr)
+    {
+        for (auto* seg : m_segments)
+        {
+            if (seg->ComesFrom(ptr))
+            {
+                seg->Free(ptr);
+                return;
+            }
+        }
+
+        assert(false && "Pointer not from this allocator");
+    }
+};
+
+// PoolPtr: unique ownership pointer that uses a SegmentedAllocator
+//
+template <typename T, size_t N>
+struct PoolPtr
+{
+    T* m_ptr;
+    SegmentedAllocator<T, N>* m_allocator;
+
+    PoolPtr()
+        : m_ptr(nullptr)
+        , m_allocator(nullptr)
+    {
+    }
+
+    PoolPtr(T* ptr, SegmentedAllocator<T, N>* allocator)
+        : m_ptr(ptr)
+        , m_allocator(allocator)
+    {
+    }
+
+    ~PoolPtr()
+    {
+        Reset();
+    }
+
+    // No copy
+    //
+    PoolPtr(const PoolPtr&) = delete;
+    PoolPtr& operator=(const PoolPtr&) = delete;
+
+    // Move
+    //
+    PoolPtr(PoolPtr&& other) noexcept
+        : m_ptr(other.m_ptr)
+        , m_allocator(other.m_allocator)
+    {
+        other.m_ptr = nullptr;
+        other.m_allocator = nullptr;
+    }
+
+    PoolPtr& operator=(PoolPtr&& other) noexcept
+    {
+        if (this != &other)
+        {
+            Reset();
+            m_ptr = other.m_ptr;
+            m_allocator = other.m_allocator;
+            other.m_ptr = nullptr;
+            other.m_allocator = nullptr;
+        }
+
+        return *this;
+    }
+
+    PoolPtr& operator=(std::nullptr_t)
+    {
+        Reset();
+        return *this;
+    }
+
+    void Reset()
+    {
+        if (m_ptr && m_allocator)
+        {
+            m_ptr->~T();
+            new (m_ptr) T();
+            m_allocator->Free(m_ptr);
+        }
+
+        m_ptr = nullptr;
+        m_allocator = nullptr;
+    }
+
+    T* get() const
+    {
+        return m_ptr;
+    }
+
+    T* operator->() const
+    {
+        return m_ptr;
+    }
+
+    T& operator*() const
+    {
+        return *m_ptr;
+    }
+
+    explicit operator bool() const
+    {
+        return m_ptr != nullptr;
+    }
+};
+
+// Helper to create PoolPtr with in-place construction
+// Destructs the default-constructed object before placement new
+//
+template <typename T, size_t N, typename... Args>
+PoolPtr<T, N> MakePooled(SegmentedAllocator<T, N>& allocator, Args&&... args)
+{
+    T* ptr = allocator.Allocate();
+    ptr->~T();
+    new (ptr) T(std::forward<Args>(args)...);
+    return PoolPtr<T, N>(ptr, &allocator);
+}

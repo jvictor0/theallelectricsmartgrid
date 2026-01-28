@@ -3,6 +3,7 @@
 #include "SmartGridInclude.hpp"
 #include <JuceHeader.h>
 #include "BinaryData.h"
+#include <cmath>
 
 // Static cache for modulator glyph images
 //
@@ -197,8 +198,22 @@ struct EncoderComponent : public juce::Component
                 auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * (0.45f - i * 0.05f);
                 size_t voice = m_ui.m_uiState->GetNumVoices() * m_ui.m_uiState->GetCurrentTrack() + i;
 
+                // Skip if voice index would be out of bounds
+                //
+                if (voice >= 16)
+                {
+                    continue;
+                }
+
                 float minValue = m_ui.m_uiState->GetMinValue(m_x, m_y, voice);
                 float maxValue = m_ui.m_uiState->GetMaxValue(m_x, m_y, voice);
+
+                // Skip if values are invalid (NaN or infinite)
+                //
+                if (!std::isfinite(minValue) || !std::isfinite(maxValue))
+                {
+                    continue;
+                }
 
                 // Convert min/max values to angles (start at 7:30 = 1.25π, 270 degree range)
                 //
@@ -219,7 +234,23 @@ struct EncoderComponent : public juce::Component
                 // Calculate the indicator position
                 //
                 size_t voice = m_ui.m_uiState->GetNumVoices() * m_ui.m_uiState->GetCurrentTrack() + i;
+
+                // Skip if voice index would be out of bounds
+                //
+                if (voice >= 16)
+                {
+                    continue;
+                }
+
                 float value = m_ui.m_uiState->GetValue(m_x, m_y, voice);
+
+                // Skip if value is invalid
+                //
+                if (!std::isfinite(value))
+                {
+                    continue;
+                }
+
                 float angle = value * 270.0f; // Convert value to degrees (0-270)
                 float indicatorAngle = juce::MathConstants<float>::pi * 0.75f + (angle * juce::MathConstants<float>::pi / 180.0f); // Start at 7:30 and go clockwise
 

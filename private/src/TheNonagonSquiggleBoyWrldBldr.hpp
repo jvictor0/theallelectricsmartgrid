@@ -178,7 +178,7 @@ struct TheNonagonSquiggleBoyWrldBldr
                 &m_auxFocus,
                 true,
                 false,
-                SmartGrid::StateCell<bool>::Mode::Momentary);
+                SmartGrid::StateCell<bool>::Mode::Toggle);
     }
 
     struct AuxGrid : SmartGrid::Grid
@@ -238,15 +238,15 @@ struct TheNonagonSquiggleBoyWrldBldr
         struct GestureAwareSelectorCell : SmartGrid::Cell
         {
             TheNonagonSquiggleBoyWrldBldr* m_owner;
-            std::shared_ptr<SquiggleBoyWithEncoderBank::SelectorCell> m_main;
+            std::unique_ptr<SquiggleBoyWithEncoderBank::SelectorCell> m_main;
             size_t m_ordinal;
 
             GestureAwareSelectorCell(
                 TheNonagonSquiggleBoyWrldBldr* owner,
-                std::shared_ptr<SquiggleBoyWithEncoderBank::SelectorCell> main)
+                std::unique_ptr<SquiggleBoyWithEncoderBank::SelectorCell> main)
                 : m_owner(owner)
-                , m_main(main)
-                , m_ordinal(main->m_ordinal)
+                , m_main(std::move(main))
+                , m_ordinal(m_main->m_ordinal)
             {
             }
 
@@ -299,16 +299,16 @@ struct TheNonagonSquiggleBoyWrldBldr
         struct GestureVisibleCell : SmartGrid::Cell
         {
             TheNonagonSquiggleBoyWrldBldr* m_owner;
-            std::shared_ptr<SmartGrid::Cell> m_main;
-            std::shared_ptr<SmartGrid::Cell> m_gesture;
+            std::unique_ptr<SmartGrid::Cell> m_main;
+            std::unique_ptr<SmartGrid::Cell> m_gesture;
 
             GestureVisibleCell(
                 TheNonagonSquiggleBoyWrldBldr* owner,
-                std::shared_ptr<SmartGrid::Cell> main,
-                std::shared_ptr<SmartGrid::Cell> gesture)
+                std::unique_ptr<SmartGrid::Cell> main,
+                std::unique_ptr<SmartGrid::Cell> gesture)
                 : m_owner(owner)
-                , m_main(main)
-                , m_gesture(gesture)
+                , m_main(std::move(main))
+                , m_gesture(std::move(gesture))
             {
             }
 
@@ -373,14 +373,14 @@ struct TheNonagonSquiggleBoyWrldBldr
             //
             for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
-                std::shared_ptr<SmartGrid::Cell> gestureCell = std::make_shared<WrldBldrGestureSelectorCell>(owner, i);
-                std::shared_ptr<SmartGrid::Cell> mainCell;
+                std::unique_ptr<SmartGrid::Cell> gestureCell = std::make_unique<WrldBldrGestureSelectorCell>(owner, i);
+                std::unique_ptr<SmartGrid::Cell> mainCell;
                 if (5 <= i)
                 {
-                    mainCell = std::make_shared<SetActiveTrioCell>(m_owner, static_cast<TheNonagonSmartGrid::Trio>(i - 5));
+                    mainCell = std::make_unique<SetActiveTrioCell>(m_owner, static_cast<TheNonagonSmartGrid::Trio>(i - 5));
                 }
 
-                Put(i, 0, new GestureVisibleCell(m_owner, mainCell, gestureCell));
+                Put(i, 0, new GestureVisibleCell(m_owner, std::move(mainCell), std::move(gestureCell)));
                 Put(i, 6, new TheNonagonSquiggleBoyInternal::SceneSelectorCell(m_owner->m_internal, i));
             }
 
@@ -388,39 +388,39 @@ struct TheNonagonSquiggleBoyWrldBldr
             //
             for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
-                std::shared_ptr<SmartGrid::Cell> gestureCell = std::make_shared<WrldBldrGestureSelectorCell>(owner, i + SmartGrid::x_baseGridSize);
-                std::shared_ptr<SmartGrid::Cell> mainCell = nullptr;
+                std::unique_ptr<SmartGrid::Cell> gestureCell = std::make_unique<WrldBldrGestureSelectorCell>(owner, i + SmartGrid::x_baseGridSize);
+                std::unique_ptr<SmartGrid::Cell> mainCell = nullptr;
                 if (i < static_cast<size_t>(GridsMode::NumGrids))
                 {
-                    mainCell = std::make_shared<SetGridsModeCell>(m_owner, static_cast<GridsMode>(i));
+                    mainCell = std::make_unique<SetGridsModeCell>(m_owner, static_cast<GridsMode>(i));
                 }
                 else if (i == SmartGrid::x_baseGridSize - 1)
                 {
-                    mainCell = std::make_shared<SetDisplayModeCell>(m_owner, DisplayMode::Visualizer);
+                    mainCell = std::make_unique<SetDisplayModeCell>(m_owner, DisplayMode::Visualizer);
                 }
 
-                Put(i, 1, new GestureVisibleCell(m_owner, mainCell, gestureCell));
+                Put(i, 1, new GestureVisibleCell(m_owner, std::move(mainCell), std::move(gestureCell)));
             }
 
             for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numQuadBanks; ++i)
             {
                 Put(i, 2, new GestureAwareSelectorCell(
                     m_owner, 
-                    std::make_shared<SquiggleBoyWithEncoderBank::SelectorCell>(&owner->m_internal->m_squiggleBoy, i + SquiggleBoyWithEncoderBank::x_numVoiceBanks)));
+                    std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(&owner->m_internal->m_squiggleBoy, i + SquiggleBoyWithEncoderBank::x_numVoiceBanks)));
             }
 
             for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numGlobalBanks; ++i)
             {
                 Put(i + SquiggleBoyWithEncoderBank::x_numQuadBanks, 2, new GestureAwareSelectorCell(
                     m_owner, 
-                    std::make_shared<SquiggleBoyWithEncoderBank::SelectorCell>(&owner->m_internal->m_squiggleBoy, i + SquiggleBoyWithEncoderBank::x_numVoiceBanks + SquiggleBoyWithEncoderBank::x_numQuadBanks)));
+                    std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(&owner->m_internal->m_squiggleBoy, i + SquiggleBoyWithEncoderBank::x_numVoiceBanks + SquiggleBoyWithEncoderBank::x_numQuadBanks)));
             }
 
             for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numVoiceBanks; ++i)
             {
                 Put(i, 3, new GestureAwareSelectorCell(
                     m_owner, 
-                    std::make_shared<SquiggleBoyWithEncoderBank::SelectorCell>(&owner->m_internal->m_squiggleBoy, i)));
+                    std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(&owner->m_internal->m_squiggleBoy, i)));
             }
 
             Put(0, 4, m_owner->m_internal->MakeShiftCell());

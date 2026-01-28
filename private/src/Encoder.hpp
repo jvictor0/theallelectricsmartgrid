@@ -334,10 +334,6 @@ struct StateEncoderCell : public EncoderCell
     float m_values[x_maxPoly][SceneManager::x_numScenes];
     float* m_state[x_maxPoly];
     size_t m_numTracks;
-    float m_min;
-    float m_max;
-    float m_logMaxOverMin;
-    bool m_exponential;
     SceneManager* m_sceneManager;
 
     JSON ToJSON()
@@ -372,24 +368,12 @@ struct StateEncoderCell : public EncoderCell
             }
         }
 
-        if (m_exponential)
-        {
-            m_logMaxOverMin = std::log2f(m_max / m_min);
-        }
-
         SetState();
     }
     
-    StateEncoderCell(
-        float min,
-        float max,
-        bool exponential,
-        SceneManager* sceneManager)
+    StateEncoderCell()
         : m_numTracks(0)
-        , m_min(min)
-        , m_max(max)
-        , m_exponential(exponential)
-        , m_sceneManager(sceneManager)
+        , m_sceneManager(nullptr)
     {
         for (size_t i = 0; i < x_maxPoly; ++i)
         {
@@ -403,10 +387,23 @@ struct StateEncoderCell : public EncoderCell
         {
             m_state[i] = nullptr;
         }
+    }
 
-        if (m_exponential)
+    StateEncoderCell(SceneManager* sceneManager)
+        : m_numTracks(0)
+        , m_sceneManager(sceneManager)
+    {
+        for (size_t i = 0; i < x_maxPoly; ++i)
         {
-            m_logMaxOverMin = std::log2f(m_max / m_min);
+            for (size_t j = 0; j < SceneManager::x_numScenes; ++j)
+            {
+                m_values[i][j] = 0;
+            }
+        }
+
+        for (size_t i = 0; i < x_maxPoly; ++i)
+        {
+            m_state[i] = nullptr;
         }
 
         m_sceneManager->RegisterCell(this);
@@ -454,15 +451,7 @@ struct StateEncoderCell : public EncoderCell
 
     float GetValue(size_t track)
     {
-        float normalizedValue = GetNormalizedValueForTrack(track);
-        if (m_exponential)
-        {
-            return m_min * std::pow(2, normalizedValue * m_logMaxOverMin);
-        }
-        else
-        {
-            return m_min + normalizedValue * (m_max - m_min);
-        }
+        return GetNormalizedValueForTrack(track);
     }
 
     void SetState()
@@ -542,42 +531,43 @@ struct StateEncoderCell : public EncoderCell
     }
 };
 
-struct EncoderGrid : public Grid
+struct EncoderGrid
 {
     static constexpr int x_width = 4;
     static constexpr int x_height = 4;
 
+    EncoderCell* m_visibleCell[x_width][x_height];
+
     EncoderGrid()
     {
+        for (int i = 0; i < x_width; ++i)
+        {
+            for (int j = 0; j < x_height; ++j)
+            {
+                m_visibleCell[i][j] = nullptr;
+            }
+        }
     }
     
     virtual ~EncoderGrid()
     {
     }
 
+    EncoderCell* GetVisible(int x, int y)
+    {
+        return m_visibleCell[x][y];
+    }
+
+    void SetVisible(int x, int y, EncoderCell* cell)
+    {
+        m_visibleCell[x][y] = cell;
+    }
+
     virtual void HandlePress(int x, int y)
     {
     }
-    
-    virtual void Apply(Message msg) override
-    {
-        if (msg.m_y >= 0 && msg.m_y < x_height)
-        {
-            if (msg.m_x >= 0 && msg.m_x < x_width)
-            {
-                Grid::Apply(msg);
-            }
-            else if (msg.m_x >= x_width && msg.m_x < 2 * x_width && msg.m_velocity > 0)
-            {
-                HandlePress(msg.m_x - x_width, msg.m_y);
-            }
-        }        
-    }
-    
-    EncoderCell* GetEncoderCell(int x, int y)
-    {
-        return static_cast<EncoderCell*>(Get(x, y));
-    }
+
+    virtual void Apply(MessageIn msg) = 0;
 };
 
 }

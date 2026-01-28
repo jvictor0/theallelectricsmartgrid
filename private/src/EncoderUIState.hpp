@@ -46,12 +46,18 @@ struct EncoderBankUIState
     std::atomic<SmartGrid::Color> m_modulationGlyphColor[16];
 
     EncoderBankUIState()
+        : m_numTracks(0)
+        , m_numVoices(1)
+        , m_currentTrack(0)
     {
         for (size_t i = 0; i < 16; ++i)
         {
+            m_indicatorColor[i].store(SmartGrid::Color::Off);
             m_modulationGlyphs[i].store(SmartGridOne::ModulationGlyphs::None);
             m_modulationGlyphColor[i].store(SmartGrid::Color::Off);
         }
+
+        m_mainIndicatorColor.store(SmartGrid::Color::Off);
     }
 
     SmartGrid::Color GetColor(size_t i, size_t j)
