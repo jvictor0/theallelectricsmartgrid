@@ -12,36 +12,51 @@ struct FileManager
     {
     }
 
-    // Get the directory for SAVING patches (always app's Documents folder)
+    // Get the base SmartGridOne directory (~/Documents/SmartGridOne on Mac, app Documents on iOS)
+    //
     static juce::File GetSmartGridOneDirectory();
     
-    // Get the iCloud Drive directory for READING patches (if available)
-    // On iOS: May not be accessible without iCloud capability, returns empty if not available
-    static juce::File GetiCloudSmartGridOneDirectory();
+    // Get the patches directory (SmartGridOne/patches/)
+    //
+    static juce::File GetPatchesDirectory();
+    
+    // Get the recordings directory (SmartGridOne/recordings/)
+    //
+    static juce::File GetRecordingsDirectory();
+    
+    // Get a specific patch directory by name (patches/<patchName>/)
+    //
+    static juce::File GetPatchDirectory(const juce::String& patchName);
+    
+    // Get the latest (alphanumerically highest) JSON file from a patch directory
+    //
+    static juce::File GetLatestPatchFile(const juce::File& patchDir);
+    
+    // Generate a timestamp filename for saving
+    //
+    static juce::String GenerateTimestampFilename();
     
     static void PersistConfig(JSON config);
     static JSON LoadConfig();
-    static void PersistJSON(JSON json, juce::String filename);
-    static JSON LoadJSON(juce::String filename);
 
     void ChooseSaveFile(bool saveAs, std::function<void(juce::String)> onFileSelected = nullptr);
-    void PickRecordingDirectory();
     void ChooseLoadFile(std::function<void(juce::String)> onFileSelected = nullptr);
     void SetDefaultRecordingDirectory();
     void SavePatch(JSON json);
-    void LoadPatch(juce::String filename);
+    void LoadPatch(juce::String patchName);
+    void LoadPatchVersion(juce::String versionFilePath);
 
     void LoadCurrentPatch()
     {
-        LoadPatch(m_currentPatchFilename);
+        LoadPatch(m_currentPatchName);
     }
 
     JSON ToJSON();
     void FromJSON(JSON json);
     
-    void SetCurrentPatchFilename(juce::String filename) { m_currentPatchFilename = filename; }
-    juce::String GetCurrentPatchFilename() const { return m_currentPatchFilename; }
+    void SetCurrentPatchName(juce::String patchName) { m_currentPatchName = patchName; }
+    juce::String GetCurrentPatchName() const { return m_currentPatchName; }
 
     MainComponent* m_mainComponent;
-    juce::String m_currentPatchFilename;
+    juce::String m_currentPatchName;
 };

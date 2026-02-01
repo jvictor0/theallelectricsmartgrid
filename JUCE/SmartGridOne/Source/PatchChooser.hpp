@@ -4,48 +4,50 @@
 #include "IOUtils.hpp"
 
 //==============================================================================
-/*
-    Custom patch chooser that lists files from the app's Documents directory
-*/
+// Custom patch chooser that lists patch directories from the patches folder
+//
 class PatchChooser : public juce::Component, public juce::ListBoxModel
 {
 public:
     //==============================================================================
-    PatchChooser(std::function<void(juce::String)> onFileSelected, std::function<void()> onCancel, bool isSaveMode = false)
-        : m_onFileSelected(onFileSelected)
+    PatchChooser(std::function<void(juce::String)> onPatchSelected, std::function<void()> onCancel, bool isSaveMode = false)
+        : m_onPatchSelected(onPatchSelected)
         , m_onCancel(onCancel)
         , m_isSaveMode(isSaveMode)
-        , m_fileListBox("Files", this)
-        , m_filenameLabel("Filename:", "Filename:")
-        , m_filenameInput("")
+        , m_patchListBox("Patches", this)
+        , m_patchNameLabel("Patch Name:", "Patch Name:")
+        , m_patchNameInput("")
         , m_okButton("OK")
         , m_cancelButton("Cancel")
     {
-        // Set up file list box
-        m_fileListBox.setRowHeight(30);
-        m_fileListBox.setColour(juce::ListBox::backgroundColourId, juce::Colours::darkgrey);
-        addAndMakeVisible(m_fileListBox);
+        // Set up patch list box
+        //
+        m_patchListBox.setRowHeight(30);
+        m_patchListBox.setColour(juce::ListBox::backgroundColourId, juce::Colours::darkgrey);
+        addAndMakeVisible(m_patchListBox);
         
-        // Set up filename input (for save mode)
+        // Set up patch name input (for save mode)
+        //
         if (m_isSaveMode)
         {
-            m_filenameLabel.setColour(juce::Label::textColourId, juce::Colours::white);
-            m_filenameLabel.setJustificationType(juce::Justification::centredLeft);
-            addAndMakeVisible(m_filenameLabel);
+            m_patchNameLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+            m_patchNameLabel.setJustificationType(juce::Justification::centredLeft);
+            addAndMakeVisible(m_patchNameLabel);
             
-            m_filenameInput.setMultiLine(false);
-            m_filenameInput.setReturnKeyStartsNewLine(false);
-            m_filenameInput.setText("patch.json", false);
-            m_filenameInput.selectAll();
-            m_filenameInput.setColour(juce::TextEditor::backgroundColourId, juce::Colours::darkgrey);
-            m_filenameInput.setColour(juce::TextEditor::textColourId, juce::Colours::white);
-            m_filenameInput.setColour(juce::TextEditor::highlightColourId, juce::Colours::blue);
-            m_filenameInput.setColour(juce::TextEditor::highlightedTextColourId, juce::Colours::white);
-            m_filenameInput.setColour(juce::TextEditor::outlineColourId, juce::Colours::lightgrey);
-            addAndMakeVisible(m_filenameInput);
+            m_patchNameInput.setMultiLine(false);
+            m_patchNameInput.setReturnKeyStartsNewLine(false);
+            m_patchNameInput.setText("NewPatch", false);
+            m_patchNameInput.selectAll();
+            m_patchNameInput.setColour(juce::TextEditor::backgroundColourId, juce::Colours::darkgrey);
+            m_patchNameInput.setColour(juce::TextEditor::textColourId, juce::Colours::white);
+            m_patchNameInput.setColour(juce::TextEditor::highlightColourId, juce::Colours::blue);
+            m_patchNameInput.setColour(juce::TextEditor::highlightedTextColourId, juce::Colours::white);
+            m_patchNameInput.setColour(juce::TextEditor::outlineColourId, juce::Colours::lightgrey);
+            addAndMakeVisible(m_patchNameInput);
         }
         
         // Set up buttons
+        //
         m_okButton.setSize(80, 30);
         m_okButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
         m_okButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
@@ -60,7 +62,7 @@ public:
         m_cancelButton.onClick = [this]() { if (m_onCancel) m_onCancel(); };
         addAndMakeVisible(m_cancelButton);
         
-        RefreshFileList();
+        RefreshPatchList();
     }
 
     ~PatchChooser() override
@@ -85,17 +87,20 @@ public:
         
         if (m_isSaveMode)
         {
-            // Filename label and input at top
-            auto filenameArea = bounds.removeFromTop(50);
-            m_filenameLabel.setBounds(filenameArea.removeFromTop(20).reduced(10, 0));
-            m_filenameInput.setBounds(filenameArea.reduced(10, 5));
+            // Patch name label and input at top
+            //
+            auto nameArea = bounds.removeFromTop(50);
+            m_patchNameLabel.setBounds(nameArea.removeFromTop(20).reduced(10, 0));
+            m_patchNameInput.setBounds(nameArea.reduced(10, 5));
             bounds.removeFromTop(10);
         }
         
-        // File list in the middle
-        m_fileListBox.setBounds(bounds.removeFromTop(bounds.getHeight() - 50).reduced(10, 5));
+        // Patch list in the middle
+        //
+        m_patchListBox.setBounds(bounds.removeFromTop(bounds.getHeight() - 50).reduced(10, 5));
         
         // Buttons at bottom
+        //
         auto buttonArea = bounds.reduced(10, 5);
         m_cancelButton.setBounds(buttonArea.removeFromRight(80));
         buttonArea.removeFromRight(10);
@@ -105,7 +110,7 @@ public:
     //==============================================================================
     int getNumRows() override
     {
-        return m_files.size();
+        return m_patchDirs.size();
     }
     
     void paintListBoxItem(int rowNumber, juce::Graphics& g, int width, int height, bool rowIsSelected) override
@@ -122,24 +127,26 @@ public:
         g.setColour(juce::Colours::white);
         g.setFont(juce::FontOptions(14.0f));
         
-        if (rowNumber >= 0 && rowNumber < m_files.size())
+        if (rowNumber >= 0 && rowNumber < m_patchDirs.size())
         {
-            g.drawText(m_files[rowNumber].getFileName(), 10, 0, width - 20, height, juce::Justification::centredLeft);
+            g.drawText(m_patchDirs[rowNumber].getFileName(), 10, 0, width - 20, height, juce::Justification::centredLeft);
         }
     }
     
     void listBoxItemClicked(int row, const juce::MouseEvent&) override
     {
-        if (row >= 0 && row < m_files.size())
+        if (row >= 0 && row < m_patchDirs.size())
         {
             if (m_isSaveMode)
             {
-                // For save mode, populate the filename input
-                m_filenameInput.setText(m_files[row].getFileName(), false);
+                // For save mode, populate the patch name input with selected patch name
+                //
+                m_patchNameInput.setText(m_patchDirs[row].getFileName(), false);
             }
             else
             {
                 // For load mode, select immediately
+                //
                 OnOkClicked();
             }
         }
@@ -147,7 +154,7 @@ public:
     
     void listBoxItemDoubleClicked(int row, const juce::MouseEvent&) override
     {
-        if (row >= 0 && row < m_files.size())
+        if (row >= 0 && row < m_patchDirs.size())
         {
             OnOkClicked();
         }
@@ -155,110 +162,236 @@ public:
 
 private:
     //==============================================================================
-    void RefreshFileList()
+    void RefreshPatchList()
     {
-        m_files.clear();
+        m_patchDirs.clear();
         
-        // Check both locations: iCloud (for reading) and app Documents (for saving)
-        juce::Array<juce::File> allFiles;
-        
-        // First, check iCloud Drive location (read-only on iOS)
-        juce::File iCloudDir = FileManager::GetiCloudSmartGridOneDirectory();
-        if (iCloudDir.exists())
+        // Get all subdirectories from patches directory
+        //
+        juce::File patchesDir = FileManager::GetPatchesDirectory();
+        if (patchesDir.exists())
         {
-            juce::Array<juce::File> iCloudFiles;
-            iCloudDir.findChildFiles(iCloudFiles, juce::File::findFiles, false, "*.json");
-            allFiles.addArray(iCloudFiles);
+            patchesDir.findChildFiles(m_patchDirs, juce::File::findDirectories, false);
         }
         
-        // Then, check app's Documents directory (where we save)
-        juce::File appDir = FileManager::GetSmartGridOneDirectory();
-        if (appDir.exists())
-        {
-            juce::Array<juce::File> appFiles;
-            appDir.findChildFiles(appFiles, juce::File::findFiles, false, "*.json");
-            allFiles.addArray(appFiles);
-        }
+        // Sort alphabetically by directory name
+        //
+        m_patchDirs.sort();
         
-        // Remove duplicates (in case same file exists in both locations)
-        for (int i = allFiles.size() - 1; i >= 0; --i)
-        {
-            for (int j = i - 1; j >= 0; --j)
-            {
-                if (allFiles[i].getFileName() == allFiles[j].getFileName())
-                {
-                    // Prefer the app Documents version (writable)
-                    if (allFiles[i].getFullPathName().contains("Mobile Documents"))
-                    {
-                        allFiles.remove(i);
-                        break;
-                    }
-                    else
-                    {
-                        allFiles.remove(j);
-                    }
-                }
-            }
-        }
-        
-        // Sort by filename
-        allFiles.sort();
-        
-        m_files = allFiles;
-        
-        m_fileListBox.updateContent();
+        m_patchListBox.updateContent();
     }
     
     void OnOkClicked()
     {
         if (m_isSaveMode)
         {
-            juce::String filename = m_filenameInput.getText();
-            if (filename.isEmpty())
+            juce::String patchName = m_patchNameInput.getText().trim();
+            if (patchName.isEmpty())
             {
-                filename = "patch.json";
+                patchName = "NewPatch";
             }
             
-            // Ensure .json extension
-            if (!filename.endsWith(".json"))
-            {
-                filename += ".json";
-            }
+            // Remove any characters that might cause filesystem issues
+            //
+            patchName = patchName.replaceCharacters("/\\:*?\"<>|", "_________");
             
-            juce::File smartGridDir = FileManager::GetSmartGridOneDirectory();
-            juce::String fullPath = smartGridDir.getChildFile(filename).getFullPathName();
-            
-            if (m_onFileSelected)
+            if (m_onPatchSelected)
             {
-                m_onFileSelected(fullPath);
+                m_onPatchSelected(patchName);
             }
         }
         else
         {
-            // Load mode - use selected file
-            int selectedRow = m_fileListBox.getSelectedRow();
-            if (selectedRow >= 0 && selectedRow < m_files.size())
+            // Load mode - use selected directory
+            //
+            int selectedRow = m_patchListBox.getSelectedRow();
+            if (selectedRow >= 0 && selectedRow < m_patchDirs.size())
             {
-                if (m_onFileSelected)
+                if (m_onPatchSelected)
                 {
-                    m_onFileSelected(m_files[selectedRow].getFullPathName());
+                    m_onPatchSelected(m_patchDirs[selectedRow].getFileName());
                 }
             }
         }
     }
     
-    std::function<void(juce::String)> m_onFileSelected;
+    std::function<void(juce::String)> m_onPatchSelected;
     std::function<void()> m_onCancel;
     bool m_isSaveMode;
     
-    juce::ListBox m_fileListBox;
-    juce::Label m_filenameLabel;
-    juce::TextEditor m_filenameInput;
+    juce::ListBox m_patchListBox;
+    juce::Label m_patchNameLabel;
+    juce::TextEditor m_patchNameInput;
     juce::TextButton m_okButton;
     juce::TextButton m_cancelButton;
     
-    juce::Array<juce::File> m_files;
+    juce::Array<juce::File> m_patchDirs;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PatchChooser)
 };
 
+//==============================================================================
+// Version chooser that lists timestamped JSON files from a patch directory
+//
+class VersionChooser : public juce::Component, public juce::ListBoxModel
+{
+public:
+    //==============================================================================
+    VersionChooser(const juce::String& patchName, std::function<void(juce::String)> onVersionSelected, std::function<void()> onCancel)
+        : m_patchName(patchName)
+        , m_onVersionSelected(onVersionSelected)
+        , m_onCancel(onCancel)
+        , m_versionListBox("Versions", this)
+        , m_okButton("OK")
+        , m_cancelButton("Cancel")
+    {
+        // Set up version list box
+        //
+        m_versionListBox.setRowHeight(30);
+        m_versionListBox.setColour(juce::ListBox::backgroundColourId, juce::Colours::darkgrey);
+        addAndMakeVisible(m_versionListBox);
+        
+        // Set up buttons
+        //
+        m_okButton.setSize(80, 30);
+        m_okButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
+        m_okButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+        m_okButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+        m_okButton.onClick = [this]() { OnOkClicked(); };
+        addAndMakeVisible(m_okButton);
+        
+        m_cancelButton.setSize(80, 30);
+        m_cancelButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
+        m_cancelButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+        m_cancelButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+        m_cancelButton.onClick = [this]() { if (m_onCancel) m_onCancel(); };
+        addAndMakeVisible(m_cancelButton);
+        
+        RefreshVersionList();
+    }
+
+    ~VersionChooser() override
+    {
+    }
+
+    //==============================================================================
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(juce::Colours::black);
+        
+        g.setColour(juce::Colours::white);
+        g.setFont(juce::FontOptions(18.0f));
+        g.drawText("Versions: " + m_patchName, getLocalBounds().removeFromTop(40), juce::Justification::centred);
+    }
+
+    void resized() override
+    {
+        auto bounds = getLocalBounds();
+        bounds.removeFromTop(50); // Space for title
+        
+        // Version list in the middle
+        //
+        m_versionListBox.setBounds(bounds.removeFromTop(bounds.getHeight() - 50).reduced(10, 5));
+        
+        // Buttons at bottom
+        //
+        auto buttonArea = bounds.reduced(10, 5);
+        m_cancelButton.setBounds(buttonArea.removeFromRight(80));
+        buttonArea.removeFromRight(10);
+        m_okButton.setBounds(buttonArea.removeFromRight(80));
+    }
+    
+    //==============================================================================
+    int getNumRows() override
+    {
+        return m_versionFiles.size();
+    }
+    
+    void paintListBoxItem(int rowNumber, juce::Graphics& g, int width, int height, bool rowIsSelected) override
+    {
+        if (rowIsSelected)
+        {
+            g.fillAll(juce::Colours::darkblue);
+        }
+        else
+        {
+            g.fillAll(juce::Colours::darkgrey);
+        }
+        
+        g.setColour(juce::Colours::white);
+        g.setFont(juce::FontOptions(14.0f));
+        
+        if (rowNumber >= 0 && rowNumber < m_versionFiles.size())
+        {
+            // Display filename without .json extension, formatted nicely
+            //
+            juce::String displayName = m_versionFiles[rowNumber].getFileNameWithoutExtension();
+            
+            // Convert timestamp format YYYY-MM-DDTHH-MM-SS to more readable format
+            //
+            displayName = displayName.replace("T", " ").replace("-", ":", 3);
+            
+            g.drawText(displayName, 10, 0, width - 20, height, juce::Justification::centredLeft);
+        }
+    }
+    
+    void listBoxItemClicked(int row, const juce::MouseEvent&) override
+    {
+        // Single click just selects, double click or OK button loads
+        //
+    }
+    
+    void listBoxItemDoubleClicked(int row, const juce::MouseEvent&) override
+    {
+        if (row >= 0 && row < m_versionFiles.size())
+        {
+            OnOkClicked();
+        }
+    }
+
+private:
+    //==============================================================================
+    void RefreshVersionList()
+    {
+        m_versionFiles.clear();
+        
+        // Get all JSON files from the patch directory
+        //
+        juce::File patchDir = FileManager::GetPatchDirectory(m_patchName);
+        if (patchDir.exists())
+        {
+            patchDir.findChildFiles(m_versionFiles, juce::File::findFiles, false, "*.json");
+        }
+        
+        // Sort in reverse order (newest first)
+        //
+        m_versionFiles.sort();
+        std::reverse(m_versionFiles.begin(), m_versionFiles.end());
+        
+        m_versionListBox.updateContent();
+    }
+    
+    void OnOkClicked()
+    {
+        int selectedRow = m_versionListBox.getSelectedRow();
+        if (selectedRow >= 0 && selectedRow < m_versionFiles.size())
+        {
+            if (m_onVersionSelected)
+            {
+                m_onVersionSelected(m_versionFiles[selectedRow].getFullPathName());
+            }
+        }
+    }
+    
+    juce::String m_patchName;
+    std::function<void(juce::String)> m_onVersionSelected;
+    std::function<void()> m_onCancel;
+    
+    juce::ListBox m_versionListBox;
+    juce::TextButton m_okButton;
+    juce::TextButton m_cancelButton;
+    
+    juce::Array<juce::File> m_versionFiles;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VersionChooser)
+};

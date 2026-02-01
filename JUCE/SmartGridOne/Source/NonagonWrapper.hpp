@@ -554,6 +554,8 @@ struct NonagonWrapper
         m_quadLaunchpadTwister.ProcessFrame();
         m_wrldBldr.ProcessFrame();
         m_internal.ProcessFrame();
+        m_quadLaunchpadTwister.SendMidiOutput();
+        m_wrldBldr.SendMidiOutput();
     }
 
     juce::MidiInput* GetMidiInputQuadLaunchpadTwister(int index)
@@ -716,7 +718,11 @@ struct NonagonWrapper
                 audioInputBuffer.m_input[j] = bufferToFill.buffer->getReadPointer(j, bufferToFill.startSample)[i];
             }
 
-            SampleTimer::IncrementSample();
+            if (SampleTimer::IncrementSample())
+            {
+                ProcessFrame();
+            }
+
             QuadFloatWithStereoAndSub output = ProcessSample(audioInputBuffer);
             
             if (ioInfo.m_stereo)
@@ -739,10 +745,6 @@ struct NonagonWrapper
                 bufferToFill.buffer->getWritePointer(4, bufferToFill.startSample)[i] = output.m_sub;
             }
         }
-
-        ProcessFrame();
-        m_quadLaunchpadTwister.SendMidiOutput();
-        m_wrldBldr.SendMidiOutput();
     }
 
     void ClearLEDs()

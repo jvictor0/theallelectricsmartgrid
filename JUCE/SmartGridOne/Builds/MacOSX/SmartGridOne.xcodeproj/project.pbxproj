@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		1032A8EF23E8BA17B96ECCA0 /* AudioToolbox.framework */ = {isa = PBXBuildFile; fileRef = D137D1EE5ACAD3FF6E844926; };
-		1179B16A3AFC108A4D22C849 /* iCloudHelper.mm */ = {isa = PBXBuildFile; fileRef = 1EC79AE8CF2BB40FA3552DDA; };
 		122A58EF7CB791E4F5E5F157 /* IOKit.framework */ = {isa = PBXBuildFile; fileRef = 5D66CB06DF97279CCD4F56B0; };
 		14B8C5ED129EA6B851C4B3CD /* Cocoa.framework */ = {isa = PBXBuildFile; fileRef = 78BB32EC2B46DB46683AD01F; };
 		14ED4EE1E5ADD6B40F0E7D75 /* include_juce_gui_extra.mm */ = {isa = PBXBuildFile; fileRef = 49B362DFB8D037A0A2D4C3F7; };
@@ -49,7 +48,6 @@
 /* Begin PBXFileReference section */
 		050C837BB926E11B985F21FA /* CoreMIDI.framework */ /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = System/Library/Frameworks/CoreMIDI.framework; sourceTree = SDKROOT; };
 		15A6496F23328251B10E4B3B /* DiscRecording.framework */ /* DiscRecording.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DiscRecording.framework; path = System/Library/Frameworks/DiscRecording.framework; sourceTree = SDKROOT; };
-		1EC79AE8CF2BB40FA3552DDA /* iCloudHelper.mm */ /* iCloudHelper.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = iCloudHelper.mm; path = ../../Source/iCloudHelper.mm; sourceTree = SOURCE_ROOT; };
 		1FC838D808BFCA04A9A24CA8 /* NonagonWrapper.hpp */ /* NonagonWrapper.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = NonagonWrapper.hpp; path = ../../Source/NonagonWrapper.hpp; sourceTree = SOURCE_ROOT; };
 		2ADD0E7D2179637896E9A89B /* mod_badge_Sheaf.png */ /* mod_badge_Sheaf.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = mod_badge_Sheaf.png; path = ../../Assets/mod_badge_Sheaf.png; sourceTree = SOURCE_ROOT; };
 		2EBF93ECBA74D11FFB8F3A82 /* mod_badge_Noise.png */ /* mod_badge_Noise.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = mod_badge_Noise.png; path = ../../Assets/mod_badge_Noise.png; sourceTree = SOURCE_ROOT; };
@@ -183,7 +181,6 @@
 			isa = PBXGroup;
 			children = (
 				C4160E50CEBC3FB19EF6D33A,
-				1EC79AE8CF2BB40FA3552DDA,
 				5CFF07F9B76CE118EF50400C,
 				EFB4472AC130FBE7539BD1D7,
 				E3AA97784906D1AD50B094EE,
@@ -354,7 +351,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				7C3D921A962E5C14F052B487,
-				1179B16A3AFC108A4D22C849,
 				658F8B55FEBE8D6DE11BDFA1,
 				1896C841C0B7CFBFE42CF97D,
 				366101E30B5367411E4816A0,

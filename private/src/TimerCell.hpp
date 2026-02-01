@@ -6,7 +6,7 @@ struct TimerCell : SmartGrid::Cell
 {
     static constexpr size_t x_numCells = 16;
     static constexpr double x_blinkTime = 2.0;
-    static constexpr double x_totalTime = 20.0 * 60.0;
+    static constexpr double x_totalTime = 30.0 * 60.0;
 
     double* m_time;
     size_t m_position;

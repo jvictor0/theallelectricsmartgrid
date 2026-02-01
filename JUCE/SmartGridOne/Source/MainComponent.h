@@ -24,6 +24,7 @@ public:
 
     virtual void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override
     {
+        INFO("prepareToPlay: %d samples @ %.0f Hz (%.2f ms)", samplesPerBlockExpected, sampleRate, samplesPerBlockExpected * 1000.0 / sampleRate);
         SampleTimer::Init(samplesPerBlockExpected);
         m_nonagon.PrepareToPlay(samplesPerBlockExpected, sampleRate);
         m_sampleRate = sampleRate;
@@ -41,7 +42,7 @@ public:
         auto duration = juce::Time::highResolutionTicksToSeconds(end - start);
         if (static_cast<double>(bufferToFill.numSamples) / m_sampleRate < duration)
         {
-            INFO("Audio xrun %f ms / %f ms", duration * 1000, static_cast<double>(bufferToFill.numSamples * 1000) / m_sampleRate);
+            INFO("Audio xrun %f ms / %f ms (samples = %d)", duration * 1000, static_cast<double>(bufferToFill.numSamples * 1000) / m_sampleRate, bufferToFill.numSamples);
         }
     }
 
@@ -140,6 +141,7 @@ private:
     void OnFileButtonClicked();
     void OnFileBackButtonClicked();
     void ShowPatchChooser(bool isSaveMode);
+    void ShowVersionChooser();
 
     NonagonWrapper m_nonagon;
     Configuration m_configuration;
@@ -147,6 +149,7 @@ private:
     std::unique_ptr<ConfigPage> m_configPage;
     std::unique_ptr<FilePage> m_filePage;
     std::unique_ptr<PatchChooser> m_patchChooser;
+    std::unique_ptr<VersionChooser> m_versionChooser;
     std::unique_ptr<WrldBuildrComponent> m_wrldBuildrGrid;
     juce::TextButton m_configButton;
     juce::TextButton m_backButton;

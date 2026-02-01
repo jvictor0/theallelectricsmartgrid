@@ -124,13 +124,12 @@ namespace SmartGrid
         uint8_t m_channel;
         uint64_t m_epoch;
         Mode m_mode;
-        size_t m_eventualResendIndex;
+        RGen m_rng;
 
         WrldBLDRColorMidiWriter()
             : m_bus(nullptr)
             , m_channel(0)
-            , m_epoch(0)
-            , m_eventualResendIndex(0)
+            , m_epoch(0)            
         {
             memset(m_set, 0, sizeof(m_set));
             memset(m_cooldown, 0, sizeof(m_cooldown));
@@ -140,8 +139,7 @@ namespace SmartGrid
             : m_bus(bus)
             , m_channel(channel)
             , m_epoch(0)
-            , m_mode(mode)
-            , m_eventualResendIndex(0)
+            , m_mode(mode)    
         {
             memset(m_set, 0, sizeof(m_set));
             memset(m_cooldown, 0, sizeof(m_cooldown));
@@ -150,8 +148,7 @@ namespace SmartGrid
         WrldBLDRColorMidiWriter(EncoderBankUIState* encoderState, uint8_t channel, Mode mode)
             : m_encoderState(encoderState)
             , m_channel(channel)
-            , m_epoch(0)
-            , m_eventualResendIndex(0)
+            , m_epoch(0)    
         {
             memset(m_set, 0, sizeof(m_set));
             memset(m_cooldown, 0, sizeof(m_cooldown));
@@ -163,7 +160,6 @@ namespace SmartGrid
             memset(m_set, 0, sizeof(m_set));
             m_epoch = 0;
             memset(m_cooldown, 0, sizeof(m_cooldown));
-            m_eventualResendIndex = 0;
         }
 
         void GetPhysicalFromEncoderIndex(size_t index, size_t* outX, size_t* outY)
@@ -198,12 +194,6 @@ namespace SmartGrid
                         }
                     }
                 }
-
-                size_t x;
-                size_t y;
-                GetPhysicalFromEncoderIndex(m_eventualResendIndex, &x, &y);
-                m_set[x][y] = false;
-                m_eventualResendIndex = (m_eventualResendIndex + 1) % 16;
             }
             else
             {
@@ -217,16 +207,18 @@ namespace SmartGrid
 
                     ++coolDownItr;
                 }
+            }
 
-                int x = -1;
-                int y = -1;
-                GetPhysicalFromGridIndex(m_eventualResendIndex, &x, &y);
-                if (x >= 0 && y >= 0)
+            constexpr float prob = 0.001;
+            if (m_rng.UniGen() < prob)
+            {
+                for (size_t i = 0; i < x_gridMaxSize; ++i)
                 {
-                    m_set[x][y] = false;
+                    for (size_t j = 0; j < x_gridMaxSize; ++j)
+                    {
+                        m_set[i][j] = false;
+                    }
                 }
-                
-                m_eventualResendIndex = (m_eventualResendIndex + 1) % 64;
             }
         }
 
@@ -351,11 +343,10 @@ namespace SmartGrid
         bool m_sent[4][4];
         uint8_t m_cooldown[4][4];
         EncoderBankUIState* m_encoderState;
-        size_t m_eventualResendIndex;
+        RGen m_rng;
 
         WrldBLDRIndicatorMidiWriter()
             : m_encoderState(nullptr)
-            , m_eventualResendIndex(0)
         {
             memset(m_values, 0, sizeof(m_values));
             memset(m_sent, 0, sizeof(m_sent));
@@ -364,7 +355,6 @@ namespace SmartGrid
 
         WrldBLDRIndicatorMidiWriter(EncoderBankUIState* encoderState)
             : m_encoderState(encoderState)
-            , m_eventualResendIndex(0)
         {
             memset(m_values, 0, sizeof(m_values));
             memset(m_sent, 0, sizeof(m_sent));
@@ -375,7 +365,6 @@ namespace SmartGrid
         {
             memset(m_sent, 0, sizeof(m_sent));
             memset(m_cooldown, 0, sizeof(m_cooldown));
-            m_eventualResendIndex = 0;
         }
 
         void GetPhysicalFromIndex(size_t index, size_t* outX, size_t* outY)
@@ -397,11 +386,17 @@ namespace SmartGrid
                 }
             }
 
-            size_t x;
-            size_t y;
-            GetPhysicalFromIndex(m_eventualResendIndex, &x, &y);
-            m_sent[x][y] = false;
-            m_eventualResendIndex = (m_eventualResendIndex + 1) % 16;
+            constexpr float prob = 0.001;
+            if (m_rng.UniGen() < prob)
+            {
+                for (size_t i = 0; i < 4; ++i)
+                {
+                    for (size_t j = 0; j < 4; ++j)
+                    {
+                        m_sent[i][j] = false;
+                    }
+                }
+            }
         }
 
         struct Iterator

@@ -10,7 +10,6 @@
 		01A6C3ADE231674ABE5E01DD /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 79B4E7C69A6BFAAF05F3094E /* Images.xcassets */; };
 		0621A6D6973F48735B38DFD2 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0795639473CC6B78CFABA3F5 /* UIKit.framework */; };
 		1032A8EF23E8BA17B96ECCA0 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D137D1EE5ACAD3FF6E844926 /* AudioToolbox.framework */; };
-		1179B16A3AFC108A4D22C849 /* iCloudHelper.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1EC79AE8CF2BB40FA3552DDA /* iCloudHelper.mm */; };
 		14ED4EE1E5ADD6B40F0E7D75 /* include_juce_gui_extra.mm in Sources */ = {isa = PBXBuildFile; fileRef = 49B362DFB8D037A0A2D4C3F7 /* include_juce_gui_extra.mm */; };
 		1896C841C0B7CFBFE42CF97D /* MainComponent.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E3AA97784906D1AD50B094EE /* MainComponent.cpp */; };
 		22AC47F92DCC6FFB52862BAF /* include_juce_audio_processors.mm in Sources */ = {isa = PBXBuildFile; fileRef = C55B8CCBE65C3B943B893BE8 /* include_juce_audio_processors.mm */; };
@@ -54,7 +53,6 @@
 		0795639473CC6B78CFABA3F5 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		136C1141E259BF73F8C92E45 /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
 		13976C0CA066A2F2567DA3C4 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
-		1EC79AE8CF2BB40FA3552DDA /* iCloudHelper.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = iCloudHelper.mm; path = ../../Source/iCloudHelper.mm; sourceTree = SOURCE_ROOT; };
 		1FC838D808BFCA04A9A24CA8 /* NonagonWrapper.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = NonagonWrapper.hpp; path = ../../Source/NonagonWrapper.hpp; sourceTree = SOURCE_ROOT; };
 		2ADD0E7D2179637896E9A89B /* mod_badge_Sheaf.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = mod_badge_Sheaf.png; path = ../../Assets/mod_badge_Sheaf.png; sourceTree = SOURCE_ROOT; };
 		2EBF93ECBA74D11FFB8F3A82 /* mod_badge_Noise.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = mod_badge_Noise.png; path = ../../Assets/mod_badge_Noise.png; sourceTree = SOURCE_ROOT; };
@@ -194,7 +192,6 @@
 			isa = PBXGroup;
 			children = (
 				C4160E50CEBC3FB19EF6D33A /* IOUtils.cpp */,
-				1EC79AE8CF2BB40FA3552DDA /* iCloudHelper.mm */,
 				5CFF07F9B76CE118EF50400C /* Main.cpp */,
 				EFB4472AC130FBE7539BD1D7 /* MainComponent.h */,
 				E3AA97784906D1AD50B094EE /* MainComponent.cpp */,
@@ -370,7 +367,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				7C3D921A962E5C14F052B487 /* IOUtils.cpp in Sources */,
-				1179B16A3AFC108A4D22C849 /* iCloudHelper.mm in Sources */,
 				658F8B55FEBE8D6DE11BDFA1 /* Main.cpp in Sources */,
 				1896C841C0B7CFBFE42CF97D /* MainComponent.cpp in Sources */,
 				366101E30B5367411E4816A0 /* BinaryData.cpp in Sources */,

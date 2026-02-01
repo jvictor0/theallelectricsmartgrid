@@ -5,8 +5,6 @@
   <MAINGROUP id="si886g" name="SmartGridOne">
     <GROUP id="{2DDA3903-F6ED-9E0F-0737-E5B903BFA61C}" name="Source">
       <FILE id="MD2rs9" name="IOUtils.cpp" compile="1" resource="0" file="Source/IOUtils.cpp"/>
-      <FILE id="iCloudHelperMm" name="iCloudHelper.mm" compile="1" resource="0"
-            file="Source/iCloudHelper.mm"/>
       <FILE id="kKFGmW" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
       <FILE id="HwPNTB" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
       <FILE id="Lhzo5a" name="MainComponent.cpp" compile="1" resource="0"

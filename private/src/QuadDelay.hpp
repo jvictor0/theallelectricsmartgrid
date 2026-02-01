@@ -25,7 +25,7 @@ struct QuadDelay
         }
     };
     
-    static constexpr size_t x_delayLineSize = 1 << 25;
+    static constexpr size_t x_delayLineSize = 1 << 24;
     QuadDelayLineMovableWriter<x_delayLineSize> m_delayLine;
     QuadGrainManager<x_delayLineSize> m_grainManager;
     QuadLFO m_lfo;

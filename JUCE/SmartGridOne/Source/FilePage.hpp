@@ -3,30 +3,37 @@
 #include <JuceHeader.h>
 
 //==============================================================================
-/*
-    File page for file operations (Open, Save, Save As)
-*/
+// File page for file operations (Open, Versions, Save, Save As)
+//
 class FilePage : public juce::Component
 {
 public:
     //==============================================================================
-    FilePage(std::function<void()> onOpen, std::function<void()> onSave, std::function<void()> onSaveAs, std::function<void()> onPickRecordingDirectory)
+    FilePage(std::function<void()> onOpen, std::function<void()> onVersions, std::function<void()> onSave, std::function<void()> onSaveAs)
         : m_onOpen(onOpen)
+        , m_onVersions(onVersions)
         , m_onSave(onSave)
         , m_onSaveAs(onSaveAs)
-        , m_onPickRecordingDirectory(onPickRecordingDirectory)
         , m_openButton("Open")
+        , m_versionsButton("Versions")
         , m_saveButton("Save")
         , m_saveAsButton("Save As")
-        , m_pickRecordingDirectoryButton("Recording Directory")
     {
         // Set up buttons
+        //
         m_openButton.setSize(120, 40);
         m_openButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
         m_openButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
         m_openButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
         m_openButton.onClick = [this]() { if (m_onOpen) m_onOpen(); };
         addAndMakeVisible(m_openButton);
+        
+        m_versionsButton.setSize(120, 40);
+        m_versionsButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
+        m_versionsButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+        m_versionsButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+        m_versionsButton.onClick = [this]() { if (m_onVersions) m_onVersions(); };
+        addAndMakeVisible(m_versionsButton);
         
         m_saveButton.setSize(120, 40);
         m_saveButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
@@ -41,14 +48,6 @@ public:
         m_saveAsButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
         m_saveAsButton.onClick = [this]() { if (m_onSaveAs) m_onSaveAs(); };
         addAndMakeVisible(m_saveAsButton);
-
-        // Set up recording directory picker button
-        m_pickRecordingDirectoryButton.setSize(120, 40);
-        m_pickRecordingDirectoryButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
-        m_pickRecordingDirectoryButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
-        m_pickRecordingDirectoryButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
-        m_pickRecordingDirectoryButton.onClick = [this]() { if (m_onPickRecordingDirectory) m_onPickRecordingDirectory(); };
-        addAndMakeVisible(m_pickRecordingDirectoryButton);
     }
 
     ~FilePage() override
@@ -71,6 +70,7 @@ public:
         bounds.removeFromTop(60); // Space for title
         
         // Center the file operation buttons
+        //
         auto centerArea = bounds.reduced(50);
         const int buttonHeight = 40;
         const int buttonSpacing = 20;
@@ -81,25 +81,24 @@ public:
         
         m_openButton.setBounds(buttonArea.removeFromTop(buttonHeight));
         buttonArea.removeFromTop(buttonSpacing);
+        m_versionsButton.setBounds(buttonArea.removeFromTop(buttonHeight));
+        buttonArea.removeFromTop(buttonSpacing);
         m_saveButton.setBounds(buttonArea.removeFromTop(buttonHeight));
         buttonArea.removeFromTop(buttonSpacing);
         m_saveAsButton.setBounds(buttonArea.removeFromTop(buttonHeight));
-        buttonArea.removeFromTop(buttonSpacing);
-        m_pickRecordingDirectoryButton.setBounds(buttonArea.removeFromTop(buttonHeight));
     }
 
 private:
     //==============================================================================
     std::function<void()> m_onOpen;
+    std::function<void()> m_onVersions;
     std::function<void()> m_onSave;
     std::function<void()> m_onSaveAs;
-    std::function<void()> m_onPickRecordingDirectory;
     
     juce::TextButton m_openButton;
+    juce::TextButton m_versionsButton;
     juce::TextButton m_saveButton;
     juce::TextButton m_saveAsButton;
-    juce::TextButton m_pickRecordingDirectoryButton;
-
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FilePage)
 };

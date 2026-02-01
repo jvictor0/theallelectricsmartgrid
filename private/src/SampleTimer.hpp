@@ -6,6 +6,7 @@ struct SampleTimer
 {
     static constexpr size_t x_sampleRate = 48000;
     static constexpr double x_slew = 0.01;
+    static constexpr size_t x_samplesPerProcessFrame = 512;
     size_t m_samplesPerFrame;
     size_t m_frame;
     size_t m_sample;
@@ -47,9 +48,10 @@ struct SampleTimer
         return s_instance->m_frameZeroTimeUs + s_instance->m_sample * 1000 * 1000 / x_sampleRate;
     }
 
-    static void IncrementSample()
+    static bool IncrementSample()
     {
         ++s_instance->m_sample;
+        return s_instance->m_sample % x_samplesPerProcessFrame == 0;
     }
 };
 

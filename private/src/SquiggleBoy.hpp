@@ -304,6 +304,7 @@ struct SquiggleBoyVoice
             ADSP::InputSetter m_adspInputSetter;
             ADSP::Input m_adspInput;
 
+            OPLowPassFilter m_gainSlew;
             PhaseUtils::ZeroedExpParam m_gain;
             PhaseUtils::ZeroedExpParam m_subGain;
             PhaseUtils::ExpParam m_subTanhGain;
@@ -324,6 +325,7 @@ struct SquiggleBoyVoice
             {
                 m_subTrig = false;
                 m_subTanhGain = PhaseUtils::ExpParam(0.125, 2.0);
+                m_gainSlew.SetAlphaFromNatFreq(500.0f / 48000.0f);
             }
         };
 
@@ -1498,7 +1500,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_voiceEncoderBank.GetValue(1, 2, 2, i), 
                 m_voiceEncoderBank.GetValue(1, 3, 2, i));
 
-            m_state[i].m_ampInput.m_gain.Update(input.GetGainFader(i));
+            m_state[i].m_ampInput.m_gain.Update(m_state[i].m_ampInput.m_gainSlew.Process(input.GetGainFader(i)));
 
             m_state[i].m_panInput.m_radius = m_voiceEncoderBank.GetValue(2, 0, 0, i);
             float staticOffset = static_cast<float>(i % x_numTracks) / x_numTracks + static_cast<float>(i / x_numTracks) / (x_numTracks * x_numTracks);

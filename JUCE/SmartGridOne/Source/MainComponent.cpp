@@ -146,11 +146,23 @@ void MainComponent::resized()
     }
     
     // Show patch chooser as overlay if visible
+    //
     if (m_patchChooser && m_patchChooser->isVisible())
     {
         // Center it on screen
+        //
         auto chooserBounds = bounds.reduced(bounds.getWidth() / 4, bounds.getHeight() / 4);
         m_patchChooser->setBounds(chooserBounds);
+    }
+    
+    // Show version chooser as overlay if visible
+    //
+    if (m_versionChooser && m_versionChooser->isVisible())
+    {
+        // Center it on screen
+        //
+        auto chooserBounds = bounds.reduced(bounds.getWidth() / 4, bounds.getHeight() / 4);
+        m_versionChooser->setBounds(chooserBounds);
     }
 }
 
@@ -225,9 +237,12 @@ void MainComponent::OnFileButtonClicked()
     {
         m_filePage = std::make_unique<FilePage>(
             [this]() { ShowPatchChooser(false); },
-            [this]() { 
-                // Save - if no filename, show chooser, otherwise just save
-                if (m_fileManager.GetCurrentPatchFilename().isEmpty())
+            [this]() { ShowVersionChooser(); },
+            [this]()
+            { 
+                // Save - if no patch name, show chooser, otherwise just save
+                //
+                if (m_fileManager.GetCurrentPatchName().isEmpty())
                 {
                     ShowPatchChooser(true);
                 }
@@ -236,8 +251,7 @@ void MainComponent::OnFileButtonClicked()
                     RequestSave();
                 }
             },
-            [this]() { ShowPatchChooser(true); },
-            [this]() { m_fileManager.PickRecordingDirectory(); }
+            [this]() { ShowPatchChooser(true); }
         );
 
         addAndMakeVisible(m_filePage.get());
@@ -280,30 +294,34 @@ void MainComponent::ShowPatchChooser(bool isSaveMode)
     m_patchChooser.reset();
     
     m_patchChooser = std::make_unique<PatchChooser>(
-        [this, isSaveMode](juce::String filename)
+        [this, isSaveMode](juce::String patchName)
         {
             if (isSaveMode)
             {
-                // Set filename and trigger save
-                m_fileManager.SetCurrentPatchFilename(filename);
+                // Set patch name and trigger save
+                //
+                m_fileManager.SetCurrentPatchName(patchName);
                 RequestSave();
                 SaveConfig();
             }
             else
             {
-                m_fileManager.LoadPatch(filename);
+                m_fileManager.LoadPatch(patchName);
                 SaveConfig();
             }
             
             // Destroy the chooser completely
+            //
             m_patchChooser.reset();
             
             // Go back to main screen
+            //
             OnBackButtonClicked();
         },
         [this]()
         {
             // Cancel - destroy the chooser completely
+            //
             m_patchChooser.reset();
             resized();
             repaint();
@@ -312,6 +330,48 @@ void MainComponent::ShowPatchChooser(bool isSaveMode)
     );
     
     addAndMakeVisible(m_patchChooser.get());
+    resized();
+    repaint();
+}
+
+void MainComponent::ShowVersionChooser()
+{
+    // Only show if we have a current patch
+    //
+    if (m_fileManager.GetCurrentPatchName().isEmpty())
+    {
+        return;
+    }
+
+    // Always recreate the chooser to ensure fresh state
+    //
+    m_versionChooser.reset();
+    
+    m_versionChooser = std::make_unique<VersionChooser>(
+        m_fileManager.GetCurrentPatchName(),
+        [this](juce::String versionFilePath)
+        {
+            m_fileManager.LoadPatchVersion(versionFilePath);
+            
+            // Destroy the chooser completely
+            //
+            m_versionChooser.reset();
+            
+            // Go back to main screen
+            //
+            OnBackButtonClicked();
+        },
+        [this]()
+        {
+            // Cancel - destroy the chooser completely
+            //
+            m_versionChooser.reset();
+            resized();
+            repaint();
+        }
+    );
+    
+    addAndMakeVisible(m_versionChooser.get());
     resized();
     repaint();
 }
