@@ -8,6 +8,7 @@ struct StateInterchange
     std::atomic<bool> m_saveRequested;
     std::atomic<bool> m_saveCompleted;
     std::atomic<bool> m_loadRequested;
+    std::atomic<bool> m_newRequested;
 
     JSON m_toSave;
     JSON m_lastSave;
@@ -17,6 +18,7 @@ struct StateInterchange
         : m_saveRequested(false)
         , m_saveCompleted(true)
         , m_loadRequested(false)
+        , m_newRequested(false)
         , m_toSave(JSON::Null())
         , m_lastSave(JSON::Null())
         , m_toLoad(JSON::Null())
@@ -55,6 +57,27 @@ struct StateInterchange
     {
         m_toLoad = JSON::Null();
         m_loadRequested.store(false);
+    }
+
+    bool RequestNew()
+    {
+        if (m_newRequested.load())
+        {
+            return false;
+        }
+
+        m_newRequested.store(true);
+        return true;
+    }
+
+    bool IsNewRequested()
+    {
+        return m_newRequested.load();
+    }
+
+    void AckNewCompleted()
+    {
+        m_newRequested.store(false);
     }
 
     bool RequestSave()

@@ -177,6 +177,19 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         SetColors(SmartGrid::Color::White, SmartGrid::Color::Grey.Dim());        
     }
 
+    void RevertToDefault()
+    {
+        for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
+        {
+            for (size_t j = 0; j < SourceMixer::x_numSources; ++j)
+            {
+                m_sourceSelected[i][j] = (j == 0);
+            }
+        }
+
+        PropagateSourceSelection();
+    }
+
     SquiggleBoy* m_squiggleBoy;
     bool m_sourceSelected[TheNonagonInternal::x_numTrios][SourceMixer::x_numSources];
 };

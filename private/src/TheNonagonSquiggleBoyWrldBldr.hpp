@@ -430,7 +430,6 @@ struct TheNonagonSquiggleBoyWrldBldr
             Put(3, 4, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, true));
             Put(3, 5, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, false));
             Put(2, 4, m_owner->m_internal->MakeNoiseModeCell());
-            Put(2, 5, new TheNonagonSquiggleBoyInternal::RevertToDefaultCell(m_owner->m_internal));
 
             for (size_t i = 0; i < 4; ++i)
             {

@@ -1312,6 +1312,35 @@ struct TheNonagonSmartGrid
         m_stateSaverState.m_blend = blendFactor;
     }
 
+    bool IsSceneActive(size_t sceneIx)
+    {
+        if (m_stateSaverState.m_blend == 0)
+        {
+            return sceneIx == static_cast<size_t>(m_stateSaverState.m_left);
+        }
+        else if (m_stateSaverState.m_blend == 1)
+        {
+            return sceneIx == static_cast<size_t>(m_stateSaverState.m_right);
+        }
+        else
+        {
+            return sceneIx == static_cast<size_t>(m_stateSaverState.m_left) || sceneIx == static_cast<size_t>(m_stateSaverState.m_right);
+        }
+    }
+
+    void RevertToDefault(bool allScenes)
+    {
+        for (size_t s = 0; s < 8; ++s)
+        {
+            if (!allScenes && !IsSceneActive(s))
+            {
+                continue;
+            }
+
+            m_stateSaver.RevertToDefaultForScene(s);
+        }
+    }
+
     void PopulateUIState(TheNonagonInternal::UIState* uiState)
     {
         m_nonagon.m_noteWriter.SetCurPosition(m_nonagon.m_theoryOfTime.m_phasorIndependent);

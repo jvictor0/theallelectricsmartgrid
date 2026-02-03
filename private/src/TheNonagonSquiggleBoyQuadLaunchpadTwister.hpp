@@ -139,8 +139,6 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
             Put(-1, 0, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(owner->m_internal, true));
             Put(-1, 1, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(owner->m_internal, false));
 
-            Put(-1, 4, new TheNonagonSquiggleBoyInternal::RevertToDefaultCell(owner->m_internal));
-
             for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numVoiceBanks; ++i)
             {
                 Put(i, SmartGrid::x_baseGridSize + 1, new SquiggleBoyWithEncoderBank::SelectorCell(&owner->m_internal->m_squiggleBoy, i));

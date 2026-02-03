@@ -3,17 +3,24 @@
 #include <JuceHeader.h>
 
 //==============================================================================
-// File page for file operations (Open, Versions, Save, Save As)
+// File page for file operations (New, Open, Versions, Save, Save As)
 //
 class FilePage : public juce::Component
 {
 public:
     //==============================================================================
-    FilePage(std::function<void()> onOpen, std::function<void()> onVersions, std::function<void()> onSave, std::function<void()> onSaveAs)
+    FilePage(
+        std::function<void()> onOpen,
+        std::function<void()> onVersions,
+        std::function<void()> onSave,
+        std::function<void()> onSaveAs,
+        std::function<void()> onNew)
         : m_onOpen(onOpen)
         , m_onVersions(onVersions)
         , m_onSave(onSave)
         , m_onSaveAs(onSaveAs)
+        , m_onNew(onNew)
+        , m_newButton("New")
         , m_openButton("Open")
         , m_versionsButton("Versions")
         , m_saveButton("Save")
@@ -21,6 +28,13 @@ public:
     {
         // Set up buttons
         //
+        m_newButton.setSize(120, 40);
+        m_newButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
+        m_newButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+        m_newButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+        m_newButton.onClick = [this]() { if (m_onNew) m_onNew(); };
+        addAndMakeVisible(m_newButton);
+
         m_openButton.setSize(120, 40);
         m_openButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
         m_openButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
@@ -74,11 +88,13 @@ public:
         auto centerArea = bounds.reduced(50);
         const int buttonHeight = 40;
         const int buttonSpacing = 20;
-        const int totalButtonHeight = (buttonHeight * 4) + (buttonSpacing * 3);
+        const int totalButtonHeight = (buttonHeight * 5) + (buttonSpacing * 4);
         
         auto buttonArea = centerArea.removeFromTop(totalButtonHeight);
         buttonArea = buttonArea.withSizeKeepingCentre(120, totalButtonHeight);
         
+        m_newButton.setBounds(buttonArea.removeFromTop(buttonHeight));
+        buttonArea.removeFromTop(buttonSpacing);
         m_openButton.setBounds(buttonArea.removeFromTop(buttonHeight));
         buttonArea.removeFromTop(buttonSpacing);
         m_versionsButton.setBounds(buttonArea.removeFromTop(buttonHeight));
@@ -94,7 +110,9 @@ private:
     std::function<void()> m_onVersions;
     std::function<void()> m_onSave;
     std::function<void()> m_onSaveAs;
+    std::function<void()> m_onNew;
     
+    juce::TextButton m_newButton;
     juce::TextButton m_openButton;
     juce::TextButton m_versionsButton;
     juce::TextButton m_saveButton;

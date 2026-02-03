@@ -497,10 +497,10 @@ struct BankedEncoderCell : public StateEncoderCell
         m_defaultValue = m_bankedValue[m_sceneManager->m_track];
     }
 
-    void RevertToDefault()
+    void RevertToDefault(bool allScenes, bool allTracks)
     {
-        ZeroModulatorsCurrentScene();
-        SetToValue(m_defaultValue);
+        ZeroModulators(allScenes, allTracks);
+        SetValue(m_defaultValue, allScenes, allTracks);
         SetForceUpdateRecursive();
         SetModulatorsAffecting();
     }
@@ -591,7 +591,7 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         if (m_sharedEncoderState->m_selectedGesture.IsZero())
         {
-            ZeroModulatorsCurrentScene();
+            ZeroModulators(false, false);
         }
         else
         {
@@ -611,24 +611,48 @@ struct BankedEncoderCell : public StateEncoderCell
         SetModulatorsAffectingRecursive();
     }
 
-    void ZeroModulatorsCurrentScene()
+    void ZeroModulators(bool allScenes, bool allTracks)
     {
         for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
         {
-            GetModulator(i)->ZeroCurrentScene();
-            GetModulator(i)->ZeroModulatorsCurrentScene();
+            GetModulator(i)->SetValue(0, allScenes, allTracks);
+            GetModulator(i)->ZeroModulators(allScenes, allTracks);
         }
 
         for (size_t i = 0; i < x_numGestureParams; ++i)
         {
             if (m_modulators.m_gestures[i])
             {
-                m_modulators.m_gestures[i]->ZeroCurrentScene();
-                m_modulators.m_gestures[i]->DeactivateGestureCurrentScene();
+                m_modulators.m_gestures[i]->SetValue(0, allScenes, allTracks);
+                DeactivateGesture(i, allScenes, allTracks);
             }
         }
 
         GarbageCollectModulators();
+    }
+
+    void DeactivateGesture(size_t gestureIx, bool allScenes, bool allTracks)
+    {
+        if (!m_modulators.m_gestures[gestureIx])
+        {
+            return;
+        }
+
+        size_t startTrack = allTracks ? 0 : m_sceneManager->m_track;
+        size_t endTrack = allTracks ? m_numTracks : m_sceneManager->m_track + 1;
+
+        for (size_t t = startTrack; t < endTrack; ++t)
+        {
+            for (size_t s = 0; s < StateEncoderCell::SceneManager::x_numScenes; ++s)
+            {
+                if (!allScenes && !m_sceneManager->IsSceneActive(s))
+                {
+                    continue;
+                }
+
+                m_modulators.m_gestures[gestureIx]->m_isActive[s][t] = false;
+            }
+        }
     }
 
     bool CanBeGarbageCollected()
@@ -1158,13 +1182,13 @@ struct EncoderBankInternal : public EncoderGrid
         }
     }
 
-    void RevertToDefault()
+    void RevertToDefault(bool allScenes, bool allTracks)
     {
         for (int i = 0; i < 4; ++i)
         {
             for (int j = 0; j < 4; ++j)
             {
-                m_baseCell[i][j]->RevertToDefault();
+                m_baseCell[i][j]->RevertToDefault(allScenes, allTracks);
             }
         }
     }
@@ -1355,7 +1379,7 @@ struct EncoderBankInternal : public EncoderGrid
 
         if (input.m_revertToDefault)
         {
-            RevertToDefault();
+            RevertToDefault(false, false);
         }
 
         m_totalVoices = input.m_numVoices * input.m_numTracks;

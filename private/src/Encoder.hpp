@@ -193,6 +193,11 @@ struct StateEncoderCell : public EncoderCell
             return m_blendFactor > 0;
         }
 
+        bool IsSceneActive(size_t sceneIx)
+        {
+            return (sceneIx == m_scene1 && Scene1Active()) || (sceneIx == m_scene2 && Scene2Active());
+        }
+
         void RegisterCell(StateEncoderCell* cell)
         {
             if (m_externalState)
@@ -527,6 +532,47 @@ struct StateEncoderCell : public EncoderCell
             }
 
             SetStateForTrack(i);
+        }
+    }
+
+    void SetValue(float value, bool allScenes, bool allTracks)
+    {
+        size_t startTrack = allTracks ? 0 : m_sceneManager->m_track;
+        size_t endTrack = allTracks ? m_numTracks : m_sceneManager->m_track + 1;
+
+        for (size_t t = startTrack; t < endTrack; ++t)
+        {
+            for (size_t s = 0; s < SceneManager::x_numScenes; ++s)
+            {
+                int scene = s;
+                if (allScenes)
+                {
+                    if (s == 0)
+                    {
+                        scene = m_sceneManager->m_scene1;
+                        if (!m_sceneManager->Scene1Active())
+                        {
+                            continue;
+                        }
+                    }
+                    else if (s == 1)
+                    {
+                        scene = m_sceneManager->m_scene2;
+                        if (!m_sceneManager->Scene2Active())
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                m_values[t][scene] = value;
+            }
+
+            SetStateForTrack(t);
         }
     }
 };

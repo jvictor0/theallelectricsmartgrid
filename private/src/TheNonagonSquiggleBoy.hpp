@@ -133,6 +133,17 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoy.ClearGesture(gesture);
     }
 
+    void RevertToDefault(bool allScenes, bool allTracks)
+    {
+        m_squiggleBoy.RevertToDefault(allScenes, allTracks);
+        m_nonagon.RevertToDefault(allScenes);
+        if (allScenes)
+        {
+            m_stateSaver.RevertToDefaultAllScenes();
+            m_configGrid.RevertToDefault();
+        }
+    }
+
     void SetRightScene(int scene)
     {
         m_sceneState.m_rightScene = scene;
@@ -282,6 +293,14 @@ struct TheNonagonSquiggleBoyInternal
             FromJSON(m_stateInterchange.GetToLoad());
             INFO("JSON deserialized");
             m_stateInterchange.AckLoadCompleted();
+        }
+
+        if (m_stateInterchange.IsNewRequested())
+        {
+            INFO("New patch request received");
+            RevertToDefault(true, true);
+            INFO("Reverted to default");
+            m_stateInterchange.AckNewCompleted();
         }
     }
 
@@ -527,26 +546,6 @@ struct TheNonagonSquiggleBoyInternal
         virtual SmartGrid::Color GetColor() override
         {
             return TheNonagonSmartGrid::TrioColor(m_owner->m_activeTrio);
-        }
-    };
-
-    struct RevertToDefaultCell : SmartGrid::Cell
-    {
-        TheNonagonSquiggleBoyInternal* m_owner;
-
-        RevertToDefaultCell(TheNonagonSquiggleBoyInternal* owner)
-            : m_owner(owner)
-        {
-        }
-
-        virtual SmartGrid::Color GetColor() override
-        {
-            return IsPressed() ? SmartGrid::Color::White : SmartGrid::Color::Grey;
-        }
-
-        virtual void OnPress(uint8_t velocity) override
-        {
-            m_owner->m_squiggleBoy.RevertToDefault();
         }
     };
 

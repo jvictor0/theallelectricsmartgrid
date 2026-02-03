@@ -121,6 +121,31 @@ JSON FileManager::LoadConfig()
 }
 
 //==============================================================================
+bool FileManager::CreateNewPatch(juce::String patchName)
+{
+    if (patchName.isEmpty())
+    {
+        juce::Logger::writeToLog("WARNING: CreateNewPatch called with empty patch name");
+        return false;
+    }
+
+    juce::File patchDir = GetPatchDirectory(patchName);
+    if (!patchDir.exists())
+    {
+        juce::Result result = patchDir.createDirectory();
+        if (result.failed())
+        {
+            juce::Logger::writeToLog("ERROR: Failed to create patch directory: " + patchDir.getFullPathName() + " - " + result.getErrorMessage());
+            return false;
+        }
+    }
+
+    m_currentPatchName = patchName;
+    juce::Logger::writeToLog("Created new patch: " + patchName);
+    return true;
+}
+
+//==============================================================================
 void FileManager::SavePatch(JSON json)
 {
     if (m_currentPatchName.isEmpty())

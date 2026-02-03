@@ -57,6 +57,10 @@ struct FileManager
     void SetCurrentPatchName(juce::String patchName) { m_currentPatchName = patchName; }
     juce::String GetCurrentPatchName() const { return m_currentPatchName; }
 
+    // Create a new patch directory and set it as current
+    //
+    bool CreateNewPatch(juce::String patchName);
+
     MainComponent* m_mainComponent;
     juce::String m_currentPatchName;
 };

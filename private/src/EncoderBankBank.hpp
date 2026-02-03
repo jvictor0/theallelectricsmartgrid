@@ -104,9 +104,9 @@ struct EncoderBankBankInternal
         m_selectedBank = ix;
     }
 
-    void ResetGrid(uint64_t ix)
+    void ResetGrid(uint64_t ix, bool allScenes, bool allTracks)
     {
-        m_banks[ix].RevertToDefault();
+        m_banks[ix].RevertToDefault(allScenes, allTracks);
     }
 
     SmartGrid::Color GetSelectorColor(int ix)
@@ -238,11 +238,11 @@ struct EncoderBankBankInternal
         }
     }
 
-    void RevertToDefault()
+    void RevertToDefault(bool allScenes, bool allTracks)
     {
         for (size_t i = 0; i < NumBanks; ++i)
         {
-            m_banks[i].RevertToDefault();
+            m_banks[i].RevertToDefault(allScenes, allTracks);
         }
     }
 

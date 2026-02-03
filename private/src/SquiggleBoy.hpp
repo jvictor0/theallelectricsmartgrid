@@ -1629,9 +1629,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_globalEncoderBank.FromJSON(rootJ.Get("globalEncoderBank"));
     }
 
-    void RevertToDefault()
+    void RevertToDefault(bool allScenes, bool allTracks)
     {
-        m_voiceEncoderBank.RevertToDefault();
+        m_voiceEncoderBank.RevertToDefault(allScenes, allTracks);
+        m_quadEncoderBank.RevertToDefault(allScenes, allTracks);
+        m_globalEncoderBank.RevertToDefault(allScenes, allTracks);
     }
 
     void ClearGesture(int gesture)
@@ -1705,19 +1707,20 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             return SmartGrid::Color::Grey.Dim();
         }
     }
+    
     void ResetGrid(uint64_t ix)
     {
         if (ix < SquiggleBoyWithEncoderBank::x_numVoiceBanks)
         {
-            m_voiceEncoderBank.ResetGrid(ix);
+            m_voiceEncoderBank.ResetGrid(ix, false, false);
         }
         else if (ix < SquiggleBoyWithEncoderBank::x_numVoiceBanks + SquiggleBoyWithEncoderBank::x_numQuadBanks)
         {
-            m_quadEncoderBank.ResetGrid(ix - SquiggleBoyWithEncoderBank::x_numVoiceBanks);
+            m_quadEncoderBank.ResetGrid(ix - SquiggleBoyWithEncoderBank::x_numVoiceBanks, false, false);
         }
         else
         {
-            m_globalEncoderBank.ResetGrid(ix - SquiggleBoyWithEncoderBank::x_numVoiceBanks - SquiggleBoyWithEncoderBank::x_numQuadBanks);
+            m_globalEncoderBank.ResetGrid(ix - SquiggleBoyWithEncoderBank::x_numVoiceBanks - SquiggleBoyWithEncoderBank::x_numQuadBanks, false, false);
         }
     }
 

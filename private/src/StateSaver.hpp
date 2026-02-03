@@ -31,6 +31,7 @@ struct StateSaverTemp
         size_t m_len;
         char* m_ptr;
         char m_buf[NumScenes * 8];
+        char m_default[8];
         int m_curScene;
         float m_boundary;
 
@@ -40,7 +41,9 @@ struct StateSaverTemp
             , m_curScene(0)
         {
             memset(m_buf, 0, sizeof(m_buf));
+            memset(m_default, 0, sizeof(m_default));
             assert(len <= 8);
+            SetVal(m_default, m_ptr, m_len);
         }
 
         JSON ToJSON()
@@ -129,6 +132,15 @@ struct StateSaverTemp
         void CopyToScene(int scene)
         {
             SetVal(m_buf + scene * m_len, m_ptr, m_len);
+        }
+
+        void RevertToDefaultForScene(int scene)
+        {
+            SetVal(m_buf + scene * m_len, m_default, m_len);
+            if (scene == m_curScene)
+            {
+                SetVal(m_ptr, m_default, m_len);
+            }
         }
 
         void HandleSceneInfoChange(SceneInfo& info)
@@ -296,6 +308,22 @@ struct StateSaverTemp
         for (auto& s : m_state)
         {
             s.second.CopyToScene(scene);
+        }
+    }
+
+    void RevertToDefaultForScene(int scene)
+    {
+        for (auto& s : m_state)
+        {
+            s.second.RevertToDefaultForScene(scene);
+        }
+    }
+
+    void RevertToDefaultAllScenes()
+    {
+        for (size_t s = 0; s < NumScenes; ++s)
+        {
+            RevertToDefaultForScene(s);
         }
     }
 };

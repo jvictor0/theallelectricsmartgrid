@@ -124,6 +124,11 @@ public:
         m_nonagon.GetStateInterchange()->RequestSave();
     }
 
+    void RequestNew()
+    {
+        m_nonagon.GetStateInterchange()->RequestNew();
+    }
+
     void RequestLoad(JSON patch)
     {
         m_nonagon.GetStateInterchange()->RequestLoad(patch);
@@ -141,6 +146,7 @@ private:
     void OnFileButtonClicked();
     void OnFileBackButtonClicked();
     void ShowPatchChooser(bool isSaveMode);
+    void ShowNewPatchChooser();
     void ShowVersionChooser();
 
     NonagonWrapper m_nonagon;

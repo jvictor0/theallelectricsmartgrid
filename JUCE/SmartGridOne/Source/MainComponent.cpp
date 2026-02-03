@@ -251,7 +251,8 @@ void MainComponent::OnFileButtonClicked()
                     RequestSave();
                 }
             },
-            [this]() { ShowPatchChooser(true); }
+            [this]() { ShowPatchChooser(true); },
+            [this]() { ShowNewPatchChooser(); }
         );
 
         addAndMakeVisible(m_filePage.get());
@@ -327,6 +328,49 @@ void MainComponent::ShowPatchChooser(bool isSaveMode)
             repaint();
         },
         isSaveMode
+    );
+    
+    addAndMakeVisible(m_patchChooser.get());
+    resized();
+    repaint();
+}
+
+void MainComponent::ShowNewPatchChooser()
+{
+    // Always recreate the chooser to ensure fresh state
+    //
+    m_patchChooser.reset();
+    
+    m_patchChooser = std::make_unique<PatchChooser>(
+        [this](juce::String patchName)
+        {
+            // Create the new patch directory and set it as current
+            //
+            if (m_fileManager.CreateNewPatch(patchName))
+            {
+                // Revert everything to defaults
+                //
+                RequestNew();
+                SaveConfig();
+            }
+            
+            // Destroy the chooser completely
+            //
+            m_patchChooser.reset();
+            
+            // Go back to main screen
+            //
+            OnBackButtonClicked();
+        },
+        [this]()
+        {
+            // Cancel - destroy the chooser completely
+            //
+            m_patchChooser.reset();
+            resized();
+            repaint();
+        },
+        true  // Save mode to allow entering new name
     );
     
     addAndMakeVisible(m_patchChooser.get());
