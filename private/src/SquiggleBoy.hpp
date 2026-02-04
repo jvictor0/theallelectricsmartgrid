@@ -16,7 +16,6 @@
 #include "PolyXFader.hpp"
 #include "GangedRandomLFO.hpp"
 #include "ScopeWriter.hpp"
-#include "Blink.hpp"
 #include "RandomWaveTable.hpp"
 #include "MultibandSaturator.hpp"
 #include "SmartGridOneScopeEnums.hpp"
@@ -845,7 +844,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     size_t m_selectedAbsoluteEncoderBank;
 
-    bool m_shift;    
+    SmartGrid::SceneManager* m_sceneManager;
 
     struct UIState
     {
@@ -1032,7 +1031,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         PhaseUtils::ExpParam m_tempo;
 
-        bool m_shift;
         BitSet16 m_selectedGesture;
 
         float GetGainFader(size_t i)
@@ -1042,7 +1040,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         Input()
             : m_tempo(1.0 / (64.0 * 48000.0), 4.0 / 48000.0)
-            , m_shift(false)
         {
             m_selectedGesture.Clear();
             for (size_t i = 0; i < x_numVoices; ++i)
@@ -1069,37 +1066,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_numTracks = 1;
         }
 
-        void SelectTrack(int track)
-        {
-            m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_track = track;
-        }
-
-        size_t GetCurrentTrack()
-        {
-            return m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_track;
-        }
-
-        void SetLeftScene(int scene)
-        {
-            m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene1 = scene;
-            m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene1 = scene;
-            m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene1 = scene;
-        }
-
-        void SetRightScene(int scene)
-        {
-            m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene2 = scene;
-            m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene2 = scene;
-            m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_scene2 = scene;
-        }
-
-        void SetBlendFactor(float blendFactor)
-        {
-            m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_blendFactor = blendFactor;
-            m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_blendFactor = blendFactor;
-            m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_sceneManagerInput.m_blendFactor = blendFactor;
-        }
-
         void SelectGesture(int gesture, bool select)
         {
             if (gesture == -1)
@@ -1114,13 +1080,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_voiceEncoderBankInput.SelectGesture(m_selectedGesture);
             m_globalEncoderBankInput.SelectGesture(m_selectedGesture);
             m_quadEncoderBankInput.SelectGesture(m_selectedGesture);
-        }    
-
-        void SetBlink(bool blink)
-        {
-            m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_blink = blink;
-            m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_blink = blink;
-            m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_blink = blink;
         }
     };
 
@@ -1187,7 +1146,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SelectEncoderBank(size_t encoderBank)
     {
-        if (m_shift)
+        if (m_sceneManager && m_sceneManager->m_shift)
         {
             ResetGrid(encoderBank);
         }
@@ -1372,8 +1331,24 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     }
 
     SquiggleBoyWithEncoderBank()
+        : m_sceneManager(nullptr)
     {
+    }
+
+    void Init(SmartGrid::SceneManager* sceneManager)
+    {
+        m_sceneManager = sceneManager;
+        m_voiceEncoderBank.Init(sceneManager);
+        m_quadEncoderBank.Init(sceneManager);
+        m_globalEncoderBank.Init(sceneManager);
         SelectEncoderBank(0);
+    }
+
+    void SetTrack(size_t track)
+    {
+        m_voiceEncoderBank.SetTrack(track);
+        m_quadEncoderBank.SetTrack(track);
+        m_globalEncoderBank.SetTrack(track);
     }
 
     void SetVoiceModulators(Input& input)
@@ -1707,7 +1682,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             return SmartGrid::Color::Grey.Dim();
         }
     }
-    
+
     void ResetGrid(uint64_t ix)
     {
         if (ix < SquiggleBoyWithEncoderBank::x_numVoiceBanks)
@@ -1845,11 +1820,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void ProcessSample(Input& input, float deltaT, const AudioInputBuffer& audioInputBuffer)
     {
-        m_shift = input.m_shift;
-        input.m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_shift = m_shift;
-        input.m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_shift = m_shift;
-        input.m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_shift = m_shift;
-
         SetVoiceModulators(input);
         SetGlobalModulators(input);
         SetQuadModulators(input);

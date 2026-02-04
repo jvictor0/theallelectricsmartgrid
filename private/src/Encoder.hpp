@@ -1,10 +1,22 @@
 #pragma once
 
 #include "SmartGrid.hpp"
-#include "StateSaver.hpp"
+#include "SceneManager.hpp"
 
 namespace SmartGrid
 {
+
+struct SharedEncoderStateBase
+{
+    size_t m_numTracks;
+    size_t m_currentTrack;
+
+    SharedEncoderStateBase()
+        : m_numTracks(0)
+        , m_currentTrack(0)
+    {
+    }
+};
 
 struct EncoderCell : public Cell
 {
@@ -159,123 +171,6 @@ struct EncoderCell : public Cell
 struct StateEncoderCell : public EncoderCell
 {
     static constexpr size_t x_maxPoly = 16;
-    struct SceneManager
-    {
-        static constexpr size_t x_numScenes = 8;
-        size_t m_scene1;
-        size_t m_scene2;
-        float m_blendFactor;
-        size_t m_track;
-        std::vector<StateEncoderCell*> m_cells;
-        bool m_externalState;
-        
-        SceneManager()
-            : m_scene1(0)
-            , m_scene2(1)
-            , m_blendFactor(0.0f)
-            , m_track(0)
-            , m_externalState(false)
-        {
-        }
-        
-        float GetSceneValue(float* values)
-        {
-            return values[m_scene1] * (1.0f - m_blendFactor) + values[m_scene2] * m_blendFactor;
-        }
-
-        bool Scene1Active()
-        {
-            return m_blendFactor < 1;
-        }
-
-        bool Scene2Active()
-        {
-            return m_blendFactor > 0;
-        }
-
-        bool IsSceneActive(size_t sceneIx)
-        {
-            return (sceneIx == m_scene1 && Scene1Active()) || (sceneIx == m_scene2 && Scene2Active());
-        }
-
-        void RegisterCell(StateEncoderCell* cell)
-        {
-            if (m_externalState)
-            {                
-                m_cells.push_back(cell);
-            }
-        }
-
-        struct Input
-        {
-            float m_blendFactor;
-            size_t m_scene1;
-            size_t m_scene2;
-            size_t m_track;
-
-            Input()
-                : m_blendFactor(0.0f)
-                , m_scene1(0)
-                , m_scene2(1)
-                , m_track(0)
-            {
-            }
-        };
-
-        void Process(const Input& input, bool* changed, bool* changedScene)
-        {
-            if (input.m_scene1 != m_scene1 || input.m_scene2 != m_scene2)
-            {
-                *changedScene = true;
-            }
-
-            if (input.m_blendFactor != m_blendFactor || input.m_scene1 != m_scene1 || input.m_scene2 != m_scene2)
-            {
-                if (input.m_blendFactor == 0 || input.m_blendFactor == 1 || 
-                    m_blendFactor == 0 || m_blendFactor == 1)
-                {
-                    *changedScene = true;
-                }
-
-                m_blendFactor = input.m_blendFactor;
-                m_scene1 = input.m_scene1;
-                m_scene2 = input.m_scene2;
-                *changed = true;
-                SetAllStates();
-            }
-
-            m_track = input.m_track;
-        }
-
-        void SetAllStates()
-        {
-            if (m_externalState)
-            {
-                for (StateEncoderCell* cell : m_cells)
-                {
-                    cell->SetState();
-                }
-            }
-        }
-
-        void SetBlendFactor(float blendFactor)
-        {
-            m_blendFactor = blendFactor;
-            SetAllStates();
-        }
-
-        void SetScene1(size_t scene1)
-        {
-            m_scene1 = scene1;
-            SetAllStates();
-        }
-
-        void SetScene2(size_t scene2)
-        {
-            m_scene2 = scene2;
-            SetAllStates();
-        }
-    };
 
     void CopyToScene(size_t scene)
     {
@@ -289,7 +184,7 @@ struct StateEncoderCell : public EncoderCell
 
     void ZeroCurrentScene()
     {
-        size_t track = m_sceneManager->m_track;
+        size_t track = m_sharedEncoderState->m_currentTrack;
         if (m_sceneManager->m_blendFactor < 1)
         {
             m_values[track][m_sceneManager->m_scene1] = 0;
@@ -340,6 +235,7 @@ struct StateEncoderCell : public EncoderCell
     float* m_state[x_maxPoly];
     size_t m_numTracks;
     SceneManager* m_sceneManager;
+    SharedEncoderStateBase* m_sharedEncoderState;
 
     JSON ToJSON()
     {
@@ -379,6 +275,7 @@ struct StateEncoderCell : public EncoderCell
     StateEncoderCell()
         : m_numTracks(0)
         , m_sceneManager(nullptr)
+        , m_sharedEncoderState(nullptr)
     {
         for (size_t i = 0; i < x_maxPoly; ++i)
         {
@@ -394,9 +291,10 @@ struct StateEncoderCell : public EncoderCell
         }
     }
 
-    StateEncoderCell(SceneManager* sceneManager)
+    StateEncoderCell(SceneManager* sceneManager, SharedEncoderStateBase* sharedEncoderState)
         : m_numTracks(0)
         , m_sceneManager(sceneManager)
+        , m_sharedEncoderState(sharedEncoderState)
     {
         for (size_t i = 0; i < x_maxPoly; ++i)
         {
@@ -430,7 +328,7 @@ struct StateEncoderCell : public EncoderCell
 
     virtual float GetNormalizedValue() override
     {
-        return GetNormalizedValueForTrack(m_sceneManager->m_track);
+        return GetNormalizedValueForTrack(m_sharedEncoderState->m_currentTrack);
     }
 
     float GetNormalizedValueForTrack(size_t track)
@@ -482,7 +380,7 @@ struct StateEncoderCell : public EncoderCell
         int s1 = m_sceneManager->m_scene1;
         int s2 = m_sceneManager->m_scene2;
         float t = m_sceneManager->m_blendFactor;
-        size_t track = m_sceneManager->m_track;
+        size_t track = m_sharedEncoderState->m_currentTrack;
         if (t <= 0)
         {
             m_values[track][s1] = std::max(0.0f, std::min(1.0f, m_values[track][s1] + delta));
@@ -518,7 +416,7 @@ struct StateEncoderCell : public EncoderCell
 
     void SetToValue(float value)
     {
-        float delta = value - GetNormalizedValueForTrack(m_sceneManager->m_track);
+        float delta = value - GetNormalizedValueForTrack(m_sharedEncoderState->m_currentTrack);
         IncrementInternal(delta);
     }
 
@@ -537,8 +435,8 @@ struct StateEncoderCell : public EncoderCell
 
     void SetValue(float value, bool allScenes, bool allTracks)
     {
-        size_t startTrack = allTracks ? 0 : m_sceneManager->m_track;
-        size_t endTrack = allTracks ? m_numTracks : m_sceneManager->m_track + 1;
+        size_t startTrack = allTracks ? 0 : m_sharedEncoderState->m_currentTrack;
+        size_t endTrack = allTracks ? m_numTracks : m_sharedEncoderState->m_currentTrack + 1;
 
         for (size_t t = startTrack; t < endTrack; ++t)
         {

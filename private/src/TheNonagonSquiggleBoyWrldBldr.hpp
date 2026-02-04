@@ -216,7 +216,7 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             virtual void OnPress(uint8_t velocity) override
             {
-                if (m_owner->m_internal->m_sceneState.m_shift)
+                if (m_owner->m_internal->m_sceneManager.m_shift)
                 {
                     m_owner->m_internal->ClearGesture(m_gesture);
                 }
@@ -264,7 +264,7 @@ struct TheNonagonSquiggleBoyWrldBldr
                     size_t currentTrack = 0;
                     if (m_ordinal < SquiggleBoyWithEncoderBank::x_numVoiceBanks)
                     {
-                        currentTrack = m_owner->m_internal->m_squiggleBoyState.GetCurrentTrack();
+                        currentTrack = static_cast<size_t>(m_owner->m_internal->m_activeTrio);
                     }
                     
                     BitSet16 affectingGestures = m_owner->m_internal->m_squiggleBoy.GetGesturesAffectingBankForTrack(m_ordinal, currentTrack);

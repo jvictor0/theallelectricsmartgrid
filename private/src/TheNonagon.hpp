@@ -5,6 +5,7 @@
 #include "TheoryOfTime.hpp"
 #include "LameJuis.hpp"
 #include "plugin.hpp"
+#include "SceneManager.hpp"
 #include "StateSaver.hpp"
 #include "MultiPhasorGate.hpp"
 #include "PercentileSequencer.hpp"
@@ -357,7 +358,13 @@ struct TheNonagonSmartGrid
     SmartGrid::GridHolder m_gridHolder;
 
     ScenedStateSaver m_stateSaver;
-    ScenedStateSaver::Input m_stateSaverState;
+    SmartGrid::SceneManager* m_sceneManager;
+
+    void SetSceneManager(SmartGrid::SceneManager* sceneManager)
+    {
+        m_sceneManager = sceneManager;
+        m_stateSaver.SetSceneManager(sceneManager);
+    }
 
     JSON ToJSON()
     {
@@ -1166,7 +1173,8 @@ struct TheNonagonSmartGrid
     SmartGrid::MessageOutBuffer* m_messageOutBuffer;
     
     TheNonagonSmartGrid(bool isStandalone)
-        : m_isStandalone(isStandalone)
+        : m_sceneManager(nullptr)
+        , m_isStandalone(isStandalone)
     {
         InitState();
         InitGrid();
@@ -1280,52 +1288,15 @@ struct TheNonagonSmartGrid
         m_nonagon.m_theoryOfTime.SetupMessageOutBuffer(m_messageOutBuffer);
     }
 
-    void HandleSceneTrigger(bool shift, int scene)
-    {
-        if (shift)
-        {
-            m_stateSaver.CopyToScene(scene);
-        }
-        else
-        {
-            m_stateSaverState.ProcessTrigger(scene);
-        }
-    }
 
     void CopyToScene(int scene)
     {
         m_stateSaver.CopyToScene(scene);
     }
 
-    void SetLeftScene(int scene)
-    {
-        m_stateSaverState.SetLeftScene(scene);
-    }
-
-    void SetRightScene(int scene)
-    {
-        m_stateSaverState.SetRightScene(scene);
-    }
-
-    void SetBlendFactor(float blendFactor)
-    {
-        m_stateSaverState.m_blend = blendFactor;
-    }
-
     bool IsSceneActive(size_t sceneIx)
     {
-        if (m_stateSaverState.m_blend == 0)
-        {
-            return sceneIx == static_cast<size_t>(m_stateSaverState.m_left);
-        }
-        else if (m_stateSaverState.m_blend == 1)
-        {
-            return sceneIx == static_cast<size_t>(m_stateSaverState.m_right);
-        }
-        else
-        {
-            return sceneIx == static_cast<size_t>(m_stateSaverState.m_left) || sceneIx == static_cast<size_t>(m_stateSaverState.m_right);
-        }
+        return m_sceneManager && m_sceneManager->IsSceneActive(sceneIx);
     }
 
     void RevertToDefault(bool allScenes)
@@ -1361,7 +1332,7 @@ struct TheNonagonSmartGrid
     
     void ProcessSample(float dt)
     {
-        m_stateSaver.Process(m_stateSaverState);
+        m_stateSaver.Process();
         m_gridHolder.Process(dt);
         m_nonagon.Process(m_state);
     }

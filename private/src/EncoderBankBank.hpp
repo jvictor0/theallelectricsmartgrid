@@ -6,6 +6,7 @@ template <size_t NumBanks>
 struct EncoderBankBankInternal
 {
     SmartGrid::EncoderBankInternal m_banks[NumBanks];
+    SmartGrid::SceneManager* m_sceneManager;
     int m_selectedBank;
     SmartGrid::Color m_color[NumBanks];
 
@@ -60,8 +61,29 @@ struct EncoderBankBankInternal
     };
 
     EncoderBankBankInternal()
+        : m_sceneManager(nullptr)
+        , m_selectedBank(-1)
+        , m_frame(0)
     {
+    }
+
+    void Init(SmartGrid::SceneManager* sceneManager)
+    {
+        m_sceneManager = sceneManager;
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            m_banks[i].Init(sceneManager);
+        }
+
         SelectGrid(0);
+    }
+
+    void SetTrack(size_t track)
+    {
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            m_banks[i].SetTrack(track);
+        }
     }
 
     void Process(Input& input, float dt)
@@ -70,6 +92,16 @@ struct EncoderBankBankInternal
         if (m_frame % x_controlFrameRate == 0)
         {
             input.m_bankedEncoderInternalInput.m_modulatorValues.ComputeChanged();
+        }
+
+        if (m_sceneManager->m_changed)
+        {
+            HandleChangedSceneManager();
+        }
+
+        if (m_sceneManager->m_changedScene)
+        {
+            HandleChangedSceneManagerScene();
         }
 
         for (size_t i = 0; i < NumBanks; ++i)
@@ -81,6 +113,22 @@ struct EncoderBankBankInternal
             }
 
             m_banks[i].ProcessBulkFilter();
+        }
+    }
+
+    void HandleChangedSceneManager()
+    {
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            m_banks[i].HandleChangedSceneManager();
+        }
+    }
+
+    void HandleChangedSceneManagerScene()
+    {
+        for (size_t i = 0; i < NumBanks; ++i)
+        {
+            m_banks[i].HandleChangedSceneManagerScene();
         }
     }
 

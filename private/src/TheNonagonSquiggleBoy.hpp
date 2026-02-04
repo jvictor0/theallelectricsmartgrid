@@ -14,44 +14,13 @@
 
 struct TheNonagonSquiggleBoyInternal
 {
-    struct SceneState
-    {
-        float m_blendFactor;
-        bool m_shift;
-        bool m_running;
-        int m_leftScene;
-        int m_rightScene;
+    // Centralized scene manager - source of truth for scene state and shift
+    //
+    SmartGrid::SceneManager m_sceneManager;
 
-        SceneState()
-            : m_blendFactor(0)
-            , m_shift(false)
-            , m_running(false)
-            , m_leftScene(0)
-            , m_rightScene(1)
-        {
-        }
-
-        void HandlePress(int scene, TheNonagonSquiggleBoyInternal* owner)
-        {
-            if (m_shift)
-            {
-                owner->CopyToScene(scene);  
-            }
-            else
-            {
-                if (m_blendFactor < 0.5)
-                {
-                    owner->SetRightScene(scene);                    
-                }
-                else
-                {
-                    owner->SetLeftScene(scene);
-                }
-            }
-        }
-    };
-
-    SceneState m_sceneState;
+    // Running state (not part of scene management)
+    //
+    bool m_running;
 
     StateSaver m_stateSaver;
 
@@ -81,8 +50,6 @@ struct TheNonagonSquiggleBoyInternal
     QuadFloatWithStereoAndSub m_output;
 
     double m_timer;
-
-    Blink m_blink;
 
     StateInterchange m_stateInterchange;
 
@@ -146,34 +113,30 @@ struct TheNonagonSquiggleBoyInternal
 
     void SetRightScene(int scene)
     {
-        m_sceneState.m_rightScene = scene;
-        m_nonagon.SetRightScene(scene);
-        m_squiggleBoyState.SetRightScene(scene);
+        m_sceneManager.m_scene2 = scene;
     }
 
     void SetLeftScene(int scene)
     {
-        m_sceneState.m_leftScene = scene;
-        m_nonagon.SetLeftScene(scene);
-        m_squiggleBoyState.SetLeftScene(scene);
+        m_sceneManager.m_scene1 = scene;
     }
 
     void SetBlendFactor(float blendFactor)
     {
-        m_sceneState.m_blendFactor = blendFactor;
+        m_sceneManager.m_blendFactor = blendFactor;
     }
 
     void SetActiveTrio(TheNonagonSmartGrid::Trio trio)
     {
         m_activeTrio = trio;
-        m_squiggleBoyState.SelectTrack(static_cast<int>(trio));
+        m_squiggleBoy.SetTrack(static_cast<size_t>(trio));
     }
 
     void HandleParamSet(SmartGrid::MessageIn msg)
     {
         if (msg.m_x == 0)
         {
-            m_sceneState.m_blendFactor = msg.AmountFloat();
+            m_sceneManager.m_blendFactor = msg.AmountFloat();
         }
         else
         {
@@ -229,16 +192,12 @@ struct TheNonagonSquiggleBoyInternal
         }
 
         m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_top;
-        m_squiggleBoyState.m_shift = m_sceneState.m_shift;
-
-        SetLeftScene(m_sceneState.m_leftScene);
-        SetRightScene(m_sceneState.m_rightScene);
     }
 
     void SetNonagonInputs()
     {
-        m_nonagon.m_state.m_shift = m_sceneState.m_shift;
-        m_nonagon.m_state.m_running = m_sceneState.m_running;
+        m_nonagon.m_state.m_shift = m_sceneManager.m_shift;
+        m_nonagon.m_state.m_running = m_running;
 
         TheoryOfTime::Input& theoryOfTimeInput = m_nonagon.m_state.m_theoryOfTimeInput;
         
@@ -270,13 +229,6 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoy.m_voiceEncoderBank.Config(2, 2, 3, 0, "Sequencer Page Interval", m_squiggleBoyState.m_voiceEncoderBankInput);
     }
 
-    void SetExternalInputs()
-    {
-        m_nonagon.SetBlendFactor(m_sceneState.m_blendFactor);
-        m_squiggleBoyState.SetBlendFactor(m_sceneState.m_blendFactor);
-
-    }
-
     void HandleStateInterchange()
     {
         if (m_stateInterchange.IsSaveRequested())
@@ -306,12 +258,15 @@ struct TheNonagonSquiggleBoyInternal
 
     QuadFloatWithStereoAndSub ProcessSample(const AudioInputBuffer& audioInputBuffer)
     {
-        m_blink.Process();
-        m_squiggleBoyState.SetBlink(m_blink.m_blink);
+        // Process scene manager first to set changed flags
+        //
+        m_sceneManager.Process();
 
-        m_timer += 1.0 / 48000.0;
+        // Process state saver with scene manager state
+        //
+        m_stateSaver.Process();
 
-        SetExternalInputs();
+        m_timer += 1.0 / 48000.0;        
 
         SetNonagonInputs();
         m_nonagon.ProcessSample(1.0 / 48000.0);
@@ -358,7 +313,7 @@ struct TheNonagonSquiggleBoyInternal
             m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetMainIndicatorColor(SmartGrid::Color::White);
         }
 
-        m_uiState.m_analogUIState.SetValue(0, m_sceneState.m_blendFactor);
+        m_uiState.m_analogUIState.SetValue(0, m_sceneManager.m_blendFactor);
         for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
         {
             m_uiState.m_analogUIState.SetValue(i + 1, m_squiggleBoyState.m_faders[i]);
@@ -372,14 +327,20 @@ struct TheNonagonSquiggleBoyInternal
     }
 
     TheNonagonSquiggleBoyInternal()
-        : m_nonagon(false)
+        : m_running(false)
+        , m_nonagon(false)
         , m_activeTrio(TheNonagonSmartGrid::Trio::Fire)
         , m_timer(0)
     {
+        // Initialize components with scene manager pointer
+        //
+        m_squiggleBoy.Init(&m_sceneManager);        
+        m_nonagon.SetSceneManager(&m_sceneManager);
+
         m_squiggleBoy.m_stateSaver = &m_stateSaver;
         m_configGrid.Init(&m_squiggleBoy);
-        m_stateSaver.Insert("sceneStateLeft", &m_sceneState.m_leftScene);
-        m_stateSaver.Insert("sceneStateRight", &m_sceneState.m_rightScene);
+        m_stateSaver.Insert("sceneStateLeft", &m_sceneManager.m_scene1);
+        m_stateSaver.Insert("sceneStateRight", &m_sceneManager.m_scene2);
         m_stateSaver.Insert("activeTrio", &m_activeTrio);
         m_stateSaver.Insert("selectedAbsoluteEncoderBank", &m_squiggleBoy.m_selectedAbsoluteEncoderBank);
         m_nonagon.RemoveGridIds();
@@ -431,6 +392,25 @@ struct TheNonagonSquiggleBoyInternal
         }
     };
 
+    void HandleScenePress(int scene)
+    {
+        if (m_sceneManager.m_shift)
+        {
+            CopyToScene(scene);
+        }
+        else
+        {
+            if (m_sceneManager.m_blendFactor < 0.5)
+            {
+                SetRightScene(scene);
+            }
+            else
+            {
+                SetLeftScene(scene);
+            }
+        }
+    }
+
     struct SceneSelectorCell : SmartGrid::Cell
     {
         TheNonagonSquiggleBoyInternal* m_owner;
@@ -444,21 +424,21 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual SmartGrid::Color GetColor() override
         {
-            if (m_owner->m_sceneState.m_leftScene == m_scene)
+            if (static_cast<int>(m_owner->m_sceneManager.m_scene1) == m_scene)
             {
-                return SmartGrid::Color::Orange.AdjustBrightness(0.5 + 0.5 * (1.0 - m_owner->m_sceneState.m_blendFactor));
+                return SmartGrid::Color::Orange.AdjustBrightness(0.5 + 0.5 * (1.0 - m_owner->m_sceneManager.m_blendFactor));
             }
-            else if (m_owner->m_sceneState.m_rightScene == m_scene)
+            else if (static_cast<int>(m_owner->m_sceneManager.m_scene2) == m_scene)
             {
-                return SmartGrid::Color::SeaGreen.AdjustBrightness(0.5 + 0.5 * m_owner->m_sceneState.m_blendFactor);
+                return SmartGrid::Color::SeaGreen.AdjustBrightness(0.5 + 0.5 * m_owner->m_sceneManager.m_blendFactor);
             }
 
             return SmartGrid::Color::Grey;
         }
-        
+
         virtual void OnPress(uint8_t velocity) override
         {
-            m_owner->m_sceneState.HandlePress(m_scene, m_owner);
+            m_owner->HandleScenePress(m_scene);
         }
     };
 
@@ -487,7 +467,7 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual void OnPress(uint8_t velocity) override
         {
-            if (m_owner->m_sceneState.m_shift)
+            if (m_owner->m_sceneManager.m_shift)
             {
                 m_owner->ClearGesture(m_gesture);
             }
@@ -506,7 +486,7 @@ struct TheNonagonSquiggleBoyInternal
         return new SmartGrid::StateCell<bool>(
                 SmartGrid::Color::White.Dim() /*offColor*/,
                 SmartGrid::Color::White /*onColor*/,
-                &m_sceneState.m_shift,
+                &m_sceneManager.m_shift,
                 true,
                 false,
                 SmartGrid::StateCell<bool>::Mode::Momentary);
@@ -517,7 +497,7 @@ struct TheNonagonSquiggleBoyInternal
         return new SmartGrid::StateCell<bool>(
                 SmartGrid::Color::Green.Dim() /*offColor*/,
                 SmartGrid::Color::Green /*onColor*/,
-                &m_sceneState.m_running,
+                &m_running,
                 true,
                 false,
                 SmartGrid::StateCell<bool>::Mode::Toggle);

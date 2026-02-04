@@ -8,24 +8,11 @@
 #include <cmath>
 
 #include "JuceSon.hpp"
+#include "SceneManager.hpp"
 
 template<size_t NumScenes>
 struct StateSaverTemp
 {
-    struct SceneInfo
-    {
-        int m_left;
-        int m_right;
-        float m_blend;
-
-        SceneInfo()
-            : m_left(0)
-            , m_right(1)
-            , m_blend(0.0f)
-        {
-        }
-    };
-    
     struct State
     {
         size_t m_len;
@@ -143,15 +130,15 @@ struct StateSaverTemp
             }
         }
 
-        void HandleSceneInfoChange(SceneInfo& info)
+        void HandleSceneInfoChange(SmartGrid::SceneManager* sceneManager)
         {
-            if (info.m_blend < m_boundary)
+            if (sceneManager->m_blendFactor < m_boundary)
             {
-                LoadValFromScene(info.m_left);
+                LoadValFromScene(sceneManager->m_scene1);
             }
             else
             {
-                LoadValFromScene(info.m_right);
+                LoadValFromScene(sceneManager->m_scene2);
             }
         }
     };
@@ -224,63 +211,51 @@ struct StateSaverTemp
     }
 
     std::vector<std::pair<std::string, State>> m_state;
-    SceneInfo m_sceneInfo;
+    SmartGrid::SceneManager* m_sceneManager;
 
-    struct Input
+    // Cached previous values to detect changes
+    //
+    size_t m_prevScene1;
+    size_t m_prevScene2;
+    float m_prevBlendFactor;
+
+    StateSaverTemp()
+        : m_sceneManager(nullptr)
+        , m_prevScene1(0)
+        , m_prevScene2(1)
+        , m_prevBlendFactor(0.0f)
     {
-        int m_left;
-        int m_right;
-        float m_blend;
-        
-        Input()
-            : m_left(0)
-            , m_right(1)
-            , m_blend(0.0f)
-        {
-        }
+    }
 
-        void ProcessTrigger(int scene)
-        {
-            if (m_blend < 0.5f)
-            {
-                m_right = scene;
-            }
-            else
-            {
-                m_left = scene;
-            }
-        }
-
-        void SetLeftScene(int scene)
-        {
-            m_left = scene;
-        }
-
-        void SetRightScene(int scene)
-        {
-            m_right = scene;
-        }
-    };
-
-    void Process(Input& input)
+    void SetSceneManager(SmartGrid::SceneManager* sceneManager)
     {
-        if (m_sceneInfo.m_left != input.m_left)
+        m_sceneManager = sceneManager;
+    }
+
+    void Process()
+    {
+        if (!m_sceneManager)
         {
-            m_sceneInfo.m_left = input.m_left;
-            HandleBlendChanges(0, m_sceneInfo.m_blend);
+            return;
         }
 
-        if (m_sceneInfo.m_right != input.m_right)
+        if (m_prevScene1 != m_sceneManager->m_scene1)
         {
-            m_sceneInfo.m_right = input.m_right;
-            HandleBlendChanges(1, m_sceneInfo.m_blend);
+            m_prevScene1 = m_sceneManager->m_scene1;
+            HandleBlendChanges(0, m_sceneManager->m_blendFactor);
         }
 
-        if (m_sceneInfo.m_blend != input.m_blend)
+        if (m_prevScene2 != m_sceneManager->m_scene2)
         {
-            float oldBlend = m_sceneInfo.m_blend;
-            m_sceneInfo.m_blend = input.m_blend;
-            HandleBlendChanges(oldBlend, input.m_blend);
+            m_prevScene2 = m_sceneManager->m_scene2;
+            HandleBlendChanges(1, m_sceneManager->m_blendFactor);
+        }
+
+        if (m_prevBlendFactor != m_sceneManager->m_blendFactor)
+        {
+            float oldBlend = m_prevBlendFactor;
+            m_prevBlendFactor = m_sceneManager->m_blendFactor;
+            HandleBlendChanges(oldBlend, m_sceneManager->m_blendFactor);
         }
     }
 
@@ -299,7 +274,7 @@ struct StateSaverTemp
 
         for (size_t i = minIx; i < maxIx; ++i)
         {
-            m_state[i].second.HandleSceneInfoChange(m_sceneInfo);
+            m_state[i].second.HandleSceneInfoChange(m_sceneManager);
         }
     }
 
