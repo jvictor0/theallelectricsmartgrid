@@ -15,44 +15,7 @@ struct EncoderBankBankInternal
 
     struct Input
     {
-        SmartGrid::BankedEncoderCell::Input m_bankedEncoderCellInput[NumBanks][4][4];
         SmartGrid::EncoderBankInternal::Input m_bankedEncoderInternalInput;
-
-        void SetInput(size_t ix)
-        {
-            for (size_t i = 0; i < 4; ++i)
-            {
-                for (size_t j = 0; j < 4; ++j)
-                {
-                    m_bankedEncoderInternalInput.m_cellInput[i][j] = m_bankedEncoderCellInput[ix][i][j];
-                }
-            }
-        }
-
-        void SetColor(size_t ix, SmartGrid::Color color)
-        {
-            uint8_t hue = color.ToTwister();
-            for (size_t i = 0; i < 4; ++i)
-            {
-                for (size_t j = 0; j < 4; ++j)
-                {
-                    m_bankedEncoderCellInput[ix][i][j].m_twisterColor = hue;
-                    if (j < 2)
-                    {
-                        m_bankedEncoderCellInput[ix][i][j].m_color = color;
-                    }
-                    else
-                    {
-                        m_bankedEncoderCellInput[ix][i][j].m_color = color.Similar();
-                    }
-                }
-            }
-        }
-
-        void SetConnected(size_t bank, size_t i, size_t j)
-        {
-            m_bankedEncoderCellInput[bank][i][j].m_connected = true;
-        }
 
         void SelectGesture(const BitSet16& gesture)
         {
@@ -106,7 +69,6 @@ struct EncoderBankBankInternal
 
         for (size_t i = 0; i < NumBanks; ++i)
         {
-            input.SetInput(i);
             if (m_frame % x_controlFrameRate == 0)
             {                
                 m_banks[i].ProcessInput(input.m_bankedEncoderInternalInput);
@@ -229,18 +191,18 @@ struct EncoderBankBankInternal
         }
     }
 
-    void SetColor(size_t ix, SmartGrid::Color color, Input& input)
+    void SetColor(size_t ix, SmartGrid::Color color)
     {
         m_color[ix] = color;
-        input.SetColor(ix, color);
     }
 
-    void Config(size_t bank, size_t i, size_t j, float defaultValue, std::string name, Input& input)
+    void Config(size_t bank, size_t i, size_t j, float defaultValue, std::string name, SmartGrid::Color color)
     {
         std::ignore = name;
         m_banks[bank].GetBase(i, j)->m_defaultValue = defaultValue;
         m_banks[bank].GetBase(i, j)->SetValueAllScenesAllTracks(defaultValue);
-        input.SetConnected(bank, i, j);
+        m_banks[bank].GetBase(i, j)->m_connected = true;
+        m_banks[bank].GetBase(i, j)->m_color = color;
     }
 
     void SetModulatorType(size_t index, SmartGrid::BankedEncoderCell::EncoderType type)

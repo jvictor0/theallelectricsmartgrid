@@ -24,11 +24,14 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         return MakePooled(s_allocator, std::forward<Args>(args)...);
     }
+
+    struct ModulatorValues;
     
     struct SharedEncoderState : public SharedEncoderStateBase
     {
         size_t m_numVoices;
         BitSet16 m_selectedGesture;
+        ModulatorValues* m_modulatorValues;
 
         SharedEncoderState()
             : SharedEncoderStateBase()
@@ -58,6 +61,9 @@ struct BankedEncoderCell : public StateEncoderCell
                     m_value[i][j] = 0;
                     m_valuePrev[i][j] = 0;
                 }
+
+                m_modulatorColor[i] = Color::Off;
+                m_modulatorConnected[i] = false;
             }
 
             for (size_t i = 0; i < x_numGestureParams; ++i)
@@ -89,9 +95,17 @@ struct BankedEncoderCell : public StateEncoderCell
                 }
             }
         }
+
+        void SetModulatorColor(size_t index, Color color)
+        {
+            m_modulatorColor[index] = color;
+            m_modulatorConnected[index] = true;
+        }
         
         float m_value[x_numModulators][16];
         float m_valuePrev[x_numModulators][16];
+        bool m_modulatorConnected[x_numModulators];
+        Color m_modulatorColor[x_numModulators];
 
         float m_gestureWeights[x_numGestureParams];
         float m_gestureWeightsPrev[x_numGestureParams];
@@ -318,7 +332,6 @@ struct BankedEncoderCell : public StateEncoderCell
         : StateEncoderCell()
         , m_parent(nullptr)
         , m_ownerBank(nullptr)
-        , m_twisterColor(0)
         , m_brightness(1)
         , m_connected(false)
         , m_modulators(this)
@@ -377,18 +390,18 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             if (m_type == EncoderType::ModulatorAmount)
             {
-                m_twisterColor = (124 + 67 * (depth - 1)) / 2;
-                m_color = Color::FromTwister(m_twisterColor);
+                m_color = GetSharedEncoderState()->m_modulatorValues->m_modulatorColor[index];
+                m_connected = GetSharedEncoderState()->m_modulatorValues->m_modulatorConnected[index];
             }
             else
             {
-                m_twisterColor = (124 + 67 * depth) / 2;
                 m_color = GetGestureColor(depth, index);
+                m_connected = true;
             }
         }
         else
         {
-            m_twisterColor = 0;
+            m_connected = false;
         }
         
         m_brightness = 1;
@@ -396,7 +409,7 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             m_gestureWeightSum[i] = 1;
         }
-        m_connected = true;
+
         m_depth = depth;
         m_index = index;
         m_isVisible = false;
@@ -493,11 +506,6 @@ struct BankedEncoderCell : public StateEncoderCell
         SetValue(m_defaultValue, allScenes, allTracks);
         SetForceUpdateRecursive();
         SetModulatorsAffecting();
-    }
-
-    virtual uint8_t GetTwisterColor() override
-    {
-        return m_twisterColor;
     }
 
     Color GetSquareColor()
@@ -674,27 +682,6 @@ struct BankedEncoderCell : public StateEncoderCell
 
             return m_modulators.m_numActiveModulators == 0 && AllZero();
         }
-    }
-
-    struct Input
-    {
-        uint8_t m_twisterColor;
-        Color m_color;
-        bool m_connected;
-
-        Input()
-            : m_twisterColor(1)
-            , m_color(Color(0, 0, 0))
-            , m_connected(false)
-        {
-        }
-    };
-
-    void ProcessInput(Input& input)
-    {
-        m_twisterColor = input.m_twisterColor;
-        m_color = input.m_color;
-        m_connected = input.m_connected;
     }
 
     void Compute(ModulatorValues& modulatorValues)
@@ -1083,7 +1070,6 @@ struct BankedEncoderCell : public StateEncoderCell
         
     BankedEncoderCell* m_parent;
     EncoderBankInternal* m_ownerBank;
-    uint8_t m_twisterColor;
     Color m_color;
     float m_gestureWeightSum[16];
     float m_brightness;
@@ -1194,7 +1180,6 @@ struct EncoderBankInternal : public EncoderGrid
     {
         size_t m_numTracks;
         size_t m_numVoices;
-        BankedEncoderCell::Input m_cellInput[4][4];
         BankedEncoderCell::ModulatorValues m_modulatorValues;
         bool m_revertToDefault;
         BitSet16 m_selectedGesture;
@@ -1308,6 +1293,7 @@ struct EncoderBankInternal : public EncoderGrid
     {
         m_sharedEncoderState.m_numTracks = input.m_numTracks;
         m_sharedEncoderState.m_numVoices = input.m_numVoices;
+        m_sharedEncoderState.m_modulatorValues = &input.m_modulatorValues;
 
         if (input.m_selectedGesture != m_sharedEncoderState.m_selectedGesture)
         {
@@ -1327,14 +1313,6 @@ struct EncoderBankInternal : public EncoderGrid
         }
 
         SetNumTracks(input.m_numTracks);
-        
-        for (int i = 0; i < 4; ++i)
-        {
-            for (int j = 0; j < 4; ++j)
-            {                    
-                GetBase(i, j)->ProcessInput(input.m_cellInput[i][j]);
-            }
-        }
 
         if (input.m_revertToDefault)
         {

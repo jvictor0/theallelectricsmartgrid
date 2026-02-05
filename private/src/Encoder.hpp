@@ -18,7 +18,7 @@ struct SharedEncoderStateBase
     }
 };
 
-struct EncoderCell : public Cell
+struct EncoderCell
 {
     uint8_t m_lastVelocity;
     static constexpr float x_minSpeed = 0.001f;
@@ -34,35 +34,10 @@ struct EncoderCell : public Cell
         , m_lastDeltaSign(0)
         , m_lastSpeed(x_minSpeed)
     {
-        SetPressureSensitive();
     }
     
     virtual ~EncoderCell()
     {
-    }
-
-    virtual Color GetColor() override
-    {
-        return Color(GetNormalizedValue() * 255, GetTwisterColor(), GetAnimationValue());
-    }
-
-    virtual void OnPress(uint8_t velocity) override
-    {
-        int8_t svelocity = velocity;
-        Increment(svelocity * x_pressSpeed);
-        m_lastVelocity = velocity;
-    }
-
-    virtual void OnRelease() override
-    {
-        m_lastVelocity = 0;
-    }
-
-    virtual void OnPressureChange(uint8_t velocity) override
-    {
-        int8_t svelocity = velocity - m_lastVelocity;
-        Increment(svelocity * x_pressSpeed);
-        m_lastVelocity = velocity;
     }
 
     void HandleIncDec(size_t timestamp, int64_t delta)

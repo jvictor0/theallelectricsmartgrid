@@ -842,6 +842,166 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     static constexpr size_t x_numFaders = 16;
 
+    enum class EncoderBankKind
+    {
+        Voice,
+        Quad,
+        Global
+    };
+
+    static EncoderBankKind EncoderBankKindFromAbsolute(size_t selectedAbsoluteEncoderBank)
+    {
+        if (selectedAbsoluteEncoderBank < x_numVoiceBanks)
+        {
+            return EncoderBankKind::Voice;
+        }
+        else if (selectedAbsoluteEncoderBank < x_numVoiceBanks + x_numQuadBanks)
+        {
+            return EncoderBankKind::Quad;
+        }
+        else
+        {
+            return EncoderBankKind::Global;
+        }
+    }
+
+    struct ModulatorSkin
+    {
+        SmartGridOne::ModulationGlyphs m_glyph;
+        SmartGrid::Color m_color;
+
+        ModulatorSkin(SmartGridOne::ModulationGlyphs glyph, SmartGrid::Color color)
+            : m_glyph(glyph)
+            , m_color(color)
+        {
+        }
+    };
+
+    ModulatorSkin GetModulatorSkin(size_t index, EncoderBankKind kind) const
+    {
+        static const SmartGrid::Color x_colors[3] =
+        {
+            SmartGrid::Color::Cyan.AdjustBrightness(0.5),
+            SmartGrid::Color::Indigo.AdjustBrightness(0.5),
+            SmartGrid::Color::SeaGreen.AdjustBrightness(0.5)
+        };
+
+        switch (index)
+        {
+            case 2:
+            {
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[0]);
+            }
+            case 3:
+            {
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[1]);
+            }
+            case 6:
+            {
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::LFO, x_colors[2]);
+            }
+            case 7:
+            {
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::LFO, x_colors[0]);
+            }
+            case 11:
+            {
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::Spread, x_colors[1]);
+            }
+            case 14:
+            {
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::Noise, x_colors[2]);
+            }
+            case 4:
+            {
+                if (kind == EncoderBankKind::Voice)
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::ADSR, x_colors[0]);
+                }
+                if (kind == EncoderBankKind::Quad)
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Quadrature, SmartGrid::Color::Pink);
+                }
+                else
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+                }
+            }
+            case 5:
+            {
+                if (kind == EncoderBankKind::Voice)
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::ADSR, x_colors[1]);
+                }
+                if (kind == EncoderBankKind::Quad)
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Quadrature, SmartGrid::Color::Purple);
+                }
+                else
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+                }
+            }
+            case 8:
+            {
+                if (kind == EncoderBankKind::Voice)
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[0]);
+                }
+                else
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+                }
+            }
+            case 9:
+            {
+                if (kind == EncoderBankKind::Voice)
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[1]);
+                }
+                else
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+                }
+            }
+            case 10:
+            {
+                if (kind == EncoderBankKind::Voice)
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[2]);
+                }
+                else
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+                }
+            }
+            default:
+            {
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+            }
+        }
+    }
+
+    SmartGrid::Color LFOColor(size_t i)
+    {
+        return GetModulatorSkin(6 + i, EncoderBankKind::Voice).m_color;
+    }
+
+    SmartGrid::Color ADSRColor(size_t i)
+    {
+        return GetModulatorSkin(4 + i, EncoderBankKind::Voice).m_color;
+    }
+
+    SmartGrid::Color SheafColor(size_t i)
+    {
+        return GetModulatorSkin(8 + i, EncoderBankKind::Voice).m_color;
+    }
+
+    SmartGrid::Color QuadratureColor(size_t i)
+    {
+        return GetModulatorSkin(4 + i, EncoderBankKind::Quad).m_color;
+    }
+
     size_t m_selectedAbsoluteEncoderBank;
 
     SmartGrid::SceneManager* m_sceneManager;
@@ -1194,139 +1354,155 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_top = input.m_totalTop;
         }
 
-        m_voiceEncoderBank.SetColor(0, SmartGrid::Color::Red, input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.SetColor(1, SmartGrid::Color::Green, input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.SetColor(2, SmartGrid::Color::Orange, input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.SetColor(3, SmartGrid::Color::Blue, input.m_voiceEncoderBankInput);
-        m_quadEncoderBank.SetColor(0, SmartGrid::Color::Pink, input.m_quadEncoderBankInput);
-        m_quadEncoderBank.SetColor(1, SmartGrid::Color::Fuscia, input.m_quadEncoderBankInput);
-        m_globalEncoderBank.SetColor(0, SmartGrid::Color::Yellow, input.m_globalEncoderBankInput);
-        m_globalEncoderBank.SetColor(1, SmartGrid::Color::SeaGreen, input.m_globalEncoderBankInput);
-        m_globalEncoderBank.SetColor(2, SmartGrid::Color::White, input.m_globalEncoderBankInput);
-        m_globalEncoderBank.SetColor(3, SmartGrid::Color::Ocean, input.m_globalEncoderBankInput);
+        m_voiceEncoderBank.SetColor(0, SmartGrid::Color::Red);
+        m_voiceEncoderBank.SetColor(1, SmartGrid::Color::Green);
+        m_voiceEncoderBank.SetColor(2, SmartGrid::Color::Orange);
+        m_voiceEncoderBank.SetColor(3, SmartGrid::Color::Blue);
+        m_quadEncoderBank.SetColor(0, SmartGrid::Color::Pink);
+        m_quadEncoderBank.SetColor(1, SmartGrid::Color::Fuscia);
+        m_globalEncoderBank.SetColor(0, SmartGrid::Color::Yellow);
+        m_globalEncoderBank.SetColor(1, SmartGrid::Color::SeaGreen);
+        m_globalEncoderBank.SetColor(2, SmartGrid::Color::White);
+        m_globalEncoderBank.SetColor(3, SmartGrid::Color::Ocean);
 
-        m_voiceEncoderBank.Config(0, 0, 0, 0, "VCO 1 Cos Blend", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 0, 1, 0, "VCO 2 Cos Blend", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 1, 0, 1.0 / 8.0, "VCO 1 V", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 1, 1, 1.0 / 8.0, "VCO 2 V", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 2, 0, 0.5, "VCO 1 D", input.m_voiceEncoderBankInput);  
-        m_voiceEncoderBank.Config(0, 2, 1, 0.5, "VCO 2 D", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 3, 0, 0, "VCO 2->1 PM", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 3, 1, 0, "VCO 1->2 PM", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 0, 2, 0, "VCO 1 Fade", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 1, 2, 0, "Saturation", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 2, 2, 0, "Bit Reduction", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 3, 2, 0, "Sample Rate Reduction", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 0, 3, 0, "VCO 2 Pitch Offset", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 1, 3, 0, "Pitch Drift", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(0, 2, 3, 0, "Sub Oscillator", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(0, 0, 0, 0, "VCO 1 Cos Blend", SmartGrid::Color::Red);
+        m_voiceEncoderBank.Config(0, 0, 1, 0, "VCO 2 Cos Blend", SmartGrid::Color::Red);
+        m_voiceEncoderBank.Config(0, 1, 0, 1.0 / 8.0, "VCO 1 V", SmartGrid::Color::Red);
+        m_voiceEncoderBank.Config(0, 1, 1, 1.0 / 8.0, "VCO 2 V", SmartGrid::Color::Red);
+        m_voiceEncoderBank.Config(0, 2, 0, 0.5, "VCO 1 D", SmartGrid::Color::Red);  
+        m_voiceEncoderBank.Config(0, 2, 1, 0.5, "VCO 2 D", SmartGrid::Color::Red);
+        m_voiceEncoderBank.Config(0, 3, 0, 0, "VCO 2->1 PM", SmartGrid::Color::Red);
+        m_voiceEncoderBank.Config(0, 3, 1, 0, "VCO 1->2 PM", SmartGrid::Color::Red);
+        m_voiceEncoderBank.Config(0, 0, 2, 0, "VCO 1 Fade", SmartGrid::Color::Yellow);
+        m_voiceEncoderBank.Config(0, 1, 2, 0, "Saturation", SmartGrid::Color::Yellow);
+        m_voiceEncoderBank.Config(0, 2, 2, 0, "Bit Reduction", SmartGrid::Color::Yellow);
+        m_voiceEncoderBank.Config(0, 3, 2, 0, "Sample Rate Reduction", SmartGrid::Color::Yellow);
+        m_voiceEncoderBank.Config(0, 0, 3, 0, "VCO 2 Pitch Offset", SmartGrid::Color::Yellow);
+        m_voiceEncoderBank.Config(0, 1, 3, 0, "Pitch Drift", SmartGrid::Color::Yellow);
+        m_voiceEncoderBank.Config(0, 2, 3, 0, "Sub Oscillator", SmartGrid::Color::Yellow);
 
-        m_voiceEncoderBank.Config(1, 0, 1, 0, "HP Cutoff", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 1, 1, 0, "HP Resonance", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 2, 1, 1, "LP Cutoff", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 3, 1, 0, "LP Resonance", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 0, 0, 0, "Filter ADSP Attack", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 1, 0, 0.2, "Filter ADSP Decay", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 2, 0, 0, "Filter ADSP Sustain", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 3, 0, 0.5, "Filter ADSP Phasor Mult", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(1, 0, 1, 0, "HP Cutoff", SmartGrid::Color::Green);
+        m_voiceEncoderBank.Config(1, 1, 1, 0, "HP Resonance", SmartGrid::Color::Green);
+        m_voiceEncoderBank.Config(1, 2, 1, 1, "LP Cutoff", SmartGrid::Color::Green);
+        m_voiceEncoderBank.Config(1, 3, 1, 0, "LP Resonance", SmartGrid::Color::Green);
+        m_voiceEncoderBank.Config(1, 0, 0, 0, "Filter ADSP Attack", ADSRColor(0));
+        m_voiceEncoderBank.Config(1, 1, 0, 0.2, "Filter ADSP Decay", ADSRColor(0));
+        m_voiceEncoderBank.Config(1, 2, 0, 0, "Filter ADSP Sustain", ADSRColor(0));
+        m_voiceEncoderBank.Config(1, 3, 0, 0.5, "Filter ADSP Phasor Mult", ADSRColor(0));
 
-        m_voiceEncoderBank.Config(1, 0, 2, 0, "Amp ADSP Attack", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 1, 2, 0.3, "Amp ADSP Decay", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 2, 2, 0.5, "Amp ADSP Sustain", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 3, 2, 0.5, "Amp ADSP Phasor Mult", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 0, 3, 1, "Amp Gain", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 1, 3, 0, "Delay Send", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(1, 2, 3, 0, "Reverb Send", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(1, 0, 2, 0, "Amp ADSP Attack", ADSRColor(1));
+        m_voiceEncoderBank.Config(1, 1, 2, 0.3, "Amp ADSP Decay", ADSRColor(1));
+        m_voiceEncoderBank.Config(1, 2, 2, 0.5, "Amp ADSP Sustain", ADSRColor(1));
+        m_voiceEncoderBank.Config(1, 3, 2, 0.5, "Amp ADSP Phasor Mult", ADSRColor(1));
+        m_voiceEncoderBank.Config(1, 0, 3, 1, "Amp Gain", SmartGrid::Color::Green);
+        m_voiceEncoderBank.Config(1, 1, 3, 0, "Delay Send", SmartGrid::Color::Green);
+        m_voiceEncoderBank.Config(1, 2, 3, 0, "Reverb Send", SmartGrid::Color::Green);
 
-        m_voiceEncoderBank.Config(2, 0, 0, 1, "Pan Radius", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(2, 1, 0, 0, "Pan Phase Shift", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(2, 2, 0, 0, "Pan Mult X", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(2, 3, 0, 0, "Pan Mult Y", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(2, 0, 1, 0.5, "Pan Center X", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(2, 1, 1, 0.5, "Pan Center Y", input.m_voiceEncoderBankInput);
-        m_voiceEncoderBank.Config(2, 3, 1, 0, "Portamento", input.m_voiceEncoderBankInput);
+        m_voiceEncoderBank.Config(2, 0, 0, 1, "Pan Radius", SmartGrid::Color::Orange);
+        m_voiceEncoderBank.Config(2, 1, 0, 0, "Pan Phase Shift", SmartGrid::Color::Orange);
+        m_voiceEncoderBank.Config(2, 2, 0, 0, "Pan Mult X", SmartGrid::Color::Orange);
+        m_voiceEncoderBank.Config(2, 3, 0, 0, "Pan Mult Y", SmartGrid::Color::Orange);
+        m_voiceEncoderBank.Config(2, 0, 1, 0.5, "Pan Center X", SmartGrid::Color::Orange);
+        m_voiceEncoderBank.Config(2, 1, 1, 0.5, "Pan Center Y", SmartGrid::Color::Orange);
+        m_voiceEncoderBank.Config(2, 3, 1, 0, "Portamento", SmartGrid::Color::Orange);
+
+        m_voiceEncoderBank.Config(2, 0, 2, 0.25, "Sequencer Zone Height", SmartGrid::Color::Orange.Interpolate(SmartGrid::Color::Green, 0.5));
+        m_voiceEncoderBank.Config(2, 1, 2, 0.5, "Sequencer Zone Overlap", SmartGrid::Color::Orange.Interpolate(SmartGrid::Color::Green, 0.5));
+        m_voiceEncoderBank.Config(2, 0, 3, 0, "Sequencer Offset", SmartGrid::Color::Orange.Interpolate(SmartGrid::Color::Green, 0.5));
+        m_voiceEncoderBank.Config(2, 1, 3, 0, "Sequencer Interval", SmartGrid::Color::Orange.Interpolate(SmartGrid::Color::Green, 0.5));
+        m_voiceEncoderBank.Config(2, 2, 3, 0, "Sequencer Page Interval", SmartGrid::Color::Orange.Interpolate(SmartGrid::Color::Green, 0.5));
 
         for (size_t i = 0; i < 2; ++i)
         {
-            m_voiceEncoderBank.Config(3, 0, 2 * i, 0.5, "LFO " + std::to_string(i + 1) + " Skew", input.m_voiceEncoderBankInput);
-            m_voiceEncoderBank.Config(3, 1, 2 * i, 0, "LFO " + std::to_string(i + 1) + " Mult", input.m_voiceEncoderBankInput);
-            m_voiceEncoderBank.Config(3, 2, 2 * i, 0.5, "LFO " + std::to_string(i + 1) + " Shape", input.m_voiceEncoderBankInput);
-            m_voiceEncoderBank.Config(3, 0, 2 * i + 1, i == 0 ? 0.75 : 0.25, "LFO " + std::to_string(i + 1) + " Center", input.m_voiceEncoderBankInput);
-            m_voiceEncoderBank.Config(3, 1, 2 * i + 1, 0, "LFO " + std::to_string(i + 1) + " Slope", input.m_voiceEncoderBankInput);
-            m_voiceEncoderBank.Config(3, 2, 2 * i + 1, 1.0, "LFO " + std::to_string(i + 1) + " Phase Shift", input.m_voiceEncoderBankInput);
-            m_voiceEncoderBank.Config(3, 3, 2 * i + 1, 0, "LFO " + std::to_string(i + 1) + " Sample And Hold", input.m_voiceEncoderBankInput);
+            m_voiceEncoderBank.Config(3, 0, 2 * i, 0.5, "LFO " + std::to_string(i + 1) + " Skew", LFOColor(i));
+            m_voiceEncoderBank.Config(3, 1, 2 * i, 0, "LFO " + std::to_string(i + 1) + " Mult", LFOColor(i));
+            m_voiceEncoderBank.Config(3, 2, 2 * i, 0.5, "LFO " + std::to_string(i + 1) + " Shape", LFOColor(i));
+            m_voiceEncoderBank.Config(3, 0, 2 * i + 1, i == 0 ? 0.75 : 0.25, "LFO " + std::to_string(i + 1) + " Center", LFOColor(i));
+            m_voiceEncoderBank.Config(3, 1, 2 * i + 1, 0, "LFO " + std::to_string(i + 1) + " Slope", LFOColor(i));
+            m_voiceEncoderBank.Config(3, 2, 2 * i + 1, 1.0, "LFO " + std::to_string(i + 1) + " Phase Shift", LFOColor(i));
+            m_voiceEncoderBank.Config(3, 3, 2 * i + 1, 0, "LFO " + std::to_string(i + 1) + " Sample And Hold", LFOColor(i));
         }
 
-        m_quadEncoderBank.Config(0, 0, 0, 0.75, "Delay Time", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 1, 0, 0.75, "Delay Time Factor", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 3, 0, 0.75, "Delay Feedback", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 0, 1, 0.4, "Delay Damp Base", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 1, 1, 0.3, "Delay Damp Width", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 2, 1, 0.5, "Resynth Slew Up", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 3, 1, 0, "Reverb Send", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 0, 2, 0, "Delay Widen", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 1, 2, 0.25, "Delay Rotate", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 2, 2, 0.1, "Resynth Unison", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 1, 3, 0.0, "Resynth Shift Fade", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 2, 3, 0.0, "Resynth Shift Interval", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(0, 3, 3, 1.0, "Delay Return", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(0, 0, 0, 0.75, "Delay Time", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 1, 0, 0.75, "Delay Time Factor", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 3, 0, 0.75, "Delay Feedback", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 0, 1, 0.4, "Delay Damp Base", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 1, 1, 0.3, "Delay Damp Width", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 2, 1, 0.5, "Resynth Slew Up", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 3, 1, 0, "Reverb Send", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 0, 2, 0, "Delay Widen", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 1, 2, 0.25, "Delay Rotate", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 2, 2, 0.1, "Resynth Unison", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 1, 3, 0.0, "Resynth Shift Fade", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 2, 3, 0.0, "Resynth Shift Interval", SmartGrid::Color::Pink);
+        m_quadEncoderBank.Config(0, 3, 3, 1.0, "Delay Return", SmartGrid::Color::Pink);
 
-        m_quadEncoderBank.Config(1, 0, 0, 0.5, "Reverb Time", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 3, 0, 0.75, "Reverb Feedback", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 0, 1, 0.3, "Reverb Damp Base", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 1, 1, 0.5, "Reverb Damp Width", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 3, 1, 0, "Delay Send", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 1, 2, 0.1, "Delay Mod Speed", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 2, 2, 1.0, "Delay Mod Phase Shift", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 0, 3, 0, "Reverb Mod Depth", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 1, 3, 0.1, "Reverb Mod Speed", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 2, 3, 1.0, "Reverb Mod Phase Shift", input.m_quadEncoderBankInput);
-        m_quadEncoderBank.Config(1, 3, 3, 1.0, "Reverb Return", input.m_quadEncoderBankInput);
+        m_quadEncoderBank.Config(1, 0, 0, 0.5, "Reverb Time", SmartGrid::Color::Fuscia);
+        m_quadEncoderBank.Config(1, 3, 0, 0.75, "Reverb Feedback", SmartGrid::Color::Fuscia);
+        m_quadEncoderBank.Config(1, 0, 1, 0.3, "Reverb Damp Base", SmartGrid::Color::Fuscia);
+        m_quadEncoderBank.Config(1, 1, 1, 0.5, "Reverb Damp Width", SmartGrid::Color::Fuscia);
+        m_quadEncoderBank.Config(1, 3, 1, 0, "Delay Send", SmartGrid::Color::Fuscia);
+        m_quadEncoderBank.Config(1, 1, 2, 0.1, "Delay Mod Speed", QuadratureColor(0));
+        m_quadEncoderBank.Config(1, 2, 2, 1.0, "Delay Mod Phase Shift", QuadratureColor(0));
+        m_quadEncoderBank.Config(1, 0, 3, 0, "Reverb Mod Depth", SmartGrid::Color::Fuscia);
+        m_quadEncoderBank.Config(1, 1, 3, 0.1, "Reverb Mod Speed", QuadratureColor(1));
+        m_quadEncoderBank.Config(1, 2, 3, 1.0, "Reverb Mod Phase Shift", QuadratureColor(1));
+        m_quadEncoderBank.Config(1, 3, 3, 1.0, "Reverb Return", SmartGrid::Color::Fuscia);
 
-        m_globalEncoderBank.Config(0, 0, 0, 0.5, "Tempo", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(0, 0, 0, 0.5, "Tempo", SmartGrid::Color::Yellow);
 
-        m_globalEncoderBank.Config(0, 0, 2, 0.5, "Tempo LFO Skew", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 1, 2, 0, "Tempo LFO Mult", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 2, 2, 0.5, "Tempo LFO Shape", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 0, 3, 0.75, "Tempo LFO Center", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 1, 3, 0, "Tempo LFO Slope", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(0, 3, 3, 0, "Tempo LFO Index", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(0, 0, 2, 0.5, "Tempo LFO Skew", SmartGrid::Color::Yellow);
+        m_globalEncoderBank.Config(0, 1, 2, 0, "Tempo LFO Mult", SmartGrid::Color::Yellow);
+        m_globalEncoderBank.Config(0, 2, 2, 0.5, "Tempo LFO Shape", SmartGrid::Color::Yellow);
+        m_globalEncoderBank.Config(0, 0, 3, 0.75, "Tempo LFO Center", SmartGrid::Color::Yellow);
+        m_globalEncoderBank.Config(0, 1, 3, 0, "Tempo LFO Slope", SmartGrid::Color::Yellow);
+        m_globalEncoderBank.Config(0, 3, 3, 0, "Tempo LFO Index", SmartGrid::Color::Yellow);
 
-        m_globalEncoderBank.Config(1, 0, 2, 4.0 / 5.0, "Low Eq", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 1, 2, 4.0 / 5.0, "Low Mid Eq", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 2, 2, 4.0 / 5.0, "High Mid Eq", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 3, 2, 4.0 / 5.0, "High Eq", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(1, 0, 2, 4.0 / 5.0, "Low Eq", SmartGrid::Color::SeaGreen);
+        m_globalEncoderBank.Config(1, 1, 2, 4.0 / 5.0, "Low Mid Eq", SmartGrid::Color::SeaGreen);
+        m_globalEncoderBank.Config(1, 2, 2, 4.0 / 5.0, "High Mid Eq", SmartGrid::Color::SeaGreen);
+        m_globalEncoderBank.Config(1, 3, 2, 4.0 / 5.0, "High Eq", SmartGrid::Color::SeaGreen);
         
-        m_globalEncoderBank.Config(1, 0, 3, 0.5, "Low Band Cutoff", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 1, 3, 0.5, "Mid Band Cutoff", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 2, 3, 0.5, "High Band Cutoff", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(1, 3, 3, 4.0 / 5.0, "Master Gain", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(1, 0, 3, 0.5, "Low Band Cutoff", SmartGrid::Color::SeaGreen);
+        m_globalEncoderBank.Config(1, 1, 3, 0.5, "Mid Band Cutoff", SmartGrid::Color::SeaGreen);
+        m_globalEncoderBank.Config(1, 2, 3, 0.5, "High Band Cutoff", SmartGrid::Color::SeaGreen);
+        m_globalEncoderBank.Config(1, 3, 3, 4.0 / 5.0, "Master Gain", SmartGrid::Color::SeaGreen);
 
-        m_globalEncoderBank.Config(2, 0, 0, 0, "Source 1 HP", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 0, 1, 1, "Source 1 LP", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 0, 3, 0, "Source 1 Gain", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 1, 0, 0, "Source 2 HP", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 1, 1, 1, "Source 2 LP", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 1, 3, 0, "Source 2 Gain", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 2, 0, 0, "Source 3 HP", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 2, 1, 1, "Source 3 LP", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 2, 3, 0, "Source 3 Gain", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 3, 0, 0, "Source 4 HP", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 3, 1, 1, "Source 4 LP", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(2, 3, 3, 0, "Source 4 Gain", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(2, 0, 0, 0, "Source 1 HP", SourceMixer::UIState::Color(0));
+        m_globalEncoderBank.Config(2, 0, 1, 1, "Source 1 LP", SourceMixer::UIState::Color(0));
+        m_globalEncoderBank.Config(2, 0, 3, 0, "Source 1 Gain", SourceMixer::UIState::Color(0));
+        m_globalEncoderBank.Config(2, 1, 0, 0, "Source 2 HP", SourceMixer::UIState::Color(1));
+        m_globalEncoderBank.Config(2, 1, 1, 1, "Source 2 LP", SourceMixer::UIState::Color(1));
+        m_globalEncoderBank.Config(2, 1, 3, 0, "Source 2 Gain", SourceMixer::UIState::Color(1));
+        m_globalEncoderBank.Config(2, 2, 0, 0, "Source 3 HP", SourceMixer::UIState::Color(2));
+        m_globalEncoderBank.Config(2, 2, 1, 1, "Source 3 LP", SourceMixer::UIState::Color(2));
+        m_globalEncoderBank.Config(2, 2, 3, 0, "Source 3 Gain", SourceMixer::UIState::Color(2));
+        m_globalEncoderBank.Config(2, 3, 0, 0, "Source 4 HP", SourceMixer::UIState::Color(3));
+        m_globalEncoderBank.Config(2, 3, 1, 1, "Source 4 LP", SourceMixer::UIState::Color(3));
+        m_globalEncoderBank.Config(2, 3, 3, 0, "Source 4 Gain", SourceMixer::UIState::Color(3));
 
         // UNDONE(DEEP_VOCODER)
         //
-        m_globalEncoderBank.Config(3, 0, 0, 0.5, "Deep Vocoder Slew Up", input.m_globalEncoderBankInput);
-        m_globalEncoderBank.Config(3, 1, 0, 0.5, "Deep Vocoder Slew Down", input.m_globalEncoderBankInput);
+        m_globalEncoderBank.Config(3, 0, 0, 0.5, "Deep Vocoder Slew Up", SmartGrid::Color::Ocean);
+        m_globalEncoderBank.Config(3, 1, 0, 0.5, "Deep Vocoder Slew Down", SmartGrid::Color::Ocean);
         
         for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
         {
             size_t row = 1 + trio;
-            m_globalEncoderBank.Config(3, 0, row, 0.5, "Deep Vocoder Gain Threshold Trio " + std::to_string(trio + 1), input.m_globalEncoderBankInput);
-            m_globalEncoderBank.Config(3, 1, row, 0.5, "Deep Vocoder Ratio Trio " + std::to_string(trio + 1), input.m_globalEncoderBankInput);
-            m_globalEncoderBank.Config(3, 2, row, 0.5, "Deep Vocoder Slope Down Trio " + std::to_string(trio + 1), input.m_globalEncoderBankInput);
-            m_globalEncoderBank.Config(3, 3, row, 0.5, "Deep Vocoder Slope Up Trio " + std::to_string(trio + 1), input.m_globalEncoderBankInput);
+            m_globalEncoderBank.Config(3, 0, row, 0.5, "Deep Vocoder Gain Threshold Trio " + std::to_string(trio + 1), TheNonagonSmartGrid::TrioColor(static_cast<TheNonagonSmartGrid::Trio>(trio)));
+            m_globalEncoderBank.Config(3, 1, row, 0.5, "Deep Vocoder Ratio Trio " + std::to_string(trio + 1), SmartGrid::Color::Ocean);
+            m_globalEncoderBank.Config(3, 2, row, 0.5, "Deep Vocoder Slope Down Trio " + std::to_string(trio + 1), SmartGrid::Color::Ocean);
+            m_globalEncoderBank.Config(3, 3, row, 0.5, "Deep Vocoder Slope Up Trio " + std::to_string(trio + 1), SmartGrid::Color::Ocean);
+        }
+
+        auto& voiceMod = input.m_voiceEncoderBankInput.m_bankedEncoderInternalInput.m_modulatorValues;
+        auto& quadMod = input.m_quadEncoderBankInput.m_bankedEncoderInternalInput.m_modulatorValues;
+        auto& globalMod = input.m_globalEncoderBankInput.m_bankedEncoderInternalInput.m_modulatorValues;
+        for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numModulators; ++i)
+        {
+            voiceMod.SetModulatorColor(i, GetModulatorSkin(i, EncoderBankKind::Voice).m_color);
+            quadMod.SetModulatorColor(i, GetModulatorSkin(i, EncoderBankKind::Quad).m_color);
+            globalMod.SetModulatorColor(i, GetModulatorSkin(i, EncoderBankKind::Global).m_color);
         }
     }
 
@@ -1712,44 +1888,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_quadEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
         m_globalEncoderBank.PopulateUIState(&uiState->m_encoderBankUIState);
 
-        SmartGrid::Color colors[3] = 
-        { 
-            SmartGrid::Color::Cyan.AdjustBrightness(0.5), 
-            SmartGrid::Color::Indigo.AdjustBrightness(0.5), 
-            SmartGrid::Color::SeaGreen.AdjustBrightness(0.5) 
-        };
+        EncoderBankKind kind = EncoderBankKindFromAbsolute(m_selectedAbsoluteEncoderBank);
+        for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numModulators; ++i)
+        {
+            ModulatorSkin skin = GetModulatorSkin(i, kind);
+            uiState->m_encoderBankUIState.SetModulationGlyph(i, skin.m_glyph, skin.m_color);
+        }
 
-        uiState->m_encoderBankUIState.SetModulationGlyph(2, SmartGridOne::ModulationGlyphs::SmoothRandom, colors[0]);
-        uiState->m_encoderBankUIState.SetModulationGlyph(3, SmartGridOne::ModulationGlyphs::SmoothRandom, colors[1]);
-        uiState->m_encoderBankUIState.SetModulationGlyph(6, SmartGridOne::ModulationGlyphs::LFO, colors[2]);
-        uiState->m_encoderBankUIState.SetModulationGlyph(7, SmartGridOne::ModulationGlyphs::LFO, colors[0]);
-        uiState->m_encoderBankUIState.SetModulationGlyph(11, SmartGridOne::ModulationGlyphs::Spread, colors[1]);
-        uiState->m_encoderBankUIState.SetModulationGlyph(14, SmartGridOne::ModulationGlyphs::Noise, colors[2]);
-        if (m_selectedAbsoluteEncoderBank < x_numVoiceBanks)
-        {
-            uiState->m_encoderBankUIState.SetModulationGlyph(4, SmartGridOne::ModulationGlyphs::ADSR, colors[0]);
-            uiState->m_encoderBankUIState.SetModulationGlyph(5, SmartGridOne::ModulationGlyphs::ADSR, colors[1]);
-            uiState->m_encoderBankUIState.SetModulationGlyph(8, SmartGridOne::ModulationGlyphs::Sheaf, colors[0]);
-            uiState->m_encoderBankUIState.SetModulationGlyph(9, SmartGridOne::ModulationGlyphs::Sheaf, colors[1]);
-            uiState->m_encoderBankUIState.SetModulationGlyph(10, SmartGridOne::ModulationGlyphs::Sheaf, colors[2]);
-        }
-        else if (m_selectedAbsoluteEncoderBank < x_numVoiceBanks + x_numQuadBanks)
-        {
-            uiState->m_encoderBankUIState.SetModulationGlyph(4, SmartGridOne::ModulationGlyphs::Quadrature, SmartGrid::Color::Pink);
-            uiState->m_encoderBankUIState.SetModulationGlyph(5, SmartGridOne::ModulationGlyphs::Quadrature, SmartGrid::Color::Purple);
-            uiState->m_encoderBankUIState.SetModulationGlyph(8, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-            uiState->m_encoderBankUIState.SetModulationGlyph(9, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-            uiState->m_encoderBankUIState.SetModulationGlyph(10, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-        }
-        else
-        {
-            uiState->m_encoderBankUIState.SetModulationGlyph(4, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-            uiState->m_encoderBankUIState.SetModulationGlyph(5, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-            uiState->m_encoderBankUIState.SetModulationGlyph(8, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-            uiState->m_encoderBankUIState.SetModulationGlyph(9, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-            uiState->m_encoderBankUIState.SetModulationGlyph(10, SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-        }
-        
         uiState->m_activeTrack.store(m_voiceEncoderBank.GetCurrentTrack());
 
         uiState->m_audioScopeWriter.Publish();

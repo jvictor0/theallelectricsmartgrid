@@ -102,7 +102,7 @@ namespace SmartGrid
 
         constexpr Color Dim() const
         {
-            return AdjustBrightness(1.0 / 8.0);
+            return AdjustBrightness(1.0 / 6.0);
         }
 
         Color Saturate() const

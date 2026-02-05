@@ -220,15 +220,6 @@ struct TheNonagonSquiggleBoyInternal
         }
     }
 
-    void ConfigureEncoders()
-    {
-        m_squiggleBoy.m_voiceEncoderBank.Config(2, 0, 2, 0.25, "Sequencer Zone Height", m_squiggleBoyState.m_voiceEncoderBankInput);
-        m_squiggleBoy.m_voiceEncoderBank.Config(2, 1, 2, 0.5, "Sequencer Zone Overlap", m_squiggleBoyState.m_voiceEncoderBankInput);
-        m_squiggleBoy.m_voiceEncoderBank.Config(2, 0, 3, 0, "Sequencer Offset", m_squiggleBoyState.m_voiceEncoderBankInput);
-        m_squiggleBoy.m_voiceEncoderBank.Config(2, 1, 3, 0, "Sequencer Interval", m_squiggleBoyState.m_voiceEncoderBankInput);
-        m_squiggleBoy.m_voiceEncoderBank.Config(2, 2, 3, 0, "Sequencer Page Interval", m_squiggleBoyState.m_voiceEncoderBankInput);
-    }
-
     void HandleStateInterchange()
     {
         if (m_stateInterchange.IsSaveRequested())
@@ -346,7 +337,6 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.Config(m_squiggleBoyState);
         m_squiggleBoy.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
-        ConfigureEncoders();
         m_squiggleBoy.SetupUIState(&m_uiState.m_squiggleBoyUIState);
         m_nonagon.SetupMonoScopeWriter(&m_uiState.m_squiggleBoyUIState.m_monoScopeWriter);
         m_nonagon.SetupMessageOutBuffer(&m_messageOutBuffer);
