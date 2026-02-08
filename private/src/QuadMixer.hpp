@@ -185,16 +185,16 @@ struct QuadMixerInternal
                     m_send[j] += pan * input.m_sendGain[i][j].m_expParam;
                 }
 
+                float reduction;
+                m_voiceMeters[i].ProcessAndSaturate((input.m_input[i] + input.m_monoIn[i]) * input.m_gain[i].m_expParam, &reduction);
+
                 QuadFloat mono = QuadFloat::Pan(0.5f, 0.5f, input.m_monoIn[i]);                
-                QuadFloat postFader = (pan + mono) * input.m_gain[i].m_expParam;
+                QuadFloat postFader = (pan + mono) * (input.m_gain[i].m_expParam * reduction);
 
                 if (input.m_monitor[i])
                 {
                     m_output.m_output += postFader;
                 }
-
-                m_voiceMeters[i].Process((input.m_input[i] + input.m_monoIn[i]) * input.m_gain[i].m_expParam);
-
                 // Write post-fader input to wave file
                 //
                 m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(i), postFader);
@@ -210,9 +210,8 @@ struct QuadMixerInternal
             {
                 m_quadToStereoMixdown.MixQuadSample(input.m_return[j] * input.m_returnGain[j].m_expParam);
                 QuadFloat postReturn = input.m_return[j] * input.m_returnGain[j].m_expParam;
-                m_output.m_output += postReturn;
-                
-                m_returnMeters[j].Process(postReturn);
+                postReturn = m_returnMeters[j].ProcessAndSaturate(postReturn);
+                m_output.m_output += postReturn;            
 
                 m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(input.m_numInputs + j), postReturn);
             }

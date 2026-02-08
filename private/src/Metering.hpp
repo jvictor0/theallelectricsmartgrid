@@ -58,12 +58,19 @@ struct Meter
         m_reduction = m_reduction * (1 - x_smoothingAlphaReduction) + reduction * x_smoothingAlphaReduction;
     }
 
-    float ProcessAndSaturate(float input)
+    float ProcessAndSaturate(float input, float* reduction)
     {
         float output = std::atan(input * M_PI / 2) / (M_PI / 2);
         Process(output);
-        ProcessReduction(std::max(0.00000000001f, std::abs(output)) / std::max(0.00000000001f, std::abs(input)));
+        *reduction = std::max(0.00000000001f, std::abs(output)) / std::max(0.00000000001f, std::abs(input));
+        ProcessReduction(*reduction);
         return output;
+    }
+
+    float ProcessAndSaturate(float input)
+    {
+        float reduction;
+        return ProcessAndSaturate(input, &reduction);
     }
 
     static float GetRMSDbFS(float rms)
@@ -164,6 +171,15 @@ struct MultichannelMeter
         {
             m_meters[i].Process(input[i]);
         }
+    }
+
+    MultiChannelFloat<Size> ProcessAndSaturate(MultiChannelFloat<Size> input)
+    {
+        for (size_t i = 0; i < Size; ++i)
+        {
+            input[i] = m_meters[i].ProcessAndSaturate(input[i]);
+        }
+        return input;
     }
 };
 

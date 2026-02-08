@@ -8,37 +8,44 @@ struct EncoderBankBankInternal
     SmartGrid::EncoderBankInternal m_banks[NumBanks];
     SmartGrid::SceneManager* m_sceneManager;
     int m_selectedBank;
+    SmartGrid::BankedEncoderCell::ModulatorValues m_modulatorValues;
+    size_t m_numTracks;
+    size_t m_numVoices;
     SmartGrid::Color m_color[NumBanks];
 
     static constexpr size_t x_controlFrameRate = 8;
     size_t m_frame;
 
-    struct Input
-    {
-        SmartGrid::EncoderBankInternal::Input m_bankedEncoderInternalInput;
-
-        void SelectGesture(const BitSet16& gesture)
-        {
-            m_bankedEncoderInternalInput.m_selectedGesture = gesture;
-        }
-    };
-
     EncoderBankBankInternal()
         : m_sceneManager(nullptr)
         , m_selectedBank(-1)
+        , m_modulatorValues()
+        , m_numTracks(1)
+        , m_numVoices(1)
         , m_frame(0)
     {
     }
 
-    void Init(SmartGrid::SceneManager* sceneManager)
+    void Init(
+        SmartGrid::SceneManager* sceneManager,
+        size_t numTracks,
+        size_t numVoices)
     {
         m_sceneManager = sceneManager;
+        m_numTracks = numTracks;
+        m_numVoices = numVoices;
+
         for (size_t i = 0; i < NumBanks; ++i)
         {
-            m_banks[i].Init(sceneManager);
+            m_banks[i].Init(sceneManager, &m_modulatorValues, numTracks, numVoices);
         }
 
         SelectGrid(0);
+    }
+
+    void SelectGesture(const BitSet16& gesture)
+    {
+        m_modulatorValues.m_selectedGestures = gesture;
     }
 
     void SetTrack(size_t track)
@@ -49,12 +56,12 @@ struct EncoderBankBankInternal
         }
     }
 
-    void Process(Input& input, float dt)
+    void Process()
     {
         m_frame++;
         if (m_frame % x_controlFrameRate == 0)
         {
-            input.m_bankedEncoderInternalInput.m_modulatorValues.ComputeChanged();
+            m_modulatorValues.ComputeChanged();
         }
 
         if (m_sceneManager->m_changed)
@@ -71,7 +78,7 @@ struct EncoderBankBankInternal
         {
             if (m_frame % x_controlFrameRate == 0)
             {                
-                m_banks[i].ProcessInput(input.m_bankedEncoderInternalInput);
+                m_banks[i].ProcessTopology();
             }
 
             m_banks[i].ProcessBulkFilter();

@@ -3,7 +3,6 @@
 #include "Filter.hpp"
 #include "LadderFilter.hpp"
 #include "PhaseUtils.hpp"
-#include "Metering.hpp"
 #include "AudioInputBuffer.hpp"
 
 struct SourceMixer
@@ -33,18 +32,10 @@ struct SourceMixer
             std::atomic<float> m_hpAlpha;
             std::atomic<float> m_lpAlpha;
 
-            MeterReader m_meterReader;
-
             UIState()
                 : m_hpAlpha(0.0f)
                 , m_lpAlpha(0.0f)
-                , m_meterReader()
             {
-            }
-
-            void ProcessMeter()
-            {
-                m_meterReader.Process();
             }
 
             float FrequencyResponse(float freq)
@@ -70,7 +61,6 @@ struct SourceMixer
             m_lpFilter.SetCutoff(input.m_hpCutoff.m_expParam * input.m_lpFactor.m_expParam);
             m_output = m_lpFilter.Process(m_output);
             m_output = m_hpFilter.Process(m_output);
-            m_output = m_meter.ProcessAndSaturate(m_output);
             m_postFilterScopeWriter.Write(m_output);
             return m_output;
         }
@@ -83,14 +73,12 @@ struct SourceMixer
 
         void SetupUIState(UIState* uiState)
         {
-            uiState->m_meterReader.m_meter = &m_meter;
         }
 
         float m_output;
 
         LadderFilterLP m_lpFilter;
         LadderFilterHP m_hpFilter;
-        Meter m_meter;
         ScopeWriterHolder m_preFilterScopeWriter;
         ScopeWriterHolder m_postFilterScopeWriter;
 
@@ -147,13 +135,6 @@ struct SourceMixer
             }
         }
 
-        void ProcessMeters()
-        {
-            for (size_t i = 0; i < x_numSources; ++i)
-            {
-                m_sources[i].ProcessMeter();
-            }
-        }
     };
 
     void PopulateUIState(UIState* uiState)

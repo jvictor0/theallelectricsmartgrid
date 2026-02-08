@@ -200,7 +200,7 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             virtual SmartGrid::Color GetColor() override
             {
-                if (m_owner->m_internal->m_squiggleBoyState.m_selectedGesture.Get(m_gesture))
+                if (m_owner->m_internal->m_squiggleBoy.m_selectedGesture.Get(m_gesture))
                 {
                     return SmartGrid::Color::White;
                 }
@@ -222,13 +222,13 @@ struct TheNonagonSquiggleBoyWrldBldr
                 }
                 else
                 {
-                    m_owner->m_internal->m_squiggleBoyState.SelectGesture(m_gesture, true);
+                    m_owner->m_internal->m_squiggleBoy.SelectGesture(m_gesture, true);
                 }
             }
 
             virtual void OnRelease() override
             {
-                m_owner->m_internal->m_squiggleBoyState.SelectGesture(m_gesture, false);
+                m_owner->m_internal->m_squiggleBoy.SelectGesture(m_gesture, false);
             }
         };
 
@@ -252,7 +252,7 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             virtual SmartGrid::Color GetColor() override
             {
-                if (!m_owner->m_internal->m_squiggleBoyState.m_selectedGesture.IsZero())
+                if (!m_owner->m_internal->m_squiggleBoy.m_selectedGesture.IsZero())
                 {
                     if (SquiggleBoyWithEncoderBank::x_totalNumBanks <= m_ordinal)
                     {
@@ -268,7 +268,7 @@ struct TheNonagonSquiggleBoyWrldBldr
                     }
                     
                     BitSet16 affectingGestures = m_owner->m_internal->m_squiggleBoy.GetGesturesAffectingBankForTrack(m_ordinal, currentTrack);
-                    BitSet16 selectedAndAffecting = affectingGestures.Intersect(m_owner->m_internal->m_squiggleBoyState.m_selectedGesture);
+                    BitSet16 selectedAndAffecting = affectingGestures.Intersect(m_owner->m_internal->m_squiggleBoy.m_selectedGesture);
                     
                     SmartGrid::Color color = m_owner->m_internal->m_squiggleBoy.GetSelectorColorNoDim(m_ordinal);
                     if (!selectedAndAffecting.IsZero())
@@ -314,7 +314,7 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             bool ShouldShowGesture()
             {
-                return m_owner->m_auxFocus || !m_owner->m_internal->m_squiggleBoyState.m_selectedGesture.IsZero();
+                return m_owner->m_auxFocus || !m_owner->m_internal->m_squiggleBoy.m_selectedGesture.IsZero();
             }
 
             virtual SmartGrid::Color GetColor() override

@@ -276,6 +276,8 @@ struct WrldBuildrComponent : public juce::Component
     std::unique_ptr<ScopeComponentHolder> m_sourceMixerFrequency;
     std::unique_ptr<ScopeComponentHolder> m_sourceMixerReduction;
 
+    std::unique_ptr<ScopeComponentHolder> m_meteringComponent;
+
     bool m_drawGrid;
 
     bool m_initialized;
@@ -452,6 +454,10 @@ struct WrldBuildrComponent : public juce::Component
         m_sourceMixerReduction = std::make_unique<ScopeComponentHolder>(std::move(sourceMixerReduction), 0, 0, 8, 8);
         addAndMakeVisible(m_sourceMixerReduction->m_scopeComponent.get());
 
+        auto meteringComponent = std::make_unique<MeteringComponent>(uiState);
+        m_meteringComponent = std::make_unique<ScopeComponentHolder>(std::move(meteringComponent), 8, 5, 16, 2);
+        addAndMakeVisible(m_meteringComponent->m_scopeComponent.get());
+
         m_initialized = true;
 
         // Calculate initial layout
@@ -586,6 +592,7 @@ struct WrldBuildrComponent : public juce::Component
         m_multibandGainReduction->m_scopeComponent->setVisible(false);
         m_sourceMixerFrequency->m_scopeComponent->setVisible(false);
         m_sourceMixerReduction->m_scopeComponent->setVisible(false);
+        m_meteringComponent->m_scopeComponent->setVisible(false);
     }
 
     void SetVisualizerVisibility(SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode visualDisplayMode)
@@ -619,6 +626,7 @@ struct WrldBuildrComponent : public juce::Component
         m_multibandGainReduction->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
         m_sourceMixerFrequency->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
         m_sourceMixerReduction->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
+        m_meteringComponent->m_scopeComponent->setVisible(true);
     }
 
     void SetDisplayModeController(bool isVisible)
@@ -627,6 +635,7 @@ struct WrldBuildrComponent : public juce::Component
         m_rightPadGrid->m_padGrid->setVisible(isVisible);
         m_leftTopGrid->m_padGrid->setVisible(isVisible);
         m_timerGrid->m_padGrid->setVisible(isVisible);
+        m_belowEncodersGrid->m_padGrid->setVisible(isVisible);
          
         for (int i = 0; i < 8; ++i)
         {
@@ -696,5 +705,6 @@ struct WrldBuildrComponent : public juce::Component
         m_multibandGainReduction->SetBounds(m_cellSize, m_gridX, m_gridY);
         m_sourceMixerFrequency->SetBounds(m_cellSize, m_gridX, m_gridY);
         m_sourceMixerReduction->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_meteringComponent->SetBounds(m_cellSize, m_gridX, m_gridY);
     }
 };

@@ -445,7 +445,7 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual SmartGrid::Color GetColor() override
         {
-            if (m_owner->m_squiggleBoyState.m_selectedGesture.Get(m_gesture))
+            if (m_owner->m_squiggleBoy.m_selectedGesture.Get(m_gesture))
             {
                 return SmartGrid::Color::White;
             }
@@ -462,12 +462,12 @@ struct TheNonagonSquiggleBoyInternal
                 m_owner->ClearGesture(m_gesture);
             }
             
-            m_owner->m_squiggleBoyState.SelectGesture(m_gesture, true);
+            m_owner->m_squiggleBoy.SelectGesture(m_gesture, true);
         }
 
         virtual void OnRelease() override
         {
-            m_owner->m_squiggleBoyState.SelectGesture(m_gesture, false);
+            m_owner->m_squiggleBoy.SelectGesture(m_gesture, false);
         }
     };
 

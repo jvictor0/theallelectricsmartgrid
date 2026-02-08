@@ -233,11 +233,6 @@ struct SourceMixerReductionComponent : public juce::Component
         setSize(400, 200);
     }
 
-    SourceMixer::UIState* GetSourceMixerUIState()
-    {
-        return &m_uiState->m_squiggleBoyUIState.m_sourceMixerUIState;
-    }
-
     void paint(juce::Graphics& g) override
     {
         g.fillAll(juce::Colours::black);
@@ -246,7 +241,7 @@ struct SourceMixerReductionComponent : public juce::Component
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            MeterReader* meterReader = &GetSourceMixerUIState()->m_sources[i].m_meterReader;
+            MeterReader* meterReader = &m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[SquiggleBoy::x_numVoices + i];
             float rms = meterReader->GetRMSDbFSNormalized();
             float reduction = meterReader->GetReductionDbFSNormalized();
             float x0Normalized = 2 * i / static_cast<float>(2 * SourceMixer::x_numSources);
