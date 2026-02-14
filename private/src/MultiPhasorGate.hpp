@@ -102,7 +102,8 @@ struct MultiPhasorGateInternal
                 if (!input.m_mute[i])
                 {
                     m_gate[i] = true;
-                    m_adspControl[i].m_phasor = 0;
+                    m_adspControl[i].m_phasorSlew.m_target = 0;
+                    m_adspControl[i].m_phasorSlew.m_filter.m_output = 0;
                 }
 
                 m_preGate[i] = true;
@@ -125,7 +126,7 @@ struct MultiPhasorGateInternal
                     }
                 }
 
-                m_adspControl[i].m_phasor = thisPhase;
+                m_adspControl[i].m_phasorSlew.m_target = thisPhase;
             }
 
             if (m_gate[i])

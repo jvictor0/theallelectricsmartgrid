@@ -17,6 +17,7 @@
 #include "Tick2Phasor.hpp"
 #include "MessageOut.hpp"
 #include "PhaseUtils.hpp"
+#include "SampleTimer.hpp"
 
 struct TheNonagonInternal
 {
@@ -111,7 +112,6 @@ struct TheNonagonInternal
     struct Output
     {
         bool m_gate[x_numVoices];
-        float m_phasor[x_numVoices];
         float m_voltPerOct[x_numVoices];
         float m_gridId[x_numGridIds];
         float m_extraTimbreTrg[x_numVoices][x_numExtraTimbres];
@@ -126,7 +126,6 @@ struct TheNonagonInternal
             {
                 m_gate[i] = false;
                 m_voltPerOct[i] = 0;
-                m_phasor[i] = 0;
 
                 for (size_t j = 0; j < x_numExtraTimbres; ++j)                
                 {
@@ -303,7 +302,6 @@ struct TheNonagonInternal
                 m_output.m_gate[i] = false;
             }
 
-            m_output.m_phasor[i] = m_multiPhasorGate.m_adspControl[i].m_phasor;
 
             for (size_t j = 0; j < x_numExtraTimbres; ++j)
             {
@@ -318,9 +316,15 @@ struct TheNonagonInternal
         }
     }
 
+    void ProcessPLLHit(Input& input, int loopIx)
+    {
+        m_theoryOfTime.ProcessPLLHit(input.m_theoryOfTimeInput, loopIx);
+    }
+
     void Process(Input& input)
     {
         SetTheoryOfTimeInput(input);
+
         m_theoryOfTime.Process(input.m_theoryOfTimeInput);
 
         if (m_theoryOfTime.m_topIndependent)
@@ -554,18 +558,8 @@ struct TheNonagonSmartGrid
                             SmartGrid::StateCell<int>::Mode::Toggle));
                 }
                 
-                Put(xPos, 6, new SmartGrid::StateCell<bool>(
-                        SmartGrid::Color::Ocean /*offColor*/,
-                        SmartGrid::Color::White /*onColor*/,
-                        &m_timeState->m_input[i].m_pingPong,
-                        true,
-                        false,
-                        SmartGrid::StateCell<bool>::Mode::Toggle));
-                
                 m_owner->m_stateSaver.Insert(
                     "TheoryOfTimeMult", i, &m_timeState->m_input[i].m_parentMult);
-                m_owner->m_stateSaver.Insert(
-                    "TheoryOfTimePingPong", i, &m_timeState->m_input[i].m_pingPong);
                 
                 if (i < TheNonagonInternal::x_numTimeBits - 2)
                 {
@@ -1332,9 +1326,37 @@ struct TheNonagonSmartGrid
     
     void ProcessSample(float dt)
     {
-        m_stateSaver.Process();
-        m_gridHolder.Process(dt);
-        m_nonagon.Process(m_state);
+        if (SampleTimer::IsControlFrame())
+        {
+            m_stateSaver.Process();
+            m_gridHolder.Process(dt);
+            m_nonagon.Process(m_state);
+        }
+        else
+        {
+            for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
+            {
+                for (size_t j = 0; j < TheNonagonInternal::x_numExtraTimbres; ++j)
+                {
+                    m_nonagon.m_output.m_extraTimbreTrg[i][j] = 0;
+                }
+            }
+
+            for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits; ++i)
+            {
+                m_nonagon.m_output.m_totTop[i] = false;
+            }
+
+            for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
+            {
+                m_nonagon.m_multiPhasorGate.m_gate[i] = false;
+            }
+        }
+    }
+
+    void ProcessPLLHit(int loopIx)
+    {
+        m_nonagon.ProcessPLLHit(m_state, loopIx);
     }
 
     void ProcessFrame(TheNonagonInternal::UIState* uiState)

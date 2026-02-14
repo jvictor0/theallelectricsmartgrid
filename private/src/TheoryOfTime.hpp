@@ -7,6 +7,8 @@
 #include "PhaseUtils.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 #include "MessageOut.hpp"
+#include "PLL.hpp"
+#include "SampleTimer.hpp"
 #include <atomic>
 
 struct TheoryOfTimeBase;
@@ -16,7 +18,6 @@ struct TimeLoop
     int m_index;
     int m_parentIndex;
     int m_parentMult;
-    bool m_pingPong;
     bool m_gate;
     bool m_gateChanged;
     bool m_top;
@@ -37,13 +38,11 @@ struct TimeLoop
     {
         int m_parentIndex;
         int m_parentMult;
-        bool m_pingPong;
 
         Input()
         {
             m_parentIndex = 0;
-            m_parentMult = 1;
-            m_pingPong = false;
+            m_parentMult = 2;
         }
     };
 
@@ -69,11 +68,6 @@ struct TimeLoop
         return m_prevPosition != m_position;
     }
 
-    bool IsPingPonging()
-    {
-        return m_pingPong && GetParent()->m_position / m_loopSize == m_parentMult - 1;
-    }
-
     void Process()
     {
         SetMembersFromParent();
@@ -86,12 +80,6 @@ struct TimeLoop
         m_position = GetParent()->m_position % m_loopSize;
         m_prevPosition = GetParent()->m_prevPosition % m_loopSize;
         m_ascending = GetParent()->m_ascending;
-        if (IsPingPonging())
-        {
-            m_position = m_loopSize - m_position - 1;
-            m_prevPosition = m_loopSize - m_prevPosition - 1;
-            m_ascending = !m_ascending;
-        }
 
         m_gate = m_position < m_loopSize / 2;
         m_gateChanged = GetMaster()->m_position / (m_loopSize / 2) != GetMaster()->m_prevPosition / (m_loopSize / 2);
@@ -141,21 +129,12 @@ struct TimeLoop
     {
         double phasor = GetParent()->m_phasor * m_parentMult;
         phasor = phasor - GetParent()->m_position / m_loopSize;
-        
-        if (IsPingPonging())
-        {
-            phasor = 1 - phasor;
-        }
 
         m_phasor = phasor;
         m_topIndependent = TopIndependent(m_loopSize);
 
         m_phasorIndependent = GetParent()->m_phasorIndependent * m_parentMult;
         m_phasorIndependent = m_phasorIndependent - floor(m_phasorIndependent);
-        if (IsPingPonging())
-        {
-            m_phasorIndependent = 1 - m_phasorIndependent;
-        }
     }
 
     void Stop()
@@ -175,9 +154,8 @@ struct TimeLoop
         if (GetParent()->m_top)
         {
             bool result = false;
-            if (input.m_pingPong != m_pingPong || input.m_parentMult != m_parentMult)
+            if (input.m_parentMult != m_parentMult)
             {
-                m_pingPong = input.m_pingPong;
                 m_parentMult = input.m_parentMult;
                 result = true;
             }
@@ -212,28 +190,12 @@ struct TimeLoop
         {
             return GlobalWinding() * (external ? 2 : 1) + (external && !m_gate ? 1 : 0);
         }
-        else if (!IsPingPonging())
+        else
         {
             int monodromyRelParent = GetParent()->m_position / (external ? m_loopSize / 2 : m_loopSize);
             int parentMonodromyNumber = GetParent()->MonodromyNumber(resetIndex, false);
-            int mult = (m_pingPong ? m_parentMult - 2 : m_parentMult) * (external ? 2 : 1);
+            int mult = m_parentMult * (external ? 2 : 1);
             int result = monodromyRelParent + mult * parentMonodromyNumber;
-            return result;
-        }
-        else
-        {
-            int monodromyRelParent;
-            if (external)
-            {
-                monodromyRelParent = m_gate ? 2 * m_parentMult - 4 : 2 * m_parentMult - 3;
-            }
-            else
-            {
-                monodromyRelParent = m_parentMult - 2;
-            }
-
-            int parentMonodromyNumber = GetParent()->MonodromyNumber(resetIndex, false);
-            int result = monodromyRelParent + (m_parentMult - 2) * parentMonodromyNumber * (external ? 2 : 1);
             return result;
         }
     }   
@@ -242,7 +204,6 @@ struct TimeLoop
         : m_index(0)
         , m_parentIndex(0)
         , m_parentMult(1)
-        , m_pingPong(false)
         , m_gate(false)
         , m_gateChanged(false)
         , m_top(true)
@@ -353,7 +314,6 @@ struct TheoryOfTimeBase
             {
                 m_loops[i].m_parentIndex = input.m_input[i].m_parentIndex;
                 m_loops[i].m_parentMult = input.m_input[i].m_parentMult;
-                m_loops[i].m_pingPong = input.m_input[i].m_pingPong;
                 m_globalPhase.Reset(0);
             }
 
@@ -483,12 +443,14 @@ struct TheoryOfTime : public TheoryOfTimeBase
     PolyXFaderInternal m_phaseModLFO;
     ScopeWriterHolder m_scopeWriter;
     double m_masterLoopSamples;
+    PLL m_pll;
 
     enum class ClockMode : int 
     {
         Internal,
         External,
-        Tick2Phasor
+        Tick2Phasor,
+        PLL
     };
 
     struct Input : public TheoryOfTimeBase::Input
@@ -506,7 +468,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
             m_modIndex.SetBaseByCenter(1.0 / 16);
 
-            float paramFilterFreq = 0.3 / 48000.0;
+            float paramFilterFreq = 0.1 / 48000.0 * SampleTimer::x_controlFrameRate;
             m_freqFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoSkewFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoMultFilter.SetAlphaFromNatFreq(paramFilterFreq);
@@ -533,6 +495,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
         bool m_phasorTops[x_numLoops];
         PhaseUtils::ZeroedExpParam m_modIndex;
         PhaseUtils::ExpParam m_lfoMult;
+        PLL::Input m_pllInput;
     };
 
     struct UIState
@@ -613,13 +576,19 @@ struct TheoryOfTime : public TheoryOfTimeBase
         return m_loops[loopIndex].GetUnwoundPhasor() * LoopSamples(loopIndex);
     }
 
+    void ProcessPLLHit(Input& input, int loopIndex)
+    {
+        int64_t division = static_cast<int64_t>(GetLoopExternalMultiplier(loopIndex));
+        m_pll.ProcessHit(input.m_pllInput, division);
+    }
+
     void Process(Input& input)
     {
         if (input.m_running)
         {
             if (input.m_clockMode == ClockMode::Internal)
             {
-                input.m_phasor += input.m_freq;
+                input.m_phasor += input.m_freq * SampleTimer::x_controlFrameRate;
                 input.m_phasorTop = 1.0f <= input.m_phasor;
                 input.m_phasor = input.m_phasor - floor(input.m_phasor);
                 m_masterLoopSamples = 1.0 / input.m_freq;
@@ -629,6 +598,18 @@ struct TheoryOfTime : public TheoryOfTimeBase
                 input.m_phasorTop = std::abs(input.m_timeIn - input.m_phasor) > 0.5f;
                 m_masterLoopSamples = 1.0 / std::max<double>(std::abs(input.m_phasor - input.m_timeIn), 1.0e-12);
                 input.m_phasor = input.m_timeIn;
+            }
+            else if (input.m_clockMode == ClockMode::PLL)
+            {
+                double prevPhase = m_pll.m_phase;
+                for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
+                {
+                    m_pll.Process(input.m_pllInput);
+                }
+
+                input.m_phasorTop = std::floor(prevPhase) != std::floor(m_pll.m_phase);
+                input.m_phasor = m_pll.m_phase - std::floor(m_pll.m_phase);
+                m_masterLoopSamples = 1.0 / std::max(m_pll.m_freq, 1.0e-12);
             }
         }
         else

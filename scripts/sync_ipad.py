@@ -37,6 +37,40 @@ MAC_SMARTGRID_DIR = Path.home() / "Documents" / "SmartGridOne"
 MAC_PATCHES_DIR = MAC_SMARTGRID_DIR / "patches"
 MAC_RECORDINGS_DIR = MAC_SMARTGRID_DIR / "recordings"
 
+# Chunk size for streaming downloads (match pymobiledevice3 AFC max read)
+#
+DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024  # 4 MB
+
+
+def download_afc_file(afc, full_ipad_path: str, local_path: Path, progress_label: str = "Copying") -> None:
+    """
+    Stream a file from iPad AFC to a local path using fopen/fread/fclose.
+    Prints progress so large files don't appear to hang.
+    """
+    info = afc.stat(full_ipad_path)
+    if info.get("st_ifmt") != "S_IFREG":
+        raise ValueError(f"{full_ipad_path} is not a regular file")
+    size = int(info["st_size"])
+    handle = afc.fopen(full_ipad_path, "r")
+    try:
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(local_path, "wb") as f:
+            total = 0
+            last_reported_mb = 0
+            while total < size:
+                to_read = min(DOWNLOAD_CHUNK_SIZE, size - total)
+                chunk = afc.fread(handle, to_read)
+                f.write(chunk)
+                total += len(chunk)
+                current_mb = int(total / (1024 * 1024))
+                if current_mb >= 1 and current_mb // 10 > last_reported_mb // 10:
+                    print(f"  {progress_label}: {total / (1024*1024):.1f} MB / {size / (1024*1024):.1f} MB")
+                    last_reported_mb = current_mb
+        if size >= 1024 * 1024:
+            print(f"  {progress_label}: {size / (1024*1024):.1f} MB done")
+    finally:
+        afc.fclose(handle)
+
 
 def get_ipad_connection():
     """
@@ -181,12 +215,10 @@ def sync_patches_from_ipad(afc: HouseArrestService, ipad_patches_path: str):
                 #
                 local_path.parent.mkdir(parents=True, exist_ok=True)
                 
-                # Download and write file
+                # Download file (streamed with progress)
                 #
                 try:
-                    data = afc.get_file_contents(full_ipad_path)
-                    with open(local_path, "wb") as f:
-                        f.write(data)
+                    download_afc_file(afc, full_ipad_path, local_path, progress_label="Copying")
                 except Exception as e:
                     print(f"  Error: {e}")
 
@@ -214,17 +246,11 @@ def sync_recordings_from_ipad(afc: HouseArrestService, ipad_recordings_path: str
         
         print(f"Copying recording from iPad: {rel_path}")
         
-        # Ensure parent directory exists
-        #
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Download file
+        # Download file (streamed with progress)
         #
         try:
-            data = afc.get_file_contents(full_ipad_path)
-            with open(local_path, "wb") as f:
-                f.write(data)
-            
+            download_afc_file(afc, full_ipad_path, local_path, progress_label="Copied")
+
             # Delete from iPad after successful copy
             #
             print(f"  Deleting from iPad: {rel_path}")

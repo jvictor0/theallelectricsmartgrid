@@ -1,6 +1,8 @@
 #pragma once
 
 #include "PhaseUtils.hpp"
+#include "Slew.hpp"
+#include "SampleTimer.hpp"
 
 struct ADSP
 {
@@ -15,12 +17,12 @@ struct ADSP
 
     struct ADSPControl
     {
-        float m_phasor;
+        ParamSlew m_phasorSlew;
         bool m_release;
         bool m_trig;
 
         ADSPControl()
-            : m_phasor(0.0f)
+            : m_phasorSlew(1.0)
             , m_release(false)
             , m_trig(false)
         {
@@ -28,7 +30,8 @@ struct ADSP
 
         void Reset()
         {
-            m_phasor = 0.0f;
+            m_phasorSlew.m_target = 0.0f;
+            m_phasorSlew.m_filter.m_output = 0.0f;
             m_release = false;
             m_trig = false;
         }
@@ -56,9 +59,9 @@ struct ADSP
         {
         }
 
-        void Set(ADSPControl& control)
+        void Set(ADSPControl& control, float phasor)
         {
-            m_phasor = control.m_phasor;
+            m_phasor = phasor;
             m_release = control.m_release;
             m_trig = control.m_trig;
         }

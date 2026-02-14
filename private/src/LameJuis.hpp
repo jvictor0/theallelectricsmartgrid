@@ -1462,12 +1462,17 @@ struct LameJuisInternal
             
             for (size_t i = 0; i < x_numInputs; ++i)
             {
-                m_inputBitInput[i].m_reset = &m_reset;
+                m_inputBitInput[i].m_reset = &m_reset;                
             }
             
             for (size_t i = 0; i < x_numOperations; ++i)
             {
                 m_operationInput[i].m_inputVector = &m_inputVector;
+                m_operationInput[i].m_elements[i] = MatrixSwitch::Normal;
+                for (size_t j = 0; j < x_numInputs + 1; ++j)
+                {
+                    m_operationInput[i].m_direct[j] = j % 2 == 1;
+                }
             }
 
             for (size_t i = 0; i < x_numAccumulators; ++i)
@@ -1475,6 +1480,8 @@ struct LameJuisInternal
                 m_outputInput[i].m_inputVector = &m_inputVector;
                 m_outputInput[i].m_prevVector = &m_prevVector;
             }
+
+            m_accumulatorInput[0].m_interval = Accumulator::Interval::PerfectFifth;
         }
     };
     

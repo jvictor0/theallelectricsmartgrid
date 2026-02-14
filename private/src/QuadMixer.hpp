@@ -175,7 +175,7 @@ struct QuadMixerInternal
                 if (input.m_monitor[i])
                 {
                     m_quadToStereoMixdown.MixSample(input.m_x[i], input.m_y[i], input.m_input[i] * input.m_gain[i].m_expParam);
-                    m_quadToStereoMixdown.MixSample(0.5f, 0.5f, input.m_monoIn[i] * input.m_gain[i].m_expParam);
+                    m_quadToStereoMixdown.MixSample(0.5f, 0.5f, input.m_monoIn[i]);
                 }
 
                 QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i]);
@@ -186,10 +186,10 @@ struct QuadMixerInternal
                 }
 
                 float reduction;
-                m_voiceMeters[i].ProcessAndSaturate((input.m_input[i] + input.m_monoIn[i]) * input.m_gain[i].m_expParam, &reduction);
+                m_voiceMeters[i].ProcessAndSaturate(input.m_input[i]* input.m_gain[i].m_expParam + input.m_monoIn[i], &reduction);
 
                 QuadFloat mono = QuadFloat::Pan(0.5f, 0.5f, input.m_monoIn[i]);                
-                QuadFloat postFader = (pan + mono) * (input.m_gain[i].m_expParam * reduction);
+                QuadFloat postFader = (pan * input.m_gain[i].m_expParam + mono) * reduction;
 
                 if (input.m_monitor[i])
                 {

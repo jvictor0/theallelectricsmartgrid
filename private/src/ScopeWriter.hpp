@@ -74,6 +74,12 @@ struct ScopeWriter
         m_buffer[index] = value;
     }
 
+    void Write(size_t scope, size_t voice, size_t uBlockIndex, float value)
+    {
+        size_t index = GetPhysicalIndex(scope, voice, m_index + uBlockIndex);
+        m_buffer[index] = value;
+    }
+
     void AdvanceIndex()
     {
         ++m_index;
@@ -98,17 +104,27 @@ struct ScopeWriter
 
     void RecordStart(size_t scope, size_t voice)
     {
+        RecordStart(scope, voice, 0);
+    }
+
+    void RecordStart(size_t scope, size_t voice, size_t uBlockIndex)
+    {
         size_t curStartIndex = m_startIndexIndex[scope][voice].load() + m_advanceStartIndices[scope][voice];
         curStartIndex %= x_numStartIndices;
-        m_startIndices[scope][voice][curStartIndex] = m_index;
+        m_startIndices[scope][voice][curStartIndex] = m_index + uBlockIndex;
         m_advanceStartIndices[scope][voice] += 1;
     }
 
     void RecordEnd(size_t scope, size_t voice)
     {
+        RecordEnd(scope, voice, 0);
+    }
+
+    void RecordEnd(size_t scope, size_t voice, size_t uBlockIndex)
+    {
         size_t curEndIndex = m_startIndexIndex[scope][voice].load() + m_advanceStartIndices[scope][voice] - 1;
         curEndIndex %= x_numStartIndices;
-        m_endIndices[scope][voice][curEndIndex] = m_index;
+        m_endIndices[scope][voice][curEndIndex] = m_index + uBlockIndex;
     }
 };
 
@@ -140,6 +156,14 @@ struct ScopeWriterHolder
         }
     }
 
+    void Write(size_t uBlockIndex, float value)
+    {
+        if (m_scopeWriter)
+        {
+            m_scopeWriter->Write(m_scopeIx, m_voiceIx, uBlockIndex, value);
+        }
+    }
+
     void Write(QuadFloat value)
     {
         for (size_t i = 0; i < 4; ++i)
@@ -159,11 +183,27 @@ struct ScopeWriterHolder
         }
     }
 
+    void RecordStart(size_t uBlockIndex)
+    {
+        if (m_scopeWriter)
+        {
+            m_scopeWriter->RecordStart(m_scopeIx, m_voiceIx, uBlockIndex);
+        }
+    }
+
     void RecordEnd()
     {
         if (m_scopeWriter)
         {
             m_scopeWriter->RecordEnd(m_scopeIx, m_voiceIx);
+        }
+    }
+
+    void RecordEnd(size_t uBlockIndex)
+    {
+        if (m_scopeWriter)
+        {
+            m_scopeWriter->RecordEnd(m_scopeIx, m_voiceIx, uBlockIndex);
         }
     }
 };

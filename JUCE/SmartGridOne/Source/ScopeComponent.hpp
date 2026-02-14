@@ -378,7 +378,7 @@ struct AnalyserComponent : public juce::Component
             for (size_t j = 0; j < DiscreteFourierTransform::x_maxComponents; ++j)
             {
                 float freq = m_logX ? m_bucketExpX[j] : static_cast<float>(j) / (2 * DiscreteFourierTransform::x_maxComponents);
-                float y = FilterResponse(voiceIx, freq);
+                float y = FilterResponse(voiceIx, freq / SquiggleBoyVoice::x_oversample);
                 y = PathDrawer::AmpToDbNormalized(y);
                 float screenY = height * (1 - y / 2);
                 float x = static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);

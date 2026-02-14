@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Filter.hpp"
+#include "PhaseUtils.hpp"
 
 struct Slew
 {
@@ -157,5 +158,97 @@ struct SlewUp
     {
         m_output = Process(m_output, trg, m_slewUp.m_alpha);
         return m_output;
+    }
+};
+
+struct ParamSlew
+{
+    OPLowPassFilter m_filter;
+    float m_target;
+
+    ParamSlew()
+        : ParamSlew(1.0f)
+    {
+    }
+
+    ParamSlew(float relativeSampleRate)
+        : m_target(0.0f)
+    {
+        m_filter.SetAlphaFromNatFreq((1000.0f / 48000.0f) / relativeSampleRate);
+    }
+
+    void Update(float value)
+    {
+        m_target = value;
+    }
+
+    float Process()
+    {
+        return m_filter.Process(m_target);
+    }
+};
+
+struct ExpParamSlew
+{
+    OPLowPassFilter m_filter;
+    PhaseUtils::ExpParam m_expParam;
+
+    ExpParamSlew()
+        : ExpParamSlew(1.0f, 2.0f)
+    {
+    }
+
+    ExpParamSlew(float relativeSampleRate, float base)
+        : m_expParam(base)
+    {
+        m_filter.SetAlphaFromNatFreq((1000.0f / 48000.0f) / relativeSampleRate);
+    }
+
+    ExpParamSlew(float relativeSampleRate, float min, float max)
+        : m_expParam(min, max)
+    {
+        m_filter.SetAlphaFromNatFreq((1000.0f / 48000.0f) / relativeSampleRate);
+    }
+
+    void Update(float value)
+    {
+        m_expParam.Update(value);
+    }
+
+    float Process()
+    {
+        return m_filter.Process(m_expParam.m_expParam);
+    }
+};
+
+struct ZeroedExpParamSlew
+{
+    OPLowPassFilter m_filter;
+    PhaseUtils::ZeroedExpParam m_expParam;
+
+    ZeroedExpParamSlew()
+        : ZeroedExpParamSlew(1.0f, 20.0f)
+    {
+    }
+
+    ZeroedExpParamSlew(float relativeSampleRate, float base)
+        : m_expParam(base)
+    {
+        m_filter.SetAlphaFromNatFreq((1000.0f / 48000.0f) / relativeSampleRate);
+    }
+
+    void SetBaseByCenter(float center)
+    {
+        m_expParam.SetBaseByCenter(center);
+    }
+
+    void Update(float value)
+    {
+        m_expParam.Update(value);
+    }
+
+    float Process()
+    {
+        return m_filter.Process(m_expParam.m_expParam);
     }
 };

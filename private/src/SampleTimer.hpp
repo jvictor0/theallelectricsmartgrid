@@ -7,6 +7,7 @@ struct SampleTimer
     static constexpr size_t x_sampleRate = 48000;
     static constexpr double x_slew = 0.01;
     static constexpr size_t x_samplesPerProcessFrame = 512;
+    static constexpr size_t x_controlFrameRate = 8;
     size_t m_samplesPerFrame;
     size_t m_frame;
     size_t m_sample;
@@ -52,6 +53,16 @@ struct SampleTimer
     {
         ++s_instance->m_sample;
         return s_instance->m_sample % x_samplesPerProcessFrame == 0;
+    }
+
+    static bool IsControlFrame()
+    {
+        return s_instance->m_sample % x_controlFrameRate == 0;
+    }
+
+    static int GetUBlockIndex()
+    {
+        return s_instance->m_sample % x_controlFrameRate;
     }
 };
 

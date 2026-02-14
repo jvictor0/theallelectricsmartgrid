@@ -4,6 +4,8 @@
 #include "LadderFilter.hpp"
 #include "PhaseUtils.hpp"
 #include "AudioInputBuffer.hpp"
+#include "SampleTimer.hpp"
+#include "Slew.hpp"
 
 struct SourceMixer
 {
@@ -13,17 +15,20 @@ struct SourceMixer
     {
         struct Input
         {
-            float m_input;
+            float m_uBlockInput[SampleTimer::x_controlFrameRate];
             PhaseUtils::ZeroedExpParam m_gain;
             PhaseUtils::ExpParam m_hpCutoff;
             PhaseUtils::ExpParam m_lpFactor;
 
             Input()
-                : m_input(0.0f)
-                , m_gain(8.0f)
+                : m_gain(8.0f)
                 , m_hpCutoff(20.0 / 48000.0, 20000.0 / 48000.0)
                 , m_lpFactor(1.0, 1000.0)
             {
+                for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
+                {
+                    m_uBlockInput[i] = 0.0f;
+                }
             }
         };
 
@@ -51,18 +56,37 @@ struct SourceMixer
         {
             m_lpFilter.SetResonance(0.0f);
             m_hpFilter.SetResonance(0.0f);
+            for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
+            {
+                m_uBlockOutput[i] = 0.0f;
+            }
         }
 
-        float Process(const Input& input)
+        void ProcessUBlock(const Input& input)
         {
-            m_output = input.m_input * input.m_gain.m_expParam;
-            m_preFilterScopeWriter.Write(m_output);
-            m_hpFilter.SetCutoff(input.m_hpCutoff.m_expParam);
-            m_lpFilter.SetCutoff(input.m_hpCutoff.m_expParam * input.m_lpFactor.m_expParam);
-            m_output = m_lpFilter.Process(m_output);
-            m_output = m_hpFilter.Process(m_output);
-            m_postFilterScopeWriter.Write(m_output);
-            return m_output;
+            // Update slew targets
+            //
+            m_gainSlew.Update(input.m_gain.m_expParam);
+            m_hpCutoffSlew.Update(input.m_hpCutoff.m_expParam);
+            m_lpFactorSlew.Update(input.m_lpFactor.m_expParam);
+
+            for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
+            {
+                float gain = m_gainSlew.Process();
+                float hpCutoff = m_hpCutoffSlew.Process();
+                float lpFactor = m_lpFactorSlew.Process();
+
+                float sample = input.m_uBlockInput[i] * gain;
+                m_preFilterScopeWriter.Write(i, sample);
+                m_hpFilter.SetCutoff(hpCutoff);
+                m_lpFilter.SetCutoff(hpCutoff * lpFactor);
+                sample = m_lpFilter.Process(sample);
+                sample = m_hpFilter.Process(sample);
+                m_postFilterScopeWriter.Write(i, sample);
+                m_uBlockOutput[i] = sample;
+            }
+
+            m_output = m_uBlockOutput[SampleTimer::x_controlFrameRate - 1];
         }
 
         void PopulateUIState(UIState* uiState)
@@ -76,11 +100,18 @@ struct SourceMixer
         }
 
         float m_output;
+        float m_uBlockOutput[SampleTimer::x_controlFrameRate];
 
         LadderFilterLP m_lpFilter;
         LadderFilterHP m_hpFilter;
         ScopeWriterHolder m_preFilterScopeWriter;
         ScopeWriterHolder m_postFilterScopeWriter;
+
+        // Slewed parameters
+        //
+        ParamSlew m_gainSlew;
+        ParamSlew m_hpCutoffSlew;
+        ParamSlew m_lpFactorSlew;
 
         void SetupScopeWriters(ScopeWriter* scopeWriter, size_t sourceIx)
         {
@@ -104,9 +135,10 @@ struct SourceMixer
 
         void SetInputs(const AudioInputBuffer& audioInputBuffer)
         {
+            size_t uBlockIndex = SampleTimer::GetUBlockIndex();
             for (size_t i = 0; i < audioInputBuffer.m_numInputs; ++i)
             {
-                m_sources[i].m_input = audioInputBuffer.m_input[i];
+                m_sources[i].m_uBlockInput[uBlockIndex] = audioInputBuffer.m_input[i];
             }
         }
     };
@@ -153,11 +185,11 @@ struct SourceMixer
         }
     }
 
-    void Process(Input& input)
+    void ProcessUBlock(Input& input)
     {
         for (size_t i = 0; i < x_numSources; ++i)
         {
-            m_sources[i].Process(input.m_sources[i]);
+            m_sources[i].ProcessUBlock(input.m_sources[i]);
         }
     }
 
@@ -171,6 +203,7 @@ struct SourceMixer
                 dvInput += m_sources[i].m_output;
             }
         }
+
         return dvInput;
     }
 

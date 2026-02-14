@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EncoderBank.hpp"
+#include "SampleTimer.hpp"
 
 template <size_t NumBanks>
 struct EncoderBankBankInternal
@@ -13,16 +14,12 @@ struct EncoderBankBankInternal
     size_t m_numVoices;
     SmartGrid::Color m_color[NumBanks];
 
-    static constexpr size_t x_controlFrameRate = 8;
-    size_t m_frame;
-
     EncoderBankBankInternal()
         : m_sceneManager(nullptr)
         , m_selectedBank(-1)
         , m_modulatorValues()
         , m_numTracks(1)
         , m_numVoices(1)
-        , m_frame(0)
     {
     }
 
@@ -58,8 +55,7 @@ struct EncoderBankBankInternal
 
     void Process()
     {
-        m_frame++;
-        if (m_frame % x_controlFrameRate == 0)
+        if (SampleTimer::IsControlFrame())
         {
             m_modulatorValues.ComputeChanged();
         }
@@ -76,8 +72,8 @@ struct EncoderBankBankInternal
 
         for (size_t i = 0; i < NumBanks; ++i)
         {
-            if (m_frame % x_controlFrameRate == 0)
-            {                
+            if (SampleTimer::IsControlFrame())
+            {
                 m_banks[i].ProcessTopology();
             }
 

@@ -124,10 +124,12 @@ struct LadderFilterLP
         //
         std::complex<float> fourStage = singleStage * singleStage * singleStage * singleStage;
         
-        // Apply feedback: H_total = H^4 / (1 + feedback * H^4)
+        // Apply feedback with one-sample delay: z^(-1) = e^(-jω)
+        // H_total = H^4 / (1 + feedback * z^(-1) * H^4)
         //
+        std::complex<float> zInv(cosOmega, -sinOmega);
         std::complex<float> feedbackTerm(1.0f, 0.0f);
-        feedbackTerm = feedbackTerm + feedback * fourStage;
+        feedbackTerm = feedbackTerm + feedback * zInv * fourStage;
         std::complex<float> totalTransfer = fourStage / feedbackTerm;
         
         // Apply gain compensation (1 + feedback) to maintain unity DC gain

@@ -203,6 +203,11 @@ struct TheNonagonSquiggleBoyInternal
         
         theoryOfTimeInput.m_freq = m_squiggleBoyState.m_tempo.m_expParam;
 
+        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_phaseLearnRate.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 1, 0));
+        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_freqLearnRate.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 1, 0));
+        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_phaseLearnApplicationRate.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 2, 1, 0));
+        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_freqLearnApplicationRate.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 3, 1, 0));
+
         theoryOfTimeInput.m_phaseModLFOInput.m_attackFrac = theoryOfTimeInput.m_lfoSkewFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 2, 0));
         theoryOfTimeInput.m_lfoMult.Update(theoryOfTimeInput.m_lfoMultFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 2, 0)));
         theoryOfTimeInput.m_phaseModLFOInput.m_shape = theoryOfTimeInput.m_lfoShapeFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 2, 2, 0));
