@@ -7,6 +7,7 @@
 #include "PhaseUtils.hpp"
 #include "RandomLFO.hpp"
 #include "LadderFilter.hpp"
+#include "StateVariableFilter.hpp"
 #include "ADSP.hpp"
 #include "BitCrush.hpp"
 #include "Lissajous.hpp"
@@ -37,20 +38,28 @@ struct SquiggleBoyVoice
 
     struct VoiceConfig
     {
-        enum class Machine : int
+        enum class SourceMachine : int
         {
             VCO = 0,
             Thru = 1,
         };
 
+        enum class FilterMachine : int
+        {
+            Ladder4Pole = 0,
+            SVF2Pole = 1,
+        };
+
         VoiceConfig()
-            : m_machine(Machine::VCO)
+            : m_sourceMachine(SourceMachine::VCO)
+            , m_filterMachine(FilterMachine::Ladder4Pole)
             , m_sourceIndex(0)
         {
         }
 
-        Machine m_machine;
-        int m_sourceIndex;        
+        SourceMachine m_sourceMachine;
+        FilterMachine m_filterMachine;
+        int m_sourceIndex;
     };
 
     struct VCOSection
@@ -58,7 +67,6 @@ struct SquiggleBoyVoice
         VectorPhaseShaperInternal m_vco[2];
 
         BitRateReducer m_bitRateReducer;
-        TanhSaturator<true> m_saturator;
 
         bool m_top;
         float m_output;
@@ -82,7 +90,6 @@ struct SquiggleBoyVoice
         ParamSlew m_baseFreqSlew;
         ParamSlew m_fadeSlew;
         ParamSlew m_bitCrushAmountSlew;
-        ParamSlew m_saturationGainSlew;
         ParamSlew m_offsetFreqFactorSlew;
         ParamSlew m_detuneSlew;
         ParamSlew m_crossModIndexSlew[2];
@@ -105,8 +112,6 @@ struct SquiggleBoyVoice
 
             float m_bitCrushAmount;
 
-            float m_saturationGain;
-
             Input()
                 : m_v{0.5, 0.5}
                 , m_d{0.5, 0.5}
@@ -117,7 +122,6 @@ struct SquiggleBoyVoice
                 , m_detune(1.03)
                 , m_fade(0)
                 , m_bitCrushAmount(0)
-                , m_saturationGain(0.25)
             {
             }
         };
@@ -130,7 +134,6 @@ struct SquiggleBoyVoice
             , m_baseFreqSlew(x_oversample)
             , m_fadeSlew(x_oversample)
             , m_bitCrushAmountSlew(x_oversample)
-            , m_saturationGainSlew(x_oversample)
             , m_offsetFreqFactorSlew(x_oversample)
             , m_detuneSlew(x_oversample)
             , m_crossModIndexSlew{ParamSlew(x_oversample), ParamSlew(x_oversample)}
@@ -154,7 +157,6 @@ struct SquiggleBoyVoice
             m_baseFreqSlew.Update(input.m_baseFreq);
             m_fadeSlew.Update(input.m_fade);
             m_bitCrushAmountSlew.Update(input.m_bitCrushAmount);
-            m_saturationGainSlew.Update(input.m_saturationGain);
             m_offsetFreqFactorSlew.Update(input.m_offsetFreqFactor.m_expParam);
             m_detuneSlew.Update(input.m_detune.m_expParam);
 
@@ -201,11 +203,7 @@ struct SquiggleBoyVoice
                 m_bitRateReducer.SetAmount(bitCrushAmount);
                 float crushed = m_bitRateReducer.Process(mixed);
 
-                float saturationGain = m_saturationGainSlew.Process();
-                m_saturator.SetInputGain(saturationGain);
-                float saturated = m_saturator.Process(crushed);
-
-                m_uBlockOutput[i] = saturated;
+                m_uBlockOutput[i] = crushed;
 
                 // Base-rate operations every x_oversample samples
                 //
@@ -252,8 +250,22 @@ struct SquiggleBoyVoice
 
     struct FilterSection
     {
-        LadderFilterLP m_lpFilter;
-        LadderFilterHP m_hpFilter;
+        // Ladder filters (4-pole)
+        //
+        LadderFilterLP m_lpLadder;
+        LinearSVF4PoleHighPass m_hp4Pole;
+
+        // SVF filters (2-pole)
+        //
+        LinearStateVariableFilter m_lpSVF;
+        LinearStateVariableFilter m_hpSVF;
+
+        TanhSaturator<true> m_saturator;
+
+        // DC blocker before SVF (5 Hz at oversample rate)
+        //
+        OPHighPassFilter m_svfDCBlocker;
+
         ADSP m_adsp;
 
         SampleRateReducer m_sampleRateReducer;
@@ -270,6 +282,7 @@ struct SquiggleBoyVoice
         ParamSlew m_hpCutoffSlew;
         ParamSlew m_lpResonanceSlew;
         ParamSlew m_hpResonanceSlew;
+        ParamSlew m_saturationGainSlew;
         ParamSlew m_sampleRateReducerFreqSlew;
 
         FilterSection()
@@ -279,8 +292,40 @@ struct SquiggleBoyVoice
             , m_hpCutoffSlew(x_oversample)
             , m_lpResonanceSlew(x_oversample)
             , m_hpResonanceSlew(x_oversample)
+            , m_saturationGainSlew(x_oversample)
             , m_sampleRateReducerFreqSlew(x_oversample)
         {
+            // 5 Hz at 192kHz (48kHz * 4x oversample)
+            //
+            m_svfDCBlocker.SetAlphaFromNatFreq(5.0f / 192000.0f);
+            m_saturator.SetInputGain(0.25f);
+        }
+
+        void ProcessLadder4Pole(float input, float hpFreq, float lpFreq, float hpResonance, float lpResonance, float saturationGain)
+        {
+            m_hp4Pole.SetCutoff(hpFreq);
+            m_hp4Pole.SetResonance(hpResonance);
+            m_lpLadder.SetCutoff(lpFreq);
+            m_lpLadder.SetResonance(lpResonance);
+            m_lpLadder.SetSaturationGain(saturationGain);
+
+            m_output = m_lpLadder.Process(input);
+            m_hp4Pole.Process(m_output);
+            m_output = m_hp4Pole.GetOutput();
+        }
+
+        void ProcessSVF2Pole(float input, float hpFreq, float lpFreq, float hpResonance, float lpResonance, float saturationGain)
+        {
+            m_hpSVF.SetCutoff(hpFreq);
+            m_hpSVF.SetResonance(hpResonance);
+            m_lpSVF.SetCutoff(lpFreq);
+            m_lpSVF.SetResonance(lpResonance);
+            m_saturator.SetInputGain(saturationGain);
+            
+            m_lpSVF.Process(m_saturator.Process(input));
+            m_output = m_saturator.Process(m_lpSVF.GetLowPass());
+            m_hpSVF.Process(m_output);
+            m_output = m_saturator.Process(m_hpSVF.GetHighPass());
         }
 
         struct Input
@@ -290,6 +335,7 @@ struct SquiggleBoyVoice
             PhaseUtils::ExpParam m_hpCutoffFactor;
             PhaseUtils::ZeroedExpParam m_lpResonance;
             PhaseUtils::ZeroedExpParam m_hpResonance;
+            PhaseUtils::ExpParam m_saturationGain;
             float m_envDepth;
 
             ADSP::InputSetter m_adspInputSetter;
@@ -308,6 +354,7 @@ struct SquiggleBoyVoice
                 : m_vcoBaseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
                 , m_lpCutoffFactor(0.25f, 1024.0f)
                 , m_hpCutoffFactor(0.25f, 256.0f)
+                , m_saturationGain(0.25f, 5.0f)
                 , m_envDepth(0)
                 , m_sampleRateReducerFreq(1.0f, 2048.0f)
             {
@@ -319,7 +366,7 @@ struct SquiggleBoyVoice
         void ProcessUBlock(Input& input, const float* vcoOutput, const bool* top)
         {
             float baseFreq = input.m_vcoBaseFreq;
-            if (input.m_voiceConfig->m_machine == VoiceConfig::Machine::Thru)
+            if (input.m_voiceConfig->m_sourceMachine == VoiceConfig::SourceMachine::Thru)
             {
                 baseFreq = 80.0 / SampleTimer::x_sampleRate;
             }
@@ -331,6 +378,7 @@ struct SquiggleBoyVoice
             m_hpCutoffSlew.Update(input.m_hpCutoffFactor.m_expParam);
             m_lpResonanceSlew.Update(input.m_lpResonance.m_expParam);
             m_hpResonanceSlew.Update(input.m_hpResonance.m_expParam);
+            m_saturationGainSlew.Update(input.m_saturationGain.m_expParam);
             m_sampleRateReducerFreqSlew.Update(input.m_sampleRateReducerFreq.m_expParam);
 
             for (size_t i = 0; i < x_uBlockSize; ++i)
@@ -341,16 +389,23 @@ struct SquiggleBoyVoice
                 float lpResonance = m_lpResonanceSlew.Process();
                 float hpResonance = m_hpResonanceSlew.Process();
                 float sampleRateReducerFreq = m_sampleRateReducerFreqSlew.Process();
+                float saturationGain = m_saturationGainSlew.Process();
 
-                // Adjust cutoffs for oversampled rate
+                // Compute filter frequencies adjusted for oversampled rate
                 //
-                m_hpFilter.SetCutoff(vcoBaseFreq * hpCutoff / x_oversample);
-                m_hpFilter.SetResonance(hpResonance);
-                m_lpFilter.SetCutoff(vcoBaseFreq * hpCutoff * lpCutoff / x_oversample);
-                m_lpFilter.SetResonance(lpResonance);
+                float hpFreq = std::min<float>(0.5 / x_oversample, vcoBaseFreq * hpCutoff / x_oversample);
+                float lpFreq = std::min<float>(0.5 / x_oversample, vcoBaseFreq * hpCutoff * lpCutoff / x_oversample);
 
-                m_output = m_lpFilter.Process(vcoOutput[i]);
-                m_output = m_hpFilter.Process(m_output);
+                float dcBlocked = m_svfDCBlocker.Process(vcoOutput[i]);
+
+                if (input.m_voiceConfig->m_filterMachine == VoiceConfig::FilterMachine::Ladder4Pole)
+                {
+                    ProcessLadder4Pole(dcBlocked, hpFreq, lpFreq, hpResonance, lpResonance, saturationGain);
+                }
+                else
+                {
+                    ProcessSVF2Pole(dcBlocked, hpFreq, lpFreq, hpResonance, lpResonance, saturationGain);
+                }
 
                 m_sampleRateReducer.SetFreq(vcoBaseFreq * sampleRateReducerFreq / x_oversample);
                 m_output = m_sampleRateReducer.Process(m_output);
@@ -432,7 +487,7 @@ struct SquiggleBoyVoice
         {
             if (input.m_adspInput.m_trig)
             {
-                if (input.m_vcoTargetFreq * 48000 < 100 || input.m_voiceConfig->m_machine == VoiceConfig::Machine::Thru)
+                if (input.m_vcoTargetFreq * 48000 < 100 || input.m_voiceConfig->m_sourceMachine == VoiceConfig::SourceMachine::Thru)
                 {
                     m_freqDependentGainTarget = 1.0;
                 }
@@ -446,7 +501,7 @@ struct SquiggleBoyVoice
                     m_scopeWriter.RecordEnd();
                 }
 
-                m_subRunning = input.m_subTrig && input.m_voiceConfig->m_machine == VoiceConfig::Machine::VCO;
+                m_subRunning = input.m_subTrig && input.m_voiceConfig->m_sourceMachine == VoiceConfig::SourceMachine::VCO;
             }
 
             input.m_subTanhSaturator.SetInputGain(input.m_subTanhGain.m_expParam);
@@ -630,7 +685,7 @@ struct SquiggleBoyVoice
         float* audioInput;
         float upsampledSource[x_uBlockSize];
 
-        if (input.m_voiceConfig.m_machine == VoiceConfig::Machine::VCO)
+        if (input.m_voiceConfig.m_sourceMachine == VoiceConfig::SourceMachine::VCO)
         {
             m_vco.ProcessUBlock(input.m_vcoInput);
             audioInput = m_vco.m_uBlockOutput;
@@ -1140,12 +1195,36 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             SourceMixer
         };
 
-        struct FilterParams
+        struct VoiceFilterUIState
         {
-            std::atomic<float> m_hpAlpha;
-            std::atomic<float> m_lpAlpha;
-            std::atomic<float> m_lpResonance;
-            std::atomic<float> m_hpResonance;
+            // Ladder filters (4-pole)
+            //
+            LadderFilterLP::UIState m_lpLadder;
+            LinearSVF4PoleHighPass::UIState m_hp4Pole;
+
+            // SVF filters (2-pole)
+            //
+            LinearStateVariableFilter::UIState m_lpSVF;
+            LinearStateVariableFilter::UIState m_hpSVF;
+
+            std::atomic<SquiggleBoyVoice::VoiceConfig::FilterMachine> m_filterMachine;
+
+            VoiceFilterUIState()
+                : m_filterMachine(SquiggleBoyVoice::VoiceConfig::FilterMachine::Ladder4Pole)
+            {
+            }
+
+            float FrequencyResponse(float freq)
+            {
+                if (m_filterMachine.load() == SquiggleBoyVoice::VoiceConfig::FilterMachine::Ladder4Pole)
+                {
+                    return m_lpLadder.FrequencyResponse(freq) * m_hp4Pole.FrequencyResponse(freq);
+                }
+                else
+                {
+                    return m_lpSVF.LowPassFrequencyResponse(freq) * m_hpSVF.HighPassFrequencyResponse(freq);
+                }
+            }
         };
 
         std::atomic<VisualDisplayMode> m_visualDisplayMode;
@@ -1159,7 +1238,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         std::atomic<size_t> m_activeTrack;
 
-        FilterParams m_filterParams[x_numVoices];
+        VoiceFilterUIState m_voiceFilterUIState[x_numVoices];
 
         std::atomic<float> m_xPos[x_numVoices];
         std::atomic<float> m_yPos[x_numVoices];
@@ -1212,12 +1291,19 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
 
 
-        void SetFilterParams(size_t i, float hpAlpha, float lpAlpha, float hpResonance, float lpResonance)
+        void PopulateVoiceFilterUIState(
+            size_t i,
+            LadderFilterLP* lpLadder,
+            LinearSVF4PoleHighPass* hp4Pole,
+            LinearStateVariableFilter* lpSVF,
+            LinearStateVariableFilter* hpSVF,
+            SquiggleBoyVoice::VoiceConfig::FilterMachine filterMachine)
         {
-            m_filterParams[i].m_hpAlpha.store(hpAlpha);
-            m_filterParams[i].m_lpAlpha.store(lpAlpha);
-            m_filterParams[i].m_lpResonance.store(lpResonance);
-            m_filterParams[i].m_hpResonance.store(hpResonance);
+            lpLadder->PopulateUIState(&m_voiceFilterUIState[i].m_lpLadder);
+            hp4Pole->PopulateUIState(&m_voiceFilterUIState[i].m_hp4Pole);
+            lpSVF->PopulateUIState(&m_voiceFilterUIState[i].m_lpSVF);
+            hpSVF->PopulateUIState(&m_voiceFilterUIState[i].m_hpSVF);
+            m_voiceFilterUIState[i].m_filterMachine.store(filterMachine);
         }
 
         void SetPos(size_t i, float x, float y)
@@ -1720,7 +1806,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_vcoInput.m_crossModIndex[1].Update(m_voiceEncoderBank.GetValueNoSlew(0, 3, 1, i));
 
             m_state[i].m_vcoInput.m_fade = m_voiceEncoderBank.GetValueNoSlew(0, 0, 2, i);
-            m_state[i].m_vcoInput.m_saturationGain = m_voiceEncoderBank.GetValueNoSlew(0, 1, 2, i) * 4 + 0.25;
             m_state[i].m_vcoInput.m_bitCrushAmount = m_voiceEncoderBank.GetValueNoSlew(0, 2, 2, i);
             m_state[i].m_filterInput.m_sampleRateReducerFreq.Update(1 - m_voiceEncoderBank.GetValueNoSlew(0, 3, 2, i));
             m_state[i].m_vcoInput.m_offsetFreqFactor.Update(m_voiceEncoderBank.GetValueNoSlew(0, 0, 3, i));
@@ -1734,6 +1819,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_filterInput.m_hpCutoffFactor.Update(m_voiceEncoderBank.GetValueNoSlew(1, 0, 1, i));
             m_state[i].m_filterInput.m_lpResonance.Update(m_voiceEncoderBank.GetValueNoSlew(1, 3, 1, i));
             m_state[i].m_filterInput.m_hpResonance.Update(m_voiceEncoderBank.GetValueNoSlew(1, 1, 1, i));
+            m_state[i].m_filterInput.m_saturationGain.Update(m_voiceEncoderBank.GetValueNoSlew(0, 1, 2, i));
 
             m_state[i].m_filterInput.SetADSP(
                 m_voiceEncoderBank.GetValueNoSlew(1, 0, 0, i), 
@@ -2005,12 +2091,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             uiState->SetPos(i, m_voices[i].m_pan.m_outputX, m_voices[i].m_pan.m_outputY);
-
-            float hpAlpha = m_voices[i].m_filter.m_hpFilter.m_stage4.m_alpha;
-            float lpAlpha = m_voices[i].m_filter.m_lpFilter.m_stage4.m_alpha;
-            float lpResonance = m_voices[i].m_filter.m_lpFilter.m_kEff;
-            float hpResonance = m_voices[i].m_filter.m_hpFilter.m_kEff;
-            uiState->SetFilterParams(i, hpAlpha, lpAlpha, hpResonance, lpResonance);
+            uiState->PopulateVoiceFilterUIState(
+                i,
+                &m_voices[i].m_filter.m_lpLadder,
+                &m_voices[i].m_filter.m_hp4Pole,
+                &m_voices[i].m_filter.m_lpSVF,
+                &m_voices[i].m_filter.m_hpSVF,
+                m_state[i].m_voiceConfig.m_filterMachine);
         }
 
         m_mixerState.m_masterChainInput.PopulateUIState(&uiState->m_stereoMasteringChainUIState);

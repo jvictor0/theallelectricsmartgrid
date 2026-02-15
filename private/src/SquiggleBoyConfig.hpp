@@ -5,14 +5,14 @@
 
 struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 {
-    struct MachineSelectCell : SmartGrid::Cell
+    struct SourceMachineSelectCell : SmartGrid::Cell
     {
-        SquiggleBoyVoice::VoiceConfig::Machine m_machine;
+        SquiggleBoyVoice::VoiceConfig::SourceMachine m_sourceMachine;
         TheNonagonSmartGrid::Trio m_trio;
         SquiggleBoyConfigGrid* m_owner;
 
-        MachineSelectCell(SquiggleBoyConfigGrid* owner, TheNonagonSmartGrid::Trio trio, SquiggleBoyVoice::VoiceConfig::Machine machine)
-            : m_machine(machine)
+        SourceMachineSelectCell(SquiggleBoyConfigGrid* owner, TheNonagonSmartGrid::Trio trio, SquiggleBoyVoice::VoiceConfig::SourceMachine sourceMachine)
+            : m_sourceMachine(sourceMachine)
             , m_trio(trio)
             , m_owner(owner)
         {
@@ -20,15 +20,43 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
         virtual SmartGrid::Color GetColor() override
         {
-            bool isSelected = m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio].m_voiceConfig.m_machine == m_machine;
+            bool isSelected = m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio].m_voiceConfig.m_sourceMachine == m_sourceMachine;
             return isSelected ? TheNonagonSmartGrid::TrioColor(m_trio) : TheNonagonSmartGrid::TrioColor(m_trio).Dim();
         }
-        
-        virtual void OnPress(uint8_t ) override
+
+        virtual void OnPress(uint8_t) override
         {
             for (size_t i = 0; i < TheNonagonInternal::x_voicesPerTrio; ++i)
             {
-                m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio + i].m_voiceConfig.m_machine = m_machine;
+                m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio + i].m_voiceConfig.m_sourceMachine = m_sourceMachine;
+            }
+        }
+    };
+
+    struct FilterMachineSelectCell : SmartGrid::Cell
+    {
+        SquiggleBoyVoice::VoiceConfig::FilterMachine m_filterMachine;
+        TheNonagonSmartGrid::Trio m_trio;
+        SquiggleBoyConfigGrid* m_owner;
+
+        FilterMachineSelectCell(SquiggleBoyConfigGrid* owner, TheNonagonSmartGrid::Trio trio, SquiggleBoyVoice::VoiceConfig::FilterMachine filterMachine)
+            : m_filterMachine(filterMachine)
+            , m_trio(trio)
+            , m_owner(owner)
+        {
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            bool isSelected = m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio].m_voiceConfig.m_filterMachine == m_filterMachine;
+            return isSelected ? TheNonagonSmartGrid::TrioColor(m_trio) : TheNonagonSmartGrid::TrioColor(m_trio).Dim();
+        }
+
+        virtual void OnPress(uint8_t) override
+        {
+            for (size_t i = 0; i < TheNonagonInternal::x_voicesPerTrio; ++i)
+            {
+                m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio + i].m_voiceConfig.m_filterMachine = m_filterMachine;
             }
         }
     };
@@ -122,8 +150,9 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         m_squiggleBoy = squiggleBoy;
 
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
-        {   
-            squiggleBoy->m_stateSaver->Insert("voiceMachine", i, &squiggleBoy->m_state[i].m_voiceConfig.m_machine);
+        {
+            squiggleBoy->m_stateSaver->Insert("voiceSourceMachine", i, &squiggleBoy->m_state[i].m_voiceConfig.m_sourceMachine);
+            squiggleBoy->m_stateSaver->Insert("voiceFilterMachine", i, &squiggleBoy->m_state[i].m_voiceConfig.m_filterMachine);
         }
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
@@ -147,12 +176,22 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
         for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
         {
-            Put(i, 0, new MachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::Machine::VCO));
-            Put(i, 1, new MachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::Machine::Thru));
+            // Source machine selection (VCO / Thru)
+            //
+            Put(i, 0, new SourceMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::SourceMachine::VCO));
+            Put(i, 1, new SourceMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::SourceMachine::Thru));
+
+            // Source selection for Thru mode
+            //
             for (size_t j = 0; j < SourceMixer::x_numSources; ++j)
             {
                 Put(i, 2 + j, new SourceSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), j));
             }
+
+            // Filter machine selection (Ladder4Pole / SVF2Pole)
+            //
+            Put(i, 6, new FilterMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::FilterMachine::Ladder4Pole));
+            Put(i, 7, new FilterMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::FilterMachine::SVF2Pole));
         }
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)

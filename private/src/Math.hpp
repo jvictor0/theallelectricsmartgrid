@@ -58,6 +58,23 @@ struct MathGeneric
         return Cos2pi(x / (2.0f * M_PI));
     }
 
+    static float Tan2pi(float x)
+    {
+        float s = Sin2pi(x);
+        float c = Cos2pi(x);
+        return s / c;
+    }
+
+    static float TanPi(float x)
+    {
+        return Tan2pi(x / 2.0f);
+    }
+
+    static float Tan(float x)
+    {
+        return Tan2pi(x / (2.0f * static_cast<float>(M_PI)));
+    }
+
     static std::complex<float> Polar(float mag, double phase)
     {
         return std::complex<float>(mag * Cos(phase), mag * Sin(phase));

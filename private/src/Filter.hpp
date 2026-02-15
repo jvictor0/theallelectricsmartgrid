@@ -329,8 +329,60 @@ struct TanhSaturator
 
     float Tanh(float x)
     {
-        float y = x * (27 + x * x) / (27 + 9 * x * x);
+        float y = x * (27.0f + x * x) / (27.0f + 9.0f * x * x);
         return std::min(1.0f, std::max(-1.0f, y));
+    }
+
+    // Derivative of Process w.r.t. input
+    // Non-normalized: d/dx[Tanh(gain*x)] = gain * sech²(gain*x)
+    // Normalized: d/dx[Tanh(gain*x)/tanhGain] = gain * sech²(gain*x) / tanhGain
+    //
+    float Derivative(float input)
+    {
+        float scaledInput = m_inputGain * input;
+        if (1.0 <= std::fabs(Tanh(scaledInput)))
+        {
+            return 0.0f;
+        }
+
+        // Rational tanh and its derivative sech^2 as a rational function
+        // y = x * (27 + x^2) / (27 + 9*x^2)
+        // dy/dx = [ (27 + x^2) + 2x^2 ] / (27 + 9*x^2) - x*(27 + x^2)*18x / (27 + 9*x^2)^2
+        //        = (27 + 3x^2) / (27 + 9x^2) - [18x^2 (27 + x^2)] / (27 + 9x^2)^2
+
+        float x = scaledInput;
+        float x2 = x * x;
+        float denom = 27.0f + 9.0f * x2;
+
+        // Derivative of the numerator
+        float num1 = 27.0f + 3.0f * x2;
+        float num2 = 18.0f * x2 * (27.0f + x2);
+
+        float numerator = num1 * denom - num2;
+        float denominator = denom * denom;
+
+        float sech2 = numerator / denominator;
+
+        if (Normalize)
+        {
+            return m_inputGain * sech2 / m_tanhGain;
+        }
+        else
+        {
+            return m_inputGain * sech2;
+        }
+    }
+
+    float DerivativeZero()
+    {
+        if (Normalize)
+        {
+            return m_inputGain / m_tanhGain;
+        }
+        else
+        {
+            return m_inputGain;
+        }
     }
 
     float Process(float input)

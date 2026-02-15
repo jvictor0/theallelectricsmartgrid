@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Filter.hpp"
+#include <atomic>
 #include <cmath>
 #include <complex>
 
@@ -8,12 +9,34 @@ struct LadderFilterLP
 {
     static constexpr float x_maxCutoff = 0.499f;
 
+    struct UIState
+    {
+        std::atomic<float> m_alpha;
+        std::atomic<float> m_feedback;
+
+        UIState()
+            : m_alpha(0.0f)
+            , m_feedback(0.0f)
+        {
+        }
+
+        float FrequencyResponse(float freq)
+        {
+            return LadderFilterLP::FrequencyResponse(m_alpha.load(), m_feedback.load(), freq);
+        }
+
+        std::complex<float> TransferFunction(float freq)
+        {
+            return LadderFilterLP::TransferFunction(m_alpha.load(), m_feedback.load(), freq);
+        }
+    };
+
     OPLowPassFilter m_stage1;
     OPLowPassFilter m_stage2;
     OPLowPassFilter m_stage3;
     OPLowPassFilter m_stage4;
 
-    TanhSaturator<true> m_feedbackSaturator;
+    TanhSaturator<true> m_saturator;
 
     float m_cutoff;
     float m_feedback;
@@ -27,34 +50,47 @@ struct LadderFilterLP
         , m_feedback(0.0f)
         , m_output(0.0f)
     {
-        m_feedbackSaturator.SetInputGain(0.5f);
+        m_saturator.SetInputGain(0.5f);
+    }
+
+    void PopulateUIState(UIState* uiState)
+    {
+        uiState->m_alpha.store(m_stage4.m_alpha);
+        uiState->m_feedback.store(m_kEff);
     }
 
     float Process(float input)
     {
-        float Cpi = std::pow(m_stage4.m_alpha / (2.0f - m_stage4.m_alpha), 4.0f);
+        // Calculate effective DC gain including saturation small-signal gain
+        //
+        float smallSignalGain = m_saturator.DerivativeZero();
+        float perStageGain = (m_stage4.m_alpha / (2.0f - m_stage4.m_alpha)) * smallSignalGain;
+        float Cpi = std::pow(perStageGain, 4.0f);
         float kSafe = 0.9f / (Cpi + 1e-8f);
         m_kEff = std::min(m_feedback, kSafe);
 
         // Apply resonance feedback from LP output
         //
         float feedbackInput = input - m_kEff * m_stage4.m_output;
-
-        feedbackInput = m_feedbackSaturator.Process(feedbackInput);
         m_input = feedbackInput;
 
-        // Process through the 4-pole ladder
+        // Process through the 4-pole ladder with saturation after each stage
         //
-        float stage1Out = m_stage1.Process(feedbackInput);
-        float stage2Out = m_stage2.Process(stage1Out);
-        float stage3Out = m_stage3.Process(stage2Out);
-        float stage4Out = m_stage4.Process(stage3Out);
+        float stage1Out = m_saturator.Process(m_stage1.Process(feedbackInput));
+        float stage2Out = m_saturator.Process(m_stage2.Process(stage1Out));
+        float stage3Out = m_saturator.Process(m_stage3.Process(stage2Out));
+        float stage4Out = m_saturator.Process(m_stage4.Process(stage3Out));
 
         // Output gain compensation to counter resonance-induced passband drop
         // Maintains approximately unity DC gain as resonance increases
         //
         m_output = stage4Out * (1.0f + m_kEff);
         return m_output;
+    }
+
+    void SetSaturationGain(float gain)
+    {
+        m_saturator.SetInputGain(gain);
     }
 
     void SetCutoff(float cutoff)
@@ -147,12 +183,34 @@ struct LadderFilterHP
 {
     static constexpr float x_maxCutoff = 0.35f;
 
+    struct UIState
+    {
+        std::atomic<float> m_alpha;
+        std::atomic<float> m_feedback;
+
+        UIState()
+            : m_alpha(0.0f)
+            , m_feedback(0.0f)
+        {
+        }
+
+        float FrequencyResponse(float freq)
+        {
+            return LadderFilterHP::FrequencyResponse(m_alpha.load(), m_feedback.load(), freq);
+        }
+
+        std::complex<float> TransferFunction(float freq)
+        {
+            return LadderFilterHP::TransferFunction(m_alpha.load(), m_feedback.load(), freq);
+        }
+    };
+
     OPLowPassFilter m_stage1;
     OPLowPassFilter m_stage2;
     OPLowPassFilter m_stage3;
     OPLowPassFilter m_stage4;
 
-    TanhSaturator<true> m_feedbackSaturator;
+    TanhSaturator<true> m_saturator;
 
     float m_cutoff;
     float m_feedback;
@@ -168,7 +226,13 @@ struct LadderFilterHP
         , m_output(0.0f)
         , m_hpOutput(0.0f)
     {
-        m_feedbackSaturator.SetInputGain(0.5f);
+        m_saturator.SetInputGain(0.5f);
+    }
+
+    void PopulateUIState(UIState* uiState)
+    {
+        uiState->m_alpha.store(m_stage4.m_alpha);
+        uiState->m_feedback.store(m_kEff);
     }
 
     float GetCompensation() const
@@ -189,9 +253,11 @@ struct LadderFilterHP
     {
         float compensation = GetCompensation();
 
-        // Calculate safe feedback limit based on LP gain at Nyquist (same as LP filter)
+        // Calculate effective DC gain including saturation small-signal gain
         //
-        float Cpi = std::pow(m_stage4.m_alpha / (2.0f - m_stage4.m_alpha), 4.0f);
+        float smallSignalGain = m_saturator.DerivativeZero();
+        float perStageGain = (m_stage4.m_alpha / (2.0f - m_stage4.m_alpha)) * smallSignalGain;
+        float Cpi = std::pow(perStageGain, 4.0f);
         float kSafe = 0.9f / (Cpi + 1e-8f);
         m_kEff = std::min(m_feedback, kSafe);
 
@@ -199,16 +265,14 @@ struct LadderFilterHP
         // This puts resonance at the LP cutoff frequency for this alpha
         //
         float feedbackInput = input - m_kEff * m_stage4.m_output;
-
-        feedbackInput = m_feedbackSaturator.Process(feedbackInput);
         m_input = feedbackInput;
 
-        // Process through the 4-pole ladder
+        // Process through the 4-pole ladder with saturation after each stage
         //
-        float stage1Out = m_stage1.Process(feedbackInput);
-        float stage2Out = m_stage2.Process(stage1Out);
-        float stage3Out = m_stage3.Process(stage2Out);
-        m_stage4.Process(stage3Out);
+        float stage1Out = m_saturator.Process(m_stage1.Process(feedbackInput));
+        float stage2Out = m_saturator.Process(m_stage2.Process(stage1Out));
+        float stage3Out = m_saturator.Process(m_stage3.Process(stage2Out));
+        m_saturator.Process(m_stage4.Process(stage3Out));
 
         // Compute HP output: (1-H)^4 using binomial coefficients
         //
@@ -223,6 +287,11 @@ struct LadderFilterHP
         //
         m_output = m_hpOutput;
         return m_output;
+    }
+
+    void SetSaturationGain(float gain)
+    {
+        m_saturator.SetInputGain(gain);
     }
 
     void SetCutoff(float cutoff)

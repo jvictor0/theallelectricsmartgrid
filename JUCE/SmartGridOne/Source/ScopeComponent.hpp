@@ -277,7 +277,7 @@ struct AnalyserComponent : public juce::Component
     int* m_voiceOffset;
 
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
-    SquiggleBoyWithEncoderBank::UIState::FilterParams* m_filterParams;
+    SquiggleBoyWithEncoderBank::UIState::VoiceFilterUIState* m_voiceFilterUIState;
 
     bool m_logX;
 
@@ -290,7 +290,7 @@ struct AnalyserComponent : public juce::Component
         : m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
         , m_voiceOffset(voiceOffset)
         , m_uiState(uiState)
-        , m_filterParams(uiState->m_squiggleBoyUIState.m_filterParams)
+        , m_voiceFilterUIState(uiState->m_squiggleBoyUIState.m_voiceFilterUIState)
         , m_logX(true)
     {
         for (size_t i = 0; i < x_voicesPerTrack; ++i)
@@ -309,15 +309,7 @@ struct AnalyserComponent : public juce::Component
 
     float FilterResponse(size_t i, float freq)
     {
-        float lpAlpha = m_filterParams[i].m_lpAlpha.load();
-        float hpAlpha = m_filterParams[i].m_hpAlpha.load();
-        float lpResonance = m_filterParams[i].m_lpResonance.load();
-        float hpResonance = m_filterParams[i].m_hpResonance.load();
-
-        std::complex<float> lpResponse = LadderFilterLP::TransferFunction(lpAlpha, lpResonance, freq);
-        std::complex<float> hpResponse = LadderFilterHP::TransferFunction(hpAlpha, hpResonance, freq);
-
-        return std::abs(lpResponse * hpResponse);
+        return m_voiceFilterUIState[i].FrequencyResponse(freq);
     }
 
     void paint(juce::Graphics& g) override

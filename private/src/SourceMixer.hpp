@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Filter.hpp"
-#include "LadderFilter.hpp"
+#include "StateVariableFilter.hpp"
 #include "PhaseUtils.hpp"
 #include "AudioInputBuffer.hpp"
 #include "SampleTimer.hpp"
@@ -34,28 +34,20 @@ struct SourceMixer
 
         struct UIState
         {
-            std::atomic<float> m_hpAlpha;
-            std::atomic<float> m_lpAlpha;
-
-            UIState()
-                : m_hpAlpha(0.0f)
-                , m_lpAlpha(0.0f)
-            {
-            }
+            LinearStateVariableFilter::UIState m_hpFilter;
+            LinearStateVariableFilter::UIState m_lpFilter;
 
             float FrequencyResponse(float freq)
             {
-                float lpResponse = LadderFilterLP::FrequencyResponse(m_lpAlpha.load(), 0.0f, freq);
-                float hpResponse = LadderFilterHP::FrequencyResponse(m_hpAlpha.load(), 0.0f, freq);
+                float lpResponse = m_lpFilter.LowPassFrequencyResponse(freq);
+                float hpResponse = m_hpFilter.HighPassFrequencyResponse(freq);
                 return lpResponse * hpResponse;
-            }                
+            }
         };
 
         Source()
             : m_output(0.0f)
         {
-            m_lpFilter.SetResonance(0.0f);
-            m_hpFilter.SetResonance(0.0f);
             for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
             {
                 m_uBlockOutput[i] = 0.0f;
@@ -80,8 +72,10 @@ struct SourceMixer
                 m_preFilterScopeWriter.Write(i, sample);
                 m_hpFilter.SetCutoff(hpCutoff);
                 m_lpFilter.SetCutoff(hpCutoff * lpFactor);
-                sample = m_lpFilter.Process(sample);
-                sample = m_hpFilter.Process(sample);
+                m_lpFilter.Process(sample);
+                sample = m_lpFilter.GetLowPass();
+                m_hpFilter.Process(sample);
+                sample = m_hpFilter.GetHighPass();
                 m_postFilterScopeWriter.Write(i, sample);
                 m_uBlockOutput[i] = sample;
             }
@@ -91,8 +85,8 @@ struct SourceMixer
 
         void PopulateUIState(UIState* uiState)
         {
-            uiState->m_hpAlpha.store(m_hpFilter.m_stage4.m_alpha);
-            uiState->m_lpAlpha.store(m_lpFilter.m_stage4.m_alpha);
+            m_hpFilter.PopulateUIState(&uiState->m_hpFilter);
+            m_lpFilter.PopulateUIState(&uiState->m_lpFilter);
         }
 
         void SetupUIState(UIState* uiState)
@@ -102,8 +96,8 @@ struct SourceMixer
         float m_output;
         float m_uBlockOutput[SampleTimer::x_controlFrameRate];
 
-        LadderFilterLP m_lpFilter;
-        LadderFilterHP m_hpFilter;
+        LinearStateVariableFilter m_lpFilter;
+        LinearStateVariableFilter m_hpFilter;
         ScopeWriterHolder m_preFilterScopeWriter;
         ScopeWriterHolder m_postFilterScopeWriter;
 
