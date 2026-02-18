@@ -64,6 +64,11 @@ struct SampleTimer
     {
         return s_instance->m_sample % x_controlFrameRate;
     }
+
+    static size_t GetSample()
+    {
+        return s_instance->m_sample;
+    }
 };
 
 inline SampleTimer* SampleTimer::s_instance = nullptr;

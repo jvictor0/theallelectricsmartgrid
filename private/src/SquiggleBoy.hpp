@@ -427,6 +427,10 @@ struct SquiggleBoyVoice
             }
         }
 
+        void DebugPrint()
+        {
+            m_lpLadder.DebugPrint();
+        }
     };
 
     struct AmpSection
@@ -701,6 +705,11 @@ struct SquiggleBoyVoice
         m_downsampler.Process(m_filter.m_uBlockOutput, m_uBlockFilterOut);
     }
 
+    void DebugPrint()
+    {
+        m_filter.DebugPrint();
+    }
+
     float Processs(Input& input)
     {
         if (SampleTimer::IsControlFrame())
@@ -708,6 +717,7 @@ struct SquiggleBoyVoice
             ProcessUBlock(input);
         }
 
+        m_filter.m_adsp.Process(input.m_filterInput.m_adspInput);
         size_t uBlockIndex = SampleTimer::GetUBlockIndex();
         m_output = m_amp.Process(input.m_ampInput, m_uBlockFilterOut[uBlockIndex], m_vco.m_uBlockOutputSub[uBlockIndex]);
         m_pan.Process(input.m_panInput);
@@ -963,6 +973,11 @@ struct SquiggleBoy
             m_mixerState.m_monoIn[i] = m_voices[i].m_amp.m_subOut;
             m_mixerState.m_x[i] = m_voices[i].m_pan.m_outputX;
             m_mixerState.m_y[i] = m_voices[i].m_pan.m_outputY;
+        }
+
+        if (SampleTimer::GetSample() % 48000 == 0)
+        {
+            m_voices[0].DebugPrint();
         }
 
         m_deepVocoderState.m_enabled = m_sourceMixer.IsVocoderEnabled(m_sourceMixerState);
