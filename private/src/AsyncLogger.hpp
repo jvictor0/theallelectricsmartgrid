@@ -7,12 +7,14 @@
 #include <JuceHeader.h>
 #endif
 #include "CircularQueue.hpp"
+#include "SampleTimer.hpp"
 
 struct LogMessage
 {
     static constexpr size_t x_maxMessageLength = 256;
     char m_message[x_maxMessageLength];
     size_t m_length;
+    size_t m_sample;
 
     LogMessage()
         : m_length(0)
@@ -35,6 +37,8 @@ struct LogMessage
             m_length = x_maxMessageLength - 1;
             m_message[x_maxMessageLength - 1] = '\0';
         }
+
+        m_sample = SampleTimer::GetSample();
     }
 
     void Fill(const char* message)
@@ -46,6 +50,8 @@ struct LogMessage
             m_length = x_maxMessageLength - 1;
             m_message[x_maxMessageLength - 1] = '\0';
         }
+
+        m_sample = SampleTimer::GetSample();
     }
 };
 
@@ -91,10 +97,11 @@ struct AsyncLogQueue
 #else
             localtime_r(&t, &localTm);
 #endif
-            juce::String timeStamp = juce::String::formatted("%02d:%02d:%02d ",
+            juce::String timeStamp = juce::String::formatted("%02d:%02d:%02d %lu ",
                 localTm.tm_hour,
                 localTm.tm_min,
-                localTm.tm_sec);
+                localTm.tm_sec,
+                message->m_sample);
             juce::Logger::writeToLog(timeStamp + juce::String(message->m_message));
             m_queue.Pop();
         }

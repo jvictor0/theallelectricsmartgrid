@@ -151,11 +151,13 @@ struct ZeroedExpParam
     float m_base;
     float m_expParam;
     float m_baseParam;
+    float m_max;
 
     explicit ZeroedExpParam(float base)
         : m_base(base)
         , m_expParam(0)
         , m_baseParam(0)
+        , m_max(1.0)
     {
     }
 
@@ -184,6 +186,11 @@ struct ZeroedExpParam
         m_expParam = (std::powf(m_base, m_baseParam) - 1) / (m_base - 1);
     }
 
+    void SetMax(float max)
+    {
+        m_max = max;
+    }
+
     static float Compute(float base, float value)
     {
         return (std::powf(base, value) - 1) / (base - 1);
@@ -194,7 +201,7 @@ struct ZeroedExpParam
         if (m_baseParam != value)
         {
             m_baseParam = value;
-            m_expParam = (std::powf(m_base, value) - 1) / (m_base - 1);
+            m_expParam = m_max * Compute(m_base, value);
         }
 
         return m_expParam;

@@ -4,7 +4,7 @@
 #include <cmath>
 #include "Trig.hpp"
 #include "CircleTracker.hpp"
-#include "ADSP.hpp"
+#include "AHD.hpp"
 
 struct MultiPhasorGateInternal
 {
@@ -14,6 +14,7 @@ struct MultiPhasorGateInternal
     {
         bool m_trigs[x_maxPoly];
         float m_phasor;
+        double m_masterLoopSamples;
         size_t m_numTrigs;
         int m_phasorDenominator[x_maxPoly];
         bool m_newTrigCanStart[x_maxPoly];
@@ -50,8 +51,8 @@ struct MultiPhasorGateInternal
         {
             m_gate[i] = false;
             m_preGate[i] = false;
-            m_adspControl[i].Reset();
-            m_adspControl[i].m_release = true;
+            m_ahdControl[i].Reset();
+            m_ahdControl[i].m_release = true;
         }
     }
     
@@ -84,17 +85,17 @@ struct MultiPhasorGateInternal
     bool m_set[x_maxPoly];
     PhasorBounds m_bounds[x_maxPoly];
     int m_phasorDenominator[x_maxPoly];
-    ADSP::ADSPControl m_adspControl[x_maxPoly];
+    AHD::AHDControl m_ahdControl[x_maxPoly];
 
     void Process(Input& input)
     {
         m_anyGate = false;
         for (size_t i = 0; i < input.m_numTrigs; ++i)
         {
-            m_adspControl[i].m_trig = input.m_trigs[i] && input.m_newTrigCanStart[i] && !input.m_mute[i];
-            if (m_adspControl[i].m_trig)
+            m_ahdControl[i].m_trig = input.m_trigs[i] && input.m_newTrigCanStart[i] && !input.m_mute[i];
+            if (m_ahdControl[i].m_trig)
             {
-                m_adspControl[i].m_release = false;
+                m_ahdControl[i].m_release = false;
             }
 
             if (input.m_trigs[i] && input.m_newTrigCanStart[i])
@@ -102,14 +103,18 @@ struct MultiPhasorGateInternal
                 if (!input.m_mute[i])
                 {
                     m_gate[i] = true;
-                    m_adspControl[i].m_phasorSlew.m_target = 0;
-                    m_adspControl[i].m_phasorSlew.m_filter.m_output = 0;
+                    m_ahdControl[i].m_samples = 0.0;
                 }
 
                 m_preGate[i] = true;
                 m_set[i] = true;
                 m_bounds[i].Set(input.m_phasor, input.m_phasorDenominator[i]);
             }
+
+            // Compute envelopeTimeSamples for this voice
+            //
+            double envelopeTimeSamples = input.m_masterLoopSamples / static_cast<double>(input.m_phasorDenominator[i]);
+            m_ahdControl[i].m_envelopeTimeSamples = envelopeTimeSamples;
 
             if (m_set[i])
             {
@@ -121,12 +126,12 @@ struct MultiPhasorGateInternal
                     m_preGate[i] = false;
                     if (!input.m_newTrigCanStart[i] || input.m_mute[i])
                     {
-                        m_adspControl[i].m_release = true;
+                        m_ahdControl[i].m_release = true;
                         m_set[i] = false;
                     }
                 }
 
-                m_adspControl[i].m_phasorSlew.m_target = thisPhase;
+                m_ahdControl[i].m_samples = static_cast<double>(thisPhase) * envelopeTimeSamples;
             }
 
             if (m_gate[i])

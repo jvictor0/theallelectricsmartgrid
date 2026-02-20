@@ -62,6 +62,35 @@ struct OPLowPassFilter
     }
 };
 
+struct OPLowPassFilterDouble
+{
+    static constexpr double x_maxCutoff = 0.499;
+    
+    double m_alpha;
+    double m_output;
+
+    OPLowPassFilterDouble()
+        : m_alpha(0.0)
+        , m_output(0.0)
+    {
+    }
+
+    double Process(double input)
+    {
+        m_output = m_alpha * input + (1.0 - m_alpha) * m_output;
+        return m_output;
+    }
+
+    void SetAlphaFromNatFreq(double cyclesPerSample)
+    {
+        cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
+        assert(cyclesPerSample > 0);
+
+        double omega = 2.0 * M_PI * cyclesPerSample;
+        m_alpha = 1.0 - std::exp(-omega);
+    }
+};
+
 template<size_t Size>
 struct BulkFilter
 {   

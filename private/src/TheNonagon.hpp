@@ -199,6 +199,7 @@ struct TheNonagonInternal
         input.m_trigLogic.SetInput(input.m_multiPhasorGateInput);
 
         input.m_multiPhasorGateInput.m_phasor = m_theoryOfTime.GetMasterLoop()->m_phasor;
+        input.m_multiPhasorGateInput.m_masterLoopSamples = static_cast<double>(m_theoryOfTime.m_masterLoopSamples);
 
         for (size_t i = 0; i < x_numVoices; ++i)
         {
@@ -268,7 +269,7 @@ struct TheNonagonInternal
     {
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            if (m_multiPhasorGate.m_adspControl[i].m_trig)
+            if (m_multiPhasorGate.m_ahdControl[i].m_trig)
             {                                
                 m_output.m_gate[i] = true;
                 size_t pitchIx = input.m_trigLogic.m_unisonMaster[i / x_voicesPerTrio] == -1 ? i : input.m_trigLogic.m_unisonMaster[i / x_voicesPerTrio];
@@ -1334,14 +1335,6 @@ struct TheNonagonSmartGrid
         }
         else
         {
-            for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
-            {
-                for (size_t j = 0; j < TheNonagonInternal::x_numExtraTimbres; ++j)
-                {
-                    m_nonagon.m_output.m_extraTimbreTrg[i][j] = 0;
-                }
-            }
-
             for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits; ++i)
             {
                 m_nonagon.m_output.m_totTop[i] = false;
@@ -1349,7 +1342,7 @@ struct TheNonagonSmartGrid
 
             for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
             {
-                m_nonagon.m_multiPhasorGate.m_gate[i] = false;
+                m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig = false;
             }
         }
     }

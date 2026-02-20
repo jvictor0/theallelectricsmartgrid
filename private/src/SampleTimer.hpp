@@ -67,7 +67,7 @@ struct SampleTimer
 
     static size_t GetSample()
     {
-        return s_instance->m_sample;
+        return s_instance ? s_instance->m_sample : 0;
     }
 };
 

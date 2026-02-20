@@ -160,7 +160,7 @@ struct TheNonagonSquiggleBoyInternal
     {
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
-            if (m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i].m_trig)            
+            if (m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig)            
             {
                 float baseFreq = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
                 m_squiggleBoy.m_state[i].m_ampInput.m_subTrig = m_nonagon.m_state.m_trigLogic.IsUnisonMaster(i);
@@ -171,14 +171,14 @@ struct TheNonagonSquiggleBoyInternal
                 baseFreq = baseFreq / ratio;
                 m_squiggleBoy.m_deepVocoderState.m_voiceInput[i].m_pitchCenter = baseFreq;
                 m_squiggleBoy.m_deepVocoderState.m_voiceInput[i].m_pitchRatioPost = ratio;
-                baseFreq = m_squiggleBoy.m_deepVocoder.TransformNote(i, &m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i]);        
-                if (m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i].m_trig)                      
+                baseFreq = m_squiggleBoy.m_deepVocoder.TransformNote(i, &m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i]);        
+                if (m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig)                      
                 {
                     m_squiggleBoyState.m_baseFreq[i] = baseFreq;
                 }
             }
 
-            m_squiggleBoy.m_state[i].m_adspControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_adspControl[i];
+            m_squiggleBoy.m_state[i].m_ahdControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i];            
 
             for (size_t j = 0; j < SquiggleBoyVoice::SquiggleLFO::x_numPhasors; ++j)
             {

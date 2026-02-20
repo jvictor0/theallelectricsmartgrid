@@ -8,7 +8,7 @@
 #include "RandomLFO.hpp"
 #include "LadderFilter.hpp"
 #include "StateVariableFilter.hpp"
-#include "ADSP.hpp"
+#include "AHD.hpp"
 #include "BitCrush.hpp"
 #include "Lissajous.hpp"
 #include "QuadMixer.hpp"
@@ -266,7 +266,7 @@ struct SquiggleBoyVoice
         //
         OPHighPassFilter m_svfDCBlocker;
 
-        ADSP m_adsp;
+        AHD m_ahd;
 
         SampleRateReducer m_sampleRateReducer;
 
@@ -338,16 +338,16 @@ struct SquiggleBoyVoice
             PhaseUtils::ExpParam m_saturationGain;
             float m_envDepth;
 
-            ADSP::InputSetter m_adspInputSetter;
-            ADSP::Input m_adspInput;
+            AHD::InputSetter m_ahdInputSetter;
+            AHD::Input m_ahdInput;
 
             VoiceConfig* m_voiceConfig;
 
             PhaseUtils::ExpParam m_sampleRateReducerFreq;
 
-            void SetADSP(float attack, float decay, float sustain, float phasorMult)
+            void SetAHD(float attack, float hold, float decay, float amplitude)
             {
-                m_adspInputSetter.Set(attack, decay, sustain, phasorMult, m_adspInput);
+                m_ahdInputSetter.Set(attack, hold, decay, amplitude, true, m_ahdInput);
             }
 
             Input()
@@ -435,7 +435,7 @@ struct SquiggleBoyVoice
 
     struct AmpSection
     {
-        ADSP m_adsp;
+        AHD m_ahd;
 
         float m_output;
         float m_subOut;
@@ -451,8 +451,8 @@ struct SquiggleBoyVoice
         struct Input
         {
             float m_vcoTargetFreq;
-            ADSP::InputSetter m_adspInputSetter;
-            ADSP::Input m_adspInput;
+            AHD::InputSetter m_ahdInputSetter;
+            AHD::Input m_ahdInput;
 
             OPLowPassFilter m_gainSlew;
             PhaseUtils::ZeroedExpParam m_gain;
@@ -466,9 +466,9 @@ struct SquiggleBoyVoice
 
             bool m_subTrig;
 
-            void SetADSP(float attack, float decay, float sustain, float phasorMult)
+            void SetAHD(float attack, float hold, float decay, float amplitude)
             {
-                m_adspInputSetter.Set(attack, decay, sustain, phasorMult, m_adspInput);
+                m_ahdInputSetter.Set(attack, hold, decay, amplitude, false, m_ahdInput);
             }
 
             Input()
@@ -489,7 +489,7 @@ struct SquiggleBoyVoice
 
         float Process(Input& input, float filterOutput, float sub)
         {
-            if (input.m_adspInput.m_trig)
+            if (input.m_ahdInput.m_trig)
             {
                 if (input.m_vcoTargetFreq * 48000 < 100 || input.m_voiceConfig->m_sourceMachine == VoiceConfig::SourceMachine::Thru)
                 {
@@ -500,7 +500,7 @@ struct SquiggleBoyVoice
                     m_freqDependentGainTarget = 1.0 / std::sqrtf(input.m_vcoTargetFreq * 48000 / 100);
                 }
 
-                if (m_adsp.m_state != ADSP::State::Idle)
+                if (m_ahd.m_state != AHD::State::Idle)
                 {
                     m_scopeWriter.RecordEnd();
                 }
@@ -512,18 +512,22 @@ struct SquiggleBoyVoice
             sub = input.m_subTanhSaturator.Process(sub);
 
             float freqDependentGain = m_freqDependentGainSlew.Process(m_freqDependentGainTarget);
-            float adspEnv = PhaseUtils::ZeroedExpParam::Compute(10.0f, m_adsp.Process(input.m_adspInput));
-            float subGain = m_subFilter.Process(m_subRunning ? input.m_subGain.m_expParam * adspEnv : 0.0f);            
-            float mainOut = freqDependentGain * adspEnv * filterOutput;
+
+            // AHD::Process now applies amplitude and polarity internally
+            //
+            float ahdEnv = PhaseUtils::ZeroedExpParam::Compute(10.0f, m_ahd.Process(input.m_ahdInput));
+
+            float subGain = m_subFilter.Process(m_subRunning ? input.m_subGain.m_expParam * ahdEnv : 0.0f);            
+            float mainOut = freqDependentGain * ahdEnv * filterOutput;
             float subOut = freqDependentGain * subGain * sub;
             
             m_scopeWriter.Write(mainOut + m_subOut);
-            if (input.m_adspInput.m_trig)
+            if (input.m_ahdInput.m_trig)
             {
                 m_scopeWriter.RecordStart();
             }
 
-            if (m_adsp.m_changed && m_adsp.m_state == ADSP::State::Idle)
+            if (m_ahd.m_changed && m_ahd.m_state == AHD::State::Idle)
             {
                 m_scopeWriter.RecordEnd();
             }
@@ -651,7 +655,7 @@ struct SquiggleBoyVoice
     {
         VoiceConfig m_voiceConfig;
         SourceMixer* m_sourceMixer;
-        ADSP::ADSPControl m_adspControl;
+        AHD::AHDControl m_ahdControl;
 
         VCOSection::Input m_vcoInput;
         FilterSection::Input m_filterInput;
@@ -666,13 +670,12 @@ struct SquiggleBoyVoice
         }
 
         void SetGates()
-        {
-            float phasor = m_adspControl.m_phasorSlew.Process();
-            m_filterInput.m_adspInput.Set(m_adspControl, phasor);
-            m_ampInput.m_adspInput.Set(m_adspControl, phasor);
+        {            
+            m_filterInput.m_ahdInput.Set(m_ahdControl);
+            m_ampInput.m_ahdInput.Set(m_ahdControl);
 
-            m_squiggleLFOInput[0].m_trig = m_adspControl.m_trig;
-            m_squiggleLFOInput[1].m_trig = m_adspControl.m_trig;
+            m_squiggleLFOInput[0].m_trig = m_ahdControl.m_trig;
+            m_squiggleLFOInput[1].m_trig = m_ahdControl.m_trig;
         }
     };
 
@@ -717,7 +720,7 @@ struct SquiggleBoyVoice
             ProcessUBlock(input);
         }
 
-        m_filter.m_adsp.Process(input.m_filterInput.m_adspInput);
+        m_filter.m_ahd.Process(input.m_filterInput.m_ahdInput);
         size_t uBlockIndex = SampleTimer::GetUBlockIndex();
         m_output = m_amp.Process(input.m_ampInput, m_uBlockFilterOut[uBlockIndex], m_vco.m_uBlockOutputSub[uBlockIndex]);
         m_pan.Process(input.m_panInput);
@@ -1589,15 +1592,15 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_voiceEncoderBank.Config(1, 1, 1, 0, "HP Resonance", SmartGrid::Color::Green);
         m_voiceEncoderBank.Config(1, 2, 1, 1, "LP Cutoff", SmartGrid::Color::Green);
         m_voiceEncoderBank.Config(1, 3, 1, 0, "LP Resonance", SmartGrid::Color::Green);
-        m_voiceEncoderBank.Config(1, 0, 0, 0, "Filter ADSP Attack", ADSRColor(0));
-        m_voiceEncoderBank.Config(1, 1, 0, 0.2, "Filter ADSP Decay", ADSRColor(0));
-        m_voiceEncoderBank.Config(1, 2, 0, 0, "Filter ADSP Sustain", ADSRColor(0));
-        m_voiceEncoderBank.Config(1, 3, 0, 0.5, "Filter ADSP Phasor Mult", ADSRColor(0));
+        m_voiceEncoderBank.Config(1, 0, 0, 0, "Filter AHD Attack", ADSRColor(0));
+        m_voiceEncoderBank.Config(1, 1, 0, 0.5, "Filter AHD Hold", ADSRColor(0));
+        m_voiceEncoderBank.Config(1, 2, 0, 0.2, "Filter AHD Decay", ADSRColor(0));
+        m_voiceEncoderBank.Config(1, 3, 0, 1, "Filter Amplitude", ADSRColor(0));
 
-        m_voiceEncoderBank.Config(1, 0, 2, 0, "Amp ADSP Attack", ADSRColor(1));
-        m_voiceEncoderBank.Config(1, 1, 2, 0.3, "Amp ADSP Decay", ADSRColor(1));
-        m_voiceEncoderBank.Config(1, 2, 2, 0.5, "Amp ADSP Sustain", ADSRColor(1));
-        m_voiceEncoderBank.Config(1, 3, 2, 0.5, "Amp ADSP Phasor Mult", ADSRColor(1));
+        m_voiceEncoderBank.Config(1, 0, 2, 0, "Amp AHD Attack", ADSRColor(1));
+        m_voiceEncoderBank.Config(1, 1, 2, 0.5, "Amp AHD Hold", ADSRColor(1));
+        m_voiceEncoderBank.Config(1, 2, 2, 0.3, "Amp AHD Decay", ADSRColor(1));
+        m_voiceEncoderBank.Config(1, 3, 2, 1, "Amp Amplitude", ADSRColor(1));
         m_voiceEncoderBank.Config(1, 0, 3, 1, "Amp Gain", SmartGrid::Color::Green);
         m_voiceEncoderBank.Config(1, 1, 3, 0, "Delay Send", SmartGrid::Color::Green);
         m_voiceEncoderBank.Config(1, 2, 3, 0, "Reverb Send", SmartGrid::Color::Green);
@@ -1742,8 +1745,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             modulatorValues.m_value[2][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[0].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
             modulatorValues.m_value[3][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[1].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
 
-            modulatorValues.m_value[4][i] = m_voices[i].m_filter.m_adsp.m_output;
-            modulatorValues.m_value[5][i] = m_voices[i].m_amp.m_adsp.m_output;
+            modulatorValues.m_value[4][i] = m_voices[i].m_filter.m_ahd.m_output;
+            modulatorValues.m_value[5][i] = m_voices[i].m_amp.m_ahd.m_output;
 
             modulatorValues.m_value[6][i] = m_voices[i].m_squiggleLFO[0].m_output;
             modulatorValues.m_value[7][i] = m_voices[i].m_squiggleLFO[1].m_output;
@@ -1836,14 +1839,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_filterInput.m_hpResonance.Update(m_voiceEncoderBank.GetValueNoSlew(1, 1, 1, i));
             m_state[i].m_filterInput.m_saturationGain.Update(m_voiceEncoderBank.GetValueNoSlew(0, 1, 2, i));
 
-            m_state[i].m_filterInput.SetADSP(
+            m_state[i].m_filterInput.SetAHD(
                 m_voiceEncoderBank.GetValueNoSlew(1, 0, 0, i), 
                 m_voiceEncoderBank.GetValueNoSlew(1, 1, 0, i), 
                 m_voiceEncoderBank.GetValueNoSlew(1, 2, 0, i), 
                 m_voiceEncoderBank.GetValueNoSlew(1, 3, 0, i));
 
             m_state[i].m_ampInput.m_vcoTargetFreq = input.m_baseFreq[i];
-            m_state[i].m_ampInput.SetADSP(
+            m_state[i].m_ampInput.SetAHD(
                 m_voiceEncoderBank.GetValue(1, 0, 2, i), 
                 m_voiceEncoderBank.GetValue(1, 1, 2, i), 
                 m_voiceEncoderBank.GetValue(1, 2, 2, i), 

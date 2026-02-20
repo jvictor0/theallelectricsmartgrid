@@ -188,6 +188,33 @@ struct ParamSlew
     }
 };
 
+struct ParamSlewDouble
+{
+    OPLowPassFilterDouble m_filter;
+    double m_target;
+
+    ParamSlewDouble()
+        : ParamSlewDouble(1.0)
+    {
+    }
+
+    ParamSlewDouble(double relativeSampleRate)
+        : m_target(0.0)
+    {
+        m_filter.SetAlphaFromNatFreq((1000.0 / 48000.0) / relativeSampleRate);
+    }
+
+    void Update(double value)
+    {
+        m_target = value;
+    }
+
+    double Process()
+    {
+        return m_filter.Process(m_target);
+    }
+};
+
 struct ExpParamSlew
 {
     OPLowPassFilter m_filter;

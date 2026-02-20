@@ -3,7 +3,7 @@
 #include "SpectralModel.hpp"
 #include "PhaseUtils.hpp"
 #include "TheNonagon.hpp"
-#include "ADSP.hpp"
+#include "AHD.hpp"
 #include <limits>
 
 struct DeepVocoder
@@ -140,7 +140,7 @@ struct DeepVocoder
         return std::max(1.0f, m_voiceState[index].m_atom->m_synthesisMagnitude / thresh);
     }
 
-    float TransformNote(size_t index, ADSP::ADSPControl* adspControl)
+    float TransformNote(size_t index, AHD::AHDControl* ahdControl)
     {
         if (!m_enabled)
         {
@@ -152,7 +152,7 @@ struct DeepVocoder
         if (m_spectralModel.m_atoms.Empty())
         {
             m_voiceState[index].m_atom = nullptr;
-            adspControl->m_trig = false;            
+            ahdControl->m_trig = false;            
             return omega * m_voiceState[index].m_pitchRatioPost;
         }
 
@@ -185,7 +185,7 @@ struct DeepVocoder
         m_voiceState[index].m_atom = bestAtom;
         if (!bestAtom)
         {
-            adspControl->m_trig = false;
+            ahdControl->m_trig = false;
             return targetOmega * m_voiceState[index].m_pitchRatioPost;
         }
 
