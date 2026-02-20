@@ -9,16 +9,19 @@ struct ShortBuf
     char m_buffer[9];
 
     ShortBuf()
+        : m_buffer{}
     {
         m_buffer[0] = '\0';
     }
 
     ShortBuf(const char* string)
+        : m_buffer{}
     {
         SetString(string);
     }
 
     ShortBuf(size_t value)
+        : m_buffer{}
     {
         SetString(value);
     }

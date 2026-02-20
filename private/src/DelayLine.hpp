@@ -230,6 +230,7 @@ struct DelayLineMovableWriter
         , m_turnaroundWarpedTime(0.0)
         , m_descending(false)
         , m_lastWarpedTime(0.0)
+        , m_ascendingCount(0)
         , m_lastTime(17700716)
     {
     }
@@ -516,6 +517,7 @@ struct GrainManager
     GrainManager()
         : m_delayLine(nullptr)
         , m_samplesToNextGrain(0)
+        , m_lastSampleOffset(0)
     {
         m_numGrains = 0;
         for (size_t i = 0; i < x_maxGrains; ++i)
@@ -613,6 +615,12 @@ struct ParallelAllPassFilter
 {
     AllPassFilter m_filters[Size];
     float m_output;
+
+    ParallelAllPassFilter()
+        : m_filters{}
+        , m_output(0.0f)
+    {
+    }
 
     void SetDelaySamples(int i, size_t delaySamples)
     {

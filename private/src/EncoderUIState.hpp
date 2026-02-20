@@ -19,7 +19,12 @@ struct EncoderUIState
     EncoderUIState()
         : m_color(SmartGrid::Color::Off)
         , m_brightness(0)
+        , m_values{}
+        , m_minValues{}
+        , m_maxValues{}
         , m_connected(false)
+        , m_modulatorsAffecting{}
+        , m_gesturesAffecting{}
     {
         for (size_t i = 0; i < 16; ++i)
         {
@@ -46,9 +51,15 @@ struct EncoderBankUIState
     std::atomic<SmartGrid::Color> m_modulationGlyphColor[16];
 
     EncoderBankUIState()
-        : m_numTracks(0)
+        : m_states{}
+        , m_strings{}
+        , m_indicatorColor{}
+        , m_mainIndicatorColor(SmartGrid::Color::Off)
+        , m_numTracks(0)
         , m_numVoices(1)
         , m_currentTrack(0)
+        , m_modulationGlyphs{}
+        , m_modulationGlyphColor{}
     {
         for (size_t i = 0; i < 16; ++i)
         {

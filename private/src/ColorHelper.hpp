@@ -112,7 +112,8 @@ struct ColorInterpolator
     struct Input
     {
         Input()
-            : m_position(0)
+            : m_color{}
+            , m_position(0)
         {
             m_color[0] = 0;
             m_color[1] = 0;
@@ -141,6 +142,15 @@ struct ColorHelperChannel
 
     struct Input
     {
+        Input()
+            : m_encoderInput{}
+            , m_brightnessInput{}
+            , m_interpInput()
+            , m_brightnessConnected{}
+            , m_interpConnected{}
+        {
+        }
+
         Color m_encoderInput[2];
         BrightnessAdjuster::Input m_brightnessInput[2];
         ColorInterpolator::Input m_interpInput;

@@ -23,6 +23,7 @@ struct LameJuisInternal
             Input()
                 : m_connected(false)
                 , m_value(false)
+                , m_reset(nullptr)
             {
             }
             
@@ -220,9 +221,12 @@ struct LameJuisInternal
             BitVector* m_inputVector;
 
             Input()
+                : m_operator(Operator::And)
+                , m_direct{}
+                , m_switch(SwitchVal::Up)
+                , m_elements{}
+                , m_inputVector(nullptr)
             {
-                m_operator = Operator::And;
-                m_switch = SwitchVal::Up;
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
                     m_elements[i] = MatrixSwitch::Muted;
@@ -378,17 +382,17 @@ struct LameJuisInternal
         BitVector m_active;
         BitVector m_inverted;
 
-        Operator m_operator;
-        bool m_direct[x_numInputs + 1];
-        SwitchVal m_switch;
-        size_t m_countTotal;
-        size_t m_countHigh;
-        bool m_highParticipant[x_numInputs];
-        bool m_gate;
+        Operator m_operator{Operator::And};
+        bool m_direct[x_numInputs + 1]{};
+        SwitchVal m_switch{SwitchVal::Up};
+        size_t m_countTotal{0};
+        size_t m_countHigh{0};
+        bool m_highParticipant[x_numInputs]{};
+        bool m_gate{false};
 
-        LameJuisInternal* m_owner;
+        LameJuisInternal* m_owner{nullptr};
 
-        MatrixSwitch m_elements[x_numInputs];
+        MatrixSwitch m_elements[x_numInputs]{};
     };
 
     struct Accumulator
@@ -541,6 +545,8 @@ struct LameJuisInternal
     struct MatrixEvalResult
     {
         MatrixEvalResult()
+            : m_high{}
+            , m_total{}
         {
             for (size_t i = 0; i < x_numAccumulators; ++i)
             {
@@ -754,6 +760,9 @@ struct LameJuisInternal
         }
 
         TimeSliceOrdinalConverter(Lens lens)
+            : m_lens(0)
+            , m_lensDimension(0)
+            , m_forwardingIndices{}
         {
             SetLens(lens);
         }
@@ -803,6 +812,9 @@ struct LameJuisInternal
         }
 
         TimeSliceClassOrdinalConverter(Lens lens)
+            : m_lens(0)
+            , m_lensCoDimension(0)
+            , m_forwardingIndices{}
         {
             SetLens(lens);
         }
@@ -904,6 +916,15 @@ struct LameJuisInternal
             MatrixEvalResult m_localHarmonicPosition;
             bool m_isPlaying[x_maxPoly];
             bool m_isMuted;
+
+            CellInfo()
+                : m_baseTimeSlice(0)
+                , m_isCurrentSlice(false)
+                , m_localHarmonicPosition()
+                , m_isPlaying{}
+                , m_isMuted(false)
+            {
+            }
         };   
 
         struct TimeSliceXYConverter
@@ -911,6 +932,13 @@ struct LameJuisInternal
             Lens m_lens;
             size_t m_lensCoDimension;
             size_t m_forwardingIndex[x_numInputs];
+
+            TimeSliceXYConverter()
+                : m_lens()
+                , m_lensCoDimension(0)
+                , m_forwardingIndex{}
+            {
+            }
 
             void SetLens(Lens lens)
             {
@@ -991,8 +1019,14 @@ struct LameJuisInternal
                 int m_octave[x_maxPoly];
                 
                 Input()
-                {                
-                    m_polyChans = 0;
+                    : m_coMutes{}
+                    , m_polyChans(0)
+                    , m_percentiles{}
+                    , m_harmonic{}
+                    , m_usePercentile{}
+                    , m_toQuantize{}
+                    , m_octave{}
+                {
                     for (size_t i = 0; i < x_numInputs; ++i)
                     {
                         m_coMutes[i] = false;
@@ -1275,13 +1309,20 @@ struct LameJuisInternal
 
         struct Input
         {
+            Input()
+                : m_coMuteInput()
+                , m_prevVector(nullptr)
+                , m_inputVector(nullptr)
+            {
+            }
+
             CoMuteState::Input m_coMuteInput;
             BitVector* m_prevVector;
             BitVector* m_inputVector;
         };
 
-        bool m_needsInvalidateCache;
-        bool m_trigger[x_maxPoly];
+        bool m_needsInvalidateCache{false};
+        bool m_trigger[x_maxPoly]{};
         MatrixEvalResultWithPitch m_pitch[x_maxPoly];
         CoMuteState m_coMuteState;
 
@@ -1289,9 +1330,9 @@ struct LameJuisInternal
 
         CacheForSingleBitVector<true> m_harmonicOutputCaches[1 << x_numInputs];
         CacheForSingleBitVector<false> m_melodicOutputCaches[1 << x_numInputs];
-        bool m_lastStepEvaluated;
+        bool m_lastStepEvaluated{false};
 
-        LameJuisInternal* m_owner;
+        LameJuisInternal* m_owner{nullptr};
 
         SheafMutes m_sheafMutes;
 
@@ -1521,6 +1562,14 @@ struct LameJuisInternal
     bool m_isEvaluated[1 << x_numInputs];
 
     LameJuisInternal()
+        : m_inputVector(0)
+        , m_evalResults{}
+        , m_isEvaluated{}
+        , m_needsInvalidateCache(false)
+        , m_inputs{}
+        , m_operations{}
+        , m_accumulators{}
+        , m_outputs{}
     {
         Init();
     }

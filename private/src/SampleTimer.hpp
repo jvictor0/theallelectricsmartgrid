@@ -15,10 +15,11 @@ struct SampleTimer
     static SampleTimer* s_instance;
     
     SampleTimer()
+        : m_samplesPerFrame(0)
+        , m_frame(0)
+        , m_sample(0)
+        , m_frameZeroTimeUs(0)
     {
-        m_frame = 0;
-        m_sample = 0;
-        m_frameZeroTimeUs = 0;
     }
 
     static void Init(size_t samplesPerFrame)

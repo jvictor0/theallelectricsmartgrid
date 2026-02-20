@@ -7,7 +7,8 @@ struct RollingBuffer
     size_t m_index;
 
     RollingBuffer()
-        : m_index(0)
+        : m_buffer{}
+        , m_index(0)
     {
     }
 

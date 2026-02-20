@@ -101,6 +101,7 @@ struct BulkFilter
 
     BulkFilter()
         : m_alpha(0.0f)
+        , m_target{}
         , m_output{0.0f}
     {
         SetAlphaFromNatFreq(500.0 / 48000.0);
@@ -338,11 +339,13 @@ struct TanhSaturator
 
     TanhSaturator()
         : m_inputGain(1.0f)
+        , m_tanhGain(0.7615941559557649f)
     {
     }
 
     TanhSaturator(float gain)
         : m_inputGain(1.0)
+        , m_tanhGain(0.7615941559557649f)
     {
         SetInputGain(gain);
     }
@@ -441,11 +444,13 @@ struct ATanSaturator
 
     ATanSaturator()
         : m_inputGain(1.0f)
+        , m_atanGain(0.0f)
     {
     }
 
     ATanSaturator(float gain)
         : m_inputGain(1.0)
+        , m_atanGain(0.0f)
     {
         SetInputGain(gain);
     }

@@ -18,6 +18,14 @@ struct MultibandSaturator
     MultichannelMeter<NumChannels> m_meter[NumBands];
     MultichannelMeter<NumChannels> m_masterMeter;
 
+    MultibandSaturator()
+        : m_output{}
+        , m_sub(0.0f)
+        , m_meter{}
+        , m_masterMeter{}
+    {
+    }
+
     struct UIState
     {
         std::atomic<float> m_gain[NumBands];
@@ -28,6 +36,9 @@ struct MultibandSaturator
         MultichannelMeterReader<NumChannels> m_masterMeterReader;
 
         UIState()
+            : m_gain{}
+            , m_masterGain{}
+            , m_crossoverFreq{}
         {
             for (size_t i = 0; i < NumBands; ++i)
             {
@@ -249,7 +260,6 @@ struct MultibandSaturator
 
     MultiChannelFloat<NumChannels> Process(const Input& input, MultiChannelFloat<NumChannels> in, bool monoTheBass)
     {
-        assert(NumChannels == 2);
         Process(input, in.m_values, monoTheBass);
         return MultiChannelFloat<NumChannels>(m_output);
     }

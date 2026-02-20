@@ -7,8 +7,9 @@ struct AudioInputBuffer
     size_t m_numInputs;
 
     AudioInputBuffer()
+        : m_input{}
+        , m_numInputs(0)
     {
         memset(m_input, 0, sizeof(m_input));
-        m_numInputs = 0;
     }
 };

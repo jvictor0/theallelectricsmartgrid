@@ -34,7 +34,7 @@ struct QuadDelay
 
     TanhSaturator<true> m_saturator;
 
-    QuadFloat m_output;
+    QuadFloat m_output{};
 
     QuadDelay()
         : m_grainManager(&m_delayLine)

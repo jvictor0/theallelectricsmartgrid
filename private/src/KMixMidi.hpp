@@ -105,6 +105,8 @@ struct KMixMidi
     }
 
     KMixMidi()
+        : m_trims{}
+        , m_trimsSent{}
     {
         for (size_t i = 0; i < x_numChannels; ++i)
         {

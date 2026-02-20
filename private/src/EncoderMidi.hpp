@@ -65,7 +65,11 @@ namespace SmartGrid
         EncoderBankUIState* m_encoderBankState;
 
         EncoderMidiWriter(EncoderBankUIState* encoderBankState)
-            : m_encoderBankState(encoderBankState)
+            : m_sent{}
+            , m_color{}
+            , m_brightness{}
+            , m_values{}
+            , m_encoderBankState(encoderBankState)
         {
             for (size_t i = 0; i < 4; ++i)
             {

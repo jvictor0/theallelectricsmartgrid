@@ -16,8 +16,13 @@ struct FixedAllocator
     int m_freeQueueTail;
 
     FixedAllocator()
+        : m_data{}
+        , m_allocated{}
+        , m_index(0)
+        , m_freeQueue{}
+        , m_freeQueueHead(N)
+        , m_freeQueueTail(0)
     {
-        m_index = 0;
         m_freeQueueHead = N;
         m_freeQueueTail = 0;
 

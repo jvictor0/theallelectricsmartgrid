@@ -68,7 +68,9 @@ struct LadderFilterLP
     LadderFilterLP()
         : m_cutoff(0.1f)
         , m_feedback(0.0f)
+        , m_input(0.0f)
         , m_output(0.0f)
+        , m_kEff(0.0f)
     {
         m_saturator.SetInputGain(0.5f);
         m_fbSaturator.SetInputGain(1.0f);
@@ -628,8 +630,10 @@ struct LadderFilterHP
     LadderFilterHP()
         : m_cutoff(0.1f)
         , m_feedback(0.0f)
+        , m_input(0.0f)
         , m_output(0.0f)
         , m_hpOutput(0.0f)
+        , m_kEff(0.0f)
     {
         m_saturator.SetInputGain(0.5f);
     }

@@ -35,6 +35,7 @@ struct BankedEncoderCell : public StateEncoderCell
         SharedEncoderState()
             : SharedEncoderStateBase()
             , m_numVoices(0)
+            , m_modulatorValues(nullptr)
         {
         }
     };
@@ -52,6 +53,12 @@ struct BankedEncoderCell : public StateEncoderCell
     struct ModulatorValues
     {
         ModulatorValues()
+            : m_value{}
+            , m_valuePrev{}
+            , m_modulatorConnected{}
+            , m_modulatorColor{}
+            , m_gestureWeights{}
+            , m_gestureWeightsPrev{}
         {
             for (size_t i = 0; i < x_numModulators; ++i)
             {
@@ -142,7 +149,11 @@ struct BankedEncoderCell : public StateEncoderCell
         BankedEncoderCell* m_owner;
 
         Modulators(BankedEncoderCell* owner)
-            : m_owner(owner)
+            : m_modulators{}
+            , m_gestures{}
+            , m_activeModulators{}
+            , m_numActiveModulators(0)
+            , m_owner(owner)
         {
             for (size_t i = 0; i < x_numModulators; ++i)
             {
@@ -356,6 +367,14 @@ struct BankedEncoderCell : public StateEncoderCell
         , m_isVisible(false)
         , m_type(EncoderType::BaseParam)
         , m_forceUpdate(false)
+        , m_gestureWeightSum{}
+        , m_bankedValue{}
+        , m_postGestureValue{}
+        , m_output{}
+        , m_maxValue{}
+        , m_minValue{}
+        , m_effectiveModulatorWeights{}
+        , m_isActive{}
     {
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
@@ -387,6 +406,14 @@ struct BankedEncoderCell : public StateEncoderCell
         : StateEncoderCell(sceneManager, parent ? parent->m_sharedEncoderState : nullptr)
         , m_modulators(this)
         , m_defaultValue(0)
+        , m_gestureWeightSum{}
+        , m_bankedValue{}
+        , m_postGestureValue{}
+        , m_output{}
+        , m_maxValue{}
+        , m_minValue{}
+        , m_effectiveModulatorWeights{}
+        , m_isActive{}
     {
         int depth = parent ? parent->m_depth + 1 : 0;
         m_parent = parent;
@@ -1152,6 +1179,8 @@ struct EncoderBankInternal : public EncoderGrid
     EncoderBankInternal()
         : m_sceneManager(nullptr)
         , m_selected(nullptr)
+        , m_totalVoices(0)
+        , m_activeEncoderPrefix(0)
     {
     }
 

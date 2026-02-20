@@ -11,6 +11,7 @@ struct ErfTable
     float x_table[x_tableSize + 1];
 
     ErfTable()
+        : x_table{}
     {
         x_table[0] = 0;
         x_table[x_tableSize] = 1;
@@ -57,16 +58,22 @@ struct GangedRandomLFOInternal
     bool m_didInit;
 
     GangedRandomLFOInternal()
-        : m_state(State::x_moving)
+        : m_src{}
+        , m_pos{}
+        , m_trg{}
+        , m_shape{}
+        , m_time(0.0f)
+        , m_deadline(0.0f)
+        , m_state(State::x_moving)
         , m_didInit(false)
     {
     }
 
     struct Input
     {
-        float m_time;
-        float m_sigma;
-        size_t m_gangSize;
+        float m_time{0.0f};
+        float m_sigma{0.0f};
+        size_t m_gangSize{0};
         RGen m_gen;
     };
 
@@ -161,7 +168,7 @@ struct ManyGangedRandomLFO
     
     struct Input : public GangedRandomLFOInternal::Input
     {
-        size_t m_numGangs;
+        size_t m_numGangs{0};
     };
 
     void Process(float dt, Input& input)

@@ -44,6 +44,8 @@ struct MenuButtonRow
         : m_pos(RowPos::Unused)
         , m_start(x_baseGridSize)
         , m_end(x_baseGridSize)
+        , m_cells{}
+        , m_isMenuButton{}
     {
         for (size_t i = 0; i < x_baseGridSize; ++i)
         {
@@ -55,6 +57,8 @@ struct MenuButtonRow
         : m_pos(pos)
         , m_start(start)
         , m_end(end)
+        , m_cells{}
+        , m_isMenuButton{}
     {
         for (size_t i = 0; i < x_baseGridSize; ++i)
         {

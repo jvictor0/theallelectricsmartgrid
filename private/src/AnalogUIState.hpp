@@ -35,6 +35,7 @@ struct AnalogUIState
     std::atomic<float> m_values[Size];
 
     AnalogUIState()
+        : m_values{}
     {
         for (size_t i = 0; i < Size; ++i)
         {

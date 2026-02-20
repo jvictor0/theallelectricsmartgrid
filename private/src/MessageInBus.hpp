@@ -12,6 +12,12 @@ namespace SmartGrid
         CircularQueue<MessageIn, 16384> m_queue;
         MidiToMessageIn m_midiToMessageIn;
 
+        MessageInBus()
+            : m_queue{}
+            , m_midiToMessageIn{}
+        {
+        }
+
         bool Push(MessageIn msg)
         {
             if (!m_queue.Push(msg))

@@ -122,6 +122,8 @@ namespace SmartGrid
 
         LPSysexWriter()
             : m_shape(ControllerShape::LaunchPadX)
+            , m_color{}
+            , m_set{}
             , m_bus(nullptr)
             , m_epoch(0)
         {
@@ -130,6 +132,8 @@ namespace SmartGrid
 
         LPSysexWriter(ControllerShape shape, SmartBusColor* bus)
             : m_shape(shape)
+            , m_color{}
+            , m_set{}
             , m_bus(bus)
             , m_epoch(0)
         {

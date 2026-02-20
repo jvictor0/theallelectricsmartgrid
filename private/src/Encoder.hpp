@@ -248,7 +248,9 @@ struct StateEncoderCell : public EncoderCell
     }
     
     StateEncoderCell()
-        : m_numTracks(0)
+        : m_values{}
+        , m_state{}
+        , m_numTracks(0)
         , m_sceneManager(nullptr)
         , m_sharedEncoderState(nullptr)
     {
@@ -267,7 +269,9 @@ struct StateEncoderCell : public EncoderCell
     }
 
     StateEncoderCell(SceneManager* sceneManager, SharedEncoderStateBase* sharedEncoderState)
-        : m_numTracks(0)
+        : m_values{}
+        , m_state{}
+        , m_numTracks(0)
         , m_sceneManager(sceneManager)
         , m_sharedEncoderState(sharedEncoderState)
     {
@@ -458,6 +462,7 @@ struct EncoderGrid
     EncoderCell* m_visibleCell[x_width][x_height];
 
     EncoderGrid()
+        : m_visibleCell{}
     {
         for (int i = 0; i < x_width; ++i)
         {

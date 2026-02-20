@@ -106,7 +106,7 @@ struct CircularQueue
 template <size_t BufferSize>
 struct ByteBuffer
 {
-    uint8_t m_buffer[BufferSize];
+    uint8_t m_buffer[BufferSize]{};
     size_t m_size = 0;
 
     void Clear()

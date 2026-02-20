@@ -21,15 +21,17 @@ namespace SmartGrid
         static constexpr uint8_t x_statusClock = 0xF8;
 
         BasicMidi()
+            : m_timestamp(0)
+            , m_routeId(-1)
+            , m_msg{}
         {
             memset(m_msg, 0, sizeof(m_msg));
-            m_timestamp = 0;
-            m_routeId = -1;
         }
 
         BasicMidi(size_t timestamp, int routeId, uint8_t status, uint8_t data1, uint8_t data2)
             : m_timestamp(timestamp)
             , m_routeId(routeId)
+            , m_msg{}
         {
             m_msg[0] = status;
             m_msg[1] = data1;
@@ -39,6 +41,7 @@ namespace SmartGrid
         BasicMidi(size_t timestamp, int routeId, uint8_t* msg)
             : m_timestamp(timestamp)
             , m_routeId(routeId)
+            , m_msg{}
         {
             memcpy(m_msg, msg, sizeof(m_msg));
         }

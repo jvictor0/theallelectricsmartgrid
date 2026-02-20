@@ -16,8 +16,10 @@ struct CircleTracker
     }
 
     CircleTracker()
+        : m_phase(0.0)
+        , m_winding(0)
+        , m_top(false)
     {
-        Reset(0);
     }
 
     void Process(double phase)

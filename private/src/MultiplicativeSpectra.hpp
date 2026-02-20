@@ -8,6 +8,7 @@ struct MultiplicativeSpectra
     float m_coefficients[Primes::x_max];
 
     MultiplicativeSpectra()
+        : m_coefficients{}
     {
         for (int i = 0; i < Primes::x_max; ++i)
         {

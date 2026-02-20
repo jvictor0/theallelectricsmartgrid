@@ -14,6 +14,7 @@ struct BasicWaveTableGeneric
     float m_table[x_tableSize];
 
     BasicWaveTableGeneric()
+        : m_table{}
     {
         Init();
     }

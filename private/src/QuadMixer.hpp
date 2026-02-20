@@ -57,19 +57,19 @@ struct QuadMixerInternal
         DualMasteringChain::Input m_masterChainInput;
 
         Input()
+            : m_numInputs(0)
+            , m_numMonoInputs(0)
+            , m_input{}
+            , m_monoIn{}
+            , m_x{}
+            , m_y{}
+            , m_noiseMode(false)
+            , m_monitor{}
         {
-            m_noiseMode = false;
-            m_numInputs = 0;
-            m_numMonoInputs = 0;
-            
             for (size_t i = 0; i < 16; ++i)
             {
-                m_monitor[i] = true;                
-                m_input[i] = 0.0f;
-                m_monoIn[i] = 0.0f;
-                m_x[i] = 0.0f;
-                m_y[i] = 0.0f;
-            }            
+                m_monitor[i] = true;
+            }
         }
     };
 
@@ -96,7 +96,7 @@ struct QuadMixerInternal
         auto timeT = std::chrono::system_clock::to_time_t(now);
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
         
-        std::tm timeInfo;
+        std::tm timeInfo{};
         localtime_r(&timeT, &timeInfo);
         
         std::ostringstream oss;

@@ -77,7 +77,8 @@ struct DeepVocoder
     };
 
     DeepVocoder()
-        : m_index(0)
+        : m_buffer{}
+        , m_index(0)
         , m_enabled(false)
     {
         for (size_t i = 0; i < x_tableSize; ++i)
@@ -247,7 +248,11 @@ struct DeepVocoder
         std::atomic<float> m_magnitudes[x_uiBufferSize][x_maxComponents];
 
         UIState()
-            : m_which(0)
+            : m_voiceUIState{}
+            , m_numFrequencies{}
+            , m_frequencies{}
+            , m_magnitudes{}
+            , m_which(0)
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {

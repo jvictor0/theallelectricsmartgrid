@@ -9,6 +9,7 @@ struct BitRateReducer
 
     BitRateReducer()
         : m_amount(0.0f)
+        , m_steps(0.0f)
     {
     }
 
@@ -44,6 +45,7 @@ struct SampleRateReducer
     SampleRateReducer()
         : m_freq(0.0f)
         , m_phase(0.0f)
+        , m_output(0.0f)
     {
     }
 

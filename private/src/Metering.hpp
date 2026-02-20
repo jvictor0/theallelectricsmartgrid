@@ -20,9 +20,10 @@ struct Meter
     size_t m_samplesSincePeak;
 
     Meter()
-      : m_rms(0.0f)
-      , m_peak(0.0f)
-      , m_reduction(1.0f)
+        : m_rms(0.0f)
+        , m_peak(0.0f)
+        , m_reduction(1.0f)
+        , m_samplesSincePeak(0)
     {
     }
 

@@ -24,9 +24,11 @@ struct PolyXFaderInternal
 
         Input()
             : m_values(nullptr)
+            , m_top(nullptr)
             , m_attackFrac(0.0f)
             , m_shape(0.0f)
             , m_mult(0.0f)
+            , m_phaseShift(0.0f)
             , m_size(0)
             , m_slope(0.0f)
             , m_center(0.0f)
@@ -93,15 +95,14 @@ struct PolyXFaderInternal
         : m_size(0)
         , m_slope(0.0f)
         , m_center(0.0f)
+        , m_valuesPreQuantize{}
+        , m_valuesPostQuantize{}
+        , m_weights{}
+        , m_totalWeight(0.0f)
         , m_slew(1.0/128)
         , m_output(0.0f)
+        , m_top(false)
     {
-        for (size_t i = 0; i < 16; ++i)
-        {
-            m_valuesPreQuantize[i] = 0;
-            m_valuesPostQuantize[i] = 0;
-            m_weights[i] = 0;
-        }
     }
     
     size_t m_size;

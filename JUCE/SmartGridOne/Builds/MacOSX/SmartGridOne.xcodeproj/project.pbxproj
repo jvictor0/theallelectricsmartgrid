@@ -445,6 +445,8 @@
 		A2CEC6665DE63BE3C09B07B8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASAN_OPTIONS = "detect_leaks=1";
+				CLANG_ADDRESS_SANITIZER = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_LINK_OBJC_RUNTIME = NO;
@@ -551,7 +553,7 @@
 				OTHER_CODE_SIGN_FLAGS = --timestamp;
 				PRODUCT_NAME = "SmartGridOne";
 				SDKROOT = macosx;
-				WARNING_CFLAGS = "-Wreorder";
+				WARNING_CFLAGS = "-Wreorder -Werror=uninitialized";
 				ZERO_LINK = NO;
 			};
 			name = Debug;
@@ -599,7 +601,7 @@
 				OTHER_CODE_SIGN_FLAGS = --timestamp;
 				PRODUCT_NAME = "SmartGridOne";
 				SDKROOT = macosx;
-				WARNING_CFLAGS = "-Wreorder";
+				WARNING_CFLAGS = "-Wreorder -Werror=uninitialized";
 				ZERO_LINK = NO;
 			};
 			name = Release;

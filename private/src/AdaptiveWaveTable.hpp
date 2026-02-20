@@ -221,12 +221,12 @@ struct AdaptiveWaveTable
     size_t m_lastLevel;
     
     AdaptiveWaveTable()
+        : m_waveTableReady(false)
+        , m_dftReady(false)
+        , m_levelsReady(0)
+        , m_lastLevel(0)
     {
         InitializeStatic();
-        
-        m_waveTableReady = false;
-        m_dftReady = false;
-        m_levelsReady = 0;
     }
     
     static void InitializeStatic()

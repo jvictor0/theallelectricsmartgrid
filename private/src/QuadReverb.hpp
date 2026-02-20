@@ -86,6 +86,7 @@ struct QuadReverb
 
     QuadReverb()
         : m_saturator(0.5f)
+        , m_output()
     {
         SetAPFGain(0.6);
         SetAPFDelayTimes();

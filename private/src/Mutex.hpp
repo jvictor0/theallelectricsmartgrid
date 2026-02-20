@@ -23,6 +23,7 @@ struct ReaderWriterLock
     std::atomic<State> m_state;
 
     ReaderWriterLock()
+        : m_state(State())
     {
     }
 

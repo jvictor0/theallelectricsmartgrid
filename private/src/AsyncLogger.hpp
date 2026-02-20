@@ -17,7 +17,9 @@ struct LogMessage
     size_t m_sample;
 
     LogMessage()
-        : m_length(0)
+        : m_message{}
+        , m_length(0)
+        , m_sample(0)
     {
     }
 
@@ -59,7 +61,7 @@ struct AsyncLogQueue
 {
 #ifndef EMBEDDED_BUILD
     CircularQueue<LogMessage, 16384> m_queue;
-    std::atomic<size_t> m_missed;
+    std::atomic<size_t> m_missed{0};
 #endif
 
     template<typename... Args>
@@ -91,7 +93,7 @@ struct AsyncLogQueue
 
             auto now = std::chrono::system_clock::now();
             std::time_t t = std::chrono::system_clock::to_time_t(now);
-            std::tm localTm;
+            std::tm localTm{};
 #if defined(_WIN32)
             localtime_s(&localTm, &t);
 #else

@@ -564,7 +564,7 @@
 				PRODUCT_NAME = SmartGridOne;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				WARNING_CFLAGS = "-Wreorder";
+				WARNING_CFLAGS = "-Wreorder -Werror=uninitialized";
 				ZERO_LINK = NO;
 			};
 			name = Debug;
@@ -613,7 +613,7 @@
 				PRODUCT_NAME = SmartGridOne;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				WARNING_CFLAGS = "-Wreorder";
+				WARNING_CFLAGS = "-Wreorder -Werror=uninitialized";
 				ZERO_LINK = NO;
 			};
 			name = Release;

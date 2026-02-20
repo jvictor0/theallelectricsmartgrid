@@ -53,6 +53,7 @@ struct IndexArp
             , m_retro(false)
             , m_cycle(false)
             , m_pageInterval(0)
+            , m_rhythm{}
             , m_rhythmLength(x_rhythmLength)
         {
             for (size_t i = 0; i < x_rhythmLength; ++i)
@@ -220,6 +221,19 @@ struct NonagonIndexArp
         }
 
         Input()
+            : m_input{}
+            , m_clocks{}
+            , m_clockSelect{}
+            , m_resetSelect{}
+            , m_zoneHeight{}
+            , m_zoneOverlap{}
+            , m_offset{}
+            , m_interval{}
+            , m_pageInterval{}
+            , m_invert{}
+            , m_retro{}
+            , m_cycle{}
+            , m_totalIndex{}
         {
             for (size_t i = 0; i < x_numClocks; ++i)
             {

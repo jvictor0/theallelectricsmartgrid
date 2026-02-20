@@ -8,6 +8,8 @@ struct Primes
     int m_quotient[x_max];
 
     Primes()
+        : m_highestFactor{}
+        , m_quotient{}
     {
         for (int i = 1; i < x_max; ++i)
         {

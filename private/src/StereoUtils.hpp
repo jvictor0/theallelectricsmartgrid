@@ -9,21 +9,20 @@ struct StereoFloat
     float m_values[x_numChannels];
 
     StereoFloat(float left, float right)
+        : m_values{left, right}
     {
-        m_values[0] = left;
-        m_values[1] = right;
     }
 
     StereoFloat(const float* values)
+        : m_values{}
     {
         m_values[0] = values[0];
         m_values[1] = values[1];
     }
 
     StereoFloat()
+        : m_values{0.0f, 0.0f}
     {
-        m_values[0] = 0.0f;
-        m_values[1] = 0.0f;
     }
 
     float& operator[](int index)
