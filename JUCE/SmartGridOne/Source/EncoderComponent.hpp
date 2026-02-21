@@ -3,6 +3,7 @@
 #include "SmartGridInclude.hpp"
 #include <JuceHeader.h>
 #include "BinaryData.h"
+#include "FourteenSegmentDisplayComponent.hpp"
 #include <cmath>
 
 // Static cache for modulator glyph images
@@ -72,6 +73,7 @@ struct EncoderComponent : public juce::Component
     int m_x;
     int m_y;
     juce::Point<float> m_lastMousePosition;
+    FourteenSegmentDisplayComponent m_segmentDisplay;
 
     EncoderComponent(EncoderBankUI uiState, int x, int y)
         : m_ui(uiState)
@@ -80,6 +82,9 @@ struct EncoderComponent : public juce::Component
     {
         s_glyphImages.LoadImages();
         setSize(x_defaultPadSize, x_defaultPadSize);
+        addAndMakeVisible(m_segmentDisplay);
+        m_segmentDisplay.SetOffColor(juce::Colour(40, 40, 40));
+        m_segmentDisplay.SetNumChars(4);
     }
 
     void SetSize(int size)
@@ -267,22 +272,35 @@ struct EncoderComponent : public juce::Component
             }
         }
 
-        // Draw the rounded rectangle in the bottom gap with a black border
+        // Update and position the 14-segment display in the bottom gap
         //
         auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * 0.45f;
-        auto rectSize = radius * 0.3f;
-        auto squareX = centerX - 3 * rectSize / 2;
-        auto squareY = centerY + radius * 0.6f;
+        auto displayHeight = static_cast<int>(radius * 0.3f);
+        auto displayWidth = displayHeight * 3;
+        auto displayX = static_cast<int>(centerX - displayWidth / 2.0f);
+        auto displayY = static_cast<int>(centerY + radius * 0.6f);
 
         auto squareColor = m_ui.m_uiState->GetBrightnessAdjustedColor(m_x, m_y);
-        juce::Rectangle<float> rect(squareX, squareY, 3 * rectSize, rectSize);
-        float cornerSize = rectSize * 0.7f;
+        if (false)
+        {
+            m_segmentDisplay.SetOnColor(J(squareColor));
 
-        g.setColour(juce::Colour(squareColor.m_red, squareColor.m_green, squareColor.m_blue));
-        g.fillRoundedRectangle(rect, cornerSize);
-
-        g.setColour(juce::Colours::black);
-        g.drawRoundedRectangle(rect, cornerSize, 1.5f);
+            const char* shortName = m_ui.m_uiState->GetShortName(m_x, m_y);
+            m_segmentDisplay.SetText(shortName ? juce::String(shortName) : "");
+            m_segmentDisplay.setBounds(displayX, displayY, displayWidth, displayHeight);
+        }
+        else
+        {
+            auto rectSize = radius * 0.3f;
+            auto squareX = centerX - 3 * rectSize / 2;
+            auto squareY = centerY + radius * 0.6f;
+            juce::Rectangle<float> rect(squareX, squareY, 3 * rectSize, rectSize);
+            float cornerSize = rectSize * 0.7f;
+            g.setColour(J(squareColor));
+            g.fillRoundedRectangle(rect, cornerSize);
+            g.setColour(juce::Colours::black);
+            g.drawRoundedRectangle(rect, cornerSize, 1.5f);
+        }
     }
 
     virtual void mouseDown(const juce::MouseEvent& event) override

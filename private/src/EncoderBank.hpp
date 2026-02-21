@@ -358,23 +358,25 @@ struct BankedEncoderCell : public StateEncoderCell
         : StateEncoderCell()
         , m_parent(nullptr)
         , m_ownerBank(nullptr)
+        , m_name(nullptr)
+        , m_shortName(nullptr)
+        , m_gestureWeightSum{}
         , m_brightness(1)
         , m_connected(false)
         , m_modulators(this)
         , m_depth(0)
         , m_index(0)
-        , m_defaultValue(0)
-        , m_isVisible(false)
-        , m_type(EncoderType::BaseParam)
-        , m_forceUpdate(false)
-        , m_gestureWeightSum{}
         , m_bankedValue{}
         , m_postGestureValue{}
         , m_output{}
         , m_maxValue{}
         , m_minValue{}
+        , m_defaultValue(0)
         , m_effectiveModulatorWeights{}
+        , m_isVisible(false)
+        , m_type(EncoderType::BaseParam)
         , m_isActive{}
+        , m_forceUpdate(false)
     {
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
@@ -404,14 +406,14 @@ struct BankedEncoderCell : public StateEncoderCell
     BankedEncoderCell(
         SceneManager* sceneManager, BankedEncoderCell* parent, int index, EncoderType modulatorType)
         : StateEncoderCell(sceneManager, parent ? parent->m_sharedEncoderState : nullptr)
-        , m_modulators(this)
-        , m_defaultValue(0)
         , m_gestureWeightSum{}
+        , m_modulators(this)
         , m_bankedValue{}
         , m_postGestureValue{}
         , m_output{}
         , m_maxValue{}
         , m_minValue{}
+        , m_defaultValue(0)
         , m_effectiveModulatorWeights{}
         , m_isActive{}
     {
@@ -1119,6 +1121,8 @@ struct BankedEncoderCell : public StateEncoderCell
     BankedEncoderCell* m_parent;
     EncoderBankInternal* m_ownerBank;
     Color m_color;
+    const char* m_name;
+    const char* m_shortName;
     float m_gestureWeightSum[16];
     float m_brightness;
     bool m_connected;
@@ -1407,18 +1411,19 @@ struct EncoderBankInternal : public EncoderGrid
         }
     }
 
-    JSON ToJSON()
+    void ToJSON(JSON& rootJ)
     {
-        JSON rootJ = JSON::Array();
         for (size_t i = 0; i < 4; ++i)
         {
             for (size_t j = 0; j < 4; ++j)
             {
-                rootJ.AppendNew(GetBase(i, j)->ToJSON());
+                if (GetBase(i, j)->m_name)
+                {
+                    JSON paramJ = GetBase(i, j)->ToJSON();
+                    rootJ.SetNew(GetBase(i, j)->m_name, paramJ);
+                }
             }
         }
-
-        return rootJ;
     }
 
     void FromJSON(JSON rootJ)
@@ -1427,7 +1432,15 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (size_t j = 0; j < 4; ++j)
             {
-                GetBase(i, j)->FromJSON(rootJ.GetAt(i * 4 + j));
+                BankedEncoderCell* cell = GetBase(i, j);
+                if (cell->m_name)
+                {
+                    JSON paramJ = rootJ.Get(cell->m_name);
+                    if (!paramJ.IsNull())
+                    {
+                        cell->FromJSON(paramJ);
+                    }
+                }
             }
         }
 
@@ -1494,6 +1507,8 @@ struct EncoderBankInternal : public EncoderGrid
                     uiState->SetModulatorsAffecting(i, j, BitSet16());
                     uiState->SetGesturesAffecting(i, j, BitSet16());
                 }
+
+                uiState->SetShortName(i, j, cell->m_shortName);
             }
         }
 

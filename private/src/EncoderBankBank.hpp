@@ -3,53 +3,102 @@
 #include "EncoderBank.hpp"
 #include "SampleTimer.hpp"
 
-template <size_t NumBanks>
-struct EncoderBankBankInternal
+struct EncoderBankBank
 {
-    SmartGrid::EncoderBankInternal m_banks[NumBanks];
+    size_t m_numBanks;
+    size_t m_numModes;
+
+    struct BankMode
+    {
+        size_t m_numTracks;
+        size_t m_numVoices;
+        SmartGrid::BankedEncoderCell::ModulatorValues m_modulatorValues;
+        
+        BankMode()
+            : m_numTracks(0)
+            , m_numVoices(0)
+            , m_modulatorValues()
+        {
+        }
+    };
+
+    struct BankConfig
+    {
+        size_t m_modeIx;
+        SmartGrid::Color m_color;
+
+        BankConfig()
+            : m_modeIx(0)
+            , m_color(SmartGrid::Color::Off)
+        {
+        }
+    };
+
+    SmartGrid::EncoderBankInternal* m_banks;
     SmartGrid::SceneManager* m_sceneManager;
     int m_selectedBank;
-    SmartGrid::BankedEncoderCell::ModulatorValues m_modulatorValues;
-    size_t m_numTracks;
-    size_t m_numVoices;
-    SmartGrid::Color m_color[NumBanks];
+    BankConfig* m_bankConfigs;
+    BankMode* m_bankModes;
 
-    EncoderBankBankInternal()
-        : m_sceneManager(nullptr)
+    EncoderBankBank(size_t numBanks, size_t numModes)
+        : m_numBanks(numBanks)
+        , m_numModes(numModes)
+        , m_banks(new SmartGrid::EncoderBankInternal[numBanks])
+        , m_sceneManager(nullptr)
         , m_selectedBank(-1)
-        , m_modulatorValues()
-        , m_numTracks(1)
-        , m_numVoices(1)
+        , m_bankConfigs(new BankConfig[numBanks])
+        , m_bankModes(new BankMode[numModes])
     {
     }
 
-    void Init(
-        SmartGrid::SceneManager* sceneManager,
+    ~EncoderBankBank()
+    {
+        delete[] m_banks;
+        delete[] m_bankConfigs;
+        delete[] m_bankModes;
+    }
+
+    void InitSceneManager(SmartGrid::SceneManager* sceneManager)
+    {
+        m_sceneManager = sceneManager;
+    }
+
+    void InitMode(
+        size_t modeIx,
         size_t numTracks,
         size_t numVoices)
     {
-        m_sceneManager = sceneManager;
-        m_numTracks = numTracks;
-        m_numVoices = numVoices;
+        m_bankModes[modeIx].m_numTracks = numTracks;
+        m_bankModes[modeIx].m_numVoices = numVoices;
+   }
 
-        for (size_t i = 0; i < NumBanks; ++i)
-        {
-            m_banks[i].Init(sceneManager, &m_modulatorValues, numTracks, numVoices);
-        }
-
-        SelectGrid(0);
-    }
+    void InitBank(size_t bankIx, size_t modeIx, SmartGrid::Color color)
+    {
+        m_bankConfigs[bankIx].m_modeIx = modeIx;
+        m_bankConfigs[bankIx].m_color = color;
+        m_banks[bankIx].Init(
+            m_sceneManager, 
+            &m_bankModes[modeIx].m_modulatorValues, 
+            m_bankModes[modeIx].m_numTracks, 
+            m_bankModes[modeIx].m_numVoices);
+   }
 
     void SelectGesture(const BitSet16& gesture)
     {
-        m_modulatorValues.m_selectedGestures = gesture;
+        for (size_t i = 0; i < m_numModes; ++i)
+        {
+            m_bankModes[i].m_modulatorValues.m_selectedGestures = gesture;
+        }
     }
 
-    void SetTrack(size_t track)
+    void SetTrack(size_t modeIx, size_t track)
     {
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
-            m_banks[i].SetTrack(track);
+            if (m_bankConfigs[i].m_modeIx == modeIx)
+            {
+                m_banks[i].SetTrack(track);
+            }
         }
     }
 
@@ -57,7 +106,10 @@ struct EncoderBankBankInternal
     {
         if (SampleTimer::IsControlFrame())
         {
-            m_modulatorValues.ComputeChanged();
+            for (size_t i = 0; i < m_numModes; ++i)
+            {
+                m_bankModes[i].m_modulatorValues.ComputeChanged();
+            }
         }
 
         if (m_sceneManager->m_changed)
@@ -70,7 +122,7 @@ struct EncoderBankBankInternal
             HandleChangedSceneManagerScene();
         }
 
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
             if (SampleTimer::IsControlFrame())
             {
@@ -83,7 +135,7 @@ struct EncoderBankBankInternal
 
     void HandleChangedSceneManager()
     {
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
             m_banks[i].HandleChangedSceneManager();
         }
@@ -91,7 +143,7 @@ struct EncoderBankBankInternal
 
     void HandleChangedSceneManagerScene()
     {
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
             m_banks[i].HandleChangedSceneManagerScene();
         }
@@ -124,7 +176,8 @@ struct EncoderBankBankInternal
 
     SmartGrid::Color GetSelectorColor(int ix)
     {
-        return m_selectedBank == ix ? m_color[ix] : m_color[ix].Dim();
+        SmartGrid::Color color = m_bankConfigs[ix].m_color;
+        return m_selectedBank == ix ? color : color.Dim();
     }
 
     // Returns the union of gestures affecting all banks for the specified track
@@ -132,7 +185,7 @@ struct EncoderBankBankInternal
     BitSet16 GetGesturesAffectingForTrack(size_t track)
     {
         BitSet16 result;
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
             result = result.Union(m_banks[i].GetGesturesAffectingForTrack(track));
         }
@@ -143,7 +196,7 @@ struct EncoderBankBankInternal
     BitSet16 GetGesturesAffecting()
     {
         BitSet16 result;
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
             result = result.Union(m_banks[i].GetGesturesAffecting());
         }
@@ -155,7 +208,7 @@ struct EncoderBankBankInternal
     {
         bool found = false;
         SmartGrid::Color result = SmartGrid::Color::Off;
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
             if (m_banks[i].GetGesturesAffecting().Get(gesture))
             {
@@ -164,7 +217,7 @@ struct EncoderBankBankInternal
                     return SmartGrid::Color::White;
                 }
 
-                result = m_color[i];
+                result = m_bankConfigs[i].m_color;
                 found = true;
             }
         }
@@ -188,56 +241,38 @@ struct EncoderBankBankInternal
 
     void ClearGesture(int gesture)
     {
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
             m_banks[i].ClearGesture(gesture);
         }
     }
 
-    void SetColor(size_t ix, SmartGrid::Color color)
+    void Config(size_t bank, size_t i, size_t j, float defaultValue, const char* name, const char* shortName, SmartGrid::Color color)
     {
-        m_color[ix] = color;
-    }
-
-    void Config(size_t bank, size_t i, size_t j, float defaultValue, std::string name, SmartGrid::Color color)
-    {
-        std::ignore = name;
         m_banks[bank].GetBase(i, j)->m_defaultValue = defaultValue;
         m_banks[bank].GetBase(i, j)->SetValueAllScenesAllTracks(defaultValue);
         m_banks[bank].GetBase(i, j)->m_connected = true;
         m_banks[bank].GetBase(i, j)->m_color = color;
-    }
-
-    void SetModulatorType(size_t index, SmartGrid::BankedEncoderCell::EncoderType type)
-    {
-        for (size_t i = 0; i < NumBanks; ++i)
-        {
-            m_banks[i].SetModulatorType(index, type);
-        }
+        m_banks[bank].GetBase(i, j)->m_name = name;
+        m_banks[bank].GetBase(i, j)->m_shortName = shortName;
     }
 
     JSON ToJSON()
     {
         JSON rootJ = JSON::Object();
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
-            std::string key = "Bank" + std::to_string(i);
-            rootJ.SetNew(key.c_str(), m_banks[i].ToJSON());
+            m_banks[i].ToJSON(rootJ);
         }
-    
+
         return rootJ;
     }
 
     void FromJSON(JSON rootJ)
     {
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
-            std::string key = "Bank" + std::to_string(i);
-            JSON bankJ = rootJ.Get(key.c_str());
-            if (!bankJ.IsNull())
-            {
-                m_banks[i].FromJSON(bankJ);
-            }
+            m_banks[i].FromJSON(rootJ);
         }
 
         JSON increfRoot = rootJ.Incref();
@@ -245,7 +280,7 @@ struct EncoderBankBankInternal
 
     void CopyToScene(int scene)
     {
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
             m_banks[i].CopyToScene(scene);
         }
@@ -253,7 +288,7 @@ struct EncoderBankBankInternal
 
     void RevertToDefault(bool allScenes, bool allTracks)
     {
-        for (size_t i = 0; i < NumBanks; ++i)
+        for (size_t i = 0; i < m_numBanks; ++i)
         {
             m_banks[i].RevertToDefault(allScenes, allTracks);
         }
@@ -275,8 +310,28 @@ struct EncoderBankBankInternal
         }
     }
 
-    int GetCurrentTrack()
+    int GetCurrentTrack(size_t modeIx)
     {
-        return m_banks[0].GetCurrentTrack();
+        // Find first bank with this mode
+        //
+        for (size_t i = 0; i < m_numBanks; ++i)
+        {
+            if (m_bankConfigs[i].m_modeIx == modeIx)
+            {
+                return m_banks[i].GetCurrentTrack();
+            }
+        }
+
+        return 0;
+    }
+
+    SmartGrid::BankedEncoderCell::ModulatorValues& GetModulatorValues(size_t modeIx)
+    {
+        return m_bankModes[modeIx].m_modulatorValues;
+    }
+
+    size_t GetModeForBank(size_t bankIx)
+    {
+        return m_bankConfigs[bankIx].m_modeIx;
     }
 };

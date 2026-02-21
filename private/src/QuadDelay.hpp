@@ -34,11 +34,12 @@ struct QuadDelay
 
     TanhSaturator<true> m_saturator;
 
-    QuadFloat m_output{};
+    QuadFloat m_output;
 
     QuadDelay()
         : m_grainManager(&m_delayLine)
         , m_saturator(0.5f)
+        , m_output()
     {
         m_lfo.SetSlew(10.0 / 48000.0);
     }

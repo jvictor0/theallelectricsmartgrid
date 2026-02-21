@@ -313,6 +313,7 @@ struct NonagonWrapperWrldBldr
 
         void ClearLEDs()
         {
+            m_midiSender->Shutdown();
             if (m_midiOutput.get())
             {
                 for (size_t i = 0; i < SmartGrid::WrldBLDRMidiWriter::x_numColorWriters; ++i)

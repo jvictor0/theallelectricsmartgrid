@@ -13,6 +13,7 @@ struct PolyXFaderInternal
         float m_attackFrac;
         float m_shape;
         float m_mult;
+        float m_amplitude;
 
         float m_phaseShift;
 
@@ -28,6 +29,7 @@ struct PolyXFaderInternal
             , m_attackFrac(0.0f)
             , m_shape(0.0f)
             , m_mult(0.0f)
+            , m_amplitude(1.0f)
             , m_phaseShift(0.0f)
             , m_size(0)
             , m_slope(0.0f)
@@ -183,7 +185,7 @@ struct PolyXFaderInternal
             output /= m_totalWeight;
         }
 
-        m_output = m_slew.Process(output);
+        m_output = m_slew.Process(output) * input.m_amplitude + (1 - input.m_amplitude) / 2.0;
     }
 
     float Quantize(Input& input, size_t i, float value)

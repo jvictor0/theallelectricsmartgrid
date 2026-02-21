@@ -237,16 +237,19 @@ struct TheNonagonSquiggleBoyWrldBldr
         //
         struct GestureAwareSelectorCell : SmartGrid::Cell
         {
+            using Bank = SquiggleBoyWithEncoderBank::Bank;
+            using BankMode = SquiggleBoyWithEncoderBank::BankMode;
+
             TheNonagonSquiggleBoyWrldBldr* m_owner;
             std::unique_ptr<SquiggleBoyWithEncoderBank::SelectorCell> m_main;
-            size_t m_ordinal;
+            Bank m_bank;
 
             GestureAwareSelectorCell(
                 TheNonagonSquiggleBoyWrldBldr* owner,
                 std::unique_ptr<SquiggleBoyWithEncoderBank::SelectorCell> main)
                 : m_owner(owner)
                 , m_main(std::move(main))
-                , m_ordinal(m_main->m_ordinal)
+                , m_bank(m_main->m_bank)
             {
             }
 
@@ -254,23 +257,17 @@ struct TheNonagonSquiggleBoyWrldBldr
             {
                 if (!m_owner->m_internal->m_squiggleBoy.m_selectedGesture.IsZero())
                 {
-                    if (SquiggleBoyWithEncoderBank::x_totalNumBanks <= m_ordinal)
-                    {
-                        return SmartGrid::Color::Off;
-                    }
-
-                    // When gestures are selected, show if any affects this bank for the current track
-                    //
+                    BankMode mode = m_owner->m_internal->m_squiggleBoy.m_encoders.GetModeForBank(m_bank);
                     size_t currentTrack = 0;
-                    if (m_ordinal < SquiggleBoyWithEncoderBank::x_numVoiceBanks)
+                    if (mode == BankMode::Voice)
                     {
                         currentTrack = static_cast<size_t>(m_owner->m_internal->m_activeTrio);
                     }
                     
-                    BitSet16 affectingGestures = m_owner->m_internal->m_squiggleBoy.GetGesturesAffectingBankForTrack(m_ordinal, currentTrack);
+                    BitSet16 affectingGestures = m_owner->m_internal->m_squiggleBoy.GetGesturesAffectingBankForTrack(m_bank, currentTrack);
                     BitSet16 selectedAndAffecting = affectingGestures.Intersect(m_owner->m_internal->m_squiggleBoy.m_selectedGesture);
                     
-                    SmartGrid::Color color = m_owner->m_internal->m_squiggleBoy.GetSelectorColorNoDim(m_ordinal);
+                    SmartGrid::Color color = m_owner->m_internal->m_squiggleBoy.GetBankColor(m_bank);
                     if (!selectedAndAffecting.IsZero())
                     {
                         return color;
@@ -280,7 +277,6 @@ struct TheNonagonSquiggleBoyWrldBldr
                         return color.Dim();
                     }
                 }
-
 
                 return m_main->GetColor();
             }
@@ -402,25 +398,37 @@ struct TheNonagonSquiggleBoyWrldBldr
                 Put(i, 1, new GestureVisibleCell(m_owner, std::move(mainCell), std::move(gestureCell)));
             }
 
-            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numQuadBanks; ++i)
-            {
-                Put(i, 2, new GestureAwareSelectorCell(
-                    m_owner, 
-                    std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(&owner->m_internal->m_squiggleBoy, i + SquiggleBoyWithEncoderBank::x_numVoiceBanks)));
-            }
-
-            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numGlobalBanks; ++i)
-            {
-                Put(i + SquiggleBoyWithEncoderBank::x_numQuadBanks, 2, new GestureAwareSelectorCell(
-                    m_owner, 
-                    std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(&owner->m_internal->m_squiggleBoy, i + SquiggleBoyWithEncoderBank::x_numVoiceBanks + SquiggleBoyWithEncoderBank::x_numQuadBanks)));
-            }
-
-            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numVoiceBanks; ++i)
+            // Voice banks
+            //
+            for (size_t i = 0; i < SmartGridOneEncoders::x_numVoiceBanks; ++i)
             {
                 Put(i, 3, new GestureAwareSelectorCell(
                     m_owner, 
-                    std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(&owner->m_internal->m_squiggleBoy, i)));
+                    std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(
+                        &owner->m_internal->m_squiggleBoy,
+                        SmartGridOneEncoders::BankFromOrdinal(i))));
+            }
+
+            // Quad banks
+            //
+            for (size_t i = 0; i < SmartGridOneEncoders::x_numQuadBanks; ++i)
+            {
+                Put(i, 2, new GestureAwareSelectorCell(
+                    m_owner, 
+                    std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(
+                        &owner->m_internal->m_squiggleBoy,
+                        SmartGridOneEncoders::BankFromOrdinal(SmartGridOneEncoders::x_numVoiceBanks + i))));
+            }
+
+            // Global banks
+            //
+            for (size_t i = 0; i < SmartGridOneEncoders::x_numGlobalBanks; ++i)
+            {
+                Put(SmartGridOneEncoders::x_numQuadBanks + i, 2, new GestureAwareSelectorCell(
+                    m_owner, 
+                    std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(
+                        &owner->m_internal->m_squiggleBoy,
+                        SmartGridOneEncoders::BankFromOrdinal(SmartGridOneEncoders::x_numVoiceBanks + SmartGridOneEncoders::x_numQuadBanks + i))));
             }
 
             Put(0, 4, m_owner->m_internal->MakeShiftCell());

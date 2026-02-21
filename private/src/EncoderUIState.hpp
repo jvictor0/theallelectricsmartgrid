@@ -15,6 +15,7 @@ struct EncoderUIState
     std::atomic<bool> m_connected;
     std::atomic<BitSet16> m_modulatorsAffecting;
     std::atomic<BitSet16> m_gesturesAffecting;
+    std::atomic<const char*> m_shortName;
 
     EncoderUIState()
         : m_color(SmartGrid::Color::Off)
@@ -25,6 +26,7 @@ struct EncoderUIState
         , m_connected(false)
         , m_modulatorsAffecting{}
         , m_gesturesAffecting{}
+        , m_shortName(nullptr)
     {
         for (size_t i = 0; i < 16; ++i)
         {
@@ -141,9 +143,9 @@ struct EncoderBankUIState
         m_mainIndicatorColor.store(color);
     }
     
-    SmartGrid::Color GetMainIndicatorColor()
+    SmartGrid::Color GetMainIndicatorColor(size_t i, size_t j)
     {
-        return m_mainIndicatorColor.load();
+        return m_states[i][j].m_connected.load() ? m_mainIndicatorColor.load() : SmartGrid::Color::Off;
     }
 
     void SetBrightness(size_t i, size_t j, float brightness)
@@ -233,6 +235,18 @@ struct EncoderBankUIState
     SmartGrid::Color GetModulationGlyphColor(size_t i)
     {
         return m_modulationGlyphColor[i].load();
+    }
+
+    void SetShortName(size_t i, size_t j, const char* shortName)
+    {
+        m_states[i][j].m_shortName.store(shortName);
+    }
+
+    // May return nullptr
+    //
+    const char* GetShortName(size_t i, size_t j)
+    {
+        return m_states[i][j].m_shortName.load();
     }
 };
 

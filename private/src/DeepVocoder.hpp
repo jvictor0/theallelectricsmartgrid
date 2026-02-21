@@ -250,9 +250,9 @@ struct DeepVocoder
         UIState()
             : m_voiceUIState{}
             , m_numFrequencies{}
+            , m_which(0)
             , m_frequencies{}
             , m_magnitudes{}
-            , m_which(0)
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {

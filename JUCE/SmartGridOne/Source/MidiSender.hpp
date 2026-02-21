@@ -11,9 +11,12 @@ struct MidiSender : public juce::Thread
     MidiOutputHandler* m_outputHandlers[x_maxRoutes];
     int m_clockRouteId;
     static constexpr double x_latencyMs = 10;
-    
+
+    std::atomic<bool> m_shutdown;
+
     MidiSender()
         : juce::Thread("MidiSender")
+        , m_shutdown(false)
     {
         for (size_t i = 0; i < x_maxRoutes; i++)
         {
@@ -70,6 +73,11 @@ struct MidiSender : public juce::Thread
         m_queue.Push(msg);
     }
 
+    void Shutdown()
+    {
+        m_shutdown.store(true);
+    }
+
     void HandleMessage()
     {
         SmartGrid::BasicMidi msg;
@@ -78,6 +86,12 @@ struct MidiSender : public juce::Thread
         //
         if (!m_queue.Peek(msg))
         {
+            return;
+        }
+
+        if (m_shutdown.load())
+        {
+            m_queue.Pop(msg);
             return;
         }
         

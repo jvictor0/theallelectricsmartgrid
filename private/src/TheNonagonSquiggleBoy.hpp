@@ -86,7 +86,6 @@ struct TheNonagonSquiggleBoyInternal
         }
         
         m_configGrid.PropagateSourceSelection();
-        m_squiggleBoy.SelectGridId();
     }
 
     void CopyToScene(int scene)
@@ -203,25 +202,27 @@ struct TheNonagonSquiggleBoyInternal
         
         theoryOfTimeInput.m_freq = m_squiggleBoyState.m_tempo.m_expParam;
 
-        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_phaseLearnRate.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 1, 0));
-        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_freqLearnRate.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 1, 0));
-        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_phaseLearnApplicationRate.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 2, 1, 0));
-        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_freqLearnApplicationRate.Update(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 3, 1, 0));
+        using Param = SmartGridOneEncoders::Param;
 
-        theoryOfTimeInput.m_phaseModLFOInput.m_attackFrac = theoryOfTimeInput.m_lfoSkewFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 2, 0));
-        theoryOfTimeInput.m_lfoMult.Update(theoryOfTimeInput.m_lfoMultFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 2, 0)));
-        theoryOfTimeInput.m_phaseModLFOInput.m_shape = theoryOfTimeInput.m_lfoShapeFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 2, 2, 0));
-        theoryOfTimeInput.m_phaseModLFOInput.m_center = 1 - theoryOfTimeInput.m_lfoCenterFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 0, 3, 0));
-        theoryOfTimeInput.m_phaseModLFOInput.m_slope = theoryOfTimeInput.m_lfoSlopeFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 1, 3, 0));
-        theoryOfTimeInput.m_modIndex.Update(theoryOfTimeInput.m_lfoIndexFilter.Process(m_squiggleBoy.m_globalEncoderBank.GetValue(0, 3, 3, 0)));
+        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_phaseLearnRate.Update(m_squiggleBoy.m_encoders.GetValue(Param::PLLPhaseLearn));
+        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_freqLearnRate.Update(m_squiggleBoy.m_encoders.GetValue(Param::PLLFreqLearn));
+        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_phaseLearnApplicationRate.Update(m_squiggleBoy.m_encoders.GetValue(Param::PLLPhaseApply));
+        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_freqLearnApplicationRate.Update(m_squiggleBoy.m_encoders.GetValue(Param::PLLFreqApply));
+
+        theoryOfTimeInput.m_phaseModLFOInput.m_attackFrac = theoryOfTimeInput.m_lfoSkewFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOSkew));
+        theoryOfTimeInput.m_lfoMult.Update(theoryOfTimeInput.m_lfoMultFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOMult)));
+        theoryOfTimeInput.m_phaseModLFOInput.m_shape = theoryOfTimeInput.m_lfoShapeFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOShape));
+        theoryOfTimeInput.m_phaseModLFOInput.m_center = 1 - theoryOfTimeInput.m_lfoCenterFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOCenter));
+        theoryOfTimeInput.m_phaseModLFOInput.m_slope = theoryOfTimeInput.m_lfoSlopeFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOSlope));
+        theoryOfTimeInput.m_modIndex.Update(theoryOfTimeInput.m_lfoIndexFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOIndex)));
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
-            m_nonagon.m_state.m_arpInput.m_zoneHeight[i] = m_squiggleBoy.m_voiceEncoderBank.GetValue(2, 0, 2, i);
-            m_nonagon.m_state.m_arpInput.m_zoneOverlap[i] = m_squiggleBoy.m_voiceEncoderBank.GetValue(2, 1, 2, i);
-            m_nonagon.m_state.m_arpInput.m_offset[i] = m_squiggleBoy.m_voiceEncoderBank.GetValue(2, 0, 3, i);
-            m_nonagon.m_state.m_arpInput.m_interval[i] = m_squiggleBoy.m_voiceEncoderBank.GetValue(2, 1, 3, i);
-            m_nonagon.m_state.m_arpInput.m_pageInterval[i] = m_squiggleBoy.m_voiceEncoderBank.GetValue(2, 2, 3, i);
+            m_nonagon.m_state.m_arpInput.m_zoneHeight[i] = m_squiggleBoy.m_encoders.GetValue(Param::SeqZoneHeight, i);
+            m_nonagon.m_state.m_arpInput.m_zoneOverlap[i] = m_squiggleBoy.m_encoders.GetValue(Param::SeqZoneOverlap, i);
+            m_nonagon.m_state.m_arpInput.m_offset[i] = m_squiggleBoy.m_encoders.GetValue(Param::SeqOffset, i);
+            m_nonagon.m_state.m_arpInput.m_interval[i] = m_squiggleBoy.m_encoders.GetValue(Param::SeqInterval, i);
+            m_nonagon.m_state.m_arpInput.m_pageInterval[i] = m_squiggleBoy.m_encoders.GetValue(Param::SeqPageInterval, i);
         }
     }
 
@@ -338,7 +339,6 @@ struct TheNonagonSquiggleBoyInternal
         m_stateSaver.Insert("sceneStateLeft", &m_sceneManager.m_scene1);
         m_stateSaver.Insert("sceneStateRight", &m_sceneManager.m_scene2);
         m_stateSaver.Insert("activeTrio", &m_activeTrio);
-        m_stateSaver.Insert("selectedAbsoluteEncoderBank", &m_squiggleBoy.m_selectedAbsoluteEncoderBank);
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.Config(m_squiggleBoyState);
         m_squiggleBoy.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;

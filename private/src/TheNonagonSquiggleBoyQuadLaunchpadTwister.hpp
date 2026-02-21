@@ -139,23 +139,31 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
             Put(-1, 0, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(owner->m_internal, true));
             Put(-1, 1, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(owner->m_internal, false));
 
-            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numVoiceBanks; ++i)
+            // Voice banks
+            //
+            for (size_t i = 0; i < SmartGridOneEncoders::x_numVoiceBanks; ++i)
             {
-                Put(i, SmartGrid::x_baseGridSize + 1, new SquiggleBoyWithEncoderBank::SelectorCell(&owner->m_internal->m_squiggleBoy, i));
+                Put(i, SmartGrid::x_baseGridSize + 1, new SquiggleBoyWithEncoderBank::SelectorCell(
+                    &owner->m_internal->m_squiggleBoy,
+                    SmartGridOneEncoders::BankFromOrdinal(i)));
             }
 
-            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numQuadBanks; ++i)
+            // Quad banks
+            //
+            for (size_t i = 0; i < SmartGridOneEncoders::x_numQuadBanks; ++i)
             {
                 Put(i, SmartGrid::x_baseGridSize, new SquiggleBoyWithEncoderBank::SelectorCell(
                     &owner->m_internal->m_squiggleBoy,
-                    i + SquiggleBoyWithEncoderBank::x_numVoiceBanks));
+                    SmartGridOneEncoders::BankFromOrdinal(SmartGridOneEncoders::x_numVoiceBanks + i)));
             }
 
-            for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numGlobalBanks; ++i)
+            // Global banks
+            //
+            for (size_t i = 0; i < SmartGridOneEncoders::x_numGlobalBanks; ++i)
             {
-                Put(i + SquiggleBoyWithEncoderBank::x_numQuadBanks, SmartGrid::x_baseGridSize , new SquiggleBoyWithEncoderBank::SelectorCell(
+                Put(SmartGridOneEncoders::x_numQuadBanks + i, SmartGrid::x_baseGridSize, new SquiggleBoyWithEncoderBank::SelectorCell(
                     &owner->m_internal->m_squiggleBoy,
-                    i + SquiggleBoyWithEncoderBank::x_numVoiceBanks + SquiggleBoyWithEncoderBank::x_numQuadBanks));
+                    SmartGridOneEncoders::BankFromOrdinal(SmartGridOneEncoders::x_numVoiceBanks + SmartGridOneEncoders::x_numQuadBanks + i)));
             }
 
             Put(SmartGrid::x_baseGridSize - 1, SmartGrid::x_baseGridSize + 1, owner->MakeShiftCell());

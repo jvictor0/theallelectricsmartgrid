@@ -260,7 +260,7 @@ namespace SmartGrid
                     }
                     else if (m_mode == Mode::EncoderIndicator)
                     {
-                        color = m_encoderState->GetMainIndicatorColor();
+                        color = m_encoderState->GetMainIndicatorColor(i, j);
                     }
 
                     if (!m_set[i][j] || color != m_color[i][j])
@@ -506,7 +506,7 @@ namespace SmartGrid
         static constexpr size_t x_numColorWriters = 5;
         WrldBLDRColorMidiWriter m_colorWriters[x_numColorWriters];
         WrldBLDRIndicatorMidiWriter m_indicatorWriter;
-
+        
         WrldBLDRMidiWriter(TheNonagonSquiggleBoyWrldBldr* wrldBldr)
             : m_colorWriters{
                 WrldBLDRColorMidiWriter(&wrldBldr->m_uiState.m_colorBus[static_cast<int>(TheNonagonSquiggleBoyWrldBldr::Routes::LeftGrid) - TheNonagonSquiggleBoyWrldBldr::x_launchpadStartRouteId], 3, WrldBLDRColorMidiWriter::Mode::Grid),
