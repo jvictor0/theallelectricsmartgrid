@@ -783,6 +783,8 @@ struct SquiggleBoy
 
     PhaseUtils::SimpleOsc m_panPhase;
 
+    PhaseUtils::ZeroedExpParam m_masterVolume;
+
     RGen m_rGen;
 
     bool m_firstFrame;
@@ -1005,6 +1007,13 @@ struct SquiggleBoy
         m_output = m_mixer.ProcessReturns(m_mixerState);
 
         WriteQuadScopes();
+        
+        // Apply master volume with exponential curve for proper gain response
+        //
+        float masterVolumeGain = m_masterVolume.m_expParam;
+        m_output.m_output = m_output.m_output * masterVolumeGain;
+        m_output.m_stereoOutput = m_output.m_stereoOutput * masterVolumeGain;
+        m_output.m_sub = m_output.m_sub * masterVolumeGain;
     }
 
     void WriteQuadScopes()
@@ -1578,7 +1587,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_masterChainInput.SetBassFreq(m_encoders.GetValue(Param::LowBandCutoff));
         m_mixerState.m_masterChainInput.SetCrossoverFreq(0, m_encoders.GetValue(Param::MidBandCutoff));
         m_mixerState.m_masterChainInput.SetCrossoverFreq(1, m_encoders.GetValue(Param::HighBandCutoff));
-        m_mixerState.m_masterChainInput.SetMasterGain(m_encoders.GetValue(Param::MasterGain));        
+        m_mixerState.m_masterChainInput.SetMasterGain(m_encoders.GetValue(Param::MasterGain));
+        m_masterVolume.Update(m_encoders.GetValue(Param::MasterVolume));
 
         m_sourceMixerState.m_sources[0].m_hpCutoff.Update(m_encoders.GetValueNoSlew(Param::Source1HP));
         m_sourceMixerState.m_sources[0].m_lpFactor.Update(m_encoders.GetValueNoSlew(Param::Source1LP));

@@ -92,6 +92,7 @@ F(TempoLFOShape, TLSH, TheoryOfTime, 2, 2, 0.5, "Tempo LFO Shape", SmartGrid::Co
 F(TempoLFOCenter, TLC, TheoryOfTime, 0, 3, 0.75, "Tempo LFO Center", SmartGrid::Color::Yellow) 
 F(TempoLFOSlope, TLSL, TheoryOfTime, 1, 3, 0, "Tempo LFO Slope", SmartGrid::Color::Yellow) 
 F(TempoLFOIndex, TLIX, TheoryOfTime, 3, 3, 0, "Tempo LFO Index", SmartGrid::Color::Yellow) 
+F(MasterVolume, MVOL, Mastering, 3, 0, 1, "Master Volume", SmartGrid::Color::SeaGreen)
 F(LowEq, LEQ, Mastering, 0, 2, 3.0 / 5.0, "Low Eq", SmartGrid::Color::SeaGreen)
 F(LowMidEq, LME, Mastering, 1, 2, 3.0 / 5.0, "Low Mid Eq", SmartGrid::Color::SeaGreen) 
 F(HighMidEq, HME, Mastering, 2, 2, 3.0 / 5.0, "High Mid Eq", SmartGrid::Color::SeaGreen) 
