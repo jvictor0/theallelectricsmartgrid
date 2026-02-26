@@ -336,7 +336,6 @@ struct SquiggleBoyVoice
             PhaseUtils::ZeroedExpParam m_lpResonance;
             PhaseUtils::ZeroedExpParam m_hpResonance;
             PhaseUtils::ExpParam m_saturationGain;
-            float m_envDepth;
 
             AHD::InputSetter m_ahdInputSetter;
             AHD::Input m_ahdInput;
@@ -355,7 +354,6 @@ struct SquiggleBoyVoice
                 , m_lpCutoffFactor(0.25f, 1024.0f)
                 , m_hpCutoffFactor(0.25f, 256.0f)
                 , m_saturationGain(0.25f, 5.0f)
-                , m_envDepth(0)
                 , m_sampleRateReducerFreq(1.0f, 2048.0f)
             {
                 m_lpResonance.SetBaseByCenter(0.125);

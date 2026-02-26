@@ -1,139 +1,125 @@
+# LameJuis
+
+**LameJuis** is an esoteric, layered sequencer that turns the six gate bits from the [Theory of Time](theory-of-time.md) into polyphonic pitch. The implementation is in `private/src/LameJuis.hpp` and `private/src/IndexArp.hpp`; the Nonagon wires the six time-loop gates into LameJuis and uses one LameJuis **output** per **trio** (three voices share one output’s pitch logic).
+
+The design is **stateless** in time: at each moment **x** in **I⁶** (the six gate bits), the set of available notes and the choice of note are pure functions of **x**. Modulating the Theory of Time (e.g. phase modulation) therefore modulates this polyphonic process without breaking it.
+
 ---
-layout: page
-title: LaMeJuIS: Logic Matrix and Just Intonation Sequencer
-nav_exclude: true
-permalink: /lamejuis
+
+## 1. The map M and the sheaf F^M_x(U)
+
+Let **M : I⁶ → pitch**. Here “pitch” is represented as **volt-per-octave** (or equivalently log₂ of a just-intonation ratio). Composing M with the Theory of Time would give a single melody; we want many interlocking melodies, so we introduce a **lens** and a **sheaf**.
+
+- **Lens U** — A subset of the 6 dimensions, represented as a 6-bit bitstring (`LameJuisInternal::Lens`, extending `BitVector`).  
+  - **Read bits** (bits set to 1 in U): dimensions we “read”; two time slices must agree on these to be equivalent under lens U.  
+  - **Co-mute bits** (bits set to 0 in U): dimensions we “co-mute” (ignore for equivalence); they can vary.  
+  In the UI this is set per trio as “co-mutes”: lens bit *i* = 1 when *i* is **not** co-mute, i.e. when we read dimension *i* (`Output::CoMuteState::GetLens()` sets `lens.Set(i, !m_coMutes[i])`).
+- **Equivalence** — For **x**, **y** in I⁶, define **x ~_U y** iff **x** and **y** agree on the read bits. In code: `Lens::Equivalent(a,b)` is `(a.m_bits ^ b.m_bits) & m_bits == 0`.
+- **Harmonic Sheaf** — Define **F^M_x(U) = { M(y) | y ~_U x }**. So at time **x**, for a given lens U, we take all time slices equivalent to **x** under U and collect their M-values. This set is chosen statelessly from **x**; if **x** jumps (e.g. from time modulation), the set changes accordingly.
+
 ---
 
-# LaMeJuIS
+## 2. Trios and lens assignment
 
-![Expression]({{ "/LameJuisFrontPanel.png" | relative_url }})
+There are **9 voices** in **3 trios** of 3 voices each. Each trio is assigned **one LameJuis output** (there are 3 outputs, one per accumulator/output). The performer assigns a **lens U** to that output via the co-mute UI: which of the 6 dimensions are “read” vs “co-mute”. At each time **x** in I⁶, the trio must pick a note from **F^M_x(U)**. That choice is made by the **index arp** (see below), then by ordering and probing that set.
 
-## Video Manual
+---
 
-Find video tutorial [here](https://youtu.be/vQx_pSbcf3U).  Note: the front panel has changed and in particular the switches have been transposed.  What once were rows are now columns.
+## 3. Index arp: clock, reset, rhythm, and range
 
-## Overview
+The **index arp** (`IndexArp`, used per voice inside `NonagonIndexArp`) turns the monodromy (state-change count) of a chosen clock loop into a **point in a range** that is then used to pick a note from **F^M_x(U)**.
 
-LameJuis is a module which takes some gate inputs and produces three interlocked, evolving melodie.  LameJuis is modeless and stateless, meaning the values on the inputs and positions of the many switches and knobs completely determine the output.  The melodies it creates seem to imply a strong sense of harmonic progression, tonal center and song form despite knowing nothing of scales and chords (not even the chromatic scale).  These melodies are generated using three simple ideas, none of which are hard to understand, but each of which is (to my knowledge) outside the mainstream of Eurorack sequencing.  The ideas are
+### 3.1 Clock and reset
 
-* [Euler's Lattice](https://en.wikipedia.org/wiki/Tonnetz): Laying out notes in a grid such that nearby notes are strongly related.
-* Logic Matrix: Using a matrix of logic operations to select notes on this grid.
-* Co-Muting: Selectively ignoring inputs to the logic matrix in order to generate multiple related melodies.
+- The performer chooses a **clock loop** and optionally a **reset loop** (an ancestor of the clock for the reset to be meaningful; or no reset, i.e. reset index -1).
+- When the clock loop’s **gate changes** (`m_gateChanged`), the Nonagon sets  
+`m_arpInput.m_totalIndex[trio] = TheoryOfTime::MonodromyNumber(clockSelect[trio], resetSelect[trio])`.  
+So **m_totalIndex** is the number of **state changes** (gate flips) of the clock loop since the reset loop was at zero (or since the clock started if there is no reset). See [Theory of Time — Monodromy](theory-of-time.md#monodromy-relative-state-change-count).
 
-## The Theory
+### 3.2 Gate sequencer (rhythm)
 
-For people who only care about traditional western 12-notes-per-octave music, most Just Intonation aspects of this module can simply be ignored.  However, JI gives some lovely insight into the structure of harmony by organizing pitches in a multi-dimensional lattice, and exploiting this structure for composition creates pleasing melodies.  The small tuning improvements are secondary, although it gives the option to explore more out there sounds to those who wish.
+- Each voice’s arp has a **rhythm** pattern: `m_rhythm[0..m_rhythmLength-1]` with `m_rhythmLength` default 8 (`IndexArp::x_rhythmLength`). Only some steps are “on”; the rest gate the voice off.
+- From **m_totalIndex** we derive:
+  - **m_rhythmIndex** = `m_totalIndex % m_rhythmLength` — position on the rhythm loop.
+  - **m_motiveIndex** = `m_totalIndex / m_rhythmLength` — which “page” or cycle through the rhythm.
+- A **trigger** happens only when `m_rhythm[m_rhythmIndex]` is true and the clock has just advanced (we’re in the `m_clock` / `m_triggered` path). Then we compute **m_index**: the **physical index** among the **on** steps (0 to NumNotes()-1), i.e. how many rhythm steps that are on have been passed up to and including the current step.
 
-In many sequencers, notes are organized numerically, by frequency, so notes close in frequency end up near each other.  In order to only pick "good" notes, the allowed frequencies are then quantized into some pre-determined scale.  Another posibility is to sort notes so that harmonically related notes are near each other.  Doing this in one dimension by stacking fifths gives the well known circle of fifths, which has a specific sort of sound, but what happens when we lay out notes in two dimensions, with one axis going up by fifths and one axis going up by major thirds, like so:
+### 3.3 Point in range
 
-| C#  | G# | D# | A# | E# |
-| A   | E  | B  | F# | C# |
-| F   | C  | G  | D  | A  |
-| Db  | Ab | Eb | Bb | F  |
+- The arp exposes a **range** per voice: **m_offset**, **m_interval**, **m_pageInterval**, **m_min**, **m_max**, plus **m_invert**, **m_retro**, **m_cycle**.
+- **Output** is computed as  
+`GetOutput(m_index, m_motiveIndex)` =  
+`m_offset + m_index * m_interval + m_motiveIndex * m_pageInterval`,  
+then optionally wrapped (cycle) or inverted, then scaled from [0,1] to **[m_min, m_max]**.
+- So the **index** (physical step among on steps) and **motive index** (rhythm page) together determine a single float in a range. That float is passed to LameJuis as either a **percentile** (harmonic mode) or a **pitch to quantize** (melodic mode).
 
-Because going up a perfect fifth and then a major third is the same as going up a major third and then a perfect fifth, we get a well defined grid of notes.  Whats more, simple geometric shapes tend to form nice chords (go find your favorites, major and minor triads are triangles) and nearby shapes tend for form nice chord progressions.  And since the notes are laid out in 2-d, two patterns taking a small number of values can address all 12 notes, and if the ranges of those values are constrained or related in some way, the notes will have some notion of a key, or at least make some level of harmonic sense.
+- **When the Nonagon updates the index arp** — The Nonagon only updates index-arp inputs and runs the index arp (and LameJuis) when **m_theoryOfTime.m_anyChange** is true — i.e. when at least one time loop’s integer position changed this frame. On those frames it calls `SetIndexArpInputs` then `m_indexArp.Process`. For each trio, **m_totalIndex** is set to the monodromy when the selected clock loop’s gate has just changed (`m_gateChanged`), or to 0 if no clock is selected; **m_clocks[i]** is set to **m_gateChanged** for loop *i*; and **m_read** is set for voices whose lens reads a dimension that just ticked. When there is no Theory of Time change, the arp and LameJuis are not run that frame.
 
-So the game becomes this: find a way to draw patterns on that grid.  Thats where the logic comes in.  A few logic operations (on the same inputs) are assigned to different intervals.  Count up the number of "high" gates for each interval and get a position on the grid.
+---
 
-One more note, (and this can mostly be ignored except by people who love tuning): because the intervals are laid out on a grid where the relationships between notes are very well defined, it makes complete sense to use "Just Intervals" instead of 12-EDO intervals.  That means the frequency ratio between a note and its neighbor to the right is exactly 3/2, and its neighbor to the top is 5/4.  Don't worry, its easy to make sequences where very pure tuning won't really sound wrong.  The pure intervals can produce a delightful "buzzing" effect in many cases, or sound "very xenharmonic" if thats what you're going for.  For musicians who are happy thinking just about 12-EDO, this detail can simply be ignored, or right-click and select '12-EDO mode'.
+## 4. Ordering F^M_x(U) and probing: harmonic vs melodic
 
-## Inputs
+Once we have the set **F^M_x(U)** (all M(y) for y ~_U x), we order it and probe it with the index-arp output to get the final note.
 
-LameJuis has six gate inputs on the left side of the module labeled A-F.  Each input is normalled to a divide-by-2 clock divider (flip flop) of the input above, meaning you can run the entire sequencer on a single clock at the A-input and get cascading clock dividers the other inputs.  Running in this mode can feel a lot like a 64-step sequencer, but by sending other sorts of gate patterns you can get all sorts of behaviors out of LameJuis.  Sending a trigger to the reset input (left side of the panel) will reset the clock dividers for unplugged inputs the next time the input above goes high.
+- **Harmonic mode** — The set is ordered by **pitch** (volt-per-octave), i.e. by the just-intonation ratios. The list is sorted by `m_pitch` (and then by `m_result` for ties). The index-arp output is used as a **percentile** in [0,1): we map it to an index into this sorted list (`PercentileToIx(percentile)`). So we “pick a point along the sorted list” of pitches. Integer part of the percentile can be used as an octave offset (`result.m_pitch += floor(percentile)`).
+- **Melodic mode** — Pitches are **octave-reduced** (`OctaveReduce()`: `m_pitch -= floor(m_pitch)`), then the list is sorted. The index-arp output is interpreted as a **pitch to quantize**: we find the nearest pitch in this (octave-reduced) list (`Quantize(toQuantize)` / `QuantizeModOctave`), including wraparound at 0/1. So we’re “quantizing” a continuous pitch into the scale defined by F^M_x(U) mod octave.
 
-Quick note about conventions: although you can plug any gate patterns into LameJuis you want, things become easier to explain/motivate if we assume the top inputs are changing faster than the bottom inputs.  Then we can say the top inputs represent melodic movement while the middle inputs represent chord progression and bottom inputs represent song form (since melodies move faster than chords, which move faster than song form).  This is, of course, just a thing in our brains, but our brains are so used to hearing music organized in this way we might as well exploit this hierarchy.  From the perspective of how the sequencer actually works, all six inputs are identical.
+In both cases the result is a single pitch (volt-per-octave) per voice; that pitch is then used by the rest of the synth (e.g. V/O output, possible octave shift from the UI). Whether a **trigger** is emitted (note on) for that pitch is decided by the [Multi-Phasor Gate](multi-phasor-gate.md) (pitch-changed vs sub-trigger, mutes, interrupt).
 
-## Logic Matrix
+---
 
-The six identical inputs are processed by six identical logic operations.  Each operation is a column in the large switch matrix in the middle of the module.  The first six switches (each column), labeled A-F, determine which inputs are processed by the operation.  The switches are three position switches.  In the "up" position, the input is part of the operation.  In the middle position, it is ignored.  In the down position, the input is "negated", so treated as low if its high and high if its low.  The knob (knobs at the bottom of each column) selects the logic operation.  So, for instance, if the first switch is up, the third switch is down and the rest are neutral, the operation will apply to A and (NOT C).  The gate output of each operation is available at the corresponding Logic Out output (bottom of each column).  The outputs are unaffected by melodic parameters like co-mutes and intervals (which will be discussed later), so already LameJuis is a highly configurable six-in-six-out logic module!
+## 5. The map M: logic operations and accumulators
 
-You may notice some operations like NAND are not included.  This is because it is not needed, given the ability to negate individual inputs.  For instance, A NAND B is the same as (NOT A) OR (NOT B).  This is called De-Morgan's law and can be fun to think through if you haven't seen it before.  Similarly, there is no CV over the state of the matrix, but instead variation comes from logic operations changing their response as slower changing gates go from low to high and back again.  For instance, A AND F will go up and down as A changes when F is high, but as soon as F goes low the gate will stay low until F comes back.  The logic matrix becomes surprisingly intuitive after you play with it a bit, and its very easy to just start flipping switches and see what comes out.  You can see the tips and trick section for tips and tricks.
+**M(x)** is not a single ratio; it is computed by a **matrix** of **logic operations** feeding **accumulators**, whose outputs are combined additively in volt-per-octave (i.e. multiplicatively as ratios).
 
-## 12-EDO Mode
+### 5.1 Structure
 
-If you don't want to learn what a comma is, or if you want to use LameJuis alongside a regular 12-EDO sequence, right-click and select 12-EDO-mode.  This will make the interval selector pick 12-EDO intervals, and commas (potentially harsh sounds when jumping between far-away spots in the lattice) will disapear.  
+- There are **6 logic operations** and **3 accumulators**. Each operation outputs to **one** of the 3 accumulators (selected by a switch: Down/Middle/Up → target 2/1/0).
+- For a given **x** in I⁶ (the 6 gate bits), each operation evaluates to **0 or 1**. The **MatrixEvalResult** for **x** stores, for each accumulator, how many operations target it (`m_total[acc]`) and how many of those are high (`m_high[acc]`). The **pitch** in volt-per-octave is  
+**pitch = Σ_acc accumulators[acc].m_intervalValue * m_high[acc]**  
+So in ratio space this is a product of simple factors: each accumulator has an **interval** (e.g. octave, fifth, major third) and an **exponent** 0 or 1 (or more generally 0..m_total[acc] when several ops target the same acc). So **M(x)** is a just-intonation ratio expressed as a product of these simple intervals raised to 0/1 (or small integer) exponents.
 
-## Intervals
+### 5.2 Logic operations
 
-Each logic operation is finally routed by the final three-position "Interval Select" switch (below the logic select knob) to one of three intervals.  These intervals are determined by the three "Interval" knobs and their corresponding CV input (left side of the panel).  When the operation outputs high, the pitch moves up by the selected interval (before co-muting), and is unaffected otherwise.  Let's say the top interval is P5, and the middle interval is M3.  If there are two matrix rows with high outputs with interval select set to P5, and one row with high output with interval set to M3, the pitch produced will be two fifths and one third up, which happens to be a major seventh.  To say another way, for each of the three possible positions of the interval selector switch, count the number of logic operations which are currently high, and go up by that interval, that many times.
+Each **LogicOperation** (the “simple functions” in the user’s description) does the following:
 
-Sounds confusing?  It isn't, but it is hard to explain in words. Try watching the demo video if it's not clicking.
+- **Input**: the 6-bit time slice **x** (and a fixed configuration of the operation).
+- **Per-bit treatment** — For each of the 6 dimensions we have a **MatrixSwitch**: **Muted** (ignore), **Normal** (use the bit), **Inverted** (use the bit inverted). So we get an effective 6-bit vector: only “active” (non-muted) bits matter, and some are flipped. This is implemented as `m_active` (which bits are used) and `m_inverted` (which of those are inverted). `GetTotalAndHigh` does `inputVector &= m_active`, `inputVector ^= m_inverted`, then counts **countTotal** = number of active bits and **countHigh** = number of 1s in the result.
+- **Operator** — A function of (countTotal, countHigh) → bool:
+  - **Or**: high if countHigh > 0.
+  - **And**: high if countHigh == countTotal.
+  - **Xor**: high if countHigh is odd (parity — a Walsh-like function).
+  - **AtLeastTwo**: high if countHigh >= 2.
+  - **Majority**: high if 2*countHigh > countTotal.
+  - **Off**: always false.
+  - **Direct**: the output is **m_direct[countHigh]** — a lookup table indexed by how many of the (active, possibly inverted) bits are 1. So for each **k** in 0..6 we can choose whether the operation outputs true or false when exactly **k** bits are high.
+- **Generalized Walsh** — The default for **Direct** is `m_direct[j] = (j % 2 == 1)`, so **only odd** counts pass. That is parity (Xor), i.e. a Walsh function. By changing the **Direct** table, the performer can select which counts (0..6) pass; these behave like **generalized Walsh functions** on the 6-bit input (with the given active/inverted mask).
 
-The value of the "Interval CV" is volt per octave input is added to the interval from the knob.  Thus if the knob is "Off", the Interval CV is used (so 12 EDO intervals can be supplied, or other just ratios or microtonal generators, or an offset from a slider). 
+So **M(x)** is built from 6 such boolean functions; each contributes 0 or 1 to one of 3 accumulators; the accumulators have fixed intervals (octave, fifth, third, etc.); and the final pitch is the sum in V/O of (interval × exponent) per accumulator.
 
-The interval knob is arranged so more familiar ratios are found on the CCW side, and more esoteric intervals on the CW side.  The intervals labeled in familiar ways are very close to western 12-EO intervals, but insead of irrationals like 2^{7/12} for a perfect fifth, Just frequency ratios like 3/2 are used. The following ratios are used:
+### 5.3 Extra Timbre Modulators
 
-- Off: 1/1: unison.
-- 8va: 2/1: an octave up.
-- P5: 3/2: the third harmonic, an octave down.
-- M3: 5/4: the fifth harmonic, two octaves down.
-- P4: 4/3: an octave up, a fifth down.
-- m3: 6/5: a fifth up, a major third down.
-- M2: 9/8: two fifths up, an octave down.
-- m2: 16/15: an octave up, a fifth and a major third down.
-- [7/4](https://en.xen.wiki/w/7/4): The 7th harmonic, two octaves down.  A flat minor seventh.  Used in barbershop quarter, African and blues.  Is a minor 7th in 12-EDO-mode.
-- [11/8](https://en.xen.wiki/w/11/8): The 11th harmonic, three octaves down.  A half-flat tritone.    Is a tritone in 12-EDO-mode.
-- [13/8](https://en.xen.wiki/w/13/8): The 13th harmonic, three octaves down.  A neutral sixth. Is a minor sixth in 12-EDO-mode.
-- [31/16](https://en.xen.wiki/w/31/16): The 31st harmonic, four octaves down.  A flat octave, used by La Monte Young.  Is a major seventh in 12-EDO-mode.
-}
-The algorithm described above produces the melody that will come out if all co-mutes are tuned off (the middle position).  And the melodies are quite fascinating.  No music theory knowledge was used to construct them, no scale chosen, and yet the feeling of key, cadence, theme and variation arise naturally, depending on the switch positions.  All we did was some binary logic and multiplied some fractions, yet the result definitively sounds like something.  Depending on the configuration, melodies can go from quite familiar to exotic and xen, but there's a quality about it which, at least to my ears, sounds musical.
+In addition to pitch, the logic matrix provides **extra timbre modulators**. For each of the 3 accumulators, the matrix computes the ratio of operations that evaluated to high versus the total number of operations targeting that accumulator (`m_high[acc] / m_total[acc]`). This yields 3 discontinuous values in [0, 1] per time slice, which the Nonagon exposes as `m_extraTimbre` (after slewing). These can be routed to DSP parameters (like filter cutoff or wavefolder depth) to provide rhythmic modulation that is perfectly synchronized with the pitch sequence.
 
-## Co-Muting
+---
 
-The above algorithm produces a single melody, which has a kind of jolted quality to it.  Co-muting, and the associated pitch select knob and CV input, allow the single matrix described above to produce multiple interlocking lines while producing "smoother" melodies.  The idea is as follows: start by assuming each input is a flip-flop of the one above.  Then, for instance, you might hear A and B as a melody outlining a chord progression defined by C, D and E which changes from a "verse" to "chorus" based on F (these, of course, are just stories the composer tells themselves!).  How can you create a bass-line from this?  Well, we're saying that the state of inputs (C,D,E,F) defines an implied chord that is played as A and B vary.  As A and B vary, up to four pitches are played, so why not say the bass just plays the lowest of the four!  Its an entirely simplistic idea, but it the results just sound right.
+## 6. Statelessness
 
-Co-muting generalizes this idea, and its very fun, performable and sequencable.  Each of the three identical voices has six co-mute buttons (right side of the module, each column is a voice, each row is an input) and a pitch select knob (below the co-mute buttons) with CV input.  For each voice, the values of the co-muted inputs are ignored.   However, instead of being set to zero, the switch matrix is evaluated at all possible values of the co-muted inputs.  The results are sorted, and based off the pitch select knob and CV one of the values is selected.  For instance, if A and B are comuted, the matrix will be evaluated as if A and B were both high, both low, A high/B low, and B high/A low.  If the pitch select knob+CV is fully counter-clockwise, the lowest of the four is chosen, while if fully clockwise the highest is chosen, and a middle value if its in the middle.  In other words, among possible pitches which the matrix can produce leaving the non-co-muted values fixed and trying every possible co-muted value, pick the one which, from low-to-high, matches pitch select input+CV.  
+Because:
 
-You can think of co-mutes as units of repetition.  If using the default clock dividers as inputs, the highest non-co-muted input will determine the speed that voice will go.  Higher co-mutes will cause repetition, and the pitch select knob/CV will change what gets repeated to the higher or lower option.  Mixing co-mutes and sequencing the pitch selects can give a performer a huge number of highly coherent patterns to jump between, which are delightfully intuitive and yet unexpected.  The pitch select inputs are polyphonic, allowing this method to scale to a huge number of voices (even just sending polyphonic offset yields a delightful ensemble of interlocked patterns).
+- the Theory of Time gates are a pure function of time,
+- the monodromy (and hence **m_totalIndex**) is a pure function of time when the clock gate changes,
+- the index arp maps that to a point in a range,
+- the lens and M define **F^M_x(U)** purely from **x**,
+- and the ordering and probing of **F^M_x(U)** are deterministic,
 
-The pitch select CV input has a 5 volt range.  Comuting the leftmost few positions and sending a CV sequence into the interval intput makes LameJuis into an almost quantizer-like module.  It isn't quite: a quantizer picks the closest note while this picks from a fixed set of notes (which change when the un-co-muted inputs change), but it can take a 0-5V CV sequence and make a melody from it.  
+the whole polyphonic note-generation process is a **pure function of time**. Modulating the Theory of Time (e.g. phase modulation, different clock/reset, or different topology) only changes **x** and the index over time; the logic remains consistent.
 
-These pitches are available at the three voice outputs (bottom right corner).  The trigger output produces a gate whenever these values change.
+---
 
-As far as I'm aware, this is a novel method for generated sequences.  It isn't as tricky to learn as it might seem, just play with the switches.  Co-muting the left few inputs tends to produces harmonically coherent melodies.  Voices with more co-muted inputs tend to play more sparesly.  Multiple voices with the same inputs co-muted but different positions for the pitch select knob tend to form a bits of counterpoint and interlocked rhythms.
+## Related
 
-## Polyphony
+- [Theory of Time](theory-of-time.md) — supplies the 6 gate bits and monodromy.
+- [Glossary](glossary.md) — **LameJuis**, **lens**, **index arp**, **LogicOperation**, **accumulator**, **sheaf**.
+- [Documentation index](index/README.md) — Nonagon and trios.
 
-Sending a polyphonic input to the pitch select CV yeilds a polyphonic output for the corresponding voice's pitch and gate outs.  Send several sequences, or just several static offsets, to the pitch select CV in and get polyphonic outputs, sharing the co-mutes and pitch select knob offset.  Even just static 0V and 5V signals can get nice independent counterpunctual lines.  
-
-## Lattice Expander
-
-The lattice expander won't change what LameJuis is up to, but it can help with visualization.  The X-coordinate is the top interval, the Y-coordinate is the middle interval.  It will change the layout as the bottom interval changes (I can't make it 3-d, sorry), and switch to cents if non 12-EDO intervals (or user-provided intervals) are used.  Just slap it to the right of LameJuis and watch the lights blink.
-
-For some glorious vocal harmonies using a similar visualization, check out Gary Garrett's [Flying Dream](https://www.youtube.com/watch?app=desktop&v=jA1C9VFqJKo).
-
-## Randomizer
-
-There are several randomizer functions, that will randomize parameters to different levels of chaos.  Level 0 is the most tame, level 3 means flip all the switches and see what happens.  Just right-click to find em.
-
-## Time-Quantize Mode
-
-In this mode, switch and knob values are only read when an input gate or pitch select CV changes value.  This can make it easier to time changes, especially when using the mouse.  This mode is strongly recommended, because it prevents glitches, and makes LameJuis a very interactive instrument to play with.  Find it in the right-click menu.
-
-## Clock Input
-
-LameJuis can be computationally expensive, and can be very sensitive to things changing on slightly different frames.  If this input (left side of the panel) is connected, steps will be skipped in less the clock in put receives a pulse.  In some cases, a brief trigger delay can be very helpful.
-
-## Tips and Tricks
-
-- Try lots of different inputs.  Clock dividers, Euclidean rhythms, Bournouli gates, clocks with different phases and duty cycles all sound good.  
-- LameJuis can be somewhat sensitive to buffer delays on the gate inputs.  If you get extra unwanted triggers, try using the clocking put.
-- Use the "off" interval.  Six equations is a lot, you can spare one to just use as an extra logic out/gate sequencer/end-of-cycle output.  Or use it strategically to create a key change.
-- AND logics will be low more of the time and sound like they add upwards motion to the melodies.  OR logics will be high most of the time and add downwards motion to the logic.  The more inputs are active the more "most of the time" is.
-- XOR logics will be the most chaotic and unpredictable.  For instance, A XOR F will invert the phase of A when F goes high.  An XOR with many inputs will create a complex rhythm.
-- Sequence the pitch select CVs.  LameJuis can weirdly abosorb weirdness in the sequence, so changing parameters of the sequence, like the speed or skipping steps, tends to sound good.  
-- Use the logic outs for tambre, or for drums.  It sounds very cohesive.
-- Use Grande Microtonal Notes and the Interval CV input to get whatever EDO you want.  For instance, say you want to compose in 19-EDO, but you don't know anything about it.  First use [xenharmonic wiki](https://en.xen.wiki/w/Main_Page) to figure out that the the 11th and 6th step of 19 EDO correspond to the fifth and major third, respectively.  Pick those on Microtonal Notes, route those to LameJuis's Interval CV and and you're ready to start --annoying your loved ones-- making microtonal music.
-- Play the co-mutes.  Just try things with them.  Right click and try randomizing them.
-- You can use the interval CV in as a sort of transpose.  AND of nothing is always true, so set one equation to AND, route to an unused interval, and that interval CV becomes a "transpose" input.
-- Use the lattice expander.  It just helps.
-- General trick for modules like this, use [8Face](https://library.vcvrack.com/Stoermelder-P1/EightFace).  Find a pattern you like, mess it up and come back, all as performance gestures.
-
-## Thank you
-
-Special thanks to guitarist and educator Jacob Pek who's [Fundamental Harmonic Motion](https://www.fundamentalharmonicmotion.com/home) class got me hip to these ideas, and is a constant source of inspiration.
-
-Special thanks to my partner who doesn't mind that I spend my time this way so long as I use headphones.
-
-Special thanks to Dave Benham from [Venom](https://library.vcvrack.com/Venom) for making the front panel.
