@@ -30,6 +30,8 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             {
                 m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio + i].m_voiceConfig.m_sourceMachine = m_sourceMachine;
             }
+
+            m_owner->m_squiggleBoy->UpdateEncodersForMachine();
         }
     };
 
@@ -58,6 +60,8 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             {
                 m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio + i].m_voiceConfig.m_filterMachine = m_filterMachine;
             }
+
+            m_owner->m_squiggleBoy->UpdateEncodersForMachine();
         }
     };
 
@@ -145,24 +149,24 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
     {
     }
 
-    void Init(SquiggleBoy* squiggleBoy)
+    void Init(SquiggleBoyWithEncoderBank* squiggleBoyWithEncoders)
     {
-        m_squiggleBoy = squiggleBoy;
+        m_squiggleBoy = squiggleBoyWithEncoders;
 
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
-            squiggleBoy->m_stateSaver->Insert("voiceSourceMachine", i, &squiggleBoy->m_state[i].m_voiceConfig.m_sourceMachine);
-            squiggleBoy->m_stateSaver->Insert("voiceFilterMachine", i, &squiggleBoy->m_state[i].m_voiceConfig.m_filterMachine);
+            squiggleBoyWithEncoders->m_stateSaver->Insert("voiceSourceMachine", i, &squiggleBoyWithEncoders->m_state[i].m_voiceConfig.m_sourceMachine);
+            squiggleBoyWithEncoders->m_stateSaver->Insert("voiceFilterMachine", i, &squiggleBoyWithEncoders->m_state[i].m_voiceConfig.m_filterMachine);
         }
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            squiggleBoy->m_stateSaver->Insert("monitor", i, &squiggleBoy->m_mixerState.m_monitor[TheNonagonInternal::x_numVoices + i]);
-            squiggleBoy->m_stateSaver->Insert("deepVocoderSend", i, &squiggleBoy->m_sourceMixerState.m_deepVocoderSend[i]);
+            squiggleBoyWithEncoders->m_stateSaver->Insert("monitor", i, &squiggleBoyWithEncoders->m_mixerState.m_monitor[TheNonagonInternal::x_numVoices + i]);
+            squiggleBoyWithEncoders->m_stateSaver->Insert("deepVocoderSend", i, &squiggleBoyWithEncoders->m_sourceMixerState.m_deepVocoderSend[i]);
 
             for (size_t j = 0; j < TheNonagonInternal::x_numTrios; ++j)
             {
-                squiggleBoy->m_stateSaver->Insert("sourceSelected", j, i, &m_sourceSelected[j][i]);
+                m_squiggleBoy->m_stateSaver->Insert("sourceSelected", j, i, &m_sourceSelected[j][i]);
             }
         }
 
@@ -178,7 +182,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         {
             // Source machine selection (VCO / Thru)
             //
-            Put(i, 0, new SourceMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::SourceMachine::VCO));
+            Put(i, 0, new SourceMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::SourceMachine::DualWaveShapingVCO));
             Put(i, 1, new SourceMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::SourceMachine::Thru));
 
             // Source selection for Thru mode
@@ -213,7 +217,8 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
                 SmartGrid::StateCell<bool>::Mode::Toggle));
         }
 
-        SetColors(SmartGrid::Color::White, SmartGrid::Color::Grey.Dim());        
+        SetColors(SmartGrid::Color::White, SmartGrid::Color::Grey.Dim());
+        m_squiggleBoy->UpdateEncodersForMachine();
     }
 
     void RevertToDefault()
@@ -229,6 +234,6 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         PropagateSourceSelection();
     }
 
-    SquiggleBoy* m_squiggleBoy;
+    SquiggleBoyWithEncoderBank* m_squiggleBoy;
     bool m_sourceSelected[TheNonagonInternal::x_numTrios][SourceMixer::x_numSources];
 };

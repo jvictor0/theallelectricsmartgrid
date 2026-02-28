@@ -50,6 +50,12 @@ The entire state of all encoders (base values, modulation depths, and gesture ta
 - `EncoderBankUIState`: Manages the communication between the deep software state and the physical hardware/screen UI. It handles the rendering of LED rings and the processing of delta increments from physical endless encoders.
 - **Parameter Slew**: We only calculate the parameter values every eight samples on control frames, the DSP engine applies a slew filter (`ParamSlew` or `FixedSlew`) to the final, post-modulation parameter values before using them in audio calculations. During oversampled blocks, this slew rate is adjusted automatically.
 
+## Machine-Specific Parameters
+
+Each parameter in the Voice banks can specify which source and filter machines it applies to via bit vectors (`MachineFlags`). Parameters are defined in `ForEachSmartGridOneParam.hpp` with `sourceMachines` and `filterMachines` arguments (e.g. `MachineFlags::x_dualWaveShapingVCOOnly` for parameters that only affect the Dual Wave Shaping VCO source).
+
+When the user selects a different source machine (e.g. Thru) or filter machine, `UpdateEncodersForMachine()` runs and updates each encoder's connection status and short name. Parameters that don't apply to the current machine are shown as disconnected (`"---"`). This keeps the encoder grid relevant to the active machine. The update is triggered on machine change (config page) and track change (since each track can have different machines).
+
 ## Related
 - [DSP Overview](dsp-overview.md)
 - [Theory of Time](theory-of-time.md)

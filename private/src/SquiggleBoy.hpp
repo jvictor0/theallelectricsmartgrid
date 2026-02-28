@@ -1,6 +1,7 @@
 #pragma once
 
-#include "VectorPhaseShaper.hpp"
+#include "DualWaveShapingVCO.hpp"
+#include "VoiceMachineEnums.hpp"
 #include "SmartGridOneEncoders.hpp"
 #include "ButterworthFilter.hpp"
 #include "QuadUtils.hpp"
@@ -20,8 +21,8 @@
 #include "RandomWaveTable.hpp"
 #include "MultibandSaturator.hpp"
 #include "SmartGridOneScopeEnums.hpp"
-#include "VCO.hpp"
 #include "SourceMixer.hpp"
+#include "VCO.hpp"
 #include "DeepVocoder.hpp"
 #include "KMixMidi.hpp"
 #include "Math.hpp"
@@ -38,213 +39,18 @@ struct SquiggleBoyVoice
 
     struct VoiceConfig
     {
-        enum class SourceMachine : int
-        {
-            VCO = 0,
-            Thru = 1,
-        };
-
-        enum class FilterMachine : int
-        {
-            Ladder4Pole = 0,
-            SVF2Pole = 1,
-        };
-
-        VoiceConfig()
-            : m_sourceMachine(SourceMachine::VCO)
-            , m_filterMachine(FilterMachine::Ladder4Pole)
-            , m_sourceIndex(0)
-        {
-        }
+        using SourceMachine = VoiceMachine::SourceMachine;
+        using FilterMachine = VoiceMachine::FilterMachine;
 
         SourceMachine m_sourceMachine;
         FilterMachine m_filterMachine;
         int m_sourceIndex;
-    };
 
-    struct VCOSection
-    {
-        VectorPhaseShaperInternal m_vco[2];
-
-        BitRateReducer m_bitRateReducer;
-
-        bool m_top;
-        float m_output;
-
-        bool m_uBlockTop[SampleTimer::x_controlFrameRate];
-        float m_uBlockOutput[x_uBlockSize];
-
-        ScopeWriterHolder m_scopeWriter[2];
-
-        PhaseUtils::ExpParam m_morphHarmonics[2];
-
-        VCO m_sub;
-        float m_uBlockOutputSub[SampleTimer::x_controlFrameRate];
-        float m_subOutput;
-
-        // Slewed parameters
-        //
-        ParamSlew m_vSlew[2];
-        ParamSlew m_dSlew[2];
-        ParamSlew m_wtBlendSlew[2];
-        ParamSlew m_baseFreqSlew;
-        ParamSlew m_fadeSlew;
-        ParamSlew m_bitCrushAmountSlew;
-        ParamSlew m_offsetFreqFactorSlew;
-        ParamSlew m_detuneSlew;
-        ParamSlew m_crossModIndexSlew[2];
-
-        struct Input
+        VoiceConfig()
+            : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
+            , m_filterMachine(FilterMachine::Ladder4Pole)
+            , m_sourceIndex(0)
         {
-            float m_v[2];
-            float m_d[2];
-            float m_baseFreq;
-
-            float m_morphHarmonics[2];
-            float m_wtBlend[2];
-
-            PhaseUtils::ExpParam m_offsetFreqFactor;
-            PhaseUtils::ExpParam m_detune;
-
-            PhaseUtils::ZeroedExpParam m_crossModIndex[2];
-
-            float m_fade;
-
-            float m_bitCrushAmount;
-
-            Input()
-                : m_v{0.5, 0.5}
-                , m_d{0.5, 0.5}
-                , m_baseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
-                , m_morphHarmonics{0.0, 0.0}
-                , m_wtBlend{0, 0}    
-                , m_offsetFreqFactor(4)         
-                , m_detune(1.03)
-                , m_fade(0)
-                , m_bitCrushAmount(0)
-            {
-            }
-        };
-
-        VCOSection()
-            : m_output(0)
-            , m_vSlew{ParamSlew(x_oversample), ParamSlew(x_oversample)}
-            , m_dSlew{ParamSlew(x_oversample), ParamSlew(x_oversample)}
-            , m_wtBlendSlew{ParamSlew(x_oversample), ParamSlew(x_oversample)}
-            , m_baseFreqSlew(x_oversample)
-            , m_fadeSlew(x_oversample)
-            , m_bitCrushAmountSlew(x_oversample)
-            , m_offsetFreqFactorSlew(x_oversample)
-            , m_detuneSlew(x_oversample)
-            , m_crossModIndexSlew{ParamSlew(x_oversample), ParamSlew(x_oversample)}
-        {
-        }
-
-        void ProcessUBlock(const Input& input)
-        {
-            m_output = 0;
-
-            // Update slew targets
-            //
-            for (int j = 0; j < 2; ++j)
-            {
-                m_vSlew[j].Update(input.m_v[j]);
-                m_dSlew[j].Update(input.m_d[j]);
-                m_wtBlendSlew[j].Update(input.m_wtBlend[j]);
-                m_crossModIndexSlew[j].Update(input.m_crossModIndex[j].m_expParam);
-            }
-
-            m_baseFreqSlew.Update(input.m_baseFreq);
-            m_fadeSlew.Update(input.m_fade);
-            m_bitCrushAmountSlew.Update(input.m_bitCrushAmount);
-            m_offsetFreqFactorSlew.Update(input.m_offsetFreqFactor.m_expParam);
-            m_detuneSlew.Update(input.m_detune.m_expParam);
-
-            bool top[2] = {false, false};
-
-            for (size_t i = 0; i < x_uBlockSize; ++i)
-            {
-                VectorPhaseShaperInternal::Input vcoInput[2];
-
-                vcoInput[0].m_useVoct = false;
-                vcoInput[1].m_useVoct = false;
-
-                for (int j = 0; j < 2; ++j)
-                {
-                    vcoInput[j].m_v = m_vSlew[j].Process();
-                    vcoInput[j].m_d = m_dSlew[j].Process();
-                    vcoInput[j].m_wtBlend = m_wtBlendSlew[j].Process();
-                }
-
-                float baseFreq = m_baseFreqSlew.Process() / x_oversample;
-                float offsetFreqFactor = m_offsetFreqFactorSlew.Process();
-                float detune = m_detuneSlew.Process();
-
-                vcoInput[0].m_phaseMod = m_crossModIndexSlew[0].Process() * m_vco[1].m_out;
-                vcoInput[0].m_freq = baseFreq * detune;
-                vcoInput[1].m_freq = baseFreq * offsetFreqFactor / detune;
-
-                for (int j = 0; j < 2; ++j)
-                {
-                    vcoInput[j].m_morphHarmonics = m_morphHarmonics[j].Update(vcoInput[j].m_freq, vcoInput[j].m_maxFreq, input.m_morphHarmonics[j]);
-                }
-
-                m_vco[0].Process(vcoInput[0], 0 /*unused*/);
-                vcoInput[1].m_phaseMod = m_vco[0].m_out * m_crossModIndexSlew[1].Process();
-                m_vco[1].Process(vcoInput[1], 0 /*unused*/);
-
-                top[0] = top[0] || m_vco[0].m_top;
-                top[1] = top[1] || m_vco[1].m_top;
-
-                float fade = m_fadeSlew.Process();
-                float mixed = m_vco[0].m_out * Math::Cos2pi(fade / 4) + m_vco[1].m_out * Math::Cos2pi(fade / 4 + 0.75);
-
-                float bitCrushAmount = m_bitCrushAmountSlew.Process();
-                m_bitRateReducer.SetAmount(bitCrushAmount);
-                float crushed = m_bitRateReducer.Process(mixed);
-
-                m_uBlockOutput[i] = crushed;
-
-                // Base-rate operations every x_oversample samples
-                //
-                if ((i + 1) % x_oversample == 0)
-                {
-                    size_t baseIndex = i / x_oversample;
-
-                    m_uBlockOutputSub[baseIndex] = m_sub.Process(input.m_baseFreq / 2);
-
-                    m_scopeWriter[0].Write(baseIndex, m_vco[0].m_out);
-                    m_scopeWriter[1].Write(baseIndex, m_vco[1].m_out);
-
-                    if (top[0])
-                    {
-                        m_scopeWriter[0].RecordStart(baseIndex);
-                    }
-
-                    if (top[1])
-                    {
-                        m_scopeWriter[1].RecordStart(baseIndex);
-                    }
-
-                    m_uBlockTop[baseIndex] = top[0];
-                    top[0] = false;
-                    top[1] = false;
-                }
-            }
-        }
-
-        float Process(const Input& input)
-        {
-            if (SampleTimer::IsControlFrame())
-            {
-                ProcessUBlock(input);
-            }
-
-            m_output = m_uBlockOutput[SampleTimer::GetUBlockIndex()];
-            m_subOutput = m_uBlockOutputSub[SampleTimer::GetUBlockIndex()];
-            m_top = m_uBlockTop[SampleTimer::GetUBlockIndex()];
-
-            return m_output;
         }
     };
 
@@ -503,7 +309,7 @@ struct SquiggleBoyVoice
                     m_scopeWriter.RecordEnd();
                 }
 
-                m_subRunning = input.m_subTrig && input.m_voiceConfig->m_sourceMachine == VoiceConfig::SourceMachine::VCO;
+                m_subRunning = input.m_subTrig;
             }
 
             input.m_subTanhSaturator.SetInputGain(input.m_subTanhGain.m_expParam);
@@ -637,7 +443,9 @@ struct SquiggleBoyVoice
 
     OPLowPassFilter m_baseFreqSlew;
     PhaseUtils::ExpParam m_baseFreqSlewAmount;
-    VCOSection m_vco;
+    DualWaveShapingVCO m_vco;
+    VCO m_sub;
+    float m_uBlockOutputSub[SampleTimer::x_controlFrameRate];
     FilterSection m_filter;
     AmpSection m_amp;
     PanSection m_pan;
@@ -655,7 +463,7 @@ struct SquiggleBoyVoice
         SourceMixer* m_sourceMixer;
         AHD::AHDControl m_ahdControl;
 
-        VCOSection::Input m_vcoInput;
+        DualWaveShapingVCO::Input m_vcoInput;
         FilterSection::Input m_filterInput;
         AmpSection::Input m_ampInput;
         PanSection::Input m_panInput;
@@ -690,7 +498,7 @@ struct SquiggleBoyVoice
         float* audioInput;
         float upsampledSource[x_uBlockSize];
 
-        if (input.m_voiceConfig.m_sourceMachine == VoiceConfig::SourceMachine::VCO)
+        if (input.m_voiceConfig.m_sourceMachine == VoiceConfig::SourceMachine::DualWaveShapingVCO)
         {
             m_vco.ProcessUBlock(input.m_vcoInput);
             audioInput = m_vco.m_uBlockOutput;
@@ -704,6 +512,11 @@ struct SquiggleBoyVoice
 
         m_filter.ProcessUBlock(input.m_filterInput, audioInput, m_vco.m_uBlockTop);
         m_downsampler.Process(m_filter.m_uBlockOutput, m_uBlockFilterOut);
+
+        for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
+        {
+            m_uBlockOutputSub[i] = m_sub.Process(input.m_vcoInput.m_baseFreq / 2);
+        }
     }
 
     void DebugPrint()
@@ -720,7 +533,7 @@ struct SquiggleBoyVoice
 
         m_filter.m_ahd.Process(input.m_filterInput.m_ahdInput);
         size_t uBlockIndex = SampleTimer::GetUBlockIndex();
-        m_output = m_amp.Process(input.m_ampInput, m_uBlockFilterOut[uBlockIndex], m_vco.m_uBlockOutputSub[uBlockIndex]);
+        m_output = m_amp.Process(input.m_ampInput, m_uBlockFilterOut[uBlockIndex], m_uBlockOutputSub[uBlockIndex]);
         m_pan.Process(input.m_panInput);
         m_squiggleLFO[0].Process(input.m_squiggleLFOInput[0]);
         m_squiggleLFO[1].Process(input.m_squiggleLFOInput[1]);
@@ -1374,6 +1187,16 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     void SetTrack(size_t track)
     {
         m_encoders.SetTrack(track);
+        UpdateEncodersForMachine();
+    }
+
+    void UpdateEncodersForMachine()
+    {
+        int track = m_encoders.GetCurrentTrack();
+        size_t voiceIx = static_cast<size_t>(track) * x_voicesPerTrack;
+        m_encoders.UpdateEncodersForMachine(
+            m_state[voiceIx].m_voiceConfig.m_sourceMachine,
+            m_state[voiceIx].m_voiceConfig.m_filterMachine);
     }
 
     void ResetBank(Bank bank)

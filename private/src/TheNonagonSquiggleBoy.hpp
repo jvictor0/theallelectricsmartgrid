@@ -84,8 +84,9 @@ struct TheNonagonSquiggleBoyInternal
         {
             m_squiggleBoy.FromJSON(squiggleBoyJ);
         }
-        
+
         m_configGrid.PropagateSourceSelection();
+        m_squiggleBoy.UpdateEncodersForMachine();
     }
 
     void CopyToScene(int scene)

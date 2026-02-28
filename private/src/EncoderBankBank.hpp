@@ -257,6 +257,12 @@ struct EncoderBankBank
         m_banks[bank].GetBase(i, j)->m_shortName = shortName;
     }
 
+    void UpdateParam(size_t bank, size_t i, size_t j, bool connected, const char* shortName)
+    {
+        m_banks[bank].GetBase(i, j)->m_connected = connected;
+        m_banks[bank].GetBase(i, j)->m_shortName = shortName;
+    }
+
     JSON ToJSON()
     {
         JSON rootJ = JSON::Object();

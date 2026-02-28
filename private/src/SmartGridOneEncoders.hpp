@@ -1,7 +1,10 @@
 #pragma once
 
+#include "BitSet.hpp"
 #include "EncoderBankBank.hpp"
+#include "MachineFlags.hpp"
 #include "SmartGridOneScopeEnums.hpp"
+#include "VoiceMachineEnums.hpp"
 
 struct SmartGridOneEncoders
 {
@@ -54,7 +57,7 @@ struct SmartGridOneEncoders
 
     enum class Param
     {
-#define F(name, shortName, bank, x, y, default, description, color) name,
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) name,
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
     };
@@ -213,7 +216,7 @@ struct SmartGridOneEncoders
     {
         switch (param)
         {
-#define F(name, shortName, bank, x, y, default, description, color) case Param::name: return ParamAddress(Bank::bank, x, y);
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) case Param::name: return ParamAddress(Bank::bank, x, y);
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
             default:
@@ -279,7 +282,7 @@ struct SmartGridOneEncoders
         m_encoderBankBank.InitBank(static_cast<int>(Bank::Inputs), static_cast<int>(BankMode::Global), SmartGrid::Color::White);
         m_encoderBankBank.InitBank(static_cast<int>(Bank::DeepVocoder), static_cast<int>(BankMode::Global), SmartGrid::Color::Ocean);
 
-#define F(name, shortName, bank, x, y, default, description, color) \
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) \
         m_encoderBankBank.Config(static_cast<int>(Bank::bank), x, y, default, #name, #shortName, color);
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
@@ -326,6 +329,23 @@ struct SmartGridOneEncoders
     int GetCurrentTrack()
     {
         return m_encoderBankBank.GetCurrentTrack(static_cast<size_t>(BankMode::Voice));
+    }
+
+    void UpdateEncodersForMachine(
+        VoiceMachine::SourceMachine sourceMachine,
+        VoiceMachine::FilterMachine filterMachine)
+    {
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) \
+        { \
+            if (GetModeForBank(Bank::bank) == BankMode::Voice) \
+            { \
+                MachineFlags flags{BitSet8(sourceMachines), BitSet8(filterMachines)}; \
+                bool applies = flags.AppliesToSource(sourceMachine) && flags.AppliesToFilter(filterMachine); \
+                m_encoderBankBank.UpdateParam(static_cast<size_t>(Bank::bank), x, y, applies, applies ? #shortName : "---"); \
+            } \
+        }
+#include "ForEachSmartGridOneParam.hpp"
+#undef F
     }
 
     // Gesture handling

@@ -6,12 +6,12 @@ The source machine is the first stage in each `SquiggleBoyVoice` and is responsi
 
 Each voice currently supports two source machine modes:
 
-1. **VCO**: dual wavetable oscillator source with vector phase shaping and cross-modulation.
+1. **Dual Wave Shaping VCO**: dual wavetable oscillator source with vector phase shaping and cross-modulation. Implemented in `DualWaveShapingVCO.hpp`.
 2. **Thru**: external-input passthrough source.
 
-## VCO Source Machine
+## Dual Wave Shaping VCO Source Machine
 
-The primary sound source is the **VCO Section**, which consists of two complex wavetable oscillators (`VectorPhaseShaperInternal`) that can modulate each other.
+The primary sound source is the **Dual Wave Shaping VCO** (`DualWaveShapingVCO`), which consists of two complex wavetable oscillators (`VectorPhaseShaperInternal`) that can modulate each other.
 
 ### Random Morphing Wavetables
 
@@ -31,7 +31,7 @@ The oscillators use **Vector Phase Shaping (VPS)** to distort the read phase of 
 
 ### Dual Oscillator Interaction
 
-The VCO section contains two such oscillators (VCO 0 and VCO 1):
+The Dual Wave Shaping VCO contains two such oscillators (VCO 0 and VCO 1):
 
 - **Pitch**: VCO 0 runs at the base frequency (modified by `detune`). VCO 1 runs at `baseFreq * offsetFreqFactor / detune`.
 - **Mutual phase modulation**: each oscillator can phase-modulate the other. The amount of modulation is controlled by `m_crossModIndex`.
@@ -41,6 +41,10 @@ The VCO section contains two such oscillators (VCO 0 and VCO 1):
 ## Thru Source Machine
 
 The **Thru** source machine allows external audio to be routed through the voice's filter and amp sections. It is currently a simple pass-through for external signals, allowing the synthesizer to act as a polyphonic filter bank and envelope shaper for outside audio.
+
+## Parameter Visibility
+
+Parameters are tagged with which source and filter machines they apply to (see [Encoder System](encoder-system.md#machine-specific-parameters)). When Thru is selected, encoder knobs that only apply to the Dual Wave Shaping VCO (e.g. harmonics, phase modulation) are shown as disconnected. This keeps the interface focused on the relevant controls for the active machine.
 
 ## Related
 
