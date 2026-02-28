@@ -13,6 +13,7 @@ Usage:
 """
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -251,10 +252,21 @@ def sync_recordings_from_ipad(afc: HouseArrestService, ipad_recordings_path: str
         try:
             download_afc_file(afc, full_ipad_path, local_path, progress_label="Copied")
 
+            # Extract last two channels (65, 66) into stereo file using sox
+            #
+            stereo_path = local_path.with_stem(local_path.stem + "_stereo")
+            print(f"  Extracting stereo from channels 65-66: {stereo_path.name}")
+            subprocess.run(
+                ["sox", str(local_path), str(stereo_path), "remix", "65", "66"],
+                check=True
+            )
+
             # Delete from iPad after successful copy
             #
             print(f"  Deleting from iPad: {rel_path}")
             afc.rm(full_ipad_path)
+        except subprocess.CalledProcessError as e:
+            print(f"  Sox error: {e}")
         except Exception as e:
             print(f"  Error: {e}")
 
