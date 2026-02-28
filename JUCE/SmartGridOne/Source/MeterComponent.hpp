@@ -3,6 +3,7 @@
 #include "SmartGridInclude.hpp"
 #include <JuceHeader.h>
 #include "VUBarDrawer.hpp"
+#include "SmartGridOneMainVisualizerComponent.hpp"
 
 struct MeterDrawer
 {
@@ -121,28 +122,31 @@ struct MeterDrawer
     }
 };
 
-struct VoiceMeterComponent : public juce::Component
+struct VoiceMeterComponent : public SmartGridOneMainVisualizerComponent
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     MeterDrawer m_meterDrawer[TheNonagonInternal::x_numVoices];
 
     VoiceMeterComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : m_uiState(uiState)
+        : SmartGridOneMainVisualizerComponent()
+        , m_uiState(uiState)
     {
-        setSize(400, 200);
     }
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         g.fillAll(juce::Colours::black);
+
+        int width = boundsRect.getWidth();
+        int height = boundsRect.getHeight();
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
             float rmsdBFS = m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[i].GetRMSDbFS();
             float peakdBFS = m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[i].GetPeakDbFS();
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
-            m_meterDrawer[i].m_height = getHeight() / TheNonagonInternal::x_voicesPerTrio;
-            m_meterDrawer[i].m_width = getWidth() / TheNonagonInternal::x_voicesPerTrio;
+            m_meterDrawer[i].m_height = static_cast<float>(height) / TheNonagonInternal::x_voicesPerTrio;
+            m_meterDrawer[i].m_width = static_cast<float>(width) / TheNonagonInternal::x_voicesPerTrio;
             m_meterDrawer[i].m_xMin = (i % TheNonagonInternal::x_voicesPerTrio) * m_meterDrawer[i].m_width;
             m_meterDrawer[i].m_yMin = (i / TheNonagonInternal::x_voicesPerTrio) * m_meterDrawer[i].m_height;
             m_meterDrawer[i].DrawRadialVUMeter(g, rmsdBFS, peakdBFS, juce::Colour(color.m_red, color.m_green, color.m_blue));

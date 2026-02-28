@@ -3,8 +3,9 @@
 #include "SmartGridInclude.hpp"
 #include <JuceHeader.h>
 #include "PathDrawer.hpp"
+#include "SmartGridOneMainVisualizerComponent.hpp"
 
-struct ScopeComponent : public juce::Component
+struct ScopeComponent : public SmartGridOneMainVisualizerComponent
 {
     enum class ScopeType
     {
@@ -24,7 +25,8 @@ struct ScopeComponent : public juce::Component
     ScopeType m_scopeType;
 
     ScopeComponent(size_t scopeIx, ScopeWriter* scopeWriter, int* voiceOffset, ScopeType scopeType, TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : m_scopeReaderFactory(scopeWriter, uiState->m_squiggleBoyUIState.m_activeTrack.load(), scopeIx, x_numXSamples, 1)
+        : SmartGridOneMainVisualizerComponent()
+        , m_scopeReaderFactory(scopeWriter, uiState->m_squiggleBoyUIState.m_activeTrack.load(), scopeIx, x_numXSamples, 1)
         , m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
         , m_scopeIx(scopeIx)
         , m_scopeWriter(scopeWriter)
@@ -32,10 +34,9 @@ struct ScopeComponent : public juce::Component
         , m_voiceOffset(voiceOffset)
         , m_scopeType(scopeType)
     {
-        setSize(400, 200);
     }
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         // Fill background
         //
@@ -43,7 +44,7 @@ struct ScopeComponent : public juce::Component
         
         // Get bounds for drawing
         //
-        auto bounds = getLocalBounds().toFloat();
+        auto bounds = boundsRect.toFloat();
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
         
@@ -135,17 +136,17 @@ struct ScopeComponent : public juce::Component
         }
     }
 
-    void mouseDown(const juce::MouseEvent& event) override
+    void OnClick(const juce::MouseEvent& event) override
     {
         ++(*m_voiceOffset);
-        if (*m_voiceOffset == x_voicesPerTrack)
+        if (*m_voiceOffset == static_cast<int>(x_voicesPerTrack))
         {
             *m_voiceOffset = -1;
         }
     }
 };
 
-struct SoundStageComponent : public juce::Component
+struct SoundStageComponent : public SmartGridOneMainVisualizerComponent
 {
     static constexpr size_t x_scopeIx = 4;
     static constexpr size_t x_numVoices = 9;
@@ -153,12 +154,12 @@ struct SoundStageComponent : public juce::Component
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     
     SoundStageComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : m_uiState(uiState)
+        : SmartGridOneMainVisualizerComponent()
+        , m_uiState(uiState)
     {
-        setSize(400, 200);
     }
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         // Fill background
         //
@@ -166,7 +167,7 @@ struct SoundStageComponent : public juce::Component
         
         // Get bounds for drawing
         //
-        auto bounds = getLocalBounds().toFloat();
+        auto bounds = boundsRect.toFloat();
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
         auto border = 0.15;
@@ -188,17 +189,17 @@ struct SoundStageComponent : public juce::Component
     }
 };
 
-struct MelodyRollComponent : public juce::Component
+struct MelodyRollComponent : public SmartGridOneMainVisualizerComponent
 {
     NonagonNoteWriter* m_nonagonNoteWriter;
 
     MelodyRollComponent(NonagonNoteWriter* nonagonNoteWriter)
-        : m_nonagonNoteWriter(nonagonNoteWriter)
+        : SmartGridOneMainVisualizerComponent()
+        , m_nonagonNoteWriter(nonagonNoteWriter)
     {
-        setSize(400, 200);
     }
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         // Fill background
         //
@@ -206,7 +207,7 @@ struct MelodyRollComponent : public juce::Component
 
         // Get bounds for drawing
         //
-        auto bounds = getLocalBounds().toFloat();
+        auto bounds = boundsRect.toFloat();
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
 
@@ -268,7 +269,7 @@ struct MelodyRollComponent : public juce::Component
     }
 };
 
-struct AnalyserComponent : public juce::Component
+struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
 {
     static constexpr size_t x_voicesPerTrack = 3;
     WindowedFFT m_windowedFFT[x_voicesPerTrack];
@@ -287,7 +288,8 @@ struct AnalyserComponent : public juce::Component
         WindowedFFT windowedFFT, 
         int* voiceOffset, 
         TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
+        : SmartGridOneMainVisualizerComponent()
+        , m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
         , m_voiceOffset(voiceOffset)
         , m_uiState(uiState)
         , m_voiceFilterUIState(uiState->m_squiggleBoyUIState.m_voiceFilterUIState)
@@ -303,8 +305,6 @@ struct AnalyserComponent : public juce::Component
         {
             m_bucketExpX[i] = std::pow(m - 1, static_cast<float>(i) / m) / (2 * m);
         }
-
-        setSize(400, 200);
     }
 
     float FilterResponse(size_t i, float freq)
@@ -312,13 +312,13 @@ struct AnalyserComponent : public juce::Component
         return m_voiceFilterUIState[i].FrequencyResponse(freq);
     }
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         // Fill background
         //
         g.fillAll(juce::Colours::black);
 
-        auto bounds = getLocalBounds().toFloat();
+        auto bounds = boundsRect.toFloat();
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
 
@@ -385,17 +385,17 @@ struct AnalyserComponent : public juce::Component
         }
     }
 
-    void mouseDown(const juce::MouseEvent& event) override
+    void OnClick(const juce::MouseEvent& event) override
     {
         ++(*m_voiceOffset);
-        if (*m_voiceOffset == x_voicesPerTrack)
+        if (*m_voiceOffset == static_cast<int>(x_voicesPerTrack))
         {
             *m_voiceOffset = -1;
         }
     }
 };
 
-struct QuadAnalyserComponent : public juce::Component
+struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
 {
     enum class Type
     {
@@ -406,15 +406,14 @@ struct QuadAnalyserComponent : public juce::Component
 
     QuadWindowedFFT m_quadWindowedFFT[3];
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
-    bool m_eigen;
     bool m_drawAll;
 
     Type m_type;
 
-    QuadAnalyserComponent(TheNonagonSquiggleBoyInternal::UIState* uiState, bool eigen, Type type)
-        : m_uiState(uiState)
-        , m_eigen(eigen)
-        , m_drawAll(!eigen)
+    QuadAnalyserComponent(TheNonagonSquiggleBoyInternal::UIState* uiState, Type type)
+        : SmartGridOneMainVisualizerComponent()
+        , m_uiState(uiState)
+        , m_drawAll(true)
         , m_type(type)
     {
         if (m_type == Type::Master)
@@ -432,19 +431,17 @@ struct QuadAnalyserComponent : public juce::Component
     struct QuadDFTFn
     {
         QuadWindowedFFT* m_quadWindowedFFT;
-        bool m_eigen;
         size_t m_speakerIx;
 
-        QuadDFTFn(QuadWindowedFFT* quadWindowedFFT, bool eigen, size_t speakerIx)
+        QuadDFTFn(QuadWindowedFFT* quadWindowedFFT, size_t speakerIx)
             : m_quadWindowedFFT(quadWindowedFFT)
-            , m_eigen(eigen)
             , m_speakerIx(speakerIx)
         {
         }
 
         float operator()(float freq) const
         {
-            return PathDrawer::NormalizeDb(m_quadWindowedFFT->GetMagDb(m_speakerIx, freq, m_eigen));
+            return PathDrawer::NormalizeDb(m_quadWindowedFFT->GetMagDb(m_speakerIx, freq));
         }
     };
 
@@ -495,45 +492,42 @@ struct QuadAnalyserComponent : public juce::Component
         }
     };
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         g.fillAll(juce::Colours::black);
 
         if (m_drawAll && m_type != Type::Master)
         {
-            if (!m_eigen)
-            {
-                DrawOne(g, 2, Type::Master, SmartGrid::Color::Yellow);
-            }
-            
+            DrawOne(g, 2, Type::Master, SmartGrid::Color::Yellow, boundsRect);
+
             if (m_type == Type::Delay)
             {
-                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia);
-                DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink);
+                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
+                DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
             }
             else if (m_type == Type::Reverb)
             {
-                DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink);
-                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia);
+                DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
+                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
             }
         }
         else if (m_type == Type::Master)
         {
-            DrawOne(g, 0, Type::Master, SmartGrid::Color::Yellow);
+            DrawOne(g, 0, Type::Master, SmartGrid::Color::Yellow, boundsRect);
         }
         else if (m_type == Type::Delay)
         {
-            DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink);
+            DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
         }
         else if (m_type == Type::Reverb)
         {
-            DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia);
+            DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
         }
     }
 
-    void DrawOne(juce::Graphics&g, size_t fftIx, Type type, SmartGrid::Color color)
+    void DrawOne(juce::Graphics& g, size_t fftIx, Type type, SmartGrid::Color color, juce::Rectangle<int> boundsRect)
     {
-        auto bounds = getLocalBounds().toFloat();
+        auto bounds = boundsRect.toFloat();
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
 
@@ -545,7 +539,7 @@ struct QuadAnalyserComponent : public juce::Component
             {
                 size_t speakerIx = y == 0 ? 3 - x : x;
                 PathDrawer pathDrawer(height / 2, width / 2, width * x / 2, height * (1 - y) / 2);
-                QuadDFTFn fn(&m_quadWindowedFFT[fftIx], m_eigen, speakerIx);
+                QuadDFTFn fn(&m_quadWindowedFFT[fftIx], speakerIx);
                 juce::Colour juceColor(color.m_red, color.m_green, color.m_blue);
                 pathDrawer.DrawPath(g, juceColor, fn);
 
@@ -558,20 +552,20 @@ struct QuadAnalyserComponent : public juce::Component
         }
     }
 
-    void mouseDown(const juce::MouseEvent& event) override
+    void OnClick(const juce::MouseEvent& event) override
     {
         m_drawAll = !m_drawAll;
     }
 };
 
-struct TheoryOfTimeScopeComponent : public juce::Component
+struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
 
     TheoryOfTimeScopeComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : m_uiState(uiState)
+        : SmartGridOneMainVisualizerComponent()
+        , m_uiState(uiState)
     {
-        setSize(400, 200);
     }
     
     struct DrawFn
@@ -592,11 +586,11 @@ struct TheoryOfTimeScopeComponent : public juce::Component
         }
     };
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         g.fillAll(juce::Colours::black);
 
-        auto bounds = getLocalBounds().toFloat();
+        auto bounds = boundsRect.toFloat();
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
 

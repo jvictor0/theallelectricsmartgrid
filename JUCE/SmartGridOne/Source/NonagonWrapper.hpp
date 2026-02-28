@@ -676,6 +676,17 @@ struct NonagonWrapper
     {
         return m_internal.m_uiState.m_squiggleBoyUIState.m_visualDisplayMode.load();
     }
+    
+    SmartGridOneEncoders::Bank GetSelectedEncoderBank()
+    {
+        return m_internal.m_squiggleBoy.m_encoders.m_selectedBank;
+    }
+
+    TheNonagonSquiggleBoyWrldBldr::GridsMode GetGridsMode()
+    {
+        return static_cast<TheNonagonSquiggleBoyWrldBldr::GridsMode>(
+            m_internal.m_uiState.m_gridsMode.load());
+    }
 
     StateInterchange* GetStateInterchange()
     {

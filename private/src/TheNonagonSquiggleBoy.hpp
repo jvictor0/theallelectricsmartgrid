@@ -32,6 +32,12 @@ struct TheNonagonSquiggleBoyInternal
         SquiggleBoyWithEncoderBank::UIState m_squiggleBoyUIState;
         TheNonagonInternal::UIState m_nonagonUIState;
         AnalogUIState<1 + SquiggleBoyWithEncoderBank::x_numFaders> m_analogUIState;
+        std::atomic<uint8_t> m_gridsMode;
+
+        UIState()
+            : m_gridsMode(0)
+        {
+        }
     };
 
     struct IOState

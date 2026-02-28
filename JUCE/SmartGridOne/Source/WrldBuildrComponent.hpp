@@ -9,6 +9,8 @@
 #include "SmartGridInclude.hpp"
 #include "MeterComponent.hpp"
 #include "MasteringComponents.hpp"
+#include "SmartGridOneVisualizerMain.hpp"
+#include "VoiceConfigComponent.hpp"
 
 struct BasicPadGridHolder
 {
@@ -254,29 +256,9 @@ struct WrldBuildrComponent : public juce::Component
     std::unique_ptr<JoyStickHolder> m_joyStickReturn;
     std::unique_ptr<JoyStickHolder> m_joyStickFixed;
 
-    std::unique_ptr<ScopeComponentHolder> m_vcoOneScope;
-    std::unique_ptr<ScopeComponentHolder> m_vcoTwoScope;
-    std::unique_ptr<ScopeComponentHolder> m_postFilterScope;
-    std::unique_ptr<ScopeComponentHolder> m_postAmpScope;
-    std::unique_ptr<ScopeComponentHolder> m_controlScope[4];
+    std::unique_ptr<VoiceConfigComponent> m_voiceConfigComponent;
 
-    std::unique_ptr<ScopeComponentHolder> m_voiceMeter;
-    std::unique_ptr<ScopeComponentHolder> m_analyzer;
-    std::unique_ptr<ScopeComponentHolder> m_quadAnalyzer[2];
-    std::unique_ptr<ScopeComponentHolder> m_theoryOfTimeScope;
-
-    std::unique_ptr<ScopeComponentHolder> m_soundStage;
-    std::unique_ptr<ScopeComponentHolder> m_melodyRoll;
-
-    std::unique_ptr<ScopeComponentHolder> m_delayAnalyzer[2];
-    std::unique_ptr<ScopeComponentHolder> m_reverbAnalyzer[2];
-
-    std::unique_ptr<ScopeComponentHolder> m_multibandEQ;
-    std::unique_ptr<ScopeComponentHolder> m_multibandGainReduction;
-    std::unique_ptr<ScopeComponentHolder> m_sourceMixerFrequency;
-    std::unique_ptr<ScopeComponentHolder> m_sourceMixerReduction;
-
-    std::unique_ptr<ScopeComponentHolder> m_meteringComponent;
+    std::unique_ptr<SmartGridOneVisualizerMain> m_visualizerMain;
 
     bool m_drawGrid;
 
@@ -342,6 +324,10 @@ struct WrldBuildrComponent : public juce::Component
             addAndMakeVisible(m_encoderGrids[i]->m_encoderGrid.get());
         }
 
+        m_voiceConfigComponent = std::make_unique<VoiceConfigComponent>(m_nonagon);
+        addAndMakeVisible(m_voiceConfigComponent.get());
+        m_voiceConfigComponent->setVisible(false);
+
         for (int i = 0; i < 8; ++i)
         {
             auto faderGrid = std::make_unique<FaderComponent>(m_nonagon->MkAnalogUI(i + 1), true);
@@ -365,98 +351,8 @@ struct WrldBuildrComponent : public juce::Component
         m_joyStickFixed = std::make_unique<JoyStickHolder>(std::move(joyStickReturn), 4, 4);
         addAndMakeVisible(m_joyStickFixed->m_joyStick.get());
 
-        auto theoryOfTimeScope = std::make_unique<TheoryOfTimeScopeComponent>(m_nonagon->GetUIState());
-        m_theoryOfTimeScope = std::make_unique<ScopeComponentHolder>(std::move(theoryOfTimeScope), 8, 8, 8, 8);
-        addAndMakeVisible(m_theoryOfTimeScope->m_scopeComponent.get());
-
-        TheNonagonSquiggleBoyInternal::UIState* uiState = m_nonagon->GetUIState();
-
-        for (int i = 0; i < 4; ++i)
-        {
-            auto audioScope = std::make_unique<ScopeComponent>(i, m_nonagon->GetAudioScopeWriter(), &m_scopeVoiceOffset, ScopeComponent::ScopeType::Audio, uiState);
-            int xPos = i == 0 ? 0 : 8 * (i - 1);
-            if (i == 3)
-            {
-                xPos = 0;
-            }
-
-            int yPos = i == 0 ? 0 : 8;
-            std::unique_ptr<ScopeComponentHolder>& scope = i == 0 ? m_vcoOneScope : i == 1 ? m_vcoTwoScope : i == 2 ? m_postFilterScope : m_postAmpScope;
-            scope = std::make_unique<ScopeComponentHolder>(std::move(audioScope), xPos, yPos, 8, 8);
-            addAndMakeVisible(scope->m_scopeComponent.get());
-        }
-
-        auto voiceMeter = std::make_unique<VoiceMeterComponent>(uiState);
-        m_voiceMeter = std::make_unique<ScopeComponentHolder>(std::move(voiceMeter), 0, 0, 8, 8);
-        addAndMakeVisible(m_voiceMeter->m_scopeComponent.get());
-
-        auto analyzer = std::make_unique<AnalyserComponent>(
-            WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp)), 
-            &m_scopeVoiceOffset,
-            uiState);
-        m_analyzer = std::make_unique<ScopeComponentHolder>(std::move(analyzer), 16, 8, 8, 8);
-        addAndMakeVisible(m_analyzer->m_scopeComponent.get());
-
-        for (int i = 0; i < 2; ++i)
-        {
-            auto quadAnalyzer = std::make_unique<QuadAnalyserComponent>(
-                uiState, 
-                i == 0 ? false : true,
-                QuadAnalyserComponent::Type::Master);
-            m_quadAnalyzer[i] = std::make_unique<ScopeComponentHolder>(std::move(quadAnalyzer), 0, 8 - i * 8, 8, 8);
-            addAndMakeVisible(m_quadAnalyzer[i]->m_scopeComponent.get());
-
-            auto delayAnalyzer = std::make_unique<QuadAnalyserComponent>(
-                uiState, 
-                i == 0 ? false : true,
-                QuadAnalyserComponent::Type::Delay);
-            m_delayAnalyzer[i] = std::make_unique<ScopeComponentHolder>(std::move(delayAnalyzer), 0, 8 - i * 8, 8, 8);
-            addAndMakeVisible(m_delayAnalyzer[i]->m_scopeComponent.get());
-
-            auto reverbAnalyzer = std::make_unique<QuadAnalyserComponent>(
-                uiState, 
-                i == 0 ? false : true,
-                QuadAnalyserComponent::Type::Reverb);
-            m_reverbAnalyzer[i] = std::make_unique<ScopeComponentHolder>(std::move(reverbAnalyzer), 0, 8 - i * 8, 8, 8);
-            addAndMakeVisible(m_reverbAnalyzer[i]->m_scopeComponent.get());
-        }
-
-        for (int i = 0; i < 4; ++i)
-        {
-            auto controlScope = std::make_unique<ScopeComponent>(i, m_nonagon->GetControlScopeWriter(), &m_scopeVoiceOffset, ScopeComponent::ScopeType::Control, uiState);
-            int xPos = i == 0 ? 0 : 8 * (i - 1);
-            int yPos = i == 0 ? 0 : 8;
-            m_controlScope[i] = std::make_unique<ScopeComponentHolder>(std::move(controlScope), xPos, yPos, 8, 8);
-            addAndMakeVisible(m_controlScope[i]->m_scopeComponent.get());
-        }
-
-        auto soundStage = std::make_unique<SoundStageComponent>(uiState);
-        m_soundStage = std::make_unique<ScopeComponentHolder>(std::move(soundStage), 0, 0, 8, 8);
-        addAndMakeVisible(m_soundStage->m_scopeComponent.get());
-
-        auto melodyRoll = std::make_unique<MelodyRollComponent>(m_nonagon->GetNoteWriter());
-        m_melodyRoll = std::make_unique<ScopeComponentHolder>(std::move(melodyRoll), 0, 8, 24, 8);
-        addAndMakeVisible(m_melodyRoll->m_scopeComponent.get());
-
-        auto multibandEQ = std::make_unique<MultibandEQComponent>(uiState);
-        m_multibandEQ = std::make_unique<ScopeComponentHolder>(std::move(multibandEQ), 8, 8, 8, 8);
-        addAndMakeVisible(m_multibandEQ->m_scopeComponent.get());
-
-        auto multibandGainReduction = std::make_unique<MultibandGainReductionComponent>(uiState);
-        m_multibandGainReduction = std::make_unique<ScopeComponentHolder>(std::move(multibandGainReduction), 16, 8, 8, 8);
-        addAndMakeVisible(m_multibandGainReduction->m_scopeComponent.get());
-
-        auto sourceMixerFrequency = std::make_unique<SourceMixerFrequencyComponent>(uiState);
-        m_sourceMixerFrequency = std::make_unique<ScopeComponentHolder>(std::move(sourceMixerFrequency), 0, 8, 8, 8);
-        addAndMakeVisible(m_sourceMixerFrequency->m_scopeComponent.get());
-
-        auto sourceMixerReduction = std::make_unique<SourceMixerReductionComponent>(uiState);
-        m_sourceMixerReduction = std::make_unique<ScopeComponentHolder>(std::move(sourceMixerReduction), 0, 0, 8, 8);
-        addAndMakeVisible(m_sourceMixerReduction->m_scopeComponent.get());
-
-        auto meteringComponent = std::make_unique<MeteringComponent>(uiState);
-        m_meteringComponent = std::make_unique<ScopeComponentHolder>(std::move(meteringComponent), 8, 5, 16, 2);
-        addAndMakeVisible(m_meteringComponent->m_scopeComponent.get());
+        m_visualizerMain = std::make_unique<SmartGridOneVisualizerMain>(m_nonagon);
+        addAndMakeVisible(m_visualizerMain.get());
 
         m_initialized = true;
 
@@ -478,6 +374,8 @@ struct WrldBuildrComponent : public juce::Component
     
     void paint(juce::Graphics& g) override
     {
+        UpdateConfigModeVisibility();
+
         // Fill background
         //
         g.fillAll(juce::Colours::black);
@@ -551,82 +449,23 @@ struct WrldBuildrComponent : public juce::Component
             case TheNonagonSquiggleBoyWrldBldr::DisplayMode::Controller:
             {
                 SetDisplayModeController(true);
-                RemoveVisualizers();
+                if (m_visualizerMain)
+                {
+                    m_visualizerMain->setVisible(false);
+                }
                 break;
             }
             case TheNonagonSquiggleBoyWrldBldr::DisplayMode::Visualizer:
             {
                 SetDisplayModeController(false);
-                SetVisualizerVisibility(m_nonagon->GetVisualDisplayMode());
+                if (m_visualizerMain)
+                {
+                    m_visualizerMain->setVisible(true);
+                    m_visualizerMain->repaint();
+                }
                 break;
             }
         }
-    }
-
-    void RemoveVisualizers()
-    {
-        m_vcoOneScope->m_scopeComponent->setVisible(false);
-        m_vcoTwoScope->m_scopeComponent->setVisible(false);
-        m_postFilterScope->m_scopeComponent->setVisible(false);
-        m_postAmpScope->m_scopeComponent->setVisible(false);
-        m_voiceMeter->m_scopeComponent->setVisible(false);
-        m_analyzer->m_scopeComponent->setVisible(false);
-        for (int i = 0; i < 2; ++i)
-        {
-            m_quadAnalyzer[i]->m_scopeComponent->setVisible(false);
-            m_delayAnalyzer[i]->m_scopeComponent->setVisible(false);
-            m_reverbAnalyzer[i]->m_scopeComponent->setVisible(false);
-        }
-
-        m_theoryOfTimeScope->m_scopeComponent->setVisible(false);
-
-        for (int i = 0; i < 4; ++i)
-        {
-            m_controlScope[i]->m_scopeComponent->setVisible(false);
-        }
-
-        m_soundStage->m_scopeComponent->setVisible(false);
-        m_melodyRoll->m_scopeComponent->setVisible(false);
-    
-        m_multibandEQ->m_scopeComponent->setVisible(false);
-        m_multibandGainReduction->m_scopeComponent->setVisible(false);
-        m_sourceMixerFrequency->m_scopeComponent->setVisible(false);
-        m_sourceMixerReduction->m_scopeComponent->setVisible(false);
-        m_meteringComponent->m_scopeComponent->setVisible(false);
-    }
-
-    void SetVisualizerVisibility(SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode visualDisplayMode)
-    {
-        m_vcoOneScope->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Voice);
-        m_vcoTwoScope->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Voice);
-        m_postFilterScope->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Filter || 
-                                                        visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Voice);
-        m_postAmpScope->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Filter);
-        m_voiceMeter->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Filter);
-        m_analyzer->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Voice ||
-                                                visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Filter);
-        
-        for (int i = 0; i < 2; ++i)
-        {
-            m_quadAnalyzer[i]->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::QuadMaster);
-            m_delayAnalyzer[i]->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Delay);
-            m_reverbAnalyzer[i]->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Reverb);
-        }
-
-        m_theoryOfTimeScope->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::QuadMaster);
-
-        for (int i = 0; i < 4; ++i)
-        {
-            m_controlScope[i]->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::Control);
-        }
-
-        m_soundStage->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::PanAndMelody);
-        m_melodyRoll->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::PanAndMelody);
-        m_multibandEQ->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
-        m_multibandGainReduction->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
-        m_sourceMixerFrequency->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
-        m_sourceMixerReduction->m_scopeComponent->setVisible(visualDisplayMode == SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode::StereoMaster);
-        m_meteringComponent->m_scopeComponent->setVisible(true);
     }
 
     void SetDisplayModeController(bool isVisible)
@@ -645,6 +484,21 @@ struct WrldBuildrComponent : public juce::Component
         m_xFader->m_fader->setVisible(isVisible);
         m_joyStickReturn->m_joyStick->setVisible(isVisible);
         m_joyStickFixed->m_joyStick->setVisible(isVisible);
+    }
+
+    void UpdateConfigModeVisibility()
+    {
+        bool isConfigMode = m_nonagon->GetGridsMode() == TheNonagonSquiggleBoyWrldBldr::GridsMode::Config;
+
+        for (int i = 0; i < 4; ++i)
+        {
+            m_encoderGrids[i]->m_encoderGrid->setVisible(!isConfigMode);
+        }
+
+        if (m_voiceConfigComponent)
+        {
+            m_voiceConfigComponent->setVisible(isConfigMode);
+        }
     }
         
     void UpdatePadGridPosition()
@@ -668,6 +522,15 @@ struct WrldBuildrComponent : public juce::Component
             m_encoderGrids[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
         }
 
+        if (m_voiceConfigComponent)
+        {
+            int x = m_gridX + 8 * m_cellSize;
+            int y = m_gridY;
+            int width = 16 * m_cellSize;
+            int height = 5 * m_cellSize;
+            m_voiceConfigComponent->setBounds(x, y, width, height);
+        }
+
         for (int i = 0; i < 8; ++i)
         {
             m_faderGrids[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
@@ -676,35 +539,10 @@ struct WrldBuildrComponent : public juce::Component
         m_xFader->SetBounds(m_cellSize, m_gridX, m_gridY);
         m_joyStickReturn->SetBounds(m_cellSize, m_gridX, m_gridY);
         m_joyStickFixed->SetBounds(m_cellSize, m_gridX, m_gridY);
-
-        m_vcoOneScope->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_vcoTwoScope->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_postFilterScope->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_postAmpScope->SetBounds(m_cellSize, m_gridX, m_gridY);
-
-        m_voiceMeter->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_analyzer->SetBounds(m_cellSize, m_gridX, m_gridY);
-        for (int i = 0; i < 2; ++i)
+        
+        if (m_visualizerMain)
         {
-            m_quadAnalyzer[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
-            m_delayAnalyzer[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
-            m_reverbAnalyzer[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
+            m_visualizerMain->setBounds(getLocalBounds());
         }
-
-        m_theoryOfTimeScope->SetBounds(m_cellSize, m_gridX, m_gridY);
-
-        for (int i = 0; i < 4; ++i)
-        {
-            m_controlScope[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
-        }
-
-        m_soundStage->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_melodyRoll->SetBounds(m_cellSize, m_gridX, m_gridY);
-
-        m_multibandEQ->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_multibandGainReduction->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_sourceMixerFrequency->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_sourceMixerReduction->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_meteringComponent->SetBounds(m_cellSize, m_gridX, m_gridY);
     }
 };

@@ -6,16 +6,17 @@
 #include "VUBarDrawer.hpp"
 #include "TheNonagon.hpp"
 #include "DeepVocoder.hpp"
+#include "SmartGridOneMainVisualizerComponent.hpp"
 
-struct MultibandEQComponent : public juce::Component
+struct MultibandEQComponent : public SmartGridOneMainVisualizerComponent
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     WindowedFFT m_windowedFFT[4];
 
     MultibandEQComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : m_uiState(uiState)
+        : SmartGridOneMainVisualizerComponent()
+        , m_uiState(uiState)
     {
-        setSize(400, 200);
         for (size_t i = 0; i < 4; ++i)
         {
             m_windowedFFT[i] = WindowedFFT(&m_uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Stereo));
@@ -42,30 +43,33 @@ struct MultibandEQComponent : public juce::Component
         }
     };
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         g.fillAll(juce::Colours::black);
+
+        int width = boundsRect.getWidth();
+        int height = boundsRect.getHeight();
 
         for (size_t i = 0; i < 4; ++i)
         {
             m_windowedFFT[i].Compute(i);
-            PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
+            PathDrawer pathDrawer(height, width, 0, 0);
             pathDrawer.DrawWindowedDFT(g, i < 2 ? juce::Colours::white : juce::Colours::grey, &m_windowedFFT[i]);
         }
 
-        PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
+        PathDrawer pathDrawer(height, width, 0, 0);
         pathDrawer.DrawPath(g, juce::Colours::white, EQResponseDrawer(GetMasteringChainUIState()));
     }
 };
 
-struct MultibandGainReductionComponent : public juce::Component
+struct MultibandGainReductionComponent : public SmartGridOneMainVisualizerComponent
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
 
     MultibandGainReductionComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : m_uiState(uiState)
+        : SmartGridOneMainVisualizerComponent()
+        , m_uiState(uiState)
     {
-        setSize(400, 200);
     }
 
     MultibandSaturator<4, 2>::UIState* GetMasteringChainUIState()
@@ -73,11 +77,13 @@ struct MultibandGainReductionComponent : public juce::Component
         return &m_uiState->m_squiggleBoyUIState.m_stereoMasteringChainUIState;
     }
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         g.fillAll(juce::Colours::black);
 
-        VUBarDrawer vuBarDrawer(getHeight(), getWidth(), 0, 0);
+        int width = boundsRect.getWidth();
+        int height = boundsRect.getHeight();
+        VUBarDrawer vuBarDrawer(height, width, 0, 0);
 
         for (size_t i = 0; i < 5; ++i)
         {
@@ -101,16 +107,15 @@ struct MultibandGainReductionComponent : public juce::Component
     }
 };
 
-struct SourceMixerFrequencyComponent : public juce::Component
+struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponent
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     WindowedFFT m_windowedFFT[SourceMixer::x_numSources][2];
 
     SourceMixerFrequencyComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : m_uiState(uiState)
+        : SmartGridOneMainVisualizerComponent()
+        , m_uiState(uiState)
     {
-        setSize(400, 200);
-
         for (int i = 0; i < SourceMixer::x_numSources; ++i)
         {
             m_windowedFFT[i][0] = WindowedFFT(&m_uiState->m_squiggleBoyUIState.m_sourceMixerScopeWriter, static_cast<size_t>(SmartGridOne::SourceScopes::PreFilter));
@@ -154,14 +159,17 @@ struct SourceMixerFrequencyComponent : public juce::Component
         }
     };
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         g.fillAll(juce::Colours::black);
+
+        int width = boundsRect.getWidth();
+        int height = boundsRect.getHeight();
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
             m_windowedFFT[i][0].Compute(i);
-            PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
+            PathDrawer pathDrawer(height, width, 0, 0);
             SmartGrid::Color color = SourceMixer::UIState::Color(i).Dim();
             pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[i][0]);
         }
@@ -169,14 +177,14 @@ struct SourceMixerFrequencyComponent : public juce::Component
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
             m_windowedFFT[i][1].Compute(i);
-            PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
+            PathDrawer pathDrawer(height, width, 0, 0);
             SmartGrid::Color color = SourceMixer::UIState::Color(i);
             pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[i][1]);
         }
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
+            PathDrawer pathDrawer(height, width, 0, 0);
             pathDrawer.DrawPath(g, J(SourceMixer::UIState::Color(i)), ResponseDrawer(&GetSourceMixerUIState()->m_sources[i]));
         }
 
@@ -188,19 +196,19 @@ struct SourceMixerFrequencyComponent : public juce::Component
         for (size_t i = 0; i < numFrequencies; ++i)
         {
             float frequency = deepVocoderUIState->GetFrequency(which, i);
-            float x = PathDrawer::LinearToLog(frequency) * getWidth();
-            float y = PathDrawer::AmpToDbNormalized(deepVocoderUIState->GetMagnitude(which, i) * 2) * getHeight();
+            float x = PathDrawer::LinearToLog(frequency) * width;
+            float y = PathDrawer::AmpToDbNormalized(deepVocoderUIState->GetMagnitude(which, i) * 2) * height;
             g.setColour(juce::Colours::white);
-            g.drawLine(x, getHeight() - y, x, getHeight(), 1.5f);
+            g.drawLine(x, height - y, x, height, 1.5f);
         }
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
             float usedOmega = deepVocoderUIState->GetUsedOmega(i);
-            float x = PathDrawer::LinearToLog(usedOmega) * getWidth();
+            float x = PathDrawer::LinearToLog(usedOmega) * width;
             g.setColour(J(TheNonagonSmartGrid::VoiceColor(i)));
-            float bottom = (1 - PathDrawer::AmpToDbNormalized(deepVocoderUIState->m_voiceUIState[i].MagnitudeThreshold(usedOmega) * 2)) * getHeight();
-            float top = (1 - PathDrawer::AmpToDbNormalized(deepVocoderUIState->GetAtomMagnitude(i) * 2)) * getHeight();
+            float bottom = (1 - PathDrawer::AmpToDbNormalized(deepVocoderUIState->m_voiceUIState[i].MagnitudeThreshold(usedOmega) * 2)) * height;
+            float top = (1 - PathDrawer::AmpToDbNormalized(deepVocoderUIState->GetAtomMagnitude(i) * 2)) * height;
             g.drawLine(x, bottom, x, top, 1.5f);
         }
 
@@ -216,28 +224,30 @@ struct SourceMixerFrequencyComponent : public juce::Component
                 continue;
             }
 
-            PathDrawer pathDrawer(getHeight(), getWidth(), 0, 0);
+            PathDrawer pathDrawer(height, width, 0, 0);
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
             pathDrawer.DrawPath(g, J(color), VShapeDrawFn(&deepVocoderUIState->m_voiceUIState[i]));
         }
     }
 };
 
-struct SourceMixerReductionComponent : public juce::Component
+struct SourceMixerReductionComponent : public SmartGridOneMainVisualizerComponent
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
 
     SourceMixerReductionComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : m_uiState(uiState)
+        : SmartGridOneMainVisualizerComponent()
+        , m_uiState(uiState)
     {
-        setSize(400, 200);
     }
 
-    void paint(juce::Graphics& g) override
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         g.fillAll(juce::Colours::black);
 
-        VUBarDrawer vuBarDrawer(getHeight(), getWidth(), 0, 0);
+        int width = boundsRect.getWidth();
+        int height = boundsRect.getHeight();
+        VUBarDrawer vuBarDrawer(height, width, 0, 0);
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {

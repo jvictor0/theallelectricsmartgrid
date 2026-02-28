@@ -62,6 +62,13 @@ struct SmartGridOneEncoders
 #undef F
     };
 
+    static constexpr size_t x_numParams =
+        0
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) + 1
+#include "ForEachSmartGridOneParam.hpp"
+#undef F
+        ;
+
     // Modulator skin information
     //
     struct ModulatorSkin
@@ -205,7 +212,7 @@ struct SmartGridOneEncoders
     Bank m_selectedBank;
 
     SmartGridOneEncoders()
-        : m_encoderBankBank(static_cast<int>(Bank::NumBanks), x_numBankModes)
+        : m_encoderBankBank(static_cast<int>(Bank::NumBanks), x_numBankModes, x_numParams)
         , m_selectedBank(Bank::Source)
     {
     }
@@ -283,7 +290,11 @@ struct SmartGridOneEncoders
         m_encoderBankBank.InitBank(static_cast<int>(Bank::DeepVocoder), static_cast<int>(BankMode::Global), SmartGrid::Color::Ocean);
 
 #define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) \
-        m_encoderBankBank.Config(static_cast<int>(Bank::bank), x, y, default, #name, #shortName, color);
+        { \
+            size_t modeIx = static_cast<size_t>(GetModeForBank(Bank::bank)); \
+            size_t index = m_encoderBankBank.CreateEncoder(sceneManager, static_cast<size_t>(Param::name), modeIx, default, #name, #shortName, color); \
+            m_encoderBankBank.PlaceEncoder(index, static_cast<size_t>(Bank::bank), x, y); \
+        }
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
 
@@ -341,7 +352,8 @@ struct SmartGridOneEncoders
             { \
                 MachineFlags flags{BitSet8(sourceMachines), BitSet8(filterMachines)}; \
                 bool applies = flags.AppliesToSource(sourceMachine) && flags.AppliesToFilter(filterMachine); \
-                m_encoderBankBank.UpdateParam(static_cast<size_t>(Bank::bank), x, y, applies, applies ? #shortName : "---"); \
+                size_t encoderIndex = applies ? static_cast<size_t>(Param::name) : x_numParams; \
+                m_encoderBankBank.PlaceEncoder(encoderIndex, static_cast<size_t>(Bank::bank), x, y); \
             } \
         }
 #include "ForEachSmartGridOneParam.hpp"

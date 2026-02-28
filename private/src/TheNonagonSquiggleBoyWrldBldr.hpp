@@ -452,6 +452,7 @@ struct TheNonagonSquiggleBoyWrldBldr
     void SetGridsMode(GridsMode mode)
     {
         m_gridsMode = mode;
+        m_internal->m_uiState.m_gridsMode.store(static_cast<uint8_t>(mode));
         if (mode != GridsMode::NumGrids)
         {
             m_leftGrid.SetGrid(GetLeftGrid(mode));

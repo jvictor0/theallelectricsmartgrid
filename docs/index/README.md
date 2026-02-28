@@ -35,6 +35,7 @@ It interfaces with a custom MIDI controller.
   - **[Controller Integrations](../ui-controller-integrations.md)** — Wrld.Bldr and QuadLaunchpadTwister integration architecture.
   - **[MIDI I/O Scheduling](../ui-midi-scheduling.md)** — `MidiInputHandler`, `MidiOutputHandler`, and `MidiSender` realtime dispatch.
   - **[Visualization Pipeline](../ui-visualization-pipeline.md)** — `ScopeWriter` capture, FFT analysis, and JUCE visual components.
+  - **[Smart Grid Visualizers](../smart-grid-visualizers.md)** — Visualizer architecture, bank mapping, and adding new visualizers.
 - **Configuration** — (to be documented).
 
 ## Building

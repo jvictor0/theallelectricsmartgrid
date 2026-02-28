@@ -346,32 +346,17 @@ struct QuadWindowedFFT
         }
     }
 
-    float GetComplexMagDb(size_t speakerIx, size_t ix, bool eigen)
+    float GetComplexMagDb(size_t speakerIx, size_t ix)
     {
-        if (eigen)
-        {
-            std::complex<float> z(0, 0);
-            std::complex<float> iu(0.0f, 1.0f);
-            for (size_t i = 0; i < 4; ++i)
-            {
-                std::complex<float> value(m_filters[i][0][ix].m_output, m_filters[i][1][ix].m_output);
-                z += value * std::pow(iu, static_cast<float>(i * speakerIx)) / 4.0f;
-            }
-
-            return std::abs(z);
-        }
-        else
-        {
-            return m_filters[speakerIx][2][ix].m_output;
-        }
+        return m_filters[speakerIx][2][ix].m_output;
     }
 
-    float GetMagDb(size_t speakerIx, float freq, bool eigen)
+    float GetMagDb(size_t speakerIx, float freq)
     {
         size_t ix = static_cast<size_t>(freq * 2 * DiscreteFourierTransform::x_maxComponents);
         float wayThrough = freq * 2 * DiscreteFourierTransform::x_maxComponents - ix;
         size_t ix2 = std::min(ix + 1, DiscreteFourierTransform::x_maxComponents - 1);
-        float mag = GetComplexMagDb(speakerIx, ix, eigen) * (1 - wayThrough) + GetComplexMagDb(speakerIx, ix2, eigen) * wayThrough;
+        float mag = GetComplexMagDb(speakerIx, ix) * (1 - wayThrough) + GetComplexMagDb(speakerIx, ix2) * wayThrough;
         return 20 * std::log10f(mag);
     }
 };

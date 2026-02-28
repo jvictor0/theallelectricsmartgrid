@@ -2,17 +2,24 @@
 
 #include "SquiggleBoy.hpp"
 #include "TheNonagon.hpp"
+#include "VoiceMachineEnums.hpp"
 
 struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 {
-    struct SourceMachineSelectCell : SmartGrid::Cell
+    static constexpr int x_numSourceMachines = static_cast<int>(VoiceMachine::SourceMachine::NumSourceMachines);
+    static constexpr int x_numFilterMachines = static_cast<int>(VoiceMachine::FilterMachine::NumFilterMachines);
+
+    template<typename EnumT, bool Dec, int NumValues>
+    struct EnumIncDecCell : SmartGrid::Cell
     {
-        SquiggleBoyVoice::VoiceConfig::SourceMachine m_sourceMachine;
+        using VoiceConfig = SquiggleBoyVoice::VoiceConfig;
+
+        EnumT (VoiceConfig::* m_memberPtr);
         TheNonagonSmartGrid::Trio m_trio;
         SquiggleBoyConfigGrid* m_owner;
 
-        SourceMachineSelectCell(SquiggleBoyConfigGrid* owner, TheNonagonSmartGrid::Trio trio, SquiggleBoyVoice::VoiceConfig::SourceMachine sourceMachine)
-            : m_sourceMachine(sourceMachine)
+        EnumIncDecCell(SquiggleBoyConfigGrid* owner, TheNonagonSmartGrid::Trio trio, EnumT (VoiceConfig::* memberPtr))
+            : m_memberPtr(memberPtr)
             , m_trio(trio)
             , m_owner(owner)
         {
@@ -20,45 +27,20 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
         virtual SmartGrid::Color GetColor() override
         {
-            bool isSelected = m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio].m_voiceConfig.m_sourceMachine == m_sourceMachine;
-            return isSelected ? TheNonagonSmartGrid::TrioColor(m_trio) : TheNonagonSmartGrid::TrioColor(m_trio).Dim();
+            return IsPressed() ? TheNonagonSmartGrid::TrioColor(m_trio) : TheNonagonSmartGrid::TrioColor(m_trio).Dim();
         }
 
         virtual void OnPress(uint8_t) override
         {
+            size_t baseIdx = static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio;
+            auto& config = m_owner->m_squiggleBoy->m_state[baseIdx].m_voiceConfig;
+            int current = static_cast<int>(config.*m_memberPtr);
+            int next = Dec ? (current - 1 + NumValues) % NumValues : (current + 1) % NumValues;
+            EnumT value = static_cast<EnumT>(next);
+
             for (size_t i = 0; i < TheNonagonInternal::x_voicesPerTrio; ++i)
             {
-                m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio + i].m_voiceConfig.m_sourceMachine = m_sourceMachine;
-            }
-
-            m_owner->m_squiggleBoy->UpdateEncodersForMachine();
-        }
-    };
-
-    struct FilterMachineSelectCell : SmartGrid::Cell
-    {
-        SquiggleBoyVoice::VoiceConfig::FilterMachine m_filterMachine;
-        TheNonagonSmartGrid::Trio m_trio;
-        SquiggleBoyConfigGrid* m_owner;
-
-        FilterMachineSelectCell(SquiggleBoyConfigGrid* owner, TheNonagonSmartGrid::Trio trio, SquiggleBoyVoice::VoiceConfig::FilterMachine filterMachine)
-            : m_filterMachine(filterMachine)
-            , m_trio(trio)
-            , m_owner(owner)
-        {
-        }
-
-        virtual SmartGrid::Color GetColor() override
-        {
-            bool isSelected = m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio].m_voiceConfig.m_filterMachine == m_filterMachine;
-            return isSelected ? TheNonagonSmartGrid::TrioColor(m_trio) : TheNonagonSmartGrid::TrioColor(m_trio).Dim();
-        }
-
-        virtual void OnPress(uint8_t) override
-        {
-            for (size_t i = 0; i < TheNonagonInternal::x_voicesPerTrio; ++i)
-            {
-                m_owner->m_squiggleBoy->m_state[static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio + i].m_voiceConfig.m_filterMachine = m_filterMachine;
+                m_owner->m_squiggleBoy->m_state[baseIdx + i].m_voiceConfig.*m_memberPtr = value;
             }
 
             m_owner->m_squiggleBoy->UpdateEncodersForMachine();
@@ -180,22 +162,28 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
         for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
         {
-            // Source machine selection (VCO / Thru)
+            auto trio = static_cast<TheNonagonSmartGrid::Trio>(i);
+
+            // Source machine: upper = decrement, lower = increment
             //
-            Put(i, 0, new SourceMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::SourceMachine::DualWaveShapingVCO));
-            Put(i, 1, new SourceMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::SourceMachine::Thru));
+            Put(i, 0, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::SourceMachine, true, x_numSourceMachines>(
+                this, trio, &SquiggleBoyVoice::VoiceConfig::m_sourceMachine));
+            Put(i, 1, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::SourceMachine, false, x_numSourceMachines>(
+                this, trio, &SquiggleBoyVoice::VoiceConfig::m_sourceMachine));
 
             // Source selection for Thru mode
             //
             for (size_t j = 0; j < SourceMixer::x_numSources; ++j)
             {
-                Put(i, 2 + j, new SourceSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), j));
+                Put(i, 2 + j, new SourceSelectCell(this, trio, j));
             }
 
-            // Filter machine selection (Ladder4Pole / SVF2Pole)
+            // Filter machine: upper = decrement, lower = increment
             //
-            Put(i, 6, new FilterMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::FilterMachine::Ladder4Pole));
-            Put(i, 7, new FilterMachineSelectCell(this, static_cast<TheNonagonSmartGrid::Trio>(i), SquiggleBoyVoice::VoiceConfig::FilterMachine::SVF2Pole));
+            Put(i, 6, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::FilterMachine, true, x_numFilterMachines>(
+                this, trio, &SquiggleBoyVoice::VoiceConfig::m_filterMachine));
+            Put(i, 7, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::FilterMachine, false, x_numFilterMachines>(
+                this, trio, &SquiggleBoyVoice::VoiceConfig::m_filterMachine));
         }
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)

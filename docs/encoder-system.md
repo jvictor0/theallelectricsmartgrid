@@ -4,6 +4,10 @@ The Smart Grid One relies entirely on a software-defined parameter system. All "
 
 The core implementation spans `private/src/Encoder.hpp`, `private/src/EncoderBank.hpp`, and `private/src/EncoderBankBank.hpp`.
 
+Ownership now lives in `EncoderBankBank`: it owns a flat array of `BankedEncoderCell` instances indexed by `SmartGridOneEncoders::Param`. Each `EncoderBankInternal` starts with null base cells and receives raw pointers through `PlaceEncoder(...)`. This makes encoder swapping explicit and keeps base cells empty until they are placed.
+
+Serialization follows ownership: `EncoderBankBank::ToJSON()` iterates the full encoder array and writes each named parameter, and `FromJSON()` does the inverse by looking up each name and updating the encoder state.
+
 ## Base Structure: Tracks and Voices
 
 To accommodate polyphony and quadraphonic effects, the parameter system is structured hierarchically.
@@ -54,7 +58,7 @@ The entire state of all encoders (base values, modulation depths, and gesture ta
 
 Each parameter in the Voice banks can specify which source and filter machines it applies to via bit vectors (`MachineFlags`). Parameters are defined in `ForEachSmartGridOneParam.hpp` with `sourceMachines` and `filterMachines` arguments (e.g. `MachineFlags::x_dualWaveShapingVCOOnly` for parameters that only affect the Dual Wave Shaping VCO source).
 
-When the user selects a different source machine (e.g. Thru) or filter machine, `UpdateEncodersForMachine()` runs and updates each encoder's connection status and short name. Parameters that don't apply to the current machine are shown as disconnected (`"---"`). This keeps the encoder grid relevant to the active machine. The update is triggered on machine change (config page) and track change (since each track can have different machines).
+When the user selects a different source machine (e.g. Thru) or filter machine, `UpdateEncodersForMachine()` runs and swaps the actual encoder pointers in the grid. Parameters that do not apply are removed by placing `nullptr` in those positions, which leaves the cell empty and disconnected. This keeps the encoder grid relevant to the active machine while preserving encoder state in the owner array. The update is triggered on machine change (config page) and track change (since each track can have different machines).
 
 ## Related
 - [DSP Overview](dsp-overview.md)

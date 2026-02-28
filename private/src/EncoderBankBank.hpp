@@ -7,6 +7,7 @@ struct EncoderBankBank
 {
     size_t m_numBanks;
     size_t m_numModes;
+    size_t m_numEncoders;
 
     struct BankMode
     {
@@ -39,15 +40,18 @@ struct EncoderBankBank
     int m_selectedBank;
     BankConfig* m_bankConfigs;
     BankMode* m_bankModes;
+    SmartGrid::EncoderPtr* m_encoders;
 
-    EncoderBankBank(size_t numBanks, size_t numModes)
+    EncoderBankBank(size_t numBanks, size_t numModes, size_t numEncoders)
         : m_numBanks(numBanks)
         , m_numModes(numModes)
+        , m_numEncoders(numEncoders)
         , m_banks(new SmartGrid::EncoderBankInternal[numBanks])
         , m_sceneManager(nullptr)
         , m_selectedBank(-1)
         , m_bankConfigs(new BankConfig[numBanks])
         , m_bankModes(new BankMode[numModes])
+        , m_encoders(new SmartGrid::EncoderPtr[numEncoders])
     {
     }
 
@@ -56,6 +60,7 @@ struct EncoderBankBank
         delete[] m_banks;
         delete[] m_bankConfigs;
         delete[] m_bankModes;
+        delete[] m_encoders;
     }
 
     void InitSceneManager(SmartGrid::SceneManager* sceneManager)
@@ -82,6 +87,52 @@ struct EncoderBankBank
             m_bankModes[modeIx].m_numTracks, 
             m_bankModes[modeIx].m_numVoices);
    }
+
+    size_t CreateEncoder(
+        SmartGrid::SceneManager* sceneManager,
+        size_t index,
+        size_t modeIx,
+        float defaultValue,
+        const char* name,
+        const char* shortName,
+        SmartGrid::Color color)
+    {
+        if (index >= m_numEncoders)
+        {
+            return index;
+        }
+
+        m_encoders[index] = SmartGrid::MakeEncoder(
+            sceneManager,
+            nullptr,
+            static_cast<int>(index),
+            SmartGrid::BankedEncoderCell::EncoderType::BaseParam);
+        SmartGrid::BankedEncoderCell* cell = m_encoders[index].get();
+        cell->m_numTracks = m_bankModes[modeIx].m_numTracks;
+        cell->m_defaultValue = defaultValue;
+        cell->SetValueAllScenesAllTracks(defaultValue);
+        cell->m_connected = true;
+        cell->m_color = color;
+        cell->m_name = name;
+        cell->m_shortName = shortName;
+        return index;
+    }
+
+    SmartGrid::BankedEncoderCell* GetEncoder(size_t index)
+    {
+        if (index >= m_numEncoders)
+        {
+            return nullptr;
+        }
+
+        return m_encoders[index].get();
+    }
+
+    void PlaceEncoder(size_t encoderIndex, size_t bank, int x, int y)
+    {
+        SmartGrid::BankedEncoderCell* encoder = GetEncoder(encoderIndex);
+        m_banks[bank].PlaceEncoder(x, y, encoder);
+    }
 
     void SelectGesture(const BitSet16& gesture)
     {
@@ -247,28 +298,16 @@ struct EncoderBankBank
         }
     }
 
-    void Config(size_t bank, size_t i, size_t j, float defaultValue, const char* name, const char* shortName, SmartGrid::Color color)
-    {
-        m_banks[bank].GetBase(i, j)->m_defaultValue = defaultValue;
-        m_banks[bank].GetBase(i, j)->SetValueAllScenesAllTracks(defaultValue);
-        m_banks[bank].GetBase(i, j)->m_connected = true;
-        m_banks[bank].GetBase(i, j)->m_color = color;
-        m_banks[bank].GetBase(i, j)->m_name = name;
-        m_banks[bank].GetBase(i, j)->m_shortName = shortName;
-    }
-
-    void UpdateParam(size_t bank, size_t i, size_t j, bool connected, const char* shortName)
-    {
-        m_banks[bank].GetBase(i, j)->m_connected = connected;
-        m_banks[bank].GetBase(i, j)->m_shortName = shortName;
-    }
-
     JSON ToJSON()
     {
         JSON rootJ = JSON::Object();
-        for (size_t i = 0; i < m_numBanks; ++i)
+        for (size_t i = 0; i < m_numEncoders; ++i)
         {
-            m_banks[i].ToJSON(rootJ);
+            SmartGrid::BankedEncoderCell* cell = m_encoders[i].get();
+            if (cell && cell->m_name)
+            {
+                rootJ.SetNew(cell->m_name, cell->ToJSON());
+            }
         }
 
         return rootJ;
@@ -276,12 +315,19 @@ struct EncoderBankBank
 
     void FromJSON(JSON rootJ)
     {
-        for (size_t i = 0; i < m_numBanks; ++i)
+        for (size_t i = 0; i < m_numEncoders; ++i)
         {
-            m_banks[i].FromJSON(rootJ);
+            SmartGrid::BankedEncoderCell* cell = m_encoders[i].get();
+            if (cell && cell->m_name)
+            {
+                JSON paramJ = rootJ.Get(cell->m_name);
+                if (!paramJ.IsNull())
+                {
+                    cell->FromJSON(paramJ);
+                }
+            }
         }
 
-        JSON increfRoot = rootJ.Incref();
     }
 
     void CopyToScene(int scene)

@@ -57,7 +57,7 @@ This is how voice VCO/filter/amp/LFO and quad buses push data into visualization
 ### `QuadWindowedFFT`
 
 - computes per-channel complex spectra for quad streams,
-- supports both direct channel display and eigen-style combined views.
+- supports per-channel magnitude display.
 
 ## JUCE visual components
 
@@ -88,6 +88,7 @@ DSP/nonagon modules write into these through `SetupScopeWriters(...)`; UI reads 
 
 ## Related
 
+- [Smart Grid Visualizers](smart-grid-visualizers.md) — Visualizer architecture, layout, bank mapping, and how to add new visualizers
 - [UI Components and Layout](ui-components-layout.md)
 - [DSP Overview](dsp-overview.md)
 - [The Nonagon (Sequencer)](nonagon.md)

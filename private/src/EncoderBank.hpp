@@ -1159,7 +1159,7 @@ EncoderPtr MakeEncoder(Args&&... args)
 struct EncoderBankInternal : public EncoderGrid
 {
     SceneManager* m_sceneManager;
-    EncoderPtr m_baseCell[4][4];
+    BankedEncoderCell* m_baseCell[4][4];
     BankedEncoderCell* m_selected;
     BulkFilter<16 * 16> m_bulkFilter;
     size_t m_totalVoices;
@@ -1177,7 +1177,10 @@ struct EncoderBankInternal : public EncoderGrid
         }
         
         SetVisible(x, y, cell);
-        cell->m_isVisible = true;
+        if (cell)
+        {
+            cell->m_isVisible = true;
+        }
     }
     
     EncoderBankInternal()
@@ -1200,14 +1203,27 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (int j = 0; j < 4; ++j)
             {
-                m_baseCell[i][j] = MakeEncoder(m_sceneManager, nullptr, i + 4 * j, BankedEncoderCell::EncoderType::BaseParam);
-                m_baseCell[i][j]->m_sharedEncoderState = &m_sharedEncoderState;
-                m_baseCell[i][j]->m_ownerBank = this;
-                SetVisibleCell(i, j, m_baseCell[i][j].get());
+                m_baseCell[i][j] = nullptr;
+                SetVisibleCell(i, j, nullptr);
             }
         }
 
         SetNumTracks(numTracks);
+    }
+
+    void PlaceEncoder(int x, int y, BankedEncoderCell* encoder)
+    {
+        m_baseCell[x][y] = encoder;
+        if (encoder)
+        {
+            encoder->m_ownerBank = this;
+            encoder->m_sharedEncoderState = &m_sharedEncoderState;
+        }
+
+        if (!m_selected)
+        {
+            SetVisibleCell(x, y, encoder);
+        }
     }
 
     void SetAsDefault()
@@ -1216,7 +1232,10 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (int j = 0; j < 4; ++j)
             {
-                m_baseCell[i][j]->SetDefaultValue();
+                if (m_baseCell[i][j])
+                {
+                    m_baseCell[i][j]->SetDefaultValue();
+                }
             }
         }
     }
@@ -1227,14 +1246,17 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (int j = 0; j < 4; ++j)
             {
-                m_baseCell[i][j]->RevertToDefault(allScenes, allTracks);
+                if (m_baseCell[i][j])
+                {
+                    m_baseCell[i][j]->RevertToDefault(allScenes, allTracks);
+                }
             }
         }
     }
 
     BankedEncoderCell* GetBase(int i, int j)
     {
-        return m_baseCell[i][j].get();
+        return m_baseCell[i][j];
     }
 
     void CopyToScene(int scene)
@@ -1243,7 +1265,10 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (int j = 0; j < 4; ++j)
             {
-                m_baseCell[i][j]->CopyToScene(scene);
+                if (m_baseCell[i][j])
+                {
+                    m_baseCell[i][j]->CopyToScene(scene);
+                }
             }
         }
     }
@@ -1254,7 +1279,11 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (int j = 0; j < 4; ++j)
             {
-                GetBase(i, j)->SetModulatorsAffecting();
+                BankedEncoderCell* cell = GetBase(i, j);
+                if (cell)
+                {
+                    cell->SetModulatorsAffecting();
+                }
             }
         }
 
@@ -1271,8 +1300,12 @@ struct EncoderBankInternal : public EncoderGrid
             {
                 for (int j = 0; j < 4; ++j)
                 {
-                    m_gesturesAffectingPerTrack[t] = m_gesturesAffectingPerTrack[t].Union(GetBase(i, j)->m_gesturesAffectingPerTrack[t]);                    
-                    m_gesturesAffecting = m_gesturesAffecting.Union(GetBase(i, j)->m_gesturesAffectingPerTrack[t]);
+                    BankedEncoderCell* cell = GetBase(i, j);
+                    if (cell)
+                    {
+                        m_gesturesAffectingPerTrack[t] = m_gesturesAffectingPerTrack[t].Union(cell->m_gesturesAffectingPerTrack[t]);                    
+                        m_gesturesAffecting = m_gesturesAffecting.Union(cell->m_gesturesAffectingPerTrack[t]);
+                    }
                 }
             }
         }
@@ -1294,7 +1327,11 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (int j = 0; j < 4; ++j)
             {
-                GetBase(i, j)->ClearGesture(gesture);
+                BankedEncoderCell* cell = GetBase(i, j);
+                if (cell)
+                {
+                    cell->ClearGesture(gesture);
+                }
             }
         }
 
@@ -1307,7 +1344,11 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (int j = 0; j < 4; ++j)
             {
-                GetBase(i, j)->SetNumTracks(numTracks);
+                BankedEncoderCell* cell = GetBase(i, j);
+                if (cell)
+                {
+                    cell->SetNumTracks(numTracks);
+                }
             }
         }
     }
@@ -1323,7 +1364,11 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (int j = 0; j < 4; ++j)
             {
-                GetBase(i, j)->SetStateRecursive();
+                BankedEncoderCell* cell = GetBase(i, j);
+                if (cell)
+                {
+                    cell->SetStateRecursive();
+                }
             }
         }
     }
@@ -1336,17 +1381,31 @@ struct EncoderBankInternal : public EncoderGrid
     void ProcessTopology()
     {
         m_activeEncoderPrefix = 0;
+        float zero[16 * 16];
+        for (size_t i = 0; i < m_totalVoices; ++i)
+        {
+            zero[i] = 0;
+        }
+
         for (int i = 0; i < 4; ++i)
         {
             for (int j = 0; j < 4; ++j)
             {
-                if (GetBase(i, j)->m_connected)
+                BankedEncoderCell* cell = GetBase(i, j);
+                if (cell && cell->m_connected)
                 {
                     m_activeEncoderPrefix = i * 4 + j + 1;
                 }
 
-                GetBase(i, j)->Compute();
-                m_bulkFilter.LoadTarget(m_totalVoices, (i * 4 + j) * m_totalVoices, GetBase(i, j)->m_output);
+                if (cell)
+                {
+                    cell->Compute();
+                    m_bulkFilter.LoadTarget(m_totalVoices, (i * 4 + j) * m_totalVoices, cell->m_output);
+                }
+                else
+                {
+                    m_bulkFilter.LoadTarget(m_totalVoices, (i * 4 + j) * m_totalVoices, zero);
+                }
             }
         }
     }
@@ -1363,6 +1422,11 @@ struct EncoderBankInternal : public EncoderGrid
 
     void MakeSelection(int x, int y, BankedEncoderCell* cell)
     {
+        if (!cell)
+        {
+            return;
+        }
+
         cell->FillModulators(m_sceneManager);
         m_selected = cell;
         SetVisibleCell(3, 3, m_selected);
@@ -1384,8 +1448,12 @@ struct EncoderBankInternal : public EncoderGrid
             {
                 for (int j = 0; j < 4; ++j)
                 {
-                    SetVisibleCell(i, j, m_baseCell[i][j].get());
-                    m_baseCell[i][j]->SetModulatorsAffecting();
+                    BankedEncoderCell* cell = m_baseCell[i][j];
+                    SetVisibleCell(i, j, cell);
+                    if (cell)
+                    {
+                        cell->SetModulatorsAffecting();
+                    }
                 }
             }
 
@@ -1396,6 +1464,10 @@ struct EncoderBankInternal : public EncoderGrid
     virtual void HandlePress(int x, int y) override
     {
         BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(x, y));
+        if (!cell)
+        {
+            return;
+        }
 
         if (m_sceneManager->m_shift)
         {
@@ -1417,10 +1489,11 @@ struct EncoderBankInternal : public EncoderGrid
         {
             for (size_t j = 0; j < 4; ++j)
             {
-                if (GetBase(i, j)->m_name)
+                BankedEncoderCell* cell = GetBase(i, j);
+                if (cell && cell->m_name)
                 {
-                    JSON paramJ = GetBase(i, j)->ToJSON();
-                    rootJ.SetNew(GetBase(i, j)->m_name, paramJ);
+                    JSON paramJ = cell->ToJSON();
+                    rootJ.SetNew(cell->m_name, paramJ);
                 }
             }
         }
@@ -1433,7 +1506,7 @@ struct EncoderBankInternal : public EncoderGrid
             for (size_t j = 0; j < 4; ++j)
             {
                 BankedEncoderCell* cell = GetBase(i, j);
-                if (cell->m_name)
+                if (cell && cell->m_name)
                 {
                     JSON paramJ = rootJ.Get(cell->m_name);
                     if (!paramJ.IsNull())
@@ -1462,7 +1535,10 @@ struct EncoderBankInternal : public EncoderGrid
         if (msg.m_mode == MessageIn::Mode::EncoderIncDec)
         {
             BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(msg.m_x, msg.m_y));
-            cell->HandleIncDec(msg.m_timestamp, msg.m_amount);
+            if (cell)
+            {
+                cell->HandleIncDec(msg.m_timestamp, msg.m_amount);
+            }
         }
         else if (msg.m_mode == MessageIn::Mode::EncoderPush)
         {
@@ -1478,7 +1554,7 @@ struct EncoderBankInternal : public EncoderGrid
             {
                 BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(i, j));
 
-                if (cell->m_connected)
+                if (cell && cell->m_connected)
                 {
                     uiState->SetConnected(i, j, true);
                     uiState->SetColor(i, j, cell->GetSquareColor());
@@ -1508,7 +1584,7 @@ struct EncoderBankInternal : public EncoderGrid
                     uiState->SetGesturesAffecting(i, j, BitSet16());
                 }
 
-                uiState->SetShortName(i, j, cell->m_shortName);
+                uiState->SetShortName(i, j, cell ? cell->m_shortName : nullptr);
             }
         }
 
