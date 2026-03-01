@@ -477,6 +477,7 @@ struct SquiggleBoyVoice
         {            
             m_filterInput.m_ahdInput.Set(m_ahdControl);
             m_ampInput.m_ahdInput.Set(m_ahdControl);
+            m_sourceInput.m_physicalModelingInput.m_ahdInput.Set(m_ahdControl);
 
             m_squiggleLFOInput[0].m_trig = m_ahdControl.m_trig;
             m_squiggleLFOInput[1].m_trig = m_ahdControl.m_trig;
@@ -519,6 +520,14 @@ struct SquiggleBoyVoice
         }
 
         m_filter.m_ahd.Process(input.m_filterInput.m_ahdInput);
+
+        // Process PhysicalModeling AHD if that source is active
+        //
+        if (input.m_voiceConfig.m_sourceMachine == VoiceConfig::SourceMachine::PhysicalModeling)
+        {
+            m_source.m_physicalModeling.m_ahd.Process(input.m_sourceInput.m_physicalModelingInput.m_ahdInput);
+        }
+
         size_t uBlockIndex = SampleTimer::GetUBlockIndex();
         m_output = m_amp.Process(input.m_ampInput, m_uBlockFilterOut[uBlockIndex], m_uBlockOutputSub[uBlockIndex]);
         m_pan.Process(input.m_panInput);

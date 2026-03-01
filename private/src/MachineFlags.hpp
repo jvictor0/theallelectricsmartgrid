@@ -10,9 +10,10 @@
 //
 struct MachineFlags
 {
-    static constexpr uint8_t x_all = 0b11;
-    static constexpr uint8_t x_dualWaveShapingVCOOnly = 0b01;
-    static constexpr size_t x_numSourceMachines = 2;
+    static constexpr uint8_t x_all = 0b111;
+    static constexpr uint8_t x_dualWaveShapingVCOOnly = 0b001;
+    static constexpr uint8_t x_physicalModelingOnly = 0b100;
+    static constexpr size_t x_numSourceMachines = 3;
     static constexpr size_t x_numFilterMachines = 2;
 
     bool m_sourceMachines[x_numSourceMachines];

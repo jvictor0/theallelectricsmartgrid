@@ -6,7 +6,8 @@ namespace VoiceMachine
     {
         DualWaveShapingVCO = 0,
         Thru = 1,
-        NumSourceMachines = 2,
+        PhysicalModeling = 2,
+        NumSourceMachines = 3,
     };
 
     enum class FilterMachine : int
@@ -24,6 +25,8 @@ namespace VoiceMachine
                 return "Dual VCO";
             case SourceMachine::Thru:
                 return "Thru";
+            case SourceMachine::PhysicalModeling:
+                return "PhysMod";
         }
 
         return "Unknown";

@@ -2,6 +2,7 @@
 
 #include "DualWaveShapingVCO.hpp"
 #include "Oversample.hpp"
+#include "PhysicalModelingSource.hpp"
 #include "SampleTimer.hpp"
 #include "SmartGridOneEncoders.hpp"
 #include "SmartGridOneScopeEnums.hpp"
@@ -21,6 +22,7 @@ struct SquiggleBoySource
     // Source machines
     //
     DualWaveShapingVCO m_dualWaveShapingVCO;
+    PhysicalModelingSource m_physicalModeling;
 
     // Output buffers
     //
@@ -39,6 +41,7 @@ struct SquiggleBoySource
         SourceMixer* m_sourceMixer;
 
         DualWaveShapingVCO::Input m_dualWaveShapingVCOInput;
+        PhysicalModelingSource::Input m_physicalModelingInput;
 
         Input()
             : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
@@ -82,6 +85,14 @@ struct SquiggleBoySource
                 break;
             }
 
+            case SourceMachine::PhysicalModeling:
+            {
+                m_physicalModeling.ProcessUBlock(input.m_physicalModelingInput);
+                m_uBlockOutput = m_physicalModeling.m_uBlockOutput;
+                m_uBlockTop = m_physicalModeling.m_uBlockTop;
+                break;
+            }
+
             default:
                 break;
         }
@@ -117,6 +128,12 @@ struct SquiggleBoySource
                 break;
             }
 
+            case SourceMachine::PhysicalModeling:
+            {
+                SetPhysicalModelingParams(encoders, input.m_physicalModelingInput, voiceIx, baseFreq);
+                break;
+            }
+
             default:
                 break;
         }
@@ -147,5 +164,40 @@ struct SquiggleBoySource
         vcoInput.m_bitCrushAmount = encoders.GetValueNoSlew(Param::BitReduction, voiceIx);
         vcoInput.m_offsetFreqFactor.Update(encoders.GetValueNoSlew(Param::PitchOffset, voiceIx));
         vcoInput.m_detune.Update(encoders.GetValueNoSlew(Param::OscillatorDetune, voiceIx));
+    }
+
+    void SetPhysicalModelingParams(
+        SmartGridOneEncoders& encoders,
+        PhysicalModelingSource::Input& pmInput,
+        size_t voiceIx,
+        float baseFreq)
+    {
+        pmInput.m_baseFreq = baseFreq;
+
+        // Row 0: Main SVF params + sample rate reduction
+        //
+        pmInput.m_mainSVFCutoff.Update(encoders.GetValueNoSlew(Param::PMMainSVFCutoff, voiceIx));
+        pmInput.m_mainSVFResonance.Update(encoders.GetValueNoSlew(Param::PMMainSVFResonance, voiceIx));
+        pmInput.m_mainSVFMorph = encoders.GetValueNoSlew(Param::PMMainSVFMorph, voiceIx);
+        pmInput.m_sampleRateReducerFreq.Update(1 - encoders.GetValueNoSlew(Param::PMSampleRateReduction, voiceIx));
+
+        // Row 1: AHD envelope params (inverted like amp section)
+        //
+        pmInput.SetAHD(
+            encoders.GetValueNoSlew(Param::PMAHDAttack, voiceIx),
+            encoders.GetValueNoSlew(Param::PMAHDHold, voiceIx),
+            encoders.GetValueNoSlew(Param::PMAHDDecay, voiceIx),
+            encoders.GetValueNoSlew(Param::PMAmplitude, voiceIx));
+
+        // Row 2: Comb filter params
+        //
+        pmInput.m_combFreq.Update(encoders.GetValueNoSlew(Param::PMCombFreq, voiceIx));
+        pmInput.m_combFeedback.Update(encoders.GetValueNoSlew(Param::PMCombFeedback, voiceIx));
+
+        // Row 3: Comb SVF params
+        //
+        pmInput.m_combSVFCutoff.Update(encoders.GetValueNoSlew(Param::PMCombSVFCutoff, voiceIx));
+        pmInput.m_combSVFResonance.Update(encoders.GetValueNoSlew(Param::PMCombSVFResonance, voiceIx));
+        pmInput.m_combSVFMorph = encoders.GetValueNoSlew(Param::PMCombSVFMorph, voiceIx);
     }
 };

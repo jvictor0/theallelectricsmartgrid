@@ -1,21 +1,21 @@
 ---
 name: add-source-machine
-description: How to add a new source machine to Smart Grid One. Covers VoiceMachineEnums, creating the DSP class, integrating into SquiggleBoy, SetEncoderParameters wiring, and MachineFlags updates. Use when adding a new oscillator, synth engine, or audio source.
+description: How to add a new source machine to Smart Grid One. Covers VoiceMachineEnums, creating the DSP class, integrating into SquiggleBoySource, SetEncoderParameters wiring, and MachineFlags updates. Use when adding a new oscillator, synth engine, or audio source.
 ---
 
 # Adding a New Source Machine to Smart Grid One
 
 ## Overview
 
-A source machine generates audio before it reaches the filter. Examples: `DualWaveShapingVCO` (wavetable/phase-shaping VCO), `Thru` (passes external audio). Adding a new source machine requires:
+A source machine generates audio before it reaches the filter. Examples: `DualWaveShapingVCO` (wavetable/phase-shaping VCO), `PhysicalModeling` (noise-excited comb filter), `Thru` (passes external audio). Adding a new source machine requires:
 
 1. Update the enum in `VoiceMachineEnums.hpp`
 2. Create a DSP class file for the new machine
-3. Add the machine instance and input struct to `SquiggleBoyVoice`
-4. Integrate into `ProcessUBlock` in `SquiggleBoyVoice`
-5. Wire encoder parameters in `SetEncoderParameters`
-6. Update `MachineFlags.hpp` if the machine count changes
-7. Add machine-specific parameters using the create-parameter skill
+3. Add the machine instance and input struct to `SquiggleBoySource`
+4. Integrate into `ProcessUBlock` and `SetEncoderParams` in `SquiggleBoySource`
+5. Update `MachineFlags.hpp` if the machine count changes
+6. Add machine-specific parameters to `ForEachSmartGridOneParam.hpp`
+7. If the source has an internal AHD envelope, connect it in `SquiggleBoyVoice`
 
 ## Step 1: Update VoiceMachineEnums.hpp
 
@@ -26,8 +26,9 @@ enum class SourceMachine : int
 {
     DualWaveShapingVCO = 0,
     Thru = 1,
-    MyNewSource = 2,           // ADD: new machine
-    NumSourceMachines = 3,     // UPDATE: increment count
+    PhysicalModeling = 2,
+    MyNewSource = 3,           // ADD: new machine
+    NumSourceMachines = 4,     // UPDATE: increment count
 };
 ```
 
@@ -42,6 +43,8 @@ inline const char* ToString(SourceMachine machine)
             return "Dual VCO";
         case SourceMachine::Thru:
             return "Thru";
+        case SourceMachine::PhysicalModeling:
+            return "PhysMod";
         case SourceMachine::MyNewSource:      // ADD
             return "MySource";                // ADD: short display name
     }
@@ -52,7 +55,7 @@ inline const char* ToString(SourceMachine machine)
 
 ## Step 2: Create the DSP Class
 
-Create a new header file `private/src/MyNewSource.hpp` following the pattern of `DualWaveShapingVCO.hpp`:
+Create a new header file `private/src/MyNewSource.hpp` following the pattern of `DualWaveShapingVCO.hpp` or `PhysicalModelingSource.hpp`:
 
 ```cpp
 #pragma once
@@ -135,120 +138,157 @@ Key requirements:
 - `m_uBlockTop[SampleTimer::x_controlFrameRate]`: cycle-top flags for filter key tracking
 - Use `ParamSlew` for any parameter consumed in the oversampled loop
 
-## Step 3: Add to SquiggleBoyVoice
+## Step 3: Add to SquiggleBoySource
 
-In `private/src/SquiggleBoy.hpp`, add the include and member:
+In `private/src/SquiggleBoySource.hpp`, add the include, member, and input struct:
 
 ```cpp
 #include "DualWaveShapingVCO.hpp"
 #include "MyNewSource.hpp"              // ADD
 
-// ... inside struct SquiggleBoyVoice ...
+// ... inside struct SquiggleBoySource ...
 
-    DualWaveShapingVCO m_vco;
+    // Source machines
+    //
+    DualWaveShapingVCO m_dualWaveShapingVCO;
+    PhysicalModelingSource m_physicalModeling;
     MyNewSource m_myNewSource;          // ADD
 
 // ... inside struct Input ...
 
-    DualWaveShapingVCO::Input m_vcoInput;
+    DualWaveShapingVCO::Input m_dualWaveShapingVCOInput;
+    PhysicalModelingSource::Input m_physicalModelingInput;
     MyNewSource::Input m_myNewSourceInput;  // ADD
 ```
 
-## Step 4: Integrate into ProcessUBlock
+## Step 4: Integrate into ProcessUBlock and SetEncoderParams
 
-In `SquiggleBoyVoice::ProcessUBlock`, add a branch for your machine:
+In `SquiggleBoySource::ProcessUBlock`, add a case for your machine:
 
 ```cpp
 void ProcessUBlock(Input& input)
 {
-    float* audioInput;
-    float upsampledSource[x_uBlockSize];
+    switch (input.m_sourceMachine)
+    {
+        case SourceMachine::DualWaveShapingVCO:
+        {
+            m_dualWaveShapingVCO.ProcessUBlock(input.m_dualWaveShapingVCOInput);
+            m_uBlockOutput = m_dualWaveShapingVCO.m_uBlockOutput;
+            m_uBlockTop = m_dualWaveShapingVCO.m_uBlockTop;
+            break;
+        }
 
-    if (input.m_voiceConfig.m_sourceMachine == VoiceConfig::SourceMachine::DualWaveShapingVCO)
-    {
-        m_vco.ProcessUBlock(input.m_vcoInput);
-        audioInput = m_vco.m_uBlockOutput;
-    }
-    else if (input.m_voiceConfig.m_sourceMachine == VoiceConfig::SourceMachine::MyNewSource)  // ADD
-    {
-        m_myNewSource.ProcessUBlock(input.m_myNewSourceInput);
-        audioInput = m_myNewSource.m_uBlockOutput;
-    }
-    else  // Thru
-    {
-        const float* sourceBlock = input.m_sourceMixer->m_sources[input.m_voiceConfig.m_sourceIndex].m_uBlockOutput;
-        m_upsampler.Process(sourceBlock, upsampledSource);
-        audioInput = upsampledSource;
-    }
+        // ... other cases ...
 
-    // Pass m_uBlockTop from your source to filter if needed for key tracking
-    //
-    m_filter.ProcessUBlock(input.m_filterInput, audioInput, m_vco.m_uBlockTop);
-    // ...
+        case SourceMachine::MyNewSource:  // ADD
+        {
+            m_myNewSource.ProcessUBlock(input.m_myNewSourceInput);
+            m_uBlockOutput = m_myNewSource.m_uBlockOutput;
+            m_uBlockTop = m_myNewSource.m_uBlockTop;
+            break;
+        }
+
+        default:
+            break;
+    }
 }
 ```
 
-If your source provides `m_uBlockTop` for filter key tracking, pass it instead of `m_vco.m_uBlockTop`:
+In `SquiggleBoySource::SetEncoderParams`, add a case and helper function:
 
 ```cpp
-bool* topFlags = (input.m_voiceConfig.m_sourceMachine == VoiceConfig::SourceMachine::MyNewSource)
-    ? m_myNewSource.m_uBlockTop
-    : m_vco.m_uBlockTop;
-m_filter.ProcessUBlock(input.m_filterInput, audioInput, topFlags);
-```
-
-## Step 5: Wire Encoder Parameters
-
-In `SquiggleBoyWithEncoderBank::SetEncoderParameters`, add assignments for your machine's input struct:
-
-```cpp
-void SetEncoderParameters(Input& input)
+void SetEncoderParams(
+    SmartGridOneEncoders& encoders,
+    Input& input,
+    size_t voiceIx,
+    float baseFreq,
+    float wtBlend0,
+    float wtBlend1)
 {
-    for (size_t i = 0; i < x_numVoices; ++i)
+    switch (input.m_sourceMachine)
     {
-        // Existing VCO params
-        //
-        m_state[i].m_vcoInput.m_baseFreq = m_voices[i].m_baseFreqSlew.Process(input.m_baseFreq[i]);
-        // ...
+        // ... existing cases ...
 
-        // MyNewSource params (ADD)
-        //
-        m_state[i].m_myNewSourceInput.m_baseFreq = m_voices[i].m_baseFreqSlew.Process(input.m_baseFreq[i]);
-        m_state[i].m_myNewSourceInput.m_myParam = m_encoders.GetValueNoSlew(Param::MyNewParam, i);
-        // ...
+        case SourceMachine::MyNewSource:  // ADD
+        {
+            SetMyNewSourceParams(encoders, input.m_myNewSourceInput, voiceIx, baseFreq);
+            break;
+        }
+
+        default:
+            break;
     }
+}
+
+void SetMyNewSourceParams(
+    SmartGridOneEncoders& encoders,
+    MyNewSource::Input& input,
+    size_t voiceIx,
+    float baseFreq)
+{
+    input.m_baseFreq = baseFreq;
+    input.m_myParam = encoders.GetValueNoSlew(Param::MyNewParam, voiceIx);
+    // ... wire other params ...
 }
 ```
 
-## Step 6: Update MachineFlags.hpp
+## Step 5: Update MachineFlags.hpp
 
 If the total number of source machines changes, update `MachineFlags.hpp`:
 
 ```cpp
-static constexpr size_t x_numSourceMachines = 3;  // UPDATE to match enum count
+static constexpr uint8_t x_all = 0b1111;                   // 4 machines
+static constexpr uint8_t x_dualWaveShapingVCOOnly = 0b0001;
+static constexpr uint8_t x_physicalModelingOnly = 0b0100;
+static constexpr uint8_t x_myNewSourceOnly = 0b1000;       // ADD: for machine-specific params
+static constexpr size_t x_numSourceMachines = 4;           // UPDATE to match enum count
 ```
 
-Also update the bitmask constants if needed:
+## Step 6: Add Machine-Specific Parameters
+
+In `ForEachSmartGridOneParam.hpp`, add parameters for your machine using the machine-specific flag:
 
 ```cpp
-static constexpr uint8_t x_all = 0b111;                    // 3 machines
-static constexpr uint8_t x_dualWaveShapingVCOOnly = 0b001;
-static constexpr uint8_t x_myNewSourceOnly = 0b100;        // ADD: for machine-specific params
-```
-
-## Step 7: Add Machine-Specific Parameters
-
-Use the **create-parameter** skill to add parameters specific to your source machine.
-
-In `ForEachSmartGridOneParam.hpp`, use the `sourceMachines` flag to restrict params to your machine:
-
-```cpp
-F(MyNewParam, MNP, Source, 3, 0, 0.5, "My New Param", SmartGrid::Color::Cyan, 
+F(MyNewParam, MNP, Source, 0, 0, 0.5, "My New Param", SmartGrid::Color::Cyan, 
   MachineFlags::x_myNewSourceOnly,  // Only show for MyNewSource
   MachineFlags::x_all)              // All filter machines
 ```
 
-See `create-parameter/SKILL.md` for full details on parameter creation.
+Parameters at the same (x, y) position can coexist if they have different machine flags - only the matching machine's params will appear.
+
+## Step 7: Connect Internal AHD (if applicable)
+
+If your source has an internal AHD envelope (like PhysicalModeling), you need to:
+
+1. In `SquiggleBoyVoice::Input::SetGates()`, set the AHD input from the voice's AHDControl:
+
+```cpp
+void SetGates()
+{            
+    m_filterInput.m_ahdInput.Set(m_ahdControl);
+    m_ampInput.m_ahdInput.Set(m_ahdControl);
+    m_sourceInput.m_myNewSourceInput.m_ahdInput.Set(m_ahdControl);  // ADD
+    // ...
+}
+```
+
+2. In `SquiggleBoyVoice::Processs()`, process the AHD at control rate:
+
+```cpp
+float Processs(Input& input)
+{
+    // ...
+    
+    // Process MyNewSource AHD if that source is active
+    //
+    if (input.m_voiceConfig.m_sourceMachine == VoiceConfig::SourceMachine::MyNewSource)
+    {
+        m_source.m_myNewSource.m_ahd.Process(input.m_sourceInput.m_myNewSourceInput.m_ahdInput);
+    }
+    
+    // ...
+}
+```
 
 ## Files Modified
 
@@ -256,9 +296,10 @@ See `create-parameter/SKILL.md` for full details on parameter creation.
 |------|---------|
 | `private/src/VoiceMachineEnums.hpp` | Add enum value, update count, add ToString case |
 | `private/src/MyNewSource.hpp` | **Create new file** with DSP implementation |
-| `private/src/SquiggleBoy.hpp` | Add include, member, input struct, ProcessUBlock branch, SetEncoderParameters wiring |
-| `private/src/MachineFlags.hpp` | Update `x_numSourceMachines`, add bitmask constant |
+| `private/src/SquiggleBoySource.hpp` | Add include, member, input struct, ProcessUBlock case, SetEncoderParams dispatch |
+| `private/src/MachineFlags.hpp` | Update `x_numSourceMachines`, update `x_all`, add bitmask constant |
 | `private/src/ForEachSmartGridOneParam.hpp` | Add machine-specific parameters |
+| `private/src/SquiggleBoy.hpp` | (Optional) Connect internal AHD in SetGates and Processs |
 
 ## Checklist
 
@@ -266,8 +307,9 @@ See `create-parameter/SKILL.md` for full details on parameter creation.
 - [ ] `NumSourceMachines` incremented
 - [ ] ToString case added
 - [ ] DSP class created with `m_uBlockOutput` and `m_uBlockTop`
-- [ ] Member and input struct added to SquiggleBoyVoice
-- [ ] ProcessUBlock branch added for the new machine
-- [ ] Parameters wired in SetEncoderParameters
-- [ ] MachineFlags constants updated
-- [ ] Machine-specific parameters added via create-parameter skill
+- [ ] Member and input struct added to SquiggleBoySource
+- [ ] ProcessUBlock case added in SquiggleBoySource
+- [ ] SetEncoderParams case and helper function added in SquiggleBoySource
+- [ ] MachineFlags constants updated (`x_all`, `x_numSourceMachines`, new bitmask)
+- [ ] Machine-specific parameters added to ForEachSmartGridOneParam.hpp
+- [ ] (If applicable) Internal AHD connected in SquiggleBoyVoice::SetGates and Processs
