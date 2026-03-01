@@ -111,6 +111,7 @@ struct EncoderBankBank
         cell->m_numTracks = m_bankModes[modeIx].m_numTracks;
         cell->m_defaultValue = defaultValue;
         cell->SetValueAllScenesAllTracks(defaultValue);
+        cell->InitSlewState(defaultValue);
         cell->m_connected = true;
         cell->m_color = color;
         cell->m_name = name;
@@ -126,6 +127,28 @@ struct EncoderBankBank
         }
 
         return m_encoders[index].get();
+    }
+
+    float GetValueByEncoderIndex(size_t encoderIndex, size_t channel)
+    {
+        SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIndex);
+        if (cell)
+        {
+            return cell->GetSlewedValue(channel);
+        }
+
+        return 0.0f;
+    }
+
+    float GetValueNoSlewByEncoderIndex(size_t encoderIndex, size_t channel)
+    {
+        SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIndex);
+        if (cell)
+        {
+            return cell->m_output[channel];
+        }
+
+        return 0.0f;
     }
 
     void PlaceEncoder(size_t encoderIndex, size_t bank, int x, int y)
@@ -179,8 +202,6 @@ struct EncoderBankBank
             {
                 m_banks[i].ProcessTopology();
             }
-
-            m_banks[i].ProcessBulkFilter();
         }
     }
 

@@ -238,12 +238,11 @@ struct SmartGridOneEncoders
         return static_cast<BankMode>(m_encoderBankBank.GetModeForBank(static_cast<size_t>(bank)));
     }
 
-    // Value getters
+    // Value getters - use encoder index (Param enum) for O(1) lookup, not grid position
     //
     float GetValue(Param param, int voice)
     {
-        ParamAddress address = GetParamAddress(param);
-        return m_encoderBankBank.GetValue(static_cast<int>(address.bank), address.x, address.y, voice);
+        return m_encoderBankBank.GetValueByEncoderIndex(static_cast<size_t>(param), static_cast<size_t>(voice));
     }
 
     float GetValue(Param param)
@@ -253,8 +252,7 @@ struct SmartGridOneEncoders
 
     float GetValueNoSlew(Param param, int voice)
     {
-        ParamAddress address = GetParamAddress(param);
-        return m_encoderBankBank.GetValueNoSlew(static_cast<int>(address.bank), address.x, address.y, voice);
+        return m_encoderBankBank.GetValueNoSlewByEncoderIndex(static_cast<size_t>(param), static_cast<size_t>(voice));
     }
 
     float GetValueNoSlew(Param param)

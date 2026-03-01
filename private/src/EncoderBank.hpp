@@ -391,6 +391,8 @@ struct BankedEncoderCell : public StateEncoderCell
             m_gestureWeightSum[i] = 1;
             m_bankedValue[i] = 0;
             m_output[i] = 0;
+            m_slew[i].SetAlphaFromNatFreq(500.0f / 48000.0f);
+            m_slew[i].m_output = 0;
             m_effectiveModulatorWeights[i] = 0;
         }
 
@@ -465,6 +467,8 @@ struct BankedEncoderCell : public StateEncoderCell
             m_bankedValue[i] = 0;
             SetStatePtr(&m_bankedValue[i], i);
             m_output[i] = 0;
+            m_slew[i].SetAlphaFromNatFreq(500.0f / 48000.0f);
+            m_slew[i].m_output = 0;
             m_effectiveModulatorWeights[i] = 0;
         }
     }
@@ -548,6 +552,7 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         ZeroModulators(allScenes, allTracks);
         SetValue(m_defaultValue, allScenes, allTracks);
+        InitSlewState(m_defaultValue);
         SetForceUpdateRecursive();
         SetModulatorsAffecting();
     }
@@ -605,6 +610,19 @@ struct BankedEncoderCell : public StateEncoderCell
     BankedEncoderCell* GetModulator(size_t i)
     {
         return m_modulators.GetModulator(i);
+    }
+
+    float GetSlewedValue(size_t channel)
+    {
+        return m_slew[channel].Process(m_output[channel]);
+    }
+
+    void InitSlewState(float value)
+    {
+        for (size_t i = 0; i < 16; ++i)
+        {
+            m_slew[i].m_output = value;
+        }
     }
 
     void CopyToScene(size_t scene)
@@ -1132,6 +1150,7 @@ struct BankedEncoderCell : public StateEncoderCell
     float m_bankedValue[16];
     float m_postGestureValue[16];
     float m_output[16];
+    OPLowPassFilter m_slew[16];
     float m_maxValue[16];
     float m_minValue[16];
     float m_defaultValue;
@@ -1161,7 +1180,6 @@ struct EncoderBankInternal : public EncoderGrid
     SceneManager* m_sceneManager;
     BankedEncoderCell* m_baseCell[4][4];
     BankedEncoderCell* m_selected;
-    BulkFilter<16 * 16> m_bulkFilter;
     size_t m_totalVoices;
     size_t m_activeEncoderPrefix;
     BankedEncoderCell::SharedEncoderState m_sharedEncoderState;
@@ -1381,11 +1399,6 @@ struct EncoderBankInternal : public EncoderGrid
     void ProcessTopology()
     {
         m_activeEncoderPrefix = 0;
-        float zero[16 * 16];
-        for (size_t i = 0; i < m_totalVoices; ++i)
-        {
-            zero[i] = 0;
-        }
 
         for (int i = 0; i < 4; ++i)
         {
@@ -1400,19 +1413,9 @@ struct EncoderBankInternal : public EncoderGrid
                 if (cell)
                 {
                     cell->Compute();
-                    m_bulkFilter.LoadTarget(m_totalVoices, (i * 4 + j) * m_totalVoices, cell->m_output);
-                }
-                else
-                {
-                    m_bulkFilter.LoadTarget(m_totalVoices, (i * 4 + j) * m_totalVoices, zero);
                 }
             }
         }
-    }
-
-    void ProcessBulkFilter()
-    {
-        m_bulkFilter.Process(m_totalVoices * m_activeEncoderPrefix);
     }
 
     std::pair<int, int> ModulatorIndexToXY(int index)
@@ -1522,12 +1525,24 @@ struct EncoderBankInternal : public EncoderGrid
 
     float GetValue(size_t i, size_t j, size_t channel)
     {
-        return m_bulkFilter.m_output[(i * 4 + j) * m_totalVoices + channel];
+        BankedEncoderCell* cell = GetBase(i, j);
+        if (cell)
+        {
+            return cell->GetSlewedValue(channel);
+        }
+
+        return 0.0f;
     }
 
     float GetValueNoSlew(size_t i, size_t j, size_t channel)
     {
-        return m_bulkFilter.m_target[(i * 4 + j) * m_totalVoices + channel];
+        BankedEncoderCell* cell = GetBase(i, j);
+        if (cell)
+        {
+            return cell->m_output[channel];
+        }
+
+        return 0.0f;
     }
 
     virtual void Apply(MessageIn msg) override
