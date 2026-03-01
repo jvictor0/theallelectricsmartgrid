@@ -157,6 +157,17 @@ struct EncoderBankBank
         m_banks[bank].PlaceEncoder(x, y, encoder);
     }
 
+    void NullBank(size_t bankIx)
+    {
+        for (int x = 0; x < 4; ++x)
+        {
+            for (int y = 0; y < 4; ++y)
+            {
+                m_banks[bankIx].PlaceEncoder(x, y, nullptr);
+            }
+        }
+    }
+
     void SelectGesture(const BitSet16& gesture)
     {
         for (size_t i = 0; i < m_numModes; ++i)

@@ -12,8 +12,8 @@ A source machine generates audio before it reaches the filter. Examples: `DualWa
 1. Update the enum in `VoiceMachineEnums.hpp`
 2. Create a DSP class file for the new machine
 3. Add the machine instance and input struct to `SquiggleBoySource`
-4. Integrate into `ProcessUBlock` and `SetEncoderParams` in `SquiggleBoySource`
-5. Update `MachineFlags.hpp` if the machine count changes
+4. Integrate into `ProcessUBlock` and dispatch in `SetEncoderParams` in `SquiggleBoySource`
+5. Update machine flags (`MachineFlags.hpp` and `VoiceMachineEnums.hpp`) if the machine count changes
 6. Add machine-specific parameters to `ForEachSmartGridOneParam.hpp`
 7. If the source has an internal AHD envelope, connect it in `SquiggleBoyVoice`
 
@@ -52,6 +52,12 @@ inline const char* ToString(SourceMachine machine)
     return "Unknown";
 }
 ```
+
+If you add a new source-machine enum value, also update `VoiceMachine::SourceMachineFlags` in `VoiceMachineEnums.hpp`:
+
+- add a bit constant for the new machine
+- include it in `x_all`
+- add a helper (for example `MyNewSourceOnly()`) if needed for visualizer gating
 
 ## Step 2: Create the DSP Class
 
@@ -194,7 +200,7 @@ void ProcessUBlock(Input& input)
 }
 ```
 
-In `SquiggleBoySource::SetEncoderParams`, add a case and helper function:
+In `SquiggleBoySource::SetEncoderParams`, add a case that dispatches to the machine's own setter:
 
 ```cpp
 void SetEncoderParams(
@@ -211,7 +217,7 @@ void SetEncoderParams(
 
         case SourceMachine::MyNewSource:  // ADD
         {
-            SetMyNewSourceParams(encoders, input.m_myNewSourceInput, voiceIx, baseFreq);
+            m_myNewSource.SetEncoderParams(encoders, input.m_myNewSourceInput, voiceIx, baseFreq);
             break;
         }
 
@@ -220,19 +226,11 @@ void SetEncoderParams(
     }
 }
 
-void SetMyNewSourceParams(
-    SmartGridOneEncoders& encoders,
-    MyNewSource::Input& input,
-    size_t voiceIx,
-    float baseFreq)
-{
-    input.m_baseFreq = baseFreq;
-    input.m_myParam = encoders.GetValueNoSlew(Param::MyNewParam, voiceIx);
-    // ... wire other params ...
-}
 ```
 
-## Step 5: Update MachineFlags.hpp
+Recommended pattern: keep machine-specific parameter mapping inside the machine class (`MyNewSource::SetEncoderParams`) to keep `SquiggleBoySource` as a thin dispatcher.
+
+## Step 5: Update Machine Flags
 
 If the total number of source machines changes, update `MachineFlags.hpp`:
 
@@ -243,6 +241,8 @@ static constexpr uint8_t x_physicalModelingOnly = 0b0100;
 static constexpr uint8_t x_myNewSourceOnly = 0b1000;       // ADD: for machine-specific params
 static constexpr size_t x_numSourceMachines = 4;           // UPDATE to match enum count
 ```
+
+Also update `VoiceMachine::SourceMachineFlags` in `VoiceMachineEnums.hpp` so source-specific visualizers can gate correctly.
 
 ## Step 6: Add Machine-Specific Parameters
 
@@ -298,6 +298,7 @@ float Processs(Input& input)
 | `private/src/MyNewSource.hpp` | **Create new file** with DSP implementation |
 | `private/src/SquiggleBoySource.hpp` | Add include, member, input struct, ProcessUBlock case, SetEncoderParams dispatch |
 | `private/src/MachineFlags.hpp` | Update `x_numSourceMachines`, update `x_all`, add bitmask constant |
+| `private/src/VoiceMachineEnums.hpp` | Update `SourceMachineFlags` constants/helpers for visualizer gating |
 | `private/src/ForEachSmartGridOneParam.hpp` | Add machine-specific parameters |
 | `private/src/SquiggleBoy.hpp` | (Optional) Connect internal AHD in SetGates and Processs |
 
@@ -309,7 +310,8 @@ float Processs(Input& input)
 - [ ] DSP class created with `m_uBlockOutput` and `m_uBlockTop`
 - [ ] Member and input struct added to SquiggleBoySource
 - [ ] ProcessUBlock case added in SquiggleBoySource
-- [ ] SetEncoderParams case and helper function added in SquiggleBoySource
+- [ ] SetEncoderParams dispatch added in SquiggleBoySource (machine owns its own parameter setter)
 - [ ] MachineFlags constants updated (`x_all`, `x_numSourceMachines`, new bitmask)
+- [ ] VoiceMachine::SourceMachineFlags updated (`x_all` + machine-specific bit/helper)
 - [ ] Machine-specific parameters added to ForEachSmartGridOneParam.hpp
 - [ ] (If applicable) Internal AHD connected in SquiggleBoyVoice::SetGates and Processs

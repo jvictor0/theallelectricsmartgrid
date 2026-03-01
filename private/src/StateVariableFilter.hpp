@@ -121,6 +121,26 @@ struct LinearStateVariableFilter
         return m_notch;
     }
 
+    // Equal-power morph: 0-0.5 LP->BP, 0.5-1 BP->HP
+    //
+    float GetMorphedOutput(float blend) const
+    {
+        if (blend <= 0.5f)
+        {
+            float t = blend * 2.0f;
+            float lpGain = Math::Cos2pi(t);
+            float bpGain = Math::Sin2pi(t);
+            return m_lowPass * lpGain + m_bandPass * bpGain;
+        }
+        else
+        {
+            float t = (blend - 0.5f) * 2.0f;
+            float bpGain = Math::Cos2pi(t);
+            float hpGain = Math::Sin2pi(t);
+            return m_bandPass * bpGain + m_highPass * hpGain;
+        }
+    }
+
     void SetCutoff(float cutoff)
     {
         m_cutoff = std::min(x_maxCutoff, cutoff);

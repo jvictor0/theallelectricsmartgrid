@@ -344,6 +344,14 @@ struct SmartGridOneEncoders
         VoiceMachine::SourceMachine sourceMachine,
         VoiceMachine::FilterMachine filterMachine)
     {
+        for (size_t bankIx = 0; bankIx < static_cast<size_t>(Bank::NumBanks); ++bankIx)
+        {
+            if (GetModeForBank(static_cast<Bank>(bankIx)) == BankMode::Voice)
+            {
+                m_encoderBankBank.NullBank(bankIx);
+            }
+        }
+
 #define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) \
         { \
             if (GetModeForBank(Bank::bank) == BankMode::Voice) \
@@ -351,7 +359,10 @@ struct SmartGridOneEncoders
                 MachineFlags flags{BitSet8(sourceMachines), BitSet8(filterMachines)}; \
                 bool applies = flags.AppliesToSource(sourceMachine) && flags.AppliesToFilter(filterMachine); \
                 size_t encoderIndex = applies ? static_cast<size_t>(Param::name) : x_numParams; \
-                m_encoderBankBank.PlaceEncoder(encoderIndex, static_cast<size_t>(Bank::bank), x, y); \
+                if (applies) \
+                { \
+                    m_encoderBankBank.PlaceEncoder(encoderIndex, static_cast<size_t>(Bank::bank), x, y); \
+                } \
             } \
         }
 #include "ForEachSmartGridOneParam.hpp"

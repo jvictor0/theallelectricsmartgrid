@@ -2,25 +2,79 @@
 
 #include "AHD.hpp"
 #include "BitCrush.hpp"
-#include "CombFilterWithSVF.hpp"
+#include "CombFilterWithOnePole.hpp"
 #include "Math.hpp"
 #include "Noise.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
+#include "SmartGridOneEncoders.hpp"
 #include "Slew.hpp"
 #include "StateVariableFilter.hpp"
+#include <algorithm>
+#include <atomic>
+#include <complex>
 
 // Physical modeling source machine.
 //
 // Signal chain:
 //   White Noise -> Sample Rate Reducer -> 2-pole SVF (with morph) 
 //   -> AHD envelope (inverted, exponential) amplitude modulation
-//   -> Comb Filter with SVF in feedback loop
+//   -> Comb Filter with one-pole damping in feedback loop
 //
 struct PhysicalModelingSource
 {
     static constexpr size_t x_oversample = 4;
     static constexpr size_t x_uBlockSize = SampleTimer::x_controlFrameRate * x_oversample;
+
+    struct UIState : TransferFunction
+    {
+        std::atomic<float> m_mainSVFG;
+        std::atomic<float> m_mainSVFK;
+        std::atomic<float> m_mainSVFMorph;
+        CombFilterWithOnePole::UIState m_combFilter;
+
+        UIState()
+            : m_mainSVFG(0.0f)
+            , m_mainSVFK(0.0f)
+            , m_mainSVFMorph(0.5f)
+        {
+        }
+
+        std::complex<float> TransferFunctionValue(float normalizedFreq) const override
+        {
+            float freq = std::max(0.0f, std::min(0.5f, normalizedFreq));
+            float g = m_mainSVFG.load();
+            float k = m_mainSVFK.load();
+            float morph = std::max(0.0f, std::min(1.0f, m_mainSVFMorph.load()));
+
+            std::complex<float> svfTransfer(0.0f, 0.0f);
+            if (morph <= 0.5f)
+            {
+                float blend = morph * 2.0f;
+                float lpGain = Math::Cos2pi(blend);
+                float bpGain = Math::Sin2pi(blend);
+                svfTransfer =
+                    lpGain * LinearStateVariableFilter::LowPassTransferFunction(g, k, freq) +
+                    bpGain * LinearStateVariableFilter::BandPassTransferFunction(g, k, freq);
+            }
+            else
+            {
+                float blend = (morph - 0.5f) * 2.0f;
+                float bpGain = Math::Cos2pi(blend);
+                float hpGain = Math::Sin2pi(blend);
+                svfTransfer =
+                    bpGain * LinearStateVariableFilter::BandPassTransferFunction(g, k, freq) +
+                    hpGain * LinearStateVariableFilter::HighPassTransferFunction(g, k, freq);
+            }
+
+            return svfTransfer * m_combFilter.TransferFunctionValue(freq);
+        }
+
+        float FrequencyResponse(float normalizedFreq) const override
+        {
+            return std::abs(TransferFunctionValue(normalizedFreq));
+        }
+    };
 
     // Noise source
     //
@@ -38,9 +92,9 @@ struct PhysicalModelingSource
     //
     AHD m_ahd;
 
-    // Comb filter with SVF in feedback
+    // Comb filter with one-pole damping in feedback
     //
-    CombFilterWithSVF m_combFilter;
+    CombFilterWithOnePole m_combFilter;
 
     // Output buffers
     //
@@ -51,17 +105,13 @@ struct PhysicalModelingSource
     bool m_top;
 
     // Slewed parameters for oversampled processing
+    // Note: Comb filter params (freq, feedback, damping) are slewed inside the comb filter
     //
     ParamSlew m_sampleRateReducerFreqSlew;
     ParamSlew m_mainSVFCutoffSlew;
     ParamSlew m_mainSVFResonanceSlew;
     ParamSlew m_mainSVFMorphSlew;
     ParamSlew m_ahdEnvSlew;
-    ParamSlew m_combFreqSlew;
-    ParamSlew m_combFeedbackSlew;
-    ParamSlew m_combSVFCutoffSlew;
-    ParamSlew m_combSVFResonanceSlew;
-    ParamSlew m_combSVFMorphSlew;
 
     struct Input
     {
@@ -75,33 +125,31 @@ struct PhysicalModelingSource
         PhaseUtils::ExpParam m_sampleRateReducerFreq;
 
         // Row 1: AHD envelope (inverted like amp section)
+        // InputSetter allows 100 µs min for very short attack/decay
         //
         AHD::InputSetter m_ahdInputSetter;
         AHD::Input m_ahdInput;
 
         // Row 2: Comb filter params
+        // Feedback knob: [0, 1], mapped to signed damping-time feedback in comb filter
         //
-        PhaseUtils::ExpParam m_combFreq;
-        PhaseUtils::ZeroedExpParam m_combFeedback;
+        float m_combFeedback;
 
-        // Row 3: Comb SVF params
+        // Comb damping params
+        // Cutoff: normalized frequency [0, 0.5], converted to alpha internally
         //
-        PhaseUtils::ExpParam m_combSVFCutoff;
-        PhaseUtils::ZeroedExpParam m_combSVFResonance;
-        float m_combSVFMorph;
+        PhaseUtils::ExpParam m_combDampenCutoff;
 
         Input()
             : m_baseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
             , m_mainSVFCutoff(0.001f, 0.499f)
             , m_mainSVFMorph(0.5f)
-            , m_sampleRateReducerFreq(1.0f, 2048.0f)
-            , m_combFreq(0.001f, 0.25f)
-            , m_combSVFCutoff(0.001f, 0.499f)
-            , m_combSVFMorph(0.5f)
+            , m_sampleRateReducerFreq(0.001f, 2.0f)
+            , m_ahdInputSetter(0.0001f, 2.5f, 0.0001f, 2.5f)
+            , m_combFeedback(0.0f)
+            , m_combDampenCutoff(0.001f, 0.499f)
         {
             m_mainSVFResonance.SetBaseByCenter(0.125);
-            m_combFeedback.SetMax(0.99f);
-            m_combSVFResonance.SetBaseByCenter(0.125);
         }
 
         void SetAHD(float attack, float hold, float decay, float amplitude)
@@ -114,6 +162,7 @@ struct PhysicalModelingSource
 
     PhysicalModelingSource()
         : m_noise(42)
+        , m_combFilter(x_oversample)
         , m_output(0.0f)
         , m_top(false)
         , m_sampleRateReducerFreqSlew(x_oversample)
@@ -121,27 +170,42 @@ struct PhysicalModelingSource
         , m_mainSVFResonanceSlew(x_oversample)
         , m_mainSVFMorphSlew(x_oversample)
         , m_ahdEnvSlew(x_oversample)
-        , m_combFreqSlew(x_oversample)
-        , m_combFeedbackSlew(x_oversample)
-        , m_combSVFCutoffSlew(x_oversample)
-        , m_combSVFResonanceSlew(x_oversample)
-        , m_combSVFMorphSlew(x_oversample)
     {
     }
 
     void ProcessUBlock(Input& input)
     {
+        // Process AHD envelope (params in input.m_ahdInput set by caller)
+        //
+        m_ahd.Process(input.m_ahdInput);
+
         // Update slew targets at start of block
         //
         m_sampleRateReducerFreqSlew.Update(input.m_sampleRateReducerFreq.m_expParam);
         m_mainSVFCutoffSlew.Update(input.m_mainSVFCutoff.m_expParam);
         m_mainSVFResonanceSlew.Update(input.m_mainSVFResonance.m_expParam);
         m_mainSVFMorphSlew.Update(input.m_mainSVFMorph);
-        m_combFreqSlew.Update(input.m_combFreq.m_expParam);
-        m_combFeedbackSlew.Update(input.m_combFeedback.m_expParam);
-        m_combSVFCutoffSlew.Update(input.m_combSVFCutoff.m_expParam);
-        m_combSVFResonanceSlew.Update(input.m_combSVFResonance.m_expParam);
-        m_combSVFMorphSlew.Update(input.m_combSVFMorph);
+        m_ahdEnvSlew.Update(m_ahd.m_output);
+
+        // Set comb filter params once per block
+        // Comb filter internally slews feedback and compensated delay
+        // Adjust frequencies for oversample rate
+        //
+        float adjustedBaseFreq = input.m_baseFreq / x_oversample;
+        float adjustedDampenCutoff = std::min(0.499f, input.m_combDampenCutoff.m_expParam / x_oversample);
+
+        // Convert cutoff to one-pole alpha
+        //
+        float alpha = OPLowPassFilter::AlphaFromNatFreq(adjustedDampenCutoff);
+
+        m_combFilter.SetDampingTime(
+            input.m_combFeedback,
+            48000.0f,
+            static_cast<float>(x_oversample));
+
+        m_combFilter.SetParams(
+            adjustedBaseFreq,
+            alpha);
 
         for (size_t i = 0; i < x_uBlockSize; ++i)
         {
@@ -151,66 +215,38 @@ struct PhysicalModelingSource
             float mainSVFCutoff = m_mainSVFCutoffSlew.Process();
             float mainSVFResonance = m_mainSVFResonanceSlew.Process();
             float mainSVFMorph = m_mainSVFMorphSlew.Process();
-            float combFreq = m_combFreqSlew.Process();
-            float combFeedback = m_combFeedbackSlew.Process();
-            float combSVFCutoff = m_combSVFCutoffSlew.Process();
-            float combSVFResonance = m_combSVFResonanceSlew.Process();
-            float combSVFMorph = m_combSVFMorphSlew.Process();
+            float ahdEnv = m_ahdEnvSlew.Process();
 
             // 1. Generate white noise
             //
             float noise = static_cast<float>(m_noise.Generate());
 
-            // 2. Sample rate reduction
-            // Adjust for oversample rate
-            //
-            m_sampleRateReducer.SetFreq(sampleRateReducerFreq / x_oversample);
-            float reduced = m_sampleRateReducer.Process(noise);
-
-            // 3. Main SVF processing
+            // 3. Main SVF processing (morph inside SVF: blend 0=LP, 1=HP, equal power)
             // Adjust cutoff for oversample rate
             //
             float adjustedMainCutoff = std::min(0.499f / x_oversample, mainSVFCutoff / x_oversample);
             m_mainSVF.SetCutoff(adjustedMainCutoff);
             m_mainSVF.SetResonance(mainSVFResonance);
-            m_mainSVF.Process(reduced);
+            m_mainSVF.Process(noise);
+            float svfOut = m_mainSVF.GetMorphedOutput(mainSVFMorph);
 
-            // Morph between HP -> BP -> LP
-            //
-            float svfOut;
-            if (mainSVFMorph <= 0.5f)
-            {
-                float blend = mainSVFMorph * 2.0f;
-                svfOut = m_mainSVF.GetHighPass() * (1.0f - blend) + m_mainSVF.GetBandPass() * blend;
-            }
-            else
-            {
-                float blend = (mainSVFMorph - 0.5f) * 2.0f;
-                svfOut = m_mainSVF.GetBandPass() * (1.0f - blend) + m_mainSVF.GetLowPass() * blend;
-            }
-
-            // 4. AHD envelope amplitude modulation (processed at base rate)
-            // We read the envelope value directly for smooth modulation
+            // 4. AHD envelope amplitude modulation
             // The envelope is inverted (like amp section): at 0 amplitude, output is at full
             // Apply exponential curve for natural modulation
+            // Use slewed envelope for smooth oversampled modulation
             //
-            float envValue = PhaseUtils::ZeroedExpParam::Compute(10.0f, m_ahd.m_output);
+            float envValue = PhaseUtils::ZeroedExpParam::Compute(10.0f, ahdEnv);
             float envelopedSignal = svfOut * envValue;
 
-            // 5. Comb filter with SVF in feedback
-            // Adjust frequencies for oversample rate
+            // 2. Sample rate reduction
+            // Adjust for oversample rate
             //
-            float adjustedCombFreq = combFreq / x_oversample;
-            float adjustedCombSVFCutoff = std::min(0.499f / x_oversample, combSVFCutoff / x_oversample);
+            m_sampleRateReducer.SetFreq(sampleRateReducerFreq / x_oversample);
+            float prefiltered = m_sampleRateReducer.Process(envelopedSignal);
 
-            m_combFilter.SetParams(
-                adjustedCombFreq,
-                combFeedback,
-                adjustedCombSVFCutoff,
-                combSVFResonance,
-                combSVFMorph);
-
-            m_output = m_combFilter.Process(envelopedSignal);
+            // 5. Comb filter with one-pole damping in feedback
+            //
+            m_output = m_combFilter.Process(prefiltered);
             m_uBlockOutput[i] = m_output;
 
             // Base-rate operations every x_oversample samples
@@ -227,13 +263,6 @@ struct PhysicalModelingSource
         }
     }
 
-    // Process the AHD envelope at control rate
-    //
-    void ProcessAHDEnvelope(Input& input)
-    {
-        m_ahd.Process(input.m_ahdInput);
-    }
-
     float Process(Input& input)
     {
         if (SampleTimer::IsControlFrame())
@@ -245,5 +274,48 @@ struct PhysicalModelingSource
         m_top = m_uBlockTop[SampleTimer::GetUBlockIndex()];
 
         return m_output;
+    }
+
+    void PopulateUIState(UIState* uiState)
+    {
+        uiState->m_mainSVFG.store(m_mainSVF.m_g);
+        uiState->m_mainSVFK.store(m_mainSVF.m_k);
+        uiState->m_mainSVFMorph.store(m_mainSVFMorphSlew.m_filter.m_output);
+        m_combFilter.PopulateUIState(&uiState->m_combFilter);
+    }
+
+    void SetEncoderParams(
+        SmartGridOneEncoders& encoders,
+        Input& input,
+        size_t voiceIx,
+        float baseFreq)
+    {
+        using Param = SmartGridOneEncoders::Param;
+
+        input.m_baseFreq = baseFreq;
+
+        // Row 0: Main SVF params + sample rate reduction
+        //
+        input.m_mainSVFCutoff.Update(encoders.GetValueNoSlew(Param::PMMainSVFCutoff, voiceIx));
+        input.m_mainSVFResonance.Update(encoders.GetValueNoSlew(Param::PMMainSVFResonance, voiceIx));
+        input.m_mainSVFMorph = encoders.GetValueNoSlew(Param::PMMainSVFMorph, voiceIx);
+        input.m_sampleRateReducerFreq.Update(1 - encoders.GetValueNoSlew(Param::PMSampleRateReduction, voiceIx));
+
+        // Row 1: AHD envelope params (inverted like amp section)
+        //
+        input.SetAHD(
+            encoders.GetValueNoSlew(Param::PMAHDAttack, voiceIx),
+            encoders.GetValueNoSlew(Param::PMAHDHold, voiceIx),
+            encoders.GetValueNoSlew(Param::PMAHDDecay, voiceIx),
+            encoders.GetValueNoSlew(Param::PMAmplitude, voiceIx));
+
+        // Row 2: Comb filter params
+        // Feedback knob is mapped in the comb filter to signed damping time
+        //
+        input.m_combFeedback = encoders.GetValue(Param::PMCombFeedback, voiceIx);
+
+        // Comb damping params
+        //
+        input.m_combDampenCutoff.Update(encoders.GetValueNoSlew(Param::PMCombDampenCutoff, voiceIx));
     }
 };

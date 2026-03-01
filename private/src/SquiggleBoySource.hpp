@@ -98,8 +98,6 @@ struct SquiggleBoySource
         }
     }
 
-    using Param = SmartGridOneEncoders::Param;
-
     // Called from SetEncoderParameters to set source-specific encoder params.
     // Takes the encoder bank and voice index, dispatches to the appropriate machine.
     //
@@ -115,7 +113,7 @@ struct SquiggleBoySource
         {
             case SourceMachine::DualWaveShapingVCO:
             {
-                SetDualWaveShapingVCOParams(
+                m_dualWaveShapingVCO.SetEncoderParams(
                     encoders, input.m_dualWaveShapingVCOInput, voiceIx, baseFreq, wtBlend0, wtBlend1);
                 break;
             }
@@ -130,74 +128,12 @@ struct SquiggleBoySource
 
             case SourceMachine::PhysicalModeling:
             {
-                SetPhysicalModelingParams(encoders, input.m_physicalModelingInput, voiceIx, baseFreq);
+                m_physicalModeling.SetEncoderParams(encoders, input.m_physicalModelingInput, voiceIx, baseFreq);
                 break;
             }
 
             default:
                 break;
         }
-    }
-
-    void SetDualWaveShapingVCOParams(
-        SmartGridOneEncoders& encoders,
-        DualWaveShapingVCO::Input& vcoInput,
-        size_t voiceIx,
-        float baseFreq,
-        float wtBlend0,
-        float wtBlend1)
-    {
-        vcoInput.m_baseFreq = baseFreq;
-        vcoInput.m_morphHarmonics[0] = encoders.GetValueNoSlew(Param::Harmonics1, voiceIx);
-        vcoInput.m_morphHarmonics[1] = encoders.GetValueNoSlew(Param::Harmonics2, voiceIx);
-        vcoInput.m_wtBlend[0] = wtBlend0;
-        vcoInput.m_wtBlend[1] = wtBlend1;
-
-        vcoInput.m_v[0] = encoders.GetValueNoSlew(Param::VPSV1, voiceIx);
-        vcoInput.m_v[1] = encoders.GetValueNoSlew(Param::VPSV2, voiceIx);
-        vcoInput.m_d[0] = encoders.GetValueNoSlew(Param::VPSD1, voiceIx);
-        vcoInput.m_d[1] = encoders.GetValueNoSlew(Param::VPSD2, voiceIx);
-        vcoInput.m_crossModIndex[0].Update(encoders.GetValueNoSlew(Param::PhaseMod1, voiceIx));
-        vcoInput.m_crossModIndex[1].Update(encoders.GetValueNoSlew(Param::PhaseMod2, voiceIx));
-
-        vcoInput.m_fade = encoders.GetValueNoSlew(Param::OscillatorMix, voiceIx);
-        vcoInput.m_bitCrushAmount = encoders.GetValueNoSlew(Param::BitReduction, voiceIx);
-        vcoInput.m_offsetFreqFactor.Update(encoders.GetValueNoSlew(Param::PitchOffset, voiceIx));
-        vcoInput.m_detune.Update(encoders.GetValueNoSlew(Param::OscillatorDetune, voiceIx));
-    }
-
-    void SetPhysicalModelingParams(
-        SmartGridOneEncoders& encoders,
-        PhysicalModelingSource::Input& pmInput,
-        size_t voiceIx,
-        float baseFreq)
-    {
-        pmInput.m_baseFreq = baseFreq;
-
-        // Row 0: Main SVF params + sample rate reduction
-        //
-        pmInput.m_mainSVFCutoff.Update(encoders.GetValueNoSlew(Param::PMMainSVFCutoff, voiceIx));
-        pmInput.m_mainSVFResonance.Update(encoders.GetValueNoSlew(Param::PMMainSVFResonance, voiceIx));
-        pmInput.m_mainSVFMorph = encoders.GetValueNoSlew(Param::PMMainSVFMorph, voiceIx);
-        pmInput.m_sampleRateReducerFreq.Update(1 - encoders.GetValueNoSlew(Param::PMSampleRateReduction, voiceIx));
-
-        // Row 1: AHD envelope params (inverted like amp section)
-        //
-        pmInput.SetAHD(
-            encoders.GetValueNoSlew(Param::PMAHDAttack, voiceIx),
-            encoders.GetValueNoSlew(Param::PMAHDHold, voiceIx),
-            encoders.GetValueNoSlew(Param::PMAHDDecay, voiceIx),
-            encoders.GetValueNoSlew(Param::PMAmplitude, voiceIx));
-
-        // Row 2: Comb filter params
-        //
-        pmInput.m_combFreq.Update(encoders.GetValueNoSlew(Param::PMCombFreq, voiceIx));
-        pmInput.m_combFeedback.Update(encoders.GetValueNoSlew(Param::PMCombFeedback, voiceIx));
-
-        // Row 3: Comb SVF params
-        //
-        pmInput.m_combSVFCutoff.Update(encoders.GetValueNoSlew(Param::PMCombSVFCutoff, voiceIx));
-        pmInput.m_combSVFResonance.Update(encoders.GetValueNoSlew(Param::PMCombSVFResonance, voiceIx));
-        pmInput.m_combSVFMorph = encoders.GetValueNoSlew(Param::PMCombSVFMorph, voiceIx);
     }
 };

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace VoiceMachine
 {
     enum class SourceMachine : int
@@ -8,6 +10,48 @@ namespace VoiceMachine
         Thru = 1,
         PhysicalModeling = 2,
         NumSourceMachines = 3,
+    };
+
+    // Flags for specifying which source machines a component applies to
+    //
+    struct SourceMachineFlags
+    {
+        uint8_t m_flags;
+
+        static constexpr uint8_t x_dualWaveShapingVCO = 1 << static_cast<int>(SourceMachine::DualWaveShapingVCO);
+        static constexpr uint8_t x_thru = 1 << static_cast<int>(SourceMachine::Thru);
+        static constexpr uint8_t x_physicalModeling = 1 << static_cast<int>(SourceMachine::PhysicalModeling);
+        static constexpr uint8_t x_all = x_dualWaveShapingVCO | x_thru | x_physicalModeling;
+
+        SourceMachineFlags()
+            : m_flags(x_all)
+        {
+        }
+
+        SourceMachineFlags(uint8_t flags)
+            : m_flags(flags)
+        {
+        }
+
+        static SourceMachineFlags DualVCOOnly()
+        {
+            return SourceMachineFlags(x_dualWaveShapingVCO);
+        }
+
+        static SourceMachineFlags PhysicalModelingOnly()
+        {
+            return SourceMachineFlags(x_physicalModeling);
+        }
+
+        static SourceMachineFlags All()
+        {
+            return SourceMachineFlags(x_all);
+        }
+
+        bool Matches(SourceMachine machine) const
+        {
+            return (m_flags & (1 << static_cast<int>(machine))) != 0;
+        }
     };
 
     enum class FilterMachine : int
@@ -27,9 +71,9 @@ namespace VoiceMachine
                 return "Thru";
             case SourceMachine::PhysicalModeling:
                 return "PhysMod";
+            default:
+                return "Unknown";
         }
-
-        return "Unknown";
     }
 
     inline const char* ToString(FilterMachine machine)
@@ -40,8 +84,8 @@ namespace VoiceMachine
                 return "Ladder";
             case FilterMachine::SVF2Pole:
                 return "SVF";
+            default:
+                return "Unknown";
         }
-
-        return "Unknown";
     }
 }

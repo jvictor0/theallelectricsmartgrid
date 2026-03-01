@@ -10,7 +10,7 @@ This document describes the visualizer system for the Smart Grid One display. Vi
 |------|---------|
 | `SmartGridOneMainVisualizerComponent.hpp` | Base class for all visualizers. Defines `Draw()` and optional `OnClick()`. |
 | `SmartGridOneVisualizerMain.hpp` | Main container component. Owns visualizer instances, handles layout, dispatch, and metering. |
-| `ForEachSmartGridOneVisualizer.hpp` | X-macro list mapping (name, bank, block, constructor) for each visualizer. |
+| `ForEachSmartGridOneVisualizer.hpp` | X-macro list mapping (name, bank, block, constructor, source-machine flags) for each visualizer. |
 
 ### Base Class: SmartGridOneMainVisualizerComponent
 
@@ -18,6 +18,8 @@ Visualizers are **not** JUCE Components. They are lightweight structs that imple
 
 - **`Draw(juce::Graphics& g, juce::Rectangle<int> bounds)`** — Pure virtual. Receives block-local bounds `(0, 0, width, height)` after the main component has set clip region and origin.
 - **`OnClick(const juce::MouseEvent& event)`** — Optional override. Event position is in block-local coordinates.
+
+Each visualizer also carries `SourceMachineFlags`, and `SmartGridOneVisualizerMain` only draws visualizers whose flags match at least one visible voice in the active track.
 
 ### Layout
 
@@ -39,7 +41,7 @@ Metering occupies (8, 5), 16×2 cells.
 
 The selected encoder bank (`SmartGridOneEncoders::Bank`) determines which visualizers are drawn. Banks:
 
-- **Source** — VCO scopes, post-filter scope, source analyzer
+- **Source** — VCO scopes (Dual VCO only), physical modeling transfer-function response (Physical Modeling only), post-filter scope, source analyzer
 - **FilterAndAmp** — Voice meter, post-amp scope, filter scope, filter analyzer
 - **PanningAndSequencing** — Sound stage (quad position), MelodyRoll (full-width)
 - **VoiceLFOs** — Control scopes 0–3
@@ -69,6 +71,7 @@ Visualizers read from:
 |-----------|---------|-------|-------------|
 | ScopeComponent | Source, FilterAndAmp, VoiceLFOs | 0–3 | ScopeWriter, voice offset |
 | AnalyserComponent | Source, FilterAndAmp | 3 | WindowedFFT, voice filter UI state |
+| PhysicalModelingFrequencyResponseComponent | Source | 0 | `PhysicalModelingSource::UIState` transfer function |
 | VoiceMeterComponent | FilterAndAmp | 0 | m_voiceMeterReader |
 | SoundStageComponent | PanningAndSequencing | 0 | m_xPos, m_yPos, m_voiceMeterReader |
 | MelodyRollComponent | PanningAndSequencing | -1 | NonagonNoteWriter |

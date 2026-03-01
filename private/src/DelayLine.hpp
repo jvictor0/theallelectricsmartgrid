@@ -184,6 +184,11 @@ struct DelayLine
         return ReadAtIndex(index);
     }
 
+    double ReadDouble(double delaySamples)
+    {
+        return Read(static_cast<float>(delaySamples));
+    }
+
     float ReadAtIndex(float index)
     {
         size_t iSub1 = static_cast<size_t>(index - 1) % x_maxDelaySamples;
@@ -201,7 +206,7 @@ struct DelayLine
 
     float Read(XFader fader)
     {
-        return fader.Read<DelayLine, &DelayLine::Read>(this);
+        return static_cast<float>(fader.Read<DelayLine, &DelayLine::ReadDouble>(this));
     }
 };
 

@@ -5,7 +5,6 @@
 #include "QuadLFO.hpp"
 #include "Filter.hpp"
 #include "PhaseUtils.hpp"
-
 struct QuadReverb
 {
     struct PostFeedbackFilter
@@ -122,16 +121,15 @@ struct QuadReverb
 
     struct UIState
     {
-        std::atomic<float> m_hpAlpha[4];
-        std::atomic<float> m_lpAlpha[4];
+        DampingFilter::UIState m_dampingFilter[4];
     };
 
     void PopulateUIState(UIState* uiState)
     {
         for (int i = 0; i < 4; ++i)
         {
-            uiState->m_hpAlpha[i].store(m_postFeedbackFilter.m_bff.m_filters[i].m_highPassFilter.m_alpha);
-            uiState->m_lpAlpha[i].store(m_postFeedbackFilter.m_bff.m_filters[i].m_lowPassFilter.m_alpha);
+            uiState->m_dampingFilter[i].m_hpAlpha.store(m_postFeedbackFilter.m_bff.m_filters[i].m_highPassFilter.m_alpha);
+            uiState->m_dampingFilter[i].m_lpAlpha.store(m_postFeedbackFilter.m_bff.m_filters[i].m_lowPassFilter.m_alpha);
         }
     }
 

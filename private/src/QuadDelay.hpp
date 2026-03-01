@@ -7,7 +7,6 @@
 #include "PhaseUtils.hpp"
 #include "TheoryOfTime.hpp"
 #include "Q.hpp"
-
 struct QuadDelay
 {
     struct PostFeedbackFilter
@@ -76,8 +75,7 @@ struct QuadDelay
 
     struct UIState
     {
-        std::atomic<float> m_hpAlpha[4];
-        std::atomic<float> m_lpAlpha[4];
+        DampingFilter::UIState m_dampingFilter[4];
         std::atomic<float> m_sigma[4];
         std::atomic<int> m_overlap[4];
         std::atomic<double> m_grainSize[4];
@@ -88,8 +86,8 @@ struct QuadDelay
     {
         for (int i = 0; i < 4; ++i)
         {
-            uiState->m_hpAlpha[i].store(m_postFeedbackFilter.m_bff.m_filters[i].m_highPassFilter.m_alpha);
-            uiState->m_lpAlpha[i].store(m_postFeedbackFilter.m_bff.m_filters[i].m_lowPassFilter.m_alpha);
+            uiState->m_dampingFilter[i].m_hpAlpha.store(m_postFeedbackFilter.m_bff.m_filters[i].m_highPassFilter.m_alpha);
+            uiState->m_dampingFilter[i].m_lpAlpha.store(m_postFeedbackFilter.m_bff.m_filters[i].m_lowPassFilter.m_alpha);
             m_grainManager.m_grainManager[i].PopulateUIState(&uiState->m_delayLineUIState[i]);
         }
     }

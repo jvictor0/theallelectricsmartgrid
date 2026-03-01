@@ -1,7 +1,9 @@
 #pragma once
 
-#include "QuadUtils.hpp"
 #include "AsyncLogger.hpp"
+#include "QuadUtils.hpp"
+#include "TransferFunction.hpp"
+#include <atomic>
 #include <cmath>
 #include <complex>
 
@@ -28,11 +30,16 @@ struct OPLowPassFilter
     {
         cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
         assert(cyclesPerSample > 0);
+        m_alpha = AlphaFromNatFreq(cyclesPerSample);
+    }
+
+    static float AlphaFromNatFreq(float cyclesPerSample)
+    {
+        cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
+        assert(cyclesPerSample > 0);
 
         float omega = 2.0f * M_PI * cyclesPerSample;   // radians per sample
-        m_alpha = 1.0f - std::exp(-omega);
-        // float rc = 1.0f / (2.0f * M_PI * cyclesPerSample);
-        // m_alpha = 1.0f / (rc + 1.0f);
+        return 1.0f - std::exp(-omega);
     }
 
     static std::complex<float> TransferFunction(float alpha, float freq)
@@ -54,6 +61,53 @@ struct OPLowPassFilter
         std::complex<float> numerator(alpha, 0.0f);
         std::complex<float> denominator(den_real, den_imag);
         return numerator / denominator;
+    }
+
+    // Compute group delay of a one-pole low-pass filter in samples.
+    // alpha: filter coefficient (0 < alpha <= 1)
+    // normalizedFreq: frequency in cycles per sample (0 to 0.5)
+    //
+    // For H(z) = alpha / (1 - (1-alpha)*z^-1), the group delay is:
+    // τ(ω) = a1*(a1 - cos(ω)) / (1 - 2*a1*cos(ω) + a1²)
+    // where a1 = 1 - alpha
+    //
+    static float GroupDelay(float alpha, float normalizedFreq)
+    {
+        float a1 = 1.0f - alpha;
+        float cosOmega = Math::Cos2pi(normalizedFreq);
+        float denominator = 1.0f - 2.0f * a1 * cosOmega + a1 * a1;
+
+        if (denominator < 1e-10f)
+        {
+            return 0.0f;
+        }
+
+        return a1 * (a1 - cosOmega) / denominator;
+    }
+
+    // Compute phase delay of a one-pole low-pass filter in samples.
+    // This is the delay term that should be used to keep comb tuning stable.
+    //
+    static float PhaseDelay(float alpha, float normalizedFreq)
+    {
+        float safeAlpha = std::max(1e-6f, std::min(1.0f, alpha));
+        float safeFreq = std::max(0.0f, std::min(0.5f, normalizedFreq));
+        float a1 = 1.0f - safeAlpha;
+        float omega = 2.0f * static_cast<float>(M_PI) * safeFreq;
+
+        if (omega < 1e-6f)
+        {
+            // lim_{w->0} phaseDelay(w) = (1 - alpha) / alpha
+            //
+            return a1 / safeAlpha;
+        }
+
+        float sinOmega = Math::Sin2pi(safeFreq);
+        float cosOmega = Math::Cos2pi(safeFreq);
+        float denominatorReal = 1.0f - a1 * cosOmega;
+        float denominatorImag = a1 * sinOmega;
+        float phaseMagnitude = std::atan2(denominatorImag, denominatorReal);
+        return phaseMagnitude / omega;
     }
 
     static float FrequencyResponse(float alpha, float freq)
@@ -206,6 +260,35 @@ struct OPHighPassFilter
     {
         return std::abs(TransferFunction(alpha, freq));
     }
+};
+
+// Damping filter: HP + LP in series. UI state implements TransferFunction for visualization.
+//
+struct DampingFilter
+{
+    struct UIState : TransferFunction
+    {
+        std::atomic<float> m_hpAlpha;
+        std::atomic<float> m_lpAlpha;
+
+        UIState()
+            : m_hpAlpha(0.0f)
+            , m_lpAlpha(0.0f)
+        {
+        }
+
+        float FrequencyResponse(float freq) const override
+        {
+            return OPLowPassFilter::FrequencyResponse(m_lpAlpha.load(), freq)
+                * OPHighPassFilter::FrequencyResponse(m_hpAlpha.load(), freq);
+        }
+
+        std::complex<float> TransferFunctionValue(float freq) const override
+        {
+            return OPLowPassFilter::TransferFunction(m_lpAlpha.load(), freq)
+                * OPHighPassFilter::TransferFunction(m_hpAlpha.load(), freq);
+        }
+    };
 };
 
 struct OPBaseWidthFilter

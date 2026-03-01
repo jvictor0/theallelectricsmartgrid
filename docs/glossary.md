@@ -56,8 +56,9 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 ## DSP and Voices
 
-- **SquiggleBoyVoice** — A single voice in the DSP engine containing a source machine (Dual Wave Shaping VCO or Thru), a filter machine, an amp section, a pan section, and a sub-oscillator.
+- **SquiggleBoyVoice** — A single voice in the DSP engine containing a source machine (Dual Wave Shaping VCO, Physical Modeling, or Thru), a filter machine, an amp section, a pan section, and a sub-oscillator.
 - **Dual Wave Shaping VCO** — Source machine with dual wavetable oscillators and Vector Phase Shaping (VPS). Uses a random LFO to lazily mix between two randomly generated additive wavetables, swapping them out when inaudible. Implemented in `DualWaveShapingVCO.hpp`.
+- **Physical Modeling Source Machine** — Noise-excited source machine that runs white noise through sample-rate reduction and a morphable SVF, then drives `CombFilterWithOnePole` with AHD modulation. Implemented in `PhysicalModelingSource.hpp`.
 - **Vector Phase Shaping (VPS)** — Distorts the phase of a wavetable using two parameters: **v** (vertical inflection) and **d** (horizontal inflection/symmetry).
 - **LOD (Level of Detail)** — Controls the harmonic complexity (`m_morphHarmonics`) of the randomly generated additive wavetables.
 - **Thru Source Machine** — Routes external audio through the voice's filter and amp sections.

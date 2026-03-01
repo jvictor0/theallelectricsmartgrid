@@ -12,11 +12,12 @@ It interfaces with a custom MIDI controller.
 - **[LameJuis](../lamejuis.md)** — Esoteric sequencer: lens U, sheaf F^M_x(U), index arp, logic operations → M(x) in just intonation; one output per trio; stateless in time.
 - **[Multi-Phasor Gate](../multi-phasor-gate.md)** — When the Nonagon emits a trigger per voice: trigger logic (pitch-changed / sub-trigger, mutes, interrupt) and phasor-based gate timing (50% duty per step).
 - **[Nonagon (sequencer)](../nonagon.md)** — Theory of Time, voice/arp logic ([LameJuis](../lamejuis.md)), [trigger decision](../multi-phasor-gate.md) (Multi-Phasor Gate), note writer, and related UI.
-- **[DSP Overview](../dsp-overview.md)** — Voice architecture (Dual Wave Shaping VCO/Thru, Filters, Amp, Sub) and Quadraphonic effects routing.
-  - **[Source Machine](../source-machine.md)** — Dual Wave Shaping VCO (dual VPS wavetable oscillators) and Thru source.
+- **[DSP Overview](../dsp-overview.md)** — Voice architecture (Dual VCO, Physical Modeling, Thru, Filters, Amp, Sub) and quadraphonic effects routing.
+  - **[Source Machine](../source-machine.md)** — Dual Wave Shaping VCO (dual VPS wavetable oscillators), Physical Modeling, and Thru source modes.
   - **[Filter Architecture](../filter-architecture.md)** — Explanation of the filter layout, DSP classes, transfer functions, and UI state synchronization.
   - **[Ladder Filter Machine](../filter-ladder.md)** — 4-pole Ladder LP and 4-pole SVF HP.
   - **[SVF Filter Machine](../filter-svf.md)** — 2-pole SVF LP/HP with saturation.
+  - **[Sub Oscillator](../sub-oscillator.md)** — Per-voice mono sub signal, saturation, and unison behavior.
   - **[Quad Panning](../quad-panning.md)** — Global phase, voice offsets, and Lissajous LFO.
   - **[AHD Envelopes](../ahd-envelopes.md)** — Phase-driven envelopes synchronized to the clock.
   - **[PolyXFader LFOs](../polyxfader-lfos.md)** — Phase-synced LFOs mixing time loops.

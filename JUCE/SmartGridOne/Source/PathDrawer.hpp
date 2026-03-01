@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "TransferFunction.hpp"
 
 struct PathDrawer
 {
@@ -133,6 +134,34 @@ struct PathDrawer
     void DrawWindowedDFT(juce::Graphics& g, juce::Colour colour, WindowedFFT* windowedFFT)
     {
         WindowedDFTFn fn(windowedFFT);
+        DrawPath(g, colour, fn);
+    }
+
+    struct FrequencyResponseFn
+    {
+        const TransferFunction* m_transferFunction;
+        float m_freqScale;
+
+        FrequencyResponseFn(const TransferFunction* transferFunction, float freqScale)
+            : m_transferFunction(transferFunction)
+            , m_freqScale(freqScale)
+        {
+        }
+
+        float operator()(float freq) const
+        {
+            float response = m_transferFunction->FrequencyResponse(freq * m_freqScale);
+            return PathDrawer::AmpToDbNormalized(response) / 2.0f;
+        }
+    };
+
+    void DrawFrequencyResponse(
+        juce::Graphics& g,
+        juce::Colour colour,
+        const TransferFunction& transferFunction,
+        float freqScale)
+    {
+        FrequencyResponseFn fn(&transferFunction, freqScale);
         DrawPath(g, colour, fn);
     }
 };

@@ -94,8 +94,13 @@ struct AHD
         PhaseUtils::ExpParam m_decay;
 
         InputSetter()
-            : m_attack(1.0f / (x_sampleRate * x_attackTimeMax), 1.0f / (x_sampleRate * x_attackTimeMin))
-            , m_decay(1.0f / (x_sampleRate * x_decayTimeMax), 1.0f / (x_sampleRate * x_decayTimeMin))
+            : InputSetter(x_attackTimeMin, x_attackTimeMax, x_decayTimeMin, x_decayTimeMax)
+        {
+        }
+
+        InputSetter(float attackTimeMin, float attackTimeMax, float decayTimeMin, float decayTimeMax)
+            : m_attack(1.0f / (x_sampleRate * attackTimeMax), 1.0f / (x_sampleRate * attackTimeMin))
+            , m_decay(1.0f / (x_sampleRate * decayTimeMax), 1.0f / (x_sampleRate * decayTimeMin))
         {
             m_hold.SetBaseByCenter(1.0 / 32);
             m_hold.SetMax(16.0);

@@ -12,7 +12,7 @@ The `QuadMixerInternal` takes the 9 voices (which have already been panned quadr
 The system simultaneously generates three parallel mixdowns:
 - **Quadraphonic**: The primary 4-channel output.
 - **Stereo**: A folded-down stereo mix (`QuadToStereoMixdown`). It uses a specific matrix to fold the rear channels into the front channels while preserving spatial width.
-- **Sub**: A dedicated mono sub-woofer channel, fed exclusively by the sub-oscillators of the 9 voices.
+- **Sub**: A dedicated mono sub-woofer channel, fed by the per-voice sub oscillators and the mono low-band sum in the mastering chain. See [Sub Oscillator](sub-oscillator.md).
 
 ## Multiband Saturator
 

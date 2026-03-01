@@ -4,10 +4,11 @@ The source machine is the first stage in each `SquiggleBoyVoice` and is responsi
 
 ## Source Types
 
-Each voice currently supports two source machine modes:
+Each voice currently supports three source machine modes:
 
 1. **Dual Wave Shaping VCO**: dual wavetable oscillator source with vector phase shaping and cross-modulation. Implemented in `DualWaveShapingVCO.hpp`.
-2. **Thru**: external-input passthrough source.
+2. **Physical Modeling**: noise-excited source with sample-rate reduction, morphable SVF, AHD modulation, and a one-pole damping comb. Implemented in `PhysicalModelingSource.hpp`.
+3. **Thru**: external-input passthrough source.
 
 ## Dual Wave Shaping VCO Source Machine
 
@@ -42,9 +43,21 @@ The Dual Wave Shaping VCO contains two such oscillators (VCO 0 and VCO 1):
 
 The **Thru** source machine allows external audio to be routed through the voice's filter and amp sections. It is currently a simple pass-through for external signals, allowing the synthesizer to act as a polyphonic filter bank and envelope shaper for outside audio.
 
+## Physical Modeling Source Machine
+
+The **Physical Modeling** source machine (`PhysicalModelingSource`) is a noise-driven resonant source built around a damped comb. The chain is:
+
+1. White noise excitation.
+2. Sample-rate reduction for texture control.
+3. Morphable 2-pole SVF pre-filter (LP/BP/HP blend).
+4. Inverted AHD envelope modulation.
+5. One-pole damping comb (`CombFilterWithOnePole`) with delay compensation.
+
+This source owns a `UIState` that implements `TransferFunction`, so the visualizer can draw the combined pre-comb SVF and comb response in the Source bank.
+
 ## Parameter Visibility
 
-Parameters are tagged with which source and filter machines they apply to (see [Encoder System](encoder-system.md#machine-specific-parameters)). When Thru is selected, encoder knobs that only apply to the Dual Wave Shaping VCO (e.g. harmonics, phase modulation) are shown as disconnected. This keeps the interface focused on the relevant controls for the active machine.
+Parameters are tagged with which source and filter machines they apply to (see [Encoder System](encoder-system.md#machine-specific-parameters)). When a source machine is selected, only matching source-specific controls are connected (e.g. VCO harmonic/phase controls for Dual VCO, comb/damping controls for Physical Modeling). This keeps the interface focused on controls relevant to the active machine.
 
 ## Related
 

@@ -64,13 +64,14 @@ struct MyVisualizerComponent : public SmartGridOneMainVisualizerComponent
 Add an `F(...)` entry:
 
 ```
-F(VisualizerName, Bank, Block, std::make_unique<MyComponent>(...))
+F(VisualizerName, Bank, Block, std::make_unique<MyComponent>(...), SourceMachineFlags)
 ```
 
 - **VisualizerName**: C++ identifier for the member (e.g. `MyViz` → `m_MyViz`)
 - **Bank**: `SmartGridOneEncoders::Bank` enum value — `Source`, `FilterAndAmp`, `PanningAndSequencing`, `VoiceLFOs`, `Delay`, `Reverb`, `TheoryOfTime`, `Mastering`, `Inputs`, `DeepVocoder`
 - **Block**: `0` = (0,0), `1` = (0,8), `2` = (8,8), `3` = (16,8). Use `-1` for full-width (24×8).
 - **Constructor**: `std::make_unique<MyComponent>(args)`. Available in constructor context: `m_nonagon`, `uiState`, `m_scopeVoiceOffset`, `m_nonagon->GetAudioScopeWriter()`, etc.
+- **SourceMachineFlags**: `VoiceMachine::SourceMachineFlags::*()` value controlling visibility by active source machine (for example `All()`, `DualVCOOnly()`, `PhysicalModelingOnly()`).
 
 Example:
 
@@ -79,8 +80,22 @@ F(
     MyViz,
     Source,
     0,
-    std::make_unique<MyVisualizerComponent>(uiState))
+    std::make_unique<MyVisualizerComponent>(uiState),
+    VoiceMachine::SourceMachineFlags::All())
 ```
+
+`SmartGridOneVisualizerMain` applies this flag to each component and only draws it when at least one visible voice in the active track matches.
+
+## Transfer-Function Visualizers (Frequency Response)
+
+For overlays/plots that represent filter response:
+
+1. Add a UI-state type that implements `TransferFunction` (do not implement this on the realtime DSP class).
+2. Populate that UI state from DSP/nonagon (`PopulateUIState` path).
+3. In the visualizer component, use `PathDrawer::DrawFrequencyResponse(...)`.
+4. Register the visualizer in `ForEachSmartGridOneVisualizer.hpp` with the appropriate source-machine flags.
+
+The current pattern is demonstrated by `PhysicalModelingFrequencyResponseComponent` in `ScopeComponent.hpp`.
 
 ## Step 3: Add Data to UI State (if needed)
 
@@ -114,9 +129,10 @@ Then use `m_nonagon->GetMyScopeWriter()` in the ForEach constructor.
 
 - [ ] Component struct inherits `SmartGridOneMainVisualizerComponent`, implements `Draw()`
 - [ ] Component placed in appropriate header; header included in `SmartGridOneVisualizerMain.hpp`
-- [ ] `F(name, bank, block, ctor)` added in `ForEachSmartGridOneVisualizer.hpp`
+- [ ] `F(name, bank, block, ctor, sourceMachineFlags)` added in `ForEachSmartGridOneVisualizer.hpp`
 - [ ] If data needed: added to `SquiggleBoyWithEncoderBank::UIState` (or nested struct)
 - [ ] If data needed: DSP/nonagon writes to it; optionally add `NonagonWrapper` getter
+- [ ] Source-machine visibility flags set correctly (`All` vs source-specific)
 - [ ] Build and verify visualizer appears when the encoder bank is selected
 
 ## Reference

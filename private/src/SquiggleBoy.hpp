@@ -29,6 +29,7 @@
 #include "SampleTimer.hpp"
 #include "StateSaver.hpp"
 #include "Oversample.hpp"
+#include "TransferFunction.hpp"
 
 struct TheoryOfTime;
 
@@ -445,7 +446,6 @@ struct SquiggleBoyVoice
     PhaseUtils::ExpParam m_baseFreqSlewAmount;
     SquiggleBoySource m_source;
     VCO m_sub;
-    float m_uBlockOutputSub[SampleTimer::x_controlFrameRate];
     FilterSection m_filter;
     AmpSection m_amp;
     PanSection m_pan;
@@ -458,9 +458,15 @@ struct SquiggleBoyVoice
 
     struct Input
     {
+        struct SubInput
+        {
+            float m_baseFreq;
+        };
+
         VoiceConfig m_voiceConfig;
         AHD::AHDControl m_ahdControl;
 
+        SubInput m_subInput;
         SquiggleBoySource::Input m_sourceInput;
         FilterSection::Input m_filterInput;
         AmpSection::Input m_ampInput;
@@ -500,11 +506,6 @@ struct SquiggleBoyVoice
 
         m_filter.ProcessUBlock(input.m_filterInput, m_source.m_uBlockOutput, m_source.m_uBlockTop);
         m_downsampler.Process(m_filter.m_uBlockOutput, m_uBlockFilterOut);
-
-        for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
-        {
-            m_uBlockOutputSub[i] = m_sub.Process(input.m_sourceInput.m_dualWaveShapingVCOInput.m_baseFreq / 2);
-        }
     }
 
     void DebugPrint()
@@ -521,15 +522,9 @@ struct SquiggleBoyVoice
 
         m_filter.m_ahd.Process(input.m_filterInput.m_ahdInput);
 
-        // Process PhysicalModeling AHD if that source is active
-        //
-        if (input.m_voiceConfig.m_sourceMachine == VoiceConfig::SourceMachine::PhysicalModeling)
-        {
-            m_source.m_physicalModeling.m_ahd.Process(input.m_sourceInput.m_physicalModelingInput.m_ahdInput);
-        }
-
         size_t uBlockIndex = SampleTimer::GetUBlockIndex();
-        m_output = m_amp.Process(input.m_ampInput, m_uBlockFilterOut[uBlockIndex], m_uBlockOutputSub[uBlockIndex]);
+        float sub = m_sub.Process(input.m_subInput.m_baseFreq / 2);
+        m_output = m_amp.Process(input.m_ampInput, m_uBlockFilterOut[uBlockIndex], sub);
         m_pan.Process(input.m_panInput);
         m_squiggleLFO[0].Process(input.m_squiggleLFOInput[0]);
         m_squiggleLFO[1].Process(input.m_squiggleLFOInput[1]);
@@ -860,7 +855,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             SourceMixer
         };
 
-        struct VoiceFilterUIState
+        struct VoiceFilterUIState : TransferFunction
         {
             // Ladder filters (4-pole)
             //
@@ -879,22 +874,65 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             {
             }
 
-            float FrequencyResponse(float freq)
+            float FrequencyResponse(float freq) const override
             {
                 if (m_filterMachine.load() == SquiggleBoyVoice::VoiceConfig::FilterMachine::Ladder4Pole)
                 {
-                    return m_lpLadder.FrequencyResponse(freq) * m_hp4Pole.FrequencyResponse(freq);
+                    float lp = LadderFilterLP::FrequencyResponse(
+                        m_lpLadder.m_alpha.load(),
+                        m_lpLadder.m_feedback.load(),
+                        freq);
+                    float hp = LinearSVF4PoleHighPass::FrequencyResponse(
+                        m_hp4Pole.m_g.load(),
+                        m_hp4Pole.m_k.load(),
+                        freq);
+                    return lp * hp;
                 }
                 else
                 {
-                    return m_lpSVF.LowPassFrequencyResponse(freq) * m_hpSVF.HighPassFrequencyResponse(freq);
+                    float lp = LinearStateVariableFilter::LowPassFrequencyResponse(
+                        m_lpSVF.m_g.load(),
+                        m_lpSVF.m_k.load(),
+                        freq);
+                    float hp = LinearStateVariableFilter::HighPassFrequencyResponse(
+                        m_hpSVF.m_g.load(),
+                        m_hpSVF.m_k.load(),
+                        freq);
+                    return lp * hp;
                 }
+            }
+
+            std::complex<float> TransferFunctionValue(float freq) const override
+            {
+                if (m_filterMachine.load() == SquiggleBoyVoice::VoiceConfig::FilterMachine::Ladder4Pole)
+                {
+                    std::complex<float> lp = LadderFilterLP::TransferFunction(
+                        m_lpLadder.m_alpha.load(),
+                        m_lpLadder.m_feedback.load(),
+                        freq);
+                    std::complex<float> hp = LinearSVF4PoleHighPass::TransferFunction(
+                        m_hp4Pole.m_g.load(),
+                        m_hp4Pole.m_k.load(),
+                        freq);
+                    return lp * hp;
+                }
+
+                std::complex<float> lp = LinearStateVariableFilter::LowPassTransferFunction(
+                    m_lpSVF.m_g.load(),
+                    m_lpSVF.m_k.load(),
+                    freq);
+                std::complex<float> hp = LinearStateVariableFilter::HighPassTransferFunction(
+                    m_hpSVF.m_g.load(),
+                    m_hpSVF.m_k.load(),
+                    freq);
+                return lp * hp;
             }
         };
 
         struct VoiceSourceUIState
         {
             std::atomic<SquiggleBoyVoice::VoiceConfig::SourceMachine> m_sourceMachine;
+            PhysicalModelingSource::UIState m_physicalModelingUIState;
 
             VoiceSourceUIState()
                 : m_sourceMachine(SquiggleBoyVoice::VoiceConfig::SourceMachine::DualWaveShapingVCO)
@@ -984,9 +1022,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void PopulateVoiceSourceUIState(
             size_t i,
-            SquiggleBoyVoice::VoiceConfig::SourceMachine sourceMachine)
+            SquiggleBoyVoice::VoiceConfig::SourceMachine sourceMachine,
+            PhysicalModelingSource* physicalModeling)
         {
             m_voiceSourceUIState[i].m_sourceMachine.store(sourceMachine);
+            if (sourceMachine == SquiggleBoyVoice::VoiceConfig::SourceMachine::PhysicalModeling && physicalModeling)
+            {
+                physicalModeling->PopulateUIState(&m_voiceSourceUIState[i].m_physicalModelingUIState);
+            }
         }
 
         void SetPos(size_t i, float x, float y)
@@ -1305,6 +1348,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_voices[i].m_source.SetEncoderParams(
                 m_encoders, m_state[i].m_sourceInput, i, baseFreq, wtBlend0, wtBlend1);
 
+            m_state[i].m_subInput.m_baseFreq = baseFreq;
+
             m_state[i].m_filterInput.m_sampleRateReducerFreq.Update(1 - m_encoders.GetValueNoSlew(Param::SampleRateReduction, i));
             m_state[i].m_ampInput.m_subGain.Update(std::min<float>(1.0, m_encoders.GetValue(Param::SubOscillator, i) * 2));
             m_state[i].m_ampInput.m_subTanhGain.Update(std::max<float>(0.0, m_encoders.GetValue(Param::SubOscillator, i) * 2 - 1.0));
@@ -1536,7 +1581,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_state[i].m_voiceConfig.m_filterMachine);
             uiState->PopulateVoiceSourceUIState(
                 i,
-                m_state[i].m_voiceConfig.m_sourceMachine);
+                m_state[i].m_voiceConfig.m_sourceMachine,
+                &m_voices[i].m_source.m_physicalModeling);
         }
 
         m_mixerState.m_masterChainInput.PopulateUIState(&uiState->m_stereoMasteringChainUIState);

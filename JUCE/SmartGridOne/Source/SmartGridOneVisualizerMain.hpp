@@ -45,7 +45,10 @@ struct SmartGridOneVisualizerMain : public juce::Component
         { 8, 8 },
         { 16, 8 }
     }};
-    
+
+    static constexpr size_t x_numBlocks = x_blockPositions.size();
+    static constexpr size_t x_voicesPerTrack = SquiggleBoy::x_voicesPerTrack;
+
     NonagonWrapper* m_nonagon;
     
     int m_cellSize;
@@ -58,7 +61,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
     
     std::unique_ptr<MeteringComponent> m_meteringComponent;
     
-#define F(name, bank, block, ctor) \
+#define F(name, bank, block, ctor, flags) \
     std::unique_ptr<SmartGridOneMainVisualizerComponent> m_##name;
 #include "ForEachSmartGridOneVisualizer.hpp"
 #undef F
@@ -76,8 +79,12 @@ struct SmartGridOneVisualizerMain : public juce::Component
         
         TheNonagonSquiggleBoyInternal::UIState* uiState = m_nonagon->GetUIState();
         
-#define F(name, bank, block, ctor) \
-        m_##name = ctor;
+#define F(name, bank, block, ctor, flags) \
+        m_##name = ctor; \
+        if (m_##name) \
+        { \
+            m_##name->m_sourceMachineFlags = flags; \
+        }
 #include "ForEachSmartGridOneVisualizer.hpp"
 #undef F
         
@@ -184,14 +191,42 @@ struct SmartGridOneVisualizerMain : public juce::Component
         g.restoreState();
     }
     
+    // Check if a visualizer should be shown based on machine flags
+    // Returns true if any visible voice uses a matching source machine
+    //
+    bool ShouldShowVisualizer(SmartGridOneMainVisualizerComponent* viz)
+    {
+        if (!viz)
+        {
+            return false;
+        }
+
+        auto* uiState = m_nonagon->GetUIState();
+        size_t baseVoiceIx = uiState->m_squiggleBoyUIState.m_activeTrack.load() * x_voicesPerTrack;
+
+        // Check if any voice in the active track matches the machine flags
+        //
+        for (size_t i = 0; i < x_voicesPerTrack; ++i)
+        {
+            size_t voiceIx = baseVoiceIx + i;
+            auto machine = uiState->m_squiggleBoyUIState.m_voiceSourceUIState[voiceIx].m_sourceMachine.load();
+            if (viz->ShouldShowForMachine(machine))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     void DispatchPaint(juce::Graphics& g, SmartGridOneEncoders::Bank bank)
     {
         // Draw visualizers for standard blocks (0-3)
         //
-#define F(name, vizBank, block, ctor) \
-        if (bank == SmartGridOneEncoders::Bank::vizBank && block >= 0 && block < 4) \
+#define F(name, vizBank, block, ctor, flags) \
+        if (bank == SmartGridOneEncoders::Bank::vizBank && block >= 0 && block < static_cast<int>(x_numBlocks)) \
         { \
-            if (m_##name) \
+            if (m_##name && ShouldShowVisualizer(m_##name.get())) \
             { \
                 auto blockBounds = GetBlockBounds(block); \
                 g.saveState(); \
@@ -206,10 +241,10 @@ struct SmartGridOneVisualizerMain : public juce::Component
         
         // Draw special full-width visualizers (block == -1)
         //
-#define F(name, vizBank, block, ctor) \
+#define F(name, vizBank, block, ctor, flags) \
         if (bank == SmartGridOneEncoders::Bank::vizBank && block == -1) \
         { \
-            if (m_##name) \
+            if (m_##name && ShouldShowVisualizer(m_##name.get())) \
             { \
                 auto fullBounds = GetFullWidthBounds(); \
                 g.saveState(); \
@@ -234,8 +269,8 @@ struct SmartGridOneVisualizerMain : public juce::Component
         
         SmartGridOneEncoders::Bank bank = m_nonagon->GetSelectedEncoderBank();
         
-#define F(name, vizBank, block, ctor) \
-        if (bank == SmartGridOneEncoders::Bank::vizBank && block >= 0 && block < 4) \
+#define F(name, vizBank, block, ctor, flags) \
+        if (bank == SmartGridOneEncoders::Bank::vizBank && block >= 0 && block < static_cast<int>(x_numBlocks)) \
         { \
             if (m_##name) \
             { \
@@ -250,7 +285,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
 #include "ForEachSmartGridOneVisualizer.hpp"
 #undef F
         
-#define F(name, vizBank, block, ctor) \
+#define F(name, vizBank, block, ctor, flags) \
         if (bank == SmartGridOneEncoders::Bank::vizBank && block == -1) \
         { \
             if (m_##name) \

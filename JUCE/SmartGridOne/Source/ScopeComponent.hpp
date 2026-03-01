@@ -24,7 +24,12 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
     int* m_voiceOffset;
     ScopeType m_scopeType;
 
-    ScopeComponent(size_t scopeIx, ScopeWriter* scopeWriter, int* voiceOffset, ScopeType scopeType, TheNonagonSquiggleBoyInternal::UIState* uiState)
+    ScopeComponent(
+        size_t scopeIx,
+        ScopeWriter* scopeWriter,
+        int* voiceOffset,
+        ScopeType scopeType,
+        TheNonagonSquiggleBoyInternal::UIState* uiState)
         : SmartGridOneMainVisualizerComponent()
         , m_scopeReaderFactory(scopeWriter, uiState->m_squiggleBoyUIState.m_activeTrack.load(), scopeIx, x_numXSamples, 1)
         , m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
@@ -307,11 +312,6 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
         }
     }
 
-    float FilterResponse(size_t i, float freq)
-    {
-        return m_voiceFilterUIState[i].FrequencyResponse(freq);
-    }
-
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         // Fill background
@@ -365,23 +365,13 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
             g.strokePath(path, juce::PathStrokeType(1.0f));
 
             color = color.Interpolate(SmartGrid::Color::White, 0.5f);
-            juce::Path filterPath;
-            filterPath.startNewSubPath(0, height);
-            for (size_t j = 0; j < DiscreteFourierTransform::x_maxComponents; ++j)
-            {
-                float freq = m_logX ? m_bucketExpX[j] : static_cast<float>(j) / (2 * DiscreteFourierTransform::x_maxComponents);
-                float y = FilterResponse(voiceIx, freq / SquiggleBoyVoice::x_oversample);
-                y = PathDrawer::AmpToDbNormalized(y);
-                float screenY = height * (1 - y / 2);
-                float x = static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
-                float screenX = width * x;
-                g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
-                filterPath.lineTo(screenX, screenY);
-            }
-
-            filterPath.lineTo(width, height);
-            g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
-            g.strokePath(filterPath, juce::PathStrokeType(1.0f));
+            PathDrawer responseDrawer(height, width, 0, 0);
+            responseDrawer.m_logX = m_logX;
+            responseDrawer.DrawFrequencyResponse(
+                g,
+                juce::Colour(color.m_red, color.m_green, color.m_blue),
+                m_voiceFilterUIState[voiceIx],
+                1.0f / SquiggleBoyVoice::x_oversample);
         }
     }
 
@@ -445,52 +435,20 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
         }
     };
 
-    struct FilterDrawFn
+    const TransferFunction* GetTransferFunctionForSpeaker(Type type, size_t speakerIx) const
     {
-        TheNonagonSquiggleBoyInternal::UIState* m_uiState;
-        Type m_type;
-        size_t m_speakerIx;
-        size_t m_frame;
-
-        FilterDrawFn(TheNonagonSquiggleBoyInternal::UIState* uiState, Type type, size_t speakerIx)
-            : m_uiState(uiState)
-            , m_type(type)
-            , m_speakerIx(speakerIx)
+        switch (type)
         {
-            if (m_type == Type::Delay)
-            {
-                m_frame = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_delayLineUIState[m_speakerIx].GetFrame();
-            }
+            case Type::Delay:
+                return &m_uiState->m_squiggleBoyUIState.m_delayUIState.m_dampingFilter[speakerIx];
+            case Type::Reverb:
+                return &m_uiState->m_squiggleBoyUIState.m_reverbUIState.m_dampingFilter[speakerIx];
+            case Type::Master:
+                return nullptr;
         }
 
-        float operator()(float freq) const
-        {
-            float hpAlpha = 0.0f;
-            float lpAlpha = 0.0f;
-
-            switch (m_type)
-            {
-                case Type::Delay:
-                {
-                    hpAlpha = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_hpAlpha[m_speakerIx].load();
-                    lpAlpha = m_uiState->m_squiggleBoyUIState.m_delayUIState.m_lpAlpha[m_speakerIx].load();
-                    break;
-                }
-                case Type::Reverb:
-                {
-                    hpAlpha = m_uiState->m_squiggleBoyUIState.m_reverbUIState.m_hpAlpha[m_speakerIx].load();
-                    lpAlpha = m_uiState->m_squiggleBoyUIState.m_reverbUIState.m_lpAlpha[m_speakerIx].load();
-                    break;
-                }
-                case Type::Master:
-                    return 0.0f;
-            }
-
-            float response = OPLowPassFilter::FrequencyResponse(lpAlpha, freq);
-            response *= OPHighPassFilter::FrequencyResponse(hpAlpha, freq);
-            return PathDrawer::AmpToDbNormalized(response) / 2;
-        }
-    };
+        return nullptr;
+    }
 
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
@@ -545,8 +503,11 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
 
                 if (type != Type::Master)
                 {
-                    FilterDrawFn filterDrawFn(m_uiState, type, speakerIx);
-                    pathDrawer.DrawPath(g, juceColor, filterDrawFn);
+                    const TransferFunction* transferFunction = GetTransferFunctionForSpeaker(type, speakerIx);
+                    if (transferFunction)
+                    {
+                        pathDrawer.DrawFrequencyResponse(g, juceColor, *transferFunction, 1.0f);
+                    }
                 }
             }
         }
@@ -627,5 +588,83 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
         g.setColour(juce::Colours::white);
         float markerRadius = 3.0f;
         g.fillEllipse(markerX - markerRadius, markerY - markerRadius, markerRadius * 2, markerRadius * 2);
+    }
+};
+
+// Physical modeling frequency response visualizer
+// Draws the combined response for pre-comb SVF and comb+one-pole damping comb.
+//
+struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisualizerComponent
+{
+    static constexpr size_t x_voicesPerTrack = 3;
+
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
+    std::atomic<size_t>* m_voiceIx;
+    int* m_voiceOffset;
+    bool m_logX;
+
+    PhysicalModelingFrequencyResponseComponent(
+        TheNonagonSquiggleBoyInternal::UIState* uiState,
+        int* voiceOffset)
+        : SmartGridOneMainVisualizerComponent()
+        , m_uiState(uiState)
+        , m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
+        , m_voiceOffset(voiceOffset)
+        , m_logX(true)
+    {
+    }
+
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
+    {
+        g.fillAll(juce::Colours::black);
+
+        auto bounds = boundsRect.toFloat();
+        auto width = bounds.getWidth();
+        auto height = bounds.getHeight();
+
+        int voiceOffset = *m_voiceOffset;
+        size_t baseVoiceIx = m_voiceIx->load() * x_voicesPerTrack;
+        size_t numLoops = voiceOffset == -1 ? x_voicesPerTrack : 1;
+
+        for (size_t loopIx = 0; loopIx < numLoops; ++loopIx)
+        {
+            size_t voiceIx = baseVoiceIx + (voiceOffset == -1 ? loopIx : static_cast<size_t>(voiceOffset));
+            if (voiceOffset == -1 && m_uiState->m_nonagonUIState.m_muted[voiceIx].load())
+            {
+                continue;
+            }
+
+            auto& sourceUIState = m_uiState->m_squiggleBoyUIState.m_voiceSourceUIState[voiceIx];
+            if (sourceUIState.m_sourceMachine.load() != SquiggleBoyVoice::VoiceConfig::SourceMachine::PhysicalModeling)
+            {
+                continue;
+            }
+
+            SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
+            PathDrawer responseDrawer(height, width, 0, 0);
+            responseDrawer.m_logX = m_logX;
+            responseDrawer.DrawFrequencyResponse(
+                g,
+                juce::Colour(color.m_red, color.m_green, color.m_blue),
+                sourceUIState.m_physicalModelingUIState,
+                1.0f / PhysicalModelingSource::x_oversample);
+        }
+    }
+
+    void OnClick(const juce::MouseEvent& event) override
+    {
+        (void)event;
+        if (event.mods.isShiftDown())
+        {
+            m_logX = !m_logX;
+        }
+        else
+        {
+            ++(*m_voiceOffset);
+            if (*m_voiceOffset == static_cast<int>(x_voicesPerTrack))
+            {
+                *m_voiceOffset = -1;
+            }
+        }
     }
 };
