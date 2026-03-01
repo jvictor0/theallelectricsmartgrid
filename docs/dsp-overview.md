@@ -24,3 +24,4 @@ Finally, the system generates parallel quadraphonic and stereo mixdowns, along w
 Source machine details now live in a dedicated page:
 
 - [Source Machine](source-machine.md) — Dual Wave Shaping VCO (dual wavetable VPS source) and Thru input mode.
+- [Filter Architecture](filter-architecture.md) — Explanation of the filter layout, DSP classes, transfer functions, and UI state synchronization.

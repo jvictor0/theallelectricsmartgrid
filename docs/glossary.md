@@ -61,6 +61,7 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 - **Vector Phase Shaping (VPS)** — Distorts the phase of a wavetable using two parameters: **v** (vertical inflection) and **d** (horizontal inflection/symmetry).
 - **LOD (Level of Detail)** — Controls the harmonic complexity (`m_morphHarmonics`) of the randomly generated additive wavetables.
 - **Thru Source Machine** — Routes external audio through the voice's filter and amp sections.
+- **Filter Architecture** — The separation of stateful DSP code from stateless frequency response analysis via the UIState paradigm. See [Filter Architecture](filter-architecture.md).
 - **Ladder Filter Machine** — A 4-pole transistor ladder low-pass filter followed by a 4-pole SVF high-pass filter.
 - **SVF Filter Machine** — A 2-pole SVF low-pass filter followed by a 2-pole SVF high-pass filter, with saturation stages.
 - **Quad Panning** — Distributes the 9 voices across four channels using a single global phase oscillator (`m_panPhase`) and per-voice offsets, driven by a Lissajous LFO.
