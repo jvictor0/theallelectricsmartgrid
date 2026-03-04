@@ -217,7 +217,7 @@ struct QuadDelayInputSetter
             //
             m_slewUp[i] = PhaseUtils::ExpParam(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5);
 
-            m_totLoopSelector[i] = TheoryOfTime::x_numLoops - 1;
+            m_totLoopSelector[i] = TheoryOfTime::x_masterLoop;
             m_bufferFrac[i] = 1.0;
             m_glue[i] = 0.0;
             m_masterLoopSamples[i] = 1.0;
@@ -252,36 +252,44 @@ struct QuadDelayInputSetter
 
             float widen = m_wideners[i].Update(input.m_widenKnob[i]);
 
-            int totLoopSelector = std::round((1.0 - input.m_loopSelectorKnob[i]) * (TheoryOfTime::x_numLoops - 1));
+            int totLoopSelector = std::round((1.0 - input.m_loopSelectorKnob[i]) * TheoryOfTime::x_masterLoop);
+            int totLoopSelectorSample = static_cast<int>(std::round(SampleTimer::GetUBlockIndex()));
             if (totLoopSelector != m_totLoopSelector[i] && 
-                input.m_theoryOfTime->m_loops[m_totLoopSelector[i]].m_top &&
-                input.m_theoryOfTime->m_loops[totLoopSelector].m_top)
+                input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, m_totLoopSelector[i]) &&
+                input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, totLoopSelector))
             {
                 int oldTotLoopSelector = m_totLoopSelector[i];
                 m_totLoopSelector[i] = totLoopSelector;
 
-                m_glue[i] += input.m_theoryOfTime->PhasorUnwoundSamples(oldTotLoopSelector) - input.m_theoryOfTime->PhasorUnwoundSamples(totLoopSelector);
+                m_glue[i] += input.m_theoryOfTime->PhasorUnwoundSamples(totLoopSelectorSample, oldTotLoopSelector) - input.m_theoryOfTime->PhasorUnwoundSamples(totLoopSelectorSample, totLoopSelector);
             }
 
-            if (input.m_theoryOfTime->m_loops[m_totLoopSelector[i]].m_top)
+            if (input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, m_totLoopSelector[i]))
             {
                 int factorIx = std::round(input.m_delayTimeFactorKnob[i] * 4);
                 float possibleBufferFracs[5] = {0.8, 2.0/3.0, 1.0, 3.0/4.0, 5.0/8.0};
                 m_bufferFrac[i] = possibleBufferFracs[factorIx];
             }
 
-            double writeHeadPosition = input.m_theoryOfTime->PhasorUnwoundSamples(m_totLoopSelector[i]) + m_glue[i];
-            if (std::abs(writeHeadPosition - delayInput.m_writeHeadPosition[i]) > 64)
+            double writeHeadPosition = input.m_theoryOfTime->PhasorUnwoundSamples(totLoopSelectorSample, m_totLoopSelector[i]) + m_glue[i];
+            if (std::abs(writeHeadPosition - delayInput.m_writeHeadPosition[i]) >= 64 && i == 0)
             {
                 INFO("writeHeadPosition: %f -> %f (diff %f) external loop", 
                     delayInput.m_writeHeadPosition[i],
                     writeHeadPosition, 
                     std::abs(writeHeadPosition - delayInput.m_writeHeadPosition[i]));
+                INFO("theory of time microblock %d index %d phasor indirect %f direct %f master %f master indirect %f",
+                    totLoopSelectorSample,
+                    m_totLoopSelector[i],
+                    input.m_theoryOfTime->GetIndirectPhasor(totLoopSelectorSample, m_totLoopSelector[i]),
+                    input.m_theoryOfTime->GetDirectPhasor(totLoopSelectorSample, m_totLoopSelector[i]),
+                    input.m_theoryOfTime->GetPhasorIndependent(m_totLoopSelector[i]),
+                    input.m_theoryOfTime->GetIndirectPhasor(totLoopSelectorSample, TheoryOfTimeBase::x_masterLoop));
             }
 
             delayInput.m_writeHeadPosition[i] = writeHeadPosition;
 
-            delayInput.m_readHeadPosition[i] = input.m_theoryOfTime->LoopSamplesFraction(m_totLoopSelector[i], m_bufferFrac[i] * widen) + m_glue[i];
+            delayInput.m_readHeadPosition[i] = input.m_theoryOfTime->LoopSamplesFraction(totLoopSelectorSample, m_totLoopSelector[i], m_bufferFrac[i] * widen) + m_glue[i];
 
             float rotate = std::round(input.m_rotateKnob[i] * 4) / 4.0f;
             delayInput.m_rotate[i] = m_rotateFilter[i].Process(rotate);

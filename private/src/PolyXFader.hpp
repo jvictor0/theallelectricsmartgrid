@@ -3,12 +3,17 @@
 #include "Slew.hpp"
 #include "Math.hpp"
 
+struct TheoryOfTimeBase;
+double GetTheoryOfTimePhasor(TheoryOfTimeBase* theoryOfTime, size_t j, bool useIndirectPhasor, float samplePosition);
+bool GetTheoryOfTimeTop(TheoryOfTimeBase* theoryOfTime, size_t j, bool useIndirectPhasor, float samplePosition);
+
 struct PolyXFaderInternal
 {    
     struct Input
     {
-        double* m_values;
-        bool* m_top;
+        TheoryOfTimeBase* m_theoryOfTime;
+        bool m_useIndirectPhasor;
+        float m_samplePosition;
 
         float m_attackFrac;
         float m_shape;
@@ -24,8 +29,9 @@ struct PolyXFaderInternal
         float m_externalWeights[16];
 
         Input()
-            : m_values(nullptr)
-            , m_top(nullptr)
+            : m_theoryOfTime(nullptr)
+            , m_useIndirectPhasor(true)
+            , m_samplePosition(0.0f)
             , m_attackFrac(0.0f)
             , m_shape(0.0f)
             , m_mult(0.0f)
@@ -45,7 +51,7 @@ struct PolyXFaderInternal
         {
             float mult = m_mult;
             float amp = 1;
-            float t = m_values[i] + m_phaseShift + 0.75;
+            float t = static_cast<float>(GetTheoryOfTimePhasor(m_theoryOfTime, i, m_useIndirectPhasor, m_samplePosition)) + m_phaseShift + 0.75;
             t = (t - std::floorf(t)) * mult;
             float floorMult = std::floorf(mult);
 
@@ -172,7 +178,7 @@ struct PolyXFaderInternal
         {
             if (m_weights[i] != 0)
             {
-                m_top = m_top && input.m_top[i];
+                m_top = m_top && GetTheoryOfTimeTop(input.m_theoryOfTime, i, input.m_useIndirectPhasor, input.m_samplePosition);
                 m_valuesPostQuantize[i] = Quantize(input, i, input.ComputePhase(i));
                 output += m_valuesPostQuantize[i] * m_weights[i] * input.m_externalWeights[i];
             }

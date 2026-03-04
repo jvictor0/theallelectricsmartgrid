@@ -320,6 +320,7 @@ struct SquiggleBoyVoice
 
             // AHD::Process now applies amplitude and polarity internally
             //
+            input.m_ahdInput.m_samplePosition = static_cast<float>(SampleTimer::GetUBlockIndex());
             float ahdEnv = PhaseUtils::ZeroedExpParam::Compute(10.0f, m_ahd.Process(input.m_ahdInput));
 
             float subGain = m_subFilter.Process(m_subRunning ? input.m_subGain.m_expParam * ahdEnv : 0.0f);            
@@ -402,6 +403,7 @@ struct SquiggleBoyVoice
         float Process(Input& input)
         {
             input.m_polyXFaderInput.m_mult = input.m_mult.m_expParam;
+            input.m_polyXFaderInput.m_samplePosition = static_cast<float>(SampleTimer::GetUBlockIndex());
             m_polyXFader.Process(input.m_polyXFaderInput);
             float lfoOut = m_polyXFader.m_output;
             if (input.m_trig)
@@ -520,6 +522,7 @@ struct SquiggleBoyVoice
             ProcessUBlock(input);
         }
 
+        input.m_filterInput.m_ahdInput.m_samplePosition = static_cast<float>(SampleTimer::GetUBlockIndex());
         m_filter.m_ahd.Process(input.m_filterInput.m_ahdInput);
 
         size_t uBlockIndex = SampleTimer::GetUBlockIndex();
@@ -1120,9 +1123,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         float m_sheafyModulators[x_numVoices][3];
 
         float m_faders[x_numFaders];
-
-        double m_totalPhasor[SquiggleBoyVoice::SquiggleLFO::x_numPhasors];
-        bool m_totalTop[SquiggleBoyVoice::SquiggleLFO::x_numPhasors];
         bool m_top;
 
         PhaseUtils::ExpParam m_tempo;
@@ -1222,10 +1222,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_values = input.m_totalPhasor;
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_values = input.m_totalPhasor;
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_top = input.m_totalTop;
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_top = input.m_totalTop;
+            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_useIndirectPhasor = true;
+            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_useIndirectPhasor = true;
         }
 
     }
@@ -1392,6 +1392,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_center = 1 - m_encoders.GetValue(Param::LFO1Center, i);
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_slope = m_encoders.GetValue(Param::LFO1Slope, i);
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::LFO1PhaseShift, i) * (static_cast<float>(i % x_numTracks) / x_numTracks);
+            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_useIndirectPhasor = true;
             m_state[i].m_squiggleLFOInput[0].m_shFade = m_encoders.GetValue(Param::LFO1SampleAndHold, i);
 
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::LFO2Skew, i);
@@ -1401,6 +1403,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_center = 1 - m_encoders.GetValue(Param::LFO2Center, i);
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_slope = m_encoders.GetValue(Param::LFO2Slope, i);
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::LFO2PhaseShift, i) * (static_cast<float>(i % x_numTracks) / x_numTracks);
+            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_useIndirectPhasor = true;
             m_state[i].m_squiggleLFOInput[1].m_shFade = m_encoders.GetValue(Param::LFO2SampleAndHold, i);
 
             m_mixerState.m_gain[i].Update(m_encoders.GetValue(Param::AmpGain, i));

@@ -15,22 +15,26 @@ struct TheoryOfTimeBase;
 
 struct TimeLoop
 {
+    static constexpr size_t x_numControlSamples = SampleTimer::x_controlFrameRate + 1;
+
     int m_index;
-    int m_parentIndex;
-    int m_parentMult;
-    bool m_gate;
-    bool m_gateChanged;
-    bool m_top;
-    bool m_topIndependent;
-    int m_position;
-    int m_prevPosition;
-    int m_loopSize;
-    int m_externalLoopMult;
-    double m_phasor;
-    double m_phasorIndependent;
-    int64_t m_globalWinding;
-    double m_glueWinding;
-    bool m_ascending;
+    int m_parentIndex[x_numControlSamples];
+    int m_parentMult[x_numControlSamples];
+    int m_loopSize[x_numControlSamples];
+    int m_externalLoopMult[x_numControlSamples];
+
+    bool m_gate[x_numControlSamples];
+    bool m_gateChanged[x_numControlSamples];
+    bool m_top[x_numControlSamples];
+    bool m_topIndependent[x_numControlSamples];
+    int m_position[x_numControlSamples];
+    int m_prevPosition[x_numControlSamples];
+
+    double m_phasor[x_numControlSamples];
+    double m_phasorIndependent[x_numControlSamples];
+    int64_t m_globalWinding[x_numControlSamples];
+    double m_glueWinding[x_numControlSamples];
+    bool m_ascending[x_numControlSamples];
 
     TheoryOfTimeBase* m_owner;
 
@@ -46,63 +50,89 @@ struct TimeLoop
         }
     };
 
-    bool ProcessDirectly(double phasor, double phasorIndependent, int64_t globalWinding)
+    void Preprocess(size_t j)
     {
-        m_ascending = m_globalWinding < globalWinding || (m_globalWinding == globalWinding && m_phasor < phasor);
-        m_phasor = phasor;
-        m_phasorIndependent = phasorIndependent;
-        bool oldGate = m_gate;
-        m_prevPosition = m_position;
-        m_position = floor(phasor * m_loopSize);
-        if (std::abs(m_position - m_prevPosition) > 1)
+        size_t prev = j - 1;
+        m_parentIndex[j] = m_parentIndex[prev];
+        m_parentMult[j] = m_parentMult[prev];
+        m_loopSize[j] = m_loopSize[prev];
+        m_externalLoopMult[j] = m_externalLoopMult[prev];
+        m_gate[j] = m_gate[prev];
+        m_gateChanged[j] = m_gateChanged[prev];
+        m_top[j] = m_top[prev];
+        m_topIndependent[j] = m_topIndependent[prev];
+        m_position[j] = m_position[prev];
+        m_prevPosition[j] = m_prevPosition[prev];
+        m_phasor[j] = m_phasor[prev];
+        m_phasorIndependent[j] = m_phasorIndependent[prev];
+        m_globalWinding[j] = m_globalWinding[prev];
+        m_glueWinding[j] = m_glueWinding[prev];
+        m_ascending[j] = m_ascending[prev];
+    }
+
+    bool ProcessDirectly(size_t j, double phasor, double phasorIndependent, int64_t globalWinding)
+    {
+        double prevPhasor = m_phasor[j - 1];
+        int64_t prevWinding = m_globalWinding[j - 1];
+        m_ascending[j] = prevWinding < globalWinding || (prevWinding == globalWinding && prevPhasor < phasor);
+
+        m_phasor[j] = phasor;
+        m_phasorIndependent[j] = phasorIndependent;
+
+        bool prevGate = m_gate[j - 1];
+        int prevPos = m_position[j - 1];
+        m_prevPosition[j] = prevPos;
+        m_position[j] = static_cast<int>(std::floor(phasor * m_loopSize[j]));
+        if (std::abs(m_position[j] - m_prevPosition[j]) > 1)
         {
-            m_prevPosition = (m_position - (m_ascending ? 1 : -1)) % m_loopSize;
+            m_prevPosition[j] = (m_position[j] - (m_ascending[j] ? 1 : -1)) % m_loopSize[j];
         }
 
-        m_gate = m_position < m_loopSize / 2;
-        m_gateChanged = oldGate != m_gate;
-        m_top = (m_position == 0 && m_prevPosition == m_loopSize - 1 && m_ascending) || 
-                (m_position == m_loopSize - 1 && m_prevPosition == 0 && !m_ascending);
-        m_topIndependent = TopIndependent(m_loopSize);
-        m_globalWinding = globalWinding;
-        return m_prevPosition != m_position;
+        m_gate[j] = m_position[j] < m_loopSize[j] / 2;
+        m_gateChanged[j] = prevGate != m_gate[j];
+        m_top[j] = (m_position[j] == 0 && m_prevPosition[j] == m_loopSize[j] - 1 && m_ascending[j]) || 
+                (m_position[j] == m_loopSize[j] - 1 && m_prevPosition[j] == 0 && !m_ascending[j]);
+        m_topIndependent[j] = TopIndependent(j, m_loopSize[j]);
+        m_globalWinding[j] = globalWinding;
+        return m_prevPosition[j] != m_position[j];
     }
 
-    void Process()
+    void Process(size_t j)
     {
-        SetMembersFromParent();
-        m_globalWinding = MonodromyNumber(-1, false);
+        SetMembersFromParent(j);
+        m_globalWinding[j] = MonodromyNumber(j, -1, false);
     }
 
-    void SetMembersFromParent()
+    void SetMembersFromParent(size_t j)
     {
-        assert(GetParent());
-        m_position = GetParent()->m_position % m_loopSize;
-        m_prevPosition = GetParent()->m_prevPosition % m_loopSize;
-        m_ascending = GetParent()->m_ascending;
+        TimeLoop* parent = GetParent(j);
+        assert(parent);
+        m_position[j] = parent->m_position[j] % m_loopSize[j];
+        m_prevPosition[j] = parent->m_prevPosition[j] % m_loopSize[j];
+        m_ascending[j] = parent->m_ascending[j];
 
-        m_gate = m_position < m_loopSize / 2;
-        m_gateChanged = GetMaster()->m_position / (m_loopSize / 2) != GetMaster()->m_prevPosition / (m_loopSize / 2);
-        m_top = (m_position == 0 && m_prevPosition == m_loopSize - 1 && m_ascending) || 
-                (m_position == m_loopSize - 1 && m_prevPosition == 0 && !m_ascending) || 
-                GetParent()->m_top;
+        m_gate[j] = m_position[j] < m_loopSize[j] / 2;
+        m_gateChanged[j] = GetMaster()->m_position[j] / (m_loopSize[j] / 2) != GetMaster()->m_prevPosition[j] / (m_loopSize[j] / 2);
+        m_top[j] = (m_position[j] == 0 && m_prevPosition[j] == m_loopSize[j] - 1 && m_ascending[j]) || 
+                (m_position[j] == m_loopSize[j] - 1 && m_prevPosition[j] == 0 && !m_ascending[j]) || 
+                parent->m_top[j];
     }
 
-    void SetLoopSize(int loopSize)
+    void SetLoopSize(int loopSize, size_t j)
     {
-        if (GetParent())
+        if (GetParent(j))
         {   
-            int externalLoopMult = GetMaster()->m_loopSize / loopSize;  
-            bool oldReverseTop = m_top && !m_ascending;       
-            m_loopSize = loopSize;
+            int externalLoopMult = GetMaster()->m_loopSize[j] / loopSize;  
+            bool oldReverseTop = m_top[j] && !m_ascending[j];       
+            m_loopSize[j] = loopSize;
             
-            SetMembersFromParent();
+            SetMembersFromParent(j);
 
-            int64_t winding = MonodromyNumber(-1, false);
-            double oldWinding = m_glueWinding + m_globalWinding;
+            int64_t winding = MonodromyNumber(j, -1, false);
+            double oldWinding = m_glueWinding[j] + m_globalWinding[j];
             int windingOffset = 0;
             
-            if (m_top && !m_ascending)
+            if (m_top[j] && !m_ascending[j])
             {
                 windingOffset = 1;
             }
@@ -112,65 +142,81 @@ struct TimeLoop
                 oldWinding = oldWinding + 1;
             }
 
-            m_glueWinding = static_cast<double>(oldWinding * externalLoopMult) / m_externalLoopMult - winding - windingOffset;
-            m_globalWinding = winding;
-            m_externalLoopMult = externalLoopMult;
+            m_glueWinding[j] = static_cast<double>(oldWinding * externalLoopMult) / m_externalLoopMult[j] - winding - windingOffset;
+            m_globalWinding[j] = winding;
+            m_externalLoopMult[j] = externalLoopMult;
         }
         else
         {
-            m_position = m_position * loopSize / m_loopSize;
-            m_loopSize = loopSize;
-            m_prevPosition = (m_position + (m_ascending ? 1 : -1)) % m_loopSize;
-            m_externalLoopMult = 1;
+            int oldLoopSize = m_loopSize[j];
+            m_position[j] = m_position[j] * loopSize / oldLoopSize;
+            m_loopSize[j] = loopSize;
+            m_prevPosition[j] = (m_position[j] + (m_ascending[j] ? 1 : -1)) % m_loopSize[j];
+            m_externalLoopMult[j] = 1;
         }
     }
 
-    void ProcessPhasor()
+    void ProcessPhasorIndependent(size_t j)
     {
-        double phasor = GetParent()->m_phasor * m_parentMult;
-        phasor = phasor - GetParent()->m_position / m_loopSize;
+        TimeLoop* parent = GetParent(j);
+        m_phasorIndependent[j] = parent->m_phasorIndependent[j] * m_parentMult[j];
+        m_phasorIndependent[j] = m_phasorIndependent[j] - std::floor(m_phasorIndependent[j]);
+        m_topIndependent[j] = TopIndependent(j, m_loopSize[j]);
+    }
 
-        m_phasor = phasor;
-        m_topIndependent = TopIndependent(m_loopSize);
-
-        m_phasorIndependent = GetParent()->m_phasorIndependent * m_parentMult;
-        m_phasorIndependent = m_phasorIndependent - floor(m_phasorIndependent);
+    void ProcessPhasorDependent(size_t j)
+    {
+        TimeLoop* parent = GetParent(j);
+        double phasor = parent->m_phasor[j] * m_parentMult[j];
+        phasor = phasor - static_cast<double>(parent->m_position[j] / m_loopSize[j]);
+        m_phasor[j] = phasor;
     }
 
     void Stop()
     {
-        m_gate = false;
-        m_gateChanged = true;
-        m_top = true;
-        m_position = 0;
-        m_prevPosition = 0;
-        m_phasor = 0;
-        m_globalWinding = 0;
-        m_glueWinding = 0;
+        for (size_t j = 0; j < x_numControlSamples; ++j)
+        {
+            m_gate[j] = false;
+            m_gateChanged[j] = (j == 0);
+            m_top[j] = (j == 0);
+            m_topIndependent[j] = (j == 0);
+            m_position[j] = 0;
+            m_prevPosition[j] = 0;
+            m_phasor[j] = 0;
+            m_phasorIndependent[j] = 0;
+            m_globalWinding[j] = 0;
+            m_glueWinding[j] = 0;
+            m_ascending[j] = false;
+            m_parentIndex[j] = m_index + 1;
+            m_parentMult[j] = 1;
+            m_loopSize[j] = 1;
+            m_externalLoopMult[j] = 1;
+        }
     }
 
-    bool HandleInput(const Input& input)
+    bool HandleInput(size_t j, const Input& input)
     {
-        if (GetParent()->m_top)
+        TimeLoop* parent = GetParent(j);
+        if (parent && parent->m_top[j])
         {
             bool result = false;
-            if (input.m_parentMult != m_parentMult)
+            if (input.m_parentMult != m_parentMult[j])
             {
-                m_parentMult = input.m_parentMult;
+                m_parentMult[j] = input.m_parentMult;
                 result = true;
             }
 
-            if (input.m_parentIndex != m_parentIndex)
+            if (input.m_parentIndex != m_parentIndex[j])
             {
-                int oldParentIndex = m_parentIndex;
-                m_parentIndex = input.m_parentIndex;
-                if (GetParent()->m_top)
+                int oldParentIndex = m_parentIndex[j];
+                m_parentIndex[j] = input.m_parentIndex;
+                if (parent->m_top[j])
                 {
                     result = true;
                 }
                 else
                 {
-                    m_parentIndex = oldParentIndex;
+                    m_parentIndex[j] = oldParentIndex;
                 }
             }            
 
@@ -180,21 +226,22 @@ struct TimeLoop
         return false;
     }
 
-    int MonodromyNumber(int resetIndex, bool external)
+    int MonodromyNumber(size_t j, int resetIndex, bool external)
     {
         if (m_index == resetIndex)
         {
-            return external && !m_gate ? 1 : 0;
+            return external && !m_gate[j] ? 1 : 0;
         }
-        else if (!GetParent())
+        else if (!GetParent(j))
         {
-            return GlobalWinding() * (external ? 2 : 1) + (external && !m_gate ? 1 : 0);
+            return GlobalWinding() * (external ? 2 : 1) + (external && !m_gate[j] ? 1 : 0);
         }
         else
         {
-            int monodromyRelParent = GetParent()->m_position / (external ? m_loopSize / 2 : m_loopSize);
-            int parentMonodromyNumber = GetParent()->MonodromyNumber(resetIndex, false);
-            int mult = m_parentMult * (external ? 2 : 1);
+            TimeLoop* parent = GetParent(j);
+            int monodromyRelParent = parent->m_position[j] / (external ? m_loopSize[j] / 2 : m_loopSize[j]);
+            int parentMonodromyNumber = parent->MonodromyNumber(j, resetIndex, false);
+            int mult = m_parentMult[j] * (external ? 2 : 1);
             int result = monodromyRelParent + mult * parentMonodromyNumber;
             return result;
         }
@@ -202,47 +249,65 @@ struct TimeLoop
 
     TimeLoop()
         : m_index(0)
-        , m_parentIndex(0)
-        , m_parentMult(1)
-        , m_gate(false)
-        , m_gateChanged(false)
-        , m_top(true)
-        , m_topIndependent(true)
-        , m_position(0)
-        , m_prevPosition(0)
-        , m_loopSize(1)
-        , m_externalLoopMult(1)
-        , m_phasor(0)
-        , m_phasorIndependent(0)
-        , m_globalWinding(0)
-        , m_glueWinding(0)
         , m_owner(nullptr)
     {
+        for (size_t j = 0; j < x_numControlSamples; ++j)
+        {
+            m_gate[j] = false;
+            m_gateChanged[j] = false;
+            m_top[j] = true;
+            m_topIndependent[j] = true;
+            m_position[j] = 0;
+            m_prevPosition[j] = 0;
+            m_phasor[j] = 0;
+            m_phasorIndependent[j] = 0;
+            m_globalWinding[j] = 0;
+            m_glueWinding[j] = 0;
+            m_ascending[j] = false;
+            m_parentIndex[j] = 0;
+            m_parentMult[j] = 1;
+            m_loopSize[j] = 1;
+            m_externalLoopMult[j] = 1;
+        }
     }
 
-    double GetUnwoundPhasor()
+    double GetUnwoundPhasor(size_t j)
     {
-        return m_phasor + static_cast<double>(m_globalWinding + m_glueWinding);
+        return m_phasor[j] + static_cast<double>(m_globalWinding[j]) + m_glueWinding[j];
     }
 
-    TimeLoop* GetParent();
+    bool AnyGateChanged() const
+    {
+        for (size_t j = 0; j < x_numControlSamples - 1; ++j)
+        {
+            if (m_gateChanged[j])
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    TimeLoop* GetParent(size_t j);
     TimeLoop* GetMaster();
 
     int GlobalWinding();
-    bool TopIndependent(int loopSize);
+    bool TopIndependent(size_t j, int loopSize);
 };
 
 struct TheoryOfTimeBase
 {
     static constexpr int x_numLoops = 6;
+    static constexpr int x_masterLoop = x_numLoops - 1;
+    static constexpr size_t x_microBlockSize = SampleTimer::x_controlFrameRate;
+    static constexpr size_t x_microBlockBufferSize = x_microBlockSize + 1;
     TimeLoop m_loops[x_numLoops];
-    bool m_anyChange;
+    bool m_anyChange[x_microBlockBufferSize];
     bool m_running;
 
-    double m_phasorIndependent;
-    bool m_topIndependent;
-    int m_positionIndependent;
-    int m_prevPositionIndependent;
+    int m_positionIndependent[x_microBlockBufferSize];
+    int m_prevPositionIndependent[x_microBlockBufferSize];
     CircleTracker m_globalPhase;
 
     struct Input
@@ -269,16 +334,80 @@ struct TheoryOfTimeBase
     TheoryOfTimeBase()
     {
         m_running = false;
-        m_anyChange = false;
+        for (size_t j = 0; j < x_microBlockBufferSize; ++j)
+        {
+            m_anyChange[j] = false;
+            m_positionIndependent[j] = 0;
+            m_prevPositionIndependent[j] = 0;
+        }
+
         for (int i = 0; i < x_numLoops; ++i)
         {
             m_loops[i].m_owner = this;
             m_loops[i].m_index = i;
-            m_loops[i].m_parentIndex = i + 1;
+            for (size_t k = 0; k < x_microBlockBufferSize; ++k)
+            {
+                m_loops[i].m_parentIndex[k] = i + 1;
+            }
         }
     }
     
-    void SetLoopSizes()
+    bool AnyChangeInMicroBlock() const
+    {
+        for (size_t j = 0; j < x_microBlockSize - 1; ++j)
+        {
+            if (m_anyChange[j])
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void Preprocess(size_t j)
+    {
+        size_t prev = j - 1;
+        m_positionIndependent[j] = m_positionIndependent[prev];
+        m_prevPositionIndependent[j] = m_prevPositionIndependent[prev];
+        m_anyChange[j] = false;
+        for (int i = 0; i < x_numLoops; ++i)
+        {
+            m_loops[i].Preprocess(j);
+        }
+    }
+
+    // Copies slot 8 (first sample of next micro block, computed in previous block) into slot 0.
+    // Called at the start of each micro block so the Nonagon runs with the correct sample 0.
+    //
+    void RolloverMicroblockBuffer()
+    {
+        constexpr size_t x_rolloverSlot = x_microBlockBufferSize - 1;
+        m_positionIndependent[0] = m_positionIndependent[x_rolloverSlot];
+        m_prevPositionIndependent[0] = m_prevPositionIndependent[x_rolloverSlot];
+        m_anyChange[0] = m_anyChange[x_rolloverSlot];
+        for (int i = 0; i < x_numLoops; ++i)
+        {
+            TimeLoop& loop = m_loops[i];
+            loop.m_parentIndex[0] = loop.m_parentIndex[x_rolloverSlot];
+            loop.m_parentMult[0] = loop.m_parentMult[x_rolloverSlot];
+            loop.m_loopSize[0] = loop.m_loopSize[x_rolloverSlot];
+            loop.m_externalLoopMult[0] = loop.m_externalLoopMult[x_rolloverSlot];
+            loop.m_gate[0] = loop.m_gate[x_rolloverSlot];
+            loop.m_gateChanged[0] = loop.m_gateChanged[x_rolloverSlot];
+            loop.m_top[0] = loop.m_top[x_rolloverSlot];
+            loop.m_topIndependent[0] = loop.m_topIndependent[x_rolloverSlot];
+            loop.m_position[0] = loop.m_position[x_rolloverSlot];
+            loop.m_prevPosition[0] = loop.m_prevPosition[x_rolloverSlot];
+            loop.m_phasor[0] = loop.m_phasor[x_rolloverSlot];
+            loop.m_phasorIndependent[0] = loop.m_phasorIndependent[x_rolloverSlot];
+            loop.m_globalWinding[0] = loop.m_globalWinding[x_rolloverSlot];
+            loop.m_glueWinding[0] = loop.m_glueWinding[x_rolloverSlot];
+            loop.m_ascending[0] = loop.m_ascending[x_rolloverSlot];
+        }
+    }
+
+    void SetLoopSizes(size_t j)
     {
         int loopSizes[x_numLoops] = {0};
         for (int i = 0; i < x_numLoops; ++i)
@@ -288,66 +417,64 @@ struct TheoryOfTimeBase
 
         for (int i = 0; i < x_numLoops; ++i)
         {
-            if (m_loops[i].GetParent())
+            if (m_loops[i].GetParent(j))
             {
-                loopSizes[m_loops[i].m_parentIndex] = std::lcm(loopSizes[m_loops[i].m_parentIndex], loopSizes[i] * m_loops[i].m_parentMult);
+                loopSizes[m_loops[i].m_parentIndex[j]] = std::lcm(loopSizes[m_loops[i].m_parentIndex[j]], loopSizes[i] * m_loops[i].m_parentMult[j]);
             }
         }
 
         for (int i = x_numLoops - 2; i >= 0; --i)
         {
-            loopSizes[i] = loopSizes[m_loops[i].m_parentIndex] / m_loops[i].m_parentMult;
+            loopSizes[i] = loopSizes[m_loops[i].m_parentIndex[j]] / m_loops[i].m_parentMult[j];
         }
 
         for (int i = x_numLoops - 1; i >= 0; --i)
         {
-            m_loops[i].SetLoopSize(2 * loopSizes[i]);
+            m_loops[i].SetLoopSize(2 * loopSizes[i], j);
         }
     }
 
-    void ProcessRunning(Input& input)
+    void ProcessRunning(size_t j, Input& input)
     {
         if (!m_running)
         {
             m_running = true;
             for (int i = x_numLoops - 2; i >= 0; --i)
             {
-                m_loops[i].m_parentIndex = input.m_input[i].m_parentIndex;
-                m_loops[i].m_parentMult = input.m_input[i].m_parentMult;
+                m_loops[i].m_parentIndex[j] = input.m_input[i].m_parentIndex;
+                m_loops[i].m_parentMult[j] = input.m_input[i].m_parentMult;
                 m_globalPhase.Reset(0);
             }
 
-            SetLoopSizes();
+            SetLoopSizes(j);
 
             for (int i = 0; i < x_numLoops; ++i)
             {
-                m_loops[i].m_position = m_loops[i].m_loopSize - 1;
+                m_loops[i].m_position[j] = m_loops[i].m_loopSize[j] - 1;
             }
 
-            m_positionIndependent = GetMasterLoop()->m_loopSize - 1;
-        }               
+            m_positionIndependent[j] = GetMasterLoop()->m_loopSize[j] - 1;
+        }
 
-        m_phasorIndependent = input.m_phasor;
-        m_topIndependent = input.m_phasorTop;
-        m_prevPositionIndependent = m_positionIndependent;
-        m_positionIndependent = floor(m_phasorIndependent * GetMasterLoop()->m_loopSize);
+        m_prevPositionIndependent[j] = m_positionIndependent[j];
+        m_positionIndependent[j] = static_cast<int>(std::floor(input.m_phasor * GetMasterLoop()->m_loopSize[j]));
 
-        m_anyChange = false;
+        m_anyChange[j] = false;
         double directPhasor = input.m_phasor + input.m_phaseOffset;
-        directPhasor = directPhasor - floor(directPhasor);
+        directPhasor = directPhasor - std::floor(directPhasor);
         m_globalPhase.Process(directPhasor);
-        m_anyChange = GetMasterLoop()->ProcessDirectly(directPhasor, m_phasorIndependent, m_globalPhase.m_winding);
-        if (m_anyChange)
+        m_anyChange[j] = GetMasterLoop()->ProcessDirectly(j, directPhasor, input.m_phasor, m_globalPhase.m_winding);
+        if (m_anyChange[j])
         {
             for (int i = x_numLoops - 2; i >= 0; --i)
             {
-                m_loops[i].Process();
+                m_loops[i].Process(j);
             }
 
             bool setLoopSizes = false;
             for (int i = x_numLoops - 2; i >= 0; --i)
             {
-                if (m_loops[i].HandleInput(input.m_input[i]))
+                if (m_loops[i].HandleInput(j, input.m_input[i]))
                 {
                     setLoopSizes = true;
                 }
@@ -355,32 +482,33 @@ struct TheoryOfTimeBase
 
             if (setLoopSizes)
             {
-                SetLoopSizes();
+                SetLoopSizes(j);
             }
         }
 
         for (int i = x_numLoops - 2; i >= 0; --i)
         {
-            if (!m_anyChange)
+            if (!m_anyChange[j])
             {
-                m_loops[i].m_gateChanged = false;
-                m_loops[i].m_top = false;
+                m_loops[i].m_gateChanged[j] = false;
+                m_loops[i].m_top[j] = false;
             }
 
-            m_loops[i].ProcessPhasor();
+            m_loops[i].ProcessPhasorIndependent(j);
+            m_loops[i].ProcessPhasorDependent(j);
         }
     }
 
-    void Process(Input& input)
+    void Process(size_t j, Input& input)
     {
         if (input.m_running)
         {
-            ProcessRunning(input);
+            ProcessRunning(j, input);
         }
         else if (m_running)
         {
             m_running = false;
-            m_anyChange = true;
+            m_anyChange[j] = true;
             for (int i = 0; i < x_numLoops; ++i)
             {
                 m_loops[i].Stop();
@@ -388,34 +516,122 @@ struct TheoryOfTimeBase
         }
         else
         {
-            m_anyChange = false;
+            m_anyChange[j] = false;
         }
     }
 
     TimeLoop* GetMasterLoop()
     {
-        return &m_loops[x_numLoops - 1];
+        return &m_loops[x_masterLoop];
     }
 
-    int GetLoopInternalMultiplier(int loopIndex)
+    double GetPhasorIndependent(size_t j) const
     {
-        return GetMasterLoop()->m_loopSize / (m_loops[loopIndex].m_loopSize / 2);
+        return GetDirectPhasor(j, x_masterLoop);
     }
 
-    int GetLoopExternalMultiplier(int loopIndex)
+    bool GetTopIndependent(size_t j) const
     {
-        return GetMasterLoop()->m_loopSize / m_loops[loopIndex].m_loopSize;
+        return GetDirectTop(j, x_masterLoop);
+    }
+
+    int GetLoopInternalMultiplier(size_t j, int loopIndex)
+    {
+        return GetMasterLoop()->m_loopSize[j] / std::max(1, m_loops[loopIndex].m_loopSize[j] / 2);
+    }
+
+    int GetLoopExternalMultiplier(size_t j, int loopIndex)
+    {
+        return GetMasterLoop()->m_loopSize[j] / std::max(1, m_loops[loopIndex].m_loopSize[j]);
+    }
+
+    double GetDirectPhasor(size_t j, size_t loopIndex) const
+    {
+        if (loopIndex >= x_numLoops || j >= x_microBlockSize)
+        {
+            return 0.0;
+        }
+
+        return m_loops[loopIndex].m_phasorIndependent[j];
+    }
+
+    bool GetDirectTop(size_t j, size_t loopIndex) const
+    {
+        if (loopIndex >= x_numLoops || j >= x_microBlockSize)
+        {
+            return false;
+        }
+
+        return m_loops[loopIndex].m_topIndependent[j];
+    }
+
+    double GetIndirectPhasor(size_t j, size_t loopIndex) const
+    {
+        if (loopIndex >= x_numLoops || j >= x_microBlockSize)
+        {
+            return 0.0;
+        }
+
+        return m_loops[loopIndex].m_phasor[j];
+    }
+
+    bool GetIndirectTop(size_t j, size_t loopIndex) const
+    {
+        if (loopIndex >= x_numLoops || j >= x_microBlockSize)
+        {
+            return false;
+        }
+
+        return m_loops[loopIndex].m_top[j];
+    }
+
+    double InterpolateMicroBlock(const double values[], float samplePosition) const
+    {
+        if (samplePosition <= 0.0f)
+        {
+            return values[0];
+        }
+
+        if (samplePosition >= static_cast<float>(x_microBlockSize - 1))
+        {
+            return values[x_microBlockSize - 1];
+        }
+
+        size_t sampleFloor = static_cast<size_t>(std::floor(samplePosition));
+        size_t sampleCeil = std::min<size_t>(sampleFloor + 1, x_microBlockSize - 1);
+        float frac = samplePosition - static_cast<float>(sampleFloor);
+        return static_cast<double>(1.0f - frac) * values[sampleFloor] + static_cast<double>(frac) * values[sampleCeil];
+    }
+
+    double GetInterpolatedDirectPhasor(size_t j, float samplePosition) const
+    {
+        if (j >= x_numLoops)
+        {
+            return 0.0;
+        }
+
+        return InterpolateMicroBlock(m_loops[j].m_phasorIndependent, samplePosition);
+    }
+
+    double GetInterpolatedIndirectPhasor(size_t j, float samplePosition) const
+    {
+        if (j >= x_numLoops)
+        {
+            return 0.0;
+        }
+
+        return InterpolateMicroBlock(m_loops[j].m_phasor, samplePosition);
     }
 };
 
-inline TimeLoop* TimeLoop::GetParent()
+inline TimeLoop* TimeLoop::GetParent(size_t j)
 {
-    if (m_parentIndex < 0 || TheoryOfTimeBase::x_numLoops <= m_parentIndex)
+    if (m_parentIndex[j] < 0 || TheoryOfTimeBase::x_numLoops <= m_parentIndex[j])
     {
         return nullptr;
     }
 
-    return &m_owner->m_loops[m_parentIndex];
+    return &m_owner->m_loops[m_parentIndex[j]];
 }
 
 inline TimeLoop* TimeLoop::GetMaster()
@@ -428,11 +644,12 @@ inline int TimeLoop::GlobalWinding()
     return m_owner->m_globalPhase.m_winding;
 }
 
-inline bool TimeLoop::TopIndependent(int loopSize)
+inline bool TimeLoop::TopIndependent(size_t j, int loopSize)
 {
-    int pos = m_owner->m_positionIndependent % loopSize;
-    int prevPos = m_owner->m_prevPositionIndependent % loopSize;
-    return (pos == 0 && prevPos == loopSize - 1) || (pos == loopSize - 1 && prevPos == 0) || (GetParent() && GetParent()->m_topIndependent);
+    int pos = m_owner->m_positionIndependent[j] % loopSize;
+    int prevPos = m_owner->m_prevPositionIndependent[j] % loopSize;
+    TimeLoop* parent = GetParent(j);
+    return (pos == 0 && prevPos == loopSize - 1) || (pos == loopSize - 1 && prevPos == 0) || (parent && parent->m_topIndependent[j]);
 }
 
 struct TheoryOfTime : public TheoryOfTimeBase
@@ -462,8 +679,8 @@ struct TheoryOfTime : public TheoryOfTimeBase
           , m_lfoMult(1, 16)
         {
             m_phaseModLFOInput.m_size = x_numLoops;
-            m_phaseModLFOInput.m_values = m_phasorValues;
-            m_phaseModLFOInput.m_top = m_phasorTops;
+            m_phaseModLFOInput.m_theoryOfTime = nullptr;
+            m_phaseModLFOInput.m_useIndirectPhasor = false;
             m_phaseModLFOInput.m_phaseShift = -0.75;
 
             m_modIndex.SetBaseByCenter(1.0 / 16);
@@ -491,8 +708,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
         double m_timeIn;
         Tick2Phasor::Input m_tick2PhasorInput;
         PolyXFaderInternal::Input m_phaseModLFOInput;
-        double m_phasorValues[x_numLoops];
-        bool m_phasorTops[x_numLoops];
         PhaseUtils::ZeroedExpParam m_modIndex;
         PhaseUtils::ExpParam m_lfoMult;
         PLL::Input m_pllInput;
@@ -518,32 +733,33 @@ struct TheoryOfTime : public TheoryOfTimeBase
         int lfoLoopSize = 1;
         for (int i = 0; i < x_numLoops; ++i)
         {
-            if (m_phaseModLFO.m_weights[i] > 0 && m_loops[i].m_loopSize > 0)
+            if (m_phaseModLFO.m_weights[i] > 0 && m_loops[i].m_loopSize[0] > 0)
             {
-                lfoLoopSize = std::lcm(lfoLoopSize, m_loops[i].m_loopSize);
+                lfoLoopSize = std::lcm(lfoLoopSize, m_loops[i].m_loopSize[0]);
             }
         }
 
-        uiState->m_timeYModAmount.store(GetMasterLoop()->m_loopSize / lfoLoopSize);
+        uiState->m_timeYModAmount.store(GetMasterLoop()->m_loopSize[0] / lfoLoopSize);
     }
 
-    int MonodromyNumber(int clockIx, int resetIx)
+    int MonodromyNumber(size_t j, int clockIx, int resetIx)
     {
-        return m_loops[clockIx].MonodromyNumber(resetIx, true);
+        return m_loops[clockIx].MonodromyNumber(j, resetIx, true);
     }
 
-    void ProcessPhaseModLFO(Input& input)
+    void ProcessPhaseModLFO(size_t j, Input& input)
     {
         for (int i = 0; i < x_numLoops; ++i)
         {
-            input.m_phasorValues[i] = m_loops[i].m_phasorIndependent;
-            input.m_phasorTops[i] = m_loops[i].m_topIndependent;
-            input.m_phaseModLFOInput.m_externalWeights[i] = static_cast<double>(m_loops[i].m_loopSize) / GetMasterLoop()->m_loopSize;
+            input.m_phaseModLFOInput.m_externalWeights[i] = static_cast<double>(m_loops[i].m_loopSize[j]) / GetMasterLoop()->m_loopSize[j];
         }
 
         input.m_phaseModLFOInput.m_mult = input.m_lfoMult.m_expParam;
+        input.m_phaseModLFOInput.m_theoryOfTime = this;
+        input.m_phaseModLFOInput.m_useIndirectPhasor = false;
+        input.m_phaseModLFOInput.m_samplePosition = static_cast<float>(j);
         m_phaseModLFO.Process(input.m_phaseModLFOInput);
-        input.m_phaseOffset = - 2 * input.m_modIndex.m_expParam * m_phaseModLFO.m_output;
+        input.m_phaseOffset = -2 * input.m_modIndex.m_expParam * m_phaseModLFO.m_output;
     }
 
     void SetupMonoScopeWriter(ScopeWriter* scopeWriter)
@@ -561,34 +777,46 @@ struct TheoryOfTime : public TheoryOfTimeBase
         m_masterLoopSamples = 1.0;
     }
 
-    double LoopSamples(int loopIndex)
+    double LoopSamples(size_t j, int loopIndex)
     {
-        return m_masterLoopSamples / GetLoopExternalMultiplier(loopIndex);
+        return m_masterLoopSamples / GetLoopExternalMultiplier(j, loopIndex);
     }
 
-    double LoopSamplesFraction(int loopIndex, double fraction)
+    double LoopSamplesFraction(size_t j, int loopIndex, double fraction)
     {
-        return LoopSamples(loopIndex) * (m_loops[loopIndex].GetUnwoundPhasor() - fraction);
+        return LoopSamples(j, loopIndex) * (m_loops[loopIndex].GetUnwoundPhasor(j) - fraction);
     }
 
-    double PhasorUnwoundSamples(int loopIndex)
+    double PhasorUnwoundSamples(size_t j, int loopIndex)
     {
-        return m_loops[loopIndex].GetUnwoundPhasor() * LoopSamples(loopIndex);
+        return m_loops[loopIndex].GetUnwoundPhasor(j) * LoopSamples(j, loopIndex);
+    }
+
+    void ProcessPLLHit(size_t j, Input& input, int loopIndex)
+    {
+        int64_t division = static_cast<int64_t>(GetLoopExternalMultiplier(j, loopIndex));
+        m_pll.ProcessHit(input.m_pllInput, division);
     }
 
     void ProcessPLLHit(Input& input, int loopIndex)
     {
-        int64_t division = static_cast<int64_t>(GetLoopExternalMultiplier(loopIndex));
+        int64_t division = static_cast<int64_t>(GetLoopExternalMultiplier(0, loopIndex));
         m_pll.ProcessHit(input.m_pllInput, division);
     }
 
-    void Process(Input& input)
+    void Preprocess(size_t j)
     {
+        TheoryOfTimeBase::Preprocess(j);
+    }
+
+    void Process(size_t j, Input& input)
+    {
+        Preprocess(j);
         if (input.m_running)
         {
             if (input.m_clockMode == ClockMode::Internal)
             {
-                input.m_phasor += input.m_freq * SampleTimer::x_controlFrameRate;
+                input.m_phasor += input.m_freq;
                 input.m_phasorTop = 1.0f <= input.m_phasor;
                 input.m_phasor = input.m_phasor - floor(input.m_phasor);
                 m_masterLoopSamples = 1.0 / input.m_freq;
@@ -618,7 +846,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
             m_tick2Phasor.m_reset = true;
             m_masterLoopSamples = 1.0 / input.m_freq;
         }
-        
+
         if (input.m_clockMode == ClockMode::Tick2Phasor)
         {
             m_tick2Phasor.Process(input.m_tick2PhasorInput);
@@ -629,9 +857,8 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
         bool wasRunning = m_running;
 
-        ProcessPhaseModLFO(input);
-
-        TheoryOfTimeBase::Process(input);
+        ProcessPhaseModLFO(j, input);
+        TheoryOfTimeBase::Process(j, input);
 
         if (wasRunning != m_running)
         {
@@ -648,16 +875,62 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
         if (m_running)
         {
-            if (m_phasor2Tick.Process(GetMasterLoop()->m_phasorIndependent))
+            if (m_phasor2Tick.Process(GetMasterLoop()->m_phasorIndependent[0]))
             {
                 m_messageOutBuffer->Push(SmartGrid::MessageOut::Clock());
             }
         }
 
-        m_scopeWriter.Write(m_globalPhase.m_phase);
+        m_scopeWriter.Write(j, m_globalPhase.m_phase);
         if (m_phaseModLFO.m_top)
         {
-            m_scopeWriter.RecordStart();
+            m_scopeWriter.RecordStart(j);
         }
     }
+
+    void PrintState(size_t j)
+    {
+        INFO("theory of time microblock %d global phase %f loop direct (%f,%f,%f,%f,%f,%f) loop indirect (%f,%f,%f,%f,%f,%f) with position/mult (%d/%d, %d/%d, %d/%d, %d/%d, %d/%d, %d/%d)",
+            j,
+            m_globalPhase.m_phase,
+            m_loops[0].m_phasorIndependent[j],
+            m_loops[1].m_phasorIndependent[j],
+            m_loops[2].m_phasorIndependent[j],
+            m_loops[3].m_phasorIndependent[j],
+            m_loops[4].m_phasorIndependent[j],
+            m_loops[5].m_phasorIndependent[j],
+            m_loops[0].m_phasor[j],
+            m_loops[1].m_phasor[j],
+            m_loops[2].m_phasor[j],
+            m_loops[3].m_phasor[j],
+            m_loops[4].m_phasor[j],
+            m_loops[5].m_phasor[j],
+            m_loops[0].m_position[j],
+            m_loops[0].m_parentMult[j],
+            m_loops[1].m_position[j],
+            m_loops[1].m_parentMult[j],
+            m_loops[2].m_position[j],
+            m_loops[2].m_parentMult[j],
+            m_loops[3].m_position[j],
+            m_loops[3].m_parentMult[j],
+            m_loops[4].m_position[j],
+            m_loops[4].m_parentMult[j],
+            m_loops[5].m_position[j],
+            m_loops[5].m_parentMult[j]);
+    }
 };
+
+inline double GetTheoryOfTimePhasor(TheoryOfTimeBase* theoryOfTime, size_t j, bool useIndirectPhasor, float samplePosition)
+{
+    return useIndirectPhasor
+        ? theoryOfTime->GetInterpolatedIndirectPhasor(j, samplePosition)
+        : theoryOfTime->GetInterpolatedDirectPhasor(j, samplePosition);
+}
+
+inline bool GetTheoryOfTimeTop(TheoryOfTimeBase* theoryOfTime, size_t j, bool useIndirectPhasor, float samplePosition)
+{
+    size_t sampleIndex = static_cast<size_t>(std::round(std::max<float>(0.0f, std::min<float>(samplePosition, static_cast<float>(TheoryOfTimeBase::x_microBlockSize - 1)))));
+    return useIndirectPhasor
+        ? theoryOfTime->GetIndirectTop(sampleIndex, j)
+        : theoryOfTime->GetDirectTop(sampleIndex, j);
+}

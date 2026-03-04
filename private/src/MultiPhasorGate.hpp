@@ -5,6 +5,7 @@
 #include "Trig.hpp"
 #include "CircleTracker.hpp"
 #include "AHD.hpp"
+#include "TheoryOfTime.hpp"
 
 struct MultiPhasorGateInternal
 {
@@ -13,7 +14,7 @@ struct MultiPhasorGateInternal
     struct Input
     {
         bool m_trigs[x_maxPoly];
-        float m_phasor;
+        TheoryOfTimeBase* m_theoryOfTime;
         double m_masterLoopSamples;
         size_t m_numTrigs;
         int m_phasorDenominator[x_maxPoly];
@@ -21,13 +22,13 @@ struct MultiPhasorGateInternal
         bool m_mute[x_maxPoly];
 
         Input()
-            : m_numTrigs(0)
+            : m_theoryOfTime(nullptr)
+            , m_numTrigs(0)
         {
             for (size_t i = 0; i < x_maxPoly; ++i)
             {
                 m_newTrigCanStart[i] = false;
                 m_trigs[i] = false;
-                m_phasor = 0;
                 m_phasorDenominator[i] = 1;
                 m_mute[i] = false;
             }
@@ -89,6 +90,8 @@ struct MultiPhasorGateInternal
 
     void Process(Input& input)
     {
+        float phasor = static_cast<float>(input.m_theoryOfTime->GetIndirectPhasor(0, TheoryOfTimeBase::x_masterLoop));
+
         m_anyGate = false;
         for (size_t i = 0; i < input.m_numTrigs; ++i)
         {
@@ -108,7 +111,7 @@ struct MultiPhasorGateInternal
 
                 m_preGate[i] = true;
                 m_set[i] = true;
-                m_bounds[i].Set(input.m_phasor, input.m_phasorDenominator[i]);
+                m_bounds[i].Set(phasor, input.m_phasorDenominator[i]);
             }
 
             // Compute envelopeTimeSamples for this voice
@@ -118,7 +121,7 @@ struct MultiPhasorGateInternal
 
             if (m_set[i])
             {
-                float thisPhase = m_bounds[i].Process(input.m_phasor);
+                float thisPhase = m_bounds[i].Process(phasor);
 
                 if (0.5 <= thisPhase)
                 {

@@ -110,8 +110,7 @@ struct PhysicalModelingSource
     ParamSlew m_sampleRateReducerFreqSlew;
     ParamSlew m_mainSVFCutoffSlew;
     ParamSlew m_mainSVFResonanceSlew;
-    ParamSlew m_mainSVFMorphSlew;
-    ParamSlew m_ahdEnvSlew;
+    ParamSlew m_mainSVFMorphSlew;    
 
     struct Input
     {
@@ -127,7 +126,7 @@ struct PhysicalModelingSource
         // Row 1: AHD envelope (inverted like amp section)
         // InputSetter allows 100 µs min for very short attack/decay
         //
-        AHD::InputSetter m_ahdInputSetter;
+        AHD::SlewedInputSetter m_ahdInputSetter;
         AHD::Input m_ahdInput;
 
         // Row 2: Comb filter params
@@ -145,18 +144,17 @@ struct PhysicalModelingSource
             , m_mainSVFCutoff(0.001f, 0.499f)
             , m_mainSVFMorph(0.5f)
             , m_sampleRateReducerFreq(0.001f, 2.0f)
-            , m_ahdInputSetter(0.0001f, 2.5f, 0.0001f, 2.5f)
+            , m_ahdInputSetter(x_oversample, 0.0001f, 2.5f, 0.0001f, 2.5f)
             , m_combFeedback(0.0f)
             , m_combDampenCutoff(0.001f, 0.499f)
         {
             m_mainSVFResonance.SetBaseByCenter(0.125);
+            m_ahdInput.m_amplitudePolarity = false;
         }
 
         void SetAHD(float attack, float hold, float decay, float amplitude)
         {
-            // Inverted AHD like amp section (amplitudePolarity = false)
-            //
-            m_ahdInputSetter.Set(attack, hold, decay, amplitude, false, m_ahdInput);
+            m_ahdInputSetter.SetTargets(attack, hold, decay, amplitude);
         }
     };
 
@@ -169,23 +167,17 @@ struct PhysicalModelingSource
         , m_mainSVFCutoffSlew(x_oversample)
         , m_mainSVFResonanceSlew(x_oversample)
         , m_mainSVFMorphSlew(x_oversample)
-        , m_ahdEnvSlew(x_oversample)
     {
     }
 
     void ProcessUBlock(Input& input)
     {
-        // Process AHD envelope (params in input.m_ahdInput set by caller)
-        //
-        m_ahd.Process(input.m_ahdInput);
-
         // Update slew targets at start of block
         //
         m_sampleRateReducerFreqSlew.Update(input.m_sampleRateReducerFreq.m_expParam);
         m_mainSVFCutoffSlew.Update(input.m_mainSVFCutoff.m_expParam);
         m_mainSVFResonanceSlew.Update(input.m_mainSVFResonance.m_expParam);
         m_mainSVFMorphSlew.Update(input.m_mainSVFMorph);
-        m_ahdEnvSlew.Update(m_ahd.m_output);
 
         // Set comb filter params once per block
         // Comb filter internally slews feedback and compensated delay
@@ -209,13 +201,16 @@ struct PhysicalModelingSource
 
         for (size_t i = 0; i < x_uBlockSize; ++i)
         {
+            input.m_ahdInput.m_samplePosition = static_cast<float>(i) / x_oversample;
+            input.m_ahdInputSetter.Process(input.m_ahdInput);
+            float ahdEnv = m_ahd.Process(input.m_ahdInput);
+
             // Process slews
             //
             float sampleRateReducerFreq = m_sampleRateReducerFreqSlew.Process();
             float mainSVFCutoff = m_mainSVFCutoffSlew.Process();
             float mainSVFResonance = m_mainSVFResonanceSlew.Process();
             float mainSVFMorph = m_mainSVFMorphSlew.Process();
-            float ahdEnv = m_ahdEnvSlew.Process();
 
             // 1. Generate white noise
             //

@@ -12,6 +12,12 @@ The **Theory of Time** is the global clock that every other part of the system f
 
 ---
 
+## Micro block and rolling buffer
+
+For every micro block (8 samples), the Theory of Time computes all samples in that block **plus** the first sample of the next block. Arrays are sized `x_microBlockBufferSize = 9`; slot 8 holds the first sample of the next micro block (computed in the current block). At the start of each micro block, `RolloverMicroblockBuffer` copies slot 8 into slot 0—the first sample of this block was computed in the previous block. The Nonagon then runs at that sample, and `Process(j)` for j=1..8 computes the rest of this block and the first sample of the next. This ensures that interpolation anywhere inside a micro block always has accurate boundary samples.
+
+---
+
 ## True phase and phase-modulated phase
 
 - **True phase** comes from the chosen clock source and is stored in the input phasor (`input.m_phasor`). It is advanced each control frame (e.g. internal tempo, external clock, PLL, or Tick2Phasor).

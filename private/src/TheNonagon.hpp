@@ -117,8 +117,6 @@ struct TheNonagonInternal
         float m_extraTimbreTrg[x_numVoices][x_numExtraTimbres];
         float m_extraTimbre[x_numVoices][x_numExtraTimbres];
         FixedSlew m_extraTimbreSlew[x_numVoices][x_numExtraTimbres];
-        float m_totPhasors[x_numTimeBits];
-        bool m_totTop[x_numTimeBits];
 
         Output()
         {
@@ -134,11 +132,6 @@ struct TheNonagonInternal
                 }
             }
 
-            for (size_t i = 0; i < x_numTimeBits; ++i)
-            {
-                m_totPhasors[i] = 0;
-                m_totTop[i] = false;
-            }
         }
     };
 
@@ -159,7 +152,7 @@ struct TheNonagonInternal
     {
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {
-            input.m_lameJuisInput.m_inputBitInput[i].m_value = m_theoryOfTime.m_loops[i].m_gate;
+            input.m_lameJuisInput.m_inputBitInput[i].m_value = m_theoryOfTime.m_loops[i].m_gate[0];
         }
 
         for (size_t i = 0; i < x_numTrios; ++i)
@@ -190,7 +183,7 @@ struct TheNonagonInternal
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             bool pitchChanged = m_lameJuis.m_outputs[i / x_voicesPerTrio].m_trigger[i % x_voicesPerTrio];
-            bool anyChange = m_theoryOfTime.m_anyChange;
+            bool anyChange = m_theoryOfTime.AnyChangeInMicroBlock();
             input.m_trigLogic.m_pitchChanged[i] = anyChange && pitchChanged;
             input.m_trigLogic.m_earlyMuted[i] = m_lameJuis.m_outputs[i / x_voicesPerTrio].m_pitch[i % x_voicesPerTrio].m_isMuted;
             input.m_trigLogic.m_subTrigger[i] = m_indexArp.m_arp[i].m_triggered && anyChange;
@@ -198,7 +191,7 @@ struct TheNonagonInternal
 
         input.m_trigLogic.SetInput(input.m_multiPhasorGateInput);
 
-        input.m_multiPhasorGateInput.m_phasor = m_theoryOfTime.GetMasterLoop()->m_phasor;
+        input.m_multiPhasorGateInput.m_theoryOfTime = &m_theoryOfTime;
         input.m_multiPhasorGateInput.m_masterLoopSamples = static_cast<double>(m_theoryOfTime.m_masterLoopSamples);
 
         for (size_t i = 0; i < x_numVoices; ++i)
@@ -207,7 +200,7 @@ struct TheNonagonInternal
             int voiceClock = input.m_arpInput.m_clockSelect[i / x_voicesPerTrio];
             if (voiceClock >= 0)
             {
-                denom = m_theoryOfTime.GetLoopInternalMultiplier(voiceClock);
+                denom = m_theoryOfTime.GetLoopInternalMultiplier(0, voiceClock);
             }
 
             for (size_t j = 0; j < x_numTimeBits; ++j)
@@ -215,7 +208,7 @@ struct TheNonagonInternal
                 bool coMute = m_lameJuis.m_outputs[i / x_voicesPerTrio].m_coMuteState.m_coMutes[j];
                 if (!coMute)
                 {
-                    denom = std::lcm(denom, m_theoryOfTime.GetLoopInternalMultiplier(j));
+                    denom = std::lcm(denom, m_theoryOfTime.GetLoopInternalMultiplier(0, j));
                 }
             }
 
@@ -232,9 +225,9 @@ struct TheNonagonInternal
 
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {            
-            bool ticked = m_theoryOfTime.m_loops[i].m_gateChanged;
+            bool ticked = m_theoryOfTime.m_loops[i].AnyGateChanged();
             input.m_arpInput.m_clocks[i] = ticked;
-            if (m_theoryOfTime.m_anyChange)
+            if (m_theoryOfTime.AnyChangeInMicroBlock())
             {
                 for (size_t j = 0; j < x_numVoices; ++j)
                 {                    
@@ -247,7 +240,7 @@ struct TheNonagonInternal
             }
         }
 
-        if (m_theoryOfTime.m_anyChange)
+        if (m_theoryOfTime.AnyChangeInMicroBlock())
         {
             for (size_t j = 0; j < x_numTrios; ++j)
             {                    
@@ -255,9 +248,10 @@ struct TheNonagonInternal
                 {
                     input.m_arpInput.m_totalIndex[j] = 0;
                 }
-                else if (m_theoryOfTime.m_loops[input.m_arpInput.m_clockSelect[j]].m_gateChanged)
+                else if (m_theoryOfTime.m_loops[input.m_arpInput.m_clockSelect[j]].AnyGateChanged())
                 {
                     input.m_arpInput.m_totalIndex[j] = m_theoryOfTime.MonodromyNumber(
+                        0,
                         input.m_arpInput.m_clockSelect[j],
                         input.m_arpInput.m_resetSelect[j]);
                 }
@@ -285,7 +279,7 @@ struct TheNonagonInternal
                 NonagonNoteWriter::EventData eventData;
                 eventData.m_voiceIx = i;
                 eventData.m_voltPerOct = m_output.m_voltPerOct[i];
-                eventData.m_startPosition = m_theoryOfTime.m_phasorIndependent;
+                eventData.m_startPosition = m_theoryOfTime.GetPhasorIndependent(0);
                 for (size_t j = 0; j < x_numExtraTimbres; ++j)
                 {
                     eventData.m_timbre[j] = m_output.m_extraTimbre[i][j];
@@ -297,7 +291,7 @@ struct TheNonagonInternal
             {
                 if (m_output.m_gate[i])
                 {
-                    m_noteWriter.RecordNoteEnd(i, m_theoryOfTime.m_phasorIndependent);
+                    m_noteWriter.RecordNoteEnd(i, m_theoryOfTime.GetPhasorIndependent(0));
                 }
                 
                 m_output.m_gate[i] = false;
@@ -310,11 +304,6 @@ struct TheNonagonInternal
             }
         }
 
-        for (size_t i = 0; i < x_numTimeBits; ++i)
-        {
-            m_output.m_totPhasors[i] = m_theoryOfTime.m_loops[i].m_phasor;
-            m_output.m_totTop[i] = m_theoryOfTime.m_loops[i].m_topIndependent;
-        }
     }
 
     void ProcessPLLHit(Input& input, int loopIx)
@@ -324,16 +313,24 @@ struct TheNonagonInternal
 
     void Process(Input& input)
     {
+        // For every micro block we compute all samples in that block plus the first sample
+        // of the next block. Slot 8 holds the first sample of the next micro block (computed
+        // in the current block). At block start, RolloverMicroblockBuffer copies slot 8 into
+        // slot 0—the first sample of this block was computed in the previous block. We run
+        // the Nonagon at that sample (sequencer logic, outputs), then Process(j) for j=1..8
+        // to compute the rest of this block and the first sample of the next. This ensures
+        // interpolation anywhere inside a micro block always has accurate boundary samples.
+        //
         SetTheoryOfTimeInput(input);
 
-        m_theoryOfTime.Process(input.m_theoryOfTimeInput);
+        m_theoryOfTime.RolloverMicroblockBuffer();
 
-        if (m_theoryOfTime.m_topIndependent)
+        if (m_theoryOfTime.GetTopIndependent(0))
         {
             m_noteWriter.RecordStartIndex();
         }
 
-        if (m_theoryOfTime.m_anyChange)
+        if (m_theoryOfTime.AnyChangeInMicroBlock())
         {
             SetIndexArpInputs(input);
             m_indexArp.Process(input.m_arpInput);
@@ -353,6 +350,11 @@ struct TheNonagonInternal
         }
 
         SetOutputs(input);
+
+        for (size_t j = 1; j < TheoryOfTimeBase::x_microBlockBufferSize; ++j)
+        {
+            m_theoryOfTime.Process(j, input.m_theoryOfTimeInput);
+        }
     }
 };
 
@@ -386,7 +388,7 @@ struct TheNonagonSmartGrid
         return new SmartGrid::StateCell<bool>(
                         SmartGrid::Color::Off /*offColor*/,
                         SmartGrid::Color::White /*onColor*/,
-                        &m_nonagon.m_theoryOfTime.m_loops[ix].m_gate,
+                        &m_nonagon.m_theoryOfTime.m_loops[ix].m_gate[0],
                         true,
                         false,
                         SmartGrid::StateCell<bool>::Mode::ShowOnly);
@@ -1309,7 +1311,7 @@ struct TheNonagonSmartGrid
 
     void PopulateUIState(TheNonagonInternal::UIState* uiState)
     {
-        m_nonagon.m_noteWriter.SetCurPosition(m_nonagon.m_theoryOfTime.m_phasorIndependent);
+        m_nonagon.m_noteWriter.SetCurPosition(m_nonagon.m_theoryOfTime.GetPhasorIndependent(0));
         m_nonagon.m_theoryOfTime.PopulateUIState(&uiState->m_theoryOfTimeUIState);
         for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
         {
@@ -1335,11 +1337,6 @@ struct TheNonagonSmartGrid
         }
         else
         {
-            for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits; ++i)
-            {
-                m_nonagon.m_output.m_totTop[i] = false;
-            }
-
             for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
             {
                 m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig = false;

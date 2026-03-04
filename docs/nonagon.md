@@ -19,15 +19,17 @@ It manages **9 voices** arranged in **3 trios**.
 
 ## 2. Process Flow
 
-During a control frame, `TheNonagonInternal::Process(Input& input)` executes the following steps:
+For every micro block, the Theory of Time computes all samples in that block **plus** the first sample of the next block. Slot 8 holds the first sample of the next micro block (computed in the current block). At the start of each micro block, `RolloverMicroblockBuffer` copies slot 8 into slot 0—the first sample of this block was computed in the previous block. The Nonagon then runs at that sample (sequencer logic, outputs), and `Process(j)` for j=1..8 computes the rest of this block and the first sample of the next. This ensures that interpolation anywhere inside a micro block always has accurate boundary samples.
 
-1. **Theory of Time**:
+During a control frame, `Process` executes the following steps:
+
+1. **Rollover and Theory of Time (sample 0)**:
    - `SetTheoryOfTimeInput(input)` prepares the global clock inputs.
-   - `m_theoryOfTime.Process(input.m_theoryOfTimeInput)` runs the clock.
+   - `m_theoryOfTime.RolloverMicroblockBuffer()` copies slot 8 into slot 0 (sample 0 of this block was computed in the previous block).
    - If the master loop wraps (`m_topIndependent`), it records a start index in the note writer.
 
 2. **Index Arp and LameJuis (Only on change)**:
-   - If the Theory of Time had any integer position change (`m_theoryOfTime.m_anyChange`), the sequencer state must be updated.
+   - If the Theory of Time had any integer position change in the micro block (`m_theoryOfTime.AnyChangeInMicroBlock()`), the sequencer state must be updated.
    - `SetIndexArpInputs(input)` calculates `m_totalIndex` (monodromy) and clock/read gates.
    - `m_indexArp.Process(input.m_arpInput)` runs the arpeggiators to find the point in the range.
    - `SetLameJuisInput(input)` feeds the Theory of Time gates and the index arp outputs (as percentiles or quantization targets) into LameJuis.
@@ -46,6 +48,9 @@ During a control frame, `TheNonagonInternal::Process(Input& input)` executes the
    - If a voice's gate turns off (`!m_multiPhasorGate.m_gate[i]`), it clears `m_output.m_gate[i]` and records a note-off (`m_noteWriter.RecordNoteEnd`).
    - It slews the 3 extra timbre modulators from LameJuis (`m_extraTimbreSlew`) to prevent clicks.
    - It outputs the Theory of Time phasors (`m_totPhasors`) for downstream LFOs.
+
+5. **Theory of Time (samples 1–8)**:
+   - `m_theoryOfTime.Process(j, input.m_theoryOfTimeInput)` is called for `j = 1` through `8` to compute the rest of this micro block (samples 1–7) and the first sample of the next block (slot 8).
 
 ---
 

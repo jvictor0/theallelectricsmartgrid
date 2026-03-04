@@ -186,18 +186,16 @@ struct TheNonagonSquiggleBoyInternal
 
             m_squiggleBoy.m_state[i].m_ahdControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i];            
 
-            for (size_t j = 0; j < SquiggleBoyVoice::SquiggleLFO::x_numPhasors; ++j)
-            {
-                m_squiggleBoyState.m_totalPhasor[j] = m_nonagon.m_nonagon.m_output.m_totPhasors[j];
-                m_squiggleBoyState.m_totalTop[j] = m_nonagon.m_nonagon.m_output.m_totTop[j];
-            }
+            m_squiggleBoy.m_state[i].m_filterInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
+            m_squiggleBoy.m_state[i].m_ampInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
+            m_squiggleBoy.m_state[i].m_sourceInput.m_physicalModelingInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
 
             m_squiggleBoyState.m_sheafyModulators[i][0] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][0];
             m_squiggleBoyState.m_sheafyModulators[i][1] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][1];
             m_squiggleBoyState.m_sheafyModulators[i][2] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][2];
         }
 
-        m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_numLoops - 1].m_top;
+        m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_masterLoop].m_top[SampleTimer::GetUBlockIndex()];
     }
 
     void SetNonagonInputs()
