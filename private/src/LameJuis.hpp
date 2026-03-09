@@ -1,43 +1,36 @@
 #pragma once
 #include "plugin.hpp"
 #include <cstddef>
+#include "HarmonicSheaf.hpp"
 #include "LameJuisConstants.hpp"
 
 struct LameJuisInternal
 {
-    static constexpr size_t x_maxPoly = 16;
-
     static constexpr size_t x_numInputs = 6;
     static constexpr size_t x_numOperations = 6;
     static constexpr size_t x_numAccumulators = 3;
-    
+    static constexpr size_t x_numLanes = 3;
+    static constexpr size_t x_channelsPerLane = 3;
+
     struct InputBit
     {
         bool m_value;
-        uint8_t m_counter;
         bool m_changed;
-        InputBit* m_prev;
 
         struct Input
         {
             Input()
-                : m_connected(false)
-                , m_value(false)
-                , m_reset(nullptr)
+                : m_value(false)
             {
             }
             
-            bool m_connected;
             bool m_value;
-            bool* m_reset;
         };
 
         void Init(InputBit* prev)
         {
             m_value = false;
-            m_counter = 0;
             m_changed = false;
-            m_prev = prev;
         }
         
         void Process(Input& input)
@@ -45,36 +38,8 @@ struct LameJuisInternal
             bool oldValue = m_value;
             m_changed = false;
 
-            if (*input.m_reset)
-            {
-                m_counter = 0;
-                m_changed = true;
-            }
-            
-            // If a cable is connected, use that value.
-            //
-            if (input.m_connected)
-            {
-                m_value = input.m_value;
-                if (m_value && !oldValue)
-                {                    
-                    // Count down instead of up so each input is high on its "even" beats.
-                    //
-                    --m_counter;
-                }
-            }
-            
-            // Each input (except the first) is normaled to divide-by-two of the previous input,
-            // but in order to keep the phases in line, they are actually a divide-by-2-to-the-n
-            // of first plugged input above, where n is the number of unplugged inputs between.
-            // This is easiest to implement as cascading counters.
-            //
-            else if (m_prev)
-            { 
-                m_value = m_prev->m_counter % 2 != 0;
-                m_counter = m_prev->m_counter / 2;
-            }
-            
+            m_value = input.m_value;
+
             if (oldValue != m_value)
             {
                 m_changed = true;
@@ -89,122 +54,8 @@ struct LameJuisInternal
         Normal = 2
     };
 
-    struct BitVector
-    {
-        BitVector()
-            : m_bits(0)
-        {
-        }
-
-        BitVector(uint8_t bits)
-            : m_bits(bits)
-        {
-        }
-        
-        bool Get(size_t i)
-        {
-            return (m_bits & (1 << i)) >> i;
-        }
-
-        void Set(size_t i, bool value)
-        {
-            if (value)
-            {
-                m_bits |= 1 << i;
-            }
-            else
-            {
-                m_bits &= ~(1 << i);
-            }
-        }
-
-        size_t CountSetBits()
-        {
-            static const uint8_t x_bitsSet [16] =
-                {
-                    0, 1, 1, 2, 1, 2, 2, 3, 
-                    1, 2, 2, 3, 2, 3, 3, 4
-                };
-            
-            return x_bitsSet[m_bits & 0x0F] + x_bitsSet[m_bits >> 4];
-        }
-
-        std::string ToString() 
-        {
-            std::string ret;
-            for (size_t i = 0; i < 6; ++i)
-            {
-                ret += Get(i) ? "1" : "0";
-            }
-            return ret;
-        }
-
-        bool operator==(BitVector other) const
-        {
-            return m_bits == other.m_bits;
-        }
-
-        bool operator!=(BitVector other) const
-        {
-            return m_bits != other.m_bits;
-        }
-
-        uint8_t m_bits;
-    };
-
-    struct Lens : public BitVector
-    {
-        Lens()
-            : BitVector(0)
-        {
-        }
-
-        Lens(uint8_t bits)
-            : BitVector(bits)
-        {
-        }
-
-        bool Equivalent(BitVector a, BitVector b) const
-        {
-            // Check if two input vectors are equivalent under the lens
-            // This means they differ only in positions where the lens is 0
-            //
-            uint8_t diff = a.m_bits ^ b.m_bits;
-            return (diff & m_bits) == 0;
-        }
-
-        BitVector Canonicalize(BitVector timeSlice) const
-        {
-            return BitVector(m_bits & timeSlice.m_bits);
-        }
-    };
-    
     struct LogicOperation
     {
-        enum class Operator : char
-        {
-            Or = 0,
-            And = 1,
-            Xor = 2,
-            AtLeastTwo = 3,
-            Majority = 4,
-            Off = 5,
-            Direct,
-            NumOperations = 7,
-        };
-
-        static std::vector<std::string> GetLogicNames()
-        {
-            return std::vector<std::string>({
-                    "OR",
-                    "AND",
-                    "XOR",
-                    "At least two",
-                    "Majority",
-                    "Off"
-                });
-        }
-        
         enum class SwitchVal : char
         {
             Down = 0,
@@ -214,15 +65,13 @@ struct LameJuisInternal
 
         struct Input
         {
-            Operator m_operator;
-            bool m_direct[x_numInputs + 1];
+            bool m_rhs[x_numInputs + 1];
             SwitchVal m_switch;
             MatrixSwitch m_elements[x_numInputs];
-            BitVector* m_inputVector;
+            HarmonicSheaf::BitVector* m_inputVector;
 
             Input()
-                : m_operator(Operator::And)
-                , m_direct{}
+                : m_rhs{}
                 , m_switch(SwitchVal::Up)
                 , m_elements{}
                 , m_inputVector(nullptr)
@@ -234,7 +83,7 @@ struct LameJuisInternal
 
                 for (size_t i = 0; i < x_numInputs + 1; ++i)
                 {
-                    m_direct[i] = false;
+                    m_rhs[i] = i % 2 == 1;
                 }                
             }
         };
@@ -251,7 +100,6 @@ struct LameJuisInternal
         
         void Init(LameJuisInternal* owner)
         {
-            m_operator = Operator::And;
             m_switch = SwitchVal::Up;
             m_gate = false;
             m_countTotal = 0;
@@ -266,11 +114,11 @@ struct LameJuisInternal
 
             for (size_t i = 0; i < x_numInputs + 1; ++i)
             {
-                m_direct[i] = false;
+                m_rhs[i] = i % 2 == 1;
             }
         }
 
-        void GetTotalAndHigh(BitVector inputVector, size_t* countTotal, size_t* countHigh)
+        void GetTotalAndHigh(HarmonicSheaf::BitVector inputVector, size_t* countTotal, size_t* countHigh)
         {
             // And with m_active to mute the muted inputs.
             // Xor with m_inverted to invert the inverted ones.
@@ -282,34 +130,17 @@ struct LameJuisInternal
             *countHigh = inputVector.CountSetBits();                        
         }
 
-        bool ComputeOperation(size_t countTotal, size_t countHigh)
+        bool ComputeOperation(size_t countHigh)
         {
-            bool ret = false;
-            switch (m_operator)
-            {
-                case Operator::Or: ret = (countHigh > 0); break;
-                case Operator::And: ret = (countHigh == countTotal); break;
-                case Operator::Xor: ret = (countHigh % 2 == 1); break;
-                case Operator::AtLeastTwo: ret = (countHigh >= 2); break;
-                case Operator::Majority: ret = (2 * countHigh > countTotal); break;
-                case Operator::Off: ret = false; break;
-                case Operator::Direct:
-                {
-                    ret = m_direct[countHigh];
-                    break;
-                }
-                case Operator::NumOperations: ret = false; break;
-            }
-            
-            return ret;
+            return m_rhs[countHigh];            
         }
 
-        bool GetValue(BitVector inputVector)
+        bool GetValue(HarmonicSheaf::BitVector inputVector)
         {
             size_t countTotal;
             size_t countHigh;
             GetTotalAndHigh(inputVector, &countTotal, &countHigh);            
-            return ComputeOperation(countTotal, countHigh);
+            return ComputeOperation(countHigh);
         }
 
         // Up is output zero but input id 2, so invert.
@@ -347,17 +178,11 @@ struct LameJuisInternal
 
             if (anyEffect)
             {
-                if (m_operator != input.m_operator)
-                {
-                    m_operator = input.m_operator;
-                    m_owner->m_needsInvalidateCache = true;
-                }
-
                 for (size_t i = 0; i < x_numInputs + 1; ++i)
                 {
-                    if (m_direct[i] != input.m_direct[i])
+                    if (m_rhs[i] != input.m_rhs[i])
                     {
-                        m_direct[i] = input.m_direct[i];
+                        m_rhs[i] = input.m_rhs[i];
                         m_owner->m_needsInvalidateCache = true;
                     }
                 }
@@ -369,7 +194,7 @@ struct LameJuisInternal
                 }
 
                 GetTotalAndHigh(*input.m_inputVector, &m_countTotal, &m_countHigh);            
-                m_gate = ComputeOperation(m_countTotal, m_countHigh);                
+                m_gate = ComputeOperation(m_countHigh);                
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
                     bool up = input.m_inputVector->Get(i);
@@ -379,11 +204,10 @@ struct LameJuisInternal
             }
         }
 
-        BitVector m_active;
-        BitVector m_inverted;
+        HarmonicSheaf::BitVector m_active;
+        HarmonicSheaf::BitVector m_inverted;
 
-        Operator m_operator{Operator::And};
-        bool m_direct[x_numInputs + 1]{};
+        bool m_rhs[x_numInputs + 1]{};
         SwitchVal m_switch{SwitchVal::Up};
         size_t m_countTotal{0};
         size_t m_countHigh{0};
@@ -416,14 +240,10 @@ struct LameJuisInternal
 
         struct Input
         {
-            bool m_12EDOMode;
             Interval m_interval;
-            float m_intervalOffset;
             
             Input()
-                : m_12EDOMode(false)
-                , m_interval(Interval::Off)
-                , m_intervalOffset(0)
+                : m_interval(Interval::Off)
             {
             }
         };        
@@ -459,46 +279,11 @@ struct LameJuisInternal
             0.70043971814 /*log_2(13/8)*/,
             0.95419631038 /*log_2(31/16)*/,
         };
-
-        // Fake semitones map for the expander.
-        //
-        static constexpr int x_semitones[] = {
-            0 /*Off*/,
-            0 /*octave*/,
-            7 /*pefect fifth*/,
-            4 /*major third*/,
-            5 /*perfect fourth*/,
-            3 /*minor third*/,
-            2 /*whole tone*/,
-            1 /*half step*/,
-            0 /*7/4*/,
-            0 /*11/8*/,
-            0 /*13/8*/,
-            0 /*31/16*/,
-        };
-
-        static constexpr size_t x_end12EDOLikeIx = 8;
         
         Interval m_interval;
-        float m_intervalOffset;
         float m_intervalValue;
-        bool m_12EDOMode;
         LameJuisInternal* m_owner;
         
-        int GetSemitones()
-        {
-            return x_semitones[static_cast<int>(m_interval)];
-        }
-
-        bool Is12EDOLike()
-        {
-            // More sophisticated analysis could work here, but honestly if the user provides an analog
-            // interval just have the expander display in cents (that is, say its not 12-EDO-like).
-            //
-            return m_intervalOffset == 0 &&
-                static_cast<size_t>(m_interval) < x_end12EDOLikeIx;
-        }
-
         void Process(Input& input)
         {
             bool change = false;
@@ -508,26 +293,9 @@ struct LameJuisInternal
                 m_interval = input.m_interval;
             }
 
-            if (m_intervalOffset != input.m_intervalOffset)
-            {
-                change = true;
-                m_intervalOffset = input.m_intervalOffset;
-            }
-
-            if (m_12EDOMode != input.m_12EDOMode)
-            {
-                change = true;
-                m_12EDOMode = input.m_12EDOMode;
-            }
-
             if (change)
             {
-                m_intervalValue = x_voltages[static_cast<size_t>(m_interval)] + m_intervalOffset;
-                if (m_12EDOMode)
-                {
-                    m_intervalValue = static_cast<float>(static_cast<int>(m_intervalValue * 12 + 0.5)) / 12.0;
-                }
-
+                m_intervalValue = x_voltages[static_cast<size_t>(m_interval)];
                 m_owner->m_needsInvalidateCache = true;
             }
         }
@@ -536,373 +304,48 @@ struct LameJuisInternal
         {
             m_owner = owner;
             m_interval = Interval::Off;
-            m_intervalOffset = 0;
             m_intervalValue = 0;
-            m_12EDOMode = false;
         }
     };
 
-    struct MatrixEvalResult
+    HarmonicSheaf::Evaluator GetEvaluator()
     {
-        MatrixEvalResult()
-            : m_high{}
-            , m_total{}
-        {
-            for (size_t i = 0; i < x_numAccumulators; ++i)
-            {
-                m_high[i] = 0;
-                m_total[i] = 0;
-            }
-        }
-
-        void Clear()
-        {
-            memset(m_high, 0, x_numAccumulators);
-            memset(m_total, 0, x_numAccumulators);
-        }
-
-        float ComputePitch(Accumulator* accumulators) const
-        {
-            float result = 0;
-            for (size_t i = 0; i < x_numAccumulators; ++i)
-            {
-                result += accumulators[i].m_intervalValue * m_high[i];
-            }
-
-            return result;
-        }
-
-        bool operator==(const MatrixEvalResult& other)
-        {
-            for (size_t i = 0; i < x_numAccumulators; ++i)
-            {
-                if (m_high[i] != other.m_high[i])
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        bool operator!=(const MatrixEvalResult& other)
-        {
-            return !(*this == other);
-        }
-
-        bool operator<(const MatrixEvalResult& other) const
-        {            
-            for (size_t i = 0; i < x_numAccumulators; ++i)
-            {
-                if (m_high[i] != other.m_high[i])
-                {
-                    return m_high[i] < other.m_high[i];
-                }
-            }
-
-            return false;
-        }
-
-        float Timbre(size_t i) const
-        {
-            if (m_high[i] == 0)
-            {
-                return 0;
-            }
-            else if (m_high[i] == m_total[i])
-            {
-                return 1;
-            }
-            else
-            {
-                return static_cast<float>(m_high[i]) / m_total[i];
-            }
-        }
-
-        size_t RotateAvoidOffset(size_t toAvoid)
-        {
-            size_t minIx = 0;
-            for (size_t i = 0; i < x_numAccumulators; ++i)
-            {
-                if (m_total[i] < m_total[minIx])
-                {
-                    minIx = i;
-                }
-            }
-
-            return (toAvoid - minIx) % x_numAccumulators;
-        }
-
-        uint8_t Timbre256(size_t i) const
-        {
-            if (m_high[i] == 0)
-            {
-                return 0;
-            }
-            else if (m_high[i] == m_total[i])
-            {
-                return 255;
-            }
-            else
-            {
-                return static_cast<uint8_t>(m_high[i] * 255 / m_total[i]);
-            }
-        }
-        
-        uint8_t m_high[x_numAccumulators];
-        uint8_t m_total[x_numAccumulators];
-    };
-
-    void ClearCaches()
-    {        
-        memset(m_isEvaluated, 0, sizeof(m_isEvaluated));
-        ClearOutputCaches();
-        m_needsInvalidateCache = false;
-    }
-
-    void ClearOutputCaches()
-    {                
+        HarmonicSheaf::Evaluator evaluator;
         for (size_t i = 0; i < x_numAccumulators; ++i)
         {
-            m_outputs[i].ClearOutputCaches();
+            evaluator.m_coefficients[i] = m_accumulators[i].m_intervalValue;
+        }
+
+        return evaluator;
+    }
+
+    void RebuildSheafIfNeeded()
+    {
+        if (m_needsInvalidateCache)
+        {
+            m_needsInvalidateCache = false;
+            RebuildSheaf();            
         }
     }
 
-    void ClearLastStep()
-    {               
-        for (size_t i = 0; i < x_numAccumulators; ++i)
+    void RebuildSheaf()
+    {       
+        for (uint8_t i = 0; i < HarmonicSheaf::x_numBasePoints; ++i)
         {
-            m_outputs[i].ClearLastStep();
-        }        
-    }
-
-    struct MatrixEvalResultWithPitch
-    {
-        MatrixEvalResultWithPitch()
-            : m_pitch(0)
-            , m_isMuted(false)
-        {
-        }
-
-        MatrixEvalResultWithPitch(
-            const MatrixEvalResult& result,
-            Accumulator* accumulators)
-            : m_result(result)
-            , m_pitch(result.ComputePitch(accumulators))
-            , m_isMuted(false)
-        {
-        }
-
-        bool operator<(const MatrixEvalResultWithPitch& other) const
-        {
-            return std::tie(m_pitch, m_result) < std::tie(other.m_pitch, other.m_result);
-        }
-
-        bool operator<(float pitch) const
-        {
-            return m_pitch < pitch;
-        }
-
-        void OctaveReduce()
-        {
-            m_pitch = m_pitch - std::floor(m_pitch);
-        }
-
-        float Timbre(size_t i) const
-        {
-            return m_result.Timbre(i);
-        }
-        
-        MatrixEvalResult m_result;
-        float m_pitch;
-        bool m_isMuted;
-    };
-
-    MatrixEvalResult EvalMatrixBase(BitVector inputVector)
-    {
-        MatrixEvalResult& result = m_evalResults[inputVector.m_bits];
-        
-        if (!m_isEvaluated[inputVector.m_bits])
-        {
-            result.Clear();
-            for (size_t i = 0; i < x_numOperations; ++i)
+            HarmonicSheaf::BitVector index(i);
+            HarmonicSheaf::Section& section = m_sheaf.Get(index);
+            section.Clear();
+            for (size_t j = 0; j < x_numOperations; ++j)
             {
-                size_t outputId = m_operations[i].GetOutputTarget();
-                bool isHigh = m_operations[i].GetValue(inputVector);
-                ++result.m_total[outputId];
+                bool isHigh = m_operations[j].GetValue(index);
+                ++section.m_total[m_operations[j].GetOutputTarget()];
                 if (isHigh)
                 {
-                    ++result.m_high[outputId];
+                    ++section.m_high[m_operations[j].GetOutputTarget()];
                 }
             }
-            
-            m_isEvaluated[inputVector.m_bits] = true;
         }
-        
-        return result;
     }
-
-    MatrixEvalResultWithPitch EvalMatrix(BitVector inputVector)
-    {
-        return MatrixEvalResultWithPitch(EvalMatrixBase(inputVector), m_accumulators);
-    }
-
-    struct TimeSliceOrdinalConverter
-    {
-        Lens m_lens;
-        size_t m_lensDimension;
-        size_t m_forwardingIndices[x_numInputs];
-
-        TimeSliceOrdinalConverter()
-            : m_lens(0)
-            , m_lensDimension(0)
-        {
-        }
-
-        TimeSliceOrdinalConverter(Lens lens)
-            : m_lens(0)
-            , m_lensDimension(0)
-            , m_forwardingIndices{}
-        {
-            SetLens(lens);
-        }
-
-        void SetLens(Lens lens)
-        {
-            m_lens = lens;
-            m_lensDimension = lens.CountSetBits();
-            
-            size_t j = 0;
-            for (size_t i = 0; i < m_lensDimension; ++i)
-            {
-                while (!m_lens.Get(j))
-                {
-                    ++j;
-                }
-                
-                m_forwardingIndices[i] = j;
-                ++j;
-            }
-        }
-
-        BitVector Convert(uint8_t ordinal)
-        {
-            BitVector result(0);
-            // Shift the bits of ordinal into the unset positions of the lens.
-            //
-            for (size_t i = 0; i < m_lensDimension; ++i)
-            {
-                result.Set(m_forwardingIndices[i], BitVector(ordinal).Get(i));
-            }
-            
-            return result;
-        }
-    };
-
-    struct TimeSliceClassOrdinalConverter
-    {
-        Lens m_lens;
-        size_t m_lensCoDimension;
-        size_t m_forwardingIndices[x_numInputs];
-
-        TimeSliceClassOrdinalConverter()
-            : m_lens(0)
-            , m_lensCoDimension(0)
-        {
-        }
-
-        TimeSliceClassOrdinalConverter(Lens lens)
-            : m_lens(0)
-            , m_lensCoDimension(0)
-            , m_forwardingIndices{}
-        {
-            SetLens(lens);
-        }
-
-        void SetLens(Lens lens)
-        {
-            m_lens = lens;
-            m_lensCoDimension = x_numInputs - lens.CountSetBits();
-            
-            size_t j = 0;
-            for (size_t i = 0; i < m_lensCoDimension; ++i)
-            {
-                while (m_lens.Get(j))
-                {
-                    ++j;
-                }
-                
-                m_forwardingIndices[i] = j;
-                ++j;
-            }
-        }
-
-        BitVector Convert(BitVector representative, uint8_t ordinal)
-        {
-            // Shift the bits of ordinal into the set positions of the lens.
-            //
-            for (size_t i = 0; i < m_lensCoDimension; ++i)
-            {
-                representative.Set(m_forwardingIndices[i], BitVector(ordinal).Get(i));
-            }
-
-            return representative;
-        }
-    };
-
-    struct TimeSliceClassIterator
-    {
-        uint8_t m_ordinal = 0;
-        BitVector m_defaultVector;
-        TimeSliceClassOrdinalConverter m_converter;
-
-        TimeSliceClassIterator(Lens lens, BitVector defaultVector)
-            : m_defaultVector(defaultVector)
-            , m_converter(lens)
-        {
-        }
-
-        BitVector Get()
-        {
-            return m_converter.Convert(m_defaultVector, m_ordinal);
-        }
-        
-        void Next()
-        {
-            ++m_ordinal;
-        }
-        
-        bool Done()
-        {
-            return (1 << m_converter.m_lensCoDimension) <= m_ordinal;
-        }        
-    };
-
-    struct TimeSliceIterator
-    {
-        uint8_t m_ordinal = 0;
-        TimeSliceOrdinalConverter m_converter;
-
-        TimeSliceIterator(Lens lens)
-            : m_converter(lens)
-        {
-        }
-
-        BitVector Get()
-        {
-            return m_converter.Convert(m_ordinal);
-        }
-        
-        void Next()
-        {
-            ++m_ordinal;
-        }
-        
-        bool Done()
-        {
-            return (1 << m_converter.m_lensDimension) <= m_ordinal;
-        }        
-    };
 
     struct GridSheafView
     {
@@ -911,10 +354,10 @@ struct LameJuisInternal
         
         struct CellInfo
         {
-            BitVector m_baseTimeSlice;
+            HarmonicSheaf::BitVector m_baseTimeSlice;
             bool m_isCurrentSlice;
-            MatrixEvalResult m_localHarmonicPosition;
-            bool m_isPlaying[x_maxPoly];
+            HarmonicSheaf::Section m_localHarmonicPosition;
+            bool m_isPlaying[x_channelsPerLane];
             bool m_isMuted;
 
             CellInfo()
@@ -929,7 +372,7 @@ struct LameJuisInternal
 
         struct TimeSliceXYConverter
         {
-            Lens m_lens;
+            HarmonicSheaf::Lens m_lens;
             size_t m_lensCoDimension;
             size_t m_forwardingIndex[x_numInputs];
 
@@ -940,7 +383,7 @@ struct LameJuisInternal
             {
             }
 
-            void SetLens(Lens lens)
+            void SetLens(HarmonicSheaf::Lens lens)
             {
                 m_lens = lens;
                 m_lensCoDimension = x_numInputs - lens.CountSetBits();
@@ -965,10 +408,10 @@ struct LameJuisInternal
                 }
             }
 
-            BitVector Convert(uint8_t x, uint8_t y) 
+            HarmonicSheaf::BitVector Convert(uint8_t x, uint8_t y) 
             {
-                BitVector xy(x | (y << x_gridSizeBits));
-                BitVector result;
+                HarmonicSheaf::BitVector xy(x | (y << x_gridSizeBits));
+                HarmonicSheaf::BitVector result;
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
                     result.Set(i, xy.Get(m_forwardingIndex[i]));
@@ -979,14 +422,14 @@ struct LameJuisInternal
         };
 
         TimeSliceXYConverter m_timeSliceXYConverter;
-        BitVector m_cellBaseTimeSlices[x_gridSize][x_gridSize];
+        HarmonicSheaf::BitVector m_cellBaseTimeSlices[x_gridSize][x_gridSize];
 
-        bool LensEquivalent(BitVector a, BitVector b)
+        bool LensEquivalent(HarmonicSheaf::BitVector a, HarmonicSheaf::BitVector b)
         {
             return m_timeSliceXYConverter.m_lens.Equivalent(a, b);
         }
 
-        void SetLens(Lens lens)
+        void SetLens(HarmonicSheaf::Lens lens)
         {
             m_timeSliceXYConverter.SetLens(lens);
             ComputeCells();
@@ -1004,48 +447,27 @@ struct LameJuisInternal
         }   
     };   
 
-    struct Output
+    struct Lane
     {
         struct CoMuteState
         {
             struct Input
             {
                 bool m_coMutes[x_numInputs];
-                size_t m_polyChans;
-                float m_percentiles[x_maxPoly];
-                bool m_harmonic[x_maxPoly];
-                bool m_usePercentile[x_maxPoly];
-                float m_toQuantize[x_maxPoly];
-                int m_octave[x_maxPoly];
                 
                 Input()
                     : m_coMutes{}
-                    , m_polyChans(0)
-                    , m_percentiles{}
-                    , m_harmonic{}
-                    , m_usePercentile{}
-                    , m_toQuantize{}
-                    , m_octave{}
                 {
                     for (size_t i = 0; i < x_numInputs; ++i)
                     {
                         m_coMutes[i] = false;
                     }
-                    
-                    for (size_t i = 0; i < x_maxPoly; ++i)
-                    {
-                        m_percentiles[i] = 0;
-                        m_harmonic[i] = false;
-                        m_usePercentile[i] = false;
-                        m_toQuantize[i] = 0;
-                        m_octave[i] = 0;
-                    }
                 }
             };
             
-            Lens GetLens()
+            HarmonicSheaf::Lens GetLens()
             {                                
-                Lens result;
+                HarmonicSheaf::Lens result;
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
                     result.Set(i, !m_coMutes[i]);
@@ -1054,21 +476,11 @@ struct LameJuisInternal
                 return result;
             }
             
-            void Init(Output* owner)
+            void Init(Lane* owner)
             {                                
-                m_polyChans = 0;
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
                     m_coMutes[i] = false;
-                }
-
-                for (size_t i = 0; i < x_maxPoly; ++i)
-                {
-                    m_percentiles[i] = 0;
-                    m_harmonic[i] = false;
-                    m_usePercentile[i] = false;
-                    m_toQuantize[i] = 0;
-                    m_octave[i] = 0;
                 }
 
                 m_owner = owner;
@@ -1076,234 +488,55 @@ struct LameJuisInternal
             
             void Process(Input& input)
             {                               
-                m_polyChans = input.m_polyChans;
-                
-                for (size_t i = 0; i < m_polyChans; ++i)
-                {
-                    m_percentiles[i] = input.m_percentiles[i];
-                    m_harmonic[i] = input.m_harmonic[i];
-                    m_usePercentile[i] = input.m_usePercentile[i];
-                    m_toQuantize[i] = input.m_toQuantize[i];
-                    m_octave[i] = input.m_octave[i];
-                }
-                
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
                     if (m_coMutes[i] != input.m_coMutes[i] &&
                         m_owner->m_owner->m_inputs[i].m_changed)
                     {
                         m_coMutes[i] = input.m_coMutes[i];
-                        m_owner->m_needsInvalidateCache = true;
+                        m_owner->m_gridSheafView.SetLens(GetLens());
                     }
                 }
             }
             
             bool m_coMutes[x_numInputs];
-            float m_percentiles[x_maxPoly];
-            bool m_harmonic[x_maxPoly];
-            bool m_usePercentile[x_maxPoly];
-            float m_toQuantize[x_maxPoly];
-            int m_octave[x_maxPoly];
-            size_t m_polyChans;
-            Output* m_owner;
+            Lane* m_owner;
         };
 
-        template<bool Harmonic>
-        struct CacheForSingleBitVector
+        struct Chooser
         {
-            CacheForSingleBitVector() :
-                m_isEvaluated(false)
+            struct Input
             {
-            }
-            
-            void ClearCache()
-            {
-                m_isEvaluated = false;
-            }
-            
-            MatrixEvalResultWithPitch ComputePitch(
-                LameJuisInternal* matrix,
-                LameJuisInternal::Output* output,
-                LameJuisInternal::BitVector defaultVector,
-                size_t chan)
-            {
-                Eval(matrix, output, defaultVector);
+                HarmonicSheaf::SectionChoiceStrategy m_strategy;
+                HarmonicSheaf::SectionChoiceStrategy m_baseStrategy;
+                float m_choiceArg[x_channelsPerLane];
 
-                int octave = output->m_coMuteState.m_octave[chan];
-                MatrixEvalResultWithPitch result;
-                if (output->m_coMuteState.m_usePercentile[chan])
+                Input()
+                    : m_strategy(HarmonicSheaf::SectionChoiceStrategy::ClosestModOne)
+                    , m_baseStrategy(HarmonicSheaf::SectionChoiceStrategy::None)
+                    , m_choiceArg{}
                 {
-                    result = m_cachedResults[PercentileToIx(output->m_coMuteState.m_percentiles[chan])];
-                    result.m_pitch += std::floor(output->m_coMuteState.m_percentiles[chan]);
                 }
-                else 
-                {
-                    result = Quantize(output->m_coMuteState.m_toQuantize[chan]);
-                }
+            };
 
-                result.m_pitch += octave;
-                return result;
-            }
+            Lane* m_owner;
 
-            void Eval(
-                LameJuisInternal* matrix,
-                LameJuisInternal::Output* output,
-                LameJuisInternal::BitVector defaultVector)
+            Chooser(Lane* owner)
+                : m_owner(owner)
             {
-                if (!m_isEvaluated)
-                {
-                    TimeSliceClassIterator itr = output->GetBitVectorIterator(defaultVector);
-                    for (; !itr.Done(); itr.Next())
-                    {
-                        m_cachedResults[itr.m_ordinal] = matrix->EvalMatrix(itr.Get());
-                    }
-                    
-                    m_numResults = itr.m_ordinal;
+            }            
 
-                    if (!Harmonic)
-                    {
-                        for (size_t i = 0; i < m_numResults; ++i)
-                        {                            
-                            m_cachedResults[i].OctaveReduce();
-                        }
-                    }
-                    
-                    std::sort(m_cachedResults, m_cachedResults + m_numResults);
-
-                    size_t cur = 0;
-                    m_resultOrd[0] = 0;
-                    m_reverseIndex[0] = 0;
-
-                    for (size_t i = 1; i < m_numResults; ++i)
-                    {
-                        if (m_cachedResults[i].m_pitch != m_cachedResults[i - 1].m_pitch)
-                        {
-                            ++cur;
-                            m_reverseIndex[cur] = i;
-                        }
-
-                        m_resultOrd[i] = cur;
-                    }
-                    
-                    m_numDistinctResults = cur + 1;
-                    
-                    m_isEvaluated = true;
-                }
-            }
-            
-            ssize_t PercentileToIx(float percentile)
+            HarmonicSheaf::SectionWithValue Choose(Input& input, size_t voiceIx, HarmonicSheaf::BitVector defaultVector)
             {
-                percentile = percentile - std::floor(percentile);
-                ssize_t ix = static_cast<size_t>(percentile * m_numResults);
-                ix = std::min<ssize_t>(ix, m_numResults - 1);
-                ix = std::max<ssize_t>(ix, 0);
-                return ix;
-            }             
-
-            MatrixEvalResultWithPitch Quantize(float pitch)
-            {
-                int octave = std::floor(pitch);
-                float pitchModOctave = pitch - octave;
-                MatrixEvalResultWithPitch result = QuantizeModOctave(pitchModOctave);
-                result.m_pitch += octave;
-                return result;
-            }
-
-            MatrixEvalResultWithPitch QuantizeModOctave(float pitch)
-            {
-                auto itr = std::lower_bound(m_cachedResults, m_cachedResults + m_numResults, pitch);
-                if (itr == m_cachedResults && itr->m_pitch - pitch > pitch + 1 - m_cachedResults[m_numResults - 1].m_pitch)
-                {
-                    return m_cachedResults[m_numResults - 1];
-                }
-                else if (itr == m_cachedResults + m_numResults) 
-                {
-                    if (pitch - m_cachedResults[m_numResults - 1].m_pitch > m_cachedResults[0].m_pitch - pitch + 1)
-                    {
-                        return m_cachedResults[0];
-                    }
-                    else
-                    {
-                        return m_cachedResults[m_numResults - 1];
-                    }
-                }
-                else
-                {
-                    return *itr;
-                }
-            }
-            
-            MatrixEvalResultWithPitch m_cachedResults[1 << x_numInputs];
-            size_t m_resultOrd[1 << x_numInputs];
-            size_t m_reverseIndex[1 << x_numInputs];
-            size_t m_numResults;
-            size_t m_numDistinctResults;
-            bool m_isEvaluated;
-        };
-
-        struct SheafMutes
-        {
-            uint64_t m_mutes[x_numOperations + 1][x_numOperations + 1][x_numOperations + 1];
-
-            bool Get(Lens lens, BitVector timeSlice, MatrixEvalResult result)
-            {
-                uint64_t mask = static_cast<uint64_t>(1) << lens.Canonicalize(timeSlice).m_bits;
-                return (m_mutes[result.m_high[0]][result.m_high[1]][result.m_high[2]] & mask) != 0;
-            }
-
-            void Set(BitVector timeSlice, MatrixEvalResult result, bool mute)
-            {
-                uint64_t mask = static_cast<uint64_t>(1) << timeSlice.m_bits;
-                if (mute)
-                {
-                    m_mutes[result.m_high[0]][result.m_high[1]][result.m_high[2]] |= mask;
-                }
-                else
-                {
-                    m_mutes[result.m_high[0]][result.m_high[1]][result.m_high[2]] &= ~mask;
-                }
-            }
-
-            void SetTimeSlice(Lens lens, BitVector timeSlice, MatrixEvalResult result, bool mute)
-            {
-                TimeSliceClassIterator iter(lens, timeSlice);
-                while (!iter.Done())
-                {
-                    Set(iter.Get(), result, mute);
-                    iter.Next();
-                }
-            }
-
-            void AddState(size_t index, ScenedStateSaver* saver)
-            {
-                for (size_t i = 0; i < x_numOperations + 1; ++i)
-                {
-                    for (size_t j = 0; j < x_numOperations + 1; ++j)
-                    {
-                        for (size_t k = 0; k < x_numOperations + 1; ++k)
-                        {
-                            if (i + j + k <= x_numOperations)
-                            {
-                                size_t offset = i + (x_numOperations + 1) * (j + (x_numOperations + 1) * k);
-                                saver->Insert("SheafMute", index, offset, &m_mutes[i][j][k]);
-                            }
-                        }
-                    }
-                }
-            }
-
-            void Init(LameJuisInternal* owner)
-            {
-                for (size_t i = 0; i < x_numOperations + 1; ++i)
-                {
-                    for (size_t j = 0; j < x_numOperations + 1; ++j)
-                    {
-                        for (size_t k = 0; k < x_numOperations + 1; ++k)
-                        {
-                            m_mutes[i][j][k] = 0;
-                        }
-                    }
-                }
+                HarmonicSheaf::SectionChooser chooser;
+                chooser.m_strategy = input.m_baseStrategy;
+                chooser.m_evaluator = m_owner->GetEvaluator();
+                chooser.m_choiceArg = input.m_choiceArg[voiceIx];
+                HarmonicSheaf::SectionWithValue baseSection = chooser.Choose(m_owner->m_owner->m_sheaf, m_owner->m_coMuteState.GetLens(), defaultVector);
+                
+                chooser.m_strategy = input.m_strategy;
+                chooser.m_choiceArg += baseSection.m_value;
+                return chooser.Choose(m_owner->m_owner->m_sheaf, m_owner->m_coMuteState.GetLens(), defaultVector);
             }
         };
 
@@ -1311,215 +544,126 @@ struct LameJuisInternal
         {
             Input()
                 : m_coMuteInput()
-                , m_prevVector(nullptr)
                 , m_inputVector(nullptr)
+                , m_updateChan{}
             {
             }
 
             CoMuteState::Input m_coMuteInput;
-            BitVector* m_prevVector;
-            BitVector* m_inputVector;
+            Chooser::Input m_chooserInput;
+            HarmonicSheaf::BitVector* m_inputVector;
+            bool m_updateChan[x_channelsPerLane];
         };
 
-        bool m_needsInvalidateCache{false};
-        bool m_trigger[x_maxPoly]{};
-        MatrixEvalResultWithPitch m_pitch[x_maxPoly];
-        CoMuteState m_coMuteState;
+        bool m_trigger[x_channelsPerLane]{};
+        HarmonicSheaf::SectionWithValue m_pitch[x_channelsPerLane];
+        CoMuteState m_coMuteState;        
 
         GridSheafView m_gridSheafView;
 
-        CacheForSingleBitVector<true> m_harmonicOutputCaches[1 << x_numInputs];
-        CacheForSingleBitVector<false> m_melodicOutputCaches[1 << x_numInputs];
-        bool m_lastStepEvaluated{false};
-
         LameJuisInternal* m_owner{nullptr};
 
-        SheafMutes m_sheafMutes;
-
-        size_t GetPolyChans()
+        HarmonicSheaf::Evaluator GetEvaluator()
         {
-            return m_coMuteState.m_polyChans;
-        }
-        
-        void ClearOutputCaches()
-        {            
-            for (size_t i = 0; i < (1 << x_numInputs); ++i)
-            {
-                m_harmonicOutputCaches[i].ClearCache();
-                m_melodicOutputCaches[i].ClearCache();
-            }
-
-            ClearLastStep();
-
-            m_gridSheafView.SetLens(m_coMuteState.GetLens());
-
-            m_needsInvalidateCache = false;
+            return m_owner->GetEvaluator();
         }
 
-        void ClearLastStep()
-        {
-            m_lastStepEvaluated = false;
-        }
-        
         void Process(Input& input)
         {
             m_coMuteState.Process(input.m_coMuteInput);
-            if (m_needsInvalidateCache)
+            for (size_t i = 0; i < x_channelsPerLane; ++i)
             {
-                ClearOutputCaches();
-            }
-                    
-            for (size_t i = 0; i < GetPolyChans(); ++i)
-            {
-                if (!m_lastStepEvaluated)
+                if (input.m_updateChan[i])
                 {
-                    m_pitch[i] = ComputePitch(m_owner, *input.m_prevVector, i);
+                    Chooser chooser(this);
+                    HarmonicSheaf::SectionWithValue section = chooser.Choose(input.m_chooserInput, i, *input.m_inputVector);
+                    m_trigger[i] = section != m_pitch[i];
+                    m_pitch[i] = section;
                 }
-                
-                bool timeSliceChanged = !m_coMuteState.GetLens().Equivalent(*input.m_inputVector, *input.m_prevVector);
-                SetPitch(ComputePitch(m_owner, *input.m_inputVector, i), i, timeSliceChanged);
+                else
+                {
+                    m_trigger[i] = false;
+                }
             }
-            
-            m_lastStepEvaluated = true;            
         }
 
         GridSheafView::CellInfo GetCellInfo(uint8_t x, uint8_t y)
         {
             GridSheafView::CellInfo cellInfo;
             cellInfo.m_baseTimeSlice = m_gridSheafView.m_cellBaseTimeSlices[x][y];
-            BitVector currentBaseSlice = m_owner->m_inputVector;
+            HarmonicSheaf::BitVector currentBaseSlice = m_owner->m_inputVector;
             cellInfo.m_isCurrentSlice = m_gridSheafView.LensEquivalent(currentBaseSlice, cellInfo.m_baseTimeSlice);
-            cellInfo.m_localHarmonicPosition = m_owner->EvalMatrixBase(cellInfo.m_baseTimeSlice);
-            cellInfo.m_isMuted = GetSheafMute(cellInfo.m_baseTimeSlice, cellInfo.m_localHarmonicPosition);
-            for (size_t i = 0; i < GetPolyChans(); ++i)
+            cellInfo.m_localHarmonicPosition = m_owner->m_sheaf.Get(cellInfo.m_baseTimeSlice);
+            cellInfo.m_isMuted = false;
+            for (size_t i = 0; i < x_channelsPerLane; ++i)
             {
-                cellInfo.m_isPlaying[i] = m_pitch[i].m_result == cellInfo.m_localHarmonicPosition;
+                cellInfo.m_isPlaying[i] = m_pitch[i].m_section == cellInfo.m_localHarmonicPosition;
             }
 
             return cellInfo;
         }
-
-        MatrixEvalResultWithPitch ComputePitch(LameJuisInternal* matrix, BitVector defaultVector, size_t chan)
-        {
-            bool harmonic = m_coMuteState.m_harmonic[chan];
-            MatrixEvalResultWithPitch result;
-            if (harmonic)
-            {
-                result = m_harmonicOutputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, chan);
-            }
-            else
-            {
-                result = m_melodicOutputCaches[defaultVector.m_bits].ComputePitch(matrix, this, defaultVector, chan);
-            }
-
-            result.m_isMuted = GetSheafMute(defaultVector, result.m_result);
-            return result;
-        }            
-       
-        void SetPitch(MatrixEvalResultWithPitch pitch, size_t chan, bool timeSliceChanged)
-        {
-            bool newTrigger = (pitch.m_result != m_pitch[chan].m_result &&
-                               pitch.m_pitch != m_pitch[chan].m_pitch);
-            newTrigger = (newTrigger || (timeSliceChanged && m_pitch[chan].m_isMuted)) && !pitch.m_isMuted;
-            m_trigger[chan] = newTrigger;
-            m_pitch[chan] = pitch;
-        }
                 
-        TimeSliceClassIterator GetBitVectorIterator(BitVector defaultVector)
+        HarmonicSheaf::TimeSliceClassIterator GetBitVectorIterator(HarmonicSheaf::BitVector defaultVector)
         {
-            return TimeSliceClassIterator(m_coMuteState.GetLens(), defaultVector);
+            return HarmonicSheaf::TimeSliceClassIterator(m_coMuteState.GetLens(), defaultVector);
         }
 
-        void ToggleSheafMute(GridSheafView::CellInfo& cellInfo)
-        {
-            m_sheafMutes.SetTimeSlice(m_coMuteState.GetLens(), cellInfo.m_baseTimeSlice, cellInfo.m_localHarmonicPosition, !cellInfo.m_isMuted);
-        }
-
-        bool GetSheafMute(BitVector timeSlice, MatrixEvalResult result)
-        {
-            return m_sheafMutes.Get(m_coMuteState.GetLens(), timeSlice, result);
-        }
-        
         void Init(LameJuisInternal* owner)
         {
             m_owner = owner;
             m_coMuteState.Init(this);
-            m_lastStepEvaluated = false;
+        }
+
+        void Reset()
+        {
+            for (size_t i = 0; i < x_channelsPerLane; ++i)
+            {
+                m_pitch[i] = HarmonicSheaf::SectionWithValue();
+                for (size_t j = 0; j < x_numAccumulators; ++j)
+                {
+                    m_pitch[i].m_section.m_high[j] = 0xFF;
+                }
+            }
         }
     };
 
     GridSheafView::CellInfo GetCellInfo(size_t outputId, uint8_t x, uint8_t y)
     {
-        return m_outputs[outputId].GetCellInfo(x, y);
+        return m_lanes[outputId].GetCellInfo(x, y);
     }   
-
-    // This does not exactly follow our data model (setting things from Input), but fuck it computing this is annoying
-    //
-    void ToggleSheafMute(size_t outputId, uint8_t x, uint8_t y)
-    {
-        GridSheafView::CellInfo cellInfo = GetCellInfo(outputId, x, y);
-        m_outputs[outputId].ToggleSheafMute(cellInfo);
-    }
-
-    void AddSheafMuteState(ScenedStateSaver* saver)
-    {
-        for (size_t i = 0; i < x_numAccumulators; ++i)
-        {
-            m_outputs[i].m_sheafMutes.AddState(i, saver);
-        }
-    }
     
     struct Input
     {        
         InputBit::Input m_inputBitInput[x_numInputs];
         LogicOperation::Input m_operationInput[x_numOperations];
         Accumulator::Input m_accumulatorInput[x_numAccumulators];
-        Output::Input m_outputInput[x_numAccumulators];
+        Lane::Input m_laneInput[x_numLanes];
 
-        BitVector m_inputVector;
-        BitVector m_prevVector;
-        bool m_reset;
+        HarmonicSheaf::BitVector m_inputVector;
 
         void SetInputVectors(LameJuisInternal* owner)
         {            
             for (size_t i = 0; i < x_numInputs; ++i)
             {
                 m_inputVector.Set(i, owner->m_inputs[i].m_value);
-                m_prevVector.Set(i, owner->m_inputs[i].m_value != owner->m_inputs[i].m_changed);
-            }
-        }
-
-        void ClearPrevVector()
-        {
-            for (size_t i = 0; i < x_numInputs; ++i)
-            {
-                m_prevVector.Set(i, false);
             }
         }
 
         Input()
-        {
-            m_reset = false;
-            
-            for (size_t i = 0; i < x_numInputs; ++i)
-            {
-                m_inputBitInput[i].m_reset = &m_reset;                
-            }
-            
+        {            
             for (size_t i = 0; i < x_numOperations; ++i)
             {
                 m_operationInput[i].m_inputVector = &m_inputVector;
                 m_operationInput[i].m_elements[i] = MatrixSwitch::Normal;
                 for (size_t j = 0; j < x_numInputs + 1; ++j)
                 {
-                    m_operationInput[i].m_direct[j] = j % 2 == 1;
+                    m_operationInput[i].m_rhs[j] = j % 2 == 1;
                 }
             }
 
-            for (size_t i = 0; i < x_numAccumulators; ++i)
+            for (size_t i = 0; i < x_numLanes; ++i)
             {
-                m_outputInput[i].m_inputVector = &m_inputVector;
-                m_outputInput[i].m_prevVector = &m_prevVector;
+                m_laneInput[i].m_inputVector = &m_inputVector;
             }
 
             m_accumulatorInput[0].m_interval = Accumulator::Interval::PerfectFifth;
@@ -1546,30 +690,24 @@ struct LameJuisInternal
             m_accumulators[i].Process(input.m_accumulatorInput[i]);
         }
         
-        if (m_needsInvalidateCache)
-        {
-            ClearCaches();
-        }
+        RebuildSheafIfNeeded();
 
-        for (size_t i = 0; i < x_numAccumulators; ++i)
+        for (size_t i = 0; i < x_numLanes; ++i)
         {
-            m_outputs[i].Process(input.m_outputInput[i]);
+            m_lanes[i].Process(input.m_laneInput[i]);
         }
     }
 
-    BitVector m_inputVector;
-    MatrixEvalResult m_evalResults[1 << x_numInputs];
-    bool m_isEvaluated[1 << x_numInputs];
+    HarmonicSheaf::BitVector m_inputVector;
+    HarmonicSheaf::Sheaf m_sheaf;
 
     LameJuisInternal()
         : m_inputVector(0)
-        , m_evalResults{}
-        , m_isEvaluated{}
+        , m_sheaf()
         , m_needsInvalidateCache(false)
         , m_inputs{}
         , m_operations{}
         , m_accumulators{}
-        , m_outputs{}
     {
         Init();
     }
@@ -1586,13 +724,22 @@ struct LameJuisInternal
             m_operations[i].Init(this);
         }
         
-        for (size_t i = 0; i < x_numAccumulators; ++i)
+        for (size_t i = 0; i < x_numLanes; ++i)
         {
             m_accumulators[i].Init(this);
-            m_outputs[i].Init(this);
+            m_lanes[i].Init(this);
         }
 
         m_needsInvalidateCache = false;
+        Reset();
+    }
+
+    void Reset()
+    {
+        for (size_t i = 0; i < x_numLanes; ++i)
+        {
+            m_lanes[i].Reset();
+        }
     }
 
     bool m_needsInvalidateCache;
@@ -1600,8 +747,7 @@ struct LameJuisInternal
     InputBit m_inputs[x_numInputs];
     LogicOperation m_operations[x_numOperations];
     Accumulator m_accumulators[x_numAccumulators];
-    Output m_outputs[x_numAccumulators];
+    Lane m_lanes[x_numLanes];
 };
     
-constexpr float LameJuisInternal::Accumulator::x_voltages[];
-constexpr int LameJuisInternal::Accumulator::x_semitones[];    
+constexpr float LameJuisInternal::Accumulator::x_voltages[];    

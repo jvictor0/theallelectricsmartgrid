@@ -32,7 +32,7 @@ During a control frame, `Process` executes the following steps:
    - If the Theory of Time had any integer position change in the micro block (`m_theoryOfTime.AnyChangeInMicroBlock()`), the sequencer state must be updated.
    - `SetIndexArpInputs(input)` calculates `m_totalIndex` (monodromy) and clock/read gates.
    - `m_indexArp.Process(input.m_arpInput)` runs the arpeggiators to find the point in the range.
-   - `SetLameJuisInput(input)` feeds the Theory of Time gates and the index arp outputs (as percentiles or quantization targets) into LameJuis.
+   - `SetLameJuisInput(input)` feeds the Theory of Time gates and the index arp outputs (as `m_choiceArg` for the chosen strategy) into LameJuis.
    - `m_lameJuis.Process(input.m_lameJuisInput)` evaluates the logic matrix and sheaf to produce pitches and extra timbres.
 
 3. **Multi-Phasor Gate (Only when running)**:

@@ -22,21 +22,21 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 - **monodromy** — For a time loop (with `external == true`), the number of times its **gate** has **changed state** (flipped) since a chosen ancestor loop was at zero — or since the clock started if **no reset** is selected (`resetIx == -1`). So it counts half-cycles / state changes, not full revolutions. Exposed as `TheoryOfTime::MonodromyNumber(clockIx, resetIx)`. The arp uses this as `m_totalIndex` when the clock loop’s gate changes; `m_resetSelect` defaults to -1 (no reset).
 
-- **LameJuis** — Esoteric layered sequencer: maps the six Theory of Time gate bits to pitch via a **lens** (read/co-mute), a **sheaf** F^M_x(U), and an **index arp**. Each of 3 trios has one LameJuis output; the performer assigns a lens and picks a note from the sheaf using the arp. See [LameJuis](lamejuis.md).
+- **LameJuis** — Esoteric layered sequencer: maps the six Theory of Time gate bits to pitch via a **lens** (read/co-mute), a **sheaf** F^M_x(U), and an **index arp**. Each of 3 trios has one LameJuis lane; the performer assigns a lens and selects a strategy (e.g. Percentile or ClosestModOne) to pick a note from the sheaf using the arp. See [LameJuis](lamejuis.md).
 
 ---
 
 ## LameJuis
 
-- **lens** — A 6-bit mask: bit 1 = "read" (must agree for equivalence), bit 0 = "co-mute" (ignore). Defines equivalence x ~_U y and the sheaf F^M_x(U) = { M(y) | y ~_U x }. Set per output via "co-mutes" in the UI (`!m_coMutes[i]` = read dimension i).
+- **lens** — A 6-bit mask: bit 1 = "read" (must agree for equivalence), bit 0 = "co-mute" (ignore). Defines equivalence x ~_U y and the sheaf F^M_x(U) = { M(y) | y ~_U x }. Set per lane via "co-mutes" in the UI (`!m_coMutes[i]` = read dimension i).
 
-- **index arp** — Arpeggiator that turns the **monodromy** (state-change count of a chosen clock loop since reset) into a **point in a range**. Uses a **rhythm** pattern (`m_rhythm`, length 8) to gate steps; **m_index** = physical step among on steps; **m_motiveIndex** = rhythm page; output = f(m_index, m_motiveIndex) scaled to [m_min, m_max]. That value is used as a percentile (harmonic) or pitch-to-quantize (melodic) into the sheaf. (`IndexArp`, `NonagonIndexArp` in `private/src/IndexArp.hpp`)
+- **index arp** — Arpeggiator that turns the **monodromy** (state-change count of a chosen clock loop since reset) into a **point in a range**. Uses a **rhythm** pattern (`m_rhythm`, length 8) to gate steps; **m_index** = physical step among on steps; **m_motiveIndex** = rhythm page; output = f(m_index, m_motiveIndex) scaled to [m_min, m_max]. That value is passed as `m_choiceArg` to the chosen section choice strategy (e.g. Percentile or ClosestModOne). (`IndexArp`, `NonagonIndexArp` in `private/src/IndexArp.hpp`)
 
-- **LogicOperation** — One of 6 "simple functions" I⁶ → {0,1} that build M. For each of the 6 bits: **Muted** (ignore), **Normal** (use), **Inverted** (use inverted). Then an **Operator**: Or, And, **Xor** (parity), AtLeastTwo, Majority, Off, or **Direct** — where Direct uses a lookup table **m_direct[countHigh]** so the performer can choose which counts (0..6) pass; default "odds pass" is Walsh-like. Output goes to one of 3 **accumulators**.
+- **LogicOperation** — One of 6 "simple functions" I⁶ → {0,1} that build M. For each of the 6 bits: **Muted** (ignore), **Normal** (use), **Inverted** (use inverted). The output is determined by a lookup table **m_rhs[countHigh]**: for each count of high (active, possibly inverted) bits, the performer chooses whether the operation outputs true or false. Default is `m_rhs[j] = (j % 2 == 1)` ("odds pass," equivalent to parity/Xor — a Walsh function). Output goes to one of 3 **accumulators**.
 
 - **accumulator** — One of 3 targets for the logic operations. Has an **interval** (octave, fifth, major third, etc.) in volt-per-octave. The pitch M(x) is the sum over accumulators of (interval × number of high operations targeting that accumulator). So M(x) is a just-intonation ratio as a product of simple intervals raised to small integer exponents.
 
-- **sheaf** — F^M_x(U) = { M(y) | y ~_U x }; the set of pitches available at time x for lens U. Ordered (harmonic = by pitch, melodic = octave-reduce then sort) and probed with the index-arp output to get the final note.
+- **sheaf** — F^M_x(U) = { M(y) | y ~_U x }; the set of pitches available at time x for lens U. A section choice strategy (e.g. Percentile or ClosestModOne) selects the final note using the index-arp output as `m_choiceArg`.
 
 - **Nonagon** — The sequencer as a whole; often used to mean the combination of Theory of Time, LameJuis, note writer, and related UI. See [The Nonagon](nonagon.md).
 

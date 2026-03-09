@@ -72,20 +72,20 @@ struct TimeLoop
 
     bool ProcessDirectly(size_t j, double phasor, double phasorIndependent, int64_t globalWinding)
     {
-        double prevPhasor = m_phasor[j - 1];
-        int64_t prevWinding = m_globalWinding[j - 1];
+        double prevPhasor = m_phasor[j];
+        int64_t prevWinding = m_globalWinding[j];
         m_ascending[j] = prevWinding < globalWinding || (prevWinding == globalWinding && prevPhasor < phasor);
 
         m_phasor[j] = phasor;
         m_phasorIndependent[j] = phasorIndependent;
 
-        bool prevGate = m_gate[j - 1];
-        int prevPos = m_position[j - 1];
+        bool prevGate = m_gate[j];
+        int prevPos = m_position[j];
         m_prevPosition[j] = prevPos;
         m_position[j] = static_cast<int>(std::floor(phasor * m_loopSize[j]));
         if (std::abs(m_position[j] - m_prevPosition[j]) > 1)
         {
-            m_prevPosition[j] = (m_position[j] - (m_ascending[j] ? 1 : -1)) % m_loopSize[j];
+            m_prevPosition[j] = (m_loopSize[j] + m_position[j] - (m_ascending[j] ? 1 : -1)) % m_loopSize[j];
         }
 
         m_gate[j] = m_position[j] < m_loopSize[j] / 2;
@@ -354,7 +354,7 @@ struct TheoryOfTimeBase
     
     bool AnyChangeInMicroBlock() const
     {
-        for (size_t j = 0; j < x_microBlockSize - 1; ++j)
+        for (size_t j = 0; j < x_microBlockSize; ++j)
         {
             if (m_anyChange[j])
             {
@@ -385,7 +385,8 @@ struct TheoryOfTimeBase
         constexpr size_t x_rolloverSlot = x_microBlockBufferSize - 1;
         m_positionIndependent[0] = m_positionIndependent[x_rolloverSlot];
         m_prevPositionIndependent[0] = m_prevPositionIndependent[x_rolloverSlot];
-        m_anyChange[0] = m_anyChange[x_rolloverSlot];
+        m_anyChange[0] = m_anyChange[x_rolloverSlot];        
+
         for (int i = 0; i < x_numLoops; ++i)
         {
             TimeLoop& loop = m_loops[i];
@@ -436,9 +437,11 @@ struct TheoryOfTimeBase
 
     void ProcessRunning(size_t j, Input& input)
     {
+        bool startedRunning = false;
         if (!m_running)
         {
             m_running = true;
+            startedRunning = true;
             for (int i = x_numLoops - 2; i >= 0; --i)
             {
                 m_loops[i].m_parentIndex[j] = input.m_input[i].m_parentIndex;
@@ -450,11 +453,14 @@ struct TheoryOfTimeBase
 
             for (int i = 0; i < x_numLoops; ++i)
             {
-                m_loops[i].m_position[j] = m_loops[i].m_loopSize[j] - 1;
+                m_loops[i].m_position[j] = m_loops[i].m_loopSize[j] - 1;                
+                m_loops[i].m_gate[j] = false;
             }
 
             m_positionIndependent[j] = GetMasterLoop()->m_loopSize[j] - 1;
         }
+
+        std::ignore = startedRunning;
 
         m_prevPositionIndependent[j] = m_positionIndependent[j];
         m_positionIndependent[j] = static_cast<int>(std::floor(input.m_phasor * GetMasterLoop()->m_loopSize[j]));
@@ -464,6 +470,7 @@ struct TheoryOfTimeBase
         directPhasor = directPhasor - std::floor(directPhasor);
         m_globalPhase.Process(directPhasor);
         m_anyChange[j] = GetMasterLoop()->ProcessDirectly(j, directPhasor, input.m_phasor, m_globalPhase.m_winding);
+
         if (m_anyChange[j])
         {
             for (int i = x_numLoops - 2; i >= 0; --i)

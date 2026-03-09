@@ -205,7 +205,6 @@ struct MultiPhasorGateInternal
                 input.m_trigs[i] &= !m_earlyMuted[ixToCheck];
                 input.m_newTrigCanStart[i] = m_running && !m_earlyMuted[ixToCheck];
 
-
                 for (size_t j = 0; j < i; ++j)
                 {
                     size_t jTrioId = j / x_voicesPerTrio;
