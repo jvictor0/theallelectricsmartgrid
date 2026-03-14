@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "ScopeWriter.hpp"
 #include "TransferFunction.hpp"
 
 struct PathDrawer
@@ -163,5 +164,69 @@ struct PathDrawer
     {
         FrequencyResponseFn fn(&transferFunction, freqScale);
         DrawPath(g, colour, fn);
+    }
+
+    struct ScopeReaderFn
+    {
+        ScopeReader* m_scopeReader;
+        float m_yScale;
+        float m_yOffset;
+
+        ScopeReaderFn(ScopeReader* scopeReader, float yScale, float yOffset)
+            : m_scopeReader(scopeReader)
+            , m_yScale(yScale)
+            , m_yOffset(yOffset)
+        {
+        }
+
+        float operator()(float x) const
+        {
+            size_t sample = static_cast<size_t>(x);
+            float y = m_scopeReader->Get(sample);
+            return y * m_yScale + m_yOffset;
+        }
+    };
+
+    void DrawScopePath(juce::Graphics& g, juce::Colour colour, ScopeReader& scopeReader, float yScale, float yOffset)
+    {
+        juce::Path path;
+        ScopeReaderFn fn(&scopeReader, yScale, yOffset);
+        size_t transferSample = scopeReader.m_transferXSample;
+
+        for (size_t j = 0; j < x_numPoints; ++j)
+        {
+            float y = fn(static_cast<float>(j));
+            float screenY = m_height * (1.0f - y);
+            float screenX = m_width * static_cast<float>(j) / static_cast<float>(x_numPoints);
+            if (j == 0 || j == transferSample)
+            {
+                path.startNewSubPath(m_xMin + screenX, m_yMin + screenY);
+            }
+            else
+            {
+                path.lineTo(m_xMin + screenX, m_yMin + screenY);
+            }
+        }
+
+        g.setColour(colour);
+        g.strokePath(path, juce::PathStrokeType(1.0f));
+    }
+
+    void DrawScopeMarker(
+        juce::Graphics& g,
+        juce::Colour colour,
+        ScopeReader& scopeReader,
+        float yScale,
+        float yOffset)
+    {
+        size_t transferSample = scopeReader.m_transferXSample > 0 ? scopeReader.m_transferXSample - 1 : 0;
+        size_t clampedSample = std::min(transferSample, x_numPoints - 1);
+        float xFrac = static_cast<float>(clampedSample) / static_cast<float>(x_numPoints - 1);
+        float screenX = m_xMin + m_width * xFrac;
+        float y = ScopeReaderFn(&scopeReader, yScale, yOffset)(static_cast<float>(clampedSample));
+        float screenY = m_yMin + m_height * (1.0f - y);
+        float markerRadius = 3.0f;
+        g.setColour(colour);
+        g.fillEllipse(screenX - markerRadius, screenY - markerRadius, markerRadius * 2.0f, markerRadius * 2.0f);
     }
 };

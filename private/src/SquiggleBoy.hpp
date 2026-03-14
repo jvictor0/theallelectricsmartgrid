@@ -73,8 +73,6 @@ struct SquiggleBoyVoice
         //
         OPHighPassFilter m_svfDCBlocker;
 
-        AHD m_ahd;
-
         SampleRateReducer m_sampleRateReducer;
 
         float m_output;
@@ -144,17 +142,9 @@ struct SquiggleBoyVoice
             PhaseUtils::ZeroedExpParam m_hpResonance;
             PhaseUtils::ExpParam m_saturationGain;
 
-            AHD::InputSetter m_ahdInputSetter;
-            AHD::Input m_ahdInput;
-
             VoiceConfig* m_voiceConfig;
 
             PhaseUtils::ExpParam m_sampleRateReducerFreq;
-
-            void SetAHD(float attack, float hold, float decay, float amplitude)
-            {
-                m_ahdInputSetter.Set(attack, hold, decay, amplitude, true, m_ahdInput);
-            }
 
             Input()
                 : m_vcoBaseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
@@ -241,6 +231,7 @@ struct SquiggleBoyVoice
     struct AmpSection
     {
         AHD m_ahd;
+        AHD m_modulationAHD;
 
         float m_output;
         float m_subOut;
@@ -251,6 +242,8 @@ struct SquiggleBoyVoice
         OPLowPassFilter m_subFilter;
 
         ScopeWriterHolder m_scopeWriter;
+        ScopeWriterHolder m_modulationEnvelopeScopeWriter;
+        ScopeWriterHolder m_ampEnvelopeScopeWriter;
         bool m_subRunning;
 
         struct Input
@@ -258,6 +251,8 @@ struct SquiggleBoyVoice
             float m_vcoTargetFreq;
             AHD::InputSetter m_ahdInputSetter;
             AHD::Input m_ahdInput;
+            AHD::InputSetter m_modulationAHDInputSetter;
+            AHD::Input m_modulationAHDInput;
 
             OPLowPassFilter m_gainSlew;
             PhaseUtils::ZeroedExpParam m_gain;
@@ -276,6 +271,11 @@ struct SquiggleBoyVoice
                 m_ahdInputSetter.Set(attack, hold, decay, amplitude, false, m_ahdInput);
             }
 
+            void SetModulationAHD(float attack, float hold, float decay, float amplitude)
+            {
+                m_modulationAHDInputSetter.Set(attack, hold, decay, amplitude, true, m_modulationAHDInput);
+            }
+
             Input()
             {
                 m_subTrig = false;
@@ -290,6 +290,35 @@ struct SquiggleBoyVoice
             m_freqDependentGainSlew.SetAlphaFromNatFreq(250.0f / 48000.0f);
             m_subFilter.SetAlphaFromNatFreq(170.0f / 48000.0f);
             m_subRunning = false;
+        }
+
+        void WriteEnvelopeScopes(Input& input)
+        {
+            if (SampleTimer::IsControlFrame())
+            {
+                m_modulationEnvelopeScopeWriter.Write(m_modulationAHD.m_output);
+                m_ampEnvelopeScopeWriter.Write(m_ahd.m_output);
+            }
+
+            if (input.m_modulationAHDInput.m_trig)
+            {
+                m_modulationEnvelopeScopeWriter.RecordStart();
+            }
+
+            if (m_modulationAHD.m_changed && m_modulationAHD.m_state == AHD::State::Idle)
+            {
+                m_modulationEnvelopeScopeWriter.RecordEnd();
+            }
+
+            if (input.m_ahdInput.m_trig)
+            {
+                m_ampEnvelopeScopeWriter.RecordStart();
+            }
+
+            if (m_ahd.m_changed && m_ahd.m_state == AHD::State::Idle)
+            {
+                m_ampEnvelopeScopeWriter.RecordEnd();
+            }
         }
 
         float Process(Input& input, float filterOutput, float sub)
@@ -320,6 +349,8 @@ struct SquiggleBoyVoice
 
             // AHD::Process now applies amplitude and polarity internally
             //
+            input.m_modulationAHDInput.m_samplePosition = static_cast<float>(SampleTimer::GetUBlockIndex());
+            m_modulationAHD.Process(input.m_modulationAHDInput);
             input.m_ahdInput.m_samplePosition = static_cast<float>(SampleTimer::GetUBlockIndex());
             float ahdEnv = PhaseUtils::ZeroedExpParam::Compute(10.0f, m_ahd.Process(input.m_ahdInput));
 
@@ -337,6 +368,8 @@ struct SquiggleBoyVoice
             {
                 m_scopeWriter.RecordEnd();
             }
+
+            WriteEnvelopeScopes(input);
 
             m_subOut = subOut * input.m_gain.m_expParam;
             m_output = mainOut * input.m_gain.m_expParam;
@@ -380,8 +413,6 @@ struct SquiggleBoyVoice
         static constexpr size_t x_numPhasors = 6;
 
         PolyXFaderInternal m_polyXFader;
-        float m_shValue;
-        OPLowPassFilter m_shSlew;
         float m_output;
 
         ScopeWriterHolder m_scopeWriter;
@@ -390,8 +421,6 @@ struct SquiggleBoyVoice
         {
             PolyXFaderInternal::Input m_polyXFaderInput;
             PhaseUtils::ExpParam m_mult;
-            bool m_trig;
-            float m_shFade;
 
             Input()
                 : m_mult(1, 16)
@@ -405,15 +434,12 @@ struct SquiggleBoyVoice
             input.m_polyXFaderInput.m_mult = input.m_mult.m_expParam;
             input.m_polyXFaderInput.m_samplePosition = static_cast<float>(SampleTimer::GetUBlockIndex());
             m_polyXFader.Process(input.m_polyXFaderInput);
-            float lfoOut = m_polyXFader.m_output;
-            if (input.m_trig)
-            {
-                m_shValue = lfoOut;
-            }
-            
-            m_output = m_shSlew.Process(m_shValue) * input.m_shFade + lfoOut * (1 - input.m_shFade);
+            m_output = m_polyXFader.m_rawOutput;
 
-            m_scopeWriter.Write(m_output);
+            if (SampleTimer::IsControlFrame())
+            {
+                m_scopeWriter.Write(m_polyXFader.m_output);
+            }
 
             if (m_polyXFader.m_top)
             {
@@ -426,7 +452,6 @@ struct SquiggleBoyVoice
         SquiggleLFO()
             : m_output(0)
         {
-            m_shSlew.SetAlphaFromNatFreq(500.0f / 48000.0f);
         }
     };
 
@@ -442,6 +467,8 @@ struct SquiggleBoyVoice
     {
         m_squiggleLFO[0].m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::ControlScopes::LFO1));
         m_squiggleLFO[1].m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::ControlScopes::LFO2));
+        m_amp.m_modulationEnvelopeScopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::ControlScopes::ModulationEnvelope));
+        m_amp.m_ampEnvelopeScopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::ControlScopes::AmpEnvelope));
     }
 
     OPLowPassFilter m_baseFreqSlew;
@@ -483,12 +510,12 @@ struct SquiggleBoyVoice
 
         void SetGates()
         {            
-            m_filterInput.m_ahdInput.Set(m_ahdControl);
             m_ampInput.m_ahdInput.Set(m_ahdControl);
+            m_ampInput.m_modulationAHDInput.Set(m_ahdControl);
             m_sourceInput.m_physicalModelingInput.m_ahdInput.Set(m_ahdControl);
 
-            m_squiggleLFOInput[0].m_trig = m_ahdControl.m_trig;
-            m_squiggleLFOInput[1].m_trig = m_ahdControl.m_trig;
+            m_squiggleLFOInput[0].m_polyXFaderInput.m_trig = m_ahdControl.m_trig;
+            m_squiggleLFOInput[1].m_polyXFaderInput.m_trig = m_ahdControl.m_trig;
         }
     };
 
@@ -522,9 +549,6 @@ struct SquiggleBoyVoice
             ProcessUBlock(input);
         }
 
-        input.m_filterInput.m_ahdInput.m_samplePosition = static_cast<float>(SampleTimer::GetUBlockIndex());
-        m_filter.m_ahd.Process(input.m_filterInput.m_ahdInput);
-
         size_t uBlockIndex = SampleTimer::GetUBlockIndex();
         float sub = m_sub.Process(input.m_subInput.m_baseFreq / 2);
         m_output = m_amp.Process(input.m_ampInput, m_uBlockFilterOut[uBlockIndex], sub);
@@ -541,6 +565,7 @@ struct SquiggleBoy
     static constexpr size_t x_numVoices = 9;
     static constexpr size_t x_numTracks = 3;
     static constexpr size_t x_voicesPerTrack = x_numVoices / x_numTracks;
+    static constexpr size_t x_numGangedRandomLFOs = 4;
 
     struct MixerInput : QuadMixerInternal::Input
     {
@@ -554,7 +579,7 @@ struct SquiggleBoy
     SquiggleBoyWaveTableGenerator m_waveTableGenerator[2];
 
     SquiggleBoyVoice m_voices[x_numVoices];
-    ManyGangedRandomLFO m_gangedRandomLFO[4];
+    ManyGangedRandomLFO m_gangedRandomLFO[x_numGangedRandomLFOs];
     ManyGangedRandomLFO m_quadGangedRandomLFO[2];
     ManyGangedRandomLFO m_globalGangedRandomLFO[2];
 
@@ -568,11 +593,12 @@ struct SquiggleBoy
 
     QuadDelay m_delay;
     QuadReverb m_reverb;
- 
+
+
     QuadFloatWithStereoAndSub m_output;
 
     SquiggleBoyVoice::Input m_state[x_numVoices];
-    ManyGangedRandomLFO::Input m_gangedRandomLFOInput[4];
+    ManyGangedRandomLFO::Input m_gangedRandomLFOInput[x_numGangedRandomLFOs];
     ManyGangedRandomLFO::Input m_quadGangedRandomLFOInput[2];
     ManyGangedRandomLFO::Input m_globalGangedRandomLFOInput[2];
     MixerInput m_mixerState;
@@ -593,11 +619,13 @@ struct SquiggleBoy
     RGen m_rGen;
 
     bool m_firstFrame;
+    bool m_topIndependent;
 
     StateSaver* m_stateSaver;
 
     SquiggleBoy()
-        : m_stateSaver(nullptr)
+        : m_topIndependent(false)
+        , m_stateSaver(nullptr)
     {
         m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numSources;
         m_mixerState.m_numMonoInputs = x_numVoices;
@@ -610,7 +638,7 @@ struct SquiggleBoy
             m_state[i].m_sourceInput.m_sourceMixer = &m_sourceMixer;
         }
 
-        for (size_t i = 0; i < 4; ++i)
+        for (size_t i = 0; i < x_numGangedRandomLFOs; ++i)
         {
             m_gangedRandomLFOInput[i].m_gangSize = x_numVoices / x_numTracks;
             m_gangedRandomLFOInput[i].m_time = 6.0;
@@ -760,13 +788,19 @@ struct SquiggleBoy
 
         m_panPhase.Process();
 
-        m_gangedRandomLFO[0].Process(1.0 / 48000.0, m_gangedRandomLFOInput[0]);
-        m_gangedRandomLFO[1].Process(1.0 / 48000.0, m_gangedRandomLFOInput[1]);
-        m_gangedRandomLFO[2].Process(1.0 / 48000.0, m_gangedRandomLFOInput[2]);
-        m_gangedRandomLFO[3].Process(1.0 / 48000.0, m_gangedRandomLFOInput[3]);
+        for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
+        {
+            m_gangedRandomLFOInput[j].m_topIndependent = m_topIndependent;
+            m_gangedRandomLFO[j].Process(1.0 / 48000.0, m_gangedRandomLFOInput[j]);
+        }
 
+        m_globalGangedRandomLFOInput[0].m_topIndependent = m_topIndependent;
+        m_globalGangedRandomLFOInput[1].m_topIndependent = m_topIndependent;
         m_globalGangedRandomLFO[0].Process(1.0 / 48000.0, m_globalGangedRandomLFOInput[0]);
         m_globalGangedRandomLFO[1].Process(1.0 / 48000.0, m_globalGangedRandomLFOInput[1]);
+
+        m_quadGangedRandomLFOInput[0].m_topIndependent = m_topIndependent;
+        m_quadGangedRandomLFOInput[1].m_topIndependent = m_topIndependent;
         m_quadGangedRandomLFO[0].Process(1.0 / 48000.0, m_quadGangedRandomLFOInput[0]);
         m_quadGangedRandomLFO[1].Process(1.0 / 48000.0, m_quadGangedRandomLFOInput[1]);
 
@@ -949,6 +983,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         ScopeWriter m_audioScopeWriter;
         ScopeWriter m_controlScopeWriter;
         ScopeWriter m_quadScopeWriter;
+        ScopeWriter m_quadControlScopeWriter;
+        ScopeWriter m_globalControlScopeWriter;
         ScopeWriter m_sourceMixerScopeWriter;
         ScopeWriter m_monoScopeWriter;
 
@@ -1050,6 +1086,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             : m_audioScopeWriter(x_numVoices, static_cast<size_t>(SmartGridOne::AudioScopes::NumScopes))
             , m_controlScopeWriter(x_numVoices, static_cast<size_t>(SmartGridOne::ControlScopes::NumScopes))
             , m_quadScopeWriter(4, static_cast<size_t>(SmartGridOne::QuadScopes::NumScopes))
+            , m_quadControlScopeWriter(4, static_cast<size_t>(SmartGridOne::QuadControlScopes::NumScopes))
+            , m_globalControlScopeWriter(1, static_cast<size_t>(SmartGridOne::GlobalControlScopes::NumScopes))
             , m_sourceMixerScopeWriter(SourceMixer::x_numSources, static_cast<size_t>(SmartGridOne::SourceScopes::NumScopes))
             , m_monoScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoScopes::NumScopes))
         {
@@ -1063,12 +1101,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         void AdvanceScopeIndices()
         {
             m_audioScopeWriter.AdvanceIndex();
-            m_controlScopeWriter.AdvanceIndex();
             m_quadScopeWriter.AdvanceIndex();
             m_sourceMixerScopeWriter.AdvanceIndex();
 
             if (SampleTimer::IsControlFrame())
             {
+                m_controlScopeWriter.AdvanceIndex();
+                m_quadControlScopeWriter.AdvanceIndex();
+                m_globalControlScopeWriter.AdvanceIndex();
                 m_monoScopeWriter.AdvanceIndex();
             }
         }
@@ -1094,6 +1134,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SetupScopeWriters(UIState* uiState)
     {
+        m_delay.m_lfo.ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::DelayLFO));
+        m_reverb.m_lfo.ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::ReverbLFO));
+        m_quadGangedRandomLFO[0].ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadGangedRandom1));
+        m_quadGangedRandomLFO[1].ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadGangedRandom2));
+        m_globalGangedRandomLFO[0].ConfigureScopeWriter(&uiState->m_globalControlScopeWriter, static_cast<size_t>(SmartGridOne::GlobalControlScopes::GlobalGangedRandom1));
+        m_globalGangedRandomLFO[1].ConfigureScopeWriter(&uiState->m_globalControlScopeWriter, static_cast<size_t>(SmartGridOne::GlobalControlScopes::GlobalGangedRandom2));
+
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Delay)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Delay));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Reverb)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Reverb));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Master)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Master));
@@ -1101,11 +1148,20 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Stereo)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Stereo));
 
         m_sourceMixer.SetupScopeWriters(&uiState->m_sourceMixerScopeWriter);
+        SetupGangedRandomScopeWriters(&uiState->m_controlScopeWriter);
         
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             m_voices[i].SetupAudioScopeWriters(&uiState->m_audioScopeWriter, i);
             m_voices[i].SetupControlScopeWriters(&uiState->m_controlScopeWriter, i);
+        }
+    }
+
+    void SetupGangedRandomScopeWriters(ScopeWriter* scopeWriter)
+    {
+        for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
+        {
+            m_gangedRandomLFO[j].ConfigureScopeWriter(scopeWriter, static_cast<size_t>(SmartGridOne::ControlScopes::GangedRandom1) + j);
         }
     }
 
@@ -1124,6 +1180,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         float m_faders[x_numFaders];
         bool m_top;
+        bool m_topIndependent;
 
         PhaseUtils::ExpParam m_tempo;
 
@@ -1147,6 +1204,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             {
                 m_faders[i] = 0;
             }
+
+            m_top = false;
+            m_topIndependent = false;
         }
     };
 
@@ -1266,14 +1326,20 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         auto& modulatorValues = m_encoders.GetModulatorValues(BankMode::Voice);
         for (size_t i = 0; i < x_numVoices; ++i)
         {            
-            modulatorValues.m_value[2][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[0].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
-            modulatorValues.m_value[3][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[1].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
+            for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
+            {
+                modulatorValues.m_value[j][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[j].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
+            }
 
-            modulatorValues.m_value[4][i] = m_voices[i].m_filter.m_ahd.m_output;
-            modulatorValues.m_value[5][i] = m_voices[i].m_amp.m_ahd.m_output;
+            modulatorValues.m_value[4][i] = m_voices[i].m_amp.m_modulationAHD.m_rawOutput;
+            modulatorValues.m_value[5][i] = m_voices[i].m_amp.m_ahd.m_rawOutput;
+            modulatorValues.m_amplitude[4][i] = m_voices[i].m_amp.m_modulationAHD.m_amplitude;
+            modulatorValues.m_amplitude[5][i] = m_voices[i].m_amp.m_ahd.m_amplitude;
 
             modulatorValues.m_value[6][i] = m_voices[i].m_squiggleLFO[0].m_output;
             modulatorValues.m_value[7][i] = m_voices[i].m_squiggleLFO[1].m_output;
+            modulatorValues.m_amplitude[6][i] = m_voices[i].m_squiggleLFO[0].m_polyXFader.m_amplitude;
+            modulatorValues.m_amplitude[7][i] = m_voices[i].m_squiggleLFO[1].m_polyXFader.m_amplitude;
 
             modulatorValues.m_value[8][i] = input.m_sheafyModulators[i][0];
             modulatorValues.m_value[9][i] = input.m_sheafyModulators[i][1];
@@ -1362,11 +1428,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_filterInput.m_hpResonance.Update(m_encoders.GetValueNoSlew(Param::HPResonance, i));
             m_state[i].m_filterInput.m_saturationGain.Update(m_encoders.GetValueNoSlew(Param::FilterDrive, i));
 
-            m_state[i].m_filterInput.SetAHD(
-                m_encoders.GetValueNoSlew(Param::FilterAHDAttack, i), 
-                m_encoders.GetValueNoSlew(Param::FilterAHDHold, i), 
-                m_encoders.GetValueNoSlew(Param::FilterAHDDecay, i), 
-                m_encoders.GetValueNoSlew(Param::FilterAmplitude, i));
+            m_state[i].m_ampInput.SetModulationAHD(
+                m_encoders.GetValueNoSlew(Param::ModAHDAttack, i), 
+                m_encoders.GetValueNoSlew(Param::ModAHDHold, i), 
+                m_encoders.GetValueNoSlew(Param::ModAHDDecay, i), 
+                m_encoders.GetValueNoSlew(Param::ModAmplitude, i));
 
             m_state[i].m_ampInput.m_vcoTargetFreq = input.m_baseFreq[i];
             m_state[i].m_ampInput.SetAHD(
@@ -1394,7 +1460,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::LFO1PhaseShift, i) * (static_cast<float>(i % x_numTracks) / x_numTracks);
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_useIndirectPhasor = true;
-            m_state[i].m_squiggleLFOInput[0].m_shFade = m_encoders.GetValue(Param::LFO1SampleAndHold, i);
+            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::LFO1SampleAndHold, i);
 
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::LFO2Skew, i);
             m_state[i].m_squiggleLFOInput[1].m_mult.Update(m_encoders.GetValue(Param::LFO2Mult, i));
@@ -1405,7 +1471,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::LFO2PhaseShift, i) * (static_cast<float>(i % x_numTracks) / x_numTracks);
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_useIndirectPhasor = true;
-            m_state[i].m_squiggleLFOInput[1].m_shFade = m_encoders.GetValue(Param::LFO2SampleAndHold, i);
+            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::LFO2SampleAndHold, i);
 
             m_mixerState.m_gain[i].Update(m_encoders.GetValue(Param::AmpGain, i));
             m_mixerState.m_sendGain[i][0].Update(m_encoders.GetValue(Param::DelaySend, i));
@@ -1568,6 +1634,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         uiState->m_audioScopeWriter.Publish();
         uiState->m_controlScopeWriter.Publish();
         uiState->m_quadScopeWriter.Publish();
+        uiState->m_quadControlScopeWriter.Publish();
+        uiState->m_globalControlScopeWriter.Publish();
         uiState->m_sourceMixerScopeWriter.Publish();
         uiState->m_monoScopeWriter.Publish();
         
@@ -1651,6 +1719,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void ProcessSample(Input& input, float deltaT, const AudioInputBuffer& audioInputBuffer)
     {
+        m_topIndependent = input.m_topIndependent;
+
         SetVoiceModulators(input);
         SetGlobalModulators(input);
         SetQuadModulators(input);

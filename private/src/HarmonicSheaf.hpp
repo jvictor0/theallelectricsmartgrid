@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -265,13 +266,20 @@ struct HarmonicSheaf
 
     struct Sheaf
     {
+        struct UIState
+        {
+            std::atomic<Section> m_sections[x_numBasePoints];
+        };
+
+        static_assert(sizeof(Section) == x_rank * 2);
+
         Section m_sections[x_numBasePoints];
 
         Sheaf()
         {
             for (size_t i = 0; i < x_numBasePoints; ++i)
             {
-                m_sections[i] = Section();
+                m_sections[i] = Section{};
             }
         }
         
@@ -289,6 +297,7 @@ struct HarmonicSheaf
         {
             return evaluator.Evaluate(Get(index));
         }
+
     };
 
     struct TimeSliceOrdinalConverter

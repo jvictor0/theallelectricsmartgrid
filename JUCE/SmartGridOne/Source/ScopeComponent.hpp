@@ -2,8 +2,11 @@
 
 #include "SmartGridInclude.hpp"
 #include <JuceHeader.h>
+#include <limits>
+#include <vector>
 #include "PathDrawer.hpp"
 #include "SmartGridOneMainVisualizerComponent.hpp"
+#include "SmartGridOneScopeEnums.hpp"
 
 struct ScopeComponent : public SmartGridOneMainVisualizerComponent
 {
@@ -46,19 +49,25 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
         // Fill background
         //
         g.fillAll(juce::Colours::black);
-        
-        // Get bounds for drawing
-        //
+
         auto bounds = boundsRect.toFloat();
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
-        
+
+        float yScale = m_scopeType == ScopeType::Audio ? 0.5f : 0.9f;
+        float yOffset = m_scopeType == ScopeType::Audio ? 0.5f : 0.05f;
+        PathDrawer pathDrawer(height, width, bounds.getX(), bounds.getY());
+
+        // Draw center line
+        //
+        g.setColour(juce::Colours::darkgrey);
+        g.drawLine(bounds.getX(), bounds.getY() + height * 0.5f,
+                bounds.getX() + width, bounds.getY() + height * 0.5f, 1.0f);
 
         int voiceOffset = *m_voiceOffset;
         int numLoops = voiceOffset == -1 ? x_voicesPerTrack : 1;
-
         size_t voiceIxFixed = m_voiceIx->load() * x_voicesPerTrack;
-        
+
         for (int i = 0; i < numLoops; ++i)
         {
             size_t voiceIx = voiceIxFixed;
@@ -77,67 +86,23 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
             }
 
             m_scopeReaderFactory.SetVoiceIx(voiceIx);
-
-            // Create scope reader
-            //
             ScopeReader scopeReader = m_scopeReaderFactory.Create();
-            
-            // Create path for oscilloscope curve
-            //
-            juce::Path scopePath;
-            bool firstPoint = true;
-            
-            // Draw the oscilloscope curve
-            //
-            for (int x = 0; x < x_numXSamples; ++x)
-            {
-                float y = scopeReader.Get(x);
-                
-                // Convert to screen coordinates
-                // y is typically in range [-1, 1], convert to [0, height]
-                //
-                float screenX = bounds.getX() + (static_cast<float>(x) / static_cast<float>(x_numXSamples - 1)) * width;
-                float screenY;
-                if (m_scopeType == ScopeType::Audio)
-                {
-                    screenY = bounds.getY() + height * 0.5f - (y * height * 0.4f);
-                }
-                else
-                {
-                    screenY = bounds.getY() + height * (1.0 - y * 0.9f - 0.05f);
-                }
-                
-                if (firstPoint)
-                {
-                    scopePath.startNewSubPath(screenX, screenY);
-                    firstPoint = false;
-                }
-                else
-                {
-                    scopePath.lineTo(screenX, screenY);
-                }
-            }
-            
-            // Draw the curve
-            //
+
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
-            g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
-            g.strokePath(scopePath, juce::PathStrokeType(1.0f));
+            juce::Colour juceColor(color.m_red, color.m_green, color.m_blue);
+            pathDrawer.DrawScopePath(g, juceColor, scopeReader, yScale, yOffset);
 
             if (m_scopeType == ScopeType::Control)
             {
-                float markerX = bounds.getX() + (static_cast<float>(scopeReader.m_transferXSample) / static_cast<float>(x_numXSamples - 1)) * width;
-                float y = scopeReader.Get(scopeReader.m_transferXSample);
-                float markerY = bounds.getY() + height * (1.0 - y * 0.9f - 0.05f);
-                g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
-                float markerRadius = 3.0f;
-                g.fillEllipse(markerX - markerRadius, markerY - markerRadius, markerRadius * 2, markerRadius * 2);
+                size_t modulatorIx = SmartGridOne::ControlScopeToModulatorIndex(m_scopeIx);
+                SmartGrid::Color markerColor = m_uiState->m_squiggleBoyUIState.m_encoderBankUIState.GetModulationGlyphColor(modulatorIx);
+                if (markerColor == SmartGrid::Color::Off)
+                {
+                    markerColor = color;
+                }
+                juce::Colour markerJuceColor(markerColor.m_red, markerColor.m_green, markerColor.m_blue);
+                pathDrawer.DrawScopeMarker(g, markerJuceColor, scopeReader, yScale, yOffset);
             }
-            // Draw center line
-            //
-            g.setColour(juce::Colours::darkgrey);
-            g.drawLine(bounds.getX(), bounds.getY() + height * 0.5f, 
-                    bounds.getX() + width, bounds.getY() + height * 0.5f, 1.0f);
         }
     }
 
@@ -147,6 +112,55 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
         if (*m_voiceOffset == static_cast<int>(x_voicesPerTrack))
         {
             *m_voiceOffset = -1;
+        }
+    }
+};
+
+struct PolyphonicScopeComponent : public SmartGridOneMainVisualizerComponent
+{
+    static constexpr size_t x_numXSamples = 1024;
+
+    ScopeWriter* m_scopeWriter;
+    size_t m_scopeIx;
+    size_t m_numVoices;
+    SmartGrid::Color m_color;
+    float m_yScale;
+    float m_yOffset;
+
+    PolyphonicScopeComponent(
+        ScopeWriter* scopeWriter,
+        size_t scopeIx,
+        size_t numVoices,
+        SmartGrid::Color color,
+        float yScale,
+        float yOffset)
+        : SmartGridOneMainVisualizerComponent()
+        , m_scopeWriter(scopeWriter)
+        , m_scopeIx(scopeIx)
+        , m_numVoices(numVoices)
+        , m_color(color)
+        , m_yScale(yScale)
+        , m_yOffset(yOffset)
+    {
+    }
+
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
+    {
+        g.fillAll(juce::Colours::black);
+
+        auto bounds = boundsRect.toFloat();
+        auto width = bounds.getWidth();
+        auto height = bounds.getHeight();
+
+        PathDrawer pathDrawer(height, width, bounds.getX(), bounds.getY());
+        juce::Colour juceColor(m_color.m_red, m_color.m_green, m_color.m_blue);
+
+        for (size_t voiceIx = 0; voiceIx < m_numVoices; ++voiceIx)
+        {
+            ScopeReaderFactory factory(m_scopeWriter, voiceIx, m_scopeIx, x_numXSamples, 1);
+            ScopeReader scopeReader = factory.Create();
+            pathDrawer.DrawScopePath(g, juceColor, scopeReader, m_yScale, m_yOffset);
+            pathDrawer.DrawScopeMarker(g, juce::Colours::white, scopeReader, m_yScale, m_yOffset);
         }
     }
 };
@@ -665,6 +679,254 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
             {
                 *m_voiceOffset = -1;
             }
+        }
+    }
+};
+
+struct SheafyModulatorComponent : public SmartGridOneMainVisualizerComponent
+{
+    static constexpr size_t x_rank = 3;
+    static constexpr size_t x_channelsPerLane = 3;
+    static constexpr size_t x_voicesPerTrack = 3;
+
+    TheNonagonSquiggleBoyInternal::UIState* m_uiState;
+
+    SheafyModulatorComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
+        : SmartGridOneMainVisualizerComponent()
+        , m_uiState(uiState)
+    {
+    }
+
+    struct Projection
+    {
+        float m_x;
+        float m_y;
+    };
+
+    struct ProjectionBounds
+    {
+        float m_minX;
+        float m_maxX;
+        float m_minY;
+        float m_maxY;
+    };
+
+    size_t Index3D(size_t x, size_t y, size_t z, size_t sizeX, size_t sizeY, size_t sizeZ) const
+    {
+        (void)sizeZ;
+        return x + sizeX * (y + sizeY * z);
+    }
+
+    Projection ProjectPoint(int x, int y, int z, float originX, float originY, float xScale, float yScale, float zScale) const
+    {
+        Projection projected;
+        projected.m_x = originX + (static_cast<float>(x) - static_cast<float>(y)) * xScale;
+        projected.m_y = originY + (static_cast<float>(x) + static_cast<float>(y)) * yScale - static_cast<float>(z) * zScale;
+        return projected;
+    }
+
+    ProjectionBounds ComputeProjectedBounds(int maxX, int maxY, int maxZ, float xScale, float yScale, float zScale) const
+    {
+        ProjectionBounds bounds;
+        bounds.m_minX = std::numeric_limits<float>::max();
+        bounds.m_maxX = std::numeric_limits<float>::lowest();
+        bounds.m_minY = std::numeric_limits<float>::max();
+        bounds.m_maxY = std::numeric_limits<float>::lowest();
+
+        for (int x = 0; x <= maxX; ++x)
+        {
+            for (int y = 0; y <= maxY; ++y)
+            {
+                for (int z = 0; z <= maxZ; ++z)
+                {
+                    Projection p = ProjectPoint(x, y, z, 0.0f, 0.0f, xScale, yScale, zScale);
+                    bounds.m_minX = std::min(bounds.m_minX, p.m_x);
+                    bounds.m_maxX = std::max(bounds.m_maxX, p.m_x);
+                    bounds.m_minY = std::min(bounds.m_minY, p.m_y);
+                    bounds.m_maxY = std::max(bounds.m_maxY, p.m_y);
+                }
+            }
+        }
+
+        if (bounds.m_minX > bounds.m_maxX || bounds.m_minY > bounds.m_maxY)
+        {
+            bounds.m_minX = 0.0f;
+            bounds.m_maxX = 0.0f;
+            bounds.m_minY = 0.0f;
+            bounds.m_maxY = 0.0f;
+        }
+
+        return bounds;
+    }
+
+    bool IsInBounds(const HarmonicSheaf::Section& section, size_t sizeX, size_t sizeY, size_t sizeZ) const
+    {
+        return static_cast<size_t>(section.m_high[0]) < sizeX
+            && static_cast<size_t>(section.m_high[1]) < sizeY
+            && static_cast<size_t>(section.m_high[2]) < sizeZ;
+    }
+
+    void DrawLatticeGrid(
+        juce::Graphics& g,
+        int maxX,
+        int maxY,
+        int maxZ,
+        float originX,
+        float originY,
+        float xScale,
+        float yScale,
+        float zScale) const
+    {
+        for (int x = 0; x <= maxX; ++x)
+        {
+            for (int y = 0; y <= maxY; ++y)
+            {
+                Projection start = ProjectPoint(x, y, 0, originX, originY, xScale, yScale, zScale);
+                Projection end = ProjectPoint(x, y, maxZ, originX, originY, xScale, yScale, zScale);
+                g.drawLine(start.m_x, start.m_y, end.m_x, end.m_y, 1.0f);
+            }
+        }
+
+        for (int y = 0; y <= maxY; ++y)
+        {
+            for (int z = 0; z <= maxZ; ++z)
+            {
+                Projection start = ProjectPoint(0, y, z, originX, originY, xScale, yScale, zScale);
+                Projection end = ProjectPoint(maxX, y, z, originX, originY, xScale, yScale, zScale);
+                g.drawLine(start.m_x, start.m_y, end.m_x, end.m_y, 1.0f);
+            }
+        }
+
+        for (int x = 0; x <= maxX; ++x)
+        {
+            for (int z = 0; z <= maxZ; ++z)
+            {
+                Projection start = ProjectPoint(x, 0, z, originX, originY, xScale, yScale, zScale);
+                Projection end = ProjectPoint(x, maxY, z, originX, originY, xScale, yScale, zScale);
+                g.drawLine(start.m_x, start.m_y, end.m_x, end.m_y, 1.0f);
+            }
+        }
+    }
+
+    void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
+    {
+        g.fillAll(juce::Colours::black);
+
+        auto bounds = boundsRect.toFloat();
+        size_t trioIx = m_uiState->m_squiggleBoyUIState.m_activeTrack.load();
+        if (trioIx >= LameJuisInternal::x_numLanes)
+        {
+            return;
+        }
+
+        auto& laneJuiceUIState = m_uiState->m_nonagonUIState.m_laneJuiceUIState;
+        size_t latticeSize[x_rank];
+        for (size_t i = 0; i < x_rank; ++i)
+        {
+            latticeSize[i] = static_cast<size_t>(laneJuiceUIState.m_dimensions[i].load()) + 1;
+        }
+
+        size_t sizeX = latticeSize[0];
+        size_t sizeY = latticeSize[1];
+        size_t sizeZ = latticeSize[2];
+        if (sizeX == 0 || sizeY == 0 || sizeZ == 0)
+        {
+            return;
+        }
+
+        int maxX = static_cast<int>(sizeX - 1);
+        int maxY = static_cast<int>(sizeY - 1);
+        int maxZ = static_cast<int>(sizeZ - 1);
+        float xUnitScale = 1.0f;
+        float yUnitScale = 0.5f;
+        float zUnitScale = 1.0f;
+        ProjectionBounds unitBounds = ComputeProjectedBounds(maxX, maxY, maxZ, xUnitScale, yUnitScale, zUnitScale);
+        float pad = std::min(bounds.getWidth(), bounds.getHeight()) * 0.1f;
+        float availableWidth = std::max(1.0f, bounds.getWidth() - pad * 2.0f);
+        float availableHeight = std::max(1.0f, bounds.getHeight() - pad * 2.0f);
+        float unitWidth = std::max(0.001f, unitBounds.m_maxX - unitBounds.m_minX);
+        float unitHeight = std::max(0.001f, unitBounds.m_maxY - unitBounds.m_minY);
+        float uniformScale = std::min(availableWidth / unitWidth, availableHeight / unitHeight);
+        float xScale = xUnitScale * uniformScale;
+        float yScale = yUnitScale * uniformScale;
+        float zScale = zUnitScale * uniformScale;
+        ProjectionBounds scaledBounds = ComputeProjectedBounds(maxX, maxY, maxZ, xScale, yScale, zScale);
+        float originX = bounds.getCentreX() - (scaledBounds.m_minX + scaledBounds.m_maxX) * 0.5f;
+        float originY = bounds.getCentreY() - (scaledBounds.m_minY + scaledBounds.m_maxY) * 0.5f;
+
+        g.setColour(juce::Colours::dimgrey);
+        DrawLatticeGrid(g, maxX, maxY, maxZ, originX, originY, xScale, yScale, zScale);
+
+        std::vector<bool> seenSections(sizeX * sizeY * sizeZ, false);
+        HarmonicSheaf::Lens lens(laneJuiceUIState.m_currentLens[trioIx].load());
+        HarmonicSheaf::BitVector currentTime(laneJuiceUIState.m_currentTime.load());
+        HarmonicSheaf::BitVector representative = lens.Canonicalize(currentTime);
+        HarmonicSheaf::TimeSliceClassIterator iterator(lens, representative);
+        while (!iterator.Done())
+        {
+            HarmonicSheaf::BitVector timeSlice = iterator.Get();
+            HarmonicSheaf::Section section = laneJuiceUIState.m_sheafUIState.m_sections[timeSlice.m_bits].load();
+            if (IsInBounds(section, sizeX, sizeY, sizeZ))
+            {
+                size_t sx = static_cast<size_t>(section.m_high[0]);
+                size_t sy = static_cast<size_t>(section.m_high[1]);
+                size_t sz = static_cast<size_t>(section.m_high[2]);
+                seenSections[Index3D(sx, sy, sz, sizeX, sizeY, sizeZ)] = true;
+
+                Projection p = ProjectPoint(
+                    static_cast<int>(sx),
+                    static_cast<int>(sy),
+                    static_cast<int>(sz),
+                    originX,
+                    originY,
+                    xScale,
+                    yScale,
+                    zScale);
+                float radius = std::max(1.5f, std::min(bounds.getWidth(), bounds.getHeight()) * 0.03f);
+                g.setColour(juce::Colours::grey);
+                g.fillEllipse(p.m_x - radius, p.m_y - radius, radius * 2.0f, radius * 2.0f);
+            }
+
+            iterator.Next();
+        }
+
+        for (size_t channelIx = 0; channelIx < x_channelsPerLane; ++channelIx)
+        {
+            size_t voiceIx = trioIx * x_voicesPerTrack + channelIx;
+            if (voiceIx >= TheNonagonInternal::x_numVoices
+                || m_uiState->m_nonagonUIState.m_muted[voiceIx].load()
+                || !m_uiState->m_nonagonUIState.m_gate[voiceIx].load())
+            {
+                continue;
+            }
+
+            HarmonicSheaf::Section section = laneJuiceUIState.m_currentSection[trioIx][channelIx].load();
+            if (!IsInBounds(section, sizeX, sizeY, sizeZ))
+            {
+                continue;
+            }
+
+            size_t sx = static_cast<size_t>(section.m_high[0]);
+            size_t sy = static_cast<size_t>(section.m_high[1]);
+            size_t sz = static_cast<size_t>(section.m_high[2]);
+            if (!seenSections[Index3D(sx, sy, sz, sizeX, sizeY, sizeZ)])
+            {
+                continue;
+            }
+
+            SmartGrid::Color voiceColor = TheNonagonSmartGrid::VoiceColor(voiceIx);
+            g.setColour(juce::Colour(voiceColor.m_red, voiceColor.m_green, voiceColor.m_blue));
+            Projection p = ProjectPoint(
+                static_cast<int>(sx),
+                static_cast<int>(sy),
+                static_cast<int>(sz),
+                originX,
+                originY,
+                xScale,
+                yScale,
+                zScale);
+            float radius = std::max(2.5f, std::min(bounds.getWidth(), bounds.getHeight()) * 0.05f);
+            g.fillEllipse(p.m_x - radius, p.m_y - radius, radius * 2.0f, radius * 2.0f);
         }
     }
 };

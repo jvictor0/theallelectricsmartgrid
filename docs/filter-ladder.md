@@ -15,7 +15,6 @@ The audio signal from the source machine passes through the low-pass ladder filt
 - **Cutoff Tracking**: The HP cutoff frequency tracks the base frequency of the voice's oscillator (`m_vcoBaseFreq`) multiplied by `m_hpCutoffFactor`. The LP cutoff is computed relative to the HP cutoff: `vcoBaseFreq * hpCutoff * lpCutoff`, so the LP is always at or below the HP.
 - **Resonance**: Both filters feature adjustable resonance (`m_lpResonance` and `m_hpResonance`).
 - **Saturation**: The ladder filter includes an internal saturation stage, controlled by `m_saturationGain`, which drives the filter into non-linear distortion.
-- **Envelope**: The filter section has its own phase-driven AHD envelope (`m_ahd`). Its output is exposed as a modulation source (modulator index 4) in the encoder system, so it can be routed to any parameter including cutoff.
 - **Sample Rate Reduction**: After the filtering stages, the signal passes through a sample rate reducer (`SampleRateReducer`), adding digital aliasing and grit.
 
 ## Related

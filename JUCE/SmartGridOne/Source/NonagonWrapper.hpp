@@ -657,6 +657,16 @@ struct NonagonWrapper
         return &m_internal.m_uiState.m_squiggleBoyUIState.m_controlScopeWriter;
     }
 
+    ScopeWriter* GetQuadControlScopeWriter()
+    {
+        return &m_internal.m_uiState.m_squiggleBoyUIState.m_quadControlScopeWriter;
+    }
+
+    ScopeWriter* GetGlobalControlScopeWriter()
+    {
+        return &m_internal.m_uiState.m_squiggleBoyUIState.m_globalControlScopeWriter;
+    }
+
     TheNonagonSquiggleBoyInternal::UIState* GetUIState()
     {
         return &m_internal.m_uiState;
@@ -680,6 +690,11 @@ struct NonagonWrapper
     SmartGridOneEncoders::Bank GetSelectedEncoderBank()
     {
         return m_internal.m_squiggleBoy.m_encoders.m_selectedBank;
+    }
+
+    SmartGridOneEncoders::BankMode GetModeForEncoderBank(SmartGridOneEncoders::Bank bank)
+    {
+        return m_internal.m_squiggleBoy.m_encoders.GetModeForBank(bank);
     }
 
     TheNonagonSquiggleBoyWrldBldr::GridsMode GetGridsMode()

@@ -766,7 +766,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
         input.m_phaseModLFOInput.m_useIndirectPhasor = false;
         input.m_phaseModLFOInput.m_samplePosition = static_cast<float>(j);
         m_phaseModLFO.Process(input.m_phaseModLFOInput);
-        input.m_phaseOffset = -2 * input.m_modIndex.m_expParam * m_phaseModLFO.m_output;
+        input.m_phaseOffset = -2 * input.m_modIndex.m_expParam * m_phaseModLFO.m_rawOutput;
     }
 
     void SetupMonoScopeWriter(ScopeWriter* scopeWriter)

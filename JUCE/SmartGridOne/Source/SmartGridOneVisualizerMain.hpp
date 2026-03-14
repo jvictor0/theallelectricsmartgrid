@@ -22,6 +22,9 @@ struct SmartGridOneVisualizerMain : public juce::Component
     static constexpr int x_fullWidthGridY = 8;
     static constexpr int x_fullWidthGridWidth = 24;
     static constexpr int x_fullWidthGridHeight = 8;
+    static constexpr int x_modPanelSize = 2;
+    static constexpr int x_modPanelY = 16;
+    static constexpr int x_numModPanels = 12;
     
     static constexpr std::array<int, 2> x_encoderGridX =
     {
@@ -65,6 +68,11 @@ struct SmartGridOneVisualizerMain : public juce::Component
     std::unique_ptr<SmartGridOneMainVisualizerComponent> m_##name;
 #include "ForEachSmartGridOneVisualizer.hpp"
 #undef F
+
+#define G(name, slot, ctor, mode, color) \
+    std::unique_ptr<SmartGridOneMainVisualizerComponent> m_##name;
+#include "ForEachModulationVisualizer.hpp"
+#undef G
     
     SmartGridOneVisualizerMain(NonagonWrapper* nonagon)
         : m_nonagon(nonagon)
@@ -87,6 +95,11 @@ struct SmartGridOneVisualizerMain : public juce::Component
         }
 #include "ForEachSmartGridOneVisualizer.hpp"
 #undef F
+
+#define G(name, slot, ctor, mode, color) \
+        m_##name = ctor;
+#include "ForEachModulationVisualizer.hpp"
+#undef G
         
         m_meteringComponent = std::make_unique<MeteringComponent>(uiState);
         
@@ -104,6 +117,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
         ExcludeEncoderClip(g);
         g.fillAll(juce::Colours::black);
         DispatchPaint(g, m_nonagon->GetSelectedEncoderBank());
+        DispatchModulationPaint(g, m_nonagon->GetSelectedEncoderBank());
         DrawMetering(g);
         g.restoreState();
     }
@@ -172,6 +186,15 @@ struct SmartGridOneVisualizerMain : public juce::Component
         int y = m_gridY + (x_fullWidthGridY * m_cellSize);
         int width = x_fullWidthGridWidth * m_cellSize;
         int height = x_fullWidthGridHeight * m_cellSize;
+        return juce::Rectangle<int>(x, y, width, height);
+    }
+
+    juce::Rectangle<int> GetModPanelBounds(int slot)
+    {
+        int x = m_gridX + (slot * x_modPanelSize * m_cellSize);
+        int y = m_gridY + (x_modPanelY * m_cellSize);
+        int width = x_modPanelSize * m_cellSize;
+        int height = x_modPanelSize * m_cellSize;
         return juce::Rectangle<int>(x, y, width, height);
     }
     
@@ -300,6 +323,74 @@ struct SmartGridOneVisualizerMain : public juce::Component
         }
 #include "ForEachSmartGridOneVisualizer.hpp"
 #undef F
+
+        DispatchModulationClick(event, bank);
+    }
+
+    bool IsVoiceModeActive(SmartGridOneEncoders::Bank bank)
+    {
+        switch (bank)
+        {
+            case SmartGridOneEncoders::Bank::Source:
+            case SmartGridOneEncoders::Bank::FilterAndAmp:
+            case SmartGridOneEncoders::Bank::PanningAndSequencing:
+            case SmartGridOneEncoders::Bank::VoiceLFOs:
+            {
+                return true;
+            }
+            default:
+            {
+                return false;
+            }
+        }
+    }
+
+    void DispatchModulationPaint(juce::Graphics& g, SmartGridOneEncoders::Bank bank)
+    {
+        SmartGridOneEncoders::BankMode modeForBank = m_nonagon->GetModeForEncoderBank(bank);
+
+#define G(name, slot, ctor, mode, color) \
+        if (m_##name && modeForBank == mode) \
+        { \
+            auto modBounds = GetModPanelBounds(slot); \
+            int inset = std::max(1, static_cast<int>(std::ceil(std::min(modBounds.getWidth(), modBounds.getHeight()) * 0.02f))); \
+            auto borderRect = modBounds.reduced(inset / 2); \
+            auto innerBounds = modBounds.reduced(inset); \
+            float cornerRadius = std::min(modBounds.getWidth(), modBounds.getHeight()) * 0.06f; \
+            SmartGrid::Color borderColor = color; \
+            if (borderColor == SmartGrid::Color::Off) \
+            { \
+                borderColor = SmartGrid::Color::Grey; \
+            } \
+            g.setColour(juce::Colour(borderColor.m_red, borderColor.m_green, borderColor.m_blue)); \
+            g.drawRoundedRectangle(borderRect.toFloat(), cornerRadius, static_cast<float>(inset)); \
+            g.saveState(); \
+            g.reduceClipRegion(innerBounds); \
+            g.setOrigin(innerBounds.getX(), innerBounds.getY()); \
+            m_##name->Draw(g, juce::Rectangle<int>(0, 0, innerBounds.getWidth(), innerBounds.getHeight())); \
+            g.restoreState(); \
+        }
+#include "ForEachModulationVisualizer.hpp"
+#undef G
+    }
+
+    void DispatchModulationClick(const juce::MouseEvent& event, SmartGridOneEncoders::Bank bank)
+    {
+        auto position = event.getPosition();
+        SmartGridOneEncoders::BankMode modeForBank = m_nonagon->GetModeForEncoderBank(bank);
+
+#define G(name, slot, ctor, mode, color) \
+        if (m_##name && modeForBank == mode) \
+        { \
+            auto modBounds = GetModPanelBounds(slot); \
+            if (modBounds.contains(position)) \
+            { \
+                auto localEvent = event.withNewPosition(position - modBounds.getPosition()); \
+                m_##name->OnClick(localEvent); \
+            } \
+        }
+#include "ForEachModulationVisualizer.hpp"
+#undef G
     }
     
     void ExcludeEncoderClip(juce::Graphics& g)

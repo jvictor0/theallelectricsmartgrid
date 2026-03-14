@@ -156,6 +156,14 @@ struct ScopeWriterHolder
         }
     }
 
+    void WriteAtVoice(size_t voiceIx, float value)
+    {
+        if (m_scopeWriter)
+        {
+            m_scopeWriter->Write(m_scopeIx, voiceIx, value);
+        }
+    }
+
     void Write(size_t uBlockIndex, float value)
     {
         if (m_scopeWriter)
@@ -180,6 +188,14 @@ struct ScopeWriterHolder
         if (m_scopeWriter)
         {
             m_scopeWriter->RecordStart(m_scopeIx, m_voiceIx);
+        }
+    }
+
+    void RecordStartAtVoice(size_t voiceIx)
+    {
+        if (m_scopeWriter)
+        {
+            m_scopeWriter->RecordStart(m_scopeIx, voiceIx);
         }
     }
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Slew.hpp"
+#include "Filter.hpp"
 #include "Math.hpp"
 
 struct TheoryOfTimeBase;
@@ -28,6 +28,9 @@ struct PolyXFaderInternal
 
         float m_externalWeights[16];
 
+        bool m_trig;
+        float m_shFade;
+
         Input()
             : m_theoryOfTime(nullptr)
             , m_useIndirectPhasor(true)
@@ -40,6 +43,8 @@ struct PolyXFaderInternal
             , m_size(0)
             , m_slope(0.0f)
             , m_center(0.0f)
+            , m_trig(false)
+            , m_shFade(0.0f)
         {
             for (size_t i = 0; i < 16; ++i)
             {
@@ -103,26 +108,32 @@ struct PolyXFaderInternal
         : m_size(0)
         , m_slope(0.0f)
         , m_center(0.0f)
+        , m_amplitude(1.0f)
         , m_valuesPreQuantize{}
         , m_valuesPostQuantize{}
         , m_weights{}
         , m_totalWeight(0.0f)
-        , m_slew(1.0/128)
+        , m_rawOutput(0.0f)
         , m_output(0.0f)
         , m_top(false)
+        , m_shValue(0.0f)
     {
+        m_slew.SetAlphaFromNatFreq(500.0f / 48000.0f);
     }
     
     size_t m_size;
+    float m_amplitude;
     float m_slope;
     float m_center;
     float m_valuesPreQuantize[16];
     float m_valuesPostQuantize[16];
     float m_weights[16];
     float m_totalWeight;
-    FixedSlew m_slew;
-    float m_output;    
+    OPLowPassFilter m_slew;
+    float m_rawOutput;
+    float m_output;
     bool m_top;
+    float m_shValue;
 
     float ComputeWeight(size_t index)
     {
@@ -191,7 +202,15 @@ struct PolyXFaderInternal
             output /= m_totalWeight;
         }
 
-        m_output = m_slew.Process(output) * input.m_amplitude + (1 - input.m_amplitude) / 2.0;
+        m_amplitude = input.m_amplitude;
+        if (input.m_trig)
+        {
+            m_shValue = output;
+        }
+        
+        float blended = m_shValue * input.m_shFade + output * (1 - input.m_shFade);
+        m_rawOutput = m_slew.Process(blended);
+        m_output = m_rawOutput * input.m_amplitude + (1 - input.m_amplitude) * 0.5;
     }
 
     float Quantize(Input& input, size_t i, float value)

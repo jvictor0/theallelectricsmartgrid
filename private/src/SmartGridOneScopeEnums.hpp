@@ -17,8 +17,18 @@ namespace SmartGridOne
         LFO2 = 1,
         GangedRandom1 = 2,
         GangedRandom2 = 3,
-        NumScopes = 4
+        GangedRandom3 = 4,
+        GangedRandom4 = 5,
+        ModulationEnvelope = 6,
+        AmpEnvelope = 7,
+        NumScopes = 8
     };
+
+    inline size_t ControlScopeToModulatorIndex(size_t scopeIx)
+    {
+        static constexpr size_t x_scopeToModulator[] = { 6, 7, 0, 1, 2, 3, 4, 5 };
+        return scopeIx < static_cast<size_t>(ControlScopes::NumScopes) ? x_scopeToModulator[scopeIx] : 0;
+    }
 
     enum class MonoScopes : size_t
     {
@@ -41,6 +51,22 @@ namespace SmartGridOne
         Dry = 3,
         Stereo = 4,
         NumScopes = 5
+    };
+
+    enum class QuadControlScopes : size_t
+    {
+        DelayLFO = 0,
+        ReverbLFO = 1,
+        QuadGangedRandom1 = 2,
+        QuadGangedRandom2 = 3,
+        NumScopes = 4
+    };
+
+    enum class GlobalControlScopes : size_t
+    {
+        GlobalGangedRandom1 = 0,
+        GlobalGangedRandom2 = 1,
+        NumScopes = 2
     };
 
     enum class ModulationGlyphs : size_t

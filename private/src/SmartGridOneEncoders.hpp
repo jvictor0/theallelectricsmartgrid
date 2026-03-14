@@ -85,8 +85,10 @@ struct SmartGridOneEncoders
 
     static ModulatorSkin GetModulatorSkin(size_t index, BankMode mode)
     {
-        static const SmartGrid::Color x_colors[3] =
+        static const SmartGrid::Color x_colors[5] =
         {
+            SmartGrid::Color::Orange.AdjustBrightness(0.5),
+            SmartGrid::Color::Yellow.AdjustBrightness(0.5),
             SmartGrid::Color::Cyan.AdjustBrightness(0.5),
             SmartGrid::Color::Indigo.AdjustBrightness(0.5),
             SmartGrid::Color::SeaGreen.AdjustBrightness(0.5)
@@ -94,35 +96,51 @@ struct SmartGridOneEncoders
 
         switch (index)
         {
+            case 0:
+            {
+                if (mode == BankMode::Voice)
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[0]);
+                }
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+            }
+            case 1:
+            {
+                if (mode == BankMode::Voice)
+                {
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[1]);
+                }
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
+            }
             case 2:
             {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[0]);
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[2]);
             }
             case 3:
             {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[1]);
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[3]);
             }
             case 6:
             {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::LFO, x_colors[2]);
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::LFO, x_colors[4]);
             }
             case 7:
             {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::LFO, x_colors[0]);
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::LFO, x_colors[2]);
             }
             case 11:
             {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::Spread, x_colors[1]);
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::Spread, x_colors[3]);
             }
             case 14:
             {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::Noise, x_colors[2]);
+                return ModulatorSkin(SmartGridOne::ModulationGlyphs::Noise, x_colors[4]);
             }
             case 4:
             {
                 if (mode == BankMode::Voice)
                 {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::ADSR, x_colors[0]);
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::ADSR, x_colors[2]);
                 }
                 else if (mode == BankMode::Quad)
                 {
@@ -137,7 +155,7 @@ struct SmartGridOneEncoders
             {
                 if (mode == BankMode::Voice)
                 {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::ADSR, x_colors[1]);
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::ADSR, x_colors[3]);
                 }
                 else if (mode == BankMode::Quad)
                 {
@@ -152,7 +170,7 @@ struct SmartGridOneEncoders
             {
                 if (mode == BankMode::Voice)
                 {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[0]);
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[2]);
                 }
                 else
                 {
@@ -163,7 +181,7 @@ struct SmartGridOneEncoders
             {
                 if (mode == BankMode::Voice)
                 {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[1]);
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[3]);
                 }
                 else
                 {
@@ -174,7 +192,7 @@ struct SmartGridOneEncoders
             {
                 if (mode == BankMode::Voice)
                 {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[2]);
+                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[4]);
                 }
                 else
                 {

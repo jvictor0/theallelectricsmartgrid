@@ -1,5 +1,6 @@
 #pragma once
 #include "plugin.hpp"
+#include <atomic>
 #include <cstddef>
 #include "HarmonicSheaf.hpp"
 #include "LameJuisConstants.hpp"
@@ -627,6 +628,32 @@ struct LameJuisInternal
         }
     };
 
+    struct UIState
+    {
+        HarmonicSheaf::Sheaf::UIState m_sheafUIState;
+        std::atomic<uint8_t> m_currentLens[x_numLanes];
+        std::atomic<uint8_t> m_currentTime;
+        std::atomic<HarmonicSheaf::Section> m_currentSection[x_numLanes][x_channelsPerLane];
+        std::atomic<uint8_t> m_dimensions[HarmonicSheaf::x_rank];
+
+        UIState()
+            : m_sheafUIState()
+            , m_currentLens{}
+            , m_currentTime(0)
+            , m_currentSection{}
+        {
+            HarmonicSheaf::Section emptySection;
+            for (size_t i = 0; i < x_numLanes; ++i)
+            {
+                m_currentLens[i].store(0);
+                for (size_t j = 0; j < x_channelsPerLane; ++j)
+                {
+                    m_currentSection[i][j].store(emptySection);
+                }
+            }
+        }
+    };
+
     GridSheafView::CellInfo GetCellInfo(size_t outputId, uint8_t x, uint8_t y)
     {
         return m_lanes[outputId].GetCellInfo(x, y);
@@ -695,6 +722,42 @@ struct LameJuisInternal
         for (size_t i = 0; i < x_numLanes; ++i)
         {
             m_lanes[i].Process(input.m_laneInput[i]);
+        }
+    }
+
+    void PopulateUIState(UIState* uiState)
+    {
+        for (size_t i = 0; i < HarmonicSheaf::x_numBasePoints; ++i)
+        {
+            uiState->m_sheafUIState.m_sections[i].store(m_sheaf.m_sections[i]);
+        }
+
+        uiState->m_currentTime.store(m_inputVector.m_bits);
+
+        for (size_t i = 0; i < x_numLanes; ++i)
+        {
+            HarmonicSheaf::Lens lens = m_lanes[i].m_coMuteState.GetLens();
+            uiState->m_currentLens[i].store(lens.m_bits);
+            for (size_t j = 0; j < x_channelsPerLane; ++j)
+            {
+                uiState->m_currentSection[i][j].store(m_lanes[i].m_pitch[j].m_section);
+            }
+        }
+
+        uint8_t dimensions[HarmonicSheaf::x_rank];
+        for (size_t i = 0; i < HarmonicSheaf::x_rank; ++i)
+        {
+            dimensions[i] = 0;
+        }
+
+        for (size_t i = 0; i < x_numOperations; ++i)
+        {
+            dimensions[m_operations[i].GetOutputTarget()] += 1;
+        }
+
+        for (size_t i = 0; i < HarmonicSheaf::x_rank; ++i)
+        {
+            uiState->m_dimensions[i].store(dimensions[i]);
         }
     }
 

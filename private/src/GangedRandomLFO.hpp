@@ -4,6 +4,9 @@
 #include <cmath>
 #include "Trig.hpp"
 #include "NormGen.hpp"
+#include "ScopeWriter.hpp"
+#include "SampleTimer.hpp"
+#include "QuadUtils.hpp"
 
 struct ErfTable
 {
@@ -165,17 +168,50 @@ struct ManyGangedRandomLFO
 {
     static constexpr size_t x_maxPoly = 16;
     GangedRandomLFOInternal m_lfos[x_maxPoly];
-    
+
+    ScopeWriterHolder m_scopeWriterHolder;
+
     struct Input : public GangedRandomLFOInternal::Input
     {
         size_t m_numGangs{0};
+        bool m_topIndependent{false};
     };
+
+    void ConfigureScopeWriter(ScopeWriter* scopeWriter, size_t scopeIx)
+    {
+        m_scopeWriterHolder = ScopeWriterHolder(scopeWriter, 0, scopeIx);
+    }
 
     void Process(float dt, Input& input)
     {
         for (size_t i = 0; i < input.m_numGangs; ++i)
         {
             m_lfos[i].Process(dt, input);
+        }
+
+        if (SampleTimer::IsControlFrame() && m_scopeWriterHolder.m_scopeWriter)
+        {
+            for (size_t g = 0; g < input.m_numGangs; ++g)
+            {
+                for (size_t v = 0; v < input.m_gangSize; ++v)
+                {
+                    size_t voiceIx = g * input.m_gangSize + v;
+                    float value = std::min(1.0f, std::max(0.0f, m_lfos[g].m_pos[v]));
+                    m_scopeWriterHolder.WriteAtVoice(voiceIx, value);
+                }
+            }            
+        }
+
+        if (input.m_topIndependent && m_scopeWriterHolder.m_scopeWriter)
+        {
+            for (size_t g = 0; g < input.m_numGangs; ++g)
+            {
+                for (size_t v = 0; v < input.m_gangSize; ++v)
+                {
+                    size_t voiceIx = g * input.m_gangSize + v;
+                    m_scopeWriterHolder.RecordStartAtVoice(voiceIx);
+                }
+            }
         }
     }
 };

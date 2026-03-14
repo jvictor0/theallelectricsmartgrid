@@ -175,6 +175,7 @@ struct AHD
     float m_output;
     float m_rawOutput;
     float m_startOutput;
+    float m_amplitude;
 
     AHD()
         : m_state(State::Idle)
@@ -182,6 +183,7 @@ struct AHD
         , m_output(0.0f)
         , m_rawOutput(0.0f)
         , m_startOutput(0.0f)
+        , m_amplitude(1.0f)
     {
     }
     
@@ -258,6 +260,7 @@ struct AHD
             }
         }
 
+        m_amplitude = input.m_amplitude;
         if (input.m_amplitudePolarity)
         {
             m_output = m_rawOutput * input.m_amplitude;

@@ -2,19 +2,28 @@
 
 #include "QuadUtils.hpp"
 #include "Math.hpp"
+#include "SampleTimer.hpp"
+#include "ScopeWriter.hpp"
 #include "Slew.hpp"
 
 struct QuadLFO
 {
     QuadFloat m_phase;
-    
+
     QuadFloat m_output;
 
     OPLowPassFilter m_slew[4];
 
+    ScopeWriterHolder m_scopeWriterHolder;
+
     QuadLFO()
         : m_phase(0.0f, 0.0f, 0.0f, 0.0f)
     {
+    }
+
+    void ConfigureScopeWriter(ScopeWriter* scopeWriter, size_t scopeIx)
+    {
+        m_scopeWriterHolder = ScopeWriterHolder(scopeWriter, 0, scopeIx);
     }
 
     void SetSlew(float freq)
@@ -72,6 +81,8 @@ struct QuadLFO
 
     void Process(const Input& input)
     {
+        QuadFloat prevPhase = m_phase;
+
         for (int i = 1; i < 4; ++i)
         {
             if (input.m_freq[i] / input.m_freq[0] < 1.0001 && 0.9999 < input.m_freq[i] / input.m_freq[0])
@@ -90,6 +101,22 @@ struct QuadLFO
         {
             m_slew[i].SetAlphaFromNatFreq(input.m_freq[i] * 2);
             m_output[i] = m_slew[i].Process(Math::Sin2pi(phase[i]));
+        }
+
+        if (m_scopeWriterHolder.m_scopeWriter)
+        {
+            if (SampleTimer::IsControlFrame())
+            {
+                m_scopeWriterHolder.Write(m_output);
+            }
+
+            for (size_t i = 0; i < 4; ++i)
+            {
+                if (m_phase[i] < prevPhase[i])
+                {
+                    m_scopeWriterHolder.RecordStartAtVoice(i);
+                }
+            }
         }
     }
 };

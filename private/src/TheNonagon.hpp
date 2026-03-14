@@ -13,7 +13,6 @@
 #include "Trig.hpp"
 #include "ClockSelectCell.hpp"
 #include "GangedRandomLFO.hpp"
-#include "Slew.hpp"
 #include "Tick2Phasor.hpp"
 #include "MessageOut.hpp"
 #include "PhaseUtils.hpp"
@@ -67,6 +66,7 @@ struct TheNonagonInternal
     struct UIState
     {
         TheoryOfTime::UIState m_theoryOfTimeUIState;
+        LameJuisInternal::UIState m_laneJuiceUIState;
         std::atomic<int> m_loopMultiplier[x_numTrios];
         std::atomic<bool> m_gate[x_numVoices];
         std::atomic<bool> m_muted[x_numVoices];
@@ -114,9 +114,7 @@ struct TheNonagonInternal
         bool m_gate[x_numVoices];
         float m_voltPerOct[x_numVoices];
         float m_gridId[x_numGridIds];
-        float m_extraTimbreTrg[x_numVoices][x_numExtraTimbres];
         float m_extraTimbre[x_numVoices][x_numExtraTimbres];
-        FixedSlew m_extraTimbreSlew[x_numVoices][x_numExtraTimbres];
 
         Output()
         {
@@ -128,7 +126,6 @@ struct TheNonagonInternal
                 for (size_t j = 0; j < x_numExtraTimbres; ++j)                
                 {
                     m_extraTimbre[i][j] = 0;
-                    m_extraTimbreTrg[i][j] = 0;
                 }
             }
 
@@ -267,7 +264,7 @@ struct TheNonagonInternal
                     
                 for (size_t j = 0; j < x_numExtraTimbres; ++j)
                 {
-                    m_output.m_extraTimbreTrg[i][j] = result.m_section.Timbre(j);
+                    m_output.m_extraTimbre[i][j] = result.m_section.Timbre(j);
                 }
 
                 NonagonNoteWriter::EventData eventData;
@@ -289,12 +286,6 @@ struct TheNonagonInternal
                 }
                 
                 m_output.m_gate[i] = false;
-            }
-
-
-            for (size_t j = 0; j < x_numExtraTimbres; ++j)
-            {
-                m_output.m_extraTimbre[i][j] = m_output.m_extraTimbreSlew[i][j].Process(m_output.m_extraTimbreTrg[i][j]);
             }
         }
 
@@ -1286,6 +1277,7 @@ struct TheNonagonSmartGrid
     {
         m_nonagon.m_noteWriter.SetCurPosition(m_nonagon.m_theoryOfTime.GetPhasorIndependent(0));
         m_nonagon.m_theoryOfTime.PopulateUIState(&uiState->m_theoryOfTimeUIState);
+        m_nonagon.m_lameJuis.PopulateUIState(&uiState->m_laneJuiceUIState);
         for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
         {
             uiState->SetLoopMultiplier(i, m_state.m_multiPhasorGateInput.m_phasorDenominator[i * TheNonagonInternal::x_voicesPerTrio]);

@@ -186,7 +186,7 @@ struct TheNonagonSquiggleBoyInternal
 
             m_squiggleBoy.m_state[i].m_ahdControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i];            
 
-            m_squiggleBoy.m_state[i].m_filterInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
+            m_squiggleBoy.m_state[i].m_ampInput.m_modulationAHDInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
             m_squiggleBoy.m_state[i].m_ampInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
             m_squiggleBoy.m_state[i].m_sourceInput.m_physicalModelingInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
 
@@ -196,6 +196,7 @@ struct TheNonagonSquiggleBoyInternal
         }
 
         m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_masterLoop].m_top[SampleTimer::GetUBlockIndex()];
+        m_squiggleBoyState.m_topIndependent = m_nonagon.m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_masterLoop].m_topIndependent[SampleTimer::GetUBlockIndex()];
     }
 
     void SetNonagonInputs()

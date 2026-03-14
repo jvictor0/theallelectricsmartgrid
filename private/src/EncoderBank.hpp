@@ -59,6 +59,7 @@ struct BankedEncoderCell : public StateEncoderCell
             , m_modulatorColor{}
             , m_gestureWeights{}
             , m_gestureWeightsPrev{}
+            , m_amplitude{}
         {
             for (size_t i = 0; i < x_numModulators; ++i)
             {
@@ -66,6 +67,7 @@ struct BankedEncoderCell : public StateEncoderCell
                 {
                     m_value[i][j] = 0;
                     m_valuePrev[i][j] = 0;
+                    m_amplitude[i][j] = 1;
                 }
 
                 m_modulatorColor[i] = Color::Off;
@@ -123,6 +125,7 @@ struct BankedEncoderCell : public StateEncoderCell
         
         float m_value[x_numModulators][16];
         float m_valuePrev[x_numModulators][16];
+        float m_amplitude[x_numModulators][16];
         bool m_modulatorConnected[x_numModulators];
         Color m_modulatorColor[x_numModulators];
 
@@ -305,8 +308,9 @@ struct BankedEncoderCell : public StateEncoderCell
                     for (size_t k = 0; k < numVoices; ++k)
                     {
                         size_t ix = j * numVoices + k;
-                        modValue[ix] += cell->m_output[ix] * modulatorValues->m_value[m_activeModulators[i]][ix];
-                        modWeight[ix] += cell->m_output[ix];
+                        float amp = modulatorValues->m_amplitude[m_activeModulators[i]][ix];
+                        modValue[ix] += cell->m_output[ix] * modulatorValues->m_value[m_activeModulators[i]][ix] * amp;
+                        modWeight[ix] += cell->m_output[ix] * amp;
                     }
                 }                
             }

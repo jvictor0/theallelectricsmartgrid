@@ -11,6 +11,7 @@ This document describes the visualizer system for the Smart Grid One display. Vi
 | `SmartGridOneMainVisualizerComponent.hpp` | Base class for all visualizers. Defines `Draw()` and optional `OnClick()`. |
 | `SmartGridOneVisualizerMain.hpp` | Main container component. Owns visualizer instances, handles layout, dispatch, and metering. |
 | `ForEachSmartGridOneVisualizer.hpp` | X-macro list mapping (name, bank, block, constructor, source-machine flags) for each visualizer. |
+| `ForEachModulationVisualizer.hpp` | X-macro list mapping (name, slot, constructor, mode, color) for modulation visualizers. |
 
 ### Base Class: SmartGridOneMainVisualizerComponent
 
@@ -32,6 +33,7 @@ The grid is 24×18 cells. Block positions:
 | 2 | (8, 8) | Center 8×8 |
 | 3 | (16, 8) | Right 8×8 |
 | -1 | (0, 8), 24×8 | Full-width strip (e.g. MelodyRoll) |
+| slots 0-11 | (x, 16), 2×2 | Modulation panels drawn across the bottom row |
 
 Encoder regions at (8,0), (16,0), (8,3), (16,3) are excluded from paint and click handling.
 
@@ -58,7 +60,7 @@ Visualizers read from:
 
 - **`TheNonagonSquiggleBoyInternal::UIState`** — Central UI state. Access via `NonagonWrapper::GetUIState()`.
 - **`m_squiggleBoyUIState`** — Contains:
-  - `m_audioScopeWriter`, `m_controlScopeWriter`, `m_quadScopeWriter`, `m_sourceMixerScopeWriter`, `m_monoScopeWriter` — Scope buffers
+  - `m_audioScopeWriter`, `m_controlScopeWriter`, `m_quadScopeWriter`, `m_quadControlScopeWriter`, `m_globalControlScopeWriter`, `m_sourceMixerScopeWriter`, `m_monoScopeWriter` — Scope buffers
   - `m_voiceMeterReader`, `m_returnMeterReader`, etc. — Meter readers
   - `m_activeTrack`, `m_xPos`, `m_yPos` — Panning/position state
   - `m_voiceFilterUIState` — Filter response for analyzer overlays
