@@ -47,9 +47,9 @@ The selected encoder bank (`SmartGridOneEncoders::Bank`) determines which visual
 - **FilterAndAmp** — Voice meter, post-amp scope, filter scope, filter analyzer
 - **PanningAndSequencing** — Sound stage (quad position), MelodyRoll (full-width)
 - **VoiceLFOs** — Control scopes 0–3
-- **Delay** — Delay analyzer
+- **Delay** — Delay analyzer, quad delay envelope view
 - **Reverb** — Reverb analyzers
-- **TheoryOfTime** — Quad analyzers, TheoryOfTime scope
+- **TheoryOfTime** — Quad analyzers, quad delay envelope view, TheoryOfTime scope
 - **Mastering** — Source mixer reduction/freq, multiband EQ, multiband gain reduction
 - **Inputs** — Same as Mastering (inputs bank)
 - **DeepVocoder** — Same as Mastering (deep vocoder bank)
@@ -64,7 +64,7 @@ Visualizers read from:
   - `m_voiceMeterReader`, `m_returnMeterReader`, etc. — Meter readers
   - `m_activeTrack`, `m_xPos`, `m_yPos` — Panning/position state
   - `m_voiceFilterUIState` — Filter response for analyzer overlays
-  - `m_delayUIState`, `m_reverbUIState` — Effect UI state for quad analyzers
+  - `m_delayUIState`, `m_reverbUIState` — Effect UI state for quad analyzers and other effect-specific visualizers
 - **`NonagonWrapper`** — Provides `GetAudioScopeWriter()`, `GetControlScopeWriter()`, `GetNoteWriter()`, etc.
 
 ## Existing Visualizers
@@ -78,11 +78,14 @@ Visualizers read from:
 | SoundStageComponent | PanningAndSequencing | 0 | m_xPos, m_yPos, m_voiceMeterReader |
 | MelodyRollComponent | PanningAndSequencing | -1 | NonagonNoteWriter |
 | QuadAnalyserComponent | Delay, Reverb, TheoryOfTime | 0 | m_quadScopeWriter, delay/reverb UI state |
+| QuadDelayEnvelopeVisualizerComponent | Delay, TheoryOfTime | 1 | `m_delayUIState` envelope snapshots plus relative read/write head positions |
 | TheoryOfTimeScopeComponent | TheoryOfTime | 2 | m_monoScopeWriter |
 | SourceMixerReductionComponent | Mastering, Inputs, DeepVocoder | 0–3 | m_sourceMixerScopeWriter |
 | SourceMixerFrequencyComponent | Mastering, Inputs, DeepVocoder | 1–3 | m_sourceMixerScopeWriter |
 | MultibandEQComponent | Mastering, Inputs, DeepVocoder | 2–3 | m_quadScopeWriter |
 | MultibandGainReductionComponent | Mastering, Inputs, DeepVocoder | 3 | m_stereoMasteringChainUIState |
+
+`QuadDelayEnvelopeVisualizerComponent` is a non-FFT effect view. It renders min/max envelope snapshots derived from the quad delay's movable-writer buffer and overlays the current relative read/write tape-head positions from `m_delayUIState`.
 
 ## Related
 

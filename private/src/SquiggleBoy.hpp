@@ -1503,7 +1503,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
 
         delayInputSetterInput.m_theoryOfTime = m_theoryOfTime;
-        m_delayInputSetter.Process(delayInputSetterInput, m_delayState);
+        m_delayInputSetter.Process(delayInputSetterInput, m_delayState, &m_delay);
         m_delayToReverbSend.Update(m_encoders.GetValue(Param::DelayReverbSend));
         m_mixerState.m_returnGain[0].Update(m_encoders.GetValue(Param::DelayReturn));
 

@@ -536,7 +536,12 @@ struct TheoryOfTimeBase
     {
         return GetDirectPhasor(j, x_masterLoop);
     }
-
+    
+    double GetIndirectPhasor(size_t j) const
+    {
+        return GetIndirectPhasor(j, x_masterLoop);
+    }
+    
     bool GetTopIndependent(size_t j) const
     {
         return GetDirectTop(j, x_masterLoop);

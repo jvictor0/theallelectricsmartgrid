@@ -8,6 +8,9 @@
 #include "InterleavedArray.hpp"
 #include "Math.hpp"
 #include "Resynthesis.hpp"
+#include <algorithm>
+#include <limits>
+#include <utility>
 
 struct XFader
 {
@@ -214,8 +217,13 @@ template<size_t Size>
 struct DelayLineMovableWriter
 {
     static constexpr size_t x_maxDelaySamples = Size;
+    static constexpr size_t x_envelopeBucketSamples = 1024;
+    static constexpr size_t x_envelopeBucketCount = x_maxDelaySamples / x_envelopeBucketSamples;
+
     InterleavedArrayHolder<float, x_maxDelaySamples, 4> m_delayLine;
     InterleavedArrayHolder<double, x_maxDelaySamples, 4> m_writeHeadInverse;
+    InterleavedArrayHolder<float, x_envelopeBucketCount, 4> m_maxEnvelope;
+    InterleavedArrayHolder<float, x_envelopeBucketCount, 4> m_minEnvelope;
 
     static constexpr size_t x_scatterBufferSize = 8;
     size_t m_scatterHead;
@@ -240,17 +248,27 @@ struct DelayLineMovableWriter
     {
     }
 
-    void SetArray(InterleavedArray<float, x_maxDelaySamples, 4>* delayLine, InterleavedArray<double, x_maxDelaySamples, 4>* writeHeadInverse, size_t foldIx)
+    void SetArray(InterleavedArray<float, x_maxDelaySamples, 4>* delayLine, InterleavedArray<double, x_maxDelaySamples, 4>* writeHeadInverse, InterleavedArray<float, x_envelopeBucketCount, 4>* maxEnvelope, InterleavedArray<float, x_envelopeBucketCount, 4>* minEnvelope, size_t foldIx)
     {
         m_delayLine.m_array = delayLine;
         m_delayLine.m_foldIx = foldIx;
         m_writeHeadInverse.m_array = writeHeadInverse;
         m_writeHeadInverse.m_foldIx = foldIx;
+        m_maxEnvelope.m_array = maxEnvelope;
+        m_maxEnvelope.m_foldIx = foldIx;
+        m_minEnvelope.m_array = minEnvelope;
+        m_minEnvelope.m_foldIx = foldIx;
 
         for (size_t i = 0; i < x_maxDelaySamples; ++i)
         {
             m_delayLine[i] = 0.0f;
             m_writeHeadInverse[i] = i;
+        }
+
+        for (size_t i = 0; i < x_envelopeBucketCount; ++i)
+        {
+            m_maxEnvelope[i] = 0;
+            m_minEnvelope[i] = 0;
         }
     }
 
@@ -309,6 +327,19 @@ struct DelayLineMovableWriter
 
         size_t index = static_cast<size_t>(m_lastTime) % x_maxDelaySamples;
         m_delayLine[index] = x;
+
+        size_t envelopeBucketIndex = index / x_envelopeBucketSamples;
+        if (index % x_envelopeBucketSamples == 0)
+        {
+            m_maxEnvelope[envelopeBucketIndex] = x;
+            m_minEnvelope[envelopeBucketIndex] = x;            
+        }
+        else
+        {
+            m_maxEnvelope[envelopeBucketIndex] = std::max(m_maxEnvelope[envelopeBucketIndex], x);
+            m_minEnvelope[envelopeBucketIndex] = std::min(m_minEnvelope[envelopeBucketIndex], x);
+        }
+
         if (index == 0)
         {
             INFO("Delay buffer wrap around");            
@@ -361,6 +392,25 @@ struct DelayLineMovableWriter
     double GetRealTime(double warpedTime)
     {
         return ReadAtIndex(warpedTime, m_writeHeadInverse);
+    }
+
+    std::pair<float, float> GetEnvelopeAtRealTime(double realTime)
+    {
+        double envelopeIndexFloat = realTime / static_cast<double>(x_envelopeBucketSamples) - 0.5;
+
+        size_t index0 = static_cast<size_t>(std::floor(envelopeIndexFloat)) % x_envelopeBucketCount;
+        size_t index1 = (index0 + 1) % x_envelopeBucketCount;
+        float frac = static_cast<float>(envelopeIndexFloat - std::floor(envelopeIndexFloat));
+
+        float maxVal = m_maxEnvelope[index0] * (1.0f - frac) + m_maxEnvelope[index1] * frac;
+        float minVal = m_minEnvelope[index0] * (1.0f - frac) + m_minEnvelope[index1] * frac;
+
+        return {maxVal, minVal};
+    }
+
+    std::pair<float, float> GetEnvelopeAtWarpedTime(double warpedTime)
+    {
+        return GetEnvelopeAtRealTime(GetRealTime(warpedTime));
     }
 
     float ReadRealTime(double realTime)
@@ -530,51 +580,6 @@ struct GrainManager
             m_grainsArray[i] = nullptr;
         }
     }
-
-    struct UIState
-    {
-        static constexpr size_t x_maxFrames = 16;
-        std::atomic<double> m_phaseOffsets[x_maxGrains][x_maxFrames];
-        std::atomic<size_t> m_numGrains[x_maxFrames];
-        std::atomic<size_t> m_which;
-
-        double GetPhaseOffset(size_t i, size_t frame)
-        {
-            return m_phaseOffsets[i][frame].load();
-        }
-
-        size_t GetNumGrains(size_t frame)
-        {
-            return m_numGrains[frame].load();
-        }
-
-        size_t GetFrame()
-        {
-            return (m_which.load() - 1) % x_maxFrames;
-        }
-
-        float FrequencyResponse(size_t frame, float freq)
-        {
-            size_t numGrains = GetNumGrains(frame);
-            float omega = 2 * M_PI * freq;
-            std::complex<float> response = 0.0f;
-            for (size_t i = 0; i < numGrains; ++i)
-            {
-                float phaseOffset = GetPhaseOffset(i, frame);
-                response += std::exp(std::complex<float>(0.0f, omega * phaseOffset));
-            }
-
-            return std::abs(response) / 2.0f;
-        }
-        
-    };
-
-    void PopulateUIState(UIState* uiState)
-    {
-        uiState->m_numGrains[uiState->m_which.load()].store(0);        
-        uiState->m_numGrains[uiState->m_which.load()].store(m_numGrains);
-        uiState->m_which.store((uiState->m_which.load() + 1) % UIState::x_maxFrames);
-    }
 };
 
 struct AllPassFilter
@@ -707,15 +712,19 @@ struct QuadDelayLine
 template<size_t Size>
 struct QuadDelayLineMovableWriter
 {
+    static constexpr size_t x_envelopeBucketCount = DelayLineMovableWriter<Size>::x_envelopeBucketCount;
+
     InterleavedArray<float, Size, 4> m_delayLineArray;
     InterleavedArray<double, Size, 4> m_writeHeadInverseArray;
+    InterleavedArray<float, x_envelopeBucketCount, 4> m_maxEnvelopeArray;
+    InterleavedArray<float, x_envelopeBucketCount, 4> m_minEnvelopeArray;
     DelayLineMovableWriter<Size> m_delayLine[4];
 
     QuadDelayLineMovableWriter()
     {
         for (size_t i = 0; i < 4; ++i)
         {
-            m_delayLine[i].SetArray(&m_delayLineArray, &m_writeHeadInverseArray, i);
+            m_delayLine[i].SetArray(&m_delayLineArray, &m_writeHeadInverseArray, &m_maxEnvelopeArray, &m_minEnvelopeArray, i);
         }
     }
 

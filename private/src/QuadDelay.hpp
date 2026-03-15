@@ -2,11 +2,14 @@
 
 #include "QuadUtils.hpp"
 #include "DelayLine.hpp"
+#include "PositionalBufferRecorder.hpp"
 #include "QuadLFO.hpp"
 #include "Filter.hpp"
 #include "PhaseUtils.hpp"
 #include "TheoryOfTime.hpp"
+#include "TapeHead.hpp"
 #include "Q.hpp"
+#include <atomic>
 struct QuadDelay
 {
     struct PostFeedbackFilter
@@ -25,9 +28,12 @@ struct QuadDelay
     };
     
     static constexpr size_t x_delayLineSize = 1 << 24;
+    static constexpr size_t x_positionalBufferSize = 1024;
     QuadDelayLineMovableWriter<x_delayLineSize> m_delayLine;
     QuadGrainManager<x_delayLineSize> m_grainManager;
     QuadLFO m_lfo;
+
+    PositionalBufferRecorder<x_positionalBufferSize> m_positionalBufferRecorder[4];
 
     PostFeedbackFilter m_postFeedbackFilter;
 
@@ -53,6 +59,8 @@ struct QuadDelay
 
         QuadDouble m_writeHeadPosition;
         QuadDouble m_readHeadPosition;
+        QuadFloat m_relativeWriteHeadPosition;
+        QuadFloat m_relativeReadHeadPosition;
 
         QuadFloat m_bffBase;
         QuadFloat m_bffWidth;
@@ -64,6 +72,8 @@ struct QuadDelay
         Input()
             : m_feedback(0.5, 0.5, 0.5, 0.5)
             , m_rotate(0, 0, 0, 0)
+            , m_relativeWriteHeadPosition(-1.0f, -1.0f, -1.0f, -1.0f)
+            , m_relativeReadHeadPosition(-1.0f, -1.0f, -1.0f, -1.0f)
         {
         }
 
@@ -75,11 +85,34 @@ struct QuadDelay
 
     struct UIState
     {
+        static constexpr int x_delayEnvelopeSlotCount = 10;
+
         DampingFilter::UIState m_dampingFilter[4];
-        std::atomic<float> m_sigma[4];
-        std::atomic<int> m_overlap[4];
-        std::atomic<double> m_grainSize[4];
-        GrainManager<x_delayLineSize>::UIState m_delayLineUIState[4];
+
+        int GetCurrent() const
+        {
+            return (m_which.load(std::memory_order_acquire) + x_delayEnvelopeSlotCount - 1) % x_delayEnvelopeSlotCount;
+        }
+
+        struct DelayEnvelopeState
+        {
+            float m_maxEnvelope[x_positionalBufferSize];
+            float m_minEnvelope[x_positionalBufferSize];
+            std::atomic<float> m_relativeReadHeadPosition{-1.0f};
+            std::atomic<float> m_relativeWriteHeadPosition{-1.0f};
+
+            DelayEnvelopeState()
+            {
+                for (int i = 0; i < x_positionalBufferSize; ++i)
+                {
+                    m_maxEnvelope[i] = 0.0f;
+                    m_minEnvelope[i] = 0.0f;
+                }
+            }
+        };
+
+        DelayEnvelopeState m_delayEnvelopeState[4][x_delayEnvelopeSlotCount];
+        std::atomic<int> m_which{0};
     };
 
     void PopulateUIState(UIState* uiState, QuadDelay::Input& input)
@@ -88,8 +121,29 @@ struct QuadDelay
         {
             uiState->m_dampingFilter[i].m_hpAlpha.store(m_postFeedbackFilter.m_bff.m_filters[i].m_highPassFilter.m_alpha);
             uiState->m_dampingFilter[i].m_lpAlpha.store(m_postFeedbackFilter.m_bff.m_filters[i].m_lowPassFilter.m_alpha);
-            m_grainManager.m_grainManager[i].PopulateUIState(&uiState->m_delayLineUIState[i]);
         }
+
+        int which = uiState->m_which.load(std::memory_order_relaxed);
+        for (int delayLineIdx = 0; delayLineIdx < 4; ++delayLineIdx)
+        {
+            auto& envelopeState = uiState->m_delayEnvelopeState[delayLineIdx][which];
+            envelopeState.m_relativeReadHeadPosition.store(input.m_relativeReadHeadPosition[delayLineIdx], std::memory_order_release);
+            envelopeState.m_relativeWriteHeadPosition.store(input.m_relativeWriteHeadPosition[delayLineIdx], std::memory_order_release);
+
+            auto& recorder = m_positionalBufferRecorder[delayLineIdx];
+            auto& delayLine = m_delayLine.m_delayLine[delayLineIdx];
+
+            for (size_t bufIdx = 0; bufIdx < x_positionalBufferSize; ++bufIdx)
+            {
+                double warpedTime = recorder.Get(bufIdx);
+                double realTime = delayLine.GetRealTime(warpedTime);
+                auto [maxEnv, minEnv] = delayLine.GetEnvelopeAtRealTime(realTime);
+                envelopeState.m_maxEnvelope[bufIdx] = maxEnv;
+                envelopeState.m_minEnvelope[bufIdx] = minEnv;
+            }
+        }
+
+        uiState->m_which.store((which + 1) % UIState::x_delayEnvelopeSlotCount, std::memory_order_release);
     }
 
     QuadFloat Process(Input& input)
@@ -137,12 +191,9 @@ struct QuadDelayInputSetter
     PhaseUtils::ExpParam m_rmsLoud[4];
     PhaseUtils::ZeroedExpParam m_loudShift[4];
 
-    int m_totLoopSelector[4];
     float m_bufferFrac[4];
-
-    double m_masterLoopSamples[4];
-    bool m_running[4];
-    double m_glue[4];
+    WriteTapeHead m_writeTapeHead[4];
+    ReadTapeHead m_readTapeHead[4];
 
     struct Input
     {
@@ -217,61 +268,35 @@ struct QuadDelayInputSetter
             //
             m_slewUp[i] = PhaseUtils::ExpParam(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5);
 
-            m_totLoopSelector[i] = TheoryOfTime::x_masterLoop;
             m_bufferFrac[i] = 1.0;
-            m_glue[i] = 0.0;
-            m_masterLoopSamples[i] = 1.0;
-            m_running[i] = false;
+            m_readTapeHead[i].m_writeTapeHead = &m_writeTapeHead[i];
         }
     }
 
-    void Process(Input& input, QuadDelay::Input& delayInput)
+    void Process(Input& input, QuadDelay::Input& delayInput, QuadDelay* delay)
     {
+        int totLoopSelectorSample = static_cast<int>(std::round(SampleTimer::GetUBlockIndex()));
         for (int i = 0; i < 4; ++i)
         {
-            if (!input.m_theoryOfTime->m_running)
-            {
-                if (m_running[i])
-                {
-                    m_running[i] = false;
-                    m_glue[i] = delayInput.m_writeHeadPosition[i];
-                }
-
-                m_glue[i] = m_glue[i] + 1;
-            }
-            else if (!m_running[i])
-            {
-                m_running[i] = true;
-            }
-
-            if (m_masterLoopSamples[i] != input.m_theoryOfTime->m_masterLoopSamples)
-            {
-                m_glue[i] = delayInput.m_writeHeadPosition[i] - (delayInput.m_writeHeadPosition[i] - m_glue[i]) * input.m_theoryOfTime->m_masterLoopSamples / m_masterLoopSamples[i];
-                m_masterLoopSamples[i] = input.m_theoryOfTime->m_masterLoopSamples;
-            }
-
             float widen = m_wideners[i].Update(input.m_widenKnob[i]);
 
             int totLoopSelector = std::round((1.0 - input.m_loopSelectorKnob[i]) * TheoryOfTime::x_masterLoop);
-            int totLoopSelectorSample = static_cast<int>(std::round(SampleTimer::GetUBlockIndex()));
-            if (totLoopSelector != m_totLoopSelector[i] && 
-                input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, m_totLoopSelector[i]) &&
-                input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, totLoopSelector))
-            {
-                int oldTotLoopSelector = m_totLoopSelector[i];
-                m_totLoopSelector[i] = totLoopSelector;
+            WriteTapeHead::Input writeInput;
+            writeInput.m_theoryOfTime = input.m_theoryOfTime;
+            writeInput.m_sampleIndex = totLoopSelectorSample;
+            writeInput.m_running = input.m_theoryOfTime->m_running;
+            writeInput.m_masterLoopSamples = input.m_theoryOfTime->m_masterLoopSamples;
+            writeInput.m_requestedLoopSelector = totLoopSelector;
+            m_writeTapeHead[i].Update(writeInput);
 
-                m_glue[i] += input.m_theoryOfTime->PhasorUnwoundSamples(totLoopSelectorSample, oldTotLoopSelector) - input.m_theoryOfTime->PhasorUnwoundSamples(totLoopSelectorSample, totLoopSelector);
-            }
-
-            if (input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, m_totLoopSelector[i]))
+            if (input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, m_writeTapeHead[i].m_loopSelector))
             {
                 int factorIx = std::round(input.m_delayTimeFactorKnob[i] * 4);
                 float possibleBufferFracs[5] = {0.8, 2.0/3.0, 1.0, 3.0/4.0, 5.0/8.0};
                 m_bufferFrac[i] = possibleBufferFracs[factorIx];
             }
 
-            double writeHeadPosition = input.m_theoryOfTime->PhasorUnwoundSamples(totLoopSelectorSample, m_totLoopSelector[i]) + m_glue[i];
+            double writeHeadPosition = m_writeTapeHead[i].m_actualPosition;
             if (std::abs(writeHeadPosition - delayInput.m_writeHeadPosition[i]) >= 64 && i == 0)
             {
                 INFO("writeHeadPosition: %f -> %f (diff %f) external loop", 
@@ -280,16 +305,23 @@ struct QuadDelayInputSetter
                     std::abs(writeHeadPosition - delayInput.m_writeHeadPosition[i]));
                 INFO("theory of time microblock %d index %d phasor indirect %f direct %f master %f master indirect %f",
                     totLoopSelectorSample,
-                    m_totLoopSelector[i],
-                    input.m_theoryOfTime->GetIndirectPhasor(totLoopSelectorSample, m_totLoopSelector[i]),
-                    input.m_theoryOfTime->GetDirectPhasor(totLoopSelectorSample, m_totLoopSelector[i]),
-                    input.m_theoryOfTime->GetPhasorIndependent(m_totLoopSelector[i]),
+                    m_writeTapeHead[i].m_loopSelector,
+                    input.m_theoryOfTime->GetIndirectPhasor(totLoopSelectorSample, m_writeTapeHead[i].m_loopSelector),
+                    input.m_theoryOfTime->GetDirectPhasor(totLoopSelectorSample, m_writeTapeHead[i].m_loopSelector),
+                    input.m_theoryOfTime->GetPhasorIndependent(m_writeTapeHead[i].m_loopSelector),
                     input.m_theoryOfTime->GetIndirectPhasor(totLoopSelectorSample, TheoryOfTimeBase::x_masterLoop));
             }
 
             delayInput.m_writeHeadPosition[i] = writeHeadPosition;
 
-            delayInput.m_readHeadPosition[i] = input.m_theoryOfTime->LoopSamplesFraction(totLoopSelectorSample, m_totLoopSelector[i], m_bufferFrac[i] * widen) + m_glue[i];
+            ReadTapeHead::Input readInput;
+            readInput.m_theoryOfTime = input.m_theoryOfTime;
+            readInput.m_sampleIndex = totLoopSelectorSample;
+            readInput.m_bufferFraction = m_bufferFrac[i] * widen;
+            m_readTapeHead[i].Update(readInput);
+            delayInput.m_readHeadPosition[i] = m_readTapeHead[i].m_actualPosition;
+            delayInput.m_relativeWriteHeadPosition[i] = static_cast<float>(m_writeTapeHead[i].m_relativePosition);
+            delayInput.m_relativeReadHeadPosition[i] = static_cast<float>(m_readTapeHead[i].m_relativePosition);
 
             float rotate = std::round(input.m_rotateKnob[i] * 4) / 4.0f;
             delayInput.m_rotate[i] = m_rotateFilter[i].Process(rotate);
@@ -329,6 +361,18 @@ struct QuadDelayInputSetter
             resynthInput.m_unisonDetune = m_unisonDetune[i].Update(input.m_resynthUnisonKnob[i]);
             resynthInput.m_unisonGain = m_unisonGain[i].Update(std::min<float>(1.0, 10 * input.m_resynthUnisonKnob[i]));
             resynthInput.m_slewUp = m_slewUp[i].Update(1.0f - input.m_resynthSlewUpKnob[i]);
+        }
+
+        if (delay)
+        {
+            size_t sampleIndex = static_cast<size_t>(std::round(SampleTimer::GetUBlockIndex())) % TheoryOfTimeBase::x_microBlockSize;
+
+            for (int i = 0; i < 4; ++i)
+            {
+                double x = input.m_theoryOfTime->GetIndirectPhasor(sampleIndex);
+                double y = delayInput.m_writeHeadPosition[i];
+                delay->m_positionalBufferRecorder[i].Record(x, y);
+            }
         }
     }
 };

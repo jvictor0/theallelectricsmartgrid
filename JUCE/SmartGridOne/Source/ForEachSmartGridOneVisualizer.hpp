@@ -175,6 +175,12 @@ F(
         uiState,
         QuadAnalyserComponent::Type::Delay),
     VoiceMachine::SourceMachineFlags::All())
+F(
+    QuadDelayEnvelope,
+    Delay,
+    1,
+    std::make_unique<QuadDelayEnvelopeVisualizerComponent>(uiState),
+    VoiceMachine::SourceMachineFlags::All())
 
 // Reverb bank
 //
@@ -196,6 +202,12 @@ F(
     std::make_unique<QuadAnalyserComponent>(
         uiState,
         QuadAnalyserComponent::Type::Master),
+    VoiceMachine::SourceMachineFlags::All())
+F(
+    QuadDelayEnvelopeTot,
+    TheoryOfTime,
+    1,
+    std::make_unique<QuadDelayEnvelopeVisualizerComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     TheoryOfTimeViz,
