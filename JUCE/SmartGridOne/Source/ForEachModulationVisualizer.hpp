@@ -102,8 +102,8 @@ G(
         static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadGangedRandom1),
         4,
         SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Quad).m_color,
-        0.5f,
-        0.5f),
+        0.9f,
+        0.05f),
     SmartGridOneEncoders::BankMode::Quad,
     SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Quad).m_color)
 G(
@@ -114,8 +114,8 @@ G(
         static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadGangedRandom2),
         4,
         SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Quad).m_color,
-        0.5f,
-        0.5f),
+        0.9f,
+        0.05f),
     SmartGridOneEncoders::BankMode::Quad,
     SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Quad).m_color)
 G(
