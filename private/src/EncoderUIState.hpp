@@ -16,6 +16,7 @@ struct EncoderUIState
     std::atomic<BitSet16> m_modulatorsAffecting;
     std::atomic<BitSet16> m_gesturesAffecting;
     std::atomic<const char*> m_shortName;
+    std::atomic<int> m_switchValues;
 
     EncoderUIState()
         : m_color(SmartGrid::Color::Off)
@@ -27,6 +28,7 @@ struct EncoderUIState
         , m_modulatorsAffecting{}
         , m_gesturesAffecting{}
         , m_shortName(nullptr)
+        , m_switchValues(0)
     {
         for (size_t i = 0; i < 16; ++i)
         {
@@ -108,6 +110,11 @@ struct EncoderBankUIState
         return m_states[i][j].m_maxValues[k].load();
     }
 
+    int GetSwitchValues(size_t i, size_t j)
+    {
+        return m_states[i][j].m_switchValues.load();
+    }
+
     int GetNumTracks()
     {
         return m_numTracks.load();
@@ -166,6 +173,11 @@ struct EncoderBankUIState
     void SetMaxValue(size_t i, size_t j, size_t k, float value)
     {
         m_states[i][j].m_maxValues[k].store(value);
+    }
+
+    void SetSwitchValues(size_t i, size_t j, int switchValues)
+    {
+        m_states[i][j].m_switchValues.store(switchValues);
     }
 
     void SetValues(size_t i, size_t j, float* values)

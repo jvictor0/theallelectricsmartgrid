@@ -197,11 +197,11 @@ struct QuadDelayInputSetter
 
     struct Input
     {
-        float m_delayTimeFactorKnob[4];
-        float m_readHeadSpeedKnob[4];
+        int m_delayTimeFactorSwitchVal[4];
+        int m_readHeadSpeedSwitchVal[4];
         float m_loopSelectorKnob[4];
         float m_widenKnob[4];
-        float m_rotateKnob[4];
+        int m_rotateSwitchVal[4];
         float m_modFreqKnob[4];
         float m_modDepthKnob[4];
         float m_feedbackKnob[4];
@@ -213,7 +213,7 @@ struct QuadDelayInputSetter
 
         float m_resynthShiftFadeKnob[4];
         float m_resynthUnisonKnob[4];
-        float m_resynthShiftKnob[4];
+        int m_resynthShiftSwitchVal[4];
         float m_resynthSlewUpKnob[4];
         
         TheoryOfTime* m_theoryOfTime;
@@ -223,11 +223,11 @@ struct QuadDelayInputSetter
         {
             for (int i = 0; i < 4; ++i)
             {
-                m_delayTimeFactorKnob[i] = 0.0f;
-                m_readHeadSpeedKnob[i] = 1.0f;
+                m_delayTimeFactorSwitchVal[i] = 3;
+                m_readHeadSpeedSwitchVal[i] = 10;
                 m_loopSelectorKnob[i] = 0.0f;
                 m_widenKnob[i] = 0.0f;
-                m_rotateKnob[i] = 0.0f;
+                m_rotateSwitchVal[i] = 1;
                 m_modFreqKnob[i] = 0.0f;
                 m_modDepthKnob[i] = 0.0f;
                 m_feedbackKnob[i] = 0.0f;
@@ -239,7 +239,7 @@ struct QuadDelayInputSetter
 
                 m_resynthShiftFadeKnob[i] = 0.0f;
                 m_resynthUnisonKnob[i] = 0.0f;
-                m_resynthShiftKnob[i] = 0.0f;                
+                m_resynthShiftSwitchVal[i] = 9;
                 m_resynthSlewUpKnob[i] = 0.0f;                
             }
         }
@@ -293,12 +293,10 @@ struct QuadDelayInputSetter
 
             if (input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, m_writeTapeHead[i].m_loopSelector))
             {
-                int factorIx = std::round(input.m_delayTimeFactorKnob[i] * 4);
                 float possibleBufferFracs[5] = {0.8, 2.0/3.0, 1.0, 3.0/4.0, 5.0/8.0};
-                m_bufferFrac[i] = possibleBufferFracs[factorIx];
+                m_bufferFrac[i] = possibleBufferFracs[input.m_delayTimeFactorSwitchVal[i]];
             }
 
-            int readSpeedIx = std::round(input.m_readHeadSpeedKnob[i] * 15);
             double possibleReadHeadSpeeds[16] =
             {
                 -4.0,
@@ -343,13 +341,13 @@ struct QuadDelayInputSetter
             readInput.m_theoryOfTime = input.m_theoryOfTime;
             readInput.m_sampleIndex = totLoopSelectorSample;
             readInput.m_bufferFraction = m_bufferFrac[i] * widen;
-            readInput.m_readHeadSpeed = possibleReadHeadSpeeds[readSpeedIx];
+            readInput.m_readHeadSpeed = possibleReadHeadSpeeds[input.m_readHeadSpeedSwitchVal[i]];
             m_readTapeHead[i].Update(readInput);
             delayInput.m_readHeadPosition[i] = m_readTapeHead[i].m_actualPosition;
             delayInput.m_relativeWriteHeadPosition[i] = static_cast<float>(m_writeTapeHead[i].m_relativePosition);
             delayInput.m_relativeReadHeadPosition[i] = static_cast<float>(m_readTapeHead[i].m_relativePosition);
 
-            float rotate = std::round(input.m_rotateKnob[i] * 4) / 4.0f;
+            float rotate = static_cast<float>(input.m_rotateSwitchVal[i]) / 4.0f;
             delayInput.m_rotate[i] = m_rotateFilter[i].Process(rotate);
 
             delayInput.m_modDepth[i] = m_modDepthFilter[i].Process(m_modDepth[i].Update(input.m_modDepthKnob[i]));
@@ -380,8 +378,7 @@ struct QuadDelayInputSetter
                 Q(2, 1) /* octave up */
             };
 
-            int possibleShiftIndex = std::round(input.m_resynthShiftKnob[i] * 9);
-            resynthInput.m_shift[0] = possibleShifts[possibleShiftIndex];
+            resynthInput.m_shift[0] = possibleShifts[input.m_resynthShiftSwitchVal[i]];
 
             resynthInput.m_fade[0] = input.m_resynthShiftFadeKnob[i];
             resynthInput.m_unisonDetune = m_unisonDetune[i].Update(input.m_resynthUnisonKnob[i]);

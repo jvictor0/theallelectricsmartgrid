@@ -5,6 +5,8 @@
 #include "MachineFlags.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 #include "VoiceMachineEnums.hpp"
+#include <algorithm>
+#include <cmath>
 
 struct SmartGridOneEncoders
 {
@@ -55,16 +57,31 @@ struct SmartGridOneEncoders
         }
     };
 
+    struct ParamSwitch
+    {
+        int m_numValues;
+
+        ParamSwitch(int numValues = 0)
+            : m_numValues(numValues)
+        {
+        }
+
+        bool IsSwitch()
+        {
+            return m_numValues > 1;
+        }
+    };
+
     enum class Param
     {
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) name,
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) name,
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
     };
 
     static constexpr size_t x_numParams =
         0
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) + 1
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) + 1
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
         ;
@@ -241,11 +258,23 @@ struct SmartGridOneEncoders
     {
         switch (param)
         {
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) case Param::name: return ParamAddress(Bank::bank, x, y);
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) case Param::name: return ParamAddress(Bank::bank, x, y);
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
             default:
                 return ParamAddress(Bank::Source, 0, 0);
+        }
+    }
+
+    static ParamSwitch GetParamSwitch(Param param)
+    {
+        switch (param)
+        {
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) case Param::name: return ParamSwitch(switchValues);
+#include "ForEachSmartGridOneParam.hpp"
+#undef F
+            default:
+                return ParamSwitch();
         }
     }
 
@@ -278,6 +307,23 @@ struct SmartGridOneEncoders
         return GetValueNoSlew(param, 0);
     }
 
+    int GetSwitchVal(Param param, int voice)
+    {
+        ParamSwitch paramSwitch = GetParamSwitch(param);
+        if (!paramSwitch.IsSwitch())
+        {
+            return 0;
+        }
+
+        int switchVal = static_cast<int>(std::round(GetValueNoSlew(param, voice) * static_cast<float>(paramSwitch.m_numValues - 1)));
+        return std::max(0, std::min(paramSwitch.m_numValues - 1, switchVal));
+    }
+
+    int GetSwitchVal(Param param)
+    {
+        return GetSwitchVal(param, 0);
+    }
+
     // Modulator values access
     //
     SmartGrid::BankedEncoderCell::ModulatorValues& GetModulatorValues(BankMode mode)
@@ -305,10 +351,10 @@ struct SmartGridOneEncoders
         m_encoderBankBank.InitBank(static_cast<int>(Bank::Inputs), static_cast<int>(BankMode::Global), SmartGrid::Color::White);
         m_encoderBankBank.InitBank(static_cast<int>(Bank::DeepVocoder), static_cast<int>(BankMode::Global), SmartGrid::Color::Ocean);
 
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) \
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) \
         { \
             size_t modeIx = static_cast<size_t>(GetModeForBank(Bank::bank)); \
-            size_t index = m_encoderBankBank.CreateEncoder(sceneManager, static_cast<size_t>(Param::name), modeIx, default, #name, #shortName, color); \
+            size_t index = m_encoderBankBank.CreateEncoder(sceneManager, static_cast<size_t>(Param::name), modeIx, default, #name, #shortName, color, switchValues); \
             m_encoderBankBank.PlaceEncoder(index, static_cast<size_t>(Bank::bank), x, y); \
         }
 #include "ForEachSmartGridOneParam.hpp"
@@ -370,7 +416,7 @@ struct SmartGridOneEncoders
             }
         }
 
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines) \
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) \
         { \
             if (GetModeForBank(Bank::bank) == BankMode::Voice) \
             { \

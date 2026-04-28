@@ -4,6 +4,7 @@
 #include <JuceHeader.h>
 #include "BinaryData.h"
 #include "FourteenSegmentDisplayComponent.hpp"
+#include <algorithm>
 #include <cmath>
 
 // Static cache for modulator glyph images
@@ -90,6 +91,115 @@ struct EncoderComponent : public juce::Component
     void SetSize(int size)
     {
         setSize(size, size);
+    }
+
+    static float ValueToArcAngle(float value)
+    {
+        return juce::MathConstants<float>::pi * 1.25f + value * juce::MathConstants<float>::pi * 1.5f;
+    }
+
+    static void DrawArc(
+        juce::Graphics& g,
+        float centerX,
+        float centerY,
+        float radius,
+        float startValue,
+        float endValue,
+        float strokeWidth)
+    {
+        juce::Path arcPath;
+        arcPath.addCentredArc(centerX, centerY, radius, radius, 0.0f, ValueToArcAngle(startValue), ValueToArcAngle(endValue), true);
+        g.strokePath(arcPath, juce::PathStrokeType(strokeWidth));
+    }
+
+    static void GetSwitchValueRange(int switchVal, int switchValues, float& startValue, float& endValue)
+    {
+        if (switchValues <= 1)
+        {
+            startValue = 0.0f;
+            endValue = 1.0f;
+            return;
+        }
+
+        float denominator = static_cast<float>(switchValues - 1);
+        startValue = switchVal == 0 ? 0.0f : (static_cast<float>(switchVal) - 0.5f) / denominator;
+        endValue = switchVal == switchValues - 1 ? 1.0f : (static_cast<float>(switchVal) + 0.5f) / denominator;
+    }
+
+    static void DrawArcWithSwitchGaps(
+        juce::Graphics& g,
+        float centerX,
+        float centerY,
+        float radius,
+        float startValue,
+        float endValue,
+        int switchValues,
+        float strokeWidth)
+    {
+        if (switchValues <= 1)
+        {
+            DrawArc(g, centerX, centerY, radius, startValue, endValue, strokeWidth);
+            return;
+        }
+
+        static constexpr float x_switchGapRadians = juce::MathConstants<float>::pi / 90.0f;
+        for (int switchVal = 0; switchVal < switchValues; ++switchVal)
+        {
+            float switchStart;
+            float switchEnd;
+            GetSwitchValueRange(switchVal, switchValues, switchStart, switchEnd);
+
+            float segmentStart = std::max(startValue, switchStart);
+            float segmentEnd = std::min(endValue, switchEnd);
+            if (segmentEnd <= segmentStart)
+            {
+                continue;
+            }
+
+            float startAngle = ValueToArcAngle(segmentStart);
+            float endAngle = ValueToArcAngle(segmentEnd);
+            if (switchVal > 0 && segmentStart <= switchStart)
+            {
+                startAngle += x_switchGapRadians;
+            }
+
+            if (switchVal < switchValues - 1 && segmentEnd >= switchEnd)
+            {
+                endAngle -= x_switchGapRadians;
+            }
+
+            if (endAngle <= startAngle)
+            {
+                continue;
+            }
+
+            juce::Path arcPath;
+            arcPath.addCentredArc(centerX, centerY, radius, radius, 0.0f, startAngle, endAngle, true);
+            g.strokePath(arcPath, juce::PathStrokeType(strokeWidth));
+        }
+    }
+
+    static void DrawSwitchValueArc(
+        juce::Graphics& g,
+        float centerX,
+        float centerY,
+        float radius,
+        float value,
+        int switchValues,
+        float strokeWidth)
+    {
+        if (switchValues <= 1)
+        {
+            return;
+        }
+
+        int switchVal = static_cast<int>(std::round(value * static_cast<float>(switchValues - 1)));
+        switchVal = std::max(0, std::min(switchValues - 1, switchVal));
+
+        float startValue;
+        float endValue;
+        GetSwitchValueRange(switchVal, switchValues, startValue, endValue);
+        DrawArcWithSwitchGaps(g, centerX, centerY, radius, startValue, endValue, switchValues, strokeWidth);
     }
 
     void paint(juce::Graphics& g) override
@@ -186,14 +296,12 @@ struct EncoderComponent : public juce::Component
             for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(); ++i)
             {
                 auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * (0.45f - i * 0.05f);
+                int switchValues = m_ui.m_uiState->GetSwitchValues(m_x, m_y);
 
                 // Draw the main 270-degree arc from 7:30 to 4:30
                 //
                 g.setColour(juce::Colours::white);
-                juce::Path arcPath;
-                arcPath.addCentredArc(centerX, centerY, radius, radius, 0.0f, 
-                                    juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
-                g.strokePath(arcPath, juce::PathStrokeType(2.0f));
+                DrawArcWithSwitchGaps(g, centerX, centerY, radius, 0.0f, 1.0f, switchValues, 2.0f);
             }
 
             // Draw the thicker, brighter arc between min and max values
@@ -212,6 +320,7 @@ struct EncoderComponent : public juce::Component
 
                 float minValue = m_ui.m_uiState->GetMinValue(m_x, m_y, voice);
                 float maxValue = m_ui.m_uiState->GetMaxValue(m_x, m_y, voice);
+                int switchValues = m_ui.m_uiState->GetSwitchValues(m_x, m_y);
 
                 // Skip if values are invalid (NaN or infinite)
                 //
@@ -220,16 +329,9 @@ struct EncoderComponent : public juce::Component
                     continue;
                 }
 
-                // Convert min/max values to angles (start at 7:30 = 1.25π, 270 degree range)
-                //
-                float startAngle = juce::MathConstants<float>::pi * 1.25f + (minValue * 270.0f * juce::MathConstants<float>::pi / 180.0f);
-                float endAngle = juce::MathConstants<float>::pi * 1.25f + (maxValue * 270.0f * juce::MathConstants<float>::pi / 180.0f);
-
                 auto indicatorColor = m_ui.m_uiState->GetIndicatorColor(voice);
                 g.setColour(juce::Colour(indicatorColor.m_red, indicatorColor.m_green, indicatorColor.m_blue));
-                juce::Path minMaxArc;
-                minMaxArc.addCentredArc(centerX, centerY, radius, radius, 0.0f, startAngle, endAngle, true);
-                g.strokePath(minMaxArc, juce::PathStrokeType(3.0f));
+                DrawArcWithSwitchGaps(g, centerX, centerY, radius, minValue, maxValue, switchValues, 3.0f);
             }
 
             for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(); ++i)
@@ -267,6 +369,15 @@ struct EncoderComponent : public juce::Component
 
                 auto indicatorColor = m_ui.m_uiState->GetIndicatorColor(voice);
                 g.setColour(juce::Colour(indicatorColor.m_red, indicatorColor.m_green, indicatorColor.m_blue));
+                DrawSwitchValueArc(
+                    g,
+                    centerX,
+                    centerY,
+                    radius,
+                    value,
+                    m_ui.m_uiState->GetSwitchValues(m_x, m_y),
+                    3.0f);
+
                 g.fillEllipse(indicatorX - indicatorRadius, indicatorY - indicatorRadius, 
                             indicatorRadius * 2, indicatorRadius * 2);
             }

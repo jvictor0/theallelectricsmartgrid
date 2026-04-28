@@ -95,7 +95,8 @@ struct EncoderBankBank
         float defaultValue,
         const char* name,
         const char* shortName,
-        SmartGrid::Color color)
+        SmartGrid::Color color,
+        int switchValues)
     {
         if (index >= m_numEncoders)
         {
@@ -116,6 +117,7 @@ struct EncoderBankBank
         cell->m_color = color;
         cell->m_name = name;
         cell->m_shortName = shortName;
+        cell->m_switchValues = switchValues;
         return index;
     }
 

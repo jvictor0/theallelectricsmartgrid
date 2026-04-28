@@ -1484,8 +1484,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         for (int i = 0; i < 4; ++i)
         {
             delayInputSetterInput.m_loopSelectorKnob[i] = m_encoders.GetValue(Param::DelayTime, i);
-            delayInputSetterInput.m_delayTimeFactorKnob[i] = m_encoders.GetValue(Param::DelayTimeFactor, i);
-            delayInputSetterInput.m_readHeadSpeedKnob[i] = m_encoders.GetValue(Param::DelayReadSpeed, i);
+            delayInputSetterInput.m_delayTimeFactorSwitchVal[i] = m_encoders.GetSwitchVal(Param::DelayTimeFactor, i);
+            delayInputSetterInput.m_readHeadSpeedSwitchVal[i] = m_encoders.GetSwitchVal(Param::DelayReadSpeed, i);
             delayInputSetterInput.m_feedbackKnob[i] = m_encoders.GetValue(Param::DelayFeedback, i);
 
             delayInputSetterInput.m_dampingBaseKnob[i] = m_encoders.GetValue(Param::DelayDampBase, i);
@@ -1493,11 +1493,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             delayInputSetterInput.m_resynthSlewUpKnob[i] = m_encoders.GetValue(Param::ResynthSlewUp, i);
 
             delayInputSetterInput.m_widenKnob[i] = m_encoders.GetValue(Param::DelayWiden, i);
-            delayInputSetterInput.m_rotateKnob[i] = m_encoders.GetValue(Param::DelayRotate, i);
+            delayInputSetterInput.m_rotateSwitchVal[i] = m_encoders.GetSwitchVal(Param::DelayRotate, i);
             delayInputSetterInput.m_resynthUnisonKnob[i] = m_encoders.GetValue(Param::ResynthUnison, i);
 
             delayInputSetterInput.m_resynthShiftFadeKnob[i] = m_encoders.GetValue(Param::ResynthShiftFade, i);
-            delayInputSetterInput.m_resynthShiftKnob[i] = m_encoders.GetValue(Param::ResynthShiftInterval, i);
+            delayInputSetterInput.m_resynthShiftSwitchVal[i] = m_encoders.GetSwitchVal(Param::ResynthShiftInterval, i);
 
             delayInputSetterInput.m_modFreqKnob[i] = m_encoders.GetValue(Param::DelayModSpeed, i);
             delayInputSetterInput.m_lfoPhaseKnob[i] = m_encoders.GetValue(Param::DelayModPhaseShift, i);

@@ -153,14 +153,20 @@ struct ReadTapeHead : TapeHead
             return;
         }
 
+        double loopPhasor = loopSamples / masterLoopSamples;
+        double effectiveDelayPhasor = effectiveDelaySamples / masterLoopSamples;
+        double hopPhasor = hopSamples / masterLoopSamples;
+
+        double relativeWrapTop = m_writeTapeHead->m_relativePosition - hopPhasor;
+        double relativeWrapBottom = relativeWrapTop - loopPhasor;
+        double relativeProjectedPosition =
+            m_writeTapeHead->m_relativePosition * input.m_readHeadSpeed - effectiveDelayPhasor;
+        m_relativePosition = PhaseUtils::WrapMod(relativeWrapBottom, relativeWrapTop, relativeProjectedPosition);
+
         double actualWrapTop = m_writeTapeHead->m_actualPosition - hopSamples;
         double actualWrapBottom = actualWrapTop - loopSamples;
         double actualProjectedPosition =
             m_writeTapeHead->m_actualPosition * input.m_readHeadSpeed - effectiveDelaySamples;
         m_actualPosition = PhaseUtils::WrapMod(actualWrapBottom, actualWrapTop, actualProjectedPosition);
-
-        double actualDelaySamples = m_writeTapeHead->m_actualPosition - m_actualPosition;
-        m_relativePosition = m_writeTapeHead->m_relativePosition - actualDelaySamples / masterLoopSamples;
-        m_relativePosition = m_relativePosition - std::floor(m_relativePosition);
     }
 };

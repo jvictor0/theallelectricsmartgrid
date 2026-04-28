@@ -381,6 +381,7 @@ struct BankedEncoderCell : public StateEncoderCell
         , m_type(EncoderType::BaseParam)
         , m_isActive{}
         , m_forceUpdate(false)
+        , m_switchValues(0)
     {
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
@@ -422,6 +423,7 @@ struct BankedEncoderCell : public StateEncoderCell
         , m_defaultValue(0)
         , m_effectiveModulatorWeights{}
         , m_isActive{}
+        , m_switchValues(0)
     {
         int depth = parent ? parent->m_depth + 1 : 0;
         m_parent = parent;
@@ -1167,6 +1169,7 @@ struct BankedEncoderCell : public StateEncoderCell
     BankedEncoderCell::EncoderType m_type;
     bool m_isActive[SceneManager::x_numScenes][16];
     bool m_forceUpdate;
+    int m_switchValues;
 };
 
 inline SegmentedAllocator<BankedEncoderCell, BankedEncoderCell::x_encoderPoolSize> BankedEncoderCell::s_allocator;
@@ -1587,6 +1590,7 @@ struct EncoderBankInternal : public EncoderGrid
 
                     uiState->SetModulatorsAffecting(i, j, cell->m_modulatorsAffectingPerTrack[m_sharedEncoderState.m_currentTrack]);
                     uiState->SetGesturesAffecting(i, j, cell->m_gesturesAffectingPerTrack[m_sharedEncoderState.m_currentTrack]);
+                    uiState->SetSwitchValues(i, j, cell->m_switchValues);
                 }
                 else
                 {
@@ -1601,6 +1605,7 @@ struct EncoderBankInternal : public EncoderGrid
 
                     uiState->SetModulatorsAffecting(i, j, BitSet16());
                     uiState->SetGesturesAffecting(i, j, BitSet16());
+                    uiState->SetSwitchValues(i, j, 0);
                 }
 
                 uiState->SetShortName(i, j, cell ? cell->m_shortName : nullptr);
