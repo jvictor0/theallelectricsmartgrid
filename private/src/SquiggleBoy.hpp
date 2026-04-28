@@ -1485,6 +1485,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             delayInputSetterInput.m_loopSelectorKnob[i] = m_encoders.GetValue(Param::DelayTime, i);
             delayInputSetterInput.m_delayTimeFactorKnob[i] = m_encoders.GetValue(Param::DelayTimeFactor, i);
+            delayInputSetterInput.m_readHeadSpeedKnob[i] = m_encoders.GetValue(Param::DelayReadSpeed, i);
             delayInputSetterInput.m_feedbackKnob[i] = m_encoders.GetValue(Param::DelayFeedback, i);
 
             delayInputSetterInput.m_dampingBaseKnob[i] = m_encoders.GetValue(Param::DelayDampBase, i);

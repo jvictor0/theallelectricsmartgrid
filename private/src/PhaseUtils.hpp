@@ -58,6 +58,12 @@ inline double CubicLagrangeNonUniform(double x0, double y0, double x1, double y1
     return y0 * l0 + y1 * l1 + y2 * l2 + y3 * l3;
 }
 
+inline double WrapMod(double a, double b, double x)
+{
+    double c = b - a;
+    return x - c * std::floor((x - a) / c);
+}
+
 struct ExpParam
 {
     float m_baseParam;

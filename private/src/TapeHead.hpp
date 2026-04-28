@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PhaseUtils.hpp"
+#include "Resynthesis.hpp"
 #include "TheoryOfTime.hpp"
 #include <cmath>
 
@@ -21,18 +23,14 @@ struct TapeHead
             return 0.0;
         }
 
-        return theoryOfTime->LoopSamples(sampleIndex, loopSelector);
-    }
-
-    double ComputeUnwoundPhasor(TheoryOfTime* theoryOfTime, int sampleIndex, int loopSelector)
-    {
-        double loopSamples = ComputeLoopSamples(theoryOfTime, sampleIndex, loopSelector);
-        if (loopSamples == 0.0 || !std::isfinite(loopSamples))
+        size_t sampleIdx = static_cast<size_t>(sampleIndex) % TheoryOfTimeBase::x_microBlockSize;
+        int externalLoopMult = theoryOfTime->GetLoopExternalMultiplier(sampleIdx, loopSelector);
+        if (externalLoopMult <= 0)
         {
             return 0.0;
         }
 
-        return theoryOfTime->PhasorUnwoundSamples(sampleIndex, loopSelector) / loopSamples;
+        return theoryOfTime->m_masterLoopSamples / static_cast<double>(externalLoopMult);
     }
 };
 
@@ -102,15 +100,12 @@ struct WriteTapeHead : TapeHead
             input.m_theoryOfTime->GetIndirectTop(input.m_sampleIndex, input.m_requestedLoopSelector);
         if (allowLoopSwitch)
         {
-            int oldLoopSelector = m_loopSelector;
             m_loopSelector = input.m_requestedLoopSelector;
-            m_glue += input.m_theoryOfTime->PhasorUnwoundSamples(input.m_sampleIndex, oldLoopSelector)
-                - input.m_theoryOfTime->PhasorUnwoundSamples(input.m_sampleIndex, m_loopSelector);
         }
 
         size_t sampleIdx = static_cast<size_t>(input.m_sampleIndex) % TheoryOfTimeBase::x_microBlockSize;
         m_relativePosition = input.m_theoryOfTime->GetIndirectPhasor(sampleIdx);
-        m_actualPosition = input.m_theoryOfTime->PhasorUnwoundSamples(input.m_sampleIndex, m_loopSelector) + m_glue;
+        m_actualPosition = input.m_theoryOfTime->m_globalPhase.UnWind() * input.m_masterLoopSamples + m_glue;
     }
 };
 
@@ -121,11 +116,13 @@ struct ReadTapeHead : TapeHead
         TheoryOfTime* m_theoryOfTime;
         int m_sampleIndex;
         double m_bufferFraction;
+        double m_readHeadSpeed;
 
         Input()
             : m_theoryOfTime(nullptr)
             , m_sampleIndex(0)
             , m_bufferFraction(0.0)
+            , m_readHeadSpeed(1.0)
         {
         }
     };
@@ -146,11 +143,24 @@ struct ReadTapeHead : TapeHead
 
         int loopSelector = m_writeTapeHead->m_loopSelector;
         double loopSamples = ComputeLoopSamples(input.m_theoryOfTime, input.m_sampleIndex, loopSelector);
-        double effectiveDelayPhasor = (loopSamples * input.m_bufferFraction) / m_writeTapeHead->m_masterLoopSamples;
-        m_relativePosition = m_writeTapeHead->m_relativePosition - effectiveDelayPhasor;
-        m_relativePosition = m_relativePosition - std::floor(m_relativePosition);
-
         double effectiveDelaySamples = loopSamples * input.m_bufferFraction;
-        m_actualPosition = m_writeTapeHead->m_actualPosition - effectiveDelaySamples;
+        double hopSamples = static_cast<double>(Resynthesizer::GetGrainLaunchSamples());
+        double masterLoopSamples = m_writeTapeHead->m_masterLoopSamples;
+        if (masterLoopSamples <= 0.0 || loopSamples <= 0.0)
+        {
+            m_relativePosition = m_writeTapeHead->m_relativePosition;
+            m_actualPosition = m_writeTapeHead->m_actualPosition;
+            return;
+        }
+
+        double actualWrapTop = m_writeTapeHead->m_actualPosition - hopSamples;
+        double actualWrapBottom = actualWrapTop - loopSamples;
+        double actualProjectedPosition =
+            m_writeTapeHead->m_actualPosition * input.m_readHeadSpeed - effectiveDelaySamples;
+        m_actualPosition = PhaseUtils::WrapMod(actualWrapBottom, actualWrapTop, actualProjectedPosition);
+
+        double actualDelaySamples = m_writeTapeHead->m_actualPosition - m_actualPosition;
+        m_relativePosition = m_writeTapeHead->m_relativePosition - actualDelaySamples / masterLoopSamples;
+        m_relativePosition = m_relativePosition - std::floor(m_relativePosition);
     }
 };

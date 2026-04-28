@@ -69,6 +69,7 @@ F(LFO2PhaseShift, L2PS, VoiceLFOs, 2, 3, 1.0, "LFO 2 Phase Shift", LFOColor(1), 
 F(LFO2SampleAndHold, L2SA, VoiceLFOs, 3, 3, 0, "LFO 2 Sample And Hold", LFOColor(1), MachineFlags::x_all, MachineFlags::x_all)
 F(DelayTime, DLT, Delay, 0, 0, 0.75, "Delay Time", SmartGrid::Color::Pink, MachineFlags::x_all, MachineFlags::x_all)
 F(DelayTimeFactor, DLF, Delay, 1, 0, 0.75, "Delay Time Factor", SmartGrid::Color::Pink, MachineFlags::x_all, MachineFlags::x_all)
+F(DelayReadSpeed, RHS, Delay, 2, 0, 2.0 / 3.0, "Read Head Speed", SmartGrid::Color::Pink, MachineFlags::x_all, MachineFlags::x_all)
 F(DelayFeedback, DLFB, Delay, 3, 0, 0.75, "Delay Feedback", SmartGrid::Color::Pink, MachineFlags::x_all, MachineFlags::x_all)
 F(DelayDampBase, DDB, Delay, 0, 1, 0.4, "Delay Damp Base", SmartGrid::Color::Pink, MachineFlags::x_all, MachineFlags::x_all)
 F(DelayDampWidth, DDW, Delay, 1, 1, 0.3, "Delay Damp Width", SmartGrid::Color::Pink, MachineFlags::x_all, MachineFlags::x_all)

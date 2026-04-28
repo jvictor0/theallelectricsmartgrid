@@ -23,25 +23,28 @@ To implement this, the delay requires a "moveable writehead." It must compute an
 
 The read and write heads are produced in `QuadDelayInputSetter::Process` (`private/src/QuadDelay.hpp`) per quad channel `i`.
 
-- **Loop selection**: `m_totLoopSelector[i]` is chosen from the delay loop-selector knob, but changes are only accepted when both old and new loops are simultaneously at top (`m_top`) to avoid discontinuities.
-- **Glue offset**: both heads share an additive offset `m_glue[i]` that preserves continuity across transport stops, loop-selector changes, and tempo-scale changes.
-  - When transport stops, `m_glue[i]` is initialized from the current write head, then incremented each sample.
-  - On master-loop-size change, `m_glue[i]` is rescaled so absolute position continuity is maintained.
-  - On loop-selector switch, `m_glue[i]` is shifted by the difference of unwound-sample positions between old and new loops.
+- **Loop selection**: `WriteTapeHead` receives the processed loop-selector knob value, but only accepts changes when both old and new loops are simultaneously at top (`m_top`) to avoid discontinuities.
+- **Glue offset**: `WriteTapeHead` owns the additive glue offset that preserves continuity across transport stops and tempo-scale changes.
+  - When transport stops, glue is initialized from the current write head, then incremented each sample.
+  - On master-loop-size change, glue is rescaled so absolute position continuity is maintained.
 - **Delay ratio quantization**: at loop top, delay-time factor is quantized to one of:
   - `0.8`, `2/3`, `1.0`, `3/4`, `5/8`
   and stored as `m_bufferFrac[i]`.
+- **Read-head speed quantization**: read-head speed is quantized to the same ratio family and its negative counterparts:
+  - `-4`, `-3`, `-2`, `-3/2`, `-4/3`, `-1`, `-1/2`, `-1/4`, `1/4`, `1/2`, `1`, `4/3`, `3/2`, `2`, `3`, `4`
 
 The final head equations are:
 
 - **Write head**
-  - `writeHead = PhasorUnwoundSamples(selectedLoop) + glue`
+  - `writeHead = masterUnwoundPhasor * masterLoopSamples + glue`
   - stored in `delayInput.m_writeHeadPosition[i]`
 - **Read head**
-  - `readHead = LoopSamplesFraction(selectedLoop, bufferFrac * widen) + glue`
+  - `effectiveDelaySamples = (masterLoopSamples / externalLoopMultiplier(selectedLoop)) * (bufferFrac * widen)`
+  - `readTarget = writeHead * readHeadSpeed - effectiveDelaySamples`
+  - `readHead = wrap_mod(writeHead - resynthesisHopSamples - selectedLoopSamples, writeHead - resynthesisHopSamples, readTarget)`
   - stored in `delayInput.m_readHeadPosition[i]`
 
-So both heads live in the same unwound sample coordinate system and differ by a loop-fraction delay term shaped by quantized ratio and widener.
+So both heads live in the same unwound sample coordinate system. The read head is projected into the selected-loop-length region behind the write head, offset by the resynthesis hop size, with delay shaped by quantized ratio and widener.
 
 ## Phase Vocoder Done Right
 

@@ -33,7 +33,6 @@ struct TimeLoop
     double m_phasor[x_numControlSamples];
     double m_phasorIndependent[x_numControlSamples];
     int64_t m_globalWinding[x_numControlSamples];
-    double m_glueWinding[x_numControlSamples];
     bool m_ascending[x_numControlSamples];
 
     TheoryOfTimeBase* m_owner;
@@ -66,7 +65,6 @@ struct TimeLoop
         m_phasor[j] = m_phasor[prev];
         m_phasorIndependent[j] = m_phasorIndependent[prev];
         m_globalWinding[j] = m_globalWinding[prev];
-        m_glueWinding[j] = m_glueWinding[prev];
         m_ascending[j] = m_ascending[prev];
     }
 
@@ -121,30 +119,11 @@ struct TimeLoop
     void SetLoopSize(int loopSize, size_t j)
     {
         if (GetParent(j))
-        {   
-            int externalLoopMult = GetMaster()->m_loopSize[j] / loopSize;  
-            bool oldReverseTop = m_top[j] && !m_ascending[j];       
+        {
             m_loopSize[j] = loopSize;
-            
             SetMembersFromParent(j);
-
-            int64_t winding = MonodromyNumber(j, -1, false);
-            double oldWinding = m_glueWinding[j] + m_globalWinding[j];
-            int windingOffset = 0;
-            
-            if (m_top[j] && !m_ascending[j])
-            {
-                windingOffset = 1;
-            }
-
-            if (oldReverseTop)
-            {
-                oldWinding = oldWinding + 1;
-            }
-
-            m_glueWinding[j] = static_cast<double>(oldWinding * externalLoopMult) / m_externalLoopMult[j] - winding - windingOffset;
-            m_globalWinding[j] = winding;
-            m_externalLoopMult[j] = externalLoopMult;
+            m_globalWinding[j] = MonodromyNumber(j, -1, false);
+            m_externalLoopMult[j] = GetMaster()->m_loopSize[j] / std::max(1, loopSize);
         }
         else
         {
@@ -185,7 +164,6 @@ struct TimeLoop
             m_phasor[j] = 0;
             m_phasorIndependent[j] = 0;
             m_globalWinding[j] = 0;
-            m_glueWinding[j] = 0;
             m_ascending[j] = false;
             m_parentIndex[j] = m_index + 1;
             m_parentMult[j] = 1;
@@ -262,18 +240,12 @@ struct TimeLoop
             m_phasor[j] = 0;
             m_phasorIndependent[j] = 0;
             m_globalWinding[j] = 0;
-            m_glueWinding[j] = 0;
             m_ascending[j] = false;
             m_parentIndex[j] = 0;
             m_parentMult[j] = 1;
             m_loopSize[j] = 1;
             m_externalLoopMult[j] = 1;
         }
-    }
-
-    double GetUnwoundPhasor(size_t j)
-    {
-        return m_phasor[j] + static_cast<double>(m_globalWinding[j]) + m_glueWinding[j];
     }
 
     bool AnyGateChanged() const
@@ -403,7 +375,6 @@ struct TheoryOfTimeBase
             loop.m_phasor[0] = loop.m_phasor[x_rolloverSlot];
             loop.m_phasorIndependent[0] = loop.m_phasorIndependent[x_rolloverSlot];
             loop.m_globalWinding[0] = loop.m_globalWinding[x_rolloverSlot];
-            loop.m_glueWinding[0] = loop.m_glueWinding[x_rolloverSlot];
             loop.m_ascending[0] = loop.m_ascending[x_rolloverSlot];
         }
     }
@@ -787,21 +758,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
     TheoryOfTime()
     {
         m_masterLoopSamples = 1.0;
-    }
-
-    double LoopSamples(size_t j, int loopIndex)
-    {
-        return m_masterLoopSamples / GetLoopExternalMultiplier(j, loopIndex);
-    }
-
-    double LoopSamplesFraction(size_t j, int loopIndex, double fraction)
-    {
-        return LoopSamples(j, loopIndex) * (m_loops[loopIndex].GetUnwoundPhasor(j) - fraction);
-    }
-
-    double PhasorUnwoundSamples(size_t j, int loopIndex)
-    {
-        return m_loops[loopIndex].GetUnwoundPhasor(j) * LoopSamples(j, loopIndex);
     }
 
     void ProcessPLLHit(size_t j, Input& input, int loopIndex)
