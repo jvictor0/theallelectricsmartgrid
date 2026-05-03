@@ -1,9 +1,11 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <filesystem>
 #include "MidiHandlers.hpp"
 #include "SmartGridInclude.hpp"
 #include "MidiSender.hpp"
+#include "IOTaskThread.hpp"
 
 struct NonagonWrapperQuadLaunchpadTwister
 {
@@ -504,6 +506,7 @@ struct NonagonWrapperWrldBldr
 struct NonagonWrapper
 {
     MidiSender m_midiSender;
+    IoTaskThread m_ioTaskThread;
     TheNonagonSquiggleBoyInternal m_internal;
     NonagonWrapperQuadLaunchpadTwister m_quadLaunchpadTwister;
     NonagonWrapperWrldBldr m_wrldBldr;
@@ -520,12 +523,19 @@ struct NonagonWrapper
         : m_quadLaunchpadTwister(&m_internal, &m_midiSender)
         , m_wrldBldr(&m_internal, &m_midiSender)
     {
+        m_internal.m_squiggleBoy.m_ioTaskThread = &m_ioTaskThread;
+        m_internal.m_configGrid.m_ioTaskThread = &m_ioTaskThread;
     }
 
     void PrepareToPlay(int numSamples, double sampleRate)
     {
     }
-    
+
+    void SetSampleDirectoryRootAbsolute(const std::filesystem::path& absolutePath)
+    {
+        m_internal.m_configGrid.SetSampleDirectoryRootAbsolute(absolutePath);
+    }
+
     void OpenInputQuadLaunchpadTwister(int index, const juce::String &deviceIdentifier)
     {
         m_quadLaunchpadTwister.OpenInput(index, deviceIdentifier);
@@ -557,6 +567,7 @@ struct NonagonWrapper
         m_internal.ProcessFrame();
         m_quadLaunchpadTwister.SendMidiOutput();
         m_wrldBldr.SendMidiOutput();
+        m_ioTaskThread.Acknowledge();
     }
 
     juce::MidiInput* GetMidiInputQuadLaunchpadTwister(int index)

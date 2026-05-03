@@ -55,11 +55,11 @@ struct BankedEncoderCell : public StateEncoderCell
         ModulatorValues()
             : m_value{}
             , m_valuePrev{}
+            , m_amplitude{}
             , m_modulatorConnected{}
             , m_modulatorColor{}
             , m_gestureWeights{}
             , m_gestureWeightsPrev{}
-            , m_amplitude{}
         {
             for (size_t i = 0; i < x_numModulators; ++i)
             {

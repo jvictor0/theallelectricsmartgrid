@@ -18,6 +18,17 @@ The `TheNonagonSmartGrid` class wraps the core `TheNonagonInternal` sequencer lo
 - It exposes the sequencer's internal state (like time loops, index arp settings, and mutes) as interactive `Cell`s.
 - This allows a user to press a pad on a MIDI controller to flip a gate, change a time loop's multiplier, or mute a voice, with the physical pad lighting up to reflect the current state.
 
+## SquiggleBoy Config Grid (Voice + Sample Routing)
+
+`SquiggleBoyConfigGrid` now handles more than source/filter mode selection:
+
+- source machine increment/decrement and filter machine increment/decrement for the active trio,
+- source selection toggles when using `Thru`,
+- per-voice sample slot selection (`slot1` / `slot2`) for `Dual Sample`,
+- directory explorer navigation commands (`Up/Down/Left/Right/Yes/No`) routed through `IoTaskThread`.
+
+The directory explorer state is mirrored into UI buffers (`DirectoryExplorer::UIState`) so `VoiceConfigComponent` can render live path/list updates while browsing.
+
 ## Related
 - [The Nonagon (Sequencer)](nonagon.md)
 - [Encoder System](encoder-system.md)

@@ -10,6 +10,7 @@
 #include "Resynthesis.hpp"
 #include <algorithm>
 #include <limits>
+#include <type_traits>
 #include <utility>
 
 struct XFader
@@ -424,7 +425,7 @@ struct DelayLineMovableWriter
     }
 };
 
-template<size_t Size>
+template<typename AudioBufferType>
 struct GrainManager
 {
     struct Grain
@@ -443,7 +444,7 @@ struct GrainManager
             return m_grain.Process() / 1.5;
         }
 
-        void Start(double wallTime, Resynthesizer::Input& input, double startTime, double warpedTime)
+        void Start(Resynthesizer::Input& input, double startTime, double warpedTime)
         {
             Resynthesizer::Buffer prevTable;
 
@@ -452,14 +453,14 @@ struct GrainManager
             for (size_t i = 0; i < Resynthesizer::x_tableSize; ++i)
             {
                 float window = Math4096::Hann(i);
-                m_grain.m_buffer.m_table[i] = m_delayLine->ReadRealTime(startTime + i) * window;
+                m_grain.m_buffer.m_table[i] = m_audioBuffer->ReadRealTime(startTime + i) * window;
                 rms += m_grain.m_buffer.m_table[i] * m_grain.m_buffer.m_table[i];
             }
 
             for (size_t i = 0; i < Resynthesizer::x_tableSize; ++i)
             {
                 float window = Math4096::Hann(i);
-                prevTable.m_table[i] = m_delayLine->ReadRealTime(startTime + i - Resynthesizer::x_H) * window;
+                prevTable.m_table[i] = m_audioBuffer->ReadRealTime(startTime + i - Resynthesizer::x_H) * window;
             }
 
             m_owner->m_resynthesizer.Process(prevTable, &m_grain, input);
@@ -471,7 +472,7 @@ struct GrainManager
         }
 
         Resynthesizer::Grain m_grain;
-        DelayLineMovableWriter<Size>* m_delayLine;
+        AudioBufferType* m_audioBuffer;
         GrainManager* m_owner;
     };
     
@@ -479,7 +480,7 @@ struct GrainManager
     FixedAllocator<Grain, x_maxGrains> m_grainsAlloc;
     Grain* m_grainsArray[x_maxGrains];
     size_t m_numGrains;
-    DelayLineMovableWriter<Size>* m_delayLine;
+    AudioBufferType* m_audioBuffer;
     RGen m_rgen;
     int m_samplesToNextGrain;
     double m_lastSampleOffset;
@@ -506,7 +507,7 @@ struct GrainManager
         Grain* grain = m_grainsAlloc.Allocate();
         if (grain)
         {
-            grain->m_delayLine = m_delayLine;
+            grain->m_audioBuffer = m_audioBuffer;
             grain->m_owner = this;
             ++m_numGrains;
             m_grainsArray[m_numGrains - 1] = grain;
@@ -550,6 +551,11 @@ struct GrainManager
 
     float Process(double warpedTime, double sampleOffset, Input& input)
     {
+        if (!m_audioBuffer)
+        {
+            return 0.0f;
+        }
+
         float result = ProcessGrains();
         --m_samplesToNextGrain;
         if (m_samplesToNextGrain <= 0)
@@ -557,8 +563,8 @@ struct GrainManager
             Grain* grain = AllocateGrain();
             if (grain)
             {
-                double startTime = m_delayLine->GetRealTime(warpedTime) + sampleOffset;
-                grain->Start(m_delayLine->m_lastTime, input.m_resynthInput, startTime, warpedTime);
+                double startTime = m_audioBuffer->GetRealTime(warpedTime) + sampleOffset;
+                grain->Start(input.m_resynthInput, startTime, warpedTime);
             }
 
             m_samplesToNextGrain = Resynthesizer::GetGrainLaunchSamples();
@@ -570,7 +576,7 @@ struct GrainManager
     }
 
     GrainManager()
-        : m_delayLine(nullptr)
+        : m_audioBuffer(nullptr)
         , m_samplesToNextGrain(0)
         , m_lastSampleOffset(0)
     {
@@ -748,21 +754,24 @@ struct QuadDelayLineMovableWriter
     }
 };
 
-template<size_t Size>
+template<typename AudioBufferType>
 struct QuadGrainManager
 {
-    GrainManager<Size> m_grainManager[4];
+    GrainManager<AudioBufferType> m_grainManager[4];
 
     struct Input
     {
-        typename GrainManager<Size>::Input m_input[4];
+        typename GrainManager<AudioBufferType>::Input m_input[4];
     };
 
-    QuadGrainManager(QuadDelayLineMovableWriter<Size>* delayLine)
+    template<size_t Size>
+    QuadGrainManager(QuadDelayLineMovableWriter<Size>* quadDelayLine)
     {
+        static_assert(std::is_same_v<AudioBufferType, DelayLineMovableWriter<Size>>);
+
         for (size_t i = 0; i < 4; ++i)
         {
-            m_grainManager[i].m_delayLine = &delayLine->m_delayLine[i];
+            m_grainManager[i].m_audioBuffer = &quadDelayLine->m_delayLine[i];
         }
     }
 

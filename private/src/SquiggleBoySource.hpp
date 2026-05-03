@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DualWaveShapingVCO.hpp"
+#include "DualSampleSource.hpp"
 #include "Oversample.hpp"
 #include "PhysicalModelingSource.hpp"
 #include "SampleTimer.hpp"
@@ -23,6 +24,7 @@ struct SquiggleBoySource
     //
     DualWaveShapingVCO m_dualWaveShapingVCO;
     PhysicalModelingSource m_physicalModeling;
+    DualSampleSource m_dualSample;
 
     // Output buffers
     //
@@ -42,11 +44,17 @@ struct SquiggleBoySource
 
         DualWaveShapingVCO::Input m_dualWaveShapingVCOInput;
         PhysicalModelingSource::Input m_physicalModelingInput;
+        DualSampleSource::Input m_dualSampleInput;
+
+        AudioBufferBank* m_audioBufferBank0;
+        AudioBufferBank* m_audioBufferBank1;
 
         Input()
             : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
             , m_sourceIndex(0)
             , m_sourceMixer(nullptr)
+            , m_audioBufferBank0(nullptr)
+            , m_audioBufferBank1(nullptr)
         {
         }
     };
@@ -66,6 +74,8 @@ struct SquiggleBoySource
 
     void ProcessUBlock(Input& input)
     {
+        m_dualSample.SetAudioBufferBanks(input.m_audioBufferBank0, input.m_audioBufferBank1);
+
         switch (input.m_sourceMachine)
         {
             case SourceMachine::DualWaveShapingVCO:
@@ -90,6 +100,14 @@ struct SquiggleBoySource
                 m_physicalModeling.ProcessUBlock(input.m_physicalModelingInput);
                 m_uBlockOutput = m_physicalModeling.m_uBlockOutput;
                 m_uBlockTop = m_physicalModeling.m_uBlockTop;
+                break;
+            }
+
+            case SourceMachine::DualSample:
+            {
+                m_dualSample.ProcessUBlock(input.m_dualSampleInput);
+                m_uBlockOutput = m_dualSample.m_uBlockOutput;
+                m_uBlockTop = m_dualSample.m_uBlockTop;
                 break;
             }
 
@@ -129,6 +147,12 @@ struct SquiggleBoySource
             case SourceMachine::PhysicalModeling:
             {
                 m_physicalModeling.SetEncoderParams(encoders, input.m_physicalModelingInput, voiceIx, baseFreq);
+                break;
+            }
+
+            case SourceMachine::DualSample:
+            {
+                m_dualSample.SetEncoderParams(encoders, input.m_dualSampleInput, voiceIx, baseFreq);
                 break;
             }
 

@@ -1,13 +1,27 @@
 #pragma once
 
+#include <cstring>
+#include <filesystem>
+#include <string>
+
 #include "SquiggleBoy.hpp"
 #include "TheNonagon.hpp"
 #include "VoiceMachineEnums.hpp"
+#include "IOTaskThread.hpp"
+#include "JuceSon.hpp"
+#include "AudioBuffer.hpp"
 
 struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 {
     static constexpr int x_numSourceMachines = static_cast<int>(VoiceMachine::SourceMachine::NumSourceMachines);
     static constexpr int x_numFilterMachines = static_cast<int>(VoiceMachine::FilterMachine::NumFilterMachines);
+
+    enum class SampleDirectorySlot
+    {
+        None,
+        One,
+        Two,
+    };
 
     template<typename EnumT, bool Dec, int NumValues>
     struct EnumIncDecCell : SmartGrid::Cell
@@ -15,24 +29,23 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         using VoiceConfig = SquiggleBoyVoice::VoiceConfig;
 
         EnumT (VoiceConfig::* m_memberPtr);
-        TheNonagonSmartGrid::Trio m_trio;
         SquiggleBoyConfigGrid* m_owner;
 
-        EnumIncDecCell(SquiggleBoyConfigGrid* owner, TheNonagonSmartGrid::Trio trio, EnumT (VoiceConfig::* memberPtr))
+        EnumIncDecCell(SquiggleBoyConfigGrid* owner, EnumT (VoiceConfig::* memberPtr))
             : m_memberPtr(memberPtr)
-            , m_trio(trio)
             , m_owner(owner)
         {
         }
 
         virtual SmartGrid::Color GetColor() override
         {
-            return IsPressed() ? TheNonagonSmartGrid::TrioColor(m_trio) : TheNonagonSmartGrid::TrioColor(m_trio).Dim();
+            TheNonagonSmartGrid::Trio trio = m_owner->ActiveTrio();
+            return IsPressed() ? TheNonagonSmartGrid::TrioColor(trio) : TheNonagonSmartGrid::TrioColor(trio).Dim();
         }
 
         virtual void OnPress(uint8_t) override
         {
-            size_t baseIdx = static_cast<size_t>(m_trio) * TheNonagonInternal::x_voicesPerTrio;
+            size_t baseIdx = static_cast<size_t>(m_owner->ActiveTrio()) * TheNonagonInternal::x_voicesPerTrio;
             auto& config = m_owner->m_squiggleBoy->m_state[baseIdx].m_voiceConfig;
             int current = static_cast<int>(config.*m_memberPtr);
             int next = Dec ? (current - 1 + NumValues) % NumValues : (current + 1) % NumValues;
@@ -50,29 +63,29 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
     struct SourceSelectCell : SmartGrid::Cell
     {
         int m_sourceIndex;
-        TheNonagonSmartGrid::Trio m_trio;
         SquiggleBoyConfigGrid* m_owner;
 
-        SourceSelectCell(SquiggleBoyConfigGrid* owner, TheNonagonSmartGrid::Trio trio, int sourceIndex)
+        SourceSelectCell(SquiggleBoyConfigGrid* owner, int sourceIndex)
             : m_sourceIndex(sourceIndex)
-            , m_trio(trio)
             , m_owner(owner)
         {
         }
 
         virtual SmartGrid::Color GetColor() override
         {
-            return m_owner->m_sourceSelected[static_cast<size_t>(m_trio)][m_sourceIndex] ? SmartGrid::Color::White : SmartGrid::Color::Grey.Dim();
+            size_t trioIdx = static_cast<size_t>(m_owner->ActiveTrio());
+            return m_owner->m_sourceSelected[trioIdx][m_sourceIndex] ? SmartGrid::Color::White : SmartGrid::Color::Grey.Dim();
         }
 
         virtual void OnPress(uint8_t) override
         {
-            m_owner->m_sourceSelected[static_cast<size_t>(m_trio)][m_sourceIndex] = !m_owner->m_sourceSelected[static_cast<size_t>(m_trio)][m_sourceIndex];
+            size_t trioIdx = static_cast<size_t>(m_owner->ActiveTrio());
+            m_owner->m_sourceSelected[trioIdx][m_sourceIndex] = !m_owner->m_sourceSelected[trioIdx][m_sourceIndex];
 
             int numSelected = 0;
             for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
             {
-                if (m_owner->m_sourceSelected[static_cast<size_t>(m_trio)][i])
+                if (m_owner->m_sourceSelected[trioIdx][i])
                 {
                     ++numSelected;
                 }
@@ -80,16 +93,93 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
             if (TheNonagonInternal::x_voicesPerTrio < numSelected)
             {
-                m_owner->m_sourceSelected[static_cast<size_t>(m_trio)][m_sourceIndex == 0 ? 1 : 0] = false;
+                m_owner->m_sourceSelected[trioIdx][m_sourceIndex == 0 ? 1 : 0] = false;
                 --numSelected;
             }
             else if (numSelected == 0)
             {
-                m_owner->m_sourceSelected[static_cast<size_t>(m_trio)][m_sourceIndex] = true;
+                m_owner->m_sourceSelected[trioIdx][m_sourceIndex] = true;
                 ++numSelected;
             }
 
             m_owner->PropagateSourceSelection();
+        }
+    };
+
+    struct SampleDirectoryInitCell : SmartGrid::Cell
+    {
+        SquiggleBoyConfigGrid* m_owner;
+        SampleDirectorySlot m_slot;
+        size_t m_voiceIndex;
+
+        SampleDirectoryInitCell(SquiggleBoyConfigGrid* owner, SampleDirectorySlot slot, size_t voiceIndex)
+            : m_owner(owner)
+            , m_slot(slot)
+            , m_voiceIndex(voiceIndex)
+        {
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            TheNonagonSmartGrid::Trio trio = m_owner->ActiveTrio();
+            return IsPressed() ? TheNonagonSmartGrid::TrioColor(trio) : TheNonagonSmartGrid::TrioColor(trio).Dim();
+        }
+
+        virtual void OnPress(uint8_t) override
+        {
+            m_owner->RequestDirectoryExplorerInit(m_slot, m_voiceIndex);
+        }
+    };
+
+    struct DirectoryExplorerNavCell : SmartGrid::Cell
+    {
+        SquiggleBoyConfigGrid* m_owner;
+        DirectoryExplorer::MessageType m_messageType;
+        SmartGrid::Color m_idleColor;
+
+        DirectoryExplorerNavCell(
+            SquiggleBoyConfigGrid* owner,
+            DirectoryExplorer::MessageType messageType,
+            SmartGrid::Color idleColor)
+            : m_owner(owner)
+            , m_messageType(messageType)
+            , m_idleColor(idleColor)
+        {
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            return IsPressed() ? m_idleColor : m_idleColor.Dim();
+        }
+
+        virtual void OnPress(uint8_t) override
+        {
+            if (!m_owner->m_ioTaskThread)
+            {
+                return;
+            }
+
+            AudioBufferBank** audioBufferBankSink = nullptr;
+            if (m_messageType == DirectoryExplorer::MessageType::Yes
+                && m_owner->m_activeSampleDirectorySlot != SampleDirectorySlot::None
+                && m_owner->m_activeSampleDirectoryVoice < TheNonagonInternal::x_voicesPerTrio)
+            {
+                size_t baseIdx = static_cast<size_t>(m_owner->ActiveTrio()) * TheNonagonInternal::x_voicesPerTrio;
+                size_t voiceIdx = baseIdx + m_owner->m_activeSampleDirectoryVoice;
+                audioBufferBankSink = m_owner->m_activeSampleDirectorySlot == SampleDirectorySlot::One
+                    ? &m_owner->m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank0
+                    : &m_owner->m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank1;
+            }
+
+            m_owner->m_ioTaskThread->PushDirectoryExplorerCommand(&m_owner->m_directoryExplorer, m_messageType, audioBufferBankSink);
+
+            if (m_messageType == DirectoryExplorer::MessageType::Yes
+                || m_messageType == DirectoryExplorer::MessageType::No)
+            {
+                m_owner->m_activeSampleDirectorySlot = SampleDirectorySlot::None;
+                m_owner->m_activeSampleDirectoryVoice = m_owner->x_noActiveSampleDirectoryVoice;
+                return;
+            }
         }
     };
 
@@ -128,12 +218,26 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
     SquiggleBoyConfigGrid()
         : m_squiggleBoy(nullptr)
+        , m_activeTrio(nullptr)
+        , m_ioTaskThread(nullptr)
     {
     }
 
-    void Init(SquiggleBoyWithEncoderBank* squiggleBoyWithEncoders)
+    TheNonagonSmartGrid::Trio ActiveTrio()
+    {
+        if (m_activeTrio)
+        {
+            return *m_activeTrio;
+        }
+
+        return TheNonagonSmartGrid::Trio::Fire;
+    }
+
+    void Init(SquiggleBoyWithEncoderBank* squiggleBoyWithEncoders, TheNonagonSmartGrid::Trio* activeTrio, SquiggleBoyWithEncoderBank::UIState* squiggleBoyUIState)
     {
         m_squiggleBoy = squiggleBoyWithEncoders;
+        m_activeTrio = activeTrio;
+        m_directoryExplorer.m_UIState = &squiggleBoyUIState->m_directoryExplorerUIState;
 
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
@@ -160,31 +264,34 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             }
         }
 
-        for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
+        Put(0, 0, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::SourceMachine, true, x_numSourceMachines>(
+            this, &SquiggleBoyVoice::VoiceConfig::m_sourceMachine));
+        Put(0, 1, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::SourceMachine, false, x_numSourceMachines>(
+            this, &SquiggleBoyVoice::VoiceConfig::m_sourceMachine));
+
+        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            auto trio = static_cast<TheNonagonSmartGrid::Trio>(i);
-
-            // Source machine: upper = decrement, lower = increment
-            //
-            Put(i, 0, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::SourceMachine, true, x_numSourceMachines>(
-                this, trio, &SquiggleBoyVoice::VoiceConfig::m_sourceMachine));
-            Put(i, 1, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::SourceMachine, false, x_numSourceMachines>(
-                this, trio, &SquiggleBoyVoice::VoiceConfig::m_sourceMachine));
-
-            // Source selection for Thru mode
-            //
-            for (size_t j = 0; j < SourceMixer::x_numSources; ++j)
-            {
-                Put(i, 2 + j, new SourceSelectCell(this, trio, j));
-            }
-
-            // Filter machine: upper = decrement, lower = increment
-            //
-            Put(i, 6, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::FilterMachine, true, x_numFilterMachines>(
-                this, trio, &SquiggleBoyVoice::VoiceConfig::m_filterMachine));
-            Put(i, 7, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::FilterMachine, false, x_numFilterMachines>(
-                this, trio, &SquiggleBoyVoice::VoiceConfig::m_filterMachine));
+            Put(0, 2 + i, new SourceSelectCell(this, i));
         }
+
+        Put(0, 6, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::FilterMachine, true, x_numFilterMachines>(
+            this, &SquiggleBoyVoice::VoiceConfig::m_filterMachine));
+        Put(0, 7, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::FilterMachine, false, x_numFilterMachines>(
+            this, &SquiggleBoyVoice::VoiceConfig::m_filterMachine));
+
+        Put(1, 0, new SampleDirectoryInitCell(this, SampleDirectorySlot::One, 0));
+        Put(1, 1, new SampleDirectoryInitCell(this, SampleDirectorySlot::Two, 0));
+        Put(2, 0, new SampleDirectoryInitCell(this, SampleDirectorySlot::One, 1));
+        Put(2, 1, new SampleDirectoryInitCell(this, SampleDirectorySlot::Two, 1));
+        Put(3, 0, new SampleDirectoryInitCell(this, SampleDirectorySlot::One, 2));
+        Put(3, 1, new SampleDirectoryInitCell(this, SampleDirectorySlot::Two, 2));
+
+        Put(6, 6, new DirectoryExplorerNavCell(this, DirectoryExplorer::MessageType::Up, SmartGrid::Color::Cyan));
+        Put(5, 6, new DirectoryExplorerNavCell(this, DirectoryExplorer::MessageType::No, SmartGrid::Color::Red));
+        Put(7, 6, new DirectoryExplorerNavCell(this, DirectoryExplorer::MessageType::Yes, SmartGrid::Color::Green));
+        Put(5, 7, new DirectoryExplorerNavCell(this, DirectoryExplorer::MessageType::Left, SmartGrid::Color::Cyan));
+        Put(6, 7, new DirectoryExplorerNavCell(this, DirectoryExplorer::MessageType::Down, SmartGrid::Color::Cyan));
+        Put(7, 7, new DirectoryExplorerNavCell(this, DirectoryExplorer::MessageType::Right, SmartGrid::Color::Cyan));
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
@@ -219,9 +326,107 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             }
         }
 
+        if (m_squiggleBoy)
+        {
+            for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
+            {
+                AudioBufferBank* bank0 = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank0;
+                if (bank0)
+                {
+                    bank0->m_directoryName.clear();
+                }
+
+                AudioBufferBank* bank1 = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank1;
+                if (bank1)
+                {
+                    bank1->m_directoryName.clear();
+                }
+            }
+        }
+
+        m_activeSampleDirectorySlot = SampleDirectorySlot::None;
+        m_activeSampleDirectoryVoice = x_noActiveSampleDirectoryVoice;
+
         PropagateSourceSelection();
     }
 
+    JSON ToJSON()
+    {
+        return JSON::Object();
+    }
+
+    void FromJSON(JSON rootJ)
+    {
+        (void)rootJ;
+    }
+
+    bool RequestDirectoryExplorerInit(SampleDirectorySlot slot, size_t voiceIndex)
+    {
+        if (slot == SampleDirectorySlot::None)
+        {
+            return false;
+        }
+
+        if (TheNonagonInternal::x_voicesPerTrio <= voiceIndex)
+        {
+            return false;
+        }
+
+        if (!m_ioTaskThread)
+        {
+            return false;
+        }
+
+        if (!m_squiggleBoy)
+        {
+            return false;
+        }
+
+        if (m_sampleDirectoryRootAbsolute.empty())
+        {
+            return false;
+        }
+
+        size_t baseIdx = static_cast<size_t>(ActiveTrio()) * TheNonagonInternal::x_voicesPerTrio;
+        size_t voiceIdx = baseIdx + voiceIndex;
+        AudioBufferBank* bank = (slot == SampleDirectorySlot::One)
+            ? m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank0
+            : m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank1;
+
+        const char* relativeForInit = (bank && !bank->m_directoryName.empty()) ? bank->m_directoryName.c_str() : "";
+
+        std::string absoluteString = m_sampleDirectoryRootAbsolute.string();
+
+        const bool pushed = m_ioTaskThread->PushInitializeDirectoryExplorer(
+            absoluteString.c_str(),
+            relativeForInit,
+            &m_directoryExplorer);
+
+        if (pushed)
+        {
+            m_activeSampleDirectorySlot = slot;
+            m_activeSampleDirectoryVoice = voiceIndex;
+        }
+
+        return pushed;
+    }
+
+    void SetSampleDirectoryRootAbsolute(const std::filesystem::path& absolutePath)
+    {
+        m_sampleDirectoryRootAbsolute = absolutePath;
+    }
+
     SquiggleBoyWithEncoderBank* m_squiggleBoy;
+    TheNonagonSmartGrid::Trio* m_activeTrio;
+    IoTaskThread* m_ioTaskThread;
+    std::filesystem::path m_sampleDirectoryRootAbsolute;
+
+    DirectoryExplorer m_directoryExplorer;
+
+    static constexpr size_t x_noActiveSampleDirectoryVoice = TheNonagonInternal::x_voicesPerTrio;
+
+    SampleDirectorySlot m_activeSampleDirectorySlot{SampleDirectorySlot::None};
+    size_t m_activeSampleDirectoryVoice{x_noActiveSampleDirectoryVoice};
+
     bool m_sourceSelected[TheNonagonInternal::x_numTrios][SourceMixer::x_numSources];
 };

@@ -72,6 +72,7 @@ struct TheNonagonSquiggleBoyInternal
         rootJ.SetNew("nonagon", m_nonagon.ToJSON());
         rootJ.SetNew("squiggleBoy", m_squiggleBoy.ToJSON());
         rootJ.SetNew("stateSaver", m_stateSaver.ToJSON());
+        rootJ.SetNew("configGrid", m_configGrid.ToJSON());
         return rootJ;
     }
 
@@ -84,6 +85,12 @@ struct TheNonagonSquiggleBoyInternal
         }
 
         m_stateSaver.SetFromJSON(rootJ.Get("stateSaver"));
+
+        JSON configGridJ = rootJ.Get("configGrid");
+        if (!configGridJ.IsNull())
+        {
+            m_configGrid.FromJSON(configGridJ);
+        }
 
         JSON squiggleBoyJ = rootJ.Get("squiggleBoy");
         if (!squiggleBoyJ.IsNull())
@@ -341,7 +348,7 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.SetSceneManager(&m_sceneManager);
 
         m_squiggleBoy.m_stateSaver = &m_stateSaver;
-        m_configGrid.Init(&m_squiggleBoy);
+        m_configGrid.Init(&m_squiggleBoy, &m_activeTrio, &m_uiState.m_squiggleBoyUIState);
         m_stateSaver.Insert("sceneStateLeft", &m_sceneManager.m_scene1);
         m_stateSaver.Insert("sceneStateRight", &m_sceneManager.m_scene2);
         m_stateSaver.Insert("activeTrio", &m_activeTrio);

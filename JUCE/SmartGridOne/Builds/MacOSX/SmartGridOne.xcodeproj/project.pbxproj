@@ -433,7 +433,7 @@
 				INFOPLIST_PREPROCESS = NO;
 				INSTALL_PATH = "$(HOME)/Applications";
 				LLVM_LTO = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				MTL_HEADER_SEARCH_PATHS = "$(SRCROOT)/../../JuceLibraryCode $(HOME)/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include";
 				PRODUCT_BUNDLE_IDENTIFIER = com.theallelectricsmartgrid.smartgridone;
 				PRODUCT_NAME = "SmartGridOne";
@@ -500,7 +500,7 @@
 				INFOPLIST_FILE = Info-App.plist;
 				INFOPLIST_PREPROCESS = NO;
 				INSTALL_PATH = "$(HOME)/Applications";
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				MTL_HEADER_SEARCH_PATHS = "$(SRCROOT)/../../JuceLibraryCode $(HOME)/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include";
 				PRODUCT_BUNDLE_IDENTIFIER = com.theallelectricsmartgrid.smartgridone;
 				PRODUCT_NAME = "SmartGridOne";

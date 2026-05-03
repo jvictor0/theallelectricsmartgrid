@@ -28,10 +28,16 @@
 #include "Math.hpp"
 #include "SampleTimer.hpp"
 #include "StateSaver.hpp"
+#include "AudioBuffer.hpp"
+#include "DirectoryExplorer.hpp"
 #include "Oversample.hpp"
 #include "TransferFunction.hpp"
 
+#include <cstring>
+
 struct TheoryOfTime;
+struct IoTaskThread;
+struct AudioBufferBank;
 
 struct SquiggleBoyVoice
 {
@@ -47,10 +53,15 @@ struct SquiggleBoyVoice
         FilterMachine m_filterMachine;
         int m_sourceIndex;
 
+        AudioBufferBank* m_audioBufferBank0;
+        AudioBufferBank* m_audioBufferBank1;
+
         VoiceConfig()
             : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
             , m_filterMachine(FilterMachine::Ladder4Pole)
             , m_sourceIndex(0)
+            , m_audioBufferBank0(nullptr)
+            , m_audioBufferBank1(nullptr)
         {
         }
     };
@@ -517,6 +528,11 @@ struct SquiggleBoyVoice
             m_squiggleLFOInput[0].m_polyXFaderInput.m_trig = m_ahdControl.m_trig;
             m_squiggleLFOInput[1].m_polyXFaderInput.m_trig = m_ahdControl.m_trig;
         }
+
+        void SetTheoryOfTimeInputs(TheoryOfTime* theoryOfTime)
+        {
+            m_sourceInput.m_dualSampleInput.m_theoryOfTime = theoryOfTime;
+        }
     };
 
     SquiggleBoyVoice()
@@ -530,6 +546,8 @@ struct SquiggleBoyVoice
     {
         input.m_sourceInput.m_sourceMachine = input.m_voiceConfig.m_sourceMachine;
         input.m_sourceInput.m_sourceIndex = input.m_voiceConfig.m_sourceIndex;
+        input.m_sourceInput.m_audioBufferBank0 = input.m_voiceConfig.m_audioBufferBank0;
+        input.m_sourceInput.m_audioBufferBank1 = input.m_voiceConfig.m_audioBufferBank1;
 
         m_source.ProcessUBlock(input.m_sourceInput);
 
@@ -623,9 +641,12 @@ struct SquiggleBoy
 
     StateSaver* m_stateSaver;
 
+    IoTaskThread* m_ioTaskThread;
+
     SquiggleBoy()
         : m_topIndependent(false)
         , m_stateSaver(nullptr)
+        , m_ioTaskThread(nullptr)
     {
         m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numSources;
         m_mixerState.m_numMonoInputs = x_numVoices;
@@ -977,6 +998,61 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             }
         };
 
+        struct VoiceConfigUIState
+        {
+            static constexpr size_t x_uiBufferSize = DirectoryExplorer::UIState::x_uiBufferSize;
+            static constexpr size_t x_directoryPathCapacity = 512;
+
+            std::atomic<size_t> m_which;
+            char m_sampleDirectorySlot1[x_uiBufferSize][x_numTracks][x_voicesPerTrack][x_directoryPathCapacity];
+            char m_sampleDirectorySlot2[x_uiBufferSize][x_numTracks][x_voicesPerTrack][x_directoryPathCapacity];
+
+            VoiceConfigUIState()
+                : m_which(0)
+                , m_sampleDirectorySlot1{}
+                , m_sampleDirectorySlot2{}
+            {
+            }
+
+            size_t Which() const
+            {
+                return m_which.load(std::memory_order_acquire);
+            }
+
+            const char* GetSampleDirectorySlot1(size_t which, size_t trackIx, size_t voiceInTrack) const
+            {
+                return m_sampleDirectorySlot1[which][trackIx][voiceInTrack];
+            }
+
+            const char* GetSampleDirectorySlot2(size_t which, size_t trackIx, size_t voiceInTrack) const
+            {
+                return m_sampleDirectorySlot2[which][trackIx][voiceInTrack];
+            }
+
+            static void CopyDirectory(char* destination, const char* source)
+            {
+                if (!destination)
+                {
+                    return;
+                }
+
+                if (!source)
+                {
+                    destination[0] = '\0';
+                    return;
+                }
+
+                std::strncpy(destination, source, x_directoryPathCapacity - 1);
+                destination[x_directoryPathCapacity - 1] = '\0';
+            }
+
+            void SetSampleDirectories(size_t which, size_t trackIx, size_t voiceInTrack, const char* slot1, const char* slot2)
+            {
+                CopyDirectory(m_sampleDirectorySlot1[which][trackIx][voiceInTrack], slot1);
+                CopyDirectory(m_sampleDirectorySlot2[which][trackIx][voiceInTrack], slot2);
+            }
+        };
+
         std::atomic<VisualDisplayMode> m_visualDisplayMode;
 
         EncoderBankUIState m_encoderBankUIState;
@@ -1008,6 +1084,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         SourceMixer::UIState m_sourceMixerUIState;
         DeepVocoder::UIState m_deepVocoderUIState;
+
+        VoiceConfigUIState m_voiceConfigUIState;
+        DirectoryExplorer::UIState m_directoryExplorerUIState;
 
         void ReadMeters()
         {
@@ -1075,6 +1154,27 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             m_xPos[i].store(x);
             m_yPos[i].store(y);
+        }
+
+        void PopulateVoiceConfigUIState(const SquiggleBoyVoice::Input* voiceState)
+        {
+            size_t which = (m_voiceConfigUIState.m_which.load(std::memory_order_relaxed) + 1) % VoiceConfigUIState::x_uiBufferSize;
+
+            for (size_t trackIx = 0; trackIx < x_numTracks; ++trackIx)
+            {
+                for (size_t voiceInTrack = 0; voiceInTrack < x_voicesPerTrack; ++voiceInTrack)
+                {
+                    size_t voiceIx = trackIx * x_voicesPerTrack + voiceInTrack;
+                    AudioBufferBank* slot1Bank = voiceState[voiceIx].m_voiceConfig.m_audioBufferBank0;
+                    AudioBufferBank* slot2Bank = voiceState[voiceIx].m_voiceConfig.m_audioBufferBank1;
+
+                    const char* slot1Path = (slot1Bank && !slot1Bank->m_directoryName.empty()) ? slot1Bank->m_directoryName.c_str() : "";
+                    const char* slot2Path = (slot2Bank && !slot2Bank->m_directoryName.empty()) ? slot2Bank->m_directoryName.c_str() : "";
+                    m_voiceConfigUIState.SetSampleDirectories(which, trackIx, voiceInTrack, slot1Path, slot2Path);
+                }
+            }
+
+            m_voiceConfigUIState.m_which.store(which, std::memory_order_release);
         }
 
         std::pair<float, float> GetPos(size_t i)
@@ -1286,6 +1386,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_useIndirectPhasor = true;
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_useIndirectPhasor = true;
+
+            m_state[i].SetTheoryOfTimeInputs(m_theoryOfTime);
         }
 
     }
@@ -1664,6 +1766,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         m_sourceMixer.PopulateUIState(&uiState->m_sourceMixerUIState);
         m_deepVocoder.PopulateUIState(&uiState->m_deepVocoderUIState);
+        uiState->PopulateVoiceConfigUIState(m_state);
 
         Bank selectedBank = m_encoders.m_selectedBank;
         switch (selectedBank)

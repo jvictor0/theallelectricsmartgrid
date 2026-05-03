@@ -56,12 +56,15 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 ## DSP and Voices
 
-- **SquiggleBoyVoice** — A single voice in the DSP engine containing a source machine (Dual Wave Shaping VCO, Physical Modeling, or Thru), a filter machine, an amp section, a pan section, and a sub-oscillator.
+- **SquiggleBoyVoice** — A single voice in the DSP engine containing a source machine (Dual Wave Shaping VCO, Physical Modeling, Thru, or Dual Sample), a filter machine, an amp section, a pan section, and a sub-oscillator.
 - **Dual Wave Shaping VCO** — Source machine with dual wavetable oscillators and Vector Phase Shaping (VPS). Uses a random LFO to lazily mix between two randomly generated additive wavetables, swapping them out when inaudible. Implemented in `DualWaveShapingVCO.hpp`.
 - **Physical Modeling Source Machine** — Noise-excited source machine that runs white noise through sample-rate reduction and a morphable SVF, then drives `CombFilterWithOnePole` with AHD modulation. Implemented in `PhysicalModelingSource.hpp`.
+- **Dual Sample Source Machine** — Source machine that reads two `AudioBufferBank` slots (directory-based WAV banks), grain-resynthesizes each stream, and equal-power mixes them. Implemented in `DualSampleSource.hpp`.
 - **Vector Phase Shaping (VPS)** — Distorts the phase of a wavetable using two parameters: **v** (vertical inflection) and **d** (horizontal inflection/symmetry).
 - **LOD (Level of Detail)** — Controls the harmonic complexity (`m_morphHarmonics`) of the randomly generated additive wavetables.
 - **Thru Source Machine** — Routes external audio through the voice's filter and amp sections.
+- **DirectoryExplorer** — Runtime tree browser for selecting sample directories from the `samples/` root. UI navigation is sent as `DirectoryExplorer::MessageType` commands through `IoTaskThread`.
+- **IoTaskThread** — Background worker that executes file-system tasks (directory navigation, sample bank loading) off the audio/UI control path and applies results during acknowledgment.
 - **Filter Architecture** — The separation of stateful DSP code from stateless frequency response analysis via the UIState paradigm. See [Filter Architecture](filter-architecture.md).
 - **Ladder Filter Machine** — A 4-pole transistor ladder low-pass filter followed by a 4-pole SVF high-pass filter.
 - **SVF Filter Machine** — A 2-pole SVF low-pass filter followed by a 2-pole SVF high-pass filter, with saturation stages.

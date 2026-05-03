@@ -1,6 +1,8 @@
 #include "IOUtils.hpp"
 #include "MainComponent.h"
 
+#include <filesystem>
+
 //==============================================================================
 juce::File FileManager::GetSmartGridOneDirectory()
 {
@@ -26,6 +28,14 @@ juce::File FileManager::GetRecordingsDirectory()
     juce::File recordingsDir = GetSmartGridOneDirectory().getChildFile("recordings");
     recordingsDir.createDirectory();
     return recordingsDir;
+}
+
+//==============================================================================
+juce::File FileManager::GetSamplesDirectory()
+{
+    juce::File samplesDir = GetSmartGridOneDirectory().getChildFile("samples");
+    samplesDir.createDirectory();
+    return samplesDir;
 }
 
 //==============================================================================
@@ -300,6 +310,9 @@ void FileManager::SetDefaultRecordingDirectory()
 {
     juce::File recordingsDir = GetRecordingsDirectory();
     m_mainComponent->SetRecordingDirectory(recordingsDir.getFullPathName().toUTF8().getAddress());
+
+    juce::File samplesDir = GetSamplesDirectory();
+    m_mainComponent->SetSampleDirectoryRootAbsolute(std::filesystem::path(samplesDir.getFullPathName().toStdString()));
 }
 
 //==============================================================================

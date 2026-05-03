@@ -4,11 +4,12 @@ The source machine is the first stage in each `SquiggleBoyVoice` and is responsi
 
 ## Source Types
 
-Each voice currently supports three source machine modes:
+Each voice currently supports four source machine modes:
 
 1. **Dual Wave Shaping VCO**: dual wavetable oscillator source with vector phase shaping and cross-modulation. Implemented in `DualWaveShapingVCO.hpp`.
 2. **Physical Modeling**: noise-excited source with sample-rate reduction, morphable SVF, AHD modulation, and a one-pole damping comb. Implemented in `PhysicalModelingSource.hpp`.
 3. **Thru**: external-input passthrough source.
+4. **Dual Sample**: dual sample-bank source that crossfades two independently selected directories of WAV files and resynthesizes them with the grain engine. Implemented in `DualSampleSource.hpp`.
 
 ## Dual Wave Shaping VCO Source Machine
 
@@ -55,9 +56,32 @@ The **Physical Modeling** source machine (`PhysicalModelingSource`) is a noise-d
 
 This source owns a `UIState` that implements `TransferFunction`, so the visualizer can draw the combined pre-comb SVF and comb response in the Source bank.
 
+## Dual Sample Source Machine
+
+The **Dual Sample** source machine (`DualSampleSource`) reads from two `AudioBufferBank` slots (`slot1` and `slot2`) that are assigned per voice in the Voice Config grid.
+
+- Each slot points at a directory under the Smart Grid One `samples/` root.
+- Each slot loads all `.wav` files in that directory into an `AudioBufferBank`.
+- Playback is driven by Theory of Time phase (`m_theoryOfTime`) and rendered through the same grain/resynthesis path used by the phase-vocoder components.
+- Slot 1 and slot 2 are mixed with an equal-power crossfade (`m_mix`).
+
+Directory navigation and loading are asynchronous:
+
+- UI commands are sent through `IoTaskThread`.
+- `DirectoryExplorer` handles folder traversal and selection.
+- Confirming a selection (`Yes`) builds a new `AudioBufferBank` and atomically swaps it into the selected slot during acknowledgment.
+
+The JUCE voice config page now displays:
+
+- active trio name and source/filter mode,
+- per-voice sample directory labels for both slots,
+- a directory explorer view while browsing.
+
 ## Parameter Visibility
 
 Parameters are tagged with which source and filter machines they apply to (see [Encoder System](encoder-system.md#machine-specific-parameters)). When a source machine is selected, only matching source-specific controls are connected (e.g. VCO harmonic/phase controls for Dual VCO, comb/damping controls for Physical Modeling). This keeps the interface focused on controls relevant to the active machine.
+
+`DualSampleSource::SetEncoderParams(...)` currently exists as a hook but does not yet map machine-specific encoder controls.
 
 ## Related
 

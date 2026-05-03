@@ -30,7 +30,7 @@ struct QuadDelay
     static constexpr size_t x_delayLineSize = 1 << 24;
     static constexpr size_t x_positionalBufferSize = 1024;
     QuadDelayLineMovableWriter<x_delayLineSize> m_delayLine;
-    QuadGrainManager<x_delayLineSize> m_grainManager;
+    QuadGrainManager<DelayLineMovableWriter<x_delayLineSize>> m_grainManager;
     QuadLFO m_lfo;
 
     PositionalBufferRecorder<x_positionalBufferSize> m_positionalBufferRecorder[4];
@@ -67,7 +67,7 @@ struct QuadDelay
 
         QuadLFO::Input m_lfoInput;
 
-        QuadGrainManager<x_delayLineSize>::Input m_grainManagerInput;
+        QuadGrainManager<DelayLineMovableWriter<x_delayLineSize>>::Input m_grainManagerInput;
 
         Input()
             : m_feedback(0.5, 0.5, 0.5, 0.5)

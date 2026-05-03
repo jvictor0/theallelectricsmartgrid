@@ -6,87 +6,219 @@
 
 struct VoiceConfigComponent : public juce::Component
 {
+    struct DirectoryExplorerComponent : public juce::Component
+    {
+        NonagonWrapper* m_nonagon;
+
+        DirectoryExplorerComponent(NonagonWrapper* nonagon)
+            : m_nonagon(nonagon)
+        {
+        }
+
+        void paint(juce::Graphics& g) override
+        {
+            auto bounds = getLocalBounds();
+            g.fillAll(juce::Colours::black);
+
+            if (!m_nonagon)
+            {
+                return;
+            }
+
+            auto* squiggleUi = m_nonagon->GetSquiggleBoyUIState();
+
+            if (!squiggleUi)
+            {
+                return;
+            }
+
+            const auto& dirUi = squiggleUi->m_directoryExplorerUIState;
+            size_t which = dirUi.Which();
+
+            if (!dirUi.GetUiExplorerOpen(which))
+            {
+                return;
+            }
+
+            static constexpr int x_numFileRows = 7;
+            int totalRows = 1 + x_numFileRows;
+            int rowHeight = bounds.getHeight() / totalRows;
+            float fontSize = static_cast<float>(rowHeight) * 0.45f;
+            fontSize = juce::jmin(22.0f, fontSize);
+
+            g.setFont(juce::Font(juce::FontOptions(fontSize, juce::Font::bold)));
+
+            juce::Rectangle<int> headerBounds(0, 0, bounds.getWidth(), rowHeight);
+            g.setColour(juce::Colours::lightgrey);
+            g.drawFittedText(
+                juce::String(dirUi.GetRelativePath(which)),
+                headerBounds,
+                juce::Justification::centredLeft,
+                1);
+
+            size_t selectedRow = dirUi.GetSelectedListRow(which);
+
+            for (int i = 0; i < x_numFileRows; ++i)
+            {
+                int y = rowHeight * (1 + i);
+                juce::Rectangle<int> rowBounds(0, y, bounds.getWidth(), rowHeight);
+
+                if (static_cast<size_t>(i) == selectedRow)
+                {
+                    g.setColour(juce::Colours::darkgrey);
+                    g.fillRect(rowBounds);
+
+                    g.setColour(juce::Colours::yellow);
+                }
+                else
+                {
+                    g.setColour(juce::Colours::white);
+                }
+
+                g.drawFittedText(
+                    juce::String(dirUi.GetListLine(which, static_cast<size_t>(i))),
+                    rowBounds.reduced(4, 0),
+                    juce::Justification::centredLeft,
+                    1);
+            }
+        }
+    };
+
     NonagonWrapper* m_nonagon;
+
+    DirectoryExplorerComponent m_directoryExplorerComponent;
 
     VoiceConfigComponent(NonagonWrapper* nonagon)
         : m_nonagon(nonagon)
+        , m_directoryExplorerComponent(nonagon)
     {
+        addAndMakeVisible(m_directoryExplorerComponent);
+    }
+
+    void resized() override
+    {
+        m_directoryExplorerComponent.setBounds(getLocalBounds());
     }
 
     void paint(juce::Graphics& g) override
     {
+        auto* squiggleUi = m_nonagon ? m_nonagon->GetSquiggleBoyUIState() : nullptr;
+        bool explorerActive = false;
+
+        if (squiggleUi)
+        {
+            const auto& dirUi = squiggleUi->m_directoryExplorerUIState;
+            size_t which = dirUi.Which();
+            explorerActive = dirUi.GetUiExplorerOpen(which);
+        }
+
+        m_directoryExplorerComponent.setVisible(explorerActive);
+
+        if (explorerActive)
+        {
+            return;
+        }
+
         auto bounds = getLocalBounds();
         g.fillAll(juce::Colours::black);
 
-        int columns = 3;
-        int rows = 3;
-        int columnWidth = bounds.getWidth() / columns;
-        int rowHeight = bounds.getHeight() / rows;
+        auto* uiState = squiggleUi;
 
-        g.setColour(juce::Colours::white);
-        g.drawRect(bounds);
-
-        // Draw vertical grid lines
-        //
-        for (int i = 1; i < columns; ++i)
-        {
-            float x = static_cast<float>(i * columnWidth);
-            g.drawLine(x, 0.0f, x, static_cast<float>(bounds.getHeight()));
-        }
-
-        // Draw horizontal grid lines
-        //
-        for (int i = 1; i < rows; ++i)
-        {
-            float y = static_cast<float>(i * rowHeight);
-            g.drawLine(0.0f, y, static_cast<float>(bounds.getWidth()), y);
-        }
-
-        auto* uiState = m_nonagon ? m_nonagon->GetSquiggleBoyUIState() : nullptr;
         if (!uiState)
         {
             return;
         }
 
-        // Set a reasonable font size
-        float fontSize = std::min(24.0f, static_cast<float>(rowHeight) * 0.4f);
-        g.setFont(juce::Font(juce::FontOptions(fontSize, juce::Font::bold)));
+        g.setColour(juce::Colours::white);
+        g.drawRect(bounds);
 
-        for (int col = 0; col < columns; ++col)
+        size_t trackIx = uiState->m_activeTrack.load();
+
+        if (TheNonagonInternal::x_numTrios <= trackIx)
         {
-            size_t trioIndex = static_cast<size_t>(col);
-            size_t voiceIndex = trioIndex * TheNonagonInternal::x_voicesPerTrio;
-            auto sourceMachine = uiState->m_voiceSourceUIState[voiceIndex].m_sourceMachine.load();
-            auto filterMachine = uiState->m_voiceFilterUIState[voiceIndex].m_filterMachine.load();
+            trackIx = 0;
+        }
 
-            juce::String sourceText = VoiceMachine::ToString(sourceMachine);
-            juce::String filterText = VoiceMachine::ToString(filterMachine);
+        size_t voiceIndex = trackIx * TheNonagonInternal::x_voicesPerTrio;
+        auto sourceMachine = uiState->m_voiceSourceUIState[voiceIndex].m_sourceMachine.load();
+        auto filterMachine = uiState->m_voiceFilterUIState[voiceIndex].m_filterMachine.load();
 
-            // Calculate cell bounds using explicit coordinates
-            //
-            int cellX = col * columnWidth;
+        juce::String sourceText = VoiceMachine::ToString(sourceMachine);
+        juce::String filterText = VoiceMachine::ToString(filterMachine);
 
-            auto headerBounds = juce::Rectangle<int>(cellX, 0, columnWidth, rowHeight);
-            auto sourceBounds = juce::Rectangle<int>(cellX, rowHeight, columnWidth, rowHeight);
-            auto filterBounds = juce::Rectangle<int>(cellX, rowHeight * 2, columnWidth, rowHeight);
+        const auto& voiceCfgUi = uiState->m_voiceConfigUIState;
+        size_t whichPaths = voiceCfgUi.Which();
 
-            // Draw header (trio name)
-            //
-            g.setColour(GetTrioJuceColor(trioIndex));
-            g.setFont(juce::Font(juce::FontOptions(fontSize, juce::Font::bold)));
-            g.drawFittedText(GetTrioName(trioIndex), headerBounds, juce::Justification::centred, 1);
+        auto remaining = bounds;
+        auto topHalf = remaining.removeFromTop(bounds.getHeight() / 2);
 
-            // Draw source machine
-            //
-            g.setColour(juce::Colours::white);
-            g.setFont(juce::Font(juce::FontOptions(fontSize, juce::Font::bold)));
-            g.drawFittedText(sourceText, sourceBounds, juce::Justification::centred, 1);
+        const int topRowH = topHalf.getHeight() / 3;
+        auto headerBounds = topHalf.removeFromTop(topRowH);
+        auto sourceBounds = topHalf.removeFromTop(topRowH);
+        auto filterBounds = topHalf;
 
-            // Draw filter machine
-            //
-            g.setColour(juce::Colours::white);
-            g.setFont(juce::Font(juce::FontOptions(fontSize, juce::Font::bold)));
-            g.drawFittedText(filterText, filterBounds, juce::Justification::centred, 1);
+        const int cellW = remaining.getWidth() / static_cast<int>(TheNonagonInternal::x_voicesPerTrio);
+        const int cellH = remaining.getHeight() / 2;
+
+        g.setColour(juce::Colours::grey);
+        g.drawLine(
+            0.0f,
+            static_cast<float>(headerBounds.getBottom()),
+            static_cast<float>(bounds.getWidth()),
+            static_cast<float>(headerBounds.getBottom()));
+        g.drawLine(
+            0.0f,
+            static_cast<float>(sourceBounds.getBottom()),
+            static_cast<float>(bounds.getWidth()),
+            static_cast<float>(sourceBounds.getBottom()));
+        g.drawLine(
+            0.0f,
+            static_cast<float>(remaining.getY()),
+            static_cast<float>(bounds.getWidth()),
+            static_cast<float>(remaining.getY()));
+
+        for (int i = 1; i < 3; ++i)
+        {
+            float x = static_cast<float>(remaining.getX() + i * cellW);
+            g.drawLine(x, static_cast<float>(remaining.getY()), x, static_cast<float>(remaining.getBottom()));
+        }
+
+        g.drawLine(
+            static_cast<float>(remaining.getX()),
+            static_cast<float>(remaining.getY() + cellH),
+            static_cast<float>(remaining.getRight()),
+            static_cast<float>(remaining.getY() + cellH));
+
+        float mainFontSize = std::min(28.0f, static_cast<float>(topRowH) * 0.42f);
+
+        g.setColour(GetTrioJuceColor(trackIx));
+        g.setFont(juce::Font(juce::FontOptions(mainFontSize, juce::Font::bold)));
+        g.drawFittedText(GetTrioName(trackIx), headerBounds, juce::Justification::centred, 1);
+
+        g.setColour(juce::Colours::white);
+        g.setFont(juce::Font(juce::FontOptions(mainFontSize, juce::Font::bold)));
+        g.drawFittedText(sourceText, sourceBounds.reduced(6, 0), juce::Justification::centred, 1);
+
+        g.setColour(juce::Colours::white);
+        g.setFont(juce::Font(juce::FontOptions(mainFontSize, juce::Font::bold)));
+        g.drawFittedText(filterText, filterBounds.reduced(6, 0), juce::Justification::centred, 1);
+
+        float pathFontSize = std::min(16.0f, static_cast<float>(cellH) * 0.28f);
+
+        g.setFont(juce::Font(juce::FontOptions(pathFontSize, juce::Font::plain)));
+        g.setColour(juce::Colours::white);
+
+        for (size_t voiceCol = 0; voiceCol < TheNonagonInternal::x_voicesPerTrio; ++voiceCol)
+        {
+            const int x0 = remaining.getX() + static_cast<int>(voiceCol) * cellW;
+            juce::Rectangle<int> slot1Cell(x0, remaining.getY(), cellW, cellH);
+            juce::Rectangle<int> slot2Cell(x0, remaining.getY() + cellH, cellW, cellH);
+
+            juce::String p1 = juce::String(voiceCfgUi.GetSampleDirectorySlot1(whichPaths, trackIx, voiceCol));
+            juce::String p2 = juce::String(voiceCfgUi.GetSampleDirectorySlot2(whichPaths, trackIx, voiceCol));
+
+            g.drawFittedText(p1, slot1Cell.reduced(4, 2), juce::Justification::centred, 4);
+            g.drawFittedText(p2, slot2Cell.reduced(4, 2), juce::Justification::centred, 4);
         }
     }
 

@@ -106,9 +106,9 @@ struct PolyXFaderInternal
 
     PolyXFaderInternal()
         : m_size(0)
+        , m_amplitude(1.0f)
         , m_slope(0.0f)
         , m_center(0.0f)
-        , m_amplitude(1.0f)
         , m_valuesPreQuantize{}
         , m_valuesPostQuantize{}
         , m_weights{}

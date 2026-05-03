@@ -23,6 +23,10 @@ struct FileManager
     // Get the recordings directory (SmartGridOne/recordings/)
     //
     static juce::File GetRecordingsDirectory();
+
+    // Get the samples directory (SmartGridOne/samples/), sibling of recordings
+    //
+    static juce::File GetSamplesDirectory();
     
     // Get a specific patch directory by name (patches/<patchName>/)
     //

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <filesystem>
 
 #include "NonagonWrapper.hpp"
 #include "ConfigPage.hpp"
@@ -68,6 +69,12 @@ public:
     {
         INFO("Setting recording directory to: %s", directory);
         m_nonagon.SetRecordingDirectory(directory);
+    }
+
+    void SetSampleDirectoryRootAbsolute(const std::filesystem::path& absolutePath)
+    {
+        INFO("Setting sample directory root to: %s", absolutePath.string().c_str());
+        m_nonagon.SetSampleDirectoryRootAbsolute(absolutePath);
     }
 
     void SaveConfig()
