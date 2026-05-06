@@ -1,10 +1,14 @@
 #pragma once
 
+#include "BufferResampler.hpp"
+#include "SampleTimer.hpp"
 #include "WavReader.hpp"
 
 #include <cctype>
 #include <cmath>
+#include <cstring>
 #include <dirent.h>
+#include <memory>
 #include <string>
 #include <sys/stat.h>
 #include <vector>
@@ -27,6 +31,46 @@ struct AudioBuffer
         }
 
         wavReader.WriteLeftRightSum(m_buffer);
+
+        const double fileRate = static_cast<double>(wavReader.m_sampleRate);
+        const double hostRate = static_cast<double>(SampleTimer::x_sampleRate);
+        if (0.0 < fileRate)
+        {
+            const double rel = std::abs(fileRate - hostRate) / hostRate;
+            if (BufferResampler::x_rateMatchEpsilon <= rel)
+            {
+                const size_t inFrames = m_buffer.size();
+                const size_t outFrames = BufferResampler::OutputFrameCount(inFrames, fileRate, hostRate);
+                if (inFrames == 0 || outFrames == 0)
+                {
+                    return;
+                }
+
+                std::unique_ptr<float[]> inHold(new float[inFrames]);
+                std::memcpy(inHold.get(), m_buffer.data(), inFrames * sizeof(float));
+
+                m_buffer.resize(outFrames);
+
+                size_t written = 0;
+                if (!BufferResampler::ResampleToRate(
+                        inHold.get(),
+                        inFrames,
+                        fileRate,
+                        hostRate,
+                        m_buffer.data(),
+                        outFrames,
+                        &written))
+                {
+                    m_buffer.clear();
+                    return;
+                }
+
+                if (written != outFrames)
+                {
+                    m_buffer.resize(written);
+                }
+            }
+        }
     }
 
     // Normalized position in [0, 1] mapped across the buffer length

@@ -531,7 +531,7 @@ struct SquiggleBoyVoice
 
         void SetTheoryOfTimeInputs(TheoryOfTime* theoryOfTime)
         {
-            m_sourceInput.m_dualSampleInput.m_theoryOfTime = theoryOfTime;
+            m_sourceInput.m_theoryOfTime = theoryOfTime;
         }
     };
 

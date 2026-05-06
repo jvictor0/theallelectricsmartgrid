@@ -196,6 +196,7 @@ struct TheNonagonSquiggleBoyInternal
             m_squiggleBoy.m_state[i].m_ampInput.m_modulationAHDInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
             m_squiggleBoy.m_state[i].m_ampInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
             m_squiggleBoy.m_state[i].m_sourceInput.m_physicalModelingInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
+            m_squiggleBoy.m_state[i].m_sourceInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
 
             m_squiggleBoyState.m_sheafyModulators[i][0] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][0];
             m_squiggleBoyState.m_sheafyModulators[i][1] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][1];
@@ -353,8 +354,8 @@ struct TheNonagonSquiggleBoyInternal
         m_stateSaver.Insert("sceneStateRight", &m_sceneManager.m_scene2);
         m_stateSaver.Insert("activeTrio", &m_activeTrio);
         m_nonagon.RemoveGridIds();
-        m_squiggleBoy.Config(m_squiggleBoyState);
         m_squiggleBoy.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
+        m_squiggleBoy.Config(m_squiggleBoyState);
         m_squiggleBoy.SetupUIState(&m_uiState.m_squiggleBoyUIState);
         m_nonagon.SetupMonoScopeWriter(&m_uiState.m_squiggleBoyUIState.m_monoScopeWriter);
         m_nonagon.SetupMessageOutBuffer(&m_messageOutBuffer);

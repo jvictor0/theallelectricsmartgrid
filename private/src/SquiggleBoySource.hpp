@@ -10,6 +10,8 @@
 #include "SourceMixer.hpp"
 #include "VoiceMachineEnums.hpp"
 
+struct TheoryOfTime;
+
 // Encapsulates source machine selection and dispatch logic.
 // Contains all source machines and handles ProcessUBlock dispatch and encoder wiring.
 //
@@ -41,6 +43,7 @@ struct SquiggleBoySource
         SourceMachine m_sourceMachine;
         size_t m_sourceIndex;
         SourceMixer* m_sourceMixer;
+        TheoryOfTime* m_theoryOfTime;
 
         DualWaveShapingVCO::Input m_dualWaveShapingVCOInput;
         PhysicalModelingSource::Input m_physicalModelingInput;
@@ -53,6 +56,7 @@ struct SquiggleBoySource
             : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
             , m_sourceIndex(0)
             , m_sourceMixer(nullptr)
+            , m_theoryOfTime(nullptr)
             , m_audioBufferBank0(nullptr)
             , m_audioBufferBank1(nullptr)
         {
@@ -74,8 +78,6 @@ struct SquiggleBoySource
 
     void ProcessUBlock(Input& input)
     {
-        m_dualSample.SetAudioBufferBanks(input.m_audioBufferBank0, input.m_audioBufferBank1);
-
         switch (input.m_sourceMachine)
         {
             case SourceMachine::DualWaveShapingVCO:
@@ -104,7 +106,9 @@ struct SquiggleBoySource
             }
 
             case SourceMachine::DualSample:
-            {
+            {        
+                m_dualSample.SetAudioBufferBanks(input.m_audioBufferBank0, input.m_audioBufferBank1);
+                input.m_dualSampleInput.m_theoryOfTime = input.m_theoryOfTime;
                 m_dualSample.ProcessUBlock(input.m_dualSampleInput);
                 m_uBlockOutput = m_dualSample.m_uBlockOutput;
                 m_uBlockTop = m_dualSample.m_uBlockTop;
