@@ -9,7 +9,7 @@ namespace VoiceMachine
         DualWaveShapingVCO = 0,
         Thru = 1,
         PhysicalModeling = 2,
-        DualSample = 3,
+        Sample = 3,
         NumSourceMachines = 4,
     };
 
@@ -22,7 +22,7 @@ namespace VoiceMachine
         static constexpr uint8_t x_dualWaveShapingVCO = 1 << static_cast<int>(SourceMachine::DualWaveShapingVCO);
         static constexpr uint8_t x_thru = 1 << static_cast<int>(SourceMachine::Thru);
         static constexpr uint8_t x_physicalModeling = 1 << static_cast<int>(SourceMachine::PhysicalModeling);
-        static constexpr uint8_t x_dualSample = 1 << static_cast<int>(SourceMachine::DualSample);
+        static constexpr uint8_t x_sample = 1 << static_cast<int>(SourceMachine::Sample);
         static constexpr uint8_t x_all = 0xFF;
 
         SourceMachineFlags()
@@ -45,9 +45,9 @@ namespace VoiceMachine
             return SourceMachineFlags(x_physicalModeling);
         }
 
-        static SourceMachineFlags DualSampleOnly()
+        static SourceMachineFlags SampleOnly()
         {
-            return SourceMachineFlags(x_dualSample);
+            return SourceMachineFlags(x_sample);
         }
 
         static SourceMachineFlags All()
@@ -78,8 +78,8 @@ namespace VoiceMachine
                 return "Thru";
             case SourceMachine::PhysicalModeling:
                 return "PhysMod";
-            case SourceMachine::DualSample:
-                return "Dual Sample";
+            case SourceMachine::Sample:
+                return "Sample";
             default:
                 return "Unknown";
         }

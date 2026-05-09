@@ -43,7 +43,7 @@ Metering occupies (8, 5), 16×2 cells.
 
 The selected encoder bank (`SmartGridOneEncoders::Bank`) determines which visualizers are drawn. Banks:
 
-- **Source** — VCO scopes (Dual VCO only), physical modeling transfer-function response (Physical Modeling only), post-filter scope, source analyzer
+- **Source** — VCO scopes (Dual VCO only), sample trio waveform (Sample only), physical modeling transfer-function response (Physical Modeling only), post-filter scope, source analyzer
 - **FilterAndAmp** — Voice meter, post-amp scope, filter scope, filter analyzer
 - **PanningAndSequencing** — Sound stage (quad position), MelodyRoll (full-width)
 - **VoiceLFOs** — Control scopes 0–3
@@ -74,6 +74,7 @@ Visualizers read from:
 | ScopeComponent | Source, FilterAndAmp, VoiceLFOs | 0–3 | ScopeWriter, voice offset |
 | AnalyserComponent | Source, FilterAndAmp | 3 | WindowedFFT, voice filter UI state |
 | PhysicalModelingFrequencyResponseComponent | Source | 0 | `PhysicalModelingSource::UIState` transfer function |
+| SampleTrioWaveformVisualizerComponent | Source | 1 | `AudioBufferBank::UIState` waveform buckets plus `SampleSource::UIState` read-head/window data |
 | VoiceMeterComponent | FilterAndAmp | 0 | m_voiceMeterReader |
 | SoundStageComponent | PanningAndSequencing | 0 | m_xPos, m_yPos, m_voiceMeterReader |
 | MelodyRollComponent | PanningAndSequencing | -1 | NonagonNoteWriter |
@@ -86,6 +87,8 @@ Visualizers read from:
 | MultibandGainReductionComponent | Mastering, Inputs, DeepVocoder | 3 | m_stereoMasteringChainUIState |
 
 `QuadDelayEnvelopeVisualizerComponent` is a non-FFT effect view. It renders min/max envelope snapshots derived from the quad delay's movable-writer buffer and overlays the current relative read/write tape-head positions from `m_delayUIState`.
+
+`SampleTrioWaveformVisualizerComponent` is another non-FFT Source view. It renders one horizontal strip per voice in the active trio using min/max buckets published by each selected `AudioBufferBank`; the active `SampleStart`/`SampleLength` region is colored by voice, and the current sample read head is drawn as a white vertical line.
 
 ## Related
 

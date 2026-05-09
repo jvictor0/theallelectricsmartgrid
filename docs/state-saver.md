@@ -13,6 +13,8 @@ The state saver (`private/src/StateSaver.hpp`) handles persistence of runtime co
 
 In `TheNonagonSquiggleBoyInternal`, it is saved and loaded alongside Nonagon and SquiggleBoy state.
 
+`SquiggleBoyConfigGrid` also persists sample-source directory choices. It writes a `sampleDirectoryRelative` array with one relative path per voice; on restore, each non-empty path is resolved under the configured sample root and loaded asynchronously through `IoTaskThread::PushLoadAudioBufferBankFromDirectory(...)`.
+
 ## Internal model
 
 `StateSaverTemp<NumScenes>` stores compact per-scene snapshots for registered values:

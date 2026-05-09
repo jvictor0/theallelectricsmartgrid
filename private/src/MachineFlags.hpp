@@ -15,8 +15,8 @@ struct MachineFlags
         1 << static_cast<int>(VoiceMachine::SourceMachine::DualWaveShapingVCO);
     static constexpr uint8_t x_physicalModelingOnly =
         1 << static_cast<int>(VoiceMachine::SourceMachine::PhysicalModeling);
-    static constexpr uint8_t x_dualSampleOnly =
-        1 << static_cast<int>(VoiceMachine::SourceMachine::DualSample);
+    static constexpr uint8_t x_sampleOnly =
+        1 << static_cast<int>(VoiceMachine::SourceMachine::Sample);
     static constexpr size_t x_numSourceMachines = 4;
     static constexpr size_t x_numFilterMachines = 2;
 

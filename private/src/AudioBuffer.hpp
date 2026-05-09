@@ -1,9 +1,13 @@
 #pragma once
 
 #include "BufferResampler.hpp"
+#include "DirectoryExplorer.hpp"
 #include "SampleTimer.hpp"
 #include "WavReader.hpp"
 
+#include <algorithm>
+#include <array>
+#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <cstring>
@@ -15,7 +19,31 @@
 
 struct AudioBuffer
 {
+    static constexpr size_t x_numSections = 1024;
+
+    struct UIState
+    {
+        static constexpr size_t x_uiBufferSize = DirectoryExplorer::UIState::x_uiBufferSize;
+
+        std::atomic<size_t> m_which;
+
+        std::array<std::array<float, x_numSections>, x_uiBufferSize> m_sectionMaximums{};
+        std::array<std::array<float, x_numSections>, x_uiBufferSize> m_sectionMinimums{};
+
+        UIState()
+            : m_which(0)
+        {
+        }
+
+        size_t Which() const
+        {
+            return m_which.load(std::memory_order_acquire);
+        }
+    };
+
     std::vector<float> m_buffer;
+    std::array<float, x_numSections> m_sectionMaximums{};
+    std::array<float, x_numSections> m_sectionMinimums{};
 
     // Loads a WAV file; stereo (or more) sums channels 0 and 1 into mono floats.
     // Unsupported format leaves the buffer empty.
@@ -70,6 +98,72 @@ struct AudioBuffer
                     m_buffer.resize(written);
                 }
             }
+        }
+
+        ComputeSectionExtrema();
+    }
+
+    void PopulateUIState(UIState* uiState)
+    {
+        size_t which = (uiState->m_which.load(std::memory_order_relaxed) + 1) % UIState::x_uiBufferSize;
+
+        if (m_buffer.empty())
+        {
+            uiState->m_sectionMaximums[which].fill(0.0f);
+            uiState->m_sectionMinimums[which].fill(0.0f);
+        }
+        else
+        {
+            uiState->m_sectionMaximums[which] = m_sectionMaximums;
+            uiState->m_sectionMinimums[which] = m_sectionMinimums;
+        }
+
+        uiState->m_which.store(which, std::memory_order_release);
+    }
+
+    void ClearSectionExtrema()
+    {
+        m_sectionMaximums.fill(0.0f);
+        m_sectionMinimums.fill(0.0f);
+    }
+
+    void ComputeSectionExtrema()
+    {
+        ClearSectionExtrema();
+
+        size_t n = m_buffer.size();
+        if (n == 0)
+        {
+            return;
+        }
+
+        for (size_t section = 0; section < x_numSections; ++section)
+        {
+            size_t begin = (section * n) / x_numSections;
+            size_t end = ((section + 1) * n) / x_numSections;
+            if (begin == end)
+            {
+                continue;
+            }
+
+            float minimum = m_buffer[begin];
+            float maximum = m_buffer[begin];
+            for (size_t i = begin + 1; i < end; ++i)
+            {
+                float sample = m_buffer[i];
+                if (sample < minimum)
+                {
+                    minimum = sample;
+                }
+
+                if (maximum < sample)
+                {
+                    maximum = sample;
+                }
+            }
+
+            m_sectionMinimums[section] = minimum;
+            m_sectionMaximums[section] = maximum;
         }
     }
 
@@ -128,14 +222,81 @@ struct AudioBuffer
 
 struct AudioBufferBank
 {
+    struct UIState
+    {
+        static constexpr size_t x_uiBufferSize = DirectoryExplorer::UIState::x_uiBufferSize;
+
+        std::atomic<size_t> m_which;
+
+        std::array<std::array<float, AudioBuffer::x_numSections>, x_uiBufferSize> m_sectionMaximums{};
+        std::array<std::array<float, AudioBuffer::x_numSections>, x_uiBufferSize> m_sectionMinimums{};
+
+        UIState()
+            : m_which(0)
+        {
+        }
+
+        size_t Which() const
+        {
+            return m_which.load(std::memory_order_acquire);
+        }
+    };
+
     std::vector<AudioBuffer> m_audioBuffers;
-    size_t m_audioBufferIndex{0};
+    float m_bankPosition{0.0f};
     std::string m_directoryName;
+
+    struct BankBlend
+    {
+        size_t m_bankA;
+        size_t m_bankB;
+        float m_blendB;
+        bool m_single;
+    };
+
+    BankBlend ComputeBankBlend() const
+    {
+        BankBlend result{};
+        result.m_bankA = 0;
+        result.m_bankB = 0;
+        result.m_blendB = 0.0f;
+        result.m_single = true;
+
+        size_t n = m_audioBuffers.size();
+        if (n <= 1)
+        {
+            return result;
+        }
+
+        float u = std::clamp(m_bankPosition, 0.0f, 1.0f);
+        size_t numSegments = 2 * n - 1;
+        double scaled = static_cast<double>(u) * static_cast<double>(numSegments);
+        size_t seg = static_cast<size_t>(scaled);
+        if (seg >= numSegments)
+        {
+            seg = numSegments - 1;
+        }
+
+        double frac = scaled - static_cast<double>(seg);
+
+        if (seg % 2 == 0)
+        {
+            result.m_bankA = seg / 2;
+            result.m_single = true;
+            return result;
+        }
+
+        result.m_bankA = (seg - 1) / 2;
+        result.m_bankB = result.m_bankA + 1;
+        result.m_blendB = static_cast<float>(frac);
+        result.m_single = false;
+        return result;
+    }
 
     void LoadFromDirectory(const char* absoluteDirectoryPath, const char* relativeDirectoryPath)
     {
         m_audioBuffers.clear();
-        m_audioBufferIndex = 0;
+        m_bankPosition = 0.0f;
         m_directoryName = relativeDirectoryPath ? relativeDirectoryPath : "";
 
         DIR* directory = opendir(absoluteDirectoryPath);
@@ -198,46 +359,105 @@ struct AudioBufferBank
         return S_ISREG(fileStatus.st_mode);
     }
 
-    const AudioBuffer* GetAudioBuffer() const
-    {
-        if (m_audioBuffers.empty())
-        {
-            return nullptr;
-        }
-
-        return &m_audioBuffers[m_audioBufferIndex % m_audioBuffers.size()];
-    }
-
     double GetRealTime(double t) const
     {
-        const AudioBuffer* audioBuffer = GetAudioBuffer();
-        if (!audioBuffer)
+        size_t n = m_audioBuffers.size();
+        if (n == 0)
         {
             return 0.0;
         }
 
-        return audioBuffer->GetRealTime(t);
+        BankBlend blend = ComputeBankBlend();
+        return m_audioBuffers[blend.m_bankA].GetRealTime(t);
     }
 
     float ReadRealTime(double realTime) const
     {
-        const AudioBuffer* audioBuffer = GetAudioBuffer();
-        if (!audioBuffer)
+        size_t n = m_audioBuffers.size();
+        if (n == 0)
         {
             return 0.0f;
         }
 
-        return audioBuffer->ReadRealTime(realTime);
+        BankBlend blend = ComputeBankBlend();
+        const AudioBuffer& bufA = m_audioBuffers[blend.m_bankA];
+
+        if (blend.m_single || n == 1)
+        {
+            return bufA.ReadRealTime(realTime);
+        }
+
+        const AudioBuffer& bufB = m_audioBuffers[blend.m_bankB];
+        size_t nA = bufA.m_buffer.size();
+        size_t nB = bufB.m_buffer.size();
+        double denomA = static_cast<double>((nA <= 1) ? 1 : (nA - 1));
+        double denomB = static_cast<double>((nB <= 1) ? 1 : (nB - 1));
+        double p = realTime / denomA;
+        double realTimeB = p * denomB;
+
+        float sA = bufA.ReadRealTime(realTime);
+        float sB = bufB.ReadRealTime(realTimeB);
+        float oneMinus = 1.0f - blend.m_blendB;
+        return oneMinus * sA + blend.m_blendB * sB;
     }
 
     float Get(float t) const
     {
-        const AudioBuffer* audioBuffer = GetAudioBuffer();
-        if (!audioBuffer)
+        size_t n = m_audioBuffers.size();
+        if (n == 0)
         {
             return 0.0f;
         }
 
-        return audioBuffer->Get(t);
+        BankBlend blend = ComputeBankBlend();
+        if (blend.m_single || n == 1)
+        {
+            return m_audioBuffers[blend.m_bankA].Get(t);
+        }
+
+        float sA = m_audioBuffers[blend.m_bankA].Get(t);
+        float sB = m_audioBuffers[blend.m_bankB].Get(t);
+        float oneMinus = 1.0f - blend.m_blendB;
+        return oneMinus * sA + blend.m_blendB * sB;
+    }
+
+    void PopulateUIState(UIState* uiState)
+    {
+        size_t which = (uiState->m_which.load(std::memory_order_relaxed) + 1) % UIState::x_uiBufferSize;
+
+        if (m_audioBuffers.empty())
+        {
+            uiState->m_sectionMaximums[which].fill(0.0f);
+            uiState->m_sectionMinimums[which].fill(0.0f);
+        }
+        else
+        {
+            BankBlend blend = ComputeBankBlend();
+            if (blend.m_single || m_audioBuffers.size() == 1)
+            {
+                for (size_t i = 0; i < AudioBuffer::x_numSections; ++i)
+                {
+                    uiState->m_sectionMaximums[which][i] =
+                        m_audioBuffers[blend.m_bankA].m_sectionMaximums[i];
+                    uiState->m_sectionMinimums[which][i] =
+                        m_audioBuffers[blend.m_bankA].m_sectionMinimums[i];
+                }
+            }
+            else
+            {
+                float oneMinus = 1.0f - blend.m_blendB;
+                for (size_t i = 0; i < AudioBuffer::x_numSections; ++i)
+                {
+                    float maxA = m_audioBuffers[blend.m_bankA].m_sectionMaximums[i];
+                    float maxB = m_audioBuffers[blend.m_bankB].m_sectionMaximums[i];
+                    float minA = m_audioBuffers[blend.m_bankA].m_sectionMinimums[i];
+                    float minB = m_audioBuffers[blend.m_bankB].m_sectionMinimums[i];
+                    uiState->m_sectionMaximums[which][i] = oneMinus * maxA + blend.m_blendB * maxB;
+                    uiState->m_sectionMinimums[which][i] = oneMinus * minA + blend.m_blendB * minB;
+                }
+            }
+        }
+
+        uiState->m_which.store(which, std::memory_order_release);
     }
 };

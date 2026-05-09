@@ -199,7 +199,7 @@ struct QuadDelayInputSetter
     {
         int m_delayTimeFactorSwitchVal[4];
         int m_readHeadSpeedSwitchVal[4];
-        float m_loopSelectorKnob[4];
+        int m_loopSelectorSwitchVal[4];
         float m_widenKnob[4];
         int m_rotateSwitchVal[4];
         float m_modFreqKnob[4];
@@ -225,7 +225,7 @@ struct QuadDelayInputSetter
             {
                 m_delayTimeFactorSwitchVal[i] = 3;
                 m_readHeadSpeedSwitchVal[i] = 10;
-                m_loopSelectorKnob[i] = 0.0f;
+                m_loopSelectorSwitchVal[i] = 0;
                 m_widenKnob[i] = 0.0f;
                 m_rotateSwitchVal[i] = 1;
                 m_modFreqKnob[i] = 0.0f;
@@ -282,7 +282,8 @@ struct QuadDelayInputSetter
         {
             float widen = m_wideners[i].Update(input.m_widenKnob[i]);
 
-            int totLoopSelector = std::round((1.0 - input.m_loopSelectorKnob[i]) * TheoryOfTime::x_masterLoop);
+            int totLoopSelector =
+                TheoryOfTimeBase::x_numLoops - input.m_loopSelectorSwitchVal[i] - 1;
             WriteTapeHead::Input writeInput;
             writeInput.m_theoryOfTime = input.m_theoryOfTime;
             writeInput.m_sampleIndex = totLoopSelectorSample;

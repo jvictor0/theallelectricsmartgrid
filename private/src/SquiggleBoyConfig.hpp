@@ -20,7 +20,6 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
     {
         None,
         One,
-        Two,
     };
 
     template<typename EnumT, bool Dec, int NumValues>
@@ -166,9 +165,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             {
                 size_t baseIdx = static_cast<size_t>(m_owner->ActiveTrio()) * TheNonagonInternal::x_voicesPerTrio;
                 size_t voiceIdx = baseIdx + m_owner->m_activeSampleDirectoryVoice;
-                audioBufferBankSink = m_owner->m_activeSampleDirectorySlot == SampleDirectorySlot::One
-                    ? &m_owner->m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank0
-                    : &m_owner->m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank1;
+                audioBufferBankSink = &m_owner->m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank;
             }
 
             m_owner->m_ioTaskThread->PushDirectoryExplorerCommand(&m_owner->m_directoryExplorer, m_messageType, audioBufferBankSink);
@@ -280,11 +277,8 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             this, &SquiggleBoyVoice::VoiceConfig::m_filterMachine));
 
         Put(1, 0, new SampleDirectoryInitCell(this, SampleDirectorySlot::One, 0));
-        Put(1, 1, new SampleDirectoryInitCell(this, SampleDirectorySlot::Two, 0));
         Put(2, 0, new SampleDirectoryInitCell(this, SampleDirectorySlot::One, 1));
-        Put(2, 1, new SampleDirectoryInitCell(this, SampleDirectorySlot::Two, 1));
         Put(3, 0, new SampleDirectoryInitCell(this, SampleDirectorySlot::One, 2));
-        Put(3, 1, new SampleDirectoryInitCell(this, SampleDirectorySlot::Two, 2));
 
         Put(6, 6, new DirectoryExplorerNavCell(this, DirectoryExplorer::MessageType::Up, SmartGrid::Color::Cyan));
         Put(5, 6, new DirectoryExplorerNavCell(this, DirectoryExplorer::MessageType::No, SmartGrid::Color::Red));
@@ -330,16 +324,10 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         {
             for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
             {
-                AudioBufferBank* bank0 = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank0;
-                if (bank0)
+                AudioBufferBank* bank = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank;
+                if (bank)
                 {
-                    bank0->m_directoryName.clear();
-                }
-
-                AudioBufferBank* bank1 = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank1;
-                if (bank1)
-                {
-                    bank1->m_directoryName.clear();
+                    bank->m_directoryName.clear();
                 }
             }
         }
@@ -352,12 +340,74 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
     JSON ToJSON()
     {
-        return JSON::Object();
+        JSON rootJ = JSON::Object();
+
+        if (!m_squiggleBoy)
+        {
+            return rootJ;
+        }
+
+        JSON dirsJ = JSON::Array();
+
+        for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
+        {
+            AudioBufferBank* bank = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank;
+            const char* rel = (bank && !bank->m_directoryName.empty()) ? bank->m_directoryName.c_str() : "";
+            dirsJ.AppendNew(JSON::String(rel));
+        }
+
+        rootJ.SetNew("sampleDirectoryRelative", dirsJ);
+        return rootJ;
     }
 
     void FromJSON(JSON rootJ)
     {
-        (void)rootJ;
+        JSON dirsJ = rootJ.Get("sampleDirectoryRelative");
+
+        if (dirsJ.IsNull())
+        {
+            return;
+        }
+
+        if (!m_ioTaskThread || !m_squiggleBoy)
+        {
+            return;
+        }
+
+        const bool haveRoot = !m_sampleDirectoryRootAbsolute.empty();
+
+        for (size_t i = 0; i < dirsJ.Size() && i < SquiggleBoy::x_numVoices; ++i)
+        {
+            JSON entryJ = dirsJ.GetAt(i);
+            const char* rel = entryJ.StringValue();
+
+            AudioBufferBank*& bankRef = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank;
+
+            if (!rel || rel[0] == '\0')
+            {
+                if (bankRef)
+                {
+                    delete bankRef;
+                    bankRef = nullptr;
+                }
+
+                continue;
+            }
+
+            if (!haveRoot)
+            {
+                continue;
+            }
+
+            std::filesystem::path absolutePath = m_sampleDirectoryRootAbsolute;
+            absolutePath /= std::filesystem::path(rel);
+            std::string absoluteString = absolutePath.string();
+
+            m_ioTaskThread->PushLoadAudioBufferBankFromDirectory(
+                absoluteString.c_str(),
+                rel,
+                &bankRef);
+        }
     }
 
     bool RequestDirectoryExplorerInit(SampleDirectorySlot slot, size_t voiceIndex)
@@ -389,9 +439,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
         size_t baseIdx = static_cast<size_t>(ActiveTrio()) * TheNonagonInternal::x_voicesPerTrio;
         size_t voiceIdx = baseIdx + voiceIndex;
-        AudioBufferBank* bank = (slot == SampleDirectorySlot::One)
-            ? m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank0
-            : m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank1;
+        AudioBufferBank* bank = m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank;
 
         const char* relativeForInit = (bank && !bank->m_directoryName.empty()) ? bank->m_directoryName.c_str() : "";
 

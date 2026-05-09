@@ -35,15 +35,17 @@ Modules write with minimal overhead:
 
 This is how voice VCO/filter/amp/LFO and quad buses push data into visualization buffers.
 
-## Capture layer: effect UI snapshots
+## Capture layer: derived UI snapshots
 
-Not every visualizer is backed by `ScopeWriter`. Some effect views publish derived UI data directly into nested UI-state structs during `PopulateUIState(...)`.
+Not every visualizer is backed by `ScopeWriter`. Some views publish derived UI data directly into nested UI-state structs during `PopulateUIState(...)`.
 
-Current example:
+Current examples:
 
 - `QuadDelayEnvelopeVisualizerComponent` reads `m_delayUIState`
 - `QuadDelay::PopulateUIState(...)` copies per-channel envelope snapshots and relative read/write head positions into rotating UI slots
 - the delay envelope data is derived from `DelayLineMovableWriter` min/max buckets, remapped through `PositionalBufferRecorder` so the UI can sample the delay buffer against the current master-loop position
+- `SampleTrioWaveformVisualizerComponent` reads `m_voiceSourceUIState[i].m_audioBufferBankUIState` and `m_sampleSourceUIState`
+- `AudioBufferBank::PopulateUIState(...)` publishes min/max waveform buckets for the selected or blended bank position, while `SampleSource::PopulateUIState(...)` publishes the read-head position and active start/length window
 
 This path is useful for views that need aggregated state rather than raw time-series buffers.
 
@@ -81,6 +83,7 @@ Main views:
 - `AnalyserComponent` (per-voice spectrum + filter response overlays)
 - `QuadAnalyserComponent` (delay/reverb/master quad spectra)
 - `QuadDelayEnvelopeVisualizerComponent`
+- `SampleTrioWaveformVisualizerComponent`
 - `TheoryOfTimeScopeComponent`
 - `SoundStageComponent` (quad position + meter-weighted bubbles)
 - `MelodyRollComponent` (note events via `NonagonNoteWriter`)

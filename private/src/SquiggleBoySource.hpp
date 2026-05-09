@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AudioBuffer.hpp"
 #include "DualWaveShapingVCO.hpp"
 #include "DualSampleSource.hpp"
 #include "Oversample.hpp"
@@ -26,7 +27,7 @@ struct SquiggleBoySource
     //
     DualWaveShapingVCO m_dualWaveShapingVCO;
     PhysicalModelingSource m_physicalModeling;
-    DualSampleSource m_dualSample;
+    SampleSource m_sampleSource;
 
     // Output buffers
     //
@@ -47,18 +48,16 @@ struct SquiggleBoySource
 
         DualWaveShapingVCO::Input m_dualWaveShapingVCOInput;
         PhysicalModelingSource::Input m_physicalModelingInput;
-        DualSampleSource::Input m_dualSampleInput;
+        SampleSource::Input m_sampleSourceInput;
 
-        AudioBufferBank* m_audioBufferBank0;
-        AudioBufferBank* m_audioBufferBank1;
+        AudioBufferBank* m_audioBufferBank;
 
         Input()
             : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
             , m_sourceIndex(0)
             , m_sourceMixer(nullptr)
             , m_theoryOfTime(nullptr)
-            , m_audioBufferBank0(nullptr)
-            , m_audioBufferBank1(nullptr)
+            , m_audioBufferBank(nullptr)
         {
         }
     };
@@ -105,13 +104,13 @@ struct SquiggleBoySource
                 break;
             }
 
-            case SourceMachine::DualSample:
+            case SourceMachine::Sample:
             {        
-                m_dualSample.SetAudioBufferBanks(input.m_audioBufferBank0, input.m_audioBufferBank1);
-                input.m_dualSampleInput.m_theoryOfTime = input.m_theoryOfTime;
-                m_dualSample.ProcessUBlock(input.m_dualSampleInput);
-                m_uBlockOutput = m_dualSample.m_uBlockOutput;
-                m_uBlockTop = m_dualSample.m_uBlockTop;
+                m_sampleSource.SetAudioBufferBank(input.m_audioBufferBank);
+                input.m_sampleSourceInput.m_theoryOfTime = input.m_theoryOfTime;
+                m_sampleSource.ProcessUBlock(input.m_sampleSourceInput);
+                m_uBlockOutput = m_sampleSource.m_uBlockOutput;
+                m_uBlockTop = m_sampleSource.m_uBlockTop;
                 break;
             }
 
@@ -154,9 +153,9 @@ struct SquiggleBoySource
                 break;
             }
 
-            case SourceMachine::DualSample:
+            case SourceMachine::Sample:
             {
-                m_dualSample.SetEncoderParams(encoders, input.m_dualSampleInput, voiceIx, baseFreq);
+                m_sampleSource.SetEncoderParams(encoders, input.m_sampleSourceInput, voiceIx, baseFreq);
                 break;
             }
 

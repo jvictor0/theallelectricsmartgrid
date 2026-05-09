@@ -2,44 +2,63 @@
 
 #include "AudioBuffer.hpp"
 #include "DelayLine.hpp"
-#include "Math.hpp"
 #include "Oversample.hpp"
+#include "PhasorPlayHead.hpp"
 #include "SampleTimer.hpp"
 #include "SmartGridOneEncoders.hpp"
 #include "TheoryOfTime.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 
-struct DualSampleSource
+struct SampleSource
 {
     static constexpr size_t x_oversample = 4;
     static constexpr size_t x_uBlockSize = SampleTimer::x_controlFrameRate * x_oversample;
 
-    GrainManager<AudioBufferBank> m_grainManager[2];
+    struct UIState
+    {
+        std::atomic<double> m_samplePosition;
+        std::atomic<float> m_start;
+        std::atomic<float> m_length;
+
+        UIState()
+            : m_samplePosition(0.0)
+            , m_start(0.0f)
+            , m_length(1.0f)
+        {
+        }
+    };
+
+    GrainManager<AudioBufferBank> m_grainManager;
 
     bool m_uBlockTop[SampleTimer::x_controlFrameRate];
     float m_uBlockBaseOutput[SampleTimer::x_controlFrameRate];
     float m_uBlockOutput[x_uBlockSize];
     Upsampler m_upsampler;
+    PhasorPlayHead m_phasorPlayHead;
     double m_previousTotalPhaseTime;
+    float m_sampleStart;
+    float m_sampleLength;
 
     struct Input
     {
         TheoryOfTime* m_theoryOfTime;
-        GrainManager<AudioBufferBank>::Input m_grainManagerInput[2];
-        float m_mix;
+        GrainManager<AudioBufferBank>::Input m_grainManagerInput;
+        PhasorPlayHead::Input m_phasorPlayHeadInput;
 
         Input()
             : m_theoryOfTime(nullptr)
-            , m_mix(0.5f)
         {
         }
     };
 
-    DualSampleSource()
+    SampleSource()
         : m_upsampler(x_oversample)
         , m_previousTotalPhaseTime(0.0)
+        , m_sampleStart(0.0f)
+        , m_sampleLength(1.0f)
     {
         for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
         {
@@ -53,38 +72,22 @@ struct DualSampleSource
         }
     }
 
-    void SetAudioBufferBanks(AudioBufferBank* audioBufferBank0, AudioBufferBank* audioBufferBank1)
+    void SetAudioBufferBank(AudioBufferBank* audioBufferBank)
     {
-        m_grainManager[0].m_audioBuffer = audioBufferBank0;
-        m_grainManager[1].m_audioBuffer = audioBufferBank1;
-    }
-
-    double GetTotalPhaseTime(TheoryOfTime* theoryOfTime, size_t sampleIndex) const
-    {
-        if (!theoryOfTime)
-        {
-            return 0.0;
-        }
-
-        const TimeLoop& masterLoop = theoryOfTime->m_loops[TheoryOfTimeBase::x_masterLoop];
-        return masterLoop.m_phasorIndependent[sampleIndex];
+        m_grainManager.m_audioBuffer = audioBufferBank;
     }
 
     void ProcessUBlock(Input& input)
     {
-        float mix = std::max(0.0f, std::min(1.0f, input.m_mix));
-        float mixPhase = mix * 0.25f;
-        float gain0 = Math::Cos2pi(mixPhase);
-        float gain1 = Math::Sin2pi(mixPhase);
-
         double previousTotalPhaseTime = m_previousTotalPhaseTime;
+        input.m_phasorPlayHeadInput.m_theoryOfTime = input.m_theoryOfTime;
         for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
         {
-            double totalPhaseTime = GetTotalPhaseTime(input.m_theoryOfTime, i);
-            float sample0 = m_grainManager[0].Process(totalPhaseTime, 0.0, input.m_grainManagerInput[0]);
-            float sample1 = m_grainManager[1].Process(totalPhaseTime, 0.0, input.m_grainManagerInput[1]);
-
-            m_uBlockBaseOutput[i] = sample0 * gain0 + sample1 * gain1;
+            input.m_phasorPlayHeadInput.m_sampleIndex = static_cast<int>(i);
+            double totalPhaseTime =
+                static_cast<double>(m_phasorPlayHead.Process(input.m_phasorPlayHeadInput));
+            m_uBlockBaseOutput[i] =
+                m_grainManager.Process(totalPhaseTime, 0.0, input.m_grainManagerInput);
             m_uBlockTop[i] = std::floor(totalPhaseTime) != std::floor(previousTotalPhaseTime);
             previousTotalPhaseTime = totalPhaseTime;
         }
@@ -93,11 +96,57 @@ struct DualSampleSource
         m_upsampler.Process(m_uBlockBaseOutput, m_uBlockOutput);
     }
 
+    void PopulateUIState(UIState* uiState) const
+    {
+        uiState->m_samplePosition.store(m_previousTotalPhaseTime, std::memory_order_relaxed);
+        uiState->m_start.store(m_sampleStart, std::memory_order_relaxed);
+        uiState->m_length.store(m_sampleLength, std::memory_order_relaxed);
+    }
+
     void SetEncoderParams(
         SmartGridOneEncoders& encoders,
         Input& input,
         size_t voiceIx,
-        float baseFreq)
+        float)
     {
+        using Param = SmartGridOneEncoders::Param;
+
+        int voice = static_cast<int>(voiceIx);
+
+        int switchVal = encoders.GetSwitchVal(Param::SampleLoopIndex, voice);
+        input.m_phasorPlayHeadInput.m_loopIndex = TheoryOfTimeBase::x_numLoops - switchVal - 1;
+
+        static constexpr float x_readHeadSpeeds[17] =
+        {
+            -4.0f,
+            -3.0f,
+            -2.0f,
+            -3.0f / 2.0f,
+            -4.0f / 3.0f,
+            -1.0f,
+            -1.0f / 2.0f,
+            -1.0f / 4.0f,
+            0,
+            1.0f / 4.0f,
+            1.0f / 2.0f,
+            1.0f,
+            4.0f / 3.0f,
+            3.0f / 2.0f,
+            2.0f,
+            3.0f,
+            4.0f
+        };
+
+        int speedIx = encoders.GetSwitchVal(Param::SampleReadSpeed, voice);
+        float speed = x_readHeadSpeeds[speedIx];
+
+        float startVal = encoders.GetValue(Param::SampleStart, voice);
+        float lengthVal = encoders.GetValue(Param::SampleLength, voice);
+        lengthVal = std::max(lengthVal, 1.0e-6f);
+        input.m_phasorPlayHeadInput.m_start = startVal;
+        input.m_phasorPlayHeadInput.m_length = lengthVal;
+        input.m_phasorPlayHeadInput.m_speed = speed;
+        m_sampleStart = startVal;
+        m_sampleLength = lengthVal;
     }
 };

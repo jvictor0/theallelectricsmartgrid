@@ -9,7 +9,7 @@ Each voice currently supports four source machine modes:
 1. **Dual Wave Shaping VCO**: dual wavetable oscillator source with vector phase shaping and cross-modulation. Implemented in `DualWaveShapingVCO.hpp`.
 2. **Physical Modeling**: noise-excited source with sample-rate reduction, morphable SVF, AHD modulation, and a one-pole damping comb. Implemented in `PhysicalModelingSource.hpp`.
 3. **Thru**: external-input passthrough source.
-4. **Dual Sample**: dual sample-bank source that crossfades two independently selected directories of WAV files and resynthesizes them with the grain engine. Implemented in `DualSampleSource.hpp`.
+4. **Sample**: per-voice sample-directory source that reads a bank of WAV files, blends between adjacent files, and resynthesizes playback with the grain engine. Implemented by `SampleSource` in `DualSampleSource.hpp`.
 
 ## Dual Wave Shaping VCO Source Machine
 
@@ -56,32 +56,43 @@ The **Physical Modeling** source machine (`PhysicalModelingSource`) is a noise-d
 
 This source owns a `UIState` that implements `TransferFunction`, so the visualizer can draw the combined pre-comb SVF and comb response in the Source bank.
 
-## Dual Sample Source Machine
+## Sample Source Machine
 
-The **Dual Sample** source machine (`DualSampleSource`) reads from two `AudioBufferBank` slots (`slot1` and `slot2`) that are assigned per voice in the Voice Config grid.
+The **Sample** source machine (`SampleSource`) reads from one `AudioBufferBank` per voice. The bank is assigned in the Voice Config grid and points at a directory under the Smart Grid One `samples/` root.
 
-- Each slot points at a directory under the Smart Grid One `samples/` root.
-- Each slot loads all `.wav` files in that directory into an `AudioBufferBank`.
-- Playback is driven by Theory of Time phase (`m_theoryOfTime`) and rendered through the same grain/resynthesis path used by the phase-vocoder components.
-- Slot 1 and slot 2 are mixed with an equal-power crossfade (`m_mix`).
+- Each bank loads all `.wav` files in the selected directory.
+- `SampleBankPosition` scans across the loaded WAV files. Even segments select a single file; odd segments linearly blend adjacent files.
+- Playback position comes from `PhasorPlayHead`, which reads a selected Theory of Time loop through `GetIndirectPhasor(...)`.
+- `SampleStart` and `SampleLength` define a wrapped window inside the normalized sample domain.
+- `SampleReadSpeed` selects quantized reverse, stopped, and forward rates from `-4x` through `4x`.
+- Audio is rendered through `GrainManager<AudioBufferBank>`, reusing the grain/resynthesis path used by the phase-vocoder components.
 
 Directory navigation and loading are asynchronous:
 
 - UI commands are sent through `IoTaskThread`.
 - `DirectoryExplorer` handles folder traversal and selection.
-- Confirming a selection (`Yes`) builds a new `AudioBufferBank` and atomically swaps it into the selected slot during acknowledgment.
+- Confirming a selection (`Yes`) builds a new `AudioBufferBank` and swaps it into the selected voice during acknowledgment.
+- Restoring saved state queues `LoadAudioBufferBankFromDirectory` tasks for each saved relative sample directory.
 
 The JUCE voice config page now displays:
 
 - active trio name and source/filter mode,
-- per-voice sample directory labels for both slots,
+- one per-voice sample directory label for the active trio,
 - a directory explorer view while browsing.
+
+The Source visualizer bank includes `SampleTrioWaveformVisualizerComponent` for Sample voices. It draws min/max waveform buckets for the active trio's three sample banks, highlights the active start/length window in each voice color, and overlays the current read-head position.
 
 ## Parameter Visibility
 
 Parameters are tagged with which source and filter machines they apply to (see [Encoder System](encoder-system.md#machine-specific-parameters)). When a source machine is selected, only matching source-specific controls are connected (e.g. VCO harmonic/phase controls for Dual VCO, comb/damping controls for Physical Modeling). This keeps the interface focused on controls relevant to the active machine.
 
-`DualSampleSource::SetEncoderParams(...)` currently exists as a hook but does not yet map machine-specific encoder controls.
+Sample-specific Source bank controls are only visible for Sample voices:
+
+- `SampleLoopIndex`: chooses which of the six Theory of Time loops drives the read head.
+- `SampleStart`: normalized start position of the playback window.
+- `SampleReadSpeed`: quantized read speed, including reverse and stopped playback.
+- `SampleLength`: normalized wrapped length of the playback window.
+- `SampleBankPosition`: position across the WAV files loaded in the selected bank.
 
 ## Related
 

@@ -30,6 +30,12 @@ F(
         ScopeComponent::ScopeType::Audio,
         uiState),
     VoiceMachine::SourceMachineFlags::DualVCOOnly())
+F(
+    SampleTrioWaveform,
+    Source,
+    1,
+    std::make_unique<SampleTrioWaveformVisualizerComponent>(uiState),
+    VoiceMachine::SourceMachineFlags::SampleOnly())
 
 // Physical modeling frequency response - PhysicalModeling only
 //

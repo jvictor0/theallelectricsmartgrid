@@ -20,6 +20,7 @@ struct IoTaskElement
         None,
         DirectoryExplorerCommand,
         InitializeDirectoryExplorer,
+        LoadAudioBufferBankFromDirectory,
     };
 
     TaskType m_taskType;
@@ -87,6 +88,52 @@ struct IoTaskElement
         CopyPathIntoBuffer(m_pathRelative, x_pathBufferSize, relativePath);
     }
 
+    void SetLoadAudioBufferBankFromDirectory(const char* absolutePath, const char* relativePath, AudioBufferBank** sink)
+    {
+        m_taskType = TaskType::LoadAudioBufferBankFromDirectory;
+        m_directoryExplorer = nullptr;
+        m_messageType = DirectoryExplorer::MessageType::Up;
+        m_result = nullptr;
+        m_sink = sink;
+        CopyPathIntoBuffer(m_pathAbsolute, x_pathBufferSize, absolutePath);
+        CopyPathIntoBuffer(m_pathRelative, x_pathBufferSize, relativePath);
+    }
+
+    void LoadAudioBufferBankFromPaths(const char* absolutePath, const char* relativePath)
+    {
+        AudioBufferBank* audioBufferBank = new AudioBufferBank();
+        audioBufferBank->LoadFromDirectory(absolutePath, relativePath);
+        m_result = audioBufferBank;
+    }
+
+    void AcknowledgeAudioBufferBankIntoSink()
+    {
+        AudioBufferBank* audioBufferBank = static_cast<AudioBufferBank*>(m_result);
+
+        if (!audioBufferBank)
+        {
+            return;
+        }
+
+        AudioBufferBank** sink = static_cast<AudioBufferBank**>(m_sink);
+
+        if (sink)
+        {
+            if (*sink && *sink != audioBufferBank)
+            {
+                delete *sink;
+            }
+
+            *sink = audioBufferBank;
+        }
+        else
+        {
+            delete audioBufferBank;
+        }
+
+        m_result = nullptr;
+    }
+
     void Process()
     {
         switch (m_taskType)
@@ -102,9 +149,7 @@ struct IoTaskElement
                 {
                     const std::string directoryString = m_directoryExplorer->SelectedDirectoryPath().string();
                     const std::string relativeString = m_directoryExplorer->SelectedDirectoryRelativePathString();
-                    AudioBufferBank* audioBufferBank = new AudioBufferBank();
-                    audioBufferBank->LoadFromDirectory(directoryString.c_str(), relativeString.c_str());
-                    m_result = audioBufferBank;
+                    LoadAudioBufferBankFromPaths(directoryString.c_str(), relativeString.c_str());
                     m_directoryExplorer->Reset();
                 }
                 else
@@ -129,6 +174,12 @@ struct IoTaskElement
                 break;
             }
 
+            case TaskType::LoadAudioBufferBankFromDirectory:
+            {
+                LoadAudioBufferBankFromPaths(m_pathAbsolute, m_pathRelative);
+                break;
+            }
+
             case TaskType::None:
             default:
             {
@@ -145,52 +196,14 @@ struct IoTaskElement
 
     void Acknowledge()
     {
-        switch (m_taskType)
+        const bool acknowledgeBank =
+            m_taskType == TaskType::LoadAudioBufferBankFromDirectory
+            || (m_taskType == TaskType::DirectoryExplorerCommand
+                && m_messageType == DirectoryExplorer::MessageType::Yes);
+
+        if (acknowledgeBank)
         {
-            case TaskType::DirectoryExplorerCommand:
-            {
-                if (m_messageType != DirectoryExplorer::MessageType::Yes)
-                {
-                    break;
-                }
-
-                AudioBufferBank* audioBufferBank = static_cast<AudioBufferBank*>(m_result);
-
-                if (!audioBufferBank)
-                {
-                    break;
-                }
-
-                AudioBufferBank** sink = static_cast<AudioBufferBank**>(m_sink);
-
-                if (sink)
-                {
-                    if (*sink && *sink != audioBufferBank)
-                    {
-                        delete *sink;
-                    }
-
-                    *sink = audioBufferBank;
-                }
-                else
-                {
-                    delete audioBufferBank;
-                }
-
-                m_result = nullptr;
-                break;
-            }
-
-            case TaskType::InitializeDirectoryExplorer:
-            {
-                break;
-            }
-
-            case TaskType::None:
-            default:
-            {
-                break;
-            }
+            AcknowledgeAudioBufferBankIntoSink();
         }
     }
 };
@@ -237,6 +250,13 @@ struct IoTaskThread
     {
         IoTaskElement task;
         task.SetDirectoryExplorerInit(absolutePath, relativePath, directoryExplorer);
+        return m_taskQueue.Push(task);
+    }
+
+    bool PushLoadAudioBufferBankFromDirectory(const char* absolutePath, const char* relativePath, AudioBufferBank** sink)
+    {
+        IoTaskElement task;
+        task.SetLoadAudioBufferBankFromDirectory(absolutePath, relativePath, sink);
         return m_taskQueue.Push(task);
     }
 

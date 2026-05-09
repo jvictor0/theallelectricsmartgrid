@@ -56,10 +56,11 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 ## DSP and Voices
 
-- **SquiggleBoyVoice** — A single voice in the DSP engine containing a source machine (Dual Wave Shaping VCO, Physical Modeling, Thru, or Dual Sample), a filter machine, an amp section, a pan section, and a sub-oscillator.
+- **SquiggleBoyVoice** — A single voice in the DSP engine containing a source machine (Dual Wave Shaping VCO, Physical Modeling, Thru, or Sample), a filter machine, an amp section, a pan section, and a sub-oscillator.
 - **Dual Wave Shaping VCO** — Source machine with dual wavetable oscillators and Vector Phase Shaping (VPS). Uses a random LFO to lazily mix between two randomly generated additive wavetables, swapping them out when inaudible. Implemented in `DualWaveShapingVCO.hpp`.
 - **Physical Modeling Source Machine** — Noise-excited source machine that runs white noise through sample-rate reduction and a morphable SVF, then drives `CombFilterWithOnePole` with AHD modulation. Implemented in `PhysicalModelingSource.hpp`.
-- **Dual Sample Source Machine** — Source machine that reads two `AudioBufferBank` slots (directory-based WAV banks), grain-resynthesizes each stream, and equal-power mixes them. Implemented in `DualSampleSource.hpp`.
+- **Sample Source Machine** — Source machine that reads one per-voice `AudioBufferBank`, scans or blends across the WAV files in that directory with `SampleBankPosition`, and grain-resynthesizes playback from a Theory of Time-driven `PhasorPlayHead`. Implemented by `SampleSource` in `DualSampleSource.hpp`.
+- **PhasorPlayHead** — Normalized sample read-head helper that maps a selected Theory of Time loop, start, length, and read speed into a wrapped phase used for sample playback. (`private/src/PhasorPlayHead.hpp`)
 - **Vector Phase Shaping (VPS)** — Distorts the phase of a wavetable using two parameters: **v** (vertical inflection) and **d** (horizontal inflection/symmetry).
 - **LOD (Level of Detail)** — Controls the harmonic complexity (`m_morphHarmonics`) of the randomly generated additive wavetables.
 - **Thru Source Machine** — Routes external audio through the voice's filter and amp sections.

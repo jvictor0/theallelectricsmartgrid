@@ -24,7 +24,7 @@ The `TheNonagonSmartGrid` class wraps the core `TheNonagonInternal` sequencer lo
 
 - source machine increment/decrement and filter machine increment/decrement for the active trio,
 - source selection toggles when using `Thru`,
-- per-voice sample slot selection (`slot1` / `slot2`) for `Dual Sample`,
+- per-voice sample directory selection for the `Sample` source machine,
 - directory explorer navigation commands (`Up/Down/Left/Right/Yes/No`) routed through `IoTaskThread`.
 
 The directory explorer state is mirrored into UI buffers (`DirectoryExplorer::UIState`) so `VoiceConfigComponent` can render live path/list updates while browsing.

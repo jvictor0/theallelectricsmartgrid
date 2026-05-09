@@ -8,6 +8,7 @@
 #include "MeterComponent.hpp"
 #include "MasteringComponents.hpp"
 #include "QuadDelayEnvelopeVisualizerComponent.hpp"
+#include "SampleTrioWaveformVisualizerComponent.hpp"
 
 struct SmartGridOneVisualizerMain : public juce::Component
 {

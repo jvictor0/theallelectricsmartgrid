@@ -146,9 +146,6 @@ struct VoiceConfigComponent : public juce::Component
         juce::String sourceText = VoiceMachine::ToString(sourceMachine);
         juce::String filterText = VoiceMachine::ToString(filterMachine);
 
-        const auto& voiceCfgUi = uiState->m_voiceConfigUIState;
-        size_t whichPaths = voiceCfgUi.Which();
-
         auto remaining = bounds;
         auto topHalf = remaining.removeFromTop(bounds.getHeight() / 2);
 
@@ -158,7 +155,7 @@ struct VoiceConfigComponent : public juce::Component
         auto filterBounds = topHalf;
 
         const int cellW = remaining.getWidth() / static_cast<int>(TheNonagonInternal::x_voicesPerTrio);
-        const int cellH = remaining.getHeight() / 2;
+        const int cellH = remaining.getHeight();
 
         g.setColour(juce::Colours::grey);
         g.drawLine(
@@ -183,12 +180,6 @@ struct VoiceConfigComponent : public juce::Component
             g.drawLine(x, static_cast<float>(remaining.getY()), x, static_cast<float>(remaining.getBottom()));
         }
 
-        g.drawLine(
-            static_cast<float>(remaining.getX()),
-            static_cast<float>(remaining.getY() + cellH),
-            static_cast<float>(remaining.getRight()),
-            static_cast<float>(remaining.getY() + cellH));
-
         float mainFontSize = std::min(28.0f, static_cast<float>(topRowH) * 0.42f);
 
         g.setColour(GetTrioJuceColor(trackIx));
@@ -211,14 +202,14 @@ struct VoiceConfigComponent : public juce::Component
         for (size_t voiceCol = 0; voiceCol < TheNonagonInternal::x_voicesPerTrio; ++voiceCol)
         {
             const int x0 = remaining.getX() + static_cast<int>(voiceCol) * cellW;
-            juce::Rectangle<int> slot1Cell(x0, remaining.getY(), cellW, cellH);
-            juce::Rectangle<int> slot2Cell(x0, remaining.getY() + cellH, cellW, cellH);
+            juce::Rectangle<int> pathCell(x0, remaining.getY(), cellW, cellH);
 
-            juce::String p1 = juce::String(voiceCfgUi.GetSampleDirectorySlot1(whichPaths, trackIx, voiceCol));
-            juce::String p2 = juce::String(voiceCfgUi.GetSampleDirectorySlot2(whichPaths, trackIx, voiceCol));
+            const size_t voiceIndex = trackIx * TheNonagonInternal::x_voicesPerTrio + voiceCol;
+            const auto& sampleDirUi = uiState->m_voiceSourceUIState[voiceIndex].m_sampleDirectoryUIState;
+            const size_t whichPaths = sampleDirUi.Which();
+            juce::String path = juce::String(sampleDirUi.GetPath(whichPaths));
 
-            g.drawFittedText(p1, slot1Cell.reduced(4, 2), juce::Justification::centred, 4);
-            g.drawFittedText(p2, slot2Cell.reduced(4, 2), juce::Justification::centred, 4);
+            g.drawFittedText(path, pathCell.reduced(4, 2), juce::Justification::centred, 4);
         }
     }
 
