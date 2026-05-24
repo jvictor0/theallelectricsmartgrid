@@ -1,8 +1,6 @@
 #pragma once
 
 #include <cstring>
-#include <filesystem>
-#include <string>
 
 #include "SquiggleBoy.hpp"
 #include "TheNonagon.hpp"
@@ -127,6 +125,40 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         virtual void OnPress(uint8_t) override
         {
             m_owner->RequestDirectoryExplorerInit(m_slot, m_voiceIndex);
+        }
+    };
+
+    struct RecordingToggleCell : SmartGrid::Cell
+    {
+        SquiggleBoyConfigGrid* m_owner;
+
+        RecordingToggleCell(SquiggleBoyConfigGrid* owner)
+            : m_owner(owner)
+        {
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            bool anyRecording = false;
+
+            anyRecording = m_owner->m_squiggleBoy->m_recordingManager.AnyRecording();
+
+            SmartGrid::Color color = anyRecording ? SmartGrid::Color::Red : SmartGrid::Color::White;
+            return IsPressed() ? color : color.Dim();
+        }
+
+        virtual void OnPress(uint8_t) override
+        {
+            RecordingManager& recordingManager = m_owner->m_squiggleBoy->m_recordingManager;
+
+            if (recordingManager.AnyRecording())
+            {
+                recordingManager.StopRecording();
+            }
+            else
+            {
+                recordingManager.StartRecording(static_cast<TheNonagonInternal::Trio>(m_owner->ActiveTrio()));
+            }
         }
     };
 
@@ -279,6 +311,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         Put(1, 0, new SampleDirectoryInitCell(this, SampleDirectorySlot::One, 0));
         Put(2, 0, new SampleDirectoryInitCell(this, SampleDirectorySlot::One, 1));
         Put(3, 0, new SampleDirectoryInitCell(this, SampleDirectorySlot::One, 2));
+        Put(4, 0, new RecordingToggleCell(this));
 
         Put(6, 6, new DirectoryExplorerNavCell(this, DirectoryExplorer::MessageType::Up, SmartGrid::Color::Cyan));
         Put(5, 6, new DirectoryExplorerNavCell(this, DirectoryExplorer::MessageType::No, SmartGrid::Color::Red));
@@ -374,8 +407,6 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             return;
         }
 
-        const bool haveRoot = !m_sampleDirectoryRootAbsolute.empty();
-
         for (size_t i = 0; i < dirsJ.Size() && i < SquiggleBoy::x_numVoices; ++i)
         {
             JSON entryJ = dirsJ.GetAt(i);
@@ -394,17 +425,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
                 continue;
             }
 
-            if (!haveRoot)
-            {
-                continue;
-            }
-
-            std::filesystem::path absolutePath = m_sampleDirectoryRootAbsolute;
-            absolutePath /= std::filesystem::path(rel);
-            std::string absoluteString = absolutePath.string();
-
             m_ioTaskThread->PushLoadAudioBufferBankFromDirectory(
-                absoluteString.c_str(),
                 rel,
                 &bankRef);
         }
@@ -422,31 +443,13 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             return false;
         }
 
-        if (!m_ioTaskThread)
-        {
-            return false;
-        }
-
-        if (!m_squiggleBoy)
-        {
-            return false;
-        }
-
-        if (m_sampleDirectoryRootAbsolute.empty())
-        {
-            return false;
-        }
-
         size_t baseIdx = static_cast<size_t>(ActiveTrio()) * TheNonagonInternal::x_voicesPerTrio;
         size_t voiceIdx = baseIdx + voiceIndex;
         AudioBufferBank* bank = m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank;
 
         const char* relativeForInit = (bank && !bank->m_directoryName.empty()) ? bank->m_directoryName.c_str() : "";
 
-        std::string absoluteString = m_sampleDirectoryRootAbsolute.string();
-
         const bool pushed = m_ioTaskThread->PushInitializeDirectoryExplorer(
-            absoluteString.c_str(),
             relativeForInit,
             &m_directoryExplorer);
 
@@ -459,15 +462,9 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         return pushed;
     }
 
-    void SetSampleDirectoryRootAbsolute(const std::filesystem::path& absolutePath)
-    {
-        m_sampleDirectoryRootAbsolute = absolutePath;
-    }
-
     SquiggleBoyWithEncoderBank* m_squiggleBoy;
     TheNonagonSmartGrid::Trio* m_activeTrio;
     IoTaskThread* m_ioTaskThread;
-    std::filesystem::path m_sampleDirectoryRootAbsolute;
 
     DirectoryExplorer m_directoryExplorer;
 

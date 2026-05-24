@@ -289,10 +289,9 @@ struct QuadDelayInputSetter
             writeInput.m_sampleIndex = totLoopSelectorSample;
             writeInput.m_running = input.m_theoryOfTime->m_running;
             writeInput.m_masterLoopSamples = input.m_theoryOfTime->m_masterLoopSamples;
-            writeInput.m_requestedLoopSelector = totLoopSelector;
             m_writeTapeHead[i].Update(writeInput);
 
-            if (input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, m_writeTapeHead[i].m_loopSelector))
+            if (input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, m_readTapeHead[i].m_loopSelector))
             {
                 float possibleBufferFracs[5] = {0.8, 2.0/3.0, 1.0, 3.0/4.0, 5.0/8.0};
                 m_bufferFrac[i] = possibleBufferFracs[input.m_delayTimeFactorSwitchVal[i]];
@@ -327,13 +326,13 @@ struct QuadDelayInputSetter
                     std::abs(writeHeadPosition - delayInput.m_writeHeadPosition[i]));
                 INFO("theory of time microblock %d index %d phasor indirect %f direct %f master %f master indirect %f master unwound %f loop external mult %d",
                     totLoopSelectorSample,
-                    m_writeTapeHead[i].m_loopSelector,
-                    input.m_theoryOfTime->GetIndirectPhasor(totLoopSelectorSample, m_writeTapeHead[i].m_loopSelector),
-                    input.m_theoryOfTime->GetDirectPhasor(totLoopSelectorSample, m_writeTapeHead[i].m_loopSelector),
-                    input.m_theoryOfTime->GetPhasorIndependent(m_writeTapeHead[i].m_loopSelector),
+                    m_readTapeHead[i].m_loopSelector,
+                    input.m_theoryOfTime->GetIndirectPhasor(totLoopSelectorSample, m_readTapeHead[i].m_loopSelector),
+                    input.m_theoryOfTime->GetDirectPhasor(totLoopSelectorSample, m_readTapeHead[i].m_loopSelector),
+                    input.m_theoryOfTime->GetPhasorIndependent(m_readTapeHead[i].m_loopSelector),
                     input.m_theoryOfTime->GetIndirectPhasor(totLoopSelectorSample, TheoryOfTimeBase::x_masterLoop),
                     input.m_theoryOfTime->m_globalPhase.UnWind(),
-                    input.m_theoryOfTime->GetLoopExternalMultiplier(totLoopSelectorSample, m_writeTapeHead[i].m_loopSelector));
+                    input.m_theoryOfTime->GetLoopExternalMultiplier(totLoopSelectorSample, m_readTapeHead[i].m_loopSelector));
             }
 
             delayInput.m_writeHeadPosition[i] = writeHeadPosition;
@@ -343,6 +342,7 @@ struct QuadDelayInputSetter
             readInput.m_sampleIndex = totLoopSelectorSample;
             readInput.m_bufferFraction = m_bufferFrac[i] * widen;
             readInput.m_readHeadSpeed = possibleReadHeadSpeeds[input.m_readHeadSpeedSwitchVal[i]];
+            readInput.m_requestedLoopSelector = totLoopSelector;
             m_readTapeHead[i].Update(readInput);
             delayInput.m_readHeadPosition[i] = m_readTapeHead[i].m_actualPosition;
             delayInput.m_relativeWriteHeadPosition[i] = static_cast<float>(m_writeTapeHead[i].m_relativePosition);

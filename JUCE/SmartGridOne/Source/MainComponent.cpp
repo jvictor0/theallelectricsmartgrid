@@ -58,7 +58,7 @@ MainComponent::MainComponent()
     // Ensure config page starts closed
     m_showingConfig = false;
 
-    setAudioChannels(4, 5);
+    setAudioChannels(4, 7);
 
     // Start the 60 FPS timer for re-rendering
     //

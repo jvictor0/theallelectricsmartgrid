@@ -18,6 +18,7 @@ It interfaces with a custom MIDI controller.
   - **[Ladder Filter Machine](../filter-ladder.md)** — 4-pole Ladder LP and 4-pole SVF HP.
   - **[SVF Filter Machine](../filter-svf.md)** — 2-pole SVF LP/HP with saturation.
   - **[Sub Oscillator](../sub-oscillator.md)** — Per-voice mono sub signal, saturation, and unison behavior.
+  - **[Sampler-Looper Recording](../sampler-looper-recording.md)** — Source-routed recording buffers, sample directories, and loop-aligned sample persistence.
   - **[Quad Panning](../quad-panning.md)** — Global phase, voice offsets, and Lissajous LFO.
   - **[AHD Envelopes](../ahd-envelopes.md)** — Phase-driven envelopes synchronized to the clock.
   - **[PolyXFader LFOs](../polyxfader-lfos.md)** — Phase-synced LFOs mixing time loops.
@@ -30,6 +31,7 @@ It interfaces with a custom MIDI controller.
 - **[Smart Grid Integration](../smart-grid.md)** — Hardware-agnostic controller mapping across pad/encoder controllers.
   - **[Scene Manager](../scene-manager.md)** — Scene selection, crossfading, and scene-change signaling.
   - **[State Saver](../state-saver.md)** — Scene-aware JSON persistence and restore.
+- **[I/O Task Thread](../io-task-thread.md)** — Asynchronous sample directory browsing, bank loading, recording persistence, and cleanup.
 - **LED subsystem** — Grids of LEDs used as interface (to be documented).
 - **UI + MIDI Integrations**
   - **[UI Components and Layout](../ui-components-layout.md)** — JUCE pad/encoder/fader/joystick components and `WrldBuildrComponent` composition.

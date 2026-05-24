@@ -524,6 +524,7 @@ struct NonagonWrapper
         , m_wrldBldr(&m_internal, &m_midiSender)
     {
         m_internal.m_squiggleBoy.m_ioTaskThread = &m_ioTaskThread;
+        m_internal.m_squiggleBoy.m_recordingManager.m_ioTaskThread = &m_ioTaskThread;
         m_internal.m_configGrid.m_ioTaskThread = &m_ioTaskThread;
     }
 
@@ -533,7 +534,7 @@ struct NonagonWrapper
 
     void SetSampleDirectoryRootAbsolute(const std::filesystem::path& absolutePath)
     {
-        m_internal.m_configGrid.SetSampleDirectoryRootAbsolute(absolutePath);
+        m_ioTaskThread.SetSampleDirectoryRootAbsolute(absolutePath);
     }
 
     void OpenInputQuadLaunchpadTwister(int index, const juce::String &deviceIdentifier)
@@ -781,6 +782,12 @@ struct NonagonWrapper
             if (ioInfo.m_numOutputs > 4)
             {
                 bufferToFill.buffer->getWritePointer(4, bufferToFill.startSample)[i] = output.m_sub;
+            }
+
+            if (!ioInfo.m_stereo && bufferToFill.buffer->getNumChannels() >= 7)
+            {
+                bufferToFill.buffer->getWritePointer(5, bufferToFill.startSample)[i] = output.m_stereoOutput[0];
+                bufferToFill.buffer->getWritePointer(6, bufferToFill.startSample)[i] = output.m_stereoOutput[1];
             }
         }
     }

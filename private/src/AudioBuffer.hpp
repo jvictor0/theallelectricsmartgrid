@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <sys/stat.h>
+#include <unordered_map>
 #include <vector>
 
 struct AudioBuffer
@@ -42,6 +43,7 @@ struct AudioBuffer
     };
 
     std::vector<float> m_buffer;
+    std::string m_fileName;
     std::array<float, x_numSections> m_sectionMaximums{};
     std::array<float, x_numSections> m_sectionMinimums{};
 
@@ -242,7 +244,7 @@ struct AudioBufferBank
         }
     };
 
-    std::vector<AudioBuffer> m_audioBuffers;
+    std::vector<std::shared_ptr<AudioBuffer>> m_audioBuffers;
     float m_bankPosition{0.0f};
     std::string m_directoryName;
 
@@ -293,7 +295,7 @@ struct AudioBufferBank
         return result;
     }
 
-    void LoadFromDirectory(const char* absoluteDirectoryPath, const char* relativeDirectoryPath)
+    void LoadFromDirectory(const char* absoluteDirectoryPath, const char* relativeDirectoryPath, std::unordered_map<std::string, std::shared_ptr<AudioBuffer>>* existingByFileName)
     {
         m_audioBuffers.clear();
         m_bankPosition = 0.0f;
@@ -308,17 +310,50 @@ struct AudioBufferBank
         struct dirent* entry = readdir(directory);
         while (entry)
         {
-            std::string fileName = GetFileName(absoluteDirectoryPath, entry->d_name);
-            if (IsWavFile(fileName.c_str()) && IsRegularFile(fileName.c_str()))
+            const char* baseName = entry->d_name;
+            std::string absoluteFileName = GetFileName(absoluteDirectoryPath, baseName);
+            if (IsWavFile(absoluteFileName.c_str()) && IsRegularFile(absoluteFileName.c_str()))
             {
-                m_audioBuffers.push_back(AudioBuffer());
-                m_audioBuffers.back().LoadFromFile(fileName.c_str());
+                bool reused = false;
+
+                if (existingByFileName)
+                {
+                    auto reuseIt = existingByFileName->find(baseName);
+                    if (reuseIt != existingByFileName->end())
+                    {
+                        m_audioBuffers.push_back(reuseIt->second);
+                        existingByFileName->erase(reuseIt);
+                        reused = true;
+                    }
+                }
+
+                if (!reused)
+                {
+                    std::shared_ptr<AudioBuffer> buf = std::make_shared<AudioBuffer>();
+                    buf->m_fileName = baseName;
+                    buf->LoadFromFile(absoluteFileName.c_str());
+                    m_audioBuffers.push_back(buf);
+                }
             }
 
             entry = readdir(directory);
         }
 
         closedir(directory);
+    }
+
+    AudioBufferBank* ReloadFromDirectory(const char* absoluteDirectoryPath, const char* relativeDirectoryPath)
+    {
+        std::unordered_map<std::string, std::shared_ptr<AudioBuffer>> existingByFileName;
+        for (const std::shared_ptr<AudioBuffer>& buf : m_audioBuffers)
+        {
+            existingByFileName[buf->m_fileName] = buf;
+        }
+
+        AudioBufferBank* bank = new AudioBufferBank();
+        bank->LoadFromDirectory(absoluteDirectoryPath, relativeDirectoryPath, &existingByFileName);
+        bank->m_bankPosition = m_bankPosition;
+        return bank;
     }
 
     std::string GetFileName(const char* directoryName, const char* fileName) const
@@ -368,7 +403,9 @@ struct AudioBufferBank
         }
 
         BankBlend blend = ComputeBankBlend();
-        return m_audioBuffers[blend.m_bankA].GetRealTime(t);
+        const AudioBuffer& bufA = *m_audioBuffers[blend.m_bankA];
+
+        return bufA.GetRealTime(t);
     }
 
     float ReadRealTime(double realTime) const
@@ -380,14 +417,14 @@ struct AudioBufferBank
         }
 
         BankBlend blend = ComputeBankBlend();
-        const AudioBuffer& bufA = m_audioBuffers[blend.m_bankA];
+        const AudioBuffer& bufA = *m_audioBuffers[blend.m_bankA];
 
         if (blend.m_single || n == 1)
         {
             return bufA.ReadRealTime(realTime);
         }
 
-        const AudioBuffer& bufB = m_audioBuffers[blend.m_bankB];
+        const AudioBuffer& bufB = *m_audioBuffers[blend.m_bankB];
         size_t nA = bufA.m_buffer.size();
         size_t nB = bufB.m_buffer.size();
         double denomA = static_cast<double>((nA <= 1) ? 1 : (nA - 1));
@@ -410,13 +447,16 @@ struct AudioBufferBank
         }
 
         BankBlend blend = ComputeBankBlend();
+        const AudioBuffer& bufA = *m_audioBuffers[blend.m_bankA];
+
         if (blend.m_single || n == 1)
         {
-            return m_audioBuffers[blend.m_bankA].Get(t);
+            return bufA.Get(t);
         }
 
-        float sA = m_audioBuffers[blend.m_bankA].Get(t);
-        float sB = m_audioBuffers[blend.m_bankB].Get(t);
+        const AudioBuffer& bufB = *m_audioBuffers[blend.m_bankB];
+        float sA = bufA.Get(t);
+        float sB = bufB.Get(t);
         float oneMinus = 1.0f - blend.m_blendB;
         return oneMinus * sA + blend.m_blendB * sB;
     }
@@ -433,25 +473,25 @@ struct AudioBufferBank
         else
         {
             BankBlend blend = ComputeBankBlend();
+            const AudioBuffer& bufA = *m_audioBuffers[blend.m_bankA];
             if (blend.m_single || m_audioBuffers.size() == 1)
             {
                 for (size_t i = 0; i < AudioBuffer::x_numSections; ++i)
                 {
-                    uiState->m_sectionMaximums[which][i] =
-                        m_audioBuffers[blend.m_bankA].m_sectionMaximums[i];
-                    uiState->m_sectionMinimums[which][i] =
-                        m_audioBuffers[blend.m_bankA].m_sectionMinimums[i];
+                    uiState->m_sectionMaximums[which][i] = bufA.m_sectionMaximums[i];
+                    uiState->m_sectionMinimums[which][i] = bufA.m_sectionMinimums[i];
                 }
             }
             else
             {
+                const AudioBuffer& bufB = *m_audioBuffers[blend.m_bankB];
                 float oneMinus = 1.0f - blend.m_blendB;
                 for (size_t i = 0; i < AudioBuffer::x_numSections; ++i)
                 {
-                    float maxA = m_audioBuffers[blend.m_bankA].m_sectionMaximums[i];
-                    float maxB = m_audioBuffers[blend.m_bankB].m_sectionMaximums[i];
-                    float minA = m_audioBuffers[blend.m_bankA].m_sectionMinimums[i];
-                    float minB = m_audioBuffers[blend.m_bankB].m_sectionMinimums[i];
+                    float maxA = bufA.m_sectionMaximums[i];
+                    float maxB = bufB.m_sectionMaximums[i];
+                    float minA = bufA.m_sectionMinimums[i];
+                    float minB = bufB.m_sectionMinimums[i];
                     uiState->m_sectionMaximums[which][i] = oneMinus * maxA + blend.m_blendB * maxB;
                     uiState->m_sectionMinimums[which][i] = oneMinus * minA + blend.m_blendB * minB;
                 }

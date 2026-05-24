@@ -503,6 +503,17 @@ struct TheoryOfTimeBase
         return &m_loops[x_masterLoop];
     }
 
+    const TimeLoop* GetMasterLoop() const
+    {
+        return &m_loops[x_masterLoop];
+    }
+
+    double GetUnwoundMasterIndependent(size_t j) const
+    {
+        const TimeLoop& master = m_loops[x_masterLoop];
+        return static_cast<double>(master.m_globalWinding[j]) + master.m_phasorIndependent[j];
+    }
+
     double GetPhasorIndependent(size_t j) const
     {
         return GetDirectPhasor(j, x_masterLoop);
@@ -523,9 +534,9 @@ struct TheoryOfTimeBase
         return GetMasterLoop()->m_loopSize[j] / std::max(1, m_loops[loopIndex].m_loopSize[j] / 2);
     }
 
-    int GetLoopExternalMultiplier(size_t j, int loopIndex)
+    int GetLoopExternalMultiplier(size_t j, int loopIndex) const
     {
-        return GetMasterLoop()->m_loopSize[j] / std::max(1, m_loops[loopIndex].m_loopSize[j]);
+        return m_loops[x_masterLoop].m_loopSize[j] / std::max(1, m_loops[loopIndex].m_loopSize[j]);
     }
 
     double GetDirectPhasor(size_t j, size_t loopIndex) const

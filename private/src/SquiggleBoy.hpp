@@ -29,6 +29,9 @@
 #include "SampleTimer.hpp"
 #include "StateSaver.hpp"
 #include "AudioBuffer.hpp"
+#include "RecordingBuffer.hpp"
+#include "SquiggleBoyVoiceConfig.hpp"
+#include "RecordingManager.hpp"
 #include "DirectoryExplorer.hpp"
 #include "Oversample.hpp"
 #include "TransferFunction.hpp"
@@ -37,33 +40,15 @@
 #include <cstring>
 
 struct TheoryOfTime;
-struct IoTaskThread;
 struct AudioBufferBank;
 
 struct SquiggleBoyVoice
 {
     static constexpr size_t x_oversample = 4;
     static constexpr size_t x_uBlockSize = SampleTimer::x_controlFrameRate * x_oversample;
+    static constexpr size_t x_recordingBufferWriterSize = RecordingManager::x_numVoices;
 
-    struct VoiceConfig
-    {
-        using SourceMachine = VoiceMachine::SourceMachine;
-        using FilterMachine = VoiceMachine::FilterMachine;
-
-        SourceMachine m_sourceMachine;
-        FilterMachine m_filterMachine;
-        int m_sourceIndex;
-
-        AudioBufferBank* m_audioBufferBank;
-
-        VoiceConfig()
-            : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
-            , m_filterMachine(FilterMachine::Ladder4Pole)
-            , m_sourceIndex(0)
-            , m_audioBufferBank(nullptr)
-        {
-        }
-    };
+    using VoiceConfig = SquiggleBoyVoiceConfig;
 
     struct FilterSection
     {
@@ -495,6 +480,9 @@ struct SquiggleBoyVoice
 
     float m_output;
 
+    RecordingBuffer m_recordingBuffer;
+    RecordingBufferWriter<x_recordingBufferWriterSize> m_recordingBufferWriter;
+
     struct Input
     {
         struct SubInput
@@ -572,6 +560,7 @@ struct SquiggleBoyVoice
         m_squiggleLFO[0].Process(input.m_squiggleLFOInput[0]);
         m_squiggleLFO[1].Process(input.m_squiggleLFOInput[1]);
 
+        m_recordingBufferWriter.Process(m_output);
         return m_output;
     }
 };
@@ -640,6 +629,8 @@ struct SquiggleBoy
     StateSaver* m_stateSaver;
 
     IoTaskThread* m_ioTaskThread;
+
+    RecordingManager m_recordingManager;
 
     SquiggleBoy()
         : m_topIndependent(false)
@@ -1377,6 +1368,12 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_useIndirectPhasor = true;
 
             m_state[i].SetTheoryOfTimeInputs(m_theoryOfTime);
+
+            m_voices[i].m_recordingBuffer.m_theoryOfTime = m_theoryOfTime;
+            m_recordingManager.m_voiceRecordingBuffers[i] = &m_voices[i].m_recordingBuffer;
+            m_recordingManager.m_voiceBufferWriters[i] = &m_voices[i].m_recordingBufferWriter;
+            m_recordingManager.m_voiceConfig[i] = &m_state[i].m_voiceConfig;
+            m_recordingManager.m_ioTaskThread = m_ioTaskThread;
         }
 
     }

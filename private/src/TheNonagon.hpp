@@ -27,6 +27,14 @@ struct TheNonagonInternal
     static constexpr size_t x_numGridIds = 16;
     static constexpr size_t x_numExtraTimbres = 3;
 
+    enum class Trio : int
+    {
+        Water = 0,
+        Earth = 1,
+        Fire = 2,
+        NumTrios = 3
+    };
+
     struct Input
     {
         TheoryOfTime::Input m_theoryOfTimeInput;
@@ -402,13 +410,7 @@ struct TheNonagonSmartGrid
                         SmartGrid::StateCell<bool>::Mode::ShowOnly);
     }
 
-    enum class Trio : int
-    {
-        Water = 0,
-        Earth = 1,
-        Fire = 2,
-        NumTrios = 3
-    };
+    using Trio = TheNonagonInternal::Trio;
     
     static SmartGrid::Color TrioColor(Trio t)
     {

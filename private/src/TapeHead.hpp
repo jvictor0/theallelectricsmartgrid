@@ -42,27 +42,23 @@ struct WriteTapeHead : TapeHead
         int m_sampleIndex;
         bool m_running;
         double m_masterLoopSamples;
-        int m_requestedLoopSelector;
 
         Input()
             : m_theoryOfTime(nullptr)
             , m_sampleIndex(0)
             , m_running(false)
             , m_masterLoopSamples(1.0)
-            , m_requestedLoopSelector(TheoryOfTime::x_masterLoop)
         {
         }
     };
 
     double m_glue;
     double m_masterLoopSamples;
-    int m_loopSelector;
     bool m_running;
 
     WriteTapeHead()
         : m_glue(0.0)
         , m_masterLoopSamples(1.0)
-        , m_loopSelector(TheoryOfTime::x_masterLoop)
         , m_running(false)
     {
     }
@@ -74,38 +70,29 @@ struct WriteTapeHead : TapeHead
             return;
         }
 
-        if (!input.m_running)
-        {
-            if (m_running)
-            {
-                m_running = false;
-                m_glue = m_actualPosition;
-            }
-
-            m_glue = m_glue + 1.0;
-        }
-        else if (!m_running)
-        {
-            m_running = true;
-        }
-
-        if (m_masterLoopSamples != input.m_masterLoopSamples)
-        {
-            m_glue = m_actualPosition - (m_actualPosition - m_glue) * input.m_masterLoopSamples / m_masterLoopSamples;
-            m_masterLoopSamples = input.m_masterLoopSamples;
-        }
-
-        bool allowLoopSwitch = input.m_requestedLoopSelector != m_loopSelector &&
-            input.m_theoryOfTime->GetIndirectTop(input.m_sampleIndex, m_loopSelector) &&
-            input.m_theoryOfTime->GetIndirectTop(input.m_sampleIndex, input.m_requestedLoopSelector);
-        if (allowLoopSwitch)
-        {
-            m_loopSelector = input.m_requestedLoopSelector;
-        }
-
         size_t sampleIdx = static_cast<size_t>(input.m_sampleIndex) % TheoryOfTimeBase::x_microBlockSize;
+        double theoryPosition = input.m_theoryOfTime->m_globalPhase.UnWind() * input.m_masterLoopSamples;
+
+        bool runningChanged = input.m_running != m_running;
+        bool masterLoopSamplesChanged = input.m_masterLoopSamples != m_masterLoopSamples;
+        if (runningChanged || masterLoopSamplesChanged)
+        {
+            m_glue = m_actualPosition - theoryPosition;
+        }
+
+        m_running = input.m_running;
+        m_masterLoopSamples = input.m_masterLoopSamples;
+
         m_relativePosition = input.m_theoryOfTime->GetIndirectPhasor(sampleIdx);
-        m_actualPosition = input.m_theoryOfTime->m_globalPhase.UnWind() * input.m_masterLoopSamples + m_glue;
+        if (!m_running)
+        {
+            m_actualPosition = m_actualPosition + 1.0;
+            m_glue = m_actualPosition - theoryPosition;
+        }
+        else
+        {
+            m_actualPosition = theoryPosition + m_glue;
+        }
     }
 };
 
@@ -117,20 +104,24 @@ struct ReadTapeHead : TapeHead
         int m_sampleIndex;
         double m_bufferFraction;
         double m_readHeadSpeed;
+        int m_requestedLoopSelector;
 
         Input()
             : m_theoryOfTime(nullptr)
             , m_sampleIndex(0)
             , m_bufferFraction(0.0)
             , m_readHeadSpeed(1.0)
+            , m_requestedLoopSelector(TheoryOfTimeBase::x_masterLoop)
         {
         }
     };
 
     WriteTapeHead* m_writeTapeHead;
+    int m_loopSelector;
 
     ReadTapeHead()
         : m_writeTapeHead(nullptr)
+        , m_loopSelector(TheoryOfTimeBase::x_masterLoop)
     {
     }
 
@@ -141,8 +132,15 @@ struct ReadTapeHead : TapeHead
             return;
         }
 
-        int loopSelector = m_writeTapeHead->m_loopSelector;
-        double loopSamples = ComputeLoopSamples(input.m_theoryOfTime, input.m_sampleIndex, loopSelector);
+        bool allowLoopSwitch = input.m_requestedLoopSelector != m_loopSelector &&
+            input.m_theoryOfTime->GetIndirectTop(input.m_sampleIndex, m_loopSelector) &&
+            input.m_theoryOfTime->GetIndirectTop(input.m_sampleIndex, input.m_requestedLoopSelector);
+        if (allowLoopSwitch)
+        {
+            m_loopSelector = input.m_requestedLoopSelector;
+        }
+
+        double loopSamples = ComputeLoopSamples(input.m_theoryOfTime, input.m_sampleIndex, m_loopSelector);
         double effectiveDelaySamples = loopSamples * input.m_bufferFraction;
         double hopSamples = static_cast<double>(Resynthesizer::GetGrainLaunchSamples());
         double masterLoopSamples = m_writeTapeHead->m_masterLoopSamples;
