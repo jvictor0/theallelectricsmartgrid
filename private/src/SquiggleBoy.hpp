@@ -320,7 +320,7 @@ struct SquiggleBoyVoice
         {
             if (input.m_ahdInput.m_trig)
             {
-                if (input.m_vcoTargetFreq * 48000 < 100 || input.m_voiceConfig->m_sourceMachine == VoiceConfig::SourceMachine::Thru)
+                if (input.m_vcoTargetFreq * 48000 < 100 || !VoiceMachine::IsSynthLike(input.m_voiceConfig->m_sourceMachine))
                 {
                     m_freqDependentGainTarget = 1.0;
                 }

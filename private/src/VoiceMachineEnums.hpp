@@ -85,6 +85,21 @@ namespace VoiceMachine
         }
     }
 
+    inline bool IsSynthLike(SourceMachine machine)
+    {
+        switch (machine)
+        {
+            case SourceMachine::DualWaveShapingVCO:
+            case SourceMachine::PhysicalModeling:
+                return true;
+
+            case SourceMachine::Thru:
+            case SourceMachine::Sample:
+            default:
+                return false;
+        }
+    }
+
     inline const char* ToString(FilterMachine machine)
     {
         switch (machine)
