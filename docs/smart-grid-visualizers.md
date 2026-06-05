@@ -12,6 +12,7 @@ This document describes the visualizer system for the Smart Grid One display. Vi
 | `SmartGridOneVisualizerMain.hpp` | Main container component. Owns visualizer instances, handles layout, dispatch, and metering. |
 | `ForEachSmartGridOneVisualizer.hpp` | X-macro list mapping (name, bank, block, constructor, source-machine flags) for each visualizer. |
 | `ForEachModulationVisualizer.hpp` | X-macro list mapping (name, slot, constructor, mode, color) for modulation visualizers. |
+| `PartialMachineComponents.hpp` | Partial Machine input-spectrum and spatial atom views. |
 
 ### Base Class: SmartGridOneMainVisualizerComponent
 
@@ -49,6 +50,7 @@ The selected encoder bank (`SmartGridOneEncoders::Bank`) determines which visual
 - **VoiceLFOs** — Control scopes 0–3
 - **Delay** — Delay analyzer, quad delay envelope view
 - **Reverb** — Reverb analyzers
+- **PartialMachine** — Partial Machine analyzer, mono input spectrum with tracked atoms, spatial atom view
 - **TheoryOfTime** — Quad analyzers, quad delay envelope view, TheoryOfTime scope
 - **Mastering** — Source mixer reduction/freq, multiband EQ, multiband gain reduction
 - **Inputs** — Same as Mastering (inputs bank)
@@ -60,11 +62,11 @@ Visualizers read from:
 
 - **`TheNonagonSquiggleBoyInternal::UIState`** — Central UI state. Access via `NonagonWrapper::GetUIState()`.
 - **`m_squiggleBoyUIState`** — Contains:
-  - `m_audioScopeWriter`, `m_controlScopeWriter`, `m_quadScopeWriter`, `m_quadControlScopeWriter`, `m_globalControlScopeWriter`, `m_sourceMixerScopeWriter`, `m_monoScopeWriter` — Scope buffers
+  - `m_audioScopeWriter`, `m_controlScopeWriter`, `m_quadScopeWriter`, `m_quadControlScopeWriter`, `m_globalControlScopeWriter`, `m_sourceMixerScopeWriter`, `m_monoScopeWriter`, `m_monoAudioScopeWriter` — Scope buffers
   - `m_voiceMeterReader`, `m_returnMeterReader`, etc. — Meter readers
   - `m_activeTrack`, `m_xPos`, `m_yPos` — Panning/position state
   - `m_voiceFilterUIState` — Filter response for analyzer overlays
-  - `m_delayUIState`, `m_reverbUIState` — Effect UI state for quad analyzers and other effect-specific visualizers
+  - `m_delayUIState`, `m_reverbUIState`, `m_partialMachineUIState` — Effect UI state for quad analyzers and other effect-specific visualizers
 - **`NonagonWrapper`** — Provides `GetAudioScopeWriter()`, `GetControlScopeWriter()`, `GetNoteWriter()`, etc.
 
 ## Existing Visualizers
@@ -78,8 +80,10 @@ Visualizers read from:
 | VoiceMeterComponent | FilterAndAmp | 0 | m_voiceMeterReader |
 | SoundStageComponent | PanningAndSequencing | 0 | m_xPos, m_yPos, m_voiceMeterReader |
 | MelodyRollComponent | PanningAndSequencing | -1 | NonagonNoteWriter |
-| QuadAnalyserComponent | Delay, Reverb, TheoryOfTime | 0 | m_quadScopeWriter, delay/reverb UI state |
+| QuadAnalyserComponent | Delay, Reverb, PartialMachine, TheoryOfTime | 0 | m_quadScopeWriter, delay/reverb/partial-machine UI state |
 | QuadDelayEnvelopeVisualizerComponent | Delay, TheoryOfTime | 1 | `m_delayUIState` envelope snapshots plus relative read/write head positions |
+| PartialMachineInputSpectrumComponent | PartialMachine | 1 | `m_monoAudioScopeWriter` plus `m_partialMachineUIState` atom snapshot |
+| PartialMachineSpatialComponent | PartialMachine | 2 | `m_partialMachineUIState` atom snapshot and frequency-dependent spatial mapping |
 | TheoryOfTimeScopeComponent | TheoryOfTime | 2 | m_monoScopeWriter |
 | SourceMixerReductionComponent | Mastering, Inputs, DeepVocoder | 0–3 | m_sourceMixerScopeWriter |
 | SourceMixerFrequencyComponent | Mastering, Inputs, DeepVocoder | 1–3 | m_sourceMixerScopeWriter |
@@ -90,8 +94,11 @@ Visualizers read from:
 
 `SampleTrioWaveformVisualizerComponent` is another non-FFT Source view. It renders one horizontal strip per voice in the active trio using min/max buckets published by each selected `AudioBufferBank`; the active `SampleStart`/`SampleLength` region is colored by voice, and the current sample read head is drawn as a white vertical line.
 
+`PartialMachineInputSpectrumComponent` draws the mono input sent into the Partial Machine, then overlays the tracked atoms after frequency-dependent reduction. `PartialMachineSpatialComponent` draws those same atoms in the quad field using the Partial Machine's frequency-to-radius and frequency-to-azimuth mapping.
+
 ## Related
 
 - [Visualization Pipeline](ui-visualization-pipeline.md) — ScopeWriter capture, FFT analysis
+- [Partial Machine](partial-machine.md)
 - [UI Components and Layout](ui-components-layout.md) — WrldBuildrComponent, grid layout
 - [Encoder System](encoder-system.md) — Bank selection, parameter mapping

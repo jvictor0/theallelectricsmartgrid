@@ -9,8 +9,13 @@ struct MathGeneric
 {
     inline static MathGeneric s_instance;
     static constexpr size_t x_tableSize = BasicWaveTableGeneric<Bits>::x_tableSize;
+    static constexpr int x_hannKernelRadius = 8;
+    static constexpr size_t x_hannKernelTableSize = x_tableSize;
+    static constexpr float x_hannKernelMinOffset = -static_cast<float>(x_hannKernelRadius);
+    static constexpr float x_hannKernelWidth = 2.0f * static_cast<float>(x_hannKernelRadius) + 1.0f;
     BasicWaveTableGeneric<Bits> m_cosTable;
     std::complex<float> m_rootOfUnity[x_tableSize];
+    std::complex<float> m_hannKernel[x_hannKernelTableSize + 1];
 
     MathGeneric()
     {
@@ -26,6 +31,14 @@ struct MathGeneric
         for (size_t i = 0; i < x_tableSize; ++i)
         {
             m_rootOfUnity[i] = std::complex<float>(cosf(2.0f * M_PI * i / x_tableSize), sinf(2.0f * M_PI * i / x_tableSize));
+        }
+
+        // Initialize Hann kernel table for windowed partial writes
+        //
+        for (size_t i = 0; i <= x_hannKernelTableSize; ++i)
+        {
+            float offset = x_hannKernelMinOffset + x_hannKernelWidth * static_cast<float>(i) / static_cast<float>(x_hannKernelTableSize);
+            m_hannKernel[i] = ComputeHannKernel(offset);
         }
     }
 
@@ -97,6 +110,47 @@ struct MathGeneric
             float window = Hann(i);
             table.m_table[i] *= window;
         }
+    }
+
+    static std::complex<float> ComputeRectKernel(float offset)
+    {
+        float denominator = sinf(static_cast<float>(M_PI) * offset / static_cast<float>(x_tableSize));
+        if (std::abs(denominator) < 1e-6f)
+        {
+            if (std::abs(offset) < 1e-6f)
+            {
+                return std::complex<float>(1.0f, 0.0f);
+            }
+
+            return std::complex<float>(0.0f, 0.0f);
+        }
+
+        float magnitude = sinf(static_cast<float>(M_PI) * offset) / (static_cast<float>(x_tableSize) * denominator);
+        float phase = static_cast<float>(M_PI) * offset * static_cast<float>(x_tableSize - 1) / static_cast<float>(x_tableSize);
+        return std::complex<float>(magnitude * cosf(phase), magnitude * sinf(phase));
+    }
+
+    static std::complex<float> ComputeHannKernel(float offset)
+    {
+        return 0.5f * ComputeRectKernel(offset) - 0.25f * ComputeRectKernel(offset + 1.0f) - 0.25f * ComputeRectKernel(offset - 1.0f);
+    }
+
+    static std::complex<float> HannKernel(float offset)
+    {
+        float pos = (offset - x_hannKernelMinOffset) * static_cast<float>(x_hannKernelTableSize) / x_hannKernelWidth;
+        if (pos <= 0.0f)
+        {
+            return s_instance.m_hannKernel[0];
+        }
+
+        if (static_cast<float>(x_hannKernelTableSize) <= pos)
+        {
+            return s_instance.m_hannKernel[x_hannKernelTableSize];
+        }
+
+        size_t index = static_cast<size_t>(std::floor(pos));
+        float frac = pos - static_cast<float>(index);
+        return s_instance.m_hannKernel[index] * (1.0f - frac) + s_instance.m_hannKernel[index + 1] * frac;
     }
 };
 

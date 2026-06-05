@@ -405,10 +405,11 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
     {
         Delay,
         Reverb,
+        PartialMachine,
         Master
     };
 
-    QuadWindowedFFT m_quadWindowedFFT[3];
+    QuadWindowedFFT m_quadWindowedFFT[4];
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     bool m_drawAll;
 
@@ -428,7 +429,8 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
         {
             m_quadWindowedFFT[0] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Delay));
             m_quadWindowedFFT[1] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Reverb));
-            m_quadWindowedFFT[2] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Dry));
+            m_quadWindowedFFT[2] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine));
+            m_quadWindowedFFT[3] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Dry));
         }
     }
 
@@ -457,6 +459,8 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
                 return &m_uiState->m_squiggleBoyUIState.m_delayUIState.m_dampingFilter[speakerIx];
             case Type::Reverb:
                 return &m_uiState->m_squiggleBoyUIState.m_reverbUIState.m_dampingFilter[speakerIx];
+            case Type::PartialMachine:
+                return &m_uiState->m_squiggleBoyUIState.m_partialMachineUIState.m_quadComponentTransferFunction[speakerIx];
             case Type::Master:
                 return nullptr;
         }
@@ -470,17 +474,25 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
 
         if (m_drawAll && m_type != Type::Master)
         {
-            DrawOne(g, 2, Type::Master, SmartGrid::Color::Yellow, boundsRect);
+            DrawOne(g, 3, Type::Master, SmartGrid::Color::Yellow, boundsRect);
 
             if (m_type == Type::Delay)
             {
+                DrawOne(g, 2, Type::PartialMachine, SmartGrid::Color::Cyan, boundsRect);
                 DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
                 DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
             }
             else if (m_type == Type::Reverb)
             {
+                DrawOne(g, 2, Type::PartialMachine, SmartGrid::Color::Cyan, boundsRect);
                 DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
                 DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
+            }
+            else if (m_type == Type::PartialMachine)
+            {
+                DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
+                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
+                DrawOne(g, 2, Type::PartialMachine, SmartGrid::Color::Cyan, boundsRect);
             }
         }
         else if (m_type == Type::Master)
@@ -494,6 +506,10 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
         else if (m_type == Type::Reverb)
         {
             DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
+        }
+        else if (m_type == Type::PartialMachine)
+        {
+            DrawOne(g, 2, Type::PartialMachine, SmartGrid::Color::Cyan, boundsRect);
         }
     }
 

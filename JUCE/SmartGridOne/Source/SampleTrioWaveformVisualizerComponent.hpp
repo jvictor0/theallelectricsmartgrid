@@ -72,7 +72,7 @@ struct SampleTrioWaveformVisualizerComponent : public SmartGridOneMainVisualizer
                 J(TheNonagonSmartGrid::VoiceColor(trio, voiceCol)).withAlpha(0.85f);
 
             auto& bankUi = squiggleUi.m_voiceSourceUIState[voiceIx].m_audioBufferBankUIState;
-            size_t which = bankUi.Which();
+            const AudioBufferBank::UISnapshot& snapshot = bankUi.GetCurrentSnapshot();
 
             auto machine = squiggleUi.m_voiceSourceUIState[voiceIx].m_sourceMachine.load(std::memory_order_acquire);
 
@@ -90,8 +90,8 @@ struct SampleTrioWaveformVisualizerComponent : public SmartGridOneMainVisualizer
             for (size_t bufIdx = 0; bufIdx < x_numSections; ++bufIdx)
             {
                 float x = bounds.getX() + static_cast<float>(bufIdx) * segmentWidth;
-                float minS = bankUi.m_sectionMinimums[which][bufIdx];
-                float maxS = bankUi.m_sectionMaximums[which][bufIdx];
+                float minS = snapshot.m_sectionMinimums[bufIdx];
+                float maxS = snapshot.m_sectionMaximums[bufIdx];
 
                 float minClamped = std::clamp(minS, -1.0f, 1.0f);
                 float maxClamped = std::clamp(maxS, -1.0f, 1.0f);

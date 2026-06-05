@@ -8,8 +8,9 @@
 #include "PhaseUtils.hpp"
 #include "TheoryOfTime.hpp"
 #include "TapeHead.hpp"
+#include "SnapshotUIState.hpp"
 #include "Q.hpp"
-#include <atomic>
+
 struct QuadDelay
 {
     struct PostFeedbackFilter
@@ -83,36 +84,33 @@ struct QuadDelay
         }
     };
 
-    struct UIState
+    struct DelayEnvelopeState
     {
-        static constexpr int x_delayEnvelopeSlotCount = 10;
+        float m_maxEnvelope[x_positionalBufferSize];
+        float m_minEnvelope[x_positionalBufferSize];
+        float m_relativeReadHeadPosition;
+        float m_relativeWriteHeadPosition;
 
-        DampingFilter::UIState m_dampingFilter[4];
-
-        int GetCurrent() const
+        DelayEnvelopeState()
+            : m_relativeReadHeadPosition(-1.0f)
+            , m_relativeWriteHeadPosition(-1.0f)
         {
-            return (m_which.load(std::memory_order_acquire) + x_delayEnvelopeSlotCount - 1) % x_delayEnvelopeSlotCount;
-        }
-
-        struct DelayEnvelopeState
-        {
-            float m_maxEnvelope[x_positionalBufferSize];
-            float m_minEnvelope[x_positionalBufferSize];
-            std::atomic<float> m_relativeReadHeadPosition{-1.0f};
-            std::atomic<float> m_relativeWriteHeadPosition{-1.0f};
-
-            DelayEnvelopeState()
+            for (int i = 0; i < x_positionalBufferSize; ++i)
             {
-                for (int i = 0; i < x_positionalBufferSize; ++i)
-                {
-                    m_maxEnvelope[i] = 0.0f;
-                    m_minEnvelope[i] = 0.0f;
-                }
+                m_maxEnvelope[i] = 0.0f;
+                m_minEnvelope[i] = 0.0f;
             }
-        };
+        }
+    };
 
-        DelayEnvelopeState m_delayEnvelopeState[4][x_delayEnvelopeSlotCount];
-        std::atomic<int> m_which{0};
+    struct UISnapshot
+    {
+        DelayEnvelopeState m_delayEnvelopeState[4];
+    };
+
+    struct UIState : SnapshotUIState<UISnapshot>
+    {
+        DampingFilter::UIState m_dampingFilter[4];
     };
 
     void PopulateUIState(UIState* uiState, QuadDelay::Input& input)
@@ -123,12 +121,12 @@ struct QuadDelay
             uiState->m_dampingFilter[i].m_lpAlpha.store(m_postFeedbackFilter.m_bff.m_filters[i].m_lowPassFilter.m_alpha);
         }
 
-        int which = uiState->m_which.load(std::memory_order_relaxed);
+        UISnapshot& snapshot = uiState->BeginSnapshot();
         for (int delayLineIdx = 0; delayLineIdx < 4; ++delayLineIdx)
         {
-            auto& envelopeState = uiState->m_delayEnvelopeState[delayLineIdx][which];
-            envelopeState.m_relativeReadHeadPosition.store(input.m_relativeReadHeadPosition[delayLineIdx], std::memory_order_release);
-            envelopeState.m_relativeWriteHeadPosition.store(input.m_relativeWriteHeadPosition[delayLineIdx], std::memory_order_release);
+            auto& envelopeState = snapshot.m_delayEnvelopeState[delayLineIdx];
+            envelopeState.m_relativeReadHeadPosition = input.m_relativeReadHeadPosition[delayLineIdx];
+            envelopeState.m_relativeWriteHeadPosition = input.m_relativeWriteHeadPosition[delayLineIdx];
 
             auto& recorder = m_positionalBufferRecorder[delayLineIdx];
             auto& delayLine = m_delayLine.m_delayLine[delayLineIdx];
@@ -143,7 +141,7 @@ struct QuadDelay
             }
         }
 
-        uiState->m_which.store((which + 1) % UIState::x_delayEnvelopeSlotCount, std::memory_order_release);
+        uiState->CommitSnapshot();
     }
 
     QuadFloat Process(Input& input)

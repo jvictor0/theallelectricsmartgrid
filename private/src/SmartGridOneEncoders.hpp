@@ -12,7 +12,7 @@ struct SmartGridOneEncoders
 {
     static constexpr size_t x_numBankModes = 3;
     static constexpr size_t x_numVoiceBanks = 4;
-    static constexpr size_t x_numQuadBanks = 2;
+    static constexpr size_t x_numQuadBanks = 3;
     static constexpr size_t x_numGlobalBanks = 4;
     static constexpr size_t x_totalNumBanks = x_numVoiceBanks + x_numQuadBanks + x_numGlobalBanks;
 
@@ -31,11 +31,12 @@ struct SmartGridOneEncoders
         VoiceLFOs = 3,
         Delay = 4,
         Reverb = 5,
-        TheoryOfTime = 6,
-        Mastering = 7,
-        Inputs = 8,
-        DeepVocoder = 9,
-        NumBanks = 10
+        PartialMachine = 6,
+        TheoryOfTime = 7,
+        Mastering = 8,
+        Inputs = 9,
+        DeepVocoder = 10,
+        NumBanks = 11
     };
 
     static Bank BankFromOrdinal(size_t ordinal)
@@ -346,6 +347,7 @@ struct SmartGridOneEncoders
         m_encoderBankBank.InitBank(static_cast<int>(Bank::VoiceLFOs), static_cast<int>(BankMode::Voice), SmartGrid::Color::Blue);
         m_encoderBankBank.InitBank(static_cast<int>(Bank::Delay), static_cast<int>(BankMode::Quad), SmartGrid::Color::Pink);
         m_encoderBankBank.InitBank(static_cast<int>(Bank::Reverb), static_cast<int>(BankMode::Quad), SmartGrid::Color::Fuscia);
+        m_encoderBankBank.InitBank(static_cast<int>(Bank::PartialMachine), static_cast<int>(BankMode::Quad), SmartGrid::Color::Cyan);
         m_encoderBankBank.InitBank(static_cast<int>(Bank::TheoryOfTime), static_cast<int>(BankMode::Global), SmartGrid::Color::Yellow);
         m_encoderBankBank.InitBank(static_cast<int>(Bank::Mastering), static_cast<int>(BankMode::Global), SmartGrid::Color::SeaGreen);
         m_encoderBankBank.InitBank(static_cast<int>(Bank::Inputs), static_cast<int>(BankMode::Global), SmartGrid::Color::White);

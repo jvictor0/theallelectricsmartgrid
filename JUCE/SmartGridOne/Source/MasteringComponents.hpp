@@ -191,13 +191,13 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         // UNDONE(DEEP_VOCODER)
         //
         DeepVocoder::UIState* deepVocoderUIState = &m_uiState->m_squiggleBoyUIState.m_deepVocoderUIState;
-        size_t which = deepVocoderUIState->Which();
-        size_t numFrequencies = deepVocoderUIState->GetNumFrequencies(which);
+        const DeepVocoder::UISnapshot& snapshot = deepVocoderUIState->GetCurrentSnapshot();
+        size_t numFrequencies = snapshot.m_numFrequencies;
         for (size_t i = 0; i < numFrequencies; ++i)
         {
-            float frequency = deepVocoderUIState->GetFrequency(which, i);
+            float frequency = snapshot.m_frequencies[i];
             float x = PathDrawer::LinearToLog(frequency) * width;
-            float y = PathDrawer::AmpToDbNormalized(deepVocoderUIState->GetMagnitude(which, i) * 2) * height;
+            float y = PathDrawer::AmpToDbNormalized(snapshot.m_magnitudes[i] * 2) * height;
             g.setColour(juce::Colours::white);
             g.drawLine(x, height - y, x, height, 1.5f);
         }

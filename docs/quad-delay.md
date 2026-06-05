@@ -66,10 +66,11 @@ The Quad Delay supports a rich set of features:
 - **LP and HP Damping**: Low-pass and high-pass filters in the feedback path (`PostFeedbackFilter`) to dampen the echoes.
 - **Unison and Pitch Shifting**: The phase vocoder allows for independent pitch shifting of the delayed signal.
 - **Ping Pong**: 90-degree or 180-degree quadraphonic ping-pong routing.
-- **Reverb Send**: The output of the delay can be routed directly into the Quad Reverb.
+- **Return Sends**: The output of the delay can be routed directly into the Quad Reverb or the Partial Machine.
 
 ## Related
 - [Theory of Time](theory-of-time.md)
 - [Phase Vocoder](phase-vocoder.md)
 - [Quad Reverb](quad-reverb.md)
+- [Partial Machine](partial-machine.md)
 - [DSP Overview](dsp-overview.md)

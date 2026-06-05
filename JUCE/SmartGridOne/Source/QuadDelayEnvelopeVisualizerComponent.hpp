@@ -32,13 +32,13 @@ struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerC
         float sliceHeight = height / 4.0f;
 
         auto& delayUIState = m_uiState->m_squiggleBoyUIState.m_delayUIState;
-        int which = delayUIState.GetCurrent();
+        const QuadDelay::UISnapshot& snapshot = delayUIState.GetCurrentSnapshot();
 
-        float targetMin = delayUIState.m_delayEnvelopeState[0][which].m_minEnvelope[0];
-        float targetMax = delayUIState.m_delayEnvelopeState[0][which].m_maxEnvelope[0];
+        float targetMin = snapshot.m_delayEnvelopeState[0].m_minEnvelope[0];
+        float targetMax = snapshot.m_delayEnvelopeState[0].m_maxEnvelope[0];
         for (int delayLineIdx = 0; delayLineIdx < 4; ++delayLineIdx)
         {
-            auto& envelopeState = delayUIState.m_delayEnvelopeState[delayLineIdx][which];
+            auto& envelopeState = snapshot.m_delayEnvelopeState[delayLineIdx];
             for (size_t i = 0; i < QuadDelay::x_positionalBufferSize; ++i)
             {
                 targetMin = std::min(targetMin, envelopeState.m_minEnvelope[i]);
@@ -69,7 +69,7 @@ struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerC
         for (int delayLineIdx = 0; delayLineIdx < 4; ++delayLineIdx)
         {
             float sliceY = bounds.getY() + static_cast<float>(delayLineIdx) * sliceHeight;
-            auto& envelopeState = delayUIState.m_delayEnvelopeState[delayLineIdx][which];
+            auto& envelopeState = snapshot.m_delayEnvelopeState[delayLineIdx];
 
             for (size_t bufIdx = 0; bufIdx < QuadDelay::x_positionalBufferSize; ++bufIdx)
             {
@@ -88,7 +88,7 @@ struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerC
                 g.fillRect(x, yMin, segmentWidth + 0.5f, yMax - yMin);
             }
 
-            float relativeRead = envelopeState.m_relativeReadHeadPosition.load(std::memory_order_acquire);
+            float relativeRead = envelopeState.m_relativeReadHeadPosition;
             if (relativeRead >= 0.0f && relativeRead <= 1.0f)
             {
                 float lineX = bounds.getX() + relativeRead * width;
@@ -96,7 +96,7 @@ struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerC
                 g.drawLine(lineX, sliceY, lineX, sliceY + sliceHeight, 1.0f);
             }
 
-            float relativeWrite = envelopeState.m_relativeWriteHeadPosition.load(std::memory_order_acquire);
+            float relativeWrite = envelopeState.m_relativeWriteHeadPosition;
             if (relativeWrite >= 0.0f && relativeWrite <= 1.0f)
             {
                 float lineX = bounds.getX() + relativeWrite * width;

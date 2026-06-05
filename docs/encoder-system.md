@@ -11,11 +11,11 @@ Serialization follows ownership: `EncoderBankBank::ToJSON()` iterates the full e
 ## Base Structure: Tracks and Voices
 
 To accommodate polyphony and quadraphonic effects, the parameter system is structured hierarchically.
-- **Voices**: The synthesizer engine runs 9 simultaneous voices. For quadraphonic effects (like the Quad Delay), there are 4 independent channels (effectively acting as voices in the parameter system).
+- **Voices**: The synthesizer engine runs 9 simultaneous voices. For quadraphonic effects (like the Quad Delay, Quad Reverb, and Partial Machine), there are 4 independent channels (effectively acting as voices in the parameter system).
 - **Tracks**: Voices are grouped into tracks. For example, the 9 voices are grouped into 3 trios. The parameter system addresses these as 3 tracks, with 3 voices per track.
 - **Banks**: Parameters are grouped into Banks (e.g., "Source", "Filter", "Delay"). Each bank defines its **Bank Mode**, which dictates the number of tracks and voices per track.
   - **Voice Banks** (3 tracks × 3 voices): Parameters shared across a trio, but affecting all 9 voices.
-  - **Quad Banks** (1 track × 4 voices): Used for the Quad Delay and Quad Reverb, allowing independent modulation for each speaker channel.
+  - **Quad Banks** (1 track × 4 voices): Used for the Quad Delay, Quad Reverb, and Partial Machine, allowing independent modulation for each speaker channel or frequency-dependent lane.
   - **Global Banks** (1 track × 1 voice): Used for global settings like the Theory of Time clock or mastering EQ.
 
 **Crucially, the base value of a knob is identical for all voices within a track. However, modulation and gestures can apply *different* offsets to each voice within that track.**
@@ -53,6 +53,12 @@ The entire state of all encoders (base values, modulation depths, and gesture ta
 
 - `EncoderBankUIState`: Manages the communication between the deep software state and the physical hardware/screen UI. It handles the rendering of LED rings and the processing of delta increments from physical endless encoders.
 - **Parameter Slew**: We only calculate the parameter values every eight samples on control frames, the DSP engine applies a slew filter (`ParamSlew` or `FixedSlew`) to the final, post-modulation parameter values before using them in audio calculations. During oversampled blocks, this slew rate is adjusted automatically.
+
+## Frequency-Dependent Quad Parameters
+
+The Partial Machine uses a Quad bank differently from Delay and Reverb. Its four lanes are interpreted as anchors for `FrequencyDependentParameter`, not just four speaker channels. If all four lanes share the same base value, the parameter behaves like a normal scalar. If modulation produces different values per lane, each spectral partial interpolates a unique value from its frequency, allowing the same knob to create frequency-dependent attack, decay, density, bandwidth, panning, unison, pitch, and volume behavior.
+
+See [Partial Machine](partial-machine.md) for the DSP-side mapping.
 
 ## Machine-Specific Parameters
 

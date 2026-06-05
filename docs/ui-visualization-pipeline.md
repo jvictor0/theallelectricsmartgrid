@@ -46,6 +46,8 @@ Current examples:
 - the delay envelope data is derived from `DelayLineMovableWriter` min/max buckets, remapped through `PositionalBufferRecorder` so the UI can sample the delay buffer against the current master-loop position
 - `SampleTrioWaveformVisualizerComponent` reads `m_voiceSourceUIState[i].m_audioBufferBankUIState` and `m_sampleSourceUIState`
 - `AudioBufferBank::PopulateUIState(...)` publishes min/max waveform buckets for the selected or blended bank position, while `SampleSource::PopulateUIState(...)` publishes the read-head position and active start/length window
+- `PartialMachineInputSpectrumComponent` and `PartialMachineSpatialComponent` read `m_partialMachineUIState`
+- `PartialMachine::PopulateUIState(...)` publishes the current tracked spectral atoms and frequency-dependent transfer functions used by the analyzer overlays
 
 This path is useful for views that need aggregated state rather than raw time-series buffers.
 
@@ -81,8 +83,10 @@ Main views:
 
 - `ScopeComponent` (audio/control traces)
 - `AnalyserComponent` (per-voice spectrum + filter response overlays)
-- `QuadAnalyserComponent` (delay/reverb/master quad spectra)
+- `QuadAnalyserComponent` (delay/reverb/partial-machine/master quad spectra)
 - `QuadDelayEnvelopeVisualizerComponent`
+- `PartialMachineInputSpectrumComponent`
+- `PartialMachineSpatialComponent`
 - `SampleTrioWaveformVisualizerComponent`
 - `TheoryOfTimeScopeComponent`
 - `SoundStageComponent` (quad position + meter-weighted bubbles)
@@ -99,12 +103,14 @@ Additional mastering/meter views are in `MasteringComponents.hpp` and `MeterComp
 - quad scopes
 - source-mixer scopes
 - mono scopes
+- mono audio scopes
 
 DSP/nonagon modules write into these through `SetupScopeWriters(...)`; UI reads from published state on the JUCE thread.
 
 ## Related
 
 - [Smart Grid Visualizers](smart-grid-visualizers.md) — Visualizer architecture, layout, bank mapping, and how to add new visualizers
+- [Partial Machine](partial-machine.md)
 - [UI Components and Layout](ui-components-layout.md)
 - [DSP Overview](dsp-overview.md)
 - [The Nonagon (Sequencer)](nonagon.md)

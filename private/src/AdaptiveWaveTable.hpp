@@ -16,7 +16,9 @@
 template<size_t Bits>
 struct DiscreteFourierTransformGeneric
 {
-    static constexpr size_t x_maxComponents = BasicWaveTableGeneric<Bits>::x_tableSize / 2;
+    static constexpr size_t x_tableSize = BasicWaveTableGeneric<Bits>::x_tableSize;
+    static constexpr size_t x_maxComponents = x_tableSize / 2;
+    static constexpr int x_partialKernelRadius = 8;
     std::complex<float> m_components[x_maxComponents];
 
     DiscreteFourierTransformGeneric()
@@ -194,6 +196,21 @@ struct DiscreteFourierTransformGeneric
                     data[i + j + halfLen] = u - t;
                 }
             }
+        }
+    }
+
+    void WriteWindowedPartial(float phase, float magnitude, float exactFrequency)
+    {
+        float exactBin = exactFrequency * static_cast<float>(x_tableSize);
+        int centerBin = static_cast<int>(std::floor(exactBin));
+        int firstBin = std::max(1, centerBin - x_partialKernelRadius);
+        int lastBin = std::min(static_cast<int>(x_maxComponents) - 1, centerBin + x_partialKernelRadius);
+        std::complex<float> phaseFactor(magnitude * MathGeneric<Bits>::Cos2pi(phase), magnitude * MathGeneric<Bits>::Sin2pi(phase));
+
+        for (int k = firstBin; k <= lastBin; ++k)
+        {
+            float offset = exactBin - static_cast<float>(k);
+            m_components[k] += phaseFactor * MathGeneric<Bits>::HannKernel(offset);
         }
     }
 };

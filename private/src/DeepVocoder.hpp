@@ -1,9 +1,11 @@
 #pragma once
 
+#include "SnapshotUIState.hpp"
 #include "SpectralModel.hpp"
 #include "PhaseUtils.hpp"
 #include "TheNonagon.hpp"
 #include "AHD.hpp"
+#include <atomic>
 #include <limits>
 
 struct DeepVocoder
@@ -68,8 +70,9 @@ struct DeepVocoder
         SpectralModel::Input MakeSpectralInput() const
         {
             SpectralModel::Input result;
-            result.m_slewUpAlpha = 1.0f - std::exp(-1.0f / m_slewUp.m_expParam);
-            result.m_slewDownAlpha = 1.0f - std::exp(-1.0f / m_slewDown.m_expParam);
+            result.m_slewUpAlpha.m_value = 1.0f - std::exp(-1.0f / m_slewUp.m_expParam);
+            result.m_slewDownAlpha.m_value = 1.0f - std::exp(-1.0f / m_slewDown.m_expParam);
+            result.m_omegaPortamentoAlpha.m_value = 1.0f;
             result.m_gainThreshold = 1e-4f;
             result.m_numAtoms = m_numAtoms;
             return result;
@@ -217,9 +220,15 @@ struct DeepVocoder
         }
     };
 
-    struct UIState
+    struct UISnapshot
     {
-        static constexpr size_t x_uiBufferSize = 16;
+        size_t m_numFrequencies;
+        float m_frequencies[x_maxComponents];
+        float m_magnitudes[x_maxComponents];
+    };
+
+    struct UIState : SnapshotUIState<UISnapshot>
+    {
         struct VoiceUIState
         {
             std::atomic<float> m_threshold;
@@ -242,17 +251,9 @@ struct DeepVocoder
         };
         
         VoiceUIState m_voiceUIState[x_numVoices];
-        std::atomic<size_t> m_numFrequencies[x_uiBufferSize];
-        std::atomic<size_t> m_which;
-        std::atomic<float> m_frequencies[x_uiBufferSize][x_maxComponents];
-        std::atomic<float> m_magnitudes[x_uiBufferSize][x_maxComponents];
 
         UIState()
             : m_voiceUIState{}
-            , m_numFrequencies{}
-            , m_which(0)
-            , m_frequencies{}
-            , m_magnitudes{}
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {
@@ -263,21 +264,6 @@ struct DeepVocoder
                 m_voiceUIState[i].m_usedOmega.store(0.0f);
                 m_voiceUIState[i].m_atomMagnitude.store(0.0f);
             }
-
-            for (size_t i = 0; i < x_uiBufferSize; ++i)
-            {
-                m_numFrequencies[i].store(0);
-                for (size_t j = 0; j < x_maxComponents; ++j)
-                {
-                    m_frequencies[i][j].store(0.0f);
-                    m_magnitudes[i][j].store(0.0f);
-                }
-            }
-        }
-
-        size_t Which()
-        {
-            return m_which.load();
         }
 
         float GetThreshold(size_t index)
@@ -300,19 +286,19 @@ struct DeepVocoder
             return m_voiceUIState[index].m_pitchCenter.load();
         }
 
-        size_t GetNumFrequencies(size_t which)
+        size_t GetNumFrequencies() const
         {
-            return m_numFrequencies[which].load();
+            return GetCurrentSnapshot().m_numFrequencies;
         }
 
-        float GetFrequency(size_t which, size_t index)
+        float GetFrequency(size_t index) const
         {
-            return m_frequencies[which][index].load();
+            return GetCurrentSnapshot().m_frequencies[index];
         }
 
-        float GetMagnitude(size_t which, size_t index)
+        float GetMagnitude(size_t index) const
         {
-            return m_magnitudes[which][index].load();
+            return GetCurrentSnapshot().m_magnitudes[index];
         }
 
         float GetUsedOmega(size_t index)
@@ -347,17 +333,17 @@ struct DeepVocoder
             }
         }
 
-        size_t which = (uiState->m_which.load() + 1) % UIState::x_uiBufferSize;
+        UISnapshot& snapshot = uiState->BeginSnapshot();
         size_t numFreqs = m_spectralModel.m_atoms.Size();
 
         for (size_t i = 0; i < numFreqs; ++i)
         {
-            uiState->m_frequencies[which][i].store(m_spectralModel.m_atoms[i]->m_synthesisOmega);
-            uiState->m_magnitudes[which][i].store(m_spectralModel.m_atoms[i]->m_synthesisMagnitude);
+            snapshot.m_frequencies[i] = m_spectralModel.m_atoms[i]->m_synthesisOmega;
+            snapshot.m_magnitudes[i] = m_spectralModel.m_atoms[i]->m_synthesisMagnitude;
         }
 
-        uiState->m_numFrequencies[which].store(numFreqs);
-        uiState->m_which.store(which);
+        snapshot.m_numFrequencies = numFreqs;
+        uiState->CommitSnapshot();
     }
 
     SpectralModel m_spectralModel;

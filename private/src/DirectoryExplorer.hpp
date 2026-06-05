@@ -1,7 +1,8 @@
 #pragma once
 
+#include "SnapshotUIState.hpp"
+
 #include <algorithm>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -13,6 +14,10 @@
 struct DirectoryExplorer
 {
     static constexpr size_t x_invalidChildIndex = static_cast<size_t>(-1);
+    static constexpr size_t x_pathCapacity = 512;
+    static constexpr size_t x_lineCapacity = 256;
+    static constexpr size_t x_numListLines = 7;
+    static constexpr ptrdiff_t x_listWindowCenterOffset = static_cast<ptrdiff_t>((x_numListLines - 1) / 2);
 
     enum class MessageType : uint8_t
     {
@@ -44,64 +49,39 @@ struct DirectoryExplorer
         }
     };
 
-    struct UIState
+    struct UISnapshot
     {
-        static constexpr size_t x_uiBufferSize = 10;
-        static constexpr size_t x_pathCapacity = 512;
-        static constexpr size_t x_lineCapacity = 256;
-        static constexpr size_t x_numListLines = 7;
-        static constexpr ptrdiff_t x_listWindowCenterOffset = static_cast<ptrdiff_t>((x_numListLines - 1) / 2);
+        size_t m_selectedListRow;
+        bool m_uiExplorerOpen;
+        char m_relativePath[x_pathCapacity];
+        char m_listLines[x_numListLines][x_lineCapacity];
+    };
 
-        std::atomic<size_t> m_which;
-        std::atomic<size_t> m_selectedListRow[x_uiBufferSize];
-        std::atomic<bool> m_uiExplorerOpen[x_uiBufferSize];
+    struct UIState : SnapshotUIState<UISnapshot>
+    {
+        static constexpr size_t x_pathCapacity = DirectoryExplorer::x_pathCapacity;
+        static constexpr size_t x_lineCapacity = DirectoryExplorer::x_lineCapacity;
+        static constexpr size_t x_numListLines = DirectoryExplorer::x_numListLines;
+        static constexpr ptrdiff_t x_listWindowCenterOffset = DirectoryExplorer::x_listWindowCenterOffset;
 
-        char m_relativePath[x_uiBufferSize][x_pathCapacity];
-        char m_listLines[x_uiBufferSize][x_numListLines][x_lineCapacity];
-
-        UIState()
-            : m_which(0)
-            , m_selectedListRow{}
-            , m_uiExplorerOpen{}
-            , m_relativePath{}
-            , m_listLines{}
+        const char* GetRelativePath() const
         {
-            for (size_t which = 0; which < x_uiBufferSize; ++which)
-            {
-                m_selectedListRow[which].store(0);
-                m_uiExplorerOpen[which].store(false, std::memory_order_relaxed);
-                m_relativePath[which][0] = '\0';
-
-                for (size_t i = 0; i < x_numListLines; ++i)
-                {
-                    m_listLines[which][i][0] = '\0';
-                }
-            }
+            return GetCurrentSnapshot().m_relativePath;
         }
 
-        size_t Which() const
+        const char* GetListLine(size_t row) const
         {
-            return m_which.load(std::memory_order_acquire);
+            return GetCurrentSnapshot().m_listLines[row];
         }
 
-        const char* GetRelativePath(size_t which) const
+        size_t GetSelectedListRow() const
         {
-            return m_relativePath[which];
+            return GetCurrentSnapshot().m_selectedListRow;
         }
 
-        const char* GetListLine(size_t which, size_t row) const
+        bool GetUiExplorerOpen() const
         {
-            return m_listLines[which][row];
-        }
-
-        size_t GetSelectedListRow(size_t which) const
-        {
-            return m_selectedListRow[which].load(std::memory_order_acquire);
-        }
-
-        bool GetUiExplorerOpen(size_t which) const
-        {
-            return m_uiExplorerOpen[which].load(std::memory_order_acquire);
+            return GetCurrentSnapshot().m_uiExplorerOpen;
         }
     };
 
@@ -287,39 +267,39 @@ struct DirectoryExplorer
             return;
         }
 
-        size_t which = (uiState->m_which.load(std::memory_order_relaxed) + 1) % UIState::x_uiBufferSize;
+        UISnapshot& snapshot = uiState->BeginSnapshot();
 
         if (!m_rootPath || !m_root || !m_selectedNode)
         {
-            ClearBuffer(uiState->m_relativePath[which], UIState::x_pathCapacity);
+            ClearBuffer(snapshot.m_relativePath, UIState::x_pathCapacity);
 
             for (size_t i = 0; i < UIState::x_numListLines; ++i)
             {
-                ClearBuffer(uiState->m_listLines[which][i], UIState::x_lineCapacity);
+                ClearBuffer(snapshot.m_listLines[i], UIState::x_lineCapacity);
             }
 
-            uiState->m_selectedListRow[which].store(0, std::memory_order_release);
-            uiState->m_uiExplorerOpen[which].store(false, std::memory_order_release);
-            uiState->m_which.store(which, std::memory_order_release);
+            snapshot.m_selectedListRow = 0;
+            snapshot.m_uiExplorerOpen = false;
+            uiState->CommitSnapshot();
             return;
         }
 
         const std::string relativePathString = RelativePathString();
-        CopyToBuffer(uiState->m_relativePath[which], UIState::x_pathCapacity, relativePathString.c_str());
+        CopyToBuffer(snapshot.m_relativePath, UIState::x_pathCapacity, relativePathString.c_str());
 
         const size_t n = m_selectedNode->m_contents.size();
 
         for (size_t i = 0; i < UIState::x_numListLines; ++i)
         {
-            ClearBuffer(uiState->m_listLines[which][i], UIState::x_lineCapacity);
+            ClearBuffer(snapshot.m_listLines[i], UIState::x_lineCapacity);
         }
 
-        uiState->m_selectedListRow[which].store(0, std::memory_order_release);
+        snapshot.m_selectedListRow = 0;
 
         if (n == 0)
         {
-            uiState->m_uiExplorerOpen[which].store(false, std::memory_order_release);
-            uiState->m_which.store(which, std::memory_order_release);
+            snapshot.m_uiExplorerOpen = false;
+            uiState->CommitSnapshot();
             return;
         }
 
@@ -329,16 +309,16 @@ struct DirectoryExplorer
         for (size_t row = 0; row < rows; ++row)
         {
             const Node* entry = m_selectedNode->m_contents[start + row];
-            CopyToBuffer(uiState->m_listLines[which][row], UIState::x_lineCapacity, entry->m_fileName.c_str());
+            CopyToBuffer(snapshot.m_listLines[row], UIState::x_lineCapacity, entry->m_fileName.c_str());
         }
 
         if (m_selectedIndex >= start && m_selectedIndex < start + rows)
         {
-            uiState->m_selectedListRow[which].store(m_selectedIndex - start, std::memory_order_release);
+            snapshot.m_selectedListRow = m_selectedIndex - start;
         }
 
-        uiState->m_uiExplorerOpen[which].store(true, std::memory_order_release);
-        uiState->m_which.store(which, std::memory_order_release);
+        snapshot.m_uiExplorerOpen = true;
+        uiState->CommitSnapshot();
     }
 
     std::filesystem::path SelectedDirectoryPath() const

@@ -7,6 +7,7 @@
 #include "ScopeComponent.hpp"
 #include "MeterComponent.hpp"
 #include "MasteringComponents.hpp"
+#include "PartialMachineComponents.hpp"
 #include "QuadDelayEnvelopeVisualizerComponent.hpp"
 #include "SampleTrioWaveformVisualizerComponent.hpp"
 

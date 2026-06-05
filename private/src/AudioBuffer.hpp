@@ -1,13 +1,12 @@
 #pragma once
 
 #include "BufferResampler.hpp"
-#include "DirectoryExplorer.hpp"
 #include "SampleTimer.hpp"
+#include "SnapshotUIState.hpp"
 #include "WavReader.hpp"
 
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <cstring>
@@ -22,24 +21,14 @@ struct AudioBuffer
 {
     static constexpr size_t x_numSections = 1024;
 
-    struct UIState
+    struct UISnapshot
     {
-        static constexpr size_t x_uiBufferSize = DirectoryExplorer::UIState::x_uiBufferSize;
+        std::array<float, x_numSections> m_sectionMaximums{};
+        std::array<float, x_numSections> m_sectionMinimums{};
+    };
 
-        std::atomic<size_t> m_which;
-
-        std::array<std::array<float, x_numSections>, x_uiBufferSize> m_sectionMaximums{};
-        std::array<std::array<float, x_numSections>, x_uiBufferSize> m_sectionMinimums{};
-
-        UIState()
-            : m_which(0)
-        {
-        }
-
-        size_t Which() const
-        {
-            return m_which.load(std::memory_order_acquire);
-        }
+    struct UIState : SnapshotUIState<UISnapshot>
+    {
     };
 
     std::vector<float> m_buffer;
@@ -107,20 +96,20 @@ struct AudioBuffer
 
     void PopulateUIState(UIState* uiState)
     {
-        size_t which = (uiState->m_which.load(std::memory_order_relaxed) + 1) % UIState::x_uiBufferSize;
+        UISnapshot& snapshot = uiState->BeginSnapshot();
 
         if (m_buffer.empty())
         {
-            uiState->m_sectionMaximums[which].fill(0.0f);
-            uiState->m_sectionMinimums[which].fill(0.0f);
+            snapshot.m_sectionMaximums.fill(0.0f);
+            snapshot.m_sectionMinimums.fill(0.0f);
         }
         else
         {
-            uiState->m_sectionMaximums[which] = m_sectionMaximums;
-            uiState->m_sectionMinimums[which] = m_sectionMinimums;
+            snapshot.m_sectionMaximums = m_sectionMaximums;
+            snapshot.m_sectionMinimums = m_sectionMinimums;
         }
 
-        uiState->m_which.store(which, std::memory_order_release);
+        uiState->CommitSnapshot();
     }
 
     void ClearSectionExtrema()
@@ -224,24 +213,10 @@ struct AudioBuffer
 
 struct AudioBufferBank
 {
-    struct UIState
+    using UISnapshot = AudioBuffer::UISnapshot;
+
+    struct UIState : SnapshotUIState<UISnapshot>
     {
-        static constexpr size_t x_uiBufferSize = DirectoryExplorer::UIState::x_uiBufferSize;
-
-        std::atomic<size_t> m_which;
-
-        std::array<std::array<float, AudioBuffer::x_numSections>, x_uiBufferSize> m_sectionMaximums{};
-        std::array<std::array<float, AudioBuffer::x_numSections>, x_uiBufferSize> m_sectionMinimums{};
-
-        UIState()
-            : m_which(0)
-        {
-        }
-
-        size_t Which() const
-        {
-            return m_which.load(std::memory_order_acquire);
-        }
     };
 
     std::vector<std::shared_ptr<AudioBuffer>> m_audioBuffers;
@@ -463,12 +438,12 @@ struct AudioBufferBank
 
     void PopulateUIState(UIState* uiState)
     {
-        size_t which = (uiState->m_which.load(std::memory_order_relaxed) + 1) % UIState::x_uiBufferSize;
+        UISnapshot& snapshot = uiState->BeginSnapshot();
 
         if (m_audioBuffers.empty())
         {
-            uiState->m_sectionMaximums[which].fill(0.0f);
-            uiState->m_sectionMinimums[which].fill(0.0f);
+            snapshot.m_sectionMaximums.fill(0.0f);
+            snapshot.m_sectionMinimums.fill(0.0f);
         }
         else
         {
@@ -478,8 +453,8 @@ struct AudioBufferBank
             {
                 for (size_t i = 0; i < AudioBuffer::x_numSections; ++i)
                 {
-                    uiState->m_sectionMaximums[which][i] = bufA.m_sectionMaximums[i];
-                    uiState->m_sectionMinimums[which][i] = bufA.m_sectionMinimums[i];
+                    snapshot.m_sectionMaximums[i] = bufA.m_sectionMaximums[i];
+                    snapshot.m_sectionMinimums[i] = bufA.m_sectionMinimums[i];
                 }
             }
             else
@@ -492,12 +467,12 @@ struct AudioBufferBank
                     float maxB = bufB.m_sectionMaximums[i];
                     float minA = bufA.m_sectionMinimums[i];
                     float minB = bufB.m_sectionMinimums[i];
-                    uiState->m_sectionMaximums[which][i] = oneMinus * maxA + blend.m_blendB * maxB;
-                    uiState->m_sectionMinimums[which][i] = oneMinus * minA + blend.m_blendB * minB;
+                    snapshot.m_sectionMaximums[i] = oneMinus * maxA + blend.m_blendB * maxB;
+                    snapshot.m_sectionMinimums[i] = oneMinus * minA + blend.m_blendB * minB;
                 }
             }
         }
 
-        uiState->m_which.store(which, std::memory_order_release);
+        uiState->CommitSnapshot();
     }
 };

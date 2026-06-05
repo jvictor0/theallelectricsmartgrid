@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "DirectoryExplorer.hpp"
 #include "NonagonWrapper.hpp"
 #include "VoiceMachineEnums.hpp"
 
@@ -33,9 +34,9 @@ struct VoiceConfigComponent : public juce::Component
             }
 
             const auto& dirUi = squiggleUi->m_directoryExplorerUIState;
-            size_t which = dirUi.Which();
+            const DirectoryExplorer::UISnapshot& snapshot = dirUi.GetCurrentSnapshot();
 
-            if (!dirUi.GetUiExplorerOpen(which))
+            if (!snapshot.m_uiExplorerOpen)
             {
                 return;
             }
@@ -51,12 +52,12 @@ struct VoiceConfigComponent : public juce::Component
             juce::Rectangle<int> headerBounds(0, 0, bounds.getWidth(), rowHeight);
             g.setColour(juce::Colours::lightgrey);
             g.drawFittedText(
-                juce::String(dirUi.GetRelativePath(which)),
+                juce::String(snapshot.m_relativePath),
                 headerBounds,
                 juce::Justification::centredLeft,
                 1);
 
-            size_t selectedRow = dirUi.GetSelectedListRow(which);
+            size_t selectedRow = snapshot.m_selectedListRow;
 
             for (int i = 0; i < x_numFileRows; ++i)
             {
@@ -76,7 +77,7 @@ struct VoiceConfigComponent : public juce::Component
                 }
 
                 g.drawFittedText(
-                    juce::String(dirUi.GetListLine(which, static_cast<size_t>(i))),
+                    juce::String(snapshot.m_listLines[i]),
                     rowBounds.reduced(4, 0),
                     juce::Justification::centredLeft,
                     1);
@@ -108,8 +109,7 @@ struct VoiceConfigComponent : public juce::Component
         if (squiggleUi)
         {
             const auto& dirUi = squiggleUi->m_directoryExplorerUIState;
-            size_t which = dirUi.Which();
-            explorerActive = dirUi.GetUiExplorerOpen(which);
+            explorerActive = dirUi.GetCurrentSnapshot().m_uiExplorerOpen;
         }
 
         m_directoryExplorerComponent.setVisible(explorerActive);
@@ -206,8 +206,7 @@ struct VoiceConfigComponent : public juce::Component
 
             const size_t voiceIndex = trackIx * TheNonagonInternal::x_voicesPerTrio + voiceCol;
             const auto& sampleDirUi = uiState->m_voiceSourceUIState[voiceIndex].m_sampleDirectoryUIState;
-            const size_t whichPaths = sampleDirUi.Which();
-            juce::String path = juce::String(sampleDirUi.GetPath(whichPaths));
+            juce::String path = juce::String(sampleDirUi.GetPath());
 
             g.drawFittedText(path, pathCell.reduced(4, 2), juce::Justification::centred, 4);
         }

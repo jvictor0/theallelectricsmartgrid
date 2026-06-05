@@ -13,9 +13,10 @@ The synthesizer consists of 9 voices. Each voice (`SquiggleBoyVoice`) is a compl
 
 ## Quadraphonic Routing and Effects
 
-The outputs of the 9 voices are panned quadraphonically using a Lissajous LFO. The mixed quadraphonic signal is then sent to the send effect buses and final output,  where the send effects consist of:
+The outputs of the 9 voices are panned quadraphonically using a Lissajous LFO. The mixed quadraphonic signal is then sent to the send effect buses and final output, where the send effects consist of:
 - **Quad Delay**: A sophisticated, time-warped phase vocoder delay.
 - **Quad Reverb**: A quadraphonic reverberation unit.
+- **Partial Machine**: A spectral send effect that converts its quad input to mono, tracks partials, and resynthesizes them into a frequency-dependent quad field.
 
 Finally, the system generates parallel quadraphonic and stereo mixdowns, along with a dedicated sub channel, all glued together by a final multiband saturator.
 
@@ -25,3 +26,4 @@ Source machine details now live in a dedicated page:
 
 - [Source Machine](source-machine.md) — Dual Wave Shaping VCO, Physical Modeling, Thru, and Sample source modes.
 - [Filter Architecture](filter-architecture.md) — Explanation of the filter layout, DSP classes, transfer functions, and UI state synchronization.
+- [Partial Machine](partial-machine.md) — Spectral mono-to-quad send effect with frequency-dependent per-partial parameters.

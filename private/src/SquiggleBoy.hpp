@@ -24,6 +24,7 @@
 #include "SourceMixer.hpp"
 #include "VCO.hpp"
 #include "DeepVocoder.hpp"
+#include "PartialMachine.hpp"
 #include "KMixMidi.hpp"
 #include "Math.hpp"
 #include "SampleTimer.hpp"
@@ -33,6 +34,7 @@
 #include "SquiggleBoyVoiceConfig.hpp"
 #include "RecordingManager.hpp"
 #include "DirectoryExplorer.hpp"
+#include "SnapshotUIState.hpp"
 #include "Oversample.hpp"
 #include "TransferFunction.hpp"
 
@@ -594,6 +596,11 @@ struct SquiggleBoy
     DeepVocoder m_deepVocoder;
     DeepVocoder::Input m_deepVocoderState;
 
+    PartialMachine m_partialMachine;
+    PartialMachine::Input m_partialMachineState;
+    PartialMachine::InputSetter m_partialMachineInputSetter;
+    PartialMachine::InputSetter::Input m_partialMachineInputSetterInput;
+
     QuadMixerInternal m_mixer;
 
     QuadDelay m_delay;
@@ -614,8 +621,6 @@ struct SquiggleBoy
     QuadDelay::Input m_delayState;
     QuadReverb::Input m_reverbState;
     TheoryOfTime* m_theoryOfTime;
-    PhaseUtils::ZeroedExpParam m_delayToReverbSend;
-    PhaseUtils::ZeroedExpParam m_reverbToDelaySend;
 
     PhaseUtils::SimpleOsc m_panPhase;
 
@@ -639,8 +644,6 @@ struct SquiggleBoy
     {
         m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numSources;
         m_mixerState.m_numMonoInputs = x_numVoices;
-        m_delayToReverbSend.m_expParam = 0.0;
-        m_reverbToDelaySend.m_expParam = 0.0;
         m_theoryOfTime = nullptr;
 
         for (size_t i = 0; i < x_numVoices; ++i)
@@ -693,13 +696,15 @@ struct SquiggleBoy
 
     void ProcessSends()
     {
-        m_delayState.m_input = m_mixer.m_send[0] + m_mixerState.m_return[1] * m_reverbToDelaySend.m_expParam;
+        m_delayState.m_input = m_mixer.m_send[0];
         m_mixerState.m_return[0] = m_delay.Process(m_delayState);
         m_delayState.m_return = m_mixerState.m_return[0];
 
-        m_reverbState.m_input = m_mixer.m_send[1] + m_mixerState.m_return[0] * m_delayToReverbSend.m_expParam;
+        m_reverbState.m_input = m_mixer.m_send[1];
         m_mixerState.m_return[1] = m_reverb.Process(m_reverbState);
         m_reverbState.m_return = m_mixerState.m_return[1];
+
+        m_mixerState.m_return[2] = m_partialMachine.Process(m_mixer.m_send[2], m_partialMachineState);
     }
 
     void InitRandomWaveTables()
@@ -843,8 +848,10 @@ struct SquiggleBoy
             m_mixerState.m_x[i + x_numVoices] = 0.5f;
             m_mixerState.m_y[i + x_numVoices] = 0.5f;
             m_mixerState.m_gain[i + x_numVoices].m_expParam = 1.0; 
-            m_mixerState.m_sendGain[i + x_numVoices][0].m_expParam = 0;
-            m_mixerState.m_sendGain[i + x_numVoices][1].m_expParam = 0;
+            for (size_t j = 0; j < QuadMixerInternal::x_numSends; ++j)
+            {
+                m_mixerState.m_sendGain[i + x_numVoices][j].m_expParam = 0;
+            }
         }
 
         m_mixer.ProcessInputs(m_mixerState);
@@ -869,6 +876,7 @@ struct SquiggleBoy
     {
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Delay)].Write(m_mixerState.m_return[0]);
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Reverb)].Write(m_mixerState.m_return[1]);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine)].Write(m_mixerState.m_return[2]);
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Master)].Write(m_output.m_output);
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Stereo)].Write(
             m_output.m_stereoOutput.CombineToQuad(m_mixer.m_quadToStereoMixdown.m_output));
@@ -980,27 +988,18 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             struct SampleDirectoryUIState
             {
-                static constexpr size_t x_uiBufferSize = DirectoryExplorer::UIState::x_uiBufferSize;
                 static constexpr size_t x_pathCapacity = 512;
 
-                std::atomic<size_t> m_which;
-                char m_path[x_uiBufferSize][x_pathCapacity];
-
-                SampleDirectoryUIState()
-                    : m_which(0)
-                    , m_path{}
+                struct UISnapshot
                 {
-                }
+                    char m_path[x_pathCapacity];
+                };
 
-                size_t Which() const
+                struct UIState : SnapshotUIState<UISnapshot>
                 {
-                    return m_which.load(std::memory_order_acquire);
-                }
+                };
 
-                const char* GetPath(size_t which) const
-                {
-                    return m_path[which];
-                }
+                UIState m_uiState;
 
                 static void CopyPath(char* destination, const char* source)
                 {
@@ -1019,9 +1018,16 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                     destination[x_pathCapacity - 1] = '\0';
                 }
 
-                void SetPath(size_t which, const char* path)
+                const char* GetPath() const
                 {
-                    CopyPath(m_path[which], path);
+                    return m_uiState.GetCurrentSnapshot().m_path;
+                }
+
+                void SetPath(const char* path)
+                {
+                    UISnapshot& snapshot = m_uiState.BeginSnapshot();
+                    CopyPath(snapshot.m_path, path);
+                    m_uiState.CommitSnapshot();
                 }
             };
 
@@ -1047,6 +1053,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         ScopeWriter m_globalControlScopeWriter;
         ScopeWriter m_sourceMixerScopeWriter;
         ScopeWriter m_monoScopeWriter;
+        ScopeWriter m_monoAudioScopeWriter;
 
         std::atomic<size_t> m_activeTrack;
 
@@ -1065,6 +1072,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         QuadDelay::UIState m_delayUIState;
         QuadReverb::UIState m_reverbUIState;
+        PartialMachine::UIState m_partialMachineUIState;
 
         SourceMixer::UIState m_sourceMixerUIState;
         DeepVocoder::UIState m_deepVocoderUIState;
@@ -1129,12 +1137,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_voiceSourceUIState[i].m_sourceMachine.store(voiceConfig->m_sourceMachine);
 
             AudioBufferBank* bank = voiceConfig->m_audioBufferBank;
-            size_t pathWhich =
-                (m_voiceSourceUIState[i].m_sampleDirectoryUIState.m_which.load(std::memory_order_relaxed) + 1)
-                % VoiceSourceUIState::SampleDirectoryUIState::x_uiBufferSize;
             const char* path = (bank && !bank->m_directoryName.empty()) ? bank->m_directoryName.c_str() : "";
-            m_voiceSourceUIState[i].m_sampleDirectoryUIState.SetPath(pathWhich, path);
-            m_voiceSourceUIState[i].m_sampleDirectoryUIState.m_which.store(pathWhich, std::memory_order_release);
+            m_voiceSourceUIState[i].m_sampleDirectoryUIState.SetPath(path);
 
             if (voiceConfig->m_sourceMachine == SquiggleBoyVoice::VoiceConfig::SourceMachine::PhysicalModeling)
             {
@@ -1170,6 +1174,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             , m_globalControlScopeWriter(1, static_cast<size_t>(SmartGridOne::GlobalControlScopes::NumScopes))
             , m_sourceMixerScopeWriter(SourceMixer::x_numSources, static_cast<size_t>(SmartGridOne::SourceScopes::NumScopes))
             , m_monoScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoScopes::NumScopes))
+            , m_monoAudioScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoAudioScopes::NumScopes))
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {
@@ -1183,6 +1188,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_audioScopeWriter.AdvanceIndex();
             m_quadScopeWriter.AdvanceIndex();
             m_sourceMixerScopeWriter.AdvanceIndex();
+            m_monoAudioScopeWriter.AdvanceIndex();
 
             if (SampleTimer::IsControlFrame())
             {
@@ -1226,6 +1232,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Master)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Master));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Dry)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Dry));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Stereo)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Stereo));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine));
+
+        m_partialMachine.SetupAudioScopeWriter(&uiState->m_monoAudioScopeWriter);
 
         m_sourceMixer.SetupScopeWriters(&uiState->m_sourceMixerScopeWriter);
         SetupGangedRandomScopeWriters(&uiState->m_controlScopeWriter);
@@ -1571,6 +1580,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_mixerState.m_gain[i].Update(m_encoders.GetValue(Param::AmpGain, i));
             m_mixerState.m_sendGain[i][0].Update(m_encoders.GetValue(Param::DelaySend, i));
             m_mixerState.m_sendGain[i][1].Update(m_encoders.GetValue(Param::ReverbSend, i));
+            m_mixerState.m_sendGain[i][2].Update(m_encoders.GetValue(Param::PartialMachineSend, i));
 
             m_state[i].SetGates();
         }
@@ -1601,7 +1611,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         delayInputSetterInput.m_theoryOfTime = m_theoryOfTime;
         m_delayInputSetter.Process(delayInputSetterInput, m_delayState, &m_delay);
-        m_delayToReverbSend.Update(m_encoders.GetValue(Param::DelayReverbSend));
+        m_mixerState.m_returnSendGain[0][1].Update(m_encoders.GetValue(Param::DelayReverbSend));
+        m_mixerState.m_returnSendGain[0][2].Update(m_encoders.GetValue(Param::DelayPartialMachineSend));
         m_mixerState.m_returnGain[0].Update(m_encoders.GetValue(Param::DelayReturn));
 
         QuadReverbInputSetter::Input reverbInputSetterInput;
@@ -1619,8 +1630,32 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
         
         m_reverbInputSetter.Process(reverbInputSetterInput, m_reverbState);
-        m_reverbToDelaySend.Update(m_encoders.GetValue(Param::ReverbDelaySend));
+        m_mixerState.m_returnSendGain[1][0].Update(m_encoders.GetValue(Param::ReverbDelaySend));
+        m_mixerState.m_returnSendGain[1][2].Update(m_encoders.GetValue(Param::ReverbPartialMachineSend));
         m_mixerState.m_returnGain[1].Update(m_encoders.GetValue(Param::ReverbReturn) / 2);
+
+        for (int i = 0; i < 4; ++i)
+        {
+            m_partialMachineInputSetterInput.m_attack[i] = m_encoders.GetValue(Param::PartialMachineAttack, i);
+            m_partialMachineInputSetterInput.m_decay[i] = m_encoders.GetValue(Param::PartialMachineDecay, i);
+            m_partialMachineInputSetterInput.m_portamento[i] = m_encoders.GetValue(Param::PartialMachinePortamento, i);
+            m_partialMachineInputSetterInput.m_density[i] = m_encoders.GetValue(Param::PartialMachineDensity, i);
+            m_partialMachineInputSetterInput.m_bwBaseFrequency[i] = m_encoders.GetValue(Param::PartialMachineBWBase, i);
+            m_partialMachineInputSetterInput.m_bwWidth[i] = m_encoders.GetValue(Param::PartialMachineBWWidth, i);
+            m_partialMachineInputSetterInput.m_reductionFeedback[i] = m_encoders.GetValue(Param::PartialMachineReductionFeedback, i);
+            m_partialMachineInputSetterInput.m_bassCutoff[i] = m_encoders.GetValue(Param::PartialMachineBassCutoff, i);
+            m_partialMachineInputSetterInput.m_azimuthFactor[i] = m_encoders.GetValue(Param::PartialMachineAzimuthFactor, i);
+            m_partialMachineInputSetterInput.m_unison[i] = m_encoders.GetValue(Param::PartialMachineUnison, i);
+            m_partialMachineInputSetterInput.m_parameterLinearFrequency[i] = m_encoders.GetValue(Param::PartialMachineLinearFrequency, i);
+            m_partialMachineInputSetterInput.m_pitchShiftDepth[i] = m_encoders.GetValue(Param::PartialMachinePitchShiftDepth, i);
+            m_partialMachineInputSetterInput.m_pitchShift[i] = m_encoders.GetValue(Param::PartialMachinePitchShift, i);
+            m_partialMachineInputSetterInput.m_volume[i] = m_encoders.GetValue(Param::PartialMachineVolume, i);
+        }
+
+        m_partialMachineInputSetter.SetInput(m_partialMachineInputSetterInput, m_partialMachineState);
+        m_mixerState.m_returnSendGain[2][0].Update(m_encoders.GetValue(Param::PartialMachineDelaySend));
+        m_mixerState.m_returnSendGain[2][1].Update(m_encoders.GetValue(Param::PartialMachineReverbSend));
+        m_mixerState.m_returnGain[2].m_expParam = 1.0f;
 
         input.m_tempo.Update(m_encoders.GetValue(Param::Tempo));
 
@@ -1735,6 +1770,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         uiState->m_globalControlScopeWriter.Publish();
         uiState->m_sourceMixerScopeWriter.Publish();
         uiState->m_monoScopeWriter.Publish();
+        uiState->m_monoAudioScopeWriter.Publish();
         
         uiState->ReadMeters();
 
@@ -1757,6 +1793,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_masterChainInput.PopulateUIState(&uiState->m_stereoMasteringChainUIState);
         m_delay.PopulateUIState(&uiState->m_delayUIState, m_delayState);
         m_reverb.PopulateUIState(&uiState->m_reverbUIState);
+        m_partialMachine.PopulateUIState(uiState->m_partialMachineUIState, m_partialMachineState);
 
         m_sourceMixer.PopulateUIState(&uiState->m_sourceMixerUIState);
         m_deepVocoder.PopulateUIState(&uiState->m_deepVocoderUIState);
@@ -1792,6 +1829,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             case Bank::Reverb:
             {
                 uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Reverb);
+                break;
+            }
+            case Bank::PartialMachine:
+            {
+                uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::QuadMaster);
                 break;
             }
             case Bank::TheoryOfTime:

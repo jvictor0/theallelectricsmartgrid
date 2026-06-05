@@ -2,7 +2,7 @@
 
 ## Overview
 
-Filter, delay, and reverb UI-state types now share a common frequency-domain interface:
+Filter, delay, reverb, and Partial Machine UI-state types now share a common frequency-domain interface:
 
 - `TransferFunction::FrequencyResponse(freq)`
 - `TransferFunction::TransferFunctionValue(freq)`
@@ -15,7 +15,7 @@ This allows analyzer components to draw responses through a single rendering pat
 
 **Design rule:** Only UI states implement `TransferFunction`. The underlying DSP classes (e.g. `FIR`, `CombFilterWithOnePole`, `DampingFilter`) must never inherit from `TransferFunction`. DSP runs in the audio thread; visualization reads from UI-state snapshots populated on the control thread. Keeping transfer-function logic in UI state keeps the boundary clear and avoids coupling DSP to the visualization API.
 
-Quad delay and quad reverb each contain four `DampingFilter::UIState` instances; the analyzer passes the specific damping filter for each speaker when drawing.
+Quad delay and quad reverb each contain four `DampingFilter::UIState` instances; the analyzer passes the specific damping filter for each speaker when drawing. The Partial Machine exposes four per-speaker transfer functions derived from its frequency-dependent reduction and panning model.
 
 ## DampingFilter
 
@@ -37,7 +37,7 @@ Behavior:
 ## Integration Points
 
 - `AnalyserComponent` uses `DrawFrequencyResponse` for voice filter overlays
-- `QuadAnalyserComponent` uses `DrawFrequencyResponse` for delay/reverb filter overlays, passing the per-speaker damping filter
+- `QuadAnalyserComponent` uses `DrawFrequencyResponse` for delay/reverb/partial-machine overlays, passing the per-speaker transfer-function provider
 - `PhysicalModelingFrequencyResponseComponent` uses `DrawFrequencyResponse` for source-machine-specific response drawing
 
 This keeps rendering logic centralized and makes new transfer-function overlays simpler to add.

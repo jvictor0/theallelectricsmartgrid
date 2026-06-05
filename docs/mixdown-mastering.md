@@ -6,8 +6,10 @@ The final stages of the Smart Grid One DSP engine (`private/src/QuadMixer.hpp` a
 
 The `QuadMixerInternal` takes the 9 voices (which have already been panned quadraphonically) and routes them:
 1. **Direct Out**: The quadraphonic signals are summed.
-2. **Effects Sends**: The signals are sent to the Quad Delay and Quad Reverb based on per-voice send levels.
-3. **Effects Returns**: The quadraphonic outputs of the Delay and Reverb are mixed back into the main quad bus.
+2. **Effects Sends**: The signals are sent to the Quad Delay, Quad Reverb, and Partial Machine based on per-voice send levels.
+3. **Effects Returns**: The quadraphonic outputs of the Delay, Reverb, and Partial Machine are mixed back into the main quad bus.
+
+The three send returns can cross-feed each other. Delay and Reverb can send into the Partial Machine, and the Partial Machine can send back into Delay or Reverb. A return never feeds its own send bus.
 
 The system simultaneously generates three parallel mixdowns:
 - **Quadraphonic**: The primary 4-channel output.
@@ -28,3 +30,4 @@ The Multiband Saturator splits the signal into 4 frequency bands using 4th-order
 - [DSP Overview](dsp-overview.md)
 - [Quad Delay](quad-delay.md)
 - [Quad Reverb](quad-reverb.md)
+- [Partial Machine](partial-machine.md)

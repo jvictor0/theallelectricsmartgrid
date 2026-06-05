@@ -36,6 +36,12 @@ namespace SmartGridOne
         NumScopes = 1
     };
 
+    enum class MonoAudioScopes : size_t
+    {
+        PartialMachine = 0,
+        NumScopes = 1
+    };
+
     enum class SourceScopes : size_t
     {
         PreFilter = 0,
@@ -50,7 +56,8 @@ namespace SmartGridOne
         Master = 2,
         Dry = 3,
         Stereo = 4,
-        NumScopes = 5
+        PartialMachine = 5,
+        NumScopes = 6
     };
 
     enum class QuadControlScopes : size_t

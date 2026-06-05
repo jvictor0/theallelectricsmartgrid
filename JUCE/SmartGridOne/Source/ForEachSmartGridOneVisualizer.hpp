@@ -199,6 +199,29 @@ F(
         QuadAnalyserComponent::Type::Reverb),
     VoiceMachine::SourceMachineFlags::All())
 
+// PartialMachine bank
+//
+F(
+    PartialMachineAnalyzer,
+    PartialMachine,
+    0,
+    std::make_unique<QuadAnalyserComponent>(
+        uiState,
+        QuadAnalyserComponent::Type::PartialMachine),
+    VoiceMachine::SourceMachineFlags::All())
+F(
+    PartialMachineInputSpectrum,
+    PartialMachine,
+    1,
+    std::make_unique<PartialMachineInputSpectrumComponent>(uiState),
+    VoiceMachine::SourceMachineFlags::All())
+F(
+    PartialMachineSpatial,
+    PartialMachine,
+    2,
+    std::make_unique<PartialMachineSpatialComponent>(uiState),
+    VoiceMachine::SourceMachineFlags::All())
+
 // TheoryOfTime bank
 //
 F(

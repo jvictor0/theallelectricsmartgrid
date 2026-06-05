@@ -4,7 +4,7 @@
 
 struct SemiQuantizedWavetable
 {
-    static constexpr float x_detuneCents = 20.0;
+    static constexpr float x_detuneCents = 50.0;
     static constexpr float x_detuneRatio = powf(2.0, x_detuneCents / 1200.0);
 
     static void WriteRegion(BasicWaveTable& waveTable, int numSamples, int centerSample, float centerValue)

@@ -64,6 +64,30 @@ inline double WrapMod(double a, double b, double x)
     return x - c * std::floor((x - a) / c);
 }
 
+inline void HalfRangeCrossfade(float value, float& left, float& right)
+{
+    if (value <= 0.0f)
+    {
+        left = 1.0f;
+        right = 0.0f;
+    }
+    else if (value < 0.5f)
+    {
+        left = 1.0f;
+        right = 2.0f * value;
+    }
+    else if (value < 1.0f)
+    {
+        left = 2.0f * (1.0f - value);
+        right = 1.0f;
+    }
+    else
+    {
+        left = 0.0f;
+        right = 1.0f;
+    }
+}
+
 struct ExpParam
 {
     float m_baseParam;
@@ -212,6 +236,42 @@ struct ZeroedExpParam
 
         return m_expParam;
     }  
+};
+
+struct ExpHalfRangeCrossfade
+{
+    ZeroedExpParam m_leftFade;
+    ZeroedExpParam m_rightFade;
+    
+    void SetBaseByCenter(float center)
+    {
+        m_leftFade.SetBaseByCenter(center);
+        m_rightFade.SetBaseByCenter(center);
+    }
+
+    void Process(float value, float& left, float& right)
+    {
+        if (value <= 0.0f)
+        {
+            left = 1.0f;
+            right = 0.0f;
+        }
+        else if (value < 0.5f)
+        {
+            left = 1.0f;
+            right = m_rightFade.Update(2.0f * value);
+        }
+        else if (value < 1.0f)
+        {
+            left = 1.0f - m_leftFade.Update(2.0f * value - 1.0f);
+            right = 1.0f;
+        }
+        else
+        {
+            left = 0.0f;
+            right = 1.0f;
+        }
+    }
 };
 
 } // namespace PhaseUtils

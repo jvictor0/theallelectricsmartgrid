@@ -20,7 +20,9 @@ Unlike the highly experimental Phase Vocoder Quad Delay, the Quad Reverb follows
 - **Quadraphonic Mixing (Hadamard Transform)**: Inside the feedback loop, the reverb applies a Hadamard matrix transform (`output.Hadamard()` in `TransformOutput`). This mixes the four channels together in an orthogonal fashion, diffusing energy evenly and avoiding simple left/right or front/back swaps. The result is a dynamic, spatially immersive reverberant field with enhanced envelopment and movement. The Quad Delay uses a different approach (`RotateLinear` with a continuous `m_rotate` parameter) for its channel mixing.
 - **Modulation**: The `QuadLFO` modulates the main delay lines, providing lush, chorused tails.
 - **Damping**: The internal band-pass filter allows for precise control over the decay characteristics of high and low frequencies.
+- **Return Sends**: The reverb output can be routed into the Quad Delay or the Partial Machine.
 
 ## Related
 - [Quad Delay](quad-delay.md)
+- [Partial Machine](partial-machine.md)
 - [DSP Overview](dsp-overview.md)

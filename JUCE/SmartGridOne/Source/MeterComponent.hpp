@@ -158,21 +158,22 @@ struct MeteringComponent : public juce::Component
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
 
-    // Total slots: 62 bars
+    // Total slots: 70 bars
     // Voice: 18 (9 level + 9 reduction)
     // Source: 8 (4 level + 4 reduction)
-    // Quad Returns: 16 (2 sends x 4 channels x 2)
+    // Quad Returns: 24 (3 sends x 4 channels x 2)
     // Stereo Master: 20 (5 groups x 2 channels x 2)
     //
-    static constexpr float x_totalSlots = 62.0f;
+    static constexpr size_t x_quadSlotsPerSend = 8;
     static constexpr float x_voiceStart = 0.0f;
     static constexpr float x_voiceSlots = 18.0f;
     static constexpr float x_sourceStart = 18.0f;
     static constexpr float x_sourceSlots = 8.0f;
     static constexpr float x_quadStart = 26.0f;
-    static constexpr float x_quadSlots = 16.0f;
-    static constexpr float x_stereoStart = 42.0f;
+    static constexpr float x_quadSlots = static_cast<float>(QuadMixerInternal::x_numSends * x_quadSlotsPerSend);
+    static constexpr float x_stereoStart = x_quadStart + x_quadSlots;
     static constexpr float x_stereoSlots = 20.0f;
+    static constexpr float x_totalSlots = x_stereoStart + x_stereoSlots;
 
     MeteringComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
         : m_uiState(uiState)
@@ -193,6 +194,28 @@ struct MeteringComponent : public juce::Component
     SourceMixer::UIState* GetSourceMixerUIState()
     {
         return &m_uiState->m_squiggleBoyUIState.m_sourceMixerUIState;
+    }
+
+    static juce::Colour ReturnColor(size_t send)
+    {
+        // Return colors follow delay, reverb, then partial machine.
+        //
+        if (send == 0)
+        {
+            return J(SmartGrid::Color::Pink);
+        }
+
+        if (send == 1)
+        {
+            return J(SmartGrid::Color::Fuscia);
+        }
+
+        if (send == 2)
+        {
+            return J(SmartGrid::Color::Cyan);
+        }
+
+        return juce::Colours::white;
     }
 
     void paint(juce::Graphics& g) override
@@ -267,15 +290,13 @@ struct MeteringComponent : public juce::Component
 
     void DrawQuadReturnMeters(juce::Graphics& g, VUBarDrawer& vuBarDrawer)
     {
-        // 2 sends (delay/reverb), each with 4 channels + 4 reductions = 16 bars
+        // Each send has 4 channels + 4 reductions.
         //
         for (size_t send = 0; send < QuadMixerInternal::x_numSends; ++send)
         {
             QuadMeterReader* meterReader = &GetSquiggleBoyUIState()->m_returnMeterReader[send];
 
-            // First return pink, second fuschia
-            //
-            juce::Colour barColor = (send == 0) ? J(SmartGrid::Color::Pink) : J(SmartGrid::Color::Fuscia);
+            juce::Colour barColor = ReturnColor(send);
             for (size_t ch = 0; ch < 4; ++ch)
             {
                 float rms = meterReader->GetRMSDbFSNormalized(ch);
@@ -283,7 +304,7 @@ struct MeteringComponent : public juce::Component
 
                 // Each send takes 8 slots: 4 level + 4 reduction interleaved
                 //
-                size_t slotBase = send * 8 + ch * 2;
+                size_t slotBase = send * x_quadSlotsPerSend + ch * 2;
 
                 // Level bar
                 //

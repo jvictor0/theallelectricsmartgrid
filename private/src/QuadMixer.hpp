@@ -16,7 +16,7 @@
 
 struct QuadMixerInternal
 {
-    static constexpr size_t x_numSends = 2;
+    static constexpr size_t x_numSends = 3;
 
     QuadFloatWithStereoAndSub m_output;
     QuadFloat m_send[x_numSends];
@@ -51,6 +51,7 @@ struct QuadMixerInternal
         float m_y[16];
         QuadFloat m_return[x_numSends];
         PhaseUtils::ZeroedExpParam m_returnGain[x_numSends];
+        PhaseUtils::ZeroedExpParam m_returnSendGain[x_numSends][x_numSends];
         bool m_noiseMode;
         bool m_monitor[16];
 
@@ -70,8 +71,27 @@ struct QuadMixerInternal
             {
                 m_monitor[i] = true;
             }
+
+            for (size_t i = 0; i < x_numSends; ++i)
+            {
+                m_returnSendGain[i][i].m_expParam = 0.0;
+            }
         }
     };
+
+    void ProcessReturnSends(const Input& input)
+    {
+        for (size_t returnIndex = 0; returnIndex < x_numSends; ++returnIndex)
+        {
+            for (size_t sendIndex = 0; sendIndex < x_numSends; ++sendIndex)
+            {
+                if (returnIndex != sendIndex)
+                {
+                    m_send[sendIndex] += input.m_return[returnIndex] * input.m_returnSendGain[returnIndex][sendIndex].m_expParam;
+                }
+            }
+        }
+    }
 
     bool Open(size_t numInputs, const std::string& filename, uint32_t sampleRate)
     {
@@ -200,6 +220,8 @@ struct QuadMixerInternal
                 m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(i), postFader);
             }
         }
+
+        ProcessReturnSends(input);
     }
 
     QuadFloatWithStereoAndSub ProcessReturns(const Input& input)
