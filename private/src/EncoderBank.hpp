@@ -1562,6 +1562,24 @@ struct EncoderBankInternal : public EncoderGrid
                 cell->HandleIncDec(msg.m_timestamp, msg.m_amount);
             }
         }
+        else if (msg.m_mode == MessageIn::Mode::EncoderSet)
+        {
+            // Deterministic absolute set of the BASE banked value for the
+            // CURRENT track/scene-blend. Unlike EncoderIncDec, this does NOT
+            // depend on msg.m_timestamp (no acceleration) and does not simulate
+            // gestures. If the cell has active gesture weighting, the final
+            // output may differ from the base value. Mirrors RevertToDefault's
+            // bookkeeping (SetForceUpdateRecursive + SetModulatorsAffecting) so
+            // UI state and downstream compute stay coherent.
+            //
+            BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(msg.m_x, msg.m_y));
+            if (cell)
+            {
+                cell->SetToValue(msg.SetValueFloat());
+                cell->SetForceUpdateRecursive();
+                cell->SetModulatorsAffecting();
+            }
+        }
         else if (msg.m_mode == MessageIn::Mode::EncoderPush)
         {
             HandlePress(msg.m_x, msg.m_y);

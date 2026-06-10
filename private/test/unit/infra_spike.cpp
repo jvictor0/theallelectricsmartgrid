@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "../support/GlobalEnv.hpp"
+#include "../support/SystemFixture.hpp"
 
 #include "Filter.hpp"
 #include "TheoryOfTime.hpp"
@@ -55,9 +56,10 @@ DOCTEST_TEST_CASE("TheoryOfTime constructs")
 
 DOCTEST_TEST_CASE("TheNonagonSquiggleBoyInternal constructs and processes samples")
 {
-    // NOTE: We construct exactly ONE TheNonagonSquiggleBoyInternal in the whole
-    // test binary. The global grid-id allocator (SmartGrid::g_gridIds) may not
-    // support repeated construction; that is intentionally not exercised here.
+    // NOTE: There is exactly ONE TheNonagonSquiggleBoyInternal in the whole test
+    // binary, owned by SystemFixture::SharedSystem() (the global grid-id
+    // allocator SmartGrid::g_gridIds may not support repeated construction).
+    // This and the EncoderSet tests share that singleton.
     //
     // Construction does NOT require an IoTaskThread: all m_ioTaskThread pointers
     // default to nullptr and are only dereferenced during recording, which we do
@@ -66,7 +68,7 @@ DOCTEST_TEST_CASE("TheNonagonSquiggleBoyInternal constructs and processes sample
 
     GlobalEnv::ResetPerTest();
 
-    auto nonagon = std::make_unique<TheNonagonSquiggleBoyInternal>();
+    TheNonagonSquiggleBoyInternal* nonagon = &SystemFixture::SharedSystem();
     DOCTEST_REQUIRE(nonagon != nullptr);
 
     AudioInputBuffer audioIn;  // zeroed input

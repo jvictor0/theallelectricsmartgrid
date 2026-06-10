@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cmath>
 #include "BasicMidi.hpp"
 
 namespace SmartGrid
@@ -17,7 +18,8 @@ namespace SmartGrid
             EncoderPush,
             EncoderRelease,
             ParamSet14,
-            ParamSet7
+            ParamSet7,
+            EncoderSet
         };
 
         size_t m_timestamp;
@@ -78,6 +80,21 @@ namespace SmartGrid
             , m_amount(0)
             , m_mode(mode)
         {
+        }
+
+        // Absolute-set encoder message: sets an encoder to value01 in [0,1]
+        // deterministically (no timestamp-dependent acceleration). The value is
+        // stored as 14-bit fixed point in m_amount.
+        //
+        static MessageIn EncoderSetMsg(int x, int y, float value01)
+        {
+            float clamped = value01 < 0.0f ? 0.0f : (value01 > 1.0f ? 1.0f : value01);
+            return MessageIn(Mode::EncoderSet, x, y, llround(clamped * 16383));
+        }
+
+        float SetValueFloat()
+        {
+            return static_cast<float>(m_amount) / 16383.0f;
         }
 
         float AmountFloat()
