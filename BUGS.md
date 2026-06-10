@@ -4,7 +4,29 @@ Issues discovered while writing the test suite that were too big (or too judgmen
 to fix as part of the test project. Small local fixes were made inline and are noted in
 commit messages instead.
 
+## Crashes
+
+### Use-after-free on shutdown with an in-flight persist task (deterministic SIGSEGV)
+In `JUCE/SmartGridOne/Source/NonagonWrapper.hpp:509-510` the `IoTaskThread` member is
+declared *before* `TheNonagonSquiggleBoyInternal`, so reverse-order destruction tears down
+the audio core (voices, RecordingBuffers, bank sinks) first while the IO thread — which
+only joins in its own destructor — may still be running a `PersistRecording` task that
+dereferences the freed objects. Reproduced 5/5 deterministically in tests: arm → record →
+`StopRecording` → destroy without pumping `Acknowledge()`.
+Fix options: drain/stop the IO thread before destroying the audio core, or reorder the
+members so the thread is destroyed (joined) first. The test suite documents the hazard and
+exercises the safe drain-then-destroy path
+(`private/test/system/sys_recording_roundtrip.cpp`). Found in WP-9.
+
 ## Latent hazards
+
+### RecordingConfig source is never assignable
+`RecordingConfig::m_source` defaults to `Water` (trio 0) and no code path ever reassigns
+it, so the sampler-looper always records trio 0. The Earth/Fire enum values are dead. The
+recording UI (`SquiggleBoyConfigGrid::RecordingToggleCell` / `SourceSelectCell`) is also
+not routed through the QuadLaunchpadTwister pad routes, so arming recording appears
+unreachable from that control surface (the x=-1,y=7 record pad drives the *mixer's* master
+recording instead). Possibly an unfinished feature. Found in WP-9.
 
 ### TheoryOfTime dereferences a null MessageOutBuffer if driven unwired
 `TheoryOfTime::Process` dereferences `m_messageOutBuffer` on start/stop transitions and on
