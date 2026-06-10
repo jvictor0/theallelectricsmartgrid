@@ -277,7 +277,7 @@ struct WindowedFFT
         //
         for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
         {
-            float phase = juce::MathConstants<float>::twoPi * i / (BasicWaveTable::x_tableSize - 1);
+            float phase = 2.0f * static_cast<float>(M_PI) * i / (BasicWaveTable::x_tableSize - 1);
             float hann  = 0.5f * (1.0f - std::cos(phase));
             waveTable.m_table[i] *= hann;
         }

@@ -1,5 +1,11 @@
 #pragma once
 
+#ifdef EMBEDDED_BUILD
+// Standalone/test build (no JUCE): use the jansson-backed JSON adapter,
+// which exposes the same JSON API surface as this JUCE-backed one.
+#include "JanssonAdapter.hpp"
+#else
+
 #include <JuceHeader.h>
 
 // Error type for compatibility
@@ -221,3 +227,5 @@ struct JSON
         return nullptr;
     }
 };
+
+#endif // EMBEDDED_BUILD

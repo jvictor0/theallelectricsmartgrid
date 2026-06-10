@@ -126,7 +126,14 @@ namespace rack
     }
 }
 
+#ifndef EMBEDDED_BUILD
 #include <JuceHeader.h>
 
 #define WARN(...) juce::Logger::writeToLog(juce::String::formatted(__VA_ARGS__))
 #define DEBUG(...) juce::Logger::writeToLog(juce::String::formatted(__VA_ARGS__))
+#else
+// Standalone/test build (no JUCE). Route diagnostics to stderr.
+#include <cstdio>
+#define WARN(...) std::fprintf(stderr, __VA_ARGS__)
+#define DEBUG(...) std::fprintf(stderr, __VA_ARGS__)
+#endif
