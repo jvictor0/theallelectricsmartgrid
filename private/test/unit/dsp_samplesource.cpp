@@ -119,7 +119,10 @@ DOCTEST_TEST_CASE("SampleSource: no buffer -> silent output")
     rig.SetRunning(true);
     rig.AdvanceControlFrame();  // prime
 
-    SampleSource ss;
+    // SampleSource is several MB — heap-allocate to avoid blowing the stack
+    // (stack-allocating it overflows depending on stack-base placement).
+    auto ssHolder = std::make_unique<SampleSource>();
+    SampleSource& ss = *ssHolder;
     // No SetAudioBufferBank call -> m_grainManager.m_audioBuffer == nullptr.
 
     SampleSource::Input inp = MakeBasicInput(rig.Get(), 0);
@@ -156,7 +159,10 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
     // 4096 * 2 samples so we have enough for grain launch.
     auto bank = MakeBufferBank(MakeRamp(8192));
 
-    SampleSource ss;
+    // SampleSource is several MB — heap-allocate to avoid blowing the stack
+    // (stack-allocating it overflows depending on stack-base placement).
+    auto ssHolder = std::make_unique<SampleSource>();
+    SampleSource& ss = *ssHolder;
     ss.SetAudioBufferBank(bank.get());
 
     SampleSource::Input inp = MakeBasicInput(rig.Get(), 0);
@@ -205,7 +211,10 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
     rig.AdvanceControlFrame();
 
     auto bank = MakeBufferBank(MakeRamp(8192));
-    SampleSource ss;
+    // SampleSource is several MB — heap-allocate to avoid blowing the stack
+    // (stack-allocating it overflows depending on stack-base placement).
+    auto ssHolder = std::make_unique<SampleSource>();
+    SampleSource& ss = *ssHolder;
     ss.SetAudioBufferBank(bank.get());
     SampleSource::Input inp = MakeBasicInput(rig.Get(), /*loopIndex=*/TimeRig::x_masterLoop);
     inp.m_phasorPlayHeadInput.m_speed  = 1.0f;
@@ -253,7 +262,10 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
     rig.AdvanceControlFrame();
 
     auto bank = MakeBufferBank(MakeSine(8192, 220.0, 48000.0));
-    SampleSource ss;
+    // SampleSource is several MB — heap-allocate to avoid blowing the stack
+    // (stack-allocating it overflows depending on stack-base placement).
+    auto ssHolder = std::make_unique<SampleSource>();
+    SampleSource& ss = *ssHolder;
     ss.SetAudioBufferBank(bank.get());
 
     TestSignal::WhiteNoise rng(0xABCDEF1234567890ULL);
@@ -326,7 +338,10 @@ DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
     rig.AdvanceControlFrame();
 
     auto bank = MakeBufferBank(MakeRamp(8192));
-    SampleSource ss;
+    // SampleSource is several MB — heap-allocate to avoid blowing the stack
+    // (stack-allocating it overflows depending on stack-base placement).
+    auto ssHolder = std::make_unique<SampleSource>();
+    SampleSource& ss = *ssHolder;
     ss.SetAudioBufferBank(bank.get());
     SampleSource::Input inp = MakeBasicInput(rig.Get(), TimeRig::x_masterLoop);
     inp.m_phasorPlayHeadInput.m_speed  = 1.0f;
