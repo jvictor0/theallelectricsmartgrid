@@ -843,10 +843,15 @@ struct Grid : public AbstractGrid
         return m_offColor;
     }        
 
-    Cell* Get(size_t i, size_t j)
+    Cell* Get(int i, int j)
     {
-        return m_grid[i - x_gridXMin][j - x_gridYMin].get();        
-    }       
+        if (i < x_gridXMin || i >= x_gridXMax || j < x_gridYMin || j >= x_gridYMax)
+        {
+            return nullptr;
+        }
+
+        return m_grid[i - x_gridXMin][j - x_gridYMin].get();
+    }
 
     void Put(int i, int j, Cell* cell)
     {

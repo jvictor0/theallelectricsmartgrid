@@ -315,39 +315,17 @@ void RunSeed(std::uint32_t seed, int targetFrames, bool loadEnabled)
 } // namespace
 
 // ---------------------------------------------------------------------------
-// Documented front-door crash (BUG?). The fuzzer surfaced two out-of-grid
-// coordinate families that SIGSEGV the system through otherwise-valid front-door
-// messages. We do NOT execute the crashing calls here (a SIGSEGV would kill the
-// whole test process); this case records the exact reproductions discovered and
-// the reasoning, and asserts only the safe boundary so the suite stays green.
-//
-// BUG? (1) EncoderSet / EncoderPush outside the 4x4 encoder bank.
-//   Repro (minimal):
-//       SynthRig rig; rig.RunFrames(2);
-//       rig.SetEncoder(9, 9, 0.5f);  rig.RunFrames(1);   // SIGSEGV
-//       rig.PressEncoder(9, 9);      rig.RunFrames(1);   // SIGSEGV
-//   Coords 0..3 x 0..3 are safe; x>=4 or y>=4 (e.g. (4,0),(7,7),(9,9)) crash
-//   reliably. EncoderBank::Apply does
-//       static_cast<BankedEncoderCell*>(GetVisible(x,y))->SetToValue(...)
-//   GetVisible returns a non-encoder / garbage cell for out-of-bank coords and
-//   the cast+deref walks invalid memory. (IncEncoder happens to be benign.)
-//
-// BUG? (2) Pad press on an interior grid (routes 0/1) with a coordinate below
-//   the grid minimum (x < -1 or y < -1).
-//   Repro (minimal):
-//       SynthRig rig; rig.RunFrames(2);
-//       rig.PressPad(0, -2, 0, 100); rig.RunFrames(1);   // SIGSEGV
-//   SmartGrid::Grid::Get(i,j) indexes m_grid[i - x_gridXMin][j - x_gridYMin]
-//   with x_gridXMin == x_gridYMin == -1 and NO bounds check, so any coord < -1
-//   indexes m_grid[<0]. Coords in the real hardware range [-1, 9] are all safe;
-//   far-OOB coords (e.g. 100) also overflow the 11x11 backing array.
-//
-// Real hardware cannot emit either family (encoders are a fixed 4x4; the grid
-// never reports a cell below -1), so this is a routing-layer hardening gap
-// rather than a reachable-in-normal-use bug -- but a malformed/!buggy upstream
-// message would crash the instrument. Recommended fix: bounds-check GetVisible /
-// Grid::Get and ignore out-of-range coordinates.
-DOCTEST_TEST_CASE("fuzz: documented out-of-grid crash (BUG?) -- safe boundary holds")
+// Out-of-grid coordinate hardening. The fuzzer originally surfaced two
+// coordinate families that SIGSEGV'd the system through otherwise-valid
+// front-door messages:
+//   (1) EncoderSet/EncoderPush outside the 4x4 encoder bank (e.g. (9,9)) --
+//       EncoderGrid::GetVisible indexed m_visibleCell[x][y] unchecked.
+//   (2) Pad press below the grid minimum (e.g. (-2,0)) or far out of range --
+//       SmartGrid::Grid::Get indexed m_grid[i - x_gridXMin][...] unchecked.
+// Both are now bounds-checked (GetVisible and Grid::Get return nullptr out of
+// range), so this case exercises BOTH the safe boundary and the formerly
+// crashing coordinates and asserts the system survives.
+DOCTEST_TEST_CASE("fuzz: out-of-grid coordinates are safely ignored")
 {
     SynthRig rig;
     rig.RunFrames(2);
@@ -376,18 +354,26 @@ DOCTEST_TEST_CASE("fuzz: documented out-of-grid crash (BUG?) -- safe boundary ho
     }
     rig.RunFrames(2);
 
+    // The formerly crashing coordinates (fixed by bounds checks in
+    // EncoderGrid::GetVisible and SmartGrid::Grid::Get) must now be ignored:
+    rig.SetEncoder(9, 9, 0.5f);
+    rig.SetEncoder(4, 0, 1.0f);
+    rig.PressEncoder(9, 9);
+    rig.ReleaseEncoder(9, 9);
+    rig.RunFrames(1);
+    for (int r = 0; r <= 3; ++r)
+    {
+        rig.PressPad(r, -2, 0, 100);
+        rig.ReleasePad(r, -2, 0);
+        rig.PressPad(r, 0, -5, 100);
+        rig.ReleasePad(r, 0, -5);
+        rig.PressPad(r, 100, 100, 100);
+        rig.ReleasePad(r, 100, 100);
+    }
+    rig.RunFrames(2);
+
     DOCTEST_CHECK_FALSE(rig.SawNaN());
     DOCTEST_CHECK(rig.OutputPeak() < kFuzzBound);
-
-    // WARN-document all four findings so they show up in the run summary
-    // without failing the suite.
-    DOCTEST_WARN_MESSAGE(false,
-        "BUG?(1) out-of-grid encoder coords SIGSEGV: SetEncoder/PressEncoder "
-        "with x>=4 or y>=4 (e.g. (9,9)) deref a non-encoder cell.");
-    DOCTEST_WARN_MESSAGE(false,
-        "BUG?(2) interior-grid pad coords below the grid minimum SIGSEGV: "
-        "PressPad on routes 0/1 with x<-1 or y<-1 (e.g. (-2,0)) index "
-        "Grid::m_grid[<0]. Coords in [-1,9] are safe.");
     DOCTEST_WARN_MESSAGE(false,
         "BUG?(3) LoadPatch crash: a LoadPatch interleaved with grid-swap / "
         "top-grid-mode / save state reliably SIGSEGVs in "

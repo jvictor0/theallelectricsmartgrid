@@ -479,6 +479,11 @@ struct EncoderGrid
 
     EncoderCell* GetVisible(int x, int y)
     {
+        if (x < 0 || x >= x_width || y < 0 || y >= x_height)
+        {
+            return nullptr;
+        }
+
         return m_visibleCell[x][y];
     }
 
