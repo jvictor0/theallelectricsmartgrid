@@ -7,9 +7,15 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Default to an optimized build with asserts kept on: the system tests simulate
+# seconds of 48kHz audio and run ~6x slower in -O0. Use -DCMAKE_BUILD_TYPE=Debug
+# for debugging sessions.
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
+# RelWithDebInfo defines NDEBUG by default, which would strip the DSP asserts the
+# tests rely on (e.g. VectorPhaseShaper's phase assert). Keep asserts enabled.
+string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 
 enable_testing()
 
