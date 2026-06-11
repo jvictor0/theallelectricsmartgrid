@@ -34,6 +34,7 @@ constexpr double kSR = 48000.0;
 constexpr std::size_t kN = kFftSize1024;
 
 // Analytic |H(f)| for the one-pole LP (freq = cycles per sample in [0, 0.5)).
+//
 double analyticLP(float alpha, double normFreq)
 {
     return static_cast<double>(OPLowPassFilter::FrequencyResponse(alpha, static_cast<float>(normFreq)));
@@ -44,11 +45,13 @@ double analyticLP(float alpha, double normFreq)
 // ---------------------------------------------------------------------------
 // 1. DC gain is ~1 for various alphas.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("OPLowPassFilter: DC gain near 1 for valid alphas")
 {
     GlobalEnv::ResetPerTest();
 
     // DC input: feed 1.0 for many samples and read settled output.
+    //
     const std::size_t warmup = 8192;
     for (float alpha : {0.01f, 0.1f, 0.5f, 0.9f, 0.99f})
     {
@@ -67,12 +70,14 @@ DOCTEST_TEST_CASE("OPLowPassFilter: DC gain near 1 for valid alphas")
 // ---------------------------------------------------------------------------
 // 2. Measured |H| matches analytic over mid-band bins for several alphas.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("OPLowPassFilter: measured response matches analytic (1.5 dB tol)")
 {
     GlobalEnv::ResetPerTest();
 
     // Test three different alphas covering low / mid / high cutoffs.
     // alpha ~ 1 - exp(-2*pi*f_c) gives f_c ~ alpha/(2*pi) for small alpha.
+    //
     struct TestCase { float alpha; std::size_t loBin; std::size_t hiBin; };
     const TestCase cases[] = {
         { 0.05f, 3, 300 },   // very low cutoff -- passband + much of stopband
@@ -104,11 +109,13 @@ DOCTEST_TEST_CASE("OPLowPassFilter: measured response matches analytic (1.5 dB t
 // ---------------------------------------------------------------------------
 // 3. Monotone rolloff: response decreases across octaves in the stopband.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("OPLowPassFilter: monotone rolloff")
 {
     GlobalEnv::ResetPerTest();
 
     // Use alpha=0.1 (low cutoff ~700 Hz).
+    //
     OPLowPassFilter filt;
     filt.m_alpha = 0.1f;
 
@@ -118,6 +125,7 @@ DOCTEST_TEST_CASE("OPLowPassFilter: monotone rolloff")
     auto H = MeasureTransferFunction(proc, kN, kSR, 0xB0077019, 64, 2);
 
     // At normalised freqs 0.05, 0.1, 0.2, 0.4 we expect |H| strictly decreasing.
+    //
     const double freqs[] = {0.01, 0.05, 0.1, 0.2, 0.4};
     float prev = 2.0f;
     for (double f : freqs)
@@ -134,6 +142,7 @@ DOCTEST_TEST_CASE("OPLowPassFilter: monotone rolloff")
 // ---------------------------------------------------------------------------
 // 4. NaN-clean under extreme alphas.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("OPLowPassFilter: NaN-clean under extreme alphas")
 {
     GlobalEnv::ResetPerTest();
@@ -158,11 +167,13 @@ DOCTEST_TEST_CASE("OPLowPassFilter: NaN-clean under extreme alphas")
 // ---------------------------------------------------------------------------
 // 5. SetAlphaFromNatFreq: -3 dB point near specified cutoff.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("OPLowPassFilter: SetAlphaFromNatFreq places -3dB correctly")
 {
     GlobalEnv::ResetPerTest();
 
     // Cutoff at 1000 Hz -> cyclesPerSample = 1000/48000.
+    //
     const float cutoffHz = 1000.0f;
     const float cps = cutoffHz / static_cast<float>(kSR);
 
@@ -176,6 +187,7 @@ DOCTEST_TEST_CASE("OPLowPassFilter: SetAlphaFromNatFreq places -3dB correctly")
 
     // DC bin should be near 1.0 (0 dB).
     // Bin at cutoff should be near 0.707 (-3 dB).
+    //
     std::size_t dcBin = FreqBin(10.0, kN, kSR);         // ~10 Hz as proxy for DC
     std::size_t fcBin = FreqBin(cutoffHz, kN, kSR);
 
@@ -185,6 +197,7 @@ DOCTEST_TEST_CASE("OPLowPassFilter: SetAlphaFromNatFreq places -3dB correctly")
     float hAtCutoff = H[fcBin];
     DOCTEST_INFO("cutoff bin " << fcBin << " (f=" << cutoffHz << " Hz) |H|=" << hAtCutoff);
     // Allow ±3 dB around the theoretical -3 dB point (0.707).
+    //
     DOCTEST_CHECK(hAtCutoff > 0.4f);
     DOCTEST_CHECK(hAtCutoff < 0.9f);
 }

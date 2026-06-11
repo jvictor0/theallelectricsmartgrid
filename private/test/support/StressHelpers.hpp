@@ -38,21 +38,25 @@ namespace stress
 
 // Fader indices whose values feed SquiggleBoy::Input::GetGainFader for the three
 // voice tracks. Raising these to 1.0 unmutes the audio path.
+//
 inline constexpr int kGainFaderLo = 5;
 inline constexpr int kGainFaderHi = 7;
 
 // TheoryOfTime encoder-bank selector cell (global bank #0) on the BottomRight
 // grid (route 3).
+//
 inline constexpr int kToTBankSelX = 3;
 inline constexpr int kToTBankSelY = 8;
 
 // TheoryOfTime encoder cells (valid once the ToT bank is selected).
+//
 inline constexpr int kTempoEncX = 0, kTempoEncY = 0;        // Param::Tempo
 inline constexpr int kLfoMultEncX = 1, kLfoMultEncY = 2;    // Param::TempoLFOMult
 inline constexpr int kLfoIndexEncX = 3, kLfoIndexEncY = 3;  // Param::TempoLFOIndex
 inline constexpr int kLfoSkewEncX = 0, kLfoSkewEncY = 2;    // Param::TempoLFOSkew
 
 // Raise the three gain faders so voices are audible.
+//
 inline void OpenGain(synthrig::SynthRig& rig)
 {
     for (int f = kGainFaderLo; f <= kGainFaderHi; ++f)
@@ -63,6 +67,7 @@ inline void OpenGain(synthrig::SynthRig& rig)
 
 // Make voices actually gate and sound: warm up, open the gain, start the
 // sequencer. After this the default pattern produces a steady note stream.
+//
 inline void GetNotesPlaying(synthrig::SynthRig& rig)
 {
     rig.RunFrames(2);
@@ -73,6 +78,7 @@ inline void GetNotesPlaying(synthrig::SynthRig& rig)
 
 // Select the TheoryOfTime encoder bank so the route-4 encoder cells address ToT
 // tempo/LFO params.
+//
 inline void SelectToTBank(synthrig::SynthRig& rig)
 {
     rig.TapPad(synthrig::SynthRig::RouteBottomRight, kToTBankSelX, kToTBankSelY);
@@ -81,6 +87,7 @@ inline void SelectToTBank(synthrig::SynthRig& rig)
 
 // Largest |x[i+1]-x[i]| across one channel of the captured output ring.
 // channel 0..3 = quad, 4..5 = stereo, 6 = sub.
+//
 inline float ChannelMaxAbsDelta(const synthrig::SynthRig& rig, int channel)
 {
     const auto& o = rig.Output();
@@ -99,6 +106,7 @@ inline float ChannelMaxAbsDelta(const synthrig::SynthRig& rig, int channel)
 }
 
 // Largest absolute first-difference over ALL 7 channels.
+//
 inline float OutputMaxAbsDelta(const synthrig::SynthRig& rig)
 {
     float maxd = 0.0f;

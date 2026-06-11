@@ -53,6 +53,7 @@ namespace
 
 // Build an AudioBufferBank with a single AudioBuffer filled with the given
 // vector of samples (in-memory, no file I/O).
+//
 std::shared_ptr<AudioBufferBank> MakeBufferBank(std::vector<float> samples)
 {
     auto buf = std::make_shared<AudioBuffer>();
@@ -66,6 +67,7 @@ std::shared_ptr<AudioBufferBank> MakeBufferBank(std::vector<float> samples)
 }
 
 // Build a ramp buffer: sample[i] = i / (N-1)  =>  value in [0, 1].
+//
 std::vector<float> MakeRamp(size_t N)
 {
     std::vector<float> v(N);
@@ -77,6 +79,7 @@ std::vector<float> MakeRamp(size_t N)
 }
 
 // Build a sine-wave buffer of N samples at freqHz / sampleRate.
+//
 std::vector<float> MakeSine(size_t N, double freqHz, double sampleRate)
 {
     std::vector<float> v(N);
@@ -90,6 +93,7 @@ std::vector<float> MakeSine(size_t N, double freqHz, double sampleRate)
 
 // Build a minimal SampleSource::Input: TheoryOfTime wired, loopIndex set,
 // speed=1, start=0, length=1.
+//
 SampleSource::Input MakeBasicInput(TheoryOfTime* tot, int loopIndex = 0)
 {
     SampleSource::Input inp;
@@ -100,10 +104,12 @@ SampleSource::Input MakeBasicInput(TheoryOfTime* tot, int loopIndex = 0)
     inp.m_phasorPlayHeadInput.m_length = 1.0f;
     inp.m_phasorPlayHeadInput.m_speed  = 1.0f;
     // GrainManager input left as default.
+    //
     return inp;
 }
 
 // The upsampled output block size.
+//
 constexpr size_t kUBlockSize = SampleTimer::x_controlFrameRate * SampleSource::x_oversample; // 8*4=32
 
 }  // namespace
@@ -111,6 +117,7 @@ constexpr size_t kUBlockSize = SampleTimer::x_controlFrameRate * SampleSource::x
 // ---------------------------------------------------------------------------
 // 1. No AudioBufferBank -> output is all zeros (no grains launched).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("SampleSource: no buffer -> silent output")
 {
     GlobalEnv::ResetPerTest();
@@ -121,6 +128,7 @@ DOCTEST_TEST_CASE("SampleSource: no buffer -> silent output")
 
     // SampleSource is several MB — heap-allocate to avoid blowing the stack
     // (stack-allocating it overflows depending on stack-base placement).
+    //
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
     // No SetAudioBufferBank call -> m_grainManager.m_audioBuffer == nullptr.
@@ -148,6 +156,7 @@ DOCTEST_TEST_CASE("SampleSource: no buffer -> silent output")
 // 2. Ramp buffer wired: output finite, bounded in [0, 1] after warmup,
 //    PhasorPlayHead position makes sense.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
 {
     GlobalEnv::ResetPerTest();
@@ -157,10 +166,12 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
     rig.AdvanceControlFrame();
 
     // 4096 * 2 samples so we have enough for grain launch.
+    //
     auto bank = MakeBufferBank(MakeRamp(8192));
 
     // SampleSource is several MB — heap-allocate to avoid blowing the stack
     // (stack-allocating it overflows depending on stack-base placement).
+    //
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
     ss.SetAudioBufferBank(bank.get());
@@ -170,6 +181,7 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
     bool anyBad = false;
 
     // Run 4 seconds worth of frames to get grains launching.
+    //
     const int nFrames = 4 * static_cast<int>(SampleTimer::x_sampleRate / SampleTimer::x_controlFrameRate);
     for (int f = 0; f < nFrames; ++f)
     {
@@ -191,6 +203,7 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
 
     // Final frame output must be bounded (ramp values are in [0,1] so
     // resynthesized output should be reasonably small; generous bound ±5).
+    //
     for (size_t i = 0; i < kUBlockSize; ++i)
     {
         DOCTEST_CHECK(std::abs(ss.m_uBlockOutput[i]) < 5.0f);
@@ -201,6 +214,7 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
 // 3. Playback: PhasorPlayHead drives position through buffer; at neutral
 //    speed=1 the position should increase with the phasor.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor")
 {
     GlobalEnv::ResetPerTest();
@@ -213,6 +227,7 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
     auto bank = MakeBufferBank(MakeRamp(8192));
     // SampleSource is several MB — heap-allocate to avoid blowing the stack
     // (stack-allocating it overflows depending on stack-base placement).
+    //
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
     ss.SetAudioBufferBank(bank.get());
@@ -253,6 +268,7 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
 // 4. Stress: random seeded parameter modulation + ToT tempo changes.
 //    Assert output finite, bounded, no index excursions.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo changes")
 {
     GlobalEnv::ResetPerTest();
@@ -264,6 +280,7 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
     auto bank = MakeBufferBank(MakeSine(8192, 220.0, 48000.0));
     // SampleSource is several MB — heap-allocate to avoid blowing the stack
     // (stack-allocating it overflows depending on stack-base placement).
+    //
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
     ss.SetAudioBufferBank(bank.get());
@@ -276,27 +293,32 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
     float maxAbs = 0.0f;
 
     // 2 seconds of control frames.
+    //
     const int nFrames = 2 * static_cast<int>(SampleTimer::x_sampleRate / SampleTimer::x_controlFrameRate);
 
     for (int f = 0; f < nFrames; ++f)
     {
         // Every 64 frames: randomise speed, start, length, and tempo.
+        //
         if (f % 64 == 0)
         {
             float r = rng.Next() * 0.5f + 0.5f;  // [0, 1]
 
             // Speed from the real-system table: pick one of the common values.
+            //
             static const float speeds[] = { 0.25f, 0.5f, 1.0f, 2.0f };
             int speedIdx = static_cast<int>(r * 4.0f) % 4;
             inp.m_phasorPlayHeadInput.m_speed = speeds[speedIdx];
 
             // Start in [0, 0.5], length in [0.1, 1].
+            //
             float startR = rng.Next() * 0.5f + 0.5f;
             inp.m_phasorPlayHeadInput.m_start  = startR * 0.5f;
             float lenR = rng.Next() * 0.5f + 0.5f;
             inp.m_phasorPlayHeadInput.m_length = 0.1f + lenR * 0.9f;
 
             // Modulate TheoryOfTime tempo (simulate BPM change).
+            //
             double newPeriod = 512.0 + r * 4096.0;
             rig.SetMasterPeriodSamples(newPeriod);
         }
@@ -322,6 +344,7 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
     DOCTEST_INFO("stress maxAbs=" << maxAbs);
     DOCTEST_CHECK(!anyBad);
     // Grain synthesis can boost a bit, but input amplitude was 1; bound at 5.
+    //
     DOCTEST_CHECK(maxAbs < 5.0f);
 }
 
@@ -329,6 +352,7 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
 // 5. Looping: run for many master-loop periods and check output stays finite
 //    across loop boundaries (wrapping must not introduce NaN/Inf).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
 {
     GlobalEnv::ResetPerTest();
@@ -340,6 +364,7 @@ DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
     auto bank = MakeBufferBank(MakeRamp(8192));
     // SampleSource is several MB — heap-allocate to avoid blowing the stack
     // (stack-allocating it overflows depending on stack-base placement).
+    //
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
     ss.SetAudioBufferBank(bank.get());
@@ -351,6 +376,7 @@ DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
     bool anyBad = false;
 
     // 20 master loop periods worth of frames.
+    //
     const int nFrames = 20 * 512 / static_cast<int>(SampleTimer::x_controlFrameRate);
     for (int f = 0; f < nFrames; ++f)
     {

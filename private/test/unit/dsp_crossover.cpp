@@ -36,6 +36,7 @@ constexpr std::size_t kN = kFftSize1024;
 // Helper: measure LP and HP transfer functions simultaneously.
 // Returns pair of (H_LP, H_HP).
 // ---------------------------------------------------------------------------
+//
 static std::pair<std::vector<float>, std::vector<float>>
 measureCrossoverTF(float cutoffCps, std::uint64_t seed, int frames = 64)
 {
@@ -52,6 +53,7 @@ measureCrossoverTF(float cutoffCps, std::uint64_t seed, int frames = 64)
     xo.SetCyclesPerSample(cutoffCps);
 
     // Warmup frame.
+    //
     for (std::size_t i = 0; i < N; ++i)
     {
         auto r = xo.Process(noise.Next());
@@ -94,6 +96,7 @@ measureCrossoverTF(float cutoffCps, std::uint64_t seed, int frames = 64)
 // ---------------------------------------------------------------------------
 // 1. LP + HP sum is allpass (flat magnitude within ~1.5 dB).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinkwitzRileyCrossover: LP+HP sum is flat (allpass)")
 {
     GlobalEnv::ResetPerTest();
@@ -103,6 +106,7 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: LP+HP sum is flat (allpass)")
 
     // Drive the filter with the same noise signal and capture LP and HP.
     // Their sum should be the all-pass response (flat).
+    //
     const std::size_t N = kN;
     const std::size_t half = N / 2;
     const int frames = 64;
@@ -115,6 +119,7 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: LP+HP sum is flat (allpass)")
     xo.SetCyclesPerSample(cutoffCps);
 
     // Warmup.
+    //
     for (std::size_t i = 0; i < N; ++i)
     {
         auto r = xo.Process(noise.Next());
@@ -151,6 +156,7 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: LP+HP sum is flat (allpass)")
     // but not flat in magnitude -- near the crossover both outputs are at -6 dB
     // so their magnitude sum can peak above 0 dB by up to ~3 dB. We use a
     // 3.5 dB tolerance to catch gross errors while accepting the LR4 peak.
+    //
     std::size_t lo = FreqBin(100.0, kN, kSR);
     std::size_t hi = FreqBin(20000.0, kN, kSR);
     AssertResponseMatches(Hsum, [](double) { return 1.0; }, kSR, kN, 3.5, lo, hi);
@@ -159,6 +165,7 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: LP+HP sum is flat (allpass)")
 // ---------------------------------------------------------------------------
 // 2. Each band -6 dB at the crossover frequency (LR4 property).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinkwitzRileyCrossover: each band is -6 dB at crossover")
 {
     GlobalEnv::ResetPerTest();
@@ -177,6 +184,7 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: each band is -6 dB at crossover")
         DOCTEST_INFO("HP at " << cutoffHz << " Hz: " << hpDb << " dB");
         // LR4: both outputs are -6 dB at crossover. Allow ±4 dB tolerance
         // to account for Welch estimator variance and bin alignment.
+        //
         DOCTEST_CHECK(lpDb > -10.0f);
         DOCTEST_CHECK(lpDb < -2.0f);
         DOCTEST_CHECK(hpDb > -10.0f);
@@ -187,6 +195,7 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: each band is -6 dB at crossover")
 // ---------------------------------------------------------------------------
 // 3. Passband flatness: LP passband, HP passband.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinkwitzRileyCrossover: LP passband near 0 dB, HP passband near 0 dB")
 {
     GlobalEnv::ResetPerTest();
@@ -197,11 +206,13 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: LP passband near 0 dB, HP passband ne
     auto [HLP, HHP] = measureCrossoverTF(cutoffCps, 0xA0B1C2D3E4F50003ull);
 
     // LP passband: below ~1 kHz.
+    //
     std::size_t lo = FreqBin(100.0, kN, kSR);
     std::size_t hi = FreqBin(1000.0, kN, kSR);
     AssertResponseMatches(HLP, [](double) { return 1.0; }, kSR, kN, 2.0, lo, hi);
 
     // HP passband: above ~8 kHz.
+    //
     lo = FreqBin(8000.0, kN, kSR);
     hi = FreqBin(20000.0, kN, kSR);
     AssertResponseMatches(HHP, [](double) { return 1.0; }, kSR, kN, 2.0, lo, hi);
@@ -210,6 +221,7 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: LP passband near 0 dB, HP passband ne
 // ---------------------------------------------------------------------------
 // 4. Measured LP/HP responses match the class's own FrequencyResponse.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinkwitzRileyCrossover: measured vs class FrequencyResponse (2 dB)")
 {
     GlobalEnv::ResetPerTest();
@@ -227,11 +239,13 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: measured vs class FrequencyResponse (
     };
 
     // LP: compare across the full band.
+    //
     std::size_t loLP = FreqBin(100.0,  kN, kSR);
     std::size_t hiLP = FreqBin(20000.0, kN, kSR);
 
     // HP: skip below ~500 Hz where the Welch estimator has high variance in
     // the deep stopband (expected gain < -80 dB, noise floor limits accuracy).
+    //
     std::size_t loHP = FreqBin(500.0,  kN, kSR);
     std::size_t hiHP = FreqBin(20000.0, kN, kSR);
 
@@ -246,6 +260,7 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: measured vs class FrequencyResponse (
 // ---------------------------------------------------------------------------
 // 5. NaN-clean across a crossover-frequency sweep.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinkwitzRileyCrossover: NaN-clean across crossover sweep")
 {
     GlobalEnv::ResetPerTest();

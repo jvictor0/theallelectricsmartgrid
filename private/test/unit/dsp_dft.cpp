@@ -38,6 +38,7 @@ constexpr double kSampleRate = 48000.0;
 // (no window), must give |m_components[k0]| == A/2, and DC gives |X[0]| == A.
 // This documents the 1/N forward-FFT normalization.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("repo FFT normalization: cosine at exact bin => A/2, DC => A")
 {
     GlobalEnv::ResetPerTest();
@@ -56,12 +57,15 @@ DOCTEST_TEST_CASE("repo FFT normalization: cosine at exact bin => A/2, DC => A")
     dft.Transform(table);
 
     // Bin k0 magnitude is A/2.
+    //
     DOCTEST_CHECK(std::abs(dft.m_components[k0]) == doctest::Approx(A / 2.0f).epsilon(0.01));
     // Neighboring bins essentially zero.
+    //
     DOCTEST_CHECK(std::abs(dft.m_components[k0 - 1]) < 1e-3f);
     DOCTEST_CHECK(std::abs(dft.m_components[k0 + 1]) < 1e-3f);
 
     // DC: constant level A => |X[0]| == A.
+    //
     BasicWaveTableGeneric<10> dcTable;
     for (std::size_t i = 0; i < kN; ++i)
     {
@@ -76,6 +80,7 @@ DOCTEST_TEST_CASE("repo FFT normalization: cosine at exact bin => A/2, DC => A")
 // Windowed MagnitudeSpectrum: pure sine at an exact bin -> DominantBin is that
 // bin. (The Hann window scales the magnitude but does not move the peak.)
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MagnitudeSpectrum: sine at exact bin -> dominant bin is correct")
 {
     GlobalEnv::ResetPerTest();
@@ -96,6 +101,7 @@ DOCTEST_TEST_CASE("MagnitudeSpectrum: sine at exact bin -> dominant bin is corre
 // Sine BETWEEN bins -> energy concentrated in the immediate neighborhood of
 // the two straddling bins (Hann main lobe).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MagnitudeSpectrum: between-bin sine concentrates energy locally")
 {
     GlobalEnv::ResetPerTest();
@@ -132,6 +138,7 @@ DOCTEST_TEST_CASE("MagnitudeSpectrum: between-bin sine concentrates energy local
 // helper would zero the impulse since the Hann window is 0 at i=0, so the flat
 // property is most cleanly shown unwindowed -- documented choice.)
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("repo FFT: impulse -> flat spectrum at 1/N")
 {
     GlobalEnv::ResetPerTest();
@@ -158,6 +165,7 @@ DOCTEST_TEST_CASE("repo FFT: impulse -> flat spectrum at 1/N")
 // Nyquist content, the full sum is 2 * sum_{k=1}^{N/2-1} |X[k]|^2. We use a
 // sum of two exact-bin cosines (no DC, no Nyquist) so the identity is exact.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("repo FFT: Parseval energy identity (unwindowed)")
 {
     GlobalEnv::ResetPerTest();
@@ -182,6 +190,7 @@ DOCTEST_TEST_CASE("repo FFT: Parseval energy identity (unwindowed)")
     dft.Transform(table);
 
     // Full-spectrum energy: DC + 2 * lower-half (k=1..N/2-1). No Nyquist term.
+    //
     double specEnergy = static_cast<double>(std::abs(dft.m_components[0])) *
                         std::abs(dft.m_components[0]);
     for (std::size_t k = 1; k < kN / 2; ++k)
@@ -196,6 +205,7 @@ DOCTEST_TEST_CASE("repo FFT: Parseval energy identity (unwindowed)")
 // ---------------------------------------------------------------------------
 // WhiteNoise determinism.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("WhiteNoise: same seed identical, different seeds differ")
 {
     GlobalEnv::ResetPerTest();
@@ -227,6 +237,7 @@ DOCTEST_TEST_CASE("WhiteNoise: same seed identical, different seeds differ")
 // MeasureTransferFunction self-check: identity system => |H| ~ 1 (0 dB) flat
 // across mid bins. Proves the Welch averaging machinery.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MeasureTransferFunction: identity is flat 0 dB")
 {
     GlobalEnv::ResetPerTest();
@@ -236,6 +247,7 @@ DOCTEST_TEST_CASE("MeasureTransferFunction: identity is flat 0 dB")
                                                    kSampleRate, 0xABCDEF);
 
     // Expect flat unity gain; check mid-band bins within 0.5 dB.
+    //
     AssertResponseMatches(H, [](double) { return 1.0; },
                           kSampleRate, kFftSize1024, 0.5,
                           /*loBin*/ 16, /*hiBin*/ 480);
@@ -245,6 +257,7 @@ DOCTEST_TEST_CASE("MeasureTransferFunction: identity is flat 0 dB")
 // MeasureTransferFunction self-check: a one-sample delay is all-pass, |H| == 1
 // flat. Proves the magnitude estimate ignores phase as intended.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MeasureTransferFunction: one-sample delay is flat 0 dB")
 {
     GlobalEnv::ResetPerTest();

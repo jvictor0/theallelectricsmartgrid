@@ -83,6 +83,7 @@ int EnvInt(const char* name, int fallback)
 
 // One fuzz action. Returns false only if it requested a save/load round-trip
 // that the harness reported as failed (which itself is a finding).
+//
 struct Fuzzer
 {
     SynthRig& m_rig;
@@ -110,6 +111,7 @@ struct Fuzzer
     }
 
     // A value biased toward the 0/1 extremes a third of the time.
+    //
     float RandValue()
     {
         int r = RandInt(0, 9);
@@ -125,6 +127,7 @@ struct Fuzzer
     // the interior grids (confirmed front-door OOB bug -- see the BUG? note in
     // the "fuzz: documented crash" case). Real hardware never emits coords below
     // -1, so the fuzzer doesn't either.
+    //
     int RandCoord()
     {
         int r = RandInt(0, 11);
@@ -140,10 +143,12 @@ struct Fuzzer
     int RandRoute()
     {
         // Routes 0..3 are pad grids; 4 encoder; 5 param7.
+        //
         return RandInt(0, 5);
     }
 
     // Apply one action. `idx` is only used for the failure message.
+    //
     void Step(int idx, std::uint32_t seed)
     {
         int action = RandInt(0, 17);
@@ -159,6 +164,7 @@ struct Fuzzer
                 // -- a confirmed front-door robustness bug, see the BUG? note in
                 // the "fuzz: documented crash" case below. The fuzzer must not
                 // re-trigger it or it would kill the whole test process.
+                //
                 m_rig.SetEncoder(RandInt(0, 3), RandInt(0, 3),
                                  (Rand01() < 0.5f) ? 0.0f : 1.0f);
                 break;
@@ -179,6 +185,7 @@ struct Fuzzer
                 break;
             case 7:
                 // Bank/selector-ish presses on the BottomRight grid edge cells.
+                //
                 m_rig.PressPad(SynthRig::RouteBottomRight, RandInt(0, 8), RandInt(8, 9));
                 break;
             case 8:
@@ -206,11 +213,13 @@ struct Fuzzer
                 break;
             case 15:
                 // Top-grid mode selectors (route 3, x=8, y=4..7).
+                //
                 m_rig.PressPad(SynthRig::RouteBottomRight, 8, RandInt(4, 7));
                 break;
             case 16:
             {
                 // Occasional save: capture the JSON for a later load.
+                //
                 std::string json = m_rig.SavePatch();
                 if (!json.empty())
                 {
@@ -225,6 +234,7 @@ struct Fuzzer
                 // state reliably SIGSEGVs the system (BUG?(3) below). Enabled only
                 // in soak mode (env vars set); the default suite keeps it off so
                 // it stays green while still documenting the finding.
+                //
                 if (m_loadEnabled && !m_lastSaved.empty())
                 {
                     bool ok = m_rig.LoadPatch(m_lastSaved);
@@ -241,12 +251,14 @@ struct Fuzzer
 };
 
 // Run one seed for ~targetFrames frames of advancement, checking invariants.
+//
 void RunSeed(std::uint32_t seed, int targetFrames, bool loadEnabled)
 {
     SynthRig rig;
     rig.RunFrames(2);
     // Open the gain so the fuzzer can actually exercise the audio path; it may
     // re-zero faders, that's fine.
+    //
     stress::OpenGain(rig);
 
     Fuzzer fuzz(rig, seed, loadEnabled);
@@ -256,6 +268,7 @@ void RunSeed(std::uint32_t seed, int targetFrames, bool loadEnabled)
     while (framesRun < targetFrames)
     {
         // A small burst of actions, then advance 1-4 frames.
+        //
         int burst = fuzz.RandInt(1, 4);
         for (int b = 0; b < burst; ++b)
         {
@@ -269,6 +282,7 @@ void RunSeed(std::uint32_t seed, int targetFrames, bool loadEnabled)
         // Per-step invariants (the sticky NaN scan covers every sample drained
         // since the last ClearNaN; we never clear it within a seed, so it is a
         // true running invariant).
+        //
         DOCTEST_INFO("seed=" << seed << " actionIdx=" << actionIdx
                      << " framesRun=" << framesRun);
         DOCTEST_REQUIRE_FALSE(rig.SawNaN());
@@ -276,6 +290,7 @@ void RunSeed(std::uint32_t seed, int targetFrames, bool loadEnabled)
     }
 
     // Post-run: system still functional.
+    //
     rig.ClearOutput();
     rig.ClearNaN();
     stress::OpenGain(rig);
@@ -292,6 +307,7 @@ void RunSeed(std::uint32_t seed, int targetFrames, bool loadEnabled)
     // and publishes a finite, in-[0,1] value, and that setting two distinct
     // values produces a finite (possibly modulated) response -- i.e. the front
     // door is still alive and not stuck/NaN.
+    //
     int ex = -1, ey = -1;
     for (int x = 0; x < 4 && ex < 0; ++x)
     {
@@ -325,6 +341,7 @@ void RunSeed(std::uint32_t seed, int targetFrames, bool loadEnabled)
 // Both are now bounds-checked (GetVisible and Grid::Get return nullptr out of
 // range), so this case exercises BOTH the safe boundary and the formerly
 // crashing coordinates and asserts the system survives.
+//
 DOCTEST_TEST_CASE("fuzz: out-of-grid coordinates are safely ignored")
 {
     SynthRig rig;
@@ -334,6 +351,7 @@ DOCTEST_TEST_CASE("fuzz: out-of-grid coordinates are safely ignored")
     // The SAFE side of both boundaries must stay alive (these are exercised hard
     // by the main fuzzer; assert them here as the guarded contract):
     //   * encoder coords within the 4x4 bank
+    //
     for (int x = 0; x < 4; ++x)
     {
         for (int y = 0; y < 4; ++y)
@@ -344,6 +362,7 @@ DOCTEST_TEST_CASE("fuzz: out-of-grid coordinates are safely ignored")
         }
     }
     //   * pad coords within the real hardware range [-1, 9] on every route
+    //
     for (int r = 0; r <= 5; ++r)
     {
         for (int c = -1; c <= 9; ++c)
@@ -356,6 +375,7 @@ DOCTEST_TEST_CASE("fuzz: out-of-grid coordinates are safely ignored")
 
     // The formerly crashing coordinates (fixed by bounds checks in
     // EncoderGrid::GetVisible and SmartGrid::Grid::Get) must now be ignored:
+    //
     rig.SetEncoder(9, 9, 0.5f);
     rig.SetEncoder(4, 0, 1.0f);
     rig.PressEncoder(9, 9);
@@ -375,18 +395,60 @@ DOCTEST_TEST_CASE("fuzz: out-of-grid coordinates are safely ignored")
     DOCTEST_CHECK_FALSE(rig.SawNaN());
     DOCTEST_CHECK(rig.OutputPeak() < kFuzzBound);
     DOCTEST_WARN_MESSAGE(false,
-        "BUG?(3) LoadPatch crash: a LoadPatch interleaved with grid-swap / "
-        "top-grid-mode / save state reliably SIGSEGVs in "
-        "TheNonagonSquiggleBoyQuadLaunchpadTwister::Apply (a queued pad message "
-        "routes to an interior grid whose active sub-grid pointer is NULL after "
-        "FromJSON). Removing LoadPatch from the fuzzer eliminates ~all crashes. "
-        "Repro: the seeded standalone fuzz stream with load enabled crashes "
-        "within ~70 actions on seed 0xA11CE000+1*0x9E3779B1.");
-    DOCTEST_WARN_MESSAGE(false,
         "BUG?(4) VectorPhaseShaper.hpp:340 'assert(phi_vps < 1)' fires under "
-        "some fuzzed Source-machine param/pitch combos (phi_vps becomes NaN/Inf "
-        "so phi_vps<1 is false). Debug-only abort; in release this would emit "
-        "NaN audio. Rarer than BUG?(3) (~a few percent of long no-load runs).");
+        "some fuzzed Source-machine param/pitch combos: the phase-shaper elbow "
+        "can return a hair below 0, and (phi_vps - floor(phi_vps)) then rounds "
+        "1-eps up to exactly 1.0f. Debug-only abort; in release the wavetable "
+        "lookup indexes mod tableSize so phi_vps==1.0f wraps to bin 0 (benign). "
+        "Left unfixed by request; surfaces in long soak runs.");
+}
+
+// ---------------------------------------------------------------------------
+// Regression: LoadPatch while the encoder bank is in modulator-selection mode
+// used to SIGSEGV. While selected, the visible 4x4 grid points at the selected
+// cell's modulator sub-cells; FromJSON rebuilt those, leaving the visible
+// pointers referencing cells with a null m_sharedEncoderState, so the next
+// encoder message dereferenced null in StateEncoderCell::SetToValue. Fixed by
+// deselecting before load (EncoderBankInternal::FromJSON) plus a null guard at
+// message dispatch. (Originally mis-attributed to a null interior-grid pointer;
+// the interior-grid deref is now guarded too.)
+//
+DOCTEST_TEST_CASE("regression: LoadPatch during modulator selection does not crash")
+{
+    SynthRig rig;
+    rig.RunFrames(2);
+    stress::OpenGain(rig);
+
+    // Capture a patch, then dirty an encoder so the load actually changes state.
+    //
+    const std::string patch = rig.SavePatch();
+    rig.SetEncoder(0, 0, 0.73f);
+    rig.RunFrames(1);
+
+    // Enter modulator-selection mode (encoder push) so the visible grid points
+    // at modulator sub-cells, then load the patch from under it.
+    //
+    rig.PressEncoder(0, 0);
+    rig.RunFrames(1);
+    const bool ok = rig.LoadPatch(patch);
+    DOCTEST_CHECK(ok);
+    rig.RunFrames(1);
+
+    // Hammer every visible cell -- these were the dangling selection sub-cells.
+    //
+    for (int x = 0; x < 4; ++x)
+    {
+        for (int y = 0; y < 4; ++y)
+        {
+            rig.SetEncoder(x, y, 0.5f);
+            rig.PressEncoder(x, y);
+            rig.ReleaseEncoder(x, y);
+        }
+    }
+    rig.RunFrames(3);
+
+    DOCTEST_CHECK_FALSE(rig.SawNaN());
+    DOCTEST_CHECK(rig.OutputPeak() < kFuzzBound);
 }
 
 DOCTEST_TEST_CASE("fuzz: seeded message-stream fuzzer keeps the system finite & functional")
@@ -395,6 +457,7 @@ DOCTEST_TEST_CASE("fuzz: seeded message-stream fuzzer keeps the system finite & 
     // fuzzer at the default length, with LoadPatch disabled (see BUG?(3)). These
     // are pinned (not base+stride) so the default suite is deterministically
     // green; the fuzzer still exercises the whole front-door vocabulary.
+    //
     static const std::uint32_t kSafeSeeds[] = {11u, 101u, 202u, 303u, 404u, 505u};
     constexpr int kNumSafeSeeds =
         static_cast<int>(sizeof(kSafeSeeds) / sizeof(kSafeSeeds[0]));
@@ -404,6 +467,7 @@ DOCTEST_TEST_CASE("fuzz: seeded message-stream fuzzer keeps the system finite & 
 
     // ~1.6 simulated seconds per seed by default. 1s ~= 92 frames (48k / 512).
     // (Soak mode can lengthen via SMARTGRID_FUZZ_FRAMES.)
+    //
     const int framesPerSeed = EnvInt("SMARTGRID_FUZZ_FRAMES", 150);
 
     if (!soak)
@@ -411,6 +475,7 @@ DOCTEST_TEST_CASE("fuzz: seeded message-stream fuzzer keeps the system finite & 
         // Default: 3 of the pinned safe seeds, LoadPatch OFF. Kept short so the
         // capstone suite stays within the Debug runtime budget; soak mode (env
         // vars) covers more seeds / longer streams.
+        //
         const int numSeeds = 3;
         DOCTEST_MESSAGE("fuzz (default): seeds=" << numSeeds
                         << " framesPerSeed=" << framesPerSeed << " load=off");
@@ -426,6 +491,7 @@ DOCTEST_TEST_CASE("fuzz: seeded message-stream fuzzer keeps the system finite & 
     // surface the documented crashes (BUG?(3) load-state SEGV, BUG?(4) the
     // VectorPhaseShaper assert) -- that's the point of a soak. Reproducible from
     // the (seed, action index) printed on failure.
+    //
     const int numSeeds = EnvInt("SMARTGRID_FUZZ_SEEDS", 4);
     DOCTEST_MESSAGE("fuzz (soak): seeds=" << numSeeds
                     << " framesPerSeed=" << framesPerSeed << " load=on");

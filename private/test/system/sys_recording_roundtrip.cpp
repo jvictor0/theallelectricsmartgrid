@@ -99,6 +99,7 @@ constexpr int kPumpCap = 6000;                // bounded persist/reload pump cap
 // Pump ProcessFrames until `pred()` is true or we hit the cap. Returns the number
 // of frames pumped, or -1 on timeout. Each frame runs one full process frame and
 // calls IoTaskThread::Acknowledge(), draining any completed I/O tasks.
+//
 template <class Pred>
 int PumpUntil(SynthRig& rig, Pred&& pred, int cap = kPumpCap)
 {
@@ -115,6 +116,7 @@ int PumpUntil(SynthRig& rig, Pred&& pred, int cap = kPumpCap)
 
 // Find a "_recording_*.wav" under root whose parent directory name contains
 // `voiceTag` (e.g. "_voice0"). Pass "" to match any recording wav.
+//
 std::filesystem::path FindRecordingWav(const std::filesystem::path& root, const std::string& voiceTag)
 {
     std::error_code ec;
@@ -145,6 +147,7 @@ std::filesystem::path FindRecordingWav(const std::filesystem::path& root, const 
 }
 
 // Count "_recording_*.wav" files under root.
+//
 int CountRecordingWavs(const std::filesystem::path& root)
 {
     int count = 0;
@@ -172,6 +175,7 @@ int CountRecordingWavs(const std::filesystem::path& root)
 }
 
 // Read a mono WAV back into floats using the repo's own WavReader.
+//
 bool ReadWavMono(const std::filesystem::path& path, std::vector<float>& out, WavReader& reader)
 {
     if (!reader.LoadFromFile(path.string().c_str()))
@@ -198,6 +202,7 @@ float Peak(const std::vector<float>& v)
 }
 
 // Convenience accessor: the real, fully-wired SquiggleBoy behind the rig.
+//
 SquiggleBoy& Boy(SynthRig& rig)
 {
     return rig.Internal().m_squiggleBoy;
@@ -205,6 +210,7 @@ SquiggleBoy& Boy(SynthRig& rig)
 
 // Warm up + start the sequencer so the master loop / TheoryOfTime advances (the
 // recording start/stop positions are read from the master loop phasor).
+//
 void WarmUpVoices(SynthRig& rig)
 {
     rig.RunFrames(2);
@@ -214,6 +220,7 @@ void WarmUpVoices(SynthRig& rig)
 
 // A deterministic, seeded test signal: a decaying sine. Index-driven so it is
 // fully reproducible and independent of any RNG/global state.
+//
 float KnownSignalAt(size_t i)
 {
     const double t = static_cast<double>(i);
@@ -226,6 +233,7 @@ float KnownSignalAt(size_t i)
 // Must be called while the buffer is still owned by the audio thread (i.e. before
 // StopRecording hands it to the I/O thread) and with no frames running in
 // between, so the writer cannot append more samples.
+//
 void OverwriteWithKnownSignal(std::vector<float>& buffer)
 {
     for (size_t i = 0; i < buffer.size(); ++i)
@@ -238,6 +246,7 @@ void OverwriteWithKnownSignal(std::vector<float>& buffer)
 // 0's buffer, and stop (which pushes the persist task). Does NOT pump for
 // completion. Returns voice 0's captured-and-injected buffer (for verification).
 // Leaves the sequencer running.
+//
 std::vector<float> RecordKnownSignalIntoVoice0(SynthRig& rig)
 {
     SquiggleBoy& boy = Boy(rig);
@@ -260,6 +269,7 @@ std::vector<float> RecordKnownSignalIntoVoice0(SynthRig& rig)
 // ---------------------------------------------------------------------------
 // Test 1: record -> persist round-trip.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV")
 {
     TempDir td;
@@ -275,6 +285,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     WarmUpVoices(rig);
 
     // Arm: record trio Water (voices 0,1,2). m_source defaults to Water for all.
+    //
     rm.StartRecording(TheNonagonInternal::Trio::Water);
     DOCTEST_CHECK(rm.AnyRecording());
     DOCTEST_CHECK(rm.m_numRecording == 3);
@@ -282,6 +293,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
 
     // Capture ~0.9 of a master loop so delta is comfortably in (0,1] and the
     // alignment picks the 0.5 sub-loop (repeats=2 -> full-loop WAV).
+    //
     rig.RunSeconds(3.6);
 
     RecordingBuffer& buf0 = boy.m_voices[0].m_recordingBuffer;
@@ -292,12 +304,14 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     // writer cannot append more). The synth itself is silent (see header note);
     // this is what lets us verify the persisted CONTENT exactly. Voices 1 and 2
     // keep their (silent) captures.
+    //
     OverwriteWithKnownSignal(buf0.m_buffer);
     std::vector<float> captured = buf0.m_buffer; // reference copy for verification
     const float capturedPeak = Peak(captured);
     DOCTEST_CHECK(capturedPeak > 0.0f);
 
     // Stop: this computes repeats and pushes the persist task to the I/O thread.
+    //
     rm.StopRecording(TheNonagonInternal::Trio::Water);
     DOCTEST_CHECK_FALSE(rm.AnyRecording());
 
@@ -309,6 +323,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
 
     // Bounded pump until voice 0's persisted WAV appears AND the bank sink is
     // installed for voice 0.
+    //
     int frames = PumpUntil(rig, [&]() {
         return !FindRecordingWav(td.Path(), "_voice0").empty() &&
                boy.m_state[0].m_voiceConfig.m_audioBufferBank != nullptr;
@@ -317,13 +332,16 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
         "timed out waiting for IoTaskThread to persist + install the recording bank");
 
     // ---- file exists, named + foldered as expected ----
+    //
     std::filesystem::path wav = FindRecordingWav(td.Path(), "_voice0");
     DOCTEST_REQUIRE_FALSE(wav.empty());
     DOCTEST_CHECK(wav.filename().string().rfind("_recording_", 0) == 0);
     // Per-voice directory naming: "<YYYY-MM-DDThh-mm-ss>_voice0".
+    //
     DOCTEST_CHECK(wav.parent_path().filename().string().find("_voice0") != std::string::npos);
 
     // ---- well-formed header (repo's own RF64/24-bit reader) ----
+    //
     WavReader reader;
     std::vector<float> wavSamples;
     DOCTEST_REQUIRE(ReadWavMono(wav, wavSamples, reader));
@@ -334,20 +352,24 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     DOCTEST_CHECK(reader.m_format == WavReader::Format::Pcm);
 
     // ---- duration / sample count matches the master loop ----
+    //
     DOCTEST_CHECK(reader.m_numFrames == kMasterLoopSamples);
     DOCTEST_CHECK(wavSamples.size() == kMasterLoopSamples);
 
     // ---- content not all zeros, correlates with what was recorded ----
+    //
     const float wavPeak = Peak(wavSamples);
     DOCTEST_CHECK(wavPeak > 0.0f);
     // The WAV is the captured audio tiled to a full loop; its peak should track
     // the captured peak (within 24-bit quantization + clamp tolerance).
+    //
     DOCTEST_CHECK(wavPeak <= capturedPeak + 1e-2f);
     DOCTEST_CHECK(wavPeak > capturedPeak * 0.25f);
 
     // Exact correlation: re-derive WriteToFile's tiling from the captured buffer
     // and confirm the persisted WAV matches it sample-for-sample (within 24-bit
     // quantization). This proves the persisted content IS the recorded content.
+    //
     const double startPos = buf0.m_loopPositionRecordingStart.load();
     const double stopPos = buf0.m_loopPositionRecordingStop.load();
     const int repeats = buf0.m_recordingRepeats.load();
@@ -404,12 +426,14 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     DOCTEST_CHECK(mismatches == 0);
 
     // ---- on-persist reload installed the bank into the voice's SampleSource ----
+    //
     AudioBufferBank* bank = boy.m_state[0].m_voiceConfig.m_audioBufferBank;
     DOCTEST_REQUIRE(bank != nullptr);
     DOCTEST_REQUIRE(bank->m_audioBuffers.size() == 1);
     const std::vector<float>& reloaded = bank->m_audioBuffers[0]->m_buffer;
     DOCTEST_CHECK(reloaded.size() == kMasterLoopSamples);
     // The just-persisted-and-reloaded buffer should equal the WAV we read back.
+    //
     DOCTEST_REQUIRE(reloaded.size() == wavSamples.size());
     double reloadErr = 0.0;
     for (size_t i = 0; i < reloaded.size(); ++i)
@@ -424,6 +448,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
 // ---------------------------------------------------------------------------
 // Test 2: reload on a fresh rig via LoadAudioBufferBankFromDirectory.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same root")
 {
     TempDir td;
@@ -433,6 +458,7 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
     std::vector<float> originalReloaded;
 
     // ---- Producer rig: record + persist, capture the relative directory name.
+    //
     {
         SynthRig rig;
         rig.IoThread().SetSampleDirectoryRootAbsolute(td.Path());
@@ -454,6 +480,7 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
     }
 
     // ---- Consumer rig: fresh system, same root, drive the load path directly.
+    //
     {
         SynthRig rig2;
         rig2.IoThread().SetSampleDirectoryRootAbsolute(td.Path());
@@ -479,6 +506,7 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
         const std::vector<float>& loadedBuf = loaded->m_audioBuffers[0]->m_buffer;
         DOCTEST_CHECK(loadedBuf.size() == kMasterLoopSamples);
         // Same WAV, same host rate -> identical content (no resampling involved).
+        //
         DOCTEST_REQUIRE(loadedBuf.size() == originalReloaded.size());
         double maxErr = 0.0;
         for (size_t i = 0; i < loadedBuf.size(); ++i)
@@ -495,6 +523,7 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
 // (SquiggleBoyConfigGrid "sampleDirectoryRelative") and reloaded on load.
 // Fully front-door via SynthRig::SavePatchJSON / LoadPatchJSON.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
 {
     TempDir td;
@@ -504,6 +533,7 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
     std::string relativeDir;
 
     // ---- Record + persist, then save a patch.
+    //
     {
         SynthRig rig;
         rig.IoThread().SetSampleDirectoryRootAbsolute(td.Path());
@@ -521,12 +551,14 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
         DOCTEST_CHECK_FALSE(relativeDir.empty());
 
         // Sequencer is still running -- stop it so the save isn't racing audio.
+        //
         rig.StopSequencer();
         patch = rig.SavePatchJSON();
         DOCTEST_REQUIRE_FALSE(patch.IsNull());
     }
 
     // ---- Fresh rig, same root: load the patch, expect the bank to be reloaded.
+    //
     {
         SynthRig rig2;
         rig2.IoThread().SetSampleDirectoryRootAbsolute(td.Path());
@@ -539,6 +571,7 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
 
         // FromJSON pushed a LoadAudioBufferBankFromDirectory for voice 0; pump
         // until the bank lands.
+        //
         int frames = PumpUntil(rig2, [&]() {
             AudioBufferBank* b = boy2.m_state[0].m_voiceConfig.m_audioBufferBank;
             return b != nullptr && b->m_audioBuffers.size() == 1;
@@ -585,6 +618,7 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
 // path rather than detonating it. The drain-then-destroy path must be crash- and
 // hang-free.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("WP-9: shutdown after draining an in-flight persist is safe (UAF hazard documented)")
 {
     TempDir td;
@@ -607,6 +641,7 @@ DOCTEST_TEST_CASE("WP-9: shutdown after draining an in-flight persist is safe (U
         // audio thread has Acknowledged (sink installed, RecordingBuffer Reset), so
         // no in-flight task references anything owned by the soon-to-be-destroyed
         // audio core.
+        //
         int frames = PumpUntil(rig, [&]() {
             return boy.m_state[0].m_voiceConfig.m_audioBufferBank != nullptr &&
                    boy.m_voices[0].m_recordingBuffer.m_state == RecordingBuffer::State::Idle;
@@ -614,6 +649,7 @@ DOCTEST_TEST_CASE("WP-9: shutdown after draining an in-flight persist is safe (U
         DOCTEST_REQUIRE_MESSAGE(frames >= 0, "timed out draining the persist task before shutdown");
 
         // A couple of extra frames so any follow-on ReloadDirectory acks also drain.
+        //
         rig.RunFrames(3);
     } // ~SynthRig -> ~IoTaskThread joins here with nothing in flight; must return.
 
@@ -627,9 +663,11 @@ DOCTEST_TEST_CASE("WP-9: shutdown after draining an in-flight persist is safe (U
 //       -> buffer Reset, NO persist task, NO file written.
 //   (b) never armed at all -> nothing recorded, nothing written.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("WP-9: arming without a completed loop writes no file (clean state)")
 {
     // (a) Arm, but stop almost immediately (span far below the smallest sub-loop).
+    //
     {
         TempDir td;
         DOCTEST_REQUIRE(td.Valid());
@@ -644,6 +682,7 @@ DOCTEST_TEST_CASE("WP-9: arming without a completed loop writes no file (clean s
         DOCTEST_CHECK(rm.AnyRecording());
 
         // Record a tiny slice -- nowhere near a full sub-loop.
+        //
         rig.RunSeconds(0.05);
         rm.StopRecording(TheNonagonInternal::Trio::Water);
 
@@ -651,16 +690,19 @@ DOCTEST_TEST_CASE("WP-9: arming without a completed loop writes no file (clean s
         // Per RecordingBuffer::StopRecording semantics: a span that doesn't reach
         // the smallest internal sub-loop yields repeats<=0 -> State::Error -> the
         // buffer is Reset and nothing is persisted.
+        //
         RecordingBuffer& buf0 = boy.m_voices[0].m_recordingBuffer;
         DOCTEST_CHECK(buf0.m_state == RecordingBuffer::State::Idle); // Reset() ran
 
         // Give the I/O thread ample frames to (not) produce anything.
+        //
         rig.RunFrames(200);
         DOCTEST_CHECK(CountRecordingWavs(td.Path()) == 0);
         DOCTEST_CHECK(boy.m_state[0].m_voiceConfig.m_audioBufferBank == nullptr);
     }
 
     // (b) Never armed: a fresh rig that just runs produces no recordings.
+    //
     {
         TempDir td;
         DOCTEST_REQUIRE(td.Valid());

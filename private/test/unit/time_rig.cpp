@@ -24,6 +24,7 @@ namespace
 // indirect phasor at the current slot after each sample. The very first slot of
 // a control frame (uBlock 0) is the rolled-over boundary sample from the prior
 // frame, so the trace is the "now" value a per-sample consumer would read.
+//
 std::vector<double> TraceMasterPhasor(TimeRig& rig, size_t n)
 {
     std::vector<double> trace;
@@ -69,11 +70,13 @@ DOCTEST_TEST_CASE("TimeRig: master phasor is monotone modulo wrap and Top fires 
     TimeRig rig;
 
     // Short master period so we get several wraps quickly.
+    //
     const double periodSamples = 128.0;
     rig.SetMasterPeriodSamples(periodSamples);
     rig.SetRunning(true);
 
     // Prime one control frame so slot 0 holds live data, then trace.
+    //
     rig.AdvanceControlFrame();
 
     double prev = rig.MasterPhasor();
@@ -83,6 +86,7 @@ DOCTEST_TEST_CASE("TimeRig: master phasor is monotone modulo wrap and Top fires 
     // Run several master periods. Only inspect on control-frame boundaries so we
     // read the freshly-rolled-over slot-0 "now" value (top events are recorded
     // per control sample and surface at the slot consumed each sample).
+    //
     const size_t totalSamples = static_cast<size_t>(periodSamples) * 6;
     for (size_t i = 0; i < totalSamples; ++i)
     {
@@ -90,11 +94,13 @@ DOCTEST_TEST_CASE("TimeRig: master phasor is monotone modulo wrap and Top fires 
         double cur = rig.MasterPhasor();
 
         // Monotone increasing except at a wrap (where it drops by ~1).
+        //
         bool wrapped = cur < prev;
         if (wrapped)
         {
             ++wraps;
             // A wrap is a near-full-circle backwards jump, not noise.
+            //
             DOCTEST_CHECK((prev - cur) > 0.5);
         }
         else
@@ -112,6 +118,7 @@ DOCTEST_TEST_CASE("TimeRig: master phasor is monotone modulo wrap and Top fires 
 
     DOCTEST_CHECK(wraps >= 4);
     // Top should fire about once per wrap (one master-loop top per cycle).
+    //
     DOCTEST_CHECK(topCount >= wraps);
     DOCTEST_CHECK(topCount <= wraps + 2);
 }
@@ -124,17 +131,20 @@ DOCTEST_TEST_CASE("TimeRig: child loop completes `mult` cycles per parent cycle"
     rig.SetMasterPeriodSamples(256.0);
 
     // Loop 4's parent is the master loop (index 5). Give it multiplier 3.
+    //
     const int mult = 3;
     rig.SetMultiplier(4, mult);
     rig.SetRunning(true);
 
     // Prime: let topology settle (loop sizes are set on the running edge).
+    //
     rig.AdvanceControlFrame();
     rig.AdvanceControlFrame();
 
     // Count master tops and child(loop 4) tops over several master periods.
     // Tops are single-control-sample events that can fire at any slot within a
     // micro block, so we must inspect every sample's slot, not just slot 0.
+    //
     int masterTops = 0;
     int childTops = 0;
 
@@ -155,6 +165,7 @@ DOCTEST_TEST_CASE("TimeRig: child loop completes `mult` cycles per parent cycle"
     DOCTEST_CHECK(masterTops >= 6);
     // Child completes `mult` cycles per master cycle: childTops ~= mult*masterTops.
     // Allow a small boundary tolerance.
+    //
     DOCTEST_CHECK(childTops >= mult * masterTops - mult);
     DOCTEST_CHECK(childTops <= mult * masterTops + mult);
 }
@@ -169,9 +180,11 @@ DOCTEST_TEST_CASE("TimeRig: doubling tempo halves the master period")
         rig.SetRunning(true);
 
         // Prime.
+        //
         rig.AdvanceControlFrame();
 
         // Find first top, then measure samples to the next top.
+        //
         auto AdvanceToNextTop = [&](size_t maxSamples) -> long
         {
             for (size_t i = 0; i < maxSamples; ++i)
@@ -196,9 +209,11 @@ DOCTEST_TEST_CASE("TimeRig: doubling tempo halves the master period")
     double fast = MeasurePeriod(128.0);
 
     // Period is quantized to control frames (8 samples), so allow a frame of slop.
+    //
     DOCTEST_CHECK(slow == doctest::Approx(256.0).epsilon(0.06));
     DOCTEST_CHECK(fast == doctest::Approx(128.0).epsilon(0.06));
     // Doubling tempo (halving period) halves measured period.
+    //
     DOCTEST_CHECK(fast == doctest::Approx(slow / 2.0).epsilon(0.1));
 }
 
@@ -208,6 +223,7 @@ DOCTEST_TEST_CASE("TimeRig: not running -> phasors hold at zero")
     TimeRig rig;
 
     // Never call SetRunning(true).
+    //
     DOCTEST_CHECK(rig.IsRunning() == false);
 
     for (size_t i = 0; i < 200; ++i)
@@ -216,6 +232,7 @@ DOCTEST_TEST_CASE("TimeRig: not running -> phasors hold at zero")
         // Stopped-state contract: ProcessRunning never runs, the master phasor
         // input is forced to 0, and the loops are not advanced. All loop phasors
         // read 0.
+        //
         DOCTEST_CHECK(rig.MasterPhasor() == doctest::Approx(0.0));
         DOCTEST_CHECK(rig.Phasor(4) == doctest::Approx(0.0));
         DOCTEST_CHECK(rig.IsRunning() == false);
@@ -230,15 +247,18 @@ DOCTEST_TEST_CASE("TimeRig: stopping a running rig halts the phasor")
     rig.SetRunning(true);
 
     // Advance partway into a cycle.
+    //
     rig.AdvanceSamples(40);
     DOCTEST_CHECK(rig.IsRunning() == true);
 
     rig.SetRunning(false);
     // One control frame to let the stop take effect.
+    //
     rig.AdvanceControlFrame();
     DOCTEST_CHECK(rig.IsRunning() == false);
 
     // After Stop(), all loop state is zeroed; phasor holds at 0.
+    //
     for (size_t i = 0; i < 64; ++i)
     {
         rig.AdvanceSample();
@@ -286,6 +306,7 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
     rig.AdvanceControlFrame();
 
     // Wire an AHD against loop 4 fed by the rig's TheoryOfTime.
+    //
     AHD ahd;
     AHD::Input input;
     input.m_theoryOfTime = rig.Get();
@@ -298,6 +319,7 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
     // the FASTEST increment, value~1.0 the slowest. We pick fast attack+decay
     // and a large envelopeTimeSamples so the envelope opens and fully closes
     // within a fraction of a loop cycle (well inside our window).
+    //
     AHD::InputSetter setter;
     setter.Set(/*attack*/ 0.0f, /*hold*/ 0.0f, /*decay*/ 0.0f,
                /*amplitude*/ 1.0f, /*amplitudePolarity*/ true, input);
@@ -306,6 +328,7 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
 
     // Trigger: mirror the control path. m_trig/circleTracker reset happens via
     // Input::Set against an AHDControl.
+    //
     AHD::AHDControl control;
     control.m_trig = true;
     control.m_envelopeTimeSamples = input.m_envelopeTimeSamples;
@@ -315,6 +338,7 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
     float last = 1.0f;
 
     // First process call with m_trig set starts the envelope.
+    //
     for (size_t i = 0; i < 4000; ++i)
     {
         input.m_samplePosition = static_cast<float>(rig.CurrentUBlockIndex());
@@ -324,6 +348,7 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
         last = out;
 
         // After the first Process, clear the trig (it is a one-shot edge).
+        //
         if (i == 0)
         {
             control.m_trig = false;
@@ -334,6 +359,7 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
     }
 
     // Envelope must have opened (nonzero peak) and returned toward 0.
+    //
     DOCTEST_CHECK(peak > 0.1f);
     DOCTEST_CHECK(last < 0.1f);
 }

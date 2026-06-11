@@ -571,13 +571,23 @@ struct IoTaskThread
     {
     }
 
-    ~IoTaskThread()
+    // Stop and join the worker thread. Idempotent. Owners that hold objects the
+    // in-flight tasks reference (recording buffers, sample banks) should call
+    // this before tearing those objects down, otherwise a task still executing
+    // on the worker thread dereferences freed memory.
+    //
+    void Shutdown()
     {
         m_running.store(false);
         if (m_thread.joinable())
         {
             m_thread.join();
         }
+    }
+
+    ~IoTaskThread()
+    {
+        Shutdown();
     }
 
     bool PushDirectoryExplorerCommand(DirectoryExplorer* directoryExplorer, DirectoryExplorer::MessageType messageType)

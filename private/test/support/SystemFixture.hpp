@@ -25,6 +25,7 @@ namespace SystemFixture
 // Returns the process-wide singleton system instance, constructing it on first
 // call. GlobalEnv::ResetPerTest() should be called before the first use to
 // ensure deterministic timing/RNG state at construction.
+//
 inline TheNonagonSquiggleBoyInternal& SharedSystem()
 {
     static std::unique_ptr<TheNonagonSquiggleBoyInternal> s_instance =
@@ -35,6 +36,7 @@ inline TheNonagonSquiggleBoyInternal& SharedSystem()
 // Drive a single full process frame's worth of samples through the system,
 // mirroring the host's ProcessFrame/ProcessSample cadence
 // (NonagonWrapper::Process). This advances compute and (re)populates UIState.
+//
 inline void RunFrame(TheNonagonSquiggleBoyInternal& system)
 {
     AudioInputBuffer audioIn;  // zeroed input

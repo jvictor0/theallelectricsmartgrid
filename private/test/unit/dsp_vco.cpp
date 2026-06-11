@@ -37,6 +37,7 @@ constexpr std::size_t kN = kFftSize1024;
 // ---------------------------------------------------------------------------
 // 1. Dominant spectrum bin at expected frequency.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("VCO: dominant bin at set frequency")
 {
     GlobalEnv::ResetPerTest();
@@ -58,6 +59,7 @@ DOCTEST_TEST_CASE("VCO: dominant bin at set frequency")
     DOCTEST_INFO("dominant bin=" << dom << " expected=" << expected
                  << " (freqHz=" << freqHz << ")");
     // Allow ±2 bins for non-integer bin alignment.
+    //
     DOCTEST_CHECK(static_cast<long>(dom) >= static_cast<long>(expected) - 2);
     DOCTEST_CHECK(static_cast<long>(dom) <= static_cast<long>(expected) + 2);
 }
@@ -65,6 +67,7 @@ DOCTEST_TEST_CASE("VCO: dominant bin at set frequency")
 // ---------------------------------------------------------------------------
 // 1b. Dominant bin at a second frequency (1 kHz).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("VCO: dominant bin at 1000 Hz")
 {
     GlobalEnv::ResetPerTest();
@@ -93,12 +96,14 @@ DOCTEST_TEST_CASE("VCO: dominant bin at 1000 Hz")
 //    Note: if THD is consistently higher than expected from a polynomial sin,
 //    that might indicate a BUG in Math::Sin2pi -- documented with WARN.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("VCO: THD below 0.1 (10%)")
 {
     GlobalEnv::ResetPerTest();
 
     // Use an exact-bin frequency for clean THD measurement.
     // Bin 20 at 1024-point FFT at 48 kHz: freq = 20 * 48000/1024 ~ 937.5 Hz.
+    //
     const std::size_t k0 = 20;
     const double freqHz  = BinFreq(k0, kN, kSR);
     const float  freqCps = static_cast<float>(freqHz / kSR);
@@ -116,14 +121,17 @@ DOCTEST_TEST_CASE("VCO: THD below 0.1 (10%)")
 
     // BUG?: if Math::Sin2pi has unexpectedly high distortion, this may fail.
     // Polynomial sin approximations can have THD up to ~1%; threshold at 10%.
+    //
     DOCTEST_WARN(thd < 0.1);
     // Hard failure only if severely distorted.
+    //
     DOCTEST_CHECK(thd < 0.5);
 }
 
 // ---------------------------------------------------------------------------
 // 3. Output amplitude near 1.0.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("VCO: peak amplitude near 1.0")
 {
     GlobalEnv::ResetPerTest();
@@ -148,6 +156,7 @@ DOCTEST_TEST_CASE("VCO: peak amplitude near 1.0")
 // 4. Phase continuity under a frequency change: MaxAbsDelta bounded.
 //    A sudden frequency hop should not produce an audible click (jump in output).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("VCO: phase continuity under frequency change")
 {
     GlobalEnv::ResetPerTest();
@@ -166,12 +175,14 @@ DOCTEST_TEST_CASE("VCO: phase continuity under frequency change")
         buf[i] = vco.Process(freqLow);
     }
     // Instant frequency change -- test that the output doesn't jump discontinuously.
+    //
     for (std::size_t i = n1; i < n1 + n2; ++i)
     {
         buf[i] = vco.Process(freqHigh);
     }
 
     // Inspect the sample at the boundary (index n1-1 and n1).
+    //
     float jumpAtBoundary = std::abs(buf[n1] - buf[n1 - 1]);
     DOCTEST_INFO("jump at frequency switch boundary: " << jumpAtBoundary);
 
@@ -180,9 +191,11 @@ DOCTEST_TEST_CASE("VCO: phase continuity under frequency change")
     // maximum slope of a sine (approximately 2*pi*freqHigh per sample, which
     // at 2000 Hz / 48000 Hz = 0.042 cycles/sample -> max |dy| ~ 2*pi*0.042 ~ 0.26).
     // This is not a click; actual amplitude discontinuity is zero.
+    //
     DOCTEST_CHECK(jumpAtBoundary < 2.0f);  // sine jump bounded by sine derivative
 
     // MaxAbsDelta over the whole buffer should be consistent with freq=2000 Hz.
+    //
     float maxDelta = TestContinuity::MaxAbsDelta(buf.data(), n1 + n2);
     DOCTEST_INFO("MaxAbsDelta over full buffer: " << maxDelta);
     DOCTEST_CHECK(maxDelta < 1.5f);
@@ -191,6 +204,7 @@ DOCTEST_TEST_CASE("VCO: phase continuity under frequency change")
 // ---------------------------------------------------------------------------
 // 5. NaN-clean output.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("VCO: NaN-clean output")
 {
     GlobalEnv::ResetPerTest();
@@ -200,6 +214,7 @@ DOCTEST_TEST_CASE("VCO: NaN-clean output")
 
     VCO vco;
     // Test at several frequencies including near-Nyquist.
+    //
     const float freqs[] = {
         static_cast<float>(50.0   / kSR),
         static_cast<float>(440.0  / kSR),

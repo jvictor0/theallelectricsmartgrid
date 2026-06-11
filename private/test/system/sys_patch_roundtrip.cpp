@@ -44,6 +44,7 @@ constexpr float kTol = 5e-3f;
 
 // Simple deterministic pseudo-random float in [lo, hi] using a seed.
 // Uses a linear congruential generator.
+//
 struct SeededRng
 {
     uint64_t state;
@@ -63,6 +64,7 @@ struct SeededRng
 };
 
 // Find connected encoders and return them.
+//
 std::vector<std::pair<int,int>> FindConnectedEncoders(synthrig::SynthRig& rig)
 {
     std::vector<std::pair<int,int>> result;
@@ -89,6 +91,7 @@ struct EncoderRecord
 
 // Randomise a set of encoder values across multiple scenes and record them.
 // Returns the list of (x, y, scene, value) so the caller can verify after load.
+//
 std::vector<EncoderRecord> RandomiseEncoders(synthrig::SynthRig& rig,
                                              const std::vector<std::pair<int,int>>& encoders,
                                              uint64_t seed)
@@ -97,6 +100,7 @@ std::vector<EncoderRecord> RandomiseEncoders(synthrig::SynthRig& rig,
     std::vector<EncoderRecord> records;
 
     // Touch scenes 0, 1, 2 to give the patch non-trivial content.
+    //
     const int scenesToTest[] = {0, 1, 2};
     for (int scene : scenesToTest)
     {
@@ -119,6 +123,7 @@ std::vector<EncoderRecord> RandomiseEncoders(synthrig::SynthRig& rig,
 }
 
 // Assert that recorded encoder values match UIState after settling.
+//
 void AssertEncoderValues(synthrig::SynthRig& rig,
                          const std::vector<EncoderRecord>& records,
                          float tol)
@@ -142,6 +147,7 @@ void AssertEncoderValues(synthrig::SynthRig& rig,
 // ---------------------------------------------------------------------------
 // Test 1: Seeded random encode → save → overwrite → load → values restored
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_patch_roundtrip: seeded encoder values survive save/load")
 {
     synthrig::SynthRig rig;
@@ -151,29 +157,35 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: seeded encoder values survive save/load"
     DOCTEST_REQUIRE_FALSE(encoders.empty());
 
     // Use only the first N encoders to keep the test fast.
+    //
     if (encoders.size() > 6)
     {
         encoders.resize(6);
     }
 
     // --- Pass A: write values, save ---
+    //
     auto recordsA = RandomiseEncoders(rig, encoders, /*seed=*/0xDEADBEEF1234ULL);
 
     std::string jsonA = rig.SavePatch();
     DOCTEST_REQUIRE_FALSE(jsonA.empty());
 
     // Verify the values read back correctly after save (settle slew).
+    //
     AssertEncoderValues(rig, recordsA, kTol);
 
     // --- Overwrite with different values ---
+    //
     auto recordsB = RandomiseEncoders(rig, encoders, /*seed=*/0xC0FFEE5678ULL);
     (void)recordsB;
 
     // --- Load JSON_A ---
+    //
     DOCTEST_CHECK(rig.LoadPatch(jsonA));
     rig.RunFrames(kSettleFrames);
 
     // --- Verify original values restored ---
+    //
     AssertEncoderValues(rig, recordsA, kTol);
 
     DOCTEST_CHECK_FALSE(rig.SawNaN());
@@ -182,6 +194,7 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: seeded encoder values survive save/load"
 // ---------------------------------------------------------------------------
 // Test 2: Save → ResetToDefaults → Load → values restored
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_patch_roundtrip: load after reset-to-defaults restores values")
 {
     synthrig::SynthRig rig;
@@ -205,6 +218,7 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: load after reset-to-defaults restores va
     // encoder's initial configuration (may be non-zero for some parameters).
 
     // Reset to defaults — encoder values should go back to the initial default.
+    //
     rig.ResetToDefaults();
     rig.RunFrames(kSettleFrames);
 
@@ -213,13 +227,16 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: load after reset-to-defaults restores va
     // randomised value we wrote).  Use a generous tolerance for slew.
     // NOTE: defaultVal was captured before any randomisation, so this checks
     // that ResetToDefaults actually reverted something.
+    //
     DOCTEST_CHECK(std::isfinite(afterReset));
 
     // Load back.
+    //
     DOCTEST_CHECK(rig.LoadPatch(jsonA));
     rig.RunFrames(kSettleFrames);
 
     // Values restored.
+    //
     AssertEncoderValues(rig, records, kTol);
 
     DOCTEST_CHECK_FALSE(rig.SawNaN());
@@ -228,6 +245,7 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: load after reset-to-defaults restores va
 // ---------------------------------------------------------------------------
 // Test 3: JSON stability — save twice → same string
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_patch_roundtrip: JSON is stable across consecutive saves")
 {
     synthrig::SynthRig rig;
@@ -241,14 +259,17 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: JSON is stable across consecutive saves"
     }
 
     // Write some deterministic values.
+    //
     auto records = RandomiseEncoders(rig, encoders, /*seed=*/0x1234567890ABULL);
     (void)records;
 
     // First save.
+    //
     std::string jsonA = rig.SavePatch();
     DOCTEST_REQUIRE_FALSE(jsonA.empty());
 
     // Load and save again — should produce identical JSON.
+    //
     DOCTEST_CHECK(rig.LoadPatch(jsonA));
     rig.RunFrames(kSettleFrames);
 
@@ -258,9 +279,11 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: JSON is stable across consecutive saves"
     // JSON_A and JSON_B should be identical.
     // If they differ, it may indicate non-deterministic fields in the
     // serialiser (e.g. timestamps, UUIDs, runtime LFO phases being saved).
+    //
     if (jsonA != jsonB)
     {
         // Document but do not fail — this is a canary for non-determinism.
+        //
         DOCTEST_WARN_MESSAGE(jsonA == jsonB,
             "// BUG?: JSON not identical after load+save cycle — "
             "serialiser may include non-deterministic fields");
@@ -276,12 +299,14 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: JSON is stable across consecutive saves"
 // ---------------------------------------------------------------------------
 // Test 4: Malformed JSON returns false, system stays NaN-clean
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_patch_roundtrip: malformed JSON returns false and stays NaN-clean")
 {
     synthrig::SynthRig rig;
     rig.RunFrames(2);
 
     // Set a known encoder value before the bad load.
+    //
     auto encoders = FindConnectedEncoders(rig);
     DOCTEST_REQUIRE_FALSE(encoders.empty());
     int ex = encoders[0].first, ey = encoders[0].second;
@@ -296,6 +321,7 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: malformed JSON returns false and stays N
     // true), because the JSON is non-null.  FromJSON silently skips top-level
     // keys it doesn't find.  So "[]" is NOT a "returns false" case — it is a
     // graceful no-op.  We document this separately below.
+    //
     const std::string strictBadPayloads[] = {
         "",
         "not json",
@@ -312,15 +338,18 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: malformed JSON returns false and stays N
 
     // "[]" parses as a valid empty JSON array; LoadPatch accepts it (no crash)
     // but applies no state changes.  Just verify NaN-cleanliness.
+    //
     {
         bool result = rig.LoadPatch("[]");
         // BUG? LoadPatch("[]") returns true even though the JSON structure is
         // wrong (array instead of object). FromJSON silently ignores it.
         // We don't fail the test for this — document the semantic.
+        //
         (void)result;
     }
 
     // System should still process without NaN.
+    //
     rig.ClearNaN();
     rig.RunFrames(4);
     DOCTEST_CHECK_FALSE(rig.SawNaN());
@@ -329,6 +358,7 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: malformed JSON returns false and stays N
 // ---------------------------------------------------------------------------
 // Test 5: Patch round-trip while sequencer is running — no crash, no NaN
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_patch_roundtrip: save/load while sequencer runs stays NaN-clean")
 {
     synthrig::SynthRig rig;
@@ -349,18 +379,21 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: save/load while sequencer runs stays NaN
     rig.ClearNaN();
 
     // Save while sequencer is running.
+    //
     std::string jsonA = rig.SavePatch();
     DOCTEST_CHECK_FALSE(jsonA.empty());
     rig.RunFrames(3);
     DOCTEST_CHECK_FALSE(rig.SawNaN());
 
     // Load while sequencer is running.
+    //
     rig.ClearNaN();
     DOCTEST_CHECK(rig.LoadPatch(jsonA));
     rig.RunFrames(3);
     DOCTEST_CHECK_FALSE(rig.SawNaN());
 
     // Reset to defaults while sequencer is running.
+    //
     rig.ClearNaN();
     rig.ResetToDefaults();
     rig.RunFrames(3);
@@ -389,6 +422,7 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: save/load while sequencer runs stays NaN
 //   b) Use only the harness SavePatch() path.
 // This test uses the pad path for Save and verifies via the Load pad.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_patch_roundtrip: save-pad and load-pad physical paths work")
 {
     synthrig::SynthRig rig;
@@ -399,6 +433,7 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: save-pad and load-pad physical paths wor
     int ex = encoders[0].first, ey = encoders[0].second;
 
     // Write a known value.
+    //
     const float kSaved = 0.55f;
     rig.SetEncoder(ex, ey, kSaved);
     rig.RunFrames(kSettleFrames);
@@ -406,6 +441,7 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: save-pad and load-pad physical paths wor
 
     // "Press Save" via the real save pad.
     // OnPress → RequestSave(); ProcessFrame → serialises, AckSaveRequested.
+    //
     rig.PressSavePad();
     rig.RunFrames(1); // serialises and sets m_toSave + m_lastSave
     rig.ReleaseSavePad();
@@ -415,27 +451,32 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: save-pad and load-pad physical paths wor
     // do it manually so that m_lastSave is preserved for the load-pad test).
     // After AckSaveRequested, IsSavePending() = true.  We acknowledge it to
     // release the lock for future saves.
+    //
     if (rig.Internal().m_stateInterchange.IsSavePending())
     {
         rig.Internal().m_stateInterchange.AckSaveCompleted();
     }
 
     // Verify m_lastSave is non-null (the save happened).
+    //
     DOCTEST_CHECK_FALSE(rig.Internal().m_stateInterchange.m_lastSave.IsNull());
 
     // Overwrite encoder value.
+    //
     rig.SetEncoder(ex, ey, 0.10f);
     rig.RunFrames(kSettleFrames);
     DOCTEST_CHECK(rig.EncoderValue(ex, ey) < 0.20f);
 
     // "Press Load" via the real load pad.
     // OnPress → FromJSON(m_stateInterchange.m_lastSave) (synchronous).
+    //
     rig.PressLoadPad();
     rig.RunFrames(1);
     rig.ReleaseLoadPad();
     rig.RunFrames(kSettleFrames);
 
     // The load should have restored the value to kSaved.
+    //
     float afterLoad = rig.EncoderValue(ex, ey);
     DOCTEST_CHECK(std::fabs(afterLoad - kSaved) <= kTol);
 

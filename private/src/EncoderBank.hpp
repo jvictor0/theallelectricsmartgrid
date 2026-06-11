@@ -1474,7 +1474,7 @@ struct EncoderBankInternal : public EncoderGrid
     virtual void HandlePress(int x, int y) override
     {
         BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(x, y));
-        if (!cell)
+        if (!cell || !cell->m_sharedEncoderState)
         {
             return;
         }
@@ -1511,6 +1511,14 @@ struct EncoderBankInternal : public EncoderGrid
 
     void FromJSON(JSON rootJ)
     {
+        // Leave modulator-selection mode before loading. While selected, the
+        // visible grid points at the selected cell's modulator sub-cells; a load
+        // rebuilds those modulators, leaving the visible pointers dangling (a
+        // later encoder message would deref a stale/unwired cell). Deselecting
+        // first restores the visible grid to the base cells.
+        //
+        Deselect();
+
         for (size_t i = 0; i < 4; ++i)
         {
             for (size_t j = 0; j < 4; ++j)
@@ -1528,7 +1536,7 @@ struct EncoderBankInternal : public EncoderGrid
         }
 
         ComputeGesturesAffectingPerTrack();
-    }    
+    }
 
     float GetValue(size_t i, size_t j, size_t channel)
     {
@@ -1557,7 +1565,7 @@ struct EncoderBankInternal : public EncoderGrid
         if (msg.m_mode == MessageIn::Mode::EncoderIncDec)
         {
             BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(msg.m_x, msg.m_y));
-            if (cell)
+            if (cell && cell->m_sharedEncoderState)
             {
                 cell->HandleIncDec(msg.m_timestamp, msg.m_amount);
             }
@@ -1573,7 +1581,7 @@ struct EncoderBankInternal : public EncoderGrid
             // UI state and downstream compute stay coherent.
             //
             BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(msg.m_x, msg.m_y));
-            if (cell)
+            if (cell && cell->m_sharedEncoderState)
             {
                 cell->SetToValue(msg.SetValueFloat());
                 cell->SetForceUpdateRecursive();

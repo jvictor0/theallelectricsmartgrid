@@ -36,6 +36,7 @@ constexpr std::size_t kN = kFftSize1024;
 constexpr std::size_t kFirSize = 127; // odd size, reasonable filter length
 
 // Disable tap slewing by snapping all slewed taps to their targets.
+//
 template<std::size_t Size>
 void freezeTaps(FIR<Size>& fir)
 {
@@ -48,6 +49,7 @@ void freezeTaps(FIR<Size>& fir)
 
 // Compute the analytic |H(f)| from the tap DFT.
 // normFreq: cycles per sample [0, 0.5)
+//
 double tapDFT(const float* taps, std::size_t size, double normFreq)
 {
     double re = 0.0, im = 0.0;
@@ -65,6 +67,7 @@ double tapDFT(const float* taps, std::size_t size, double normFreq)
 // ---------------------------------------------------------------------------
 // 1. Impulse in -> taps out (exact convolution with frozen slews).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("FIR: impulse response matches tap values")
 {
     GlobalEnv::ResetPerTest();
@@ -74,6 +77,7 @@ DOCTEST_TEST_CASE("FIR: impulse response matches tap values")
     freezeTaps(fir);
 
     // Feed unit impulse then zeros.
+    //
     std::vector<float> out(kFirSize + 4, 0.0f);
     out[0] = fir.Process(1.0f);
     for (std::size_t i = 1; i < kFirSize + 4; ++i)
@@ -83,12 +87,14 @@ DOCTEST_TEST_CASE("FIR: impulse response matches tap values")
 
     // The tap order in the delay line: tap[0] is most recent, so impulse response
     // at output[i] should match tap[i] (up to the filter length).
+    //
     for (std::size_t i = 0; i < kFirSize; ++i)
     {
         DOCTEST_INFO("i=" << i << " out=" << out[i] << " tap=" << fir.m_slewedTaps[i]);
         DOCTEST_CHECK(out[i] == doctest::Approx(fir.m_slewedTaps[i]).epsilon(1e-5));
     }
     // After the filter length, output should be zero.
+    //
     for (std::size_t i = kFirSize; i < kFirSize + 4; ++i)
     {
         DOCTEST_CHECK(std::abs(out[i]) < 1e-6f);
@@ -98,6 +104,7 @@ DOCTEST_TEST_CASE("FIR: impulse response matches tap values")
 // ---------------------------------------------------------------------------
 // 2. LP mode: DC near 1, stopband attenuated.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("FIR: LP passband near 0 dB, stopband attenuated >20 dB")
 {
     GlobalEnv::ResetPerTest();
@@ -114,11 +121,13 @@ DOCTEST_TEST_CASE("FIR: LP passband near 0 dB, stopband attenuated >20 dB")
     auto H = MeasureTransferFunction(proc, kN, kSR, 0xF12F11000001ull, 32, 4);
 
     // Passband: ~100 Hz to 3 kHz (below cutoff at 4800 Hz).
+    //
     std::size_t loPB = FreqBin(100.0, kN, kSR);
     std::size_t hiPB = FreqBin(3000.0, kN, kSR);
     AssertResponseMatches(H, [](double) { return 1.0; }, kSR, kN, 2.5, loPB, hiPB);
 
     // Stopband: 3x cutoff (about 14400 Hz) and above.
+    //
     std::size_t loSB = FreqBin(14000.0, kN, kSR);
     std::size_t hiSB = FreqBin(23000.0, kN, kSR);
     for (std::size_t k = loSB; k <= hiSB && k < H.size(); ++k)
@@ -134,6 +143,7 @@ DOCTEST_TEST_CASE("FIR: LP passband near 0 dB, stopband attenuated >20 dB")
 // ---------------------------------------------------------------------------
 // 3. HP mode: high-frequency passband near 1.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("FIR: HP passband near 0 dB above cutoff")
 {
     GlobalEnv::ResetPerTest();
@@ -150,11 +160,13 @@ DOCTEST_TEST_CASE("FIR: HP passband near 0 dB above cutoff")
     auto H = MeasureTransferFunction(proc, kN, kSR, 0xF12F12000001ull, 32, 4);
 
     // Passband: > 3x cutoff (~28800 Hz -- use upper range up to 22 kHz).
+    //
     std::size_t loPB = FreqBin(20000.0, kN, kSR);
     std::size_t hiPB = FreqBin(23000.0, kN, kSR);
     AssertResponseMatches(H, [](double) { return 1.0; }, kSR, kN, 3.0, loPB, hiPB);
 
     // Stopband: well below cutoff.
+    //
     std::size_t loSB = FreqBin(100.0, kN, kSR);
     std::size_t hiSB = FreqBin(2000.0, kN, kSR);
     for (std::size_t k = loSB; k <= hiSB && k < H.size(); ++k)
@@ -168,6 +180,7 @@ DOCTEST_TEST_CASE("FIR: HP passband near 0 dB above cutoff")
 // ---------------------------------------------------------------------------
 // 4. Measured LP response matches DFT of taps (analytic reference).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("FIR: measured LP response matches tap DFT (2.5 dB tol)")
 {
     GlobalEnv::ResetPerTest();
@@ -179,6 +192,7 @@ DOCTEST_TEST_CASE("FIR: measured LP response matches tap DFT (2.5 dB tol)")
     freezeTaps(fir);
 
     // Copy taps for the analytic reference.
+    //
     float taps[kFirSize];
     for (std::size_t i = 0; i < kFirSize; ++i)
     {
@@ -199,6 +213,7 @@ DOCTEST_TEST_CASE("FIR: measured LP response matches tap DFT (2.5 dB tol)")
     // variance in the deep stopband (expected < -50 dB), so we restrict the
     // upper frequency to 2x the cutoff (3x cutoff ~ 21600 Hz at 0.15 cps * 48k).
     // Keep the comparison where the analytic response is above ~-40 dB.
+    //
     std::size_t lo = FreqBin(200.0, kN, kSR);
     std::size_t hi = FreqBin(5000.0, kN, kSR);  // well within transition, avoids deep stopband
     AssertResponseMatches(H, expected, kSR, kN, 2.5, lo, hi);
@@ -207,6 +222,7 @@ DOCTEST_TEST_CASE("FIR: measured LP response matches tap DFT (2.5 dB tol)")
 // ---------------------------------------------------------------------------
 // 5. NaN-clean across blend and cutoff sweeps.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("FIR: NaN-clean across blend/cutoff variations")
 {
     GlobalEnv::ResetPerTest();

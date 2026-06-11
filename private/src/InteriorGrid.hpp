@@ -17,17 +17,27 @@ struct InteriorCell : SmartGrid::Cell
 
     virtual SmartGrid::Color GetColor() override
     {
-        return (*m_grid)->GetColor(m_x, m_y);
+        // The active sub-grid can be null transiently (e.g. just after a patch
+        // load, before the owning grid re-points it on the next frame). Treat a
+        // null grid as an inert cell rather than dereferencing through it.
+        //
+        return *m_grid ? (*m_grid)->GetColor(m_x, m_y) : SmartGrid::Color::Off;
     }
 
     virtual void OnPress(uint8_t velocity) override
     {
-        (*m_grid)->OnPress(m_x, m_y, velocity);
+        if (*m_grid)
+        {
+            (*m_grid)->OnPress(m_x, m_y, velocity);
+        }
     }
 
     virtual void OnRelease() override
     {
-        (*m_grid)->OnRelease(m_x, m_y);
+        if (*m_grid)
+        {
+            (*m_grid)->OnRelease(m_x, m_y);
+        }
     }
 };
 

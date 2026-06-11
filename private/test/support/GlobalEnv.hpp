@@ -46,12 +46,15 @@ namespace GlobalEnv
 {
 
 // Default frame size used throughout the host (SampleTimer::x_samplesPerProcessFrame).
+//
 inline constexpr std::size_t kSamplesPerFrame = SampleTimer::x_samplesPerProcessFrame;
 
 // Default deterministic seed for test runs.
+//
 inline constexpr std::uint64_t kDefaultSeed = 0x5EED5EED5EED5EEDull;
 
 // Reseed every static RNG in the DSP core deterministically.
+//
 inline void SeedRandomness(std::uint64_t seed)
 {
     RandomLFO::s_rng.seed(static_cast<std::mt19937::result_type>(seed));
@@ -60,6 +63,7 @@ inline void SeedRandomness(std::uint64_t seed)
 }
 
 // Idempotent process-level init. Safe to call multiple times.
+//
 inline void Init()
 {
     static bool s_initialized = false;
@@ -71,14 +75,17 @@ inline void Init()
 
     SampleTimer::Init(kSamplesPerFrame);
     // AsyncLogQueue::s_instance is a no-op under EMBEDDED_BUILD; nothing to init.
+    //
     (void) &AsyncLogQueue::s_instance;
     SeedRandomness(kDefaultSeed);
 }
 
 // Per-test reset: fresh sample/frame counters and deterministic RNG state.
+//
 inline void ResetPerTest()
 {
     // Re-Init the SampleTimer so m_sample / m_frame start fresh.
+    //
     SampleTimer::Init(kSamplesPerFrame);
     SeedRandomness(kDefaultSeed);
 }

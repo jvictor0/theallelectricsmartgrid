@@ -32,6 +32,7 @@ namespace
 
 // Simulate N samples of write then read-at-D and collect output.
 // Returns a vector of length N (output sample i is read after write i).
+//
 template <size_t Size>
 std::vector<float> RunDelayLine(DelayLine<Size>& dl, const std::vector<float>& input, float D)
 {
@@ -49,17 +50,20 @@ std::vector<float> RunDelayLine(DelayLine<Size>& dl, const std::vector<float>& i
 // ---------------------------------------------------------------------------
 // 1. Impulse response: impulse at sample 0 appears exactly D samples later.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("DelayLine: integer-delay impulse response")
 {
     GlobalEnv::ResetPerTest();
 
     // Use a small buffer so the test finishes quickly.
+    //
     DelayLine<4096> dl;
 
     const int D = 100;   // integer delay
     const int N = 300;   // total samples driven
 
     // Feed: one impulse at t=0 then silence.
+    //
     std::vector<float> input(static_cast<size_t>(N), 0.0f);
     input[0] = 1.0f;
 
@@ -71,10 +75,12 @@ DOCTEST_TEST_CASE("DelayLine: integer-delay impulse response")
     // and uses cubic interpolation with alpha = frac(index).  The impulse
     // sample lands at the read-head when m_index = D, i.e. at step i = D-1.
     // So the expected peak index is D-1.
+    //
     const int expectedPeak = D - 1;
 
     // Pre-echo check: nothing before expectedPeak - 2 (cubic kernel extends
     // at most 2 samples before the nominal tap).
+    //
     for (int i = 0; i < expectedPeak - 2 && i < N; ++i)
     {
         DOCTEST_INFO("pre-echo at i=" << i << " val=" << out[static_cast<size_t>(i)]);
@@ -82,6 +88,7 @@ DOCTEST_TEST_CASE("DelayLine: integer-delay impulse response")
     }
 
     // Peak check.
+    //
     float peak = 0.0f;
     int peakIdx = -1;
     for (int i = 0; i < N; ++i)
@@ -98,6 +105,7 @@ DOCTEST_TEST_CASE("DelayLine: integer-delay impulse response")
     DOCTEST_CHECK(peakIdx == expectedPeak);     // arrives at D-1
 
     // Post-impulse: samples after expectedPeak + 4 should be near zero.
+    //
     for (int i = expectedPeak + 5; i < N; ++i)
     {
         DOCTEST_INFO("post-impulse at i=" << i << " val=" << out[static_cast<size_t>(i)]);
@@ -105,12 +113,14 @@ DOCTEST_TEST_CASE("DelayLine: integer-delay impulse response")
     }
 
     // NaN-clean
+    //
     TestNan::AssertClean(out.data(), out.size());
 }
 
 // ---------------------------------------------------------------------------
 // 2. Fractional delay: D+0.5 gives energy in neighbours, no pre-echo, no NaN.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("DelayLine: fractional-delay impulse no pre-echo")
 {
     GlobalEnv::ResetPerTest();
@@ -130,6 +140,7 @@ DOCTEST_TEST_CASE("DelayLine: fractional-delay impulse no pre-echo")
     // iSub1 = floor(index)-1.  For fractional tap, the kernel can touch up to
     // 2 samples before the nominal tap floor(D)-1, i.e. down to floor(D)-3.
     // No energy before floor(D)-3.
+    //
     int preEchoEnd = static_cast<int>(std::floor(D)) - 3;
     for (int i = 0; i < preEchoEnd && i < N; ++i)
     {
@@ -138,6 +149,7 @@ DOCTEST_TEST_CASE("DelayLine: fractional-delay impulse no pre-echo")
     }
 
     // Energy must arrive somewhere near floor(D)..ceil(D)+2 (cubic kernel).
+    //
     float totalEnergy = 0.0f;
     int lo = static_cast<int>(std::floor(D)) - 1;
     int hi = static_cast<int>(std::ceil(D))  + 4;
@@ -151,6 +163,7 @@ DOCTEST_TEST_CASE("DelayLine: fractional-delay impulse no pre-echo")
     DOCTEST_CHECK(totalEnergy > 0.5f);
 
     // Post-arrival: no lingering energy beyond cubic kernel support.
+    //
     for (int i = hi + 1; i < N; ++i)
     {
         DOCTEST_INFO("post-arrival at i=" << i << " val=" << out[static_cast<size_t>(i)]);
@@ -163,6 +176,7 @@ DOCTEST_TEST_CASE("DelayLine: fractional-delay impulse no pre-echo")
 // ---------------------------------------------------------------------------
 // 3. Sine through fixed delay: output is delayed sine, magnitude ~unchanged.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("DelayLine: sine through fixed delay preserves magnitude")
 {
     GlobalEnv::ResetPerTest();
@@ -187,6 +201,7 @@ DOCTEST_TEST_CASE("DelayLine: sine through fixed delay preserves magnitude")
 
     // Measure RMS of output[warmup..N-1] vs the corresponding portion of the
     // input delayed by D samples: input[warmup - D .. N - 1 - D].
+    //
     double outRms = 0.0, inRms = 0.0;
     int count = 0;
     for (int i = warmup; i < N - 1; ++i)
@@ -204,6 +219,7 @@ DOCTEST_TEST_CASE("DelayLine: sine through fixed delay preserves magnitude")
     DOCTEST_REQUIRE(inRms > 0.3f);  // sine should have decent amplitude
 
     // Cubic interpolation at integer delay should be exact: ratio ~1.
+    //
     double ratio = outRms / inRms;
     DOCTEST_CHECK(ratio == doctest::Approx(1.0).epsilon(0.02));
 
@@ -213,12 +229,14 @@ DOCTEST_TEST_CASE("DelayLine: sine through fixed delay preserves magnitude")
 // ---------------------------------------------------------------------------
 // 4. Sweeping read position: no clicks (MaxAbsDelta bounded vs static baseline).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("DelayLine: sweeping read position is click-free")
 {
     GlobalEnv::ResetPerTest();
 
     // Measure the max sample-to-sample delta of output for a *static* read
     // position (440 Hz sine in, integer delay D=64). Use that as our click threshold.
+    //
     auto measureMaxDelta = [](float readPos, int N) -> float
     {
         DelayLine<4096> dl;
@@ -246,6 +264,7 @@ DOCTEST_TEST_CASE("DelayLine: sweeping read position is click-free")
     float staticDelta = measureMaxDelta(64.0f, N);
 
     // Now sweep the read position gradually from 64 to 128 over N samples.
+    //
     DelayLine<4096> dl;
     const double sampleRate = 48000.0;
     const double freqHz     = 440.0;
@@ -257,6 +276,7 @@ DOCTEST_TEST_CASE("DelayLine: sweeping read position is click-free")
         float in = static_cast<float>(std::sin(2.0 * M_PI * phaseInc * i));
         dl.Write(in);
         // Slowly sweep: 64 -> 128 over N samples.
+        //
         float readPos = 64.0f + 64.0f * static_cast<float>(i) / static_cast<float>(N - 1);
         float val = dl.Read(readPos);
         float delta = std::abs(val - prev);
@@ -274,9 +294,11 @@ DOCTEST_TEST_CASE("DelayLine: sweeping read position is click-free")
     // DelayLine::Read(XFader)) only when called with XFader; plain Read()
     // uses cubic interpolation at every sample. A slow sweep should stay
     // within a reasonable multiple of the static worst-case delta.
+    //
     DOCTEST_CHECK(maxDelta < staticDelta * 10.0f + 0.1f);
 
     // Buffer must be NaN-clean.
+    //
     std::vector<float> dummy(1, prev);  // just check the final sample
     TestNan::AssertClean(dummy.data(), dummy.size());
 }
@@ -284,11 +306,13 @@ DOCTEST_TEST_CASE("DelayLine: sweeping read position is click-free")
 // ---------------------------------------------------------------------------
 // 5. Buffer wraparound: write/read across ring boundary many times.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("DelayLine: ring-buffer wraparound correctness")
 {
     GlobalEnv::ResetPerTest();
 
     // Deliberately small buffer so we wrap many times quickly.
+    //
     DelayLine<256> dl;
 
     const int    D = 50;
@@ -298,6 +322,7 @@ DOCTEST_TEST_CASE("DelayLine: ring-buffer wraparound correctness")
 
     // Run 3 full buffer passes (3 * 256 = 768 samples), each time recording
     // the output. Check NaN-clean and bounded.
+    //
     const int N = 768;
     std::vector<float> out(static_cast<size_t>(N));
     for (int i = 0; i < N; ++i)
@@ -310,6 +335,7 @@ DOCTEST_TEST_CASE("DelayLine: ring-buffer wraparound correctness")
     TestNan::AssertClean(out.data(), out.size());
 
     // All samples must be within [-1.1, 1.1] (cubic can slightly overshoot).
+    //
     for (size_t i = 0; i < out.size(); ++i)
     {
         DOCTEST_INFO("sample " << i << " = " << out[i]);
@@ -321,6 +347,7 @@ DOCTEST_TEST_CASE("DelayLine: ring-buffer wraparound correctness")
 // ---------------------------------------------------------------------------
 // 6. QuadDelayLine: four independent channels.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("QuadDelayLine: four independent channels, impulse response")
 {
     GlobalEnv::ResetPerTest();
@@ -332,16 +359,20 @@ DOCTEST_TEST_CASE("QuadDelayLine: four independent channels, impulse response")
 
     // Feed an impulse into channel k only (k = 0, 1, 2, 3 in turn),
     // then verify the other channels read ~0 and channel k has a peak at D.
+    //
     for (int k = 0; k < 4; ++k)
     {
         // Re-initialize by default-constructing a fresh one per iteration.
+        //
         QuadDelayLine<4096> qdl2;
 
         // Build a QuadFloat impulse: only channel k is 1 at t=0.
+        //
         std::vector<float> outBuf(static_cast<size_t>(N));
         for (int chan = 0; chan < 4; ++chan)
         {
             // reset — individual channels are independent DelayLine<Size> members.
+            //
             (void)chan;
         }
 
@@ -359,6 +390,7 @@ DOCTEST_TEST_CASE("QuadDelayLine: four independent channels, impulse response")
             outBuf[static_cast<size_t>(i)] = rd[k];
 
             // Cross-channel isolation: other channels should stay ~0.
+            //
             for (int j = 0; j < 4; ++j)
             {
                 if (j != k)
@@ -373,6 +405,7 @@ DOCTEST_TEST_CASE("QuadDelayLine: four independent channels, impulse response")
         TestNan::AssertClean(outBuf.data(), outBuf.size());
 
         // Channel k must have a peak at sample D.
+        //
         float peak = 0.0f;
         int peakIdx = -1;
         for (int i = 0; i < N; ++i)

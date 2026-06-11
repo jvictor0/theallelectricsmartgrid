@@ -34,6 +34,7 @@ DOCTEST_TEST_CASE("OPLowPassFilter constructs and processes samples")
     filter.SetAlphaFromNatFreq(0.1f);
 
     // Feed a step input; the filtered output should settle and stay finite.
+    //
     float out = 0.0f;
     for (int i = 0; i < 64; ++i)
     {
@@ -42,6 +43,7 @@ DOCTEST_TEST_CASE("OPLowPassFilter constructs and processes samples")
     }
 
     // A low-pass fed a constant 1.0 should approach 1.0.
+    //
     DOCTEST_CHECK(out > 0.5f);
     DOCTEST_CHECK(out <= 1.0f + 1e-3f);
 }
@@ -79,6 +81,7 @@ DOCTEST_TEST_CASE("TheNonagonSquiggleBoyInternal constructs and processes sample
     // Drive a couple of process frames worth of samples. SampleTimer::IncrementSample
     // returns true at frame boundaries, at which point ProcessFrame is run -- the
     // same cadence the host uses.
+    //
     const int numSamples = 2 * static_cast<int>(SampleTimer::x_samplesPerProcessFrame) + 16;
     for (int i = 0; i < numSamples; ++i)
     {

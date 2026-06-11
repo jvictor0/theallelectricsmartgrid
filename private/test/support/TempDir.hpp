@@ -25,6 +25,7 @@ public:
     TempDir()
     {
         // Honor TMPDIR if set (macOS CI uses per-user temp dirs), else /tmp.
+        //
         const char* tmp = std::getenv("TMPDIR");
         std::filesystem::path base = (tmp && tmp[0] != '\0')
             ? std::filesystem::path(tmp)

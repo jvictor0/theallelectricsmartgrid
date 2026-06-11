@@ -15,6 +15,7 @@ namespace TestContinuity
 
 // Largest absolute first difference |buf[i+1] - buf[i]| over the buffer.
 // 0 for buffers shorter than 2 samples.
+//
 inline float MaxAbsDelta(const float* buf, std::size_t n)
 {
     float maxd = 0.0f;
@@ -30,6 +31,7 @@ inline float MaxAbsDelta(const float* buf, std::size_t n)
 }
 
 // Number of adjacent-sample jumps whose magnitude strictly exceeds threshold.
+//
 inline std::size_t DiscontinuityCount(const float* buf, std::size_t n, float threshold)
 {
     std::size_t count = 0;
@@ -51,6 +53,7 @@ inline std::size_t DiscontinuityCount(const float* buf, std::size_t n, float thr
 //
 // Returns a linear ratio (0 = pure tone). Harmonics at or above Nyquist (i.e.
 // past the spectrum's last bin) are ignored.
+//
 inline double THD(const float* buf, std::size_t n, double fundamentalHz,
                   double sampleRate, std::size_t fftSize = TestSpectral::kFftSize1024)
 {

@@ -42,6 +42,7 @@ static constexpr double kSampleRate = 48000.0;
 // Helper: run QuadLFO for N samples at the given freq (same for all channels),
 // returning channel `ch` output as a float buffer.
 // ---------------------------------------------------------------------------
+//
 static std::vector<float> RunQuadLFO(size_t n, float freqHz, int ch = 0,
                                       float phaseKnobCh0 = 0.0f,
                                       float phaseKnobCh1 = 0.0f,
@@ -86,19 +87,23 @@ static std::vector<float> RunQuadLFO(size_t n, float freqHz, int ch = 0,
 //   - Filter cutoff = 200 Hz → passes 100 Hz fundamental well
 //   - THD should be low (harmonics are attenuated by the slew filter)
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("QuadLFO: sinusoidal output at 100 Hz — dominant bin near 100 Hz and low THD")
 {
     GlobalEnv::ResetPerTest();
 
     const double freqHz = 100.0;
     // 2 seconds at 100 Hz = 200 cycles — enough for spectral analysis.
+    //
     const size_t n = static_cast<size_t>(kSampleRate * 2);
     std::vector<float> buf = RunQuadLFO(n, freqHz, 0);
 
     // NaN clean
+    //
     TestNan::AssertClean(buf.data(), n);
 
     // Bounded in [-1, 1] + generous epsilon for filter transient
+    //
     for (float v : buf)
     {
         DOCTEST_CHECK(v >= -1.1f);
@@ -106,27 +111,33 @@ DOCTEST_TEST_CASE("QuadLFO: sinusoidal output at 100 Hz — dominant bin near 10
     }
 
     // Skip first 10 cycles (transient) for spectral analysis
+    //
     size_t skipSamples = static_cast<size_t>(kSampleRate / freqHz * 10);
     const float* steady = buf.data() + skipSamples;
     size_t steadyN = n - skipSamples;
 
     // Dominant bin should be near 100 Hz in the 4096-pt FFT.
     // Bin resolution = 48000/4096 ≈ 11.7 Hz; bin 8 = 93.75 Hz, bin 9 = 105.5 Hz.
+    //
     auto spec = TestSpectral::MagnitudeSpectrum(steady, steadyN, TestSpectral::kFftSize4096);
     size_t domBin = TestSpectral::DominantBin(spec);
     double measHz = TestSpectral::BinFreq(domBin, TestSpectral::kFftSize4096, kSampleRate);
     // Allow ±2 bins (±23 Hz) tolerance for frequency rounding.
+    //
     DOCTEST_CHECK(measHz == doctest::Approx(freqHz).epsilon(0.25));
 
     // THD: the slew filter (cutoff=200 Hz) attenuates harmonics strongly.
+    //
     double thd = TestContinuity::THD(steady, steadyN, freqHz, kSampleRate, TestSpectral::kFftSize4096);
     // THD < 1.0 is a generous threshold (the slew does attenuate harmonics significantly)
+    //
     DOCTEST_CHECK(thd < 1.0);
 }
 
 // ---------------------------------------------------------------------------
 // Test 2: QuadLFO — all 4 channels are active and bounded
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("QuadLFO: all 4 channels produce bounded output")
 {
     GlobalEnv::ResetPerTest();
@@ -168,11 +179,13 @@ DOCTEST_TEST_CASE("QuadLFO: all 4 channels produce bounded output")
 // should have a phase difference approximately equal to GetPhase(1, 0.25).
 // We verify the channels are not identical (different phase) when phaseKnob != 0.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("QuadLFO: non-zero phaseKnob produces different phase output from ch0")
 {
     GlobalEnv::ResetPerTest();
 
     // Run with phaseKnob = 0 (no offset) and with phaseKnob = 0.25 (offset)
+    //
     auto runTwo = [&](float pk1) -> std::pair<std::vector<float>, std::vector<float>>
     {
         GlobalEnv::ResetPerTest();
@@ -203,6 +216,7 @@ DOCTEST_TEST_CASE("QuadLFO: non-zero phaseKnob produces different phase output f
     };
 
     // With no phase offset, channels should be nearly identical (same freq, same phase start)
+    //
     auto [ch0_nophase, ch1_nophase] = runTwo(0.0f);
     float maxDiffNoPhase = 0.0f;
     for (size_t i = 0; i < ch0_nophase.size(); ++i)
@@ -211,6 +225,7 @@ DOCTEST_TEST_CASE("QuadLFO: non-zero phaseKnob produces different phase output f
     }
 
     // With phase offset, channels should differ (phase shifted)
+    //
     auto [ch0_phase, ch1_phase] = runTwo(0.25f);
     float maxDiffWithPhase = 0.0f;
     for (size_t i = 0; i < ch0_phase.size(); ++i)
@@ -219,6 +234,7 @@ DOCTEST_TEST_CASE("QuadLFO: non-zero phaseKnob produces different phase output f
     }
 
     // Channels with offset should differ more than channels without offset
+    //
     DOCTEST_CHECK(maxDiffWithPhase > maxDiffNoPhase + 0.05f);
 }
 
@@ -228,6 +244,7 @@ DOCTEST_TEST_CASE("QuadLFO: non-zero phaseKnob produces different phase output f
 // Change m_freq from one value to another mid-run. Assert no discontinuity.
 // WARN + report if a jump is found.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("QuadLFO: continuity under mid-run frequency change")
 {
     GlobalEnv::ResetPerTest();
@@ -240,10 +257,12 @@ DOCTEST_TEST_CASE("QuadLFO: continuity under mid-run frequency change")
     for (int i = 0; i < 4; ++i) { input.m_freq[i] = freqLow; input.m_phaseKnob[i] = 0.0f; }
 
     // Warmup
+    //
     const size_t warmup = 2000;
     for (size_t i = 0; i < warmup; ++i) lfo.Process(input);
 
     // Pre-change: capture 1000 samples
+    //
     const size_t preSamples = 1000;
     std::vector<float> buf;
     buf.reserve(preSamples + 1000);
@@ -254,9 +273,11 @@ DOCTEST_TEST_CASE("QuadLFO: continuity under mid-run frequency change")
     }
 
     // Change freq
+    //
     for (int i = 0; i < 4; ++i) input.m_freq[i] = freqHigh;
 
     // Post-change: capture 1000 samples
+    //
     const size_t postSamples = 1000;
     for (size_t i = 0; i < postSamples; ++i)
     {
@@ -267,9 +288,11 @@ DOCTEST_TEST_CASE("QuadLFO: continuity under mid-run frequency change")
     TestNan::AssertClean(buf.data(), buf.size());
 
     // Steady-state max delta before change
+    //
     float preMaxDelta = TestContinuity::MaxAbsDelta(buf.data(), preSamples);
 
     // Transition window: 5 before, 20 after change
+    //
     size_t transStart = (preSamples > 5) ? preSamples - 5 : 0;
     size_t transEnd   = std::min(preSamples + 20, buf.size());
     const float* transPtr = buf.data() + transStart;
@@ -279,11 +302,13 @@ DOCTEST_TEST_CASE("QuadLFO: continuity under mid-run frequency change")
     size_t discont = TestContinuity::DiscontinuityCount(transPtr, transLen, 0.1f);
 
     // Threshold: 4x pre-change delta (LFO phase can jump more aggressively)
+    //
     float threshold = std::max(0.1f, preMaxDelta * 4.0f);
 
     if (discont > 0 || transMaxDelta > threshold)
     {
         // BUG?: QuadLFO frequency change causes discontinuity.
+        //
         DOCTEST_WARN_MESSAGE(discont == 0,
             "QuadLFO DISCONTINUITY under freq change: "
             "DiscontinuityCount=" << discont <<
@@ -309,6 +334,7 @@ DOCTEST_TEST_CASE("QuadLFO: continuity under mid-run frequency change")
 // we count phasor wraps to verify different periods. We use frequencies in
 // the range where the phase-lock logic does NOT fire (>0.01% apart).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("QuadLFO: independent channel frequencies produce different wrap rates")
 {
     GlobalEnv::ResetPerTest();
@@ -317,6 +343,7 @@ DOCTEST_TEST_CASE("QuadLFO: independent channel frequencies produce different wr
     QuadLFO::Input input;
     // Set noticeably different frequencies so they're outside the phase-lock range.
     // Phase-lock fires when ratio is within 0.01%; these differ by 2x or more.
+    //
     float freqs[4] = {
         static_cast<float>(50.0  / kSampleRate),
         static_cast<float>(100.0 / kSampleRate),
@@ -332,6 +359,7 @@ DOCTEST_TEST_CASE("QuadLFO: independent channel frequencies produce different wr
     // Track number of phase wraps per channel by watching the internal phase.
     // We count wraps from phasor values reported by inspecting output sign changes
     // (after the slew filter settles).
+    //
     const size_t n = static_cast<size_t>(kSampleRate * 2); // 2 seconds
 
     std::vector<float> ch[4];
@@ -344,6 +372,7 @@ DOCTEST_TEST_CASE("QuadLFO: independent channel frequencies produce different wr
     }
 
     // Each channel is NaN-clean and bounded
+    //
     for (int c = 0; c < 4; ++c)
     {
         TestNan::AssertClean(ch[c].data(), n);
@@ -361,6 +390,7 @@ DOCTEST_TEST_CASE("QuadLFO: independent channel frequencies produce different wr
     //   200 Hz → bin ~17 → bin 17
     //   75 Hz → bin ~6.4 → bin 6 (70.3 Hz) or bin 7 (81.6 Hz)
     // Skip first 1000 samples (transient)
+    //
     const size_t skip = 1000;
     double expectedHz[4] = {50.0, 100.0, 200.0, 75.0};
 
@@ -370,6 +400,7 @@ DOCTEST_TEST_CASE("QuadLFO: independent channel frequencies produce different wr
         size_t dom = TestSpectral::DominantBin(spec);
         double measHz = TestSpectral::BinFreq(dom, TestSpectral::kFftSize4096, kSampleRate);
         // Allow ±30% tolerance (one or two bins at coarse 11.7 Hz resolution)
+        //
         DOCTEST_CHECK(measHz == doctest::Approx(expectedHz[c]).epsilon(0.30));
     }
 }
@@ -377,6 +408,7 @@ DOCTEST_TEST_CASE("QuadLFO: independent channel frequencies produce different wr
 // ---------------------------------------------------------------------------
 // Test 6: RandomLFO — determinism (same seed → same sequence)
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("RandomLFO: determinism — same seed produces identical sequence")
 {
     const size_t n = 500;
@@ -405,6 +437,7 @@ DOCTEST_TEST_CASE("RandomLFO: determinism — same seed produces identical seque
 // ---------------------------------------------------------------------------
 // Test 7: RandomLFO — output bounded in [0, 1] and NaN-clean
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("RandomLFO: output bounded in [0, 1] and NaN-clean")
 {
     GlobalEnv::ResetPerTest();
@@ -429,6 +462,7 @@ DOCTEST_TEST_CASE("RandomLFO: output bounded in [0, 1] and NaN-clean")
 // between adjacent samples are impossible (the filter effectively limits the
 // slew rate). We check that MaxAbsDelta is well below 0.1 per sample.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("RandomLFO: smooth output — MaxAbsDelta bounded by filter")
 {
     GlobalEnv::ResetPerTest();
@@ -439,19 +473,23 @@ DOCTEST_TEST_CASE("RandomLFO: smooth output — MaxAbsDelta bounded by filter")
     for (size_t i = 0; i < n; ++i) buf.push_back(lfo.Process());
 
     // Skip very first samples (filter startup transient)
+    //
     float maxDelta = TestContinuity::MaxAbsDelta(buf.data() + 100, n - 100);
     // Filter at 0.05/48000 should limit jumps to << 0.01 per sample
+    //
     DOCTEST_CHECK(maxDelta < 0.01f);
 }
 
 // ---------------------------------------------------------------------------
 // Test 9: GangedRandomLFO — basic: bounded output and NaN-clean
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("GangedRandomLFO: bounded output and NaN-clean (basic standalone drive)")
 {
     GlobalEnv::ResetPerTest();
 
     // Drive GangedRandomLFOInternal directly (it's standalone — no ToT needed).
+    //
     GangedRandomLFOInternal lfo;
     GangedRandomLFOInternal::Input input;
     input.m_time    = 1.0f;    // ~1 second per move (at dt=1/sampleRate)
@@ -477,9 +515,11 @@ DOCTEST_TEST_CASE("GangedRandomLFO: bounded output and NaN-clean (basic standalo
 
     // Positions are not hard-clamped by the class itself, but should be
     // loosely bounded (typically [0,1] with some sigma excursion).
+    //
     float minVal = *std::min_element(buf.begin(), buf.end());
     float maxVal = *std::max_element(buf.begin(), buf.end());
     // Allow generous bounds: sigma=0.1 means +/-3-sigma = 0.3 from center
+    //
     DOCTEST_CHECK(minVal > -1.0f);
     DOCTEST_CHECK(maxVal < 2.0f);
 }
@@ -487,6 +527,7 @@ DOCTEST_TEST_CASE("GangedRandomLFO: bounded output and NaN-clean (basic standalo
 // ---------------------------------------------------------------------------
 // Test 10: GangedRandomLFO determinism with fixed seed
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("GangedRandomLFO: determinism with fixed seed")
 {
     const size_t n = 500;

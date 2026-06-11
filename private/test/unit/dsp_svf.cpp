@@ -38,6 +38,7 @@ constexpr std::size_t kN = kFftSize1024;
 // ---------------------------------------------------------------------------
 // Helper: measure LP/HP/BP transfer functions simultaneously for LinearSVF.
 // ---------------------------------------------------------------------------
+//
 struct SVFOutputs { std::vector<float> LP, HP, BP; };
 
 static SVFOutputs measureSVFTF(float cutoffCps, float resonance,
@@ -57,6 +58,7 @@ static SVFOutputs measureSVFTF(float cutoffCps, float resonance,
     std::vector<float> avgLP(half, 0.0f), avgHP(half, 0.0f), avgBP(half, 0.0f);
 
     // Warmup frame.
+    //
     for (std::size_t i = 0; i < N; ++i)
     {
         svf.Process(noise.Next());
@@ -101,6 +103,7 @@ static SVFOutputs measureSVFTF(float cutoffCps, float resonance,
 // ---------------------------------------------------------------------------
 // 1. LP at low resonance matches analytic.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinearSVF: LP measured response matches analytic (1.5 dB)")
 {
     GlobalEnv::ResetPerTest();
@@ -110,6 +113,7 @@ DOCTEST_TEST_CASE("LinearSVF: LP measured response matches analytic (1.5 dB)")
     const float resonance = 0.0f;  // Butterworth-ish Q
 
     // Get g and k from a filter instance.
+    //
     LinearStateVariableFilter svf;
     svf.SetCutoff(cutoffCps);
     svf.SetResonance(resonance);
@@ -131,6 +135,7 @@ DOCTEST_TEST_CASE("LinearSVF: LP measured response matches analytic (1.5 dB)")
 // ---------------------------------------------------------------------------
 // 2. HP at low resonance matches analytic.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinearSVF: HP measured response matches analytic (1.5 dB)")
 {
     GlobalEnv::ResetPerTest();
@@ -154,6 +159,7 @@ DOCTEST_TEST_CASE("LinearSVF: HP measured response matches analytic (1.5 dB)")
 
     // Skip below ~300 Hz: deep HP stopband has < -40 dB expected gain,
     // Welch estimator noise floor causes > 1.5 dB error at these bins.
+    //
     std::size_t lo = FreqBin(300.0,  kN, kSR);
     std::size_t hi = FreqBin(22000.0, kN, kSR);
     AssertResponseMatches(outs.HP, expected, kSR, kN, 1.5, lo, hi);
@@ -162,6 +168,7 @@ DOCTEST_TEST_CASE("LinearSVF: HP measured response matches analytic (1.5 dB)")
 // ---------------------------------------------------------------------------
 // 3. BP at low resonance matches analytic.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinearSVF: BP measured response matches analytic (2 dB)")
 {
     GlobalEnv::ResetPerTest();
@@ -191,6 +198,7 @@ DOCTEST_TEST_CASE("LinearSVF: BP measured response matches analytic (2 dB)")
 // ---------------------------------------------------------------------------
 // 4. High resonance: sustained sine at cutoff -- output stays bounded.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinearSVF: high resonance output bounded (stability)")
 {
     GlobalEnv::ResetPerTest();
@@ -204,6 +212,7 @@ DOCTEST_TEST_CASE("LinearSVF: high resonance output bounded (stability)")
     svf.SetResonance(resonance);
 
     // Drive with sine at cutoff for many samples.
+    //
     const std::size_t nSamples = 48000;
     TestSignal::Sine sine(cutoffHz, kSR, 0.1f);  // small amplitude sine
 
@@ -221,6 +230,7 @@ DOCTEST_TEST_CASE("LinearSVF: high resonance output bounded (stability)")
 
     DOCTEST_INFO("max |LP output| at high resonance: " << maxAbs);
     // Must stay bounded; even resonant sine should be below amplitude 50.
+    //
     DOCTEST_CHECK(maxAbs < 50.0f);
     TestNan::AssertClean(out.data(), nSamples);
 }
@@ -228,6 +238,7 @@ DOCTEST_TEST_CASE("LinearSVF: high resonance output bounded (stability)")
 // ---------------------------------------------------------------------------
 // 5. Parameter sweep: NaN-clean.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinearSVF: NaN-clean across parameter sweep")
 {
     GlobalEnv::ResetPerTest();
@@ -260,6 +271,7 @@ DOCTEST_TEST_CASE("LinearSVF: NaN-clean across parameter sweep")
 // ---------------------------------------------------------------------------
 // 6. LinearSVF4PoleHP: passband near 0 dB above cutoff.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LinearSVF4PoleHP: passband near 0 dB above cutoff")
 {
     GlobalEnv::ResetPerTest();
@@ -288,6 +300,7 @@ DOCTEST_TEST_CASE("LinearSVF4PoleHP: passband near 0 dB above cutoff")
 
     // Skip below ~500 Hz where the 4-pole HP stopband is < -80 dB and
     // the Welch estimator noise floor prevents accurate comparison.
+    //
     std::size_t lo = FreqBin(500.0,  kN, kSR);
     std::size_t hi = FreqBin(22000.0, kN, kSR);
     AssertResponseMatches(H, expected, kSR, kN, 2.0, lo, hi);

@@ -53,12 +53,14 @@ constexpr float kAlarmBound  = 10.0f;   // unbounded-growth alarm threshold
 // ---------------------------------------------------------------------------
 // Pre-start characterization: no NaN, bounded, and (per findings) silent+frozen.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("startup: pre-start run is finite, bounded, and quiescent")
 {
     SynthRig rig;
 
     // Do NOT start the sequencer. Raise gain so that IF anything were leaking
     // through the audio path we would see it.
+    //
     stress::OpenGain(rig);
     rig.RunFrames(2);
     rig.ClearOutput();
@@ -72,11 +74,13 @@ DOCTEST_TEST_CASE("startup: pre-start run is finite, bounded, and quiescent")
     DOCTEST_CHECK(rig.OutputPeak() < kOutputBound);
 
     // CHARACTERIZE: pre-start is silent and the master clock is frozen.
+    //
     DOCTEST_MESSAGE("pre-start OutputPeak = " << rig.OutputPeak());
     DOCTEST_MESSAGE("pre-start master phasor: " << phasorBefore << " -> " << phasorAfter);
 
     // WARN on anything alarming (unbounded growth). This is the user's reported
     // "instability" -- we assert it does NOT manifest as a runaway signal.
+    //
     if (rig.OutputPeak() > kAlarmBound)
     {
         DOCTEST_WARN_MESSAGE(false,
@@ -86,6 +90,7 @@ DOCTEST_TEST_CASE("startup: pre-start run is finite, bounded, and quiescent")
 
     // Documented semantics: pre-start the clock does not advance and the audio
     // path is silent. (If this ever changes, the message above will flag it.)
+    //
     DOCTEST_CHECK(std::fabs(phasorAfter - phasorBefore) < 1e-9);
     DOCTEST_CHECK(rig.OutputPeak() < 1e-6f);
 }
@@ -93,6 +98,7 @@ DOCTEST_TEST_CASE("startup: pre-start run is finite, bounded, and quiescent")
 // ---------------------------------------------------------------------------
 // Start -> run -> stop, then post-stop sanity (decay toward silence, no NaN).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("startup: start/run/stop leaves a sane, decaying state")
 {
     SynthRig rig;
@@ -107,6 +113,7 @@ DOCTEST_TEST_CASE("startup: start/run/stop leaves a sane, decaying state")
     DOCTEST_CHECK(rig.OutputPeak() < kOutputBound);
     const float runPeak = rig.OutputPeak();
     // With notes playing we expect real audio (sanity that the recipe works).
+    //
     DOCTEST_CHECK(runPeak > 1e-3f);
     DOCTEST_MESSAGE("running OutputPeak = " << runPeak);
 
@@ -115,6 +122,7 @@ DOCTEST_TEST_CASE("startup: start/run/stop leaves a sane, decaying state")
 
     // Post-stop: run stopped, watch the tail decay. The first window holds the
     // delay/reverb tail; a later window should be quieter than the run peak.
+    //
     rig.ClearOutput();
     rig.ClearNaN();
     rig.RunSeconds(0.6);
@@ -127,9 +135,11 @@ DOCTEST_TEST_CASE("startup: start/run/stop leaves a sane, decaying state")
     // Documented semantics: stop does not hard-mute -- effects tail off. We
     // only assert the tail does not EXCEED the running level (no growth on
     // stop) rather than demanding instant silence.
+    //
     DOCTEST_CHECK(tailPeak <= runPeak + 1e-3f);
 
     // The master phasor must be frozen again after stop.
+    //
     const double p0 = rig.MasterPhasor();
     rig.RunSeconds(0.3);
     const double p1 = rig.MasterPhasor();
@@ -140,6 +150,7 @@ DOCTEST_TEST_CASE("startup: start/run/stop leaves a sane, decaying state")
 // Repeated start/stop cycles: no NaN ever, no monotonic growth in peak, encoder
 // UIState stays valid, system still responds to SetEncoder afterward.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("startup: repeated start/stop cycles stay stable")
 {
     SynthRig rig;
@@ -184,11 +195,13 @@ DOCTEST_TEST_CASE("startup: repeated start/stop cycles stay stable")
     }
 
     // No runaway growth across cycles: the peak must NOT climb every cycle.
+    //
     DOCTEST_CHECK_FALSE(monotonicGrowth);
     DOCTEST_CHECK(maxRunPeak < kOutputBound);
 
     // Encoder UIState still valid: at least one connected encoder publishes a
     // finite value.
+    //
     bool sawConnected = false;
     for (int x = 0; x < 4 && !sawConnected; ++x)
     {
@@ -205,6 +218,7 @@ DOCTEST_TEST_CASE("startup: repeated start/stop cycles stay stable")
     DOCTEST_CHECK(sawConnected);
 
     // System still responds to SetEncoder after all the cycling.
+    //
     int ex = -1, ey = -1;
     for (int x = 0; x < 4 && ex < 0; ++x)
     {
@@ -225,6 +239,7 @@ DOCTEST_TEST_CASE("startup: repeated start/stop cycles stay stable")
 // after a first start/stop. The concrete, reproducible observable is that the
 // master clock is FROZEN pre-first-start and only ever advances after a start.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("startup: reproduce pre-first-start frozen-clock observable")
 {
     SynthRig rig;
@@ -232,6 +247,7 @@ DOCTEST_TEST_CASE("startup: reproduce pre-first-start frozen-clock observable")
     rig.RunFrames(2);
 
     // (a) Fresh rig, never started: clock frozen, audio silent.
+    //
     rig.ClearOutput();
     const double freshP0 = rig.MasterPhasor();
     rig.RunSeconds(0.6);
@@ -247,6 +263,7 @@ DOCTEST_TEST_CASE("startup: reproduce pre-first-start frozen-clock observable")
     // first start the instrument is inert. We WARN-document it as the concrete,
     // benign explanation (no NaN / no runaway), so the report is corroborated
     // by a live observable rather than prose alone.
+    //
     const bool freshInert = freshClockFrozen && freshSilent;
     DOCTEST_WARN_MESSAGE(freshInert,
         "pre-first-start the master clock advances or audio is non-silent -- "
@@ -255,6 +272,7 @@ DOCTEST_TEST_CASE("startup: reproduce pre-first-start frozen-clock observable")
     DOCTEST_CHECK(freshSilent);
 
     // (b) First start: clock advances, audio appears, NaN-clean.
+    //
     rig.StartSequencer();
     rig.ClearOutput();
     rig.ClearNaN();
@@ -266,6 +284,7 @@ DOCTEST_TEST_CASE("startup: reproduce pre-first-start frozen-clock observable")
     DOCTEST_CHECK_FALSE(rig.SawNaN());
 
     // (c) Stop, then a SECOND start behaves identically (no corrupted state).
+    //
     rig.StopSequencer();
     rig.RunSeconds(0.3);
     rig.StartSequencer();

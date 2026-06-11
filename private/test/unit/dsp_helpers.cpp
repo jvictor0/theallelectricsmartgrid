@@ -26,6 +26,7 @@ constexpr double kSampleRate = 48000.0;
 // ---------------------------------------------------------------------------
 // 4096-point spectral path: dominant bin of an exact-bin sine.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MagnitudeSpectrum: 4096-point path resolves the right bin")
 {
     GlobalEnv::ResetPerTest();
@@ -46,6 +47,7 @@ DOCTEST_TEST_CASE("MagnitudeSpectrum: 4096-point path resolves the right bin")
 // ---------------------------------------------------------------------------
 // Continuity: a smooth sine has small max delta; an injected jump is counted.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("Continuity: MaxAbsDelta / DiscontinuityCount")
 {
     GlobalEnv::ResetPerTest();
@@ -60,8 +62,10 @@ DOCTEST_TEST_CASE("Continuity: MaxAbsDelta / DiscontinuityCount")
     DOCTEST_CHECK(DiscontinuityCount(buf.data(), n, 0.1f) == 0);
 
     // Inject a single large jump.
+    //
     buf[500] += 1.5f;
     // Jump appears on both the rising edge into 500 and falling edge out of it.
+    //
     DOCTEST_CHECK(DiscontinuityCount(buf.data(), n, 0.1f) >= 1);
     DOCTEST_CHECK(MaxAbsDelta(buf.data(), n) > 1.0f);
 }
@@ -69,6 +73,7 @@ DOCTEST_TEST_CASE("Continuity: MaxAbsDelta / DiscontinuityCount")
 // ---------------------------------------------------------------------------
 // THD: a pure sine has near-zero THD; a hard-clipped sine has substantial THD.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("THD: pure tone ~0, clipped tone elevated")
 {
     GlobalEnv::ResetPerTest();
@@ -84,6 +89,7 @@ DOCTEST_TEST_CASE("THD: pure tone ~0, clipped tone elevated")
     DOCTEST_CHECK(thdClean < 0.02);  // pure tone
 
     // Hard clip the sine to generate odd harmonics.
+    //
     std::vector<float> clipped(N);
     Sine s2(freq, kSampleRate, 1.0f);
     for (std::size_t i = 0; i < N; ++i)
@@ -100,6 +106,7 @@ DOCTEST_TEST_CASE("THD: pure tone ~0, clipped tone elevated")
 // NanScan: clean buffer reports -1; NaN/Inf detected; denormals classified
 // separately.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("NanScan: detects NaN/Inf, separates denormals")
 {
     GlobalEnv::ResetPerTest();
@@ -115,6 +122,7 @@ DOCTEST_TEST_CASE("NanScan: detects NaN/Inf, separates denormals")
     DOCTEST_CHECK(TestNan::ScanBuffer(buf.data(), buf.size()) == 40);
 
     // Denormal is finite -> not "bad", but flagged by IsDenormal.
+    //
     float denorm = std::numeric_limits<float>::denorm_min();
     DOCTEST_CHECK(TestNan::IsBad(denorm) == false);
     DOCTEST_CHECK(TestNan::IsDenormal(denorm) == true);
@@ -125,6 +133,7 @@ DOCTEST_TEST_CASE("NanScan: detects NaN/Inf, separates denormals")
 // ---------------------------------------------------------------------------
 // Sweep generator: produces a finite, bounded signal across its span.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("Sweep: finite and bounded over its span")
 {
     GlobalEnv::ResetPerTest();

@@ -3,6 +3,7 @@
 #ifdef EMBEDDED_BUILD
 // Standalone/test build (no JUCE): use the jansson-backed JSON adapter,
 // which exposes the same JSON API surface as this JUCE-backed one.
+//
 #include "JanssonAdapter.hpp"
 #else
 
@@ -188,6 +189,7 @@ struct JSON
     void Decref() const
     {
         // No-op
+        //
     }
     
     // JSON parsing and serialization
@@ -215,15 +217,18 @@ struct JSON
     
     // Conversion to/from json_t* for dataToJson/dataFromJson compatibility
     // These are no-ops in JuceSon since we don't use json_t*
+    //
     static JSON FromJsonT(void* jsonPtr)
     {
         // This should never be called in JuceSon context
+        //
         return JSON(juce::var());
     }
     
     void* ToJsonT() const
     {
         // This should never be called in JuceSon context
+        //
         return nullptr;
     }
 };

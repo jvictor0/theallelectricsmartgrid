@@ -46,6 +46,7 @@ namespace
 //   - wide-open bandwidth (accept all frequencies)
 //   - reductionFeedback = 0 (immediate gating)
 //   - syntheticGain = 0, organicGain = 1
+//
 PartialMachine::Input MakeBasicInput()
 {
     PartialMachine::Input inp;
@@ -54,18 +55,22 @@ PartialMachine::Input MakeBasicInput()
     inp.m_spectralModelInput.m_useSyntheticHarmonics = false;
 
     // Slew: immediate (alpha = 1 = instantaneous).
+    //
     inp.m_spectralModelInput.m_slewUpAlpha   = FrequencyDependentParameter::Parameter(1.0f);
     inp.m_spectralModelInput.m_slewDownAlpha = FrequencyDependentParameter::Parameter(1.0f);
     inp.m_spectralModelInput.m_omegaPortamentoAlpha = FrequencyDependentParameter::Parameter(1.0f);
 
     // Wide omega density: accept all atoms.
+    //
     inp.m_spectralModelInput.m_omegaDensity = FrequencyDependentParameter::Parameter(1.0f / 4096.0f);
 
     // Low gain threshold so low-amplitude partials are tracked.
+    //
     inp.m_spectralModelInput.m_gainThreshold = 1e-4f;
 
     // SynthesisContext: wide-open filter (bwBase = very low, bwWidth = very large),
     // full volume, no bass cut, spread azimuth, full organic gain.
+    //
     inp.m_synthesisContextInput.m_bwBaseFrequency = FrequencyDependentParameter::Parameter(1.0f / 4096.0f);
     inp.m_synthesisContextInput.m_bwWidth         = FrequencyDependentParameter::Parameter(4096.0f);
     inp.m_synthesisContextInput.m_volume          = FrequencyDependentParameter::Parameter(1.0f);
@@ -91,6 +96,7 @@ constexpr int    kWarmup     = kWarmupHops * static_cast<int>(kHopSize);
 // ---------------------------------------------------------------------------
 // 1. Silence in -> output finite (may be non-zero due to OLA ring but bounded).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("PartialMachine: silence in -> output finite and near-zero")
 {
     GlobalEnv::ResetPerTest();
@@ -111,6 +117,7 @@ DOCTEST_TEST_CASE("PartialMachine: silence in -> output finite and near-zero")
     TestNan::AssertClean(ch0.data(), ch0.size());
 
     // After warmup with silence in, output should be near zero (no atoms).
+    //
     for (int i = kWarmup; i < N; ++i)
     {
         DOCTEST_INFO("silence@" << i << "=" << ch0[static_cast<size_t>(i)]);
@@ -121,6 +128,7 @@ DOCTEST_TEST_CASE("PartialMachine: silence in -> output finite and near-zero")
 // ---------------------------------------------------------------------------
 // 2. Sine input -> output is finite, bounded, not silent after latency.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("PartialMachine: sine input -> non-silent output, finite")
 {
     GlobalEnv::ResetPerTest();
@@ -129,6 +137,7 @@ DOCTEST_TEST_CASE("PartialMachine: sine input -> non-silent output, finite")
     PartialMachine::Input inp = MakeBasicInput();
 
     // 440 Hz sine at 48 kHz, amplitude 0.5.
+    //
     const double sampleRate = static_cast<double>(SampleTimer::x_sampleRate);
     TestSignal::Sine sine(440.0, sampleRate, 0.5f);
 
@@ -146,6 +155,7 @@ DOCTEST_TEST_CASE("PartialMachine: sine input -> non-silent output, finite")
     TestNan::AssertClean(ch0.data(), ch0.size());
 
     // Post-warmup: at least some non-zero output.
+    //
     float rms = 0.0f;
     int count = 0;
     for (int i = kWarmup; i < N; ++i)
@@ -159,6 +169,7 @@ DOCTEST_TEST_CASE("PartialMachine: sine input -> non-silent output, finite")
     DOCTEST_CHECK(rms > 1e-6f);  // not completely silent
 
     // Bounded.
+    //
     for (size_t i = 0; i < ch0.size(); ++i)
     {
         DOCTEST_CHECK(std::abs(ch0[i]) < 5.0f);
@@ -169,6 +180,7 @@ DOCTEST_TEST_CASE("PartialMachine: sine input -> non-silent output, finite")
 // 3. Stress: random seeded parameter modulation + white-noise input.
 //    Assert NaN-clean, bounded output, atom count within x_maxAtoms.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("PartialMachine: stress - random modulation, finite+bounded")
 {
     GlobalEnv::ResetPerTest();
@@ -178,6 +190,7 @@ DOCTEST_TEST_CASE("PartialMachine: stress - random modulation, finite+bounded")
     TestSignal::WhiteNoise rng(0xFEEDFACE5678ULL);
 
     // 1 second of audio at 48 kHz.
+    //
     const int N = 48000;
     bool anyBad = false;
     float maxAbs = 0.0f;
@@ -185,10 +198,12 @@ DOCTEST_TEST_CASE("PartialMachine: stress - random modulation, finite+bounded")
     for (int i = 0; i < N; ++i)
     {
         // Modulate parameters every hop.
+        //
         PartialMachine::Input inp = MakeBasicInput();
         if (i % static_cast<int>(kHopSize) == 0)
         {
             // Randomly scale bwWidth, volume, reductionFeedback.
+            //
             float r = rng.Next() * 0.5f + 0.5f;  // [0,1]
             inp.m_synthesisContextInput.m_volume =
                 FrequencyDependentParameter::Parameter(r);
@@ -196,6 +211,7 @@ DOCTEST_TEST_CASE("PartialMachine: stress - random modulation, finite+bounded")
                 FrequencyDependentParameter::Parameter(1.0f + r * 100.0f);
 
             // Vary numAtoms between 16 and 64.
+            //
             inp.m_spectralModelInput.m_numAtoms =
                 16 + static_cast<size_t>(r * 48.0f);
         }
@@ -218,6 +234,7 @@ DOCTEST_TEST_CASE("PartialMachine: stress - random modulation, finite+bounded")
         }
 
         // Probe atom count in bounds.
+        //
         size_t atomCount = pm.m_spectralModel.m_atoms.Size();
         DOCTEST_INFO("atom count at i=" << i << " = " << atomCount);
         DOCTEST_CHECK(atomCount <= PartialMachine::SpectralModel::x_maxAtoms);
@@ -231,6 +248,7 @@ DOCTEST_TEST_CASE("PartialMachine: stress - random modulation, finite+bounded")
 // ---------------------------------------------------------------------------
 // 4. Few-partial input (two sines): output finite and bounded.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("PartialMachine: two-partial sine input -> finite output")
 {
     GlobalEnv::ResetPerTest();

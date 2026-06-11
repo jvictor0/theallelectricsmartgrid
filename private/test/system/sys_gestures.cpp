@@ -86,6 +86,7 @@ constexpr int kSettleFrames = 8;
 constexpr float kTol = 1e-2f; // gesture math uses slew + float weighting
 
 // Locate the first connected encoder.
+//
 bool FindConnected(synthrig::SynthRig& rig, int& ex, int& ey)
 {
     for (int x = 0; x < 4; ++x)
@@ -105,6 +106,7 @@ bool FindConnected(synthrig::SynthRig& rig, int& ex, int& ey)
 }
 
 // Helper: get the gesturesAffecting bitmask for encoder (ex, ey) from UIState.
+//
 BitSet16 GesturesAffecting(synthrig::SynthRig& rig, int ex, int ey)
 {
     return rig.UIState().m_squiggleBoyUIState.m_encoderBankUIState.GetGesturesAffecting(ex, ey);
@@ -115,6 +117,7 @@ BitSet16 GesturesAffecting(synthrig::SynthRig& rig, int ex, int ey)
 // ---------------------------------------------------------------------------
 // Test 1: Gesture setup and effective output moves between base and gesture
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base and target")
 {
     // -----------------------------------------------------------------------
@@ -136,6 +139,7 @@ DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base a
     //   3. Release gesture pad; fader controls the blend between base and
     //      gesture cell output.
     // -----------------------------------------------------------------------
+    //
     synthrig::SynthRig rig;
     rig.SetLeftScene(0);
     rig.SetRightScene(1);
@@ -146,6 +150,7 @@ DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base a
     DOCTEST_REQUIRE(FindConnected(rig, ex, ey));
 
     // Establish a known base value of 0.30 via SetEncoder.
+    //
     const float kBase = 0.30f;
     rig.SetEncoder(ex, ey, kBase);
     rig.RunFrames(kSettleFrames);
@@ -154,15 +159,18 @@ DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base a
 
     // Pre-arm fader for gesture 0 to weight=1.  At weight=1, all encoder
     // increments (while gesture is selected) go to the gesture cell.
+    //
     rig.SetFader(0, 1.0f);
     rig.RunFrames(2); // let ProcessFrame pick up the new fader value
 
     // Select gesture 0 and increment the encoder.  Since fader=1, the full
     // delta goes to the gesture cell, leaving the base at kBase=0.30.
+    //
     rig.PressGesturePad(0);
     rig.RunFrames(1);
 
     // Use large positive deltas to push the gesture cell well above base.
+    //
     rig.IncEncoder(ex, ey, +50);
     rig.RunFrames(1);
     rig.IncEncoder(ex, ey, +40);
@@ -172,6 +180,7 @@ DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base a
     rig.RunFrames(kSettleFrames);
 
     // gesturesAffecting should now include bit 0 (gesture 0 is active).
+    //
     BitSet16 gAff = GesturesAffecting(rig, ex, ey);
     if (gAff.IsZero())
     {
@@ -188,18 +197,21 @@ DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base a
     // -----------------------------------------------------------------------
 
     // Weight = 1 → near gesture value.
+    //
     rig.SetFader(0, 1.0f);
     rig.RunFrames(kSettleFrames);
     float out_w1 = rig.EncoderValue(ex, ey);
     DOCTEST_CHECK(std::isfinite(out_w1));
 
     // Weight = 0 → near base.
+    //
     rig.SetFader(0, 0.0f);
     rig.RunFrames(kSettleFrames);
     float out_w0 = rig.EncoderValue(ex, ey);
     DOCTEST_CHECK(std::isfinite(out_w0));
 
     // Weight = 0.5 → intermediate.
+    //
     rig.SetFader(0, 0.5f);
     rig.RunFrames(kSettleFrames);
     float out_w50 = rig.EncoderValue(ex, ey);
@@ -207,9 +219,11 @@ DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base a
 
     // With fader=1 during gesture increment, gesture cell should be higher
     // than base (we pushed up from 0.30).
+    //
     if (out_w1 > out_w0 + kTol)
     {
         // Ordering: out_w0 <= out_w50 <= out_w1 (monotone in weight)
+        //
         DOCTEST_CHECK(out_w50 >= out_w0 - kTol);
         DOCTEST_CHECK(out_w50 <= out_w1 + kTol);
     }
@@ -218,6 +232,7 @@ DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base a
         // The gesture and base ended up at the same value.  This can happen
         // if the gesture cell is initialised to the parent value (which
         // happens when the gesture is freshly activated with w=1).  Document.
+        //
         DOCTEST_WARN_MESSAGE(out_w1 > out_w0 + kTol,
             "// NOTE: out_w1 <= out_w0; gesture cell and base converged — "
             "check BankedEncoderCell::SetActive (initialises gesture to parent value)");
@@ -229,6 +244,7 @@ DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base a
 // ---------------------------------------------------------------------------
 // Test 2: Gesture bitmask (gesturesAffecting) reflects assignment
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_gestures: gesturesAffecting bitmask reflects active gesture")
 {
     synthrig::SynthRig rig;
@@ -241,10 +257,12 @@ DOCTEST_TEST_CASE("sys_gestures: gesturesAffecting bitmask reflects active gestu
     DOCTEST_REQUIRE(FindConnected(rig, ex, ey));
 
     // Start: should have no gesture affecting.
+    //
     BitSet16 before = GesturesAffecting(rig, ex, ey);
     DOCTEST_CHECK(before.IsZero());
 
     // Set up gesture 1 (gesture index 1).
+    //
     rig.PressGesturePad(1);
     rig.RunFrames(1);
     rig.IncEncoder(ex, ey, +30);
@@ -254,18 +272,21 @@ DOCTEST_TEST_CASE("sys_gestures: gesturesAffecting bitmask reflects active gestu
 
     BitSet16 after = GesturesAffecting(rig, ex, ey);
     // Expect bit 1 to be set.
+    //
     if (!after.Get(1))
     {
         DOCTEST_WARN_MESSAGE(false,
             "// BUG?: gesturesAffecting bit 1 not set after gesture setup on gesture 1");
     }
     // At minimum, the bitmask changed.
+    //
     DOCTEST_CHECK_FALSE(rig.SawNaN());
 }
 
 // ---------------------------------------------------------------------------
 // Test 3: Gesture weight via fader is NaN-clean while sequencer runs
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_gestures: gesture weight sweep is NaN-clean with sequencer running")
 {
     synthrig::SynthRig rig;
@@ -276,6 +297,7 @@ DOCTEST_TEST_CASE("sys_gestures: gesture weight sweep is NaN-clean with sequence
     DOCTEST_REQUIRE(FindConnected(rig, ex, ey));
 
     // Set up gesture 2.
+    //
     rig.PressGesturePad(2);
     rig.RunFrames(1);
     rig.IncEncoder(ex, ey, +20);
@@ -319,6 +341,7 @@ DOCTEST_TEST_CASE("sys_gestures: gesture weight sweep is NaN-clean with sequence
 // selection mode, increment a modulator cell, push (3,3) to deselect, then
 // check that the modulator is affecting the base encoder.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_gestures: modulator assignment via encoder-push selection")
 {
     synthrig::SynthRig rig;
@@ -329,27 +352,32 @@ DOCTEST_TEST_CASE("sys_gestures: modulator assignment via encoder-push selection
     DOCTEST_REQUIRE(FindConnected(rig, ex, ey));
 
     // Enter selection mode by pushing the encoder.
+    //
     rig.PressEncoder(ex, ey);
     rig.RunFrames(1);
     // (After press, the encoder bank shows modulator amount cells.)
 
     // Increment modulator cell at (0,0) → modulator slot 0.
     // This assigns some amplitude of modulator 0 to the base encoder.
+    //
     rig.IncEncoder(0, 0, +30);
     rig.RunFrames(1);
     rig.IncEncoder(0, 0, +20);
     rig.RunFrames(1);
 
     // Deselect by pushing (3,3).
+    //
     rig.PressEncoder(3, 3);
     rig.RunFrames(kSettleFrames);
 
     // After deselect, check m_modulatorsAffecting for the base encoder.
+    //
     auto& uiState = rig.UIState().m_squiggleBoyUIState.m_encoderBankUIState;
     BitSet16 modAff = uiState.GetModulatorsAffecting(ex, ey);
 
     // We expect modulator 0 to be affecting (bit 0 set) if the above worked.
     // If not, document as informational (modulator sub-cells may have been GC'd).
+    //
     if (!modAff.Get(0))
     {
         DOCTEST_WARN_MESSAGE(false,
@@ -358,6 +386,7 @@ DOCTEST_TEST_CASE("sys_gestures: modulator assignment via encoder-push selection
     }
 
     // Run for a while with sequencer; confirm NaN-clean.
+    //
     rig.StartSequencer();
     rig.ClearNaN();
     rig.RunFrames(5);
@@ -368,6 +397,7 @@ DOCTEST_TEST_CASE("sys_gestures: modulator assignment via encoder-push selection
 // ---------------------------------------------------------------------------
 // Test 5: RevertToDefault clears encoder values and gesture masks
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_gestures: RevertToDefault resets encoder values and clears gesture masks")
 {
     synthrig::SynthRig rig;
@@ -378,11 +408,13 @@ DOCTEST_TEST_CASE("sys_gestures: RevertToDefault resets encoder values and clear
     DOCTEST_REQUIRE(FindConnected(rig, ex, ey));
 
     // Move encoder to non-default value.
+    //
     rig.SetEncoder(ex, ey, 0.80f);
     rig.RunFrames(kSettleFrames);
     DOCTEST_CHECK(rig.EncoderValue(ex, ey) > 0.5f);
 
     // Set up a gesture.
+    //
     rig.PressGesturePad(3);
     rig.RunFrames(1);
     rig.IncEncoder(ex, ey, +15);
@@ -391,20 +423,25 @@ DOCTEST_TEST_CASE("sys_gestures: RevertToDefault resets encoder values and clear
     rig.RunFrames(kSettleFrames);
 
     // Also set gesture weight.
+    //
     rig.SetFader(3, 0.7f);
     rig.RunFrames(2);
 
     // Revert to defaults (calls RevertToDefault(allScenes=true, allTracks=true)).
+    //
     rig.ResetToDefaults();
     rig.RunFrames(kSettleFrames);
 
     // Encoder should be near default value (0 for most encoders).
+    //
     float afterRevert = rig.EncoderValue(ex, ey);
     // Default value is typically 0 for base params.  Allow larger tolerance
     // because slew hasn't fully settled yet.
+    //
     DOCTEST_CHECK(afterRevert < 0.15f);
 
     // gesturesAffecting should be cleared.
+    //
     BitSet16 gestMask = GesturesAffecting(rig, ex, ey);
     DOCTEST_CHECK(gestMask.IsZero());
 
@@ -414,6 +451,7 @@ DOCTEST_TEST_CASE("sys_gestures: RevertToDefault resets encoder values and clear
 // ---------------------------------------------------------------------------
 // Test 6: Shift+gesture pad clears gesture for current scene (ClearGesture path)
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("sys_gestures: shift+gesture pad clears the gesture")
 {
     synthrig::SynthRig rig;
@@ -424,6 +462,7 @@ DOCTEST_TEST_CASE("sys_gestures: shift+gesture pad clears the gesture")
     DOCTEST_REQUIRE(FindConnected(rig, ex, ey));
 
     // Set up gesture 4.
+    //
     rig.PressGesturePad(4);
     rig.RunFrames(1);
     rig.IncEncoder(ex, ey, +40);
@@ -434,10 +473,12 @@ DOCTEST_TEST_CASE("sys_gestures: shift+gesture pad clears the gesture")
     rig.RunFrames(2);
 
     // Confirm gesture is somewhat active.
+    //
     float beforeClear = rig.EncoderValue(ex, ey);
     DOCTEST_CHECK(std::isfinite(beforeClear));
 
     // Shift + gesture pad 4 → ClearGesture(4) for all tracks in current scene.
+    //
     rig.WithShift([&rig]() {
         rig.PressGesturePad(4);
         rig.RunFrames(1);
@@ -446,6 +487,7 @@ DOCTEST_TEST_CASE("sys_gestures: shift+gesture pad clears the gesture")
     rig.RunFrames(kSettleFrames);
 
     // Zero the fader so gestureWeights[4] = 0 (weight goes away too).
+    //
     rig.SetFader(4, 0.0f);
     rig.RunFrames(kSettleFrames);
 
@@ -453,6 +495,7 @@ DOCTEST_TEST_CASE("sys_gestures: shift+gesture pad clears the gesture")
     // NOTE: GestureSelectorCell::OnPress with shift calls ClearGesture then
     // SelectGesture — the gesture cell may still exist but be inactive.
     // The important check is NaN-cleanliness.
+    //
     DOCTEST_CHECK(std::isfinite(rig.EncoderValue(ex, ey)));
     DOCTEST_CHECK_FALSE(rig.SawNaN());
 }

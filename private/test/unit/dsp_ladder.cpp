@@ -38,6 +38,7 @@ constexpr std::size_t kN = kFftSize1024;
 // ---------------------------------------------------------------------------
 // 1. Passband sine passes at close to unity (low amplitude, no resonance).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LadderFilterLP: passband sine near unity gain")
 {
     GlobalEnv::ResetPerTest();
@@ -50,6 +51,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: passband sine near unity gain")
     filt.SetResonance(0.0f);
 
     // Drive with small sine at 1 kHz (well below the 4 kHz cutoff).
+    //
     const float amp = 0.1f;
     TestSignal::Sine sine(1000.0f, kSR, amp);
 
@@ -69,6 +71,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: passband sine near unity gain")
     }
 
     // Passband gain should be close to 1 (within 3 dB ~ factor of 0.7).
+    //
     float rmsIn  = std::sqrt(sumIn  / measure);
     float rmsOut = std::sqrt(sumOut / measure);
     float gain   = (rmsIn > 1e-9f) ? rmsOut / rmsIn : 0.0f;
@@ -81,6 +84,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: passband sine near unity gain")
 // ---------------------------------------------------------------------------
 // 2. Stopband sine attenuated >= 40 dB relative to passband sine.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LadderFilterLP: stopband attenuation >= 40 dB vs passband")
 {
     GlobalEnv::ResetPerTest();
@@ -93,6 +97,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: stopband attenuation >= 40 dB vs passband")
     const float amp = 0.01f;  // small signal
 
     // Passband measurement at 300 Hz.
+    //
     {
         LadderFilterLP filt;
         filt.SetCutoff(cutoffCps);
@@ -109,6 +114,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: stopband attenuation >= 40 dB vs passband")
         DOCTEST_INFO("passband rms at 300 Hz: " << rmsPassband);
 
         // Stopband measurement at 8x cutoff (8 kHz).
+        //
         LadderFilterLP filt2;
         filt2.SetCutoff(cutoffCps);
         filt2.SetResonance(0.0f);
@@ -134,6 +140,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: stopband attenuation >= 40 dB vs passband")
 // ---------------------------------------------------------------------------
 // 3. Low-signal linear approx: measured TF roughly matches analytic model (3 dB tol).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LadderFilterLP: measured TF near analytic at low drive (3 dB)")
 {
     GlobalEnv::ResetPerTest();
@@ -149,6 +156,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: measured TF near analytic at low drive (3 dB)
     float feedback = filt.m_kEff;
 
     // Low amplitude to stay near linear regime.
+    //
     std::function<float(float)> proc = [&filt](float x) {
         return filt.Process(x * 0.01f) / 0.01f;  // scale in/out to avoid saturation
     };
@@ -161,6 +169,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: measured TF near analytic at low drive (3 dB)
     };
 
     // Compare passband + roll-off; avoid deep stopband where noise floor dominates.
+    //
     std::size_t lo = FreqBin(100.0,  kN, kSR);
     std::size_t hi = FreqBin(8000.0, kN, kSR);
     AssertResponseMatches(H, expected, kSR, kN, 3.0, lo, hi);
@@ -169,6 +178,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: measured TF near analytic at low drive (3 dB)
 // ---------------------------------------------------------------------------
 // 4. Resonance self-oscillation bounded (long run, no NaN, amplitude finite).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LadderFilterLP: high resonance self-oscillation bounded and NaN-clean")
 {
     GlobalEnv::ResetPerTest();
@@ -187,6 +197,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: high resonance self-oscillation bounded and N
     for (std::size_t i = 0; i < nSamples; ++i)
     {
         // Feed tiny noise to kick off oscillation but not dominate.
+        //
         out[i] = filt.Process((i == 0) ? 0.001f : 0.0f);
         float a = std::abs(out[i]);
         if (a > maxAbs) maxAbs = a;
@@ -200,6 +211,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: high resonance self-oscillation bounded and N
 // ---------------------------------------------------------------------------
 // 5. Parameter sweep NaN-clean.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("LadderFilterLP: NaN-clean across parameter sweep")
 {
     GlobalEnv::ResetPerTest();

@@ -36,6 +36,7 @@ constexpr double kSR = 48000.0;
 constexpr std::size_t kN = kFftSize4096;  // larger FFT for better frequency resolution
 
 // Large warmup to let all slews settle after SetParams.
+//
 constexpr std::size_t kWarmup = 48000;
 } // namespace
 
@@ -43,6 +44,7 @@ constexpr std::size_t kWarmup = 48000;
 // Helper: measure transfer function of CombFilterWithOnePole.
 // Returns H[k] = avgOut[k] / avgIn[k].
 // ---------------------------------------------------------------------------
+//
 static std::vector<float>
 measureCombTF(float combFreqNorm, float alpha, float feedback,
               std::uint64_t seed, int frames = 32)
@@ -54,6 +56,7 @@ measureCombTF(float combFreqNorm, float alpha, float feedback,
     comb.SetParams(combFreqNorm, alpha);
     comb.m_feedbackSlew.Update(feedback);
     // Force slews to settle immediately.
+    //
     comb.m_feedbackSlew.m_filter.m_output = feedback;
     comb.m_compensatedDelaySlew.m_filter.m_output = comb.m_compensatedDelaySlew.m_target;
 
@@ -61,6 +64,7 @@ measureCombTF(float combFreqNorm, float alpha, float feedback,
     TestSignal::WhiteNoise noise(seed);
 
     // Warmup.
+    //
     for (std::size_t i = 0; i < kWarmup; ++i)
     {
         float x = noise.Next();
@@ -96,6 +100,7 @@ measureCombTF(float combFreqNorm, float alpha, float feedback,
 // ---------------------------------------------------------------------------
 // 1. Zero feedback: output is effectively allpass (flat or near-flat).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("CombFilterWithOnePole: zero feedback is pass-through")
 {
     GlobalEnv::ResetPerTest();
@@ -108,6 +113,7 @@ DOCTEST_TEST_CASE("CombFilterWithOnePole: zero feedback is pass-through")
 
     // With zero feedback the one-pole LP in the feedback path is inactive;
     // output = input + 0 * ... = input. Expect near-unity gain.
+    //
     std::size_t lo = FreqBin(200.0,  kN, kSR);
     std::size_t hi = FreqBin(18000.0, kN, kSR);
     AssertResponseMatches(H, [](double) { return 1.0; }, kSR, kN, 1.5, lo, hi);
@@ -116,11 +122,13 @@ DOCTEST_TEST_CASE("CombFilterWithOnePole: zero feedback is pass-through")
 // ---------------------------------------------------------------------------
 // 2. Positive feedback: peaks at harmonic multiples of fundamental.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("CombFilterWithOnePole: peaks at harmonics for positive feedback")
 {
     GlobalEnv::ResetPerTest();
 
     // Fundamental at ~200 Hz; 5 harmonics in the first 1 kHz.
+    //
     const float fundHz   = 200.0f;
     const float combFreq = fundHz / static_cast<float>(kSR);
     const float alpha    = 0.9f;   // strong damping
@@ -131,6 +139,7 @@ DOCTEST_TEST_CASE("CombFilterWithOnePole: peaks at harmonics for positive feedba
     // For positive feedback the comb resonates at multiples of combFreq.
     // Check that bins near the first 3 harmonics (200, 400, 600 Hz) are louder
     // than bins between them.
+    //
     const float harmonics[] = { fundHz, 2 * fundHz, 3 * fundHz };
     const float midpoints[]  = { 1.5f * fundHz, 2.5f * fundHz };
 
@@ -138,6 +147,7 @@ DOCTEST_TEST_CASE("CombFilterWithOnePole: peaks at harmonics for positive feedba
     {
         std::size_t hBin = FreqBin(hf, kN, kSR);
         // Neighbourhood max to handle slight bin offset from delay compensation.
+        //
         float peakMag = 0.0f;
         for (int d = -3; d <= 3; ++d)
         {
@@ -160,6 +170,7 @@ DOCTEST_TEST_CASE("CombFilterWithOnePole: peaks at harmonics for positive feedba
 // ---------------------------------------------------------------------------
 // 3. NaN-clean under various configurations.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("CombFilterWithOnePole: NaN-clean under varied parameters")
 {
     GlobalEnv::ResetPerTest();
@@ -198,6 +209,7 @@ DOCTEST_TEST_CASE("CombFilterWithOnePole: NaN-clean under varied parameters")
 // 4. Negative feedback: notches at odd harmonics relative to a positive-fb comb.
 // This tests that sign inversion changes the peak/notch pattern.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("CombFilterWithOnePole: negative feedback creates notch pattern")
 {
     GlobalEnv::ResetPerTest();
@@ -212,8 +224,10 @@ DOCTEST_TEST_CASE("CombFilterWithOnePole: negative feedback creates notch patter
     auto Hneg = measureCombTF(combFreq, alpha, feedbackNeg, 0xC0B1C2D30000004Bull, 32);
 
     // At the fundamental (1st harmonic), positive feedback peaks and negative notches.
+    //
     std::size_t bin1 = FreqBin(fundHz, kN, kSR);
     // Neighbourhood max for pos.
+    //
     float posNearFund = 0.0f, negNearFund = 0.0f;
     for (int d = -4; d <= 4; ++d)
     {
@@ -226,5 +240,6 @@ DOCTEST_TEST_CASE("CombFilterWithOnePole: negative feedback creates notch patter
     }
     DOCTEST_INFO("At fund: positive fb |H|=" << posNearFund << "  negative fb |H|=" << negNearFund);
     // Positive feedback should boost the fundamental more than negative.
+    //
     DOCTEST_CHECK(posNearFund > negNearFund * 1.5f);
 }

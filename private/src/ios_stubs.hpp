@@ -9,6 +9,7 @@
 #include <os/log.h>
 
 // Global-scope stubs for VCV Rack widget types
+//
 struct LightWidget
 {
     virtual ~LightWidget() = default;
@@ -133,6 +134,7 @@ namespace rack
 #define DEBUG(...) juce::Logger::writeToLog(juce::String::formatted(__VA_ARGS__))
 #else
 // Standalone/test build (no JUCE). Route diagnostics to stderr.
+//
 #include <cstdio>
 #define WARN(...) std::fprintf(stderr, __VA_ARGS__)
 #define DEBUG(...) std::fprintf(stderr, __VA_ARGS__)

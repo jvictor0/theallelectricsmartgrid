@@ -31,6 +31,7 @@
 // envelopeTimeSamples: the "1 loop" scaling factor for the time axis.
 // trigSampleCount: how many samples to keep m_trig=true (usually 1).
 // ---------------------------------------------------------------------------
+//
 namespace
 {
 
@@ -43,14 +44,17 @@ struct AHDRig
     AHD::AHDControl control;
 
     // loopIndex: which ToT loop to reference (0 by default)
+    //
     explicit AHDRig(double envelopeTimeSamples, size_t loopIndex = 0)
     {
         // Master period chosen so the loop cycle is much longer than the
         // envelope, preventing wrap-around interfering with circle tracking.
+        //
         rig.SetMasterPeriodSamples(48000.0);
         rig.SetRunning(true);
         // Wire loop 0's parent to master (loop 5); it has multiplier 2 by default.
         // For simpler single-loop tests use loopIndex=5 (master loop directly).
+        //
         input.m_theoryOfTime = rig.Get();
         input.m_loopIndex    = loopIndex;
         input.m_envelopeTimeSamples = envelopeTimeSamples;
@@ -60,6 +64,7 @@ struct AHDRig
         control.m_release = false;
 
         // Prime a couple of control frames so the topology is settled.
+        //
         rig.AdvanceControlFrame();
         rig.AdvanceControlFrame();
     }
@@ -78,11 +83,13 @@ struct AHDRig
     }
 
     // Process one sample, using the current SampleTimer uBlock index.
+    //
     float ProcessOneSample()
     {
         input.m_samplePosition = static_cast<float>(rig.CurrentUBlockIndex());
         float out = ahd.Process(input);
         // Clear trig after first Process (was a one-shot edge).
+        //
         input.m_trig = false;
         rig.AdvanceSample();
         return out;
@@ -105,6 +112,7 @@ struct AHDRig
 // ---------------------------------------------------------------------------
 // Test 1: Shape — rises to peak ~1, holds, decays to ~0
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("AHD: shape — monotone rise, hold, monotone decay")
 {
     GlobalEnv::ResetPerTest();
@@ -113,6 +121,7 @@ DOCTEST_TEST_CASE("AHD: shape — monotone rise, hold, monotone decay")
     // attack=0.0 (fastest), hold=0.0 (no hold), decay=0.0 (fastest).
     // The AHD attack increment with attack=0 is 1/(sampleRate*attackTimeMin)
     // = 1/(48000*0.001) = ~0.02083 per sample => peaks in ~48 samples.
+    //
     const double envTime = 4800.0;
     AHDRig r(envTime, 5 /*master loop*/);
     r.SetAHD(0.0f, 0.0f, 0.0f);
@@ -126,13 +135,16 @@ DOCTEST_TEST_CASE("AHD: shape — monotone rise, hold, monotone decay")
     //   decayIncrement(fastest) = 1/(48000*0.01) = 0.002083 /env-sample
     //   decay to 0: distance * 4800 * 0.002083 = 1 => distance = 0.1 => 4800 audio samples.
     // Total needed: ~5500 samples; use 7000 to be safe.
+    //
     const size_t totalSamples = 7000;
     std::vector<float> buf = r.Run(totalSamples);
 
     // NaN-clean
+    //
     TestNan::AssertClean(buf.data(), buf.size());
 
     // Find peak
+    //
     float peak = 0.0f;
     size_t peakIdx = 0;
     for (size_t i = 0; i < buf.size(); ++i)
@@ -143,9 +155,11 @@ DOCTEST_TEST_CASE("AHD: shape — monotone rise, hold, monotone decay")
     DOCTEST_CHECK(peak > 0.8f);    // must reach near-full amplitude
 
     // After peak, must decay — last sample should be near 0
+    //
     DOCTEST_CHECK(buf.back() < 0.05f);
 
     // Bounded in [0, 1+eps]
+    //
     for (size_t i = 0; i < buf.size(); ++i)
     {
         DOCTEST_CHECK(buf[i] >= -0.001f);
@@ -156,6 +170,7 @@ DOCTEST_TEST_CASE("AHD: shape — monotone rise, hold, monotone decay")
     // Note: AHD samples are updated only on control-frame boundaries (every 8 samples),
     // so adjacent audio samples in between read the same interpolated phasor value —
     // allowing tiny repetition, not regression.
+    //
     {
         float prev = 0.0f;
         for (size_t i = 0; i < peakIdx; ++i)
@@ -166,6 +181,7 @@ DOCTEST_TEST_CASE("AHD: shape — monotone rise, hold, monotone decay")
     }
 
     // Decay phase: monotone from peak down.
+    //
     {
         float prev = peak;
         for (size_t i = peakIdx; i < buf.size(); ++i)
@@ -179,6 +195,7 @@ DOCTEST_TEST_CASE("AHD: shape — monotone rise, hold, monotone decay")
 // ---------------------------------------------------------------------------
 // Test 2: Attack time scaling — faster attack reaches peak in fewer samples
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("AHD: faster attack parameter reaches peak sooner")
 {
     auto measurePeakSample = [](float attackParam) -> size_t
@@ -204,12 +221,14 @@ DOCTEST_TEST_CASE("AHD: faster attack parameter reaches peak sooner")
 
     DOCTEST_CHECK(fastIdx < slowIdx);
     // Fast should be at least 3x quicker than slow
+    //
     DOCTEST_CHECK(fastIdx * 3 < slowIdx);
 }
 
 // ---------------------------------------------------------------------------
 // Test 3: Decay time scaling — faster decay reaches zero in fewer samples
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("AHD: faster decay parameter returns to zero sooner")
 {
     auto measureIdleSample = [](float decayParam) -> size_t
@@ -237,6 +256,7 @@ DOCTEST_TEST_CASE("AHD: faster decay parameter returns to zero sooner")
 // ---------------------------------------------------------------------------
 // Test 4: Re-trigger mid-decay — returns to attack phase, stays bounded, no NaN
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("AHD: re-trigger mid-decay restarts attack without NaN")
 {
     GlobalEnv::ResetPerTest();
@@ -247,14 +267,17 @@ DOCTEST_TEST_CASE("AHD: re-trigger mid-decay restarts attack without NaN")
     std::vector<float> buf;
 
     // Initial trigger
+    //
     r.Trigger();
     // Advance past attack (say 600 samples) into decay
+    //
     for (size_t i = 0; i < 600; ++i)
     {
         buf.push_back(r.ProcessOneSample());
     }
 
     // Re-trigger mid-decay
+    //
     r.Trigger();
     for (size_t i = 0; i < 3000; ++i)
     {
@@ -270,6 +293,7 @@ DOCTEST_TEST_CASE("AHD: re-trigger mid-decay restarts attack without NaN")
     }
 
     // Envelope should have opened after re-trigger (not stuck at 0)
+    //
     float maxAfterRetrig = 0.0f;
     for (size_t i = 100; i < buf.size(); ++i)
     {
@@ -291,6 +315,7 @@ DOCTEST_TEST_CASE("AHD: re-trigger mid-decay restarts attack without NaN")
 //   4. Check MaxAbsDelta and DiscontinuityCount over the combined window.
 //   5. If a jump is detected: WARN (document it), do NOT fail the suite.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("AHD: continuity under TheoryOfTime multiplier change (mid-attack and mid-decay)")
 {
     GlobalEnv::ResetPerTest();
@@ -298,9 +323,11 @@ DOCTEST_TEST_CASE("AHD: continuity under TheoryOfTime multiplier change (mid-att
     // Use loop 4 (parent = master loop 5, mult=2 by default).
     // Master period 48000 samples means the loop cycle is very long, so the
     // phasor advances slowly — envelope time axis is proportional to distance.
+    //
     const double envTime = 4800.0;
 
     // Fast attack, no hold, medium decay so envelope is audible over ~600 samples.
+    //
     AHDRig r(envTime, 4);
     r.SetAHD(0.0f, 0.0f, 0.3f);
     r.Trigger();
@@ -318,6 +345,7 @@ DOCTEST_TEST_CASE("AHD: continuity under TheoryOfTime multiplier change (mid-att
 
     // --- Change the multiplier mid-flight ---
     // Loop 4's parent mult changes from 2 to 4 (doubles the child rate).
+    //
     r.rig.SetMultiplier(4, 4);
 
     for (size_t i = 0; i < postSamples; ++i)
@@ -326,15 +354,19 @@ DOCTEST_TEST_CASE("AHD: continuity under TheoryOfTime multiplier change (mid-att
     }
 
     // NaN clean regardless
+    //
     TestNan::AssertClean(buf.data(), buf.size());
 
     // Compute steady-state max delta from the pre-change window
+    //
     float preMaxDelta = TestContinuity::MaxAbsDelta(buf.data(), preSamples);
 
     // Threshold: 3x the observed steady-state max delta, minimum of 0.1
+    //
     float threshold = std::max(0.1f, preMaxDelta * 3.0f);
 
     // Check the transition region: window from 5 samples before to 20 after change
+    //
     size_t transStart = (preSamples > 5) ? preSamples - 5 : 0;
     size_t transEnd   = std::min(preSamples + 20, buf.size());
     const float* transPtr = buf.data() + transStart;
@@ -346,6 +378,7 @@ DOCTEST_TEST_CASE("AHD: continuity under TheoryOfTime multiplier change (mid-att
     if (discont > 0 || transMaxDelta > threshold)
     {
         // BUG?: Discontinuity found when changing TheoryOfTime multiplier mid-envelope.
+        //
         DOCTEST_WARN_MESSAGE(discont == 0,
             "AHD DISCONTINUITY under mult change: "
             "DiscontinuityCount=" << discont <<
@@ -363,6 +396,7 @@ DOCTEST_TEST_CASE("AHD: continuity under TheoryOfTime multiplier change (mid-att
     else
     {
         // Good: no discontinuity detected
+        //
         DOCTEST_CHECK(discont == 0);
     }
 }
@@ -370,6 +404,7 @@ DOCTEST_TEST_CASE("AHD: continuity under TheoryOfTime multiplier change (mid-att
 // ---------------------------------------------------------------------------
 // Test 6: Continuity under tempo change mid-envelope
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("AHD: continuity under tempo change (SetMasterPeriodSamples mid-run)")
 {
     GlobalEnv::ResetPerTest();
@@ -391,6 +426,7 @@ DOCTEST_TEST_CASE("AHD: continuity under tempo change (SetMasterPeriodSamples mi
     }
 
     // Halve the master period (double the tempo)
+    //
     r.rig.SetMasterPeriodSamples(24000.0);
 
     for (size_t i = 0; i < postSamples; ++i)
@@ -414,6 +450,7 @@ DOCTEST_TEST_CASE("AHD: continuity under tempo change (SetMasterPeriodSamples mi
     if (discont > 0 || transMaxDelta > threshold)
     {
         // BUG?: Discontinuity found when doubling tempo mid-envelope.
+        //
         DOCTEST_WARN_MESSAGE(discont == 0,
             "AHD DISCONTINUITY under tempo change: "
             "DiscontinuityCount=" << discont <<
@@ -436,6 +473,7 @@ DOCTEST_TEST_CASE("AHD: continuity under tempo change (SetMasterPeriodSamples mi
 // ---------------------------------------------------------------------------
 // Test 7: NaN-clean under extreme/edge-case parameters
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("AHD: NaN-clean with extreme parameter values")
 {
     struct Params { float a, h, d; };

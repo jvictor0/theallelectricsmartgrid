@@ -116,6 +116,7 @@ struct TimeRig
     // Defaults: Internal clock, not running. The TheoryOfTime::Input default
     // m_freq (1/4 phase-per-sample) is far too fast for tests, so we pick a
     // gentler master period below. Children default to parentMult = 2.
+    //
     TimeRig()
     {
         assert(SampleTimer::s_instance != nullptr &&
@@ -123,6 +124,7 @@ struct TimeRig
 
         // TheoryOfTime dereferences m_messageOutBuffer on start/stop/clock
         // events, so it must always be wired before Process runs.
+        //
         m_tot.SetupMessageOutBuffer(&m_messageOut);
 
         m_input.m_clockMode = TheoryOfTime::ClockMode::Internal;
@@ -130,10 +132,12 @@ struct TimeRig
 
         // Default: master loop period of 256 samples (32 control frames).
         // m_freq is the phase advanced per audio sample.
+        //
         m_input.m_freq = 1.0 / 256.0;
 
         // Mirror the real Input default: each child loop's parent is the next
         // loop up, with multiplier 2.
+        //
         for (int i = 0; i < static_cast<int>(x_numLoops); ++i)
         {
             m_input.m_input[i].m_parentIndex = i + 1;
@@ -155,12 +159,14 @@ struct TimeRig
 
     // Set the master phase advanced per audio sample (Internal clock). The
     // master loop period in samples is 1/freq. freq must be > 0 and < 1.
+    //
     void SetFreqPerSample(double freqPerSample)
     {
         m_input.m_freq = freqPerSample;
     }
 
     // Natural-tempo helper: set the master loop period directly in samples.
+    //
     void SetMasterPeriodSamples(double samples)
     {
         assert(samples > 0.0);
@@ -168,6 +174,7 @@ struct TimeRig
     }
 
     // Convenience: set master tempo in Hz (cycles/second) at 48 kHz.
+    //
     void SetTempoHz(double hz)
     {
         assert(hz > 0.0);
@@ -179,6 +186,7 @@ struct TimeRig
     // the topology. Multiplier semantics: the child completes `mult` cycles per
     // parent cycle. Real input uses small integers (default 2); valid range is
     // mult >= 1 (LCM-based loop sizing assumes positive multipliers).
+    //
     void SetMultiplier(size_t loop, int mult)
     {
         assert(loop < x_numLoops);
@@ -190,6 +198,7 @@ struct TimeRig
     // default chain is parentIndex[i] = i+1. parentIndex >= x_numLoops means
     // "no parent" (the loop becomes a root). Loop changes only take effect at a
     // parent top while running (see TimeLoop::HandleInput).
+    //
     void SetParentIndex(size_t loop, int parentIndex)
     {
         assert(loop < x_numLoops);
@@ -201,6 +210,7 @@ struct TimeRig
     // Advance exactly one audio sample, mirroring the real host:
     //   1. SampleTimer::IncrementSample()  (m_sample advances by 1)
     //   2. on a control-frame boundary, run one TheoryOfTime control frame.
+    //
     void AdvanceSample()
     {
         SampleTimer::IncrementSample();
@@ -222,6 +232,7 @@ struct TimeRig
     // Advance one full control frame (8 samples). Lands on a control-frame
     // boundary (assuming you started on one, which you do right after
     // ResetPerTest()).
+    //
     void AdvanceControlFrame()
     {
         AdvanceSamples(x_controlFrameRate);
@@ -231,6 +242,7 @@ struct TimeRig
 
     // Raw TheoryOfTime, for wiring into DSP Input structs (e.g.
     // AHD::Input::m_theoryOfTime = rig.Get()).
+    //
     TheoryOfTime* Get()
     {
         return &m_tot;
@@ -247,12 +259,14 @@ struct TimeRig
     }
 
     // The slot index for "now" = m_sample % 8, in [0, 7].
+    //
     size_t CurrentUBlockIndex() const
     {
         return static_cast<size_t>(SampleTimer::GetUBlockIndex());
     }
 
     // Master loop period in samples as TheoryOfTime currently sees it.
+    //
     double MasterLoopSamples() const
     {
         return m_tot.m_masterLoopSamples;
@@ -260,42 +274,49 @@ struct TimeRig
 
     // Indirect (dependent) phasor of a loop at the current uBlock slot, in [0,1).
     // This is the phasor the DSP layer (AHD, MultiPhasorGate) consumes.
+    //
     double Phasor(size_t loop) const
     {
         return m_tot.GetIndirectPhasor(CurrentUBlockIndex(), loop);
     }
 
     // Direct (independent) phasor of a loop at the current slot, in [0,1).
+    //
     double DirectPhasor(size_t loop) const
     {
         return m_tot.GetDirectPhasor(CurrentUBlockIndex(), loop);
     }
 
     // Master-loop indirect phasor at current slot.
+    //
     double MasterPhasor() const
     {
         return Phasor(static_cast<size_t>(x_masterLoop));
     }
 
     // Top / wrap event of a loop at the current slot (dependent topology).
+    //
     bool Top(size_t loop) const
     {
         return m_tot.GetIndirectTop(CurrentUBlockIndex(), loop);
     }
 
     // Master-loop top at current slot.
+    //
     bool MasterTop() const
     {
         return Top(static_cast<size_t>(x_masterLoop));
     }
 
     // Independent (direct) top of a loop at current slot.
+    //
     bool DirectTop(size_t loop) const
     {
         return m_tot.GetDirectTop(CurrentUBlockIndex(), loop);
     }
 
     // Gate (first-half-of-loop) state of a loop at the current slot.
+    //
     bool Gate(size_t loop) const
     {
         assert(loop < x_numLoops);
@@ -306,6 +327,7 @@ private:
     // Run a single control frame exactly like TheNonagonInternal::Process:
     // rollover, then Process(j) for j = 1..8, then drain the message buffer
     // (the real system drains it through its MIDI/message consumer).
+    //
     void RunControlFrame()
     {
         m_tot.RolloverMicroblockBuffer();
@@ -318,6 +340,7 @@ private:
         // The MessageOutBuffer has a fixed capacity of 16 and never self-clears;
         // TheoryOfTime pushes Start/Stop/Clock messages into it. The real host
         // drains it every frame; mirror that so it never silently saturates.
+        //
         m_messageOut.Clear();
     }
 };

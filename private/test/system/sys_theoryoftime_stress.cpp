@@ -56,6 +56,7 @@ constexpr float kOutputBound = 10.0f; // tight bound for the stress invariant
 // Per-frame invariants: no NaN/Inf, output bounded. After the stress the system
 // must return to clean periodic behavior.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("tot-stress: aggressive tempo/LFO sweep stays bounded & recovers")
 {
     SynthRig rig;
@@ -67,6 +68,7 @@ DOCTEST_TEST_CASE("tot-stress: aggressive tempo/LFO sweep stays bounded & recove
     std::uniform_real_distribution<float> u01(0.0f, 1.0f);
 
     // Random walk: nudge tempo/lfo params every few frames.
+    //
     float worstPeak = 0.0f;
     constexpr int kSteps = 70; // 70 * 2 frames ~ 140 frames ~ 1.5s sim
     for (int step = 0; step < kSteps; ++step)
@@ -97,6 +99,7 @@ DOCTEST_TEST_CASE("tot-stress: aggressive tempo/LFO sweep stays bounded & recove
     DOCTEST_MESSAGE("tempo/LFO sweep worst peak = " << worstPeak);
 
     // Stop modulating, settle to neutral, and confirm clean periodic recovery.
+    //
     rig.SetEncoder(stress::kTempoEncX, stress::kTempoEncY, 0.5f);
     rig.SetEncoder(stress::kLfoMultEncX, stress::kLfoMultEncY, 0.0f);
     rig.SetEncoder(stress::kLfoIndexEncX, stress::kLfoIndexEncY, 0.0f);
@@ -109,12 +112,14 @@ DOCTEST_TEST_CASE("tot-stress: aggressive tempo/LFO sweep stays bounded & recove
     DOCTEST_CHECK(rig.OutputPeak() < kOutputBound);
 
     // Master phasor still advancing (no stuck clock).
+    //
     const double p0 = rig.MasterPhasor();
     rig.RunSeconds(0.4);
     const double p1 = rig.MasterPhasor();
     DOCTEST_CHECK(std::fabs(p1 - p0) > 0.01);
 
     // Voices still gate after the storm.
+    //
     auto& nonagon = rig.Internal().m_nonagon.m_nonagon;
     int gateFrames = 0;
     for (int f = 0; f < 80; ++f)
@@ -134,6 +139,7 @@ DOCTEST_TEST_CASE("tot-stress: aggressive tempo/LFO sweep stays bounded & recove
 // change. Compare output MaxAbsDelta in a clean window before/after a single
 // multiplier toggle; assert no discontinuity beyond ~5x steady-state.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("tot-stress: isolated multiplier change is continuous")
 {
     SynthRig rig;
@@ -141,6 +147,7 @@ DOCTEST_TEST_CASE("tot-stress: isolated multiplier change is continuous")
     rig.RunSeconds(0.6); // settle into steady-state
 
     // Measure steady-state per-sample jumpiness (a clean window, no change).
+    //
     rig.ClearOutput();
     rig.RunSeconds(0.4);
     const float steady = stress::OutputMaxAbsDelta(rig);
@@ -149,6 +156,7 @@ DOCTEST_TEST_CASE("tot-stress: isolated multiplier change is continuous")
     // Now capture a window straddling ONE loop-multiplier change. The topology
     // grid lives on the BottomRight base grid (route 3); cell (0, 3) toggles
     // loop-bit 0's parentMult (5 -> ... ) .
+    //
     rig.ClearOutput();
     rig.RunSeconds(0.2);                              // before
     rig.TapPad(SynthRig::RouteBottomRight, 0, 3);     // the multiplier change
@@ -160,12 +168,14 @@ DOCTEST_TEST_CASE("tot-stress: isolated multiplier change is continuous")
 
     // Threshold derived from steady-state (5x), with a small absolute floor so
     // a near-silent steady window doesn't make the ratio meaningless.
+    //
     const float threshold = 5.0f * steady + 0.05f;
     if (withChange > threshold)
     {
         // WARN + document (corroborates / contradicts WP-6). Not a hard failure:
         // a system-level jump on a multiplier change is a real finding to report
         // but should not redden the suite.
+        //
         DOCTEST_WARN_MESSAGE(false,
             "loop-multiplier change produced output discontinuity "
             << withChange << " > " << threshold << " (5x steady "
@@ -177,12 +187,14 @@ DOCTEST_TEST_CASE("tot-stress: isolated multiplier change is continuous")
                         << withChange << " <= " << threshold << ")");
     }
     // Always-true guard so the case is never silently empty.
+    //
     DOCTEST_CHECK(withChange < kOutputBound);
 }
 
 // ---------------------------------------------------------------------------
 // Aggressive blend/scene changes DURING ToT stress: no NaN, no corruption.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("tot-stress: blend/scene churn during tempo stress stays clean")
 {
     SynthRig rig;
@@ -198,9 +210,11 @@ DOCTEST_TEST_CASE("tot-stress: blend/scene churn during tempo stress stays clean
     for (int step = 0; step < kSteps; ++step)
     {
         // ToT tempo churn.
+        //
         rig.SetEncoder(stress::kTempoEncX, stress::kTempoEncY, u01(rng));
 
         // Blend + scene churn (the real ParamSet14 / scene-pad front doors).
+        //
         rig.SetBlend(u01(rng));
         if ((step % 5) == 0)
         {
@@ -219,6 +233,7 @@ DOCTEST_TEST_CASE("tot-stress: blend/scene churn during tempo stress stays clean
     }
 
     // Recover: neutral tempo, mid blend, gains back up.
+    //
     rig.SetEncoder(stress::kTempoEncX, stress::kTempoEncY, 0.5f);
     rig.SetBlend(0.0f);
     stress::OpenGain(rig);
@@ -230,6 +245,7 @@ DOCTEST_TEST_CASE("tot-stress: blend/scene churn during tempo stress stays clean
     DOCTEST_CHECK(rig.OutputPeak() < kOutputBound);
 
     // Clock still advancing.
+    //
     const double p0 = rig.MasterPhasor();
     rig.RunSeconds(0.4);
     DOCTEST_CHECK(std::fabs(rig.MasterPhasor() - p0) > 0.005);

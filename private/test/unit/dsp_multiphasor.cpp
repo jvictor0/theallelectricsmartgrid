@@ -38,6 +38,7 @@
 // Helper: build a minimal MultiPhasorGateInternal::Input wired to the TimeRig.
 // voice 0 is enabled; all others disabled.
 // ---------------------------------------------------------------------------
+//
 static MultiPhasorGateInternal::Input MakeSimpleInput(TimeRig& rig,
                                                        bool trig,
                                                        bool newTrigCanStart,
@@ -54,6 +55,7 @@ static MultiPhasorGateInternal::Input MakeSimpleInput(TimeRig& rig,
     inp.m_mute[0] = false;
 
     // Voice 1+ disabled
+    //
     for (size_t i = 1; i < MultiPhasorGateInternal::x_maxPoly; ++i)
     {
         inp.m_trigs[i]           = false;
@@ -66,21 +68,25 @@ static MultiPhasorGateInternal::Input MakeSimpleInput(TimeRig& rig,
 // ---------------------------------------------------------------------------
 // Test 1: Gate fires on trig and goes high
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MultiPhasorGate: gate goes high on trig with newTrigCanStart=true")
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
     // Short master period (512 samples) so phasor moves quickly.
+    //
     rig.SetMasterPeriodSamples(512.0);
     rig.SetRunning(true);
 
     // Prime the rig so phasor is well-behaved.
+    //
     rig.AdvanceControlFrame();
     rig.AdvanceControlFrame();
 
     MultiPhasorGateInternal gate;
 
     // Fire a trig on voice 0.
+    //
     {
         auto inp = MakeSimpleInput(rig, /*trig=*/true, /*newTrigCanStart=*/true, 1);
         inp.m_masterLoopSamples = rig.Get()->m_masterLoopSamples;
@@ -88,6 +94,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate goes high on trig with newTrigCanStart=
     }
 
     // Gate should be high immediately after trig.
+    //
     DOCTEST_CHECK(gate.m_gate[0] == true);
     DOCTEST_CHECK(gate.m_anyGate == true);
 }
@@ -95,6 +102,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate goes high on trig with newTrigCanStart=
 // ---------------------------------------------------------------------------
 // Test 2: Gate does NOT fire when newTrigCanStart=false (muted/stopped)
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MultiPhasorGate: gate does not fire when newTrigCanStart=false")
 {
     GlobalEnv::ResetPerTest();
@@ -108,6 +116,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate does not fire when newTrigCanStart=fals
 
     {
         // trig=true but newTrigCanStart=false
+        //
         auto inp = MakeSimpleInput(rig, /*trig=*/true, /*newTrigCanStart=*/false, 1);
         inp.m_masterLoopSamples = rig.Get()->m_masterLoopSamples;
         gate.Process(inp);
@@ -124,11 +133,13 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate does not fire when newTrigCanStart=fals
 // point reaches 0.5. We advance the rig until the phasor has traveled half
 // a master cycle and check that the gate drops.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MultiPhasorGate: gate falls low after phasor half-cycle")
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
     // Small master period so the test runs quickly.
+    //
     const double periodSamples = 256.0;
     rig.SetMasterPeriodSamples(periodSamples);
     rig.SetRunning(true);
@@ -138,6 +149,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate falls low after phasor half-cycle")
     MultiPhasorGateInternal gate;
 
     // Fire a trig.
+    //
     {
         auto inp = MakeSimpleInput(rig, true, true, 1);
         inp.m_masterLoopSamples = rig.Get()->m_masterLoopSamples;
@@ -147,12 +159,14 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate falls low after phasor half-cycle")
 
     // Now advance >0.5 of a master cycle, continuing to call Process (no new trig).
     // Gate must drop at some point before the cycle ends.
+    //
     bool gateFell = false;
     const size_t maxSamples = static_cast<size_t>(periodSamples) * 2;
     for (size_t s = 0; s < maxSamples; ++s)
     {
         rig.AdvanceSample();
         // Only call Process on control-frame boundaries (mirroring real usage).
+        //
         if (SampleTimer::IsControlFrame())
         {
             auto inp = MakeSimpleInput(rig, false, true, 1);
@@ -173,6 +187,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate falls low after phasor half-cycle")
 // ---------------------------------------------------------------------------
 // Test 4: No stuck gates after stop/start cycle
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MultiPhasorGate: no stuck gates after stop/start cycle")
 {
     GlobalEnv::ResetPerTest();
@@ -185,6 +200,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: no stuck gates after stop/start cycle")
     MultiPhasorGateInternal gate;
 
     // Fire trig
+    //
     {
         auto inp = MakeSimpleInput(rig, true, true, 1);
         inp.m_masterLoopSamples = rig.Get()->m_masterLoopSamples;
@@ -193,9 +209,11 @@ DOCTEST_TEST_CASE("MultiPhasorGate: no stuck gates after stop/start cycle")
     DOCTEST_CHECK(gate.m_gate[0] == true);
 
     // Stop the sequencer (mirrors TheNonagon calling gate.Reset() when not running)
+    //
     gate.Reset();
 
     // After Reset, the individual gate flags are cleared.
+    //
     DOCTEST_CHECK(gate.m_gate[0] == false);
     // NOTE: gate.Reset() does NOT clear m_anyGate (it is recalculated only in Process).
     // This is a documentation observation — m_anyGate is stale after Reset() until
@@ -203,6 +221,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: no stuck gates after stop/start cycle")
     // path, so it never reads m_anyGate without a following Process() call.
 
     // Restart: after start, no spurious gates without a new trig.
+    //
     rig.SetRunning(false);
     rig.AdvanceControlFrame();
     rig.SetRunning(true);
@@ -215,6 +234,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: no stuck gates after stop/start cycle")
     }
     DOCTEST_CHECK(gate.m_gate[0] == false);
     // After Process() with no trig, m_anyGate is properly computed = false.
+    //
     DOCTEST_CHECK(gate.m_anyGate == false);
 }
 
@@ -224,6 +244,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: no stuck gates after stop/start cycle")
 // The real system pipes gate.m_ahdControl[i] into AHD::Input::Set() each sample.
 // Verify no NaN/Inf in the AHD output stream.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MultiPhasorGate: AHD driven by ahdControl is NaN-clean")
 {
     GlobalEnv::ResetPerTest();
@@ -236,6 +257,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: AHD driven by ahdControl is NaN-clean")
     MultiPhasorGateInternal gate;
 
     // Wire an AHD
+    //
     AHD ahd;
     AHD::Input ahdInput;
     AHD::InputSetter ahdSetter;
@@ -248,11 +270,13 @@ DOCTEST_TEST_CASE("MultiPhasorGate: AHD driven by ahdControl is NaN-clean")
     buf.reserve(1024);
 
     // Fire trig on first control frame
+    //
     bool trig = true;
     const size_t totalSamples = 1024;
     for (size_t s = 0; s < totalSamples; ++s)
     {
         // Control-frame processing
+        //
         if (SampleTimer::IsControlFrame())
         {
             auto inp = MakeSimpleInput(rig, trig, true, 1);
@@ -261,10 +285,12 @@ DOCTEST_TEST_CASE("MultiPhasorGate: AHD driven by ahdControl is NaN-clean")
             trig = false; // one-shot
 
             // Copy ahdControl into AHD input via Set (mirroring real system usage)
+            //
             ahdInput.Set(gate.m_ahdControl[0]);
         }
 
         // Per-sample AHD process
+        //
         ahdInput.m_samplePosition = static_cast<float>(rig.CurrentUBlockIndex());
         float out = ahd.Process(ahdInput);
         buf.push_back(out);
@@ -274,6 +300,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: AHD driven by ahdControl is NaN-clean")
     TestNan::AssertClean(buf.data(), buf.size());
 
     // Output bounded
+    //
     for (float v : buf)
     {
         DOCTEST_CHECK(v >= -0.001f);
@@ -284,6 +311,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: AHD driven by ahdControl is NaN-clean")
 // ---------------------------------------------------------------------------
 // Test 6: Multiple voices — independent gate state per voice
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("MultiPhasorGate: two voices have independent gate state")
 {
     GlobalEnv::ResetPerTest();
@@ -296,6 +324,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate: two voices have independent gate state")
     MultiPhasorGateInternal gate;
 
     // Fire trig on voice 0 only, not voice 1.
+    //
     {
         auto inp = MakeSimpleInput(rig, true, true, 1);
         inp.m_numTrigs = 2;

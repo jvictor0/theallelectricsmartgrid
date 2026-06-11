@@ -89,6 +89,7 @@ namespace synthrig
 // A captured output sample (mirror of QuadFloatWithStereoAndSub, flattened so it
 // is trivially copyable into a ring/vector). Layout note: m_quad[4], m_stereo[2]
 // and m_sub are contiguous so the NaN/peak scan can walk all 7 channels.
+//
 struct OutputSample
 {
     float m_quad[4];
@@ -100,6 +101,7 @@ class SynthRig
 {
 public:
     // Route ids (mirror TheNonagonSquiggleBoyQuadLaunchpadTwister::Routes).
+    //
     enum Route : int
     {
         RouteTopLeft     = 0,
@@ -115,6 +117,7 @@ public:
     // Mirrors NonagonWrapper: builds the internal system + grid wrapper, then
     // wires the IoTaskThread pointers exactly as the JUCE wrapper does. Resets
     // the global SampleTimer/RNG so each rig starts from a deterministic clock.
+    //
     SynthRig()
     {
         GlobalEnv::Init();
@@ -125,6 +128,7 @@ public:
         m_quad = std::make_unique<TheNonagonSquiggleBoyQuadLaunchpadTwister>(m_internal.get());
 
         // Wire the IO task thread exactly like NonagonWrapper's ctor.
+        //
         m_internal->m_squiggleBoy.m_ioTaskThread = m_ioTaskThread.get();
         m_internal->m_squiggleBoy.m_recordingManager.m_ioTaskThread = m_ioTaskThread.get();
         m_internal->m_configGrid.m_ioTaskThread = m_ioTaskThread.get();
@@ -132,14 +136,21 @@ public:
         m_audioInput.m_numInputs = 0;
 
         // Synthetic wallclock that advances ~one audio callback per RunSamples.
+        //
         m_wallclockUs = 0;
     }
 
     ~SynthRig()
     {
-        // IoTaskThread joins its std::thread in its own destructor; it must
-        // outlive the system that points at it. Destroy in reverse order of
-        // construction.
+        // Join the IO worker thread BEFORE tearing down m_internal: an in-flight
+        // persist task references m_internal's recording buffers / sample banks,
+        // so stopping the thread first avoids a use-after-free during teardown.
+        //
+        if (m_ioTaskThread)
+        {
+            m_ioTaskThread->Shutdown();
+        }
+
         m_quad.reset();
         m_internal.reset();
         m_ioTaskThread.reset();
@@ -174,6 +185,7 @@ public:
     // Messages are drained per-SAMPLE inside quad.ProcessSample (matching the
     // hardware), so a pad/encoder verb queued before RunSamples lands on the very
     // first sample.
+    //
     void RunSamples(std::size_t n)
     {
         SampleTimer::StartFrame(m_wallclockUs);
@@ -195,16 +207,19 @@ public:
 
         // Advance synthetic wallclock by the wall-time these samples represent so
         // GetAbsTimeUs() keeps moving forward across calls.
+        //
         m_wallclockUs += n * 1000 * 1000 / SampleTimer::x_sampleRate;
     }
 
     // RunFrames(n): advance by n full process frames (n * 512 samples).
+    //
     void RunFrames(std::size_t n)
     {
         RunSamples(n * SampleTimer::x_samplesPerProcessFrame);
     }
 
     // RunSeconds(s): advance by s seconds of audio (rounded to whole samples).
+    //
     void RunSeconds(double s)
     {
         RunSamples(static_cast<std::size_t>(s * SampleTimer::x_sampleRate + 0.5));
@@ -215,6 +230,7 @@ public:
     // By default the audio input is silent (m_numInputs == 0). Tests that want
     // to feed audio (e.g. the vocoder / sampler) can set the input buffer; it is
     // held constant until changed.
+    //
     void SetAudioInput(const AudioInputBuffer& in) { m_audioInput = in; }
     void ClearAudioInput()
     {
@@ -226,6 +242,7 @@ public:
     //
     // x,y are the 4x4 encoder-bank coordinates. SetEncoder uses the deterministic
     // absolute EncoderSet message (no timestamp acceleration).
+    //
     void SetEncoder(int x, int y, float v01)
     {
         PushInternal(SmartGrid::MessageIn::EncoderSetMsg(x, y, v01));
@@ -251,6 +268,7 @@ public:
     // routeId is one of Route::RouteTopLeft .. RouteBottomRight. A press carries a
     // non-zero velocity (PadPress); a release is PadRelease. Coordinates are the
     // interior-grid (i,j) coordinates from the control-surface map above.
+    //
     void PressPad(int routeId, int x, int y, int velocity = 127)
     {
         PushPad(routeId, SmartGrid::MessageIn::Mode::PadPress, x, y, velocity);
@@ -263,6 +281,7 @@ public:
 
     // Press + (after a frame) release, so momentary/toggle cells see a complete
     // gesture. Returns after the release has been processed.
+    //
     void TapPad(int routeId, int x, int y, int velocity = 127)
     {
         PressPad(routeId, x, y, velocity);
@@ -272,6 +291,7 @@ public:
     }
 
     // ---- Named convenience pad wrappers (control-surface map) --------------
+    //
     void PressRunning()   { PressPad(RouteBottomLeft, -1, 6); }
     void ReleaseRunning() { ReleasePad(RouteBottomLeft, -1, 6); }
 
@@ -296,11 +316,13 @@ public:
     // Hardware reaches it through the BottomRightGrid shift pad; that is the
     // realest path and what WithShift() drives. SetShift() flips the same flag
     // directly for convenience when you don't want to spend frames on pad taps.
+    //
     void SetShift(bool on) { m_internal->m_sceneManager.m_shift = on; }
     bool GetShift() const  { return m_internal->m_sceneManager.m_shift; }
 
     // Run fn() with the shift pad physically held, then release it. The shift pad
     // press is applied (a frame is run) before fn so cells see shift as held.
+    //
     template <class Fn>
     void WithShift(Fn&& fn)
     {
@@ -317,18 +339,21 @@ public:
     // of the blend<0.5 / >=0.5 semantics this sets the right scene when blend is
     // low (the default) and the left scene when blend is high. For deterministic
     // left/right targeting use SetLeftScene/SetRightScene.
+    //
     void SelectScene(int scene) { TapPad(RouteBottomLeft, scene, 9); }
 
     void SetLeftScene(int scene)  { m_internal->SetLeftScene(scene); }
     void SetRightScene(int scene) { m_internal->SetRightScene(scene); }
 
     // SetBlend(f): scene crossfade in [0,1] via the real ParamSet14 (x==0) path.
+    //
     void SetBlend(float f)
     {
         PushInternal(MakeParamSet14(/*x=*/0, f));
     }
 
     // SetFader(i, f): mixer fader i in [0,1] via ParamSet14 (x == i+1).
+    //
     void SetFader(int faderIndex, float f)
     {
         PushInternal(MakeParamSet14(/*x=*/faderIndex + 1, f));
@@ -340,6 +365,7 @@ public:
     // the real running pad (BottomLeftGrid x=-1 y=6) when a state change is
     // needed -- a tap toggles it. We read m_running to decide whether a toggle is
     // required, so calling StartSequencer when already running is a no-op.
+    //
     void StartSequencer()
     {
         if (!m_internal->m_running)
@@ -370,6 +396,7 @@ public:
     //      clears it. (The JUCE host does step 3 on its own thread; here we do it
     //      inline right after the frame.)
     // Returns "" on failure (e.g. a save already in flight).
+    //
     std::string SavePatch()
     {
         JSON json = SavePatchJSON();
@@ -387,6 +414,7 @@ public:
     }
 
     // SavePatchJSON(): same as SavePatch() but returns the JSON object directly.
+    //
     JSON SavePatchJSON()
     {
         if (!m_internal->m_stateInterchange.RequestSave())
@@ -395,6 +423,7 @@ public:
         }
 
         // Give HandleStateInterchange a frame to service the request.
+        //
         RunFrames(1);
 
         if (!m_internal->m_stateInterchange.IsSavePending())
@@ -413,6 +442,7 @@ public:
     //   3. RunFrames(1) -- ProcessFrame -> HandleStateInterchange sees
     //      IsLoadRequested(), calls FromJSON(GetToLoad()) then AckLoadCompleted().
     // Returns false if the JSON failed to parse or a load was already in flight.
+    //
     bool LoadPatch(const std::string& jsonString)
     {
         json_error_t error;
@@ -436,11 +466,13 @@ public:
         }
         RunFrames(1);
         // After the frame the load should have been acknowledged.
+        //
         return !m_internal->m_stateInterchange.IsLoadRequested();
     }
 
     // ResetToDefaults(): drive a "new patch" request through StateInterchange
     // (RevertToDefault all scenes/tracks). Synchronous, single-threaded.
+    //
     void ResetToDefaults()
     {
         if (m_internal->m_stateInterchange.RequestNew())
@@ -454,6 +486,7 @@ public:
     // The record toggle cell lives at BottomLeftGrid x=-1 y=7. WP-9 will flesh
     // out recording assertions (sample bank persistence via the IoTaskThread).
     // For now expose the real pad tap + an observable.
+    //
     void ToggleRecording() { TapPad(RouteBottomLeft, -1, 7); }
     bool IsRecording() const { return m_internal->m_squiggleBoy.IsRecording(); }
     // TODO(WP-9): SetRecordingDirectory + sample-bank persistence assertions.
@@ -461,11 +494,13 @@ public:
     // ---- Observation -------------------------------------------------------
 
     // UIState() -- the published UI state (encoder bank, scopes, meters, ...).
+    //
     TheNonagonSquiggleBoyInternal::UIState& UIState() { return m_internal->m_uiState; }
     const TheNonagonSquiggleBoyInternal::UIState& UIState() const { return m_internal->m_uiState; }
 
     // EncoderValue(x,y,k): the value the encoder bank published to UIState for
     // cell (x,y), channel/voice k (default 0). Populated during ProcessFrame.
+    //
     float EncoderValue(int x, int y, std::size_t k = 0) const
     {
         return m_internal->m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.GetValue(x, y, k);
@@ -478,6 +513,7 @@ public:
 
     // Output() -- the captured-output ring (one OutputSample per processed
     // sample, oldest-to-newest, capped at kOutputCapacity).
+    //
     const std::vector<OutputSample>& Output() const { return m_output; }
     void ClearOutput()
     {
@@ -486,20 +522,24 @@ public:
     }
 
     // LastOutput() -- the most recent captured sample, or a zeroed sample if none.
+    //
     OutputSample LastOutput() const
     {
         return m_output.empty() ? OutputSample{} : m_output.back();
     }
 
     // Peak magnitude across all captured channels since the last ClearOutput().
+    //
     float OutputPeak() const { return m_outputPeak; }
 
     // SawNaN() -- sticky: true if any captured output sample was non-finite.
+    //
     bool SawNaN() const { return m_sawNaN; }
     void ClearNaN() { m_sawNaN = false; }
 
     // MasterPhasor() -- the master-loop phasor [0,1), advancing when the
     // sequencer runs. Read straight off TheoryOfTime.
+    //
     double MasterPhasor() const
     {
         return m_internal->m_nonagon.m_nonagon.m_theoryOfTime
@@ -507,11 +547,13 @@ public:
     }
 
     // Blend / scene observables.
+    //
     float Blend() const { return m_internal->m_sceneManager.m_blendFactor; }
     int LeftScene() const  { return static_cast<int>(m_internal->m_sceneManager.m_scene1); }
     int RightScene() const { return static_cast<int>(m_internal->m_sceneManager.m_scene2); }
 
     // ---- Direct internal access for targeted probes ------------------------
+    //
     TheNonagonSquiggleBoyInternal& Internal() { return *m_internal; }
     const TheNonagonSquiggleBoyInternal& Internal() const { return *m_internal; }
     TheNonagonSquiggleBoyQuadLaunchpadTwister& Quad() { return *m_quad; }
@@ -535,6 +577,7 @@ private:
         // encoder/param messages carry the Encoder route so the wrapper's Apply
         // forwards them to internal->Apply. Timestamp 0 => visible immediately on
         // the next ProcessMessages drain.
+        //
         msg.m_routeId = RouteEncoder;
         msg.m_timestamp = 0;
         m_quad->SendMessage(msg);
@@ -578,6 +621,7 @@ private:
         if (m_output.size() >= kOutputCapacity)
         {
             // Keep the ring bounded: drop the oldest half in one shot.
+            //
             m_output.erase(m_output.begin(), m_output.begin() + m_output.size() / 2);
         }
         m_output.push_back(s);

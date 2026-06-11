@@ -38,6 +38,7 @@ namespace TestSpectral
 // Supported FFT sizes map to the repo's two DFT typedefs.
 //   1024 -> DiscreteFourierTransformGeneric<10>
 //   4096 -> DiscreteFourierTransformGeneric<12>
+//
 inline constexpr std::size_t kFftSize1024 = 1024;
 inline constexpr std::size_t kFftSize4096 = 4096;
 
@@ -46,6 +47,7 @@ inline constexpr std::size_t kFftSize4096 = 4096;
 // (zero-padding / truncating) into the repo wavetable, runs the repo FFT, and
 // returns |m_components[k]| for k in [0, N/2).
 // ---------------------------------------------------------------------------
+//
 template <std::size_t Bits>
 inline std::vector<float> MagnitudeSpectrumT(const float* buf, std::size_t n)
 {
@@ -57,6 +59,7 @@ inline std::vector<float> MagnitudeSpectrumT(const float* buf, std::size_t n)
     for (std::size_t i = 0; i < m; ++i)
     {
         // Hann window over the table length N (periodic-ish, formula uses N-1).
+        //
         double w = 0.5 * (1.0 - std::cos(2.0 * M_PI * static_cast<double>(i) /
                                          static_cast<double>(N - 1)));
         table.m_table[i] = static_cast<float>(buf[i] * w);
@@ -75,6 +78,7 @@ inline std::vector<float> MagnitudeSpectrumT(const float* buf, std::size_t n)
 }
 
 // Runtime-dispatched magnitude spectrum. fftSize must be 1024 or 4096.
+//
 inline std::vector<float> MagnitudeSpectrum(const float* buf, std::size_t n,
                                             std::size_t fftSize = kFftSize1024)
 {
@@ -90,12 +94,14 @@ inline std::vector<float> MagnitudeSpectrum(const float* buf, std::size_t n,
 // ---------------------------------------------------------------------------
 
 // Center frequency (Hz) of bin k.
+//
 inline double BinFreq(std::size_t k, std::size_t fftSize, double sampleRate)
 {
     return static_cast<double>(k) * sampleRate / static_cast<double>(fftSize);
 }
 
 // Nearest bin index to frequency hz (may exceed N/2-1 for hz >= Nyquist).
+//
 inline std::size_t FreqBin(double hz, std::size_t fftSize, double sampleRate)
 {
     double b = hz * static_cast<double>(fftSize) / sampleRate;
@@ -107,6 +113,7 @@ inline std::size_t FreqBin(double hz, std::size_t fftSize, double sampleRate)
 }
 
 // Argmax over the spectrum.
+//
 inline std::size_t DominantBin(const std::vector<float>& spectrum)
 {
     std::size_t best = 0;
@@ -132,6 +139,7 @@ inline std::size_t DominantBin(const std::vector<float>& spectrum)
 // processFn: any callable float(float). A fresh warmup frame is discarded so
 // filter state settles before measurement.
 // ---------------------------------------------------------------------------
+//
 template <typename ProcessFn>
 inline std::vector<float> MeasureTransferFunctionT(ProcessFn processFn,
                                                    std::size_t fftSize,
@@ -180,6 +188,7 @@ inline std::vector<float> MeasureTransferFunctionT(ProcessFn processFn,
 }
 
 // std::function overload (the documented primary signature).
+//
 inline std::vector<float> MeasureTransferFunction(const std::function<float(float)>& processFn,
                                                   std::size_t fftSize,
                                                   double sampleRate,
@@ -199,6 +208,7 @@ inline std::vector<float> MeasureTransferFunction(const std::function<float(floa
 // To keep output readable: only the first kMaxReports failing bins emit a
 // detailed CHECK; a final CHECK asserts the total failure count is zero.
 // ---------------------------------------------------------------------------
+//
 template <typename ExpectedFn>
 inline void AssertResponseMatches(const std::vector<float>& measuredH,
                                   ExpectedFn expectedHFn,
@@ -224,6 +234,7 @@ inline void AssertResponseMatches(const std::vector<float>& measuredH,
         double measLin = static_cast<double>(measuredH[k]);
 
         // Guard against log of zero.
+        //
         double expDb = 20.0 * std::log10(expLin > 1e-9 ? expLin : 1e-9);
         double measDb = 20.0 * std::log10(measLin > 1e-9 ? measLin : 1e-9);
         double errDb = std::abs(measDb - expDb);
@@ -243,6 +254,7 @@ inline void AssertResponseMatches(const std::vector<float>& measuredH,
     }
 
     // Final tally so the count is asserted even past the report cap.
+    //
     DOCTEST_INFO("total bins out of tolerance: " << failures
                  << " (band [" << loBin << ", " << hiBin << "])");
     DOCTEST_CHECK(failures == 0);

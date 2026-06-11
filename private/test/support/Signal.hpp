@@ -21,6 +21,7 @@ namespace TestSignal
 // Uses a 64-bit xorshift* PRNG (no std::random global state, no shared engine).
 // Deterministic: same seed => identical Next() sequence.
 // ---------------------------------------------------------------------------
+//
 struct WhiteNoise
 {
     explicit WhiteNoise(std::uint64_t seed)
@@ -29,9 +30,11 @@ struct WhiteNoise
     }
 
     // Next uniform sample in [-1, 1].
+    //
     float Next()
     {
         // xorshift64* -- good enough for test signals, fully deterministic.
+        //
         std::uint64_t x = m_state;
         x ^= x >> 12;
         x ^= x << 25;
@@ -39,6 +42,7 @@ struct WhiteNoise
         m_state = x;
         std::uint64_t r = x * 0x2545F4914F6CDD1Dull;
         // Map the top 53 bits to [0, 1), then to [-1, 1].
+        //
         double u = static_cast<double>(r >> 11) * (1.0 / 9007199254740992.0);  // 2^53
         return static_cast<float>(2.0 * u - 1.0);
     }
@@ -50,6 +54,7 @@ private:
 // ---------------------------------------------------------------------------
 // Sine -- phase-accumulating sine oscillator.
 // ---------------------------------------------------------------------------
+//
 struct Sine
 {
     Sine(double freqHz, double sampleRate, float amp = 1.0f)
@@ -81,6 +86,7 @@ private:
 // numSamples samples. Amplitude 1.0. Phase is integrated analytically so the
 // instantaneous frequency is exact at every sample.
 // ---------------------------------------------------------------------------
+//
 struct Sweep
 {
     Sweep(double f0, double f1, std::size_t numSamples, double sampleRate)
@@ -89,6 +95,7 @@ struct Sweep
         , m_n(0)
         , m_numSamples(numSamples ? numSamples : 1)
         // k such that f(t) = f0 * k^(t / numSamples), with f(numSamples) = f1.
+        //
         , m_k(f1 / (f0 != 0.0 ? f0 : 1.0))
         , m_phase(0.0)
     {
@@ -98,6 +105,7 @@ struct Sweep
     {
         float v = static_cast<float>(std::sin(2.0 * M_PI * m_phase));
         // Instantaneous frequency at sample index m_n (log sweep).
+        //
         double frac = static_cast<double>(m_n) / static_cast<double>(m_numSamples);
         double freq = m_f0 * std::pow(m_k, frac);
         m_phase += freq / m_sampleRate;
@@ -124,6 +132,7 @@ private:
 
 // Fill buf[0..n) by repeatedly calling gen.Next(). gen is any object with a
 // `float Next()` method (WhiteNoise, Sine, Sweep, or a lambda wrapper).
+//
 template <typename Gen>
 inline void Fill(Gen& gen, float* buf, std::size_t n)
 {
@@ -134,6 +143,7 @@ inline void Fill(Gen& gen, float* buf, std::size_t n)
 }
 
 // Unit impulse: buf[0] = 1, rest 0.
+//
 inline void Impulse(float* buf, std::size_t n)
 {
     for (std::size_t i = 0; i < n; ++i)
@@ -147,6 +157,7 @@ inline void Impulse(float* buf, std::size_t n)
 }
 
 // Constant DC level.
+//
 inline void DC(float* buf, std::size_t n, float level)
 {
     for (std::size_t i = 0; i < n; ++i)

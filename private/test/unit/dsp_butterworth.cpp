@@ -35,6 +35,7 @@ constexpr std::size_t kN = kFftSize1024;
 
 // Analytic 8th-order Butterworth LP at cycles-per-sample cutoff fc,
 // evaluated at normalized frequency normFreq (cycles per sample).
+//
 double analyticBW8(float fc, double normFreq)
 {
     float omega = 2.0f * static_cast<float>(M_PI) * fc;
@@ -59,11 +60,13 @@ double analyticBW8(float fc, double normFreq)
 // ---------------------------------------------------------------------------
 // 1. Passband near 0 dB.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("ButterworthFilter: passband gain near 0 dB")
 {
     GlobalEnv::ResetPerTest();
 
     // Cutoff at ~4 kHz, passband up to ~1 kHz.
+    //
     ButterworthFilter bw;
     const float cutoffCps = 4000.0f / static_cast<float>(kSR);
     bw.SetCyclesPerSample(cutoffCps);
@@ -74,6 +77,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: passband gain near 0 dB")
     auto H = MeasureTransferFunction(proc, kN, kSR, 0xB077E00100000001ull, 64, 2);
 
     // Check bins from ~100 Hz to 1 kHz are within 2 dB of 0 dB.
+    //
     std::size_t lo = FreqBin(100.0, kN, kSR);
     std::size_t hi = FreqBin(1000.0, kN, kSR);
 
@@ -83,6 +87,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: passband gain near 0 dB")
 // ---------------------------------------------------------------------------
 // 2. -3 dB near cutoff frequency.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("ButterworthFilter: -3 dB near cutoff")
 {
     GlobalEnv::ResetPerTest();
@@ -105,6 +110,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: -3 dB near cutoff")
         float dbAtFc = 20.0f * std::log10(hAtFc > 1e-9f ? hAtFc : 1e-9f);
         DOCTEST_INFO("cutoff bin " << fcBin << " |H|=" << hAtFc << " dB=" << dbAtFc);
         // 8th-order BW: -3 dB at the cutoff; allow ±3 dB measurement tolerance.
+        //
         DOCTEST_CHECK(dbAtFc > -6.0f);
         DOCTEST_CHECK(dbAtFc < 0.5f);
     }
@@ -113,6 +119,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: -3 dB near cutoff")
 // ---------------------------------------------------------------------------
 // 3. Stopband slope: ~48 dB/octave (6 dB/octave per pole, 8 poles).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("ButterworthFilter: stopband slope >= 40 dB/octave")
 {
     GlobalEnv::ResetPerTest();
@@ -129,6 +136,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: stopband slope >= 40 dB/octave")
     auto H = MeasureTransferFunction(proc, kN, kSR, 0xB077E00100000003ull, 96, 2);
 
     // Measure between 4 kHz and 8 kHz (2 octaves above cutoff, well in stopband).
+    //
     std::size_t bin4k = FreqBin(4000.0, kN, kSR);
     std::size_t bin8k = FreqBin(8000.0, kN, kSR);
 
@@ -144,6 +152,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: stopband slope >= 40 dB/octave")
         // 8th-order Butterworth: ideal is ~48 dB/oct; noise floor
         // of the Welch estimator limits measured dynamic range, so
         // we conservatively check for >= 30 dB/octave attenuation.
+        //
         DOCTEST_CHECK(slopePerOctave < -30.0);
     }
 }
@@ -151,6 +160,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: stopband slope >= 40 dB/octave")
 // ---------------------------------------------------------------------------
 // 4. Measured response matches analytic cascaded-biquad model (2.5 dB tol).
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("ButterworthFilter: measured vs analytic biquad model (2.5 dB)")
 {
     GlobalEnv::ResetPerTest();
@@ -171,6 +181,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: measured vs analytic biquad model (2.5 dB)
     };
 
     // Test over passband + upper roll-off region; exclude very deep stopband.
+    //
     std::size_t lo = FreqBin(100.0,  kN, kSR);
     std::size_t hi = FreqBin(12000.0, kN, kSR);
     AssertResponseMatches(H, expected, kSR, kN, 2.5, lo, hi);
@@ -179,6 +190,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: measured vs analytic biquad model (2.5 dB)
 // ---------------------------------------------------------------------------
 // 5. NaN-clean across a cutoff sweep.
 // ---------------------------------------------------------------------------
+//
 DOCTEST_TEST_CASE("ButterworthFilter: NaN-clean across cutoff sweep")
 {
     GlobalEnv::ResetPerTest();

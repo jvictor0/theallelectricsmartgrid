@@ -528,6 +528,17 @@ struct NonagonWrapper
         m_internal.m_configGrid.m_ioTaskThread = &m_ioTaskThread;
     }
 
+    ~NonagonWrapper()
+    {
+        // Join the IO worker thread before any member is destroyed. m_internal
+        // is declared after m_ioTaskThread, so default destruction order would
+        // free m_internal's recording buffers / sample banks while a persist
+        // task is still running on the worker thread -> use-after-free. Stopping
+        // the thread here makes teardown safe regardless of member order.
+        //
+        m_ioTaskThread.Shutdown();
+    }
+
     void PrepareToPlay(int numSamples, double sampleRate)
     {
     }

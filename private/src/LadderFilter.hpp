@@ -370,7 +370,7 @@ struct LadderFilterLPZDF
 
     // Debug meters
     //
-    static constexpr bool x_debugMetersOn = true;
+    static constexpr bool x_debugMetersOn = false;
     DebugMeter<x_debugMetersOn> m_meterInput;
     DebugMeter<x_debugMetersOn> m_meterFbInput;
     DebugMeter<x_debugMetersOn> m_meterOutput;

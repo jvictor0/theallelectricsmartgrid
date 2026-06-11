@@ -767,6 +767,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
     }
 
     TheoryOfTime()
+        : m_messageOutBuffer(nullptr)
     {
         m_masterLoopSamples = 1.0;
     }
@@ -844,9 +845,12 @@ struct TheoryOfTime : public TheoryOfTimeBase
             if (m_running)
             {
                 m_phasor2Tick.UpdateDivisions(input.m_freq);
-                m_messageOutBuffer->Push(SmartGrid::MessageOut::Start());
+                if (m_messageOutBuffer)
+                {
+                    m_messageOutBuffer->Push(SmartGrid::MessageOut::Start());
+                }
             }
-            else
+            else if (m_messageOutBuffer)
             {
                 m_messageOutBuffer->Push(SmartGrid::MessageOut::Stop());
             }
@@ -854,7 +858,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
         if (m_running)
         {
-            if (m_phasor2Tick.Process(GetMasterLoop()->m_phasorIndependent[0]))
+            if (m_phasor2Tick.Process(GetMasterLoop()->m_phasorIndependent[0]) && m_messageOutBuffer)
             {
                 m_messageOutBuffer->Push(SmartGrid::MessageOut::Clock());
             }
