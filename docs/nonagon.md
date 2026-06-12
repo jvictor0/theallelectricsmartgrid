@@ -45,9 +45,8 @@ During a control frame, `Process` executes the following steps:
      - Sets `m_output.m_gate[i] = true`.
      - Applies the trio octave switch to the LameJuis pitch (`Octavize`).
      - Records a note-on event (`m_noteWriter.RecordNote`).
+   - For each triggering voice, it latches the extra timbre modulators from the LameJuis section into `m_output.m_extraTimbre[i][j]` (via `result.m_section.Timbre(j)`). These are captured per voice at trigger time and are not slewed.
    - If a voice's gate turns off (`!m_multiPhasorGate.m_gate[i]`), it clears `m_output.m_gate[i]` and records a note-off (`m_noteWriter.RecordNoteEnd`).
-   - It slews the 3 extra timbre modulators from LameJuis (`m_extraTimbreSlew`) to prevent clicks.
-   - It outputs the Theory of Time phasors (`m_totPhasors`) for downstream LFOs.
 
 5. **Theory of Time (samples 1–8)**:
    - `m_theoryOfTime.Process(j, input.m_theoryOfTimeInput)` is called for `j = 1` through `8` to compute the rest of this micro block (samples 1–7) and the first sample of the next block (slot 8).

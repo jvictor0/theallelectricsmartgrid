@@ -31,10 +31,13 @@ recording buffer. A voice can select one of the internal trio sources:
 - `None`
 
 Internal recording uses `RecordingBufferWriter` on the selected source voice to
-fan out source samples to every active destination `RecordingBuffer`. External
-sampling is a planned extension of the same model: an external source writer
-should feed selected destination buffers, which then persist into sample
-directories and reload sample banks after saved files appear on disk.
+fan out source samples to every active destination `RecordingBuffer`.
+
+> **Not yet implemented:** external sampling. `RecordingConfig::Source` currently
+> exposes only the internal trio sources (`Water`/`Earth`/`Fire`/`None`); there is
+> no external source. A future extension could add an external source writer that
+> feeds selected destination buffers, which then persist into sample directories
+> and reload sample banks after saved files appear on disk.
 
 `RecordingManager` coordinates recording by voice or by trio. It resolves each
 voice's selected source writer, starts or stops the voice's own recording buffer,
@@ -83,12 +86,14 @@ relationship, so the sample source can play it back as part of the same
 
 Sample directories are relative to the configured sample root. A track with an
 existing sample directory writes its recording into that directory. A track
-without an existing directory can create a UUID-named directory under the sample
-root and use that directory as its sample bank.
+without an existing directory can create a timestamp-named directory under the
+sample root (of the form `YYYY-MM-DDTHH-MM-SS_voiceN`) and use that directory as
+its sample bank.
 
-Recorded files use the name form `_recording_NNNNN.wav`. The number is based on
-the count of regular files already in the target directory, so each recording is
-appended as the next sample in that directory.
+Recorded files use the name form `_recording_NNNNN.wav`. The number is one greater
+than the highest existing `_recording_NNNNN` index in the target directory
+(`FindNextRecordingFileIndex`), so each recording is appended as the next sample
+in that directory.
 
 Multiple tracks may share one sample directory. After recording, the system
 reloads known sample directories instead of trying to identify every track that

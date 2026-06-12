@@ -121,7 +121,7 @@ From `QuadDelayInputSetter` into `Resynthesizer::Input`:
 - `m_unisonDetune`, `m_unisonGain`
 - `m_slewUp`: partial rise-rate control for spectral bloom
 
-`m_slewDown` exists in the input struct but the active code path currently applies `SetSlewUp(...)` during grain start.
+`m_slewDown` exists in the input struct but is not applied in this path: `StartGrain` calls only `SetSlewUp(input.m_slewUp)` (`private/src/Resynthesis.hpp:661`); there is no corresponding `SetSlewDown` call, so the slew-down value is currently inert here.
 
 ## Quad Delay integration
 

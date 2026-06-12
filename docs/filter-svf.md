@@ -12,7 +12,7 @@ The audio signal from the source machine passes through the low-pass SVF first, 
 
 ## Features
 
-- **Cutoff Tracking**: The HP cutoff frequency tracks the base frequency of the voice's oscillator (`m_vcoBaseFreq`) multiplied by `m_hpCutoffFactor`. The LP cutoff is computed relative to the HP cutoff: `vcoBaseFreq * hpCutoff * lpCutoff`, so the LP is always at or below the HP.
+- **Cutoff Tracking**: The HP cutoff frequency tracks the base frequency of the voice's oscillator (`m_vcoBaseFreq`) multiplied by `m_hpCutoffFactor`. The LP cutoff is computed relative to the HP cutoff: `vcoBaseFreq * hpCutoff * lpCutoff`, so the LP is anchored relative to the HP. The `lpCutoffFactor` is an `ExpParam(0.25, 1024)`, so the LP can sit well above the HP anchor; it is not bounded below the HP.
 - **Resonance**: Both filters feature adjustable resonance (`m_lpResonance` and `m_hpResonance`).
 - **Saturation**: The SVF machine features a `TanhSaturator` placed before the low-pass filter, between the low-pass and high-pass filters, and after the high-pass filter. This drives the filters into non-linear distortion, controlled by `m_saturationGain`.
 - **Sample Rate Reduction**: After the filtering stages, the signal passes through a sample rate reducer (`SampleRateReducer`), adding digital aliasing and grit.

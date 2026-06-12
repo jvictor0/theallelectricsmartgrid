@@ -20,7 +20,7 @@ The `TheNonagonSmartGrid` class wraps the core `TheNonagonInternal` sequencer lo
 
 ## SquiggleBoy Config Grid (Voice + Sample Routing)
 
-`SquiggleBoyConfigGrid` now handles more than source/filter mode selection:
+`SquiggleBoyConfigGrid` handles more than source/filter mode selection:
 
 - source machine increment/decrement and filter machine increment/decrement for the active trio,
 - source selection toggles when using `Thru`,

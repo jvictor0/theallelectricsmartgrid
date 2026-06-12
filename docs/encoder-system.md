@@ -4,7 +4,7 @@ The Smart Grid One relies entirely on a software-defined parameter system. All "
 
 The core implementation spans `private/src/Encoder.hpp`, `private/src/EncoderBank.hpp`, and `private/src/EncoderBankBank.hpp`.
 
-Ownership now lives in `EncoderBankBank`: it owns a flat array of `BankedEncoderCell` instances indexed by `SmartGridOneEncoders::Param`. Each `EncoderBankInternal` starts with null base cells and receives raw pointers through `PlaceEncoder(...)`. This makes encoder swapping explicit and keeps base cells empty until they are placed.
+Ownership lives in `EncoderBankBank`: it owns a flat array of `BankedEncoderCell` instances indexed by `SmartGridOneEncoders::Param`. Each `EncoderBankInternal` starts with null base cells and receives raw pointers through `PlaceEncoder(...)`. This makes encoder swapping explicit and keeps base cells empty until they are placed.
 
 Serialization follows ownership: `EncoderBankBank::ToJSON()` iterates the full encoder array and writes each named parameter, and `FromJSON()` does the inverse by looking up each name and updating the encoder state.
 
@@ -44,10 +44,10 @@ Every `BankedEncoderCell` can act as a modulation destination.
 
 ## Scene Morphing
 
-The entire state of all encoders (base values, modulation depths, and gesture targets) is duplicated across two **Scenes** (`SceneManager.hpp`).
-- Scene 1 and Scene 2 act as complete snapshots of the synthesizer.
-- A global `m_blendFactor` crossfades between the two scenes.
-- Because every parameter is continuously interpolating between Scene 1 and Scene 2, moving the scene crossfader smoothly morphs every aspect of the sound engine simultaneously.
+The entire state of all encoders (base values, modulation depths, and gesture targets) is stored across **8 persistent Scenes** (`SceneManager::x_numScenes`, in `SceneManager.hpp`). Each scene is a complete snapshot of the synthesizer.
+- At any moment two of the eight scenes are *active*: `m_scene1` and `m_scene2`. A global `m_blendFactor` crossfades between just those two.
+- `GetSceneValue` reads each parameter's per-scene array and interpolates `values[m_scene1]` and `values[m_scene2]` by `m_blendFactor`.
+- Because every parameter is continuously interpolating between the two active scenes, moving the scene crossfader smoothly morphs every aspect of the sound engine simultaneously.
 
 ## UI State and Parameter Slew
 

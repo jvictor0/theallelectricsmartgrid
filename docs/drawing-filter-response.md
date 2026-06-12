@@ -2,12 +2,12 @@
 
 ## Overview
 
-Filter, delay, reverb, and Partial Machine UI-state types now share a common frequency-domain interface:
+Filter, delay, reverb, and Partial Machine UI-state types share a common frequency-domain interface:
 
 - `TransferFunction::FrequencyResponse(freq)`
 - `TransferFunction::TransferFunctionValue(freq)`
 
-This allows analyzer components to draw responses through a single rendering path.
+The interface (`private/src/TransferFunction.hpp`) is implemented only by UI-state types, never by DSP classes. This lets analyzer components draw responses through a single rendering path.
 
 ## TransferFunction Provider
 

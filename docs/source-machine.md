@@ -7,7 +7,7 @@ The source machine is the first stage in each `SquiggleBoyVoice` and is responsi
 Each voice currently supports four source machine modes:
 
 1. **Dual Wave Shaping VCO**: dual wavetable oscillator source with vector phase shaping and cross-modulation. Implemented in `DualWaveShapingVCO.hpp`.
-2. **Physical Modeling**: noise-excited source with sample-rate reduction, morphable SVF, AHD modulation, and a one-pole damping comb. Implemented in `PhysicalModelingSource.hpp`.
+2. **Physical Modeling**: noise-excited source with a morphable SVF, AHD modulation, sample-rate reduction, and a one-pole damping comb. Implemented in `PhysicalModelingSource.hpp`.
 3. **Thru**: external-input passthrough source.
 4. **Sample**: per-voice sample-directory source that reads a bank of WAV files, blends between adjacent files, and resynthesizes playback with the grain engine. Implemented by `SampleSource` in `DualSampleSource.hpp`.
 
@@ -49,9 +49,9 @@ The **Thru** source machine allows external audio to be routed through the voice
 The **Physical Modeling** source machine (`PhysicalModelingSource`) is a noise-driven resonant source built around a damped comb. The chain is:
 
 1. White noise excitation.
-2. Sample-rate reduction for texture control.
-3. Morphable 2-pole SVF pre-filter (LP/BP/HP blend).
-4. Inverted AHD envelope modulation.
+2. Morphable 2-pole SVF pre-filter (LP/BP/HP blend).
+3. Inverted AHD envelope modulation.
+4. Sample-rate reduction for texture control.
 5. One-pole damping comb (`CombFilterWithOnePole`) with delay compensation.
 
 This source owns a `UIState` that implements `TransferFunction`, so the visualizer can draw the combined pre-comb SVF and comb response in the Source bank.

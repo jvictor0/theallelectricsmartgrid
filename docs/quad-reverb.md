@@ -7,7 +7,7 @@ The **Quad Reverb** (`QuadReverb` in `private/src/QuadReverb.hpp`) is the second
 Unlike the highly experimental Phase Vocoder Quad Delay, the Quad Reverb follows a more traditional algorithmic reverb topology, scaled up to four channels:
 
 1. **Input Diffusion**: The incoming quadraphonic signal is first passed through a bank of 8 parallel All-Pass Filters (`QuadParallelAllPassFilter<8>`). This rapidly diffuses the initial transients, smearing them into a dense cluster of early reflections. The delay times for these APFs are chosen as prime numbers (e.g., 37, 61, 113...) to minimize metallic ringing.
-2. **Pre-Feedback All-Pass**: The diffused signal passes through another quadraphonic All-Pass Filter (`m_preFeedbackFilter`) before entering the main delay loop.
+2. **Pre-Feedback All-Pass**: The feedback return (`input.m_return`) passes through a quadraphonic All-Pass Filter (`m_preFeedbackFilter`); the filtered return is then scaled by the feedback amount and summed with the diffused input before entering the main delay loop.
 3. **Main Delay Line**: A large quadraphonic delay line (`QuadDelayLine`) provides the core reverberant tail. The delay times are modulated by a dedicated `QuadLFO` to add chorus and prevent resonant build-up.
 4. **Post-Feedback Filtering**: Inside the feedback loop, the signal passes through a `PostFeedbackFilter` block consisting of:
    - An All-Pass Filter (`m_apf1`).
