@@ -138,7 +138,11 @@ struct PartialMachine
 
         struct UnisonContext
         {
-            static constexpr size_t x_numVoices = 7;
+            // Voices are added in symmetric pairs; pair 3 (voices 5 and 6) always
+            // resolves to interp = 0 -> gain ZeroedExpParam::Compute(4, 0) = 0, so it
+            // is always silent. Cap at 5 so the synthesis loop skips the dead pair.
+            //
+            static constexpr size_t x_numVoices = 5;
 
             float m_gain[x_numVoices];
             float m_detune[x_numVoices];

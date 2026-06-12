@@ -70,8 +70,8 @@ The system SHALL compute each atom's azimuth as `azimuthFactor × FrequencyToLin
 - **WHEN** the azimuth factor is at maximum (1.0)
 - **THEN** atoms spread across the full [0, 1) orbit as frequency rises, while at 1/32 the same spectrum clusters within a 1/32 arc of the quad field, and azimuth values wrap continuously past 1.0
 
-### Requirement: Seven-Voice Unison Expansion
-The system SHALL expand each atom into a center copy plus three symmetric detuned pairs (`UnisonContext::x_numVoices = 7`). Pair p (1-3) uses interpolation `interp = min(1, (3 - p) × unison)`; each side voice gets gain `ZeroedExpParam::Compute(4, interp)`, detune `1.06^(±interp)`, and azimuth offset `±interp / 2^(4-p)`. All seven gains are then RMS-normalized so unison changes spread and density without changing loudness. Because pair 3's interpolation term is `(3 - 3) × unison = 0`, its two voices always carry zero gain; at most five copies sound.
+### Requirement: Five-Voice Unison Expansion
+The system SHALL expand each atom into a center copy plus two symmetric detuned pairs (`UnisonContext::x_numVoices = 5`). Pair p (1-2) uses interpolation `interp = min(1, (3 - p) × unison)`; each side voice gets gain `ZeroedExpParam::Compute(4, interp)`, detune `1.06^(±interp)`, and azimuth offset `±interp / 2^(4-p)`. All five gains are then RMS-normalized so unison changes spread and density without changing loudness.
 
 #### Scenario: Unison at zero leaves one copy
 - **WHEN** the unison parameter is 0
@@ -79,7 +79,7 @@ The system SHALL expand each atom into a center copy plus three symmetric detune
 
 #### Scenario: Raising unison staggers the pairs
 - **WHEN** the unison parameter is 0.5
-- **THEN** pair 1 reaches full interpolation (min(1, 2 × 0.5) = 1) with detunes 1.06 and 1/1.06 and azimuth offsets ±1/8, pair 2 is at interpolation 0.5, pair 3 stays silent, and the active copies' gains are scaled by the common RMS factor so total energy stays constant
+- **THEN** pair 1 reaches full interpolation (min(1, 2 × 0.5) = 1) with detunes 1.06 and 1/1.06 and azimuth offsets ±1/8, pair 2 is at interpolation 0.5, and the active copies' gains are scaled by the common RMS factor so total energy stays constant
 
 ### Requirement: Quad Panning and Overlap-Add Synthesis
 The system SHALL place each unison copy in the quad field by converting azimuth and radius to coordinates `x = 0.5 + 0.5 × radius × cos2pi(azimuth)`, `y = 0.5 + 0.5 × radius × sin2pi(azimuth)` and panning with `QuadFloat::Pan(x, y, 1.0)` (`SynthesisContext::Pan`, `private/src/QuadUtils.hpp`). Every copy is written into a 4-channel `QuadDFT` as a windowed partial with its magnitude, phase, frequency, and quad distribution; each atom's synthesis phase then advances by `H × synthesisOmega`. `QuadOLA` (`private/src/OLA.hpp`) inverse-transforms and overlap-adds the frames at 75% overlap into the continuous quad return, which is produced every sample.
