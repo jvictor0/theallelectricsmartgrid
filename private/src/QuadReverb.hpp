@@ -70,16 +70,19 @@ struct QuadReverb
         m_postFeedbackFilter.m_apf2.SetDelaySamples(2, 113);
         m_postFeedbackFilter.m_apf2.SetDelaySamples(3, 293);
 
-        for (size_t i = 0; i < 8; ++i)
+        // m_inputFilter has 4 quad channels (m_allPassFilter[4]), each an 8-stage
+        // ParallelAllPassFilter. SetDelaySamples(stage, channel, samples) indexes the
+        // channel as the second arg, so the channel loop must stay within [0, 4).
+        for (size_t ch = 0; ch < 4; ++ch)
         {
-            m_inputFilter.SetDelaySamples(0, i, 37);
-            m_inputFilter.SetDelaySamples(1, i, 61);
-            m_inputFilter.SetDelaySamples(2, i, 113);
-            m_inputFilter.SetDelaySamples(3, i, 179);
-            m_inputFilter.SetDelaySamples(4, i, 281);
-            m_inputFilter.SetDelaySamples(5, i, 431);
-            m_inputFilter.SetDelaySamples(6, i, 613);
-            m_inputFilter.SetDelaySamples(7, i, 877);
+            m_inputFilter.SetDelaySamples(0, ch, 37);
+            m_inputFilter.SetDelaySamples(1, ch, 61);
+            m_inputFilter.SetDelaySamples(2, ch, 113);
+            m_inputFilter.SetDelaySamples(3, ch, 179);
+            m_inputFilter.SetDelaySamples(4, ch, 281);
+            m_inputFilter.SetDelaySamples(5, ch, 431);
+            m_inputFilter.SetDelaySamples(6, ch, 613);
+            m_inputFilter.SetDelaySamples(7, ch, 877);
         }
     }
 
