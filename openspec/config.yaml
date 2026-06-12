@@ -1,0 +1,31 @@
+schema: spec-driven
+
+context: |
+  Smart Grid One: a standalone JUCE GUI synthesizer application (macOS/iPad),
+  written in C++ as a headers-mostly codebase.
+
+  Domain: a 9-voice polyphonic engine (3 trios), an esoteric sequencer
+  (Nonagon/LameJuis) driven by a hierarchical 6-loop clock (Theory of Time),
+  quadraphonic effects (delay/reverb/partial machine), a software-defined
+  encoder parameter system with 8 scenes and A/B morphing, and MIDI grid
+  controllers (Wrld.Bldr et al.).
+
+  Layering: the realtime DSP engine lives in private/src/*.hpp; the JUCE UI
+  lives in JUCE/SmartGridOne/Source/. Stateless UIState structs are the only
+  bridge between the DSP and UI/MIDI threads (lock-free atomics); file IO
+  stays off the audio thread via IoTaskThread.
+
+  Docs live in docs/ (terminology anchored to docs/glossary.md); tests live
+  in private/test/. Capability specs in openspec/specs/ describe CURRENT
+  behavior; scenarios are phrased against observable layers (UIState, scope
+  writers, file outputs).
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
