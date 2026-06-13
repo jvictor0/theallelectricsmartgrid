@@ -2,9 +2,7 @@
 
 ## Purpose
 Scene state management coordinates Smart Grid One's eight performance scenes and the persistence of everything that is not an audio sample. The `SceneManager` (`private/src/SceneManager.hpp`) is the single source of truth for the two active scene indices, the global blend factor, the centralized shift flag, and per-frame change signaling consumed by the encoder parameter system (see encoder-parameter-system). The `StateSaver` registry (`private/src/StateSaver.hpp`) persists non-encoder runtime values—an 8-scene instance for Nonagon sequencer state and a single-scene instance for global configuration—while encoder state is serialized separately by `EncoderBankBank`. Patch save, load, and new-patch reset flow through a JSON state interchange, with per-voice sample directories restored asynchronously through the IO task thread (see io-task-thread).
-
 ## Requirements
-
 ### Requirement: Dual Active Scenes with Global Blend
 The system SHALL maintain eight persistent scenes (`SceneManager::x_numScenes == 8`) with two active scene indices `m_scene1` and `m_scene2` (each 0–7, possibly equal) and a global blend factor in [0, 1]; scene-stored arrays are read through `GetSceneValue(values) = values[scene1] × (1 − blend) + values[scene2] × blend`.
 Scene 1 is considered active when blend < 1 and scene 2 when blend > 0, so edits at an endpoint affect only the fully sounding scene.
@@ -109,3 +107,21 @@ The audio thread is never blocked on disk IO during patch load.
 #### Scenario: Empty path clears the bank
 - **WHEN** the entry for a voice is the empty string
 - **THEN** that voice's existing audio buffer bank, if any, is released and no load task is queued
+
+### Requirement: Reset and Edit Operations Stay Coherent Across Scenes and Patches
+Encoder reset/shift operations and discrete grid-cell edits SHALL leave the system in a state where the published UI surface and the underlying computed/stored values agree, and that agreement SHALL survive scene switches and patch save/load round-trips. Specifically: a shift-press reset performed while a given scene pair is active resets the current track's modulation for the active scene(s) only and SHALL NOT corrupt the stored values of inactive scenes; and any value altered by a reset or edit SHALL be serialized and restored by a save/load round-trip exactly as it stands after the edit (encoder state through `EncoderBankBank`, discrete grid/cell state through `StateSaver`; see encoder-parameter-system and the Theory of Time topology grid in phasor-timebase).
+
+#### Scenario: Shift-reset in one scene leaves other scenes intact
+- **WHEN** a parameter is modulated in both scene 1 and scene 2, scene 1 is the active scene (blend 0), and the performer shift-presses the encoder to reset it
+- **THEN** the scene-1 modulation is cleared and the published value converges to the scene-1 base value after settle frames
+- **AND** switching the active scene to scene 2 republishes scene 2's still-modulated value (scene 2 was not affected by the scene-1 reset)
+
+#### Scenario: Post-reset state round-trips through a patch
+- **WHEN** an encoder is modulated, then shift-reset, then the patch is saved, the system reset to defaults, and the patch reloaded
+- **THEN** the reloaded encoder has no modulation and its published value equals the base value after settle frames, matching the state immediately after the reset
+
+#### Scenario: Discrete grid-cell state round-trips and tracks scenes as registered
+- **WHEN** a discrete grid cell backed by the `StateSaver` registry (such as a Theory of Time topology multiplier) is edited, the patch is saved, the system reset, and the patch reloaded
+- **THEN** the cell's stored value is restored to its edited value
+- **AND** the cell's published LED color reflects the restored value
+

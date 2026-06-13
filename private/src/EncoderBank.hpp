@@ -675,6 +675,14 @@ struct BankedEncoderCell : public StateEncoderCell
         }
 
         SetModulatorsAffectingRecursive();
+
+        // The reset cleared this cell's modulation/gesture configuration, so its
+        // affecting bitmask just went (partly) empty. Compute is change-driven and
+        // an empty bitmask can never re-trigger it, so force one corrective
+        // recompute — otherwise m_output stays frozen at the pre-reset value.
+        // Mirrors RevertToDefault's SetForceUpdateRecursive + SetModulatorsAffecting.
+        //
+        SetForceUpdateRecursive();
     }
 
     void ZeroModulators(bool allScenes, bool allTracks)
@@ -1356,6 +1364,14 @@ struct EncoderBankInternal : public EncoderGrid
                 if (cell)
                 {
                     cell->ClearGesture(gesture);
+                    // Deactivating the gesture empties part of the cell's affecting
+                    // bitmask; Compute is change-driven and can't re-trigger off an
+                    // empty mask, so force a corrective recompute or the encoder
+                    // stays frozen at its pre-clear gestured value. (Unlike the
+                    // scene-change caller of SetAllModulatorsAffecting, the gesture
+                    // delete has no bulk refresh to set force-update for us.)
+                    //
+                    cell->SetForceUpdateRecursive();
                 }
             }
         }
