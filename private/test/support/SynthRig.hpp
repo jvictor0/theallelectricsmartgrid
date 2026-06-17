@@ -422,9 +422,18 @@ public:
             return JSON::Null();
         }
 
-        // Give HandleStateInterchange a frame to service the request.
+        // Give HandleStateInterchange a frame to service the request. If the
+        // build exhausted the arena, the message side (here) grows it and the
+        // request is re-armed; loop until the build fits.
         //
-        RunFrames(1);
+        for (int attempt = 0; attempt < 24; ++attempt)
+        {
+            RunFrames(1);
+            if (!m_internal->m_stateInterchange.RetrySaveIfFailed())
+            {
+                break;
+            }
+        }
 
         if (!m_internal->m_stateInterchange.IsSavePending())
         {
@@ -437,7 +446,7 @@ public:
     }
 
     // LoadPatch(jsonString): parse and load a patch. Exact sequence:
-    //   1. Parse the string to JSON (jansson under EMBEDDED_BUILD).
+    //   1. Parse the string into the interchange's arena-backed load buffer.
     //   2. m_stateInterchange.RequestLoad(json) -- arms the load.
     //   3. RunFrames(1) -- ProcessFrame -> HandleStateInterchange sees
     //      IsLoadRequested(), calls FromJSON(GetToLoad()) then AckLoadCompleted().
@@ -445,8 +454,9 @@ public:
     //
     bool LoadPatch(const std::string& jsonString)
     {
-        json_error_t error;
-        JSON json = JSON::Loads(jsonString.c_str(), 0, &error);
+        // Parse into the interchange's load arena (message-thread side).
+        //
+        JSON json = m_internal->m_stateInterchange.ParseForLoad(jsonString.c_str());
         if (json.IsNull())
         {
             return false;

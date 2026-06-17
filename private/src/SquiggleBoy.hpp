@@ -1703,9 +1703,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
     }   
 
-    JSON ToJSON()
+    JSON ToJSON(JsonArena& a)
     {
-        return m_encoders.ToJSON();
+        return m_encoders.ToJSON(a);
     }
 
     void FromJSON(JSON rootJ)

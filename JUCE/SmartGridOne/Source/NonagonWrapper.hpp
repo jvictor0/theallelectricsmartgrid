@@ -186,20 +186,20 @@ struct NonagonWrapperQuadLaunchpadTwister
         m_midiEncoderOutputHandler.Process();
     }
 
-    JSON ConfigToJSON()
+    JSON ConfigToJSON(JsonArena& a)
     {
-        JSON rootJ = JSON::Object();
+        JSON rootJ = a.Object();
         for (size_t i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numRoutes; ++i)
         {
-            rootJ.SetNew(std::string("midi_input_" + std::to_string(i)).c_str(), m_midiInputHandler[i].ToJSON());
+            rootJ.SetNew(std::string("midi_input_" + std::to_string(i)).c_str(), m_midiInputHandler[i].ToJSON(a));
         }
 
         for (size_t i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
         {
-            rootJ.SetNew(std::string("launchpad_output_" + std::to_string(i)).c_str(), m_midiLaunchpadOutputHandler[i].ToJSON());
+            rootJ.SetNew(std::string("launchpad_output_" + std::to_string(i)).c_str(), m_midiLaunchpadOutputHandler[i].ToJSON(a));
         }
 
-        rootJ.SetNew(std::string("encoder_output").c_str(), m_midiEncoderOutputHandler.ToJSON());
+        rootJ.SetNew(std::string("encoder_output").c_str(), m_midiEncoderOutputHandler.ToJSON(a));
 
         return rootJ;
     }
@@ -460,12 +460,12 @@ struct NonagonWrapperWrldBldr
         return m_kMixMidiOutputHandler.m_midiOutput.get();
     }
 
-    JSON ConfigToJSON()
+    JSON ConfigToJSON(JsonArena& a)
     {
-        JSON rootJ = JSON::Object();
-        rootJ.SetNew("midi_input", m_midiInputHandler.ToJSON());
-        rootJ.SetNew("midi_output", m_midiOutputHandler.ToJSON());
-        rootJ.SetNew("kmix_output", m_kMixMidiOutputHandler.ToJSON());
+        JSON rootJ = a.Object();
+        rootJ.SetNew("midi_input", m_midiInputHandler.ToJSON(a));
+        rootJ.SetNew("midi_output", m_midiOutputHandler.ToJSON(a));
+        rootJ.SetNew("kmix_output", m_kMixMidiOutputHandler.ToJSON(a));
         return rootJ;
     }
 
@@ -627,11 +627,11 @@ struct NonagonWrapper
         return m_wrldBldr.GetKMixOutput();
     }
 
-    JSON ConfigToJSON()
+    JSON ConfigToJSON(JsonArena& a)
     {
-        JSON rootJ = JSON::Object();
-        rootJ.SetNew("quad_launchpad_twister", m_quadLaunchpadTwister.ConfigToJSON());
-        rootJ.SetNew("wrld_bldr", m_wrldBldr.ConfigToJSON());
+        JSON rootJ = a.Object();
+        rootJ.SetNew("quad_launchpad_twister", m_quadLaunchpadTwister.ConfigToJSON(a));
+        rootJ.SetNew("wrld_bldr", m_wrldBldr.ConfigToJSON(a));
         return rootJ;
     }
 

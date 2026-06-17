@@ -332,15 +332,15 @@ struct EncoderBankBank
         }
     }
 
-    JSON ToJSON()
+    JSON ToJSON(JsonArena& a)
     {
-        JSON rootJ = JSON::Object();
+        JSON rootJ = a.Object();
         for (size_t i = 0; i < m_numEncoders; ++i)
         {
             SmartGrid::BankedEncoderCell* cell = m_encoders[i].get();
             if (cell && cell->m_name)
             {
-                rootJ.SetNew(cell->m_name, cell->ToJSON());
+                rootJ.SetNew(cell->m_name, cell->ToJSON(a));
             }
         }
 

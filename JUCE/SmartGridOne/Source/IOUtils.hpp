@@ -41,7 +41,7 @@ struct FileManager
     static juce::String GenerateTimestampFilename();
     
     static void PersistConfig(JSON config);
-    static JSON LoadConfig();
+    static JSON LoadConfig(JsonArena& a);
 
     void ChooseSaveFile(bool saveAs, std::function<void(juce::String)> onFileSelected = nullptr);
     void ChooseLoadFile(std::function<void(juce::String)> onFileSelected = nullptr);
@@ -55,7 +55,7 @@ struct FileManager
         LoadPatch(m_currentPatchName);
     }
 
-    JSON ToJSON();
+    JSON ToJSON(JsonArena& a);
     void FromJSON(JSON json);
     
     void SetCurrentPatchName(juce::String patchName) { m_currentPatchName = patchName; }

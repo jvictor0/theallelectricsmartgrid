@@ -79,17 +79,25 @@ public:
 
     void SaveConfig()
     {
-        JSON config = JSON::Object();
-        JSON nonagonConfig = m_nonagon.ConfigToJSON();
-        nonagonConfig.SetNew("stereo", JSON::Boolean(m_configuration.m_stereo));
+        // Config is built on the message thread, so the arena is local and may
+        // be sized generously; it lives until PersistConfig has dumped it.
+        //
+        JsonArena arena(JsonArena::kDefaultCapacity);
+        JSON config = arena.Object();
+        JSON nonagonConfig = m_nonagon.ConfigToJSON(arena);
+        nonagonConfig.SetNew("stereo", arena.Boolean(m_configuration.m_stereo));
         config.SetNew("nonagon_config", nonagonConfig);
-        config.SetNew("file_config", m_fileManager.ToJSON());
+        config.SetNew("file_config", m_fileManager.ToJSON(arena));
         FileManager::PersistConfig(config);
     }
 
     void LoadConfig()
     {
-        JSON config = FileManager::LoadConfig();
+        // The parsed config tree points into `arena`, so it must outlive every
+        // read below.
+        //
+        JsonArena arena(JsonArena::kDefaultCapacity);
+        JSON config = FileManager::LoadConfig(arena);
         if (!config.IsNull())
         {
             JSON nonagonConfig = config.Get("nonagon_config");
@@ -136,9 +144,21 @@ public:
         m_nonagon.GetStateInterchange()->RequestNew();
     }
 
-    void RequestLoad(JSON patch)
+    // Parse the patch text into the interchange's load arena (message thread)
+    // and arm the load. The parsed tree must outlive the audio thread's read,
+    // so it is owned by the StateInterchange, not a local. Returns false on
+    // parse failure or if a load is already in flight.
+    //
+    bool RequestLoad(const juce::String& jsonText)
     {
-        m_nonagon.GetStateInterchange()->RequestLoad(patch);
+        StateInterchange* stateInterchange = m_nonagon.GetStateInterchange();
+        JSON patch = stateInterchange->ParseForLoad(jsonText.toUTF8().getAddress());
+        if (patch.IsNull())
+        {
+            return false;
+        }
+
+        return stateInterchange->RequestLoad(patch);
     }
 
     //==============================================================================

@@ -66,13 +66,13 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoy.SetRecordingDirectory(directory);
     }
 
-    JSON ToJSON()
+    JSON ToJSON(JsonArena& a)
     {
-        JSON rootJ = JSON::Object();
-        rootJ.SetNew("nonagon", m_nonagon.ToJSON());
-        rootJ.SetNew("squiggleBoy", m_squiggleBoy.ToJSON());
-        rootJ.SetNew("stateSaver", m_stateSaver.ToJSON());
-        rootJ.SetNew("configGrid", m_configGrid.ToJSON());
+        JSON rootJ = a.Object();
+        rootJ.SetNew("nonagon", m_nonagon.ToJSON(a));
+        rootJ.SetNew("squiggleBoy", m_squiggleBoy.ToJSON(a));
+        rootJ.SetNew("stateSaver", m_stateSaver.ToJSON(a));
+        rootJ.SetNew("configGrid", m_configGrid.ToJSON(a));
         return rootJ;
     }
 
@@ -245,9 +245,24 @@ struct TheNonagonSquiggleBoyInternal
         if (m_stateInterchange.IsSaveRequested())
         {
             INFO("Save JSON request received");
-            JSON toSave = ToJSON();
-            INFO("JSON serialized");
-            m_stateInterchange.AckSaveRequested(toSave);
+
+            // Build into the caller-owned arena — no heap allocation here. On
+            // exhaustion the audio thread acks failure; the message thread grows
+            // the arena and re-requests (StateInterchange::RetrySaveIfFailed).
+            //
+            JsonArena& arena = m_stateInterchange.SaveArena();
+            arena.Reset();
+            JSON toSave = ToJSON(arena);
+            if (arena.Failed())
+            {
+                INFO("JSON serialization exhausted arena; requesting retry");
+                m_stateInterchange.AckSaveFailed();
+            }
+            else
+            {
+                INFO("JSON serialized");
+                m_stateInterchange.AckSaveRequested(toSave);
+            }
         }
 
         if (m_stateInterchange.IsLoadRequested())

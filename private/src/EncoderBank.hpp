@@ -791,18 +791,18 @@ struct BankedEncoderCell : public StateEncoderCell
         m_forceUpdate = false;
     }
 
-    JSON ToJSON() 
+    JSON ToJSON(JsonArena& a)
     {
-        JSON rootJ = JSON::Object();
-        rootJ.SetNew("values", StateEncoderCell::ToJSON());
+        JSON rootJ = a.Object();
+        rootJ.SetNew("values", StateEncoderCell::ToJSON(a));
         if (m_modulators.m_numActiveModulators > 0)
         {
-            JSON modulatorsJ = JSON::Array();
+            JSON modulatorsJ = a.Array();
             for (size_t i = 0; i < x_numModulators; ++i)
             {
                 if (m_modulators.m_modulators[i].get())
                 {
-                    modulatorsJ.AppendNew(m_modulators.m_modulators[i]->ToJSON());
+                    modulatorsJ.AppendNew(m_modulators.m_modulators[i]->ToJSON(a));
                 }
                 else
                 {
@@ -813,14 +813,14 @@ struct BankedEncoderCell : public StateEncoderCell
             rootJ.SetNew("modulators", modulatorsJ);
         }
 
-        JSON gesturesJ = JSON::Array();
+        JSON gesturesJ = a.Array();
         bool hasGestures = false;
         for (size_t i = 0; i < x_numGestureParams; ++i)
         {
             if (m_modulators.m_gestures[i])
             {
                 hasGestures = true;
-                gesturesJ.AppendNew(m_modulators.m_gestures[i]->ToJSON());
+                gesturesJ.AppendNew(m_modulators.m_gestures[i]->ToJSON(a));
             }
             else
             {
@@ -835,12 +835,12 @@ struct BankedEncoderCell : public StateEncoderCell
 
         if (m_type == EncoderType::GestureParam)
         {
-            JSON activeJ = JSON::Array();
+            JSON activeJ = a.Array();
             for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
             {
                 for (size_t j = 0; j < 16; ++j)
                 {
-                    activeJ.AppendNew(JSON::Boolean(m_isActive[i][j]));
+                    activeJ.AppendNew(a.Boolean(m_isActive[i][j]));
                 }
             }
 
@@ -1509,7 +1509,7 @@ struct EncoderBankInternal : public EncoderGrid
         }
     }
 
-    void ToJSON(JSON& rootJ)
+    void ToJSON(JsonArena& a, JSON& rootJ)
     {
         for (size_t i = 0; i < 4; ++i)
         {
@@ -1518,7 +1518,7 @@ struct EncoderBankInternal : public EncoderGrid
                 BankedEncoderCell* cell = GetBase(i, j);
                 if (cell && cell->m_name)
                 {
-                    JSON paramJ = cell->ToJSON();
+                    JSON paramJ = cell->ToJSON(a);
                     rootJ.SetNew(cell->m_name, paramJ);
                 }
             }

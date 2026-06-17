@@ -63,11 +63,11 @@ struct MidiInputHandler : public juce::MidiInputCallback
         }
     }
 
-    JSON ToJSON()
+    JSON ToJSON(JsonArena& a)
     {
-        JSON rootJ = JSON::Object();
-        rootJ.SetNew("route_id", JSON::Integer(m_routeId));
-        rootJ.SetNew("midi_input", JSON::String(m_name.toUTF8()));
+        JSON rootJ = a.Object();
+        rootJ.SetNew("route_id", a.Integer(m_routeId));
+        rootJ.SetNew("midi_input", a.String(m_name.toUTF8()));
         return rootJ;
     }
 
@@ -131,11 +131,11 @@ struct MidiOutputHandler
     virtual void Reset() = 0;
     virtual void Process() = 0;
 
-    JSON ToJSON()
+    JSON ToJSON(JsonArena& a)
     {
-        JSON rootJ = JSON::Object();
-        rootJ.SetNew("midi_output", JSON::String(m_name.toUTF8()));
-        rootJ.SetNew("shape", JSON::Integer(static_cast<int>(m_shape)));
+        JSON rootJ = a.Object();
+        rootJ.SetNew("midi_output", a.String(m_name.toUTF8()));
+        rootJ.SetNew("shape", a.Integer(static_cast<int>(m_shape)));
         return rootJ;
     }
 

@@ -25,21 +25,10 @@ enable_testing()
 set(TEST_DIR        ${CMAKE_CURRENT_SOURCE_DIR})
 set(REPO_ROOT       ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 set(SRC_DIR         ${CMAKE_CURRENT_SOURCE_DIR}/../src)
-set(JANSSON_DIR     ${REPO_ROOT}/external/jansson)
 
 # ---------------------------------------------------------------------------
-# jansson (vendored git submodule). Build it as a static lib with the extras
-# turned off so we only get libjansson.
-# ---------------------------------------------------------------------------
-set(JANSSON_BUILD_DOCS    OFF CACHE BOOL "" FORCE)
-set(JANSSON_BUILD_MAN     OFF CACHE BOOL "" FORCE)
-set(JANSSON_EXAMPLES      OFF CACHE BOOL "" FORCE)
-set(JANSSON_WITHOUT_TESTS ON  CACHE BOOL "" FORCE)
-set(JANSSON_INSTALL       OFF CACHE BOOL "" FORCE)
-set(JANSSON_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-
-add_subdirectory(${JANSSON_DIR} ${CMAKE_BINARY_DIR}/jansson EXCLUDE_FROM_ALL)
-
+# JSON is now provided by the self-contained, header-only arena library
+# (private/src/Json.hpp). No external jansson submodule is required.
 # ---------------------------------------------------------------------------
 # Test executable
 # ---------------------------------------------------------------------------
@@ -63,8 +52,9 @@ target_include_directories(smartgrid_tests PRIVATE
 )
 
 # EMBEDDED_BUILD strips the JUCE dependency out of the core headers
-# (AsyncLogger.hpp, ios_stubs.hpp, JuceSon.hpp) and selects the jansson-backed
-# JSON adapter. -funroll-loops mirrors the VCV Rack plugin Makefile.
+# (AsyncLogger.hpp, ios_stubs.hpp). JSON is provided by the self-contained
+# arena library (Json.hpp) in every build. -funroll-loops mirrors the VCV Rack
+# plugin Makefile.
 #
 # DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES stops doctest from defining bare INFO/WARN
 # macros, which would otherwise collide with the codebase's own INFO(...) and
@@ -72,13 +62,12 @@ target_include_directories(smartgrid_tests PRIVATE
 target_compile_definitions(smartgrid_tests PRIVATE
     EMBEDDED_BUILD=1
     DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES=1
+    SMARTGRID_REPO_ROOT="${REPO_ROOT}"
 )
 target_compile_options(smartgrid_tests PRIVATE -funroll-loops)
 
 # Keep warnings on but non-fatal; the DSP core has pre-existing warnings.
 target_compile_options(smartgrid_tests PRIVATE -Wall -Wno-unused-parameter)
-
-target_link_libraries(smartgrid_tests PRIVATE jansson)
 
 # ---------------------------------------------------------------------------
 # CTest registration. doctest test filtering is supported by passing

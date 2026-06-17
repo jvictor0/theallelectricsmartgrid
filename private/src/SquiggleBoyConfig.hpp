@@ -371,22 +371,22 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         PropagateSourceSelection();
     }
 
-    JSON ToJSON()
+    JSON ToJSON(JsonArena& a)
     {
-        JSON rootJ = JSON::Object();
+        JSON rootJ = a.Object();
 
         if (!m_squiggleBoy)
         {
             return rootJ;
         }
 
-        JSON dirsJ = JSON::Array();
+        JSON dirsJ = a.Array();
 
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
             AudioBufferBank* bank = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank;
             const char* rel = (bank && !bank->m_directoryName.empty()) ? bank->m_directoryName.c_str() : "";
-            dirsJ.AppendNew(JSON::String(rel));
+            dirsJ.AppendNew(a.String(rel));
         }
 
         rootJ.SetNew("sampleDirectoryRelative", dirsJ);

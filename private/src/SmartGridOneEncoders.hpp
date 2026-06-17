@@ -522,9 +522,9 @@ struct SmartGridOneEncoders
 
     // Serialization
     //
-    JSON ToJSON()
+    JSON ToJSON(JsonArena& a)
     {
-        return m_encoderBankBank.ToJSON();
+        return m_encoderBankBank.ToJSON(a);
     }
 
     void FromJSON(JSON rootJ)

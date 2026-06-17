@@ -367,10 +367,10 @@ struct TheNonagonSmartGrid
         m_stateSaver.SetSceneManager(sceneManager);
     }
 
-    JSON ToJSON()
+    JSON ToJSON(JsonArena& a)
     {
-        return m_stateSaver.ToJSON();
-    }    
+        return m_stateSaver.ToJSON(a);
+    }
 
     void FromJSON(JSON jin)
     {

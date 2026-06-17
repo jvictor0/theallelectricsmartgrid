@@ -67,7 +67,7 @@
 //   directly on the real wired system (component-level for the trigger), but the
 //   capture, persistence (real IoTaskThread), reload, and patch save/load all run
 //   through the real system exactly as in production. The patch round-trip (test
-//   3) is fully front-door via SynthRig::SavePatchJSON / LoadPatchJSON.
+//   3) is fully front-door via SynthRig::SavePatch / LoadPatch (string path).
 //
 // RecordingConfig::m_source defaults to Source::Water (trio 0) for every voice
 // and is never reassigned anywhere in the codebase, so recording always routes
@@ -521,7 +521,7 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
 // ---------------------------------------------------------------------------
 // Test 3: patch interaction -- the sample directory is saved in the patch
 // (SquiggleBoyConfigGrid "sampleDirectoryRelative") and reloaded on load.
-// Fully front-door via SynthRig::SavePatchJSON / LoadPatchJSON.
+// Fully front-door via SynthRig::SavePatch / LoadPatch (string path).
 // ---------------------------------------------------------------------------
 //
 DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
@@ -529,7 +529,11 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
     TempDir td;
     DOCTEST_REQUIRE(td.Valid());
 
-    JSON patch = JSON::Null();
+    // Persist the patch as a STRING (the real cross-restart path): a JSON value
+    // is only a pointer into its rig's arena, so it cannot outlive the rig that
+    // produced it. Serializing to a string detaches it from that arena.
+    //
+    std::string patchStr;
     std::string relativeDir;
 
     // ---- Record + persist, then save a patch.
@@ -553,8 +557,8 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
         // Sequencer is still running -- stop it so the save isn't racing audio.
         //
         rig.StopSequencer();
-        patch = rig.SavePatchJSON();
-        DOCTEST_REQUIRE_FALSE(patch.IsNull());
+        patchStr = rig.SavePatch();
+        DOCTEST_REQUIRE_FALSE(patchStr.empty());
     }
 
     // ---- Fresh rig, same root: load the patch, expect the bank to be reloaded.
@@ -566,7 +570,7 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
 
         DOCTEST_REQUIRE(boy2.m_state[0].m_voiceConfig.m_audioBufferBank == nullptr);
 
-        bool loaded = rig2.LoadPatchJSON(patch);
+        bool loaded = rig2.LoadPatch(patchStr);
         DOCTEST_REQUIRE(loaded);
 
         // FromJSON pushed a LoadAudioBufferBankFromDirectory for voice 0; pump

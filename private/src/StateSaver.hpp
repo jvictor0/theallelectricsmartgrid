@@ -33,15 +33,15 @@ struct StateSaverTemp
             SetVal(m_default, m_ptr, m_len);
         }
 
-        JSON ToJSON()
+        JSON ToJSON(JsonArena& a)
         {
             SaveValToScene();
-            JSON ret = JSON::Array();
+            JSON ret = a.Array();
             for (size_t s = 0; s < NumScenes; ++s)
             {
                 for (size_t i = 0; i < m_len; ++i)
                 {
-                    ret.Append(JSON::Integer(m_buf[s * m_len + i]));
+                    ret.Append(a.Integer(m_buf[s * m_len + i]));
                 }
             }
 
@@ -167,12 +167,12 @@ struct StateSaverTemp
         m_state.push_back(std::make_pair(name + "_" + std::to_string(i) + "_" + std::to_string(j), Mk(t)));
     }
     
-    JSON ToJSON()
+    JSON ToJSON(JsonArena& a)
     {
-        JSON rootJ = JSON::Object();
+        JSON rootJ = a.Object();
         for (auto& s : m_state)
         {
-            rootJ.SetNew(s.first.c_str(), s.second.ToJSON());
+            rootJ.SetNew(s.first.c_str(), s.second.ToJSON(a));
         }
 
         return rootJ;

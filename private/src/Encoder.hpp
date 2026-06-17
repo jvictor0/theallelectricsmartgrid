@@ -212,21 +212,21 @@ struct StateEncoderCell : public EncoderCell
     SceneManager* m_sceneManager;
     SharedEncoderStateBase* m_sharedEncoderState;
 
-    JSON ToJSON()
+    JSON ToJSON(JsonArena& a)
     {
-        JSON root = JSON::Object();
-        JSON values = JSON::Array();
+        JSON root = a.Object();
+        JSON values = a.Array();
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
-            JSON sceneValues = JSON::Array();
+            JSON sceneValues = a.Array();
             for (size_t j = 0; j < m_numTracks; ++j)
             {
-                sceneValues.AppendNew(JSON::Real(m_values[j][i]));
+                sceneValues.AppendNew(a.Real(m_values[j][i]));
             }
-            
+
             values.AppendNew(sceneValues);
         }
-        
+
         root.SetNew("values", values);
         return root;
     }

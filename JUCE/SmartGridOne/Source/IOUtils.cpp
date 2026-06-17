@@ -111,10 +111,10 @@ void FileManager::PersistConfig(JSON config)
     }
 }    
 
-JSON FileManager::LoadConfig()
+JSON FileManager::LoadConfig(JsonArena& a)
 {
     juce::File configDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("SmartGridOne");
-    configDir.createDirectory(); 
+    configDir.createDirectory();
 
     juce::File configFile = configDir.getChildFile("config.json");
 
@@ -127,7 +127,7 @@ JSON FileManager::LoadConfig()
 
     juce::Logger::writeToLog("Loading Config: " + configFile.getFullPathName() + " (" + std::to_string(configString.length()) + " bytes)");
 
-    return JSON::Loads(configString.toUTF8().getAddress(), 0, nullptr);
+    return a.Loads(configString.toUTF8().getAddress());
 }
 
 //==============================================================================
@@ -241,11 +241,9 @@ void FileManager::LoadPatch(juce::String patchName)
 
     juce::Logger::writeToLog("Loading patch: " + latestFile.getFullPathName() + " (" + std::to_string(jsonString.length()) + " bytes)");
 
-    JSON patch = JSON::Loads(jsonString.toUTF8().getAddress(), 0, nullptr);
-    if (!patch.IsNull())
-    {   
+    if (m_mainComponent->RequestLoad(jsonString))
+    {
         m_currentPatchName = patchName;
-        m_mainComponent->RequestLoad(patch);
     }
     else
     {
@@ -278,12 +276,7 @@ void FileManager::LoadPatchVersion(juce::String versionFilePath)
 
     juce::Logger::writeToLog("Loading patch version: " + versionFilePath + " (" + std::to_string(jsonString.length()) + " bytes)");
 
-    JSON patch = JSON::Loads(jsonString.toUTF8().getAddress(), 0, nullptr);
-    if (!patch.IsNull())
-    {   
-        m_mainComponent->RequestLoad(patch);
-    }
-    else
+    if (!m_mainComponent->RequestLoad(jsonString))
     {
         juce::Logger::writeToLog("ERROR: Failed to parse patch JSON: " + versionFilePath);
     }
@@ -324,10 +317,10 @@ void FileManager::ChooseLoadFile(std::function<void(juce::String)> onFileSelecte
 }
 
 //==============================================================================
-JSON FileManager::ToJSON()
+JSON FileManager::ToJSON(JsonArena& a)
 {
-    JSON json = JSON::Object();
-    json.SetNew("patchName", JSON::String(m_currentPatchName.toUTF8().getAddress()));
+    JSON json = a.Object();
+    json.SetNew("patchName", a.String(m_currentPatchName.toUTF8().getAddress()));
     return json;
 }
 
