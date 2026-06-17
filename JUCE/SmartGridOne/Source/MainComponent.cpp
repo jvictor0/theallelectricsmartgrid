@@ -61,7 +61,7 @@ MainComponent::MainComponent()
     // Ensure config page starts closed
     m_showingConfig = false;
 
-    setAudioChannels(4, 7);
+    setAudioChannels(static_cast<int>(SourceMixer::x_numPhysicalInputChannels), 7);
 
     // Start the 60 FPS timer for re-rendering
     //
@@ -292,7 +292,7 @@ void MainComponent::ApplyAudioDeviceConfiguration()
 void MainComponent::RestartAudioDeviceForConfiguration()
 {
     shutdownAudio();
-    setAudioChannels(4, 7);
+    setAudioChannels(static_cast<int>(SourceMixer::x_numPhysicalInputChannels), 7);
     ApplyAudioDeviceConfiguration();
 }
 

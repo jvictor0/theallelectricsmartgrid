@@ -6,6 +6,7 @@
 #include "VUBarDrawer.hpp"
 #include "TheNonagon.hpp"
 #include "DeepVocoder.hpp"
+#include "SourceMeterLayout.hpp"
 #include "SmartGridOneMainVisualizerComponent.hpp"
 
 struct MultibandEQComponent : public SmartGridOneMainVisualizerComponent
@@ -170,7 +171,7 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         {
             m_windowedFFT[i][0].Compute(i);
             PathDrawer pathDrawer(height, width, 0, 0);
-            SmartGrid::Color color = SourceMixer::UIState::Color(i).Dim();
+            SmartGrid::Color color = SourceMixer::GetColor(i).Dim();
             pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[i][0]);
         }
 
@@ -178,14 +179,14 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         {
             m_windowedFFT[i][1].Compute(i);
             PathDrawer pathDrawer(height, width, 0, 0);
-            SmartGrid::Color color = SourceMixer::UIState::Color(i);
+            SmartGrid::Color color = SourceMixer::GetColor(i);
             pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[i][1]);
         }
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
             PathDrawer pathDrawer(height, width, 0, 0);
-            pathDrawer.DrawPath(g, J(SourceMixer::UIState::Color(i)), ResponseDrawer(&GetSourceMixerUIState()->m_sources[i]));
+            pathDrawer.DrawPath(g, J(SourceMixer::GetColor(i)), ResponseDrawer(&GetSourceMixerUIState()->m_sources[i]));
         }
 
         // UNDONE(DEEP_VOCODER)
@@ -251,15 +252,28 @@ struct SourceMixerReductionComponent : public SmartGridOneMainVisualizerComponen
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            MeterReader* meterReader = &m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[SquiggleBoy::x_numVoices + i];
-            float rms = meterReader->GetRMSDbFSNormalized();
-            float reduction = meterReader->GetReductionDbFSNormalized();
-            float x0Normalized = 2 * i / static_cast<float>(2 * SourceMixer::x_numSources);
-            float x1Normalized = (2 * i + 1) / static_cast<float>(2 * SourceMixer::x_numSources);
-            float x2Normalized = (2 * i + 2) / static_cast<float>(2 * SourceMixer::x_numSources);
+            float groupX0 = static_cast<float>(i) / SourceMixer::x_numSources;
+            float groupX1 = static_cast<float>(i + 1) / SourceMixer::x_numSources;
+            SourceMixer::SourceConfig sourceConfig;
+            sourceConfig.m_width = m_uiState->m_squiggleBoyUIState.m_sourceMixerUIState.m_sources[i].m_width.load();
+            SourceMeterLayout::Slots slots = SourceMeterLayout::Make(groupX0, groupX1, sourceConfig);
+            bool sourceIsStereo = sourceConfig.IsStereo();
 
-            vuBarDrawer.DrawBar(g, J(SourceMixer::UIState::Color(i)), x0Normalized, x1Normalized, rms);
-            vuBarDrawer.DrawReduction(g, juce::Colours::red, x1Normalized, x2Normalized, reduction);
-        }   
+            auto drawLane = [&](size_t meterLane, float meterX0, float meterX1, float reductionX0, float reductionX1)
+            {
+                MeterReader* meterReader = &m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[TheNonagonInternal::x_numVoices + i * SourceMixer::x_numSourceLanes + meterLane];
+                float rms = meterReader->GetRMSDbFSNormalized();
+                float reduction = meterReader->GetReductionDbFSNormalized();
+
+                vuBarDrawer.DrawBar(g, J(SourceMixer::GetColor(i)), meterX0, meterX1, rms);
+                vuBarDrawer.DrawReduction(g, juce::Colours::red, reductionX0, reductionX1, reduction);
+            };
+
+            drawLane(0, slots.m_leftMeterX0, slots.m_leftMeterX1, slots.m_leftReductionX0, slots.m_leftReductionX1);
+            if (sourceIsStereo)
+            {
+                drawLane(1, slots.m_rightMeterX0, slots.m_rightMeterX1, slots.m_rightReductionX0, slots.m_rightReductionX1);
+            }
+        }
     }
 };

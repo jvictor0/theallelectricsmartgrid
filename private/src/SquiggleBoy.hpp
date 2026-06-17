@@ -534,7 +534,7 @@ struct SquiggleBoyVoice
     void ProcessUBlock(Input& input)
     {
         input.m_sourceInput.m_sourceMachine = input.m_voiceConfig.m_sourceMachine;
-        input.m_sourceInput.m_sourceIndex = input.m_voiceConfig.m_sourceIndex;
+        input.m_sourceInput.m_sourceAssignment = input.m_voiceConfig.m_sourceAssignment;
         input.m_sourceInput.m_audioBufferBank = input.m_voiceConfig.m_audioBufferBank;
 
         m_source.ProcessUBlock(input.m_sourceInput);
@@ -642,7 +642,7 @@ struct SquiggleBoy
         , m_stateSaver(nullptr)
         , m_ioTaskThread(nullptr)
     {
-        m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numSources;
+        m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numOutputChannels;
         m_mixerState.m_numMonoInputs = x_numVoices;
         m_theoryOfTime = nullptr;
 
@@ -686,7 +686,7 @@ struct SquiggleBoy
 
     void ToggleRecording()
     {
-        m_mixer.ToggleRecording(x_numVoices + SourceMixer::x_numSources, 48000);
+        m_mixer.ToggleRecording(x_numVoices + SourceMixer::x_numOutputChannels, 48000);
     }
 
     void SetRecordingDirectory(const std::string& directory)
@@ -791,7 +791,7 @@ struct SquiggleBoy
         ProcessWaveTableGenerators();
     }
 
-    void ProcessSample(const AudioInputBuffer& audioInputBuffer)
+    void ProcessSample(const AudioInputBuffer& audioInputBuffer, const bool* sourceMonitor)
     {
         m_sourceMixerState.SetInputs(audioInputBuffer);
 
@@ -844,13 +844,33 @@ struct SquiggleBoy
         m_deepVocoder.Process(deepVocoderInput, m_deepVocoderState);
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            m_mixerState.m_input[i + x_numVoices] = m_sourceMixer.m_sources[i].m_output;
-            m_mixerState.m_x[i + x_numVoices] = 0.5f;
-            m_mixerState.m_y[i + x_numVoices] = 0.5f;
-            m_mixerState.m_gain[i + x_numVoices].m_expParam = 1.0; 
-            for (size_t j = 0; j < QuadMixerInternal::x_numSends; ++j)
+            bool sourceIsStereo = m_sourceMixerState.m_sources[i].m_config.IsStereo();
+
+            for (size_t lane = 0; lane < SourceMixer::x_numSourceLanes; ++lane)
             {
-                m_mixerState.m_sendGain[i + x_numVoices][j].m_expParam = 0;
+                size_t sourceInputIndex = i * SourceMixer::x_numSourceLanes + lane;
+                size_t inputIndex = x_numVoices + i * SourceMixer::x_numSourceLanes + lane;
+                m_mixerState.m_input[inputIndex] = m_sourceMixer.m_sources[i].m_output[lane];
+                m_mixerState.m_monoIn[inputIndex] = 0.0f;
+                if (sourceIsStereo)
+                {
+                    size_t panIndex = sourceInputIndex + 1;
+                    m_mixerState.m_x[inputIndex] = (panIndex & 1) ? 1.0f : 0.0f;
+                    m_mixerState.m_y[inputIndex] = (panIndex & 2) ? 1.0f : 0.0f;
+                }
+                else
+                {
+                    m_mixerState.m_x[inputIndex] = 0.5f;
+                    m_mixerState.m_y[inputIndex] = 0.5f;
+                }
+
+                m_mixerState.m_gain[inputIndex].m_expParam = 1.0f;
+                m_mixerState.m_monitor[inputIndex] = sourceMonitor[i];
+
+                for (size_t j = 0; j < QuadMixerInternal::x_numSends; ++j)
+                {
+                    m_mixerState.m_sendGain[inputIndex][j].m_expParam = 0.0f;
+                }
             }
         }
 
@@ -1063,7 +1083,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         std::atomic<float> m_xPos[x_numVoices];
         std::atomic<float> m_yPos[x_numVoices];
 
-        MeterReader m_voiceMeterReader[x_numVoices + SourceMixer::x_numSources];
+        MeterReader m_voiceMeterReader[x_numVoices + SourceMixer::x_numOutputChannels];
         QuadMeterReader m_returnMeterReader[QuadMixerInternal::x_numSends];
         QuadMeterReader m_quadMasterMeterReader;
         StereoMeterReader m_stereoMasterMeterReader;
@@ -1081,7 +1101,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void ReadMeters()
         {
-            for (size_t i = 0; i < x_numVoices + SourceMixer::x_numSources; ++i)
+            for (size_t i = 0; i < x_numVoices + SourceMixer::x_numOutputChannels; ++i)
             {
                 m_voiceMeterReader[i].Process();
             }
@@ -1097,7 +1117,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void SetMeterReaders(QuadMixerInternal* mixer)
         {
-            for (size_t i = 0; i < x_numVoices + SourceMixer::x_numSources; ++i)
+            for (size_t i = 0; i < x_numVoices + SourceMixer::x_numOutputChannels; ++i)
             {
                 m_voiceMeterReader[i].m_meter = &mixer->m_voiceMeters[i];
             }
@@ -1214,7 +1234,12 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             float trim = std::max(0.0f, 2 * (m_encoders.GetValue(x_sourceGains[i]) - 0.5f));
             float ccValue = std::max(0.0f, trim);
-            kMixMidi->SetTrim(i, ccValue);
+            size_t leftChannel = i * SourceMixer::x_numSourceLanes;
+            size_t rightChannel = leftChannel + 1;
+            bool sourceIsStereo = m_sourceMixerState.m_sources[i].m_config.IsStereo();
+
+            kMixMidi->SetTrim(leftChannel, ccValue);
+            kMixMidi->SetTrim(rightChannel, sourceIsStereo ? ccValue : 0.0f);
         }
     }
 
@@ -1257,7 +1282,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     void SetupUIState(UIState* uiState)
     {
         uiState->SetMeterReaders(&m_mixer);
-        m_sourceMixer.SetupUIState(&uiState->m_sourceMixerUIState);
+        m_sourceMixer.SetupUIState(&uiState->m_sourceMixerUIState, m_sourceMixerState);
         SetupScopeWriters(uiState);
     }
 
@@ -1268,6 +1293,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         float m_sheafyModulators[x_numVoices][3];
 
         float m_faders[x_numFaders];
+        bool m_sourceMonitor[SourceMixer::x_numSources];
         bool m_top;
         bool m_topIndependent;
 
@@ -1292,6 +1318,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             for (size_t i = 0; i < x_numFaders; ++i)
             {
                 m_faders[i] = 0;
+            }
+
+            for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+            {
+                m_sourceMonitor[i] = true;
             }
 
             m_top = false;
@@ -1795,7 +1826,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_reverb.PopulateUIState(&uiState->m_reverbUIState);
         m_partialMachine.PopulateUIState(uiState->m_partialMachineUIState, m_partialMachineState);
 
-        m_sourceMixer.PopulateUIState(&uiState->m_sourceMixerUIState);
+        m_sourceMixer.PopulateUIState(&uiState->m_sourceMixerUIState, m_sourceMixerState);
         m_deepVocoder.PopulateUIState(&uiState->m_deepVocoderUIState);
 
         Bank selectedBank = m_encoders.m_selectedBank;
@@ -1868,6 +1899,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         SetEncoderParameters(input);
 
-        SquiggleBoy::ProcessSample(audioInputBuffer);
+        this->SquiggleBoy::ProcessSample(audioInputBuffer, input.m_sourceMonitor);
     }
 };

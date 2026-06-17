@@ -37,6 +37,15 @@ namespace SmartGrid
             return (m_red << 24) | (m_green << 16) | (m_blue << 8) | m_unused;
         }
 
+        static Color From32Bit(uint32_t color)
+        {
+            return Color(
+                static_cast<uint8_t>((color >> 24) & 0xff),
+                static_cast<uint8_t>((color >> 16) & 0xff),
+                static_cast<uint8_t>((color >> 8) & 0xff),
+                static_cast<uint8_t>(color & 0xff));
+        }
+
         bool operator == (const Color& c) const
         {
             return To32Bit() == c.To32Bit();

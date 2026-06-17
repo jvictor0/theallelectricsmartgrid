@@ -17,6 +17,7 @@
 struct QuadMixerInternal
 {
     static constexpr size_t x_numSends = 3;
+    static constexpr size_t x_maxInputs = 32;
 
     QuadFloatWithStereoAndSub m_output;
     QuadFloat m_send[x_numSends];
@@ -25,7 +26,7 @@ struct QuadMixerInternal
     bool m_isRecording = false;
     PinkNoise m_pinkNoise;
 
-    Meter m_voiceMeters[16];
+    Meter m_voiceMeters[x_maxInputs];
     QuadMeter m_returnMeters[x_numSends];
     QuadMeter m_masterMeter;
     StereoMeter m_stereoMeter;
@@ -43,17 +44,17 @@ struct QuadMixerInternal
     {
         size_t m_numInputs;
         size_t m_numMonoInputs;
-        float m_input[16];
-        float m_monoIn[16];
-        PhaseUtils::ZeroedExpParam m_gain[16];
-        PhaseUtils::ZeroedExpParam m_sendGain[16][x_numSends];
-        float m_x[16];
-        float m_y[16];
+        float m_input[x_maxInputs];
+        float m_monoIn[x_maxInputs];
+        PhaseUtils::ZeroedExpParam m_gain[x_maxInputs];
+        PhaseUtils::ZeroedExpParam m_sendGain[x_maxInputs][x_numSends];
+        float m_x[x_maxInputs];
+        float m_y[x_maxInputs];
         QuadFloat m_return[x_numSends];
         PhaseUtils::ZeroedExpParam m_returnGain[x_numSends];
         PhaseUtils::ZeroedExpParam m_returnSendGain[x_numSends][x_numSends];
         bool m_noiseMode;
-        bool m_monitor[16];
+        bool m_monitor[x_maxInputs];
 
         DualMasteringChain::Input m_masterChainInput;
 
@@ -67,7 +68,7 @@ struct QuadMixerInternal
             , m_noiseMode(false)
             , m_monitor{}
         {
-            for (size_t i = 0; i < 16; ++i)
+            for (size_t i = 0; i < x_maxInputs; ++i)
             {
                 m_monitor[i] = true;
             }

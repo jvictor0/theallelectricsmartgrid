@@ -9,6 +9,7 @@
 #include "SmartGridOneEncoders.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 #include "SourceMixer.hpp"
+#include "SquiggleBoyVoiceConfig.hpp"
 #include "VoiceMachineEnums.hpp"
 
 struct TheoryOfTime;
@@ -38,11 +39,14 @@ struct SquiggleBoySource
     //
     Upsampler m_upsampler;
     float m_upsampledSource[x_uBlockSize];
+    float m_silentSource[x_uBlockSize];
 
     struct Input
     {
+        using SourceAssignment = SquiggleBoyVoiceConfig::SourceAssignment;
+
         SourceMachine m_sourceMachine;
-        size_t m_sourceIndex;
+        SourceAssignment m_sourceAssignment;
         SourceMixer* m_sourceMixer;
         TheoryOfTime* m_theoryOfTime;
 
@@ -54,7 +58,7 @@ struct SquiggleBoySource
 
         Input()
             : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
-            , m_sourceIndex(0)
+            , m_sourceAssignment(SourceAssignment::Left(0))
             , m_sourceMixer(nullptr)
             , m_theoryOfTime(nullptr)
             , m_audioBufferBank(nullptr)
@@ -67,6 +71,10 @@ struct SquiggleBoySource
         , m_uBlockTop(nullptr)
         , m_upsampler(x_oversample)
     {
+        for (size_t i = 0; i < x_uBlockSize; ++i)
+        {
+            m_silentSource[i] = 0.0f;
+        }
     }
 
     void SetScopeWriters(ScopeWriter* scopeWriter, size_t voiceIx)
@@ -89,9 +97,22 @@ struct SquiggleBoySource
 
             case SourceMachine::Thru:
             {
-                const float* sourceBlock = input.m_sourceMixer->m_sources[input.m_sourceIndex].m_uBlockOutput;
-                m_upsampler.Process(sourceBlock, m_upsampledSource);
-                m_uBlockOutput = m_upsampledSource;
+                const float* sourceBlock = GetThruSourceBlock(input);
+                if (sourceBlock)
+                {
+                    m_upsampler.Process(sourceBlock, m_upsampledSource);
+                    m_uBlockOutput = m_upsampledSource;
+                }
+                else
+                {
+                    for (size_t i = 0; i < x_uBlockSize; ++i)
+                    {
+                        m_silentSource[i] = 0.0f;
+                    }
+
+                    m_uBlockOutput = m_silentSource;
+                }
+
                 m_uBlockTop = m_dualWaveShapingVCO.m_uBlockTop;
                 break;
             }
@@ -117,6 +138,30 @@ struct SquiggleBoySource
             default:
                 break;
         }
+    }
+
+    const float* GetThruSourceBlock(Input& input)
+    {
+        using SourceAssignment = SquiggleBoyVoiceConfig::SourceAssignment;
+        using Channel = SourceAssignment::Channel;
+
+        if (!input.m_sourceMixer)
+        {
+            return nullptr;
+        }
+
+        if (input.m_sourceAssignment.m_channel == Channel::Silent)
+        {
+            return nullptr;
+        }
+
+        if (SourceMixer::x_numSources <= input.m_sourceAssignment.m_sourceIndex)
+        {
+            return nullptr;
+        }
+
+        size_t lane = input.m_sourceAssignment.m_channel == Channel::Right ? 1 : 0;
+        return input.m_sourceMixer->m_sources[input.m_sourceAssignment.m_sourceIndex].m_uBlockOutput[lane];
     }
 
     // Called from SetEncoderParameters to set source-specific encoder params.

@@ -2,6 +2,7 @@
 
 #include "SmartGridInclude.hpp"
 #include <JuceHeader.h>
+#include "SourceMeterLayout.hpp"
 #include "VUBarDrawer.hpp"
 #include "SmartGridOneMainVisualizerComponent.hpp"
 
@@ -160,7 +161,7 @@ struct MeteringComponent : public juce::Component
 
     // Total slots: 70 bars
     // Voice: 18 (9 level + 9 reduction)
-    // Source: 8 (4 level + 4 reduction)
+    // Source: 8 source groups split internally into left/right lanes.
     // Quad Returns: 24 (3 sends x 4 channels x 2)
     // Stereo Master: 20 (5 groups x 2 channels x 2)
     //
@@ -263,28 +264,34 @@ struct MeteringComponent : public juce::Component
 
     void DrawSourceMixerMeters(juce::Graphics& g, VUBarDrawer& vuBarDrawer)
     {
-        // 4 sources (voice meters 9-12), each with level + reduction = 8 bars
+        // Four source groups share the original source meter footprint.
         //
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            MeterReader* meterReader = &GetSquiggleBoyUIState()->m_voiceMeterReader[SquiggleBoy::x_numVoices + i];
-            float rms = meterReader->GetRMSDbFSNormalized();
-            float reduction = meterReader->GetReductionDbFSNormalized();
-
-            SmartGrid::Color color = SourceMixer::UIState::Color(i);
+            SmartGrid::Color color = SourceMixer::GetColor(i);
             juce::Colour jColor(color.m_red, color.m_green, color.m_blue);
+            float groupX0 = x_sourceStart + (x_sourceSlots * static_cast<float>(i)) / SourceMixer::x_numSources;
+            float groupX1 = x_sourceStart + (x_sourceSlots * static_cast<float>(i + 1)) / SourceMixer::x_numSources;
+            SourceMixer::SourceConfig sourceConfig;
+            sourceConfig.m_width = GetSourceMixerUIState()->m_sources[i].m_width.load();
+            SourceMeterLayout::Slots slots = SourceMeterLayout::Make(groupX0, groupX1, sourceConfig);
+            bool sourceIsStereo = sourceConfig.IsStereo();
 
-            // Level bar
-            //
-            float levelX0 = (x_sourceStart + 2 * i) / x_totalSlots;
-            float levelX1 = (x_sourceStart + 2 * i + 1) / x_totalSlots;
-            vuBarDrawer.DrawBar(g, jColor, levelX0, levelX1, rms);
+            auto drawLane = [&](size_t meterLane, float meterX0, float meterX1, float reductionX0, float reductionX1)
+            {
+                MeterReader* meterReader = &GetSquiggleBoyUIState()->m_voiceMeterReader[TheNonagonInternal::x_numVoices + i * SourceMixer::x_numSourceLanes + meterLane];
+                float rms = meterReader->GetRMSDbFSNormalized();
+                float reduction = meterReader->GetReductionDbFSNormalized();
 
-            // Reduction bar
-            //
-            float reductionX0 = (x_sourceStart + 2 * i + 1) / x_totalSlots;
-            float reductionX1 = (x_sourceStart + 2 * i + 2) / x_totalSlots;
-            vuBarDrawer.DrawReduction(g, juce::Colours::red, reductionX0, reductionX1, reduction);
+                vuBarDrawer.DrawBar(g, jColor, meterX0 / x_totalSlots, meterX1 / x_totalSlots, rms);
+                vuBarDrawer.DrawReduction(g, juce::Colours::red, reductionX0 / x_totalSlots, reductionX1 / x_totalSlots, reduction);
+            };
+
+            drawLane(0, slots.m_leftMeterX0, slots.m_leftMeterX1, slots.m_leftReductionX0, slots.m_leftReductionX1);
+            if (sourceIsStereo)
+            {
+                drawLane(1, slots.m_rightMeterX0, slots.m_rightMeterX1, slots.m_rightReductionX0, slots.m_rightReductionX1);
+            }
         }
     }
 

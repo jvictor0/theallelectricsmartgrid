@@ -4,7 +4,7 @@
 
 struct KMixMidi
 {
-    static constexpr size_t x_numChannels = 4;
+    static constexpr size_t x_numChannels = 8;
 
     static SmartGrid::BasicMidi Trim(int channel, int trim)
     {
@@ -115,6 +115,6 @@ struct KMixMidi
         }
     }
 
-    uint8_t m_trims[4];
-    uint8_t m_trimsSent[4];
+    uint8_t m_trims[x_numChannels];
+    uint8_t m_trimsSent[x_numChannels];
 };

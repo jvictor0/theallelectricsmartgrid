@@ -59,10 +59,10 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
     struct SourceSelectCell : SmartGrid::Cell
     {
-        int m_sourceIndex;
+        size_t m_sourceIndex;
         SquiggleBoyConfigGrid* m_owner;
 
-        SourceSelectCell(SquiggleBoyConfigGrid* owner, int sourceIndex)
+        SourceSelectCell(SquiggleBoyConfigGrid* owner, size_t sourceIndex)
             : m_sourceIndex(sourceIndex)
             , m_owner(owner)
         {
@@ -71,32 +71,71 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         virtual SmartGrid::Color GetColor() override
         {
             size_t trioIdx = static_cast<size_t>(m_owner->ActiveTrio());
-            return m_owner->m_sourceSelected[trioIdx][m_sourceIndex] ? SmartGrid::Color::White : SmartGrid::Color::Grey.Dim();
+            SmartGrid::Color color = m_owner->SourceColor(m_sourceIndex);
+            return m_owner->m_sourceSelected[trioIdx][m_sourceIndex] ? color : color.Dim();
         }
 
         virtual void OnPress(uint8_t) override
         {
             size_t trioIdx = static_cast<size_t>(m_owner->ActiveTrio());
             m_owner->m_sourceSelected[trioIdx][m_sourceIndex] = !m_owner->m_sourceSelected[trioIdx][m_sourceIndex];
+            m_owner->EnforceSourceChannelLimit(trioIdx, m_sourceIndex);
+            m_owner->PropagateSourceSelection();
+        }
+    };
 
-            int numSelected = 0;
-            for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
-            {
-                if (m_owner->m_sourceSelected[trioIdx][i])
-                {
-                    ++numSelected;
-                }
-            }
+    struct SourceStateCell : SmartGrid::Cell
+    {
+        SquiggleBoyConfigGrid* m_owner;
+        size_t m_sourceIndex;
+        bool* m_state;
 
-            if (TheNonagonInternal::x_voicesPerTrio < numSelected)
+        SourceStateCell(SquiggleBoyConfigGrid* owner, size_t sourceIndex, bool* state)
+            : m_owner(owner)
+            , m_sourceIndex(sourceIndex)
+            , m_state(state)
+        {
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            SmartGrid::Color color = m_owner->SourceColor(m_sourceIndex);
+            return *m_state ? color : color.Dim();
+        }
+
+        virtual void OnPress(uint8_t) override
+        {
+            *m_state = !*m_state;
+        }
+    };
+
+    struct SourceWidthCell : SmartGrid::Cell
+    {
+        SquiggleBoyConfigGrid* m_owner;
+        size_t m_sourceIndex;
+
+        SourceWidthCell(SquiggleBoyConfigGrid* owner, size_t sourceIndex)
+            : m_owner(owner)
+            , m_sourceIndex(sourceIndex)
+        {
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            SmartGrid::Color color = m_owner->SourceColor(m_sourceIndex);
+            return m_owner->IsSourceStereo(m_sourceIndex) ? color : color.Dim();
+        }
+
+        virtual void OnPress(uint8_t) override
+        {
+            auto& width = m_owner->m_squiggleBoy->m_sourceMixerState.m_sources[m_sourceIndex].m_config.m_width;
+            width = width == SourceMixer::SourceWidth::Stereo
+                ? SourceMixer::SourceWidth::Mono
+                : SourceMixer::SourceWidth::Stereo;
+
+            for (size_t trioIdx = 0; trioIdx < TheNonagonInternal::x_numTrios; ++trioIdx)
             {
-                m_owner->m_sourceSelected[trioIdx][m_sourceIndex == 0 ? 1 : 0] = false;
-                --numSelected;
-            }
-            else if (numSelected == 0)
-            {
-                m_owner->m_sourceSelected[trioIdx][m_sourceIndex] = true;
-                ++numSelected;
+                m_owner->EnforceSourceChannelLimit(trioIdx, m_sourceIndex);
             }
 
             m_owner->PropagateSourceSelection();
@@ -215,34 +254,112 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
     void PropagateSourceSelection()
     {
         for (size_t tIdx = 0; tIdx < TheNonagonInternal::x_numTrios; ++tIdx)
-        {            
-            int numSelected = 0;
+        {
+            size_t voiceIdx = 0;
+
             for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
             {
-                if (m_sourceSelected[tIdx][i])
+                if (!m_sourceSelected[tIdx][i])
                 {
-                    ++numSelected;
+                    continue;
+                }
+
+                AssignSourceChannel(tIdx, voiceIdx, SquiggleBoyVoice::VoiceConfig::SourceAssignment::Left(i));
+                ++voiceIdx;
+
+                if (TheNonagonInternal::x_voicesPerTrio <= voiceIdx)
+                {
+                    break;
+                }
+
+                if (IsSourceStereo(i))
+                {
+                    AssignSourceChannel(tIdx, voiceIdx, SquiggleBoyVoice::VoiceConfig::SourceAssignment::Right(i));
+                    ++voiceIdx;
+                }
+
+                if (TheNonagonInternal::x_voicesPerTrio <= voiceIdx)
+                {
+                    break;
                 }
             }
 
-            for (size_t i = 0; i < TheNonagonInternal::x_voicesPerTrio; ++i)
+            while (voiceIdx < TheNonagonInternal::x_voicesPerTrio)
             {
-                int sourceIndex = i % numSelected;
-                for (size_t j = 0; j < SourceMixer::x_numSources; ++j)
-                {
-                    if (m_sourceSelected[tIdx][j])
-                    {
-                        if (sourceIndex == 0)
-                        {
-                            m_squiggleBoy->m_state[tIdx * TheNonagonInternal::x_voicesPerTrio + i].m_voiceConfig.m_sourceIndex = j;
-                            break;
-                        }
-            
-                        --sourceIndex;
-                    }
-                }
+                AssignSourceChannel(tIdx, voiceIdx, SquiggleBoyVoice::VoiceConfig::SourceAssignment::Silent());
+                ++voiceIdx;
             }
         }
+    }
+
+    void AssignSourceChannel(
+        size_t trioIdx,
+        size_t voiceInTrio,
+        SquiggleBoyVoice::VoiceConfig::SourceAssignment assignment)
+    {
+        size_t voiceIdx = trioIdx * TheNonagonInternal::x_voicesPerTrio + voiceInTrio;
+        m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_sourceAssignment = assignment;
+    }
+
+    size_t SourceChannelCount(size_t trioIdx) const
+    {
+        size_t count = 0;
+        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+        {
+            if (m_sourceSelected[trioIdx][i])
+            {
+                count += SourceChannelWidth(i);
+            }
+        }
+
+        return count;
+    }
+
+    size_t SourceChannelWidth(size_t sourceIndex) const
+    {
+        return IsSourceStereo(sourceIndex) ? 2 : 1;
+    }
+
+    void EnforceSourceChannelLimit(size_t trioIdx, size_t preferredSource)
+    {
+        size_t count = SourceChannelCount(trioIdx);
+        if (count <= TheNonagonInternal::x_voicesPerTrio)
+        {
+            return;
+        }
+
+        for (size_t i = 0; i < SourceMixer::x_numSources && TheNonagonInternal::x_voicesPerTrio < count; ++i)
+        {
+            if (i == preferredSource || !m_sourceSelected[trioIdx][i])
+            {
+                continue;
+            }
+
+            count -= SourceChannelWidth(i);
+            m_sourceSelected[trioIdx][i] = false;
+        }
+
+        if (TheNonagonInternal::x_voicesPerTrio < count && preferredSource < SourceMixer::x_numSources)
+        {
+            m_sourceSelected[trioIdx][preferredSource] = false;
+        }
+    }
+
+    bool IsSourceStereo(size_t sourceIndex) const
+    {
+        return m_squiggleBoy
+            && sourceIndex < SourceMixer::x_numSources
+            && m_squiggleBoy->m_sourceMixerState.m_sources[sourceIndex].m_config.IsStereo();
+    }
+
+    SmartGrid::Color SourceColor(size_t sourceIndex) const
+    {
+        if (!m_squiggleBoy || SourceMixer::x_numSources <= sourceIndex)
+        {
+            return SmartGrid::Color::White;
+        }
+
+        return SourceMixer::GetColor(sourceIndex);
     }
 
     SquiggleBoyConfigGrid()
@@ -250,6 +367,10 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         , m_activeTrio(nullptr)
         , m_ioTaskThread(nullptr)
     {
+        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+        {
+            m_sourceMonitor[i] = true;
+        }
     }
 
     TheNonagonSmartGrid::Trio ActiveTrio()
@@ -276,8 +397,8 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            squiggleBoyWithEncoders->m_stateSaver->Insert("monitor", i, &squiggleBoyWithEncoders->m_mixerState.m_monitor[TheNonagonInternal::x_numVoices + i]);
             squiggleBoyWithEncoders->m_stateSaver->Insert("deepVocoderSend", i, &squiggleBoyWithEncoders->m_sourceMixerState.m_deepVocoderSend[i]);
+            squiggleBoyWithEncoders->m_stateSaver->Insert("sourceWidth", i, &squiggleBoyWithEncoders->m_sourceMixerState.m_sources[i].m_config.m_width);
 
             for (size_t j = 0; j < TheNonagonInternal::x_numTrios; ++j)
             {
@@ -298,11 +419,6 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         Put(0, 1, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::SourceMachine, false, x_numSourceMachines>(
             this, &SquiggleBoyVoice::VoiceConfig::m_sourceMachine));
 
-        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
-        {
-            Put(0, 2 + i, new SourceSelectCell(this, i));
-        }
-
         Put(0, 6, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::FilterMachine, true, x_numFilterMachines>(
             this, &SquiggleBoyVoice::VoiceConfig::m_filterMachine));
         Put(0, 7, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::FilterMachine, false, x_numFilterMachines>(
@@ -322,21 +438,16 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            Put(6 + (i % 2), i / 2, new SmartGrid::StateCell<bool>(
-                SmartGrid::Color::Grey.Dim(),
-                SmartGrid::Color::White,
-                &m_squiggleBoy->m_mixerState.m_monitor[TheNonagonInternal::x_numVoices + i],
-                true,
-                false,
-                SmartGrid::StateCell<bool>::Mode::Toggle));
-
-            Put(6 + (i % 2), 2 + (i / 2), new SmartGrid::StateCell<bool>(
-                SmartGrid::Color::Grey.Dim(),
-                SmartGrid::Color::White,
-                &m_squiggleBoy->m_sourceMixerState.m_deepVocoderSend[i],
-                true,
-                false,
-                SmartGrid::StateCell<bool>::Mode::Toggle));
+            Put(0, 2 + i, new SourceSelectCell(this, i));
+            Put(6 + (i % 2), i / 2, new SourceStateCell(
+                this,
+                i,
+                &m_sourceMonitor[i]));
+            Put(6 + (i % 2), 2 + (i / 2), new SourceStateCell(
+                this,
+                i,
+                &m_squiggleBoy->m_sourceMixerState.m_deepVocoderSend[i]));
+            Put(6 + (i % 2), 4 + (i / 2), new SourceWidthCell(this, i));
         }
 
         SetColors(SmartGrid::Color::White, SmartGrid::Color::Grey.Dim());
@@ -350,6 +461,15 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             for (size_t j = 0; j < SourceMixer::x_numSources; ++j)
             {
                 m_sourceSelected[i][j] = (j == 0);
+            }
+        }
+
+        if (m_squiggleBoy)
+        {
+            for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+            {
+                m_squiggleBoy->m_sourceMixerState.m_sources[i].m_config.m_width = SourceMixer::SourceWidth::Mono;
+                m_sourceMonitor[i] = true;
             }
         }
 
@@ -390,6 +510,37 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         }
 
         rootJ.SetNew("sampleDirectoryRelative", dirsJ);
+
+        JSON sourceWidthJ = a.Array();
+        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+        {
+            bool stereo = m_squiggleBoy->m_sourceMixerState.m_sources[i].m_config.IsStereo();
+            sourceWidthJ.AppendNew(a.Boolean(stereo));
+        }
+
+        rootJ.SetNew("sourceStereo", sourceWidthJ);
+
+        JSON sourceMonitorJ = a.Array();
+        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+        {
+            sourceMonitorJ.AppendNew(a.Boolean(m_sourceMonitor[i]));
+        }
+
+        rootJ.SetNew("sourceMonitor", sourceMonitorJ);
+
+        JSON sourceSelectedJ = a.Array();
+        for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
+        {
+            JSON trioJ = a.Array();
+            for (size_t source = 0; source < SourceMixer::x_numSources; ++source)
+            {
+                trioJ.AppendNew(a.Boolean(m_sourceSelected[trio][source]));
+            }
+
+            sourceSelectedJ.AppendNew(trioJ);
+        }
+
+        rootJ.SetNew("sourceSelected", sourceSelectedJ);
         return rootJ;
     }
 
@@ -397,12 +548,60 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
     {
         JSON dirsJ = rootJ.Get("sampleDirectoryRelative");
 
-        if (dirsJ.IsNull())
+        JSON sourceWidthJ = rootJ.Get("sourceStereo");
+        if (!sourceWidthJ.IsNull() && m_squiggleBoy)
         {
-            return;
+            for (size_t i = 0; i < sourceWidthJ.Size() && i < SourceMixer::x_numSources; ++i)
+            {
+                m_squiggleBoy->m_sourceMixerState.m_sources[i].m_config.m_width = sourceWidthJ.GetAt(i).BooleanValue()
+                    ? SourceMixer::SourceWidth::Stereo
+                    : SourceMixer::SourceWidth::Mono;
+            }
         }
 
-        if (!m_ioTaskThread || !m_squiggleBoy)
+        JSON sourceSelectedJ = rootJ.Get("sourceSelected");
+        if (!sourceSelectedJ.IsNull())
+        {
+            for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
+            {
+                for (size_t source = 0; source < SourceMixer::x_numSources; ++source)
+                {
+                    m_sourceSelected[trio][source] = false;
+                }
+            }
+
+            for (size_t trio = 0; trio < sourceSelectedJ.Size() && trio < TheNonagonInternal::x_numTrios; ++trio)
+            {
+                JSON trioJ = sourceSelectedJ.GetAt(trio);
+                for (size_t source = 0; source < trioJ.Size() && source < SourceMixer::x_numSources; ++source)
+                {
+                    m_sourceSelected[trio][source] = trioJ.GetAt(source).BooleanValue();
+                }
+
+                EnforceSourceChannelLimit(trio, SourceMixer::x_numSources);
+            }
+        }
+        else
+        {
+            for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
+            {
+                for (size_t source = 0; source < SourceMixer::x_numSources; ++source)
+                {
+                    m_sourceSelected[trio][source] = false;
+                }
+            }
+        }
+
+        JSON sourceMonitorJ = rootJ.Get("sourceMonitor");
+        if (!sourceMonitorJ.IsNull())
+        {
+            for (size_t i = 0; i < sourceMonitorJ.Size() && i < SourceMixer::x_numSources; ++i)
+            {
+                m_sourceMonitor[i] = sourceMonitorJ.GetAt(i).BooleanValue();
+            }
+        }
+
+        if (dirsJ.IsNull() || !m_ioTaskThread || !m_squiggleBoy)
         {
             return;
         }
@@ -474,4 +673,5 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
     size_t m_activeSampleDirectoryVoice{x_noActiveSampleDirectoryVoice};
 
     bool m_sourceSelected[TheNonagonInternal::x_numTrios][SourceMixer::x_numSources];
+    bool m_sourceMonitor[SourceMixer::x_numSources];
 };

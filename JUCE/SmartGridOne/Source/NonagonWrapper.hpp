@@ -759,13 +759,20 @@ struct NonagonWrapper
         SampleTimer::StartFrame(wallclockUs);
 
         AudioInputBuffer audioInputBuffer;
-        audioInputBuffer.m_numInputs = std::min(ioInfo.m_numInputs, 4);
+        audioInputBuffer.m_numInputs = std::min(
+            static_cast<size_t>(ioInfo.m_numInputs),
+            SourceMixer::x_numPhysicalInputChannels);
 
         for (int i = 0; i < bufferToFill.numSamples; ++i)
         {
-            for (int j = 0; j < audioInputBuffer.m_numInputs; ++j)
+            for (size_t j = 0; j < audioInputBuffer.m_numInputs; ++j)
             {
-                audioInputBuffer.m_input[j] = bufferToFill.buffer->getReadPointer(j, bufferToFill.startSample)[i];
+                audioInputBuffer.m_input[j] = bufferToFill.buffer->getReadPointer(static_cast<int>(j), bufferToFill.startSample)[i];
+            }
+
+            for (int j = 0; j < bufferToFill.buffer->getNumChannels(); ++j)
+            {
+                bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = 0.0f;
             }
 
             if (SampleTimer::IncrementSample())
