@@ -86,6 +86,7 @@ playground.xcworkspace
 # IDE
 .idea/
 *.iml
+.codex/worktrees/
 
 # macOS
 .DS_Store
