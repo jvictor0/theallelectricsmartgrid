@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "MidiUtils.hpp"
 #include "SmartGridInclude.hpp"
+#include "ThreadId.hpp"
 
 struct MidiInputHandler : public juce::MidiInputCallback
 {
@@ -40,6 +41,8 @@ struct MidiInputHandler : public juce::MidiInputCallback
 
     void handleIncomingMidiMessage(juce::MidiInput* source, const juce::MidiMessage& message) override
     {
+        ScopedThreadId scopedThreadId(ThreadId::MidiInput);
+
         if (message.getRawDataSize() == 3)
         {
             double timestampSeconds = message.getTimeStamp();
@@ -174,4 +177,3 @@ struct MidiOutputHandler
         }
     }
 };
-

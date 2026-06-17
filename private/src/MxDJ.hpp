@@ -2,6 +2,7 @@
 #include "plugin.hpp"
 #include "AudioFile.h"
 #include "Trig.hpp"
+#include "ThreadId.hpp"
 #include <atomic>
 #include <thread>
 #include <unistd.h>
@@ -422,6 +423,8 @@ struct MxDJInternal
 
     void LoadThread()
     {
+        SetCurrentThreadId(ThreadId::SampleLoader);
+
         while (!m_done.load())
         {
             Sample* s = m_loadRequested.load();
@@ -448,4 +451,3 @@ struct MxDJInternal
     std::atomic<Sample*> m_loadRequested;
     std::thread m_loadThread;
 };
-

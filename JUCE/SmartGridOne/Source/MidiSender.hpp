@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "SmartGridInclude.hpp"
 #include "MidiHandlers.hpp"
+#include "ThreadId.hpp"
 
 struct MidiSender : public juce::Thread
 {
@@ -43,6 +44,8 @@ struct MidiSender : public juce::Thread
 
     void run() override
     {
+        SetCurrentThreadId(ThreadId::MidiSender);
+
         while (!threadShouldExit())
         {
             HandleMessage();

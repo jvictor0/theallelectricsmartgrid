@@ -6,6 +6,7 @@
 #include <thread>
 
 #include "CircularQueue.h"
+#include "ThreadId.hpp"
 
 struct MidiMessage
 {
@@ -217,6 +218,7 @@ struct MidiBus
 
     static void MidiInputCallback(const MIDIPacketList* pktList, void* readProcRefCon, void* srcConnRefCon)
     {
+        ScopedThreadId scopedThreadId(ThreadId::MidiBusInput);
         MidiBus* midiBus = static_cast<MidiBus*>(readProcRefCon);
         const MIDIPacket* packet = &pktList->packet[0];
         
@@ -288,6 +290,8 @@ struct MidiBus
 
     void SendLoop()
     {
+        SetCurrentThreadId(ThreadId::MidiBusSender);
+
         while (m_running) 
         {
             if (m_outputIndex != m_desiredOutputIndex)

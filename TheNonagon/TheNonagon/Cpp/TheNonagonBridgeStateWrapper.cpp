@@ -1,5 +1,6 @@
 #include "TheNonagonBridgeState.h"
 #include "TheNonagonBridgeStateWrapper.h"
+#include "ThreadId.hpp"
 
 extern "C" 
 {
@@ -46,6 +47,7 @@ extern "C"
 
     void processTheNonagonBridgeState(void* instance, float** audioBuffer, int32_t numChannels, int32_t numFrames, AudioTimeStamp timestamp)
     {
+        ScopedThreadId scopedThreadId(ThreadId::Audio);
         static_cast<TheNonagonBridgeState*>(instance)->Process(audioBuffer, numChannels, numFrames, timestamp);
     }
     

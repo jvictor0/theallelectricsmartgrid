@@ -2,6 +2,7 @@
 
 #include "CircularQueue.hpp"
 #include "AsyncLogger.hpp"
+#include "ThreadId.hpp"
 #include <atomic>
 #include <thread>
 #include <fstream>
@@ -12,7 +13,7 @@ struct FileWriter
 {
     static constexpr size_t x_bufferSize = 4096;
     static constexpr size_t x_queueSize = 1024;
-    
+
     CircularByteQueue<x_bufferSize, x_queueSize> m_queue;
     std::atomic<bool> m_done{false};
     std::atomic<bool> m_error{false};
@@ -39,6 +40,7 @@ struct FileWriter
         m_error = false;
         m_writeThread = std::thread([this, filename]()
         {
+            SetCurrentThreadId(ThreadId::FileWriter);
             INFO("Starting write thread");
             WriteThreadFunction(filename);
         });
@@ -69,14 +71,14 @@ struct FileWriter
     size_t Write(const uint8_t* data, size_t length)
     {
         return m_queue.Write(data, length);
-    } 
+    }
 
     void WriteThreadFunction(const std::string& filename)
     {
         // Open the file for writing (overwrite mode)
         //
         m_file.open(filename, std::ios::binary | std::ios::trunc);
-        
+
         if (!m_file.is_open())
         {
             m_error = true;
@@ -95,7 +97,7 @@ struct FileWriter
                 // Write the buffer to file
                 //
                 m_file.write(reinterpret_cast<const char*>(buffer.m_buffer), buffer.m_size);
-                
+
                 if (!m_file.good())
                 {
                     m_error = true;
@@ -113,4 +115,4 @@ struct FileWriter
 
         m_file.close();
     }
-}; 
+};

@@ -8,6 +8,7 @@
 
 #include <JuceHeader.h>
 #include "MainComponent.h"
+#include "ThreadId.hpp"
 
 //==============================================================================
 class SmartGridOneApplication  : public juce::JUCEApplication
@@ -23,6 +24,8 @@ public:
     //==============================================================================
     void initialise (const juce::String& commandLine) override
     {
+        SetCurrentThreadId(ThreadId::Message);
+
         // This method is where you should put your application's initialisation code..
 
         mainWindow.reset (new MainWindow (getApplicationName()));

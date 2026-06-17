@@ -10,6 +10,7 @@
 #include "IOUtils.hpp"
 #include "WrldBuildrComponent.hpp"
 #include "Configuration.hpp"
+#include "ThreadId.hpp"
 
 //==============================================================================
 /*
@@ -33,6 +34,7 @@ public:
 
     virtual void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override
     {
+        ScopedThreadId scopedThreadId(ThreadId::Audio);
         auto start = juce::Time::getHighResolutionTicks();
         
         m_configuration.m_forceStereo = bufferToFill.buffer->getNumChannels() < 4;

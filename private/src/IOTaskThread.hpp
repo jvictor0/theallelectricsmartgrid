@@ -4,6 +4,7 @@
 #include "CircularQueue.hpp"
 #include "DirectoryExplorer.hpp"
 #include "RecordingBuffer.hpp"
+#include "ThreadId.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -651,6 +652,8 @@ struct IoTaskThread
 
     void Run()
     {
+        SetCurrentThreadId(ThreadId::AsyncIo);
+
         while (m_running.load())
         {
             IoTaskElement task;
