@@ -2,8 +2,7 @@
 
 // Json.hpp — a self-contained, arena-backed JSON library.
 //
-// Replaces the former dual backend (jansson under EMBEDDED_BUILD, juce::var in
-// the plugin) with a single implementation that depends on neither. Every node,
+// Replaces the former dual backend with a single implementation. Every node,
 // key, and string is bump-allocated from a caller-owned JsonArena; nothing is
 // freed individually — the whole arena is released (or Reset) at once. This is
 // what makes audio-thread serialization (ToJSON) real-time safe: the audio

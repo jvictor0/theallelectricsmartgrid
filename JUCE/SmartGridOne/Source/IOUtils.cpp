@@ -39,6 +39,14 @@ juce::File FileManager::GetSamplesDirectory()
 }
 
 //==============================================================================
+juce::File FileManager::GetLogsDirectory()
+{
+    juce::File logsDir = GetSmartGridOneDirectory().getChildFile("logs");
+    logsDir.createDirectory();
+    return logsDir;
+}
+
+//==============================================================================
 juce::File FileManager::GetPatchDirectory(const juce::String& patchName)
 {
     if (patchName.isEmpty())

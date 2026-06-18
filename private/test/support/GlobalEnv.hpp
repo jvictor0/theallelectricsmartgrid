@@ -13,12 +13,9 @@
 //                                test so timing-derived behavior is repeatable.
 //
 //   * AsyncLogQueue::s_instance - the INFO(...) log sink (AsyncLogger.hpp).
-//                                 Under EMBEDDED_BUILD (which the test target
-//                                 defines) the queue body is compiled out and
-//                                 INFO(...) becomes a no-op, so no explicit
-//                                 init is required. It is constructed as a
-//                                 file-scope inline global. We touch it here
-//                                 only to document the dependency.
+//                                 Tests configure explicit log directories in
+//                                 logger-specific cases; the global queue still
+//                                 exists for all tests.
 //
 //   * Static RNGs in the DSP core - several headers own static Mersenne
 //                                 Twister generators that are otherwise seeded
@@ -74,8 +71,6 @@ inline void Init()
     s_initialized = true;
 
     SampleTimer::Init(kSamplesPerFrame);
-    // AsyncLogQueue::s_instance is a no-op under EMBEDDED_BUILD; nothing to init.
-    //
     (void) &AsyncLogQueue::s_instance;
     SeedRandomness(kDefaultSeed);
 }

@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <algorithm>
 
-#include "ios_stubs.hpp"
+#include "HostStubs.hpp"
 #include "BasicWaveTable.hpp"
 #include "Math.hpp"
 

@@ -12,6 +12,9 @@ MainComponent::MainComponent()
     , m_showingConfig(false)
     , m_showingFile(false)
 {
+    juce::File logsDir = FileManager::GetLogsDirectory();
+    AsyncLogQueue::s_instance.ConfigureLogDirectory(logsDir.getFullPathName().toUTF8().getAddress());
+
     setSize (1000, 700);
     
     // Set up config button

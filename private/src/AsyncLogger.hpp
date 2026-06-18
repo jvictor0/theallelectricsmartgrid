@@ -6,10 +6,9 @@
 #include <cstdarg>
 #include <cstdio>
 #include <ctime>
-
-#ifndef EMBEDDED_BUILD
-#include <JuceHeader.h>
-#endif
+#include <filesystem>
+#include <fstream>
+#include <string>
 
 #include "CircularQueue.hpp"
 #include "SampleTimer.hpp"
@@ -74,16 +73,17 @@ struct AsyncLogQueue
     std::array<CircularQueue<LogMessage, x_queueSize>, x_threadIdCount> m_queues;
     std::array<std::atomic<size_t>, x_threadIdCount> m_missed;
     size_t m_nextDrainIndex;
-
-#ifdef EMBEDDED_BUILD
-    CircularQueue<LogMessage, 1024> m_testOutputMessages;
-    CircularQueue<ThreadId, 1024> m_testOutputThreadIds;
-#endif
+    std::string m_logDirectory;
+    std::string m_logFilePath;
+    std::ofstream m_logFile;
 
     AsyncLogQueue()
         : m_queues()
         , m_missed()
         , m_nextDrainIndex(0)
+        , m_logDirectory()
+        , m_logFilePath()
+        , m_logFile()
     {
         for (size_t i = 0; i < x_threadIdCount; ++i)
         {
@@ -139,7 +139,6 @@ struct AsyncLogQueue
 
     void WriteLogMessage(ThreadId threadId, LogMessage* message)
     {
-#ifndef EMBEDDED_BUILD
         auto now = std::chrono::system_clock::now();
         std::time_t t = std::chrono::system_clock::to_time_t(now);
         std::tm localTm{};
@@ -148,43 +147,109 @@ struct AsyncLogQueue
 #else
         localtime_r(&t, &localTm);
 #endif
-        juce::String timeStamp = juce::String::formatted("%02d:%02d:%02d %lu %s ",
+
+        char line[LogMessage::x_maxMessageLength + 96];
+        snprintf(
+            line,
+            sizeof(line),
+            "%02d:%02d:%02d %lu %s %s",
             localTm.tm_hour,
             localTm.tm_min,
             localTm.tm_sec,
             message->m_sample,
-            ThreadIdToString(threadId));
-        juce::Logger::writeToLog(timeStamp + juce::String(message->m_message));
-#else
-        m_testOutputThreadIds.Push(threadId);
-        m_testOutputMessages.Push(*message);
-#endif
+            ThreadIdToString(threadId),
+            message->m_message);
+        WriteLine(line);
     }
 
     void WriteMissedMessage(ThreadId threadId, size_t missed)
     {
-#ifndef EMBEDDED_BUILD
-        juce::Logger::writeToLog(juce::String::formatted(
-            "Missed %zu messages on %s",
-            missed,
-            ThreadIdToString(threadId)));
-#else
-        LogMessage message;
-        message.Fill(
-            ThreadId::Logger,
+        char line[LogMessage::x_maxMessageLength];
+        snprintf(
+            line,
+            sizeof(line),
             "Missed %zu messages on %s",
             missed,
             ThreadIdToString(threadId));
-        m_testOutputThreadIds.Push(ThreadId::Logger);
-        m_testOutputMessages.Push(message);
-#endif
+        WriteLine(line);
     }
 
-#ifdef EMBEDDED_BUILD
+    void ConfigureLogDirectory(const char* logDirectory)
+    {
+        if (m_logFile.is_open())
+        {
+            m_logFile.close();
+        }
+
+        m_logDirectory = logDirectory == nullptr ? "" : logDirectory;
+        m_logFilePath.clear();
+
+        if (m_logDirectory.empty())
+        {
+            return;
+        }
+
+        std::error_code ec;
+        std::filesystem::create_directories(m_logDirectory, ec);
+        OpenSessionLogFile();
+    }
+
+    void OpenSessionLogFile()
+    {
+        if (m_logDirectory.empty())
+        {
+            return;
+        }
+
+        auto now = std::chrono::system_clock::now();
+        std::time_t t = std::chrono::system_clock::to_time_t(now);
+        std::tm localTm{};
+#if defined(_WIN32)
+        localtime_s(&localTm, &t);
+#else
+        localtime_r(&t, &localTm);
+#endif
+
+        auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()).count() % 1000;
+
+        char filename[64];
+        snprintf(
+            filename,
+            sizeof(filename),
+            "%04d-%02d-%02dT%02d-%02d-%02d-%03lld.log",
+            localTm.tm_year + 1900,
+            localTm.tm_mon + 1,
+            localTm.tm_mday,
+            localTm.tm_hour,
+            localTm.tm_min,
+            localTm.tm_sec,
+            static_cast<long long>(millis));
+
+        std::filesystem::path logPath = std::filesystem::path(m_logDirectory) / filename;
+        m_logFilePath = logPath.string();
+        m_logFile.open(m_logFilePath, std::ios::out | std::ios::app);
+    }
+
+    void WriteLine(const char* line)
+    {
+        if (!m_logFile.is_open())
+        {
+            OpenSessionLogFile();
+        }
+
+        if (!m_logFile.is_open())
+        {
+            return;
+        }
+
+        m_logFile << line << '\n';
+        m_logFile.flush();
+    }
+
     void ResetForTesting()
     {
         LogMessage message;
-        ThreadId threadId;
 
         for (size_t i = 0; i < x_threadIdCount; ++i)
         {
@@ -195,13 +260,13 @@ struct AsyncLogQueue
             m_missed[i].store(0);
         }
 
-        while (m_testOutputMessages.Pop(message))
+        if (m_logFile.is_open())
         {
+            m_logFile.close();
         }
 
-        while (m_testOutputThreadIds.Pop(threadId))
-        {
-        }
+        m_logDirectory.clear();
+        m_logFilePath.clear();
 
         m_nextDrainIndex = 0;
         SetCurrentThreadId(ThreadId::Unknown);
@@ -217,16 +282,15 @@ struct AsyncLogQueue
         return m_missed[ThreadIdToIndex(threadId)].load();
     }
 
-    bool PopWrittenForTesting(ThreadId& threadId, LogMessage& message)
+    void SetLogDirectoryForTesting(const char* logDirectory)
     {
-        if (!m_testOutputThreadIds.Pop(threadId))
-        {
-            return false;
-        }
-
-        return m_testOutputMessages.Pop(message);
+        ConfigureLogDirectory(logDirectory);
     }
-#endif
+
+    const std::string& LogFilePathForTesting() const
+    {
+        return m_logFilePath;
+    }
 
     static AsyncLogQueue s_instance;
 };
@@ -234,4 +298,3 @@ struct AsyncLogQueue
 inline AsyncLogQueue AsyncLogQueue::s_instance;
 
 #define INFO(...) AsyncLogQueue::s_instance.Log(__VA_ARGS__)
-//#define INFO(...) juce::Logger::writeToLog(juce::String::formatted(__VA_ARGS__))

@@ -4,6 +4,7 @@ Sync patches and recordings between Mac and iPad via USB using pymobiledevice3.
 
 Patches: Bi-directional sync (missing files copied both ways)
 Recordings: One-way sync (iPad -> Mac, then deleted from iPad)
+Logs: One-way sync (iPad -> Mac, retained on iPad)
 
 Requirements:
     pip install pymobiledevice3
@@ -37,6 +38,7 @@ APP_BUNDLE_ID = "com.theallelectricsmartgrid.smartgridone"
 MAC_SMARTGRID_DIR = Path.home() / "Documents" / "SmartGridOne"
 MAC_PATCHES_DIR = MAC_SMARTGRID_DIR / "patches"
 MAC_RECORDINGS_DIR = MAC_SMARTGRID_DIR / "recordings"
+MAC_LOGS_DIR = MAC_SMARTGRID_DIR / "logs"
 
 # Chunk size for streaming downloads (match pymobiledevice3 AFC max read)
 #
@@ -271,6 +273,34 @@ def sync_recordings_from_ipad(afc: HouseArrestService, ipad_recordings_path: str
             print(f"  Error: {e}")
 
 
+def sync_logs_from_ipad(afc: HouseArrestService, ipad_logs_path: str):
+    """
+    Copy logs from iPad to Mac and retain them on iPad.
+    """
+    MAC_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+    try:
+        ipad_entries = list_files_recursive(afc, ipad_logs_path)
+    except Exception as e:
+        print(f"Could not list iPad logs: {e}")
+        return
+
+    log_files = [(rel, full) for rel, is_dir, full in ipad_entries if not is_dir]
+
+    for rel_path, full_ipad_path in log_files:
+        local_path = MAC_LOGS_DIR / rel_path
+
+        if local_path.exists():
+            continue
+
+        print(f"Copying log from iPad: {rel_path}")
+
+        try:
+            download_afc_file(afc, full_ipad_path, local_path, progress_label="Copied")
+        except Exception as e:
+            print(f"  Error: {e}")
+
+
 def main():
     print("SmartGridOne iPad Sync")
     print("=" * 50)
@@ -280,6 +310,7 @@ def main():
     MAC_SMARTGRID_DIR.mkdir(parents=True, exist_ok=True)
     MAC_PATCHES_DIR.mkdir(parents=True, exist_ok=True)
     MAC_RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
+    MAC_LOGS_DIR.mkdir(parents=True, exist_ok=True)
     
     # Connect to iPad
     #
@@ -306,12 +337,14 @@ def main():
     app_docs = get_app_documents_path(afc)
     ipad_patches_path = f"{app_docs}/patches"
     ipad_recordings_path = f"{app_docs}/recordings"
+    ipad_logs_path = f"{app_docs}/logs"
     
     # Ensure directories exist on iPad
     #
     ensure_dir_exists(afc, app_docs)
     ensure_dir_exists(afc, ipad_patches_path)
     ensure_dir_exists(afc, ipad_recordings_path)
+    ensure_dir_exists(afc, ipad_logs_path)
     
     # Sync patches (bi-directional)
     #
@@ -325,6 +358,11 @@ def main():
     #
     print("\n--- Syncing Recordings (iPad -> Mac, delete from iPad) ---")
     sync_recordings_from_ipad(afc, ipad_recordings_path)
+
+    # Sync logs (one-way: iPad -> Mac, retain on iPad)
+    #
+    print("\n--- Syncing Logs (iPad -> Mac, retain on iPad) ---")
+    sync_logs_from_ipad(afc, ipad_logs_path)
     
     print("\n" + "=" * 50)
     print("Sync complete!")

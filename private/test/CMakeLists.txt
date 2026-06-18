@@ -51,16 +51,14 @@ target_include_directories(smartgrid_tests PRIVATE
     ${SRC_DIR}
 )
 
-# EMBEDDED_BUILD strips the JUCE dependency out of the core headers
-# (AsyncLogger.hpp, ios_stubs.hpp). JSON is provided by the self-contained
-# arena library (Json.hpp) in every build. -funroll-loops mirrors the VCV Rack
-# plugin Makefile.
+# The standalone tests compile the core headers without JUCE. JSON is provided
+# by the self-contained arena library (Json.hpp) in every build. -funroll-loops
+# mirrors the VCV Rack plugin Makefile.
 #
 # DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES stops doctest from defining bare INFO/WARN
 # macros, which would otherwise collide with the codebase's own INFO(...) and
 # WARN(...) logging macros. Use the DOCTEST_-prefixed forms in tests if needed.
 target_compile_definitions(smartgrid_tests PRIVATE
-    EMBEDDED_BUILD=1
     DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES=1
     SMARTGRID_REPO_ROOT="${REPO_ROOT}"
 )
