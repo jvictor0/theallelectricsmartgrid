@@ -69,7 +69,8 @@ MainComponent::MainComponent()
 
     m_fileManager.SetDefaultRecordingDirectory();
     LoadConfig();
-    
+    ApplyAudioDeviceConfiguration();
+
     // Force initial layout calculation after everything is set up
     resized();
     
@@ -174,7 +175,7 @@ void MainComponent::OnConfigButtonClicked()
 {
     if (!m_configPage)
     {
-        m_configPage = std::make_unique<ConfigPage>(&m_nonagon, &m_configuration);
+        m_configPage = std::make_unique<ConfigPage>(&m_nonagon, &m_configuration, &deviceManager);
         addAndMakeVisible(m_configPage.get());
     }
     
@@ -205,6 +206,18 @@ void MainComponent::OnConfigButtonClicked()
 
 void MainComponent::OnBackButtonClicked()
 {
+    bool shouldRestartAudio = false;
+
+    if (m_configPage)
+    {
+        shouldRestartAudio = m_configPage->AudioDeviceConfigurationChanged();
+
+        if (shouldRestartAudio)
+        {
+            m_configPage->ApplyAudioConfiguration();
+        }
+    }
+
     m_showingConfig = false;
     m_showingFile = false;
     m_configButton.setVisible(true);
@@ -231,7 +244,56 @@ void MainComponent::OnBackButtonClicked()
     resized();
     repaint();
 
+    if (shouldRestartAudio)
+    {
+        RestartAudioDeviceForConfiguration();
+    }
+
     SaveConfig();
+}
+
+void MainComponent::ApplyAudioDeviceConfiguration()
+{
+    if (m_configuration.m_audioInputDeviceName.isEmpty() &&
+        m_configuration.m_audioOutputDeviceName.isEmpty())
+    {
+        return;
+    }
+
+    auto setup = deviceManager.getAudioDeviceSetup();
+    bool shouldApply = false;
+
+    if (m_configuration.m_audioInputDeviceName.isNotEmpty() &&
+        setup.inputDeviceName != m_configuration.m_audioInputDeviceName)
+    {
+        setup.inputDeviceName = m_configuration.m_audioInputDeviceName;
+        setup.useDefaultInputChannels = true;
+        shouldApply = true;
+    }
+
+    if (m_configuration.m_audioOutputDeviceName.isNotEmpty() &&
+        setup.outputDeviceName != m_configuration.m_audioOutputDeviceName)
+    {
+        setup.outputDeviceName = m_configuration.m_audioOutputDeviceName;
+        setup.useDefaultOutputChannels = true;
+        shouldApply = true;
+    }
+
+    if (shouldApply)
+    {
+        juce::String error = deviceManager.setAudioDeviceSetup(setup, true);
+        if (error.isNotEmpty())
+        {
+            INFO("Audio device setup failed: %s", error.toUTF8().getAddress());
+        }
+    }
+}
+
+void MainComponent::RestartAudioDeviceForConfiguration()
+{
+    shutdownAudio();
+    setAudioChannels(4, 7);
+    ApplyAudioDeviceConfiguration();
 }
 
 void MainComponent::OnFileButtonClicked()

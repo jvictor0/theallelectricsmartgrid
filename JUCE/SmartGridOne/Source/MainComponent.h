@@ -88,6 +88,8 @@ public:
         JSON config = arena.Object();
         JSON nonagonConfig = m_nonagon.ConfigToJSON(arena);
         nonagonConfig.SetNew("stereo", arena.Boolean(m_configuration.m_stereo));
+        nonagonConfig.SetNew("audio_input_device", arena.String(m_configuration.m_audioInputDeviceName.toUTF8().getAddress()));
+        nonagonConfig.SetNew("audio_output_device", arena.String(m_configuration.m_audioOutputDeviceName.toUTF8().getAddress()));
         config.SetNew("nonagon_config", nonagonConfig);
         config.SetNew("file_config", m_fileManager.ToJSON(arena));
         FileManager::PersistConfig(config);
@@ -110,7 +112,21 @@ public:
                 {
                     m_configuration.m_stereo = stereoJ.BooleanValue();
                 }
-             
+
+                JSON audioInputDeviceJ = nonagonConfig.Get("audio_input_device");
+                const char* audioInputDeviceName = audioInputDeviceJ.StringValue();
+                if (audioInputDeviceName)
+                {
+                    m_configuration.m_audioInputDeviceName = juce::String(audioInputDeviceName);
+                }
+
+                JSON audioOutputDeviceJ = nonagonConfig.Get("audio_output_device");
+                const char* audioOutputDeviceName = audioOutputDeviceJ.StringValue();
+                if (audioOutputDeviceName)
+                {
+                    m_configuration.m_audioOutputDeviceName = juce::String(audioOutputDeviceName);
+                }
+
                 m_nonagon.ConfigFromJSON(nonagonConfig);
             }
 
@@ -177,6 +193,8 @@ private:
     void ShowPatchChooser(bool isSaveMode);
     void ShowNewPatchChooser();
     void ShowVersionChooser();
+    void ApplyAudioDeviceConfiguration();
+    void RestartAudioDeviceForConfiguration();
 
     NonagonWrapper m_nonagon;
     Configuration m_configuration;
