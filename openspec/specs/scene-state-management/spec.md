@@ -106,6 +106,20 @@ Audio-thread serialization SHALL be real-time safe: `ToJSON` SHALL allocate ever
 - **THEN** the message thread releases the arena, allocates one of at least double the capacity, and re-requests the save
 - **AND** the retried save produces a complete four-section patch JSON
 
+### Requirement: Patch Load Preserves Default Whole-Number Encoder Floats
+Patch save/load round-trips SHALL preserve default non-zero encoder float parameters whose normalized values are exact whole numbers. Loading a patch saved from a fresh system MUST NOT turn such parameters into zero because of JSON numeric node type differences.
+
+#### Scenario: Fresh patch preserves master and low-pass defaults
+- **WHEN** a fresh patch is saved and then loaded into a fresh system
+- **THEN** `MasterVolume` is restored to `1.0`
+- **AND** `LPCutoff` is restored to `1.0`
+- **AND** `Source1LP` is restored to `1.0`
+
+#### Scenario: Whole-number float patch remains compatible
+- **WHEN** a patch file contains encoder float fields encoded as JSON whole-number tokens such as `1`
+- **THEN** patch load restores those fields to their numeric values
+- **AND** no patch file migration is required
+
 ### Requirement: Asynchronous Sample Directory Restoration
 The config grid section SHALL persist one relative sample-directory path per voice (`sampleDirectoryRelative`, an array with an entry per synthesis voice); on load, each non-empty path is submitted to the IO task thread via `PushLoadAudioBufferBankFromDirectory` for asynchronous loading into that voice's audio buffer bank (see io-task-thread and sampler-looper-recording), and an empty path clears any existing bank for that voice.
 The audio thread is never blocked on disk IO during patch load.
@@ -134,4 +148,3 @@ Encoder reset/shift operations and discrete grid-cell edits SHALL leave the syst
 - **WHEN** a discrete grid cell backed by the `StateSaver` registry (such as a Theory of Time topology multiplier) is edited, the patch is saved, the system reset, and the patch reloaded
 - **THEN** the cell's stored value is restored to its edited value
 - **AND** the cell's published LED color reflects the restored value
-

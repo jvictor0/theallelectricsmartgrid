@@ -240,7 +240,7 @@ struct StateEncoderCell : public EncoderCell
             m_numTracks = sceneValues.Size();
             for (size_t j = 0; j < m_numTracks; ++j)
             {
-                m_values[j][i] = sceneValues.GetAt(j).RealValue();
+                m_values[j][i] = static_cast<float>(sceneValues.GetAt(j).NumberValue());
             }
         }
 

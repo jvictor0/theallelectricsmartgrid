@@ -116,6 +116,23 @@ Loading looks each parameter up by name, rebuilds depth and gesture cells from t
 - **WHEN** the JSON being loaded lacks an entry for a named encoder
 - **THEN** that encoder keeps its current state and loading continues with the remaining parameters
 
+### Requirement: Encoder JSON Float Load Accepts All Numeric Spellings
+When loading named encoder state from JSON, the system SHALL restore normalized per-track per-scene base values from JSON numeric values regardless of whether the token is represented internally as an integer node or a real node. A saved encoder base value of `1.0` MUST NOT become `0.0` solely because the JSON text spells the value as `1`.
+This applies to base parameter cells, modulation depth cells, and gesture target cells because all are serialized through the same `StateEncoderCell` value arrays.
+
+#### Scenario: Whole-number base value restores as one
+- **WHEN** a named encoder cell is loaded from JSON whose `values` array contains the token `1`
+- **THEN** the corresponding stored base value is restored as `1.0`
+- **AND** the cell's computed unslewed output is `1.0` after load processing
+
+#### Scenario: Fractional base value still restores
+- **WHEN** a named encoder cell is loaded from JSON whose `values` array contains the token `0.5`
+- **THEN** the corresponding stored base value is restored as `0.5`
+
+#### Scenario: Nested modulation depth whole-number restores
+- **WHEN** a saved modulation depth cell contains a whole-number normalized value in its `values` array
+- **THEN** loading the patch restores that depth value numerically instead of converting it to zero
+
 ### Requirement: UI State Publication Through Atomics
 The system SHALL publish the selected bank's visible 4×4 grid to an `EncoderBankUIState` of lock-free atomics every UI population pass: per cell the post-modulation output per channel (`GetValue(i, j, k)`), the modulation extent (`GetMinValue`/`GetMaxValue`), brightness, connectedness (`GetConnected`), color, short name, switch values, and the per-track affecting-modulator and affecting-gesture bitmasks; plus bank-level track/voice counts and current track.
 Brightness encodes modulation takeover (1 minus the current track's modulation weight, clamped to [0, 1]); during the scene blinker's off phase, base parameters with no selected gestures additionally dim by their gesture weight sum so gesture-captured knobs blink. Disconnected cells publish connected == false, brightness 0, and zeroed values.
@@ -172,4 +189,3 @@ When a gesture is deleted by shift-pressing its gesture-selector pad (`GestureSe
 - **WHEN** an encoder has both an active gesture and an active modulation slot and the gesture is deleted via shift-press on its selector pad
 - **THEN** the gesture's contribution is removed and the encoder's value reflects only the remaining modulation after settle frames
 - **AND** the published modulatorsAffecting bitmask still includes the surviving modulation slot
-

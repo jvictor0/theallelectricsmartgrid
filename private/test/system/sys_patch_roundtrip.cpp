@@ -142,6 +142,22 @@ void AssertEncoderValues(synthrig::SynthRig& rig,
     }
 }
 
+float ParamValueNoSlew(synthrig::SynthRig& rig, SmartGridOneEncoders::Param param)
+{
+    return rig.Internal().m_squiggleBoy.m_encoders.GetValueNoSlew(param);
+}
+
+void CheckParamNear(synthrig::SynthRig& rig,
+                    SmartGridOneEncoders::Param param,
+                    const char* name,
+                    float expected)
+{
+    float actual = ParamValueNoSlew(rig, param);
+    DOCTEST_CHECK_MESSAGE(
+        std::fabs(actual - expected) <= kTol,
+        std::string(name) << " expected=" << expected << " actual=" << actual);
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -297,7 +313,40 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: JSON is stable across consecutive saves"
 }
 
 // ---------------------------------------------------------------------------
-// Test 4: Malformed JSON returns false, system stays NaN-clean
+// Test 4: Default-nonzero params survive save -> fresh load
+// ---------------------------------------------------------------------------
+//
+DOCTEST_TEST_CASE("sys_patch_roundtrip: default-nonzero params survive save/load")
+{
+    using Param = SmartGridOneEncoders::Param;
+
+    synthrig::SynthRig source;
+    source.RunFrames(kSettleFrames);
+
+    // These float params have exact 1.0 defaults. A fresh save/load must not
+    // convert them to silence or fully-closed zero values.
+    //
+    CheckParamNear(source, Param::MasterVolume, "MasterVolume before save", 1.0f);
+    CheckParamNear(source, Param::LPCutoff, "LPCutoff before save", 1.0f);
+    CheckParamNear(source, Param::Source1LP, "Source1LP before save", 1.0f);
+
+    std::string json = source.SavePatch();
+    DOCTEST_REQUIRE_FALSE(json.empty());
+
+    synthrig::SynthRig loaded;
+    loaded.RunFrames(kSettleFrames);
+    DOCTEST_REQUIRE(loaded.LoadPatch(json));
+    loaded.RunFrames(kSettleFrames);
+
+    CheckParamNear(loaded, Param::MasterVolume, "MasterVolume after load", 1.0f);
+    CheckParamNear(loaded, Param::LPCutoff, "LPCutoff after load", 1.0f);
+    CheckParamNear(loaded, Param::Source1LP, "Source1LP after load", 1.0f);
+
+    DOCTEST_CHECK_FALSE(loaded.SawNaN());
+}
+
+// ---------------------------------------------------------------------------
+// Test 5: Malformed JSON returns false, system stays NaN-clean
 // ---------------------------------------------------------------------------
 //
 DOCTEST_TEST_CASE("sys_patch_roundtrip: malformed JSON returns false and stays NaN-clean")

@@ -140,6 +140,20 @@ DOCTEST_TEST_CASE("json_arena: integer and real are distinct, strict-by-type get
     DOCTEST_CHECK(r.IntegerValue() == 0); // strict: real node, IntegerValue() -> 0
 }
 
+DOCTEST_TEST_CASE("json_arena: NumberValue reads whole-number and real tokens")
+{
+    JsonArena arena(4096);
+    JSON root = arena.Loads("{\"intLike\":1,\"realLike\":1.0,\"expLike\":1e0}");
+    DOCTEST_REQUIRE_FALSE(root.IsNull());
+
+    DOCTEST_CHECK(root.Get("intLike").NumberValue() == doctest::Approx(1.0));
+    DOCTEST_CHECK(root.Get("realLike").NumberValue() == doctest::Approx(1.0));
+    DOCTEST_CHECK(root.Get("expLike").NumberValue() == doctest::Approx(1.0));
+
+    DOCTEST_CHECK(root.Get("intLike").RealValue() == 0.0);
+    DOCTEST_CHECK(root.Get("realLike").IntegerValue() == 0);
+}
+
 // ---------------------------------------------------------------------------
 // 5. Parse / serialize round-trip
 // ---------------------------------------------------------------------------

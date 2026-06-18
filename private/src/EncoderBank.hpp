@@ -248,8 +248,6 @@ struct BankedEncoderCell : public StateEncoderCell
                 gestureValue[i] = 0;
             }
 
-            float currentGestureWeight = 0;
-            
             for (size_t i = 0; i < x_numGestureParams; ++i)
             {
                 if (m_gestures[i])
@@ -260,11 +258,6 @@ struct BankedEncoderCell : public StateEncoderCell
                     {
                         cell->SetEffectiveModulatorWeight(modulatorValues->m_gestureWeights[i], j);
                         double w = cell->m_effectiveModulatorWeights[j];
-                        if (m_owner->GetSelectedGestures().Get(i) && j == currentTrack)
-                        {
-                            currentGestureWeight = w;
-                        }
-
                         gestureWeightSum[j] += w;
                         float bankedValue = m_owner->m_bankedValue[j];
                         gestureValue[j] += w * static_cast<double>(bankedValue * (1 - w) + static_cast<double>(cell->m_bankedValue[j]) * w);

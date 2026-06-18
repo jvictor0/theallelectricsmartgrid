@@ -137,6 +137,26 @@ struct JSON
         return (m_node && m_node->m_type == JsonType::Real) ? m_node->m_real : 0.0;
     }
 
+    double NumberValue() const
+    {
+        if (!m_node)
+        {
+            return 0.0;
+        }
+
+        if (m_node->m_type == JsonType::Real)
+        {
+            return m_node->m_real;
+        }
+
+        if (m_node->m_type == JsonType::Integer)
+        {
+            return static_cast<double>(m_node->m_int);
+        }
+
+        return 0.0;
+    }
+
     bool BooleanValue() const
     {
         return (m_node && m_node->m_type == JsonType::Boolean) ? m_node->m_bool : false;
