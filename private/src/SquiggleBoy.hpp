@@ -1446,7 +1446,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void ResetBank(Bank bank)
     {
-        m_encoders.ResetBank(bank, false, false);
+        m_encoders.ResetBank(bank);
     }
 
     void SetVoiceModulators(Input& input)

@@ -515,9 +515,9 @@ struct SmartGridOneEncoders
         m_encoderBankBank.RevertToDefault(allScenes, allTracks);
     }
 
-    void ResetBank(Bank bank, bool allScenes, bool allTracks)
+    void ResetBank(Bank bank)
     {
-        m_encoderBankBank.ResetGrid(static_cast<uint64_t>(bank), allScenes, allTracks);
+        m_encoderBankBank.ResetGrid(static_cast<uint64_t>(bank));
     }
 
     // Serialization

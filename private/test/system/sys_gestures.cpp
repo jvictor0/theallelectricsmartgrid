@@ -112,6 +112,91 @@ BitSet16 GesturesAffecting(synthrig::SynthRig& rig, int ex, int ey)
     return rig.UIState().m_squiggleBoyUIState.m_encoderBankUIState.GetGesturesAffecting(ex, ey);
 }
 
+struct HiddenDetuneFixture
+{
+    using Param = SmartGridOneEncoders::Param;
+    using SourceMachine = VoiceMachine::SourceMachine;
+    using Trio = TheNonagonSmartGrid::Trio;
+
+    synthrig::SynthRig m_rig;
+
+    HiddenDetuneFixture()
+        : m_rig()
+    {
+        m_rig.SetLeftScene(0);
+        m_rig.SetRightScene(1);
+        m_rig.SetBlend(0.0f);
+
+        for (size_t voice = 0; voice < 3; ++voice)
+        {
+            m_rig.Internal().m_squiggleBoy.m_state[voice].m_voiceConfig.m_sourceMachine = SourceMachine::DualWaveShapingVCO;
+        }
+
+        for (size_t voice = 3; voice < 6; ++voice)
+        {
+            m_rig.Internal().m_squiggleBoy.m_state[voice].m_voiceConfig.m_sourceMachine = SourceMachine::Sample;
+        }
+
+        SelectWaterSource();
+    }
+
+    void SelectWaterSource()
+    {
+        m_rig.Internal().SetActiveTrio(Trio::Water);
+        m_rig.Internal().m_squiggleBoy.m_encoders.SelectBank(SmartGridOneEncoders::Bank::Source);
+        m_rig.RunFrames(2);
+    }
+
+    void SelectEarthSource()
+    {
+        m_rig.Internal().SetActiveTrio(Trio::Earth);
+        m_rig.Internal().m_squiggleBoy.m_encoders.SelectBank(SmartGridOneEncoders::Bank::Source);
+        m_rig.RunFrames(2);
+    }
+
+    float WaterDetuneVoice(size_t voice)
+    {
+        return m_rig.Internal().m_squiggleBoy.m_encoders.GetValueNoSlew(Param::OscillatorDetune, static_cast<int>(voice));
+    }
+
+    void SelectDetuneModulators()
+    {
+        SelectWaterSource();
+        m_rig.PressEncoder(1, 3);
+        m_rig.RunFrames(1);
+    }
+
+    void DeselectDetuneModulators()
+    {
+        m_rig.PressEncoder(3, 3);
+        m_rig.RunFrames(1);
+    }
+
+    void ProcessInjectedModulatorValues()
+    {
+        m_rig.Internal().m_squiggleBoy.m_encoders.Process();
+    }
+
+    void AddGestureToSpreadDepth(int gesture)
+    {
+        SelectDetuneModulators();
+        m_rig.SetFader(gesture, 1.0f);
+        m_rig.RunFrames(2);
+        m_rig.PressGesturePad(gesture);
+        m_rig.RunFrames(1);
+
+        for (int i = 0; i < 12; ++i)
+        {
+            m_rig.IncEncoder(3, 2, +50);
+            m_rig.RunFrames(1);
+        }
+
+        m_rig.ReleaseGesturePad(gesture);
+        m_rig.RunFrames(kSettleFrames);
+        DeselectDetuneModulators();
+    }
+};
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -498,4 +583,165 @@ DOCTEST_TEST_CASE("sys_gestures: shift+gesture pad clears the gesture")
     //
     DOCTEST_CHECK(std::isfinite(rig.EncoderValue(ex, ey)));
     DOCTEST_CHECK_FALSE(rig.SawNaN());
+}
+
+// ---------------------------------------------------------------------------
+// Test 7: Machine-dependent encoder must catch gesture changes while hidden
+// ---------------------------------------------------------------------------
+//
+DOCTEST_TEST_CASE("sys_gestures: hidden machine-dependent detune catches gesture weight changes")
+{
+    HiddenDetuneFixture fixture;
+    fixture.AddGestureToSpreadDepth(2);
+
+    fixture.m_rig.SetFader(2, 0.0f);
+    fixture.m_rig.RunFrames(kSettleFrames);
+
+    float waterDetuneAtZero = fixture.WaterDetuneVoice(2);
+    DOCTEST_REQUIRE_MESSAGE(waterDetuneAtZero < 0.1f,
+        "precondition: gesture 2 at zero should remove Water spread detune, got "
+        << waterDetuneAtZero);
+
+    fixture.SelectEarthSource();
+    fixture.m_rig.SetFader(2, 1.0f);
+    fixture.m_rig.RunFrames(kSettleFrames);
+
+    fixture.SelectWaterSource();
+    fixture.m_rig.RunFrames(kSettleFrames);
+
+    float waterDetuneAtOne = fixture.WaterDetuneVoice(2);
+    DOCTEST_CHECK_MESSAGE(waterDetuneAtOne > 0.5f,
+        "Water Detune missed gesture 2's weight change while hidden by Earth's Sample topology, got "
+        << waterDetuneAtOne);
+    DOCTEST_CHECK_FALSE(fixture.m_rig.SawNaN());
+}
+
+DOCTEST_TEST_CASE("sys_gestures: hidden machine-dependent detune catches modulator source changes")
+{
+    HiddenDetuneFixture fixture;
+    fixture.SelectDetuneModulators();
+
+    for (int i = 0; i < 12; ++i)
+    {
+        fixture.m_rig.IncEncoder(3, 2, +50);
+        fixture.m_rig.RunFrames(1);
+    }
+
+    fixture.DeselectDetuneModulators();
+
+    auto& modulatorValues = fixture.m_rig.Internal().m_squiggleBoy.m_encoders.GetModulatorValues(SmartGridOneEncoders::BankMode::Voice);
+    for (size_t voice = 0; voice < 16; ++voice)
+    {
+        modulatorValues.m_value[11][voice] = 0.0f;
+    }
+
+    fixture.ProcessInjectedModulatorValues();
+    float visibleLowValue = fixture.WaterDetuneVoice(2);
+    DOCTEST_REQUIRE_MESSAGE(visibleLowValue < 0.1f,
+        "precondition: Water Detune should be low before hidden Spread source changes, got "
+        << visibleLowValue);
+
+    fixture.SelectEarthSource();
+    for (size_t voice = 0; voice < 16; ++voice)
+    {
+        modulatorValues.m_value[11][voice] = 1.0f;
+    }
+
+    fixture.m_rig.RunFrames(kSettleFrames);
+    float hiddenValue = fixture.WaterDetuneVoice(2);
+
+    DOCTEST_CHECK_MESSAGE(hiddenValue > 0.5f,
+        "Water Detune missed Spread modulator source changes while hidden, got "
+        << hiddenValue);
+    DOCTEST_CHECK_FALSE(fixture.m_rig.SawNaN());
+}
+
+DOCTEST_TEST_CASE("sys_gestures: hidden machine-dependent detune clears gesture while hidden")
+{
+    HiddenDetuneFixture fixture;
+    fixture.AddGestureToSpreadDepth(2);
+
+    fixture.SelectEarthSource();
+    fixture.m_rig.WithShift(
+        [&fixture]()
+        {
+            fixture.m_rig.PressGesturePad(2);
+            fixture.m_rig.RunFrames(1);
+            fixture.m_rig.ReleaseGesturePad(2);
+        });
+    fixture.m_rig.RunFrames(kSettleFrames);
+
+    fixture.SelectWaterSource();
+
+    fixture.m_rig.SetFader(2, 0.0f);
+    fixture.m_rig.RunFrames(kSettleFrames);
+    float atZero = fixture.WaterDetuneVoice(2);
+
+    fixture.m_rig.SetFader(2, 1.0f);
+    fixture.m_rig.RunFrames(kSettleFrames);
+    float atOne = fixture.WaterDetuneVoice(2);
+
+    DOCTEST_CHECK_MESSAGE(std::fabs(atOne - atZero) < 0.05f,
+        "hidden Detune still responds to gesture 2 after ClearGesture while hidden: zero="
+        << atZero << " one=" << atOne);
+    DOCTEST_CHECK_FALSE(fixture.m_rig.SawNaN());
+}
+
+DOCTEST_TEST_CASE("sys_gestures: hidden machine-dependent detune survives visible bank reset")
+{
+    HiddenDetuneFixture fixture;
+    fixture.SelectWaterSource();
+    fixture.m_rig.SetEncoder(1, 3, 0.8f);
+    fixture.m_rig.RunFrames(kSettleFrames);
+    DOCTEST_REQUIRE(fixture.WaterDetuneVoice(2) > 0.7f);
+
+    fixture.SelectEarthSource();
+    fixture.m_rig.Internal().m_squiggleBoy.m_encoders.ResetBank(SmartGridOneEncoders::Bank::Source);
+    fixture.m_rig.RunFrames(kSettleFrames);
+
+    float hiddenValue = fixture.WaterDetuneVoice(2);
+    DOCTEST_CHECK_MESSAGE(hiddenValue > 0.7f,
+        "hidden Detune should not reset from Earth's visible Source grid reset, got "
+        << hiddenValue);
+    DOCTEST_CHECK_FALSE(fixture.m_rig.SawNaN());
+}
+
+DOCTEST_TEST_CASE("sys_gestures: hidden machine-dependent detune copies scene state while hidden")
+{
+    HiddenDetuneFixture fixture;
+
+    fixture.m_rig.SetLeftScene(0);
+    fixture.m_rig.SetRightScene(1);
+    fixture.m_rig.SetBlend(0.0f);
+    fixture.SelectWaterSource();
+    fixture.m_rig.SetEncoder(1, 3, 0.8f);
+    fixture.m_rig.RunFrames(kSettleFrames);
+    DOCTEST_REQUIRE(fixture.WaterDetuneVoice(2) > 0.7f);
+
+    fixture.m_rig.SetLeftScene(2);
+    fixture.m_rig.SetRightScene(1);
+    fixture.m_rig.SetBlend(0.0f);
+    fixture.SelectWaterSource();
+    fixture.m_rig.SetEncoder(1, 3, 0.0f);
+    fixture.m_rig.RunFrames(kSettleFrames);
+    DOCTEST_REQUIRE(fixture.WaterDetuneVoice(2) < 0.1f);
+
+    fixture.m_rig.SetLeftScene(0);
+    fixture.m_rig.SetRightScene(1);
+    fixture.m_rig.SetBlend(0.0f);
+    fixture.SelectEarthSource();
+    fixture.m_rig.Internal().m_squiggleBoy.m_encoders.CopyToScene(2);
+    fixture.m_rig.RunFrames(kSettleFrames);
+
+    fixture.m_rig.SetLeftScene(2);
+    fixture.m_rig.SetRightScene(1);
+    fixture.m_rig.SetBlend(0.0f);
+    fixture.SelectWaterSource();
+    fixture.m_rig.RunFrames(kSettleFrames);
+
+    float copiedValue = fixture.WaterDetuneVoice(2);
+    DOCTEST_CHECK_MESSAGE(copiedValue > 0.7f,
+        "hidden Detune did not copy current scene state into scene 2, got "
+        << copiedValue);
+    DOCTEST_CHECK_FALSE(fixture.m_rig.SawNaN());
 }

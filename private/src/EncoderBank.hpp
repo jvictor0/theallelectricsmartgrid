@@ -1243,7 +1243,6 @@ struct EncoderBankInternal : public EncoderGrid
         if (encoder)
         {
             encoder->m_ownerBank = this;
-            encoder->m_sharedEncoderState = &m_sharedEncoderState;
         }
 
         if (!m_selected)
@@ -1424,11 +1423,6 @@ struct EncoderBankInternal : public EncoderGrid
                 if (cell && cell->m_connected)
                 {
                     m_activeEncoderPrefix = i * 4 + j + 1;
-                }
-
-                if (cell)
-                {
-                    cell->Compute();
                 }
             }
         }

@@ -14,11 +14,13 @@ struct EncoderBankBank
         size_t m_numTracks;
         size_t m_numVoices;
         SmartGrid::BankedEncoderCell::ModulatorValues m_modulatorValues;
+        SmartGrid::BankedEncoderCell::SharedEncoderState m_sharedEncoderState;
         
         BankMode()
             : m_numTracks(0)
             , m_numVoices(0)
             , m_modulatorValues()
+            , m_sharedEncoderState()
         {
         }
     };
@@ -75,6 +77,9 @@ struct EncoderBankBank
     {
         m_bankModes[modeIx].m_numTracks = numTracks;
         m_bankModes[modeIx].m_numVoices = numVoices;
+        m_bankModes[modeIx].m_sharedEncoderState.m_numTracks = numTracks;
+        m_bankModes[modeIx].m_sharedEncoderState.m_numVoices = numVoices;
+        m_bankModes[modeIx].m_sharedEncoderState.m_modulatorValues = &m_bankModes[modeIx].m_modulatorValues;
    }
 
     void InitBank(size_t bankIx, size_t modeIx, SmartGrid::Color color)
@@ -109,6 +114,7 @@ struct EncoderBankBank
             static_cast<int>(index),
             SmartGrid::BankedEncoderCell::EncoderType::BaseParam);
         SmartGrid::BankedEncoderCell* cell = m_encoders[index].get();
+        cell->m_sharedEncoderState = &m_bankModes[modeIx].m_sharedEncoderState;
         cell->m_numTracks = m_bankModes[modeIx].m_numTracks;
         cell->m_defaultValue = defaultValue;
         cell->SetValueAllScenesAllTracks(defaultValue);
@@ -180,12 +186,72 @@ struct EncoderBankBank
 
     void SetTrack(size_t modeIx, size_t track)
     {
+        m_bankModes[modeIx].m_sharedEncoderState.m_currentTrack = track;
+
         for (size_t i = 0; i < m_numBanks; ++i)
         {
             if (m_bankConfigs[i].m_modeIx == modeIx)
             {
                 m_banks[i].SetTrack(track);
             }
+        }
+    }
+
+    bool EncoderBelongsToMode(size_t encoderIx, size_t modeIx)
+    {
+        SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIx);
+        return cell && cell->m_sharedEncoderState == &m_bankModes[modeIx].m_sharedEncoderState;
+    }
+
+    template <typename Func>
+    void ForEachNamedEncoder(Func func)
+    {
+        for (size_t i = 0; i < m_numEncoders; ++i)
+        {
+            SmartGrid::BankedEncoderCell* cell = m_encoders[i].get();
+            if (cell && cell->m_name)
+            {
+                func(i, cell);
+            }
+        }
+    }
+
+    template <typename Func>
+    void ForEachNamedEncoderInMode(size_t modeIx, Func func)
+    {
+        ForEachNamedEncoder(
+            [this, modeIx, func](size_t encoderIx, SmartGrid::BankedEncoderCell* cell)
+            {
+                if (EncoderBelongsToMode(encoderIx, modeIx))
+                {
+                    func(encoderIx, cell);
+                }
+            });
+    }
+
+    void SetAllModulatorsAffectingForMode(size_t modeIx)
+    {
+        ForEachNamedEncoderInMode(
+            modeIx,
+            [](size_t, SmartGrid::BankedEncoderCell* cell)
+            {
+                cell->SetModulatorsAffecting();
+            });
+
+        for (size_t i = 0; i < m_numBanks; ++i)
+        {
+            if (m_bankConfigs[i].m_modeIx == modeIx)
+            {
+                m_banks[i].ComputeGesturesAffectingPerTrack();
+            }
+        }
+    }
+
+    void SetAllModulatorsAffectingForAllModes()
+    {
+        for (size_t modeIx = 0; modeIx < m_numModes; ++modeIx)
+        {
+            SetAllModulatorsAffectingForMode(modeIx);
         }
     }
 
@@ -209,9 +275,15 @@ struct EncoderBankBank
             HandleChangedSceneManagerScene();
         }
 
-        for (size_t i = 0; i < m_numBanks; ++i)
+        if (SampleTimer::IsControlFrame())
         {
-            if (SampleTimer::IsControlFrame())
+            ForEachNamedEncoder(
+                [](size_t, SmartGrid::BankedEncoderCell* cell)
+                {
+                    cell->Compute();
+                });
+
+            for (size_t i = 0; i < m_numBanks; ++i)
             {
                 m_banks[i].ProcessTopology();
             }
@@ -220,18 +292,16 @@ struct EncoderBankBank
 
     void HandleChangedSceneManager()
     {
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            m_banks[i].HandleChangedSceneManager();
-        }
+        ForEachNamedEncoder(
+            [](size_t, SmartGrid::BankedEncoderCell* cell)
+            {
+                cell->SetStateRecursive();
+            });
     }
 
     void HandleChangedSceneManagerScene()
     {
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            m_banks[i].HandleChangedSceneManagerScene();
-        }
+        SetAllModulatorsAffectingForAllModes();
     }
 
     float GetValue(size_t ix, size_t i, size_t j, size_t channel)
@@ -254,9 +324,10 @@ struct EncoderBankBank
         m_selectedBank = ix;
     }
 
-    void ResetGrid(uint64_t ix, bool allScenes, bool allTracks)
+    void ResetGrid(uint64_t ix)
     {
-        m_banks[ix].RevertToDefault(allScenes, allTracks);
+        m_banks[ix].RevertToDefault(false, false);
+        m_banks[ix].SetAllModulatorsAffecting();
     }
 
     SmartGrid::Color GetSelectorColor(int ix)
@@ -326,10 +397,14 @@ struct EncoderBankBank
 
     void ClearGesture(int gesture)
     {
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            m_banks[i].ClearGesture(gesture);
-        }
+        ForEachNamedEncoder(
+            [gesture](size_t, SmartGrid::BankedEncoderCell* cell)
+            {
+                cell->ClearGesture(gesture);
+                cell->SetForceUpdateRecursive();
+            });
+
+        SetAllModulatorsAffectingForAllModes();
     }
 
     JSON ToJSON(JsonArena& a)
@@ -366,18 +441,22 @@ struct EncoderBankBank
 
     void CopyToScene(int scene)
     {
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            m_banks[i].CopyToScene(scene);
-        }
+        ForEachNamedEncoder(
+            [scene](size_t, SmartGrid::BankedEncoderCell* cell)
+            {
+                cell->CopyToScene(scene);
+            });
     }
 
     void RevertToDefault(bool allScenes, bool allTracks)
     {
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            m_banks[i].RevertToDefault(allScenes, allTracks);
-        }
+        ForEachNamedEncoder(
+            [allScenes, allTracks](size_t, SmartGrid::BankedEncoderCell* cell)
+            {
+                cell->RevertToDefault(allScenes, allTracks);
+            });
+
+        SetAllModulatorsAffectingForAllModes();
     }
 
     void Apply(SmartGrid::MessageIn msg)
