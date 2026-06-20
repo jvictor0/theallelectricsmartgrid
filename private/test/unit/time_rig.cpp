@@ -10,6 +10,7 @@
 #include "doctest.h"
 
 #include <cmath>
+#include <type_traits>
 #include <vector>
 
 #include "../support/GlobalEnv.hpp"
@@ -37,6 +38,16 @@ std::vector<double> TraceMasterPhasor(TimeRig& rig, size_t n)
     return trace;
 }
 
+template <typename T, typename = void>
+struct HasClockMode : std::false_type
+{
+};
+
+template <typename T>
+struct HasClockMode<T, std::void_t<decltype(std::declval<T&>().m_clockMode)>> : std::true_type
+{
+};
+
 } // namespace
 
 DOCTEST_TEST_CASE("TimeRig: construction is SampleTimer-coherent and starts stopped")
@@ -48,6 +59,11 @@ DOCTEST_TEST_CASE("TimeRig: construction is SampleTimer-coherent and starts stop
     DOCTEST_CHECK(SampleTimer::GetSample() == 0);
     DOCTEST_CHECK(rig.CurrentUBlockIndex() == 0);
     DOCTEST_CHECK(rig.Get() != nullptr);
+}
+
+DOCTEST_TEST_CASE("TimeRig: TheoryOfTime input has no clock mode")
+{
+    DOCTEST_CHECK(HasClockMode<TheoryOfTime::Input>::value == false);
 }
 
 DOCTEST_TEST_CASE("TimeRig: SampleTimer advances in lockstep with AdvanceSample")
@@ -239,11 +255,32 @@ DOCTEST_TEST_CASE("TimeRig: not running -> phasors hold at zero")
     }
 }
 
+DOCTEST_TEST_CASE("TimeRig: stopped multiplier changes recompute loop sizes before first run")
+{
+    GlobalEnv::ResetPerTest();
+    TimeRig rig;
+
+    rig.SetMultiplier(4, 3);
+    rig.AdvanceControlFrame();
+
+    DOCTEST_CHECK(rig.IsRunning() == false);
+    DOCTEST_CHECK(rig.AnyChangeInMicroBlock() == true);
+    DOCTEST_CHECK(rig.AnyChange(0) == true);
+    DOCTEST_CHECK(rig.LoopSize(4) == 32);
+    DOCTEST_CHECK(rig.LoopSize(TimeRig::x_masterLoop) == 96);
+    DOCTEST_CHECK(rig.Position(4) == 0);
+    DOCTEST_CHECK(rig.PrevPosition(4) == 0);
+    DOCTEST_CHECK(rig.Gate(4) == false);
+    DOCTEST_CHECK(rig.Phasor(4) == doctest::Approx(0.0));
+    DOCTEST_CHECK(rig.DirectPhasor(4) == doctest::Approx(0.0));
+}
+
 DOCTEST_TEST_CASE("TimeRig: stopping a running rig halts the phasor")
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
     rig.SetMasterPeriodSamples(128.0);
+    rig.SetMultiplier(4, 3);
     rig.SetRunning(true);
 
     // Advance partway into a cycle.
@@ -256,8 +293,16 @@ DOCTEST_TEST_CASE("TimeRig: stopping a running rig halts the phasor")
     //
     rig.AdvanceControlFrame();
     DOCTEST_CHECK(rig.IsRunning() == false);
+    DOCTEST_CHECK(rig.AnyChangeInMicroBlock() == true);
+    DOCTEST_CHECK(rig.AnyChange(0) == true);
+    DOCTEST_CHECK(rig.LoopSize(4) == 32);
+    DOCTEST_CHECK(rig.LoopSize(TimeRig::x_masterLoop) == 96);
+    DOCTEST_CHECK(rig.Position(4) == 0);
+    DOCTEST_CHECK(rig.PrevPosition(4) == 0);
+    DOCTEST_CHECK(rig.Gate(4) == false);
 
-    // After Stop(), all loop state is zeroed; phasor holds at 0.
+    // After Stop(), topology-derived loop sizes are preserved while motion,
+    // gate, and phasor state hold at 0.
     //
     for (size_t i = 0; i < 64; ++i)
     {

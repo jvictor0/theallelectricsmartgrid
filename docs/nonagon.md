@@ -50,6 +50,7 @@ During a control frame, `Process` executes the following steps:
 
 5. **Theory of Time (samples 1–8)**:
    - `m_theoryOfTime.Process(j, input.m_theoryOfTimeInput)` is called for `j = 1` through `8` to compute the rest of this micro block (samples 1–7) and the first sample of the next block (slot 8).
+   - When the user transport is stopped and no voice gate keeps the timebase alive, those calls take the timebase's `ProcessNotRunning()` path, so loop sizes, loop positions, gates, loop phasor outputs, and winding stay current while Multi-Phasor Gate and LameJuis are reset.
 
 ---
 

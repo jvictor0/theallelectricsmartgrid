@@ -223,11 +223,6 @@ struct TheNonagonSquiggleBoyInternal
 
         using Param = SmartGridOneEncoders::Param;
 
-        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_phaseLearnRate.Update(m_squiggleBoy.m_encoders.GetValue(Param::PLLPhaseLearn));
-        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_freqLearnRate.Update(m_squiggleBoy.m_encoders.GetValue(Param::PLLFreqLearn));
-        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_phaseLearnApplicationRate.Update(m_squiggleBoy.m_encoders.GetValue(Param::PLLPhaseApply));
-        m_nonagon.m_state.m_theoryOfTimeInput.m_pllInput.m_freqLearnApplicationRate.Update(m_squiggleBoy.m_encoders.GetValue(Param::PLLFreqApply));
-
         theoryOfTimeInput.m_phaseModLFOInput.m_attackFrac = theoryOfTimeInput.m_lfoSkewFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOSkew));
         theoryOfTimeInput.m_lfoMult.Update(theoryOfTimeInput.m_lfoMultFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOMult)));
         theoryOfTimeInput.m_phaseModLFOInput.m_shape = theoryOfTimeInput.m_lfoShapeFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOShape));

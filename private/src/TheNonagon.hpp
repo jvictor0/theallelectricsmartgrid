@@ -13,7 +13,6 @@
 #include "Trig.hpp"
 #include "ClockSelectCell.hpp"
 #include "GangedRandomLFO.hpp"
-#include "Tick2Phasor.hpp"
 #include "MessageOut.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
@@ -297,11 +296,6 @@ struct TheNonagonInternal
             }
         }
 
-    }
-
-    void ProcessPLLHit(Input& input, int loopIx)
-    {
-        m_theoryOfTime.ProcessPLLHit(input.m_theoryOfTimeInput, loopIx);
     }
 
     void Process(Input& input)
@@ -1309,11 +1303,6 @@ struct TheNonagonSmartGrid
                 m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig = false;
             }
         }
-    }
-
-    void ProcessPLLHit(int loopIx)
-    {
-        m_nonagon.ProcessPLLHit(m_state, loopIx);
     }
 
     void ProcessFrame(TheNonagonInternal::UIState* uiState)

@@ -46,7 +46,7 @@
 //     control frame (every 8 audio samples), in a burst, at the control-frame
 //     boundary. It is NOT called once per sample.
 //
-//   * Each Process(j) call (ClockMode::Internal) advances the master phasor by
+//   * Each Process(j) call advances the master phasor by
 //     input.m_freq:  input.m_phasor += input.m_freq.  So across one control
 //     frame the master phasor advances by 8 * m_freq -- i.e. m_freq is "phase
 //     per audio sample", and the master loop period is 1/m_freq samples.
@@ -127,7 +127,6 @@ struct TimeRig
         //
         m_tot.SetupMessageOutBuffer(&m_messageOut);
 
-        m_input.m_clockMode = TheoryOfTime::ClockMode::Internal;
         m_input.m_running = false;
 
         // Default: master loop period of 256 samples (32 control frames).
@@ -321,6 +320,35 @@ struct TimeRig
     {
         assert(loop < x_numLoops);
         return m_tot.m_loops[loop].m_gate[CurrentUBlockIndex()];
+    }
+
+    int LoopSize(size_t loop) const
+    {
+        assert(loop < x_numLoops);
+        return m_tot.m_loops[loop].m_loopSize[CurrentUBlockIndex()];
+    }
+
+    int Position(size_t loop) const
+    {
+        assert(loop < x_numLoops);
+        return m_tot.m_loops[loop].m_position[CurrentUBlockIndex()];
+    }
+
+    int PrevPosition(size_t loop) const
+    {
+        assert(loop < x_numLoops);
+        return m_tot.m_loops[loop].m_prevPosition[CurrentUBlockIndex()];
+    }
+
+    bool AnyChangeInMicroBlock() const
+    {
+        return m_tot.AnyChangeInMicroBlock();
+    }
+
+    bool AnyChange(size_t j) const
+    {
+        assert(j < TheoryOfTimeBase::x_microBlockBufferSize);
+        return m_tot.m_anyChange[j];
     }
 
 private:

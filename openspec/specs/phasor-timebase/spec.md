@@ -16,8 +16,22 @@ The CircleTracker detects a wrap when the phase moves by more than 0.5 between c
 - **WHEN** the phasor moves from 0.02 back across zero to 0.97
 - **THEN** the winding count decreases by 1
 
+### Requirement: Internal-Only Clock Source
+The system SHALL remove `TheoryOfTime::ClockMode` and `TheoryOfTime::Input::m_clockMode`.
+The timebase SHALL advance from the internal frequency input directly; it SHALL NOT expose PLL, external phasor input, or tick-to-phasor input as selectable product clock modes.
+
+#### Scenario: Clock mode surface is absent
+- **WHEN** product code constructs a `TheoryOfTime::Input`
+- **THEN** it has no `m_clockMode` member
+- **AND** no `ClockMode` enum is available
+
+#### Scenario: Internal clock advances the phasor
+- **WHEN** the timebase processes a running sample with internal frequency `m_freq`
+- **THEN** the true phasor advances by `m_freq`
+- **AND** the phasor wraps into [0, 1)
+
 ### Requirement: True Phase and Phase-Modulated Phase
-The system SHALL maintain two phase signals: the true (unmodulated) phase from the selected clock source, and a phase-modulated phase equal to the true phase plus an LFO-derived phase offset, wrapped into [0, 1).
+The system SHALL maintain two phase signals: the true (unmodulated) phase from the internal clock, and a phase-modulated phase equal to the true phase plus an LFO-derived phase offset, wrapped into [0, 1).
 The phase-modulation LFO is a PolyXFader driven by the unmodulated (independent) phasors of the six time loops (`m_useIndirectPhasor` is false), so the LFO stays synchronized with the timebase it modulates. The applied offset is `-2 × modIndex × lfoRawOutput`. The master loop's position and gates follow the modulated phase; the independent phase remains available per loop for continuity-sensitive consumers (display, LFO drive, note-writer positions).
 
 #### Scenario: Zero modulation index passes true phase through
@@ -28,6 +42,19 @@ The phase-modulation LFO is a PolyXFader driven by the unmodulated (independent)
 - **WHEN** the phase-modulation LFO computes its output for the current sample
 - **THEN** it reads each time loop's independent (unmodulated) phasor, not the phase-modulated phasor
 - **AND** the per-loop LFO weights are scaled by `loopSize / masterLoopSize`
+
+### Requirement: Outgoing Phasor-To-Tick Clock Generation
+The system SHALL keep outgoing MIDI clock generation as phasor-to-tick behavior, owned by a dedicated `Phasor2Tick` helper in `private/src/Phasor2Tick.hpp`.
+When the timebase starts running, the helper SHALL update its divisions from the current internal frequency; while running, a division crossing in the independent master phasor SHALL emit a clock message through the configured message-out buffer.
+
+#### Scenario: Start updates outgoing clock divisions
+- **WHEN** the timebase transitions from stopped to running
+- **THEN** `Phasor2Tick` updates its divisions from the internal frequency
+- **AND** a transport start message is emitted when a message-out buffer is configured
+
+#### Scenario: Running phasor emits clock message
+- **WHEN** the independent master phasor crosses a `Phasor2Tick` division while the timebase is running
+- **THEN** the message-out buffer receives one MIDI clock message
 
 ### Requirement: Six Hierarchical Time Loops
 The system SHALL provide exactly six time loops (`x_numLoops == 6`) arranged in a tree, where the master loop is index 5 (`x_numLoops - 1`), has no parent, and is driven directly by the phase-modulated phasor; every other loop has a parent index and an integer winding multiplier mapping the parent's circle onto its own.
@@ -95,18 +122,30 @@ The system SHALL buffer per-loop state in arrays of 9 control samples per microb
 - **AND** processing then fills slots 1 through 8, producing this block's remaining samples plus the next block's first sample
 
 ### Requirement: Transport Start and Stop
-The system SHALL initialize deterministic state on transport start and clear all loop state on stop.
-On the first running sample, requested topology is applied, loop sizes are computed, the global CircleTracker is reset to phase 0, and every loop's position is set to `loopSize - 1` with gate false, so the first advance lands on position 0 as a top. On stop, every loop is reset to position 0, loop size 1, gate false, and the any-change flag is raised for that frame so consumers observe the transition.
+The system SHALL initialize deterministic state on transport start and maintain a topology-aware stopped state whenever the timebase is not running.
+On the first running sample, requested topology is applied, loop sizes are computed, the global CircleTracker is reset to phase 0, and every loop's position is set to `loopSize - 1` with gate false, so the first advance lands on position 0 as a top. Whenever the timebase receives a non-running input, `ProcessNotRunning` SHALL inspect requested loop multipliers, accept changed multiplier values, call `SetLoopSizes` only when at least one multiplier changed, clear phasors and winding, set every loop position and previous position to 0, set every loop gate false, and keep independent positions at 0. The any-change flag SHALL be raised on the stop transition or when stopped multiplier maintenance changes observable loop state; otherwise it SHALL remain false while already stopped.
 
 #### Scenario: Start primes loops one step before zero
 - **WHEN** the transport starts running
 - **THEN** each loop's position equals its loop size minus 1 and its gate is false
 - **AND** the global phase winding count is reset to 0
 
-#### Scenario: Stop clears loop state
+#### Scenario: Stop clears loop motion but keeps topology-derived sizes
 - **WHEN** the running input goes false while the timebase is running
-- **THEN** all six loops report position 0, gate false, and loop size 1
+- **THEN** all six loops report position 0, previous position 0, gate false, phasor 0, independent phasor 0, and winding 0
+- **AND** loop sizes match the accepted loop multipliers
 - **AND** the any-change flag is true on that control sample
+
+#### Scenario: Already stopped multiplier changes update loop sizes before first run
+- **WHEN** the timebase has never run and a requested loop multiplier changes while running input remains false
+- **THEN** the changed multiplier is accepted
+- **AND** `SetLoopSizes` recomputes stopped loop sizes from the accepted multipliers
+- **AND** every loop position, previous position, gate, phasor, and winding remains cleared
+
+#### Scenario: Already stopped unchanged multipliers skip loop-size recompute
+- **WHEN** the timebase is not running and all requested loop multipliers match the accepted multipliers
+- **THEN** `ProcessNotRunning` does not call `SetLoopSizes`
+- **AND** every loop position, previous position, gate, phasor, and winding remains cleared
 
 ### Requirement: Deterministic State from Phasor and Topology
 The system SHALL derive all loop positions, gates, tops, and monodromy numbers as a pure function of the current phasor (with its winding) and the loop topology, with no hidden sequencer state requiring synchronization.
@@ -139,4 +178,3 @@ Pressing a multiplier pad SHALL change the underlying `m_parentMult` value, the 
 - **WHEN** a patch with non-default loop multipliers is loaded and the sequencer runs
 - **THEN** the master phasor advances and the loops gate without producing NaN or out-of-bound output
 - **AND** the loop sizes derived from the restored multipliers match those produced by setting the same multipliers live
-

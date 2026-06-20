@@ -20,7 +20,8 @@ For every micro block (8 samples), the Theory of Time computes all samples in th
 
 ## True phase and phase-modulated phase
 
-- **True phase** comes from the chosen clock source and is stored in the input phasor (`input.m_phasor`). It is advanced each control frame (e.g. internal tempo, external clock, PLL, or Tick2Phasor).
+- **True phase** comes from the internal clock frequency and is stored in the input phasor (`input.m_phasor`). It is advanced each control frame from `input.m_freq`; there are no selectable product clock modes.
+- **Outgoing MIDI clock** is generated in the opposite direction by `Phasor2Tick` (`private/src/Phasor2Tick.hpp`), which observes the independent master phasor and emits clock ticks through the message-out buffer while the timebase is running.
 - This true phase is fed into a **phase-modulation LFO** ([PolyXFader](glossary.md#polyxfader)). The LFO is **phase-driven**: it is driven by the *unmodulated* loop phasors (`m_phasorIndependent` of each of the six time loops), so it is always synchronized with the Theory of Time.
 - The LFO output is applied as a **phase offset** (`input.m_phaseOffset`). The **phase-modulated phase** is:
   - `directPhasor = input.m_phasor + input.m_phaseOffset` (then wrapped into [0, 1)).
@@ -70,6 +71,8 @@ To avoid floating-point issues, **integer positions** are used so that all gates
 
 So the parent’s loop size is the LCM of all (child_loopSize × child_parentMult), ensuring that when we divide by `m_parentMult` we get an integer. The factor of **2** is so that each loop has **two distinct states per cycle** (see gate, below): first half and second half of the circle.
 
+When the transport is not running, `ProcessNotRunning()` keeps the stopped loop state deterministic. It accepts changed loop multipliers, calls `SetLoopSizes()` only when at least one multiplier changed, clears loop positions, gates, loop phasor outputs, independent loop phasor outputs, and winding, and leaves loop sizes derived from the accepted multipliers. This lets stopped multiplier edits be visible before the first run without advancing time.
+
 ---
 
 ## Gate: two states per loop
@@ -107,4 +110,3 @@ A guiding principle of the clock design is **statelessness**: the sequencer and 
 - [Glossary](glossary.md) — **time loop**, **master loop**, **phasor**, **CircleTracker**, **PolyXFader**, **monodromy**, **LameJuis**.
 - [Documentation index](index/README.md) — overview of major components.
 - `docs/tex/TheoryOfTime.tex` — mathematical treatment (maps R → S¹, S¹ → S¹, partition to I^n).
-

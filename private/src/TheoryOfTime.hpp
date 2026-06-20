@@ -1,15 +1,17 @@
 #pragma once
 
-#include "Tick2Phasor.hpp"
+#include "Phasor2Tick.hpp"
 #include "PolyXFader.hpp"
 #include "CircleTracker.hpp"
 #include "ScopeWriter.hpp"
 #include "PhaseUtils.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 #include "MessageOut.hpp"
-#include "PLL.hpp"
 #include "SampleTimer.hpp"
+#include <algorithm>
 #include <atomic>
+#include <cmath>
+#include <numeric>
 
 struct TheoryOfTimeBase;
 
@@ -406,6 +408,72 @@ struct TheoryOfTimeBase
         }
     }
 
+    void SetStoppedLoopState(size_t j)
+    {
+        m_positionIndependent[j] = 0;
+        m_prevPositionIndependent[j] = 0;
+
+        for (int i = 0; i < x_numLoops; ++i)
+        {
+            TimeLoop& loop = m_loops[i];
+            loop.m_gate[j] = false;
+            loop.m_gateChanged[j] = false;
+            loop.m_top[j] = false;
+            loop.m_topIndependent[j] = false;
+            loop.m_position[j] = 0;
+            loop.m_prevPosition[j] = 0;
+            loop.m_phasor[j] = 0;
+            loop.m_phasorIndependent[j] = 0;
+            loop.m_globalWinding[j] = 0;
+            loop.m_ascending[j] = false;
+            loop.m_externalLoopMult[j] = GetMasterLoop()->m_loopSize[j] / std::max(1, loop.m_loopSize[j]);
+        }
+    }
+
+    void ProcessNotRunning(size_t j, Input& input)
+    {
+        bool multChanged = false;
+        for (int i = x_numLoops - 2; i >= 0; --i)
+        {
+            if (m_loops[i].m_parentMult[j] != input.m_input[i].m_parentMult)
+            {
+                m_loops[i].m_parentMult[j] = input.m_input[i].m_parentMult;
+                multChanged = true;
+            }
+        }
+
+        if (multChanged)
+        {
+            SetLoopSizes(j);
+        }
+
+        m_anyChange[j] = m_running || multChanged;
+        m_running = false;
+        m_globalPhase.Reset(0);
+        SetStoppedLoopState(j);
+
+        if (j == x_microBlockBufferSize - 1)
+        {
+            bool anyStoppedChange = false;
+            for (size_t k = 1; k < x_microBlockBufferSize; ++k)
+            {
+                anyStoppedChange = anyStoppedChange || m_anyChange[k];
+            }
+
+            m_anyChange[0] = anyStoppedChange;
+            for (int i = 0; i < x_numLoops; ++i)
+            {
+                TimeLoop& loop = m_loops[i];
+                loop.m_parentIndex[0] = loop.m_parentIndex[j];
+                loop.m_parentMult[0] = loop.m_parentMult[j];
+                loop.m_loopSize[0] = loop.m_loopSize[j];
+                loop.m_externalLoopMult[0] = loop.m_externalLoopMult[j];
+            }
+
+            SetStoppedLoopState(0);
+        }
+    }
+
     void ProcessRunning(size_t j, Input& input)
     {
         bool startedRunning = false;
@@ -483,18 +551,9 @@ struct TheoryOfTimeBase
         {
             ProcessRunning(j, input);
         }
-        else if (m_running)
-        {
-            m_running = false;
-            m_anyChange[j] = true;
-            for (int i = 0; i < x_numLoops; ++i)
-            {
-                m_loops[i].Stop();
-            }
-        }
         else
         {
-            m_anyChange[j] = false;
+            ProcessNotRunning(j, input);
         }
     }
 
@@ -648,28 +707,16 @@ inline bool TimeLoop::TopIndependent(size_t j, int loopSize)
 
 struct TheoryOfTime : public TheoryOfTimeBase
 {
-    Tick2Phasor m_tick2Phasor;
     Phasor2Tick m_phasor2Tick;
     SmartGrid::MessageOutBuffer* m_messageOutBuffer;
     PolyXFaderInternal m_phaseModLFO;
     ScopeWriterHolder m_scopeWriter;
     double m_masterLoopSamples;
-    PLL m_pll;
-
-    enum class ClockMode : int 
-    {
-        Internal,
-        External,
-        Tick2Phasor,
-        PLL
-    };
 
     struct Input : public TheoryOfTimeBase::Input
     {
         Input() 
-          : m_clockMode(ClockMode::Internal)
-          , m_freq(1.0/4)
-          , m_timeIn(0)
+          : m_freq(1.0/4)
           , m_lfoMult(1, 16)
         {
             m_phaseModLFOInput.m_size = x_numLoops;
@@ -697,14 +744,10 @@ struct TheoryOfTime : public TheoryOfTimeBase
         OPLowPassFilter m_lfoSlopeFilter;
         OPLowPassFilter m_lfoIndexFilter;
         
-        ClockMode m_clockMode;
         double m_freq;        
-        double m_timeIn;
-        Tick2Phasor::Input m_tick2PhasorInput;
         PolyXFaderInternal::Input m_phaseModLFOInput;
         PhaseUtils::ZeroedExpParam m_modIndex;
         PhaseUtils::ExpParam m_lfoMult;
-        PLL::Input m_pllInput;
     };
 
     struct UIState
@@ -772,18 +815,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
         m_masterLoopSamples = 1.0;
     }
 
-    void ProcessPLLHit(size_t j, Input& input, int loopIndex)
-    {
-        int64_t division = static_cast<int64_t>(GetLoopExternalMultiplier(j, loopIndex));
-        m_pll.ProcessHit(input.m_pllInput, division);
-    }
-
-    void ProcessPLLHit(Input& input, int loopIndex)
-    {
-        int64_t division = static_cast<int64_t>(GetLoopExternalMultiplier(0, loopIndex));
-        m_pll.ProcessHit(input.m_pllInput, division);
-    }
-
     void Preprocess(size_t j)
     {
         TheoryOfTimeBase::Preprocess(j);
@@ -794,45 +825,15 @@ struct TheoryOfTime : public TheoryOfTimeBase
         Preprocess(j);
         if (input.m_running)
         {
-            if (input.m_clockMode == ClockMode::Internal)
-            {
-                input.m_phasor += input.m_freq;
-                input.m_phasorTop = 1.0f <= input.m_phasor;
-                input.m_phasor = input.m_phasor - floor(input.m_phasor);
-                m_masterLoopSamples = 1.0 / input.m_freq;
-            }
-            else if (input.m_clockMode == ClockMode::External)
-            {
-                input.m_phasorTop = std::abs(input.m_timeIn - input.m_phasor) > 0.5f;
-                m_masterLoopSamples = 1.0 / std::max<double>(std::abs(input.m_phasor - input.m_timeIn), 1.0e-12);
-                input.m_phasor = input.m_timeIn;
-            }
-            else if (input.m_clockMode == ClockMode::PLL)
-            {
-                double prevPhase = m_pll.m_phase;
-                for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
-                {
-                    m_pll.Process(input.m_pllInput);
-                }
-
-                input.m_phasorTop = std::floor(prevPhase) != std::floor(m_pll.m_phase);
-                input.m_phasor = m_pll.m_phase - std::floor(m_pll.m_phase);
-                m_masterLoopSamples = 1.0 / std::max(m_pll.m_freq, 1.0e-12);
-            }
+            input.m_phasor += input.m_freq;
+            input.m_phasorTop = 1.0f <= input.m_phasor;
+            input.m_phasor = input.m_phasor - floor(input.m_phasor);
+            m_masterLoopSamples = 1.0 / input.m_freq;
         }
         else
         {
             input.m_phasor = 0;
-            m_tick2Phasor.m_reset = true;
             m_masterLoopSamples = 1.0 / input.m_freq;
-        }
-
-        if (input.m_clockMode == ClockMode::Tick2Phasor)
-        {
-            m_tick2Phasor.Process(input.m_tick2PhasorInput);
-            input.m_phasorTop = std::abs(m_tick2Phasor.m_output - input.m_phasor) > 0.5f;
-            m_masterLoopSamples = 1.0 / std::max<double>(m_tick2Phasor.m_phaseIncrement, 1.0e-12);
-            input.m_phasor = m_tick2Phasor.m_output;
         }
 
         bool wasRunning = m_running;
