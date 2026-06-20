@@ -802,6 +802,7 @@ struct SquiggleBoy
         }
 
         m_panPhase.Process();
+        m_partialMachineState.m_synthesisContextInput.m_azimuthOffset = m_panPhase.m_phase;
 
         for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
         {

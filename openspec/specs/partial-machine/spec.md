@@ -70,6 +70,19 @@ The system SHALL compute each atom's azimuth as `azimuthFactor × FrequencyToLin
 - **WHEN** the azimuth factor is at maximum (1.0)
 - **THEN** atoms spread across the full [0, 1) orbit as frequency rises, while at 1/32 the same spectrum clusters within a 1/32 arc of the quad field, and azimuth values wrap continuously past 1.0
 
+### Requirement: Shared Pan-Phase Azimuth Offset
+The system SHALL set the Partial Machine synthesis azimuth offset from the same shared pan phase that drives voice Lissajous panning. The offset value SHALL be the current `SquiggleBoy::m_panPhase.m_phase` value after the pan phase advances for the audio sample, so Partial Machine atom placement rotates in phase with the Lissajous pan motion.
+
+#### Scenario: Partial Machine offset follows the Lissajous pan phase
+- **WHEN** `SquiggleBoy::ProcessSample` advances the shared pan phase for an audio sample
+- **THEN** the Partial Machine synthesis context receives that same phase value as `m_azimuthOffset`
+- **AND** voice pan inputs for that sample are driven from the same phase value
+
+#### Scenario: Existing frequency azimuth mapping is preserved
+- **WHEN** the Partial Machine computes an atom azimuth
+- **THEN** the frequency-derived azimuth factor and linear frequency mapping are still added before wrapping to [0, 1)
+- **AND** the shared pan-phase offset only rotates the resulting spectral orbit
+
 ### Requirement: Five-Voice Unison Expansion
 The system SHALL expand each atom into a center copy plus two symmetric detuned pairs (`UnisonContext::x_numVoices = 5`). Pair p (1-2) uses interpolation `interp = min(1, (3 - p) × unison)`; each side voice gets gain `ZeroedExpParam::Compute(4, interp)`, detune `1.06^(±interp)`, and azimuth offset `±interp / 2^(4-p)`. All five gains are then RMS-normalized so unison changes spread and density without changing loudness.
 
