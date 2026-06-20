@@ -311,15 +311,20 @@ struct SpectralModelGeneric
         float omegaDensity = input.m_omegaDensity.Process(atom.m_index);
         float lowerOmega = atom.m_analysisOmega - omegaDensity;
         auto it = std::lower_bound(analysisAtoms.begin(), analysisAtoms.end(), lowerOmega, AnalysisAtom::CmpOmegaFloat);
-        auto bestIt = it;
+        auto bestIt = analysisAtoms.end();
         for (; it != analysisAtoms.end(); ++it)
         {
             if (atom.m_analysisOmega + omegaDensity < it->m_analysisOmega)
             {
                 break;
             }
-            
-            if (AnalysisAtom::IsPreferred(*it, *bestIt))
+
+            if (it->m_analysisMagnitude < x_deathMag)
+            {
+                continue;
+            }
+
+            if (bestIt == analysisAtoms.end() || AnalysisAtom::IsPreferred(*it, *bestIt))
             {
                 bestIt = it;
             }

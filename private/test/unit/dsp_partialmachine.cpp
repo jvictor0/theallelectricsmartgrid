@@ -278,3 +278,34 @@ DOCTEST_TEST_CASE("PartialMachine: two-partial sine input -> finite output")
         DOCTEST_CHECK(std::abs(ch0[i]) < 5.0f);
     }
 }
+
+// ---------------------------------------------------------------------------
+// 5. SpectralModel: consumed analysis atoms are not merge candidates.
+// ---------------------------------------------------------------------------
+//
+DOCTEST_TEST_CASE("SpectralModel: consumed analysis atom is ignored during merge")
+{
+    using Model = PartialMachine::SpectralModel;
+
+    Model model;
+    Model::Input input;
+    input.m_slewUpAlpha = FrequencyDependentParameter::Parameter(1.0f);
+    input.m_slewDownAlpha = FrequencyDependentParameter::Parameter(1.0f);
+    input.m_omegaPortamentoAlpha = FrequencyDependentParameter::Parameter(1.0f);
+    input.m_omegaDensity = FrequencyDependentParameter::Parameter(0.01f);
+
+    FrequencyDependentParameter::Index index(0.5f, 0);
+    Model::AnalysisAtomArray analysisAtoms;
+    analysisAtoms.Add(Model::AnalysisAtom(0.42f, 0.5f, index, false));
+
+    Model::Atom first(0.42f, 0.5f, index, 0.42f, 1.0f, 0.0f);
+    model.SearchAndMerge(analysisAtoms, first, input);
+    DOCTEST_REQUIRE(analysisAtoms[0].m_analysisMagnitude < 0.0f);
+
+    Model::Atom second(0.421f, 0.5f, index, 0.421f, -0.001f, 0.0f);
+    model.SearchAndMerge(analysisAtoms, second, input);
+
+    DOCTEST_CHECK(second.m_analysisMagnitude >= 0.0f);
+    DOCTEST_CHECK(second.m_synthesisMagnitude >= 0.0f);
+    DOCTEST_CHECK(std::isfinite(second.m_synthesisMagnitude));
+}
