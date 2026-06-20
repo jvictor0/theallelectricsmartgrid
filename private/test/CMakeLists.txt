@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 
+if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
+    set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "Build architectures for Apple platforms")
+endif()
+
 project(smartgrid_tests CXX)
 
 # The DSP core is C++17 (matches the .jucer / clang-tidy config).

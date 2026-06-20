@@ -379,6 +379,7 @@
 		7990857E904F57DAA22A7569 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_LINK_OBJC_RUNTIME = NO;
@@ -442,13 +443,14 @@
 				PRODUCT_NAME = "SmartGridOne";
 				STRIP_INSTALLED_PRODUCT = NO;
 				USE_HEADERMAP = NO;
-				VALID_ARCHS = "i386 x86_64 arm64 arm64e";
+				VALID_ARCHS = arm64;
 			};
 			name = Release;
 		};
 		A2CEC6665DE63BE3C09B07B8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASAN_OPTIONS = "detect_leaks=1";
 				CLANG_ADDRESS_SANITIZER = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
@@ -509,7 +511,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.theallelectricsmartgrid.smartgridone;
 				PRODUCT_NAME = "SmartGridOne";
 				USE_HEADERMAP = NO;
-				VALID_ARCHS = "i386 x86_64 arm64 arm64e";
+				VALID_ARCHS = arm64;
 			};
 			name = Debug;
 		};
