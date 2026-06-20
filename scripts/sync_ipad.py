@@ -45,6 +45,24 @@ MAC_LOGS_DIR = MAC_SMARTGRID_DIR / "logs"
 DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024  # 4 MB
 
 
+def extract_stereo_recording(local_path: Path) -> None:
+    channel_count = int(
+        subprocess.check_output(["soxi", "-c", str(local_path)], text=True).strip()
+    )
+    if channel_count < 2:
+        raise ValueError(f"{local_path} has only {channel_count} channel(s)")
+
+    left_channel = channel_count - 1
+    right_channel = channel_count
+    stereo_path = local_path.with_stem(local_path.stem + "_stereo")
+
+    print(f"  Extracting stereo from channels {left_channel}-{right_channel}: {stereo_path.name}")
+    subprocess.run(
+        ["sox", str(local_path), str(stereo_path), "remix", str(left_channel), str(right_channel)],
+        check=True
+    )
+
+
 def download_afc_file(afc, full_ipad_path: str, local_path: Path, progress_label: str = "Copying") -> None:
     """
     Stream a file from iPad AFC to a local path using fopen/fread/fclose.
@@ -254,14 +272,7 @@ def sync_recordings_from_ipad(afc: HouseArrestService, ipad_recordings_path: str
         try:
             download_afc_file(afc, full_ipad_path, local_path, progress_label="Copied")
 
-            # Extract last two channels (65, 66) into stereo file using sox
-            #
-            stereo_path = local_path.with_stem(local_path.stem + "_stereo")
-            print(f"  Extracting stereo from channels 65-66: {stereo_path.name}")
-            subprocess.run(
-                ["sox", str(local_path), str(stereo_path), "remix", "65", "66"],
-                check=True
-            )
+            extract_stereo_recording(local_path)
 
             # Delete from iPad after successful copy
             #
