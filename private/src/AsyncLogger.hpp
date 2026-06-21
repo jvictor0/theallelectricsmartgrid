@@ -110,6 +110,7 @@ struct AsyncLogQueue
     void DoLog()
     {
         size_t emptyQueueCount = 0;
+        bool didSomething = false;
 
         while (emptyQueueCount < x_threadIdCount)
         {
@@ -122,7 +123,11 @@ struct AsyncLogQueue
                 continue;
             }
 
-            WriteLogMessage(static_cast<ThreadId>(queueIndex), message);
+            if (WriteLogMessage(static_cast<ThreadId>(queueIndex), message))
+            {
+                didSomething = true;
+            }
+
             m_queues[queueIndex].Pop();
             emptyQueueCount = 0;
         }
@@ -132,12 +137,20 @@ struct AsyncLogQueue
             size_t missed = m_missed[i].exchange(0);
             if (missed > 0)
             {
-                WriteMissedMessage(static_cast<ThreadId>(i), missed);
+                if (WriteMissedMessage(static_cast<ThreadId>(i), missed))
+                {
+                    didSomething = true;
+                }
             }
+        }
+
+        if (didSomething)
+        {
+            fflush(stdout);
         }
     }
 
-    void WriteLogMessage(ThreadId threadId, LogMessage* message)
+    bool WriteLogMessage(ThreadId threadId, LogMessage* message)
     {
         auto now = std::chrono::system_clock::now();
         std::time_t t = std::chrono::system_clock::to_time_t(now);
@@ -159,10 +172,10 @@ struct AsyncLogQueue
             message->m_sample,
             ThreadIdToString(threadId),
             message->m_message);
-        WriteLine(line);
+        return WriteLine(line);
     }
 
-    void WriteMissedMessage(ThreadId threadId, size_t missed)
+    bool WriteMissedMessage(ThreadId threadId, size_t missed)
     {
         char line[LogMessage::x_maxMessageLength];
         snprintf(
@@ -171,7 +184,7 @@ struct AsyncLogQueue
             "Missed %zu messages on %s",
             missed,
             ThreadIdToString(threadId));
-        WriteLine(line);
+        return WriteLine(line);
     }
 
     void ConfigureLogDirectory(const char* logDirectory)
@@ -231,8 +244,11 @@ struct AsyncLogQueue
         m_logFile.open(m_logFilePath, std::ios::out | std::ios::app);
     }
 
-    void WriteLine(const char* line)
+    bool WriteLine(const char* line)
     {
+        fputs(line, stdout);
+        fputc('\n', stdout);
+
         if (!m_logFile.is_open())
         {
             OpenSessionLogFile();
@@ -240,11 +256,12 @@ struct AsyncLogQueue
 
         if (!m_logFile.is_open())
         {
-            return;
+            return true;
         }
 
         m_logFile << line << '\n';
         m_logFile.flush();
+        return true;
     }
 
     void ResetForTesting()

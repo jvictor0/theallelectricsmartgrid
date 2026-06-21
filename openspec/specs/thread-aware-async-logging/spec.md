@@ -48,6 +48,23 @@ The async logger SHALL drain per-thread queues in round-robin order across all `
 - **WHEN** one or more messages have been missed for a `ThreadId`
 - **THEN** the logger drain path SHALL report the missed-message count for that `ThreadId`
 
+### Requirement: Stdout Mirroring
+The async logger SHALL mirror every drained log line to stdout in addition to writing it to the configured session log file.
+
+#### Scenario: Normal log line mirrors to stdout
+- **WHEN** a queued log message is drained
+- **THEN** the logger SHALL write the formatted line to the session log file
+- **AND** the logger SHALL write the same formatted line to stdout
+
+#### Scenario: Missed-message report mirrors to stdout
+- **WHEN** the logger drain path reports one or more missed messages for a `ThreadId`
+- **THEN** the missed-message report SHALL be written to the session log file
+- **AND** the same missed-message report SHALL be written to stdout
+
+#### Scenario: Producer path remains non-blocking
+- **WHEN** a realtime producer calls `INFO(...)`
+- **THEN** the producer SHALL enqueue the message without performing stdout IO
+
 ### Requirement: Standalone Tests Exercise Production Async Logging
 The standalone test executable SHALL use the same async log queue, per-thread routing, drain loop, overflow counting, and missed-message reporting implementation as the SmartGridOne app.
 
