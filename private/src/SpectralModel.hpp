@@ -77,14 +77,45 @@ struct SpectralModelGeneric
             return b.m_analysisMagnitude < a.m_analysisMagnitude;
         }
 
-        static bool IsPreferred(const AnalysisAtom& candidate, const AnalysisAtom& current)
+        static float PreferredMatchTheta(const AnalysisAtom& candidate, float targetOmega, float omegaDensity)
+        {
+            float distance = std::abs(candidate.m_analysisOmega - targetOmega);
+            if (omegaDensity <= 0.0f)
+            {
+                if (distance <= 0.0f)
+                {
+                    return candidate.m_analysisMagnitude;
+                }
+
+                return 0.0f;
+            }
+
+            float distanceWeight = std::max(0.0f, 1.0f - distance / omegaDensity);
+            return candidate.m_analysisMagnitude * distanceWeight;
+        }
+
+        static bool IsPreferred(const AnalysisAtom& candidate, const AnalysisAtom& current, float targetOmega, float omegaDensity)
         {
             if (candidate.m_isSynthetic != current.m_isSynthetic)
             {
                 return !candidate.m_isSynthetic;
             }
 
-            return current.m_analysisMagnitude < candidate.m_analysisMagnitude;
+            float candidateTheta = PreferredMatchTheta(candidate, targetOmega, omegaDensity);
+            float currentTheta = PreferredMatchTheta(current, targetOmega, omegaDensity);
+            if (currentTheta != candidateTheta)
+            {
+                return currentTheta < candidateTheta;
+            }
+
+            if (current.m_analysisMagnitude != candidate.m_analysisMagnitude)
+            {
+                return current.m_analysisMagnitude < candidate.m_analysisMagnitude;
+            }
+
+            float candidateDistance = std::abs(candidate.m_analysisOmega - targetOmega);
+            float currentDistance = std::abs(current.m_analysisOmega - targetOmega);
+            return candidateDistance < currentDistance;
         }
 
         static bool CmpOmega(const AnalysisAtom& a, const AnalysisAtom& b)
@@ -308,18 +339,20 @@ struct SpectralModelGeneric
 
     void SearchAndMerge(AnalysisAtomArray& analysisAtoms, Atom& atom, Input& input)
     {
+        float targetOmega = atom.m_analysisOmega;
         float omegaDensity = input.m_omegaDensity.Process(atom.m_index);
-        float lowerOmega = atom.m_analysisOmega - omegaDensity;
+        float lowerOmega = targetOmega - omegaDensity;
+        float upperOmega = targetOmega + omegaDensity;
         auto it = std::lower_bound(analysisAtoms.begin(), analysisAtoms.end(), lowerOmega, AnalysisAtom::CmpOmegaFloat);
-        auto bestIt = it;
+        auto bestIt = analysisAtoms.end();
         for (; it != analysisAtoms.end(); ++it)
         {
-            if (atom.m_analysisOmega + omegaDensity < it->m_analysisOmega)
+            if (upperOmega < it->m_analysisOmega)
             {
                 break;
             }
             
-            if (AnalysisAtom::IsPreferred(*it, *bestIt))
+            if (bestIt == analysisAtoms.end() || AnalysisAtom::IsPreferred(*it, *bestIt, targetOmega, omegaDensity))
             {
                 bestIt = it;
             }
@@ -342,7 +375,7 @@ struct SpectralModelGeneric
 
         for (auto forIt = bestIt; forIt != analysisAtoms.end(); ++forIt)
         {
-            if (atom.m_analysisOmega + omegaDensity < forIt->m_analysisOmega)
+            if (upperOmega < forIt->m_analysisOmega)
             {
                 break;
             }
@@ -353,7 +386,7 @@ struct SpectralModelGeneric
         for (auto revIt = bestIt; revIt != analysisAtoms.begin();)
         {
             --revIt;
-            if (revIt->m_analysisOmega < atom.m_analysisOmega - omegaDensity)
+            if (revIt->m_analysisOmega < lowerOmega)
             {
                 break;
             }

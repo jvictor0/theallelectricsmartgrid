@@ -2,9 +2,7 @@
 
 ## Purpose
 The Partial Machine (`PartialMachine` in `private/src/PartialMachine.hpp`) is the third global send effect beside quad-delay and quad-reverb. It sums its quad send input to mono, tracks prominent spectral atoms (partials) with `SpectralModelGeneric<12, FrequencyDependentParameter>` (`private/src/SpectralModel.hpp`), and resynthesizes the atoms into the quadraphonic field with frequency-dependent reduction, radius and azimuth placement, unison expansion, and bipolar pitch shift. Every parameter is stored as four frequency-indexed lanes, so modulation can give lows, mids, and highs independent behavior. Send/return routing, including cross-feeds to and from quad-delay and quad-reverb, is owned by mixdown-mastering; visual presentation of the published atom state is owned by ui-visualization-pipeline.
-
 ## Requirements
-
 ### Requirement: Mono Summation and Hop-Based Spectral Analysis
 The system SHALL sum each incoming quad sample to mono (`QuadFloat::Sum`) and write it into a 4096-sample circular analysis buffer. Every hop of H = 1024 samples, the buffer is Hann-windowed (`Math4096::Hann`) and passed to `SpectralModel::ExtractAtoms`, which DFT-transforms it, finds local spectral maxima, and refines each peak's frequency and magnitude by log-domain parabolic interpolation. The tracked atom set is capped at 1024 atoms (`InputSetter::x_numAtoms`), keeping the strongest by magnitude.
 
@@ -17,7 +15,7 @@ The system SHALL sum each incoming quad sample to mono (`QuadFloat::Sum`) and wr
 - **THEN** the extracted atom's analysis frequency is the parabola-interpolated peak position (k + p)/4096 cycles per sample rather than a bin center, and its magnitude is the interpolated peak magnitude
 
 ### Requirement: Spectral Atom Tracking Dynamics
-The system SHALL track atoms across hops: each existing atom searches the new analysis peaks within its frequency-dependent density window (`m_omegaDensity`) and merges with the best match, slewing its synthesis magnitude toward the analysis magnitude with separate attack (`slewUpAlpha`, 0.01-2 s) and decay (`slewDownAlpha`, 0.01-10 s) rates and gliding its synthesis frequency toward the analysis frequency at the portamento rate (0.01-2 s). Unmatched atoms decay toward zero at the decay rate. Matched peaks within the density window are consumed so they cannot spawn duplicates; remaining peaks above the death magnitude (`x_deathMag` = 1e-5) are born as new atoms whose magnitude slews up from zero. Atoms whose synthesis magnitude falls below 1e-5 die and are removed.
+The system SHALL track atoms across hops: each existing atom searches the new analysis peaks within its frequency-dependent density window (`m_omegaDensity`) and merges with the preferred match, slewing its synthesis magnitude toward the analysis magnitude with separate attack (`slewUpAlpha`, 0.01-2 s) and decay (`slewDownAlpha`, 0.01-10 s) rates and gliding its synthesis frequency toward the analysis frequency at the portamento rate (0.01-2 s). Within the density window, preferred-match selection SHALL preserve organic-over-synthetic priority and otherwise score candidates with theta = analysisMagnitude * max(0, 1 - distance / density), where distance is the absolute linear frequency difference from the tracked atom and density is the per-side density-window radius in the same linear frequency units. Distance SHALL be measured in Hz-equivalent cycles per sample, not volt-per-octave or `FrequencyToLinear` space. Matched peaks within the density window are consumed so they cannot spawn duplicates; remaining peaks above the death magnitude (`x_deathMag` = 1e-5) are born as new atoms whose magnitude slews up from zero. Unmatched atoms decay toward zero at the decay rate. Atoms whose synthesis magnitude falls below 1e-5 die and are removed.
 
 #### Scenario: Atom survives a one-hop dropout
 - **WHEN** a tracked atom's partial disappears from the analysis for one hop and the decay time is long
@@ -25,7 +23,16 @@ The system SHALL track atoms across hops: each existing atom searches the new an
 
 #### Scenario: Density window prunes near-duplicates
 - **WHEN** two analysis peaks fall within one atom's `m_omegaDensity` window
-- **THEN** the atom merges with the preferred peak and the other peak is consumed, so no second atom is created at nearly the same frequency
+- **THEN** the atom merges with the peak that has the strongest preferred-match theta after applying organic-over-synthetic priority, and the other peak is consumed, so no second atom is created at nearly the same frequency
+
+#### Scenario: Nearby continuation can beat a farther louder peak
+- **WHEN** an existing organic atom searches two organic analysis peaks inside its density window
+- **AND** one peak is closer to the atom's current frequency while the other peak has slightly higher raw magnitude
+- **THEN** the atom merges with the closer peak if the closer peak's theta is greater than the farther peak's theta
+
+#### Scenario: Boundary candidates have no distance preference score
+- **WHEN** an analysis peak lies at the edge of the atom's density window, where distance equals density
+- **THEN** its preferred-match theta is zero, while a same-magnitude peak at the atom's current frequency keeps its full magnitude as theta
 
 ### Requirement: Frequency-Dependent Parameter Lanes
 The system SHALL store every Partial Machine parameter as four lanes (`FrequencyDependentParameter::x_numParameters = 4`). Each atom is assigned a parameter index from its frequency at extraction time (`GetIndexForFrequency`), and parameter evaluation interpolates between the two neighboring lanes for that index. `PartialMachineLinearFrequency` (range 0.1-100) scales how fast the lane pattern repeats across the frequency axis. When all four lanes hold the same value the parameter behaves as a scalar; when modulation, gestures, or scenes differentiate the lanes, each frequency region sees its own interpolated value for attack, decay, density, bandwidth, panning, unison, pitch, and level.
