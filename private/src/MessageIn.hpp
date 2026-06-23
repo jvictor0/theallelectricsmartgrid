@@ -19,7 +19,11 @@ namespace SmartGrid
             EncoderRelease,
             ParamSet14,
             ParamSet7,
-            EncoderSet
+            EncoderSet,
+            MidiClock,
+            MidiStart,
+            MidiContinue,
+            MidiStop
         };
 
         size_t m_timestamp;
@@ -117,6 +121,19 @@ namespace SmartGrid
         bool NoMessage()
         {
             return m_mode == Mode::NoMessage;
+        }
+
+        bool IsRealtime()
+        {
+            return m_mode == Mode::MidiClock
+                || m_mode == Mode::MidiStart
+                || m_mode == Mode::MidiContinue
+                || m_mode == Mode::MidiStop;
+        }
+
+        bool IsMidiClock()
+        {
+            return m_mode == Mode::MidiClock;
         }
 
         bool IsParamSet()

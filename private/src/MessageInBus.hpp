@@ -3,6 +3,7 @@
 #include "CircularQueue.hpp"
 #include "MessageIn.hpp"
 #include "BasicMidi.hpp"
+#include "MessageInLatency.hpp"
 #include "MidiToMessageIn.hpp"
 
 namespace SmartGrid
@@ -20,6 +21,8 @@ namespace SmartGrid
 
         bool Push(MessageIn msg)
         {
+            msg.m_timestamp = MessageInLatency::WithLatency(msg.m_timestamp);
+
             if (!m_queue.Push(msg))
             {
                 INFO("MessageInBus push failed");
@@ -32,13 +35,12 @@ namespace SmartGrid
         bool Push(BasicMidi msg)
         {
             MessageIn msgIn = m_midiToMessageIn.FromMidi(msg);
-            if (!m_queue.Push(msgIn))
+            if (msgIn.NoMessage())
             {
-                INFO("MessageInBus push failed");
-                return false;
+                return true;
             }
 
-            return true;
+            return Push(msgIn);
         }
 
         void SetRouteType(int route, MidiToMessageIn::RouteType routeType)

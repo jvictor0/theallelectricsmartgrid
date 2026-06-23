@@ -2,9 +2,7 @@
 
 ## Purpose
 The Nonagon (`TheNonagonInternal` in `private/src/TheNonagon.hpp`) is the core sequencer that wires the phasor timebase (see phasor-timebase), the LameJuis pitch engine and index arp (see lamejuis-sequencer), and the Multi-Phasor Gate (see multi-phasor-gate) into a single nine-voice polyphonic sequence generator. It runs the subcomponents in a fixed per-frame order, distributes outputs between them, emits per-voice gates, volt-per-octave pitches, and extra timbre values, and records note events into the note writer for MIDI and UI consumption.
-
 ## Requirements
-
 ### Requirement: Nine Voices in Three Trios
 The system SHALL manage exactly 9 voices arranged in 3 trios — voices 0–2 (Water), 3–5 (Earth), and 6–8 (Fire) — where each trio shares a single LameJuis lane for its pitch logic.
 Per-trio settings (clock select, reset select, co-mutes, section choice strategy, trigger modes, octave switches, unison master) apply to all three voices of the trio; per-voice settings (rhythm, range, mute) apply individually.
@@ -112,3 +110,19 @@ This lets sounding notes finish after the performer stops the transport, guarant
 - **WHEN** the performer leaves the transport stopped
 - **THEN** downstream sequencer and gate state is reset
 - **AND** the timebase maintains stopped loop sizes, loop indexes, gates, phasors, and related variables according to accepted loop multipliers
+
+### Requirement: External Clock Boundary
+The Nonagon sequencer SHALL remain ignorant of MIDI realtime routing and clock synchronization internals. The surrounding SquiggleBoy integration SHALL convert visible realtime clock events into per-sample clock tick status, update the owned clock synchronizer, choose the effective Theory of Time tempo, and then provide normal Nonagon inputs before processing the sample.
+
+#### Scenario: Clock signal stays outside Nonagon logic
+- **WHEN** a MIDI clock event becomes visible on an audio sample
+- **THEN** the SquiggleBoy integration updates its owned synchronizer before setting Nonagon inputs
+- **AND** `TheNonagonInternal::Process` runs with normal timebase inputs and no direct MIDI clock dependency
+
+### Requirement: Per-Sample Tick Status
+The system SHALL clear the sample clock tick status after it has been consumed for the current sample, so a single MIDI clock event cannot be processed as multiple ticks on subsequent samples.
+
+#### Scenario: Tick is consumed once
+- **WHEN** one visible MIDI clock event is consumed on sample N
+- **THEN** the synchronizer receives true for sample N
+- **AND** it receives false on sample N + 1 unless another clock event is visible

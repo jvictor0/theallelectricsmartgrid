@@ -50,6 +50,16 @@ struct MidiInputHandler : public juce::MidiInputCallback
             const uint8_t* rawData = message.getRawData();
             SendMessage(SmartGrid::BasicMidi(timestampUs, m_routeId, rawData[0], rawData[1], rawData[2]));
         }
+        else if (message.getRawDataSize() == 1)
+        {
+            const uint8_t* rawData = message.getRawData();
+            if (SmartGrid::BasicMidi::IsSupportedRealtimeStatus(rawData[0]))
+            {
+                double timestampSeconds = message.getTimeStamp();
+                size_t timestampUs = timestampSeconds * 1000 * 1000;
+                SendMessage(SmartGrid::BasicMidi::Realtime(timestampUs, SmartGrid::MidiToMessageIn::x_realtimeRouteId, rawData[0]));
+            }
+        }
     }
 
     virtual void SendMessage(SmartGrid::BasicMidi msg) = 0;

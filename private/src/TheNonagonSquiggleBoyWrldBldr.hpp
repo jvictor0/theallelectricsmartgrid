@@ -471,6 +471,12 @@ struct TheNonagonSquiggleBoyWrldBldr
 
     void Apply(SmartGrid::MessageIn msg)
     {
+        if (msg.IsRealtime())
+        {
+            m_internal->Apply(msg);
+            return;
+        }
+
         Routes route = static_cast<Routes>(msg.m_routeId);
         switch (route)
         {
@@ -557,6 +563,7 @@ struct TheNonagonSquiggleBoyWrldBldr
         m_messageBus.SetRouteType(static_cast<int>(Routes::LeftGrid), SmartGrid::MidiToMessageIn::RouteType::LaunchPad);
         m_messageBus.SetRouteType(static_cast<int>(Routes::RightGrid), SmartGrid::MidiToMessageIn::RouteType::LaunchPad);
         m_messageBus.SetRouteType(static_cast<int>(Routes::AuxGrid), SmartGrid::MidiToMessageIn::RouteType::LaunchPad);
+        m_messageBus.SetRouteType(SmartGrid::MidiToMessageIn::x_realtimeRouteId, SmartGrid::MidiToMessageIn::RouteType::Realtime);
     }
 
     void ProcessSample()

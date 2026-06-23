@@ -572,6 +572,16 @@ struct NonagonWrapper
         return output;
     }
 
+    void SetExternalClock(bool externalClock)
+    {
+        m_internal.SetExternalClock(externalClock);
+    }
+
+    bool IsExternalClock() const
+    {
+        return m_internal.IsExternalClock();
+    }
+
     void ProcessFrame()
     {
         m_quadLaunchpadTwister.ProcessFrame();

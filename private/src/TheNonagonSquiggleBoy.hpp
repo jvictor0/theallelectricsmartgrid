@@ -11,9 +11,17 @@
 #include "MessageOut.hpp"
 #include "StateSaver.hpp"
 #include "SquiggleBoyConfig.hpp"
+#include "ExternalClockSync.hpp"
+#include <cassert>
 
 struct TheNonagonSquiggleBoyInternal
 {
+    enum class ClockMode : int
+    {
+        Internal,
+        External
+    };
+
     // Centralized scene manager - source of truth for scene state and shift
     //
     SmartGrid::SceneManager m_sceneManager;
@@ -60,6 +68,43 @@ struct TheNonagonSquiggleBoyInternal
     StateInterchange m_stateInterchange;
 
     SmartGrid::MessageOutBuffer m_messageOutBuffer;
+    ClockMode m_clockMode;
+    ExternalClockSync m_clockSynchronizer;
+    bool m_clockTick;
+
+    static int ExternalClockLoopIndexFromSwitch(int switchVal)
+    {
+        assert(switchVal >= 0);
+        assert(switchVal < TheoryOfTimeBase::x_numLoops);
+
+        return TheoryOfTimeBase::x_numLoops - switchVal - 1;
+    }
+
+    int ExternalClockLoopIndex()
+    {
+        using Param = SmartGridOneEncoders::Param;
+        return ExternalClockLoopIndexFromSwitch(m_squiggleBoy.m_encoders.GetSwitchVal(Param::ExternalClockLoop));
+    }
+
+    void SetClockMode(ClockMode clockMode)
+    {
+        m_clockMode = clockMode;
+    }
+
+    ClockMode GetClockMode() const
+    {
+        return m_clockMode;
+    }
+
+    void SetExternalClock(bool externalClock)
+    {
+        m_clockMode = externalClock ? ClockMode::External : ClockMode::Internal;
+    }
+
+    bool IsExternalClock() const
+    {
+        return m_clockMode == ClockMode::External;
+    }
 
     void SetRecordingDirectory(const char* directory)
     {
@@ -159,7 +204,33 @@ struct TheNonagonSquiggleBoyInternal
 
     void Apply(SmartGrid::MessageIn msg)
     {
-        if (msg.IsParamSet())
+        if (msg.m_mode == SmartGrid::MessageIn::Mode::MidiClock)
+        {
+            m_clockTick = true;
+        }
+        else if (msg.m_mode == SmartGrid::MessageIn::Mode::MidiStart || msg.m_mode == SmartGrid::MessageIn::Mode::MidiContinue)
+        {
+            if (m_clockMode == ClockMode::External)
+            {
+                m_clockSynchronizer.Start();
+            }
+            else
+            {
+                m_running = true;
+            }
+        }
+        else if (msg.m_mode == SmartGrid::MessageIn::Mode::MidiStop)
+        {
+            if (m_clockMode == ClockMode::External)
+            {
+                m_clockSynchronizer.Stop();
+            }
+            else
+            {
+                m_running = false;
+            }
+        }
+        else if (msg.IsParamSet())
         {
             HandleParamSet(msg);
         }
@@ -215,11 +286,25 @@ struct TheNonagonSquiggleBoyInternal
     void SetNonagonInputs()
     {
         m_nonagon.m_state.m_shift = m_sceneManager.m_shift;
-        m_nonagon.m_state.m_running = m_running;
 
         TheoryOfTime::Input& theoryOfTimeInput = m_nonagon.m_state.m_theoryOfTimeInput;
         
-        theoryOfTimeInput.m_freq = m_squiggleBoyState.m_tempo.m_expParam;
+        double internalFreq = m_squiggleBoyState.m_tempo.m_expParam;
+        theoryOfTimeInput.m_freq = internalFreq;
+
+        if (m_clockMode == ClockMode::External)
+        {
+            ExternalClockSync::Input clockSyncInput;
+            clockSyncInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
+            clockSyncInput.m_clockTick = m_clockTick;
+            clockSyncInput.m_loopIndex = ExternalClockLoopIndex();
+            m_clockSynchronizer.Process(clockSyncInput);
+            m_running = m_clockSynchronizer.IsRunning();
+            theoryOfTimeInput.m_freq = m_clockSynchronizer.EffectiveFreq();
+        }
+
+        m_nonagon.m_state.m_running = m_running;
+        m_clockTick = false;
 
         using Param = SmartGridOneEncoders::Param;
 
@@ -357,6 +442,8 @@ struct TheNonagonSquiggleBoyInternal
         , m_nonagon(false)
         , m_activeTrio(TheNonagonSmartGrid::Trio::Fire)
         , m_timer(0)
+        , m_clockMode(ClockMode::Internal)
+        , m_clockTick(false)
     {
         // Initialize components with scene manager pointer
         //

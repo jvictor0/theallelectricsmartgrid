@@ -117,6 +117,7 @@ F(PartialMachinePitchShiftDepth, PMPD, PartialMachine, 1, 3, 0, "Partial Machine
 F(PartialMachinePitchShift, PMPS, PartialMachine, 2, 3, 0.5, "Partial Machine Pitch Shift", SmartGrid::Color::Cyan, MachineFlags::x_all, MachineFlags::x_all, 0)
 F(PartialMachineVolume, PMVL, PartialMachine, 3, 3, 1, "Partial Machine Volume", SmartGrid::Color::Cyan, MachineFlags::x_all, MachineFlags::x_all, 0)
 F(Tempo, TMP, TheoryOfTime, 0, 0, 0.5, "Tempo", SmartGrid::Color::Yellow, MachineFlags::x_all, MachineFlags::x_all, 0)
+F(ExternalClockLoop, ECLK, TheoryOfTime, 1, 0, 0.6, "External Clock Loop", SmartGrid::Color::Yellow, MachineFlags::x_all, MachineFlags::x_all, 6)
 F(TempoLFOSkew, TLS, TheoryOfTime, 0, 2, 0.5, "Tempo LFO Skew", SmartGrid::Color::Yellow, MachineFlags::x_all, MachineFlags::x_all, 0)
 F(TempoLFOMult, TLM, TheoryOfTime, 1, 2, 0, "Tempo LFO Mult", SmartGrid::Color::Yellow, MachineFlags::x_all, MachineFlags::x_all, 0)
 F(TempoLFOShape, TLSH, TheoryOfTime, 2, 2, 0.5, "Tempo LFO Shape", SmartGrid::Color::Yellow, MachineFlags::x_all, MachineFlags::x_all, 0)

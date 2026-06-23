@@ -7,6 +7,7 @@
 #include "doctest.h"
 
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -33,6 +34,8 @@ std::string ReadFile(const std::string& path)
 
 bool WriteFile(const std::string& path, const std::string& content)
 {
+    std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+
     std::ofstream f(path, std::ios::binary | std::ios::trunc);
     if (!f)
     {

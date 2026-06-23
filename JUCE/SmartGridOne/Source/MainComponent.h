@@ -10,6 +10,7 @@
 #include "IOUtils.hpp"
 #include "WrldBuildrComponent.hpp"
 #include "Configuration.hpp"
+#include "ClockModeConfigJSON.hpp"
 #include "ThreadId.hpp"
 
 //==============================================================================
@@ -88,6 +89,7 @@ public:
         JSON config = arena.Object();
         JSON nonagonConfig = m_nonagon.ConfigToJSON(arena);
         nonagonConfig.SetNew("stereo", arena.Boolean(m_configuration.m_stereo));
+        ClockModeConfigJSON::WriteExternalClock(nonagonConfig, arena, m_configuration.m_externalClock);
         nonagonConfig.SetNew("audio_input_device", arena.String(m_configuration.m_audioInputDeviceName.toUTF8().getAddress()));
         nonagonConfig.SetNew("audio_output_device", arena.String(m_configuration.m_audioOutputDeviceName.toUTF8().getAddress()));
         config.SetNew("nonagon_config", nonagonConfig);
@@ -113,6 +115,8 @@ public:
                     m_configuration.m_stereo = stereoJ.BooleanValue();
                 }
 
+                m_configuration.m_externalClock = ClockModeConfigJSON::ReadExternalClock(nonagonConfig, false);
+
                 JSON audioInputDeviceJ = nonagonConfig.Get("audio_input_device");
                 const char* audioInputDeviceName = audioInputDeviceJ.StringValue();
                 if (audioInputDeviceName)
@@ -128,6 +132,7 @@ public:
                 }
 
                 m_nonagon.ConfigFromJSON(nonagonConfig);
+                m_nonagon.SetExternalClock(m_configuration.m_externalClock);
             }
 
             JSON fileConfig = config.Get("file_config");

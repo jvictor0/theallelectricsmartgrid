@@ -279,6 +279,7 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
         m_messageBus.SetRouteType(static_cast<int>(Routes::BottomRightGrid), SmartGrid::MidiToMessageIn::RouteType::LaunchPad);
         m_messageBus.SetRouteType(static_cast<int>(Routes::Encoder), SmartGrid::MidiToMessageIn::RouteType::Encoder);
         m_messageBus.SetRouteType(static_cast<int>(Routes::Param7), SmartGrid::MidiToMessageIn::RouteType::Param7);
+        m_messageBus.SetRouteType(SmartGrid::MidiToMessageIn::x_realtimeRouteId, SmartGrid::MidiToMessageIn::RouteType::Realtime);
     }
 
     void WriteUIState(UIState& uiState)
@@ -306,6 +307,12 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
 
     void Apply(SmartGrid::MessageIn msg)
     {
+        if (msg.IsRealtime())
+        {
+            m_internal->Apply(msg);
+            return;
+        }
+
         Routes route = static_cast<Routes>(msg.m_routeId);
         switch (route)
         {

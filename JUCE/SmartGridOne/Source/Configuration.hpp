@@ -6,6 +6,7 @@ struct Configuration
 {
     bool m_stereo = false;
     bool m_forceStereo = false;
+    bool m_externalClock = false;
     juce::String m_audioInputDeviceName;
     juce::String m_audioOutputDeviceName;
 };

@@ -727,7 +727,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
             m_modIndex.SetBaseByCenter(1.0 / 16);
 
             float paramFilterFreq = 0.1 / 48000.0 * SampleTimer::x_controlFrameRate;
-            m_freqFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoSkewFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoMultFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoShapeFilter.SetAlphaFromNatFreq(paramFilterFreq);
@@ -736,7 +735,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
             m_lfoIndexFilter.SetAlphaFromNatFreq(paramFilterFreq);
         }
 
-        OPLowPassFilter m_freqFilter;
         OPLowPassFilter m_lfoSkewFilter;
         OPLowPassFilter m_lfoMultFilter;
         OPLowPassFilter m_lfoShapeFilter;

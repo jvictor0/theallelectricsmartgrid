@@ -171,6 +171,11 @@ public:
         addAndMakeVisible(m_stereoCheckbox);
         m_stereoCheckbox.onClick = [this]() { OnStereoCheckboxChanged(); };
 
+        m_externalClockCheckbox.setButtonText("External MIDI Clock");
+        m_externalClockCheckbox.setSize(180, 30);
+        addAndMakeVisible(m_externalClockCheckbox);
+        m_externalClockCheckbox.onClick = [this]() { OnExternalClockCheckboxChanged(); };
+
         addAndMakeVisible(m_audioInputRow);
         addAndMakeVisible(m_audioOutputRow);
 
@@ -180,6 +185,7 @@ public:
         RefreshCurrentValues();
         RefreshAudioValues();
         RefreshStereoCheckbox();
+        RefreshExternalClockCheckbox();
 
         m_initialAudioInputDeviceName = GetSelectedAudioInputDeviceName();
         m_initialAudioOutputDeviceName = GetSelectedAudioOutputDeviceName();
@@ -205,6 +211,7 @@ public:
 
         auto stereoBounds = bounds.removeFromTop(40);
         m_stereoCheckbox.setBounds(stereoBounds.removeFromLeft(150).reduced(5));
+        m_externalClockCheckbox.setBounds(stereoBounds.removeFromLeft(220).reduced(5));
 
         const int audioRowHeight = 30;
         const int audioRowWidth = 350;
@@ -562,10 +569,22 @@ public:
         m_configuration->m_stereo = m_stereoCheckbox.getToggleState();
     }
 
+    void OnExternalClockCheckboxChanged()
+    {
+        m_configuration->m_externalClock = m_externalClockCheckbox.getToggleState();
+        m_nonagon->SetExternalClock(m_configuration->m_externalClock);
+    }
+
     void RefreshStereoCheckbox()
     {
         m_stereoCheckbox.setToggleState(m_configuration->m_stereo, juce::dontSendNotification);
         m_stereoCheckbox.setEnabled(!m_configuration->m_forceStereo);
+    }
+
+    void RefreshExternalClockCheckbox()
+    {
+        m_configuration->m_externalClock = m_nonagon->IsExternalClock();
+        m_externalClockCheckbox.setToggleState(m_configuration->m_externalClock, juce::dontSendNotification);
     }
 
     NonagonWrapper* m_nonagon;
@@ -579,6 +598,7 @@ public:
     ConfigDropdownRow m_audioInputRow;
     ConfigDropdownRow m_audioOutputRow;
     juce::ToggleButton m_stereoCheckbox;
+    juce::ToggleButton m_externalClockCheckbox;
     juce::String m_initialAudioInputDeviceName;
     juce::String m_initialAudioOutputDeviceName;
     Configuration* m_configuration;

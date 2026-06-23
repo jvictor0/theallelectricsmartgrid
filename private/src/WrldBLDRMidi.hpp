@@ -3,6 +3,7 @@
 #include "MessageIn.hpp"
 #include "BasicMidi.hpp"
 #include "EncoderMidi.hpp"
+#include "MidiToMessageIn.hpp"
 #include "TheNonagonSquiggleBoyWrldBldr.hpp"
 #include "YaeltexHSV.hpp"
 #include "EncoderUIState.hpp"
@@ -13,7 +14,23 @@ namespace SmartGrid
     {
         static MessageIn FromMidi(BasicMidi msg)
         {
-            if (msg.Channel() == 0 || msg.Channel() == 1)
+            if (msg.m_msg[0] == BasicMidi::x_statusClock)
+            {
+                return MessageIn(msg.m_timestamp, MidiToMessageIn::x_realtimeRouteId, MessageIn::Mode::MidiClock, 0, 0);
+            }
+            else if (msg.m_msg[0] == BasicMidi::x_statusTransportStart)
+            {
+                return MessageIn(msg.m_timestamp, MidiToMessageIn::x_realtimeRouteId, MessageIn::Mode::MidiStart, 0, 0);
+            }
+            else if (msg.m_msg[0] == BasicMidi::x_statusTransportContinue)
+            {
+                return MessageIn(msg.m_timestamp, MidiToMessageIn::x_realtimeRouteId, MessageIn::Mode::MidiContinue, 0, 0);
+            }
+            else if (msg.m_msg[0] == BasicMidi::x_statusTransportStop)
+            {
+                return MessageIn(msg.m_timestamp, MidiToMessageIn::x_realtimeRouteId, MessageIn::Mode::MidiStop, 0, 0);
+            }
+            else if (msg.Channel() == 0 || msg.Channel() == 1)
             {
                 MessageIn message = EncoderMidi::FromMidi(msg);
                 message.m_routeId = static_cast<int>(TheNonagonSquiggleBoyWrldBldr::Routes::Encoder);

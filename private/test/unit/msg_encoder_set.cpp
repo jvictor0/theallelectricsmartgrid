@@ -20,6 +20,7 @@
 
 #include "MessageIn.hpp"
 #include "MessageInBus.hpp"
+#include "MessageInLatency.hpp"
 #include "TheNonagonSquiggleBoy.hpp"
 
 namespace
@@ -75,7 +76,7 @@ void ApplyAndRun(SmartGrid::MessageInBus& bus,
                  size_t timestamp)
 {
     bus.Push(msg);
-    bus.ProcessMessages(&system, timestamp);
+    bus.ProcessMessages(&system, SmartGrid::MessageInLatency::WithLatency(msg.m_timestamp));
     SystemFixture::RunFrame(system);
 }
 

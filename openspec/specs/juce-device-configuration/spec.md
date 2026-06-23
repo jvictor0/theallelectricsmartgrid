@@ -2,9 +2,7 @@
 
 ## Purpose
 The JUCE device configuration layer covers the Smart Grid One config page's device-selection controls for controller MIDI and application audio devices. It keeps UI dropdown population, current-value selection, change detection, runtime application, and config JSON persistence explicit at the JUCE UI boundary without changing controller protocol, MIDI transport, or DSP behavior.
-
 ## Requirements
-
 ### Requirement: Typed Config Dropdown Rows
 The JUCE config page SHALL present each device or mode selection through a typed row component that owns its label, dropdown items, current selection, and change notification. The row component SHALL use JUCE component overrides for layout/painting behavior and SHALL keep its implementation local to the config-page source surface.
 
@@ -70,3 +68,27 @@ The application SHALL save selected audio input and audio output device names in
 - **WHEN** config JSON does not contain audio input or audio output fields
 - **THEN** loading config succeeds
 - **AND** the audio input and output configuration remain default or empty
+
+### Requirement: Clock Mode Configuration Toggle
+The JUCE config page SHALL include a toggle control for clock mode with internal clock and external MIDI clock states. The toggle SHALL initialize from the current configuration, update the runtime clock mode when changed, and preserve the existing MIDI/audio configuration behavior on the page.
+
+#### Scenario: Config page shows current clock mode
+- **WHEN** the user opens the config page and the runtime clock mode is external
+- **THEN** the clock mode toggle displays external clock mode
+
+#### Scenario: Toggle updates runtime clock mode
+- **WHEN** the user changes the clock mode toggle from internal to external
+- **THEN** the Nonagon wrapper or internal integration receives external clock mode before audio processing continues
+
+### Requirement: Clock Mode Persists In Config JSON
+The application SHALL save the selected clock mode in config JSON and restore it on startup. Missing clock-mode fields in older config JSON SHALL be treated as internal clock mode.
+
+#### Scenario: External clock survives config save load
+- **WHEN** the user selects external clock mode and the application saves config JSON
+- **THEN** the saved config contains the external clock mode selection
+- **AND** a later config load restores external clock mode
+
+#### Scenario: Older config remains internal
+- **WHEN** config JSON does not contain a clock-mode field
+- **THEN** loading config succeeds
+- **AND** clock mode remains internal

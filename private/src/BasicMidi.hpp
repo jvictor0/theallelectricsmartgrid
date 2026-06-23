@@ -17,6 +17,7 @@ namespace SmartGrid
         static constexpr uint8_t x_statusAfterTouch = 0xD0;
         static constexpr uint8_t x_statusPolyAfterTouch = 0xA0;
         static constexpr uint8_t x_statusTransportStart = 0xFA;
+        static constexpr uint8_t x_statusTransportContinue = 0xFB;
         static constexpr uint8_t x_statusTransportStop = 0xFC;
         static constexpr uint8_t x_statusClock = 0xF8;
 
@@ -87,6 +88,11 @@ namespace SmartGrid
         {
             return BasicMidi(timestamp, -1, x_statusTransportStart, 0, 0);
         }
+
+        static BasicMidi TransportContinue(size_t timestamp)
+        {
+            return BasicMidi(timestamp, -1, x_statusTransportContinue, 0, 0);
+        }
         
         static BasicMidi TransportStop(size_t timestamp)
         {
@@ -96,6 +102,19 @@ namespace SmartGrid
         static BasicMidi Clock(size_t timestamp)
         {
             return BasicMidi(timestamp, -1, x_statusClock, 0, 0);
+        }
+
+        static BasicMidi Realtime(size_t timestamp, int routeId, uint8_t status)
+        {
+            return BasicMidi(timestamp, routeId, status, 0, 0);
+        }
+
+        static bool IsSupportedRealtimeStatus(uint8_t status)
+        {
+            return status == x_statusClock
+                || status == x_statusTransportStart
+                || status == x_statusTransportContinue
+                || status == x_statusTransportStop;
         }
 
         uint8_t Channel()
