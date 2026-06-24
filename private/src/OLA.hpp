@@ -56,6 +56,19 @@ struct QuadDFT
 {
     OLA::DFT m_dfts[4];
 
+    void AddComponent(size_t componentIndex, std::complex<float> value, QuadFloat distribution)
+    {
+        if (componentIndex == 0 || OLA::x_maxComponents <= componentIndex)
+        {
+            return;
+        }
+
+        for (int i = 0; i < 4; ++i)
+        {
+            m_dfts[i].m_components[componentIndex] += value * distribution[i];
+        }
+    }
+
     void WriteWindowedPartial(float magnitude, float phase, float exactFrequency, QuadFloat distribution)
     {
         for (int i = 0; i < 4; ++i)

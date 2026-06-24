@@ -138,12 +138,21 @@ struct FrequencyDependentParameter
         {
             return FrequencyDependentParameter::GetIndexForFrequency(frequency, ToInput());
         }
+
+        Index GetIndexForLogFrequency(float logFrequency) const
+        {
+            return FrequencyDependentParameter::GetIndexForLogFrequency(logFrequency, ToInput());
+        }
     };
 
-    static Index GetIndexForFrequency(float input, const Input& parameterInput)
+    static Index GetIndexForFrequency(float frequency, const Input& parameterInput)
     {
-        float linearInput = FrequencyToLinear(input);
-        int before = std::lower_bound(m_anchors, m_anchors + x_numParameters, linearInput) - m_anchors;
+        return GetIndexForLogFrequency(FrequencyToLinear(frequency), parameterInput);
+    }
+
+    static Index GetIndexForLogFrequency(float logFrequency, const Input& parameterInput)
+    {
+        int before = std::lower_bound(m_anchors, m_anchors + x_numParameters, logFrequency) - m_anchors;
         float linearF;
         if (before == 0)
         {
@@ -155,12 +164,12 @@ struct FrequencyDependentParameter
         }
         else
         {
-            float t = (linearInput - m_anchors[before - 1]) / (m_anchors[before] - m_anchors[before - 1]);
+            float t = (logFrequency - m_anchors[before - 1]) / (m_anchors[before] - m_anchors[before - 1]);
             Index intermediateIndex(t, before - 1);
             linearF = parameterInput.m_linearFreqs.Process(intermediateIndex);
         }
 
-        float linearT = linearInput * linearF;
+        float linearT = logFrequency * linearF;
 
         float segmentPosition = linearT * x_numParameters;
         float segmentFloor = std::floor(segmentPosition);
@@ -213,9 +222,19 @@ struct ScalarParameter
         std::ignore = parameterInput;
     }
 
-    static Index GetIndexForFrequency(float input, const Input& parameterInput)
+    static float FrequencyToLinear(float frequency)
     {
-        std::ignore = input;
+        return frequency;
+    }
+
+    static Index GetIndexForFrequency(float frequency, const Input& parameterInput)
+    {
+        return GetIndexForLogFrequency(FrequencyToLinear(frequency), parameterInput);
+    }
+
+    static Index GetIndexForLogFrequency(float logFrequency, const Input& parameterInput)
+    {
+        std::ignore = logFrequency;
         std::ignore = parameterInput;
         return Index();
     }

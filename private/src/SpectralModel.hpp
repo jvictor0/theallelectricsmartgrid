@@ -53,20 +53,23 @@ struct SpectralModelGeneric
     {
         float m_analysisOmega;
         float m_analysisMagnitude;
+        float m_analysisPhase;
         ParameterIndex m_index;
         bool m_isSynthetic;
         
         AnalysisAtom()
             : m_analysisOmega(0.0f)
             , m_analysisMagnitude(0.0f)
+            , m_analysisPhase(0.0f)
             , m_index()
             , m_isSynthetic(false)
         {
         }
 
-        AnalysisAtom(float analysisOmega, float analysisMagnitude, ParameterIndex index, bool isSynthetic)
+        AnalysisAtom(float analysisOmega, float analysisMagnitude, float analysisPhase, ParameterIndex index, bool isSynthetic)
             : m_analysisOmega(analysisOmega)
             , m_analysisMagnitude(analysisMagnitude)
+            , m_analysisPhase(analysisPhase)
             , m_index(index)
             , m_isSynthetic(isSynthetic)
         {
@@ -144,7 +147,15 @@ struct SpectralModelGeneric
         }
 
         Atom(float analysisOmega, float analysisMagnitude, ParameterIndex index, float synthesisOmega, float synthesisMagnitude, float synthesisPhase)
-            : AnalysisAtom(analysisOmega, analysisMagnitude, index, false)
+            : AnalysisAtom(analysisOmega, analysisMagnitude, 0.0f, index, false)
+            , m_synthesisOmega(synthesisOmega)
+            , m_synthesisMagnitude(synthesisMagnitude)
+            , m_synthesisPhase(synthesisPhase)
+        {
+        }
+
+        Atom(float analysisOmega, float analysisMagnitude, float analysisPhase, ParameterIndex index, float synthesisOmega, float synthesisMagnitude, float synthesisPhase)
+            : AnalysisAtom(analysisOmega, analysisMagnitude, analysisPhase, index, false)
             , m_synthesisOmega(synthesisOmega)
             , m_synthesisMagnitude(synthesisMagnitude)
             , m_synthesisPhase(synthesisPhase)
@@ -159,6 +170,7 @@ struct SpectralModelGeneric
             m_synthesisMagnitude = BiDirectionalSlew::Process(m_synthesisMagnitude, analysisAtom.m_analysisMagnitude, slewUpAlpha, slewDownAlpha);
             AnalysisAtom::m_analysisOmega = analysisAtom.m_analysisOmega;
             AnalysisAtom::m_analysisMagnitude = analysisAtom.m_analysisMagnitude;
+            AnalysisAtom::m_analysisPhase = analysisAtom.m_analysisPhase;
             AnalysisAtom::m_index = analysisAtom.m_index;
             AnalysisAtom::m_isSynthetic = analysisAtom.m_isSynthetic;
             m_synthesisOmega = Slew::Process(m_synthesisOmega, analysisAtom.m_analysisOmega, omegaPortamentoAlpha);
@@ -261,6 +273,59 @@ struct SpectralModelGeneric
         }
     };
 
+    struct ResidualModel
+    {
+        static constexpr size_t x_numBuckets = DFT::x_maxComponents;
+
+        struct Input
+        {
+            float m_analysisResidualMagnitudes[x_numBuckets];
+
+            Input()
+                : m_analysisResidualMagnitudes{}
+            {
+            }
+        };
+
+        float m_magnitudes[x_numBuckets];
+        float m_frequencies[x_numBuckets];
+        float m_logFrequencies[x_numBuckets];
+
+        ResidualModel()
+            : m_magnitudes{}
+            , m_frequencies{}
+            , m_logFrequencies{}
+        {
+            for (size_t i = 0; i < x_numBuckets; ++i)
+            {
+                m_frequencies[i] = static_cast<float>(i) / static_cast<float>(x_tableSize);
+                size_t parameterBucket = std::max<size_t>(i, 1);
+                float parameterFrequency = static_cast<float>(parameterBucket) / static_cast<float>(x_tableSize);
+                m_logFrequencies[i] = ParameterProvider::FrequencyToLinear(parameterFrequency);
+            }
+        }
+
+        float GetEnvelope(size_t bucketIndex) const
+        {
+            return m_magnitudes[bucketIndex];
+        }
+
+        void Process(SpectralModelGeneric::Input& spectralInput, Input& residualInput)
+        {
+            for (size_t i = 0; i < x_numBuckets; ++i)
+            {
+                ParameterIndex index = ParameterProvider::GetIndexForLogFrequency(m_logFrequencies[i], spectralInput.m_parameterInput);
+                float slewUpAlpha = spectralInput.m_slewUpAlpha.Process(index);
+                float slewDownAlpha = spectralInput.m_slewDownAlpha.Process(index);
+                m_magnitudes[i] = BiDirectionalSlew::Process(
+                    m_magnitudes[i],
+                    residualInput.m_analysisResidualMagnitudes[i],
+                    slewUpAlpha,
+                    slewDownAlpha);
+            }
+        }
+    };
+
     void ExtractAnalysisAtoms(DFT& dft, AnalysisAtomArray& analysisAtoms, Input& input)
     {
         analysisAtoms.Clear();
@@ -302,8 +367,10 @@ struct SpectralModelGeneric
                 }
 
                 float peakOmega = (static_cast<float>(k) + p) / static_cast<float>(x_tableSize);
+                int phaseBin = std::max(1, std::min(static_cast<int>(x_maxComponents) - 1, static_cast<int>(std::round(static_cast<float>(k) + p))));
+                float peakPhase = std::arg(dft.m_components[phaseBin]) / (2.0f * static_cast<float>(M_PI));
                 ParameterIndex index = ParameterProvider::GetIndexForFrequency(peakOmega, input.m_parameterInput);
-                analysisAtoms.Add(AnalysisAtom(peakOmega, peakMag, index, false));
+                analysisAtoms.Add(AnalysisAtom(peakOmega, peakMag, peakPhase, index, false));
             }
         }
 
@@ -323,7 +390,7 @@ struct SpectralModelGeneric
                     float harmonicOmega = analysisAtom.m_analysisOmega * static_cast<float>(j + 2);
                     ParameterIndex index = ParameterProvider::GetIndexForFrequency(harmonicOmega, input.m_parameterInput);
                     float harmonicMagnitude = analysisAtom.m_analysisMagnitude * input.m_syntheticHarmonics[j].Process(index);
-                    analysisAtoms.Add(AnalysisAtom(harmonicOmega, harmonicMagnitude, index, true));
+                    analysisAtoms.Add(AnalysisAtom(harmonicOmega, harmonicMagnitude, analysisAtom.m_analysisPhase, index, true));
                 }
             }
         }
@@ -395,12 +462,8 @@ struct SpectralModelGeneric
         }
     }
 
-    void ExtractAtoms(Buffer& buffer, Input& input)
+    void TrackAnalysisAtoms(AnalysisAtomArray& analysisAtoms, Input& input)
     {
-        DFT dft;
-        dft.Transform(buffer);
-        AnalysisAtomArray analysisAtoms;
-        ExtractAnalysisAtoms(dft, analysisAtoms, input);
         m_atoms.SortByReverseMagnitude();
         for (size_t i = 0; i < m_atoms.Size(); ++i)
         {
@@ -413,7 +476,7 @@ struct SpectralModelGeneric
             {
                 float slewUpAlpha = input.m_slewUpAlpha.Process(analysisAtom.m_index);
                 float initMag = std::max(Slew::Process(0, analysisAtom.m_analysisMagnitude, slewUpAlpha), x_deathMag);
-                Atom newAtom(analysisAtom.m_analysisOmega, analysisAtom.m_analysisMagnitude, analysisAtom.m_index, analysisAtom.m_analysisOmega, initMag, 0);
+                Atom newAtom(analysisAtom.m_analysisOmega, analysisAtom.m_analysisMagnitude, analysisAtom.m_analysisPhase, analysisAtom.m_index, analysisAtom.m_analysisOmega, initMag, 0);
                 m_atoms.Add(newAtom);
             }
         }
@@ -426,12 +489,46 @@ struct SpectralModelGeneric
         }
     }
 
+    void ExtractAtoms(Buffer& buffer, Input& input)
+    {
+        DFT dft;
+        dft.Transform(buffer);
+        AnalysisAtomArray analysisAtoms;
+        ExtractAnalysisAtoms(dft, analysisAtoms, input);
+        TrackAnalysisAtoms(analysisAtoms, input);
+    }
+
+    void ExtractAtomsAndResidual(Buffer& buffer, Input& input)
+    {
+        DFT dft;
+        dft.Transform(buffer);
+        AnalysisAtomArray analysisAtoms;
+        ExtractAnalysisAtoms(dft, analysisAtoms, input);
+        typename ResidualModel::Input residualInput;
+        for (AnalysisAtom& analysisAtom : analysisAtoms)
+        {
+            if (!analysisAtom.m_isSynthetic)
+            {
+                dft.WriteWindowedPartial(analysisAtom.m_analysisPhase + 0.5f, analysisAtom.m_analysisMagnitude, analysisAtom.m_analysisOmega);
+            }
+        }
+
+        for (size_t i = 0; i < ResidualModel::x_numBuckets; ++i)
+        {
+            residualInput.m_analysisResidualMagnitudes[i] = std::abs(dft.m_components[i]);
+        }
+
+        m_residualModel.Process(input, residualInput);
+        TrackAnalysisAtoms(analysisAtoms, input);
+    }
+
     bool IsAtomAllocated(Atom* atom) const
     {
         return m_atoms.IsAtomAllocated(atom);
     }
 
     AtomsArrayWithIndex m_atoms;
+    ResidualModel m_residualModel;
 };
 
 using SpectralModel = SpectralModelGeneric<12, ScalarParameter>;

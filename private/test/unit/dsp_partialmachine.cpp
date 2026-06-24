@@ -22,6 +22,7 @@
 #include "doctest.h"
 
 #include <algorithm>
+#include <complex>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -277,4 +278,69 @@ DOCTEST_TEST_CASE("PartialMachine: two-partial sine input -> finite output")
     {
         DOCTEST_CHECK(std::abs(ch0[i]) < 5.0f);
     }
+}
+
+DOCTEST_TEST_CASE("QuadDFT residual component add preserves existing component")
+{
+    QuadDFT dft;
+    constexpr size_t k = 8;
+    dft.m_dfts[0].m_components[k] = std::complex<float>(1.0f, 0.0f);
+
+    dft.AddComponent(k, std::complex<float>(2.0f, 0.0f), QuadFloat(1.0f, 0.0f, 0.0f, 0.0f));
+
+    DOCTEST_CHECK(dft.m_dfts[0].m_components[k].real() == doctest::Approx(3.0f));
+    DOCTEST_CHECK(dft.m_dfts[0].m_components[k].imag() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_dfts[1].m_components[k].real() == doctest::Approx(0.0f));
+}
+
+DOCTEST_TEST_CASE("PartialMachine residual feedback writes reduced magnitude back")
+{
+    GlobalEnv::ResetPerTest();
+
+    PartialMachine pm;
+    PartialMachine::Input input = MakeBasicInput();
+    input.m_synthesisContextInput.m_bwBaseFrequency = FrequencyDependentParameter::Parameter(0.25f);
+    input.m_synthesisContextInput.m_bwWidth = FrequencyDependentParameter::Parameter(1.0f);
+    input.m_synthesisContextInput.m_reductionFeedback = FrequencyDependentParameter::Parameter(1.0f);
+
+    constexpr size_t k = 8;
+    pm.m_spectralModel.m_residualModel.m_magnitudes[k] = 1.0f;
+    pm.ProcessSynthesisFrame(input);
+
+    DOCTEST_CHECK(pm.m_spectralModel.m_residualModel.m_magnitudes[k] < 1.0f);
+    DOCTEST_CHECK(pm.m_spectralModel.m_residualModel.m_magnitudes[k] >= PartialMachine::SpectralModel::x_deathMag);
+}
+
+DOCTEST_TEST_CASE("PartialMachine residual synthesis produces finite bounded output")
+{
+    GlobalEnv::ResetPerTest();
+
+    PartialMachine pm;
+    PartialMachine::Input input = MakeBasicInput();
+
+    constexpr size_t k = 32;
+    pm.m_spectralModel.m_residualModel.m_magnitudes[k] = 0.25f;
+    pm.ProcessSynthesisFrame(input);
+
+    std::vector<float> output(PartialMachine::SpectralModel::x_tableSize * 4);
+    for (size_t i = 0; i < PartialMachine::SpectralModel::x_tableSize; ++i)
+    {
+        QuadFloat out = pm.m_ola.Process();
+        for (size_t ch = 0; ch < 4; ++ch)
+        {
+            output[i * 4 + ch] = out[ch];
+        }
+    }
+
+    TestNan::AssertClean(output.data(), output.size());
+
+    float rms = 0.0f;
+    for (float v : output)
+    {
+        rms += v * v;
+        DOCTEST_CHECK(std::abs(v) < 5.0f);
+    }
+
+    rms = std::sqrt(rms / static_cast<float>(output.size()));
+    DOCTEST_CHECK(rms > 1e-8f);
 }

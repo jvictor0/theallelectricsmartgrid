@@ -232,6 +232,36 @@ struct PartialMachine
         }
     };
 
+    struct ResidualMachine
+    {
+        RGen m_gen;
+
+        void Process(QuadDFT& dft, SpectralModel& spectralModel, Input& input)
+        {
+            for (size_t k = 1; k < SpectralModel::ResidualModel::x_numBuckets; ++k)
+            {
+                float frequency = spectralModel.m_residualModel.m_frequencies[k];
+                float logFrequency = spectralModel.m_residualModel.m_logFrequencies[k];
+                Index index = FrequencyDependentParameter::GetIndexForLogFrequency(logFrequency, input.m_spectralModelInput.m_parameterInput);
+                float envelope = spectralModel.m_residualModel.GetEnvelope(k);
+                float reduction = SynthesisContext::GetReduction(frequency, index, input.m_synthesisContextInput);
+                float reducedMagnitude = envelope * reduction;
+                float radius = SynthesisContext::GetRadius(frequency, index, input.m_synthesisContextInput);
+                float azimuth = SynthesisContext::GetAzimuth(frequency, index, input.m_synthesisContextInput);
+                QuadFloat distribution = SynthesisContext::Pan(azimuth, radius);
+                float phase = m_gen.UniGen();
+                std::complex<float> value(
+                    reducedMagnitude * Math::Cos2pi(phase),
+                    reducedMagnitude * Math::Sin2pi(phase));
+                dft.AddComponent(k, value, distribution);
+                spectralModel.m_residualModel.m_magnitudes[k] = PhaseUtils::ExpParam::Compute(
+                    envelope,
+                    std::max(SpectralModel::x_deathMag, reducedMagnitude),
+                    input.m_synthesisContextInput.m_reductionFeedback.ProcessLinear(index));
+            }
+        }
+    };
+
     struct InputSetter
     {
         static constexpr float x_hopSeconds = static_cast<float>(SpectralModel::x_H) / static_cast<float>(SampleTimer::x_sampleRate);
@@ -376,6 +406,7 @@ struct PartialMachine
             synthesisContext.ProcessAtom(*m_spectralModel.m_atoms[i], input.m_synthesisContextInput);
         }
 
+        m_residualMachine.Process(synthesisContext.m_dft, m_spectralModel, input);
         m_ola.Write(synthesisContext.m_dft);
     }
 
@@ -394,7 +425,7 @@ struct PartialMachine
                 buffer.m_table[i] = m_buffer.m_table[(m_index + i) % SpectralModel::x_tableSize] * Math4096::Hann(i);
             }
 
-            m_spectralModel.ExtractAtoms(buffer, input.m_spectralModelInput);
+            m_spectralModel.ExtractAtomsAndResidual(buffer, input.m_spectralModelInput);
             ProcessSynthesisFrame(input);
         }
 
@@ -539,6 +570,7 @@ struct PartialMachine
     size_t m_index;
     SpectralModel::Buffer m_buffer;
     SpectralModel m_spectralModel;
+    ResidualMachine m_residualMachine;
     QuadOLA m_ola;
     ScopeWriterHolder m_scopeWriter;
 };
