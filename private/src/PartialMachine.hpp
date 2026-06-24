@@ -255,7 +255,7 @@ struct PartialMachine
                     reducedMagnitude * Math::Sin2pi(phase));
                 dft.AddComponent(k, value, distribution);
                 spectralModel.m_residualModel.m_magnitudes[k] = PhaseUtils::ExpParam::Compute(
-                    envelope,
+                    std::max(SpectralModel::x_deathMag, envelope),
                     std::max(SpectralModel::x_deathMag, reducedMagnitude),
                     input.m_synthesisContextInput.m_reductionFeedback.ProcessLinear(index));
             }
