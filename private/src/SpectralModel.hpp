@@ -199,6 +199,24 @@ struct SpectralModelGeneric
         {
             return CmpReverseMagnitude(*a, *b);
         }
+
+        static bool CmpReverseSynthesisMagnitude(const Atom& a, const Atom& b)
+        {
+            bool aFinite = std::isfinite(a.m_synthesisMagnitude);
+            bool bFinite = std::isfinite(b.m_synthesisMagnitude);
+
+            if (aFinite != bFinite)
+            {
+                return aFinite;
+            }
+
+            return b.m_synthesisMagnitude < a.m_synthesisMagnitude;
+        }
+
+        static bool CmpReverseSynthesisMagnitudePtr(Atom* const & a, Atom* const & b)
+        {
+            return CmpReverseSynthesisMagnitude(*a, *b);
+        }
     };
 
     using AnalysisAtomArray = Array<AnalysisAtom, x_maxAtoms>;
@@ -220,6 +238,11 @@ struct SpectralModelGeneric
         void SortByReverseMagnitude()
         {
             m_atoms.Sort(Atom::CmpReverseMagnitudePtr);
+        }
+
+        void SortByReverseSynthesisMagnitude()
+        {
+            m_atoms.Sort(Atom::CmpReverseSynthesisMagnitudePtr);
         }
 
         void Pop()
@@ -481,9 +504,11 @@ struct SpectralModelGeneric
             }
         }
 
-        m_atoms.SortByReverseMagnitude();
+        m_atoms.SortByReverseSynthesisMagnitude();
         m_atoms.ShrinkIfNecessary(input.m_numAtoms);
-        while (!m_atoms.Empty() && m_atoms.Back()->m_synthesisMagnitude < x_deathMag)
+        while (!m_atoms.Empty()
+            && (!std::isfinite(m_atoms.Back()->m_synthesisMagnitude)
+                || m_atoms.Back()->m_synthesisMagnitude < x_deathMag))
         {
             m_atoms.Pop();
         }

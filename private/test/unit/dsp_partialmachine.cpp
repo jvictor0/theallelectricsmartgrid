@@ -344,3 +344,131 @@ DOCTEST_TEST_CASE("PartialMachine residual synthesis produces finite bounded out
     rms = std::sqrt(rms / static_cast<float>(output.size()));
     DOCTEST_CHECK(rms > 1e-8f);
 }
+
+DOCTEST_TEST_CASE("PartialMachine: espace etale parameter slice stays finite under hot noise")
+{
+    GlobalEnv::ResetPerTest();
+
+    PartialMachine pm;
+    PartialMachine::InputSetter setter;
+    PartialMachine::InputSetter::Input knobInput;
+    PartialMachine::Input input;
+
+    knobInput.m_attack = QuadFloat(0.0667798817f, 0.5f, 0.5f, 0.5f);
+    knobInput.m_decay = QuadFloat(0.0f, 0.5f, 0.5f, 0.5f);
+    knobInput.m_density = QuadFloat(0.00100000005f, 0.5f, 0.5f, 0.5f);
+    knobInput.m_portamento = QuadFloat(0.00100000005f, 0.0f, 0.0f, 0.0f);
+    knobInput.m_bwBaseFrequency = QuadFloat(0.117253542f, 0.4f, 0.4f, 0.4f);
+    knobInput.m_bwWidth = QuadFloat(0.872154236f, 0.3f, 0.3f, 0.3f);
+    knobInput.m_reductionFeedback = QuadFloat(0.00100000005f, 0.0f, 0.0f, 0.0f);
+    knobInput.m_bassCutoff = QuadFloat(0.242253527f, 0.0f, 0.0f, 0.0f);
+    knobInput.m_azimuthFactor = QuadFloat(0.219369963f, 0.5f, 0.5f, 0.5f);
+    knobInput.m_unison = QuadFloat(0.0f, 0.0f, 0.0f, 0.0f);
+    knobInput.m_parameterLinearFrequency = QuadFloat(0.192526296f, 0.5f, 0.5f, 0.5f);
+    knobInput.m_pitchShiftDepth = QuadFloat(0.00100000005f, 0.0f, 0.0f, 0.0f);
+    knobInput.m_pitchShift = QuadFloat(0.50326103f, 0.5f, 0.5f, 0.5f);
+    knobInput.m_volume = QuadFloat(1.0f, 1.0f, 1.0f, 1.0f);
+
+    TestSignal::WhiteNoise noise(0xE5FACE57A1EULL);
+    bool anyBad = false;
+    float maxAbs = 0.0f;
+    int firstBadSample = -1;
+    int firstBadChannel = -1;
+    size_t badAtoms = 0;
+    size_t badResiduals = 0;
+    size_t badOlaSamples = 0;
+    size_t firstBadAtom = 0;
+    float badAnalysisOmega = 0.0f;
+    float badAnalysisMagnitude = 0.0f;
+    float badSynthesisOmega = 0.0f;
+    float badSynthesisMagnitude = 0.0f;
+    double badSynthesisPhase = 0.0;
+    float lastInputSample = 0.0f;
+
+    for (int i = 0; i < 240000; ++i)
+    {
+        setter.SetInput(knobInput, input);
+
+        float sample = noise.Next() * 4.0f;
+        lastInputSample = sample;
+        QuadFloat out = pm.Process(QuadFloat(sample, sample, sample, sample), input);
+        for (size_t ch = 0; ch < 4; ++ch)
+        {
+            if (!std::isfinite(out[ch]))
+            {
+                anyBad = true;
+                firstBadSample = i;
+                firstBadChannel = static_cast<int>(ch);
+                break;
+            }
+
+            if (std::isfinite(out[ch]))
+            {
+                maxAbs = std::max(maxAbs, std::abs(out[ch]));
+            }
+        }
+
+        if (anyBad)
+        {
+            break;
+        }
+    }
+
+    for (size_t i = 0; i < pm.m_spectralModel.m_atoms.Size(); ++i)
+    {
+        auto* atom = pm.m_spectralModel.m_atoms[i];
+        if (!std::isfinite(atom->m_analysisOmega)
+            || !std::isfinite(atom->m_analysisMagnitude)
+            || !std::isfinite(atom->m_synthesisOmega)
+            || !std::isfinite(atom->m_synthesisMagnitude)
+            || !std::isfinite(atom->m_synthesisPhase))
+        {
+            if (badAtoms == 0)
+            {
+                firstBadAtom = i;
+                badAnalysisOmega = atom->m_analysisOmega;
+                badAnalysisMagnitude = atom->m_analysisMagnitude;
+                badSynthesisOmega = atom->m_synthesisOmega;
+                badSynthesisMagnitude = atom->m_synthesisMagnitude;
+                badSynthesisPhase = atom->m_synthesisPhase;
+            }
+
+            ++badAtoms;
+        }
+    }
+
+    for (size_t i = 0; i < PartialMachine::SpectralModel::ResidualModel::x_numBuckets; ++i)
+    {
+        if (!std::isfinite(pm.m_spectralModel.m_residualModel.m_magnitudes[i]))
+        {
+            ++badResiduals;
+        }
+    }
+
+    for (size_t ch = 0; ch < 4; ++ch)
+    {
+        for (size_t i = 0; i < PartialMachine::SpectralModel::x_tableSize; ++i)
+        {
+            if (!std::isfinite(pm.m_ola.m_olas[ch].m_buffer.m_table[i]))
+            {
+                ++badOlaSamples;
+            }
+        }
+    }
+
+    DOCTEST_INFO("maxAbs=" << maxAbs);
+    DOCTEST_INFO("atomCount=" << pm.m_spectralModel.m_atoms.Size());
+    DOCTEST_INFO("firstBadSample=" << firstBadSample);
+    DOCTEST_INFO("firstBadChannel=" << firstBadChannel);
+    DOCTEST_INFO("lastInputSample=" << lastInputSample);
+    DOCTEST_INFO("badAtoms=" << badAtoms);
+    DOCTEST_INFO("firstBadAtom=" << firstBadAtom);
+    DOCTEST_INFO("badAnalysisOmega=" << badAnalysisOmega);
+    DOCTEST_INFO("badAnalysisMagnitude=" << badAnalysisMagnitude);
+    DOCTEST_INFO("badSynthesisOmega=" << badSynthesisOmega);
+    DOCTEST_INFO("badSynthesisMagnitude=" << badSynthesisMagnitude);
+    DOCTEST_INFO("badSynthesisPhase=" << badSynthesisPhase);
+    DOCTEST_INFO("badResiduals=" << badResiduals);
+    DOCTEST_INFO("badOlaSamples=" << badOlaSamples);
+    DOCTEST_CHECK_FALSE(anyBad);
+}
