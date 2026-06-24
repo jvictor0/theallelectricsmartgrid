@@ -6,6 +6,7 @@
 #include "SmartGridInclude.hpp"
 #include "MidiSender.hpp"
 #include "IOTaskThread.hpp"
+#include "PatchLoadPolicy.hpp"
 
 struct NonagonWrapperQuadLaunchpadTwister
 {
@@ -580,6 +581,16 @@ struct NonagonWrapper
     bool IsExternalClock() const
     {
         return m_internal.IsExternalClock();
+    }
+
+    bool IsWrldBldrOpen()
+    {
+        return m_wrldBldr.IsOpen();
+    }
+
+    bool ShouldRestoreFadersForPatchLoad(bool reloadPatch)
+    {
+        return PatchLoadPolicy::ShouldRestoreFaders(IsWrldBldrOpen(), reloadPatch);
     }
 
     void ProcessFrame()

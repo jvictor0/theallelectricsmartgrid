@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -145,6 +146,55 @@ void AssertEncoderValues(synthrig::SynthRig& rig,
 float ParamValueNoSlew(synthrig::SynthRig& rig, SmartGridOneEncoders::Param param)
 {
     return rig.Internal().m_squiggleBoy.m_encoders.GetValueNoSlew(param);
+}
+
+float FaderValue(synthrig::SynthRig& rig, size_t fader)
+{
+    return rig.Internal().m_squiggleBoyState.m_faders[fader];
+}
+
+void SetFaderValues(synthrig::SynthRig& rig, const std::vector<float>& values)
+{
+    for (size_t i = 0; i < values.size(); ++i)
+    {
+        rig.SetFader(static_cast<int>(i), values[i]);
+    }
+
+    rig.RunFrames(2);
+}
+
+void CheckFaderValues(synthrig::SynthRig& rig, const std::vector<float>& expected)
+{
+    for (size_t i = 0; i < expected.size(); ++i)
+    {
+        float actual = FaderValue(rig, i);
+        DOCTEST_CHECK_MESSAGE(
+            std::fabs(actual - expected[i]) <= kTol,
+            "fader " << i << " expected=" << expected[i] << " actual=" << actual);
+    }
+}
+
+std::string DumpJSON(JSON json)
+{
+    char* dumped = json.Dumps(0);
+    std::string result = dumped ? std::string(dumped) : std::string();
+    if (dumped)
+    {
+        free(dumped);
+    }
+
+    return result;
+}
+
+std::string BuildPatchWithoutFaders(synthrig::SynthRig& rig)
+{
+    JsonArena arena(JsonArena::kDefaultCapacity);
+    JSON rootJ = arena.Object();
+    rootJ.SetNew("nonagon", rig.Internal().m_nonagon.ToJSON(arena));
+    rootJ.SetNew("squiggleBoy", rig.Internal().m_squiggleBoy.ToJSON(arena));
+    rootJ.SetNew("stateSaver", rig.Internal().m_stateSaver.ToJSON(arena));
+    rootJ.SetNew("configGrid", rig.Internal().m_configGrid.ToJSON(arena));
+    return DumpJSON(rootJ);
 }
 
 void CheckParamNear(synthrig::SynthRig& rig,
@@ -343,6 +393,102 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: default-nonzero params survive save/load
     CheckParamNear(loaded, Param::Source1LP, "Source1LP after load", 1.0f);
 
     DOCTEST_CHECK_FALSE(loaded.SawNaN());
+}
+
+DOCTEST_TEST_CASE("sys_patch_roundtrip: faders are serialized and restore when requested")
+{
+    synthrig::SynthRig rig;
+    rig.RunFrames(2);
+
+    std::vector<float> savedValues;
+    for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
+    {
+        savedValues.push_back((static_cast<float>(i) + 1.0f) / 20.0f);
+    }
+
+    SetFaderValues(rig, savedValues);
+    std::string patch = rig.SavePatch();
+    DOCTEST_REQUIRE_FALSE(patch.empty());
+
+    JsonArena arena(JsonArena::kDefaultCapacity);
+    JSON rootJ = arena.Loads(patch.c_str());
+    JSON fadersJ = rootJ.Get("faders");
+    DOCTEST_REQUIRE_FALSE(fadersJ.IsNull());
+    DOCTEST_REQUIRE(fadersJ.Size() == SquiggleBoyWithEncoderBank::x_numFaders);
+    for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
+    {
+        DOCTEST_CHECK(std::fabs(static_cast<float>(fadersJ.GetAt(i).NumberValue()) - savedValues[i]) <= kTol);
+    }
+
+    std::vector<float> zeroValues(SquiggleBoyWithEncoderBank::x_numFaders, 0.0f);
+    SetFaderValues(rig, zeroValues);
+    CheckFaderValues(rig, zeroValues);
+
+    DOCTEST_REQUIRE(rig.LoadPatch(patch, true));
+    rig.RunFrames(2);
+    CheckFaderValues(rig, savedValues);
+}
+
+DOCTEST_TEST_CASE("sys_patch_roundtrip: faders stay live when restore is disabled")
+{
+    synthrig::SynthRig rig;
+    rig.RunFrames(2);
+
+    std::vector<float> savedValues(SquiggleBoyWithEncoderBank::x_numFaders, 0.25f);
+    std::vector<float> liveValues(SquiggleBoyWithEncoderBank::x_numFaders, 0.75f);
+
+    SetFaderValues(rig, savedValues);
+    std::string patch = rig.SavePatch();
+    DOCTEST_REQUIRE_FALSE(patch.empty());
+
+    SetFaderValues(rig, liveValues);
+    CheckFaderValues(rig, liveValues);
+
+    DOCTEST_REQUIRE(rig.LoadPatch(patch, false));
+    rig.RunFrames(2);
+    CheckFaderValues(rig, liveValues);
+}
+
+DOCTEST_TEST_CASE("sys_patch_roundtrip: old patches without faders keep live faders")
+{
+    synthrig::SynthRig rig;
+    rig.RunFrames(2);
+
+    std::string oldPatch = BuildPatchWithoutFaders(rig);
+    DOCTEST_REQUIRE_FALSE(oldPatch.empty());
+
+    std::vector<float> liveValues;
+    for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
+    {
+        liveValues.push_back(0.1f + 0.02f * static_cast<float>(i));
+    }
+
+    SetFaderValues(rig, liveValues);
+    CheckFaderValues(rig, liveValues);
+
+    DOCTEST_REQUIRE(rig.LoadPatch(oldPatch, true));
+    rig.RunFrames(2);
+    CheckFaderValues(rig, liveValues);
+}
+
+DOCTEST_TEST_CASE("sys_patch_roundtrip: reload patch keeps live faders")
+{
+    synthrig::SynthRig rig;
+    rig.RunFrames(2);
+
+    std::vector<float> savedValues(SquiggleBoyWithEncoderBank::x_numFaders, 0.15f);
+    std::vector<float> liveValues(SquiggleBoyWithEncoderBank::x_numFaders, 0.65f);
+
+    SetFaderValues(rig, savedValues);
+    std::string patch = rig.SavePatch();
+    DOCTEST_REQUIRE_FALSE(patch.empty());
+
+    SetFaderValues(rig, liveValues);
+    CheckFaderValues(rig, liveValues);
+
+    DOCTEST_REQUIRE(rig.ReloadPatch(patch));
+    rig.RunFrames(2);
+    CheckFaderValues(rig, liveValues);
 }
 
 // ---------------------------------------------------------------------------

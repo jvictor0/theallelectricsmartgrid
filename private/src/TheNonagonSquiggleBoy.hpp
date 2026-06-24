@@ -118,10 +118,35 @@ struct TheNonagonSquiggleBoyInternal
         rootJ.SetNew("squiggleBoy", m_squiggleBoy.ToJSON(a));
         rootJ.SetNew("stateSaver", m_stateSaver.ToJSON(a));
         rootJ.SetNew("configGrid", m_configGrid.ToJSON(a));
+        rootJ.SetNew("faders", FadersToJSON(a));
         return rootJ;
     }
 
-    void FromJSON(JSON rootJ)
+    JSON FadersToJSON(JsonArena& a)
+    {
+        JSON fadersJ = a.Array();
+        for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
+        {
+            fadersJ.AppendNew(a.Real(m_squiggleBoyState.m_faders[i]));
+        }
+
+        return fadersJ;
+    }
+
+    void FadersFromJSON(JSON fadersJ)
+    {
+        if (fadersJ.Size() < SquiggleBoyWithEncoderBank::x_numFaders)
+        {
+            return;
+        }
+
+        for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
+        {
+            m_squiggleBoyState.m_faders[i] = static_cast<float>(fadersJ.GetAt(i).NumberValue());
+        }
+    }
+
+    void FromJSON(JSON rootJ, bool restoreFaders)
     {
         JSON nonagonJ = rootJ.Get("nonagon");
         if (!nonagonJ.IsNull())
@@ -141,6 +166,11 @@ struct TheNonagonSquiggleBoyInternal
         if (!squiggleBoyJ.IsNull())
         {
             m_squiggleBoy.FromJSON(squiggleBoyJ);
+        }
+
+        if (restoreFaders)
+        {
+            FadersFromJSON(rootJ.Get("faders"));
         }
 
         m_configGrid.PropagateSourceSelection();
@@ -353,7 +383,7 @@ struct TheNonagonSquiggleBoyInternal
         if (m_stateInterchange.IsLoadRequested())
         {
             INFO("Load JSON request received");
-            FromJSON(m_stateInterchange.GetToLoad());
+            FromJSON(m_stateInterchange.GetToLoad(), m_stateInterchange.GetRestoreFaders());
             INFO("JSON deserialized");
             m_stateInterchange.AckLoadCompleted();
         }
@@ -497,7 +527,7 @@ struct TheNonagonSquiggleBoyInternal
             else
             {
                 INFO("Loading saved JSON");
-                m_owner->FromJSON(m_owner->m_stateInterchange.m_lastSave);
+                m_owner->FromJSON(m_owner->m_stateInterchange.m_lastSave, false);
                 INFO("Loaded saved JSON");
             }
         }

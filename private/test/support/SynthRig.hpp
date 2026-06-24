@@ -454,6 +454,11 @@ public:
     //
     bool LoadPatch(const std::string& jsonString)
     {
+        return LoadPatch(jsonString, true);
+    }
+
+    bool LoadPatch(const std::string& jsonString, bool restoreFaders)
+    {
         // Parse into the interchange's load arena (message-thread side).
         //
         JSON json = m_internal->m_stateInterchange.ParseForLoad(jsonString.c_str());
@@ -461,16 +466,26 @@ public:
         {
             return false;
         }
-        return LoadPatchJSON(json);
+        return LoadPatchJSON(json, restoreFaders);
+    }
+
+    bool ReloadPatch(const std::string& jsonString)
+    {
+        return LoadPatch(jsonString, false);
     }
 
     bool LoadPatchJSON(JSON json)
+    {
+        return LoadPatchJSON(json, true);
+    }
+
+    bool LoadPatchJSON(JSON json, bool restoreFaders)
     {
         if (json.IsNull())
         {
             return false;
         }
-        if (!m_internal->m_stateInterchange.RequestLoad(json))
+        if (!m_internal->m_stateInterchange.RequestLoad(json, restoreFaders))
         {
             return false;
         }

@@ -22,6 +22,7 @@ struct StateInterchange
     std::atomic<bool> m_saveCompleted;
     std::atomic<bool> m_saveFailed;
     std::atomic<bool> m_loadRequested;
+    std::atomic<bool> m_restoreFaders;
     std::atomic<bool> m_newRequested;
 
     JSON m_toSave;
@@ -39,6 +40,7 @@ struct StateInterchange
         , m_saveCompleted(true)
         , m_saveFailed(false)
         , m_loadRequested(false)
+        , m_restoreFaders(true)
         , m_newRequested(false)
         , m_toSave(JSON::Null())
         , m_lastSave(JSON::Null())
@@ -152,7 +154,7 @@ struct StateInterchange
         return parsed;
     }
 
-    bool RequestLoad(JSON toLoad)
+    bool RequestLoad(JSON toLoad, bool restoreFaders)
     {
         if (m_loadRequested.load())
         {
@@ -160,8 +162,14 @@ struct StateInterchange
         }
 
         m_toLoad = toLoad;
+        m_restoreFaders.store(restoreFaders);
         m_loadRequested.store(true);
         return true;
+    }
+
+    bool GetRestoreFaders()
+    {
+        return m_restoreFaders.load();
     }
 
     bool IsLoadRequested()
@@ -183,6 +191,7 @@ struct StateInterchange
     void AckLoadCompleted()
     {
         m_toLoad = JSON::Null();
+        m_restoreFaders.store(true);
         m_loadRequested.store(false);
     }
 

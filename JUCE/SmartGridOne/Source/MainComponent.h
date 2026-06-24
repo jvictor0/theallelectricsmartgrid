@@ -174,6 +174,16 @@ public:
     //
     bool RequestLoad(const juce::String& jsonText)
     {
+        return RequestLoad(jsonText, m_nonagon.ShouldRestoreFadersForPatchLoad(false));
+    }
+
+    bool RequestReload(const juce::String& jsonText)
+    {
+        return RequestLoad(jsonText, false);
+    }
+
+    bool RequestLoad(const juce::String& jsonText, bool restoreFaders)
+    {
         StateInterchange* stateInterchange = m_nonagon.GetStateInterchange();
         JSON patch = stateInterchange->ParseForLoad(jsonText.toUTF8().getAddress());
         if (patch.IsNull())
@@ -181,7 +191,7 @@ public:
             return false;
         }
 
-        return stateInterchange->RequestLoad(patch);
+        return stateInterchange->RequestLoad(patch, restoreFaders);
     }
 
     //==============================================================================

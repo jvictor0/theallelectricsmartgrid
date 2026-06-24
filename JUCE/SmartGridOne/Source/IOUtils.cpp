@@ -284,7 +284,7 @@ void FileManager::LoadPatchVersion(juce::String versionFilePath)
 
     juce::Logger::writeToLog("Loading patch version: " + versionFilePath + " (" + std::to_string(jsonString.length()) + " bytes)");
 
-    if (!m_mainComponent->RequestLoad(jsonString))
+    if (!m_mainComponent->RequestReload(jsonString))
     {
         juce::Logger::writeToLog("ERROR: Failed to parse patch JSON: " + versionFilePath);
     }
