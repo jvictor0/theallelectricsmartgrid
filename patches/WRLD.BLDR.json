@@ -21,10 +21,10 @@
             "NONE"
         ],
         "encoders": [
-            "ENC41H_D",
-            "ENC41H_D",
-            "ENC41H_D",
-            "ENC41H_D",
+            "ENC41H",
+            "ENC41H",
+            "ENC41H",
+            "ENC41H",
             "NONE",
             "NONE",
             "NONE",
@@ -195,7 +195,7 @@
                 "0": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -279,7 +279,7 @@
                 "1": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -363,7 +363,7 @@
                 "2": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -447,7 +447,7 @@
                 "3": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -531,7 +531,7 @@
                 "4": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -615,7 +615,7 @@
                 "5": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -699,7 +699,7 @@
                 "6": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -783,7 +783,7 @@
                 "7": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -867,7 +867,7 @@
                 "8": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -951,7 +951,7 @@
                 "9": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -1035,7 +1035,7 @@
                 "10": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -1119,7 +1119,7 @@
                 "11": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -1203,7 +1203,7 @@
                 "12": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -1287,7 +1287,7 @@
                 "13": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -1371,7 +1371,7 @@
                 "14": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,
@@ -1455,7 +1455,7 @@
                 "15": {
                     "encoder_mode": {
                         "hw_mode": 1,
-                        "speed_value": 1
+                        "speed_value": 2
                     },
                     "rotary_config": {
                         "message": 2,

@@ -21,10 +21,10 @@
             "NONE"
         ],
         "encoders": [
-            "ENC41H_D",
-            "ENC41H_D",
-            "ENC41H_D",
-            "ENC41H_D",
+            "ENC41H",
+            "ENC41H",
+            "ENC41H",
+            "ENC41H",
             "NONE",
             "NONE",
             "NONE",
