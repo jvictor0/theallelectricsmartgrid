@@ -14,7 +14,7 @@ Unlike the source machines, this is not selected per voice. It is the third glob
 
 Voices can feed the Partial Machine through `PartialMachineSend` in the Filter and Amp bank. The Delay and Reverb returns can also feed it through `DelayPartialMachineSend` and `ReverbPartialMachineSend`.
 
-The Partial Machine return is mixed into the main quad output, and it can feed the other send effects through `PartialMachineDelaySend` and `PartialMachineReverbSend`. Its return level is currently fixed at unity in the DSP path.
+The Partial Machine return is mixed into the main quad output, and it can feed the other send effects through `PartialMachineDelaySend` and `PartialMachineReverbSend`. Encoder 3,3 (`PartialMachineVolume`) is the mixer return gain, the same scalar path as Delay Return and Reverb Return. Internal reduction volume is held at unity.
 
 ## Analysis and Resynthesis
 
@@ -45,7 +45,7 @@ The Partial Machine bank exposes four rows of quad-bank controls:
 - **Tracking**: `PartialMachineAttack`, `PartialMachineDecay`, `PartialMachineDensity`, and `PartialMachinePortamento` control spectral atom slew, pruning density, and frequency glide.
 - **Bandwidth and feedback**: `PartialMachineBWBase`, `PartialMachineBWWidth`, and `PartialMachineReductionFeedback` shape how strongly each atom survives the reduction curve.
 - **Spatialization and sends**: `PartialMachineBassCutoff`, `PartialMachineAzimuthFactor`, `PartialMachineUnison`, `PartialMachineDelaySend`, and `PartialMachineReverbSend` place atoms in the quad field and route the return into the other effects.
-- **Frequency mapping, pitch, and output**: `PartialMachineLinearFrequency`, `PartialMachinePitchShiftDepth`, `PartialMachinePitchShift`, and `PartialMachineVolume` control frequency-dependent indexing, pitch offset, and final per-atom level.
+- **Frequency mapping, pitch, and output**: `PartialMachineLinearFrequency`, `PartialMachinePitchShiftDepth`, and `PartialMachinePitchShift` control frequency-dependent indexing and pitch offset. `PartialMachineVolume` is the mixer return gain, not a frequency-dependent atom level.
 
 ## Spatial Model
 

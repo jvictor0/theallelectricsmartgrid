@@ -26,12 +26,16 @@ The system SHALL maintain exactly three quad send buses (`x_numSends = 3`): send
 - **AND** voice 0 can simultaneously feed the reverb and partial machine at unrelated gains
 
 ### Requirement: Effect Return Summation
-The system SHALL sum the three effect returns (quad-delay, quad-reverb, partial-machine outputs) into the main quad bus, each scaled by its return gain and passed through a per-return quad meter with arctan saturation (`ProcessReturns`). The delay and reverb also receive their own post-gain returns back as feedback inputs to their processors.
+The system SHALL sum the three effect returns (quad-delay, quad-reverb, partial-machine outputs) into the main quad bus, each scaled by its return gain and passed through a per-return quad meter with arctan saturation (`ProcessReturns`). The delay and reverb also receive their own post-gain returns back as feedback inputs to their processors. Partial Machine return gain SHALL come from `PartialMachineVolume` (encoder 3,3), the same `m_returnGain` path as `DelayReturn` and `ReverbReturn`.
 
 #### Scenario: Return gain scales an effect into the mix
 - **WHEN** the reverb produces output and its return gain is 0.5
 - **THEN** the quad bus receives the reverb's quad output at half amplitude after the return meter's saturation
 - **AND** setting the return gain to 0 removes the reverb from the main output entirely
+
+#### Scenario: Partial Machine return uses the shared return gain
+- **WHEN** `PartialMachineVolume` is 0.5
+- **THEN** the Partial Machine return is scaled by that gain on the same `m_returnGain[2]` path as delay and reverb
 
 ### Requirement: Return Cross-Feed Between Effects
 The system SHALL route each effect's return into the other effects' send buses through a 3x3 gain matrix (`m_returnSendGain`, `ProcessReturnSends`), skipping the diagonal so a return never feeds its own send. This enables chains such as delay-into-reverb, reverb-into-partial-machine, and partial-machine-into-delay.

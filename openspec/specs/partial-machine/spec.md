@@ -35,7 +35,7 @@ The system SHALL track atoms across hops: each existing atom searches the new an
 - **THEN** its preferred-match theta is zero, while a same-magnitude peak at the atom's current frequency keeps its full magnitude as theta
 
 ### Requirement: Frequency-Dependent Parameter Lanes
-The system SHALL store every Partial Machine parameter as four lanes (`FrequencyDependentParameter::x_numParameters = 4`). Each atom is assigned a parameter index from its frequency at extraction time (`GetIndexForFrequency`), and parameter evaluation interpolates between the two neighboring lanes for that index. `PartialMachineLinearFrequency` (range 0.1-100) scales how fast the lane pattern repeats across the frequency axis. When all four lanes hold the same value the parameter behaves as a scalar; when modulation, gestures, or scenes differentiate the lanes, each frequency region sees its own interpolated value for attack, decay, density, bandwidth, panning, unison, pitch, and level.
+The system SHALL store every Partial Machine parameter as four lanes (`FrequencyDependentParameter::x_numParameters = 4`). Each atom is assigned a parameter index from its frequency at extraction time (`GetIndexForFrequency`), and parameter evaluation interpolates between the two neighboring lanes for that index. `PartialMachineLinearFrequency` (range 0.1-100) scales how fast the lane pattern repeats across the frequency axis. When all four lanes hold the same value the parameter behaves as a scalar; when modulation, gestures, or scenes differentiate the lanes, each frequency region sees its own interpolated value for attack, decay, density, bandwidth, panning, unison, and pitch. Internal reduction volume SHALL be the constant 1. Encoder 3,3 (`PartialMachineVolume`) SHALL be the Partial Machine mixer return gain, the same scalar `m_returnGain` path used by delay and reverb.
 
 #### Scenario: Equal lanes behave as a scalar control
 - **WHEN** a quad-bank parameter has identical values in all four lanes
@@ -45,8 +45,13 @@ The system SHALL store every Partial Machine parameter as four lanes (`Frequency
 - **WHEN** modulation makes lane values differ
 - **THEN** atoms at different frequencies interpolate different parameter values, and increasing `PartialMachineLinearFrequency` makes the lane pattern repeat more often across the spectrum
 
+#### Scenario: Encoder 3,3 is mixer return
+- **WHEN** `PartialMachineVolume` is 0
+- **THEN** the Partial Machine return is silent in the mix
+- **AND** tracked-atom reduction still uses volume 1
+
 ### Requirement: Bell-Curve Reduction with Feedback
-The system SHALL scale each atom's synthesis magnitude by a reduction factor (`SynthesisContext::GetReduction`): unity between the base frequency (`m_bwBaseFrequency`) and base × width (`m_bwWidth`), falling at -12 dB per octave below the base and -12 dB per octave above base × width, all multiplied by the volume parameter. The reduction-feedback parameter (`m_reductionFeedback`) interpolates the atom's stored synthesis magnitude toward the reduced value (floored at the death magnitude 1e-5), so at high feedback repeated reduction progressively re-shapes the tracked atom itself rather than only its output.
+The system SHALL scale each atom's synthesis magnitude by a reduction factor (`SynthesisContext::GetReduction`): unity between the base frequency (`m_bwBaseFrequency`) and base × width (`m_bwWidth`), falling at -12 dB per octave below the base and -12 dB per octave above base × width. The reduction-feedback parameter (`m_reductionFeedback`) interpolates the atom's stored synthesis magnitude toward the reduced value (floored at the death magnitude 1e-5), so at high feedback repeated reduction progressively re-shapes the tracked atom itself rather than only its output.
 
 #### Scenario: Skirts fall at -12 dB per octave
 - **WHEN** the base frequency corresponds to 500 Hz, the width factor is 2, and volume is unity

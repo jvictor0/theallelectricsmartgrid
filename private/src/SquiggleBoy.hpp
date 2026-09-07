@@ -1681,13 +1681,12 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_partialMachineInputSetterInput.m_parameterLinearFrequency[i] = m_encoders.GetValue(Param::PartialMachineLinearFrequency, i);
             m_partialMachineInputSetterInput.m_pitchShiftDepth[i] = m_encoders.GetValue(Param::PartialMachinePitchShiftDepth, i);
             m_partialMachineInputSetterInput.m_pitchShift[i] = m_encoders.GetValue(Param::PartialMachinePitchShift, i);
-            m_partialMachineInputSetterInput.m_volume[i] = m_encoders.GetValue(Param::PartialMachineVolume, i);
         }
 
         m_partialMachineInputSetter.SetInput(m_partialMachineInputSetterInput, m_partialMachineState);
         m_mixerState.m_returnSendGain[2][0].Update(m_encoders.GetValue(Param::PartialMachineDelaySend));
         m_mixerState.m_returnSendGain[2][1].Update(m_encoders.GetValue(Param::PartialMachineReverbSend));
-        m_mixerState.m_returnGain[2].m_expParam = 1.0f;
+        m_mixerState.m_returnGain[2].Update(m_encoders.GetValue(Param::PartialMachineVolume));
 
         input.m_tempo.Update(m_encoders.GetValue(Param::Tempo));
 

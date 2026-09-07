@@ -361,7 +361,7 @@ struct PartialMachine
                 input.m_spectralModelInput.m_omegaDensity.m_parameters[i] = m_density[i].Update(1.0f - knobInput.m_density[i]);
                 input.m_synthesisContextInput.m_bwBaseFrequency.m_parameters[i] = m_bwBaseFrequency[i].Update(knobInput.m_bwBaseFrequency[i]);
                 input.m_synthesisContextInput.m_bwWidth.m_parameters[i] = m_bwWidth[i].Update(knobInput.m_bwWidth[i]);
-                input.m_synthesisContextInput.m_volume.m_parameters[i] = m_volume[i].Update(knobInput.m_volume[i]);
+                input.m_synthesisContextInput.m_volume.m_parameters[i] = 1.0f;
                 input.m_synthesisContextInput.m_bassCutoff.m_parameters[i] = m_bassCutoff[i].Update(knobInput.m_bassCutoff[i]);
                 input.m_synthesisContextInput.m_azimuthFactor.m_parameters[i] = m_azimuthFactor[i].Update(knobInput.m_azimuthFactor[i]);
                 input.m_synthesisContextInput.m_reductionFeedback.m_parameters[i] = knobInput.m_reductionFeedback[i];

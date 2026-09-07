@@ -481,6 +481,7 @@ struct TheNonagonSquiggleBoyInternal
         m_nonagon.SetSceneManager(&m_sceneManager);
 
         m_squiggleBoy.m_stateSaver = &m_stateSaver;
+        m_nonagon.m_activeTrio = &m_activeTrio;
         m_configGrid.Init(&m_squiggleBoy, &m_activeTrio, &m_uiState.m_squiggleBoyUIState);
         m_stateSaver.Insert("sceneStateLeft", &m_sceneManager.m_scene1);
         m_stateSaver.Insert("sceneStateRight", &m_sceneManager.m_scene2);

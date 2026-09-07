@@ -477,6 +477,16 @@ struct TheNonagonSmartGrid
             SmartGrid::Color::Grey);
     }
 
+    Trio GetActiveTrio()
+    {
+        if (m_activeTrio)
+        {
+            return *m_activeTrio;
+        }
+
+        return Trio::Fire;
+    }
+
     void PlaceMutes(Trio t, int x, int y, SmartGrid::Grid* grid)
     {
         for (size_t i = 0; i < TheNonagonInternal::x_voicesPerTrio; ++i)
@@ -486,6 +496,35 @@ struct TheNonagonSmartGrid
             grid->Put(xPos, yPos, MakeMuteCell(t, i));
         }
     }
+
+    struct ActiveTrioCoMuteCell : public SmartGrid::Cell
+    {
+        TheNonagonSmartGrid* m_owner;
+        size_t m_bit;
+
+        ActiveTrioCoMuteCell(TheNonagonSmartGrid* owner, size_t bit)
+            : m_owner(owner)
+            , m_bit(bit)
+        {
+        }
+
+        bool* CoMute()
+        {
+            size_t tId = static_cast<size_t>(m_owner->GetActiveTrio());
+            return &m_owner->m_state.m_lameJuisInput.m_laneInput[tId].m_coMuteInput.m_coMutes[m_bit];
+        }
+
+        virtual SmartGrid::Color GetColor() override
+        {
+            return *CoMute() ? TrioColor(m_owner->GetActiveTrio()) : SmartGrid::Color::White;
+        }
+
+        virtual void OnPress(uint8_t) override
+        {
+            bool* coMute = CoMute();
+            *coMute = !*coMute;
+        }
+    };
 
     SmartGrid::Cell* MakeMuteCell(Trio t, size_t voiceOffset)
     {
@@ -696,6 +735,11 @@ struct TheNonagonSmartGrid
                 m_owner->m_stateSaver.Insert(
                     "LameJuisEquationOutputSwitch", i, &m_state->m_lameJuisInput.m_operationInput[i].m_switch);
             }
+
+            for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits; ++i)
+            {
+                Put(i, 7, new ActiveTrioCoMuteCell(m_owner, i));
+            }
         }
     };
 
@@ -762,6 +806,10 @@ struct TheNonagonSmartGrid
 
                 Put(7, SmartGrid::x_baseGridSize - i - 3, m_owner->EquationOutputSwitch(i));                
             }
+
+            m_owner->PlaceMutes(Trio::Water, 2, 7, this);
+            m_owner->PlaceMutes(Trio::Earth, 4, 7, this);
+            m_owner->PlaceMutes(Trio::Fire, 6, 7, this);
         }
     };
 
@@ -1142,12 +1190,14 @@ struct TheNonagonSmartGrid
     size_t m_sheafViewGridWaterGridId;
     SmartGrid::Grid* m_sheafViewGridWaterGrid;
 
+    Trio* m_activeTrio;
     bool m_isStandalone;
 
     SmartGrid::MessageOutBuffer* m_messageOutBuffer;
     
     TheNonagonSmartGrid(bool isStandalone)
         : m_sceneManager(nullptr)
+        , m_activeTrio(nullptr)
         , m_isStandalone(isStandalone)
     {
         InitState();
