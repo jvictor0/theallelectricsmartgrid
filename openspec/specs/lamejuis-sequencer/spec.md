@@ -55,6 +55,24 @@ Sections for all 64 base points are cached and rebuilt whenever any matrix switc
 - **WHEN** an accumulator's interval changes
 - **THEN** all 64 cached sections are recomputed before the next lane selection
 
+### Requirement: Active-Trio RHS Count Lighting
+The system SHALL light RHS count column k for a logic operation when there exists an assignment of the active trio's co-muted input bits such that, paired with the current non-co-muted input bits, that operation's countHigh equals k.
+The cell's toggle state remains the RHS table entry `m_rhs[k]`. Columns whose count exceeds the operation's number of active bits remain dimmed.
+Because each co-muted active bit independently contributes 0 or 1 to countHigh, the lit columns are the contiguous interval from the count contributed by the read active bits through that count plus the number of co-muted active bits.
+
+#### Scenario: No co-mutes lights the current count only
+- **WHEN** the active trio co-mutes no dimensions and an operation's current countHigh is 2
+- **THEN** only column 2 flashes
+
+#### Scenario: Co-muted active bits light a contiguous range
+- **WHEN** an operation treats bits 0 and 1 as Normal, the active trio co-mutes bit 1, and the current value of bit 0 is high
+- **THEN** columns 1 and 2 flash
+- **AND** columns 0 and 3–6 do not flash
+
+#### Scenario: Co-muting a muted bit does not add counts
+- **WHEN** an operation mutes bit 2 and the active trio co-mutes only bit 2
+- **THEN** the flashing column is the current countHigh from the remaining bits
+
 ### Requirement: Section Choice Strategies
 The system SHALL select one section from the sheaf per lane channel using a section choice strategy with the index arp output as the choice argument: None (zero section), Lowest (lowest evaluated pitch), GCD (component-wise minimum of high counts), Closest (pitch nearest the argument), ClosestModOne (nearest modulo one octave, placed in the argument's octave with ±1 adjustment when closer; the default), and Percentile (sorts the class by pitch and indexes with the fractional part of the argument, adding its integer part as octaves).
 Each lane also has a base strategy (default None); the chooser first runs the base strategy and adds its evaluated value to the choice argument before running the main strategy, allowing strategy composition.

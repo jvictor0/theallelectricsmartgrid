@@ -745,32 +745,64 @@ struct TheNonagonSmartGrid
 
     struct LameJuisRHSPage : public SmartGrid::Grid
     {
-        struct Cell : public SmartGrid::StateCell<bool, SmartGrid::Flash<size_t>>
+        struct CountHighFiberFlash
+        {
+            TheNonagonSmartGrid* m_owner;
+            int m_operation;
+            size_t m_count;
+
+            CountHighFiberFlash(TheNonagonSmartGrid* owner, int operation, size_t count)
+                : m_owner(owner)
+                , m_operation(operation)
+                , m_count(count)
+            {
+            }
+
+            bool IsFlashing()
+            {
+                LameJuisInternal::LogicOperation& operation =
+                    m_owner->m_nonagon.m_lameJuis.m_operations[m_operation];
+                size_t tId = static_cast<size_t>(m_owner->GetActiveTrio());
+                HarmonicSheaf::BitVector coMuteMask;
+                bool* coMutes = m_owner->m_state.m_lameJuisInput.m_laneInput[tId].m_coMuteInput.m_coMutes;
+                for (size_t i = 0; i < LameJuisInternal::x_numInputs; ++i)
+                {
+                    coMuteMask.Set(i, coMutes[i]);
+                }
+
+                return operation.CountHighReachable(
+                    m_owner->m_nonagon.m_lameJuis.m_inputVector,
+                    coMuteMask,
+                    m_count);
+            }
+        };
+
+        struct Cell : public SmartGrid::StateCell<bool, CountHighFiberFlash>
         {
             int m_i;
             int m_j;
             TheNonagonInternal* m_nonagon;
 
-            Cell(int i, int j, bool* state, TheNonagonInternal* nonagon)
-                : SmartGrid::StateCell<bool, SmartGrid::Flash<size_t>>(
+            Cell(int i, int j, bool* state, TheNonagonSmartGrid* owner)
+                : SmartGrid::StateCell<bool, CountHighFiberFlash>(
                     SmartGrid::Color::White.Dim(),
                     SmartGrid::Color::Indigo.Dim(),
                     SmartGrid::Color::Yellow,
                     SmartGrid::Color::Indigo,
                     state,
-                    SmartGrid::Flash<size_t>(&nonagon->m_lameJuis.m_operations[i].m_countHigh, j),
+                    CountHighFiberFlash(owner, i, static_cast<size_t>(j)),
                     true,
                     false,
-                    SmartGrid::StateCell<bool, SmartGrid::Flash<size_t>>::Mode::Toggle),
+                    SmartGrid::StateCell<bool, CountHighFiberFlash>::Mode::Toggle),
                   m_i(i),
                   m_j(j),
-                  m_nonagon(nonagon)
+                  m_nonagon(&owner->m_nonagon)
             {
             }
 
             virtual SmartGrid::Color GetColor() override
             {
-                SmartGrid::Color c = SmartGrid::StateCell<bool, SmartGrid::Flash<size_t>>::GetColor();
+                SmartGrid::Color c = SmartGrid::StateCell<bool, CountHighFiberFlash>::GetColor();
                 if (m_nonagon->m_lameJuis.m_operations[m_i].m_countTotal < static_cast<size_t>(m_j))
                 {
                     return c.Dim();
@@ -799,7 +831,7 @@ struct TheNonagonSmartGrid
             {
                 for (size_t j = 0; j < TheNonagonInternal::x_numTimeBits + 1; ++j)
                 {
-                    Put(j, SmartGrid::x_baseGridSize - i - 3, new Cell(i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_rhs[j], m_nonagon));
+                    Put(j, SmartGrid::x_baseGridSize - i - 3, new Cell(i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_rhs[j], m_owner));
                     m_owner->m_stateSaver.Insert(
                         "LameJuisRHS", i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_rhs[j]);
                 }

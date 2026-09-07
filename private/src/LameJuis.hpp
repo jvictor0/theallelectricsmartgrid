@@ -131,6 +131,39 @@ struct LameJuisInternal
             *countHigh = inputVector.CountSetBits();                        
         }
 
+        // Reachable countHigh values in the sheaf fiber: fix the non-co-muted
+        // bits and range over assignments of the co-muted bits. Each co-muted
+        // active bit independently contributes 0 or 1, so the image is the
+        // interval [base, base + freeCount].
+        //
+        void GetReachableCountHighRange(
+            HarmonicSheaf::BitVector inputVector,
+            HarmonicSheaf::BitVector coMuteMask,
+            size_t* countMin,
+            size_t* countMax)
+        {
+            uint8_t readActive = static_cast<uint8_t>(
+                m_active.m_bits & static_cast<uint8_t>(~coMuteMask.m_bits));
+            uint8_t invertedRead = static_cast<uint8_t>(m_inverted.m_bits & readActive);
+            uint8_t fixed = static_cast<uint8_t>((inputVector.m_bits & readActive) ^ invertedRead);
+            HarmonicSheaf::BitVector fixedBits(fixed);
+            uint8_t freeActive = static_cast<uint8_t>(m_active.m_bits & coMuteMask.m_bits);
+            HarmonicSheaf::BitVector freeBits(freeActive);
+            *countMin = fixedBits.CountSetBits();
+            *countMax = *countMin + freeBits.CountSetBits();
+        }
+
+        bool CountHighReachable(
+            HarmonicSheaf::BitVector inputVector,
+            HarmonicSheaf::BitVector coMuteMask,
+            size_t count)
+        {
+            size_t countMin;
+            size_t countMax;
+            GetReachableCountHighRange(inputVector, coMuteMask, &countMin, &countMax);
+            return countMin <= count && count <= countMax;
+        }
+
         bool ComputeOperation(size_t countHigh)
         {
             return m_rhs[countHigh];            
