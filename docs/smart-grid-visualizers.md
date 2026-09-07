@@ -12,6 +12,7 @@ This document describes the visualizer system for the Smart Grid One display. Vi
 | `SmartGridOneVisualizerMain.hpp` | Main container component. Owns visualizer instances, handles layout, dispatch, and metering. |
 | `ForEachSmartGridOneVisualizer.hpp` | X-macro list mapping (name, bank, block, constructor, source-machine flags) for each visualizer. |
 | `ForEachModulationVisualizer.hpp` | X-macro list mapping (name, slot, constructor, mode, color) for modulation visualizers. |
+| `GangedRandomLFOComponent.hpp` | Predictive wait/move view for one fixed-size correlated random gang. |
 | `PartialMachineComponents.hpp` | Partial Machine input-spectrum and spatial atom views. |
 
 ### Base Class: SmartGridOneMainVisualizerComponent
@@ -65,6 +66,7 @@ Visualizers read from:
   - `m_audioScopeWriter`, `m_controlScopeWriter`, `m_quadScopeWriter`, `m_quadControlScopeWriter`, `m_globalControlScopeWriter`, `m_sourceMixerScopeWriter`, `m_monoScopeWriter`, `m_monoAudioScopeWriter` — Scope buffers
   - `m_voiceMeterReader`, `m_returnMeterReader`, etc. — Meter readers
   - `m_activeTrack`, `m_xPos`, `m_yPos` — Panning/position state
+  - `m_gangedRandomLFOUIState`, `m_quadGangedRandomLFOUIState`, `m_globalGangedRandomLFOUIState` — Coherent predictive random-LFO snapshots
   - `m_voiceFilterUIState` — Filter response for analyzer overlays
   - `m_delayUIState`, `m_reverbUIState`, `m_partialMachineUIState` — Effect UI state for quad analyzers and other effect-specific visualizers
 - **`NonagonWrapper`** — Provides `GetAudioScopeWriter()`, `GetControlScopeWriter()`, `GetNoteWriter()`, etc.
@@ -74,6 +76,7 @@ Visualizers read from:
 | Component | Bank(s) | Block | Data source |
 |-----------|---------|-------|-------------|
 | ScopeComponent | Source, FilterAndAmp, VoiceLFOs | 0–3 | ScopeWriter, voice offset |
+| GangedRandomLFOComponent | Voice, Quad, Global modulation panels | slots 0–3 | Ganged random LFO snapshots |
 | AnalyserComponent | Source, FilterAndAmp | 3 | WindowedFFT, voice filter UI state |
 | PhysicalModelingFrequencyResponseComponent | Source | 0 | `PhysicalModelingSource::UIState` transfer function |
 | SampleTrioWaveformVisualizerComponent | Source | 1 | `AudioBufferBank::UIState` waveform buckets plus `SampleSource::UIState` read-head/window data |
@@ -91,6 +94,8 @@ Visualizers read from:
 | MultibandGainReductionComponent | Mastering, Inputs, DeepVocoder | 3 | m_stereoMasteringChainUIState |
 
 `QuadDelayEnvelopeVisualizerComponent` is a non-FFT effect view. It renders min/max envelope snapshots derived from the quad delay's movable-writer buffer and overlays the current relative read/write tape-head positions from `m_delayUIState`.
+
+`GangedRandomLFOComponent` reconstructs each voice's complete current round without storing scope history. It draws elapsed wait/move motion as a solid path, the remaining predicted contour as dashed segments, and the present position as a dot on the shared longest-voice time axis.
 
 `SampleTrioWaveformVisualizerComponent` is another non-FFT Source view. It renders one horizontal strip per voice in the active trio using min/max buckets published by each selected `AudioBufferBank`; the active `SampleStart`/`SampleLength` region is colored by voice, and the current sample read head is drawn as a white vertical line.
 

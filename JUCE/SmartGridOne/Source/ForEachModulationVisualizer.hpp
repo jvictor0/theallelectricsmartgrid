@@ -3,45 +3,45 @@
 G(
     GangedRandom1Scope,
     0,
-    std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::GangedRandom1),
-        m_nonagon->GetControlScopeWriter(),
-        &m_scopeVoiceOffset,
-        ScopeComponent::ScopeType::Control,
-        uiState),
+    std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(
+        uiState->m_squiggleBoyUIState.m_gangedRandomLFOUIState[0],
+        SquiggleBoy::x_numTracks,
+        &uiState->m_squiggleBoyUIState.m_activeTrack,
+        GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>::ColorMode::TrackVoices,
+        SmartGridOneEncoders::GetModulatorSkin(0, SmartGridOneEncoders::BankMode::Voice).m_color),
     SmartGridOneEncoders::BankMode::Voice,
     SmartGridOneEncoders::GetModulatorSkin(0, SmartGridOneEncoders::BankMode::Voice).m_color)
 G(
     GangedRandom2Scope,
     1,
-    std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::GangedRandom2),
-        m_nonagon->GetControlScopeWriter(),
-        &m_scopeVoiceOffset,
-        ScopeComponent::ScopeType::Control,
-        uiState),
+    std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(
+        uiState->m_squiggleBoyUIState.m_gangedRandomLFOUIState[1],
+        SquiggleBoy::x_numTracks,
+        &uiState->m_squiggleBoyUIState.m_activeTrack,
+        GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>::ColorMode::TrackVoices,
+        SmartGridOneEncoders::GetModulatorSkin(1, SmartGridOneEncoders::BankMode::Voice).m_color),
     SmartGridOneEncoders::BankMode::Voice,
     SmartGridOneEncoders::GetModulatorSkin(1, SmartGridOneEncoders::BankMode::Voice).m_color)
 G(
     GangedRandom3Scope,
     2,
-    std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::GangedRandom3),
-        m_nonagon->GetControlScopeWriter(),
-        &m_scopeVoiceOffset,
-        ScopeComponent::ScopeType::Control,
-        uiState),
+    std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(
+        uiState->m_squiggleBoyUIState.m_gangedRandomLFOUIState[2],
+        SquiggleBoy::x_numTracks,
+        &uiState->m_squiggleBoyUIState.m_activeTrack,
+        GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>::ColorMode::TrackVoices,
+        SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Voice).m_color),
     SmartGridOneEncoders::BankMode::Voice,
     SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Voice).m_color)
 G(
     GangedRandom4Scope,
     3,
-    std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::GangedRandom4),
-        m_nonagon->GetControlScopeWriter(),
-        &m_scopeVoiceOffset,
-        ScopeComponent::ScopeType::Control,
-        uiState),
+    std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(
+        uiState->m_squiggleBoyUIState.m_gangedRandomLFOUIState[3],
+        SquiggleBoy::x_numTracks,
+        &uiState->m_squiggleBoyUIState.m_activeTrack,
+        GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>::ColorMode::TrackVoices,
+        SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Voice).m_color),
     SmartGridOneEncoders::BankMode::Voice,
     SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Voice).m_color)
 G(
@@ -97,25 +97,23 @@ G(
 G(
     QuadGangedRandom1Scope,
     2,
-    std::make_unique<PolyphonicScopeComponent>(
-        m_nonagon->GetQuadControlScopeWriter(),
-        static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadGangedRandom1),
-        4,
-        SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Quad).m_color,
-        0.9f,
-        0.05f),
+    std::make_unique<GangedRandomLFOComponent<4>>(
+        &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[0],
+        1,
+        nullptr,
+        GangedRandomLFOComponent<4>::ColorMode::Voices,
+        SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Quad).m_color),
     SmartGridOneEncoders::BankMode::Quad,
     SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Quad).m_color)
 G(
     QuadGangedRandom2Scope,
     3,
-    std::make_unique<PolyphonicScopeComponent>(
-        m_nonagon->GetQuadControlScopeWriter(),
-        static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadGangedRandom2),
-        4,
-        SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Quad).m_color,
-        0.9f,
-        0.05f),
+    std::make_unique<GangedRandomLFOComponent<4>>(
+        &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[1],
+        1,
+        nullptr,
+        GangedRandomLFOComponent<4>::ColorMode::Voices,
+        SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Quad).m_color),
     SmartGridOneEncoders::BankMode::Quad,
     SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Quad).m_color)
 G(
@@ -145,24 +143,22 @@ G(
 G(
     GlobalGangedRandom1Scope,
     2,
-    std::make_unique<PolyphonicScopeComponent>(
-        m_nonagon->GetGlobalControlScopeWriter(),
-        static_cast<size_t>(SmartGridOne::GlobalControlScopes::GlobalGangedRandom1),
+    std::make_unique<GangedRandomLFOComponent<1>>(
+        &uiState->m_squiggleBoyUIState.m_globalGangedRandomLFOUIState[0],
         1,
-        SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Global).m_color,
-        0.9f,
-        0.05f),
+        nullptr,
+        GangedRandomLFOComponent<1>::ColorMode::Fixed,
+        SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Global).m_color),
     SmartGridOneEncoders::BankMode::Global,
     SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Global).m_color)
 G(
     GlobalGangedRandom2Scope,
     3,
-    std::make_unique<PolyphonicScopeComponent>(
-        m_nonagon->GetGlobalControlScopeWriter(),
-        static_cast<size_t>(SmartGridOne::GlobalControlScopes::GlobalGangedRandom2),
+    std::make_unique<GangedRandomLFOComponent<1>>(
+        &uiState->m_squiggleBoyUIState.m_globalGangedRandomLFOUIState[1],
         1,
-        SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Global).m_color,
-        0.9f,
-        0.05f),
+        nullptr,
+        GangedRandomLFOComponent<1>::ColorMode::Fixed,
+        SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Global).m_color),
     SmartGridOneEncoders::BankMode::Global,
     SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Global).m_color)

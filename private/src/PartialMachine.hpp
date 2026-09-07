@@ -308,17 +308,16 @@ struct PartialMachine
         PhaseUtils::ExpParam m_pitchShiftDepth[FrequencyDependentParameter::x_numParameters];
         PhaseUtils::ExpHalfRangeCrossfade m_syntheticMix[FrequencyDependentParameter::x_numParameters];
         PhaseUtils::ExpParam m_syntheticHarmonicMagnitude[SpectralModel::x_numSyntheticHarmonics][FrequencyDependentParameter::x_numParameters];
-        ManyGangedRandomLFO m_syntheticHarmonicLFO[SpectralModel::x_numSyntheticHarmonics];
-        ManyGangedRandomLFO::Input m_syntheticHarmonicLFOInput[SpectralModel::x_numSyntheticHarmonics];
+        GangedRandomLFO<FrequencyDependentParameter::x_numParameters>
+            m_syntheticHarmonicLFO[SpectralModel::x_numSyntheticHarmonics];
+        GangedRandomLFOInput m_syntheticHarmonicLFOInput[SpectralModel::x_numSyntheticHarmonics];
 
         InputSetter()
         {
             for (size_t h = 0; h < SpectralModel::x_numSyntheticHarmonics; ++h)
             {
-                m_syntheticHarmonicLFOInput[h].m_gangSize = FrequencyDependentParameter::x_numParameters;
-                m_syntheticHarmonicLFOInput[h].m_time = 6.0f;
-                m_syntheticHarmonicLFOInput[h].m_sigma = 0.2f;
-                m_syntheticHarmonicLFOInput[h].m_numGangs = 1;
+                m_syntheticHarmonicLFOInput[h] =
+                    GangedRandomLFOInput::Standard(6.0, 0.2f);
             }
 
             for (int i = 0; i < FrequencyDependentParameter::x_numParameters; ++i)
@@ -380,7 +379,7 @@ struct PartialMachine
 
                     for (size_t h = 0; h < SpectralModel::x_numSyntheticHarmonics; ++h)
                     {
-                        float harmonicMagnitude = std::min(1.0f, std::max(0.0f, m_syntheticHarmonicLFO[h].m_lfos[0].m_pos[i]));
+                        float harmonicMagnitude = m_syntheticHarmonicLFO[h].Output(i);
                         input.m_spectralModelInput.m_syntheticHarmonics[h].m_parameters[i] = m_syntheticHarmonicMagnitude[h][i].Update(harmonicMagnitude) / (h + 2);
                     }
                 }

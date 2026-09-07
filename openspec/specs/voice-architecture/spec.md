@@ -18,7 +18,7 @@ The system SHALL group the nine voices into three tracks of three voices each (`
 
 #### Scenario: Track-level LFO ganging
 - **WHEN** the ganged random LFOs are configured at startup
-- **THEN** each `ManyGangedRandomLFO` input has `m_gangSize = 3` and `m_numGangs = 3`, matching the three-voice tracks
+- **THEN** each of the four Voice-bank random modulators owns three `GangedRandomLFO<3>` processors, one fixed-size gang for each three-voice track
 - **AND** wavetable generators push the same left/right wavetables to all three voices of a track
 
 ### Requirement: Per-Voice Signal Chain

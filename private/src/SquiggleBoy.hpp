@@ -586,9 +586,9 @@ struct SquiggleBoy
     SquiggleBoyWaveTableGenerator m_waveTableGenerator[2];
 
     SquiggleBoyVoice m_voices[x_numVoices];
-    ManyGangedRandomLFO m_gangedRandomLFO[x_numGangedRandomLFOs];
-    ManyGangedRandomLFO m_quadGangedRandomLFO[2];
-    ManyGangedRandomLFO m_globalGangedRandomLFO[2];
+    GangedRandomLFO<x_voicesPerTrack> m_gangedRandomLFO[x_numGangedRandomLFOs][x_numTracks];
+    GangedRandomLFO<4> m_quadGangedRandomLFO[2];
+    GangedRandomLFO<1> m_globalGangedRandomLFO[2];
 
     SourceMixer m_sourceMixer;
     SourceMixer::Input m_sourceMixerState;
@@ -610,9 +610,9 @@ struct SquiggleBoy
     QuadFloatWithStereoAndSub m_output;
 
     SquiggleBoyVoice::Input m_state[x_numVoices];
-    ManyGangedRandomLFO::Input m_gangedRandomLFOInput[x_numGangedRandomLFOs];
-    ManyGangedRandomLFO::Input m_quadGangedRandomLFOInput[2];
-    ManyGangedRandomLFO::Input m_globalGangedRandomLFOInput[2];
+    GangedRandomLFOInput m_gangedRandomLFOInput[x_numGangedRandomLFOs];
+    GangedRandomLFOInput m_quadGangedRandomLFOInput[2];
+    GangedRandomLFOInput m_globalGangedRandomLFOInput[2];
     MixerInput m_mixerState;
 
     QuadDelayInputSetter m_delayInputSetter;
@@ -629,8 +629,6 @@ struct SquiggleBoy
     RGen m_rGen;
 
     bool m_firstFrame;
-    bool m_topIndependent;
-
     StateSaver* m_stateSaver;
 
     IoTaskThread* m_ioTaskThread;
@@ -638,8 +636,7 @@ struct SquiggleBoy
     RecordingManager m_recordingManager;
 
     SquiggleBoy()
-        : m_topIndependent(false)
-        , m_stateSaver(nullptr)
+        : m_stateSaver(nullptr)
         , m_ioTaskThread(nullptr)
     {
         m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numOutputChannels;
@@ -651,25 +648,15 @@ struct SquiggleBoy
             m_state[i].m_sourceInput.m_sourceMixer = &m_sourceMixer;
         }
 
-        for (size_t i = 0; i < x_numGangedRandomLFOs; ++i)
-        {
-            m_gangedRandomLFOInput[i].m_gangSize = x_numVoices / x_numTracks;
-            m_gangedRandomLFOInput[i].m_time = 6.0;
-            m_gangedRandomLFOInput[i].m_sigma = 0.2;
-            m_gangedRandomLFOInput[i].m_numGangs = x_numTracks;
+        m_gangedRandomLFOInput[0] = GangedRandomLFOInput::Standard(1.0, 0.1f);
+        m_gangedRandomLFOInput[1] = GangedRandomLFOInput::Standard(4.0, 0.3f);
+        m_gangedRandomLFOInput[2] = GangedRandomLFOInput::Standard(12.0, 0.2f);
+        m_gangedRandomLFOInput[3] = GangedRandomLFOInput::Standard(32.0, 0.1f);
 
-            if (i < 2)
-            {
-                m_globalGangedRandomLFOInput[i].m_gangSize = 1;
-                m_globalGangedRandomLFOInput[i].m_time = 6.0;
-                m_globalGangedRandomLFOInput[i].m_sigma = 0.2;
-                m_globalGangedRandomLFOInput[i].m_numGangs = 1;
-                m_quadGangedRandomLFOInput[i].m_gangSize = 4;
-                m_quadGangedRandomLFOInput[i].m_time = 6.0;
-                m_quadGangedRandomLFOInput[i].m_sigma = 0.2;
-                m_quadGangedRandomLFOInput[i].m_numGangs = 1;
-            }
-        }
+        m_quadGangedRandomLFOInput[0] = GangedRandomLFOInput::Standard(8.0, 0.2f);
+        m_quadGangedRandomLFOInput[1] = GangedRandomLFOInput::Standard(16.0, 0.1f);
+        m_globalGangedRandomLFOInput[0] = GangedRandomLFOInput::Standard(8.0, 0.2f);
+        m_globalGangedRandomLFOInput[1] = GangedRandomLFOInput::Standard(16.0, 0.1f);
 
         m_firstFrame = true;
     }
@@ -726,6 +713,9 @@ struct SquiggleBoy
                 {
                     m_waveTableGenerator[i].SetRight(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_vco[i]);
                 }
+
+                m_waveTableGenerator[i].m_leftVisible[j] = true;
+                m_waveTableGenerator[i].m_rightVisible[j] = false;
             }
 
             m_waveTableGenerator[i].Clear();
@@ -745,13 +735,13 @@ struct SquiggleBoy
                     bool needLeft = m_waveTableGenerator[i].m_leftVisible[j];
                     for (size_t k = 0; k < x_voicesPerTrack; ++k)
                     {
-                        if (m_gangedRandomLFO[2 + i].m_lfos[j].m_pos[k] < 1)
+                        if (m_gangedRandomLFO[2 + i][j].Output(k) < 1)
                         {
                             needLeft = false;
                             m_waveTableGenerator[i].m_leftVisible[j] = true;
                         }
 
-                        if (m_gangedRandomLFO[2 + i].m_lfos[j].m_pos[k] > 0)
+                        if (m_gangedRandomLFO[2 + i][j].Output(k) > 0)
                         {
                             needRight = false;
                             m_waveTableGenerator[i].m_rightVisible[j] = true;
@@ -768,6 +758,7 @@ struct SquiggleBoy
 
                         m_waveTableGenerator[i].m_rightVisible[j] = false;
                         m_waveTableGenerator[i].Clear();
+                        break;
                     }
 
                     if (needLeft)
@@ -780,6 +771,7 @@ struct SquiggleBoy
 
                         m_waveTableGenerator[i].m_leftVisible[j] = false;
                         m_waveTableGenerator[i].Clear();
+                        break;
                     }
                 }                
             }
@@ -806,17 +798,17 @@ struct SquiggleBoy
 
         for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
         {
-            m_gangedRandomLFOInput[j].m_topIndependent = m_topIndependent;
-            m_gangedRandomLFO[j].Process(1.0 / 48000.0, m_gangedRandomLFOInput[j]);
+            for (size_t track = 0; track < x_numTracks; ++track)
+            {
+                m_gangedRandomLFO[j][track].Process(
+                    1.0 / 48000.0,
+                    m_gangedRandomLFOInput[j]);
+            }
         }
 
-        m_globalGangedRandomLFOInput[0].m_topIndependent = m_topIndependent;
-        m_globalGangedRandomLFOInput[1].m_topIndependent = m_topIndependent;
         m_globalGangedRandomLFO[0].Process(1.0 / 48000.0, m_globalGangedRandomLFOInput[0]);
         m_globalGangedRandomLFO[1].Process(1.0 / 48000.0, m_globalGangedRandomLFOInput[1]);
 
-        m_quadGangedRandomLFOInput[0].m_topIndependent = m_topIndependent;
-        m_quadGangedRandomLFOInput[1].m_topIndependent = m_topIndependent;
         m_quadGangedRandomLFO[0].Process(1.0 / 48000.0, m_quadGangedRandomLFOInput[0]);
         m_quadGangedRandomLFO[1].Process(1.0 / 48000.0, m_quadGangedRandomLFOInput[1]);
 
@@ -1076,6 +1068,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         ScopeWriter m_monoScopeWriter;
         ScopeWriter m_monoAudioScopeWriter;
 
+        GangedRandomLFOUIState<x_voicesPerTrack>
+            m_gangedRandomLFOUIState[x_numGangedRandomLFOs][x_numTracks];
+        GangedRandomLFOUIState<4> m_quadGangedRandomLFOUIState[2];
+        GangedRandomLFOUIState<1> m_globalGangedRandomLFOUIState[2];
+
         std::atomic<size_t> m_activeTrack;
 
         VoiceFilterUIState m_voiceFilterUIState[x_numVoices];
@@ -1248,10 +1245,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         m_delay.m_lfo.ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::DelayLFO));
         m_reverb.m_lfo.ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::ReverbLFO));
-        m_quadGangedRandomLFO[0].ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadGangedRandom1));
-        m_quadGangedRandomLFO[1].ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadGangedRandom2));
-        m_globalGangedRandomLFO[0].ConfigureScopeWriter(&uiState->m_globalControlScopeWriter, static_cast<size_t>(SmartGridOne::GlobalControlScopes::GlobalGangedRandom1));
-        m_globalGangedRandomLFO[1].ConfigureScopeWriter(&uiState->m_globalControlScopeWriter, static_cast<size_t>(SmartGridOne::GlobalControlScopes::GlobalGangedRandom2));
 
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Delay)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Delay));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Reverb)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Reverb));
@@ -1263,20 +1256,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_partialMachine.SetupAudioScopeWriter(&uiState->m_monoAudioScopeWriter);
 
         m_sourceMixer.SetupScopeWriters(&uiState->m_sourceMixerScopeWriter);
-        SetupGangedRandomScopeWriters(&uiState->m_controlScopeWriter);
         
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             m_voices[i].SetupAudioScopeWriters(&uiState->m_audioScopeWriter, i);
             m_voices[i].SetupControlScopeWriters(&uiState->m_controlScopeWriter, i);
-        }
-    }
-
-    void SetupGangedRandomScopeWriters(ScopeWriter* scopeWriter)
-    {
-        for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
-        {
-            m_gangedRandomLFO[j].ConfigureScopeWriter(scopeWriter, static_cast<size_t>(SmartGridOne::ControlScopes::GangedRandom1) + j);
         }
     }
 
@@ -1296,7 +1280,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         float m_faders[x_numFaders];
         bool m_sourceMonitor[SourceMixer::x_numSources];
         bool m_top;
-        bool m_topIndependent;
 
         PhaseUtils::ExpParam m_tempo;
 
@@ -1327,7 +1310,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             }
 
             m_top = false;
-            m_topIndependent = false;
         }
     };
 
@@ -1457,7 +1439,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {            
             for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
             {
-                modulatorValues.m_value[j][i] = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[j].m_lfos[i / x_numTracks].m_pos[i % x_numTracks]));
+                size_t track = i / x_voicesPerTrack;
+                size_t trackVoice = i % x_voicesPerTrack;
+                modulatorValues.m_value[j][i] = m_gangedRandomLFO[j][track].Output(trackVoice);
             }
 
             modulatorValues.m_value[4][i] = m_voices[i].m_amp.m_modulationAHD.m_rawOutput;
@@ -1491,8 +1475,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     
         for (size_t i = 0; i < 4; ++i)
         {
-            modulatorValues.m_value[2][i] = std::min(1.0f, std::max(0.0f, m_quadGangedRandomLFO[0].m_lfos[0].m_pos[i]));
-            modulatorValues.m_value[3][i] = std::min(1.0f, std::max(0.0f, m_quadGangedRandomLFO[1].m_lfos[0].m_pos[i]));
+            modulatorValues.m_value[2][i] = m_quadGangedRandomLFO[0].Output(i);
+            modulatorValues.m_value[3][i] = m_quadGangedRandomLFO[1].Output(i);
 
             modulatorValues.m_value[4][i] = m_delay.m_lfo.m_output[i] / 2.0 + 0.5;
             modulatorValues.m_value[5][i] = m_reverb.m_lfo.m_output[i] / 2.0 + 0.5;
@@ -1512,8 +1496,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         auto& modulatorValues = m_encoders.GetModulatorValues(BankMode::Global);
 
-        modulatorValues.m_value[2][0] = std::min(1.0f, std::max(0.0f, m_globalGangedRandomLFO[0].m_lfos[0].m_pos[0]));
-        modulatorValues.m_value[3][0] = std::min(1.0f, std::max(0.0f, m_globalGangedRandomLFO[1].m_lfos[0].m_pos[0]));
+        modulatorValues.m_value[2][0] = m_globalGangedRandomLFO[0].Output(0);
+        modulatorValues.m_value[3][0] = m_globalGangedRandomLFO[1].Output(0);
 
         modulatorValues.m_value[14][0] = m_rGen.UniGen();
 
@@ -1538,8 +1522,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             // Dispatch encoder params to the appropriate source machine
             //
-            float wtBlend0 = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[2].m_lfos[i / x_voicesPerTrack].m_pos[i % x_voicesPerTrack]));
-            float wtBlend1 = std::min(1.0f, std::max(0.0f, m_gangedRandomLFO[3].m_lfos[i / x_voicesPerTrack].m_pos[i % x_voicesPerTrack]));
+            size_t track = i / x_voicesPerTrack;
+            size_t trackVoice = i % x_voicesPerTrack;
+            float wtBlend0 = m_gangedRandomLFO[2][track].Output(trackVoice);
+            float wtBlend1 = m_gangedRandomLFO[3][track].Output(trackVoice);
             m_voices[i].m_source.SetEncoderParams(
                 m_encoders, m_state[i].m_sourceInput, i, baseFreq, wtBlend0, wtBlend1);
 
@@ -1794,6 +1780,23 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_encoders.PopulateUIState(&uiState->m_encoderBankUIState);
         uiState->m_activeTrack.store(m_encoders.GetCurrentTrack());
 
+        for (size_t random = 0; random < x_numGangedRandomLFOs; ++random)
+        {
+            for (size_t track = 0; track < x_numTracks; ++track)
+            {
+                m_gangedRandomLFO[random][track].PopulateUIState(
+                    &uiState->m_gangedRandomLFOUIState[random][track]);
+            }
+        }
+
+        for (size_t random = 0; random < 2; ++random)
+        {
+            m_quadGangedRandomLFO[random].PopulateUIState(
+                &uiState->m_quadGangedRandomLFOUIState[random]);
+            m_globalGangedRandomLFO[random].PopulateUIState(
+                &uiState->m_globalGangedRandomLFOUIState[random]);
+        }
+
         uiState->m_audioScopeWriter.Publish();
         uiState->m_controlScopeWriter.Publish();
         uiState->m_quadScopeWriter.Publish();
@@ -1889,8 +1892,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void ProcessSample(Input& input, float deltaT, const AudioInputBuffer& audioInputBuffer)
     {
-        m_topIndependent = input.m_topIndependent;
-
         SetVoiceModulators(input);
         SetGlobalModulators(input);
         SetQuadModulators(input);

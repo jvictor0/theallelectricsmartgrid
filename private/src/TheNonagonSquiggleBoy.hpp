@@ -305,7 +305,6 @@ struct TheNonagonSquiggleBoyInternal
         }
 
         m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_masterLoop].m_top[SampleTimer::GetUBlockIndex()];
-        m_squiggleBoyState.m_topIndependent = m_nonagon.m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_masterLoop].m_topIndependent[SampleTimer::GetUBlockIndex()];
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {

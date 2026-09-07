@@ -24,7 +24,10 @@
 
 #include "doctest.h"
 
+#include <array>
 #include <cmath>
+#include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "../support/GlobalEnv.hpp"
@@ -480,87 +483,152 @@ DOCTEST_TEST_CASE("RandomLFO: smooth output — MaxAbsDelta bounded by filter")
     DOCTEST_CHECK(maxDelta < 0.01f);
 }
 
-// ---------------------------------------------------------------------------
-// Test 9: GangedRandomLFO — basic: bounded output and NaN-clean
-// ---------------------------------------------------------------------------
-//
-DOCTEST_TEST_CASE("GangedRandomLFO: bounded output and NaN-clean (basic standalone drive)")
+struct ScriptedGangedRandomLFODrawSource
 {
-    GlobalEnv::ResetPerTest();
+    std::vector<double> m_normalResults;
+    std::vector<float> m_uniformResults;
+    size_t m_nextNormal{0};
+    size_t m_nextUniform{0};
 
-    // Drive GangedRandomLFOInternal directly (it's standalone — no ToT needed).
-    //
-    GangedRandomLFOInternal lfo;
-    GangedRandomLFOInternal::Input input;
-    input.m_time    = 1.0f;    // ~1 second per move (at dt=1/sampleRate)
-    input.m_sigma   = 0.1f;
-    input.m_gangSize = 4;
-
-    const float dt = 1.0f / static_cast<float>(kSampleRate);
-    const size_t n = 2000;
-
-    std::vector<float> buf;
-    buf.reserve(n * 4);
-
-    for (size_t i = 0; i < n; ++i)
+    double Normal(double, double)
     {
-        lfo.Process(dt, input);
-        for (size_t v = 0; v < input.m_gangSize; ++v)
-        {
-            buf.push_back(lfo.m_pos[v]);
-        }
+        return m_normalResults[m_nextNormal++];
     }
 
-    TestNan::AssertClean(buf.data(), buf.size());
+    float Uniform01()
+    {
+        return m_uniformResults[m_nextUniform++];
+    }
+};
 
-    // Positions are not hard-clamped by the class itself, but should be
-    // loosely bounded (typically [0,1] with some sigma excursion).
-    //
-    float minVal = *std::min_element(buf.begin(), buf.end());
-    float maxVal = *std::max_element(buf.begin(), buf.end());
-    // Allow generous bounds: sigma=0.1 means +/-3-sigma = 0.3 from center
-    //
-    DOCTEST_CHECK(minVal > -1.0f);
-    DOCTEST_CHECK(maxVal < 2.0f);
+DOCTEST_TEST_CASE("GangedRandomLFOVoice runs wait move and done states")
+{
+    GangedRandomLFOVoice voice;
+    GangedRandomLFOVoiceInput input;
+    input.m_waitingIncrement = 0.4;
+    input.m_movingIncrement = 0.25;
+    input.m_shape = 0.0f;
+
+    DOCTEST_CHECK(voice.m_state == GangedRandomLFOVoice::State::Done);
+    voice.Reset(0.75f);
+    DOCTEST_CHECK(voice.m_state == GangedRandomLFOVoice::State::Waiting);
+    DOCTEST_CHECK(voice.Process(input) == doctest::Approx(0.0f));
+    DOCTEST_CHECK(voice.Process(input) == doctest::Approx(0.0f));
+    DOCTEST_CHECK(voice.Process(input) == doctest::Approx(0.0f));
+    DOCTEST_CHECK(voice.m_state == GangedRandomLFOVoice::State::Moving);
+    DOCTEST_CHECK(voice.m_currentStateProgress == doctest::Approx(0.0));
+    DOCTEST_CHECK(voice.Process(input) == doctest::Approx(0.1875f));
+
+    input.m_movingIncrement = 0.8;
+    input.m_shape = 1.0f;
+    DOCTEST_CHECK(voice.Process(input) == doctest::Approx(0.75f));
+    DOCTEST_CHECK(voice.m_state == GangedRandomLFOVoice::State::Done);
 }
 
-// ---------------------------------------------------------------------------
-// Test 10: GangedRandomLFO determinism with fixed seed
-// ---------------------------------------------------------------------------
-//
-DOCTEST_TEST_CASE("GangedRandomLFO: determinism with fixed seed")
+DOCTEST_TEST_CASE("GangedRandomLFO samples a correlated round in canonical order")
 {
-    const size_t n = 500;
+    ScriptedGangedRandomLFODrawSource draws;
+    draws.m_normalResults = {2.0, 0.4, 0.6, 4.0, 0.2, 0.3, -0.2, 1.2};
+    draws.m_uniformResults = {0.5f, 0.1f, 0.9f};
+    GangedRandomLFO<2, ScriptedGangedRandomLFODrawSource> lfo(std::move(draws));
 
-    auto runLFO = [&]() -> std::vector<float>
-    {
-        GangedRandomLFOInternal lfo;
-        GangedRandomLFOInternal::Input input;
-        input.m_time = 1.0f;
-        input.m_sigma = 0.1f;
-        input.m_gangSize = 2;
-        const float dt = 1.0f / static_cast<float>(kSampleRate);
-        std::vector<float> buf;
-        buf.reserve(n * 2);
-        for (size_t i = 0; i < n; ++i)
-        {
-            lfo.Process(dt, input);
-            for (size_t v = 0; v < 2; ++v) buf.push_back(lfo.m_pos[v]);
-        }
-        return buf;
+    GangedRandomLFOInput input;
+    input.m_waiting = {2.0, 0.5, 0.125};
+    input.m_moving = {4.0, 1.0, 0.25};
+    input.m_targetInternalSigma = 0.25f;
+    lfo.Process(0.1, input);
+
+    DOCTEST_CHECK(lfo.m_voiceInputs[0].m_waitingIncrement == doctest::Approx(0.04));
+    DOCTEST_CHECK(lfo.m_voiceInputs[1].m_waitingIncrement == doctest::Approx(0.06));
+    DOCTEST_CHECK(lfo.m_voiceInputs[0].m_movingIncrement == doctest::Approx(0.02));
+    DOCTEST_CHECK(lfo.m_voiceInputs[1].m_movingIncrement == doctest::Approx(0.03));
+    DOCTEST_CHECK(lfo.m_voices[0].m_target == doctest::Approx(0.0f));
+    DOCTEST_CHECK(lfo.m_voices[1].m_target == doctest::Approx(1.0f));
+    DOCTEST_CHECK(lfo.m_voiceInputs[0].m_shape == doctest::Approx(0.1f));
+    DOCTEST_CHECK(lfo.m_voiceInputs[1].m_shape == doctest::Approx(0.9f));
+    DOCTEST_CHECK(lfo.m_draws.m_nextNormal == 8);
+    DOCTEST_CHECK(lfo.m_draws.m_nextUniform == 3);
+}
+
+DOCTEST_TEST_CASE("GangedRandomLFO waits for the slowest voice before resetting")
+{
+    ScriptedGangedRandomLFODrawSource draws;
+    draws.m_normalResults = {
+        1.0, 1.0, 0.5, 1.0, 1.0, 0.5, 0.25, 0.75,
+        1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.4, 0.6,
     };
+    draws.m_uniformResults = {0.5f, 0.0f, 1.0f, 0.5f, 0.25f, 0.75f};
+    GangedRandomLFO<2, ScriptedGangedRandomLFODrawSource> lfo(std::move(draws));
 
-    GlobalEnv::ResetPerTest();
-    auto seq1 = runLFO();
+    GangedRandomLFOInput input;
+    input.m_waiting = {1.0, 0.0, 0.0};
+    input.m_moving = {1.0, 0.0, 0.0};
+    input.m_targetInternalSigma = 0.2f;
 
-    GlobalEnv::ResetPerTest();
-    auto seq2 = runLFO();
+    lfo.Process(1.0, input);
+    lfo.Process(1.0, input);
+    DOCTEST_CHECK(lfo.m_voices[0].m_state == GangedRandomLFOVoice::State::Moving);
+    DOCTEST_CHECK(lfo.m_voices[1].m_state == GangedRandomLFOVoice::State::Waiting);
+    lfo.Process(1.0, input);
+    DOCTEST_CHECK(lfo.m_voices[0].m_state == GangedRandomLFOVoice::State::Done);
+    DOCTEST_CHECK(lfo.m_voices[1].m_state == GangedRandomLFOVoice::State::Moving);
+    DOCTEST_CHECK(lfo.m_draws.m_nextNormal == 8);
+    lfo.Process(1.0, input);
+    DOCTEST_CHECK(lfo.m_draws.m_nextNormal == 8);
+    lfo.Process(1.0, input);
+    DOCTEST_CHECK(lfo.m_draws.m_nextNormal == 16);
+    DOCTEST_CHECK(lfo.m_voices[0].m_state == GangedRandomLFOVoice::State::Waiting);
+    DOCTEST_CHECK(lfo.m_voices[1].m_state == GangedRandomLFOVoice::State::Waiting);
+}
 
-    DOCTEST_REQUIRE(seq1.size() == seq2.size());
-    bool identical = true;
-    for (size_t i = 0; i < seq1.size(); ++i)
+DOCTEST_TEST_CASE("GangedRandomLFO is bounded NaN clean and deterministic")
+{
+    GangedRandomLFO<4> first(0x12345678u);
+    GangedRandomLFO<4> second(0x12345678u);
+    GangedRandomLFOInput input = GangedRandomLFOInput::Standard(0.05, 0.3f);
+    std::vector<float> output;
+    output.reserve(40000);
+
+    for (size_t sample = 0; sample < 10000; ++sample)
     {
-        if (seq1[i] != seq2[i]) { identical = false; break; }
+        first.Process(1.0 / kSampleRate, input);
+        second.Process(1.0 / kSampleRate, input);
+        for (size_t voice = 0; voice < 4; ++voice)
+        {
+            float value = first.Output(voice);
+            output.push_back(value);
+            DOCTEST_CHECK(value == second.Output(voice));
+            DOCTEST_CHECK(value >= 0.0f);
+            DOCTEST_CHECK(value <= 1.0f);
+        }
     }
-    DOCTEST_CHECK(identical);
+
+    TestNan::AssertClean(output.data(), output.size());
+}
+
+DOCTEST_TEST_CASE("GangedRandomLFO publishes a coherent predictive snapshot")
+{
+    GangedRandomLFO<2> lfo(123u);
+    GangedRandomLFOInput input = GangedRandomLFOInput::Standard(0.5, 0.1f);
+    lfo.Process(1.0 / kSampleRate, input);
+    lfo.Process(1.0 / kSampleRate, input);
+
+    GangedRandomLFOUIState<2> uiState;
+    lfo.PopulateUIState(&uiState);
+    GangedRandomLFOSnapshot<2> snapshot;
+    DOCTEST_REQUIRE(uiState.ReadSnapshot(snapshot));
+    DOCTEST_CHECK(snapshot.m_sampleRate == doctest::Approx(kSampleRate));
+    DOCTEST_CHECK(snapshot.m_roundElapsedSamples == doctest::Approx(1.0));
+    for (size_t voice = 0; voice < 2; ++voice)
+    {
+        DOCTEST_CHECK(snapshot.m_voices[voice].m_state == lfo.m_voices[voice].m_state);
+        DOCTEST_CHECK(snapshot.m_voices[voice].m_source == lfo.m_voices[voice].m_source);
+        DOCTEST_CHECK(snapshot.m_voices[voice].m_target == lfo.m_voices[voice].m_target);
+        DOCTEST_CHECK(
+            snapshot.m_voices[voice].m_waitingIncrement ==
+            lfo.m_voiceInputs[voice].m_waitingIncrement);
+    }
+
+    uiState.m_revision.store(1, std::memory_order_release);
+    DOCTEST_CHECK_FALSE(uiState.ReadSnapshot(snapshot));
 }

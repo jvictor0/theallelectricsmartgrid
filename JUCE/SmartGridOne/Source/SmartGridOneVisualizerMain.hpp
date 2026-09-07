@@ -5,6 +5,7 @@
 #include "NonagonWrapper.hpp"
 #include "SmartGridOneMainVisualizerComponent.hpp"
 #include "ScopeComponent.hpp"
+#include "GangedRandomLFOComponent.hpp"
 #include "MeterComponent.hpp"
 #include "MasteringComponents.hpp"
 #include "PartialMachineComponents.hpp"
