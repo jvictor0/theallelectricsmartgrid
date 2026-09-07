@@ -275,3 +275,64 @@ DOCTEST_TEST_CASE("MeasureTransferFunction: one-sample delay is flat 0 dB")
                           kSampleRate, kFftSize1024, 0.5,
                           /*loBin*/ 16, /*hiBin*/ 480);
 }
+
+DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: interior bin writes Hann taps")
+{
+    DiscreteFourierTransform dft;
+    constexpr size_t k = 8;
+    std::complex<float> value(2.0f, 0.0f);
+    dft.WriteBinCenteredWindowedPartial(k, value);
+
+    DOCTEST_CHECK(dft.m_components[k - 1].real() == doctest::Approx(-0.5f));
+    DOCTEST_CHECK(dft.m_components[k].real() == doctest::Approx(1.0f));
+    DOCTEST_CHECK(dft.m_components[k + 1].real() == doctest::Approx(-0.5f));
+    DOCTEST_CHECK(dft.m_components[k - 1].imag() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[k].imag() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[k + 1].imag() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[0].real() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[k + 2].real() == doctest::Approx(0.0f));
+}
+
+DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: DC is a no-op")
+{
+    DiscreteFourierTransform dft;
+    dft.m_components[0] = std::complex<float>(3.0f, 0.0f);
+    dft.m_components[1] = std::complex<float>(4.0f, 0.0f);
+    dft.WriteBinCenteredWindowedPartial(0, std::complex<float>(1.0f, 0.0f));
+
+    DOCTEST_CHECK(dft.m_components[0].real() == doctest::Approx(3.0f));
+    DOCTEST_CHECK(dft.m_components[1].real() == doctest::Approx(4.0f));
+}
+
+DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: first AC bin omits DC tap")
+{
+    DiscreteFourierTransform dft;
+    dft.WriteBinCenteredWindowedPartial(1, std::complex<float>(4.0f, 0.0f));
+
+    DOCTEST_CHECK(dft.m_components[0].real() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[1].real() == doctest::Approx(2.0f));
+    DOCTEST_CHECK(dft.m_components[2].real() == doctest::Approx(-1.0f));
+}
+
+DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: last bin omits missing upper tap")
+{
+    DiscreteFourierTransform dft;
+    constexpr size_t k = DiscreteFourierTransform::x_maxComponents - 1;
+    dft.WriteBinCenteredWindowedPartial(k, std::complex<float>(4.0f, 0.0f));
+
+    DOCTEST_CHECK(dft.m_components[k - 1].real() == doctest::Approx(-1.0f));
+    DOCTEST_CHECK(dft.m_components[k].real() == doctest::Approx(2.0f));
+}
+
+DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: adds to existing bins")
+{
+    DiscreteFourierTransform dft;
+    dft.m_components[7] = std::complex<float>(1.0f, 0.0f);
+    dft.m_components[8] = std::complex<float>(1.0f, 0.0f);
+    dft.m_components[9] = std::complex<float>(1.0f, 0.0f);
+    dft.WriteBinCenteredWindowedPartial(8, std::complex<float>(2.0f, 0.0f));
+
+    DOCTEST_CHECK(dft.m_components[7].real() == doctest::Approx(0.5f));
+    DOCTEST_CHECK(dft.m_components[8].real() == doctest::Approx(2.0f));
+    DOCTEST_CHECK(dft.m_components[9].real() == doctest::Approx(0.5f));
+}

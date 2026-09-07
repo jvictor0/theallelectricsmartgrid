@@ -253,7 +253,7 @@ struct PartialMachine
                 std::complex<float> value(
                     reducedMagnitude * Math::Cos2pi(phase),
                     reducedMagnitude * Math::Sin2pi(phase));
-                dft.AddComponent(k, value, distribution);
+                dft.WriteBinCenteredWindowedPartial(k, value, distribution);
                 spectralModel.m_residualModel.m_magnitudes[k] = PhaseUtils::ExpParam::Compute(
                     std::max(SpectralModel::x_deathMag, envelope),
                     std::max(SpectralModel::x_deathMag, reducedMagnitude),

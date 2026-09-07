@@ -161,7 +161,7 @@ The system SHALL store a `ResidualModel` inside `SpectralModelGeneric`. The resi
 - **THEN** the residual model returns the smoothed residual magnitude stored at index `k`
 
 ### Requirement: Residual Quad Synthesis
-The Partial Machine SHALL contain a `ResidualMachine` that adds residual energy into the same `QuadDFT` frame as tracked partial atoms. For each target quad DFT bucket, the residual machine SHALL read the residual envelope at the same DFT bucket index, compute frequency-dependent reduction and quad pan placement from that bucket frequency, compute per-channel magnitude as `residualEnvelope * reduction * pan[channel]`, choose a random phase for the synthesis frame, create a complex value with that magnitude and phase, and add it directly into the target quad DFT component without using a windowed-partial write. The residual machine SHALL also apply the reduction-feedback parameter to the residual bucket's stored magnitude, writing the feedback-shaped reduced magnitude back into the residual model with the same floor policy used by tracked atom reduction feedback.
+The Partial Machine SHALL contain a `ResidualMachine` that adds residual energy into the same `QuadDFT` frame as tracked partial atoms. For each target quad DFT bucket, the residual machine SHALL read the residual envelope at the same DFT bucket index, compute frequency-dependent reduction and quad pan placement from that bucket frequency, compute per-channel magnitude as `residualEnvelope * reduction * pan[channel]`, choose a random phase for the synthesis frame, create a complex value with that magnitude and phase, and write it with `WriteBinCenteredWindowedPartial`. That write SHALL add the on-bin Hann kernel `0.5` at bin `k` and `-0.25` at `k-1` and `k+1`, omit DC, omit a missing upper neighbor at the last stored bin, and leave true DC writes as a no-op. The residual machine SHALL also apply the reduction-feedback parameter to the residual bucket's stored magnitude, writing the feedback-shaped reduced magnitude back into the residual model with the same floor policy used by tracked atom reduction feedback.
 
 #### Scenario: Residual buckets share the partial synthesis frame
 - **WHEN** a Partial Machine synthesis frame is built
@@ -191,5 +191,11 @@ The Partial Machine SHALL contain a `ResidualMachine` that adds residual energy 
 
 #### Scenario: Residual synthesis preserves existing DFT contents
 - **WHEN** tracked atoms have already written partial energy into a quad DFT component
-- **THEN** residual synthesis adds its random-phase complex value to the existing component value
+- **THEN** residual synthesis adds its Hann-windowed residual energy to the existing component value
 - **AND** it does not clear or replace the existing partial energy
+
+#### Scenario: Residual synthesis uses a bin-centered Hann kernel
+- **WHEN** residual synthesis writes bucket `k` with complex value `v`
+- **THEN** it adds `0.5 * v` to component `k` and `-0.25 * v` to the neighboring stored bins
+- **AND** it does not write DC
+- **AND** it omits a neighbor tap that would fall outside the stored DFT bins

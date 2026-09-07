@@ -293,6 +293,57 @@ DOCTEST_TEST_CASE("QuadDFT residual component add preserves existing component")
     DOCTEST_CHECK(dft.m_dfts[1].m_components[k].real() == doctest::Approx(0.0f));
 }
 
+DOCTEST_TEST_CASE("QuadDFT WriteBinCenteredWindowedPartial pans Hann taps")
+{
+    QuadDFT dft;
+    constexpr size_t k = 8;
+    dft.m_dfts[0].m_components[k] = std::complex<float>(1.0f, 0.0f);
+
+    dft.WriteBinCenteredWindowedPartial(
+        k,
+        std::complex<float>(2.0f, 0.0f),
+        QuadFloat(1.0f, 0.5f, 0.0f, 0.0f));
+
+    DOCTEST_CHECK(dft.m_dfts[0].m_components[k - 1].real() == doctest::Approx(-0.5f));
+    DOCTEST_CHECK(dft.m_dfts[0].m_components[k].real() == doctest::Approx(2.0f));
+    DOCTEST_CHECK(dft.m_dfts[0].m_components[k + 1].real() == doctest::Approx(-0.5f));
+    DOCTEST_CHECK(dft.m_dfts[1].m_components[k].real() == doctest::Approx(0.5f));
+    DOCTEST_CHECK(dft.m_dfts[1].m_components[k - 1].real() == doctest::Approx(-0.25f));
+    DOCTEST_CHECK(dft.m_dfts[2].m_components[k].real() == doctest::Approx(0.0f));
+}
+
+DOCTEST_TEST_CASE("ResidualMachine writes bin-centered Hann residual")
+{
+    GlobalEnv::ResetPerTest();
+
+    PartialMachine pm;
+    PartialMachine::Input input = MakeBasicInput();
+    input.m_synthesisContextInput.m_azimuthFactor = FrequencyDependentParameter::Parameter(0.0f);
+
+    constexpr size_t k = 8;
+    pm.m_spectralModel.m_residualModel.m_magnitudes[k] = 1.0f;
+
+    QuadDFT dft;
+    pm.m_residualMachine.Process(dft, pm.m_spectralModel, input);
+
+    bool sawEnergy = false;
+    for (int ch = 0; ch < 4; ++ch)
+    {
+        float center = std::abs(dft.m_dfts[ch].m_components[k]);
+        if (center < 1e-6f)
+        {
+            continue;
+        }
+
+        sawEnergy = true;
+        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k - 1]) == doctest::Approx(0.5f * center));
+        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k + 1]) == doctest::Approx(0.5f * center));
+        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k + 2]) == doctest::Approx(0.0f));
+    }
+
+    DOCTEST_CHECK(sawEnergy);
+}
+
 DOCTEST_TEST_CASE("PartialMachine residual feedback writes reduced magnitude back")
 {
     GlobalEnv::ResetPerTest();

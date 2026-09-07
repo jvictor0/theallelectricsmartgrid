@@ -213,6 +213,25 @@ struct DiscreteFourierTransformGeneric
             m_components[k] += phaseFactor * MathGeneric<Bits>::HannKernel(offset);
         }
     }
+
+    void WriteBinCenteredWindowedPartial(size_t bin, std::complex<float> value)
+    {
+        if (bin == 0 || x_maxComponents <= bin)
+        {
+            return;
+        }
+
+        m_components[bin] += 0.5f * value;
+        if (1 < bin)
+        {
+            m_components[bin - 1] += -0.25f * value;
+        }
+
+        if (bin + 1 < x_maxComponents)
+        {
+            m_components[bin + 1] += -0.25f * value;
+        }
+    }
 };
 
 typedef DiscreteFourierTransformGeneric<10> DiscreteFourierTransform;

@@ -76,6 +76,14 @@ struct QuadDFT
             m_dfts[i].WriteWindowedPartial(phase, magnitude * distribution[i], exactFrequency);
         }
     }
+
+    void WriteBinCenteredWindowedPartial(size_t bin, std::complex<float> value, QuadFloat distribution)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            m_dfts[i].WriteBinCenteredWindowedPartial(bin, value * distribution[i]);
+        }
+    }
 };
 
 struct QuadOLA
