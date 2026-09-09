@@ -68,6 +68,7 @@ struct BankedEncoderCell : public StateEncoderCell
                     m_value[i][j] = 0;
                     m_valuePrev[i][j] = 0;
                     m_amplitude[i][j] = 1;
+                    m_amplitudePrev[i][j] = 1;
                 }
 
                 m_modulatorColor[i] = Color::Off;
@@ -87,10 +88,12 @@ struct BankedEncoderCell : public StateEncoderCell
             m_changedGestures.Clear();
             for (size_t i = 0; i < x_numModulators; ++i)
             {
-                if (memcmp(m_value[i], m_valuePrev[i], 16 * sizeof(float)) != 0)
+                if (memcmp(m_value[i], m_valuePrev[i], 16 * sizeof(float)) != 0 ||
+                    memcmp(m_amplitude[i], m_amplitudePrev[i], 16 * sizeof(float)) != 0)
                 {
                     m_changedModulators.Set(i, true);
                     memcpy(m_valuePrev[i], m_value[i], 16 * sizeof(float));
+                    memcpy(m_amplitudePrev[i], m_amplitude[i], 16 * sizeof(float));
                 }
             }
 
@@ -126,6 +129,7 @@ struct BankedEncoderCell : public StateEncoderCell
         float m_value[x_numModulators][16];
         float m_valuePrev[x_numModulators][16];
         float m_amplitude[x_numModulators][16];
+        float m_amplitudePrev[x_numModulators][16];
         bool m_modulatorConnected[x_numModulators];
         Color m_modulatorColor[x_numModulators];
 
@@ -281,10 +285,12 @@ struct BankedEncoderCell : public StateEncoderCell
 
             float modValue[16];
             float modWeight[16];
+            float modOffset[16];
             for (size_t i = 0; i < numTracks * numVoices; ++i)
             {
                 modValue[i] = 0;
                 modWeight[i] = 0;
+                modOffset[i] = 0;
             }
             
             for (size_t i = 0; i < m_numActiveModulators; ++i)
@@ -302,8 +308,10 @@ struct BankedEncoderCell : public StateEncoderCell
                     {
                         size_t ix = j * numVoices + k;
                         float amp = modulatorValues->m_amplitude[m_activeModulators[i]][ix];
-                        modValue[ix] += cell->m_output[ix] * modulatorValues->m_value[m_activeModulators[i]][ix] * amp;
-                        modWeight[ix] += cell->m_output[ix] * amp;
+                        float depth = ModulationDepthFromValue(cell->GetValueNoSlew(ix)) * amp;
+                        modValue[ix] += depth * modulatorValues->m_value[m_activeModulators[i]][ix];
+                        modWeight[ix] += std::fabs(depth);
+                        modOffset[ix] += std::max(0.0f, -depth);
                     }
                 }                
             }
@@ -314,18 +322,11 @@ struct BankedEncoderCell : public StateEncoderCell
                 for (size_t j = 0; j < numVoices; ++j)
                 {
                     size_t ix = i * numVoices + j;
-                    if (modWeight[ix] > 1)
-                    {
-                        m_owner->m_output[ix] = modValue[ix] / modWeight[ix];
-                        m_owner->m_maxValue[ix] = 1;
-                        m_owner->m_minValue[ix] = 0;
-                    }
-                    else
-                    {
-                        m_owner->m_output[ix] = value * (1 - modWeight[ix]) + modValue[ix];
-                        m_owner->m_maxValue[ix] = value * (1 - modWeight[ix]) + modWeight[ix];
-                        m_owner->m_minValue[ix] = value * (1 - modWeight[ix]);
-                    }
+                    float denominator = std::max(1.0f, modWeight[ix]);
+                    float baseWeight = std::max(0.0f, 1.0f - modWeight[ix]);
+                    m_owner->m_output[ix] = value * baseWeight + (modValue[ix] + modOffset[ix]) / denominator;
+                    m_owner->m_minValue[ix] = value * baseWeight;
+                    m_owner->m_maxValue[ix] = value * baseWeight + std::min(1.0f, modWeight[ix]);
                 }
             }
 
@@ -422,6 +423,10 @@ struct BankedEncoderCell : public StateEncoderCell
         m_parent = parent;
         m_ownerBank = parent ? parent->m_ownerBank : nullptr;
         m_type = modulatorType;
+        m_bipolar = m_type == EncoderType::ModulatorAmount ||
+            (m_type == EncoderType::GestureParam && parent->m_bipolar);
+        m_numTracks = parent ? parent->m_numTracks : 0;
+        m_defaultValue = GetNeutralNormalizedValue();
 
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
@@ -463,11 +468,19 @@ struct BankedEncoderCell : public StateEncoderCell
         m_forceUpdate = true;
         for (size_t i = 0; i < 16; ++i)
         {
-            m_bankedValue[i] = 0;
+            for (size_t scene = 0; scene < SceneManager::x_numScenes; ++scene)
+            {
+                m_values[i][scene] = m_defaultValue;
+            }
+
+            m_bankedValue[i] = m_defaultValue;
             SetStatePtr(&m_bankedValue[i], i);
-            m_output[i] = 0;
+            m_postGestureValue[i] = m_defaultValue;
+            m_output[i] = m_defaultValue;
+            m_minValue[i] = m_defaultValue;
+            m_maxValue[i] = m_defaultValue;
             m_slew[i].SetAlphaFromNatFreq(500.0f / 48000.0f);
-            m_slew[i].m_output = 0;
+            m_slew[i].m_output = m_defaultValue;
             m_effectiveModulatorWeights[i] = 0;
         }
     }
@@ -613,7 +626,24 @@ struct BankedEncoderCell : public StateEncoderCell
 
     float GetSlewedValue(size_t channel)
     {
-        return m_slew[channel].Process(m_output[channel]);
+        return ToValue(m_slew[channel].Process(m_output[channel]));
+    }
+
+    float GetValueNoSlew(size_t channel) const
+    {
+        return ToValue(m_output[channel]);
+    }
+
+    static float ModulationDepthFromValue(float value)
+    {
+        float bipolar = std::clamp(value, -1.0f, 1.0f);
+        if (bipolar == 0.0f)
+        {
+            return 0.0f;
+        }
+
+        float magnitude = (std::pow(9.0f, std::fabs(bipolar)) - 1.0f) / 8.0f;
+        return std::copysign(magnitude, bipolar);
     }
 
     void InitSlewState(float value)
@@ -682,7 +712,7 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
         {
-            GetModulator(i)->SetValue(0, allScenes, allTracks);
+            GetModulator(i)->SetValue(GetModulator(i)->GetNeutralNormalizedValue(), allScenes, allTracks);
             GetModulator(i)->ZeroModulators(allScenes, allTracks);
         }
 
@@ -690,7 +720,7 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             if (m_modulators.m_gestures[i])
             {
-                m_modulators.m_gestures[i]->SetValue(0, allScenes, allTracks);
+                m_modulators.m_gestures[i]->SetValue(m_modulators.m_gestures[i]->GetNeutralNormalizedValue(), allScenes, allTracks);
                 DeactivateGesture(i, allScenes, allTracks);
             }
         }
@@ -749,7 +779,7 @@ struct BankedEncoderCell : public StateEncoderCell
                 }
             }
 
-            return m_modulators.m_numActiveModulators == 0 && AllZero();
+            return m_modulators.m_numActiveModulators == 0 && AllNeutral();
         }
     }
 
@@ -1047,14 +1077,14 @@ struct BankedEncoderCell : public StateEncoderCell
 
         if (m_depth > 0)
         {
-            if (!m_modulatorsAffecting.IsZero() || !IsZeroCurrentScene() || m_isVisible)
+            if (!m_modulatorsAffecting.IsZero() || !IsNeutralCurrentScene() || m_isVisible)
             {
                 m_modulatorsAffecting.Set(m_index, true);
             }
 
             for (size_t i = 0; i < m_numTracks; ++i)
             {
-                if (!m_modulatorsAffectingPerTrack[i].IsZero() || !IsZeroCurrentSceneForTrack(i))
+                if (!m_modulatorsAffectingPerTrack[i].IsZero() || !IsNeutralCurrentSceneForTrack(i))
                 {
                     m_modulatorsAffectingPerTrack[i].Set(m_index, true);
                 }
@@ -1557,7 +1587,7 @@ struct EncoderBankInternal : public EncoderGrid
         BankedEncoderCell* cell = GetBase(i, j);
         if (cell)
         {
-            return cell->m_output[channel];
+            return cell->GetValueNoSlew(channel);
         }
 
         return 0.0f;
@@ -1608,6 +1638,7 @@ struct EncoderBankInternal : public EncoderGrid
                 if (cell && cell->m_connected)
                 {
                     uiState->SetConnected(i, j, true);
+                    uiState->SetBipolar(i, j, cell->m_bipolar);
                     uiState->SetColor(i, j, cell->GetSquareColor());
                     uiState->SetBrightness(i, j, cell->GetBrightness());
                     for (size_t k = 0; k < m_sharedEncoderState.m_numTracks * m_sharedEncoderState.m_numVoices; ++k)
@@ -1624,6 +1655,7 @@ struct EncoderBankInternal : public EncoderGrid
                 else
                 {
                     uiState->SetConnected(i, j, false);
+                    uiState->SetBipolar(i, j, false);
                     uiState->SetBrightness(i, j, 0);
                     for (size_t k = 0; k < m_sharedEncoderState.m_numTracks * m_sharedEncoderState.m_numVoices; ++k)
                     {

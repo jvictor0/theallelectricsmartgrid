@@ -75,14 +75,14 @@ struct SmartGridOneEncoders
 
     enum class Param
     {
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) name,
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) name,
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
     };
 
     static constexpr size_t x_numParams =
         0
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) + 1
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) + 1
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
         ;
@@ -259,7 +259,7 @@ struct SmartGridOneEncoders
     {
         switch (param)
         {
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) case Param::name: return ParamAddress(Bank::bank, x, y);
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) case Param::name: return ParamAddress(Bank::bank, x, y);
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
             default:
@@ -271,7 +271,7 @@ struct SmartGridOneEncoders
     {
         switch (param)
         {
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) case Param::name: return ParamSwitch(switchValues);
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) case Param::name: return ParamSwitch(switchValues);
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
             default:
@@ -316,7 +316,7 @@ struct SmartGridOneEncoders
             return 0;
         }
 
-        int switchVal = static_cast<int>(std::round(GetValueNoSlew(param, voice) * static_cast<float>(paramSwitch.m_numValues - 1)));
+        int switchVal = static_cast<int>(std::round(m_encoderBankBank.GetNormalizedValueNoSlewByEncoderIndex(static_cast<size_t>(param), static_cast<size_t>(voice)) * static_cast<float>(paramSwitch.m_numValues - 1)));
         return std::max(0, std::min(paramSwitch.m_numValues - 1, switchVal));
     }
 
@@ -353,10 +353,10 @@ struct SmartGridOneEncoders
         m_encoderBankBank.InitBank(static_cast<int>(Bank::Inputs), static_cast<int>(BankMode::Global), SmartGrid::Color::White);
         m_encoderBankBank.InitBank(static_cast<int>(Bank::DeepVocoder), static_cast<int>(BankMode::Global), SmartGrid::Color::Ocean);
 
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) \
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) \
         { \
             size_t modeIx = static_cast<size_t>(GetModeForBank(Bank::bank)); \
-            size_t index = m_encoderBankBank.CreateEncoder(sceneManager, static_cast<size_t>(Param::name), modeIx, default, #name, #shortName, color, switchValues); \
+            size_t index = m_encoderBankBank.CreateEncoder(sceneManager, static_cast<size_t>(Param::name), modeIx, default, #name, #shortName, color, switchValues, bipolar); \
             m_encoderBankBank.PlaceEncoder(index, static_cast<size_t>(Bank::bank), x, y); \
         }
 #include "ForEachSmartGridOneParam.hpp"
@@ -418,7 +418,7 @@ struct SmartGridOneEncoders
             }
         }
 
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues) \
+#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) \
         { \
             if (GetModeForBank(Bank::bank) == BankMode::Voice) \
             { \

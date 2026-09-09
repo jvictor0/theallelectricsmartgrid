@@ -101,7 +101,8 @@ struct EncoderBankBank
         const char* name,
         const char* shortName,
         SmartGrid::Color color,
-        int switchValues)
+        int switchValues,
+        bool bipolar)
     {
         if (index >= m_numEncoders)
         {
@@ -116,9 +117,10 @@ struct EncoderBankBank
         SmartGrid::BankedEncoderCell* cell = m_encoders[index].get();
         cell->m_sharedEncoderState = &m_bankModes[modeIx].m_sharedEncoderState;
         cell->m_numTracks = m_bankModes[modeIx].m_numTracks;
-        cell->m_defaultValue = defaultValue;
-        cell->SetValueAllScenesAllTracks(defaultValue);
-        cell->InitSlewState(defaultValue);
+        cell->m_bipolar = bipolar;
+        cell->m_defaultValue = cell->ToNormalized(defaultValue);
+        cell->SetValueAllScenesAllTracks(cell->m_defaultValue);
+        cell->InitSlewState(cell->m_defaultValue);
         cell->m_connected = true;
         cell->m_color = color;
         cell->m_name = name;
@@ -153,10 +155,16 @@ struct EncoderBankBank
         SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIndex);
         if (cell)
         {
-            return cell->m_output[channel];
+            return cell->GetValueNoSlew(channel);
         }
 
         return 0.0f;
+    }
+
+    float GetNormalizedValueNoSlewByEncoderIndex(size_t encoderIndex, size_t channel)
+    {
+        SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIndex);
+        return cell ? cell->m_output[channel] : 0.0f;
     }
 
     void PlaceEncoder(size_t encoderIndex, size_t bank, int x, int y)

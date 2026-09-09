@@ -381,6 +381,55 @@ DOCTEST_TEST_CASE("sys_encoder_reset: shift-press encoder clears an assigned mod
     rig.StopSequencer();
 }
 
+DOCTEST_TEST_CASE("sys_encoder_reset: negative depth survives patch loading and clears to center")
+{
+    SynthRig rig;
+    rig.SetLeftScene(0);
+    rig.SetRightScene(1);
+    rig.SetBlend(0.0f);
+    rig.RunFrames(2);
+    int ex = -1;
+    int ey = -1;
+    DOCTEST_REQUIRE(FindConnected(rig, ex, ey));
+    rig.SetEncoder(ex, ey, 0.3f);
+    rig.PressEncoder(ex, ey);
+    rig.ReleaseEncoder(ex, ey);
+    rig.RunFrames(2);
+    DOCTEST_CHECK(rig.EncoderValue(0, 0) == doctest::Approx(0.5f));
+    rig.SetEncoder(0, 0, 0.25f);
+    rig.RunFrames(2);
+    rig.PressEncoder(3, 3);
+    rig.ReleaseEncoder(3, 3);
+    rig.RunFrames(2);
+    DOCTEST_CHECK(ModulatorsAffecting(rig, ex, ey).Get(0));
+    const std::string saved = rig.SavePatch();
+    DOCTEST_REQUIRE_FALSE(saved.empty());
+
+    rig.ResetToDefaults();
+    DOCTEST_REQUIRE(rig.LoadPatch(saved));
+    rig.RunFrames(kSettleFrames);
+    rig.PressEncoder(ex, ey);
+    rig.ReleaseEncoder(ex, ey);
+    rig.RunFrames(2);
+    DOCTEST_CHECK(rig.EncoderValue(0, 0) == doctest::Approx(0.25f).epsilon(0.001f));
+    rig.PressEncoder(3, 3);
+    rig.ReleaseEncoder(3, 3);
+    rig.RunFrames(2);
+    rig.WithShift([&]()
+    {
+        rig.PressEncoder(ex, ey);
+        rig.ReleaseEncoder(ex, ey);
+    });
+    rig.RunFrames(kSettleFrames);
+    DOCTEST_CHECK(ModulatorsAffecting(rig, ex, ey).IsZero());
+    DOCTEST_CHECK(rig.EncoderValue(ex, ey) == doctest::Approx(0.3f).epsilon(0.001f));
+    rig.PressEncoder(ex, ey);
+    rig.ReleaseEncoder(ex, ey);
+    rig.RunFrames(2);
+    DOCTEST_CHECK(rig.EncoderValue(0, 0) == 0.5f);
+    DOCTEST_CHECK_FALSE(rig.SawNaN());
+}
+
 // ---------------------------------------------------------------------------
 // Scene isolation: a shift-reset performed while one scene is active must not
 // disturb the gesture configuration stored in another scene.

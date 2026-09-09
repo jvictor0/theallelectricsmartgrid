@@ -25,13 +25,52 @@ To accommodate polyphony and quadraphonic effects, the parameter system is struc
 - `StateEncoderCell`: The base class that holds the actual numerical state. It stores a value in the normalized range `[0, 1]`.
 - `BankedEncoderCell`: Extends the state cell to support deep, polyphonic modulation and macro gestures. 
 
+Every state encoder has an `m_bipolar` flag. Scene storage, gesture targets,
+computed outputs, slew state, and UI/MIDI knob coordinates stay in `[0, 1]`.
+DSP `GetValue` and `GetValueNoSlew` getters automatically return `2u - 1` for a
+bipolar encoder and `u` for a unipolar encoder. Switch indexing still uses the
+normalized position. The parameter declaration's trailing `bipolar` flag and
+default value configure this behavior; defaults are in the exposed knob domain
+and are converted to normalized state at creation. Existing top-level parameters
+remain unipolar. Gesture target cells inherit their parent's polarity.
+
+JSON saves the **knob position**, in `[-1, 1]` for bipolar encoders and `[0, 1]`
+for unipolar encoders. Loading converts signed values back to normalized storage.
+Polarity comes from the parameter declaration or child role, not a saved field;
+there is no patch version or legacy-depth conversion.
+
 ## Deep Modulation
 
 Every `BankedEncoderCell` can act as a modulation destination.
 - Up to 15 internal "LFOs" or envelopes (e.g., the PolyXFader LFOs, AHD envelopes) can be routed to any parameter.
 - The **Modulation Depth** is itself implemented as a full `BankedEncoderCell`. This means you can modulate the modulation depth (e.g., using an LFO to slowly fade in an envelope's effect on the filter cutoff).
+- Depth cells are bipolar, with normalized position `0.5` meaning no modulation.
+  Their signed knob position `b` maps to effective depth
+  `sign(b) * (9^abs(b) - 1) / 8`. Signed positions `-1, -0.5, 0, 0.5, 1`
+  therefore produce depths `-1, -0.25, 0, 0.25, 1`. The parent applies this curve
+  after the child's recursive normalized computation, once per modulation route.
 - **Polyphonic Modulation**: While the base knob value is shared across a track, the modulation sources (like voice-specific envelopes) are polyphonic. Therefore, the resulting modulated parameter values are calculated independently for every voice.
 - **Crossfade Modulation**: To prevent clipping and dead spots, modulation is applied as a crossfade. A modulation depth of `1.0` means the parameter is 100% controlled by the modulator, completely overriding the base knob value.
+
+Negative depths crossfade toward the inverted source, `1 - m`. For each voice,
+let `d` be each curved depth multiplied by its source amplitude and `W = sum(abs(d))`.
+The output is `p * max(0, 1 - W) + (sum(d * m) + sum(max(0, -d))) / max(1, W)`.
+The negative-depth offset keeps the result normalized, while total absolute
+weight above one produces a normalized modulation mix. Source amplitude changes
+invalidate the cached result even when the waveform value stays constant.
+
+Depth reset, activity detection, and garbage collection use the neutral position
+`0.5`. Non-neutral saved scenes and active nested modulation remain preserved,
+even when the current scene blend produces zero depth. Bipolar encoder rings
+show a center marker; encoder-set messages and MIDI values remain normalized.
+
+Old saved positive modulation depths are read as positive signed knob positions.
+An old `0` stays neutral and `1` stays full depth, while an old `0.5` now produces
+depth `0.25`. This intentionally weakens intermediate old depths, including those
+in nested modulation. Saving writes the knob position, so repeated save/load does
+not repeatedly apply the exponential curve. Changing an existing top-level
+parameter to bipolar likewise requires deliberately updating its DSP callers and
+accepting the new interpretation of its old saved values.
 
 ## Gestures (Macros)
 

@@ -17,6 +17,7 @@ struct EncoderUIState
     std::atomic<BitSet16> m_gesturesAffecting;
     std::atomic<const char*> m_shortName;
     std::atomic<int> m_switchValues;
+    std::atomic<bool> m_bipolar{false};
 
     EncoderUIState()
         : m_color(SmartGrid::Color::Off)
@@ -113,6 +114,16 @@ struct EncoderBankUIState
     int GetSwitchValues(size_t i, size_t j)
     {
         return m_states[i][j].m_switchValues.load();
+    }
+
+    bool GetBipolar(size_t i, size_t j)
+    {
+        return m_states[i][j].m_bipolar.load();
+    }
+
+    void SetBipolar(size_t i, size_t j, bool bipolar)
+    {
+        m_states[i][j].m_bipolar.store(bipolar);
     }
 
     int GetNumTracks()

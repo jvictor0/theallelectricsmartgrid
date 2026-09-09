@@ -146,6 +146,22 @@ struct EncoderCell
 struct StateEncoderCell : public EncoderCell
 {
     static constexpr size_t x_maxPoly = 16;
+    bool m_bipolar = false;
+
+    float ToValue(float normalized) const
+    {
+        return m_bipolar ? 2.0f * normalized - 1.0f : normalized;
+    }
+
+    float ToNormalized(float value) const
+    {
+        return m_bipolar ? (value + 1.0f) * 0.5f : value;
+    }
+
+    float GetNeutralNormalizedValue() const
+    {
+        return m_bipolar ? 0.5f : 0.0f;
+    }
 
     void CopyToScene(size_t scene)
     {
@@ -157,32 +173,32 @@ struct StateEncoderCell : public EncoderCell
         SetState();
     }
 
-    void ZeroCurrentScene()
+    void NeutralizeCurrentScene()
     {
         size_t track = m_sharedEncoderState->m_currentTrack;
         if (m_sceneManager->m_blendFactor < 1)
         {
-            m_values[track][m_sceneManager->m_scene1] = 0;
+            m_values[track][m_sceneManager->m_scene1] = GetNeutralNormalizedValue();
         }
 
         if (m_sceneManager->m_blendFactor > 0)
         {
-            m_values[track][m_sceneManager->m_scene2] = 0;
+            m_values[track][m_sceneManager->m_scene2] = GetNeutralNormalizedValue();
         }
 
         SetStateForTrack(track);
     }
 
-    bool IsZeroCurrentScene()
+    bool IsNeutralCurrentScene()
     {
         for (size_t i = 0; i < m_numTracks; ++i)
         {
-            if (m_values[i][m_sceneManager->m_scene1] != 0 && m_sceneManager->m_blendFactor < 1)
+            if (m_values[i][m_sceneManager->m_scene1] != GetNeutralNormalizedValue() && m_sceneManager->m_blendFactor < 1)
             {
                 return false;
             }
 
-            if (m_values[i][m_sceneManager->m_scene2] != 0 && m_sceneManager->m_blendFactor > 0)
+            if (m_values[i][m_sceneManager->m_scene2] != GetNeutralNormalizedValue() && m_sceneManager->m_blendFactor > 0)
             {
                 return false;
             }
@@ -191,14 +207,14 @@ struct StateEncoderCell : public EncoderCell
         return true;
     }
 
-    bool IsZeroCurrentSceneForTrack(size_t track)
+    bool IsNeutralCurrentSceneForTrack(size_t track)
     {
-        if (m_values[track][m_sceneManager->m_scene1] != 0 && m_sceneManager->m_blendFactor < 1)
+        if (m_values[track][m_sceneManager->m_scene1] != GetNeutralNormalizedValue() && m_sceneManager->m_blendFactor < 1)
         {
             return false;
         }
         
-        if (m_values[track][m_sceneManager->m_scene2] != 0 && m_sceneManager->m_blendFactor > 0)
+        if (m_values[track][m_sceneManager->m_scene2] != GetNeutralNormalizedValue() && m_sceneManager->m_blendFactor > 0)
         {
             return false;
         }
@@ -221,7 +237,7 @@ struct StateEncoderCell : public EncoderCell
             JSON sceneValues = a.Array();
             for (size_t j = 0; j < m_numTracks; ++j)
             {
-                sceneValues.AppendNew(a.Real(m_values[j][i]));
+                sceneValues.AppendNew(a.Real(ToValue(m_values[j][i])));
             }
 
             values.AppendNew(sceneValues);
@@ -240,7 +256,7 @@ struct StateEncoderCell : public EncoderCell
             m_numTracks = sceneValues.Size();
             for (size_t j = 0; j < m_numTracks; ++j)
             {
-                m_values[j][i] = static_cast<float>(sceneValues.GetAt(j).NumberValue());
+                m_values[j][i] = ToNormalized(static_cast<float>(sceneValues.GetAt(j).NumberValue()));
             }
         }
 
@@ -315,13 +331,13 @@ struct StateEncoderCell : public EncoderCell
         return m_sceneManager->GetSceneValue(m_values[track]);
     }
 
-    bool AllZero()
+    bool AllNeutral()
     {
         for (size_t i = 0; i < m_numTracks; ++i)
         {
             for (size_t j = 0; j < SceneManager::x_numScenes; ++j)
             {
-                if (m_values[i][j] != 0)
+                if (m_values[i][j] != GetNeutralNormalizedValue())
                 {
                     return false;
                 }
@@ -333,7 +349,7 @@ struct StateEncoderCell : public EncoderCell
 
     float GetValue(size_t track)
     {
-        return GetNormalizedValueForTrack(track);
+        return ToValue(GetNormalizedValueForTrack(track));
     }
 
     void SetState()
@@ -346,7 +362,7 @@ struct StateEncoderCell : public EncoderCell
 
     void SetStateForTrack(size_t track)
     {
-        *m_state[track] = GetValue(track);
+        *m_state[track] = GetNormalizedValueForTrack(track);
     }
 
     void IncrementInternal(float delta)

@@ -302,6 +302,13 @@ struct EncoderComponent : public juce::Component
                 //
                 g.setColour(juce::Colours::white);
                 DrawArcWithSwitchGaps(g, centerX, centerY, radius, 0.0f, 1.0f, switchValues, 2.0f);
+                if (m_ui.m_uiState->GetBipolar(m_x, m_y))
+                {
+                    float angle = ValueToArcAngle(0.5f);
+                    float markerX = centerX + radius * std::sin(angle);
+                    float markerY = centerY - radius * std::cos(angle);
+                    g.fillEllipse(markerX - 2.0f, markerY - 2.0f, 4.0f, 4.0f);
+                }
             }
 
             // Draw the thicker, brighter arc between min and max values
