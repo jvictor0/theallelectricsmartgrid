@@ -34,16 +34,19 @@ struct NonagonWrapperQuadLaunchpadTwister
 
     struct MidiLaunchpadOutputHandler : ::MidiOutputHandler
     {
+        static_assert(SmartGrid::LPSysexWriter::x_maxMessageSize <= MidiSender::x_maxSysexMessageBytes);
         SmartGrid::LPSysexWriter m_sysexWriter;
+        MidiSender* m_midiSender = nullptr;
 
         MidiLaunchpadOutputHandler()
         {
         }
 
-        void Init(SmartGrid::ControllerShape shape, SmartGrid::SmartBusColor* colorBus)
+        void Init(SmartGrid::ControllerShape shape, SmartGrid::SmartBusColor* colorBus, MidiSender* midiSender)
         {
             m_shape = shape;
             m_sysexWriter = SmartGrid::LPSysexWriter(shape, colorBus);
+            m_midiSender = midiSender;
         }
 
         void Open(SmartGrid::ControllerShape shape, const juce::String &deviceIdentifier)
@@ -67,7 +70,10 @@ struct NonagonWrapperQuadLaunchpadTwister
                 size_t size = m_sysexWriter.Write(buffer);
                 if (size > 0)
                 {
-                    m_midiOutput->sendMessageNow(juce::MidiMessage(buffer, static_cast<int>(size)));
+                    if (!m_midiSender->SendSysex(buffer, size, m_routeId))
+                    {
+                        m_sysexWriter.Reset();
+                    }
                 }
             }
         }
@@ -76,6 +82,7 @@ struct NonagonWrapperQuadLaunchpadTwister
     struct MidiEncoderOutputHandler : MidiOutputHandler
     {
         SmartGrid::EncoderMidiWriter m_midiWriter;
+        MidiSender* m_midiSender = nullptr;
 
         MidiEncoderOutputHandler()
             : m_midiWriter(nullptr)
@@ -83,9 +90,10 @@ struct NonagonWrapperQuadLaunchpadTwister
             m_shape = SmartGrid::ControllerShape::MidiFighterTwister;
         }
 
-        void Init(EncoderBankUIState* encoderBankState)
+        void Init(EncoderBankUIState* encoderBankState, MidiSender* midiSender)
         {
             m_midiWriter = SmartGrid::EncoderMidiWriter(encoderBankState);
+            m_midiSender = midiSender;
         }
 
         void Reset() override
@@ -99,8 +107,7 @@ struct NonagonWrapperQuadLaunchpadTwister
             {
                 for (SmartGrid::BasicMidi msg : m_midiWriter)
                 {
-                    juce::MidiMessage message(msg.m_msg, 3);
-                    m_midiOutput->sendMessageNow(message);
+                    m_midiSender->SendMessage(msg, m_routeId);
                 }
             }
         }
@@ -118,10 +125,10 @@ struct NonagonWrapperQuadLaunchpadTwister
 
         for (int i = 0; i < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads; ++i)
         {
-            m_midiLaunchpadOutputHandler[i].Init(SmartGrid::ControllerShape::LaunchPadX, &m_nonagon.m_uiState.m_colorBus[i]);
+            m_midiLaunchpadOutputHandler[i].Init(SmartGrid::ControllerShape::LaunchPadX, &m_nonagon.m_uiState.m_colorBus[i], midiSender);
         }
 
-        m_midiEncoderOutputHandler.Init(&internal->m_uiState.m_squiggleBoyUIState.m_encoderBankUIState);
+        m_midiEncoderOutputHandler.Init(&internal->m_uiState.m_squiggleBoyUIState.m_encoderBankUIState, midiSender);
 
         m_midiSender->AllocateRoute(&m_midiLaunchpadOutputHandler[0]);
         m_midiSender->AllocateRoute(&m_midiLaunchpadOutputHandler[1]);
@@ -267,6 +274,7 @@ struct NonagonWrapperWrldBldr
     struct MidiOutputHandler : ::MidiOutputHandler
     {
         TheNonagonSquiggleBoyWrldBldr* m_owner;
+        static_assert(SmartGrid::YaeltexColorSysexBuffer::x_maxSize <= MidiSender::x_maxSysexMessageBytes);
         SmartGrid::WrldBLDRMidiWriter m_midiWriter;
         MidiSender* m_midiSender;
 
@@ -290,8 +298,10 @@ struct NonagonWrapperWrldBldr
                     m_midiWriter.Write(buffer, budget, i);
                     if (buffer.HasAny())
                     {
-                        juce::MidiMessage message(buffer.m_buffer, buffer.m_size);
-                        m_midiOutput->sendMessageNow(message);
+                        if (!m_midiSender->SendSysex(buffer.m_buffer, buffer.m_size, m_routeId))
+                        {
+                            m_midiWriter.m_colorWriters[i].Reset();
+                        }
                     }
                 }
 
@@ -323,8 +333,8 @@ struct NonagonWrapperWrldBldr
                 {
                     SmartGrid::YaeltexColorSysexBuffer buffer;
                     m_midiWriter.WriteClear(buffer, i);
-                    juce::MidiMessage message(buffer.m_buffer, buffer.m_size);
-                    m_midiOutput->sendMessageNow(message);
+                    juce::MidiMessage message(buffer.m_buffer, static_cast<int>(buffer.m_size));
+                    SendMessage(message);
                 }
             }
         }
@@ -333,10 +343,12 @@ struct NonagonWrapperWrldBldr
     struct KMixMidiOutputHandler : ::MidiOutputHandler
     {
         TheNonagonSquiggleBoyInternal* m_internal;
+        MidiSender* m_midiSender;
 
-        KMixMidiOutputHandler(TheNonagonSquiggleBoyInternal* internal)
+        KMixMidiOutputHandler(TheNonagonSquiggleBoyInternal* internal, MidiSender* midiSender)
             : ::MidiOutputHandler()
             , m_internal(internal)
+            , m_midiSender(midiSender)
         {
         }
 
@@ -346,8 +358,7 @@ struct NonagonWrapperWrldBldr
             {
                 for (auto msg : m_internal->m_ioState.m_kMixMidi)
                 {
-                    juce::MidiMessage message(msg.m_msg, 3);
-                    m_midiOutput->sendMessageNow(message);
+                    m_midiSender->SendMessage(msg, m_routeId);
                 }
             }
         }
@@ -363,7 +374,7 @@ struct NonagonWrapperWrldBldr
         , m_internal(internal)
         , m_midiInputHandler(&m_nonagon)
         , m_midiOutputHandler(&m_nonagon, midiSender)
-        , m_kMixMidiOutputHandler(internal)
+        , m_kMixMidiOutputHandler(internal, midiSender)
         , m_midiSender(midiSender)
     {
         m_midiSender->AllocateRoute(&m_midiOutputHandler);
@@ -400,7 +411,7 @@ struct NonagonWrapperWrldBldr
         {
             uint8_t sysex[] = {0xF0, 0x79, 0x74, 0x78, 0x00, 0x01, 0x00, 0x21, 0xF7};
             juce::MidiMessage message(sysex, sizeof(sysex));
-            m_midiOutputHandler.m_midiOutput->sendMessageNow(message);
+            m_midiOutputHandler.SendMessage(message);
         }
     }
 
@@ -531,6 +542,10 @@ struct NonagonWrapper
 
     ~NonagonWrapper()
     {
+        // Route handlers must outlive the MIDI worker that submits through them.
+        //
+        m_midiSender.Shutdown();
+
         // Join the IO worker thread before any member is destroyed. m_internal
         // is declared after m_ioTaskThread, so default destruction order would
         // free m_internal's recording buffers / sample banks while a persist

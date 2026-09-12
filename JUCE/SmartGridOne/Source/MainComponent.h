@@ -12,48 +12,82 @@
 #include "Configuration.hpp"
 #include "ClockModeConfigJSON.hpp"
 #include "ThreadId.hpp"
+#include "AudioCallbackDiagnostics.hpp"
+#include "AudioPlatformDiagnostics.hpp"
+#include <atomic>
 
 //==============================================================================
 /*
     This component lives inside our window, and this is where you should put all
     your controls and content.
 */
-class MainComponent  : public juce::AudioAppComponent, public juce::Timer
+class MainComponent  : public juce::Component, public juce::AudioSource, public juce::Timer
 {
 public:
     //==============================================================================
     MainComponent();
     ~MainComponent() override;
 
+    static constexpr int x_requiredBlockFrames = 512;
+
     virtual void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override
     {
-        INFO("prepareToPlay: %d samples @ %.0f Hz (%.2f ms)", samplesPerBlockExpected, sampleRate, samplesPerBlockExpected * 1000.0 / sampleRate);
-        SampleTimer::Init(samplesPerBlockExpected);
-        m_nonagon.PrepareToPlay(samplesPerBlockExpected, sampleRate);
+        m_audioReady.store(false, std::memory_order_release);
         m_sampleRate = sampleRate;
+        m_audioCallbackDiagnostics.Reset();
+        if (AudioCallbackDiagnostics::CanRender(sampleRate) && samplesPerBlockExpected == x_requiredBlockFrames)
+        {
+            SampleTimer::Init(samplesPerBlockExpected);
+            m_nonagon.PrepareToPlay(samplesPerBlockExpected, sampleRate);
+            m_audioReady.store(true, std::memory_order_release);
+        }
+        else
+        {
+            INFO("Audio format rejected: rate=%.0f frames=%d required_rate=%zu required_frames=%d",
+                sampleRate, samplesPerBlockExpected, SampleTimer::x_sampleRate, x_requiredBlockFrames);
+        }
     }
 
     virtual void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override
     {
         ScopedThreadId scopedThreadId(ThreadId::Audio);
-        auto start = juce::Time::getHighResolutionTicks();
-        
-        m_configuration.m_forceStereo = bufferToFill.buffer->getNumChannels() < 4;
-        m_configuration.m_stereo = m_configuration.m_stereo || m_configuration.m_forceStereo;
-        m_nonagon.Process(bufferToFill, MakeIOInfo());
+        const auto start = juce::Time::getHighResolutionTicks();
+        const auto startUs = static_cast<uint64_t>(juce::Time::highResolutionTicksToSeconds(start) * 1000000.0);
+        const auto observation = m_audioCallbackDiagnostics.Observe(startUs, bufferToFill.numSamples, m_sampleRate);
+        m_audioCallbacks.store(observation.m_sequence, std::memory_order_relaxed);
 
-        auto end = juce::Time::getHighResolutionTicks();
-        auto duration = juce::Time::highResolutionTicksToSeconds(end - start);
-        if (static_cast<double>(bufferToFill.numSamples) / m_sampleRate < duration)
+        if (observation.m_previousBudgetUs > 0 && observation.m_gapUs > observation.m_previousBudgetUs * 2)
         {
-            INFO("Audio xrun %f ms / %f ms (samples = %d)", duration * 1000, static_cast<double>(bufferToFill.numSamples * 1000) / m_sampleRate, bufferToFill.numSamples);
+            m_audioLongGaps.fetch_add(1, std::memory_order_relaxed);
+            m_lastLongGapUs.store(observation.m_gapUs, std::memory_order_relaxed);
+        }
+
+        const bool canRender = m_audioReady.load(std::memory_order_acquire)
+            && AudioCallbackDiagnostics::CanRender(m_sampleRate)
+            && bufferToFill.numSamples == x_requiredBlockFrames;
+        if (canRender)
+        {
+            m_configuration.m_forceStereo = bufferToFill.buffer->getNumChannels() < 4;
+            m_configuration.m_stereo = m_configuration.m_stereo || m_configuration.m_forceStereo;
+            m_nonagon.Process(bufferToFill, MakeIOInfo());
+        }
+        else
+        {
+            bufferToFill.clearActiveBufferRegion();
+            m_audioFormatMutes.fetch_add(1, std::memory_order_relaxed);
+        }
+
+        const auto duration = juce::Time::highResolutionTicksToSeconds(juce::Time::getHighResolutionTicks() - start);
+        if (m_sampleRate > 0.0 && duration > static_cast<double>(bufferToFill.numSamples) / m_sampleRate)
+        {
+            m_audioOverruns.fetch_add(1, std::memory_order_relaxed);
         }
     }
 
     NonagonWrapper::IOInfo MakeIOInfo()
     {
         NonagonWrapper::IOInfo ioInfo;
-        auto* device = deviceManager.getCurrentAudioDevice();
+        auto* device = m_deviceManager.getCurrentAudioDevice();
         int numInputs  = device ? device->getActiveInputChannels().countNumberOfSetBits() : 0;
         int numOutputs = device ? device->getActiveOutputChannels().countNumberOfSetBits() : 0;
         
@@ -66,6 +100,7 @@ public:
 
     virtual void releaseResources() override
     {
+        m_audioReady.store(false, std::memory_order_release);
     }
 
     void SetRecordingDirectory(const char* directory)
@@ -208,8 +243,12 @@ private:
     void ShowPatchChooser(bool isSaveMode);
     void ShowNewPatchChooser();
     void ShowVersionChooser();
-    void ApplyAudioDeviceConfiguration();
+    void OpenAudioDevice();
+    void CloseAudioDevice();
     void RestartAudioDeviceForConfiguration();
+
+    juce::AudioDeviceManager m_deviceManager;
+    juce::AudioSourcePlayer m_audioSourcePlayer;
 
     NonagonWrapper m_nonagon;
     Configuration m_configuration;
@@ -228,7 +267,23 @@ private:
     bool m_showingConfig;
     bool m_showingFile;
 
-    double m_sampleRate;
+    double m_sampleRate = 0.0;
+    std::atomic<bool> m_audioReady{false};
+    AudioCallbackDiagnostics m_audioCallbackDiagnostics;
+    std::atomic<uint64_t> m_audioCallbacks{0};
+    std::atomic<uint64_t> m_audioLongGaps{0};
+    std::atomic<uint64_t> m_lastLongGapUs{0};
+    std::atomic<uint64_t> m_audioOverruns{0};
+    std::atomic<uint64_t> m_audioFormatMutes{0};
+    uint32_t m_lastTimingLogMs = 0;
+    uint64_t m_reportedLongGaps = 0;
+    uint64_t m_reportedOverruns = 0;
+    uint64_t m_reportedFormatMutes = 0;
+    int m_reportedXruns = -1;
+    int m_reportedThermal = -1;
+    bool m_reportedLowPower = false;
+    uint32_t m_lastDiagnosticsMs = 0;
+    uint32_t m_lastRouteLogMs = 0;
 
     FileManager m_fileManager{this};
 
