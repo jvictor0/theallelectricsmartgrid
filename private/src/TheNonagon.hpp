@@ -156,7 +156,7 @@ struct TheNonagonInternal
     {
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {
-            input.m_lameJuisInput.m_inputBitInput[i].m_value = m_theoryOfTime.m_loops[i].m_gate[0];
+            input.m_lameJuisInput.m_inputBitInput[i].m_value = m_theoryOfTime.GetLoop(i, 0).m_gate;
         }
 
         for (size_t i = 0; i < x_numTrios; ++i)
@@ -190,15 +190,16 @@ struct TheNonagonInternal
         input.m_trigLogic.SetInput(input.m_multiPhasorGateInput);
 
         input.m_multiPhasorGateInput.m_theoryOfTime = &m_theoryOfTime;
-        input.m_multiPhasorGateInput.m_masterLoopSamples = static_cast<double>(m_theoryOfTime.m_masterLoopSamples);
+        input.m_multiPhasorGateInput.m_globalPeriodSamples = m_theoryOfTime.m_globalPeriodSamples;
+        input.m_multiPhasorGateInput.m_phaseRatio = static_cast<double>(m_theoryOfTime.GetCycleRatio(0, 0));
 
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            int denom = 1;
+            int64_t denom = 1;
             int voiceClock = input.m_arpInput.m_clockSelect[i / x_voicesPerTrio];
             if (voiceClock >= 0)
             {
-                denom = m_theoryOfTime.GetLoopInternalMultiplier(0, voiceClock);
+                denom = m_theoryOfTime.GetCycleRatio(voiceClock, 0) * 2;
             }
 
             for (size_t j = 0; j < x_numTimeBits; ++j)
@@ -206,11 +207,11 @@ struct TheNonagonInternal
                 bool coMute = m_lameJuis.m_lanes[i / x_voicesPerTrio].m_coMuteState.m_coMutes[j];
                 if (!coMute)
                 {
-                    denom = std::lcm(denom, m_theoryOfTime.GetLoopInternalMultiplier(0, j));
+                    denom = std::lcm(denom, m_theoryOfTime.GetCycleRatio(j, 0) * 2);
                 }
             }
 
-            input.m_multiPhasorGateInput.m_phasorDenominator[i] = denom;
+            input.m_multiPhasorGateInput.m_voiceCycleRatio[i] = denom;
         }
     }
 
@@ -223,7 +224,7 @@ struct TheNonagonInternal
 
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {            
-            bool ticked = m_theoryOfTime.m_loops[i].AnyGateChanged();
+            bool ticked = m_theoryOfTime.AnyGateStepChanged(i);
             input.m_arpInput.m_clocks[i] = ticked;
             if (m_theoryOfTime.AnyChangeInMicroBlock())
             {
@@ -246,12 +247,9 @@ struct TheNonagonInternal
                 {
                     input.m_arpInput.m_totalIndex[j] = 0;
                 }
-                else if (m_theoryOfTime.m_loops[input.m_arpInput.m_clockSelect[j]].AnyGateChanged())
+                else if (m_theoryOfTime.AnyGateStepChanged(input.m_arpInput.m_clockSelect[j]))
                 {
-                    input.m_arpInput.m_totalIndex[j] = m_theoryOfTime.MonodromyNumber(
-                        0,
-                        input.m_arpInput.m_clockSelect[j],
-                        input.m_arpInput.m_resetSelect[j]);                        
+                    input.m_arpInput.m_totalIndex[j] = m_theoryOfTime.GetGateStepIndex(input.m_arpInput.m_clockSelect[j], 0, input.m_arpInput.m_resetSelect[j]);
                 }
             }
         }
@@ -277,7 +275,8 @@ struct TheNonagonInternal
                 NonagonNoteWriter::EventData eventData;
                 eventData.m_voiceIx = i;
                 eventData.m_voltPerOct = m_output.m_voltPerOct[i];
-                eventData.m_startPosition = m_theoryOfTime.GetPhasorIndependent(0);
+                double phase = m_theoryOfTime.GetPhase(TheoryOfTimeBase::x_globalLoop, 0, PhaseDomain::Unmodulated);
+                eventData.m_startPosition = static_cast<float>(phase - std::floor(phase));
                 for (size_t j = 0; j < x_numExtraTimbres; ++j)
                 {
                     eventData.m_timbre[j] = m_output.m_extraTimbre[i][j];
@@ -289,7 +288,8 @@ struct TheNonagonInternal
             {
                 if (m_output.m_gate[i])
                 {
-                    m_noteWriter.RecordNoteEnd(i, m_theoryOfTime.GetPhasorIndependent(0));
+                    double phase = m_theoryOfTime.GetPhase(TheoryOfTimeBase::x_globalLoop, 0, PhaseDomain::Unmodulated);
+                    m_noteWriter.RecordNoteEnd(i, static_cast<float>(phase - std::floor(phase)));
                 }
                 
                 m_output.m_gate[i] = false;
@@ -312,7 +312,7 @@ struct TheNonagonInternal
 
         m_theoryOfTime.RolloverMicroblockBuffer();
 
-        if (m_theoryOfTime.GetTopIndependent(0))
+        if (m_theoryOfTime.CrossedCycleBoundary(TheoryOfTimeBase::x_globalLoop, 0, PhaseDomain::Unmodulated))
         {
             m_noteWriter.RecordStartIndex();
         }
@@ -326,7 +326,7 @@ struct TheNonagonInternal
             m_lameJuis.Process(input.m_lameJuisInput);
         }
 
-        if (m_theoryOfTime.m_running)
+        if (m_theoryOfTime.m_samples[0].m_running)
         {
             SetMultiPhasorGateInputs(input);
             m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
@@ -376,7 +376,7 @@ struct TheNonagonSmartGrid
         return new SmartGrid::StateCell<bool>(
                         SmartGrid::Color::Off /*offColor*/,
                         SmartGrid::Color::White /*onColor*/,
-                        &m_nonagon.m_theoryOfTime.m_loops[ix].m_gate[0],
+                        &m_nonagon.m_theoryOfTime.m_samples[0].m_loops[ix].m_gate,
                         true,
                         false,
                         SmartGrid::StateCell<bool>::Mode::ShowOnly);
@@ -1353,12 +1353,13 @@ struct TheNonagonSmartGrid
 
     void PopulateUIState(TheNonagonInternal::UIState* uiState)
     {
-        m_nonagon.m_noteWriter.SetCurPosition(m_nonagon.m_theoryOfTime.GetPhasorIndependent(0));
+        double phase = m_nonagon.m_theoryOfTime.GetPhase(TheoryOfTimeBase::x_globalLoop, 0, PhaseDomain::Unmodulated);
+        m_nonagon.m_noteWriter.SetCurPosition(static_cast<float>(phase - std::floor(phase)));
         m_nonagon.m_theoryOfTime.PopulateUIState(&uiState->m_theoryOfTimeUIState);
         m_nonagon.m_lameJuis.PopulateUIState(&uiState->m_laneJuiceUIState);
         for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
         {
-            uiState->SetLoopMultiplier(i, m_state.m_multiPhasorGateInput.m_phasorDenominator[i * TheNonagonInternal::x_voicesPerTrio]);
+            uiState->SetLoopMultiplier(i, m_state.m_multiPhasorGateInput.m_voiceCycleRatio[i * TheNonagonInternal::x_voicesPerTrio]);
         }
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)

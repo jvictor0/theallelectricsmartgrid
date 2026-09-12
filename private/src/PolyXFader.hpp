@@ -3,16 +3,14 @@
 #include "Filter.hpp"
 #include "Math.hpp"
 
-struct TheoryOfTimeBase;
-double GetTheoryOfTimePhasor(TheoryOfTimeBase* theoryOfTime, size_t j, bool useIndirectPhasor, float samplePosition);
-bool GetTheoryOfTimeTop(TheoryOfTimeBase* theoryOfTime, size_t j, bool useIndirectPhasor, float samplePosition);
+#include "TheoryOfTimeBase.hpp"
 
 struct PolyXFaderInternal
 {    
     struct Input
     {
         TheoryOfTimeBase* m_theoryOfTime;
-        bool m_useIndirectPhasor;
+        PhaseDomain m_phaseDomain;
         float m_samplePosition;
 
         float m_attackFrac;
@@ -33,7 +31,7 @@ struct PolyXFaderInternal
 
         Input()
             : m_theoryOfTime(nullptr)
-            , m_useIndirectPhasor(true)
+            , m_phaseDomain(PhaseDomain::Modulated)
             , m_samplePosition(0.0f)
             , m_attackFrac(0.0f)
             , m_shape(0.0f)
@@ -56,8 +54,8 @@ struct PolyXFaderInternal
         {
             float mult = m_mult;
             float amp = 1;
-            float t = static_cast<float>(GetTheoryOfTimePhasor(m_theoryOfTime, i, m_useIndirectPhasor, m_samplePosition)) + m_phaseShift + 0.75;
-            t = (t - std::floorf(t)) * mult;
+            double phase = m_theoryOfTime->GetPhase(i, m_samplePosition, m_phaseDomain) + m_phaseShift + 0.75;
+            float t = static_cast<float>(phase - std::floor(phase)) * mult;
             float floorMult = std::floorf(mult);
 
             if (floorMult < t)
@@ -189,7 +187,7 @@ struct PolyXFaderInternal
         {
             if (m_weights[i] != 0)
             {
-                m_top = m_top && GetTheoryOfTimeTop(input.m_theoryOfTime, i, input.m_useIndirectPhasor, input.m_samplePosition);
+                m_top = m_top && input.m_theoryOfTime->CrossedCycleBoundary(i, static_cast<size_t>(std::round(input.m_samplePosition)), input.m_phaseDomain);
                 m_valuesPostQuantize[i] = Quantize(input, i, input.ComputePhase(i));
                 output += m_valuesPostQuantize[i] * m_weights[i] * input.m_externalWeights[i];
             }

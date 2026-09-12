@@ -562,13 +562,13 @@ public:
     bool SawNaN() const { return m_sawNaN; }
     void ClearNaN() { m_sawNaN = false; }
 
-    // MasterPhasor() -- the master-loop phasor [0,1), advancing when the
+    // GlobalPhase() -- the master-loop phasor [0,1), advancing when the
     // sequencer runs. Read straight off TheoryOfTime.
     //
-    double MasterPhasor() const
+    double GlobalPhase() const
     {
         return m_internal->m_nonagon.m_nonagon.m_theoryOfTime
-            .m_loops[TheoryOfTimeBase::x_masterLoop].m_phasor[SampleTimer::GetUBlockIndex()];
+            .GetPhase(TheoryOfTimeBase::x_globalLoop, SampleTimer::GetUBlockIndex(), PhaseDomain::Modulated);
     }
 
     // Blend / scene observables.

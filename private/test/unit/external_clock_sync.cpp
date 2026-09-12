@@ -24,7 +24,7 @@ DOCTEST_TEST_CASE("ExternalClockSync: constructor initializes defaults")
     DOCTEST_CHECK(input.m_theoryOfTime == nullptr);
     DOCTEST_CHECK(input.m_clockTick == false);
     DOCTEST_CHECK(input.m_ticksMultiplier == 24);
-    DOCTEST_CHECK(input.m_loopIndex == TheoryOfTimeBase::x_masterLoop);
+    DOCTEST_CHECK(input.m_loopIndex == TheoryOfTimeBase::x_globalLoop);
 }
 
 DOCTEST_TEST_CASE("ExternalClockSync: frequency output is double precision")
@@ -155,7 +155,7 @@ DOCTEST_TEST_CASE("ExternalClockSync: stopped estimate uses selected loop multip
     }
 
     size_t j = static_cast<size_t>(SampleTimer::GetUBlockIndex());
-    double multiplier = input.m_theoryOfTime->GetLoopExternalMultiplier(j, input.m_loopIndex);
+    double multiplier = input.m_theoryOfTime->GetCycleRatio(input.m_loopIndex, j);
     double expectedFreq = 1.0 / (static_cast<double>(input.m_ticksMultiplier) * multiplier * 40.0);
 
     input.m_clockTick = true;

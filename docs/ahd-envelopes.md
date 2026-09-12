@@ -1,27 +1,23 @@
 # Phase-Driven AHD Envelopes
 
-Unlike traditional synthesizers that use time-based ADSR (Attack, Decay, Sustain, Release) envelopes, the Smart Grid One uses **phase-driven AHD (Attack, Hold, Decay)** envelopes (`AHD` in `private/src/AHD.hpp`).
+`AHD` in `private/src/AHD.hpp` evaluates attack, hold, and decay from absolute modulated global phase. At a trigger, its input captures:
 
-## Phase-Driven Envelopes
+- the global phase at the start of the microblock;
+- the relevant source loop's cycle ratio to the global loop;
+- the envelope period in samples.
 
-The progression of the envelope is not tied to absolute wall-clock time but rather to the phase of the [Theory of Time](theory-of-time.md) clock. This has profound implications for how the envelopes behave:
-- **Stretching**: If the global clock slows down, the envelopes stretch proportionally.
-- **Reversing**: If the global clock reverses (e.g., through extreme phase modulation), the envelopes will also play backward.
-- **Synchronization**: The envelope is always perfectly synchronized to the musical grid, regardless of tempo changes or modulation.
+The running envelope computes:
 
-## Constant Time Configuration
+```
+samples = abs(globalPhase - startGlobalPhase) * phaseRatio * envelopePeriodSamples
+```
 
-While the envelope is driven by phase, the user interface and parameter system configure the Attack and Decay stages in terms of absolute time (e.g., milliseconds or seconds).
+It does not retain a source loop index, track topology edits, or reconstruct winding. A multiplier or parent edit during attack, hold, or decay cannot change the captured timing. Retriggering captures the new timing. In the production voice path the source ratio comes from loop 0; the voice gate ratio used to calculate the envelope period is a separate quantity.
 
-To reconcile this, the system calculates the required phase increments for the Attack and Decay stages based on the *current, unmodulated speed* of the clock. This means that if you set an Attack time of 500ms, it will take 500ms at the current tempo. If you then modulate the tempo (e.g., with an LFO), the 500ms Attack will stretch or compress, but the *base* setting remains constant relative to the unmodulated clock.
+The absolute distance preserves existing reverse behavior: moving back toward the trigger retraces the envelope while it is running; moving past the trigger increases distance again. Once decay reaches idle, moving backward does not restart the envelope. Explicit release uses the existing sample-driven decay.
 
-## The Hold Stage
+Attack and decay controls remain sample-based increments. Hold is configured in loop periods (`m_holdLoops`) and converted with the captured envelope period during evaluation. Live hold changes therefore remain available without accidentally adopting a new topology's period. Tempo or phase modulation changes global phase motion and consequently envelope progression.
 
-The **Hold (H)** stage is handled differently. It is not set in absolute time but is instead relative to the specific time loops affecting the voice.
+Physical-model presets can have shorter or longer holds after this change. Previously, the slewed control setter converted hold using a temporary input's default 48,000-sample period. It now slews the loop count and uses the period captured at the trigger, like the other envelope sources. With a 3,000-sample captured period, the same hold knob setting produces one sixteenth of the previous hold duration in envelope sample units. Attack and decay mappings are unchanged.
 
-The length of the Hold stage is derived directly from the voice's gate length, which is determined by the [Multi-Phasor Gate](multi-phasor-gate.md) using the voice's clock loop and any read loops from its lens. This ensures that the sustain portion of the note perfectly matches the rhythmic subdivision assigned to that voice, creating tight, interlocking sequences.
-
-## Related
-- [Theory of Time](theory-of-time.md)
-- [Multi-Phasor Gate](multi-phasor-gate.md)
-- [DSP Overview](dsp-overview.md)
+`AHDControl` carries trigger, release, source phase ratio, and envelope period. It no longer relays an elapsed-sample counter from the gate. See [Multi-Phasor Gate](multi-phasor-gate.md) for how the voice period is captured.

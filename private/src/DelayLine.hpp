@@ -3,7 +3,6 @@
 #include "QuadUtils.hpp"
 #include "PhaseUtils.hpp"
 #include "Filter.hpp"
-#include "CircleTracker.hpp"
 #include "NormGen.hpp"
 #include "InterleavedArray.hpp"
 #include "Math.hpp"

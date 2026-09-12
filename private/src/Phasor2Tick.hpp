@@ -27,12 +27,7 @@ struct Phasor2Tick
 
     bool Process(double phase)
     {
-        bool tick = false;
-        if (static_cast<size_t>(phase * m_divisions) != static_cast<size_t>(m_lastPhase * m_divisions))
-        {
-            tick = true;
-        }
-
+        bool tick = std::floor(phase * m_divisions) != std::floor(m_lastPhase * m_divisions);
         m_lastPhase = phase;
         return tick;
     }

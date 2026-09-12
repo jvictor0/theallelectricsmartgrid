@@ -1,12 +1,15 @@
 #pragma once
 
+#include <cstdint>
+#include "PhaseUtils.hpp"
+
 struct IndexArp
 {
     static constexpr size_t x_rhythmLength = 8;
     
-    int m_totalIndex;
+    int64_t m_totalIndex;
     int m_index;
-    int m_motiveIndex;
+    int64_t m_motiveIndex;
     int m_rhythmIndex;
     float m_output;
     bool m_triggered;
@@ -27,7 +30,7 @@ struct IndexArp
         bool m_read;
         bool m_noClock;
 
-        int m_totalIndex;
+        int64_t m_totalIndex;
 
         float m_offset;
         float m_interval;
@@ -62,13 +65,14 @@ struct IndexArp
             }
         }      
 
-        float GetOutput(int index, int pageIndex)
+        float GetOutput(int index, int64_t pageIndex)
         {
             index = GetPhysicalIndex(index);
-            float result = m_offset + index * m_interval + pageIndex * m_pageInterval;
+            double result = static_cast<double>(m_offset) + index * static_cast<double>(m_interval)
+                + static_cast<double>(pageIndex) * m_pageInterval;
             if (m_cycle)
             {
-                result = result - 2 * std::floor(result);
+                result = result - 2 * std::floor(result / 2);
                 if (result > 1)
                 {
                     result = 2 - result;
@@ -85,7 +89,7 @@ struct IndexArp
             }
 
             result = m_min + result * (m_max - m_min);
-            return result;
+            return static_cast<float>(result);
         }                 
 
         int GetPhysicalIndex(int index)
@@ -127,11 +131,11 @@ struct IndexArp
         if (input.m_clock)
         {
             m_totalIndex = input.m_totalIndex;
-            m_rhythmIndex = m_totalIndex % input.m_rhythmLength;
+            m_rhythmIndex = static_cast<int>(PhaseUtils::FloorMod(m_totalIndex, input.m_rhythmLength));
           
             if (input.m_rhythm[m_rhythmIndex])
             {
-                m_motiveIndex = m_totalIndex / input.m_rhythmLength;
+                m_motiveIndex = PhaseUtils::FloorDiv(m_totalIndex, input.m_rhythmLength);
 
                 m_index = -1;
                 for (int i = 0; i <= m_rhythmIndex; ++i)
@@ -186,7 +190,7 @@ struct NonagonIndexArp
         bool m_retro[x_numVoices];
         bool m_cycle[x_numVoices];        
 
-        int m_totalIndex[x_numTrios];
+        int64_t m_totalIndex[x_numTrios];
 
         void SetTrioInputs()
         {

@@ -23,10 +23,10 @@ To implement this, the delay requires a "moveable writehead." It must compute an
 
 The read and write heads are produced in `QuadDelayInputSetter::Process` (`private/src/QuadDelay.hpp`) per quad channel `i`.
 
-- **Loop selection**: `WriteTapeHead` receives the processed loop-selector knob value, but only accepts changes when both old and new loops are simultaneously at top (`m_top`) to avoid discontinuities.
+- **Loop selection**: `WriteTapeHead` receives the processed loop-selector knob value, but only accepts changes when both old and new loops are simultaneously at modulated cycle boundaries (`CrossedCycleBoundary`) to avoid discontinuities.
 - **Glue offset**: `WriteTapeHead` owns the additive glue offset that preserves continuity across transport stops and tempo-scale changes.
   - When transport stops, glue is initialized from the current write head, then incremented each sample.
-  - On master-loop-size change, glue is rescaled so absolute position continuity is maintained.
+  - On global-period change, glue is rescaled so absolute position continuity is maintained.
 - **Delay ratio quantization**: at loop top, delay-time factor is quantized to one of:
   - `0.8`, `2/3`, `1.0`, `3/4`, `5/8`
   and stored as `m_bufferFrac[i]`.
@@ -36,15 +36,15 @@ The read and write heads are produced in `QuadDelayInputSetter::Process` (`priva
 The final head equations are:
 
 - **Write head**
-  - `writeHead = masterUnwoundPhasor * masterLoopSamples + glue`
+  - `writeHead = globalModulatedPhase * globalPeriodSamples + glue`
   - stored in `delayInput.m_writeHeadPosition[i]`
 - **Read head**
-  - `effectiveDelaySamples = (masterLoopSamples / externalLoopMultiplier(selectedLoop)) * (bufferFrac * widen)`
+  - `effectiveDelaySamples = (globalPeriodSamples / cycleRatio(selectedLoop)) * (bufferFrac * widen)`
   - `readTarget = writeHead * readHeadSpeed - effectiveDelaySamples`
   - `readHead = wrap_mod(writeHead - resynthesisHopSamples - selectedLoopSamples, writeHead - resynthesisHopSamples, readTarget)`
   - stored in `delayInput.m_readHeadPosition[i]`
 
-So both heads live in the same unwound sample coordinate system. The read head is projected into the selected-loop-length region behind the write head, offset by the resynthesis hop size, with delay shaped by quantized ratio and widener.
+So both heads live in the same absolute sample coordinate system. The read head is projected into the selected-loop-length region behind the write head, offset by the resynthesis hop size, with delay shaped by quantized ratio and widener.
 
 ## Phase Vocoder Done Right
 
@@ -54,7 +54,7 @@ To preserve the original pitch while allowing the time-warping to stretch and co
 - The audio is processed in overlapping grains (`GrainManager`).
 - For each synthesis frame, the system computes two analysis frames:
   1. One at the target read position `F⁻¹(F(t) - d)`.
-  2. One exactly `H` (hop size) unwound samples before that position.
+  2. One exactly `H` (hop size) absolute samples before that position.
 - By comparing the phases of these two analysis frames, the resynthesizer can accurately update the synthesis phases, preserving the pitch of the original signal regardless of the playback speed. This roughly follows the "Phase Vocoder Done Right" methodology.
 
 ## Quad Delay Features

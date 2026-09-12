@@ -16,14 +16,13 @@
 \section*{Chapter 1: The Theory of Time}
 
 At the foundation of our system lies a formalism we call the \emph{Theory of Time}.  
-This theory provides a continuous, hierarchical notion of musical time, which acts as the master clock of our system.  
+This theory provides a continuous, hierarchical notion of musical time, which acts as the global clock of our system.
 It is not merely a global tempo or LFO, but a rich system of composable mappings that track temporal structure at multiple levels.  
-The main loop is modeled as a continuous, basepoint-preserving map from the real line to the circle:
+The implementation stores an absolute global phase $u(t)\in\mathbb{R}$ and a modulated phase $v(t)=u(t)+f(t)$. A loop with cycle ratio $r_i$ has absolute phase
 \[
-\phi: \mathbb{R} \to S^1.
+p_i(t)=r_i v(t).
 \]
-This map defines the global phase.
-After this, we construct a system of maps between circles, which we only require to be continuous and basepoint-preserving.
+There is no winding counter: periodic output alone projects through $\pi(x)=x-\lfloor x\rfloor$ to $S^1=\mathbb{R}/\mathbb{Z}$. The circle maps below describe these projected outputs; their real-valued lifts are the stored coordinates. Unmodulated consumers use $r_i u(t)$ instead.
 
 \paragraph{Hierarchical Time Chains.}  
 A simple example of a temporal hierarchy is a linear chain of maps:
@@ -58,7 +57,7 @@ Every time map $\phi: S^1 \to S^1$ can be expressed as the sum of an integer rot
 \phi(x) = d \cdot x + f(x) \mod 1,
 \]
 where $d \in \mathbb{Z}$ is the degree (i.e., how many times the domain winds around the circle) and $f$ is nullhomotopic.  
-The degree parameter is only read when the domain is at the base point, ensuring that even abrupt changes in the topological type of the map do not produce discontinuities in phase, thereby allowing seamless transitions between non-homotopic maps.  
+A running parent/multiplier edit is accepted when both the old and requested parent cross their modulated base points in the same sample, evaluated before any edits. At exact shared base points the projected outputs agree, although the absolute lift can change by an integer. Fractional sample queries interpolate global phase before applying the interval's topology. Unmodulated consumers can have different boundary timing under modulation.
 This is especially useful in performance settings where temporal feel may shift live.
 
 \paragraph{Groove and Expressiveness.}  
@@ -75,6 +74,16 @@ This allows performers and composers to modify local groove without destabilizin
 In classical synthesis contexts, such maps are often referred to as \emph{phasors}.  
 However, we prefer to emphasize their role as morphisms in a diagram of circles, rather than viewing them as mere sawtooth waveforms.  
 This shift in perspective better reflects their structural and categorical roles in the Smart Grid, facilitating the gestures described above.
+
+\paragraph{Integer Coordinates and Gate Steps.}
+Let $P=2\operatorname{lcm}(r_0,\ldots,r_5)$ and $P_i=P/r_i$. The common position is the signed integer $n=\lfloor Pv\rfloor$. Loop $i$ is high when its Euclidean remainder modulo $P_i$ is less than $P_i/2$. Its absolute gate-step index is
+\[
+k_i=\left\lfloor\frac{n}{P_i/2}\right\rfloor.
+\]
+Resetting to an ancestor $a$ replaces this with the Euclidean remainder of $k_i$ modulo $P_a/(P_i/2)$. This direct arithmetic replaces recursive winding reconstruction and works for negative phase and multi-cycle seeks.
+
+\paragraph{Envelope Timing.}
+At a trigger an AHD envelope captures the global origin $v_0$, source ratio $r$, and envelope period $E$ in samples. Its running sample coordinate is $|v-v_0|rE$. Later topology edits do not affect the captured ratio or period; a retrigger captures new values.
 
 \paragraph{Applications and Partitioning.}  
 Time maps can drive a variety of processes: sample playback, LFOs, envelopes, or control voltages.  

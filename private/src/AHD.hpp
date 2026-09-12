@@ -1,10 +1,10 @@
 #pragma once
 
+#include <cmath>
+
 #include "Slew.hpp"
 #include "PhaseUtils.hpp"
-#include "CircleTracker.hpp"
-#include "TheoryOfTime.hpp"
-#include "SampleTimer.hpp"
+#include "TheoryOfTimeBase.hpp"
 
 struct AHD
 {
@@ -17,14 +17,14 @@ struct AHD
 
     struct AHDControl
     {
-        double m_samples;
-        double m_envelopeTimeSamples;
+        double m_phaseRatio;
+        double m_envelopePeriodSamples;
         bool m_release;
         bool m_trig;
 
         AHDControl()
-            : m_samples(0.0)
-            , m_envelopeTimeSamples(48000.0)
+            : m_phaseRatio(1.0)
+            , m_envelopePeriodSamples(48000.0)
             , m_release(false)
             , m_trig(false)
         {
@@ -32,7 +32,6 @@ struct AHD
 
         void Reset()
         {
-            m_samples = 0.0;
             m_release = false;
             m_trig = false;
         }
@@ -40,15 +39,14 @@ struct AHD
 
     struct Input
     {
-        OPLowPassFilterDouble m_samples;
-        double m_envelopeTimeSamples;
+        double m_startGlobalPhase;
+        double m_phaseRatio;
+        double m_envelopePeriodSamples;
         TheoryOfTimeBase* m_theoryOfTime;
-        size_t m_loopIndex;
         float m_samplePosition;
-        CircleDistanceTracker m_circleTracker;
 
         float m_attackIncrement;
-        double m_holdSamples;
+        double m_holdLoops;
         float m_decayIncrement;
 
         float m_amplitude;
@@ -58,37 +56,35 @@ struct AHD
         bool m_release;
 
         Input()
-            : m_envelopeTimeSamples(48000.0)
+            : m_startGlobalPhase(0.0)
+            , m_phaseRatio(1.0)
+            , m_envelopePeriodSamples(48000.0)
             , m_theoryOfTime(nullptr)
-            , m_loopIndex(0)
             , m_samplePosition(0.0f)
             , m_attackIncrement(0.0f)
-            , m_holdSamples(0.0)
+            , m_holdLoops(0.0)
             , m_decayIncrement(0.0f)
             , m_amplitude(1.0f)
             , m_amplitudePolarity(true)
             , m_trig(false)
             , m_release(false)
         {
-            m_samples.SetAlphaFromNatFreq(1000.0 / 48000.0);
         }
 
         void Set(AHDControl& control)
         {
             if (control.m_trig)
             {
-                m_samples.m_output = 0.0;
-
                 // Trigs can only happen at the first sample of a microblock...
                 //
-                m_circleTracker.Reset(m_theoryOfTime->GetIndirectPhasor(0, m_loopIndex));
+                m_startGlobalPhase = m_theoryOfTime->GetPhase(
+                    TheoryOfTimeBase::x_globalLoop,
+                    0.0,
+                    PhaseDomain::Modulated);
+                m_phaseRatio = control.m_phaseRatio;
+                m_envelopePeriodSamples = control.m_envelopePeriodSamples;
             }
-            else
-            {
-                m_samples.Process(control.m_samples);
-            }
-            
-            m_envelopeTimeSamples = control.m_envelopeTimeSamples;
+
             m_release = control.m_release;
             m_trig = control.m_trig;
         }
@@ -124,10 +120,9 @@ struct AHD
             input.m_attackIncrement = m_attack.Update(1.0f - attack);
             input.m_decayIncrement = m_decay.Update(1.0f - decay);
 
-            // Hold is in loop divisions (0 to 16), convert to samples
+            // Hold is in loop divisions (0 to 16).
             //
-            double holdLoops = static_cast<double>(m_hold.Update(hold));
-            input.m_holdSamples = holdLoops * input.m_envelopeTimeSamples;
+            input.m_holdLoops = static_cast<double>(m_hold.Update(hold));
 
             input.m_amplitude = amplitude;
             input.m_amplitudePolarity = amplitudePolarity;
@@ -157,7 +152,7 @@ struct AHD
             m_inputSetter.Set(attack, hold, decay, amplitude, true, input);
             m_attackSlew.Update(input.m_attackIncrement);
             m_decaySlew.Update(input.m_decayIncrement);
-            m_holdSlew.Update(input.m_holdSamples);
+            m_holdSlew.Update(input.m_holdLoops);
             m_amplitudeSlew.Update(input.m_amplitude);
         }
 
@@ -165,7 +160,7 @@ struct AHD
         {
             input.m_attackIncrement = m_attackSlew.Process();
             input.m_decayIncrement = m_decaySlew.Process();
-            input.m_holdSamples = m_holdSlew.Process();
+            input.m_holdLoops = m_holdSlew.Process();
             input.m_amplitude = m_amplitudeSlew.Process();
         }
     };
@@ -211,10 +206,12 @@ struct AHD
             }
             case State::Running:
             {
-                double samples = input.m_samples.m_output;
-                double phase = input.m_theoryOfTime->GetInterpolatedIndirectPhasor(input.m_loopIndex, input.m_samplePosition);
-                input.m_circleTracker.Process(phase);
-                samples = input.m_circleTracker.Distance() * input.m_envelopeTimeSamples;
+                double phase = input.m_theoryOfTime->GetPhase(
+                    TheoryOfTimeBase::x_globalLoop,
+                    input.m_samplePosition,
+                    PhaseDomain::Modulated);
+                double samples = std::abs(phase - input.m_startGlobalPhase)
+                    * input.m_phaseRatio * input.m_envelopePeriodSamples;
                 double attackPos = samples * static_cast<double>(input.m_attackIncrement) + static_cast<double>(m_startOutput);
                 if (attackPos < 1.0)
                 {
@@ -223,7 +220,8 @@ struct AHD
                 else
                 {
                     double attackEndSamples = (1.0 - static_cast<double>(m_startOutput)) / static_cast<double>(input.m_attackIncrement);
-                    double holdEndSamples = attackEndSamples + input.m_holdSamples;
+                    double holdSamples = input.m_holdLoops * input.m_envelopePeriodSamples;
+                    double holdEndSamples = attackEndSamples + holdSamples;
                     if (samples < holdEndSamples)
                     {
                         m_rawOutput = 1.0f;

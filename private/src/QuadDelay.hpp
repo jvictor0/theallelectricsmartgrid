@@ -285,11 +285,11 @@ struct QuadDelayInputSetter
             WriteTapeHead::Input writeInput;
             writeInput.m_theoryOfTime = input.m_theoryOfTime;
             writeInput.m_sampleIndex = totLoopSelectorSample;
-            writeInput.m_running = input.m_theoryOfTime->m_running;
-            writeInput.m_masterLoopSamples = input.m_theoryOfTime->m_masterLoopSamples;
+            writeInput.m_running = input.m_theoryOfTime->m_samples[totLoopSelectorSample].m_running;
+            writeInput.m_globalPeriodSamples = input.m_theoryOfTime->m_globalPeriodSamples;
             m_writeTapeHead[i].Update(writeInput);
 
-            if (input.m_theoryOfTime->GetIndirectTop(totLoopSelectorSample, m_readTapeHead[i].m_loopSelector))
+            if (input.m_theoryOfTime->CrossedCycleBoundary(m_readTapeHead[i].m_loopSelector, totLoopSelectorSample, PhaseDomain::Modulated))
             {
                 float possibleBufferFracs[5] = {0.8, 2.0/3.0, 1.0, 3.0/4.0, 5.0/8.0};
                 m_bufferFrac[i] = possibleBufferFracs[input.m_delayTimeFactorSwitchVal[i]];
@@ -322,15 +322,13 @@ struct QuadDelayInputSetter
                     delayInput.m_writeHeadPosition[i],
                     writeHeadPosition, 
                     std::abs(writeHeadPosition - delayInput.m_writeHeadPosition[i]));
-                INFO("theory of time microblock %d index %d phasor indirect %f direct %f master %f master indirect %f master unwound %f loop external mult %d",
+                INFO("time sample %d loop %d modulated %f unmodulated %f global %f ratio %lld",
                     totLoopSelectorSample,
                     m_readTapeHead[i].m_loopSelector,
-                    input.m_theoryOfTime->GetIndirectPhasor(totLoopSelectorSample, m_readTapeHead[i].m_loopSelector),
-                    input.m_theoryOfTime->GetDirectPhasor(totLoopSelectorSample, m_readTapeHead[i].m_loopSelector),
-                    input.m_theoryOfTime->GetPhasorIndependent(m_readTapeHead[i].m_loopSelector),
-                    input.m_theoryOfTime->GetIndirectPhasor(totLoopSelectorSample, TheoryOfTimeBase::x_masterLoop),
-                    input.m_theoryOfTime->m_globalPhase.UnWind(),
-                    input.m_theoryOfTime->GetLoopExternalMultiplier(totLoopSelectorSample, m_readTapeHead[i].m_loopSelector));
+                    input.m_theoryOfTime->GetPhase(m_readTapeHead[i].m_loopSelector, totLoopSelectorSample, PhaseDomain::Modulated),
+                    input.m_theoryOfTime->GetPhase(m_readTapeHead[i].m_loopSelector, totLoopSelectorSample, PhaseDomain::Unmodulated),
+                    input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, totLoopSelectorSample, PhaseDomain::Modulated),
+                    static_cast<long long>(input.m_theoryOfTime->GetCycleRatio(m_readTapeHead[i].m_loopSelector, totLoopSelectorSample)));
             }
 
             delayInput.m_writeHeadPosition[i] = writeHeadPosition;
@@ -343,8 +341,10 @@ struct QuadDelayInputSetter
             readInput.m_requestedLoopSelector = totLoopSelector;
             m_readTapeHead[i].Update(readInput);
             delayInput.m_readHeadPosition[i] = m_readTapeHead[i].m_actualPosition;
-            delayInput.m_relativeWriteHeadPosition[i] = static_cast<float>(m_writeTapeHead[i].m_relativePosition);
-            delayInput.m_relativeReadHeadPosition[i] = static_cast<float>(m_readTapeHead[i].m_relativePosition);
+            double writePhase = m_writeTapeHead[i].m_relativePosition;
+            delayInput.m_relativeWriteHeadPosition[i] = static_cast<float>(writePhase - std::floor(writePhase));
+            double readPhase = m_readTapeHead[i].m_relativePosition;
+            delayInput.m_relativeReadHeadPosition[i] = static_cast<float>(readPhase - std::floor(readPhase));
 
             float rotate = static_cast<float>(input.m_rotateSwitchVal[i]) / 4.0f;
             delayInput.m_rotate[i] = m_rotateFilter[i].Process(rotate);
@@ -391,7 +391,8 @@ struct QuadDelayInputSetter
 
             for (int i = 0; i < 4; ++i)
             {
-                double x = input.m_theoryOfTime->GetIndirectPhasor(sampleIndex);
+                double phase = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, sampleIndex, PhaseDomain::Modulated);
+                double x = phase - std::floor(phase);
                 double y = delayInput.m_writeHeadPosition[i];
                 delay->m_positionalBufferRecorder[i].Record(x, y);
             }

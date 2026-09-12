@@ -62,7 +62,7 @@ The **Sample** source machine (`SampleSource`) reads from one `AudioBufferBank` 
 
 - Each bank loads all `.wav` files in the selected directory.
 - `SampleBankPosition` scans across the loaded WAV files. Even segments select a single file; odd segments linearly blend adjacent files.
-- Playback position comes from `PhasorPlayHead`, which reads a selected Theory of Time loop through `GetIndirectPhasor(...)`.
+- Playback position comes from `PhasorPlayHead`, which reads absolute modulated phase through `GetPhase(loop, sample, PhaseDomain::Modulated)` and applies read speed before wrapping.
 - `SampleStart` and `SampleLength` define a wrapped window inside the normalized sample domain.
 - `SampleReadSpeed` selects quantized reverse, stopped, and forward rates from `-4x` through `4x`.
 - Audio is rendered through `GrainManager<AudioBufferBank>`, reusing the grain/resynthesis path used by the phase-vocoder components.

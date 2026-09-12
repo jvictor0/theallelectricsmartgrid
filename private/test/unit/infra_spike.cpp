@@ -53,7 +53,7 @@ DOCTEST_TEST_CASE("TheoryOfTime constructs")
     GlobalEnv::ResetPerTest();
 
     TheoryOfTime tot;
-    DOCTEST_CHECK(tot.m_masterLoopSamples == doctest::Approx(1.0));
+    DOCTEST_CHECK(tot.m_globalPeriodSamples == doctest::Approx(1.0));
 }
 
 DOCTEST_TEST_CASE("TheNonagonSquiggleBoyInternal constructs and processes samples")

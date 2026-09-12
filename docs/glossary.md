@@ -6,21 +6,19 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 ## Theory of Time and sequencer
 
-- **Theory of Time** — The global clock. A map **R → S¹** (wall-clock time to main loop phase) plus six hierarchical **time loops** (divisions). Implemented in `private/src/TheoryOfTime.hpp`. See [Theory of Time](theory-of-time.md).
+- **Theory of Time** — The global clock maps absolute real-valued phase into six hierarchical loops. `TheoryOfTimeBase.hpp` owns sampled coordinates and topology; `TheoryOfTime.hpp` advances the clock and its modulation. See [Theory of Time](theory-of-time.md).
 
-- **time loop** — One of six divisions of the main loop. Each has a **parent** (`m_parentIndex`), a **winding multiplier** (`m_parentMult`), an integer **position** and **loop size**, and a **gate** (first vs second half of the cycle). Together they form a tree **S¹ → (S¹)^6**.
+- **time loop** — One of six divisions of the global loop, with a parent index, positive parent multiplier, derived cycle ratio, lattice period in ticks, and gate. Phase is global phase multiplied by the cycle ratio.
 
-- **master loop** — The root time loop (index `x_numLoops - 1`, i.e. 5). It has no parent; its position is driven directly by the phase-modulated phasor. All other loops derive position from their parent.
+- **master loop** — Legacy name for the **global loop**, index 5 (`x_globalLoop`). Its cycle ratio is one.
 
-- **phasor** — Phase on the circle [0, 1), or the corresponding unwound value. "True" phasor = unmodulated clock phase; "phase-modulated" phasor = true phase + LFO-derived offset, used for position and gates.
+- **phasor** — A phase coordinate. In Theory of Time it is an absolute `double` in cycles; periodic outputs apply `phase - floor(phase)`. **Unmodulated** phase comes from the clock; **modulated** phase adds its phase offset.
 
-- **CircleTracker** — Tracks a phase on S¹ and an integer winding count (`m_phase`, `m_winding`). Used for the Theory of Time's global phase so positions and monodromy stay consistent across wraps. (`private/src/CircleTracker.hpp`)
-
-- **phase-modulation LFO** — LFO that modulates the main clock phase. It is **phase-driven**: driven by the six time loops' *independent* (unmodulated) phasors, so it stays synchronized with the Theory of Time. Implemented with **PolyXFader**.
+- **phase-modulation LFO** — LFO that modulates the main clock phase. It is **phase-driven**: driven by the six time loops' unmodulated phases, so it stays synchronized with the Theory of Time. Implemented with **PolyXFader**.
 
 - **PolyXFader** — Internal LFO/phasor shaper used for the Theory of Time's phase-modulation LFO. Takes phase inputs from the six time loops and produces a single modulation value. (`private/src/PolyXFader.hpp`)
 
-- **monodromy** — For a time loop (with `external == true`), the number of times its **gate** has **changed state** (flipped) since a chosen ancestor loop was at zero — or since the clock started if **no reset** is selected (`resetIx == -1`). So it counts half-cycles / state changes, not full revolutions. Exposed as `TheoryOfTime::MonodromyNumber(clockIx, resetIx)`. The arp uses this as `m_totalIndex` when the clock loop’s gate changes; `m_resetSelect` defaults to -1 (no reset).
+- **monodromy** — Legacy name for the **gate-step index**. `GetGateStepIndex` floor-divides the signed absolute position by the clock loop half-period. An ancestor/self reset reduces that index modulo the reset period; no reset or a non-ancestor reset leaves the absolute index.
 
 - **LameJuis** — Esoteric layered sequencer: maps the six Theory of Time gate bits to pitch via a **lens** (read/co-mute), a **sheaf** F^M_x(U), and an **index arp**. Each of 3 trios has one LameJuis lane; the performer assigns a lens and selects a strategy (e.g. Percentile or ClosestModOne) to pick a note from the sheaf using the arp. See [LameJuis](lamejuis.md).
 
@@ -30,7 +28,7 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 - **lens** — A 6-bit mask: bit 1 = "read" (must agree for equivalence), bit 0 = "co-mute" (ignore). Defines equivalence x ~_U y and the sheaf F^M_x(U) = { M(y) | y ~_U x }. Set per lane via "co-mutes" in the UI (`!m_coMutes[i]` = read dimension i).
 
-- **index arp** — Arpeggiator that turns the **monodromy** (state-change count of a chosen clock loop since reset) into a **point in a range**. Uses a **rhythm** pattern (`m_rhythm`, length 8) to gate steps; **m_index** = physical step among on steps; **m_motiveIndex** = rhythm page; output = f(m_index, m_motiveIndex) scaled to [m_min, m_max]. That value is passed as `m_choiceArg` to the chosen section choice strategy (e.g. Percentile or ClosestModOne). (`IndexArp`, `NonagonIndexArp` in `private/src/IndexArp.hpp`)
+- **index arp** — Arpeggiator that turns the signed **gate-step index** of a chosen clock loop into a **point in a range**. Uses a **rhythm** pattern (`m_rhythm`, length 8) to gate steps; **m_index** = physical step among on steps; **m_motiveIndex** = rhythm page; output = f(m_index, m_motiveIndex) scaled to [m_min, m_max]. That value is passed as `m_choiceArg` to the chosen section choice strategy (e.g. Percentile or ClosestModOne). (`IndexArp`, `NonagonIndexArp` in `private/src/IndexArp.hpp`)
 
 - **LogicOperation** — One of 6 "simple functions" I⁶ → {0,1} that build M. For each of the 6 bits: **Muted** (ignore), **Normal** (use), **Inverted** (use inverted). The output is determined by a lookup table **m_rhs[countHigh]**: for each count of high (active, possibly inverted) bits, the performer chooses whether the operation outputs true or false. Default is `m_rhs[j] = (j % 2 == 1)` ("odds pass," equivalent to parity/Xor — a Walsh function). Output goes to one of 3 **accumulators**. The RHS grid lights column k from the **active trio's** lens: k is reachable if some assignment of the trio's co-muted bits yields that countHigh.
 
@@ -44,13 +42,13 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 ## Multi-Phasor Gate and trigger
 
-- **Multi-Phasor Gate** — Per-voice gate and trigger logic driven by the master phasor. Decides when to emit a **trigger** (start a note) and when to turn the gate off after half a voice period. Uses **NonagonTrigLogic** to build **m_trigs** and **m_newTrigCanStart** from LameJuis and the index arp; then combines those with phasor-based timing and mute to set **m_ahdControl[i].m_trig** and **m_gate[i]**. **m_gate** is not used for envelopes (those use **AHDControl**); it is used for note-off (clear output gate, record note end) and UI display. (`MultiPhasorGateInternal` in `private/src/MultiPhasorGate.hpp`)
+- **Multi-Phasor Gate** — Per-voice gate and trigger logic driven by the global phase. Decides when to emit a **trigger** (start a note) and when to turn the gate off after half a voice period. Uses **NonagonTrigLogic** to build **m_trigs** and **m_newTrigCanStart** from LameJuis and the index arp; then combines those with phasor-based timing and mute to set **m_ahdControl[i].m_trig** and **m_gate[i]**. **m_gate** is not used for envelopes (those use **AHDControl**); it is used for note-off (clear output gate, record note end) and UI display. (`MultiPhasorGateInternal` in `private/src/MultiPhasorGate.hpp`)
 
 - **NonagonTrigLogic** — Builds the Multi-Phasor Gate input for the 9 voices: **m_trigs[i]** (trigger on pitch-changed and/or sub-trigger, per trio), **m_newTrigCanStart[i]** (running and not early-muted), **m_mute[i]**, and **interrupt** (lower-index voice can cancel a trigger). Uses **m_trigOnPitchChanged**, **m_trigOnSubTrigger**, **m_interrupt**, **m_unisonMaster**. See [Multi-Phasor Gate](multi-phasor-gate.md).
 
-- **AHD** — Attack–Hold–Decay envelope control. **AHDControl** carries **m_trig** (start note), **m_samples** (elapsed), **m_envelopeTimeSamples** (period), **m_release**. The Multi-Phasor Gate sets these so the envelope follows the gate timing. (`private/src/AHD.hpp`)
+- **AHD** — Attack–Hold–Decay envelope. `AHDControl` carries trigger, release, source/global phase ratio, and envelope period. On trigger AHD captures the latter two and a global phase origin, then follows only global phase. See [AHD envelopes](ahd-envelopes.md).
 
-- **PhasorBounds** — Tracks distance along the circle from a gate start to the current master phasor, scaled by a voice's **m_phasorDenominator**, so the gate can turn off at half a voice period (phase ≥ 0.5). Uses **CircleDistanceTracker**.
+- **PhasorBounds** — Captures a gate start in absolute modulated global phase, its voice cycle ratio, and global period. Absolute distance from that origin, multiplied by the captured ratio, closes the gate at half a voice period.
 
 ---
 

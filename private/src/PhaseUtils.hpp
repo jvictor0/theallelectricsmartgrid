@@ -1,9 +1,24 @@
 #pragma once
 #include <cmath>
+#include <cstdint>
+#include <cassert>
 #include "AsyncLogger.hpp"
 
 namespace PhaseUtils
 {
+inline int64_t FloorDiv(int64_t value, int64_t divisor)
+{
+    assert(divisor > 0);
+    return value / divisor - (value % divisor < 0 ? 1 : 0);
+}
+
+inline int64_t FloorMod(int64_t value, int64_t divisor)
+{
+    assert(divisor > 0);
+    int64_t remainder = value % divisor;
+    return remainder < 0 ? remainder + divisor : remainder;
+}
+
 inline float HzToNatural(float hz, float deltaT)
 {
     return hz * deltaT;

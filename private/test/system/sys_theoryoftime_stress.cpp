@@ -113,9 +113,9 @@ DOCTEST_TEST_CASE("tot-stress: aggressive tempo/LFO sweep stays bounded & recove
 
     // Master phasor still advancing (no stuck clock).
     //
-    const double p0 = rig.MasterPhasor();
+    const double p0 = rig.GlobalPhase();
     rig.RunSeconds(0.4);
-    const double p1 = rig.MasterPhasor();
+    const double p1 = rig.GlobalPhase();
     DOCTEST_CHECK(std::fabs(p1 - p0) > 0.01);
 
     // Voices still gate after the storm.
@@ -246,7 +246,7 @@ DOCTEST_TEST_CASE("tot-stress: blend/scene churn during tempo stress stays clean
 
     // Clock still advancing.
     //
-    const double p0 = rig.MasterPhasor();
+    const double p0 = rig.GlobalPhase();
     rig.RunSeconds(0.4);
-    DOCTEST_CHECK(std::fabs(rig.MasterPhasor() - p0) > 0.005);
+    DOCTEST_CHECK(std::fabs(rig.GlobalPhase() - p0) > 0.005);
 }

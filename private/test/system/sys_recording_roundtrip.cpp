@@ -26,7 +26,7 @@
 //
 //   capture:  RecordingBuffer accumulates floats while State==Recording. Start/
 //             stop positions are taken from the master loop's unwound phasor
-//             (TheoryOfTime::GetUnwoundMasterIndependent): integer master-loops
+//             (TheoryOfTime::GetPhase(global, sample, Unmodulated)): integer master-loops
 //             completed + phasor in [0,1). The span (delta) must be in (0,1].
 //
 //   align:    StopRecording computes "repeats" = the largest internal sub-loop
@@ -93,7 +93,7 @@ namespace
 using synthrig::SynthRig;
 using synthrig::TempDir;
 
-constexpr size_t kMasterLoopSamples = 192000; // 4.0s * 48000Hz
+constexpr size_t kGlobalPeriodSamples = 192000; // 4.0s * 48000Hz
 constexpr int kPumpCap = 6000;                // bounded persist/reload pump cap
 
 // Pump ProcessFrames until `pred()` is true or we hit the cap. Returns the number
@@ -353,8 +353,8 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
 
     // ---- duration / sample count matches the master loop ----
     //
-    DOCTEST_CHECK(reader.m_numFrames == kMasterLoopSamples);
-    DOCTEST_CHECK(wavSamples.size() == kMasterLoopSamples);
+    DOCTEST_CHECK(reader.m_numFrames == kGlobalPeriodSamples);
+    DOCTEST_CHECK(wavSamples.size() == kGlobalPeriodSamples);
 
     // ---- content not all zeros, correlates with what was recorded ----
     //
@@ -377,7 +377,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     const double span = stopPos - startPos;
     const double sourceSamplesPerMaster = static_cast<double>(bufferSize) / span;
     const size_t masterSamples = static_cast<size_t>(std::lround(sourceSamplesPerMaster));
-    DOCTEST_REQUIRE(masterSamples == kMasterLoopSamples);
+    DOCTEST_REQUIRE(masterSamples == kGlobalPeriodSamples);
 
     const double loopFraction = 1.0 / static_cast<double>(repeats);
     const double outputSamplesPerMaster = static_cast<double>(masterSamples);
@@ -431,7 +431,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     DOCTEST_REQUIRE(bank != nullptr);
     DOCTEST_REQUIRE(bank->m_audioBuffers.size() == 1);
     const std::vector<float>& reloaded = bank->m_audioBuffers[0]->m_buffer;
-    DOCTEST_CHECK(reloaded.size() == kMasterLoopSamples);
+    DOCTEST_CHECK(reloaded.size() == kGlobalPeriodSamples);
     // The just-persisted-and-reloaded buffer should equal the WAV we read back.
     //
     DOCTEST_REQUIRE(reloaded.size() == wavSamples.size());
@@ -476,7 +476,7 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
         relativeDir = bank->m_directoryName;
         originalReloaded = bank->m_audioBuffers[0]->m_buffer;
         DOCTEST_CHECK_FALSE(relativeDir.empty());
-        DOCTEST_CHECK(originalReloaded.size() == kMasterLoopSamples);
+        DOCTEST_CHECK(originalReloaded.size() == kGlobalPeriodSamples);
     }
 
     // ---- Consumer rig: fresh system, same root, drive the load path directly.
@@ -504,7 +504,7 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
         DOCTEST_REQUIRE(loaded->m_audioBuffers.size() == 1);
 
         const std::vector<float>& loadedBuf = loaded->m_audioBuffers[0]->m_buffer;
-        DOCTEST_CHECK(loadedBuf.size() == kMasterLoopSamples);
+        DOCTEST_CHECK(loadedBuf.size() == kGlobalPeriodSamples);
         // Same WAV, same host rate -> identical content (no resampling involved).
         //
         DOCTEST_REQUIRE(loadedBuf.size() == originalReloaded.size());
@@ -587,7 +587,7 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
         DOCTEST_REQUIRE(bank != nullptr);
         DOCTEST_CHECK(bank->m_directoryName == relativeDir);
         DOCTEST_REQUIRE(bank->m_audioBuffers.size() == 1);
-        DOCTEST_CHECK(bank->m_audioBuffers[0]->m_buffer.size() == kMasterLoopSamples);
+        DOCTEST_CHECK(bank->m_audioBuffers[0]->m_buffer.size() == kGlobalPeriodSamples);
         DOCTEST_CHECK(Peak(bank->m_audioBuffers[0]->m_buffer) > 0.0f);
     }
 }

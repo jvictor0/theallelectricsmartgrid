@@ -1,14 +1,16 @@
 # PolyXFader LFOs
 
-The primary Low-Frequency Oscillators (LFOs) in the Smart Grid One are implemented using the `PolyXFaderInternal` class (`private/src/PolyXFader.hpp`). Despite the somewhat unconventional name, this class serves as a powerful, phase-synchronized LFO engine.
+The primary Low-Frequency Oscillators (LFOs) in the Smart Grid One are implemented using the `PolyXFaderInternal` struct (`private/src/PolyXFader.hpp`). Despite the somewhat unconventional name, this struct evaluates and mixes periodic waveforms.
 
 ## Phase-Synchronized Mixing
 
-Unlike traditional free-running LFOs, the PolyXFader LFOs are deeply integrated with the [Theory of Time](theory-of-time.md). They do not generate their own internal phase; instead, they take the independent (unmodulated) phasors from the six time loops as inputs.
+PolyXFader reads absolute loop phase through `GetPhase`, with an explicit `PhaseDomain`. The Theory of Time's own phase-modulation LFO uses unmodulated phase; voice LFOs use modulated phase. It has no independent phase accumulator or reset input.
 
-The LFO output is created by mixing these six simpler, phase-locked signals together. This ensures that the resulting complex modulation shape is always perfectly synchronized with the global clock and the rhythmic structure of the sequencer.
+Waveform evaluation first reduces `phase + phaseShift + 0.75` to a fractional cycle in double precision, then applies the shaping multiplier. A multiplier of 2.5 produces two full lobes and a final shorter lobe with half amplitude in each input cycle. This periodic shaping is preserved even at large absolute phase values.
 
-Synchronization is structural rather than triggered: `PolyXFaderInternal` has no reset or sync input, because its phase is always read directly from the time-loop phasors.
+Running topology edits require simultaneous old/new parent modulated boundaries. Integer phase offsets at an exact shared boundary therefore evaluate to the same periodic waveform. Interpolation uses global phase and the interval's topology, avoiding a sweep through the absolute integer jump. Sampled boundary overshoot still reflects the new rate, and unmodulated LFO drive can differ from the modulated boundary used to accept an edit.
+
+The existing blend weights, knob response, quantization, sample-and-hold, and output slew remain unchanged. Turning a blend or shape knob can change the waveform normally.
 
 ## Features
 
