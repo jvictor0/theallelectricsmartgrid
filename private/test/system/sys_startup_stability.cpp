@@ -66,9 +66,9 @@ DOCTEST_TEST_CASE("startup: pre-start run is finite, bounded, and quiescent")
     rig.ClearOutput();
     rig.ClearNaN();
 
-    const double phasorBefore = rig.MasterPhasor();
+    const double phasorBefore = rig.GlobalPhase();
     rig.RunSeconds(0.8);
-    const double phasorAfter = rig.MasterPhasor();
+    const double phasorAfter = rig.GlobalPhase();
 
     DOCTEST_CHECK_FALSE(rig.SawNaN());
     DOCTEST_CHECK(rig.OutputPeak() < kOutputBound);
@@ -140,9 +140,9 @@ DOCTEST_TEST_CASE("startup: start/run/stop leaves a sane, decaying state")
 
     // The master phasor must be frozen again after stop.
     //
-    const double p0 = rig.MasterPhasor();
+    const double p0 = rig.GlobalPhase();
     rig.RunSeconds(0.3);
-    const double p1 = rig.MasterPhasor();
+    const double p1 = rig.GlobalPhase();
     DOCTEST_CHECK(std::fabs(p1 - p0) < 1e-9);
 }
 
@@ -249,9 +249,9 @@ DOCTEST_TEST_CASE("startup: reproduce pre-first-start frozen-clock observable")
     // (a) Fresh rig, never started: clock frozen, audio silent.
     //
     rig.ClearOutput();
-    const double freshP0 = rig.MasterPhasor();
+    const double freshP0 = rig.GlobalPhase();
     rig.RunSeconds(0.6);
-    const double freshP1 = rig.MasterPhasor();
+    const double freshP1 = rig.GlobalPhase();
     const float freshPeak = rig.OutputPeak();
 
     const bool freshClockFrozen = std::fabs(freshP1 - freshP0) < 1e-9;
@@ -276,9 +276,9 @@ DOCTEST_TEST_CASE("startup: reproduce pre-first-start frozen-clock observable")
     rig.StartSequencer();
     rig.ClearOutput();
     rig.ClearNaN();
-    const double runP0 = rig.MasterPhasor();
+    const double runP0 = rig.GlobalPhase();
     rig.RunSeconds(0.6);
-    const double runP1 = rig.MasterPhasor();
+    const double runP1 = rig.GlobalPhase();
     DOCTEST_CHECK(std::fabs(runP1 - runP0) > 0.05);   // clock now moving
     DOCTEST_CHECK(rig.OutputPeak() > 1e-3f);          // audio now present
     DOCTEST_CHECK_FALSE(rig.SawNaN());

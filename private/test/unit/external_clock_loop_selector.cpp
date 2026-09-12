@@ -42,7 +42,7 @@ DOCTEST_TEST_CASE("External clock loop selector publishes six switch values")
 
 DOCTEST_TEST_CASE("External clock loop selector maps fully counterclockwise to master")
 {
-    DOCTEST_CHECK(TheNonagonSquiggleBoyInternal::ExternalClockLoopIndexFromSwitch(0) == TheoryOfTimeBase::x_masterLoop);
+    DOCTEST_CHECK(TheNonagonSquiggleBoyInternal::ExternalClockLoopIndexFromSwitch(0) == TheoryOfTimeBase::x_globalLoop);
     DOCTEST_CHECK(TheNonagonSquiggleBoyInternal::ExternalClockLoopIndexFromSwitch(3) == TheoryOfTimeBase::x_numLoops - 3 - 1);
     DOCTEST_CHECK(TheNonagonSquiggleBoyInternal::ExternalClockLoopIndexFromSwitch(TheoryOfTimeBase::x_numLoops - 1) == 0);
 }

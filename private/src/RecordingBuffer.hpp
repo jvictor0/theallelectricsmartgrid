@@ -47,24 +47,23 @@ struct RecordingBuffer
         m_buffer.reserve(x_capacity);
     }
 
-    double SampleUnwoundMasterIndependent() const
+    double SampleGlobalPhase() const
     {
         size_t j = static_cast<size_t>(SampleTimer::GetUBlockIndex());
-        return m_theoryOfTime.load()->GetUnwoundMasterIndependent(j);
+        return m_theoryOfTime.load()->GetPhase(TheoryOfTimeBase::x_globalLoop, j, PhaseDomain::Unmodulated);
     }
 
-    int ComputeRecordingRepeats(double spanAsMasterFraction) const
+    int ComputeRecordingRepeats(double spanGlobalCycles) const
     {
         TheoryOfTimeBase* theoryOfTime = m_theoryOfTime.load();
-        if (theoryOfTime == nullptr || spanAsMasterFraction <= 0.0)
+        if (theoryOfTime == nullptr || spanGlobalCycles <= 0.0)
         {
             return 0;
         }
 
         size_t j = static_cast<size_t>(SampleTimer::GetUBlockIndex());
-        const TimeLoop* master = theoryOfTime->GetMasterLoop();
-        int masterSize = master->m_loopSize[j];
-        if (masterSize <= 0)
+        int64_t globalPeriodTicks = theoryOfTime->GetPeriodTicks(TheoryOfTimeBase::x_globalLoop, j);
+        if (globalPeriodTicks <= 0)
         {
             return 0;
         }
@@ -74,12 +73,12 @@ struct RecordingBuffer
 
         for (int loopIndex = 0; loopIndex < TheoryOfTimeBase::x_numLoops; ++loopIndex)
         {
-            int externalMult = theoryOfTime->GetLoopExternalMultiplier(j, loopIndex);
-            double relativeSize = 1.0 / static_cast<double>(externalMult);
-            if (relativeSize <= spanAsMasterFraction && bestRelativeSize < relativeSize)
+            int64_t cycleRatio = theoryOfTime->GetCycleRatio(loopIndex, j);
+            double relativeSize = 1.0 / static_cast<double>(cycleRatio);
+            if (relativeSize <= spanGlobalCycles && bestRelativeSize < relativeSize)
             {
                 bestRelativeSize = relativeSize;
-                repeats = externalMult;
+                repeats = cycleRatio;
             }
         }
 
@@ -95,7 +94,7 @@ struct RecordingBuffer
 
         if (m_buffer.size() >= x_capacity)
         {
-            m_loopPositionRecordingStop.store(SampleUnwoundMasterIndependent());
+            m_loopPositionRecordingStop.store(SampleGlobalPhase());
             m_state = State::Error;
             return;
         }
@@ -112,7 +111,7 @@ struct RecordingBuffer
 
         m_buffer.clear();
         m_recordingRepeats.store(0);
-        m_loopPositionRecordingStart.store(SampleUnwoundMasterIndependent());
+        m_loopPositionRecordingStart.store(SampleGlobalPhase());
         m_state = State::Recording;
     }
 
@@ -123,7 +122,7 @@ struct RecordingBuffer
             return;
         }
 
-        double stopPosition = SampleUnwoundMasterIndependent();
+        double stopPosition = SampleGlobalPhase();
         m_loopPositionRecordingStop.store(stopPosition);
         double delta = stopPosition - m_loopPositionRecordingStart.load();
         if (delta > 1.0 || delta <= 0.0)
@@ -156,16 +155,16 @@ struct RecordingBuffer
         double stopPosition = m_loopPositionRecordingStop.load();
         size_t bufferSize = m_buffer.size();
         int numRepeats = m_recordingRepeats.load();
-        double spanAsMasterFraction = stopPosition - startPosition;
+        double spanGlobalCycles = stopPosition - startPosition;
 
-        if (bufferSize == 0 || spanAsMasterFraction <= 0.0 || numRepeats <= 0)
+        if (bufferSize == 0 || spanGlobalCycles <= 0.0 || numRepeats <= 0)
         {
             return false;
         }
 
-        double sourceSamplesPerMaster = static_cast<double>(bufferSize) / spanAsMasterFraction;
-        size_t masterSamples = static_cast<size_t>(std::lround(sourceSamplesPerMaster));
-        if (masterSamples == 0)
+        double sourceSamplesPerGlobalCycle = static_cast<double>(bufferSize) / spanGlobalCycles;
+        size_t globalSamples = static_cast<size_t>(std::lround(sourceSamplesPerGlobalCycle));
+        if (globalSamples == 0)
         {
             return false;
         }
@@ -174,12 +173,12 @@ struct RecordingBuffer
         writer->Open(1, std::string(filename), static_cast<uint32_t>(SampleTimer::x_sampleRate));
 
         double loopFraction = 1.0 / static_cast<double>(numRepeats);
-        double outputSamplesPerMaster = static_cast<double>(masterSamples);
+        double outputSamplesPerGlobalCycle = static_cast<double>(globalSamples);
         static constexpr double x_positionEpsilon = 1.0e-9;
 
-        for (size_t i = 0; i < masterSamples; ++i)
+        for (size_t i = 0; i < globalSamples; ++i)
         {
-            double outputFraction = static_cast<double>(i) / outputSamplesPerMaster;
+            double outputFraction = static_cast<double>(i) / outputSamplesPerGlobalCycle;
             double loopPhase = std::fmod(outputFraction, loopFraction);
             if (loopPhase < 0.0)
             {
@@ -202,7 +201,7 @@ struct RecordingBuffer
             if (sourcePosition < stopPosition)
             {
                 double sourceOffset = sourcePosition - startPosition;
-                size_t sourceIndex = static_cast<size_t>(std::floor(sourceOffset * sourceSamplesPerMaster));
+                size_t sourceIndex = static_cast<size_t>(std::floor(sourceOffset * sourceSamplesPerGlobalCycle));
                 sourceIndex = std::min(sourceIndex, bufferSize - 1);
                 sample = static_cast<double>(m_buffer[sourceIndex]);
             }

@@ -122,7 +122,7 @@ DOCTEST_TEST_CASE("SampleSource: no buffer -> silent output")
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
-    rig.SetMasterPeriodSamples(512.0);
+    rig.SetGlobalPeriodSamples(512.0);
     rig.SetRunning(true);
     rig.AdvanceControlFrame();  // prime
 
@@ -161,7 +161,7 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
-    rig.SetMasterPeriodSamples(4096.0);  // slow cycle so playhead moves gently
+    rig.SetGlobalPeriodSamples(4096.0);  // slow cycle so playhead moves gently
     rig.SetRunning(true);
     rig.AdvanceControlFrame();
 
@@ -219,7 +219,7 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
-    rig.SetMasterPeriodSamples(2048.0);
+    rig.SetGlobalPeriodSamples(2048.0);
     rig.SetRunning(true);
     rig.AdvanceControlFrame();
     rig.AdvanceControlFrame();
@@ -231,7 +231,7 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
     ss.SetAudioBufferBank(bank.get());
-    SampleSource::Input inp = MakeBasicInput(rig.Get(), /*loopIndex=*/TimeRig::x_masterLoop);
+    SampleSource::Input inp = MakeBasicInput(rig.Get(), /*loopIndex=*/TimeRig::x_globalLoop);
     inp.m_phasorPlayHeadInput.m_speed  = 1.0f;
     inp.m_phasorPlayHeadInput.m_start  = 0.0f;
     inp.m_phasorPlayHeadInput.m_length = 1.0f;
@@ -273,7 +273,7 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
-    rig.SetMasterPeriodSamples(1024.0);
+    rig.SetGlobalPeriodSamples(1024.0);
     rig.SetRunning(true);
     rig.AdvanceControlFrame();
 
@@ -320,7 +320,7 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
             // Modulate TheoryOfTime tempo (simulate BPM change).
             //
             double newPeriod = 512.0 + r * 4096.0;
-            rig.SetMasterPeriodSamples(newPeriod);
+            rig.SetGlobalPeriodSamples(newPeriod);
         }
 
         ss.ProcessUBlock(inp);
@@ -357,7 +357,7 @@ DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
-    rig.SetMasterPeriodSamples(512.0);  // fast loop so we get many wraps
+    rig.SetGlobalPeriodSamples(512.0);  // fast loop so we get many wraps
     rig.SetRunning(true);
     rig.AdvanceControlFrame();
 
@@ -368,7 +368,7 @@ DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
     ss.SetAudioBufferBank(bank.get());
-    SampleSource::Input inp = MakeBasicInput(rig.Get(), TimeRig::x_masterLoop);
+    SampleSource::Input inp = MakeBasicInput(rig.Get(), TimeRig::x_globalLoop);
     inp.m_phasorPlayHeadInput.m_speed  = 1.0f;
     inp.m_phasorPlayHeadInput.m_start  = 0.0f;
     inp.m_phasorPlayHeadInput.m_length = 1.0f;

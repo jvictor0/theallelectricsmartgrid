@@ -51,48 +51,26 @@ Result: **m_trigs[i]** is true only when the chosen trigger source (pitch-change
 
 `MultiPhasorGateInternal::Process` runs once per frame with that input.
 
-**Phasor inputs** (set by the Nonagon after `SetInput`):
+**Timing inputs** (set by the Nonagon after `SetInput`):
 
-- **m_phasor** -- Master loop phasor from the Theory of Time.
-- **m_masterLoopSamples** -- Master loop length in samples.
-- **m_phasorDenominator[i]** -- For each voice, an integer such that the voice's "period" in master-loop units is `1 / m_phasorDenominator[i]` (derived from the voice's clock and lens so that the gate length matches the voice's logical step).
+- `m_theoryOfTime` supplies absolute modulated global phase at slot 0.
+- `m_globalPeriodSamples` is the current global period in samples.
+- `m_voiceCycleRatio[i]` is the signed 64-bit positive ratio derived from the voice clock and lens. It determines the voice gate period.
+- `m_phaseRatio` is the envelope source/global ratio, currently taken from loop 0. It is distinct from the voice gate ratio.
 
-**Per voice *i*:**
+A trigger is emitted when requested, allowed, and unmuted. Accepted trigger bounds capture global phase, voice cycle ratio, and global period. The gate closes when `abs(globalPhase - startGlobalPhase) * capturedVoiceCycleRatio >= 0.5`. Existing bounds do not adopt later topology changes. A retrigger captures fresh bounds.
 
-1. **Emit trigger** --
-   `m_ahdControl[i].m_trig = input.m_trigs[i] && input.m_newTrigCanStart[i] && !input.m_mute[i]`.
-   So the **trigger** (what the rest of the synth sees) is true only when: the trigger logic requested a trig, a new trig is allowed, and the voice is not muted. If that is true, `m_ahdControl[i].m_release = false`.
+The envelope period sent in `AHDControl` is the captured global period divided by the captured voice cycle ratio. AHD captures that period and the source phase ratio when it receives the trigger and evaluates its own elapsed position from global phase. There is no elapsed-sample relay or circle-distance tracker.
 
-2. **Start gate and bounds** -- If `input.m_trigs[i] && input.m_newTrigCanStart[i]`:
-   - If not muted: `m_gate[i] = true` and `m_ahdControl[i].m_samples = 0`.
-   - In all cases: `m_preGate[i] = true`, `m_set[i] = true`, and `m_bounds[i].Set(input.m_phasor, input.m_phasorDenominator[i])`. So we record the current phasor and the voice's denominator for phase tracking.
+Mute and interrupt decisions retain their existing behavior. Muted accepted requests still establish internal bounds; they do not emit an envelope trigger. Once the half-period ends, a muted voice or one that cannot start a new trigger receives release. `m_anyGate` reports whether any voice gate remains high.
 
-3. **Envelope timing** -- `envelopeTimeSamples = m_masterLoopSamples / input.m_phasorDenominator[i]` (length of one voice "step" in samples). Stored in `m_ahdControl[i].m_envelopeTimeSamples`.
-
-4. **Phase advance and gate off** -- If `m_set[i]`:
-   - `thisPhase = m_bounds[i].Process(input.m_phasor)`: distance along the circle from the start of this gate to the current phasor, scaled by the voice's denominator (so 0 -> 1 over one voice period).
-   - If **thisPhase >= 0.5**: gate is turned off (`m_gate[i] = false`, `m_preGate[i] = false`). If in addition `!input.m_newTrigCanStart[i] || input.m_mute[i]`, then `m_ahdControl[i].m_release = true` and `m_set[i] = false`.
-   - `m_ahdControl[i].m_samples = thisPhase * envelopeTimeSamples` so the AHD envelope sees the correct elapsed time.
-
-5. **m_anyGate** -- If any voice has `m_gate[i]` true, `m_anyGate` is true (used e.g. to keep the Theory of Time "running" while a note is held).
-
-So: **m_ahdControl[i].m_trig** is the single "emit a trigger" flag. The gate **m_gate[i]** is true from the frame the trigger is accepted until the phasor has advanced half a voice period (0.5 in normalized phase), giving a 50% duty cycle per step unless a new trigger restarts the bounds.
-
-**m_gate is not used for envelopes.** Envelope attack/hold/decay are driven by **m_ahdControl** (`m_trig`, `m_samples`, `m_envelopeTimeSamples`, `m_release`); the DSP copies `m_ahdControl` into each voice's AHD input. **m_gate** is used instead for: (1) **note-off and output** -- when `!m_multiPhasorGate.m_gate[i]`, the Nonagon sets `m_output.m_gate[i] = false` and records note end; (2) **UI** -- `SetGate(i, m_gate[i])` so the interface can show which voices have gate high. So **m_gate** tracks "note still held" for release timing and display; the envelope sees only **AHDControl**.
-
----
-
-## 4. Summary
-
-- **Trigger emitted** when: trigger logic says trig (pitch-changed or sub-trigger, per trio) **and** not early-muted **and** not interrupted by a lower-index voice **and** `m_newTrigCanStart` (running, not early-muted) **and** voice not muted.
-- **Gate on** when a trigger is accepted; **gate off** when the master phasor has moved 0.5 in the voice's normalized period (PhasorBounds).
-- **AHD** receives `m_trig` (start note), `m_samples`, `m_envelopeTimeSamples`, and `m_release` from the same structure, so envelope and voice are driven by this decision.
+`m_gate` controls note-off and the UI. Envelopes receive `AHDControl` (`m_trig`, `m_release`, `m_phaseRatio`, `m_envelopePeriodSamples`) rather than following the boolean gate directly.
 
 ---
 
 ## Related
 
-- [Theory of Time](theory-of-time.md) -- supplies the master phasor and "any change."
+- [Theory of Time](theory-of-time.md) -- supplies the global phase and "any change."
 - [LameJuis](lamejuis.md) -- supplies pitch and "pitch changed" trigger.
 - [Glossary](glossary.md) -- **Multi-Phasor Gate**, **NonagonTrigLogic**, **AHD**, **PhasorBounds**.
 - [Documentation index](index/README.md#major-components).

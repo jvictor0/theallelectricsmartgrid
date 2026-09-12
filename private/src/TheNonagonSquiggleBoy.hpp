@@ -292,8 +292,7 @@ struct TheNonagonSquiggleBoyInternal
                 }
             }
 
-            m_squiggleBoy.m_state[i].m_ahdControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i];            
-
+            m_squiggleBoy.m_state[i].m_ahdControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i];
             m_squiggleBoy.m_state[i].m_ampInput.m_modulationAHDInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
             m_squiggleBoy.m_state[i].m_ampInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
             m_squiggleBoy.m_state[i].m_sourceInput.m_physicalModelingInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
@@ -304,7 +303,7 @@ struct TheNonagonSquiggleBoyInternal
             m_squiggleBoyState.m_sheafyModulators[i][2] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][2];
         }
 
-        m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.m_loops[TheoryOfTimeBase::x_masterLoop].m_top[SampleTimer::GetUBlockIndex()];
+        m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.CrossedCycleBoundary(TheoryOfTimeBase::x_globalLoop, SampleTimer::GetUBlockIndex(), PhaseDomain::Modulated);
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {

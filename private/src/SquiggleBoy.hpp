@@ -1387,8 +1387,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_useIndirectPhasor = true;
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_useIndirectPhasor = true;
+            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
+            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
 
             m_state[i].SetTheoryOfTimeInputs(m_theoryOfTime);
 
@@ -1581,7 +1581,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_slope = m_encoders.GetValue(Param::LFO1Slope, i);
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::LFO1PhaseShift, i) * (static_cast<float>(i % x_numTracks) / x_numTracks);
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_useIndirectPhasor = true;
+            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
             m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::LFO1SampleAndHold, i);
 
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::LFO2Skew, i);
@@ -1592,7 +1592,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_slope = m_encoders.GetValue(Param::LFO2Slope, i);
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::LFO2PhaseShift, i) * (static_cast<float>(i % x_numTracks) / x_numTracks);
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_useIndirectPhasor = true;
+            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
             m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::LFO2SampleAndHold, i);
 
             m_mixerState.m_gain[i].Update(m_encoders.GetValue(Param::AmpGain, i));

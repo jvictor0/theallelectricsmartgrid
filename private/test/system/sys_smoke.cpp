@@ -75,9 +75,9 @@ DOCTEST_TEST_CASE("SynthRig: sequencer runs, phasor advances, output bounded")
     // would land back where it started. Run a non-multiple so the advance is
     // unambiguous.
     //
-    const double phasorBefore = rig.MasterPhasor();
+    const double phasorBefore = rig.GlobalPhase();
     rig.RunSeconds(1.5);
-    const double phasorAfter = rig.MasterPhasor();
+    const double phasorAfter = rig.GlobalPhase();
 
     DOCTEST_CHECK_FALSE(rig.SawNaN());
     DOCTEST_CHECK(rig.OutputPeak() < kOutputBound);

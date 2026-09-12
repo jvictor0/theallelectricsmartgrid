@@ -27,21 +27,20 @@ There are **9 voices** in **3 trios** of 3 voices each. Each trio is assigned **
 
 ## 3. Index arp: clock, reset, rhythm, and range
 
-The **index arp** (`IndexArp`, used per voice inside `NonagonIndexArp`) turns the monodromy (state-change count) of a chosen clock loop into a **point in a range** that is then used to pick a note from **F^M_x(U)**.
+The **index arp** (`IndexArp`, used per voice inside `NonagonIndexArp`) turns the signed gate-step index of a chosen clock loop into a **point in a range** that is then used to pick a note from **F^M_x(U)**.
 
 ### 3.1 Clock and reset
 
 - The performer chooses a **clock loop** and optionally a **reset loop** (an ancestor of the clock for the reset to be meaningful; or no reset, i.e. reset index -1).
-- When the clock loop's **gate changes** (`m_gateChanged`), the Nonagon sets  
-`m_arpInput.m_totalIndex[trio] = TheoryOfTime::MonodromyNumber(clockSelect[trio], resetSelect[trio])`.  
-So **m_totalIndex** is the number of **state changes** (gate flips) of the clock loop since the reset loop was at zero (or since the clock started if there is no reset). See [Theory of Time — Monodromy](theory-of-time.md#monodromy-relative-state-change-count).
+- When `AnyGateStepChanged(clockLoop)` reports a half-cycle crossing in the microblock, the Nonagon sets `m_totalIndex` from `GetGateStepIndex(clockLoop, 0, resetLoop)`.
+- Without reset, this is the signed absolute half-cycle coordinate. An ancestor or self reset reduces it to that reset period. Reverse motion decreases the index; a multi-cycle seek reports a crossing even if the final gate bit is unchanged. See [Theory of Time](theory-of-time.md#shared-integer-position).
 
 ### 3.2 Gate sequencer (rhythm)
 
 - Each voice's arp has a **rhythm** pattern: `m_rhythm[0..m_rhythmLength-1]` with `m_rhythmLength` default 8 (`IndexArp::x_rhythmLength`). Only some steps are "on"; the rest gate the voice off.
 - From **m_totalIndex** we derive:
-  - **m_rhythmIndex** = `m_totalIndex % m_rhythmLength` — position on the rhythm loop.
-  - **m_motiveIndex** = `m_totalIndex / m_rhythmLength` — which "page" or cycle through the rhythm.
+  - **m_rhythmIndex** = `PhaseUtils::FloorMod(m_totalIndex, m_rhythmLength)` — position on the rhythm loop.
+  - **m_motiveIndex** = `PhaseUtils::FloorDiv(m_totalIndex, m_rhythmLength)` — which "page" or cycle through the rhythm.
 - A **trigger** happens only when `m_rhythm[m_rhythmIndex]` is true and the clock has just advanced (we're in the `m_clock` / `m_triggered` path). Then we compute **m_index**: the **physical index** among the **on** steps (0 to NumNotes()-1), i.e. how many rhythm steps that are on have been passed up to and including the current step.
 
 ### 3.3 Point in range
@@ -53,7 +52,7 @@ So **m_totalIndex** is the number of **state changes** (gate flips) of the clock
 then optionally wrapped (cycle) or inverted, then scaled from [0,1] to **[m_min, m_max]**.
 - So the **index** (physical step among on steps) and **motive index** (rhythm page) together determine a single float in a range. That float is passed to LameJuis as **m_choiceArg** and interpreted by the chosen strategy (e.g. percentile or closest-mod-octave).
 
-- **When the Nonagon updates the index arp** — The Nonagon only updates index-arp inputs and runs the index arp (and LameJuis) when **m_theoryOfTime.m_anyChange** is true — i.e. when at least one time loop's integer position changed this frame. On those frames it calls `SetIndexArpInputs` then `m_indexArp.Process`. For each trio, **m_totalIndex** is set to the monodromy when the selected clock loop's gate has just changed (`m_gateChanged`), or to 0 if no clock is selected; **m_clocks[i]** is set to **m_gateChanged** for loop *i*; and **m_read** is set for voices whose lens reads a dimension that just ticked. When there is no Theory of Time change, the arp and LameJuis are not run that frame.
+- **When the Nonagon updates the index arp** — `AnyChangeInMicroBlock()` causes the Nonagon to refresh arp inputs and run the arp and LameJuis. The selected clock's `AnyGateStepChanged` drives clock updates; no clock selection sets the total index to zero. Read updates follow crossing dimensions selected by the lens. The total and motive indices stay signed 64-bit values; bounded output mapping uses double until its final float result.
 
 ---
 
@@ -110,7 +109,7 @@ In addition to pitch, the logic matrix provides **extra timbre modulators**. For
 Because:
 
 - the Theory of Time gates are a pure function of time,
-- the monodromy (and hence **m_totalIndex**) is a pure function of time when the clock gate changes,
+- the gate-step index (and hence **m_totalIndex**) is a pure function of time when the clock gate changes,
 - the index arp maps that to a point in a range,
 - the lens and M define **F^M_x(U)** purely from **x**,
 - and the section choice strategy selects deterministically from **F^M_x(U)**,
@@ -121,6 +120,6 @@ the whole polyphonic note-generation process is a **pure function of time**. Mod
 
 ## Related
 
-- [Theory of Time](theory-of-time.md) — supplies the 6 gate bits and monodromy.
+- [Theory of Time](theory-of-time.md) — supplies the 6 gate bits and gate-step indices.
 - [Glossary](glossary.md) — **LameJuis**, **lens**, **index arp**, **LogicOperation**, **accumulator**, **sheaf**.
 - [Documentation index](index/README.md) — Nonagon and trios.

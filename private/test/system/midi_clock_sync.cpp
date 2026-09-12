@@ -77,9 +77,9 @@ namespace
 
         TheNonagonSquiggleBoyInternal& system = rig.Internal();
         size_t j = static_cast<size_t>(SampleTimer::GetUBlockIndex());
-        double phase = system.m_nonagon.m_nonagon.m_theoryOfTime.GetUnwoundMasterIndependent(j);
+        double phase = system.m_nonagon.m_nonagon.m_theoryOfTime.GetPhase(TheoryOfTimeBase::x_globalLoop, j, PhaseDomain::Unmodulated);
         int loopIndex = system.ExternalClockLoopIndex();
-        double multiplier = system.m_nonagon.m_nonagon.m_theoryOfTime.GetLoopExternalMultiplier(j, loopIndex);
+        double multiplier = system.m_nonagon.m_nonagon.m_theoryOfTime.GetCycleRatio(loopIndex, j);
         double selectedPhase = phase * multiplier;
         selectedPhase = selectedPhase - std::floor(selectedPhase);
         double expectedSelectedPhase = static_cast<double>(system.m_clockSynchronizer.m_ticksOffset) /
@@ -149,18 +149,18 @@ namespace
 
     void ConfigureTheoryTopology(TheNonagonSquiggleBoyInternal& system, DeterministicRng& rng)
     {
-        for (int loop = 0; loop < TheoryOfTimeBase::x_masterLoop; ++loop)
+        for (int loop = 0; loop < TheoryOfTimeBase::x_globalLoop; ++loop)
         {
-            int parentIndex = rng.Int(loop + 1, TheoryOfTimeBase::x_masterLoop);
+            int parentIndex = rng.Int(loop + 1, TheoryOfTimeBase::x_globalLoop);
             int parentMult = rng.Int(1, 5);
 
             system.m_nonagon.m_state.m_theoryOfTimeInput.m_input[loop].m_parentIndex = parentIndex;
             system.m_nonagon.m_state.m_theoryOfTimeInput.m_input[loop].m_parentMult = parentMult;
         }
 
-        system.m_nonagon.m_state.m_theoryOfTimeInput.m_input[TheoryOfTimeBase::x_masterLoop].m_parentIndex =
+        system.m_nonagon.m_state.m_theoryOfTimeInput.m_input[TheoryOfTimeBase::x_globalLoop].m_parentIndex =
             TheoryOfTimeBase::x_numLoops;
-        system.m_nonagon.m_state.m_theoryOfTimeInput.m_input[TheoryOfTimeBase::x_masterLoop].m_parentMult = 1;
+        system.m_nonagon.m_state.m_theoryOfTimeInput.m_input[TheoryOfTimeBase::x_globalLoop].m_parentMult = 1;
     }
 
     void SettleTheoryTopology(synthrig::SynthRig& rig)

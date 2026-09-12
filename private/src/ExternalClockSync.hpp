@@ -33,7 +33,7 @@ struct ExternalClockSync
             : m_theoryOfTime(nullptr)
             , m_clockTick(false)
             , m_ticksMultiplier(24)
-            , m_loopIndex(TheoryOfTimeBase::x_masterLoop)
+            , m_loopIndex(TheoryOfTimeBase::x_globalLoop)
         {
         }
     };
@@ -105,8 +105,8 @@ struct ExternalClockSync
                 assert(m_samplesSinceLastClock > 0);
 
                 size_t j = SampleTimer::GetUBlockIndex();
-                double currentPhase = input.m_theoryOfTime->GetUnwoundMasterIndependent(j);
-                double multiplier = input.m_theoryOfTime->GetLoopExternalMultiplier(j, input.m_loopIndex);
+                double currentPhase = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, j, PhaseDomain::Unmodulated);
+                double multiplier = input.m_theoryOfTime->GetCycleRatio(input.m_loopIndex, j);
                 assert(multiplier > 0.0);
 
                 double currentTicksOffset = static_cast<double>(m_ticksOffset) / input.m_ticksMultiplier;
@@ -134,7 +134,7 @@ struct ExternalClockSync
             assert(m_samplesSinceLastClock > 0);
 
             size_t j = SampleTimer::GetUBlockIndex();
-            double multiplier = input.m_theoryOfTime->GetLoopExternalMultiplier(j, input.m_loopIndex);
+            double multiplier = input.m_theoryOfTime->GetCycleRatio(input.m_loopIndex, j);
             assert(multiplier > 0.0);
 
             double phaseIncrement = 1.0 / (static_cast<double>(input.m_ticksMultiplier) * multiplier);

@@ -1,11 +1,11 @@
 #pragma once
 #include "plugin.hpp"
 #include <cstddef>
+#include <cstdint>
 #include <cmath>
 #include "Trig.hpp"
-#include "CircleTracker.hpp"
 #include "AHD.hpp"
-#include "TheoryOfTime.hpp"
+#include "TheoryOfTimeBase.hpp"
 
 struct MultiPhasorGateInternal
 {
@@ -15,21 +15,24 @@ struct MultiPhasorGateInternal
     {
         bool m_trigs[x_maxPoly];
         TheoryOfTimeBase* m_theoryOfTime;
-        double m_masterLoopSamples;
+        double m_globalPeriodSamples;
+        double m_phaseRatio;
         size_t m_numTrigs;
-        int m_phasorDenominator[x_maxPoly];
+        int64_t m_voiceCycleRatio[x_maxPoly];
         bool m_newTrigCanStart[x_maxPoly];
         bool m_mute[x_maxPoly];
 
         Input()
             : m_theoryOfTime(nullptr)
+            , m_globalPeriodSamples(1.0)
+            , m_phaseRatio(1.0)
             , m_numTrigs(0)
         {
             for (size_t i = 0; i < x_maxPoly; ++i)
             {
                 m_newTrigCanStart[i] = false;
                 m_trigs[i] = false;
-                m_phasorDenominator[i] = 1;
+                m_voiceCycleRatio[i] = 1;
                 m_mute[i] = false;
             }
         }
@@ -42,7 +45,6 @@ struct MultiPhasorGateInternal
             m_gate[i] = false;
             m_set[i] = false;
             m_preGate[i] = false;
-            m_phasorDenominator[i] = 1;
         }
     }
 
@@ -59,24 +61,26 @@ struct MultiPhasorGateInternal
     
     struct PhasorBounds
     {
-        int m_phasorDenom;
-        CircleDistanceTracker m_circleDistanceTracker;
-        
-        void Set(float phasor, int phasorDenominator)
+        double m_startGlobalPhase = 0.0;
+        int64_t m_voiceCycleRatio = 1;
+        double m_globalPeriodSamples = 1.0;
+
+        void Set(double globalPhase, int64_t voiceCycleRatio, double globalPeriodSamples)
         {
-            m_phasorDenom = phasorDenominator;
-            m_circleDistanceTracker.Reset(phasor);
+            m_startGlobalPhase = globalPhase;
+            m_voiceCycleRatio = voiceCycleRatio;
+            m_globalPeriodSamples = globalPeriodSamples;
         }
 
-        float Process(float phase)
+        double Process(double globalPhase)
         {
-            m_circleDistanceTracker.Process(phase);
-            return GetPhase();
+            return std::abs(globalPhase - m_startGlobalPhase)
+                * static_cast<double>(m_voiceCycleRatio);
         }
 
-        float GetPhase()
+        double EnvelopePeriodSamples()
         {
-            return m_circleDistanceTracker.Distance() * m_phasorDenom;
+            return m_globalPeriodSamples / static_cast<double>(m_voiceCycleRatio);
         }
     };
 
@@ -85,16 +89,19 @@ struct MultiPhasorGateInternal
     bool m_preGate[x_maxPoly];
     bool m_set[x_maxPoly];
     PhasorBounds m_bounds[x_maxPoly];
-    int m_phasorDenominator[x_maxPoly];
     AHD::AHDControl m_ahdControl[x_maxPoly];
 
     void Process(Input& input)
     {
-        float phasor = static_cast<float>(input.m_theoryOfTime->GetIndirectPhasor(0, TheoryOfTimeBase::x_masterLoop));
+        double globalPhase = input.m_theoryOfTime->GetPhase(
+            TheoryOfTimeBase::x_globalLoop,
+            0.0,
+            PhaseDomain::Modulated);
 
         m_anyGate = false;
         for (size_t i = 0; i < input.m_numTrigs; ++i)
         {
+            m_ahdControl[i].m_phaseRatio = input.m_phaseRatio;
             m_ahdControl[i].m_trig = input.m_trigs[i] && input.m_newTrigCanStart[i] && !input.m_mute[i];
             if (m_ahdControl[i].m_trig)
             {
@@ -106,22 +113,17 @@ struct MultiPhasorGateInternal
                 if (!input.m_mute[i])
                 {
                     m_gate[i] = true;
-                    m_ahdControl[i].m_samples = 0.0;
                 }
 
                 m_preGate[i] = true;
                 m_set[i] = true;
-                m_bounds[i].Set(phasor, input.m_phasorDenominator[i]);
+                m_bounds[i].Set(globalPhase, input.m_voiceCycleRatio[i], input.m_globalPeriodSamples);
+                m_ahdControl[i].m_envelopePeriodSamples = m_bounds[i].EnvelopePeriodSamples();
             }
-
-            // Compute envelopeTimeSamples for this voice
-            //
-            double envelopeTimeSamples = input.m_masterLoopSamples / static_cast<double>(input.m_phasorDenominator[i]);
-            m_ahdControl[i].m_envelopeTimeSamples = envelopeTimeSamples;
 
             if (m_set[i])
             {
-                float thisPhase = m_bounds[i].Process(phasor);
+                double thisPhase = m_bounds[i].Process(globalPhase);
 
                 if (0.5 <= thisPhase)
                 {
@@ -133,8 +135,6 @@ struct MultiPhasorGateInternal
                         m_set[i] = false;
                     }
                 }
-
-                m_ahdControl[i].m_samples = static_cast<double>(thisPhase) * envelopeTimeSamples;
             }
 
             if (m_gate[i])

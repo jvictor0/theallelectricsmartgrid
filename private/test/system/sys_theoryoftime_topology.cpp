@@ -156,9 +156,9 @@ DOCTEST_TEST_CASE("sys_theoryoftime_topology: loaded topology drives the clock")
     rig.ClearNaN();
     rig.ClearOutput();
 
-    const double p0 = rig.MasterPhasor();
+    const double p0 = rig.GlobalPhase();
     rig.RunSeconds(0.5);
-    const double p1 = rig.MasterPhasor();
+    const double p1 = rig.GlobalPhase();
 
     DOCTEST_CHECK(std::fabs(p1 - p0) > 0.001); // clock advanced
     DOCTEST_CHECK_FALSE(rig.SawNaN());

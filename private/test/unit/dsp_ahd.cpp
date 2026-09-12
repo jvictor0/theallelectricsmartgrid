@@ -28,7 +28,7 @@
 //
 // attack, hold, decay: InputSetter parameters in [0,1].
 //   attack=0.0 => fastest (shortest attack time).
-// envelopeTimeSamples: the "1 loop" scaling factor for the time axis.
+// periodSamples: the "1 loop" scaling factor for the time axis.
 // trigSampleCount: how many samples to keep m_trig=true (usually 1).
 // ---------------------------------------------------------------------------
 //
@@ -42,24 +42,24 @@ struct AHDRig
     AHD::Input      input;
     AHD::InputSetter setter;
     AHD::AHDControl control;
+    size_t m_sourceLoopIndex;
+    double m_envelopePeriodSamples;
 
     // loopIndex: which ToT loop to reference (0 by default)
     //
-    explicit AHDRig(double envelopeTimeSamples, size_t loopIndex = 0)
+    explicit AHDRig(double periodSamples, size_t loopIndex = 0)
+        : m_sourceLoopIndex(loopIndex)
+        , m_envelopePeriodSamples(periodSamples)
     {
-        // Master period chosen so the loop cycle is much longer than the
-        // envelope, preventing wrap-around interfering with circle tracking.
+        // The global period is long enough for the basic shape cases.
         //
-        rig.SetMasterPeriodSamples(48000.0);
+        rig.SetGlobalPeriodSamples(48000.0);
         rig.SetRunning(true);
-        // Wire loop 0's parent to master (loop 5); it has multiplier 2 by default.
-        // For simpler single-loop tests use loopIndex=5 (master loop directly).
+        // The selected source ratio is supplied to AHD only when it triggers.
         //
         input.m_theoryOfTime = rig.Get();
-        input.m_loopIndex    = loopIndex;
-        input.m_envelopeTimeSamples = envelopeTimeSamples;
 
-        control.m_envelopeTimeSamples = envelopeTimeSamples;
+        control.m_envelopePeriodSamples = m_envelopePeriodSamples;
         control.m_trig    = false;
         control.m_release = false;
 
@@ -77,7 +77,8 @@ struct AHDRig
     void Trigger()
     {
         control.m_trig = true;
-        control.m_envelopeTimeSamples = input.m_envelopeTimeSamples;
+        control.m_phaseRatio = static_cast<double>(rig.Get()->GetCycleRatio(m_sourceLoopIndex, 0));
+        control.m_envelopePeriodSamples = m_envelopePeriodSamples;
         input.Set(control);
         control.m_trig = false; // one-shot: clear for next Set() calls
     }
@@ -117,18 +118,18 @@ DOCTEST_TEST_CASE("AHD: shape — monotone rise, hold, monotone decay")
 {
     GlobalEnv::ResetPerTest();
 
-    // Use envelopeTimeSamples that gives a total shape of ~600 samples.
+    // Use an envelope period that gives a total shape of ~600 samples.
     // attack=0.0 (fastest), hold=0.0 (no hold), decay=0.0 (fastest).
     // The AHD attack increment with attack=0 is 1/(sampleRate*attackTimeMin)
     // = 1/(48000*0.001) = ~0.02083 per sample => peaks in ~48 samples.
     //
     const double envTime = 4800.0;
-    AHDRig r(envTime, 5 /*master loop*/);
+    AHDRig r(envTime, TimeRig::x_globalLoop);
     r.SetAHD(0.0f, 0.0f, 0.0f);
     r.Trigger();
 
-    // The AHD measures time via circleTracker.Distance() * envelopeTimeSamples.
-    // With master period=48000 and envTime=4800:
+    // The AHD measures absolute global displacement using the captured period.
+    // With global period=48000 and envelope period=4800:
     //   attackIncrement = 1/(48000*0.001) = 0.020833 /env-sample
     //   attack completes when: distance * 4800 * 0.020833 = 1 => distance = 0.01
     //   => 0.01 * 48000 = 480 audio samples for attack.
@@ -202,7 +203,7 @@ DOCTEST_TEST_CASE("AHD: faster attack parameter reaches peak sooner")
     {
         GlobalEnv::ResetPerTest();
         const double envTime = 4800.0;
-        AHDRig r(envTime, 5);
+        AHDRig r(envTime, TimeRig::x_globalLoop);
         r.SetAHD(attackParam, 0.0f, 0.0f);
         r.Trigger();
 
@@ -235,7 +236,7 @@ DOCTEST_TEST_CASE("AHD: faster decay parameter returns to zero sooner")
     {
         GlobalEnv::ResetPerTest();
         const double envTime = 4800.0;
-        AHDRig r(envTime, 5);
+        AHDRig r(envTime, TimeRig::x_globalLoop);
         r.SetAHD(0.0f, 0.0f, decayParam);
         r.Trigger();
 
@@ -261,7 +262,7 @@ DOCTEST_TEST_CASE("AHD: re-trigger mid-decay restarts attack without NaN")
 {
     GlobalEnv::ResetPerTest();
     const double envTime = 4800.0;
-    AHDRig r(envTime, 5);
+    AHDRig r(envTime, TimeRig::x_globalLoop);
     r.SetAHD(0.0f, 0.0f, 0.0f);
 
     std::vector<float> buf;
@@ -305,116 +306,75 @@ DOCTEST_TEST_CASE("AHD: re-trigger mid-decay restarts attack without NaN")
 // ---------------------------------------------------------------------------
 // Test 5: Continuity under TheoryOfTime multiplier change
 //
-// This is the KEY test the user cares about: does changing the ToT multiplier
-// mid-envelope cause a discontinuity (jump) in the AHD output?
-//
-// Method:
-//   1. Trigger an AHD and run for a few hundred samples (captures part of attack).
-//   2. Change a TheoryOfTime multiplier via TimeRig::SetMultiplier.
-//   3. Continue running and capture more samples.
-//   4. Check MaxAbsDelta and DiscontinuityCount over the combined window.
-//   5. If a jump is detected: WARN (document it), do NOT fail the suite.
+// The requested multiplier does not take effect until its topology boundary.
+// Keep the envelope alive through that boundary and require its captured timing
+// to remain unchanged after ordinary control refreshes publish the new values.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("AHD: continuity under TheoryOfTime multiplier change (mid-attack and mid-decay)")
+DOCTEST_TEST_CASE("AHD: accepted multiplier change does not rescale a running envelope")
 {
     GlobalEnv::ResetPerTest();
 
-    // Use loop 4 (parent = master loop 5, mult=2 by default).
-    // Master period 48000 samples means the loop cycle is very long, so the
-    // phasor advances slowly — envelope time axis is proportional to distance.
-    //
-    const double envTime = 4800.0;
-
-    // Fast attack, no hold, medium decay so envelope is audible over ~600 samples.
-    //
-    AHDRig r(envTime, 4);
-    r.SetAHD(0.0f, 0.0f, 0.3f);
+    const double capturedPeriodSamples = 1000.0;
+    AHDRig r(capturedPeriodSamples, 4);
+    r.rig.SetGlobalPeriodSamples(1024.0);
+    r.SetAHD(1.0f, 0.0f, 1.0f);
     r.Trigger();
 
-    const size_t preSamples   = 200; // capture attack + partial decay
-    const size_t postSamples  = 500; // capture after mult change
+    double startGlobalPhase = r.input.m_startGlobalPhase;
+    double capturedRatio = r.input.m_phaseRatio;
+    DOCTEST_REQUIRE(capturedRatio == doctest::Approx(2.0));
+    DOCTEST_REQUIRE(r.input.m_envelopePeriodSamples == doctest::Approx(capturedPeriodSamples));
 
-    std::vector<float> buf;
-    buf.reserve(preSamples + postSamples);
-
-    for (size_t i = 0; i < preSamples; ++i)
-    {
-        buf.push_back(r.ProcessOneSample());
-    }
-
-    // --- Change the multiplier mid-flight ---
-    // Loop 4's parent mult changes from 2 to 4 (doubles the child rate).
-    //
+    r.Run(64);
     r.rig.SetMultiplier(4, 4);
 
-    for (size_t i = 0; i < postSamples; ++i)
+    r.control.m_phaseRatio = 4.0;
+    r.control.m_envelopePeriodSamples = 2000.0;
+
+    bool accepted = false;
+    for (size_t i = 0; i < 2048; ++i)
     {
-        buf.push_back(r.ProcessOneSample());
+        r.input.Set(r.control);
+        r.ProcessOneSample();
+        if (r.rig.Get()->GetCycleRatio(4, 0) == 4)
+        {
+            accepted = true;
+            break;
+        }
     }
 
-    // NaN clean regardless
-    //
-    TestNan::AssertClean(buf.data(), buf.size());
+    DOCTEST_REQUIRE(accepted);
+    DOCTEST_CHECK(r.input.m_phaseRatio == doctest::Approx(capturedRatio));
+    DOCTEST_CHECK(r.input.m_envelopePeriodSamples == doctest::Approx(capturedPeriodSamples));
 
-    // Compute steady-state max delta from the pre-change window
-    //
-    float preMaxDelta = TestContinuity::MaxAbsDelta(buf.data(), preSamples);
-
-    // Threshold: 3x the observed steady-state max delta, minimum of 0.1
-    //
-    float threshold = std::max(0.1f, preMaxDelta * 3.0f);
-
-    // Check the transition region: window from 5 samples before to 20 after change
-    //
-    size_t transStart = (preSamples > 5) ? preSamples - 5 : 0;
-    size_t transEnd   = std::min(preSamples + 20, buf.size());
-    const float* transPtr = buf.data() + transStart;
-    size_t transLen = transEnd - transStart;
-
-    float transMaxDelta = TestContinuity::MaxAbsDelta(transPtr, transLen);
-    size_t discont = TestContinuity::DiscontinuityCount(transPtr, transLen, 0.1f);
-
-    if (discont > 0 || transMaxDelta > threshold)
-    {
-        // BUG?: Discontinuity found when changing TheoryOfTime multiplier mid-envelope.
-        //
-        DOCTEST_WARN_MESSAGE(discont == 0,
-            "AHD DISCONTINUITY under mult change: "
-            "DiscontinuityCount=" << discont <<
-            " transMaxDelta=" << transMaxDelta <<
-            " threshold=" << threshold <<
-            " preMaxDelta=" << preMaxDelta <<
-            " changeAtSample=" << preSamples <<
-            " loopIndex=4 multBefore=2 multAfter=4"
-            " REPRO: AHDRig(envTime=4800,loop=4), attack=0, hold=0, decay=0.3,"
-            " trigger, run 200 samples, SetMultiplier(4,4), run 500 more.");
-        DOCTEST_MESSAGE("AHD mult-change jump at sample " << preSamples
-            << ": maxDelta in transition = " << transMaxDelta
-            << " (pre steady-state max = " << preMaxDelta << ")");
-    }
-    else
-    {
-        // Good: no discontinuity detected
-        //
-        DOCTEST_CHECK(discont == 0);
-    }
+    r.input.Set(r.control);
+    double phase = r.rig.GlobalPhase();
+    float output = r.ProcessOneSample();
+    double elapsedSamples = std::abs(phase - startGlobalPhase)
+        * capturedRatio * capturedPeriodSamples;
+    double expected = elapsedSamples * static_cast<double>(r.input.m_attackIncrement);
+    DOCTEST_CHECK(output == doctest::Approx(expected));
 }
 
 // ---------------------------------------------------------------------------
 // Test 6: Continuity under tempo change mid-envelope
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("AHD: continuity under tempo change (SetMasterPeriodSamples mid-run)")
+DOCTEST_TEST_CASE("AHD: continuity under tempo change")
 {
     GlobalEnv::ResetPerTest();
 
+    //
+    // The captured period controls the envelope scale while the global phase
+    // continues to reflect a live transport tempo change.
+    //
     const double envTime = 4800.0;
-    AHDRig r(envTime, 5 /*master loop*/);
+    AHDRig r(envTime, TimeRig::x_globalLoop);
     r.SetAHD(0.0f, 0.0f, 0.3f);
     r.Trigger();
 
-    const size_t preSamples  = 200;
+    const size_t preSamples = 200;
     const size_t postSamples = 500;
 
     std::vector<float> buf;
@@ -425,9 +385,9 @@ DOCTEST_TEST_CASE("AHD: continuity under tempo change (SetMasterPeriodSamples mi
         buf.push_back(r.ProcessOneSample());
     }
 
-    // Halve the master period (double the tempo)
+    // Halve the global period to double the live transport tempo.
     //
-    r.rig.SetMasterPeriodSamples(24000.0);
+    r.rig.SetGlobalPeriodSamples(24000.0);
 
     for (size_t i = 0; i < postSamples; ++i)
     {
@@ -437,8 +397,7 @@ DOCTEST_TEST_CASE("AHD: continuity under tempo change (SetMasterPeriodSamples mi
     TestNan::AssertClean(buf.data(), buf.size());
 
     float preMaxDelta = TestContinuity::MaxAbsDelta(buf.data(), preSamples);
-    float threshold   = std::max(0.1f, preMaxDelta * 3.0f);
-
+    float threshold = std::max(0.1f, preMaxDelta * 3.0f);
     size_t transStart = (preSamples > 5) ? preSamples - 5 : 0;
     size_t transEnd   = std::min(preSamples + 20, buf.size());
     const float* transPtr = buf.data() + transStart;
@@ -446,28 +405,8 @@ DOCTEST_TEST_CASE("AHD: continuity under tempo change (SetMasterPeriodSamples mi
 
     float transMaxDelta = TestContinuity::MaxAbsDelta(transPtr, transLen);
     size_t discont = TestContinuity::DiscontinuityCount(transPtr, transLen, 0.1f);
-
-    if (discont > 0 || transMaxDelta > threshold)
-    {
-        // BUG?: Discontinuity found when doubling tempo mid-envelope.
-        //
-        DOCTEST_WARN_MESSAGE(discont == 0,
-            "AHD DISCONTINUITY under tempo change: "
-            "DiscontinuityCount=" << discont <<
-            " transMaxDelta=" << transMaxDelta <<
-            " threshold=" << threshold <<
-            " changeAtSample=" << preSamples <<
-            " periodBefore=48000 periodAfter=24000 loopIndex=5"
-            " REPRO: AHDRig(envTime=4800,loop=5), attack=0, hold=0, decay=0.3,"
-            " trigger, run 200 samples, SetMasterPeriodSamples(24000), run 500 more.");
-        DOCTEST_MESSAGE("AHD tempo-change jump at sample " << preSamples
-            << ": maxDelta in transition = " << transMaxDelta
-            << " (pre steady-state max = " << preMaxDelta << ")");
-    }
-    else
-    {
-        DOCTEST_CHECK(discont == 0);
-    }
+    DOCTEST_CHECK(discont == 0);
+    DOCTEST_CHECK(transMaxDelta <= threshold);
 }
 
 // ---------------------------------------------------------------------------
@@ -488,7 +427,7 @@ DOCTEST_TEST_CASE("AHD: NaN-clean with extreme parameter values")
     {
         GlobalEnv::ResetPerTest();
         const double envTime = 4800.0;
-        AHDRig r(envTime, 5);
+        AHDRig r(envTime, TimeRig::x_globalLoop);
         r.SetAHD(p.a, p.h, p.d);
         r.Trigger();
         std::vector<float> buf = r.Run(1000);

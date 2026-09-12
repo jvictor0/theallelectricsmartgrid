@@ -24,13 +24,13 @@ struct TapeHead
         }
 
         size_t sampleIdx = static_cast<size_t>(sampleIndex) % TheoryOfTimeBase::x_microBlockSize;
-        int externalLoopMult = theoryOfTime->GetLoopExternalMultiplier(sampleIdx, loopSelector);
-        if (externalLoopMult <= 0)
+        int64_t cycleRatio = theoryOfTime->GetCycleRatio(loopSelector, sampleIdx);
+        if (cycleRatio <= 0)
         {
             return 0.0;
         }
 
-        return theoryOfTime->m_masterLoopSamples / static_cast<double>(externalLoopMult);
+        return theoryOfTime->m_globalPeriodSamples / static_cast<double>(cycleRatio);
     }
 };
 
@@ -41,24 +41,24 @@ struct WriteTapeHead : TapeHead
         TheoryOfTime* m_theoryOfTime;
         int m_sampleIndex;
         bool m_running;
-        double m_masterLoopSamples;
+        double m_globalPeriodSamples;
 
         Input()
             : m_theoryOfTime(nullptr)
             , m_sampleIndex(0)
             , m_running(false)
-            , m_masterLoopSamples(1.0)
+            , m_globalPeriodSamples(1.0)
         {
         }
     };
 
     double m_glue;
-    double m_masterLoopSamples;
+    double m_globalPeriodSamples;
     bool m_running;
 
     WriteTapeHead()
         : m_glue(0.0)
-        , m_masterLoopSamples(1.0)
+        , m_globalPeriodSamples(1.0)
         , m_running(false)
     {
     }
@@ -71,19 +71,19 @@ struct WriteTapeHead : TapeHead
         }
 
         size_t sampleIdx = static_cast<size_t>(input.m_sampleIndex) % TheoryOfTimeBase::x_microBlockSize;
-        double theoryPosition = input.m_theoryOfTime->m_globalPhase.UnWind() * input.m_masterLoopSamples;
+        double theoryPosition = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, sampleIdx, PhaseDomain::Modulated) * input.m_globalPeriodSamples;
 
         bool runningChanged = input.m_running != m_running;
-        bool masterLoopSamplesChanged = input.m_masterLoopSamples != m_masterLoopSamples;
-        if (runningChanged || masterLoopSamplesChanged)
+        bool globalPeriodSamplesChanged = input.m_globalPeriodSamples != m_globalPeriodSamples;
+        if (runningChanged || globalPeriodSamplesChanged)
         {
             m_glue = m_actualPosition - theoryPosition;
         }
 
         m_running = input.m_running;
-        m_masterLoopSamples = input.m_masterLoopSamples;
+        m_globalPeriodSamples = input.m_globalPeriodSamples;
 
-        m_relativePosition = input.m_theoryOfTime->GetIndirectPhasor(sampleIdx);
+        m_relativePosition = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, sampleIdx, PhaseDomain::Modulated);
         if (!m_running)
         {
             m_actualPosition = m_actualPosition + 1.0;
@@ -111,7 +111,7 @@ struct ReadTapeHead : TapeHead
             , m_sampleIndex(0)
             , m_bufferFraction(0.0)
             , m_readHeadSpeed(1.0)
-            , m_requestedLoopSelector(TheoryOfTimeBase::x_masterLoop)
+            , m_requestedLoopSelector(TheoryOfTimeBase::x_globalLoop)
         {
         }
     };
@@ -121,7 +121,7 @@ struct ReadTapeHead : TapeHead
 
     ReadTapeHead()
         : m_writeTapeHead(nullptr)
-        , m_loopSelector(TheoryOfTimeBase::x_masterLoop)
+        , m_loopSelector(TheoryOfTimeBase::x_globalLoop)
     {
     }
 
@@ -133,8 +133,8 @@ struct ReadTapeHead : TapeHead
         }
 
         bool allowLoopSwitch = input.m_requestedLoopSelector != m_loopSelector &&
-            input.m_theoryOfTime->GetIndirectTop(input.m_sampleIndex, m_loopSelector) &&
-            input.m_theoryOfTime->GetIndirectTop(input.m_sampleIndex, input.m_requestedLoopSelector);
+            input.m_theoryOfTime->CrossedCycleBoundary(m_loopSelector, input.m_sampleIndex, PhaseDomain::Modulated) &&
+            input.m_theoryOfTime->CrossedCycleBoundary(input.m_requestedLoopSelector, input.m_sampleIndex, PhaseDomain::Modulated);
         if (allowLoopSwitch)
         {
             m_loopSelector = input.m_requestedLoopSelector;
@@ -143,17 +143,17 @@ struct ReadTapeHead : TapeHead
         double loopSamples = ComputeLoopSamples(input.m_theoryOfTime, input.m_sampleIndex, m_loopSelector);
         double effectiveDelaySamples = loopSamples * input.m_bufferFraction;
         double hopSamples = static_cast<double>(Resynthesizer::GetGrainLaunchSamples());
-        double masterLoopSamples = m_writeTapeHead->m_masterLoopSamples;
-        if (masterLoopSamples <= 0.0 || loopSamples <= 0.0)
+        double globalPeriodSamples = m_writeTapeHead->m_globalPeriodSamples;
+        if (globalPeriodSamples <= 0.0 || loopSamples <= 0.0)
         {
             m_relativePosition = m_writeTapeHead->m_relativePosition;
             m_actualPosition = m_writeTapeHead->m_actualPosition;
             return;
         }
 
-        double loopPhasor = loopSamples / masterLoopSamples;
-        double effectiveDelayPhasor = effectiveDelaySamples / masterLoopSamples;
-        double hopPhasor = hopSamples / masterLoopSamples;
+        double loopPhasor = loopSamples / globalPeriodSamples;
+        double effectiveDelayPhasor = effectiveDelaySamples / globalPeriodSamples;
+        double hopPhasor = hopSamples / globalPeriodSamples;
 
         double relativeWrapTop = m_writeTapeHead->m_relativePosition - hopPhasor;
         double relativeWrapBottom = relativeWrapTop - loopPhasor;

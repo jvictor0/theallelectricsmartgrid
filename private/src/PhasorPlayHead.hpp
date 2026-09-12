@@ -46,7 +46,7 @@ struct PhasorPlayHead
         size_t loopIx = static_cast<size_t>(std::max(0, input.m_loopIndex));
 
         double loopScaled =
-            tot->GetIndirectPhasor(sampleIdx, loopIx) * static_cast<double>(input.m_speed) * length;
+            tot->GetPhase(loopIx, sampleIdx, PhaseDomain::Modulated) * static_cast<double>(input.m_speed) * length;
         double start = static_cast<double>(input.m_start);
         double wrapped = PhaseUtils::WrapMod(0, length, loopScaled) + start;
         double fractional = wrapped - std::floor(wrapped);

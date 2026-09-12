@@ -26,18 +26,18 @@ During a control frame, `Process` executes the following steps:
 1. **Rollover and Theory of Time (sample 0)**:
    - `SetTheoryOfTimeInput(input)` prepares the global clock inputs.
    - `m_theoryOfTime.RolloverMicroblockBuffer()` copies slot 8 into slot 0 (sample 0 of this block was computed in the previous block).
-   - If the master loop wraps (`m_topIndependent`), it records a start index in the note writer.
+   - If the global loop crosses an unmodulated cycle boundary (`CrossedCycleBoundary`), it records a start index in the note writer.
 
 2. **Index Arp and LameJuis (Only on change)**:
    - If the Theory of Time had any integer position change in the micro block (`m_theoryOfTime.AnyChangeInMicroBlock()`), the sequencer state must be updated.
-   - `SetIndexArpInputs(input)` calculates `m_totalIndex` (monodromy) and clock/read gates.
+   - `SetIndexArpInputs(input)` calculates signed `m_totalIndex` (gate-step index) and clock/read gates.
    - `m_indexArp.Process(input.m_arpInput)` runs the arpeggiators to find the point in the range.
    - `SetLameJuisInput(input)` feeds the Theory of Time gates and the index arp outputs (as `m_choiceArg` for the chosen strategy) into LameJuis.
    - `m_lameJuis.Process(input.m_lameJuisInput)` evaluates the logic matrix and sheaf to produce pitches and extra timbres.
 
 3. **Multi-Phasor Gate (Only when running)**:
-   - If the transport is running (`m_theoryOfTime.m_running`), `SetMultiPhasorGateInputs(input)` evaluates trigger logic (pitch-changed, sub-trigger, mutes, interrupts).
-   - `m_multiPhasorGate.Process(input.m_multiPhasorGateInput)` determines which voices emit a trigger and tracks their gate lengths based on the master phasor.
+   - If the transport is running (`m_theoryOfTime.m_samples[0].m_running`), `SetMultiPhasorGateInputs(input)` evaluates trigger logic (pitch-changed, sub-trigger, mutes, interrupts).
+   - `m_multiPhasorGate.Process(input.m_multiPhasorGateInput)` determines which voices emit a trigger and tracks their gate lengths based on the absolute modulated global phase.
 
 4. **Outputs and Note Writer**:
    - `SetOutputs(input)` gathers the results.

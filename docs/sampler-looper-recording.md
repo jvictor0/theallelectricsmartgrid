@@ -53,8 +53,8 @@ an explicit state machine:
 - `Done`
 - `Error`
 
-On start, a buffer in `Idle` clears previous audio and stores the current unwound
-master-loop position from `TheoryOfTime`. While recording, the selected source
+On start, a buffer in `Idle` clears previous audio and stores the current absolute unmodulated
+global phase from `TheoryOfTime`. While recording, the selected source
 voice's `RecordingBufferWriter` pushes one sample into every registered
 destination buffer each audio tick. On stop, the destination buffer stores the
 stop position and computes how the captured span relates to the available
@@ -71,9 +71,9 @@ through `MultichannelWavWriter`.
 
 The write is phase-aware:
 
-- If recording starts and stops within the same master-loop turn, the file is
+- If recording starts and stops within the same global-loop turn, the file is
   padded before and after the captured audio so the result fills the loop.
-- If recording wraps across the master-loop boundary, the wrapped tail is written
+- If recording wraps across the global-loop boundary, the wrapped tail is written
   first, silence fills the gap, and the beginning of the capture is written last.
 - If the chosen loop requires multiple repeats, the same loop-aligned material is
   written repeatedly.
@@ -112,8 +112,11 @@ selects or blends between files in the directory, while `SampleLoopIndex`,
 sample is read through the grain engine.
 
 The looper side and the sample source both use `TheoryOfTime` loop information.
-Recordings use the master loop to define their captured span, and sample playback
-uses selected Theory of Time loops for synchronized playback phase.
+Recordings use the unmodulated global loop to define their captured span, and sample playback
+uses selected Theory of Time loops for synchronized playback phase. `PhasorPlayHead`
+applies read speed to absolute modulated loop phase before wrapping to the selected
+window. At half speed, input phase 1.5 therefore reads position 0.75 in a full-length
+window; an input cycle boundary no longer restarts that slower playback.
 
 ## Related
 

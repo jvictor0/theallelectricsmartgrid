@@ -26,14 +26,14 @@ namespace
 // a control frame (uBlock 0) is the rolled-over boundary sample from the prior
 // frame, so the trace is the "now" value a per-sample consumer would read.
 //
-std::vector<double> TraceMasterPhasor(TimeRig& rig, size_t n)
+std::vector<double> TraceGlobalPhase(TimeRig& rig, size_t n)
 {
     std::vector<double> trace;
     trace.reserve(n);
     for (size_t i = 0; i < n; ++i)
     {
         rig.AdvanceSample();
-        trace.push_back(rig.MasterPhasor());
+        trace.push_back(rig.GlobalPhase());
     }
     return trace;
 }
@@ -80,7 +80,7 @@ DOCTEST_TEST_CASE("TimeRig: SampleTimer advances in lockstep with AdvanceSample"
     }
 }
 
-DOCTEST_TEST_CASE("TimeRig: master phasor is monotone modulo wrap and Top fires at wrap")
+DOCTEST_TEST_CASE("TimeRig: global phase is absolute and cycle events mark integer crossings")
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
@@ -88,14 +88,14 @@ DOCTEST_TEST_CASE("TimeRig: master phasor is monotone modulo wrap and Top fires 
     // Short master period so we get several wraps quickly.
     //
     const double periodSamples = 128.0;
-    rig.SetMasterPeriodSamples(periodSamples);
+    rig.SetGlobalPeriodSamples(periodSamples);
     rig.SetRunning(true);
 
     // Prime one control frame so slot 0 holds live data, then trace.
     //
     rig.AdvanceControlFrame();
 
-    double prev = rig.MasterPhasor();
+    double prev = rig.GlobalPhase();
     int wraps = 0;
     int topCount = 0;
 
@@ -107,24 +107,17 @@ DOCTEST_TEST_CASE("TimeRig: master phasor is monotone modulo wrap and Top fires 
     for (size_t i = 0; i < totalSamples; ++i)
     {
         rig.AdvanceSample();
-        double cur = rig.MasterPhasor();
+        double cur = rig.GlobalPhase();
 
-        // Monotone increasing except at a wrap (where it drops by ~1).
+        // Absolute phase stays increasing through each cycle boundary.
         //
-        bool wrapped = cur < prev;
-        if (wrapped)
+        DOCTEST_CHECK(cur >= prev - 1e-9);
+        if (std::floor(cur) != std::floor(prev))
         {
             ++wraps;
-            // A wrap is a near-full-circle backwards jump, not noise.
-            //
-            DOCTEST_CHECK((prev - cur) > 0.5);
-        }
-        else
-        {
-            DOCTEST_CHECK(cur >= prev - 1e-9);
         }
 
-        if (rig.MasterTop())
+        if (rig.CycleCrossed(TimeRig::x_globalLoop))
         {
             ++topCount;
         }
@@ -144,7 +137,7 @@ DOCTEST_TEST_CASE("TimeRig: child loop completes `mult` cycles per parent cycle"
     GlobalEnv::ResetPerTest();
     TimeRig rig;
 
-    rig.SetMasterPeriodSamples(256.0);
+    rig.SetGlobalPeriodSamples(256.0);
 
     // Loop 4's parent is the master loop (index 5). Give it multiplier 3.
     //
@@ -168,11 +161,11 @@ DOCTEST_TEST_CASE("TimeRig: child loop completes `mult` cycles per parent cycle"
     for (size_t i = 0; i < numSamples; ++i)
     {
         rig.AdvanceSample();
-        if (rig.MasterTop())
+        if (rig.CycleCrossed(TimeRig::x_globalLoop))
         {
             ++masterTops;
         }
-        if (rig.Top(4))
+        if (rig.CycleCrossed(4))
         {
             ++childTops;
         }
@@ -192,7 +185,7 @@ DOCTEST_TEST_CASE("TimeRig: doubling tempo halves the master period")
     {
         GlobalEnv::ResetPerTest();
         TimeRig rig;
-        rig.SetMasterPeriodSamples(periodSamples);
+        rig.SetGlobalPeriodSamples(periodSamples);
         rig.SetRunning(true);
 
         // Prime.
@@ -206,7 +199,7 @@ DOCTEST_TEST_CASE("TimeRig: doubling tempo halves the master period")
             for (size_t i = 0; i < maxSamples; ++i)
             {
                 rig.AdvanceSample();
-                if (rig.MasterTop())
+                if (rig.CycleCrossed(TimeRig::x_globalLoop))
                 {
                     return static_cast<long>(SampleTimer::GetSample());
                 }
@@ -249,8 +242,8 @@ DOCTEST_TEST_CASE("TimeRig: not running -> phasors hold at zero")
         // input is forced to 0, and the loops are not advanced. All loop phasors
         // read 0.
         //
-        DOCTEST_CHECK(rig.MasterPhasor() == doctest::Approx(0.0));
-        DOCTEST_CHECK(rig.Phasor(4) == doctest::Approx(0.0));
+        DOCTEST_CHECK(rig.GlobalPhase() == doctest::Approx(0.0));
+        DOCTEST_CHECK(rig.GetPhase(4) == doctest::Approx(0.0));
         DOCTEST_CHECK(rig.IsRunning() == false);
     }
 }
@@ -266,20 +259,19 @@ DOCTEST_TEST_CASE("TimeRig: stopped multiplier changes recompute loop sizes befo
     DOCTEST_CHECK(rig.IsRunning() == false);
     DOCTEST_CHECK(rig.AnyChangeInMicroBlock() == true);
     DOCTEST_CHECK(rig.AnyChange(0) == true);
-    DOCTEST_CHECK(rig.LoopSize(4) == 32);
-    DOCTEST_CHECK(rig.LoopSize(TimeRig::x_masterLoop) == 96);
-    DOCTEST_CHECK(rig.Position(4) == 0);
-    DOCTEST_CHECK(rig.PrevPosition(4) == 0);
+    DOCTEST_CHECK(rig.GetPeriodTicks(4) == 32);
+    DOCTEST_CHECK(rig.GetPeriodTicks(TimeRig::x_globalLoop) == 96);
+    DOCTEST_CHECK(rig.GetPosition() == 0);
     DOCTEST_CHECK(rig.Gate(4) == false);
-    DOCTEST_CHECK(rig.Phasor(4) == doctest::Approx(0.0));
-    DOCTEST_CHECK(rig.DirectPhasor(4) == doctest::Approx(0.0));
+    DOCTEST_CHECK(rig.GetPhase(4) == doctest::Approx(0.0));
+    DOCTEST_CHECK(rig.GetPhase(4, PhaseDomain::Unmodulated) == doctest::Approx(0.0));
 }
 
 DOCTEST_TEST_CASE("TimeRig: stopping a running rig halts the phasor")
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
-    rig.SetMasterPeriodSamples(128.0);
+    rig.SetGlobalPeriodSamples(128.0);
     rig.SetMultiplier(4, 3);
     rig.SetRunning(true);
 
@@ -295,10 +287,9 @@ DOCTEST_TEST_CASE("TimeRig: stopping a running rig halts the phasor")
     DOCTEST_CHECK(rig.IsRunning() == false);
     DOCTEST_CHECK(rig.AnyChangeInMicroBlock() == true);
     DOCTEST_CHECK(rig.AnyChange(0) == true);
-    DOCTEST_CHECK(rig.LoopSize(4) == 32);
-    DOCTEST_CHECK(rig.LoopSize(TimeRig::x_masterLoop) == 96);
-    DOCTEST_CHECK(rig.Position(4) == 0);
-    DOCTEST_CHECK(rig.PrevPosition(4) == 0);
+    DOCTEST_CHECK(rig.GetPeriodTicks(4) == 32);
+    DOCTEST_CHECK(rig.GetPeriodTicks(TimeRig::x_globalLoop) == 96);
+    DOCTEST_CHECK(rig.GetPosition() == 0);
     DOCTEST_CHECK(rig.Gate(4) == false);
 
     // After Stop(), topology-derived loop sizes are preserved while motion,
@@ -307,7 +298,7 @@ DOCTEST_TEST_CASE("TimeRig: stopping a running rig halts the phasor")
     for (size_t i = 0; i < 64; ++i)
     {
         rig.AdvanceSample();
-        DOCTEST_CHECK(rig.MasterPhasor() == doctest::Approx(0.0));
+        DOCTEST_CHECK(rig.GlobalPhase() == doctest::Approx(0.0));
     }
 }
 
@@ -315,19 +306,19 @@ DOCTEST_TEST_CASE("TimeRig: determinism - two fresh rigs give identical traces")
 {
     GlobalEnv::ResetPerTest();
     TimeRig rigA;
-    rigA.SetMasterPeriodSamples(200.0);
+    rigA.SetGlobalPeriodSamples(200.0);
     rigA.SetMultiplier(3, 2);
     rigA.SetMultiplier(4, 3);
     rigA.SetRunning(true);
-    std::vector<double> traceA = TraceMasterPhasor(rigA, 2000);
+    std::vector<double> traceA = TraceGlobalPhase(rigA, 2000);
 
     GlobalEnv::ResetPerTest();
     TimeRig rigB;
-    rigB.SetMasterPeriodSamples(200.0);
+    rigB.SetGlobalPeriodSamples(200.0);
     rigB.SetMultiplier(3, 2);
     rigB.SetMultiplier(4, 3);
     rigB.SetRunning(true);
-    std::vector<double> traceB = TraceMasterPhasor(rigB, 2000);
+    std::vector<double> traceB = TraceGlobalPhase(rigB, 2000);
 
     DOCTEST_REQUIRE(traceA.size() == traceB.size());
     bool identical = true;
@@ -346,7 +337,7 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
 {
     GlobalEnv::ResetPerTest();
     TimeRig rig;
-    rig.SetMasterPeriodSamples(256.0);
+    rig.SetGlobalPeriodSamples(256.0);
     rig.SetRunning(true);
     rig.AdvanceControlFrame();
 
@@ -355,7 +346,6 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
     AHD ahd;
     AHD::Input input;
     input.m_theoryOfTime = rig.Get();
-    input.m_loopIndex = 4;
 
     // The AHD measures elapsed envelope time as
     //   samples = circleTracker.Distance() * envelopeTimeSamples
@@ -369,14 +359,15 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
     setter.Set(/*attack*/ 0.0f, /*hold*/ 0.0f, /*decay*/ 0.0f,
                /*amplitude*/ 1.0f, /*amplitudePolarity*/ true, input);
 
-    input.m_envelopeTimeSamples = 4000.0;
+    input.m_envelopePeriodSamples = 4000.0;
 
     // Trigger: mirror the control path. m_trig/circleTracker reset happens via
     // Input::Set against an AHDControl.
     //
     AHD::AHDControl control;
     control.m_trig = true;
-    control.m_envelopeTimeSamples = input.m_envelopeTimeSamples;
+    control.m_phaseRatio = static_cast<double>(rig.Get()->GetCycleRatio(4, 0));
+    control.m_envelopePeriodSamples = input.m_envelopePeriodSamples;
     input.Set(control);
 
     float peak = 0.0f;
