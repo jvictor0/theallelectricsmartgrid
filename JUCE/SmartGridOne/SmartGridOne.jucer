@@ -4,6 +4,8 @@
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" headerPath="../../../../private/src&#10;/opt/homebrew/include&#10;&#10;">
   <MAINGROUP id="si886g" name="SmartGridOne">
     <GROUP id="{2DDA3903-F6ED-9E0F-0737-E5B903BFA61C}" name="Source">
+      <FILE id="AudioPlatformDiag" name="AudioPlatformDiagnostics.mm" compile="1" resource="0" file="Source/AudioPlatformDiagnostics.mm"/>
+      <FILE id="AudioPlatformDiagH" name="AudioPlatformDiagnostics.hpp" compile="0" resource="0" file="Source/AudioPlatformDiagnostics.hpp"/>
       <FILE id="MD2rs9" name="IOUtils.cpp" compile="1" resource="0" file="Source/IOUtils.cpp"/>
       <FILE id="kKFGmW" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
       <FILE id="HwPNTB" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
@@ -36,6 +38,7 @@
     <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors_headless" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
@@ -52,36 +55,38 @@
         <CONFIGURATION isDebug="1" name="Debug" targetName="SmartGridOne" libraryPath="&#10;"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_core" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_data_structures" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_events" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_graphics" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_gui_basics" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_basics" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_utils" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_gui_extra" path="../../../JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../third_party/JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_MAC>
-    <XCODE_IPHONE targetFolder="Builds/iOS" extraLinkerFlags="&#10;" bundleIdentifier="com.theallelectricsmartgrid.smartgridone">
+    <XCODE_IPHONE targetFolder="Builds/iOS" prebuildCommand="/usr/bin/python3 &quot;${SRCROOT}/../../scripts/prepare_ios_audio_module.py&quot; &quot;${SRCROOT}/../../../../third_party/JUCE/modules/juce_audio_devices&quot; &quot;${PROJECT_TEMP_DIR}/SmartGridJuceModules/juce_audio_devices&quot;" extraLinkerFlags="&#10;" bundleIdentifier="com.theallelectricsmartgrid.smartgridone">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug"/>
-        <CONFIGURATION isDebug="0" name="Release" iosDeploymentTarget="18.0" iosCompatibility="18.0"/>
+        <CONFIGURATION customXcodeFlags="HEADER_SEARCH_PATHS = $(PROJECT_TEMP_DIR)/SmartGridJuceModules $(SRCROOT)/../../JuceLibraryCode $(SRCROOT)/../../../../third_party/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include $(inherited)&#10;MTL_HEADER_SEARCH_PATHS = $(SRCROOT)/../../JuceLibraryCode $(SRCROOT)/../../../../third_party/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include" isDebug="1" name="Debug" iosDeploymentTarget="18.0" iosCompatibility="18.0"/>
+        <CONFIGURATION customXcodeFlags="HEADER_SEARCH_PATHS = $(PROJECT_TEMP_DIR)/SmartGridJuceModules $(SRCROOT)/../../JuceLibraryCode $(SRCROOT)/../../../../third_party/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include $(inherited)&#10;MTL_HEADER_SEARCH_PATHS = $(SRCROOT)/../../JuceLibraryCode $(SRCROOT)/../../../../third_party/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include" isDebug="0" name="Release" iosDeploymentTarget="18.0" iosCompatibility="18.0"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_audio_basics" path="~/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="~/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="~/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors" path="~/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_utils" path="~/JUCE/modules"/>
-        <MODULEPATH id="juce_core" path="~/JUCE/modules"/>
-        <MODULEPATH id="juce_data_structures" path="~/JUCE/modules"/>
-        <MODULEPATH id="juce_events" path="~/JUCE/modules"/>
-        <MODULEPATH id="juce_graphics" path="~/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_basics" path="~/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_extra" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../third_party/JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_IPHONE>
   </EXPORTFORMATS>

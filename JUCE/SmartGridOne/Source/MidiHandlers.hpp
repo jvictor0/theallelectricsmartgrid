@@ -4,6 +4,7 @@
 #include "MidiUtils.hpp"
 #include "SmartGridInclude.hpp"
 #include "ThreadId.hpp"
+#include "MidiOutputSchedule.hpp"
 
 struct MidiInputHandler : public juce::MidiInputCallback
 {
@@ -169,6 +170,32 @@ struct MidiOutputHandler
         AttemptConnect();
     }
 
+#if JUCE_IOS
+    void RefreshConnection()
+    {
+        if (m_midiOutput == nullptr || m_midiOutput->isConnected())
+        {
+            return;
+        }
+
+        const auto identifier = MidiOutputDeviceIdentifierFromName(m_name);
+        if (identifier.isEmpty())
+        {
+            return;
+        }
+
+        auto replacement = juce::MidiOutput::openDevice(identifier);
+        if (replacement == nullptr)
+        {
+            return;
+        }
+
+        AutoLockSpin lock(m_mutex);
+        m_midiOutput->replaceConnectionFrom(*replacement);
+        INFO("MIDI output reconnected name=%s", m_name.toRawUTF8());
+    }
+#endif
+
     void SendBuffer(juce::MidiBuffer& buffer, double blockTimestampMs)
     {
         AutoLockSpin lock(m_mutex);
@@ -178,12 +205,17 @@ struct MidiOutputHandler
         }
     }
 
-    void SendMessage(juce::MidiMessage& message)
+    void SendMessage(juce::MidiMessage& message, std::uint64_t hostTicks = 0)
     {
         AutoLockSpin lock(m_mutex);
         if (m_midiOutput.get())
         {
+            SmartGrid::MidiOutputSchedule::Scope scheduled(hostTicks);
             m_midiOutput->sendMessageNow(message);
+        }
+        else
+        {
+            SmartGrid::MidiOutputSchedule::s_missingOutput.fetch_add(1, std::memory_order_relaxed);
         }
     }
 };

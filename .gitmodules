@@ -1,3 +1,6 @@
 [submodule "external/jansson"]
 	path = external/jansson
 	url = https://github.com/akheron/jansson.git
+[submodule "JUCE8"]
+	path = third_party/JUCE
+	url = https://github.com/juce-framework/JUCE.git

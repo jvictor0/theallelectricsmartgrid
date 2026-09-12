@@ -14,7 +14,6 @@ MainComponent::MainComponent()
 {
     juce::File logsDir = FileManager::GetLogsDirectory();
     AsyncLogQueue::s_instance.ConfigureLogDirectory(logsDir.getFullPathName().toUTF8().getAddress());
-
     setSize (1000, 700);
     
     // Set up config button
@@ -61,15 +60,14 @@ MainComponent::MainComponent()
     // Ensure config page starts closed
     m_showingConfig = false;
 
-    setAudioChannels(static_cast<int>(SourceMixer::x_numPhysicalInputChannels), 7);
+    m_fileManager.SetDefaultRecordingDirectory();
+    LoadConfig();
+    OpenAudioDevice();
 
     // Start the 60 FPS timer for re-rendering
     //
     startTimer(1000 / 60); // 60 FPS
 
-    m_fileManager.SetDefaultRecordingDirectory();
-    LoadConfig();
-    ApplyAudioDeviceConfiguration();
 
     // Force initial layout calculation after everything is set up
     resized();
@@ -83,15 +81,15 @@ MainComponent::MainComponent()
     {
         m_wrldBuildrGrid->SetDisplayMode();
     }
-    
+
     // Trigger a repaint to ensure everything is drawn correctly
     repaint();
 }
 
 MainComponent::~MainComponent()
 {
+    CloseAudioDevice();
     m_nonagon.ClearLEDs();
-    shutdownAudio();
 }
 
 //==============================================================================
@@ -175,7 +173,7 @@ void MainComponent::OnConfigButtonClicked()
 {
     if (!m_configPage)
     {
-        m_configPage = std::make_unique<ConfigPage>(&m_nonagon, &m_configuration, &deviceManager);
+        m_configPage = std::make_unique<ConfigPage>(&m_nonagon, &m_configuration, &m_deviceManager);
         addAndMakeVisible(m_configPage.get());
     }
     
@@ -252,48 +250,57 @@ void MainComponent::OnBackButtonClicked()
     SaveConfig();
 }
 
-void MainComponent::ApplyAudioDeviceConfiguration()
+void MainComponent::OpenAudioDevice()
 {
-    if (m_configuration.m_audioInputDeviceName.isEmpty() &&
-        m_configuration.m_audioOutputDeviceName.isEmpty())
+    juce::AudioDeviceManager::AudioDeviceSetup setup;
+    setup.sampleRate = static_cast<double>(SampleTimer::x_sampleRate);
+    setup.bufferSize = x_requiredBlockFrames;
+    setup.inputDeviceName = m_configuration.m_audioInputDeviceName;
+    setup.outputDeviceName = m_configuration.m_audioOutputDeviceName;
+    setup.useDefaultInputChannels = true;
+    setup.useDefaultOutputChannels = true;
+
+    const auto error = m_deviceManager.initialise(
+        static_cast<int>(SourceMixer::x_numPhysicalInputChannels), 7, nullptr, false, {}, &setup);
+    if (error.isNotEmpty())
     {
+        INFO("Audio initialization failed: %s", error.toRawUTF8());
         return;
     }
 
-    auto setup = deviceManager.getAudioDeviceSetup();
-    bool shouldApply = false;
-
-    if (m_configuration.m_audioInputDeviceName.isNotEmpty() &&
-        setup.inputDeviceName != m_configuration.m_audioInputDeviceName)
+    auto* device = m_deviceManager.getCurrentAudioDevice();
+    if (device == nullptr || !AudioCallbackDiagnostics::CanRender(device->getCurrentSampleRate())
+        || device->getCurrentBufferSizeSamples() != x_requiredBlockFrames)
     {
-        setup.inputDeviceName = m_configuration.m_audioInputDeviceName;
-        setup.useDefaultInputChannels = true;
-        shouldApply = true;
+        INFO("Audio initialization rejected: actual_rate=%.0f actual_frames=%d required_rate=%zu required_frames=%d",
+            device != nullptr ? device->getCurrentSampleRate() : 0.0,
+            device != nullptr ? device->getCurrentBufferSizeSamples() : 0,
+            SampleTimer::x_sampleRate, x_requiredBlockFrames);
+        m_deviceManager.closeAudioDevice();
+        return;
     }
 
-    if (m_configuration.m_audioOutputDeviceName.isNotEmpty() &&
-        setup.outputDeviceName != m_configuration.m_audioOutputDeviceName)
-    {
-        setup.outputDeviceName = m_configuration.m_audioOutputDeviceName;
-        setup.useDefaultOutputChannels = true;
-        shouldApply = true;
-    }
+    INFO("Audio setup requested_rate=%.0f requested_frames=%d actual_rate=%.0f actual_frames=%d inputs=%d outputs=%d",
+        setup.sampleRate, setup.bufferSize, device->getCurrentSampleRate(),
+        device->getCurrentBufferSizeSamples(),
+        device->getActiveInputChannels().countNumberOfSetBits(),
+        device->getActiveOutputChannels().countNumberOfSetBits());
 
-    if (shouldApply)
-    {
-        juce::String error = deviceManager.setAudioDeviceSetup(setup, true);
-        if (error.isNotEmpty())
-        {
-            INFO("Audio device setup failed: %s", error.toUTF8().getAddress());
-        }
-    }
+    m_deviceManager.addAudioCallback(&m_audioSourcePlayer);
+    m_audioSourcePlayer.setSource(this);
+}
+
+void MainComponent::CloseAudioDevice()
+{
+    m_audioSourcePlayer.setSource(nullptr);
+    m_deviceManager.removeAudioCallback(&m_audioSourcePlayer);
+    m_deviceManager.closeAudioDevice();
 }
 
 void MainComponent::RestartAudioDeviceForConfiguration()
 {
-    shutdownAudio();
-    setAudioChannels(static_cast<int>(SourceMixer::x_numPhysicalInputChannels), 7);
-    ApplyAudioDeviceConfiguration();
+    CloseAudioDevice();
+    OpenAudioDevice();
 }
 
 void MainComponent::OnFileButtonClicked()
@@ -488,16 +495,72 @@ void MainComponent::ShowVersionChooser()
 //==============================================================================
 void MainComponent::timerCallback()
 {
+    const auto nowMs = juce::Time::getMillisecondCounter();
+    if (m_lastDiagnosticsMs == 0 || nowMs - m_lastDiagnosticsMs >= 1000)
+    {
+        m_lastDiagnosticsMs = nowMs;
+        m_nonagon.m_midiSender.RefreshConnections();
+
+        const auto gaps = m_audioLongGaps.load(std::memory_order_relaxed);
+        const auto overruns = m_audioOverruns.load(std::memory_order_relaxed);
+        const auto mutes = m_audioFormatMutes.load(std::memory_order_relaxed);
+        auto* device = m_deviceManager.getCurrentAudioDevice();
+        const int xruns = device != nullptr ? device->getXRunCount() : -1;
+        const bool timingChanged = gaps != m_reportedLongGaps || overruns != m_reportedOverruns
+            || mutes != m_reportedFormatMutes || (xruns >= 0 && xruns != m_reportedXruns);
+        const bool firstFailure = m_lastTimingLogMs == 0
+            && (gaps > 0 || overruns > 0 || mutes > 0 || xruns > 0);
+        if (timingChanged && (firstFailure || nowMs - m_lastTimingLogMs >= 60000))
+        {
+            m_lastTimingLogMs = nowMs;
+            INFO("Audio timing callbacks=%llu long_gaps=%llu last_gap_us=%llu overruns=%llu format_mutes=%llu xruns=%d",
+                static_cast<unsigned long long>(m_audioCallbacks.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(gaps),
+                static_cast<unsigned long long>(m_lastLongGapUs.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(overruns),
+                static_cast<unsigned long long>(mutes), xruns);
+            m_reportedLongGaps = gaps;
+            m_reportedOverruns = overruns;
+            m_reportedFormatMutes = mutes;
+            m_reportedXruns = xruns;
+        }
+
+        const auto platform = ReadAudioPlatformState();
+        const bool periodic = m_lastRouteLogMs == 0 || nowMs - m_lastRouteLogMs >= 60000;
+        if (periodic || platform.m_thermalState != m_reportedThermal
+            || platform.m_lowPower != m_reportedLowPower)
+        {
+            INFO("Audio platform thermal=%d low_power=%d", platform.m_thermalState, platform.m_lowPower);
+            m_reportedThermal = platform.m_thermalState;
+            m_reportedLowPower = platform.m_lowPower;
+        }
+
+        if (periodic)
+        {
+            m_lastRouteLogMs = nowMs;
+            if (device != nullptr)
+            {
+                INFO("Audio route name=%s rate=%.0f frames=%d inputs=%d outputs=%d cpu=%.3f",
+                    device->getName().toRawUTF8(), device->getCurrentSampleRate(),
+                    device->getCurrentBufferSizeSamples(),
+                    device->getActiveInputChannels().countNumberOfSetBits(),
+                    device->getActiveOutputChannels().countNumberOfSetBits(),
+                    m_deviceManager.getCpuUsage());
+            }
+
+            LogAudioSessionDiagnostics();
+            m_nonagon.m_midiSender.LogDiagnostics();
+        }
+    }
+
     // Re-renderthe component at 60 FPS
     //
     HandleStateInterchange();
     m_wrldBuildrGrid->SetDisplayMode();
-    
-    // Update CPU label
-    //
-    m_cpuUsageBuffer.Write(deviceManager.getCpuUsage() * 100.0);
+
+    m_cpuUsageBuffer.Write(m_deviceManager.getCpuUsage() * 100.0);
     m_cpuLabel.setText(juce::String(m_cpuUsageBuffer.Max(), 1) + "%", juce::dontSendNotification);
-    
+
     repaint();
 
     AsyncLogQueue::s_instance.DoLog();

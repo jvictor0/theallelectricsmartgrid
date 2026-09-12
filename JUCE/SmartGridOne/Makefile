@@ -39,7 +39,7 @@ clang-tidy:
 		-- -std=c++17 \
 		-I"$(shell pwd)/JuceLibraryCode" \
 		-I"$(shell pwd)/../../private/src" \
-		-I"$${HOME}/JUCE/modules" \
+		-I"$(shell pwd)/../../third_party/JUCE/modules" \
 		-I/opt/homebrew/include \
 		-isysroot $$(xcrun --sdk macosx --show-sdk-path) \
 		-arch arm64 \
