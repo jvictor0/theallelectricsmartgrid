@@ -495,63 +495,7 @@ void MainComponent::ShowVersionChooser()
 //==============================================================================
 void MainComponent::timerCallback()
 {
-    const auto nowMs = juce::Time::getMillisecondCounter();
-    if (m_lastDiagnosticsMs == 0 || nowMs - m_lastDiagnosticsMs >= 1000)
-    {
-        m_lastDiagnosticsMs = nowMs;
-        m_nonagon.m_midiSender.RefreshConnections();
-
-        const auto gaps = m_audioLongGaps.load(std::memory_order_relaxed);
-        const auto overruns = m_audioOverruns.load(std::memory_order_relaxed);
-        const auto mutes = m_audioFormatMutes.load(std::memory_order_relaxed);
-        auto* device = m_deviceManager.getCurrentAudioDevice();
-        const int xruns = device != nullptr ? device->getXRunCount() : -1;
-        const bool timingChanged = gaps != m_reportedLongGaps || overruns != m_reportedOverruns
-            || mutes != m_reportedFormatMutes || (xruns >= 0 && xruns != m_reportedXruns);
-        const bool firstFailure = m_lastTimingLogMs == 0
-            && (gaps > 0 || overruns > 0 || mutes > 0 || xruns > 0);
-        if (timingChanged && (firstFailure || nowMs - m_lastTimingLogMs >= 60000))
-        {
-            m_lastTimingLogMs = nowMs;
-            INFO("Audio timing callbacks=%llu long_gaps=%llu last_gap_us=%llu overruns=%llu format_mutes=%llu xruns=%d",
-                static_cast<unsigned long long>(m_audioCallbacks.load(std::memory_order_relaxed)),
-                static_cast<unsigned long long>(gaps),
-                static_cast<unsigned long long>(m_lastLongGapUs.load(std::memory_order_relaxed)),
-                static_cast<unsigned long long>(overruns),
-                static_cast<unsigned long long>(mutes), xruns);
-            m_reportedLongGaps = gaps;
-            m_reportedOverruns = overruns;
-            m_reportedFormatMutes = mutes;
-            m_reportedXruns = xruns;
-        }
-
-        const auto platform = ReadAudioPlatformState();
-        const bool periodic = m_lastRouteLogMs == 0 || nowMs - m_lastRouteLogMs >= 60000;
-        if (periodic || platform.m_thermalState != m_reportedThermal
-            || platform.m_lowPower != m_reportedLowPower)
-        {
-            INFO("Audio platform thermal=%d low_power=%d", platform.m_thermalState, platform.m_lowPower);
-            m_reportedThermal = platform.m_thermalState;
-            m_reportedLowPower = platform.m_lowPower;
-        }
-
-        if (periodic)
-        {
-            m_lastRouteLogMs = nowMs;
-            if (device != nullptr)
-            {
-                INFO("Audio route name=%s rate=%.0f frames=%d inputs=%d outputs=%d cpu=%.3f",
-                    device->getName().toRawUTF8(), device->getCurrentSampleRate(),
-                    device->getCurrentBufferSizeSamples(),
-                    device->getActiveInputChannels().countNumberOfSetBits(),
-                    device->getActiveOutputChannels().countNumberOfSetBits(),
-                    m_deviceManager.getCpuUsage());
-            }
-
-            LogAudioSessionDiagnostics();
-            m_nonagon.m_midiSender.LogDiagnostics();
-        }
-    }
+    m_appObserver.Report(m_deviceManager, m_nonagon.m_midiSender);
 
     // Re-renderthe component at 60 FPS
     //

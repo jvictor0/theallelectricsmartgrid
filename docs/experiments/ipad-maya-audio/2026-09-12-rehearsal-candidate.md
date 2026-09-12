@@ -10,14 +10,14 @@ That diagnostic build requested **zero audio inputs** and carried a one-off JUCE
 
 ## Candidate behavior
 
-- Pin JUCE 8.0.15 as `third_party/JUCE`, for both Xcode targets. An iOS build-local `juce_audio_devices` overlay sets the initial device buffer default to 512 and adds CoreMIDI timestamp scheduling plus output reconnection support. The overlay checks its source contexts before patching.
+- Pin JUCE 8.0.15 as `third_party/JUCE`, for both Xcode targets. A build-local `juce_audio_devices` overlay sends explicit CoreMIDI host timestamps on both platforms; its iOS build also sets the initial device buffer default to 512. The overlay checks its source contexts before patching.
 - Load saved audio configuration before opening the device. Request 48 kHz/512 frames, MAYA inputs, and seven outputs. Refuse to render if the actual rate or callback size differs; record muted callbacks instead of feeding an unsupported format to the fixed-rate DSP.
-- Keep the MIDI sender off the real-time scheduler. On iOS it wakes every 2 ms, submits bounded batches of short MIDI with 20 ms timestamp lead, drops late/backed-up messages, and sends complete bounded SysEx packets from its worker thread. Output handlers are joined before destruction.
+- Keep the MIDI sender off the real-time scheduler. On macOS and iOS it wakes every 2 ms, submits bounded batches of short MIDI with 20 ms timestamp lead, drops late/backed-up messages, and sends complete bounded SysEx packets from its worker thread. Output handlers are joined before destruction. MIDI connection refresh is outside this diff.
 - Wait 5 ms when the I/O job queue is empty. Work arrives with at most that additional idle polling latency; the queue does not accumulate work during idle.
 
 ## Diagnostics kept and removed
 
-The audio callback only updates counters for arrival gaps, overruns, format mutes, and callbacks. The message thread reports changed timing counters at most once per minute, and once per minute reports the route, actual rate/frames/input/output channels, thermal state, low-power state, audio session preferences, and MIDI queue/native submission counters. This is intended to preserve useful evidence without per-buffer log traffic.
+`AppObserver` keeps the audio callback counters and periodic reports out of `MainComponent`. The callback only updates counters for arrival gaps, overruns, format mutes, and callbacks. The message thread reports changed timing counters at most once per minute, and once per minute reports the route, actual rate/frames/input/output channels, thermal state, low-power state, audio session preferences, and MIDI queue/native submission counters.
 
 The test tone, UI-off and zero-input test flags, per-callback INFO lines, native RemoteIO probes, single-start patch, and raw recording/log artifacts are excluded from this branch. The diagnostic worktree and `/private/tmp/smartgrid-idle5-midi-normal-20260912` retain the trial material locally.
 

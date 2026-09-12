@@ -4,6 +4,7 @@
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" headerPath="../../../../private/src&#10;/opt/homebrew/include&#10;&#10;">
   <MAINGROUP id="si886g" name="SmartGridOne">
     <GROUP id="{2DDA3903-F6ED-9E0F-0737-E5B903BFA61C}" name="Source">
+      <FILE id="AppObserverH" name="AppObserver.hpp" compile="0" resource="0" file="Source/AppObserver.hpp"/>
       <FILE id="AudioPlatformDiag" name="AudioPlatformDiagnostics.mm" compile="1" resource="0" file="Source/AudioPlatformDiagnostics.mm"/>
       <FILE id="AudioPlatformDiagH" name="AudioPlatformDiagnostics.hpp" compile="0" resource="0" file="Source/AudioPlatformDiagnostics.hpp"/>
       <FILE id="MD2rs9" name="IOUtils.cpp" compile="1" resource="0" file="Source/IOUtils.cpp"/>
@@ -49,10 +50,10 @@
   </MODULES>
   <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1"/>
   <EXPORTFORMATS>
-    <XCODE_MAC targetFolder="Builds/MacOSX" extraLinkerFlags="&#10;">
+    <XCODE_MAC targetFolder="Builds/MacOSX" prebuildCommand="/usr/bin/python3 &quot;${SRCROOT}/../../scripts/prepare_apple_audio_module.py&quot; &quot;${SRCROOT}/../../../../third_party/JUCE/modules/juce_audio_devices&quot; &quot;${PROJECT_TEMP_DIR}/SmartGridJuceModules/juce_audio_devices&quot;" extraLinkerFlags="&#10;">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="0" name="Release" targetName="SmartGridOne"/>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="SmartGridOne" libraryPath="&#10;"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="SmartGridOne" customXcodeFlags="HEADER_SEARCH_PATHS = $(PROJECT_TEMP_DIR)/SmartGridJuceModules $(SRCROOT)/../../JuceLibraryCode $(SRCROOT)/../../../../third_party/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include $(inherited)"/>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="SmartGridOne" libraryPath="&#10;" customXcodeFlags="HEADER_SEARCH_PATHS = $(PROJECT_TEMP_DIR)/SmartGridJuceModules $(SRCROOT)/../../JuceLibraryCode $(SRCROOT)/../../../../third_party/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include $(inherited)"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_core" path="../../third_party/JUCE/modules"/>
@@ -69,7 +70,7 @@
         <MODULEPATH id="juce_audio_formats" path="../../third_party/JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_MAC>
-    <XCODE_IPHONE targetFolder="Builds/iOS" prebuildCommand="/usr/bin/python3 &quot;${SRCROOT}/../../scripts/prepare_ios_audio_module.py&quot; &quot;${SRCROOT}/../../../../third_party/JUCE/modules/juce_audio_devices&quot; &quot;${PROJECT_TEMP_DIR}/SmartGridJuceModules/juce_audio_devices&quot;" extraLinkerFlags="&#10;" bundleIdentifier="com.theallelectricsmartgrid.smartgridone">
+    <XCODE_IPHONE targetFolder="Builds/iOS" prebuildCommand="/usr/bin/python3 &quot;${SRCROOT}/../../scripts/prepare_apple_audio_module.py&quot; &quot;${SRCROOT}/../../../../third_party/JUCE/modules/juce_audio_devices&quot; &quot;${PROJECT_TEMP_DIR}/SmartGridJuceModules/juce_audio_devices&quot; --ios-buffer" extraLinkerFlags="&#10;" bundleIdentifier="com.theallelectricsmartgrid.smartgridone">
       <CONFIGURATIONS>
         <CONFIGURATION customXcodeFlags="HEADER_SEARCH_PATHS = $(PROJECT_TEMP_DIR)/SmartGridJuceModules $(SRCROOT)/../../JuceLibraryCode $(SRCROOT)/../../../../third_party/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include $(inherited)&#10;MTL_HEADER_SEARCH_PATHS = $(SRCROOT)/../../JuceLibraryCode $(SRCROOT)/../../../../third_party/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include" isDebug="1" name="Debug" iosDeploymentTarget="18.0" iosCompatibility="18.0"/>
         <CONFIGURATION customXcodeFlags="HEADER_SEARCH_PATHS = $(PROJECT_TEMP_DIR)/SmartGridJuceModules $(SRCROOT)/../../JuceLibraryCode $(SRCROOT)/../../../../third_party/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include $(inherited)&#10;MTL_HEADER_SEARCH_PATHS = $(SRCROOT)/../../JuceLibraryCode $(SRCROOT)/../../../../third_party/JUCE/modules $(SRCROOT)/../../../../private/src /opt/homebrew/include" isDebug="0" name="Release" iosDeploymentTarget="18.0" iosCompatibility="18.0"/>

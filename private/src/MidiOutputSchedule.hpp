@@ -10,7 +10,6 @@ namespace SmartGrid
     struct MidiOutputSchedule
     {
         static constexpr std::uint64_t x_latencyUs = 20000;
-        static inline thread_local std::uint64_t s_deadline = 0;
         static inline std::atomic<std::uint64_t> s_scheduled{0};
         static inline std::atomic<std::uint64_t> s_immediate{0};
         static inline std::atomic<std::uint64_t> s_errors{0};
@@ -51,35 +50,14 @@ namespace SmartGrid
             return {false, static_cast<std::uint64_t>(ticks), targetUs - nowUs};
         }
 
-        struct Scope
+        static std::uint64_t Timestamp(std::uint64_t deadline, std::uint64_t now)
         {
-            std::uint64_t m_previous;
-
-            explicit Scope(std::uint64_t deadline)
-                : m_previous(s_deadline)
-            {
-                s_deadline = deadline;
-            }
-
-            ~Scope()
-            {
-                s_deadline = m_previous;
-            }
-        };
-
-        static std::uint64_t Deadline()
-        {
-            return s_deadline;
+            return deadline == 0 ? now : deadline;
         }
 
-        static std::uint64_t Timestamp(std::uint64_t now)
+        static bool DropLate(std::uint64_t deadline, std::uint64_t now)
         {
-            return s_deadline == 0 ? now : s_deadline;
-        }
-
-        static bool DropLate(std::uint64_t now)
-        {
-            if (s_deadline == 0 || s_deadline > now)
+            if (deadline == 0 || deadline > now)
             {
                 return false;
             }
@@ -88,21 +66,21 @@ namespace SmartGrid
             return true;
         }
 
-        static void RecordSubmit(std::int32_t status, std::uint64_t submittedAt)
+        static void RecordSubmit(std::int32_t status, std::uint64_t deadline, std::uint64_t submittedAt)
         {
             if (status != 0)
             {
                 s_errors.fetch_add(1, std::memory_order_relaxed);
             }
 
-            if (s_deadline == 0)
+            if (deadline == 0)
             {
                 s_immediate.fetch_add(1, std::memory_order_relaxed);
                 return;
             }
 
             s_scheduled.fetch_add(1, std::memory_order_relaxed);
-            const auto lead = s_deadline > submittedAt ? s_deadline - submittedAt : 0;
+            const auto lead = deadline > submittedAt ? deadline - submittedAt : 0;
             auto minimum = s_minLeadTicks.load(std::memory_order_relaxed);
             while (lead < minimum && !s_minLeadTicks.compare_exchange_weak(minimum, lead, std::memory_order_relaxed))
             {

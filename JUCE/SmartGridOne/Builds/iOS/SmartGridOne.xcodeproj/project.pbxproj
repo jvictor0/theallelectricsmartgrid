@@ -55,6 +55,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		D1A600000000000000000003 /* AppObserver.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = AppObserver.hpp; path = ../../Source/AppObserver.hpp; sourceTree = SOURCE_ROOT; };
 		D18100000000000000000011 /* include_juce_audio_processors_headless.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = include_juce_audio_processors_headless.mm; path = ../../JuceLibraryCode/include_juce_audio_processors_headless.mm; sourceTree = SOURCE_ROOT; };
 		D18100000000000000000012 /* include_juce_audio_processors_headless_ara.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = include_juce_audio_processors_headless_ara.cpp; path = ../../JuceLibraryCode/include_juce_audio_processors_headless_ara.cpp; sourceTree = SOURCE_ROOT; };
 		D18100000000000000000013 /* include_juce_audio_processors_headless_lv2_libs.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = include_juce_audio_processors_headless_lv2_libs.cpp; path = ../../JuceLibraryCode/include_juce_audio_processors_headless_lv2_libs.cpp; sourceTree = SOURCE_ROOT; };
@@ -209,6 +210,7 @@
 		657CE124B28F04A60CDC3DF4 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				D1A600000000000000000003 /* AppObserver.hpp */,
 				D1A600000000000000000002 /* AudioPlatformDiagnostics.mm */,
 				C4160E50CEBC3FB19EF6D33A /* IOUtils.cpp */,
 				5CFF07F9B76CE118EF50400C /* Main.cpp */,
@@ -393,7 +395,7 @@
 			outputPaths = ();
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "/usr/bin/python3 \"${SRCROOT}/../../scripts/prepare_ios_audio_module.py\" \"${SRCROOT}/../../../../third_party/JUCE/modules/juce_audio_devices\" \"${PROJECT_TEMP_DIR}/SmartGridJuceModules/juce_audio_devices\"";
+			shellScript = "/usr/bin/python3 \"${SRCROOT}/../../scripts/prepare_apple_audio_module.py\" \"${SRCROOT}/../../../../third_party/JUCE/modules/juce_audio_devices\" \"${PROJECT_TEMP_DIR}/SmartGridJuceModules/juce_audio_devices\" --ios-buffer";
 		};
 /* End PBXShellScriptBuildPhase section */
 

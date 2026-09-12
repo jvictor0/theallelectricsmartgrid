@@ -334,7 +334,7 @@ struct NonagonWrapperWrldBldr
                     SmartGrid::YaeltexColorSysexBuffer buffer;
                     m_midiWriter.WriteClear(buffer, i);
                     juce::MidiMessage message(buffer.m_buffer, static_cast<int>(buffer.m_size));
-                    SendMessage(message);
+                    SendImmediateMessage(message);
                 }
             }
         }
@@ -411,7 +411,7 @@ struct NonagonWrapperWrldBldr
         {
             uint8_t sysex[] = {0xF0, 0x79, 0x74, 0x78, 0x00, 0x01, 0x00, 0x21, 0xF7};
             juce::MidiMessage message(sysex, sizeof(sysex));
-            m_midiOutputHandler.SendMessage(message);
+            m_midiOutputHandler.SendImmediateMessage(message);
         }
     }
 
