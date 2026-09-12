@@ -6,6 +6,39 @@
 #include "ThreadId.hpp"
 #include "MidiSysexQueue.hpp"
 
+struct MidiSenderDiagnostics
+{
+    std::atomic<bool> m_workerRunning{false};
+    std::atomic<size_t> m_iterations{0};
+    std::atomic<size_t> m_basicFull{0};
+    std::atomic<size_t> m_basicLate{0};
+    std::atomic<size_t> m_basicInvalid{0};
+    std::atomic<size_t> m_sysexEnqueued{0};
+    std::atomic<size_t> m_sysexSubmitted{0};
+    std::atomic<size_t> m_sysexFull{0};
+    std::atomic<size_t> m_sysexInvalid{0};
+
+    void Log(size_t basicQueued, size_t sysexQueued) const
+    {
+        const double tickUs = 1000000.0 / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
+        const auto minimum = SmartGrid::MidiOutputSchedule::s_minLeadTicks.load();
+        INFO("MIDI native scheduled=%llu immediate=%llu errors=%llu late=%llu disconnected=%llu missing=%llu min_lead_us=%.1f max_lead_us=%.1f",
+            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_scheduled.load()),
+            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_immediate.load()),
+            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_errors.load()),
+            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_late.load()),
+            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_disconnected.load()),
+            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_missingOutput.load()),
+            minimum == UINT64_MAX ? -1.0 : minimum * tickUs,
+            SmartGrid::MidiOutputSchedule::s_maxLeadTicks.load() * tickUs);
+        INFO("MIDI worker running=%d iterations=%zu basic_queued=%zu basic_full=%zu basic_late=%zu basic_invalid=%zu sysex_queued=%zu sysex_enqueued=%zu sysex_submitted=%zu sysex_full=%zu sysex_invalid=%zu",
+            static_cast<int>(m_workerRunning.load(std::memory_order_relaxed)),
+            m_iterations.load(), basicQueued, m_basicFull.load(), m_basicLate.load(), m_basicInvalid.load(),
+            sysexQueued, m_sysexEnqueued.load(), m_sysexSubmitted.load(),
+            m_sysexFull.load(), m_sysexInvalid.load());
+    }
+};
+
 struct MidiSender : public juce::Thread
 {
     static constexpr size_t x_maxRoutes = 16;
@@ -16,17 +49,8 @@ struct MidiSender : public juce::Thread
     MidiOutputHandler* m_outputHandlers[x_maxRoutes];
     int m_clockRouteId;
     static constexpr size_t x_basicBatchSize = 256;
-    std::atomic<size_t> m_iterations{0};
-    std::atomic<size_t> m_basicFull{0};
-    std::atomic<size_t> m_basicLate{0};
-    std::atomic<size_t> m_basicInvalid{0};
-
     std::atomic<bool> m_shutdown;
-    std::atomic<bool> m_workerRunning{false};
-    std::atomic<size_t> m_sysexEnqueued{0};
-    std::atomic<size_t> m_sysexSubmitted{0};
-    std::atomic<size_t> m_sysexFull{0};
-    std::atomic<size_t> m_sysexInvalid{0};
+    MidiSenderDiagnostics m_diagnostics;
 
     MidiSender()
         : juce::Thread("MidiSender")
@@ -50,12 +74,12 @@ struct MidiSender : public juce::Thread
 
     void run() override
     {
-        m_workerRunning.store(true, std::memory_order_relaxed);
+        m_diagnostics.m_workerRunning.store(true, std::memory_order_relaxed);
         SetCurrentThreadId(ThreadId::MidiSender);
 
         while (!threadShouldExit())
         {
-            m_iterations.fetch_add(1, std::memory_order_relaxed);
+            m_diagnostics.m_iterations.fetch_add(1, std::memory_order_relaxed);
             for (size_t i = 0; i < x_basicBatchSize && !m_shutdown.load(); ++i)
             {
                 if (!HandleScheduledMessage())
@@ -72,7 +96,7 @@ struct MidiSender : public juce::Thread
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
 
-        m_workerRunning.store(false, std::memory_order_relaxed);
+        m_diagnostics.m_workerRunning.store(false, std::memory_order_relaxed);
         
         INFO("MidiSenderThread stopped");
     }
@@ -97,7 +121,7 @@ struct MidiSender : public juce::Thread
         msg.m_routeId = routeId;
         if (!m_queue.Push(msg))
         {
-            m_basicFull.fetch_add(1, std::memory_order_relaxed);
+            m_diagnostics.m_basicFull.fetch_add(1, std::memory_order_relaxed);
         }
     }
 
@@ -109,39 +133,24 @@ struct MidiSender : public juce::Thread
             || routeId < 0 || static_cast<size_t>(routeId) >= x_maxRoutes
             || m_outputHandlers[routeId] == nullptr)
         {
-            m_sysexInvalid.fetch_add(1, std::memory_order_relaxed);
+            m_diagnostics.m_sysexInvalid.fetch_add(1, std::memory_order_relaxed);
             jassertfalse;
             return false;
         }
 
         if (!m_sysexQueue.TryPush(data, size, routeId))
         {
-            m_sysexFull.fetch_add(1, std::memory_order_relaxed);
+            m_diagnostics.m_sysexFull.fetch_add(1, std::memory_order_relaxed);
             return true;
         }
 
-        m_sysexEnqueued.fetch_add(1, std::memory_order_relaxed);
+        m_diagnostics.m_sysexEnqueued.fetch_add(1, std::memory_order_relaxed);
         return true;
     }
 
     void LogDiagnostics() const
     {
-        const double tickUs = 1000000.0 / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
-        const auto minimum = SmartGrid::MidiOutputSchedule::s_minLeadTicks.load();
-        INFO("MIDI native scheduled=%llu immediate=%llu errors=%llu late=%llu disconnected=%llu missing=%llu min_lead_us=%.1f max_lead_us=%.1f",
-            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_scheduled.load()),
-            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_immediate.load()),
-            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_errors.load()),
-            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_late.load()),
-            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_disconnected.load()),
-            static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_missingOutput.load()),
-            minimum == UINT64_MAX ? -1.0 : minimum * tickUs,
-            SmartGrid::MidiOutputSchedule::s_maxLeadTicks.load() * tickUs);
-        INFO("MIDI worker running=%d iterations=%zu basic_queued=%zu basic_full=%zu basic_late=%zu basic_invalid=%zu sysex_queued=%zu sysex_enqueued=%zu sysex_submitted=%zu sysex_full=%zu sysex_invalid=%zu",
-            static_cast<int>(m_workerRunning.load(std::memory_order_relaxed)),
-            m_iterations.load(), m_queue.Size(), m_basicFull.load(), m_basicLate.load(), m_basicInvalid.load(),
-            m_sysexQueue.Size(), m_sysexEnqueued.load(), m_sysexSubmitted.load(),
-            m_sysexFull.load(), m_sysexInvalid.load());
+        m_diagnostics.Log(m_queue.Size(), m_sysexQueue.Size());
     }
 
     // Terminal shutdown on the owner/control thread after audio producers stop.
@@ -174,7 +183,7 @@ struct MidiSender : public juce::Thread
         if (routeId < 0 || static_cast<size_t>(routeId) >= x_maxRoutes
             || m_outputHandlers[routeId] == nullptr)
         {
-            m_sysexInvalid.fetch_add(1, std::memory_order_relaxed);
+            m_diagnostics.m_sysexInvalid.fetch_add(1, std::memory_order_relaxed);
             jassertfalse;
             m_sysexQueue.Pop();
             return;
@@ -182,7 +191,7 @@ struct MidiSender : public juce::Thread
 
         juce::MidiMessage message(packet->m_data, static_cast<int>(packet->m_size));
         m_outputHandlers[routeId]->SendImmediateMessage(message);
-        m_sysexSubmitted.fetch_add(1, std::memory_order_relaxed);
+        m_diagnostics.m_sysexSubmitted.fetch_add(1, std::memory_order_relaxed);
         m_sysexQueue.Pop();
     }
 
@@ -197,7 +206,7 @@ struct MidiSender : public juce::Thread
         if (msg.m_routeId < 0 || static_cast<size_t>(msg.m_routeId) >= x_maxRoutes
             || m_outputHandlers[msg.m_routeId] == nullptr)
         {
-            m_basicInvalid.fetch_add(1, std::memory_order_relaxed);
+            m_diagnostics.m_basicInvalid.fetch_add(1, std::memory_order_relaxed);
             return true;
         }
 
@@ -206,7 +215,7 @@ struct MidiSender : public juce::Thread
             static_cast<double>(juce::Time::getHighResolutionTicksPerSecond()));
         if (plan.m_drop)
         {
-            m_basicLate.fetch_add(1, std::memory_order_relaxed);
+            m_diagnostics.m_basicLate.fetch_add(1, std::memory_order_relaxed);
             return true;
         }
 
