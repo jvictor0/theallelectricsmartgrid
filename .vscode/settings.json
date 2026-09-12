@@ -53,6 +53,5 @@
         "algorithm": "cpp",
         "__config": "cpp",
         "cstddef": "cpp"
-    },
-    "cmake.sourceDirectory": "/Users/joyo/theallelectricsmartgrid/external/jansson"
+    }
 }
