@@ -52,6 +52,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		D1A600000000000000000003 /* AppObserver.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = AppObserver.hpp; path = ../../Source/AppObserver.hpp; sourceTree = SOURCE_ROOT; };
 		D18100000000000000000011 /* include_juce_audio_processors_headless.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = include_juce_audio_processors_headless.mm; path = ../../JuceLibraryCode/include_juce_audio_processors_headless.mm; sourceTree = SOURCE_ROOT; };
 		D18100000000000000000012 /* include_juce_audio_processors_headless_ara.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = include_juce_audio_processors_headless_ara.cpp; path = ../../JuceLibraryCode/include_juce_audio_processors_headless_ara.cpp; sourceTree = SOURCE_ROOT; };
 		D18100000000000000000013 /* include_juce_audio_processors_headless_lv2_libs.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = include_juce_audio_processors_headless_lv2_libs.cpp; path = ../../JuceLibraryCode/include_juce_audio_processors_headless_lv2_libs.cpp; sourceTree = SOURCE_ROOT; };
@@ -198,6 +199,7 @@
 		657CE124B28F04A60CDC3DF4 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				D1A600000000000000000003 /* AppObserver.hpp */,
 				D1A600000000000000000002,
 				C4160E50CEBC3FB19EF6D33A,
 				5CFF07F9B76CE118EF50400C,
@@ -291,6 +293,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = F57186FD2EEC89443FD7FE76;
 			buildPhases = (
+				D1A651200000000000000002 /* Prepare pinned Apple MIDI overlay */,
 				4867E97A20B565DC89251F72,
 				9C5BA1B0DE72AD197F182211,
 				0D50C1A2A86024B7F87BE2C2,
@@ -364,6 +367,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		D1A651200000000000000002 /* Prepare pinned Apple MIDI overlay */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			name = "Prepare pinned Apple MIDI overlay";
+			outputPaths = ();
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/usr/bin/python3 \"${SRCROOT}/../../scripts/prepare_apple_audio_module.py\" \"${SRCROOT}/../../../../third_party/JUCE/modules/juce_audio_devices\" \"${PROJECT_TEMP_DIR}/SmartGridJuceModules/juce_audio_devices\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		9C5BA1B0DE72AD197F182211 = {
@@ -452,8 +470,9 @@
 					"JucePlugin_Build_LV2=0",
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/../../JuceLibraryCode",
+			HEADER_SEARCH_PATHS = (
+				"$(PROJECT_TEMP_DIR)/SmartGridJuceModules",
+				"$(SRCROOT)/../../JuceLibraryCode",
 					"$(SRCROOT)/../../../../third_party/JUCE/modules",
 					"$(SRCROOT)/../../../../private/src",
 					"/opt/homebrew/include",
@@ -522,8 +541,9 @@
 					"JucePlugin_Build_LV2=0",
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/../../JuceLibraryCode",
+			HEADER_SEARCH_PATHS = (
+				"$(PROJECT_TEMP_DIR)/SmartGridJuceModules",
+				"$(SRCROOT)/../../JuceLibraryCode",
 					"$(SRCROOT)/../../../../third_party/JUCE/modules",
 					"$(SRCROOT)/../../../../private/src",
 					"/opt/homebrew/include",

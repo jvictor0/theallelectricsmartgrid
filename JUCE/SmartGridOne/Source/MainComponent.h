@@ -12,8 +12,7 @@
 #include "Configuration.hpp"
 #include "ClockModeConfigJSON.hpp"
 #include "ThreadId.hpp"
-#include "AudioCallbackDiagnostics.hpp"
-#include "AudioPlatformDiagnostics.hpp"
+#include "AppObserver.hpp"
 #include <atomic>
 
 //==============================================================================
@@ -34,7 +33,7 @@ public:
     {
         m_audioReady.store(false, std::memory_order_release);
         m_sampleRate = sampleRate;
-        m_audioCallbackDiagnostics.Reset();
+        m_appObserver.PrepareAudio();
         if (AudioCallbackDiagnostics::CanRender(sampleRate) && samplesPerBlockExpected == x_requiredBlockFrames)
         {
             SampleTimer::Init(samplesPerBlockExpected);
@@ -51,16 +50,7 @@ public:
     virtual void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override
     {
         ScopedThreadId scopedThreadId(ThreadId::Audio);
-        const auto start = juce::Time::getHighResolutionTicks();
-        const auto startUs = static_cast<uint64_t>(juce::Time::highResolutionTicksToSeconds(start) * 1000000.0);
-        const auto observation = m_audioCallbackDiagnostics.Observe(startUs, bufferToFill.numSamples, m_sampleRate);
-        m_audioCallbacks.store(observation.m_sequence, std::memory_order_relaxed);
-
-        if (observation.m_previousBudgetUs > 0 && observation.m_gapUs > observation.m_previousBudgetUs * 2)
-        {
-            m_audioLongGaps.fetch_add(1, std::memory_order_relaxed);
-            m_lastLongGapUs.store(observation.m_gapUs, std::memory_order_relaxed);
-        }
+        const auto start = m_appObserver.BeginAudioCallback(bufferToFill.numSamples, m_sampleRate);
 
         const bool canRender = m_audioReady.load(std::memory_order_acquire)
             && AudioCallbackDiagnostics::CanRender(m_sampleRate)
@@ -74,14 +64,10 @@ public:
         else
         {
             bufferToFill.clearActiveBufferRegion();
-            m_audioFormatMutes.fetch_add(1, std::memory_order_relaxed);
+            m_appObserver.RecordFormatMute();
         }
 
-        const auto duration = juce::Time::highResolutionTicksToSeconds(juce::Time::getHighResolutionTicks() - start);
-        if (m_sampleRate > 0.0 && duration > static_cast<double>(bufferToFill.numSamples) / m_sampleRate)
-        {
-            m_audioOverruns.fetch_add(1, std::memory_order_relaxed);
-        }
+        m_appObserver.EndAudioCallback(start, bufferToFill.numSamples, m_sampleRate);
     }
 
     NonagonWrapper::IOInfo MakeIOInfo()
@@ -269,21 +255,7 @@ private:
 
     double m_sampleRate = 0.0;
     std::atomic<bool> m_audioReady{false};
-    AudioCallbackDiagnostics m_audioCallbackDiagnostics;
-    std::atomic<uint64_t> m_audioCallbacks{0};
-    std::atomic<uint64_t> m_audioLongGaps{0};
-    std::atomic<uint64_t> m_lastLongGapUs{0};
-    std::atomic<uint64_t> m_audioOverruns{0};
-    std::atomic<uint64_t> m_audioFormatMutes{0};
-    uint32_t m_lastTimingLogMs = 0;
-    uint64_t m_reportedLongGaps = 0;
-    uint64_t m_reportedOverruns = 0;
-    uint64_t m_reportedFormatMutes = 0;
-    int m_reportedXruns = -1;
-    int m_reportedThermal = -1;
-    bool m_reportedLowPower = false;
-    uint32_t m_lastDiagnosticsMs = 0;
-    uint32_t m_lastRouteLogMs = 0;
+    AppObserver m_appObserver;
 
     FileManager m_fileManager{this};
 

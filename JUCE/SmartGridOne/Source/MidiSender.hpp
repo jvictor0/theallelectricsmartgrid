@@ -15,7 +15,6 @@ struct MidiSender : public juce::Thread
     SmartGrid::MidiSysexQueue<x_maxSysexMessageBytes, x_sysexQueueSize> m_sysexQueue;
     MidiOutputHandler* m_outputHandlers[x_maxRoutes];
     int m_clockRouteId;
-    static constexpr double x_latencyMs = 10;
     static constexpr size_t x_basicBatchSize = 256;
     std::atomic<size_t> m_iterations{0};
     std::atomic<size_t> m_basicFull{0};
@@ -57,7 +56,6 @@ struct MidiSender : public juce::Thread
         while (!threadShouldExit())
         {
             m_iterations.fetch_add(1, std::memory_order_relaxed);
-#if JUCE_IOS
             for (size_t i = 0; i < x_basicBatchSize && !m_shutdown.load(); ++i)
             {
                 if (!HandleScheduledMessage())
@@ -72,11 +70,6 @@ struct MidiSender : public juce::Thread
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
-#else
-            HandleMessage();
-            HandleSysex();
-            std::this_thread::sleep_for(std::chrono::microseconds(100));
-#endif
         }
 
         m_workerRunning.store(false, std::memory_order_relaxed);
@@ -131,22 +124,8 @@ struct MidiSender : public juce::Thread
         return true;
     }
 
-    void RefreshConnections()
-    {
-#if JUCE_IOS
-        for (auto* handler : m_outputHandlers)
-        {
-            if (handler != nullptr)
-            {
-                handler->RefreshConnection();
-            }
-        }
-#endif
-    }
-
     void LogDiagnostics() const
     {
-#if JUCE_IOS
         const double tickUs = 1000000.0 / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
         const auto minimum = SmartGrid::MidiOutputSchedule::s_minLeadTicks.load();
         INFO("MIDI native scheduled=%llu immediate=%llu errors=%llu late=%llu disconnected=%llu missing=%llu min_lead_us=%.1f max_lead_us=%.1f",
@@ -158,7 +137,6 @@ struct MidiSender : public juce::Thread
             static_cast<unsigned long long>(SmartGrid::MidiOutputSchedule::s_missingOutput.load()),
             minimum == UINT64_MAX ? -1.0 : minimum * tickUs,
             SmartGrid::MidiOutputSchedule::s_maxLeadTicks.load() * tickUs);
-#endif
         INFO("MIDI worker running=%d iterations=%zu basic_queued=%zu basic_full=%zu basic_late=%zu basic_invalid=%zu sysex_queued=%zu sysex_enqueued=%zu sysex_submitted=%zu sysex_full=%zu sysex_invalid=%zu",
             static_cast<int>(m_workerRunning.load(std::memory_order_relaxed)),
             m_iterations.load(), m_queue.Size(), m_basicFull.load(), m_basicLate.load(), m_basicInvalid.load(),
@@ -203,7 +181,7 @@ struct MidiSender : public juce::Thread
         }
 
         juce::MidiMessage message(packet->m_data, static_cast<int>(packet->m_size));
-        m_outputHandlers[routeId]->SendMessage(message);
+        m_outputHandlers[routeId]->SendImmediateMessage(message);
         m_sysexSubmitted.fetch_add(1, std::memory_order_relaxed);
         m_sysexQueue.Pop();
     }
@@ -233,57 +211,15 @@ struct MidiSender : public juce::Thread
         }
 
         juce::MidiMessage message(msg.m_msg, msg.Size());
-        m_outputHandlers[msg.m_routeId]->SendMessage(message, plan.m_hostTicks);
-        return true;
-    }
-
-    void HandleMessage()
-    {
-        SmartGrid::BasicMidi msg;
-        
-        // Peek at the next message without removing it
-        //
-        if (!m_queue.Peek(msg))
+        if (plan.m_hostTicks == 0)
         {
-            return;
-        }
-
-        if (m_shutdown.load())
-        {
-            m_queue.Pop(msg);
-            return;
-        }
-        
-        // Get current time in milliseconds using JUCE wall clock
-        //
-        double currentTimeMs = juce::Time::getMillisecondCounterHiRes();
-        
-        if (msg.m_timestamp == 0)
-        {
-            // Send immediately
-            //
-            m_queue.Pop(msg);
-            juce::MidiMessage message(msg.m_msg, msg.Size());
-            m_outputHandlers[msg.m_routeId]->SendMessage(message);
+            m_outputHandlers[msg.m_routeId]->SendImmediateMessage(message);
         }
         else
         {
-            // Convert timestamp from microseconds to milliseconds
-            //
-            double msgTimestampMs = static_cast<double>(msg.m_timestamp) / 1000.0;
-            
-            // Wait until it's time to send (with small latency buffer)
-            //
-            double targetTimeMs = msgTimestampMs + x_latencyMs;
-            if (currentTimeMs >= targetTimeMs)
-            {
-                // Time to send
-                //
-                m_queue.Pop(msg);
-                juce::MidiMessage message(msg.m_msg, msg.Size());
-                m_outputHandlers[msg.m_routeId]->SendMessage(message);
-            }
+            m_outputHandlers[msg.m_routeId]->SendScheduledMessage(message, plan.m_hostTicks);
         }
+        return true;
     }
 
     void ProcessMessagesOut(SmartGrid::MessageOutBuffer& buffer, size_t timestamp)

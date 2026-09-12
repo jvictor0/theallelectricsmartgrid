@@ -170,32 +170,6 @@ struct MidiOutputHandler
         AttemptConnect();
     }
 
-#if JUCE_IOS
-    void RefreshConnection()
-    {
-        if (m_midiOutput == nullptr || m_midiOutput->isConnected())
-        {
-            return;
-        }
-
-        const auto identifier = MidiOutputDeviceIdentifierFromName(m_name);
-        if (identifier.isEmpty())
-        {
-            return;
-        }
-
-        auto replacement = juce::MidiOutput::openDevice(identifier);
-        if (replacement == nullptr)
-        {
-            return;
-        }
-
-        AutoLockSpin lock(m_mutex);
-        m_midiOutput->replaceConnectionFrom(*replacement);
-        INFO("MIDI output reconnected name=%s", m_name.toRawUTF8());
-    }
-#endif
-
     void SendBuffer(juce::MidiBuffer& buffer, double blockTimestampMs)
     {
         AutoLockSpin lock(m_mutex);
@@ -205,13 +179,25 @@ struct MidiOutputHandler
         }
     }
 
-    void SendMessage(juce::MidiMessage& message, std::uint64_t hostTicks = 0)
+    void SendImmediateMessage(juce::MidiMessage& message)
     {
         AutoLockSpin lock(m_mutex);
         if (m_midiOutput.get())
         {
-            SmartGrid::MidiOutputSchedule::Scope scheduled(hostTicks);
             m_midiOutput->sendMessageNow(message);
+        }
+        else
+        {
+            SmartGrid::MidiOutputSchedule::s_missingOutput.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+
+    void SendScheduledMessage(juce::MidiMessage& message, std::uint64_t hostTicks)
+    {
+        AutoLockSpin lock(m_mutex);
+        if (m_midiOutput.get())
+        {
+            m_midiOutput->sendMessageAtHostTime(message, hostTicks);
         }
         else
         {
