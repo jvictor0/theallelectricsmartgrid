@@ -141,7 +141,7 @@ struct MidiSender : public juce::Thread
         if (!m_sysexQueue.TryPush(data, size, routeId))
         {
             m_diagnostics.m_sysexFull.fetch_add(1, std::memory_order_relaxed);
-            return true;
+            return false;
         }
 
         m_diagnostics.m_sysexEnqueued.fetch_add(1, std::memory_order_relaxed);
