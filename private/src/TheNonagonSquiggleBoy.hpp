@@ -692,7 +692,8 @@ struct TheNonagonSquiggleBoyInternal
         {
             if (m_owner->m_squiggleBoy.GetRecordingError() != StreamingRecorder::Error::None)
             {
-                return SmartGrid::Color::Orange;
+                const size_t phase = SampleTimer::GetSample() / (SampleTimer::x_sampleRate / 8);
+                return phase % 2 == 0 ? SmartGrid::Color::Red : SmartGrid::Color::Off;
             }
 
             return m_owner->m_squiggleBoy.IsRecording() ? SmartGrid::Color::Red : SmartGrid::Color::Red.Dim();

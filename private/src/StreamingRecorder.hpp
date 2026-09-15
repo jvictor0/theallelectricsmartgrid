@@ -2,6 +2,7 @@
 
 #include "RecordingFormat.hpp"
 #include "CircularQueue.hpp"
+#include "AsyncLogger.hpp"
 #include "ThreadId.hpp"
 #include <cerrno>
 #include <cstdio>
@@ -139,6 +140,7 @@ struct StreamingRecorder
     Page* m_page = nullptr;
     bool m_frameOpen = false;
     uint64_t m_acceptedFrames = 0;
+    bool m_errorLogged = false;
 
     ~StreamingRecorder()
     {
@@ -153,10 +155,12 @@ struct StreamingRecorder
         Shutdown();
         m_error = Error::None;
         m_state = State::Idle;
+        m_errorLogged = false;
         if (!RecordingFormat::Validate(session) || directory.empty())
         {
             m_error = Error::InvalidConfiguration;
             m_state = State::Error;
+            ReportError();
             return false;
         }
 
@@ -198,6 +202,7 @@ struct StreamingRecorder
             return false;
         }
 
+        ReportError();
         m_page = nullptr;
         m_frameOpen = false;
         m_acceptedFrames = 0;
@@ -208,6 +213,7 @@ struct StreamingRecorder
         m_ready = false;
         m_stopRequested = false;
         m_error = Error::None;
+        m_errorLogged = false;
         m_state = State::Starting;
         return true;
     }
@@ -243,9 +249,46 @@ struct StreamingRecorder
         m_error.compare_exchange_strong(expected, error);
     }
 
+    static const char* ErrorName(Error error)
+    {
+        switch (error)
+        {
+            case Error::None: return "None";
+            case Error::InvalidConfiguration: return "InvalidConfiguration";
+            case Error::Open: return "Open";
+            case Error::Write: return "Write";
+            case Error::Close: return "Close";
+            case Error::Overrun: return "Overrun";
+            case Error::InvalidSample: return "InvalidSample";
+        }
+
+        return "Unknown";
+    }
+
+    // Report from the capture owner, or after shutdown has quiesced audio.
+    // The worker must not read the sample clock or share the sampler writer's log queue.
+    //
+    void ReportError()
+    {
+        const Error error = m_error.load();
+        if (error == Error::None || m_errorLogged)
+        {
+            return;
+        }
+
+        m_errorLogged = true;
+        INFO("Recording error=%s state=%d accepted_frames=%llu written_frames=%llu written_bytes=%llu queue_high_water=%llu",
+            ErrorName(error), static_cast<int>(m_state.load()),
+            static_cast<unsigned long long>(m_acceptedFrames),
+            static_cast<unsigned long long>(m_writtenFrames.load()),
+            static_cast<unsigned long long>(m_writtenBytes.load()),
+            static_cast<unsigned long long>(m_queueHighWater.load()));
+    }
+
     void Fail(Error error)
     {
         SetError(error);
+        ReportError();
         Stop();
     }
 
@@ -253,6 +296,7 @@ struct StreamingRecorder
     {
         if (m_error != Error::None)
         {
+            ReportError();
             Stop();
             return false;
         }
@@ -359,6 +403,7 @@ struct StreamingRecorder
         }
 
         m_prepared = false;
+        ReportError();
     }
 
     bool WriteBlock(uint32_t frames)
@@ -502,12 +547,6 @@ struct StreamingRecorder
                     }
 
                     m_writtenBytes += m_encoded.size();
-                    if (m_error != Error::None)
-                    {
-                        std::fprintf(stderr, "Recording stopped with error %d after %llu frames\n", static_cast<int>(m_error.load()),
-                            static_cast<unsigned long long>(m_writtenFrames.load()));
-                    }
-
                     active = false;
                     opened = false;
                     writable = false;

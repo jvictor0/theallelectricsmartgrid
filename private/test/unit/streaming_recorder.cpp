@@ -1,5 +1,6 @@
 #include "doctest.h"
 #include "StreamingRecorder.hpp"
+#include "AsyncLogger.hpp"
 
 #include <limits>
 
@@ -236,4 +237,52 @@ DOCTEST_TEST_CASE("streaming recorder: cancellation and rapid one-frame sessions
         DOCTEST_REQUIRE(memory->m_bytes.size() >= 16);
         DOCTEST_CHECK(ReadLE(memory->m_bytes, memory->m_bytes.size() - 12, 8) == 1);
     }
+}
+
+DOCTEST_TEST_CASE("streaming recorder: capture errors enter the async log once with recording context")
+{
+    auto& logger = AsyncLogQueue::s_instance;
+    logger.ResetForTesting();
+    ScopedThreadId thread(ThreadId::Audio);
+    StreamingRecorder recorder;
+    DOCTEST_REQUIRE(recorder.Prepare(Session(), "/unused", std::make_unique<MemorySink>()));
+    Ready(recorder);
+    recorder.CommitFrame();
+    recorder.Fail(StreamingRecorder::Error::InvalidSample);
+    recorder.BeginFrame();
+    recorder.BeginFrame();
+    recorder.Shutdown();
+    auto& queue = logger.m_queues[ThreadIdToIndex(ThreadId::Audio)];
+    DOCTEST_REQUIRE(queue.Size() == 1);
+    const std::string message(queue.PeekPtr()->m_message);
+    DOCTEST_CHECK(message.find("error=InvalidSample") != std::string::npos);
+    DOCTEST_CHECK(message.find("accepted_frames=1") != std::string::npos);
+    DOCTEST_CHECK(message.find("written_frames=") != std::string::npos);
+    DOCTEST_CHECK(message.find("written_bytes=") != std::string::npos);
+    DOCTEST_CHECK(message.find("queue_high_water=") != std::string::npos);
+    DOCTEST_CHECK(logger.QueueSizeForTesting(ThreadId::FileWriter) == 0);
+    logger.ResetForTesting();
+}
+
+DOCTEST_TEST_CASE("streaming recorder: shutdown reports worker errors through the owner's async queue")
+{
+    auto& logger = AsyncLogQueue::s_instance;
+    logger.ResetForTesting();
+    ScopedThreadId thread(ThreadId::Message);
+    StreamingRecorder recorder;
+    auto sink = std::make_unique<MemorySink>();
+    sink->m_failClose = true;
+    DOCTEST_REQUIRE(recorder.Prepare(Session(), "/unused", std::move(sink)));
+    Ready(recorder);
+    recorder.CommitFrame();
+    recorder.Stop();
+    DOCTEST_REQUIRE(Await([&]() { return recorder.m_state == StreamingRecorder::State::Error; }));
+    recorder.Shutdown();
+    auto& queue = logger.m_queues[ThreadIdToIndex(ThreadId::Message)];
+    DOCTEST_REQUIRE(queue.Size() == 1);
+    const std::string message(queue.PeekPtr()->m_message);
+    DOCTEST_CHECK(message.find("error=Close") != std::string::npos);
+    DOCTEST_CHECK(message.find("written_frames=1") != std::string::npos);
+    DOCTEST_CHECK(logger.QueueSizeForTesting(ThreadId::FileWriter) == 0);
+    logger.ResetForTesting();
 }
