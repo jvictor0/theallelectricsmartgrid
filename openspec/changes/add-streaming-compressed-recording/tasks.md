@@ -39,4 +39,4 @@
 
 ## Verification notes
 
-See [verification.md](verification.md) for commands, test results, known baseline failures, desktop measurements and platform build evidence. Tasks 6.2 and 6.3 retain their unchecked status for the live device and iPad performance portions; both Apple builds and the desktop benchmark passed.
+See [verification.md](verification.md) for commands, test results, known baseline failures, desktop measurements and platform build evidence. Both Apple builds and the desktop benchmark passed. The 2026-09-15 iPad recording also confirms file creation, the current build SHA, clean completion, sync, and exact stereo/quad extraction. Tasks 6.2 and 6.3 remain unchecked for live playback/shutdown/interruption checks and sustained iPad performance under representative synth load.

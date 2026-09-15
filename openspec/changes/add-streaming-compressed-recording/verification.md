@@ -178,3 +178,39 @@ passed 20 codec/recorder/mixer cases (1,989 assertions). Logs are
 `/private/tmp/smartgrid-review-tests.log` and
 `/private/tmp/smartgrid-review-tsan.log`. A subsequent full-PR subagent review is
 read-only; its findings are reported to the owner without automatic fixes.
+
+## Rebase and physical iPad recording evidence (2026-09-15)
+
+Rebased onto local `main` at `272a662`, preserving its async USB/Wi-Fi sync,
+atomic downloads, and stable remote-size check. Adapted the recording sync tests
+to the async API and added a check that a growing remote recording is retained
+even when the downloaded snapshot extracts successfully. All **34 Python
+recording/iPad-tool tests** and **3 build-SHA tests** passed. OpenSpec strict
+validation passed. The C++ sources and tests are unchanged by this rebase.
+The preceding full-PR subagent review reported no actionable findings.
+
+The owner captured and synced
+`recording-2026-09-15T225029-614762-0.sgrec` from the iPad Air 13-inch (M3).
+The supplied sync transcript shows successful download, stereo extraction, and
+remote deletion after extraction. The local original remains in
+`~/Documents/SmartGridOne/recordings/` alongside the stereo WAV.
+
+The actual file validates with clean completion, all block CRCs, **193,953
+frames at 48 kHz (4.0406875 seconds)**, timestamp `2026-09-15T22:50:29Z`, and
+compiled SHA `d0cc77025b44570fcc672f6e60a4f50f660cbadf`. Every PCM24 integer in
+the synced stereo WAV matches the recorded stereo master. A separate quad
+extraction to a temporary WAV likewise matches every recorded quad integer.
+The temporary quad export was removed after verification.
+
+The 31-track/78-stream PCM24 equivalent is **45,385,002 bytes**, compared with
+**7,632,713 bytes** on disk: **5.946:1**, or **83.18% smaller**. Track payloads,
+descriptors, and shared framing account for every byte. Headers and descriptors
+total 3,796 bytes. Twenty-two tracks are omitted throughout; `mono_2` is also
+omitted in the final 1,953-frame block. This is a short live capture, not a
+sustained iPad performance measurement.
+
+Remaining physical checks are live playback, shutdown/interruption behavior,
+and sustained iPad recording under representative synth load, including callback
+cost, worker latency, queue high-water, and memory. No such results are inferred
+from this short recording. Tasks 6.2 and 6.3 remain open pending those checks or
+an explicit owner decision to defer them.
