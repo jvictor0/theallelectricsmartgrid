@@ -2,6 +2,7 @@
 
 #include "Filter.hpp"
 #include "GangedRandomLFO.hpp"
+#include "NormGen.hpp"
 #include "OLA.hpp"
 #include "PhaseUtils.hpp"
 #include "QuadUtils.hpp"
