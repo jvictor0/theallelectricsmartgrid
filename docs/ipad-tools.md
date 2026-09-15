@@ -52,8 +52,9 @@ scripts/.venv-ios/bin/python scripts/sync_ipad.py
 
 Use `--transport usb` or `--transport wifi` to force a transport. Patch files
 copy in both directions. App logs copy from the iPad and refresh when the remote
-file grows. Recordings copy to the Mac, pass through SoX stereo extraction, and
-are removed from the iPad only after a complete download and stable-size check.
+file grows. Recordings copy to the Mac and extract the stereo master using the
+SMRTGRID extractor or SoX for legacy WAV/RF64 files. They are removed from the iPad
+only after a complete download, successful extraction, and stable-size check.
 
 For a connectivity check that cannot transfer or delete a recording:
 

@@ -8,7 +8,9 @@ from pathlib import Path, PurePosixPath
 
 from pymobiledevice3.services.house_arrest import HouseArrestService
 
+from extract_recording import extract
 from ipad_device import connect_ipad, device_host, device_udid
+from sgrec import x_magic
 
 
 APP_BUNDLE_ID = "com.theallelectricsmartgrid.smartgridone"
@@ -20,7 +22,19 @@ IPAD_DOCUMENTS_DIR = "/Documents/SmartGridOne"
 DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024
 
 
-def extract_stereo_recording(local_path):
+def extract_stereo_recording(local_path: Path) -> int:
+    with local_path.open("rb") as source:
+        magic = source.read(12)
+    if magic[:8] == x_magic:
+        result = extract(local_path, master="stereo", overwrite=True)
+        print(f"  Extracted {result.m_frames} frames: {result.m_output.name}")
+        if not result.m_complete:
+            print(f"  Incomplete recording: {result.m_error}")
+            return 1
+        return 0
+    if magic[:4] not in (b"RIFF", b"RF64") or magic[8:12] != b"WAVE":
+        raise ValueError(f"{local_path} is not a SmartGrid or RIFF/RF64 recording")
+
     channel_count = int(
         subprocess.check_output(["soxi", "-c", str(local_path)], text=True).strip()
     )
@@ -38,6 +52,7 @@ def extract_stereo_recording(local_path):
         ],
         check=True,
     )
+    return 0
 
 
 async def download_afc_file(
@@ -147,7 +162,8 @@ async def sync_recording(afc, remote_path, local_path, extractor=extract_stereo_
         progress_label="Copied",
         expected_size=expected_size,
     )
-    extractor(local_path)
+    if extractor(local_path) != 0:
+        raise RuntimeError("Extraction failed; keeping the recording on iPad")
     current_size = int((await afc.stat(remote_path))["st_size"])
     if current_size != expected_size:
         raise IOError(
