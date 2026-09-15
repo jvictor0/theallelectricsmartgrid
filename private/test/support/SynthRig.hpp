@@ -142,6 +142,11 @@ public:
 
     ~SynthRig()
     {
+        if (m_internal)
+        {
+            m_internal->ShutdownRecording();
+        }
+
         // Join the IO worker thread BEFORE tearing down m_internal: an in-flight
         // persist task references m_internal's recording buffers / sample banks,
         // so stopping the thread first avoids a use-after-free during teardown.
@@ -514,7 +519,12 @@ public:
     //
     void ToggleRecording() { TapPad(RouteBottomLeft, -1, 7); }
     bool IsRecording() const { return m_internal->m_squiggleBoy.IsRecording(); }
-    // TODO(WP-9): SetRecordingDirectory + sample-bank persistence assertions.
+
+    bool PrepareRecording(const std::string& directory)
+    {
+        m_internal->SetRecordingDirectory(directory.c_str());
+        return m_internal->PrepareRecording();
+    }
 
     // ---- Observation -------------------------------------------------------
 

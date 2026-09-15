@@ -111,6 +111,16 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoy.SetRecordingDirectory(directory);
     }
 
+    bool PrepareRecording()
+    {
+        return m_squiggleBoy.PrepareRecording();
+    }
+
+    void ShutdownRecording()
+    {
+        m_squiggleBoy.ShutdownRecording();
+    }
+
     JSON ToJSON(JsonArena& a)
     {
         JSON rootJ = a.Object();
@@ -680,6 +690,12 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual SmartGrid::Color GetColor() override
         {
+            if (m_owner->m_squiggleBoy.GetRecordingError() != StreamingRecorder::Error::None)
+            {
+                const size_t phase = SampleTimer::GetSample() / (SampleTimer::x_sampleRate / 8);
+                return phase % 2 == 0 ? SmartGrid::Color::Red : SmartGrid::Color::Off;
+            }
+
             return m_owner->m_squiggleBoy.IsRecording() ? SmartGrid::Color::Red : SmartGrid::Color::Red.Dim();
         }
 

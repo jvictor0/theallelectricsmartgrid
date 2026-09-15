@@ -19,6 +19,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from extract_recording import extract
+from sgrec import x_magic
+
 try:
     from pymobiledevice3.lockdown import create_using_usbmux
     from pymobiledevice3.services.house_arrest import HouseArrestService
@@ -45,7 +48,19 @@ MAC_LOGS_DIR = MAC_SMARTGRID_DIR / "logs"
 DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024  # 4 MB
 
 
-def extract_stereo_recording(local_path: Path) -> None:
+def extract_stereo_recording(local_path: Path) -> int:
+    with local_path.open("rb") as source:
+        magic = source.read(12)
+    if magic[:8] == x_magic:
+        result = extract(local_path, master="stereo", overwrite=True)
+        print(f"  Extracted {result.m_frames} frames: {result.m_output.name}")
+        if not result.m_complete:
+            print(f"  Incomplete recording: {result.m_error}")
+            return 1
+        return 0
+    if magic[:4] not in (b"RIFF", b"RF64") or magic[8:12] != b"WAVE":
+        raise ValueError(f"{local_path} is not a SmartGrid or RIFF/RF64 recording")
+
     channel_count = int(
         subprocess.check_output(["soxi", "-c", str(local_path)], text=True).strip()
     )
@@ -61,6 +76,7 @@ def extract_stereo_recording(local_path: Path) -> None:
         ["sox", str(local_path), str(stereo_path), "remix", str(left_channel), str(right_channel)],
         check=True
     )
+    return 0
 
 
 def download_afc_file(afc, full_ipad_path: str, local_path: Path, progress_label: str = "Copying") -> None:
@@ -81,6 +97,8 @@ def download_afc_file(afc, full_ipad_path: str, local_path: Path, progress_label
             while total < size:
                 to_read = min(DOWNLOAD_CHUNK_SIZE, size - total)
                 chunk = afc.fread(handle, to_read)
+                if not chunk or len(chunk) > to_read:
+                    raise OSError(f"Incomplete download of {full_ipad_path}: {total} of {size} bytes")
                 f.write(chunk)
                 total += len(chunk)
                 current_mb = int(total / (1024 * 1024))
@@ -272,7 +290,9 @@ def sync_recordings_from_ipad(afc: HouseArrestService, ipad_recordings_path: str
         try:
             download_afc_file(afc, full_ipad_path, local_path, progress_label="Copied")
 
-            extract_stereo_recording(local_path)
+            if extract_stereo_recording(local_path) != 0:
+                print("  Extraction failed; keeping the recording on iPad")
+                continue
 
             # Delete from iPad after successful copy
             #

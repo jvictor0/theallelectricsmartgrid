@@ -542,6 +542,8 @@ struct NonagonWrapper
 
     ~NonagonWrapper()
     {
+        m_internal.ShutdownRecording();
+
         // Route handlers must outlive the MIDI worker that submits through them.
         //
         m_midiSender.Shutdown();
@@ -557,6 +559,12 @@ struct NonagonWrapper
 
     void PrepareToPlay(int numSamples, double sampleRate)
     {
+        m_internal.PrepareRecording();
+    }
+
+    void ReleaseResources()
+    {
+        m_internal.ShutdownRecording();
     }
 
     void SetSampleDirectoryRootAbsolute(const std::filesystem::path& absolutePath)

@@ -3,16 +3,13 @@
 #include "QuadUtils.hpp"
 #include "DelayLine.hpp"
 #include "QuadLFO.hpp"
-#include "WavWriter.hpp"
-#include <filesystem>
-#include <iomanip>
-#include <sstream>
-#include <chrono>
-#include <ctime>
+#include "StreamingRecorder.hpp"
 #include "Noise.hpp"
 #include "QuadMasterChain.hpp"
 #include "QuadToStereoMixdown.hpp"
 #include "Metering.hpp"
+#include "RecordingFormat.hpp"
+#include "SmartGridBuildInfo.hpp"
 
 struct QuadMixerInternal
 {
@@ -21,9 +18,11 @@ struct QuadMixerInternal
 
     QuadFloatWithStereoAndSub m_output;
     QuadFloat m_send[x_numSends];
-    MultichannelWavWriter m_wavWriter;
+    StreamingRecorder m_recorder;
     std::string m_recordingDirectory;
-    bool m_isRecording = false;
+    size_t m_recordingNumInputs = 0;
+    size_t m_recordingNumMonoInputs = 0;
+    bool m_recordingFrameActive = false;
     PinkNoise m_pinkNoise;
 
     Meter m_voiceMeters[x_maxInputs];
@@ -94,84 +93,133 @@ struct QuadMixerInternal
         }
     }
 
-    bool Open(size_t numInputs, const std::string& filename, uint32_t sampleRate)
+    static RecordingFormat::Session MakeRecordingSession(size_t numInputs, size_t numMonoInputs, uint32_t sampleRate)
     {
-        return m_wavWriter.Open(static_cast<uint16_t>(numInputs + x_numSends + 1) * 4 + 2, filename, sampleRate);
+        RecordingFormat::Session session;
+        session.m_sampleRate = sampleRate;
+        session.m_blockFrames = sampleRate;
+        session.m_gitCommitSha = SmartGridBuildInfo::x_gitCommitSha;
+        if (numInputs > x_maxInputs || numMonoInputs > numInputs)
+        {
+            return session;
+        }
+
+        for (size_t i = 0; i < numInputs; ++i)
+        {
+            session.m_tracks.push_back(
+            {
+                static_cast<uint32_t>(session.m_tracks.size()),
+                "input_" + std::to_string(i), RecordingFormat::TrackType::PannedMono,
+                "input", "post_fader_post_shared_reduction"
+            });
+        }
+
+        for (size_t i = 0; i < numMonoInputs; ++i)
+        {
+            session.m_tracks.push_back(
+            {
+                static_cast<uint32_t>(session.m_tracks.size()),
+                "mono_" + std::to_string(i), RecordingFormat::TrackType::Mono,
+                "mono_input", "post_shared_reduction"
+            });
+        }
+
+        for (size_t i = 0; i < x_numSends; ++i)
+        {
+            session.m_tracks.push_back(
+            {
+                static_cast<uint32_t>(session.m_tracks.size()),
+                "return_" + std::to_string(i), RecordingFormat::TrackType::Quad,
+                "return", "post_gain_post_saturation"
+            });
+        }
+
+        session.m_tracks.push_back(
+        {
+            static_cast<uint32_t>(session.m_tracks.size()),
+            "master_quad", RecordingFormat::TrackType::Quad,
+            "master_quad", "post_mastering_pre_master_volume"
+        });
+        session.m_tracks.push_back(
+        {
+            static_cast<uint32_t>(session.m_tracks.size()),
+            "master_stereo", RecordingFormat::TrackType::Stereo,
+            "master_stereo", "post_mastering_pre_master_volume"
+        });
+        return session;
     }
 
-    void Close()
+    bool PrepareRecording(size_t numInputs, size_t numMonoInputs, uint32_t sampleRate)
     {
-        m_wavWriter.Close();
+        m_recordingNumInputs = numInputs;
+        m_recordingNumMonoInputs = numMonoInputs;
+        m_recordingFrameActive = false;
+        return m_recorder.Prepare(MakeRecordingSession(numInputs, numMonoInputs, sampleRate), m_recordingDirectory);
+    }
+
+    void ShutdownRecording()
+    {
+        m_recorder.Shutdown();
+        m_recordingFrameActive = false;
+    }
+
+    bool IsRecording() const
+    {
+        return m_recorder.IsRecording();
+    }
+
+    StreamingRecorder::State GetRecordingState() const
+    {
+        return m_recorder.GetState();
+    }
+
+    StreamingRecorder::Error GetRecordingError() const
+    {
+        return m_recorder.GetError();
     }
 
     void StartRecording(size_t numInputs, uint32_t sampleRate)
     {
-        if (m_isRecording || m_recordingDirectory.empty())
+        if (numInputs != m_recordingNumInputs || sampleRate != m_recorder.m_session.m_sampleRate)
         {
+            m_recorder.Fail(StreamingRecorder::Error::InvalidConfiguration);
             return;
         }
 
-        // Generate filename based on current date and time (ISO 8601 format)
-        //
-        auto now = std::chrono::system_clock::now();
-        auto timeT = std::chrono::system_clock::to_time_t(now);
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
-        
-        std::tm timeInfo{};
-        localtime_r(&timeT, &timeInfo);
-        
-        std::ostringstream oss;
-        oss << m_recordingDirectory << "/recording-";
-        oss << std::setfill('0') << std::setw(4) << (timeInfo.tm_year + 1900);
-        oss << "-";
-        oss << std::setfill('0') << std::setw(2) << (timeInfo.tm_mon + 1);
-        oss << "-";
-        oss << std::setfill('0') << std::setw(2) << timeInfo.tm_mday;
-        oss << "T";
-        oss << std::setfill('0') << std::setw(2) << timeInfo.tm_hour;
-        oss << std::setfill('0') << std::setw(2) << timeInfo.tm_min;
-        oss << std::setfill('0') << std::setw(2) << timeInfo.tm_sec;
-        oss << ".";
-        oss << std::setfill('0') << std::setw(3) << ms.count();
-        oss << ".wav";
-        
-        std::string filename = oss.str();
-
-        // Open the wave writer with the appropriate number of channels
-        //
-        if (!Open(numInputs, filename, sampleRate))
-        {
-            assert(false);
-        }   
-
-        m_isRecording = true;
+        m_recorder.Start();
     }
 
     void StopRecording()
     {
-        if (!m_isRecording)
-        {
-            return;
-        }
-
-        Close();
-        m_isRecording = false;
+        m_recorder.Stop();
     }
 
-    void ToggleRecording(size_t numChannels, uint32_t sampleRate)
+    void ToggleRecording(size_t numInputs, uint32_t sampleRate)
     {
-        if (m_isRecording)
+        if (IsRecording())
         {
             StopRecording();
         }
         else
         {
-            StartRecording(numChannels, sampleRate);
+            StartRecording(numInputs, sampleRate);
         }
+    }
+
+    bool RecordingLayoutMatches(const Input& input) const
+    {
+        return input.m_numInputs == m_recordingNumInputs
+            && input.m_numMonoInputs == m_recordingNumMonoInputs;
     }
 
     void ProcessInputs(const Input& input)
     {
+        if (IsRecording() && !RecordingLayoutMatches(input))
+        {
+            m_recorder.Fail(StreamingRecorder::Error::InvalidConfiguration);
+        }
+
+        m_recordingFrameActive = m_recorder.BeginFrame();
         m_output.m_output = QuadFloat();
         m_quadToStereoMixdown.Clear();
         for (size_t i = 0; i < x_numSends; ++i)
@@ -216,9 +264,23 @@ struct QuadMixerInternal
                 {
                     m_output.m_output += postFader;
                 }
-                // Write post-fader input to wave file
-                //
-                m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(i), postFader);
+
+                if (m_recordingFrameActive)
+                {
+                    const float panned[] =
+                    {
+                        input.m_input[i] * input.m_gain[i].m_expParam * reduction,
+                        input.m_x[i], input.m_y[i]
+                    };
+
+
+                    m_recorder.Submit(i, panned, 3);
+                    if (i < input.m_numMonoInputs)
+                    {
+                        const float monoSample = input.m_monoIn[i] * reduction;
+                        m_recorder.Submit(m_recordingNumInputs + i, &monoSample, 1);
+                    }
+                }
             }
         }
 
@@ -227,6 +289,12 @@ struct QuadMixerInternal
 
     QuadFloatWithStereoAndSub ProcessReturns(const Input& input)
     {
+        if (m_recordingFrameActive && !RecordingLayoutMatches(input))
+        {
+            m_recorder.Fail(StreamingRecorder::Error::InvalidConfiguration);
+            m_recordingFrameActive = false;
+        }
+
         if (!input.m_noiseMode)
         {
             for (size_t j = 0; j < x_numSends; ++j)
@@ -236,23 +304,25 @@ struct QuadMixerInternal
                 postReturn = m_returnMeters[j].ProcessAndSaturate(postReturn);
                 m_output.m_output += postReturn;            
 
-                m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(input.m_numInputs + j), postReturn);
+                if (m_recordingFrameActive)
+                {
+                    m_recorder.Submit(m_recordingNumInputs + m_recordingNumMonoInputs + j, postReturn.m_values, 4);
+                }
             }
         }
 
         m_output = m_masterChain.Process(input.m_masterChainInput, m_output.m_output, m_quadToStereoMixdown.m_output);
         
-        m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(input.m_numInputs + x_numSends), m_output.m_output);
-        m_wavWriter.WriteSampleIfOpen(4 * static_cast<uint16_t>(input.m_numInputs + x_numSends + 1), m_output.m_stereoOutput);
+        if (m_recordingFrameActive)
+        {
+            const size_t masterTrack = m_recordingNumInputs + m_recordingNumMonoInputs + x_numSends;
+            m_recorder.Submit(masterTrack, m_output.m_output.m_values, 4);
+            m_recorder.Submit(masterTrack + 1, m_output.m_stereoOutput.m_values, 2);
+            m_recorder.CommitFrame();
+        }
         
         m_masterMeter.Process(m_output.m_output);
         m_stereoMeter.Process(m_output.m_stereoOutput);
-
-        if (m_isRecording && m_wavWriter.m_error)
-        {
-            INFO("QuadMixer error: WavWriter reported error during recording");
-            StopRecording();
-        }
 
         return m_output;
     }
