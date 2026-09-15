@@ -115,3 +115,8 @@ dist/*
 
 *.aux
 *.log
+
+# Local iPad tooling environment
+scripts/.venv-ios/
+__pycache__/
+*.pyc

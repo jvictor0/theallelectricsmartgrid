@@ -1,383 +1,259 @@
 #!/usr/bin/env python3
-"""
-Sync patches and recordings between Mac and iPad via USB using pymobiledevice3.
 
-Patches: Bi-directional sync (missing files copied both ways)
-Recordings: One-way sync (iPad -> Mac, then deleted from iPad)
-Logs: One-way sync (iPad -> Mac, retained on iPad)
-
-Requirements:
-    pip install pymobiledevice3
-
-Usage:
-    python sync_ipad.py
-"""
-
-import os
+import argparse
+import asyncio
 import subprocess
 import sys
-from pathlib import Path
-from typing import Optional
+from pathlib import Path, PurePosixPath
 
-try:
-    from pymobiledevice3.lockdown import create_using_usbmux
-    from pymobiledevice3.services.house_arrest import HouseArrestService
-    from pymobiledevice3.usbmux import list_devices
-except ImportError:
-    print("Error: pymobiledevice3 not installed.")
-    print("Install with: pip install pymobiledevice3")
-    sys.exit(1)
+from pymobiledevice3.services.house_arrest import HouseArrestService
+
+from ipad_device import connect_ipad, device_host, device_udid
 
 
-# App bundle identifier
-#
 APP_BUNDLE_ID = "com.theallelectricsmartgrid.smartgridone"
-
-# Local paths on Mac
-#
 MAC_SMARTGRID_DIR = Path.home() / "Documents" / "SmartGridOne"
 MAC_PATCHES_DIR = MAC_SMARTGRID_DIR / "patches"
 MAC_RECORDINGS_DIR = MAC_SMARTGRID_DIR / "recordings"
 MAC_LOGS_DIR = MAC_SMARTGRID_DIR / "logs"
-
-# Chunk size for streaming downloads (match pymobiledevice3 AFC max read)
-#
-DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024  # 4 MB
+IPAD_DOCUMENTS_DIR = "/Documents/SmartGridOne"
+DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024
 
 
-def extract_stereo_recording(local_path: Path) -> None:
+def extract_stereo_recording(local_path):
     channel_count = int(
         subprocess.check_output(["soxi", "-c", str(local_path)], text=True).strip()
     )
     if channel_count < 2:
         raise ValueError(f"{local_path} has only {channel_count} channel(s)")
-
-    left_channel = channel_count - 1
-    right_channel = channel_count
     stereo_path = local_path.with_stem(local_path.stem + "_stereo")
-
-    print(f"  Extracting stereo from channels {left_channel}-{right_channel}: {stereo_path.name}")
     subprocess.run(
-        ["sox", str(local_path), str(stereo_path), "remix", str(left_channel), str(right_channel)],
-        check=True
+        [
+            "sox",
+            str(local_path),
+            str(stereo_path),
+            "remix",
+            str(channel_count - 1),
+            str(channel_count),
+        ],
+        check=True,
     )
 
 
-def download_afc_file(afc, full_ipad_path: str, local_path: Path, progress_label: str = "Copying") -> None:
-    """
-    Stream a file from iPad AFC to a local path using fopen/fread/fclose.
-    Prints progress so large files don't appear to hang.
-    """
-    info = afc.stat(full_ipad_path)
-    if info.get("st_ifmt") != "S_IFREG":
-        raise ValueError(f"{full_ipad_path} is not a regular file")
-    size = int(info["st_size"])
-    handle = afc.fopen(full_ipad_path, "r")
+async def download_afc_file(
+    afc,
+    remote_path,
+    local_path,
+    progress_label="Copying",
+    expected_size=None,
+):
+    if expected_size is None:
+        info = await afc.stat(remote_path)
+        if info.get("st_ifmt") != "S_IFREG":
+            raise ValueError(f"{remote_path} is not a regular file")
+        expected_size = int(info["st_size"])
+
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    partial_path = local_path.with_name(f".{local_path.name}.partial")
+    partial_path.unlink(missing_ok=True)
+    handle = await afc.fopen(remote_path, "r")
+    total = 0
     try:
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(local_path, "wb") as f:
-            total = 0
-            last_reported_mb = 0
-            while total < size:
-                to_read = min(DOWNLOAD_CHUNK_SIZE, size - total)
-                chunk = afc.fread(handle, to_read)
-                f.write(chunk)
+        with partial_path.open("wb") as output:
+            while total < expected_size:
+                requested = min(DOWNLOAD_CHUNK_SIZE, expected_size - total)
+                chunk = await afc.fread(handle, requested)
+                if not chunk:
+                    raise IOError(
+                        f"short read for {remote_path}: received {total} of {expected_size} bytes"
+                    )
+                output.write(chunk)
                 total += len(chunk)
-                current_mb = int(total / (1024 * 1024))
-                if current_mb >= 1 and current_mb // 10 > last_reported_mb // 10:
-                    print(f"  {progress_label}: {total / (1024*1024):.1f} MB / {size / (1024*1024):.1f} MB")
-                    last_reported_mb = current_mb
-        if size >= 1024 * 1024:
-            print(f"  {progress_label}: {size / (1024*1024):.1f} MB done")
+                if total > expected_size:
+                    raise IOError(
+                        f"oversized read for {remote_path}: received more than {expected_size} bytes"
+                    )
+        partial_path.replace(local_path)
+    except BaseException:
+        partial_path.unlink(missing_ok=True)
+        raise
     finally:
-        afc.fclose(handle)
+        await afc.fclose(handle)
+
+    if expected_size >= 1024 * 1024:
+        print(f"  {progress_label}: {expected_size / (1024 * 1024):.1f} MB done")
 
 
-def get_ipad_connection():
-    """
-    Connect to the first available iOS device via USB.
-    """
-    devices = list_devices()
-    if not devices:
-        print("No iOS devices found. Make sure your iPad is connected via USB.")
-        return None
-    
-    device = devices[0]
-    print(f"Found device: {device.serial}")
-    
-    try:
-        lockdown = create_using_usbmux(serial=device.serial)
-        return lockdown
-    except Exception as e:
-        print(f"Failed to connect to device: {e}")
-        return None
+async def ensure_remote_dir(afc, path):
+    if not await afc.exists(path):
+        await afc.makedirs(path)
 
 
-def get_app_documents_path(afc: HouseArrestService) -> Optional[str]:
-    """
-    Find the SmartGridOne app's Documents directory on the iOS device.
-    The AFC service for app containers uses relative paths from the app's container.
-    """
-    # When using HouseArrestService with the app's bundle ID, the root is the app's container
-    # Documents folder is at /Documents relative to the container root
-    #
-    return "/Documents/SmartGridOne"
+async def list_files_recursive(afc, root):
+    entries = []
+    async for directory, directories, files in afc.walk(root):
+        directory_path = PurePosixPath(directory)
+        for name in directories:
+            full_path = directory_path / name
+            entries.append((str(full_path.relative_to(root)), True, str(full_path)))
+        for name in files:
+            full_path = directory_path / name
+            entries.append((str(full_path.relative_to(root)), False, str(full_path)))
+    return entries
 
 
-def ensure_dir_exists(afc: HouseArrestService, path: str):
-    """
-    Ensure a directory exists on the iOS device.
-    """
-    try:
-        afc.makedirs(path)
-    except Exception:
-        # Directory might already exist
-        #
-        pass
-
-
-def list_files_recursive(afc: HouseArrestService, path: str, base_path: str = "") -> list:
-    """
-    Recursively list all files in a directory on iOS device.
-    Returns list of (relative_path, is_directory) tuples.
-    """
-    files = []
-    try:
-        entries = afc.listdir(path)
-        for entry in entries:
-            if entry in [".", ".."]:
-                continue
-            
-            full_path = f"{path}/{entry}"
-            rel_path = f"{base_path}/{entry}" if base_path else entry
-            
-            try:
-                info = afc.stat(full_path)
-                is_dir = info.get("st_ifmt") == "S_IFDIR"
-                files.append((rel_path, is_dir, full_path))
-                
-                if is_dir:
-                    files.extend(list_files_recursive(afc, full_path, rel_path))
-            except Exception:
-                pass
-    except Exception as e:
-        print(f"Error listing {path}: {e}")
-    
-    return files
-
-
-def sync_patches_to_ipad(afc: HouseArrestService, ipad_patches_path: str):
-    """
-    Copy patches from Mac to iPad that don't exist on iPad.
-    """
+async def sync_patches_to_ipad(afc, remote_root):
     if not MAC_PATCHES_DIR.exists():
-        print(f"Mac patches directory does not exist: {MAC_PATCHES_DIR}")
         return
-    
-    ensure_dir_exists(afc, ipad_patches_path)
-    
-    # Get list of files on iPad
-    #
-    ipad_files = set()
-    for rel_path, is_dir, _ in list_files_recursive(afc, ipad_patches_path):
-        ipad_files.add(rel_path)
-    
-    # Walk through Mac patches and copy missing ones
-    #
-    for local_path in MAC_PATCHES_DIR.rglob("*"):
-        rel_path = local_path.relative_to(MAC_PATCHES_DIR)
-        rel_path_str = str(rel_path).replace("\\", "/")
-        
-        if rel_path_str not in ipad_files:
-            ipad_path = f"{ipad_patches_path}/{rel_path_str}"
-            
-            if local_path.is_dir():
-                print(f"Creating directory on iPad: {rel_path_str}")
-                ensure_dir_exists(afc, ipad_path)
-            else:
-                print(f"Copying to iPad: {rel_path_str}")
-                # Ensure parent directory exists
-                #
-                parent_path = f"{ipad_patches_path}/{rel_path.parent}".replace("\\", "/")
-                if str(rel_path.parent) != ".":
-                    ensure_dir_exists(afc, parent_path)
-                
-                # Read and upload file
-                #
-                with open(local_path, "rb") as f:
-                    data = f.read()
-                afc.set_file_contents(ipad_path, data)
+    await ensure_remote_dir(afc, remote_root)
+    remote_entries = {
+        relative for relative, _is_directory, _full in await list_files_recursive(afc, remote_root)
+    }
+    for local_path in sorted(MAC_PATCHES_DIR.rglob("*")):
+        relative = local_path.relative_to(MAC_PATCHES_DIR).as_posix()
+        if relative in remote_entries:
+            continue
+        remote_path = f"{remote_root}/{relative}"
+        if local_path.is_dir():
+            print(f"Creating directory on iPad: {relative}")
+            await ensure_remote_dir(afc, remote_path)
+        else:
+            print(f"Copying to iPad: {relative}")
+            await ensure_remote_dir(afc, str(PurePosixPath(remote_path).parent))
+            await afc.set_file_contents(remote_path, local_path.read_bytes())
 
 
-def sync_patches_from_ipad(afc: HouseArrestService, ipad_patches_path: str):
-    """
-    Copy patches from iPad to Mac that don't exist on Mac.
-    """
+async def sync_patches_from_ipad(afc, remote_root):
     MAC_PATCHES_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # Get list of files on iPad
-    #
-    try:
-        ipad_entries = list_files_recursive(afc, ipad_patches_path)
-    except Exception as e:
-        print(f"Could not list iPad patches: {e}")
-        return
-    
-    for rel_path, is_dir, full_ipad_path in ipad_entries:
-        local_path = MAC_PATCHES_DIR / rel_path
-        
-        if not local_path.exists():
-            if is_dir:
-                print(f"Creating directory on Mac: {rel_path}")
-                local_path.mkdir(parents=True, exist_ok=True)
-            else:
-                print(f"Copying from iPad: {rel_path}")
-                # Ensure parent directory exists
-                #
-                local_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                # Download file (streamed with progress)
-                #
-                try:
-                    download_afc_file(afc, full_ipad_path, local_path, progress_label="Copying")
-                except Exception as e:
-                    print(f"  Error: {e}")
-
-
-def sync_recordings_from_ipad(afc: HouseArrestService, ipad_recordings_path: str):
-    """
-    Copy recordings from iPad to Mac and delete from iPad.
-    """
-    MAC_RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # Get list of recordings on iPad
-    #
-    try:
-        ipad_entries = list_files_recursive(afc, ipad_recordings_path)
-    except Exception as e:
-        print(f"Could not list iPad recordings: {e}")
-        return
-    
-    # Filter to only files (not directories)
-    #
-    recording_files = [(rel, full) for rel, is_dir, full in ipad_entries if not is_dir]
-    
-    for rel_path, full_ipad_path in recording_files:
-        local_path = MAC_RECORDINGS_DIR / rel_path
-        
-        print(f"Copying recording from iPad: {rel_path}")
-        
-        # Download file (streamed with progress)
-        #
-        try:
-            download_afc_file(afc, full_ipad_path, local_path, progress_label="Copied")
-
-            extract_stereo_recording(local_path)
-
-            # Delete from iPad after successful copy
-            #
-            print(f"  Deleting from iPad: {rel_path}")
-            afc.rm(full_ipad_path)
-        except subprocess.CalledProcessError as e:
-            print(f"  Sox error: {e}")
-        except Exception as e:
-            print(f"  Error: {e}")
-
-
-def sync_logs_from_ipad(afc: HouseArrestService, ipad_logs_path: str):
-    """
-    Copy logs from iPad to Mac and retain them on iPad.
-    """
-    MAC_LOGS_DIR.mkdir(parents=True, exist_ok=True)
-
-    try:
-        ipad_entries = list_files_recursive(afc, ipad_logs_path)
-    except Exception as e:
-        print(f"Could not list iPad logs: {e}")
-        return
-
-    log_files = [(rel, full) for rel, is_dir, full in ipad_entries if not is_dir]
-
-    for rel_path, full_ipad_path in log_files:
-        local_path = MAC_LOGS_DIR / rel_path
-
+    for relative, is_directory, remote_path in await list_files_recursive(afc, remote_root):
+        local_path = MAC_PATCHES_DIR / relative
         if local_path.exists():
             continue
+        if is_directory:
+            print(f"Creating directory on Mac: {relative}")
+            local_path.mkdir(parents=True, exist_ok=True)
+        else:
+            print(f"Copying from iPad: {relative}")
+            await download_afc_file(afc, remote_path, local_path)
 
-        print(f"Copying log from iPad: {rel_path}")
 
-        try:
-            download_afc_file(afc, full_ipad_path, local_path, progress_label="Copied")
-        except Exception as e:
-            print(f"  Error: {e}")
+async def sync_recording(afc, remote_path, local_path, extractor=extract_stereo_recording):
+    first = await afc.stat(remote_path)
+    expected_size = int(first["st_size"])
+    await download_afc_file(
+        afc,
+        remote_path,
+        local_path,
+        progress_label="Copied",
+        expected_size=expected_size,
+    )
+    extractor(local_path)
+    current_size = int((await afc.stat(remote_path))["st_size"])
+    if current_size != expected_size:
+        raise IOError(
+            f"{remote_path} changed size during transfer ({expected_size} to {current_size}); retained on iPad"
+        )
+    print(f"  Deleting from iPad: {local_path.name}")
+    await afc.rm(remote_path)
+
+
+async def sync_recordings_from_ipad(afc, remote_root):
+    MAC_RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
+    entries = await list_files_recursive(afc, remote_root)
+    for relative, is_directory, remote_path in entries:
+        if is_directory:
+            continue
+        print(f"Copying recording from iPad: {relative}")
+        await sync_recording(afc, remote_path, MAC_RECORDINGS_DIR / relative)
+
+
+async def sync_log_file(afc, remote_path, local_path):
+    info = await afc.stat(remote_path)
+    remote_size = int(info["st_size"])
+    if local_path.exists() and local_path.stat().st_size >= remote_size:
+        return False
+    await download_afc_file(
+        afc,
+        remote_path,
+        local_path,
+        progress_label="Copied",
+        expected_size=remote_size,
+    )
+    return True
+
+
+async def sync_logs_from_ipad(afc, remote_root):
+    MAC_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    entries = await list_files_recursive(afc, remote_root)
+    for relative, is_directory, remote_path in entries:
+        if is_directory:
+            continue
+        local_path = MAC_LOGS_DIR / relative
+        if await sync_log_file(afc, remote_path, local_path):
+            print(f"Copied log from iPad: {relative}")
+
+
+async def sync(transport, udid, host, include_recordings=True):
+    for directory in (MAC_PATCHES_DIR, MAC_RECORDINGS_DIR, MAC_LOGS_DIR):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    async with connect_ipad(transport, udid=udid, host=host) as lockdown:
+        print(f"Connected to {lockdown.display_name} ({lockdown.udid})")
+        async with await HouseArrestService.create(
+            lockdown,
+            APP_BUNDLE_ID,
+            documents_only=False,
+        ) as afc:
+            remote_paths = {
+                "patches": f"{IPAD_DOCUMENTS_DIR}/patches",
+                "recordings": f"{IPAD_DOCUMENTS_DIR}/recordings",
+                "logs": f"{IPAD_DOCUMENTS_DIR}/logs",
+            }
+            for path in (IPAD_DOCUMENTS_DIR, *remote_paths.values()):
+                await ensure_remote_dir(afc, path)
+
+            print("\n--- Syncing Patches (Mac -> iPad) ---")
+            await sync_patches_to_ipad(afc, remote_paths["patches"])
+            print("\n--- Syncing Patches (iPad -> Mac) ---")
+            await sync_patches_from_ipad(afc, remote_paths["patches"])
+            if include_recordings:
+                print("\n--- Syncing Recordings (iPad -> Mac, delete after extraction) ---")
+                await sync_recordings_from_ipad(afc, remote_paths["recordings"])
+            print("\n--- Syncing Logs (iPad -> Mac, retain on iPad) ---")
+            await sync_logs_from_ipad(afc, remote_paths["logs"])
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description="Sync SmartGridOne files with the paired iPad")
+    parser.add_argument("--transport", choices=("auto", "usb", "wifi"), default="auto")
+    parser.add_argument("--udid", default=None)
+    parser.add_argument("--host", default=None)
+    parser.add_argument(
+        "--no-recordings",
+        action="store_true",
+        help="skip all recording download and deletion",
+    )
+    return parser
 
 
 def main():
-    print("SmartGridOne iPad Sync")
-    print("=" * 50)
-    
-    # Ensure local directories exist
-    #
-    MAC_SMARTGRID_DIR.mkdir(parents=True, exist_ok=True)
-    MAC_PATCHES_DIR.mkdir(parents=True, exist_ok=True)
-    MAC_RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-    MAC_LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # Connect to iPad
-    #
-    print("\nConnecting to iPad...")
-    lockdown = get_ipad_connection()
-    if not lockdown:
-        return 1
-    
-    print(f"Connected to: {lockdown.display_name}")
-    
-    # Create AFC service for the app's container
-    # In newer pymobiledevice3 versions, HouseArrestService directly provides AFC methods
-    #
+    args = build_parser().parse_args()
+    udid = device_udid(args.udid)
+    host = device_host(args.host)
+    print(f"SmartGridOne iPad sync: {udid} via {args.transport}")
     try:
-        print(f"\nAccessing app container: {APP_BUNDLE_ID}")
-        afc = HouseArrestService(lockdown, bundle_id=APP_BUNDLE_ID)
-    except Exception as e:
-        print(f"Failed to access app container: {e}")
-        print("Make sure SmartGridOne is installed on the iPad.")
+        asyncio.run(
+            sync(
+                args.transport,
+                udid,
+                host,
+                include_recordings=not args.no_recordings,
+            )
+        )
+    except Exception as error:
+        print(f"Error: {error}", file=sys.stderr)
         return 1
-    
-    # Get app documents path
-    #
-    app_docs = get_app_documents_path(afc)
-    ipad_patches_path = f"{app_docs}/patches"
-    ipad_recordings_path = f"{app_docs}/recordings"
-    ipad_logs_path = f"{app_docs}/logs"
-    
-    # Ensure directories exist on iPad
-    #
-    ensure_dir_exists(afc, app_docs)
-    ensure_dir_exists(afc, ipad_patches_path)
-    ensure_dir_exists(afc, ipad_recordings_path)
-    ensure_dir_exists(afc, ipad_logs_path)
-    
-    # Sync patches (bi-directional)
-    #
-    print("\n--- Syncing Patches (Mac -> iPad) ---")
-    sync_patches_to_ipad(afc, ipad_patches_path)
-    
-    print("\n--- Syncing Patches (iPad -> Mac) ---")
-    sync_patches_from_ipad(afc, ipad_patches_path)
-    
-    # Sync recordings (one-way: iPad -> Mac, then delete from iPad)
-    #
-    print("\n--- Syncing Recordings (iPad -> Mac, delete from iPad) ---")
-    sync_recordings_from_ipad(afc, ipad_recordings_path)
-
-    # Sync logs (one-way: iPad -> Mac, retain on iPad)
-    #
-    print("\n--- Syncing Logs (iPad -> Mac, retain on iPad) ---")
-    sync_logs_from_ipad(afc, ipad_logs_path)
-    
-    print("\n" + "=" * 50)
-    print("Sync complete!")
-    
+    print("Sync complete")
     return 0
 
 

@@ -1,23 +1,10 @@
-# If RACK_DIR is not defined when calling the Makefile, default to two directories above
-RACK_DIR ?= ../..
+JUCE_DIR := JUCE/SmartGridOne
+JUCE_TARGETS := build clean run build-sanitized run-sanitized clang-tidy \
+	ios-setup ios-build ios-install ios-deploy deploy-ios list-ios-devices
 
-# FLAGS will be passed to both the C and C++ compiler
-FLAGS +=
-CFLAGS +=
-CXXFLAGS +=-funroll-loops
+.PHONY: all $(JUCE_TARGETS)
 
-# Careful about linking to shared libraries, since you can't assume much about the user's environment and library search path.
-# Static libraries are fine, but they should be added to this plugin's build system.
-LDFLAGS +=
+all: build
 
-# Add .cpp files to the build
-SOURCES += $(wildcard src/*.cpp)
-
-# Add files to the ZIP package when running `make dist`
-# The compiled plugin and "plugin.json" are automatically added.
-DISTRIBUTABLES += res
-DISTRIBUTABLES += $(wildcard LICENSE*)
-DISTRIBUTABLES += $(wildcard presets)
-
-# Include the Rack plugin Makefile framework
-include $(RACK_DIR)/plugin.mk
+$(JUCE_TARGETS):
+	$(MAKE) -C $(JUCE_DIR) $@

@@ -45,12 +45,14 @@ It interfaces with a custom MIDI controller.
 
 ## Building
 
-The project can be built using the `make` file located in the `JUCE/SmartGridOne` directory.
+The project can be built from the repository root.
 
 ```bash
-cd JUCE/SmartGridOne
 make
 ```
+
+For Wi-Fi iPad setup, deployment, sync, and log capture, see
+**[iPad Wi-Fi tools](../ipad-tools.md)**.
 
 ---
 
