@@ -379,7 +379,7 @@
 			outputPaths = ();
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "/usr/bin/python3 \"${SRCROOT}/../../scripts/prepare_apple_audio_module.py\" \"${SRCROOT}/../../../../third_party/JUCE/modules/juce_audio_devices\" \"${PROJECT_TEMP_DIR}/SmartGridJuceModules/juce_audio_devices\"";
+			shellScript = "/usr/bin/python3 \"${SRCROOT}/../../scripts/prepare_apple_audio_module.py\" \"${SRCROOT}/../../../../third_party/JUCE/modules/juce_audio_devices\" \"${PROJECT_TEMP_DIR}/SmartGridJuceModules/juce_audio_devices\" && /usr/bin/python3 \"${SRCROOT}/../../../../scripts/generate_build_info.py\" \"${SRCROOT}/../../../..\" \"${PROJECT_TEMP_DIR}/SmartGridBuildInfo/SmartGridBuildInfo.hpp\"";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -471,6 +471,7 @@
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 			HEADER_SEARCH_PATHS = (
+				"$(PROJECT_TEMP_DIR)/SmartGridBuildInfo",
 				"$(PROJECT_TEMP_DIR)/SmartGridJuceModules",
 				"$(SRCROOT)/../../JuceLibraryCode",
 					"$(SRCROOT)/../../../../third_party/JUCE/modules",
@@ -542,6 +543,7 @@
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 			HEADER_SEARCH_PATHS = (
+				"$(PROJECT_TEMP_DIR)/SmartGridBuildInfo",
 				"$(PROJECT_TEMP_DIR)/SmartGridJuceModules",
 				"$(SRCROOT)/../../JuceLibraryCode",
 					"$(SRCROOT)/../../../../third_party/JUCE/modules",

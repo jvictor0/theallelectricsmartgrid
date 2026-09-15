@@ -26,6 +26,15 @@ set(TEST_DIR        ${CMAKE_CURRENT_SOURCE_DIR})
 set(REPO_ROOT       ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 set(SRC_DIR         ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(BUILD_INFO_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+add_custom_target(smartgrid_build_info
+    COMMAND "${Python3_EXECUTABLE}" "${REPO_ROOT}/scripts/generate_build_info.py"
+            "${REPO_ROOT}" "${BUILD_INFO_DIR}/SmartGridBuildInfo.hpp"
+    BYPRODUCTS "${BUILD_INFO_DIR}/SmartGridBuildInfo.hpp"
+    VERBATIM
+)
+
 # ---------------------------------------------------------------------------
 # JSON is now provided by the self-contained, header-only arena library
 # (private/src/Json.hpp). No external jansson submodule is required.
@@ -45,10 +54,12 @@ list(REMOVE_ITEM EXTRA_UNIT_TESTS ${TEST_DIR}/unit/infra_spike.cpp)
 list(APPEND TEST_SOURCES ${EXTRA_UNIT_TESTS} ${EXTRA_SYSTEM_TESTS})
 
 add_executable(smartgrid_tests ${TEST_SOURCES})
+add_dependencies(smartgrid_tests smartgrid_build_info)
 
 target_include_directories(smartgrid_tests PRIVATE
     ${TEST_DIR}
     ${SRC_DIR}
+    "${BUILD_INFO_DIR}"
 )
 
 # The standalone tests compile the core headers without JUCE. JSON is provided

@@ -87,6 +87,7 @@ public:
     virtual void releaseResources() override
     {
         m_audioReady.store(false, std::memory_order_release);
+        m_nonagon.ReleaseResources();
     }
 
     void SetRecordingDirectory(const char* directory)

@@ -668,12 +668,33 @@ struct SquiggleBoy
 
     bool IsRecording() const
     {
-        return m_mixer.m_isRecording;
+        return m_mixer.IsRecording();
+    }
+
+    StreamingRecorder::State GetRecordingState() const
+    {
+        return m_mixer.GetRecordingState();
+    }
+
+    StreamingRecorder::Error GetRecordingError() const
+    {
+        return m_mixer.GetRecordingError();
+    }
+
+    bool PrepareRecording()
+    {
+        return m_mixer.PrepareRecording(m_mixerState.m_numInputs, m_mixerState.m_numMonoInputs,
+            static_cast<uint32_t>(SampleTimer::x_sampleRate));
+    }
+
+    void ShutdownRecording()
+    {
+        m_mixer.ShutdownRecording();
     }
 
     void ToggleRecording()
     {
-        m_mixer.ToggleRecording(x_numVoices + SourceMixer::x_numOutputChannels, 48000);
+        m_mixer.ToggleRecording(m_mixerState.m_numInputs, static_cast<uint32_t>(SampleTimer::x_sampleRate));
     }
 
     void SetRecordingDirectory(const std::string& directory)
@@ -1057,6 +1078,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         };
 
         std::atomic<VisualDisplayMode> m_visualDisplayMode;
+        std::atomic<StreamingRecorder::State> m_recordingState = StreamingRecorder::State::Idle;
+        std::atomic<StreamingRecorder::Error> m_recordingError = StreamingRecorder::Error::None;
 
         EncoderBankUIState m_encoderBankUIState;
         ScopeWriter m_audioScopeWriter;
@@ -1777,6 +1800,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void PopulateUIState(UIState* uiState)
     {
+        uiState->m_recordingState.store(GetRecordingState());
+        uiState->m_recordingError.store(GetRecordingError());
         m_encoders.PopulateUIState(&uiState->m_encoderBankUIState);
         uiState->m_activeTrack.store(m_encoders.GetCurrentTrack());
 
