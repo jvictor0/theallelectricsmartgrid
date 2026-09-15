@@ -133,19 +133,19 @@ Final logs: `/private/tmp/smartgrid-final-{silence,audio,noise}.log`.
 Reproduce using `private/test/tools/benchmark_recording.cpp` and the command in
 the format documentation. This is a smoke measurement, not a long-duration soak.
 
-## Review and remaining checks
+## Review and remaining checks at initial implementation
 
 Independent review found no DSP changes, ring ownership defects or unnecessary
 abstractions. Fixed the reported master-metadata validation mismatch, exception
 during sink close, and sync retry behavior. Worker stderr logging avoids adding
 accesses to the shared logger's audio sample counter and SPSC queue.
 
-Tasks **6.2 and 6.3 remain open for physical device checks**: live macOS/iPad
+At initial implementation, tasks **6.2 and 6.3 remained open for physical device checks**: live macOS/iPad
 recording controls, interruption/device shutdown, exported playback, and iPad
 storage/callback performance under representative synth load. The available
 desktop build, fixture, lifecycle and benchmark portions are complete. Hardware
 results are not inferred from host tests. No archive or main-branch integration
-has been performed.
+had been performed at that point. The later authorized Wi-Fi measurements below complete those checks.
 
 ## PR preparation
 
@@ -211,6 +211,98 @@ sustained iPad performance measurement.
 
 Remaining physical checks are live playback, shutdown/interruption behavior,
 and sustained iPad recording under representative synth load, including callback
-cost, worker latency, queue high-water, and memory. No such results are inferred
-from this short recording. Tasks 6.2 and 6.3 remain open pending those checks or
-an explicit owner decision to defer them.
+cost, worker latency, queue high-water, and memory. No such results were inferred
+from this short recording. Those checks were subsequently completed in the
+authorized Wi-Fi measurement run below.
+
+## Authorized Wi-Fi iPad measurements (2026-09-15)
+
+The owner authorized deployment and physical-device measurement rather than
+deferring tasks 6.2/6.3. The measured device was the iPad Air 13-inch (M3),
+with MAYA44 USB+ input/output at 48 kHz, four hardware channels, and 512-frame
+callbacks (10.667 ms deadline). The final run spans approximately
+16:34:11–16:37:48 America/Los_Angeles.
+
+A temporary Release measurement build based on `6e01f02` exercised the existing
+record-cell start path and recorder stop API inside the real app audio callback.
+The loaded patch and live DSP continued running. Synthetic phases replaced only
+the samples submitted to the test recording: all 78 streams were exercised with
+silence, sines/moving coordinates, and independent random audio/coordinates.
+The synthetic recording masters are test data, not exports of the audible mix.
+All temporary hooks were removed from the source after building. The unchanged
+normal Release app was rebuilt, reinstalled, and launched successfully afterward.
+
+| Input | Accepted/written frames | File bytes | Raw PCM24 / file | Max block encode/write | Ring high-water | Mean callback | Max callback |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Loaded patch, 60-second phase | 2,879,488 | 43,290,272 | 15.56470:1 | 9.41 ms | 1/32 | 4.529 ms | 5.045 ms |
+| Silence, 30-second phase | 1,439,744 | 4,052 | 83,144.15:1 | 4.70 ms | 1/32 | 4.529 ms | 5.019 ms |
+| Sines + moving pans, 30-second phase | 1,439,761 | 166,561,230 | 2.02270:1 | 30.68 ms | 2/32 | 4.532 ms | 5.007 ms |
+| Independent random audio + coordinates, 30-second phase | 1,439,744 | 336,912,548 | 0.99996:1 | 46.28 ms | 3/32 | 4.524 ms | 5.053 ms |
+
+Phase duration includes asynchronous startup; the accepted frame count is the
+exact recording length. Compression includes complete container overhead and
+silent-track omission. The loaded patch is sparse, so its ratio is not a
+prediction for a fully active patch. All 31 tracks were present in every signal
+and random-data block, and every silence block omitted all tracks.
+
+The 20-second recording-off baselines measured 4.531 ms mean / 5.416 ms maximum
+before recording and 4.525 ms mean / 4.996 ms maximum afterward. All post-warmup
+phases had zero audio deadline overruns, long callback gaps, format mutes, and
+USB audio xruns. Thermal state remained nominal. Warmup itself recorded one
+22.01 ms callback, one long gap, and one format mute before any recording began;
+those startup observations are retained rather than counted as steady-state
+recording performance.
+
+Recorder calls sampled in 1/128 callbacks took approximately 555 ns per frame
+in the loaded-patch phase (429–446 ns in the short lifecycle/recovery phases).
+These figures include probe clock overhead and are an instrumented upper
+estimate. The worker maximum covers encoding/writing, not earlier page
+transposition/quantization. The queue high-water includes all worker stages.
+Whole-app physical footprint peaked at 1.813 GiB; this includes the existing
+synth/sample/delay state and is not a recorder-only allocation measurement.
+The callback means do not resolve a meaningful recording-on versus off
+regression in this run. The existing one-second blocks and 32-page ring require
+no tuning based on these results.
+
+Lifecycle and failure checks:
+
+- Closing the actual JUCE audio device while recording drained all 240,128
+  accepted frames into a complete file. Device close took 1.036 seconds on the
+  message thread, including OS audio-device teardown. Reopening the device and
+  recording again produced a complete 239,616-frame file without errors.
+- A deliberately injected 1.5-second worker stall filled all 32 ring slots.
+  Capture stopped with `Overrun` after 79,872 accepted frames; every accepted
+  frame drained, and the file omitted `END1`. Audio callback timing and xruns
+  remained clean. The async log recorded the failure once.
+- Starting again after that error produced a complete 239,681-frame recording.
+- All eight final-run recordings passed full bounded-reader block, CRC,
+  sample-range, timeline, frame-count, and file-size verification. The seven
+  normal files had valid completion markers. The stalled file produced exactly
+  the expected missing-completion error after its two valid blocks.
+- Both mastered WAVs from the one-minute actual recording matched every one of
+  its 2,879,488 recorded frames. Both stalled-file exports matched all 79,872
+  valid-prefix frames and reported incomplete status.
+
+The first temporary probe had a phase-boundary timing artifact: an unmeasured
+callback could enter the next phase's end-timing hook. That probe was corrected
+by pairing each callback's start/end measurement explicitly, and all final
+measurements above come from the repeated run. No production fix was needed.
+The normal restored app's log confirms 48 kHz / 512 frames / four-channel MAYA
+routing, nominal thermal state, and approximately 42.3% reported audio CPU.
+This validates the internal digital path; no external analog speaker capture
+was performed, and this several-minute exercise is not a long-duration soak.
+
+Local evidence is retained under `/private/tmp/smartgrid-ipad-measurement/`:
+`recording-probe.jsonl`, `validation.json`, `validation.log`, `exports.log`,
+`build-v2.log`, `install-v2.log`, `launch-v2.log`, `restore.log`, the final app
+log, and `restored-app-log/`. `instrumentation-v2.patch` and `probe-v2/` preserve
+the temporary measurement changes; `normal-SmartGridOne.app` and
+`measurement-v2-SmartGridOne.app` distinguish the two built executables.
+
+The preliminary app upgrade also interrupted a live random-data recording.
+Its preserved file contains 17 fully validated blocks / 816,000 frames and
+reports exactly `Missing END1 completion marker after 816000 frames`, confirming
+the real process-interruption prefix behavior. The 12 measurement-only device
+recordings were identified by the captured initial inventory, test build SHA,
+and test time window for cleanup; the final-run files, exports, and interrupted
+recording are preserved on the Mac. No original user recording was removed.

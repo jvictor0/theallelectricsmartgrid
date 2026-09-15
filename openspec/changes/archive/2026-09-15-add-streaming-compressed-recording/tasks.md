@@ -33,10 +33,10 @@
 ## 6. Verification and Documentation
 
 - [x] 6.1 Run the standalone CMake suite, existing sampler-looper round trips, and Python cross-language/extraction tests; use available address/thread sanitizers for the targeted ownership and error cases.
-- [ ] 6.2 Build the maintained macOS and iOS targets and smoke-test recording controls, file creation, build SHA, both mastered exports, and shutdown.
-- [ ] 6.3 Measure sustained full-layout recording with silence, representative audio/moving pans, and worst-case noise on macOS/iPad. Record compression, worker latency, ring high-water, peak memory, and callback cost; confirm or tune the one-second/32-slot defaults and exercise a stalled sink.
+- [x] 6.2 Build the maintained macOS and iOS targets and smoke-test recording controls, file creation, build SHA, both mastered exports, and shutdown.
+- [x] 6.3 Measure sustained full-layout recording with silence, representative audio/moving pans, and worst-case noise on macOS/iPad. Record compression, worker latency, ring high-water, peak memory, and callback cost; confirm or tune the one-second/32-slot defaults and exercise a stalled sink.
 - [x] 6.4 Finish format/CLI documentation, including pre-listening-volume masters and incomplete-export exit status. Record any unavailable hardware checks accurately, validate the OpenSpec change, and attach implementation evidence before checking off tasks.
 
 ## Verification notes
 
-See [verification.md](verification.md) for commands, test results, known baseline failures, desktop measurements and platform build evidence. Both Apple builds and the desktop benchmark passed. The 2026-09-15 iPad recording also confirms file creation, the current build SHA, clean completion, sync, and exact stereo/quad extraction. Tasks 6.2 and 6.3 remain unchecked for live playback/shutdown/interruption checks and sustained iPad performance under representative synth load.
+See [verification.md](verification.md) for commands, test results, known baseline failures, platform builds, and the completed 2026-09-15 Wi-Fi iPad measurements. Both masters were checked against their recorded PCM24 integers. The physical run covered normal recording, full-layout silence/moving signals/noise, device close/reopen, a forced writer stall, and recovery. All temporary measurement hooks were removed and the normal app restored. These are bounded hardware checks, not a long-duration soak or an external analog-path measurement.
