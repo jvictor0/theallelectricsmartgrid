@@ -130,6 +130,13 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
     process();
     synth.PopulateUIState(&rig.UIState().m_squiggleBoyUIState);
     DOCTEST_CHECK(rig.UIState().m_squiggleBoyUIState.m_recordingError == StreamingRecorder::Error::InvalidConfiguration);
-    DOCTEST_CHECK(recordCell.GetColor() == SmartGrid::Color::Orange);
+    const size_t savedSample = SampleTimer::s_instance->m_sample;
+    SampleTimer::s_instance->m_sample = 0;
+    DOCTEST_CHECK(recordCell.GetColor() == SmartGrid::Color::Red);
+    SampleTimer::s_instance->m_sample = SampleTimer::x_sampleRate / 8;
+    DOCTEST_CHECK(recordCell.GetColor() == SmartGrid::Color::Off);
+    SampleTimer::s_instance->m_sample = SampleTimer::x_sampleRate / 4;
+    DOCTEST_CHECK(recordCell.GetColor() == SmartGrid::Color::Red);
+    SampleTimer::s_instance->m_sample = savedSample;
     DOCTEST_CHECK_FALSE(synth.IsRecording());
 }

@@ -161,3 +161,20 @@ PR preparation. Logs are `/private/tmp/smartgrid-pr-rebase-build.log`,
 `/private/tmp/smartgrid-pr-rebase-focused.log`,
 `/private/tmp/smartgrid-pr-rebase-python.log`, and
 `/private/tmp/smartgrid-pr-sha-tests.log`.
+
+## Requested review follow-ups
+
+Implemented the two owner comments on PR 4: error indication blinks red/off at
+4 Hz using `SampleTimer`, and each latched recording error goes through the
+async logger once with state, accepted/written frames, written bytes and queue
+high-water. Reporting occurs on the capture owner or after shutdown has quiesced
+audio; the worker does not read the sample clock or enter the sampler writer's
+SPSC logging queue.
+
+The new checks failed before implementation (static error color and no async
+error messages), then passed with the changes. The standalone CMake build and
+28 selected recording/logger cases passed (2,346 assertions); ThreadSanitizer
+passed 20 codec/recorder/mixer cases (1,989 assertions). Logs are
+`/private/tmp/smartgrid-review-tests.log` and
+`/private/tmp/smartgrid-review-tsan.log`. A subsequent full-PR subagent review is
+read-only; its findings are reported to the owner without automatic fixes.

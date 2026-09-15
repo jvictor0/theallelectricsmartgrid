@@ -8,6 +8,10 @@ reconstruction is applied during extraction.
 
 Sampler-looper WAV recording is unchanged.
 
+The recording pad blinks red four times per second when an error is latched.
+The async log records that error once, with its state, accepted/written frame
+counts, written bytes and queue high-water mark.
+
 ## Inspect and extract
 
 Use Python 3.10 or newer; the extractor needs only the standard library.
