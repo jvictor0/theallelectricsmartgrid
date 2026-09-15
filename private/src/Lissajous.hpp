@@ -1,11 +1,16 @@
 #pragma once
 #include "Slew.hpp"
+#include "Filter.hpp"
 #include "Math.hpp"
+#include "PhaseUtils.hpp"
 
 struct LissajousLFOInternal
 {    
     struct Input
     {
+        static constexpr float x_maxRadius = 5.0f;
+        static constexpr float x_centerRadius = 1.0f;
+
         float m_multX;
         float m_multY;
 
@@ -14,7 +19,8 @@ struct LissajousLFOInternal
 
         float m_phaseShift;
 
-        float m_radius;
+        PhaseUtils::ZeroedExpParam m_radius;
+        TanhSaturator<false> m_saturator;
 
         Input()
             : m_multX(1.0f)
@@ -22,8 +28,10 @@ struct LissajousLFOInternal
             , m_centerX(0)
             , m_centerY(0)
             , m_phaseShift(0.0f)
-            , m_radius(1.0f)
         {
+            m_radius.SetMax(x_maxRadius);
+            m_radius.SetBaseByCenter(x_centerRadius / x_maxRadius);
+            m_radius.Update(0.5f);
         }
 
         std::pair<float, float> Compute(float t)
@@ -56,9 +64,10 @@ struct LissajousLFOInternal
                 ty = ty - std::floorf(ty);
             }
 
+            float rad = m_radius.m_expParam;
             return std::make_pair(
-                m_radius * ampX * Math::Sin2pi(tx) + (1 - m_radius) * m_centerX,
-                m_radius * ampY * Math::Sin2pi(ty) + (1 - m_radius) * m_centerY);
+                m_saturator.Process(rad * ampX * Math::Sin2pi(tx) + (1 - rad / x_maxRadius) * m_centerX),
+                m_saturator.Process(rad * ampY * Math::Sin2pi(ty) + (1 - rad / x_maxRadius) * m_centerY));
         }
     };
 

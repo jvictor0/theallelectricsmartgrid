@@ -1565,7 +1565,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             m_state[i].m_ampInput.m_gain.Update(m_state[i].m_ampInput.m_gainSlew.Process(input.GetGainFader(i)));
 
-            m_state[i].m_panInput.m_radius = m_encoders.GetValue(Param::PanRadius, i);
+            m_state[i].m_panInput.m_radius.Update(m_encoders.GetValueNoSlew(Param::PanRadius, i));
             float staticOffset = static_cast<float>(i % x_numTracks) / x_numTracks + static_cast<float>(i / x_numTracks) / (x_numTracks * x_numTracks);
             m_state[i].m_panInput.m_phaseShift = staticOffset + m_encoders.GetValue(Param::PanPhaseShift, i);
             m_state[i].m_panInput.m_multX = m_encoders.GetValue(Param::PanMultX, i) * 4 + 1;

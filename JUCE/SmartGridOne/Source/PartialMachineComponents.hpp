@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 struct PartialMachineComponentUtils
 {
@@ -102,12 +103,6 @@ struct PartialMachineSpatialComponent : public SmartGridOneMainVisualizerCompone
         float maxPositionRadius = std::min(width, height) * 0.42f;
 
         g.setColour(juce::Colours::darkgrey);
-        g.drawEllipse(
-            centerX - maxPositionRadius,
-            centerY - maxPositionRadius,
-            maxPositionRadius * 2.0f,
-            maxPositionRadius * 2.0f,
-            1.0f);
 
         PartialMachine::UIState& partialMachineUIState = m_uiState->m_squiggleBoyUIState.m_partialMachineUIState;
         PartialMachine::Input dspInput = partialMachineUIState.ToInput();
@@ -121,8 +116,9 @@ struct PartialMachineSpatialComponent : public SmartGridOneMainVisualizerCompone
             float azimuth = PartialMachine::SynthesisContext::GetAzimuth(atom, dspInput.m_synthesisContextInput);
             float scaledMagnitude = PartialMachineComponentUtils::ScaledMagnitude(atom.m_synthesisMagnitude * reduction);
             float displayRadius = 1.0f + scaledMagnitude * std::min(width, height) * 0.04f;
-            float x = centerX + maxPositionRadius * radius * std::cos(juce::MathConstants<float>::twoPi * azimuth);
-            float y = centerY - maxPositionRadius * radius * std::sin(juce::MathConstants<float>::twoPi * azimuth);
+            std::pair<float, float> panXY = PartialMachine::SynthesisContext::GetPanCoordinates(azimuth, radius);
+            float x = centerX + maxPositionRadius * (panXY.first * 2.0f - 1.0f);
+            float y = centerY - maxPositionRadius * (panXY.second * 2.0f - 1.0f);
 
             g.setColour(PartialMachineComponentUtils::ColourFromIndex(atom.m_index));
             g.fillEllipse(

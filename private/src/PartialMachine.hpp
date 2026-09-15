@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Filter.hpp"
 #include "GangedRandomLFO.hpp"
 #include "OLA.hpp"
 #include "PhaseUtils.hpp"
@@ -13,6 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 struct PartialMachine
 {
@@ -91,12 +93,12 @@ struct PartialMachine
                 return 0.0f;
             }
 
-            if (bassCutoff * 2.0f < frequency)
+            if (bassCutoff * 8.0f < frequency)
             {
                 return 1.0f;
             }
 
-            return std::log2f(frequency / bassCutoff);
+            return std::log2f(frequency / bassCutoff) / 3.0f;
         }
 
         static float GetAzimuth(const SpectralModel::Atom& atom, Input& input)
@@ -129,11 +131,18 @@ struct PartialMachine
             return GetPitchShiftedOmega(atom.m_synthesisOmega, atom.m_index, input);
         }
 
+        static std::pair<float, float> GetPanCoordinates(float azimuth, float radius)
+        {
+            TanhSaturator<false> saturator(2 * radius);
+            return std::make_pair(
+                0.5f + 0.5f * saturator.Process(Math::Cos2pi(azimuth)),
+                0.5f + 0.5f * saturator.Process(Math::Sin2pi(azimuth)));
+        }
+
         static QuadFloat Pan(float azimuth, float radius)
         {
-            float x = 0.5f + 0.5f * radius * Math::Cos2pi(azimuth);
-            float y = 0.5f + 0.5f * radius * Math::Sin2pi(azimuth);
-            return QuadFloat::Pan(x, y, 1.0f);
+            std::pair<float, float> xy = GetPanCoordinates(azimuth, radius);
+            return QuadFloat::Pan(xy.first, xy.second, 1.0f);
         }
 
         struct UnisonContext

@@ -30,11 +30,11 @@ The system SHALL add a static phase offset to each voice's Lissajous phase, comp
 - **THEN** that voice's position advances along the same Lissajous trajectory (a pure phase rotation) without changing the figure's shape, center, or size
 
 ### Requirement: Per-Voice Lissajous Figure Parameters
-The system SHALL compute each voice's raw pan coordinates with a per-voice `LissajousLFOInternal`, whose parameters are mapped from the encoder banks per voice: `m_multX` and `m_multY` map from [0, 1] to [1, 5] (`value * 4 + 1`), `m_centerX` and `m_centerY` map from [0, 1] to [-1, 1] (`value * 2 - 1`), and `m_radius` is used directly in [0, 1]. The X axis is evaluated a quarter cycle ahead of the Y axis (`tx` uses `t + 0.25`), so equal multipliers of 1 trace a circle (cosine against sine) rather than a diagonal line.
+The system SHALL compute each voice's raw pan coordinates with a per-voice `LissajousLFOInternal`, whose parameters are mapped from the encoder banks per voice: `m_multX` and `m_multY` map from [0, 1] to [1, 5] (`value * 4 + 1`), `m_centerX` and `m_centerY` map from [0, 1] to [-1, 1] (`value * 2 - 1`), and `m_radius` is a `ZeroedExpParam` from 0 to 5 with 1 at encoder center (default 0.5). The X axis is evaluated a quarter cycle ahead of the Y axis (`tx` uses `t + 0.25`), so equal multipliers of 1 and radius 1 trace a tanh-shaped circle (cosine against sine) rather than a diagonal line.
 
 #### Scenario: Unit multipliers trace a circle
 - **WHEN** a voice has `m_multX = 1`, `m_multY = 1`, `m_phaseShift = 0`, and `m_radius = 1`
-- **THEN** its raw coordinates are (cos(2πt), sin(2πt)) as the input phase t sweeps 0 to 1, tracing one full circle per global pan cycle
+- **THEN** its raw coordinates are the unnormalized `TanhSaturator<false>` of (cos(2πt), sin(2πt)) as the input phase t sweeps 0 to 1, tracing one full circle per global pan cycle
 
 #### Scenario: Different multipliers trace different figures
 - **WHEN** voice A has multipliers X:Y = 1:3 and voice B has multipliers 2:1
@@ -49,15 +49,15 @@ The Lissajous computation SHALL handle non-integer multipliers by amplitude-scal
 - **AND** the X output has no discontinuity at the boundary between the integer and fractional cycles
 
 ### Requirement: Radius Scaling and Center Mixing
-The system SHALL blend each axis between its sine term and its center point by radius: `output = radius * amp * sin(2π t) + (1 - radius) * center`. At radius 0 the coordinates equal the center point exactly (a static pan position); at radius 1 the figure spans full sine amplitude and the center contribution vanishes.
+The system SHALL shape each axis with an unnormalized `TanhSaturator<false>` driven by radius, then add the center: `output = saturator.Process(amp * sin(2π t)) + center` after `SetInputGain(radius)`. At radius 0 the coordinates equal the center point exactly (a static pan position). At radius 1 the figure is a circle inset by tanh. At radius 5 the figure squishes toward a square.
 
 #### Scenario: Radius zero collapses to the center point
 - **WHEN** a voice has `m_radius = 0` and `m_centerX = 0.5`, `m_centerY = -0.5`
 - **THEN** its raw coordinates are exactly (0.5, -0.5) on every sample regardless of the input phase
 
-#### Scenario: Radius sweep morphs from point to full figure
+#### Scenario: Radius sweep morphs from point to circle to square
 - **WHEN** `PanRadius` sweeps from 0 to 1 on a voice
-- **THEN** the voice's trajectory grows from the fixed center point to the full-amplitude Lissajous figure, with intermediate radii producing a proportionally scaled figure pulled toward the center
+- **THEN** the voice's trajectory grows from the fixed center point through a tanh-shaped circle at encoder center (radius 1) and toward a square at encoder maximum (radius 5)
 
 ### Requirement: Normalized Coordinates and Quadraphonic Pan Law
 The system SHALL map the raw Lissajous coordinates from [-1, 1] into [0, 1] (`PanSection` computes `output * 0.5 + 0.5`) before handing them to the quadraphonic mixer, which applies the quarter-sine pan law `QuadFloat::Pan(x, y, sample)`: channel gains sin(2π(1-x)y/4), sin(2πxy/4), sin(2πx(1-y)/4), and sin(2π(1-x)(1-y)/4), placing the four channels at the corners (0,1), (1,1), (1,0), and (0,0) of the unit pan square. Per-voice positions are published to the UI via `UIState::SetPos(i, x, y)`.

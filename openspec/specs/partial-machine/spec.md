@@ -107,11 +107,11 @@ The system SHALL expand each atom into a center copy plus two symmetric detuned 
 - **THEN** pair 1 reaches full interpolation (min(1, 2 × 0.5) = 1) with detunes 1.06 and 1/1.06 and azimuth offsets ±1/8, pair 2 is at interpolation 0.5, and the active copies' gains are scaled by the common RMS factor so total energy stays constant
 
 ### Requirement: Quad Panning and Overlap-Add Synthesis
-The system SHALL place each unison copy in the quad field by converting azimuth and radius to coordinates `x = 0.5 + 0.5 × radius × cos2pi(azimuth)`, `y = 0.5 + 0.5 × radius × sin2pi(azimuth)` and panning with `QuadFloat::Pan(x, y, 1.0)` (`SynthesisContext::Pan`, `private/src/QuadUtils.hpp`). Every copy is written into a 4-channel `QuadDFT` as a windowed partial with its magnitude, phase, frequency, and quad distribution; each atom's synthesis phase then advances by `H × synthesisOmega`. `QuadOLA` (`private/src/OLA.hpp`) inverse-transforms and overlap-adds the frames at 75% overlap into the continuous quad return, which is produced every sample.
+The system SHALL place each unison copy in the quad field by converting azimuth and radius through an unnormalized `TanhSaturator<false>` (`SetInputGain(radius)`, then `x = 0.5 + 0.5 × saturator.Process(cos2pi(azimuth))`, `y = 0.5 + 0.5 × saturator.Process(sin2pi(azimuth))`) and panning with `QuadFloat::Pan(x, y, 1.0)` (`SynthesisContext::GetPanCoordinates` / `SynthesisContext::Pan`, `private/src/QuadUtils.hpp`). Every copy is written into a 4-channel `QuadDFT` as a windowed partial with its magnitude, phase, frequency, and quad distribution; each atom's synthesis phase then advances by `H × synthesisOmega`. `QuadOLA` (`private/src/OLA.hpp`) inverse-transforms and overlap-adds the frames at 75% overlap into the continuous quad return, which is produced every sample. `QuadComponentFrequencyResponse` SHALL use this same `Pan` mapping so the per-speaker overlay matches DSP placement.
 
 #### Scenario: Radius zero reaches the center
 - **WHEN** an atom's radius is 0
-- **THEN** its pan coordinates are (0.5, 0.5) and `QuadFloat::Pan` distributes it equally toward all four speakers, while radius 1 at azimuth 0 pushes it fully toward the field edge in the +x direction
+- **THEN** its pan coordinates are (0.5, 0.5) and `QuadFloat::Pan` distributes it equally toward all four speakers, while radius 1 at azimuth 0 sits on a tanh-shaped circle at `x = 0.5 + 0.5 × TanhSaturator<false>(1).Process(1)` rather than the field edge
 
 #### Scenario: Continuous output between hops
 - **WHEN** `PartialMachine::Process` is called on samples between analysis hops

@@ -45,7 +45,7 @@ F(AmpGain, GAIN, FilterAndAmp, 0, 3, 1, "Amp Gain", SmartGrid::Color::Green, Mac
 F(DelaySend, DLS, FilterAndAmp, 1, 3, 0, "Delay Send", SmartGrid::Color::Green, MachineFlags::x_all, MachineFlags::x_all, 0, false)
 F(ReverbSend, RVS, FilterAndAmp, 2, 3, 0, "Reverb Send", SmartGrid::Color::Green, MachineFlags::x_all, MachineFlags::x_all, 0, false)
 F(PartialMachineSend, PMS, FilterAndAmp, 3, 3, 0, "Partial Machine Send", SmartGrid::Color::Green, MachineFlags::x_all, MachineFlags::x_all, 0, false)
-F(PanRadius, RAD, PanningAndSequencing, 0, 0, 1, "Pan Radius", SmartGrid::Color::Orange, MachineFlags::x_all, MachineFlags::x_all, 0, false)
+F(PanRadius, RAD, PanningAndSequencing, 0, 0, 0.5, "Pan Radius", SmartGrid::Color::Orange, MachineFlags::x_all, MachineFlags::x_all, 0, false)
 F(PanPhaseShift, PPS, PanningAndSequencing, 1, 0, 0, "Pan Phase Shift", SmartGrid::Color::Orange, MachineFlags::x_all, MachineFlags::x_all, 0, false)
 F(PanMultX, PMX, PanningAndSequencing, 2, 0, 0, "Pan Mult X", SmartGrid::Color::Orange, MachineFlags::x_all, MachineFlags::x_all, 0, false)
 F(PanMultY, PMY, PanningAndSequencing, 3, 0, 0, "Pan Mult Y", SmartGrid::Color::Orange, MachineFlags::x_all, MachineFlags::x_all, 0, false)
