@@ -146,3 +146,18 @@ storage/callback performance under representative synth load. The available
 desktop build, fixture, lifecycle and benchmark portions are complete. Hardware
 results are not inferred from host tests. No archive or main-branch integration
 has been performed.
+
+## PR preparation
+
+Rebased the implementation onto `main` commit
+`1d3ffb8` (tanh-radius panning). Its new direct `PartialMachine.hpp` test include
+exposed the header's missing `NormGen.hpp` dependency (`RGen` was undeclared).
+Added that direct include; the standalone CMake target builds successfully.
+
+Post-rebase validation passed all **24 selected C++ cases / 2,305 assertions**
+(19 recording cases plus the 5 updated panning cases), and **24 Python tests**
+against the newly generated C++ fixture. The build-SHA tests passed 3/3 during
+PR preparation. Logs are `/private/tmp/smartgrid-pr-rebase-build.log`,
+`/private/tmp/smartgrid-pr-rebase-focused.log`,
+`/private/tmp/smartgrid-pr-rebase-python.log`, and
+`/private/tmp/smartgrid-pr-sha-tests.log`.
