@@ -62,6 +62,10 @@ The user approved moving the residual coefficient fit into analysis and restorin
 
 The new regressions failed on 274 of 784 assertions before the change. The corrected implementation passed 29 targeted tests and 103,123 assertions. The full suite passed 381 of 383 tests and 2,527,139 of 2,527,141 assertions; only the same two baseline startup-silence checks failed, with the unchanged 0.000657712 peak. Independent read-only review found no actionable issues. This follow-up is for PR #5 and has not been deployed to the iPad.
 
+## Final single-pass extraction
+
+The final user-directed simplification renames extraction to `ExtractAndSubtractAnalysisAtoms`. It fits and subtracts each partial directly from its input DFT in the existing peak scan, then creates the atom. The copied DFT, duplicate amplitude/phase estimate, refinement pass, and caller subtraction loop are removed. Existing atom limiting remains afterward. Before merge, 29 targeted tests passed; the full suite passed 381/383 tests with only the two unchanged baseline failures. Independent review found no actionable regressions.
+
 ## Earlier completion evidence
 
 The broad repair set was implemented and reviewed. Before the user's phase-accumulator correction, the standalone suite passed 378 of 380 tests; the two startup silence failures were independently reproduced unchanged at the original commit. All effects and new regression cases passed. The user then specified the narrower pitch fix: retain `atom.UpdatePhase()` and scale emitted phase by detune and pitch ratio. See `docs/audits/effects-repairs-2026-09-15.md` for current behavior and validation. The input-topology proposal was declined.

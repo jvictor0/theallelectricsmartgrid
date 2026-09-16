@@ -133,3 +133,16 @@ Only sys_startup_stability.cpp:95 and :272 failed, with the same 0.000657712 pea
 [doctest] test cases:     383 |     381 passed | 2 failed | 0 skipped
 [doctest] assertions: 2527141 | 2527139 passed | 2 failed |
 [doctest] Status: FAILURE!
+
+Final single-pass extraction: targeted suite
+Source log: /tmp/effects-single-pass-dsp-tests.log
+[doctest] test cases:     29 |     29 passed | 0 failed | 354 skipped
+[doctest] assertions: 103123 | 103123 passed | 0 failed |
+[doctest] Status: SUCCESS!
+
+Final single-pass extraction: full suite
+Source log: /tmp/effects-single-pass-full-tests.log
+Only sys_startup_stability.cpp:95 and :272 failed, with the unchanged baseline peak of 0.000657712.
+[doctest] test cases:     383 |     381 passed | 2 failed | 0 skipped
+[doctest] assertions: 2527141 | 2527139 passed | 2 failed |
+[doctest] Status: FAILURE!

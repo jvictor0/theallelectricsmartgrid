@@ -7,8 +7,8 @@ These repairs follow the [original effects audit](effects-audit-2026-09-15.md) o
 - Reverb return now uses the full return-control value. At maximum it reaches unity instead of 0.182744, restoring 14.76 dB. The control's exponential curve is otherwise unchanged.
 - FrequencyDependentParameter now interpolates all four segments, including fourth-to-first, for both linear and geometric interpolation and negative coordinates.
 - Partial Machine keeps its original unshifted phase accumulator and multiplies emitted phase by both unison detune and pitch-shift ratio. Organic and synthetic output gains now affect emitted partials.
-- Analysis refines selected peaks with a complex Hann-kernel fit and stores the resulting magnitude and frame-start phase in each measured atom. Tracking and residual reconstruction use this same estimate.
-- Residual extraction subtracts those analysis atoms through the unchanged `WriteWindowedPartial` helper, using twice the stored analysis magnitude. There is no separate residual-only parameter fit.
+- Analysis locates, fits, and subtracts each measured partial in one peak scan, storing its fitted magnitude and frame-start phase in the atom. The supplied DFT contains the residual when extraction returns.
+- The caller reads the residual directly from that DFT. There is no copied DFT, separate refinement pass, or caller subtraction loop. `WriteWindowedPartial` is unchanged.
 - Equal-height neighboring peak bins identify one peak, allowing a sinusoid exactly halfway between FFT bins to be tracked.
 - VectorPhaseShaper maps a wrapped phase that rounds to exactly 1.0 back to 0.0. This resolves the assertion exposed by the existing saved-patch test.
 - Effects tests now check output energy, gain, frequency, emitted phase, and reconstruction, with meaningful lower bounds as well as finiteness and upper bounds.
@@ -80,7 +80,7 @@ The analysis window has already attenuated the detected peak. Passing that peak 
 
 There was also a phase error in analysis: `ExtractAnalysisAtoms` stored the nearest FFT bin's phase directly, including the Hann kernel's phase offset. The initial repair removed that offset but calculated a separate amplitude/phase fit only for residual subtraction. PR review identified the inconsistent estimates: tracking retained the preliminary parameters while the residual used fitted ones.
 
-The 16 September follow-up moves the coefficient fit into `ExtractAnalysisAtoms`. The existing peak detector and log-parabolic frequency estimate select candidates; the selected measured atoms are then refined in frequency order. If `R[k]` is the remaining complex spectrum and `K[k]` is the shifted Hann kernel for the estimated frequency, analysis computes:
+The final 16 September follow-up renames the function to `ExtractAndSubtractAnalysisAtoms`. The existing peak scan uses log-parabolic interpolation only to estimate frequency. In that same loop, it fits the coefficient, subtracts the partial directly from the supplied DFT, and creates its atom. If `R[k]` is the remaining input spectrum and `K[k]` is the shifted Hann kernel for the estimated frequency, analysis computes:
 
 ```
 c = sum(conjugate(K[k]) * R[k]) / sum(abs(K[k])^2)
@@ -89,13 +89,13 @@ analysisPhase = arg(c) / (2*pi)
 R.WriteWindowedPartial(analysisPhase + 0.5, 2 * analysisMagnitude, analysisOmega)
 ```
 
-The sums use the same finite kernel support as synthesis, up to 17 bins. The fitted coefficient supplies amplitude and frame-start phase, and its magnitude is converted back to the existing A/4 analysis convention. Each fit uses a scratch spectrum with earlier selected atoms removed. This preserves the sequential projection behavior, subject to floating-point and trigonometric lookup approximation. Candidate selection happens before fitting, so a reduced atom budget does not discard earlier contributions on which later fits depended. Generated harmonics are not fitted to the input.
+The sums use the same finite kernel support as synthesis, up to 17 bins. The fitted coefficient supplies amplitude and frame-start phase, and its magnitude is converted back to the existing A/4 analysis convention. Each fit sees the input DFT after earlier partials in the descending-frequency scan have been removed. There is no temporary complex-spectrum copy or duplicate amplitude/phase estimate. Sequential projection remains subject to floating-point and trigonometric lookup approximation. Generated harmonics are not fitted to the input.
 
-`ExtractAtomsAndResidual` subsequently subtracts the returned measured atoms from its original DFT using the same `WriteWindowedPartial` call. It does not estimate their parameters again or make an extra copy for subtraction. The one scratch copy belongs to analysis, which leaves its input spectrum unchanged. `WriteWindowedPartial` itself is unchanged.
+The existing atom cap runs after extraction, so it may discard atoms whose contributions have already been subtracted. The residual therefore excludes all detected/fitted measured peaks, including ones omitted from the capped atom list. `ExtractAtomsAndResidual` reads the remaining DFT magnitudes and performs no further fitting or subtraction. `WriteWindowedPartial` itself is unchanged.
 
 Before this follow-up, directly subtracting the corrected-phase but preliminary-magnitude estimates worked for isolated tones, leaving at most 0.145% energy in the tested cases. It failed badly for some overlapping tones: near-cancellation in a neighboring bin made log-parabolic peak magnitudes too large, and a two-tone case left 49.35 times the original energy. Publishing the fitted coefficient in analysis addresses that inconsistency; it does not make the estimated frequencies exact or resolve arbitrarily close sinusoids.
 
-Tests check known frame-start phases, amplitude A/4 within 0.5% for isolated on/off-bin tones, and agreement between the residual reconstructed from returned atoms and the production residual. The overlap checks span four spacings, 32 relative phases, and one/eight-atom budgets, and retain the non-increasing-energy regression. Existing bin-centered and off-bin reconstruction limits are unchanged.
+Tests check known frame-start phases, amplitude A/4 within 0.5% for isolated on/off-bin tones, and agreement between the residual left in the input DFT and the production residual. The overlap checks span four spacings, 32 relative phases, and one/eight-atom budgets, and retain the non-increasing-energy regression. Existing bin-centered and off-bin reconstruction limits are unchanged.
 
 ## A better Partial Machine input design
 
@@ -121,7 +121,7 @@ The cost is three extra 4096-point FFTs per hop, more input storage, and channel
 - Dedicated reverb tests exercise audible impulse energy without feedback, a late feedback tail, and silence at ordinary feedback.
 - Delay's previously silent passing impulse fixture now starts after warm-up and requires nonzero output. Tone tests check gain and the requested octave. Stress fixtures retain their modulation settings between updates and feed actual output back into the processor.
 - Partial Machine tests exercise octave-up, octave-down, a 1.5 ratio, nonzero static unison, emitted phase scaling across pitch changes with an unchanged accumulator, and source-type mute gains.
-- Analysis tests check frame-start sinusoid phase, Hann peak normalization, and direct reconstruction through `WriteWindowedPartial` using the returned analysis atoms.
+- Analysis tests check frame-start sinusoid phase, Hann peak normalization, and the residual left in the supplied DFT after in-place extraction.
 - Residual tests use the production analysis window and check cancellation and non-increasing energy for nearby tones.
 - A narrow floating-point phase-wrap regression and the unchanged `espace etale` saved-patch integration test both pass.
 
@@ -138,6 +138,8 @@ After correcting analysis phase at its source, the new direct-analysis regressio
 Before opening the PR, the final C++ source was rebuilt and the complete suite rerun: **381 tests, 379 passed, 2 failed; 2,526,355 of 2,526,357 assertions passed**. The only failures remain the two baseline startup-silence checks, with the same 0.000657712 peak. All added regressions and effects tests passed. Final independent read-only review of the requested phase-accumulator behavior and analysis-phase correction found no actionable issues.
 
 After the 16 September shared-analysis-estimate follow-up, both new regressions first failed against the prior implementation: **274 of 784 assertions failed**. The corrected code passed **29 targeted tests and 103,123 assertions**. The fresh full suite passed **381 of 383 tests and 2,527,139 of 2,527,141 assertions**. Only the same two baseline startup-silence failures remain, with the unchanged 0.000657712 peak. Independent read-only review found no actionable issues. This follow-up has not been deployed to the iPad.
+
+The final single-pass, in-place extraction was rebuilt and verified before merge. All **29 targeted DSP tests and 103,123 assertions passed**. The full suite again passed **381 of 383 tests and 2,527,139 of 2,527,141 assertions**, with only the identical baseline startup-silence failures. Independent review found no actionable regressions; `git diff --check` passed. Logs: `/tmp/effects-single-pass-dsp-tests.log` and `/tmp/effects-single-pass-full-tests.log`. This final revision has not been deployed to the iPad.
 
 Reproduction commands:
 
