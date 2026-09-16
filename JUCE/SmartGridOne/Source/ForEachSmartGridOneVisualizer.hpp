@@ -222,6 +222,33 @@ F(
     std::make_unique<PartialMachineSpatialComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 
+// QuadLFOs bank
+//
+F(
+    QuadLFO1MainScope,
+    QuadLFOs,
+    0,
+    std::make_unique<PolyphonicScopeComponent>(
+        m_nonagon->GetQuadControlScopeWriter(),
+        static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1),
+        4,
+        SmartGrid::Color::Pink,
+        0.9f,
+        0.05f),
+    VoiceMachine::SourceMachineFlags::All())
+F(
+    QuadLFO2MainScope,
+    QuadLFOs,
+    1,
+    std::make_unique<PolyphonicScopeComponent>(
+        m_nonagon->GetQuadControlScopeWriter(),
+        static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2),
+        4,
+        SmartGrid::Color::Pink,
+        0.9f,
+        0.05f),
+    VoiceMachine::SourceMachineFlags::All())
+
 // TheoryOfTime bank
 //
 F(

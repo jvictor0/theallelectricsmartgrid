@@ -589,6 +589,7 @@ struct SquiggleBoy
     GangedRandomLFO<x_voicesPerTrack> m_gangedRandomLFO[x_numGangedRandomLFOs][x_numTracks];
     GangedRandomLFO<4> m_quadGangedRandomLFO[2];
     GangedRandomLFO<1> m_globalGangedRandomLFO[2];
+    SquiggleBoyVoice::SquiggleLFO m_quadSquiggleLFO[2][4];
 
     SourceMixer m_sourceMixer;
     SourceMixer::Input m_sourceMixerState;
@@ -613,6 +614,7 @@ struct SquiggleBoy
     GangedRandomLFOInput m_gangedRandomLFOInput[x_numGangedRandomLFOs];
     GangedRandomLFOInput m_quadGangedRandomLFOInput[2];
     GangedRandomLFOInput m_globalGangedRandomLFOInput[2];
+    SquiggleBoyVoice::SquiggleLFO::Input m_quadSquiggleLFOInput[2][4];
     MixerInput m_mixerState;
 
     QuadDelayInputSetter m_delayInputSetter;
@@ -832,6 +834,14 @@ struct SquiggleBoy
 
         m_quadGangedRandomLFO[0].Process(1.0 / 48000.0, m_quadGangedRandomLFOInput[0]);
         m_quadGangedRandomLFO[1].Process(1.0 / 48000.0, m_quadGangedRandomLFOInput[1]);
+
+        for (size_t lfo = 0; lfo < 2; ++lfo)
+        {
+            for (size_t i = 0; i < 4; ++i)
+            {
+                m_quadSquiggleLFO[lfo][i].Process(m_quadSquiggleLFOInput[lfo][i]);
+            }
+        }
 
         if (SampleTimer::IsControlFrame())
         {
@@ -1269,6 +1279,18 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_delay.m_lfo.ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::DelayLFO));
         m_reverb.m_lfo.ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::ReverbLFO));
 
+        for (size_t i = 0; i < 4; ++i)
+        {
+            m_quadSquiggleLFO[0][i].m_scopeWriter = ScopeWriterHolder(
+                &uiState->m_quadControlScopeWriter,
+                i,
+                static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1));
+            m_quadSquiggleLFO[1][i].m_scopeWriter = ScopeWriterHolder(
+                &uiState->m_quadControlScopeWriter,
+                i,
+                static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2));
+        }
+
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Delay)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Delay));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Reverb)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Reverb));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Master)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Master));
@@ -1422,6 +1444,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_recordingManager.m_ioTaskThread = m_ioTaskThread;
         }
 
+        for (size_t i = 0; i < 4; ++i)
+        {
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
+        }
     }
 
     SquiggleBoyWithEncoderBank()
@@ -1503,6 +1532,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             modulatorValues.m_value[4][i] = m_delay.m_lfo.m_output[i] / 2.0 + 0.5;
             modulatorValues.m_value[5][i] = m_reverb.m_lfo.m_output[i] / 2.0 + 0.5;
+
+            modulatorValues.m_value[6][i] = m_quadSquiggleLFO[0][i].m_output;
+            modulatorValues.m_value[7][i] = m_quadSquiggleLFO[1][i].m_output;
+            modulatorValues.m_amplitude[6][i] = m_quadSquiggleLFO[0][i].m_polyXFader.m_amplitude;
+            modulatorValues.m_amplitude[7][i] = m_quadSquiggleLFO[1][i].m_polyXFader.m_amplitude;
 
             modulatorValues.m_value[11][i] = static_cast<float>(i % 4) / 3;
 
@@ -1655,6 +1689,40 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_returnSendGain[0][1].Update(m_encoders.GetValue(Param::DelayReverbSend));
         m_mixerState.m_returnSendGain[0][2].Update(m_encoders.GetValue(Param::DelayPartialMachineSend));
         m_mixerState.m_returnGain[0].Update(m_encoders.GetValue(Param::DelayReturn));
+
+        size_t delayLoopSampleIndex = static_cast<size_t>(std::round(SampleTimer::GetUBlockIndex()));
+        for (int i = 0; i < 4; ++i)
+        {
+            float channelFrac = static_cast<float>(i) / 4.0f;
+            bool delayLoopTop = m_theoryOfTime->CrossedCycleBoundary(
+                m_delayInputSetter.m_readTapeHead[i].m_loopSelector,
+                delayLoopSampleIndex,
+                PhaseDomain::Modulated);
+
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::QuadLFO1Skew, i);
+            m_quadSquiggleLFOInput[0][i].m_mult.Update(m_encoders.GetValue(Param::QuadLFO1Mult, i));
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_shape = m_encoders.GetValue(Param::QuadLFO1Shape, i);
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_amplitude = m_encoders.GetValue(Param::QuadLFO1Amplitude, i);
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_center = 1 - m_encoders.GetValue(Param::QuadLFO1Center, i);
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_slope = m_encoders.GetValue(Param::QuadLFO1Slope, i);
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::QuadLFO1PhaseShift, i) * channelFrac;
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::QuadLFO1SampleAndHold, i);
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_trig = delayLoopTop;
+
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::QuadLFO2Skew, i);
+            m_quadSquiggleLFOInput[1][i].m_mult.Update(m_encoders.GetValue(Param::QuadLFO2Mult, i));
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_shape = m_encoders.GetValue(Param::QuadLFO2Shape, i);
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_amplitude = m_encoders.GetValue(Param::QuadLFO2Amplitude, i);
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_center = 1 - m_encoders.GetValue(Param::QuadLFO2Center, i);
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_slope = m_encoders.GetValue(Param::QuadLFO2Slope, i);
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::QuadLFO2PhaseShift, i) * channelFrac;
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::QuadLFO2SampleAndHold, i);
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_trig = delayLoopTop;
+        }
 
         QuadReverbInputSetter::Input reverbInputSetterInput;
         for (int i = 0; i < 4; ++i)
@@ -1893,6 +1961,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             case Bank::PartialMachine:
             {
                 uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::QuadMaster);
+                break;
+            }
+            case Bank::QuadLFOs:
+            {
+                uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Control);
                 break;
             }
             case Bank::TheoryOfTime:

@@ -15,7 +15,7 @@ To accommodate polyphony and quadraphonic effects, the parameter system is struc
 - **Tracks**: Voices are grouped into tracks. For example, the 9 voices are grouped into 3 trios. The parameter system addresses these as 3 tracks, with 3 voices per track.
 - **Banks**: Parameters are grouped into Banks (e.g., "Source", "Filter", "Delay"). Each bank defines its **Bank Mode**, which dictates the number of tracks and voices per track.
   - **Voice Banks** (3 tracks × 3 voices): Parameters shared across a trio, but affecting all 9 voices.
-  - **Quad Banks** (1 track × 4 voices): Used for the Quad Delay, Quad Reverb, and Partial Machine, allowing independent modulation for each speaker channel or frequency-dependent lane.
+  - **Quad Banks** (1 track × 4 voices): Used for the Quad Delay, Quad Reverb, Partial Machine, and Quad LFOs, allowing independent modulation for each speaker channel or frequency-dependent lane.
   - **Global Banks** (1 track × 1 voice): Used for global settings like the Theory of Time clock or mastering EQ.
 
 **Crucially, the base value of a knob is identical for all voices within a track. However, modulation and gestures can apply *different* offsets to each voice within that track.**

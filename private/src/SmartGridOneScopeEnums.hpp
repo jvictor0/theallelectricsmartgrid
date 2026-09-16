@@ -66,7 +66,9 @@ namespace SmartGridOne
         ReverbLFO = 1,
         QuadGangedRandom1 = 2,
         QuadGangedRandom2 = 3,
-        NumScopes = 4
+        QuadLFO1 = 4,
+        QuadLFO2 = 5,
+        NumScopes = 6
     };
 
     enum class GlobalControlScopes : size_t

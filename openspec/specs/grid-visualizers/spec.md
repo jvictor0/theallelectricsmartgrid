@@ -17,7 +17,7 @@ Visualizers SHALL implement the `SmartGridOneMainVisualizerComponent` interface:
 - **THEN** the base-class no-op runs and no state changes
 
 ### Requirement: X-Macro Registration with Bank Tagging
-The system SHALL register every main visualizer in `ForEachSmartGridOneVisualizer.hpp` as an `F(name, bank, block, constructor, sourceMachineFlags)` entry, where bank is a `SmartGridOneEncoders::Bank` value (Source, FilterAndAmp, PanningAndSequencing, VoiceLFOs, Delay, Reverb, PartialMachine, TheoryOfTime, Mastering, Inputs, DeepVocoder). `SmartGridOneVisualizerMain` instantiates one member per entry at construction and, on each paint, draws only the entries whose bank tag equals the currently selected encoder bank.
+The system SHALL register every main visualizer in `ForEachSmartGridOneVisualizer.hpp` as an `F(name, bank, block, constructor, sourceMachineFlags)` entry, where bank is a `SmartGridOneEncoders::Bank` value (Source, FilterAndAmp, PanningAndSequencing, VoiceLFOs, Delay, Reverb, PartialMachine, QuadLFOs, TheoryOfTime, Mastering, Inputs, DeepVocoder). `SmartGridOneVisualizerMain` instantiates one member per entry at construction and, on each paint, draws only the entries whose bank tag equals the currently selected encoder bank.
 
 #### Scenario: Bank selection switches the drawn set
 - **WHEN** `NonagonWrapper::GetSelectedEncoderBank()` returns `Bank::Delay`

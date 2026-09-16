@@ -238,6 +238,7 @@ namespace SmartGrid
         static const Color Fuscia;
         static const Color Indigo;
         static const Color Purple;
+        static const Color DarkPurple;
         static const Color Pink;
         static const Color Cyan;
     };
@@ -315,6 +316,7 @@ namespace SmartGrid
     inline const Color Color::Indigo{56, 61, 249};
     inline const Color Color::Cyan{0, 255, 255};
     inline const Color Color::Purple{134, 63, 249};
+    inline const Color Color::DarkPurple{88, 28, 168};
     inline const Color Color::Pink{255, 50, 120};
 
     // ColorScheme inline definitions (not constexpr due to std::vector)

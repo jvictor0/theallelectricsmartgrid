@@ -141,6 +141,30 @@ G(
     SmartGridOneEncoders::BankMode::Quad,
     SmartGridOneEncoders::QuadratureColor(1))
 G(
+    QuadLFO1Scope,
+    6,
+    std::make_unique<PolyphonicScopeComponent>(
+        m_nonagon->GetQuadControlScopeWriter(),
+        static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1),
+        4,
+        SmartGrid::Color::Pink,
+        0.9f,
+        0.05f),
+    SmartGridOneEncoders::BankMode::Quad,
+    SmartGridOneEncoders::QuadLFOColor(0))
+G(
+    QuadLFO2Scope,
+    7,
+    std::make_unique<PolyphonicScopeComponent>(
+        m_nonagon->GetQuadControlScopeWriter(),
+        static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2),
+        4,
+        SmartGrid::Color::Pink,
+        0.9f,
+        0.05f),
+    SmartGridOneEncoders::BankMode::Quad,
+    SmartGridOneEncoders::QuadLFOColor(1))
+G(
     GlobalGangedRandom1Scope,
     2,
     std::make_unique<GangedRandomLFOComponent<1>>(

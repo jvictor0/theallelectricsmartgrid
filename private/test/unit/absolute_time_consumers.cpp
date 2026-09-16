@@ -1,10 +1,12 @@
 #include "doctest.h"
 #include "TheoryOfTime.hpp"
+#include "PolyXFader.hpp"
 #include "PhasorPlayHead.hpp"
 #include "IndexArp.hpp"
 #include "RecordingBuffer.hpp"
 #include "ExternalClockSync.hpp"
 #include "../support/GlobalEnv.hpp"
+#include <cmath>
 #include <memory>
 
 DOCTEST_TEST_CASE("AbsoluteTime: sample playback applies speed before wrapping")
@@ -270,4 +272,93 @@ DOCTEST_TEST_CASE("AbsoluteTime: lattice arithmetic floors signed coordinates")
     DOCTEST_CHECK(PhaseUtils::FloorMod(4294967299LL, 8) == 3);
     DOCTEST_CHECK(PhaseUtils::FloorDiv(std::numeric_limits<int64_t>::min(), 8) == std::numeric_limits<int64_t>::min() / 8);
     DOCTEST_CHECK(PhaseUtils::FloorMod(std::numeric_limits<int64_t>::min(), 8) == 0);
+}
+
+DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader quarter-cycle channel offsets match a delayed unshifted channel")
+{
+    TheoryOfTimeBase time;
+    TheoryOfTimeBase::Input clock;
+    clock.m_running = true;
+    clock.m_unmodulatedPhase = 1.0;
+    time.Process(1, clock);
+    clock.m_unmodulatedPhase = 1.25;
+    time.Process(2, clock);
+    clock.m_unmodulatedPhase = 1.5;
+    time.Process(3, clock);
+
+    PolyXFaderInternal::Input unshifted;
+    unshifted.m_theoryOfTime = &time;
+    unshifted.m_phaseDomain = PhaseDomain::Unmodulated;
+    unshifted.m_mult = 1.0f;
+    unshifted.m_phaseShift = 0.0f;
+    unshifted.m_attackFrac = 0.5f;
+    unshifted.m_shape = 0.5f;
+
+    PolyXFaderInternal::Input quarter;
+    quarter = unshifted;
+    quarter.m_phaseShift = 0.25f;
+    quarter.m_samplePosition = 1.0f;
+    unshifted.m_samplePosition = 2.0f;
+
+    float delayedUnshifted = unshifted.ComputePhase(TheoryOfTimeBase::x_globalLoop);
+    float quarterShifted = quarter.ComputePhase(TheoryOfTimeBase::x_globalLoop);
+    DOCTEST_CHECK(delayedUnshifted == doctest::Approx(quarterShifted));
+
+    unshifted.m_samplePosition = 1.0f;
+    float unshiftedNow = unshifted.ComputePhase(TheoryOfTimeBase::x_globalLoop);
+    DOCTEST_CHECK(std::abs(unshiftedNow - quarterShifted) > 0.05f);
+
+    for (size_t i = 0; i < 4; ++i)
+    {
+        PolyXFaderInternal::Input channel = unshifted;
+        channel.m_phaseShift = static_cast<float>(i) / 4.0f;
+        channel.m_samplePosition = 1.0f;
+        float value = channel.ComputePhase(TheoryOfTimeBase::x_globalLoop);
+        DOCTEST_CHECK(value >= 0.0f);
+        DOCTEST_CHECK(value <= 1.0f);
+    }
+}
+
+DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader sample-and-hold captures on delay-loop cycle boundary")
+{
+    TheoryOfTimeBase time;
+    TheoryOfTimeBase::Input clock;
+    clock.m_running = true;
+    size_t delayLoop = TheoryOfTimeBase::x_globalLoop;
+
+    PolyXFaderInternal lfo;
+    PolyXFaderInternal::Input input;
+    input.m_theoryOfTime = &time;
+    input.m_phaseDomain = PhaseDomain::Modulated;
+    input.m_size = 6;
+    input.m_center = 0.0f;
+    input.m_mult = 1.0f;
+    input.m_attackFrac = 0.5f;
+    input.m_shape = 0.5f;
+    input.m_shFade = 1.0f;
+    input.m_amplitude = 1.0f;
+
+    clock.m_unmodulatedPhase = 0.1;
+    time.Process(1, clock);
+    input.m_samplePosition = 1.0f;
+    input.m_trig = time.CrossedCycleBoundary(delayLoop, 1, PhaseDomain::Modulated);
+    DOCTEST_REQUIRE(input.m_trig);
+    lfo.Process(input);
+    float captured = lfo.m_shValue;
+
+    clock.m_unmodulatedPhase = 0.4;
+    time.Process(2, clock);
+    input.m_samplePosition = 2.0f;
+    input.m_trig = time.CrossedCycleBoundary(delayLoop, 2, PhaseDomain::Modulated);
+    DOCTEST_CHECK_FALSE(input.m_trig);
+    lfo.Process(input);
+    DOCTEST_CHECK(lfo.m_shValue == doctest::Approx(captured));
+
+    clock.m_unmodulatedPhase = 1.3;
+    time.Process(3, clock);
+    input.m_samplePosition = 3.0f;
+    input.m_trig = time.CrossedCycleBoundary(delayLoop, 3, PhaseDomain::Modulated);
+    DOCTEST_REQUIRE(input.m_trig);
+    lfo.Process(input);
+    DOCTEST_CHECK(std::abs(lfo.m_shValue - captured) > 1e-4f);
 }

@@ -1,7 +1,7 @@
 # PolyXFader LFOs Specification
 
 ## Purpose
-The PolyXFader LFOs (`private/src/PolyXFader.hpp`, `PolyXFaderInternal`) are the primary phase-synchronized low-frequency oscillators of Smart Grid One. They generate no phase of their own: each LFO derives its output by shaping and mixing the unmodulated phasors of the Theory of Time loops (see phasor-timebase), so every modulation contour stays locked to the global clock and sequencer structure. Each voice carries two SquiggleLFO instances wrapping `PolyXFaderInternal`, whose outputs are written into the Voice bank mode's shared `ModulatorValues` slots and consumed by the encoder parameter system (see encoder-parameter-system); the Theory of Time itself uses a dedicated instance for clock phase modulation. These are distinct from the free-running ganged random LFOs used for effect sends and wavetable drift, which are a separate system.
+The PolyXFader LFOs (`private/src/PolyXFader.hpp`, `PolyXFaderInternal`) are the primary phase-synchronized low-frequency oscillators of Smart Grid One. They generate no phase of their own: each LFO derives its output by shaping and mixing the unmodulated phasors of the Theory of Time loops (see phasor-timebase), so every modulation contour stays locked to the global clock and sequencer structure. Each voice carries two SquiggleLFO instances wrapping `PolyXFaderInternal`, whose outputs are written into the Voice bank mode's shared `ModulatorValues` slots and consumed by the encoder parameter system (see encoder-parameter-system). A matching pair of four-channel SquiggleLFO instances on the `QuadLFOs` bank writes the Quad mode's slots 6 and 7, with quarter-cycle channel offsets and Sample-and-Hold captured from each channel's active delay loop. The Theory of Time itself uses a dedicated instance for clock phase modulation. These are distinct from the free-running ganged random LFOs used for effect sends and wavetable drift, which are a separate system.
 
 ## Requirements
 
@@ -103,3 +103,15 @@ The LFO also exposes a top flag, true when every weighted contributing loop repo
 #### Scenario: Top flag marks cycle start
 - **WHEN** all loops with nonzero mix weight report their top on the same control sample
 - **THEN** the LFO's top flag is true on that sample and the scope recording restarts
+
+### Requirement: Quad LFO Integration into the Modulation Matrix
+The system SHALL run two SquiggleLFO instances for each of the four quad channels, controlled from the `QuadLFOs` encoder bank, and write their raw (pre-amplitude-centering) outputs each control pass into the Quad bank mode's shared `ModulatorValues` slots 6 and 7 (`m_value[6][channel]`, `m_value[7][channel]`), with the LFO amplitudes written to the matching `m_amplitude` entries.
+Phase-shift knobs SHALL offset channel `i` by `knob × i / 4`, so full spread places the four channels a quarter-cycle apart. Each channel's Sample-and-Hold trigger SHALL be the modulated cycle-boundary crossing of that channel's active delay read-head loop (`ReadTapeHead::m_loopSelector`), not the merely requested delay loop index.
+
+#### Scenario: Quarter-cycle channel spread
+- **WHEN** the quad LFO 1 phase-shift knob is 1.0
+- **THEN** channels 0, 1, 2, and 3 are offset by 0, 0.25, 0.5, and 0.75 cycles
+
+#### Scenario: Delay-loop top captures Sample-and-Hold
+- **WHEN** channel 2's active delay loop reports a modulated cycle crossing and `m_shFade` is 1
+- **THEN** that channel's pre-slew Sample-and-Hold value updates to the live mixed output on that sample and holds until the next crossing of the same active loop

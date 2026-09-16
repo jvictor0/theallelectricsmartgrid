@@ -52,6 +52,7 @@ The selected encoder bank (`SmartGridOneEncoders::Bank`) determines which visual
 - **Delay** — Delay analyzer, quad delay envelope view
 - **Reverb** — Reverb analyzers
 - **PartialMachine** — Partial Machine analyzer, mono input spectrum with tracked atoms, spatial atom view
+- **QuadLFOs** — Polyphonic PolyXFader LFO 1 and LFO 2 scopes
 - **TheoryOfTime** — Quad analyzers, quad delay envelope view, TheoryOfTime scope
 - **Mastering** — Source mixer reduction/freq, multiband EQ, multiband gain reduction
 - **Inputs** — Same as Mastering (inputs bank)

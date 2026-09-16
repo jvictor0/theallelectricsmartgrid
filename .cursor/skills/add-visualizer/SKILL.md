@@ -68,7 +68,7 @@ F(VisualizerName, Bank, Block, std::make_unique<MyComponent>(...), SourceMachine
 ```
 
 - **VisualizerName**: C++ identifier for the member (e.g. `MyViz` → `m_MyViz`)
-- **Bank**: `SmartGridOneEncoders::Bank` enum value — `Source`, `FilterAndAmp`, `PanningAndSequencing`, `VoiceLFOs`, `Delay`, `Reverb`, `TheoryOfTime`, `Mastering`, `Inputs`, `DeepVocoder`
+- **Bank**: `SmartGridOneEncoders::Bank` enum value — `Source`, `FilterAndAmp`, `PanningAndSequencing`, `VoiceLFOs`, `Delay`, `Reverb`, `PartialMachine`, `QuadLFOs`, `TheoryOfTime`, `Mastering`, `Inputs`, `DeepVocoder`
 - **Block**: `0` = (0,0), `1` = (0,8), `2` = (8,8), `3` = (16,8). Use `-1` for full-width (24×8).
 - **Constructor**: `std::make_unique<MyComponent>(args)`. Available in constructor context: `m_nonagon`, `uiState`, `m_scopeVoiceOffset`, `m_nonagon->GetAudioScopeWriter()`, etc.
 - **SourceMachineFlags**: `VoiceMachine::SourceMachineFlags::*()` value controlling visibility by active source machine (for example `All()`, `DualVCOOnly()`, `PhysicalModelingOnly()`).
