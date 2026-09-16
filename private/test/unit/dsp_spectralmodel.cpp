@@ -167,55 +167,122 @@ DOCTEST_TEST_CASE("SpectralModel residual model caches log frequency indexes")
     DOCTEST_CHECK(logFrequencyIndex.m_interp == doctest::Approx(frequencyIndex.m_interp));
 }
 
-DOCTEST_TEST_CASE("SpectralModel residual extraction stores analysis phase")
+DOCTEST_TEST_CASE("SpectralModel analysis reports sinusoid phase at the start of the frame")
 {
-    Model model;
-    Input input;
-    Model::Buffer buffer;
-
-    input.m_gainThreshold = 1e-4f;
-    input.m_numAtoms = 8;
-    input.m_slewUpAlpha = ScalarParameter::Parameter(1.0f);
-    input.m_slewDownAlpha = ScalarParameter::Parameter(1.0f);
-    input.m_omegaPortamentoAlpha = ScalarParameter::Parameter(1.0f);
-
-    constexpr size_t x_bin = 32;
-    for (size_t i = 0; i < Model::x_tableSize; ++i)
+    for (float bin : {32.0f, 32.125f, 32.25f, 32.499f, 32.5f, 32.501f, 32.75f, 32.875f})
     {
-        float phase = static_cast<float>(x_bin * i) / static_cast<float>(Model::x_tableSize);
-        buffer.m_table[i] = Math4096::Sin2pi(phase);
+        for (float phase : {0.0f, 0.125f, 0.37f, 0.9f})
+        {
+            Model model;
+            Input input;
+            input.m_gainThreshold = 1e-4f;
+            input.m_numAtoms = 8;
+            Model::Buffer buffer;
+            for (size_t sample = 0; sample < Model::x_tableSize; ++sample)
+            {
+                double angle = 2.0 * M_PI * (bin * sample / Model::x_tableSize + phase);
+                buffer.m_table[sample] = 0.1f * std::cos(angle) * Math4096::Hann(sample);
+            }
+
+            Model::DFT spectrum;
+            spectrum.Transform(buffer);
+            AnalysisAtomArray atoms;
+            model.ExtractAnalysisAtoms(spectrum, atoms, input);
+            DOCTEST_REQUIRE(atoms.Size() == 1);
+            DOCTEST_CAPTURE(bin);
+            DOCTEST_CAPTURE(phase);
+            double phaseError = std::remainder(atoms[0].m_analysisPhase - phase, 1.0);
+            double tolerance = bin == 32.0f ? 1e-5 : 0.01;
+            DOCTEST_CHECK(std::abs(phaseError) < tolerance);
+
+            Model::DFT residual = spectrum;
+            residual.WriteWindowedPartial(atoms[0].m_analysisPhase + 0.5f,
+                2.0f * atoms[0].m_analysisMagnitude, atoms[0].m_analysisOmega);
+            double originalEnergy = 0;
+            double residualEnergy = 0;
+            for (size_t k = 1; k < Model::x_maxComponents; ++k)
+            {
+                originalEnergy += std::norm(spectrum.m_components[k]);
+                residualEnergy += std::norm(residual.m_components[k]);
+            }
+
+            double maxFraction = bin == 32.0f ? 1e-7 : 0.002;
+            DOCTEST_CHECK(residualEnergy < maxFraction * originalEnergy);
+        }
     }
-
-    model.ExtractAtomsAndResidual(buffer, input);
-
-    DOCTEST_REQUIRE(model.m_atoms.Size() > 0);
-    DOCTEST_CHECK(std::abs(model.m_atoms[0]->m_analysisPhase) <= 1.0f);
 }
 
-DOCTEST_TEST_CASE("SpectralModel residual extraction lowers cancelled sinusoid bin")
+DOCTEST_TEST_CASE("SpectralModel residual extraction cancels Hann-windowed tones")
 {
-    Model model;
-    Input input;
-    Model::Buffer buffer;
-
-    input.m_gainThreshold = 1e-4f;
-    input.m_numAtoms = 8;
-    input.m_slewUpAlpha = ScalarParameter::Parameter(1.0f);
-    input.m_slewDownAlpha = ScalarParameter::Parameter(1.0f);
-    input.m_omegaPortamentoAlpha = ScalarParameter::Parameter(1.0f);
-
-    constexpr size_t x_bin = 32;
-    for (size_t i = 0; i < Model::x_tableSize; ++i)
+    for (float bin : {32.0f, 32.25f, 32.5f, 32.75f})
     {
-        float phase = static_cast<float>(x_bin * i) / static_cast<float>(Model::x_tableSize);
-        buffer.m_table[i] = Math4096::Sin2pi(phase);
+        for (float phase : {0.0f, 0.125f, 0.37f})
+        {
+            Model model;
+            Input input;
+            input.m_gainThreshold = 1e-4f;
+            input.m_numAtoms = 8;
+            Model::Buffer buffer;
+            for (size_t sample = 0; sample < Model::x_tableSize; ++sample)
+            {
+                double angle = 2.0 * M_PI * (bin * sample / Model::x_tableSize + phase);
+                buffer.m_table[sample] = 0.1f * std::cos(angle) * Math4096::Hann(sample);
+            }
+
+            Model::DFT raw;
+            raw.Transform(buffer);
+            model.ExtractAtomsAndResidual(buffer, input);
+            DOCTEST_REQUIRE(model.m_atoms.Size() == 1);
+            double originalEnergy = 0;
+            double residualEnergy = 0;
+            for (size_t k = 1; k < Model::x_maxComponents; ++k)
+            {
+                originalEnergy += std::norm(raw.m_components[k]);
+                double magnitude = model.m_residualModel.GetEnvelope(k);
+                residualEnergy += magnitude * magnitude;
+            }
+
+            DOCTEST_CAPTURE(bin);
+            DOCTEST_CAPTURE(phase);
+            double maxFraction = bin == 32.0f ? 1e-7 : 0.002;
+            DOCTEST_CHECK(residualEnergy < maxFraction * originalEnergy);
+        }
     }
+}
 
-    Model::DFT rawDft;
-    rawDft.Transform(buffer);
-    float rawMagnitude = std::abs(rawDft.m_components[x_bin]);
+DOCTEST_TEST_CASE("SpectralModel residual subtraction never adds energy to nearby tones")
+{
+    for (float spacing : {1.0f, 1.5f, 2.0f, 4.0f})
+    {
+        for (int phaseIndex = 0; phaseIndex < 32; ++phaseIndex)
+        {
+            Model model;
+            Input input;
+            input.m_gainThreshold = 1e-4f;
+            input.m_numAtoms = 8;
+            Model::Buffer buffer;
+            for (size_t sample = 0; sample < Model::x_tableSize; ++sample)
+            {
+                double firstAngle = 2.0 * M_PI * 32.0 * sample / Model::x_tableSize;
+                double secondAngle = 2.0 * M_PI * ((32.0 + spacing) * sample / Model::x_tableSize + phaseIndex / 32.0);
+                buffer.m_table[sample] = 0.1f * (std::cos(firstAngle) + std::cos(secondAngle)) * Math4096::Hann(sample);
+            }
 
-    model.ExtractAtomsAndResidual(buffer, input);
+            Model::DFT raw;
+            raw.Transform(buffer);
+            model.ExtractAtomsAndResidual(buffer, input);
+            double originalEnergy = 0;
+            double residualEnergy = 0;
+            for (size_t bin = 1; bin < Model::x_maxComponents; ++bin)
+            {
+                originalEnergy += std::norm(raw.m_components[bin]);
+                double magnitude = model.m_residualModel.GetEnvelope(bin);
+                residualEnergy += magnitude * magnitude;
+            }
 
-    DOCTEST_CHECK(model.m_residualModel.GetEnvelope(x_bin) < rawMagnitude);
+            DOCTEST_CAPTURE(spacing);
+            DOCTEST_CAPTURE(phaseIndex);
+            DOCTEST_CHECK(residualEnergy <= originalEnergy * (1.0 + 1e-6));
+        }
+    }
 }

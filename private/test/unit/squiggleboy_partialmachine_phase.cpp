@@ -9,6 +9,41 @@
 
 #include <memory>
 
+DOCTEST_TEST_CASE("SquiggleBoy effect returns reach unity and reverb covers the full gain curve")
+{
+    GlobalEnv::ResetPerTest();
+    SmartGrid::SceneManager sceneManager;
+    TheoryOfTime theoryOfTime;
+    auto synth = std::make_unique<SquiggleBoyWithEncoderBank>();
+    SquiggleBoyWithEncoderBank::Input input;
+    synth->m_theoryOfTime = &theoryOfTime;
+    synth->Init(&sceneManager);
+    synth->Config(input);
+    synth->m_encoders.Process();
+    synth->SetEncoderParameters(input);
+
+    for (size_t effect = 0; effect < 3; ++effect)
+    {
+        DOCTEST_CAPTURE(effect);
+        DOCTEST_CHECK(synth->m_mixerState.m_returnGain[effect].m_expParam == doctest::Approx(1.0f));
+    }
+
+    auto* reverbReturn = synth->m_encoders.m_encoderBankBank.GetEncoder(static_cast<size_t>(SmartGridOneEncoders::Param::ReverbReturn));
+    for (float value : {0.5f, 0.0f})
+    {
+        reverbReturn->SetValueAllScenesAllTracks(value);
+        reverbReturn->SetForceUpdateRecursive();
+        for (size_t frame = 0; frame < 512; ++frame)
+        {
+            synth->m_encoders.Process();
+            synth->SetEncoderParameters(input);
+        }
+
+        float expectedGain = value == 0.0f ? 0.0f : 0.1827439976f;
+        DOCTEST_CHECK(std::abs(synth->m_mixerState.m_returnGain[1].m_expParam - expectedGain) < 1e-6f);
+    }
+}
+
 DOCTEST_TEST_CASE("SquiggleBoy partial machine azimuth offset follows pan phase")
 {
     GlobalEnv::ResetPerTest();

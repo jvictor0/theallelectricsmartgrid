@@ -174,7 +174,7 @@ struct FrequencyDependentParameter
         float segmentPosition = linearT * x_numParameters;
         float segmentFloor = std::floor(segmentPosition);
         int segmentIndex = static_cast<int>(segmentFloor);
-        int numSegments = x_numParameters - 1;
+        int numSegments = x_numParameters;
         int index = ((segmentIndex % numSegments) + numSegments) % numSegments;
         return Index(segmentPosition - segmentFloor, index);
     }

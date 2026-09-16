@@ -194,7 +194,8 @@ struct PartialMachine
 
         void ProcessAtom(SpectralModel::Atom& atom, Input& input)
         {
-            float shiftedSynthesisOmega = GetPitchShiftedOmega(atom, input);
+            float pitchShiftFactor = GetPitchShiftFactor(atom.m_index, input);
+            float shiftedSynthesisOmega = atom.m_synthesisOmega * pitchShiftFactor;
             float reduction = GetReduction(atom, input);
             float reducedMagnitude = atom.m_synthesisMagnitude * reduction;
             float newMagnitude = PhaseUtils::ExpParam::Compute(
@@ -204,11 +205,11 @@ struct PartialMachine
                 
             if (atom.m_isSynthetic)
             {
-                reduction *= input.m_syntheticGain.Process(atom.m_index);
+                reducedMagnitude *= input.m_syntheticGain.Process(atom.m_index);
             }
             else
             {
-                reduction *= input.m_organicGain.Process(atom.m_index);
+                reducedMagnitude *= input.m_organicGain.Process(atom.m_index);
             }
 
             float radius = GetRadius(atom, input);
@@ -220,7 +221,7 @@ struct PartialMachine
                 voiceAzimuth = voiceAzimuth - std::floor(voiceAzimuth);
                 QuadFloat distribution = Pan(voiceAzimuth, radius);
                 float voiceMagnitude = reducedMagnitude * unisonContext.m_gain[v];
-                float voicePhase = static_cast<float>(atom.m_synthesisPhase * unisonContext.m_detune[v]);
+                float voicePhase = static_cast<float>(atom.m_synthesisPhase * unisonContext.m_detune[v] * pitchShiftFactor);
                 float voiceOmega = shiftedSynthesisOmega * unisonContext.m_detune[v];
                 m_dft.WriteWindowedPartial(voiceMagnitude, voicePhase, voiceOmega, distribution);
             }

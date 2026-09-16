@@ -34,6 +34,7 @@
 #include <memory>
 
 #include "QuadDelay.hpp"
+#include "OLA.hpp"
 #include "SampleTimer.hpp"
 
 // ---------------------------------------------------------------------------
@@ -142,65 +143,83 @@ DOCTEST_TEST_CASE("QuadDelay: silence in -> silence out")
 // 2. Impulse in -> energy emerges at some point; everything finite.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("QuadDelay: impulse in -> energy arrives, all finite")
+DOCTEST_TEST_CASE("QuadDelay: warmed impulse produces finite nonzero output")
 {
     GlobalEnv::ResetPerTest();
-
-    auto qdPtr = std::make_unique<QuadDelay>();
-    QuadDelay& qd = *qdPtr;
-
-    QuadDouble writePos(kDelayLen, kDelayLen, kDelayLen, kDelayLen);
-    QuadDouble readPos(0.0, 0.0, 0.0, 0.0);
-
-    // The GrainManager launches grains every Resynthesizer::x_H = 1024 samples
-    // and each grain plays out for x_tableSize = 4096 samples. We need at least
-    // kDelayLen + x_tableSize + x_H samples before energy is guaranteed to emerge.
-    // Use a generous window: kDelayLen + 4096 + 2048.
-    //
-    const int N = static_cast<int>(kDelayLen) + 4096 + 2048;
-    std::vector<float> out0(static_cast<size_t>(N));
-
-    for (int i = 0; i < N; ++i)
+    auto delay = std::make_unique<QuadDelay>();
+    constexpr int x_delay = 8192;
+    constexpr int x_impulseSample = 16384 + 317;
+    double energy = 0;
+    double preImpulseEnergy = 0;
+    for (int sample = 0; sample < 32768; ++sample)
     {
-        // Impulse at sample 0 on all four channels.
-        //
-        float in = (i == 0) ? 1.0f : 0.0f;
-        QuadFloat qin(in, in, in, in);
+        float impulse = sample == x_impulseSample ? 1.0f : 0.0f;
+        auto input = MakeBasicInput(
+            QuadDouble(sample, sample, sample, sample),
+            QuadDouble(sample - x_delay, sample - x_delay, sample - x_delay, sample - x_delay),
+            QuadFloat(impulse, 0, 0, 0));
+        QuadFloat output = delay->Process(input);
+        for (int channel = 0; channel < 4; ++channel)
+        {
+            DOCTEST_REQUIRE(std::isfinite(output[channel]));
+            DOCTEST_REQUIRE(std::abs(output[channel]) < 2.0f);
+        }
 
-        QuadDelay::Input inp = MakeBasicInput(writePos, readPos, qin);
-        QuadFloat out = qd.Process(inp);
-        out0[static_cast<size_t>(i)] = out[0];
-        AdvanceHeads(writePos, readPos, kDelayLen);
+        energy += output[0] * output[0];
+        if (sample < x_impulseSample)
+        {
+            preImpulseEnergy += output[0] * output[0];
+        }
     }
 
-    TestNan::AssertClean(out0.data(), out0.size());
+    DOCTEST_CHECK(energy > 1e-4);
+    DOCTEST_CHECK(energy < 2.0);
+    DOCTEST_CHECK(preImpulseEnergy < 1e-12);
+}
 
-    // The grain-based path (Resynthesizer) produces resynthesised output which
-    // may be near zero for a single impulse (spectral energy is spread thinly).
-    // Assert that at minimum the output is finite and bounded.
-    // NOTE: We document that for a single impulse, the grain-based output is
-    // typically very small (<<1) because the Resynthesizer spreads energy over
-    // the FFT window. This is expected behavior, not a bug.
-    //
-    for (size_t i = 0; i < out0.size(); ++i)
+DOCTEST_TEST_CASE("QuadDelay: steady tones retain gain and shift by the requested octave")
+{
+    for (bool shifted : {false, true})
     {
-        DOCTEST_CHECK(std::abs(out0[i]) < 10.0f);
-    }
+        GlobalEnv::ResetPerTest();
+        auto delay = std::make_unique<QuadDelay>();
+        OLA::Buffer buffer;
+        double energy = 0;
+        for (int sample = 0; sample < 32768; ++sample)
+        {
+            float tone = 0.01f * std::cos(2.0 * M_PI * 18.0 * sample / 4096.0);
+            auto input = MakeBasicInput(
+                QuadDouble(sample, sample, sample, sample),
+                QuadDouble(sample - 8192, sample - 8192, sample - 8192, sample - 8192),
+                QuadFloat(tone, 0, 0, 0));
+            input.m_bffBase = QuadFloat(1.0f / 65536.0f, 1.0f / 65536.0f, 1.0f / 65536.0f, 1.0f / 65536.0f);
+            input.m_bffWidth = QuadFloat(65536, 65536, 65536, 65536);
+            auto& resynthesis = input.m_grainManagerInput.m_input[0].m_resynthInput;
+            resynthesis.m_shift[0] = Q(2, 1);
+            resynthesis.m_fade[0] = shifted ? 1.0f : 0.0f;
+            float output = delay->Process(input)[0];
+            if (sample >= 28672)
+            {
+                buffer.m_table[sample - 28672] = output;
+                energy += output * output;
+            }
+        }
 
-    // Inform about the actual energy that emerged.
-    //
-    float maxAbs = 0.0f;
-    for (float v : out0)
-    {
-        maxAbs = std::max(maxAbs, std::abs(v));
+        OLA::DFT spectrum;
+        spectrum.Transform(buffer);
+        size_t targetBin = shifted ? 36 : 18;
+        DOCTEST_CHECK(std::abs(spectrum.m_components[targetBin]) > 0.005f);
+        DOCTEST_CHECK(std::abs(spectrum.m_components[targetBin]) < 0.0056f);
+        DOCTEST_CHECK(energy / 4096.0 > 0.00005);
+        DOCTEST_CHECK(energy / 4096.0 < 0.000063);
+        for (size_t bin = 1; bin < OLA::x_maxComponents; ++bin)
+        {
+            if (bin != targetBin)
+            {
+                DOCTEST_REQUIRE(std::abs(spectrum.m_components[bin]) < 1e-5f);
+            }
+        }
     }
-    DOCTEST_MESSAGE("impulse: maxAbs out[0]=" << maxAbs);
-    // BUG?: For a unit impulse, we might expect some non-trivial energy from the
-    // grain resynthesis path. If maxAbs is 0, the grain output path may not be
-    // reached (e.g. because the delay write/read head scheme is incompatible
-    // with the DelayLineMovableWriter inverse-mapping when writePos starts at
-    // kDelayLen and increments by 1). Document current behavior.
-    //
 }
 
 // ---------------------------------------------------------------------------
@@ -227,13 +246,14 @@ DOCTEST_TEST_CASE("QuadDelay: stress - random seeded modulation, finite+bounded"
 
     float maxAbs = 0.0f;
     bool anyNan = false;
+    QuadFloat previousOutput;
+    float feedback = 0.0f;
+    float modDepth = 0.0f;
 
     for (int i = 0; i < N; ++i)
     {
         // Modulate parameters every 128 samples.
         //
-        float feedback = 0.0f;
-        float modDepth = 0.0f;
         if (i % 128 == 0)
         {
             // Feedback in [0, 0.7] to stay stable.
@@ -249,7 +269,9 @@ DOCTEST_TEST_CASE("QuadDelay: stress - random seeded modulation, finite+bounded"
 
         QuadDelay::Input inp = MakeBasicInput(writePos, readPos, qin,
                                               feedback, modDepth);
+        inp.m_return = previousOutput;
         QuadFloat out = qd.Process(inp);
+        previousOutput = out;
         AdvanceHeads(writePos, readPos, kDelayLen);
 
         for (size_t ch = 0; ch < 4; ++ch)
@@ -266,6 +288,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - random seeded modulation, finite+bounded"
         }
     }
 
+    DOCTEST_CHECK(maxAbs > 1e-4f);
     DOCTEST_INFO("stress maxAbs=" << maxAbs);
     DOCTEST_CHECK(!anyNan);
     // Generous bound: feedback < 1 so signal should not blow up beyond ±10.
@@ -301,6 +324,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - varying write/read speed (ToT simulation)
 
     float maxAbs = 0.0f;
     bool anyNan = false;
+    QuadFloat previousOutput;
 
     for (int i = 0; i < N; ++i)
     {
@@ -324,7 +348,9 @@ DOCTEST_TEST_CASE("QuadDelay: stress - varying write/read speed (ToT simulation)
         QuadFloat qin(inSample, inSample, inSample, inSample);
 
         QuadDelay::Input inp = MakeBasicInput(wp, rp, qin, 0.5f, 0.0f);
+        inp.m_return = previousOutput;
         QuadFloat out = qd.Process(inp);
+        previousOutput = out;
 
         for (size_t ch = 0; ch < 4; ++ch)
         {
@@ -340,6 +366,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - varying write/read speed (ToT simulation)
         }
     }
 
+    DOCTEST_CHECK(maxAbs > 1e-4f);
     DOCTEST_INFO("ToT-sim maxAbs=" << maxAbs);
     DOCTEST_CHECK(!anyNan);
     DOCTEST_CHECK(maxAbs < 10.0f);
