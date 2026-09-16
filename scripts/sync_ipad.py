@@ -182,14 +182,17 @@ async def sync_patches_from_ipad(afc, remote_root):
 async def sync_recording(afc, remote_path, local_path, extractor=extract_stereo_recording):
     first = await afc.stat(remote_path)
     expected_size = int(first["st_size"])
-    await download_afc_file(
-        afc,
-        remote_path,
-        local_path,
-        progress_label="Copied",
-        expected_size=expected_size,
-    )
-    if extractor(local_path) != 0:
+    if local_path.exists() and local_path.stat().st_size == expected_size:
+        print(f"  Reusing complete local recording: {local_path.name}")
+    else:
+        await download_afc_file(
+            afc,
+            remote_path,
+            local_path,
+            progress_label="Copied",
+            expected_size=expected_size,
+        )
+    if await asyncio.to_thread(extractor, local_path) != 0:
         raise RuntimeError("Extraction failed; keeping the recording on iPad")
     current_size = int((await afc.stat(remote_path))["st_size"])
     if current_size != expected_size:

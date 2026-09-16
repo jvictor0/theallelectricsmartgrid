@@ -4,6 +4,7 @@ import os
 import plistlib
 import sys
 import tempfile
+import threading
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -70,6 +71,52 @@ class DeviceSelectionTests(unittest.IsolatedAsyncioTestCase):
 
 
 class TransferTests(unittest.IsolatedAsyncioTestCase):
+    async def test_recording_extraction_keeps_event_loop_responsive(self):
+        afc = FakeAfc([4, 4], [b"quad"])
+        extraction_started = threading.Event()
+        release_extraction = threading.Event()
+
+        def wait_for_event_loop(path):
+            extraction_started.set()
+            return 0 if release_extraction.wait(timeout=0.1) else 1
+
+        async def release_from_event_loop():
+            while not extraction_started.is_set():
+                await asyncio.sleep(0)
+            release_extraction.set()
+
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "recording.sgrec"
+            with redirect_stdout(io.StringIO()):
+                await asyncio.gather(
+                    sync_ipad.sync_recording(
+                        afc,
+                        "/recording.sgrec",
+                        destination,
+                        wait_for_event_loop,
+                    ),
+                    release_from_event_loop(),
+                )
+
+        self.assertEqual(afc.removed, ["/recording.sgrec"])
+
+    async def test_retry_reuses_complete_local_recording(self):
+        afc = FakeAfc([4, 4], [])
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "recording.sgrec"
+            destination.write_bytes(b"quad")
+
+            with redirect_stdout(io.StringIO()):
+                await sync_ipad.sync_recording(
+                    afc,
+                    "/recording.sgrec",
+                    destination,
+                    lambda path: 0,
+                )
+
+        self.assertEqual(afc.removed, ["/recording.sgrec"])
+        self.assertFalse(afc.closed)
+
     async def test_large_download_reports_incremental_progress(self):
         afc = FakeAfc([5], [b"ab", b"cd", b"e"])
         output = io.StringIO()
