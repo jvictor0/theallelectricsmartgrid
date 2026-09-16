@@ -212,6 +212,88 @@ DOCTEST_TEST_CASE("SpectralModel analysis reports sinusoid phase at the start of
     }
 }
 
+DOCTEST_TEST_CASE("SpectralModel analysis magnitude retains Hann peak normalization")
+{
+    for (float bin : {32.0f, 32.25f, 32.5f, 32.75f})
+    {
+        for (float amplitude : {0.01f, 0.1f})
+        {
+            Model model;
+            Input input;
+            input.m_gainThreshold = 1e-4f;
+            Model::Buffer buffer;
+            for (size_t sample = 0; sample < Model::x_tableSize; ++sample)
+            {
+                double angle = 2.0 * M_PI * (bin * sample / Model::x_tableSize + 0.37);
+                buffer.m_table[sample] = amplitude * std::cos(angle) * Math4096::Hann(sample);
+            }
+
+            Model::DFT spectrum;
+            spectrum.Transform(buffer);
+            AnalysisAtomArray atoms;
+            model.ExtractAnalysisAtoms(spectrum, atoms, input);
+            DOCTEST_REQUIRE(atoms.Size() == 1);
+            DOCTEST_CAPTURE(bin);
+            DOCTEST_CAPTURE(amplitude);
+            DOCTEST_CHECK(std::abs(atoms[0].m_analysisMagnitude - amplitude / 4.0f) < amplitude / 4.0f * 0.005f);
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("SpectralModel analyzed partials reconstruct the residual for overlapping tones")
+{
+    for (size_t numAtoms : {1, 8})
+    {
+        for (float spacing : {1.0f, 1.5f, 2.0f, 4.0f})
+        {
+            for (int phaseIndex = 0; phaseIndex < 32; ++phaseIndex)
+            {
+                Model model;
+                Input input;
+                input.m_gainThreshold = 1e-4f;
+                input.m_numAtoms = numAtoms;
+                Model::Buffer buffer;
+                for (size_t sample = 0; sample < Model::x_tableSize; ++sample)
+                {
+                    double firstAngle = 2.0 * M_PI * 32.0 * sample / Model::x_tableSize;
+                    double secondAngle = 2.0 * M_PI * ((32.0 + spacing) * sample / Model::x_tableSize + phaseIndex / 32.0);
+                    buffer.m_table[sample] = 0.1f * (std::cos(firstAngle) + std::cos(secondAngle)) * Math4096::Hann(sample);
+                }
+
+                Model::DFT spectrum;
+                spectrum.Transform(buffer);
+                AnalysisAtomArray atoms;
+                model.ExtractAnalysisAtoms(spectrum, atoms, input);
+                DOCTEST_REQUIRE(!atoms.Empty());
+                Model::DFT reconstructedResidual = spectrum;
+                for (const AnalysisAtom& atom : atoms)
+                {
+                    reconstructedResidual.WriteWindowedPartial(atom.m_analysisPhase + 0.5f,
+                        2.0f * atom.m_analysisMagnitude, atom.m_analysisOmega);
+                }
+
+                model.ExtractAtomsAndResidual(buffer, input);
+                double originalEnergy = 0.0;
+                double residualEnergy = 0.0;
+                double differenceEnergy = 0.0;
+                for (size_t k = 1; k < Model::x_maxComponents; ++k)
+                {
+                    originalEnergy += std::norm(spectrum.m_components[k]);
+                    residualEnergy += std::norm(reconstructedResidual.m_components[k]);
+                    double difference = std::abs(reconstructedResidual.m_components[k]) - model.m_residualModel.GetEnvelope(k);
+                    differenceEnergy += difference * difference;
+                }
+
+                DOCTEST_CAPTURE(numAtoms);
+                DOCTEST_CAPTURE(spacing);
+                DOCTEST_CAPTURE(phaseIndex);
+                DOCTEST_CHECK(residualEnergy <= originalEnergy * (1.0 + 1e-6));
+                DOCTEST_CHECK(differenceEnergy <= originalEnergy * 1e-10);
+            }
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("SpectralModel residual extraction cancels Hann-windowed tones")
 {
     for (float bin : {32.0f, 32.25f, 32.5f, 32.75f})

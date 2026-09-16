@@ -114,3 +114,22 @@ Source log: /tmp/effects-pr-full-suite.log
 [doctest] test cases:     381 |     379 passed | 2 failed | 0 skipped
 [doctest] assertions: 2526357 | 2526355 passed | 2 failed |
 [doctest] Status: FAILURE!
+
+Shared analysis estimate: prior implementation fails
+Source log: /tmp/effects-analysis-fit-red-tests.log
+[doctest] test cases:   2 |   0 passed |   2 failed | 381 skipped
+[doctest] assertions: 784 | 510 passed | 274 failed |
+[doctest] Status: FAILURE!
+
+Shared analysis estimate: targeted suite passes
+Source log: /tmp/effects-analysis-fit-green-tests.log
+[doctest] test cases:     29 |     29 passed | 0 failed | 354 skipped
+[doctest] assertions: 103123 | 103123 passed | 0 failed |
+[doctest] Status: SUCCESS!
+
+Shared analysis estimate: full suite
+Source log: /tmp/effects-analysis-fit-full-tests.log
+Only sys_startup_stability.cpp:95 and :272 failed, with the same 0.000657712 peak as the independently reproduced baseline.
+[doctest] test cases:     383 |     381 passed | 2 failed | 0 skipped
+[doctest] assertions: 2527141 | 2527139 passed | 2 failed |
+[doctest] Status: FAILURE!
