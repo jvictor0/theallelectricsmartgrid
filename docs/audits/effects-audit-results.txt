@@ -1,0 +1,30 @@
+mapping log=+0.74998999 Hz=78.833519 index=2 fraction=0.99995995 geometric=7.99977779 linear=7.99983978
+mapping log=+0.75000000 Hz=78.834038 index=0 fraction=0.00000000 geometric=1.00000000 linear=1.00000000
+mapping log=+0.75001001 Hz=78.834557 index=0 fraction=0.00004005 geometric=1.00002778 linear=1.00004005
+mapping log=-0.00001000 Hz=46.874691 index=2 fraction=0.99996001 geometric=7.99977827 linear=7.99983978
+mapping log=+0.00000000 Hz=46.875000 index=0 fraction=0.00000000 geometric=1.00000000 linear=1.00000000
+return knob=0.25 reverb=0.023906074 -32.430dB others=0.058670659 -24.632dB
+return knob=0.50 reverb=0.058670659 -24.632dB others=0.182743996 -14.763dB
+return knob=0.75 reverb=0.109225847 -19.233dB others=0.445127189 -7.030dB
+return knob=1.00 reverb=0.182743996 -14.763dB others=1.000000000 0.000dB
+input diffuser impulse energy=0.439999955 gain=-3.565dB
+saturator small-signal gain=1.073394537 0.615dB
+reverb feedback knob=0.00 loop coefficient=0.000000 raw gain=-7.193dB max-return gain=-21.956dB
+reverb feedback knob=0.75 loop coefficient=0.655649 raw gain=-5.365dB max-return gain=-20.128dB
+reverb feedback knob=0.95 loop coefficient=1.103692 raw gain=48.200dB max-return gain=33.437dB
+reverb feedback knob=1.00 loop coefficient=1.250000 raw gain=51.271dB max-return gain=36.508dB
+partial pitch inputBin=16 shift=1.00 referencePhase=0 rms=0.432946652 peakBin=16 targetBin=16.0 targetMagnitude=0.306139529
+partial pitch inputBin=16 shift=2.00 referencePhase=0 rms=0.432946654 peakBin=32 targetBin=32.0 targetMagnitude=0.306139529
+partial pitch inputBin=16 shift=2.00 referencePhase=1 rms=0.432946654 peakBin=32 targetBin=32.0 targetMagnitude=0.306139529
+partial pitch inputBin=17 shift=1.00 referencePhase=0 rms=0.432946654 peakBin=17 targetBin=17.0 targetMagnitude=0.306139529
+partial pitch inputBin=17 shift=2.00 referencePhase=0 rms=0.216473862 peakBin=33 targetBin=34.0 targetMagnitude=0.000000002
+partial pitch inputBin=17 shift=2.00 referencePhase=1 rms=0.432946655 peakBin=34 targetBin=34.0 targetMagnitude=0.306139499
+partial pitch inputBin=18 shift=1.00 referencePhase=0 rms=0.432946654 peakBin=18 targetBin=18.0 targetMagnitude=0.306139529
+partial pitch inputBin=18 shift=2.00 referencePhase=0 rms=0.000001494 peakBin=34 targetBin=36.0 targetMagnitude=0.000000003
+partial pitch inputBin=18 shift=2.00 referencePhase=1 rms=0.432946655 peakBin=36 targetBin=36.0 targetMagnitude=0.306139529
+partial organic gain=0.0 emitted target magnitude=0.019133721
+partial organic gain=1.0 emitted target magnitude=0.019133721
+delay inputBin=18 shifted=0 gain=0.615dB peakBin=18
+delay inputBin=18 shifted=1 gain=0.614dB peakBin=36
+residual Hann-windowed sine original magnitude=0.025000002 atom magnitude=0.025000006 residual magnitude=0.012500299 fraction=0.500012
+residual with diagnostic 2x subtraction magnitude=0.000000596

@@ -336,6 +336,14 @@ struct VectorPhaseShaperInternal
         float maxHarmonics = input.m_morphHarmonics;
 
         phi_vps = phi_vps - std::floor(phi_vps);
+        // A tiny negative phase can round to exactly one after adding its
+        // integer wrap. One cycle is the same phase as zero.
+        //
+        if (phi_vps == 1.0f)
+        {
+            phi_vps = 0.0f;
+        }
+
         assert(0 <= phi_vps);
         assert(phi_vps < 1);
         m_out = - m_morphingWaveTable.Evaluate(phi_vps, m_freq, maxHarmonics, input.m_wtBlend);
@@ -394,4 +402,3 @@ struct VectorPhaseShaperInternal
         return m_morphingWaveTable.SetRight(right);
     }                
 };
-

@@ -368,7 +368,7 @@ struct SpectralModelGeneric
         for (int k = static_cast<int>(x_maxComponents) - 2; 2 <= k; --k)
         {
             float mag = mags[k];
-            if (mags[k - 1] < mag && mags[k + 1] < mag && input.m_gainThreshold <= mag)
+            if (mags[k - 1] < mag && mags[k + 1] <= mag && input.m_gainThreshold <= mag)
             {
                 // Log-domain parabolic interpolation
                 //
@@ -389,9 +389,15 @@ struct SpectralModelGeneric
                     peakMag = std::exp(beta - 0.25f * (alpha - gamma) * p);
                 }
 
-                float peakOmega = (static_cast<float>(k) + p) / static_cast<float>(x_tableSize);
-                int phaseBin = std::max(1, std::min(static_cast<int>(x_maxComponents) - 1, static_cast<int>(std::round(static_cast<float>(k) + p))));
-                float peakPhase = std::arg(dft.m_components[phaseBin]) / (2.0f * static_cast<float>(M_PI));
+                float exactBin = static_cast<float>(k) + p;
+                float peakOmega = exactBin / static_cast<float>(x_tableSize);
+                int phaseBin = std::max(1, std::min(static_cast<int>(x_maxComponents) - 1, static_cast<int>(std::round(exactBin))));
+
+                // Remove the Hann kernel phase so the atom's phase refers to
+                // the sinusoid at the start of the analysis frame.
+                //
+                auto kernel = MathGeneric<Bits>::HannKernel(exactBin - static_cast<float>(phaseBin));
+                float peakPhase = std::arg(dft.m_components[phaseBin] * std::conj(kernel)) / (2.0f * static_cast<float>(M_PI));
                 ParameterIndex index = ParameterProvider::GetIndexForFrequency(peakOmega, input.m_parameterInput);
                 analysisAtoms.Add(AnalysisAtom(peakOmega, peakMag, peakPhase, index, false));
             }
@@ -529,18 +535,44 @@ struct SpectralModelGeneric
         dft.Transform(buffer);
         AnalysisAtomArray analysisAtoms;
         ExtractAnalysisAtoms(dft, analysisAtoms, input);
+        DFT residualDft = dft;
         typename ResidualModel::Input residualInput;
         for (AnalysisAtom& analysisAtom : analysisAtoms)
         {
             if (!analysisAtom.m_isSynthetic)
             {
-                dft.WriteWindowedPartial(analysisAtom.m_analysisPhase + 0.5f, analysisAtom.m_analysisMagnitude, analysisAtom.m_analysisOmega);
+                // Fit the pre-window complex coefficient across the same Hann
+                // kernel support used for synthesis. Projecting the remaining
+                // residual prevents overlapping partials from adding energy.
+                //
+                float exactBin = analysisAtom.m_analysisOmega * static_cast<float>(x_tableSize);
+                int centerBin = static_cast<int>(std::floor(exactBin));
+                int firstBin = std::max(1, centerBin - DFT::x_partialKernelRadius);
+                int lastBin = std::min(static_cast<int>(x_maxComponents) - 1, centerBin + DFT::x_partialKernelRadius);
+                std::complex<float> projection(0.0f, 0.0f);
+                float kernelEnergy = 0.0f;
+                for (int k = firstBin; k <= lastBin; ++k)
+                {
+                    auto kernel = MathGeneric<Bits>::HannKernel(exactBin - static_cast<float>(k));
+                    projection += std::conj(kernel) * residualDft.m_components[k];
+                    kernelEnergy += std::norm(kernel);
+                }
+
+                if (kernelEnergy > 0.0f)
+                {
+                    auto coefficient = projection / kernelEnergy;
+                    for (int k = firstBin; k <= lastBin; ++k)
+                    {
+                        auto kernel = MathGeneric<Bits>::HannKernel(exactBin - static_cast<float>(k));
+                        residualDft.m_components[k] -= coefficient * kernel;
+                    }
+                }
             }
         }
 
         for (size_t i = 0; i < ResidualModel::x_numBuckets; ++i)
         {
-            residualInput.m_analysisResidualMagnitudes[i] = std::abs(dft.m_components[i]);
+            residualInput.m_analysisResidualMagnitudes[i] = std::abs(residualDft.m_components[i]);
         }
 
         m_residualModel.Process(input, residualInput);

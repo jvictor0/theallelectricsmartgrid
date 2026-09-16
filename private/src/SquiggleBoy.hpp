@@ -1741,7 +1741,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_reverbInputSetter.Process(reverbInputSetterInput, m_reverbState);
         m_mixerState.m_returnSendGain[1][0].Update(m_encoders.GetValue(Param::ReverbDelaySend));
         m_mixerState.m_returnSendGain[1][2].Update(m_encoders.GetValue(Param::ReverbPartialMachineSend));
-        m_mixerState.m_returnGain[1].Update(m_encoders.GetValue(Param::ReverbReturn) / 2);
+        m_mixerState.m_returnGain[1].Update(m_encoders.GetValue(Param::ReverbReturn));
 
         for (int i = 0; i < 4; ++i)
         {

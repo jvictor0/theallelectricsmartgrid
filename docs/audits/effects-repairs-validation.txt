@@ -1,0 +1,116 @@
+Effects repairs validation, original commit 5ec7071f00b4e5c957de1e0136acb81939ad2cbb.
+Assertions enabled; development machine; 48 kHz DSP.
+
+
+Final full suite
+Source log: /tmp/effects-repairs-full-suite-final.log
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/system/sys_startup_stability.cpp:78: MESSAGE: pre-start OutputPeak = 0.000657712
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/system/sys_startup_stability.cpp:79: MESSAGE: pre-start master phasor: 0 -> 0
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/system/sys_startup_stability.cpp:95: ERROR: CHECK( rig.OutputPeak() < 1e-6f ) is NOT correct!
+  values: CHECK( 0.000657712 <  1e-06 )
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/system/sys_startup_stability.cpp:260: MESSAGE: FRESH (never started): clockFrozen=true silent=false peak=0.000657712
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/system/sys_startup_stability.cpp:272: ERROR: CHECK( freshSilent ) is NOT correct!
+  values: CHECK( false )
+[doctest] test cases:     380 |     378 passed | 2 failed | 0 skipped
+[doctest] assertions: 2526257 | 2526255 passed | 2 failed |
+[doctest] Status: FAILURE!
+
+Final focused review cases
+Source log: /tmp/effects-repairs-green-review.log
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+[doctest] test cases:    8 |    8 passed | 0 failed | 372 skipped
+[doctest] assertions: 8363 | 8363 passed | 0 failed |
+[doctest] Status: SUCCESS!
+
+Adjacent-tone regression before projection repair
+Source log: /tmp/effects-repairs-red-nearby.log
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/unit/dsp_spectralmodel.cpp:240: ERROR: CHECK( residualEnergy <= originalEnergy * (1.0 + 1e-6) ) is NOT correct!
+  values: CHECK( 0.000941672 <= 0.000649019 )
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/unit/dsp_spectralmodel.cpp:240: ERROR: CHECK( residualEnergy <= originalEnergy * (1.0 + 1e-6) ) is NOT correct!
+  values: CHECK( 0.000916131 <= 0.000720151 )
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/unit/dsp_spectralmodel.cpp:240: ERROR: CHECK( residualEnergy <= originalEnergy * (1.0 + 1e-6) ) is NOT correct!
+  values: CHECK( 0.000874656 <= 0.000835664 )
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/unit/dsp_spectralmodel.cpp:240: ERROR: CHECK( residualEnergy <= originalEnergy * (1.0 + 1e-6) ) is NOT correct!
+  values: CHECK( 0.00087465 <= 0.000835664 )
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/unit/dsp_spectralmodel.cpp:240: ERROR: CHECK( residualEnergy <= originalEnergy * (1.0 + 1e-6) ) is NOT correct!
+  values: CHECK( 0.000916128 <= 0.000720151 )
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/unit/dsp_spectralmodel.cpp:240: ERROR: CHECK( residualEnergy <= originalEnergy * (1.0 + 1e-6) ) is NOT correct!
+  values: CHECK( 0.000941649 <= 0.000649019 )
+[doctest] test cases:   1 |   0 passed | 1 failed | 378 skipped
+[doctest] assertions: 128 | 122 passed | 6 failed |
+[doctest] Status: FAILURE!
+
+Original commit: pre-start reproduction
+Source log: /tmp/smartgrid-startup-baseline-5ec7071/prestart-results.log
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+private/test/system/sys_startup_stability.cpp:78: MESSAGE: pre-start OutputPeak = 0.000657712
+private/test/system/sys_startup_stability.cpp:79: MESSAGE: pre-start master phasor: 0 -> 0
+private/test/system/sys_startup_stability.cpp:95: ERROR: CHECK( rig.OutputPeak() < 1e-6f ) is NOT correct!
+  values: CHECK( 0.000657712 <  1e-06 )
+[doctest] test cases: 1 | 0 passed | 1 failed | 3 skipped
+[doctest] assertions: 4 | 3 passed | 1 failed |
+[doctest] Status: FAILURE!
+
+Original commit: fresh/start/stop reproduction
+Source log: /tmp/smartgrid-startup-baseline-5ec7071/results.log
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+private/test/system/sys_startup_stability.cpp:260: MESSAGE: FRESH (never started): clockFrozen=true silent=false peak=0.000657712
+private/test/system/sys_startup_stability.cpp:272: ERROR: CHECK( freshSilent ) is NOT correct!
+  values: CHECK( false )
+[doctest] test cases: 1 | 0 passed | 1 failed | 3 skipped
+[doctest] assertions: 8 | 7 passed | 1 failed |
+[doctest] Status: FAILURE!
+
+Phase contract correction: prior implementation fails
+Source log: /tmp/effects-phase-ratio-red.log
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+[doctest] test cases:  1 | 0 passed | 1 failed | 379 skipped
+[doctest] assertions: 16 | 8 passed | 8 failed |
+[doctest] Status: FAILURE!
+
+Phase contract correction: targeted suite passes
+Source log: /tmp/effects-phase-ratio-green.log
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+[doctest] test cases:     45 |     45 passed | 0 failed | 335 skipped
+[doctest] assertions: 102403 | 102403 passed | 0 failed |
+[doctest] Status: SUCCESS!
+
+Analysis phase before correction
+Source log: /tmp/effects-analysis-phase-red.log
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+[doctest] test cases:  1 |  0 passed |  1 failed | 380 skipped
+[doctest] assertions: 96 | 40 passed | 56 failed |
+[doctest] Status: FAILURE!
+
+Analysis phase after correction
+Source log: /tmp/effects-analysis-phase-green.log
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+[doctest] test cases:     26 |     26 passed | 0 failed | 355 skipped
+[doctest] assertions: 102348 | 102348 passed | 0 failed |
+[doctest] Status: SUCCESS!
+
+Final full suite before PR
+Source log: /tmp/effects-pr-full-suite.log
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/system/sys_startup_stability.cpp:78: MESSAGE: pre-start OutputPeak = 0.000657712
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/system/sys_startup_stability.cpp:79: MESSAGE: pre-start master phasor: 0 -> 0
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/system/sys_startup_stability.cpp:95: ERROR: CHECK( rig.OutputPeak() < 1e-6f ) is NOT correct!
+  values: CHECK( 0.000657712 <  1e-06 )
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/system/sys_startup_stability.cpp:260: MESSAGE: FRESH (never started): clockFrozen=true silent=false peak=0.000657712
+/Users/joyo/.codex/worktrees/6772/theallelectricsmartgrid/private/test/system/sys_startup_stability.cpp:272: ERROR: CHECK( freshSilent ) is NOT correct!
+  values: CHECK( false )
+[doctest] test cases:     381 |     379 passed | 2 failed | 0 skipped
+[doctest] assertions: 2526357 | 2526355 passed | 2 failed |
+[doctest] Status: FAILURE!
