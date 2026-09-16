@@ -349,7 +349,7 @@ struct SpectralModelGeneric
         }
     };
 
-    void ExtractAnalysisAtoms(const DFT& dft, AnalysisAtomArray& analysisAtoms, Input& input)
+    void ExtractAndSubtractAnalysisAtoms(DFT& dft, AnalysisAtomArray& analysisAtoms, Input& input)
     {
         analysisAtoms.Clear();
 
@@ -361,7 +361,7 @@ struct SpectralModelGeneric
             mags[i] = std::abs(dft.m_components[i]);            
         }
 
-        // Find local maxima and apply parabolic interpolation
+        // Locate each peak, fit its coefficient, and subtract it from the DFT.
         //
         constexpr float x_logEps = 1e-20f;
 
@@ -370,7 +370,7 @@ struct SpectralModelGeneric
             float mag = mags[k];
             if (mags[k - 1] < mag && mags[k + 1] <= mag && input.m_gainThreshold <= mag)
             {
-                // Log-domain parabolic interpolation
+                // Log-domain parabolic frequency interpolation
                 //
                 float magLo = std::max(mags[k - 1], x_logEps);
                 float magMid = std::max(mag, x_logEps);
@@ -382,24 +382,38 @@ struct SpectralModelGeneric
                 float denom = alpha - 2.0f * beta + gamma;
 
                 float p = 0.0f;
-                float peakMag = mag;
                 if (1e-10f < std::abs(denom))
                 {
                     p = 0.5f * (alpha - gamma) / denom;
-                    peakMag = std::exp(beta - 0.25f * (alpha - gamma) * p);
                 }
 
                 float exactBin = static_cast<float>(k) + p;
                 float peakOmega = exactBin / static_cast<float>(x_tableSize);
-                int phaseBin = std::max(1, std::min(static_cast<int>(x_maxComponents) - 1, static_cast<int>(std::round(exactBin))));
+                int centerBin = static_cast<int>(std::floor(exactBin));
+                int firstBin = std::max(1, centerBin - DFT::x_partialKernelRadius);
+                int lastBin = std::min(static_cast<int>(x_maxComponents) - 1, centerBin + DFT::x_partialKernelRadius);
+                std::complex<float> projection(0.0f, 0.0f);
+                float kernelEnergy = 0.0f;
+                for (int bin = firstBin; bin <= lastBin; ++bin)
+                {
+                    auto kernel = MathGeneric<Bits>::HannKernel(exactBin - static_cast<float>(bin));
+                    projection += std::conj(kernel) * dft.m_components[bin];
+                    kernelEnergy += std::norm(kernel);
+                }
 
-                // Remove the Hann kernel phase so the atom's phase refers to
-                // the sinusoid at the start of the analysis frame.
-                //
-                auto kernel = MathGeneric<Bits>::HannKernel(exactBin - static_cast<float>(phaseBin));
-                float peakPhase = std::arg(dft.m_components[phaseBin] * std::conj(kernel)) / (2.0f * static_cast<float>(M_PI));
-                ParameterIndex index = ParameterProvider::GetIndexForFrequency(peakOmega, input.m_parameterInput);
-                analysisAtoms.Add(AnalysisAtom(peakOmega, peakMag, peakPhase, index, false));
+                if (kernelEnergy > 0.0f)
+                {
+                    auto coefficient = projection / kernelEnergy;
+
+                    // Analysis magnitude is A/4 for a cosine of amplitude A;
+                    // the writer expects A/2 and frame-start phase in cycles.
+                    //
+                    float peakMag = 0.5f * std::abs(coefficient);
+                    float peakPhase = std::arg(coefficient) / (2.0f * static_cast<float>(M_PI));
+                    dft.WriteWindowedPartial(peakPhase + 0.5f, 2.0f * peakMag, peakOmega);
+                    ParameterIndex index = ParameterProvider::GetIndexForFrequency(peakOmega, input.m_parameterInput);
+                    analysisAtoms.Add(AnalysisAtom(peakOmega, peakMag, peakPhase, index, false));
+                }
             }
         }
 
@@ -431,45 +445,6 @@ struct SpectralModelGeneric
         }
 
         analysisAtoms.Sort(AnalysisAtom::CmpOmega);
-
-        // Refine the selected peaks against the remaining spectrum so tracking
-        // and residual reconstruction use the same amplitude and phase.
-        //
-        DFT remaining = dft;
-        for (AnalysisAtom& analysisAtom : analysisAtoms)
-        {
-            if (analysisAtom.m_isSynthetic)
-            {
-                continue;
-            }
-
-            float exactBin = analysisAtom.m_analysisOmega * static_cast<float>(x_tableSize);
-            int centerBin = static_cast<int>(std::floor(exactBin));
-            int firstBin = std::max(1, centerBin - DFT::x_partialKernelRadius);
-            int lastBin = std::min(static_cast<int>(x_maxComponents) - 1, centerBin + DFT::x_partialKernelRadius);
-            std::complex<float> projection(0.0f, 0.0f);
-            float kernelEnergy = 0.0f;
-            for (int k = firstBin; k <= lastBin; ++k)
-            {
-                auto kernel = MathGeneric<Bits>::HannKernel(exactBin - static_cast<float>(k));
-                projection += std::conj(kernel) * remaining.m_components[k];
-                kernelEnergy += std::norm(kernel);
-            }
-
-            if (kernelEnergy > 0.0f)
-            {
-                auto coefficient = projection / kernelEnergy;
-
-                // Keep analysis magnitude in Hann peak units: A/4 for a
-                // cosine of amplitude A. The writer expects A/2, and phase
-                // refers to the start of the analysis frame in cycles.
-                //
-                analysisAtom.m_analysisMagnitude = 0.5f * std::abs(coefficient);
-                analysisAtom.m_analysisPhase = std::arg(coefficient) / (2.0f * static_cast<float>(M_PI));
-                remaining.WriteWindowedPartial(analysisAtom.m_analysisPhase + 0.5f,
-                    2.0f * analysisAtom.m_analysisMagnitude, analysisAtom.m_analysisOmega);
-            }
-        }
     }
 
     void SearchAndMerge(AnalysisAtomArray& analysisAtoms, Atom& atom, Input& input)
@@ -564,7 +539,7 @@ struct SpectralModelGeneric
         DFT dft;
         dft.Transform(buffer);
         AnalysisAtomArray analysisAtoms;
-        ExtractAnalysisAtoms(dft, analysisAtoms, input);
+        ExtractAndSubtractAnalysisAtoms(dft, analysisAtoms, input);
         TrackAnalysisAtoms(analysisAtoms, input);
     }
 
@@ -573,17 +548,8 @@ struct SpectralModelGeneric
         DFT dft;
         dft.Transform(buffer);
         AnalysisAtomArray analysisAtoms;
-        ExtractAnalysisAtoms(dft, analysisAtoms, input);
+        ExtractAndSubtractAnalysisAtoms(dft, analysisAtoms, input);
         typename ResidualModel::Input residualInput;
-        for (AnalysisAtom& analysisAtom : analysisAtoms)
-        {
-            if (!analysisAtom.m_isSynthetic)
-            {
-                dft.WriteWindowedPartial(analysisAtom.m_analysisPhase + 0.5f,
-                    2.0f * analysisAtom.m_analysisMagnitude, analysisAtom.m_analysisOmega);
-            }
-        }
-
         for (size_t i = 0; i < ResidualModel::x_numBuckets; ++i)
         {
             residualInput.m_analysisResidualMagnitudes[i] = std::abs(dft.m_components[i]);

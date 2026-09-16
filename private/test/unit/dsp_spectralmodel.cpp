@@ -186,8 +186,9 @@ DOCTEST_TEST_CASE("SpectralModel analysis reports sinusoid phase at the start of
 
             Model::DFT spectrum;
             spectrum.Transform(buffer);
+            Model::DFT residual = spectrum;
             AnalysisAtomArray atoms;
-            model.ExtractAnalysisAtoms(spectrum, atoms, input);
+            model.ExtractAndSubtractAnalysisAtoms(residual, atoms, input);
             DOCTEST_REQUIRE(atoms.Size() == 1);
             DOCTEST_CAPTURE(bin);
             DOCTEST_CAPTURE(phase);
@@ -195,9 +196,6 @@ DOCTEST_TEST_CASE("SpectralModel analysis reports sinusoid phase at the start of
             double tolerance = bin == 32.0f ? 1e-5 : 0.01;
             DOCTEST_CHECK(std::abs(phaseError) < tolerance);
 
-            Model::DFT residual = spectrum;
-            residual.WriteWindowedPartial(atoms[0].m_analysisPhase + 0.5f,
-                2.0f * atoms[0].m_analysisMagnitude, atoms[0].m_analysisOmega);
             double originalEnergy = 0;
             double residualEnergy = 0;
             for (size_t k = 1; k < Model::x_maxComponents; ++k)
@@ -231,7 +229,7 @@ DOCTEST_TEST_CASE("SpectralModel analysis magnitude retains Hann peak normalizat
             Model::DFT spectrum;
             spectrum.Transform(buffer);
             AnalysisAtomArray atoms;
-            model.ExtractAnalysisAtoms(spectrum, atoms, input);
+            model.ExtractAndSubtractAnalysisAtoms(spectrum, atoms, input);
             DOCTEST_REQUIRE(atoms.Size() == 1);
             DOCTEST_CAPTURE(bin);
             DOCTEST_CAPTURE(amplitude);
@@ -240,7 +238,7 @@ DOCTEST_TEST_CASE("SpectralModel analysis magnitude retains Hann peak normalizat
     }
 }
 
-DOCTEST_TEST_CASE("SpectralModel analyzed partials reconstruct the residual for overlapping tones")
+DOCTEST_TEST_CASE("SpectralModel analysis leaves the residual in the DFT for overlapping tones")
 {
     for (size_t numAtoms : {1, 8})
     {
@@ -262,16 +260,10 @@ DOCTEST_TEST_CASE("SpectralModel analyzed partials reconstruct the residual for 
 
                 Model::DFT spectrum;
                 spectrum.Transform(buffer);
+                Model::DFT residual = spectrum;
                 AnalysisAtomArray atoms;
-                model.ExtractAnalysisAtoms(spectrum, atoms, input);
+                model.ExtractAndSubtractAnalysisAtoms(residual, atoms, input);
                 DOCTEST_REQUIRE(!atoms.Empty());
-                Model::DFT reconstructedResidual = spectrum;
-                for (const AnalysisAtom& atom : atoms)
-                {
-                    reconstructedResidual.WriteWindowedPartial(atom.m_analysisPhase + 0.5f,
-                        2.0f * atom.m_analysisMagnitude, atom.m_analysisOmega);
-                }
-
                 model.ExtractAtomsAndResidual(buffer, input);
                 double originalEnergy = 0.0;
                 double residualEnergy = 0.0;
@@ -279,8 +271,8 @@ DOCTEST_TEST_CASE("SpectralModel analyzed partials reconstruct the residual for 
                 for (size_t k = 1; k < Model::x_maxComponents; ++k)
                 {
                     originalEnergy += std::norm(spectrum.m_components[k]);
-                    residualEnergy += std::norm(reconstructedResidual.m_components[k]);
-                    double difference = std::abs(reconstructedResidual.m_components[k]) - model.m_residualModel.GetEnvelope(k);
+                    residualEnergy += std::norm(residual.m_components[k]);
+                    double difference = std::abs(residual.m_components[k]) - model.m_residualModel.GetEnvelope(k);
                     differenceEnergy += difference * difference;
                 }
 
