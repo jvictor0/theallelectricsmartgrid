@@ -349,7 +349,7 @@ struct SpectralModelGeneric
         }
     };
 
-    void ExtractAnalysisAtoms(DFT& dft, AnalysisAtomArray& analysisAtoms, Input& input)
+    void ExtractAnalysisAtoms(const DFT& dft, AnalysisAtomArray& analysisAtoms, Input& input)
     {
         analysisAtoms.Clear();
 
@@ -431,6 +431,45 @@ struct SpectralModelGeneric
         }
 
         analysisAtoms.Sort(AnalysisAtom::CmpOmega);
+
+        // Refine the selected peaks against the remaining spectrum so tracking
+        // and residual reconstruction use the same amplitude and phase.
+        //
+        DFT remaining = dft;
+        for (AnalysisAtom& analysisAtom : analysisAtoms)
+        {
+            if (analysisAtom.m_isSynthetic)
+            {
+                continue;
+            }
+
+            float exactBin = analysisAtom.m_analysisOmega * static_cast<float>(x_tableSize);
+            int centerBin = static_cast<int>(std::floor(exactBin));
+            int firstBin = std::max(1, centerBin - DFT::x_partialKernelRadius);
+            int lastBin = std::min(static_cast<int>(x_maxComponents) - 1, centerBin + DFT::x_partialKernelRadius);
+            std::complex<float> projection(0.0f, 0.0f);
+            float kernelEnergy = 0.0f;
+            for (int k = firstBin; k <= lastBin; ++k)
+            {
+                auto kernel = MathGeneric<Bits>::HannKernel(exactBin - static_cast<float>(k));
+                projection += std::conj(kernel) * remaining.m_components[k];
+                kernelEnergy += std::norm(kernel);
+            }
+
+            if (kernelEnergy > 0.0f)
+            {
+                auto coefficient = projection / kernelEnergy;
+
+                // Keep analysis magnitude in Hann peak units: A/4 for a
+                // cosine of amplitude A. The writer expects A/2, and phase
+                // refers to the start of the analysis frame in cycles.
+                //
+                analysisAtom.m_analysisMagnitude = 0.5f * std::abs(coefficient);
+                analysisAtom.m_analysisPhase = std::arg(coefficient) / (2.0f * static_cast<float>(M_PI));
+                remaining.WriteWindowedPartial(analysisAtom.m_analysisPhase + 0.5f,
+                    2.0f * analysisAtom.m_analysisMagnitude, analysisAtom.m_analysisOmega);
+            }
+        }
     }
 
     void SearchAndMerge(AnalysisAtomArray& analysisAtoms, Atom& atom, Input& input)
@@ -535,44 +574,19 @@ struct SpectralModelGeneric
         dft.Transform(buffer);
         AnalysisAtomArray analysisAtoms;
         ExtractAnalysisAtoms(dft, analysisAtoms, input);
-        DFT residualDft = dft;
         typename ResidualModel::Input residualInput;
         for (AnalysisAtom& analysisAtom : analysisAtoms)
         {
             if (!analysisAtom.m_isSynthetic)
             {
-                // Fit the pre-window complex coefficient across the same Hann
-                // kernel support used for synthesis. Projecting the remaining
-                // residual prevents overlapping partials from adding energy.
-                //
-                float exactBin = analysisAtom.m_analysisOmega * static_cast<float>(x_tableSize);
-                int centerBin = static_cast<int>(std::floor(exactBin));
-                int firstBin = std::max(1, centerBin - DFT::x_partialKernelRadius);
-                int lastBin = std::min(static_cast<int>(x_maxComponents) - 1, centerBin + DFT::x_partialKernelRadius);
-                std::complex<float> projection(0.0f, 0.0f);
-                float kernelEnergy = 0.0f;
-                for (int k = firstBin; k <= lastBin; ++k)
-                {
-                    auto kernel = MathGeneric<Bits>::HannKernel(exactBin - static_cast<float>(k));
-                    projection += std::conj(kernel) * residualDft.m_components[k];
-                    kernelEnergy += std::norm(kernel);
-                }
-
-                if (kernelEnergy > 0.0f)
-                {
-                    auto coefficient = projection / kernelEnergy;
-                    for (int k = firstBin; k <= lastBin; ++k)
-                    {
-                        auto kernel = MathGeneric<Bits>::HannKernel(exactBin - static_cast<float>(k));
-                        residualDft.m_components[k] -= coefficient * kernel;
-                    }
-                }
+                dft.WriteWindowedPartial(analysisAtom.m_analysisPhase + 0.5f,
+                    2.0f * analysisAtom.m_analysisMagnitude, analysisAtom.m_analysisOmega);
             }
         }
 
         for (size_t i = 0; i < ResidualModel::x_numBuckets; ++i)
         {
-            residualInput.m_analysisResidualMagnitudes[i] = std::abs(residualDft.m_components[i]);
+            residualInput.m_analysisResidualMagnitudes[i] = std::abs(dft.m_components[i]);
         }
 
         m_residualModel.Process(input, residualInput);

@@ -51,7 +51,18 @@
 - [x] Review the diff and update the audit with repair status and validation.
 - [x] Explain nonlinear feedback, phase multiplication, the first Hann window and residual subtraction, and alternatives to summing quad audio to mono.
 
-## Completion evidence
+## Follow-up: One analysis estimate for tracking and residual subtraction
+
+The user approved moving the residual coefficient fit into analysis and restoring subtraction through the existing `WriteWindowedPartial` helper.
+
+- [x] Reproduce the inconsistent analysis/residual estimates and off-bin magnitude bias with regressions.
+- [x] Refine the selected analysis atoms using the Hann-kernel coefficient fit, preserving the existing magnitude scale.
+- [x] Subtract those returned atoms through `WriteWindowedPartial`; remove the separate residual fit and unnecessary spectrum copy.
+- [x] Verify spectral, synthesis, and full-suite behavior and review the change.
+
+The new regressions failed on 274 of 784 assertions before the change. The corrected implementation passed 29 targeted tests and 103,123 assertions. The full suite passed 381 of 383 tests and 2,527,139 of 2,527,141 assertions; only the same two baseline startup-silence checks failed, with the unchanged 0.000657712 peak. Independent read-only review found no actionable issues. This follow-up is for PR #5 and has not been deployed to the iPad.
+
+## Earlier completion evidence
 
 The broad repair set was implemented and reviewed. Before the user's phase-accumulator correction, the standalone suite passed 378 of 380 tests; the two startup silence failures were independently reproduced unchanged at the original commit. All effects and new regression cases passed. The user then specified the narrower pitch fix: retain `atom.UpdatePhase()` and scale emitted phase by detune and pitch ratio. See `docs/audits/effects-repairs-2026-09-15.md` for current behavior and validation. The input-topology proposal was declined.
 
