@@ -1,8 +1,11 @@
+import asyncio
+import io
 import os
 import plistlib
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -40,6 +43,11 @@ class FakeAfc:
         self.removed.append(path)
 
 
+class StalledAfc(FakeAfc):
+    async def fread(self, handle, size):
+        await asyncio.Event().wait()
+
+
 class DeviceSelectionTests(unittest.IsolatedAsyncioTestCase):
     def test_environment_overrides_known_device_defaults(self):
         with patch.dict(
@@ -62,6 +70,44 @@ class DeviceSelectionTests(unittest.IsolatedAsyncioTestCase):
 
 
 class TransferTests(unittest.IsolatedAsyncioTestCase):
+    async def test_large_download_reports_incremental_progress(self):
+        afc = FakeAfc([5], [b"ab", b"cd", b"e"])
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "recording.sgrec"
+
+            with patch.object(sync_ipad, "PROGRESS_REPORT_BYTES", 2):
+                with redirect_stdout(output):
+                    await sync_ipad.download_afc_file(
+                        afc,
+                        "/recording.sgrec",
+                        destination,
+                    )
+
+        progress = output.getvalue()
+        self.assertIn("40.0%", progress)
+        self.assertIn("80.0%", progress)
+        self.assertIn("100.0%", progress)
+
+    async def test_stalled_read_times_out_and_removes_partial(self):
+        afc = StalledAfc([5], [])
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "recording.sgrec"
+
+            with patch.object(sync_ipad, "AFC_READ_TIMEOUT", 0.001):
+                with self.assertRaisesRegex(TimeoutError, "timed out reading"):
+                    await asyncio.wait_for(
+                        sync_ipad.download_afc_file(
+                            afc,
+                            "/recording.sgrec",
+                            destination,
+                        ),
+                        timeout=0.1,
+                    )
+
+            self.assertFalse((Path(directory) / ".recording.sgrec.partial").exists())
+            self.assertTrue(afc.closed)
+
     async def test_short_read_keeps_existing_file_and_removes_partial(self):
         afc = FakeAfc([5], [b"ab", b""])
         with tempfile.TemporaryDirectory() as directory:
@@ -141,6 +187,24 @@ class LogWindowTests(unittest.TestCase):
     def test_since_requires_timezone(self):
         with self.assertRaisesRegex(ValueError, "timezone"):
             ipad_logs.parse_since("2026-09-15T12:00:00")
+
+
+class CommandTests(unittest.TestCase):
+    def test_keyboard_interrupt_exits_cleanly(self):
+        def interrupt(coroutine):
+            coroutine.close()
+            raise KeyboardInterrupt
+
+        errors = io.StringIO()
+        output = io.StringIO()
+        with patch.object(sys, "argv", ["sync_ipad.py"]):
+            with patch.object(sync_ipad.asyncio, "run", side_effect=interrupt):
+                with redirect_stdout(output):
+                    with redirect_stderr(errors):
+                        result = sync_ipad.main()
+
+        self.assertEqual(result, 130)
+        self.assertIn("Interrupted", errors.getvalue())
 
 
 if __name__ == "__main__":

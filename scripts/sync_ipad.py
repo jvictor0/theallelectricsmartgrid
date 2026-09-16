@@ -20,6 +20,8 @@ MAC_RECORDINGS_DIR = MAC_SMARTGRID_DIR / "recordings"
 MAC_LOGS_DIR = MAC_SMARTGRID_DIR / "logs"
 IPAD_DOCUMENTS_DIR = "/Documents/SmartGridOne"
 DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024
+AFC_READ_TIMEOUT = 30
+PROGRESS_REPORT_BYTES = 64 * 1024 * 1024
 
 
 def extract_stereo_recording(local_path: Path) -> int:
@@ -73,11 +75,27 @@ async def download_afc_file(
     partial_path.unlink(missing_ok=True)
     handle = await afc.fopen(remote_path, "r")
     total = 0
+    show_progress = expected_size >= PROGRESS_REPORT_BYTES
+    next_progress = PROGRESS_REPORT_BYTES
+    if show_progress:
+        print(
+            f"  {progress_label}: 0.0 / {expected_size / (1024 * 1024):.1f} MiB (0.0%)",
+            flush=True,
+        )
     try:
         with partial_path.open("wb") as output:
             while total < expected_size:
                 requested = min(DOWNLOAD_CHUNK_SIZE, expected_size - total)
-                chunk = await afc.fread(handle, requested)
+                try:
+                    chunk = await asyncio.wait_for(
+                        afc.fread(handle, requested),
+                        timeout=AFC_READ_TIMEOUT,
+                    )
+                except TimeoutError as error:
+                    raise TimeoutError(
+                        f"timed out reading {remote_path} after {AFC_READ_TIMEOUT} seconds "
+                        f"at {total} of {expected_size} bytes"
+                    ) from error
                 if not chunk:
                     raise IOError(
                         f"short read for {remote_path}: received {total} of {expected_size} bytes"
@@ -88,6 +106,15 @@ async def download_afc_file(
                     raise IOError(
                         f"oversized read for {remote_path}: received more than {expected_size} bytes"
                     )
+                if show_progress and (total >= next_progress or total == expected_size):
+                    print(
+                        f"  {progress_label}: {total / (1024 * 1024):.1f} / "
+                        f"{expected_size / (1024 * 1024):.1f} MiB "
+                        f"({100 * total / expected_size:.1f}%)",
+                        flush=True,
+                    )
+                    while next_progress <= total:
+                        next_progress += PROGRESS_REPORT_BYTES
         partial_path.replace(local_path)
     except BaseException:
         partial_path.unlink(missing_ok=True)
@@ -95,8 +122,8 @@ async def download_afc_file(
     finally:
         await afc.fclose(handle)
 
-    if expected_size >= 1024 * 1024:
-        print(f"  {progress_label}: {expected_size / (1024 * 1024):.1f} MB done")
+    if expected_size >= 1024 * 1024 and not show_progress:
+        print(f"  {progress_label}: {expected_size / (1024 * 1024):.1f} MiB done")
 
 
 async def ensure_remote_dir(afc, path):
@@ -266,6 +293,9 @@ def main():
                 include_recordings=not args.no_recordings,
             )
         )
+    except KeyboardInterrupt:
+        print("Interrupted; iPad files retained.", file=sys.stderr)
+        return 130
     except Exception as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
