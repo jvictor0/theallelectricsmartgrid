@@ -279,23 +279,24 @@ struct DelayLineMovableWriter
 
     void ScatterBufferToDelayLine()
     {
-        double timeLowSamples = m_scatterBufferWarpedTime[(m_scatterHead - 2) % x_scatterBufferSize];
-        double timeHighSamples = m_scatterBufferWarpedTime[(m_scatterHead - 1) % x_scatterBufferSize];
+        double timeLowSamples = m_scatterBufferWarpedTime[(m_scatterHead - 1) % x_scatterBufferSize];
+        double timeHighSamples = m_scatterBufferWarpedTime[m_scatterHead % x_scatterBufferSize];
+        double realTimeLow = m_scatterBufferTime[(m_scatterHead - 1) % x_scatterBufferSize];
+        double realTimeHigh = m_scatterBufferTime[m_scatterHead % x_scatterBufferSize];
 
-        size_t timeLowIndex = std::ceil(timeLowSamples);
-        size_t timeHighIndex = std::ceil(timeHighSamples);
+        int64_t timeLowIndex = static_cast<int64_t>(std::ceil(timeLowSamples));
+        int64_t timeHighIndex = static_cast<int64_t>(std::ceil(timeHighSamples));
 
-        for (size_t i = timeLowIndex; i < timeHighIndex; ++i)
+        for (int64_t i = timeLowIndex; i < timeHighIndex; ++i)
         {
-            double time = static_cast<double>(i);
-            double value = PhaseUtils::CubicLagrangeNonUniform(
-                m_scatterBufferWarpedTime[(m_scatterHead - 3) % x_scatterBufferSize], m_scatterBufferTime[(m_scatterHead - 3) % x_scatterBufferSize],
-                m_scatterBufferWarpedTime[(m_scatterHead - 2) % x_scatterBufferSize], m_scatterBufferTime[(m_scatterHead - 2) % x_scatterBufferSize],
-                m_scatterBufferWarpedTime[(m_scatterHead - 1) % x_scatterBufferSize], m_scatterBufferTime[(m_scatterHead - 1) % x_scatterBufferSize],
-                m_scatterBufferWarpedTime[m_scatterHead % x_scatterBufferSize], m_scatterBufferTime[m_scatterHead % x_scatterBufferSize],
-                time);
-            m_writeHeadInverse[i % x_maxDelaySamples] = value;
+            double alpha = (static_cast<double>(i) - timeLowSamples) / (timeHighSamples - timeLowSamples);
+            m_writeHeadInverse[WrapIndex(i)] = realTimeLow + alpha * (realTimeHigh - realTimeLow);
         }
+    }
+
+    static size_t WrapIndex(int64_t index)
+    {
+        return static_cast<size_t>(PhaseUtils::FloorMod(index, static_cast<int64_t>(x_maxDelaySamples)));
     }
 
     void Write(float x, double time)
@@ -317,7 +318,7 @@ struct DelayLineMovableWriter
             ++m_ascendingCount;
             m_scatterBufferWarpedTime[m_scatterHead % x_scatterBufferSize] = time;
             m_scatterBufferTime[m_scatterHead % x_scatterBufferSize] = m_lastTime;
-            if (4 <= m_ascendingCount)
+            if (2 <= m_ascendingCount)
             {
                 ScatterBufferToDelayLine();
             }
@@ -325,7 +326,7 @@ struct DelayLineMovableWriter
             ++m_scatterHead;
         }
 
-        size_t index = static_cast<size_t>(m_lastTime) % x_maxDelaySamples;
+        size_t index = WrapIndex(static_cast<int64_t>(m_lastTime));
         m_delayLine[index] = x;
 
         size_t envelopeBucketIndex = index / x_envelopeBucketSamples;
@@ -351,10 +352,10 @@ struct DelayLineMovableWriter
     template<class T>
     T ReadAtIndex(double index, InterleavedArrayHolder<T, x_maxDelaySamples, 4>& line)
     {
-        size_t iSub1 = static_cast<size_t>(index - 1 + x_maxDelaySamples) % x_maxDelaySamples;
-        size_t i0 = (iSub1 + 1) % x_maxDelaySamples;
-        size_t i1 = (iSub1 + 2) % x_maxDelaySamples;
-        size_t i2 = (iSub1 + 3) % x_maxDelaySamples;
+        size_t i0 = WrapIndex(static_cast<int64_t>(std::floor(index)));
+        size_t iSub1 = (i0 + x_maxDelaySamples - 1) % x_maxDelaySamples;
+        size_t i1 = (i0 + 1) % x_maxDelaySamples;
+        size_t i2 = (i0 + 2) % x_maxDelaySamples;
 
         T c = line[i1] - line[iSub1];
         T d = 2 * line[iSub1] - 5 * line[i0] + 4 * line[i1] - line[i2];
@@ -391,14 +392,19 @@ struct DelayLineMovableWriter
 
     double GetRealTime(double warpedTime)
     {
-        return ReadAtIndex(warpedTime, m_writeHeadInverse);
+        double floorTime = std::floor(warpedTime);
+        size_t i0 = WrapIndex(static_cast<int64_t>(floorTime));
+        size_t i1 = (i0 + 1) % x_maxDelaySamples;
+        double alpha = warpedTime - floorTime;
+        return m_writeHeadInverse[i0] + alpha * (m_writeHeadInverse[i1] - m_writeHeadInverse[i0]);
     }
 
     std::pair<float, float> GetEnvelopeAtRealTime(double realTime)
     {
         double envelopeIndexFloat = realTime / static_cast<double>(x_envelopeBucketSamples) - 0.5;
 
-        size_t index0 = static_cast<size_t>(std::floor(envelopeIndexFloat)) % x_envelopeBucketCount;
+        int64_t bucketIndex = static_cast<int64_t>(std::floor(envelopeIndexFloat));
+        size_t index0 = static_cast<size_t>(PhaseUtils::FloorMod(bucketIndex, static_cast<int64_t>(x_envelopeBucketCount)));
         size_t index1 = (index0 + 1) % x_envelopeBucketCount;
         float frac = static_cast<float>(envelopeIndexFloat - std::floor(envelopeIndexFloat));
 
@@ -548,7 +554,8 @@ struct GrainManager
         Resynthesizer::Input m_resynthInput;
     };
 
-    float Process(double warpedTime, double sampleOffset, Input& input)
+    float Process(double warpedTime, double sampleOffset, Input& input,
+        double latestSampleTime = std::numeric_limits<double>::infinity())
     {
         if (!m_audioBuffer)
         {
@@ -563,6 +570,13 @@ struct GrainManager
             if (grain)
             {
                 double startTime = m_audioBuffer->GetRealTime(warpedTime) + sampleOffset;
+
+                // Protect the full analysis window after mapping to real time.
+                // Cubic audio interpolation reads two samples beyond its floor index.
+                // Recorded sample banks use the default unbounded frontier.
+                //
+                double latestStart = latestSampleTime - (Resynthesizer::x_N - 1) - 2;
+                startTime = std::min(startTime, latestStart);
                 grain->Start(input.m_resynthInput, startTime, warpedTime);
             }
 
@@ -779,7 +793,8 @@ struct QuadGrainManager
         QuadFloat result;
         for (size_t i = 0; i < 4; ++i)
         {
-            result[i] = m_grainManager[i].Process(readHead[i], sampleOffset[i], input.m_input[i]);
+            double latestSampleTime = m_grainManager[i].m_audioBuffer->m_lastTime - 1.0;
+            result[i] = m_grainManager[i].Process(readHead[i], sampleOffset[i], input.m_input[i], latestSampleTime);
         }
 
         return result;
