@@ -11,6 +11,7 @@ nonzero exit status. Panned mono exports only sample_val, without applying pan.
 """
 
 import argparse
+from array import array
 from dataclasses import dataclass
 from pathlib import Path
 import struct
@@ -20,6 +21,18 @@ from sgrec import Reader, RecordingError, x_quad_corners, x_stream_names
 
 x_pcm_guid = bytes.fromhex('0100000000001000800000aa00389b71')
 x_chunk_frames = 8192
+
+
+def pack_pcm24(streams, start, end):
+    channels = len(streams)
+    interleaved = array('i', [0]) * ((end - start) * channels)
+    for channel, values in enumerate(streams):
+        interleaved[channel::channels] = values[start:end]
+    if sys.byteorder != 'little':
+        interleaved.byteswap()
+    payload = bytearray(interleaved.tobytes())
+    del payload[3::4]
+    return payload
 
 
 @dataclass
@@ -64,18 +77,10 @@ class Pcm24Wav:
         output.write(wav_header(sample_rate, channels, 0))
 
     def WriteBlock(self, streams, frames):
+        streams = streams[:self.m_channels]
         for start in range(0, frames, x_chunk_frames):
             end = min(frames, start + x_chunk_frames)
-            payload = bytearray((end - start) * self.m_channels * 3)
-            offset = 0
-            for index in range(start, end):
-                for channel in range(self.m_channels):
-                    value = streams[channel][index]
-                    payload[offset] = value & 0xff
-                    payload[offset + 1] = (value >> 8) & 0xff
-                    payload[offset + 2] = (value >> 16) & 0xff
-                    offset += 3
-            self.m_output.write(payload)
+            self.m_output.write(pack_pcm24(streams, start, end))
             self.m_frames += end - start
 
     def Finalize(self):
@@ -122,7 +127,7 @@ def extract(input_path, output_path=None, *, master=None, track_id=None, overwri
             writer = Pcm24Wav(output, reader.m_header['sample_rate'], channels)
             error = None
             try:
-                for block in reader.Blocks():
+                for block in reader.Blocks({track['id']}):
                     writer.WriteBlock(block.m_tracks[track['id']], block.m_frame_count)
                     del block
             except RecordingError as failure:

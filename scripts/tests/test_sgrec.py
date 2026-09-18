@@ -68,13 +68,28 @@ class ReaderTests(unittest.TestCase):
                     self.assertIsInstance(stream, array.array)
                     self.assertEqual(stream.itemsize, 4)
 
+    def test_selected_track_decodes_only_that_track(self):
+        sgrec = load_reader(self)
+        with (x_fixtures / 'golden.sgrec').open('rb') as source:
+            reader = sgrec.Reader(source)
+            with mock.patch.object(sgrec, 'decode_stream', wraps=sgrec.decode_stream) as decode:
+                blocks = list(reader.Blocks({7}))
+        self.assertTrue(reader.m_complete)
+        self.assertEqual(decode.call_count, 4)
+        for actual, expected in zip(blocks, self.m_expected['blocks'], strict=True):
+            self.assertEqual(set(actual.m_tracks), {7})
+            self.assertEqual(
+                [list(stream) for stream in actual.m_tracks[7]],
+                expected['tracks']['7'],
+            )
+
     def test_corrupt_block_never_exposes_even_its_valid_selected_track(self):
         sgrec = load_reader(self)
         corrupted = bytearray(self.m_records[0])
         corrupted[-1] ^= 1
         reader = sgrec.Reader(io.BytesIO(self.m_prefix + corrupted + completion(4)))
         with self.assertRaisesRegex(sgrec.RecordingError, 'CRC'):
-            next(reader.Blocks())
+            next(reader.Blocks({7}))
         self.assertEqual(reader.m_total_frames, 0)
         self.assertFalse(reader.m_complete)
 
@@ -212,6 +227,17 @@ class ExtractionTests(unittest.TestCase):
         self.m_source = x_fixtures / 'golden.sgrec'
         self.m_expected = json.loads((x_fixtures / 'golden.json').read_text())
 
+    def test_pcm24_packing_interleaves_signed_channels(self):
+        extractor = load_extractor(self)
+        streams = (
+            array.array('i', [1, -2, 0x123456]),
+            array.array('i', [3, -4, -0x123456]),
+        )
+        self.assertEqual(
+            extractor.pack_pcm24(streams, 0, 3),
+            bytes.fromhex('010000030000fefffffcffff563412aacbed'),
+        )
+
     def test_direct_master_and_stems_preserve_pcm_order_and_true_length(self):
         extractor = load_extractor(self)
         cases = [('mono', {'track_id': 1}, 1, 1), ('panned', {'track_id': 3}, 3, 1), ('stereo', {'master': 'stereo'}, 7, 2), ('quad', {'master': 'quad'}, 9, 4)]
@@ -240,8 +266,8 @@ class ExtractionTests(unittest.TestCase):
         extractor = load_extractor(self)
         prefix = header_bytes(self.m_expected['header'])
         first = bytes.fromhex(self.m_expected['blocks'][0]['record_hex'])
-        bad_positions = data_record(4, 4, struct.pack('<I', 3)+bytes([1,0,1,0,1,0]), bytes.fromhex('010000ffffff000000'), 1)
-        for suffix in (b'', b'BLK1'+b'\0'*5, bad_positions, completion(4)[:-1]):
+        bad_selected = data_record(4, 4, struct.pack('<I', 7)+bytes([1,1,1,1]), bytes.fromhex('0000008000000000'), 1)
+        for suffix in (b'', b'BLK1'+b'\0'*5, bad_selected, completion(4)[:-1]):
             with self.subTest(suffix=suffix):
                 source = self.m_root / 'damaged.sgrec'
                 output = self.m_root / 'partial.wav'

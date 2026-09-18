@@ -2,7 +2,9 @@
 
 The caller owns the binary input stream. Consume Reader.Blocks() through EOF to
 validate completion, and discard each block before requesting the next one to
-keep memory bounded. Each track contains type-ordered signed int32 arrays.
+keep memory bounded. Pass track IDs to Blocks() to decode only those tracks
+while retaining record structure and CRC validation. Each track contains
+type-ordered signed int32 arrays.
 """
 
 from array import array
@@ -182,9 +184,14 @@ class Reader:
             raise RecordingError(f'Invalid JSON header: {error}') from error
         self.m_tracks_by_id = validate_header(self.m_header)
 
-    def Blocks(self):
+    def Blocks(self, track_ids=None):
         if self.m_started:
             raise RecordingError('The recording stream has already been consumed')
+        selected_track_ids = None if track_ids is None else frozenset(track_ids)
+        if selected_track_ids is not None:
+            unknown = selected_track_ids.difference(self.m_tracks_by_id)
+            if unknown:
+                raise RecordingError(f'Unknown selected track id: {min(unknown)}')
         self.m_started = True
         while True:
             tag = self.m_source.read(4)
@@ -218,7 +225,7 @@ class Reader:
                 offset += count
             del view
             self.CheckCrc(raw)
-            block = self.DecodeBlock(memoryview(raw))
+            block = self.DecodeBlock(memoryview(raw), selected_track_ids)
             self.m_total_frames += block.m_frame_count
             self.m_short_block = block.m_frame_count < self.m_header['block_frames']
             del raw
@@ -231,7 +238,7 @@ class Reader:
         if actual != expected:
             raise RecordingError(f'CRC mismatch at frame {self.m_total_frames}')
 
-    def DecodeBlock(self, raw):
+    def DecodeBlock(self, raw, selected_track_ids=None):
         start, frames, track_count = struct.unpack_from('<QIH', raw, 8)
         if start != self.m_total_frames:
             raise RecordingError(f'Frame discontinuity: expected {self.m_total_frames}, found {start}')
@@ -273,10 +280,15 @@ class Reader:
                 payload_bytes += length
         if offset + payload_bytes + 4 != len(raw):
             raise RecordingError('Derived descriptor/payload lengths do not match BLK1 size')
-        tracks = {track_id: [None] * len(x_stream_names[track['type']]) for track_id, track in self.m_tracks_by_id.items()}
+        tracks = {
+            track_id: [None] * len(x_stream_names[track['type']])
+            for track_id, track in self.m_tracks_by_id.items()
+            if selected_track_ids is None or track_id in selected_track_ids
+        }
         for track_id, stream_index, encoding, width, length in descriptors:
-            coordinate = self.m_tracks_by_id[track_id]['type'] == 'panned_mono' and stream_index > 0
-            tracks[track_id][stream_index] = decode_stream(raw[offset:offset + length], frames, encoding, width, coordinate)
+            if track_id in tracks:
+                coordinate = self.m_tracks_by_id[track_id]['type'] == 'panned_mono' and stream_index > 0
+                tracks[track_id][stream_index] = decode_stream(raw[offset:offset + length], frames, encoding, width, coordinate)
             offset += length
         for streams in tracks.values():
             for index, values in enumerate(streams):
