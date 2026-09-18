@@ -97,11 +97,14 @@ struct TheoryOfTime : public TheoryOfTimeBase
             input.m_phaseModLFOInput.m_externalWeights[i] = 1.0 / static_cast<double>(GetCycleRatio(i, j - 1));
         }
 
-        input.m_phaseModLFOInput.m_mult = input.m_lfoMult.m_expParam;
-        input.m_phaseModLFOInput.m_theoryOfTime = this;
-        input.m_phaseModLFOInput.m_phaseDomain = PhaseDomain::Unmodulated;
-        input.m_phaseModLFOInput.m_samplePosition = static_cast<float>(j - 1);
-        m_phaseModLFO.Process(input.m_phaseModLFOInput);
+        PolyXFaderInternal::Input lfoInput = input.m_phaseModLFOInput;
+        lfoInput.m_attackFrac = 0.1f + 0.8f * lfoInput.m_attackFrac;
+        lfoInput.m_continuousShape = true;
+        lfoInput.m_mult = input.m_lfoMult.m_expParam;
+        lfoInput.m_theoryOfTime = this;
+        lfoInput.m_phaseDomain = PhaseDomain::Unmodulated;
+        lfoInput.m_samplePosition = static_cast<float>(j - 1);
+        m_phaseModLFO.Process(lfoInput);
         input.m_phaseOffset = -2 * input.m_modIndex.m_expParam * m_phaseModLFO.m_rawOutput;
     }
 

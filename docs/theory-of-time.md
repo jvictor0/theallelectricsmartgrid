@@ -17,6 +17,12 @@ loopPhase = globalPhase * cycleRatio
 
 This is a direct function of the current phase and accepted topology, including after reverse motion, seeks, or jumps across many cycles. Periodic outputs reduce phase with `phase - floor(phase)` only where they need a circle coordinate. Sample playback applies speed before this reduction; LFO waveform evaluation reduces its input before applying its periodic shaping multiplier.
 
+## Time-warp modulation controls
+
+The clock's phase-modulation LFO uses a continuous sine-to-triangle Shape blend over the full normalized knob range. Shape zero is sinusoidal, Shape one is triangular, and intermediate values blend them without quantization. Skew maps the full knob range to attack fractions 0.1 through 0.9; its midpoint remains symmetric at 0.5. Existing control filtering, loop blending, output slew and fractional-Mult lobes are retained.
+
+These restrictions apply specifically to the time-warp LFO. Voice and quad LFOs retain their existing Shape and Skew behavior. High Mult can still reverse time; reversals remain an intentional part of the effect.
+
 ## Shared integer position
 
 Each sample has one signed `int64_t` position per domain, shared by all loops. The global period in lattice ticks is twice the LCM of the cycle ratios. A loop's period is the global period divided by its cycle ratio. Consequently every loop has an integral half-period.

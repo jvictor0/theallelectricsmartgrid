@@ -28,6 +28,7 @@ struct PolyXFaderInternal
 
         bool m_trig;
         float m_shFade;
+        bool m_continuousShape;
 
         Input()
             : m_theoryOfTime(nullptr)
@@ -43,6 +44,7 @@ struct PolyXFaderInternal
             , m_center(0.0f)
             , m_trig(false)
             , m_shFade(0.0f)
+            , m_continuousShape(false)
         {
             for (size_t i = 0; i < 16; ++i)
             {
@@ -85,6 +87,12 @@ struct PolyXFaderInternal
         
         float Shape(float shape, float in)
         {
+            if (m_continuousShape)
+            {
+                float sine = (-Math::Cos2pi(in / 2) + 1) / 2;
+                return sine + shape * (in - sine);
+            }
+
             if (shape < 0.45)
             {
                 shape *= 2;
@@ -213,7 +221,7 @@ struct PolyXFaderInternal
 
     float Quantize(Input& input, size_t i, float value)
     {
-        if (input.m_shape <= 0.55)
+        if (input.m_continuousShape || input.m_shape <= 0.55)
         {
             m_valuesPreQuantize[i] = value;
             return value;
