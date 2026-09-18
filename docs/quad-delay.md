@@ -21,7 +21,7 @@ To implement this, the delay requires a "moveable writehead." It must compute an
 
 Inverse-map timestamps use linear interpolation both when recording an ascending interval and when looking up a fractional warped position. Audio samples retain cubic interpolation. Signed absolute coordinates, including negative positions, wrap using Euclidean modulo at the physical array boundary.
 
-Audio continues recording during time reversals. The inverse map updates only on forward motion, so backward motion reads previously mapped history; later forward motion replaces it. This is the intended reversal behavior.
+Audio continues recording during time reversals. The inverse map updates only on forward motion, so backward motion reads previously mapped history; later forward motion replaces it. The turnaround sample is retained as an interpolation endpoint so the first forward interval also replaces its history. This is the intended reversal behavior.
 
 ## Read/Write Head Computation (`QuadDelayInputSetter`)
 

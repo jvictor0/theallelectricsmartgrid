@@ -87,6 +87,64 @@ DOCTEST_TEST_CASE("TimeWarpLFO: fractional Mult preserves the partial lobe")
     DOCTEST_CHECK(rig.Evaluate(0.75f) == doctest::Approx(0.5f));
 }
 
+DOCTEST_TEST_CASE("TimeWarpLFO: Center keeps the global source at its blend boundary")
+{
+    const float boundary = 23.0f / 24.0f;
+    const float centers[] = {std::nextafter(boundary, 0.0f), boundary, std::nextafter(boundary, 1.0f)};
+    for (float center : centers)
+    {
+        TimeWarpLFORig rig;
+        rig.m_input.m_phaseModLFOInput.m_center = center;
+        DOCTEST_CHECK(rig.Evaluate(0.125f) == doctest::Approx(0.25f));
+        DOCTEST_CHECK(rig.m_time.m_phaseModLFO.m_totalWeight > 0);
+    }
+}
+
+DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the global clock source")
+{
+    TheoryOfTime moving;
+    TheoryOfTime::Input input;
+    input.m_running = true;
+    input.m_freq = 1.0 / 192000.0;
+    input.m_lfoMult.m_expParam = 16;
+    input.m_modIndex.m_expParam = 1;
+    input.m_phaseModLFOInput.m_shape = 1;
+    input.m_phaseModLFOInput.m_attackFrac = 0.5f;
+    input.m_phaseModLFOInput.m_slope = 0;
+    OPLowPassFilter encoder;
+    encoder.SetAlphaFromNatFreq(500.0f / 48000.0f);
+    double maxSpeedDifference = 0;
+    float minWeight = 1;
+    bool reachedBoundary = false;
+    for (int n = 1; n <= 56000; ++n)
+    {
+        input.m_phaseModLFOInput.m_center = 1 - input.m_lfoCenterFilter.Process(encoder.Process(0.0418f));
+        if (n % 8 != 0)
+        {
+            continue;
+        }
+
+        reachedBoundary = reachedBoundary || input.m_phaseModLFOInput.m_center == 23.0f / 24.0f;
+        moving.RolloverMicroblockBuffer();
+        TheoryOfTime reference = moving;
+        TheoryOfTime::Input referenceInput = input;
+        referenceInput.m_phaseModLFOInput.m_center = 1;
+        for (size_t j = 1; j <= 8; ++j)
+        {
+            moving.Process(j, input);
+            reference.Process(j, referenceInput);
+            double speed = 192000 * (moving.m_samples[j].m_modulatedPhase - moving.m_samples[j - 1].m_modulatedPhase);
+            double referenceSpeed = 192000 * (reference.m_samples[j].m_modulatedPhase - reference.m_samples[j - 1].m_modulatedPhase);
+            maxSpeedDifference = std::max(maxSpeedDifference, std::abs(speed - referenceSpeed));
+            minWeight = std::min(minWeight, moving.m_phaseModLFO.m_totalWeight);
+        }
+    }
+
+    DOCTEST_REQUIRE(reachedBoundary);
+    DOCTEST_CHECK(minWeight > 0);
+    DOCTEST_CHECK(maxSpeedDifference < 0.1);
+}
+
 DOCTEST_TEST_CASE("PolyXFader: default Shape mode keeps stepped quantization")
 {
     TheoryOfTimeBase time;

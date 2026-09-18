@@ -128,6 +128,33 @@ DOCTEST_TEST_CASE("DelayWarp: held positions resume from the latest recorded tim
     DOCTEST_CHECK(line.GetRealTime(101.5) - realBase == doctest::Approx(3.5).epsilon(1e-7));
 }
 
+DOCTEST_TEST_CASE("DelayWarp: the first forward interval replaces history immediately after reversal")
+{
+    for (double offset : {0.0, -60.0})
+    {
+        auto storage = std::make_unique<Storage>();
+        auto& line = storage->m_delayLine[0];
+        double realBase = line.m_lastTime;
+        for (int position = 0; position <= 100; ++position)
+        {
+            line.Write(0, offset + position);
+        }
+
+        for (int position = 90; position >= 50; --position)
+        {
+            line.Write(0, offset + position);
+        }
+
+        DOCTEST_CHECK(line.GetRealTime(offset + 55) - realBase == doctest::Approx(55));
+        line.Write(0, offset + 60);
+        DOCTEST_CHECK(line.GetRealTime(offset + 55) - realBase == doctest::Approx(141.5));
+        DOCTEST_CHECK(line.GetRealTime(offset + 59) - realBase == doctest::Approx(141.9));
+        DOCTEST_CHECK(line.GetRealTime(offset + 65) - realBase == doctest::Approx(65));
+        line.Write(0, offset + 70);
+        DOCTEST_CHECK(line.GetRealTime(offset + 65) - realBase == doctest::Approx(142.5));
+    }
+}
+
 DOCTEST_TEST_CASE("DelayWarp: fast quad grains retain a steady tone with real-time offsets")
 {
     GlobalEnv::ResetPerTest();
