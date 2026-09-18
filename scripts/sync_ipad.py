@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from pymobiledevice3.services.house_arrest import HouseArrestService
@@ -22,6 +23,13 @@ IPAD_DOCUMENTS_DIR = "/Documents/SmartGridOne"
 DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024
 AFC_READ_TIMEOUT = 30
 PROGRESS_REPORT_BYTES = 64 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class RecordingTransfer:
+    remote_path: str
+    local_path: Path
+    expected_size: int
 
 
 def extract_stereo_recording(local_path: Path) -> int:
@@ -179,7 +187,7 @@ async def sync_patches_from_ipad(afc, remote_root):
             await download_afc_file(afc, remote_path, local_path)
 
 
-async def sync_recording(afc, remote_path, local_path, extractor=extract_stereo_recording):
+async def download_recording(afc, remote_path, local_path):
     first = await afc.stat(remote_path)
     expected_size = int(first["st_size"])
     if local_path.exists() and local_path.stat().st_size == expected_size:
@@ -192,25 +200,38 @@ async def sync_recording(afc, remote_path, local_path, extractor=extract_stereo_
             progress_label="Copied",
             expected_size=expected_size,
         )
-    if await asyncio.to_thread(extractor, local_path) != 0:
+    return RecordingTransfer(remote_path, local_path, expected_size)
+
+
+def extract_recording(transfer, extractor=extract_stereo_recording):
+    print(f"  Extracting stereo locally: {transfer.local_path.name}", flush=True)
+    if extractor(transfer.local_path) != 0:
         raise RuntimeError("Extraction failed; keeping the recording on iPad")
-    current_size = int((await afc.stat(remote_path))["st_size"])
-    if current_size != expected_size:
+
+
+async def delete_recording(afc, transfer):
+    current_size = int((await afc.stat(transfer.remote_path))["st_size"])
+    if current_size != transfer.expected_size:
         raise IOError(
-            f"{remote_path} changed size during transfer ({expected_size} to {current_size}); retained on iPad"
+            f"{transfer.remote_path} changed size during transfer "
+            f"({transfer.expected_size} to {current_size}); retained on iPad"
         )
-    print(f"  Deleting from iPad: {local_path.name}")
-    await afc.rm(remote_path)
+    print(f"  Deleting from iPad: {transfer.local_path.name}")
+    await afc.rm(transfer.remote_path)
 
 
-async def sync_recordings_from_ipad(afc, remote_root):
+async def download_recordings_from_ipad(afc, remote_root):
     MAC_RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
+    transfers = []
     entries = await list_files_recursive(afc, remote_root)
     for relative, is_directory, remote_path in entries:
         if is_directory:
             continue
         print(f"Copying recording from iPad: {relative}")
-        await sync_recording(afc, remote_path, MAC_RECORDINGS_DIR / relative)
+        transfers.append(
+            await download_recording(afc, remote_path, MAC_RECORDINGS_DIR / relative)
+        )
+    return transfers
 
 
 async def sync_log_file(afc, remote_path, local_path):
@@ -243,6 +264,7 @@ async def sync(transport, udid, host, include_recordings=True):
     for directory in (MAC_PATCHES_DIR, MAC_RECORDINGS_DIR, MAC_LOGS_DIR):
         directory.mkdir(parents=True, exist_ok=True)
 
+    recordings = []
     async with connect_ipad(transport, udid=udid, host=host) as lockdown:
         print(f"Connected to {lockdown.display_name} ({lockdown.udid})")
         async with await HouseArrestService.create(
@@ -264,9 +286,40 @@ async def sync(transport, udid, host, include_recordings=True):
             await sync_patches_from_ipad(afc, remote_paths["patches"])
             if include_recordings:
                 print("\n--- Syncing Recordings (iPad -> Mac, delete after extraction) ---")
-                await sync_recordings_from_ipad(afc, remote_paths["recordings"])
+                recordings = await download_recordings_from_ipad(
+                    afc,
+                    remote_paths["recordings"],
+                )
             print("\n--- Syncing Logs (iPad -> Mac, retain on iPad) ---")
             await sync_logs_from_ipad(afc, remote_paths["logs"])
+    return recordings
+
+
+async def delete_recordings_from_ipad(transport, udid, host, recordings):
+    async with connect_ipad(transport, udid=udid, host=host) as lockdown:
+        print(f"Reconnected to {lockdown.display_name} ({lockdown.udid})")
+        async with await HouseArrestService.create(
+            lockdown,
+            APP_BUNDLE_ID,
+            documents_only=False,
+        ) as afc:
+            for transfer in recordings:
+                await delete_recording(afc, transfer)
+
+
+def sync_all(transport, udid, host, include_recordings=True):
+    recordings = asyncio.run(
+        sync(
+            transport,
+            udid,
+            host,
+            include_recordings=include_recordings,
+        )
+    )
+    for transfer in recordings:
+        extract_recording(transfer)
+    if recordings:
+        asyncio.run(delete_recordings_from_ipad(transport, udid, host, recordings))
 
 
 def build_parser():
@@ -288,13 +341,11 @@ def main():
     host = device_host(args.host)
     print(f"SmartGridOne iPad sync: {udid} via {args.transport}")
     try:
-        asyncio.run(
-            sync(
-                args.transport,
-                udid,
-                host,
-                include_recordings=not args.no_recordings,
-            )
+        sync_all(
+            args.transport,
+            udid,
+            host,
+            include_recordings=not args.no_recordings,
         )
     except KeyboardInterrupt:
         print("Interrupted; iPad files retained.", file=sys.stderr)

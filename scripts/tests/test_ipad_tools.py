@@ -4,7 +4,6 @@ import os
 import plistlib
 import sys
 import tempfile
-import threading
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -71,50 +70,21 @@ class DeviceSelectionTests(unittest.IsolatedAsyncioTestCase):
 
 
 class TransferTests(unittest.IsolatedAsyncioTestCase):
-    async def test_recording_extraction_keeps_event_loop_responsive(self):
-        afc = FakeAfc([4, 4], [b"quad"])
-        extraction_started = threading.Event()
-        release_extraction = threading.Event()
-
-        def wait_for_event_loop(path):
-            extraction_started.set()
-            return 0 if release_extraction.wait(timeout=0.1) else 1
-
-        async def release_from_event_loop():
-            while not extraction_started.is_set():
-                await asyncio.sleep(0)
-            release_extraction.set()
-
-        with tempfile.TemporaryDirectory() as directory:
-            destination = Path(directory) / "recording.sgrec"
-            with redirect_stdout(io.StringIO()):
-                await asyncio.gather(
-                    sync_ipad.sync_recording(
-                        afc,
-                        "/recording.sgrec",
-                        destination,
-                        wait_for_event_loop,
-                    ),
-                    release_from_event_loop(),
-                )
-
-        self.assertEqual(afc.removed, ["/recording.sgrec"])
-
     async def test_retry_reuses_complete_local_recording(self):
-        afc = FakeAfc([4, 4], [])
+        afc = FakeAfc([4], [])
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "recording.sgrec"
             destination.write_bytes(b"quad")
 
             with redirect_stdout(io.StringIO()):
-                await sync_ipad.sync_recording(
+                transfer = await sync_ipad.download_recording(
                     afc,
                     "/recording.sgrec",
                     destination,
-                    lambda path: 0,
                 )
 
-        self.assertEqual(afc.removed, ["/recording.sgrec"])
+        self.assertEqual(transfer.expected_size, 4)
+        self.assertEqual(afc.removed, [])
         self.assertFalse(afc.closed)
 
     async def test_large_download_reports_incremental_progress(self):
@@ -180,20 +150,21 @@ class TransferTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse((Path(directory) / ".session.log.partial").exists())
 
     async def test_failed_extraction_retains_remote_recording(self):
-        afc = FakeAfc([4, 4], [b"quad"])
+        afc = FakeAfc([4], [b"quad"])
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "take.wav"
+            transfer = await sync_ipad.download_recording(
+                afc,
+                "/take.wav",
+                destination,
+            )
 
             def fail_extraction(path):
                 raise RuntimeError("sox failed")
 
-            with self.assertRaisesRegex(RuntimeError, "sox failed"):
-                await sync_ipad.sync_recording(
-                    afc,
-                    "/take.wav",
-                    destination,
-                    fail_extraction,
-                )
+            with redirect_stdout(io.StringIO()):
+                with self.assertRaisesRegex(RuntimeError, "sox failed"):
+                    sync_ipad.extract_recording(transfer, fail_extraction)
 
             self.assertEqual(afc.removed, [])
             self.assertEqual(destination.read_bytes(), b"quad")
@@ -237,15 +208,50 @@ class LogWindowTests(unittest.TestCase):
 
 
 class CommandTests(unittest.TestCase):
+    def test_sync_downloads_then_extracts_then_reconnects_to_delete(self):
+        events = []
+        transfer = SimpleNamespace()
+
+        async def download_phase(*args, **kwargs):
+            events.append("download-and-close")
+            return [transfer]
+
+        def extract_phase(value):
+            self.assertIs(value, transfer)
+            events.append("extract-locally")
+
+        async def delete_phase(*args, **kwargs):
+            self.assertEqual(args[-1], [transfer])
+            events.append("reconnect-and-delete")
+
+        with patch.object(sync_ipad, "sync", side_effect=download_phase):
+            with patch.object(
+                sync_ipad,
+                "extract_recording",
+                side_effect=extract_phase,
+                create=True,
+            ):
+                with patch.object(
+                    sync_ipad,
+                    "delete_recordings_from_ipad",
+                    side_effect=delete_phase,
+                    create=True,
+                ):
+                    sync_ipad.sync_all("wifi", "device", "host")
+
+        self.assertEqual(
+            events,
+            ["download-and-close", "extract-locally", "reconnect-and-delete"],
+        )
+
     def test_keyboard_interrupt_exits_cleanly(self):
-        def interrupt(coroutine):
-            coroutine.close()
+        def interrupt(*args, **kwargs):
             raise KeyboardInterrupt
 
         errors = io.StringIO()
         output = io.StringIO()
         with patch.object(sys, "argv", ["sync_ipad.py"]):
-            with patch.object(sync_ipad.asyncio, "run", side_effect=interrupt):
+            with patch.object(sync_ipad, "sync_all", side_effect=interrupt):
                 with redirect_stdout(output):
                     with redirect_stderr(errors):
                         result = sync_ipad.main()

@@ -376,7 +376,10 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_new_container_dispatches_by_magic_and_deletes_only_complete_download(self):
         afc = FakeAfc((x_fixtures/'golden.sgrec').read_bytes())
         with mock.patch.object(self.m_sync, 'MAC_RECORDINGS_DIR', self.m_root), mock.patch.object(self.m_sync, 'list_files_recursive', return_value=[('recording.bin', False, '/recording.bin')]), mock.patch.object(self.m_sync.subprocess, 'check_output', side_effect=AssertionError('Custom container passed to SoX')), redirect_stdout(io.StringIO()):
-            await self.m_sync.sync_recordings_from_ipad(afc, '/')
+            transfers = await self.m_sync.download_recordings_from_ipad(afc, '/')
+            self.assertEqual(afc.m_deleted, [])
+            self.m_sync.extract_recording(transfers[0])
+            await self.m_sync.delete_recording(afc, transfers[0])
         self.assertEqual(afc.m_deleted, ['/recording.bin'])
         self.assertTrue(afc.m_closed)
         self.assertEqual((self.m_root/'recording.bin').read_bytes(), afc.m_data)
@@ -386,8 +389,9 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_playable_partial_export_keeps_remote_recording(self):
         afc = FakeAfc((x_fixtures/'golden.sgrec').read_bytes()[:-16])
         with mock.patch.object(self.m_sync, 'MAC_RECORDINGS_DIR', self.m_root), mock.patch.object(self.m_sync, 'list_files_recursive', return_value=[('partial.sgrec', False, '/partial.sgrec')]), mock.patch.object(self.m_sync.subprocess, 'check_output', side_effect=AssertionError('Custom container passed to SoX')), redirect_stdout(io.StringIO()):
+            transfers = await self.m_sync.download_recordings_from_ipad(afc, '/')
             with self.assertRaisesRegex(RuntimeError, 'Extraction failed'):
-                await self.m_sync.sync_recordings_from_ipad(afc, '/')
+                self.m_sync.extract_recording(transfers[0])
         self.assertEqual(afc.m_deleted, [])
         with wave.open(str(self.m_root/'partial_stereo.wav'), 'rb') as wav:
             self.assertEqual(wav.getnframes(), 9)
@@ -398,14 +402,17 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
         first_block_end = first_block + struct.unpack_from('<I', complete, first_block+4)[0]
         afc = FakeAfc(complete[:first_block_end])
         with mock.patch.object(self.m_sync, 'MAC_RECORDINGS_DIR', self.m_root), mock.patch.object(self.m_sync, 'list_files_recursive', return_value=[('retry.sgrec', False, '/retry.sgrec')]), redirect_stdout(io.StringIO()):
+            transfers = await self.m_sync.download_recordings_from_ipad(afc, '/')
             with self.assertRaisesRegex(RuntimeError, 'Extraction failed'):
-                await self.m_sync.sync_recordings_from_ipad(afc, '/')
+                self.m_sync.extract_recording(transfers[0])
             self.assertEqual(afc.m_deleted, [])
             with wave.open(str(self.m_root/'retry_stereo.wav'), 'rb') as wav:
                 self.assertEqual(wav.getnframes(), 4)
             afc.m_data = complete
             afc.m_offset = 0
-            await self.m_sync.sync_recordings_from_ipad(afc, '/')
+            transfers = await self.m_sync.download_recordings_from_ipad(afc, '/')
+            self.m_sync.extract_recording(transfers[0])
+            await self.m_sync.delete_recording(afc, transfers[0])
         self.assertEqual(afc.m_deleted, ['/retry.sgrec'])
         with wave.open(str(self.m_root/'retry_stereo.wav'), 'rb') as wav:
             self.assertEqual(wav.getnframes(), 9)
@@ -413,28 +420,35 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_retry_after_remote_delete_failure_reextracts_and_deletes(self):
         afc = FakeAfc((x_fixtures/'golden.sgrec').read_bytes())
         with mock.patch.object(self.m_sync, 'MAC_RECORDINGS_DIR', self.m_root), mock.patch.object(self.m_sync, 'list_files_recursive', return_value=[('retry.sgrec', False, '/retry.sgrec')]), redirect_stdout(io.StringIO()):
+            transfers = await self.m_sync.download_recordings_from_ipad(afc, '/')
+            self.m_sync.extract_recording(transfers[0])
             with mock.patch.object(afc, 'rm', side_effect=OSError('Connection lost during delete')), self.assertRaisesRegex(OSError, 'Connection lost during delete'):
-                await self.m_sync.sync_recordings_from_ipad(afc, '/')
+                await self.m_sync.delete_recording(afc, transfers[0])
             self.assertEqual(afc.m_deleted, [])
             self.assertTrue((self.m_root/'retry_stereo.wav').exists())
             afc.m_offset = 0
-            await self.m_sync.sync_recordings_from_ipad(afc, '/')
+            transfers = await self.m_sync.download_recordings_from_ipad(afc, '/')
+            self.m_sync.extract_recording(transfers[0])
+            await self.m_sync.delete_recording(afc, transfers[0])
         self.assertEqual(afc.m_deleted, ['/retry.sgrec'])
         with wave.open(str(self.m_root/'retry_stereo.wav'), 'rb') as wav:
             self.assertEqual(wav.getnframes(), 9)
 
     async def test_nonzero_extraction_status_keeps_remote_recording(self):
         afc = FakeAfc(b'RIFF'+bytes(4)+b'WAVE')
+        transfer = await self.m_sync.download_recording(afc, '/failed.wav', self.m_root/'failed.wav')
         with self.assertRaisesRegex(RuntimeError, 'Extraction failed'), redirect_stdout(io.StringIO()):
-            await self.m_sync.sync_recording(afc, '/failed.wav', self.m_root/'failed.wav', mock.Mock(return_value=1))
+            self.m_sync.extract_recording(transfer, mock.Mock(return_value=1))
         self.assertEqual(afc.m_deleted, [])
 
     async def test_remote_size_change_keeps_even_complete_recording(self):
         afc = FakeAfc((x_fixtures/'golden.sgrec').read_bytes())
         sizes = [{'st_size': len(afc.m_data)}, {'st_size': len(afc.m_data) + 1}]
         with mock.patch.object(afc, 'stat', side_effect=sizes), redirect_stdout(io.StringIO()):
+            transfer = await self.m_sync.download_recording(afc, '/growing.sgrec', self.m_root/'growing.sgrec')
+            self.m_sync.extract_recording(transfer)
             with self.assertRaisesRegex(OSError, 'changed size during transfer'):
-                await self.m_sync.sync_recording(afc, '/growing.sgrec', self.m_root/'growing.sgrec')
+                await self.m_sync.delete_recording(afc, transfer)
         self.assertEqual(afc.m_deleted, [])
         with wave.open(str(self.m_root/'growing_stereo.wav'), 'rb') as wav:
             self.assertEqual(wav.getnframes(), 9)
