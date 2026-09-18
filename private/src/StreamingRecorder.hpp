@@ -434,7 +434,9 @@ struct StreamingRecorder
         char date[32];
         std::strftime(date, sizeof(date), "%Y-%m-%dT%H:%M:%SZ", &utc);
         m_session.m_recordedAtUtc = date;
-        std::strftime(date, sizeof(date), "%Y-%m-%dT%H%M%S", &utc);
+        std::tm local{};
+        localtime_r(&seconds, &local);
+        std::strftime(date, sizeof(date), "%Y-%m-%dT%H%M%S", &local);
         static std::atomic<uint64_t> sequence{0};
         const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
         return (std::filesystem::path(m_directory) / (std::string("recording-") + date + "-"
