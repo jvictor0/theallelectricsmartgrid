@@ -150,7 +150,7 @@ struct PolyXFaderInternal
         {
             return 1.0f;
         }
-        else if (center > m_size - 0.25 && index == m_size - 1)
+        else if (center >= m_size - 0.25 && index == m_size - 1)
         {
             return 1.0f;
         }

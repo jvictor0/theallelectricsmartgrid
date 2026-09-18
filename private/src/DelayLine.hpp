@@ -308,6 +308,13 @@ struct DelayLineMovableWriter
         }
         else if (m_descending)
         {
+            // Include the turnaround sample in the first forward interval.
+            // Descending intervals still leave inverse history untouched.
+            //
+            m_scatterBufferWarpedTime[m_scatterHead % x_scatterBufferSize] = m_lastWarpedTime;
+            m_scatterBufferTime[m_scatterHead % x_scatterBufferSize] = m_lastTime - 1.0;
+            ++m_scatterHead;
+            m_ascendingCount = 1;
             m_turnaroundWarpedTime = time;
             m_descending = false;
         }

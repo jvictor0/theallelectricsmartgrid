@@ -97,3 +97,16 @@ Rebased onto `origin/main` at `ec866d8` for the requested PR. The only overlap w
 - Unfiltered ctest completed all 400 cases: 398 passed, two startup-silence cases failed, with no skipped cases. Both failures are the previously reproduced baseline failures and report the identical peak of 0.000657712. The former VectorPhaseShaper assertion is fixed by current main and no longer interrupts the suite. Total assertions: 2,596,853; two failed.
 - Rebuilt UBSan plus float-cast-overflow checks passed: 15 cases / 69,697 assertions.
 - Logs: `/tmp/time-warp-audit/pr-cmake-build.log`, `pr-ctest.log`, and `pr-ubsan.log`.
+
+## Follow-up audit corrections
+
+The user requested fixes for the two confirmed findings from the follow-up audit: an all-zero Center blend at the final-source boundary, and an inverse-map gap in the first forward interval after a reversal. Preserve the approved reversal policy and the existing analysis-window limit.
+
+- [x] Add regressions before implementation. The Center tests cover the exact boundary, adjacent floating-point values, and filtered encoder movement through the real clock preparation cadence. The reversal test uses hand-calculated timestamps and verifies that backward motion preserves history, the first forward interval replaces it immediately, and positions not yet crossed remain unchanged. It includes negative coordinates crossing the physical wrap. All three new tests failed for the expected reasons before the changes (10 failed assertions).
+- [x] Include equality in the final-source Center boundary. At the boundary, the final source now remains selected rather than allowing all source weights to vanish.
+- [x] Seed the ascending interpolation history with the preceding recorded turnaround sample when leaving descending motion. This fills the first forward interval without writing descending intervals.
+- [x] Run all focused delay-warp/LFO tests and UBSan plus float-cast-overflow: 18 cases / 69,716 assertions pass in both runs.
+- [x] Recompile and replay the original audit probes. Center now has zero zero-weight samples and maximum local speed 65.01825 rather than 19,884.1482. At the production-capacity reversal reproduction's grain launch, the formerly stale cell now contains the required timestamp 17893997.076140527, eliminating the 11,348.50-sample start error.
+- [x] Complete the full-suite run and independent review for the follow-up commit to PR #6. The CMake build passes. All 403 cases ran: 401 passed and the same two baseline startup-silence cases failed, with the identical peak of 0.000657712. There were 2,596,872 assertions, of which two failed. Independent specification and quality review passed with no actionable findings.
+
+Follow-up evidence is in `/tmp/time-warp-audit-fixed`: `fix-red.log`, `fix-green.log`, `fix-ubsan.log`, `fix-build.log`, `fix-ctest.log`, `fix-review.md`, `map-after.log`, and `center-after.log`. The original map probe retains its diagnostic labels `omitted` and `stale`; after the correction, its printed mapped/stored values equal the required values and its timestamp error is zero.
