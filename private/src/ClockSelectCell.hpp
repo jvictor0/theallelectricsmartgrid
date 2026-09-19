@@ -9,6 +9,8 @@ struct ClockSelectCell : public SmartGrid::Cell
 
     int* m_clockSelect;
     int* m_resetSelect;
+    State* m_clockSelectState;
+    State* m_resetSelectState;
     bool* m_externalReset;
     size_t m_trio;
     size_t* m_numHeld;
@@ -30,6 +32,8 @@ struct ClockSelectCell : public SmartGrid::Cell
         SmartGrid::Color resetColor)
         : m_clockSelect(state->m_clockSelect)
         , m_resetSelect(state->m_resetSelect)
+        , m_clockSelectState(nullptr)
+        , m_resetSelectState(nullptr)
         , m_externalReset(state->m_externalReset)
         , m_trio(trio)
         , m_numHeld(numHeld)
@@ -43,7 +47,8 @@ struct ClockSelectCell : public SmartGrid::Cell
     }
 
     ClockSelectCell(
-        NonagonIndexArp::Input* state,
+        State* clockSelectState,
+        State* resetSelectState,
         size_t trio,
         size_t* numHeld,
         size_t* maxHeld,
@@ -51,8 +56,10 @@ struct ClockSelectCell : public SmartGrid::Cell
         SmartGrid::Color offColor,
         SmartGrid::Color clockColor,
         SmartGrid::Color resetColor)
-        : m_clockSelect(state->m_clockSelect)
-        , m_resetSelect(state->m_resetSelect)
+        : m_clockSelect(nullptr)
+        , m_resetSelect(nullptr)
+        , m_clockSelectState(clockSelectState)
+        , m_resetSelectState(resetSelectState)
         , m_externalReset(nullptr)
         , m_trio(trio)
         , m_numHeld(numHeld)
@@ -65,26 +72,70 @@ struct ClockSelectCell : public SmartGrid::Cell
     {
     }
 
+    int ClockSelect()
+    {
+        if (m_clockSelectState)
+        {
+            return m_clockSelectState->Get<int>();
+        }
+
+        return m_clockSelect[m_trio];
+    }
+
+    void SetClockSelect(int clock)
+    {
+        if (m_clockSelectState)
+        {
+            m_clockSelectState->Set(clock);
+        }
+        else
+        {
+            m_clockSelect[m_trio] = clock;
+        }
+    }
+
+    int ResetSelect()
+    {
+        if (m_resetSelectState)
+        {
+            return m_resetSelectState->Get<int>();
+        }
+
+        return m_resetSelect[m_trio];
+    }
+
+    void SetResetSelect(int clock)
+    {
+        if (m_resetSelectState)
+        {
+            m_resetSelectState->Set(clock);
+        }
+        else
+        {
+            m_resetSelect[m_trio] = clock;
+        }
+    }
+
     virtual void OnPress(uint8_t) override
     {
         ++(*m_numHeld);
         
         if (*m_numHeld == 1)
         {
-            if (m_clockSelect[m_trio] == m_myClock)
+            if (ClockSelect() == m_myClock)
             {
                 m_unsetOnRelease = true;
             }
             else
             {
-                m_clockSelect[m_trio] = m_myClock;
+                SetClockSelect(m_myClock);
             }
-            
-            m_resetSelect[m_trio] = -1;
+
+            SetResetSelect(-1);
         }
         else if (*m_numHeld == 2)
         {
-            m_resetSelect[m_trio] = m_myClock;
+            SetResetSelect(m_myClock);
         }
 
         *m_maxHeld = std::max<size_t>(*m_maxHeld, *m_numHeld);
@@ -103,7 +154,7 @@ struct ClockSelectCell : public SmartGrid::Cell
                 
             if (*m_maxHeld == 1 && m_unsetOnRelease)
             {
-                m_clockSelect[m_trio] = -1;
+                SetClockSelect(-1);
             }
             
             *m_maxHeld = 0;
@@ -114,11 +165,11 @@ struct ClockSelectCell : public SmartGrid::Cell
 
     virtual SmartGrid::Color GetColor() override
     {
-        if (m_clockSelect[m_trio] == m_myClock)
+        if (ClockSelect() == m_myClock)
         {
             return m_clockColor;
         }
-        else if (m_resetSelect[m_trio] == m_myClock)
+        else if (ResetSelect() == m_myClock)
         {
             return m_resetColor;
         }

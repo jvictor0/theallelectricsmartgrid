@@ -8,6 +8,16 @@ Ownership lives in `EncoderBankBank`: it owns a flat array of `BankedEncoderCell
 
 Serialization follows ownership: `EncoderBankBank::ToJSON()` iterates the full encoder array and writes each named parameter, and `FromJSON()` does the inverse by looking up each name and updating the encoder state.
 
+## Construction
+
+The scene manager is a constructor dependency throughout the encoder ownership chain:
+
+- `EncoderBankBank(numBanks, numModes, numEncoders, sceneManager)` stores the manager used by every subsequent `CreateEncoder(...)` call.
+- `SmartGridOneEncoders(sceneManager, numTrios, voicesPerTrio)` initializes its modes, banks, and named parameters during construction.
+- `SquiggleBoyWithEncoderBank(sceneManager)` constructs that encoder system for the Nonagon's trio/voice layout.
+
+The owning scene manager must outlive these objects. Callers no longer default-construct SquiggleBoy and then call `Init(sceneManager)`, or assign an encoder bank's scene manager afterward. Encoder cells still serialize through `EncoderBankBank`; the discrete-control `State`/`StateSaver` mechanism is separate.
+
 ## Base Structure: Tracks and Voices
 
 To accommodate polyphony and quadraphonic effects, the parameter system is structured hierarchically.

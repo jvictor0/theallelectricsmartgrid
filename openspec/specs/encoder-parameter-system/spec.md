@@ -3,6 +3,18 @@
 ## Purpose
 The encoder parameter system (`private/src/Encoder.hpp`, `private/src/EncoderBank.hpp`, `private/src/EncoderBankBank.hpp`) is the software-defined knob layer for Smart Grid One. Every synthesis parameter is a `BankedEncoderCell` owned by a global `EncoderBankBank` and placed into 4×4 encoder bank grids. Each cell stores a normalized base value per track per scene, accepts up to 15 routable modulation slots whose depths are themselves full encoder cells, supports 16 gesture (macro) targets, morphs between two active scenes (see scene-state-management), and publishes per-voice outputs to the DSP engine through a parameter slew filter and to the UI through `EncoderBankUIState`. Modulation sources such as the PolyXFader LFOs (see polyxfader-lfos) and AHD envelopes (see ahd-envelopes) are external DSP components that write into shared per-bank-mode `ModulatorValues`; the encoder cells consume those values but do not own the sources.
 ## Requirements
+### Requirement: Constructor-Bound Scene Manager
+`EncoderBankBank` SHALL receive its scene manager in its constructor and use that manager for every `CreateEncoder` call. `SmartGridOneEncoders` SHALL receive the scene manager and trio/voice counts in its constructor and initialize its modes, banks, and named parameters before construction completes. `SquiggleBoyWithEncoderBank` SHALL pass its constructor-supplied scene manager through this chain, without requiring a subsequent scene-manager initialization call. The manager SHALL outlive the encoder objects that reference it.
+
+#### Scenario: Constructed encoder system has initialized parameters
+- **WHEN** `SmartGridOneEncoders(sceneManager, 3, 3)` finishes construction
+- **THEN** its named parameters and banks are initialized using the supplied scene manager
+- **AND** callers can process and query the encoder system without first calling `Init(sceneManager, ...)`
+
+#### Scenario: New parameter uses the bank owner's scene manager
+- **WHEN** an encoder is created through `EncoderBankBank::CreateEncoder`
+- **THEN** it receives the manager supplied to the bank owner at construction, without a separate per-call manager argument
+
 ### Requirement: Per-Track Per-Scene Base Value Storage
 Every parameter SHALL be stored as a normalized base value in [0, 1] indexed by track and by scene (`StateEncoderCell::m_values[track][scene]`, with `SceneManager::x_numScenes == 8` persistent scenes), so that all voices within a track share one base value while modulation and gestures differentiate the voices.
 The bank's mode fixes the track/voice topology: Voice banks use 3 tracks × 3 voices, Quad banks 1 track × 4 voices, and Global banks 1 track × 1 voice.

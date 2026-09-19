@@ -31,7 +31,7 @@ It interfaces with a custom MIDI controller.
 - **[Encoder System](../encoder-system.md)** — Software-defined parameter system with deep polyphonic modulation, macro gestures, scene morphing, and parameter slewing.
 - **[Smart Grid Integration](../smart-grid.md)** — Hardware-agnostic controller mapping across pad/encoder controllers.
   - **[Scene Manager](../scene-manager.md)** — Scene selection, crossfading, and scene-change signaling.
-  - **[State Saver](../state-saver.md)** — Scene-aware JSON persistence and restore.
+  - **[State and State Saver](../state-saver.md)** — Saved-value handles, manager wiring, and global/scene JSON persistence.
 - **[I/O Task Thread](../io-task-thread.md)** — Asynchronous sample directory browsing, bank loading, recording persistence, and cleanup.
 - **LED subsystem** — Grids of LEDs used as interface (to be documented).
 - **UI + MIDI Integrations**

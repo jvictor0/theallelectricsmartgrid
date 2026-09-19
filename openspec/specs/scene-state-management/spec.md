@@ -57,7 +57,7 @@ A shift-press on an encoder zeroes its modulator tree for the current scene(s) a
 - **THEN** encoder banks and the Nonagon sequencer observe shift simultaneously without separate per-subsystem flags
 
 ### Requirement: Generic Per-Scene Value Registry
-The `StateSaver` registry SHALL persist registered runtime values by pointer with a fixed byte width of 1, 2, 4, or 8, keeping one stored copy per scene in an internal buffer (`m_buf`, NumScenes × 8 bytes per value) plus a default copy captured at registration; serialization (`ToJSON`) first saves the live value into the current scene, then emits all scenes' bytes, and `SetFromJSON` restores the buffers and writes the current scene's copy back to the live pointer.
+The `StateSaver` registry SHALL own a named `State` object for each registered runtime value, referencing its live pointer with a fixed byte width of 1, 2, 4, or 8. Each `State` SHALL keep scene copies in its internal buffer (`m_buf`, capacity for `State::x_maxScenes == 8` scenes of up to 8 bytes each) plus a default copy captured at registration; serialization (`ToJSON`) first saves the live value into the current scene, then emits only the configured scenes' bytes, and `SetFromJSON` restores the buffers and writes the current scene's copy back to the live pointer.
 Two instantiations exist: `ScenedStateSaver` (8 scenes) holding Nonagon sequencer state, and `StateSaver` (1 scene) holding global non-scene state such as the active scene indices themselves, the active trio, and per-voice source/filter machine selections. `Finalize` copies the initial scene's values into all other scenes so every scene starts from the registered defaults.
 
 #### Scenario: Registered value round-trips
@@ -68,6 +68,43 @@ Two instantiations exist: `ScenedStateSaver` (8 scenes) holding Nonagon sequence
 - **WHEN** `RevertToDefaultAllScenes` runs
 - **THEN** every scene's stored bytes are replaced by the value captured when the field was registered
 - **AND** the live pointer is rewritten for the current scene
+
+#### Scenario: Global state retains its existing serialized size
+- **WHEN** a single-scene `StateSaver` serializes a registered 4-byte value
+- **THEN** its JSON byte array contains four integers, despite the `State` buffer having capacity for eight scenes
+- **AND** indexed registrations retain the existing `name_i` and `name_i_j` JSON keys
+
+### Requirement: State Dependencies Supplied Before Registration
+`StateSaverTemp` SHALL receive its `StateManager*` and `SceneManager*` through construction, before any values are registered. Each registered `State` SHALL capture that state manager. The top-level engine SHALL construct its managers before its consumers and keep them alive for the consumers' lifetimes. The Nonagon saver SHALL receive the shared scene manager; the single-scene global saver SHALL receive a null scene manager so its `Process()` does not apply scene switching.
+
+#### Scenario: Nonagon controls are bound during construction
+- **WHEN** `TheNonagonSquiggleBoyInternal` finishes constructing its Nonagon grids
+- **THEN** every registered Nonagon `State` references that engine's `StateManager`
+- **AND** grid controls can edit their cached handles without a later manager-assignment step
+
+#### Scenario: Global selectors do not become scene-banked
+- **WHEN** the scene pair or blend factor changes
+- **THEN** the global saver's `Process()` does not swap the scene selectors, active trio, or machine selections to other stored scene copies
+
+### Requirement: Stable Named State Handles
+`Insert` SHALL return a `State*` owned by the saver. `Get(name)` and its indexed overloads SHALL resolve the registered handle or return null when the name is absent. Handles SHALL remain valid as other registrations are added or their processing order is shuffled, until the saver is destroyed. Registration and name lookup SHALL occur outside audio processing; `Get` SHALL reject calls on a thread tagged `ThreadId::Audio`. Runtime controls SHALL cache their handles during setup. Registering the same name for a different live pointer SHALL throw an error.
+
+#### Scenario: Two controls share one saved value
+- **WHEN** two grid cells resolve the same registered name during setup
+- **THEN** both receive the same `State*` and observe edits to the same live value
+
+#### Scenario: Audio-thread metadata lookup is rejected
+- **WHEN** `Get` is called while the current thread is tagged `ThreadId::Audio`
+- **THEN** it throws rather than performing the name lookup
+- **AND** this restriction does not require runtime cells to look up metadata when using their previously cached handles
+
+### Requirement: Explicit Saved-Value Edits Invoke the State Hook
+`State::Get<T>()` SHALL read the referenced live value. `State::Set<T>(value)` SHALL write it immediately and then invoke `StateManager::RecordStateChange` with that `State*`; callers SHALL use the registered value's type. Edits to `StateSaver`-registered controller values, including scene selection and active-trio changes, SHALL use their cached handles. This hook is separate from scene-change flags and JSON serialization.
+
+#### Scenario: Editing a saved control updates its live value first
+- **WHEN** a saved mute cell sets its registered boolean through `State::Set<bool>`
+- **THEN** the live mute value is updated before the state manager's hook is called
+- **AND** the hook receives the same `State*` held by the cell
 
 ### Requirement: Staggered Scene Switching for Discrete Values
 Because registered values are discrete and cannot be interpolated, the 8-scene `StateSaver` SHALL assign each registered value a boundary point in (0, 1)—registrations are shuffled and boundary i is `(i + 1) / (count + 1)`—and, as the blend factor moves, switch each value between its scene-1 and scene-2 copies when the blend crosses that value's boundary (scene 1 while blend < boundary, scene 2 otherwise).

@@ -1453,15 +1453,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
     }
 
-    SquiggleBoyWithEncoderBank()
-        : m_sceneManager(nullptr)
+    SquiggleBoyWithEncoderBank(SmartGrid::SceneManager* sceneManager)
+        : m_encoders(
+            sceneManager,
+            TheNonagonInternal::x_numTrios,
+            TheNonagonInternal::x_voicesPerTrio)
+        , m_sceneManager(sceneManager)
     {
-    }
-
-    void Init(SmartGrid::SceneManager* sceneManager)
-    {
-        m_sceneManager = sceneManager;
-        m_encoders.Init(sceneManager, TheNonagonInternal::x_numTrios, TheNonagonInternal::x_voicesPerTrio);
     }
 
     void SetTrack(size_t track)

@@ -172,13 +172,11 @@ struct TheNonagonSquiggleBoyWrldBldr
 
     SmartGrid::Cell* MakeAuxFocusCell()
     {
-        return new SmartGrid::StateCell<bool>(
-                SmartGrid::Color::Yellow /*offColor*/,
+        return new SmartGrid::RuntimeStateCell(
                 SmartGrid::Color::Purple /*onColor*/,
+                SmartGrid::Color::Yellow /*offColor*/,
                 &m_auxFocus,
-                true,
-                false,
-                SmartGrid::StateCell<bool>::Mode::Toggle);
+                SmartGrid::RuntimeStateCell::Mode::Toggle);
     }
 
     struct AuxGrid : SmartGrid::Grid

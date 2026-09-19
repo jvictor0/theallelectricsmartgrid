@@ -163,9 +163,9 @@ Consequently the timebase handles arbitrary phase jumps: state after a jump is e
 
 ### Requirement: Theory of Time Topology Grid Control
 The system SHALL expose the per-loop clock topology for live editing through the Theory of Time topology grid (`TheNonagonSmartGrid::TheoryOfTimeTopologyPage`, reachable on the BottomRight base grid / route 3). For each editable time loop bit `i`, the column at grid x `i` SHALL provide:
-- multiplier pads at grid y `mult - 2` for `mult ∈ {2, 3, 4, 5}`, each a toggle `StateCell<int>` bound to `m_theoryOfTimeInput.m_input[i].m_parentMult`, so pressing the pad for value `mult` sets that loop bit's parent multiplier to `mult`;
+- multiplier pads at grid y `mult - 2` for `mult ∈ {2, 3, 4, 5}`, each a toggle `StateCell<int>` using the registered `State*` for `m_theoryOfTimeInput.m_input[i].m_parentMult`, so pressing the pad for value `mult` sets that loop bit's parent multiplier to `mult`;
 - a parent-index pad at grid y 4 (for the inner bits) bound to `m_input[i].m_parentIndex`;
-- a gate-display cell at grid y 7 (`TimeBitCell`) reflecting the loop's live gate state.
+- a show-only `RuntimeStateCell` at grid y 7 (`TimeBitCell`) reflecting the loop's live gate state without registering it as saved state.
 
 Pressing a multiplier pad SHALL change the underlying `m_parentMult` value, the change taking effect on the clock topology at the next parent-zero boundary (see "Topology Changes Only at Parent Zero"), and the pad's published LED color SHALL reflect the active value: the pad whose `mult` equals the current `m_parentMult` shows the on-color (White) and the others the off-color (Fuscia). The topology values are persisted through the `StateSaver` registry under keys `"TheoryOfTimeMult"` and `"TheoryOfTimeParentIx"`, so they SHALL be restored exactly by a patch save/load round-trip.
 

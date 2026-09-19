@@ -12,9 +12,18 @@ The Smart Grid framework abstracts away the specifics of any particular MIDI con
 - **Grid**: A 2D array of Cells. Grids handle routing incoming MIDI messages (converted into generic `Message` or `MessageIn` events) to the appropriate `Cell`.
 - **Colors**: The framework uses a centralized `Color` enum and `HSV` representation, allowing the software to specify semantic colors (e.g., "Red", "Dim White") that are later translated into hardware-specific MIDI velocity values by the device-specific driver.
 
+## Saved controls and runtime cells
+
+`StateCell<T>` and `CycleCell<T>` hold a cached `State*` from a state saver. They read through `Get<T>()` and write through `Set<T>()`, so edits update the live value and reach the state manager's hook. A `StateCell` supports toggle, momentary, and set-only modes; a `CycleCell` advances through its color scheme. Flash policies remain independent of the saved value and can read live DSP booleans.
+
+`RuntimeStateCell` instead holds a `bool*` for temporary controls and indicators. It supports toggle, momentary, set-only, and show-only modes, without registration or state-change notifications. Running, shift, noise mode, auxiliary focus, and gate indicators use this path. Its constructor takes the on color before the off color; `StateCell` retains the off-color/on-color order.
+
+Cells resolve saved handles during construction, before audio processing. Several cells can share one registered value, such as the parent-selector pads on the topology and co-mute pages. The Theory of Time topology page derives directly from `Grid`; the obsolete `CompositeGrid`, `GridSwitcher`, `GridJnct`, and `FaderBank` helpers have been removed.
+
 ## Nonagon Smart Grid
 
-The `TheNonagonSmartGrid` class wraps the core `TheNonagonInternal` sequencer logic in this Smart Grid framework.
+The `TheNonagonSmartGrid` struct wraps the core `TheNonagonInternal` sequencer logic in this Smart Grid framework. Its constructor takes the standalone-mode flag, state manager, and scene manager, and registers saved values before building the cells that use them.
+
 - It exposes the sequencer's internal state (like time loops, index arp settings, and mutes) as interactive `Cell`s.
 - This allows a user to press a pad on a MIDI controller to flip a gate, change a time loop's multiplier, or mute a voice, with the physical pad lighting up to reflect the current state.
 

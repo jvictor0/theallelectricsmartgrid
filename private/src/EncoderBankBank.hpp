@@ -44,12 +44,16 @@ struct EncoderBankBank
     BankMode* m_bankModes;
     SmartGrid::EncoderPtr* m_encoders;
 
-    EncoderBankBank(size_t numBanks, size_t numModes, size_t numEncoders)
+    EncoderBankBank(
+        size_t numBanks,
+        size_t numModes,
+        size_t numEncoders,
+        SmartGrid::SceneManager* sceneManager)
         : m_numBanks(numBanks)
         , m_numModes(numModes)
         , m_numEncoders(numEncoders)
         , m_banks(new SmartGrid::EncoderBankInternal[numBanks])
-        , m_sceneManager(nullptr)
+        , m_sceneManager(sceneManager)
         , m_selectedBank(-1)
         , m_bankConfigs(new BankConfig[numBanks])
         , m_bankModes(new BankMode[numModes])
@@ -63,11 +67,6 @@ struct EncoderBankBank
         delete[] m_bankConfigs;
         delete[] m_bankModes;
         delete[] m_encoders;
-    }
-
-    void InitSceneManager(SmartGrid::SceneManager* sceneManager)
-    {
-        m_sceneManager = sceneManager;
     }
 
     void InitMode(
@@ -94,7 +93,6 @@ struct EncoderBankBank
    }
 
     size_t CreateEncoder(
-        SmartGrid::SceneManager* sceneManager,
         size_t index,
         size_t modeIx,
         float defaultValue,
@@ -110,7 +108,7 @@ struct EncoderBankBank
         }
 
         m_encoders[index] = SmartGrid::MakeEncoder(
-            sceneManager,
+            m_sceneManager,
             nullptr,
             static_cast<int>(index),
             SmartGrid::BankedEncoderCell::EncoderType::BaseParam);

@@ -11,15 +11,15 @@ using Cell = SmartGrid::BankedEncoderCell;
 struct EncoderRig
 {
     SmartGrid::SceneManager m_scenes;
-    EncoderBankBank m_banks{1, 1, 1};
+    EncoderBankBank m_banks;
 
     EncoderRig(bool bipolar, float defaultValue)
+        : m_banks(1, 1, 1, &m_scenes)
     {
         GlobalEnv::Init();
-        m_banks.InitSceneManager(&m_scenes);
         m_banks.InitMode(0, 2, 2);
         m_banks.InitBank(0, 0, SmartGrid::Color::Red);
-        m_banks.CreateEncoder(&m_scenes, 0, 0, defaultValue, "Carrier", "CAR", SmartGrid::Color::Red, 0, bipolar);
+        m_banks.CreateEncoder(0, 0, defaultValue, "Carrier", "CAR", SmartGrid::Color::Red, 0, bipolar);
         m_banks.PlaceEncoder(0, 0, 0, 0);
         for (size_t i = 0; i < Cell::x_numModulators; ++i)
         {

@@ -110,6 +110,32 @@ The system SHALL expose pad state to UI components through `PadUI`, which binds 
 - **WHEN** `PadUI::OnPress(t)` is called on a pad bound to route r at (x, y)
 - **THEN** the `MessageInBus` receives a `MessageIn` with timestamp t, route r, mode `PadPress`, coordinates (x, y), and amount 1
 
+### Requirement: Saved State Cells Use Registered Handles
+`StateCell<T>` and `CycleCell<T>` SHALL hold cached `State*` handles, read live values through `Get<T>()`, and perform edits through `Set<T>()`. A state cell SHALL support toggle, momentary, and set-only modes: toggle alternates between its own and off values, momentary sets its own value on press and its off value on release, and set-only writes its own value on press. A cycle cell SHALL advance the current value modulo the number of colors in its color scheme.
+
+#### Scenario: Toggle edits a registered value
+- **WHEN** a toggle state cell is pressed while its registered value equals its own value
+- **THEN** it writes its off value through the handle and subsequent color reads reflect that value
+
+#### Scenario: Momentary saved value resets on release
+- **WHEN** a momentary state cell is pressed and then released
+- **THEN** it sets its own value on press and its off value on release through the same registered handle
+
+#### Scenario: Cycle wraps to the first value
+- **WHEN** a cycle cell is pressed while its value selects the last color
+- **THEN** it sets the registered value to zero and displays the first color
+
+### Requirement: Runtime Boolean Cells Remain Separate from Saved State
+`RuntimeStateCell` SHALL operate directly on a `bool*`, without registering a saved value or invoking the state manager. Its modes SHALL toggle the boolean on press, set true on press and false on release for momentary controls, set true for set-only controls, or leave it unchanged for show-only indicators. `GetColor()` SHALL return its on color when the boolean is true and its off color otherwise. Running, shift, noise mode, auxiliary focus, and gate indicators SHALL use this runtime path.
+
+#### Scenario: Shift is momentary runtime state
+- **WHEN** the shift cell is pressed and released
+- **THEN** the shared shift boolean becomes true and then false without a saved-state edit
+
+#### Scenario: Gate indicator ignores presses
+- **WHEN** a show-only gate indicator is pressed
+- **THEN** its gate boolean is unchanged and its color continues to reflect the DSP value
+
 ### Requirement: Flash Overlay for State Cells
 The system SHALL support a flash overlay on state-driven cells: a `Flash<StateClass>` policy reports `IsFlashing()` true exactly when `*m_state == m_myState`, and a flashing `StateCell` reports its flash color variant from `GetColor()` (`m_onFlashColor` when its own state matches, `m_offFlashColor` otherwise) instead of the normal on/off colors. `BoolFlash` and `NoFlash` provide pointer-driven and always-off policies respectively.
 

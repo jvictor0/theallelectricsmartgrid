@@ -1,178 +1,99 @@
 #pragma once
 #include "plugin.hpp"
 #include <string>
+#include <map>
 #include <random>
 #include <vector>
 #include <cassert>
 #include <cstring>
 #include <cmath>
+#include "State.hpp"
+#include "ThreadId.hpp"
 
 #include "JuceSon.hpp"
 #include "SceneManager.hpp"
+#include "StateManager.hpp"
 
 template<size_t NumScenes>
 struct StateSaverTemp
 {
-    struct State
-    {
-        size_t m_len;
-        char* m_ptr;
-        char m_buf[NumScenes * 8];
-        char m_default[8];
-        int m_curScene;
-        float m_boundary;
-
-        State(size_t len, char* ptr)
-            : m_len(len)
-            , m_ptr(ptr)
-            , m_curScene(0)
-        {
-            memset(m_buf, 0, sizeof(m_buf));
-            memset(m_default, 0, sizeof(m_default));
-            assert(len <= 8);
-            SetVal(m_default, m_ptr, m_len);
-        }
-
-        JSON ToJSON(JsonArena& a)
-        {
-            SaveValToScene();
-            JSON ret = a.Array();
-            for (size_t s = 0; s < NumScenes; ++s)
-            {
-                for (size_t i = 0; i < m_len; ++i)
-                {
-                    ret.Append(a.Integer(m_buf[s * m_len + i]));
-                }
-            }
-
-            return ret;
-        }
-
-        void SetFromJSON(JSON jin)
-        {
-            size_t len = jin.Size();
-            for (size_t s = 0; s < NumScenes; ++s)
-            {
-                if (len <= s * m_len)
-                {
-                    break;
-                }
-                
-                for (size_t i = 0; i < m_len; ++i)
-                {
-                    m_buf[s * m_len + i] = jin.GetAt(s * m_len + i).IntegerValue();
-                }
-            }
-
-            SetVal(m_ptr, m_buf + m_curScene * m_len, m_len);
-        }
-
-        void SaveValToScene()
-        {
-            CopyToScene(m_curScene);
-        }
-
-        void SetVal(void* dst, void* src, size_t len)
-        {
-            switch (len)
-            {
-                case 1:
-                {
-                    *reinterpret_cast<uint8_t*>(dst) = *reinterpret_cast<uint8_t*>(src);
-                    break;
-                }
-                case 2:
-                {
-                    *reinterpret_cast<uint16_t*>(dst) = *reinterpret_cast<uint16_t*>(src);
-                    break;
-                }
-                case 4:
-                {
-                    *reinterpret_cast<uint32_t*>(dst) = *reinterpret_cast<uint32_t*>(src);
-                    break;
-                }
-                case 8:
-                {
-                    *reinterpret_cast<uint64_t*>(dst) = *reinterpret_cast<uint64_t*>(src);
-                    break;
-                }
-                default:
-                {
-                    assert(false);
-                    break;
-                }
-            }
-        }
-
-        void LoadValFromScene(int scene)
-        {
-            if (scene == m_curScene)
-            {
-                return;
-            }
-
-            SaveValToScene();
-            SetVal(m_ptr, m_buf + scene * m_len, m_len);
-            m_curScene = scene;
-        }
-
-        void CopyToScene(int scene)
-        {
-            SetVal(m_buf + scene * m_len, m_ptr, m_len);
-        }
-
-        void RevertToDefaultForScene(int scene)
-        {
-            SetVal(m_buf + scene * m_len, m_default, m_len);
-            if (scene == m_curScene)
-            {
-                SetVal(m_ptr, m_default, m_len);
-            }
-        }
-
-        void HandleSceneInfoChange(SmartGrid::SceneManager* sceneManager)
-        {
-            if (sceneManager->m_blendFactor < m_boundary)
-            {
-                LoadValFromScene(sceneManager->m_scene1);
-            }
-            else
-            {
-                LoadValFromScene(sceneManager->m_scene2);
-            }
-        }
-    };
-
     template<class T>
-    static State Mk(T* t)
+    static State* Mk(std::string name, T* t, StateManager* stateManager)
     {
-        return State(sizeof(T), reinterpret_cast<char*>(t));
+        return new State(name, sizeof(T), reinterpret_cast<char*>(t), NumScenes, stateManager);
+    }
+
+    State* Insert(State* s)
+    {
+        m_state.push_back(s);
+        auto inserted = m_stateMap.insert(std::make_pair(s->m_name, s));
+        if (!inserted.second)
+        {
+            char* oldPtr = inserted.first->second->m_ptr;
+            char* newPtr = s->m_ptr;
+            if (oldPtr != newPtr)
+            {
+                throw std::runtime_error("State with name " + s->m_name + " already exists");
+            }
+        }
+
+        return Get(s->m_name);
+    }
+
+    State* Get(std::string name)
+    {
+        if (thread_threadId == ThreadId::Audio)
+        {
+            throw std::runtime_error("Don't call metadata stuff from audio thread you dingus");
+        }
+
+        auto it = m_stateMap.find(name);
+        if (it == m_stateMap.end())
+        {
+            return nullptr;
+        }
+
+        return it->second;
+    }
+
+    State* Get(std::string name, size_t i)
+    {
+        std::string name2 = name + "_" + std::to_string(i);
+        return Get(name2);
+    }
+
+    State* Get(std::string name, size_t i, size_t j)
+    {
+        std::string name2 = name + "_" + std::to_string(i) + "_" + std::to_string(j);
+        return Get(name2);
     }
 
     template<class T>
-    void Insert(std::string name, T* t)
+    State* Insert(std::string name, T* t)
     {
-        m_state.push_back(std::make_pair(name, Mk(t)));
+        return Insert(Mk(name, t, m_stateManager));
     }
 
     template<class T>
-    void Insert(std::string name, size_t i, T* t)
+    State* Insert(std::string name, size_t i, T* t)
     {
-        m_state.push_back(std::make_pair(name + "_" + std::to_string(i), Mk(t)));
+        std::string name2 = name + "_" + std::to_string(i);
+        return Insert(Mk(name2, t, m_stateManager));
     }
 
     template<class T>
-    void Insert(std::string name, size_t i, size_t j, T* t)
+    State* Insert(std::string name, size_t i, size_t j, T* t)
     {
-        m_state.push_back(std::make_pair(name + "_" + std::to_string(i) + "_" + std::to_string(j), Mk(t)));
+        std::string name2 = name + "_" + std::to_string(i) + "_" + std::to_string(j);
+        return Insert(Mk(name2, t, m_stateManager));
     }
-    
+
     JSON ToJSON(JsonArena& a)
     {
         JSON rootJ = a.Object();
         for (auto& s : m_state)
         {
-            rootJ.SetNew(s.first.c_str(), s.second.ToJSON(a));
+            rootJ.SetNew(s->m_name.c_str(), s->ToJSON(a));
         }
 
         return rootJ;
@@ -182,10 +103,10 @@ struct StateSaverTemp
     {
         for (auto& s : m_state)
         {
-            JSON val = rootJ.Get(s.first.c_str());
+            JSON val = rootJ.Get(s->m_name.c_str());
             if (!val.IsNull())
             {
-                s.second.SetFromJSON(val);
+                s->SetFromJSON(val);
             }
         }
     }
@@ -197,7 +118,7 @@ struct StateSaverTemp
 
         for (size_t i = 0; i < m_state.size(); ++i)
         {
-            m_state[i].second.m_boundary = static_cast<float>(i + 1) / (m_state.size() + 1);
+            m_state[i]->m_boundary = static_cast<float>(i + 1) / (m_state.size() + 1);
         }
     }
 
@@ -210,8 +131,10 @@ struct StateSaverTemp
         }
     }
 
-    std::vector<std::pair<std::string, State>> m_state;
+    std::vector<State*> m_state;
+    std::map<std::string, State*> m_stateMap;
     SmartGrid::SceneManager* m_sceneManager;
+    StateManager* m_stateManager;
 
     // Cached previous values to detect changes
     //
@@ -219,17 +142,21 @@ struct StateSaverTemp
     size_t m_prevScene2;
     float m_prevBlendFactor;
 
-    StateSaverTemp()
-        : m_sceneManager(nullptr)
+    StateSaverTemp(StateManager* stateManager, SmartGrid::SceneManager* sceneManager)
+        : m_sceneManager(sceneManager)
+        , m_stateManager(stateManager)
         , m_prevScene1(0)
         , m_prevScene2(1)
         , m_prevBlendFactor(0.0f)
     {
     }
 
-    void SetSceneManager(SmartGrid::SceneManager* sceneManager)
+    ~StateSaverTemp()
     {
-        m_sceneManager = sceneManager;
+        for (State* state : m_state)
+        {
+            delete state;
+        }
     }
 
     void Process()
@@ -269,12 +196,12 @@ struct StateSaverTemp
         size_t minIx = std::max(0, static_cast<int>(oldBlend * (m_state.size() + 1)) - 1);
         size_t maxIx = std::min(m_state.size() - 1, static_cast<size_t>(std::ceil(newBlend * (m_state.size() + 1))));
 
-        assert(minIx == 0 || m_state[minIx - 1].second.m_boundary < oldBlend);
-        assert(maxIx == m_state.size() - 1 || newBlend < m_state[maxIx].second.m_boundary);
+        assert(minIx == 0 || m_state[minIx - 1]->m_boundary < oldBlend);
+        assert(maxIx == m_state.size() - 1 || newBlend < m_state[maxIx]->m_boundary);
 
         for (size_t i = minIx; i < maxIx; ++i)
         {
-            m_state[i].second.HandleSceneInfoChange(m_sceneManager);
+            m_state[i]->HandleSceneInfoChange(m_sceneManager);
         }
     }
 
@@ -282,7 +209,7 @@ struct StateSaverTemp
     {
         for (auto& s : m_state)
         {
-            s.second.CopyToScene(scene);
+            s->CopyToScene(scene);
         }
     }
 
@@ -290,7 +217,7 @@ struct StateSaverTemp
     {
         for (auto& s : m_state)
         {
-            s.second.RevertToDefaultForScene(scene);
+            s->RevertToDefaultForScene(scene);
         }
     }
 

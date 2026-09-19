@@ -10,6 +10,7 @@
 #include "DebugLog.hpp"
 #include "HSV.hpp"
 #include "Color.hpp"
+#include "State.hpp"
 #include "MessageIn.hpp"
 
 namespace SmartGrid
@@ -37,7 +38,7 @@ struct Cell
         m_pressureSensitive = false;
         m_velocity = 0;
     }
-    
+
     virtual Color GetColor()
     {
         return Color::Off;
@@ -153,7 +154,7 @@ struct StateCell : public Cell
     Color m_offFlashColor;
     Color m_onFlashColor;
 
-    StateClass* m_state;
+    State* m_state;
     FlashClass m_flash;
 
     StateClass m_myState;
@@ -163,8 +164,7 @@ struct StateCell : public Cell
     {
         Toggle,
         Momentary,
-        SetOnly,
-        ShowOnly
+        SetOnly
     };
 
     Mode m_mode;
@@ -178,7 +178,7 @@ struct StateCell : public Cell
         Color onColor,
         Color offFlashColor,
         Color onFlashColor,
-        StateClass* state,
+        State* state,
         FlashClass flash,
         StateClass myState,
         StateClass offState,
@@ -198,7 +198,7 @@ struct StateCell : public Cell
     StateCell(
         Color offColor,
         Color onColor,
-        StateClass* state,
+        State* state,
         StateClass myState,
         StateClass offState = 0,        
         Mode mode = Mode::Toggle) 
@@ -210,11 +210,11 @@ struct StateCell : public Cell
     {
         if (m_flash.IsFlashing())
         {
-            return (*m_state) == m_myState ? m_onFlashColor : m_offFlashColor;
+            return m_state->Get<StateClass>() == m_myState ? m_onFlashColor : m_offFlashColor;
         }
         else
         {
-            return (*m_state) == m_myState ? m_onColor : m_offColor;
+            return m_state->Get<StateClass>() == m_myState ? m_onColor : m_offColor;
         }
     }
 
@@ -224,18 +224,81 @@ struct StateCell : public Cell
         {
             case Mode::Momentary:
             {
-                *m_state = m_myState;
+                m_state->Set(m_myState);
                 break;
             }
             case Mode::SetOnly:
             {
-                *m_state = m_myState;
+                m_state->Set(m_myState);
                 break;
             }
             case Mode::Toggle:
             {
-                StateClass newState = (*m_state) == m_myState ? m_offState : m_myState;
-                *m_state = newState;
+                StateClass newState = m_state->Get<StateClass>() == m_myState ? m_offState : m_myState;
+                m_state->Set(newState);
+                break;
+            }
+        }
+    }
+
+    virtual void OnRelease() override
+    {
+        if (m_mode == Mode::Momentary)
+        {
+            m_state->Set(m_offState);
+        }
+    }
+};
+
+struct RuntimeStateCell : public Cell
+{
+    enum class Mode : int
+    {
+        Toggle,
+        Momentary,
+        SetOnly,
+        ShowOnly
+    };
+
+    Color m_onColor;
+    Color m_offColor;
+    bool* m_state;
+    Mode m_mode;
+
+    RuntimeStateCell(
+        Color onColor,
+        Color offColor,
+        bool* state,
+        Mode mode)
+        : m_onColor(onColor)
+        , m_offColor(offColor)
+        , m_state(state)
+        , m_mode(mode)
+    {
+    }
+
+    virtual Color GetColor() override
+    {
+        return *m_state ? m_onColor : m_offColor;
+    }
+
+    virtual void OnPress(uint8_t) override
+    {
+        switch (m_mode)
+        {
+            case Mode::Toggle:
+            {
+                *m_state = !*m_state;
+                break;
+            }
+            case Mode::Momentary:
+            {
+                *m_state = true;
+                break;
+            }
+            case Mode::SetOnly:
+            {
+                *m_state = true;
                 break;
             }
             case Mode::ShowOnly:
@@ -249,7 +312,7 @@ struct StateCell : public Cell
     {
         if (m_mode == Mode::Momentary)
         {
-            *m_state = m_offState;
+            *m_state = false;
         }
     }
 };
@@ -259,7 +322,7 @@ struct CycleCell : Cell
 {
     ColorScheme m_colors;
     ColorScheme m_flashColors;
-    StateClass* m_state;
+    State* m_state;
     FlashClass m_flash;
 
     virtual ~CycleCell()
@@ -269,7 +332,7 @@ struct CycleCell : Cell
     CycleCell(
         ColorScheme colorScheme,
         ColorScheme flashColorScheme,
-        StateClass* state,
+        State* state,
         FlashClass flash)
         : m_colors(colorScheme)
         , m_flashColors(flashColorScheme)
@@ -280,7 +343,7 @@ struct CycleCell : Cell
 
     CycleCell(
         ColorScheme colorScheme,
-        StateClass* state)
+        State* state)
         : m_colors(colorScheme)
         , m_state(state)
     {
@@ -288,18 +351,18 @@ struct CycleCell : Cell
 
     void Cycle()
     {
-        *m_state = static_cast<StateClass>((static_cast<size_t>(*m_state) + 1) % m_colors.size());
+        m_state->Set(static_cast<StateClass>((static_cast<size_t>(m_state->Get<StateClass>()) + 1) % m_colors.size()));
     }
 
     virtual Color GetColor() override
     {
         if (m_flash.IsFlashing())
         {
-            return m_flashColors[static_cast<size_t>(*m_state)];
+            return m_flashColors[static_cast<size_t>(m_state->Get<StateClass>())];
         }
         else
         {
-            return m_colors[static_cast<size_t>(*m_state)];
+            return m_colors[static_cast<size_t>(m_state->Get<StateClass>())];
         }
     }
 
@@ -915,32 +978,6 @@ struct Grid : public AbstractGrid
     }
 };
 
-struct CompositeGrid : public Grid
-{
-    virtual ~CompositeGrid()
-    {
-    }
-
-    CompositeGrid()
-    {
-    }
-        
-    std::vector<std::unique_ptr<Grid>> m_grids;
-
-    void AddGrid(Grid* grid)
-    {
-        m_grids.push_back(std::unique_ptr<Grid>(grid));
-    }
-
-    virtual void Process(float dt) override
-    {
-        for (std::unique_ptr<Grid>& grid : m_grids)
-        {
-            grid->ProcessStatic(dt);
-        }
-    }
-};
-
 #include "SmartBus.hpp"
 
 struct GridHolder
@@ -990,101 +1027,6 @@ struct GridHolder
             grid->ProcessStatic(dt);
         }
     }    
-};
-
-struct GridSwitcher : public AbstractGrid
-{
-    size_t m_selectedGridId;
-    size_t m_lastGridId;
-    std::shared_ptr<AbstractGrid> m_menuGrid;
-
-    virtual ~GridSwitcher()
-    {
-    }
-    
-    GridSwitcher(AbstractGrid* menu)
-        : m_selectedGridId(x_numGridIds)
-        , m_lastGridId(x_numGridIds)
-        , m_menuGrid(std::shared_ptr<AbstractGrid>(menu))
-    {
-    }
-
-    GridSwitcher(std::shared_ptr<AbstractGrid> menu)
-        : m_selectedGridId(x_numGridIds)
-        , m_lastGridId(x_numGridIds)
-        , m_menuGrid(menu)
-    {
-    }
-
-    virtual size_t GetGridId()
-    {
-        return m_selectedGridId;
-    }
-
-    virtual void Apply(Message msg) override
-    {
-        if (m_menuGrid)
-        {
-            m_menuGrid->Apply(msg);
-        }
-        
-        if (m_selectedGridId != x_numGridIds)
-        {
-            SmartBusPutVelocity(m_selectedGridId, msg.m_x, msg.m_y, msg.m_velocity);
-        }
-    }
-
-    virtual Color GetColor(int i, int j) override
-    {
-        if (m_menuGrid)
-        {
-            Color c = m_menuGrid->GetColor(i, j);
-            if (c != Color::Off)
-            {
-                return c;
-            }
-        }
-        
-        if (m_selectedGridId != x_numGridIds)
-        {
-            return SmartBusGetColor(m_selectedGridId, i, j);
-        }
-        else
-        {
-            return Color::Off;
-        }
-    }
-
-    virtual Color GetOnColor() override
-    {
-        return SmartBusGetOnColor(m_selectedGridId);
-    }        
-
-    virtual Color GetOffColor() override
-    {
-        return SmartBusGetOffColor(m_selectedGridId);
-    }        
-
-
-    virtual void Process(float dt) override
-    {
-        if (m_menuGrid)
-        {
-            m_menuGrid->ProcessStatic(dt);
-        }
-
-        m_selectedGridId = GetGridId();
-
-        if (m_lastGridId != m_selectedGridId)
-        {
-            if (m_lastGridId != x_numGridIds)
-            {
-                SmartBusClearVelocities(m_lastGridId);
-            }
-            
-            m_lastGridId = m_selectedGridId;
-        }
-    }
 };
 
 struct Fader : public Grid
@@ -1484,7 +1426,7 @@ struct Fader : public Grid
                 *m_state = DeNormalize(normState);
             }
 
-            m_lastAbsState = *m_state;            
+            m_lastAbsState = *m_state;
             ComputeFaderPos(normState);           
         }
         else if (*m_state != m_lastAbsState)

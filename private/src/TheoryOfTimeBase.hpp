@@ -84,6 +84,7 @@ struct TheoryOfTimeBase
         double position = std::floor(phase * static_cast<double>(periodTicks));
         constexpr double x_minPosition = static_cast<double>(std::numeric_limits<int64_t>::min());
         assert(std::isfinite(position) && position >= x_minPosition && position < -x_minPosition);
+        std::ignore = x_minPosition;
         return static_cast<int64_t>(position);
     }
 

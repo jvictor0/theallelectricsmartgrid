@@ -26,11 +26,18 @@ struct TheNonagonSquiggleBoyInternal
     //
     SmartGrid::SceneManager m_sceneManager;
 
+    // Centralized state manager - must be updated for all state changes
+    //
+    StateManager m_stateManager;
+
     // Running state (not part of scene management)
     //
     bool m_running;
 
     StateSaver m_stateSaver;
+    State* m_sceneStateLeft;
+    State* m_sceneStateRight;
+    State* m_activeTrioState;
 
     SquiggleBoyConfigGrid m_configGrid;
 
@@ -211,12 +218,12 @@ struct TheNonagonSquiggleBoyInternal
 
     void SetRightScene(int scene)
     {
-        m_sceneManager.m_scene2 = scene;
+        m_sceneStateRight->Set(static_cast<size_t>(scene));
     }
 
     void SetLeftScene(int scene)
     {
-        m_sceneManager.m_scene1 = scene;
+        m_sceneStateLeft->Set(static_cast<size_t>(scene));
     }
 
     void SetBlendFactor(float blendFactor)
@@ -226,7 +233,7 @@ struct TheNonagonSquiggleBoyInternal
 
     void SetActiveTrio(TheNonagonSmartGrid::Trio trio)
     {
-        m_activeTrio = trio;
+        m_activeTrioState->Set(trio);
         m_squiggleBoy.SetTrack(static_cast<size_t>(trio));
     }
 
@@ -477,23 +484,23 @@ struct TheNonagonSquiggleBoyInternal
 
     TheNonagonSquiggleBoyInternal()
         : m_running(false)
-        , m_nonagon(false)
+        , m_stateSaver(&m_stateManager, nullptr)
+        , m_sceneStateLeft(nullptr)
+        , m_sceneStateRight(nullptr)
+        , m_activeTrioState(nullptr)
+        , m_squiggleBoy(&m_sceneManager)
+        , m_nonagon(false, &m_stateManager, &m_sceneManager)
         , m_activeTrio(TheNonagonSmartGrid::Trio::Fire)
         , m_timer(0)
         , m_clockMode(ClockMode::Internal)
         , m_clockTick(false)
     {
-        // Initialize components with scene manager pointer
-        //
-        m_squiggleBoy.Init(&m_sceneManager);        
-        m_nonagon.SetSceneManager(&m_sceneManager);
-
         m_squiggleBoy.m_stateSaver = &m_stateSaver;
         m_nonagon.m_activeTrio = &m_activeTrio;
         m_configGrid.Init(&m_squiggleBoy, &m_activeTrio, &m_uiState.m_squiggleBoyUIState);
-        m_stateSaver.Insert("sceneStateLeft", &m_sceneManager.m_scene1);
-        m_stateSaver.Insert("sceneStateRight", &m_sceneManager.m_scene2);
-        m_stateSaver.Insert("activeTrio", &m_activeTrio);
+        m_sceneStateLeft = m_stateSaver.Insert("sceneStateLeft", &m_sceneManager.m_scene1);
+        m_sceneStateRight = m_stateSaver.Insert("sceneStateRight", &m_sceneManager.m_scene2);
+        m_activeTrioState = m_stateSaver.Insert("activeTrio", &m_activeTrio);
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
         m_squiggleBoy.Config(m_squiggleBoyState);
@@ -633,35 +640,29 @@ struct TheNonagonSquiggleBoyInternal
 
     SmartGrid::Cell* MakeShiftCell()
     {
-        return new SmartGrid::StateCell<bool>(
-                SmartGrid::Color::White.Dim() /*offColor*/,
+        return new SmartGrid::RuntimeStateCell(
                 SmartGrid::Color::White /*onColor*/,
+                SmartGrid::Color::White.Dim() /*offColor*/,
                 &m_sceneManager.m_shift,
-                true,
-                false,
-                SmartGrid::StateCell<bool>::Mode::Momentary);
+                SmartGrid::RuntimeStateCell::Mode::Momentary);
     }
 
     SmartGrid::Cell* MakeRunningCell()
     {
-        return new SmartGrid::StateCell<bool>(
-                SmartGrid::Color::Green.Dim() /*offColor*/,
+        return new SmartGrid::RuntimeStateCell(
                 SmartGrid::Color::Green /*onColor*/,
+                SmartGrid::Color::Green.Dim() /*offColor*/,
                 &m_running,
-                true,
-                false,
-                SmartGrid::StateCell<bool>::Mode::Toggle);
+                SmartGrid::RuntimeStateCell::Mode::Toggle);
     }
 
     SmartGrid::Cell* MakeNoiseModeCell()
     {
-        return new SmartGrid::StateCell<bool>(
-                SmartGrid::Color::Pink /*offColor*/,
+        return new SmartGrid::RuntimeStateCell(
                 SmartGrid::Color::White /*onColor*/,
+                SmartGrid::Color::Pink /*offColor*/,
                 &m_squiggleBoy.m_mixerState.m_noiseMode,
-                true,
-                false,
-                SmartGrid::StateCell<bool>::Mode::Toggle);
+                SmartGrid::RuntimeStateCell::Mode::Toggle);
     }
 
     struct ActiveTrioIndicatorCell : SmartGrid::Cell

@@ -82,7 +82,9 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 - **Track** — A group of voices that share the same base parameter value, but may have independent modulated values (e.g., 3 trios acting as 3 tracks for the 9 voices).
 - **Gesture** — A macro control mapped to a physical analog input. Interpolates a parameter between its base value and a target state (`m_gestureWeights`).
 - **SceneManager** — Stores scene selection (`m_scene1`, `m_scene2`) and global scene blend (`m_blendFactor`), and emits change flags used to update scene-dependent processing. See [Scene Manager](scene-manager.md).
-- **StateSaver** — Scene-aware JSON persistence layer that serializes/deserializes registered runtime state and restores active scene values. See [State Saver](state-saver.md).
+- **State** — Named handle to a non-encoder live value, its scene snapshots, and its registration-time default. Typed edits call the state-change hook. See [State and State Saver](state-saver.md).
+- **StateSaver** — Owns registered `State` handles, provides setup-time name lookup, and serializes/restores their global or scene-specific values. See [State and State Saver](state-saver.md).
+- **StateManager** — Constructor-supplied recipient of explicit `State::Set` calls; currently a no-op hook, separate from `SceneManager` and patch persistence. See [State and State Saver](state-saver.md).
 - **Deep Vocoder** — Experimental spectral quantizer: analyzes incoming audio partials and snaps sequencer note targets to strong atoms using a V-shaped magnitude threshold.
 - **SmartBusColor (ColorBus)** — Per-route LED color bus used by controller UIs. Launchpad/Twister paths write UI color state into `m_colorBus`, then MIDI writers emit device-specific LED updates.
 - **ScopeWriter** — Lock-safe multi-voice circular signal capture buffer used by oscilloscope/analyzer/melody-roll visualizers.

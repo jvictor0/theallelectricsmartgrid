@@ -263,10 +263,18 @@ struct SmartGridOneEncoders
     EncoderBankBank m_encoderBankBank;
     Bank m_selectedBank;
 
-    SmartGridOneEncoders()
-        : m_encoderBankBank(static_cast<int>(Bank::NumBanks), x_numBankModes, x_numParams)
+    SmartGridOneEncoders(
+        SmartGrid::SceneManager* sceneManager,
+        size_t numTrios,
+        size_t voicesPerTrio)
+        : m_encoderBankBank(
+            static_cast<int>(Bank::NumBanks),
+            x_numBankModes,
+            x_numParams,
+            sceneManager)
         , m_selectedBank(Bank::Source)
     {
+        Init(numTrios, voicesPerTrio);
     }
 
     // Param address lookup
@@ -350,9 +358,8 @@ struct SmartGridOneEncoders
 
     // Initialization
     //
-    void Init(SmartGrid::SceneManager* sceneManager, size_t numTrios, size_t voicesPerTrio)
+    void Init(size_t numTrios, size_t voicesPerTrio)
     {
-        m_encoderBankBank.InitSceneManager(sceneManager);
         m_encoderBankBank.InitMode(static_cast<int>(BankMode::Voice), numTrios, voicesPerTrio);
         m_encoderBankBank.InitMode(static_cast<int>(BankMode::Quad), 1, 4);
         m_encoderBankBank.InitMode(static_cast<int>(BankMode::Global), 1, 1);
@@ -373,7 +380,7 @@ struct SmartGridOneEncoders
 #define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) \
         { \
             size_t modeIx = static_cast<size_t>(GetModeForBank(Bank::bank)); \
-            size_t index = m_encoderBankBank.CreateEncoder(sceneManager, static_cast<size_t>(Param::name), modeIx, default, #name, #shortName, color, switchValues, bipolar); \
+            size_t index = m_encoderBankBank.CreateEncoder(static_cast<size_t>(Param::name), modeIx, default, #name, #shortName, color, switchValues, bipolar); \
             m_encoderBankBank.PlaceEncoder(index, static_cast<size_t>(Bank::bank), x, y); \
         }
 #include "ForEachSmartGridOneParam.hpp"

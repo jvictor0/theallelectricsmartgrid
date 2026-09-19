@@ -1,7 +1,6 @@
 #pragma once
 
 #include "SmartGrid.hpp"
-#include "GridJnct.hpp"
 #include "TheoryOfTime.hpp"
 #include "LameJuis.hpp"
 #include "plugin.hpp"
@@ -355,12 +354,6 @@ struct TheNonagonSmartGrid
     ScenedStateSaver m_stateSaver;
     SmartGrid::SceneManager* m_sceneManager;
 
-    void SetSceneManager(SmartGrid::SceneManager* sceneManager)
-    {
-        m_sceneManager = sceneManager;
-        m_stateSaver.SetSceneManager(sceneManager);
-    }
-
     JSON ToJSON(JsonArena& a)
     {
         return m_stateSaver.ToJSON(a);
@@ -373,35 +366,29 @@ struct TheNonagonSmartGrid
     
     SmartGrid::Cell* TimeBitCell(size_t ix)
     {
-        return new SmartGrid::StateCell<bool>(
-                        SmartGrid::Color::Off /*offColor*/,
+        return new SmartGrid::RuntimeStateCell(
                         SmartGrid::Color::White /*onColor*/,
+                        SmartGrid::Color::Off /*offColor*/,
                         &m_nonagon.m_theoryOfTime.m_samples[0].m_loops[ix].m_gate,
-                        true,
-                        false,
-                        SmartGrid::StateCell<bool>::Mode::ShowOnly);
+                        SmartGrid::RuntimeStateCell::Mode::ShowOnly);
     }
 
     SmartGrid::Cell* StartStopCell()
     {
-        return new SmartGrid::StateCell<bool>(
-                        SmartGrid::Color::White /*offColor*/,
+        return new SmartGrid::RuntimeStateCell(
                         SmartGrid::Color::Green /*onColor*/,
+                        SmartGrid::Color::White /*offColor*/,
                         &m_state.m_running,
-                        true,
-                        false,
-                        SmartGrid::StateCell<bool>::Mode::Toggle);
+                        SmartGrid::RuntimeStateCell::Mode::Toggle);
     }
 
     SmartGrid::Cell* OutBitCell(size_t ix)
     {
-        return new SmartGrid::StateCell<bool>(
-                        SmartGrid::Color::Off /*offColor*/,
+        return new SmartGrid::RuntimeStateCell(
                         SmartGrid::Color::White /*onColor*/,
+                        SmartGrid::Color::Off /*offColor*/,
                         m_nonagon.OutBit(ix),
-                        true,
-                        false,
-                        SmartGrid::StateCell<bool>::Mode::ShowOnly);
+                        SmartGrid::RuntimeStateCell::Mode::ShowOnly);
     }
 
     using Trio = TheNonagonInternal::Trio;
@@ -467,7 +454,8 @@ struct TheNonagonSmartGrid
     {
         size_t trioIx = static_cast<size_t>(trio);
         return new ClockSelectCell(
-            &m_state.m_arpInput,
+            m_stateSaver.Get("IndexArpClockSelect", trioIx),
+            m_stateSaver.Get("IndexArpResetSelect", trioIx),
             trioIx,
             &m_numClockSelectsHeld[trioIx],
             &m_numClockSelectsMaxHeld[trioIx],
@@ -501,47 +489,54 @@ struct TheNonagonSmartGrid
     {
         TheNonagonSmartGrid* m_owner;
         size_t m_bit;
+        State* m_states[TheNonagonInternal::x_numTrios];
 
         ActiveTrioCoMuteCell(TheNonagonSmartGrid* owner, size_t bit)
             : m_owner(owner)
             , m_bit(bit)
         {
+            for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
+            {
+                m_states[i] = m_owner->m_stateSaver.Get("LameJuisCoMute", m_bit, i);
+            }
         }
 
-        bool* CoMute()
+        bool CoMute()
         {
             size_t tId = static_cast<size_t>(m_owner->GetActiveTrio());
-            return &m_owner->m_state.m_lameJuisInput.m_laneInput[tId].m_coMuteInput.m_coMutes[m_bit];
+            return m_states[tId]->Get<bool>();
         }
 
         virtual SmartGrid::Color GetColor() override
         {
-            return *CoMute() ? TrioColor(m_owner->GetActiveTrio()) : SmartGrid::Color::White;
+            return CoMute() ? TrioColor(m_owner->GetActiveTrio()) : SmartGrid::Color::White;
         }
 
         virtual void OnPress(uint8_t) override
         {
-            bool* coMute = CoMute();
-            *coMute = !*coMute;
+            size_t tId = static_cast<size_t>(m_owner->GetActiveTrio());
+            bool coMute = CoMute();
+            m_states[tId]->Set(!coMute);
         }
     };
 
     SmartGrid::Cell* MakeMuteCell(Trio t, size_t voiceOffset)
     {
         size_t voiceIx = static_cast<size_t>(t) * TheNonagonInternal::x_voicesPerTrio + voiceOffset;
+        State* muteState = m_stateSaver.Get("Mute", voiceIx);
         return new SmartGrid::StateCell<bool, SmartGrid::BoolFlash>(
             SmartGrid::Color::White.Dim(),
             VoiceColor(voiceIx),
             SmartGrid::Color::Grey,
             TrioColor(t),
-            &m_state.m_trigLogic.m_mute[voiceIx],
+            muteState,
             SmartGrid::BoolFlash(&m_nonagon.m_multiPhasorGate.m_preGate[voiceIx]),
             false,
             true,
             SmartGrid::StateCell<bool, SmartGrid::BoolFlash>::Mode::Toggle);
     }
     
-    struct TheoryOfTimeTopologyPage : public SmartGrid::CompositeGrid
+    struct TheoryOfTimeTopologyPage : public SmartGrid::Grid
     {
         TheNonagonInternal::Input* m_state;
         TheNonagonInternal* m_nonagon;
@@ -550,7 +545,7 @@ struct TheNonagonSmartGrid
         TheoryOfTimeBase::Input* m_timeState;
         
         TheoryOfTimeTopologyPage(TheNonagonSmartGrid* owner, bool isPan)
-            : SmartGrid::CompositeGrid()
+            : SmartGrid::Grid()
             , m_state(&owner->m_state)
             , m_nonagon(&owner->m_nonagon)
             , m_owner(owner)
@@ -568,6 +563,9 @@ struct TheNonagonSmartGrid
             {
                 size_t xPos = i;
 
+                State* multState = m_owner->m_stateSaver.Insert(
+                    "TheoryOfTimeMult", i, &m_timeState->m_input[i].m_parentMult);
+
                 for (size_t mult = 2; mult <= 5; ++mult)
                 {
                     Put(
@@ -576,26 +574,23 @@ struct TheNonagonSmartGrid
                         new SmartGrid::StateCell<int>(
                             SmartGrid::Color::Fuscia /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
-                            &m_timeState->m_input[i].m_parentMult,
+                            multState,
                             mult,
                             1,
                             SmartGrid::StateCell<int>::Mode::Toggle));
                 }
-                
-                m_owner->m_stateSaver.Insert(
-                    "TheoryOfTimeMult", i, &m_timeState->m_input[i].m_parentMult);
-                
+
                 if (i < TheNonagonInternal::x_numTimeBits - 2)
                 {
+                    State* parentState = m_owner->m_stateSaver.Insert(
+                        "TheoryOfTimeParentIx", i, &m_timeState->m_input[i].m_parentIndex);
                     Put(xPos, 4, new SmartGrid::StateCell<int>(
                             SmartGrid::Color::Ocean /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
-                            &m_timeState->m_input[i].m_parentIndex,
+                            parentState,
                             i + 2,
                             i + 1,
                             SmartGrid::StateCell<int>::Mode::Toggle));
-                    m_owner->m_stateSaver.Insert(
-                        "TheoryOfTimeParentIx", i, &m_timeState->m_input[i].m_parentIndex);
                 }
                 
                 Put(xPos, 7, m_owner->TimeBitCell(i));
@@ -631,10 +626,11 @@ struct TheNonagonSmartGrid
                 Put(i, 7, m_owner->TimeBitCell(i));
                 if (i < TheNonagonInternal::x_numTimeBits - 2)
                 {
+                    State* parentState = m_owner->m_stateSaver.Get("TheoryOfTimeParentIx", i);
                     Put(i, 6, new SmartGrid::StateCell<int>(
                             SmartGrid::Color::Ocean /*offColor*/,
                             SmartGrid::Color::White /*onColor*/,
-                            &m_state->m_theoryOfTimeInput.m_input[i].m_parentIndex,
+                            parentState,
                             i + 2,
                             i + 1,
                             SmartGrid::StateCell<int>::Mode::Toggle));
@@ -645,16 +641,16 @@ struct TheNonagonSmartGrid
                     size_t tId = static_cast<size_t>(t);
                     size_t coMuteY = tId * 2;
                     size_t seqY = coMuteY + 1;
+                    State* coMuteState = m_owner->m_stateSaver.Insert(
+                        "LameJuisCoMute", i, tId, &m_state->m_lameJuisInput.m_laneInput[tId].m_coMuteInput.m_coMutes[i]);
 
                     Put(i, coMuteY, new SmartGrid::StateCell<bool>(
                             SmartGrid::Color::White /*offColor*/,
                             TrioColor(t) /*onColor*/,
-                            &m_state->m_lameJuisInput.m_laneInput[tId].m_coMuteInput.m_coMutes[i],
+                            coMuteState,
                             true,
                             false,
                             SmartGrid::StateCell<bool>::Mode::Toggle));
-                    m_owner->m_stateSaver.Insert(
-                        "LameJuisCoMute", i, tId, &m_state->m_lameJuisInput.m_laneInput[tId].m_coMuteInput.m_coMutes[i]);
 
                     Put(i, seqY, m_owner->MkClockSelectCell(t, i));
 
@@ -685,13 +681,13 @@ struct TheNonagonSmartGrid
         }
     }
     
-    SmartGrid::Cell* EquationOutputSwitch(size_t i)
+    SmartGrid::Cell* EquationOutputSwitch(State* state)
     {
         SmartGrid::ColorScheme colorScheme(std::vector<SmartGrid::Color>({
                     EquationColor(2), EquationColor(1), EquationColor(0)}));
         return new SmartGrid::CycleCell<LameJuisInternal::LogicOperation::SwitchVal>(
             colorScheme,
-            &m_state.m_lameJuisInput.m_operationInput[i].m_switch);
+            state);
     }
     
     struct LameJuisMatrixPage : public SmartGrid::Grid
@@ -721,19 +717,19 @@ struct TheNonagonSmartGrid
 
                 for (size_t j = 0; j < LameJuisInternal::x_numOperations; ++j)
                 {
+                    State* matrixSwitchState = m_owner->m_stateSaver.Insert(
+                        "LameJuisMatrixSwitch", i, j, &m_state->m_lameJuisInput.m_operationInput[j].m_elements[i]);
                     Put(i, SmartGrid::x_baseGridSize - j - 3, new SmartGrid::CycleCell<LameJuisInternal::MatrixSwitch, SmartGrid::BoolFlash>(
                             dimColorScheme,
                             colorScheme,
-                            &m_state->m_lameJuisInput.m_operationInput[j].m_elements[i],
+                            matrixSwitchState,
                             SmartGrid::BoolFlash(&m_nonagon->m_lameJuis.m_operations[j].m_highParticipant[i])));
-                    m_owner->m_stateSaver.Insert(
-                        "LameJuisMatrixSwitch", i, j, &m_state->m_lameJuisInput.m_operationInput[j].m_elements[i]);
                 }
 
                 Put(6, SmartGrid::x_baseGridSize - i - 3, m_owner->OutBitCell(i));
-                Put(7, SmartGrid::x_baseGridSize - i - 3, m_owner->EquationOutputSwitch(i));
-                m_owner->m_stateSaver.Insert(
+                State* equationOutputSwitchState = m_owner->m_stateSaver.Insert(
                     "LameJuisEquationOutputSwitch", i, &m_state->m_lameJuisInput.m_operationInput[i].m_switch);
+                Put(7, SmartGrid::x_baseGridSize - i - 3, m_owner->EquationOutputSwitch(equationOutputSwitchState));
             }
 
             for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits; ++i)
@@ -783,7 +779,7 @@ struct TheNonagonSmartGrid
             int m_j;
             TheNonagonInternal* m_nonagon;
 
-            Cell(int i, int j, bool* state, TheNonagonSmartGrid* owner)
+            Cell(int i, int j, State* state, TheNonagonSmartGrid* owner)
                 : SmartGrid::StateCell<bool, CountHighFiberFlash>(
                     SmartGrid::Color::White.Dim(),
                     SmartGrid::Color::Indigo.Dim(),
@@ -831,12 +827,13 @@ struct TheNonagonSmartGrid
             {
                 for (size_t j = 0; j < TheNonagonInternal::x_numTimeBits + 1; ++j)
                 {
-                    Put(j, SmartGrid::x_baseGridSize - i - 3, new Cell(i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_rhs[j], m_owner));
-                    m_owner->m_stateSaver.Insert(
+                    State* rhsState = m_owner->m_stateSaver.Insert(
                         "LameJuisRHS", i, j, &m_state->m_lameJuisInput.m_operationInput[i].m_rhs[j]);
+                    Put(j, SmartGrid::x_baseGridSize - i - 3, new Cell(i, j, rhsState, m_owner));
                 }
 
-                Put(7, SmartGrid::x_baseGridSize - i - 3, m_owner->EquationOutputSwitch(i));                
+                State* equationOutputSwitchState = m_owner->m_stateSaver.Get("LameJuisEquationOutputSwitch", i);
+                Put(7, SmartGrid::x_baseGridSize - i - 3, m_owner->EquationOutputSwitch(equationOutputSwitchState));
             }
 
             m_owner->PlaceMutes(Trio::Water, 2, 7, this);
@@ -864,6 +861,8 @@ struct TheNonagonSmartGrid
         {
             for (size_t i = 0; i < LameJuisInternal::x_numAccumulators; ++i)
             {
+                State* intervalState = m_owner->m_stateSaver.Insert(
+                    "LameJuisInterval", i, &m_state->m_lameJuisInput.m_accumulatorInput[i].m_interval);
                 for (size_t j = 0; j < static_cast<size_t>(LameJuisInternal::Accumulator::Interval::NumIntervals); ++j)
                 {
                     size_t xPos = 2 * i + (j == 0 || 6 < j ? 1 : 0);
@@ -871,14 +870,11 @@ struct TheNonagonSmartGrid
                     Put(xPos, yPos, new SmartGrid::StateCell<LameJuisInternal::Accumulator::Interval>(
                             EquationColor(i),
                             SmartGrid::Color::White,
-                            &m_state->m_lameJuisInput.m_accumulatorInput[i].m_interval,
+                            intervalState,
                             static_cast<LameJuisInternal::Accumulator::Interval>(j),
                             LameJuisInternal::Accumulator::Interval::Off,
                             SmartGrid::StateCell<LameJuisInternal::Accumulator::Interval>::Mode::SetOnly));
                 }
-
-                m_owner->m_stateSaver.Insert(
-                    "LameJuisInterval", i, &m_state->m_lameJuisInput.m_accumulatorInput[i].m_interval);
             }
         }
     };
@@ -1010,24 +1006,27 @@ struct TheNonagonSmartGrid
 
         struct RhythmCell : public SmartGrid::Cell
         {
-            IndexArp::Input* m_state;
             IndexArp* m_arp;
             int m_ix;
             bool* m_shift;
             Trio m_trio;
             SmartGrid::Color m_color;
+            State* m_rhythmState;
+            State* m_rhythmLengthState;
 
             RhythmCell(
-                IndexArp::Input* state,
+                TheNonagonSmartGrid* owner,
+                size_t voice,
                 IndexArp* arp,
                 int ix,
                 bool* shift,
                 Trio trio)
-                : m_state(state)
-                , m_arp(arp)
+                : m_arp(arp)
                 , m_ix(ix)
                 , m_shift(shift)
                 , m_trio(trio)
+                , m_rhythmState(owner->m_stateSaver.Get("IndexArpRhythm", voice, ix))
+                , m_rhythmLengthState(owner->m_stateSaver.Get("IndexArpRhythmLength", voice))
             {
             }
             
@@ -1035,17 +1034,17 @@ struct TheNonagonSmartGrid
             {
                 if (*m_shift)
                 {
-                    m_state->m_rhythmLength = m_ix + 1;
+                    m_rhythmLengthState->Set(m_ix + 1);
                 }
                 else
                 {
-                    m_state->m_rhythm[m_ix] = !m_state->m_rhythm[m_ix];
+                    m_rhythmState->Set(!m_rhythmState->Get<bool>());
                 }
             }
             
             virtual SmartGrid::Color GetColor() override
             {
-                if (m_state->m_rhythmLength <= m_ix)
+                if (m_rhythmLengthState->Get<int>() <= m_ix)
                 {
                     return SmartGrid::Color::Off;
                 }
@@ -1060,7 +1059,7 @@ struct TheNonagonSmartGrid
                     result = TrioColor(m_trio);
                 }
 
-                if (!m_state->m_rhythm[m_ix])
+                if (!m_rhythmState->Get<bool>())
                 {
                     result = result.Dim();
                 }
@@ -1076,53 +1075,55 @@ struct TheNonagonSmartGrid
             {
                 size_t voice = tId * TheNonagonInternal::x_voicesPerTrio + i;
                 size_t yPos = i;
+
+                m_owner->m_stateSaver.Insert(
+                    "IndexArpRhythmLength", voice, &m_state->m_arpInput.m_input[voice].m_rhythmLength);
                 
                 for (size_t j = 0; j < SmartGrid::x_baseGridSize; ++j)
                 {
+                    m_owner->m_stateSaver.Insert(
+                        "IndexArpRhythm", voice, j, &m_state->m_arpInput.m_input[voice].m_rhythm[j]);
                     Put(j, yPos, new RhythmCell(
-                            &m_state->m_arpInput.m_input[voice],
+                            m_owner,
+                            voice,
                             &m_nonagon->m_indexArp.m_arp[voice],
                             j,
                             &m_state->m_shift,
                             m_trio));
-                    m_owner->m_stateSaver.Insert(
-                        "IndexArpRhythm", voice, j, &m_state->m_arpInput.m_input[voice].m_rhythm[j]);
                 }
-
-                m_owner->m_stateSaver.Insert(
-                    "IndexArpRhythmLength", voice, &m_state->m_arpInput.m_input[voice].m_rhythmLength);
-
             }
 
             if (m_owner->m_isStandalone)
             {
-                Put(7, 7, new SmartGrid::StateCell<bool>(
-                        SmartGrid::Color::White.Dim() /*offColor*/,
+                Put(7, 7, new SmartGrid::RuntimeStateCell(
                         SmartGrid::Color::White /*onColor*/,
+                        SmartGrid::Color::White.Dim() /*offColor*/,
                         &m_owner->m_state.m_shift,
-                        true,
-                        false,
-                        SmartGrid::StateCell<bool>::Mode::Momentary));
+                        SmartGrid::RuntimeStateCell::Mode::Momentary));
             }
 
+            State* trioOctaveState = m_owner->m_stateSaver.Insert(
+                "TrioOctave", tId, &m_state->m_trioOctaveSwitchesInput.m_octave[tId]);
             for (int i = -3; i < 3; ++i)
             {
                 Put(5 + i, 6, new SmartGrid::StateCell<int>(
                         TrioCompanionColor(m_trio),
                         SmartGrid::Color::White /*onColor*/,
-                        &m_state->m_trioOctaveSwitchesInput.m_octave[tId],
+                        trioOctaveState,
                         i,
                         0,
                         SmartGrid::StateCell<int>::Mode::SetOnly));
             }
 
+            State* trioSpreadState = m_owner->m_stateSaver.Insert(
+                "TrioSpread", tId, &m_state->m_trioOctaveSwitchesInput.m_spread[tId]);
             for (size_t i = 0; i < 4; ++i)
             {
                 TrioOctaveSwitches::Spread spread = static_cast<TrioOctaveSwitches::Spread>(i);
                 Put(3 + i, 7, new SmartGrid::StateCell<TrioOctaveSwitches::Spread>(
                         TrioCompanionColor(m_trio),
                         SmartGrid::Color::White /*onColor*/,
-                        &m_state->m_trioOctaveSwitchesInput.m_spread[tId],
+                        trioSpreadState,
                         spread,
                         spread,
                         SmartGrid::StateCell<TrioOctaveSwitches::Spread>::Mode::SetOnly));
@@ -1132,70 +1133,60 @@ struct TheNonagonSmartGrid
             {
                 for (size_t j = 0; j <= i; ++j)
                 {
+                    State* interruptState = m_owner->m_stateSaver.Get("Interrupt", i, j);
                     Put(j, 3 + i, new SmartGrid::StateCell<bool>(
                             TrioColor(static_cast<Trio>(i)).Dim() /*offColor*/,
                             TrioColor(static_cast<Trio>(i)) /*onColor*/,
-                            &m_state->m_trigLogic.m_interrupt[i][j],
+                            interruptState,
                             true,
                             false,
                             SmartGrid::StateCell<bool>::Mode::Toggle));
                 }
             }
 
+            State* strategyState = m_owner->m_stateSaver.Insert(
+                "LameJuisStrategy", tId, &m_state->m_lameJuisInput.m_laneInput[tId].m_chooserInput.m_strategy);
             Put(0, 6, new SmartGrid::StateCell<HarmonicSheaf::SectionChoiceStrategy>(
                     SmartGrid::Color::Fuscia.Dim() /*offColor*/,
                     SmartGrid::Color::Fuscia /*onColor*/,
-                    &m_state->m_lameJuisInput.m_laneInput[tId].m_chooserInput.m_strategy,
+                    strategyState,
                     HarmonicSheaf::SectionChoiceStrategy::Percentile,
                     HarmonicSheaf::SectionChoiceStrategy::ClosestModOne,
                     SmartGrid::StateCell<HarmonicSheaf::SectionChoiceStrategy>::Mode::Toggle));
 
+            State* trigOnPitchChangedState = m_owner->m_stateSaver.Insert(
+                "TrigOnPitchChanged", tId, &m_state->m_trigLogic.m_trigOnPitchChanged[tId]);
             Put(0, 7, new SmartGrid::StateCell<bool>(
                     SmartGrid::Color::White.Dim() /*offColor*/,
                     SmartGrid::Color::White /*onColor*/,
-                    &m_state->m_trigLogic.m_trigOnPitchChanged[tId],
+                    trigOnPitchChangedState,
                     true,
                     false,
                     SmartGrid::StateCell<bool>::Mode::Toggle));
 
+            State* trigOnSubTriggerState = m_owner->m_stateSaver.Insert(
+                "TrigOnSubTrigger", tId, &m_state->m_trigLogic.m_trigOnSubTrigger[tId]);
             Put(1, 7, new SmartGrid::StateCell<bool>(
                     SmartGrid::Color::White.Dim() /*offColor*/,
                     SmartGrid::Color::White /*onColor*/,
-                    &m_state->m_trigLogic.m_trigOnSubTrigger[tId],
+                    trigOnSubTriggerState,
                     true,
                     false,
                     SmartGrid::StateCell<bool>::Mode::Toggle));
 
+            State* unisonMasterState = m_owner->m_stateSaver.Insert(
+                "UnisonMaster", tId, &m_state->m_trigLogic.m_unisonMaster[tId]);
             for (size_t i = 0; i < TheNonagonInternal::x_voicesPerTrio; ++i)
             {
                 Put(7, 3 + i, new SmartGrid::StateCell<int>(
                         SmartGrid::Color::Orange.Dim() /*offColor*/,
                         SmartGrid::Color::Orange /*onColor*/,
-                        &m_state->m_trigLogic.m_unisonMaster[tId],
+                        unisonMasterState,
                         TheNonagonInternal::x_voicesPerTrio * tId + i,
                         -1,
                         SmartGrid::StateCell<int>::Mode::Toggle));
             }
-                        
-            m_owner->m_stateSaver.Insert(
-                "TrioOctave", tId, &m_state->m_trioOctaveSwitchesInput.m_octave[tId]);
-            m_owner->m_stateSaver.Insert(
-                "TrioSpread", tId, &m_state->m_trioOctaveSwitchesInput.m_spread[tId]);            
 
-            m_owner->m_stateSaver.Insert(
-                "IndexArpClockSelect", tId, &m_state->m_arpInput.m_clockSelect[tId]);
-            m_owner->m_stateSaver.Insert(
-                "IndexArpResetSelect", tId, &m_state->m_arpInput.m_resetSelect[tId]);
-
-            m_owner->m_stateSaver.Insert(
-                "UnisonMaster", tId, &m_state->m_trigLogic.m_unisonMaster[tId]);
-
-            m_owner->m_stateSaver.Insert(
-                "LameJuisStrategy", tId, &m_state->m_lameJuisInput.m_laneInput[tId].m_chooserInput.m_strategy);
-            m_owner->m_stateSaver.Insert(
-                "TrigOnPitchChanged", tId, &m_state->m_trigLogic.m_trigOnPitchChanged[tId]);
-            m_owner->m_stateSaver.Insert(
-                "TrigOnSubTrigger", tId, &m_state->m_trigLogic.m_trigOnSubTrigger[tId]);
         }
     };
 
@@ -1227,8 +1218,9 @@ struct TheNonagonSmartGrid
 
     SmartGrid::MessageOutBuffer* m_messageOutBuffer;
     
-    TheNonagonSmartGrid(bool isStandalone)
-        : m_sceneManager(nullptr)
+    TheNonagonSmartGrid(bool isStandalone, StateManager* stateManager, SmartGrid::SceneManager* sceneManager)
+        : m_stateSaver(stateManager, sceneManager)
+        , m_sceneManager(sceneManager)
         , m_activeTrio(nullptr)
         , m_isStandalone(isStandalone)
     {
@@ -1244,7 +1236,18 @@ struct TheNonagonSmartGrid
         {
             m_numClockSelectsHeld[i] = 0;
             m_numClockSelectsMaxHeld[i] = 0;
-            m_stateSaver.Insert("Mute", i, &m_state.m_trigLogic.m_mute[i]);                                
+            m_stateSaver.Insert("Mute", i, &m_state.m_trigLogic.m_mute[i]);
+        }
+
+        for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
+        {
+            m_stateSaver.Insert("IndexArpClockSelect", i, &m_state.m_arpInput.m_clockSelect[i]);
+            m_stateSaver.Insert("IndexArpResetSelect", i, &m_state.m_arpInput.m_resetSelect[i]);
+
+            for (size_t j = 0; j <= i; ++j)
+            {
+                m_stateSaver.Insert("Interrupt", i, j, &m_state.m_trigLogic.m_interrupt[i][j]);
+            }
         }
     }
     
@@ -1291,13 +1294,6 @@ struct TheNonagonSmartGrid
         m_sheafViewGridWaterGrid = new SheafViewGrid(this, Trio::Water);
         m_sheafViewGridWaterGridId = m_gridHolder.AddGrid(m_sheafViewGridWaterGrid);
 
-        for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
-        {
-            for (size_t j = 0; j <= i; ++j)
-            {
-                m_stateSaver.Insert("Interrupt", i, j, &m_state.m_trigLogic.m_interrupt[i][j]);
-            }
-        }
     }
 
     void RemoveGridIds()

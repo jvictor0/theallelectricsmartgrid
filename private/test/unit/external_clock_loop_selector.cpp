@@ -54,8 +54,7 @@ DOCTEST_TEST_CASE("External clock loop selector defaults to upper middle switch"
     GlobalEnv::ResetPerTest();
 
     SmartGrid::SceneManager sceneManager;
-    SmartGridOneEncoders encoders;
-    encoders.Init(&sceneManager, 3, 3);
+    SmartGridOneEncoders encoders(&sceneManager, 3, 3);
     encoders.Process();
 
     DOCTEST_CHECK(encoders.GetSwitchVal(Param::ExternalClockLoop) == 3);
