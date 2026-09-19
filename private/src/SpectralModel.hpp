@@ -19,7 +19,6 @@ struct SpectralModelGeneric
     static constexpr size_t x_tableSize = Buffer::x_tableSize;
     static constexpr size_t x_maxComponents = DFT::x_maxComponents;
     static constexpr size_t x_maxAtoms = 8192;
-    static constexpr size_t x_numSyntheticHarmonics = 6;
     static constexpr size_t x_hopDenom = 4;
     static constexpr size_t x_H = x_tableSize / x_hopDenom;
     static constexpr float x_deathMag = 1e-5f;
@@ -33,8 +32,6 @@ struct SpectralModelGeneric
         Parameter m_slewDownAlpha;
         Parameter m_omegaPortamentoAlpha;
         Parameter m_omegaDensity;
-        bool m_useSyntheticHarmonics;
-        Parameter m_syntheticHarmonics[x_numSyntheticHarmonics];
         typename ParameterProvider::Input m_parameterInput;
 
         Input()
@@ -43,8 +40,7 @@ struct SpectralModelGeneric
             , m_slewUpAlpha(1.0f)
             , m_slewDownAlpha(1.0f)
             , m_omegaPortamentoAlpha(1.0f)
-            , m_omegaDensity(1.0 / x_tableSize)
-            , m_useSyntheticHarmonics(false)
+            , m_omegaDensity(1.0f / 1200.0f)
         {
         }
     };
@@ -52,26 +48,35 @@ struct SpectralModelGeneric
     struct AnalysisAtom
     {
         float m_analysisOmega;
+        float m_logAnalysisOmega;
         float m_analysisMagnitude;
         float m_analysisPhase;
         ParameterIndex m_index;
-        bool m_isSynthetic;
-        
+
         AnalysisAtom()
             : m_analysisOmega(0.0f)
+            , m_logAnalysisOmega(std::numeric_limits<float>::lowest())
             , m_analysisMagnitude(0.0f)
             , m_analysisPhase(0.0f)
             , m_index()
-            , m_isSynthetic(false)
         {
         }
 
-        AnalysisAtom(float analysisOmega, float analysisMagnitude, float analysisPhase, ParameterIndex index, bool isSynthetic)
+        AnalysisAtom(float analysisOmega, float analysisMagnitude, float analysisPhase, ParameterIndex index)
             : m_analysisOmega(analysisOmega)
+            , m_logAnalysisOmega(std::log2f(analysisOmega))
             , m_analysisMagnitude(analysisMagnitude)
             , m_analysisPhase(analysisPhase)
             , m_index(index)
-            , m_isSynthetic(isSynthetic)
+        {
+        }
+
+        AnalysisAtom(float analysisOmega, float logAnalysisOmega, float analysisMagnitude, float analysisPhase, ParameterIndex index)
+            : m_analysisOmega(analysisOmega)
+            , m_logAnalysisOmega(logAnalysisOmega)
+            , m_analysisMagnitude(analysisMagnitude)
+            , m_analysisPhase(analysisPhase)
+            , m_index(index)
         {
         }
 
@@ -80,10 +85,10 @@ struct SpectralModelGeneric
             return b.m_analysisMagnitude < a.m_analysisMagnitude;
         }
 
-        static float PreferredMatchTheta(const AnalysisAtom& candidate, float targetOmega, float omegaDensity)
+        static float PreferredMatchTheta(const AnalysisAtom& candidate, float targetLogOmega, float density)
         {
-            float distance = std::abs(candidate.m_analysisOmega - targetOmega);
-            if (omegaDensity <= 0.0f)
+            float distance = std::abs(candidate.m_logAnalysisOmega - targetLogOmega);
+            if (density <= 0.0f)
             {
                 if (distance <= 0.0f)
                 {
@@ -93,42 +98,18 @@ struct SpectralModelGeneric
                 return 0.0f;
             }
 
-            float distanceWeight = std::max(0.0f, 1.0f - distance / omegaDensity);
+            float distanceWeight = std::max(0.0f, 1.0f - distance / density);
             return candidate.m_analysisMagnitude * distanceWeight;
         }
 
-        static bool IsPreferred(const AnalysisAtom& candidate, const AnalysisAtom& current, float targetOmega, float omegaDensity)
+        static bool CmpLogOmega(const AnalysisAtom& a, const AnalysisAtom& b)
         {
-            if (candidate.m_isSynthetic != current.m_isSynthetic)
-            {
-                return !candidate.m_isSynthetic;
-            }
-
-            float candidateTheta = PreferredMatchTheta(candidate, targetOmega, omegaDensity);
-            float currentTheta = PreferredMatchTheta(current, targetOmega, omegaDensity);
-            if (currentTheta != candidateTheta)
-            {
-                return currentTheta < candidateTheta;
-            }
-
-            if (current.m_analysisMagnitude != candidate.m_analysisMagnitude)
-            {
-                return current.m_analysisMagnitude < candidate.m_analysisMagnitude;
-            }
-
-            float candidateDistance = std::abs(candidate.m_analysisOmega - targetOmega);
-            float currentDistance = std::abs(current.m_analysisOmega - targetOmega);
-            return candidateDistance < currentDistance;
+            return a.m_logAnalysisOmega < b.m_logAnalysisOmega;
         }
 
-        static bool CmpOmega(const AnalysisAtom& a, const AnalysisAtom& b)
+        static bool CmpLogOmegaFloat(const AnalysisAtom& a, float logOmega)
         {
-            return a.m_analysisOmega < b.m_analysisOmega;
-        }
-
-        static bool CmpOmegaFloat(const AnalysisAtom& a, float omega)
-        {
-            return a.m_analysisOmega < omega;
+            return a.m_logAnalysisOmega < logOmega;
         }
     };
 
@@ -147,15 +128,23 @@ struct SpectralModelGeneric
         }
 
         Atom(float analysisOmega, float analysisMagnitude, ParameterIndex index, float synthesisOmega, float synthesisMagnitude, float synthesisPhase)
-            : AnalysisAtom(analysisOmega, analysisMagnitude, 0.0f, index, false)
+            : AnalysisAtom(analysisOmega, analysisMagnitude, 0.0f, index)
             , m_synthesisOmega(synthesisOmega)
             , m_synthesisMagnitude(synthesisMagnitude)
             , m_synthesisPhase(synthesisPhase)
         {
         }
 
-        Atom(float analysisOmega, float analysisMagnitude, float analysisPhase, ParameterIndex index, float synthesisOmega, float synthesisMagnitude, float synthesisPhase)
-            : AnalysisAtom(analysisOmega, analysisMagnitude, analysisPhase, index, false)
+        Atom(
+            float analysisOmega,
+            float logAnalysisOmega,
+            float analysisMagnitude,
+            float analysisPhase,
+            ParameterIndex index,
+            float synthesisOmega,
+            float synthesisMagnitude,
+            float synthesisPhase)
+            : AnalysisAtom(analysisOmega, logAnalysisOmega, analysisMagnitude, analysisPhase, index)
             , m_synthesisOmega(synthesisOmega)
             , m_synthesisMagnitude(synthesisMagnitude)
             , m_synthesisPhase(synthesisPhase)
@@ -169,10 +158,10 @@ struct SpectralModelGeneric
             float omegaPortamentoAlpha = input.m_omegaPortamentoAlpha.Process(analysisAtom.m_index);
             m_synthesisMagnitude = BiDirectionalSlew::Process(m_synthesisMagnitude, analysisAtom.m_analysisMagnitude, slewUpAlpha, slewDownAlpha);
             AnalysisAtom::m_analysisOmega = analysisAtom.m_analysisOmega;
+            AnalysisAtom::m_logAnalysisOmega = analysisAtom.m_logAnalysisOmega;
             AnalysisAtom::m_analysisMagnitude = analysisAtom.m_analysisMagnitude;
             AnalysisAtom::m_analysisPhase = analysisAtom.m_analysisPhase;
             AnalysisAtom::m_index = analysisAtom.m_index;
-            AnalysisAtom::m_isSynthetic = analysisAtom.m_isSynthetic;
             m_synthesisOmega = Slew::Process(m_synthesisOmega, analysisAtom.m_analysisOmega, omegaPortamentoAlpha);
         }
 
@@ -185,19 +174,23 @@ struct SpectralModelGeneric
             m_synthesisOmega = Slew::Process(m_synthesisOmega, AnalysisAtom::m_analysisOmega, omegaPortamentoAlpha);
         }
 
+        void MergeDominated(const AnalysisAtom& analysisAtom, float density, Input& input)
+        {
+            float factor = AnalysisAtom::PreferredMatchTheta(
+                analysisAtom,
+                AnalysisAtom::m_logAnalysisOmega,
+                density) / m_synthesisMagnitude;
+            if (1.0 < factor)
+            {
+                m_synthesisMagnitude /= factor;
+            }
+
+            MergeNoMatch(input);
+        }
+
         void UpdatePhase()
         {
             m_synthesisPhase += x_H * m_synthesisOmega;
-        }
-
-        static bool CmpReverseMagnitude(const Atom& a, const Atom& b)
-        {
-            return AnalysisAtom::CmpReverseMagnitude(a, b);
-        }
-
-        static bool CmpReverseMagnitudePtr(Atom* const & a, Atom* const & b)
-        {
-            return CmpReverseMagnitude(*a, *b);
         }
 
         static bool CmpReverseSynthesisMagnitude(const Atom& a, const Atom& b)
@@ -220,7 +213,6 @@ struct SpectralModelGeneric
     };
 
     using AnalysisAtomArray = Array<AnalysisAtom, x_maxAtoms>;
-    using AtomArray = Array<Atom, x_maxAtoms>;
     using AtomStarArray = Array<Atom*, x_maxAtoms>;
 
     struct AtomsArrayWithIndex
@@ -233,11 +225,6 @@ struct SpectralModelGeneric
             Atom* newAtom = m_allocator.Allocate();
             *newAtom = atom;
             m_atoms.Add(newAtom);
-        }
-
-        void SortByReverseMagnitude()
-        {
-            m_atoms.Sort(Atom::CmpReverseMagnitudePtr);
         }
 
         void SortByReverseSynthesisMagnitude()
@@ -412,28 +399,7 @@ struct SpectralModelGeneric
                     float peakPhase = std::arg(coefficient) / (2.0f * static_cast<float>(M_PI));
                     dft.WriteWindowedPartial(peakPhase + 0.5f, 2.0f * peakMag, peakOmega);
                     ParameterIndex index = ParameterProvider::GetIndexForFrequency(peakOmega, input.m_parameterInput);
-                    analysisAtoms.Add(AnalysisAtom(peakOmega, peakMag, peakPhase, index, false));
-                }
-            }
-        }
-
-        size_t numAnalysisAtoms = analysisAtoms.Size();
-        if (input.m_useSyntheticHarmonics)
-        {
-            for (size_t i = 0; i < numAnalysisAtoms; ++i)
-            {
-                AnalysisAtom& analysisAtom = analysisAtoms[i];
-                for (size_t j = 0; j < x_numSyntheticHarmonics; ++j)
-                {
-                    if (x_maxAtoms <= analysisAtoms.Size())
-                    {
-                        break;
-                    }
-
-                    float harmonicOmega = analysisAtom.m_analysisOmega * static_cast<float>(j + 2);
-                    ParameterIndex index = ParameterProvider::GetIndexForFrequency(harmonicOmega, input.m_parameterInput);
-                    float harmonicMagnitude = analysisAtom.m_analysisMagnitude * input.m_syntheticHarmonics[j].Process(index);
-                    analysisAtoms.Add(AnalysisAtom(harmonicOmega, harmonicMagnitude, analysisAtom.m_analysisPhase, index, true));
+                    analysisAtoms.Add(AnalysisAtom(peakOmega, peakMag, peakPhase, index));
                 }
             }
         }
@@ -444,82 +410,313 @@ struct SpectralModelGeneric
             analysisAtoms.ShrinkIfNecessary(input.m_numAtoms);
         }
 
-        analysisAtoms.Sort(AnalysisAtom::CmpOmega);
+        analysisAtoms.Sort(AnalysisAtom::CmpLogOmega);
     }
 
-    void SearchAndMerge(AnalysisAtomArray& analysisAtoms, Atom& atom, Input& input)
+    void MergeAtom(Atom& atom, AnalysisAtom* analysisAtom, bool isMatch, Input& input)
     {
-        float targetOmega = atom.m_analysisOmega;
-        float omegaDensity = input.m_omegaDensity.Process(atom.m_index);
-        float lowerOmega = targetOmega - omegaDensity;
-        float upperOmega = targetOmega + omegaDensity;
-        auto it = std::lower_bound(analysisAtoms.begin(), analysisAtoms.end(), lowerOmega, AnalysisAtom::CmpOmegaFloat);
-        auto bestIt = analysisAtoms.end();
-        for (; it != analysisAtoms.end(); ++it)
-        {
-            if (upperOmega < it->m_analysisOmega)
-            {
-                break;
-            }
-            
-            if (bestIt == analysisAtoms.end() || AnalysisAtom::IsPreferred(*it, *bestIt, targetOmega, omegaDensity))
-            {
-                bestIt = it;
-            }
-        }
-
-        if (bestIt == analysisAtoms.end())
+        if (!analysisAtom ||
+            analysisAtom->m_analysisMagnitude / atom.m_synthesisMagnitude < x_mergeGainThreshold ||
+            (!isMatch && analysisAtom->m_analysisMagnitude < atom.m_synthesisMagnitude))
         {
             atom.MergeNoMatch(input);
-            return;
         }
-
-        if (bestIt->m_analysisMagnitude / atom.m_synthesisMagnitude < x_mergeGainThreshold)
+        else if (!isMatch)
         {
-            atom.MergeNoMatch(input);
+            float density = input.m_omegaDensity.Process(atom.m_index);
+            atom.MergeDominated(*analysisAtom, density, input);
         }
         else
         {
-            atom.Merge(*bestIt, input);
-        }
-
-        for (auto forIt = bestIt; forIt != analysisAtoms.end(); ++forIt)
-        {
-            if (upperOmega < forIt->m_analysisOmega)
-            {
-                break;
-            }
-            
-            forIt->m_analysisMagnitude = -1.0f;
-        }
-
-        for (auto revIt = bestIt; revIt != analysisAtoms.begin();)
-        {
-            --revIt;
-            if (revIt->m_analysisOmega < lowerOmega)
-            {
-                break;
-            }
-
-            revIt->m_analysisMagnitude = -1.0f;
+            atom.Merge(*analysisAtom, input);
         }
     }
 
-    void TrackAnalysisAtoms(AnalysisAtomArray& analysisAtoms, Input& input)
+    struct AtomMatcher
     {
-        m_atoms.SortByReverseMagnitude();
-        for (size_t i = 0; i < m_atoms.Size(); ++i)
+        struct Score
         {
-            SearchAndMerge(analysisAtoms, *m_atoms[i], input);
+            double m_theta = 0.0;
+            size_t m_numMatches = 0;
+        };
+
+        struct Workspace
+        {
+            Atom* m_atoms[x_maxAtoms];
+            AnalysisAtom* m_matches[x_maxAtoms];
+            float m_densities[x_maxAtoms];
+            Score m_forward[x_maxAtoms + 1];
+            Score m_backward[x_maxAtoms + 1];
+
+            void Clear()
+            {
+                std::fill(m_atoms, m_atoms + x_maxAtoms, nullptr);
+                std::fill(m_matches, m_matches + x_maxAtoms, nullptr);
+                std::fill(m_densities, m_densities + x_maxAtoms, 0.0f);
+                std::fill(m_forward, m_forward + x_maxAtoms + 1, Score{});
+                std::fill(m_backward, m_backward + x_maxAtoms + 1, Score{});
+            }
+        };
+
+        struct SynthesisAtomResult
+        {
+            Atom* m_atom;
+            AnalysisAtom* m_analysisAtom;
+            bool m_isMatch;
+
+            SynthesisAtomResult()
+                : m_atom(nullptr)
+                , m_analysisAtom(nullptr)
+                , m_isMatch(false)
+            {
+            }
+        };
+
+        struct AnalysisAtomResult
+        {
+            AnalysisAtom* m_analysisAtom;
+            bool m_isMatched;
+
+            AnalysisAtomResult()
+                : m_analysisAtom(nullptr)
+                , m_isMatched(false)
+            {
+            }
+        };
+
+        struct Result
+        {
+            Array<SynthesisAtomResult, x_maxAtoms> m_synthesisAtomResults;
+            Array<AnalysisAtomResult, x_maxAtoms> m_analysisAtomResults;
+
+            void Clear()
+            {
+                m_synthesisAtomResults.Clear();
+                m_analysisAtomResults.Clear();
+            }
+        };
+
+        Workspace m_workspace;
+        Result m_result;
+
+        void Clear()
+        {
+            m_result.Clear();
+            m_workspace.Clear();
         }
 
-        for (AnalysisAtom& analysisAtom : analysisAtoms)
+        static bool IsBetter(const Score& candidate, const Score& current)
         {
-            if (x_deathMag <= analysisAtom.m_analysisMagnitude)
+            return candidate.m_theta > current.m_theta
+                || (candidate.m_theta == current.m_theta && candidate.m_numMatches > current.m_numMatches);
+        }
+
+        static bool CmpAtomLogOmega(const Atom* a, const Atom* b)
+        {
+            if (a->m_logAnalysisOmega == b->m_logAnalysisOmega)
             {
+                return a < b;
+            }
+
+            return a->m_logAnalysisOmega < b->m_logAnalysisOmega;
+        }
+
+        float GetMatchTheta(AnalysisAtomArray& analysisAtoms, size_t atomIndex, size_t peakIndex) const
+        {
+            const Atom& atom = *m_workspace.m_atoms[atomIndex];
+            const AnalysisAtom& peak = analysisAtoms[peakIndex];
+            float density = m_workspace.m_densities[atomIndex];
+            float distance = std::abs(peak.m_logAnalysisOmega - atom.m_logAnalysisOmega);
+            if (distance > density
+                || peak.m_analysisMagnitude / atom.m_synthesisMagnitude < x_mergeGainThreshold)
+            {
+                return -1.0f;
+            }
+
+            return AnalysisAtom::PreferredMatchTheta(peak, atom.m_logAnalysisOmega, density);
+        }
+
+        void ComputeRow(AnalysisAtomArray& analysisAtoms, size_t atomBegin, size_t atomEnd,
+            size_t peakBegin, size_t peakEnd, bool reverse, Score* row)
+        {
+            size_t width = peakEnd - peakBegin;
+            std::fill(row, row + width + 1, Score{});
+            for (size_t offset = 0; offset < atomEnd - atomBegin; ++offset)
+            {
+                size_t atomIndex = reverse ? atomEnd - 1 - offset : atomBegin + offset;
+                Score diagonal = row[0];
+                for (size_t j = 1; j <= width; ++j)
+                {
+                    Score above = row[j];
+                    Score best = IsBetter(row[j - 1], above) ? row[j - 1] : above;
+                    size_t peakIndex = reverse ? peakEnd - j : peakBegin + j - 1;
+                    float theta = GetMatchTheta(analysisAtoms, atomIndex, peakIndex);
+                    if (theta >= 0.0f)
+                    {
+                        Score matched{diagonal.m_theta + static_cast<double>(theta), diagonal.m_numMatches + 1};
+                        if (IsBetter(matched, best))
+                        {
+                            best = matched;
+                        }
+                    }
+
+                    row[j] = best;
+                    diagonal = above;
+                }
+            }
+        }
+
+        void FindMatches(AnalysisAtomArray& analysisAtoms, size_t atomBegin, size_t atomEnd,
+            size_t peakBegin, size_t peakEnd)
+        {
+            if (atomBegin == atomEnd || peakBegin == peakEnd)
+            {
+                return;
+            }
+
+            if (atomEnd - atomBegin == 1)
+            {
+                Score best;
+                for (size_t j = peakBegin; j < peakEnd; ++j)
+                {
+                    float theta = GetMatchTheta(analysisAtoms, atomBegin, j);
+                    if (theta >= 0.0f)
+                    {
+                        Score candidate{static_cast<double>(theta), 1};
+                        if (IsBetter(candidate, best))
+                        {
+                            best = candidate;
+                            m_workspace.m_matches[atomBegin] = &analysisAtoms[j];
+                        }
+                    }
+                }
+
+                return;
+            }
+
+            // Maximize total theta, preferring more matches only when scores tie.
+            // Hirschberg reconstruction uses two rows instead of a full table.
+            //
+            size_t atomMiddle = atomBegin + (atomEnd - atomBegin) / 2;
+            size_t width = peakEnd - peakBegin;
+            ComputeRow(analysisAtoms, atomBegin, atomMiddle, peakBegin, peakEnd, false, m_workspace.m_forward);
+            ComputeRow(analysisAtoms, atomMiddle, atomEnd, peakBegin, peakEnd, true, m_workspace.m_backward);
+
+            Score best;
+            size_t split = 0;
+            for (size_t j = 0; j <= width; ++j)
+            {
+                const Score& left = m_workspace.m_forward[j];
+                const Score& right = m_workspace.m_backward[width - j];
+                Score combined{left.m_theta + right.m_theta, left.m_numMatches + right.m_numMatches};
+                if (IsBetter(combined, best))
+                {
+                    best = combined;
+                    split = j;
+                }
+            }
+
+            // Save the split before either recursive call reuses the rows.
+            // The two disjoint peak ranges prevent crossing or shared matches.
+            //
+            FindMatches(analysisAtoms, atomBegin, atomMiddle, peakBegin, peakBegin + split);
+            FindMatches(analysisAtoms, atomMiddle, atomEnd, peakBegin + split, peakEnd);
+        }
+
+        void Match(AtomsArrayWithIndex& atoms, AnalysisAtomArray& analysisAtoms, Input& input)
+        {
+            Clear();
+
+            const size_t numAtoms = atoms.Size();
+            const size_t numPeaks = analysisAtoms.Size();
+            analysisAtoms.Sort(AnalysisAtom::CmpLogOmega);
+            for (size_t i = 0; i < numAtoms; ++i)
+            {
+                m_workspace.m_atoms[i] = atoms[i];
+            }
+
+            std::sort(m_workspace.m_atoms, m_workspace.m_atoms + numAtoms, CmpAtomLogOmega);
+            for (size_t i = 0; i < numAtoms; ++i)
+            {
+                m_workspace.m_densities[i] = input.m_omegaDensity.Process(m_workspace.m_atoms[i]->m_index);
+            }
+
+            for (AnalysisAtom& peak : analysisAtoms)
+            {
+                AnalysisAtomResult result;
+                result.m_analysisAtom = &peak;
+                m_result.m_analysisAtomResults.Add(result);
+            }
+
+            FindMatches(analysisAtoms, 0, numAtoms, 0, numPeaks);
+            for (size_t i = 0; i < numAtoms; ++i)
+            {
+                Atom& atom = *m_workspace.m_atoms[i];
+                AnalysisAtom* peak = m_workspace.m_matches[i];
+                bool isMatch = peak != nullptr;
+                if (isMatch)
+                {
+                    size_t peakIndex = static_cast<size_t>(peak - analysisAtoms.begin());
+                    m_result.m_analysisAtomResults[peakIndex].m_isMatched = true;
+                }
+                else
+                {
+                    // Any current peak can dominate an unmatched old atom,
+                    // including a peak that will subsequently become a new atom.
+                    //
+                    float density = m_workspace.m_densities[i];
+                    float lowerLogOmega = atom.m_logAnalysisOmega - density;
+                    float upperLogOmega = atom.m_logAnalysisOmega + density;
+                    auto it = std::lower_bound(analysisAtoms.begin(), analysisAtoms.end(),
+                        lowerLogOmega, AnalysisAtom::CmpLogOmegaFloat);
+                    float bestTheta = -1.0f;
+                    for (; it != analysisAtoms.end() && it->m_logAnalysisOmega <= upperLogOmega; ++it)
+                    {
+                        size_t peakIndex = static_cast<size_t>(it - analysisAtoms.begin());
+                        float theta = GetMatchTheta(analysisAtoms, i, peakIndex);
+                        if (theta >= 0.0f && theta > bestTheta)
+                        {
+                            bestTheta = theta;
+                            peak = &*it;
+                        }
+                    }
+                }
+
+                SynthesisAtomResult result;
+                result.m_atom = &atom;
+                result.m_analysisAtom = peak;
+                result.m_isMatch = isMatch;
+                m_result.m_synthesisAtomResults.Add(result);
+            }
+        }
+    };
+
+    void TrackAnalysisAtoms(AnalysisAtomArray& analysisAtoms, Input& input)
+    {
+        m_matcher.Match(m_atoms, analysisAtoms, input);
+
+        for (typename AtomMatcher::SynthesisAtomResult& synthesisAtomResult : m_matcher.m_result.m_synthesisAtomResults)
+        {
+            MergeAtom(*synthesisAtomResult.m_atom, synthesisAtomResult.m_analysisAtom, synthesisAtomResult.m_isMatch, input);
+        }
+
+        for (typename AtomMatcher::AnalysisAtomResult& analysisAtomResult : m_matcher.m_result.m_analysisAtomResults)
+        {
+            if (!analysisAtomResult.m_isMatched
+                && x_deathMag <= analysisAtomResult.m_analysisAtom->m_analysisMagnitude)
+            {
+                AnalysisAtom& analysisAtom = *analysisAtomResult.m_analysisAtom;
                 float slewUpAlpha = input.m_slewUpAlpha.Process(analysisAtom.m_index);
                 float initMag = std::max(Slew::Process(0, analysisAtom.m_analysisMagnitude, slewUpAlpha), x_deathMag);
-                Atom newAtom(analysisAtom.m_analysisOmega, analysisAtom.m_analysisMagnitude, analysisAtom.m_analysisPhase, analysisAtom.m_index, analysisAtom.m_analysisOmega, initMag, 0);
+                Atom newAtom(
+                    analysisAtom.m_analysisOmega,
+                    analysisAtom.m_logAnalysisOmega,
+                    analysisAtom.m_analysisMagnitude,
+                    analysisAtom.m_analysisPhase,
+                    analysisAtom.m_index,
+                    analysisAtom.m_analysisOmega,
+                    initMag,
+                    0.0f);
                 m_atoms.Add(newAtom);
             }
         }
@@ -566,6 +763,7 @@ struct SpectralModelGeneric
 
     AtomsArrayWithIndex m_atoms;
     ResidualModel m_residualModel;
+    AtomMatcher m_matcher;
 };
 
 using SpectralModel = SpectralModelGeneric<12, ScalarParameter>;

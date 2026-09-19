@@ -6,9 +6,8 @@
 // Wiring (from SquiggleBoy.hpp):
 //   m_partialMachine.Process(m_mixer.m_send[2], m_partialMachineState)
 //   The Input struct is built by PartialMachine::InputSetter::SetInput().
-//   For tests we build it directly from its default-constructed state, which
-//   corresponds to: 1024 atoms, no synthetic harmonics, pass-all reduction,
-//   organic gain = 1 (set in SetInput when useSyntheticHarmonics = false).
+//   Production uses a 256-partial budget. Most tests construct an input with
+//   a smaller budget and pass-all reduction; the budget test uses SetInput().
 //
 // SpectralModel constants (Bits=12):
 //   x_tableSize = 4096,  x_H = x_tableSize / 4 = 1024,  x_maxAtoms = 8192
@@ -42,18 +41,14 @@ namespace
 {
 
 // Build a basic PartialMachine::Input that allows synthesis:
-//   - organic mode (no synthetic harmonics)
-//   - organic gain = 1, synthetic gain = 0 (default from SetInput path)
 //   - wide-open bandwidth (accept all frequencies)
 //   - reductionFeedback = 0 (immediate gating)
-//   - syntheticGain = 0, organicGain = 1
 //
 PartialMachine::Input MakeBasicInput()
 {
     PartialMachine::Input inp;
 
     inp.m_spectralModelInput.m_numAtoms = 64;  // modest; keeps test fast
-    inp.m_spectralModelInput.m_useSyntheticHarmonics = false;
 
     // Slew: immediate (alpha = 1 = instantaneous).
     //
@@ -61,24 +56,22 @@ PartialMachine::Input MakeBasicInput()
     inp.m_spectralModelInput.m_slewDownAlpha = FrequencyDependentParameter::Parameter(1.0f);
     inp.m_spectralModelInput.m_omegaPortamentoAlpha = FrequencyDependentParameter::Parameter(1.0f);
 
-    // Wide omega density: accept all atoms.
+    // Wide octave density: accept nearby atoms.
     //
-    inp.m_spectralModelInput.m_omegaDensity = FrequencyDependentParameter::Parameter(1.0f / 4096.0f);
+    inp.m_spectralModelInput.m_omegaDensity = FrequencyDependentParameter::Parameter(1.0f);
 
     // Low gain threshold so low-amplitude partials are tracked.
     //
     inp.m_spectralModelInput.m_gainThreshold = 1e-4f;
 
     // SynthesisContext: wide-open filter (bwBase = very low, bwWidth = very large),
-    // full volume, no bass cut, spread azimuth, full organic gain.
+    // full volume, no bass cut, spread azimuth.
     //
     inp.m_synthesisContextInput.m_bwBaseFrequency = FrequencyDependentParameter::Parameter(1.0f / 4096.0f);
     inp.m_synthesisContextInput.m_bwWidth         = FrequencyDependentParameter::Parameter(4096.0f);
     inp.m_synthesisContextInput.m_volume          = FrequencyDependentParameter::Parameter(1.0f);
     inp.m_synthesisContextInput.m_bassCutoff      = FrequencyDependentParameter::Parameter(1.0f / 4096.0f);
     inp.m_synthesisContextInput.m_azimuthFactor   = FrequencyDependentParameter::Parameter(0.25f);
-    inp.m_synthesisContextInput.m_syntheticGain   = FrequencyDependentParameter::Parameter(0.0f);
-    inp.m_synthesisContextInput.m_organicGain     = FrequencyDependentParameter::Parameter(1.0f);
     inp.m_synthesisContextInput.m_reductionFeedback = FrequencyDependentParameter::Parameter(0.0f);
     inp.m_synthesisContextInput.m_unison          = FrequencyDependentParameter::Parameter(0.0f);
     inp.m_synthesisContextInput.m_pitchShiftDepth = FrequencyDependentParameter::Parameter(1.0f);
@@ -93,6 +86,68 @@ constexpr int    kWarmupHops = 5;    // warmup hops before assertions
 constexpr int    kWarmup     = kWarmupHops * static_cast<int>(kHopSize);
 
 }  // namespace
+
+DOCTEST_TEST_CASE("PartialMachine density knob narrows one octave to one cent")
+{
+    PartialMachine::InputSetter setter;
+    PartialMachine::InputSetter::Input knobInput;
+    PartialMachine::Input input;
+
+    knobInput.m_density = QuadFloat(0.0f, 0.0f, 0.0f, 0.0f);
+    setter.SetInput(knobInput, input);
+    for (float density : input.m_spectralModelInput.m_omegaDensity.m_parameters)
+    {
+        DOCTEST_CHECK(density == doctest::Approx(1.0f));
+    }
+
+    knobInput.m_density = QuadFloat(1.0f, 1.0f, 1.0f, 1.0f);
+    setter.SetInput(knobInput, input);
+    for (float density : input.m_spectralModelInput.m_omegaDensity.m_parameters)
+    {
+        DOCTEST_CHECK(density == doctest::Approx(1.0f / 1200.0f));
+    }
+}
+
+DOCTEST_TEST_CASE("PartialMachine bounds incoming peaks and retained tails to 256 partials")
+{
+    using Model = PartialMachine::SpectralModel;
+    PartialMachine::InputSetter setter;
+    PartialMachine::InputSetter::Input knobInput;
+    knobInput.m_density = QuadFloat(1.0f, 1.0f, 1.0f, 1.0f);
+    PartialMachine::Input input;
+    setter.SetInput(knobInput, input);
+    input.m_spectralModelInput.m_slewDownAlpha = PartialMachine::Parameter(0.0f);
+    Model model;
+
+    for (size_t frame = 0; frame < 2; ++frame)
+    {
+        DOCTEST_CAPTURE(frame);
+        Model::DFT spectrum;
+        for (size_t i = 0; i < 300; ++i)
+        {
+            float frequency = static_cast<float>(3 + 2 * frame + 6 * i) / Model::x_tableSize;
+            float magnitude = 0.02f + 0.0001f * static_cast<float>(i);
+            spectrum.WriteWindowedPartial(0.0f, magnitude, frequency);
+        }
+
+        Model::AnalysisAtomArray peaks;
+        model.ExtractAndSubtractAnalysisAtoms(spectrum, peaks, input.m_spectralModelInput);
+
+        DOCTEST_REQUIRE(peaks.Size() == 256);
+        float weakestRetainedFrequency = static_cast<float>(3 + 2 * frame + 6 * 44) / Model::x_tableSize;
+        DOCTEST_CHECK(peaks[0].m_analysisOmega == doctest::Approx(weakestRetainedFrequency));
+
+        model.TrackAnalysisAtoms(peaks, input.m_spectralModelInput);
+
+        DOCTEST_CHECK(model.m_matcher.m_result.m_analysisAtomResults.Size() == 256);
+        DOCTEST_CHECK(model.m_matcher.m_result.m_synthesisAtomResults.Size() == frame * 256);
+        DOCTEST_CHECK(model.m_atoms.Size() == 256);
+        for (const auto& result : model.m_matcher.m_result.m_analysisAtomResults)
+        {
+            DOCTEST_CHECK_FALSE(result.m_isMatched);
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // 1. Silence in -> output finite (may be non-zero due to OLA ring but bounded).
@@ -418,7 +473,6 @@ DOCTEST_TEST_CASE("PartialMachine: espace etale parameter slice stays finite und
     knobInput.m_parameterLinearFrequency = QuadFloat(0.192526296f, 0.5f, 0.5f, 0.5f);
     knobInput.m_pitchShiftDepth = QuadFloat(0.00100000005f, 0.0f, 0.0f, 0.0f);
     knobInput.m_pitchShift = QuadFloat(0.50326103f, 0.5f, 0.5f, 0.5f);
-    knobInput.m_volume = QuadFloat(1.0f, 1.0f, 1.0f, 1.0f);
 
     TestSignal::WhiteNoise noise(0xE5FACE57A1EULL);
     bool anyBad = false;

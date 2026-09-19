@@ -10,6 +10,8 @@ The Deep Vocoder maintains a rolling buffer of incoming audio. Every hop (`x_H` 
 - It extracts a set of "atoms" (spectral partials/peaks) representing the prominent frequencies and magnitudes present in the input signal at that moment.
 - There is no attempt to perform traditional pitch tracking or identify a single fundamental frequency. Instead, *any* sufficiently prominent partial is considered a valid target.
 
+Deep Vocoder uses the shared spectral model's ordered one-to-one matcher with an explicit density radius of one semitone (`1/12` octave) on each side of an old atom's analysis frequency. Nearby pitch movement can continue the existing atom; peaks outside that window start new atoms while old ones decay. This keeps the new tracking model while giving the vocoder a wider continuation window than the shared one-cent default.
+
 ## V-Shaped Ranking and Quantization
 
 When a voice in the synthesizer is triggered by the Nonagon, its intended fundamental pitch (`m_pitchCenter`) is passed to the Deep Vocoder (`TransformNote`).

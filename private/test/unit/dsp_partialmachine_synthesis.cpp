@@ -14,8 +14,6 @@ PartialMachine::SynthesisContext::Input SynthesisInput(float ratio)
     input.m_bwWidth = Parameter(4096.0f);
     input.m_volume = Parameter(1.0f);
     input.m_bassCutoff = Parameter(0.5f);
-    input.m_organicGain = Parameter(1.0f);
-    input.m_syntheticGain = Parameter(1.0f);
     input.m_pitchShiftDepth = Parameter(ratio);
     input.m_pitchShift = Parameter(1.0f);
     return input;
@@ -92,31 +90,6 @@ DOCTEST_TEST_CASE("PartialMachine shifted unison keeps its center and detuned up
     DOCTEST_CHECK(centerMagnitude < 0.035f);
     DOCTEST_CHECK(upperMagnitude > 0.065f);
     DOCTEST_CHECK(upperMagnitude < 0.069f);
-}
-
-DOCTEST_TEST_CASE("PartialMachine organic and synthetic gains mute their respective atoms")
-{
-    for (bool synthetic : {false, true})
-    {
-        auto input = SynthesisInput(1.0f);
-        input.m_organicGain = PartialMachine::Parameter(synthetic ? 1.0f : 0.0f);
-        input.m_syntheticGain = PartialMachine::Parameter(synthetic ? 0.0f : 1.0f);
-        PartialMachine::SpectralModel::Atom atom;
-        atom.m_isSynthetic = synthetic;
-        atom.m_synthesisOmega = 32.0f / 4096.0f;
-        atom.m_synthesisMagnitude = 0.1f;
-        PartialMachine::SynthesisContext context;
-        context.ProcessAtom(atom, input);
-        for (const auto& dft : context.m_dft.m_dfts)
-        {
-            for (const auto& component : dft.m_components)
-            {
-                DOCTEST_REQUIRE(std::abs(component) < 1e-10f);
-            }
-        }
-
-        DOCTEST_CHECK(atom.m_synthesisMagnitude == doctest::Approx(0.1f));
-    }
 }
 
 DOCTEST_TEST_CASE("PartialMachine pitch ratio scales emitted phase while the accumulator stays unshifted")

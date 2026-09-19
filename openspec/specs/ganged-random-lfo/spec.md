@@ -1,7 +1,7 @@
 # Ganged Random LFO Specification
 
 ## Purpose
-The ganged random LFOs provide free-running correlated modulation for voice, quad, global, wavetable, and partial-machine destinations. Each `GangedRandomLFO<VoiceCount>` owns one fixed-size gang and exposes a predictive snapshot for the UI.
+The ganged random LFOs provide free-running correlated modulation for voice, quad, global, and wavetable destinations. Each `GangedRandomLFO<VoiceCount>` owns one fixed-size gang and exposes a predictive snapshot for the UI.
 
 ## Requirements
 
@@ -34,6 +34,11 @@ The four Voice-bank random modulators SHALL use waiting means `W = 1, 4, 12, 32`
 
 Quad and Global random slots 2 and 3 SHALL use the 8-second and 16-second presets respectively. These values are fixed DSP configuration and SHALL NOT add performer parameters.
 
+#### Scenario: Standard gangs receive their fixed timing presets
+- **WHEN** the standard random modulators are constructed
+- **THEN** Voice slots 0 through 3 use the 1-, 4-, 12-, and 32-second waiting means respectively
+- **AND** Quad and Global slots 2 and 3 use the 8- and 16-second presets respectively
+
 ### Requirement: Coherent Predictive UI State
 Each displayed gang SHALL publish sample rate, elapsed round samples, and each voice's state, progress, source, target, output, shape, waiting increment, and moving increment through an odd/even revision transaction. Readers SHALL retry a bounded number of times and reject snapshots observed during or across a write.
 
@@ -48,3 +53,8 @@ Each displayed gang SHALL publish sample rate, elapsed round samples, and each v
 
 ### Requirement: Existing Routing Is Preserved
 Voice random outputs SHALL continue to feed modulator slots 0 through 3. Quad and Global random outputs SHALL continue to feed slots 2 and 3. Voice random outputs 2 and 3 SHALL also continue driving the two Dual Wave Shaping VCO wavetable blends and replacement visibility checks.
+
+#### Scenario: Removing synthetic partials preserves shared modulation routing
+- **WHEN** Partial Machine no longer owns synthetic-harmonic random modulators
+- **THEN** Voice, Quad, and Global random outputs retain their existing modulator slots
+- **AND** Voice outputs 2 and 3 still drive the Dual Wave Shaping VCO wavetable blends and replacement visibility checks

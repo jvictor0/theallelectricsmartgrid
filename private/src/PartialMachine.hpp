@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Filter.hpp"
-#include "GangedRandomLFO.hpp"
 #include "NormGen.hpp"
 #include "OLA.hpp"
 #include "PhaseUtils.hpp"
@@ -33,8 +32,6 @@ struct PartialMachine
             Parameter m_volume;
             Parameter m_bassCutoff;
             Parameter m_azimuthFactor;
-            Parameter m_syntheticGain;
-            Parameter m_organicGain;
             Parameter m_reductionFeedback;
             Parameter m_unison;
             Parameter m_pitchShiftDepth;
@@ -42,9 +39,7 @@ struct PartialMachine
             double m_azimuthOffset;
 
             Input()
-                : m_syntheticGain(1.0f)
-                , m_organicGain(0.0f)
-                , m_pitchShiftDepth(1.0f)
+                : m_pitchShiftDepth(1.0f)
                 , m_pitchShift(0.0f)
                 , m_azimuthOffset(0.0f)
             {
@@ -122,16 +117,6 @@ struct PartialMachine
             return std::powf(pitchShiftDepth, pitchShift);
         }
 
-        static float GetPitchShiftedOmega(float omega, Index index, Input& input)
-        {
-            return omega * GetPitchShiftFactor(index, input);
-        }
-
-        static float GetPitchShiftedOmega(const SpectralModel::Atom& atom, Input& input)
-        {
-            return GetPitchShiftedOmega(atom.m_synthesisOmega, atom.m_index, input);
-        }
-
         static std::pair<float, float> GetPanCoordinates(float azimuth, float radius)
         {
             TanhSaturator<false> saturator(2 * radius);
@@ -202,15 +187,6 @@ struct PartialMachine
                 atom.m_synthesisMagnitude, 
                 std::max(SpectralModel::x_deathMag, reducedMagnitude), 
                 input.m_reductionFeedback.ProcessLinear(atom.m_index));
-                
-            if (atom.m_isSynthetic)
-            {
-                reducedMagnitude *= input.m_syntheticGain.Process(atom.m_index);
-            }
-            else
-            {
-                reducedMagnitude *= input.m_organicGain.Process(atom.m_index);
-            }
 
             float radius = GetRadius(atom, input);
             float azimuth = GetAzimuth(atom, input);
@@ -276,7 +252,7 @@ struct PartialMachine
     struct InputSetter
     {
         static constexpr float x_hopSeconds = static_cast<float>(SpectralModel::x_H) / static_cast<float>(SampleTimer::x_sampleRate);
-        static constexpr size_t x_numAtoms = 1024;
+        static constexpr size_t x_numAtoms = 256;
 
         struct Input
         {
@@ -287,14 +263,12 @@ struct PartialMachine
             QuadFloat m_density;
             QuadFloat m_bwBaseFrequency;
             QuadFloat m_bwWidth;
-            QuadFloat m_volume;
             QuadFloat m_bassCutoff;
             QuadFloat m_azimuthFactor;
             QuadFloat m_reductionFeedback;
             QuadFloat m_unison;
             QuadFloat m_pitchShiftDepth;
             QuadFloat m_pitchShift;
-            QuadFloat m_syntheticMixKnob;
 
             Input()
             {
@@ -313,54 +287,30 @@ struct PartialMachine
         PhaseUtils::ExpParam m_density[FrequencyDependentParameter::x_numParameters];
         PhaseUtils::ExpParam m_bwBaseFrequency[FrequencyDependentParameter::x_numParameters];
         PhaseUtils::ExpParam m_bwWidth[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ZeroedExpParam m_volume[FrequencyDependentParameter::x_numParameters];
         PhaseUtils::ExpParam m_bassCutoff[FrequencyDependentParameter::x_numParameters];
         PhaseUtils::ExpParam m_azimuthFactor[FrequencyDependentParameter::x_numParameters];
         PhaseUtils::ExpParam m_pitchShiftDepth[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpHalfRangeCrossfade m_syntheticMix[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpParam m_syntheticHarmonicMagnitude[SpectralModel::x_numSyntheticHarmonics][FrequencyDependentParameter::x_numParameters];
-        GangedRandomLFO<FrequencyDependentParameter::x_numParameters>
-            m_syntheticHarmonicLFO[SpectralModel::x_numSyntheticHarmonics];
-        GangedRandomLFOInput m_syntheticHarmonicLFOInput[SpectralModel::x_numSyntheticHarmonics];
 
         InputSetter()
         {
-            for (size_t h = 0; h < SpectralModel::x_numSyntheticHarmonics; ++h)
-            {
-                m_syntheticHarmonicLFOInput[h] =
-                    GangedRandomLFOInput::Standard(6.0, 0.2f);
-            }
-
             for (int i = 0; i < FrequencyDependentParameter::x_numParameters; ++i)
             {
                 m_attack[i] = PhaseUtils::ExpParam(0.01, 2.0);
                 m_decay[i] = PhaseUtils::ExpParam(0.01, 10.0);
                 m_portamento[i] = PhaseUtils::ExpParam(0.01, 2.0);
                 m_parameterLinearFrequency[i] = PhaseUtils::ExpParam(1.0f / 10.0f, 100.0f);
-                m_density[i] = PhaseUtils::ExpParam(1.0f / 1024.0f, 1.0f / 64.0f);
+                m_density[i] = PhaseUtils::ExpParam(1.0f / 1200.0f, 1.0f);
                 m_bwBaseFrequency[i] = PhaseUtils::ExpParam(1.0f / 2048.0f, 0.5f);
                 m_bwWidth[i] = PhaseUtils::ExpParam(1.0f, 2048.0f);
                 m_bassCutoff[i] = PhaseUtils::ExpParam(1.0f / 2048.0f, 0.5f);
                 m_azimuthFactor[i] = PhaseUtils::ExpParam(1.0f / 32.0f, 1.0f);
                 m_pitchShiftDepth[i] = PhaseUtils::ExpParam(std::powf(2.0f, 5.0f / 1200.0f), 2.0f);
-                m_syntheticMix[i].SetBaseByCenter(0.25f);
-
-                for (size_t h = 0; h < SpectralModel::x_numSyntheticHarmonics; ++h)
-                {
-                    m_syntheticHarmonicMagnitude[h][i] = PhaseUtils::ExpParam(1.0f / 16.0f, 1.0f);
-                }
             }
         }
 
         void SetInput(const Input& knobInput, PartialMachine::Input& input)
         {
             input.m_spectralModelInput.m_numAtoms = x_numAtoms;
-            input.m_spectralModelInput.m_useSyntheticHarmonics = false;
-
-            for (size_t h = 0; h < SpectralModel::x_numSyntheticHarmonics; ++h)
-            {
-                m_syntheticHarmonicLFO[h].Process(1.0f / static_cast<float>(SampleTimer::x_sampleRate), m_syntheticHarmonicLFOInput[h]);
-            }
 
             for (int i = 0; i < FrequencyDependentParameter::x_numParameters; ++i)
             {
@@ -378,27 +328,6 @@ struct PartialMachine
                 input.m_synthesisContextInput.m_unison.m_parameters[i] = knobInput.m_unison[i];
                 input.m_synthesisContextInput.m_pitchShiftDepth.m_parameters[i] = m_pitchShiftDepth[i].Update(knobInput.m_pitchShiftDepth[i]);
                 input.m_synthesisContextInput.m_pitchShift.m_parameters[i] = 2.0f * knobInput.m_pitchShift[i] - 1.0f;
-
-                // For the time being, the synthetic harmonics are disabled.
-                //
-                if (input.m_spectralModelInput.m_useSyntheticHarmonics)
-                {                
-                    m_syntheticMix[i].Process(
-                        knobInput.m_syntheticMixKnob[i],
-                        input.m_synthesisContextInput.m_organicGain.m_parameters[i],
-                        input.m_synthesisContextInput.m_syntheticGain.m_parameters[i]);
-
-                    for (size_t h = 0; h < SpectralModel::x_numSyntheticHarmonics; ++h)
-                    {
-                        float harmonicMagnitude = m_syntheticHarmonicLFO[h].Output(i);
-                        input.m_spectralModelInput.m_syntheticHarmonics[h].m_parameters[i] = m_syntheticHarmonicMagnitude[h][i].Update(harmonicMagnitude) / (h + 2);
-                    }
-                }
-                else
-                {
-                    input.m_synthesisContextInput.m_organicGain.m_parameters[i] = 1.0f;
-                    input.m_synthesisContextInput.m_syntheticGain.m_parameters[i] = 0.0f;
-                }
             }
         }
     };
