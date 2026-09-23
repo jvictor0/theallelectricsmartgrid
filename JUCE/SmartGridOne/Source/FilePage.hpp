@@ -14,17 +14,20 @@ public:
         std::function<void()> onVersions,
         std::function<void()> onSave,
         std::function<void()> onSaveAs,
-        std::function<void()> onNew)
+        std::function<void()> onNew,
+        std::function<void()> onSync)
         : m_onOpen(onOpen)
         , m_onVersions(onVersions)
         , m_onSave(onSave)
         , m_onSaveAs(onSaveAs)
         , m_onNew(onNew)
+        , m_onSync(onSync)
         , m_newButton("New")
         , m_openButton("Open")
         , m_versionsButton("Versions")
         , m_saveButton("Save")
         , m_saveAsButton("Save As")
+        , m_syncButton("Sync with Mac")
     {
         // Set up buttons
         //
@@ -62,6 +65,14 @@ public:
         m_saveAsButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
         m_saveAsButton.onClick = [this]() { if (m_onSaveAs) m_onSaveAs(); };
         addAndMakeVisible(m_saveAsButton);
+        m_syncButton.onClick = [this]()
+        {
+            if (m_onSync)
+            {
+                m_onSync();
+            }
+        };
+        addAndMakeVisible(m_syncButton);
     }
 
     ~FilePage() override
@@ -88,10 +99,10 @@ public:
         auto centerArea = bounds.reduced(50);
         const int buttonHeight = 40;
         const int buttonSpacing = 20;
-        const int totalButtonHeight = (buttonHeight * 5) + (buttonSpacing * 4);
+        const int totalButtonHeight = (buttonHeight * 6) + (buttonSpacing * 5);
         
         auto buttonArea = centerArea.removeFromTop(totalButtonHeight);
-        buttonArea = buttonArea.withSizeKeepingCentre(120, totalButtonHeight);
+        buttonArea = buttonArea.withSizeKeepingCentre(180, totalButtonHeight);
         
         m_newButton.setBounds(buttonArea.removeFromTop(buttonHeight));
         buttonArea.removeFromTop(buttonSpacing);
@@ -102,6 +113,8 @@ public:
         m_saveButton.setBounds(buttonArea.removeFromTop(buttonHeight));
         buttonArea.removeFromTop(buttonSpacing);
         m_saveAsButton.setBounds(buttonArea.removeFromTop(buttonHeight));
+        buttonArea.removeFromTop(buttonSpacing);
+        m_syncButton.setBounds(buttonArea.removeFromTop(buttonHeight));
     }
 
 private:
@@ -111,12 +124,14 @@ private:
     std::function<void()> m_onSave;
     std::function<void()> m_onSaveAs;
     std::function<void()> m_onNew;
+    std::function<void()> m_onSync;
     
     juce::TextButton m_newButton;
     juce::TextButton m_openButton;
     juce::TextButton m_versionsButton;
     juce::TextButton m_saveButton;
     juce::TextButton m_saveAsButton;
+    juce::TextButton m_syncButton;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FilePage)
 };

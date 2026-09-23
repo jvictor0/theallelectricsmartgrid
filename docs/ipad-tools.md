@@ -82,3 +82,58 @@ Completed captures go under `~/Documents/SmartGridOne/diagnostics`. A failed
 capture retains a directory ending in `.partial`; a rerun creates a fresh one.
 See the repository `ipad-logs` skill for archive queries and the full evidence
 taxonomy.
+
+## Sync from the iPad over the LAN
+
+Start the receiver on the Mac (Python 3.10 or newer; SoX is needed for legacy
+WAV/RF64 recordings):
+
+```bash
+python3 scripts/sync_receiver.py
+```
+
+On the iPad, open **File > Sync with Mac** and tap the receiver. On first use,
+compare the certificate fingerprint with the Mac terminal and enter the access
+code printed there. The iPad remembers that pairing in Keychain. Use **Pair /
+change access code** to correct a code. The Mac and iPad must share a local
+network; allow Local Network access when prompted and incoming connections to
+the receiver if macOS asks.
+
+Sync copies missing patches both ways without overwriting them, refreshes larger
+logs on the Mac, and sends completed recordings. The Mac retains the original
+and automatically extracts its stereo master while later files transfer. Only a
+verified successful extraction acknowledgement permits deleting that recording
+from the iPad. Unfinished recordings are skipped and retained. An interrupted
+file starts again on the next sync; complete matching Mac originals are reused.
+
+**All iPad sync activity belongs to the foreground Sync page.** Leaving the page
+stops discovery and resolving, cancels requests, closes the session, and joins
+the transfer worker before returning to File. App inactivity does the same.
+Returning to the app while the page remains open restarts discovery, but does
+not restart a transfer. There are no background sessions, startup discovery,
+audio callbacks, audio-engine hooks, or audio-thread polling for sync. The Cancel
+button stops the transfer while leaving page discovery available.
+
+The separately launched Mac receiver listens only while its command is running;
+press Ctrl-C to stop it. Its default port is 47658, and Bonjour publishes the
+port, so no address entry or LAN scan is needed. `--name`, `--port`, `--host`, and `--root`
+can override the defaults. Receiver keys and identity are stored under
+`~/.config/smartgridone/sync`, outside the repository. Keep that directory to
+preserve pairing. HTTPS uses the pinned certificate and a private access code.
+
+### LAN sync verification
+
+```bash
+scripts/.venv-ios/bin/python -m unittest discover -s scripts/tests -v
+```
+
+The native integration tests compile a Foundation-only client, exercise TLS
+against temporary loopback receivers, and verify Bonjour discovery on the Mac. They cover full/repeated sync, certificate
+mismatch, unfinished/corrupt recordings, cancellation during upload/download and
+extraction, foreground loss, and rejection of transfers after Close. The receiver
+suite also exercises real legacy WAV extraction and shutdown during an upload.
+
+Physical-iPad Bonjour discovery, permission prompts, screen lock/background
+transitions, and throughput still need verification with the iPad online. Compare
+transfer MiB/s with `sync_ipad.py --transport wifi` on the same recording and
+network before drawing conclusions about speed.

@@ -3,6 +3,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist>
   <dict>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Find your Mac and sync patches, recordings and logs while the Sync page is open.</string>
+    <key>NSBonjourServices</key>
+    <array><string>_sgsync._tcp</string></array>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UIViewControllerBasedStatusBarAppearance</key>

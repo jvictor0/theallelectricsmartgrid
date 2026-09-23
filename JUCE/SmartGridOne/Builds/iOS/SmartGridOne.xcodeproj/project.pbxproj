@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		D1F1AC000000000000000001 /* RecordingFlacCodec.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D1F1AC000000000000000002 /* RecordingFlacCodec.cpp */; };
+		D92300000000000000000003 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D92300000000000000000004; };
+		D92300000000000000000001 /* SyncClient.mm in Sources */ = {isa = PBXBuildFile; fileRef = D92300000000000000000002; settings = {COMPILER_FLAGS = "-fobjc-arc -Wno-deprecated-declarations"; }; };
 		D18100000000000000000001 /* include_juce_audio_processors_headless.mm in Sources */ = {isa = PBXBuildFile; fileRef = D18100000000000000000011 /* include_juce_audio_processors_headless.mm */; };
 		D18100000000000000000002 /* include_juce_audio_processors_headless_ara.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D18100000000000000000012 /* include_juce_audio_processors_headless_ara.cpp */; };
 		D18100000000000000000003 /* include_juce_audio_processors_headless_lv2_libs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D18100000000000000000013 /* include_juce_audio_processors_headless_lv2_libs.cpp */; };
@@ -58,6 +60,8 @@
 /* Begin PBXFileReference section */
 		D1F1AC000000000000000002 /* RecordingFlacCodec.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = RecordingFlacCodec.cpp; path = ../../../../private/src/RecordingFlacCodec.cpp; sourceTree = SOURCE_ROOT; };
 		D1F1AC000000000000000003 /* RecordingFlacCodec.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = RecordingFlacCodec.hpp; path = ../../../../private/src/RecordingFlacCodec.hpp; sourceTree = SOURCE_ROOT; };
+		D92300000000000000000004 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		D92300000000000000000002 /* SyncClient.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = SyncClient.mm; path = ../../Source/SyncClient.mm; sourceTree = SOURCE_ROOT; };
 		D1A600000000000000000003 /* AppObserver.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = AppObserver.hpp; path = ../../Source/AppObserver.hpp; sourceTree = SOURCE_ROOT; };
 		D18100000000000000000011 /* include_juce_audio_processors_headless.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = include_juce_audio_processors_headless.mm; path = ../../JuceLibraryCode/include_juce_audio_processors_headless.mm; sourceTree = SOURCE_ROOT; };
 		D18100000000000000000012 /* include_juce_audio_processors_headless_ara.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = include_juce_audio_processors_headless_ara.cpp; path = ../../JuceLibraryCode/include_juce_audio_processors_headless_ara.cpp; sourceTree = SOURCE_ROOT; };
@@ -137,6 +141,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D92300000000000000000003 /* Security.framework in Frameworks */,
 				51702EFB562EA3C614E91C26 /* Accelerate.framework in Frameworks */,
 				1032A8EF23E8BA17B96ECCA0 /* AudioToolbox.framework in Frameworks */,
 				71CD0FC0F37F0E68AA035F37 /* AVFoundation.framework in Frameworks */,
@@ -410,6 +415,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D1F1AC000000000000000001 /* RecordingFlacCodec.cpp in Sources */,
+				D92300000000000000000001 /* SyncClient.mm in Sources */,
 				D1A600000000000000000001 /* AudioPlatformDiagnostics.mm in Sources */,
 				7C3D921A962E5C14F052B487 /* IOUtils.cpp in Sources */,
 				658F8B55FEBE8D6DE11BDFA1 /* Main.cpp in Sources */,

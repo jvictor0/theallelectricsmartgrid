@@ -9,9 +9,8 @@ from pathlib import Path, PurePosixPath
 
 from pymobiledevice3.services.house_arrest import HouseArrestService
 
-from extract_recording import extract
 from ipad_device import connect_ipad, device_host, device_udid
-from sgrec import x_magic
+from recording_export import extract_stereo_recording
 
 
 APP_BUNDLE_ID = "com.theallelectricsmartgrid.smartgridone"
@@ -30,39 +29,6 @@ class RecordingTransfer:
     remote_path: str
     local_path: Path
     expected_size: int
-
-
-def extract_stereo_recording(local_path: Path) -> int:
-    with local_path.open("rb") as source:
-        magic = source.read(12)
-    if magic[:8] == x_magic:
-        result = extract(local_path, master="stereo", overwrite=True)
-        print(f"  Extracted {result.m_frames} frames: {result.m_output.name}")
-        if not result.m_complete:
-            print(f"  Incomplete recording: {result.m_error}")
-            return 1
-        return 0
-    if magic[:4] not in (b"RIFF", b"RF64") or magic[8:12] != b"WAVE":
-        raise ValueError(f"{local_path} is not a SmartGrid or RIFF/RF64 recording")
-
-    channel_count = int(
-        subprocess.check_output(["soxi", "-c", str(local_path)], text=True).strip()
-    )
-    if channel_count < 2:
-        raise ValueError(f"{local_path} has only {channel_count} channel(s)")
-    stereo_path = local_path.with_stem(local_path.stem + "_stereo")
-    subprocess.run(
-        [
-            "sox",
-            str(local_path),
-            str(stereo_path),
-            "remix",
-            str(channel_count - 1),
-            str(channel_count),
-        ],
-        check=True,
-    )
-    return 0
 
 
 async def download_afc_file(

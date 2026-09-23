@@ -6,6 +6,7 @@
 #include "NonagonWrapper.hpp"
 #include "ConfigPage.hpp"
 #include "FilePage.hpp"
+#include "SyncPage.hpp"
 #include "PatchChooser.hpp"
 #include "IOUtils.hpp"
 #include "WrldBuildrComponent.hpp"
@@ -219,6 +220,7 @@ private:
     void OnConfigButtonClicked();
     void OnBackButtonClicked();
     void OnFileButtonClicked();
+    void OnSyncButtonClicked();
     void OnFileBackButtonClicked();
     void ShowPatchChooser(bool isSaveMode);
     void ShowNewPatchChooser();
@@ -235,6 +237,7 @@ private:
 
     std::unique_ptr<ConfigPage> m_configPage;
     std::unique_ptr<FilePage> m_filePage;
+    std::unique_ptr<SyncPage> m_syncPage;
     std::unique_ptr<PatchChooser> m_patchChooser;
     std::unique_ptr<VersionChooser> m_versionChooser;
     std::unique_ptr<WrldBuildrComponent> m_wrldBuildrGrid;

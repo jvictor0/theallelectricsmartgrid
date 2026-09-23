@@ -88,6 +88,7 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
+    m_syncPage.reset();
     CloseAudioDevice();
     m_nonagon.ClearLEDs();
 }
@@ -135,6 +136,10 @@ void MainComponent::resized()
     if (m_configPage && m_showingConfig)
     {
         m_configPage->setBounds(bounds);
+    }
+    else if (m_syncPage)
+    {
+        m_syncPage->setBounds(bounds);
     }
     else if (m_filePage && m_showingFile)
     {
@@ -204,6 +209,15 @@ void MainComponent::OnConfigButtonClicked()
 
 void MainComponent::OnBackButtonClicked()
 {
+    if (m_syncPage)
+    {
+        m_syncPage.reset();
+        m_filePage->setVisible(true);
+        resized();
+        repaint();
+        return;
+    }
+
     bool shouldRestartAudio = false;
 
     if (m_configPage)
@@ -324,7 +338,8 @@ void MainComponent::OnFileButtonClicked()
                 }
             },
             [this]() { ShowPatchChooser(true); },
-            [this]() { ShowNewPatchChooser(); }
+            [this]() { ShowNewPatchChooser(); },
+            [this]() { OnSyncButtonClicked(); }
         );
 
         addAndMakeVisible(m_filePage.get());
@@ -508,4 +523,18 @@ void MainComponent::timerCallback()
     repaint();
 
     AsyncLogQueue::s_instance.DoLog();
+}
+
+void MainComponent::OnSyncButtonClicked()
+{
+    if (m_syncPage)
+    {
+        return;
+    }
+
+    m_filePage->setVisible(false);
+    m_syncPage = std::make_unique<SyncPage>(FileManager::GetSmartGridOneDirectory());
+    addAndMakeVisible(m_syncPage.get());
+    resized();
+    m_syncPage->Open();
 }
