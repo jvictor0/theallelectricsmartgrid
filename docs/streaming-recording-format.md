@@ -1,4 +1,4 @@
-# SmartGrid streaming recordings (v3)
+# SmartGrid streaming recordings (v4)
 
 Performance recordings use `.sgrec` files. They contain separate input stems,
 mono sub lanes, quad effect returns, and the actual mastered stereo and quad
@@ -14,7 +14,10 @@ counts, written bytes and queue high-water mark.
 
 ## Inspect and extract
 
-Use Python 3.10 or newer; the extractor needs only the standard library.
+Use Python 3.10 or newer. Decoding selected v4 FLAC audio also needs libFLAC
+(`brew install flac` on macOS, or your platform's libFLAC package). No Python
+package is required: the reader uses ctypes. Header inspection, patch queries,
+and legacy v1–v3 extraction do not load libFLAC.
 
 ```sh
 python3 scripts/extract_recording.py info session.sgrec --verify
@@ -74,28 +77,30 @@ Sample-directory changes and sample assets remain untracked. Ordinary scene
 copies and value edits use assignment events. A scene switch alone reads stored
 state and needs no per-value event.
 
-Audio extraction accepts v1, v2, and v3 and ignores patch/event semantics.
-Patch reconstruction requires a v2 or v3 initial patch and recognized event
+Audio extraction accepts v1 through v4 and ignores patch/event semantics.
+V4 adds length-prefixed FLAC audio and keeps v3 event semantics.
+Patch reconstruction requires a v2, v3, or v4 initial patch and recognized event
 types. V2 retains its historical assignment semantics and cannot reconstruct
 unrecorded load/reset effects or recover cross-type capture order.
 
 ## File layout
 
-All binary integers are little-endian. There is no implicit alignment or padding.
+Container integers are little-endian. FLAC payloads follow the native FLAC
+format, including its big-endian metadata. There is no container alignment or padding.
 
 | Field | Bytes |
 | --- | --- |
 | ASCII `SMRTGRID` | 8 |
 | UTF-8 JSON length (`u32`) | 4 |
 | JSON session header | declared length |
-| Independent `BLK3` records | variable |
+| Independent `BLK4` records | variable |
 | `END1` clean-completion marker | 16 |
 
 Required JSON fields:
 
 ```json
 {
-  "format_version": 3,
+  "format_version": 4,
   "initial_patch": {"nonagon": {}, "squiggleBoy": {}, "stateSaver": {}, "configGrid": {}, "faders": [], "blend": 0.0},
   "recorded_at_utc": "2026-09-14T12:34:56Z",
   "git_commit_sha": "0123456789abcdef0123456789abcdef01234567",
@@ -144,7 +149,7 @@ Nonfinite submissions fail capture before accepting that frame.
 
 | Field | Representation |
 | --- | --- |
-| Tag | `BLK3` (4 bytes) |
+| Tag | `BLK4` (4 bytes) |
 | Total record bytes, including CRC | `u32` |
 | Start frame | `u64` |
 | Frame count | `u32` |
@@ -157,7 +162,8 @@ Nonfinite submissions fail capture before accepting that frame.
 
 The fixed header is 22 bytes. Each descriptor contains `track_id:u32`, followed
 by `(encoding:u8, bit_width:u8)` for each type-derived stream. No stream count or
-payload length is repeated. Stream payloads start at byte boundaries.
+legacy payload length is repeated. FLAC payloads carry their own byte length.
+Stream payloads start at byte boundaries.
 
 Frame counts range from 1 through the header's `block_frames`. Start positions
 are contiguous from zero. Only the last data block may be short. Predictors
@@ -185,7 +191,7 @@ Each group contains:
 | Name | declared UTF-8 bytes, without terminator |
 | Entries | type-specific fields below |
 
-Every v3 entry starts with a block-relative sample offset (`u32`) and capture
+Every v3/v4 entry starts with a block-relative sample offset (`u32`) and capture
 order (`u32`). Replay sorts all entries in the block by `(sample, order)`, so
 grouping does not reorder assignments around loads or snapshots. Only fields
 relevant to the type follow; there is no struct padding or placeholder data.
@@ -252,8 +258,10 @@ V1 uses `BLK1` and ends immediately after audio payloads and CRC, with a minimum
 record size of 26 bytes. V2 uses `BLK2`, assignment types 1–5, and entries that
 start with sample offset alone; it has no capture-order field or bulk patch
 types. Readers preserve the stored order of same-sample v2 assignments.
-V2 and v3 audio readers derive the audio payload length as before, then skip
-the remaining bytes before CRC. They need no event decoder.
+V3 uses `BLK3` with the current event representation and legacy audio encodings.
+V2 through v4 readers derive audio payload lengths, then skip the remaining
+bytes before CRC. They need no event decoder. FLAC stream lengths allow
+unselected audio to be skipped after checking its metadata and bounds.
 Patch queries decode the trailer and reject an unknown event type in a block needed by the query. They do not decode audio or validate unrelated patch fields.
 
 ### Stream encodings
@@ -261,19 +269,37 @@ Patch queries decode the trailer and reject an unknown event type in a block nee
 For `N` frames:
 
 - **0: raw**, width 24. Exactly `3*N` bytes of little-endian two's-complement PCM24.
-- **1: delta**, width 0 through 25. First value is PCM24. Remaining values are
-  adjacent mathematical differences, computed without 24-bit wrapping.
-  Length is `3 + ceil((N-1)*width/8)` bytes.
+- **1: legacy delta**, width 0 through 25. First value is PCM24; subsequent
+  mathematical adjacent differences use signed two's-complement, packed LSB
+  first, with zero final high padding bits. Length is
+  `3 + ceil((N-1)*width/8)`. The v4 writer uses this only at width zero for
+  constant streams, storing one three-byte value. Readers retain all widths.
+- **2: FLAC**, descriptor width zero, available in v4. A `u32` little-endian
+  byte length precedes a complete native FLAC stream beginning with `fLaC`.
+  The length excludes itself. STREAMINFO must declare one channel, 24 bits per
+  sample, the session sample rate, exactly `N` samples, and internal block
+  sizes at most 1024. FLAC metadata must terminate within the payload.
+  Selected streams are decoded with frame CRC and available MD5 checking,
+  exact sample-count and consumed-byte checks, and PCM24/coordinate range checks.
+  Unselected streams require structural metadata and bounds validation, but
+  do not require the native library or decode frame bodies.
 
-The writer uses the smallest signed two's-complement width that holds every
-difference, and uses delta only if it is strictly smaller than raw. Raw wins
-ties. Constant streams use width zero and only the first value. Differences -1
-and 0 fit one bit; +1 needs two. Endpoint-to-endpoint jumps can need 25 bits and
-select raw. Readers accept valid nonminimal delta widths.
+The writer uses FLAC level 5 with 1024-sample internal blocks (21.3 ms at 48 kHz).
+It visits the source once, combines validation and audio activity detection,
+and feeds the encoder through fixed 1024-sample scratch. FLAC can revisit its
+bounded internal block. Each scalar stream is independent, including coordinates;
+there is no stereo or inter-track decorrelation. Encoder allocation and processing
+run on the existing recording worker.
 
-Pack each difference's low `width` bits least-significant-bit first into successive
-low-to-high bits of bytes. Unused high bits of the final byte must be zero.
-For example `[5,4,4,3]` uses delta width 1 and payload `05 00 00 05`.
+Whole-constant streams retain the compact three-byte representation. A
+nonconstant stream of at most 1024 samples uses raw PCM24 when strictly smaller
+than its length-prefixed FLAC payload, using the already buffered samples.
+Longer incompressible streams use FLAC's verbatim subframes. Short final blocks
+are valid. FLAC predictors and metadata reset at every outer block, preserving
+independent decoding and the existing one-second recording cadence.
+
+The earlier adaptive-width v4 experiment was never shipped and is superseded
+by this definition.
 
 CRC covers every preceding byte in the record, using reflected polynomial
 `0xEDB88320`, initial value `0xFFFFFFFF`, and final XOR `0xFFFFFFFF`. This matches
@@ -350,7 +376,9 @@ Build and run the standalone recorder measurement after configuring CMake tests:
 
 ```sh
 c++ -std=c++17 -O2 -Iprivate/src -I/tmp/smartgrid-recording-build/generated \
-  private/test/tools/benchmark_recording.cpp -o /tmp/benchmark_recording -pthread
+  -DSMARTGRID_RECORDING_SYSTEM_FLAC=1 $(pkg-config --cflags flac) \
+  private/test/tools/benchmark_recording.cpp private/src/RecordingFlacCodec.cpp \
+  $(pkg-config --libs flac) -o /tmp/benchmark_recording -pthread
 /tmp/benchmark_recording /tmp/recording-bench audio 30
 ```
 
@@ -363,3 +391,13 @@ cost; it is not a measurement of the whole synth callback or iPad storage.
 See the change's `verification.md` for measured results and remaining platform
 checks. Golden records and their independent construction are in
 `private/test/fixtures/streaming-recording/`.
+
+Standalone C++ builds require `pkg-config` and the libFLAC development package
+(`brew install pkg-config flac` on macOS). CMake links the system library for
+tests. Apple app builds reuse FLAC from the pinned JUCE dependency and do not
+link an external/system FLAC installation. Encoder integration lives in
+`RecordingFlacCodec.cpp`; the rest of the core has no FLAC or JUCE headers.
+
+Real-recording comparisons and the band-limited-square investigation are recorded
+in `docs/research/2026-09-23-sgrec-real-recording-codecs.md`. Host timing does not
+measure the whole synthesizer or iPad storage performance.

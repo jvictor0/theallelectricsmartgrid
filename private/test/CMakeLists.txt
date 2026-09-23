@@ -27,6 +27,8 @@ set(REPO_ROOT       ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 set(SRC_DIR         ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FLAC REQUIRED IMPORTED_TARGET flac)
 set(BUILD_INFO_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 add_custom_target(smartgrid_build_info
     COMMAND "${Python3_EXECUTABLE}" "${REPO_ROOT}/scripts/generate_build_info.py"
@@ -44,6 +46,7 @@ add_custom_target(smartgrid_build_info
 set(TEST_SOURCES
     ${TEST_DIR}/support/TestMain.cpp
     ${SRC_DIR}/SmartGrid.cpp
+    ${SRC_DIR}/RecordingFlacCodec.cpp
     ${TEST_DIR}/unit/infra_spike.cpp
 )
 
@@ -71,9 +74,11 @@ target_include_directories(smartgrid_tests PRIVATE
 # WARN(...) logging macros. Use the DOCTEST_-prefixed forms in tests if needed.
 target_compile_definitions(smartgrid_tests PRIVATE
     DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES=1
+    SMARTGRID_RECORDING_SYSTEM_FLAC=1
     SMARTGRID_REPO_ROOT="${REPO_ROOT}"
 )
 target_compile_options(smartgrid_tests PRIVATE -funroll-loops)
+target_link_libraries(smartgrid_tests PRIVATE PkgConfig::FLAC)
 
 # Keep warnings on but non-fatal; the DSP core has pre-existing warnings.
 target_compile_options(smartgrid_tests PRIVATE -Wall -Wno-unused-parameter)

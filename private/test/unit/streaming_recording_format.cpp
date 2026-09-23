@@ -98,7 +98,7 @@ DOCTEST_TEST_CASE("recording format: master metadata matches reader contracts")
 
 DOCTEST_TEST_CASE("recording format: all track types match the independent Python golden records")
 {
-    std::ifstream input(std::string(SMARTGRID_REPO_ROOT) + "/private/test/fixtures/streaming-recording/golden.json");
+    std::ifstream input(std::string(SMARTGRID_REPO_ROOT) + "/private/test/fixtures/streaming-recording/golden-v4.json");
     DOCTEST_REQUIRE(input.good());
     const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     JsonArena arena(1024 * 1024);
@@ -131,24 +131,6 @@ DOCTEST_TEST_CASE("recording format: all track types match the independent Pytho
         for (size_t i = 0; i < std::strlen(hex); i += 2)
         {
             expectedBytes.push_back(static_cast<uint8_t>(std::stoul(std::string(hex + i, 2), nullptr, 16)));
-        }
-
-        // The independent v1 fixture still specifies the exact audio bytes.
-        // Upgrade only its envelope to the v3 empty event trailer.
-        //
-        if (expectedBytes[0] == 'B')
-        {
-            expectedBytes.resize(expectedBytes.size() - 4);
-            expectedBytes[3] = '3';
-            expectedBytes.insert(expectedBytes.end(), 4, 0);
-            const uint32_t size = static_cast<uint32_t>(expectedBytes.size() + 4);
-            for (size_t i = 0; i < 4; ++i)
-            {
-                expectedBytes[4 + i] = static_cast<uint8_t>(size >> (8 * i));
-            }
-
-            RecordingFormat::AppendLE(expectedBytes,
-                RecordingFormat::Crc32(expectedBytes.data(), expectedBytes.size()), 4);
         }
 
         DOCTEST_CHECK(bytes == expectedBytes);
@@ -217,8 +199,8 @@ DOCTEST_TEST_CASE("recording format: sparse blocks derive stream layout and carr
     DOCTEST_REQUIRE(RecordingFormat::EncodeBlock(session, samples.data(), 4, 0, bytes));
     DOCTEST_CHECK(bytes[20] == 1);
     DOCTEST_CHECK(bytes[22] == 0);
-    DOCTEST_CHECK(bytes[26] == 1);
-    DOCTEST_CHECK(bytes[27] == 1);
+    DOCTEST_CHECK(bytes[26] == 0);
+    DOCTEST_CHECK(bytes[27] == 24);
     DOCTEST_CHECK(bytes[28] == 1);
     DOCTEST_CHECK(bytes[29] == 0);
     DOCTEST_CHECK(bytes[30] == 1);
@@ -239,6 +221,55 @@ DOCTEST_TEST_CASE("recording format: sparse blocks derive stream layout and carr
     DOCTEST_CHECK_FALSE(RecordingFormat::Validate(session));
 }
 
+DOCTEST_TEST_CASE("recording format: FLAC streams preserve coordinates and skip silent tracks")
+{
+    RecordingFormat::Session session;
+    session.m_blockFrames = 2053;
+    session.m_gitCommitSha = std::string(40, 'a');
+    session.m_recordedAtUtc = "2026-09-23T00:00:00Z";
+    session.m_tracks =
+    {
+        {0, "voice", RecordingFormat::TrackType::PannedMono, "input", "post_fader"},
+        {1, "silent", RecordingFormat::TrackType::Stereo, "input", "post_fader"},
+    };
+
+    std::vector<int32_t> samples(5 * session.m_blockFrames, 0);
+    for (size_t frame = 0; frame < session.m_blockFrames; ++frame)
+    {
+        samples[frame] = static_cast<int32_t>(frame % 4);
+        samples[session.m_blockFrames + frame] = frame < session.m_blockFrames / 2 ? 0 : 8388607;
+        samples[2 * session.m_blockFrames + frame] = 4194304;
+    }
+
+    samples[63] = -8388608;
+    samples[64] = 8388607;
+    std::vector<uint8_t> bytes;
+    DOCTEST_REQUIRE(RecordingFormat::EncodeHeader(session, bytes));
+    std::vector<uint8_t> file = bytes;
+    DOCTEST_REQUIRE(RecordingFormat::EncodeBlock(session, samples.data(), session.m_blockFrames, 0, bytes));
+    DOCTEST_CHECK(bytes[20] == 1);
+    DOCTEST_CHECK(bytes[26] == 2);
+    DOCTEST_CHECK(bytes[27] == 0);
+    DOCTEST_CHECK(bytes[28] == 2);
+    DOCTEST_CHECK(bytes[29] == 0);
+    DOCTEST_CHECK(bytes[30] == 1);
+    DOCTEST_CHECK(bytes[31] == 0);
+    DOCTEST_CHECK(bytes.size() < 2000);
+    DOCTEST_CHECK(std::string(bytes.begin() + 36, bytes.begin() + 40) == "fLaC");
+    file.insert(file.end(), bytes.begin(), bytes.end());
+    RecordingFormat::EncodeEnd(session.m_blockFrames, bytes);
+    file.insert(file.end(), bytes.begin(), bytes.end());
+    if (const char* path = std::getenv("SMARTGRID_FLAC_CODEC_FIXTURE"))
+    {
+        std::ofstream output(path, std::ios::binary);
+        output.write(reinterpret_cast<const char*>(file.data()), file.size());
+        DOCTEST_REQUIRE(output.good());
+    }
+
+    samples[4 * session.m_blockFrames] = 8388608;
+    DOCTEST_CHECK_FALSE(RecordingFormat::EncodeBlock(session, samples.data(), session.m_blockFrames, 0, bytes));
+}
+
 DOCTEST_TEST_CASE("recording format: param event snapshots the stored scene at its actual width")
 {
     uint16_t value = 0x1234;
@@ -253,7 +284,7 @@ DOCTEST_TEST_CASE("recording format: param event snapshots the stored scene at i
     DOCTEST_CHECK(event.m_sample == 5);
 }
 
-DOCTEST_TEST_CASE("recording format: new headers declare version three")
+DOCTEST_TEST_CASE("recording format: new headers declare version four")
 {
     RecordingFormat::Session session;
     session.m_gitCommitSha = std::string(40, 'a');
@@ -264,7 +295,7 @@ DOCTEST_TEST_CASE("recording format: new headers declare version three")
     const std::string text(bytes.begin() + 12, bytes.end());
     JsonArena arena(1024 * 1024);
     const JSON header = arena.Loads(text.c_str());
-    DOCTEST_CHECK(header.Get("format_version").IntegerValue() == 3);
+    DOCTEST_CHECK(header.Get("format_version").IntegerValue() == 4);
 }
 
 DOCTEST_TEST_CASE("recording format: event groups sort by name and time with stable ties")
@@ -283,7 +314,7 @@ DOCTEST_TEST_CASE("recording format: event groups sort by name and time with sta
     const int32_t samples[8]{};
     std::vector<uint8_t> bytes;
     DOCTEST_REQUIRE(RecordingFormat::EncodeBlock(session, samples, 8, 8, bytes, events));
-    DOCTEST_CHECK(std::string(bytes.begin(), bytes.begin() + 4) == "BLK3");
+    DOCTEST_CHECK(std::string(bytes.begin(), bytes.begin() + 4) == "BLK4");
     const std::vector<uint8_t> expected =
     {
         2, 0, 0, 0,

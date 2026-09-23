@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D1F1AC000000000000000001 /* RecordingFlacCodec.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D1F1AC000000000000000002 /* RecordingFlacCodec.cpp */; };
 		D18100000000000000000001 /* include_juce_audio_processors_headless.mm in Sources */ = {isa = PBXBuildFile; fileRef = D18100000000000000000011 /* include_juce_audio_processors_headless.mm */; };
 		D18100000000000000000002 /* include_juce_audio_processors_headless_ara.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D18100000000000000000012 /* include_juce_audio_processors_headless_ara.cpp */; };
 		D18100000000000000000003 /* include_juce_audio_processors_headless_lv2_libs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D18100000000000000000013 /* include_juce_audio_processors_headless_lv2_libs.cpp */; };
@@ -52,6 +53,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		D1F1AC000000000000000002 /* RecordingFlacCodec.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = RecordingFlacCodec.cpp; path = ../../../../private/src/RecordingFlacCodec.cpp; sourceTree = SOURCE_ROOT; };
+		D1F1AC000000000000000003 /* RecordingFlacCodec.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = RecordingFlacCodec.hpp; path = ../../../../private/src/RecordingFlacCodec.hpp; sourceTree = SOURCE_ROOT; };
 		D1A600000000000000000003 /* AppObserver.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = AppObserver.hpp; path = ../../Source/AppObserver.hpp; sourceTree = SOURCE_ROOT; };
 		D18100000000000000000011 /* include_juce_audio_processors_headless.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = include_juce_audio_processors_headless.mm; path = ../../JuceLibraryCode/include_juce_audio_processors_headless.mm; sourceTree = SOURCE_ROOT; };
 		D18100000000000000000012 /* include_juce_audio_processors_headless_ara.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = include_juce_audio_processors_headless_ara.cpp; path = ../../JuceLibraryCode/include_juce_audio_processors_headless_ara.cpp; sourceTree = SOURCE_ROOT; };
@@ -199,6 +202,8 @@
 		657CE124B28F04A60CDC3DF4 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				D1F1AC000000000000000002 /* RecordingFlacCodec.cpp */,
+				D1F1AC000000000000000003 /* RecordingFlacCodec.hpp */,
 				D1A600000000000000000003 /* AppObserver.hpp */,
 				D1A600000000000000000002,
 				C4160E50CEBC3FB19EF6D33A,
@@ -388,6 +393,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D1F1AC000000000000000001 /* RecordingFlacCodec.cpp in Sources */,
 				D1A600000000000000000001,
 				7C3D921A962E5C14F052B487,
 				658F8B55FEBE8D6DE11BDFA1,

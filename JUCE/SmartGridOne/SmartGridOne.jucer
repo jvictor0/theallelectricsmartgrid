@@ -4,6 +4,8 @@
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" headerPath="../../../../private/src&#10;/opt/homebrew/include&#10;&#10;">
   <MAINGROUP id="si886g" name="SmartGridOne">
     <GROUP id="{2DDA3903-F6ED-9E0F-0737-E5B903BFA61C}" name="Source">
+      <FILE id="RecordingFlacCpp" name="RecordingFlacCodec.cpp" compile="1" resource="0" file="../../private/src/RecordingFlacCodec.cpp"/>
+      <FILE id="RecordingFlacHpp" name="RecordingFlacCodec.hpp" compile="0" resource="0" file="../../private/src/RecordingFlacCodec.hpp"/>
       <FILE id="AppObserverH" name="AppObserver.hpp" compile="0" resource="0" file="Source/AppObserver.hpp"/>
       <FILE id="AudioPlatformDiag" name="AudioPlatformDiagnostics.mm" compile="1" resource="0" file="Source/AudioPlatformDiagnostics.mm"/>
       <FILE id="AudioPlatformDiagH" name="AudioPlatformDiagnostics.hpp" compile="0" resource="0" file="Source/AudioPlatformDiagnostics.hpp"/>

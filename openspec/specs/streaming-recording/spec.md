@@ -6,7 +6,7 @@ Define the SMRTGRID container and realtime capture lifecycle for lossless, spars
 ## Requirements
 
 ### Requirement: Versioned Session Metadata
-The performance recorder SHALL write a `.sgrec` v3 container with the eight ASCII magic bytes `SMRTGRID`, a little-endian JSON byte length, and a UTF-8 JSON header containing `format_version: 3`, UTC session creation time, full build Git SHA, sample rate, nominal block frame count, an immutable track table, and the complete live patch in `initial_patch`. The table SHALL contain stable numeric IDs, names, types, roles, and taps. Type SHALL determine stream count, order, and semantics: `mono` has `sample_val`; `panned_mono` has `sample_val`, `x`, `y`; `stereo` has left/right; `quad` has q0 through q3. Quad corner order and integer conversions SHALL be fixed by v1, with corners `(0,1)`, `(1,1)`, `(1,0)`, `(0,0)`.
+The performance recorder SHALL write a `.sgrec` v4 container with the eight ASCII magic bytes `SMRTGRID`, a little-endian JSON byte length, and a UTF-8 JSON header containing `format_version: 4`, UTC session creation time, full build Git SHA, sample rate, nominal block frame count, an immutable track table, and the complete live patch in `initial_patch`. The table SHALL contain stable numeric IDs, names, types, roles, and taps. Type SHALL determine stream count, order, and semantics: `mono` has `sample_val`; `panned_mono` has `sample_val`, `x`, `y`; `stereo` has left/right; `quad` has q0 through q3. Quad corner order and integer conversions SHALL be fixed by v1, with corners `(0,1)`, `(1,1)`, `(1,0)`, `(0,0)`.
 
 #### Scenario: Header describes an independently readable session
 - **WHEN** a new recording is opened by a reader
@@ -51,30 +51,26 @@ The writer SHALL use one-second blocks by default (`block_frames = sample_rate`)
 - **WHEN** an external source changes between mono and stereo while recording
 - **THEN** its registered panned-mono lane IDs and stream counts remain unchanged while their samples and coordinates reflect live processing
 
-### Requirement: Per-Stream Raw or Minimally Packed Delta Encoding
-Each stream descriptor SHALL contain only encoding and bit width, one byte each. Raw SHALL use width 24 and three little-endian two's-complement bytes per sample. Delta SHALL store one PCM24 first value followed by mathematical adjacent differences at the minimum signed two's-complement width needed for that stream in the block, using width zero for constant streams and supporting widths through 25. Packed deltas SHALL be least-significant-bit first, byte-aligned per stream, with zero padding bits. Payload lengths SHALL be derived as `3*N` for raw and `3 + ceil((N-1)*width/8)` for delta. The writer SHALL select delta only when strictly smaller, and raw on ties. Predictors SHALL reset in every block.
+### Requirement: Bounded FLAC Stream Encoding
+Each stream descriptor SHALL contain encoding and width, one byte each. Raw (0/24) SHALL use three little-endian two's-complement bytes per value. Legacy delta (1/0..25) SHALL remain readable with one PCM24 first value and adjacent mathematical differences, packed LSB first with zero high padding, with length `3 + ceil((N-1)*width/8)`. The v4 writer SHALL use 1/0 for whole-constant streams. V4 SHALL support FLAC (2/0): a little-endian u32 byte length excluding itself followed by a complete native FLAC stream. STREAMINFO SHALL declare mono PCM24 at the session sample rate and exactly the outer block frame count. Internal FLAC blocks SHALL be bounded to 1024 samples; the writer SHALL use compression level 5.
 
-#### Scenario: Different encodings within one panned track
-- **WHEN** a block contains high-entropy audio and constant x/y coordinates
-- **THEN** the audio can use raw while each coordinate uses delta width zero with only its first value stored
+The writer SHALL traverse each source integer once, combining validation and activity detection while feeding fixed-size scratch to FLAC. FLAC MAY revisit its bounded internal blocks. A nonconstant stream fitting within scratch MAY use raw when strictly smaller than its length-prefixed FLAC payload, without rereading the source. Longer streams MAY use FLAC verbatim subframes. Encoding and allocation SHALL remain on the recording worker. Predictors SHALL reset in every scalar stream and outer block. Unshipped adaptive v4 experimentation is superseded by this layout.
 
-#### Scenario: Signed minimum widths
-- **WHEN** a stream's differences are exclusively -1 and 0
-- **THEN** its delta candidate uses one bit per difference
-- **AND** differences including +1 require at least two signed bits
+#### Scenario: Audio and constant coordinates
+- **WHEN** a block contains changing audio and constant x/y coordinates
+- **THEN** the audio uses FLAC, or raw for a short stream when smaller, while each coordinate stores one PCM24 value
 
-#### Scenario: Full-range differences do not wrap
-- **WHEN** adjacent PCM values are -8388608 and 8388607
-- **THEN** the delta is 16777215 computed without PCM24 wrapping
-- **AND** the encoder uses raw when the corresponding 25-bit delta candidate is not smaller
+#### Scenario: Exact PCM24 and partial final blocks
+- **WHEN** a stream contains -8388608 and 8388607 or ends partway through an internal FLAC block
+- **THEN** decoding reconstructs every original integer and exactly the outer frame count
 
-#### Scenario: Small and non-byte-aligned streams
-- **WHEN** a stream contains one value or its packed deltas end partway through a byte
-- **THEN** a single-value tie selects raw and unused final high bits of packed streams are zero
-- **AND** a decoder reconstructs exactly the declared number of values
+#### Scenario: Bounded worker processing
+- **WHEN** the encoder processes a one-second multitrack recording block
+- **THEN** each scalar source is consumed once through 1024-sample scratch
+- **AND** the real-time audio callback performs no FLAC calls or encoder allocation
 
 ### Requirement: Validated Framing and Termination
-The writer SHALL use `BLK3` with the existing 22-byte fixed header, track IDs, two-byte stream descriptors and audio payloads, followed by grouped events and CRC-32/ISO-HDLC covering the whole record. Stream counts SHALL derive from track type and payload lengths from the encoding formulas; the wire format SHALL contain no repeated stream counts, per-stream lengths, or reserved padding. Clean completion SHALL write the fixed 16-byte `END1` marker containing total frames and CRC. The total SHALL match the contiguous written frames. Capture errors SHALL omit the completion marker and report their cause through runtime status/logging. Python audio decoding SHALL validate audio metadata/record bounds, IDs, encodings, reconstructed ranges, derived audio lengths, padding bits, CRCs, continuity, and completion. It SHALL skip event trailers and leave initial-patch contents uninterpreted. Patch queries SHALL decode only the metadata and event data needed for reconstruction.
+The writer SHALL use `BLK4` with the existing 22-byte fixed header, track IDs, two-byte stream descriptors and audio payloads, followed by grouped events and CRC-32/ISO-HDLC covering the whole record. Stream counts SHALL derive from track type and payload lengths from legacy formulas or explicit FLAC byte lengths; the wire format SHALL contain no repeated stream counts or reserved padding. Clean completion SHALL write the fixed 16-byte `END1` marker containing total frames and CRC. The total SHALL match the contiguous written frames. Capture errors SHALL omit the completion marker and report their cause through runtime status/logging. Python audio decoding SHALL validate audio metadata/record bounds, IDs, encodings, reconstructed ranges, audio lengths, legacy padding bits, FLAC stream/frame dimensions and integrity, CRCs, continuity, and completion. It SHALL skip event trailers and leave initial-patch contents uninterpreted. Patch queries SHALL decode only the metadata and event data needed for reconstruction.
 
 #### Scenario: Corrupt or hostile record
 - **WHEN** a block has a bad CRC, duplicate track ID, invalid width, impossible payload length, or exceeds a declared format bound
@@ -151,7 +147,7 @@ The recorder SHALL snapshot the complete live patch, including unsaved edits, on
 - **THEN** recording reports overrun and omits clean completion rather than silently losing a delta
 
 ### Requirement: Compact Typed Parameter Events
-Event groups SHALL use type:u8, value_width:u8, name_length:u16, entry_count:u32, then UTF-8 name bytes. All v3 entries SHALL begin with a block-relative sample:u32 and capture-order:u32 assigned from original event order within the block before grouping. StateChange (1) SHALL append scene:u8 and 1/2/4/8 value bytes. GestureSet (2) SHALL append fader_index:u8 and float32. BlendSet (3) SHALL append float32. Both unnamed types SHALL have zero name length. EncoderSet (4) and EncoderActivate (5) SHALL use the root parameter name and append scene:u8, track:u8, path_length:u8, path bytes, then float32 or active:u8 respectively. Floats SHALL be finite little-endian IEEE-754 binary32; activation SHALL be 0 or 1. Irrelevant ParamEvent fields SHALL NOT be serialized.
+Event groups SHALL use type:u8, value_width:u8, name_length:u16, entry_count:u32, then UTF-8 name bytes. All v3/v4 entries SHALL begin with a block-relative sample:u32 and capture-order:u32 assigned from original event order within the block before grouping. StateChange (1) SHALL append scene:u8 and 1/2/4/8 value bytes. GestureSet (2) SHALL append fader_index:u8 and float32. BlendSet (3) SHALL append float32. Both unnamed types SHALL have zero name length. EncoderSet (4) and EncoderActivate (5) SHALL use the root parameter name and append scene:u8, track:u8, path_length:u8, path bytes, then float32 or active:u8 respectively. Floats SHALL be finite little-endian IEEE-754 binary32; activation SHALL be 0 or 1. Irrelevant ParamEvent fields SHALL NOT be serialized.
 
 Encoder paths SHALL contain at most 16 hops, with modulator indices 0..14 or gesture indices encoded as 128..143. The root SHALL have an empty path; activation SHALL end at a gesture. Scenes SHALL be 0..7, tracks and faders 0..15. In-memory unused path slots SHALL be initialized to -1 and SHALL NOT appear on the wire.
 

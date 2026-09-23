@@ -2,6 +2,7 @@
 
 #include "Json.hpp"
 #include "ParamEvent.hpp"
+#include "RecordingFlacCodec.hpp"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -268,7 +269,7 @@ struct RecordingFormat
 
         JsonArena arena(x_maxHeaderBytes);
         JSON header = arena.Object();
-        header.SetNew("format_version", arena.Integer(3));
+        header.SetNew("format_version", arena.Integer(4));
         header.SetNew("initial_patch", initialPatch.IsNull() ? arena.Object() : initialPatch);
         header.SetNew("recorded_at_utc", arena.String(session.m_recordedAtUtc.c_str()));
         header.SetNew("git_commit_sha", arena.String(session.m_gitCommitSha.c_str()));
@@ -523,86 +524,68 @@ struct RecordingFormat
             return false;
         }
 
-        std::vector<Encoding> encodings;
-        std::vector<size_t> included;
-        size_t streamOffset = 0;
-        for (size_t trackIndex = 0; trackIndex < session.m_tracks.size(); ++trackIndex)
+        size_t descriptorBytes = 0;
+        for (const auto& track : session.m_tracks)
         {
-            const auto& track = session.m_tracks[trackIndex];
+            descriptorBytes += 4 + 2 * StreamCount(track.m_type);
+        }
+
+        output.clear();
+        output.insert(output.end(), {'B', 'L', 'K', '4'});
+        AppendLE(output, 0, 4);
+        AppendLE(output, startFrame, 8);
+        AppendLE(output, frames, 4);
+        AppendLE(output, 0, 2);
+        const size_t payloadStart = output.size() + descriptorBytes;
+        size_t descriptorOffset = output.size();
+        output.resize(payloadStart, 0);
+        size_t streamOffset = 0;
+        uint16_t included = 0;
+        for (const auto& track : session.m_tracks)
+        {
             const size_t streams = StreamCount(track.m_type);
+            const size_t trackStart = output.size();
+            std::array<RecordingFlacCodec::Encoding, 4> encodings{};
             bool audible = false;
             for (size_t stream = 0; stream < streams; ++stream)
             {
+                bool streamAudible;
                 const bool position = track.m_type == TrackType::PannedMono && stream != 0;
-                const int32_t* values = samples + (streamOffset + stream) * session.m_blockFrames;
-                for (size_t frame = 0; frame < frames; ++frame)
+                if (!RecordingFlacCodec::Encode(samples + (streamOffset + stream) * session.m_blockFrames,
+                    frames, session.m_sampleRate, position, output, encodings[stream], streamAudible))
                 {
-                    if (values[frame] < (position ? 0 : -8388608) || values[frame] > 8388607)
-                    {
-                        return false;
-                    }
-
-                    audible |= !position && values[frame] != 0;
+                    return false;
                 }
 
-                encodings.push_back(ChooseEncoding(values, frames));
+                audible |= streamAudible;
             }
 
             if (audible)
             {
-                included.push_back(trackIndex);
-            }
-
-            streamOffset += streams;
-        }
-
-        output.clear();
-        output.insert(output.end(), {'B', 'L', 'K', '3'});
-        AppendLE(output, 0, 4);
-        AppendLE(output, startFrame, 8);
-        AppendLE(output, frames, 4);
-        AppendLE(output, included.size(), 2);
-        streamOffset = 0;
-        size_t includedIndex = 0;
-        for (size_t trackIndex = 0; trackIndex < session.m_tracks.size(); ++trackIndex)
-        {
-            const auto& track = session.m_tracks[trackIndex];
-            const size_t streams = StreamCount(track.m_type);
-            if (includedIndex < included.size() && included[includedIndex] == trackIndex)
-            {
-                AppendLE(output, track.m_id, 4);
-                for (size_t stream = 0; stream < streams; ++stream)
+                for (size_t byte = 0; byte < 4; ++byte)
                 {
-                    const auto encoding = encodings[streamOffset + stream];
-                    output.push_back(encoding.m_encoding);
-                    output.push_back(encoding.m_width);
+                    output[descriptorOffset++] = static_cast<uint8_t>(track.m_id >> (8 * byte));
                 }
 
-                ++includedIndex;
-            }
-
-            streamOffset += streams;
-        }
-
-        streamOffset = 0;
-        includedIndex = 0;
-        for (size_t trackIndex = 0; trackIndex < session.m_tracks.size(); ++trackIndex)
-        {
-            const size_t streams = StreamCount(session.m_tracks[trackIndex].m_type);
-            if (includedIndex < included.size() && included[includedIndex] == trackIndex)
-            {
                 for (size_t stream = 0; stream < streams; ++stream)
                 {
-                    AppendStream(output, samples + (streamOffset + stream) * session.m_blockFrames,
-                        frames, encodings[streamOffset + stream]);
+                    output[descriptorOffset++] = encodings[stream].m_encoding;
+                    output[descriptorOffset++] = encodings[stream].m_width;
                 }
 
-                ++includedIndex;
+                ++included;
+            }
+            else
+            {
+                output.resize(trackStart);
             }
 
             streamOffset += streams;
         }
 
+        output[20] = static_cast<uint8_t>(included);
+        output[21] = static_cast<uint8_t>(included >> 8);
+        output.erase(output.begin() + descriptorOffset, output.begin() + payloadStart);
         if (!AppendParamEvents(output, events, startFrame, frames)
             || output.size() + 4 > x_maxBlockBytes)
         {

@@ -17,6 +17,8 @@ import re
 import struct
 import zlib
 
+from sgrec_flac import decode_flac, validate_flac
+
 x_magic = b'SMRTGRID'
 x_max_header_bytes = 1024 * 1024
 x_max_tracks = 128
@@ -75,8 +77,8 @@ def validate_header(header):
     for field in required:
         if field not in header:
             raise RecordingError(f'Missing session field: {field}')
-    if type(header['format_version']) is not int or header['format_version'] not in (1, 2, 3):
-        raise RecordingError('Unsupported format_version; expected 1, 2, or 3')
+    if type(header['format_version']) is not int or header['format_version'] not in (1, 2, 3, 4):
+        raise RecordingError('Unsupported format_version; expected 1, 2, 3, or 4')
     timestamp = header['recorded_at_utc']
     if not isinstance(timestamp, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)', timestamp):
         raise RecordingError('recorded_at_utc must be an ISO 8601 UTC timestamp')
@@ -257,7 +259,6 @@ class Reader:
             raise RecordingError('BLK1 includes more tracks than the session declares')
         descriptors = []
         offset = 22
-        payload_bytes = 0
         previous_id = -1
         for _ in range(track_count):
             if offset + 4 > len(raw) - 4:
@@ -279,23 +280,43 @@ class Reader:
                     length = frames * 3
                 elif encoding == 1 and width <= 25:
                     length = 3 + ((frames - 1) * width + 7) // 8
+                elif encoding == 2 and width == 0 and self.m_header['format_version'] >= 4:
+                    length = None
                 else:
                     raise RecordingError(f'Invalid stream encoding/width: {encoding}/{width}')
                 descriptors.append((track_id, stream_index, encoding, width, length))
-                payload_bytes += length
-        audio_end = offset + payload_bytes
-        if audio_end + 4 > len(raw) or (self.m_header['format_version'] == 1 and audio_end + 4 != len(raw)):
-            raise RecordingError('Derived descriptor/payload lengths do not match block size')
         tracks = {
             track_id: [None] * len(x_stream_names[track['type']])
             for track_id, track in self.m_tracks_by_id.items()
             if selected_track_ids is None or track_id in selected_track_ids
         }
         for track_id, stream_index, encoding, width, length in descriptors:
-            if track_id in tracks:
-                coordinate = self.m_tracks_by_id[track_id]['type'] == 'panned_mono' and stream_index > 0
-                tracks[track_id][stream_index] = decode_stream(raw[offset:offset + length], frames, encoding, width, coordinate)
+            coordinate = self.m_tracks_by_id[track_id]['type'] == 'panned_mono' and stream_index > 0
+            if encoding == 2:
+                if offset + 4 > len(raw) - 4:
+                    raise RecordingError('Truncated FLAC payload length')
+                length = struct.unpack_from('<I', raw, offset)[0]
+                if length < 42 or offset + 4 + length > len(raw) - 4:
+                    raise RecordingError('FLAC payload length exceeds block bounds')
+                payload = raw[offset + 4:offset + 4 + length]
+                try:
+                    if track_id in tracks:
+                        tracks[track_id][stream_index] = decode_flac(
+                            payload, frames, self.m_header['sample_rate'], coordinate)
+                    else:
+                        validate_flac(payload, frames, self.m_header['sample_rate'])
+                except ValueError as error:
+                    raise RecordingError(str(error)) from error
+                length += 4
+            else:
+                if offset + length > len(raw) - 4:
+                    raise RecordingError('Derived descriptor/payload lengths do not match block size')
+                if track_id in tracks:
+                    tracks[track_id][stream_index] = decode_stream(raw[offset:offset + length], frames, encoding, width, coordinate)
             offset += length
+        audio_end = offset
+        if audio_end + 4 > len(raw) or (self.m_header['format_version'] == 1 and audio_end + 4 != len(raw)):
+            raise RecordingError('Derived descriptor/payload lengths do not match block size')
         for streams in tracks.values():
             for index, values in enumerate(streams):
                 if values is None:

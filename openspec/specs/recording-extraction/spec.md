@@ -6,7 +6,7 @@ Provide bounded-memory inspection and exact PCM24 WAV extraction of SmartGrid re
 ## Requirements
 
 ### Requirement: Streaming Recording Inspection
-Python tools SHALL inspect the recording header and enumerate track IDs, names, types, roles, stream semantics, sample rate, block size, timestamp, build provenance, and tap positions. Reading and extraction SHALL process bounded blocks without loading a complete recording into memory. Unsupported versions or invalid audio metadata or framing SHALL produce actionable errors. Audio extraction SHALL support v1, v2, and v3, parse header JSON without interpreting initial-patch contents, and skip v2/v3 event trailers while checking whole-block CRCs.
+Python tools SHALL inspect the recording header and enumerate track IDs, names, types, roles, stream semantics, sample rate, block size, timestamp, build provenance, and tap positions. Reading and extraction SHALL process bounded blocks without loading a complete recording into memory. Unsupported versions or invalid audio metadata or framing SHALL produce actionable errors. Audio extraction SHALL support v1 through v4, parse header JSON without interpreting initial-patch contents, and skip v2/v3/v4 event trailers while checking whole-block CRCs. FLAC v4 audio SHALL validate its byte length and structural metadata against the container even when unselected; selected streams SHALL additionally validate decoded counts, ranges, frame integrity, available MD5, and exact payload consumption. Patch-only queries SHALL skip FLAC audio without reconstructing arrays or loading a native decoder. Selected FLAC audio SHALL load libFLAC lazily and report an actionable dependency error if unavailable.
 
 #### Scenario: Inspect a long recording
 - **WHEN** the user inspects a multi-hour recording
@@ -71,7 +71,7 @@ The existing iPad recording-sync helper SHALL identify `.sgrec` by its `SMRTGRID
 
 
 ### Requirement: Patch Reconstruction at a Recording Sample
-`Reader.PatchAtSample(sample)` and `extract_recording.py patch INPUT --sample N` SHALL reconstruct a patch by copying the v2 or v3 `initial_patch` and applying recognized parameter entries with timestamps less than or equal to the requested sample. Each query SHALL start from the initial snapshot, check complete blocks through the target, and avoid decoding audio or building an index. V3 replay SHALL order all events by sample and their block-local capture order, including across event groups. V2 SHALL retain stored order for same-sample assignments and SHALL not infer missing historical events. Replay SHALL update the appropriate scene bytes in `nonagon` or `stateSaver` and keep their existing configGrid source-width/selection copies consistent. Untracked data SHALL remain unchanged unless replaced by a recorded snapshot; replay SHALL not infer missing edits or demand a whole-patch schema validator.
+`Reader.PatchAtSample(sample)` and `extract_recording.py patch INPUT --sample N` SHALL reconstruct a patch by copying the v2, v3, or v4 `initial_patch` and applying recognized parameter entries with timestamps less than or equal to the requested sample. Each query SHALL start from the initial snapshot, check complete blocks through the target, and avoid decoding audio or building an index. V3/v4 replay SHALL order all events by sample and their block-local capture order, including across event groups. V2 SHALL retain stored order for same-sample assignments and SHALL not infer missing historical events. Replay SHALL update the appropriate scene bytes in `nonagon` or `stateSaver` and keep their existing configGrid source-width/selection copies consistent. Untracked data SHALL remain unchanged unless replaced by a recorded snapshot; replay SHALL not infer missing edits or demand a whole-patch schema validator.
 
 #### Scenario: Repeated query before and after a delta
 - **WHEN** a state changes at sample 100 and queries request samples 99, 100, and then 99 again
@@ -90,7 +90,7 @@ The existing iPad recording-sync helper SHALL identify `.sgrec` by its `SMRTGRID
 #### Scenario: Query outside the captured timeline
 - **WHEN** a query specifies a negative sample, a sample past the last recorded audio frame, or a recording without an initial patch
 - **THEN** reconstruction reports an error
-- **AND** sample zero of a clean empty v2 or v3 session returns its initial patch
+- **AND** sample zero of a clean empty v2, v3, or v4 session returns its initial patch
 
 #### Scenario: Intact prefix followed by an incomplete tail
 - **WHEN** the requested sample lies within a complete CRC-valid block before an incomplete tail
@@ -112,7 +112,7 @@ The reader SHALL decode StateChange, GestureSet, BlendSet, EncoderSet, and Encod
 #### Scenario: Activation inherits a value
 - **WHEN** gesture activation copies a parent value and records that value separately
 - **THEN** replay restores both the copied value and activation
-- **AND** v3 replay honors capture order when either assignment shares a sample with a bulk patch operation
+- **AND** v3/v4 replay honors capture order when either assignment shares a sample with a bulk patch operation
 
 #### Scenario: Exact block boundary and repeated queries
 - **WHEN** mixed parameter events occur at the first sample of a new block
@@ -124,7 +124,7 @@ The reader SHALL decode StateChange, GestureSet, BlendSet, EncoderSet, and Encod
 - **AND** the real engine can load a reconstructed patch containing all five event types
 
 ### Requirement: Replay Bulk Patch Loads and Reset Snapshots
-The reader SHALL decode v3 PatchLoad (type 6, width 0, empty name) and PatchSnapshot (type 7, width 0, empty name). Each v3 entry SHALL include block-relative sample offset and capture order before its type-specific payload. PatchLoad SHALL include a boolean restoreFaders byte followed by a u32 byte length and UTF-8 patch JSON. PatchSnapshot SHALL include a u32 byte length and UTF-8 patch JSON. Both JSON payloads SHALL be objects. Truncated or malformed bulk payloads SHALL fail patch reconstruction without affecting audio-only extraction.
+The reader SHALL decode v3/v4 PatchLoad (type 6, width 0, empty name) and PatchSnapshot (type 7, width 0, empty name). Each v3/v4 entry SHALL include block-relative sample offset and capture order before its type-specific payload. PatchLoad SHALL include a boolean restoreFaders byte followed by a u32 byte length and UTF-8 patch JSON. PatchSnapshot SHALL include a u32 byte length and UTF-8 patch JSON. Both JSON payloads SHALL be objects. Truncated or malformed bulk payloads SHALL fail patch reconstruction without affecting audio-only extraction.
 
 PatchLoad SHALL apply the live engine's load semantics: missing state fields and encoder roots are preserved; supplied partial state bytes replace each started scene value with zero-fill for an incomplete final value; supplied encoder roots replace their modulators and gestures even when child arrays are omitted. Replay SHALL remove neutral normal modulators and inactive gesture leaves as the loader does. ConfigGrid sourceStereo/sourceSelected and legacy sourceMonitor SHALL override StateSaver aliases, and a present configGrid without sourceSelected SHALL clear selections. Supplied selections SHALL obey the engine's three-channel limit. Patch loads SHALL exclude sample-directory and asset changes. With restoreFaders false, both faders and blend SHALL remain unchanged. With restoreFaders true, supplied blend and a fader array of at least 16 elements SHALL load, while shorter fader arrays SHALL leave faders unchanged. PatchSnapshot SHALL replace the complete reconstructed patch before later ordered events.
 

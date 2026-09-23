@@ -447,7 +447,7 @@ class ReaderTests(unittest.TestCase):
     def test_metadata_and_allocation_limits_fail_before_payload_reads(self):
         sgrec = load_reader(self)
         variants = [
-            dict(self.m_header, format_version=4),
+            dict(self.m_header, format_version=5),
             dict(self.m_header, format_version=True),
             dict(self.m_header, git_commit_sha='short'),
             dict(self.m_header, recorded_at_utc='yesterday'),
