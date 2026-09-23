@@ -1,11 +1,13 @@
 #pragma once
 
 #include "Json.hpp"
+#include "ParamEvent.hpp"
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -256,7 +258,8 @@ struct RecordingFormat
         }
     }
 
-    static bool EncodeHeader(const Session& session, std::vector<uint8_t>& output)
+    static bool EncodeHeader(const Session& session, std::vector<uint8_t>& output,
+        JSON initialPatch = {})
     {
         if (!Validate(session) || session.m_recordedAtUtc.empty())
         {
@@ -265,7 +268,8 @@ struct RecordingFormat
 
         JsonArena arena(x_maxHeaderBytes);
         JSON header = arena.Object();
-        header.SetNew("format_version", arena.Integer(1));
+        header.SetNew("format_version", arena.Integer(2));
+        header.SetNew("initial_patch", initialPatch.IsNull() ? arena.Object() : initialPatch);
         header.SetNew("recorded_at_utc", arena.String(session.m_recordedAtUtc.c_str()));
         header.SetNew("git_commit_sha", arena.String(session.m_gitCommitSha.c_str()));
         header.SetNew("sample_rate", arena.Integer(session.m_sampleRate));
@@ -308,8 +312,185 @@ struct RecordingFormat
         return !output.empty();
     }
 
+    static const char* EventName(const ParamEvent& event)
+    {
+        return event.m_type == ParamEvent::Type::GestureSet || event.m_type == ParamEvent::Type::BlendSet
+            ? "" : event.m_name;
+    }
+
+    static bool ValidateEvent(const ParamEvent& event)
+    {
+        using Type = ParamEvent::Type;
+        const char* name = EventName(event);
+        if (name == nullptr || std::strlen(name) > UINT16_MAX)
+        {
+            return false;
+        }
+
+        if (event.m_type == Type::StateChange)
+        {
+            return name[0] != '\0' && event.m_scene >= 0 && event.m_scene < 8
+                && (event.m_valueLen == 1 || event.m_valueLen == 2
+                    || event.m_valueLen == 4 || event.m_valueLen == 8);
+        }
+
+        if (event.m_type == Type::EncoderSet || event.m_type == Type::EncoderActivate)
+        {
+            if (name[0] == '\0' || event.m_scene < 0 || event.m_scene >= 8
+                || event.m_track < 0 || event.m_track >= 16)
+            {
+                return false;
+            }
+
+            const size_t length = event.EncoderPathLength();
+            for (size_t i = 0; i < length; ++i)
+            {
+                const int hop = event.m_encoderPath[i];
+                if (!((hop >= 0 && hop < 15) || (hop >= 128 && hop < 144)))
+                {
+                    return false;
+                }
+            }
+
+            if (event.m_type == Type::EncoderActivate)
+            {
+                return length != 0 && event.m_encoderPath[length - 1] >= 128
+                    && event.m_valueLen == 1 && (event.m_value[0] == 0 || event.m_value[0] == 1);
+            }
+        }
+        else if (event.m_type == Type::GestureSet)
+        {
+            if (event.m_gesture < 0 || event.m_gesture >= 16)
+            {
+                return false;
+            }
+        }
+        else if (event.m_type != Type::BlendSet)
+        {
+            return false;
+        }
+
+        float value = 0.0f;
+        std::memcpy(&value, event.m_value, sizeof(value));
+        return event.m_valueLen == sizeof(value) && std::isfinite(value);
+    }
+
+    static bool AppendParamEvents(std::vector<uint8_t>& output, std::vector<ParamEvent> events,
+        uint64_t startFrame, uint32_t frames)
+    {
+        for (const auto& event : events)
+        {
+            if (!ValidateEvent(event) || event.m_sample < startFrame || event.m_sample - startFrame >= frames)
+            {
+                return false;
+            }
+        }
+
+        std::stable_sort(events.begin(), events.end(), [](const ParamEvent& a, const ParamEvent& b)
+        {
+            if (a.m_type != b.m_type)
+            {
+                return a.m_type < b.m_type;
+            }
+
+            const int nameOrder = std::strcmp(EventName(a), EventName(b));
+            if (nameOrder != 0)
+            {
+                return nameOrder < 0;
+            }
+
+            return a.m_sample < b.m_sample;
+        });
+        const size_t countOffset = output.size();
+        AppendLE(output, 0, 4);
+        uint32_t groups = 0;
+        for (size_t begin = 0; begin < events.size();)
+        {
+            const auto& first = events[begin];
+            size_t end = begin + 1;
+            while (end < events.size() && events[end].m_type == first.m_type
+                && std::strcmp(EventName(events[end]), EventName(first)) == 0)
+            {
+                if (events[end].m_valueLen != first.m_valueLen)
+                {
+                    return false;
+                }
+
+                ++end;
+            }
+
+            const char* name = EventName(first);
+            const size_t nameLen = std::strlen(name);
+            size_t groupBytes = 8 + nameLen;
+            for (size_t i = begin; i < end; ++i)
+            {
+                const auto& event = events[i];
+                groupBytes += 4 + event.m_valueLen;
+                if (event.m_type == ParamEvent::Type::StateChange || event.m_type == ParamEvent::Type::GestureSet)
+                {
+                    ++groupBytes;
+                }
+                else if (event.m_type == ParamEvent::Type::EncoderSet || event.m_type == ParamEvent::Type::EncoderActivate)
+                {
+                    groupBytes += 3 + event.EncoderPathLength();
+                }
+            }
+
+            if (output.size() + groupBytes + 4 > x_maxBlockBytes)
+            {
+                return false;
+            }
+
+            AppendLE(output, static_cast<uint8_t>(first.m_type), 1);
+            AppendLE(output, first.m_valueLen, 1);
+            AppendLE(output, nameLen, 2);
+            AppendLE(output, end - begin, 4);
+            output.insert(output.end(), name, name + nameLen);
+            for (size_t i = begin; i < end; ++i)
+            {
+                const auto& event = events[i];
+                AppendLE(output, event.m_sample - startFrame, 4);
+                switch (event.m_type)
+                {
+                    case ParamEvent::Type::StateChange:
+                        AppendLE(output, event.m_scene, 1);
+                        break;
+                    case ParamEvent::Type::GestureSet:
+                        AppendLE(output, event.m_gesture, 1);
+                        break;
+                    case ParamEvent::Type::EncoderSet:
+                    case ParamEvent::Type::EncoderActivate:
+                        AppendLE(output, event.m_scene, 1);
+                        AppendLE(output, event.m_track, 1);
+                        AppendLE(output, event.EncoderPathLength(), 1);
+                        for (size_t hop = 0; hop < event.EncoderPathLength(); ++hop)
+                        {
+                            AppendLE(output, event.m_encoderPath[hop], 1);
+                        }
+
+                        break;
+                    default:
+                        break;
+                }
+
+                output.insert(output.end(), event.m_value, event.m_value + event.m_valueLen);
+            }
+
+            ++groups;
+            begin = end;
+        }
+
+        for (size_t i = 0; i < 4; ++i)
+        {
+            output[countOffset + i] = static_cast<uint8_t>(groups >> (8 * i));
+        }
+
+        return true;
+    }
+
     static bool EncodeBlock(const Session& session, const int32_t* samples,
-        uint32_t frames, uint64_t startFrame, std::vector<uint8_t>& output)
+        uint32_t frames, uint64_t startFrame, std::vector<uint8_t>& output,
+        const std::vector<ParamEvent>& events = {})
     {
         if (!Validate(session) || frames == 0 || frames > session.m_blockFrames || samples == nullptr)
         {
@@ -350,7 +531,7 @@ struct RecordingFormat
         }
 
         output.clear();
-        output.insert(output.end(), {'B', 'L', 'K', '1'});
+        output.insert(output.end(), {'B', 'L', 'K', '2'});
         AppendLE(output, 0, 4);
         AppendLE(output, startFrame, 8);
         AppendLE(output, frames, 4);
@@ -396,7 +577,8 @@ struct RecordingFormat
             streamOffset += streams;
         }
 
-        if (output.size() + 4 > x_maxBlockBytes)
+        if (!AppendParamEvents(output, events, startFrame, frames)
+            || output.size() + 4 > x_maxBlockBytes)
         {
             return false;
         }

@@ -27,11 +27,12 @@ It is saved and loaded alongside Nonagon and SquiggleBoy state.
 
 ## Construction and ownership
 
-`StateSaverTemp<NumScenes>` requires a `StateManager*` and a `SmartGrid::SceneManager*` in its constructor. The manager pointers are supplied before any values are registered. The owning `TheNonagonSquiggleBoyInternal` constructs both managers before its consumers:
-
-- the Nonagon receives both managers and constructs its `ScenedStateSaver` before creating its grids;
-- the global `StateSaver` receives the state manager and a null scene manager, so `Process()` does not switch its global values between scenes;
-- the encoder system receives the same scene manager through its own constructor chain, while retaining separate encoder storage.
+`StateSaverTemp<NumScenes>` receives `SmartGridOneContext*`. The engine context
+owns `SceneManager`, `StreamingRecorder`, and `ParamEventLogger`, with the recorder
+constructed before its logger. Nonagon, the global saver, and encoders share this
+context. The single-scene saver skips scene switching in `Process()`; the
+8-scene saver responds to the shared scene manager. Encoder storage remains
+separate from StateSaver.
 
 `Insert(name, &value)` returns a `State*`. Indexed overloads use the existing JSON names `name_i` and `name_i_j`. The saver owns the allocated `State` objects and deletes them on destruction; the live values and managers remain owned by their surrounding components. Cached handles remain stable as the registration vector grows or is shuffled, and must not outlive their saver or backing values.
 
@@ -39,11 +40,23 @@ It is saved and loaded alongside Nonagon and SquiggleBoy state.
 
 ## Live edits and the state-change hook
 
-`State::Get<T>()` reads the live value. `State::Set<T>(value)` writes it immediately, then calls `StateManager::RecordStateChange(this)`. Callers must use the registered value's type; the handle stores a byte width rather than a runtime type descriptor.
+`State::Get<T>()` reads the live value. `State::Set<T>(value)` writes it immediately and stores the current scene through `SetBytes`, which calls `ParamEventLogger::RecordStateChange(this, scene)`. Callers must use the registered value's type; the handle stores a byte width rather than a runtime type descriptor.
 
-Grid controls registered with `StateSaver` use these handles, including state toggles, cycle cells, clock/reset selectors, rhythm controls, source/filter machine selectors, source routing configuration, scene selectors, and the active trio. Other booleans and read-only indicators use `RuntimeStateCell` or their specialized cells instead. Source-monitor booleans, for example, are saved separately by the config grid and do not use `StateSaver`.
+Grid controls registered with `StateSaver` use these handles, including state toggles, cycle cells, clock/reset selectors, rhythm controls, source/filter machine selectors, source routing configuration, scene selectors, and the active trio. Other booleans and read-only indicators use `RuntimeStateCell` or their specialized cells instead. Source-monitor booleans are registered as `sourceMonitor_i` in the global saver. Their toggles and config-grid resets use cached `State*` handles. New patches serialize monitors only through `stateSaver`; the config grid still imports the legacy `sourceMonitor` array through those handles.
 
-`StateManager::RecordStateChange` is currently a no-op extension point. It does not queue changes, publish notifications, or provide undo. The low-level `State::SetFromJSON`, `LoadValFromScene`, `CopyToScene`, and `RevertToDefaultForScene` methods operate directly on saved bytes and live pointers without invoking that hook. Higher-level config-grid loading and reset paths also make explicit `State::Set` calls, which do reach the hook. Scene-change flags continue to come from `SceneManager`.
+During active performance recording, `ParamEventLogger` queues the state's name,
+scene, byte width, copied **scene-buffer** value, and recording-relative sample.
+The worker groups these StateChange events in each `.sgrec` block. `SetBytes`
+is also used by scene copies and resets. `SetFromJSON` records each loaded scene;
+`LoadValFromScene` only restores the live pointer and does not emit a change.
+The registered default initializes scene zero before any scene switch; `Finalize`
+copies it to the remaining scenes. Scene-change flags come from `SceneManager`.
+
+The logger also captures fader/blend assignments and encoder value/activation
+changes through their separate storage paths. The initial patch and these typed
+deltas support sample-specific patch reconstruction; see
+[streaming recordings](streaming-recording-format.md) for the wire layout and
+remaining capture limitations. Sample-directory edits remain untracked.
 
 ## Snapshot representation
 

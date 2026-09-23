@@ -84,7 +84,8 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 - **SceneManager** — Stores scene selection (`m_scene1`, `m_scene2`) and global scene blend (`m_blendFactor`), and emits change flags used to update scene-dependent processing. See [Scene Manager](scene-manager.md).
 - **State** — Named handle to a non-encoder live value, its scene snapshots, and its registration-time default. Typed edits call the state-change hook. See [State and State Saver](state-saver.md).
 - **StateSaver** — Owns registered `State` handles, provides setup-time name lookup, and serializes/restores their global or scene-specific values. See [State and State Saver](state-saver.md).
-- **StateManager** — Constructor-supplied recipient of explicit `State::Set` calls; currently a no-op hook, separate from `SceneManager` and patch persistence. See [State and State Saver](state-saver.md).
+- **SmartGridOneContext** — Engine-owned shared context containing the scene manager, performance recorder, and parameter event logger; constructed before and kept alive through its state/encoder consumers.
+- **ParamEventLogger** — Shared-context logger for StateSaver scene bytes, fader/blend changes, and encoder value/activation events during recording, separate from scene selection and patch persistence. See [State and State Saver](state-saver.md).
 - **Deep Vocoder** — Experimental spectral quantizer: analyzes incoming audio partials and snaps sequencer note targets to strong atoms using a V-shaped magnitude threshold.
 - **SmartBusColor (ColorBus)** — Per-route LED color bus used by controller UIs. Launchpad/Twister paths write UI color state into `m_colorBus`, then MIDI writers emit device-specific LED updates.
 - **ScopeWriter** — Lock-safe multi-voice circular signal capture buffer used by oscilloscope/analyzer/melody-roll visualizers.

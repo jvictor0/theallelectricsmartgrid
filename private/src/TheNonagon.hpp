@@ -352,7 +352,7 @@ struct TheNonagonSmartGrid
     SmartGrid::GridHolder m_gridHolder;
 
     ScenedStateSaver m_stateSaver;
-    SmartGrid::SceneManager* m_sceneManager;
+    SmartGridOneContext* m_context;
 
     JSON ToJSON(JsonArena& a)
     {
@@ -1218,9 +1218,9 @@ struct TheNonagonSmartGrid
 
     SmartGrid::MessageOutBuffer* m_messageOutBuffer;
     
-    TheNonagonSmartGrid(bool isStandalone, StateManager* stateManager, SmartGrid::SceneManager* sceneManager)
-        : m_stateSaver(stateManager, sceneManager)
-        , m_sceneManager(sceneManager)
+    TheNonagonSmartGrid(bool isStandalone, SmartGridOneContext* context)
+        : m_stateSaver(context)
+        , m_context(context)
         , m_activeTrio(nullptr)
         , m_isStandalone(isStandalone)
     {
@@ -1331,7 +1331,7 @@ struct TheNonagonSmartGrid
 
     bool IsSceneActive(size_t sceneIx)
     {
-        return m_sceneManager && m_sceneManager->IsSceneActive(sceneIx);
+        return m_context->m_sceneManager.IsSceneActive(sceneIx);
     }
 
     void RevertToDefault(bool allScenes)

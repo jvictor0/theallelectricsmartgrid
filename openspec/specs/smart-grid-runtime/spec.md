@@ -126,7 +126,7 @@ The system SHALL expose pad state to UI components through `PadUI`, which binds 
 - **THEN** it sets the registered value to zero and displays the first color
 
 ### Requirement: Runtime Boolean Cells Remain Separate from Saved State
-`RuntimeStateCell` SHALL operate directly on a `bool*`, without registering a saved value or invoking the state manager. Its modes SHALL toggle the boolean on press, set true on press and false on release for momentary controls, set true for set-only controls, or leave it unchanged for show-only indicators. `GetColor()` SHALL return its on color when the boolean is true and its off color otherwise. Running, shift, noise mode, auxiliary focus, and gate indicators SHALL use this runtime path.
+`RuntimeStateCell` SHALL operate directly on a `bool*`, without registering a saved value or invoking the parameter event logger. Its modes SHALL toggle the boolean on press, set true on press and false on release for momentary controls, set true for set-only controls, or leave it unchanged for show-only indicators. `GetColor()` SHALL return its on color when the boolean is true and its off color otherwise. Running, shift, noise mode, auxiliary focus, and gate indicators SHALL use this runtime path.
 
 #### Scenario: Shift is momentary runtime state
 - **WHEN** the shift cell is pressed and released

@@ -6,7 +6,7 @@ Provide bounded-memory inspection and exact PCM24 WAV extraction of SmartGrid re
 ## Requirements
 
 ### Requirement: Streaming Recording Inspection
-Python tools SHALL inspect the recording header and enumerate track IDs, names, types, roles, stream semantics, sample rate, block size, timestamp, build provenance, and tap positions. Reading and extraction SHALL process bounded blocks without loading a complete recording into memory. Invalid versions, metadata, or records SHALL produce actionable errors.
+Python tools SHALL inspect the recording header and enumerate track IDs, names, types, roles, stream semantics, sample rate, block size, timestamp, build provenance, and tap positions. Reading and extraction SHALL process bounded blocks without loading a complete recording into memory. Unsupported versions or invalid audio metadata or framing SHALL produce actionable errors. Audio extraction SHALL support v1 and v2, parse header JSON without interpreting initial-patch contents, and skip v2 event trailers while checking whole-block CRCs.
 
 #### Scenario: Inspect a long recording
 - **WHEN** the user inspects a multi-hour recording
@@ -68,3 +68,56 @@ The existing iPad recording-sync helper SHALL identify `.sgrec` by its `SMRTGRID
 #### Scenario: Existing WAV remains supported
 - **WHEN** sync downloads a legacy multichannel RIFF/RF64 recording
 - **THEN** stereo extraction continues using the last two channels through the existing SoX path
+
+
+### Requirement: Patch Reconstruction at a Recording Sample
+`Reader.PatchAtSample(sample)` and `extract_recording.py patch INPUT --sample N` SHALL reconstruct a patch by copying the v2 `initial_patch` and applying recognized parameter entries with timestamps less than or equal to the requested sample. Each query SHALL start from the initial snapshot, check complete blocks through the target, and avoid decoding audio or building an index. Replay SHALL update the appropriate scene bytes in `nonagon` or `stateSaver` and keep their existing configGrid source-width/selection copies consistent. Untracked data SHALL retain its initial value; replay SHALL not infer missing edits or demand a whole-patch schema validator.
+
+#### Scenario: Repeated query before and after a delta
+- **WHEN** a state changes at sample 100 and queries request samples 99, 100, and then 99 again
+- **THEN** the results contain the earlier value, the changed value, and the earlier value respectively
+- **AND** the stored initial patch is unchanged
+
+#### Scenario: Multiple changes at one sample
+- **WHEN** several StateChange entries for one state and scene share the target timestamp
+- **THEN** replay applies them in stored order and retains the final value
+
+#### Scenario: Unsupported event type
+- **WHEN** a block needed for patch reconstruction contains an event type the reader does not recognize
+- **THEN** the query reports an explicit error
+- **AND** audio extraction remains independent of event types and patch schemas
+
+#### Scenario: Query outside the captured timeline
+- **WHEN** a query specifies a negative sample, a sample past the last recorded audio frame, or a recording without an initial patch
+- **THEN** reconstruction reports an error
+- **AND** sample zero of a clean empty v2 session returns its initial patch
+
+#### Scenario: Intact prefix followed by an incomplete tail
+- **WHEN** the requested sample lies within a complete CRC-valid block before an incomplete tail
+- **THEN** reconstruction returns the patch through that sample without requiring later completion
+
+#### Scenario: Reconstruct source monitoring
+- **WHEN** a recording contains `sourceMonitor_i` StateChange entries
+- **THEN** patch reconstruction applies them to the global `stateSaver` values at the requested sample
+- **AND** loading the reconstructed patch restores those monitor settings
+
+### Requirement: Replay All Five Parameter Assignment Types
+The reader SHALL decode StateChange, GestureSet, BlendSet, EncoderSet, and EncoderActivate using their type-specific payloads. GestureSet SHALL replace `faders[index]`; BlendSet SHALL replace top-level `blend`. EncoderSet SHALL replace the addressed node's `values.values[scene][track]` in patch units. EncoderActivate SHALL replace `active[scene * 16 + track]`. Traversal SHALL follow each tagged modulator/gesture hop from `squiggleBoy[root_name]`, preserving existing nodes and unrelated values. Missing nested nodes SHALL initialize neutral zero patch values with the parent's track count and inactive gestures. The root parameter SHALL already exist. Unsupported types, truncated payloads, invalid widths/indices/paths, nonfinite floats, and invalid activation bytes SHALL fail patch replay without affecting audio-only extraction.
+
+#### Scenario: Nested encoder first created after recording starts
+- **WHEN** an edit addresses a nested modulator or gesture absent from the initial patch
+- **THEN** replay creates the neutral path and applies the value or activation at the correct scene and track
+- **AND** a query before the edit retains the original patch
+
+#### Scenario: Activation inherits a value
+- **WHEN** gesture activation copies a parent value and records that value separately
+- **THEN** replay restores both the copied value and activation independently of ordering between event types
+
+#### Scenario: Exact block boundary and repeated queries
+- **WHEN** mixed parameter events occur at the first sample of a new block
+- **THEN** a query at the preceding sample excludes them, a query at the boundary includes them, and repeating either query yields the same patch
+
+#### Scenario: Seeded engine edits reconstruct saved patches
+- **WHEN** the existing seeded encoder/scene test records edits and saves patches at checkpoints
+- **THEN** Python replay through each checkpoint sample equals the complete live saved patch
+- **AND** the real engine can load a reconstructed patch containing all five event types

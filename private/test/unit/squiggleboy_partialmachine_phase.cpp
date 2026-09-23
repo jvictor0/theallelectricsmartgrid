@@ -12,9 +12,10 @@
 DOCTEST_TEST_CASE("SquiggleBoy effect returns reach unity and reverb covers the full gain curve")
 {
     GlobalEnv::ResetPerTest();
-    SmartGrid::SceneManager sceneManager;
+    SmartGridOneContext context;
+    StateSaver stateSaver(&context);
     TheoryOfTime theoryOfTime;
-    auto synth = std::make_unique<SquiggleBoyWithEncoderBank>(&sceneManager);
+    auto synth = std::make_unique<SquiggleBoyWithEncoderBank>(&context, &stateSaver);
     SquiggleBoyWithEncoderBank::Input input;
     synth->m_theoryOfTime = &theoryOfTime;
     synth->Config(input);
@@ -30,7 +31,7 @@ DOCTEST_TEST_CASE("SquiggleBoy effect returns reach unity and reverb covers the 
     auto* reverbReturn = synth->m_encoders.m_encoderBankBank.GetEncoder(static_cast<size_t>(SmartGridOneEncoders::Param::ReverbReturn));
     for (float value : {0.5f, 0.0f})
     {
-        reverbReturn->SetValueAllScenesAllTracks(value);
+        reverbReturn->SetValue(value, true, true);
         reverbReturn->SetForceUpdateRecursive();
         for (size_t frame = 0; frame < 512; ++frame)
         {
@@ -47,9 +48,10 @@ DOCTEST_TEST_CASE("SquiggleBoy partial machine azimuth offset follows pan phase"
 {
     GlobalEnv::ResetPerTest();
 
-    SmartGrid::SceneManager sceneManager;
+    SmartGridOneContext context;
+    StateSaver stateSaver(&context);
     TheoryOfTime theoryOfTime;
-    auto squiggleBoy = std::make_unique<SquiggleBoyWithEncoderBank>(&sceneManager);
+    auto squiggleBoy = std::make_unique<SquiggleBoyWithEncoderBank>(&context, &stateSaver);
     SquiggleBoyWithEncoderBank::Input input;
     AudioInputBuffer audioInput;
 

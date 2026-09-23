@@ -264,14 +264,14 @@ struct SmartGridOneEncoders
     Bank m_selectedBank;
 
     SmartGridOneEncoders(
-        SmartGrid::SceneManager* sceneManager,
+        SmartGridOneContext* context,
         size_t numTrios,
         size_t voicesPerTrio)
         : m_encoderBankBank(
             static_cast<int>(Bank::NumBanks),
             x_numBankModes,
             x_numParams,
-            sceneManager)
+            context)
         , m_selectedBank(Bank::Source)
     {
         Init(numTrios, voicesPerTrio);

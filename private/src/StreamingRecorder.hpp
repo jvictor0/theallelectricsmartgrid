@@ -4,6 +4,8 @@
 #include "CircularQueue.hpp"
 #include "AsyncLogger.hpp"
 #include "ThreadId.hpp"
+#include "ParamEvent.hpp"
+#include "SampleTimer.hpp"
 #include <cerrno>
 #include <cstdio>
 #include <ctime>
@@ -16,10 +18,11 @@ struct StreamingRecorder
 {
     static constexpr size_t x_pageFrames = 1024;
     static constexpr size_t x_queuePages = 32;
+    static constexpr size_t x_queueParamEvents = 1024;
 
     enum class State
     {
-        Idle, Starting, Recording, Stopping, Error
+        Idle, Recording, Stopping, Error
     };
 
     enum class Error
@@ -118,6 +121,10 @@ struct StreamingRecorder
     std::string m_directory;
     std::unique_ptr<Sink> m_sink;
     std::unique_ptr<Ring> m_ring;
+    std::unique_ptr<CircularQueue<ParamEvent, x_queueParamEvents>> m_paramEventsRing;
+    std::vector<ParamEvent> m_pendingParamEvents;
+    JsonArena m_patchArena;
+    JSON m_initialPatch;
     std::vector<size_t> m_trackOffsets;
     std::vector<uint8_t> m_positions;
     std::vector<float> m_staging;
@@ -126,7 +133,6 @@ struct StreamingRecorder
     std::thread m_worker;
     std::atomic<State> m_state{State::Idle};
     std::atomic<Error> m_error{Error::None};
-    std::atomic<bool> m_ready{false};
     std::atomic<bool> m_stopRequested{false};
     std::atomic<bool> m_shutdown{false};
     std::atomic<uint64_t> m_writtenFrames{0};
@@ -141,6 +147,7 @@ struct StreamingRecorder
     bool m_frameOpen = false;
     uint64_t m_acceptedFrames = 0;
     bool m_errorLogged = false;
+    size_t m_recordingStartSample = 0;
 
     ~StreamingRecorder()
     {
@@ -168,6 +175,9 @@ struct StreamingRecorder
         m_directory = std::move(directory);
         m_sink = sink ? std::move(sink) : std::make_unique<FileSink>();
         m_ring = std::make_unique<Ring>();
+        m_paramEventsRing = std::make_unique<CircularQueue<ParamEvent, x_queueParamEvents>>();
+        m_patchArena.Init(JsonArena::kDefaultCapacity);
+        m_pendingParamEvents.clear();
         const size_t streams = m_session.StreamCount();
         for (auto& page : m_ring->m_data)
         {
@@ -194,11 +204,22 @@ struct StreamingRecorder
         return true;
     }
 
-    bool Start()
+    bool CanStart() const
     {
         const State state = m_state.load();
-        if (!m_prepared || (state != State::Idle && state != State::Error))
+        return m_prepared && (state == State::Idle || state == State::Error);
+    }
+
+    bool Start(JSON initialPatch = {})
+    {
+        if (!CanStart())
         {
+            return false;
+        }
+
+        if (m_patchArena.Failed())
+        {
+            Fail(Error::InvalidConfiguration);
             return false;
         }
 
@@ -210,11 +231,12 @@ struct StreamingRecorder
         m_writtenBytes = 0;
         m_queueHighWater = 0;
         m_maxBlockMicros = 0;
-        m_ready = false;
+        m_initialPatch = initialPatch;
+        m_recordingStartSample = SampleTimer::GetSample();
         m_stopRequested = false;
         m_error = Error::None;
         m_errorLogged = false;
-        m_state = State::Starting;
+        m_state = State::Recording;
         return true;
     }
 
@@ -229,10 +251,22 @@ struct StreamingRecorder
         m_page = nullptr;
     }
 
+    void RecordParamEvent(const ParamEvent& event)
+    {
+        if (m_state != State::Recording)
+        {
+            return;
+        }
+
+        if (!m_paramEventsRing->Push(event))
+        {
+            Fail(Error::Overrun);
+        }
+    }
+
     void Stop()
     {
-        const State state = m_state.load();
-        if (state != State::Starting && state != State::Recording)
+        if (m_state != State::Recording)
         {
             return;
         }
@@ -299,11 +333,6 @@ struct StreamingRecorder
             ReportError();
             Stop();
             return false;
-        }
-
-        if (m_state == State::Starting && m_ready)
-        {
-            m_state = State::Recording;
         }
 
         m_frameOpen = m_state == State::Recording;
@@ -389,8 +418,7 @@ struct StreamingRecorder
 
     bool IsRecording() const
     {
-        const State state = GetState();
-        return state == State::Starting || state == State::Recording;
+        return GetState() == State::Recording;
     }
 
     void Shutdown()
@@ -406,17 +434,51 @@ struct StreamingRecorder
         ReportError();
     }
 
+    bool DrainParamEvents()
+    {
+        ParamEvent event{};
+        while (m_paramEventsRing->Pop(event))
+        {
+            if (m_pendingParamEvents.size() >= RecordingFormat::x_maxBlockBytes / sizeof(ParamEvent))
+            {
+                SetError(Error::Overrun);
+                return false;
+            }
+
+            m_pendingParamEvents.push_back(event);
+        }
+
+        return true;
+    }
+
     bool WriteBlock(uint32_t frames)
     {
         const auto start = std::chrono::steady_clock::now();
+        if (!DrainParamEvents())
+        {
+            return false;
+        }
+
+        const uint64_t endFrame = m_writtenFrames.load() + frames;
+        std::vector<ParamEvent> events;
+        for (const auto& event : m_pendingParamEvents)
+        {
+            if (event.m_sample < endFrame)
+            {
+                events.push_back(event);
+            }
+        }
+
         if (!RecordingFormat::EncodeBlock(m_session, m_block.data(), frames,
-                m_writtenFrames.load(), m_encoded)
+                m_writtenFrames.load(), m_encoded, events)
             || !m_sink->Write(m_encoded.data(), m_encoded.size()))
         {
             SetError(Error::Write);
             return false;
         }
 
+        m_pendingParamEvents.erase(std::remove_if(m_pendingParamEvents.begin(), m_pendingParamEvents.end(),
+            [endFrame](const ParamEvent& event) { return event.m_sample < endFrame; }), m_pendingParamEvents.end());
         m_writtenFrames += frames;
         m_writtenBytes += m_encoded.size();
         const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -454,8 +516,20 @@ struct StreamingRecorder
         {
             try
             {
-                if (!active && m_state == State::Starting)
+                if (!active)
                 {
+                    const State state = m_state.load();
+                    if (state != State::Recording && state != State::Stopping)
+                    {
+                        if (m_shutdown)
+                        {
+                            return;
+                        }
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                        continue;
+                    }
+
                     active = true;
                     blockFrames = 0;
                     const std::string path = SessionPath();
@@ -465,18 +539,25 @@ struct StreamingRecorder
                     {
                         SetError(Error::Open);
                     }
-                    else if (!RecordingFormat::EncodeHeader(m_session, m_encoded)
-                        || !m_sink->Write(m_encoded.data(), m_encoded.size()))
-                    {
-                        writable = false;
-                        SetError(Error::Write);
-                    }
                     else
                     {
-                        m_writtenBytes += m_encoded.size();
                         std::fprintf(stderr, "Recording: %s\n", path.c_str());
-                        m_ready = true;
+                        if (!RecordingFormat::EncodeHeader(m_session, m_encoded, m_initialPatch)
+                            || !m_sink->Write(m_encoded.data(), m_encoded.size()))
+                        {
+                            writable = false;
+                            SetError(Error::Write);
+                        }
+                        else
+                        {
+                            m_writtenBytes += m_encoded.size();
+                        }
                     }
+                }
+
+                if (!DrainParamEvents())
+                {
+                    writable = false;
                 }
 
                 Page* page = m_ring->PeekPtr();
@@ -553,8 +634,13 @@ struct StreamingRecorder
                     opened = false;
                     writable = false;
                     blockFrames = 0;
+                    ParamEvent discarded{};
+                    while (m_paramEventsRing->Pop(discarded))
+                    {
+                    }
+
+                    m_pendingParamEvents.clear();
                     m_stopRequested = false;
-                    m_ready = false;
                     m_state = m_error == Error::None ? State::Idle : State::Error;
                 }
 

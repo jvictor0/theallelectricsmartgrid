@@ -1,4 +1,4 @@
-"""Bounded, validating reader for version-one SmartGrid recordings.
+"""Streaming audio and sample-specific patch reader for SmartGrid recordings.
 
 The caller owns the binary input stream. Consume Reader.Blocks() through EOF to
 validate completion, and discard each block before requesting the next one to
@@ -10,7 +10,9 @@ type-ordered signed int32 arrays.
 from array import array
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import copy
 import json
+import math
 import re
 import struct
 import zlib
@@ -38,6 +40,7 @@ class Block:
     m_start_frame: int
     m_frame_count: int
     m_tracks: dict
+    m_event_data: memoryview | None = None
 
 
 def read_exact(source, count, label):
@@ -72,8 +75,8 @@ def validate_header(header):
     for field in required:
         if field not in header:
             raise RecordingError(f'Missing session field: {field}')
-    if type(header['format_version']) is not int or header['format_version'] != 1:
-        raise RecordingError('Unsupported format_version; expected 1')
+    if type(header['format_version']) is not int or header['format_version'] not in (1, 2):
+        raise RecordingError('Unsupported format_version; expected 1 or 2')
     timestamp = header['recorded_at_utc']
     if not isinstance(timestamp, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)', timestamp):
         raise RecordingError('recorded_at_utc must be an ISO 8601 UTC timestamp')
@@ -183,8 +186,9 @@ class Reader:
         except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
             raise RecordingError(f'Invalid JSON header: {error}') from error
         self.m_tracks_by_id = validate_header(self.m_header)
+        self.m_data_offset = 12 + length
 
-    def Blocks(self, track_ids=None):
+    def Blocks(self, track_ids=None, *, include_events=False):
         if self.m_started:
             raise RecordingError('The recording stream has already been consumed')
         selected_track_ids = None if track_ids is None else frozenset(track_ids)
@@ -208,9 +212,10 @@ class Reader:
                     raise RecordingError('Data follows END1 completion marker')
                 self.m_complete = True
                 return
-            if tag != b'BLK1':
+            block_tag = b'BLK1' if self.m_header['format_version'] == 1 else b'BLK2'
+            if tag != block_tag:
                 raise RecordingError(f'Unknown record tag at frame {self.m_total_frames}: {tag!r}')
-            size_bytes = read_exact(self.m_source, 4, 'BLK1 size')
+            size_bytes = read_exact(self.m_source, 4, 'block size')
             size = struct.unpack('<I', size_bytes)[0]
             if not 26 <= size <= x_max_record_bytes:
                 raise RecordingError('BLK1 size is outside the 26-byte to 64 MiB record limit')
@@ -225,7 +230,7 @@ class Reader:
                 offset += count
             del view
             self.CheckCrc(raw)
-            block = self.DecodeBlock(memoryview(raw), selected_track_ids)
+            block = self.DecodeBlock(memoryview(raw), selected_track_ids, include_events=include_events)
             self.m_total_frames += block.m_frame_count
             self.m_short_block = block.m_frame_count < self.m_header['block_frames']
             del raw
@@ -238,7 +243,7 @@ class Reader:
         if actual != expected:
             raise RecordingError(f'CRC mismatch at frame {self.m_total_frames}')
 
-    def DecodeBlock(self, raw, selected_track_ids=None):
+    def DecodeBlock(self, raw, selected_track_ids=None, *, include_events=False):
         start, frames, track_count = struct.unpack_from('<QIH', raw, 8)
         if start != self.m_total_frames:
             raise RecordingError(f'Frame discontinuity: expected {self.m_total_frames}, found {start}')
@@ -278,8 +283,9 @@ class Reader:
                     raise RecordingError(f'Invalid stream encoding/width: {encoding}/{width}')
                 descriptors.append((track_id, stream_index, encoding, width, length))
                 payload_bytes += length
-        if offset + payload_bytes + 4 != len(raw):
-            raise RecordingError('Derived descriptor/payload lengths do not match BLK1 size')
+        audio_end = offset + payload_bytes
+        if audio_end + 4 > len(raw) or (self.m_header['format_version'] == 1 and audio_end + 4 != len(raw)):
+            raise RecordingError('Derived descriptor/payload lengths do not match block size')
         tracks = {
             track_id: [None] * len(x_stream_names[track['type']])
             for track_id, track in self.m_tracks_by_id.items()
@@ -294,4 +300,179 @@ class Reader:
             for index, values in enumerate(streams):
                 if values is None:
                     streams[index] = array('i', [0]) * frames
-        return Block(start, frames, {track_id: tuple(streams) for track_id, streams in tracks.items()})
+        events = raw[audio_end:-4] if include_events and self.m_header['format_version'] == 2 else None
+        return Block(start, frames, {track_id: tuple(streams) for track_id, streams in tracks.items()}, events)
+
+    def PatchAtSample(self, sample):
+        """Replay tracked edits through sample (inclusive) from the initial patch.
+
+        Each query seeks to the recording's first block. It validates whole
+        blocks through the target, without decoding audio or reading the tail.
+        """
+        if type(sample) is not int or sample < 0:
+            raise RecordingError('Patch sample must be a nonnegative integer')
+        initial = self.m_header.get('initial_patch')
+        if self.m_header['format_version'] != 2 or not isinstance(initial, dict):
+            raise RecordingError('Recording has no initial patch for reconstruction')
+        patch = copy.deepcopy(initial)
+        self.m_source.seek(self.m_data_offset)
+        self.m_total_frames = 0
+        self.m_complete = False
+        self.m_started = False
+        self.m_short_block = False
+        for block in self.Blocks((), include_events=True):
+            for event in param_events(block):
+                if event.m_sample <= sample:
+                    apply_param_event(patch, event)
+            if sample < block.m_start_frame + block.m_frame_count:
+                return patch
+        if sample == 0 and self.m_total_frames == 0:
+            return patch
+        raise RecordingError(f'Patch sample {sample} is outside the recording ({self.m_total_frames} frames)')
+
+
+@dataclass
+class ParamEvent:
+    m_type: int
+    m_name: str
+    m_sample: int
+    m_value: bytes | float | bool
+    m_scene: int = 0
+    m_track: int = 0
+    m_gesture: int = 0
+    m_path: tuple = ()
+
+
+def param_events(block):
+    """Decode only the fields used by each event type, when replay needs them."""
+    data = block.m_event_data
+    offset = 0
+
+    def fields(fmt):
+        nonlocal offset
+        size = struct.calcsize(fmt)
+        if data is None or offset + size > len(data):
+            raise RecordingError('Truncated event section')
+        result = struct.unpack_from(fmt, data, offset)
+        offset += size
+        return result
+
+    group_count, = fields('<I')
+    for _ in range(group_count):
+        event_type, width, name_length, count = fields('<BBHI')
+        if event_type not in (1, 2, 3, 4, 5):
+            raise RecordingError(f'Unsupported patch event type: {event_type}')
+        if ((event_type == 1 and width not in (1, 2, 4, 8))
+                or (event_type in (2, 3, 4) and width != 4)
+                or (event_type == 5 and width != 1)):
+            raise RecordingError('Invalid event value width')
+        if bool(name_length) != (event_type in (1, 4, 5)):
+            raise RecordingError('Invalid event name length')
+        try:
+            name = fields(f'<{name_length}s')[0].decode('utf-8')
+        except UnicodeDecodeError as error:
+            raise RecordingError('Invalid event name') from error
+        for _ in range(count):
+            sample_offset, = fields('<I')
+            if sample_offset >= block.m_frame_count:
+                raise RecordingError('Event sample lies outside its block')
+            event = ParamEvent(event_type, name, block.m_start_frame + sample_offset, b'')
+            if event_type == 1:
+                event.m_scene, = fields('<B')
+            elif event_type == 2:
+                event.m_gesture, = fields('<B')
+                if event.m_gesture >= 16:
+                    raise RecordingError('Invalid gesture index')
+            elif event_type in (4, 5):
+                event.m_scene, event.m_track, path_length = fields('<BBB')
+                if event.m_track >= 16 or path_length > 16:
+                    raise RecordingError('Invalid encoder track or path length')
+                event.m_path = fields(f'<{path_length}B')
+                if any(not (hop < 15 or 128 <= hop < 144) for hop in event.m_path):
+                    raise RecordingError('Invalid encoder path')
+            if event.m_scene >= 8:
+                raise RecordingError('Invalid event scene')
+            if event_type == 1:
+                event.m_value, = fields(f'<{width}s')
+            elif event_type == 5:
+                active, = fields('<B')
+                if active > 1 or not event.m_path or event.m_path[-1] < 128:
+                    raise RecordingError('Invalid encoder activation')
+                event.m_value = bool(active)
+            else:
+                event.m_value, = fields('<f')
+                if not math.isfinite(event.m_value):
+                    raise RecordingError('Invalid parameter value')
+            yield event
+    if offset != len(data):
+        raise RecordingError('Trailing bytes in event section')
+
+
+def apply_param_event(patch, event):
+    if event.m_type == 1:
+        apply_state_change(patch, event.m_name, event.m_scene, event.m_value)
+    elif event.m_type == 2:
+        try:
+            patch['faders'][event.m_gesture] = event.m_value
+        except (KeyError, IndexError, TypeError) as error:
+            raise RecordingError('Cannot locate patch fader') from error
+    elif event.m_type == 3:
+        patch['blend'] = event.m_value
+    else:
+        apply_encoder_event(patch, event)
+
+
+def apply_encoder_event(patch, event):
+    try:
+        node = patch['squiggleBoy'][event.m_name]
+        for hop in event.m_path:
+            gesture = hop >= 128
+            key, size = ('gestures', 16) if gesture else ('modulators', 15)
+            index = hop & 0x7f
+            children = node.setdefault(key, [None] * size)
+            if children[index] is None:
+                # New depths and inactive gestures start neutral in patch units.
+                #
+                track_count = len(node['values']['values'][0])
+                child = {'values': {'values': [[0.0] * track_count for _ in range(8)]}}
+                if gesture:
+                    child['active'] = [False] * 128
+                children[index] = child
+            node = children[index]
+        if event.m_type == 4:
+            node['values']['values'][event.m_scene][event.m_track] = event.m_value
+        else:
+            node['active'][event.m_scene * 16 + event.m_track] = event.m_value
+    except (KeyError, IndexError, TypeError, AttributeError) as error:
+        raise RecordingError(f'Cannot update patch encoder: {event.m_name}') from error
+
+
+def apply_state_change(patch, name, scene, value):
+    width = len(value)
+    if width not in (1, 2, 4, 8) or scene >= 8:
+        raise RecordingError('Invalid StateChange width or scene')
+    matches = [(section, patch[section][name]) for section in ('nonagon', 'stateSaver')
+               if isinstance(patch.get(section), dict) and name in patch[section]]
+    if len(matches) != 1:
+        raise RecordingError(f'Cannot locate unique patch state: {name}')
+    section, values = matches[0]
+    start = scene * width
+    if not isinstance(values, list) or start + width > len(values):
+        raise RecordingError(f'StateChange exceeds patch state: {name}')
+    values[start:start + width] = [byte if byte < 128 else byte - 256 for byte in value]
+
+    # These two StateSaver fields also have a configGrid representation, which
+    # the existing patch loader applies after StateSaver.
+    #
+    config = patch.get('configGrid')
+    if section != 'stateSaver' or not isinstance(config, dict):
+        return
+    stereo = re.fullmatch(r'sourceWidth_(\d+)', name)
+    selected = re.fullmatch(r'sourceSelected_(\d+)_(\d+)', name)
+    try:
+        if stereo and 'sourceStereo' in config:
+            config['sourceStereo'][int(stereo[1])] = int.from_bytes(value, 'little') != 0
+        elif selected and 'sourceSelected' in config:
+            config['sourceSelected'][int(selected[1])][int(selected[2])] = bool(value[0])
+    except (IndexError, KeyError, TypeError) as error:
+        raise RecordingError(f'Cannot update configGrid copy of {name}') from error

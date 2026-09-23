@@ -22,13 +22,7 @@ struct TheNonagonSquiggleBoyInternal
         External
     };
 
-    // Centralized scene manager - source of truth for scene state and shift
-    //
-    SmartGrid::SceneManager m_sceneManager;
-
-    // Centralized state manager - must be updated for all state changes
-    //
-    StateManager m_stateManager;
+    SmartGridOneContext m_context;
 
     // Running state (not part of scene management)
     //
@@ -42,6 +36,7 @@ struct TheNonagonSquiggleBoyInternal
     SquiggleBoyConfigGrid m_configGrid;
 
     SquiggleBoyWithEncoderBank m_squiggleBoy;
+
     struct UIState
     {
         SquiggleBoyWithEncoderBank::UIState m_squiggleBoyUIState;
@@ -78,6 +73,11 @@ struct TheNonagonSquiggleBoyInternal
     ClockMode m_clockMode;
     ExternalClockSync m_clockSynchronizer;
     bool m_clockTick;
+
+    ~TheNonagonSquiggleBoyInternal()
+    {
+        ShutdownRecording();
+    }
 
     static int ExternalClockLoopIndexFromSwitch(int switchVal)
     {
@@ -123,6 +123,30 @@ struct TheNonagonSquiggleBoyInternal
         return m_squiggleBoy.PrepareRecording();
     }
 
+    bool StartRecording()
+    {
+        StreamingRecorder& recorder = m_context.m_recorder;
+        if (!recorder.CanStart())
+        {
+            return false;
+        }
+
+        recorder.m_patchArena.Reset();
+        return m_squiggleBoy.StartRecording(ToJSON(recorder.m_patchArena));
+    }
+
+    void ToggleRecording()
+    {
+        if (m_squiggleBoy.IsRecording())
+        {
+            m_squiggleBoy.m_mixer.StopRecording();
+        }
+        else
+        {
+            StartRecording();
+        }
+    }
+
     void ShutdownRecording()
     {
         m_squiggleBoy.ShutdownRecording();
@@ -136,6 +160,7 @@ struct TheNonagonSquiggleBoyInternal
         rootJ.SetNew("stateSaver", m_stateSaver.ToJSON(a));
         rootJ.SetNew("configGrid", m_configGrid.ToJSON(a));
         rootJ.SetNew("faders", FadersToJSON(a));
+        rootJ.SetNew("blend", a.Real(m_context.m_sceneManager.m_blendFactor));
         return rootJ;
     }
 
@@ -165,6 +190,12 @@ struct TheNonagonSquiggleBoyInternal
 
     void FromJSON(JSON rootJ, bool restoreFaders)
     {
+        JSON blendJ = rootJ.Get("blend");
+        if (!blendJ.IsNull() && restoreFaders)
+        {
+            SetBlendFactor(static_cast<float>(blendJ.NumberValue()));
+        }
+
         JSON nonagonJ = rootJ.Get("nonagon");
         if (!nonagonJ.IsNull())
         {
@@ -228,7 +259,7 @@ struct TheNonagonSquiggleBoyInternal
 
     void SetBlendFactor(float blendFactor)
     {
-        m_sceneManager.m_blendFactor = blendFactor;
+        m_context.m_sceneManager.m_blendFactor = blendFactor;
     }
 
     void SetActiveTrio(TheNonagonSmartGrid::Trio trio)
@@ -241,11 +272,13 @@ struct TheNonagonSquiggleBoyInternal
     {
         if (msg.m_x == 0)
         {
-            m_sceneManager.m_blendFactor = msg.AmountFloat();
+            m_context.m_sceneManager.m_blendFactor = msg.AmountFloat();
+            m_context.m_paramEventLogger.RecordBlendChange(msg.AmountFloat());
         }
         else
         {
             m_squiggleBoyState.m_faders[msg.m_x - 1] = msg.AmountFloat();
+            m_context.m_paramEventLogger.RecordFaderChange(msg.m_x - 1, msg.AmountFloat());
         }
     }
 
@@ -330,7 +363,7 @@ struct TheNonagonSquiggleBoyInternal
 
     void SetNonagonInputs()
     {
-        m_nonagon.m_state.m_shift = m_sceneManager.m_shift;
+        m_nonagon.m_state.m_shift = m_context.m_sceneManager.m_shift;
 
         TheoryOfTime::Input& theoryOfTimeInput = m_nonagon.m_state.m_theoryOfTimeInput;
         
@@ -416,7 +449,7 @@ struct TheNonagonSquiggleBoyInternal
     {
         // Process scene manager first to set changed flags
         //
-        m_sceneManager.Process();
+        m_context.m_sceneManager.Process();
 
         // Process state saver with scene manager state
         //
@@ -469,7 +502,7 @@ struct TheNonagonSquiggleBoyInternal
             m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetMainIndicatorColor(SmartGrid::Color::White);
         }
 
-        m_uiState.m_analogUIState.SetValue(0, m_sceneManager.m_blendFactor);
+        m_uiState.m_analogUIState.SetValue(0, m_context.m_sceneManager.m_blendFactor);
         for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
         {
             m_uiState.m_analogUIState.SetValue(i + 1, m_squiggleBoyState.m_faders[i]);
@@ -484,22 +517,21 @@ struct TheNonagonSquiggleBoyInternal
 
     TheNonagonSquiggleBoyInternal()
         : m_running(false)
-        , m_stateSaver(&m_stateManager, nullptr)
+        , m_stateSaver(&m_context)
         , m_sceneStateLeft(nullptr)
         , m_sceneStateRight(nullptr)
         , m_activeTrioState(nullptr)
-        , m_squiggleBoy(&m_sceneManager)
-        , m_nonagon(false, &m_stateManager, &m_sceneManager)
+        , m_squiggleBoy(&m_context, &m_stateSaver)
+        , m_nonagon(false, &m_context)
         , m_activeTrio(TheNonagonSmartGrid::Trio::Fire)
         , m_timer(0)
         , m_clockMode(ClockMode::Internal)
         , m_clockTick(false)
     {
-        m_squiggleBoy.m_stateSaver = &m_stateSaver;
         m_nonagon.m_activeTrio = &m_activeTrio;
         m_configGrid.Init(&m_squiggleBoy, &m_activeTrio, &m_uiState.m_squiggleBoyUIState);
-        m_sceneStateLeft = m_stateSaver.Insert("sceneStateLeft", &m_sceneManager.m_scene1);
-        m_sceneStateRight = m_stateSaver.Insert("sceneStateRight", &m_sceneManager.m_scene2);
+        m_sceneStateLeft = m_stateSaver.Insert("sceneStateLeft", &m_context.m_sceneManager.m_scene1);
+        m_sceneStateRight = m_stateSaver.Insert("sceneStateRight", &m_context.m_sceneManager.m_scene2);
         m_activeTrioState = m_stateSaver.Insert("activeTrio", &m_activeTrio);
         m_nonagon.RemoveGridIds();
         m_squiggleBoy.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
@@ -551,13 +583,13 @@ struct TheNonagonSquiggleBoyInternal
 
     void HandleScenePress(int scene)
     {
-        if (m_sceneManager.m_shift)
+        if (m_context.m_sceneManager.m_shift)
         {
             CopyToScene(scene);
         }
         else
         {
-            if (m_sceneManager.m_blendFactor < 0.5)
+            if (m_context.m_sceneManager.m_blendFactor < 0.5)
             {
                 SetRightScene(scene);
             }
@@ -581,13 +613,13 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual SmartGrid::Color GetColor() override
         {
-            if (static_cast<int>(m_owner->m_sceneManager.m_scene1) == m_scene)
+            if (static_cast<int>(m_owner->m_context.m_sceneManager.m_scene1) == m_scene)
             {
-                return SmartGrid::Color::Orange.AdjustBrightness(0.5 + 0.5 * (1.0 - m_owner->m_sceneManager.m_blendFactor));
+                return SmartGrid::Color::Orange.AdjustBrightness(0.5 + 0.5 * (1.0 - m_owner->m_context.m_sceneManager.m_blendFactor));
             }
-            else if (static_cast<int>(m_owner->m_sceneManager.m_scene2) == m_scene)
+            else if (static_cast<int>(m_owner->m_context.m_sceneManager.m_scene2) == m_scene)
             {
-                return SmartGrid::Color::SeaGreen.AdjustBrightness(0.5 + 0.5 * m_owner->m_sceneManager.m_blendFactor);
+                return SmartGrid::Color::SeaGreen.AdjustBrightness(0.5 + 0.5 * m_owner->m_context.m_sceneManager.m_blendFactor);
             }
 
             return SmartGrid::Color::Grey;
@@ -624,7 +656,7 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual void OnPress(uint8_t velocity) override
         {
-            if (m_owner->m_sceneManager.m_shift)
+            if (m_owner->m_context.m_sceneManager.m_shift)
             {
                 m_owner->ClearGesture(m_gesture);
             }
@@ -643,7 +675,7 @@ struct TheNonagonSquiggleBoyInternal
         return new SmartGrid::RuntimeStateCell(
                 SmartGrid::Color::White /*onColor*/,
                 SmartGrid::Color::White.Dim() /*offColor*/,
-                &m_sceneManager.m_shift,
+                &m_context.m_sceneManager.m_shift,
                 SmartGrid::RuntimeStateCell::Mode::Momentary);
     }
 
@@ -702,7 +734,7 @@ struct TheNonagonSquiggleBoyInternal
 
         virtual void OnPress(uint8_t velocity) override
         {
-            m_owner->m_squiggleBoy.ToggleRecording();
+            m_owner->ToggleRecording();
             m_owner->m_timer = 0;
         }
     };

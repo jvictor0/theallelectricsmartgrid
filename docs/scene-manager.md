@@ -27,16 +27,9 @@ Consumers (notably encoder-bank processing) use these flags to refresh topology/
 
 ## Ownership and saved selectors
 
-`TheNonagonSquiggleBoyInternal` owns the scene manager and constructs the Nonagon and SquiggleBoy encoder system with its pointer. Consumers receive it before registering state or constructing encoder cells.
+`TheNonagonSquiggleBoyInternal` owns `SmartGridOneContext` and passes its pointer to the Nonagon, StateSaver, and SquiggleBoy encoder system. The context supplies the scene manager and parameter event logger before consumers register state or construct encoder cells.
 
-The left/right scene indices and active trio are registered with the global single-scene `StateSaver`. Their controller setters write through cached `State*` handles. The blend factor and shift flag remain direct runtime fields. `StateManager` is a separate hook for explicit saved-value edits; it does not replace `SceneManager::Process()` or its change flags.
-
-## Cell registration
-
-`SceneManager` can track registered stateful cells (`StateEncoderCell`) through `RegisterCell(...)`.
-
-- Registration is enabled when external-state mode is active (`m_externalState`).
-- This provides a central place for scene-aware state propagation.
+The left/right scene indices and active trio are registered with the global single-scene `StateSaver`. Their controller setters write through cached `State*` handles. The blend factor and shift flag remain runtime fields. Patch JSON now includes `blend`; fader/blend input messages emit typed parameter events. `SmartGridOneContext` owns the scene manager, recorder, and `ParamEventLogger`. The logger is a separate hook for saved-value edits; it does not replace `SceneManager::Process()` or its change flags.
 
 ## Related
 

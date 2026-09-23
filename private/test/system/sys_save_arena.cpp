@@ -18,8 +18,8 @@
 // ---------------------------------------------------------------------------
 namespace
 {
-std::atomic<long> g_allocCount{0};
-std::atomic<bool> g_countAllocs{false};
+thread_local std::atomic<long> g_allocCount{0};
+thread_local std::atomic<bool> g_countAllocs{false};
 }
 
 void* operator new(std::size_t n)
@@ -167,4 +167,43 @@ DOCTEST_TEST_CASE("sys_save_arena: undersized arena retries with doubling until 
     JsonArena parse(JsonArena::kDefaultCapacity);
     JSON root = parse.Loads(json.c_str());
     RequireFourSections(root);
+}
+
+DOCTEST_TEST_CASE("sys_save_arena: recording snapshot and all parameter types allocate no heap on audio")
+{
+    synthrig::SynthRig rig;
+    Populate(rig);
+    const auto directory = std::filesystem::temp_directory_path()
+        / ("smartgrid-snapshot-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(directory);
+    DOCTEST_REQUIRE(rig.PrepareRecording(directory.string()));
+    StreamingRecorder& recorder = rig.Internal().m_context.m_recorder;
+    State* mute = rig.Internal().m_nonagon.m_stateSaver.Get("Mute", 0);
+    auto* encoder = rig.Internal().m_squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(0);
+    encoder->m_modulators.AddGesture(encoder, 0);
+    auto* gesture = encoder->m_modulators.m_gestures[0].get();
+    g_allocCount = 0;
+    const auto begin = std::chrono::steady_clock::now();
+    g_countAllocs = true;
+    const bool started = rig.Internal().StartRecording();
+    mute->Set(true);
+    rig.Internal().HandleParamSet({SmartGrid::MessageIn::Mode::ParamSet14, 0, 0, 8192});
+    rig.Internal().HandleParamSet({SmartGrid::MessageIn::Mode::ParamSet14, 1, 0, 4096});
+    encoder->SetAndRecordValue(0.25f, 0, 0);
+    gesture->SetActive(true);
+    recorder.BeginFrame();
+    recorder.CommitFrame();
+    g_countAllocs = false;
+    const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - begin).count();
+    const long captureAllocations = g_allocCount.load();
+    DOCTEST_REQUIRE(started);
+    DOCTEST_CHECK_FALSE(rig.SavePatch().empty());
+    DOCTEST_CHECK(recorder.m_initialPatch.Get("nonagon").Get("Mute_0").GetAt(0).IntegerValue() == 0);
+    recorder.Stop();
+    recorder.Shutdown();
+    DOCTEST_CHECK(captureAllocations == 0);
+    DOCTEST_CHECK(recorder.GetError() == StreamingRecorder::Error::None);
+    DOCTEST_MESSAGE("recording snapshot and first capture: " << micros << " us; arena bytes: " << recorder.m_patchArena.m_off);
+    std::filesystem::remove_all(directory);
 }

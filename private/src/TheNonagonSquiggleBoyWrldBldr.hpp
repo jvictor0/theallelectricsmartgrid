@@ -214,7 +214,7 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             virtual void OnPress(uint8_t velocity) override
             {
-                if (m_owner->m_internal->m_sceneManager.m_shift)
+                if (m_owner->m_internal->m_context.m_sceneManager.m_shift)
                 {
                     m_owner->m_internal->ClearGesture(m_gesture);
                 }

@@ -26,3 +26,41 @@ the single-value encoding tie. END1 declares nine frames.
 C++ tests can compare independently encoded records with `record_hex`. Python
 tests compare each decoded sample with the explicit arrays and can apply those
 same expectations to a C++-written recording.
+
+## Parameter-event regression fixtures
+
+V2 tests keep independent expected bytes in `streaming_recording_format.cpp` and
+`test_sgrec.py`. They cover all five event types, irrelevant-field omission,
+nested gesture/modulator paths, malformed payloads, repeated values, and sample
+boundaries. Audio extraction tests deliberately ignore malformed event semantics.
+
+The real-engine test records all five types across a four-frame block boundary.
+The existing seeded `sys_patch_roundtrip` test now runs with recording enabled
+and can export its two complete live-patch checkpoints for Python comparison.
+Generated recordings stay in temporary directories; no sample assets or
+sample-recording directories are added to version control.
+
+Run the cross-language checks with an already configured CMake test build:
+
+```sh
+cmake --build /tmp/smartgrid-recording-v2-build -j 4
+SMARTGRID_STATE_RECORDING_FIXTURE=/tmp/parameter-events.sgrec \
+SMARTGRID_RANDOM_PARAM_FIXTURE=/tmp/random-parameters.sgrec \
+SMARTGRID_RECORDING_FIXTURE_OUTPUT=/tmp/mixer-recording.sgrec \
+  /tmp/smartgrid-recording-v2-build/smartgrid_tests \
+  --test-case='recording engine:*,sys_patch_roundtrip: seeded*,recording mixer:*'
+SMARTGRID_STATE_RECORDING_FIXTURE=/tmp/parameter-events.sgrec \
+SMARTGRID_RANDOM_PARAM_FIXTURE=/tmp/random-parameters.sgrec \
+SMARTGRID_RECORDING_FIXTURE_OUTPUT=/tmp/mixer-recording.sgrec \
+  python3 -m unittest discover -s scripts/tests -p test_sgrec.py
+python3 scripts/extract_recording.py patch /tmp/parameter-events.sgrec \
+  --sample 3 -o /tmp/reconstructed-parameters.json
+SMARTGRID_RECONSTRUCTED_PATCH=/tmp/reconstructed-parameters.json \
+  /tmp/smartgrid-recording-v2-build/smartgrid_tests \
+  --test-case='recording engine: reconstructed*'
+```
+
+Choose a fresh JSON output path when repeating the command: patch extraction
+refuses to overwrite an existing file. The Python suite skips the C++ fixture
+checks when their environment variables are absent. The C++ seeded test always
+records and checks successful completion even without exporting a fixture.

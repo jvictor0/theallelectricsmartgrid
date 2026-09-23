@@ -197,7 +197,8 @@ public:
 
         for (std::size_t i = 0; i < n; ++i)
         {
-            if (SampleTimer::IncrementSample())
+            const bool controlFrame = SampleTimer::IncrementSample();
+            if (controlFrame)
             {
                 m_quad->ProcessFrame();
                 m_internal->ProcessFrame();
@@ -322,8 +323,8 @@ public:
     // realest path and what WithShift() drives. SetShift() flips the same flag
     // directly for convenience when you don't want to spend frames on pad taps.
     //
-    void SetShift(bool on) { m_internal->m_sceneManager.m_shift = on; }
-    bool GetShift() const  { return m_internal->m_sceneManager.m_shift; }
+    void SetShift(bool on) { m_internal->m_context.m_sceneManager.m_shift = on; }
+    bool GetShift() const  { return m_internal->m_context.m_sceneManager.m_shift; }
 
     // Run fn() with the shift pad physically held, then release it. The shift pad
     // press is applied (a frame is run) before fn so cells see shift as held.
@@ -583,9 +584,9 @@ public:
 
     // Blend / scene observables.
     //
-    float Blend() const { return m_internal->m_sceneManager.m_blendFactor; }
-    int LeftScene() const  { return static_cast<int>(m_internal->m_sceneManager.m_scene1); }
-    int RightScene() const { return static_cast<int>(m_internal->m_sceneManager.m_scene2); }
+    float Blend() const { return m_internal->m_context.m_sceneManager.m_blendFactor; }
+    int LeftScene() const  { return static_cast<int>(m_internal->m_context.m_sceneManager.m_scene1); }
+    int RightScene() const { return static_cast<int>(m_internal->m_context.m_sceneManager.m_scene2); }
 
     // ---- Direct internal access for targeted probes ------------------------
     //

@@ -3,7 +3,7 @@
 #include "QuadUtils.hpp"
 #include "DelayLine.hpp"
 #include "QuadLFO.hpp"
-#include "StreamingRecorder.hpp"
+#include "SmartGridOneContext.hpp"
 #include "Noise.hpp"
 #include "QuadMasterChain.hpp"
 #include "QuadToStereoMixdown.hpp"
@@ -18,7 +18,7 @@ struct QuadMixerInternal
 
     QuadFloatWithStereoAndSub m_output;
     QuadFloat m_send[x_numSends];
-    StreamingRecorder m_recorder;
+    StreamingRecorder* m_recorder;
     std::string m_recordingDirectory;
     size_t m_recordingNumInputs = 0;
     size_t m_recordingNumMonoInputs = 0;
@@ -35,7 +35,8 @@ struct QuadMixerInternal
     DualMasteringChain m_masterChain;
     QuadToStereoMixdown m_quadToStereoMixdown;
 
-    QuadMixerInternal()
+    QuadMixerInternal(SmartGridOneContext* context)
+        : m_recorder(&context->m_recorder)
     {
     }
     
@@ -154,56 +155,44 @@ struct QuadMixerInternal
         m_recordingNumInputs = numInputs;
         m_recordingNumMonoInputs = numMonoInputs;
         m_recordingFrameActive = false;
-        return m_recorder.Prepare(MakeRecordingSession(numInputs, numMonoInputs, sampleRate), m_recordingDirectory);
+        return m_recorder->Prepare(MakeRecordingSession(numInputs, numMonoInputs, sampleRate), m_recordingDirectory);
     }
 
     void ShutdownRecording()
     {
-        m_recorder.Shutdown();
+        m_recorder->Shutdown();
         m_recordingFrameActive = false;
     }
 
     bool IsRecording() const
     {
-        return m_recorder.IsRecording();
+        return m_recorder->IsRecording();
     }
 
     StreamingRecorder::State GetRecordingState() const
     {
-        return m_recorder.GetState();
+        return m_recorder->GetState();
     }
 
     StreamingRecorder::Error GetRecordingError() const
     {
-        return m_recorder.GetError();
+        return m_recorder->GetError();
     }
 
-    void StartRecording(size_t numInputs, uint32_t sampleRate)
+    bool StartRecording(size_t numInputs, uint32_t sampleRate, JSON initialPatch = {})
     {
-        if (numInputs != m_recordingNumInputs || sampleRate != m_recorder.m_session.m_sampleRate)
+        if (numInputs != m_recordingNumInputs || sampleRate != m_recorder->m_session.m_sampleRate)
         {
-            m_recorder.Fail(StreamingRecorder::Error::InvalidConfiguration);
-            return;
+            m_recorder->Fail(StreamingRecorder::Error::InvalidConfiguration);
+            return false;
         }
 
-        m_recorder.Start();
+        return m_recorder->Start(initialPatch);
     }
 
     void StopRecording()
     {
-        m_recorder.Stop();
-    }
-
-    void ToggleRecording(size_t numInputs, uint32_t sampleRate)
-    {
-        if (IsRecording())
-        {
-            StopRecording();
-        }
-        else
-        {
-            StartRecording(numInputs, sampleRate);
-        }
+        m_recorder->Stop();
     }
 
     bool RecordingLayoutMatches(const Input& input) const
@@ -216,10 +205,10 @@ struct QuadMixerInternal
     {
         if (IsRecording() && !RecordingLayoutMatches(input))
         {
-            m_recorder.Fail(StreamingRecorder::Error::InvalidConfiguration);
+            m_recorder->Fail(StreamingRecorder::Error::InvalidConfiguration);
         }
 
-        m_recordingFrameActive = m_recorder.BeginFrame();
+        m_recordingFrameActive = m_recorder->BeginFrame();
         m_output.m_output = QuadFloat();
         m_quadToStereoMixdown.Clear();
         for (size_t i = 0; i < x_numSends; ++i)
@@ -274,11 +263,11 @@ struct QuadMixerInternal
                     };
 
 
-                    m_recorder.Submit(i, panned, 3);
+                    m_recorder->Submit(i, panned, 3);
                     if (i < input.m_numMonoInputs)
                     {
                         const float monoSample = input.m_monoIn[i] * reduction;
-                        m_recorder.Submit(m_recordingNumInputs + i, &monoSample, 1);
+                        m_recorder->Submit(m_recordingNumInputs + i, &monoSample, 1);
                     }
                 }
             }
@@ -291,7 +280,7 @@ struct QuadMixerInternal
     {
         if (m_recordingFrameActive && !RecordingLayoutMatches(input))
         {
-            m_recorder.Fail(StreamingRecorder::Error::InvalidConfiguration);
+            m_recorder->Fail(StreamingRecorder::Error::InvalidConfiguration);
             m_recordingFrameActive = false;
         }
 
@@ -306,7 +295,7 @@ struct QuadMixerInternal
 
                 if (m_recordingFrameActive)
                 {
-                    m_recorder.Submit(m_recordingNumInputs + m_recordingNumMonoInputs + j, postReturn.m_values, 4);
+                    m_recorder->Submit(m_recordingNumInputs + m_recordingNumMonoInputs + j, postReturn.m_values, 4);
                 }
             }
         }
@@ -316,9 +305,9 @@ struct QuadMixerInternal
         if (m_recordingFrameActive)
         {
             const size_t masterTrack = m_recordingNumInputs + m_recordingNumMonoInputs + x_numSends;
-            m_recorder.Submit(masterTrack, m_output.m_output.m_values, 4);
-            m_recorder.Submit(masterTrack + 1, m_output.m_stereoOutput.m_values, 2);
-            m_recorder.CommitFrame();
+            m_recorder->Submit(masterTrack, m_output.m_output.m_values, 4);
+            m_recorder->Submit(masterTrack + 1, m_output.m_stereoOutput.m_values, 2);
+            m_recorder->CommitFrame();
         }
         
         m_masterMeter.Process(m_output.m_output);

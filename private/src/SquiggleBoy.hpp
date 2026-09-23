@@ -637,8 +637,9 @@ struct SquiggleBoy
 
     RecordingManager m_recordingManager;
 
-    SquiggleBoy()
-        : m_stateSaver(nullptr)
+    SquiggleBoy(SmartGridOneContext* context, StateSaver* stateSaver)
+        : m_mixer(context)
+        , m_stateSaver(stateSaver)
         , m_ioTaskThread(nullptr)
     {
         m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numOutputChannels;
@@ -694,9 +695,10 @@ struct SquiggleBoy
         m_mixer.ShutdownRecording();
     }
 
-    void ToggleRecording()
+    bool StartRecording(JSON initialPatch)
     {
-        m_mixer.ToggleRecording(m_mixerState.m_numInputs, static_cast<uint32_t>(SampleTimer::x_sampleRate));
+        return m_mixer.StartRecording(m_mixerState.m_numInputs,
+            static_cast<uint32_t>(SampleTimer::x_sampleRate), initialPatch);
     }
 
     void SetRecordingDirectory(const std::string& directory)
@@ -937,7 +939,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     SmartGridOneEncoders m_encoders;
     BitSet16 m_selectedGesture;
-    SmartGrid::SceneManager* m_sceneManager;
+    SmartGridOneContext* m_context;
 
     struct UIState
     {
@@ -1389,7 +1391,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SelectEncoderBank(Bank bank)
     {
-        if (m_sceneManager && m_sceneManager->m_shift)
+        if (m_context->m_sceneManager.m_shift)
         {
             ResetBank(bank);
         }
@@ -1453,12 +1455,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
     }
 
-    SquiggleBoyWithEncoderBank(SmartGrid::SceneManager* sceneManager)
-        : m_encoders(
-            sceneManager,
+    SquiggleBoyWithEncoderBank(SmartGridOneContext* context, StateSaver* stateSaver)
+        : SquiggleBoy(context, stateSaver)
+        , m_encoders(
+            context,
             TheNonagonInternal::x_numTrios,
             TheNonagonInternal::x_voicesPerTrio)
-        , m_sceneManager(sceneManager)
+        , m_context(context)
     {
     }
 

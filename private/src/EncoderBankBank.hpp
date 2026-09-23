@@ -38,7 +38,7 @@ struct EncoderBankBank
     };
 
     SmartGrid::EncoderBankInternal* m_banks;
-    SmartGrid::SceneManager* m_sceneManager;
+    SmartGridOneContext* m_context;
     int m_selectedBank;
     BankConfig* m_bankConfigs;
     BankMode* m_bankModes;
@@ -48,12 +48,12 @@ struct EncoderBankBank
         size_t numBanks,
         size_t numModes,
         size_t numEncoders,
-        SmartGrid::SceneManager* sceneManager)
+        SmartGridOneContext* context)
         : m_numBanks(numBanks)
         , m_numModes(numModes)
         , m_numEncoders(numEncoders)
         , m_banks(new SmartGrid::EncoderBankInternal[numBanks])
-        , m_sceneManager(sceneManager)
+        , m_context(context)
         , m_selectedBank(-1)
         , m_bankConfigs(new BankConfig[numBanks])
         , m_bankModes(new BankMode[numModes])
@@ -86,7 +86,7 @@ struct EncoderBankBank
         m_bankConfigs[bankIx].m_modeIx = modeIx;
         m_bankConfigs[bankIx].m_color = color;
         m_banks[bankIx].Init(
-            m_sceneManager, 
+            m_context,
             &m_bankModes[modeIx].m_modulatorValues, 
             m_bankModes[modeIx].m_numTracks, 
             m_bankModes[modeIx].m_numVoices);
@@ -108,7 +108,7 @@ struct EncoderBankBank
         }
 
         m_encoders[index] = SmartGrid::MakeEncoder(
-            m_sceneManager,
+            m_context,
             nullptr,
             static_cast<int>(index),
             SmartGrid::BankedEncoderCell::EncoderType::BaseParam);
@@ -117,7 +117,7 @@ struct EncoderBankBank
         cell->m_numTracks = m_bankModes[modeIx].m_numTracks;
         cell->m_bipolar = bipolar;
         cell->m_defaultValue = cell->ToNormalized(defaultValue);
-        cell->SetValueAllScenesAllTracks(cell->m_defaultValue);
+        cell->SetValue(cell->m_defaultValue, true, true);
         cell->InitSlewState(cell->m_defaultValue);
         cell->m_connected = true;
         cell->m_color = color;
@@ -271,12 +271,12 @@ struct EncoderBankBank
             }
         }
 
-        if (m_sceneManager->m_changed)
+        if (m_context->m_sceneManager.m_changed)
         {
             HandleChangedSceneManager();
         }
 
-        if (m_sceneManager->m_changedScene)
+        if (m_context->m_sceneManager.m_changedScene)
         {
             HandleChangedSceneManagerScene();
         }

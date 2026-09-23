@@ -11,6 +11,7 @@ nonzero exit status. Panned mono exports only sample_val, without applying pan.
 """
 
 import argparse
+import json
 from array import array
 from dataclasses import dataclass
 from pathlib import Path
@@ -173,10 +174,25 @@ def main(argv=None):
     selectors.add_argument('--track', type=int)
     export.add_argument('-o', '--output', type=Path)
     export.add_argument('--overwrite', action='store_true')
+    patch = commands.add_parser('patch', help='Reconstruct the patch through a recording sample')
+    patch.add_argument('input', type=Path)
+    patch.add_argument('--sample', type=int, required=True)
+    patch.add_argument('-o', '--output', type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == 'info':
             return inspect(args.input, args.verify)
+        if args.command == 'patch':
+            with args.input.open('rb') as source:
+                reconstructed = Reader(source).PatchAtSample(args.sample)
+            if args.output is None:
+                json.dump(reconstructed, sys.stdout, separators=(',', ':'))
+                print()
+            else:
+                with args.output.open('x', encoding='utf-8') as output:
+                    json.dump(reconstructed, output, separators=(',', ':'))
+                    output.write('\n')
+            return 0
         result = extract(args.input, args.output, master=args.master, track_id=args.track, overwrite=args.overwrite)
         if not result.m_complete:
             print(f'Incomplete: extracted {result.m_frames} frames to {result.m_output}: {result.m_error}', file=sys.stderr)

@@ -39,11 +39,6 @@ struct SceneManager
     size_t m_prevScene2;
     float m_prevBlendFactor;
 
-    // Cell registration for external state
-    //
-    std::vector<StateEncoderCell*> m_cells;
-    bool m_externalState;
-
     SceneManager()
         : m_scene1(0)
         , m_scene2(1)
@@ -54,7 +49,6 @@ struct SceneManager
         , m_prevScene1(0)
         , m_prevScene2(1)
         , m_prevBlendFactor(0.0f)
-        , m_externalState(false)
     {
     }
 
@@ -76,14 +70,6 @@ struct SceneManager
     bool IsSceneActive(size_t sceneIx)
     {
         return (sceneIx == m_scene1 && Scene1Active()) || (sceneIx == m_scene2 && Scene2Active());
-    }
-
-    void RegisterCell(StateEncoderCell* cell)
-    {
-        if (m_externalState)
-        {
-            m_cells.push_back(cell);
-        }
     }
 
     // Process method called first each frame

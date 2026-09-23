@@ -10,13 +10,31 @@ Serialization follows ownership: `EncoderBankBank::ToJSON()` iterates the full e
 
 ## Construction
 
-The scene manager is a constructor dependency throughout the encoder ownership chain:
+The shared `SmartGridOneContext` is a constructor dependency throughout the
+encoder ownership chain. It provides the scene manager, recorder, and parameter
+event logger:
 
-- `EncoderBankBank(numBanks, numModes, numEncoders, sceneManager)` stores the manager used by every subsequent `CreateEncoder(...)` call.
-- `SmartGridOneEncoders(sceneManager, numTrios, voicesPerTrio)` initializes its modes, banks, and named parameters during construction.
-- `SquiggleBoyWithEncoderBank(sceneManager)` constructs that encoder system for the Nonagon's trio/voice layout.
+- `EncoderBankBank(numBanks, numModes, numEncoders, context)` stores the context used by every `CreateEncoder(...)` call.
+- `SmartGridOneEncoders(context, numTrios, voicesPerTrio)` initializes modes, banks, and named parameters during construction.
+- `SquiggleBoyWithEncoderBank(context)` constructs that encoder system for the Nonagon's trio/voice layout.
 
-The owning scene manager must outlive these objects. Callers no longer default-construct SquiggleBoy and then call `Init(sceneManager)`, or assign an encoder bank's scene manager afterward. Encoder cells still serialize through `EncoderBankBank`; the discrete-control `State`/`StateSaver` mechanism is separate.
+The context must outlive these objects. Encoder cells serialize through
+`EncoderBankBank`; the discrete-control `State`/`StateSaver` storage stays separate.
+
+## Parameter recording
+
+`SetAndRecordValue` updates a stored scene/track value and emits EncoderSet while
+recording. The event converts normalized storage through `ToValue`, matching
+ordinary patch JSON before smoothing or modulation. `SetActive` records gesture
+activation; when activation inherits a parent's value, that copied value also
+passes through `SetAndRecordValue`. Root names identify parameters, and each
+nested path hop identifies a gesture or modulator index.
+
+The recorder groups these assignments with StateChange, GestureSet (fader), and
+BlendSet events. The Python reader reconstructs values and activation, including
+neutral nested nodes first created after the header snapshot. Deleting/replacing
+subtrees and complete patch-load capture remain incomplete; see the exact
+[recording protocol and limitations](streaming-recording-format.md).
 
 ## Base Structure: Tracks and Voices
 

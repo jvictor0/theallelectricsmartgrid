@@ -11,16 +11,15 @@
 #include "ThreadId.hpp"
 
 #include "JuceSon.hpp"
-#include "SceneManager.hpp"
-#include "StateManager.hpp"
+#include "SmartGridOneContext.hpp"
 
 template<size_t NumScenes>
 struct StateSaverTemp
 {
     template<class T>
-    static State* Mk(std::string name, T* t, StateManager* stateManager)
+    static State* Mk(std::string name, T* t, SmartGridOneContext* context)
     {
-        return new State(name, sizeof(T), reinterpret_cast<char*>(t), NumScenes, stateManager);
+        return new State(name, sizeof(T), reinterpret_cast<char*>(t), NumScenes, &context->m_paramEventLogger);
     }
 
     State* Insert(State* s)
@@ -71,21 +70,21 @@ struct StateSaverTemp
     template<class T>
     State* Insert(std::string name, T* t)
     {
-        return Insert(Mk(name, t, m_stateManager));
+        return Insert(Mk(name, t, m_context));
     }
 
     template<class T>
     State* Insert(std::string name, size_t i, T* t)
     {
         std::string name2 = name + "_" + std::to_string(i);
-        return Insert(Mk(name2, t, m_stateManager));
+        return Insert(Mk(name2, t, m_context));
     }
 
     template<class T>
     State* Insert(std::string name, size_t i, size_t j, T* t)
     {
         std::string name2 = name + "_" + std::to_string(i) + "_" + std::to_string(j);
-        return Insert(Mk(name2, t, m_stateManager));
+        return Insert(Mk(name2, t, m_context));
     }
 
     JSON ToJSON(JsonArena& a)
@@ -133,8 +132,7 @@ struct StateSaverTemp
 
     std::vector<State*> m_state;
     std::map<std::string, State*> m_stateMap;
-    SmartGrid::SceneManager* m_sceneManager;
-    StateManager* m_stateManager;
+    SmartGridOneContext* m_context;
 
     // Cached previous values to detect changes
     //
@@ -142,9 +140,8 @@ struct StateSaverTemp
     size_t m_prevScene2;
     float m_prevBlendFactor;
 
-    StateSaverTemp(StateManager* stateManager, SmartGrid::SceneManager* sceneManager)
-        : m_sceneManager(sceneManager)
-        , m_stateManager(stateManager)
+    StateSaverTemp(SmartGridOneContext* context)
+        : m_context(context)
         , m_prevScene1(0)
         , m_prevScene2(1)
         , m_prevBlendFactor(0.0f)
@@ -161,28 +158,29 @@ struct StateSaverTemp
 
     void Process()
     {
-        if (!m_sceneManager)
+        if constexpr (NumScenes == 1)
         {
             return;
         }
 
-        if (m_prevScene1 != m_sceneManager->m_scene1)
+        SmartGrid::SceneManager& sceneManager = m_context->m_sceneManager;
+        if (m_prevScene1 != sceneManager.m_scene1)
         {
-            m_prevScene1 = m_sceneManager->m_scene1;
-            HandleBlendChanges(0, m_sceneManager->m_blendFactor);
+            m_prevScene1 = sceneManager.m_scene1;
+            HandleBlendChanges(0, sceneManager.m_blendFactor);
         }
 
-        if (m_prevScene2 != m_sceneManager->m_scene2)
+        if (m_prevScene2 != sceneManager.m_scene2)
         {
-            m_prevScene2 = m_sceneManager->m_scene2;
-            HandleBlendChanges(1, m_sceneManager->m_blendFactor);
+            m_prevScene2 = sceneManager.m_scene2;
+            HandleBlendChanges(1, sceneManager.m_blendFactor);
         }
 
-        if (m_prevBlendFactor != m_sceneManager->m_blendFactor)
+        if (m_prevBlendFactor != sceneManager.m_blendFactor)
         {
             float oldBlend = m_prevBlendFactor;
-            m_prevBlendFactor = m_sceneManager->m_blendFactor;
-            HandleBlendChanges(oldBlend, m_sceneManager->m_blendFactor);
+            m_prevBlendFactor = sceneManager.m_blendFactor;
+            HandleBlendChanges(oldBlend, sceneManager.m_blendFactor);
         }
     }
 
@@ -201,7 +199,7 @@ struct StateSaverTemp
 
         for (size_t i = minIx; i < maxIx; ++i)
         {
-            m_state[i]->HandleSceneInfoChange(m_sceneManager);
+            m_state[i]->HandleSceneInfoChange(&m_context->m_sceneManager);
         }
     }
 

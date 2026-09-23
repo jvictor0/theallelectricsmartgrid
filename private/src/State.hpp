@@ -6,36 +6,38 @@
 #include "Json.hpp"
 #include "SceneManager.hpp"
 
-struct StateManager;
+struct ParamEventLogger;
 struct State;
 
-void RecordStateChange(StateManager* stateManager, State* state);
+void RecordStateChange(ParamEventLogger* paramEventLogger, State* state, int scene);
 
 struct State
 {
     static const size_t x_maxScenes = 8;
+    static const size_t x_maxValueLen = 8;
     std::string m_name;
     size_t m_len;
     char* m_ptr;
-    char m_buf[x_maxScenes * 8];
-    char m_default[8];
+    char m_buf[x_maxScenes * x_maxValueLen];
+    char m_default[x_maxValueLen];
     int m_curScene;
     float m_boundary;
     int m_numScenes;
-    StateManager* m_stateManager;
+    ParamEventLogger* m_paramEventLogger;
 
-    State(std::string name, size_t len, char* ptr, int numScenes, StateManager* stateManager)
+    State(std::string name, size_t len, char* ptr, int numScenes, ParamEventLogger* paramEventLogger)
         : m_name(name)
         , m_len(len)
         , m_ptr(ptr)
         , m_curScene(0)
         , m_numScenes(numScenes)
-        , m_stateManager(stateManager)
+        , m_paramEventLogger(paramEventLogger)
     {
         memset(m_buf, 0, sizeof(m_buf));
         memset(m_default, 0, sizeof(m_default));
-        assert(len <= 8);
+        assert(len <= x_maxValueLen);
         SetVal(m_default, m_ptr, m_len);
+        SetVal(m_buf, m_ptr, m_len);
     }
 
     template<class T>
@@ -48,7 +50,13 @@ struct State
     void Set(T t)
     {
         SetVal(m_ptr, reinterpret_cast<char*>(&t), m_len);
-        RecordStateChange(m_stateManager, this);
+        SetBytes(reinterpret_cast<char*>(&t), m_curScene);
+    }
+
+    void SetBytes(char* bytes, int scene)
+    {
+        SetVal(m_buf + scene * m_len, bytes, m_len);
+        RecordStateChange(m_paramEventLogger, this, scene);
     }
 
     JSON ToJSON(JsonArena& a)
@@ -80,6 +88,11 @@ struct State
             {
                 m_buf[s * m_len + i] = jin.GetAt(s * m_len + i).IntegerValue();
             }
+        }
+
+        for (int s = 0; s < m_numScenes; ++s)
+        {
+            RecordStateChange(m_paramEventLogger, this, s);
         }
 
         SetVal(m_ptr, m_buf + m_curScene * m_len, m_len);
@@ -129,19 +142,18 @@ struct State
             return;
         }
 
-        SaveValToScene();
         SetVal(m_ptr, m_buf + scene * m_len, m_len);
         m_curScene = scene;
     }
 
     void CopyToScene(int scene)
     {
-        SetVal(m_buf + scene * m_len, m_ptr, m_len);
+        SetBytes(m_ptr, scene);
     }
 
     void RevertToDefaultForScene(int scene)
     {
-        SetVal(m_buf + scene * m_len, m_default, m_len);
+        SetBytes(m_default, scene);
         if (scene == m_curScene)
         {
             SetVal(m_ptr, m_default, m_len);

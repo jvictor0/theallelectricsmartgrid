@@ -1,7 +1,7 @@
 #pragma once
 
 #include "SmartGrid.hpp"
-#include "SceneManager.hpp"
+#include "SmartGridOneContext.hpp"
 
 namespace SmartGrid
 {
@@ -167,7 +167,7 @@ struct StateEncoderCell : public EncoderCell
     {
         for (size_t i = 0; i < m_numTracks; ++i)
         {
-            m_values[i][scene] = GetNormalizedValueForTrack(i);
+            SetAndRecordValue(GetNormalizedValueForTrack(i), scene, i);
         }
 
         SetState();
@@ -176,14 +176,14 @@ struct StateEncoderCell : public EncoderCell
     void NeutralizeCurrentScene()
     {
         size_t track = m_sharedEncoderState->m_currentTrack;
-        if (m_sceneManager->m_blendFactor < 1)
+        if (m_context->m_sceneManager.m_blendFactor < 1)
         {
-            m_values[track][m_sceneManager->m_scene1] = GetNeutralNormalizedValue();
+            SetAndRecordValue(GetNeutralNormalizedValue(), m_context->m_sceneManager.m_scene1, track);
         }
 
-        if (m_sceneManager->m_blendFactor > 0)
+        if (m_context->m_sceneManager.m_blendFactor > 0)
         {
-            m_values[track][m_sceneManager->m_scene2] = GetNeutralNormalizedValue();
+            SetAndRecordValue(GetNeutralNormalizedValue(), m_context->m_sceneManager.m_scene2, track);
         }
 
         SetStateForTrack(track);
@@ -193,12 +193,12 @@ struct StateEncoderCell : public EncoderCell
     {
         for (size_t i = 0; i < m_numTracks; ++i)
         {
-            if (m_values[i][m_sceneManager->m_scene1] != GetNeutralNormalizedValue() && m_sceneManager->m_blendFactor < 1)
+            if (m_values[i][m_context->m_sceneManager.m_scene1] != GetNeutralNormalizedValue() && m_context->m_sceneManager.m_blendFactor < 1)
             {
                 return false;
             }
 
-            if (m_values[i][m_sceneManager->m_scene2] != GetNeutralNormalizedValue() && m_sceneManager->m_blendFactor > 0)
+            if (m_values[i][m_context->m_sceneManager.m_scene2] != GetNeutralNormalizedValue() && m_context->m_sceneManager.m_blendFactor > 0)
             {
                 return false;
             }
@@ -209,12 +209,12 @@ struct StateEncoderCell : public EncoderCell
 
     bool IsNeutralCurrentSceneForTrack(size_t track)
     {
-        if (m_values[track][m_sceneManager->m_scene1] != GetNeutralNormalizedValue() && m_sceneManager->m_blendFactor < 1)
+        if (m_values[track][m_context->m_sceneManager.m_scene1] != GetNeutralNormalizedValue() && m_context->m_sceneManager.m_blendFactor < 1)
         {
             return false;
         }
         
-        if (m_values[track][m_sceneManager->m_scene2] != GetNeutralNormalizedValue() && m_sceneManager->m_blendFactor > 0)
+        if (m_values[track][m_context->m_sceneManager.m_scene2] != GetNeutralNormalizedValue() && m_context->m_sceneManager.m_blendFactor > 0)
         {
             return false;
         }
@@ -225,7 +225,7 @@ struct StateEncoderCell : public EncoderCell
     float m_values[x_maxPoly][SceneManager::x_numScenes];
     float* m_state[x_maxPoly];
     size_t m_numTracks;
-    SceneManager* m_sceneManager;
+    SmartGridOneContext* m_context;
     SharedEncoderStateBase* m_sharedEncoderState;
 
     JSON ToJSON(JsonArena& a)
@@ -256,18 +256,25 @@ struct StateEncoderCell : public EncoderCell
             m_numTracks = sceneValues.Size();
             for (size_t j = 0; j < m_numTracks; ++j)
             {
-                m_values[j][i] = ToNormalized(static_cast<float>(sceneValues.GetAt(j).NumberValue()));
+                float value = ToNormalized(static_cast<float>(sceneValues.GetAt(j).NumberValue()));
+                SetAndRecordValue(value, i, j);
             }
         }
 
         SetState();
+    }
+
+    void SetAndRecordValue(float value, int scene, int track)
+    {
+        m_values[track][scene] = value;
+        m_context->m_paramEventLogger.RecordEncoderSet(this, scene, track);
     }
     
     StateEncoderCell()
         : m_values{}
         , m_state{}
         , m_numTracks(0)
-        , m_sceneManager(nullptr)
+        , m_context(nullptr)
         , m_sharedEncoderState(nullptr)
     {
         for (size_t i = 0; i < x_maxPoly; ++i)
@@ -284,11 +291,11 @@ struct StateEncoderCell : public EncoderCell
         }
     }
 
-    StateEncoderCell(SceneManager* sceneManager, SharedEncoderStateBase* sharedEncoderState)
+    StateEncoderCell(SmartGridOneContext* context, SharedEncoderStateBase* sharedEncoderState)
         : m_values{}
         , m_state{}
         , m_numTracks(0)
-        , m_sceneManager(sceneManager)
+        , m_context(context)
         , m_sharedEncoderState(sharedEncoderState)
     {
         for (size_t i = 0; i < x_maxPoly; ++i)
@@ -303,8 +310,6 @@ struct StateEncoderCell : public EncoderCell
         {
             m_state[i] = nullptr;
         }
-
-        m_sceneManager->RegisterCell(this);
     }
 
     void SetNumTracks(size_t numTracks)
@@ -328,7 +333,7 @@ struct StateEncoderCell : public EncoderCell
 
     float GetNormalizedValueForTrack(size_t track)
     {
-        return m_sceneManager->GetSceneValue(m_values[track]);
+        return m_context->m_sceneManager.GetSceneValue(m_values[track]);
     }
 
     bool AllNeutral()
@@ -372,17 +377,17 @@ struct StateEncoderCell : public EncoderCell
             return;
         }
 
-        int s1 = m_sceneManager->m_scene1;
-        int s2 = m_sceneManager->m_scene2;
-        float t = m_sceneManager->m_blendFactor;
+        int s1 = m_context->m_sceneManager.m_scene1;
+        int s2 = m_context->m_sceneManager.m_scene2;
+        float t = m_context->m_sceneManager.m_blendFactor;
         size_t track = m_sharedEncoderState->m_currentTrack;
         if (t <= 0)
         {
-            m_values[track][s1] = std::max(0.0f, std::min(1.0f, m_values[track][s1] + delta));
+            SetAndRecordValue(std::max(0.0f, std::min(1.0f, m_values[track][s1] + delta)), s1, track);
         }
         else if (t >= 1)
         {
-            m_values[track][s2] = std::max(0.0f, std::min(1.0f, m_values[track][s2] + delta));
+            SetAndRecordValue(std::max(0.0f, std::min(1.0f, m_values[track][s2] + delta)), s2, track);
         }
         else
         {
@@ -391,18 +396,18 @@ struct StateEncoderCell : public EncoderCell
             float newValue2 = m_values[track][s2] + delta * t;
             if (newValue1 < 0 || newValue1 > 1)
             {
-                m_values[track][s1] = std::max(0.0f, std::min(1.0f, newValue1));
-                m_values[track][s2] = (value - m_values[track][s1] * (1 - t)) / t;
+                SetAndRecordValue(std::max(0.0f, std::min(1.0f, newValue1)), s1, track);
+                SetAndRecordValue((value - m_values[track][s1] * (1 - t)) / t, s2, track);
             }
             else if (newValue2 < 0 || newValue2 > 1)
             {
-                m_values[track][s2] = std::max(0.0f, std::min(1.0f, newValue2));
-                m_values[track][s1] = (value - m_values[track][s2] * t) / (1 - t);
+                SetAndRecordValue(std::max(0.0f, std::min(1.0f, newValue2)), s2, track);
+                SetAndRecordValue((value - m_values[track][s2] * t) / (1 - t), s1, track);
             }
             else
             {
-                m_values[track][s1] = newValue1;
-                m_values[track][s2] = newValue2;
+                SetAndRecordValue(newValue1, s1, track);
+                SetAndRecordValue(newValue2, s2, track);
             }
         }
 
@@ -415,19 +420,6 @@ struct StateEncoderCell : public EncoderCell
         IncrementInternal(delta);
     }
 
-    void SetValueAllScenesAllTracks(float value)
-    {
-        for (size_t i = 0; i < x_maxPoly; ++i)
-        {
-            for (size_t j = 0; j < SceneManager::x_numScenes; ++j)
-            {
-                m_values[i][j] = value;
-            }
-
-            SetStateForTrack(i);
-        }
-    }
-
     void SetValue(float value, bool allScenes, bool allTracks)
     {
         size_t startTrack = allTracks ? 0 : m_sharedEncoderState->m_currentTrack;
@@ -437,32 +429,12 @@ struct StateEncoderCell : public EncoderCell
         {
             for (size_t s = 0; s < SceneManager::x_numScenes; ++s)
             {
-                int scene = s;
-                if (allScenes)
+                if (!allScenes && !m_context->m_sceneManager.IsSceneActive(s))
                 {
-                    if (s == 0)
-                    {
-                        scene = m_sceneManager->m_scene1;
-                        if (!m_sceneManager->Scene1Active())
-                        {
-                            continue;
-                        }
-                    }
-                    else if (s == 1)
-                    {
-                        scene = m_sceneManager->m_scene2;
-                        if (!m_sceneManager->Scene2Active())
-                        {
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    continue;
                 }
 
-                m_values[t][scene] = value;
+                SetAndRecordValue(value, s, t);
             }
 
             SetStateForTrack(t);

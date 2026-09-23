@@ -169,7 +169,7 @@ DOCTEST_TEST_CASE("SquiggleBoy config enforces channel limit after mono source b
     CheckAssignment(AssignmentAt(rig, trioIdx, 2), SourceChannel::Left, 2);
 }
 
-DOCTEST_TEST_CASE("SquiggleBoy config round-trips source widths and selections")
+DOCTEST_TEST_CASE("SquiggleBoy patch round-trips source widths selections and monitors")
 {
     synthrig::SynthRig rig;
     size_t trioIdx = static_cast<size_t>(TheNonagonInternal::Trio::Water);
@@ -187,13 +187,14 @@ DOCTEST_TEST_CASE("SquiggleBoy config round-trips source widths and selections")
 
     JsonArena arena;
     arena.Init(JsonArena::kDefaultCapacity);
-    JSON configJ = grid.ToJSON(arena);
+    JSON patchJ = rig.Internal().ToJSON(arena);
+    DOCTEST_REQUIRE_FALSE(patchJ.Get("stateSaver").Get("sourceMonitor_1").IsNull());
+    DOCTEST_CHECK(patchJ.Get("stateSaver").Get("sourceMonitor_1").GetAt(0).IntegerValue() == 0);
 
     synthrig::SynthRig loadedRig;
     auto& loadedGrid = loadedRig.Internal().m_configGrid;
     auto& loadedSquiggleBoy = loadedRig.Internal().m_squiggleBoy;
-    loadedGrid.FromJSON(configJ);
-    loadedGrid.PropagateSourceSelection();
+    loadedRig.Internal().FromJSON(patchJ, true);
 
     DOCTEST_CHECK(loadedSquiggleBoy.m_sourceMixerState.m_sources[1].m_config.IsStereo());
     DOCTEST_CHECK(!loadedSquiggleBoy.m_sourceMixerState.m_sources[3].m_config.IsStereo());
@@ -205,6 +206,25 @@ DOCTEST_TEST_CASE("SquiggleBoy config round-trips source widths and selections")
     CheckAssignment(AssignmentAt(loadedRig, trioIdx, 0), SourceChannel::Left, 1);
     CheckAssignment(AssignmentAt(loadedRig, trioIdx, 1), SourceChannel::Right, 1);
     CheckAssignment(AssignmentAt(loadedRig, trioIdx, 2), SourceChannel::Left, 3);
+}
+
+DOCTEST_TEST_CASE("SquiggleBoy legacy monitor settings load into resettable StateSaver values")
+{
+    synthrig::SynthRig rig;
+    JsonArena arena(JsonArena::kDefaultCapacity);
+    JSON patch = arena.Loads(R"({"configGrid":{"sourceMonitor":[false,true,false,true]}})");
+    rig.Internal().FromJSON(patch, true);
+    auto& grid = rig.Internal().m_configGrid;
+    DOCTEST_CHECK_FALSE(grid.m_sourceMonitor[0]);
+    DOCTEST_CHECK(grid.m_sourceMonitor[1]);
+    DOCTEST_CHECK_FALSE(grid.m_sourceMonitor[2]);
+    DOCTEST_CHECK(grid.m_sourceMonitor[3]);
+
+    rig.Internal().m_stateSaver.RevertToDefaultAllScenes();
+    for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
+    {
+        DOCTEST_CHECK(grid.m_sourceMonitor[i]);
+    }
 }
 
 DOCTEST_TEST_CASE("SquiggleBoy config missing source selection JSON loads with no selected sources")

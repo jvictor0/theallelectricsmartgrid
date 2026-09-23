@@ -75,11 +75,11 @@ Two instantiations exist: `ScenedStateSaver` (8 scenes) holding Nonagon sequence
 - **AND** indexed registrations retain the existing `name_i` and `name_i_j` JSON keys
 
 ### Requirement: State Dependencies Supplied Before Registration
-`StateSaverTemp` SHALL receive its `StateManager*` and `SceneManager*` through construction, before any values are registered. Each registered `State` SHALL capture that state manager. The top-level engine SHALL construct its managers before its consumers and keep them alive for the consumers' lifetimes. The Nonagon saver SHALL receive the shared scene manager; the single-scene global saver SHALL receive a null scene manager so its `Process()` does not apply scene switching.
+`StateSaverTemp` SHALL receive its `SmartGridOneContext*` through construction, before any values are registered. The context SHALL own the scene manager, recorder, and parameter event logger and outlive their consumers. Each registered `State` SHALL capture the context's logger. The Nonagon saver SHALL use the shared scene manager; the single-scene global saver SHALL skip scene switching in `Process()`.
 
 #### Scenario: Nonagon controls are bound during construction
 - **WHEN** `TheNonagonSquiggleBoyInternal` finishes constructing its Nonagon grids
-- **THEN** every registered Nonagon `State` references that engine's `StateManager`
+- **THEN** every registered Nonagon `State` references that engine's `ParamEventLogger`
 - **AND** grid controls can edit their cached handles without a later manager-assignment step
 
 #### Scenario: Global selectors do not become scene-banked
@@ -99,11 +99,11 @@ Two instantiations exist: `ScenedStateSaver` (8 scenes) holding Nonagon sequence
 - **AND** this restriction does not require runtime cells to look up metadata when using their previously cached handles
 
 ### Requirement: Explicit Saved-Value Edits Invoke the State Hook
-`State::Get<T>()` SHALL read the referenced live value. `State::Set<T>(value)` SHALL write it immediately and then invoke `StateManager::RecordStateChange` with that `State*`; callers SHALL use the registered value's type. Edits to `StateSaver`-registered controller values, including scene selection and active-trio changes, SHALL use their cached handles. This hook is separate from scene-change flags and JSON serialization.
+`State::Get<T>()` SHALL read the referenced live value. `State::Set<T>(value)` SHALL write it immediately, update its current scene buffer, and then invoke `ParamEventLogger::RecordStateChange` with that `State*` and scene index; callers SHALL use the registered value's type. Edits to `StateSaver`-registered controller values, including scene selection and active-trio changes, SHALL use their cached handles. This hook is separate from scene-change flags and JSON serialization.
 
 #### Scenario: Editing a saved control updates its live value first
 - **WHEN** a saved mute cell sets its registered boolean through `State::Set<bool>`
-- **THEN** the live mute value is updated before the state manager's hook is called
+- **THEN** the live mute value is updated before the parameter event logger's hook is called
 - **AND** the hook receives the same `State*` held by the cell
 
 ### Requirement: Staggered Scene Switching for Discrete Values
@@ -120,14 +120,14 @@ Only values whose boundaries lie in the swept blend interval are visited on a gi
 - **THEN** the edited value is saved back into scene 1's buffer before the scene-2 copy is loaded into the live pointer
 
 ### Requirement: Patch Persistence with Separate Encoder Serialization
-The system SHALL serialize a patch as a JSON object with distinct sections: `nonagon` (the 8-scene StateSaver), `squiggleBoy` (all encoder state via `EncoderBankBank::ToJSON`, see encoder-parameter-system), `stateSaver` (the global single-scene registry), `configGrid` (configuration including sample directories), and `faders` (the sixteen SquiggleBoy analog fader values); encoder state does not pass through the `StateSaver` registry.
+The system SHALL serialize a patch as a JSON object with distinct sections: `nonagon` (the 8-scene StateSaver), `squiggleBoy` (all encoder state via `EncoderBankBank::ToJSON`, see encoder-parameter-system), `stateSaver` (the global single-scene registry), `configGrid` (configuration including sample directories), `faders` (the sixteen SquiggleBoy analog fader values), and `blend` (the current scene crossfade); encoder state does not pass through the `StateSaver` registry.
 Save, load, and new-patch requests arrive through a state interchange polled on the audio thread: save serializes and acknowledges, load deserializes in place using the load request's `restoreFaders` policy, and a new-patch request runs `RevertToDefault(allScenes == true, allTracks == true)`, which restores encoder defaults (zeroing modulators and resetting slew state), reverts the Nonagon, resets both StateSavers, and resets the config grid.
 Audio-thread serialization SHALL be real-time safe: `ToJSON` SHALL allocate every node, key, and string from a caller-owned arena (see arena-json) and SHALL NOT call the system heap allocator. The arena SHALL be created and sized on the message thread and threaded as the first argument to `ToJSON`/`FromJSON`. When an audio-thread save produces a null root because the arena was exhausted, the message thread SHALL release the arena, allocate one of at least double the capacity, and re-request the save; the arena's lifetime SHALL bracket the save round-trip so the serialized tree (pointers into the arena) remains valid through the message-thread `Dumps` and save acknowledgment.
 Higher-level patch load functions SHALL pass an explicit `restoreFaders` value to patch deserialization. The top-level JUCE open/startup load path SHALL set `restoreFaders` to false when a WRLD.BLRD controller is open and true otherwise. Reload-style patch functionality SHALL set `restoreFaders` to false unconditionally. During application startup, saved WRLD.BLRD configuration SHALL be applied before the current patch load is requested, so the top-level restore policy reflects the startup controller attachment state.
 
 #### Scenario: Patch JSON contains patch sections and faders
 - **WHEN** a save is requested after SquiggleBoy fader values have been changed
-- **THEN** the produced JSON object has `nonagon`, `squiggleBoy`, `stateSaver`, `configGrid`, and `faders` members
+- **THEN** the produced JSON object has `nonagon`, `squiggleBoy`, `stateSaver`, `configGrid`, `faders`, and `blend` members
 - **AND** every named encoder's per-scene values appear under `squiggleBoy`, not under `stateSaver`
 - **AND** the `faders` member contains all sixteen current SquiggleBoy fader values
 
@@ -212,3 +212,15 @@ Encoder reset/shift operations and discrete grid-cell edits SHALL leave the syst
 - **WHEN** a discrete grid cell backed by the `StateSaver` registry (such as a Theory of Time topology multiplier) is edited, the patch is saved, the system reset, and the patch reloaded
 - **THEN** the cell's stored value is restored to its edited value
 - **AND** the cell's published LED color reflects the restored value
+
+### Requirement: Initial Scene Storage and Blend Persistence
+Registered State objects SHALL initialize scene zero from their live registration-time value before any scene switch or save. Patch JSON SHALL include the current scene blend as a numeric `blend` field. Loading a patch containing blend SHALL restore it; an older patch without blend SHALL leave the current blend unchanged.
+
+#### Scenario: Switch from a fresh default scene and back
+- **WHEN** a freshly registered state with a nonzero default switches to another scene and back before any save or edit
+- **THEN** scene zero retains its registration-time value
+
+#### Scenario: Blend patch round-trip
+- **WHEN** a patch is saved with a nonzero blend and then loaded
+- **THEN** the scene manager receives the saved blend value
+- **AND** omitting blend from a legacy patch does not reset the current blend

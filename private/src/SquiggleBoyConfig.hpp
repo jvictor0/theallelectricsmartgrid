@@ -92,42 +92,25 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
     {
         SquiggleBoyConfigGrid* m_owner;
         size_t m_sourceIndex;
-        bool* m_state;
-        State* m_savedState;
-
-        SourceStateCell(SquiggleBoyConfigGrid* owner, size_t sourceIndex, bool* state)
-            : m_owner(owner)
-            , m_sourceIndex(sourceIndex)
-            , m_state(state)
-            , m_savedState(nullptr)
-        {
-        }
+        State* m_state;
 
         SourceStateCell(SquiggleBoyConfigGrid* owner, size_t sourceIndex, State* state)
             : m_owner(owner)
             , m_sourceIndex(sourceIndex)
-            , m_state(nullptr)
-            , m_savedState(state)
+            , m_state(state)
         {
         }
 
         virtual SmartGrid::Color GetColor() override
         {
             SmartGrid::Color color = m_owner->SourceColor(m_sourceIndex);
-            bool state = m_savedState ? m_savedState->Get<bool>() : *m_state;
+            bool state = m_state->Get<bool>();
             return state ? color : color.Dim();
         }
 
         virtual void OnPress(uint8_t) override
         {
-            if (m_savedState)
-            {
-                m_savedState->Set(!m_savedState->Get<bool>());
-            }
-            else
-            {
-                *m_state = !*m_state;
-            }
+            m_state->Set(!m_state->Get<bool>());
         }
     };
 
@@ -436,6 +419,8 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
                 "deepVocoderSend", i, &squiggleBoyWithEncoders->m_sourceMixerState.m_deepVocoderSend[i]);
             m_sourceWidthStates[i] = squiggleBoyWithEncoders->m_stateSaver->Insert(
                 "sourceWidth", i, &squiggleBoyWithEncoders->m_sourceMixerState.m_sources[i].m_config.m_width);
+            m_sourceMonitorStates[i] = squiggleBoyWithEncoders->m_stateSaver->Insert(
+                "sourceMonitor", i, &m_sourceMonitor[i]);
 
             for (size_t j = 0; j < TheNonagonInternal::x_numTrios; ++j)
             {
@@ -472,7 +457,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             Put(6 + (i % 2), i / 2, new SourceStateCell(
                 this,
                 i,
-                &m_sourceMonitor[i]));
+                m_sourceMonitorStates[i]));
             Put(6 + (i % 2), 2 + (i / 2), new SourceStateCell(
                 this,
                 i,
@@ -499,7 +484,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
             {
                 m_sourceWidthStates[i]->Set(SourceMixer::SourceWidth::Mono);
-                m_sourceMonitor[i] = true;
+                m_sourceMonitorStates[i]->Set(true);
             }
         }
 
@@ -549,14 +534,6 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         }
 
         rootJ.SetNew("sourceStereo", sourceWidthJ);
-
-        JSON sourceMonitorJ = a.Array();
-        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
-        {
-            sourceMonitorJ.AppendNew(a.Boolean(m_sourceMonitor[i]));
-        }
-
-        rootJ.SetNew("sourceMonitor", sourceMonitorJ);
 
         JSON sourceSelectedJ = a.Array();
         for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
@@ -623,12 +600,14 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             }
         }
 
+        // Older patches stored monitors here instead of in StateSaver.
+        //
         JSON sourceMonitorJ = rootJ.Get("sourceMonitor");
         if (!sourceMonitorJ.IsNull())
         {
             for (size_t i = 0; i < sourceMonitorJ.Size() && i < SourceMixer::x_numSources; ++i)
             {
-                m_sourceMonitor[i] = sourceMonitorJ.GetAt(i).BooleanValue();
+                m_sourceMonitorStates[i]->Set(sourceMonitorJ.GetAt(i).BooleanValue());
             }
         }
 
@@ -709,5 +688,6 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
     State* m_voiceFilterMachineStates[SquiggleBoy::x_numVoices];
     State* m_deepVocoderSendStates[SourceMixer::x_numSources];
     State* m_sourceWidthStates[SourceMixer::x_numSources];
+    State* m_sourceMonitorStates[SourceMixer::x_numSources];
     State* m_sourceSelectedStates[TheNonagonInternal::x_numTrios][SourceMixer::x_numSources];
 };

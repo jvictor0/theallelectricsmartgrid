@@ -20,7 +20,7 @@ void SetExternalClockLoopSwitch(TheNonagonSquiggleBoyInternal& system, int switc
         system.m_squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(static_cast<size_t>(Param::ExternalClockLoop));
 
     DOCTEST_REQUIRE(cell != nullptr);
-    cell->SetValueAllScenesAllTracks(value);
+    cell->SetValue(value, true, true);
     cell->InitSlewState(value);
     for (size_t i = 0; i < 16; ++i)
     {
@@ -53,8 +53,8 @@ DOCTEST_TEST_CASE("External clock loop selector defaults to upper middle switch"
 
     GlobalEnv::ResetPerTest();
 
-    SmartGrid::SceneManager sceneManager;
-    SmartGridOneEncoders encoders(&sceneManager, 3, 3);
+    SmartGridOneContext context;
+    SmartGridOneEncoders encoders(&context, 3, 3);
     encoders.Process();
 
     DOCTEST_CHECK(encoders.GetSwitchVal(Param::ExternalClockLoop) == 3);

@@ -44,6 +44,167 @@ def completion(frames):
     return checksum_record(struct.pack('<4sQ', b'END1', frames))
 
 
+
+def event_group(name, width, entries, event_type=1):
+    name_bytes = name.encode('utf-8')
+    return (struct.pack('<BBHI', event_type, width, len(name_bytes), len(entries)) + name_bytes
+            + b''.join(struct.pack('<IB', offset, scene) + value for offset, scene, value in entries))
+
+
+def event_record(start, frames, groups):
+    events = struct.pack('<I', len(groups)) + b''.join(groups)
+    return checksum_record(struct.pack('<4sIQIH', b'BLK2', 26 + len(events), start, frames, 0) + events)
+
+
+def parameter_group(event_type, width, name, entries):
+    encoded = name.encode('utf-8')
+    return struct.pack('<BBHI', event_type, width, len(encoded), len(entries)) + encoded + b''.join(entries)
+
+
+class ParamReplayTests(unittest.TestCase):
+    def setUp(self):
+        self.m_header = json.loads((x_fixtures / 'golden.json').read_text())['header']
+        self.m_patch = {'faders': [0.0] * 16, 'blend': 0.125,
+                        'squiggleBoy': {'Carrier': {'values': {'values': [[0.25, 0.25] for _ in range(8)]}}}}
+        self.m_header.update(format_version=2, initial_patch=self.m_patch)
+
+    def reader(self, groups):
+        sgrec = load_reader(self)
+        return sgrec.Reader(io.BytesIO(header_bytes(self.m_header) + event_record(0, 4, groups) + completion(4)))
+
+    def test_all_parameter_types_replay_nested_encoder_values_and_activation(self):
+        groups = [
+            parameter_group(2, 4, '', [struct.pack('<IBf', 0, 3, 0.25), struct.pack('<IBf', 3, 3, 0.75)]),
+            parameter_group(3, 4, '', [struct.pack('<If', 1, 0.5)]),
+            parameter_group(4, 4, 'Carrier', [
+                struct.pack('<IBBBf', 1, 2, 1, 0, 0.75),
+                struct.pack('<IBBBBBf', 2, 2, 1, 2, 130, 3, -0.5),
+                struct.pack('<IBBBBBf', 3, 1, 0, 2, 1, 128, 0.25)]),
+            parameter_group(5, 1, 'Carrier', [
+                struct.pack('<IBBBBB', 2, 2, 1, 1, 130, 1),
+                struct.pack('<IBBBBBB', 3, 1, 0, 2, 1, 128, 1)]),
+        ]
+        reader = self.reader(groups)
+        patch = reader.PatchAtSample(2)
+        self.assertEqual(patch['faders'][3], 0.25)
+        self.assertEqual(patch['blend'], 0.5)
+        carrier = patch['squiggleBoy']['Carrier']
+        self.assertEqual(carrier['values']['values'][2], [0.25, 0.75])
+        gesture = carrier['gestures'][2]
+        self.assertTrue(gesture['active'][33])
+        self.assertFalse(gesture['active'][32])
+        self.assertEqual(gesture['modulators'][3]['values']['values'][2], [0.0, -0.5])
+        final = reader.PatchAtSample(3)
+        self.assertEqual(final['faders'][3], 0.75)
+        nested_gesture = final['squiggleBoy']['Carrier']['modulators'][1]['gestures'][0]
+        self.assertEqual(nested_gesture['values']['values'][1], [0.25, 0.0])
+        self.assertTrue(nested_gesture['active'][16])
+        self.assertEqual(reader.PatchAtSample(0)['blend'], 0.125)
+        self.assertEqual(reader.m_header['initial_patch'], self.m_patch)
+
+    def test_bad_parameter_payloads_reject_replay_but_do_not_affect_audio(self):
+        sgrec = load_reader(self)
+        bad_groups = [
+            parameter_group(2, 4, '', [struct.pack('<IBf', 0, 16, 0.5)]),
+            parameter_group(3, 4, '', [struct.pack('<If', 0, float('nan'))]),
+            parameter_group(4, 4, 'Carrier', [struct.pack('<IBBB', 0, 0, 0, 17)]),
+            parameter_group(4, 4, 'Carrier', [struct.pack('<IBBBBf', 0, 0, 0, 1, 127, 0.5)]),
+            parameter_group(5, 1, 'Carrier', [struct.pack('<IBBBBB', 0, 0, 0, 1, 128, 2)]),
+        ]
+        for group in bad_groups:
+            with self.subTest(group=group), self.assertRaises(sgrec.RecordingError):
+                self.reader([group]).PatchAtSample(0)
+            self.assertEqual(len(list(self.reader([group]).Blocks())), 1)
+
+
+class StateReplayTests(unittest.TestCase):
+    def setUp(self):
+        self.m_header = json.loads((x_fixtures / 'golden.json').read_text())['header']
+        self.m_patch = {
+            'nonagon': {'Mute_0': [0] * 8, 'Counter': [0] * 8},
+            'stateSaver': {'activeTrio': [0] * 4, 'sourceWidth_0': [0] * 4, 'sourceSelected_0_1': [0]},
+            'configGrid': {'sourceStereo': [False], 'sourceSelected': [[True, False]]},
+            'squiggleBoy': {'untouched': [1, 2, 3]},
+        }
+        self.m_header.update(format_version=2, initial_patch=self.m_patch)
+        self.m_records = [
+            event_record(0, 4, [
+                event_group('Counter', 2, [(2, 1, bytes([255, 128]))]),
+                event_group('Mute_0', 1, [(1, 0, b'\x01'), (1, 0, b'\x00'), (1, 0, b'\x01'), (3, 2, b'\x01')]),
+                event_group('activeTrio', 4, [(3, 0, b'\x02\x00\x00\x00')]),
+                event_group('sourceSelected_0_1', 1, [(2, 0, b'\x01')]),
+                event_group('sourceWidth_0', 4, [(2, 0, b'\x01\x00\x00\x00')]),
+            ]),
+            event_record(4, 2, [event_group('Mute_0', 1, [(0, 0, b'\x00')])]),
+        ]
+        self.m_data = header_bytes(self.m_header) + b''.join(self.m_records) + completion(6)
+
+    def test_patch_queries_apply_through_sample_and_restart_from_initial_patch(self):
+        sgrec = load_reader(self)
+        reader = sgrec.Reader(io.BytesIO(self.m_data))
+        self.assertEqual(reader.PatchAtSample(0), self.m_patch)
+        self.assertEqual(reader.PatchAtSample(1)['nonagon']['Mute_0'], [1, 0, 0, 0, 0, 0, 0, 0])
+        patch = reader.PatchAtSample(3)
+        self.assertEqual(patch['nonagon']['Mute_0'], [1, 0, 1, 0, 0, 0, 0, 0])
+        self.assertEqual(patch['nonagon']['Counter'], [0, 0, -1, -128, 0, 0, 0, 0])
+        self.assertEqual(patch['stateSaver']['activeTrio'], [2, 0, 0, 0])
+        self.assertEqual(patch['configGrid'], {'sourceStereo': [True], 'sourceSelected': [[True, True]]})
+        self.assertEqual(patch['squiggleBoy'], self.m_patch['squiggleBoy'])
+        self.assertEqual(reader.PatchAtSample(4)['nonagon']['Mute_0'], [0, 0, 1, 0, 0, 0, 0, 0])
+        self.assertEqual(reader.PatchAtSample(0), self.m_patch)
+        self.assertEqual(reader.m_header['initial_patch'], self.m_patch)
+
+    def test_audio_extraction_ignores_patch_and_event_semantics(self):
+        sgrec = load_reader(self)
+        header = dict(self.m_header)
+        header['initial_patch'] = 'not a patch'
+        unknown = event_record(0, 4, [event_group('future', 1, [(0, 0, b'\x01')], event_type=99)])
+        reader = sgrec.Reader(io.BytesIO(header_bytes(header) + unknown + completion(4)))
+        blocks = list(reader.Blocks())
+        self.assertTrue(reader.m_complete)
+        self.assertEqual(blocks[0].m_frame_count, 4)
+        self.assertTrue(all(value == 0 for streams in blocks[0].m_tracks.values() for stream in streams for value in stream))
+        del header['initial_patch']
+        self.assertEqual(len(list(sgrec.Reader(io.BytesIO(header_bytes(header) + unknown + completion(4))).Blocks())), 1)
+        with self.assertRaises(sgrec.RecordingError):
+            sgrec.Reader(io.BytesIO(header_bytes(self.m_header) + unknown + completion(4))).PatchAtSample(0)
+
+    def test_patch_query_requires_recorded_sample_but_not_later_clean_completion(self):
+        sgrec = load_reader(self)
+        reader = sgrec.Reader(io.BytesIO(self.m_data))
+        for sample in (-1, True, 6):
+            with self.subTest(sample=sample), self.assertRaises(sgrec.RecordingError):
+                reader.PatchAtSample(sample)
+        truncated = header_bytes(self.m_header) + self.m_records[0]
+        self.assertEqual(sgrec.Reader(io.BytesIO(truncated)).PatchAtSample(1)['nonagon']['Mute_0'][0], 1)
+        with self.assertRaises(sgrec.RecordingError):
+            sgrec.Reader(io.BytesIO(truncated)).PatchAtSample(4)
+        empty = sgrec.Reader(io.BytesIO(header_bytes(self.m_header) + completion(0)))
+        self.assertEqual(empty.PatchAtSample(0), self.m_patch)
+
+    def test_patch_replay_checks_truncated_delta_and_whole_block_crc(self):
+        sgrec = load_reader(self)
+        malformed = event_record(0, 4, [event_group('Mute_0', 1, [(0, 0, b'')])])
+        with self.assertRaises(sgrec.RecordingError):
+            sgrec.Reader(io.BytesIO(header_bytes(self.m_header) + malformed + completion(4))).PatchAtSample(0)
+        corrupted = bytearray(self.m_records[0])
+        corrupted[-5] ^= 1
+        for replay in (False, True):
+            with self.subTest(replay=replay), self.assertRaises(sgrec.RecordingError):
+                reader = sgrec.Reader(io.BytesIO(header_bytes(self.m_header) + corrupted + completion(4)))
+                reader.PatchAtSample(0) if replay else list(reader.Blocks())
+
+    def test_patch_cli_writes_json_at_requested_sample(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'take.sgrec'
+            output = Path(directory) / 'patch.json'
+            source.write_bytes(self.m_data)
+            result = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'extract_recording.py'),
+                                     'patch', str(source), '--sample', '1', '-o', str(output)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(output.read_text())['nonagon']['Mute_0'][0], 1)
+
+
 class ReaderTests(unittest.TestCase):
     def setUp(self):
         self.m_expected = json.loads((x_fixtures / 'golden.json').read_text())
@@ -123,7 +284,7 @@ class ReaderTests(unittest.TestCase):
     def test_metadata_and_allocation_limits_fail_before_payload_reads(self):
         sgrec = load_reader(self)
         variants = [
-            dict(self.m_header, format_version=2),
+            dict(self.m_header, format_version=3),
             dict(self.m_header, format_version=True),
             dict(self.m_header, git_commit_sha='short'),
             dict(self.m_header, recorded_at_utc='yesterday'),
@@ -571,6 +732,62 @@ class CppMixerFixtureTests(unittest.TestCase):
                     self.assertEqual(struct.unpack_from('<HI', chunks[b'fmt '], 2), (channels, self.m_expected['sample_rate']))
                     if channels == 4:
                         self.assertEqual(struct.unpack_from('<I', chunks[b'fmt '], 20)[0], 0)
+
+
+@unittest.skipUnless(os.environ.get('SMARTGRID_STATE_RECORDING_FIXTURE'), 'Set SMARTGRID_STATE_RECORDING_FIXTURE to a C++ state recording')
+class CppStateFixtureTests(unittest.TestCase):
+    def test_real_engine_patch_and_state_events_reconstruct_across_blocks(self):
+        sgrec = load_reader(self)
+        with open(os.environ['SMARTGRID_STATE_RECORDING_FIXTURE'], 'rb') as source:
+            reader = sgrec.Reader(source)
+            initial = reader.PatchAtSample(0)
+            self.assertEqual(initial['nonagon']['Mute_0'], [0] * 8)
+            self.assertEqual(initial['nonagon']['Mute_1'][0], 1)
+            self.assertEqual(reader.m_header['initial_patch']['stateSaver']['sceneStateRight'][0], 1)
+            self.assertEqual(initial['stateSaver']['sceneStateRight'][0], 2)
+            self.assertEqual(initial['stateSaver']['sourceMonitor_0'], [1])
+            self.assertEqual(set(initial), {'nonagon', 'squiggleBoy', 'stateSaver', 'configGrid', 'faders', 'blend'})
+            self.assertEqual(initial['blend'], 0.125)
+            first = reader.PatchAtSample(1)
+            self.assertEqual(first['nonagon']['Mute_0'], [1, 0, 0, 0, 0, 0, 0, 0])
+            self.assertEqual(first['stateSaver']['sourceMonitor_0'], [0])
+            self.assertEqual(first['stateSaver']['sourceMonitor_1'], [1])
+            self.assertAlmostEqual(first['blend'], 8192 / 16383)
+            self.assertAlmostEqual(first['faders'][3], 4096 / 16383)
+            third = reader.PatchAtSample(3)
+            encoder = third['squiggleBoy']['Harmonics1']
+            self.assertEqual(encoder['values']['values'][2][1], 0.625)
+            gesture = encoder['gestures'][2]
+            self.assertTrue(gesture['active'][0])
+            self.assertEqual(gesture['values']['values'][0][0], 0.75)
+            self.assertEqual(gesture['modulators'][3]['values']['values'][2][1], -0.5)
+            nested = encoder['modulators'][1]['gestures'][0]
+            self.assertTrue(nested['active'][16])
+            self.assertEqual(nested['values']['values'][1][0], 0.25)
+            last = reader.PatchAtSample(4)
+            self.assertEqual(last['nonagon']['Mute_0'], [1, 0, 1, 0, 0, 0, 0, 0])
+            self.assertEqual(last['stateSaver']['activeTrio'], [0, 0, 0, 0])
+            self.assertEqual(last['configGrid']['sourceStereo'][0], True)
+            self.assertEqual(last['configGrid']['sourceSelected'][0], [True, True, False, False])
+            self.assertEqual(last['stateSaver']['sourceMonitor_0'], [1])
+            self.assertEqual(last['stateSaver']['sourceMonitor_1'], [0])
+            self.assertFalse(last['squiggleBoy']['Harmonics1']['gestures'][2]['active'][0])
+            self.assertEqual(last['faders'][3], 1.0)
+            self.assertEqual(reader.PatchAtSample(0), initial)
+
+
+@unittest.skipUnless(os.environ.get('SMARTGRID_RANDOM_PARAM_FIXTURE'), 'Set SMARTGRID_RANDOM_PARAM_FIXTURE to a C++ seeded recording')
+class CppRandomParamFixtureTests(unittest.TestCase):
+    def test_seeded_encoder_scene_edits_reconstruct_complete_live_patches(self):
+        sgrec = load_reader(self)
+        path = os.environ['SMARTGRID_RANDOM_PARAM_FIXTURE']
+        with open(path + '.json') as source:
+            checkpoints = json.load(source)
+        with open(path, 'rb') as source:
+            reader = sgrec.Reader(source)
+            for checkpoint in checkpoints:
+                with self.subTest(sample=checkpoint['sample']):
+                    self.assertEqual(reader.PatchAtSample(checkpoint['sample']), checkpoint['patch'])
 
 
 if __name__ == '__main__':

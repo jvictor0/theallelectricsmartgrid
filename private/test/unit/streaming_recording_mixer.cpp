@@ -12,10 +12,12 @@ namespace
     struct MixerRecordingTest
     {
         std::filesystem::path m_directory;
+        SmartGridOneContext m_context;
         QuadMixerInternal m_mixer;
         QuadMixerInternal::Input m_input;
 
         MixerRecordingTest(size_t inputs = 1, size_t monoInputs = 1)
+            : m_mixer(&m_context)
         {
             static std::atomic<size_t> s_sequence = 0;
             const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
@@ -36,26 +38,14 @@ namespace
 
         void Start()
         {
-            m_mixer.StartRecording(m_input.m_numInputs, 48000);
-            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-            do
-            {
-                m_mixer.Process(m_input);
-                if (m_mixer.m_recordingFrameActive)
-                {
-                    return;
-                }
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-            while (std::chrono::steady_clock::now() < deadline);
-
-            DOCTEST_FAIL("Recorder did not accept a mixer frame");
+            DOCTEST_REQUIRE(m_mixer.StartRecording(m_input.m_numInputs, 48000));
+            m_mixer.Process(m_input);
+            DOCTEST_REQUIRE(m_mixer.m_recordingFrameActive);
         }
 
         float Sample(size_t track, size_t stream = 0) const
         {
-            return m_mixer.m_recorder.m_staging[m_mixer.m_recorder.m_trackOffsets[track] + stream];
+            return m_context.m_recorder.m_staging[m_context.m_recorder.m_trackOffsets[track] + stream];
         }
     };
 }
@@ -158,9 +148,9 @@ DOCTEST_TEST_CASE("recording mixer: noise mode zeroes skipped lanes and split pr
     fixture.m_mixer.ProcessInputs(fixture.m_input);
     fixture.m_mixer.ProcessReturns(fixture.m_input);
     DOCTEST_REQUIRE(fixture.m_mixer.m_recordingFrameActive);
-    for (size_t i = 0; i < fixture.m_mixer.m_recorder.m_trackOffsets[5]; ++i)
+    for (size_t i = 0; i < fixture.m_context.m_recorder.m_trackOffsets[5]; ++i)
     {
-        DOCTEST_CHECK(fixture.m_mixer.m_recorder.m_staging[i] == 0);
+        DOCTEST_CHECK(fixture.m_context.m_recorder.m_staging[i] == 0);
     }
 
     DOCTEST_CHECK(fixture.Sample(5) == fixture.m_mixer.m_output.m_output[0]);
@@ -185,7 +175,8 @@ DOCTEST_TEST_CASE("recording mixer: capture leaves live DSP unchanged and follow
 {
     MixerRecordingTest fixture;
     fixture.Start();
-    QuadMixerInternal reference;
+    SmartGridOneContext referenceContext;
+    QuadMixerInternal reference(&referenceContext);
     auto& input = fixture.m_input;
     input.m_gain[0].m_expParam = 0.8f;
     input.m_returnGain[0].m_expParam = 0.3f;
@@ -219,7 +210,7 @@ DOCTEST_TEST_CASE("recording mixer: writes full-layout fixture from accepted cap
 {
     MixerRecordingTest fixture(17, 9);
     fixture.Start();
-    auto& recorder = fixture.m_mixer.m_recorder;
+    StreamingRecorder& recorder = fixture.m_context.m_recorder;
     const auto session = recorder.m_session;
     std::vector<std::vector<int32_t>> frames;
     const auto capture = [&]()

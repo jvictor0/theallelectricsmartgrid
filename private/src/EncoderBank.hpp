@@ -171,13 +171,13 @@ struct BankedEncoderCell : public StateEncoderCell
             m_numActiveModulators = 0;
         }
 
-        void FillModulators(BankedEncoderCell* parent, SceneManager* sceneManager)
+        void FillModulators(BankedEncoderCell* parent, SmartGridOneContext* context)
         {
             for (size_t i = 0; i < x_numModulators; ++i)
             {
                 if (!m_modulators[i].get())
                 {
-                    m_modulators[i] = Make(sceneManager, parent, i, BankedEncoderCell::EncoderType::ModulatorAmount);
+                    m_modulators[i] = Make(context, parent, i, BankedEncoderCell::EncoderType::ModulatorAmount);
                     m_modulators[i]->m_numTracks = parent->m_numTracks;
                     m_activeModulators[m_numActiveModulators] = i;
                     ++m_numActiveModulators;
@@ -189,7 +189,7 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             if (!m_gestures[gestureIx].get())
             {
-                m_gestures[gestureIx] = Make(parent->m_sceneManager, parent, gestureIx, BankedEncoderCell::EncoderType::GestureParam);
+                m_gestures[gestureIx] = Make(parent->m_context, parent, gestureIx, BankedEncoderCell::EncoderType::GestureParam);
                 m_gestures[gestureIx]->m_numTracks = parent->m_numTracks;
             }
         }
@@ -405,8 +405,8 @@ struct BankedEncoderCell : public StateEncoderCell
     }
 
     BankedEncoderCell(
-        SceneManager* sceneManager, BankedEncoderCell* parent, int index, EncoderType modulatorType)
-        : StateEncoderCell(sceneManager, parent ? parent->m_sharedEncoderState : nullptr)
+        SmartGridOneContext* context, BankedEncoderCell* parent, int index, EncoderType modulatorType)
+        : StateEncoderCell(context, parent ? parent->m_sharedEncoderState : nullptr)
         , m_gestureWeightSum{}
         , m_modulators(this)
         , m_bankedValue{}
@@ -550,9 +550,9 @@ struct BankedEncoderCell : public StateEncoderCell
 
     void SetEffectiveModulatorWeight(float weight, int track)
     {
-        float w1 = m_isActive[m_sceneManager->m_scene1][track] ? weight : 0;
-        float w2 = m_isActive[m_sceneManager->m_scene2][track] ? weight : 0;
-        m_effectiveModulatorWeights[track] = w1 * (1 - m_sceneManager->m_blendFactor) + w2 * m_sceneManager->m_blendFactor;
+        float w1 = m_isActive[m_context->m_sceneManager.m_scene1][track] ? weight : 0;
+        float w2 = m_isActive[m_context->m_sceneManager.m_scene2][track] ? weight : 0;
+        m_effectiveModulatorWeights[track] = w1 * (1 - m_context->m_sceneManager.m_blendFactor) + w2 * m_context->m_sceneManager.m_blendFactor;
     }
 
     void SetDefaultValue()
@@ -597,7 +597,7 @@ struct BankedEncoderCell : public StateEncoderCell
 
     float GetBrightness()
     {
-        if (m_sceneManager->m_blinker.m_blink && 
+        if (m_context->m_sceneManager.m_blinker.m_blink &&
             m_type == EncoderType::BaseParam &&
             GetSelectedGestures().IsZero())
         {
@@ -659,7 +659,7 @@ struct BankedEncoderCell : public StateEncoderCell
         StateEncoderCell::CopyToScene(scene);
         for (size_t i = 0; i < 16; ++i)
         {
-            m_isActive[scene][i] = IsActiveForTrack(i);
+            SetActive(IsActiveForTrack(i), scene, i);
         }
 
         for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
@@ -742,12 +742,12 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             for (size_t s = 0; s < SceneManager::x_numScenes; ++s)
             {
-                if (!allScenes && !m_sceneManager->IsSceneActive(s))
+                if (!allScenes && !m_context->m_sceneManager.IsSceneActive(s))
                 {
                     continue;
                 }
 
-                m_modulators.m_gestures[gestureIx]->m_isActive[s][t] = false;
+                m_modulators.m_gestures[gestureIx]->SetActive(false, s, t);
             }
         }
     }
@@ -896,7 +896,7 @@ struct BankedEncoderCell : public StateEncoderCell
                     }
                     else
                     {
-                        m_modulators.m_modulators[i] = Make(m_sceneManager, this, i, BankedEncoderCell::EncoderType::ModulatorAmount);
+                        m_modulators.m_modulators[i] = Make(m_context, this, i, BankedEncoderCell::EncoderType::ModulatorAmount);
                         m_modulators.m_modulators[i]->FromJSON(modulatorJ);
                         m_modulators.m_activeModulators[m_modulators.m_numActiveModulators] = i;
                         ++m_modulators.m_numActiveModulators;
@@ -910,7 +910,7 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             for (size_t i = 0; i < x_numGestureParams; ++i)
             {
-                m_modulators.m_gestures[i] = Make(m_sceneManager, this, i, BankedEncoderCell::EncoderType::GestureParam);
+                m_modulators.m_gestures[i] = Make(m_context, this, i, BankedEncoderCell::EncoderType::GestureParam);
                 m_modulators.m_gestures[i]->FromJSON(gesturesJ.GetAt(i));
             }
         }
@@ -922,7 +922,8 @@ struct BankedEncoderCell : public StateEncoderCell
             {
                 for (size_t j = 0; j < 16; ++j)
                 {
-                    m_isActive[i][j] = activeJ.GetAt(i * 16 + j).BooleanValue();
+                    bool active = activeJ.GetAt(i * 16 + j).BooleanValue();
+                    SetActive(active, i, j);
                 }
             }
         }
@@ -936,9 +937,9 @@ struct BankedEncoderCell : public StateEncoderCell
         m_forceUpdate = true;
     }
 
-    void FillModulators(SceneManager* sceneManager)
+    void FillModulators(SmartGridOneContext* context)
     {
-        m_modulators.FillModulators(this, sceneManager);
+        m_modulators.FillModulators(this, context);
         SetForceUpdateRecursive();
     }
 
@@ -962,8 +963,8 @@ struct BankedEncoderCell : public StateEncoderCell
         }
         else
         {
-            return (m_sceneManager->Scene2Active() && m_isActive[m_sceneManager->m_scene2][track])
-                || (m_sceneManager->Scene1Active() && m_isActive[m_sceneManager->m_scene1][track]);
+            return (m_context->m_sceneManager.Scene2Active() && m_isActive[m_context->m_sceneManager.m_scene2][track])
+                || (m_context->m_sceneManager.Scene1Active() && m_isActive[m_context->m_sceneManager.m_scene1][track]);
         }
     }
 
@@ -974,58 +975,69 @@ struct BankedEncoderCell : public StateEncoderCell
 
     bool IsActiveBothScenes()
     {
-        return (!m_sceneManager->Scene2Active() || m_isActive[m_sceneManager->m_scene2][m_sharedEncoderState->m_currentTrack])
-            && (!m_sceneManager->Scene1Active() || m_isActive[m_sceneManager->m_scene1][m_sharedEncoderState->m_currentTrack]);
+        return (!m_context->m_sceneManager.Scene2Active() || m_isActive[m_context->m_sceneManager.m_scene2][m_sharedEncoderState->m_currentTrack])
+            && (!m_context->m_sceneManager.Scene1Active() || m_isActive[m_context->m_sceneManager.m_scene1][m_sharedEncoderState->m_currentTrack]);
     }
 
     void ToggleActive()
     {
-        if (m_sceneManager->Scene2Active())
+        if (m_context->m_sceneManager.Scene2Active())
         {
-            m_isActive[m_sceneManager->m_scene2][m_sharedEncoderState->m_currentTrack] = !m_isActive[m_sceneManager->m_scene2][m_sharedEncoderState->m_currentTrack];
+            m_isActive[m_context->m_sceneManager.m_scene2][m_sharedEncoderState->m_currentTrack] = !m_isActive[m_context->m_sceneManager.m_scene2][m_sharedEncoderState->m_currentTrack];
         }
         
-        if (m_sceneManager->Scene1Active())
+        if (m_context->m_sceneManager.Scene1Active())
         {
-            m_isActive[m_sceneManager->m_scene1][m_sharedEncoderState->m_currentTrack] = !m_isActive[m_sceneManager->m_scene1][m_sharedEncoderState->m_currentTrack];
+            m_isActive[m_context->m_sceneManager.m_scene1][m_sharedEncoderState->m_currentTrack] = !m_isActive[m_context->m_sceneManager.m_scene1][m_sharedEncoderState->m_currentTrack];
+        }
+    }
+
+    void SetActive(bool active, int scene, int track)
+    {
+        m_isActive[scene][track] = active;
+        if (m_type == EncoderType::GestureParam)
+        {
+            m_context->m_paramEventLogger.RecordEncoderActivate(this, scene, track);
         }
     }
 
     void SetActive(bool active)
     {
-        if (m_sceneManager->Scene2Active())
+        if (m_context->m_sceneManager.Scene2Active())
         {
-            if (active && !m_isActive[m_sceneManager->m_scene2][m_sharedEncoderState->m_currentTrack])
+            if (active && !m_isActive[m_context->m_sceneManager.m_scene2][m_sharedEncoderState->m_currentTrack])
             {
-                m_values[m_sharedEncoderState->m_currentTrack][m_sceneManager->m_scene2] = m_parent->m_values[m_sharedEncoderState->m_currentTrack][m_sceneManager->m_scene2];
+                SetAndRecordValue(m_parent->m_values[m_sharedEncoderState->m_currentTrack][m_context->m_sceneManager.m_scene2],
+                    m_context->m_sceneManager.m_scene2, m_sharedEncoderState->m_currentTrack);
                 SetStateForTrack(m_sharedEncoderState->m_currentTrack);
             }
 
-            m_isActive[m_sceneManager->m_scene2][m_sharedEncoderState->m_currentTrack] = active;
+            SetActive(active, m_context->m_sceneManager.m_scene2, m_sharedEncoderState->m_currentTrack);
         }
         
-        if (m_sceneManager->Scene1Active())
+        if (m_context->m_sceneManager.Scene1Active())
         {
-            if (active && !m_isActive[m_sceneManager->m_scene1][m_sharedEncoderState->m_currentTrack])
+            if (active && !m_isActive[m_context->m_sceneManager.m_scene1][m_sharedEncoderState->m_currentTrack])
             {
-                m_values[m_sharedEncoderState->m_currentTrack][m_sceneManager->m_scene1] = m_parent->m_values[m_sharedEncoderState->m_currentTrack][m_sceneManager->m_scene1];
+                SetAndRecordValue(m_parent->m_values[m_sharedEncoderState->m_currentTrack][m_context->m_sceneManager.m_scene1],
+                    m_context->m_sceneManager.m_scene1, m_sharedEncoderState->m_currentTrack);
                 SetStateForTrack(m_sharedEncoderState->m_currentTrack);
             }
 
-            m_isActive[m_sceneManager->m_scene1][m_sharedEncoderState->m_currentTrack] = active;
+            SetActive(active, m_context->m_sceneManager.m_scene1, m_sharedEncoderState->m_currentTrack);
         }
     }
 
     void DeactivateGestureCurrentScene()
     {
-        if (m_sceneManager->Scene2Active())
+        if (m_context->m_sceneManager.Scene2Active())
         {
-            m_isActive[m_sceneManager->m_scene2][m_sharedEncoderState->m_currentTrack] = false;
+            SetActive(false, m_context->m_sceneManager.m_scene2, m_sharedEncoderState->m_currentTrack);
         }
         
-        if (m_sceneManager->Scene1Active())
+        if (m_context->m_sceneManager.Scene1Active())
         {
-            m_isActive[m_sceneManager->m_scene1][m_sharedEncoderState->m_currentTrack] = false;
+            SetActive(false, m_context->m_sceneManager.m_scene1, m_sharedEncoderState->m_currentTrack);
         }
     }
 
@@ -1038,14 +1050,14 @@ struct BankedEncoderCell : public StateEncoderCell
             BankedEncoderCell* gestureCell = m_modulators.m_gestures[gesture].get();
             for (size_t track = 0; track < m_numTracks; ++track)
             {
-                if (m_sceneManager->Scene2Active())
+                if (m_context->m_sceneManager.Scene2Active())
                 {
-                    gestureCell->m_isActive[m_sceneManager->m_scene2][track] = false;
+                    gestureCell->SetActive(false, m_context->m_sceneManager.m_scene2, track);
                 }
 
-                if (m_sceneManager->Scene1Active())
+                if (m_context->m_sceneManager.Scene1Active())
                 {
-                    gestureCell->m_isActive[m_sceneManager->m_scene1][track] = false;
+                    gestureCell->SetActive(false, m_context->m_sceneManager.m_scene1, track);
                 }
             }
         }
@@ -1215,7 +1227,7 @@ EncoderPtr MakeEncoder(Args&&... args)
 
 struct EncoderBankInternal : public EncoderGrid
 {
-    SceneManager* m_sceneManager;
+    SmartGridOneContext* m_context;
     BankedEncoderCell* m_baseCell[4][4];
     BankedEncoderCell* m_selected;
     size_t m_totalVoices;
@@ -1240,16 +1252,16 @@ struct EncoderBankInternal : public EncoderGrid
     }
     
     EncoderBankInternal()
-        : m_sceneManager(nullptr)
+        : m_context(nullptr)
         , m_selected(nullptr)
         , m_totalVoices(0)
         , m_activeEncoderPrefix(0)
     {
     }
 
-    void Init(SceneManager* sceneManager, BankedEncoderCell::ModulatorValues* modulatorValues, size_t numTracks, size_t numVoices)
+    void Init(SmartGridOneContext* context, BankedEncoderCell::ModulatorValues* modulatorValues, size_t numTracks, size_t numVoices)
     {
-        m_sceneManager = sceneManager;
+        m_context = context;
         m_sharedEncoderState.m_modulatorValues = modulatorValues;
         m_sharedEncoderState.m_numTracks = numTracks;
         m_sharedEncoderState.m_numVoices = numVoices;
@@ -1470,7 +1482,7 @@ struct EncoderBankInternal : public EncoderGrid
             return;
         }
 
-        cell->FillModulators(m_sceneManager);
+        cell->FillModulators(m_context);
         m_selected = cell;
         SetVisibleCell(3, 3, m_selected);
         for (size_t i = 0; i < BankedEncoderCell::x_numModulators; ++i)
@@ -1512,7 +1524,7 @@ struct EncoderBankInternal : public EncoderGrid
             return;
         }
 
-        if (m_sceneManager->m_shift)
+        if (m_context->m_sceneManager.m_shift)
         {
             cell->HandleShiftPress();
         }
@@ -1696,4 +1708,61 @@ inline void BankedEncoderCell::SetModulatorsAffectingRecursive()
     m_ownerBank->ComputeGesturesAffectingPerTrack();
 }
 
+}
+
+inline ParamEvent ParamEvent::MkEncoderSet(SmartGrid::StateEncoderCell* stateEncoderCell, int scene, int track, size_t sample)
+{
+    SmartGrid::BankedEncoderCell* cell = static_cast<SmartGrid::BankedEncoderCell*>(stateEncoderCell);
+    if (cell->m_depth > x_maxEncoderPath)
+    {
+        return ParamEvent{};
+    }
+
+    ParamEvent event{};
+    event.m_type = ParamEvent::Type::EncoderSet;
+    event.m_sample = sample;
+    event.m_isGesture = cell->m_type == SmartGrid::BankedEncoderCell::EncoderType::GestureParam;
+    event.m_scene = scene;
+    event.m_track = track;
+    event.m_valueLen = sizeof(float);
+    const float value = cell->ToValue(cell->m_values[track][scene]);
+    std::memcpy(event.m_value, &value, sizeof(float));
+
+    while (cell->m_depth > 0)
+    {
+        event.m_encoderPath[cell->m_depth - 1] = static_cast<int>(cell->m_index)
+            | (cell->m_type == SmartGrid::BankedEncoderCell::EncoderType::GestureParam ? 0x80 : 0);
+        cell = cell->m_parent;
+    }
+
+    event.m_name = cell->m_name;
+    return event;
+}
+
+inline ParamEvent ParamEvent::MkEncoderActivate(SmartGrid::BankedEncoderCell* cell, int scene, int track, size_t sample)
+{
+    if (cell->m_depth > x_maxEncoderPath)
+    {
+        return ParamEvent{};
+    }
+
+    assert(cell->m_type == SmartGrid::BankedEncoderCell::EncoderType::GestureParam);
+    ParamEvent event{};
+    event.m_type = ParamEvent::Type::EncoderActivate;
+    event.m_sample = sample;
+    event.m_scene = scene;
+    event.m_track = track;
+    event.m_valueLen = sizeof(bool);
+    std::memcpy(event.m_value, &cell->m_isActive[scene][track], sizeof(bool));
+    event.m_gesture = cell->m_index;
+
+    while (cell->m_depth > 0)
+    {
+        event.m_encoderPath[cell->m_depth - 1] = static_cast<int>(cell->m_index)
+            | (cell->m_type == SmartGrid::BankedEncoderCell::EncoderType::GestureParam ? 0x80 : 0);
+        cell = cell->m_parent;
+    }
+
+    event.m_name = cell->m_name;
+    return event;
 }

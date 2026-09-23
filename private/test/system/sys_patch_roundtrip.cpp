@@ -32,6 +32,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -216,8 +218,28 @@ void CheckParamNear(synthrig::SynthRig& rig,
 //
 DOCTEST_TEST_CASE("sys_patch_roundtrip: seeded encoder values survive save/load")
 {
+    struct RecordingDirectory
+    {
+        std::filesystem::path m_path = std::filesystem::temp_directory_path()
+            / ("smartgrid-random-params-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+
+        RecordingDirectory()
+        {
+            std::filesystem::create_directories(m_path);
+        }
+
+        ~RecordingDirectory()
+        {
+            std::filesystem::remove_all(m_path);
+        }
+    } directory;
     synthrig::SynthRig rig;
     rig.RunFrames(2);
+    DOCTEST_REQUIRE(rig.PrepareRecording(directory.m_path.string()));
+    rig.PressPad(synthrig::SynthRig::RouteBottomLeft, -1, 7);
+    rig.RunSamples(1);
+    auto& recorder = rig.Internal().m_context.m_recorder;
+    DOCTEST_REQUIRE(recorder.GetState() == StreamingRecorder::State::Recording);
 
     auto encoders = FindConnectedEncoders(rig);
     DOCTEST_REQUIRE_FALSE(encoders.empty());
@@ -235,6 +257,10 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: seeded encoder values survive save/load"
 
     std::string jsonA = rig.SavePatch();
     DOCTEST_REQUIRE_FALSE(jsonA.empty());
+    const size_t sampleA = recorder.m_acceptedFrames - 1;
+    // Later direct scene edits must have a timestamp after this checkpoint.
+    //
+    rig.RunSamples(1);
 
     // Verify the values read back correctly after save (settle slew).
     //
@@ -244,6 +270,24 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: seeded encoder values survive save/load"
     //
     auto recordsB = RandomiseEncoders(rig, encoders, /*seed=*/0xC0FFEE5678ULL);
     (void)recordsB;
+    const std::string jsonB = rig.SavePatch();
+    const size_t sampleB = recorder.m_acceptedFrames - 1;
+    recorder.Stop();
+    recorder.Shutdown();
+    DOCTEST_REQUIRE(recorder.GetError() == StreamingRecorder::Error::None);
+    DOCTEST_CHECK(recorder.m_writtenFrames == sampleB + 1);
+    if (const char* output = std::getenv("SMARTGRID_RANDOM_PARAM_FIXTURE"))
+    {
+        for (const auto& entry : std::filesystem::directory_iterator(directory.m_path))
+        {
+            std::filesystem::copy_file(entry.path(), output, std::filesystem::copy_options::overwrite_existing);
+        }
+
+        std::ofstream expected(std::string(output) + ".json");
+        expected << "[{\"sample\":" << sampleA << ",\"patch\":" << jsonA
+            << "},{\"sample\":" << sampleB << ",\"patch\":" << jsonB << "}]";
+        DOCTEST_REQUIRE(expected.good());
+    }
 
     // --- Load JSON_A ---
     //
@@ -255,6 +299,21 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: seeded encoder values survive save/load"
     AssertEncoderValues(rig, recordsA, kTol);
 
     DOCTEST_CHECK_FALSE(rig.SawNaN());
+}
+
+DOCTEST_TEST_CASE("sys_patch_roundtrip: blend persists and missing legacy blend preserves the current value")
+{
+    synthrig::SynthRig rig;
+    auto& internal = rig.Internal();
+    internal.SetBlendFactor(0.625f);
+    JsonArena arena(JsonArena::kDefaultCapacity);
+    JSON patch = internal.ToJSON(arena);
+    DOCTEST_CHECK(patch.Get("blend").NumberValue() == 0.625);
+    internal.SetBlendFactor(0.125f);
+    internal.FromJSON(patch, true);
+    DOCTEST_CHECK(internal.m_context.m_sceneManager.m_blendFactor == 0.625f);
+    internal.FromJSON(arena.Object(), false);
+    DOCTEST_CHECK(internal.m_context.m_sceneManager.m_blendFactor == 0.625f);
 }
 
 // ---------------------------------------------------------------------------

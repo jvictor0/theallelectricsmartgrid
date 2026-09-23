@@ -26,7 +26,7 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
     DOCTEST_REQUIRE(rig.PrepareRecording(directory.m_path.string()));
     auto& synth = rig.Internal().m_squiggleBoy;
     auto& engine = static_cast<SquiggleBoy&>(synth);
-    auto& recorder = engine.m_mixer.m_recorder;
+    StreamingRecorder& recorder = rig.Internal().m_context.m_recorder;
     const auto tracks = recorder.m_session.m_tracks;
     TheNonagonSquiggleBoyInternal::RecordCell recordCell(&rig.Internal());
     recordCell.OnPress(127);
@@ -48,14 +48,6 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
         SampleTimer::IncrementSample();
         engine.ProcessSample(input, monitors);
     };
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    while (recorder.GetState() != StreamingRecorder::State::Recording
-        && std::chrono::steady_clock::now() < deadline)
-    {
-        process();
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-
     DOCTEST_REQUIRE(recorder.GetState() == StreamingRecorder::State::Recording);
     for (size_t frame = 0; frame < 16; ++frame)
     {
@@ -139,4 +131,188 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
     DOCTEST_CHECK(recordCell.GetColor() == SmartGrid::Color::Red);
     SampleTimer::s_instance->m_sample = savedSample;
     DOCTEST_CHECK_FALSE(synth.IsRecording());
+}
+
+DOCTEST_TEST_CASE("recording engine: initial patch and all parameter types reach the recording together")
+{
+    const auto directory = std::filesystem::temp_directory_path()
+        / ("smartgrid-state-recording-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(directory);
+    synthrig::SynthRig rig;
+    // Let timestamp-zero UI messages clear the existing 20 ms input latency.
+    //
+    rig.RunFrames(2);
+    auto& internal = rig.Internal();
+    StreamingRecorder& recorder = internal.m_context.m_recorder;
+    State* mute = internal.m_nonagon.m_stateSaver.Get("Mute", 0);
+    State* initialMute = internal.m_nonagon.m_stateSaver.Get("Mute", 1);
+    initialMute->Set(true);
+    mute->Set(false);
+    internal.SetBlendFactor(0.125f);
+    auto* encoder = internal.m_squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(0);
+    DOCTEST_REQUIRE(rig.PrepareRecording(directory.string()));
+    auto session = recorder.m_session;
+    session.m_blockFrames = 4;
+    DOCTEST_REQUIRE(recorder.Prepare(session, directory.string()));
+    rig.PressPad(synthrig::SynthRig::RouteBottomLeft, -1, 7);
+    rig.PressScenePad(2);
+    rig.RunSamples(1);
+    DOCTEST_REQUIRE(recorder.GetState() == StreamingRecorder::State::Recording);
+    DOCTEST_REQUIRE(recorder.m_acceptedFrames == 1);
+    AudioInputBuffer input;
+    for (size_t frame = 1; frame <= 4; ++frame)
+    {
+        SampleTimer::IncrementSample();
+        if (frame == 1)
+        {
+            mute->Set(true);
+            mute->Set(false);
+            mute->Set(true);
+            internal.m_configGrid.Get(6, 0)->OnPress(127);
+            internal.HandleParamSet({SmartGrid::MessageIn::Mode::ParamSet14, 0, 0, 8192});
+            internal.HandleParamSet({SmartGrid::MessageIn::Mode::ParamSet14, 4, 0, 4096});
+        }
+        else if (frame == 2)
+        {
+            internal.m_configGrid.m_sourceWidthStates[0]->Set(SourceMixer::SourceWidth::Stereo);
+            internal.m_configGrid.m_sourceSelectedStates[0][1]->Set(true);
+            encoder->SetAndRecordValue(0.75f, 0, 0);
+            encoder->SetAndRecordValue(0.625f, 2, 1);
+        }
+        else if (frame == 3)
+        {
+            mute->LoadValFromScene(2);
+            mute->Set(true);
+            internal.m_activeTrioState->Set(TheNonagonSmartGrid::Trio::Water);
+            encoder->m_modulators.AddGesture(encoder, 2);
+            auto* gesture = encoder->m_modulators.m_gestures[2].get();
+            gesture->SetActive(true);
+            gesture->FillModulators(&internal.m_context);
+            gesture->m_modulators.m_modulators[3]->SetAndRecordValue(0.25f, 2, 1);
+            encoder->FillModulators(&internal.m_context);
+            auto* depth = encoder->m_modulators.m_modulators[1].get();
+            depth->m_modulators.AddGesture(depth, 0);
+            auto* nestedGesture = depth->m_modulators.m_gestures[0].get();
+            nestedGesture->SetAndRecordValue(0.625f, 1, 0);
+            nestedGesture->SetActive(true, 1, 0);
+        }
+        else if (frame == 4)
+        {
+            internal.m_configGrid.Get(6, 0)->OnPress(127);
+            internal.m_configGrid.Get(7, 0)->OnPress(127);
+            encoder->m_modulators.m_gestures[2]->SetActive(false, 0, 0);
+            internal.HandleParamSet({SmartGrid::MessageIn::Mode::ParamSet14, 4, 0, 16383});
+        }
+
+        internal.ProcessSample(input);
+    }
+
+    recorder.Stop();
+    recorder.Shutdown();
+    DOCTEST_REQUIRE(recorder.GetError() == StreamingRecorder::Error::None);
+    std::filesystem::path recording;
+    for (const auto& entry : std::filesystem::directory_iterator(directory))
+    {
+        recording = entry.path();
+    }
+
+    DOCTEST_REQUIRE(!recording.empty());
+    std::ifstream source(recording, std::ios::binary);
+    const std::string bytes((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
+    DOCTEST_REQUIRE(bytes.size() > 12);
+    uint32_t headerBytes = 0;
+    for (size_t i = 0; i < 4; ++i)
+    {
+        headerBytes |= static_cast<uint32_t>(static_cast<uint8_t>(bytes[8 + i])) << (8 * i);
+    }
+
+    JsonArena arena(JsonArena::kDefaultCapacity);
+    JSON header = arena.Loads(bytes.substr(12, headerBytes).c_str());
+    JSON patch = header.Get("initial_patch");
+    DOCTEST_REQUIRE_FALSE(patch.Get("nonagon").IsNull());
+    DOCTEST_CHECK(patch.Get("nonagon").Get("Mute_0").GetAt(0).IntegerValue() == 0);
+    DOCTEST_CHECK(patch.Get("nonagon").Get("Mute_1").GetAt(0).IntegerValue() == 1);
+    DOCTEST_CHECK(patch.Get("stateSaver").Get("sceneStateRight").GetAt(0).IntegerValue() == 1);
+    DOCTEST_CHECK(patch.Get("stateSaver").Get("sourceMonitor_0").GetAt(0).IntegerValue() == 1);
+    DOCTEST_CHECK_FALSE(patch.Get("faders").IsNull());
+    DOCTEST_CHECK(patch.Get("blend").NumberValue() == 0.125);
+    DOCTEST_CHECK(patch.Get("squiggleBoy").Get("Harmonics1").Get("gestures").IsNull());
+    DOCTEST_CHECK(recorder.m_writtenFrames == 5);
+    if (const char* output = std::getenv("SMARTGRID_STATE_RECORDING_FIXTURE"))
+    {
+        std::filesystem::copy_file(recording, output, std::filesystem::copy_options::overwrite_existing);
+    }
+
+    std::filesystem::remove_all(directory);
+}
+
+DOCTEST_TEST_CASE("recording engine: reconstructed patch loads recorded state and config copies")
+{
+    const char* path = std::getenv("SMARTGRID_RECONSTRUCTED_PATCH");
+    if (path == nullptr)
+    {
+        return;
+    }
+
+    std::ifstream input(path);
+    DOCTEST_REQUIRE(input.good());
+    const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    JsonArena arena(JsonArena::kDefaultCapacity);
+    JSON patch = arena.Loads(text.c_str());
+    DOCTEST_REQUIRE_FALSE(patch.IsNull());
+    synthrig::SynthRig rig;
+    auto& internal = rig.Internal();
+    internal.FromJSON(patch, true);
+    State* mute = internal.m_nonagon.m_stateSaver.Get("Mute", 0);
+    DOCTEST_CHECK(mute->Get<bool>());
+    DOCTEST_CHECK(mute->m_buf[2] == 1);
+    DOCTEST_CHECK(internal.m_activeTrio == TheNonagonSmartGrid::Trio::Water);
+    DOCTEST_CHECK(internal.m_configGrid.m_sourceWidthStates[0]->Get<SourceMixer::SourceWidth>() == SourceMixer::SourceWidth::Stereo);
+    DOCTEST_CHECK(internal.m_configGrid.m_sourceSelected[0][1]);
+    DOCTEST_CHECK_FALSE(internal.m_configGrid.m_sourceMonitor[0]);
+    DOCTEST_CHECK(internal.m_configGrid.m_sourceMonitor[1]);
+    DOCTEST_CHECK(internal.m_context.m_sceneManager.m_blendFactor == doctest::Approx(8192.0f / 16383.0f));
+    DOCTEST_CHECK(internal.m_squiggleBoyState.m_faders[3] == doctest::Approx(4096.0f / 16383.0f));
+    auto* encoder = internal.m_squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(0);
+    DOCTEST_CHECK(encoder->m_values[1][2] == 0.625f);
+    auto* gesture = encoder->m_modulators.m_gestures[2].get();
+    DOCTEST_REQUIRE(gesture != nullptr);
+    DOCTEST_CHECK(gesture->m_isActive[0][0]);
+    DOCTEST_CHECK(gesture->m_values[0][0] == 0.75f);
+    DOCTEST_REQUIRE(gesture->m_modulators.m_modulators[3].get() != nullptr);
+    DOCTEST_CHECK(gesture->m_modulators.m_modulators[3]->m_values[1][2] == 0.25f);
+    auto* depth = encoder->m_modulators.m_modulators[1].get();
+    DOCTEST_REQUIRE(depth != nullptr);
+    DOCTEST_REQUIRE(depth->m_modulators.m_gestures[0].get() != nullptr);
+    DOCTEST_CHECK(depth->m_modulators.m_gestures[0]->m_isActive[1][0]);
+    DOCTEST_CHECK(depth->m_modulators.m_gestures[0]->m_values[0][1] == 0.625f);
+}
+
+DOCTEST_TEST_CASE("recording engine: owner destruction drains events before freeing states")
+{
+    const auto directory = std::filesystem::temp_directory_path()
+        / ("smartgrid-owner-recording-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(directory);
+    auto internal = std::make_unique<TheNonagonSquiggleBoyInternal>();
+    internal->SetRecordingDirectory(directory.c_str());
+    DOCTEST_REQUIRE(internal->PrepareRecording());
+    StreamingRecorder& recorder = internal->m_context.m_recorder;
+    DOCTEST_REQUIRE(internal->StartRecording());
+    internal->m_nonagon.m_stateSaver.Get("Mute", 0)->Set(true);
+    recorder.BeginFrame();
+    recorder.CommitFrame();
+    internal.reset();
+    size_t files = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(directory))
+    {
+        std::ifstream input(entry.path(), std::ios::binary);
+        const std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        DOCTEST_REQUIRE(bytes.size() > 16);
+        DOCTEST_CHECK(bytes.substr(bytes.size() - 16, 4) == "END1");
+        DOCTEST_CHECK(static_cast<uint8_t>(bytes[bytes.size() - 12]) == 1);
+        ++files;
+    }
+
+    DOCTEST_CHECK(files == 1);
+    std::filesystem::remove_all(directory);
 }
