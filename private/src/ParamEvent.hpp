@@ -2,6 +2,7 @@
 
 #include <string>
 #include "State.hpp"
+#include "PatchArena.hpp"
 
 namespace SmartGrid
 {
@@ -40,6 +41,14 @@ struct ParamEvent
         // Uses name, scene, track, path and value/len.
         //
         EncoderActivate,
+
+        // Apply a loaded patch using its fader restoration policy.
+        //
+        PatchLoad,
+
+        // Replace the entire patch after a whole-patch reset.
+        //
+        PatchSnapshot,
     };
 
     ParamEvent()
@@ -73,6 +82,41 @@ struct ParamEvent
     //
     int m_encoderPath[x_maxEncoderPath];
     bool m_isGesture;
+    PatchArena* m_patchArena = nullptr;
+    JSON m_patch;
+    bool m_restoreFaders = false;
+
+    // Only the writer supplies serialized bytes, after releasing the arena.
+    //
+    const char* m_patchText = nullptr;
+    size_t m_patchBytes = 0;
+    uint32_t m_order = 0;
+
+    bool IsPatch() const
+    {
+        return m_type == Type::PatchLoad || m_type == Type::PatchSnapshot;
+    }
+
+    void ReleasePatch()
+    {
+        if (m_patchArena != nullptr)
+        {
+            m_patchArena->Release();
+            m_patchArena = nullptr;
+            m_patch = JSON::Null();
+        }
+    }
+
+    static ParamEvent MkPatch(PatchArena& arena, bool restoreFaders, bool snapshot, size_t sample)
+    {
+        ParamEvent event;
+        event.m_type = snapshot ? Type::PatchSnapshot : Type::PatchLoad;
+        event.m_sample = sample;
+        event.m_patchArena = &arena;
+        event.m_patch = arena.m_patch;
+        event.m_restoreFaders = restoreFaders;
+        return event;
+    }
 
     size_t EncoderPathLength() const
     {

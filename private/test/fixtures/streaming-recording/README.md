@@ -64,3 +64,15 @@ Choose a fresh JSON output path when repeating the command: patch extraction
 refuses to overwrite an existing file. The Python suite skips the C++ fixture
 checks when their environment variables are absent. The C++ seeded test always
 records and checks successful completion even without exporting a fixture.
+
+### Recorded patch-load checkpoints
+
+`SMARTGRID_PATCH_LOAD_FIXTURE=/tmp/smartgrid-patch-loads.sgrec` exports the
+`recording engine: bulk patch replay checkpoints include loads reloads and resets`
+fixture and a `.json` array of live `{sample, patch}` checkpoints. Set the same
+environment variable when running `scripts/tests/test_sgrec.py` to verify v3
+replay against those checkpoints. The fixture covers subtree removal, partial
+configuration and legacy monitors, fader/blend restoration policy, save-pad
+reloads, same-sample ordering, and whole-patch reset. JSON float comparisons
+allow normal float32 round-trip error; only sample-directory fields are excluded.
+The seeded parameter fixture now includes a load performed while recording.

@@ -257,7 +257,7 @@ struct StateEncoderCell : public EncoderCell
             for (size_t j = 0; j < m_numTracks; ++j)
             {
                 float value = ToNormalized(static_cast<float>(sceneValues.GetAt(j).NumberValue()));
-                SetAndRecordValue(value, i, j);
+                m_values[j][i] = value;
             }
         }
 

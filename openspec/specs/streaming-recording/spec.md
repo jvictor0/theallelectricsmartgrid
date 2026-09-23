@@ -6,7 +6,7 @@ Define the SMRTGRID container and realtime capture lifecycle for lossless, spars
 ## Requirements
 
 ### Requirement: Versioned Session Metadata
-The performance recorder SHALL write a `.sgrec` v2 container with the eight ASCII magic bytes `SMRTGRID`, a little-endian JSON byte length, and a UTF-8 JSON header containing `format_version: 2`, UTC session creation time, full build Git SHA, sample rate, nominal block frame count, an immutable track table, and the complete live patch in `initial_patch`. The table SHALL contain stable numeric IDs, names, types, roles, and taps. Type SHALL determine stream count, order, and semantics: `mono` has `sample_val`; `panned_mono` has `sample_val`, `x`, `y`; `stereo` has left/right; `quad` has q0 through q3. Quad corner order and integer conversions SHALL be fixed by v1, with corners `(0,1)`, `(1,1)`, `(1,0)`, `(0,0)`.
+The performance recorder SHALL write a `.sgrec` v3 container with the eight ASCII magic bytes `SMRTGRID`, a little-endian JSON byte length, and a UTF-8 JSON header containing `format_version: 3`, UTC session creation time, full build Git SHA, sample rate, nominal block frame count, an immutable track table, and the complete live patch in `initial_patch`. The table SHALL contain stable numeric IDs, names, types, roles, and taps. Type SHALL determine stream count, order, and semantics: `mono` has `sample_val`; `panned_mono` has `sample_val`, `x`, `y`; `stereo` has left/right; `quad` has q0 through q3. Quad corner order and integer conversions SHALL be fixed by v1, with corners `(0,1)`, `(1,1)`, `(1,0)`, `(0,0)`.
 
 #### Scenario: Header describes an independently readable session
 - **WHEN** a new recording is opened by a reader
@@ -74,7 +74,7 @@ Each stream descriptor SHALL contain only encoding and bit width, one byte each.
 - **AND** a decoder reconstructs exactly the declared number of values
 
 ### Requirement: Validated Framing and Termination
-The writer SHALL use `BLK2` with the existing 22-byte fixed header, track IDs, two-byte stream descriptors and audio payloads, followed by grouped events and CRC-32/ISO-HDLC covering the whole record. Stream counts SHALL derive from track type and payload lengths from the encoding formulas; the wire format SHALL contain no repeated stream counts, per-stream lengths, or reserved padding. Clean completion SHALL write the fixed 16-byte `END1` marker containing total frames and CRC. The total SHALL match the contiguous written frames. Capture errors SHALL omit the completion marker and report their cause through runtime status/logging. Python audio decoding SHALL validate audio metadata/record bounds, IDs, encodings, reconstructed ranges, derived audio lengths, padding bits, CRCs, continuity, and completion. It SHALL skip event trailers and leave initial-patch contents uninterpreted. Patch queries SHALL decode only the metadata and event data needed for reconstruction.
+The writer SHALL use `BLK3` with the existing 22-byte fixed header, track IDs, two-byte stream descriptors and audio payloads, followed by grouped events and CRC-32/ISO-HDLC covering the whole record. Stream counts SHALL derive from track type and payload lengths from the encoding formulas; the wire format SHALL contain no repeated stream counts, per-stream lengths, or reserved padding. Clean completion SHALL write the fixed 16-byte `END1` marker containing total frames and CRC. The total SHALL match the contiguous written frames. Capture errors SHALL omit the completion marker and report their cause through runtime status/logging. Python audio decoding SHALL validate audio metadata/record bounds, IDs, encodings, reconstructed ranges, derived audio lengths, padding bits, CRCs, continuity, and completion. It SHALL skip event trailers and leave initial-patch contents uninterpreted. Patch queries SHALL decode only the metadata and event data needed for reconstruction.
 
 #### Scenario: Corrupt or hostile record
 - **WHEN** a block has a bad CRC, duplicate track ID, invalid width, impossible payload length, or exceeds a declared format bound
@@ -151,7 +151,7 @@ The recorder SHALL snapshot the complete live patch, including unsaved edits, on
 - **THEN** recording reports overrun and omits clean completion rather than silently losing a delta
 
 ### Requirement: Compact Typed Parameter Events
-Event groups SHALL use type:u8, value_width:u8, name_length:u16, entry_count:u32, then UTF-8 name bytes. All entries SHALL begin with a block-relative sample:u32. StateChange (1) SHALL append scene:u8 and 1/2/4/8 value bytes without changing its existing layout. GestureSet (2) SHALL append fader_index:u8 and float32. BlendSet (3) SHALL append float32. Both unnamed types SHALL have zero name length. EncoderSet (4) and EncoderActivate (5) SHALL use the root parameter name and append scene:u8, track:u8, path_length:u8, path bytes, then float32 or active:u8 respectively. Floats SHALL be finite little-endian IEEE-754 binary32; activation SHALL be 0 or 1. Irrelevant ParamEvent fields SHALL NOT be serialized.
+Event groups SHALL use type:u8, value_width:u8, name_length:u16, entry_count:u32, then UTF-8 name bytes. All v3 entries SHALL begin with a block-relative sample:u32 and capture-order:u32 assigned from original event order within the block before grouping. StateChange (1) SHALL append scene:u8 and 1/2/4/8 value bytes. GestureSet (2) SHALL append fader_index:u8 and float32. BlendSet (3) SHALL append float32. Both unnamed types SHALL have zero name length. EncoderSet (4) and EncoderActivate (5) SHALL use the root parameter name and append scene:u8, track:u8, path_length:u8, path bytes, then float32 or active:u8 respectively. Floats SHALL be finite little-endian IEEE-754 binary32; activation SHALL be 0 or 1. Irrelevant ParamEvent fields SHALL NOT be serialized.
 
 Encoder paths SHALL contain at most 16 hops, with modulator indices 0..14 or gesture indices encoded as 128..143. The root SHALL have an empty path; activation SHALL end at a gesture. Scenes SHALL be 0..7, tracks and faders 0..15. In-memory unused path slots SHALL be initialized to -1 and SHALL NOT appear on the wire.
 
@@ -161,12 +161,42 @@ Encoder paths SHALL contain at most 16 hops, with modulator indices 0..14 or ges
 - **AND** unnamed events do not serialize a name, scene, or encoder path
 
 #### Scenario: Nested encoder edit and activation
-- **WHEN** a gesture of a modulator or modulation of a gesture changes
+- **WHEN** a nested normal modulator or its gesture leaf changes
 - **THEN** the event path identifies the kind and index of every hop
 - **AND** activating a gesture that copies a parent value also emits the resulting EncoderSet value
 
 #### Scenario: State scene copy or reset
-- **WHEN** an existing StateSaver copy, reset, or JSON-load hook writes a scene buffer during recording
+- **WHEN** an individual StateSaver copy or reset writes a scene buffer during recording
 - **THEN** StateChange copies that scene's bytes even when the live pointer represents a different scene
 
-This protocol records assignments emitted by the existing producers. Encoder subtree deletion/recreation, complete patch-load replacement semantics, sample-directory edits, and sample assets remain outside its replay guarantee. Sample-recording directories intentionally remain untracked while that feature is unfinished.
+### Requirement: Bulk Patch Loads and Reset Snapshots
+Patch loading SHALL assign raw state, encoder values, activation, and configuration without per-field parameter events. The engine SHALL record one PatchLoad (6) containing the input JSON and restoreFaders policy at the sample where the load takes effect. A saved-pad reload SHALL use the same mechanism with restoreFaders false. Saving JSON SHALL NOT itself emit parameter assignments. Whole-patch reset SHALL suppress individual reset deltas and emit one PatchSnapshot (7) containing the complete resulting patch. Snapshot storage SHALL be preallocated; a busy reset arena SHALL defer the reset without blocking audio.
+
+Both new event types SHALL have an empty name and value_width 0. PatchLoad SHALL append restoreFaders:u8, json_length:u32, and UTF-8 JSON bytes after sample/order. PatchSnapshot SHALL append json_length:u32 and UTF-8 JSON bytes. Replay SHALL use chronological sample/order across types and names, applying partial-load semantics for PatchLoad and whole-patch replacement for PatchSnapshot.
+
+#### Scenario: Full patch load during recording
+- **WHEN** a patch load replaces thousands of fields and removes old encoder children
+- **THEN** one bulk event records the operation without overflowing the parameter queue
+- **AND** replay removes the replaced children and honors restored or preserved faders and blend
+
+#### Scenario: Edits around a same-sample load
+- **WHEN** parameter edits occur before and after a patch load at the same sample
+- **THEN** reconstruction applies them in their capture order despite type/name grouping
+
+#### Scenario: Whole-patch reset
+- **WHEN** a new-patch request resets the engine during recording
+- **THEN** replay uses the resulting full snapshot and subsequent edits at that sample remain effective
+
+### Requirement: Retained Patch Storage
+Each queued patch reference SHALL retain its backing arena until the worker has copied the JSON into worker-owned bytes. Arena reset/growth SHALL require exclusive ownership with no readers. Busy message-thread loads SHALL be deferred and retried before parsing; saves and saved-pad reloads SHALL defer on audio without waiting. The worker SHALL release every retained reference on success, failure, overflow, shutdown, and discarded-tail paths. Pending serialized payloads SHALL count toward the existing bounded pending-event storage.
+
+#### Scenario: Repeated reloads while the writer is delayed
+- **WHEN** multiple queued reloads reference one arena
+- **THEN** that arena remains immutable until all references have been copied or discarded
+- **AND** a subsequent parse or save cannot overwrite those queued patches
+
+#### Scenario: Prompt release before block completion
+- **WHEN** the worker drains a bulk event before its one-second audio block is ready
+- **THEN** it serializes the patch and releases the arena immediately, retaining owned bytes until block writing
+
+Sample-directory edits and sample assets remain intentionally outside capture coverage while the sample-recording feature is unfinished. The encoder path limit remains 16 hops.

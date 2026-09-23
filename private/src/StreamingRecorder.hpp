@@ -112,6 +112,12 @@ struct StreamingRecorder
         uint32_t m_frames = 0;
     };
 
+    struct PendingParamEvent
+    {
+        ParamEvent m_event;
+        std::string m_patchText;
+    };
+
     using Ring = CircularQueue<Page, x_queuePages>;
     static_assert(std::atomic<State>::is_always_lock_free);
     static_assert(std::atomic<Error>::is_always_lock_free);
@@ -122,8 +128,10 @@ struct StreamingRecorder
     std::unique_ptr<Sink> m_sink;
     std::unique_ptr<Ring> m_ring;
     std::unique_ptr<CircularQueue<ParamEvent, x_queueParamEvents>> m_paramEventsRing;
-    std::vector<ParamEvent> m_pendingParamEvents;
+    std::vector<PendingParamEvent> m_pendingParamEvents;
+    size_t m_pendingParamBytes = 0;
     JsonArena m_patchArena;
+    PatchArena m_resetPatchArena;
     JSON m_initialPatch;
     std::vector<size_t> m_trackOffsets;
     std::vector<uint8_t> m_positions;
@@ -177,7 +185,9 @@ struct StreamingRecorder
         m_ring = std::make_unique<Ring>();
         m_paramEventsRing = std::make_unique<CircularQueue<ParamEvent, x_queueParamEvents>>();
         m_patchArena.Init(JsonArena::kDefaultCapacity);
+        m_resetPatchArena.Init(JsonArena::kDefaultCapacity);
         m_pendingParamEvents.clear();
+        m_pendingParamBytes = 0;
         const size_t streams = m_session.StreamCount();
         for (auto& page : m_ring->m_data)
         {
@@ -258,8 +268,15 @@ struct StreamingRecorder
             return;
         }
 
+        if (event.m_patchArena != nullptr)
+        {
+            event.m_patchArena->Retain();
+        }
+
         if (!m_paramEventsRing->Push(event))
         {
+            ParamEvent discarded = event;
+            discarded.ReleasePatch();
             Fail(Error::Overrun);
         }
     }
@@ -439,13 +456,45 @@ struct StreamingRecorder
         ParamEvent event{};
         while (m_paramEventsRing->Pop(event))
         {
-            if (m_pendingParamEvents.size() >= RecordingFormat::x_maxBlockBytes / sizeof(ParamEvent))
+            struct ReleasePatch
+            {
+                ParamEvent& m_event;
+
+                ~ReleasePatch()
+                {
+                    m_event.ReleasePatch();
+                }
+            } release{event};
+
+            if (m_error != Error::None)
+            {
+                continue;
+            }
+
+            PendingParamEvent pending;
+            if (event.IsPatch())
+            {
+                std::unique_ptr<char, decltype(&std::free)> text(event.m_patch.Dumps(0), &std::free);
+                event.ReleasePatch();
+                if (!text)
+                {
+                    SetError(Error::Write);
+                    return false;
+                }
+
+                pending.m_patchText = text.get();
+            }
+
+            const size_t bytes = sizeof(PendingParamEvent) + pending.m_patchText.size();
+            if (bytes > RecordingFormat::x_maxBlockBytes - m_pendingParamBytes)
             {
                 SetError(Error::Overrun);
                 return false;
             }
 
-            m_pendingParamEvents.push_back(event);
+            pending.m_event = event;
+            m_pendingParamEvents.push_back(std::move(pending));
+            m_pendingParamBytes += bytes;
         }
 
         return true;
@@ -461,10 +510,17 @@ struct StreamingRecorder
 
         const uint64_t endFrame = m_writtenFrames.load() + frames;
         std::vector<ParamEvent> events;
-        for (const auto& event : m_pendingParamEvents)
+        for (const auto& pending : m_pendingParamEvents)
         {
+            auto event = pending.m_event;
             if (event.m_sample < endFrame)
             {
+                if (event.IsPatch())
+                {
+                    event.m_patchText = pending.m_patchText.data();
+                    event.m_patchBytes = pending.m_patchText.size();
+                }
+
                 events.push_back(event);
             }
         }
@@ -478,7 +534,16 @@ struct StreamingRecorder
         }
 
         m_pendingParamEvents.erase(std::remove_if(m_pendingParamEvents.begin(), m_pendingParamEvents.end(),
-            [endFrame](const ParamEvent& event) { return event.m_sample < endFrame; }), m_pendingParamEvents.end());
+            [this, endFrame](const PendingParamEvent& pending)
+            {
+                if (pending.m_event.m_sample < endFrame)
+                {
+                    m_pendingParamBytes -= sizeof(PendingParamEvent) + pending.m_patchText.size();
+                    return true;
+                }
+
+                return false;
+            }), m_pendingParamEvents.end());
         m_writtenFrames += frames;
         m_writtenBytes += m_encoded.size();
         const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -637,9 +702,11 @@ struct StreamingRecorder
                     ParamEvent discarded{};
                     while (m_paramEventsRing->Pop(discarded))
                     {
+                        discarded.ReleasePatch();
                     }
 
                     m_pendingParamEvents.clear();
+                    m_pendingParamBytes = 0;
                     m_stopRequested = false;
                     m_state = m_error == Error::None ? State::Idle : State::Error;
                 }

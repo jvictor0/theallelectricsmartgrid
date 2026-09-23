@@ -1,6 +1,7 @@
 #include "doctest.h"
 #include "StreamingRecorder.hpp"
 #include "AsyncLogger.hpp"
+#include "StateInterchange.hpp"
 
 #include <limits>
 
@@ -114,6 +115,99 @@ namespace
         event.m_value[0] = value;
         return event;
     }
+}
+
+DOCTEST_TEST_CASE("streaming recorder: queued patch readers prevent reuse until the writer copies them")
+{
+    StateInterchange interchange;
+    DOCTEST_REQUIRE(interchange.RequestLoadText("{\"old\":42}", true));
+    JSON original = interchange.GetToLoad();
+    interchange.AckLoadCompleted();
+    StreamingRecorder recorder;
+    auto sink = std::make_unique<MemorySink>();
+    auto* memory = sink.get();
+    memory->m_stallOpen = true;
+    DOCTEST_REQUIRE(recorder.Prepare(Session(), "/unused", std::move(sink)));
+    DOCTEST_REQUIRE(recorder.Start());
+    auto& arena = interchange.m_loadArena;
+    recorder.RecordParamEvent(ParamEvent::MkPatch(arena, true, false, 0));
+    recorder.RecordParamEvent(ParamEvent::MkPatch(arena, false, false, 0));
+    DOCTEST_CHECK(arena.m_readers == 2);
+    DOCTEST_CHECK_FALSE(arena.TryWrite());
+    DOCTEST_CHECK(interchange.RequestLoadText("{\"new\":99}", true));
+    DOCTEST_CHECK_FALSE(interchange.m_pendingLoad.empty());
+    DOCTEST_CHECK(original.Get("old").IntegerValue() == 42);
+    memory->m_stallOpen = false;
+    const bool copied = Await([&]() { return arena.m_readers == 0; });
+    DOCTEST_CHECK(copied);
+    interchange.RetryPendingLoad();
+    DOCTEST_CHECK(interchange.m_pendingLoad.empty());
+    DOCTEST_CHECK(interchange.GetToLoad().Get("new").IntegerValue() == 99);
+    DOCTEST_CHECK(recorder.BeginFrame());
+    recorder.CommitFrame();
+    recorder.Stop();
+    recorder.Shutdown();
+    DOCTEST_CHECK(recorder.GetError() == StreamingRecorder::Error::None);
+    const std::string bytes(memory->m_bytes.begin(), memory->m_bytes.end());
+    const size_t first = bytes.find("{\"old\":42}");
+    DOCTEST_REQUIRE(first != std::string::npos);
+    DOCTEST_CHECK(bytes.find("{\"old\":42}", first + 1) != std::string::npos);
+    DOCTEST_CHECK(bytes.find("{\"new\":99}") == std::string::npos);
+}
+
+DOCTEST_TEST_CASE("streaming recorder: failed sessions release queued and out-of-tail patches")
+{
+    PatchArena arena(4096);
+    DOCTEST_REQUIRE(arena.TryWrite());
+    arena.FinishWrite(arena.Loads("{\"patch\":1}"));
+    StreamingRecorder recorder;
+    auto sink = std::make_unique<MemorySink>();
+    auto* memory = sink.get();
+    memory->m_stallOpen = true;
+    DOCTEST_SUBCASE("open failure")
+    {
+        memory->m_failOpen = true;
+    }
+
+    DOCTEST_SUBCASE("write failure")
+    {
+        memory->m_failWrite = true;
+    }
+
+    DOCTEST_SUBCASE("close failure")
+    {
+        memory->m_failClose = true;
+    }
+
+    DOCTEST_SUBCASE("discarded tail")
+    {
+    }
+
+    size_t copies = 2;
+    DOCTEST_SUBCASE("queue overflow")
+    {
+        copies = StreamingRecorder::x_queueParamEvents + 1;
+    }
+
+    DOCTEST_REQUIRE(recorder.Prepare(Session(), "/unused", std::move(sink)));
+    DOCTEST_REQUIRE(recorder.Start());
+    for (size_t i = 0; i < copies; ++i)
+    {
+        recorder.RecordParamEvent(ParamEvent::MkPatch(arena, true, false, i));
+    }
+
+    if (copies == 2)
+    {
+        DOCTEST_CHECK(recorder.BeginFrame());
+        recorder.CommitFrame();
+    }
+    recorder.Stop();
+    memory->m_stallOpen = false;
+    recorder.Shutdown();
+    DOCTEST_CHECK(arena.m_readers == 0);
+    DOCTEST_CHECK(arena.TryWrite());
+    arena.Reset();
+    arena.FinishWrite(JSON::Null());
 }
 
 DOCTEST_TEST_CASE("streaming recorder: captures audio and events while the file is opening")
@@ -404,15 +498,15 @@ DOCTEST_TEST_CASE("streaming recorder: snapshot and events share the first recor
     DOCTEST_CHECK(ReadLE(bytes, offset + 22, 4) == 1);
     DOCTEST_CHECK(ReadLE(bytes, offset + 30, 4) == 3);
     DOCTEST_CHECK(ReadLE(bytes, offset + 35, 4) == 0);
-    DOCTEST_CHECK(bytes.at(offset + 40) == 1);
-    DOCTEST_CHECK(ReadLE(bytes, offset + 41, 4) == 7);
-    DOCTEST_CHECK(bytes.at(offset + 46) == 8);
-    DOCTEST_CHECK(bytes.at(offset + 52) == 42);
+    DOCTEST_CHECK(bytes.at(offset + 44) == 1);
+    DOCTEST_CHECK(ReadLE(bytes, offset + 45, 4) == 7);
+    DOCTEST_CHECK(bytes.at(offset + 54) == 8);
+    DOCTEST_CHECK(bytes.at(offset + 64) == 42);
     offset += ReadLE(bytes, offset + 4, 4);
     DOCTEST_CHECK(ReadLE(bytes, offset + 8, 8) == 8);
     DOCTEST_CHECK(ReadLE(bytes, offset + 30, 4) == 1);
     DOCTEST_CHECK(ReadLE(bytes, offset + 35, 4) == 0);
-    DOCTEST_CHECK(bytes.at(offset + 40) == 9);
+    DOCTEST_CHECK(bytes.at(offset + 44) == 9);
     offset += ReadLE(bytes, offset + 4, 4);
     DOCTEST_CHECK(std::memcmp(bytes.data() + offset, "END1", 4) == 0);
 

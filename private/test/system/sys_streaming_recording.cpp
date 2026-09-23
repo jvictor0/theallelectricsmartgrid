@@ -3,6 +3,180 @@
 #include <filesystem>
 #include <thread>
 
+DOCTEST_TEST_CASE("recording engine: bulk patch replay checkpoints include loads reloads and resets")
+{
+    const auto directory = std::filesystem::temp_directory_path()
+        / ("smartgrid-bulk-patches-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(directory);
+    synthrig::SynthRig rig;
+    rig.RunFrames(2);
+    auto& internal = rig.Internal();
+    auto& interchange = internal.m_stateInterchange;
+    auto& recorder = internal.m_context.m_recorder;
+    auto* encoder = internal.m_squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(0);
+    const std::string base = rig.SavePatch();
+    encoder->FillModulators(&internal.m_context);
+    auto* depth = encoder->m_modulators.m_modulators[0].get();
+    depth->SetAndRecordValue(0.875f, 0, 0);
+    depth->m_modulators.AddGesture(depth, 0);
+    depth->m_modulators.m_gestures[0]->SetAndRecordValue(0.75f, 0, 0);
+    depth->m_modulators.m_gestures[0]->SetActive(true, 0, 0);
+    encoder->m_modulators.AddGesture(encoder, 1);
+    encoder->m_modulators.m_gestures[1]->SetAndRecordValue(0.625f, 0, 0);
+    encoder->m_modulators.m_gestures[1]->SetActive(true, 0, 0);
+    const std::string rich = rig.SavePatch();
+    DOCTEST_REQUIRE(rig.PrepareRecording(directory.string()));
+    auto session = recorder.m_session;
+    session.m_blockFrames = 4;
+    DOCTEST_REQUIRE(recorder.Prepare(session, directory.string()));
+    rig.PressPad(synthrig::SynthRig::RouteBottomLeft, -1, 7);
+    rig.RunSamples(1);
+    DOCTEST_REQUIRE(recorder.IsRecording());
+    std::vector<std::string> checkpoints;
+    JsonArena snapshot(JsonArena::kDefaultCapacity);
+    const auto checkpoint = [&]()
+    {
+        snapshot.Reset();
+        char* text = internal.ToJSON(snapshot).Dumps(0);
+        DOCTEST_REQUIRE(text != nullptr);
+        checkpoints.push_back("{\"sample\":" + std::to_string(recorder.m_acceptedFrames - 1)
+            + ",\"patch\":" + text + "}");
+        std::free(text);
+    };
+    const auto load = [&](const std::string& text, bool restore)
+    {
+        DOCTEST_REQUIRE(interchange.RequestLoadText(text, restore));
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        do
+        {
+            interchange.RetryPendingLoad();
+            internal.HandleStateInterchange();
+            if (!interchange.IsLoadRequested() && interchange.m_pendingLoad.empty())
+            {
+                return;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        } while (std::chrono::steady_clock::now() < deadline);
+
+        DOCTEST_FAIL("Patch load remained pending");
+    };
+    checkpoint();
+    AudioInputBuffer input;
+    for (size_t sample = 1; sample <= 7; ++sample)
+    {
+        SampleTimer::IncrementSample();
+        if (sample == 1)
+        {
+            encoder->SetAndRecordValue(0.9f, 0, 0);
+            load(base, true);
+            DOCTEST_CHECK(encoder->m_modulators.m_modulators[0].get() == nullptr);
+            DOCTEST_CHECK(encoder->m_modulators.m_gestures[1].get() == nullptr);
+            encoder->SetAndRecordValue(0.6f, 0, 0);
+        }
+        else if (sample == 2)
+        {
+            load("{\"blend\":0.75,\"faders\":[0.875,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\"configGrid\":{}}", true);
+            DOCTEST_CHECK(internal.m_context.m_sceneManager.m_blendFactor == 0.75f);
+            DOCTEST_CHECK(internal.m_squiggleBoyState.m_faders[0] == 0.875f);
+        }
+        else if (sample == 3)
+        {
+            load(rich, false);
+            DOCTEST_CHECK(internal.m_context.m_sceneManager.m_blendFactor == 0.75f);
+            DOCTEST_CHECK(internal.m_squiggleBoyState.m_faders[0] == 0.875f);
+            DOCTEST_CHECK(encoder->m_modulators.m_modulators[0].get() != nullptr);
+            DOCTEST_REQUIRE(interchange.RequestSave());
+            internal.HandleStateInterchange();
+            DOCTEST_REQUIRE(interchange.IsSavePending());
+            interchange.AckSaveCompleted();
+        }
+        else if (sample == 4)
+        {
+            encoder->SetAndRecordValue(0.25f, 0, 0);
+            internal.HandleParamSet({SmartGrid::MessageIn::Mode::ParamSet14, 0, 0, 4096});
+        }
+        else if (sample == 5)
+        {
+            TheNonagonSquiggleBoyInternal::SaveLoadJSONCell reload(&internal, false);
+            reload.OnPress(127);
+            encoder->SetAndRecordValue(0.125f, 0, 0);
+            reload.OnPress(127);
+        }
+        else if (sample == 6)
+        {
+            load("{\"nonagon\":{\"Mute_0\":[1,0,1]},\"configGrid\":{\"sourceStereo\":[true,false,true,false],\"sourceSelected\":[[true,true,true,true]],\"sourceMonitor\":[false,true,false,true]}}", true);
+        }
+        else
+        {
+            DOCTEST_REQUIRE(interchange.RequestNew());
+            internal.HandleStateInterchange();
+            DOCTEST_CHECK_FALSE(interchange.IsNewRequested());
+            encoder->SetAndRecordValue(0.5f, 0, 0);
+        }
+
+        internal.ProcessSample(input);
+        checkpoint();
+    }
+
+    recorder.Stop();
+    recorder.Shutdown();
+    DOCTEST_REQUIRE(recorder.GetError() == StreamingRecorder::Error::None);
+    DOCTEST_CHECK(recorder.m_writtenFrames == 8);
+    if (const char* output = std::getenv("SMARTGRID_PATCH_LOAD_FIXTURE"))
+    {
+        for (const auto& entry : std::filesystem::directory_iterator(directory))
+        {
+            std::filesystem::copy_file(entry.path(), output, std::filesystem::copy_options::overwrite_existing);
+        }
+
+        std::ofstream expected(std::string(output) + ".json");
+        expected << '[';
+        for (size_t i = 0; i < checkpoints.size(); ++i)
+        {
+            expected << (i == 0 ? "" : ",") << checkpoints[i];
+        }
+
+        expected << ']';
+        DOCTEST_REQUIRE(expected.good());
+    }
+
+    std::filesystem::remove_all(directory);
+}
+
+DOCTEST_TEST_CASE("recording engine: full patch loads and resets do not overflow parameter capture")
+{
+    const auto directory = std::filesystem::temp_directory_path()
+        / ("smartgrid-load-recording-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(directory);
+    synthrig::SynthRig rig;
+    rig.RunFrames(2);
+    const std::string patch = rig.SavePatch();
+    DOCTEST_REQUIRE_FALSE(patch.empty());
+    DOCTEST_REQUIRE(rig.PrepareRecording(directory.string()));
+    auto& internal = rig.Internal();
+    auto& recorder = internal.m_context.m_recorder;
+    DOCTEST_REQUIRE(internal.StartRecording());
+    rig.RunSamples(1);
+
+    DOCTEST_SUBCASE("load")
+    {
+        DOCTEST_REQUIRE(rig.LoadPatch(patch));
+    }
+
+    DOCTEST_SUBCASE("reset")
+    {
+        rig.ResetToDefaults();
+    }
+
+    DOCTEST_CHECK(recorder.GetError() == StreamingRecorder::Error::None);
+    DOCTEST_CHECK(recorder.IsRecording());
+    recorder.Stop();
+    recorder.Shutdown();
+    DOCTEST_CHECK(recorder.m_writtenFrames == recorder.m_acceptedFrames);
+    std::filesystem::remove_all(directory);
+}
+
 DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening volume follows captured masters")
 {
     struct Directory
@@ -187,8 +361,6 @@ DOCTEST_TEST_CASE("recording engine: initial patch and all parameter types reach
             encoder->m_modulators.AddGesture(encoder, 2);
             auto* gesture = encoder->m_modulators.m_gestures[2].get();
             gesture->SetActive(true);
-            gesture->FillModulators(&internal.m_context);
-            gesture->m_modulators.m_modulators[3]->SetAndRecordValue(0.25f, 2, 1);
             encoder->FillModulators(&internal.m_context);
             auto* depth = encoder->m_modulators.m_modulators[1].get();
             depth->m_modulators.AddGesture(depth, 0);
@@ -279,8 +451,6 @@ DOCTEST_TEST_CASE("recording engine: reconstructed patch loads recorded state an
     DOCTEST_REQUIRE(gesture != nullptr);
     DOCTEST_CHECK(gesture->m_isActive[0][0]);
     DOCTEST_CHECK(gesture->m_values[0][0] == 0.75f);
-    DOCTEST_REQUIRE(gesture->m_modulators.m_modulators[3].get() != nullptr);
-    DOCTEST_CHECK(gesture->m_modulators.m_modulators[3]->m_values[1][2] == 0.25f);
     auto* depth = encoder->m_modulators.m_modulators[1].get();
     DOCTEST_REQUIRE(depth != nullptr);
     DOCTEST_REQUIRE(depth->m_modulators.m_gestures[0].get() != nullptr);

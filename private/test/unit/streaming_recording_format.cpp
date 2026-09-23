@@ -134,12 +134,12 @@ DOCTEST_TEST_CASE("recording format: all track types match the independent Pytho
         }
 
         // The independent v1 fixture still specifies the exact audio bytes.
-        // Upgrade only its envelope to the v2 empty event trailer.
+        // Upgrade only its envelope to the v3 empty event trailer.
         //
         if (expectedBytes[0] == 'B')
         {
             expectedBytes.resize(expectedBytes.size() - 4);
-            expectedBytes[3] = '2';
+            expectedBytes[3] = '3';
             expectedBytes.insert(expectedBytes.end(), 4, 0);
             const uint32_t size = static_cast<uint32_t>(expectedBytes.size() + 4);
             for (size_t i = 0; i < 4; ++i)
@@ -253,7 +253,7 @@ DOCTEST_TEST_CASE("recording format: param event snapshots the stored scene at i
     DOCTEST_CHECK(event.m_sample == 5);
 }
 
-DOCTEST_TEST_CASE("recording format: new headers declare version two")
+DOCTEST_TEST_CASE("recording format: new headers declare version three")
 {
     RecordingFormat::Session session;
     session.m_gitCommitSha = std::string(40, 'a');
@@ -264,7 +264,7 @@ DOCTEST_TEST_CASE("recording format: new headers declare version two")
     const std::string text(bytes.begin() + 12, bytes.end());
     JsonArena arena(1024 * 1024);
     const JSON header = arena.Loads(text.c_str());
-    DOCTEST_CHECK(header.Get("format_version").IntegerValue() == 2);
+    DOCTEST_CHECK(header.Get("format_version").IntegerValue() == 3);
 }
 
 DOCTEST_TEST_CASE("recording format: event groups sort by name and time with stable ties")
@@ -283,16 +283,16 @@ DOCTEST_TEST_CASE("recording format: event groups sort by name and time with sta
     const int32_t samples[8]{};
     std::vector<uint8_t> bytes;
     DOCTEST_REQUIRE(RecordingFormat::EncodeBlock(session, samples, 8, 8, bytes, events));
-    DOCTEST_CHECK(std::string(bytes.begin(), bytes.begin() + 4) == "BLK2");
+    DOCTEST_CHECK(std::string(bytes.begin(), bytes.begin() + 4) == "BLK3");
     const std::vector<uint8_t> expected =
     {
         2, 0, 0, 0,
         1, 1, 1, 0, 3, 0, 0, 0, 'A',
-        2, 0, 0, 0, 1, 2,
-        2, 0, 0, 0, 1, 3,
-        6, 0, 0, 0, 2, 6,
+        2, 0, 0, 0, 2, 0, 0, 0, 1, 2,
+        2, 0, 0, 0, 3, 0, 0, 0, 1, 3,
+        6, 0, 0, 0, 1, 0, 0, 0, 2, 6,
         1, 1, 1, 0, 1, 0, 0, 0, 'B',
-        4, 0, 0, 0, 0, 9,
+        4, 0, 0, 0, 0, 0, 0, 0, 0, 9,
     };
     DOCTEST_CHECK(std::vector<uint8_t>(bytes.begin() + 22, bytes.end() - 4) == expected);
 
@@ -314,10 +314,11 @@ DOCTEST_TEST_CASE("recording format: parameter types serialize only their own fi
     encoder.m_scene = 2;
     encoder.m_track = 3;
     std::fill(std::begin(encoder.m_encoderPath), std::end(encoder.m_encoderPath), -1);
-    encoder.m_encoderPath[0] = 0x81;
-    encoder.m_encoderPath[1] = 2;
+    encoder.m_encoderPath[0] = 2;
+    encoder.m_encoderPath[1] = 0x81;
     ParamEvent active = encoder;
     active.m_type = ParamEvent::Type::EncoderActivate;
+    active.m_encoderPath[0] = 0x81;
     active.m_encoderPath[1] = -1;
     active.m_valueLen = 1;
     active.m_value[0] = 1;
@@ -332,13 +333,13 @@ DOCTEST_TEST_CASE("recording format: parameter types serialize only their own fi
     {
         4, 0, 0, 0,
         2, 4, 0, 0, 1, 0, 0, 0,
-        2, 0, 0, 0, 7, 0, 0, 128, 62,
+        2, 0, 0, 0, 3, 0, 0, 0, 7, 0, 0, 128, 62,
         3, 4, 0, 0, 1, 0, 0, 0,
-        3, 0, 0, 0, 0, 0, 64, 63,
+        3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 64, 63,
         4, 4, 1, 0, 1, 0, 0, 0, 'A',
-        4, 0, 0, 0, 2, 3, 2, 129, 2, 0, 0, 0, 63,
+        4, 0, 0, 0, 2, 0, 0, 0, 2, 3, 2, 2, 129, 0, 0, 0, 63,
         5, 1, 1, 0, 1, 0, 0, 0, 'A',
-        4, 0, 0, 0, 2, 3, 1, 129, 1,
+        4, 0, 0, 0, 0, 0, 0, 0, 2, 3, 1, 129, 1,
     };
     DOCTEST_CHECK(bytes == expected);
 }
@@ -365,10 +366,36 @@ DOCTEST_TEST_CASE("recording format: rejects invalid typed parameter payloads")
     encoder.m_encoderPath[0] = -1;
     std::vector<uint8_t> bytes;
     DOCTEST_CHECK(RecordingFormat::AppendParamEvents(bytes, {encoder}, 0, 1));
-    DOCTEST_CHECK(bytes.size() == 4 + 8 + 7 + 7 + 4);
+    DOCTEST_CHECK(bytes.size() == 4 + 8 + 7 + 11 + 4);
     encoder.m_track = 16;
     DOCTEST_CHECK_FALSE(RecordingFormat::AppendParamEvents(bytes, {encoder}, 0, 1));
     encoder.m_track = 0;
     encoder.m_scene = 8;
     DOCTEST_CHECK_FALSE(RecordingFormat::AppendParamEvents(bytes, {encoder}, 0, 1));
+}
+
+DOCTEST_TEST_CASE("recording format: patch payloads retain order across differently typed groups")
+{
+    ParamEvent load;
+    load.m_type = ParamEvent::Type::PatchLoad;
+    load.m_sample = 10;
+    load.m_restoreFaders = true;
+    load.m_patchText = "{}";
+    load.m_patchBytes = 2;
+    ParamEvent snapshot = load;
+    snapshot.m_type = ParamEvent::Type::PatchSnapshot;
+    auto blend = ParamEvent::MkBlendSet(0.5f, 10);
+    std::vector<uint8_t> bytes;
+    DOCTEST_REQUIRE(RecordingFormat::AppendParamEvents(bytes, {snapshot, load, blend}, 8, 4));
+    const std::vector<uint8_t> expected =
+    {
+        3, 0, 0, 0,
+        3, 4, 0, 0, 1, 0, 0, 0,
+        2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 63,
+        6, 0, 0, 0, 1, 0, 0, 0,
+        2, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 0, 0, '{', '}',
+        7, 0, 0, 0, 1, 0, 0, 0,
+        2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, '{', '}',
+    };
+    DOCTEST_CHECK(bytes == expected);
 }

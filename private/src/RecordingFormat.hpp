@@ -268,7 +268,7 @@ struct RecordingFormat
 
         JsonArena arena(x_maxHeaderBytes);
         JSON header = arena.Object();
-        header.SetNew("format_version", arena.Integer(2));
+        header.SetNew("format_version", arena.Integer(3));
         header.SetNew("initial_patch", initialPatch.IsNull() ? arena.Object() : initialPatch);
         header.SetNew("recorded_at_utc", arena.String(session.m_recordedAtUtc.c_str()));
         header.SetNew("git_commit_sha", arena.String(session.m_gitCommitSha.c_str()));
@@ -315,6 +315,7 @@ struct RecordingFormat
     static const char* EventName(const ParamEvent& event)
     {
         return event.m_type == ParamEvent::Type::GestureSet || event.m_type == ParamEvent::Type::BlendSet
+            || event.IsPatch()
             ? "" : event.m_name;
     }
 
@@ -325,6 +326,12 @@ struct RecordingFormat
         if (name == nullptr || std::strlen(name) > UINT16_MAX)
         {
             return false;
+        }
+
+        if (event.IsPatch())
+        {
+            return event.m_valueLen == 0 && event.m_patchText != nullptr
+                && event.m_patchBytes <= x_maxBlockBytes;
         }
 
         if (event.m_type == Type::StateChange)
@@ -378,8 +385,10 @@ struct RecordingFormat
     static bool AppendParamEvents(std::vector<uint8_t>& output, std::vector<ParamEvent> events,
         uint64_t startFrame, uint32_t frames)
     {
-        for (const auto& event : events)
+        for (size_t i = 0; i < events.size(); ++i)
         {
+            auto& event = events[i];
+            event.m_order = static_cast<uint32_t>(i);
             if (!ValidateEvent(event) || event.m_sample < startFrame || event.m_sample - startFrame >= frames)
             {
                 return false;
@@ -425,7 +434,13 @@ struct RecordingFormat
             for (size_t i = begin; i < end; ++i)
             {
                 const auto& event = events[i];
-                groupBytes += 4 + event.m_valueLen;
+                groupBytes += 8 + event.m_valueLen;
+                if (event.IsPatch())
+                {
+                    groupBytes += 4 + event.m_patchBytes
+                        + (event.m_type == ParamEvent::Type::PatchLoad ? 1 : 0);
+                }
+
                 if (event.m_type == ParamEvent::Type::StateChange || event.m_type == ParamEvent::Type::GestureSet)
                 {
                     ++groupBytes;
@@ -450,6 +465,7 @@ struct RecordingFormat
             {
                 const auto& event = events[i];
                 AppendLE(output, event.m_sample - startFrame, 4);
+                AppendLE(output, event.m_order, 4);
                 switch (event.m_type)
                 {
                     case ParamEvent::Type::StateChange:
@@ -468,6 +484,16 @@ struct RecordingFormat
                             AppendLE(output, event.m_encoderPath[hop], 1);
                         }
 
+                        break;
+                    case ParamEvent::Type::PatchLoad:
+                    case ParamEvent::Type::PatchSnapshot:
+                        if (event.m_type == ParamEvent::Type::PatchLoad)
+                        {
+                            AppendLE(output, event.m_restoreFaders, 1);
+                        }
+
+                        AppendLE(output, event.m_patchBytes, 4);
+                        output.insert(output.end(), event.m_patchText, event.m_patchText + event.m_patchBytes);
                         break;
                     default:
                         break;
@@ -531,7 +557,7 @@ struct RecordingFormat
         }
 
         output.clear();
-        output.insert(output.end(), {'B', 'L', 'K', '2'});
+        output.insert(output.end(), {'B', 'L', 'K', '3'});
         AppendLE(output, 0, 4);
         AppendLE(output, startFrame, 8);
         AppendLE(output, frames, 4);

@@ -923,7 +923,7 @@ struct BankedEncoderCell : public StateEncoderCell
                 for (size_t j = 0; j < 16; ++j)
                 {
                     bool active = activeJ.GetAt(i * 16 + j).BooleanValue();
-                    SetActive(active, i, j);
+                    m_isActive[i][j] = active;
                 }
             }
         }

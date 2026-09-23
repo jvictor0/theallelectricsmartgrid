@@ -53,6 +53,13 @@ struct State
         SetBytes(reinterpret_cast<char*>(&t), m_curScene);
     }
 
+    template<class T>
+    void SetRaw(T t)
+    {
+        SetVal(m_ptr, &t, m_len);
+        SetVal(m_buf + m_curScene * m_len, &t, m_len);
+    }
+
     void SetBytes(char* bytes, int scene)
     {
         SetVal(m_buf + scene * m_len, bytes, m_len);
@@ -90,17 +97,12 @@ struct State
             }
         }
 
-        for (int s = 0; s < m_numScenes; ++s)
-        {
-            RecordStateChange(m_paramEventLogger, this, s);
-        }
-
         SetVal(m_ptr, m_buf + m_curScene * m_len, m_len);
     }
 
     void SaveValToScene()
     {
-        CopyToScene(m_curScene);
+        SetVal(m_buf + m_curScene * m_len, m_ptr, m_len);
     }
 
     void SetVal(void* dst, void* src, size_t len)

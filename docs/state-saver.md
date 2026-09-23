@@ -47,13 +47,14 @@ Grid controls registered with `StateSaver` use these handles, including state to
 During active performance recording, `ParamEventLogger` queues the state's name,
 scene, byte width, copied **scene-buffer** value, and recording-relative sample.
 The worker groups these StateChange events in each `.sgrec` block. `SetBytes`
-is also used by scene copies and resets. `SetFromJSON` records each loaded scene;
+is also used by scene copies and resets. `SetFromJSON` and `SetRaw` restore values without logging; the engine captures
+the load as one PatchLoad event. Saving current scene bytes is also silent;
 `LoadValFromScene` only restores the live pointer and does not emit a change.
 The registered default initializes scene zero before any scene switch; `Finalize`
 copies it to the remaining scenes. Scene-change flags come from `SceneManager`.
 
 The logger also captures fader/blend assignments and encoder value/activation
-changes through their separate storage paths. The initial patch and these typed
+changes through their separate storage paths. The initial patch, bulk loads/reset snapshots, and these typed
 deltas support sample-specific patch reconstruction; see
 [streaming recordings](streaming-recording-format.md) for the wire layout and
 remaining capture limitations. Sample-directory edits remain untracked.

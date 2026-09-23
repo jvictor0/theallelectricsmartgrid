@@ -328,7 +328,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         return IsSourceStereo(sourceIndex) ? 2 : 1;
     }
 
-    void EnforceSourceChannelLimit(size_t trioIdx, size_t preferredSource)
+    void EnforceSourceChannelLimit(size_t trioIdx, size_t preferredSource, bool record = true)
     {
         size_t count = SourceChannelCount(trioIdx);
         if (count <= TheNonagonInternal::x_voicesPerTrio)
@@ -344,12 +344,28 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             }
 
             count -= SourceChannelWidth(i);
-            m_sourceSelectedStates[trioIdx][i]->Set(false);
+            if (record)
+            {
+                m_sourceSelectedStates[trioIdx][i]->Set(false);
+            }
+            else
+            {
+                m_sourceSelectedStates[trioIdx][i]->SetRaw(false);
+            }
+
         }
 
         if (TheNonagonInternal::x_voicesPerTrio < count && preferredSource < SourceMixer::x_numSources)
         {
-            m_sourceSelectedStates[trioIdx][preferredSource]->Set(false);
+            if (record)
+            {
+                m_sourceSelectedStates[trioIdx][preferredSource]->Set(false);
+            }
+            else
+            {
+                m_sourceSelectedStates[trioIdx][preferredSource]->SetRaw(false);
+            }
+
         }
     }
 
@@ -563,7 +579,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
                 SourceMixer::SourceWidth width = sourceWidthJ.GetAt(i).BooleanValue()
                     ? SourceMixer::SourceWidth::Stereo
                     : SourceMixer::SourceWidth::Mono;
-                m_sourceWidthStates[i]->Set(width);
+                m_sourceWidthStates[i]->SetRaw(width);
             }
         }
 
@@ -574,7 +590,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             {
                 for (size_t source = 0; source < SourceMixer::x_numSources; ++source)
                 {
-                    m_sourceSelectedStates[trio][source]->Set(false);
+                    m_sourceSelectedStates[trio][source]->SetRaw(false);
                 }
             }
 
@@ -583,10 +599,10 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
                 JSON trioJ = sourceSelectedJ.GetAt(trio);
                 for (size_t source = 0; source < trioJ.Size() && source < SourceMixer::x_numSources; ++source)
                 {
-                    m_sourceSelectedStates[trio][source]->Set(trioJ.GetAt(source).BooleanValue());
+                    m_sourceSelectedStates[trio][source]->SetRaw(trioJ.GetAt(source).BooleanValue());
                 }
 
-                EnforceSourceChannelLimit(trio, SourceMixer::x_numSources);
+                EnforceSourceChannelLimit(trio, SourceMixer::x_numSources, false);
             }
         }
         else
@@ -595,7 +611,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             {
                 for (size_t source = 0; source < SourceMixer::x_numSources; ++source)
                 {
-                    m_sourceSelectedStates[trio][source]->Set(false);
+                    m_sourceSelectedStates[trio][source]->SetRaw(false);
                 }
             }
         }
@@ -607,7 +623,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         {
             for (size_t i = 0; i < sourceMonitorJ.Size() && i < SourceMixer::x_numSources; ++i)
             {
-                m_sourceMonitorStates[i]->Set(sourceMonitorJ.GetAt(i).BooleanValue());
+                m_sourceMonitorStates[i]->SetRaw(sourceMonitorJ.GetAt(i).BooleanValue());
             }
         }
 

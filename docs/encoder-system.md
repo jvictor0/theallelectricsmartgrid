@@ -32,8 +32,10 @@ nested path hop identifies a gesture or modulator index.
 
 The recorder groups these assignments with StateChange, GestureSet (fader), and
 BlendSet events. The Python reader reconstructs values and activation, including
-neutral nested nodes first created after the header snapshot. Deleting/replacing
-subtrees and complete patch-load capture remain incomplete; see the exact
+neutral nested nodes first created after the header snapshot. FromJSON writes
+raw values and activation flags; one PatchLoad event captures the whole load,
+including replacement/removal of children. Gestures are always leaves; normal
+modulators may nest or have gesture leaves. See the exact
 [recording protocol and limitations](streaming-recording-format.md).
 
 ## Base Structure: Tracks and Voices

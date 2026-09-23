@@ -207,3 +207,43 @@ DOCTEST_TEST_CASE("sys_save_arena: recording snapshot and all parameter types al
     DOCTEST_MESSAGE("recording snapshot and first capture: " << micros << " us; arena bytes: " << recorder.m_patchArena.m_off);
     std::filesystem::remove_all(directory);
 }
+
+DOCTEST_TEST_CASE("sys_save_arena: recorded full patch load and reset allocate no heap on audio")
+{
+    synthrig::SynthRig rig;
+    Populate(rig);
+    auto* root = rig.Internal().m_squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(0);
+    root->FillModulators(&rig.Internal().m_context);
+    auto* depth = root->m_modulators.m_modulators[0].get();
+    depth->SetAndRecordValue(0.75f, 0, 0);
+    depth->m_modulators.AddGesture(depth, 1);
+    depth->m_modulators.m_gestures[1]->SetActive(true, 0, 0);
+    const std::string text = rig.SavePatch();
+    const auto directory = std::filesystem::temp_directory_path()
+        / ("smartgrid-load-allocations-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(directory);
+    DOCTEST_REQUIRE(rig.PrepareRecording(directory.string()));
+    auto& internal = rig.Internal();
+    auto& recorder = internal.m_context.m_recorder;
+    DOCTEST_REQUIRE(internal.StartRecording());
+    DOCTEST_REQUIRE(internal.m_stateInterchange.RequestLoadText(text, true));
+    g_allocCount = 0;
+    g_countAllocs = true;
+    internal.HandleStateInterchange();
+    g_countAllocs = false;
+    const long loadAllocations = g_allocCount;
+    DOCTEST_REQUIRE(internal.m_stateInterchange.RequestNew());
+    g_allocCount = 0;
+    g_countAllocs = true;
+    internal.HandleStateInterchange();
+    g_countAllocs = false;
+    const long resetAllocations = g_allocCount;
+    recorder.BeginFrame();
+    recorder.CommitFrame();
+    recorder.Stop();
+    recorder.Shutdown();
+    DOCTEST_CHECK(loadAllocations == 0);
+    DOCTEST_CHECK(resetAllocations == 0);
+    DOCTEST_CHECK(recorder.GetError() == StreamingRecorder::Error::None);
+    std::filesystem::remove_all(directory);
+}

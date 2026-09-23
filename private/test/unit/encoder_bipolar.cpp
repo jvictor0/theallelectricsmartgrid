@@ -390,14 +390,12 @@ DOCTEST_TEST_CASE("encoder events: nested paths distinguish gestures and modulat
     auto& depth = rig.Depth(rig.Carrier(), 2);
     depth.m_modulators.AddGesture(&depth, 3);
     auto& gesture = *depth.m_modulators.m_gestures[3];
-    auto& nested = rig.Depth(gesture, 4);
-    nested.SetAndRecordValue(0.75f, 2, 1);
-    const auto event = ParamEvent::MkEncoderSet(&nested, 2, 1, 123);
+    gesture.SetAndRecordValue(0.75f, 2, 1);
+    const auto event = ParamEvent::MkEncoderSet(&gesture, 2, 1, 123);
     DOCTEST_CHECK(std::string(event.m_name) == "Carrier");
     DOCTEST_CHECK(event.m_encoderPath[0] == 2);
     DOCTEST_CHECK(event.m_encoderPath[1] == 131);
-    DOCTEST_CHECK(event.m_encoderPath[2] == 4);
-    DOCTEST_CHECK(event.m_encoderPath[3] == -1);
+    DOCTEST_CHECK(event.m_encoderPath[2] == -1);
     float value = 0;
     std::memcpy(&value, event.m_value, sizeof(value));
     DOCTEST_CHECK(value == 0.5f);

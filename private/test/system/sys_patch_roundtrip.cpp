@@ -272,10 +272,21 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: seeded encoder values survive save/load"
     (void)recordsB;
     const std::string jsonB = rig.SavePatch();
     const size_t sampleB = recorder.m_acceptedFrames - 1;
+    // --- Load JSON_A ---
+    //
+    DOCTEST_CHECK(rig.LoadPatch(jsonA));
+    rig.RunFrames(kSettleFrames);
+
+    // --- Verify original values restored ---
+    //
+    AssertEncoderValues(rig, recordsA, kTol);
+
+    const std::string jsonC = rig.SavePatch();
+    const size_t sampleC = recorder.m_acceptedFrames - 1;
     recorder.Stop();
     recorder.Shutdown();
     DOCTEST_REQUIRE(recorder.GetError() == StreamingRecorder::Error::None);
-    DOCTEST_CHECK(recorder.m_writtenFrames == sampleB + 1);
+    DOCTEST_CHECK(recorder.m_writtenFrames == sampleC + 1);
     if (const char* output = std::getenv("SMARTGRID_RANDOM_PARAM_FIXTURE"))
     {
         for (const auto& entry : std::filesystem::directory_iterator(directory.m_path))
@@ -285,18 +296,10 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: seeded encoder values survive save/load"
 
         std::ofstream expected(std::string(output) + ".json");
         expected << "[{\"sample\":" << sampleA << ",\"patch\":" << jsonA
-            << "},{\"sample\":" << sampleB << ",\"patch\":" << jsonB << "}]";
+            << "},{\"sample\":" << sampleB << ",\"patch\":" << jsonB
+            << "},{\"sample\":" << sampleC << ",\"patch\":" << jsonC << "}]";
         DOCTEST_REQUIRE(expected.good());
     }
-
-    // --- Load JSON_A ---
-    //
-    DOCTEST_CHECK(rig.LoadPatch(jsonA));
-    rig.RunFrames(kSettleFrames);
-
-    // --- Verify original values restored ---
-    //
-    AssertEncoderValues(rig, recordsA, kTol);
 
     DOCTEST_CHECK_FALSE(rig.SawNaN());
 }

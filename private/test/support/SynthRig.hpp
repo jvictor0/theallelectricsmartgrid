@@ -435,10 +435,13 @@ public:
         for (int attempt = 0; attempt < 24; ++attempt)
         {
             RunFrames(1);
-            if (!m_internal->m_stateInterchange.RetrySaveIfFailed())
+            m_internal->m_stateInterchange.RetrySaveIfFailed();
+            if (!m_internal->m_stateInterchange.IsSaveRequested())
             {
                 break;
             }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
         if (!m_internal->m_stateInterchange.IsSavePending())
@@ -451,12 +454,9 @@ public:
         return toSave;
     }
 
-    // LoadPatch(jsonString): parse and load a patch. Exact sequence:
-    //   1. Parse the string into the interchange's arena-backed load buffer.
-    //   2. m_stateInterchange.RequestLoad(json) -- arms the load.
-    //   3. RunFrames(1) -- ProcessFrame -> HandleStateInterchange sees
-    //      IsLoadRequested(), calls FromJSON(GetToLoad()) then AckLoadCompleted().
-    // Returns false if the JSON failed to parse or a load was already in flight.
+    // LoadPatch(jsonString): request a message-thread parse/load, retrying busy
+    // storage while driving control frames until audio acknowledges the load.
+    // Returns false on parse failure or if the request fails to complete.
     //
     bool LoadPatch(const std::string& jsonString)
     {
@@ -465,14 +465,26 @@ public:
 
     bool LoadPatch(const std::string& jsonString, bool restoreFaders)
     {
-        // Parse into the interchange's load arena (message-thread side).
-        //
-        JSON json = m_internal->m_stateInterchange.ParseForLoad(jsonString.c_str());
-        if (json.IsNull())
+        auto& interchange = m_internal->m_stateInterchange;
+        if (!interchange.RequestLoadText(jsonString, restoreFaders))
         {
             return false;
         }
-        return LoadPatchJSON(json, restoreFaders);
+
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        do
+        {
+            interchange.RetryPendingLoad();
+            RunFrames(1);
+            if (!interchange.IsLoadRequested() && interchange.m_pendingLoad.empty())
+            {
+                return true;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        } while (std::chrono::steady_clock::now() < deadline);
+
+        return false;
     }
 
     bool ReloadPatch(const std::string& jsonString)
@@ -491,14 +503,16 @@ public:
         {
             return false;
         }
-        if (!m_internal->m_stateInterchange.RequestLoad(json, restoreFaders))
+
+        char* text = json.Dumps(0);
+        if (text == nullptr)
         {
             return false;
         }
-        RunFrames(1);
-        // After the frame the load should have been acknowledged.
-        //
-        return !m_internal->m_stateInterchange.IsLoadRequested();
+
+        const std::string patch(text);
+        std::free(text);
+        return LoadPatch(patch, restoreFaders);
     }
 
     // ResetToDefaults(): drive a "new patch" request through StateInterchange

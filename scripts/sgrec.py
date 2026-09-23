@@ -75,8 +75,8 @@ def validate_header(header):
     for field in required:
         if field not in header:
             raise RecordingError(f'Missing session field: {field}')
-    if type(header['format_version']) is not int or header['format_version'] not in (1, 2):
-        raise RecordingError('Unsupported format_version; expected 1 or 2')
+    if type(header['format_version']) is not int or header['format_version'] not in (1, 2, 3):
+        raise RecordingError('Unsupported format_version; expected 1, 2, or 3')
     timestamp = header['recorded_at_utc']
     if not isinstance(timestamp, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)', timestamp):
         raise RecordingError('recorded_at_utc must be an ISO 8601 UTC timestamp')
@@ -212,7 +212,7 @@ class Reader:
                     raise RecordingError('Data follows END1 completion marker')
                 self.m_complete = True
                 return
-            block_tag = b'BLK1' if self.m_header['format_version'] == 1 else b'BLK2'
+            block_tag = f'BLK{self.m_header["format_version"]}'.encode('ascii')
             if tag != block_tag:
                 raise RecordingError(f'Unknown record tag at frame {self.m_total_frames}: {tag!r}')
             size_bytes = read_exact(self.m_source, 4, 'block size')
@@ -300,7 +300,7 @@ class Reader:
             for index, values in enumerate(streams):
                 if values is None:
                     streams[index] = array('i', [0]) * frames
-        events = raw[audio_end:-4] if include_events and self.m_header['format_version'] == 2 else None
+        events = raw[audio_end:-4] if include_events and self.m_header['format_version'] >= 2 else None
         return Block(start, frames, {track_id: tuple(streams) for track_id, streams in tracks.items()}, events)
 
     def PatchAtSample(self, sample):
@@ -312,7 +312,7 @@ class Reader:
         if type(sample) is not int or sample < 0:
             raise RecordingError('Patch sample must be a nonnegative integer')
         initial = self.m_header.get('initial_patch')
-        if self.m_header['format_version'] != 2 or not isinstance(initial, dict):
+        if self.m_header['format_version'] < 2 or not isinstance(initial, dict):
             raise RecordingError('Recording has no initial patch for reconstruction')
         patch = copy.deepcopy(initial)
         self.m_source.seek(self.m_data_offset)
@@ -321,7 +321,8 @@ class Reader:
         self.m_started = False
         self.m_short_block = False
         for block in self.Blocks((), include_events=True):
-            for event in param_events(block):
+            events = param_events(block, self.m_header['format_version'])
+            for event in sorted(events, key=lambda event: (event.m_sample, event.m_order)):
                 if event.m_sample <= sample:
                     apply_param_event(patch, event)
             if sample < block.m_start_frame + block.m_frame_count:
@@ -336,14 +337,16 @@ class ParamEvent:
     m_type: int
     m_name: str
     m_sample: int
-    m_value: bytes | float | bool
+    m_value: bytes | float | bool | dict
     m_scene: int = 0
     m_track: int = 0
     m_gesture: int = 0
     m_path: tuple = ()
+    m_order: int = 0
+    m_restore_faders: bool = False
 
 
-def param_events(block):
+def param_events(block, version=2):
     """Decode only the fields used by each event type, when replay needs them."""
     data = block.m_event_data
     offset = 0
@@ -360,11 +363,12 @@ def param_events(block):
     group_count, = fields('<I')
     for _ in range(group_count):
         event_type, width, name_length, count = fields('<BBHI')
-        if event_type not in (1, 2, 3, 4, 5):
+        if event_type not in ((1, 2, 3, 4, 5, 6, 7) if version >= 3 else (1, 2, 3, 4, 5)):
             raise RecordingError(f'Unsupported patch event type: {event_type}')
         if ((event_type == 1 and width not in (1, 2, 4, 8))
                 or (event_type in (2, 3, 4) and width != 4)
-                or (event_type == 5 and width != 1)):
+                or (event_type == 5 and width != 1)
+                or (event_type in (6, 7) and width != 0)):
             raise RecordingError('Invalid event value width')
         if bool(name_length) != (event_type in (1, 4, 5)):
             raise RecordingError('Invalid event name length')
@@ -377,6 +381,24 @@ def param_events(block):
             if sample_offset >= block.m_frame_count:
                 raise RecordingError('Event sample lies outside its block')
             event = ParamEvent(event_type, name, block.m_start_frame + sample_offset, b'')
+            if version >= 3:
+                event.m_order, = fields('<I')
+            if event_type in (6, 7):
+                if event_type == 6:
+                    restore_faders, = fields('<B')
+                    if restore_faders > 1:
+                        raise RecordingError('Invalid PatchLoad restoreFaders flag')
+                    event.m_restore_faders = bool(restore_faders)
+                length, = fields('<I')
+                try:
+                    event.m_value = json.loads(fields(f'<{length}s')[0].decode('utf-8'),
+                                              object_pairs_hook=unique_object, parse_constant=reject_constant)
+                except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+                    raise RecordingError(f'Invalid patch event JSON: {error}') from error
+                if not isinstance(event.m_value, dict):
+                    raise RecordingError('Patch event JSON must be an object')
+                yield event
+                continue
             if event_type == 1:
                 event.m_scene, = fields('<B')
             elif event_type == 2:
@@ -418,8 +440,137 @@ def apply_param_event(patch, event):
             raise RecordingError('Cannot locate patch fader') from error
     elif event.m_type == 3:
         patch['blend'] = event.m_value
+    elif event.m_type == 6:
+        apply_patch_load(patch, event.m_value, event.m_restore_faders)
+    elif event.m_type == 7:
+        patch.clear()
+        patch.update(copy.deepcopy(event.m_value))
     else:
         apply_encoder_event(patch, event)
+
+
+def apply_patch_load(patch, loaded, restore_faders):
+    """Apply the engine's partial patch load rules to the recorded state."""
+    try:
+        for section, scenes in (('nonagon', 8), ('stateSaver', 1)):
+            incoming = loaded.get(section)
+            if incoming is None:
+                continue
+            for name, values in patch.get(section, {}).items():
+                source = incoming.get(name)
+                if source is None:
+                    continue
+                width = len(values) // scenes
+                if width not in (1, 2, 4, 8):
+                    raise RecordingError(f'Cannot determine patch state width: {name}')
+                for start in range(0, len(values), width):
+                    if start >= len(source):
+                        break
+                    for index in range(start, start + width):
+                        byte = int(source[index]) & 255 if index < len(source) else 0
+                        values[index] = byte if byte < 128 else byte - 256
+        apply_config_load(patch, loaded.get('configGrid'))
+        incoming = loaded.get('squiggleBoy')
+        if incoming is not None:
+            for name, node in patch.get('squiggleBoy', {}).items():
+                source = incoming.get(name)
+                if source is not None:
+                    load_encoder(node, source)
+        if restore_faders:
+            if loaded.get('blend') is not None:
+                patch['blend'] = patch_float(loaded['blend'])
+            faders = loaded.get('faders')
+            if faders is not None and len(faders) >= 16:
+                patch['faders'] = [patch_float(value) for value in faders[:16]]
+    except (KeyError, IndexError, TypeError, AttributeError, ValueError, OverflowError, RecursionError, struct.error) as error:
+        raise RecordingError(f'Cannot apply patch load: {error}') from error
+
+
+def patch_float(value):
+    return struct.unpack('<f', struct.pack('<f', value))[0]
+
+
+def load_encoder(node, source, *, bipolar=False, gesture=False):
+    values = node['values']['values']
+    incoming = source.get('values')
+    if incoming is not None:
+        rows = incoming.get('values', [])
+        track_count = len(rows[7]) if len(rows) >= 8 else 0
+        for scene in range(8):
+            row = rows[scene] if scene < len(rows) else []
+            previous = values[scene]
+            values[scene] = [previous[track] if track < len(previous) else 0.0 for track in range(track_count)]
+            for track, value in enumerate(row[:track_count]):
+                value = patch_float(value)
+                if bipolar:
+                    value = patch_float(patch_float(patch_float(value + 1.0) * 0.5) * 2.0 - 1.0)
+                values[scene][track] = value
+    if gesture:
+        active = source.get('active') or []
+        node['active'] = [active[index] is True if index < len(active) else False for index in range(128)]
+    for key, size in (('modulators', 15), ('gestures', 16)):
+        node.pop(key, None)
+        incoming_children = source.get(key)
+        if incoming_children is None:
+            continue
+        children = [None] * size
+        for index, child_source in enumerate(incoming_children[:size]):
+            if child_source is None:
+                continue
+            child = {'values': {'values': [[0.0] * len(values[0]) for _ in range(8)]}}
+            is_gesture = key == 'gestures'
+            load_encoder(child, child_source, bipolar=bipolar or not is_gesture, gesture=is_gesture)
+            keep = (any(child['active']) if is_gesture else
+                    ('modulators' in child or 'gestures' in child
+                     or any(value != 0.0 for row in child['values']['values'] for value in row)))
+            if keep:
+                children[index] = child
+        if any(child is not None for child in children):
+            node[key] = children
+
+
+def apply_config_load(patch, incoming):
+    config = patch.get('configGrid')
+    states = patch.get('stateSaver', {})
+    if not isinstance(config, dict):
+        return
+    stereo = config.get('sourceStereo', [])
+    selected = config.get('sourceSelected', [])
+    for index in range(len(stereo)):
+        state = states.get(f'sourceWidth_{index}')
+        if state is not None:
+            stereo[index] = any(state)
+    for trio, row in enumerate(selected):
+        for index in range(len(row)):
+            state = states.get(f'sourceSelected_{trio}_{index}')
+            if state is not None:
+                row[index] = bool(state[0])
+    if incoming is None:
+        return
+    for index, value in enumerate((incoming.get('sourceStereo') or [])[:len(stereo)]):
+        stereo[index] = value is True
+        name = f'sourceWidth_{index}'
+        if name in states:
+            states[name] = [int(stereo[index])] + [0] * (len(states[name]) - 1)
+    incoming_selected = incoming.get('sourceSelected') or []
+    for trio, row in enumerate(selected):
+        source = incoming_selected[trio] if trio < len(incoming_selected) else []
+        row[:] = [source[index] is True if index < len(source) else False for index in range(len(row))]
+        channels = sum(2 if stereo[index] else 1 for index, value in enumerate(row) if value)
+        for index, value in enumerate(row):
+            if channels <= 3:
+                break
+            if value:
+                channels -= 2 if stereo[index] else 1
+                row[index] = False
+        for index, value in enumerate(row):
+            name = f'sourceSelected_{trio}_{index}'
+            if name in states:
+                states[name] = [int(value)]
+    for index, value in enumerate(incoming.get('sourceMonitor') or []):
+        name = f'sourceMonitor_{index}'
+        if name in states:
+            states[name] = [int(value is True)]
 
 
 def apply_encoder_event(patch, event):

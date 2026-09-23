@@ -1,5 +1,6 @@
 import array
 from contextlib import redirect_stdout
+import copy
 import importlib
 import io
 import json
@@ -61,6 +62,168 @@ def parameter_group(event_type, width, name, entries):
     return struct.pack('<BBHI', event_type, width, len(encoded), len(entries)) + encoded + b''.join(entries)
 
 
+def ordered_record(start, frames, groups):
+    events = struct.pack('<I', len(groups)) + b''.join(groups)
+    return checksum_record(struct.pack('<4sIQIH', b'BLK3', 26 + len(events), start, frames, 0) + events)
+
+
+def patch_entry(sample, order, patch, restore_faders=None):
+    body = json.dumps(patch, separators=(',', ':')).encode('utf-8')
+    flags = b'' if restore_faders is None else bytes([restore_faders])
+    return struct.pack('<II', sample, order) + flags + struct.pack('<I', len(body)) + body
+
+
+class PatchLoadReplayTests(unittest.TestCase):
+    def setUp(self):
+        self.m_header = json.loads((x_fixtures / 'golden.json').read_text())['header']
+        self.m_values = {'values': {'values': [[0.25, 0.5] for _ in range(8)]}}
+        self.m_patch = {
+            'nonagon': {'Counter': [7] * 16, 'Mute_0': [0] * 8},
+            'stateSaver': {'activeTrio': [0] * 4,
+                           **{f'sourceWidth_{i}': [0] * 4 for i in range(4)},
+                           **{f'sourceMonitor_{i}': [1] for i in range(4)},
+                           **{f'sourceSelected_{trio}_{i}': [int(i == 0)] for trio in range(3) for i in range(4)}},
+            'configGrid': {'sourceStereo': [False] * 4,
+                           'sourceSelected': [[True, False, False, False] for _ in range(3)],
+                           'sampleDirectoryRelative': ['kept'] * 9},
+            'squiggleBoy': {'Carrier': self.m_values, 'Untouched': self.m_values},
+            'faders': [0.125] * 16, 'blend': 0.25,
+        }
+        self.m_header.update(format_version=3, initial_patch=self.m_patch)
+
+    def reader(self, groups):
+        return load_reader(self).Reader(io.BytesIO(header_bytes(self.m_header)
+                                                   + ordered_record(0, 4, groups) + completion(4)))
+
+    def test_capture_order_preserves_same_sample_edits_around_multiple_loads(self):
+        groups = [
+            parameter_group(1, 1, 'Mute_0', [struct.pack('<IIBB', 1, 0, 0, 1),
+                                            struct.pack('<IIBB', 1, 4, 0, 1)]),
+            parameter_group(2, 4, '', [struct.pack('<IIBf', 1, 2, 3, 0.75)]),
+            parameter_group(4, 4, 'Carrier', [struct.pack('<IIBBBf', 1, 5, 0, 1, 0, 0.875)]),
+            parameter_group(6, 0, '', [
+                patch_entry(1, 1, {'nonagon': {'Mute_0': [0]}, 'faders': [0.5] * 16, 'blend': 0.75}, True),
+                patch_entry(1, 3, {'nonagon': {'Mute_0': [0]}, 'faders': [0.0] * 16, 'blend': 0.0,
+                                   'squiggleBoy': {'Carrier': {'values': {'values': [[0.5, 0.25] for _ in range(8)]}}}}, False),
+            ]),
+        ]
+        reader = self.reader(groups)
+        self.assertEqual(reader.PatchAtSample(0), self.m_patch)
+        patch = reader.PatchAtSample(1)
+        self.assertEqual(patch['nonagon']['Mute_0'], [1, 0, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(patch['faders'], [0.5] * 3 + [0.75] + [0.5] * 12)
+        self.assertEqual(patch['blend'], 0.75)
+        self.assertEqual(patch['squiggleBoy']['Carrier']['values']['values'][0], [0.5, 0.875])
+        self.assertEqual(reader.PatchAtSample(0), self.m_patch)
+
+    def test_partial_load_preserves_missing_fields_and_replaces_provided_encoder_children(self):
+        carrier = copy.deepcopy(self.m_values)
+        carrier['modulators'] = [copy.deepcopy(self.m_values)] + [None] * 14
+        carrier['gestures'] = [dict(copy.deepcopy(self.m_values), active=[True] * 128)] + [None] * 15
+        self.m_patch['squiggleBoy']['Carrier'] = carrier
+        loaded = {'nonagon': {'Counter': [255, 128, 3], 'unknown': [4]},
+                  'stateSaver': {'activeTrio': [2]}, 'squiggleBoy': {'Carrier': {}, 'unknown': {}},
+                  'faders': [1.0], 'sampleAsset': 'ignored'}
+        patch = self.reader([parameter_group(6, 0, '', [patch_entry(1, 0, loaded, True)])]).PatchAtSample(1)
+        self.assertEqual(patch['nonagon']['Counter'], [-1, -128, 3, 0] + [7] * 12)
+        self.assertEqual(patch['stateSaver']['activeTrio'], [2, 0, 0, 0])
+        self.assertEqual(patch['squiggleBoy']['Carrier'], self.m_values)
+        self.assertEqual(patch['squiggleBoy']['Untouched'], self.m_values)
+        self.assertEqual(patch['faders'], [0.125] * 16)
+        self.assertEqual(patch['blend'], 0.25)
+        self.assertEqual(set(patch), set(self.m_patch))
+        self.assertNotIn('unknown', patch['nonagon'])
+        self.assertNotIn('unknown', patch['squiggleBoy'])
+
+    def test_loaded_nested_children_are_garbage_collected_like_the_engine(self):
+        zero = {'values': {'values': [[0.0, 0.0] for _ in range(8)]}}
+        active = [False] * 128
+        active[17] = True
+        gesture = dict(self.m_values, active=active)
+        nested = dict(zero, gestures=[gesture, dict(self.m_values, active=[False] * 128)])
+        loaded = {'squiggleBoy': {'Carrier': dict(self.m_values, modulators=[zero, nested])}}
+        patch = self.reader([parameter_group(6, 0, '', [patch_entry(1, 0, loaded, False)])]).PatchAtSample(1)
+        modulators = patch['squiggleBoy']['Carrier']['modulators']
+        self.assertEqual(len(modulators), 15)
+        self.assertIsNone(modulators[0])
+        self.assertEqual(modulators[1]['gestures'], [gesture] + [None] * 15)
+        self.assertEqual(modulators[1]['values'], zero['values'])
+
+    def test_same_sample_load_removes_old_gesture_before_new_activation(self):
+        groups = [
+            parameter_group(3, 4, '', [struct.pack('<IIf', 1, 5, 0.625)]),
+            parameter_group(4, 4, 'Carrier', [struct.pack('<IIBBBBf', 1, 0, 0, 1, 1, 128, 0.75),
+                                             struct.pack('<IIBBBBf', 1, 3, 0, 1, 1, 129, 0.5)]),
+            parameter_group(5, 1, 'Carrier', [struct.pack('<IIBBBBB', 1, 1, 0, 1, 1, 128, 1),
+                                             struct.pack('<IIBBBBB', 1, 4, 0, 1, 1, 129, 1)]),
+            parameter_group(6, 0, '', [patch_entry(1, 2, {'squiggleBoy': {'Carrier': {}}, 'blend': 0.0}, True)]),
+        ]
+        patch = self.reader(groups).PatchAtSample(1)
+        gestures = patch['squiggleBoy']['Carrier']['gestures']
+        self.assertIsNone(gestures[0])
+        self.assertTrue(gestures[1]['active'][1])
+        self.assertEqual(gestures[1]['values']['values'][0], [0.0, 0.5])
+        self.assertEqual(patch['blend'], 0.625)
+
+    def test_config_aliases_override_state_and_normalize_channel_limit(self):
+        loaded = {'stateSaver': {'sourceWidth_0': [0] * 4, 'sourceMonitor_0': [1], 'sourceSelected_1_2': [1]},
+                  'configGrid': {'sourceStereo': [True, True], 'sourceSelected': [[True] * 4],
+                                 'sourceMonitor': [False], 'sampleDirectoryRelative': ['excluded']}}
+        patch = self.reader([parameter_group(6, 0, '', [patch_entry(1, 0, loaded, False)])]).PatchAtSample(1)
+        self.assertEqual(patch['stateSaver']['sourceWidth_0'], [1, 0, 0, 0])
+        self.assertEqual(patch['stateSaver']['sourceMonitor_0'], [0])
+        self.assertEqual(patch['configGrid']['sourceStereo'], [True, True, False, False])
+        self.assertEqual(patch['configGrid']['sourceSelected'], [[False, False, True, True], [False] * 4, [False] * 4])
+        self.assertEqual(patch['stateSaver']['sourceSelected_1_2'], [0])
+        self.assertEqual(patch['stateSaver']['sourceSelected_0_2'], [1])
+        self.assertEqual(patch['configGrid']['sampleDirectoryRelative'], ['kept'] * 9)
+        self.assertNotIn('sourceMonitor', patch['configGrid'])
+
+    def test_present_config_without_selection_clears_selection_and_state_only_updates_aliases(self):
+        groups = [parameter_group(6, 0, '', [
+            patch_entry(1, 0, {'configGrid': {}}, False),
+            patch_entry(2, 1, {'stateSaver': {'sourceWidth_1': [1], 'sourceSelected_1_2': [1]}}, False),
+        ])]
+        reader = self.reader(groups)
+        self.assertEqual(reader.PatchAtSample(1)['configGrid']['sourceSelected'], [[False] * 4 for _ in range(3)])
+        patch = reader.PatchAtSample(2)
+        self.assertEqual(patch['configGrid']['sourceStereo'], [False, True, False, False])
+        self.assertEqual(patch['configGrid']['sourceSelected'][1], [False, False, True, False])
+
+    def test_snapshot_replaces_complete_patch_before_later_same_sample_edits(self):
+        snapshot = {'faders': [0.0] * 16, 'blend': 0.0, 'nonagon': {'Mute_0': [0] * 8}}
+        groups = [parameter_group(1, 1, 'Mute_0', [struct.pack('<IIBB', 2, 1, 0, 1)]),
+                  parameter_group(7, 0, '', [patch_entry(2, 0, snapshot)])]
+        reader = self.reader(groups)
+        self.assertEqual(reader.PatchAtSample(1), self.m_patch)
+        patch = reader.PatchAtSample(2)
+        self.assertEqual(set(patch), set(snapshot))
+        self.assertEqual(patch['nonagon']['Mute_0'], [1, 0, 0, 0, 0, 0, 0, 0])
+
+    def test_bad_patch_records_reject_replay_without_affecting_audio(self):
+        sgrec = load_reader(self)
+        bad_entries = [
+            struct.pack('<I', 0),
+            struct.pack('<IIBI', 0, 0, 2, 2) + b'{}',
+            struct.pack('<IIBI', 0, 0, 1, 20) + b'{}',
+            struct.pack('<IIBI', 0, 0, 1, 1) + b'\xff',
+            patch_entry(0, 0, [], True),
+            patch_entry(4, 0, {}, True),
+            patch_entry(0, 0, {'blend': float('nan')}, True),
+            patch_entry(0, 0, {'blend': 'invalid'}, True),
+        ]
+        for entry in bad_entries:
+            groups = [parameter_group(6, 0, '', [entry])]
+            with self.subTest(entry=entry), self.assertRaises(sgrec.RecordingError):
+                self.reader(groups).PatchAtSample(0)
+            self.assertEqual(len(list(self.reader(groups).Blocks())), 1)
+        for event_type, width, name in ((6, 4, ''), (7, 0, 'named')):
+            with self.subTest(event_type=event_type), self.assertRaises(sgrec.RecordingError):
+                self.reader([parameter_group(event_type, width, name, [patch_entry(0, 0, {})])]).PatchAtSample(0)
+        with self.assertRaises(sgrec.RecordingError):
+            self.reader([parameter_group(7, 0, '', [patch_entry(0, 0, {})[:-1]])]).PatchAtSample(0)
+
+
 class ParamReplayTests(unittest.TestCase):
     def setUp(self):
         self.m_header = json.loads((x_fixtures / 'golden.json').read_text())['header']
@@ -78,7 +241,7 @@ class ParamReplayTests(unittest.TestCase):
             parameter_group(3, 4, '', [struct.pack('<If', 1, 0.5)]),
             parameter_group(4, 4, 'Carrier', [
                 struct.pack('<IBBBf', 1, 2, 1, 0, 0.75),
-                struct.pack('<IBBBBBf', 2, 2, 1, 2, 130, 3, -0.5),
+                struct.pack('<IBBBBBf', 2, 2, 1, 2, 1, 3, -0.5),
                 struct.pack('<IBBBBBf', 3, 1, 0, 2, 1, 128, 0.25)]),
             parameter_group(5, 1, 'Carrier', [
                 struct.pack('<IBBBBB', 2, 2, 1, 1, 130, 1),
@@ -93,7 +256,7 @@ class ParamReplayTests(unittest.TestCase):
         gesture = carrier['gestures'][2]
         self.assertTrue(gesture['active'][33])
         self.assertFalse(gesture['active'][32])
-        self.assertEqual(gesture['modulators'][3]['values']['values'][2], [0.0, -0.5])
+        self.assertEqual(carrier['modulators'][1]['modulators'][3]['values']['values'][2], [0.0, -0.5])
         final = reader.PatchAtSample(3)
         self.assertEqual(final['faders'][3], 0.75)
         nested_gesture = final['squiggleBoy']['Carrier']['modulators'][1]['gestures'][0]
@@ -284,7 +447,7 @@ class ReaderTests(unittest.TestCase):
     def test_metadata_and_allocation_limits_fail_before_payload_reads(self):
         sgrec = load_reader(self)
         variants = [
-            dict(self.m_header, format_version=3),
+            dict(self.m_header, format_version=4),
             dict(self.m_header, format_version=True),
             dict(self.m_header, git_commit_sha='short'),
             dict(self.m_header, recorded_at_utc='yesterday'),
@@ -760,7 +923,7 @@ class CppStateFixtureTests(unittest.TestCase):
             gesture = encoder['gestures'][2]
             self.assertTrue(gesture['active'][0])
             self.assertEqual(gesture['values']['values'][0][0], 0.75)
-            self.assertEqual(gesture['modulators'][3]['values']['values'][2][1], -0.5)
+            self.assertNotIn('modulators', gesture)
             nested = encoder['modulators'][1]['gestures'][0]
             self.assertTrue(nested['active'][16])
             self.assertEqual(nested['values']['values'][1][0], 0.25)
@@ -788,6 +951,43 @@ class CppRandomParamFixtureTests(unittest.TestCase):
             for checkpoint in checkpoints:
                 with self.subTest(sample=checkpoint['sample']):
                     self.assertEqual(reader.PatchAtSample(checkpoint['sample']), checkpoint['patch'])
+
+
+@unittest.skipUnless(os.environ.get('SMARTGRID_PATCH_LOAD_FIXTURE'), 'Set SMARTGRID_PATCH_LOAD_FIXTURE to a C++ patch-load recording')
+class CppPatchLoadFixtureTests(unittest.TestCase):
+    def assert_patch_equal(self, actual, expected, path=()):
+        if isinstance(expected, dict):
+            self.assertEqual(set(actual), set(expected), path)
+            for key, value in expected.items():
+                if path == ('configGrid',) and key == 'sampleDirectoryRelative':
+                    continue
+                self.assert_patch_equal(actual[key], value, path + (key,))
+        elif isinstance(expected, list):
+            self.assertEqual(len(actual), len(expected), path)
+            for index, value in enumerate(expected):
+                self.assert_patch_equal(actual[index], value, path + (index,))
+        elif isinstance(expected, float):
+            self.assertAlmostEqual(actual, expected, delta=1e-6, msg=path)
+        else:
+            self.assertEqual(actual, expected, path)
+
+    def test_real_loads_and_resets_reconstruct_live_patch_checkpoints(self):
+        sgrec = load_reader(self)
+        path = os.environ['SMARTGRID_PATCH_LOAD_FIXTURE']
+        with open(path + '.json') as source:
+            checkpoints = json.load(source)
+        with open(path, 'rb') as source:
+            reader = sgrec.Reader(source)
+            events = [event for block in reader.Blocks((), include_events=True)
+                      for event in sgrec.param_events(block, reader.m_header['format_version'])]
+            for sample in (2, 3, 6):
+                self.assertEqual([event.m_type for event in events if event.m_sample == sample], [6], sample)
+            for sample, expected in ((1, [4, 6, 4]), (5, [6, 4, 6]), (7, [7, 4])):
+                ordered = sorted((event for event in events if event.m_sample == sample), key=lambda event: event.m_order)
+                self.assertEqual([event.m_type for event in ordered], expected, sample)
+            for checkpoint in checkpoints:
+                with self.subTest(sample=checkpoint['sample']):
+                    self.assert_patch_equal(reader.PatchAtSample(checkpoint['sample']), checkpoint['patch'])
 
 
 if __name__ == '__main__':

@@ -405,7 +405,7 @@ struct TheNonagonSquiggleBoyInternal
 
     void HandleStateInterchange()
     {
-        if (m_stateInterchange.IsSaveRequested())
+        if (m_stateInterchange.IsSaveRequested() && m_stateInterchange.m_saveArena.TryWrite())
         {
             INFO("Save JSON request received");
 
@@ -428,21 +428,78 @@ struct TheNonagonSquiggleBoyInternal
             }
         }
 
-        if (m_stateInterchange.IsLoadRequested())
+        if (m_stateInterchange.IsLoadRequested() && m_stateInterchange.m_loadArena.TryRead())
         {
             INFO("Load JSON request received");
             FromJSON(m_stateInterchange.GetToLoad(), m_stateInterchange.GetRestoreFaders());
+            m_context.m_paramEventLogger.RecordPatch(m_stateInterchange.m_loadArena,
+                m_stateInterchange.GetRestoreFaders());
+            m_stateInterchange.m_loadArena.Release();
             INFO("JSON deserialized");
             m_stateInterchange.AckLoadCompleted();
         }
 
         if (m_stateInterchange.IsNewRequested())
         {
+            auto& recorder = m_context.m_recorder;
+            const bool record = recorder.IsRecording();
+            auto& arena = recorder.m_resetPatchArena;
+            if (record && !arena.TryWrite())
+            {
+                return;
+            }
+
             INFO("New patch request received");
+            m_context.m_paramEventLogger.m_suspended = true;
             RevertToDefault(true, true);
+            m_context.m_paramEventLogger.m_suspended = false;
+            if (record)
+            {
+                arena.Reset();
+                arena.FinishWrite(ToJSON(arena));
+                if (arena.Failed())
+                {
+                    recorder.Fail(StreamingRecorder::Error::InvalidConfiguration);
+                }
+                else
+                {
+                    m_context.m_paramEventLogger.RecordPatch(arena, true, true);
+                }
+            }
+
             INFO("Reverted to default");
             m_stateInterchange.AckNewCompleted();
         }
+
+        if (m_stateInterchange.m_reloadRequested)
+        {
+            ReloadSavedPatch();
+        }
+    }
+
+    void ReloadSavedPatch()
+    {
+        m_stateInterchange.m_reloadRequested = true;
+        PatchArena* arena = m_stateInterchange.m_lastSaveArena;
+        if (arena == nullptr)
+        {
+            m_stateInterchange.m_reloadRequested = false;
+            return;
+        }
+
+        if (!arena->TryRead())
+        {
+            return;
+        }
+
+        if (!arena->m_patch.IsNull())
+        {
+            FromJSON(arena->m_patch, false);
+            m_context.m_paramEventLogger.RecordPatch(*arena, false);
+        }
+
+        arena->Release();
+        m_stateInterchange.m_reloadRequested = false;
     }
 
     QuadFloatWithStereoAndSub ProcessSample(const AudioInputBuffer& audioInputBuffer)
@@ -575,7 +632,7 @@ struct TheNonagonSquiggleBoyInternal
             else
             {
                 INFO("Loading saved JSON");
-                m_owner->FromJSON(m_owner->m_stateInterchange.m_lastSave, false);
+                m_owner->ReloadSavedPatch();
                 INFO("Loaded saved JSON");
             }
         }

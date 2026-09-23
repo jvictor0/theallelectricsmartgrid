@@ -170,6 +170,7 @@ public:
     void HandleStateInterchange()
     {
         StateInterchange* stateInterchange = m_nonagon.GetStateInterchange();
+        stateInterchange->RetryPendingLoad();
         if (stateInterchange->IsSavePending())
         {
             INFO("Saving patch to file");
@@ -189,10 +190,8 @@ public:
         m_nonagon.GetStateInterchange()->RequestNew();
     }
 
-    // Parse the patch text into the interchange's load arena (message thread)
-    // and arm the load. The parsed tree must outlive the audio thread's read,
-    // so it is owned by the StateInterchange, not a local. Returns false on
-    // parse failure or if a load is already in flight.
+    // Parse on the message thread, or defer while audio/the writer retains the
+    // previous patch. The timer retries pending loads before reusing storage.
     //
     bool RequestLoad(const juce::String& jsonText)
     {
@@ -207,13 +206,7 @@ public:
     bool RequestLoad(const juce::String& jsonText, bool restoreFaders)
     {
         StateInterchange* stateInterchange = m_nonagon.GetStateInterchange();
-        JSON patch = stateInterchange->ParseForLoad(jsonText.toUTF8().getAddress());
-        if (patch.IsNull())
-        {
-            return false;
-        }
-
-        return stateInterchange->RequestLoad(patch, restoreFaders);
+        return stateInterchange->RequestLoadText(jsonText.toStdString(), restoreFaders);
     }
 
     //==============================================================================

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "JuceSon.hpp"
+#include "PatchArena.hpp"
 #include <atomic>
+#include <string>
 
 // StateInterchange — lock-free handshake for patch save/load between the audio
 // thread (which owns the live state) and the message thread (which owns disk IO).
@@ -14,7 +16,8 @@
 //
 // Lifetime: the serialized tree is pointers into m_saveArena, so the arena must
 // outlive the message-thread Dumps()/AckSaveCompleted(). It is reset only at the
-// start of the next build, so m_toSave/m_lastSave stay valid until then.
+// start of the next build after recording readers release it. Saved reloads
+// acquire their source arena before reading its current root.
 //
 struct StateInterchange
 {
@@ -28,12 +31,20 @@ struct StateInterchange
     JSON m_toSave;
     JSON m_lastSave;
     JSON m_toLoad;
+    PatchArena* m_lastSaveArena = nullptr;
+    bool m_reloadRequested = false;
+
+    // Message-thread-only pending request, retried before reusing a busy arena.
+    //
+    std::string m_pendingLoad;
+    bool m_pendingRestoreFaders = true;
+    bool m_loadBusy = false;
 
     // Backing arenas. m_saveArena: audio-thread build target. m_loadArena:
     // message-thread parse target (load tree handed to the audio thread).
     //
-    JsonArena m_saveArena;
-    JsonArena m_loadArena;
+    PatchArena m_saveArena;
+    PatchArena m_loadArena;
 
     StateInterchange()
         : m_saveRequested(false)
@@ -52,7 +63,8 @@ struct StateInterchange
 
     // ---- Save ----
     //
-    // Audio thread: the arena to build into. Reset it before building.
+    // Audio thread: acquire m_saveArena.TryWrite() before resetting/building.
+    // AckSaveRequested/AckSaveFailed releases the write ownership.
     //
     JsonArena& SaveArena()
     {
@@ -95,8 +107,10 @@ struct StateInterchange
     //
     void AckSaveRequested(JSON toSave)
     {
+        m_saveArena.FinishWrite(toSave);
         m_toSave = toSave;
         m_lastSave = m_toSave;
+        m_lastSaveArena = &m_saveArena;
         m_saveCompleted.store(false);
         m_saveRequested.store(false);
         m_saveFailed.store(false);
@@ -107,13 +121,13 @@ struct StateInterchange
     //
     void AckSaveFailed()
     {
+        m_saveArena.FinishWrite(JSON::Null());
         m_saveRequested.store(false);
         m_saveFailed.store(true);
     }
 
     void AckSaveCompleted()
     {
-        m_lastSave = m_toSave;
         m_toSave = JSON::Null();
         m_saveCompleted.store(true);
     }
@@ -129,7 +143,13 @@ struct StateInterchange
             return false;
         }
 
+        if (!m_saveArena.TryWrite())
+        {
+            return false;
+        }
+
         m_saveArena.GrowAndReset();
+        m_saveArena.FinishWrite(JSON::Null());
         m_saveFailed.store(false);
         m_saveRequested.store(true);
         return true;
@@ -139,10 +159,16 @@ struct StateInterchange
     //
     // Message thread: parse JSON text into the load arena (growing on
     // exhaustion). Returns JSON::Null() on parse error. The returned tree is
-    // valid until the next ParseForLoad.
+    // valid until the next successful ParseForLoad. Busy storage is untouched.
     //
     JSON ParseForLoad(const char* text)
     {
+        m_loadBusy = m_loadRequested.load() || !m_loadArena.TryWrite();
+        if (m_loadBusy)
+        {
+            return JSON::Null();
+        }
+
         m_loadArena.Reset();
         JSON parsed = m_loadArena.Loads(text);
         while (parsed.IsNull() && m_loadArena.Failed())
@@ -151,11 +177,37 @@ struct StateInterchange
             parsed = m_loadArena.Loads(text);
         }
 
+        m_loadArena.FinishWrite(parsed);
         return parsed;
     }
 
+    bool RequestLoadText(const std::string& text, bool restoreFaders)
+    {
+        JSON patch = ParseForLoad(text.c_str());
+        if (m_loadBusy)
+        {
+            m_pendingLoad = text;
+            m_pendingRestoreFaders = restoreFaders;
+            return true;
+        }
+
+        m_pendingLoad.clear();
+        return !patch.IsNull() && RequestLoad(patch, restoreFaders);
+    }
+
+    void RetryPendingLoad()
+    {
+        if (!m_pendingLoad.empty())
+        {
+            RequestLoadText(m_pendingLoad, m_pendingRestoreFaders);
+        }
+    }
+
+    // The JSON must be the current root returned by ParseForLoad.
+    //
     bool RequestLoad(JSON toLoad, bool restoreFaders)
     {
+        assert(toLoad.m_node == m_loadArena.m_patch.m_node);
         if (m_loadRequested.load())
         {
             return false;
@@ -185,6 +237,7 @@ struct StateInterchange
         }
 
         m_lastSave = m_toLoad;
+        m_lastSaveArena = &m_loadArena;
         return m_toLoad;
     }
 
