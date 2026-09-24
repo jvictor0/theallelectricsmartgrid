@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <atomic>
 #include "MidiUtils.hpp"
 #include "SmartGridInclude.hpp"
 #include "ThreadId.hpp"
@@ -26,17 +27,17 @@ struct MidiInputHandler : public juce::MidiInputCallback
 
     void Open(const juce::String &deviceIdentifier)
     {
-        juce::Logger::writeToLog("Opening MIDI input: " + deviceIdentifier);
+        INFO("Opening MIDI input: %s", deviceIdentifier.toRawUTF8());
         m_midiInput = juce::MidiInput::openDevice(deviceIdentifier, this);
         if (m_midiInput.get())
         {
             m_midiInput->start();
             m_name = m_midiInput->getName();
-            juce::Logger::writeToLog("MIDI input opened: " + deviceIdentifier + "(name " + m_midiInput->getName() + ")");
+            INFO("MIDI input opened: %s (name %s)", deviceIdentifier.toRawUTF8(), m_name.toRawUTF8());
         }
         else
         {
-            juce::Logger::writeToLog("MIDI input failed to open: " + deviceIdentifier);
+            INFO("MIDI input failed to open: %s", deviceIdentifier.toRawUTF8());
         }
     }
 
@@ -65,16 +66,32 @@ struct MidiInputHandler : public juce::MidiInputCallback
 
     virtual void SendMessage(SmartGrid::BasicMidi msg) = 0;
 
-    void AttemptConnect()
+    bool IsOpen() const
     {
-        if (!m_name.isEmpty() && !m_midiInput.get())
+        return m_midiInput != nullptr && m_midiInput->isAlive();
+    }
+
+    bool AttemptConnect()
+    {
+        if (m_name.isEmpty() || IsOpen())
         {
-            juce::String deviceIdentifier = MidiInputDeviceIdentifierFromName(m_name);
-            if (!deviceIdentifier.isEmpty())
-            {
-                Open(deviceIdentifier);
-            }
+            return false;
         }
+
+        if (m_midiInput != nullptr)
+        {
+            INFO("MIDI input disconnected: %s", m_name.toRawUTF8());
+            m_midiInput.reset();
+        }
+
+        const auto identifier = MidiInputDeviceIdentifierFromName(m_name);
+        if (identifier.isEmpty())
+        {
+            return false;
+        }
+
+        Open(identifier);
+        return IsOpen();
     }
 
     JSON ToJSON(JsonArena& a)
@@ -101,9 +118,11 @@ struct MidiOutputHandler
 {
     std::unique_ptr<juce::MidiOutput> m_midiOutput;
     juce::String m_name;
-    SmartGrid::ControllerShape m_shape;
+    std::atomic<SmartGrid::ControllerShape> m_shape;
     int m_routeId;
     SpinLock m_mutex;
+    std::atomic<bool> m_connected{false};
+    std::atomic<bool> m_refreshRequested{false};
 
     MidiOutputHandler()
         : m_shape(SmartGrid::ControllerShape::LaunchPadX)
@@ -112,34 +131,79 @@ struct MidiOutputHandler
 
     virtual ~MidiOutputHandler() = default;
 
-    void AttemptConnect()
+    bool IsOpen() const
     {
-        if (!m_name.isEmpty() && !m_midiOutput.get())
+        return m_midiOutput != nullptr && m_midiOutput->isAlive();
+    }
+
+    bool AttemptConnect()
+    {
+        if (m_name.isEmpty() || IsOpen())
         {
-            juce::String deviceIdentifier = MidiOutputDeviceIdentifierFromName(m_name);
-            if (!deviceIdentifier.isEmpty())
-            {
-                Open(deviceIdentifier);
-            }
+            return false;
         }
+
+        m_connected.store(false, std::memory_order_release);
+        if (m_midiOutput != nullptr)
+        {
+            INFO("MIDI output disconnected: %s", m_name.toRawUTF8());
+            AutoLockSpin lock(m_mutex);
+            m_midiOutput.reset();
+        }
+
+        const auto identifier = MidiOutputDeviceIdentifierFromName(m_name);
+        if (identifier.isEmpty())
+        {
+            return false;
+        }
+
+        Open(identifier);
+        return IsOpen();
+    }
+
+    void RequestRefresh()
+    {
+        m_refreshRequested.store(true, std::memory_order_release);
+    }
+
+    // Called by the audio producer; it owns the writer caches and their reset.
+    //
+    bool PrepareProcess()
+    {
+        if (!m_connected.load(std::memory_order_acquire))
+        {
+            return false;
+        }
+
+        if (m_refreshRequested.exchange(false, std::memory_order_acq_rel))
+        {
+            Reset();
+        }
+
+        return true;
     }
 
     void Open(const juce::String &deviceIdentifier)
     {
+        m_connected.store(false, std::memory_order_release);
         AutoLockSpin lock(m_mutex);
-        juce::Logger::writeToLog(juce::String("Opening MIDI output (shape ") + juce::String(SmartGrid::ControllerShapeToString(m_shape)) + "): " + deviceIdentifier);
+        INFO("Opening MIDI output (shape %s): %s", SmartGrid::ControllerShapeToString(m_shape), deviceIdentifier.toRawUTF8());
         m_midiOutput = juce::MidiOutput::openDevice(deviceIdentifier);
         if (!m_midiOutput.get())
         {
-            juce::Logger::writeToLog("MIDI output failed to open: " + deviceIdentifier);
+            INFO("MIDI output failed to open: %s", deviceIdentifier.toRawUTF8());
         }
         else
         {
             m_name = m_midiOutput->getName();
-            juce::Logger::writeToLog("MIDI output opened: " + deviceIdentifier + " (name " + m_midiOutput->getName() + ")");
+            INFO("MIDI output opened: %s (name %s)", deviceIdentifier.toRawUTF8(), m_name.toRawUTF8());
         }
 
-        Reset();
+        if (IsOpen())
+        {
+            RequestRefresh();
+            m_connected.store(true, std::memory_order_release);
+        }
     }
 
     virtual void Reset() = 0;
@@ -149,7 +213,7 @@ struct MidiOutputHandler
     {
         JSON rootJ = a.Object();
         rootJ.SetNew("midi_output", a.String(m_name.toUTF8()));
-        rootJ.SetNew("shape", a.Integer(static_cast<int>(m_shape)));
+        rootJ.SetNew("shape", a.Integer(static_cast<int>(m_shape.load())));
         return rootJ;
     }
 
@@ -173,7 +237,7 @@ struct MidiOutputHandler
     void SendBuffer(juce::MidiBuffer& buffer, double blockTimestampMs)
     {
         AutoLockSpin lock(m_mutex);
-        if (m_midiOutput.get())
+        if (IsOpen())
         {
             m_midiOutput->sendBlockOfMessages(buffer, blockTimestampMs, SampleTimer::x_sampleRate);
         }
@@ -182,12 +246,13 @@ struct MidiOutputHandler
     void SendImmediateMessage(juce::MidiMessage& message)
     {
         AutoLockSpin lock(m_mutex);
-        if (m_midiOutput.get())
+        if (IsOpen())
         {
             m_midiOutput->sendMessageNow(message);
         }
         else
         {
+            m_connected.store(false, std::memory_order_release);
             SmartGrid::MidiOutputSchedule::s_missingOutput.fetch_add(1, std::memory_order_relaxed);
         }
     }
@@ -195,12 +260,13 @@ struct MidiOutputHandler
     void SendScheduledMessage(juce::MidiMessage& message, std::uint64_t hostTicks)
     {
         AutoLockSpin lock(m_mutex);
-        if (m_midiOutput.get())
+        if (IsOpen())
         {
             m_midiOutput->sendMessageAtHostTime(message, hostTicks);
         }
         else
         {
+            m_connected.store(false, std::memory_order_release);
             SmartGrid::MidiOutputSchedule::s_missingOutput.fetch_add(1, std::memory_order_relaxed);
         }
     }

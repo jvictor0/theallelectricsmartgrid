@@ -90,7 +90,13 @@ def PatchMidiHeader(data):
 
     newline = "\r\n" if b"\r\n" in data else "\n"
     text = data.decode().replace("\r\n", "\n")
-    text = Replace(text, "    /** Sends out a MIDI message immediately. */", """    void sendMessageAtHostTime (const MidiMessage& message, uint64_t hostTicks)
+    text = Replace(text, "    void stop();", "    void stop();\n    bool isAlive() const;")
+    text = Replace(text, "    /** Sends out a MIDI message immediately. */", """    bool isAlive() const
+    {
+        return connection.isAlive();
+    }
+
+    void sendMessageAtHostTime (const MidiMessage& message, uint64_t hostTicks)
     {
         convertAndSend (mainPackets, Span { &message, 1 }, hostTicks);
     }
@@ -108,6 +114,25 @@ def PatchMidiHeader(data):
             connection.sendAtHostTime (packets.begin(), packets.end(), hostTicks);""")
     text = Replace(text, "convertAndSend (backgroundPackets, Span { &message, 1 });",
                    "convertAndSend (backgroundPackets, Span { &message, 1 }, 0);")
+    return text.replace("\n", newline).encode()
+
+
+def PatchMidiCpp(data):
+    newline = "\r\n" if b"\r\n" in data else "\n"
+    text = data.decode().replace("\r\n", "\n")
+    text = Replace(text, "    void start()\n", """    bool isAlive() const
+    {
+        return connection.isAlive();
+    }
+
+    void start()
+""")
+    text = Replace(text, "void MidiInput::start()", """bool MidiInput::isAlive() const
+{
+    return pimpl->isAlive();
+}
+
+void MidiInput::start()""")
     return text.replace("\n", newline).encode()
 
 
@@ -158,6 +183,7 @@ def Prepare(source, destination, ios_buffer):
     patches = {
         Path("native/juce_CoreMidi_mac.mm"): PatchCoreMidi,
         Path("midi_io/juce_MidiDevices.h"): PatchMidiHeader,
+        Path("midi_io/juce_MidiDevices.cpp"): PatchMidiCpp,
         Path("midi_io/ump/juce_UMPOutput.h"): PatchUMPHeader,
         Path("midi_io/ump/juce_UMPOutput.cpp"): PatchUMPCpp,
     }

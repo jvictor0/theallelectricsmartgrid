@@ -510,6 +510,13 @@ void MainComponent::ShowVersionChooser()
 //==============================================================================
 void MainComponent::timerCallback()
 {
+    const auto nowMs = juce::Time::getMillisecondCounter();
+    if (nowMs - m_lastMidiConnectionCheckMs >= x_midiReconnectIntervalMs)
+    {
+        m_lastMidiConnectionCheckMs = nowMs;
+        m_nonagon.CheckMidiConnections();
+    }
+
     m_appObserver.Report(m_deviceManager, m_nonagon.m_midiSender);
 
     // Re-renderthe component at 60 FPS

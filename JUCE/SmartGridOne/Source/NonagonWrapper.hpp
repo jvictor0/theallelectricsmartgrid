@@ -52,7 +52,6 @@ struct NonagonWrapperQuadLaunchpadTwister
         void Open(SmartGrid::ControllerShape shape, const juce::String &deviceIdentifier)
         {
             m_shape = shape;
-            m_sysexWriter.m_shape = shape;
             MidiOutputHandler::Open(deviceIdentifier);
         }
 
@@ -64,7 +63,7 @@ struct NonagonWrapperQuadLaunchpadTwister
 
         void Process() override
         {
-            if (m_midiOutput.get())
+            if (PrepareProcess())
             {
                 uint8_t buffer[SmartGrid::LPSysexWriter::x_maxMessageSize];
                 size_t size = m_sysexWriter.Write(buffer);
@@ -103,7 +102,7 @@ struct NonagonWrapperQuadLaunchpadTwister
 
         void Process() override
         {
-            if (m_midiOutput.get())
+            if (PrepareProcess())
             {
                 for (SmartGrid::BasicMidi msg : m_midiWriter)
                 {
@@ -137,6 +136,21 @@ struct NonagonWrapperQuadLaunchpadTwister
         m_midiSender->AllocateRoute(&m_midiEncoderOutputHandler);
     }
 
+    void CheckMidiConnections()
+    {
+        for (auto& input : m_midiInputHandler)
+        {
+            input.AttemptConnect();
+        }
+
+        for (auto& output : m_midiLaunchpadOutputHandler)
+        {
+            output.AttemptConnect();
+        }
+
+        m_midiEncoderOutputHandler.AttemptConnect();
+    }
+
     void OpenInput(int index, const juce::String &deviceIdentifier)
     {
         m_midiInputHandler[index].Open(deviceIdentifier);
@@ -154,18 +168,18 @@ struct NonagonWrapperQuadLaunchpadTwister
 
     juce::MidiInput* GetMidiInput(int index)
     {
-        return m_midiInputHandler[index].m_midiInput.get();
+        return m_midiInputHandler[index].IsOpen() ? m_midiInputHandler[index].m_midiInput.get() : nullptr;
     }
 
     juce::MidiOutput* GetMidiOutput(int index)
     {
         if (index < TheNonagonSquiggleBoyQuadLaunchpadTwister::x_numLaunchpads)
         {
-            return m_midiLaunchpadOutputHandler[index].m_midiOutput.get();
+            return m_midiLaunchpadOutputHandler[index].IsOpen() ? m_midiLaunchpadOutputHandler[index].m_midiOutput.get() : nullptr;
         }
         else
         {
-            return m_midiEncoderOutputHandler.m_midiOutput.get();
+            return m_midiEncoderOutputHandler.IsOpen() ? m_midiEncoderOutputHandler.m_midiOutput.get() : nullptr;
         }
     }
 
@@ -288,7 +302,7 @@ struct NonagonWrapperWrldBldr
 
         void Process() override
         {
-            if (m_midiOutput.get())
+            if (PrepareProcess())
             {
                 size_t budget = 256;
                 m_midiWriter.ProcessCoolDown();
@@ -354,7 +368,7 @@ struct NonagonWrapperWrldBldr
 
         void Process() override
         {
-            if (m_midiOutput.get())
+            if (PrepareProcess())
             {
                 for (auto msg : m_internal->m_ioState.m_kMixMidi)
                 {
@@ -382,10 +396,21 @@ struct NonagonWrapperWrldBldr
         m_midiSender->AllocateRoute(&m_kMixMidiOutputHandler);
     }
 
+    void CheckMidiConnections()
+    {
+        const bool inputOpened = m_midiInputHandler.AttemptConnect();
+        const bool outputOpened = m_midiOutputHandler.AttemptConnect();
+        m_kMixMidiOutputHandler.AttemptConnect();
+        if ((inputOpened || outputOpened) && IsOpen())
+        {
+            SendHandshake();
+        }
+    }
+
     void OpenInput(const juce::String &deviceIdentifier)
     {
         m_midiInputHandler.Open(deviceIdentifier);
-        if (m_midiOutputHandler.m_midiOutput.get())
+        if (m_midiOutputHandler.IsOpen())
         {
             SendHandshake();
         }
@@ -394,7 +419,7 @@ struct NonagonWrapperWrldBldr
     void OpenOutput(const juce::String &deviceIdentifier)
     {
         m_midiOutputHandler.Open(deviceIdentifier);
-        if (m_midiInputHandler.m_midiInput.get())
+        if (m_midiInputHandler.IsOpen())
         {
             SendHandshake();
         }
@@ -407,11 +432,12 @@ struct NonagonWrapperWrldBldr
 
     void SendHandshake()
     {
-        if (m_midiOutputHandler.m_midiOutput.get())
+        if (m_midiOutputHandler.IsOpen())
         {
             uint8_t sysex[] = {0xF0, 0x79, 0x74, 0x78, 0x00, 0x01, 0x00, 0x21, 0xF7};
             juce::MidiMessage message(sysex, sizeof(sysex));
             m_midiOutputHandler.SendImmediateMessage(message);
+            m_midiOutputHandler.RequestRefresh();
         }
     }
 
@@ -454,22 +480,22 @@ struct NonagonWrapperWrldBldr
 
     bool IsOpen()
     {
-        return m_midiInputHandler.m_midiInput.get() && m_midiOutputHandler.m_midiOutput.get();
+        return m_midiInputHandler.IsOpen() && m_midiOutputHandler.IsOpen();
     }
 
     juce::MidiInput* GetMidiInput()
     {
-        return m_midiInputHandler.m_midiInput.get();
+        return m_midiInputHandler.IsOpen() ? m_midiInputHandler.m_midiInput.get() : nullptr;
     }
 
     juce::MidiOutput* GetMidiOutput()
     {
-        return m_midiOutputHandler.m_midiOutput.get();
+        return m_midiOutputHandler.IsOpen() ? m_midiOutputHandler.m_midiOutput.get() : nullptr;
     }
 
     juce::MidiOutput* GetKMixOutput()
     {
-        return m_kMixMidiOutputHandler.m_midiOutput.get();
+        return m_kMixMidiOutputHandler.IsOpen() ? m_kMixMidiOutputHandler.m_midiOutput.get() : nullptr;
     }
 
     JSON ConfigToJSON(JsonArena& a)
@@ -555,6 +581,12 @@ struct NonagonWrapper
         // the thread here makes teardown safe regardless of member order.
         //
         m_ioTaskThread.Shutdown();
+    }
+
+    void CheckMidiConnections()
+    {
+        m_quadLaunchpadTwister.CheckMidiConnections();
+        m_wrldBldr.CheckMidiConnections();
     }
 
     void PrepareToPlay(int numSamples, double sampleRate)

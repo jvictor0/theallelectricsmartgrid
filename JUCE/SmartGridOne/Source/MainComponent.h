@@ -253,6 +253,8 @@ private:
     double m_sampleRate = 0.0;
     std::atomic<bool> m_audioReady{false};
     AppObserver m_appObserver;
+    static constexpr uint32_t x_midiReconnectIntervalMs = 1000;
+    uint32_t m_lastMidiConnectionCheckMs = 0;
 
     FileManager m_fileManager{this};
 

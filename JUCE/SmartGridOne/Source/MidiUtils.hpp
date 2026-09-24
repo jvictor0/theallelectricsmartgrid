@@ -4,11 +4,11 @@
 
 inline juce::String MidiInputDeviceIdentifierFromName(const juce::String& name)
 {
-    for (int i = 0; i < juce::MidiInput::getAvailableDevices().size(); ++i)
+    for (const auto& device : juce::MidiInput::getAvailableDevices())
     {
-        if (juce::MidiInput::getAvailableDevices()[i].name == name)
+        if (device.name == name)
         {
-            return juce::MidiInput::getAvailableDevices()[i].identifier;
+            return device.identifier;
         }
     }
 
@@ -17,11 +17,11 @@ inline juce::String MidiInputDeviceIdentifierFromName(const juce::String& name)
 
 inline juce::String MidiOutputDeviceIdentifierFromName(const juce::String& name)
 {
-    for (int i = 0; i < juce::MidiOutput::getAvailableDevices().size(); ++i)
+    for (const auto& device : juce::MidiOutput::getAvailableDevices())
     {
-        if (juce::MidiOutput::getAvailableDevices()[i].name == name)
+        if (device.name == name)
         {
-            return juce::MidiOutput::getAvailableDevices()[i].identifier;
+            return device.identifier;
         }
     }
 
