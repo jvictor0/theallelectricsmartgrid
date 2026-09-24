@@ -117,7 +117,7 @@ struct SmartGridOneEncoders
         {
             case 0:
             {
-                if (mode == BankMode::Voice)
+                if (mode == BankMode::Voice || mode == BankMode::Quad)
                 {
                     return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[0]);
                 }
@@ -125,7 +125,7 @@ struct SmartGridOneEncoders
             }
             case 1:
             {
-                if (mode == BankMode::Voice)
+                if (mode == BankMode::Voice || mode == BankMode::Quad)
                 {
                     return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[1]);
                 }

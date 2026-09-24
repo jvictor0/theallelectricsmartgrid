@@ -96,9 +96,31 @@ G(
     SmartGrid::Color::White)
 G(
     QuadGangedRandom1Scope,
-    2,
+    0,
     std::make_unique<GangedRandomLFOComponent<4>>(
         &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[0],
+        1,
+        nullptr,
+        GangedRandomLFOComponent<4>::ColorMode::Voices,
+        SmartGridOneEncoders::GetModulatorSkin(0, SmartGridOneEncoders::BankMode::Quad).m_color),
+    SmartGridOneEncoders::BankMode::Quad,
+    SmartGridOneEncoders::GetModulatorSkin(0, SmartGridOneEncoders::BankMode::Quad).m_color)
+G(
+    QuadGangedRandom2Scope,
+    1,
+    std::make_unique<GangedRandomLFOComponent<4>>(
+        &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[1],
+        1,
+        nullptr,
+        GangedRandomLFOComponent<4>::ColorMode::Voices,
+        SmartGridOneEncoders::GetModulatorSkin(1, SmartGridOneEncoders::BankMode::Quad).m_color),
+    SmartGridOneEncoders::BankMode::Quad,
+    SmartGridOneEncoders::GetModulatorSkin(1, SmartGridOneEncoders::BankMode::Quad).m_color)
+G(
+    QuadGangedRandom3Scope,
+    2,
+    std::make_unique<GangedRandomLFOComponent<4>>(
+        &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[2],
         1,
         nullptr,
         GangedRandomLFOComponent<4>::ColorMode::Voices,
@@ -106,10 +128,10 @@ G(
     SmartGridOneEncoders::BankMode::Quad,
     SmartGridOneEncoders::GetModulatorSkin(2, SmartGridOneEncoders::BankMode::Quad).m_color)
 G(
-    QuadGangedRandom2Scope,
+    QuadGangedRandom4Scope,
     3,
     std::make_unique<GangedRandomLFOComponent<4>>(
-        &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[1],
+        &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[3],
         1,
         nullptr,
         GangedRandomLFOComponent<4>::ColorMode::Voices,
@@ -147,7 +169,7 @@ G(
         m_nonagon->GetQuadControlScopeWriter(),
         static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1),
         4,
-        SmartGrid::Color::Pink,
+        SmartGridOneEncoders::QuadLFOColor(0),
         0.9f,
         0.05f),
     SmartGridOneEncoders::BankMode::Quad,
@@ -159,7 +181,7 @@ G(
         m_nonagon->GetQuadControlScopeWriter(),
         static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2),
         4,
-        SmartGrid::Color::Pink,
+        SmartGridOneEncoders::QuadLFOColor(1),
         0.9f,
         0.05f),
     SmartGridOneEncoders::BankMode::Quad,

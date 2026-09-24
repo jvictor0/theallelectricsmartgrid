@@ -12,6 +12,10 @@ Each `GangedRandomLFO<VoiceCount>` SHALL own exactly `VoiceCount` persistent voi
 - **WHEN** `SquiggleBoy` constructs its standard random modulators
 - **THEN** each of the four modulators owns three `GangedRandomLFO<3>` processors, one for each three-voice track
 
+#### Scenario: Quad-bank topology
+- **WHEN** `SquiggleBoy` constructs its standard random modulators
+- **THEN** each of the four Quad modulators owns one `GangedRandomLFO<4>` processor, one lane for each quad channel
+
 ### Requirement: Wait Move Done Voice State
 Each voice SHALL progress through `Waiting`, `Moving`, and `Done`. Waiting holds the source value, Moving interpolates from source to target with a blend of linear and raised-cosine progress, and Done holds the target.
 
@@ -30,14 +34,14 @@ The processor SHALL then sample one shared uniform target center, normally distr
 - **AND** only then does the processor sample and reset the complete gang for the next round
 
 ### Requirement: Standard Random Presets
-The four Voice-bank random modulators SHALL use waiting means `W = 1, 4, 12, 32` seconds with waiting sigma `0.3W`, waiting internal sigma `0.2/W`, moving mean `W/2`, moving sigma `0.15W`, moving internal sigma `0.4/W`, and target internal sigma `0.1, 0.3, 0.2, 0.1` respectively.
+The four Voice-bank and four Quad-bank random modulators SHALL share timing presets with waiting means `W = 1, 4, 12, 32` seconds, waiting sigma `0.3W`, waiting internal sigma `0.2/W`, moving mean `W/2`, moving sigma `0.15W`, moving internal sigma `0.4/W`, and target internal sigma `0.1, 0.3, 0.2, 0.1` respectively.
 
-Quad and Global random slots 2 and 3 SHALL use the 8-second and 16-second presets respectively. These values are fixed DSP configuration and SHALL NOT add performer parameters.
+Global random slots 2 and 3 SHALL use the 8-second and 16-second presets respectively. These values are fixed DSP configuration and SHALL NOT add performer parameters.
 
 #### Scenario: Standard gangs receive their fixed timing presets
 - **WHEN** the standard random modulators are constructed
-- **THEN** Voice slots 0 through 3 use the 1-, 4-, 12-, and 32-second waiting means respectively
-- **AND** Quad and Global slots 2 and 3 use the 8- and 16-second presets respectively
+- **THEN** Voice and Quad slots 0 through 3 use the 1-, 4-, 12-, and 32-second waiting means respectively
+- **AND** Global slots 2 and 3 use the 8- and 16-second presets respectively
 
 ### Requirement: Coherent Predictive UI State
 Each displayed gang SHALL publish sample rate, elapsed round samples, and each voice's state, progress, source, target, output, shape, waiting increment, and moving increment through an odd/even revision transaction. Readers SHALL retry a bounded number of times and reject snapshots observed during or across a write.
@@ -51,10 +55,11 @@ Each displayed gang SHALL publish sample rate, elapsed round samples, and each v
 - **WHEN** the visualizer cannot read a coherent snapshot
 - **THEN** it draws only its background and center axis
 
-### Requirement: Existing Routing Is Preserved
-Voice random outputs SHALL continue to feed modulator slots 0 through 3. Quad and Global random outputs SHALL continue to feed slots 2 and 3. Voice random outputs 2 and 3 SHALL also continue driving the two Dual Wave Shaping VCO wavetable blends and replacement visibility checks.
+### Requirement: Random Modulator Routing
+Voice and Quad random outputs SHALL feed modulator slots 0 through 3, with matching glyphs and colors and a predictive visualizer for each slot. Global random outputs SHALL continue to feed slots 2 and 3. Voice random outputs 2 and 3 SHALL also continue driving the two Dual Wave Shaping VCO wavetable blends and replacement visibility checks.
 
-#### Scenario: Removing synthetic partials preserves shared modulation routing
-- **WHEN** Partial Machine no longer owns synthetic-harmonic random modulators
-- **THEN** Voice, Quad, and Global random outputs retain their existing modulator slots
+#### Scenario: Quad and Voice expose the same four random modulator slots
+- **WHEN** a performer selects a Voice or Quad encoder bank
+- **THEN** random modulators and their predictive visualizers occupy slots 0 through 3 with matching colors
+- **AND** Global random outputs retain slots 2 and 3
 - **AND** Voice outputs 2 and 3 still drive the Dual Wave Shaping VCO wavetable blends and replacement visibility checks

@@ -587,7 +587,7 @@ struct SquiggleBoy
 
     SquiggleBoyVoice m_voices[x_numVoices];
     GangedRandomLFO<x_voicesPerTrack> m_gangedRandomLFO[x_numGangedRandomLFOs][x_numTracks];
-    GangedRandomLFO<4> m_quadGangedRandomLFO[2];
+    GangedRandomLFO<4> m_quadGangedRandomLFO[x_numGangedRandomLFOs];
     GangedRandomLFO<1> m_globalGangedRandomLFO[2];
     SquiggleBoyVoice::SquiggleLFO m_quadSquiggleLFO[2][4];
 
@@ -612,7 +612,6 @@ struct SquiggleBoy
 
     SquiggleBoyVoice::Input m_state[x_numVoices];
     GangedRandomLFOInput m_gangedRandomLFOInput[x_numGangedRandomLFOs];
-    GangedRandomLFOInput m_quadGangedRandomLFOInput[2];
     GangedRandomLFOInput m_globalGangedRandomLFOInput[2];
     SquiggleBoyVoice::SquiggleLFO::Input m_quadSquiggleLFOInput[2][4];
     MixerInput m_mixerState;
@@ -656,8 +655,6 @@ struct SquiggleBoy
         m_gangedRandomLFOInput[2] = GangedRandomLFOInput::Standard(12.0, 0.2f);
         m_gangedRandomLFOInput[3] = GangedRandomLFOInput::Standard(32.0, 0.1f);
 
-        m_quadGangedRandomLFOInput[0] = GangedRandomLFOInput::Standard(8.0, 0.2f);
-        m_quadGangedRandomLFOInput[1] = GangedRandomLFOInput::Standard(16.0, 0.1f);
         m_globalGangedRandomLFOInput[0] = GangedRandomLFOInput::Standard(8.0, 0.2f);
         m_globalGangedRandomLFOInput[1] = GangedRandomLFOInput::Standard(16.0, 0.1f);
 
@@ -829,13 +826,12 @@ struct SquiggleBoy
                     1.0 / 48000.0,
                     m_gangedRandomLFOInput[j]);
             }
+
+            m_quadGangedRandomLFO[j].Process(1.0 / 48000.0, m_gangedRandomLFOInput[j]);
         }
 
         m_globalGangedRandomLFO[0].Process(1.0 / 48000.0, m_globalGangedRandomLFOInput[0]);
         m_globalGangedRandomLFO[1].Process(1.0 / 48000.0, m_globalGangedRandomLFOInput[1]);
-
-        m_quadGangedRandomLFO[0].Process(1.0 / 48000.0, m_quadGangedRandomLFOInput[0]);
-        m_quadGangedRandomLFO[1].Process(1.0 / 48000.0, m_quadGangedRandomLFOInput[1]);
 
         for (size_t lfo = 0; lfo < 2; ++lfo)
         {
@@ -1105,7 +1101,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         GangedRandomLFOUIState<x_voicesPerTrack>
             m_gangedRandomLFOUIState[x_numGangedRandomLFOs][x_numTracks];
-        GangedRandomLFOUIState<4> m_quadGangedRandomLFOUIState[2];
+        GangedRandomLFOUIState<4> m_quadGangedRandomLFOUIState[x_numGangedRandomLFOs];
         GangedRandomLFOUIState<1> m_globalGangedRandomLFOUIState[2];
 
         std::atomic<size_t> m_activeTrack;
@@ -1528,8 +1524,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     
         for (size_t i = 0; i < 4; ++i)
         {
-            modulatorValues.m_value[2][i] = m_quadGangedRandomLFO[0].Output(i);
-            modulatorValues.m_value[3][i] = m_quadGangedRandomLFO[1].Output(i);
+            for (size_t random = 0; random < x_numGangedRandomLFOs; ++random)
+            {
+                modulatorValues.m_value[random][i] = m_quadGangedRandomLFO[random].Output(i);
+            }
 
             modulatorValues.m_value[4][i] = m_delay.m_lfo.m_output[i] / 2.0 + 0.5;
             modulatorValues.m_value[5][i] = m_reverb.m_lfo.m_output[i] / 2.0 + 0.5;
@@ -1881,12 +1879,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_gangedRandomLFO[random][track].PopulateUIState(
                     &uiState->m_gangedRandomLFOUIState[random][track]);
             }
+
+            m_quadGangedRandomLFO[random].PopulateUIState(
+                &uiState->m_quadGangedRandomLFOUIState[random]);
         }
 
         for (size_t random = 0; random < 2; ++random)
         {
-            m_quadGangedRandomLFO[random].PopulateUIState(
-                &uiState->m_quadGangedRandomLFOUIState[random]);
             m_globalGangedRandomLFO[random].PopulateUIState(
                 &uiState->m_globalGangedRandomLFOUIState[random]);
         }
