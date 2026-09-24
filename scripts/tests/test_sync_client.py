@@ -104,6 +104,54 @@ class NativeClientTests(unittest.TestCase):
             advertiser.terminate()
             advertiser.wait(timeout=3)
 
+    def test_existing_large_log_finishes_without_upload_timeout(self):
+        uploads = []
+        class ObserveUploads(SyncHandler):
+            def do_PUT(self):
+                uploads.append(self.path)
+                super().do_PUT()
+        self.m_server.RequestHandlerClass = ObserveUploads
+        for root in (self.m_ipad, self.m_mac):
+            with (root / 'logs/existing.log').open('wb') as output:
+                output.truncate(64 * 1024 * 1024)
+        started = time.monotonic()
+        result = self.RunClient()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Sync complete', result.stdout)
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertEqual((self.m_mac / 'logs/existing.log').stat().st_size, 64 * 1024 * 1024)
+        self.assertEqual(uploads, [])
+
+    def test_existing_large_log_finishes_after_slow_receiver_check(self):
+        class SlowCheck(SyncHandler):
+            def do_GET(self):
+                if self.path.startswith('/v1/log?'):
+                    time.sleep(6)
+                super().do_GET()
+        self.m_server.RequestHandlerClass = SlowCheck
+        for root in (self.m_ipad, self.m_mac):
+            with (root / 'logs/existing.log').open('wb') as output:
+                output.truncate(64 * 1024 * 1024)
+        result = self.RunClient()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Sync complete', result.stdout)
+
+    def test_existing_recording_is_verified_and_extracted_without_upload(self):
+        uploads = []
+        class ObserveUploads(SyncHandler):
+            def do_PUT(self):
+                uploads.append(self.path)
+                super().do_PUT()
+        self.m_server.RequestHandlerClass = ObserveUploads
+        source, original = self.Recording()
+        (self.m_mac / 'recordings/take.sgrec').write_bytes(original)
+        result = self.RunClient()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(uploads, [])
+        self.assertFalse(source.exists())
+        self.assertEqual((self.m_mac / 'recordings/take.sgrec').read_bytes(), original)
+        self.assertTrue((self.m_mac / 'recordings/take_stereo.wav').exists())
+
     def test_background_cancels_stalled_upload_without_publishing(self):
         entered = threading.Event()
         release = threading.Event()

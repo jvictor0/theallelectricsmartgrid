@@ -57,12 +57,18 @@ All HTTPS endpoints require `Authorization: Bearer <access code>`.
 
 - GET `/v1/manifest`: JSON `{version:1, patches:[{path,size,sha256}]}`.
 - GET `/v1/patch?path=<encoded relative path>`: raw file bytes.
+- GET `/v1/log?path=...`: JSON `{size:<bytes>}`, or size -1 when missing.
+  Check before taking a local snapshot or uploading an already-copied log.
 - PUT `/v1/patch?path=...`, `/v1/log?path=...`, `/v1/recording?path=...`:
   raw bytes, Content-Length and X-SHA256 headers. Return JSON.
 - Recording PUT returns `{state:"extracting",sha256:<digest>}` (or complete).
-- GET `/v1/recording?path=...&sha256=...`: JSON state `extracting`, `complete`,
-  or `failed`, with sha256 and optional error. Complete means extraction finished
-  and both original and stereo files were flushed to storage.
+- GET `/v1/recording?path=...&sha256=...`: JSON state `missing`, `extracting`,
+  `complete`, or `failed`, with sha256 and optional error. Check before uploading;
+  an existing matching original starts extraction if needed. Complete means
+  extraction finished and both original and stereo files were flushed to storage.
+- Successful PUT responses follow receipt of the entire request body, including
+  duplicate uploads. File checks happen in separate GET requests so the client
+  never depends on cancelling an in-flight upload upon an early success response.
 - Reject unsafe paths, symlinks, malformed sizes/checksums, unauthorized requests,
   and conflicting recording names. Do not silently overwrite patch conflicts.
 
@@ -72,5 +78,8 @@ Loopback tests cover real HTTP/file transfer, hash failures, interruption,
 patch conflicts, extraction failure and successful receipts. A standalone native
 client harness tests the real client against the receiver, including closing
 mid-transfer and reopening. Build macOS and iOS, inspect the audio diff, and run
-existing extraction/sync tests. Physical iPad discovery, permissions, throughput
-and background lifecycle checks remain explicitly pending while it is offline.
+existing extraction/sync tests. Physical iPad discovery, pairing, a 4.12 GB sync,
+stereo extraction, and verified source deletion succeeded on 2026-09-23. The
+normal app generated no sync connections during a 20-second launch observation.
+Physical screen-lock/background transitions remain pending; the native harness
+covers foreground loss and page closure.

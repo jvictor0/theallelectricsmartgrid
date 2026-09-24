@@ -407,6 +407,14 @@ struct SyncClient::Impl
     void UploadLog(const std::string& relative)
     {
         const auto source = Local("logs", relative);
+        NSDictionary* remote = Json(Request("GET", "log", relative));
+        NSNumber* remoteSize = remote[@"size"];
+        if ([remoteSize isKindOfClass:[NSNumber class]] && remoteSize.longLongValue >= 0
+            && remoteSize.unsignedLongLongValue >= fs::file_size(source))
+        {
+            return;
+        }
+
         const auto snapshot = fs::path(Text(NSTemporaryDirectory())) / ("smartgrid-log-" + Text([NSUUID UUID].UUIDString));
         try
         {
@@ -507,8 +515,18 @@ struct SyncClient::Impl
                     Message("Checking recording: " + relative);
                     const auto digest = Hash(path);
                     Check();
-                    Message("Sending recording " + std::to_string(recordings.size() + 1) + ": " + relative);
-                    Request("PUT", "recording", relative, path, digest);
+                    NSDictionary* existing = Json(Request("GET", "recording", relative, {}, digest));
+                    const auto state = Text(existing[@"state"]);
+                    if (state == "missing")
+                    {
+                        Message("Sending recording " + std::to_string(recordings.size() + 1) + ": " + relative);
+                        Request("PUT", "recording", relative, path, digest);
+                    }
+                    else if (state != "extracting" && state != "complete")
+                    {
+                        throw std::runtime_error("Receiver cannot use recording: " + relative + ": " + Text(existing[@"error"]));
+                    }
+
                     recordings.push_back({relative, digest, size, modified});
                 }
 

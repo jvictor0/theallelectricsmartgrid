@@ -2,6 +2,7 @@ import hashlib
 import http.client
 import io
 import json
+import select
 import socket
 import ssl
 import stat
@@ -118,6 +119,26 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual((status, json.loads(payload)['state']), (200, 'skipped'))
         self.assertEqual((self.m_root / 'logs/session.txt').read_bytes(), b'abcdef')
 
+    def test_duplicate_upload_finishes_receiving_before_success(self):
+        body = b'x' * 32768
+        destination = self.m_root / 'logs/existing.log'
+        destination.parent.mkdir()
+        destination.write_bytes(body)
+        connection = http.client.HTTPConnection('127.0.0.1', self.m_server.server_port, timeout=5)
+        try:
+            connection.putrequest('PUT', '/v1/log?path=existing.log')
+            connection.putheader('Authorization', 'Bearer secret')
+            connection.putheader('Content-Length', str(len(body)))
+            connection.putheader('X-SHA256', hashlib.sha256(body).hexdigest())
+            connection.endheaders(body[:1024])
+            self.assertEqual(select.select([connection.sock], [], [], 0.2)[0], [])
+            connection.send(body[1024:])
+            response = connection.getresponse()
+            self.assertEqual((response.status, json.loads(response.read())['state']), (200, 'skipped'))
+            self.assertEqual(destination.read_bytes(), body)
+        finally:
+            connection.close()
+
     def test_wrong_hash_and_unsafe_path_leave_no_file(self):
         self.assertEqual(self.Put('patch', 'tone.json', b'abc', '0' * 64)[0], 400)
         self.assertFalse((self.m_root / 'patches/tone.json').exists())
@@ -137,6 +158,25 @@ class ReceiverTests(unittest.TestCase):
         time.sleep(0.1)
         self.assertFalse((self.m_root / 'patches/partial.json').exists())
         self.assertEqual(list((self.m_root / 'patches').glob('.*.partial-*')), [])
+
+    def test_upload_survives_six_second_pause_between_body_chunks(self):
+        body = b'a' * (1024 * 1024) + b'last chunk'
+        connection = http.client.HTTPConnection('127.0.0.1', self.m_server.server_port, timeout=10)
+        try:
+            connection.putrequest('PUT', '/v1/patch?path=paused.json')
+            connection.putheader('Authorization', 'Bearer secret')
+            connection.putheader('Content-Length', str(len(body)))
+            connection.putheader('X-SHA256', hashlib.sha256(body).hexdigest())
+            connection.endheaders(body[:1024 * 1024])
+            time.sleep(6)
+            connection.send(body[1024 * 1024:])
+            response = connection.getresponse()
+            payload = response.read()
+            self.assertEqual(response.status, 200, payload)
+            self.assertEqual((self.m_root / 'patches/paused.json').read_bytes(), body)
+            self.assertEqual(list((self.m_root / 'patches').glob('.*.partial-*')), [])
+        finally:
+            connection.close()
 
     def test_shutdown_drains_partial_upload(self):
         raw = socket.create_connection(('127.0.0.1', self.m_server.server_port))

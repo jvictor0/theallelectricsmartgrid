@@ -57,3 +57,14 @@ include actual Bonjour discovery and TLS transfer on the Mac. Release builds for
 macOS and iOS use CODE_SIGNING_ALLOWED=NO; no device deployment. Independent
 review confirmed unchanged audio callbacks and reviewed cancellation/deletion
 safety. Physical iPad checks listed in docs/ipad-tools.md remain pending.
+
+Subsequent physical-device verification on 2026-09-23 completed a 4.12 GB sync:
+both recordings arrived, stereo extraction completed, logs synced, and verified
+iPad originals were removed. The normal signed Release app was restored after
+temporary startup diagnostics; a 20-second network observation saw no sync
+connections on normal launch. No diagnostic startup code remains. Regression
+coverage was extended for uploads paused longer than five seconds and existing
+files that must be checked before upload. The receiver now allows 60 seconds of
+upload inactivity and consumes any started successful PUT before responding.
+Physical screen-lock/background transitions remain unverified; native harness
+tests cover foreground loss and page closure.

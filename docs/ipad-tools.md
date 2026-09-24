@@ -133,7 +133,11 @@ mismatch, unfinished/corrupt recordings, cancellation during upload/download and
 extraction, foreground loss, and rejection of transfers after Close. The receiver
 suite also exercises real legacy WAV extraction and shutdown during an upload.
 
-Physical-iPad Bonjour discovery, permission prompts, screen lock/background
-transitions, and throughput still need verification with the iPad online. Compare
-transfer MiB/s with `sync_ipad.py --transport wifi` on the same recording and
-network before drawing conclusions about speed.
+Physical-iPad discovery, pairing, and full sync were verified on 2026-09-23:
+4.12 GB of recordings arrived, both stereo files were extracted, logs synced,
+and verified iPad originals were removed. Bulk transfer averaged about 6.6 MB/s
+on that run; TCP retransmissions caused some pauses. The normal app made no sync
+connections during a 20-second launch observation. Physical screen-lock and
+background transitions still need verification. Compare transfer MiB/s with
+`sync_ipad.py --transport wifi` on the same recording and network before drawing
+conclusions about relative speed.

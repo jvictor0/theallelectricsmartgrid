@@ -22,6 +22,7 @@ from recording_export import extract_stereo_recording
 
 x_chunk_size = 1024 * 1024
 x_max_file_size = 64 * 1024 * 1024 * 1024
+x_upload_idle_timeout = 60
 
 
 def _digest(path):
@@ -125,7 +126,16 @@ class SyncServer(ThreadingHTTPServer):
             receipt = self.m_receipts.get((relative, digest))
             output_hash = self.m_output_hashes.get((relative, digest))
         if receipt is None:
-            return None
+            original = _safe_path(self.m_root / 'recordings', relative)
+            if not original.is_file() or _digest(original) != digest:
+                return None
+            with self.m_lock:
+                receipt = self.m_receipts.get((relative, digest))
+                output_hash = self.m_output_hashes.get((relative, digest))
+                if receipt is None:
+                    receipt = {'state': 'extracting', 'sha256': digest}
+                    self.m_receipts[(relative, digest)] = receipt
+                    self.m_worker.submit(self.Extract, original, digest, relative)
         if receipt['state'] != 'complete':
             return receipt
         try:
@@ -197,6 +207,8 @@ class SyncHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(payload)))
+        if self.close_connection:
+            self.send_header('Connection', 'close')
         self.end_headers()
         self.wfile.write(payload)
 
@@ -217,6 +229,15 @@ class SyncHandler(BaseHTTPRequestHandler):
         if len(values) != 1:
             raise ValueError('one path is required')
         return values[0]
+
+    def _body(self, remaining):
+        self.connection.settimeout(x_upload_idle_timeout)
+        while remaining:
+            chunk = self.rfile.read(min(x_chunk_size, remaining))
+            if not chunk:
+                raise ValueError('incomplete request body')
+            remaining -= len(chunk)
+            yield chunk
 
     def do_GET(self):
         if not self._authorized():
@@ -249,13 +270,18 @@ class SyncHandler(BaseHTTPRequestHandler):
                     while chunk := source.read(x_chunk_size):
                         self.wfile.write(chunk)
                 return
+            if route == '/v1/log':
+                path = _safe_path(self.server.m_root / 'logs', self._relative(query))
+                return self._json(200, {'size': path.stat().st_size if path.is_file() else -1})
             if route == '/v1/recording':
                 relative = self._relative(query)
-                _safe_path(self.server.m_root / 'recordings', relative)
+                path = _safe_path(self.server.m_root / 'recordings', relative)
                 digest = query.get('sha256', [''])[0]
                 if len(digest) != 64 or any(char not in '0123456789abcdef' for char in digest):
                     raise ValueError('invalid SHA-256')
                 receipt = self.server.VerifiedReceipt(relative, digest)
+                if receipt is None and not path.exists():
+                    return self._json(200, {'state': 'missing', 'sha256': digest})
                 return self._json(200, receipt or {'state': 'failed', 'sha256': digest,
                                                   'error': 'no matching upload'})
             return self._json(404, {'error': 'unknown endpoint'})
@@ -285,34 +311,25 @@ class SyncHandler(BaseHTTPRequestHandler):
             destination = _safe_path(self.server.m_root / folder, relative, create=True)
             if destination.exists():
                 if route != '/v1/log':
-                    if route == '/v1/recording' and _digest(destination) == digest:
-                        with self.server.m_lock:
-                            receipt = self.server.m_receipts.get((relative, digest))
-                            if receipt is None:
-                                receipt = {'state': 'extracting', 'sha256': digest}
-                                self.server.m_receipts[(relative, digest)] = receipt
-                                self.server.m_worker.submit(self.server.Extract, destination, digest, relative)
+                    if route == '/v1/recording':
+                        receipt = self.server.VerifiedReceipt(relative, digest)
                         if receipt is not None:
-                            self.close_connection = True
-                            return self._json(200, self.server.VerifiedReceipt(relative, digest))
+                            for _ in self._body(length):
+                                pass
+                            return self._json(200, receipt)
                     self.close_connection = True
                     return self._json(409, {'error': 'filename conflict'})
                 if destination.stat().st_size >= length:
-                    self.close_connection = True
+                    for _ in self._body(length):
+                        pass
                     return self._json(200, {'state': 'skipped'})
             temporary = destination.with_name(f'.{destination.name}.partial-{uuid.uuid4().hex}')
-            self.connection.settimeout(5)
             try:
                 actual = hashlib.sha256()
-                remaining = length
                 with temporary.open('xb') as output:
-                    while remaining:
-                        chunk = self.rfile.read(min(x_chunk_size, remaining))
-                        if not chunk:
-                            raise ValueError('incomplete request body')
+                    for chunk in self._body(length):
                         output.write(chunk)
                         actual.update(chunk)
-                        remaining -= len(chunk)
                     output.flush()
                     os.fsync(output.fileno())
                 if actual.hexdigest() != digest:
