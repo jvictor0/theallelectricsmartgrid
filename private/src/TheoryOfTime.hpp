@@ -166,11 +166,17 @@ struct TheoryOfTime : public TheoryOfTimeBase
             }
         }
 
-        double phase = GetPhase(x_globalLoop, j, PhaseDomain::Modulated);
-        m_scopeWriter.Write(j, phase - std::floor(phase));
+        if (j == 1)
+        {
+            // Slot zero is this microblock's control sample, carried by rollover.
+            //
+            double phase = GetPhase(x_globalLoop, 0, PhaseDomain::Modulated);
+            m_scopeWriter.Write(phase - std::floor(phase));
+        }
+
         if (m_phaseModLFO.m_top)
         {
-            m_scopeWriter.RecordStart(m_phaseModLFO.m_top.GetPosition(j));
+            m_scopeWriter.RecordStart(m_phaseModLFO.m_top.GetBatchedControlPosition(j - 1));
         }
     }
 

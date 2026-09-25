@@ -176,7 +176,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader evaluates accepted reparenting witho
     DOCTEST_CHECK(lfo.m_valuesPostQuantize[3] == doctest::Approx(0.15));
 }
 
-DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while scope projects modulated phase")
+DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while control scope captures slot-zero modulated phase")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTime plain;
@@ -200,6 +200,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while scope projects mo
     int clocks = 0;
     for (size_t block = 0; block < 64; ++block)
     {
+        scope->Write(0, 0, -1.0f);
         plain.RolloverMicroblockBuffer();
         modulated.RolloverMicroblockBuffer();
         for (size_t j = 1; j <= 8; ++j)
@@ -215,10 +216,12 @@ DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while scope projects mo
 
             plainMessages.Clear();
             modulatedMessages.Clear();
-            double phase = modulated.GetPhase(5, j, PhaseDomain::Modulated);
+            double phase = modulated.GetPhase(5, 0, PhaseDomain::Modulated);
             largestOffset = std::max(largestOffset, std::abs(modulatedInput.m_phaseOffset));
-            DOCTEST_CHECK(scope->ReadSample(0, 0, j) == doctest::Approx(phase - std::floor(phase)));
+            DOCTEST_CHECK(scope->ReadSample(0, 0, block) == doctest::Approx(phase - std::floor(phase)));
         }
+
+        scope->AdvanceIndex();
     }
 
     DOCTEST_CHECK(largestOffset > 0.001);

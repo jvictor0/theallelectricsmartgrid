@@ -236,39 +236,111 @@ DOCTEST_TEST_CASE("ScopeReader: PolyXFader top reaches its control-rate scope be
     DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(9.1875));
 }
 
-DOCTEST_TEST_CASE("ScopeReader: Theory of Time adds fractional timing to its existing start index")
+DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one slot-zero phase per control sample")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTime time;
     TheoryOfTime::Input input;
     input.m_running = true;
-    input.m_unmodulatedPhase = 0.8125;
-    input.m_freq = 0.125;
+    input.m_freq = 1.0 / 32.0;
     input.m_modIndex.m_expParam = 0.0;
-    for (size_t i = 0; i < TheoryOfTimeBase::x_globalLoop; ++i)
-    {
-        input.m_input[i].m_parentIndex = TheoryOfTimeBase::x_globalLoop;
-        input.m_input[i].m_parentMult = 1;
-    }
 
     auto writer = std::make_unique<ScopeWriter>(1, 1);
-    for (size_t i = 0; i < 106; ++i)
+    for (size_t index = 99; index < 113; ++index)
     {
-        writer->Write(0, 0, i, 0.5f);
+        writer->Write(0, 0, index, -1.0f);
     }
 
     writer->m_index = 100;
     time.SetupMonoScopeWriter(writer.get());
-    for (size_t i = 1; i <= 4; ++i)
+    constexpr float x_phases[] = {0.0f, 0.25f, 0.5f, 0.75f, 0.0f};
+    for (size_t block = 0; block < 5; ++block)
     {
-        time.Process(i, input);
+        DOCTEST_CAPTURE(block);
+        time.RolloverMicroblockBuffer();
+        for (size_t j = 1; j <= TheoryOfTimeBase::x_microBlockSize; ++j)
+        {
+            time.Process(j, input);
+        }
+
+        DOCTEST_CHECK(writer->ReadSample(0, 0, 99) == -1.0f);
+        for (size_t previous = 0; previous <= block; ++previous)
+        {
+            DOCTEST_CHECK(writer->ReadSample(0, 0, 100 + previous) == doctest::Approx(x_phases[previous]));
+        }
+
+        for (size_t future = 101 + block; future < 113; ++future)
+        {
+            DOCTEST_CHECK(writer->ReadSample(0, 0, future) == -1.0f);
+        }
+
+        writer->AdvanceIndex();
     }
+}
 
-    writer->m_index = 105;
-    writer->Publish();
-    ScopeReader reader(writer.get(), 0, 0, 1024, 1);
+DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into the control batch including rollover")
+{
+    struct Case
+    {
+        double m_initialPhase;
+        double m_startIndex;
+        size_t m_firstBlockStarts;
+    };
 
-    DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(102.5));
+    // At 1/8 cycle per audio sample, these crossings occur at slots 1.5, 6.5,
+    // 7, 7.5 and 8. The last two are consumed after slot 8 rolls into slot 0.
+    //
+    constexpr Case x_cases[] =
+    {
+        {0.8125, 100.1875, 2},
+        {0.1875, 100.8125, 2},
+        {0.125, 100.875, 2},
+        {0.0625, 100.9375, 1},
+        {0.0, 101.0, 1},
+    };
+
+    for (const Case& item : x_cases)
+    {
+        DOCTEST_CAPTURE(item.m_initialPhase);
+        GlobalEnv::ResetPerTest();
+        TheoryOfTime time;
+        TheoryOfTime::Input input;
+        input.m_running = true;
+        input.m_unmodulatedPhase = item.m_initialPhase;
+        input.m_freq = 0.125;
+        input.m_modIndex.m_expParam = 0.0;
+        for (size_t i = 0; i < TheoryOfTimeBase::x_globalLoop; ++i)
+        {
+            input.m_input[i].m_parentIndex = TheoryOfTimeBase::x_globalLoop;
+            input.m_input[i].m_parentMult = 1;
+        }
+
+        auto writer = std::make_unique<ScopeWriter>(1, 1);
+        writer->m_index = 100;
+        time.SetupMonoScopeWriter(writer.get());
+        for (size_t block = 0; block < 2; ++block)
+        {
+            time.RolloverMicroblockBuffer();
+            for (size_t j = 1; j <= TheoryOfTimeBase::x_microBlockSize; ++j)
+            {
+                time.Process(j, input);
+            }
+
+            writer->AdvanceIndex();
+            writer->Publish();
+            DOCTEST_CHECK(writer->m_startIndexIndex[0][0].load() == (block == 0 ? item.m_firstBlockStarts : 2));
+
+            // Keep the second block below the next crossing while making its
+            // slot-zero phase available for the reader's fractional lookup.
+            //
+            input.m_freq = 1.0 / 256.0;
+        }
+
+        DOCTEST_CHECK(writer->m_startIndices[0][0][0] == doctest::Approx(100.125));
+        ScopeReader reader(writer.get(), 0, 0, 1024, 1);
+        DOCTEST_CHECK_FALSE(reader.m_empty);
+        DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(item.m_startIndex));
+    }
 }
 
 DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top in slot zero keeps the preceding fractional time")

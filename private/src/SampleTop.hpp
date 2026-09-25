@@ -84,6 +84,13 @@ struct SampleTop
             - (uBlockIndex == 0 ? 0.0 : 1.0);
     }
 
+    double GetBatchedControlPosition(size_t uBlockIndex) const
+    {
+        // The whole microblock is computed before the control writer advances.
+        //
+        return GetPosition(static_cast<double>(uBlockIndex)) / SampleTimer::x_controlFrameRate;
+    }
+
     static SampleTop FromPhases(double previous, double current)
     {
         if (std::floor(previous) == std::floor(current))

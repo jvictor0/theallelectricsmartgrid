@@ -15,7 +15,7 @@ Defined in `private/src/ScopeWriter.hpp`.
 
 It also stores cycle markers:
 
-- `RecordStart(scope, voice[, uBlockIndex])`
+- `RecordStart(scope, voice[, sampleOffset])`
 - `RecordEnd(scope, voice[, uBlockIndex])`
 
 These markers are used for cycle-aware waveform views.
@@ -81,13 +81,24 @@ Control-rate LFO scopes use `SampleTop::GetControlPosition` to express these
 positions in their eight-audio-samples-per-scope-sample units. The reader and
 visualizer have no oversampling information.
 
-The Theory of Time scope retains its existing `Write(j)` and `RecordStart(j)`
-association, with the fractional top offset added to the latter. Its existing
-audio-indexed writes into a control-rate scope and one-sample-delayed top
-association are separate issues; this change does not alter that capture cadence.
+The Theory of Time scope captures one modulated phase sample per microblock.
+On `Process(1)`, it writes the wrapped phase from slot zero at the current mono
+control-scope index. Slot zero was carried from the previous block's slot eight
+by `RolloverMicroblockBuffer`; it is the current block's first audio sample.
+This matches the mono writer's one advance per eight audio samples and prevents
+successive batches from overwriting each other's scope samples.
+
+The phase-modulation PolyXFader evaluates slot `j - 1` in `Process(j)`. Its tops
+still travel through the same path on every call, but are recorded using
+`SampleTop::GetBatchedControlPosition(j - 1)`: `(j - 1 + offset) / 8` relative to
+the writer's current index. The complete batch runs before that writer advances,
+so the one-index adjustment in `GetControlPosition` does not apply here. For
+example, at writer index 100, a top halfway between slots one and two is at
+100.1875. A top halfway between slots seven and eight is consumed after rollover
+at the next block's slot zero: writer index 101 plus `-0.5 / 8` is 100.9375.
 
 Beyond replacing boolean top members, buffers, arguments, and return values, the
-audio-thread changes for fractional tops are:
+audio-thread changes for fractional tops and their scope capture are:
 
 | Location | Change and reason |
 | --- | --- |
@@ -98,7 +109,7 @@ audio-thread changes for fractional tops are:
 | PolyXFader | Initialize with `AndIdentity` so the existing `&&` expression retains the latest fractional crossing when all active loops cross. Its original early return and zero-weight true event are preserved. The overloaded operator evaluates both operands; the crossing accessor only reads stored state. |
 | QuadLFO | Retain the phase before wrapping so `SampleTop::FromPhases` can interpolate the actual step, including existing phase synchronization. The existing scope call receives `GetControlPosition`. |
 | Filter and SquiggleLFO scopes | Replace the existing start argument with `GetPosition` or `GetControlPosition`. The latter accounts for the control writer advancing after audio sample zero. |
-| Theory of Time scope | Replace `RecordStart(j)` with `RecordStart(top.GetPosition(j))`; preserve the existing write cadence and index association. |
+| Theory of Time scope | On `j == 1` only, read the modulated phase at slot zero and use the current-index `Write` overload. This captures one correctly aligned control sample instead of eight overlapping audio-indexed writes. Replace the start argument with `GetBatchedControlPosition(j - 1)` to convert the PolyXFader's original audio timestamp into control-scope units before the writer advances. Clock, gate, MIDI, modulation processing, top propagation, and buffers are unchanged. |
 | Boolean-only delay trigger | Read `m_triggered` from the existing crossing result; timing is irrelevant to sample-and-hold triggering. |
 | Scope writer | Accept/store double start positions and allow a fractional position in the existing per-voice helper. Initialize the existing pending-marker counter to zero so the first event has a defined slot. Buffer writes and publication cadence are unchanged. |
 
