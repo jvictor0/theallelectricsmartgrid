@@ -10,6 +10,7 @@
 
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
+#include "SampleTop.hpp"
 
 enum class PhaseDomain
 {
@@ -30,8 +31,8 @@ struct TimeLoop
     int64_t m_periodTicks = 2;
     bool m_gate = false;
     bool m_gateStepChanged = false;
-    bool m_unmodulatedCycleCrossed = false;
-    bool m_modulatedCycleCrossed = false;
+    SampleTop m_unmodulatedCycleCrossed;
+    SampleTop m_modulatedCycleCrossed;
 };
 
 struct TheoryOfTimeBase
@@ -134,7 +135,7 @@ struct TheoryOfTimeBase
         return GetLoop(loopIndex, sampleIndex).m_cycleRatio;
     }
 
-    bool CrossedCycleBoundary(size_t loopIndex, size_t sampleIndex, PhaseDomain domain) const
+    SampleTop CrossedCycleBoundary(size_t loopIndex, size_t sampleIndex, PhaseDomain domain) const
     {
         const TimeLoop& loop = GetLoop(loopIndex, sampleIndex);
         return domain == PhaseDomain::Unmodulated ? loop.m_unmodulatedCycleCrossed : loop.m_modulatedCycleCrossed;
@@ -267,6 +268,9 @@ struct TheoryOfTimeBase
                 PhaseUtils::FloorDiv(sample.m_modulatedPosition, loop.m_periodTicks) != PhaseUtils::FloorDiv(previousModulated, loop.m_periodTicks);
             loop.m_unmodulatedCycleCrossed = started ||
                 PhaseUtils::FloorDiv(sample.m_unmodulatedPosition, loop.m_periodTicks) != PhaseUtils::FloorDiv(previousUnmodulated, loop.m_periodTicks);
+
+            loop.m_modulatedCycleCrossed.InterpolatePhases(previous.m_modulatedPhase, sample.m_modulatedPhase, loop.m_cycleRatio, started);
+            loop.m_unmodulatedCycleCrossed.InterpolatePhases(previous.m_unmodulatedPhase, sample.m_unmodulatedPhase, loop.m_cycleRatio, started);
         }
     }
 

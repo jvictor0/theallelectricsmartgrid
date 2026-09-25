@@ -179,10 +179,9 @@ struct PathDrawer
         {
         }
 
-        float operator()(float x) const
+        float operator()(double x) const
         {
-            size_t sample = static_cast<size_t>(x);
-            float y = m_scopeReader->Get(sample);
+            float y = m_scopeReader->Get(x);
             return y * m_yScale + m_yOffset;
         }
     };
@@ -191,14 +190,15 @@ struct PathDrawer
     {
         juce::Path path;
         ScopeReaderFn fn(&scopeReader, yScale, yOffset);
-        size_t transferSample = scopeReader.m_transferXSample;
+        double transferSample = scopeReader.m_transferXSample;
 
         for (size_t j = 0; j < x_numPoints; ++j)
         {
-            float y = fn(static_cast<float>(j));
+            double sample = static_cast<double>(j);
+            float y = fn(sample);
             float screenY = m_height * (1.0f - y);
             float screenX = m_width * static_cast<float>(j) / static_cast<float>(x_numPoints);
-            if (j == 0 || j == transferSample)
+            if (j == 0 || (sample - 1.0 < transferSample && transferSample <= sample))
             {
                 path.startNewSubPath(m_xMin + screenX, m_yMin + screenY);
             }
@@ -219,11 +219,11 @@ struct PathDrawer
         float yScale,
         float yOffset)
     {
-        size_t transferSample = scopeReader.m_transferXSample > 0 ? scopeReader.m_transferXSample - 1 : 0;
-        size_t clampedSample = std::min(transferSample, x_numPoints - 1);
-        float xFrac = static_cast<float>(clampedSample) / static_cast<float>(x_numPoints - 1);
+        double transferSample = std::max(0.0, scopeReader.m_transferXSample - 1.0);
+        double clampedSample = std::min(transferSample, static_cast<double>(x_numPoints - 1));
+        double xFrac = clampedSample / static_cast<double>(x_numPoints - 1);
         float screenX = m_xMin + m_width * xFrac;
-        float y = ScopeReaderFn(&scopeReader, yScale, yOffset)(static_cast<float>(clampedSample));
+        float y = ScopeReaderFn(&scopeReader, yScale, yOffset)(clampedSample);
         float screenY = m_yMin + m_height * (1.0f - y);
         float markerRadius = 3.0f;
         g.setColour(colour);

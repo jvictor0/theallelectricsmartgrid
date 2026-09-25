@@ -33,7 +33,7 @@ struct SquiggleBoySource
     // Output buffers
     //
     float* m_uBlockOutput;
-    bool* m_uBlockTop;
+    SampleTop* m_uBlockTop;
 
     // Thru mode upsampling
     //

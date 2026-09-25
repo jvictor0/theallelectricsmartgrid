@@ -138,7 +138,7 @@ struct PolyXFaderInternal
     OPLowPassFilter m_slew;
     float m_rawOutput;
     float m_output;
-    bool m_top;
+    SampleTop m_top;
     float m_shValue;
 
     float ComputeWeight(size_t index)
@@ -190,7 +190,7 @@ struct PolyXFaderInternal
             return;
         }
         
-        m_top = true;
+        m_top = SampleTop::AndIdentity(m_totalWeight > 0.0f);
         for (size_t i = 0; i < m_size; ++i)
         {
             if (m_weights[i] != 0)

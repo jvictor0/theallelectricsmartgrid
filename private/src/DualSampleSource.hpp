@@ -5,6 +5,7 @@
 #include "Oversample.hpp"
 #include "PhasorPlayHead.hpp"
 #include "SampleTimer.hpp"
+#include "SampleTop.hpp"
 #include "SmartGridOneEncoders.hpp"
 #include "TheoryOfTime.hpp"
 
@@ -33,7 +34,7 @@ struct SampleSource
 
     GrainManager<AudioBufferBank> m_grainManager;
 
-    bool m_uBlockTop[SampleTimer::x_controlFrameRate];
+    SampleTop m_uBlockTop[SampleTimer::x_controlFrameRate];
     float m_uBlockBaseOutput[SampleTimer::x_controlFrameRate];
     float m_uBlockOutput[x_uBlockSize];
     Upsampler m_upsampler;
@@ -88,7 +89,7 @@ struct SampleSource
                 static_cast<double>(m_phasorPlayHead.Process(input.m_phasorPlayHeadInput));
             m_uBlockBaseOutput[i] =
                 m_grainManager.Process(totalPhaseTime, 0.0, input.m_grainManagerInput);
-            m_uBlockTop[i] = std::floor(totalPhaseTime) != std::floor(previousTotalPhaseTime);
+            m_uBlockTop[i] = SampleTop::FromPhases(previousTotalPhaseTime, totalPhaseTime);
             previousTotalPhaseTime = totalPhaseTime;
         }
 

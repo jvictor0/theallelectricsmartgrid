@@ -170,7 +170,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
         m_scopeWriter.Write(j, phase - std::floor(phase));
         if (m_phaseModLFO.m_top)
         {
-            m_scopeWriter.RecordStart(j);
+            m_scopeWriter.RecordStart(m_phaseModLFO.m_top.GetPosition(j));
         }
     }
 

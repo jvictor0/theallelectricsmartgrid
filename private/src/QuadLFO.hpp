@@ -93,6 +93,7 @@ struct QuadLFO
         }
 
         m_phase += input.m_freq;
+        QuadFloat unwrappedPhase = m_phase;
         m_phase = m_phase.ModOne();
 
         QuadFloat phase = m_phase + input.GetPhaseOffset();
@@ -114,7 +115,8 @@ struct QuadLFO
             {
                 if (m_phase[i] < prevPhase[i])
                 {
-                    m_scopeWriterHolder.RecordStartAtVoice(i);
+                    SampleTop top = SampleTop::FromPhases(prevPhase[i], unwrappedPhase[i]);
+                    m_scopeWriterHolder.RecordStartAtVoice(i, top.GetControlPosition(SampleTimer::GetUBlockIndex()));
                 }
             }
         }

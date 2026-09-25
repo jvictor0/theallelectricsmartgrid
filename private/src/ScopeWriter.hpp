@@ -17,7 +17,8 @@ struct ScopeWriter
     static constexpr size_t x_maxScopes = 16;
     static constexpr size_t x_maxVoices = 16;
     static constexpr size_t x_numStartIndices = 256;
-    size_t m_startIndices[x_maxScopes][x_maxVoices][x_numStartIndices];
+
+    double m_startIndices[x_maxScopes][x_maxVoices][x_numStartIndices];
     size_t m_endIndices[x_maxScopes][x_maxVoices][x_numStartIndices];
 
     std::atomic<size_t> m_startIndexIndex[x_maxScopes][x_maxVoices];
@@ -34,6 +35,7 @@ struct ScopeWriter
             for (size_t j = 0; j < x_maxVoices; ++j)
             {
                 m_startIndexIndex[i][j] = 0;
+                m_advanceStartIndices[i][j] = 0;
                 for (size_t k = 0; k < x_numStartIndices; ++k)
                 {
                     m_startIndices[i][j][k] = 0;
@@ -61,10 +63,15 @@ struct ScopeWriter
     float Read(size_t scope, size_t voice, double index)
     {
         size_t index1 = GetPhysicalIndex(scope, voice, static_cast<size_t>(index));
-        size_t index2 = GetPhysicalIndex(scope, voice, static_cast<size_t>(index) + 1);
         float value1 = m_buffer[index1];
-        float value2 = m_buffer[index2];
         double wayThrough = index - std::floor(index);
+        if (wayThrough == 0.0)
+        {
+            return value1;
+        }
+
+        size_t index2 = GetPhysicalIndex(scope, voice, static_cast<size_t>(index) + 1);
+        float value2 = m_buffer[index2];
         return value1 * (1 - wayThrough) + value2 * wayThrough;
     }
 
@@ -107,11 +114,11 @@ struct ScopeWriter
         RecordStart(scope, voice, 0);
     }
 
-    void RecordStart(size_t scope, size_t voice, size_t uBlockIndex)
+    void RecordStart(size_t scope, size_t voice, double sampleOffset)
     {
         size_t curStartIndex = m_startIndexIndex[scope][voice].load() + m_advanceStartIndices[scope][voice];
         curStartIndex %= x_numStartIndices;
-        m_startIndices[scope][voice][curStartIndex] = m_index + uBlockIndex;
+        m_startIndices[scope][voice][curStartIndex] = static_cast<double>(m_index) + sampleOffset;
         m_advanceStartIndices[scope][voice] += 1;
     }
 
@@ -191,19 +198,19 @@ struct ScopeWriterHolder
         }
     }
 
-    void RecordStartAtVoice(size_t voiceIx)
+    void RecordStartAtVoice(size_t voiceIx, double sampleOffset)
     {
         if (m_scopeWriter)
         {
-            m_scopeWriter->RecordStart(m_scopeIx, voiceIx);
+            m_scopeWriter->RecordStart(m_scopeIx, voiceIx, sampleOffset);
         }
     }
 
-    void RecordStart(size_t uBlockIndex)
+    void RecordStart(double sampleOffset)
     {
         if (m_scopeWriter)
         {
-            m_scopeWriter->RecordStart(m_scopeIx, m_voiceIx, uBlockIndex);
+            m_scopeWriter->RecordStart(m_scopeIx, m_voiceIx, sampleOffset);
         }
     }
 
@@ -384,10 +391,10 @@ struct ScopeReader
     size_t m_scopeIx;
     size_t m_numXSamples;
     
-    size_t m_startIndex;
-    size_t m_transferXSample;
-    size_t m_transferIndex;
-    size_t m_postTransferIndex;
+    double m_startIndex;
+    double m_transferXSample;
+    double m_transferIndex;
+    double m_postTransferIndex;
 
     float m_startY;
     float m_prevStartY;
@@ -404,30 +411,47 @@ struct ScopeReader
         , m_voiceIx(voiceIx)
         , m_scopeIx(scopeIx)
         , m_numXSamples(numXSamples)
+        , m_startIndex(0.0)
+        , m_transferXSample(0.0)
+        , m_transferIndex(0.0)
+        , m_postTransferIndex(0.0)
+        , m_startY(0.0f)
+        , m_prevStartY(0.0f)
         , m_empty(false)
     {
         size_t lastStartIndexIndex = m_scopeWriter->m_startIndexIndex[m_scopeIx][m_voiceIx].load();
         m_startIndex = m_scopeWriter->m_startIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 1) % ScopeWriter::x_numStartIndices];
-        size_t prevStartIndex = m_scopeWriter->m_startIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 2) % ScopeWriter::x_numStartIndices];
+        double prevStartIndex = m_scopeWriter->m_startIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 2) % ScopeWriter::x_numStartIndices];
 
-        m_startY = m_scopeWriter->Read(m_scopeIx, m_voiceIx, m_startIndex);
-        m_prevStartY = m_scopeWriter->Read(m_scopeIx, m_voiceIx, prevStartIndex);
+        double publishedIndex = static_cast<double>(m_scopeWriter->m_publishedIndex.load());
+        if (publishedIndex == 0.0 || m_numXSamples == 0)
+        {
+            m_empty = true;
+            return;
+        }
 
-        m_transferIndex = m_scopeWriter->m_publishedIndex.load() - 1;
-        size_t endIndex = m_scopeWriter->m_endIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 1) % ScopeWriter::x_numStartIndices];
+        m_transferIndex = publishedIndex - 1.0;
+        double oldestIndex = std::max(0.0, publishedIndex - static_cast<double>(m_scopeWriter->MaxIndexes()));
+        if (m_startIndex < oldestIndex || m_startIndex > m_transferIndex)
+        {
+            m_empty = true;
+            return;
+        }
+
+        double endIndex = m_scopeWriter->m_endIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 1) % ScopeWriter::x_numStartIndices];
         if (m_startIndex < endIndex)
         {
             m_transferIndex = endIndex - 1;
         }
 
-        size_t prevNumSamples = m_startIndex - prevStartIndex;
-        size_t prevEndIndex = m_scopeWriter->m_endIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 2) % ScopeWriter::x_numStartIndices];
+        double prevNumSamples = m_startIndex - prevStartIndex;
+        double prevEndIndex = m_scopeWriter->m_endIndices[m_scopeIx][m_voiceIx][(lastStartIndexIndex - 2) % ScopeWriter::x_numStartIndices];
         if (prevStartIndex < prevEndIndex)
         {
             prevNumSamples = prevEndIndex - prevStartIndex;
         }
 
-        if (prevNumSamples < m_transferIndex - m_startIndex)
+        if (prevNumSamples <= 0.0 || prevNumSamples <= m_transferIndex - m_startIndex)
         {
             // No transfer.
             //
@@ -441,28 +465,41 @@ struct ScopeReader
         {
             // Assume number of pre transfer samples is same as previous cycle length.
             //
-            double wayThrough = static_cast<double>(m_transferIndex - m_startIndex) / static_cast<double>(prevNumSamples);
+            double wayThrough = (m_transferIndex - m_startIndex) / prevNumSamples;
             m_transferXSample = wayThrough * m_numXSamples;
             m_postTransferIndex = prevStartIndex + (m_transferIndex - m_startIndex);
+            if (m_postTransferIndex < oldestIndex)
+            {
+                m_empty = true;
+            }
+        }
+
+        if (!m_empty)
+        {
+            m_startY = m_scopeWriter->Read(m_scopeIx, m_voiceIx, m_startIndex);
+            if (prevStartIndex >= oldestIndex)
+            {
+                m_prevStartY = m_scopeWriter->Read(m_scopeIx, m_voiceIx, prevStartIndex);
+            }
         }
     }
 
-    float Get(size_t sample)
+    float Get(double sample)
     {
         if (m_empty)
         {
             return 0;
         }
-        else if (sample < m_transferXSample)
+        else if (sample < m_transferXSample || m_transferXSample == static_cast<double>(m_numXSamples))
         {
-            double wayThrough = static_cast<double>(sample) / static_cast<double>(m_transferXSample);
+            double wayThrough = sample / m_transferXSample;
             double index = m_startIndex + wayThrough * (m_transferIndex - m_startIndex);
             float value = m_scopeWriter->Read(m_scopeIx, m_voiceIx, index);
             return value;
         }
         else
         {
-            double wayThrough = static_cast<double>(sample - m_transferXSample) / static_cast<double>(m_numXSamples - m_transferXSample);
+            double wayThrough = (sample - m_transferXSample) / (static_cast<double>(m_numXSamples) - m_transferXSample);
             double index = m_postTransferIndex + wayThrough * (m_startIndex - m_postTransferIndex);
             float value = m_scopeWriter->Read(m_scopeIx, m_voiceIx, index);
             return value;

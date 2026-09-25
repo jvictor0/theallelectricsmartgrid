@@ -18,10 +18,10 @@ struct DualWaveShapingVCO
 
     BitRateReducer m_bitRateReducer;
 
-    bool m_top;
+    SampleTop m_top;
     float m_output;
 
-    bool m_uBlockTop[SampleTimer::x_controlFrameRate];
+    SampleTop m_uBlockTop[SampleTimer::x_controlFrameRate];
     float m_uBlockOutput[x_uBlockSize];
 
     ScopeWriterHolder m_scopeWriter[2];
@@ -106,7 +106,7 @@ struct DualWaveShapingVCO
         m_offsetFreqFactorSlew.Update(input.m_offsetFreqFactor.m_expParam);
         m_detuneSlew.Update(input.m_detune.m_expParam);
 
-        bool top[2] = {false, false};
+        SampleTop top[2];
 
         for (size_t i = 0; i < x_uBlockSize; ++i)
         {
@@ -135,12 +135,12 @@ struct DualWaveShapingVCO
                 vcoInput[j].m_morphHarmonics = m_morphHarmonics[j].Update(vcoInput[j].m_freq, vcoInput[j].m_maxFreq, input.m_morphHarmonics[j]);
             }
 
-            m_vco[0].Process(vcoInput[0], 0 /*unused*/);
+            m_vco[0].Process(vcoInput[0], 1.0 / (SampleTimer::x_sampleRate * x_oversample));
             vcoInput[1].m_phaseMod = m_vco[0].m_out * m_crossModIndexSlew[1].Process();
-            m_vco[1].Process(vcoInput[1], 0 /*unused*/);
+            m_vco[1].Process(vcoInput[1], 1.0 / (SampleTimer::x_sampleRate * x_oversample));
 
-            top[0] = top[0] || m_vco[0].m_top;
-            top[1] = top[1] || m_vco[1].m_top;
+            top[0].AccumulateOversample(m_vco[0].m_top, i, x_oversample);
+            top[1].AccumulateOversample(m_vco[1].m_top, i, x_oversample);
 
             float fade = m_fadeSlew.Process();
             float mixed = m_vco[0].m_out * Math::Cos2pi(fade / 4) + m_vco[1].m_out * Math::Cos2pi(fade / 4 + 0.75);
@@ -162,12 +162,12 @@ struct DualWaveShapingVCO
 
                 if (top[0])
                 {
-                    m_scopeWriter[0].RecordStart(baseIndex);
+                    m_scopeWriter[0].RecordStart(top[0].GetPosition(baseIndex));
                 }
 
                 if (top[1])
                 {
-                    m_scopeWriter[1].RecordStart(baseIndex);
+                    m_scopeWriter[1].RecordStart(top[1].GetPosition(baseIndex));
                 }
 
                 m_uBlockTop[baseIndex] = top[0];

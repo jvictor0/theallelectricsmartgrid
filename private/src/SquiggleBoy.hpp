@@ -155,7 +155,7 @@ struct SquiggleBoyVoice
             }
         };
 
-        void ProcessUBlock(Input& input, const float* vcoOutput, const bool* top)
+        void ProcessUBlock(Input& input, const float* vcoOutput, const SampleTop* top)
         {
             float baseFreq = input.m_vcoBaseFreq;
             if (input.m_voiceConfig->m_sourceMachine == VoiceConfig::SourceMachine::Thru)
@@ -213,7 +213,7 @@ struct SquiggleBoyVoice
                     m_scopeWriter.Write(baseIndex, m_output);
                     if (top[baseIndex])
                     {
-                        m_scopeWriter.RecordStart(baseIndex);
+                        m_scopeWriter.RecordStart(top[baseIndex].GetPosition(baseIndex));
                     }
                 }
             }
@@ -440,7 +440,7 @@ struct SquiggleBoyVoice
 
             if (m_polyXFader.m_top)
             {
-                m_scopeWriter.RecordStart();
+                m_scopeWriter.RecordStart(m_polyXFader.m_top.GetControlPosition(SampleTimer::GetUBlockIndex()));
             }
 
             return m_output;
@@ -1322,7 +1322,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         float m_faders[x_numFaders];
         bool m_sourceMonitor[SourceMixer::x_numSources];
-        bool m_top;
+        SampleTop m_top;
 
         PhaseUtils::ExpParam m_tempo;
 
@@ -1696,7 +1696,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             bool delayLoopTop = m_theoryOfTime->CrossedCycleBoundary(
                 m_delayInputSetter.m_readTapeHead[i].m_loopSelector,
                 delayLoopSampleIndex,
-                PhaseDomain::Modulated);
+                PhaseDomain::Modulated).m_triggered;
 
             m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::QuadLFO1Skew, i);
             m_quadSquiggleLFOInput[0][i].m_mult.Update(m_encoders.GetValue(Param::QuadLFO1Mult, i));

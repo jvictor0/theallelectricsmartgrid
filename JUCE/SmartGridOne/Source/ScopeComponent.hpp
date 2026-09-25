@@ -570,7 +570,7 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
         {
         }
 
-        float operator()(float x) 
+        float operator()(double x)
         {
             float y = m_scopeReader.Get(x);
             return std::fmod(y, m_mod) / m_mod;
@@ -612,7 +612,7 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
 
         pathDrawer.DrawPath(g, juce::Colours::white, drawFn);        
 
-        float markerX = bounds.getX() + (static_cast<float>(drawFn.m_scopeReader.m_transferXSample) / static_cast<float>(PathDrawer::x_numPoints - 1)) * width;
+        float markerX = bounds.getX() + (drawFn.m_scopeReader.m_transferXSample / static_cast<double>(PathDrawer::x_numPoints - 1)) * width;
         float y = drawFn(drawFn.m_scopeReader.m_transferXSample);
         float markerY = bounds.getY() + height * (1.0 - y);
         g.setColour(juce::Colours::white);

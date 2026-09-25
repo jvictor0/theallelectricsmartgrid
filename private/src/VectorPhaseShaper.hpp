@@ -7,6 +7,7 @@
 #include "PhaseUtils.hpp"
 #include "MorphingWaveTable.hpp"
 #include "Math.hpp"
+#include "SampleTop.hpp"
 
 struct VectorPhaseShaperInternal
 {
@@ -26,7 +27,7 @@ struct VectorPhaseShaperInternal
     float m_out;
     float m_dScale;
     float m_phaseMod;
-    bool m_top;
+    SampleTop m_top;
 
     struct Input
     {
@@ -54,7 +55,7 @@ struct VectorPhaseShaperInternal
         }
     };
 
-    void Process(Input& input, float deltaT)
+    void Process(Input& input, double deltaT)
     {
         if (input.m_useVoct)
         {
@@ -68,7 +69,7 @@ struct VectorPhaseShaperInternal
 
         SetDV(input.m_d, input.m_v);
         m_phaseMod = input.m_phaseMod;
-        UpdatePhase();
+        UpdatePhase(deltaT);
         Evaluate(input);
     }
     
@@ -134,14 +135,14 @@ struct VectorPhaseShaperInternal
         }
     }
     
-    void UpdatePhase()
+    void UpdatePhase(double deltaT)
     {
         m_top = false;
         m_phase += m_freq;
         while (m_phase >= 1)
         {
-            m_top = true;
             m_phase -= 1;
+            m_top = SampleTop::FromWrap(m_phase, m_freq, deltaT);
         }
     }
 

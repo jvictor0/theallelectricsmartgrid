@@ -3,6 +3,7 @@ prompts will be made using Talent Voice, adapt to any artifacts this may cause
 * member variables start with m_, constants with x_
 * member functions are HammerCase
 * never use c-style casts, static_cast and the like preferred
+* Do not use default arguments in C++ function or constructor declarations. Pass arguments explicitly or provide meaningful overloads.
 * enum class preferred for enums, values are also HammerCase
 * always prefer structs to classes.
 * Don't create privates, everything public

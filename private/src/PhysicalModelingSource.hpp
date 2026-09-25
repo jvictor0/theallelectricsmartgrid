@@ -1,4 +1,5 @@
 #pragma once
+#include "SampleTop.hpp"
 
 #include "AHD.hpp"
 #include "BitCrush.hpp"
@@ -98,11 +99,11 @@ struct PhysicalModelingSource
 
     // Output buffers
     //
-    bool m_uBlockTop[SampleTimer::x_controlFrameRate];
+    SampleTop m_uBlockTop[SampleTimer::x_controlFrameRate];
     float m_uBlockOutput[x_uBlockSize];
 
     float m_output;
-    bool m_top;
+    SampleTop m_top;
 
     // Slewed parameters for oversampled processing
     // Note: Comb filter params (freq, feedback, damping) are slewed inside the comb filter
