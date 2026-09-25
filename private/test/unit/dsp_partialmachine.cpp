@@ -108,6 +108,49 @@ DOCTEST_TEST_CASE("PartialMachine density knob narrows one octave to one cent")
     }
 }
 
+DOCTEST_TEST_CASE("PartialMachine pitch depth spans unshifted to one octave exponentially")
+{
+    PartialMachine::InputSetter setter;
+    PartialMachine::InputSetter::Input knobInput;
+    PartialMachine::Input input;
+    struct Case
+    {
+        float m_depth;
+        float m_pitch;
+        float m_expectedRatio;
+    };
+
+    const Case cases[] =
+    {
+        {0.0f, 0.0f, 1.0f},
+        {0.0f, 0.5f, 1.0f},
+        {0.0f, 1.0f, 1.0f},
+        {0.5f, 0.0f, 0.70710678f},
+        {0.5f, 0.5f, 1.0f},
+        {0.5f, 1.0f, 1.41421356f},
+        {1.0f, 0.0f, 0.5f},
+        {1.0f, 0.5f, 1.0f},
+        {1.0f, 1.0f, 2.0f},
+        {0.0f, 1.0f, 1.0f}
+    };
+
+    for (const auto& example : cases)
+    {
+        DOCTEST_CAPTURE(example.m_depth);
+        DOCTEST_CAPTURE(example.m_pitch);
+        knobInput.m_pitchShiftDepth = QuadFloat(example.m_depth, example.m_depth, example.m_depth, example.m_depth);
+        knobInput.m_pitchShift = QuadFloat(example.m_pitch, example.m_pitch, example.m_pitch, example.m_pitch);
+        setter.SetInput(knobInput, input);
+        for (int lane = 0; lane < FrequencyDependentParameter::x_numParameters; ++lane)
+        {
+            DOCTEST_CAPTURE(lane);
+            float ratio = PartialMachine::SynthesisContext::GetPitchShiftFactor(
+                PartialMachine::Index(0.5f, lane), input.m_synthesisContextInput);
+            DOCTEST_CHECK(ratio == doctest::Approx(example.m_expectedRatio).epsilon(1e-6f));
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("PartialMachine bounds incoming peaks and retained tails to 256 partials")
 {
     using Model = PartialMachine::SpectralModel;

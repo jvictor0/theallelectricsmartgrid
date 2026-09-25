@@ -304,7 +304,7 @@ struct PartialMachine
                 m_bwWidth[i] = PhaseUtils::ExpParam(1.0f, 2048.0f);
                 m_bassCutoff[i] = PhaseUtils::ExpParam(1.0f / 2048.0f, 0.5f);
                 m_azimuthFactor[i] = PhaseUtils::ExpParam(1.0f / 32.0f, 1.0f);
-                m_pitchShiftDepth[i] = PhaseUtils::ExpParam(std::powf(2.0f, 5.0f / 1200.0f), 2.0f);
+                m_pitchShiftDepth[i] = PhaseUtils::ExpParam(1.0f, 2.0f);
             }
         }
 
