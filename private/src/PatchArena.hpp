@@ -45,6 +45,7 @@ struct PatchArena : JsonArena
     void Release()
     {
         const int previous = m_readers.fetch_sub(1);
+        std::ignore = previous;
         assert(previous > 0);
     }
 };

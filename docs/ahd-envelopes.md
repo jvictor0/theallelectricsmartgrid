@@ -12,7 +12,7 @@ The running envelope computes:
 samples = abs(globalPhase - startGlobalPhase) * phaseRatio * envelopePeriodSamples
 ```
 
-It does not retain a source loop index, track topology edits, or reconstruct winding. A multiplier or parent edit during attack, hold, or decay cannot change the captured timing. Retriggering captures the new timing. In the production voice path the source ratio comes from loop 0; the voice gate ratio used to calculate the envelope period is a separate quantity.
+It does not retain a source loop index, track topology edits, or reconstruct winding. A multiplier or parent edit during attack, hold, or decay cannot change the captured timing. Retriggering captures the new timing. In the production voice path the source ratio comes from loop 0; the voice cycle ratio used to calculate the envelope period is a separate quantity. That voice ratio is the undoubled LCM of the selected clock and read loop ratios, and `envelopePeriodSamples = globalPeriodSamples / voiceCycleRatio`. The gate still closes after half a voice cycle; the Theory of Time rhythm advances once per complete loop cycle.
 
 The absolute distance preserves existing reverse behavior: moving back toward the trigger retraces the envelope while it is running; moving past the trigger increases distance again. Once decay reaches idle, moving backward does not restart the envelope. Explicit release uses the existing sample-driven decay.
 

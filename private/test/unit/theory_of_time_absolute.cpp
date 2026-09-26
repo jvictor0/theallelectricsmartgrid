@@ -47,11 +47,11 @@ DOCTEST_TEST_CASE("AbsoluteTime: reset indices use signed absolute time")
     AbsoluteClockRig rig;
     rig.m_input.m_input[4].m_parentMult = 3;
     rig.Step(2.25);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex) == 13);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex, 5) == 1);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex) == 6);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex, 5) == 0);
     rig.Step(-0.25);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex) == -2);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex, 5) == 4);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex) == -1);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex, 5) == 2);
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: reparent waits for both parent boundaries")
@@ -117,11 +117,9 @@ DOCTEST_TEST_CASE("AbsoluteTime: crossing events survive multiple complete cycle
     rig.Step(2.125);
     const TimeLoop& loop = rig.m_time.GetLoop(5, rig.m_sampleIndex);
     DOCTEST_CHECK(loop.m_gate);
-    DOCTEST_CHECK(loop.m_gateStepChanged);
     DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(5, rig.m_sampleIndex, PhaseDomain::Modulated));
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, rig.m_sampleIndex) == 4);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, rig.m_sampleIndex) == 2);
     rig.Step(2.125);
-    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, rig.m_sampleIndex).m_gateStepChanged);
     DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, rig.m_sampleIndex, PhaseDomain::Modulated));
 }
 
@@ -147,7 +145,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: domain separation and unrelated reset")
     rig.Step(2.25);
     DOCTEST_CHECK(rig.m_time.GetPhase(4, 1, PhaseDomain::Unmodulated) == doctest::Approx(6.75));
     DOCTEST_CHECK(rig.m_time.GetPhase(4, 1, PhaseDomain::Modulated) == doctest::Approx(2.25));
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, 1, 3) == 4);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, 1, 3) == 2);
     DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, 1, 4) == 0);
 }
 
@@ -157,17 +155,17 @@ DOCTEST_TEST_CASE("AbsoluteTime: stopped topology and startup are explicit")
     rig.m_input.m_running = false;
     rig.m_input.m_input[4].m_parentMult = 3;
     rig.Step(7.0);
-    DOCTEST_CHECK(rig.m_time.GetPeriodTicks(5, 1) == 6);
+    DOCTEST_CHECK(rig.m_time.GetPeriodTicks(5, 1) == 3);
     DOCTEST_CHECK(rig.m_time.GetPhase(5, 1, PhaseDomain::Modulated) == 0.0);
     DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(4, 1).m_gate);
     rig.m_input.m_running = true;
     rig.Step(0.01);
-    DOCTEST_CHECK(rig.m_time.GetLoop(4, 2).m_gateStepChanged);
+    DOCTEST_CHECK(rig.m_time.GetLoop(4, 2).m_gate);
     DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(4, 2, PhaseDomain::Modulated));
     rig.m_input.m_running = false;
     rig.Step(0.0);
-    DOCTEST_CHECK(rig.m_time.GetPeriodTicks(5, 3) == 6);
-    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(4, 3).m_gateStepChanged);
+    DOCTEST_CHECK(rig.m_time.GetPeriodTicks(5, 3) == 3);
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(4, 3).m_gate);
     DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(4, 3, PhaseDomain::Modulated));
 }
 
@@ -195,12 +193,11 @@ DOCTEST_TEST_CASE("AbsoluteTime: lattice edits preserve unrelated loop events")
     rig.Step(10.49);
     rig.m_input.m_input[3].m_parentMult = 3;
     rig.Step(10.51);
-    DOCTEST_CHECK(rig.m_time.GetPeriodTicks(5, 2) == 12);
-    DOCTEST_CHECK(rig.m_time.GetPosition(2, PhaseDomain::Modulated) == 126);
+    DOCTEST_CHECK(rig.m_time.GetPeriodTicks(5, 2) == 6);
+    DOCTEST_CHECK(rig.m_time.GetPosition(2, PhaseDomain::Modulated) == 63);
     DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, 2, PhaseDomain::Modulated));
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2) == 21);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2) == 10);
     rig.Step(10.52);
-    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(3, 3).m_gateStepChanged);
     DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(3, 3, PhaseDomain::Modulated));
 }
 
@@ -208,11 +205,11 @@ DOCTEST_TEST_CASE("AbsoluteTime: indices exceed 32 bits without winding history"
 {
     AbsoluteClockRig rig;
     rig.Step(2147483649.5);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 1) == 4294967299LL);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 1, 5) == 1);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 1) == 2147483649LL);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 1, 5) == 0);
     rig.Step(-2147483649.5);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2) == -4294967299LL);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2, 5) == 1);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2) == -2147483650LL);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2, 5) == 0);
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: internal oscillator advances across global cycles")
@@ -282,4 +279,228 @@ DOCTEST_TEST_CASE("AbsoluteTime: a stopped block clears its rolled over first sa
     }
 
     DOCTEST_CHECK_FALSE(rig.m_time.AnyChangeInMicroBlock());
+}
+
+DOCTEST_TEST_CASE("WholeTick: undoubled odd lattice advances gates once per full cycle")
+{
+    AbsoluteClockRig rig;
+    rig.m_input.m_input[4].m_parentMult = 3;
+    rig.Step(0.1);
+    DOCTEST_CHECK(rig.m_time.GetPeriodTicks(5, 1) == 3);
+    DOCTEST_CHECK(rig.m_time.GetPeriodTicks(4, 1) == 1);
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 1).m_gate);
+    rig.Step(0.5);
+    DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, 2, PhaseDomain::Modulated));
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 2).m_gate);
+    rig.Step(1.0);
+    DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(5, 3, PhaseDomain::Modulated));
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, 3).m_gate);
+    rig.Step(2.0);
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 4).m_gate);
+}
+
+DOCTEST_TEST_CASE("WholeTick: reset wraps after every complete ancestor cycle")
+{
+    AbsoluteClockRig rig;
+    rig.m_input.m_input[4].m_parentMult = 3;
+    rig.m_input.m_rhythm[4].m_resetLoopIndex = 5;
+    const double phases[] = {0.1, 0.4, 0.8, 1.1, 1.4, 1.8};
+    const int64_t indices[] = {0, 1, 2, 0, 1, 2};
+    const bool gates[] = {true, false, true, true, false, true};
+    for (size_t i = 0; i < 6; ++i)
+    {
+        rig.Step(phases[i]);
+        DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex, 5) == indices[i]);
+        DOCTEST_CHECK(rig.m_time.GetLoop(4, rig.m_sampleIndex).m_gate == gates[i]);
+        DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(4, rig.m_sampleIndex, PhaseDomain::Modulated));
+    }
+}
+
+DOCTEST_TEST_CASE("WholeTick: equal neighboring gates and self reset still tick")
+{
+    for (int reset : {-1, 5})
+    {
+        AbsoluteClockRig rig;
+        rig.m_input.m_rhythm[5].m_gate[1] = true;
+        rig.m_input.m_rhythm[5].m_resetLoopIndex = reset;
+        rig.Step(0.1);
+        rig.Step(1.1);
+        DOCTEST_CHECK(rig.m_time.GetLoop(5, 2).m_gate);
+        DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(5, 2, PhaseDomain::Modulated));
+        DOCTEST_CHECK(rig.m_time.AnyTick(5));
+        DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2, reset) == (reset == -1 ? 1 : 0));
+    }
+}
+
+DOCTEST_TEST_CASE("WholeTick: gate edits wait for their own tick while faster loops tick")
+{
+    AbsoluteClockRig rig;
+    rig.m_input.m_input[4].m_parentMult = 4;
+    rig.m_input.m_rhythm[5].m_size = 1;
+    rig.Step(0.1);
+    rig.m_input.m_rhythm[5].m_gate[0] = false;
+    rig.Step(0.1);
+    DOCTEST_CHECK_FALSE(rig.m_time.m_samples[2].m_anyChange);
+    rig.Step(0.25);
+    DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(4, 3, PhaseDomain::Modulated));
+    DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, 3, PhaseDomain::Modulated));
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 3).m_gate);
+    rig.Step(0.5);
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 4).m_gate);
+    rig.Step(1.0);
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, 5).m_gate);
+}
+
+DOCTEST_TEST_CASE("WholeTick: length edits wait for their own tick")
+{
+    AbsoluteClockRig rig;
+    rig.m_input.m_input[4].m_parentMult = 4;
+    auto& rhythm = rig.m_input.m_rhythm[5];
+    rhythm.m_size = 3;
+    rhythm.m_gate[0] = false;
+    rhythm.m_gate[2] = true;
+    rig.Step(2.1);
+    DOCTEST_REQUIRE(rig.m_time.GetLoop(5, 1).m_gate);
+    rhythm.m_size = 2;
+    rig.Step(2.1);
+    DOCTEST_CHECK_FALSE(rig.m_time.m_samples[2].m_anyChange);
+    rig.Step(2.25);
+    DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(4, 3, PhaseDomain::Modulated));
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 3).m_gate);
+    rig.Step(3.0);
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, 4).m_gate);
+    rig.Step(5.0);
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, 5).m_gate);
+}
+
+DOCTEST_TEST_CASE("WholeTick: reset edits wait for their own tick")
+{
+    AbsoluteClockRig rig;
+    rig.m_input.m_input[3].m_parentMult = 3;
+    rig.m_input.m_input[4].m_parentMult = 12;
+    rig.Step(1.05);
+    DOCTEST_REQUIRE_FALSE(rig.m_time.GetLoop(3, 1).m_gate);
+    rig.m_input.m_rhythm[3].m_resetLoopIndex = 5;
+    rig.Step(1.05);
+    DOCTEST_CHECK_FALSE(rig.m_time.m_samples[2].m_anyChange);
+    rig.Step(1.1);
+    DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(4, 3, PhaseDomain::Modulated));
+    DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(3, 3, PhaseDomain::Modulated));
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(3, 3).m_gate);
+    rig.Step(1.34);
+    DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(3, 4, PhaseDomain::Modulated));
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(3, 4).m_gate);
+    rig.Step(1.67);
+    DOCTEST_CHECK(rig.m_time.GetLoop(3, 5).m_gate);
+}
+
+DOCTEST_TEST_CASE("WholeTick: accepted topology remaps gates without accepting unrelated edits")
+{
+    AbsoluteClockRig rig;
+    rig.m_input.m_input[4].m_parentMult = 2;
+    rig.m_input.m_input[3].m_parentIndex = 4;
+    rig.m_input.m_rhythm[3].m_size = 5;
+    rig.m_input.m_rhythm[3].m_gate[0] = false;
+    rig.m_input.m_rhythm[3].m_gate[3] = true;
+    rig.m_input.m_rhythm[5].m_size = 1;
+    rig.Step(10.49);
+    DOCTEST_REQUIRE_FALSE(rig.m_time.GetLoop(3, 1).m_gate);
+    rig.m_input.m_rhythm[5].m_gate[0] = false;
+    rig.m_input.m_input[3].m_parentMult = 3;
+    rig.Step(10.51);
+    DOCTEST_CHECK(rig.m_time.GetCycleRatio(3, 2) == 6);
+    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(3, 2, -1) == 63);
+    DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(3, 2, PhaseDomain::Modulated));
+    DOCTEST_CHECK(rig.m_time.GetLoop(3, 2).m_gate);
+    DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, 2, PhaseDomain::Modulated));
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 2).m_gate);
+    rig.Step(11.0);
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, 3).m_gate);
+}
+
+DOCTEST_TEST_CASE("WholeTick: rhythm sampling follows modulated rather than unmodulated crossings")
+{
+    AbsoluteClockRig rig;
+    rig.m_input.m_rhythm[5].m_size = 1;
+    rig.Step(0.9);
+    rig.m_input.m_rhythm[5].m_gate[0] = false;
+    rig.m_input.m_phaseOffset = -0.5;
+    rig.Step(1.4);
+    DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(5, 2, PhaseDomain::Unmodulated));
+    DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, 2, PhaseDomain::Modulated));
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 2).m_gate);
+    rig.Step(1.6);
+    DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(5, 3, PhaseDomain::Modulated));
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, 3).m_gate);
+}
+
+DOCTEST_TEST_CASE("WholeTick: reverse crossings use floor division and hold within a cycle")
+{
+    AbsoluteClockRig rig;
+    rig.Step(1.1);
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, 1).m_gate);
+    rig.Step(0.9);
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 2).m_gate);
+    DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(5, 2, PhaseDomain::Modulated));
+    rig.Step(-0.1);
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, 3).m_gate);
+    DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(5, 3, PhaseDomain::Modulated));
+    rig.Step(-0.5);
+    DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, 4, PhaseDomain::Modulated));
+    rig.Step(-1.1);
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 5).m_gate);
+}
+
+DOCTEST_TEST_CASE("WholeTick: slot eight tick and gate enter the next microblock together")
+{
+    AbsoluteClockRig rig;
+    for (size_t j = 0; j < 15; ++j)
+    {
+        rig.Step(0.1);
+    }
+
+    DOCTEST_REQUIRE_FALSE(rig.m_time.AnyTick(5));
+    rig.Step(1.1);
+    DOCTEST_CHECK_FALSE(rig.m_time.AnyTick(5));
+    DOCTEST_CHECK(rig.m_time.GetLoop(5, 0).m_gate);
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, 8).m_gate);
+    rig.Step(1.1);
+    DOCTEST_CHECK(rig.m_time.AnyTick(5));
+    DOCTEST_CHECK_FALSE(rig.m_time.GetLoop(5, 0).m_gate);
+    DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, 1, PhaseDomain::Modulated));
+}
+
+DOCTEST_TEST_CASE("WholeTick: nonbinary rhythms retain signed 64 bit indices through lookup")
+{
+    struct Example
+    {
+        int64_t m_step;
+        int m_size;
+        int m_expected;
+    };
+
+    const Example examples[] =
+    {
+        {2147483648LL, 3, 2},
+        {-2147483649LL, 3, 0},
+        {4294967297LL, 5, 2},
+        {-4294967297LL, 5, 3},
+        {2147483648LL, 7, 2},
+        {-2147483649LL, 7, 4}
+    };
+
+    for (const Example& example : examples)
+    {
+        DOCTEST_INFO("step=", example.m_step, " size=", example.m_size);
+        AbsoluteClockRig rig;
+        auto& rhythm = rig.m_input.m_rhythm[5];
+        rhythm.m_size = example.m_size;
+        rhythm.m_gate[0] = false;
+        rhythm.m_gate[example.m_expected] = true;
+        DOCTEST_CHECK(rhythm.MonodromyIndexToIndex(example.m_step) == example.m_expected);
+        DOCTEST_CHECK(rhythm.Gate(example.m_step));
+        rig.Step(static_cast<double>(example.m_step) + 0.25);
+        DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 1, -1) == example.m_step);
+        DOCTEST_CHECK(rig.m_time.GetLoop(5, 1).m_gate);
+    }
 }

@@ -2,7 +2,7 @@
 
 **LameJuis** is an esoteric, layered sequencer that turns the six gate bits from the [Theory of Time](theory-of-time.md) into polyphonic pitch. The implementation is in `private/src/LameJuis.hpp`, `private/src/HarmonicSheaf.hpp`, and `private/src/IndexArp.hpp`; the Nonagon wires the six time-loop gates into LameJuis and uses one LameJuis **lane** per **trio** (three voices share one lane's pitch logic).
 
-The design is **stateless** in time: at each moment **x** in **I⁶** (the six gate bits), the set of available notes and the choice of note are pure functions of **x**. Modulating the Theory of Time (e.g. phase modulation) therefore modulates this polyphonic process without breaking it.
+For fixed accepted configuration, the six gate bits **x** in **I⁶** determine the set of available notes. The selected note also depends on the index arp's choice argument, derived from the whole-cycle gate-step index. Modulating the Theory of Time therefore moves both the gate bits and the arp through this polyphonic process. Live loop-rhythm edits are held until the edited loop's next tick.
 
 ---
 
@@ -32,10 +32,12 @@ The **index arp** (`IndexArp`, used per voice inside `NonagonIndexArp`) turns th
 ### 3.1 Clock and reset
 
 - The performer chooses a **clock loop** and optionally a **reset loop** (an ancestor of the clock for the reset to be meaningful; or no reset, i.e. reset index -1).
-- When `AnyGateStepChanged(clockLoop)` reports a half-cycle crossing in the microblock, the Nonagon sets `m_totalIndex` from `GetGateStepIndex(clockLoop, 0, resetLoop)`.
-- Without reset, this is the signed absolute half-cycle coordinate. An ancestor or self reset reduces it to that reset period. Reverse motion decreases the index; a multi-cycle seek reports a crossing even if the final gate bit is unchanged. See [Theory of Time](theory-of-time.md#shared-integer-position).
+- When `AnyTick(clockLoop)` reports a whole-cycle crossing in the microblock, the Nonagon sets `m_totalIndex` from `GetGateStepIndex(clockLoop, 0, resetLoop)`.
+- Without reset, this is the signed absolute full-cycle coordinate. An ancestor reset reduces it modulo the number of clock cycles in that reset period; a self reset returns zero. Reverse motion decreases the index; a multi-cycle seek reports a crossing even if the final gate bit is unchanged. See [Theory of Time](theory-of-time.md#shared-integer-position).
 
 ### 3.2 Gate sequencer (rhythm)
+
+This per-voice arp rhythm is separate from the per-loop Theory of Time rhythm that provides each LameJuis input bit. A loop tick clocks the arp even if that loop's gate value repeats; editing the loop rhythm does not create an extra tick.
 
 - Each voice's arp has a **rhythm** pattern: `m_rhythm[0..m_rhythmLength-1]` with `m_rhythmLength` default 8 (`IndexArp::x_rhythmLength`). Only some steps are "on"; the rest gate the voice off.
 - From **m_totalIndex** we derive:
@@ -52,7 +54,7 @@ The **index arp** (`IndexArp`, used per voice inside `NonagonIndexArp`) turns th
 then optionally wrapped (cycle) or inverted, then scaled from [0,1] to **[m_min, m_max]**.
 - So the **index** (physical step among on steps) and **motive index** (rhythm page) together determine a single float in a range. That float is passed to LameJuis as **m_choiceArg** and interpreted by the chosen strategy (e.g. percentile or closest-mod-octave).
 
-- **When the Nonagon updates the index arp** — `AnyChangeInMicroBlock()` causes the Nonagon to refresh arp inputs and run the arp and LameJuis. The selected clock's `AnyGateStepChanged` drives clock updates; no clock selection sets the total index to zero. Read updates follow crossing dimensions selected by the lens. The total and motive indices stay signed 64-bit values; bounded output mapping uses double until its final float result.
+- **When the Nonagon updates the index arp** — `AnyChangeInMicroBlock()` causes the Nonagon to refresh arp inputs and run the arp and LameJuis. The selected clock's `AnyTick` drives clock updates; no clock selection sets the total index to zero. Read updates follow crossing dimensions selected by the lens. The total and motive indices stay signed 64-bit values; bounded output mapping uses double until its final float result.
 
 ---
 
@@ -81,8 +83,8 @@ The result is a single pitch (volt-per-octave) per voice; that pitch is then use
 
 ### 5.1 Structure
 
-- There are **6 logic operations** and **3 accumulators**. Each operation outputs to **one** of the 3 accumulators (selected by a switch: Down/Middle/Up → target 2/1/0).
-- For a given **x** in I⁶ (the 6 gate bits), each operation evaluates to **0 or 1**. The **Section** for **x** stores, for each accumulator, how many operations target it (`m_total[acc]`) and how many of those are high (`m_high[acc]`). The **pitch** in volt-per-octave is  
+- There are **6 logic operations** and **3 accumulators**. Each active operation outputs to **one** of the 3 accumulators (selected by a switch: Down/Middle/Up → target 2/1/0).
+- For a given **x** in I⁶ (the 6 gate bits), each operation evaluates to **0 or 1**. The **Section** for **x** stores, for each accumulator, how many active operations target it (`m_total[acc]`) and how many of those are high (`m_high[acc]`). The **pitch** in volt-per-octave is
 **pitch = Σ_acc accumulators[acc].m_intervalValue * m_high[acc]**  
 So in ratio space this is a product of simple factors: each accumulator has an **interval** (e.g. octave, fifth, major third) and an **exponent** 0 or 1 (or more generally 0..m_total[acc] when several ops target the same acc). So **M(x)** is a just-intonation ratio expressed as a product of these simple intervals raised to 0/1 (or small integer) exponents.
 
@@ -92,29 +94,42 @@ Each **LogicOperation** (the "simple functions" in the user's description) does 
 
 - **Input**: the 6-bit time slice **x** (and a fixed configuration of the operation).
 - **Per-bit treatment** — For each of the 6 dimensions we have a **MatrixSwitch**: **Muted** (ignore), **Normal** (use the bit), **Inverted** (use the bit inverted). So we get an effective 6-bit vector: only "active" (non-muted) bits matter, and some are flipped. This is implemented as `m_active` (which bits are used) and `m_inverted` (which of those are inverted). `GetTotalAndHigh` does `inputVector &= m_active`, `inputVector ^= m_inverted`, then counts **countTotal** = number of active bits and **countHigh** = number of 1s in the result.
-- **RHS lookup** — The output is **m_rhs[countHigh]**: a boolean lookup table indexed by how many of the (active, possibly inverted) bits are high. For each **k** in 0..6 the performer can choose whether the operation outputs true or false when exactly **k** bits are high.
+- **RHS lookup** — A row with no accepted non-muted inputs is always false, even when **m_rhs[0]** is true. Otherwise its output is **m_rhs[countHigh]**: a boolean lookup table indexed by how many of the (active, possibly inverted) bits are high. For each **k** in 0..6 the performer can choose whether the operation outputs true or false when exactly **k** bits are high.
 - **Generalized Walsh** — The default is `m_rhs[j] = (j % 2 == 1)`, so **only odd** counts pass. That is parity (Xor), i.e. a Walsh function. By changing the RHS table, the performer can select which counts (0..6) pass; these behave like **generalized Walsh functions** on the 6-bit input (with the given active/inverted mask).
 - **RHS grid lighting** — The RHS page (`LameJuisRHSPage`) is six operations by seven count columns. Toggling a cell still edits **m_rhs[k]**. A column **flashes** when count **k** is reachable in the **active trio's** sheaf fiber: there exists an assignment of that trio's co-muted bits which, paired with the current read (non-co-muted) bits, yields **countHigh == k**. Each co-muted active bit independently contributes 0 or 1, so the lit columns are the interval **[base, base + f]** where **base** is countHigh from the read ∩ active bits and **f** is the number of active ∩ co-muted bits. If nothing relevant is co-muted this degenerates to the single current count. Columns with **k > countTotal** stay dim (impossible from the matrix switches alone).
 
-So **M(x)** is built from 6 such boolean functions; each contributes 0 or 1 to one of 3 accumulators; the accumulators have fixed intervals (octave, fifth, third, etc.); and the final pitch is the sum in V/O of (interval × exponent) per accumulator.
+An operation owns its six matrix elements, active and inverted masks, RHS table, and output target. Its **m_countTotal** counts accepted non-muted **input bits**. An accumulator owns an interval; each section's **m_total[acc]** counts active **operation rows** targeting it. An empty row contributes to no accumulator, regardless of its stored target.
+
+So **M(x)** is built from up to 6 active boolean functions; each contributes 0 or 1 to one of 3 accumulators; the accumulators have fixed intervals (octave, fifth, third, etc.); and the final pitch is the sum in V/O of (interval × exponent) per accumulator.
 
 ### 5.3 Extra Timbre Modulators
 
-In addition to pitch, the logic matrix provides **extra timbre modulators**. For each of the 3 accumulators, the matrix computes the ratio of operations that evaluated to high versus the total number of operations targeting that accumulator (`m_high[acc] / m_total[acc]`). This yields 3 discontinuous values in [0, 1] per time slice, which the Nonagon exposes as `m_extraTimbre` (after slewing). These can be routed to DSP parameters (like filter cutoff or wavefolder depth) to provide rhythmic modulation that is perfectly synchronized with the pitch sequence.
+In addition to pitch, the logic matrix provides **extra timbre modulators**. For each of the 3 accumulators, the matrix computes the ratio of operations that evaluated to high versus the total number of active operations targeting that accumulator (`m_high[acc] / m_total[acc]`). An accumulator with no active rows yields zero. The Nonagon captures these three values in [0, 1] as each voice's `m_extraTimbre` when that voice triggers and holds them until its next trigger. These can be routed to DSP parameters (like filter cutoff or wavefolder depth) to provide rhythmic modulation that is perfectly synchronized with the pitch sequence.
 
 ---
 
-## 6. Statelessness
+## 6. Edit acceptance, cache updates, and note timing
+
+The Nonagon supplies each input's gate value and a separate `m_ticked` flag from `AnyTick(i)`. A modulated loop crossing counts even when consecutive rhythm steps have the same gate value.
+
+- A co-mute or matrix element for input **i** is accepted only on **i**'s tick. A faster input cannot accept a slower input's pending edit.
+- A row accepts its RHS table and output target on a tick from any input that is non-muted in either its accepted or requested matrix. The row then recomputes its active-input count, high count, and output. Accumulator interval changes are accepted whenever LameJuis processes.
+- When the last non-muted input's mute is accepted, the row becomes false and the sheaf rebuild removes it from all accumulator totals immediately, before that frame's lane selection. RHS and target edits while the row stays empty remain pending. A requested unmute reactivates the row only when that input ticks; that tick also accepts the pending RHS and target.
+- Accepted matrix, RHS, target, or interval changes invalidate the 64-section cache. Co-mutes select a fiber through that cache. At initialization the grid's coordinate converter receives the initial lane lens, so the grid is correct even before any co-mute edit.
+
+A channel selects a new section only on its existing read flag or arp trigger. Section equality compares both `m_high` and `m_total` for every accumulator; the selected result also compares evaluated pitch. Thus a denominator-only change can request another note at the same pitch, on the next permitted channel update. This includes zero-high sections such as 0/4 and 0/3, even though both timbre ratios are zero. Cache rebuilding and equality checks do not add reads or move them off the rhythmic grid. The existing trigger, mute, and interrupt controls still determine whether a requested note starts.
+
+## 7. Statelessness
 
 Because:
 
-- the Theory of Time gates are a pure function of time,
-- the gate-step index (and hence **m_totalIndex**) is a pure function of time when the clock gate changes,
+- with fixed rhythms, the Theory of Time gates are determined by each loop's current whole-cycle step,
+- the gate-step index (and hence **m_totalIndex**) is a pure function of time when the selected clock ticks,
 - the index arp maps that to a point in a range,
 - the lens and M define **F^M_x(U)** purely from **x**,
 - and the section choice strategy selects deterministically from **F^M_x(U)**,
 
-the whole polyphonic note-generation process is a **pure function of time**. Modulating the Theory of Time (e.g. phase modulation, different clock/reset, or different topology) only changes **x** and the index over time; the logic remains consistent.
+the pitch-selection mapping is deterministic for a fixed accepted configuration and choice argument. Pending edits, accepted configuration, and held channel selections are stateful as described above. Live Theory of Time rhythm edits take effect only at that loop's next modulated tick, so the output gate is explicitly held between ticks. Modulating the Theory of Time (e.g. phase modulation, different clock/reset, or different topology) only changes **x** and the index over time; the logic remains consistent.
 
 ---
 

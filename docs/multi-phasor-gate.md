@@ -55,10 +55,10 @@ Result: **m_trigs[i]** is true only when the chosen trigger source (pitch-change
 
 - `m_theoryOfTime` supplies absolute modulated global phase at slot 0.
 - `m_globalPeriodSamples` is the current global period in samples.
-- `m_voiceCycleRatio[i]` is the signed 64-bit positive ratio derived from the voice clock and lens. It determines the voice gate period.
+- `m_voiceCycleRatio[i]` is the positive signed 64-bit LCM of the selected clock loop ratio and all read lens loop ratios, starting at one when no clock is selected. Neither contribution is doubled. It determines the voice gate period.
 - `m_phaseRatio` is the envelope source/global ratio, currently taken from loop 0. It is distinct from the voice gate ratio.
 
-A trigger is emitted when requested, allowed, and unmuted. Accepted trigger bounds capture global phase, voice cycle ratio, and global period. The gate closes when `abs(globalPhase - startGlobalPhase) * capturedVoiceCycleRatio >= 0.5`. Existing bounds do not adopt later topology changes. A retrigger captures fresh bounds.
+A trigger is emitted when requested, allowed, and unmuted. Accepted trigger bounds capture global phase, voice cycle ratio, and global period. The gate closes when `abs(globalPhase - startGlobalPhase) * capturedVoiceCycleRatio >= 0.5`. Existing bounds do not adopt later topology changes. A retrigger captures fresh bounds. This 0.5 note-duration cutoff remains intentional; Theory of Time rhythm steps span complete loop cycles and do not change that cutoff or the clock frequency.
 
 The envelope period sent in `AHDControl` is the captured global period divided by the captured voice cycle ratio. AHD captures that period and the source phase ratio when it receives the trigger and evaluates its own elapsed position from global phase. There is no elapsed-sample relay or circle-distance tracker.
 

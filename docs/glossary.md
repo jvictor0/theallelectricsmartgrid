@@ -18,7 +18,11 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 - **PolyXFader** — Internal LFO/phasor shaper used for the Theory of Time's phase-modulation LFO. Takes phase inputs from the six time loops and produces a single modulation value. (`private/src/PolyXFader.hpp`)
 
-- **monodromy** — Legacy name for the **gate-step index**. `GetGateStepIndex` floor-divides the signed absolute position by the clock loop half-period. An ancestor/self reset reduces that index modulo the reset period; no reset or a non-ancestor reset leaves the absolute index.
+- **gate-step index** — Signed 64-bit whole-cycle coordinate returned by `GetGateStepIndex`: floor-divide the absolute modulated position by the clock loop period. An ancestor reset reduces it modulo the number of clock cycles in the ancestor period; self reset returns zero. No reset or a non-ancestor reset leaves the absolute index. Earlier documentation called this monodromy.
+
+- **tick** — A loop's modulated cycle-crossing event. `AnyTick` reports whether one occurred in a microblock, even when the loop gate stays at the same value or reset leaves the index unchanged.
+
+- **loop rhythm** — Per-loop gate pattern evaluated at each tick and held between ticks. The default `[true, false]` spans two full cycles. The engine supports 16 slots; the current grid and StateSaver expose eight. It is separate from the per-voice index-arp rhythm.
 
 - **LameJuis** — Esoteric layered sequencer: maps the six Theory of Time gate bits to pitch via a **lens** (read/co-mute), a **sheaf** F^M_x(U), and an **index arp**. Each of 3 trios has one LameJuis lane; the performer assigns a lens and selects a strategy (e.g. Percentile or ClosestModOne) to pick a note from the sheaf using the arp. See [LameJuis](lamejuis.md).
 
@@ -30,9 +34,9 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 - **index arp** — Arpeggiator that turns the signed **gate-step index** of a chosen clock loop into a **point in a range**. Uses a **rhythm** pattern (`m_rhythm`, length 8) to gate steps; **m_index** = physical step among on steps; **m_motiveIndex** = rhythm page; output = f(m_index, m_motiveIndex) scaled to [m_min, m_max]. That value is passed as `m_choiceArg` to the chosen section choice strategy (e.g. Percentile or ClosestModOne). (`IndexArp`, `NonagonIndexArp` in `private/src/IndexArp.hpp`)
 
-- **LogicOperation** — One of 6 "simple functions" I⁶ → {0,1} that build M. For each of the 6 bits: **Muted** (ignore), **Normal** (use), **Inverted** (use inverted). The output is determined by a lookup table **m_rhs[countHigh]**: for each count of high (active, possibly inverted) bits, the performer chooses whether the operation outputs true or false. Default is `m_rhs[j] = (j % 2 == 1)` ("odds pass," equivalent to parity/Xor — a Walsh function). Output goes to one of 3 **accumulators**. The RHS grid lights column k from the **active trio's** lens: k is reachable if some assignment of the trio's co-muted bits yields that countHigh.
+- **LogicOperation** — One of 6 "simple functions" I⁶ → {0,1} that build M. For each of the 6 bits: **Muted** (ignore), **Normal** (use), **Inverted** (use inverted). The output is determined by a lookup table **m_rhs[countHigh]**: for each count of high (active, possibly inverted) bits, the performer chooses whether the operation outputs true or false. Default is `m_rhs[j] = (j % 2 == 1)` ("odds pass," equivalent to parity/Xor — a Walsh function). A row with no accepted non-muted inputs is false and contributes to no accumulator; otherwise its output goes to one of 3 **accumulators**. Its `m_countTotal` counts active input bits, not rows. The RHS grid lights column k from the **active trio's** lens: k is reachable if some assignment of the trio's co-muted bits yields that countHigh.
 
-- **accumulator** — One of 3 targets for the logic operations. Has an **interval** (octave, fifth, major third, etc.) in volt-per-octave. The pitch M(x) is the sum over accumulators of (interval × number of high operations targeting that accumulator). So M(x) is a just-intonation ratio as a product of simple intervals raised to small integer exponents.
+- **accumulator** — One of 3 targets for the logic operations. Has an **interval** (octave, fifth, major third, etc.) in volt-per-octave. The pitch M(x) is the sum over accumulators of (interval × number of high operations targeting that accumulator). Each section records `m_total` (active rows targeting the accumulator) and `m_high` (those evaluating true); both counts participate in section equality. So M(x) is a just-intonation ratio as a product of simple intervals raised to small integer exponents.
 
 - **sheaf** — F^M_x(U) = { M(y) | y ~_U x }; the set of pitches available at time x for lens U. A section choice strategy (e.g. Percentile or ClosestModOne) selects the final note using the index-arp output as `m_choiceArg`.
 

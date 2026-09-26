@@ -192,10 +192,10 @@ struct StateSaverTemp
         }
 
         size_t minIx = std::max(0, static_cast<int>(oldBlend * (m_state.size() + 1)) - 1);
-        size_t maxIx = std::min(m_state.size() - 1, static_cast<size_t>(std::ceil(newBlend * (m_state.size() + 1))));
+        size_t maxIx = std::min(m_state.size(), static_cast<size_t>(std::ceil(newBlend * (m_state.size() + 1))));
 
         assert(minIx == 0 || m_state[minIx - 1]->m_boundary < oldBlend);
-        assert(maxIx == m_state.size() - 1 || newBlend < m_state[maxIx]->m_boundary);
+        assert(maxIx == m_state.size() || newBlend < m_state[maxIx]->m_boundary);
 
         for (size_t i = minIx; i < maxIx; ++i)
         {

@@ -2,6 +2,7 @@
 
 #include "SmartGrid.hpp"
 #include "TheoryOfTime.hpp"
+#include "TheoryOfTimeSmartGrid.hpp"
 #include "LameJuis.hpp"
 #include "plugin.hpp"
 #include "SceneManager.hpp"
@@ -156,6 +157,7 @@ struct TheNonagonInternal
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {
             input.m_lameJuisInput.m_inputBitInput[i].m_value = m_theoryOfTime.GetLoop(i, 0).m_gate;
+            input.m_lameJuisInput.m_inputBitInput[i].m_ticked = m_theoryOfTime.AnyTick(i);
         }
 
         for (size_t i = 0; i < x_numTrios; ++i)
@@ -198,7 +200,7 @@ struct TheNonagonInternal
             int voiceClock = input.m_arpInput.m_clockSelect[i / x_voicesPerTrio];
             if (voiceClock >= 0)
             {
-                denom = m_theoryOfTime.GetCycleRatio(voiceClock, 0) * 2;
+                denom = m_theoryOfTime.GetCycleRatio(voiceClock, 0);
             }
 
             for (size_t j = 0; j < x_numTimeBits; ++j)
@@ -206,7 +208,7 @@ struct TheNonagonInternal
                 bool coMute = m_lameJuis.m_lanes[i / x_voicesPerTrio].m_coMuteState.m_coMutes[j];
                 if (!coMute)
                 {
-                    denom = std::lcm(denom, m_theoryOfTime.GetCycleRatio(j, 0) * 2);
+                    denom = std::lcm(denom, m_theoryOfTime.GetCycleRatio(j, 0));
                 }
             }
 
@@ -223,7 +225,7 @@ struct TheNonagonInternal
 
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {            
-            bool ticked = m_theoryOfTime.AnyGateStepChanged(i);
+            bool ticked = m_theoryOfTime.AnyTick(i);
             input.m_arpInput.m_clocks[i] = ticked;
             if (m_theoryOfTime.AnyChangeInMicroBlock())
             {
@@ -246,7 +248,7 @@ struct TheNonagonInternal
                 {
                     input.m_arpInput.m_totalIndex[j] = 0;
                 }
-                else if (m_theoryOfTime.AnyGateStepChanged(input.m_arpInput.m_clockSelect[j]))
+                else if (m_theoryOfTime.AnyTick(input.m_arpInput.m_clockSelect[j]))
                 {
                     input.m_arpInput.m_totalIndex[j] = m_theoryOfTime.GetGateStepIndex(input.m_arpInput.m_clockSelect[j], 0, input.m_arpInput.m_resetSelect[j]);
                 }
@@ -597,6 +599,82 @@ struct TheNonagonSmartGrid
             }
 
             Put(6, 7, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits));            
+        }
+    };
+
+    struct TheoryOfTimeRhythmPage : public SmartGrid::Grid
+    {
+        TheNonagonInternal::Input* m_state;
+        TheNonagonInternal* m_nonagon;
+        TheNonagonSmartGrid* m_owner;
+
+        TheoryOfTimeRhythmPage(TheNonagonSmartGrid* owner)
+            : SmartGrid::Grid()
+            , m_state(&owner->m_state)
+            , m_nonagon(&owner->m_nonagon)
+            , m_owner(owner)
+        {
+            SetColors(SmartGrid::Color::Purple, SmartGrid::Color::Purple.Dim());
+            InitGrid();
+        }
+
+        void InitGrid()
+        {
+            for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits; ++i)
+            {
+                State* sizeState = m_owner->m_stateSaver.Insert(
+                    "TheoryOfTimeRhythmSize", i, &m_state->m_theoryOfTimeInput.m_rhythm[i].m_size);
+                State* resetState = m_owner->m_stateSaver.Insert(
+                    "TheoryOfTimeRhythmReset", i, &m_state->m_theoryOfTimeInput.m_rhythm[i].m_resetLoopIndex);
+
+                for (size_t j = 0; j < 8; ++j)
+                {
+                    State* gateState = m_owner->m_stateSaver.Insert(
+                        "TheoryOfTimeRhythm", i, j, &m_state->m_theoryOfTimeInput.m_rhythm[i].m_gate[j]);
+                    Put(i, j, new TheoryOfTimeRhythmCell(
+                            &m_nonagon->m_theoryOfTime,
+                            gateState,
+                            sizeState,
+                            resetState,
+                            i,
+                            j,
+                            &m_state->m_shift));
+                }
+            }
+        }
+    };
+
+    struct TheoryOfTimeRhythmResetPage : public SmartGrid::Grid
+    {
+        TheNonagonInternal::Input* m_state;
+        TheNonagonInternal* m_nonagon;
+        TheNonagonSmartGrid* m_owner;
+
+        TheoryOfTimeRhythmResetPage(TheNonagonSmartGrid* owner)
+            : SmartGrid::Grid()
+            , m_state(&owner->m_state)
+            , m_nonagon(&owner->m_nonagon)
+            , m_owner(owner)
+        {
+            SetColors(SmartGrid::Color::Blue, SmartGrid::Color::Blue.Dim());
+            InitGrid();
+        }
+
+        void InitGrid()
+        {
+            for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits; ++i)
+            {
+                Put(i, 7, m_owner->TimeBitCell(i));
+                State* resetState = m_owner->m_stateSaver.Get("TheoryOfTimeRhythmReset", i);
+                for (size_t j = 0; j < TheNonagonInternal::x_numTimeBits; ++j)
+                {
+                    Put(i, j, new TheoryOfTimeRhythmResetCell(
+                            &m_nonagon->m_theoryOfTime,
+                            resetState,
+                            i,
+                            j));
+                }
+            }
         }
     };
 
@@ -1192,6 +1270,10 @@ struct TheNonagonSmartGrid
 
     size_t m_theoryOfTimeTopologyGridId;
     SmartGrid::Grid* m_theoryOfTimeTopologyGrid;
+    size_t m_theoryOfTimeRhythmGridId;
+    SmartGrid::Grid* m_theoryOfTimeRhythmGrid;
+    size_t m_theoryOfTimeRhythmResetGridId;
+    SmartGrid::Grid* m_theoryOfTimeRhythmResetGrid;
     size_t m_lameJuisCoMuteGridId;
     SmartGrid::Grid* m_lameJuisCoMuteGrid;
     size_t m_lameJuisMatrixGridId;
@@ -1257,6 +1339,12 @@ struct TheNonagonSmartGrid
         //
         m_theoryOfTimeTopologyGrid = new TheoryOfTimeTopologyPage(this, false /*isPan*/);
         m_theoryOfTimeTopologyGridId = m_gridHolder.AddGrid(m_theoryOfTimeTopologyGrid);
+
+        m_theoryOfTimeRhythmGrid = new TheoryOfTimeRhythmPage(this);
+        m_theoryOfTimeRhythmGridId = m_gridHolder.AddGrid(m_theoryOfTimeRhythmGrid);
+
+        m_theoryOfTimeRhythmResetGrid = new TheoryOfTimeRhythmResetPage(this);
+        m_theoryOfTimeRhythmResetGridId = m_gridHolder.AddGrid(m_theoryOfTimeRhythmResetGrid);
         
         // LaMeJuIS
         //
@@ -1299,6 +1387,8 @@ struct TheNonagonSmartGrid
     void RemoveGridIds()
     {
         m_theoryOfTimeTopologyGrid->RemoveGridId();
+        m_theoryOfTimeRhythmGrid->RemoveGridId();
+        m_theoryOfTimeRhythmResetGrid->RemoveGridId();
         m_lameJuisCoMuteGrid->RemoveGridId();
         m_lameJuisMatrixGrid->RemoveGridId();
         m_lameJuisRHSGrid->RemoveGridId();

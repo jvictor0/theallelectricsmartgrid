@@ -16,35 +16,30 @@ struct LameJuisInternal
     struct InputBit
     {
         bool m_value;
-        bool m_changed;
+        bool m_ticked;
 
         struct Input
         {
             Input()
                 : m_value(false)
+                , m_ticked(false)
             {
             }
             
             bool m_value;
+            bool m_ticked;
         };
 
         void Init(InputBit* prev)
         {
             m_value = false;
-            m_changed = false;
+            m_ticked = false;
         }
         
         void Process(Input& input)
         {                        
-            bool oldValue = m_value;
-            m_changed = false;
-
             m_value = input.m_value;
-
-            if (oldValue != m_value)
-            {
-                m_changed = true;
-            }
+            m_ticked = input.m_ticked;
         }
     };
 
@@ -166,7 +161,7 @@ struct LameJuisInternal
 
         bool ComputeOperation(size_t countHigh)
         {
-            return m_rhs[countHigh];            
+            return 0 < m_countTotal && m_rhs[countHigh];
         }
 
         bool GetValue(HarmonicSheaf::BitVector inputVector)
@@ -191,7 +186,7 @@ struct LameJuisInternal
 
             for (size_t i = 0; i < x_numInputs; ++i)
             {
-                if (m_owner->m_inputs[i].m_changed && 
+                if (m_owner->m_inputs[i].m_ticked &&
                     (m_elements[i] != MatrixSwitch::Muted ||
                      input.m_elements[i] != MatrixSwitch::Muted))
                 {
@@ -371,11 +366,14 @@ struct LameJuisInternal
             section.Clear();
             for (size_t j = 0; j < x_numOperations; ++j)
             {
-                bool isHigh = m_operations[j].GetValue(index);
-                ++section.m_total[m_operations[j].GetOutputTarget()];
-                if (isHigh)
+                if (0 < m_operations[j].m_countTotal)
                 {
-                    ++section.m_high[m_operations[j].GetOutputTarget()];
+                    bool isHigh = m_operations[j].GetValue(index);
+                    ++section.m_total[m_operations[j].GetOutputTarget()];
+                    if (isHigh)
+                    {
+                        ++section.m_high[m_operations[j].GetOutputTarget()];
+                    }
                 }
             }
         }
@@ -525,7 +523,7 @@ struct LameJuisInternal
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
                     if (m_coMutes[i] != input.m_coMutes[i] &&
-                        m_owner->m_owner->m_inputs[i].m_changed)
+                        m_owner->m_owner->m_inputs[i].m_ticked)
                     {
                         m_coMutes[i] = input.m_coMutes[i];
                         m_owner->m_gridSheafView.SetLens(GetLens());
@@ -646,6 +644,7 @@ struct LameJuisInternal
         {
             m_owner = owner;
             m_coMuteState.Init(this);
+            m_gridSheafView.SetLens(m_coMuteState.GetLens());
         }
 
         void Reset()
@@ -785,7 +784,10 @@ struct LameJuisInternal
 
         for (size_t i = 0; i < x_numOperations; ++i)
         {
-            dimensions[m_operations[i].GetOutputTarget()] += 1;
+            if (0 < m_operations[i].m_countTotal)
+            {
+                dimensions[m_operations[i].GetOutputTarget()] += 1;
+            }
         }
 
         for (size_t i = 0; i < HarmonicSheaf::x_rank; ++i)

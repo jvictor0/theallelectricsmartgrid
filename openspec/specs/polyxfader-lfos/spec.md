@@ -1,21 +1,20 @@
 # PolyXFader LFOs Specification
 
 ## Purpose
-The PolyXFader LFOs (`private/src/PolyXFader.hpp`, `PolyXFaderInternal`) are the primary phase-synchronized low-frequency oscillators of Smart Grid One. They generate no phase of their own: each LFO derives its output by shaping and mixing the unmodulated phasors of the Theory of Time loops (see phasor-timebase), so every modulation contour stays locked to the global clock and sequencer structure. Each voice carries two SquiggleLFO instances wrapping `PolyXFaderInternal`, whose outputs are written into the Voice bank mode's shared `ModulatorValues` slots and consumed by the encoder parameter system (see encoder-parameter-system). A matching pair of four-channel SquiggleLFO instances on the `QuadLFOs` bank writes the Quad mode's slots 6 and 7, with quarter-cycle channel offsets and Sample-and-Hold captured from each channel's active delay loop. The Theory of Time itself uses a dedicated instance for clock phase modulation. These are distinct from the free-running ganged random LFOs used for effect sends and wavetable drift, which are a separate system.
+The PolyXFader LFOs (`private/src/PolyXFader.hpp`, `PolyXFaderInternal`) are the primary phase-synchronized low-frequency oscillators of Smart Grid One. They generate no phase of their own: each LFO derives its output by shaping and mixing the explicitly selected modulated or unmodulated absolute phases of the Theory of Time loops (see phasor-timebase), so every modulation contour stays locked to the global clock and sequencer structure. Each voice carries two SquiggleLFO instances wrapping `PolyXFaderInternal`, whose outputs are written into the Voice bank mode's shared `ModulatorValues` slots and consumed by the encoder parameter system (see encoder-parameter-system). A matching pair of four-channel SquiggleLFO instances on the `QuadLFOs` bank writes the Quad mode's slots 6 and 7, with quarter-cycle channel offsets and Sample-and-Hold captured from each channel's active delay loop. The Theory of Time itself uses a dedicated instance for clock phase modulation. These are distinct from the free-running ganged random LFOs used for effect sends and wavetable drift, which are a separate system.
 
 ## Requirements
 
 ### Requirement: Phase Derived from Unmodulated Time Loop Phasors
-Each LFO SHALL compute its per-loop phase from the Theory of Time's independent (unmodulated) loop phasors via `GetTheoryOfTimePhasor`, processing up to `m_size` loops (16 maximum; 6 in the voice LFOs, `SquiggleLFO::x_numPhasors == 6`), rather than running a free internal phase accumulator.
-Because the phase is read fresh from the timebase each control sample, the LFO is structurally synchronized: it follows tempo changes, phase jumps, and transport position with no drift and requires no reset logic.
+Each LFO SHALL read absolute loop phases through the shared GetPhase API using an explicit Unmodulated or Modulated domain, retaining the domain selected by its current integration. The ToT phase-modulation LFO SHALL use Unmodulated. The LFO SHALL generate no independent phase accumulator and SHALL support up to 16 loops, with six in voice LFOs. It SHALL reduce phase in double inside waveform evaluation before narrowing to float; topology changes SHALL NOT be handled by locally reconstructing winding.
 
-#### Scenario: LFO freezes with the clock
-- **WHEN** the Theory of Time phasors stop advancing
-- **THEN** the LFO's pre-slew output stops changing on subsequent control samples
+#### Scenario: Integer phase shifts preserve the waveform
+- **WHEN** an aligned topology change changes a loop's absolute phase by an integer with waveform controls unchanged
+- **THEN** that loop's shaped waveform value is unchanged
 
-#### Scenario: Output is a pure function of loop phase
-- **WHEN** the time loops return to the same phasor values with unchanged LFO inputs
-- **THEN** the LFO produces the same pre-slew output value
+#### Scenario: Stationary phase
+- **WHEN** phase and waveform controls stop changing
+- **THEN** the shaped per-loop waveform remains constant
 
 ### Requirement: Center/Slope Weighted Loop Mixing
 The system SHALL mix the shaped per-loop signals with weights computed from `m_center` and `m_slope`: the loop index nearest `center × size` (within ±0.25) receives weight 1, and weights taper linearly away from the center with slope `1 / (slope × size)` (a fixed taper of 2 when `slope × size < 0.5`), clamped at 0. The weighted sum is divided by the total weight, and each loop's contribution is additionally scaled by a per-voice external weight `m_externalWeights[i]`.
@@ -40,6 +39,12 @@ The voice LFO multiplier is an exponential parameter spanning 1 to 16.
 #### Scenario: Fractional multiplier scales the partial cycle
 - **WHEN** `m_mult` is 2.5
 - **THEN** two full-amplitude cycles are followed by a final cycle whose amplitude is scaled by 0.5
+
+The existing partial-lobe construction SHALL remain periodic in the incoming loop phase, including for fractional multipliers. Center/slope controls, topology-dependent external weights, quantization, sample-and-hold, and output slew SHALL retain existing behavior. No additional continuity guarantee SHALL be imposed on user control changes or the existing unmodulated/modulated topology-boundary mismatch.
+
+#### Scenario: Fractional shaping remains loop-periodic
+- **WHEN** multiplier is 2.5 and the absolute source phase differs by exactly one cycle
+- **THEN** the per-loop waveform is identical, including the shortened half-amplitude final lobe
 
 ### Requirement: Attack-Fraction Skew
 The system SHALL skew each cycle with `m_attackFrac` (clamped to [0.001, 0.999]): for cycle position t ≤ attackFrac the shaping function receives the rising ramp `t / attackFrac`, and for t > attackFrac it receives the mirrored falling ramp `1 − (t − attackFrac) / (1 − attackFrac)`, so the same shape is applied to both an attack segment and its time-reversed decay.

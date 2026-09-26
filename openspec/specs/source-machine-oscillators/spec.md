@@ -97,6 +97,16 @@ The Sample source machine SHALL read audio from the voice's assigned `AudioBuffe
 - **WHEN** the play head's total phase time crosses an integer boundary between consecutive base-rate samples
 - **THEN** the corresponding `m_uBlockTop` entry is set true, marking a playback wrap for downstream consumers
 
+The play head SHALL apply speed and window scaling to absolute modulated loop phase before wrapping at the playback output. It SHALL NOT restart fractional-speed playback at every source-loop boundary. All existing bank selection, grain rendering, upsampling, window, and speed controls SHALL remain available.
+
+#### Scenario: Half speed spans two source loops
+- **WHEN** start is 0, length is 1, speed is 0.5, and absolute loop phase progresses through 0.5, 1.5, and 2.5
+- **THEN** output positions are 0.25, 0.75, and 0.25
+
+#### Scenario: Negative speed crosses source boundaries
+- **WHEN** start is 0, length is 1, speed is -0.5, and absolute phase progresses through 0.5 and 1.5
+- **THEN** output positions are 0.75 and 0.25
+
 ### Requirement: Source Mixer Input Configuration
 The SourceMixer SHALL expose four configured external input sources. Each source SHALL have a DSP-owned configuration object that includes whether the source is Mono or Stereo. The SourceMixer SHALL expose the source color used by UIState consumers.
 

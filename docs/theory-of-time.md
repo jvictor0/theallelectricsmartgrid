@@ -25,26 +25,49 @@ These restrictions apply specifically to the time-warp LFO. Voice and quad LFOs 
 
 ## Shared integer position
 
-Each sample has one signed `int64_t` position per domain, shared by all loops. The global period in lattice ticks is twice the LCM of the cycle ratios. A loop's period is the global period divided by its cycle ratio. Consequently every loop has an integral half-period.
+Each sample has one signed `int64_t` position per domain, shared by all loops. The global period in lattice ticks is the LCM of the cycle ratios, with no doubling. A loop's period is the global period divided by its cycle ratio; a period of one tick is valid.
 
 ```
+globalPeriodTicks = lcm(cycleRatios)
+loopPeriodTicks = globalPeriodTicks / cycleRatio
 position = floor(globalPhase * globalPeriodTicks)
-gate = floorMod(position, loopPeriodTicks) < loopPeriodTicks / 2
+absoluteStep = floorDiv(modulatedPosition, loopPeriodTicks)
 ```
 
-Positions are never reduced modulo a period in storage. `PhaseUtils::FloorDiv` and `FloorMod` implement Euclidean arithmetic for negative positions. Gates and indices agree on the same lattice, avoiding independently rounded loop boundaries.
+One gate step is one complete loop cycle. For global cycle ratios 1, 2, and 3, the global period is 6 ticks and the respective loop periods are 6, 3, and 2 ticks. Positions remain absolute in storage. `PhaseUtils::FloorDiv` and `FloorMod` use Euclidean arithmetic for negative positions.
 
-`GetGateStepIndex(loop, sample, resetLoop)` replaces the recursive monodromy calculation. Without a reset it is `floorDiv(position, loopPeriodTicks / 2)`. For a selected ancestor or the loop itself, it reduces that index modulo the number of half-periods in the reset period. A non-ancestor reset is ignored. The sequencer carries the signed 64-bit index through its rhythm and motive calculations, reducing only for bounded outputs.
+`GetGateStepIndex(loop, sample, resetLoop)` returns the signed absolute step when reset is -1 or is not an ancestor. For a selected ancestor or the loop itself:
 
-## Topology edits and events
+```
+stepsPerReset = resetPeriodTicks / loopPeriodTicks
+step = floorMod(absoluteStep, stepsPerReset)
+```
 
-A running edit accepts the requested parent and multiplier together only when both the current and requested parent cross a modulated cycle boundary on the same sample. All eligibility checks use the topology before any edits on that sample. Stopped edits and initial startup accept the requested topology immediately.
+A self reset therefore always returns zero. At position -1 with loop period 8, the absolute index is -1; with ancestor period 24 the reset-relative index is 2. The index remains signed 64-bit through rhythm lookup and the sequencer's motive calculations, reducing only to a bounded slot or output.
 
-Changing topology recomputes cycle ratios and lattice periods. Absolute child phase can change by whole cycles at an aligned edit: periodic outputs agree at the mathematical boundary, while the coordinate remains a direct function of the new topology. Fractional samples interpolate global phase first, then apply the topology of their interval. They do not interpolate between two differently mapped child coordinates.
+## Loop rhythms and tick events
 
-`CrossedCycleBoundary` reports a change in the floor-divided cycle index for the requested domain, in either direction. `m_gateStepChanged` similarly reports a changed half-cycle index, including multi-step seeks whose final gate happens to equal its initial state. Startup explicitly raises boundary events. A topology edit retains the old boundary events that admitted it and raises `m_anyChange`; remapping the lattice does not count as elapsed travel.
+Every loop has a `TheoryOfTimeRhythm`: up to 16 gate values, an active size, and an optional reset loop. On that loop's modulated cycle crossing, its gate becomes `rhythm.gate[floorMod(step, rhythm.size)]`. The default is size 2 with `[true, false]`: one complete cycle on, then one complete cycle off. This loop rhythm supplies the LameJuis time bit; each voice's index-arp rhythm is a separate pattern.
+
+`CrossedCycleBoundary` reports a change in the floor-divided cycle index in the requested domain, in either direction. `AnyTick(loop)` aggregates the loop's modulated crossings over the microblock. A tick remains an event when neighboring rhythm values are equal, a seek skips several steps, or self reset leaves the selected index at zero. Consumers receive at most one event per sample, without synthesized intermediate steps.
+
+Gate, size, and reset edits become audible only at the edited loop's next modulated tick. Between its ticks the gate holds, including when a faster loop ticks. A rhythm edit alone does not raise `m_anyChange`. Startup explicitly marks every loop as crossed and evaluates all rhythms; stopping forces all gates false.
+
+## Topology edits and processing order
+
+A running topology edit accepts the requested parent and multiplier together only when both the current and requested parents cross a modulated cycle boundary on the same sample. All eligibility checks use the topology before any edits on that sample. Stopped edits and startup accept the requested topology immediately.
+
+For a running sample, processing derives positions, computes crossings, accepts eligible topology edits, remaps positions if the lattice changed, and finally evaluates gates for the loops whose crossing flags are set. Remapping preserves the events that admitted the edit and raises `m_anyChange`; the remap itself is not elapsed travel. Gate lookup uses the accepted topology and its reset ancestry. A stored reset that ceases to be an ancestor is ignored; it becomes effective again when that ancestry returns, at the loop's next tick.
+
+Changing topology recomputes cycle ratios and lattice periods. Absolute child phase can change by whole cycles at an aligned edit. Periodic outputs agree at the mathematical boundary; coordinates remain direct functions of the new topology. Fractional sample queries interpolate global phase first, then apply the topology of their interval. They do not interpolate between differently mapped child coordinates.
 
 Topology acceptance uses modulated boundaries. The phase-modulation LFO uses unmodulated phase, so those boundaries can differ under phase modulation; that existing distinction is preserved.
+
+## Rhythm controller and patch state
+
+Wrld.Bldr's TheoryOfTimeRhythm mode pairs a left rhythm page with a right reset page. Select it with aux pad `(1, 1)` in the normal grid-mode selector view. The left page has six loop columns and eight step rows: press a pad to toggle its gate; Shift-press row `j` to set size `j + 1`. The right page selects an ancestor reset for each loop; pressing the selected ancestor again clears it. Self and non-ancestor pads are disabled. A reset made invalid by reparenting remains stored but its pad is hidden while invalid.
+
+The engine supports 16 rhythm slots. The grid edits slots 0 through 7 and sizes 1 through 8; StateSaver persists the size and reset plus gate slots 0 through 7. Persistence does not clamp an imported size to eight, and engine slots 8 through 15 have no saved gate entries. StateSaver keys are `TheoryOfTimeRhythm` (loop, step), `TheoryOfTimeRhythmSize` (loop), and `TheoryOfTimeRhythmReset` (loop). Loading a patch with missing rhythm keys preserves the current registered values, following the ordinary StateSaver policy; a fresh instance starts with the default rhythm. Controller mode ordinals are runtime state and require no patch migration.
 
 ## Microblock snapshots
 
@@ -60,4 +83,4 @@ When stopped, all phases and positions are zero and gates and crossing flags are
 - Recording timestamps and outgoing MIDI clock use unmodulated global phase. Recording does not inherit phase-offset excursions.
 - Delay heads use absolute sample coordinates, retaining their transport/tempo glue and wrapping only to the buffer's read window. Scopes and UI indicators explicitly reduce their displayed phase.
 
-See [PolyXFader LFOs](polyxfader-lfos.md), [AHD envelopes](ahd-envelopes.md), [Multi-Phasor Gate](multi-phasor-gate.md), and the mathematical source in `docs/tex/TheoryOfTime.tex`.
+See [PolyXFader LFOs](polyxfader-lfos.md), [AHD envelopes](ahd-envelopes.md), [Multi-Phasor Gate](multi-phasor-gate.md), and [Controller Integrations](ui-controller-integrations.md).

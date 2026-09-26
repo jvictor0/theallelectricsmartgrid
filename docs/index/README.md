@@ -8,7 +8,7 @@ It interfaces with a custom MIDI controller.
 
 ## Major components
 
-- **[Theory of Time](../theory-of-time.md)** — Global clock: phase on S¹, six time loops, gates, monodromy. Everything else follows this clock; sequencer and LFO state are a *pure function* of it (statelessness).
+- **[Theory of Time](../theory-of-time.md)** — Global clock: absolute phase, six time loops, whole-cycle rhythm gates, and signed gate-step indices. Loop rhythm edits apply at the loop's next modulated tick.
 - **[LameJuis](../lamejuis.md)** — Esoteric sequencer: lens U, sheaf F^M_x(U), index arp, logic operations → M(x) in just intonation; one output per trio; stateless in time.
 - **[Multi-Phasor Gate](../multi-phasor-gate.md)** — When the Nonagon emits a trigger per voice: trigger logic (pitch-changed / sub-trigger, mutes, interrupt) and phasor-based gate timing (50% duty per step).
 - **[Nonagon (sequencer)](../nonagon.md)** — Theory of Time, voice/arp logic ([LameJuis](../lamejuis.md)), [trigger decision](../multi-phasor-gate.md) (Multi-Phasor Gate), note writer, and related UI.

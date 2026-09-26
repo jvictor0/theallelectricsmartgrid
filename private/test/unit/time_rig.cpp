@@ -145,7 +145,7 @@ DOCTEST_TEST_CASE("TimeRig: child loop completes `mult` cycles per parent cycle"
     rig.SetMultiplier(4, mult);
     rig.SetRunning(true);
 
-    // Prime: let topology settle (loop sizes are set on the running edge).
+    // Prime: accept the requested topology at startup.
     //
     rig.AdvanceControlFrame();
     rig.AdvanceControlFrame();
@@ -259,8 +259,8 @@ DOCTEST_TEST_CASE("TimeRig: stopped multiplier changes recompute loop sizes befo
     DOCTEST_CHECK(rig.IsRunning() == false);
     DOCTEST_CHECK(rig.AnyChangeInMicroBlock() == true);
     DOCTEST_CHECK(rig.AnyChange(0) == true);
-    DOCTEST_CHECK(rig.GetPeriodTicks(4) == 32);
-    DOCTEST_CHECK(rig.GetPeriodTicks(TimeRig::x_globalLoop) == 96);
+    DOCTEST_CHECK(rig.GetPeriodTicks(4) == 16);
+    DOCTEST_CHECK(rig.GetPeriodTicks(TimeRig::x_globalLoop) == 48);
     DOCTEST_CHECK(rig.GetPosition() == 0);
     DOCTEST_CHECK(rig.Gate(4) == false);
     DOCTEST_CHECK(rig.GetPhase(4) == doctest::Approx(0.0));
@@ -287,8 +287,8 @@ DOCTEST_TEST_CASE("TimeRig: stopping a running rig halts the phasor")
     DOCTEST_CHECK(rig.IsRunning() == false);
     DOCTEST_CHECK(rig.AnyChangeInMicroBlock() == true);
     DOCTEST_CHECK(rig.AnyChange(0) == true);
-    DOCTEST_CHECK(rig.GetPeriodTicks(4) == 32);
-    DOCTEST_CHECK(rig.GetPeriodTicks(TimeRig::x_globalLoop) == 96);
+    DOCTEST_CHECK(rig.GetPeriodTicks(4) == 16);
+    DOCTEST_CHECK(rig.GetPeriodTicks(TimeRig::x_globalLoop) == 48);
     DOCTEST_CHECK(rig.GetPosition() == 0);
     DOCTEST_CHECK(rig.Gate(4) == false);
 
@@ -348,11 +348,11 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
     input.m_theoryOfTime = rig.Get();
 
     // The AHD measures elapsed envelope time as
-    //   samples = circleTracker.Distance() * envelopeTimeSamples
+    //   samples = abs(currentPhase - triggerPhase) * envelopePeriodSamples
     // where Distance() is the loop phasor distance travelled since the trigger.
     // InputSetter::Set maps attack/decay via Update(1 - value): value=0.0 yields
     // the FASTEST increment, value~1.0 the slowest. We pick fast attack+decay
-    // and a large envelopeTimeSamples so the envelope opens and fully closes
+    // and a large envelopePeriodSamples so the envelope opens and fully closes
     // within a fraction of a loop cycle (well inside our window).
     //
     AHD::InputSetter setter;
@@ -361,7 +361,7 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
 
     input.m_envelopePeriodSamples = 4000.0;
 
-    // Trigger: mirror the control path. m_trig/circleTracker reset happens via
+    // Trigger: mirror the control path. Capture the phase and period via
     // Input::Set against an AHDControl.
     //
     AHD::AHDControl control;

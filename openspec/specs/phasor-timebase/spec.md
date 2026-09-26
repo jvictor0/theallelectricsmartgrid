@@ -1,56 +1,30 @@
 # Phasor Timebase Specification
 
 ## Purpose
-The phasor timebase (Theory of Time, `private/src/TheoryOfTime.hpp`) is the global clock for Smart Grid One. It maps wall-clock time to a phase on the circle S¹ and derives six hierarchical time loops whose integer positions, gates, and monodromy numbers drive the Nonagon sequencer (see nonagon-sequencer) and all phase-synchronized DSP. All downstream sequencer state is a pure function of the current phasor and the loop topology, so the system is deterministic and recoverable after phase jumps.
+Theory of Time (`TheoryOfTimeBase.hpp` and `TheoryOfTime.hpp`) maps absolute unmodulated and modulated global phase into six hierarchical loops. Shared signed lattice positions and whole-cycle rhythm ticks drive the Nonagon sequencer and phase-synchronized DSP. Coordinates derive directly from phase and accepted topology; live rhythm edits are held until each loop's modulated tick.
 ## Requirements
-### Requirement: Global Phase Tracking on the Circle
-The system SHALL represent global time as a phasor in [0, 1) tracked by a CircleTracker that maintains both the current phase and an integer winding count of full revolutions.
-The CircleTracker detects a wrap when the phase moves by more than 0.5 between consecutive control samples, incrementing the winding count for a forward wrap and decrementing it for a backward wrap. The unwound value (phase + winding) provides continuous time for monodromy computation.
-
-#### Scenario: Forward wrap increments winding
-- **WHEN** the modulated phasor advances from 0.97 to 0.02 in one control sample
-- **THEN** the CircleTracker detects a jump of magnitude greater than 0.5
-- **AND** the winding count increases by exactly 1 while the tracked phase becomes 0.02
-
-#### Scenario: Backward wrap decrements winding
-- **WHEN** the phasor moves from 0.02 back across zero to 0.97
-- **THEN** the winding count decreases by 1
-
 ### Requirement: Internal-Only Clock Source
-The system SHALL keep `TheoryOfTime::ClockMode` and `TheoryOfTime::Input::m_clockMode` absent.
-The timebase SHALL advance from the frequency value supplied in `TheoryOfTime::Input::m_freq`; it SHALL NOT expose PLL, external phasor input, tick-to-phasor input, or MIDI clock routing as selectable product clock modes inside Theory of Time. External MIDI synchronization, when enabled, SHALL occur outside Theory of Time by changing the supplied effective frequency.
+The system SHALL keep ClockMode and Input::m_clockMode absent. It SHALL advance the absolute unmodulated phase by the supplied effective frequency without wrapping. External synchronization SHALL remain outside Theory of Time and change the supplied frequency rather than introduce a selectable tick/PLL/phasor input mode.
 
-#### Scenario: Clock mode surface is absent
-- **WHEN** product code constructs a `TheoryOfTime::Input`
-- **THEN** it has no `m_clockMode` member
-- **AND** no `ClockMode` enum is available
-
-#### Scenario: Supplied frequency advances the phasor
-- **WHEN** the timebase processes a running sample with supplied frequency `m_freq`
-- **THEN** the true phasor advances by `m_freq`
-- **AND** the phasor wraps into [0, 1)
-
-#### Scenario: External sync remains outside Theory of Time
-- **WHEN** external MIDI clock mode is enabled by the surrounding integration
-- **THEN** Theory of Time still advances from `Input::m_freq`
-- **AND** it does not inspect MIDI clock ticks directly
+#### Scenario: Supplied frequency crosses a cycle
+- **WHEN** unmodulated phase is 0.99 and the running phase increment is 0.02
+- **THEN** the new unmodulated phase is 1.01
+- **AND** no product clock-mode API is introduced
 
 ### Requirement: True Phase and Phase-Modulated Phase
-The system SHALL maintain two phase signals: the true (unmodulated) phase from the internal clock, and a phase-modulated phase equal to the true phase plus an LFO-derived phase offset, wrapped into [0, 1).
-The phase-modulation LFO is a PolyXFader driven by the unmodulated (independent) phasors of the six time loops (`m_useIndirectPhasor` is false), so the LFO stays synchronized with the timebase it modulates. The applied offset is `-2 × modIndex × lfoRawOutput`. The master loop's position and gates follow the modulated phase; the independent phase remains available per loop for continuity-sensitive consumers (display, LFO drive, note-writer positions).
+The system SHALL maintain absolute unmodulated and modulated phases with modulated = unmodulated - 2 * modIndex * lfoRawOutput. The phase-modulation PolyXFader SHALL read unmodulated loop phases and retain its existing loop-period/global-period amplitude weights. Modulated time SHALL drive gates and musical position; unmodulated time SHALL drive external synchronization, recording timestamps, outgoing clock, and existing unmodulated consumers.
 
-#### Scenario: Zero modulation index passes true phase through
-- **WHEN** the phase-modulation index is 0
-- **THEN** the phase offset is 0 and the modulated phase equals the true phase on every control sample
+#### Scenario: Zero modulation is identity
+- **WHEN** modulation index is zero at global phase 7.25
+- **THEN** both domains report 7.25
 
-#### Scenario: LFO is driven by unmodulated phasors
-- **WHEN** the phase-modulation LFO computes its output for the current sample
-- **THEN** it reads each time loop's independent (unmodulated) phasor, not the phase-modulated phasor
-- **AND** the per-loop LFO weights are scaled by `loopSize / masterLoopSize`
+#### Scenario: LFO retains its source and weighting
+- **WHEN** phase modulation is evaluated
+- **THEN** its LFO reads unmodulated phases and scales contributions by loop period divided by global period
 
 ### Requirement: Outgoing Phasor-To-Tick Clock Generation
 The system SHALL keep outgoing MIDI clock generation as phasor-to-tick behavior, owned by a dedicated `Phasor2Tick` helper in `private/src/Phasor2Tick.hpp`.
-When the timebase starts running, the helper SHALL update its divisions from the current internal frequency; while running, a division crossing in the independent master phasor SHALL emit a clock message through the configured message-out buffer.
+When the timebase starts running, the helper SHALL update its divisions from the current internal frequency; while running, a division crossing in the absolute unmodulated global phase SHALL emit a clock message through the configured message-out buffer.
 
 #### Scenario: Start updates outgoing clock divisions
 - **WHEN** the timebase transitions from stopped to running
@@ -58,108 +32,139 @@ When the timebase starts running, the helper SHALL update its divisions from the
 - **AND** a transport start message is emitted when a message-out buffer is configured
 
 #### Scenario: Running phasor emits clock message
-- **WHEN** the independent master phasor crosses a `Phasor2Tick` division while the timebase is running
+- **WHEN** the absolute unmodulated global phase crosses a `Phasor2Tick` division while the timebase is running
 - **THEN** the message-out buffer receives one MIDI clock message
 
 ### Requirement: Six Hierarchical Time Loops
-The system SHALL provide exactly six time loops (`x_numLoops == 6`) arranged in a tree, where the master loop is index 5 (`x_numLoops - 1`), has no parent, and is driven directly by the phase-modulated phasor; every other loop has a parent index and an integer winding multiplier mapping the parent's circle onto its own.
-Child loops derive their integer position from the parent: `position = parentPosition % loopSize` and `prevPosition = parentPrevPosition % loopSize`, so integer position flows from the master down the tree. Child unmodulated phasors are computed as the parent's independent phasor times the winding multiplier, wrapped mod 1.
+The system SHALL expose six time loops with the global root at index 5 and integer positive parent multipliers. Each loop phase SHALL equal the chosen global phase times its product of parent multipliers. Every loop SHALL observe the same absolute common-lattice position through its own period; child coordinates SHALL NOT be reduced modulo their periods during propagation.
 
-#### Scenario: Child position derives from parent
-- **WHEN** a child loop with loop size 8 has a parent whose position is 13
-- **THEN** the child's position is 13 mod 8 = 5
+#### Scenario: Child retains whole cycles
+- **WHEN** the global phase is 3.25 and a child's global cycle ratio is 4
+- **THEN** its phase is 13 and its full-cycle index is 13
 
-#### Scenario: Master loop is the tree root
-- **WHEN** the timebase processes a control sample
-- **THEN** only loop index 5 computes its position directly from the modulated phasor (`floor(phasor × loopSize)`)
-- **AND** loops 0 through 4 obtain positions from their parents
+#### Scenario: Shared absolute position
+- **WHEN** the common-lattice position is 13 and a child's period is 8 ticks
+- **THEN** that child observes absolute position 13 and derives local output position 5 only when needed
 
 ### Requirement: Topology Changes Only at Parent Zero
-The system SHALL apply requested changes to a loop's parent index or winding multiplier only on a control sample where the loop's parent is at zero (the parent's top flag is set), keeping positions continuous across topology changes.
-After any accepted topology change, loop sizes are recomputed for the whole tree.
+While running, the system SHALL accept a requested parent/multiplier pair only on a sample where both the old and requested parents cross their modulated cycle boundaries. Eligibility SHALL be evaluated from one pre-edit topology snapshot; deferred pairs SHALL remain unchanged. Multiplier-only edits SHALL require the unchanged parent's boundary. Accepted edits SHALL recompute the LCM periods and direct phase mappings together. Unmodulated/modulated boundary timing SHALL otherwise retain existing behavior.
 
-#### Scenario: Mid-cycle change is deferred
-- **WHEN** the performer changes a loop's winding multiplier while the parent loop is mid-cycle
-- **THEN** the loop keeps its previous multiplier for every sample until the parent next reaches position zero
-- **AND** the new multiplier takes effect on the sample where the parent's top flag is true
+#### Scenario: New parent is not aligned
+- **WHEN** the old parent crosses zero but the requested parent does not
+- **THEN** neither the requested parent nor its accompanying multiplier is accepted
+
+#### Scenario: Simultaneous boundaries accept the pair
+- **WHEN** old and requested parents cross zero on the same sample
+- **THEN** the requested parent/multiplier pair is accepted together
+- **AND** all derived coordinates use the resulting topology
+
+#### Scenario: Multiplier-only edit waits
+- **WHEN** a multiplier change is requested mid-parent-cycle
+- **THEN** it remains pending until that parent's next cycle boundary
 
 ### Requirement: Loop Size Propagation by LCM
-The system SHALL compute loop sizes from the topology in three passes: an upward child-to-parent pass setting `parentSize = lcm(parentSize, childSize × childMult)`, a downward pass setting `childSize = parentSize / childMult`, and a final doubling of every loop size so each loop has two gate states per cycle.
-This guarantees every division is exact and that all gates change on the same integer step when they mathematically coincide.
+The system SHALL compute each loop's global cycle ratio as the product of its positive parent multipliers and set the global lattice period to the LCM of all cycle ratios, without doubling. A loop period SHALL equal the global period divided by its cycle ratio. Periods of one tick SHALL be valid; one complete loop period SHALL represent one gate step.
 
-#### Scenario: Two children with multipliers 2 and 3
-- **WHEN** two loops are children of the master with winding multipliers 2 and 3
-- **THEN** the master's pre-doubling size is lcm(2, 3) = 6 and the children's are 3 and 2
-- **AND** after doubling the master loop size is 12 and the children's are 6 and 4
+#### Scenario: Coprime sibling ratios
+- **WHEN** two children of the global loop have cycle ratios 2 and 3 and all other loops have ratio 1
+- **THEN** the global lattice period is 6 ticks and the children's periods are 3 and 2 ticks
+- **AND** no factor of two is applied
+
+#### Scenario: Fastest loop has a one-tick period
+- **WHEN** the global cycle ratios are 1 and 3
+- **THEN** the global period is 3 ticks and the faster loop period is 1 tick
 
 ### Requirement: Integer Position and Gate
-The system SHALL track an integer position per loop, `position = floor(phase × loopSize)`, and a gate defined as `gate = (position < loopSize / 2)`, with a gate-changed flag set on any sample where the gate flips.
-The six gates form the 6-bit time slice in I⁶ consumed by lamejuis-sequencer. When the master position jumps by more than one step between samples (for example after a seek or phase modulation jump), the previous position is rewritten to the adjacent step so transitions remain one-step and no false edge bursts are reported.
+The system SHALL derive absolute signed 64-bit position P by flooring global phase times the current global lattice period. A loop of period L SHALL have full-cycle gate-step index FloorDiv(P,L), using Euclidean arithmetic. On each modulated cycle crossing, its gate SHALL be read from its configured rhythm at FloorMod(GetGateStepIndex(loop, sample, resetLoop), rhythmSize); between its crossings the gate SHALL hold. Crossing flags SHALL compare consecutive absolute phases in consistent lattice units before accepted topology edits. After accepting edits, the system SHALL remap positions, preserve those crossing flags, and evaluate gates using the accepted topology. A coordinate remap SHALL NOT create additional elapsed-travel events or rewrite previous coordinates.
 
-#### Scenario: Gate covers the first half of the cycle
-- **WHEN** a loop has loop size 8
-- **THEN** its gate is true at positions 0 through 3 and false at positions 4 through 7
-- **AND** the gate-changed flag is set exactly on the samples where the position crosses 3→4 and 7→0
+#### Scenario: Negative whole-cycle index
+- **WHEN** P is -1, L is 8, reset is absent, and the default rhythm is evaluated
+- **THEN** the gate-step index is -1, its rhythm slot is 1, and its gate is false
 
-#### Scenario: Position jump is corrected
-- **WHEN** the master position jumps from 2 to 9 in one sample while ascending
-- **THEN** the stored previous position becomes 8 so that exactly one position transition is observed
+#### Scenario: Multiple crossed steps produce one event
+- **WHEN** P advances from 1 to 17 with L equal to 8 and default rhythm
+- **THEN** a tick is reported even though both endpoint gates are true
+- **AND** there is at most one event per consumer per sample and the previous coordinate remains 1
 
-### Requirement: Monodromy Numbers
-The system SHALL expose `MonodromyNumber(clockIx, resetIx)` returning the number of half-cycles (gate state changes) of loop `clockIx` since loop `resetIx` was last at zero, or, when `resetIx` is -1, since the clock started, using the global winding count at the master loop.
-The recurrence counts in units of `loopSize / 2`, ascending toward the reset ancestor; at the master loop with no reset it returns `GlobalWinding() × 2`, plus 1 when the master gate is in its second half. The index arp (see lamejuis-sequencer) samples this value only when the selected clock loop's gate changes.
+#### Scenario: Equal neighboring values still tick
+- **WHEN** a loop with rhythm [true, true] crosses its next modulated cycle boundary
+- **THEN** its gate remains true and the loop's tick event is true
 
-#### Scenario: Total count since startup
-- **WHEN** the global phase has wound 3 full revolutions since start and the master loop's gate is currently false (second half)
-- **THEN** `MonodromyNumber(masterIndex, -1)` returns 3 × 2 + 1 = 7
+#### Scenario: Accepted topology supplies the rhythm index
+- **WHEN** simultaneous old/requested parent crossings admit a topology edit
+- **THEN** positions are remapped before gate lookup and the gate uses the new period and reset ancestry
+- **AND** crossing flags remain those computed before acceptance
 
-#### Scenario: Count relative to a reset ancestor
-- **WHEN** a clock loop of size 8 is a direct child of the reset loop and the reset loop's position is 13
-- **THEN** `MonodromyNumber(clockIx, resetIx)` returns 13 / 4 = 3 gate flips since the reset loop was at zero
+### Requirement: Whole-Cycle Gate-Step Indices
+The system SHALL expose GetGateStepIndex instead of recursive monodromy reconstruction. With modulated position P and clock period Lc it SHALL return FloorDiv(P,Lc) without reset. If reset is the clock or an ancestor of period Lr, it SHALL return FloorMod(FloorDiv(P,Lc), Lr/Lc); non-ancestor and absent resets SHALL return the absolute index. The result and intermediate rhythm/motive coordinates SHALL retain signed 64-bit range until bounded reduction. The arp SHALL sample this coordinate on modulated tick events, independently of changes to the rhythm gate Boolean or reset-relative index.
+
+#### Scenario: Absolute gate-step index
+- **WHEN** global phase is 3.75 and the global loop is selected without reset
+- **THEN** the returned index is 3
+
+#### Scenario: Ancestor reset
+- **WHEN** P is 29, the clock period is 8, and the ancestor period is 24
+- **THEN** the absolute index is 3 and the reset-relative index is 0
+
+#### Scenario: Reverse time and self reset
+- **WHEN** P is -1 and clock period is 8
+- **THEN** the absolute index is -1, an ancestor reset of period 24 returns 2, and self reset returns 0
+
+#### Scenario: Self reset preserves ticks
+- **WHEN** a loop with self reset crosses a modulated boundary
+- **THEN** its returned index remains zero and it still reports a tick
+
+#### Scenario: Unrelated reset is ignored
+- **WHEN** a reset loop is neither the selected clock nor its ancestor
+- **THEN** the returned index equals the no-reset absolute index
 
 ### Requirement: Microblock Buffer with Lookahead Sample
-The system SHALL buffer per-loop state in arrays of 9 control samples per microblock (`x_microBlockBufferSize = 9` for an 8-sample control frame), where slot 8 holds the first sample of the next microblock, computed during the current block.
-`RolloverMicroblockBuffer()` copies slot 8 into slot 0 at the start of each microblock, so the first sample of every block was computed in the previous block and interpolation anywhere inside a microblock has accurate boundary samples on both ends.
+The system SHALL retain nine sample slots for an eight-sample microblock and copy slot 8 to slot 0 on rollover. GetPhase SHALL interpolate absolute global phase before applying the interval's accepted loop ratio. For fractional positions in [j,j+1), it SHALL use j's topology; at j+1 it SHALL use j+1's topology. Slot 8 SHALL be queryable, and interpolation in [7,8] SHALL use both endpoints. No wrapped or differently mapped child coordinates SHALL be interpolated across a cycle or topology boundary.
 
-#### Scenario: Rollover carries the lookahead sample
-- **WHEN** a new microblock begins
-- **THEN** every loop's slot-8 state (position, gate, phasors, winding, flags) is copied into slot 0
-- **AND** processing then fills slots 1 through 8, producing this block's remaining samples plus the next block's first sample
+#### Scenario: Ordinary wrap interpolation
+- **WHEN** global endpoint phases are 0.99 and 1.01
+- **THEN** the midpoint phase is 1.00 and a wrapped midpoint output is 0
+
+#### Scenario: Topology edit does not sweep through discarded cycles
+- **WHEN** the loop ratio changes from 2 to 3 at global phase 10 at sample j+1
+- **THEN** queries before j+1 use ratio 2 and queries at j+1 use ratio 3
+- **AND** interpolation does not traverse child phases 20 through 30
+
+#### Scenario: Lookahead rollover
+- **WHEN** the microblock rolls over
+- **THEN** slot 8's absolute phases, coordinates, topology, and event state become slot 0's state
 
 ### Requirement: Transport Start and Stop
-The system SHALL initialize deterministic state on transport start and maintain a topology-aware stopped state whenever the timebase is not running.
-On the first running sample, requested topology is applied, loop sizes are computed, the global CircleTracker is reset to phase 0, and every loop's position is set to `loopSize - 1` with gate false, so the first advance lands on position 0 as a top. Whenever the timebase receives a non-running input, `ProcessNotRunning` SHALL inspect requested loop multipliers, accept changed multiplier values, call `SetLoopSizes` only when at least one multiplier changed, clear phasors and winding, set every loop position and previous position to 0, set every loop gate false, and keep independent positions at 0. The any-change flag SHALL be raised on the stop transition or when stopped multiplier maintenance changes observable loop state; otherwise it SHALL remain false while already stopped.
+The system SHALL initialize deterministic absolute coordinates and explicit startup events when transport starts. Startup SHALL accept requested valid topology and emit the initial gate-step/cycle events without inventing a wrapped previous position. On stop, phase, current and previous positions, gates, and motion outputs SHALL clear to zero/false while topology-derived periods remain available. Stopped multiplier edits SHALL recompute periods only when accepted topology changes; startup SHALL accept requested parent changes without waiting for motion. The any-change signal SHALL be raised for the stop transition or an observable stopped topology edit, and remain false for unchanged stopped frames.
 
-#### Scenario: Start primes loops one step before zero
-- **WHEN** the transport starts running
-- **THEN** each loop's position equals its loop size minus 1 and its gate is false
-- **AND** the global phase winding count is reset to 0
+#### Scenario: First run
+- **WHEN** transport starts
+- **THEN** requested topology is active, absolute phase advances from zero, every loop receives an explicit modulated/unmodulated crossing event, and every loop rhythm is evaluated
 
-#### Scenario: Stop clears loop motion but keeps topology-derived sizes
-- **WHEN** the running input goes false while the timebase is running
-- **THEN** all six loops report position 0, previous position 0, gate false, phasor 0, independent phasor 0, and winding 0
-- **AND** loop sizes match the accepted loop multipliers
-- **AND** the any-change flag is true on that control sample
+#### Scenario: Stop preserves period configuration
+- **WHEN** a running timebase stops
+- **THEN** coordinates and gates clear, configured periods remain, and the any-change signal is true
 
-#### Scenario: Already stopped multiplier changes update loop sizes before first run
-- **WHEN** the timebase has never run and a requested loop multiplier changes while running input remains false
-- **THEN** the changed multiplier is accepted
-- **AND** `SetLoopSizes` recomputes stopped loop sizes from the accepted multipliers
-- **AND** every loop position, previous position, gate, phasor, and winding remains cleared
-
-#### Scenario: Already stopped unchanged multipliers skip loop-size recompute
-- **WHEN** the timebase is not running and all requested loop multipliers match the accepted multipliers
-- **THEN** `ProcessNotRunning` does not call `SetLoopSizes`
-- **AND** every loop position, previous position, gate, phasor, and winding remains cleared
+#### Scenario: Stopped editing
+- **WHEN** an already stopped multiplier changes
+- **THEN** the accepted period configuration updates without motion
+- **AND** subsequent unchanged stopped samples do not recompute periods or raise any-change
 
 ### Requirement: Deterministic State from Phasor and Topology
-The system SHALL derive all loop positions, gates, tops, and monodromy numbers as a pure function of the current phasor (with its winding) and the loop topology, with no hidden sequencer state requiring synchronization.
-Consequently the timebase handles arbitrary phase jumps: state after a jump is exactly the state that the new phase implies.
+The system SHALL derive phase, absolute position, and gate-step index from current absolute global phase and accepted topology. For fixed rhythm configuration, each running loop gate SHALL equal the rhythm value at its current step after startup or a loop tick. Live gate, size, and reset edits SHALL be sampled on that loop's next modulated tick; between ticks the previous gate SHALL persist. Crossing events SHALL depend on consecutive samples and the defined topology/startup rules, without winding reconstruction or historical child cycle counts.
 
-#### Scenario: State recovers after a phase jump
-- **WHEN** phase modulation jumps the modulated phasor to a new value within the same winding
-- **THEN** every loop's position and gate equal the values implied by the new phase and current loop sizes
-- **AND** subsequent monodromy queries reflect the new position with no residual state from before the jump
+#### Scenario: Same coordinates after different histories
+- **WHEN** two running timebases reach the same global phases and accepted topology with the same unchanged rhythm configuration
+- **THEN** their loop phases, positions, gate values, and reset-relative indices match
+
+#### Scenario: Coordinate remap is immediate
+- **WHEN** an accepted topology edit changes a child's ratio at nonzero absolute time
+- **THEN** its absolute phase and index immediately equal the new mapping, without historical compensation offsets
+
+#### Scenario: Edit waits for the edited loop
+- **WHEN** a loop's gate, rhythm size, or reset selection is edited between its modulated ticks
+- **THEN** its gate remains unchanged until its next modulated tick, even if a faster loop ticks first
+- **AND** the edit alone does not raise the timebase any-change flag
 
 ### Requirement: Theory of Time Topology Grid Control
 The system SHALL expose the per-loop clock topology for live editing through the Theory of Time topology grid (`TheNonagonSmartGrid::TheoryOfTimeTopologyPage`, reachable on the BottomRight base grid / route 3). For each editable time loop bit `i`, the column at grid x `i` SHALL provide:
@@ -167,7 +172,7 @@ The system SHALL expose the per-loop clock topology for live editing through the
 - a parent-index pad at grid y 4 (for the inner bits) bound to `m_input[i].m_parentIndex`;
 - a show-only `RuntimeStateCell` at grid y 7 (`TimeBitCell`) reflecting the loop's live gate state without registering it as saved state.
 
-Pressing a multiplier pad SHALL change the underlying `m_parentMult` value, the change taking effect on the clock topology at the next parent-zero boundary (see "Topology Changes Only at Parent Zero"), and the pad's published LED color SHALL reflect the active value: the pad whose `mult` equals the current `m_parentMult` shows the on-color (White) and the others the off-color (Fuscia). The topology values are persisted through the `StateSaver` registry under keys `"TheoryOfTimeMult"` and `"TheoryOfTimeParentIx"`, so they SHALL be restored exactly by a patch save/load round-trip.
+Pressing a multiplier pad SHALL change the underlying `m_parentMult` value, the change taking effect on the clock topology at simultaneous modulated cycle crossings of the old and requested parents (see "Topology Changes Only at Parent Zero"), and the pad's published LED color SHALL reflect the active value: the pad whose `mult` equals the current `m_parentMult` shows the on-color (White) and the others the off-color (Fuscia). The topology values are persisted through the `StateSaver` registry under keys `"TheoryOfTimeMult"` and `"TheoryOfTimeParentIx"`, so they SHALL be restored exactly by a patch save/load round-trip.
 
 #### Scenario: Pressing a multiplier pad sets the loop's parent multiplier
 - **WHEN** the performer presses the multiplier pad for value 3 in loop-bit column `i` on the topology grid
@@ -181,8 +186,8 @@ Pressing a multiplier pad SHALL change the underlying `m_parentMult` value, the 
 
 #### Scenario: Loaded topology drives the clock
 - **WHEN** a patch with non-default loop multipliers is loaded and the sequencer runs
-- **THEN** the master phasor advances and the loops gate without producing NaN or out-of-bound output
-- **AND** the loop sizes derived from the restored multipliers match those produced by setting the same multipliers live
+- **THEN** the absolute global phase advances and the loops gate without producing NaN or out-of-bound output
+- **AND** the loop periods derived from the restored multipliers match those produced by setting the same multipliers live
 
 ### Requirement: Effective Tempo Source
 The system SHALL accept `TheoryOfTime::Input::m_freq` as the already-selected effective tempo source. In internal mode this value comes from the tempo parameter; in external mode this value comes from the external clock synchronizer.
@@ -194,3 +199,49 @@ The system SHALL accept `TheoryOfTime::Input::m_freq` as the already-selected ef
 #### Scenario: External effective tempo
 - **WHEN** external clock mode is selected
 - **THEN** the integration writes the clock synchronizer's frequency estimate into `TheoryOfTime::Input::m_freq`
+
+### Requirement: Absolute Global Coordinates and Consistent Queries
+The system SHALL store absolute unmodulated and modulated global phases as doubles without wrapping or winding counters. Phase SHALL mean absolute cycles, position SHALL mean signed 64-bit common-lattice ticks, and cycle ratio SHALL mean loop cycles per global cycle. The public API SHALL use global, unmodulated, and modulated terminology, explicit loop/sample coordinates, and one phase query accepting a PhaseDomain enum. It SHALL remove direct/indirect and unwound aliases, Boolean phase-domain selectors, recursive MonodromyNumber, and duplicate multiplier conventions. Existing persisted parameter keys SHALL remain unchanged; the rhythm pages SHALL add only their documented StateSaver registrations.
+
+#### Scenario: Input preserves whole cycles
+- **WHEN** unmodulated phase is 12.75 and the offset is -0.5
+- **THEN** modulated global phase is 12.25 and both absolute values remain available
+
+#### Scenario: Negative phase remains signed
+- **WHEN** modulated global phase is -0.25
+- **THEN** the stored phase remains -0.25 and a normalized output adapter returns 0.75
+
+### Requirement: Configurable Whole-Cycle Loop Rhythms
+The system SHALL provide one rhythm per time loop with 16 engine slots, active size 1-16, and optional reset index -1 or 0-5. The default SHALL be size 2, gate slot 0 true, all remaining slots false, and reset -1. Each step SHALL occupy a complete loop cycle. A reset that ceases to be an ancestor SHALL remain stored but be ignored until accepted topology restores that ancestry.
+
+#### Scenario: Default alternates full cycles
+- **WHEN** a loop starts at cycle zero with its default rhythm and proceeds through cycles 0, 1, and 2
+- **THEN** its gate is true, false, and true respectively, holding each value for a full cycle
+
+#### Scenario: Stored reset survives reparenting
+- **WHEN** an accepted reparent makes the stored reset a non-ancestor
+- **THEN** subsequent loop ticks use the absolute step without changing the stored reset
+- **AND** the next tick after ancestry is restored uses that reset again
+
+### Requirement: Theory of Time Rhythm Grid and Persistence
+The system SHALL expose a six-column/eight-row rhythm page and an ancestor-reset page. A normal rhythm-pad press SHALL toggle its State value; Shift-press on row j SHALL set size to j+1. Only rows below the active size SHALL be lit. The current step SHALL be bright Purple/Pink for on/off, and other active steps dim Purple/Grey. The reset page SHALL enable only strict ancestors in accepted topology; self and non-ancestor cells SHALL be dark and inert. Pressing the selected reset SHALL clear it to -1. The selected ancestor SHALL be Blue, other eligible ancestors dim Blue, and row 7 SHALL display live gates.
+The pages SHALL share StateSaver entries TheoryOfTimeRhythm(loop, step) for slots 0-7, TheoryOfTimeRhythmSize(loop), and TheoryOfTimeRhythmReset(loop). The engine's additional slots 8-15 SHALL have no grid or persistence entries. Loading a patch that omits any of these keys SHALL retain the current registered value under normal StateSaver policy. A fresh instance SHALL start from the documented default rhythm.
+
+#### Scenario: Toggle and length use shared state
+- **WHEN** a performer toggles row 3 and then Shift-presses row 5 for loop 2
+- **THEN** the registered gate at slot 3 changes, the size becomes 6, and save/load restores both values
+- **AND** the sounding loop gate waits for loop 2's next modulated tick
+
+#### Scenario: Reset toggle and disabled cells
+- **WHEN** a performer presses a valid ancestor twice
+- **THEN** it is first selected and then cleared to -1
+- **AND** pressing self or a non-ancestor does not change the reset
+
+#### Scenario: Invalid reset is hidden without deletion
+- **WHEN** the stored reset loses ancestry after a topology edit
+- **THEN** its pad becomes dark and disabled while the stored value is retained
+
+#### Scenario: Legacy patch preserves current state
+- **WHEN** a patch has no rhythm keys and the current rhythm differs from its construction default
+- **THEN** loading that patch preserves the current rhythm
+- **AND** loading it into a fresh instance leaves the fresh default unchanged

@@ -29,8 +29,8 @@ During a control frame, `Process` executes the following steps:
    - If the global loop crosses an unmodulated cycle boundary (`CrossedCycleBoundary`), it records a start index in the note writer.
 
 2. **Index Arp and LameJuis (Only on change)**:
-   - If the Theory of Time had any integer position change in the micro block (`m_theoryOfTime.AnyChangeInMicroBlock()`), the sequencer state must be updated.
-   - `SetIndexArpInputs(input)` calculates signed `m_totalIndex` (gate-step index) and clock/read gates.
+   - If the Theory of Time reported position motion, startup, stop, or an accepted topology edit in the micro block (`m_theoryOfTime.AnyChangeInMicroBlock()`), the sequencer state must be updated.
+   - `SetIndexArpInputs(input)` samples signed `m_totalIndex` from `GetGateStepIndex(clockLoop, 0, resetLoop)` when `AnyTick(clockLoop)` is true. Read flags follow ticks of lens dimensions, even when neighboring loop rhythm values are equal. A step spans a complete loop cycle.
    - `m_indexArp.Process(input.m_arpInput)` runs the arpeggiators to find the point in the range.
    - `SetLameJuisInput(input)` feeds the Theory of Time gates and the index arp outputs (as `m_choiceArg` for the chosen strategy) into LameJuis.
    - `m_lameJuis.Process(input.m_lameJuisInput)` evaluates the logic matrix and sheaf to produce pitches and extra timbres.
@@ -50,19 +50,27 @@ During a control frame, `Process` executes the following steps:
 
 5. **Theory of Time (samples 1–8)**:
    - `m_theoryOfTime.Process(j, input.m_theoryOfTimeInput)` is called for `j = 1` through `8` to compute the rest of this micro block (samples 1–7) and the first sample of the next block (slot 8).
-   - When the user transport is stopped and no voice gate keeps the timebase alive, those calls take the timebase's `ProcessNotRunning()` path, so loop sizes, loop positions, gates, loop phasor outputs, and winding stay current while Multi-Phasor Gate and LameJuis are reset.
+   - When the user transport is stopped and no voice gate keeps the timebase alive, those calls take the stopped branch of `TheoryOfTimeBase::Process`, keeping accepted topology and periods current and clearing phases, positions, gates, and crossing flags. Multi-Phasor Gate and LameJuis are reset before outputs are set.
 
 ---
 
-## 3. Trio Octave Switches
+## 3. Voice timing and loop rhythms
+
+For each voice, `SetMultiPhasorGateInputs` takes the LCM of its selected clock loop's cycle ratio and every read (non-co-muted) lens loop's ratio. It starts at one when no clock is selected. Neither the clock contribution nor the read contribution is doubled. For clock ratio 3 and read ratio 4, `m_voiceCycleRatio` is 12.
+
+The captured envelope period is `globalPeriodSamples / voiceCycleRatio`. Multi-Phasor Gate still ends a note gate at half of that voice cycle; this note duration is separate from the full-cycle Theory of Time rhythm step. The change does not alter clock frequency or the gate's 0.5 cutoff. AHD's source/global ratio, supplied from loop 0, is also separate from the voice ratio.
+
+Each of the six input bits now has an editable loop rhythm, defaulting to a full cycle on and a full cycle off. Rhythm edits hold until that loop's next modulated tick and do not create synthetic sequencer changes. The left rhythm and right ancestor-reset pages are available in Wrld.Bldr's TheoryOfTimeRhythm mode; see [Controller Integrations](ui-controller-integrations.md).
+
+## 4. Trio Octave Switches
 
 The Nonagon applies an octave shift per trio via `TrioOctaveSwitches`. The raw pitch from LameJuis is passed through `Octavize(preOctave, i)`, which adds or subtracts octaves based on the UI state before being sent to the DSP.
 
 ---
 
-## 4. Note Writer
+## 5. Note Writer
 
-The `NonagonNoteWriter` acts as a bridge between the core sequencer logic and the outside world (like MIDI out or UI piano rolls). It records `EventData` containing the voice index, pitch, start position, and extra timbres.
+The `NonagonNoteWriter` acts as a bridge between the core sequencer logic and the outside world (like MIDI out or UI piano rolls). It records `EventData` containing the voice index, pitch, wrapped unmodulated global phase position, and extra timbres. Unmodulated global cycle crossings split held notes at the display-loop boundary.
 
 ---
 

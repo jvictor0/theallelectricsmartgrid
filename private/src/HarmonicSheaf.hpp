@@ -162,6 +162,11 @@ struct HarmonicSheaf
                 {
                     return false;
                 }
+
+                if (m_total[i] != other.m_total[i])
+                {
+                    return false;
+                }
             }
 
             return true;

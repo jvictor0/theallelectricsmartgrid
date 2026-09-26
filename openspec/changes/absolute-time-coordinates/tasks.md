@@ -64,3 +64,28 @@ The implementation is consolidated on `codex/absolute-time-coordinates` and reba
 - Current-main startup baseline: both silence assertions fail at peak 0.000688948 while the global phase remains frozen at zero.
 - The unfiltered rebased suite aborts in `PartialMachine: espace etale patch remains finite after load` at `VectorPhaseShaper.hpp:340` (`phi_vps < 1`). The isolated test reproduces the identical assertion on unchanged current main. The rest of the suite is run with only that case excluded.
 - Rebased remainder run: 329/331 tests passed and 1,630,125/1,630,127 assertions passed, with only the aborting patch test excluded. The only failures are the two independently reproduced startup-silence assertions.
+
+## Whole-cycle rhythm follow-up (2026-09-26)
+
+The execution notes above record the original absolute-time migration. The current branch review adds whole-cycle rhythms and supersedes its earlier half-cycle formulas and mathematical artifact plan. The obsolete LaTeX source and PDF are removed at the user's request.
+
+- [x] Synchronize active Markdown documentation and canonical specs with the absolute-time API, whole-cycle lattice/index contract, delayed rhythm edits, and controller persistence.
+- [x] Complete whole-cycle implementation review and regression coverage, including signed 64-bit rhythm lookup, accepted topology remaps, equal-gate ticks, self reset, delayed edits, controller routing, and patch round-trips.
+- [x] Run focused/full relevant verification and OpenSpec validation, and leave the branch available for user builds.
+
+Current execution plan: `docs/superpowers/plans/2026-09-26-whole-tick-rhythm-review.md`.
+
+Whole-cycle verification: 60 focused tests / 10,811 assertions passed; unsigned macOS Release build passed; 36/36 strict OpenSpec validations passed. The complete suite passed 466/468 tests and 2,584,848/2,584,850 assertions. Both pre-start-silence failures reproduce identically on unchanged HEAD `8f745e5` (peak `0.000657712`, frozen phase `0 -> 0`); the tests were not weakened. The new scene round-trip coverage also exposed and verified a fix for StateSaver's exclusive upper bound skipping its final registered state.
+
+## Frontend convergence follow-up (2026-09-26)
+
+- [x] Accept matrix and co-mute edits on each input's modulated tick, independent of repeated Boolean gate values; accept RHS and target changes on relevant row-input ticks.
+- [x] Remove empty rows from all accumulator counts and force their output false until a requested unmute is accepted.
+- [x] Compare section denominators as well as numerators without changing channel read scheduling.
+- [x] Exercise interleaved frontend changes with an independent randomized oracle, including co-mutes, LHS, RHS, routing, topology, rhythms, resets, cache contents, trigger timing, and convergence.
+- [x] Initialize the grid coordinate converter from the lane's initial lens and verify it before any co-mute edits.
+- [x] Update active documentation and canonical/delta LameJuis requirements for the accepted behavior.
+
+Frontend verification passed 2 tests and 87,909,818 assertions after the startup fix. The complete run passed 468/470 tests and 90,494,666/90,494,668 assertions; only the two previously reproduced baseline startup-silence assertions failed. Seven deliberate behavioral mutations were caught by the randomized coverage. See the current execution plan for the validation details and commands.
+
+Final integration validation after rebasing onto `b50ce42`: 490/492 tests and 90,494,914/90,494,916 assertions passed, with only the same two startup-silence failures. The unsigned macOS Release app build passed; main's fractional crossing timing is preserved.

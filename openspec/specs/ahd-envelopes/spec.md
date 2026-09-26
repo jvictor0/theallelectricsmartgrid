@@ -1,21 +1,30 @@
 # AHD Envelopes Specification
 
 ## Purpose
-AHD (Attack-Hold-Decay) envelopes (`AHD` in `private/src/AHD.hpp`) shape voice amplitude and modulation in the DSP engine. They are phase-driven: stage progression is keyed to the phase of a Theory of Time loop from the phasor-timebase rather than wall-clock time, so envelopes stretch, compress, or reverse with clock modulation while attack and decay are configured in absolute time at the unmodulated clock speed. Envelopes are triggered and released by the `AHDControl` structure published by the multi-phasor-gate, and each voice in voice-architecture hosts two instances: the main amp envelope and a modulation envelope.
+AHD (Attack-Hold-Decay) envelopes (`AHD` in `private/src/AHD.hpp`) shape voice amplitude and modulation in the DSP engine. They are phase-driven: stage progression uses absolute modulated global phase with a trigger-captured source/global ratio and envelope period from the phasor-timebase rather than wall-clock time, so envelopes stretch, compress, or reverse with clock modulation while attack and decay use 48 kHz time-parameter mappings in phase-derived sample units. Envelopes are triggered and released by the `AHDControl` structure published by the multi-phasor-gate, and each voice in voice-architecture hosts two instances: the main amp envelope and a modulation envelope.
 
 ## Requirements
 
 ### Requirement: Phase-Driven Stage Progression
-The system SHALL derive the envelope's elapsed-sample position from Theory of Time phase, not from counting processed samples. On trigger, the envelope's `CircleDistanceTracker` is reset to the current interpolated phasor of the configured loop; while Running, elapsed samples are computed as `m_circleTracker.Distance() * m_envelopeTimeSamples`, where `m_envelopeTimeSamples` is the voice's envelope period supplied through `AHDControl` by the multi-phasor-gate. The envelope therefore tracks clock modulation exactly.
+At trigger, the envelope SHALL capture its selected source phase's cycle ratio to global phase, the absolute modulated global phase origin, and its envelope period in samples. The trigger producer SHALL supply the ratio; the active envelope SHALL retain no source loop index, winding tracker, or topology-change history. During Running it SHALL compute elapsed samples as abs(currentModulatedGlobalPhase - capturedGlobalPhase) * capturedRatio * capturedEnvelopePeriodSamples. Only a new trigger SHALL replace those captured values. Global phase modulation and reversal SHALL continue to affect progress.
 
-#### Scenario: Envelope stretches with a slowed clock
-- **WHEN** an envelope is Running and phase modulation halves the rate at which the tracked loop's phasor advances
-- **THEN** the computed elapsed samples advance at half speed and every stage (attack, hold, decay) takes twice as long in wall-clock time
-- **AND** the envelope shape as a function of phase is unchanged
+#### Scenario: Topology edit does not change active timing
+- **WHEN** an active envelope captured ratio 4 and the source topology later changes its ratio to 6
+- **THEN** the active envelope continues using ratio 4 and its captured envelope period
+- **AND** its progress and output do not jump solely because of the edit
 
-#### Scenario: Trigger resets the phase origin
-- **WHEN** `AHDControl.m_trig` is true on a control frame
-- **THEN** the circle tracker is reset to the loop's current phasor so elapsed samples restart from 0 at the trigger point
+#### Scenario: Retrigger captures new timing
+- **WHEN** the same voice triggers again after the source ratio becomes 6
+- **THEN** it captures ratio 6, the new global origin, and the new period
+- **AND** its attack starts from the current output level
+
+#### Scenario: Reversal retraces phase progress
+- **WHEN** a running envelope's global phase moves back toward its captured origin
+- **THEN** its phase-derived elapsed position decreases without an accumulated absolute-distance counter
+
+#### Scenario: Slower phase stretches the envelope
+- **WHEN** global phase modulation halves phase advance with captured timing unchanged
+- **THEN** elapsed position advances at half speed
 
 ### Requirement: Trigger and Release via AHDControl
 The system SHALL start an envelope when `AHDControl.m_trig` is true, entering the Running state, and SHALL move a non-Idle envelope to the Release state when `AHDControl.m_release` is true without a trigger. Both flags are produced by the multi-phasor-gate; the envelope consumes no gate signal. A `m_changed` flag SHALL be set on any state transition (used by scope recording to mark envelope start and end).
@@ -30,23 +39,23 @@ The system SHALL start an envelope when `AHDControl.m_trig` is true, entering th
 - **AND** `m_release` is ignored while the envelope is already Idle
 
 ### Requirement: Attack Stage With Constant-Time Configuration
-The system SHALL ramp the raw output from `m_startOutput` toward 1.0 during attack as `attackPos = samples * attackIncrement + m_startOutput`. The attack increment is derived from a user time setting in the range 1 ms to 2.5 s (`x_attackTimeMin`/`x_attackTimeMax`) as `1 / (48000 * attackTime)` via an exponential parameter, using the fixed 48 kHz constant — i.e. the current unmodulated clock speed — so the configured time holds at the base tempo and stretches with clock modulation. On retrigger, `m_startOutput` SHALL be set to the current raw output so the attack continues from the present level instead of snapping to zero.
+The system SHALL ramp the raw output from `m_startOutput` toward 1.0 during attack as `attackPos = samples * attackIncrement + m_startOutput`. The attack increment is derived from a user time setting in the range 1 ms to 2.5 s (`x_attackTimeMin`/`x_attackTimeMax`) as `1 / (48000 * attackTime)` via an exponential parameter, using the fixed 48 kHz constant in phase-derived sample units. Wall-clock attack duration follows global phase motion and the captured source ratio and envelope period; those two captured factors need not cancel in the production voice path. On retrigger, `m_startOutput` SHALL be set to the current raw output so the attack continues from the present level instead of snapping to zero.
 
 #### Scenario: Attack reaches full scale at the configured time
-- **WHEN** an Idle envelope with a 500 ms attack is triggered and the clock runs unmodulated
-- **THEN** the raw output rises linearly in phase-derived samples and reaches 1.0 after 24000 samples (500 ms at 48 kHz)
+- **WHEN** an Idle envelope with a 500 ms attack is triggered and its phase-derived elapsed position reaches 24000 samples
+- **THEN** the raw output rises linearly in phase-derived samples and reaches 1.0 at 24000 phase-derived samples
 
 #### Scenario: Retrigger from a non-zero level
 - **WHEN** an envelope whose raw output is 0.6 receives a new trigger
 - **THEN** `m_startOutput` becomes 0.6 and the attack ramps from 0.6 to 1.0, taking only the remaining 40% of the configured attack time
 
 ### Requirement: Hold Stage in Loop Divisions
-The system SHALL hold the raw output at 1.0 after the attack completes for a duration expressed in envelope-period divisions, not absolute time: the hold parameter maps through a zeroed exponential curve to 0-16 loops (`m_hold.SetMax(16.0)`, centered at 1/32), and `holdSamples = holdLoops * m_envelopeTimeSamples`. The hold therefore scales with the voice's rhythmic step length from the multi-phasor-gate. Decay begins at `attackEndSamples + holdSamples`, where `attackEndSamples = (1 - m_startOutput) / attackIncrement`.
+The system SHALL hold the raw output at 1.0 after the attack completes for a duration expressed in envelope-period divisions, not absolute time: the hold parameter maps through a zeroed exponential curve to 0-16 loops (`m_hold.SetMax(16.0)`, centered at 1/32), and `holdSamples = holdLoops * capturedEnvelopePeriodSamples`. The hold therefore scales with the captured voice cycle period from the multi-phasor-gate, whose ratio uses the undoubled LCM of selected clock and read loop ratios. Decay begins at `attackEndSamples + holdSamples`, where `attackEndSamples = (1 - m_startOutput) / attackIncrement`.
 
 #### Scenario: Hold tracks the envelope period
-- **WHEN** the hold parameter maps to 0.5 loops and the voice's `m_envelopeTimeSamples` is 60000
+- **WHEN** the hold parameter maps to 0.5 loops and the voice's `capturedEnvelopePeriodSamples` is 60000
 - **THEN** the raw output stays at 1.0 for 30000 phase-derived samples after the attack ends
-- **AND** doubling the voice's envelope period (halving its phasor denominator) doubles the hold length without changing the hold setting
+- **AND** a subsequent trigger capturing twice the envelope period doubles hold length at the same hold setting; a topology edit alone does not change the active note's captured period
 
 ### Requirement: Decay Stage and Completion
 The system SHALL ramp the raw output down from 1.0 after the hold ends as `decayPos = 1 - (samples - holdEndSamples) * decayIncrement`, with the decay increment derived from a time setting in the range 10 ms to 10 s (`x_decayTimeMin`/`x_decayTimeMax`) at the unmodulated 48 kHz rate. When the decay position reaches 0, the raw output SHALL clamp to 0 and the state SHALL return to Idle with `m_changed` set.

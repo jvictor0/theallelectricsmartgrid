@@ -1,6 +1,6 @@
 ## Context
 
-The motivating behavior is fractional-speed PhasorPlayHead playback across ToT loop boundaries. Time is currently reduced to a circle at the source and each child, then reconstructed by CircleTracker, per-loop winding, monodromy recursion, and downstream distance trackers. The accepted design makes ToT coordinates a pure forward function of absolute input phase and accepted topology. Boundary events still depend on consecutive samples; parameter acceptance, LFO filters, and triggered envelopes retain their natural state.
+The motivating behavior is fractional-speed PhasorPlayHead playback across ToT loop boundaries. Before this change, time was reduced to a circle at the source and each child, then reconstructed by CircleTracker, per-loop winding, monodromy recursion, and downstream distance trackers. The accepted design makes ToT coordinates a pure forward function of absolute input phase and accepted topology. Boundary events still depend on consecutive samples; parameter acceptance, LFO filters, and triggered envelopes retain their natural state.
 
 The existing standalone test target is `smartgrid_tests`, configured from `private/test/CMakeLists.txt`. The current workspace is an already isolated Codex worktree. Implementation was authorized after the core-header review checkpoint.
 
@@ -8,7 +8,7 @@ The existing standalone test target is `smartgrid_tests`, configured from `priva
 
 **Goals:** absolute coordinates; fractional and reverse sample playback; direct signed gate-step queries; aligned reparenting; AHD timing captured at trigger; consistent terminology and one time query surface; tests at actual accepted topology transitions.
 
-**Non-Goals:** arbitrary-precision or fixed-point time; smoothing all topology changes; changing independent-versus-modulated acceptance timing; changing PolyXFader's partial-lobe definition, mixing controls, topology weights, or slew; preserving historical child cycle counts after topology edits; changing persistence keys or product clock modes.
+**Non-Goals:** arbitrary-precision or fixed-point time; smoothing all topology changes; changing independent-versus-modulated acceptance timing; changing PolyXFader's partial-lobe definition, mixing controls, topology weights, or slew; preserving historical child cycle counts after topology edits; changing existing persistence keys, StateSaver missing-key policy, or product clock modes.
 
 ## Decisions
 
@@ -23,7 +23,7 @@ The existing standalone test target is `smartgrid_tests`, configured from `priva
 | Period ticks | Positive number of lattice ticks in a loop cycle |
 | Parent multiplier | Integer child cycles per parent cycle |
 | Cycle ratio | Integer loop cycles per global cycle |
-| Gate-step index | Signed half-cycle coordinate, optionally relative to an ancestor reset |
+| Gate-step index | Signed whole-cycle coordinate, optionally relative to an ancestor reset |
 | Cycle boundary | A change in the floor-divided cycle coordinate between samples |
 | Wrapped phase | Local output value `phase - floor(phase)`, never canonical ToT state |
 
@@ -34,17 +34,19 @@ double GetPhase(size_t loopIndex, double samplePosition, PhaseDomain domain) con
 int64_t GetPosition(size_t sampleIndex, PhaseDomain domain) const;
 int64_t GetPeriodTicks(size_t loopIndex, size_t sampleIndex) const;
 int64_t GetCycleRatio(size_t loopIndex, size_t sampleIndex) const;
-bool CrossedCycleBoundary(size_t loopIndex, size_t sampleIndex, PhaseDomain domain) const;
-int64_t GetGateStepIndex(size_t loopIndex, size_t sampleIndex, int resetLoopIndex = -1) const;
+SampleTop CrossedCycleBoundary(size_t loopIndex, size_t sampleIndex, PhaseDomain domain) const;
+int64_t GetGateStepIndex(size_t loopIndex, size_t sampleIndex, int resetLoopIndex) const;
 ```
 
-Extract the clock core (`TimeLoop`, `TheoryOfTimeBase`, and `PhaseDomain`) into `private/src/TheoryOfTimeBase.hpp`. Keep the frequency/LFO/MIDI orchestration in `TheoryOfTime.hpp`. PolyXFader includes the core directly, removing both `GetTheoryOfTimePhasor` and `GetTheoryOfTimeTop` forward-declaration bridges. Remove master-only convenience overloads, direct/indirect synonyms, unwound accessors, and internal/external multiplier variants. Derive the factor of two explicitly when a caller needs gate steps. Name state consistently (`m_unmodulatedPhase`, `m_modulatedPhase`, `m_periodTicks`, `m_cycleRatio`, `m_unmodulatedCycleCrossed / m_modulatedCycleCrossed`, `m_gateStepChanged`, `m_globalPeriodSamples`). Keep ordinary const/non-const access where genuinely necessary; this is not a repository-wide renaming of unrelated oscillators or historical artifacts.
+Crossing queries preserve main's `SampleTop` event and fractional sample offset; `AnyTick` consumes the event as a Boolean without discarding the timing data used by scope consumers.
+
+Extract the clock core (`TimeLoop`, `TheoryOfTimeBase`, and `PhaseDomain`) into `private/src/TheoryOfTimeBase.hpp`. Keep the frequency/LFO/MIDI orchestration in `TheoryOfTime.hpp`. PolyXFader includes the core directly, removing both `GetTheoryOfTimePhasor` and `GetTheoryOfTimeTop` forward-declaration bridges. Remove master-only convenience overloads, direct/indirect synonyms, unwound accessors, and internal/external multiplier variants. Use one full loop cycle per gate step, without a factor of two. Keep the separate MultiPhasorGate note cutoff at 0.5 of a voice cycle. Name state consistently (`m_unmodulatedPhase`, `m_modulatedPhase`, `m_periodTicks`, `m_cycleRatio`, `m_unmodulatedCycleCrossed / m_modulatedCycleCrossed`, `m_globalPeriodSamples`). Keep ordinary const/non-const access where genuinely necessary; this is not a repository-wide renaming of unrelated oscillators or historical artifacts.
 
 ### 2. Pure coordinate evaluation
 
 Advance unmodulated input phase without wrapping; modulated global phase is unmodulated phase plus the existing LFO offset, also without wrapping. Store the two global phase arrays, accepted topology snapshots, and derived absolute integer positions. Loop phases need no separate winding or fractional storage: `loopPhase = globalPhase * cycleRatio`.
 
-Retain the LCM lattice and its doubling for exact shared gate boundaries. For global period ticks `Lg`, evaluate `P = floor(globalPhase * Lg)` once per domain/sample. All loops observe that same absolute position through their own period `L`. Their gate-step index is `FloorDiv(P, L / 2)` and their gate is `FloorMod(P, L) < L / 2`. Use Euclidean helpers with positive divisors; never C++ truncating division for signed coordinates. Widen lattice multiplication intermediates and arp index propagation to `int64_t`, using ordinary multiplication and `std::lcm`; input assertions enforce valid parent ordering and positive multipliers.
+Use the LCM of the global cycle ratios as the lattice period, without doubling; loop periods of one tick are valid. For global period ticks `Lg`, evaluate `P = floor(globalPhase * Lg)` once per domain/sample. All loops observe that same absolute position through their own period `L`. Their gate-step index is `FloorDiv(P, L)`. At each modulated tick, evaluate the configured rhythm at the reset-relative index modulo its size, and hold the resulting gate between ticks. Use Euclidean helpers with positive divisors; never C++ truncating division for signed coordinates. Widen lattice multiplication intermediates and arp index propagation to `int64_t`, using ordinary multiplication and `std::lcm`; input assertions enforce valid parent ordering and positive multipliers.
 
 Changing the lattice changes tick units. Derive both previous and current comparison positions from their absolute global phases in the same lattice; never compare differently scaled stored ticks or rescale accumulated child history. Capture old-topology boundary events before accepting edits. After acceptance, recompute coordinates under the new topology without interpreting the coordinate remap as elapsed travel.
 
@@ -60,14 +62,14 @@ The interpretation of the user's simultaneous-top rule is old-parent AND request
 
 ### 4. Gate-step indices replace monodromy reconstruction
 
-Without reset, return `FloorDiv(P, Lclock / 2)`. For the selected clock itself or an ancestor reset:
+Without reset, return `FloorDiv(P, Lclock)`. For the selected clock itself or an ancestor reset:
 
 ```text
-stepsPerReset = Lreset / (Lclock / 2)
-index = FloorMod(FloorDiv(P, Lclock / 2), stepsPerReset)
+stepsPerReset = Lreset / Lclock
+index = FloorMod(FloorDiv(P, Lclock), stepsPerReset)
 ```
 
-A non-ancestor selection retains existing behavior: ignore it and return the absolute index. An ancestry walk is allowed for that validation; no recursive numerical reconstruction remains. Full cycle coordinates, where needed, are simply `FloorDiv(P, Lclock)`. An absolute index is a location, not a lifetime count of events; reverse motion decreases it.
+A non-ancestor selection retains existing behavior: ignore it and return the absolute index. An ancestry walk is allowed for that validation; no recursive numerical reconstruction remains. A self reset returns zero because `Lreset / Lclock` is one. Full-cycle coordinates are the gate-step coordinates. An absolute index is a location, not a lifetime count of events; reverse motion decreases it.
 
 IndexArp uses floor division/modulo to split a signed index into motive and rhythm coordinates, keeps absolute/motive intermediates in 64-bit or double until the bounded output mapping, and never uses a negative rhythm array subscript. Retain inversion, retro, folding, and zone mapping semantics.
 
@@ -86,11 +88,27 @@ elapsedSamples = elapsedCycles * capturedEnvelopePeriodSamples
 
 No loop index, topology callback, winding tracker, or accumulated progress is retained by AHD. The trigger producer supplies the ratio. Preserve existing source selection during migration (production AHD inputs currently default to loop 0); do not silently substitute the voice gate denominator, which is a different quantity. Tests can supply a ratio from any selected loop. Capture the envelope period too, so later topology-derived denominator changes cannot rescale elapsed progress or hold length. Existing attack/decay/hold knob behavior remains live, with hold evaluated against that captured period. Retriggers capture fresh timing and start from current amplitude; release retains its existing per-sample decay behavior. Global phase modulation and reversal continue to affect active envelopes.
 
-MultiPhasorGate already captures a voice denominator at trigger; retain that policy using absolute global distance and consistent captured-period publication. Distinguish voice gate ratio (including half-cycle scaling) from AHD source cycle ratio. Remove the now-redundant AHDControl/Input elapsed-sample relay and its filter only after checking all consumers (including DeepVocoder); global phase is the sole progress source for AHD.
+MultiPhasorGate already captures a voice denominator at trigger; retain that policy using absolute global distance and consistent captured-period publication. Compute voice cycle ratio as the undoubled LCM of the selected clock and all read loop ratios. Neither contribution gets a factor of two. Distinguish that voice ratio from AHD source cycle ratio, and retain the separate half-voice-cycle note-gate cutoff. Remove the now-redundant AHDControl/Input elapsed-sample relay and its filter only after checking all consumers (including DeepVocoder); global phase is the sole progress source for AHD.
 
 RecordingBuffer and ExternalClockSync read unmodulated global phase directly, without combining modulated winding with an unmodulated fraction. MIDI ticks derive from division crossings of unmodulated absolute phase. Note scopes and normalized displays receive wrapped values at their final adapters; recording durations remain absolute differences. Use explicit sample indices throughout, including replacing direct reads of a rolling global tracker in TapeHead/QuadDelay.
 
-### 6. Alternatives considered
+### 6. Whole-cycle rhythm and controller contract
+
+Each loop has 16 engine gate slots, an active size, and a reset selection. Defaults are size 2, slot zero true, all others false, reset -1. A tick means a modulated full-cycle crossing, independent of whether the gate value changes or self reset keeps the index at zero. `AnyTick` aggregates these events for Nonagon's selected clock and read dimensions. Gate/size/reset edits are consumed only at the edited loop's next modulated tick, including when faster loops tick first; edits alone do not raise any-change.
+
+Per-sample order is positions, crossings, accepted topology remap preserving flags, then gate evaluation. Startup forces all crossing flags and evaluates every rhythm; stop forces gates false. Invalid ancestry never deletes a stored reset: core queries ignore it and UI hides it until ancestry returns.
+
+Wrld.Bldr aux pad (1,1) selects TheoryOfTimeRhythm mode, pairing rhythm on the left with ancestor resets on the right. Press toggles a gate; Shift-press sets length to row+1. Only strict ancestors are selectable; repeat press clears reset. StateSaver persists slots 0-7 through TheoryOfTimeRhythm and each loop's TheoryOfTimeRhythmSize and TheoryOfTimeRhythmReset. The engine capacity is 16, while current UI size is 1-8 and slots 8-15 have no persistence entries. Adding this mode shifts later runtime ordinals but requires no patch migration.
+
+### 7. LameJuis acceptance and section identity
+
+Pass each input gate and its modulated tick separately into LameJuis. Co-mutes and individual matrix elements accept only on their own input tick, including equal-gate steps. A row accepts RHS and target edits when any ticked input is non-muted in the accepted or requested matrix. Accumulator intervals retain process-time acceptance.
+
+The row owns active-input counts, masks, RHS, and target; sections own per-accumulator counts of active rows. When the last mute is accepted, make the row false and exclude it from every accumulator in the same frame's sheaf rebuild. An empty row remains inactive until a requested unmute's input ticks; that tick also accepts current RHS and target requests. Initialize each lane's grid converter from the initial co-mute lens rather than waiting for the first co-mute edit.
+
+Section identity includes all high counts and total counts, with evaluated pitch compared by the selected-result wrapper. Denominator-only changes may request a same-pitch note on an existing read or arp trigger. They do not create new read times. Nonagon captures the new section's timbre coefficients when a note actually starts.
+
+### 8. Alternatives considered
 
 - Keeping wrapped state with wider winding counters preserves the unwanted playback restart and reconstruction complexity; rejected.
 - Reanchoring each active AHD on topology edits would require following edits; rejected in favor of the user's trigger-captured ratio.
@@ -107,7 +125,7 @@ RecordingBuffer and ExternalClockSync read unmodulated global phase directly, wi
 
 ## Migration Plan
 
-Implement the arithmetic and core contracts, migrate time consumers and index propagation, fix acceptance/interpolation, replace AHD tracking, and verify focused plus full tests. Keep the repository buildable at each completed task; temporary compatibility shims may exist within a task but none remain in the final change. Preserve persisted key strings. Update current docs and delta specs, leaving archived history untouched. Reverting the implementation commits restores prior behavior without patch migration.
+Implement the arithmetic and core contracts, migrate time consumers and index propagation, fix acceptance/interpolation, replace AHD tracking, and verify focused plus full tests. Keep the repository buildable at each completed task; temporary compatibility shims may exist within a task but none remain in the final change. Preserve persisted key strings. Update current docs and delta specs, leaving archived history untouched. New rhythm fields follow ordinary StateSaver loading: missing keys preserve current values, with constructor defaults only on a fresh instance. The controller mode ordinals are runtime-only. Remove the obsolete LaTeX source and PDF; the active time description is Markdown.
 
 ## Open Questions
 

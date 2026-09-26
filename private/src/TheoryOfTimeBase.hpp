@@ -11,6 +11,7 @@
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
 #include "SampleTop.hpp"
+#include "TheoryOfTimeRhythm.hpp"
 
 enum class PhaseDomain
 {
@@ -28,9 +29,9 @@ struct TimeLoop
 
     Input m_input;
     int64_t m_cycleRatio = 1;
-    int64_t m_periodTicks = 2;
+    int64_t m_periodTicks = 1;
+
     bool m_gate = false;
-    bool m_gateStepChanged = false;
     SampleTop m_unmodulatedCycleCrossed;
     SampleTop m_modulatedCycleCrossed;
 };
@@ -67,6 +68,7 @@ struct TheoryOfTimeBase
         double m_unmodulatedPhase = 0.0;
         double m_phaseOffset = 0.0;
         std::array<TimeLoop::Input, x_numLoops> m_input;
+        std::array<TheoryOfTimeRhythm, x_numLoops> m_rhythm;
         bool m_running = false;
 
         Input()
@@ -141,23 +143,50 @@ struct TheoryOfTimeBase
         return domain == PhaseDomain::Unmodulated ? loop.m_unmodulatedCycleCrossed : loop.m_modulatedCycleCrossed;
     }
 
-    int64_t GetGateStepIndex(size_t loopIndex, size_t sampleIndex, int resetLoopIndex = -1) const
+    static int64_t GetGateStepIndex(const Sample& sample, size_t loopIndex, int resetLoopIndex)
     {
+        assert(loopIndex < x_numLoops);
         assert(resetLoopIndex >= -1 && resetLoopIndex < static_cast<int>(x_numLoops));
-        int64_t stepTicks = GetPeriodTicks(loopIndex, sampleIndex) / 2;
-        int64_t index = PhaseUtils::FloorDiv(GetPosition(sampleIndex, PhaseDomain::Modulated), stepTicks);
+        int64_t stepTicks = sample.m_loops[loopIndex].m_periodTicks;
+        int64_t index = PhaseUtils::FloorDiv(sample.m_modulatedPosition, stepTicks);
         int ancestor = static_cast<int>(loopIndex);
         while (ancestor < static_cast<int>(x_numLoops))
         {
             if (ancestor == resetLoopIndex)
             {
-                return PhaseUtils::FloorMod(index, GetPeriodTicks(ancestor, sampleIndex) / stepTicks);
+                return PhaseUtils::FloorMod(index, sample.m_loops[ancestor].m_periodTicks / stepTicks);
+            }
+
+            ancestor = sample.m_loops[ancestor].m_input.m_parentIndex;
+        }
+
+        return index;
+    }
+
+    int64_t GetGateStepIndex(size_t loopIndex, size_t sampleIndex, int resetLoopIndex) const
+    {
+        assert(sampleIndex < x_microBlockBufferSize);
+        return GetGateStepIndex(m_samples[sampleIndex], loopIndex, resetLoopIndex);
+    }
+
+    int64_t GetGateStepIndex(size_t loopIndex, size_t sampleIndex) const
+    {
+        return GetGateStepIndex(loopIndex, sampleIndex, -1);
+    }
+
+    bool IsAncestorOf(int ancestor, size_t sampleIndex, int loopIndex) const
+    {
+        while (ancestor < static_cast<int>(x_numLoops))
+        {
+            if (ancestor == loopIndex)
+            {
+                return true;
             }
 
             ancestor = GetLoop(ancestor, sampleIndex).m_input.m_parentIndex;
         }
 
-        return index;
+        return false;
     }
 
     bool AnyChangeInMicroBlock() const
@@ -173,11 +202,11 @@ struct TheoryOfTimeBase
         return false;
     }
 
-    bool AnyGateStepChanged(size_t loopIndex) const
+    bool AnyTick(size_t loopIndex) const
     {
         for (size_t j = 0; j < x_microBlockSize; ++j)
         {
-            if (GetLoop(loopIndex, j).m_gateStepChanged)
+            if (GetLoop(loopIndex, j).m_modulatedCycleCrossed)
             {
                 return true;
             }
@@ -199,7 +228,7 @@ struct TheoryOfTimeBase
             commonRatio = std::lcm(commonRatio, loop.m_cycleRatio);
         }
 
-        int64_t globalPeriod = 2 * commonRatio;
+        int64_t globalPeriod = commonRatio;
         for (TimeLoop& loop : sample.m_loops)
         {
             loop.m_periodTicks = globalPeriod / loop.m_cycleRatio;
@@ -243,14 +272,32 @@ struct TheoryOfTimeBase
         return changed;
     }
 
-    static void SetPositionsAndGates(Sample& sample)
+    static void SetPositions(Sample& sample)
     {
         int64_t globalPeriod = sample.m_loops[x_globalLoop].m_periodTicks;
         sample.m_unmodulatedPosition = Position(sample.m_unmodulatedPhase, globalPeriod);
         sample.m_modulatedPosition = Position(sample.m_modulatedPhase, globalPeriod);
-        for (TimeLoop& loop : sample.m_loops)
+    }
+
+    static void SetGates(Sample& sample, const Input& input)
+    {
+        if (sample.m_running)
         {
-            loop.m_gate = sample.m_running && PhaseUtils::FloorMod(sample.m_modulatedPosition, loop.m_periodTicks) < loop.m_periodTicks / 2;
+            for (size_t i = 0; i < x_numLoops; ++i)
+            {
+                if (sample.m_loops[i].m_modulatedCycleCrossed)
+                {
+                    int64_t index = GetGateStepIndex(sample, i, input.m_rhythm[i].m_resetLoopIndex);
+                    sample.m_loops[i].m_gate = input.m_rhythm[i].Gate(index);
+                }
+            }
+        }
+        else
+        {
+            for (size_t i = 0; i < x_numLoops; ++i)
+            {
+                sample.m_loops[i].m_gate = false;
+            }
         }
     }
 
@@ -262,8 +309,6 @@ struct TheoryOfTimeBase
         sample.m_anyChange = started || sample.m_modulatedPosition != previousModulated;
         for (TimeLoop& loop : sample.m_loops)
         {
-            loop.m_gateStepChanged = started ||
-                PhaseUtils::FloorDiv(sample.m_modulatedPosition, loop.m_periodTicks / 2) != PhaseUtils::FloorDiv(previousModulated, loop.m_periodTicks / 2);
             loop.m_modulatedCycleCrossed = started ||
                 PhaseUtils::FloorDiv(sample.m_modulatedPosition, loop.m_periodTicks) != PhaseUtils::FloorDiv(previousModulated, loop.m_periodTicks);
             loop.m_unmodulatedCycleCrossed = started ||
@@ -287,10 +332,10 @@ struct TheoryOfTimeBase
             bool changed = AcceptTopology(sample, input, false);
             sample.m_unmodulatedPhase = 0.0;
             sample.m_modulatedPhase = 0.0;
-            SetPositionsAndGates(sample);
+            SetPositions(sample);
+            SetGates(sample, input);
             for (TimeLoop& loop : sample.m_loops)
             {
-                loop.m_gateStepChanged = false;
                 loop.m_modulatedCycleCrossed = false;
                 loop.m_unmodulatedCycleCrossed = false;
             }
@@ -319,7 +364,7 @@ struct TheoryOfTimeBase
 
         sample.m_unmodulatedPhase = input.m_unmodulatedPhase;
         sample.m_modulatedPhase = input.m_unmodulatedPhase + input.m_phaseOffset;
-        SetPositionsAndGates(sample);
+        SetPositions(sample);
         SetCrossings(sample, previous, started);
 
         if (!started && AcceptTopology(sample, input, true))
@@ -327,8 +372,10 @@ struct TheoryOfTimeBase
             // Remap coordinates without turning a topology edit into elapsed travel.
             // Keep the crossing events that made this edit eligible.
             //
-            SetPositionsAndGates(sample);
+            SetPositions(sample);
             sample.m_anyChange = true;
         }
+
+        SetGates(sample, input);
     }
 };

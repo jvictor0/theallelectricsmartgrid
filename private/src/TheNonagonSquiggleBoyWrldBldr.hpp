@@ -10,11 +10,12 @@ struct TheNonagonSquiggleBoyWrldBldr
     enum class GridsMode : uint8_t
     {
         ComuteAndTheory = 0,
-        Matrix = 1,
-        Intervals = 2,
-        SubSequencer = 3,
-        Config = 4,
-        NumGrids = 5,
+        TheoryOfTimeRhythm = 1,
+        Matrix = 2,
+        Intervals = 3,
+        SubSequencer = 4,
+        Config = 5,
+        NumGrids = 6,
     };
 
     enum class DisplayMode : uint8_t
@@ -29,6 +30,8 @@ struct TheNonagonSquiggleBoyWrldBldr
         {
             case GridsMode::ComuteAndTheory:
                 return m_internal->m_nonagon.m_lameJuisCoMuteGrid;
+            case GridsMode::TheoryOfTimeRhythm:
+                return m_internal->m_nonagon.m_theoryOfTimeRhythmGrid;
             case GridsMode::Matrix:
                 return m_internal->m_nonagon.m_lameJuisMatrixGrid;
             case GridsMode::Intervals:
@@ -60,6 +63,8 @@ struct TheNonagonSquiggleBoyWrldBldr
         {
             case GridsMode::ComuteAndTheory:
                 return m_internal->m_nonagon.m_theoryOfTimeTopologyGrid;
+            case GridsMode::TheoryOfTimeRhythm:
+                return m_internal->m_nonagon.m_theoryOfTimeRhythmResetGrid;
             case GridsMode::Matrix:
                 return m_internal->m_nonagon.m_lameJuisRHSGrid;
             case GridsMode::Intervals:
