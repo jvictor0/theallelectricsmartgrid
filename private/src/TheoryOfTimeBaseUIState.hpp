@@ -34,13 +34,20 @@ struct TheoryOfTimeBaseUIState
         }
     };
 
+    // Live absolute modulated position in global cycles and lattice ticks.
+    // Advancing these indicators does not invalidate snapshots.
+    //
+    std::atomic<double> m_globalPhase;
+    std::atomic<int64_t> m_globalTickPosition;
     std::atomic<int64_t> m_periodTicks[TheoryOfTimeBase::x_numLoops];
     TheoryOfTimeRhythm::UIState m_rhythm[TheoryOfTimeBase::x_numLoops];
 
     int64_t m_snapshotPeriodTicks[TheoryOfTimeBase::x_numLoops];
 
     TheoryOfTimeBaseUIState()
-        : m_periodTicks{}
+        : m_globalPhase(0.0)
+        , m_globalTickPosition(0)
+        , m_periodTicks{}
         , m_rhythm{}
         , m_snapshotPeriodTicks{}
     {
@@ -126,4 +133,7 @@ inline void TheoryOfTimeBase::PopulateUIState(TheoryOfTimeBaseUIState& uiState, 
         uiState.m_periodTicks[i].store(GetPeriodTicks(i, 0));
         input.m_rhythm[i].PopulateUIState(uiState.m_rhythm[i]);
     }
+
+    uiState.m_globalPhase.store(GetPhase(x_globalLoop, 0, PhaseDomain::Modulated));
+    uiState.m_globalTickPosition.store(GetGlobalTickPosition(0, PhaseDomain::Modulated));
 }

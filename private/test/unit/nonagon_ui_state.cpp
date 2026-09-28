@@ -81,7 +81,7 @@ DOCTEST_TEST_CASE("SequencerUI: Nonagon publication reproduces all nine raw harm
     }
 }
 
-DOCTEST_TEST_CASE("SequencerUI: sequence growth is bounded and harmonic edits invalidate every voice")
+DOCTEST_TEST_CASE("SequencerUI: short windows fill in one call and harmonic edits invalidate every voice")
 {
     NonagonSnapshotRig rig;
     rig.m_ui.PreProcess(0);
@@ -89,8 +89,6 @@ DOCTEST_TEST_CASE("SequencerUI: sequence growth is bounded and harmonic edits in
     {
         auto& sequence = rig.m_ui.m_sequences[voice];
         DOCTEST_REQUIRE(sequence.m_points.size() == 1);
-        rig.m_ui.Process(0, voice);
-        DOCTEST_CHECK(sequence.m_points.size() == 65);
         rig.m_ui.Process(0, voice);
         DOCTEST_REQUIRE(sequence.m_points.size() == 96);
         DOCTEST_CHECK(sequence.StartPosition() == -32);
@@ -112,6 +110,41 @@ DOCTEST_TEST_CASE("SequencerUI: sequence growth is bounded and harmonic edits in
     {
         DOCTEST_REQUIRE(rig.m_ui.m_sequences[voice].m_points.size() == 1);
         DOCTEST_CHECK(rig.m_ui.m_sequences[voice].GetPoint(0).m_pitch.m_value == doctest::Approx(0.0f));
+    }
+}
+
+DOCTEST_TEST_CASE("SequencerUI: centered large windows fill in four bounded calls")
+{
+    for (int64_t position : {-1, 1700})
+    {
+        NonagonSnapshotRig rig;
+        for (auto& period : rig.m_ui.m_theoryOfTimeUIState.m_periodTicks)
+        {
+            period.store(period.load() * 64);
+        }
+
+        rig.m_ui.PreProcess(position);
+        DOCTEST_REQUIRE(rig.m_ui.m_theoryOfTimeUIState.GetGlobalPeriodTicks() == 2048);
+        auto& sequence = rig.m_ui.m_sequences[0];
+        rig.m_ui.Process(position, 0);
+        DOCTEST_CHECK(sequence.StartPosition() == position - 128);
+        DOCTEST_CHECK(sequence.EndPosition() == position + 129);
+        for (size_t call = 1; call < 4; ++call)
+        {
+            rig.m_ui.Process(position, 0);
+        }
+
+        DOCTEST_REQUIRE(sequence.m_points.size() == 1024);
+        DOCTEST_CHECK(sequence.StartPosition() == position - 512);
+        DOCTEST_CHECK(sequence.EndPosition() == position + 512);
+        for (int64_t tick = position - 512; tick < position + 512; ++tick)
+        {
+            DOCTEST_REQUIRE(sequence.GetPoint(tick).m_globalTickPosition == tick);
+        }
+
+        rig.m_ui.Process(position, 0);
+        DOCTEST_CHECK(sequence.m_points.size() == 1024);
+        DOCTEST_CHECK(rig.m_ui.m_sequences[1].m_points.size() == 1);
     }
 }
 

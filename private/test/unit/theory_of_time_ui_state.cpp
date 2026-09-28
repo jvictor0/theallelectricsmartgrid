@@ -108,6 +108,40 @@ DOCTEST_TEST_CASE("SequencerUI: time points reconstruct six rhythm bits at absol
     DOCTEST_CHECK(ui.GetTimePoint(1, 0, 5).m_timeSlice.m_bits == 63);
 }
 
+DOCTEST_TEST_CASE("SequencerUI: live modulated phase and ticks retain absolute position without invalidating snapshots")
+{
+    TheoryOfTimeBase time;
+    auto input = FlatSnapshotClock();
+    input.m_input[0].m_parentMult = 4;
+    input.m_unmodulatedPhase = 0.25;
+    input.m_phaseOffset = -0.625;
+    TheoryOfTimeBaseUIState ui;
+    DOCTEST_CHECK(ui.m_globalPhase.load() == 0.0);
+    DOCTEST_CHECK(ui.m_globalTickPosition.load() == 0);
+    PrepareSnapshotClock(time, input);
+    time.PopulateUIState(ui, input);
+    ui.Snapshot();
+    DOCTEST_REQUIRE(ui.GetGlobalPeriodTicks() == 4);
+    DOCTEST_CHECK(ui.m_globalPhase.load() == doctest::Approx(-0.375));
+    DOCTEST_CHECK(ui.m_globalTickPosition.load() == -2);
+    DOCTEST_CHECK_FALSE(ui.Changed());
+
+    input.m_unmodulatedPhase = 0.3125;
+    PrepareSnapshotClock(time, input);
+    time.PopulateUIState(ui, input);
+    DOCTEST_CHECK(ui.m_globalPhase.load() == doctest::Approx(-0.3125));
+    DOCTEST_CHECK(ui.m_globalTickPosition.load() == -2);
+    DOCTEST_CHECK_FALSE(ui.Changed());
+
+    input.m_unmodulatedPhase = 1073741824.25;
+    input.m_phaseOffset = 0.5;
+    PrepareSnapshotClock(time, input);
+    time.PopulateUIState(ui, input);
+    DOCTEST_CHECK(ui.m_globalPhase.load() == doctest::Approx(1073741824.75));
+    DOCTEST_CHECK(ui.m_globalTickPosition.load() == 4294967299LL);
+    DOCTEST_CHECK_FALSE(ui.Changed());
+}
+
 DOCTEST_TEST_CASE("SequencerUI: reset inference completes the divisibility square in live and snapshot queries")
 {
     TheoryOfTimeBase time;

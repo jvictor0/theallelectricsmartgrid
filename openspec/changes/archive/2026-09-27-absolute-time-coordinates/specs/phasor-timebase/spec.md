@@ -282,3 +282,13 @@ The system SHALL compute each loop's global cycle ratio as the product of its po
 
 - FROM: `### Requirement: Monodromy Numbers`
 - TO: `### Requirement: Whole-Cycle Loop Positions`
+
+## ADDED Requirements
+
+### Requirement: Live Global Position Publication
+TheoryOfTimeBaseUIState SHALL publish the absolute modulated global phase in cycles as an atomic double and the corresponding signed global tick as an atomic integer. These live indicators SHALL be separate from the copied period/rhythm evaluation configuration. Advancing either live indicator SHALL NOT make Changed report a configuration change or invalidate sequence caches.
+
+#### Scenario: Live phase preserves fractional and absolute position
+- **WHEN** the timebase publishes a fractional, negative, or multi-cycle modulated phase
+- **THEN** the phase retains that absolute coordinate and the tick uses floor-based lattice conversion
+- **AND** unchanged periods and rhythms leave the consumer snapshot valid

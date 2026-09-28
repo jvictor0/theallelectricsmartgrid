@@ -89,3 +89,19 @@ Whole-cycle verification: 60 focused tests / 10,811 assertions passed; unsigned 
 Frontend verification passed 2 tests and 87,909,818 assertions after the startup fix. The complete run passed 468/470 tests and 90,494,666/90,494,668 assertions; only the two previously reproduced baseline startup-silence assertions failed. Seven deliberate behavioral mutations were caught by the randomized coverage. See the current execution plan for the validation details and commands.
 
 Final integration validation after rebasing onto `b50ce42`: 490/492 tests and 90,494,914/90,494,916 assertions passed, with only the same two startup-silence failures. The unsigned macOS Release app build passed; main's fractional crossing timing is preserved.
+
+## Sequencer preview and landing follow-up (2026-09-27)
+
+- [x] Publish copied timebase, harmonic, and resolved arp inputs; reuse shared query math and signed cache windows.
+- [x] Add the trio/voice Melody roll with chooser-specific candidates, interpolated choice curves, read-gate rulers, octave guides, and continuous phase playhead.
+- [x] Increase cache fill to 128 points per end and verify bounded four-call centered fills.
+- [x] Refresh Deep Vocoder input parameters at note trigger time and cover bypass/enabled note handoff.
+- [x] Review the complete preview/vocoder implementation independently; no actionable findings.
+- [x] Eliminate Partial Machine residual noise from silence and verify startup regressions; independent review found no production issue.
+- [x] Finish full core tests, native visualizer tests, desktop/iOS builds, spec validation, and final review.
+- [x] Synchronize all delta requirements with canonical specs and verify artifact readiness for archive.
+
+Earlier execution notes retain the historical failing baseline; the final verification below supersedes it.
+
+
+Final landing verification: the unfiltered standalone suite passed 520/520 cases and 90,496,444 assertions. Both historical startup-silence failures now pass with pre-start peak exactly zero; the fix prevents Partial Machine residual feedback from manufacturing a noise floor. Native JUCE visualizer coverage passed 14/14 cases and 94 assertions. Release macOS and iOS builds passed. Strict OpenSpec validation passed all 36 active items; all 54 delta requirement blocks match their canonical specs, and the removed circle-tracking requirement is absent. Independent feature and residual-fix reviews found no production issues. The strengthened silence regression also checks finite output.

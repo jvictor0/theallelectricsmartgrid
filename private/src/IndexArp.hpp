@@ -539,9 +539,12 @@ struct NonagonIndexArp
             uiState->m_resetSelect[i].store(input.m_resetSelect[i]);
         }
 
+        Input inputCopy = input;
+        inputCopy.SetTrioInputs();
+
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            m_arp[i].PopulateUIState(&uiState->m_arpUIState[i], input.m_input[i]);
+            m_arp[i].PopulateUIState(&uiState->m_arpUIState[i], inputCopy.m_input[i]);
         }
     }
 };

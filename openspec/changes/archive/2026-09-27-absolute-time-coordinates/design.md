@@ -116,7 +116,7 @@ Each component owns atomically published fields and a consumer-owned snapshot. O
 
 Query positions are signed ticks in the modulated global lattice. Results are raw LameJuis sections and pitches before unison, octave/spread, trigger latching, or mute decisions. Time points carry the valid reset span in clock cycles, calculated by the same core helper used by the reset picker. Forward arp rests preserve the preceding enabled note and motive, including when a reset joins partial motives. The search covers at most two rhythm lengths. If no enabled slot is reachable under the frozen settings, or the arp clock is disabled, the preview uses its reset choice. Mapping unmodulated time through the warp requires additional data and is outside this snapshot surface.
 
-Keep at most 1024 points per voice and extend each end by at most 32 points per processing call. Prefer complete global cycles where they fit; select the containing cycle using floor arithmetic. Clear caches when copied settings change, and reseed disjoint or touching half-open windows before trimming. A displayed global cycle need not be a complete musical repetition because rhythms and arp motives can span multiple global cycles.
+Keep at most 1024 points per voice and extend each end by at most 128 points per processing call. Prefer complete global cycles where they fit; select the containing cycle using floor arithmetic. Clear caches when copied settings change, and reseed disjoint or touching half-open windows before trimming. A displayed global cycle need not be a complete musical repetition because rhythms and arp motives can span multiple global cycles.
 
 The new helpers are not yet connected to a sequence display. Regression coverage includes leading rests, rests across clock resets, inactive rhythms, disabled clocks, negative cache windows, touching cache windows, and inferred reset pads. See [Sequencer UI state](../../../docs/sequencer-ui-state.md).
 
@@ -142,3 +142,11 @@ Implement the arithmetic and core contracts, migrate time consumers and index pr
 ## Open Questions
 
 None blocking planning. The naming table, simultaneous-parent interpretation, and captured AHD period are explicit design choices for review.
+
+## Melody visualizer and audio follow-up
+
+The Melody role consumes the per-voice caches on the UI thread. Its full-width view shows at most 1024 ticks, maps candidate and choice pitches according to chooser mode, merges read-gate runs, and uses the live absolute modulated phase for continuous playhead motion. Percentile display interpolation and cosine time interpolation are presentation operations; discrete pitches still come from the shared chooser. Complete display semantics are recorded in grid-visualizers and docs/sequencer-ui-state.md.
+
+Deep Vocoder note transformation refreshes current note parameters immediately while retaining the latest analyzed FFT atoms. This prevents a new note, including bypassed notes, from using a preceding note's cached pitch.
+
+Partial Machine residual feedback previously clamped empty buckets to the atom death magnitude, creating noise on later hops. Zero residuals now stay zero, and a positive residual's feedback floor cannot exceed its current envelope. Analysis decay can therefore continue below the floor without a global transport mute or a change to real input monitoring and effects tails.

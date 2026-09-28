@@ -18,6 +18,9 @@ Before this change, Theory of Time wrapped phase and integer positions early, th
 - Remove timebase-related winding reconstruction from gates, recording, synchronization, playback, and display adapters. Preserve transport, persistence keys, and realtime scheduling.
 - Publish accepted timebase periods, rhythms, harmonic sections and chooser settings, and resolved index-arp parameters into UI snapshots. Compose the shared math into raw pitch queries and bounded per-voice sequence caches off the audio thread.
 
+- Replace the Melody role with a trio/voice pitch preview, read-gate rulers, interpolated choice traces, and a continuous modulated-phase playhead.
+- Use current note inputs at Deep Vocoder triggers and prevent residual feedback from creating Partial Machine noise from silence.
+
 ## Capabilities
 
 ### New Capabilities
@@ -34,6 +37,10 @@ None.
 - `lamejuis-sequencer`: Signed loop-cycle positions, tick-latched configuration, active-row accumulator counts, denominator-aware section changes, correct startup grid mapping, and harmonic/index-arp snapshots sharing the live evaluation math.
 - `nonagon-sequencer`: Tick-driven clock/read wiring, undoubled voice cycle ratios, raw UI pitch queries, and bounded sequence caches.
 - `controller-midi-io`: Paired rhythm/reset pages selected by the Wrld.Bldr aux grid.
+
+- `grid-visualizers`: Forward Melody roll, candidate/choice mappings, gate rulers, and continuous playhead.
+- `phase-vocoder`: Current note inputs at trigger time between FFT analysis hops.
+- `partial-machine`: Silence-preserving residual reduction feedback.
 
 ## Impact
 

@@ -104,12 +104,17 @@ The preview SHALL assume a forward scan with fixed published settings. Its pitch
 
 ### Requirement: Bounded UI Sequence Caches
 The UI SHALL maintain one contiguous sequence cache per voice, containing one VoicePoint per integer global tick. PreProcess SHALL refresh changed snapshots and invalidate all voice caches together. It SHALL seed an empty or disjoint cache at the requested position before Process trims or extends it. Ranges SHALL be half-open, and touching ranges SHALL count as disjoint. Cache operations SHALL NOT read front or back from an empty sequence.
-The desired range SHALL contain the current signed position and fit within 1024 points: prefer the containing global cycle plus one neighboring cycle on each side when three cycles fit; otherwise retain the whole containing cycle with balanced spare capacity when one cycle fits; otherwise center a 1024-tick window on the current position. The containing cycle SHALL use floor-based arithmetic for negative positions. Each Process call SHALL append at most 32 points at either end and SHALL run outside the audio thread. A global cycle is a display window, not a promise that arp motives or loop rhythms repeat after that window.
+The desired range SHALL contain the current signed position and fit within 1024 points: prefer the containing global cycle plus one neighboring cycle on each side when three cycles fit; otherwise retain the whole containing cycle with balanced spare capacity when one cycle fits; otherwise center a 1024-tick window on the current position. The containing cycle SHALL use floor-based arithmetic for negative positions. Each Process call SHALL append at most 128 points at either end and SHALL run outside the audio thread. A global cycle is a display window, not a promise that arp motives or loop rhythms repeat after that window.
 
 #### Scenario: Bounded incremental fill
+- **WHEN** the global period is 2048 and a new cache is seeded at tick zero
+- **THEN** the first Process adds 128 points before and after the seed
+- **AND** four calls at that position fill the desired range [-512,512) without exceeding 1024 points
+- **AND** voices not passed to Process retain only their seeded point
+
+#### Scenario: Short windows fill immediately
 - **WHEN** the global period is 32 and a new cache is seeded at tick zero
-- **THEN** the first Process adds at most 32 points before and after the seed
-- **AND** repeated calls fill the desired range [-32,64) without exceeding 1024 points
+- **THEN** the first Process fills the desired range [-32,64)
 
 #### Scenario: Touching windows reseed safely
 - **WHEN** a populated cache is [-32,64) and the desired range becomes [64,160) for current tick 96

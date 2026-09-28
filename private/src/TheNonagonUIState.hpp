@@ -36,7 +36,7 @@ struct TheNonagonUIState
     struct Sequence
     {
         static constexpr size_t x_maxSize = 1024;
-        static constexpr size_t x_maxExtend = 32;
+        static constexpr size_t x_maxExtend = 128;
 
         std::deque<VoicePoint> m_points;
 

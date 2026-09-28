@@ -121,7 +121,10 @@ F(
     MelodyRoll,
     PanningAndSequencing,
     -1,
-    std::make_unique<MelodyRollComponent>(m_nonagon->GetNoteWriter()),
+    std::make_unique<SequencerMelodyVisualizerComponent>(
+        uiState,
+        &m_scopeVoiceOffset,
+        &uiState->m_nonagonUIState.m_theoryOfTimeUIState.m_globalPhase),
     VoiceMachine::SourceMachineFlags::All())
 
 // VoiceLFOs bank
