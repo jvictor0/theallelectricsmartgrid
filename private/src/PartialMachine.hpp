@@ -241,10 +241,16 @@ struct PartialMachine
                     reducedMagnitude * Math::Cos2pi(phase),
                     reducedMagnitude * Math::Sin2pi(phase));
                 dft.WriteBinCenteredWindowedPartial(k, value, distribution);
-                spectralModel.m_residualModel.m_magnitudes[k] = PhaseUtils::ExpParam::Compute(
-                    std::max(SpectralModel::x_deathMag, envelope),
-                    std::max(SpectralModel::x_deathMag, reducedMagnitude),
-                    input.m_synthesisContextInput.m_reductionFeedback.ProcessLinear(index));
+                if (envelope > 0.0f)
+                {
+                    // The feedback floor must not create or raise quiet residual energy.
+                    //
+                    float feedbackFloor = std::min(SpectralModel::x_deathMag, envelope);
+                    spectralModel.m_residualModel.m_magnitudes[k] = PhaseUtils::ExpParam::Compute(
+                        envelope,
+                        std::max(feedbackFloor, reducedMagnitude),
+                        input.m_synthesisContextInput.m_reductionFeedback.ProcessLinear(index));
+                }
             }
         }
     };

@@ -29,6 +29,8 @@ Each tracked atom carries:
 
 During synthesis, each atom is reduced, pitch-shifted, optionally expanded into unison copies, panned into quad, and written to a `QuadDFT`. The residual model adds smoothed broadband energy with randomized phase to the same frame. `QuadOLA` overlap-adds the frames into a continuous quad signal. Tracked atoms come from the input analysis; synthetic harmonic atoms and their separate mix gains have been removed.
 
+Residual reduction feedback preserves zero envelopes. Its magnitude floor is capped by the current envelope, allowing quiet residual tails to decay below the atom death threshold without creating a persistent noise floor.
+
 ## Tracking and Density
 
 `PartialMachineDensity` controls a frequency window measured in octaves. Its range is exponential from one cent to one octave. Counterclockwise gives a broad window, allowing a strong new partial to replace nearby older partials even when their decay is long. Clockwise gives a narrow window, allowing old and new partials to coexist more readily.

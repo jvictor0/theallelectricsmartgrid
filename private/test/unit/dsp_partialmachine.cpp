@@ -460,6 +460,58 @@ DOCTEST_TEST_CASE("PartialMachine residual feedback writes reduced magnitude bac
     DOCTEST_CHECK(pm.m_spectralModel.m_residualModel.m_magnitudes[k] >= PartialMachine::SpectralModel::x_deathMag);
 }
 
+DOCTEST_TEST_CASE("PartialMachine silent input stays silent across residual feedback hops")
+{
+    for (float feedback : {0.0f, 0.5f, 1.0f})
+    {
+        GlobalEnv::ResetPerTest();
+        PartialMachine pm;
+        auto input = MakeBasicInput();
+        input.m_spectralModelInput.m_slewDownAlpha = PartialMachine::Parameter(0.25f);
+        input.m_synthesisContextInput.m_reductionFeedback = PartialMachine::Parameter(feedback);
+        float peak = 0.0f;
+        bool finite = true;
+        for (size_t sample = 0; sample < 12 * kHopSize; ++sample)
+        {
+            auto output = pm.Process(QuadFloat(), input);
+            for (size_t channel = 0; channel < 4; ++channel)
+            {
+                finite = finite && std::isfinite(output[channel]);
+                peak = std::max(peak, std::abs(output[channel]));
+            }
+        }
+
+        DOCTEST_CAPTURE(feedback);
+        DOCTEST_CHECK(finite);
+        DOCTEST_CHECK(peak == 0.0f);
+    }
+}
+
+DOCTEST_TEST_CASE("PartialMachine residual feedback permits decay below its magnitude floor")
+{
+    for (float feedback : {0.0f, 0.5f, 1.0f})
+    {
+        GlobalEnv::ResetPerTest();
+        PartialMachine pm;
+        auto input = MakeBasicInput();
+        input.m_spectralModelInput.m_slewDownAlpha = PartialMachine::Parameter(0.5f);
+        input.m_synthesisContextInput.m_volume = PartialMachine::Parameter(0.0f);
+        input.m_synthesisContextInput.m_reductionFeedback = PartialMachine::Parameter(feedback);
+        auto& residual = pm.m_spectralModel.m_residualModel;
+        residual.m_magnitudes[8] = 1e-6f;
+        PartialMachine::SpectralModel::ResidualModel::Input silence;
+        for (float expected : {5e-7f, 2.5e-7f, 1.25e-7f})
+        {
+            residual.Process(input.m_spectralModelInput, silence);
+            QuadDFT dft;
+            pm.m_residualMachine.Process(dft, pm.m_spectralModel, input);
+            DOCTEST_CAPTURE(feedback);
+            DOCTEST_CHECK(residual.GetEnvelope(8) == doctest::Approx(expected).epsilon(1e-5).scale(0.0));
+            DOCTEST_CHECK(residual.GetEnvelope(9) == 0.0f);
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("PartialMachine residual synthesis produces finite bounded output")
 {
     GlobalEnv::ResetPerTest();

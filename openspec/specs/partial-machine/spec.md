@@ -228,7 +228,7 @@ The system SHALL store a `ResidualModel` inside `SpectralModelGeneric`. The resi
 - **THEN** the residual model returns the smoothed residual magnitude stored at index `k`
 
 ### Requirement: Residual Quad Synthesis
-The Partial Machine SHALL contain a `ResidualMachine` that adds residual energy into the same `QuadDFT` frame as tracked partial atoms. For each target quad DFT bucket, the residual machine SHALL read the residual envelope at the same DFT bucket index, compute frequency-dependent reduction and quad pan placement from that bucket frequency, compute per-channel magnitude as `residualEnvelope * reduction * pan[channel]`, choose a random phase for the synthesis frame, create a complex value with that magnitude and phase, and write it with `WriteBinCenteredWindowedPartial`. That write SHALL add the on-bin Hann kernel `0.5` at bin `k` and `-0.25` at `k-1` and `k+1`, omit DC, omit a missing upper neighbor at the last stored bin, and leave true DC writes as a no-op. The residual machine SHALL also apply the reduction-feedback parameter to the residual bucket's stored magnitude, writing the feedback-shaped reduced magnitude back into the residual model with the same floor policy used by tracked atom reduction feedback.
+The Partial Machine SHALL contain a `ResidualMachine` that adds residual energy into the same `QuadDFT` frame as tracked partial atoms. For each target quad DFT bucket, the residual machine SHALL read the residual envelope at the same DFT bucket index, compute frequency-dependent reduction and quad pan placement from that bucket frequency, compute per-channel magnitude as `residualEnvelope * reduction * pan[channel]`, choose a random phase for the synthesis frame, create a complex value with that magnitude and phase, and write it with `WriteBinCenteredWindowedPartial`. That write SHALL add the on-bin Hann kernel `0.5` at bin `k` and `-0.25` at `k-1` and `k+1`, omit DC, omit a missing upper neighbor at the last stored bin, and leave true DC writes as a no-op. The residual machine SHALL also apply the reduction-feedback parameter to the residual bucket's stored magnitude, writing the feedback-shaped reduced magnitude back into the residual model. Zero residual envelopes SHALL remain zero. For positive envelopes, exponential feedback interpolation SHALL start at the actual envelope and use a target floor no greater than min(deathMagnitude, envelope), so feedback cannot manufacture residual energy from silence or raise an already quieter envelope to the death magnitude.
 
 #### Scenario: Residual buckets share the partial synthesis frame
 - **WHEN** a Partial Machine synthesis frame is built
@@ -242,7 +242,7 @@ The Partial Machine SHALL contain a `ResidualMachine` that adds residual energy 
 #### Scenario: Residual reduction feedback writes back to model
 - **WHEN** residual synthesis processes bucket `k` with nonzero reduction feedback
 - **THEN** it writes a feedback-shaped magnitude back into residual model magnitude `k`
-- **AND** the feedback target is the reduced residual magnitude using the same death-magnitude floor policy as tracked atom reduction feedback
+- **AND** the feedback target is the reduced residual magnitude with a floor capped by both the death magnitude and the current envelope
 
 #### Scenario: Residual pan follows bucket frequency
 - **WHEN** a target quad DFT bucket is synthesized from the residual envelope
@@ -266,3 +266,12 @@ The Partial Machine SHALL contain a `ResidualMachine` that adds residual energy 
 - **THEN** it adds `0.5 * v` to component `k` and `-0.25 * v` to the neighboring stored bins
 - **AND** it does not write DC
 - **AND** it omits a neighbor tap that would fall outside the stored DFT bins
+
+#### Scenario: Silent input does not seed residual noise
+- **WHEN** a fresh Partial Machine processes zero input across multiple analysis and synthesis hops
+- **THEN** its residual envelopes and quad output remain zero for any reduction-feedback amount
+
+#### Scenario: Quiet residual tails decay below the floor
+- **WHEN** a residual envelope is below the death magnitude and analysis slews it toward silence
+- **THEN** feedback does not raise it back to the death magnitude
+- **AND** the envelope continues following its analysis decay
