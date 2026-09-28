@@ -13,7 +13,8 @@ SmartGridOne iPad without a USB cable.
 4. Confirm Xcode signing for the `SmartGridOne - App` scheme. The project uses
    development team `84DCGNY7JA`.
 5. Install SoX if recording sync will be used (`brew install sox`).
-6. Create the pinned Python environment:
+6. The deploy and install targets create the pinned Python environment
+   automatically when it is missing. To prepare it separately for sync or logs:
 
    ```bash
    make ios-setup

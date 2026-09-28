@@ -59,12 +59,12 @@ ios-build:
 	xcodebuild -project $(IOS_PROJECT) -scheme "$(SCHEME)" -configuration $(CONFIG) -destination "generic/platform=iOS" -allowProvisioningUpdates build
 
 ios-install:
-	@test -x "$(IOS_PYTHON)" || (echo "Missing iPad tools environment; run make ios-setup first."; exit 1)
+	@test -x "$(IOS_PYTHON)" || $(MAKE) ios-setup
 	test -d "$(IOS_APP)" || (echo "Missing $(IOS_APP); run make ios-build first."; exit 1)
 	IOS_DEVICE="$(IOS_DEVICE)" IPAD_HOST="$(IPAD_HOST)" $(IOS_PYTHON) $(REPO_ROOT)/scripts/ios_deploy.py --app "$(IOS_APP)" --install-only
 
 ios-deploy: ios-build
-	@test -x "$(IOS_PYTHON)" || (echo "Missing iPad tools environment; run make ios-setup first."; exit 1)
+	@test -x "$(IOS_PYTHON)" || $(MAKE) ios-setup
 	IOS_DEVICE="$(IOS_DEVICE)" IPAD_HOST="$(IPAD_HOST)" $(IOS_PYTHON) $(REPO_ROOT)/scripts/ios_deploy.py --app "$(IOS_APP)"
 
 deploy-ios: ios-deploy
