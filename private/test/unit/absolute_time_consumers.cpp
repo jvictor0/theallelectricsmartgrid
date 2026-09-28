@@ -80,21 +80,23 @@ DOCTEST_TEST_CASE("AbsoluteTime: arp handles negative and wide step coordinates"
     IndexArp arp;
     IndexArp::Input input;
     input.m_clock = true;
-    input.m_totalIndex = -1;
+    input.m_clockPosition = -1;
     arp.Process(input);
-    DOCTEST_CHECK(arp.m_rhythmIndex == 7);
-    DOCTEST_CHECK(arp.m_motiveIndex == -1);
-    input.m_totalIndex = 4294967299LL;
+    DOCTEST_CHECK(arp.m_rhythmSlotIndex == 7);
+    DOCTEST_CHECK(arp.m_motivePosition == -1);
+    input.m_clockPosition = 4294967299LL;
     arp.Process(input);
-    DOCTEST_CHECK(arp.m_rhythmIndex == 3);
-    DOCTEST_CHECK(arp.m_motiveIndex == 536870912LL);
+    DOCTEST_CHECK(arp.m_clockPosition == 4294967299LL);
+    DOCTEST_CHECK(arp.m_rhythmSlotIndex == 3);
+    DOCTEST_CHECK(arp.m_motivePosition == 536870912LL);
+    DOCTEST_CHECK(arp.m_noteIndex == 3);
     input.m_min = 0.0f;
     input.m_max = 1.0f;
     input.m_pageInterval = 0.125f;
-    DOCTEST_CHECK(input.GetOutput(0, 536870913LL) == doctest::Approx(0.125));
+    DOCTEST_CHECK(input.GetChoiceValue(0, 536870913LL) == doctest::Approx(0.125));
     input.m_cycle = true;
-    DOCTEST_CHECK(input.GetOutput(0, -1) == doctest::Approx(0.125));
-    DOCTEST_CHECK(input.GetOutput(0, 12) == doctest::Approx(0.5));
+    DOCTEST_CHECK(input.GetChoiceValue(0, -1) == doctest::Approx(0.125));
+    DOCTEST_CHECK(input.GetChoiceValue(0, 12) == doctest::Approx(0.5));
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: recording spans use only unmodulated global phase")

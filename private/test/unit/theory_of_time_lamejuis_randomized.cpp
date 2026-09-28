@@ -202,16 +202,10 @@ struct FrontendRig
             if (ticks[bit])
             {
                 int64_t index = Cycle(sample.m_modulatedPhase, ratios[bit]);
-                int ancestor = static_cast<int>(bit);
-                while (ancestor < static_cast<int>(x_bits))
+                int reset = rhythm.m_resetLoopIndex;
+                if (reset >= 0 && ratios[bit] % ratios[reset] == 0)
                 {
-                    if (ancestor == rhythm.m_resetLoopIndex)
-                    {
-                        index = Wrap(index, ratios[bit] / ratios[ancestor]);
-                        break;
-                    }
-
-                    ancestor = sample.m_loops[ancestor].m_input.m_parentIndex;
+                    index = Wrap(index, ratios[bit] / ratios[reset]);
                 }
 
                 expectedGate = rhythm.m_gate[Wrap(index, rhythm.m_size)];
@@ -249,33 +243,27 @@ struct FrontendRig
         }
 
         auto oldCoMutes = m_coMutes;
-        std::array<int64_t, x_lanes> expectedArpIndex;
+        std::array<int64_t, x_lanes> expectedClockPosition;
         std::array<std::array<HarmonicSheaf::SectionWithValue, 3>, 3> oldNotes;
         for (size_t lane = 0; lane < x_lanes; ++lane)
         {
-            expectedArpIndex[lane] = request.m_arpInput.m_totalIndex[lane];
+            expectedClockPosition[lane] = request.m_arpInput.m_clockPosition[lane];
             int clock = request.m_arpInput.m_clockSelect[lane];
             if (process && clock < 0)
             {
-                expectedArpIndex[lane] = 0;
+                expectedClockPosition[lane] = 0;
             }
             else if (process && ticks[clock])
             {
                 int64_t ratio = previous.m_loops[clock].m_cycleRatio;
                 int64_t index = Cycle(previous.m_modulatedPhase, ratio);
-                int ancestor = clock;
-                while (ancestor < static_cast<int>(x_bits))
+                int reset = request.m_arpInput.m_resetSelect[lane];
+                if (reset >= 0 && ratio % previous.m_loops[reset].m_cycleRatio == 0)
                 {
-                    if (ancestor == request.m_arpInput.m_resetSelect[lane])
-                    {
-                        index = Wrap(index, ratio / previous.m_loops[ancestor].m_cycleRatio);
-                        break;
-                    }
-
-                    ancestor = previous.m_loops[ancestor].m_input.m_parentIndex;
+                    index = Wrap(index, ratio / previous.m_loops[reset].m_cycleRatio);
                 }
 
-                expectedArpIndex[lane] = index;
+                expectedClockPosition[lane] = index;
             }
 
             for (size_t voice = 0; voice < 3; ++voice)
@@ -372,7 +360,7 @@ struct FrontendRig
         for (size_t lane = 0; lane < x_lanes; ++lane)
         {
             DOCTEST_CAPTURE(lane);
-            DOCTEST_REQUIRE(request.m_arpInput.m_totalIndex[lane] == expectedArpIndex[lane]);
+            DOCTEST_REQUIRE(request.m_arpInput.m_clockPosition[lane] == expectedClockPosition[lane]);
             bool read = false;
             uint8_t fixedMask = 0;
             for (size_t bit = 0; bit < x_bits; ++bit)

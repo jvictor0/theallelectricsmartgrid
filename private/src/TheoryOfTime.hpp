@@ -17,6 +17,7 @@
 #include "SmartGridOneScopeEnums.hpp"
 #include "MessageOut.hpp"
 #include "SampleTimer.hpp"
+#include "TheoryOfTimeBaseUIState.hpp"
 
 struct TheoryOfTime : public TheoryOfTimeBase
 {
@@ -61,7 +62,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
         PhaseUtils::ExpParam m_lfoMult;
     };
 
-    struct UIState
+    struct UIState : public TheoryOfTimeBaseUIState
     {
         std::atomic<int> m_timeYModAmount;
 
@@ -76,8 +77,10 @@ struct TheoryOfTime : public TheoryOfTimeBase
         }
     };
 
-    void PopulateUIState(UIState* uiState)
+    void PopulateUIState(UIState* uiState, const Input& input)
     {
+        TheoryOfTimeBase::PopulateUIState(*uiState, input);
+
         int64_t lfoPeriod = 1;
         for (size_t i = 0; i < x_numLoops; ++i)
         {
@@ -87,7 +90,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
             }
         }
 
-        uiState->m_timeYModAmount.store(static_cast<int>(GetPeriodTicks(x_globalLoop, 0) / lfoPeriod));
+        uiState->SetTimeYModAmount(GetPeriodTicks(x_globalLoop, 0) / lfoPeriod);
     }
 
     void ProcessPhaseModLFO(size_t j, Input& input)

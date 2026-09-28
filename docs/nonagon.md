@@ -30,9 +30,9 @@ During a control frame, `Process` executes the following steps:
 
 2. **Index Arp and LameJuis (Only on change)**:
    - If the Theory of Time reported position motion, startup, stop, or an accepted topology edit in the micro block (`m_theoryOfTime.AnyChangeInMicroBlock()`), the sequencer state must be updated.
-   - `SetIndexArpInputs(input)` samples signed `m_totalIndex` from `GetGateStepIndex(clockLoop, 0, resetLoop)` when `AnyTick(clockLoop)` is true. Read flags follow ticks of lens dimensions, even when neighboring loop rhythm values are equal. A step spans a complete loop cycle.
+   - `SetIndexArpInputs(input)` samples signed `m_clockPosition` from `GetLoopCyclePosition(clockLoop, 0, resetLoop)` when `AnyTick(clockLoop)` is true. Read flags follow ticks of lens dimensions, even when neighboring loop rhythm values are equal. One unit of clock position spans a complete loop cycle.
    - `m_indexArp.Process(input.m_arpInput)` runs the arpeggiators to find the point in the range.
-   - `SetLameJuisInput(input)` feeds the Theory of Time gates and the index arp outputs (as `m_choiceArg` for the chosen strategy) into LameJuis.
+   - `SetLameJuisInput(input)` feeds the Theory of Time gates and the index arp outputs (as `m_choiceValue` for the chosen strategy) into LameJuis.
    - `m_lameJuis.Process(input.m_lameJuisInput)` evaluates the logic matrix and sheaf to produce pitches and extra timbres.
 
 3. **Multi-Phasor Gate (Only when running)**:
@@ -76,6 +76,7 @@ The `NonagonNoteWriter` acts as a bridge between the core sequencer logic and th
 
 ## Related
 
+- [Sequencer UI State](sequencer-ui-state.md) — Published inputs and forward pitch queries outside the audio thread, including current implementation limits.
 - [Theory of Time](theory-of-time.md)
 - [LameJuis](lamejuis.md)
 - [Multi-Phasor Gate](multi-phasor-gate.md)

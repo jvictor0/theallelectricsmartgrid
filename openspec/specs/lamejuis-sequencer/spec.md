@@ -106,13 +106,13 @@ Each lane also has a base strategy (default None); the chooser first runs the ba
 - **THEN** the section at sorted index floor(0.6 × 16) = 9 is chosen
 - **AND** 1 (the integer part) is added to the chosen value as an octave offset
 
-### Requirement: Index Arp Maps Gate-Step Indices to the Choice Argument
-The system SHALL run one index arp per voice that converts the trio's signed whole-cycle gate-step index, sampled through AnyTick and GetGateStepIndex (see phasor-timebase) into a float: rhythmIndex = FloorMod(totalIndex, rhythmLength) and motiveIndex = FloorDiv(totalIndex, rhythmLength) (rhythm length 1–8, default `x_rhythmLength` = 8); on a clocked on-step the index becomes the ordinal of the current step among the on steps; the output is `offset + physicalIndex × interval + motiveIndex × pageInterval`, wrapped (triangle-folded when cycle is on, otherwise taken mod 1), optionally inverted (1 − value), then scaled to [min, max].
+### Requirement: Index Arp Maps Loop-Cycle Positions to the Choice Value
+The system SHALL run one index arp per voice that converts the trio's signed loop-cycle position, sampled through AnyTick and GetLoopCyclePosition (see phasor-timebase) into a float: rhythmSlotIndex = FloorMod(clockPosition, rhythmLength) and motivePosition = FloorDiv(clockPosition, rhythmLength) (rhythm length 1–8, default `x_rhythmLength` = 8); on a clocked enabled slot, noteIndex becomes the ordinal of the current slot among the enabled slots; the output is `offset + physicalNoteIndex × interval + motivePosition × pageInterval`, wrapped (triangle-folded when cycle is on, otherwise taken mod 1), optionally inverted (1 − value), then scaled to [min, max].
 Retro mode reverses the physical index as `numOnSteps − index`. The output is recomputed on a trigger or a read flag and passed to the lane chooser as the choice argument. Per trio, voice ranges stack: voice 0's min is 0, each later voice's min is the previous voice's max minus `zoneHeight × zoneOverlap`, and each max is min + zoneHeight.
 
-#### Scenario: Gate-step index decomposes into rhythm and motive
-- **WHEN** the trio's total index is 11 with rhythm length 8
-- **THEN** the rhythm index is 3 and the motive index is 1
+#### Scenario: Clock position decomposes into rhythm slot and motive position
+- **WHEN** the trio's clock position is 11 with rhythm length 8
+- **THEN** the rhythm-slot index is 3 and the motive position is 1
 - **AND** if only steps 0 and 3 of the first four are on, the step index is 1
 
 #### Scenario: Off-step produces no trigger
@@ -123,15 +123,15 @@ Retro mode reverses the physical index as `numOnSteps − index`. The output is 
 - **WHEN** an arp with min 0.25, max 0.75 computes a pre-scale value of 0.5
 - **THEN** the emitted choice argument is 0.25 + 0.5 × 0.5 = 0.5
 
-The absolute gate-step and motive coordinates SHALL retain signed 64-bit range through decomposition and SHALL NOT narrow to int or float before bounded output reduction. Existing retro, inversion, folding, trigger/read, and voice-zone behavior SHALL remain unchanged.
+The signed clock and motive positions SHALL retain signed 64-bit range through decomposition and SHALL NOT narrow to int or float before bounded output reduction. Existing retro, inversion, folding, trigger/read, and voice-zone behavior SHALL remain unchanged.
 
 #### Scenario: Negative step uses the preceding motive
-- **WHEN** totalIndex is -1 and rhythmLength is 8
-- **THEN** rhythmIndex is 7 and motiveIndex is -1, with no negative array access
+- **WHEN** clockPosition is -1 and rhythmLength is 8
+- **THEN** rhythmSlotIndex is 7 and motivePosition is -1, with no negative array access
 
 #### Scenario: Index exceeds 32-bit range
-- **WHEN** totalIndex is 4294967299 and rhythmLength is 8
-- **THEN** rhythmIndex is 3 and motiveIndex is 536870912
+- **WHEN** clockPosition is 4294967299 and rhythmLength is 8
+- **THEN** rhythmSlotIndex is 3 and motivePosition is 536870912
 
 #### Scenario: Equal loop gate values still clock the arp
 - **WHEN** the selected clock loop ticks between equal rhythm gate values
@@ -184,3 +184,51 @@ When the last non-muted input's mute is accepted, the row SHALL become false and
 - **WHEN** all row inputs are muted, the performer edits its RHS and target and requests dimension 2 Normal
 - **THEN** other input ticks leave the row inactive and its RHS and target pending
 - **AND** dimension 2's next tick accepts its unmute, the requested RHS and target, and the resulting row contribution
+
+### Requirement: Published Harmonic Snapshots
+The system SHALL publish all 64 harmonic sections including their high and total counts, the three evaluator coefficients, and a lens, base strategy, and main strategy for each of the nine voices. Voices in a trio SHALL receive their lane's accepted lens and strategies. LameJuis SHALL continue publishing the current time slice, current selected sections, and lattice dimensions for live indicators.
+HarmonicSheaf::UIState SHALL provide Changed and Snapshot, and its Choose operation SHALL evaluate the copied sheaf, coefficients, lens, and strategies. Live lane selection and snapshot selection SHALL share the same two-stage SectionChooser calculation. Changed SHALL include denominator-only section changes as well as coefficient, lens, and strategy changes. Live indicator accessors MAY read the atomically published fields directly and SHALL be distinguished from snapshot evaluation.
+
+#### Scenario: Base strategy participates in snapshot choice
+- **WHEN** a lens exposes pitches 0.25 and 0.75, the base strategy is Lowest, the main strategy is Closest, and the choice value is 0.4
+- **THEN** the snapshot chooses 0.75 using the adjusted argument 0.65
+
+#### Scenario: Denominator-only change refreshes timbre
+- **WHEN** a published section changes from high/total 1/1 to 1/2 without changing its coefficient
+- **THEN** Changed reports the update
+- **AND** snapshot pitch and timbre remain unchanged until Snapshot, after which the pitch is preserved and the timbre coefficient becomes 0.5
+
+#### Scenario: A voice chooser refresh does not alter another voice
+- **WHEN** one voice's lens or strategy is republished
+- **THEN** its previous selection remains available until Snapshot
+- **AND** the refresh changes only queries using that voice's chooser configuration
+
+### Requirement: Published Index-Arp Snapshots
+The system SHALL publish each voice's resolved min/max zone, offset, note interval, motive/page interval, inversion, retro, cycle flag, rhythm length, and all eight rhythm slots, together with each trio's clock and reset selections. UI evaluation SHALL reuse IndexArp's coordinate decomposition and choice-value mapping, including signed and wider-than-32-bit clock positions. Zone stacking and overlap SHALL be resolved using the production input calculation before publication. Snapshot SHALL freeze these inputs, and Changed SHALL observe parameter, rhythm, or routing edits.
+For a forward pitch preview, disabled rhythm slots SHALL retain the note index and motive position from the preceding enabled slot rather than constructing a new motive or negative note ordinal. The lookup SHALL respect the clock reset span, including truncated motives. If no enabled slot is reachable under the frozen rhythm and reset settings, the preview SHALL use reset note index zero and motive position zero. A disabled clock SHALL use the reset choice at note index zero and motive position zero regardless of the rhythm's first slot. These requirements concern the choice value; they do not imply a trigger on a rest.
+
+#### Scenario: Published overlapping voice zones
+- **WHEN** three voices have zone height 1, overlap 0.5, and choice offset 0.25
+- **THEN** their snapshot choice values at clock position zero are 0.25, 0.75, and 1.25
+
+#### Scenario: A leading rest holds the preceding motive
+- **WHEN** rhythm [false, true] has interval 0.25 and page interval 0.125 in range [0,1], and forward positions advance from 1 to 2
+- **THEN** both live and preview choice values remain zero at position 2
+- **AND** the live arp does not trigger on that disabled slot
+
+#### Scenario: A clock reset joins rests from partial motives
+- **WHEN** a 16-cycle reset truncates a five-slot rhythm with only slot 3 enabled, interval is 0.25, page interval is 0.125, and range is [0,1]
+- **THEN** forward preview and live choices hold 0.25 from clock position 13 through positions 14, 15, 0, 1, and 2
+- **AND** the enabled slot at position 3 changes the choice to zero
+
+#### Scenario: No enabled slot is reachable
+- **WHEN** the frozen rhythm and clock reset admit no enabled slot
+- **THEN** the preview uses the reset note and motive while retaining the normal choice-value mapping
+
+#### Scenario: Disabled clock ignores an inactive first slot
+- **WHEN** the clock selection is -1, the first rhythm slot is disabled, offset is zero, and a read occurs
+- **THEN** live and preview choice values use note index zero and motive position zero
+
+#### Scenario: Publication does not mutate an existing arp snapshot
+- **WHEN** resolved ranges, rhythm, or mapping flags are republished
+- **THEN** the preceding snapshot continues returning its prior choice values until Snapshot is called

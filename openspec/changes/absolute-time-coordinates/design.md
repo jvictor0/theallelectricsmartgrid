@@ -6,7 +6,7 @@ The existing standalone test target is `smartgrid_tests`, configured from `priva
 
 ## Goals / Non-Goals
 
-**Goals:** absolute coordinates; fractional and reverse sample playback; direct signed gate-step queries; aligned reparenting; AHD timing captured at trigger; consistent terminology and one time query surface; tests at actual accepted topology transitions.
+**Goals:** absolute coordinates; fractional and reverse sample playback; direct signed loop-cycle queries; aligned reparenting; AHD timing captured at trigger; consistent terminology and one time query surface; tests at actual accepted topology transitions.
 
 **Non-Goals:** arbitrary-precision or fixed-point time; smoothing all topology changes; changing independent-versus-modulated acceptance timing; changing PolyXFader's partial-lobe definition, mixing controls, topology weights, or slew; preserving historical child cycle counts after topology edits; changing existing persistence keys, StateSaver missing-key policy, or product clock modes.
 
@@ -23,7 +23,7 @@ The existing standalone test target is `smartgrid_tests`, configured from `priva
 | Period ticks | Positive number of lattice ticks in a loop cycle |
 | Parent multiplier | Integer child cycles per parent cycle |
 | Cycle ratio | Integer loop cycles per global cycle |
-| Gate-step index | Signed whole-cycle coordinate, optionally relative to an ancestor reset |
+| Loop-cycle position | Signed whole-cycle coordinate, optionally relative to a reset inferred from period divisibility |
 | Cycle boundary | A change in the floor-divided cycle coordinate between samples |
 | Wrapped phase | Local output value `phase - floor(phase)`, never canonical ToT state |
 
@@ -31,11 +31,11 @@ Use `PhaseDomain::Unmodulated` and `PhaseDomain::Modulated`; remove Boolean doma
 
 ```cpp
 double GetPhase(size_t loopIndex, double samplePosition, PhaseDomain domain) const;
-int64_t GetPosition(size_t sampleIndex, PhaseDomain domain) const;
+int64_t GetGlobalTickPosition(size_t sampleIndex, PhaseDomain domain) const;
 int64_t GetPeriodTicks(size_t loopIndex, size_t sampleIndex) const;
 int64_t GetCycleRatio(size_t loopIndex, size_t sampleIndex) const;
 SampleTop CrossedCycleBoundary(size_t loopIndex, size_t sampleIndex, PhaseDomain domain) const;
-int64_t GetGateStepIndex(size_t loopIndex, size_t sampleIndex, int resetLoopIndex) const;
+int64_t GetLoopCyclePosition(size_t loopIndex, size_t sampleIndex, int resetLoopIndex) const;
 ```
 
 Crossing queries preserve main's `SampleTop` event and fractional sample offset; `AnyTick` consumes the event as a Boolean without discarding the timing data used by scope consumers.
@@ -46,7 +46,7 @@ Extract the clock core (`TimeLoop`, `TheoryOfTimeBase`, and `PhaseDomain`) into 
 
 Advance unmodulated input phase without wrapping; modulated global phase is unmodulated phase plus the existing LFO offset, also without wrapping. Store the two global phase arrays, accepted topology snapshots, and derived absolute integer positions. Loop phases need no separate winding or fractional storage: `loopPhase = globalPhase * cycleRatio`.
 
-Use the LCM of the global cycle ratios as the lattice period, without doubling; loop periods of one tick are valid. For global period ticks `Lg`, evaluate `P = floor(globalPhase * Lg)` once per domain/sample. All loops observe that same absolute position through their own period `L`. Their gate-step index is `FloorDiv(P, L)`. At each modulated tick, evaluate the configured rhythm at the reset-relative index modulo its size, and hold the resulting gate between ticks. Use Euclidean helpers with positive divisors; never C++ truncating division for signed coordinates. Widen lattice multiplication intermediates and arp index propagation to `int64_t`, using ordinary multiplication and `std::lcm`; input assertions enforce valid parent ordering and positive multipliers.
+Use the LCM of the global cycle ratios as the lattice period, without doubling; loop periods of one tick are valid. For global period ticks `Lg`, evaluate the global tick position `P = floor(globalPhase * Lg)` once per domain/sample. All loops observe that same position through their own period `L`. Their loop-cycle position is `FloorDiv(P, L)`. At each modulated tick, evaluate the configured rhythm at the reset-relative rhythm slot index and hold the resulting gate between ticks. Use Euclidean helpers with positive divisors; never C++ truncating division for signed coordinates. Widen clock and motive positions to `int64_t`, using ordinary multiplication and `std::lcm`; input assertions enforce valid parent ordering and positive multipliers.
 
 Changing the lattice changes tick units. Derive both previous and current comparison positions from their absolute global phases in the same lattice; never compare differently scaled stored ticks or rescale accumulated child history. Capture old-topology boundary events before accepting edits. After acceptance, recompute coordinates under the new topology without interpreting the coordinate remap as elapsed travel.
 
@@ -60,18 +60,18 @@ The interpretation of the user's simultaneous-top rule is old-parent AND request
 
 `GetPhase` first interpolates the global phase and then applies the accepted cycle ratio for that sample interval. At fractional position between integer samples j and j+1, use j's topology; at exactly j+1 use its topology. This is right-continuous parameter application and avoids interpolating an integer topology-induced jump in a child absolute coordinate. Permit access to lookahead slot 8 and interpolate positions in [7,8]; copy slot 8 to slot 0 on rollover.
 
-### 4. Gate-step indices replace monodromy reconstruction
+### 4. Loop-cycle positions replace monodromy reconstruction
 
-Without reset, return `FloorDiv(P, Lclock)`. For the selected clock itself or an ancestor reset:
+Without reset, return `FloorDiv(P, Lclock)`. For any selected reset whose period is divisible by the clock period:
 
 ```text
-stepsPerReset = Lreset / Lclock
-index = FloorMod(FloorDiv(P, Lclock), stepsPerReset)
+cyclesPerReset = Lreset / Lclock
+loopCyclePosition = FloorMod(FloorDiv(P, Lclock), cyclesPerReset)
 ```
 
-A non-ancestor selection retains existing behavior: ignore it and return the absolute index. An ancestry walk is allowed for that validation; no recursive numerical reconstruction remains. A self reset returns zero because `Lreset / Lclock` is one. Full-cycle coordinates are the gate-step coordinates. An absolute index is a location, not a lifetime count of events; reverse motion decreases it.
+Infer ancestry from `Lreset % Lclock == 0`, including separate parent paths and equal-period loops. Otherwise ignore the reset and return the absolute loop-cycle position. Do not walk the parent tree to validate resets. Self and equal-period resets return zero because `Lreset / Lclock` is one. Thus explicit ratio links 1 to 2, 1 to 3, and 2 to 6 imply the additional 3 to 6 reset relationship. An absolute position is a coordinate, not a lifetime count of events; reverse motion decreases it.
 
-IndexArp uses floor division/modulo to split a signed index into motive and rhythm coordinates, keeps absolute/motive intermediates in 64-bit or double until the bounded output mapping, and never uses a negative rhythm array subscript. Retain inversion, retro, folding, and zone mapping semantics.
+IndexArp uses floor division/modulo to split a signed clock position into motive position and rhythm slot index, keeps clock/motive intermediates in 64-bit or double until the bounded output mapping, and never uses a negative rhythm array subscript. Retain inversion, retro, folding, and zone mapping semantics.
 
 ### 5. Consumer behavior
 
@@ -96,9 +96,9 @@ RecordingBuffer and ExternalClockSync read unmodulated global phase directly, wi
 
 Each loop has 16 engine gate slots, an active size, and a reset selection. Defaults are size 2, slot zero true, all others false, reset -1. A tick means a modulated full-cycle crossing, independent of whether the gate value changes or self reset keeps the index at zero. `AnyTick` aggregates these events for Nonagon's selected clock and read dimensions. Gate/size/reset edits are consumed only at the edited loop's next modulated tick, including when faster loops tick first; edits alone do not raise any-change.
 
-Per-sample order is positions, crossings, accepted topology remap preserving flags, then gate evaluation. Startup forces all crossing flags and evaluates every rhythm; stop forces gates false. Invalid ancestry never deletes a stored reset: core queries ignore it and UI hides it until ancestry returns.
+Per-sample order is positions, crossings, accepted topology remap preserving flags, then gate evaluation. Startup forces all crossing flags and evaluates every rhythm; stop forces gates false. Non-divisible periods never delete a stored reset: core queries ignore it and the UI should hide it until divisibility returns.
 
-Wrld.Bldr aux pad (1,1) selects TheoryOfTimeRhythm mode, pairing rhythm on the left with ancestor resets on the right. Press toggles a gate; Shift-press sets length to row+1. Only strict ancestors are selectable; repeat press clears reset. StateSaver persists slots 0-7 through TheoryOfTimeRhythm and each loop's TheoryOfTimeRhythmSize and TheoryOfTimeRhythmReset. The engine capacity is 16, while current UI size is 1-8 and slots 8-15 have no persistence entries. Adding this mode shifts later runtime ordinals but requires no patch migration.
+Wrld.Bldr aux pad (1,1) selects TheoryOfTimeRhythm mode, pairing rhythm on the left with ancestor resets on the right. Press toggles a gate; Shift-press sets length to row+1. Every other loop with a divisible accepted period is selectable, including inferred ancestors; repeat press clears reset. StateSaver persists slots 0-7 through TheoryOfTimeRhythm and each loop's TheoryOfTimeRhythmSize and TheoryOfTimeRhythmReset. The engine capacity is 16, while current UI size is 1-8 and slots 8-15 have no persistence entries. Adding this mode shifts later runtime ordinals but requires no patch migration.
 
 ### 7. LameJuis acceptance and section identity
 
@@ -108,7 +108,19 @@ The row owns active-input counts, masks, RHS, and target; sections own per-accum
 
 Section identity includes all high counts and total counts, with evaluated pitch compared by the selected-result wrapper. Denominator-only changes may request a same-pitch note on an existing read or arp trigger. They do not create new read times. Nonagon captures the new section's timbre coefficients when a note actually starts.
 
-### 8. Alternatives considered
+### 8. UI snapshots and forward sequence evaluation
+
+Publish accepted periods and all 16 gate slots per loop, all 64 harmonic sections with high and total counts, evaluator coefficients, per-voice lenses and chooser strategies, and resolved index-arp ranges and parameters. Period divisibility supplies reset ancestry without publishing the explicit parent tree. Reuse the live loop-cycle, rhythm, arp coordinate/choice, and two-stage harmonic chooser functions; do not introduce a second pitch algorithm in the visualizer.
+
+Each component owns atomically published fields and a consumer-owned snapshot. One consumer thread refreshes those snapshots and prepares the nine sequence caches. Publication is not a coherent transaction across fields or components; the preview freezes the values observed during refresh and does not simulate parameter acceptance timing. Initial publication must supply positive periods before evaluation.
+
+Query positions are signed ticks in the modulated global lattice. Results are raw LameJuis sections and pitches before unison, octave/spread, trigger latching, or mute decisions. Time points carry the valid reset span in clock cycles, calculated by the same core helper used by the reset picker. Forward arp rests preserve the preceding enabled note and motive, including when a reset joins partial motives. The search covers at most two rhythm lengths. If no enabled slot is reachable under the frozen settings, or the arp clock is disabled, the preview uses its reset choice. Mapping unmodulated time through the warp requires additional data and is outside this snapshot surface.
+
+Keep at most 1024 points per voice and extend each end by at most 32 points per processing call. Prefer complete global cycles where they fit; select the containing cycle using floor arithmetic. Clear caches when copied settings change, and reseed disjoint or touching half-open windows before trimming. A displayed global cycle need not be a complete musical repetition because rhythms and arp motives can span multiple global cycles.
+
+The new helpers are not yet connected to a sequence display. Regression coverage includes leading rests, rests across clock resets, inactive rhythms, disabled clocks, negative cache windows, touching cache windows, and inferred reset pads. See [Sequencer UI state](../../../docs/sequencer-ui-state.md).
+
+### 9. Alternatives considered
 
 - Keeping wrapped state with wider winding counters preserves the unwanted playback restart and reconstruction complexity; rejected.
 - Reanchoring each active AHD on topology edits would require following edits; rejected in favor of the user's trigger-captured ratio.

@@ -2,7 +2,7 @@
 
 **LameJuis** is an esoteric, layered sequencer that turns the six gate bits from the [Theory of Time](theory-of-time.md) into polyphonic pitch. The implementation is in `private/src/LameJuis.hpp`, `private/src/HarmonicSheaf.hpp`, and `private/src/IndexArp.hpp`; the Nonagon wires the six time-loop gates into LameJuis and uses one LameJuis **lane** per **trio** (three voices share one lane's pitch logic).
 
-For fixed accepted configuration, the six gate bits **x** in **I⁶** determine the set of available notes. The selected note also depends on the index arp's choice argument, derived from the whole-cycle gate-step index. Modulating the Theory of Time therefore moves both the gate bits and the arp through this polyphonic process. Live loop-rhythm edits are held until the edited loop's next tick.
+For fixed accepted configuration, the six gate bits **x** in **I⁶** determine the set of available notes. The selected note also depends on the index arp's choice argument, derived from the loop-cycle position. Modulating the Theory of Time therefore moves both the gate bits and the arp through this polyphonic process. Live loop-rhythm edits are held until the edited loop's next tick.
 
 ---
 
@@ -27,51 +27,51 @@ There are **9 voices** in **3 trios** of 3 voices each. Each trio is assigned **
 
 ## 3. Index arp: clock, reset, rhythm, and range
 
-The **index arp** (`IndexArp`, used per voice inside `NonagonIndexArp`) turns the signed gate-step index of a chosen clock loop into a **point in a range** that is then used to pick a note from **F^M_x(U)**.
+The **index arp** (`IndexArp`, used per voice inside `NonagonIndexArp`) turns the signed loop-cycle position of a chosen clock loop into a **choice value** that is then used to pick a note from **F^M_x(U)**.
 
 ### 3.1 Clock and reset
 
-- The performer chooses a **clock loop** and optionally a **reset loop** (an ancestor of the clock for the reset to be meaningful; or no reset, i.e. reset index -1).
-- When `AnyTick(clockLoop)` reports a whole-cycle crossing in the microblock, the Nonagon sets `m_totalIndex` from `GetGateStepIndex(clockLoop, 0, resetLoop)`.
-- Without reset, this is the signed absolute full-cycle coordinate. An ancestor reset reduces it modulo the number of clock cycles in that reset period; a self reset returns zero. Reverse motion decreases the index; a multi-cycle seek reports a crossing even if the final gate bit is unchanged. See [Theory of Time](theory-of-time.md#shared-integer-position).
+- The performer chooses a **clock loop** and optionally a **reset loop** (any loop whose accepted period is divisible by the clock period; or no reset, i.e. reset index -1).
+- When `AnyTick(clockLoop)` reports a whole-cycle crossing in the microblock, the Nonagon sets `m_clockPosition` from `GetLoopCyclePosition(clockLoop, 0, resetLoop)`.
+- Without reset, this is the signed absolute loop-cycle position. An inferred ancestor reset reduces it modulo the number of clock cycles in that reset period; self and equal-period resets return zero. The relationship follows divisibility, including compatible loops on separate explicit parent paths. Reverse motion decreases the position; a multi-cycle seek reports a crossing even if the final gate bit is unchanged. See [Theory of Time](theory-of-time.md#shared-integer-position).
 
 ### 3.2 Gate sequencer (rhythm)
 
 This per-voice arp rhythm is separate from the per-loop Theory of Time rhythm that provides each LameJuis input bit. A loop tick clocks the arp even if that loop's gate value repeats; editing the loop rhythm does not create an extra tick.
 
 - Each voice's arp has a **rhythm** pattern: `m_rhythm[0..m_rhythmLength-1]` with `m_rhythmLength` default 8 (`IndexArp::x_rhythmLength`). Only some steps are "on"; the rest gate the voice off.
-- From **m_totalIndex** we derive:
-  - **m_rhythmIndex** = `PhaseUtils::FloorMod(m_totalIndex, m_rhythmLength)` — position on the rhythm loop.
-  - **m_motiveIndex** = `PhaseUtils::FloorDiv(m_totalIndex, m_rhythmLength)` — which "page" or cycle through the rhythm.
-- A **trigger** happens only when `m_rhythm[m_rhythmIndex]` is true and the clock has just advanced (we're in the `m_clock` / `m_triggered` path). Then we compute **m_index**: the **physical index** among the **on** steps (0 to NumNotes()-1), i.e. how many rhythm steps that are on have been passed up to and including the current step.
+- From **m_clockPosition** we derive:
+  - **m_rhythmSlotIndex** = `PhaseUtils::FloorMod(m_clockPosition, m_rhythmLength)` — the bounded slot in the rhythm.
+  - **m_motivePosition** = `PhaseUtils::FloorDiv(m_clockPosition, m_rhythmLength)` — the signed "page" or cycle through the rhythm.
+- A **trigger** happens only when `m_rhythm[m_rhythmSlotIndex]` is true and the clock has just advanced (we're in the `m_clock` / `m_triggered` path). Then we compute **m_noteIndex**: the bounded ordinal among the enabled steps, i.e. how many enabled rhythm steps have been passed up to and including the current slot.
 
 ### 3.3 Point in range
 
 - The arp exposes a **range** per voice: **m_offset**, **m_interval**, **m_pageInterval**, **m_min**, **m_max**, plus **m_invert**, **m_retro**, **m_cycle**.
 - **Output** is computed as  
-`GetOutput(m_index, m_motiveIndex)` =  
-`m_offset + m_index * m_interval + m_motiveIndex * m_pageInterval`,  
+`GetChoiceValue(m_noteIndex, m_motivePosition)` =
+`m_offset + m_noteIndex * m_interval + m_motivePosition * m_pageInterval`,
 then optionally wrapped (cycle) or inverted, then scaled from [0,1] to **[m_min, m_max]**.
-- So the **index** (physical step among on steps) and **motive index** (rhythm page) together determine a single float in a range. That float is passed to LameJuis as **m_choiceArg** and interpreted by the chosen strategy (e.g. percentile or closest-mod-octave).
+- The **note index** and **motive position** together determine a single choice value. That value is passed to LameJuis as **m_choiceValue** and interpreted by the chosen strategy (e.g. percentile or closest-mod-octave).
 
-- **When the Nonagon updates the index arp** — `AnyChangeInMicroBlock()` causes the Nonagon to refresh arp inputs and run the arp and LameJuis. The selected clock's `AnyTick` drives clock updates; no clock selection sets the total index to zero. Read updates follow crossing dimensions selected by the lens. The total and motive indices stay signed 64-bit values; bounded output mapping uses double until its final float result.
+- **When the Nonagon updates the index arp** — `AnyChangeInMicroBlock()` causes the Nonagon to refresh arp inputs and run the arp and LameJuis. The selected clock's `AnyTick` drives clock updates; no clock selection sets the clock position to zero. Read updates follow crossing dimensions selected by the lens. The clock and motive positions stay signed 64-bit values; bounded output mapping uses double until its final float result.
 
 ---
 
 ## 4. Section choice strategies
 
-Once we have the set **F^M_x(U)** (all M(y) for y ~_U x), we select a note from it using a **section choice strategy** (`HarmonicSheaf::SectionChoiceStrategy`) with the index-arp output as **m_choiceArg**.
+Once we have the set **F^M_x(U)** (all M(y) for y ~_U x), we select a note from it using a **section choice strategy** (`HarmonicSheaf::SectionChoiceStrategy`) with the index-arp output as **m_choiceValue**.
 
-Each lane has a **strategy** (toggled in the UI) and an optional **base strategy** (defaults to `None`). The `Lane::Chooser` first runs the base strategy to get a base section value, then adds that to `m_choiceArg` and runs the main strategy. This two-stage approach allows composing strategies.
+Each lane has a **strategy** (toggled in the UI) and an optional **base strategy** (defaults to `None`). The `Lane::Chooser` first runs the base strategy to get a base section value, then adds that to `m_choiceValue` and runs the main strategy. This two-stage approach allows composing strategies.
 
 The available strategies (`HarmonicSheaf::SectionChooser`):
 
 - **None** — Returns a zero section. Used as the default base strategy (no offset).
 - **Lowest** — Returns the section with the lowest evaluated pitch in the equivalence class.
 - **GCD** — Returns the component-wise minimum of all sections in the equivalence class.
-- **Closest** — Finds the section whose evaluated pitch is closest to `m_choiceArg`.
-- **ClosestModOne** — Like Closest, but compares pitches modulo one octave (V/O). The result is placed in the same octave as `m_choiceArg`, with ±1 octave adjustment if that is closer. This is the default strategy.
-- **Percentile** — Sorts all sections in the equivalence class by pitch, then indexes into the sorted list using the fractional part of `m_choiceArg` as a percentile in [0, 1). The integer part of `m_choiceArg` is added as an octave offset.
+- **Closest** — Finds the section whose evaluated pitch is closest to `m_choiceValue`.
+- **ClosestModOne** — Like Closest, but compares pitches modulo one octave (V/O). The result is placed in the same octave as `m_choiceValue`, with ±1 octave adjustment if that is closer. This is the default strategy.
+- **Percentile** — Sorts all sections in the equivalence class by pitch, then indexes into the sorted list using the fractional part of `m_choiceValue` as a percentile in [0, 1). The integer part of `m_choiceValue` is added as an octave offset.
 
 The result is a single pitch (volt-per-octave) per voice; that pitch is then used by the rest of the synth (e.g. V/O output, possible octave shift from the UI). Whether a **trigger** is emitted (note on) for that pitch is decided by the [Multi-Phasor Gate](multi-phasor-gate.md) (pitch-changed vs sub-trigger, mutes, interrupt).
 
@@ -124,7 +124,7 @@ A channel selects a new section only on its existing read flag or arp trigger. S
 Because:
 
 - with fixed rhythms, the Theory of Time gates are determined by each loop's current whole-cycle step,
-- the gate-step index (and hence **m_totalIndex**) is a pure function of time when the selected clock ticks,
+- the loop-cycle position (and hence **m_clockPosition**) is a pure function of time when the selected clock ticks,
 - the index arp maps that to a point in a range,
 - the lens and M define **F^M_x(U)** purely from **x**,
 - and the section choice strategy selects deterministically from **F^M_x(U)**,
@@ -135,6 +135,7 @@ the pitch-selection mapping is deterministic for a fixed accepted configuration 
 
 ## Related
 
-- [Theory of Time](theory-of-time.md) — supplies the 6 gate bits and gate-step indices.
+- [Sequencer UI State](sequencer-ui-state.md) — Sheaf, evaluator, per-voice chooser and resolved arp snapshots sharing the live selection math.
+- [Theory of Time](theory-of-time.md) — supplies the 6 gate bits and loop-cycle positions.
 - [Glossary](glossary.md) — **LameJuis**, **lens**, **index arp**, **LogicOperation**, **accumulator**, **sheaf**.
 - [Documentation index](index/README.md) — Nonagon and trios.

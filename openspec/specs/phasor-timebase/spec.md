@@ -75,11 +75,11 @@ The system SHALL compute each loop's global cycle ratio as the product of its po
 - **THEN** the global period is 3 ticks and the faster loop period is 1 tick
 
 ### Requirement: Integer Position and Gate
-The system SHALL derive absolute signed 64-bit position P by flooring global phase times the current global lattice period. A loop of period L SHALL have full-cycle gate-step index FloorDiv(P,L), using Euclidean arithmetic. On each modulated cycle crossing, its gate SHALL be read from its configured rhythm at FloorMod(GetGateStepIndex(loop, sample, resetLoop), rhythmSize); between its crossings the gate SHALL hold. Crossing flags SHALL compare consecutive absolute phases in consistent lattice units before accepted topology edits. After accepting edits, the system SHALL remap positions, preserve those crossing flags, and evaluate gates using the accepted topology. A coordinate remap SHALL NOT create additional elapsed-travel events or rewrite previous coordinates.
+The system SHALL derive absolute signed 64-bit global tick position P by flooring global phase times the current global lattice period. A loop of period L SHALL have loop-cycle position FloorDiv(P,L), using Euclidean arithmetic. On each modulated cycle crossing, its gate SHALL be read from its configured rhythm at FloorMod(GetLoopCyclePosition(loop, sample, resetLoop), rhythmSize); between its crossings the gate SHALL hold. Crossing flags SHALL compare consecutive absolute phases in consistent lattice units before accepted topology edits. After accepting edits, the system SHALL remap positions, preserve those crossing flags, and evaluate gates using the accepted topology. A coordinate remap SHALL NOT create additional elapsed-travel events or rewrite previous coordinates.
 
 #### Scenario: Negative whole-cycle index
 - **WHEN** P is -1, L is 8, reset is absent, and the default rhythm is evaluated
-- **THEN** the gate-step index is -1, its rhythm slot is 1, and its gate is false
+- **THEN** the loop-cycle position is -1, its rhythm slot index is 1, and its gate is false
 
 #### Scenario: Multiple crossed steps produce one event
 - **WHEN** P advances from 1 to 17 with L equal to 8 and default rhythm
@@ -90,15 +90,15 @@ The system SHALL derive absolute signed 64-bit position P by flooring global pha
 - **WHEN** a loop with rhythm [true, true] crosses its next modulated cycle boundary
 - **THEN** its gate remains true and the loop's tick event is true
 
-#### Scenario: Accepted topology supplies the rhythm index
+#### Scenario: Accepted topology supplies the rhythm-slot index
 - **WHEN** simultaneous old/requested parent crossings admit a topology edit
 - **THEN** positions are remapped before gate lookup and the gate uses the new period and reset ancestry
 - **AND** crossing flags remain those computed before acceptance
 
-### Requirement: Whole-Cycle Gate-Step Indices
-The system SHALL expose GetGateStepIndex instead of recursive monodromy reconstruction. With modulated position P and clock period Lc it SHALL return FloorDiv(P,Lc) without reset. If reset is the clock or an ancestor of period Lr, it SHALL return FloorMod(FloorDiv(P,Lc), Lr/Lc); non-ancestor and absent resets SHALL return the absolute index. The result and intermediate rhythm/motive coordinates SHALL retain signed 64-bit range until bounded reduction. The arp SHALL sample this coordinate on modulated tick events, independently of changes to the rhythm gate Boolean or reset-relative index.
+### Requirement: Whole-Cycle Loop Positions
+The system SHALL expose GetLoopCyclePosition instead of recursive monodromy reconstruction. With modulated global tick position P and clock period Lc it SHALL return FloorDiv(P,Lc) without reset. Reset ancestry SHALL be inferred from period divisibility: any selected loop of period Lr with Lr % Lc == 0 SHALL act as an ancestor, regardless of the stored parent path. The result SHALL be FloorMod(FloorDiv(P,Lc), Lr/Lc); absent and non-divisible resets SHALL return the absolute position. Equal-period loops SHALL reset one another to zero, as shall self reset. The result and intermediate clock/motive positions SHALL retain signed 64-bit range until bounded reduction. The arp SHALL sample this coordinate on modulated tick events, independently of changes to the rhythm gate Boolean or reset-relative position.
 
-#### Scenario: Absolute gate-step index
+#### Scenario: Absolute loop-cycle position
 - **WHEN** global phase is 3.75 and the global loop is selected without reset
 - **THEN** the returned index is 3
 
@@ -114,9 +114,18 @@ The system SHALL expose GetGateStepIndex instead of recursive monodromy reconstr
 - **WHEN** a loop with self reset crosses a modulated boundary
 - **THEN** its returned index remains zero and it still reports a tick
 
-#### Scenario: Unrelated reset is ignored
-- **WHEN** a reset loop is neither the selected clock nor its ancestor
-- **THEN** the returned index equals the no-reset absolute index
+#### Scenario: Non-divisible reset is ignored
+- **WHEN** the clock period is 2 and the selected reset period is 3
+- **THEN** the returned position equals the no-reset absolute position
+
+#### Scenario: Inferred ancestry completes the divisibility square
+- **WHEN** the explicit cycle-ratio links are 1 to 2, 1 to 3, and 2 to 6
+- **THEN** the ratio-3 loop SHALL also be a valid reset for the ratio-6 loop
+- **AND** at global tick 10 on the six-tick lattice its absolute clock position is 10 and its reset-relative position is 0
+
+#### Scenario: Equal-period loops infer a reset relationship
+- **WHEN** distinct loops have equal periods even on separate parent paths
+- **THEN** selecting either as the other's reset returns zero
 
 ### Requirement: Microblock Buffer with Lookahead Sample
 The system SHALL retain nine sample slots for an eight-sample microblock and copy slot 8 to slot 0 on rollover. GetPhase SHALL interpolate absolute global phase before applying the interval's accepted loop ratio. For fractional positions in [j,j+1), it SHALL use j's topology; at j+1 it SHALL use j+1's topology. Slot 8 SHALL be queryable, and interpolation in [7,8] SHALL use both endpoints. No wrapped or differently mapped child coordinates SHALL be interpolated across a cycle or topology boundary.
@@ -135,7 +144,7 @@ The system SHALL retain nine sample slots for an eight-sample microblock and cop
 - **THEN** slot 8's absolute phases, coordinates, topology, and event state become slot 0's state
 
 ### Requirement: Transport Start and Stop
-The system SHALL initialize deterministic absolute coordinates and explicit startup events when transport starts. Startup SHALL accept requested valid topology and emit the initial gate-step/cycle events without inventing a wrapped previous position. On stop, phase, current and previous positions, gates, and motion outputs SHALL clear to zero/false while topology-derived periods remain available. Stopped multiplier edits SHALL recompute periods only when accepted topology changes; startup SHALL accept requested parent changes without waiting for motion. The any-change signal SHALL be raised for the stop transition or an observable stopped topology edit, and remain false for unchanged stopped frames.
+The system SHALL initialize deterministic absolute coordinates and explicit startup events when transport starts. Startup SHALL accept requested valid topology and emit the initial loop-cycle crossing events without inventing a wrapped previous position. On stop, phase, current and previous positions, gates, and motion outputs SHALL clear to zero/false while topology-derived periods remain available. Stopped multiplier edits SHALL recompute periods only when accepted topology changes; startup SHALL accept requested parent changes without waiting for motion. The any-change signal SHALL be raised for the stop transition or an observable stopped topology edit, and remain false for unchanged stopped frames.
 
 #### Scenario: First run
 - **WHEN** transport starts
@@ -151,7 +160,7 @@ The system SHALL initialize deterministic absolute coordinates and explicit star
 - **AND** subsequent unchanged stopped samples do not recompute periods or raise any-change
 
 ### Requirement: Deterministic State from Phasor and Topology
-The system SHALL derive phase, absolute position, and gate-step index from current absolute global phase and accepted topology. For fixed rhythm configuration, each running loop gate SHALL equal the rhythm value at its current step after startup or a loop tick. Live gate, size, and reset edits SHALL be sampled on that loop's next modulated tick; between ticks the previous gate SHALL persist. Crossing events SHALL depend on consecutive samples and the defined topology/startup rules, without winding reconstruction or historical child cycle counts.
+The system SHALL derive phase, global tick position, and loop-cycle position from current absolute global phase and accepted topology. For fixed rhythm configuration, each running loop gate SHALL equal the rhythm value at its current slot after startup or a loop tick. Live gate, size, and reset edits SHALL be sampled on that loop's next modulated tick; between ticks the previous gate SHALL persist. Crossing events SHALL depend on consecutive samples and the defined topology/startup rules, without winding reconstruction or historical child cycle counts.
 
 #### Scenario: Same coordinates after different histories
 - **WHEN** two running timebases reach the same global phases and accepted topology with the same unchanged rhythm configuration
@@ -212,19 +221,19 @@ The system SHALL store absolute unmodulated and modulated global phases as doubl
 - **THEN** the stored phase remains -0.25 and a normalized output adapter returns 0.75
 
 ### Requirement: Configurable Whole-Cycle Loop Rhythms
-The system SHALL provide one rhythm per time loop with 16 engine slots, active size 1-16, and optional reset index -1 or 0-5. The default SHALL be size 2, gate slot 0 true, all remaining slots false, and reset -1. Each step SHALL occupy a complete loop cycle. A reset that ceases to be an ancestor SHALL remain stored but be ignored until accepted topology restores that ancestry.
+The system SHALL provide one rhythm per time loop with 16 engine slots, active size 1-16, and optional reset index -1 or 0-5. The default SHALL be size 2, gate slot 0 true, all remaining slots false, and reset -1. Each step SHALL occupy a complete loop cycle. A reset whose period ceases to be divisible by the clock period SHALL remain stored but be ignored until accepted periods restore that divisibility. Changing the explicit parent path alone SHALL NOT invalidate a divisible reset.
 
 #### Scenario: Default alternates full cycles
 - **WHEN** a loop starts at cycle zero with its default rhythm and proceeds through cycles 0, 1, and 2
 - **THEN** its gate is true, false, and true respectively, holding each value for a full cycle
 
 #### Scenario: Stored reset survives reparenting
-- **WHEN** an accepted reparent makes the stored reset a non-ancestor
+- **WHEN** an accepted topology edit makes the stored reset period non-divisible by the clock period
 - **THEN** subsequent loop ticks use the absolute step without changing the stored reset
-- **AND** the next tick after ancestry is restored uses that reset again
+- **AND** the next tick after period divisibility is restored uses that reset again
 
 ### Requirement: Theory of Time Rhythm Grid and Persistence
-The system SHALL expose a six-column/eight-row rhythm page and an ancestor-reset page. A normal rhythm-pad press SHALL toggle its State value; Shift-press on row j SHALL set size to j+1. Only rows below the active size SHALL be lit. The current step SHALL be bright Purple/Pink for on/off, and other active steps dim Purple/Grey. The reset page SHALL enable only strict ancestors in accepted topology; self and non-ancestor cells SHALL be dark and inert. Pressing the selected reset SHALL clear it to -1. The selected ancestor SHALL be Blue, other eligible ancestors dim Blue, and row 7 SHALL display live gates.
+The system SHALL expose a six-column/eight-row rhythm page and an ancestor-reset page. A normal rhythm-pad press SHALL toggle its State value; Shift-press on row j SHALL set size to j+1. Only rows below the active size SHALL be lit. The current step SHALL be bright Purple/Pink for on/off, and other active steps dim Purple/Grey. The reset page SHALL enable every other loop whose accepted period is divisible by the selected clock period, including inferred ancestors and distinct equal-period loops. The selected loop itself and non-divisible reset cells SHALL be dark and inert. Pressing the selected reset SHALL clear it to -1. The selected ancestor SHALL be Blue, other eligible ancestors dim Blue, and row 7 SHALL display live gates.
 The pages SHALL share StateSaver entries TheoryOfTimeRhythm(loop, step) for slots 0-7, TheoryOfTimeRhythmSize(loop), and TheoryOfTimeRhythmReset(loop). The engine's additional slots 8-15 SHALL have no grid or persistence entries. Loading a patch that omits any of these keys SHALL retain the current registered value under normal StateSaver policy. A fresh instance SHALL start from the documented default rhythm.
 
 #### Scenario: Toggle and length use shared state
@@ -235,13 +244,41 @@ The pages SHALL share StateSaver entries TheoryOfTimeRhythm(loop, step) for slot
 #### Scenario: Reset toggle and disabled cells
 - **WHEN** a performer presses a valid ancestor twice
 - **THEN** it is first selected and then cleared to -1
-- **AND** pressing self or a non-ancestor does not change the reset
+- **AND** pressing self or a non-divisible reset does not change the reset
+
+#### Scenario: Inferred ancestor is selectable
+- **WHEN** cycle ratios 2 and 3 branch from ratio 1 and ratio 6 is explicitly parented through ratio 2
+- **THEN** the reset pad from ratio 6 to ratio 3 is enabled
+- **AND** pressing it selects the inferred reset and highlights that pad Blue
 
 #### Scenario: Invalid reset is hidden without deletion
-- **WHEN** the stored reset loses ancestry after a topology edit
+- **WHEN** the stored reset loses period divisibility after a topology edit
 - **THEN** its pad becomes dark and disabled while the stored value is retained
 
 #### Scenario: Legacy patch preserves current state
 - **WHEN** a patch has no rhythm keys and the current rhythm differs from its construction default
 - **THEN** loading that patch preserves the current rhythm
 - **AND** loading it into a fresh instance leaves the fresh default unchanged
+
+### Requirement: Published Timebase Snapshots
+The system SHALL publish each of the six accepted loop periods plus each loop rhythm's active size, reset selection, and all 16 gate slots through TheoryOfTimeBaseUIState. Rhythm settings SHALL represent the published configuration without simulating the timing of edit acceptance. Accepted periods SHALL come from the timebase rather than pending topology requests. After at least one complete publication with positive periods, Snapshot SHALL copy these values into consumer-owned evaluation state, Changed SHALL detect any difference from that state, and GetTimePoint SHALL use only the copied state.
+A time point SHALL retain its signed 64-bit global tick position, reconstruct the six rhythm bits, and return the selected clock's signed loop-cycle position. It SHALL also expose the valid reset span in clock cycles, or zero when no valid reset applies, so forward arp lookup can respect reset boundaries. Clock selection -1 SHALL return loop-cycle position zero while still evaluating all six time bits. Both rhythm resets and the selected clock reset SHALL use the shared inferred-ancestry calculation based on period divisibility.
+
+#### Scenario: Snapshot remains stable across a publication
+- **WHEN** a rhythm or accepted period is republished after Snapshot
+- **THEN** Changed reports the difference while queries still use the preceding snapshot
+- **AND** the next Snapshot applies the publication and clears Changed while the producer is unchanged
+
+#### Scenario: UI query shares inferred reset arithmetic
+- **WHEN** explicit ratio links are 1 to 2, 1 to 3, and 2 to 6, and the ratio-6 clock selects ratio 3 as reset
+- **THEN** live and snapshot queries at global tick 10 return reset-relative loop-cycle position zero
+- **AND** the snapshot query at tick -1 returns position one
+
+#### Scenario: Full rhythm capacity is published
+- **WHEN** an engine rhythm has active size 16 and only slot 15 enabled
+- **THEN** the snapshot gate is true at positions -1 and 15 and false at position 16
+
+#### Scenario: Pending topology does not alter the published lattice
+- **WHEN** a requested parent or multiplier edit has not reached its acceptance boundary
+- **THEN** the UI snapshot retains the accepted loop periods
+- **AND** accepting the edit and publishing again marks the snapshot changed

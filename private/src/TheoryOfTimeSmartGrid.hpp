@@ -10,7 +10,7 @@ struct TheoryOfTimeRhythmCell : public SmartGrid::Cell
     State* m_sizeState;
     State* m_resetState;
     int m_loopIndex;
-    int m_rhythmIndex;
+    int m_rhythmSlotIndex;
     bool* m_shift;
 
     TheoryOfTimeRhythmCell(
@@ -19,36 +19,38 @@ struct TheoryOfTimeRhythmCell : public SmartGrid::Cell
         State* sizeState,
         State* resetState,
         int loopIndex,
-        int rhythmIndex,
+        int rhythmSlotIndex,
         bool* shift)
         : m_theoryOfTime(theoryOfTime)
         , m_gateState(gateState)
         , m_sizeState(sizeState)
         , m_resetState(resetState)
         , m_loopIndex(loopIndex)
-        , m_rhythmIndex(rhythmIndex)
+        , m_rhythmSlotIndex(rhythmSlotIndex)
         , m_shift(shift)
     {
     }
 
     virtual SmartGrid::Color GetColor() override
     {
-        if (m_sizeState->Get<int>() <= m_rhythmIndex)
+        if (m_sizeState->Get<int>() <= m_rhythmSlotIndex)
         {
             return SmartGrid::Color::Off;
         }
         else
         {
             int resetLoopIndex = m_resetState->Get<int>();
-            int64_t curIndex = PhaseUtils::FloorMod(m_theoryOfTime->GetGateStepIndex(m_loopIndex, 0, resetLoopIndex), m_sizeState->Get<int>());
-            bool curGate = m_gateState->Get<bool>();
-            if (curIndex == m_rhythmIndex)
+            int64_t currentRhythmSlotIndex = PhaseUtils::FloorMod(
+                m_theoryOfTime->GetLoopCyclePosition(m_loopIndex, 0, resetLoopIndex),
+                m_sizeState->Get<int>());
+            bool currentGate = m_gateState->Get<bool>();
+            if (currentRhythmSlotIndex == m_rhythmSlotIndex)
             {
-                return curGate ? SmartGrid::Color::Purple : SmartGrid::Color::Pink;
+                return currentGate ? SmartGrid::Color::Purple : SmartGrid::Color::Pink;
             }
             else
             {
-                return curGate ? SmartGrid::Color::Purple.Dim() : SmartGrid::Color::Grey;
+                return currentGate ? SmartGrid::Color::Purple.Dim() : SmartGrid::Color::Grey;
             }
         }
     }
@@ -57,7 +59,7 @@ struct TheoryOfTimeRhythmCell : public SmartGrid::Cell
     {
         if (*m_shift)
         {
-            m_sizeState->Set(m_rhythmIndex + 1);
+            m_sizeState->Set(m_rhythmSlotIndex + 1);
         }
         else
         {
@@ -71,36 +73,37 @@ struct TheoryOfTimeRhythmResetCell : public SmartGrid::Cell
     TheoryOfTime* m_theoryOfTime;
     State* m_resetState;
     int m_loopIndex;
-    int m_rhythmIndex;
+    int m_candidateLoopIndex;
 
     TheoryOfTimeRhythmResetCell(
         TheoryOfTime* theoryOfTime,
         State* resetState,
         int loopIndex,
-        int rhythmIndex)
+        int candidateLoopIndex)
         : m_theoryOfTime(theoryOfTime)
         , m_resetState(resetState)
         , m_loopIndex(loopIndex)
-        , m_rhythmIndex(rhythmIndex)
+        , m_candidateLoopIndex(candidateLoopIndex)
     {
     }
 
     bool IsEnabled()
     {
-        return m_loopIndex != m_rhythmIndex && m_theoryOfTime->IsAncestorOf(m_loopIndex, 0, m_rhythmIndex);
+        return m_loopIndex != m_candidateLoopIndex
+            && m_theoryOfTime->GetResetCycleCount(m_loopIndex, 0, m_candidateLoopIndex) > 0;
     }
 
     virtual void OnPress(uint8_t) override
     {
         if (IsEnabled())
         {
-            if (m_resetState->Get<int>() == m_rhythmIndex)
+            if (m_resetState->Get<int>() == m_candidateLoopIndex)
             {
                 m_resetState->Set(-1);
             }
             else
             {
-                m_resetState->Set(m_rhythmIndex);
+                m_resetState->Set(m_candidateLoopIndex);
             }
         }
     }
@@ -111,7 +114,7 @@ struct TheoryOfTimeRhythmResetCell : public SmartGrid::Cell
         {
             return SmartGrid::Color::Off;
         }
-        else if (m_resetState->Get<int>() == m_rhythmIndex)
+        else if (m_resetState->Get<int>() == m_candidateLoopIndex)
         {
             return SmartGrid::Color::Blue;
         }

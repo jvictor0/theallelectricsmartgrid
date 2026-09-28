@@ -261,7 +261,7 @@ DOCTEST_TEST_CASE("TimeRig: stopped multiplier changes recompute loop sizes befo
     DOCTEST_CHECK(rig.AnyChange(0) == true);
     DOCTEST_CHECK(rig.GetPeriodTicks(4) == 16);
     DOCTEST_CHECK(rig.GetPeriodTicks(TimeRig::x_globalLoop) == 48);
-    DOCTEST_CHECK(rig.GetPosition() == 0);
+    DOCTEST_CHECK(rig.GetGlobalTickPosition() == 0);
     DOCTEST_CHECK(rig.Gate(4) == false);
     DOCTEST_CHECK(rig.GetPhase(4) == doctest::Approx(0.0));
     DOCTEST_CHECK(rig.GetPhase(4, PhaseDomain::Unmodulated) == doctest::Approx(0.0));
@@ -289,7 +289,7 @@ DOCTEST_TEST_CASE("TimeRig: stopping a running rig halts the phasor")
     DOCTEST_CHECK(rig.AnyChange(0) == true);
     DOCTEST_CHECK(rig.GetPeriodTicks(4) == 16);
     DOCTEST_CHECK(rig.GetPeriodTicks(TimeRig::x_globalLoop) == 48);
-    DOCTEST_CHECK(rig.GetPosition() == 0);
+    DOCTEST_CHECK(rig.GetGlobalTickPosition() == 0);
     DOCTEST_CHECK(rig.Gate(4) == false);
 
     // After Stop(), topology-derived loop sizes are preserved while motion,

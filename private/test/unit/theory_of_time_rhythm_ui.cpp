@@ -218,11 +218,14 @@ DOCTEST_TEST_CASE("TheoryOfTime rhythm UI highlights steps relative to the selec
     DOCTEST_CHECK(grid.GetColor(0, 0) == SmartGrid::Color::Grey);
 }
 
-DOCTEST_TEST_CASE("TheoryOfTime rhythm reset UI only selects accepted strict ancestors")
+DOCTEST_TEST_CASE("TheoryOfTime rhythm reset UI uses accepted periods and excludes non-divisible resets")
 {
     RhythmUIRig rig;
     auto input = FlatClock();
     input.m_input[0].m_parentIndex = 2;
+    input.m_input[0].m_parentMult = 2;
+    input.m_input[1].m_parentMult = 4;
+    input.m_input[2].m_parentMult = 3;
     rig.PublishClock(input, 0.25);
     auto& grid = *rig.m_nonagon->m_theoryOfTimeRhythmResetGrid;
     DOCTEST_CHECK(grid.GetColor(0, 0) == SmartGrid::Color::Off);
@@ -239,7 +242,7 @@ DOCTEST_TEST_CASE("TheoryOfTime rhythm reset UI only selects accepted strict anc
     DOCTEST_CHECK(rig.Rhythm(0).m_resetLoopIndex == -1);
 
     input.m_input[0].m_parentIndex = 1;
-    rig.PublishClock(input, 0.75);
+    rig.PublishClock(input, 0.26);
     DOCTEST_CHECK(grid.GetColor(0, 1) == SmartGrid::Color::Off);
     Tap(grid, 0, 1);
     DOCTEST_CHECK(rig.Rhythm(0).m_resetLoopIndex == -1);
@@ -253,6 +256,28 @@ DOCTEST_TEST_CASE("TheoryOfTime rhythm reset UI only selects accepted strict anc
     Tap(grid, 0, 1);
     DOCTEST_CHECK(rig.Rhythm(0).m_resetLoopIndex == 1);
     DOCTEST_CHECK(grid.GetColor(0, 1) == SmartGrid::Color::Blue);
+}
+
+DOCTEST_TEST_CASE("SequencerUI: rhythm reset page offers the inferred three-to-six link")
+{
+    RhythmUIRig rig;
+    auto input = FlatClock();
+    input.m_input[4].m_parentMult = 2;
+    input.m_input[3].m_parentMult = 3;
+    input.m_input[2].m_parentIndex = 4;
+    input.m_input[2].m_parentMult = 3;
+    input.m_input[1].m_parentMult = 6;
+    rig.PublishClock(input, 0.25);
+    auto& grid = *rig.m_nonagon->m_theoryOfTimeRhythmResetGrid;
+    DOCTEST_CHECK(grid.GetColor(2, 2) == SmartGrid::Color::Off);
+    DOCTEST_CHECK(grid.GetColor(2, 3) == SmartGrid::Color::Blue.Dim());
+    Tap(grid, 2, 3);
+    DOCTEST_CHECK(rig.Rhythm(2).m_resetLoopIndex == 3);
+    DOCTEST_CHECK(grid.GetColor(2, 3) == SmartGrid::Color::Blue);
+    DOCTEST_CHECK(grid.GetColor(2, 1) == SmartGrid::Color::Blue.Dim());
+    Tap(grid, 2, 1);
+    DOCTEST_CHECK(rig.Rhythm(2).m_resetLoopIndex == 1);
+    DOCTEST_CHECK(grid.GetColor(2, 1) == SmartGrid::Color::Blue);
 }
 
 DOCTEST_TEST_CASE("TheoryOfTime rhythm state round trips every displayed step in all eight scenes")

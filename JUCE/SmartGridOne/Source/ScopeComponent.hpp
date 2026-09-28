@@ -829,17 +829,17 @@ struct SheafyModulatorComponent : public SmartGridOneMainVisualizerComponent
         g.fillAll(juce::Colours::black);
 
         auto bounds = boundsRect.toFloat();
-        size_t trioIx = m_uiState->m_squiggleBoyUIState.m_activeTrack.load();
-        if (trioIx >= LameJuisInternal::x_numLanes)
+        size_t trioIndex = m_uiState->m_squiggleBoyUIState.m_activeTrack.load();
+        if (trioIndex >= LameJuisInternal::x_numLanes)
         {
             return;
         }
 
-        auto& laneJuiceUIState = m_uiState->m_nonagonUIState.m_laneJuiceUIState;
+        auto& lameJuisUIState = m_uiState->m_nonagonUIState.m_lameJuisUIState;
         size_t latticeSize[x_rank];
         for (size_t i = 0; i < x_rank; ++i)
         {
-            latticeSize[i] = static_cast<size_t>(laneJuiceUIState.m_dimensions[i].load()) + 1;
+            latticeSize[i] = static_cast<size_t>(lameJuisUIState.m_dimensions[i].load()) + 1;
         }
 
         size_t sizeX = latticeSize[0];
@@ -874,14 +874,14 @@ struct SheafyModulatorComponent : public SmartGridOneMainVisualizerComponent
         DrawLatticeGrid(g, maxX, maxY, maxZ, originX, originY, xScale, yScale, zScale);
 
         std::vector<bool> seenSections(sizeX * sizeY * sizeZ, false);
-        HarmonicSheaf::Lens lens(laneJuiceUIState.m_currentLens[trioIx].load());
-        HarmonicSheaf::BitVector currentTime(laneJuiceUIState.m_currentTime.load());
-        HarmonicSheaf::BitVector representative = lens.Canonicalize(currentTime);
+        HarmonicSheaf::Lens lens(lameJuisUIState.GetLensForLane(trioIndex));
+        HarmonicSheaf::BitVector currentTimeSlice(lameJuisUIState.m_currentTimeSlice.load());
+        HarmonicSheaf::BitVector representative = lens.Canonicalize(currentTimeSlice);
         HarmonicSheaf::TimeSliceClassIterator iterator(lens, representative);
         while (!iterator.Done())
         {
             HarmonicSheaf::BitVector timeSlice = iterator.Get();
-            HarmonicSheaf::Section section = laneJuiceUIState.m_sheafUIState.m_sections[timeSlice.m_bits].load();
+            HarmonicSheaf::Section section = lameJuisUIState.m_harmonicSheafState.GetSection(timeSlice);
             if (IsInBounds(section, sizeX, sizeY, sizeZ))
             {
                 size_t sx = static_cast<size_t>(section.m_high[0]);
@@ -906,17 +906,18 @@ struct SheafyModulatorComponent : public SmartGridOneMainVisualizerComponent
             iterator.Next();
         }
 
-        for (size_t channelIx = 0; channelIx < x_channelsPerLane; ++channelIx)
+        for (size_t channelIndex = 0; channelIndex < x_channelsPerLane; ++channelIndex)
         {
-            size_t voiceIx = trioIx * x_voicesPerTrack + channelIx;
-            if (voiceIx >= TheNonagonInternal::x_numVoices
-                || m_uiState->m_nonagonUIState.m_muted[voiceIx].load()
-                || !m_uiState->m_nonagonUIState.m_gate[voiceIx].load())
+            size_t voiceIndex = trioIndex * x_voicesPerTrack + channelIndex;
+            if (voiceIndex >= TheNonagonInternal::x_numVoices
+                || m_uiState->m_nonagonUIState.m_muted[voiceIndex].load()
+                || !m_uiState->m_nonagonUIState.m_gate[voiceIndex].load())
             {
                 continue;
             }
 
-            HarmonicSheaf::Section section = laneJuiceUIState.m_currentSection[trioIx][channelIx].load();
+            HarmonicSheaf::Section section =
+                lameJuisUIState.m_currentPitchSection[trioIndex][channelIndex].load();
             if (!IsInBounds(section, sizeX, sizeY, sizeZ))
             {
                 continue;
@@ -930,7 +931,7 @@ struct SheafyModulatorComponent : public SmartGridOneMainVisualizerComponent
                 continue;
             }
 
-            SmartGrid::Color voiceColor = TheNonagonSmartGrid::VoiceColor(voiceIx);
+            SmartGrid::Color voiceColor = TheNonagonSmartGrid::VoiceColor(voiceIndex);
             g.setColour(juce::Colour(voiceColor.m_red, voiceColor.m_green, voiceColor.m_blue));
             Projection p = ProjectPoint(
                 static_cast<int>(sx),

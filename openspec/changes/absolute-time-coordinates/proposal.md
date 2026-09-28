@@ -6,7 +6,7 @@ Before this change, Theory of Time wrapped phase and integer positions early, th
 
 - Store absolute unmodulated and modulated global phases as doubles; derive loop phases and signed 64-bit lattice positions directly from phase and accepted topology.
 - **BREAKING**: Replace synonymous direct/indirect, independent/dependent, master/global, and unwound accessors with one consistently named time API; migrate all callers in the same change.
-- Replace recursive monodromy with signed whole-cycle gate-step division and optional ancestor-reset modulo, including negative positions and self reset to zero.
+- Replace recursive monodromy with signed loop-cycle positions and optional reset modulo with ancestry inferred from period divisibility, including negative positions and self reset to zero.
 - Use the undoubled LCM lattice and editable per-loop rhythms. Default gates alternate full cycles; gate/size/reset edits wait for that loop's next modulated tick.
 - Add paired rhythm/reset controller pages and their StateSaver entries. Preserve current values when older patches omit those keys, and include the final registered state when switching scenes.
 - Latch LameJuis matrix and co-mute edits on their own input ticks, including repeated gate values. Exclude empty rows from accumulator totals, include those totals in section identity, and initialize the grid with its accepted lens at startup.
@@ -16,6 +16,7 @@ Before this change, Theory of Time wrapped phase and integer positions early, th
 - Preserve PolyXFader's existing periodic waveform shaping, user controls, automatic amplitude weights, and smoothing.
 - Capture an AHD's phase-to-global ratio at trigger and track only modulated global phase thereafter; active envelopes do not follow later topology edits.
 - Remove timebase-related winding reconstruction from gates, recording, synchronization, playback, and display adapters. Preserve transport, persistence keys, and realtime scheduling.
+- Publish accepted timebase periods, rhythms, harmonic sections and chooser settings, and resolved index-arp parameters into UI snapshots. Compose the shared math into raw pitch queries and bounded per-voice sequence caches off the audio thread.
 
 ## Capabilities
 
@@ -25,13 +26,13 @@ None.
 
 ### Modified Capabilities
 
-- `phasor-timebase`: Absolute time, consistent API, simultaneous parent boundaries, direct gate-step indices, and interpolation under changing topology.
+- `phasor-timebase`: Absolute time, consistent API, simultaneous parent boundaries, direct loop-cycle positions, interpolation under changing topology, and published period/rhythm snapshots.
 - `source-machine-oscillators`: Absolute-phase sample playback with fractional and reverse speed.
 - `polyxfader-lfos`: Absolute phase inputs with existing per-loop periodic waveform semantics.
 - `ahd-envelopes`: Trigger-captured ratio and global phase origin, with topology-stable envelope timing.
 - `multi-phasor-gate`: Global absolute phase distance and consistent trigger-captured timing.
-- `lamejuis-sequencer`: Signed whole-cycle gate-step indices, tick-latched configuration, active-row accumulator counts, denominator-aware section changes, and correct startup grid mapping.
-- `nonagon-sequencer`: Tick-driven clock/read wiring and undoubled voice cycle ratios.
+- `lamejuis-sequencer`: Signed loop-cycle positions, tick-latched configuration, active-row accumulator counts, denominator-aware section changes, correct startup grid mapping, and harmonic/index-arp snapshots sharing the live evaluation math.
+- `nonagon-sequencer`: Tick-driven clock/read wiring, undoubled voice cycle ratios, raw UI pitch queries, and bounded sequence caches.
 - `controller-midi-io`: Paired rhythm/reset pages selected by the Wrld.Bldr aux grid.
 
 ## Impact

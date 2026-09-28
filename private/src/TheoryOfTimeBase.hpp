@@ -19,6 +19,8 @@ enum class PhaseDomain
     Modulated
 };
 
+struct TheoryOfTimeBaseUIState;
+
 struct TimeLoop
 {
     struct Input
@@ -47,8 +49,8 @@ struct TheoryOfTimeBase
     {
         double m_unmodulatedPhase = 0.0;
         double m_modulatedPhase = 0.0;
-        int64_t m_unmodulatedPosition = 0;
-        int64_t m_modulatedPosition = 0;
+        int64_t m_unmodulatedGlobalTickPosition = 0;
+        int64_t m_modulatedGlobalTickPosition = 0;
         std::array<TimeLoop, x_numLoops> m_loops;
         bool m_running = false;
         bool m_anyChange = false;
@@ -82,13 +84,16 @@ struct TheoryOfTimeBase
 
     std::array<Sample, x_microBlockBufferSize> m_samples;
 
-    static int64_t Position(double phase, int64_t periodTicks)
+    static int64_t ComputeGlobalTickPosition(double phase, int64_t globalPeriodTicks)
     {
-        double position = std::floor(phase * static_cast<double>(periodTicks));
+        double globalTickPosition = std::floor(phase * static_cast<double>(globalPeriodTicks));
         constexpr double x_minPosition = static_cast<double>(std::numeric_limits<int64_t>::min());
-        assert(std::isfinite(position) && position >= x_minPosition && position < -x_minPosition);
+        assert(
+            std::isfinite(globalTickPosition)
+            && globalTickPosition >= x_minPosition
+            && globalTickPosition < -x_minPosition);
         std::ignore = x_minPosition;
-        return static_cast<int64_t>(position);
+        return static_cast<int64_t>(globalTickPosition);
     }
 
     void RolloverMicroblockBuffer()
@@ -120,11 +125,13 @@ struct TheoryOfTimeBase
         return globalPhase * static_cast<double>(before.m_loops[loopIndex].m_cycleRatio);
     }
 
-    int64_t GetPosition(size_t sampleIndex, PhaseDomain domain) const
+    int64_t GetGlobalTickPosition(size_t sampleIndex, PhaseDomain domain) const
     {
         assert(sampleIndex < x_microBlockBufferSize);
         const Sample& sample = m_samples[sampleIndex];
-        return domain == PhaseDomain::Unmodulated ? sample.m_unmodulatedPosition : sample.m_modulatedPosition;
+        return domain == PhaseDomain::Unmodulated
+            ? sample.m_unmodulatedGlobalTickPosition
+            : sample.m_modulatedGlobalTickPosition;
     }
 
     int64_t GetPeriodTicks(size_t loopIndex, size_t sampleIndex) const
@@ -143,50 +150,61 @@ struct TheoryOfTimeBase
         return domain == PhaseDomain::Unmodulated ? loop.m_unmodulatedCycleCrossed : loop.m_modulatedCycleCrossed;
     }
 
-    static int64_t GetGateStepIndex(const Sample& sample, size_t loopIndex, int resetLoopIndex)
+    static int64_t GetLoopCyclePosition(const Sample& sample, size_t loopIndex, int resetLoopIndex)
     {
         assert(loopIndex < x_numLoops);
         assert(resetLoopIndex >= -1 && resetLoopIndex < static_cast<int>(x_numLoops));
-        int64_t stepTicks = sample.m_loops[loopIndex].m_periodTicks;
-        int64_t index = PhaseUtils::FloorDiv(sample.m_modulatedPosition, stepTicks);
-        int ancestor = static_cast<int>(loopIndex);
-        while (ancestor < static_cast<int>(x_numLoops))
-        {
-            if (ancestor == resetLoopIndex)
-            {
-                return PhaseUtils::FloorMod(index, sample.m_loops[ancestor].m_periodTicks / stepTicks);
-            }
-
-            ancestor = sample.m_loops[ancestor].m_input.m_parentIndex;
-        }
-
-        return index;
+        int64_t loopPeriodTicks = sample.m_loops[loopIndex].m_periodTicks;
+        int64_t resetPeriodTicks = resetLoopIndex == -1 ? -1 : sample.m_loops[resetLoopIndex].m_periodTicks;
+        int64_t globalTickPosition = sample.m_modulatedGlobalTickPosition;
+        return GetLoopCyclePosition(loopPeriodTicks, resetPeriodTicks, globalTickPosition);
     }
 
-    int64_t GetGateStepIndex(size_t loopIndex, size_t sampleIndex, int resetLoopIndex) const
+    static int64_t GetLoopCyclePosition(
+        int64_t loopPeriodTicks,
+        int64_t resetPeriodTicks,
+        int64_t globalTickPosition)
+    {
+        int64_t loopCyclePosition = PhaseUtils::FloorDiv(globalTickPosition, loopPeriodTicks);
+        int64_t resetCycleCount = GetResetCycleCount(loopPeriodTicks, resetPeriodTicks);
+        if (resetCycleCount > 0)
+        {
+            return PhaseUtils::FloorMod(loopCyclePosition, resetCycleCount);
+        }
+        else
+        {
+            return loopCyclePosition;
+        }
+    }
+
+    int64_t GetLoopCyclePosition(size_t loopIndex, size_t sampleIndex, int resetLoopIndex) const
     {
         assert(sampleIndex < x_microBlockBufferSize);
-        return GetGateStepIndex(m_samples[sampleIndex], loopIndex, resetLoopIndex);
+        return GetLoopCyclePosition(m_samples[sampleIndex], loopIndex, resetLoopIndex);
     }
 
-    int64_t GetGateStepIndex(size_t loopIndex, size_t sampleIndex) const
+    int64_t GetLoopCyclePosition(size_t loopIndex, size_t sampleIndex) const
     {
-        return GetGateStepIndex(loopIndex, sampleIndex, -1);
+        return GetLoopCyclePosition(loopIndex, sampleIndex, -1);
     }
 
-    bool IsAncestorOf(int ancestor, size_t sampleIndex, int loopIndex) const
+    static int64_t GetResetCycleCount(int64_t loopPeriodTicks, int64_t resetPeriodTicks)
     {
-        while (ancestor < static_cast<int>(x_numLoops))
+        assert(loopPeriodTicks > 0);
+        if (resetPeriodTicks > 0 && resetPeriodTicks % loopPeriodTicks == 0)
         {
-            if (ancestor == loopIndex)
-            {
-                return true;
-            }
-
-            ancestor = GetLoop(ancestor, sampleIndex).m_input.m_parentIndex;
+            return resetPeriodTicks / loopPeriodTicks;
         }
 
-        return false;
+        return 0;
+    }
+
+    int64_t GetResetCycleCount(size_t loopIndex, size_t sampleIndex, int resetLoopIndex) const
+    {
+        assert(resetLoopIndex >= -1 && resetLoopIndex < static_cast<int>(x_numLoops));
+        return GetResetCycleCount(
+            GetPeriodTicks(loopIndex, sampleIndex),
+            resetLoopIndex == -1 ? -1 : GetPeriodTicks(resetLoopIndex, sampleIndex));
     }
 
     bool AnyChangeInMicroBlock() const
@@ -274,9 +292,11 @@ struct TheoryOfTimeBase
 
     static void SetPositions(Sample& sample)
     {
-        int64_t globalPeriod = sample.m_loops[x_globalLoop].m_periodTicks;
-        sample.m_unmodulatedPosition = Position(sample.m_unmodulatedPhase, globalPeriod);
-        sample.m_modulatedPosition = Position(sample.m_modulatedPhase, globalPeriod);
+        int64_t globalPeriodTicks = sample.m_loops[x_globalLoop].m_periodTicks;
+        sample.m_unmodulatedGlobalTickPosition =
+            ComputeGlobalTickPosition(sample.m_unmodulatedPhase, globalPeriodTicks);
+        sample.m_modulatedGlobalTickPosition =
+            ComputeGlobalTickPosition(sample.m_modulatedPhase, globalPeriodTicks);
     }
 
     static void SetGates(Sample& sample, const Input& input)
@@ -287,8 +307,8 @@ struct TheoryOfTimeBase
             {
                 if (sample.m_loops[i].m_modulatedCycleCrossed)
                 {
-                    int64_t index = GetGateStepIndex(sample, i, input.m_rhythm[i].m_resetLoopIndex);
-                    sample.m_loops[i].m_gate = input.m_rhythm[i].Gate(index);
+                    int64_t loopCyclePosition = GetLoopCyclePosition(sample, i, input.m_rhythm[i].m_resetLoopIndex);
+                    sample.m_loops[i].m_gate = input.m_rhythm[i].GateAt(loopCyclePosition);
                 }
             }
         }
@@ -303,16 +323,21 @@ struct TheoryOfTimeBase
 
     static void SetCrossings(Sample& sample, const Sample& previous, bool started)
     {
-        int64_t globalPeriod = sample.m_loops[x_globalLoop].m_periodTicks;
-        int64_t previousUnmodulated = Position(previous.m_unmodulatedPhase, globalPeriod);
-        int64_t previousModulated = Position(previous.m_modulatedPhase, globalPeriod);
-        sample.m_anyChange = started || sample.m_modulatedPosition != previousModulated;
+        int64_t globalPeriodTicks = sample.m_loops[x_globalLoop].m_periodTicks;
+        int64_t previousUnmodulatedGlobalTickPosition =
+            ComputeGlobalTickPosition(previous.m_unmodulatedPhase, globalPeriodTicks);
+        int64_t previousModulatedGlobalTickPosition =
+            ComputeGlobalTickPosition(previous.m_modulatedPhase, globalPeriodTicks);
+        sample.m_anyChange =
+            started || sample.m_modulatedGlobalTickPosition != previousModulatedGlobalTickPosition;
         for (TimeLoop& loop : sample.m_loops)
         {
             loop.m_modulatedCycleCrossed = started ||
-                PhaseUtils::FloorDiv(sample.m_modulatedPosition, loop.m_periodTicks) != PhaseUtils::FloorDiv(previousModulated, loop.m_periodTicks);
+                PhaseUtils::FloorDiv(sample.m_modulatedGlobalTickPosition, loop.m_periodTicks)
+                    != PhaseUtils::FloorDiv(previousModulatedGlobalTickPosition, loop.m_periodTicks);
             loop.m_unmodulatedCycleCrossed = started ||
-                PhaseUtils::FloorDiv(sample.m_unmodulatedPosition, loop.m_periodTicks) != PhaseUtils::FloorDiv(previousUnmodulated, loop.m_periodTicks);
+                PhaseUtils::FloorDiv(sample.m_unmodulatedGlobalTickPosition, loop.m_periodTicks)
+                    != PhaseUtils::FloorDiv(previousUnmodulatedGlobalTickPosition, loop.m_periodTicks);
 
             loop.m_modulatedCycleCrossed.InterpolatePhases(previous.m_modulatedPhase, sample.m_modulatedPhase, loop.m_cycleRatio, started);
             loop.m_unmodulatedCycleCrossed.InterpolatePhases(previous.m_unmodulatedPhase, sample.m_unmodulatedPhase, loop.m_cycleRatio, started);
@@ -378,4 +403,6 @@ struct TheoryOfTimeBase
 
         SetGates(sample, input);
     }
+
+    void PopulateUIState(TheoryOfTimeBaseUIState& uiState, const Input& input) const;
 };

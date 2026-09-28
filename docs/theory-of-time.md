@@ -30,24 +30,24 @@ Each sample has one signed `int64_t` position per domain, shared by all loops. T
 ```
 globalPeriodTicks = lcm(cycleRatios)
 loopPeriodTicks = globalPeriodTicks / cycleRatio
-position = floor(globalPhase * globalPeriodTicks)
-absoluteStep = floorDiv(modulatedPosition, loopPeriodTicks)
+globalTickPosition = floor(globalPhase * globalPeriodTicks)
+loopCyclePosition = floorDiv(modulatedGlobalTickPosition, loopPeriodTicks)
 ```
 
 One gate step is one complete loop cycle. For global cycle ratios 1, 2, and 3, the global period is 6 ticks and the respective loop periods are 6, 3, and 2 ticks. Positions remain absolute in storage. `PhaseUtils::FloorDiv` and `FloorMod` use Euclidean arithmetic for negative positions.
 
-`GetGateStepIndex(loop, sample, resetLoop)` returns the signed absolute step when reset is -1 or is not an ancestor. For a selected ancestor or the loop itself:
+`GetLoopCyclePosition(loop, sample, resetLoop)` infers reset ancestry from the accepted periods. A reset is valid when its period is an integer multiple of the clock period, even if it is on another explicit parent path. Reset -1 or a non-divisible reset leaves the absolute position. For a valid reset:
 
 ```
-stepsPerReset = resetPeriodTicks / loopPeriodTicks
-step = floorMod(absoluteStep, stepsPerReset)
+cyclesPerReset = resetPeriodTicks / loopPeriodTicks
+loopCyclePosition = floorMod(absoluteLoopCyclePosition, cyclesPerReset)
 ```
 
-A self reset therefore always returns zero. At position -1 with loop period 8, the absolute index is -1; with ancestor period 24 the reset-relative index is 2. The index remains signed 64-bit through rhythm lookup and the sequencer's motive calculations, reducing only to a bounded slot or output.
+A self reset or a reset to another equal-period loop therefore always returns zero. For cycle-ratio links `1 → 2`, `1 → 3`, and `2 → 6`, the `3 → 6` relationship is implied: the ratio-3 loop can reset the ratio-6 loop without reparenting. At global tick position -1 with loop period 8, the absolute loop-cycle position is -1; with ancestor period 24 the reset-relative position is 2. The position remains signed 64-bit through rhythm lookup and the sequencer's motive calculations, reducing only to a bounded slot or output.
 
 ## Loop rhythms and tick events
 
-Every loop has a `TheoryOfTimeRhythm`: up to 16 gate values, an active size, and an optional reset loop. On that loop's modulated cycle crossing, its gate becomes `rhythm.gate[floorMod(step, rhythm.size)]`. The default is size 2 with `[true, false]`: one complete cycle on, then one complete cycle off. This loop rhythm supplies the LameJuis time bit; each voice's index-arp rhythm is a separate pattern.
+Every loop has a `TheoryOfTimeRhythm`: up to 16 gate values, an active size, and an optional reset loop. On that loop's modulated cycle crossing, its gate becomes `rhythm.gate[floorMod(loopCyclePosition, rhythm.size)]`. The default is size 2 with `[true, false]`: one complete cycle on, then one complete cycle off. This loop rhythm supplies the LameJuis time bit; each voice's index-arp rhythm is a separate pattern.
 
 `CrossedCycleBoundary` reports a change in the floor-divided cycle index in the requested domain, in either direction. `AnyTick(loop)` aggregates the loop's modulated crossings over the microblock. A tick remains an event when neighboring rhythm values are equal, a seek skips several steps, or self reset leaves the selected index at zero. Consumers receive at most one event per sample, without synthesized intermediate steps.
 
@@ -57,7 +57,7 @@ Gate, size, and reset edits become audible only at the edited loop's next modula
 
 A running topology edit accepts the requested parent and multiplier together only when both the current and requested parents cross a modulated cycle boundary on the same sample. All eligibility checks use the topology before any edits on that sample. Stopped edits and startup accept the requested topology immediately.
 
-For a running sample, processing derives positions, computes crossings, accepts eligible topology edits, remaps positions if the lattice changed, and finally evaluates gates for the loops whose crossing flags are set. Remapping preserves the events that admitted the edit and raises `m_anyChange`; the remap itself is not elapsed travel. Gate lookup uses the accepted topology and its reset ancestry. A stored reset that ceases to be an ancestor is ignored; it becomes effective again when that ancestry returns, at the loop's next tick.
+For a running sample, processing derives positions, computes crossings, accepts eligible topology edits, remaps positions if the lattice changed, and finally evaluates gates for the loops whose crossing flags are set. Remapping preserves the events that admitted the edit and raises `m_anyChange`; the remap itself is not elapsed travel. Gate lookup uses the accepted topology and its reset ancestry. A stored reset whose period no longer divides in this way is ignored; it becomes effective again when the period relationship returns, at the loop's next tick. Explicit parent-path changes alone do not invalidate a compatible reset.
 
 Changing topology recomputes cycle ratios and lattice periods. Absolute child phase can change by whole cycles at an aligned edit. Periodic outputs agree at the mathematical boundary; coordinates remain direct functions of the new topology. Fractional sample queries interpolate global phase first, then apply the topology of their interval. They do not interpolate between differently mapped child coordinates.
 
@@ -65,7 +65,7 @@ Topology acceptance uses modulated boundaries. The phase-modulation LFO uses unm
 
 ## Rhythm controller and patch state
 
-Wrld.Bldr's TheoryOfTimeRhythm mode pairs a left rhythm page with a right reset page. Select it with aux pad `(1, 1)` in the normal grid-mode selector view. The left page has six loop columns and eight step rows: press a pad to toggle its gate; Shift-press row `j` to set size `j + 1`. The right page selects an ancestor reset for each loop; pressing the selected ancestor again clears it. Self and non-ancestor pads are disabled. A reset made invalid by reparenting remains stored but its pad is hidden while invalid.
+Wrld.Bldr's TheoryOfTimeRhythm mode pairs a left rhythm page with a right reset page. Select it with aux pad `(1, 1)` in the normal grid-mode selector view. The left page has six loop columns and eight step rows: press a pad to toggle its gate; Shift-press row `j` to set size `j + 1`. The reset-page contract follows inferred ancestry: every other loop with a divisible accepted period is eligible, including equal-period loops. Pressing the selected reset again clears it; self and non-divisible resets are disabled. A reset made invalid by a period change remains stored. The picker and time queries share the core period-divisibility calculation.
 
 The engine supports 16 rhythm slots. The grid edits slots 0 through 7 and sizes 1 through 8; StateSaver persists the size and reset plus gate slots 0 through 7. Persistence does not clamp an imported size to eight, and engine slots 8 through 15 have no saved gate entries. StateSaver keys are `TheoryOfTimeRhythm` (loop, step), `TheoryOfTimeRhythmSize` (loop), and `TheoryOfTimeRhythmReset` (loop). Loading a patch with missing rhythm keys preserves the current registered values, following the ordinary StateSaver policy; a fresh instance starts with the default rhythm. Controller mode ordinals are runtime state and require no patch migration.
 
@@ -77,6 +77,7 @@ When stopped, all phases and positions are zero and gates and crossing flags are
 
 ## Consumers
 
+- [Sequencer UI State](sequencer-ui-state.md) publishes accepted periods and all loop rhythm slots for signed tick queries outside the audio thread. Reset eligibility is inferred from period divisibility, so these queries do not need a copied parent tree.
 - Playback uses absolute modulated loop phase, applies speed and window length, then wraps into its output window.
 - PolyXFader selects an explicit phase domain and evaluates a periodic waveform in double precision before narrowing to float. Voice LFOs use modulated phase; the clock's own modulation LFO uses unmodulated phase.
 - AHD captures a source/global cycle ratio and envelope period at trigger and follows only absolute modulated global phase during the note.

@@ -208,9 +208,14 @@ struct TimeRig
         return m_tot.GetPeriodTicks(loop, CurrentUBlockIndex());
     }
 
-    int64_t GetPosition(PhaseDomain domain = PhaseDomain::Modulated) const
+    int64_t GetGlobalTickPosition(PhaseDomain domain) const
     {
-        return m_tot.GetPosition(CurrentUBlockIndex(), domain);
+        return m_tot.GetGlobalTickPosition(CurrentUBlockIndex(), domain);
+    }
+
+    int64_t GetGlobalTickPosition() const
+    {
+        return GetGlobalTickPosition(PhaseDomain::Modulated);
     }
 
     bool AnyChangeInMicroBlock() const

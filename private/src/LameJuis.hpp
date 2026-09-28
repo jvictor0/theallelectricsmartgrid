@@ -541,12 +541,12 @@ struct LameJuisInternal
             {
                 HarmonicSheaf::SectionChoiceStrategy m_strategy;
                 HarmonicSheaf::SectionChoiceStrategy m_baseStrategy;
-                float m_choiceArg[x_channelsPerLane];
+                float m_choiceValue[x_channelsPerLane];
 
                 Input()
                     : m_strategy(HarmonicSheaf::SectionChoiceStrategy::ClosestModOne)
                     , m_baseStrategy(HarmonicSheaf::SectionChoiceStrategy::None)
-                    , m_choiceArg{}
+                    , m_choiceValue{}
                 {
                 }
             };
@@ -558,17 +558,19 @@ struct LameJuisInternal
             {
             }            
 
-            HarmonicSheaf::SectionWithValue Choose(Input& input, size_t voiceIx, HarmonicSheaf::BitVector defaultVector)
+            HarmonicSheaf::SectionWithValue Choose(
+                Input& input,
+                size_t channelIndex,
+                HarmonicSheaf::BitVector defaultVector)
             {
-                HarmonicSheaf::SectionChooser chooser;
-                chooser.m_strategy = input.m_baseStrategy;
-                chooser.m_evaluator = m_owner->GetEvaluator();
-                chooser.m_choiceArg = input.m_choiceArg[voiceIx];
-                HarmonicSheaf::SectionWithValue baseSection = chooser.Choose(m_owner->m_owner->m_sheaf, m_owner->m_coMuteState.GetLens(), defaultVector);
-                
-                chooser.m_strategy = input.m_strategy;
-                chooser.m_choiceArg += baseSection.m_value;
-                return chooser.Choose(m_owner->m_owner->m_sheaf, m_owner->m_coMuteState.GetLens(), defaultVector);
+                return HarmonicSheaf::SectionChooser::Choose(
+                    m_owner->m_owner->m_sheaf,
+                    m_owner->m_coMuteState.GetLens(),
+                    defaultVector,
+                    input.m_baseStrategy,
+                    input.m_strategy,
+                    m_owner->GetEvaluator(),
+                    input.m_choiceValue[channelIndex]);
             }
         };
 
@@ -589,7 +591,9 @@ struct LameJuisInternal
 
         bool m_trigger[x_channelsPerLane]{};
         HarmonicSheaf::SectionWithValue m_pitch[x_channelsPerLane];
-        CoMuteState m_coMuteState;        
+        CoMuteState m_coMuteState;
+        HarmonicSheaf::SectionChoiceStrategy m_baseStrategy = HarmonicSheaf::SectionChoiceStrategy::None;
+        HarmonicSheaf::SectionChoiceStrategy m_strategy = HarmonicSheaf::SectionChoiceStrategy::ClosestModOne;
 
         GridSheafView m_gridSheafView;
 
@@ -603,6 +607,8 @@ struct LameJuisInternal
         void Process(Input& input)
         {
             m_coMuteState.Process(input.m_coMuteInput);
+            m_baseStrategy = input.m_chooserInput.m_baseStrategy;
+            m_strategy = input.m_chooserInput.m_strategy;
             for (size_t i = 0; i < x_channelsPerLane; ++i)
             {
                 if (input.m_updateChan[i])
@@ -662,27 +668,29 @@ struct LameJuisInternal
 
     struct UIState
     {
-        HarmonicSheaf::Sheaf::UIState m_sheafUIState;
-        std::atomic<uint8_t> m_currentLens[x_numLanes];
-        std::atomic<uint8_t> m_currentTime;
-        std::atomic<HarmonicSheaf::Section> m_currentSection[x_numLanes][x_channelsPerLane];
+        HarmonicSheaf::UIState m_harmonicSheafState;
+        std::atomic<uint8_t> m_currentTimeSlice;
+        std::atomic<HarmonicSheaf::Section> m_currentPitchSection[x_numLanes][x_channelsPerLane];
         std::atomic<uint8_t> m_dimensions[HarmonicSheaf::x_rank];
 
         UIState()
-            : m_sheafUIState()
-            , m_currentLens{}
-            , m_currentTime(0)
-            , m_currentSection{}
+            : m_harmonicSheafState()
+            , m_currentTimeSlice(0)
+            , m_currentPitchSection{}
         {
             HarmonicSheaf::Section emptySection;
             for (size_t i = 0; i < x_numLanes; ++i)
             {
-                m_currentLens[i].store(0);
                 for (size_t j = 0; j < x_channelsPerLane; ++j)
                 {
-                    m_currentSection[i][j].store(emptySection);
+                    m_currentPitchSection[i][j].store(emptySection);
                 }
             }
+        }
+
+        HarmonicSheaf::Lens GetLensForLane(size_t laneIndex) const
+        {
+            return m_harmonicSheafState.GetLensForVoice(x_channelsPerLane * laneIndex);
         }
     };
 
@@ -759,20 +767,28 @@ struct LameJuisInternal
 
     void PopulateUIState(UIState* uiState)
     {
-        for (size_t i = 0; i < HarmonicSheaf::x_numBasePoints; ++i)
-        {
-            uiState->m_sheafUIState.m_sections[i].store(m_sheaf.m_sections[i]);
-        }
+        m_sheaf.PopulateUIState(&uiState->m_harmonicSheafState.m_sectionState);
+        HarmonicSheaf::Evaluator evaluator = GetEvaluator();
+        evaluator.PopulateUIState(&uiState->m_harmonicSheafState.m_evaluatorState);
 
-        uiState->m_currentTime.store(m_inputVector.m_bits);
+        uiState->m_currentTimeSlice.store(m_inputVector.m_bits);
 
         for (size_t i = 0; i < x_numLanes; ++i)
         {
             HarmonicSheaf::Lens lens = m_lanes[i].m_coMuteState.GetLens();
-            uiState->m_currentLens[i].store(lens.m_bits);
             for (size_t j = 0; j < x_channelsPerLane; ++j)
             {
-                uiState->m_currentSection[i][j].store(m_lanes[i].m_pitch[j].m_section);
+                size_t voiceIndex = x_channelsPerLane * i + j;
+                HarmonicSheaf::VoiceChooserUIState& voiceChooserState =
+                    uiState->m_harmonicSheafState.m_voiceChooserState[voiceIndex];
+                voiceChooserState.m_lens.store(lens);
+                voiceChooserState.m_baseStrategy.store(m_lanes[i].m_baseStrategy);
+                voiceChooserState.m_strategy.store(m_lanes[i].m_strategy);
+            }
+
+            for (size_t j = 0; j < x_channelsPerLane; ++j)
+            {
+                uiState->m_currentPitchSection[i][j].store(m_lanes[i].m_pitch[j].m_section);
             }
         }
 

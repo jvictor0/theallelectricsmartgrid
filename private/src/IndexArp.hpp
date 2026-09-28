@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include "PhaseUtils.hpp"
 
@@ -7,19 +9,19 @@ struct IndexArp
 {
     static constexpr size_t x_rhythmLength = 8;
     
-    int64_t m_totalIndex;
-    int m_index;
-    int64_t m_motiveIndex;
-    int m_rhythmIndex;
-    float m_output;
+    int64_t m_clockPosition;
+    int64_t m_noteIndex;
+    int64_t m_motivePosition;
+    int64_t m_rhythmSlotIndex;
+    float m_choiceValue;
     bool m_triggered;
 
     IndexArp()
-        : m_totalIndex(-1)
-        , m_index(0)
-        , m_motiveIndex(0)
-        , m_rhythmIndex(-1)
-        , m_output(0.0f)
+        : m_clockPosition(-1)
+        , m_noteIndex(0)
+        , m_motivePosition(0)
+        , m_rhythmSlotIndex(-1)
+        , m_choiceValue(0.0f)
         , m_triggered(false)
     {
     }
@@ -30,7 +32,7 @@ struct IndexArp
         bool m_read;
         bool m_noClock;
 
-        int64_t m_totalIndex;
+        int64_t m_clockPosition;
 
         float m_offset;
         float m_interval;
@@ -47,7 +49,7 @@ struct IndexArp
             : m_clock(false)
             , m_read(false)
             , m_noClock(false)
-            , m_totalIndex(0)
+            , m_clockPosition(0)
             , m_offset(0)
             , m_interval(0)
             , m_min(0)
@@ -65,11 +67,11 @@ struct IndexArp
             }
         }      
 
-        float GetOutput(int index, int64_t pageIndex)
+        float GetChoiceValue(int64_t noteIndex, int64_t motivePosition) const
         {
-            index = GetPhysicalIndex(index);
-            double result = static_cast<double>(m_offset) + index * static_cast<double>(m_interval)
-                + static_cast<double>(pageIndex) * m_pageInterval;
+            noteIndex = GetPhysicalNoteIndex(noteIndex);
+            double result = static_cast<double>(m_offset) + noteIndex * static_cast<double>(m_interval)
+                + static_cast<double>(motivePosition) * m_pageInterval;
             if (m_cycle)
             {
                 result = result - 2 * std::floor(result / 2);
@@ -92,22 +94,22 @@ struct IndexArp
             return static_cast<float>(result);
         }                 
 
-        int GetPhysicalIndex(int index)
+        int64_t GetPhysicalNoteIndex(int64_t noteIndex) const
         {
             if (m_retro)
             {
-                int numNotes = NumNotes();
-                return numNotes - index;
+                int64_t numEnabledStoredSlots = GetNumEnabledStoredSlots();
+                return numEnabledStoredSlots - noteIndex;
             }
             else
             {
-                return index;
+                return noteIndex;
             }
         }
 
-        int NumNotes() const
+        int64_t GetNumEnabledStoredSlots() const
         {
-            int result = 0;
+            int64_t result = 0;
             for (size_t i = 0; i < x_rhythmLength; ++i)
             {
                 if (m_rhythm[i])
@@ -117,6 +119,13 @@ struct IndexArp
             }
             return result;
         }
+    };
+
+    struct Coordinates
+    {
+        int64_t m_rhythmSlotIndex;
+        int64_t m_motivePosition;
+        int64_t m_noteIndex;
     };
 
     void Process(Input& input)
@@ -130,37 +139,196 @@ struct IndexArp
 
         if (input.m_clock)
         {
-            m_totalIndex = input.m_totalIndex;
-            m_rhythmIndex = static_cast<int>(PhaseUtils::FloorMod(m_totalIndex, input.m_rhythmLength));
-          
-            if (input.m_rhythm[m_rhythmIndex])
-            {
-                m_motiveIndex = PhaseUtils::FloorDiv(m_totalIndex, input.m_rhythmLength);
-
-                m_index = -1;
-                for (int i = 0; i <= m_rhythmIndex; ++i)
-                {
-                    if (input.m_rhythm[i])
-                    {
-                        ++m_index;
-                    }
-                }
-
-                m_triggered = true;
-            }
+            ProcessClock(input);
         }
 
         if (input.m_read || m_triggered)
         {
-            m_output = input.GetOutput(m_index, m_motiveIndex);
+            m_choiceValue = input.GetChoiceValue(m_noteIndex, m_motivePosition);
         }
+    }
+
+    void ProcessClock(Input& input)
+    {
+        m_clockPosition = input.m_clockPosition;
+        Coordinates coordinates = GetCoordinates(input, m_clockPosition);
+        m_rhythmSlotIndex = coordinates.m_rhythmSlotIndex;
+
+        if (input.m_rhythm[m_rhythmSlotIndex])
+        {
+            m_noteIndex = coordinates.m_noteIndex;
+            m_motivePosition = coordinates.m_motivePosition;
+            m_triggered = true;
+        }
+    }
+
+    static Coordinates GetCoordinates(const Input& input, int64_t clockPosition)
+    {
+        Coordinates result;
+        result.m_rhythmSlotIndex = static_cast<int64_t>(PhaseUtils::FloorMod(clockPosition, input.m_rhythmLength));
+        result.m_motivePosition = PhaseUtils::FloorDiv(clockPosition, input.m_rhythmLength);
+
+        result.m_noteIndex = -1;
+        for (int64_t i = 0; i <= result.m_rhythmSlotIndex; ++i)
+        {
+            if (input.m_rhythm[i])
+            {
+                ++result.m_noteIndex;
+            }
+        }
+
+        return result;
+    }
+
+    static Coordinates GetForwardCoordinates(const Input& input, int64_t clockPosition, int64_t resetCycleCount)
+    {
+        Coordinates current = GetCoordinates(input, clockPosition);
+        // A reset can join the trailing and leading rests of two partial motives.
+        //
+        int64_t lookback = resetCycleCount > 0
+            ? std::min<int64_t>(2 * input.m_rhythmLength, resetCycleCount)
+            : input.m_rhythmLength;
+        for (int64_t distance = 0; distance < lookback; ++distance)
+        {
+            Coordinates candidate;
+            if (resetCycleCount > 0 && clockPosition < distance)
+            {
+                candidate = GetCoordinates(input, resetCycleCount - (distance - clockPosition));
+            }
+            else
+            {
+                // Subtract within the rhythm so signed clock positions cannot underflow.
+                //
+                candidate = GetCoordinates(input, current.m_rhythmSlotIndex - distance);
+                candidate.m_motivePosition += current.m_motivePosition;
+            }
+
+            if (input.m_rhythm[candidate.m_rhythmSlotIndex])
+            {
+                return candidate;
+            }
+        }
+
+        return Coordinates{current.m_rhythmSlotIndex, 0, 0};
     }
 
     void Reset()
     {
-        m_index = 0;
-        m_motiveIndex = 0;
-        m_rhythmIndex = 0;
+        m_noteIndex = 0;
+        m_motivePosition = 0;
+        m_rhythmSlotIndex = 0;
+    }
+
+    struct UIState
+    {
+        std::atomic<float> m_offset;
+        std::atomic<float> m_interval;
+        std::atomic<float> m_min;
+        std::atomic<float> m_max;
+        std::atomic<bool> m_invert;
+        std::atomic<bool> m_retro;
+        std::atomic<bool> m_cycle;
+        std::atomic<float> m_pageInterval;
+        std::atomic<bool> m_rhythm[x_rhythmLength];
+        std::atomic<int> m_rhythmLength;
+
+        Input m_snapshot;
+
+        UIState()
+            : m_offset(0)
+            , m_interval(0)
+            , m_min(0)
+            , m_max(0)
+            , m_invert(false)
+            , m_retro(false)
+            , m_cycle(false)
+            , m_pageInterval(0)
+            , m_rhythm{}
+            , m_rhythmLength(x_rhythmLength)
+        {
+            for (size_t i = 0; i < x_rhythmLength; ++i)
+            {
+                m_rhythm[i] = true;
+            }
+        }
+
+        void Snapshot()
+        {
+            m_snapshot.m_offset = m_offset.load();
+            m_snapshot.m_interval = m_interval.load();
+            m_snapshot.m_min = m_min.load();
+            m_snapshot.m_max = m_max.load();
+            m_snapshot.m_invert = m_invert.load();
+            m_snapshot.m_retro = m_retro.load();
+            m_snapshot.m_cycle = m_cycle.load();
+            m_snapshot.m_pageInterval = m_pageInterval.load();
+            for (size_t i = 0; i < x_rhythmLength; ++i)
+            {
+                m_snapshot.m_rhythm[i] = m_rhythm[i].load();
+            }
+
+            m_snapshot.m_rhythmLength = m_rhythmLength.load();
+        }
+
+        bool Changed() const
+        {
+            if (m_offset.load() != m_snapshot.m_offset
+                || m_interval.load() != m_snapshot.m_interval
+                || m_min.load() != m_snapshot.m_min
+                || m_max.load() != m_snapshot.m_max
+                || m_invert.load() != m_snapshot.m_invert
+                || m_retro.load() != m_snapshot.m_retro
+                || m_cycle.load() != m_snapshot.m_cycle
+                || m_pageInterval.load() != m_snapshot.m_pageInterval
+                || m_rhythmLength.load() != m_snapshot.m_rhythmLength)
+            {
+                return true;
+            }
+
+            for (size_t i = 0; i < x_rhythmLength; ++i)
+            {
+                if (m_rhythm[i].load() != m_snapshot.m_rhythm[i])
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        float GetChoiceValue(int64_t clockPosition) const
+        {
+            return GetChoiceValue(clockPosition, 0);
+        }
+
+        float GetChoiceValue(int64_t clockPosition, int64_t resetCycleCount) const
+        {
+            Coordinates coordinates = GetForwardCoordinates(m_snapshot, clockPosition, resetCycleCount);
+            return m_snapshot.GetChoiceValue(coordinates.m_noteIndex, coordinates.m_motivePosition);
+        }
+
+        float GetResetChoiceValue() const
+        {
+            return m_snapshot.GetChoiceValue(0, 0);
+        }
+    };
+
+    void PopulateUIState(UIState* uiState, const Input& input)
+    {
+        uiState->m_offset.store(input.m_offset);
+        uiState->m_interval.store(input.m_interval);
+        uiState->m_min.store(input.m_min);
+        uiState->m_max.store(input.m_max);
+        uiState->m_invert.store(input.m_invert);
+        uiState->m_retro.store(input.m_retro);
+        uiState->m_cycle.store(input.m_cycle);
+        uiState->m_pageInterval.store(input.m_pageInterval);
+        for (size_t i = 0; i < x_rhythmLength; ++i)
+        {
+            uiState->m_rhythm[i].store(input.m_rhythm[i]);
+        }
+
+        uiState->m_rhythmLength.store(input.m_rhythmLength);
     }
 };
 
@@ -190,7 +358,7 @@ struct NonagonIndexArp
         bool m_retro[x_numVoices];
         bool m_cycle[x_numVoices];        
 
-        int64_t m_totalIndex[x_numTrios];
+        int64_t m_clockPosition[x_numTrios];
 
         void SetTrioInputs()
         {
@@ -209,7 +377,7 @@ struct NonagonIndexArp
 
                     m_input[i * x_voicesPerTrio + j].m_max = m_input[i * x_voicesPerTrio + j].m_min + m_zoneHeight[i * x_voicesPerTrio + j];
 
-                    m_input[i * x_voicesPerTrio + j].m_totalIndex = m_totalIndex[i];
+                    m_input[i * x_voicesPerTrio + j].m_clockPosition = m_clockPosition[i];
                 }
             }
                     
@@ -237,7 +405,7 @@ struct NonagonIndexArp
             , m_invert{}
             , m_retro{}
             , m_cycle{}
-            , m_totalIndex{}
+            , m_clockPosition{}
         {
             for (size_t i = 0; i < x_numClocks; ++i)
             {
@@ -248,7 +416,7 @@ struct NonagonIndexArp
             {
                 m_clockSelect[i] = 0;
                 m_resetSelect[i] = -1;
-                m_totalIndex[i] = 0;
+                m_clockPosition[i] = 0;
             }
         }
 
@@ -271,6 +439,88 @@ struct NonagonIndexArp
         }
     };
 
+    struct UIState
+    {
+        IndexArp::UIState m_arpUIState[x_numVoices];
+        std::atomic<int> m_clockSelect[x_numTrios];
+        std::atomic<int> m_resetSelect[x_numTrios];
+
+        int m_snapshotClockSelect[x_numTrios];
+        int m_snapshotResetSelect[x_numTrios];
+
+        UIState()
+            : m_arpUIState{}
+            , m_clockSelect{}
+            , m_resetSelect{}
+            , m_snapshotClockSelect{}
+            , m_snapshotResetSelect{}
+        {
+            for (size_t i = 0; i < x_numTrios; ++i)
+            {
+                m_clockSelect[i].store(0);
+                m_resetSelect[i].store(-1);
+                m_snapshotClockSelect[i] = -2;
+                m_snapshotResetSelect[i] = -2;
+            }
+        }
+
+        bool Changed() const
+        {
+            for (size_t i = 0; i < x_numTrios; ++i)
+            {
+                if (m_clockSelect[i].load() != m_snapshotClockSelect[i]
+                    || m_resetSelect[i].load() != m_snapshotResetSelect[i])
+                {
+                    return true;
+                }
+            }
+
+            for (size_t i = 0; i < x_numVoices; ++i)
+            {
+                if (m_arpUIState[i].Changed())
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        void Snapshot()
+        {
+            for (size_t i = 0; i < x_numTrios; ++i)
+            {
+                m_snapshotClockSelect[i] = m_clockSelect[i].load();
+                m_snapshotResetSelect[i] = m_resetSelect[i].load();
+            }
+
+            for (size_t i = 0; i < x_numVoices; ++i)
+            {
+                m_arpUIState[i].Snapshot();
+            }
+        }
+
+        int GetClockSelect(size_t voiceIndex) const
+        {
+            return m_snapshotClockSelect[voiceIndex / x_voicesPerTrio];
+        }
+
+        int GetResetSelect(size_t voiceIndex) const
+        {
+            return m_snapshotResetSelect[voiceIndex / x_voicesPerTrio];
+        }
+
+        float GetChoiceValue(size_t voiceIndex, int64_t clockPosition, int64_t resetCycleCount) const
+        {
+            if (GetClockSelect(voiceIndex) < 0)
+            {
+                return m_arpUIState[voiceIndex].GetResetChoiceValue();
+            }
+
+            return m_arpUIState[voiceIndex].GetChoiceValue(clockPosition, resetCycleCount);
+        }
+    };
+
     void Process(Input& input)
     {
         input.SetClocks();
@@ -278,6 +528,20 @@ struct NonagonIndexArp
         for (size_t i = 0; i < x_numVoices; ++i)
         {
             m_arp[i].Process(input.m_input[i]);
+        }
+    }
+
+    void PopulateUIState(UIState* uiState, const Input& input)
+    {
+        for (size_t i = 0; i < x_numTrios; ++i)
+        {
+            uiState->m_clockSelect[i].store(input.m_clockSelect[i]);
+            uiState->m_resetSelect[i].store(input.m_resetSelect[i]);
+        }
+
+        for (size_t i = 0; i < x_numVoices; ++i)
+        {
+            m_arp[i].PopulateUIState(&uiState->m_arpUIState[i], input.m_input[i]);
         }
     }
 };

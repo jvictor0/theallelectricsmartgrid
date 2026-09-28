@@ -47,11 +47,11 @@ DOCTEST_TEST_CASE("AbsoluteTime: reset indices use signed absolute time")
     AbsoluteClockRig rig;
     rig.m_input.m_input[4].m_parentMult = 3;
     rig.Step(2.25);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex) == 6);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex, 5) == 0);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(4, rig.m_sampleIndex) == 6);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(4, rig.m_sampleIndex, 5) == 0);
     rig.Step(-0.25);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex) == -1);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex, 5) == 2);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(4, rig.m_sampleIndex) == -1);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(4, rig.m_sampleIndex, 5) == 2);
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: reparent waits for both parent boundaries")
@@ -118,7 +118,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: crossing events survive multiple complete cycle
     const TimeLoop& loop = rig.m_time.GetLoop(5, rig.m_sampleIndex);
     DOCTEST_CHECK(loop.m_gate);
     DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(5, rig.m_sampleIndex, PhaseDomain::Modulated));
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, rig.m_sampleIndex) == 2);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(5, rig.m_sampleIndex) == 2);
     rig.Step(2.125);
     DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, rig.m_sampleIndex, PhaseDomain::Modulated));
 }
@@ -137,16 +137,17 @@ DOCTEST_TEST_CASE("AbsoluteTime: lookahead interpolation and rollover retain abs
     DOCTEST_CHECK(rig.m_time.GetPhase(5, 0.5, PhaseDomain::Unmodulated) == doctest::Approx(3.0625));
 }
 
-DOCTEST_TEST_CASE("AbsoluteTime: domain separation and unrelated reset")
+DOCTEST_TEST_CASE("AbsoluteTime: domain separation and non-divisible reset")
 {
     AbsoluteClockRig rig;
     rig.m_input.m_input[4].m_parentMult = 3;
+    rig.m_input.m_input[3].m_parentMult = 2;
     rig.m_input.m_phaseOffset = -1.5;
     rig.Step(2.25);
     DOCTEST_CHECK(rig.m_time.GetPhase(4, 1, PhaseDomain::Unmodulated) == doctest::Approx(6.75));
     DOCTEST_CHECK(rig.m_time.GetPhase(4, 1, PhaseDomain::Modulated) == doctest::Approx(2.25));
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, 1, 3) == 2);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, 1, 4) == 0);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(4, 1, 3) == 2);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(4, 1, 4) == 0);
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: stopped topology and startup are explicit")
@@ -194,9 +195,9 @@ DOCTEST_TEST_CASE("AbsoluteTime: lattice edits preserve unrelated loop events")
     rig.m_input.m_input[3].m_parentMult = 3;
     rig.Step(10.51);
     DOCTEST_CHECK(rig.m_time.GetPeriodTicks(5, 2) == 6);
-    DOCTEST_CHECK(rig.m_time.GetPosition(2, PhaseDomain::Modulated) == 63);
+    DOCTEST_CHECK(rig.m_time.GetGlobalTickPosition(2, PhaseDomain::Modulated) == 63);
     DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, 2, PhaseDomain::Modulated));
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2) == 10);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(5, 2) == 10);
     rig.Step(10.52);
     DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(3, 3, PhaseDomain::Modulated));
 }
@@ -205,11 +206,11 @@ DOCTEST_TEST_CASE("AbsoluteTime: indices exceed 32 bits without winding history"
 {
     AbsoluteClockRig rig;
     rig.Step(2147483649.5);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 1) == 2147483649LL);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 1, 5) == 0);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(5, 1) == 2147483649LL);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(5, 1, 5) == 0);
     rig.Step(-2147483649.5);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2) == -2147483650LL);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2, 5) == 0);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(5, 2) == -2147483650LL);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(5, 2, 5) == 0);
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: internal oscillator advances across global cycles")
@@ -310,7 +311,7 @@ DOCTEST_TEST_CASE("WholeTick: reset wraps after every complete ancestor cycle")
     for (size_t i = 0; i < 6; ++i)
     {
         rig.Step(phases[i]);
-        DOCTEST_CHECK(rig.m_time.GetGateStepIndex(4, rig.m_sampleIndex, 5) == indices[i]);
+        DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(4, rig.m_sampleIndex, 5) == indices[i]);
         DOCTEST_CHECK(rig.m_time.GetLoop(4, rig.m_sampleIndex).m_gate == gates[i]);
         DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(4, rig.m_sampleIndex, PhaseDomain::Modulated));
     }
@@ -328,7 +329,7 @@ DOCTEST_TEST_CASE("WholeTick: equal neighboring gates and self reset still tick"
         DOCTEST_CHECK(rig.m_time.GetLoop(5, 2).m_gate);
         DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(5, 2, PhaseDomain::Modulated));
         DOCTEST_CHECK(rig.m_time.AnyTick(5));
-        DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 2, reset) == (reset == -1 ? 1 : 0));
+        DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(5, 2, reset) == (reset == -1 ? 1 : 0));
     }
 }
 
@@ -409,7 +410,7 @@ DOCTEST_TEST_CASE("WholeTick: accepted topology remaps gates without accepting u
     rig.m_input.m_input[3].m_parentMult = 3;
     rig.Step(10.51);
     DOCTEST_CHECK(rig.m_time.GetCycleRatio(3, 2) == 6);
-    DOCTEST_CHECK(rig.m_time.GetGateStepIndex(3, 2, -1) == 63);
+    DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(3, 2, -1) == 63);
     DOCTEST_CHECK(rig.m_time.CrossedCycleBoundary(3, 2, PhaseDomain::Modulated));
     DOCTEST_CHECK(rig.m_time.GetLoop(3, 2).m_gate);
     DOCTEST_CHECK_FALSE(rig.m_time.CrossedCycleBoundary(5, 2, PhaseDomain::Modulated));
@@ -497,10 +498,10 @@ DOCTEST_TEST_CASE("WholeTick: nonbinary rhythms retain signed 64 bit indices thr
         rhythm.m_size = example.m_size;
         rhythm.m_gate[0] = false;
         rhythm.m_gate[example.m_expected] = true;
-        DOCTEST_CHECK(rhythm.MonodromyIndexToIndex(example.m_step) == example.m_expected);
-        DOCTEST_CHECK(rhythm.Gate(example.m_step));
+        DOCTEST_CHECK(rhythm.GetRhythmSlotIndex(example.m_step) == example.m_expected);
+        DOCTEST_CHECK(rhythm.GateAt(example.m_step));
         rig.Step(static_cast<double>(example.m_step) + 0.25);
-        DOCTEST_CHECK(rig.m_time.GetGateStepIndex(5, 1, -1) == example.m_step);
+        DOCTEST_CHECK(rig.m_time.GetLoopCyclePosition(5, 1, -1) == example.m_step);
         DOCTEST_CHECK(rig.m_time.GetLoop(5, 1).m_gate);
     }
 }

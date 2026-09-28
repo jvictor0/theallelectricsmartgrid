@@ -18,7 +18,7 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 - **PolyXFader** — Internal LFO/phasor shaper used for the Theory of Time's phase-modulation LFO. Takes phase inputs from the six time loops and produces a single modulation value. (`private/src/PolyXFader.hpp`)
 
-- **gate-step index** — Signed 64-bit whole-cycle coordinate returned by `GetGateStepIndex`: floor-divide the absolute modulated position by the clock loop period. An ancestor reset reduces it modulo the number of clock cycles in the ancestor period; self reset returns zero. No reset or a non-ancestor reset leaves the absolute index. Earlier documentation called this monodromy.
+- **loop-cycle position** — Signed 64-bit whole-cycle coordinate returned by `GetLoopCyclePosition`: floor-divide the absolute modulated global tick position by the clock loop period. A reset whose period is divisible by the clock period is an inferred ancestor, even on another parent path, and reduces the position modulo that number of clock cycles. Self and equal-period resets return zero. No reset or a non-divisible reset leaves the absolute position. Earlier documentation called this the gate-step index or monodromy.
 
 - **tick** — A loop's modulated cycle-crossing event. `AnyTick` reports whether one occurred in a microblock, even when the loop gate stays at the same value or reset leaves the index unchanged.
 
@@ -32,13 +32,13 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 - **lens** — A 6-bit mask: bit 1 = "read" (must agree for equivalence), bit 0 = "co-mute" (ignore). Defines equivalence x ~_U y and the sheaf F^M_x(U) = { M(y) | y ~_U x }. Set per lane via "co-mutes" in the UI (`!m_coMutes[i]` = read dimension i).
 
-- **index arp** — Arpeggiator that turns the signed **gate-step index** of a chosen clock loop into a **point in a range**. Uses a **rhythm** pattern (`m_rhythm`, length 8) to gate steps; **m_index** = physical step among on steps; **m_motiveIndex** = rhythm page; output = f(m_index, m_motiveIndex) scaled to [m_min, m_max]. That value is passed as `m_choiceArg` to the chosen section choice strategy (e.g. Percentile or ClosestModOne). (`IndexArp`, `NonagonIndexArp` in `private/src/IndexArp.hpp`)
+- **index arp** — Arpeggiator that turns the signed **loop-cycle position** of a chosen clock loop into a **choice value**. Uses a **rhythm** pattern (`m_rhythm`, length 8) to gate steps; **m_noteIndex** is the bounded ordinal among enabled steps and **m_motivePosition** is the signed rhythm-page coordinate. Their mapped value is scaled to [m_min, m_max] and passed as `m_choiceValue` to the chosen section choice strategy (e.g. Percentile or ClosestModOne). (`IndexArp`, `NonagonIndexArp` in `private/src/IndexArp.hpp`)
 
 - **LogicOperation** — One of 6 "simple functions" I⁶ → {0,1} that build M. For each of the 6 bits: **Muted** (ignore), **Normal** (use), **Inverted** (use inverted). The output is determined by a lookup table **m_rhs[countHigh]**: for each count of high (active, possibly inverted) bits, the performer chooses whether the operation outputs true or false. Default is `m_rhs[j] = (j % 2 == 1)` ("odds pass," equivalent to parity/Xor — a Walsh function). A row with no accepted non-muted inputs is false and contributes to no accumulator; otherwise its output goes to one of 3 **accumulators**. Its `m_countTotal` counts active input bits, not rows. The RHS grid lights column k from the **active trio's** lens: k is reachable if some assignment of the trio's co-muted bits yields that countHigh.
 
 - **accumulator** — One of 3 targets for the logic operations. Has an **interval** (octave, fifth, major third, etc.) in volt-per-octave. The pitch M(x) is the sum over accumulators of (interval × number of high operations targeting that accumulator). Each section records `m_total` (active rows targeting the accumulator) and `m_high` (those evaluating true); both counts participate in section equality. So M(x) is a just-intonation ratio as a product of simple intervals raised to small integer exponents.
 
-- **sheaf** — F^M_x(U) = { M(y) | y ~_U x }; the set of pitches available at time x for lens U. A section choice strategy (e.g. Percentile or ClosestModOne) selects the final note using the index-arp output as `m_choiceArg`.
+- **sheaf** — F^M_x(U) = { M(y) | y ~_U x }; the set of pitches available at time x for lens U. A section choice strategy (e.g. Percentile or ClosestModOne) selects the final note using the index-arp output as `m_choiceValue`.
 
 - **Nonagon** — The sequencer as a whole; often used to mean the combination of Theory of Time, LameJuis, note writer, and related UI. See [The Nonagon](nonagon.md).
 

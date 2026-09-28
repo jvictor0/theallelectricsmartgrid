@@ -16,6 +16,7 @@
 #include "MessageOut.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
+#include "TheNonagonUIState.hpp"
 
 struct TheNonagonInternal
 {
@@ -70,10 +71,8 @@ struct TheNonagonInternal
         }
     };
 
-    struct UIState
+    struct UIState : public TheNonagonUIState
     {
-        TheoryOfTime::UIState m_theoryOfTimeUIState;
-        LameJuisInternal::UIState m_laneJuiceUIState;
         std::atomic<int> m_loopMultiplier[x_numTrios];
         std::atomic<bool> m_gate[x_numVoices];
         std::atomic<bool> m_muted[x_numVoices];
@@ -166,7 +165,8 @@ struct TheNonagonInternal
             {
                 input.m_lameJuisInput.m_laneInput[i].m_updateChan[j] = input.m_arpInput.m_input[i * x_voicesPerTrio + j].m_read
                                                                      || m_indexArp.m_arp[i * x_voicesPerTrio + j].m_triggered;
-                input.m_lameJuisInput.m_laneInput[i].m_chooserInput.m_choiceArg[j] = m_indexArp.m_arp[i * x_voicesPerTrio + j].m_output;
+                input.m_lameJuisInput.m_laneInput[i].m_chooserInput.m_choiceValue[j] =
+                    m_indexArp.m_arp[i * x_voicesPerTrio + j].m_choiceValue;
             }
         }
     }
@@ -246,11 +246,14 @@ struct TheNonagonInternal
             {                    
                 if (input.m_arpInput.m_clockSelect[j] < 0)
                 {
-                    input.m_arpInput.m_totalIndex[j] = 0;
+                    input.m_arpInput.m_clockPosition[j] = 0;
                 }
                 else if (m_theoryOfTime.AnyTick(input.m_arpInput.m_clockSelect[j]))
                 {
-                    input.m_arpInput.m_totalIndex[j] = m_theoryOfTime.GetGateStepIndex(input.m_arpInput.m_clockSelect[j], 0, input.m_arpInput.m_resetSelect[j]);
+                    input.m_arpInput.m_clockPosition[j] = m_theoryOfTime.GetLoopCyclePosition(
+                        input.m_arpInput.m_clockSelect[j],
+                        0,
+                        input.m_arpInput.m_resetSelect[j]);
                 }
             }
         }
@@ -1085,7 +1088,7 @@ struct TheNonagonSmartGrid
         struct RhythmCell : public SmartGrid::Cell
         {
             IndexArp* m_arp;
-            int m_ix;
+            int m_rhythmSlotIndex;
             bool* m_shift;
             Trio m_trio;
             SmartGrid::Color m_color;
@@ -1096,14 +1099,14 @@ struct TheNonagonSmartGrid
                 TheNonagonSmartGrid* owner,
                 size_t voice,
                 IndexArp* arp,
-                int ix,
+                int rhythmSlotIndex,
                 bool* shift,
                 Trio trio)
                 : m_arp(arp)
-                , m_ix(ix)
+                , m_rhythmSlotIndex(rhythmSlotIndex)
                 , m_shift(shift)
                 , m_trio(trio)
-                , m_rhythmState(owner->m_stateSaver.Get("IndexArpRhythm", voice, ix))
+                , m_rhythmState(owner->m_stateSaver.Get("IndexArpRhythm", voice, rhythmSlotIndex))
                 , m_rhythmLengthState(owner->m_stateSaver.Get("IndexArpRhythmLength", voice))
             {
             }
@@ -1112,7 +1115,7 @@ struct TheNonagonSmartGrid
             {
                 if (*m_shift)
                 {
-                    m_rhythmLengthState->Set(m_ix + 1);
+                    m_rhythmLengthState->Set(m_rhythmSlotIndex + 1);
                 }
                 else
                 {
@@ -1122,13 +1125,13 @@ struct TheNonagonSmartGrid
             
             virtual SmartGrid::Color GetColor() override
             {
-                if (m_rhythmLengthState->Get<int>() <= m_ix)
+                if (m_rhythmLengthState->Get<int>() <= m_rhythmSlotIndex)
                 {
                     return SmartGrid::Color::Off;
                 }
 
                 SmartGrid::Color result;
-                if (m_arp->m_rhythmIndex != m_ix)
+                if (m_arp->m_rhythmSlotIndex != m_rhythmSlotIndex)
                 {
                     result = SmartGrid::Color::White;
                 }
@@ -1441,8 +1444,10 @@ struct TheNonagonSmartGrid
     {
         double phase = m_nonagon.m_theoryOfTime.GetPhase(TheoryOfTimeBase::x_globalLoop, 0, PhaseDomain::Unmodulated);
         m_nonagon.m_noteWriter.SetCurPosition(static_cast<float>(phase - std::floor(phase)));
-        m_nonagon.m_theoryOfTime.PopulateUIState(&uiState->m_theoryOfTimeUIState);
-        m_nonagon.m_lameJuis.PopulateUIState(&uiState->m_laneJuiceUIState);
+        m_nonagon.m_theoryOfTime.PopulateUIState(&uiState->m_theoryOfTimeUIState, m_state.m_theoryOfTimeInput);
+        m_nonagon.m_lameJuis.PopulateUIState(&uiState->m_lameJuisUIState);
+        m_nonagon.m_indexArp.PopulateUIState(&uiState->m_indexArpUIState, m_state.m_arpInput);
+
         for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
         {
             uiState->SetLoopMultiplier(i, m_state.m_multiPhasorGateInput.m_voiceCycleRatio[i * TheNonagonInternal::x_voicesPerTrio]);

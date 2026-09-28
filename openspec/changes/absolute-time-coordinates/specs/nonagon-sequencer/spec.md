@@ -46,21 +46,21 @@ The system SHALL run the index arp and LameJuis only on frames where the phasor 
 - **AND** every lane's selected pitch and trigger flags remain those of the last changing frame
 
 ### Requirement: Whole-Cycle Tick Wiring to the Index Arp
-The system SHALL use AnyTick(loop) to supply loop clock events and read flags for dimensions selected by each lane's lens. It SHALL also supply each LameJuis input with its gate value and a separate AnyTick(loop) flag so input configuration accepts modulated crossings independently of Boolean gate changes. For a selected trio clock that ticked, it SHALL sample the signed whole-cycle coordinate GetGateStepIndex(clockSelect, 0, resetSelect). A tick SHALL remain observable when loop gate values repeat or self reset keeps the index at zero. With no clock selected (-1), total index SHALL be zero and no clock event supplied; a read without a clock SHALL reset the arp indices. A tick from another loop SHALL leave the selected clock's total index unchanged.
+The system SHALL use AnyTick(loop) to supply loop clock events and read flags for dimensions selected by each lane's lens. It SHALL also supply each LameJuis input with its gate value and a separate AnyTick(loop) flag so input configuration accepts modulated crossings independently of Boolean gate changes. For a selected trio clock that ticked, it SHALL sample the signed whole-cycle coordinate GetLoopCyclePosition(clockSelect, 0, resetSelect). A tick SHALL remain observable when loop gate values repeat or self reset keeps the position at zero. With no clock selected (-1), clock position SHALL be zero and no clock event supplied; a read without a clock SHALL reset the arp coordinates. A tick from another loop SHALL leave the selected clock position unchanged.
 
 #### Scenario: Clock tick samples the whole-cycle coordinate
 - **WHEN** trio 2's selected clock loop ticks during a changing microblock
-- **THEN** its total index is GetGateStepIndex(clockSelect[2], 0, resetSelect[2])
+- **THEN** its clock position is GetLoopCyclePosition(clockSelect[2], 0, resetSelect[2])
 - **AND** an unchanged loop gate does not suppress the clock
 
 #### Scenario: Non-selected tick only updates matching reads
 - **WHEN** only a loop other than trio 2's selected clock ticks
-- **THEN** trio 2's total index keeps its previous value
+- **THEN** trio 2's clock position keeps its previous value
 - **AND** voices of lanes that read the ticked dimension get their read flag set
 
 #### Scenario: Self reset keeps the clock event
 - **WHEN** the selected clock ticks with itself as reset
-- **THEN** total index is zero and a clock event is still supplied
+- **THEN** clock position is zero and a clock event is still supplied
 
 #### Scenario: Rhythm edit does not clock the sequencer
 - **WHEN** a gate, size, or reset edit occurs without a timebase crossing or other timebase change
@@ -88,6 +88,42 @@ The system SHALL calculate each voice's positive signed 64-bit cycle ratio as th
 #### Scenario: No clock and no read dimensions
 - **WHEN** no voice clock is selected and all lens dimensions are co-muted
 - **THEN** the voice cycle ratio is 1
+
+### Requirement: UI Pitch Queries Share Sequencer Math
+The Nonagon SHALL publish timebase, harmonic, and index-arp UI state during its existing frame publication. A consumer SHALL be able to copy those inputs and evaluate a VoicePoint at a signed global lattice tick without advancing the live engine or invoking audio processing. The result SHALL retain the time point, arp choice value, and raw selected harmonic section and pitch. Evaluation SHALL reuse the timebase, arp, and harmonic chooser calculations rather than duplicate their formulas in a visualizer.
+The preview SHALL assume a forward scan with fixed published settings. Its pitch is the raw LameJuis selection before unison routing and octave/spread, and SHALL NOT be presented as a complete emitted-note event: mute/trigger decisions, gate duration, and output latching are outside this query. The initial snapshot SHALL be taken only after valid periods and complete input publication are available. Published fields are individually atomic; this interface SHALL NOT promise one cross-component transactional generation. Snapshot and cache processing SHALL have a single consumer owner outside the audio thread.
+
+#### Scenario: All voices retain their own choices
+- **WHEN** a complete Nonagon configuration is published and copied
+- **THEN** all nine voice queries use their own arp mapping and their trio's harmonic configuration
+- **AND** on enabled steps they agree with live raw lane selections for the same frozen configuration
+
+#### Scenario: A producer update leaves copied queries stable
+- **WHEN** the producer publishes different harmonic coefficients during use of a snapshot
+- **THEN** existing queries continue using the copied coefficients until the next consumer snapshot
+
+### Requirement: Bounded UI Sequence Caches
+The UI SHALL maintain one contiguous sequence cache per voice, containing one VoicePoint per integer global tick. PreProcess SHALL refresh changed snapshots and invalidate all voice caches together. It SHALL seed an empty or disjoint cache at the requested position before Process trims or extends it. Ranges SHALL be half-open, and touching ranges SHALL count as disjoint. Cache operations SHALL NOT read front or back from an empty sequence.
+The desired range SHALL contain the current signed position and fit within 1024 points: prefer the containing global cycle plus one neighboring cycle on each side when three cycles fit; otherwise retain the whole containing cycle with balanced spare capacity when one cycle fits; otherwise center a 1024-tick window on the current position. The containing cycle SHALL use floor-based arithmetic for negative positions. Each Process call SHALL append at most 32 points at either end and SHALL run outside the audio thread. A global cycle is a display window, not a promise that arp motives or loop rhythms repeat after that window.
+
+#### Scenario: Bounded incremental fill
+- **WHEN** the global period is 32 and a new cache is seeded at tick zero
+- **THEN** the first Process adds at most 32 points before and after the seed
+- **AND** repeated calls fill the desired range [-32,64) without exceeding 1024 points
+
+#### Scenario: Touching windows reseed safely
+- **WHEN** a populated cache is [-32,64) and the desired range becomes [64,160) for current tick 96
+- **THEN** PreProcess reseeds the cache to include tick 96 before trimming
+- **AND** the following Process does not access an empty deque
+
+#### Scenario: Negative position belongs to the preceding cycle
+- **WHEN** the current tick is -1 and the global period is 1024
+- **THEN** the desired range is [-1024,0), containing the current tick
+
+#### Scenario: Harmonic edits invalidate every voice
+- **WHEN** a published coefficient, section, lens, or strategy differs from the consumer snapshot
+- **THEN** PreProcess replaces the snapshot and reseeds every voice cache before further expansion
+
 
 ## RENAMED Requirements
 

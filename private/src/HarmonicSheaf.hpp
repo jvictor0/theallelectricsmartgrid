@@ -11,6 +11,7 @@
 struct HarmonicSheaf
 {
     static constexpr size_t x_rank = 3;
+    static constexpr size_t x_numVoices = 9;
     static constexpr size_t x_dimension = 6;
     static constexpr size_t x_numBasePoints = 1 << x_dimension;
 
@@ -207,6 +208,9 @@ struct HarmonicSheaf
         }
     };
 
+    struct EvaluatorUIState;
+    struct SheafUIState;
+
     struct Evaluator
     {
         float m_coefficients[x_rank];
@@ -228,6 +232,35 @@ struct HarmonicSheaf
             }
 
             return sum;
+        }
+
+        void PopulateUIState(EvaluatorUIState* uiState);
+    };
+
+    struct EvaluatorUIState
+    {
+        std::atomic<float> m_coefficients[x_rank];
+        Evaluator m_snapshot;
+
+        bool Changed() const
+        {
+            for (size_t i = 0; i < x_rank; ++i)
+            {
+                if (m_coefficients[i].load() != m_snapshot.m_coefficients[i])
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        void Snapshot()
+        {
+            for (size_t i = 0; i < x_rank; ++i)
+            {
+                m_snapshot.m_coefficients[i] = m_coefficients[i].load();
+            }
         }
     };
     
@@ -271,11 +304,6 @@ struct HarmonicSheaf
 
     struct Sheaf
     {
-        struct UIState
-        {
-            std::atomic<Section> m_sections[x_numBasePoints];
-        };
-
         static_assert(sizeof(Section) == x_rank * 2);
 
         Section m_sections[x_numBasePoints];
@@ -303,6 +331,35 @@ struct HarmonicSheaf
             return evaluator.Evaluate(Get(index));
         }
 
+        void PopulateUIState(SheafUIState* uiState);
+    };
+
+    struct SheafUIState
+    {
+        std::atomic<Section> m_sections[x_numBasePoints];
+        static_assert(std::atomic<Section>::is_always_lock_free, "std::atomic<Section> must be lock-free on this platform");
+        Sheaf m_snapshot;
+
+        bool Changed() const
+        {
+            for (size_t i = 0; i < x_numBasePoints; ++i)
+            {
+                if (m_sections[i].load() != m_snapshot.m_sections[i])
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        void Snapshot()
+        {
+            for (size_t i = 0; i < x_numBasePoints; ++i)
+            {
+                m_snapshot.m_sections[i] = m_sections[i].load();
+            }
+        }
     };
 
     struct TimeSliceOrdinalConverter
@@ -476,12 +533,12 @@ struct HarmonicSheaf
     {
         SectionChoiceStrategy m_strategy;
         Evaluator m_evaluator;
-        float m_choiceArg;
+        float m_choiceValue;
 
         SectionChooser()
          : m_strategy(SectionChoiceStrategy::None)
          , m_evaluator()
-         , m_choiceArg(0.0f)
+         , m_choiceValue(0.0f)
         {
         }
 
@@ -594,14 +651,149 @@ struct HarmonicSheaf
                 case SectionChoiceStrategy::GCD:
                     return ChooseGCD(sheaf, lens, defaultVector);
                 case SectionChoiceStrategy::Closest:
-                    return ChooseClosest(sheaf, lens, defaultVector, m_choiceArg, false);
+                    return ChooseClosest(sheaf, lens, defaultVector, m_choiceValue, false);
                 case SectionChoiceStrategy::ClosestModOne:
-                    return ChooseClosest(sheaf, lens, defaultVector, m_choiceArg, true);
+                    return ChooseClosest(sheaf, lens, defaultVector, m_choiceValue, true);
                 case SectionChoiceStrategy::Percentile:
-                    return ChoosePercentile(sheaf, lens, defaultVector, m_choiceArg);
+                    return ChoosePercentile(sheaf, lens, defaultVector, m_choiceValue);
             }
 
             return SectionWithValue(Section(), m_evaluator);
         }
+
+        static SectionWithValue Choose(
+            Sheaf& sheaf,
+            Lens lens,
+            BitVector defaultVector,
+            SectionChoiceStrategy baseStrategy,
+            SectionChoiceStrategy strategy,
+            Evaluator evaluator,
+            float choiceValue)
+        {
+            SectionChooser chooser;
+            chooser.m_strategy = baseStrategy;
+            chooser.m_evaluator = evaluator;
+            chooser.m_choiceValue = choiceValue;
+            SectionWithValue baseSection = chooser.Choose(sheaf, lens, defaultVector);
+
+            chooser.m_strategy = strategy;
+            chooser.m_choiceValue += baseSection.m_value;
+            return chooser.Choose(sheaf, lens, defaultVector);
+        }
+    };
+
+    struct VoiceChooserUIState
+    {
+        std::atomic<SectionChoiceStrategy> m_baseStrategy;
+        std::atomic<SectionChoiceStrategy> m_strategy;
+        std::atomic<Lens> m_lens;
+
+        SectionChoiceStrategy m_snapshotBaseStrategy;
+        SectionChoiceStrategy m_snapshotStrategy;
+        Lens m_snapshotLens;
+
+        VoiceChooserUIState()
+            : m_baseStrategy(SectionChoiceStrategy::None)
+            , m_strategy(SectionChoiceStrategy::ClosestModOne)
+            , m_lens(Lens())
+            , m_snapshotBaseStrategy(SectionChoiceStrategy::None)
+            , m_snapshotStrategy(SectionChoiceStrategy::ClosestModOne)
+            , m_snapshotLens()
+        {
+        }
+
+        bool Changed() const
+        {
+            if (m_lens.load() != m_snapshotLens
+                || m_baseStrategy.load() != m_snapshotBaseStrategy
+                || m_strategy.load() != m_snapshotStrategy)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        void Snapshot()
+        {
+            m_snapshotLens = m_lens.load();
+            m_snapshotBaseStrategy = m_baseStrategy.load();
+            m_snapshotStrategy = m_strategy.load();
+        }
+    };
+
+    struct UIState
+    {
+        EvaluatorUIState m_evaluatorState;
+        SheafUIState m_sectionState;
+        VoiceChooserUIState m_voiceChooserState[x_numVoices];
+
+        bool Changed() const
+        {
+            for (size_t i = 0; i < x_numVoices; ++i)
+            {
+                if (m_voiceChooserState[i].Changed())
+                {
+                    return true;
+                }
+            }
+
+            if (m_evaluatorState.Changed()
+                || m_sectionState.Changed())
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        void Snapshot()
+        {
+            for (size_t i = 0; i < x_numVoices; ++i)
+            {
+                m_voiceChooserState[i].Snapshot();
+            }
+
+            m_evaluatorState.Snapshot();
+            m_sectionState.Snapshot();
+        }
+
+        Section GetSection(BitVector timeSlice) const
+        {
+            return m_sectionState.m_sections[timeSlice.m_bits].load();
+        }
+
+        Lens GetLensForVoice(size_t voiceIndex) const
+        {
+            return m_voiceChooserState[voiceIndex].m_lens.load();
+        }
+
+        SectionWithValue Choose(size_t voiceIndex, BitVector defaultVector, float choiceValue)
+        {
+            return SectionChooser::Choose(
+                m_sectionState.m_snapshot,
+                m_voiceChooserState[voiceIndex].m_snapshotLens,
+                defaultVector,
+                m_voiceChooserState[voiceIndex].m_snapshotBaseStrategy,
+                m_voiceChooserState[voiceIndex].m_snapshotStrategy,
+                m_evaluatorState.m_snapshot,
+                choiceValue);
+        }
     };
 };
+
+inline void HarmonicSheaf::Evaluator::PopulateUIState(HarmonicSheaf::EvaluatorUIState* uiState)
+{
+    for (size_t i = 0; i < x_rank; ++i)
+    {
+        uiState->m_coefficients[i].store(m_coefficients[i]);
+    }
+}
+
+inline void HarmonicSheaf::Sheaf::PopulateUIState(HarmonicSheaf::SheafUIState* uiState)
+{
+    for (size_t i = 0; i < x_numBasePoints; ++i)
+    {
+        uiState->m_sections[i].store(m_sections[i]);
+    }
+}

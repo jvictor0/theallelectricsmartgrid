@@ -263,9 +263,9 @@ DOCTEST_TEST_CASE("WholeTick: Nonagon clocks and reads tick even when gate value
     DOCTEST_CHECK(input.m_lameJuisInput.m_inputBitInput[5].m_value);
     DOCTEST_CHECK(input.m_arpInput.m_clocks[5]);
     DOCTEST_CHECK(input.m_arpInput.m_input[0].m_read);
-    DOCTEST_CHECK(input.m_arpInput.m_totalIndex[0] == 1);
+    DOCTEST_CHECK(input.m_arpInput.m_clockPosition[0] == 1);
     input.m_arpInput.m_resetSelect[0] = 5;
     nonagon->SetIndexArpInputs(input);
     DOCTEST_CHECK(input.m_arpInput.m_clocks[5]);
-    DOCTEST_CHECK(input.m_arpInput.m_totalIndex[0] == 0);
+    DOCTEST_CHECK(input.m_arpInput.m_clockPosition[0] == 0);
 }
