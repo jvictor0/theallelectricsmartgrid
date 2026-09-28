@@ -16,6 +16,12 @@ Deep Vocoder uses the shared spectral model's ordered one-to-one matcher with an
 
 When a voice in the synthesizer is triggered by the Nonagon, its intended fundamental pitch (`m_pitchCenter`) is passed to the Deep Vocoder (`TransformNote`).
 
+`TransformNote` receives the current input and refreshes that voice's pitch,
+ratios, and threshold parameters immediately. FFT-hop caching controls spectral
+analysis, not which note is transformed. When disabled, the vocoder preserves
+the trigger and passes the current pitch through with its post ratio; it never
+substitutes the preceding note's cached pitch.
+
 The vocoder then searches the currently active spectral atoms to find the "best" match. It does this using a **V-shaped thresholding function** (`MagnitudeThreshold`):
 - For a given target frequency and a candidate atom frequency, it calculates an amplitude threshold.
 - The threshold is lowest exactly at the target frequency (determined by `m_gainThreshold`).

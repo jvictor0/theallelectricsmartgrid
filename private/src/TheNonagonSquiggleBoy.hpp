@@ -335,7 +335,8 @@ struct TheNonagonSquiggleBoyInternal
                 baseFreq = baseFreq / ratio;
                 m_squiggleBoy.m_deepVocoderState.m_voiceInput[i].m_pitchCenter = baseFreq;
                 m_squiggleBoy.m_deepVocoderState.m_voiceInput[i].m_pitchRatioPost = ratio;
-                baseFreq = m_squiggleBoy.m_deepVocoder.TransformNote(i, &m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i]);        
+                baseFreq = m_squiggleBoy.m_deepVocoder.TransformNote(
+                    i, m_squiggleBoy.m_deepVocoderState, &m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i]);
                 if (m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig)                      
                 {
                     m_squiggleBoyState.m_baseFreq[i] = baseFreq;

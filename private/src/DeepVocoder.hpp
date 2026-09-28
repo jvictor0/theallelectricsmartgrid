@@ -83,7 +83,6 @@ struct DeepVocoder
     DeepVocoder()
         : m_buffer{}
         , m_index(0)
-        , m_enabled(false)
     {
         for (size_t i = 0; i < x_tableSize; ++i)
         {
@@ -95,19 +94,13 @@ struct DeepVocoder
     {
         m_buffer[m_index % x_tableSize] = inputSample;
         ++m_index;
-        m_enabled = input.m_enabled;
         if (m_index % x_H == 0)
         {
             SpectralModel::Input spectralInput = input.MakeSpectralInput();
             
             for (size_t i = 0; i < x_numVoices; ++i)
             {
-                m_voiceState[i].m_gainThreshold = input.m_voiceInput[i].m_gainThreshold.m_expParam;
-                m_voiceState[i].m_slopeUp = input.m_voiceInput[i].m_slopeUp.m_expParam;
-                m_voiceState[i].m_slopeDown = input.m_voiceInput[i].m_slopeDown.m_expParam;
-                m_voiceState[i].m_pitchCenter = input.m_voiceInput[i].m_pitchCenter;
-                m_voiceState[i].m_pitchRatioPre = input.m_voiceInput[i].m_pitchRatioPre.m_expParam;
-                m_voiceState[i].m_pitchRatioPost = input.m_voiceInput[i].m_pitchRatioPost;
+                m_voiceState[i].SetInput(input.m_voiceInput[i]);
             }
 
             SpectralModel::Buffer buffer;
@@ -145,9 +138,12 @@ struct DeepVocoder
         return std::max(1.0f, m_voiceState[index].m_atom->m_synthesisMagnitude / thresh);
     }
 
-    float TransformNote(size_t index, AHD::AHDControl* ahdControl)
+    float TransformNote(size_t index, const Input& input, AHD::AHDControl* ahdControl)
     {
-        if (!m_enabled)
+        // A triggered note must use its current inputs, independently of FFT analysis cadence.
+        //
+        m_voiceState[index].SetInput(input.m_voiceInput[index]);
+        if (!input.m_enabled)
         {
             m_voiceState[index].m_atom = nullptr;
             return m_voiceState[index].m_pitchCenter * m_voiceState[index].m_pitchRatioPost;
@@ -218,6 +214,16 @@ struct DeepVocoder
             , m_atomicRatio(1.0f)
             , m_atom(nullptr)
         {
+        }
+
+        void SetInput(const VoiceInput& input)
+        {
+            m_gainThreshold = input.m_gainThreshold.m_expParam;
+            m_slopeUp = input.m_slopeUp.m_expParam;
+            m_slopeDown = input.m_slopeDown.m_expParam;
+            m_pitchCenter = input.m_pitchCenter;
+            m_pitchRatioPre = input.m_pitchRatioPre.m_expParam;
+            m_pitchRatioPost = input.m_pitchRatioPost;
         }
     };
 
@@ -350,6 +356,5 @@ struct DeepVocoder
     SpectralModel m_spectralModel;
     float m_buffer[x_tableSize];
     size_t m_index;
-    bool m_enabled;
     VoiceState m_voiceState[x_numVoices];
 };
