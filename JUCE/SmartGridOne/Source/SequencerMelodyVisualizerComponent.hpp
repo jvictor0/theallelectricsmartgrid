@@ -9,12 +9,16 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <numeric>
 #include <vector>
 
 struct SequencerMelodyVisualizerComponent : public SmartGridOneMainVisualizerComponent
 {
     static constexpr size_t x_voicesPerTrio = TheNonagonInternal::x_voicesPerTrio;
-    static constexpr int64_t x_maxSteps = TheNonagonUIState::Sequence::x_maxSize;
+    static constexpr int64_t x_maxSteps = 128;
+    static constexpr int64_t x_overBudget = x_maxSteps + 1;
+    static_assert(x_maxSteps <= TheNonagonUIState::Sequence::x_maxExtend,
+        "The visible window must fill in one cache update.");
 
     struct PitchSlice
     {
@@ -88,15 +92,169 @@ struct SequencerMelodyVisualizerComponent : public SmartGridOneMainVisualizerCom
     {
     }
 
-    static std::pair<int64_t, int64_t> GetWindow(int64_t position, int64_t globalPeriodTicks)
+    static int64_t CappedLcm(int64_t first, int64_t second)
     {
-        if (globalPeriodTicks < x_maxSteps)
+        assert(first > 0 && second > 0);
+        if (first > x_maxSteps || second > x_maxSteps)
         {
-            int64_t start = position - PhaseUtils::FloorMod(position, globalPeriodTicks);
-            return {start, start + globalPeriodTicks};
+            return x_overBudget;
         }
 
-        return TheNonagonUIState::Sequence::GetDesiredPositionRange(position, globalPeriodTicks);
+        int64_t factor = first / std::gcd(first, second);
+        return factor > x_maxSteps / second ? x_overBudget : factor * second;
+    }
+
+    static int64_t GetLoopPeriod(const TheoryOfTimeBaseUIState& time, size_t loopIndex)
+    {
+        int64_t period = time.m_snapshotPeriodTicks[loopIndex];
+        const auto& rhythm = time.m_rhythm[loopIndex].m_snapshot;
+        int64_t resetPeriod = rhythm.m_resetLoopIndex < 0
+            ? -1 : time.m_snapshotPeriodTicks[rhythm.m_resetLoopIndex];
+        int64_t resetCycles = TheoryOfTimeBase::GetResetCycleCount(period, resetPeriod);
+        int64_t size = rhythm.m_size;
+        assert(size > 0 && size <= static_cast<int64_t>(TheoryOfTimeRhythm::x_maxSize));
+        int64_t cycles = resetCycles > 0 ? resetCycles : size;
+        bool constant = true;
+        for (int64_t slot = 1; slot < std::min(cycles, size); ++slot)
+        {
+            constant = constant && rhythm.m_gate[slot] == rhythm.m_gate[0];
+        }
+
+        if (constant)
+        {
+            return 1;
+        }
+
+        for (int64_t candidate = 1; candidate <= std::min(cycles, x_maxSteps / period); ++candidate)
+        {
+            if (cycles % candidate != 0)
+            {
+                continue;
+            }
+
+            // Compare the reset prefix with a repeated candidate block. These two
+            // sequences repeat together after lcm(size, candidate), even for huge resets.
+            //
+            int64_t checks = std::min(cycles, std::lcm(size, candidate));
+            bool repeats = true;
+            for (int64_t slot = candidate; slot < checks; ++slot)
+            {
+                if (rhythm.m_gate[slot % size] != rhythm.m_gate[(slot % candidate) % size])
+                {
+                    repeats = false;
+                    break;
+                }
+            }
+
+            if (repeats)
+            {
+                return period * candidate;
+            }
+        }
+
+        return x_overBudget;
+    }
+
+    int64_t GetArpPeriod(const Frame& frame) const
+    {
+        const auto& state = m_uiState->m_nonagonUIState;
+        const auto& arps = state.m_indexArpUIState;
+        const auto& time = state.m_theoryOfTimeUIState;
+        bool zeroPageIntervals = true;
+        for (size_t index = 0; index < frame.m_numVoices; ++index)
+        {
+            const auto& arp = arps.m_arpUIState[frame.m_voices[index]].m_snapshot;
+            zeroPageIntervals = zeroPageIntervals && arp.m_pageInterval == 0.0f;
+        }
+
+        int64_t result = 1;
+        for (size_t index = 0; index < frame.m_numVoices; ++index)
+        {
+            size_t voice = frame.m_voices[index];
+            int clock = arps.GetClockSelect(voice);
+            if (clock < 0)
+            {
+                continue;
+            }
+
+            int64_t clockPeriod = time.m_snapshotPeriodTicks[clock];
+            int reset = arps.GetResetSelect(voice);
+            int64_t resetPeriod = reset < 0 ? -1 : time.m_snapshotPeriodTicks[reset];
+            int64_t resetCycles = TheoryOfTimeBase::GetResetCycleCount(clockPeriod, resetPeriod);
+            int64_t length = arps.m_arpUIState[voice].m_snapshot.m_rhythmLength;
+            assert(length > 0 && length <= static_cast<int64_t>(IndexArp::x_rhythmLength));
+            int64_t period;
+            if (!zeroPageIntervals)
+            {
+                period = resetCycles > 0 ? resetPeriod : x_overBudget;
+            }
+            else if (resetCycles > 0 && resetCycles % length != 0)
+            {
+                period = resetPeriod;
+            }
+            else
+            {
+                period = clockPeriod > x_maxSteps / length ? x_overBudget : clockPeriod * length;
+            }
+
+            result = CappedLcm(result, period);
+        }
+
+        return result;
+    }
+
+    int64_t GetViewPeriod(const Frame& frame) const
+    {
+        const auto& time = m_uiState->m_nonagonUIState.m_theoryOfTimeUIState;
+        std::array<int64_t, TheoryOfTimeBase::x_numLoops> periods;
+        periods.fill(1);
+        int64_t readPeriod = 1;
+        for (size_t loop = 0; loop < periods.size(); ++loop)
+        {
+            if ((frame.m_lens.m_bits & (1 << loop)) != 0)
+            {
+                periods[loop] = GetLoopPeriod(time, loop);
+                readPeriod = CappedLcm(readPeriod, periods[loop]);
+            }
+        }
+
+        int64_t fullPeriod = CappedLcm(readPeriod, GetArpPeriod(frame));
+        if (fullPeriod <= x_maxSteps)
+        {
+            return fullPeriod;
+        }
+
+        // First omit the arp, then omit rhythm lengths from local to global loops.
+        // The sequence cache continues to evaluate the actual settings at every tick.
+        //
+        for (size_t loop = 0; readPeriod > x_maxSteps && loop < periods.size(); ++loop)
+        {
+            if (periods[loop] == 1)
+            {
+                continue;
+            }
+
+            periods[loop] = std::min(time.m_snapshotPeriodTicks[loop], x_overBudget);
+            readPeriod = 1;
+            for (int64_t period : periods)
+            {
+                readPeriod = CappedLcm(readPeriod, period);
+            }
+        }
+
+        return readPeriod;
+    }
+
+    static std::pair<int64_t, int64_t> GetWindow(int64_t position, int64_t viewPeriodTicks)
+    {
+        assert(viewPeriodTicks > 0);
+        if (viewPeriodTicks <= x_maxSteps)
+        {
+            int64_t start = position - PhaseUtils::FloorMod(position, viewPeriodTicks);
+            return {start, start + viewPeriodTicks};
+        }
+
+        return {position - x_maxSteps / 2, position + x_maxSteps / 2};
     }
 
     bool PrepareFrame(Frame& frame)
@@ -128,14 +286,15 @@ struct SequencerMelodyVisualizerComponent : public SmartGridOneMainVisualizerCom
             return false;
         }
 
+        if (state.Changed())
+        {
+            state.Snapshot();
+        }
+
         double phase = m_globalPhase->load();
-        int64_t globalPeriodTicks = state.m_theoryOfTimeUIState.m_periodTicks[TheoryOfTimeBase::x_globalLoop].load();
+        int64_t globalPeriodTicks = state.m_theoryOfTimeUIState.GetGlobalPeriodTicks();
         frame.m_position = TheoryOfTimeBase::ComputeGlobalTickPosition(phase, globalPeriodTicks);
         frame.m_positionFraction = phase * static_cast<double>(globalPeriodTicks) - static_cast<double>(frame.m_position);
-        state.PreProcess(frame.m_position);
-        auto window = GetWindow(frame.m_position, state.m_theoryOfTimeUIState.GetGlobalPeriodTicks());
-        frame.m_start = window.first;
-        frame.m_end = window.second;
         size_t firstVoice = frame.m_trioIndex * x_voicesPerTrio;
         frame.m_referenceVoice = firstVoice + (voiceOffset < 0 ? 0 : static_cast<size_t>(voiceOffset));
         for (size_t channelIndex = 0; channelIndex < x_voicesPerTrio; ++channelIndex)
@@ -146,14 +305,7 @@ struct SequencerMelodyVisualizerComponent : public SmartGridOneMainVisualizerCom
             if (selected || visibleInTrio)
             {
                 frame.m_voices[frame.m_numVoices++] = voiceIndex;
-                state.Process(frame.m_position, voiceIndex);
             }
-        }
-
-        if (std::find(frame.m_voices.begin(), frame.m_voices.begin() + frame.m_numVoices,
-                frame.m_referenceVoice) == frame.m_voices.begin() + frame.m_numVoices)
-        {
-            state.Process(frame.m_position, frame.m_referenceVoice);
         }
 
         auto& harmonic = state.m_lameJuisUIState.m_harmonicSheafState;
@@ -162,6 +314,22 @@ struct SequencerMelodyVisualizerComponent : public SmartGridOneMainVisualizerCom
         auto strategy = chooser.m_snapshotStrategy;
         frame.m_choiceIsModOne = strategy == HarmonicSheaf::SectionChoiceStrategy::ClosestModOne;
         frame.m_choiceIsPercentile = strategy == HarmonicSheaf::SectionChoiceStrategy::Percentile;
+        int64_t viewPeriod = GetViewPeriod(frame);
+        auto window = GetWindow(frame.m_position, viewPeriod);
+        frame.m_start = window.first;
+        frame.m_end = window.second;
+        state.PreProcess(frame.m_position, viewPeriod);
+        for (size_t index = 0; index < frame.m_numVoices; ++index)
+        {
+            state.Process(frame.m_position, frame.m_voices[index], viewPeriod);
+        }
+
+        if (std::find(frame.m_voices.begin(), frame.m_voices.begin() + frame.m_numVoices,
+                frame.m_referenceVoice) == frame.m_voices.begin() + frame.m_numVoices)
+        {
+            state.Process(frame.m_position, frame.m_referenceVoice, viewPeriod);
+        }
+
         SetRanges(frame);
         return true;
     }

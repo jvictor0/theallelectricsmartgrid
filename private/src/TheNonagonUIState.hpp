@@ -152,6 +152,10 @@ struct TheNonagonUIState
         m_theoryOfTimeUIState.Snapshot();
         m_lameJuisUIState.m_harmonicSheafState.Snapshot();
         m_indexArpUIState.Snapshot();
+        for (auto& sequence : m_sequences)
+        {
+            sequence.Clear();
+        }
     }
 
     void PreProcess(int64_t globalTickPosition)
@@ -159,19 +163,25 @@ struct TheNonagonUIState
         if (Changed())
         {
             Snapshot();
-            for (size_t i = 0; i < x_numVoices; ++i)
-            {
-                m_sequences[i].Clear();
-                m_sequences[i].PushBack(GetVoicePoint(globalTickPosition, i));
-            }
         }
 
+        PreProcess(globalTickPosition, m_theoryOfTimeUIState.GetGlobalPeriodTicks());
+    }
+
+    // An explicit view period belongs to the caller's current snapshot. Keep that
+    // snapshot fixed while preparing and filling its cache window.
+    //
+    void PreProcess(int64_t globalTickPosition, int64_t viewPeriodTicks)
+    {
+        assert(viewPeriodTicks > 0);
         std::pair<int64_t, int64_t> desiredPositionRange = Sequence::GetDesiredPositionRange(
             globalTickPosition,
-            m_theoryOfTimeUIState.GetGlobalPeriodTicks());
+            viewPeriodTicks);
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            if (m_sequences[i].EndPosition() <= desiredPositionRange.first
+            if (m_sequences[i].m_points.empty()
+                || !m_sequences[i].HasPoint(globalTickPosition)
+                || m_sequences[i].EndPosition() <= desiredPositionRange.first
                 || desiredPositionRange.second <= m_sequences[i].StartPosition())
             {
                 m_sequences[i].Clear();
@@ -182,10 +192,16 @@ struct TheNonagonUIState
 
     void Process(int64_t globalTickPosition, size_t voiceIndex)
     {
+        Process(globalTickPosition, voiceIndex, m_theoryOfTimeUIState.GetGlobalPeriodTicks());
+    }
+
+    void Process(int64_t globalTickPosition, size_t voiceIndex, int64_t viewPeriodTicks)
+    {
         assert(GetCurrentThreadId() != ThreadId::Audio);
+        assert(viewPeriodTicks > 0);
         std::pair<int64_t, int64_t> desiredPositionRange = Sequence::GetDesiredPositionRange(
             globalTickPosition,
-            m_theoryOfTimeUIState.GetGlobalPeriodTicks());
+            viewPeriodTicks);
         while (m_sequences[voiceIndex].StartPosition() < desiredPositionRange.first)
         {
             m_sequences[voiceIndex].PopFront();

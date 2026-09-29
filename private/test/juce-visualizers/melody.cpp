@@ -3,6 +3,7 @@
 #include "SequencerMelodyVisualizerComponent.hpp"
 
 #include <memory>
+#include <limits>
 
 namespace
 {
@@ -71,6 +72,69 @@ struct MelodyRig
         }
     }
 };
+
+void ConfigurePeriodRig(MelodyRig& rig, uint8_t lensBits)
+{
+    auto& state = rig.m_ui->m_nonagonUIState;
+    for (size_t loop = 0; loop < 6; ++loop)
+    {
+        auto& rhythm = state.m_theoryOfTimeUIState.m_rhythm[loop];
+        rhythm.m_size.store(1);
+        rhythm.m_gate[0].store(true);
+    }
+
+    for (size_t voice = 0; voice < 9; ++voice)
+    {
+        state.m_lameJuisUIState.m_harmonicSheafState.m_voiceChooserState[voice].m_lens.store(
+            HarmonicSheaf::Lens(lensBits));
+    }
+
+    state.m_indexArpUIState.m_clockSelect[0].store(-1);
+    state.m_indexArpUIState.m_resetSelect[0].store(-1);
+}
+
+void SetGateRhythm(MelodyRig& rig, size_t loop, std::initializer_list<bool> gates)
+{
+    auto& rhythm = rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_rhythm[loop];
+    rhythm.m_size.store(static_cast<int64_t>(gates.size()));
+    size_t slot = 0;
+    for (bool gate : gates)
+    {
+        rhythm.m_gate[slot++].store(gate);
+    }
+}
+
+void CheckPeriodWindow(MelodyRig& rig, int64_t tick, int64_t start, int64_t end)
+{
+    auto& state = rig.m_ui->m_nonagonUIState;
+    rig.m_phase.store(static_cast<double>(tick)
+        / static_cast<double>(state.m_theoryOfTimeUIState.m_periodTicks[5].load()));
+    Visualizer::Frame frame;
+    DOCTEST_REQUIRE(rig.m_visualizer.PrepareFrame(frame));
+    DOCTEST_CHECK(frame.m_position == tick);
+    DOCTEST_CHECK(frame.m_start == start);
+    DOCTEST_CHECK(frame.m_end == end);
+    for (size_t displayed = 0; displayed < frame.m_numVoices; ++displayed)
+    {
+        size_t voice = frame.m_voices[displayed];
+        const auto& sequence = state.m_sequences[voice];
+        DOCTEST_REQUIRE_FALSE(sequence.m_points.empty());
+        DOCTEST_CHECK(sequence.StartPosition() <= start);
+        DOCTEST_CHECK(sequence.EndPosition() >= end);
+        if (sequence.StartPosition() <= start && sequence.EndPosition() >= end)
+        {
+            for (int64_t position = start; position < end; ++position)
+            {
+                auto actual = sequence.GetPoint(position);
+                auto expected = state.GetVoicePoint(position, voice);
+                DOCTEST_CHECK(actual.m_globalTickPosition == position);
+                DOCTEST_CHECK(actual.m_timeSlice.m_bits == expected.m_timeSlice.m_bits);
+                DOCTEST_CHECK(actual.m_choiceValue == doctest::Approx(expected.m_choiceValue));
+                DOCTEST_CHECK(actual.m_pitch.m_value == doctest::Approx(expected.m_pitch.m_value));
+            }
+        }
+    }
+}
 
 bool HasLineAt(const juce::Image& image, float pitch, int x)
 {
@@ -410,6 +474,10 @@ DOCTEST_TEST_CASE("Melody: playhead follows published continuous phase within ti
     TheoryOfTimeBase::Input input;
     input.m_running = true;
     input.m_phaseOffset = 0.125;
+    for (auto& rhythm : input.m_rhythm)
+    {
+        rhythm.m_resetLoopIndex = 5;
+    }
 
     struct Example
     {
@@ -447,4 +515,261 @@ DOCTEST_TEST_CASE("Melody: playhead follows published continuous phase within ti
         DOCTEST_CHECK(pixel.getRed() == pixel.getGreen());
         DOCTEST_CHECK(pixel.getGreen() == pixel.getBlue());
     }
+}
+
+DOCTEST_TEST_CASE("Melody: observable constant gates have period one and repeated gate blocks use their primitive period")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 0x3f);
+    CheckPeriodWindow(rig, 9, 9, 10);
+    SetGateRhythm(rig, 5, {false, false, false});
+    CheckPeriodWindow(rig, 9, 9, 10);
+    SetGateRhythm(rig, 2, {true, false, true, false});
+    CheckPeriodWindow(rig, 9, 8, 16);
+    CheckPeriodWindow(rig, -1, -8, 0);
+    CheckPeriodWindow(rig, -8, -8, 0);
+    auto& sequence = rig.m_ui->m_nonagonUIState.m_sequences[0];
+    DOCTEST_CHECK((sequence.GetPoint(-8).m_timeSlice.m_bits & 4) != 0);
+    DOCTEST_CHECK((sequence.GetPoint(-4).m_timeSlice.m_bits & 4) == 0);
+}
+
+DOCTEST_TEST_CASE("Melody: gate resets repeat the whole truncated cyclic prefix")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 1);
+    SetGateRhythm(rig, 0, {true, false, false});
+    rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_rhythm[0].m_resetLoopIndex.store(2);
+    CheckPeriodWindow(rig, 5, 4, 8);
+    auto& sequence = rig.m_ui->m_nonagonUIState.m_sequences[0];
+    DOCTEST_CHECK((sequence.GetPoint(4).m_timeSlice.m_bits & 1) != 0);
+    DOCTEST_CHECK((sequence.GetPoint(5).m_timeSlice.m_bits & 1) == 0);
+    DOCTEST_CHECK((sequence.GetPoint(7).m_timeSlice.m_bits & 1) != 0);
+    SetGateRhythm(rig, 0, {true, false, true, false, false});
+    CheckPeriodWindow(rig, 5, 4, 6);
+}
+
+DOCTEST_TEST_CASE("Melody: invalid gate reset is ignored and unread loops do not affect the window")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 4);
+    auto& time = rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState;
+    time.m_periodTicks[2].store(3);
+    time.m_periodTicks[3].store(8);
+    SetGateRhythm(rig, 2, {true, false});
+    time.m_rhythm[2].m_resetLoopIndex.store(3);
+    SetGateRhythm(rig, 5, {true, false, false, false, false});
+    CheckPeriodWindow(rig, 7, 6, 12);
+}
+
+DOCTEST_TEST_CASE("Melody: arp periods combine all displayed voices and refresh after mute or selection")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 0);
+    auto& state = rig.m_ui->m_nonagonUIState;
+    state.m_indexArpUIState.m_clockSelect[0].store(0);
+    state.m_indexArpUIState.m_arpUIState[0].m_rhythmLength.store(3);
+    state.m_indexArpUIState.m_arpUIState[1].m_rhythmLength.store(4);
+    state.m_indexArpUIState.m_arpUIState[2].m_rhythmLength.store(5);
+    CheckPeriodWindow(rig, 61, 60, 120);
+    state.m_muted[2].store(true);
+    CheckPeriodWindow(rig, 61, 60, 72);
+    rig.m_voiceOffset = 2;
+    CheckPeriodWindow(rig, 61, 60, 65);
+    state.m_indexArpUIState.m_clockSelect[0].store(-1);
+    CheckPeriodWindow(rig, 61, 61, 62);
+}
+
+DOCTEST_TEST_CASE("Melody: arp reset preserves natural repeat only for complete motives")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 0);
+    rig.m_voiceOffset = 0;
+    auto& state = rig.m_ui->m_nonagonUIState;
+    state.m_indexArpUIState.m_clockSelect[0].store(0);
+    state.m_indexArpUIState.m_resetSelect[0].store(3);
+    auto& arp = state.m_indexArpUIState.m_arpUIState[0];
+    arp.m_rhythmLength.store(3);
+    arp.m_interval.store(0.125f);
+    CheckPeriodWindow(rig, 9, 8, 16);
+    state.m_theoryOfTimeUIState.m_periodTicks[3].store(12);
+    CheckPeriodWindow(rig, 9, 9, 12);
+    DOCTEST_CHECK(state.m_sequences[0].GetPoint(10).m_choiceValue == doctest::Approx(0.09375f));
+}
+
+DOCTEST_TEST_CASE("Melody: every nonzero page interval uses reset or omits arp without an effective reset")
+{
+    for (float pageInterval : {0.5f, 0.499f, std::numeric_limits<float>::denorm_min()})
+    {
+        DOCTEST_CAPTURE(pageInterval);
+        MelodyRig rig;
+        ConfigurePeriodRig(rig, 1);
+        SetGateRhythm(rig, 0, {true, false});
+        rig.m_voiceOffset = 0;
+        auto& state = rig.m_ui->m_nonagonUIState;
+        state.m_indexArpUIState.m_clockSelect[0].store(0);
+        state.m_indexArpUIState.m_arpUIState[0].m_rhythmLength.store(3);
+        state.m_indexArpUIState.m_arpUIState[0].m_pageInterval.store(pageInterval);
+        CheckPeriodWindow(rig, 9, 8, 10);
+        state.m_indexArpUIState.m_resetSelect[0].store(3);
+        CheckPeriodWindow(rig, 9, 8, 16);
+        state.m_theoryOfTimeUIState.m_periodTicks[0].store(3);
+        CheckPeriodWindow(rig, 9, 6, 12);
+    }
+}
+
+DOCTEST_TEST_CASE("Melody: period exactly 128 aligns and caches beyond the nominal global period")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 8);
+    SetGateRhythm(rig, 3, {true, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false});
+    CheckPeriodWindow(rig, 127, 0, 128);
+    CheckPeriodWindow(rig, 128, 128, 256);
+    CheckPeriodWindow(rig, -1, -128, 0);
+}
+
+DOCTEST_TEST_CASE("Melody: oversized arp is omitted before gate rhythm contributions")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 4);
+    SetGateRhythm(rig, 2, {true, false, false});
+    auto& state = rig.m_ui->m_nonagonUIState;
+    state.m_indexArpUIState.m_clockSelect[0].store(5);
+    state.m_indexArpUIState.m_arpUIState[0].m_rhythmLength.store(5);
+    CheckPeriodWindow(rig, 25, 24, 36);
+}
+
+DOCTEST_TEST_CASE("Melody: oversized gate rhythms are neglected in ascending loop order and stop when fitting")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 3);
+    SetGateRhythm(rig, 0, {true, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false});
+    SetGateRhythm(rig, 1, {true, false, false, false, false, false, false});
+    CheckPeriodWindow(rig, 25, 14, 28);
+    auto& sequence = rig.m_ui->m_nonagonUIState.m_sequences[0];
+    DOCTEST_CHECK((sequence.GetPoint(15).m_timeSlice.m_bits & 1) != 0);
+    DOCTEST_CHECK((sequence.GetPoint(16).m_timeSlice.m_bits & 1) == 0);
+}
+
+DOCTEST_TEST_CASE("Melody: residual oversized clock periods scroll in centered 128 tick windows")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 1);
+    rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_periodTicks[0].store(129);
+    SetGateRhythm(rig, 0, {true, false});
+    CheckPeriodWindow(rig, 9, -55, 73);
+    CheckPeriodWindow(rig, -9, -73, 55);
+}
+
+DOCTEST_TEST_CASE("Melody: a nonreference displayed page interval controls the trio arp repeat")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 0);
+    auto& state = rig.m_ui->m_nonagonUIState;
+    state.m_indexArpUIState.m_clockSelect[0].store(0);
+    state.m_indexArpUIState.m_resetSelect[0].store(3);
+    for (size_t voice = 0; voice < 3; ++voice)
+    {
+        state.m_indexArpUIState.m_arpUIState[voice].m_rhythmLength.store(2);
+    }
+
+    CheckPeriodWindow(rig, 9, 8, 10);
+    state.m_indexArpUIState.m_arpUIState[1].m_pageInterval.store(0.5f);
+    CheckPeriodWindow(rig, 9, 8, 16);
+    state.m_muted[1].store(true);
+    CheckPeriodWindow(rig, 9, 8, 10);
+}
+
+DOCTEST_TEST_CASE("Melody: effective gate reset can make a nonconstant stored rhythm constant")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 4);
+    SetGateRhythm(rig, 2, {true, true, false});
+    rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_rhythm[2].m_resetLoopIndex.store(3);
+    CheckPeriodWindow(rig, 9, 9, 10);
+    CheckPeriodWindow(rig, -1, -1, 0);
+    DOCTEST_CHECK((rig.m_ui->m_nonagonUIState.m_sequences[0].GetPoint(-1).m_timeSlice.m_bits & 4) != 0);
+}
+
+DOCTEST_TEST_CASE("Melody: huge constant gate clocks do not force scrolling")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 1);
+    rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_periodTicks[0].store(
+        std::numeric_limits<int64_t>::max());
+    SetGateRhythm(rig, 0, {false, false, false});
+    CheckPeriodWindow(rig, 9, 9, 10);
+    SetGateRhythm(rig, 0, {true, false});
+    CheckPeriodWindow(rig, 9, -55, 73);
+}
+
+DOCTEST_TEST_CASE("Melody: huge effective gate resets preserve primitive periods without scanning the reset prefix")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 1);
+    auto& time = rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState;
+    time.m_periodTicks[4].store(std::numeric_limits<int64_t>::max() - 1);
+    time.m_rhythm[0].m_resetLoopIndex.store(4);
+    SetGateRhythm(rig, 0, {true, false});
+    CheckPeriodWindow(rig, 9, 8, 10);
+    time.m_periodTicks[4].store(std::numeric_limits<int64_t>::max());
+    CheckPeriodWindow(rig, 9, 9, 10);
+}
+
+DOCTEST_TEST_CASE("Melody: huge arp periods saturate safely and are omitted before gate repeats")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 1);
+    SetGateRhythm(rig, 0, {true, false});
+    auto& state = rig.m_ui->m_nonagonUIState;
+    state.m_theoryOfTimeUIState.m_periodTicks[4].store(std::numeric_limits<int64_t>::max());
+    state.m_indexArpUIState.m_clockSelect[0].store(4);
+    state.m_indexArpUIState.m_arpUIState[0].m_rhythmLength.store(8);
+    CheckPeriodWindow(rig, 9, 8, 10);
+    state.m_indexArpUIState.m_clockSelect[0].store(0);
+    state.m_indexArpUIState.m_resetSelect[0].store(4);
+    state.m_indexArpUIState.m_arpUIState[0].m_pageInterval.store(0.5f);
+    CheckPeriodWindow(rig, 9, 8, 10);
+}
+
+DOCTEST_TEST_CASE("Melody: explicit cache view period consumes the frozen configuration snapshot")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 0);
+    auto& state = rig.m_ui->m_nonagonUIState;
+    state.m_indexArpUIState.m_clockSelect[0].store(0);
+    auto& arp = state.m_indexArpUIState.m_arpUIState[0];
+    arp.m_rhythmLength.store(3);
+    arp.m_interval.store(0.125f);
+    arp.m_max.store(1.0f);
+    state.Snapshot();
+    arp.m_interval.store(0.25f);
+    state.PreProcess(0, 3);
+    state.Process(0, 0, 3);
+    DOCTEST_REQUIRE(state.m_sequences[0].HasPoint(1));
+    DOCTEST_CHECK(state.m_sequences[0].GetPoint(1).m_choiceValue == doctest::Approx(0.125f));
+    DOCTEST_CHECK(state.Changed());
+}
+
+DOCTEST_TEST_CASE("Melody: scrolling seeks fill the visible window despite overlapping cache buffers")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 1);
+    rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_periodTicks[0].store(129);
+    SetGateRhythm(rig, 0, {true, false});
+    CheckPeriodWindow(rig, 0, -64, 64);
+    CheckPeriodWindow(rig, 200, 136, 264);
+    CheckPeriodWindow(rig, -200, -264, -136);
+}
+
+DOCTEST_TEST_CASE("Melody: aligned seeks fill the visible window despite overlapping cache buffers")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 8);
+    SetGateRhythm(rig, 3, {true, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false});
+    CheckPeriodWindow(rig, 0, 0, 128);
+    CheckPeriodWindow(rig, 256, 256, 384);
+    CheckPeriodWindow(rig, -256, -256, -128);
 }
