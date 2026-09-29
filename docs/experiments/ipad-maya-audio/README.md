@@ -1,12 +1,14 @@
 # iPad / MAYA44 audio investigation
 
-Living experiment notebook, updated September 28, 2026. The latest [silent-Maya / WRLD.BLDR recovery investigation](2026-09-28-silent-maya-usb-reset-recovery.md) includes September 24/27 context, a verified failed-state sysdiagnose, failed media-service/app resets, and successful physical recovery. Both devices work at the end; no permanent fix is established. This is a separate symptom record from the earlier sporadic interruptions and periodic blanking below. No capture or new experiment remains active from the September 28 session.
+Living experiment notebook, updated September 28, 2026. The latest [evening recurrence](2026-09-28-evening-recurrence-before-deployment.md) shows Maya's USB fault beginning after sleep/wake, more than three minutes before the app installation the user associated with it. A new failed-state sysdiagnose is saved; no recovery was attempted while the user was AFK. The [earlier silent-Maya / WRLD.BLDR recovery investigation](2026-09-28-silent-maya-usb-reset-recovery.md) includes September 24/27 context, failed media-service/app resets, and successful physical recovery before this recurrence. No permanent fix is established. These are separate symptom records from the earlier sporadic interruptions and periodic blanking below. No capture or new experiment remains active.
 
 **The earlier sporadic interruptions and periodic blanking remain unresolved in the recorded JUCE 8.0.2 and 8.0.15 comparisons.** The [completed upgrade comparison](2026-09-10-juce815-comparison.md) reproduced matched USB-restart interruptions and sustained periodic blanking at nominal iPad thermal state. See the [ordered experiment queue](next-experiments.md) and the new [hub power/heat hypothesis](2026-09-10-hub-power.md).
 
 ## Canonical storage
 
 This journal is versioned in the main repository at `docs/experiments/ipad-maya-audio/`. Read and update this copy in the normal repository checkout; the old `e18e` diagnostic worktree is historical context, not the journal's home.
+
+For new investigations, commit useful findings, experiment methods, conclusions and limitations. Keep diagnostic artifacts—including raw logs, selected log excerpts, registry snapshots, generated summaries and sysdiagnoses—on the Mac outside Git, and record their absolute local paths in the dated journal entry. Do not add artifacts to an upload unless the user specifically requests it. Existing historical imports below record earlier preservation work.
 
 The September 28 preservation imported all 186 original journal files, including dated reports, research, plots, summaries, analysis scripts and the historical evidence manifest. Referenced files from the old experimental worktree are preserved under [historical-context](historical-context/README.md), and their links are relative. Those are archival source/protocol snapshots, not changes to the production app. Original paths in dated prose and JSON manifests record where experiments ran.
 
@@ -21,6 +23,8 @@ Treat clean generated audio at the internal recording tap as established investi
 [Updated thermal-mechanism interpretation after native tracing](2026-09-10-thermal-mechanisms-after-native-trace.md) separates power-demand and host-timing hypotheses from the now-weakened app CPU-starvation explanation.
 
 ## Read first
+
+- [September 28 evening recurrence before deployment](2026-09-28-evening-recurrence-before-deployment.md): approximately 37 minutes of streaming without the fault signature, followed by background/StopIO, sleep, USB 3 resume trouble, and Maya empty transfers at system-sound startup. Installation follows over three minutes later. Maya, WRLD and USB2-hub session IDs remain unchanged from the earlier working state; full sysdiagnose preserved without recovery intervention.
 
 - [September 28 silent Maya and WRLD.BLDR USB reset recovery](2026-09-28-silent-maya-usb-reset-recovery.md): failed-state sysdiagnose captured over Wi-Fi; restarting media services/usbaudiod and the app did not clear Maya. The iPad-to-hub reconnect restored audio but stalled WRLD output; WRLD-only reconnect restored feedback. Includes the cable-identity correction, wake/power timing, kernel evidence, and untested next comparisons.
 
