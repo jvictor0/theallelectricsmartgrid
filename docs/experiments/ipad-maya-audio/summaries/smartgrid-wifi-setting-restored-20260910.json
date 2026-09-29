@@ -1,0 +1,8 @@
+{
+  "at": "2026-09-10T11:29:06.006293-07:00",
+  "udid": "00008122-001439681EA1001C",
+  "purpose": "Restore original general Wi-Fi connection preference after completing the planned comparison. Leave Wi-Fi radio and wireless debugging settings unchanged.",
+  "before": true,
+  "after": false,
+  "restored": true
+}

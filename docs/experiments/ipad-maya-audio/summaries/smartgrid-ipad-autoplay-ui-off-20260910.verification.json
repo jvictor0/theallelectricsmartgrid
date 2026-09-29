@@ -1,0 +1,23 @@
+{
+  "checked_local": "2026-09-10T11:01:31.027930-07:00",
+  "verified": true,
+  "device_app_log": "2026-09-10T11-01-18-072.log",
+  "markers": [
+    "11:01:23 0 Message Audio experiment audio_mode=normal ui_render=0 transport_autostart=1",
+    "11:01:23 0 Message Audio setup requested_sr=48000 requested_block=512 actual_sr=48000 actual_block=512",
+    "11:01:23 0 Message Audio input test: requested_inputs=0 active_inputs=0 active_outputs=4; absent DSP inputs are zero",
+    "11:01:23 0 Message Audio test mode=normal; normal callback processing enabled",
+    "11:01:23 1452 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+    "11:01:24 49580 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+    "11:01:25 98220 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+    "11:01:26 146348 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+    "11:01:27 194476 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+    "11:01:28 242604 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1"
+  ],
+  "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+  "file_config": {
+    "patchName": "ms"
+  },
+  "external_clock": false,
+  "pid": 17636
+}

@@ -1,0 +1,544 @@
+{
+  "measured_start": "2026-09-11T20:55:04.920398-07:00",
+  "measured_end": "2026-09-11T21:10:04.996961-07:00",
+  "measured_seconds": 900.0765631198883,
+  "native_callbacks": 84083,
+  "thermal_histogram": {
+    "0.0": 84083
+  },
+  "usb_errors": 22,
+  "restarts": 20,
+  "native_gaps": 20,
+  "long_analog_dropouts": 20,
+  "usb_errors_per_restart": {
+    "1": 18,
+    "2": 2
+  },
+  "native_processing_ms_min_median_p99_max": [
+    3.8368333333333333,
+    4.254791666666666,
+    4.6304583333333325,
+    4.8017916666666665
+  ],
+  "native_gap_ms_range": [
+    166.46233333333333,
+    176.62008333333333
+  ],
+  "analog_long_ms_min_median_max": [
+    171.70833333333334,
+    174.96875,
+    179.6875
+  ],
+  "native_overruns": 0,
+  "native_faults": 0,
+  "lifecycle_measured": [],
+  "lifecycle_total": 14,
+  "frames": [
+    512
+  ],
+  "rates": [
+    48000.0
+  ],
+  "prefix_records": 87772,
+  "capture_losses": {
+    "queueDropped": 0,
+    "overlapDropped": 0,
+    "lifecycleDropped": 0,
+    "lifecycleDiscarded": 0
+  },
+  "analog_alignment_residual_ms_range": [
+    -7.6961517333984375,
+    13.316154479980469
+  ],
+  "analog_zero_epoch_inferred": 1789185262.6900096,
+  "short_flat_candidates": 24,
+  "periodic_candidate_clusters_ge2_with_spacing_le100ms": 0,
+  "visual_review": "All24 strict short candidates show abrupt common stereo near-flat plateaus with discontinuous edges; first2 long gaps plotted and confirmed. No rapid repeating cluster found by strict screen; absence of other periodic distortion is not established.",
+  "pairs": [
+    {
+      "native_resume": "2026-09-11T20:55:19.715730-07:00",
+      "native_gap_ms": 171.5994583333333,
+      "restart": "2026-09-11 20:55:19.549149-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:55:19.513672-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185319.513672
+        }
+      ],
+      "analog": {
+        "start_seconds": 56.857458333333334,
+        "end_seconds": 57.03341666666667,
+        "duration_ms": 175.95833333333334,
+        "local_start": "2026-09-11T20:55:19.315523-07:00",
+        "rms_dbfs": -88.88121346312387,
+        "adjacent_rms": 0.007033561833322308,
+        "suppression_db": 45.82471965858691
+      },
+      "native_resume_minus_restart_ms": 166.5811538696289
+    },
+    {
+      "native_resume": "2026-09-11T20:56:04.163162-07:00",
+      "native_gap_ms": 170.07954166666664,
+      "restart": "2026-09-11 20:56:03.993595-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:56:03.956455-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185363.956455
+        }
+      ],
+      "analog": {
+        "start_seconds": 101.3033125,
+        "end_seconds": 101.47925,
+        "duration_ms": 175.9375,
+        "local_start": "2026-09-11T20:56:03.761378-07:00",
+        "rms_dbfs": -83.99352058793897,
+        "adjacent_rms": 0.006161575632335433,
+        "suppression_db": 39.78735626281363
+      },
+      "native_resume_minus_restart_ms": 169.56710815429688
+    },
+    {
+      "native_resume": "2026-09-11T20:56:28.722918-07:00",
+      "native_gap_ms": 174.09716666666662,
+      "restart": "2026-09-11 20:56:28.553023-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:56:28.516189-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185388.516189
+        }
+      ],
+      "analog": {
+        "start_seconds": 125.8585,
+        "end_seconds": 126.0381875,
+        "duration_ms": 179.6875,
+        "local_start": "2026-09-11T20:56:28.316565-07:00",
+        "rms_dbfs": -88.32925442529826,
+        "adjacent_rms": 0.009503119507926715,
+        "suppression_db": 47.886578242007054
+      },
+      "native_resume_minus_restart_ms": 169.89493370056152
+    },
+    {
+      "native_resume": "2026-09-11T20:56:45.276754-07:00",
+      "native_gap_ms": 170.12270833333332,
+      "restart": "2026-09-11 20:56:45.108630-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:56:45.075616-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185405.075616
+        }
+      ],
+      "analog": {
+        "start_seconds": 142.4164375,
+        "end_seconds": 142.59152083333333,
+        "duration_ms": 175.08333333333334,
+        "local_start": "2026-09-11T20:56:44.874503-07:00",
+        "rms_dbfs": -77.51462071784673,
+        "adjacent_rms": 0.010118424353282671,
+        "suppression_db": 37.61687850161527
+      },
+      "native_resume_minus_restart_ms": 168.12372207641602
+    },
+    {
+      "native_resume": "2026-09-11T20:56:58.430324-07:00",
+      "native_gap_ms": 172.46908333333332,
+      "restart": "2026-09-11 20:56:58.261313-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:56:58.227772-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185418.227772
+        }
+      ],
+      "analog": {
+        "start_seconds": 155.568875,
+        "end_seconds": 155.74466666666666,
+        "duration_ms": 175.79166666666666,
+        "local_start": "2026-09-11T20:56:58.026940-07:00",
+        "rms_dbfs": -77.56692246917194,
+        "adjacent_rms": 0.007394518708076622,
+        "suppression_db": 34.945120709991755
+      },
+      "native_resume_minus_restart_ms": 169.01135444641113
+    },
+    {
+      "native_resume": "2026-09-11T20:56:59.680708-07:00",
+      "native_gap_ms": 173.13137499999996,
+      "restart": "2026-09-11 20:56:59.512949-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:56:59.479406-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185419.479406
+        },
+        {
+          "timestamp": "2026-09-11 20:56:59.535428-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185419.535428
+        }
+      ],
+      "analog": {
+        "start_seconds": 156.819875,
+        "end_seconds": 156.99502083333334,
+        "duration_ms": 175.14583333333334,
+        "local_start": "2026-09-11T20:56:59.277940-07:00",
+        "rms_dbfs": -81.39247961110806,
+        "adjacent_rms": 0.005864227343952758,
+        "suppression_db": 36.756695584254786
+      },
+      "native_resume_minus_restart_ms": 167.75918006896973
+    },
+    {
+      "native_resume": "2026-09-11T20:57:30.697824-07:00",
+      "native_gap_ms": 169.62529166666664,
+      "restart": "2026-09-11 20:57:30.529338-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:57:30.494943-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185450.494943
+        }
+      ],
+      "analog": {
+        "start_seconds": 187.8363125,
+        "end_seconds": 188.01116666666667,
+        "duration_ms": 174.85416666666666,
+        "local_start": "2026-09-11T20:57:30.294377-07:00",
+        "rms_dbfs": -77.59907797908114,
+        "adjacent_rms": 0.011930843917244483,
+        "suppression_db": 39.13250126261343
+      },
+      "native_resume_minus_restart_ms": 168.4863567352295
+    },
+    {
+      "native_resume": "2026-09-11T20:58:29.585610-07:00",
+      "native_gap_ms": 168.70637499999998,
+      "restart": "2026-09-11 20:58:29.416957-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:58:29.386297-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185509.386297
+        }
+      ],
+      "analog": {
+        "start_seconds": 246.7245,
+        "end_seconds": 246.89710416666668,
+        "duration_ms": 172.60416666666666,
+        "local_start": "2026-09-11T20:58:29.182565-07:00",
+        "rms_dbfs": -77.29058173920824,
+        "adjacent_rms": 0.010989870836271827,
+        "suppression_db": 38.11043350319388
+      },
+      "native_resume_minus_restart_ms": 168.65301132202148
+    },
+    {
+      "native_resume": "2026-09-11T20:58:38.680988-07:00",
+      "native_gap_ms": 167.56187499999996,
+      "restart": "2026-09-11 20:58:38.514831-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:58:38.481914-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185518.481914
+        }
+      ],
+      "analog": {
+        "start_seconds": 255.81925,
+        "end_seconds": 255.9921875,
+        "duration_ms": 172.9375,
+        "local_start": "2026-09-11T20:58:38.277315-07:00",
+        "rms_dbfs": -88.85601705150992,
+        "adjacent_rms": 0.004191593666194707,
+        "suppression_db": 41.30360056020932
+      },
+      "native_resume_minus_restart_ms": 166.15676879882812
+    },
+    {
+      "native_resume": "2026-09-11T20:59:12.320194-07:00",
+      "native_gap_ms": 167.7904583333333,
+      "restart": "2026-09-11 20:59:12.152821-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:59:12.121388-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185552.121388
+        }
+      ],
+      "analog": {
+        "start_seconds": 289.457625,
+        "end_seconds": 289.630375,
+        "duration_ms": 172.75,
+        "local_start": "2026-09-11T20:59:11.915690-07:00",
+        "rms_dbfs": -96.81871749305802,
+        "adjacent_rms": 0.01070849431182622,
+        "suppression_db": 57.41328569954489
+      },
+      "native_resume_minus_restart_ms": 167.372465133667
+    },
+    {
+      "native_resume": "2026-09-11T20:59:24.514492-07:00",
+      "native_gap_ms": 173.20762499999998,
+      "restart": "2026-09-11 20:59:24.344888-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 20:59:24.313204-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185564.313204
+        }
+      ],
+      "analog": {
+        "start_seconds": 301.6490625,
+        "end_seconds": 301.8242916666667,
+        "duration_ms": 175.22916666666666,
+        "local_start": "2026-09-11T20:59:24.107128-07:00",
+        "rms_dbfs": -91.1263148877924,
+        "adjacent_rms": 0.005105461675466706,
+        "suppression_db": 45.28701529731591
+      },
+      "native_resume_minus_restart_ms": 169.60430145263672
+    },
+    {
+      "native_resume": "2026-09-11T21:00:15.464861-07:00",
+      "native_gap_ms": 167.23791666666665,
+      "restart": "2026-09-11 21:00:15.297549-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 21:00:15.264687-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185615.264687
+        }
+      ],
+      "analog": {
+        "start_seconds": 352.59975,
+        "end_seconds": 352.77310416666666,
+        "duration_ms": 173.35416666666666,
+        "local_start": "2026-09-11T21:00:15.057815-07:00",
+        "rms_dbfs": -98.54079146205189,
+        "adjacent_rms": 0.010917278933652616,
+        "suppression_db": 59.30307959323826
+      },
+      "native_resume_minus_restart_ms": 167.3119068145752
+    },
+    {
+      "native_resume": "2026-09-11T21:02:08.317816-07:00",
+      "native_gap_ms": 172.21904166666667,
+      "restart": "2026-09-11 21:02:08.151049-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 21:02:08.118503-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185728.118503
+        }
+      ],
+      "analog": {
+        "start_seconds": 465.44958333333335,
+        "end_seconds": 465.62272916666666,
+        "duration_ms": 173.14583333333334,
+        "local_start": "2026-09-11T21:02:07.907648-07:00",
+        "rms_dbfs": -79.48619023676522,
+        "adjacent_rms": 0.008410994222186314,
+        "suppression_db": 37.98313692962881
+      },
+      "native_resume_minus_restart_ms": 166.76712036132812
+    },
+    {
+      "native_resume": "2026-09-11T21:02:29.779464-07:00",
+      "native_gap_ms": 171.38899999999998,
+      "restart": "2026-09-11 21:02:29.611828-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 21:02:29.574140-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185749.57414
+        }
+      ],
+      "analog": {
+        "start_seconds": 486.9066666666667,
+        "end_seconds": 487.08372916666667,
+        "duration_ms": 177.0625,
+        "local_start": "2026-09-11T21:02:29.364732-07:00",
+        "rms_dbfs": -77.58573172028717,
+        "adjacent_rms": 0.010039575768582108,
+        "suppression_db": 37.62003895404402
+      },
+      "native_resume_minus_restart_ms": 167.63615608215332
+    },
+    {
+      "native_resume": "2026-09-11T21:02:41.072757-07:00",
+      "native_gap_ms": 168.22383333333332,
+      "restart": "2026-09-11 21:02:40.906108-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 21:02:40.874190-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185760.87419
+        }
+      ],
+      "analog": {
+        "start_seconds": 498.205,
+        "end_seconds": 498.37670833333334,
+        "duration_ms": 171.70833333333334,
+        "local_start": "2026-09-11T21:02:40.663065-07:00",
+        "rms_dbfs": -95.98726488103338,
+        "adjacent_rms": 0.0093799846966488,
+        "suppression_db": 55.431307477684186
+      },
+      "native_resume_minus_restart_ms": 166.64958000183105
+    },
+    {
+      "native_resume": "2026-09-11T21:03:11.546729-07:00",
+      "native_gap_ms": 170.5455833333333,
+      "restart": "2026-09-11 21:03:11.377998-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 21:03:11.345425-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185791.345425
+        }
+      ],
+      "analog": {
+        "start_seconds": 528.6745625,
+        "end_seconds": 528.8498125,
+        "duration_ms": 175.25,
+        "local_start": "2026-09-11T21:03:11.132627-07:00",
+        "rms_dbfs": -86.08605684197093,
+        "adjacent_rms": 0.009546861733059643,
+        "suppression_db": 45.683269496675145
+      },
+      "native_resume_minus_restart_ms": 168.7307357788086
+    },
+    {
+      "native_resume": "2026-09-11T21:04:20.159956-07:00",
+      "native_gap_ms": 166.46233333333333,
+      "restart": "2026-09-11 21:04:19.991616-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 21:04:19.960229-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185859.960229
+        }
+      ],
+      "analog": {
+        "start_seconds": 597.2883333333333,
+        "end_seconds": 597.4610625,
+        "duration_ms": 172.72916666666666,
+        "local_start": "2026-09-11T21:04:19.746398-07:00",
+        "rms_dbfs": -87.5249874196601,
+        "adjacent_rms": 0.008153325395319076,
+        "suppression_db": 45.751682922761646
+      },
+      "native_resume_minus_restart_ms": 168.34020614624023
+    },
+    {
+      "native_resume": "2026-09-11T21:05:26.298016-07:00",
+      "native_gap_ms": 176.62008333333333,
+      "restart": "2026-09-11 21:05:26.128803-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 21:05:26.095342-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185926.095342
+        }
+      ],
+      "analog": {
+        "start_seconds": 663.4214583333334,
+        "end_seconds": 663.59725,
+        "duration_ms": 175.79166666666666,
+        "local_start": "2026-09-11T21:05:25.879523-07:00",
+        "rms_dbfs": -91.37433942960895,
+        "adjacent_rms": 0.009311427974204336,
+        "suppression_db": 50.7546651948034
+      },
+      "native_resume_minus_restart_ms": 169.21329498291016
+    },
+    {
+      "native_resume": "2026-09-11T21:06:28.033736-07:00",
+      "native_gap_ms": 168.44279166666664,
+      "restart": "2026-09-11 21:06:27.864264-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 21:06:27.833938-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185987.833938
+        },
+        {
+          "timestamp": "2026-09-11 21:06:27.953922-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789185987.953922
+        }
+      ],
+      "analog": {
+        "start_seconds": 725.1576041666667,
+        "end_seconds": 725.33125,
+        "duration_ms": 173.64583333333334,
+        "local_start": "2026-09-11T21:06:27.615669-07:00",
+        "rms_dbfs": -91.54738891977884,
+        "adjacent_rms": 0.0049713884129572485,
+        "suppression_db": 45.47694283479855
+      },
+      "native_resume_minus_restart_ms": 169.47197914123535
+    },
+    {
+      "native_resume": "2026-09-11T21:06:58.004596-07:00",
+      "native_gap_ms": 168.56074999999998,
+      "restart": "2026-09-11 21:06:57.838676-0700",
+      "usb_errors": [
+        {
+          "timestamp": "2026-09-11 21:06:57.801386-0700",
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "measured": true,
+          "epoch": 1789186017.801386
+        }
+      ],
+      "analog": {
+        "start_seconds": 755.127375,
+        "end_seconds": 755.3012708333333,
+        "duration_ms": 173.89583333333334,
+        "local_start": "2026-09-11T21:06:57.585440-07:00",
+        "rms_dbfs": -84.15149539927299,
+        "adjacent_rms": 0.008638954271024353,
+        "suppression_db": 42.88071890206882
+      },
+      "native_resume_minus_restart_ms": 165.92049598693848
+    }
+  ],
+  "limits": [
+    "Waveform zero uses fitted end-edge alignment, not measured physical latency.",
+    "No common-clock kernel trace in this run; no fine causal ordering claim.",
+    "No outgoing PCM captured.",
+    "Clean periodic screen does not establish absence of all periodic distortion.",
+    "One run with fewer events does not prove improvement."
+  ],
+  "confirmed_short_flat_intervals": 24,
+  "short_width_ms_range": [
+    0.2916666666666667,
+    0.7291666666666666
+  ],
+  "short_min_spacing_seconds": 0.42191666666667516
+}

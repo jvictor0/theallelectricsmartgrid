@@ -1,0 +1,159 @@
+{
+  "checked_local": "2026-09-10T18:25:16.090850-07:00",
+  "replicate": 1,
+  "status": "incomplete crossover; later repeats underway",
+  "A1": {
+    "app_log": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/r1.app.log",
+    "recording_metadata": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/r1.phase-A1.window.json",
+    "callbacks": 16817,
+    "sample_rates": [
+      48000.0
+    ],
+    "frame_sizes": [
+      512.0
+    ],
+    "thermal_states": [
+      0.0
+    ],
+    "low_power_states": [
+      0.0
+    ],
+    "muted_states": [
+      0.0
+    ],
+    "sequence_holes": 0,
+    "logger_miss_lines_entire_log": [],
+    "dsp_ms_p50_p99_max": [
+      4.681,
+      5.119,
+      5.182
+    ],
+    "gap_ms_p50_p99_max": [
+      10.667,
+      10.677,
+      225.799
+    ],
+    "measured_dsp_overruns": 0,
+    "xrun_start_end": [
+      1,
+      5
+    ],
+    "callback_gaps_gt20ms": [
+      {
+        "time": "2026-09-10T18:14:38.218224-07:00",
+        "recording_seconds": 33.140437602996826,
+        "callback": 7409,
+        "gap_us": 225799.0,
+        "dsp_us": 4855.0,
+        "xr": 2
+      },
+      {
+        "time": "2026-09-10T18:15:11.625496-07:00",
+        "recording_seconds": 66.54771018028259,
+        "callback": 10521,
+        "gap_us": 223792.0,
+        "dsp_us": 4993.0,
+        "xr": 3
+      },
+      {
+        "time": "2026-09-10T18:16:20.220946-07:00",
+        "recording_seconds": 135.143159866333,
+        "callback": 16932,
+        "gap_us": 223133.0,
+        "dsp_us": 3733.0,
+        "xr": 4
+      },
+      {
+        "time": "2026-09-10T18:17:05.040121-07:00",
+        "recording_seconds": 179.96233487129211,
+        "callback": 21114,
+        "gap_us": 219212.0,
+        "dsp_us": 3710.0,
+        "xr": 5
+      }
+    ],
+    "xrun_increments": [
+      {
+        "time": "2026-09-10T18:14:38.218224-07:00",
+        "recording_seconds": 33.140437602996826,
+        "callback": 7409,
+        "gap_us": 225799.0,
+        "dsp_us": 4855.0,
+        "xr": 2
+      },
+      {
+        "time": "2026-09-10T18:15:11.625496-07:00",
+        "recording_seconds": 66.54771018028259,
+        "callback": 10521,
+        "gap_us": 223792.0,
+        "dsp_us": 4993.0,
+        "xr": 3
+      },
+      {
+        "time": "2026-09-10T18:16:20.220946-07:00",
+        "recording_seconds": 135.143159866333,
+        "callback": 16932,
+        "gap_us": 223133.0,
+        "dsp_us": 3733.0,
+        "xr": 4
+      },
+      {
+        "time": "2026-09-10T18:17:05.040121-07:00",
+        "recording_seconds": 179.96233487129211,
+        "callback": 21114,
+        "gap_us": 219212.0,
+        "dsp_us": 3710.0,
+        "xr": 5
+      }
+    ],
+    "clock_offset_fit_slope": 1.187864459886076e-06,
+    "clock_fit_max_residual_ms": 0.5323886871337891,
+    "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the native device counter."
+  },
+  "B1": {
+    "app_log": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/r1.app.log",
+    "recording_metadata": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/r1.phase-B1.window.json",
+    "callbacks": 16893,
+    "sample_rates": [
+      48000.0
+    ],
+    "frame_sizes": [
+      512.0
+    ],
+    "thermal_states": [
+      2.0
+    ],
+    "low_power_states": [
+      0.0
+    ],
+    "muted_states": [
+      0.0
+    ],
+    "sequence_holes": 0,
+    "logger_miss_lines_entire_log": [],
+    "dsp_ms_p50_p99_max": [
+      4.691,
+      5.065079999999998,
+      5.149
+    ],
+    "gap_ms_p50_p99_max": [
+      10.667,
+      10.676,
+      10.684
+    ],
+    "measured_dsp_overruns": 0,
+    "xrun_start_end": [
+      5,
+      5
+    ],
+    "callback_gaps_gt20ms": [],
+    "xrun_increments": [],
+    "clock_offset_fit_slope": 1.187864459886076e-06,
+    "clock_fit_max_residual_ms": 0.5323886871337891,
+    "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the native device counter."
+  },
+  "A2": "Override cleared but actual state remained Serious through90-second verification window. No nominal return exposure; do not claim reversibility. Physical warming versus policy hysteresis unresolved until archive review.",
+  "analog": "Five post-startup long interruption candidates match five callback stalls over entire record; four in measured nominal A1, zero in measured Serious B1. One precedes A1 in startup/settling. Exact USB correlation pending final archive.",
+  "periodic": "No dense periodic episode detected. Fourteen short flat candidates over542seconds are sparse; no claim excluding subtle clicks.",
+  "timing_caution": "Last nominal callback stall returns18:17:05.040 before intervention command18:17:05.311; preserve boundary timing and verify with archive."
+}

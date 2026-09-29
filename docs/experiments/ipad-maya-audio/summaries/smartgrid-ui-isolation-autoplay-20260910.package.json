@@ -1,0 +1,19 @@
+{
+  "created_local": "2026-09-10T10:45:24.546552-07:00",
+  "ipa": "/private/tmp/smartgrid-ui-isolation-autoplay-20260910.ipa",
+  "bytes": 1976180,
+  "ipa_sha256": "3feb66eb2478da3459a317d2795a839999e8dfc498957c72e791ff162262369d",
+  "binary_sha256": "50cd149fb3456c70ee5e4c380b2878718d1dc8a99df7514520e44339ab190906",
+  "files": [
+    "Payload/SmartGridOne.app/Info.plist",
+    "Payload/SmartGridOne.app/LaunchScreen.storyboardc/01J-lp-oVM-view-Ze5-6b-2t3.nib",
+    "Payload/SmartGridOne.app/LaunchScreen.storyboardc/Info.plist",
+    "Payload/SmartGridOne.app/LaunchScreen.storyboardc/UIViewController-01J-lp-oVM.nib",
+    "Payload/SmartGridOne.app/PkgInfo",
+    "Payload/SmartGridOne.app/SmartGridOne",
+    "Payload/SmartGridOne.app/_CodeSignature/CodeResources",
+    "Payload/SmartGridOne.app/embedded.mobileprovision"
+  ],
+  "source_app": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/JUCE/SmartGridOne/Builds/iOS/build/Release/SmartGridOne.app",
+  "review_status": "independent review pending; deployment gated on review"
+}

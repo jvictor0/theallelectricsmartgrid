@@ -1,0 +1,948 @@
+{
+  "phase": "serious1",
+  "events": 4290984,
+  "raw_bytes": 274668032,
+  "offset_bytes": 45056,
+  "first_ticks": 4505987959271,
+  "last_ticks": 4506221025193,
+  "seconds": 9.711080083333332,
+  "first_local": "2026-09-10T19:38:08.018880-07:00",
+  "last_local": "2026-09-10T19:38:17.729960-07:00",
+  "kernel_version": "Darwin Kernel Version 25.6.0: Thu Jul 30 12:46:22 PDT 2026; root:xnu-12377.162.14~4/RELEASE_ARM64_T8122",
+  "clock": {
+    "origin_ticks": 4505988003300,
+    "epoch": 1789094288.020715,
+    "seconds_per_tick": 4.166666666666666e-08
+  },
+  "lost_events_markers": 0,
+  "scheduler_switches": 509361,
+  "switch_chain_mismatches": 0,
+  "switch_chain_mismatch_examples": [],
+  "usb_events": 56436,
+  "usb_event_counts": {
+    "0x52d0000": 50368,
+    "0x52dc004": 6068
+  },
+  "threads": [
+    {
+      "tid": 1962,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": null,
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.0001333333333333333,
+      "scheduled_fraction_of_one_core": 1.3730020985221511e-05,
+      "slices": 3,
+      "switch_ins": 3,
+      "wakeups": 2,
+      "wakeups_per_second": 0.2059503147783227,
+      "wake_gap_ms_p50_p99_max": [
+        5000.610166666666,
+        5000.610166666666,
+        5000.610166666666
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.016125,
+        0.0231075,
+        0.02325
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 4.616666666666666e-05,
+        "1": 2.9916666666666664e-05,
+        "3": 5.7249999999999996e-05
+      }
+    },
+    {
+      "tid": 2422,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "FigTransportConnectionUSB.messagesending",
+      "snapshot_priority": 58,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 2423,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "FigTransportConnectionUSB.server",
+      "snapshot_priority": 58,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 2483,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "caulk.messenger.shared:17",
+      "snapshot_priority": 19,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 2484,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "caulk.messenger.shared:high",
+      "snapshot_priority": 55,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 2501,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "HAL Async Logger",
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 2517,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "caulk.messenger.shared:21",
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.0006970416666666666,
+      "scheduled_fraction_of_one_core": 7.177797533180333e-05,
+      "slices": 5,
+      "switch_ins": 5,
+      "wakeups": 1,
+      "wakeups_per_second": 0.10297515738916135,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.013166666666666665,
+        0.013166666666666665,
+        0.013166666666666665
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 0.0004840833333333333,
+        "3": 0.00021295833333333334
+      }
+    },
+    {
+      "tid": 2547,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "com.apple.AudioServerDriverTransports.ASDTDeviceManager.thread",
+      "snapshot_priority": 37,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 2663,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": null,
+      "snapshot_priority": 12,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 2684,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": null,
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 2700,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "caulk::deferred_logger",
+      "snapshot_priority": 37,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 2724,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "DspLib messenger",
+      "snapshot_priority": 55,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 2901,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "caulk.messenger.shared:25",
+      "snapshot_priority": 37,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 43433,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "com.apple.CoreMotion.MotionThread",
+      "snapshot_priority": 47,
+      "scheduled_seconds": 0.00013429166666666667,
+      "scheduled_fraction_of_one_core": 1.3828705511052794e-05,
+      "slices": 4,
+      "switch_ins": 3,
+      "wakeups": 2,
+      "wakeups_per_second": 0.2059503147783227,
+      "wake_gap_ms_p50_p99_max": [
+        5000.638666666666,
+        5000.638666666666,
+        5000.638666666666
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.013249999999999998,
+        0.017374166666666666,
+        0.017458333333333333
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 5.595833333333333e-05,
+        "1": 7.833333333333333e-05
+      }
+    },
+    {
+      "tid": 1406733,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": null,
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.0067789999999999994,
+      "scheduled_fraction_of_one_core": 0.0006980685919411247,
+      "slices": 224,
+      "switch_ins": 222,
+      "wakeups": 203,
+      "wakeups_per_second": 20.903956949999753,
+      "wake_gap_ms_p50_p99_max": [
+        0.0609375,
+        1012.3772299999999,
+        1014.9098333333333
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.004458333333333332,
+        0.011846666666666651,
+        0.017208333333333332
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 0.0028251249999999995,
+        "1": 0.0006174583333333334,
+        "2": 0.000544875,
+        "3": 9.845833333333333e-05,
+        "4": 0.0009844583333333333,
+        "5": 0.0009930833333333332,
+        "6": 0.0006877083333333332,
+        "7": 2.783333333333333e-05
+      }
+    },
+    {
+      "tid": 1406891,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": null,
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.006340291666666666,
+      "scheduled_fraction_of_one_core": 0.000652892532268188,
+      "slices": 234,
+      "switch_ins": 231,
+      "wakeups": 209,
+      "wakeups_per_second": 21.52180789433472,
+      "wake_gap_ms_p50_p99_max": [
+        0.058229166666666665,
+        1011.8705316666666,
+        1014.8176249999998
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.0043749999999999995,
+        0.01196666666666666,
+        0.11008333333333331
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 0.0021973333333333333,
+        "1": 0.0010085833333333333,
+        "2": 0.00022737499999999996,
+        "3": 8.645833333333333e-05,
+        "4": 0.001312333333333333,
+        "5": 0.0008983749999999998,
+        "6": 0.0005513333333333333,
+        "7": 5.849999999999999e-05
+      }
+    },
+    {
+      "tid": 1408064,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": null,
+      "snapshot_priority": 63,
+      "scheduled_seconds": 0.005401583333333333,
+      "scheduled_fraction_of_one_core": 0.0005562288939006708,
+      "slices": 188,
+      "switch_ins": 188,
+      "wakeups": 169,
+      "wakeups_per_second": 17.402801598768267,
+      "wake_gap_ms_p50_p99_max": [
+        0.07045833333333332,
+        1012.4071483333332,
+        1015.3039166666666
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.0045,
+        0.008254999999999965,
+        0.030541666666666665
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 0.0020904166666666666,
+        "1": 0.00098,
+        "2": 0.00012341666666666667,
+        "3": 0.000103125,
+        "4": 0.0007558333333333331,
+        "5": 0.0006105416666666667,
+        "6": 0.00062575,
+        "7": 0.0001125
+      }
+    },
+    {
+      "tid": 1408208,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": null,
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 1408500,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": null,
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 1408508,
+      "pid": 109,
+      "process": "audiomxd",
+      "thread": "audio IO: VAD [vdef] AggDev 392",
+      "snapshot_priority": 97,
+      "scheduled_seconds": 0.020087749999999994,
+      "scheduled_fraction_of_one_core": 0.0020685392178441254,
+      "slices": 3642,
+      "switch_ins": 3642,
+      "wakeups": 3642,
+      "wakeups_per_second": 375.03552321132565,
+      "wake_gap_ms_p50_p99_max": [
+        0.027666666666666662,
+        6.96535,
+        7.038666666666666
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.0003333333333333333,
+        0.002708333333333333,
+        0.005291666666666666
+      ],
+      "scheduled_cpus_seconds": {
+        "4": 0.009651708333333332,
+        "5": 0.006712375,
+        "6": 0.0015932499999999998,
+        "7": 0.0021304166666666667
+      }
+    },
+    {
+      "tid": 53417,
+      "pid": 1308,
+      "process": "usbaudiod",
+      "thread": null,
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 53418,
+      "pid": 1308,
+      "process": "usbaudiod",
+      "thread": "caulk.messenger.shared:17",
+      "snapshot_priority": 19,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 53419,
+      "pid": 1308,
+      "process": "usbaudiod",
+      "thread": "caulk.messenger.shared:high",
+      "snapshot_priority": 55,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 1408386,
+      "pid": 1308,
+      "process": "usbaudiod",
+      "thread": null,
+      "snapshot_priority": 63,
+      "scheduled_seconds": 0.10593324999999999,
+      "scheduled_fraction_of_one_core": 0.010908493091495376,
+      "slices": 728,
+      "switch_ins": 723,
+      "wakeups": 714,
+      "wakeups_per_second": 73.5242623758612,
+      "wake_gap_ms_p50_p99_max": [
+        7.7805833333333325,
+        8.063646666666665,
+        8.078916666666666
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.009479166666666665,
+        0.020830416666666674,
+        0.049916666666666665
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 0.05048875,
+        "1": 0.037939,
+        "2": 0.012404958333333334,
+        "3": 0.005100541666666665
+      }
+    },
+    {
+      "tid": 1408458,
+      "pid": 1308,
+      "process": "usbaudiod",
+      "thread": null,
+      "snapshot_priority": 63,
+      "scheduled_seconds": 0.3249895416666666,
+      "scheduled_fraction_of_one_core": 0.0334658492029564,
+      "slices": 2216,
+      "switch_ins": 2190,
+      "wakeups": 2114,
+      "wakeups_per_second": 217.6894827206871,
+      "wake_gap_ms_p50_p99_max": [
+        7.756166666666665,
+        8.072215,
+        8.133916666666666
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.009041666666666665,
+        0.01719749999999999,
+        0.02895833333333333
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 0.142221,
+        "1": 0.1265502083333333,
+        "2": 0.039037999999999996,
+        "3": 0.015005249999999998,
+        "4": 0.0009482916666666667,
+        "5": 0.0008711666666666666,
+        "6": 0.0003457083333333333,
+        "7": 9.916666666666666e-06
+      }
+    },
+    {
+      "tid": 1408507,
+      "pid": 1308,
+      "process": "usbaudiod",
+      "thread": "AUAPeriodicEventRT",
+      "snapshot_priority": 97,
+      "scheduled_seconds": 0.0004892916666666666,
+      "scheduled_fraction_of_one_core": 5.0384886384205066e-05,
+      "slices": 4,
+      "switch_ins": 4,
+      "wakeups": 4,
+      "wakeups_per_second": 0.4119006295566454,
+      "wake_gap_ms_p50_p99_max": [
+        2248.097458333333,
+        2248.1077891666664,
+        2248.1079999999997
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.0058541666666666655,
+        0.006079583333333332,
+        0.006083333333333332
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 0.0004892916666666666
+      }
+    },
+    {
+      "tid": 1408513,
+      "pid": 1308,
+      "process": "usbaudiod",
+      "thread": "io receiver",
+      "snapshot_priority": 97,
+      "scheduled_seconds": 0.0033787916666666667,
+      "scheduled_fraction_of_one_core": 0.0003479316036601868,
+      "slices": 1821,
+      "switch_ins": 1821,
+      "wakeups": 1821,
+      "wakeups_per_second": 187.51776160566283,
+      "wake_gap_ms_p50_p99_max": [
+        5.2128125,
+        6.990262083333333,
+        7.043541666666666
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.000125,
+        0.0003333333333333333,
+        0.0008749999999999999
+      ],
+      "scheduled_cpus_seconds": {
+        "4": 0.0016596666666666665,
+        "5": 0.0011057083333333331,
+        "6": 0.000256375,
+        "7": 0.0003570416666666666
+      }
+    },
+    {
+      "tid": 1408517,
+      "pid": 1308,
+      "process": "usbaudiod",
+      "thread": null,
+      "snapshot_priority": 37,
+      "scheduled_seconds": 0.22126358333333332,
+      "scheduled_fraction_of_one_core": 0.022784652318239815,
+      "slices": 1535,
+      "switch_ins": 1511,
+      "wakeups": 1466,
+      "wakeups_per_second": 150.96158073251053,
+      "wake_gap_ms_p50_p99_max": [
+        7.709208333333333,
+        8.065516666666666,
+        8.154125
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.008875,
+        0.01800416666666664,
+        7.695958333333333
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 0.09773095833333331,
+        "1": 0.07744133333333332,
+        "2": 0.030050333333333328,
+        "3": 0.014046583333333331,
+        "4": 0.0010807916666666663,
+        "5": 0.0006540833333333333,
+        "6": 0.00025949999999999997
+      }
+    },
+    {
+      "tid": 1406682,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": "JUCE v8.0.15: Message Thread",
+      "snapshot_priority": 47,
+      "scheduled_seconds": 1.9823318749999999,
+      "scheduled_fraction_of_one_core": 0.20413093682567632,
+      "slices": 5209,
+      "switch_ins": 5034,
+      "wakeups": 2370,
+      "wakeups_per_second": 244.0511230123124,
+      "wake_gap_ms_p50_p99_max": [
+        3.0562499999999995,
+        13.087441666666672,
+        13.512041666666665
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.005875,
+        0.008916666666666665,
+        0.011958333333333331
+      ],
+      "scheduled_cpus_seconds": {
+        "4": 0.515207875,
+        "5": 0.5557797083333333,
+        "6": 0.6987865416666665,
+        "7": 0.21255774999999996
+      }
+    },
+    {
+      "tid": 1406719,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": null,
+      "snapshot_priority": 54,
+      "scheduled_seconds": 0.17524691666666667,
+      "scheduled_fraction_of_one_core": 0.018046078825715243,
+      "slices": 2580,
+      "switch_ins": 2555,
+      "wakeups": 1774,
+      "wakeups_per_second": 182.67792920837223,
+      "wake_gap_ms_p50_p99_max": [
+        0.48983333333333334,
+        29.63415833333329,
+        31.377958333333332
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.0029166666666666664,
+        0.008458333333333332,
+        0.012749999999999997
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 3.6125e-05,
+        "3": 2.0166666666666664e-05,
+        "4": 0.05403916666666666,
+        "5": 0.05825620833333333,
+        "6": 0.045066499999999995,
+        "7": 0.017828749999999997
+      }
+    },
+    {
+      "tid": 1406720,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": "com.apple.uikit.eventfetch-thread",
+      "snapshot_priority": 47,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 1406723,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": "JUCE v8.0.15: Timer",
+      "snapshot_priority": 37,
+      "scheduled_seconds": 0.0036672499999999995,
+      "scheduled_fraction_of_one_core": 0.0003776356459354019,
+      "slices": 1116,
+      "switch_ins": 1115,
+      "wakeups": 1104,
+      "wakeups_per_second": 113.68457375763413,
+      "wake_gap_ms_p50_p99_max": [
+        6.016541666666666,
+        20.00866583333333,
+        20.011166666666664
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.002958333333333333,
+        0.005498750000000001,
+        0.006999999999999999
+      ],
+      "scheduled_cpus_seconds": {
+        "4": 0.001133875,
+        "5": 0.0012293749999999998,
+        "6": 0.0009882916666666666,
+        "7": 0.0003157083333333334
+      }
+    },
+    {
+      "tid": 1406724,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": null,
+      "snapshot_priority": 97,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 1406729,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": "MidiSender",
+      "snapshot_priority": 97,
+      "scheduled_seconds": 0.18567725000000002,
+      "scheduled_fraction_of_one_core": 0.01912014404233666,
+      "slices": 94192,
+      "switch_ins": 94192,
+      "wakeups": 94192,
+      "wakeups_per_second": 9699.436024799887,
+      "wake_gap_ms_p50_p99_max": [
+        0.10270833333333333,
+        0.10537499999999998,
+        0.6396249999999999
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.00045833333333333327,
+        0.0019583333333333328,
+        0.015416666666666664
+      ],
+      "scheduled_cpus_seconds": {
+        "4": 0.06023295833333332,
+        "5": 0.07062724999999999,
+        "6": 0.03438804166666666,
+        "7": 0.020429
+      }
+    },
+    {
+      "tid": 1406730,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": null,
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.15208258333333333,
+      "scheduled_fraction_of_one_core": 0.015660727954900245,
+      "slices": 79156,
+      "switch_ins": 79147,
+      "wakeups": 76521,
+      "wakeups_per_second": 7879.762018576016,
+      "wake_gap_ms_p50_p99_max": [
+        0.12804166666666666,
+        0.13291666666666666,
+        0.6396666666666666
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.0006666666666666666,
+        0.004791666666666666,
+        0.014666666666666665
+      ],
+      "scheduled_cpus_seconds": {
+        "1": 5.083333333333333e-06,
+        "2": 2.0666666666666663e-05,
+        "4": 0.04242062499999999,
+        "5": 0.047347999999999994,
+        "6": 0.041002708333333325,
+        "7": 0.0212855
+      }
+    },
+    {
+      "tid": 1406790,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": "caulk::deferred_logger",
+      "snapshot_priority": 37,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 1406791,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": "caulk.messenger.shared:high",
+      "snapshot_priority": 55,
+      "scheduled_seconds": 0.0,
+      "scheduled_fraction_of_one_core": 0.0,
+      "slices": 0,
+      "switch_ins": 0,
+      "wakeups": 0,
+      "wakeups_per_second": 0.0,
+      "wake_gap_ms_p50_p99_max": [],
+      "wake_to_next_switch_in_ms_p50_p99_max": [],
+      "scheduled_cpus_seconds": {}
+    },
+    {
+      "tid": 1406928,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": "AURemoteIO::IOThread",
+      "snapshot_priority": 97,
+      "scheduled_seconds": 3.958957958333333,
+      "scheduled_fraction_of_one_core": 0.40767431885644784,
+      "slices": 910,
+      "switch_ins": 910,
+      "wakeups": 910,
+      "wakeups_per_second": 93.70739322413682,
+      "wake_gap_ms_p50_p99_max": [
+        10.667124999999999,
+        10.678139999999999,
+        10.749041666666665
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.0006666666666666666,
+        0.001492499999999997,
+        0.0026666666666666666
+      ],
+      "scheduled_cpus_seconds": {
+        "4": 1.9380956249999999,
+        "5": 1.2818272083333333,
+        "6": 0.3003057499999999,
+        "7": 0.438729375
+      }
+    },
+    {
+      "tid": 1407994,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": null,
+      "snapshot_priority": 54,
+      "scheduled_seconds": 0.149732125,
+      "scheduled_fraction_of_one_core": 0.01541868913808858,
+      "slices": 2429,
+      "switch_ins": 2403,
+      "wakeups": 1690,
+      "wakeups_per_second": 174.0280159876827,
+      "wake_gap_ms_p50_p99_max": [
+        0.4652083333333333,
+        26.31851166666665,
+        5000.638499999999
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.0030833333333333333,
+        0.008291666666666666,
+        0.009375
+      ],
+      "scheduled_cpus_seconds": {
+        "4": 0.05825145833333333,
+        "5": 0.038704416666666665,
+        "6": 0.030700041666666667,
+        "7": 0.02207620833333333
+      }
+    },
+    {
+      "tid": 1408446,
+      "pid": 21203,
+      "process": "SmartGridOne",
+      "thread": null,
+      "snapshot_priority": 31,
+      "scheduled_seconds": 0.3051236666666666,
+      "scheduled_fraction_of_one_core": 0.031420157598158,
+      "slices": 4627,
+      "switch_ins": 4572,
+      "wakeups": 3211,
+      "wakeups_per_second": 330.6532303765971,
+      "wake_gap_ms_p50_p99_max": [
+        0.47164583333333326,
+        28.892956249999994,
+        31.531208333333332
+      ],
+      "wake_to_next_switch_in_ms_p50_p99_max": [
+        0.00325,
+        0.008374999999999999,
+        0.019374999999999996
+      ],
+      "scheduled_cpus_seconds": {
+        "0": 2.825e-05,
+        "1": 6.045833333333333e-05,
+        "4": 0.10188116666666666,
+        "5": 0.08421999999999999,
+        "6": 0.07919541666666666,
+        "7": 0.03973837499999999
+      }
+    }
+  ],
+  "limits": [
+    "Scheduled CPU intervals include interrupt time; exact instruction-running time was not captured.",
+    "Wake-to-next-in is a first-pass metric; duplicate wakes/already-running targets require event-level checking before attribution.",
+    "Threads created after the initial stackshot require dynamic naming/identity recovery.",
+    "Trace instrumentation and transport overhead differ from previous unprofiled audio sessions.",
+    "Cached connection time ignored; initial kernel stackshot supplies matching mach and wall-clock anchor."
+  ]
+}

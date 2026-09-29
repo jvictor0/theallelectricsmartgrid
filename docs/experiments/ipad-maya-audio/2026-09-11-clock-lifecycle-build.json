@@ -1,0 +1,39 @@
+{
+  "juce_version": "8.0.15",
+  "source_sha256": "708c0a543ddbefe7c9cb83bc1d3428e62b18dd2124133f051582bdacba112339",
+  "instrumented_sha256": "6323898a634df1b214b13acde2fbac78e1241512e06f3ef20aeaaff02bae6ee3",
+  "bridge_sha256": "54ad9f6f857fdd187a54abd8235948b928f1b5f19a94583346d7d530eae90a21",
+  "native_probe": true,
+  "sample_rate": 48000,
+  "default_frames": 512,
+  "builtAt": "2026-09-11T18:15:14.929618-07:00",
+  "app": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/JUCE/SmartGridOne/Builds/iOS/build/Release/SmartGridOne.app",
+  "bundleId": "com.theallelectricsmartgrid.smartgridone",
+  "binarySha256": "f3aabe8df0a75aa968d48bd3ce9261d977d239141583e401295a19e370748f69",
+  "sources": {
+    "JUCE/SmartGridOne/Source/RemoteIOProbeBridge.hpp": "54ad9f6f857fdd187a54abd8235948b928f1b5f19a94583346d7d530eae90a21",
+    "JUCE/SmartGridOne/Source/RemoteIOProbeBridge.mm": "f2611a1521abdffbe91d259e61de6740600b04e852f6af11bc167abc23321ecb",
+    "JUCE/SmartGridOne/Source/MainComponent.cpp": "a905a0f47bf250ad8446c9455dba31df98f1f2777e9b99acc885611eee53e5ce",
+    "private/src/RemoteIOCapture.hpp": "78c9422aef7cbf3dd7e5d770bc0aaa06b5177930d28c5475e9a196738a92f9ba",
+    "private/src/AudioLifecycleQueue.hpp": "3dbd714719b6541e44ba202e71e7c9a915d663baeded315db571e7e7e5806bbf",
+    "JUCE/SmartGridOne/scripts/decode_remoteio.py": "4ee1a535427cbfc83d1013ad379567a8e6e6fa251998004235cfc95642f92575",
+    "JUCE/SmartGridOne/scripts/prepare_ios_audio_module.py": "d1ce951efe013309a014e3018b96b6cc2136212586773b881eca082f50ee6a17",
+    "JUCE/SmartGridOne/scripts/combined_system_trace.py": "4dad1f857e324e91c3db1a37cde742ce9a4cca03d3592e5a386240e8d24733d7",
+    "JUCE/SmartGridOne/scripts/usb_trace_details.py": "84cac816c3e26a705dc01043de479f943794959dfd268b38166c75ef8fddc7da"
+  },
+  "captureVersion": 2,
+  "headerBytes": 252,
+  "signatureVerification": "codesign --verify --deep --strict: passed using host trust store",
+  "deployed": false,
+  "defaults": {
+    "SMARTGRID_NATIVE_CAPTURE": "1",
+    "SMARTGRID_NATIVE_CAPTURE_PCM": "0",
+    "SMARTGRID_AUDIO_TEST_MODE": "normal",
+    "SMARTGRID_AUDIO_TEST_PLAY": "1",
+    "SMARTGRID_UI_RENDER": "1",
+    "SMARTGRID_MIDI_SEND_THREAD": "1"
+  },
+  "inputs": 0,
+  "onDeviceValidation": "Pending; no device accessed for this extension",
+  "buildLog": "/private/tmp/smartgrid-clock-lifecycle-final-build-20260911.log"
+}

@@ -1,0 +1,2638 @@
+{
+  "generated_local": "2026-09-10T19:47:54.178049-07:00",
+  "full_record": {
+    "window": {
+      "started_local": "2026-09-10T19:33:15.523367-07:00",
+      "started_epoch_ns": 1789093995523367000,
+      "started_monotonic_ns": 3581002437871750,
+      "device": "K-Mix",
+      "input_channels": [
+        3,
+        4
+      ],
+      "rate": 48000,
+      "bits": 24,
+      "maximum_seconds": 1200,
+      "command": [
+        "/opt/homebrew/bin/sox",
+        "--buffer",
+        "131072",
+        "-q",
+        "-t",
+        "coreaudio",
+        "-r",
+        "48000",
+        "-c",
+        "8",
+        "K-Mix",
+        "-b",
+        "24",
+        "/private/tmp/smartgrid-system-trace-r2-20260910/audio.wav",
+        "remix",
+        "3",
+        "4",
+        "trim",
+        "0",
+        "1200"
+      ],
+      "wrapper_pid": 40020,
+      "source": "Focused native scheduler/workgroup/USB traces, nominal then induced Serious. Same normal DSP/UI/MIDI JUCE8.0.15 build,48k/512,PD connected. Continuous K-Mix3/4 audio includes startup, trace setup/draining and thermal transition. See events and phase trace timestamps for exposure.",
+      "status": "recorded",
+      "sox_pid": 40027,
+      "system_log_pid": 40025,
+      "keep_awake_pid": 40026,
+      "returncode": 0,
+      "ended_local": "2026-09-10T19:40:04.611367-07:00",
+      "ended_epoch_ns": 1789094404611367000,
+      "wrapper_ended_local": "2026-09-10T19:40:04.950268-07:00",
+      "wrapper_started_epoch_ns": 1789093995523387000,
+      "wrapper_ended_epoch_ns": 1789094404950342000,
+      "measured_wav_seconds": 409.088,
+      "timing_note": "Window local and epoch boundaries are derived from the same ISO timestamps at microsecond precision. End is nominal recorder start plus exact WAVE data-frame duration. Original separately sampled wrapper epoch timestamps and completion time are retained in wrapper_* fields and the raw recorder JSON. Independent audio clocks/start latency mean this is not sample-accurate device-log alignment."
+    },
+    "usb_errors": 13,
+    "callback_stalls": 12,
+    "analog_long_intervals": 12,
+    "matched_episodes": [
+      {
+        "callback": {
+          "cb": 14939.0,
+          "t_us": 187624197146.0,
+          "gap_us": 221393.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 4921.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 1.0,
+          "thermal": 0.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094162.7169518,
+          "at": "2026-09-10T19:36:02.716952-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094162.498229,
+            "at": "2026-09-10 19:36:02.498229-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094162.534118,
+            "at": "2026-09-10 19:36:02.534118-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1406735
+          }
+        ],
+        "analog": {
+          "start_seconds": 166.871,
+          "end_seconds": 167.024,
+          "duration_ms": 153,
+          "preceding_100ms_peak_rms_dbfs": -25.268082364334973,
+          "following_100ms_peak_rms_dbfs": -25.041204784091743,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 18292.0,
+          "t_us": 187660181032.0,
+          "gap_us": 229625.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 3806.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 2.0,
+          "thermal": 0.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094198.7008035,
+          "at": "2026-09-10T19:36:38.700804-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094198.480863,
+            "at": "2026-09-10 19:36:38.480863-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094198.517163,
+            "at": "2026-09-10 19:36:38.517163-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1406735
+          }
+        ],
+        "analog": {
+          "start_seconds": 202.883,
+          "end_seconds": 203.006,
+          "duration_ms": 123,
+          "preceding_100ms_peak_rms_dbfs": -54.02633566899265,
+          "following_100ms_peak_rms_dbfs": -24.451638864687343,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 19056.0,
+          "t_us": 187668548774.0,
+          "gap_us": 229207.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 3756.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 3.0,
+          "thermal": 0.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094207.0689344,
+          "at": "2026-09-10T19:36:47.068934-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094206.848767,
+            "at": "2026-09-10 19:36:46.848767-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094206.884662,
+            "at": "2026-09-10 19:36:46.884662-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1406808
+          }
+        ],
+        "analog": {
+          "start_seconds": 211.235,
+          "end_seconds": 211.374,
+          "duration_ms": 139,
+          "preceding_100ms_peak_rms_dbfs": -26.29630161350319,
+          "following_100ms_peak_rms_dbfs": -25.12231804592127,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 19502.0,
+          "t_us": 187673521811.0,
+          "gap_us": 226480.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 3762.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 4.0,
+          "thermal": 0.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094212.0413952,
+          "at": "2026-09-10T19:36:52.041395-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094211.824727,
+            "at": "2026-09-10 19:36:51.824727-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094211.857802,
+            "at": "2026-09-10 19:36:51.857802-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1406892
+          }
+        ],
+        "analog": {
+          "start_seconds": 216.19,
+          "end_seconds": 216.347,
+          "duration_ms": 157,
+          "preceding_100ms_peak_rms_dbfs": -24.874674195058223,
+          "following_100ms_peak_rms_dbfs": -25.380079481450966,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 19979.0,
+          "t_us": 187678820654.0,
+          "gap_us": 221643.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 4959.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 5.0,
+          "thermal": 0.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094217.3405561,
+          "at": "2026-09-10T19:36:57.340556-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094217.124623,
+            "at": "2026-09-10 19:36:57.124623-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094217.160205,
+            "at": "2026-09-10 19:36:57.160205-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1406808
+          }
+        ],
+        "analog": {
+          "start_seconds": 221.472,
+          "end_seconds": 221.646,
+          "duration_ms": 174,
+          "preceding_100ms_peak_rms_dbfs": -24.8439571516507,
+          "following_100ms_peak_rms_dbfs": -24.140415420248914,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 21271.0,
+          "t_us": 187692816243.0,
+          "gap_us": 225122.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 4932.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 6.0,
+          "thermal": 0.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094231.3363984,
+          "at": "2026-09-10T19:37:11.336398-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094231.120497,
+            "at": "2026-09-10 19:37:11.120497-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          },
+          {
+            "epoch": 1789094231.244484,
+            "at": "2026-09-10 19:37:11.244484-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094231.154456,
+            "at": "2026-09-10 19:37:11.154456-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1406892
+          }
+        ],
+        "analog": {
+          "start_seconds": 235.452,
+          "end_seconds": 235.641,
+          "duration_ms": 189,
+          "preceding_100ms_peak_rms_dbfs": -26.399240392384478,
+          "following_100ms_peak_rms_dbfs": -25.070286128589544,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 23040.0,
+          "t_us": 187711900265.0,
+          "gap_us": 225638.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 3812.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 7.0,
+          "thermal": 0.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094250.4202886,
+          "at": "2026-09-10T19:37:30.420289-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094250.204248,
+            "at": "2026-09-10 19:37:30.204248-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094250.239884,
+            "at": "2026-09-10 19:37:30.239884-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1406891
+          }
+        ],
+        "analog": {
+          "start_seconds": 254.569,
+          "end_seconds": 254.724,
+          "duration_ms": 155,
+          "preceding_100ms_peak_rms_dbfs": -25.868961019690797,
+          "following_100ms_peak_rms_dbfs": -24.21908279787623,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 26206.0,
+          "t_us": 187745880017.0,
+          "gap_us": 220293.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 3804.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 8.0,
+          "thermal": 2.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094284.400604,
+          "at": "2026-09-10T19:38:04.400604-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094284.183837,
+            "at": "2026-09-10 19:38:04.183837-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094284.21883,
+            "at": "2026-09-10 19:38:04.218830-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1406891
+          }
+        ],
+        "analog": {
+          "start_seconds": 288.505,
+          "end_seconds": 288.703,
+          "duration_ms": 198,
+          "preceding_100ms_peak_rms_dbfs": -24.676983434493053,
+          "following_100ms_peak_rms_dbfs": -24.632025061625754,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 31826.0,
+          "t_us": 187806044105.0,
+          "gap_us": 225129.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 3762.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 9.0,
+          "thermal": 2.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094344.5640612,
+          "at": "2026-09-10T19:39:04.564061-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094344.339087,
+            "at": "2026-09-10 19:39:04.339087-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094344.378345,
+            "at": "2026-09-10 19:39:04.378345-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1408064
+          }
+        ],
+        "analog": {
+          "start_seconds": 348.735,
+          "end_seconds": 348.865,
+          "duration_ms": 130,
+          "preceding_100ms_peak_rms_dbfs": -52.882826119222855,
+          "following_100ms_peak_rms_dbfs": -25.014308573498695,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 32851.0,
+          "t_us": 187817191537.0,
+          "gap_us": 224764.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 4939.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 10.0,
+          "thermal": 2.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094355.7118058,
+          "at": "2026-09-10T19:39:15.711806-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094355.486947,
+            "at": "2026-09-10 19:39:15.486947-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094355.526304,
+            "at": "2026-09-10 19:39:15.526304-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1406891
+          }
+        ],
+        "analog": {
+          "start_seconds": 359.864,
+          "end_seconds": 360.012,
+          "duration_ms": 148,
+          "preceding_100ms_peak_rms_dbfs": -24.729227237738964,
+          "following_100ms_peak_rms_dbfs": -25.16492946004262,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 33765.0,
+          "t_us": 187827158398.0,
+          "gap_us": 228223.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 4907.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 11.0,
+          "thermal": 2.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094365.6788757,
+          "at": "2026-09-10T19:39:25.678876-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094365.458801,
+            "at": "2026-09-10 19:39:25.458801-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094365.494282,
+            "at": "2026-09-10 19:39:25.494282-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1408208
+          }
+        ],
+        "analog": {
+          "start_seconds": 369.851,
+          "end_seconds": 369.978,
+          "duration_ms": 127,
+          "preceding_100ms_peak_rms_dbfs": -52.56357476253851,
+          "following_100ms_peak_rms_dbfs": -24.362462879936796,
+          "surrounded_by_signal": true
+        }
+      },
+      {
+        "callback": {
+          "cb": 33854.0,
+          "t_us": 187828314713.0,
+          "gap_us": 217483.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 3774.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 12.0,
+          "thermal": 2.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094366.8349452,
+          "at": "2026-09-10T19:39:26.834945-07:00"
+        },
+        "usb_errors": [
+          {
+            "epoch": 1789094366.619072,
+            "at": "2026-09-10 19:39:26.619072-0700",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+            "thread_id": 1362566
+          }
+        ],
+        "restarts": [
+          {
+            "epoch": 1789094366.653091,
+            "at": "2026-09-10 19:39:26.653091-0700",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO",
+            "thread_id": 1408500
+          }
+        ],
+        "analog": {
+          "start_seconds": 370.941,
+          "end_seconds": 371.134,
+          "duration_ms": 193,
+          "preceding_100ms_peak_rms_dbfs": -25.123704271510793,
+          "following_100ms_peak_rms_dbfs": -25.11592143643162,
+          "surrounded_by_signal": true
+        }
+      }
+    ],
+    "periodic_summary": {
+      "base": "/private/tmp/smartgrid-system-trace-r2-20260910/audio",
+      "seconds": 409.088,
+      "short_candidates": 15,
+      "episodes": [],
+      "ten_second_windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 10,
+          "holes": 5,
+          "holes_per_second": 0.5,
+          "flat_fraction": 0.0020583333333333335,
+          "median_width_ms": 0.875,
+          "onset_spacing_ms_p10_p50_p90": [
+            1.6041666666666667,
+            295.3541666666667,
+            1326.685416666667
+          ]
+        },
+        {
+          "start_seconds": 10,
+          "end_seconds": 20,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 20,
+          "end_seconds": 30,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 30,
+          "end_seconds": 40,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 40,
+          "end_seconds": 50,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 50,
+          "end_seconds": 60,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 60,
+          "end_seconds": 70,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 70,
+          "end_seconds": 80,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 80,
+          "end_seconds": 90,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 90,
+          "end_seconds": 100,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 100,
+          "end_seconds": 110,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 110,
+          "end_seconds": 120,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 120,
+          "end_seconds": 130,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 130,
+          "end_seconds": 140,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 140,
+          "end_seconds": 150,
+          "holes": 1,
+          "holes_per_second": 0.1,
+          "flat_fraction": 5.208333333333334e-05,
+          "median_width_ms": 0.5208333333333334,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 150,
+          "end_seconds": 160,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 160,
+          "end_seconds": 170,
+          "holes": 1,
+          "holes_per_second": 0.1,
+          "flat_fraction": 4.1666666666666665e-05,
+          "median_width_ms": 0.4166666666666667,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 170,
+          "end_seconds": 180,
+          "holes": 1,
+          "holes_per_second": 0.1,
+          "flat_fraction": 5.4166666666666664e-05,
+          "median_width_ms": 0.5416666666666666,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 180,
+          "end_seconds": 190,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 190,
+          "end_seconds": 200,
+          "holes": 2,
+          "holes_per_second": 0.2,
+          "flat_fraction": 0.00013958333333333333,
+          "median_width_ms": 0.6979166666666666,
+          "onset_spacing_ms_p10_p50_p90": [
+            842.8541666666666,
+            842.8541666666666,
+            842.8541666666666
+          ]
+        },
+        {
+          "start_seconds": 200,
+          "end_seconds": 210,
+          "holes": 1,
+          "holes_per_second": 0.1,
+          "flat_fraction": 6.041666666666667e-05,
+          "median_width_ms": 0.6041666666666666,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 210,
+          "end_seconds": 220,
+          "holes": 1,
+          "holes_per_second": 0.1,
+          "flat_fraction": 7.083333333333334e-05,
+          "median_width_ms": 0.7083333333333334,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 220,
+          "end_seconds": 230,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 230,
+          "end_seconds": 240,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 240,
+          "end_seconds": 250,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 250,
+          "end_seconds": 260,
+          "holes": 1,
+          "holes_per_second": 0.1,
+          "flat_fraction": 6.041666666666667e-05,
+          "median_width_ms": 0.6041666666666666,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 260,
+          "end_seconds": 270,
+          "holes": 1,
+          "holes_per_second": 0.1,
+          "flat_fraction": 5.4166666666666664e-05,
+          "median_width_ms": 0.5416666666666666,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 270,
+          "end_seconds": 280,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 280,
+          "end_seconds": 290,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 290,
+          "end_seconds": 300,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 300,
+          "end_seconds": 310,
+          "holes": 1,
+          "holes_per_second": 0.1,
+          "flat_fraction": 5.625e-05,
+          "median_width_ms": 0.5625,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 310,
+          "end_seconds": 320,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 320,
+          "end_seconds": 330,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 330,
+          "end_seconds": 340,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 340,
+          "end_seconds": 350,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 350,
+          "end_seconds": 360,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 360,
+          "end_seconds": 370,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 370,
+          "end_seconds": 380,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 380,
+          "end_seconds": 390,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 390,
+          "end_seconds": 400,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        },
+        {
+          "start_seconds": 400,
+          "end_seconds": 409.088,
+          "holes": 0,
+          "holes_per_second": 0.0,
+          "flat_fraction": 0,
+          "median_width_ms": null,
+          "onset_spacing_ms_p10_p50_p90": []
+        }
+      ],
+      "method": "Consecutive 1-second bins with at least 10 short flat candidates form dense episodes. Same criterion as the earlier UI comparison. Natural quiet/smooth music can produce candidates; inspect waveform and cadence to attribute periodic blanking. Analog settling affects widths. No claim against subtle clicks."
+    },
+    "all_processing_overruns": [
+      {
+        "cb": 1.0,
+        "t_us": 187464649046.0,
+        "gap_us": 0.0,
+        "prev_budget_us": 0.0,
+        "dsp_us": 17262.0,
+        "n": 470.0,
+        "sr": 48000.0,
+        "xr": 0.0,
+        "thermal": -1.0,
+        "lp": 0.0,
+        "muted": 0.0,
+        "epoch": 1789094003.168776,
+        "at": "2026-09-10T19:33:23.168776-07:00"
+      }
+    ],
+    "sequence_holes": 0,
+    "logger_misses": [],
+    "midi_enabled_running": true,
+    "drift_events": [
+      {
+        "epoch": 1789093995.570897,
+        "at": "2026-09-10 19:33:15.570897-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1725667 at sampleTime 8654625",
+        "thread_id": 1405265
+      },
+      {
+        "epoch": 1789094073.386971,
+        "at": "2026-09-10 19:34:33.386971-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2020791 at sampleTime 3372000",
+        "thread_id": 1405169
+      },
+      {
+        "epoch": 1789094073.635026,
+        "at": "2026-09-10 19:34:33.635026-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2020792 at sampleTime 3384000",
+        "thread_id": 1405169
+      },
+      {
+        "epoch": 1789094286.131936,
+        "at": "2026-09-10 19:38:06.131936-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 41584 at sampleTime 84000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094286.387934,
+        "at": "2026-09-10 19:38:06.387934-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 62500 at sampleTime 96000",
+        "thread_id": 1408386
+      },
+      {
+        "epoch": 1789094286.635917,
+        "at": "2026-09-10 19:38:06.635917-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 104125 at sampleTime 108000",
+        "thread_id": 1408386
+      },
+      {
+        "epoch": 1789094286.883914,
+        "at": "2026-09-10 19:38:06.883914-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 124958 at sampleTime 120000",
+        "thread_id": 1408386
+      },
+      {
+        "epoch": 1789094287.131911,
+        "at": "2026-09-10 19:38:07.131911-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 145750 at sampleTime 132000",
+        "thread_id": 1408386
+      },
+      {
+        "epoch": 1789094287.387966,
+        "at": "2026-09-10 19:38:07.387966-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 145791 at sampleTime 144000",
+        "thread_id": 1408386
+      },
+      {
+        "epoch": 1789094287.63595,
+        "at": "2026-09-10 19:38:07.635950-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 166583 at sampleTime 156000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094288.131912,
+        "at": "2026-09-10 19:38:08.131912-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 166625 at sampleTime 180000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094288.387963,
+        "at": "2026-09-10 19:38:08.387963-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 187500 at sampleTime 192000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094288.63594,
+        "at": "2026-09-10 19:38:08.635940-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 208250 at sampleTime 204000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094288.883939,
+        "at": "2026-09-10 19:38:08.883939-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 208291 at sampleTime 216000",
+        "thread_id": 1408386
+      },
+      {
+        "epoch": 1789094289.131896,
+        "at": "2026-09-10 19:38:09.131896-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 250000 at sampleTime 228000",
+        "thread_id": 1408386
+      },
+      {
+        "epoch": 1789094289.635891,
+        "at": "2026-09-10 19:38:09.635891-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 270750 at sampleTime 252000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094289.883912,
+        "at": "2026-09-10 19:38:09.883912-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 270791 at sampleTime 264000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094290.131885,
+        "at": "2026-09-10 19:38:10.131885-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 270792 at sampleTime 276000",
+        "thread_id": 1408386
+      },
+      {
+        "epoch": 1789094290.883879,
+        "at": "2026-09-10 19:38:10.883879-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 291583 at sampleTime 312000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094291.131877,
+        "at": "2026-09-10 19:38:11.131877-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 291584 at sampleTime 324000",
+        "thread_id": 1408386
+      },
+      {
+        "epoch": 1789094291.387906,
+        "at": "2026-09-10 19:38:11.387906-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 333292 at sampleTime 336000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094292.883861,
+        "at": "2026-09-10 19:38:12.883861-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 375000 at sampleTime 408000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094293.388021,
+        "at": "2026-09-10 19:38:13.388021-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 395792 at sampleTime 432000",
+        "thread_id": 1408517
+      },
+      {
+        "epoch": 1789094293.635845,
+        "at": "2026-09-10 19:38:13.635845-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 416625 at sampleTime 444000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094294.13184,
+        "at": "2026-09-10 19:38:14.131840-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 437500 at sampleTime 468000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094294.635851,
+        "at": "2026-09-10 19:38:14.635851-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 520792 at sampleTime 492000",
+        "thread_id": 1408517
+      },
+      {
+        "epoch": 1789094294.883873,
+        "at": "2026-09-10 19:38:14.883873-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 562500 at sampleTime 504000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094295.131888,
+        "at": "2026-09-10 19:38:15.131888-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 583292 at sampleTime 516000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094295.883843,
+        "at": "2026-09-10 19:38:15.883843-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 604125 at sampleTime 552000",
+        "thread_id": 1408517
+      },
+      {
+        "epoch": 1789094296.387857,
+        "at": "2026-09-10 19:38:16.387857-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 625000 at sampleTime 576000",
+        "thread_id": 1408517
+      },
+      {
+        "epoch": 1789094296.635822,
+        "at": "2026-09-10 19:38:16.635822-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 645792 at sampleTime 588000",
+        "thread_id": 1408517
+      },
+      {
+        "epoch": 1789094296.883817,
+        "at": "2026-09-10 19:38:16.883817-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 729084 at sampleTime 600000",
+        "thread_id": 1408517
+      },
+      {
+        "epoch": 1789094297.131772,
+        "at": "2026-09-10 19:38:17.131772-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 729125 at sampleTime 612000",
+        "thread_id": 1408517
+      },
+      {
+        "epoch": 1789094297.387903,
+        "at": "2026-09-10 19:38:17.387903-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 750000 at sampleTime 624000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094298.387886,
+        "at": "2026-09-10 19:38:18.387886-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 791625 at sampleTime 672000",
+        "thread_id": 1408517
+      },
+      {
+        "epoch": 1789094298.883794,
+        "at": "2026-09-10 19:38:18.883794-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 833250 at sampleTime 696000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094299.131779,
+        "at": "2026-09-10 19:38:19.131779-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 875000 at sampleTime 708000",
+        "thread_id": 1408517
+      },
+      {
+        "epoch": 1789094300.635749,
+        "at": "2026-09-10 19:38:20.635749-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 937458 at sampleTime 780000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094300.883762,
+        "at": "2026-09-10 19:38:20.883762-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 979125 at sampleTime 792000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094301.387814,
+        "at": "2026-09-10 19:38:21.387814-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1000000 at sampleTime 816000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094302.387849,
+        "at": "2026-09-10 19:38:22.387849-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1020750 at sampleTime 864000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094302.635728,
+        "at": "2026-09-10 19:38:22.635728-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1020792 at sampleTime 876000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094302.883798,
+        "at": "2026-09-10 19:38:22.883798-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1062458 at sampleTime 888000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094303.131721,
+        "at": "2026-09-10 19:38:23.131721-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1104083 at sampleTime 900000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094303.387785,
+        "at": "2026-09-10 19:38:23.387785-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1104084 at sampleTime 912000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094303.635717,
+        "at": "2026-09-10 19:38:23.635717-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1125000 at sampleTime 924000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094304.131717,
+        "at": "2026-09-10 19:38:24.131717-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1145750 at sampleTime 948000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094304.635731,
+        "at": "2026-09-10 19:38:24.635731-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1166583 at sampleTime 972000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094304.883707,
+        "at": "2026-09-10 19:38:24.883707-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1187500 at sampleTime 984000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094305.131698,
+        "at": "2026-09-10 19:38:25.131698-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1208250 at sampleTime 996000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094305.387714,
+        "at": "2026-09-10 19:38:25.387714-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1229125 at sampleTime 1008000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094306.387705,
+        "at": "2026-09-10 19:38:26.387705-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1249959 at sampleTime 1056000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094306.635677,
+        "at": "2026-09-10 19:38:26.635677-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1250000 at sampleTime 1068000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094306.88368,
+        "at": "2026-09-10 19:38:26.883680-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1270792 at sampleTime 1080000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094307.131769,
+        "at": "2026-09-10 19:38:27.131769-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1333292 at sampleTime 1092000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094307.635686,
+        "at": "2026-09-10 19:38:27.635686-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1354083 at sampleTime 1116000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094307.883672,
+        "at": "2026-09-10 19:38:27.883672-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1354125 at sampleTime 1128000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094308.131689,
+        "at": "2026-09-10 19:38:28.131689-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1374958 at sampleTime 1140000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094308.387691,
+        "at": "2026-09-10 19:38:28.387691-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1375000 at sampleTime 1152000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094308.635686,
+        "at": "2026-09-10 19:38:28.635686-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1395750 at sampleTime 1164000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094308.883666,
+        "at": "2026-09-10 19:38:28.883666-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1479083 at sampleTime 1176000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094309.13168,
+        "at": "2026-09-10 19:38:29.131680-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1541584 at sampleTime 1188000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094309.387671,
+        "at": "2026-09-10 19:38:29.387671-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1562459 at sampleTime 1200000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094309.635647,
+        "at": "2026-09-10 19:38:29.635647-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1562500 at sampleTime 1212000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094309.883665,
+        "at": "2026-09-10 19:38:29.883665-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1583250 at sampleTime 1224000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094310.131642,
+        "at": "2026-09-10 19:38:30.131642-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1604083 at sampleTime 1236000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094310.387737,
+        "at": "2026-09-10 19:38:30.387737-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1604125 at sampleTime 1248000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094311.131637,
+        "at": "2026-09-10 19:38:31.131637-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1624958 at sampleTime 1284000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094311.387722,
+        "at": "2026-09-10 19:38:31.387722-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1645750 at sampleTime 1296000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094311.635638,
+        "at": "2026-09-10 19:38:31.635638-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1645792 at sampleTime 1308000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094311.883641,
+        "at": "2026-09-10 19:38:31.883641-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1666584 at sampleTime 1320000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094312.131619,
+        "at": "2026-09-10 19:38:32.131619-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1666625 at sampleTime 1332000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094312.387695,
+        "at": "2026-09-10 19:38:32.387695-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1687500 at sampleTime 1344000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094312.883633,
+        "at": "2026-09-10 19:38:32.883633-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1708292 at sampleTime 1368000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094313.131608,
+        "at": "2026-09-10 19:38:33.131608-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1729125 at sampleTime 1380000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094313.387667,
+        "at": "2026-09-10 19:38:33.387667-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1750000 at sampleTime 1392000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094314.131589,
+        "at": "2026-09-10 19:38:34.131589-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1770750 at sampleTime 1428000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094314.63561,
+        "at": "2026-09-10 19:38:34.635610-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1791583 at sampleTime 1452000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094314.883594,
+        "at": "2026-09-10 19:38:34.883594-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1791625 at sampleTime 1464000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094315.387658,
+        "at": "2026-09-10 19:38:35.387658-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1833250 at sampleTime 1488000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094315.883599,
+        "at": "2026-09-10 19:38:35.883599-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1833291 at sampleTime 1512000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094316.387593,
+        "at": "2026-09-10 19:38:36.387593-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1874958 at sampleTime 1536000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094316.635566,
+        "at": "2026-09-10 19:38:36.635566-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1875000 at sampleTime 1548000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094317.131572,
+        "at": "2026-09-10 19:38:37.131572-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1895750 at sampleTime 1572000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094317.38757,
+        "at": "2026-09-10 19:38:37.387570-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1979125 at sampleTime 1584000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094317.883557,
+        "at": "2026-09-10 19:38:37.883557-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1999958 at sampleTime 1608000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094318.387549,
+        "at": "2026-09-10 19:38:38.387549-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1999959 at sampleTime 1632000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094318.63555,
+        "at": "2026-09-10 19:38:38.635550-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2000000 at sampleTime 1644000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094318.88355,
+        "at": "2026-09-10 19:38:38.883550-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2020750 at sampleTime 1656000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094319.139423,
+        "at": "2026-09-10 19:38:39.139423-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2062458 at sampleTime 1668000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094319.38754,
+        "at": "2026-09-10 19:38:39.387540-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2083250 at sampleTime 1680000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094319.635514,
+        "at": "2026-09-10 19:38:39.635514-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2104125 at sampleTime 1692000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094320.139541,
+        "at": "2026-09-10 19:38:40.139541-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2124959 at sampleTime 1716000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094320.883502,
+        "at": "2026-09-10 19:38:40.883502-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2145792 at sampleTime 1752000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094321.387519,
+        "at": "2026-09-10 19:38:41.387519-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2166583 at sampleTime 1776000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094321.88352,
+        "at": "2026-09-10 19:38:41.883520-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2187459 at sampleTime 1800000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094322.139374,
+        "at": "2026-09-10 19:38:42.139374-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2208250 at sampleTime 1812000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094322.883488,
+        "at": "2026-09-10 19:38:42.883488-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2208292 at sampleTime 1848000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094323.139433,
+        "at": "2026-09-10 19:38:43.139433-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2229083 at sampleTime 1860000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094323.387509,
+        "at": "2026-09-10 19:38:43.387509-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2249958 at sampleTime 1872000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094323.635475,
+        "at": "2026-09-10 19:38:43.635475-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2291583 at sampleTime 1884000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094323.883458,
+        "at": "2026-09-10 19:38:43.883458-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2312458 at sampleTime 1896000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094324.139409,
+        "at": "2026-09-10 19:38:44.139409-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2312459 at sampleTime 1908000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094324.387467,
+        "at": "2026-09-10 19:38:44.387467-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2333292 at sampleTime 1920000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094324.635466,
+        "at": "2026-09-10 19:38:44.635466-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2354083 at sampleTime 1932000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094325.139496,
+        "at": "2026-09-10 19:38:45.139496-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2395750 at sampleTime 1956000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094325.387491,
+        "at": "2026-09-10 19:38:45.387491-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2437459 at sampleTime 1968000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094325.635436,
+        "at": "2026-09-10 19:38:45.635436-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2499958 at sampleTime 1980000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094326.139375,
+        "at": "2026-09-10 19:38:46.139375-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2520750 at sampleTime 2004000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094326.883448,
+        "at": "2026-09-10 19:38:46.883448-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2541584 at sampleTime 2040000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094327.139431,
+        "at": "2026-09-10 19:38:47.139431-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2562500 at sampleTime 2052000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094327.387444,
+        "at": "2026-09-10 19:38:47.387444-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2604083 at sampleTime 2064000",
+        "thread_id": 1408562
+      },
+      {
+        "epoch": 1789094327.635414,
+        "at": "2026-09-10 19:38:47.635414-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2645750 at sampleTime 2076000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094328.139394,
+        "at": "2026-09-10 19:38:48.139394-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2666584 at sampleTime 2100000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094328.635416,
+        "at": "2026-09-10 19:38:48.635416-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2687459 at sampleTime 2124000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094328.883414,
+        "at": "2026-09-10 19:38:48.883414-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2708250 at sampleTime 2136000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094329.635396,
+        "at": "2026-09-10 19:38:49.635396-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2749959 at sampleTime 2172000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094329.883407,
+        "at": "2026-09-10 19:38:49.883407-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2770750 at sampleTime 2184000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094330.635383,
+        "at": "2026-09-10 19:38:50.635383-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2812458 at sampleTime 2220000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094330.883399,
+        "at": "2026-09-10 19:38:50.883399-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2812500 at sampleTime 2232000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094331.38736,
+        "at": "2026-09-10 19:38:51.387360-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2854084 at sampleTime 2256000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094331.635363,
+        "at": "2026-09-10 19:38:51.635363-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2937458 at sampleTime 2268000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094332.139367,
+        "at": "2026-09-10 19:38:52.139367-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2958250 at sampleTime 2292000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094332.387386,
+        "at": "2026-09-10 19:38:52.387386-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2958292 at sampleTime 2304000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094333.139398,
+        "at": "2026-09-10 19:38:53.139398-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2979083 at sampleTime 2340000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094333.387386,
+        "at": "2026-09-10 19:38:53.387386-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2999958 at sampleTime 2352000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094333.635345,
+        "at": "2026-09-10 19:38:53.635345-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3041542 at sampleTime 2364000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094333.883373,
+        "at": "2026-09-10 19:38:53.883373-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3083250 at sampleTime 2376000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094334.139339,
+        "at": "2026-09-10 19:38:54.139339-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3104083 at sampleTime 2388000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094335.139327,
+        "at": "2026-09-10 19:38:55.139327-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3124917 at sampleTime 2436000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094335.387327,
+        "at": "2026-09-10 19:38:55.387327-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3145750 at sampleTime 2448000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094335.883339,
+        "at": "2026-09-10 19:38:55.883339-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3229042 at sampleTime 2472000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094336.139311,
+        "at": "2026-09-10 19:38:56.139311-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3229083 at sampleTime 2484000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094336.635307,
+        "at": "2026-09-10 19:38:56.635307-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3249958 at sampleTime 2508000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094337.387288,
+        "at": "2026-09-10 19:38:57.387288-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3291583 at sampleTime 2544000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094337.88328,
+        "at": "2026-09-10 19:38:57.883280-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3354083 at sampleTime 2568000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094338.139341,
+        "at": "2026-09-10 19:38:58.139341-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3374958 at sampleTime 2580000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094338.387311,
+        "at": "2026-09-10 19:38:58.387311-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3395750 at sampleTime 2592000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094339.139244,
+        "at": "2026-09-10 19:38:59.139244-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3416583 at sampleTime 2628000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094339.883268,
+        "at": "2026-09-10 19:38:59.883268-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3479083 at sampleTime 2664000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094340.635247,
+        "at": "2026-09-10 19:39:00.635247-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3499958 at sampleTime 2700000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094341.139234,
+        "at": "2026-09-10 19:39:01.139234-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3499959 at sampleTime 2724000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094341.635239,
+        "at": "2026-09-10 19:39:01.635239-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3520709 at sampleTime 2748000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094341.88323,
+        "at": "2026-09-10 19:39:01.883230-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3645750 at sampleTime 2760000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094342.387223,
+        "at": "2026-09-10 19:39:02.387223-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3666584 at sampleTime 2784000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094342.883235,
+        "at": "2026-09-10 19:39:02.883235-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3687458 at sampleTime 2808000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094343.139217,
+        "at": "2026-09-10 19:39:03.139217-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3708250 at sampleTime 2820000",
+        "thread_id": 1408458
+      },
+      {
+        "epoch": 1789094343.635214,
+        "at": "2026-09-10 19:39:03.635214-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3729041 at sampleTime 2844000",
+        "thread_id": 1408641
+      },
+      {
+        "epoch": 1789094343.883257,
+        "at": "2026-09-10 19:39:03.883257-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3729083 at sampleTime 2856000",
+        "thread_id": 1408786
+      },
+      {
+        "epoch": 1789094345.047214,
+        "at": "2026-09-10 19:39:05.047214-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 208292 at sampleTime 24000",
+        "thread_id": 1408786
+      },
+      {
+        "epoch": 1789094356.195084,
+        "at": "2026-09-10 19:39:16.195084-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 166625 at sampleTime 24000",
+        "thread_id": 1408763
+      },
+      {
+        "epoch": 1789094365.914958,
+        "at": "2026-09-10 19:39:25.914958-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 166625 at sampleTime 12000",
+        "thread_id": 1408853
+      },
+      {
+        "epoch": 1789094367.070928,
+        "at": "2026-09-10 19:39:27.070928-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 41625 at sampleTime 12000",
+        "thread_id": 1408902
+      },
+      {
+        "epoch": 1789094400.707496,
+        "at": "2026-09-10 19:40:00.707496-0700",
+        "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 24958 at sampleTime 11025",
+        "thread_id": 1408985
+      }
+    ]
+  },
+  "phases": [
+    {
+      "name": "nominal1",
+      "seconds": 9.718079374999999,
+      "first_local": "2026-09-10T19:35:42.151470-07:00",
+      "last_local": "2026-09-10T19:35:51.869549-07:00",
+      "events": 4340108,
+      "lost_markers": 0,
+      "switch_chain_mismatches": 0,
+      "callbacks": 911,
+      "thermal_states": [
+        0.0
+      ],
+      "frames": [
+        512.0
+      ],
+      "sample_rates": [
+        48000.0
+      ],
+      "callback_stalls": [],
+      "processing_overruns": [],
+      "native_usb_error_records": 0,
+      "native_usb_error_times": [],
+      "selected_threads": [
+        {
+          "tid": 1406682,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "JUCE v8.0.15: Message Thread",
+          "snapshot_priority": 47,
+          "scheduled_seconds": 1.987514708333333,
+          "scheduled_fraction_of_one_core": 0.20451723346140435,
+          "slices": 5199,
+          "switch_ins": 5052,
+          "wakeups": 2406,
+          "wakeups_per_second": 247.57978476585558,
+          "wake_gap_ms_p50_p99_max": [
+            3.085208333333333,
+            12.308833333333334,
+            13.567833333333333
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.005833333333333333,
+            0.008916666666666665,
+            0.010291666666666664
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 0.5426732916666667,
+            "5": 0.5181184583333333,
+            "6": 0.680248875,
+            "7": 0.24647408333333332
+          }
+        },
+        {
+          "tid": 1406729,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "MidiSender",
+          "snapshot_priority": 97,
+          "scheduled_seconds": 0.1796885,
+          "scheduled_fraction_of_one_core": 0.018490124752659785,
+          "slices": 94331,
+          "switch_ins": 94331,
+          "wakeups": 94331,
+          "wakeups_per_second": 9706.753398482097,
+          "wake_gap_ms_p50_p99_max": [
+            0.10270833333333333,
+            0.10533333333333332,
+            0.6647083333333332
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.00045833333333333327,
+            0.0019166666666666663,
+            0.006791666666666666
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 0.07114929166666666,
+            "5": 0.06159212499999999,
+            "6": 0.02920183333333333,
+            "7": 0.017745249999999997
+          }
+        },
+        {
+          "tid": 1406730,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": null,
+          "snapshot_priority": 31,
+          "scheduled_seconds": 0.150122125,
+          "scheduled_fraction_of_one_core": 0.01544771545972272,
+          "slices": 79970,
+          "switch_ins": 79965,
+          "wakeups": 76478,
+          "wakeups_per_second": 7869.662003043684,
+          "wake_gap_ms_p50_p99_max": [
+            0.12804166666666666,
+            0.13316666666666666,
+            0.6663333333333332
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.0006249999999999999,
+            0.004916666666666666,
+            0.028374999999999997
+          ],
+          "scheduled_cpus_seconds": {
+            "0": 1.8999999999999998e-05,
+            "1": 1.9166666666666664e-05,
+            "4": 0.05118091666666666,
+            "5": 0.043772374999999995,
+            "6": 0.033012,
+            "7": 0.022118666666666665
+          }
+        },
+        {
+          "tid": 1406928,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "AURemoteIO::IOThread",
+          "snapshot_priority": 97,
+          "scheduled_seconds": 3.931344208333333,
+          "scheduled_fraction_of_one_core": 0.404539215685644,
+          "slices": 911,
+          "switch_ins": 911,
+          "wakeups": 911,
+          "wakeups_per_second": 93.74280295997275,
+          "wake_gap_ms_p50_p99_max": [
+            10.666583333333332,
+            10.672693333333333,
+            10.677249999999999
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.0006666666666666666,
+            0.001625,
+            0.0029999999999999996
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 1.3783239166666665,
+            "5": 1.6056037916666668,
+            "6": 0.7362527916666667,
+            "7": 0.2111637083333333
+          }
+        }
+      ]
+    },
+    {
+      "name": "nominal2",
+      "seconds": 9.710657791666666,
+      "first_local": "2026-09-10T19:36:31.651487-07:00",
+      "last_local": "2026-09-10T19:36:41.362144-07:00",
+      "events": 4298396,
+      "lost_markers": 0,
+      "switch_chain_mismatches": 0,
+      "callbacks": 890,
+      "thermal_states": [
+        0.0
+      ],
+      "frames": [
+        512.0
+      ],
+      "sample_rates": [
+        48000.0
+      ],
+      "callback_stalls": [
+        {
+          "cb": 18292.0,
+          "t_us": 187660181032.0,
+          "gap_us": 229625.0,
+          "prev_budget_us": 10667.0,
+          "dsp_us": 3806.0,
+          "n": 512.0,
+          "sr": 48000.0,
+          "xr": 2.0,
+          "thermal": 0.0,
+          "lp": 0.0,
+          "muted": 0.0,
+          "epoch": 1789094198.7008035,
+          "at": "2026-09-10T19:36:38.700804-07:00"
+        }
+      ],
+      "processing_overruns": [],
+      "native_usb_error_records": 2,
+      "native_usb_error_times": [
+        "2026-09-10T19:36:38.481297-07:00",
+        "2026-09-10T19:36:38.481297-07:00"
+      ],
+      "selected_threads": [
+        {
+          "tid": 1406682,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "JUCE v8.0.15: Message Thread",
+          "snapshot_priority": 47,
+          "scheduled_seconds": 1.9955863749999998,
+          "scheduled_fraction_of_one_core": 0.2055047575368725,
+          "slices": 4831,
+          "switch_ins": 4661,
+          "wakeups": 2357,
+          "wakeups_per_second": 242.7230009096492,
+          "wake_gap_ms_p50_p99_max": [
+            3.174291666666666,
+            12.919506249999998,
+            13.442916666666665
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.005833333333333333,
+            0.008833333333333332,
+            0.011791666666666666
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 0.5109607083333333,
+            "5": 0.5939178333333333,
+            "6": 0.63730625,
+            "7": 0.2534015833333333
+          }
+        },
+        {
+          "tid": 1406729,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "MidiSender",
+          "snapshot_priority": 97,
+          "scheduled_seconds": 0.18002220833333332,
+          "scheduled_fraction_of_one_core": 0.01853862139883272,
+          "slices": 94251,
+          "switch_ins": 94251,
+          "wakeups": 94251,
+          "wakeups_per_second": 9705.933626956023,
+          "wake_gap_ms_p50_p99_max": [
+            0.10270833333333333,
+            0.10537499999999998,
+            0.746375
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.00041666666666666664,
+            0.0019166666666666663,
+            0.007208333333333332
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 0.05307287499999999,
+            "5": 0.06715895833333332,
+            "6": 0.03809462499999999,
+            "7": 0.021695749999999996
+          }
+        },
+        {
+          "tid": 1406730,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": null,
+          "snapshot_priority": 31,
+          "scheduled_seconds": 0.14996354166666664,
+          "scheduled_fraction_of_one_core": 0.015443190861422375,
+          "slices": 79632,
+          "switch_ins": 79628,
+          "wakeups": 76359,
+          "wakeups_per_second": 7863.421988315614,
+          "wake_gap_ms_p50_p99_max": [
+            0.12804166666666666,
+            0.133125,
+            0.8345416666666666
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.0006249999999999999,
+            0.004875,
+            0.012124999999999999
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 0.03951770833333333,
+            "5": 0.049236249999999995,
+            "6": 0.04181633333333333,
+            "7": 0.01939325
+          }
+        },
+        {
+          "tid": 1406928,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "AURemoteIO::IOThread",
+          "snapshot_priority": 97,
+          "scheduled_seconds": 3.830248791666667,
+          "scheduled_fraction_of_one_core": 0.39443762449889314,
+          "slices": 889,
+          "switch_ins": 890,
+          "wakeups": 890,
+          "wakeups_per_second": 91.65187560864987,
+          "wake_gap_ms_p50_p99_max": [
+            10.6665,
+            10.673801666666664,
+            229.62066666666664
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.0006666666666666666,
+            0.0016712500000000004,
+            0.003208333333333333
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 2.017614208333333,
+            "5": 1.1936656666666665,
+            "6": 0.41142420833333326,
+            "7": 0.20754470833333333
+          }
+        }
+      ]
+    },
+    {
+      "name": "serious1",
+      "seconds": 9.711080083333332,
+      "first_local": "2026-09-10T19:38:08.018880-07:00",
+      "last_local": "2026-09-10T19:38:17.729960-07:00",
+      "events": 4290984,
+      "lost_markers": 0,
+      "switch_chain_mismatches": 0,
+      "callbacks": 910,
+      "thermal_states": [
+        2.0
+      ],
+      "frames": [
+        512.0
+      ],
+      "sample_rates": [
+        48000.0
+      ],
+      "callback_stalls": [],
+      "processing_overruns": [],
+      "native_usb_error_records": 0,
+      "native_usb_error_times": [],
+      "selected_threads": [
+        {
+          "tid": 1406682,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "JUCE v8.0.15: Message Thread",
+          "snapshot_priority": 47,
+          "scheduled_seconds": 1.9823318749999999,
+          "scheduled_fraction_of_one_core": 0.20413093682567632,
+          "slices": 5209,
+          "switch_ins": 5034,
+          "wakeups": 2370,
+          "wakeups_per_second": 244.0511230123124,
+          "wake_gap_ms_p50_p99_max": [
+            3.0562499999999995,
+            13.087441666666672,
+            13.512041666666665
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.005875,
+            0.008916666666666665,
+            0.011958333333333331
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 0.515207875,
+            "5": 0.5557797083333333,
+            "6": 0.6987865416666665,
+            "7": 0.21255774999999996
+          }
+        },
+        {
+          "tid": 1406729,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "MidiSender",
+          "snapshot_priority": 97,
+          "scheduled_seconds": 0.18567725000000002,
+          "scheduled_fraction_of_one_core": 0.01912014404233666,
+          "slices": 94192,
+          "switch_ins": 94192,
+          "wakeups": 94192,
+          "wakeups_per_second": 9699.436024799887,
+          "wake_gap_ms_p50_p99_max": [
+            0.10270833333333333,
+            0.10537499999999998,
+            0.6396249999999999
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.00045833333333333327,
+            0.0019583333333333328,
+            0.015416666666666664
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 0.06023295833333332,
+            "5": 0.07062724999999999,
+            "6": 0.03438804166666666,
+            "7": 0.020429
+          }
+        },
+        {
+          "tid": 1406730,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": null,
+          "snapshot_priority": 31,
+          "scheduled_seconds": 0.15208258333333333,
+          "scheduled_fraction_of_one_core": 0.015660727954900245,
+          "slices": 79156,
+          "switch_ins": 79147,
+          "wakeups": 76521,
+          "wakeups_per_second": 7879.762018576016,
+          "wake_gap_ms_p50_p99_max": [
+            0.12804166666666666,
+            0.13291666666666666,
+            0.6396666666666666
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.0006666666666666666,
+            0.004791666666666666,
+            0.014666666666666665
+          ],
+          "scheduled_cpus_seconds": {
+            "1": 5.083333333333333e-06,
+            "2": 2.0666666666666663e-05,
+            "4": 0.04242062499999999,
+            "5": 0.047347999999999994,
+            "6": 0.041002708333333325,
+            "7": 0.0212855
+          }
+        },
+        {
+          "tid": 1406928,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "AURemoteIO::IOThread",
+          "snapshot_priority": 97,
+          "scheduled_seconds": 3.958957958333333,
+          "scheduled_fraction_of_one_core": 0.40767431885644784,
+          "slices": 910,
+          "switch_ins": 910,
+          "wakeups": 910,
+          "wakeups_per_second": 93.70739322413682,
+          "wake_gap_ms_p50_p99_max": [
+            10.667124999999999,
+            10.678139999999999,
+            10.749041666666665
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.0006666666666666666,
+            0.001492499999999997,
+            0.0026666666666666666
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 1.9380956249999999,
+            "5": 1.2818272083333333,
+            "6": 0.3003057499999999,
+            "7": 0.438729375
+          }
+        }
+      ]
+    },
+    {
+      "name": "serious2",
+      "seconds": 9.723366083333332,
+      "first_local": "2026-09-10T19:39:05.067906-07:00",
+      "last_local": "2026-09-10T19:39:14.791272-07:00",
+      "events": 4272515,
+      "lost_markers": 0,
+      "switch_chain_mismatches": 0,
+      "callbacks": 911,
+      "thermal_states": [
+        2.0
+      ],
+      "frames": [
+        512.0
+      ],
+      "sample_rates": [
+        48000.0
+      ],
+      "callback_stalls": [],
+      "processing_overruns": [],
+      "native_usb_error_records": 0,
+      "native_usb_error_times": [],
+      "selected_threads": [
+        {
+          "tid": 1406682,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "JUCE v8.0.15: Message Thread",
+          "snapshot_priority": 47,
+          "scheduled_seconds": 2.011407625,
+          "scheduled_fraction_of_one_core": 0.20686330307440773,
+          "slices": 5052,
+          "switch_ins": 4894,
+          "wakeups": 2397,
+          "wakeups_per_second": 246.5195673449609,
+          "wake_gap_ms_p50_p99_max": [
+            3.1697916666666663,
+            12.230591666666701,
+            13.423458333333333
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.0057916666666666655,
+            0.008916666666666665,
+            0.014458333333333332
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 0.5174066666666666,
+            "5": 0.6238221249999999,
+            "6": 0.6411056666666666,
+            "7": 0.22907316666666663
+          }
+        },
+        {
+          "tid": 1406729,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "MidiSender",
+          "snapshot_priority": 97,
+          "scheduled_seconds": 0.18519970833333332,
+          "scheduled_fraction_of_one_core": 0.019046871911033075,
+          "slices": 94300,
+          "switch_ins": 94300,
+          "wakeups": 94300,
+          "wakeups_per_second": 9698.28752633701,
+          "wake_gap_ms_p50_p99_max": [
+            0.10275,
+            0.10541666666666666,
+            0.7115833333333332
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.00045833333333333327,
+            0.002,
+            0.009375
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 0.046122041666666655,
+            "5": 0.08098112499999999,
+            "6": 0.033902875,
+            "7": 0.024193666666666662
+          }
+        },
+        {
+          "tid": 1406730,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": null,
+          "snapshot_priority": 31,
+          "scheduled_seconds": 0.15149149999999997,
+          "scheduled_fraction_of_one_core": 0.015580149785748494,
+          "slices": 79398,
+          "switch_ins": 79393,
+          "wakeups": 76765,
+          "wakeups_per_second": 7894.899702643273,
+          "wake_gap_ms_p50_p99_max": [
+            0.12804166666666666,
+            0.13299999999999998,
+            0.6612916666666666
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.0006666666666666666,
+            0.004833333333333333,
+            0.015291666666666665
+          ],
+          "scheduled_cpus_seconds": {
+            "1": 2.075e-05,
+            "2": 1.85e-05,
+            "3": 2.0166666666666664e-05,
+            "4": 0.04038479166666666,
+            "5": 0.05286179166666666,
+            "6": 0.03976416666666666,
+            "7": 0.01842133333333333
+          }
+        },
+        {
+          "tid": 1406928,
+          "pid": 21203,
+          "process": "SmartGridOne",
+          "thread": "AURemoteIO::IOThread",
+          "snapshot_priority": 97,
+          "scheduled_seconds": 3.9531127916666664,
+          "scheduled_fraction_of_one_core": 0.4065580538454306,
+          "slices": 912,
+          "switch_ins": 912,
+          "wakeups": 912,
+          "wakeups_per_second": 93.79467893975985,
+          "wake_gap_ms_p50_p99_max": [
+            10.666833333333331,
+            10.675574999999998,
+            11.045
+          ],
+          "wake_to_next_switch_in_ms_p50_p99_max": [
+            0.0006666666666666666,
+            0.0014999999999999998,
+            0.0065
+          ],
+          "scheduled_cpus_seconds": {
+            "4": 2.136252833333333,
+            "5": 0.8029529999999999,
+            "6": 0.6521496249999998,
+            "7": 0.3617573333333333
+          }
+        }
+      ]
+    }
+  ],
+  "captured_fault": {
+    "usb_error_ticks": 4503839060130,
+    "usb_error_t_us": 187659960838.75,
+    "usb_status": "0xe00002ed",
+    "device_endpoint_encoded": "0x48200",
+    "unified_log_match": {
+      "epoch": 1789094198.480863,
+      "at": "2026-09-10 19:36:38.480863-0700",
+      "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+      "thread_id": 1362566
+    },
+    "previous_callback": {
+      "cb": 18291.0,
+      "t_us": 187659951407.0,
+      "gap_us": 10665.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 4847.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 1.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789094198.4712257,
+      "at": "2026-09-10T19:36:38.471226-07:00"
+    },
+    "resumed_callback": {
+      "cb": 18292.0,
+      "t_us": 187660181032.0,
+      "gap_us": 229625.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 3806.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 2.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789094198.7008035,
+      "at": "2026-09-10T19:36:38.700804-07:00"
+    },
+    "previous_processing_end_before_usb_ms": 4.58475,
+    "audio_last_cpu_exit_before_usb_ms": 4.579541666666666,
+    "audio_next_runnable_after_usb_ms": 220.1872083333333,
+    "audio_next_scheduled_after_usb_ms": 220.1895833333333,
+    "resume_ready_delay_us": 2.375,
+    "callback_gap_ms": 229.625,
+    "message_scheduled_ms_while_audio_waiting": 40.2745,
+    "midi_scheduled_ms_while_audio_waiting": 4.21025,
+    "waker_before_fault": "audiomxd audio IO: VAD [vdef] AggDev392, thread1407797",
+    "state_evidence": "MACH_BLOCK then MACH_STKHANDOFF, dispatch stateTH_WAIT=1; no audioMKRUNNABLE until+220.187ms.",
+    "usb_kernel_threads": [
+      {
+        "tid": 1565,
+        "thread": "AppleUSB20XHCIARMPort@00100000",
+        "wakeups_prior100ms_to_after2ms": 0,
+        "wake_to_in_us_p50_p99_max": [],
+        "last_wakes": []
+      },
+      {
+        "tid": 1362566,
+        "thread": "AppleUSB20HubPort@00140000",
+        "wakeups_prior100ms_to_after2ms": 22,
+        "wake_to_in_us_p50_p99_max": [
+          11.291666666666666,
+          12.5725,
+          12.625
+        ],
+        "last_wakes": [
+          {
+            "relative_to_error_ms": -24.069375,
+            "ready_us": 11.833333333333332
+          },
+          {
+            "relative_to_error_ms": -16.067666666666668,
+            "ready_us": 11.0
+          },
+          {
+            "relative_to_error_ms": -13.833958333333332,
+            "ready_us": 11.041666666666666
+          },
+          {
+            "relative_to_error_ms": -8.063333333333333,
+            "ready_us": 11.833333333333332
+          },
+          {
+            "relative_to_error_ms": -0.06908333333333333,
+            "ready_us": 11.541666666666666
+          },
+          {
+            "relative_to_error_ms": 1.4524583333333332,
+            "ready_us": 11.666666666666666
+          },
+          {
+            "relative_to_error_ms": 1.6247083333333332,
+            "ready_us": 9.166666666666666
+          },
+          {
+            "relative_to_error_ms": 1.6737916666666666,
+            "ready_us": 7.375
+          }
+        ]
+      },
+      {
+        "tid": 1559,
+        "thread": "AppleT8122USBXHCI@00000000",
+        "wakeups_prior100ms_to_after2ms": 20,
+        "wake_to_in_us_p50_p99_max": [
+          7.145833333333333,
+          12.775833333333333,
+          12.791666666666666
+        ],
+        "last_wakes": [
+          {
+            "relative_to_error_ms": -32.10795833333333,
+            "ready_us": 7.375
+          },
+          {
+            "relative_to_error_ms": -29.860208333333333,
+            "ready_us": 6.333333333333333
+          },
+          {
+            "relative_to_error_ms": -24.1165,
+            "ready_us": 10.5
+          },
+          {
+            "relative_to_error_ms": -16.104916666666664,
+            "ready_us": 6.75
+          },
+          {
+            "relative_to_error_ms": -13.858083333333331,
+            "ready_us": 6.208333333333333
+          },
+          {
+            "relative_to_error_ms": -8.111291666666666,
+            "ready_us": 10.833333333333332
+          },
+          {
+            "relative_to_error_ms": -0.107625,
+            "ready_us": 6.708333333333333
+          },
+          {
+            "relative_to_error_ms": 1.3633333333333333,
+            "ready_us": 12.083333333333332
+          }
+        ]
+      }
+    ]
+  },
+  "limits": [
+    "Four short native windows, same profiler configuration and verified thermal states; not a reliable failure-rate estimate.",
+    "Profiler streaming materially adds workload. The first long attempt failed its transfer-coverage gate and is preserved separately.",
+    "Native scheduler and USB-class trace is not the full Instruments Audio System Trace track set.",
+    "Scheduled intervals include any interrupt time. No CPU-frequency, peripheral electrical telemetry or returned native output samples were captured.",
+    "Captured failure rejects a simple delayed-runnable-app-audio explanation for this episode; workload may still influence driver, clock or electrical state.",
+    "Serious did not materially change measured UI/MIDI/I/O-worker wake activity or priority in these windows. Other OS policies remain unmeasured."
+  ]
+}

@@ -1,0 +1,1875 @@
+{
+  "created_local": "2026-09-10T11:46:54.625618-07:00",
+  "notebook": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio",
+  "raw_evidence_storage": "Large original recordings and logarchives remain in /private/tmp. This is an existence/size snapshot, not a retention guarantee.",
+  "runs": [
+    {
+      "base": "smartgrid-ipad-wifi-tone-r2-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.wav",
+          "exists": true,
+          "bytes": 276480080
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.json",
+          "exists": true,
+          "bytes": 1035
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.window.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.app.log",
+          "exists": true,
+          "bytes": 14102304
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.logarchive",
+          "exists": true,
+          "kind": "directory"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.system.json",
+          "exists": true,
+          "bytes": 40152843
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.callbacks.json",
+          "exists": true,
+          "bytes": 940
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.correlation.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.refined-dropouts.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.flat-candidates.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.wave-summary.json",
+          "exists": true,
+          "bytes": 303804
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.verification.json",
+          "exists": true,
+          "bytes": 453
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.end-verification.json",
+          "exists": false
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-autoplay-ui-on-r3-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.wav",
+          "exists": true,
+          "bytes": 110174288
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.json",
+          "exists": true,
+          "bytes": 1105
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.window.json",
+          "exists": true,
+          "bytes": 1380
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.app.log",
+          "exists": true,
+          "bytes": 6195983
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.logarchive",
+          "exists": true,
+          "kind": "directory"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.system.json",
+          "exists": true,
+          "bytes": 33302410
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.callbacks.json",
+          "exists": true,
+          "bytes": 7807
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.correlation.json",
+          "exists": true,
+          "bytes": 42472
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.refined-dropouts.json",
+          "exists": true,
+          "bytes": 3106
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.flat-candidates.json",
+          "exists": true,
+          "bytes": 13091
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.wave-summary.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.verification.json",
+          "exists": true,
+          "bytes": 1483
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.end-verification.json",
+          "exists": false
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-autoplay-ui-off-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.wav",
+          "exists": true,
+          "bytes": 276480080
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.json",
+          "exists": true,
+          "bytes": 1173
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.window.json",
+          "exists": true,
+          "bytes": 1436
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.app.log",
+          "exists": true,
+          "bytes": 15901990
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.logarchive",
+          "exists": true,
+          "kind": "directory"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.system.json",
+          "exists": true,
+          "bytes": 30798002
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.callbacks.json",
+          "exists": true,
+          "bytes": 1434
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.correlation.json",
+          "exists": true,
+          "bytes": 11607
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.refined-dropouts.json",
+          "exists": true,
+          "bytes": 583
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.flat-candidates.json",
+          "exists": true,
+          "bytes": 2319585
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.wave-summary.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.verification.json",
+          "exists": true,
+          "bytes": 1633
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.end-verification.json",
+          "exists": true,
+          "bytes": 299
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-tone-20260909",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.wav",
+          "exists": true,
+          "bytes": 176922704
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.json",
+          "exists": true,
+          "bytes": 1190
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.window.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.app.log",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.logarchive",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.system.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.callbacks.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.correlation.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.refined-dropouts.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.flat-candidates.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.wave-summary.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.verification.json",
+          "exists": false
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-tone-20260909.end-verification.json",
+          "exists": false
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-juce815-ui-on-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-20260910.app.log",
+          "exists": true,
+          "bytes": 1438047
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-20260910.end-verification.json",
+          "exists": true,
+          "bytes": 444
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-20260910.launch.json",
+          "exists": true,
+          "bytes": 733
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-20260910.startup.log",
+          "exists": true,
+          "bytes": 75338
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-20260910.verification.json",
+          "exists": true,
+          "bytes": 1901
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-juce815-hot-startup-preflight-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-hot-startup-preflight-20260910.activity-final.json",
+          "exists": true,
+          "bytes": 661
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-hot-startup-preflight-20260910.collection.json",
+          "exists": true,
+          "bytes": 631
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-hot-startup-preflight-20260910.flat-candidates.json",
+          "exists": true,
+          "bytes": 582
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-hot-startup-preflight-20260910.json",
+          "exists": true,
+          "bytes": 972
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-hot-startup-preflight-20260910.logarchive",
+          "exists": true,
+          "kind": "directory"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-hot-startup-preflight-20260910.stderr.log",
+          "exists": true,
+          "bytes": 0
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-hot-startup-preflight-20260910.system.json",
+          "exists": true,
+          "bytes": 25492469
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-hot-startup-preflight-20260910.system.log",
+          "exists": true,
+          "bytes": 18615
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-hot-startup-preflight-20260910.wav",
+          "exists": true,
+          "bytes": 2880080
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-juce815-ui-on-r2-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.activity-final.json",
+          "exists": true,
+          "bytes": 5684
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.app.log",
+          "exists": true,
+          "bytes": 3184588
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.callbacks.json",
+          "exists": true,
+          "bytes": 2941
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.collection.json",
+          "exists": true,
+          "bytes": 618
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.correlation.json",
+          "exists": true,
+          "bytes": 4319
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.early-stop.json",
+          "exists": true,
+          "bytes": 244
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.end-verification.json",
+          "exists": true,
+          "bytes": 444
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.error-partition.json",
+          "exists": true,
+          "bytes": 1621
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.flat-candidates.json",
+          "exists": true,
+          "bytes": 1464
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.json",
+          "exists": true,
+          "bytes": 1043
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.launch.json",
+          "exists": true,
+          "bytes": 733
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.live-001.activity.json",
+          "exists": true,
+          "bytes": 4739
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.live-001.flat.json",
+          "exists": true,
+          "bytes": 1475
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.logarchive",
+          "exists": true,
+          "kind": "directory"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.periodic.json",
+          "exists": true,
+          "bytes": 4256
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.png",
+          "exists": true,
+          "bytes": 764582
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.refined-dropouts.json",
+          "exists": true,
+          "bytes": 1225
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.startup.log",
+          "exists": true,
+          "bytes": 68534
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.stderr.log",
+          "exists": true,
+          "bytes": 0
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.system.json",
+          "exists": true,
+          "bytes": 21273540
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.system.log",
+          "exists": true,
+          "bytes": 41106
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.verification.json",
+          "exists": true,
+          "bytes": 1908
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.wav",
+          "exists": true,
+          "bytes": 48439376
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.window.json",
+          "exists": true,
+          "bytes": 1320
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-juce815-ui-on-r2-preflight-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-preflight-20260910.activity-final.json",
+          "exists": true,
+          "bytes": 658
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-preflight-20260910.json",
+          "exists": true,
+          "bytes": 933
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-preflight-20260910.stderr.log",
+          "exists": true,
+          "bytes": 0
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-preflight-20260910.system.log",
+          "exists": true,
+          "bytes": 17838
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-preflight-20260910.wav",
+          "exists": true,
+          "bytes": 2880080
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-juce815-ui-off-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.activity-final.json",
+          "exists": true,
+          "bytes": 23315
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.app.log",
+          "exists": true,
+          "bytes": 14890479
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.callbacks.json",
+          "exists": true,
+          "bytes": 1351
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.collection.json",
+          "exists": true,
+          "bytes": 615
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.correlation.json",
+          "exists": true,
+          "bytes": 19206
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.end-verification.json",
+          "exists": true,
+          "bytes": 445
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.error-partition.json",
+          "exists": true,
+          "bytes": 1181
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.flat-candidates.json",
+          "exists": true,
+          "bytes": 1158680
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.json",
+          "exists": true,
+          "bytes": 1041
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.launch.json",
+          "exists": true,
+          "bytes": 733
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-001.activity.json",
+          "exists": true,
+          "bytes": 2782
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-001.flat.json",
+          "exists": true,
+          "bytes": 624
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-002.activity.json",
+          "exists": true,
+          "bytes": 5151
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-002.flat.json",
+          "exists": true,
+          "bytes": 168848
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-003.activity.json",
+          "exists": true,
+          "bytes": 6563
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-004.activity.json",
+          "exists": true,
+          "bytes": 9155
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-004.flat.json",
+          "exists": true,
+          "bytes": 873660
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-004.periodic.json",
+          "exists": true,
+          "bytes": 11348
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-005.activity.json",
+          "exists": true,
+          "bytes": 12226
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-005.flat.json",
+          "exists": true,
+          "bytes": 1127672
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-005.periodic.json",
+          "exists": true,
+          "bytes": 15393
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-006.activity.json",
+          "exists": true,
+          "bytes": 15528
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-007.activity.json",
+          "exists": true,
+          "bytes": 18828
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-008.flat.json",
+          "exists": true,
+          "bytes": 1158648
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.live-008.periodic.json",
+          "exists": true,
+          "bytes": 22153
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.logarchive",
+          "exists": true,
+          "kind": "directory"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.periodic-recovery-events.json",
+          "exists": true,
+          "bytes": 49617
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.periodic.json",
+          "exists": true,
+          "bytes": 25799
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.png",
+          "exists": true,
+          "bytes": 103017
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.refined-dropouts.json",
+          "exists": true,
+          "bytes": 526
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.startup.log",
+          "exists": true,
+          "bytes": 70794
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.stderr.log",
+          "exists": true,
+          "bytes": 0
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.system.json",
+          "exists": true,
+          "bytes": 35819306
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.system.log",
+          "exists": true,
+          "bytes": 165334
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.verification.json",
+          "exists": true,
+          "bytes": 2058
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.wav",
+          "exists": true,
+          "bytes": 276480080
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.window.json",
+          "exists": true,
+          "bytes": 1316
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-juce815-ui-off-preflight-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-preflight-20260910.activity-final.json",
+          "exists": true,
+          "bytes": 656
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-preflight-20260910.json",
+          "exists": true,
+          "bytes": 936
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-preflight-20260910.stderr.log",
+          "exists": true,
+          "bytes": 0
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-preflight-20260910.system.log",
+          "exists": true,
+          "bytes": 17839
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-juce815-ui-off-preflight-20260910.wav",
+          "exists": true,
+          "bytes": 2880080
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-after-juce815-test-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-after-juce815-test-20260910.launch.json",
+          "exists": true,
+          "bytes": 733
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-after-juce815-test-20260910.png",
+          "exists": true,
+          "bytes": 764214
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-after-juce815-test-20260910.startup.log",
+          "exists": true,
+          "bytes": 63707
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-after-juce815-test-20260910.verification.json",
+          "exists": true,
+          "bytes": 1908
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-after-juce815-test-signal-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-after-juce815-test-signal-20260910.activity-final.json",
+          "exists": true,
+          "bytes": 909
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-after-juce815-test-signal-20260910.json",
+          "exists": true,
+          "bytes": 972
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-after-juce815-test-signal-20260910.stderr.log",
+          "exists": true,
+          "bytes": 0
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-after-juce815-test-signal-20260910.system.log",
+          "exists": true,
+          "bytes": 17836
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-after-juce815-test-signal-20260910.wav",
+          "exists": true,
+          "bytes": 2880080
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-juce815-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-juce815-20260910.install.json",
+          "exists": true,
+          "bytes": 922
+        },
+        {
+          "path": "/private/tmp/smartgrid-juce815-20260910.ipa",
+          "exists": true,
+          "bytes": 1939170
+        },
+        {
+          "path": "/private/tmp/smartgrid-juce815-20260910.package.json",
+          "exists": true,
+          "bytes": 1116
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-power-hub-20260910",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-power-hub-20260910.battery.plist",
+          "exists": true,
+          "bytes": 26809
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-power-hub-20260910.json",
+          "exists": true,
+          "bytes": 6590
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-power-hub-20260910.usb_devices.plist",
+          "exists": true,
+          "bytes": 2534
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-power-hub-20260910.usb_hub.plist",
+          "exists": true,
+          "bytes": 2534
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-sonobus-hour-20260910",
+      "status": "completed_analyzed",
+      "snapshot_local": "2026-09-10T14:35:47.690480-07:00",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.system.log",
+          "exists": true,
+          "bytes": 71551
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.stderr.log",
+          "exists": true,
+          "bytes": 0
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.run-status.json",
+          "exists": true,
+          "bytes": 3633
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.start-activity.json",
+          "exists": true,
+          "bytes": 1584
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.post-preflight-activity.json",
+          "exists": true,
+          "bytes": 4181
+        },
+        {
+          "path": "/private/tmp/smartgrid-sonobus-preflight-20260910.json",
+          "exists": true,
+          "bytes": 624
+        },
+        {
+          "path": "/private/tmp/smartgrid-sonobus-preflight-20260910.png",
+          "exists": true,
+          "bytes": 201278
+        },
+        {
+          "path": "/private/tmp/smartgrid-sonobus-preflight-close-smartgrid-20260910.json",
+          "exists": true,
+          "bytes": 337
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.wav",
+          "exists": true,
+          "bytes": 1036800080
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.json",
+          "exists": true,
+          "bytes": 1174,
+          "sha256": "fe7f603704fb3314e9bb8536d8a8639fc012ed2d6d0be265d4a1ab530263168e"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.window.json",
+          "exists": true,
+          "bytes": 1450,
+          "sha256": "a87ab5270efffaf7dbe9e873c19d8d125da4b5f449adbff428ddbc9bfcf922fd"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.activity.json",
+          "exists": true,
+          "bytes": 85781,
+          "sha256": "2b6e5dc35c51f9023b1ebda3b49d66bc5ca8c95facdf5367c4bf513a845064fd"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.flat-candidates.json",
+          "exists": true,
+          "bytes": 567,
+          "sha256": "76a22025d4964c3270eb6ee4a681592ba428ee51750f9b44dd9345fb81726e1e"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.periodic.json",
+          "exists": true,
+          "bytes": 78022,
+          "sha256": "c67d1d982f778beaf3b97af365894fbd02b79ee676a4df1b6ce91c41a0f6ce66"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.ipad-audio.json",
+          "exists": true,
+          "bytes": 41276699,
+          "sha256": "18429f4b2b73ab1bb7eb5e38855dbd88d91fc3a2ee64759876c52c61cfae48ac"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.setup-audio.json",
+          "exists": true,
+          "bytes": 5170905,
+          "sha256": "21b9f03b81a23da6d24ea51562c2dc0be1d666948265baf49550975d3e3611d9"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.analysis.json",
+          "exists": true,
+          "bytes": 6157,
+          "sha256": "21695d57cb46e320ab15437b6a0111d244719312fe16d91d7a41affc50b9fbbf"
+        }
+      ],
+      "result": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/sonobus-hour-20260910-result.json",
+      "configuration": "MAYA48k/256; app channel mask and native callback cadence unobserved",
+      "waveform": {
+        "near_silence_candidates": 0,
+        "short_flat_candidates": 0,
+        "long_flat_candidates": 0,
+        "dense_periodic_episodes": 0
+      },
+      "usb_audio_messages": {
+        "transaction_failures": 0,
+        "driver_restart_messages": 0,
+        "zero_length_transfer_messages": 0,
+        "io_drift_messages": 0
+      },
+      "archive": {
+        "path": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.logarchive",
+        "collected": true,
+        "files": 976,
+        "bytes": 230096236
+      }
+    },
+    {
+      "base": "smartgrid-ipad-midi-worker-off-20260910",
+      "status": "completed_analyzed",
+      "snapshot_local": "2026-09-10T14:59:57.165636-07:00",
+      "protocol": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-midi-worker-off.md",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.json",
+          "exists": true,
+          "bytes": 1186,
+          "sha256": "149798e2bef832bd5369b1df8ac35692f2062354c251fd858b1ce0845e2e8cd2"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.verification.json",
+          "exists": true,
+          "bytes": 2952,
+          "sha256": "a908c3088364aee0c7a47f368413a53f372c352a6958ef4900d8147667d9824b"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.launch.json",
+          "exists": true,
+          "bytes": 772,
+          "sha256": "5828620992572c6e6a4e137e08a2d06f345ddbba0c0bbfc035e873147bf15529"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.startup.log",
+          "exists": true,
+          "bytes": 65933,
+          "sha256": "a8a69a0a7f950f759f5531311840dda6256b105afcd3aae61fa627cb4559fdd4"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.png",
+          "exists": true,
+          "bytes": 725807,
+          "sha256": "a450e6957b610415c5be9b53fa2270b9c0322b00fcab9c64d519a520bad5f8c2"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.run-status.json",
+          "exists": true,
+          "bytes": 5287,
+          "sha256": "6f47f1375f4f72aa86ec4f4d239b57303eacdbeec818b1ec3f63b6b846c8fdb1"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.result.json",
+          "exists": true,
+          "bytes": 2818,
+          "sha256": "95323289986c752d5fc7ee039756e87573c9a9e503e392ea134d7bbf636ebbf2"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.correlation.json",
+          "exists": true,
+          "bytes": 43016,
+          "sha256": "d95a9eebdd0ab6fed580fa74eb9102efd27d6ea4ba30fca83952e694f3049da3"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.callbacks.json",
+          "exists": true,
+          "bytes": 16485,
+          "sha256": "679af1ab10f06ffc3fd301dba04a807b327ab4f89665c0b031b49403fac8ef05"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.activity-final.json",
+          "exists": true,
+          "bytes": 33022,
+          "sha256": "70794d4da4ef7ce8d7b0d22a0fe60c6bf427bf8e664a0ea7a270d549cc340428"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.flat-candidates.json",
+          "exists": true,
+          "bytes": 29769,
+          "sha256": "1250b974d3329d390dedb794b681142f69bdc9d245dd22b61c18d6abedc36dbf"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.periodic.json",
+          "exists": true,
+          "bytes": 22478,
+          "sha256": "95da48316c79c22c3bf7bef3874a0045c01f41efc02076ace759d82cdea3bc5f"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.refined-dropouts.json",
+          "exists": true,
+          "bytes": 6636,
+          "sha256": "a10dbe6eb71910ec4a53da002b4f397c73f5216ef6599c29000e207e721d2cba"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.midi-validation.json",
+          "exists": true,
+          "bytes": 465,
+          "sha256": "9d9dd878407f2d0d8cff5ce4cc6dcc8c75b3f81f2a13ce8bae91444e20468e97"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.end-verification.json",
+          "exists": true,
+          "bytes": 445,
+          "sha256": "01dd7eb4ff8ef82c3f80a71a0181d5788babf2fe1692f1ebb24ebd775130f016"
+        }
+      ],
+      "recording_path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.wav",
+      "archive_status": "collected",
+      "result": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/midi-worker-off-20260910-result.json",
+      "outcome": "Both symptoms reproduced with MIDI worker disabled and queue discarded."
+    },
+    {
+      "base": "smartgrid-ipad-midi-sysex-worker-20260910",
+      "status": "completed_analyzed",
+      "snapshot_local": "2026-09-10T15:41:11.684172-07:00",
+      "protocol": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-midi-sysex-worker.md",
+      "recording_path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.wav",
+      "archive_status": "collected",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.json",
+          "exists": true,
+          "bytes": 1100,
+          "sha256": "58aacc3094a7c36baf7bb75389d0469a5d6e35019f5f029bd718c0dbb02ecfe3"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.window.json",
+          "exists": true,
+          "bytes": 1709,
+          "sha256": "702082deda993e3f1300b2d83a32b4668eea797de5a12f281cfa32ad27ca7e4c"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.window-before-epoch-clarification.json",
+          "exists": true,
+          "bytes": 1375,
+          "sha256": "1a8aabd675a7da6add7730c8dfb174b6fe421a28c703d4b4b96cfba8e613817b"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.launch.json",
+          "exists": true,
+          "bytes": 772,
+          "sha256": "e043ae23dfb43c93fbe09d57461dc39030571e2d369041b3fe95e062046195ce"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.verification.json",
+          "exists": true,
+          "bytes": 4264,
+          "sha256": "2800cfbf996a47d9708b175644b3fc6dd97315b12763792728d08e73d45badac"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.startup.log",
+          "exists": true,
+          "bytes": 71683,
+          "sha256": "7d473b4a3d3a107a0727d3fb6dc527bb0bd7a6b35e4698e77b0a7f7ec89014b7"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.png",
+          "exists": true,
+          "bytes": 732358,
+          "sha256": "29c2a598d02ec2fc567a5a739f96d47e411c5e4707b9faf4e76e6a7a990701b1"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.run-status.json",
+          "exists": true,
+          "bytes": 17267,
+          "sha256": "35f9fc4974a3a293a3c8fa3ae57b5d65ee1d17e3012200e1dd81afce0cd25616"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.result.json",
+          "exists": true,
+          "bytes": 6369,
+          "sha256": "df389eb347cb9ffbdafb3a87ec31363c6cd88eeb8d60e29a13e1687785e878ab"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.end-verification.json",
+          "exists": true,
+          "bytes": 445,
+          "sha256": "e03e3bb2877ce207aace3ae6b7d339e74ae90fb02ca2a30f362e2dad16514aa8"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.collection.json",
+          "exists": true,
+          "bytes": 619,
+          "sha256": "0e60efe64fe2eaf20c1d7066d3a45f99c0a59e791204d60fcb185995636d0c33"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.app.log",
+          "exists": true,
+          "bytes": 18106822,
+          "sha256": "30bb9342ed5bcbd261d96357916353ce0117158c4394ef3523975cb6aefb27ae"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.app-collection-attempt2.log",
+          "exists": true,
+          "bytes": 446,
+          "sha256": "96fbd90d5f1ab35dd854f9dc4f8935ec44e3d3d1f217bde86b8cbaab98370e2b"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.callbacks.json",
+          "exists": true,
+          "bytes": 10118,
+          "sha256": "e4bae9dcd0444b57acfee99be36e53167889a71a6dca608c3c71f5e36640580c"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.correlation.json",
+          "exists": true,
+          "bytes": 17393,
+          "sha256": "18cbe40db60a7d76c79ef53a2fe942ecf94d88143c5576ba9e3d6715b4b6342a"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.midi-validation.json",
+          "exists": true,
+          "bytes": 1789,
+          "sha256": "56486331547536c17c9620e6abac9ef92c8f721fba4716e645795f1a64e29975"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.activity-final.json",
+          "exists": true,
+          "bytes": 28942,
+          "sha256": "b30c617256dda91a83f4c5547fef7f2b733e1863e532f780f9f1aa65e23e85bd"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.flat-candidates.json",
+          "exists": true,
+          "bytes": 3760,
+          "sha256": "4493f55152693f66173097332f2a5a79cddb89742f57f8cc1cf344ebc003a5e2"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.periodic.json",
+          "exists": true,
+          "bytes": 21431,
+          "sha256": "d71d2929c471543154d99cf15ee1c70f9c3fe63b6d1d482f9fd50a07271bc670"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.refined-dropouts.json",
+          "exists": true,
+          "bytes": 4015,
+          "sha256": "562b745a05537f3858318ebc36eefa5654afb55c83f9eb4aeaad39191e7941f5"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.thermal-analysis.json",
+          "exists": true,
+          "bytes": 1886,
+          "sha256": "0af82d00619553863290f46d77b31115c98450dad3658dfbcc220712adfd7f8e"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.thermal-system.json",
+          "exists": true,
+          "bytes": 71045,
+          "sha256": "4fdaa8eda094598f0b963557f5c8688ff97859b1ee9b4e9c19635cec9579e707"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.overview.png",
+          "exists": true,
+          "bytes": 191442,
+          "sha256": "16fad6715890de295122e25bc45968c8e81940f4210636e30033ac9c96a705f7"
+        }
+      ],
+      "preliminary": {
+        "checked_local": "2026-09-10T15:16:11.808479-07:00",
+        "status": "recording",
+        "process_identity_verified": true,
+        "activity_seconds": 207.075,
+        "near_silence_candidates": 8,
+        "flat_scan_seconds": 251.67616666666666,
+        "long_flat_candidates": 9,
+        "short_flat_candidates": 5,
+        "dense_periodic_episodes_observed": false,
+        "first_flat_gap_seconds": [
+          30.2351875,
+          30.4596875
+        ],
+        "first_flat_gap_duration_ms": 224.5,
+        "capture_stderr_bytes": 0,
+        "ipad_queried": false,
+        "interpretation": "Long analog interruptions already persist. First gap waveform inspected and shows abrupt signal loss, brief settling and recovery after about225ms. USB/callback correlation and full-run periodic outcome pending; no dense periodic cluster in first251.676s."
+      },
+      "final_review": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/research/2026-09-10-midi-sysex-worker-integration-review.md",
+      "result": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/midi-sysex-worker-20260910-result.json",
+      "outcome": "Sporadic USB/restart/callback/analog interruptions reproduced with frame MIDI/SysEx on the worker. No dense periodic blanking detected in this exposure.",
+      "measurement_review": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/research/2026-09-10-midi-sysex-worker-measurement-review.md",
+      "recording_bytes": 276480080,
+      "archive_bytes": 227696702,
+      "monitor_status": "PAUSED"
+    },
+    {
+      "base": "smartgrid-ipad-midi-sysex-followup-20260910-1544",
+      "status": "app_trace_followup",
+      "snapshot_local": "2026-09-10T15:49:27.557673-07:00",
+      "recording_path": null,
+      "archive_status": "not collected for this follow-up",
+      "summary": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/midi-sysex-worker-followup-20260910-1546.json",
+      "scope": "Read-only same-session follow-up to user report; no analog capture or new experiment.",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-followup-20260910-1544.json",
+          "exists": true,
+          "bytes": 486,
+          "sha256": "b881f40ac8529fa58bc496d8c6330b63b314911abf662e7e973b9e6f3d0a74bc"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-followup-20260910-1544.app.log",
+          "exists": true,
+          "bytes": 32519454,
+          "sha256": "c973fce74ab5153345ddfdc39e2a0db657177ccc71791e6076f2baefa73e0488"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-followup-20260910-1544.summary.json",
+          "exists": true,
+          "bytes": 3650,
+          "sha256": "ea414c978c13e8a6dbfa5ea524947b194810bb7bd2bd77ff9e821fb4797374cf"
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-quiet-history-20260910-1554",
+      "status": "historical_and_current_app_trace_comparison",
+      "snapshot_local": "2026-09-10T15:53:49.348497-07:00",
+      "recording_path": null,
+      "archive_status": "not collected for this comparison",
+      "summary": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/thermal-quiet-history-20260910.json",
+      "report": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-thermal-quiet-history.md",
+      "scope": "Read-only historical and continued-session app-trace comparison; no deployment, setting change, recording, or system archive collection.",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-sysex-followup-20260910-1544.app.log",
+          "bytes": 32519454,
+          "sha256": "c973fce74ab5153345ddfdc39e2a0db657177ccc71791e6076f2baefa73e0488"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-quiet-history-20260910-1554.current-tail.log",
+          "bytes": 16777216,
+          "sha256": "d51b76da6b00bf5219436446ec3afd625c431b73fdb57431b58df05e791d43f0"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-quiet-history-20260910-1554.historical-1127.log",
+          "bytes": 40147115,
+          "sha256": "b895c6eb41687b0a85bb3b9112b27c94ab5706ea2fb92edbd5b3fb8e2edf0f01"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-quiet-history-20260910-1554.json",
+          "bytes": 525,
+          "sha256": "9b3b2de990bc6e0a8b37d413e6739b2dac54a4dffed4b5b85cdce1a463f3bfaa"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-quiet-history-20260910-1554.analysis.json",
+          "bytes": 6076,
+          "sha256": "0fde193100168c2ed12fccb326df7e9770c07b6de153f361cfdd126ff66eab51"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-quiet-history-20260910-1554.comparison.json",
+          "bytes": 5172,
+          "sha256": "9a95998c33316d6217db5f4d8060e561a3b047b7e0bdca06bc8a54c34313a8f3"
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-midi-retest-20260910",
+      "status": "completed_analyzed",
+      "snapshot_local": "2026-09-10T16:17:04.228814-07:00",
+      "recording_path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.wav",
+      "summary": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/hot-restart-midi-20260910-start.json",
+      "report": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-hot-restart-midi.md",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.before.json",
+          "bytes": 5082,
+          "sha256": "2d8022f68d968b827b659495e263b90fc0bafaea146ba2caeddea1f4da6e3d7e"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.before.app.log",
+          "bytes": 55225532,
+          "sha256": "448824dcb11deb32923beaca1819f0835353370567ea73d7f5563eb9893f684a"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.available-conditions.json",
+          "bytes": 7175,
+          "sha256": "04dec7201c2261d30d8bfb85ad6f37004ccc7419617c5583b18919c7312cebf3"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.install.json",
+          "bytes": 925,
+          "sha256": "9cdf5ce5ddb48eda21d7c184d88fe87469f9b1a342d012b34fca22c868f401b1"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.launch.json",
+          "bytes": 772,
+          "sha256": "2c066c4022db9aaa07ed1b173c92572929dd866def4d0804434fd7284f870e9c"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.startup.log",
+          "bytes": 79942,
+          "sha256": "850facb4ca3cae51560672dc424d6d783a6c93719d2a25a1d06a21563e39d37d"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.verification.json",
+          "bytes": 4853,
+          "sha256": "2ada349e6176abe05c9a60f2d355c320f70e5f57c42f7543cf393313939512b6"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.png",
+          "bytes": 746607,
+          "sha256": "bfc154c9b1b7d06bfcfc577af9159d9016e007a3cdf03420eec447909388cba0"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.activity-early.json",
+          "bytes": 1588,
+          "sha256": "5b82db486ca5c0f1a1f729d5f0232a32f63bc762382862d94060dccc71e1a965"
+        }
+      ],
+      "result": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/hot-restart-midi-20260910-result.json",
+      "physical_midi_output": "user_confirmed_after_restart",
+      "startup_failures_before_recording": 2
+    },
+    {
+      "base": "smartgrid-ipad-hot-hour-20260910",
+      "status": "completed_analyzed",
+      "snapshot_local": "2026-09-10T16:45:36.048764-07:00",
+      "recording_path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.wav",
+      "actual_seconds": 299.776,
+      "summary": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/hot-continuation-five-minutes-20260910-result.json",
+      "report": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-cooldown-repeat.md",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.json",
+          "bytes": 1218,
+          "sha256": "2df846ae518ffc696edc0442473735e7ddcae4a03a62ed16a6089e4e8e9fbed5"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.window.json",
+          "bytes": 1829,
+          "sha256": "664d6c1b504b11643c1276ac3a96b887d3103edaca3d0ae61bb25765e4df4425"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.shortened-stop.json",
+          "bytes": 434,
+          "sha256": "dc687e35de96b7f2906979c21f983954f889268ed438b851a3357d9d9bbadb9c"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.wav",
+          "bytes": 86335568,
+          "sha256": "d6341e6cdfbb86ab4941f4237acf352cd0d5190f363ee9c5e9ec9059612bf389"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.collection.json",
+          "bytes": 608,
+          "sha256": "f04cdb4f410679a338491a6f5ea0ee570e1bc64240601dc645058d64386b5546"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.app.log",
+          "bytes": 24377280,
+          "sha256": "83ffc3e3cb2d5cb3edc44cb07cbd2cf470e5d8e02917622d427bd76d258ec61b"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.end-verification.json",
+          "bytes": 445,
+          "sha256": "f94db89d16951267bd97668982d84fd495616a0984ea0e65d20053353bcf8043"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.system.json",
+          "bytes": 3540086,
+          "sha256": "3f185a771067ec8a00c57f6bcf0e38ba70a4cf61880a4f6329719714e685d3b9"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.callbacks.json",
+          "bytes": 938,
+          "sha256": "dd4a8e82dab45ebdd9c01fbad1e9d3e1e06287da3f4121b8894b2d5d74966772"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.correlation.json",
+          "bytes": 1038,
+          "sha256": "b8618ba4a2b2ac08d9de66989cb6bbe056f7cdc14d95743d75987d00c9562a7b"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.activity-final.json",
+          "bytes": 7491,
+          "sha256": "ec57c0b6d735f2b1f89a0d74ddbd2a2585e8a3f4dcadafc83cc9af2f0fe54a03"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.flat-candidates.json",
+          "bytes": 564,
+          "sha256": "ed9d22c7b456a94a0dc56745860510b43789c08e12a15f00ac1b1a0e07862e5d"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.periodic.json",
+          "bytes": 6882,
+          "sha256": "c459cbfe74fbb55bd5c87a96e4f47d2fd2e3e99af54661bc0835a877087b4831"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.midi-validation.json",
+          "bytes": 1784,
+          "sha256": "ce75c7c216616f94fe3937b909038b4f3720abaf405eceff34fbfc4075b188e4"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-hot-hour-20260910.result.json",
+          "bytes": 7731,
+          "sha256": "1cb9fb3db592253878c91d8ea0372f97cd693053d0e7a3f470ec313ac640a8f9"
+        }
+      ]
+    },
+    {
+      "base": "smartgrid-ipad-cooled-r1-20260910",
+      "status": "completed_analyzed",
+      "snapshot_local": "2026-09-10T17:18:15.705991-07:00",
+      "recording_path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.wav",
+      "summary": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/cooled-repeat-r1-20260910-result.json",
+      "report": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-cooled-repeat-result.md",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.activity-1657.json",
+          "bytes": 17018,
+          "sha256": "00342061883f20b211ec1b651e829418bc6c144329a070bbfc4b549c6210db21"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.activity-early.json",
+          "bytes": 1819,
+          "sha256": "5f221a9a252ff66023bb7cefc0ddf52621aa25d38b64902790186b135a06a23d"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.activity-final.json",
+          "bytes": 28647,
+          "sha256": "b8b85fd2ff9dd44724aa2430e0321b69b6b1297d8568700d18090593665fea39"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.app.log",
+          "bytes": 19739270,
+          "sha256": "924b65dc88ae0a3490b1aa80f79f16b0559d5c159c084f0470d3a36ec23d8c57"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.callbacks.json",
+          "bytes": 9528,
+          "sha256": "b60a76715c213f76d8ee3a67d747e93067d29975a4ace0eeff820bb73ef0025b"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.collection.json",
+          "bytes": 610,
+          "sha256": "0a65a0e31eabde6ae4bfe06bc59fbbc1a0dd3a5c0396eeacb7b5462497625061"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.comparison.png",
+          "bytes": 205149,
+          "sha256": "a0948d21b4d82e62d5916d55f601f5b8e0e3ca46beca6a5fe16da75eb9f6f34d"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.correlation.json",
+          "bytes": 18448,
+          "sha256": "8525996c7e5b08fa5312d0f7a680d507a937e6810ebf4f2ef622aad98c3ca94b"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.detail.json",
+          "bytes": 56444,
+          "sha256": "786a542d0c3c14af613806bcde59613c6e4d1aad6554e0402dd8b8c27c3c54c5"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.early-dropouts-1657.png",
+          "bytes": 540411,
+          "sha256": "aa9e2cf43057a05862f2813dcd9b7900dff289c230d832f572e2fa60778584ff"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.end-verification.json",
+          "bytes": 445,
+          "sha256": "db3654747ce205bf3bcf69fac3b7ae8624e1d5ec90587e7d9d31d02a1cbd533e"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.flat-candidates.json",
+          "bytes": 5652,
+          "sha256": "78bc37c9905ec7477cb95a9396538465e6e47b1e5ccec927355fc6dd30dc3e66"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.interim-1657.json",
+          "bytes": 1236,
+          "sha256": "79c86c531901b4e99cb16b1da80332a2305342a3441ee1526879f4a0e6d79ba7"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.json",
+          "bytes": 1307,
+          "sha256": "b3914bb9bb95763453aa8bd255faa5057dab1e76b35d3d5d7baeea99d6b6147b"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.launch.json",
+          "bytes": 772,
+          "sha256": "05c44ac3ceeaea34b4ec51d4b0db9101de1dbccd9191153772a76a401659b06d"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.midi-validation.json",
+          "bytes": 1770,
+          "sha256": "22041bc354e9dfdcc8d3946c4d3a6cb0c63acddde8fe6e6e2309b1fceeecefa8"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.periodic-waveform.png",
+          "bytes": 435393,
+          "sha256": "5f6163c7669e5763845af8bf972aba70a947c29b5a1029a7487c535c47e32c3e"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.periodic.json",
+          "bytes": 22319,
+          "sha256": "f7844ba1a2eff693c9cdb2fe44f9d511803b044024d235013b6a6c315d73310a"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.refined-dropouts.json",
+          "bytes": 3897,
+          "sha256": "aafbadd529b770b6758474389d2119df8c5172fca252259fbb22b7f12c991166"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.report.md",
+          "bytes": 6549,
+          "sha256": "f247b1d74c022768869647bb7565148a65f0bce2961104be93475d2b3e8a3af1"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.result.json",
+          "bytes": 20533,
+          "sha256": "57c39da4cfaea6335e7c76ba59e40a6c17772f2cf3a7756691c63a3eae6938d0"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.start.json",
+          "bytes": 6855,
+          "sha256": "dff329071ac5d348a4e0807a704016f6e6f886ef6a512011b649cfb6a76c5526"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.startup.log",
+          "bytes": 69974,
+          "sha256": "97792ab5dbb43c96824bf7c91dbf20b5a13da1e6a5986d60d7a53c29c3b05071"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.system-decode.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.system-raw.json",
+          "bytes": 19420506,
+          "sha256": "9518daa7140cab42eb1aff2cdc19995d84609c64b192b9f70863869d4bc2a065"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.system.json",
+          "bytes": 17341721,
+          "sha256": "e7161e5b5c8ceab04a23ed7ef5d65888f1c98933f1ac98422abfe7f81189b9ee"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.system.log",
+          "bytes": 232928,
+          "sha256": "1ac0c08dbf42d2ba5b417b2374afb1a7e9d6d0694c8d94bc94c554eef603a0dc"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.verification.json",
+          "bytes": 4264,
+          "sha256": "da77057ea54603ead37e8dda928457569363d156d596db4a48a7bf4561731192"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.wav",
+          "bytes": 276480080,
+          "sha256": "fde859429fc30ee6c72d222601c470697b3768421d8aa2c06ff670f1064d237f"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.window.json",
+          "bytes": 1916,
+          "sha256": "17ad03e51831b1ebafb23eb33cab7f082fb831eebdbbbf33f96c40fcea3fa51e"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.archive-manifest.json",
+          "bytes": 181836,
+          "sha256": "8cbb96177ef8b7a836ccfe70e7aadc10b4439cf9bd5b8cbbfc411a3cfa4f709d"
+        }
+      ],
+      "interim_summary": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/cooled-repeat-r1-20260910-interim-1657.json",
+      "archive_file_count": 802,
+      "archive_total_bytes": 221207299,
+      "actual_long_dropouts": 21,
+      "periodic_holes": 29
+    },
+    {
+      "base": "smartgrid-ipad-no-pd-adhoc-20260910-1751",
+      "status": "completed_analyzed",
+      "snapshot_local": "2026-09-10T18:01:34.685974-07:00",
+      "report": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-no-pd-adhoc.md",
+      "summary": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/no-pd-adhoc-20260910-result.json",
+      "recording_path": null,
+      "playback_observation_seconds": 170.390414,
+      "matched_usb_callback_restart_episodes": 7,
+      "periodic_result": "unassessed; no analog recording",
+      "thermal": "nominal after four initialization callbacks",
+      "power": "external power absent and charging off in all nine OS snapshots",
+      "artifacts": [
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.app.log",
+          "bytes": 3955565,
+          "sha256": "9bcdacc5be79103b282840bf1fc4e541bc1bb8020ca6bac606241601e456f4d6"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.archive-manifest.json",
+          "bytes": 193508,
+          "sha256": "c8c99afd9896e20895fd2ec130fcd5afb3ba6161863d88dbe8f49a730ccf5d44"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.callbacks.json",
+          "bytes": 3747,
+          "sha256": "0e6cac84dfe26d962a935786b48258a4d8c74d9107c6a3135e863fefcb9aa21d"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.collection.json",
+          "bytes": 617,
+          "sha256": "480223b224403afc6da4511e1a57bebd35c2dd21c4c6ce882d2510ed19793f67"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.end-verification.json",
+          "bytes": 444,
+          "sha256": "88e4daf7d1288c816ad68d9accc94696a794ac8b7ae8482d05d757010d094dd9"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.midi-validation.json",
+          "bytes": 1770,
+          "sha256": "606af33ce2b25ae7f7af244f4010e12be30fe7545462d4a18459edf504319aa6"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.result.json",
+          "bytes": 18787,
+          "sha256": "fa6d6feef39d36b98c5d5de9ad7cbbeb1c806f09c9ef844fbe17dcb0163f9c9e"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.system-decode.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.system-raw.json",
+          "bytes": 8779286,
+          "sha256": "5099a5709449b2066041c48d984c3aa5876f9bbd578f8352b0cfa760702be391"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.system.json",
+          "bytes": 7855614,
+          "sha256": "6c1e3ce33d9b677f2025596813856a3fa26cc9295f0268a80646f541ba17c649"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.verification.json",
+          "bytes": 4853,
+          "sha256": "e0397d535706833a08eb0ad0b22ab9ff7427f7a9faa8a161f0930b52bf4fe5d1"
+        },
+        {
+          "path": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.window.json",
+          "bytes": 656,
+          "sha256": "87743d7de01c97b93693b22d476c68650fc3f93f39e6ea6ae1044910ade181e4"
+        }
+      ],
+      "archive_file_count": 828,
+      "archive_total_bytes": 219284805
+    },
+    {
+      "base": "smartgrid-thermal-crossover-v2-20260910",
+      "status": "completed_analyzed_missing_nominal_reversal",
+      "report": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-induced-thermal-crossover.md",
+      "controller_state": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/status.json",
+      "events": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/events.jsonl",
+      "automation_id": "track-thermal-audio-crossover",
+      "controller_source": {
+        "path": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/controller-source.py",
+        "sha256": "852eba33e55e2c94457797317339194e5b2c02bcc7c40161dbf9c544c5348d84"
+      },
+      "recording_artifacts": "All three WAVs, app logs and final archive retained; exact hashes in artifact index",
+      "exclusions": "initial failed setup, app startup, condition transitions, incomplete state reversals",
+      "completed_local": "2026-09-10T19:24:59.877614-07:00",
+      "final_summary": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/thermal-crossover-final-20260910.json",
+      "artifact_index": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/thermal-crossover-artifacts-20260910.json",
+      "counts": {
+        "nominal": 22,
+        "serious": 6,
+        "full_record_matched": 31
+      }
+    },
+    {
+      "base": "smartgrid-system-trace-r1-20260910",
+      "status": "incomplete_transfer_gate_nominal_only_analyzed",
+      "report": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-native-system-trace.md",
+      "artifact_index": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/native-trace-artifacts-20260910.json",
+      "state": "/private/tmp/smartgrid-system-trace-r1-20260910/status.json",
+      "completed_local": "2026-09-10T19:51:04.031160-07:00"
+    },
+    {
+      "base": "smartgrid-system-trace-r2-20260910",
+      "status": "completed_analyzed",
+      "report": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-native-system-trace.md",
+      "artifact_index": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/native-trace-artifacts-20260910.json",
+      "state": "/private/tmp/smartgrid-system-trace-r2-20260910/status.json",
+      "completed_local": "2026-09-10T19:51:04.031160-07:00"
+    }
+  ],
+  "updated_local": "2026-09-10T19:51:04.031160-07:00",
+  "sonobus_source_comparison": {
+    "updated_local": "2026-09-10T14:06:50.887091-07:00",
+    "status": "source review complete; audio trial remains running",
+    "artifacts": [
+      {
+        "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/research/2026-09-10-sonobus-source-comparison.md",
+        "bytes": 6830,
+        "sha256": "2ae8cfc236281320f2e881d662e77e535145fea35c064803f55a9092cef1c160"
+      },
+      {
+        "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/research/2026-09-10-sonobus-fresh-review.md",
+        "bytes": 21666,
+        "sha256": "1365500a3f6c504b694d41d3ddf1fb25eb3c52937f1eae904e3b25c4b914581e"
+      },
+      {
+        "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/research/2026-09-10-smartgrid-callback-audit.md",
+        "bytes": 7882,
+        "sha256": "f6300f0954dc67ebbba52351afd0684d0d0d238655f356d8512f4ee7cea28826"
+      },
+      {
+        "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/research/2026-09-10-sonobus-native.diff",
+        "bytes": 7709,
+        "sha256": "7c23b509f923b189c24b9b30d3057bffcf3e64644b24d7619a5fb2ad0fe05089"
+      },
+      {
+        "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/sonobus-additional-sources-20260910.json",
+        "bytes": 1970,
+        "sha256": "97cd0d5e5cad350fa0da8ef1493843a7288c686877e20a2afbd7c2a8793c52ad"
+      },
+      {
+        "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/sonobus-adapter-equality-20260910.json",
+        "bytes": 994,
+        "sha256": "347fa59ca3c01f2b33717e4690dbcc179cf822cdb807bc6306e39bc8ba668658"
+      },
+      {
+        "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/smartgrid-source-comparison-provenance-20260910.json",
+        "bytes": 2039,
+        "sha256": "e2b944f2bda13a3c40255cd2059488888ce25e892eace99070119215e1286edd"
+      }
+    ]
+  },
+  "thermal_power_research": {
+    "completed_local": "2026-09-10T17:40:45.539437-07:00",
+    "status": "completed_research_only",
+    "report": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-thermal-power-hypotheses.md",
+    "agents": [
+      "thermal_policy_research",
+      "pd_power_research",
+      "control_thermal_audit"
+    ],
+    "artifacts": [
+      {
+        "path": "/private/tmp/smartgrid-thermal-power-research-synthesis-20260910.md",
+        "bytes": 15709,
+        "sha256": "659978a210dfa6e46ef9e43f75dabacfbd839ae970417601095c7121387c85d6"
+      },
+      {
+        "path": "/private/tmp/smartgrid-thermal-policy-hypotheses-20260910.md",
+        "bytes": 18102,
+        "sha256": "dd2d455926b7eade4015139a713c8cac1804786ce9095231185a0165bc9630d5"
+      },
+      {
+        "path": "/private/tmp/smartgrid-pd-power-hypotheses-20260910.md",
+        "bytes": 19616,
+        "sha256": "d6d5fdc458ea069ff61ebb441337d3cc8a58a2f565c7c03ccde04e7953a4c4e2"
+      },
+      {
+        "path": "/private/tmp/smartgrid-control-thermal-audit-20260910.md",
+        "bytes": 14858,
+        "sha256": "8517f111de93ef03f75c3e629c87ea617642c5720bb7564ad3fc4f94f214bc42"
+      },
+      {
+        "path": "/private/tmp/smartgrid-control-thermal-audit-20260910.json",
+        "bytes": 42554,
+        "sha256": "64fa4a82ecad6438eac7d6046ae06e2e8b33ca809d8c29bb54ad095b701b1908"
+      },
+      {
+        "path": "/private/tmp/smartgrid-parent-power-audit-20260910.json",
+        "bytes": 4090,
+        "sha256": "7faf608f4e217321da65a39dd5be483d49b88b22258b4d9bd1b258be7b6c4245"
+      },
+      {
+        "path": "/private/tmp/smartgrid-parent-charging-correlation-20260910.json",
+        "bytes": 6936,
+        "sha256": "14d462a053debbaba87c597bfe6b23661d13f5e1d4491ace4cc6914646e8814a"
+      },
+      {
+        "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.symptoms-power-summary.json",
+        "bytes": 36302,
+        "sha256": "42814125525020fcdd72d1f9614033c800ace1add0f480edc041b0e18f9fb244"
+      },
+      {
+        "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.power-thermal-research.json",
+        "bytes": 1166034,
+        "sha256": "02a59335227d103ed2f03ea656ae8f0065472a9a031eaf650f8f1eadca650404"
+      },
+      {
+        "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.power-thermal-research.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.power-thermal-research.selected.json",
+        "bytes": 2231,
+        "sha256": "bed0d36de7ce448168a38f3626f357daff6babf914d560fe4b0e3542f2638ced"
+      },
+      {
+        "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.power-thermal-research.json",
+        "bytes": 1089439,
+        "sha256": "db396bcfdfd842ff4426e0a684d7ccea1550cf079f27f51e2a8b7cb3030fcc87"
+      },
+      {
+        "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.power-thermal-research.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/private/tmp/smartgrid-ipad-midi-retest-20260910.power-thermal-research.selected.json",
+        "bytes": 814,
+        "sha256": "b4777dd9ff9e46761f961d15e00c4eff6bf07b02cc1947f529764bfe277d8d11"
+      },
+      {
+        "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.symptoms-power-research.json",
+        "bytes": 99123,
+        "sha256": "f6aab9c08e981fd495674cbf9af26d4f807345c13b154750ed782bc9b02befa6"
+      },
+      {
+        "path": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.symptoms-power-research.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "durable_outputs": [
+      "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-thermal-power-hypotheses.md",
+      "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/research/2026-09-10-thermal-policy-hypotheses.md",
+      "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/research/2026-09-10-pd-power-hypotheses.md",
+      "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/research/2026-09-10-control-thermal-audit.md",
+      "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/control-thermal-audit-20260910.json",
+      "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/parent-power-audit-20260910.json",
+      "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/parent-charging-correlation-20260910.json",
+      "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/cooled-repeat-battery-snapshots-20260910.json"
+    ],
+    "control_raw_evidence_index": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/control-thermal-audit-20260910.json",
+    "no_device_mutation": true
+  }
+}

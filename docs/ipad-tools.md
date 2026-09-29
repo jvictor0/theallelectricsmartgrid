@@ -84,6 +84,14 @@ capture retains a directory ending in `.partial`; a rerun creates a fresh one.
 See the repository `ipad-logs` skill for archive queries and the full evidence
 taxonomy.
 
+## Experimental journal
+
+The [iPad / MAYA44 investigation journal](experiments/ipad-maya-audio/README.md)
+is versioned in this repository. Add dated results there and update its index
+and experiment queue. The old diagnostic worktree is historical context, not
+the journal's storage location. Large raw device captures remain under
+`~/Documents/SmartGridOne/diagnostics` and are linked from the entries.
+
 ## Sync from the iPad over the LAN
 
 Start the receiver on the Mac (Python 3.10 or newer; SoX is needed for legacy

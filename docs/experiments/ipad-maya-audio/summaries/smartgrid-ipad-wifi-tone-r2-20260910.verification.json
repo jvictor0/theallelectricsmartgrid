@@ -1,0 +1,20 @@
+{
+  "file_seconds_so_far": 67.81127083333334,
+  "tail_seconds": 2.0,
+  "rms_dbfs": [
+    -47.17448033588958,
+    -47.296483860667934
+  ],
+  "peak_dbfs": [
+    -44.13604330264286,
+    -44.25402868178058
+  ],
+  "dominant_hz": 1000.0,
+  "app_rate": 48000,
+  "app_frames": 512,
+  "app_inputs": 0,
+  "app_outputs": 4,
+  "app_tone_frequency": 1000,
+  "app_startup_log": "2026-09-10T10-00-40-791.log",
+  "app_audio_started_local": "2026-09-10T10:00:46-07:00"
+}

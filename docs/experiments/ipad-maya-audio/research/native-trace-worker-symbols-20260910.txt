@@ -1,0 +1,8 @@
+Matching UUID276B3E11-789E-39C6-9503-9DEF77868F0A
+['0x100043804', '0x10014e42c', '0x1000bec18', '0x1000e2bac']
+MidiSender::run() (in SmartGridOne) + 188
+juce::Thread::createNativeThread(juce::Thread::Priority)::$_0::__invoke(void*) (in SmartGridOne) + 736
+IoTaskThread::Run() (in SmartGridOne) + 176
+void* std::__1::__thread_proxy[abi:ne190102]<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>, void (IoTaskThread::*)(), IoTaskThread*>>(void*) (in SmartGridOne) + 72
+
+Invalid connection: com.apple.coresymbolicationd

@@ -1,0 +1,2 @@
+Timestamp               Ty Process[PID:TID]
+2026-09-10 12:38:12.019 Df powerd[50:131409] [com.apple.powerd:batterychargingstate] handleChargingStateUpdate State:Charging Completed VBUS:1 UISOC:100 CHNC:100 Type:1 TLC:Thu Sep 10 12:22:52 2026

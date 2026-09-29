@@ -1,0 +1,116 @@
+{
+  "base": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910",
+  "recording_start": "2026-09-10T12:21:52.296408-07:00",
+  "recording_end": "2026-09-10T12:24:40.488408-07:00",
+  "recording_seconds": 168.192,
+  "kernel_maya_transaction_failures": 5,
+  "audio_restart_records": 5,
+  "near_silence_wave_intervals": 5,
+  "native_callback_gaps_gt100ms": 5,
+  "matched_usb_error_messages": 5,
+  "matched_interruption_episodes": 5,
+  "unique_matched_callbacks": 5,
+  "unique_matched_wave_intervals": 5,
+  "zero_length_reports": 0,
+  "zero_length_transfers_reported": 0,
+  "io_drift_records": 0,
+  "callback_resume_minus_wav_end_ms_range": [
+    100.81940460204919,
+    106.7265853881878
+  ],
+  "correlation_limit": "Wave event matching uses a conservative 750 ms neighborhood and reports unique callback/wave episodes. Multiple USB failure messages can belong to one interruption. Recorder/CoreAudio startup latency and independent audio clocks shift WAV timing relative to app logs; offsets are not causal transport latency measurements.",
+  "rows": [
+    {
+      "usb_error_time": "2026-09-10T12:22:13.775026-07:00",
+      "usb_error_seconds": 21.478618,
+      "callback_match": true,
+      "wave_match": true,
+      "callback": 6789,
+      "callback_gap_ms": 219.296,
+      "usb_error_to_callback_resume_ms": 289.20140460204993,
+      "wave_quiet_interval": {
+        "start_seconds": 21.483,
+        "end_seconds": 21.667,
+        "duration_ms": 184,
+        "preceding_100ms_peak_rms_dbfs": -24.471499249632554,
+        "following_100ms_peak_rms_dbfs": -24.98996358497148,
+        "surrounded_by_signal": true
+      },
+      "callback_resume_minus_wav_quiet_end_ms": 100.81940460204919
+    },
+    {
+      "usb_error_time": "2026-09-10T12:22:19.247002-07:00",
+      "usb_error_seconds": 26.950594,
+      "callback_match": true,
+      "wave_match": true,
+      "callback": 7283,
+      "callback_gap_ms": 217.546,
+      "usb_error_to_callback_resume_ms": 293.454595428468,
+      "wave_quiet_interval": {
+        "start_seconds": 27.001,
+        "end_seconds": 27.142,
+        "duration_ms": 141,
+        "preceding_100ms_peak_rms_dbfs": -27.504537297282617,
+        "following_100ms_peak_rms_dbfs": -25.04933753370873,
+        "surrounded_by_signal": true
+      },
+      "callback_resume_minus_wav_quiet_end_ms": 102.04859542846734
+    },
+    {
+      "usb_error_time": "2026-09-10T12:22:19.890977-07:00",
+      "usb_error_seconds": 27.594569,
+      "callback_match": true,
+      "wave_match": true,
+      "callback": 7324,
+      "callback_gap_ms": 221.283,
+      "usb_error_to_callback_resume_ms": 297.4028265533448,
+      "wave_quiet_interval": {
+        "start_seconds": 27.646,
+        "end_seconds": 27.79,
+        "duration_ms": 144,
+        "preceding_100ms_peak_rms_dbfs": -26.35487629982424,
+        "following_100ms_peak_rms_dbfs": -25.25683033915287,
+        "surrounded_by_signal": true
+      },
+      "callback_resume_minus_wav_quiet_end_ms": 101.97182655334558
+    },
+    {
+      "usb_error_time": "2026-09-10T12:23:03.586345-07:00",
+      "usb_error_seconds": 71.289937,
+      "callback_match": true,
+      "wave_match": true,
+      "callback": 11400,
+      "callback_gap_ms": 225.218,
+      "usb_error_to_callback_resume_ms": 294.32417897034213,
+      "wave_quiet_interval": {
+        "start_seconds": 71.352,
+        "end_seconds": 71.48,
+        "duration_ms": 128,
+        "preceding_100ms_peak_rms_dbfs": -28.042645828213104,
+        "following_100ms_peak_rms_dbfs": -24.375118065907955,
+        "surrounded_by_signal": true
+      },
+      "callback_resume_minus_wav_quiet_end_ms": 104.26117897033294
+    },
+    {
+      "usb_error_time": "2026-09-10T12:23:49.117691-07:00",
+      "usb_error_seconds": 116.821283,
+      "callback_match": true,
+      "wave_match": true,
+      "callback": 15649,
+      "callback_gap_ms": 224.037,
+      "usb_error_to_callback_resume_ms": 299.4435853881896,
+      "wave_quiet_interval": {
+        "start_seconds": 116.859,
+        "end_seconds": 117.014,
+        "duration_ms": 155,
+        "preceding_100ms_peak_rms_dbfs": -25.71346625261834,
+        "following_100ms_peak_rms_dbfs": -25.60218195077894,
+        "surrounded_by_signal": true
+      },
+      "callback_resume_minus_wav_quiet_end_ms": 106.7265853881878
+    }
+  ],
+  "zlp_events": [],
+  "drift_events": []
+}

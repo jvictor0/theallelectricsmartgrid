@@ -1,0 +1,112 @@
+{
+  "method": "Refines already-identified long near-noise candidates using 8-sample local standard deviation <0.00015 and |mean|<0.01 in both channels. Includes low-level analog settling outside the -75 dBFS core; not a general proof against subtle clicks or periodic corruption.",
+  "intervals": [
+    {
+      "start_seconds": 36.521791666666665,
+      "end_seconds": 36.7485625,
+      "duration_ms": 226.77083333333334,
+      "near_noise_core_ms": 167
+    },
+    {
+      "start_seconds": 51.537083333333335,
+      "end_seconds": 51.75983333333333,
+      "duration_ms": 222.75,
+      "near_noise_core_ms": 154
+    },
+    {
+      "start_seconds": 72.90629166666666,
+      "end_seconds": 73.13079166666667,
+      "duration_ms": 224.5,
+      "near_noise_core_ms": 177
+    },
+    {
+      "start_seconds": 126.13177083333333,
+      "end_seconds": 126.36075,
+      "duration_ms": 228.97916666666666,
+      "near_noise_core_ms": 149
+    },
+    {
+      "start_seconds": 130.3465,
+      "end_seconds": 130.57627083333333,
+      "duration_ms": 229.77083333333334,
+      "near_noise_core_ms": 173
+    },
+    {
+      "start_seconds": 135.10633333333334,
+      "end_seconds": 135.33183333333332,
+      "duration_ms": 225.5,
+      "near_noise_core_ms": 136
+    },
+    {
+      "start_seconds": 151.69347916666666,
+      "end_seconds": 151.9205,
+      "duration_ms": 227.02083333333334,
+      "near_noise_core_ms": 225
+    },
+    {
+      "start_seconds": 159.51325,
+      "end_seconds": 159.74304166666667,
+      "duration_ms": 229.79166666666666,
+      "near_noise_core_ms": 165
+    },
+    {
+      "start_seconds": 164.20083333333332,
+      "end_seconds": 164.42666666666668,
+      "duration_ms": 225.83333333333334,
+      "near_noise_core_ms": 141
+    },
+    {
+      "start_seconds": 175.5893125,
+      "end_seconds": 175.81397916666666,
+      "duration_ms": 224.66666666666666,
+      "near_noise_core_ms": 129
+    },
+    {
+      "start_seconds": 208.1598125,
+      "end_seconds": 208.3888125,
+      "duration_ms": 229.0,
+      "near_noise_core_ms": 161
+    },
+    {
+      "start_seconds": 210.5108125,
+      "end_seconds": 210.736375,
+      "duration_ms": 225.5625,
+      "near_noise_core_ms": 126
+    },
+    {
+      "start_seconds": 232.185625,
+      "end_seconds": 232.41120833333332,
+      "duration_ms": 225.58333333333334,
+      "near_noise_core_ms": 138
+    },
+    {
+      "start_seconds": 235.34970833333333,
+      "end_seconds": 235.5755625,
+      "duration_ms": 225.85416666666666,
+      "near_noise_core_ms": 213
+    },
+    {
+      "start_seconds": 279.5198125,
+      "end_seconds": 279.7452916666667,
+      "duration_ms": 225.47916666666666,
+      "near_noise_core_ms": 177
+    },
+    {
+      "start_seconds": 288.55522916666666,
+      "end_seconds": 288.784875,
+      "duration_ms": 229.64583333333334,
+      "near_noise_core_ms": 182
+    },
+    {
+      "start_seconds": 357.8329375,
+      "end_seconds": 358.0578541666667,
+      "duration_ms": 224.91666666666666,
+      "near_noise_core_ms": 156
+    }
+  ],
+  "duration_ms_min_median_max": [
+    222.75,
+    225.83333333333334,
+    229.79166666666666
+  ]
+}

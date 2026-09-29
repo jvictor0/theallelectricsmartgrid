@@ -1,0 +1,12 @@
+{
+  "collected_local": "2026-09-10T12:18:40.144042-07:00",
+  "device_log": "2026-09-10T11-27-16-058.log",
+  "remote_size": 40147115,
+  "tail_start_byte": 38147115,
+  "tail_bytes": 2000000,
+  "thermal_states": {
+    "2": 137
+  },
+  "first_thermal_anchor": "12:11:48 127964672 Message Audio system t_us=160970703740 wall_ms=1789067508959 thermal=2 low_power=0 (thermal: 0=nominal 1=fair 2=serious 3=critical)",
+  "last_thermal_anchor": "12:14:05 134531584 Message Audio system t_us=161107513782 wall_ms=1789067645772 thermal=2 low_power=0 (thermal: 0=nominal 1=fair 2=serious 3=critical)"
+}

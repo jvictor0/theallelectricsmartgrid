@@ -1,0 +1,113 @@
+{
+  "meta": {
+    "collection_started_local": "2026-09-10T15:46:04.217706-07:00",
+    "purpose": "User reports few dropouts during the last20minutes; inspect current session without changing the app.",
+    "latest_app_log": "2026-09-10T15-08-40-481.log",
+    "app_log_bytes": 32519454,
+    "same_log_as_worker_routing_trial": true,
+    "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+    "current_pid": 19365,
+    "collection_ended_local": "2026-09-10T15:46:12.582781-07:00"
+  },
+  "unchanged_startup_markers": [
+    "15:08:45 0 Message Audio experiment juce_version=JUCE v8.0.15",
+    "15:08:45 0 Message Audio experiment audio_mode=normal ui_render=1 transport_autostart=1",
+    "15:08:45 0 Message Audio setup requested_sr=48000 requested_block=512 actual_sr=48000 actual_block=512",
+    "15:08:45 0 Message Audio input test: requested_inputs=0 active_inputs=0 active_outputs=4; absent DSP inputs are zero",
+    "15:08:45 0 Message Audio test mode=normal; normal callback processing enabled"
+  ],
+  "recent_window_start": "2026-09-10T15:26:04-07:00",
+  "recent_window_end_exclusive": "2026-09-10T15:46:04-07:00",
+  "recent_callbacks": 112503,
+  "sample_rates": [
+    48000.0
+  ],
+  "frame_sizes": [
+    512.0
+  ],
+  "muted_states": [
+    0.0
+  ],
+  "thermal_states": [
+    2.0
+  ],
+  "sequence_holes": 0,
+  "dsp_ms_p50_p99_max": [
+    4.667,
+    5.121,
+    6.048
+  ],
+  "measured_dsp_overruns": 0,
+  "recent_native_xrun_increments": [],
+  "recent_long_callback_gaps": [],
+  "recent_gap_gt20ms_count": 0,
+  "latest_callback": {
+    "time": "2026-09-10T15:46:05-07:00",
+    "cb": 209506.0,
+    "gap_us": 10662.0,
+    "dsp_us": 3767.0,
+    "n": 512.0,
+    "sr": 48000.0,
+    "xr": 23.0,
+    "thermal": 2.0,
+    "muted": 0.0
+  },
+  "last_native_xrun_increment": {
+    "time": "2026-09-10T15:21:37-07:00",
+    "cb": 71864.0,
+    "gap_us": 220475.0,
+    "dsp_us": 3752.0,
+    "n": 512.0,
+    "sr": 48000.0,
+    "xr": 23.0,
+    "thermal": 0.0,
+    "muted": 0.0
+  },
+  "all_thermal_transitions": [
+    {
+      "time": "2026-09-10T15:08:45-07:00",
+      "from": -1.0,
+      "to": 0.0
+    },
+    {
+      "time": "2026-09-10T15:21:47-07:00",
+      "from": 0.0,
+      "to": 2.0
+    }
+  ],
+  "latest_system_sample": {
+    "time": "2026-09-10T15:46:04-07:00",
+    "t_us": 173826383864.0,
+    "wall_ms": 1789080364638.0,
+    "thermal": 2.0,
+    "low_power": 0.0
+  },
+  "latest_midi_sample": {
+    "time": "2026-09-10T15:46:04-07:00",
+    "enabled": 1,
+    "running": 1,
+    "queued": 3,
+    "discarded": 0,
+    "sysex_queued": 0,
+    "sysex_enqueued": 93313,
+    "sysex_submitted": 93313,
+    "sysex_full": 0,
+    "sysex_discarded": 0,
+    "sysex_invalid": 0
+  },
+  "recent_midi_samples": 1192,
+  "recent_worker_all_enabled_running": true,
+  "recent_sysex_full_range": [
+    0,
+    0
+  ],
+  "recent_sysex_invalid_range": [
+    0,
+    0
+  ],
+  "recent_sysex_submissions": 50114,
+  "interpretation_limit": "This is a live app-trace follow-up, not a new analog recording or USB system-archive correlation. Native xr and callback gaps track the previously correlated long-failure signature; a quiet trace cannot exclude periodic output damage or every audible click. Selection uses one-second displayed log timestamps and ends before this read-only device query.",
+  "latest_output_route": "15:46:04 107226028 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+  "logger_miss_lines": [],
+  "user_observation": "At approximately15:44 PDT user reports hearing very few dropouts while sitting with the app for about20minutes and asks what is running."
+}

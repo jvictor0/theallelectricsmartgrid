@@ -1,0 +1,694 @@
+{
+  "created_local": "2026-09-10T17:38:10.710045-07:00",
+  "scope": "Archived evidence only: no device queries, experiments, build or repository changes. Bounded log-show decodes of saved archives; decoded raw evidence preserved.",
+  "answer": "Thermal/power telemetry was saved indirectly in system archives, but SonoBus and long Drambo have no recovered in-run absolute public thermal classification. They cannot be certified HOT or continuously nominal. Battery sensor values and charging histories are recoverable.",
+  "controls": {
+    "sonobus": {
+      "start": "2026-09-10 13:25:49.141815-0700",
+      "end": "2026-09-10 14:25:49.141815-0700",
+      "archive": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.logarchive",
+      "duration_seconds": 3600,
+      "steady_seconds": 3555,
+      "settings": "MAYA 48000 Hz, actual aggregate 256 frames; app active channel masks and native callback frame distribution unknown.",
+      "output": "Retained analog recording; zero >=20 ms near-silence candidates, zero short/long flat candidates or dense periodic episodes; zero USB transaction failures/restart/zero-length/ioDrift matches.",
+      "thermal": "No in-run absolute public thermal-state or OS pressure value found. No relevant transition found. NOT established hot and NOT established continuously nominal.",
+      "original_report": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-sonobus-control.md",
+      "callback_trace_available": false,
+      "thermal_evidence": [],
+      "power": {
+        "samples_in_window": 182,
+        "first_timestamp": "2026-09-10 13:25:51.985654-0700",
+        "last_timestamp": "2026-09-10 14:25:37.140911-0700",
+        "maximum_sample_spacing_seconds": 20.087822,
+        "states": [
+          {
+            "external_connected": 1.0,
+            "battery_charging": 0.0,
+            "fully_charged": 1.0
+          },
+          {
+            "external_connected": 1.0,
+            "battery_charging": 1.0,
+            "fully_charged": 0.0
+          }
+        ],
+        "transition_and_endpoint_evidence": [
+          {
+            "source_path": "/private/tmp/smartgrid-sonobus-thermal-broad-audit-20260910.json",
+            "source_json_index": 82,
+            "source_timestamp_line": 2557,
+            "timestamp": "2026-09-10 13:25:51.985654-0700",
+            "process": "symptomsd",
+            "message": "Power: battery-percentage 100.00 battery-power-connected 1 battery-charging 1 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 10137 battery-voltage-mV 4328 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 0 battery-temperature 3009 screen-brightness 600000 battery-raw-current-capacity 9410 battery-raw-maximum-capacity 9506 presentDOD 0"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-sonobus-thermal-broad-audit-20260910.json",
+            "source_json_index": 118,
+            "source_timestamp_line": 3670,
+            "timestamp": "2026-09-10 13:30:38.212169-0700",
+            "process": "symptomsd",
+            "message": "Power: battery-percentage 100.00 battery-power-connected 1 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 10092 battery-voltage-mV 4319 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 1 battery-temperature 2969 screen-brightness 600000 battery-raw-current-capacity 9470 battery-raw-maximum-capacity 9470 presentDOD 0"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-sonobus-thermal-broad-audit-20260910.json",
+            "source_json_index": 324,
+            "source_timestamp_line": 10053,
+            "timestamp": "2026-09-10 14:25:37.140911-0700",
+            "process": "symptomsd",
+            "message": "Power: battery-percentage 100.00 battery-power-connected 1 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 10092 battery-voltage-mV 4310 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 1 battery-temperature 2879 screen-brightness 600000 battery-raw-current-capacity 9469 battery-raw-maximum-capacity 9470 presentDOD 0"
+          }
+        ],
+        "battery_temperature_raw_min": 2869.0,
+        "battery_temperature_raw_max": 3009.0,
+        "battery_temperature_raw_first": 3009.0,
+        "battery_temperature_raw_last": 2879.0,
+        "battery_temperature_min_evidence": {
+          "source_path": "/private/tmp/smartgrid-sonobus-thermal-broad-audit-20260910.json",
+          "source_json_index": 218,
+          "source_timestamp_line": 6767,
+          "timestamp": "2026-09-10 13:50:18.016226-0700",
+          "process": "symptomsd",
+          "message": "Power: battery-percentage 100.00 battery-power-connected 1 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 10092 battery-voltage-mV 4311 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 1 battery-temperature 2869 screen-brightness 600000 battery-raw-current-capacity 9469 battery-raw-maximum-capacity 9470 presentDOD 0"
+        },
+        "battery_temperature_max_evidence": {
+          "source_path": "/private/tmp/smartgrid-sonobus-thermal-broad-audit-20260910.json",
+          "source_json_index": 82,
+          "source_timestamp_line": 2557,
+          "timestamp": "2026-09-10 13:25:51.985654-0700",
+          "process": "symptomsd",
+          "message": "Power: battery-percentage 100.00 battery-power-connected 1 battery-charging 1 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 10137 battery-voltage-mV 4328 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 0 battery-temperature 3009 screen-brightness 600000 battery-raw-current-capacity 9410 battery-raw-maximum-capacity 9506 presentDOD 0"
+        },
+        "temperature_unit_note": "Likely hundredths of Celsius (e.g. 3009 -> 30.09 C), but unit/calibration not verified from this private log field. Battery temperature is not SoC/junction, enclosure, hub or MAYA temperature and does not establish NSProcessInfo thermalState.",
+        "charging_policy_messages": [
+          {
+            "source_path": "/private/tmp/smartgrid-sonobus-thermal-broad-audit-20260910.json",
+            "source_json_index": 114,
+            "source_timestamp_line": 3546,
+            "timestamp": "2026-09-10 13:30:35.556775-0700",
+            "process": "kernel",
+            "message": "[SMC:charger.cpp:3203] Not charging:1"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-sonobus-thermal-broad-audit-20260910.json",
+            "source_json_index": 138,
+            "source_timestamp_line": 4289,
+            "timestamp": "2026-09-10 13:30:38.556739-0700",
+            "process": "kernel",
+            "message": "[SMC:charger.cpp:3203] Not charging:1"
+          }
+        ]
+      },
+      "thermal_daemon_log_coverage": {
+        "rows_in_window": 1449,
+        "first_timestamp": "2026-09-10 13:25:52.041513-0700",
+        "last_timestamp": "2026-09-10 14:25:47.050536-0700",
+        "maximum_spacing_seconds": 5.047928,
+        "note": "Mostly repeated cpu-avg-limiter-input-w2r property-read errors. They show daemon logging was present, not the absolute thermal pressure or completeness of change logging."
+      },
+      "decoded_window_coverage": {
+        "broad_first": "2026-09-10 13:15:31.967970-0700",
+        "broad_last": "2026-09-10 14:26:57.143525-0700",
+        "narrow_first": "2026-09-10 13:15:22.036792-0700",
+        "narrow_last": "2026-09-10 14:26:57.052723-0700"
+      },
+      "clock_note": "OS logs use iPad wall-clock timestamps; analog comparison uses nominal cross-device clock alignment, not a shared sample clock. SonoBus log show warned of wall-clock adjustment; rows filtered individually by timestamp."
+    },
+    "drambo-long": {
+      "start": "2026-09-09 18:19:48.014000-0700",
+      "end": "2026-09-09 18:32:58.787000-0700",
+      "archive": "/private/tmp/smartgrid-ipad-20260909-3.logarchive",
+      "duration_seconds": 790.773,
+      "settings": "MAYA 48000 Hz, four-channel RemoteIO input/output formats. Actual callback frame size unknown.",
+      "output": "User clean listening report; no analog recording. Zero settled USB errors/restarts/rate changes/zero-length warnings. 351 USB timestamp diagnostics.",
+      "thermal": "No in-run absolute public thermal-state or OS pressure value found. Earlier 18:04:36.650059 app-termination context explicitly nominal, about 15 min before this run; no in-run continuous classification.",
+      "original_report": "/private/tmp/smartgrid-long-drambo-report.md",
+      "callback_trace_available": false,
+      "thermal_evidence": [
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+          "source_json_index": 444,
+          "source_timestamp_line": 13742,
+          "timestamp": "2026-09-09 18:04:36.650059-0700",
+          "process": "launchd",
+          "message": "exited with exit reason (namespace: 10 code: 0xdeadfa11) - OS_REASON_SPRINGBOARD | <RBSTerminateContext| domain:10 code:0xDEADFA11 explanation:killed from app switcher\n\nProcessVisibility: Background\nProcessState: Suspended\nThermalInfo: (\n    \"Thermal Level:   0\",\n    \"Thermal State:   nominal\"\n) reportType:None maxTerminationResistance:Interactive>, ran for 1768101ms"
+        }
+      ],
+      "power": {
+        "samples_in_window": 40,
+        "first_timestamp": "2026-09-09 18:19:57.148909-0700",
+        "last_timestamp": "2026-09-09 18:32:57.132588-0700",
+        "maximum_sample_spacing_seconds": 20.027289,
+        "states": [
+          {
+            "external_connected": 1.0,
+            "battery_charging": 0.0,
+            "fully_charged": 1.0
+          }
+        ],
+        "transition_and_endpoint_evidence": [
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 931,
+            "source_timestamp_line": 28809,
+            "timestamp": "2026-09-09 18:19:57.148909-0700",
+            "process": "symptomsd",
+            "message": "Power: battery-percentage 100.00 battery-power-connected 1 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 9662 battery-voltage-mV 4252 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 1 battery-temperature 3019 screen-brightness 500000 battery-raw-current-capacity 9048 battery-raw-maximum-capacity 9463 presentDOD 0"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 990,
+            "source_timestamp_line": 30636,
+            "timestamp": "2026-09-09 18:32:57.132588-0700",
+            "process": "symptomsd",
+            "message": "Power: battery-percentage 100.00 battery-power-connected 1 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 9662 battery-voltage-mV 4254 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 1 battery-temperature 2969 screen-brightness 500000 battery-raw-current-capacity 9048 battery-raw-maximum-capacity 9463 presentDOD 0"
+          }
+        ],
+        "battery_temperature_raw_min": 2969.0,
+        "battery_temperature_raw_max": 3019.0,
+        "battery_temperature_raw_first": 3019.0,
+        "battery_temperature_raw_last": 2969.0,
+        "battery_temperature_min_evidence": {
+          "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+          "source_json_index": 984,
+          "source_timestamp_line": 30450,
+          "timestamp": "2026-09-09 18:30:57.174037-0700",
+          "process": "symptomsd",
+          "message": "Power: battery-percentage 100.00 battery-power-connected 1 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 9662 battery-voltage-mV 4254 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 1 battery-temperature 2969 screen-brightness 500000 battery-raw-current-capacity 9048 battery-raw-maximum-capacity 9463 presentDOD 0"
+        },
+        "battery_temperature_max_evidence": {
+          "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+          "source_json_index": 931,
+          "source_timestamp_line": 28809,
+          "timestamp": "2026-09-09 18:19:57.148909-0700",
+          "process": "symptomsd",
+          "message": "Power: battery-percentage 100.00 battery-power-connected 1 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 9662 battery-voltage-mV 4252 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 1 battery-temperature 3019 screen-brightness 500000 battery-raw-current-capacity 9048 battery-raw-maximum-capacity 9463 presentDOD 0"
+        },
+        "temperature_unit_note": "Likely hundredths of Celsius (e.g. 3009 -> 30.09 C), but unit/calibration not verified from this private log field. Battery temperature is not SoC/junction, enclosure, hub or MAYA temperature and does not establish NSProcessInfo thermalState.",
+        "charging_policy_messages": [
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 53,
+            "source_timestamp_line": 1664,
+            "timestamp": "2026-09-09 17:39:52.840391-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Disconnected VBUS:0 UISOC:100 CHNC:1 Type:0 TLC:Wed Sep  9 17:39:52 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 293,
+            "source_timestamp_line": 9087,
+            "timestamp": "2026-09-09 17:59:32.415984-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Charging Completed VBUS:1 UISOC:100 CHNC:81 Type:0 TLC:Wed Sep  9 17:59:32 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 428,
+            "source_timestamp_line": 13246,
+            "timestamp": "2026-09-09 17:59:32.970947-0700",
+            "process": "kernel",
+            "message": "[SMC:charger.cpp:3203] Not charging:1"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 507,
+            "source_timestamp_line": 15691,
+            "timestamp": "2026-09-09 18:11:14.063299-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Disconnected VBUS:0 UISOC:100 CHNC:81 Type:0 TLC:Wed Sep  9 18:11:14 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 616,
+            "source_timestamp_line": 19064,
+            "timestamp": "2026-09-09 18:11:20.488006-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Charging Completed VBUS:1 UISOC:100 CHNC:81 Type:0 TLC:Wed Sep  9 18:11:20 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 665,
+            "source_timestamp_line": 20580,
+            "timestamp": "2026-09-09 18:11:21.970823-0700",
+            "process": "kernel",
+            "message": "[SMC:charger.cpp:3203] Not charging:1"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 748,
+            "source_timestamp_line": 23148,
+            "timestamp": "2026-09-09 18:19:21.258059-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Disconnected VBUS:0 UISOC:100 CHNC:81 Type:0 TLC:Wed Sep  9 18:19:21 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 873,
+            "source_timestamp_line": 27015,
+            "timestamp": "2026-09-09 18:19:37.813194-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Charging Completed VBUS:1 UISOC:100 CHNC:81 Type:0 TLC:Wed Sep  9 18:19:37 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 930,
+            "source_timestamp_line": 28778,
+            "timestamp": "2026-09-09 18:19:37.970834-0700",
+            "process": "kernel",
+            "message": "[SMC:charger.cpp:3203] Not charging:1"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 997,
+            "source_timestamp_line": 30853,
+            "timestamp": "2026-09-09 18:32:58.979707-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Disconnected VBUS:0 UISOC:100 CHNC:81 Type:0 TLC:Wed Sep  9 18:32:58 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 1128,
+            "source_timestamp_line": 34905,
+            "timestamp": "2026-09-09 18:33:04.602739-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Charging Completed VBUS:1 UISOC:100 CHNC:81 Type:0 TLC:Wed Sep  9 18:33:04 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+            "source_json_index": 1177,
+            "source_timestamp_line": 36421,
+            "timestamp": "2026-09-09 18:33:05.932082-0700",
+            "process": "kernel",
+            "message": "[SMC:charger.cpp:3203] Not charging:1"
+          }
+        ]
+      },
+      "thermal_daemon_log_coverage": {
+        "rows_in_window": 319,
+        "first_timestamp": "2026-09-09 18:19:52.456266-0700",
+        "last_timestamp": "2026-09-09 18:32:57.413380-0700",
+        "maximum_spacing_seconds": 5.005611,
+        "note": "Mostly repeated cpu-avg-limiter-input-w2r property-read errors. They show daemon logging was present, not the absolute thermal pressure or completeness of change logging."
+      },
+      "decoded_window_coverage": {
+        "broad_first": "2026-09-09 17:33:33.062031-0700",
+        "broad_last": "2026-09-09 18:33:13.691639-0700",
+        "narrow_first": "2026-09-09 18:00:02.454984-0700",
+        "narrow_last": "2026-09-09 18:33:17.416950-0700"
+      },
+      "clock_note": "OS events use iPad timestamps; recorder-to-iPad correlation is wall-clock/event alignment rather than hardware synchronization. In short run only SmartGrid gaps support fitted 0.145307 s offset, 12.368 ppm drift, 2.088 ms maximum residual; Drambo has no callback trace."
+    },
+    "drambo-short": {
+      "start": "2026-09-09 22:05:52.697000-0700",
+      "end": "2026-09-09 22:09:39.679000-0700",
+      "archive": "/private/tmp/smartgrid-ipad-20260909-5.logarchive",
+      "duration_seconds": 226.982,
+      "settings": "MAYA 48000 Hz; Drambo exact callback frame size unknown. Immediately follows SmartGrid at verified 48k/512, zero app inputs/four outputs on same connected hardware.",
+      "output": "Analog capture plus logs: no >=20 ms near-flat gap and zero settled USB errors/restarts. Subtle periodic-hole exclusion is less strong than SonoBus modern full-duration detector result.",
+      "thermal": "No in-run NSProcessInfo trace. thermalmonitord mTLL/kernel thermal-level went 2 to 1 at 22:06:47.29 and 1 to 0 at 22:07:12.29; NOT the NSProcessInfo 0\u20133 scale. Previous SmartGrid app trace nominal; 22:09:50.835094 post-run termination context explicitly nominal.",
+      "original_report": "/private/tmp/smartgrid-ipad-no-input-analysis/report.md",
+      "callback_trace_available": false,
+      "thermal_evidence": [
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-audit-20260910.json",
+          "source_json_index": 118,
+          "source_timestamp_line": 3682,
+          "timestamp": "2026-09-09 22:04:12.293238-0700",
+          "process": "thermalmonitord",
+          "message": "<Notice> mTLL = 2"
+        },
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-audit-20260910.json",
+          "source_json_index": 182,
+          "source_timestamp_line": 5666,
+          "timestamp": "2026-09-09 22:06:47.294639-0700",
+          "process": "thermalmonitord",
+          "message": "<Notice> mTLL = 1"
+        },
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-audit-20260910.json",
+          "source_json_index": 194,
+          "source_timestamp_line": 6038,
+          "timestamp": "2026-09-09 22:07:12.295366-0700",
+          "process": "thermalmonitord",
+          "message": "<Notice> mTLL = 0"
+        },
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+          "source_json_index": 1546,
+          "source_timestamp_line": 47900,
+          "timestamp": "2026-09-09 22:09:50.835094-0700",
+          "process": "SpringBoard",
+          "message": "Sending terminate request: <RBSTerminateRequest| predicate:<RBSProcessPredicate <RBSProcessHandlePredicateImpl| app<com.theallelectricsmartgrid.smartgridone(1F41222D-2A59-442C-8218-5AB943B89696)>:12931>> allow:(null) context:<RBSTerminateContext| domain:10 code:0xDEADFA11 explanation:killed from app switcher\n\nProcessVisibility: Background\nProcessState: Suspended\nThermalInfo: (\n    \"Thermal Level:   0\",\n    \"Thermal State:   nominal\"\n) reportType:None maxTerminationResistance:Interactive>>"
+        },
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+          "source_json_index": 1547,
+          "source_timestamp_line": 47931,
+          "timestamp": "2026-09-09 22:09:50.865868-0700",
+          "process": "launchd",
+          "message": "exited with exit reason (namespace: 10 code: 0xdeadfa11) - OS_REASON_SPRINGBOARD | <RBSTerminateContext| domain:10 code:0xDEADFA11 explanation:killed from app switcher\n\nProcessVisibility: Background\nProcessState: Suspended\nThermalInfo: (\n    \"Thermal Level:   0\",\n    \"Thermal State:   nominal\"\n) reportType:None maxTerminationResistance:Interactive>, ran for 428603ms"
+        },
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+          "source_json_index": 376,
+          "source_timestamp_line": 11657,
+          "timestamp": "2026-09-09 22:04:12.293709-0700",
+          "process": "kernel",
+          "message": "performSpecificCommandGated: Thermal level changed: 2 (Current thermal level: 0)"
+        },
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+          "source_json_index": 377,
+          "source_timestamp_line": 11688,
+          "timestamp": "2026-09-09 22:04:12.293774-0700",
+          "process": "biometrickitd",
+          "message": "Thermal level: 2"
+        },
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+          "source_json_index": 1215,
+          "source_timestamp_line": 37663,
+          "timestamp": "2026-09-09 22:06:47.296075-0700",
+          "process": "kernel",
+          "message": "performSpecificCommandGated: Thermal level changed: 1 (Current thermal level: 2)"
+        },
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+          "source_json_index": 1217,
+          "source_timestamp_line": 37725,
+          "timestamp": "2026-09-09 22:06:47.296208-0700",
+          "process": "biometrickitd",
+          "message": "Thermal level: 1"
+        },
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+          "source_json_index": 1241,
+          "source_timestamp_line": 38466,
+          "timestamp": "2026-09-09 22:07:12.296629-0700",
+          "process": "kernel",
+          "message": "performSpecificCommandGated: Thermal level changed: 0 (Current thermal level: 1)"
+        },
+        {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+          "source_json_index": 1243,
+          "source_timestamp_line": 38528,
+          "timestamp": "2026-09-09 22:07:12.296737-0700",
+          "process": "biometrickitd",
+          "message": "Thermal level: 0"
+        }
+      ],
+      "power": {
+        "samples_in_window": 12,
+        "first_timestamp": "2026-09-09 22:06:12.159923-0700",
+        "last_timestamp": "2026-09-09 22:09:32.146201-0700",
+        "maximum_sample_spacing_seconds": 20.006474,
+        "states": [
+          {
+            "external_connected": 1.0,
+            "battery_charging": 0.0,
+            "fully_charged": 0.0
+          },
+          {
+            "external_connected": 1.0,
+            "battery_charging": 1.0,
+            "fully_charged": 0.0
+          }
+        ],
+        "transition_and_endpoint_evidence": [
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 1014,
+            "source_timestamp_line": 31432,
+            "timestamp": "2026-09-09 22:06:12.159923-0700",
+            "process": "symptomsd",
+            "message": "Power: battery-percentage 83.00 battery-power-connected 1 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 8361 battery-voltage-mV 4111 battery-current-capacity-% 83 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 0 battery-temperature 3379 screen-brightness 500000 battery-raw-current-capacity 8062 battery-raw-maximum-capacity 9803 presentDOD 0"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 1306,
+            "source_timestamp_line": 40477,
+            "timestamp": "2026-09-09 22:08:32.149220-0700",
+            "process": "symptomsd",
+            "message": "Power: battery-percentage 83.00 battery-power-connected 1 battery-charging 1 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 8361 battery-voltage-mV 4145 battery-current-capacity-% 83 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 0 battery-temperature 3259 screen-brightness 500000 battery-raw-current-capacity 7763 battery-raw-maximum-capacity 9503 presentDOD 0"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 1335,
+            "source_timestamp_line": 41373,
+            "timestamp": "2026-09-09 22:09:32.146201-0700",
+            "process": "symptomsd",
+            "message": "Power: battery-percentage 83.00 battery-power-connected 1 battery-charging 1 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 8420 battery-voltage-mV 4204 battery-current-capacity-% 83 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 0 battery-temperature 3289 screen-brightness 500000 battery-raw-current-capacity 7821 battery-raw-maximum-capacity 9503 presentDOD 0"
+          }
+        ],
+        "battery_temperature_raw_min": 3259.0,
+        "battery_temperature_raw_max": 3379.0,
+        "battery_temperature_raw_first": 3379.0,
+        "battery_temperature_raw_last": 3289.0,
+        "battery_temperature_min_evidence": {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+          "source_json_index": 1306,
+          "source_timestamp_line": 40477,
+          "timestamp": "2026-09-09 22:08:32.149220-0700",
+          "process": "symptomsd",
+          "message": "Power: battery-percentage 83.00 battery-power-connected 1 battery-charging 1 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 8361 battery-voltage-mV 4145 battery-current-capacity-% 83 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 0 battery-temperature 3259 screen-brightness 500000 battery-raw-current-capacity 7763 battery-raw-maximum-capacity 9503 presentDOD 0"
+        },
+        "battery_temperature_max_evidence": {
+          "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+          "source_json_index": 1014,
+          "source_timestamp_line": 31432,
+          "timestamp": "2026-09-09 22:06:12.159923-0700",
+          "process": "symptomsd",
+          "message": "Power: battery-percentage 83.00 battery-power-connected 1 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 8361 battery-voltage-mV 4111 battery-current-capacity-% 83 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 0 battery-fully-charged 0 battery-temperature 3379 screen-brightness 500000 battery-raw-current-capacity 8062 battery-raw-maximum-capacity 9803 presentDOD 0"
+        },
+        "temperature_unit_note": "Likely hundredths of Celsius (e.g. 3009 -> 30.09 C), but unit/calibration not verified from this private log field. Battery temperature is not SoC/junction, enclosure, hub or MAYA temperature and does not establish NSProcessInfo thermalState.",
+        "charging_policy_messages": [
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 27,
+            "source_timestamp_line": 861,
+            "timestamp": "2026-09-09 22:00:49.816068-0700",
+            "process": "kernel",
+            "message": "[SMC:charger.cpp:3203] Not charging:100"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 123,
+            "source_timestamp_line": 3828,
+            "timestamp": "2026-09-09 22:02:18.414749-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Disconnected VBUS:0 UISOC:83 CHNC:180 Type:0 TLC:Wed Sep  9 22:01:06 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 268,
+            "source_timestamp_line": 8312,
+            "timestamp": "2026-09-09 22:02:32.098127-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Charging VBUS:1 UISOC:83 CHNC:80 Type:0 TLC:Wed Sep  9 22:02:32 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 323,
+            "source_timestamp_line": 10014,
+            "timestamp": "2026-09-09 22:02:32.816104-0700",
+            "process": "kernel",
+            "message": "[SMC:charger.cpp:3203] Not charging:100"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 1305,
+            "source_timestamp_line": 40446,
+            "timestamp": "2026-09-09 22:08:29.816129-0700",
+            "process": "kernel",
+            "message": "[SMC:charger.cpp:3203] Not charging:0"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 1344,
+            "source_timestamp_line": 41652,
+            "timestamp": "2026-09-09 22:09:39.925502-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Disconnected VBUS:0 UISOC:83 CHNC:80 Type:0 TLC:Wed Sep  9 22:09:39 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 1478,
+            "source_timestamp_line": 45795,
+            "timestamp": "2026-09-09 22:09:46.515377-0700",
+            "process": "powerd",
+            "message": "handleChargingStateUpdate State:Charging VBUS:1 UISOC:83 CHNC:80 Type:0 TLC:Wed Sep  9 22:09:46 2026"
+          },
+          {
+            "source_path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+            "source_json_index": 1527,
+            "source_timestamp_line": 47311,
+            "timestamp": "2026-09-09 22:09:47.815909-0700",
+            "process": "kernel",
+            "message": "[SMC:charger.cpp:3203] Not charging:0"
+          }
+        ]
+      },
+      "thermal_daemon_log_coverage": {
+        "rows_in_window": 92,
+        "first_timestamp": "2026-09-09 22:05:57.297938-0700",
+        "last_timestamp": "2026-09-09 22:09:37.301132-0700",
+        "maximum_spacing_seconds": 5.001491,
+        "note": "Mostly repeated cpu-avg-limiter-input-w2r property-read errors. They show daemon logging was present, not the absolute thermal pressure or completeness of change logging."
+      },
+      "decoded_window_coverage": {
+        "broad_first": "2026-09-09 22:00:06.101431-0700",
+        "broad_last": "2026-09-09 22:09:56.755696-0700",
+        "narrow_first": "2026-09-09 22:00:02.300494-0700",
+        "narrow_last": "2026-09-09 22:09:57.300658-0700"
+      },
+      "clock_note": "OS events use iPad timestamps; recorder-to-iPad correlation is wall-clock/event alignment rather than hardware synchronization. In short run only SmartGrid gaps support fitted 0.145307 s offset, 12.368 ppm drift, 2.088 ms maximum residual; Drambo has no callback trace."
+    }
+  },
+  "cross_app_drambo": {
+    "window": "2026-09-09 18:04:59\u201318:08:33 PDT; stable 48k from about18:05:31",
+    "duration_note": "About 3min34s app-active, about3min at48k, not an exact five-minute measured control. Earlier Mononoke interval lasted about5min17s.",
+    "thermal_note": "An18:04:36.650059 nominal termination context shortly precedes Drambo; no continuous Drambo NSProcessInfo trace. The long archive overlaps this prior interval and contains no pressure transition in it.",
+    "output": "0 stable USB failures in all3 apps including SmartGrid. Analog capture had two recorder-overrun warnings; subtle click classification uncertain.",
+    "source": "/private/tmp/smartgrid-cross-app-analysis/report.md"
+  },
+  "desktop": {
+    "window": "2026-09-09 18:41:09\u201319:41:09 PDT",
+    "duration_seconds": 3600,
+    "rate": 48000,
+    "frames": 512,
+    "callback_count": 337549,
+    "thermal_states": [
+      0
+    ],
+    "thermal_evidence": "Actual SmartGrid app trace nominal throughout; same public API interpretation on Mac, not iPad heat match.",
+    "power": "Mac mini on AC; iPad charging not applicable; MAYA/hub temperatures unmeasured.",
+    "analog": "Zero >=20ms near-flat gaps; prior report analyzed full WAV but full WAV since deleted per research evidence. Derived arrays/summary retained.",
+    "callback_trace_available": true,
+    "source": "/private/tmp/smartgrid-desktop-hour-analysis/summary.json"
+  },
+  "source_provenance_caution": "Installed SonoBus1.7.3/build90 and matching public source labels do not prove installed binary hash/source configuration; do not infer runtime settings/channel masks from public defaults.",
+  "interpretation_limits": [
+    "Clean controls establish a working alternate application/configuration on tested hardware; they do not isolate ownership of the fault.",
+    "SonoBus256 differs from SmartGrid512; Drambo callback size unobserved. All apps lack equivalent workload/MIDI/GUI/native callback instrumentation except desktop SmartGrid.",
+    "Thermal state is absent from control callback traces because those apps were not instrumented; absence of system pressure entries is not nominal.",
+    "Private mTLL/kernel thermal-level values are not NSProcessInfo enum values and cannot be relabelled fair/serious.",
+    "Charging properties disagree in service meaning: external connection, charger route state, battery current flow and PowerUIAgent policy state are separate. No instantaneous current measurement is inferred from a Boolean.",
+    "Session changes also reset/renegotiate USB audio; temporal/order and drift-state effects can accompany application changes. Prior short SmartGrid clean runs establish intermittency.",
+    "Hotter/lower-load/charging-complete controls, scheduler or DVFS policy, buffer size and channel/session topology remain plausible effect modifiers. Hub/MAYA temperature and rail stability were not measured.",
+    "Parent latest cooled-repeat evidence has21 failures including3after serious, with battery charging already off before all21; serious is not universally protective and charging cessation did not coincide with serious transition."
+  ],
+  "sources": [
+    {
+      "path": "/private/tmp/smartgrid-sonobus-thermal-broad-audit-20260910.json",
+      "bytes": 537228,
+      "sha256": "f72f77b82d14378ca0e9f8435c6e97582ab64fd526d51cb3fb727a97e11c91b3"
+    },
+    {
+      "path": "/private/tmp/smartgrid-sonobus-thermal-audit-20260910.json",
+      "bytes": 1760134,
+      "sha256": "387c80673610e58679c682aa19bf7540899b57c843cd4b46b839cbddeda8a795"
+    },
+    {
+      "path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.json",
+      "bytes": 1577940,
+      "sha256": "43f8f1e7d8577e71155cd8b77cf95ad3f557dbdf59f718d2a2ab25742db46a39"
+    },
+    {
+      "path": "/private/tmp/smartgrid-drambo-long-thermal-audit-20260910.json",
+      "bytes": 878496,
+      "sha256": "687ec7fabf2f1bec4c97f4653be4bbddb5354c8c8a6b643576927cc3789378e7"
+    },
+    {
+      "path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.json",
+      "bytes": 1840467,
+      "sha256": "e353ea76a57904d04e0929baeb1c8bbc40a0831eb779f42296b7aba488115c30"
+    },
+    {
+      "path": "/private/tmp/smartgrid-drambo-short-thermal-audit-20260910.json",
+      "bytes": 295157,
+      "sha256": "43789f1746787f8e1f996b7c6e4161c713a0c6ae235868722c22ae099d9ac845"
+    },
+    {
+      "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/2026-09-10-sonobus-control.md",
+      "bytes": 12470,
+      "sha256": "d689cebe79cadfe5b65dae138b9e940dd2103ed0d35c8949432a82495db4411a"
+    },
+    {
+      "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/docs/experiments/ipad-maya-audio/summaries/sonobus-hour-20260910-result.json",
+      "bytes": 6157,
+      "sha256": "21695d57cb46e320ab15437b6a0111d244719312fe16d91d7a41affc50b9fbbf"
+    },
+    {
+      "path": "/private/tmp/smartgrid-sonobus-preflight-20260910.json",
+      "bytes": 624,
+      "sha256": "5669ae643c59df6f86aaac8ec636618c9ce04a608eaf54adecb3af832ae0db04"
+    },
+    {
+      "path": "/private/tmp/smartgrid-long-drambo-report.md",
+      "bytes": 2808,
+      "sha256": "200aa18e9a8292d776b01b06440b0bf0f8ba3d9660808537bf53504c18577956"
+    },
+    {
+      "path": "/private/tmp/smartgrid-ipad-no-input-analysis/report.md",
+      "bytes": 4954,
+      "sha256": "afa61a8b7714bdc20e04ed2ffa0acd0c063a594fbc2811ccf13efcf2a46755cc"
+    },
+    {
+      "path": "/private/tmp/smartgrid-cross-app-analysis/report.md",
+      "bytes": 5850,
+      "sha256": "5a147d9fa632dd1633ee1266e45322570d6cf811b892cb4df8e816c757be460f"
+    },
+    {
+      "path": "/private/tmp/smartgrid-desktop-hour-analysis/report.md",
+      "bytes": 3169,
+      "sha256": "1e36ddf07f0fd0852f84d8ca125a61b0162b3ff6b515046ecc9f6a08ddf1cefd"
+    },
+    {
+      "path": "/private/tmp/smartgrid-desktop-hour-analysis/summary.json",
+      "bytes": 987,
+      "sha256": "a647fb88c6f8ab7d8683835023410ee9865bc0613e2696047746801f26787f66"
+    },
+    {
+      "path": "/private/tmp/smartgrid-sonobus-post-thermal-audit-20260910.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": "/private/tmp/smartgrid-sonobus-thermal-audit-20260910.stderr.log",
+      "bytes": 76,
+      "sha256": "1110e6f205528a69030630afcd3bd4adc1a9fefb5cd4eb90e4cd460ac5128f44"
+    },
+    {
+      "path": "/private/tmp/smartgrid-sonobus-thermal-broad-audit-20260910.stderr.log",
+      "bytes": 76,
+      "sha256": "1110e6f205528a69030630afcd3bd4adc1a9fefb5cd4eb90e4cd460ac5128f44"
+    },
+    {
+      "path": "/private/tmp/smartgrid-drambo-short-thermal-broad-audit-20260910.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/private/tmp/smartgrid-drambo-short-thermal-audit-20260910.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/private/tmp/smartgrid-drambo-long-thermal-audit-20260910.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/private/tmp/smartgrid-sonobus-post-thermal-audit-20260910.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/private/tmp/smartgrid-drambo-long-thermal-broad-audit-20260910.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "additional_search_note": "A bounded14:25\u201314:35 thermal query of the later MIDI-worker-off saved archive returned0 rows; it adds no classification or coverage guarantee."
+}

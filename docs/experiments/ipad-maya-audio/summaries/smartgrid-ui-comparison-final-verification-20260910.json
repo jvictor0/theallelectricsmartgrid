@@ -1,0 +1,16 @@
+{
+  "checked_local": "2026-09-10T11:33:58.698121-07:00",
+  "ui-on-r3": {
+    "wave_callback_usb_episodes_agree": true,
+    "rate_and_frames": true,
+    "full_evidence_present": true
+  },
+  "ui-off": {
+    "wave_callback_usb_episodes_agree": true,
+    "rate_and_frames": true,
+    "full_evidence_present": true
+  },
+  "report_links_verified": 12,
+  "wifi_preference_restored": true,
+  "active_recorders": []
+}

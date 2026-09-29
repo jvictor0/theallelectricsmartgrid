@@ -1,0 +1,116 @@
+{
+  "base": "/private/tmp/smartgrid-ipad-cooled-r1-20260910",
+  "matches": [
+    {
+      "usb_error_time": "2026-09-10T16:50:27.979949-07:00",
+      "perf_restrict_time": "2026-09-10 16:50:27.995195-0700",
+      "delay_ms": 15.245999999999999
+    },
+    {
+      "usb_error_time": "2026-09-10T16:50:49.399636-07:00",
+      "perf_restrict_time": "2026-09-10 16:50:49.414282-0700",
+      "delay_ms": 14.645999999999999
+    },
+    {
+      "usb_error_time": "2026-09-10T16:50:59.439450-07:00",
+      "perf_restrict_time": "2026-09-10 16:50:59.454146-0700",
+      "delay_ms": 14.696000000000002
+    },
+    {
+      "usb_error_time": "2026-09-10T16:51:18.607168-07:00",
+      "perf_restrict_time": "2026-09-10 16:51:18.621661-0700",
+      "delay_ms": 14.493
+    },
+    {
+      "usb_error_time": "2026-09-10T16:51:30.895017-07:00",
+      "perf_restrict_time": "2026-09-10 16:51:30.908900-0700",
+      "delay_ms": 13.883
+    },
+    {
+      "usb_error_time": "2026-09-10T16:52:25.538195-07:00",
+      "perf_restrict_time": "2026-09-10 16:52:25.553268-0700",
+      "delay_ms": 15.073
+    },
+    {
+      "usb_error_time": "2026-09-10T16:52:49.561826-07:00",
+      "perf_restrict_time": "2026-09-10 16:52:49.575622-0700",
+      "delay_ms": 13.796
+    },
+    {
+      "usb_error_time": "2026-09-10T16:54:00.648701-07:00",
+      "perf_restrict_time": "2026-09-10 16:54:00.664252-0700",
+      "delay_ms": 15.551
+    },
+    {
+      "usb_error_time": "2026-09-10T16:54:16.024426-07:00",
+      "perf_restrict_time": "2026-09-10 16:54:16.040047-0700",
+      "delay_ms": 15.620999999999999
+    },
+    {
+      "usb_error_time": "2026-09-10T16:54:22.380354-07:00",
+      "perf_restrict_time": "2026-09-10 16:54:22.394430-0700",
+      "delay_ms": 14.076
+    },
+    {
+      "usb_error_time": "2026-09-10T16:54:24.280324-07:00",
+      "perf_restrict_time": "2026-09-10 16:54:24.294886-0700",
+      "delay_ms": 14.562000000000001
+    },
+    {
+      "usb_error_time": "2026-09-10T16:55:14.115523-07:00",
+      "perf_restrict_time": "2026-09-10 16:55:14.130329-0700",
+      "delay_ms": 14.806
+    },
+    {
+      "usb_error_time": "2026-09-10T16:55:19.615393-07:00",
+      "perf_restrict_time": "2026-09-10 16:55:19.630183-0700",
+      "delay_ms": 14.79
+    },
+    {
+      "usb_error_time": "2026-09-10T16:55:32.611176-07:00",
+      "perf_restrict_time": "2026-09-10 16:55:32.630781-0700",
+      "delay_ms": 19.605
+    },
+    {
+      "usb_error_time": "2026-09-10T16:55:41.551023-07:00",
+      "perf_restrict_time": "2026-09-10 16:55:41.570777-0700",
+      "delay_ms": 19.754
+    },
+    {
+      "usb_error_time": "2026-09-10T16:56:13.582770-07:00",
+      "perf_restrict_time": "2026-09-10 16:56:13.597307-0700",
+      "delay_ms": 14.536999999999999
+    },
+    {
+      "usb_error_time": "2026-09-10T16:56:27.054253-07:00",
+      "perf_restrict_time": "2026-09-10 16:56:27.069874-0700",
+      "delay_ms": 15.620999999999999
+    },
+    {
+      "usb_error_time": "2026-09-10T16:56:29.118220-07:00",
+      "perf_restrict_time": "2026-09-10 16:56:29.133644-0700",
+      "delay_ms": 15.424
+    },
+    {
+      "usb_error_time": "2026-09-10T17:00:04.818440-07:00",
+      "perf_restrict_time": "2026-09-10 17:00:04.833478-0700",
+      "delay_ms": 15.037999999999998
+    },
+    {
+      "usb_error_time": "2026-09-10T17:03:28.094668-07:00",
+      "perf_restrict_time": "2026-09-10 17:03:28.109318-0700",
+      "delay_ms": 14.65
+    },
+    {
+      "usb_error_time": "2026-09-10T17:04:15.469755-07:00",
+      "perf_restrict_time": "2026-09-10 17:04:15.484595-0700",
+      "delay_ms": 14.840000000000002
+    }
+  ],
+  "delay_ms_range": [
+    13.796,
+    19.754
+  ],
+  "interpretation": "Restricted/Unrestricted pairs occur after each transaction error and accompany release/recreation of audio power assertions. They are not observed at the later serious-state transition, and do not establish its scheduling consequences.",
+  "charger_note": "Two private SMC Not charging codes100 and110 appear in both faulty cooled and measured-quiet hot runs. Do not decode reason bits or infer continuous current without documentation/measurement."
+}

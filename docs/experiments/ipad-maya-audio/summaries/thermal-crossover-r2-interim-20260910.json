@@ -1,0 +1,796 @@
+{
+  "checked_local": "2026-09-10T18:48:33.579586-07:00",
+  "replicate": 2,
+  "status": "incomplete nominal-return crossover; repeat3 cooling",
+  "A1": {
+    "app_log": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/r2.app.log",
+    "recording_metadata": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/r2.phase-A1.window.json",
+    "callbacks": 16695,
+    "sample_rates": [
+      48000.0
+    ],
+    "frame_sizes": [
+      512.0
+    ],
+    "thermal_states": [
+      0.0
+    ],
+    "low_power_states": [
+      0.0
+    ],
+    "muted_states": [
+      0.0
+    ],
+    "sequence_holes": 0,
+    "logger_miss_lines_entire_log": [],
+    "dsp_ms_p50_p99_max": [
+      4.741,
+      5.044,
+      15.095
+    ],
+    "gap_ms_p50_p99_max": [
+      10.667,
+      10.679,
+      225.257
+    ],
+    "measured_dsp_overruns": 2,
+    "xrun_start_end": [
+      0,
+      10
+    ],
+    "callback_gaps_gt20ms": [
+      {
+        "time": "2026-09-10T18:33:38.014540-07:00",
+        "recording_seconds": 27.090026140213013,
+        "callback": 6914,
+        "gap_us": 221494.0,
+        "dsp_us": 3831.0,
+        "xr": 1
+      },
+      {
+        "time": "2026-09-10T18:33:50.975183-07:00",
+        "recording_seconds": 40.05066895484924,
+        "callback": 8109,
+        "gap_us": 223889.0,
+        "dsp_us": 4984.0,
+        "xr": 2
+      },
+      {
+        "time": "2026-09-10T18:33:52.387436-07:00",
+        "recording_seconds": 41.46292233467102,
+        "callback": 8222,
+        "gap_us": 217549.0,
+        "dsp_us": 3737.0,
+        "xr": 3
+      },
+      {
+        "time": "2026-09-10T18:34:11.512435-07:00",
+        "recording_seconds": 60.587921380996704,
+        "callback": 9995,
+        "gap_us": 222547.0,
+        "dsp_us": 4833.0,
+        "xr": 4
+      },
+      {
+        "time": "2026-09-10T18:34:29.078487-07:00",
+        "recording_seconds": 78.15397310256958,
+        "callback": 11622,
+        "gap_us": 217940.0,
+        "dsp_us": 3716.0,
+        "xr": 5
+      },
+      {
+        "time": "2026-09-10T18:34:34.913663-07:00",
+        "recording_seconds": 83.98914885520935,
+        "callback": 12149,
+        "gap_us": 224040.0,
+        "dsp_us": 4931.0,
+        "xr": 6
+      },
+      {
+        "time": "2026-09-10T18:34:41.197708-07:00",
+        "recording_seconds": 90.27319359779358,
+        "callback": 12718,
+        "gap_us": 222745.0,
+        "dsp_us": 3778.0,
+        "xr": 7
+      },
+      {
+        "time": "2026-09-10T18:34:44.666152-07:00",
+        "recording_seconds": 93.74163818359375,
+        "callback": 13023,
+        "gap_us": 225257.0,
+        "dsp_us": 5045.0,
+        "xr": 8
+      },
+      {
+        "time": "2026-09-10T18:34:46.912117-07:00",
+        "recording_seconds": 95.98760342597961,
+        "callback": 13214,
+        "gap_us": 219209.0,
+        "dsp_us": 3792.0,
+        "xr": 9
+      },
+      {
+        "time": "2026-09-10T18:35:51.118385-07:00",
+        "recording_seconds": 160.19387078285217,
+        "callback": 19213,
+        "gap_us": 223937.0,
+        "dsp_us": 4969.0,
+        "xr": 10
+      }
+    ],
+    "xrun_increments": [
+      {
+        "time": "2026-09-10T18:33:38.014540-07:00",
+        "recording_seconds": 27.090026140213013,
+        "callback": 6914,
+        "gap_us": 221494.0,
+        "dsp_us": 3831.0,
+        "xr": 1
+      },
+      {
+        "time": "2026-09-10T18:33:50.975183-07:00",
+        "recording_seconds": 40.05066895484924,
+        "callback": 8109,
+        "gap_us": 223889.0,
+        "dsp_us": 4984.0,
+        "xr": 2
+      },
+      {
+        "time": "2026-09-10T18:33:52.387436-07:00",
+        "recording_seconds": 41.46292233467102,
+        "callback": 8222,
+        "gap_us": 217549.0,
+        "dsp_us": 3737.0,
+        "xr": 3
+      },
+      {
+        "time": "2026-09-10T18:34:11.512435-07:00",
+        "recording_seconds": 60.587921380996704,
+        "callback": 9995,
+        "gap_us": 222547.0,
+        "dsp_us": 4833.0,
+        "xr": 4
+      },
+      {
+        "time": "2026-09-10T18:34:29.078487-07:00",
+        "recording_seconds": 78.15397310256958,
+        "callback": 11622,
+        "gap_us": 217940.0,
+        "dsp_us": 3716.0,
+        "xr": 5
+      },
+      {
+        "time": "2026-09-10T18:34:34.913663-07:00",
+        "recording_seconds": 83.98914885520935,
+        "callback": 12149,
+        "gap_us": 224040.0,
+        "dsp_us": 4931.0,
+        "xr": 6
+      },
+      {
+        "time": "2026-09-10T18:34:41.197708-07:00",
+        "recording_seconds": 90.27319359779358,
+        "callback": 12718,
+        "gap_us": 222745.0,
+        "dsp_us": 3778.0,
+        "xr": 7
+      },
+      {
+        "time": "2026-09-10T18:34:44.666152-07:00",
+        "recording_seconds": 93.74163818359375,
+        "callback": 13023,
+        "gap_us": 225257.0,
+        "dsp_us": 5045.0,
+        "xr": 8
+      },
+      {
+        "time": "2026-09-10T18:34:46.912117-07:00",
+        "recording_seconds": 95.98760342597961,
+        "callback": 13214,
+        "gap_us": 219209.0,
+        "dsp_us": 3792.0,
+        "xr": 9
+      },
+      {
+        "time": "2026-09-10T18:35:51.118385-07:00",
+        "recording_seconds": 160.19387078285217,
+        "callback": 19213,
+        "gap_us": 223937.0,
+        "dsp_us": 4969.0,
+        "xr": 10
+      }
+    ],
+    "clock_offset_fit_slope": 7.315114442477672e-05,
+    "clock_fit_max_residual_ms": 13.502120971679688,
+    "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the native device counter."
+  },
+  "B1": {
+    "app_log": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/r2.app.log",
+    "recording_metadata": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/r2.phase-B1.window.json",
+    "callbacks": 16884,
+    "sample_rates": [
+      48000.0
+    ],
+    "frame_sizes": [
+      512.0
+    ],
+    "thermal_states": [
+      2.0
+    ],
+    "low_power_states": [
+      0.0
+    ],
+    "muted_states": [
+      0.0
+    ],
+    "sequence_holes": 0,
+    "logger_miss_lines_entire_log": [],
+    "dsp_ms_p50_p99_max": [
+      4.351,
+      5.104169999999998,
+      5.205
+    ],
+    "gap_ms_p50_p99_max": [
+      10.666,
+      10.675,
+      220.288
+    ],
+    "measured_dsp_overruns": 0,
+    "xrun_start_end": [
+      10,
+      11
+    ],
+    "callback_gaps_gt20ms": [
+      {
+        "time": "2026-09-10T18:37:54.737547-07:00",
+        "recording_seconds": 66.8194272518158,
+        "callback": 30782,
+        "gap_us": 220288.0,
+        "dsp_us": 3862.0,
+        "xr": 11
+      }
+    ],
+    "xrun_increments": [
+      {
+        "time": "2026-09-10T18:37:54.737547-07:00",
+        "recording_seconds": 66.8194272518158,
+        "callback": 30782,
+        "gap_us": 220288.0,
+        "dsp_us": 3862.0,
+        "xr": 11
+      }
+    ],
+    "clock_offset_fit_slope": 7.315114442477672e-05,
+    "clock_fit_max_residual_ms": 13.502120971679688,
+    "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the native device counter."
+  },
+  "A2": "Condition inactive but reported thermal remained2 for90seconds. No measured off/nominal block.",
+  "analog": "11post-startup long near-silence intervals;10in nominal measured block and1in inducedSerious, matching callback stalls by timing. System USB correlation pending.",
+  "periodic": {
+    "base": "/private/tmp/smartgrid-thermal-crossover-v2-20260910/r2",
+    "seconds": 542.1226666666666,
+    "short_candidates": 17,
+    "episodes": [],
+    "ten_second_windows": [
+      {
+        "start_seconds": 0,
+        "end_seconds": 10,
+        "holes": 4,
+        "holes_per_second": 0.4,
+        "flat_fraction": 0.0019770833333333333,
+        "median_width_ms": 1.1354166666666667,
+        "onset_spacing_ms_p10_p50_p90": [
+          119.55833333333335,
+          588.375,
+          1432.1416666666667
+        ]
+      },
+      {
+        "start_seconds": 10,
+        "end_seconds": 20,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 20,
+        "end_seconds": 30,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 30,
+        "end_seconds": 40,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 40,
+        "end_seconds": 50,
+        "holes": 1,
+        "holes_per_second": 0.1,
+        "flat_fraction": 5.4166666666666664e-05,
+        "median_width_ms": 0.5416666666666666,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 50,
+        "end_seconds": 60,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 60,
+        "end_seconds": 70,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 70,
+        "end_seconds": 80,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 80,
+        "end_seconds": 90,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 90,
+        "end_seconds": 100,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 100,
+        "end_seconds": 110,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 110,
+        "end_seconds": 120,
+        "holes": 2,
+        "holes_per_second": 0.2,
+        "flat_fraction": 0.0001125,
+        "median_width_ms": 0.5625,
+        "onset_spacing_ms_p10_p50_p90": [
+          5399.833333333333,
+          5399.833333333333,
+          5399.833333333333
+        ]
+      },
+      {
+        "start_seconds": 120,
+        "end_seconds": 130,
+        "holes": 2,
+        "holes_per_second": 0.2,
+        "flat_fraction": 0.00012083333333333333,
+        "median_width_ms": 0.6041666666666666,
+        "onset_spacing_ms_p10_p50_p90": [
+          1312.1458333333333,
+          1312.1458333333333,
+          1312.1458333333333
+        ]
+      },
+      {
+        "start_seconds": 130,
+        "end_seconds": 140,
+        "holes": 1,
+        "holes_per_second": 0.1,
+        "flat_fraction": 4.375e-05,
+        "median_width_ms": 0.4375,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 140,
+        "end_seconds": 150,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 150,
+        "end_seconds": 160,
+        "holes": 1,
+        "holes_per_second": 0.1,
+        "flat_fraction": 5.4166666666666664e-05,
+        "median_width_ms": 0.5416666666666666,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 160,
+        "end_seconds": 170,
+        "holes": 2,
+        "holes_per_second": 0.2,
+        "flat_fraction": 0.0020583333333333335,
+        "median_width_ms": 10.291666666666666,
+        "onset_spacing_ms_p10_p50_p90": [
+          21.333333333333332,
+          21.333333333333332,
+          21.333333333333332
+        ]
+      },
+      {
+        "start_seconds": 170,
+        "end_seconds": 180,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 180,
+        "end_seconds": 190,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 190,
+        "end_seconds": 200,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 200,
+        "end_seconds": 210,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 210,
+        "end_seconds": 220,
+        "holes": 1,
+        "holes_per_second": 0.1,
+        "flat_fraction": 7.916666666666666e-05,
+        "median_width_ms": 0.7916666666666666,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 220,
+        "end_seconds": 230,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 230,
+        "end_seconds": 240,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 240,
+        "end_seconds": 250,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 250,
+        "end_seconds": 260,
+        "holes": 1,
+        "holes_per_second": 0.1,
+        "flat_fraction": 5.208333333333334e-05,
+        "median_width_ms": 0.5208333333333334,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 260,
+        "end_seconds": 270,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 270,
+        "end_seconds": 280,
+        "holes": 2,
+        "holes_per_second": 0.2,
+        "flat_fraction": 0.00010625,
+        "median_width_ms": 0.53125,
+        "onset_spacing_ms_p10_p50_p90": [
+          2737.9166666666665,
+          2737.9166666666665,
+          2737.9166666666665
+        ]
+      },
+      {
+        "start_seconds": 280,
+        "end_seconds": 290,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 290,
+        "end_seconds": 300,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 300,
+        "end_seconds": 310,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 310,
+        "end_seconds": 320,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 320,
+        "end_seconds": 330,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 330,
+        "end_seconds": 340,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 340,
+        "end_seconds": 350,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 350,
+        "end_seconds": 360,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 360,
+        "end_seconds": 370,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 370,
+        "end_seconds": 380,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 380,
+        "end_seconds": 390,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 390,
+        "end_seconds": 400,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 400,
+        "end_seconds": 410,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 410,
+        "end_seconds": 420,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 420,
+        "end_seconds": 430,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 430,
+        "end_seconds": 440,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 440,
+        "end_seconds": 450,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 450,
+        "end_seconds": 460,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 460,
+        "end_seconds": 470,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 470,
+        "end_seconds": 480,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 480,
+        "end_seconds": 490,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 490,
+        "end_seconds": 500,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 500,
+        "end_seconds": 510,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 510,
+        "end_seconds": 520,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 520,
+        "end_seconds": 530,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 530,
+        "end_seconds": 540,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      },
+      {
+        "start_seconds": 540,
+        "end_seconds": 542.1226666666666,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "onset_spacing_ms_p10_p50_p90": []
+      }
+    ],
+    "method": "Consecutive 1-second bins with at least 10 short flat candidates form dense episodes. Same criterion as the earlier UI comparison. Natural quiet/smooth music can produce candidates; inspect waveform and cadence to attribute periodic blanking. Analog settling affects widths. No claim against subtle clicks."
+  },
+  "clock_fit_caution": "Global monotonic/wall fit residual13.5ms, larger than r1; inspect anchor residuals/time changes during final alignment. Counts far from phase boundaries are robust to this uncertainty."
+}

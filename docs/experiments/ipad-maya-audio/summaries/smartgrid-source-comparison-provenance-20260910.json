@@ -1,0 +1,43 @@
+{
+  "checked_local": "2026-09-10T13:59:44.818992-07:00",
+  "main_component_object": "/private/tmp/smartgrid-juce815-ios-build/Build/Intermediates.noindex/SmartGridOne.build/Release-iphoneos/SmartGridOne - App.build/Objects-normal/arm64/MainComponent.o",
+  "object_mtime": 1789066774.0718849,
+  "files": [
+    {
+      "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/JUCE/SmartGridOne/Source/MainComponent.cpp",
+      "sha256": "0e933b5897727486ba951743879ce87dcc3accf45566a01d633c0cb41f2b98cd",
+      "mtime": 1789066492.3374004,
+      "newer_than_object": false
+    },
+    {
+      "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/JUCE/SmartGridOne/Source/MainComponent.h",
+      "sha256": "db416e735a6ed271fba0b2d5c81c9e32b755a2758a99c51392865e6dbe09379e",
+      "mtime": 1789062008.1033173,
+      "newer_than_object": false
+    },
+    {
+      "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/JUCE/SmartGridOne/Source/NonagonWrapper.hpp",
+      "sha256": "8965bb4114cb2518a9bc80c9069b7388a49d0ee8445307bec8452ad3c7918814",
+      "mtime": 1788937501.15224,
+      "newer_than_object": false
+    },
+    {
+      "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/JUCE/SmartGridOne/Source/MidiSender.hpp",
+      "sha256": "27d4e3a18ffb39b133987881c258fc25077c68887156936433b864ee85b327cf",
+      "mtime": 1788937501.151591,
+      "newer_than_object": false
+    },
+    {
+      "path": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/private/src/AsyncLogger.hpp",
+      "sha256": "e5f77e587d7b49e50c00ab3513962be6cc90292c757b0d320049ca4a2b3c5328",
+      "mtime": 1788937501.2437248,
+      "newer_than_object": false
+    },
+    {
+      "path": "/private/tmp/smartgrid-juce815-ios-build/Build/Intermediates.noindex/SmartGridOne.build/SmartGridJuceModules/juce_audio_devices/native/juce_Audio_ios.cpp",
+      "sha256": "36eef099f39b09a68c8ceda47be47de54c6704a8f1d45a1cff7d5b0cbc57b650",
+      "mtime": 1789066731.4763975,
+      "newer_than_object": false
+    }
+  ]
+}

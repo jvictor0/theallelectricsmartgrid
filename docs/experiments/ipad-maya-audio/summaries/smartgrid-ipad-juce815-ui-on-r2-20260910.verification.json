@@ -1,0 +1,43 @@
+{
+  "checked_local": "2026-09-10T12:21:07.312647-07:00",
+  "verified": true,
+  "expected_juce_version": "8.0.15",
+  "device_app_log": "2026-09-10T12-20-55-805.log",
+  "markers": [
+    "12:21:01 0 Message Audio experiment juce_version=JUCE v8.0.15",
+    "12:21:01 0 Message Audio experiment audio_mode=normal ui_render=1 transport_autostart=1",
+    "12:21:01 0 Message Audio setup requested_sr=48000 requested_block=512 actual_sr=48000 actual_block=512",
+    "12:21:01 0 Message Audio input test: requested_inputs=0 active_inputs=0 active_outputs=4; absent DSP inputs are zero",
+    "12:21:01 0 Message Audio test mode=normal; normal callback processing enabled",
+    "12:21:01 2312 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+    "12:21:02 51048 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+    "12:21:03 98792 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+    "12:21:04 146860 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+    "12:21:05 195352 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1"
+  ],
+  "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+  "file_config": {
+    "patchName": "ms"
+  },
+  "external_clock": false,
+  "pid": 18136,
+  "startup_callbacks": 458,
+  "delivered_frame_sizes": [
+    470,
+    512
+  ],
+  "callback_sample_rates": [
+    48000
+  ],
+  "delivered_frames_verified": true,
+  "settled_callback_count": 200,
+  "settled_frame_sizes": [
+    512
+  ],
+  "settled_callback_rates": [
+    48000
+  ],
+  "settled_thermal_states": [
+    0
+  ]
+}

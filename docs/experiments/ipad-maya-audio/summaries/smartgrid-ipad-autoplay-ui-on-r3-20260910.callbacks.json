@@ -1,0 +1,316 @@
+{
+  "app_log": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.app.log",
+  "recording_metadata": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910.window.json",
+  "callbacks": 35506,
+  "sample_rates": [
+    48000.0
+  ],
+  "frame_sizes": [
+    512.0
+  ],
+  "thermal_states": [
+    0.0
+  ],
+  "low_power_states": [
+    0.0
+  ],
+  "muted_states": [
+    0.0
+  ],
+  "sequence_holes": 0,
+  "logger_miss_lines_entire_log": [],
+  "dsp_ms_p50_p99_max": [
+    4.2955,
+    4.977,
+    5.146
+  ],
+  "gap_ms_p50_p99_max": [
+    10.667,
+    10.739,
+    229.71
+  ],
+  "measured_dsp_overruns": 0,
+  "xrun_start_end": [
+    1,
+    18
+  ],
+  "callback_gaps_gt20ms": [
+    {
+      "time": "2026-09-10T10:53:29.844392-07:00",
+      "recording_seconds": 36.8724308013916,
+      "callback": 5712,
+      "gap_us": 221294.0,
+      "dsp_us": 3817.0,
+      "xr": 2
+    },
+    {
+      "time": "2026-09-10T10:53:44.856149-07:00",
+      "recording_seconds": 51.88418793678284,
+      "callback": 7100,
+      "gap_us": 217301.0,
+      "dsp_us": 3790.0,
+      "xr": 3
+    },
+    {
+      "time": "2026-09-10T10:54:06.227914-07:00",
+      "recording_seconds": 73.25595331192017,
+      "callback": 9084,
+      "gap_us": 220049.0,
+      "dsp_us": 3789.0,
+      "xr": 4
+    },
+    {
+      "time": "2026-09-10T10:54:59.459641-07:00",
+      "recording_seconds": 126.48767971992493,
+      "callback": 14054,
+      "gap_us": 229710.0,
+      "dsp_us": 3692.0,
+      "xr": 5
+    },
+    {
+      "time": "2026-09-10T10:55:03.675344-07:00",
+      "recording_seconds": 130.70338320732117,
+      "callback": 14429,
+      "gap_us": 226465.0,
+      "dsp_us": 4901.0,
+      "xr": 6
+    },
+    {
+      "time": "2026-09-10T10:55:08.431113-07:00",
+      "recording_seconds": 135.45915246009827,
+      "callback": 14855,
+      "gap_us": 222549.0,
+      "dsp_us": 4883.0,
+      "xr": 7
+    },
+    {
+      "time": "2026-09-10T10:55:25.020246-07:00",
+      "recording_seconds": 152.04828453063965,
+      "callback": 16390,
+      "gap_us": 226707.0,
+      "dsp_us": 3748.0,
+      "xr": 8
+    },
+    {
+      "time": "2026-09-10T10:55:32.843160-07:00",
+      "recording_seconds": 159.8711986541748,
+      "callback": 17103,
+      "gap_us": 228355.0,
+      "dsp_us": 4910.0,
+      "xr": 9
+    },
+    {
+      "time": "2026-09-10T10:55:37.526941-07:00",
+      "recording_seconds": 164.55498027801514,
+      "callback": 17522,
+      "gap_us": 225221.0,
+      "dsp_us": 3828.0,
+      "xr": 10
+    },
+    {
+      "time": "2026-09-10T10:55:48.914629-07:00",
+      "recording_seconds": 175.94266819953918,
+      "callback": 18570,
+      "gap_us": 219866.0,
+      "dsp_us": 3614.0,
+      "xr": 11
+    },
+    {
+      "time": "2026-09-10T10:56:21.490579-07:00",
+      "recording_seconds": 208.51861763000488,
+      "callback": 21585,
+      "gap_us": 227123.0,
+      "dsp_us": 5038.0,
+      "xr": 12
+    },
+    {
+      "time": "2026-09-10T10:56:23.838215-07:00",
+      "recording_seconds": 210.86625409126282,
+      "callback": 21785,
+      "gap_us": 224871.0,
+      "dsp_us": 4951.0,
+      "xr": 13
+    },
+    {
+      "time": "2026-09-10T10:56:45.513793-07:00",
+      "recording_seconds": 232.54183149337769,
+      "callback": 23797,
+      "gap_us": 225056.0,
+      "dsp_us": 4885.0,
+      "xr": 14
+    },
+    {
+      "time": "2026-09-10T10:56:48.678250-07:00",
+      "recording_seconds": 235.70628905296326,
+      "callback": 24074,
+      "gap_us": 220282.0,
+      "dsp_us": 3719.0,
+      "xr": 15
+    },
+    {
+      "time": "2026-09-10T10:57:32.849447-07:00",
+      "recording_seconds": 279.8774857521057,
+      "callback": 28195,
+      "gap_us": 225124.0,
+      "dsp_us": 4966.0,
+      "xr": 16
+    },
+    {
+      "time": "2026-09-10T10:57:41.889338-07:00",
+      "recording_seconds": 288.9173767566681,
+      "callback": 29022,
+      "gap_us": 229357.0,
+      "dsp_us": 3784.0,
+      "xr": 17
+    },
+    {
+      "time": "2026-09-10T10:58:51.164630-07:00",
+      "recording_seconds": 358.19266867637634,
+      "callback": 35497,
+      "gap_us": 220216.0,
+      "dsp_us": 5019.0,
+      "xr": 18
+    }
+  ],
+  "xrun_increments": [
+    {
+      "time": "2026-09-10T10:53:29.844392-07:00",
+      "recording_seconds": 36.8724308013916,
+      "callback": 5712,
+      "gap_us": 221294.0,
+      "dsp_us": 3817.0,
+      "xr": 2
+    },
+    {
+      "time": "2026-09-10T10:53:44.856149-07:00",
+      "recording_seconds": 51.88418793678284,
+      "callback": 7100,
+      "gap_us": 217301.0,
+      "dsp_us": 3790.0,
+      "xr": 3
+    },
+    {
+      "time": "2026-09-10T10:54:06.227914-07:00",
+      "recording_seconds": 73.25595331192017,
+      "callback": 9084,
+      "gap_us": 220049.0,
+      "dsp_us": 3789.0,
+      "xr": 4
+    },
+    {
+      "time": "2026-09-10T10:54:59.459641-07:00",
+      "recording_seconds": 126.48767971992493,
+      "callback": 14054,
+      "gap_us": 229710.0,
+      "dsp_us": 3692.0,
+      "xr": 5
+    },
+    {
+      "time": "2026-09-10T10:55:03.675344-07:00",
+      "recording_seconds": 130.70338320732117,
+      "callback": 14429,
+      "gap_us": 226465.0,
+      "dsp_us": 4901.0,
+      "xr": 6
+    },
+    {
+      "time": "2026-09-10T10:55:08.431113-07:00",
+      "recording_seconds": 135.45915246009827,
+      "callback": 14855,
+      "gap_us": 222549.0,
+      "dsp_us": 4883.0,
+      "xr": 7
+    },
+    {
+      "time": "2026-09-10T10:55:25.020246-07:00",
+      "recording_seconds": 152.04828453063965,
+      "callback": 16390,
+      "gap_us": 226707.0,
+      "dsp_us": 3748.0,
+      "xr": 8
+    },
+    {
+      "time": "2026-09-10T10:55:32.843160-07:00",
+      "recording_seconds": 159.8711986541748,
+      "callback": 17103,
+      "gap_us": 228355.0,
+      "dsp_us": 4910.0,
+      "xr": 9
+    },
+    {
+      "time": "2026-09-10T10:55:37.526941-07:00",
+      "recording_seconds": 164.55498027801514,
+      "callback": 17522,
+      "gap_us": 225221.0,
+      "dsp_us": 3828.0,
+      "xr": 10
+    },
+    {
+      "time": "2026-09-10T10:55:48.914629-07:00",
+      "recording_seconds": 175.94266819953918,
+      "callback": 18570,
+      "gap_us": 219866.0,
+      "dsp_us": 3614.0,
+      "xr": 11
+    },
+    {
+      "time": "2026-09-10T10:56:21.490579-07:00",
+      "recording_seconds": 208.51861763000488,
+      "callback": 21585,
+      "gap_us": 227123.0,
+      "dsp_us": 5038.0,
+      "xr": 12
+    },
+    {
+      "time": "2026-09-10T10:56:23.838215-07:00",
+      "recording_seconds": 210.86625409126282,
+      "callback": 21785,
+      "gap_us": 224871.0,
+      "dsp_us": 4951.0,
+      "xr": 13
+    },
+    {
+      "time": "2026-09-10T10:56:45.513793-07:00",
+      "recording_seconds": 232.54183149337769,
+      "callback": 23797,
+      "gap_us": 225056.0,
+      "dsp_us": 4885.0,
+      "xr": 14
+    },
+    {
+      "time": "2026-09-10T10:56:48.678250-07:00",
+      "recording_seconds": 235.70628905296326,
+      "callback": 24074,
+      "gap_us": 220282.0,
+      "dsp_us": 3719.0,
+      "xr": 15
+    },
+    {
+      "time": "2026-09-10T10:57:32.849447-07:00",
+      "recording_seconds": 279.8774857521057,
+      "callback": 28195,
+      "gap_us": 225124.0,
+      "dsp_us": 4966.0,
+      "xr": 16
+    },
+    {
+      "time": "2026-09-10T10:57:41.889338-07:00",
+      "recording_seconds": 288.9173767566681,
+      "callback": 29022,
+      "gap_us": 229357.0,
+      "dsp_us": 3784.0,
+      "xr": 17
+    },
+    {
+      "time": "2026-09-10T10:58:51.164630-07:00",
+      "recording_seconds": 358.19266867637634,
+      "callback": 35497,
+      "gap_us": 220216.0,
+      "dsp_us": 5019.0,
+      "xr": 18
+    }
+  ],
+  "clock_offset_fit_slope": 5.345355424092485e-07,
+  "clock_fit_max_residual_ms": 0.5109310150146484,
+  "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the JUCE iOS native sample-timestamp discontinuity counter, not a direct DSP execution-time overrun count."
+}

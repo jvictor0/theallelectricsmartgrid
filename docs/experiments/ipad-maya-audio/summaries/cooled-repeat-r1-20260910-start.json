@@ -1,0 +1,184 @@
+{
+  "saved_local": "2026-09-10T16:50:56.682024-07:00",
+  "base": "/private/tmp/smartgrid-ipad-cooled-r1-20260910",
+  "status": "recording_after_verified_nominal_start",
+  "startup": {
+    "checked_local": "2026-09-10T16:49:18.320458-07:00",
+    "verified": true,
+    "expected_juce_version": "8.0.15",
+    "device_app_log": "2026-09-10T16-49-06-780.log",
+    "markers": [
+      "16:49:12 0 Message MidiSenderThread enabled=1 started=1 real_time=1",
+      "16:49:12 0 Message Audio experiment juce_version=JUCE v8.0.15",
+      "16:49:12 0 Message Audio experiment audio_mode=normal ui_render=1 transport_autostart=1",
+      "16:49:12 0 Message Audio setup requested_sr=48000 requested_block=512 actual_sr=48000 actual_block=512",
+      "16:49:12 0 Message Audio input test: requested_inputs=0 active_inputs=0 active_outputs=4; absent DSP inputs are zero",
+      "16:49:12 0 Message Audio test mode=normal; normal callback processing enabled",
+      "16:49:12 1880 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:49:12 1880 Message Midi sender enabled=1 running=1 queued=0 discarded=0 sysex_queued=0 sysex_enqueued=7 sysex_submitted=7 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "16:49:13 50072 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:49:13 50072 Message Midi sender enabled=1 running=1 queued=1 discarded=0 sysex_queued=0 sysex_enqueued=50 sysex_submitted=50 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "16:49:14 98094 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:49:14 98094 Message Midi sender enabled=1 running=1 queued=1 discarded=0 sysex_queued=0 sysex_enqueued=91 sysex_submitted=91 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "16:49:15 147205 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:49:15 147206 Message Midi sender enabled=1 running=1 queued=3 discarded=0 sysex_queued=0 sysex_enqueued=132 sysex_submitted=132 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "16:49:16 195880 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:49:16 195880 Message Midi sender enabled=1 running=1 queued=4 discarded=0 sysex_queued=0 sysex_enqueued=174 sysex_submitted=174 sysex_full=0 sysex_discarded=0 sysex_invalid=0"
+    ],
+    "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+    "file_config": {
+      "patchName": "ms"
+    },
+    "external_clock": false,
+    "pid": 20023,
+    "startup_callbacks": 462,
+    "delivered_frame_sizes": [
+      470,
+      512
+    ],
+    "callback_sample_rates": [
+      48000
+    ],
+    "delivered_frames_verified": true,
+    "settled_callback_count": 200,
+    "settled_frame_sizes": [
+      512
+    ],
+    "settled_callback_rates": [
+      48000
+    ],
+    "settled_thermal_states": [
+      0
+    ],
+    "midi_send_thread": "1",
+    "midi_verified": true,
+    "sysex_verified": true,
+    "midi_diagnostics": [
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 0,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 7,
+        "sysex_submitted": 7,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 1,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 50,
+        "sysex_submitted": 50,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 1,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 91,
+        "sysex_submitted": 91,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 3,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 132,
+        "sysex_submitted": 132,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 4,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 174,
+        "sysex_submitted": 174,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      }
+    ]
+  },
+  "recording": {
+    "started_local": "2026-09-10T16:49:00.456310-07:00",
+    "started_epoch_ns": 1789084140456335000,
+    "started_monotonic_ns": 3571147317186500,
+    "device": "K-Mix",
+    "input_channels": [
+      3,
+      4
+    ],
+    "rate": 48000,
+    "bits": 24,
+    "maximum_seconds": 960,
+    "command": [
+      "/opt/homebrew/bin/sox",
+      "--buffer",
+      "131072",
+      "-q",
+      "-t",
+      "coreaudio",
+      "-r",
+      "48000",
+      "-c",
+      "8",
+      "K-Mix",
+      "-b",
+      "24",
+      "/private/tmp/smartgrid-ipad-cooled-r1-20260910.wav",
+      "remix",
+      "3",
+      "4",
+      "trim",
+      "0",
+      "960"
+    ],
+    "wrapper_pid": 30495,
+    "source": "User-authorized same-build repeat after passive iPad cooling. Recording starts before app launch to retain startup; initial silence is planned. Same binary a9902d35b72d13556c831daa1c30c71eb6b7429cf76408e35042952483a5f873, normal UI/DSP/autoplay/internal clock/MIDI worker enabled,48k/512, zero app inputs/four outputs, unchanged topology/config. Initial nominal thermal verification pending; if elevated label probe and cool further. User confirmed LEDs working in preceding hot run.",
+    "status": "recording",
+    "sox_pid": 30502,
+    "system_log_pid": 30500,
+    "keep_awake_pid": 30501
+  },
+  "expected_end_local": "2026-09-10T17:05:00.456310-07:00",
+  "exec_session": 30407,
+  "planned_leading_silence_seconds": [
+    0,
+    11.62
+  ],
+  "early_audio": {
+    "seconds_scanned": 46.876,
+    "fault_candidates_after_planned_silence": 0,
+    "levels": {
+      "start_seconds": 40.0,
+      "seconds": 6.876,
+      "rms_dbfs": [
+        -30.230783183428215,
+        -32.39153945623559
+      ],
+      "peak_dbfs": [
+        -21.576404702117507,
+        -22.700237011979972
+      ]
+    }
+  },
+  "startup_transients": "First callback470frames and18.535ms DSP; native xr increments0\u21921 atcb3 during470-frame initialization, gap11.948ms. No startup trace gap over20ms. Preserve separately from later settled48k/512 playback.",
+  "interpretation": "Nominal was actually verified after passive cooling. No physical temperature or thermal-profile override; comparison outcome pending."
+}

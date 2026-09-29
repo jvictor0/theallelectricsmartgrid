@@ -1,0 +1,199 @@
+{
+  "updated_local": "2026-09-10T16:17:04.228814-07:00",
+  "status": "recording; physical MIDI output verification pending",
+  "base": "/private/tmp/smartgrid-ipad-midi-retest-20260910",
+  "install": {
+    "started_local": "2026-09-10T16:12:50.863646-07:00",
+    "udid": "00008122-001439681EA1001C",
+    "bundle_id": "com.theallelectricsmartgrid.smartgridone",
+    "ipa": "/private/tmp/smartgrid-midi-sysex-20260910.ipa",
+    "ipa_sha256": "e1882fcb10404b35b5a56b1c1fde98dbc76a6d2934cf6f279b1e32bb2576ce85",
+    "binary_sha256": "a9902d35b72d13556c831daa1c30c71eb6b7429cf76408e35042952483a5f873",
+    "status": "installed",
+    "operation": "in-place Upgrade",
+    "before": {
+      "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+      "patch_sha256": "a0e797a87de665e300dcf8ff484774ee93639c8c7d425a67ddc0aabb2223952a"
+    },
+    "after": {
+      "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+      "patch_sha256": "a0e797a87de665e300dcf8ff484774ee93639c8c7d425a67ddc0aabb2223952a"
+    },
+    "config_and_patch_preserved": true,
+    "ended_local": "2026-09-10T16:12:59.731717-07:00"
+  },
+  "startup": {
+    "checked_local": "2026-09-10T16:13:52.532737-07:00",
+    "verified": true,
+    "expected_juce_version": "8.0.15",
+    "device_app_log": "2026-09-10T16-13-39-784.log",
+    "markers": [
+      "16:13:45 0 Message MidiSenderThread enabled=1 started=1 real_time=1",
+      "16:13:45 0 Message Audio experiment juce_version=JUCE v8.0.15",
+      "16:13:45 0 Message Audio experiment audio_mode=normal ui_render=1 transport_autostart=1",
+      "16:13:45 0 Message Audio setup requested_sr=48000 requested_block=512 actual_sr=48000 actual_block=512",
+      "16:13:45 0 Message Audio input test: requested_inputs=0 active_inputs=0 active_outputs=4; absent DSP inputs are zero",
+      "16:13:45 0 Message Audio test mode=normal; normal callback processing enabled",
+      "16:13:45 1964 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:13:45 1964 Message Midi sender enabled=1 running=1 queued=3 discarded=0 sysex_queued=0 sysex_enqueued=7 sysex_submitted=7 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "16:13:46 50092 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:13:46 50092 Message Midi sender enabled=1 running=1 queued=4 discarded=0 sysex_queued=0 sysex_enqueued=49 sysex_submitted=49 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "16:13:47 98489 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:13:47 98490 Message Midi sender enabled=1 running=1 queued=2 discarded=0 sysex_queued=0 sysex_enqueued=89 sysex_submitted=89 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "16:13:48 146860 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:13:48 146860 Message Midi sender enabled=1 running=1 queued=3 discarded=0 sysex_queued=0 sysex_enqueued=131 sysex_submitted=131 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "16:13:49 195500 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:13:49 195500 Message Midi sender enabled=1 running=1 queued=2 discarded=0 sysex_queued=0 sysex_enqueued=171 sysex_submitted=171 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "16:13:50 243977 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "16:13:50 243978 Message Midi sender enabled=1 running=1 queued=4 discarded=0 sysex_queued=0 sysex_enqueued=213 sysex_submitted=213 sysex_full=0 sysex_discarded=0 sysex_invalid=0"
+    ],
+    "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+    "file_config": {
+      "patchName": "ms"
+    },
+    "external_clock": false,
+    "pid": 19797,
+    "startup_callbacks": 527,
+    "delivered_frame_sizes": [
+      470,
+      512
+    ],
+    "callback_sample_rates": [
+      48000
+    ],
+    "delivered_frames_verified": true,
+    "settled_callback_count": 200,
+    "settled_frame_sizes": [
+      512
+    ],
+    "settled_callback_rates": [
+      48000
+    ],
+    "settled_thermal_states": [
+      2
+    ],
+    "midi_send_thread": "1",
+    "midi_verified": true,
+    "sysex_verified": true,
+    "midi_diagnostics": [
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 3,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 7,
+        "sysex_submitted": 7,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 4,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 49,
+        "sysex_submitted": 49,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 2,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 89,
+        "sysex_submitted": 89,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 3,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 131,
+        "sysex_submitted": 131,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 2,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 171,
+        "sysex_submitted": 171,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 4,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 213,
+        "sysex_submitted": 213,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      }
+    ]
+  },
+  "recording": {
+    "started_local": "2026-09-10T16:14:25.249392-07:00",
+    "started_epoch_ns": 1789082065249420000,
+    "started_monotonic_ns": 3569072115828291,
+    "device": "K-Mix",
+    "input_channels": [
+      3,
+      4
+    ],
+    "rate": 48000,
+    "bits": 24,
+    "maximum_seconds": 960,
+    "command": [
+      "/opt/homebrew/bin/sox",
+      "--buffer",
+      "131072",
+      "-q",
+      "-t",
+      "coreaudio",
+      "-r",
+      "48000",
+      "-c",
+      "8",
+      "K-Mix",
+      "-b",
+      "24",
+      "/private/tmp/smartgrid-ipad-midi-retest-20260910.wav",
+      "remix",
+      "3",
+      "4",
+      "trim",
+      "0",
+      "960"
+    ],
+    "wrapper_pid": 29458,
+    "source": "Same-binary redeployment and hot restart with MIDI worker enabled; normal UI/DSP, JUCE8.0.15, actual MAYA48k/512, zero app inputs/four outputs. iPad serious thermal2 at startup, no thermal override. User reported absent WRLD.BLDR LED output before restart; post-restart physical LED verification pending.",
+    "status": "recording",
+    "sox_pid": 29465,
+    "system_log_pid": 29463,
+    "keep_awake_pid": 29464
+  },
+  "expected_end_local": "2026-09-10T16:30:25.249392-07:00",
+  "thermal_override": false,
+  "physical_midi_output": "User reported no WRLD.BLDR LED updates before redeployment despite running worker and increasing handler submissions. Post-restart confirmation requested and pending. No claim of physical delivery.",
+  "change": "Same preserved IPA/binary redeployed in place and relaunched with same normal/UI/autoplay/MIDI-enabled environment. No source, patch, buffer, sample-rate, or thermal-profile change.",
+  "scope_limit": "This is a hot restart while the iPad remains serious, not a cooled nominal baseline; missing physical MIDI may confound the preceding quiet interval."
+}

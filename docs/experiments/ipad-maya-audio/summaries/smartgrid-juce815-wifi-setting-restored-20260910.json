@@ -1,0 +1,8 @@
+{
+  "at": "2026-09-10T12:47:46.201080-07:00",
+  "udid": "00008122-001439681EA1001C",
+  "purpose": "Restore original general paired Wi-Fi connection preference after planned JUCE comparison; leave Wi-Fi radio and wireless debugging unchanged",
+  "before": true,
+  "after": false,
+  "restored": true
+}

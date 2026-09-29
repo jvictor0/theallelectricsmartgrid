@@ -1,0 +1,190 @@
+{
+  "updated_local": "2026-09-10T15:16:11.808479-07:00",
+  "status": "recording",
+  "base": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910",
+  "recorder": {
+    "started_local": "2026-09-10T15:09:41.652355-07:00",
+    "started_epoch_ns": 1789078181652376000,
+    "started_monotonic_ns": 3565188537795250,
+    "device": "K-Mix",
+    "input_channels": [
+      3,
+      4
+    ],
+    "rate": 48000,
+    "bits": 24,
+    "maximum_seconds": 960,
+    "command": [
+      "/opt/homebrew/bin/sox",
+      "--buffer",
+      "131072",
+      "-q",
+      "-t",
+      "coreaudio",
+      "-r",
+      "48000",
+      "-c",
+      "8",
+      "K-Mix",
+      "-b",
+      "24",
+      "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910.wav",
+      "remix",
+      "3",
+      "4",
+      "trim",
+      "0",
+      "960"
+    ],
+    "wrapper_pid": 25992,
+    "source": "Normal SmartGrid DSP/UI/autoplay, JUCE8.0.15, all normal frame MIDI and SysEx routed through enabled MIDI worker; bounded owned SysEx packets, actual MAYA48k/512, zero app inputs/four outputs, internal clock, same patch and MAYA/WB/Satechi/PD topology; K-Mix analog3/4",
+    "status": "recording",
+    "sox_pid": 25999,
+    "system_log_pid": 25997,
+    "keep_awake_pid": 25998
+  },
+  "exec_session_id": 46188,
+  "expected_end_local": "2026-09-10T15:25:41.652355-07:00",
+  "monitor_automation_id": "track-midi-worker-off-trial",
+  "monitor_name": "Track MIDI routing trial",
+  "startup_verification": {
+    "checked_local": "2026-09-10T15:08:52.461611-07:00",
+    "verified": true,
+    "expected_juce_version": "8.0.15",
+    "device_app_log": "2026-09-10T15-08-40-481.log",
+    "markers": [
+      "15:08:45 0 Message MidiSenderThread enabled=1 started=1 real_time=1",
+      "15:08:45 0 Message Audio experiment juce_version=JUCE v8.0.15",
+      "15:08:45 0 Message Audio experiment audio_mode=normal ui_render=1 transport_autostart=1",
+      "15:08:45 0 Message Audio setup requested_sr=48000 requested_block=512 actual_sr=48000 actual_block=512",
+      "15:08:45 0 Message Audio input test: requested_inputs=0 active_inputs=0 active_outputs=4; absent DSP inputs are zero",
+      "15:08:45 0 Message Audio test mode=normal; normal callback processing enabled",
+      "15:08:45 2476 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "15:08:45 2476 Message Midi sender enabled=1 running=1 queued=5 discarded=0 sysex_queued=0 sysex_enqueued=8 sysex_submitted=8 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "15:08:46 50824 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "15:08:46 50824 Message Midi sender enabled=1 running=1 queued=4 discarded=0 sysex_queued=0 sysex_enqueued=49 sysex_submitted=49 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "15:08:47 99244 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "15:08:47 99244 Message Midi sender enabled=1 running=1 queued=3 discarded=0 sysex_queued=0 sysex_enqueued=90 sysex_submitted=90 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "15:08:48 147568 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "15:08:48 147568 Message Midi sender enabled=1 running=1 queued=3 discarded=0 sysex_queued=0 sysex_enqueued=132 sysex_submitted=132 sysex_full=0 sysex_discarded=0 sysex_invalid=0",
+      "15:08:49 196524 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "15:08:49 196524 Message Midi sender enabled=1 running=1 queued=3 discarded=0 sysex_queued=0 sysex_enqueued=173 sysex_submitted=173 sysex_full=0 sysex_discarded=0 sysex_invalid=0"
+    ],
+    "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+    "file_config": {
+      "patchName": "ms"
+    },
+    "external_clock": false,
+    "pid": 19365,
+    "startup_callbacks": 474,
+    "delivered_frame_sizes": [
+      470,
+      512
+    ],
+    "callback_sample_rates": [
+      48000
+    ],
+    "delivered_frames_verified": true,
+    "settled_callback_count": 200,
+    "settled_frame_sizes": [
+      512
+    ],
+    "settled_callback_rates": [
+      48000
+    ],
+    "settled_thermal_states": [
+      0
+    ],
+    "midi_send_thread": "1",
+    "midi_verified": true,
+    "sysex_verified": true,
+    "midi_diagnostics": [
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 5,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 8,
+        "sysex_submitted": 8,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 4,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 49,
+        "sysex_submitted": 49,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 3,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 90,
+        "sysex_submitted": 90,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 3,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 132,
+        "sysex_submitted": 132,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      },
+      {
+        "enabled": 1,
+        "running": 1,
+        "queued": 3,
+        "discarded": 0,
+        "sysex_queued": 0,
+        "sysex_enqueued": 173,
+        "sysex_submitted": 173,
+        "sysex_full": 0,
+        "sysex_discarded": 0,
+        "sysex_invalid": 0
+      }
+    ]
+  },
+  "source_binary_sha256": "a9902d35b72d13556c831daa1c30c71eb6b7429cf76408e35042952483a5f873",
+  "package_metadata": "/private/tmp/smartgrid-midi-sysex-20260910.package.json",
+  "install_metadata": "/private/tmp/smartgrid-midi-sysex-20260910.install.json",
+  "preflight": "/private/tmp/smartgrid-ipad-midi-sysex-worker-preflight-20260910.activity.json",
+  "ipad_queries_during_recording": false,
+  "result_status": "pending",
+  "archive_status": "pending",
+  "latest_capture_check": {
+    "checked_local": "2026-09-10T15:16:11.808479-07:00",
+    "status": "recording",
+    "process_identity_verified": true,
+    "activity_seconds": 207.075,
+    "near_silence_candidates": 8,
+    "flat_scan_seconds": 251.67616666666666,
+    "long_flat_candidates": 9,
+    "short_flat_candidates": 5,
+    "dense_periodic_episodes_observed": false,
+    "first_flat_gap_seconds": [
+      30.2351875,
+      30.4596875
+    ],
+    "first_flat_gap_duration_ms": 224.5,
+    "capture_stderr_bytes": 0,
+    "ipad_queried": false,
+    "interpretation": "Long analog interruptions already persist. First gap waveform inspected and shows abrupt signal loss, brief settling and recovery after about225ms. USB/callback correlation and full-run periodic outcome pending; no dense periodic cluster in first251.676s."
+  }
+}

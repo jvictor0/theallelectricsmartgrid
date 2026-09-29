@@ -1,0 +1,60 @@
+**All four investigations are complete. The strongest explanation supported by the recordings is periodic blanking of a continuing audio stream, associated with USB input-transfer and timestamp disturbances. The earlier isolated long dropouts have a different immediate mechanism: the driver stops and restarts the stream. Neither mechanism identifies the initiating fault yet.**
+
+This research used the existing recordings, archives, logs, build products and source, plus published sources. It made no app changes, deployments or device-setting changes. The completed tone recording remains preserved.
+
+**1. The waveform and logs now give us a more specific mechanism.**
+
+In the tone run, all 13 major driver drift increases follow pairs of reported zero-length input transfers: 26 transfers in total. Each increase is approximately 2.020833 ms, equivalent by units to 97 frames at 48 kHz. Each is followed by a roughly 12.8 ms app callback interval instead of the usual 10.667 ms, about a quarter second after the driver report. The app/system clock fit has submillisecond residuals, so this repeated separation is meaningful; the driver's 250 ms reporting cadence means it must not automatically be interpreted as queue latency.
+
+The waveform adds independent evidence. During recovery, the near-zero regions start on an approximately 384-frame / 8 ms grid and end on a 512-frame grid. Their common pattern repeats every 1,536 frames / 32 ms. Widths differ by approximately 128 frames. The raw input-transfer log independently contains 8 ms blocks. Surviving tone segments remain phase coherent across the holes, within about ±0.03 degrees in the checked windows. These observations fit samples being blanked or unavailable while the source timeline continues. They argue against the oscillator simply pausing for the missing duration.
+
+The two timing grids are evidence about the damage, not a measurement of a physical ring-buffer size. The 1 kHz test signal repeats every 48 frames, so it also has a 32 ms common period with 512-frame callbacks; a different-frequency or nonperiodic signal would remove that ambiguity and reveal repetition by whole tone cycles. Likewise, `zlpCount` is the driver's report of a transfer, not proof that the MAYA deliberately emitted an empty packet. The private `ioDriftNS` field has no located public definition, and its numerical conversion does not prove that 97 input or output samples were lost.
+
+Two earlier attractive explanations fail checks against the existing data. A universal “one callback of drift triggers the holes” rule does not fit the original 44.1 kHz run, which developed damage below that threshold. A simple increasing deficit or 512-frame wrap does not fit the tone's later improvement while the drift label keeps increasing. There is also an interesting approximately 47.6 ppm match between the average drift increase and the measured tone frequency offset, but a steady mismatch predicts regular corrections every 42.46 seconds; observed intervals range from 2.248 to 210.247 seconds. Moreover, the frequency measurement compares MAYA with K-Mix, while the timing logs concern iPad clocks. The simple constant-clock-mismatch model is not supported.
+
+The calculations, independent amplitude detector, phase fits and falsification checks are in the [mechanism report](/private/tmp/smartgrid-research-20260909/failure-mechanisms.md), with [reproducible analysis](/private/tmp/smartgrid-research-20260909/failure-mechanism-checks.py).
+
+**2. Periodic damage and isolated dropouts are distinct outcomes, and restarts can hide accumulation.**
+
+| Evidence | Earlier isolated long dropouts | Tone's sustained periodic damage |
+| --- | --- | --- |
+| USB logs | Transaction failure followed by stream recovery | Paired zero-length reports and drift steps; no playback transaction failure |
+| App delivery | Approximately 0.17–0.37 second pauses in newer normal-DSP runs | Continuous 512-frame calls with 13 isolated roughly 12.8 ms intervals |
+| Native xrun count | Increases around matched recovery events | Stays at 2 throughout capture |
+| Output | Long gaps during driver stop/start | Changing sub-buffer near-zero regions |
+
+One older recording directly shows a transaction-triggered restart clearing persistent distortion and resetting the drift label while the rate remains 44.1 kHz. Frequent restarts could therefore prevent another run from reaching a vulnerable accumulated state. The tone gave that state a long uninterrupted interval to develop.
+
+That cannot be the complete explanation. The normal-DSP run with WRLD.BLDR disconnected and then connected had seven transaction errors and no logged zero-length transfers; the tone had 26 zero-length transfers and no transaction errors. The normal input-enabled 512-frame run had two such transfers and 30 transaction errors. Available clean Drambo intervals have neither kind of anomaly, while a short clean SmartGrid interval has two zero-length transfers without sustained audible corruption. These are different event histories, not just different numbers of resets. See the [cross-run comparison](/private/tmp/smartgrid-research-20260909/parent-validation.md).
+
+Removing the normal callback workload may have reduced the probability of hard failures. But it removed processing-driven MIDI and state/UI activity as well as DSP arithmetic. Sequential runs also differ in startup and peripheral state. The evidence cannot select CPU service margin, auxiliary traffic, startup state or run-to-run variation as the reason the tone avoided isolated failures. Normal synthesis and its callback-driven MIDI work are demonstrably unnecessary for the periodic symptom.
+
+**3. The code audit found remaining workload and measurement gaps, but no demonstrated tone-buffer defect.**
+
+Replacing `Process` with a sine does not remove the `NonagonWrapper` or its workers. Both [MidiSender](../historical-context/JUCE/SmartGridOne/Source/MidiSender.hpp#L31) and the [I/O worker](../historical-context/private/src/IOTaskThread.hpp#L653) have polling loops with 100 microsecond sleeps even when idle. MIDI requests a Mach real-time policy with a 100 microsecond period and 50 microsecond computation/constraint. Its startup code discards the success result and unconditionally logs success. We therefore do not know whether that real-time worker actually ran; the ordinary I/O worker is created during construction. These settings do not establish an actual 10,000 wakeups per second or 50% CPU reservation.
+
+The workers survive controller removal and tone mode, making them a concrete app workload still available to isolate. They do not directly explain the 384/512-frame grids or delayed onset, and the clean desktop retains the same code. A scheduling interaction is a candidate, not an established cause.
+
+The diagnostics also leave specific blind spots. `dsp_us` stops before callback log formatting. The async logger formats on the producer and flushes files on the consumer. JUCE's manager CPU measurement includes the player and callback logging and remained very low—median 0.27%, maximum sampled value 0.33%—but it is filtered and sampled once a second. The app logs only the device's xrun count; [AudioDeviceManager::getXRunCount](/Users/joyo/JUCE/modules/juce_audio_devices/audio_io/juce_AudioDeviceManager.cpp:1311) additionally includes a retained render-overrun counter that is not currently logged.
+
+At the native boundary, JUCE can zero output when its callback lock is unavailable, without invoking the app and without necessarily increasing the sample-continuity xrun counter. Ordinary whole-512-frame lock misses fit this recording poorly: they should create larger app gaps, whole-block silence and interrupted oscillator phase. Nevertheless, tracing native entry/exit, frames, timestamps, lock outcome, return status and output content would directly distinguish good buffers returned to RemoteIO from silence already introduced inside JUCE.
+
+The audit verified full tone writes, bounded phase, unity gain, float/noninterleaved client format, buffer lifetime, the expected generated JUCE module and actual compiled include paths. It found no late phase reset, re-prepare, rate switch or preference setter. All 528 settled MAYA session records agree on 48 kHz, 10.667 ms I/O, zero app inputs and four outputs. The [full code audit](/private/tmp/smartgrid-research-20260909/code-audit.md) records both findings and exclusions.
+
+**4. Public sources make our old JUCE negotiation path worth testing, but reveal no special configuration that solves this.**
+
+Our JUCE is 8.0.2. Subsequent upstream changes address asynchronous iOS rate/buffer negotiation, unreliable active probing and configuration-induced glitches. For example, the February 2025 [buffer-size change](https://github.com/juce-framework/JUCE/commit/4cbbf203f834b617607711f2cc4f75dd875c990c) and [sample-rate change](https://github.com/juce-framework/JUCE/commit/5008d349e9a4a7af4a361efd5f8393516703673a) remove session deactivation/reactivation and unnecessary requests. Later upstream reversed parts of earlier workarounds, so a selective old patch is not a substitute for evaluating the complete newer implementation. No published fix found claims to resolve our exact persistent periodic USB symptom.
+
+The project comparison followed actual iOS build paths and pinned JUCE sources for SonoBus, BYOD and CHOW Tape. SonoBus explicitly begins from [48 kHz / 256 frames](https://github.com/sonosaurus/sonobus/blob/35f1062dab196b9838a4bb529c4bf6592b7f5987/Source/SonoStandaloneFilterApp.cpp#L182-L197). The inspected BYOD native backend is effectively the same audio logic as our unpatched 8.0.2 on this iPad. These apps use RemoteIO and broadly familiar session settings; their inspected standalone initialization does not select Measurement or VoiceProcessingIO as a USB-stability measure. This is source evidence, not testing of those binaries on our MAYA and iPadOS version. See the [project comparison](/private/tmp/smartgrid-research-20260909/juce-ios-projects.md).
+
+Apple documents USB clock inference and circumstances where input timing supplies output feedback, but our existing artifacts lack the audio endpoint descriptors needed to establish the MAYA's actual clock arrangement. Apple also documents the retirement of legacy AppleUSBAudio IOAudioFamily services in macOS 26. Our macOS 15.7.4 control and iPadOS 26.6.1 test therefore should not be treated as the same driver path. [Apple TN3190](https://developer.apple.com/documentation/technotes/tn3190-usb-audio-device-design-considerations)
+
+The [online research report](/private/tmp/smartgrid-research-20260909/online-research.md) contains the complete upstream change sequence, Apple/ESI sources, analogous reports and their limitations. No exact public match or definition of `ioDriftNS` was located.
+
+**What the evidence now supports doing next.**
+
+The leading measured chain is input-transfer disturbance → timestamp/callback timing adjustments → periodic output blanking. It remains possible that a common earlier condition causes both the transfer reports and the output damage. The recordings cannot place ownership in the MAYA, hub, host controller, driver, Core Audio or JUCE.
+
+Before a backend replacement, a smaller investigation would preserve the present tone, session and topology, add bounded native-boundary tracing plus both xrun counters, and then separately compare worker starts enabled versus disabled. This would test a concrete residual app workload and show whether the samples returned to RemoteIO are already wrong. A separate phase-distinct test signal would remove the 1 kHz aliasing ambiguity. A newer JUCE comparison remains worthwhile afterward, with actual format and startup transitions recorded; improvement alone would not identify which changed negotiation step mattered.
+
+No new experiment was performed as part of this research. The available data has substantially narrowed the failure mechanism, while the missing native-buffer and USB-descriptor evidence prevents a defensible root-cause assignment.

@@ -1,0 +1,29 @@
+{
+  "at": "2026-09-10T12:45:51.007799-07:00",
+  "bundle_id": "com.theallelectricsmartgrid.smartgridone",
+  "environment": {
+    "SMARTGRID_AUDIO_TEST_MODE": "normal",
+    "SMARTGRID_UI_RENDER": "1",
+    "SMARTGRID_AUDIO_TEST_PLAY": "1"
+  },
+  "result": {
+    "processToken": {
+      "processIdentifierVersion": 53815,
+      "processIdentifier": 18312,
+      "executableURL": {
+        "relative": "file:///private/var/containers/Bundle/Application/074AFA85-911D-4C77-A2FC-7038EBF985A3/SmartGridOne.app/SmartGridOne"
+      },
+      "auditToken": [
+        4294967295,
+        501,
+        501,
+        501,
+        501,
+        18312,
+        0,
+        53815
+      ]
+    }
+  },
+  "transport": "Wi-Fi authenticated developer tunnel"
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-juce-devicemanager.cpp",
+    "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/deps/juce/modules/juce_audio_devices/audio_io/juce_AudioDeviceManager.cpp",
+    "bytes": 74792,
+    "sha256": "e82d3e9c3f52d4701f89a13e4f84d915560c5c9189d82d31268eb177e47036ea"
+  },
+  {
+    "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-juce-processorplayer.cpp",
+    "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/deps/juce/modules/juce_audio_utils/players/juce_AudioProcessorPlayer.cpp",
+    "bytes": 18554,
+    "sha256": "3a612074560cc9ac331c3e5c5d11b02bb57531955a0b2235e43e9a63941c97c6"
+  },
+  {
+    "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-juce-sourceplayer.cpp",
+    "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/deps/juce/modules/juce_audio_devices/sources/juce_AudioSourcePlayer.cpp",
+    "bytes": 6695,
+    "sha256": "efef2a56f3d5568448d8275b5b9def5fde78ce5787cae1e2d6649634d02d809c"
+  },
+  {
+    "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-juce-standalone.h",
+    "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/deps/juce/modules/juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h",
+    "bytes": 41396,
+    "sha256": "fc8b3e494d317e58c2ccb231fa0d7f9cdac5e0e5131dc200ecf38a8c42baa71e"
+  },
+  {
+    "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-juce-devices.h",
+    "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/deps/juce/modules/juce_audio_devices/juce_audio_devices.h",
+    "bytes": 9797,
+    "sha256": "fcd7555d89ab040606385ff7a72f681cf53b16a9b2708aef0140de43169a0de0"
+  }
+]

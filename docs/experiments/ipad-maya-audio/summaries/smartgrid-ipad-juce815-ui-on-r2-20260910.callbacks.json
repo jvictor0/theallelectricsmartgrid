@@ -1,0 +1,124 @@
+{
+  "app_log": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.app.log",
+  "recording_metadata": "/private/tmp/smartgrid-ipad-juce815-ui-on-r2-20260910.window.json",
+  "callbacks": 15669,
+  "sample_rates": [
+    48000.0
+  ],
+  "frame_sizes": [
+    512.0
+  ],
+  "thermal_states": [
+    0.0
+  ],
+  "low_power_states": [
+    0.0
+  ],
+  "muted_states": [
+    0.0
+  ],
+  "sequence_holes": 0,
+  "logger_miss_lines_entire_log": [],
+  "dsp_ms_p50_p99_max": [
+    3.912,
+    4.978,
+    5.135
+  ],
+  "gap_ms_p50_p99_max": [
+    10.666,
+    10.675,
+    225.218
+  ],
+  "measured_dsp_overruns": 0,
+  "xrun_start_end": [
+    1,
+    6
+  ],
+  "callback_gaps_gt20ms": [
+    {
+      "time": "2026-09-10T12:22:14.064227-07:00",
+      "recording_seconds": 21.76781940460205,
+      "callback": 6789,
+      "gap_us": 219296.0,
+      "dsp_us": 4931.0,
+      "xr": 2
+    },
+    {
+      "time": "2026-09-10T12:22:19.540457-07:00",
+      "recording_seconds": 27.244048595428467,
+      "callback": 7283,
+      "gap_us": 217546.0,
+      "dsp_us": 4886.0,
+      "xr": 3
+    },
+    {
+      "time": "2026-09-10T12:22:20.188380-07:00",
+      "recording_seconds": 27.891971826553345,
+      "callback": 7324,
+      "gap_us": 221283.0,
+      "dsp_us": 3717.0,
+      "xr": 4
+    },
+    {
+      "time": "2026-09-10T12:23:03.880669-07:00",
+      "recording_seconds": 71.58426117897034,
+      "callback": 11400,
+      "gap_us": 225218.0,
+      "dsp_us": 3744.0,
+      "xr": 5
+    },
+    {
+      "time": "2026-09-10T12:23:49.417135-07:00",
+      "recording_seconds": 117.12072658538818,
+      "callback": 15649,
+      "gap_us": 224037.0,
+      "dsp_us": 4916.0,
+      "xr": 6
+    }
+  ],
+  "xrun_increments": [
+    {
+      "time": "2026-09-10T12:22:14.064227-07:00",
+      "recording_seconds": 21.76781940460205,
+      "callback": 6789,
+      "gap_us": 219296.0,
+      "dsp_us": 4931.0,
+      "xr": 2
+    },
+    {
+      "time": "2026-09-10T12:22:19.540457-07:00",
+      "recording_seconds": 27.244048595428467,
+      "callback": 7283,
+      "gap_us": 217546.0,
+      "dsp_us": 4886.0,
+      "xr": 3
+    },
+    {
+      "time": "2026-09-10T12:22:20.188380-07:00",
+      "recording_seconds": 27.891971826553345,
+      "callback": 7324,
+      "gap_us": 221283.0,
+      "dsp_us": 3717.0,
+      "xr": 4
+    },
+    {
+      "time": "2026-09-10T12:23:03.880669-07:00",
+      "recording_seconds": 71.58426117897034,
+      "callback": 11400,
+      "gap_us": 225218.0,
+      "dsp_us": 3744.0,
+      "xr": 5
+    },
+    {
+      "time": "2026-09-10T12:23:49.417135-07:00",
+      "recording_seconds": 117.12072658538818,
+      "callback": 15649,
+      "gap_us": 224037.0,
+      "dsp_us": 4916.0,
+      "xr": 6
+    }
+  ],
+  "clock_offset_fit_slope": 2.4887532559931004e-05,
+  "clock_fit_max_residual_ms": 0.5128383636474609,
+  "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the native device counter."
+}

@@ -1,0 +1,152 @@
+{
+  "ui-on-r3": {
+    "base": "/private/tmp/smartgrid-ipad-autoplay-ui-on-r3-20260910",
+    "episodes": [
+      {
+        "bin_start_seconds": 177,
+        "bin_end_seconds": 181,
+        "first_hole_seconds": 177.61714583333332,
+        "last_hole_end_seconds": 180.3624375,
+        "short_holes": 233,
+        "width_ms_min_median_p99_max": [
+          0.4791666666666667,
+          3.875,
+          7.5166666666666675,
+          9.145833333333334
+        ],
+        "flat_fraction_within_episode_envelope": 0.2843277125988435
+      }
+    ],
+    "representative_windows": [
+      {
+        "start_seconds": 177,
+        "end_seconds": 181,
+        "holes": 233,
+        "holes_per_second": 58.25,
+        "flat_fraction": 0.195140625,
+        "median_width_ms": 3.875,
+        "median_onset_spacing_ms": 10.604166666666666
+      }
+    ],
+    "method": "Dense episodes are consecutive one-second bins with >=10 short flat candidates. Candidate detection uses both channels; isolated candidates may be natural music. Dense waveform and cadence were independently inspected. Analog settling affects measured boundaries and widths.",
+    "timing_limit": "WAV timestamps have recorder startup/latency and clock offset. Association with device events is approximate; no sub-millisecond cross-device alignment is claimed."
+  },
+  "ui-off": {
+    "base": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910",
+    "episodes": [
+      {
+        "bin_start_seconds": 29,
+        "bin_end_seconds": 274,
+        "first_hole_seconds": 29.060916666666667,
+        "last_hole_end_seconds": 273.1598125,
+        "short_holes": 18599,
+        "width_ms_min_median_p99_max": [
+          0.4166666666666667,
+          3.8541666666666665,
+          5.104166666666667,
+          5.645833333333333
+        ],
+        "flat_fraction_within_episode_envelope": 0.25272739950773027
+      },
+      {
+        "bin_start_seconds": 541,
+        "bin_end_seconds": 960,
+        "first_hole_seconds": 541.6501875,
+        "last_hole_end_seconds": 960.0,
+        "short_holes": 34630,
+        "width_ms_min_median_p99_max": [
+          0.4166666666666667,
+          2.1041666666666665,
+          3.4375,
+          3.7291666666666665
+        ],
+        "flat_fraction_within_episode_envelope": 0.17666988317342677
+      }
+    ],
+    "representative_windows": [
+      {
+        "start_seconds": 40,
+        "end_seconds": 50,
+        "holes": 448,
+        "holes_per_second": 44.8,
+        "flat_fraction": 0.04167916666666667,
+        "median_width_ms": 0.9583333333333334,
+        "median_onset_spacing_ms": 21.333333333333332
+      },
+      {
+        "start_seconds": 120,
+        "end_seconds": 125,
+        "holes": 469,
+        "holes_per_second": 93.8,
+        "flat_fraction": 0.22125833333333333,
+        "median_width_ms": 2.3541666666666665,
+        "median_onset_spacing_ms": 10.666666666666666
+      },
+      {
+        "start_seconds": 140,
+        "end_seconds": 150,
+        "holes": 937,
+        "holes_per_second": 93.7,
+        "flat_fraction": 0.37848125,
+        "median_width_ms": 4.0625,
+        "median_onset_spacing_ms": 10.666666666666666
+      },
+      {
+        "start_seconds": 350,
+        "end_seconds": 360,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "median_onset_spacing_ms": null
+      },
+      {
+        "start_seconds": 450,
+        "end_seconds": 460,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "median_onset_spacing_ms": null
+      },
+      {
+        "start_seconds": 510,
+        "end_seconds": 520,
+        "holes": 0,
+        "holes_per_second": 0.0,
+        "flat_fraction": 0,
+        "median_width_ms": null,
+        "median_onset_spacing_ms": null
+      },
+      {
+        "start_seconds": 560,
+        "end_seconds": 570,
+        "holes": 424,
+        "holes_per_second": 42.4,
+        "flat_fraction": 0.038033333333333336,
+        "median_width_ms": 0.8958333333333334,
+        "median_onset_spacing_ms": 21.333333333333332
+      },
+      {
+        "start_seconds": 650,
+        "end_seconds": 660,
+        "holes": 937,
+        "holes_per_second": 93.7,
+        "flat_fraction": 0.21430416666666666,
+        "median_width_ms": 2.2708333333333335,
+        "median_onset_spacing_ms": 10.666666666666666
+      },
+      {
+        "start_seconds": 940,
+        "end_seconds": 950,
+        "holes": 937,
+        "holes_per_second": 93.7,
+        "flat_fraction": 0.215525,
+        "median_width_ms": 2.2708333333333335,
+        "median_onset_spacing_ms": 10.666666666666666
+      }
+    ],
+    "method": "Dense episodes are consecutive one-second bins with >=10 short flat candidates. Candidate detection uses both channels; isolated candidates may be natural music. Dense waveform and cadence were independently inspected. Analog settling affects measured boundaries and widths.",
+    "timing_limit": "WAV timestamps have recorder startup/latency and clock offset. Association with device events is approximate; no sub-millisecond cross-device alignment is claimed."
+  }
+}

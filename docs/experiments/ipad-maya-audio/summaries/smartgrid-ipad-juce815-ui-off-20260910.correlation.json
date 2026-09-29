@@ -1,0 +1,472 @@
+{
+  "base": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910",
+  "recording_start": "2026-09-10T12:27:42.439342-07:00",
+  "recording_end": "2026-09-10T12:43:42.439342-07:00",
+  "recording_seconds": 960.0,
+  "kernel_maya_transaction_failures": 1,
+  "audio_restart_records": 1,
+  "near_silence_wave_intervals": 1,
+  "native_callback_gaps_gt100ms": 1,
+  "matched_usb_error_messages": 1,
+  "matched_interruption_episodes": 1,
+  "unique_matched_callbacks": 1,
+  "unique_matched_wave_intervals": 1,
+  "zero_length_reports": 27,
+  "zero_length_transfers_reported": 34,
+  "io_drift_records": 44,
+  "callback_resume_minus_wav_end_ms_range": [
+    110.16297531127961,
+    110.16297531127961
+  ],
+  "correlation_limit": "Wave event matching uses a conservative 750 ms neighborhood and reports unique callback/wave episodes. Multiple USB failure messages can belong to one interruption. Recorder/CoreAudio startup latency and independent audio clocks shift WAV timing relative to app logs; offsets are not causal transport latency measurements.",
+  "rows": [
+    {
+      "usb_error_time": "2026-09-10T12:28:06.646462-07:00",
+      "usb_error_seconds": 24.20712,
+      "callback_match": true,
+      "wave_match": true,
+      "callback": 8530,
+      "callback_gap_ms": 224.799,
+      "usb_error_to_callback_resume_ms": 301.0429753112795,
+      "wave_quiet_interval": {
+        "start_seconds": 24.267,
+        "end_seconds": 24.398,
+        "duration_ms": 131,
+        "preceding_100ms_peak_rms_dbfs": -26.407040115144373,
+        "following_100ms_peak_rms_dbfs": -25.08766067989624,
+        "surrounded_by_signal": true
+      },
+      "callback_resume_minus_wav_quiet_end_ms": 110.16297531127961
+    }
+  ],
+  "zlp_events": [
+    {
+      "timestamp": "2026-09-10T12:28:44.146371-07:00",
+      "seconds": 61.707029,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14292855 recieved 1 zero length transfers, zlpCount 1"
+    },
+    {
+      "timestamp": "2026-09-10T12:28:44.154376-07:00",
+      "seconds": 61.715034,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14292863 recieved 1 zero length transfers, zlpCount 2"
+    },
+    {
+      "timestamp": "2026-09-10T12:28:46.562367-07:00",
+      "seconds": 64.123025,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14295271 recieved 1 zero length transfers, zlpCount 3"
+    },
+    {
+      "timestamp": "2026-09-10T12:28:46.570379-07:00",
+      "seconds": 64.131037,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14295279 recieved 1 zero length transfers, zlpCount 4"
+    },
+    {
+      "timestamp": "2026-09-10T12:28:59.498038-07:00",
+      "seconds": 77.058696,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14308207 recieved 2 zero length transfers, zlpCount 6"
+    },
+    {
+      "timestamp": "2026-09-10T12:29:33.721876-07:00",
+      "seconds": 111.282534,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14342431 recieved 2 zero length transfers, zlpCount 8"
+    },
+    {
+      "timestamp": "2026-09-10T12:30:24.017947-07:00",
+      "seconds": 161.578605,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14392727 recieved 2 zero length transfers, zlpCount 10"
+    },
+    {
+      "timestamp": "2026-09-10T12:30:52.273914-07:00",
+      "seconds": 189.834572,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14420983 recieved 2 zero length transfers, zlpCount 12"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:16.348470-07:00",
+      "seconds": 213.909128,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14444967 recieved 2 zero length transfers, zlpCount 14"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:52.940323-07:00",
+      "seconds": 250.500981,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14481559 recieved 1 zero length transfers, zlpCount 15"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:52.948320-07:00",
+      "seconds": 250.508978,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14481567 recieved 1 zero length transfers, zlpCount 16"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:55.108312-07:00",
+      "seconds": 252.66897,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14483727 recieved 1 zero length transfers, zlpCount 17"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:55.116310-07:00",
+      "seconds": 252.676968,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14483735 recieved 1 zero length transfers, zlpCount 18"
+    },
+    {
+      "timestamp": "2026-09-10T12:32:54.652091-07:00",
+      "seconds": 312.212749,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14543271 recieved 2 zero length transfers, zlpCount 20"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:04.267840-07:00",
+      "seconds": 381.828498,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14612887 recieved 2 zero length transfers, zlpCount 22"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:56.339452-07:00",
+      "seconds": 433.90011,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14664959 recieved 1 zero length transfers, zlpCount 23"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:56.347687-07:00",
+      "seconds": 433.908345,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14664967 recieved 1 zero length transfers, zlpCount 24"
+    },
+    {
+      "timestamp": "2026-09-10T12:36:14.419448-07:00",
+      "seconds": 511.980106,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14743039 recieved 1 zero length transfers, zlpCount 25"
+    },
+    {
+      "timestamp": "2026-09-10T12:36:14.427420-07:00",
+      "seconds": 511.988078,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14743047 recieved 1 zero length transfers, zlpCount 26"
+    },
+    {
+      "timestamp": "2026-09-10T12:38:05.179089-07:00",
+      "seconds": 622.739747,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14853799 recieved 1 zero length transfers, zlpCount 27"
+    },
+    {
+      "timestamp": "2026-09-10T12:38:05.187066-07:00",
+      "seconds": 622.747724,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14853807 recieved 1 zero length transfers, zlpCount 28"
+    },
+    {
+      "timestamp": "2026-09-10T12:38:40.018958-07:00",
+      "seconds": 657.579616,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14888639 recieved 1 zero length transfers, zlpCount 29"
+    },
+    {
+      "timestamp": "2026-09-10T12:38:40.026956-07:00",
+      "seconds": 657.587614,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14888647 recieved 1 zero length transfers, zlpCount 30"
+    },
+    {
+      "timestamp": "2026-09-10T12:38:43.082956-07:00",
+      "seconds": 660.643614,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14891703 recieved 1 zero length transfers, zlpCount 31"
+    },
+    {
+      "timestamp": "2026-09-10T12:38:43.090952-07:00",
+      "seconds": 660.65161,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14891711 recieved 1 zero length transfers, zlpCount 32"
+    },
+    {
+      "timestamp": "2026-09-10T12:42:40.458263-07:00",
+      "seconds": 898.018921,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 15129079 recieved 1 zero length transfers, zlpCount 33"
+    },
+    {
+      "timestamp": "2026-09-10T12:42:40.466320-07:00",
+      "seconds": 898.026978,
+      "process": "usbaudiod",
+      "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 15129087 recieved 1 zero length transfers, zlpCount 34"
+    }
+  ],
+  "drift_events": [
+    {
+      "timestamp": "2026-09-10T12:28:44.346386-07:00",
+      "seconds": 61.907044,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 1999958 at sampleTime 1800000"
+    },
+    {
+      "timestamp": "2026-09-10T12:28:44.594383-07:00",
+      "seconds": 62.155041,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 2000000 at sampleTime 1812000"
+    },
+    {
+      "timestamp": "2026-09-10T12:28:46.602366-07:00",
+      "seconds": 64.163024,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 3999958 at sampleTime 1908000"
+    },
+    {
+      "timestamp": "2026-09-10T12:28:47.098369-07:00",
+      "seconds": 64.659027,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 4000000 at sampleTime 1932000"
+    },
+    {
+      "timestamp": "2026-09-10T12:28:59.602378-07:00",
+      "seconds": 77.163036,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 5999958 at sampleTime 2532000"
+    },
+    {
+      "timestamp": "2026-09-10T12:28:59.850328-07:00",
+      "seconds": 77.410986,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 5999959 at sampleTime 2544000"
+    },
+    {
+      "timestamp": "2026-09-10T12:29:00.354310-07:00",
+      "seconds": 77.914968,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 6000000 at sampleTime 2568000"
+    },
+    {
+      "timestamp": "2026-09-10T12:29:33.850152-07:00",
+      "seconds": 111.41081,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 7999958 at sampleTime 4176000"
+    },
+    {
+      "timestamp": "2026-09-10T12:29:34.602153-07:00",
+      "seconds": 112.162811,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 7999959 at sampleTime 4212000"
+    },
+    {
+      "timestamp": "2026-09-10T12:29:35.850157-07:00",
+      "seconds": 113.410815,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 8000000 at sampleTime 4272000"
+    },
+    {
+      "timestamp": "2026-09-10T12:29:51.106109-07:00",
+      "seconds": 128.666767,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 8001250 at sampleTime 5004000"
+    },
+    {
+      "timestamp": "2026-09-10T12:29:53.354110-07:00",
+      "seconds": 130.914768,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 8001417 at sampleTime 5112000"
+    },
+    {
+      "timestamp": "2026-09-10T12:30:24.105987-07:00",
+      "seconds": 161.666645,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 9999958 at sampleTime 6588000"
+    },
+    {
+      "timestamp": "2026-09-10T12:30:24.353953-07:00",
+      "seconds": 161.914611,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 9999959 at sampleTime 6600000"
+    },
+    {
+      "timestamp": "2026-09-10T12:30:50.857841-07:00",
+      "seconds": 188.418499,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 10000000 at sampleTime 7872000"
+    },
+    {
+      "timestamp": "2026-09-10T12:30:52.353853-07:00",
+      "seconds": 189.914511,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 11999959 at sampleTime 7944000"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:16.452483-07:00",
+      "seconds": 214.013141,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 13999917 at sampleTime 9096000"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:16.948474-07:00",
+      "seconds": 214.509132,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 13999958 at sampleTime 9120000"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:18.196466-07:00",
+      "seconds": 215.757124,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 13999959 at sampleTime 9180000"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:52.948364-07:00",
+      "seconds": 250.509022,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 15999917 at sampleTime 10848000"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:54.204323-07:00",
+      "seconds": 251.764981,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 15999958 at sampleTime 10908000"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:54.700320-07:00",
+      "seconds": 252.260978,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 15999959 at sampleTime 10932000"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:55.204319-07:00",
+      "seconds": 252.764977,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 17999917 at sampleTime 10956000"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:55.700315-07:00",
+      "seconds": 253.260973,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 17999958 at sampleTime 10980000"
+    },
+    {
+      "timestamp": "2026-09-10T12:31:56.956313-07:00",
+      "seconds": 254.516971,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 17999959 at sampleTime 11040000"
+    },
+    {
+      "timestamp": "2026-09-10T12:32:54.708101-07:00",
+      "seconds": 312.268759,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 19999916 at sampleTime 13812000"
+    },
+    {
+      "timestamp": "2026-09-10T12:32:54.956095-07:00",
+      "seconds": 312.516753,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 19999959 at sampleTime 13824000"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:04.459849-07:00",
+      "seconds": 382.020507,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 21999917 at sampleTime 17160000"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:04.707849-07:00",
+      "seconds": 382.268507,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 21999958 at sampleTime 17172000"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:06.203846-07:00",
+      "seconds": 383.764504,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 21999959 at sampleTime 17244000"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:34.459808-07:00",
+      "seconds": 412.020466,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 22001542 at sampleTime 18600000"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:45.707745-07:00",
+      "seconds": 423.268403,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 22001750 at sampleTime 19140000"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:56.459676-07:00",
+      "seconds": 434.020334,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 23999916 at sampleTime 19656000"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:56.707673-07:00",
+      "seconds": 434.268331,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 23999917 at sampleTime 19668000"
+    },
+    {
+      "timestamp": "2026-09-10T12:34:56.955740-07:00",
+      "seconds": 434.516398,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 24001500 at sampleTime 19680000"
+    },
+    {
+      "timestamp": "2026-09-10T12:36:14.459422-07:00",
+      "seconds": 512.02008,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 25999916 at sampleTime 23400000"
+    },
+    {
+      "timestamp": "2026-09-10T12:36:14.707427-07:00",
+      "seconds": 512.268085,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 25999917 at sampleTime 23412000"
+    },
+    {
+      "timestamp": "2026-09-10T12:36:15.459424-07:00",
+      "seconds": 513.020082,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 25999958 at sampleTime 23448000"
+    },
+    {
+      "timestamp": "2026-09-10T12:36:33.211367-07:00",
+      "seconds": 530.772025,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 25999959 at sampleTime 24300000"
+    },
+    {
+      "timestamp": "2026-09-10T12:38:05.211074-07:00",
+      "seconds": 622.771732,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 27999917 at sampleTime 28716000"
+    },
+    {
+      "timestamp": "2026-09-10T12:38:40.210973-07:00",
+      "seconds": 657.771631,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 29999917 at sampleTime 30396000"
+    },
+    {
+      "timestamp": "2026-09-10T12:38:43.218981-07:00",
+      "seconds": 660.779639,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 31999917 at sampleTime 30540000"
+    },
+    {
+      "timestamp": "2026-09-10T12:39:22.218889-07:00",
+      "seconds": 699.779547,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 32002542 at sampleTime 32412000"
+    },
+    {
+      "timestamp": "2026-09-10T12:42:40.466375-07:00",
+      "seconds": 898.027033,
+      "process": "usbaudiod",
+      "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 33999917 at sampleTime 41928000"
+    }
+  ]
+}

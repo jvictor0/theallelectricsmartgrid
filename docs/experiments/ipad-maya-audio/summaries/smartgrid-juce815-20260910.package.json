@@ -1,0 +1,22 @@
+{
+  "created_local": "2026-09-10T12:01:10.791200-07:00",
+  "source_app": "/private/tmp/smartgrid-juce815-ios-product/SmartGridOne.app",
+  "ipa": "/private/tmp/smartgrid-juce815-20260910.ipa",
+  "bytes": 1939170,
+  "ipa_sha256": "5dcb7076ed7a2a675e8fd641c1f60321854060514faa4810b1db6bf325c2e9b6",
+  "binary_sha256": "4f7b9428c5e8c4b91e658c7f8d7b8441ba7f5c1a5cd46f5e8f9fd16d6d0e4df5",
+  "files": [
+    "Payload/SmartGridOne.app/Info.plist",
+    "Payload/SmartGridOne.app/LaunchScreen.storyboardc/01J-lp-oVM-view-Ze5-6b-2t3.nib",
+    "Payload/SmartGridOne.app/LaunchScreen.storyboardc/Info.plist",
+    "Payload/SmartGridOne.app/LaunchScreen.storyboardc/UIViewController-01J-lp-oVM.nib",
+    "Payload/SmartGridOne.app/PkgInfo",
+    "Payload/SmartGridOne.app/SmartGridOne",
+    "Payload/SmartGridOne.app/_CodeSignature/CodeResources",
+    "Payload/SmartGridOne.app/embedded.mobileprovision"
+  ],
+  "juce_version": "8.0.15",
+  "juce_commit": "91ad83ae34a81e0833b1a2b0866f54846370ae53",
+  "signature": "codesign --verify --strict passed",
+  "review_status": "task and final integrated reviews clean; installation started"
+}

@@ -1,0 +1,10 @@
+{
+  "collected_local": "2026-09-10T12:44:06.545582-07:00",
+  "device_app_log": "2026-09-10T12-26-28-928.log",
+  "latest_device_app_log": "2026-09-10T12-26-28-928.log",
+  "expected_log_still_latest": true,
+  "app_log_bytes": 14890479,
+  "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+  "patch_sha256": "a0e797a87de665e300dcf8ff484774ee93639c8c7d425a67ddc0aabb2223952a",
+  "config_and_patch_unchanged": true
+}

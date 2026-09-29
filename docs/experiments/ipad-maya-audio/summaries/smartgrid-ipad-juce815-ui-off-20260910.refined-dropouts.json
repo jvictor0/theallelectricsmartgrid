@@ -1,0 +1,16 @@
+{
+  "method": "Refines already-identified long near-noise candidates using 8-sample local standard deviation <0.00015 and |mean|<0.01 in both channels. Includes low-level analog settling outside the -75 dBFS core; not a general proof against subtle clicks or periodic corruption.",
+  "intervals": [
+    {
+      "start_seconds": 24.1733125,
+      "end_seconds": 24.398125,
+      "duration_ms": 224.8125,
+      "near_noise_core_ms": 131
+    }
+  ],
+  "duration_ms_min_median_max": [
+    224.8125,
+    224.8125,
+    224.8125
+  ]
+}

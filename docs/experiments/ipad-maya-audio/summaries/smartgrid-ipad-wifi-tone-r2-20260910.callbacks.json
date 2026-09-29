@@ -1,0 +1,42 @@
+{
+  "app_log": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.app.log",
+  "recording_metadata": "/private/tmp/smartgrid-ipad-wifi-tone-r2-20260910.json",
+  "callbacks": 90031,
+  "sample_rates": [
+    48000.0
+  ],
+  "frame_sizes": [
+    512.0
+  ],
+  "thermal_states": [
+    0.0
+  ],
+  "low_power_states": [
+    0.0
+  ],
+  "muted_states": [
+    0.0
+  ],
+  "sequence_holes": 0,
+  "logger_miss_lines_entire_log": [],
+  "dsp_ms_p50_p99_max": [
+    0.02,
+    0.022,
+    0.034
+  ],
+  "gap_ms_p50_p99_max": [
+    10.667,
+    10.736,
+    10.799
+  ],
+  "measured_dsp_overruns": 0,
+  "xrun_start_end": [
+    0,
+    0
+  ],
+  "callback_gaps_gt20ms": [],
+  "xrun_increments": [],
+  "clock_offset_fit_slope": -2.8721169163167745e-07,
+  "clock_fit_max_residual_ms": 6.134748458862305,
+  "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the native device counter."
+}

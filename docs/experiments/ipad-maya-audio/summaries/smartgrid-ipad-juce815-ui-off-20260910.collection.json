@@ -1,0 +1,15 @@
+{
+  "ipad_udid": "00008122-001439681EA1001C",
+  "ipad_ip": "192.168.1.53",
+  "started_epoch": 1789069470.728108,
+  "started_local": "2026-09-10T12:44:30.728110-07:00",
+  "requested_start_epoch": 1789068170,
+  "requested_size_limit": 67108864,
+  "size_limit_note": "Device may include additional archive metadata beyond the requested limit.",
+  "transport": "authenticated direct Wi-Fi; existing pairing; no connection-setting changes",
+  "archive": "/private/tmp/smartgrid-ipad-juce815-ui-off-20260910.logarchive",
+  "status": "collected",
+  "files": 1212,
+  "bytes": 218524336,
+  "ended_epoch": 1789069505.757875
+}

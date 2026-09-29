@@ -1,0 +1,1152 @@
+[
+  {
+    "timestamp": "2026-09-10 12:36:07.606723-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 25. Core0Rssi:-70 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.222707-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162429938"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.222740-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.443502-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.443894-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.444025-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.444143-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.444234-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.444337-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.444485-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.444832-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.629080-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 25. Core0Rssi:-70 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:08.876014-0700",
+    "process": "usbaudiod",
+    "message": "[<private>] current microframe timestamp calcError ns 666"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.247140-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162430963"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.247175-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.449306-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.449692-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.449830-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.449957-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.450043-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.450141-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.450298-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.450654-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.646767-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 26. Core0Rssi:-70 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993580-0700",
+    "process": "kernel",
+    "message": "IO80211PeerMonitor::checkForDPS()  Enter"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993620-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: MonitorTimer en0/5000: packet counts: I0 Q0 O0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993663-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: postMessageOnInfraInterface:3463 posting msgId:169 on skywalk infraInterface"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993700-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: BE : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993708-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: BK : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993714-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: VI : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993719-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: VO : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993754-0700",
+    "process": "kernel",
+    "message": "InfraPeers: ---------- BEGIN ----------"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993770-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Gateway (78:8A:20:BA:90:05, 192.168.1.1) - Tx [S:0 (BE:0 BK:0 VI:0 VO:0), F:0 (BE:0 BK:0 VI:0 VO:0), PER:0.0%], TxRe [0 (0%)], Rx [0 (BE:0 BK:0 VI:0 VO:0)], RxRe [0 (0%)], RxUc [0], RxMc [0 (B:0 O:0)]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993784-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Bonjour MC (33:33:00:00:00:00) - Tx [S:0, F:0, PER: 0.0%]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993791-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Other MC (01:00:00:00:00:00) - Tx [S:0, F:0, PER: 0.0%]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993799-0700",
+    "process": "kernel",
+    "message": "InfraPeers: BC (FF:FF:FF:FF:FF:FF) - Tx [S:0, F:0, PER: 0.0%]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993804-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Total unicast peers: 1"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993811-0700",
+    "process": "kernel",
+    "message": "InfraPeers: UC (78:45:58:E3:03:79, ?) - RxMc [0 (B:0 O:0)]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:09.993817-0700",
+    "process": "kernel",
+    "message": "InfraPeers: ----------- END -----------"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.272762-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162431988"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.272795-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.449837-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.450269-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.450417-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.450554-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.450649-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.450753-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.450921-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.451303-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.668109-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 25. Core0Rssi:-70 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.724307-0700",
+    "process": "kernel",
+    "message": "Profile maild extends autobox but no autobox profile available for its executable"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:10.724452-0700",
+    "process": "kernel",
+    "message": "/System/Library/PrivateFrameworks/EmailDaemon.framework/maild[18254] ==> maild"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.124136-0700",
+    "process": "usbaudiod",
+    "message": "[<private>] current microframe timestamp calcError ns 4041"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.296947-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162433012"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.296979-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:2 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.456998-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.457392-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.457525-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.457641-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.457729-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.457822-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.457971-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.458321-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.575242-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Added unicast peer to database F6:E6:8D:75:2E:B1 (total peers: 2)"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.686024-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 25. Core0Rssi:-70 Core1Rssi:-71"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:11.881784-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Added unicast peer to database 7C:78:B2:7E:FD:F8 (total peers: 3)"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.015707-0700",
+    "process": "kernel",
+    "message": "priorityCalculationInputs Using IOSkywalkLegacyEthernet as no other controller was found for en0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.015715-0700",
+    "process": "kernel",
+    "message": "priorityCalculationInputs en0 isWiFiInterface:1"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.265238-0700",
+    "process": "kernel",
+    "message": "memorystatus_perform_idle_demotion() timed out stuck process 411 [CallHistorySyncHelper], moving to idle band"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.292291-0700",
+    "process": "kernel",
+    "message": "memorystatus_perform_idle_demotion() timed out stuck process 38 [assistantd], moving to idle band"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.293252-0700",
+    "process": "kernel",
+    "message": "memorystatus_perform_idle_demotion() timed out stuck process 16645 [mediasetupd], moving to idle band"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.296798-0700",
+    "process": "kernel",
+    "message": "memorystatus_perform_idle_demotion() timed out stuck process 137 [coreduetd], moving to idle band"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.322783-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162434038"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.322817-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:2 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.349565-0700",
+    "process": "kernel",
+    "message": "memorystatus_perform_idle_demotion() timed out stuck process 40 [routined], moving to idle band"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.399173-0700",
+    "process": "kernel",
+    "message": "memorystatus_perform_idle_demotion() timed out stuck process 173 [homed], moving to idle band"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.473394-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.473775-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.473909-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.474030-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.474120-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.474219-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.474366-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.474722-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:12.704485-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 26. Core0Rssi:-70 Core1Rssi:-71"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.351892-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162435067"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.351924-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.372253-0700",
+    "process": "usbaudiod",
+    "message": "[<private>] current microframe timestamp calcError ns 791"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.479502-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.479883-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.480016-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.480136-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.480226-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.480322-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.480476-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.480827-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:13.725002-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 26. Core0Rssi:-70 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.381004-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162436096"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.381038-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.419448-0700",
+    "process": "usbaudiod",
+    "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14743039 recieved 1 zero length transfers, zlpCount 25"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.427420-0700",
+    "process": "usbaudiod",
+    "message": "   [0x6d8]:AUAInputTransferManager_completeBlock block starting at frame 14743047 recieved 1 zero length transfers, zlpCount 26"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.459422-0700",
+    "process": "usbaudiod",
+    "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 25999916 at sampleTime 23400000"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.492845-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.493210-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.493350-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.493434-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.493536-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.493640-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.493768-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.494106-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.707427-0700",
+    "process": "usbaudiod",
+    "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 25999917 at sampleTime 23412000"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.746842-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 26. Core0Rssi:-70 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.996901-0700",
+    "process": "kernel",
+    "message": "IO80211PeerMonitor::checkForDPS()  Enter"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.996943-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: MonitorTimer en0/5000: packet counts: I0 Q0 O0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.996986-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: postMessageOnInfraInterface:3463 posting msgId:169 on skywalk infraInterface"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997020-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: BE : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997028-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: BK : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997033-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: VI : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997039-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: VO : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997074-0700",
+    "process": "kernel",
+    "message": "InfraPeers: ---------- BEGIN ----------"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997090-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Gateway (78:8A:20:BA:90:05, 192.168.1.1) - Tx [S:0 (BE:0 BK:0 VI:0 VO:0), F:0 (BE:0 BK:0 VI:0 VO:0), PER:0.0%], TxRe [0 (0%)], Rx [0 (BE:0 BK:0 VI:0 VO:0)], RxRe [0 (0%)], RxUc [0], RxMc [0 (B:0 O:0)]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997102-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Bonjour MC (33:33:00:00:00:00) - Tx [S:0, F:0, PER: 0.0%]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997110-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Other MC (01:00:00:00:00:00) - Tx [S:0, F:0, PER: 0.0%]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997117-0700",
+    "process": "kernel",
+    "message": "InfraPeers: BC (FF:FF:FF:FF:FF:FF) - Tx [S:0, F:0, PER: 0.0%]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997123-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Total unicast peers: 3"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997130-0700",
+    "process": "kernel",
+    "message": "InfraPeers: UC (78:45:58:E3:03:79, ?) - RxMc [2 (B:1 O:1)]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997137-0700",
+    "process": "kernel",
+    "message": "InfraPeers: UC (F6:E6:8D:75:2E:B1, ?) - RxMc [1 (B:0 O:1)]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997144-0700",
+    "process": "kernel",
+    "message": "InfraPeers: UC (7C:78:B2:7E:FD:F8, ?) - RxMc [1 (B:0 O:1)]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:14.997149-0700",
+    "process": "kernel",
+    "message": "InfraPeers: ----------- END -----------"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.406143-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162437122"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.406202-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.459424-0700",
+    "process": "usbaudiod",
+    "message": "   [0x4af]:AUAAudioDevice_updateTimeStamp ioDriftNS 25999958 at sampleTime 23448000"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.506580-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.506961-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.507100-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.507221-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.507325-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.507426-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.507581-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.507935-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.620369-0700",
+    "process": "usbaudiod",
+    "message": "[<private>] current microframe timestamp calcError ns 1083"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.769316-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 26. Core0Rssi:-70 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:15.995104-0700",
+    "process": "audiomxd",
+    "message": "IssueReporting.cpp:492   RTAID [ use_case=Generic report_type=RMS Generic Chain clientID=HAL node=-Output issue_detected_sample_time=23474100.000000 ] -- [ rms:[-13.710966], peaks:[-3.979483] ]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.430719-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162438146"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.430755-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.510023-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.510423-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.510564-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.510689-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.510779-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.510876-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.511017-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.511361-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:16.784817-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 26. Core0Rssi:-70 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.456186-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162439172"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.456221-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.522623-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.523015-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.523143-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.523262-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.523358-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.523455-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.523600-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.523941-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.803661-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -93 snr 26. Core0Rssi:-70 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:17.868488-0700",
+    "process": "usbaudiod",
+    "message": "[<private>] current microframe timestamp calcError ns 291"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.485288-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162440201"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.485321-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.533169-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.533572-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.533704-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.533824-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.533916-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.534013-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.534162-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.534503-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.643468-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -69 noise -93 snr 26. Core0Rssi:-69 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:18.748129-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -69 noise -93 snr 26. Core0Rssi:-69 Core1Rssi:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.509431-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162441225"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.509467-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.542119-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.542519-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.542630-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.542720-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.542824-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.542934-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.543085-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.543423-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992362-0700",
+    "process": "kernel",
+    "message": "IO80211PeerMonitor::checkForDPS()  Enter"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992400-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: MonitorTimer en0/5000: packet counts: I0 Q0 O0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992445-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: postMessageOnInfraInterface:3463 posting msgId:169 on skywalk infraInterface"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992480-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: BE : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992488-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: BK : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992494-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: VI : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992499-0700",
+    "process": "kernel",
+    "message": "LQM-WiFi: VO : Count: 0 avgLatencyMs:0 maxLatencyMs:0"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992535-0700",
+    "process": "kernel",
+    "message": "InfraPeers: ---------- BEGIN ----------"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992551-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Gateway (78:8A:20:BA:90:05, 192.168.1.1) - Tx [S:0 (BE:0 BK:0 VI:0 VO:0), F:0 (BE:0 BK:0 VI:0 VO:0), PER:0.0%], TxRe [0 (0%)], Rx [0 (BE:0 BK:0 VI:0 VO:0)], RxRe [0 (0%)], RxUc [0], RxMc [0 (B:0 O:0)]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992564-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Bonjour MC (33:33:00:00:00:00) - Tx [S:0, F:0, PER: 0.0%]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992571-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Other MC (01:00:00:00:00:00) - Tx [S:0, F:0, PER: 0.0%]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992579-0700",
+    "process": "kernel",
+    "message": "InfraPeers: BC (FF:FF:FF:FF:FF:FF) - Tx [S:0, F:0, PER: 0.0%]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992584-0700",
+    "process": "kernel",
+    "message": "InfraPeers: Total unicast peers: 3"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992591-0700",
+    "process": "kernel",
+    "message": "InfraPeers: UC (78:45:58:E3:03:79, ?) - RxMc [0 (B:0 O:0)]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992598-0700",
+    "process": "kernel",
+    "message": "InfraPeers: UC (F6:E6:8D:75:2E:B1, ?) - RxMc [0 (B:0 O:0)]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992605-0700",
+    "process": "kernel",
+    "message": "InfraPeers: UC (7C:78:B2:7E:FD:F8, ?) - RxMc [0 (B:0 O:0)]"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:19.992610-0700",
+    "process": "kernel",
+    "message": "InfraPeers: ----------- END -----------"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.116606-0700",
+    "process": "usbaudiod",
+    "message": "[<private>] current microframe timestamp calcError ns 1166"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.536305-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162442252"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.536337-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:0 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.552297-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.552683-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.552797-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.552877-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.552974-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.553075-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.553216-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.553556-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:20.793879-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.en0: IO80211PeerManager::reportDataPathEvents APPLE80211_M_RSSI_CHANGED RSSI -70 noise -92 snr 26. Core0Rssi:-70 Core1Rssi:-72"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.426487-0700",
+    "process": "kernel",
+    "message": "Profile maild extends autobox but no autobox profile available for its executable"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.426670-0700",
+    "process": "kernel",
+    "message": "/System/Library/PrivateFrameworks/EmailDaemon.framework/maild[18255] ==> maild"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.553441-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.553820-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.553953-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.554066-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.554152-0700",
+    "process": "audiomxd",
+    "message": "AVAudioSessionXPCServer.mm:1569  Success getting AVAS property: AS_DetailedActiveAudioRoute, session: 0x6d198"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.554250-0700",
+    "process": "SmartGridOne",
+    "message": "AVAudioSessionUtilities.mm:76    -- Endpoint Value Converter failed to find a match for string \"Other\""
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.554393-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning input latency : 0.000000 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.554740-0700",
+    "process": "audiomxd",
+    "message": "-CMVAEndptMgr- vaemGetCurrentLatencyForVADIDAndScope: returning output latency : 0.001042 for device VirtualAudioDevice_Default"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.560637-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: isInfraRealtimePacketThresholdAllowed allowed:1 option:32 threshold:50 noRegistrations:1 cachedPeerCount:0 fastDiscoveryInactive:1 fastDiscoveryOnSince:162443276"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:21.560669-0700",
+    "process": "kernel",
+    "message": "wlan0:com.apple.p2p.awdl0: currentInfraTrafficType:9278 checking if realtime upgrade required with inputPackets:2 outputPackets:0 packetThreshold:50"
+  },
+  {
+    "timestamp": "2026-09-10 12:36:22.364720-0700",
+    "process": "usbaudiod",
+    "message": "[<private>] current microframe timestamp calcError ns 4833"
+  }
+]

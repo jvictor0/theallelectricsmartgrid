@@ -1,0 +1,106 @@
+{
+  "updated_local": "2026-09-10T13:29:33.926923-07:00",
+  "status": "recording",
+  "base": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910",
+  "recorder": {
+    "started_local": "2026-09-10T13:25:49.141815-07:00",
+    "started_epoch_ns": 1789071949141829000,
+    "started_monotonic_ns": 3558955980268375,
+    "device": "K-Mix",
+    "input_channels": [
+      3,
+      4
+    ],
+    "rate": 48000,
+    "bits": 24,
+    "maximum_seconds": 3600,
+    "command": [
+      "/opt/homebrew/bin/sox",
+      "--buffer",
+      "131072",
+      "-q",
+      "-t",
+      "coreaudio",
+      "-r",
+      "48000",
+      "-c",
+      "8",
+      "K-Mix",
+      "-b",
+      "24",
+      "/private/tmp/smartgrid-ipad-sonobus-hour-20260910.wav",
+      "remix",
+      "3",
+      "4",
+      "trim",
+      "0",
+      "3600"
+    ],
+    "wrapper_pid": 20624,
+    "source": "SonoBus 1.7.3 build 90 standalone iPad local music loop, UI visible, network group disconnected; same MAYA/WB/Satechi/PD topology per user; live route/rate/buffer and active SmartGrid background session not yet verified at recording start. K-Mix analog inputs 3/4. Initial preflight interval must be marked separately if device queries continue.",
+    "status": "recording",
+    "sox_pid": 20631,
+    "system_log_pid": 20629,
+    "keep_awake_pid": 20630
+  },
+  "exec_session_id": 50336,
+  "expected_end_local": "2026-09-10T14:25:49-07:00",
+  "monitor_automation_id": "track-sonobus-ipad-hour",
+  "preflight": {
+    "observed_local": "2026-09-10T13:25:13.078467-07:00",
+    "apps": {
+      "com.Sonosaurus.SonoBus": {
+        "CFBundleShortVersionString": "1.7.3",
+        "CFBundleDisplayName": "SonoBus",
+        "CFBundleVersion": "90",
+        "CFBundleIdentifier": "com.Sonosaurus.SonoBus"
+      }
+    },
+    "battery": {
+      "BatteryCurrentCapacity": 100,
+      "BatteryIsCharging": true,
+      "ExternalChargeCapable": true,
+      "ExternalConnected": true,
+      "FullyCharged": false,
+      "GasGaugeCapability": true,
+      "HasBattery": true
+    },
+    "pids": {
+      "com.Sonosaurus.SonoBus": 18546,
+      "com.theallelectricsmartgrid.smartgridone": 18488
+    }
+  },
+  "smartgrid_shutdown": {
+    "observed_local": "2026-09-10T13:26:30.944892-07:00",
+    "purpose": "Close our experimental SmartGrid build so it cannot keep a second audio session active during the SonoBus control.",
+    "smartgrid_pid_before": 18488,
+    "smartgrid_pid_after": 0,
+    "sonobus_pid_after": 18546,
+    "completed_local": "2026-09-10T13:26:33.019181-07:00"
+  },
+  "preflight_exclusion_seconds": [
+    0,
+    45
+  ],
+  "settings_verification": "Pending user reply or post-run system logs: MAYA route, actual sample rate, hardware buffer and input/output channels. K-Mix recording rate is not evidence of the iPad rate.",
+  "loop_observation": "SonoBus foreground screenshot at 13:25:14 shows local file playback, selected looping region, output meters and no network group connection. File label appears to read all in dojo; exact source identity, duration and loop boundaries not verified.",
+  "latest_capture_check": {
+    "seconds_scanned": 153.372,
+    "near_silence_candidates": 0,
+    "last_levels": {
+      "start_seconds": 150.0,
+      "seconds": 3.372,
+      "rms_dbfs": [
+        -30.99899291126604,
+        -31.1194460730664
+      ],
+      "peak_dbfs": [
+        -18.194499505787206,
+        -18.31623195146402
+      ]
+    },
+    "stderr_bytes": 0
+  },
+  "device_query_policy": "No iPad service traffic after preflight shutdown completed at 13:26:33 until capture completion. Collect archive afterward.",
+  "interpretation": "In progress. No clean-hour or symptom conclusion yet."
+}

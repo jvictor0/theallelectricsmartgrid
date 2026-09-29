@@ -1,0 +1,484 @@
+{
+  "window": {
+    "base": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751",
+    "started_local": "2026-09-10T17:51:26.285036-07:00",
+    "ended_local": "2026-09-10T17:54:23.863692-07:00",
+    "observation_seconds": 177.578656,
+    "start_boundary": "Launch request timestamp, includes startup; app playback beganabout17:51:33",
+    "end_boundary": "Before any new device diagnostic collection",
+    "no_analog_recording": true,
+    "user_condition": "PD disconnected before app launch; iPad powering USB bus. User reports many glitches with no interaction.",
+    "build": "Same installed JUCE8.0.15 diagnostic build, normalDSP/UI/autoplay/MIDIworker,48k/512 verified at launch"
+  },
+  "callbacks": {
+    "app_log": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.app.log",
+    "recording_metadata": "/private/tmp/smartgrid-ipad-no-pd-adhoc-20260910-1751.window.json",
+    "callbacks": 15836,
+    "sample_rates": [
+      48000.0
+    ],
+    "frame_sizes": [
+      470.0,
+      512.0
+    ],
+    "thermal_states": [
+      -1.0,
+      0.0
+    ],
+    "low_power_states": [
+      0.0
+    ],
+    "muted_states": [
+      0.0
+    ],
+    "sequence_holes": 0,
+    "logger_miss_lines_entire_log": [],
+    "dsp_ms_p50_p99_max": [
+      4.119,
+      4.986,
+      18.328
+    ],
+    "gap_ms_p50_p99_max": [
+      10.667,
+      10.675,
+      229.398
+    ],
+    "measured_dsp_overruns": 1,
+    "xrun_start_end": [
+      0,
+      7
+    ],
+    "callback_gaps_gt20ms": [
+      {
+        "time": "2026-09-10T17:52:03.634919-07:00",
+        "recording_seconds": 37.34988331794739,
+        "callback": 2809,
+        "gap_us": 220224.0,
+        "dsp_us": 4917.0,
+        "xr": 1
+      },
+      {
+        "time": "2026-09-10T17:52:14.110839-07:00",
+        "recording_seconds": 47.82580256462097,
+        "callback": 3771,
+        "gap_us": 225118.0,
+        "dsp_us": 5030.0,
+        "xr": 2
+      },
+      {
+        "time": "2026-09-10T17:52:49.599574-07:00",
+        "recording_seconds": 83.314537525177,
+        "callback": 7078,
+        "gap_us": 224290.0,
+        "dsp_us": 3707.0,
+        "xr": 3
+      },
+      {
+        "time": "2026-09-10T17:53:07.139528-07:00",
+        "recording_seconds": 100.85449194908142,
+        "callback": 8703,
+        "gap_us": 217135.0,
+        "dsp_us": 4903.0,
+        "xr": 4
+      },
+      {
+        "time": "2026-09-10T17:53:11.463674-07:00",
+        "recording_seconds": 105.17863821983337,
+        "callback": 9089,
+        "gap_us": 217482.0,
+        "dsp_us": 5020.0,
+        "xr": 5
+      },
+      {
+        "time": "2026-09-10T17:53:33.111899-07:00",
+        "recording_seconds": 126.8268632888794,
+        "callback": 11098,
+        "gap_us": 229398.0,
+        "dsp_us": 3799.0,
+        "xr": 6
+      },
+      {
+        "time": "2026-09-10T17:53:40.287862-07:00",
+        "recording_seconds": 134.00282549858093,
+        "callback": 11751,
+        "gap_us": 221291.0,
+        "dsp_us": 4865.0,
+        "xr": 7
+      }
+    ],
+    "xrun_increments": [
+      {
+        "time": "2026-09-10T17:52:03.634919-07:00",
+        "recording_seconds": 37.34988331794739,
+        "callback": 2809,
+        "gap_us": 220224.0,
+        "dsp_us": 4917.0,
+        "xr": 1
+      },
+      {
+        "time": "2026-09-10T17:52:14.110839-07:00",
+        "recording_seconds": 47.82580256462097,
+        "callback": 3771,
+        "gap_us": 225118.0,
+        "dsp_us": 5030.0,
+        "xr": 2
+      },
+      {
+        "time": "2026-09-10T17:52:49.599574-07:00",
+        "recording_seconds": 83.314537525177,
+        "callback": 7078,
+        "gap_us": 224290.0,
+        "dsp_us": 3707.0,
+        "xr": 3
+      },
+      {
+        "time": "2026-09-10T17:53:07.139528-07:00",
+        "recording_seconds": 100.85449194908142,
+        "callback": 8703,
+        "gap_us": 217135.0,
+        "dsp_us": 4903.0,
+        "xr": 4
+      },
+      {
+        "time": "2026-09-10T17:53:11.463674-07:00",
+        "recording_seconds": 105.17863821983337,
+        "callback": 9089,
+        "gap_us": 217482.0,
+        "dsp_us": 5020.0,
+        "xr": 5
+      },
+      {
+        "time": "2026-09-10T17:53:33.111899-07:00",
+        "recording_seconds": 126.8268632888794,
+        "callback": 11098,
+        "gap_us": 229398.0,
+        "dsp_us": 3799.0,
+        "xr": 6
+      },
+      {
+        "time": "2026-09-10T17:53:40.287862-07:00",
+        "recording_seconds": 134.00282549858093,
+        "callback": 11751,
+        "gap_us": 221291.0,
+        "dsp_us": 4865.0,
+        "xr": 7
+      }
+    ],
+    "clock_offset_fit_slope": 1.8149223188891314e-05,
+    "clock_fit_max_residual_ms": 0.5331039428710938,
+    "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the native device counter."
+  },
+  "thermal_intervals": [
+    {
+      "state": -1,
+      "start": "2026-09-10T17:51:33.473278-07:00",
+      "end": "2026-09-10T17:51:33.513259-07:00",
+      "callbacks": 4,
+      "long_gaps": 0
+    },
+    {
+      "state": 0,
+      "start": "2026-09-10T17:51:33.513259-07:00",
+      "end": "2026-09-10T17:54:23.863692-07:00",
+      "callbacks": 15832,
+      "long_gaps": 7
+    }
+  ],
+  "transaction_errors": 7,
+  "driver_restart_records": 12,
+  "callback_long_gaps": 7,
+  "matched_usb_callback_restart_episodes": 7,
+  "matches": [
+    {
+      "usb": {
+        "time": "2026-09-10T17:52:03.397655-07:00",
+        "seconds": 37.112619,
+        "process": "kernel",
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+      },
+      "callback": {
+        "time": "2026-09-10T17:52:03.634919-07:00",
+        "recording_seconds": 37.34988331794739,
+        "callback": 2809,
+        "gap_us": 220224.0,
+        "dsp_us": 4917.0,
+        "xr": 1
+      },
+      "restart": {
+        "time": "2026-09-10T17:52:03.430200-07:00",
+        "seconds": 37.145164,
+        "process": "audiomxd",
+        "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+      }
+    },
+    {
+      "usb": {
+        "time": "2026-09-10T17:52:13.872640-07:00",
+        "seconds": 47.587604,
+        "process": "kernel",
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+      },
+      "callback": {
+        "time": "2026-09-10T17:52:14.110839-07:00",
+        "recording_seconds": 47.82580256462097,
+        "callback": 3771,
+        "gap_us": 225118.0,
+        "dsp_us": 5030.0,
+        "xr": 2
+      },
+      "restart": {
+        "time": "2026-09-10T17:52:13.907441-07:00",
+        "seconds": 47.622405,
+        "process": "audiomxd",
+        "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+      }
+    },
+    {
+      "usb": {
+        "time": "2026-09-10T17:52:49.356489-07:00",
+        "seconds": 83.071453,
+        "process": "kernel",
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+      },
+      "callback": {
+        "time": "2026-09-10T17:52:49.599574-07:00",
+        "recording_seconds": 83.314537525177,
+        "callback": 7078,
+        "gap_us": 224290.0,
+        "dsp_us": 3707.0,
+        "xr": 3
+      },
+      "restart": {
+        "time": "2026-09-10T17:52:49.392204-07:00",
+        "seconds": 83.107168,
+        "process": "audiomxd",
+        "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+      }
+    },
+    {
+      "usb": {
+        "time": "2026-09-10T17:53:06.900358-07:00",
+        "seconds": 100.615322,
+        "process": "kernel",
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+      },
+      "callback": {
+        "time": "2026-09-10T17:53:07.139528-07:00",
+        "recording_seconds": 100.85449194908142,
+        "callback": 8703,
+        "gap_us": 217135.0,
+        "dsp_us": 4903.0,
+        "xr": 4
+      },
+      "restart": {
+        "time": "2026-09-10T17:53:06.935184-07:00",
+        "seconds": 100.650148,
+        "process": "audiomxd",
+        "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+      }
+    },
+    {
+      "usb": {
+        "time": "2026-09-10T17:53:11.224574-07:00",
+        "seconds": 104.939538,
+        "process": "kernel",
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+      },
+      "callback": {
+        "time": "2026-09-10T17:53:11.463674-07:00",
+        "recording_seconds": 105.17863821983337,
+        "callback": 9089,
+        "gap_us": 217482.0,
+        "dsp_us": 5020.0,
+        "xr": 5
+      },
+      "restart": {
+        "time": "2026-09-10T17:53:11.258269-07:00",
+        "seconds": 104.973233,
+        "process": "audiomxd",
+        "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+      }
+    },
+    {
+      "usb": {
+        "time": "2026-09-10T17:53:32.868158-07:00",
+        "seconds": 126.583122,
+        "process": "kernel",
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+      },
+      "callback": {
+        "time": "2026-09-10T17:53:33.111899-07:00",
+        "recording_seconds": 126.8268632888794,
+        "callback": 11098,
+        "gap_us": 229398.0,
+        "dsp_us": 3799.0,
+        "xr": 6
+      },
+      "restart": {
+        "time": "2026-09-10T17:53:32.904993-07:00",
+        "seconds": 126.619957,
+        "process": "audiomxd",
+        "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+      }
+    },
+    {
+      "usb": {
+        "time": "2026-09-10T17:53:40.044092-07:00",
+        "seconds": 133.759056,
+        "process": "kernel",
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+      },
+      "callback": {
+        "time": "2026-09-10T17:53:40.287862-07:00",
+        "recording_seconds": 134.00282549858093,
+        "callback": 11751,
+        "gap_us": 221291.0,
+        "dsp_us": 4865.0,
+        "xr": 7
+      },
+      "restart": {
+        "time": "2026-09-10T17:53:40.079277-07:00",
+        "seconds": 133.794241,
+        "process": "audiomxd",
+        "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+      }
+    }
+  ],
+  "prior_processing": [
+    {
+      "callback": 2809,
+      "dsp_ms_immediately_before": 3.789,
+      "prior100ms_max_dsp_ms": 4.933
+    },
+    {
+      "callback": 3771,
+      "dsp_ms_immediately_before": 3.662,
+      "prior100ms_max_dsp_ms": 4.937
+    },
+    {
+      "callback": 7078,
+      "dsp_ms_immediately_before": 4.906,
+      "prior100ms_max_dsp_ms": 4.968
+    },
+    {
+      "callback": 8703,
+      "dsp_ms_immediately_before": 3.673,
+      "prior100ms_max_dsp_ms": 4.886
+    },
+    {
+      "callback": 9089,
+      "dsp_ms_immediately_before": 3.714,
+      "prior100ms_max_dsp_ms": 4.967
+    },
+    {
+      "callback": 11098,
+      "dsp_ms_immediately_before": 4.869,
+      "prior100ms_max_dsp_ms": 4.974
+    },
+    {
+      "callback": 11751,
+      "dsp_ms_immediately_before": 3.754,
+      "prior100ms_max_dsp_ms": 4.884
+    }
+  ],
+  "processing_overruns": [
+    {
+      "callback": 1,
+      "time": "2026-09-10T17:51:33.473278-07:00",
+      "dsp_ms": 18.328,
+      "frames": 470
+    }
+  ],
+  "power_snapshots": [
+    {
+      "time": "2026-09-10T17:51:28.088203-07:00",
+      "seconds": 1.803167,
+      "process": "symptomsd",
+      "message": "Power: battery-percentage 100.00 battery-power-connected 0 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 10084 battery-voltage-mV 4261 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 534 battery-fully-charged 0 battery-temperature 3179 screen-brightness 600000 battery-raw-current-capacity 9675 battery-raw-maximum-capacity 9773 presentDOD 0"
+    },
+    {
+      "time": "2026-09-10T17:51:48.098223-07:00",
+      "seconds": 21.813187,
+      "process": "symptomsd",
+      "message": "Power: battery-percentage 100.00 battery-power-connected 0 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 10067 battery-voltage-mV 4217 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 223 battery-fully-charged 0 battery-temperature 3200 screen-brightness 600000 battery-raw-current-capacity 9507 battery-raw-maximum-capacity 9604 presentDOD 0"
+    },
+    {
+      "time": "2026-09-10T17:52:08.092867-07:00",
+      "seconds": 41.807831,
+      "process": "symptomsd",
+      "message": "Power: battery-percentage 100.00 battery-power-connected 0 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 10050 battery-voltage-mV 4216 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 190 battery-fully-charged 0 battery-temperature 3209 screen-brightness 600000 battery-raw-current-capacity 9437 battery-raw-maximum-capacity 9533 presentDOD 0"
+    },
+    {
+      "time": "2026-09-10T17:52:28.093435-07:00",
+      "seconds": 61.808399,
+      "process": "symptomsd",
+      "message": "Power: battery-percentage 100.00 battery-power-connected 0 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 10033 battery-voltage-mV 4211 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 182 battery-fully-charged 0 battery-temperature 3219 screen-brightness 600000 battery-raw-current-capacity 9437 battery-raw-maximum-capacity 9533 presentDOD 0"
+    },
+    {
+      "time": "2026-09-10T17:52:48.095619-07:00",
+      "seconds": 81.810583,
+      "process": "symptomsd",
+      "message": "Power: battery-percentage 100.00 battery-power-connected 0 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 10016 battery-voltage-mV 4200 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 179 battery-fully-charged 0 battery-temperature 3239 screen-brightness 600000 battery-raw-current-capacity 9437 battery-raw-maximum-capacity 9533 presentDOD 0"
+    },
+    {
+      "time": "2026-09-10T17:53:08.093748-07:00",
+      "seconds": 101.808712,
+      "process": "symptomsd",
+      "message": "Power: battery-percentage 100.00 battery-power-connected 0 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 9998 battery-voltage-mV 4197 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 178 battery-fully-charged 0 battery-temperature 3259 screen-brightness 600000 battery-raw-current-capacity 9429 battery-raw-maximum-capacity 9533 presentDOD 0"
+    },
+    {
+      "time": "2026-09-10T17:53:28.095633-07:00",
+      "seconds": 121.810597,
+      "process": "symptomsd",
+      "message": "Power: battery-percentage 100.00 battery-power-connected 0 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 9980 battery-voltage-mV 4193 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 178 battery-fully-charged 0 battery-temperature 3279 screen-brightness 600000 battery-raw-current-capacity 9411 battery-raw-maximum-capacity 9533 presentDOD 0"
+    },
+    {
+      "time": "2026-09-10T17:53:48.098192-07:00",
+      "seconds": 141.813156,
+      "process": "symptomsd",
+      "message": "Power: battery-percentage 100.00 battery-power-connected 0 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 9963 battery-voltage-mV 4194 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 177 battery-fully-charged 0 battery-temperature 3300 screen-brightness 600000 battery-raw-current-capacity 9394 battery-raw-maximum-capacity 9533 presentDOD 0"
+    },
+    {
+      "time": "2026-09-10T17:54:08.095730-07:00",
+      "seconds": 161.810694,
+      "process": "symptomsd",
+      "message": "Power: battery-percentage 100.00 battery-power-connected 0 battery-charging 0 battery-warn 0 battery-critical 0 battery-absolute-capacity-mAh 9945 battery-voltage-mV 4188 battery-current-capacity-% 100 battery-maximum-capacity-% 100 battery-design-capacity-mAh 9781 battery-time-remaining 175 battery-fully-charged 0 battery-temperature 3319 screen-brightness 600000 battery-raw-current-capacity 9376 battery-raw-maximum-capacity 9533 presentDOD 0"
+    }
+  ],
+  "thermal_pressure_events": [],
+  "zero_length_reports": [
+    {
+      "time": "2026-09-10T17:52:00.549757-07:00",
+      "seconds": 34.264721,
+      "process": "usbaudiod",
+      "message": "   [0x9ce]:AUAInputTransferManager_completeBlock block starting at frame 244892 recieved 2 zero length transfers, zlpCount 2"
+    }
+  ],
+  "drift_events": [
+    {
+      "time": "2026-09-10T17:51:27.809798-07:00",
+      "seconds": 1.524762,
+      "process": "usbaudiod",
+      "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1204125 at sampleTime 6085800"
+    },
+    {
+      "time": "2026-09-10T17:52:00.669782-07:00",
+      "seconds": 34.384746,
+      "process": "usbaudiod",
+      "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2020791 at sampleTime 1308000"
+    },
+    {
+      "time": "2026-09-10T17:52:01.421733-07:00",
+      "seconds": 35.136697,
+      "process": "usbaudiod",
+      "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2020792 at sampleTime 1344000"
+    },
+    {
+      "time": "2026-09-10T17:52:01.669800-07:00",
+      "seconds": 35.384764,
+      "process": "usbaudiod",
+      "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2020834 at sampleTime 1356000"
+    }
+  ],
+  "limitations": "No analog recording for this ad hoc run; correlate user-reported glitches only at session level. No-PD topology reported by user before launch; explicit power snapshots provide additional evidence when present. Analysis window ends before the diagnostic requests."
+}

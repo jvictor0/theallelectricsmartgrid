@@ -1,0 +1,9 @@
+{
+  "checked_local": "2026-09-10T12:17:48.219510-07:00",
+  "purpose": "Read process state after SIGTERM response connection closed",
+  "pid": 18087,
+  "signal_sent": "SIGTERM",
+  "signal_response": "connection closed before response; outcome checked separately",
+  "matching_processes": [],
+  "verified_stopped": true
+}

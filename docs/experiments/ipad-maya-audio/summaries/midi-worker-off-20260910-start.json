@@ -1,0 +1,142 @@
+{
+  "updated_local": "2026-09-10T14:40:36.099365-07:00",
+  "status": "recording",
+  "base": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910",
+  "recorder": {
+    "started_local": "2026-09-10T14:36:12.275324-07:00",
+    "started_epoch_ns": 1789076172275341000,
+    "started_monotonic_ns": 3563179129194583,
+    "device": "K-Mix",
+    "input_channels": [
+      3,
+      4
+    ],
+    "rate": 48000,
+    "bits": 24,
+    "maximum_seconds": 960,
+    "command": [
+      "/opt/homebrew/bin/sox",
+      "--buffer",
+      "131072",
+      "-q",
+      "-t",
+      "coreaudio",
+      "-r",
+      "48000",
+      "-c",
+      "8",
+      "K-Mix",
+      "-b",
+      "24",
+      "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.wav",
+      "remix",
+      "3",
+      "4",
+      "trim",
+      "0",
+      "960"
+    ],
+    "wrapper_pid": 24071,
+    "source": "User-selected MIDI sender worker off with enqueue discard; SmartGrid JUCE8.0.15 normal DSP/UI/autoplay/internal clock, MAYA48k settled512, app inputs0 outputs4. Enabled preflight confirmed worker startup/running; disabled startup running0 queued0 discards31-to1077. Same patch/config and user-reported MAYA/WB/Satechi/PD topology. Direct LED/SysEx sends and I/O worker remain active. Verified5second K-Mix3/4 music preflight. No iPad queries during measured recording.",
+    "status": "recording",
+    "sox_pid": 24078,
+    "system_log_pid": 24076,
+    "keep_awake_pid": 24077
+  },
+  "exec_session_id": 33471,
+  "expected_end_local": "2026-09-10T14:52:12.275324-07:00",
+  "monitor_automation_id": "track-midi-worker-off-trial",
+  "startup_verification": {
+    "checked_local": "2026-09-10T14:34:17.939056-07:00",
+    "verified": true,
+    "expected_juce_version": "8.0.15",
+    "device_app_log": "2026-09-10T14-34-05-533.log",
+    "markers": [
+      "14:34:11 0 Message MidiSenderThread enabled=0 started=0",
+      "14:34:11 0 Message Audio experiment juce_version=JUCE v8.0.15",
+      "14:34:11 0 Message Audio experiment audio_mode=normal ui_render=1 transport_autostart=1",
+      "14:34:11 0 Message Audio setup requested_sr=48000 requested_block=512 actual_sr=48000 actual_block=512",
+      "14:34:11 0 Message Audio input test: requested_inputs=0 active_inputs=0 active_outputs=4; absent DSP inputs are zero",
+      "14:34:11 0 Message Audio test mode=normal; normal callback processing enabled",
+      "14:34:11 2088 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "14:34:11 2088 Message Midi sender enabled=0 running=0 queued=0 discarded=31",
+      "14:34:12 50199 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "14:34:12 50200 Message Midi sender enabled=0 running=0 queued=0 discarded=290",
+      "14:34:13 98704 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "14:34:13 98704 Message Midi sender enabled=0 running=0 queued=0 discarded=567",
+      "14:34:14 147708 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "14:34:14 147709 Message Midi sender enabled=0 running=0 queued=0 discarded=821",
+      "14:34:15 195970 Message Audio route output name=MAYA44 USB+ type=USBAudio uid=AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1",
+      "14:34:15 195970 Message Midi sender enabled=0 running=0 queued=0 discarded=1077"
+    ],
+    "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+    "file_config": {
+      "patchName": "ms"
+    },
+    "external_clock": false,
+    "pid": 19029,
+    "startup_callbacks": 437,
+    "delivered_frame_sizes": [
+      470,
+      512
+    ],
+    "callback_sample_rates": [
+      48000
+    ],
+    "delivered_frames_verified": true,
+    "settled_callback_count": 200,
+    "settled_frame_sizes": [
+      512
+    ],
+    "settled_callback_rates": [
+      48000
+    ],
+    "settled_thermal_states": [
+      0
+    ],
+    "midi_send_thread": "0",
+    "midi_verified": true,
+    "midi_diagnostics": [
+      {
+        "enabled": 0,
+        "running": 0,
+        "queued": 0,
+        "discarded": 31
+      },
+      {
+        "enabled": 0,
+        "running": 0,
+        "queued": 0,
+        "discarded": 290
+      },
+      {
+        "enabled": 0,
+        "running": 0,
+        "queued": 0,
+        "discarded": 567
+      },
+      {
+        "enabled": 0,
+        "running": 0,
+        "queued": 0,
+        "discarded": 821
+      },
+      {
+        "enabled": 0,
+        "running": 0,
+        "queued": 0,
+        "discarded": 1077
+      }
+    ]
+  },
+  "enabled_preflight_verified": true,
+  "ipad_queries_during_recording": false,
+  "latest_capture_check": {
+    "activity_path": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910.live-001.activity.json",
+    "seconds_scanned": 157.013,
+    "near_silence_candidates": 5,
+    "already_reported_to_user": true,
+    "interpretation": "Five both-channel near-silence intervals125\u2013206ms, irregular; iPad USB/callback correlation pending. Continue planned exposure to observe periodic symptom."
+  },
+  "result_status": "pending completion and archive correlation"
+}

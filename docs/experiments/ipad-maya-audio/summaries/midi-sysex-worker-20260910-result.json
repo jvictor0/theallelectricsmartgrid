@@ -1,0 +1,199 @@
+{
+  "base": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910",
+  "completed_local": "2026-09-10T15:39:52.751458-07:00",
+  "status": "completed_analyzed",
+  "recording_start": "2026-09-10T15:09:41.652355-07:00",
+  "recording_end": "2026-09-10T15:25:41.652355-07:00",
+  "seconds": 960.0,
+  "source_binary_sha256": "a9902d35b72d13556c831daa1c30c71eb6b7429cf76408e35042952483a5f873",
+  "outcome": "Sporadic USB/restart/callback/analog interruptions reproduced with frame MIDI/SysEx on the worker. No dense periodic blanking detected in this exposure.",
+  "long_interruptions": {
+    "waveform": 23,
+    "USB_transaction_failures": 23,
+    "driver_restarts": 23,
+    "native_callback_gaps": 23,
+    "matched_episodes": 23,
+    "duration_ms_min_median_max": [
+      222.5625,
+      226.08333333333334,
+      230.70833333333334
+    ]
+  },
+  "periodic": [],
+  "all_short_candidates": 16,
+  "midi": {
+    "base": "/private/tmp/smartgrid-ipad-midi-sysex-worker-20260910",
+    "samples": 955,
+    "malformed_samples": [],
+    "all_enabled_running": true,
+    "all_sysex_depth_bounded": true,
+    "all_fault_discard_counts_zero": true,
+    "monotonic_counters": {
+      "discarded": true,
+      "sysex_enqueued": true,
+      "sysex_submitted": true,
+      "sysex_full": true,
+      "sysex_discarded": true,
+      "sysex_invalid": true
+    },
+    "first": {
+      "enabled": 1,
+      "running": 1,
+      "queued": 2,
+      "discarded": 0,
+      "sysex_queued": 0,
+      "sysex_enqueued": 2333,
+      "sysex_submitted": 2333,
+      "sysex_full": 0,
+      "sysex_discarded": 0,
+      "sysex_invalid": 0,
+      "local_time": "15:09:41"
+    },
+    "last": {
+      "enabled": 1,
+      "running": 1,
+      "queued": 3,
+      "discarded": 0,
+      "sysex_queued": 0,
+      "sysex_enqueued": 42252,
+      "sysex_submitted": 42252,
+      "sysex_full": 0,
+      "sysex_discarded": 0,
+      "sysex_invalid": 0,
+      "local_time": "15:25:41"
+    },
+    "ranges": {
+      "enabled": [
+        1,
+        1
+      ],
+      "running": [
+        1,
+        1
+      ],
+      "queued": [
+        0,
+        5
+      ],
+      "discarded": [
+        0,
+        0
+      ],
+      "sysex_queued": [
+        0,
+        2
+      ],
+      "sysex_enqueued": [
+        2333,
+        42252
+      ],
+      "sysex_submitted": [
+        2333,
+        42252
+      ],
+      "sysex_full": [
+        0,
+        0
+      ],
+      "sysex_discarded": [
+        0,
+        0
+      ],
+      "sysex_invalid": [
+        0,
+        0
+      ]
+    },
+    "totals_between_samples": {
+      "sysex_enqueued": 39919,
+      "sysex_submitted": 39919
+    },
+    "time_selection": "App wall-clock seconds within nominal recording interval; edge observations may differ by less than one second. Counters/depth are independently sampled. Submissions are handler calls, not hardware acknowledgments; depth is approximate."
+  },
+  "callbacks": {
+    "callbacks": 89540,
+    "sample_rates": [
+      48000.0
+    ],
+    "frame_sizes": [
+      512.0
+    ],
+    "thermal_states": [
+      0.0,
+      2.0
+    ],
+    "low_power_states": [
+      0.0
+    ],
+    "muted_states": [
+      0.0
+    ],
+    "sequence_holes": 0,
+    "logger_miss_lines_entire_log": [],
+    "dsp_ms_p50_p99_max": [
+      4.712,
+      5.12,
+      7.273
+    ],
+    "measured_dsp_overruns": 0,
+    "xrun_start_end": [
+      0,
+      23
+    ],
+    "clock_fit_max_residual_ms": 14.352083206176758
+  },
+  "thermal_segments": [
+    {
+      "thermal": 0,
+      "start_local": "2026-09-10T15:09:41.661284-07:00",
+      "end_local": "2026-09-10T15:21:47.326107-07:00",
+      "start_seconds": 0.00892949104309082,
+      "end_seconds": 725.6737520694733,
+      "callbacks": 67572,
+      "callback_gaps_gt100ms": 23,
+      "dsp_ms_p50_p99_max": [
+        4.7145,
+        5.126,
+        7.273
+      ]
+    },
+    {
+      "thermal": 2,
+      "start_local": "2026-09-10T15:21:47.326107-07:00",
+      "end_local": "2026-09-10T15:25:41.652355-07:00",
+      "start_seconds": 725.6737520694733,
+      "end_seconds": 960.0,
+      "callbacks": 21968,
+      "callback_gaps_gt100ms": 0,
+      "dsp_ms_p50_p99_max": [
+        4.324,
+        5.0783299999999985,
+        5.163
+      ]
+    }
+  ],
+  "thermal_system_transition": {
+    "timestamp": "2026-09-10T15:21:47.026262-07:00",
+    "process": "thermalmonitord",
+    "pressure_level": 20,
+    "audiomxd_message_time": "2026-09-10T15:21:47.027193-07:00",
+    "audiomxd_message": "Thermal pressure level handler called with level Moderate, disengaging Thermal mxCoreSession",
+    "interpretation": "OS policy transition corroborates the iPad thermal change; internal pressure labels and NSProcessInfo enum are different scales. All23 long failures precede this transition; no causal thermal remedy established."
+  },
+  "zero_length_reports": 1,
+  "zero_length_transfers_reported": 2,
+  "io_drift_records": 5,
+  "config_and_patch_unchanged": true,
+  "recording_stderr_bytes": 0,
+  "limits": [
+    "No dense periodic episode in one960second exposure does not establish a periodic fix or rule out subtle clicks.",
+    "Whole-run thermal state was not matched to preceding all-nominal MIDI-off trial; state became serious for final234seconds.",
+    "MIDI enqueued/submitted counters are independently sampled once per second; their39919delta spans sampled edge seconds. Submission counts are handler calls, not hardware acknowledgments.",
+    "Observed SysEx depth0\u20132 is approximate sampled occupancy, not a high-water mark. No explicit full/invalid/discard events occurred.",
+    "Timed DSP excludes subsequent logger and outer JUCE/native work; xr is sample-timestamp discontinuity.",
+    "Clock-fit residual is14.352ms, and callback-resume minus analog-quiet-end spans96.068\u2013135.070ms; these offsets reflect clock/capture alignment and are not causal transport latency.",
+    "Window nominal epoch/ISO fields were clarified after measurement review; original wrapper timestamps retained and correlation boundaries unchanged.",
+    "The immediately preceding comparison also had its MIDI worker disabled; this is not a pure routing-only crossover against that binary."
+  ],
+  "next": "No further experimental dimension activated. Recommended next probe: complete native RemoteIO callback timing and outgoing-buffer integrity, with repeated matched exposures/thermal state logged. Retain48k/512 and the reviewed MIDI worker improvement."
+}

@@ -1,0 +1,60 @@
+{
+  "app_log": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.app.log",
+  "recording_metadata": "/private/tmp/smartgrid-ipad-autoplay-ui-off-20260910.window.json",
+  "callbacks": 89978,
+  "sample_rates": [
+    48000.0
+  ],
+  "frame_sizes": [
+    512.0
+  ],
+  "thermal_states": [
+    0.0
+  ],
+  "low_power_states": [
+    0.0
+  ],
+  "muted_states": [
+    0.0
+  ],
+  "sequence_holes": 0,
+  "logger_miss_lines_entire_log": [],
+  "dsp_ms_p50_p99_max": [
+    4.2135,
+    4.927,
+    5.01
+  ],
+  "gap_ms_p50_p99_max": [
+    10.667,
+    10.674,
+    228.126
+  ],
+  "measured_dsp_overruns": 0,
+  "xrun_start_end": [
+    3,
+    4
+  ],
+  "callback_gaps_gt20ms": [
+    {
+      "time": "2026-09-10T11:06:42.557104-07:00",
+      "recording_seconds": 273.5259585380554,
+      "callback": 29791,
+      "gap_us": 228126.0,
+      "dsp_us": 4641.0,
+      "xr": 4
+    }
+  ],
+  "xrun_increments": [
+    {
+      "time": "2026-09-10T11:06:42.557104-07:00",
+      "recording_seconds": 273.5259585380554,
+      "callback": 29791,
+      "gap_us": 228126.0,
+      "dsp_us": 4641.0,
+      "xr": 4
+    }
+  ],
+  "clock_offset_fit_slope": 5.303825511852858e-07,
+  "clock_fit_max_residual_ms": 0.5064010620117188,
+  "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the JUCE iOS native sample-timestamp discontinuity counter, not a direct DSP execution-time overrun count."
+}

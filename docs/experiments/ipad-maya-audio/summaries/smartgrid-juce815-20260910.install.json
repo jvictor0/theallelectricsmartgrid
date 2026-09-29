@@ -1,0 +1,20 @@
+{
+  "started_local": "2026-09-10T12:14:02.696797-07:00",
+  "udid": "00008122-001439681EA1001C",
+  "bundle_id": "com.theallelectricsmartgrid.smartgridone",
+  "ipa": "/private/tmp/smartgrid-juce815-20260910.ipa",
+  "ipa_sha256": "5dcb7076ed7a2a675e8fd641c1f60321854060514faa4810b1db6bf325c2e9b6",
+  "binary_sha256": "4f7b9428c5e8c4b91e658c7f8d7b8441ba7f5c1a5cd46f5e8f9fd16d6d0e4df5",
+  "status": "installed",
+  "operation": "in-place Upgrade",
+  "before": {
+    "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+    "patch_sha256": "a0e797a87de665e300dcf8ff484774ee93639c8c7d425a67ddc0aabb2223952a"
+  },
+  "after": {
+    "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+    "patch_sha256": "a0e797a87de665e300dcf8ff484774ee93639c8c7d425a67ddc0aabb2223952a"
+  },
+  "config_and_patch_preserved": true,
+  "ended_local": "2026-09-10T12:14:10.870547-07:00"
+}

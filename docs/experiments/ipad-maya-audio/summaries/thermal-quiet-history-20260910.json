@@ -1,0 +1,135 @@
+{
+  "analysis_local": "2026-09-10T15:59:51.164373-07:00",
+  "current_snapshot_local": "2026-09-10T15:53:49.348497-07:00",
+  "scope": "Read-only historical and continued-session app-trace comparison; no deployment, setting change, recording, or system archive collection.",
+  "method": "Join current logs by callback number and verify identical overlapping fields. Quiet tail begins at resumption after the last discontinuity and requires contiguous unmuted 48k/512 callbacks, unchanged xr, and all subsequent arrival gaps <=20ms. This does not establish absence of periodic analog corruption or every audible click.",
+  "current": {
+    "log_identity": "2026-09-10T15-08-40-481.log",
+    "conditions": "JUCE8.0.15, normal DSP/UI/autoplay, enabled MIDI worker with frame SysEx routing, zero app inputs/four outputs, actual48k/512.",
+    "overlapping_callbacks_verified_identical": 63953,
+    "combined_callbacks": 252758,
+    "logger_miss_lines_in_sources": 0,
+    "quiet_tail": {
+      "start_at_resumed_callback": {
+        "time": "15:21:37",
+        "cb": 71864,
+        "t_us": 172359078481,
+        "gap_us": 220475,
+        "xr": 23,
+        "thermal": 0,
+        "muted": 0,
+        "n": 512,
+        "sr": 48000
+      },
+      "end": {
+        "time": "15:53:46",
+        "cb": 252758,
+        "t_us": 174288576177,
+        "gap_us": 10662,
+        "xr": 23,
+        "thermal": 2,
+        "muted": 0,
+        "n": 512,
+        "sr": 48000
+      },
+      "seconds": 1929.497696,
+      "callbacks_including_resumed_callback": 180895,
+      "sequence_holes": 0,
+      "xrun_increments_after_resumption": 0,
+      "maximum_gap_us_after_resumption": 10752,
+      "thermal_transitions": [
+        {
+          "time": "15:21:47",
+          "cb": 72801,
+          "t_us": 172369072912,
+          "gap_us": 10666,
+          "xr": 23,
+          "thermal": 2,
+          "muted": 0,
+          "n": 512,
+          "sr": 48000
+        }
+      ]
+    },
+    "analog_recording_ended_local": "2026-09-10T15:25:41.652355-07:00",
+    "confound": "Last dropout also caused an observed driver restart at15:21:37; thermalmonitord/audiomxd policy messages follow at15:21:47.026/47.027. No isolated thermal intervention."
+  },
+  "historical": {
+    "log_identity": "2026-09-10T11-27-16-058.log",
+    "conditions": "Pre-upgrade JUCE8.0.2, normal DSP/UI/autoplay, before frame SysEx worker routing, zero app inputs/four outputs, actual48k/512.",
+    "provenance": "Normal/setup markers in full historical log; 2026-09-10-juce815-comparison.md records first upgraded launch12:14:37 and identifies preceding log as old8.0.2.",
+    "callbacks": 262834,
+    "logger_miss_lines_in_source": 0,
+    "quiet_tail": {
+      "start_at_resumed_callback": {
+        "time": "11:38:58",
+        "cb": 65210,
+        "t_us": 159000380229,
+        "gap_us": 223830,
+        "xr": 5,
+        "thermal": 0,
+        "muted": 0,
+        "n": 512,
+        "sr": 48000
+      },
+      "end": {
+        "time": "12:14:06",
+        "cb": 262834,
+        "t_us": 161108325530,
+        "gap_us": 10667,
+        "xr": 5,
+        "thermal": 2,
+        "muted": 0,
+        "n": 512,
+        "sr": 48000
+      },
+      "seconds": 2107.945301,
+      "callbacks_including_resumed_callback": 197625,
+      "sequence_holes": 0,
+      "xrun_increments_after_resumption": 0,
+      "maximum_gap_us_after_resumption": 10708,
+      "thermal_transitions": [
+        {
+          "time": "11:40:52",
+          "cb": 75926,
+          "t_us": 159114682093,
+          "gap_us": 10675,
+          "xr": 5,
+          "thermal": 2,
+          "muted": 0,
+          "n": 512,
+          "sr": 48000
+        }
+      ]
+    },
+    "analog_coverage": "No matching analog capture established for the full quiet tail; app-trace evidence only."
+  },
+  "interpretation": "A >=30-minute quiet native-callback interval already occurred in normal iPad SmartGrid before both upgrades. Both historical and current intervals span nominal-to-serious iPad thermal transitions. This strengthens an association with thermal/OS policy but does not isolate causation or establish either symptom fixed.",
+  "source_artifacts": [
+    {
+      "path": "/private/tmp/smartgrid-ipad-midi-sysex-followup-20260910-1544.app.log",
+      "bytes": 32519454,
+      "sha256": "c973fce74ab5153345ddfdc39e2a0db657177ccc71791e6076f2baefa73e0488"
+    },
+    {
+      "path": "/private/tmp/smartgrid-ipad-quiet-history-20260910-1554.current-tail.log",
+      "bytes": 16777216,
+      "sha256": "d51b76da6b00bf5219436446ec3afd625c431b73fdb57431b58df05e791d43f0"
+    },
+    {
+      "path": "/private/tmp/smartgrid-ipad-quiet-history-20260910-1554.historical-1127.log",
+      "bytes": 40147115,
+      "sha256": "b895c6eb41687b0a85bb3b9112b27c94ab5706ea2fb92edbd5b3fb8e2edf0f01"
+    },
+    {
+      "path": "/private/tmp/smartgrid-ipad-quiet-history-20260910-1554.json",
+      "bytes": 525,
+      "sha256": "9b3b2de990bc6e0a8b37d413e6739b2dac54a4dffed4b5b85cdce1a463f3bfaa"
+    },
+    {
+      "path": "/private/tmp/smartgrid-ipad-quiet-history-20260910-1554.analysis.json",
+      "bytes": 6076,
+      "sha256": "0fde193100168c2ed12fccb326df7e9770c07b6de153f361cfdd126ff66eab51"
+    }
+  ]
+}

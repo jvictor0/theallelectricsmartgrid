@@ -1,0 +1,94 @@
+{
+  "checked_local": "2026-09-10T13:10:14.198888-07:00",
+  "selected_app": "SonoBus",
+  "app_store_url": "https://apps.apple.com/us/app/sonobus/id1523236365",
+  "app_store_version_seen": "1.7.3",
+  "source_tag": "ios_1.7.3",
+  "source_commit": "46864f98e0b7b01093737565c78945016a6f4a28",
+  "juce_version_in_ios_tag": "8.0.12",
+  "juce_fork": "https://github.com/essej/JUCE",
+  "juce_fork_branch": "sono8good",
+  "juce_fork_commit": "b267386e7cec8d333289aea9f8fb800a330d9fd7",
+  "binary_provenance_limit": "Published tag and App Store version agree; no installed binary/build number or binary equivalence verified.",
+  "source_ios_default_preference": {
+    "sample_rate": 48000,
+    "buffer_frames": 256,
+    "inputs": 2,
+    "outputs": 2
+  },
+  "test_target": {
+    "sample_rate": 48000,
+    "buffer_frames": 512,
+    "inputs": 0,
+    "active_outputs": 4,
+    "hardware": "same MAYA/WB/Satechi/90W PD and K-Mix3/4",
+    "channel_matching_limit": "Select zero inputs/four outputs if exposed; record actual channel selection if not possible. Muting is not closing inputs."
+  },
+  "local_file_playback": "Source adds local file data to the output monitor path without a server-connection condition. Loop is documented; network groups remain disconnected.",
+  "test_status": "selected and protocol prepared; not installed/launched/recorded by agent",
+  "sources": [
+    {
+      "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-app.cpp",
+      "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/Source/SonoStandaloneFilterApp.cpp",
+      "bytes": 32600,
+      "ok": true,
+      "sha256": "208d12b504cd2d76b926c09bceb9f4fee0cca4c7e4579decb054dba3f8641605"
+    },
+    {
+      "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-window.h",
+      "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/Source/SonoStandaloneFilterWindow.h",
+      "bytes": 50578,
+      "ok": true,
+      "sha256": "a30c1487fa1fc9ad510c22e8fd18678101ecf11d33fcf5006909942319897ebb"
+    },
+    {
+      "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-options.cpp",
+      "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/Source/OptionsView.cpp",
+      "bytes": 66344,
+      "ok": true,
+      "sha256": "1d3c41d346451d20ddf147bd06896d7d8b9b8928e563a9696b0811da2b1fb8e3"
+    },
+    {
+      "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-processor.cpp",
+      "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/Source/SonobusPluginProcessor.cpp",
+      "bytes": 364139,
+      "ok": true,
+      "sha256": "0e03c4006efd5f0ac7080636f70810182ecca5864bcee20e61371c0cdf047401"
+    },
+    {
+      "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-processor.h",
+      "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/Source/SonobusPluginProcessor.h",
+      "bytes": 49409,
+      "ok": true,
+      "sha256": "86af56117f583717dd3d2a6f282d6cb92d91af8e157c244738e0e20e9e7368fb"
+    },
+    {
+      "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-mobile.jucer",
+      "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/mobile/SonoBusMobile.jucer",
+      "bytes": 42513,
+      "ok": true,
+      "sha256": "fbee9b646827f89b8fa03d381e00009f80d1a165378eb81fcd309d6c5db8b08f"
+    },
+    {
+      "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-juce-version.h",
+      "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/deps/juce/modules/juce_core/system/juce_StandardHeader.h",
+      "bytes": 5410,
+      "ok": true,
+      "sha256": "1e88700845740d39d4cece3ba8524a1bc10ed0ea4aa0e20a0d7f97f64101a392"
+    },
+    {
+      "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-juce-ios.cpp",
+      "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/deps/juce/modules/juce_audio_devices/native/juce_Audio_ios.cpp",
+      "bytes": 69680,
+      "ok": true,
+      "sha256": "1e3c59bc212e8a2ff6f8c9bd1c03f4634985e04af5ba3343e6f71868419ea58e"
+    },
+    {
+      "path": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-gitrepo.txt",
+      "source": "https://raw.githubusercontent.com/sonosaurus/sonobus/46864f98e0b7b01093737565c78945016a6f4a28/deps/juce/.gitrepo",
+      "bytes": 416,
+      "ok": true,
+      "sha256": "39234c2051afc618d58808a930492412961b69cbff21e8b2bd923d7afcb7a050"
+    }
+  ]
+}

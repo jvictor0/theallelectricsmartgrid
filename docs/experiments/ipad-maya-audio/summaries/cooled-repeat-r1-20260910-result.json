@@ -1,0 +1,669 @@
+{
+  "completed_local": "2026-09-10T17:17:07.717187-07:00",
+  "status": "completed_analyzed",
+  "base": "/private/tmp/smartgrid-ipad-cooled-r1-20260910",
+  "binary_sha256": "a9902d35b72d13556c831daa1c30c71eb6b7429cf76408e35042952483a5f873",
+  "recording": {
+    "started_local": "2026-09-10T16:49:00.456310-07:00",
+    "started_epoch_ns": 1789084140456310000,
+    "started_monotonic_ns": 3571147317186500,
+    "device": "K-Mix",
+    "input_channels": [
+      3,
+      4
+    ],
+    "rate": 48000,
+    "bits": 24,
+    "maximum_seconds": 960,
+    "command": [
+      "/opt/homebrew/bin/sox",
+      "--buffer",
+      "131072",
+      "-q",
+      "-t",
+      "coreaudio",
+      "-r",
+      "48000",
+      "-c",
+      "8",
+      "K-Mix",
+      "-b",
+      "24",
+      "/private/tmp/smartgrid-ipad-cooled-r1-20260910.wav",
+      "remix",
+      "3",
+      "4",
+      "trim",
+      "0",
+      "960"
+    ],
+    "wrapper_pid": 30495,
+    "source": "User-authorized same-build repeat after passive iPad cooling. Recording starts before app launch to retain startup; initial silence is planned. Same binary a9902d35b72d13556c831daa1c30c71eb6b7429cf76408e35042952483a5f873, normal UI/DSP/autoplay/internal clock/MIDI worker enabled,48k/512, zero app inputs/four outputs, unchanged topology/config. Initial nominal thermal verification pending; if elevated label probe and cool further. User confirmed LEDs working in preceding hot run.",
+    "status": "recorded",
+    "sox_pid": 30502,
+    "system_log_pid": 30500,
+    "keep_awake_pid": 30501,
+    "returncode": 0,
+    "ended_local": "2026-09-10T17:05:00.456310-07:00",
+    "ended_epoch_ns": 1789085100456310000,
+    "wrapper_ended_local": "2026-09-10T17:05:00.779582-07:00",
+    "wrapper_started_epoch_ns": 1789084140456335000,
+    "wrapper_ended_epoch_ns": 1789085100779765000,
+    "measured_wav_seconds": 960.0,
+    "timing_note": "Window local and epoch boundaries are derived from the same ISO timestamps at microsecond precision. End is nominal recorder start plus exact WAVE data-frame duration. Original separately sampled wrapper epoch timestamps and completion time are retained in wrapper_* fields and the raw recorder JSON. Independent audio clocks/start latency mean this is not sample-accurate device-log alignment."
+  },
+  "recorder_returncode": 0,
+  "recorder_stderr_bytes": 0,
+  "collection": {
+    "ipad_udid": "00008122-001439681EA1001C",
+    "ipad_ip": "192.168.1.53",
+    "started_epoch": 1789085429.888921,
+    "started_local": "2026-09-10T17:10:29.888923-07:00",
+    "requested_start_epoch": 1789083029,
+    "requested_size_limit": 268435456,
+    "size_limit_note": "Device may include additional archive metadata beyond the requested limit.",
+    "transport": "authenticated direct Wi-Fi; existing pairing; no connection-setting changes",
+    "archive": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.logarchive",
+    "status": "collected",
+    "files": 802,
+    "bytes": 221207299,
+    "ended_epoch": 1789085466.692877
+  },
+  "end_verification": {
+    "collected_local": "2026-09-10T17:12:05.347157-07:00",
+    "device_app_log": "2026-09-10T16-49-06-780.log",
+    "latest_device_app_log": "2026-09-10T16-49-06-780.log",
+    "expected_log_still_latest": true,
+    "app_log_bytes": 19739270,
+    "config_sha256": "1a57b9b6404191b86e85b7f1c50b8e5ebbef7d8cad072a6e5234b367c805b9ec",
+    "patch_sha256": "a0e797a87de665e300dcf8ff484774ee93639c8c7d425a67ddc0aabb2223952a",
+    "config_and_patch_unchanged": true
+  },
+  "long_dropouts": {
+    "actual_waveform_intervals": 21,
+    "duration_ms_min_median_max": [
+      224.29166666666666,
+      229.02083333333334,
+      230.70833333333334
+    ],
+    "maya_transaction_errors": 21,
+    "matched_restarts": 21,
+    "matched_callback_gaps": 21,
+    "callback_gap_ms_range": [
+      219.526,
+      229.98
+    ],
+    "preplayback_configuration_restarts": 5,
+    "maximum_measured_dsp_ms_in100ms_before_long_stall": 5.461,
+    "raw_count_note": "Raw correlation contains22 near-silence intervals:21 actual waveform gaps and the planned prelaunch silence. All21 actual gaps uniquely match21USB errors and21callback gaps. Raw detector results were preserved unchanged."
+  },
+  "periodic_burst": {
+    "first_hole_seconds": 368.9930625,
+    "last_hole_end_seconds": 369.60070833333333,
+    "holes": 29,
+    "width_ms_min_median_max": [
+      9.895833333333334,
+      10.166666666666666,
+      10.458333333333334
+    ],
+    "onset_spacing_ms_min_median_max": [
+      21.104166666666668,
+      21.322916666666664,
+      21.729166666666668
+    ],
+    "note": "One adjacent hole begins in bin368, making29 visually confirmed holes; the unchanged dense-bin algorithm counts28 in bin369. Approximately10ms blank every21.3ms. Analog clock alignment is approximate.",
+    "empirical_alignment_seconds": 0.14566078694897502,
+    "app_window_with_50ms_margin": [
+      369.08872328694895,
+      369.7963691202823
+    ],
+    "callback_count": 66,
+    "dsp_ms_p50_p99_max": [
+      8.9925,
+      11.2384,
+      11.241
+    ],
+    "gap_ms_min_median_max": [
+      9.687,
+      10.668,
+      11.642
+    ],
+    "xr_min_max": [
+      12,
+      12
+    ],
+    "overruns": 29,
+    "nearby_system_events": []
+  },
+  "thermal": [
+    {
+      "state": -1,
+      "start": "2026-09-10T16:49:12.167441-07:00",
+      "end": "2026-09-10T16:49:12.217532-07:00",
+      "seconds": 0.05009055137634277,
+      "callbacks": 4,
+      "gap_count": 0,
+      "dsp_overruns": 1,
+      "dsp_ms_p50_p99_max": [
+        3.9905,
+        18.113829999999997,
+        18.535
+      ]
+    },
+    {
+      "state": 0,
+      "start": "2026-09-10T16:49:12.217532-07:00",
+      "end": "2026-09-10T16:57:27.965963-07:00",
+      "seconds": 495.7484314441681,
+      "callbacks": 46114,
+      "gap_count": 18,
+      "dsp_overruns": 29,
+      "dsp_ms_p50_p99_max": [
+        4.744,
+        5.411,
+        11.241
+      ]
+    },
+    {
+      "state": 2,
+      "start": "2026-09-10T16:57:27.965963-07:00",
+      "end": "2026-09-10T17:05:00.456310-07:00",
+      "seconds": 452.49034690856934,
+      "callbacks": 42360,
+      "gap_count": 3,
+      "dsp_overruns": 0,
+      "dsp_ms_p50_p99_max": [
+        4.423,
+        5.208,
+        5.431
+      ]
+    }
+  ],
+  "thermal_interpretation": "18 matched long interruptions during495.75s nominal,3 during452.49s serious: about2.18 versus0.40 per minute. A lower observed rate after transition, not proof of a thermal cause or a failure-free hot state. No thermal/GPU overrides were enabled.",
+  "callbacks": {
+    "app_log": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.app.log",
+    "recording_metadata": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.window.json",
+    "callbacks": 88478,
+    "sample_rates": [
+      48000.0
+    ],
+    "frame_sizes": [
+      470.0,
+      512.0
+    ],
+    "thermal_states": [
+      -1.0,
+      0.0,
+      2.0
+    ],
+    "low_power_states": [
+      0.0
+    ],
+    "muted_states": [
+      0.0
+    ],
+    "sequence_holes": 0,
+    "logger_miss_lines_entire_log": [],
+    "dsp_ms_p50_p99_max": [
+      4.7425,
+      5.239,
+      18.535
+    ],
+    "gap_ms_p50_p99_max": [
+      10.667,
+      10.677,
+      229.98
+    ],
+    "measured_dsp_overruns": 30,
+    "xrun_start_end": [
+      0,
+      22
+    ],
+    "callback_gaps_gt20ms": [
+      {
+        "time": "2026-09-10T16:50:28.228058-07:00",
+        "recording_seconds": 87.77174806594849,
+        "callback": 7111,
+        "gap_us": 219526.0,
+        "dsp_us": 5002.0,
+        "xr": 2
+      },
+      {
+        "time": "2026-09-10T16:50:49.652594-07:00",
+        "recording_seconds": 109.19628381729126,
+        "callback": 9099,
+        "gap_us": 229439.0,
+        "dsp_us": 4932.0,
+        "xr": 3
+      },
+      {
+        "time": "2026-09-10T16:50:59.693233-07:00",
+        "recording_seconds": 119.23692297935486,
+        "callback": 10020,
+        "gap_us": 227145.0,
+        "dsp_us": 3680.0,
+        "xr": 4
+      },
+      {
+        "time": "2026-09-10T16:51:18.861155-07:00",
+        "recording_seconds": 138.40484476089478,
+        "callback": 11797,
+        "gap_us": 223579.0,
+        "dsp_us": 4816.0,
+        "xr": 5
+      },
+      {
+        "time": "2026-09-10T16:51:31.145554-07:00",
+        "recording_seconds": 150.68924355506897,
+        "callback": 12929,
+        "gap_us": 220215.0,
+        "dsp_us": 4914.0,
+        "xr": 6
+      },
+      {
+        "time": "2026-09-10T16:52:25.794782-07:00",
+        "recording_seconds": 205.33847165107727,
+        "callback": 18032,
+        "gap_us": 226811.0,
+        "dsp_us": 3733.0,
+        "xr": 7
+      },
+      {
+        "time": "2026-09-10T16:52:49.818846-07:00",
+        "recording_seconds": 229.3625361919403,
+        "callback": 20264,
+        "gap_us": 226303.0,
+        "dsp_us": 3777.0,
+        "xr": 8
+      },
+      {
+        "time": "2026-09-10T16:54:00.908856-07:00",
+        "recording_seconds": 300.45254588127136,
+        "callback": 26908,
+        "gap_us": 229980.0,
+        "dsp_us": 3737.0,
+        "xr": 9
+      },
+      {
+        "time": "2026-09-10T16:54:16.280732-07:00",
+        "recording_seconds": 315.8244218826294,
+        "callback": 28329,
+        "gap_us": 224986.0,
+        "dsp_us": 4897.0,
+        "xr": 10
+      },
+      {
+        "time": "2026-09-10T16:54:22.637773-07:00",
+        "recording_seconds": 322.1814625263214,
+        "callback": 28905,
+        "gap_us": 223649.0,
+        "dsp_us": 4932.0,
+        "xr": 11
+      },
+      {
+        "time": "2026-09-10T16:54:24.536971-07:00",
+        "recording_seconds": 324.0806612968445,
+        "callback": 29063,
+        "gap_us": 224557.0,
+        "dsp_us": 4922.0,
+        "xr": 12
+      },
+      {
+        "time": "2026-09-10T16:55:14.373266-07:00",
+        "recording_seconds": 373.91695642471313,
+        "callback": 33715,
+        "gap_us": 224500.0,
+        "dsp_us": 5514.0,
+        "xr": 13
+      },
+      {
+        "time": "2026-09-10T16:55:19.873612-07:00",
+        "recording_seconds": 379.41730213165283,
+        "callback": 34211,
+        "gap_us": 220160.0,
+        "dsp_us": 5023.0,
+        "xr": 14
+      },
+      {
+        "time": "2026-09-10T16:55:32.878193-07:00",
+        "recording_seconds": 392.42188262939453,
+        "callback": 35410,
+        "gap_us": 225523.0,
+        "dsp_us": 3827.0,
+        "xr": 15
+      },
+      {
+        "time": "2026-09-10T16:55:41.814181-07:00",
+        "recording_seconds": 401.3578712940216,
+        "callback": 36228,
+        "gap_us": 221208.0,
+        "dsp_us": 3849.0,
+        "xr": 16
+      },
+      {
+        "time": "2026-09-10T16:56:13.847126-07:00",
+        "recording_seconds": 433.390816450119,
+        "callback": 39211,
+        "gap_us": 224375.0,
+        "dsp_us": 4955.0,
+        "xr": 17
+      },
+      {
+        "time": "2026-09-10T16:56:27.319395-07:00",
+        "recording_seconds": 446.86308455467224,
+        "callback": 40454,
+        "gap_us": 224051.0,
+        "dsp_us": 3777.0,
+        "xr": 18
+      },
+      {
+        "time": "2026-09-10T16:56:29.383588-07:00",
+        "recording_seconds": 448.9272782802582,
+        "callback": 40627,
+        "gap_us": 229547.0,
+        "dsp_us": 4930.0,
+        "xr": 19
+      },
+      {
+        "time": "2026-09-10T17:00:05.091187-07:00",
+        "recording_seconds": 664.6348764896393,
+        "callback": 60829,
+        "gap_us": 226371.0,
+        "dsp_us": 5019.0,
+        "xr": 20
+      },
+      {
+        "time": "2026-09-10T17:03:28.374867-07:00",
+        "recording_seconds": 867.9185569286346,
+        "callback": 79866,
+        "gap_us": 229549.0,
+        "dsp_us": 3741.0,
+        "xr": 21
+      },
+      {
+        "time": "2026-09-10T17:04:15.747568-07:00",
+        "recording_seconds": 915.2912578582764,
+        "callback": 84287,
+        "gap_us": 225299.0,
+        "dsp_us": 4891.0,
+        "xr": 22
+      }
+    ],
+    "xrun_increments": [
+      {
+        "time": "2026-09-10T16:49:12.197943-07:00",
+        "recording_seconds": 11.74163269996643,
+        "callback": 3,
+        "gap_us": 11948.0,
+        "dsp_us": 4496.0,
+        "xr": 1
+      },
+      {
+        "time": "2026-09-10T16:50:28.228058-07:00",
+        "recording_seconds": 87.77174806594849,
+        "callback": 7111,
+        "gap_us": 219526.0,
+        "dsp_us": 5002.0,
+        "xr": 2
+      },
+      {
+        "time": "2026-09-10T16:50:49.652594-07:00",
+        "recording_seconds": 109.19628381729126,
+        "callback": 9099,
+        "gap_us": 229439.0,
+        "dsp_us": 4932.0,
+        "xr": 3
+      },
+      {
+        "time": "2026-09-10T16:50:59.693233-07:00",
+        "recording_seconds": 119.23692297935486,
+        "callback": 10020,
+        "gap_us": 227145.0,
+        "dsp_us": 3680.0,
+        "xr": 4
+      },
+      {
+        "time": "2026-09-10T16:51:18.861155-07:00",
+        "recording_seconds": 138.40484476089478,
+        "callback": 11797,
+        "gap_us": 223579.0,
+        "dsp_us": 4816.0,
+        "xr": 5
+      },
+      {
+        "time": "2026-09-10T16:51:31.145554-07:00",
+        "recording_seconds": 150.68924355506897,
+        "callback": 12929,
+        "gap_us": 220215.0,
+        "dsp_us": 4914.0,
+        "xr": 6
+      },
+      {
+        "time": "2026-09-10T16:52:25.794782-07:00",
+        "recording_seconds": 205.33847165107727,
+        "callback": 18032,
+        "gap_us": 226811.0,
+        "dsp_us": 3733.0,
+        "xr": 7
+      },
+      {
+        "time": "2026-09-10T16:52:49.818846-07:00",
+        "recording_seconds": 229.3625361919403,
+        "callback": 20264,
+        "gap_us": 226303.0,
+        "dsp_us": 3777.0,
+        "xr": 8
+      },
+      {
+        "time": "2026-09-10T16:54:00.908856-07:00",
+        "recording_seconds": 300.45254588127136,
+        "callback": 26908,
+        "gap_us": 229980.0,
+        "dsp_us": 3737.0,
+        "xr": 9
+      },
+      {
+        "time": "2026-09-10T16:54:16.280732-07:00",
+        "recording_seconds": 315.8244218826294,
+        "callback": 28329,
+        "gap_us": 224986.0,
+        "dsp_us": 4897.0,
+        "xr": 10
+      },
+      {
+        "time": "2026-09-10T16:54:22.637773-07:00",
+        "recording_seconds": 322.1814625263214,
+        "callback": 28905,
+        "gap_us": 223649.0,
+        "dsp_us": 4932.0,
+        "xr": 11
+      },
+      {
+        "time": "2026-09-10T16:54:24.536971-07:00",
+        "recording_seconds": 324.0806612968445,
+        "callback": 29063,
+        "gap_us": 224557.0,
+        "dsp_us": 4922.0,
+        "xr": 12
+      },
+      {
+        "time": "2026-09-10T16:55:14.373266-07:00",
+        "recording_seconds": 373.91695642471313,
+        "callback": 33715,
+        "gap_us": 224500.0,
+        "dsp_us": 5514.0,
+        "xr": 13
+      },
+      {
+        "time": "2026-09-10T16:55:19.873612-07:00",
+        "recording_seconds": 379.41730213165283,
+        "callback": 34211,
+        "gap_us": 220160.0,
+        "dsp_us": 5023.0,
+        "xr": 14
+      },
+      {
+        "time": "2026-09-10T16:55:32.878193-07:00",
+        "recording_seconds": 392.42188262939453,
+        "callback": 35410,
+        "gap_us": 225523.0,
+        "dsp_us": 3827.0,
+        "xr": 15
+      },
+      {
+        "time": "2026-09-10T16:55:41.814181-07:00",
+        "recording_seconds": 401.3578712940216,
+        "callback": 36228,
+        "gap_us": 221208.0,
+        "dsp_us": 3849.0,
+        "xr": 16
+      },
+      {
+        "time": "2026-09-10T16:56:13.847126-07:00",
+        "recording_seconds": 433.390816450119,
+        "callback": 39211,
+        "gap_us": 224375.0,
+        "dsp_us": 4955.0,
+        "xr": 17
+      },
+      {
+        "time": "2026-09-10T16:56:27.319395-07:00",
+        "recording_seconds": 446.86308455467224,
+        "callback": 40454,
+        "gap_us": 224051.0,
+        "dsp_us": 3777.0,
+        "xr": 18
+      },
+      {
+        "time": "2026-09-10T16:56:29.383588-07:00",
+        "recording_seconds": 448.9272782802582,
+        "callback": 40627,
+        "gap_us": 229547.0,
+        "dsp_us": 4930.0,
+        "xr": 19
+      },
+      {
+        "time": "2026-09-10T17:00:05.091187-07:00",
+        "recording_seconds": 664.6348764896393,
+        "callback": 60829,
+        "gap_us": 226371.0,
+        "dsp_us": 5019.0,
+        "xr": 20
+      },
+      {
+        "time": "2026-09-10T17:03:28.374867-07:00",
+        "recording_seconds": 867.9185569286346,
+        "callback": 79866,
+        "gap_us": 229549.0,
+        "dsp_us": 3741.0,
+        "xr": 21
+      },
+      {
+        "time": "2026-09-10T17:04:15.747568-07:00",
+        "recording_seconds": 915.2912578582764,
+        "callback": 84287,
+        "gap_us": 225299.0,
+        "dsp_us": 4891.0,
+        "xr": 22
+      }
+    ],
+    "clock_offset_fit_slope": 3.578129806637884e-05,
+    "clock_fit_max_residual_ms": 3.5698413848876953,
+    "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the native device counter."
+  },
+  "midi": {
+    "base": "/private/tmp/smartgrid-ipad-cooled-r1-20260910",
+    "samples": 942,
+    "malformed_samples": [],
+    "all_enabled_running": true,
+    "all_sysex_depth_bounded": true,
+    "all_fault_discard_counts_zero": true,
+    "monotonic_counters": {
+      "discarded": true,
+      "sysex_enqueued": true,
+      "sysex_submitted": true,
+      "sysex_full": true,
+      "sysex_discarded": true,
+      "sysex_invalid": true
+    },
+    "first": {
+      "enabled": 1,
+      "running": 1,
+      "queued": 0,
+      "discarded": 0,
+      "sysex_queued": 0,
+      "sysex_enqueued": 7,
+      "sysex_submitted": 7,
+      "sysex_full": 0,
+      "sysex_discarded": 0,
+      "sysex_invalid": 0,
+      "local_time": "16:49:12"
+    },
+    "last": {
+      "enabled": 1,
+      "running": 1,
+      "queued": 2,
+      "discarded": 0,
+      "sysex_queued": 0,
+      "sysex_enqueued": 39468,
+      "sysex_submitted": 39468,
+      "sysex_full": 0,
+      "sysex_discarded": 0,
+      "sysex_invalid": 0,
+      "local_time": "17:05:00"
+    },
+    "ranges": {
+      "enabled": [
+        1,
+        1
+      ],
+      "running": [
+        1,
+        1
+      ],
+      "queued": [
+        0,
+        18
+      ],
+      "discarded": [
+        0,
+        0
+      ],
+      "sysex_queued": [
+        0,
+        2
+      ],
+      "sysex_enqueued": [
+        7,
+        39468
+      ],
+      "sysex_submitted": [
+        7,
+        39468
+      ],
+      "sysex_full": [
+        0,
+        0
+      ],
+      "sysex_discarded": [
+        0,
+        0
+      ],
+      "sysex_invalid": [
+        0,
+        0
+      ]
+    },
+    "totals_between_samples": {
+      "sysex_enqueued": 39461,
+      "sysex_submitted": 39461
+    },
+    "time_selection": "App wall-clock seconds within nominal recording interval; edge observations may differ by less than one second. Counters/depth are independently sampled. Submissions are handler calls, not hardware acknowledgments; depth is approximate."
+  },
+  "startup": "Planned silence0\u201311.620s excluded. First initialization callback470frames/18.535ms; xr0\u21921 atcb3 with11.948ms gap, not a matched USB dropout. Five configuration restarts precede playback.",
+  "timing_limits": "dsp_us is elapsed wall time around app callback processing (including MakeIOInfo), not CPU execution time; excludes trailing diagnostic logging and outer JUCE/native work. It cannot distinguish increased computation from descheduling/blocking. Analog/log clocks aligned empirically; their absolute offset is not a transport-latency measurement.",
+  "key_new_evidence": "29 consecutive alternate512-frame callbacks,cb33287..33343 step2, take11.001\u201311.241ms against10.667ms budget; intervening callbacks8.403\u20138.618ms. These coincide with29 approximately10ms waveform holes every21.3ms. Native xr stays12, arrival gaps stay9.687\u201311.642ms, no nearby USB transaction error/restart/drift/ZLP report. This burst is consistent with alternating missed output deadlines. It does not explain every earlier pure-tone periodic episode.",
+  "comparison": "Same binary: prior measured hot960s plus299.776s extension had no matched long interruptions or dense periodic episode. Prior hot restart nevertheless had2USB/callback failures before its analog capture; screenshot/service traffic confounds startup comparison. Current cooled repeat reproduces both symptoms, including3failures after serious state.",
+  "outcome": "Both symptoms reproduced; no fix established. The requested conditional five-minute continuation, cooldown and same-build repeat are complete. No new experiment or source change started.",
+  "app_state_after_analysis": "Left running in same configuration; capture finished. No further device queries after post-run collection."
+}

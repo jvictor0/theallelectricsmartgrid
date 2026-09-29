@@ -1,0 +1,242 @@
+{
+  "base": "/private/tmp/smartgrid-system-trace-r1-20260910/audio",
+  "seconds": 212.39466666666667,
+  "short_candidates": 1226,
+  "episodes": [
+    {
+      "bin_start_seconds": 120,
+      "bin_end_seconds": 141,
+      "first_hole_seconds": 120.00275,
+      "last_hole_end_seconds": 140.41879166666666,
+      "short_holes": 1210,
+      "width_ms_min_median_p99_max": [
+        0.4166666666666667,
+        1.28125,
+        1.9166666666666667,
+        2.2291666666666665
+      ],
+      "flat_fraction_within_episode_envelope": 0.07240017551557701
+    }
+  ],
+  "ten_second_windows": [
+    {
+      "start_seconds": 0,
+      "end_seconds": 10,
+      "holes": 5,
+      "holes_per_second": 0.5,
+      "flat_fraction": 0.001979166666666667,
+      "median_width_ms": 0.5625,
+      "onset_spacing_ms_p10_p50_p90": [
+        1.1583333333333332,
+        294.7916666666667,
+        1326.6916666666668
+      ]
+    },
+    {
+      "start_seconds": 10,
+      "end_seconds": 20,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 20,
+      "end_seconds": 30,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 30,
+      "end_seconds": 40,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 40,
+      "end_seconds": 50,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 50,
+      "end_seconds": 60,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 60,
+      "end_seconds": 70,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 70,
+      "end_seconds": 80,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 80,
+      "end_seconds": 90,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 90,
+      "end_seconds": 100,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 100,
+      "end_seconds": 110,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 110,
+      "end_seconds": 120,
+      "holes": 8,
+      "holes_per_second": 0.8,
+      "flat_fraction": 0.0009791666666666666,
+      "median_width_ms": 1.40625,
+      "onset_spacing_ms_p10_p50_p90": [
+        10.6875,
+        10.75,
+        21.341666666666665
+      ]
+    },
+    {
+      "start_seconds": 120,
+      "end_seconds": 130,
+      "holes": 640,
+      "holes_per_second": 64.0,
+      "flat_fraction": 0.07800833333333333,
+      "median_width_ms": 1.3229166666666667,
+      "onset_spacing_ms_p10_p50_p90": [
+        10.583333333333334,
+        10.875,
+        21.416666666666668
+      ]
+    },
+    {
+      "start_seconds": 130,
+      "end_seconds": 140,
+      "holes": 547,
+      "holes_per_second": 54.7,
+      "flat_fraction": 0.06702083333333334,
+      "median_width_ms": 1.2708333333333333,
+      "onset_spacing_ms_p10_p50_p90": [
+        10.666666666666666,
+        21.291666666666668,
+        21.458333333333332
+      ]
+    },
+    {
+      "start_seconds": 140,
+      "end_seconds": 150,
+      "holes": 23,
+      "holes_per_second": 2.3,
+      "flat_fraction": 0.0027833333333333334,
+      "median_width_ms": 1.1875,
+      "onset_spacing_ms_p10_p50_p90": [
+        10.63125,
+        21.291666666666668,
+        21.45625
+      ]
+    },
+    {
+      "start_seconds": 150,
+      "end_seconds": 160,
+      "holes": 1,
+      "holes_per_second": 0.1,
+      "flat_fraction": 6.666666666666667e-05,
+      "median_width_ms": 0.6666666666666666,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 160,
+      "end_seconds": 170,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 170,
+      "end_seconds": 180,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 180,
+      "end_seconds": 190,
+      "holes": 1,
+      "holes_per_second": 0.1,
+      "flat_fraction": 6.041666666666667e-05,
+      "median_width_ms": 0.6041666666666666,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 190,
+      "end_seconds": 200,
+      "holes": 1,
+      "holes_per_second": 0.1,
+      "flat_fraction": 4.791666666666667e-05,
+      "median_width_ms": 0.4791666666666667,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 200,
+      "end_seconds": 210,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    },
+    {
+      "start_seconds": 210,
+      "end_seconds": 212.39466666666667,
+      "holes": 0,
+      "holes_per_second": 0.0,
+      "flat_fraction": 0,
+      "median_width_ms": null,
+      "onset_spacing_ms_p10_p50_p90": []
+    }
+  ],
+  "method": "Consecutive 1-second bins with at least 10 short flat candidates form dense episodes. Same criterion as the earlier UI comparison. Natural quiet/smooth music can produce candidates; inspect waveform and cadence to attribute periodic blanking. Analog settling affects widths. No claim against subtle clicks."
+}

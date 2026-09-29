@@ -1,0 +1,739 @@
+{
+  "kmix": {
+    "device": "K-Mix",
+    "start": "2026-09-11T00:01:25.849153-07:00",
+    "end_boundary": "2026-09-11T00:04:39.390-07:00",
+    "callback_exposure_seconds": 193.53052258491516,
+    "playback_transaction_error_count": 23,
+    "playback_errors_by_endpoint": {
+      "0x82": 20,
+      "0x81": 3
+    },
+    "matched_input_error_callback_gaps": 20,
+    "callback_gap_ms_min_median_max": [
+      105.128,
+      124.5015,
+      133.722
+    ],
+    "restart_record_count": 20,
+    "feedback_fallback_messages": 3,
+    "errors_outside_playback_boundary": 31,
+    "outside_errors_by_endpoint": {
+      "0x83": 27,
+      "0x81": 2,
+      "0x82": 2
+    },
+    "steady_processing_overruns": 0,
+    "callback_sequence_holes": [],
+    "thermal_states": [
+      -1.0,
+      0.0
+    ],
+    "matches": [
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:02:51.161211-0700",
+          "epoch": 1789110171.161211,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:02:51.211159-07:00",
+        "callback_gap_ms": 115.272,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:02:51.208665-0700",
+            "epoch": 1789110171.208665,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:03:06.600115-0700",
+          "epoch": 1789110186.600115,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:03:06.663501-07:00",
+        "callback_gap_ms": 123.949,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:03:06.655095-0700",
+            "epoch": 1789110186.655095,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:03:16.972048-0700",
+          "epoch": 1789110196.972048,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:03:17.036913-07:00",
+        "callback_gap_ms": 123.085,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:03:17.032033-0700",
+            "epoch": 1789110197.032033,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:03:26.531964-0700",
+          "epoch": 1789110206.531964,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:03:26.590859-07:00",
+        "callback_gap_ms": 124.588,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:03:26.582557-0700",
+            "epoch": 1789110206.582557,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:03:29.315961-0700",
+          "epoch": 1789110209.315961,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:03:29.382962-07:00",
+        "callback_gap_ms": 125.184,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:03:29.374514-0700",
+            "epoch": 1789110209.374514,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:03:35.195900-0700",
+          "epoch": 1789110215.1959,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:03:35.247261-07:00",
+        "callback_gap_ms": 114.482,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:03:35.245208-0700",
+            "epoch": 1789110215.245208,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:03:48.507826-0700",
+          "epoch": 1789110228.507826,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:03:48.572438-07:00",
+        "callback_gap_ms": 130.46,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:03:48.568176-0700",
+            "epoch": 1789110228.568176,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:03:52.955775-0700",
+          "epoch": 1789110232.955775,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:03:53.018174-07:00",
+        "callback_gap_ms": 125.463,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:03:53.012144-0700",
+            "epoch": 1789110233.012144,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:03:56.599748-0700",
+          "epoch": 1789110236.599748,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:03:56.662013-07:00",
+        "callback_gap_ms": 124.416,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:03:56.655800-0700",
+            "epoch": 1789110236.6558,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:03:59.371726-0700",
+          "epoch": 1789110239.371726,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:03:59.431947-07:00",
+        "callback_gap_ms": 124.587,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:03:59.428796-0700",
+            "epoch": 1789110239.428796,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:04:08.967602-0700",
+          "epoch": 1789110248.967602,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:04:09.009000-07:00",
+        "callback_gap_ms": 105.128,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:04:09.007645-0700",
+            "epoch": 1789110249.007645,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:04:10.399605-0700",
+          "epoch": 1789110250.399605,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:04:10.465964-07:00",
+        "callback_gap_ms": 133.722,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:04:10.459093-0700",
+            "epoch": 1789110250.459093,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:04:16.263544-0700",
+          "epoch": 1789110256.263544,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:04:16.321429-07:00",
+        "callback_gap_ms": 117.428,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:04:16.316236-0700",
+            "epoch": 1789110256.316236,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:04:22.175524-0700",
+          "epoch": 1789110262.175524,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:04:22.241964-07:00",
+        "callback_gap_ms": 127.789,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:04:22.236011-0700",
+            "epoch": 1789110262.236011,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:04:22.471504-0700",
+          "epoch": 1789110262.471504,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:04:22.537689-07:00",
+        "callback_gap_ms": 125.245,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:04:22.533055-0700",
+            "epoch": 1789110262.533055,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:04:25.111475-0700",
+          "epoch": 1789110265.111475,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:04:25.171001-07:00",
+        "callback_gap_ms": 127.006,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:04:25.167125-0700",
+            "epoch": 1789110265.167125,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:04:28.411436-0700",
+          "epoch": 1789110268.411436,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:04:28.467067-07:00",
+        "callback_gap_ms": 117.281,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:04:28.462696-0700",
+            "epoch": 1789110268.462696,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:04:30.859431-0700",
+          "epoch": 1789110270.859431,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:04:30.920631-07:00",
+        "callback_gap_ms": 128.106,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:04:30.917119-0700",
+            "epoch": 1789110270.917119,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:04:31.311413-0700",
+          "epoch": 1789110271.311413,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:04:31.373506-07:00",
+        "callback_gap_ms": 122.31,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:04:31.367292-0700",
+            "epoch": 1789110271.367292,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      },
+      {
+        "usb": {
+          "timestamp": "2026-09-11 00:04:33.259405-0700",
+          "epoch": 1789110273.259405,
+          "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+          "endpoint": "0x82"
+        },
+        "callback_gap_at": "2026-09-11T00:04:33.320313-07:00",
+        "callback_gap_ms": 123.035,
+        "restart_candidates": [
+          {
+            "timestamp": "2026-09-11 00:04:33.316885-0700",
+            "epoch": 1789110273.316885,
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          }
+        ]
+      }
+    ],
+    "playback_errors": [
+      {
+        "timestamp": "2026-09-11 00:02:51.161211-0700",
+        "epoch": 1789110171.161211,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:06.600115-0700",
+        "epoch": 1789110186.600115,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:16.972048-0700",
+        "epoch": 1789110196.972048,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:26.531964-0700",
+        "epoch": 1789110206.531964,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:29.315961-0700",
+        "epoch": 1789110209.315961,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:35.195900-0700",
+        "epoch": 1789110215.1959,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:46.130923-0700",
+        "epoch": 1789110226.130923,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x81: status 0xe00002ed (transaction error)",
+        "endpoint": "0x81"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:48.507826-0700",
+        "epoch": 1789110228.507826,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:52.955775-0700",
+        "epoch": 1789110232.955775,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:56.599748-0700",
+        "epoch": 1789110236.599748,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:59.371726-0700",
+        "epoch": 1789110239.371726,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:03:59.574810-0700",
+        "epoch": 1789110239.57481,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x81: status 0xe00002ed (transaction error)",
+        "endpoint": "0x81"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:08.967602-0700",
+        "epoch": 1789110248.967602,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:10.399605-0700",
+        "epoch": 1789110250.399605,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:16.263544-0700",
+        "epoch": 1789110256.263544,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:22.175524-0700",
+        "epoch": 1789110262.175524,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:22.471504-0700",
+        "epoch": 1789110262.471504,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:25.111475-0700",
+        "epoch": 1789110265.111475,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:28.411436-0700",
+        "epoch": 1789110268.411436,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:30.859431-0700",
+        "epoch": 1789110270.859431,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:31.311413-0700",
+        "epoch": 1789110271.311413,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:33.259405-0700",
+        "epoch": 1789110273.259405,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:35.694473-0700",
+        "epoch": 1789110275.694473,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x81: status 0xe00002ed (transaction error)",
+        "endpoint": "0x81"
+      }
+    ],
+    "outside_errors": [
+      {
+        "timestamp": "2026-09-11 00:04:39.459276-0700",
+        "epoch": 1789110279.459276,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.459634-0700",
+        "epoch": 1789110279.459634,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.459970-0700",
+        "epoch": 1789110279.45997,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.460300-0700",
+        "epoch": 1789110279.4603,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.460568-0700",
+        "epoch": 1789110279.460568,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.460836-0700",
+        "epoch": 1789110279.460836,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.461083-0700",
+        "epoch": 1789110279.461083,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.461341-0700",
+        "epoch": 1789110279.461341,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.461566-0700",
+        "epoch": 1789110279.461566,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.461679-0700",
+        "epoch": 1789110279.461679,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.461841-0700",
+        "epoch": 1789110279.461841,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.462122-0700",
+        "epoch": 1789110279.462122,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.462378-0700",
+        "epoch": 1789110279.462378,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.462440-0700",
+        "epoch": 1789110279.46244,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x81: status 0xe00002ed (transaction error)",
+        "endpoint": "0x81"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.462747-0700",
+        "epoch": 1789110279.462747,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.463100-0700",
+        "epoch": 1789110279.4631,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.463427-0700",
+        "epoch": 1789110279.463427,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.463499-0700",
+        "epoch": 1789110279.463499,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.463755-0700",
+        "epoch": 1789110279.463755,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.463971-0700",
+        "epoch": 1789110279.463971,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.464091-0700",
+        "epoch": 1789110279.464091,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.464269-0700",
+        "epoch": 1789110279.464269,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.464443-0700",
+        "epoch": 1789110279.464443,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.464560-0700",
+        "epoch": 1789110279.46456,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.465347-0700",
+        "epoch": 1789110279.465347,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.465749-0700",
+        "epoch": 1789110279.465749,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.466051-0700",
+        "epoch": 1789110279.466051,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.466310-0700",
+        "epoch": 1789110279.46631,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.474611-0700",
+        "epoch": 1789110279.474611,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x81: status 0xe00002ed (transaction error)",
+        "endpoint": "0x81"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.480372-0700",
+        "epoch": 1789110279.480372,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x83: status 0xe00002ed (transaction error): 0 bytes transferred",
+        "endpoint": "0x83"
+      },
+      {
+        "timestamp": "2026-09-11 00:04:39.480386-0700",
+        "epoch": 1789110279.480386,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 5 (K-Mix@00120000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      }
+    ],
+    "source": "Saved system archive; do not combine archive and live timestamps as independent errors",
+    "analog_capture": false
+  },
+  "maya_new": {
+    "device": "MAYA44",
+    "start": "2026-09-11T00:22:10.972749-07:00",
+    "end_boundary": "2026-09-11T00:24:45.600-07:00",
+    "callback_exposure_seconds": 154.62101364135742,
+    "playback_transaction_error_count": 0,
+    "playback_errors_by_endpoint": {},
+    "matched_input_error_callback_gaps": 0,
+    "callback_gap_ms_min_median_max": [],
+    "restart_record_count": 0,
+    "feedback_fallback_messages": 0,
+    "errors_outside_playback_boundary": 1,
+    "outside_errors_by_endpoint": {
+      "0x82": 1
+    },
+    "steady_processing_overruns": 0,
+    "callback_sequence_holes": [],
+    "thermal_states": [
+      -1.0,
+      0.0
+    ],
+    "matches": [],
+    "playback_errors": [],
+    "outside_errors": [
+      {
+        "timestamp": "2026-09-11 00:24:45.742308-0700",
+        "epoch": 1789111485.742308,
+        "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 3 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)",
+        "endpoint": "0x82"
+      }
+    ],
+    "source": "Saved system archive; do not combine archive and live timestamps as independent errors",
+    "analog_capture": false
+  }
+}

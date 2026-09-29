@@ -1,0 +1,16 @@
+{
+  "old_native_sha256_normalized_text": "5fd72c6bfe6cedf4c22b318c7482c4bd6cfcca4579727c824fdf2829865ec2b4",
+  "new_native_sha256_normalized_text": "a22d0ebb4d1230c0f9a7fd164650e80e9221f987f85298563695dc8101de72c0",
+  "upstream_tag": "8.0.15",
+  "upstream_commit": "91ad83ae34a81e0833b1a2b0866f54846370ae53",
+  "native_process_region_identical": true,
+  "callback_diff": "/private/tmp/smartgrid-juce802-to-815-render.diff",
+  "full_diff": "/private/tmp/smartgrid-juce802-to-815-ios.diff",
+  "both_select_playback_for_zero_inputs": true,
+  "new_ios18_skips_active_buffer_range_probe": true,
+  "new_ios18_7_3_skips_audioqueue_probe": true,
+  "new_target_preferences_before_hardware_query": true,
+  "old_target_preferences_after_hardware_query": true,
+  "new_activation_waits_for_callback": true,
+  "limits": "Static source comparison; does not prove which change affects faults. Framework-wide scheduling/rendering changes are also part of a full version comparison."
+}

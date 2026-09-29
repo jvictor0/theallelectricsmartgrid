@@ -1,0 +1,5137 @@
+{
+  "generated_local": "2026-09-10T19:14:02.940399-07:00",
+  "system_coverage": [
+    "2026-09-10 18:12:00.052455-0700",
+    "2026-09-10 19:03:32.807800-0700"
+  ],
+  "replicates": [
+    {
+      "index": 1,
+      "start": "2026-09-10T18:13:11.231168-07:00",
+      "end": "2026-09-10T18:22:13.268501-07:00",
+      "wave_seconds": 542.0373333333333,
+      "status": "thermal_crossover_incomplete",
+      "phases": [
+        {
+          "name": "A1",
+          "target": 0,
+          "start": "2026-09-10T18:14:05.077786-07:00",
+          "end": "2026-09-10T18:17:05.309710-07:00",
+          "seconds": 180.23192405700684,
+          "callbacks": 16817,
+          "actual_thermal": [
+            0.0
+          ],
+          "sample_rates": [
+            48000.0
+          ],
+          "frames": [
+            512.0
+          ],
+          "callback_stalls": 4,
+          "tx_count": 4,
+          "analog_count": 4,
+          "dsp_ms_p50_p99_max": [
+            4.681,
+            5.119,
+            5.182
+          ],
+          "dsp_overruns": 0,
+          "drift_records": 112,
+          "drift_ms_range": [
+            0.02075,
+            3.374917
+          ],
+          "drift_first_last": [
+            {
+              "at": "2026-09-10 18:16:21.219393-0700",
+              "ms": 0.02075,
+              "segment": 13
+            },
+            {
+              "at": "2026-09-10 18:17:04.714583-0700",
+              "ms": 3.374917,
+              "segment": 13
+            }
+          ],
+          "power_snapshots": [
+            {
+              "at": "2026-09-10 18:14:22.039364-0700",
+              "epoch": 1789089262.039364,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3279.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4303.0
+            },
+            {
+              "at": "2026-09-10 18:14:42.039987-0700",
+              "epoch": 1789089282.039987,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3300.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4303.0
+            },
+            {
+              "at": "2026-09-10 18:15:02.040638-0700",
+              "epoch": 1789089302.040638,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3309.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4302.0
+            },
+            {
+              "at": "2026-09-10 18:15:22.040605-0700",
+              "epoch": 1789089322.040605,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3329.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4301.0
+            },
+            {
+              "at": "2026-09-10 18:15:42.040444-0700",
+              "epoch": 1789089342.040444,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3339.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4301.0
+            },
+            {
+              "at": "2026-09-10 18:16:02.041190-0700",
+              "epoch": 1789089362.04119,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3350.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4301.0
+            },
+            {
+              "at": "2026-09-10 18:16:22.040033-0700",
+              "epoch": 1789089382.040033,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3359.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4300.0
+            },
+            {
+              "at": "2026-09-10 18:16:42.040558-0700",
+              "epoch": 1789089402.040558,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3369.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4300.0
+            },
+            {
+              "at": "2026-09-10 18:17:02.041585-0700",
+              "epoch": 1789089422.041585,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3379.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4300.0
+            }
+          ],
+          "zlp_reports": 0
+        },
+        {
+          "name": "B1",
+          "target": 2,
+          "start": "2026-09-10T18:17:42.638518-07:00",
+          "end": "2026-09-10T18:20:42.826569-07:00",
+          "seconds": 180.1880509853363,
+          "callbacks": 16893,
+          "actual_thermal": [
+            2.0
+          ],
+          "sample_rates": [
+            48000.0
+          ],
+          "frames": [
+            512.0
+          ],
+          "callback_stalls": 0,
+          "tx_count": 0,
+          "analog_count": 0,
+          "dsp_ms_p50_p99_max": [
+            4.691,
+            5.065079999999998,
+            5.149
+          ],
+          "dsp_overruns": 0,
+          "drift_records": 0,
+          "drift_ms_range": [],
+          "drift_first_last": [],
+          "power_snapshots": [
+            {
+              "at": "2026-09-10 18:18:02.038343-0700",
+              "epoch": 1789089482.038343,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3409.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4300.0
+            },
+            {
+              "at": "2026-09-10 18:18:22.040423-0700",
+              "epoch": 1789089502.040423,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3419.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4299.0
+            },
+            {
+              "at": "2026-09-10 18:18:42.040152-0700",
+              "epoch": 1789089522.040152,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3429.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4299.0
+            },
+            {
+              "at": "2026-09-10 18:19:02.038577-0700",
+              "epoch": 1789089542.038577,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3429.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4299.0
+            },
+            {
+              "at": "2026-09-10 18:19:22.040590-0700",
+              "epoch": 1789089562.04059,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3439.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4299.0
+            },
+            {
+              "at": "2026-09-10 18:19:42.039818-0700",
+              "epoch": 1789089582.039818,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3450.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4299.0
+            },
+            {
+              "at": "2026-09-10 18:20:02.040123-0700",
+              "epoch": 1789089602.040123,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3459.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4299.0
+            },
+            {
+              "at": "2026-09-10 18:20:22.039846-0700",
+              "epoch": 1789089622.039846,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3469.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4299.0
+            },
+            {
+              "at": "2026-09-10 18:20:42.037060-0700",
+              "epoch": 1789089642.03706,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3469.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4299.0
+            }
+          ],
+          "zlp_reports": 0
+        }
+      ],
+      "all_tx": 5,
+      "all_stalls": 5,
+      "matched_usb_callback_wave_restart": 5,
+      "matches": [
+        {
+          "usb": {
+            "epoch": 1789089227.026492,
+            "at": "2026-09-10 18:13:47.026492-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:13:47.230924-07:00",
+            "epoch": 1789089227.230924,
+            "cb": 2649,
+            "gap_ms": 216.501,
+            "dsp_ms": 5.068,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 35.736,
+            "end_seconds": 35.886,
+            "duration_ms": 150,
+            "preceding_100ms_peak_rms_dbfs": -27.20732151576144,
+            "following_100ms_peak_rms_dbfs": -24.742033496014596,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789089227.059485,
+            "at": "2026-09-10 18:13:47.059485-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.971,
+          "nearest_probe_seconds": 17.833561897277832
+        },
+        {
+          "usb": {
+            "epoch": 1789089278.012748,
+            "at": "2026-09-10 18:14:38.012748-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:14:38.218501-07:00",
+            "epoch": 1789089278.2185006,
+            "cb": 7409,
+            "gap_ms": 225.799,
+            "dsp_ms": 4.855,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 86.735,
+            "end_seconds": 86.872,
+            "duration_ms": 137,
+            "preceding_100ms_peak_rms_dbfs": -26.797218411737088,
+            "following_100ms_peak_rms_dbfs": -24.890251247471443,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789089278.04655,
+            "at": "2026-09-10 18:14:38.046550-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 5.106,
+          "nearest_probe_seconds": 2.701957941055298
+        },
+        {
+          "usb": {
+            "epoch": 1789089311.416522,
+            "at": "2026-09-10 18:15:11.416522-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:15:11.625799-07:00",
+            "epoch": 1789089311.6257987,
+            "cb": 10521,
+            "gap_ms": 223.792,
+            "dsp_ms": 4.993,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 120.103,
+            "end_seconds": 120.278,
+            "duration_ms": 175,
+            "preceding_100ms_peak_rms_dbfs": -25.1637971330147,
+            "following_100ms_peak_rms_dbfs": -24.44180136538393,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789089311.452856,
+            "at": "2026-09-10 18:15:11.452856-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.945,
+          "nearest_probe_seconds": 6.136054039001465
+        },
+        {
+          "usb": {
+            "epoch": 1789089380.015174,
+            "at": "2026-09-10 18:16:20.015174-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:16:20.221099-07:00",
+            "epoch": 1789089380.2210991,
+            "cb": 16932,
+            "gap_ms": 223.133,
+            "dsp_ms": 3.733,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 188.725,
+            "end_seconds": 188.871,
+            "duration_ms": 146,
+            "preceding_100ms_peak_rms_dbfs": -26.057211933948285,
+            "following_100ms_peak_rms_dbfs": -25.11060499325631,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789089380.049822,
+            "at": "2026-09-10 18:16:20.049822-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 5.13,
+          "nearest_probe_seconds": 14.766026020050049
+        },
+        {
+          "usb": {
+            "epoch": 1789089424.834468,
+            "at": "2026-09-10 18:17:04.834468-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:17:05.040288-07:00",
+            "epoch": 1789089425.0402884,
+            "cb": 21114,
+            "gap_ms": 219.212,
+            "dsp_ms": 3.71,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 233.467,
+            "end_seconds": 233.689,
+            "duration_ms": 222,
+            "preceding_100ms_peak_rms_dbfs": -24.466785922871036,
+            "following_100ms_peak_rms_dbfs": -24.843454266842443,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789089424.869706,
+            "at": "2026-09-10 18:17:04.869706-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 5.143,
+          "nearest_probe_seconds": 0.2454211711883545
+        }
+      ],
+      "gaps": [
+        {
+          "at": "2026-09-10T18:13:47.230924-07:00",
+          "epoch": 1789089227.230924,
+          "cb": 2649,
+          "gap_ms": 216.501,
+          "dsp_ms": 5.068,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:14:38.218501-07:00",
+          "epoch": 1789089278.2185006,
+          "cb": 7409,
+          "gap_ms": 225.799,
+          "dsp_ms": 4.855,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:15:11.625799-07:00",
+          "epoch": 1789089311.6257987,
+          "cb": 10521,
+          "gap_ms": 223.792,
+          "dsp_ms": 4.993,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:16:20.221099-07:00",
+          "epoch": 1789089380.2210991,
+          "cb": 16932,
+          "gap_ms": 223.133,
+          "dsp_ms": 3.733,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:17:05.040288-07:00",
+          "epoch": 1789089425.0402884,
+          "cb": 21114,
+          "gap_ms": 219.212,
+          "dsp_ms": 3.71,
+          "thermal": 0
+        }
+      ],
+      "drifts": [
+        {
+          "epoch": 1789089191.403111,
+          "at": "2026-09-10 18:13:11.403111-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 24958 at sampleTime 22050",
+          "ms": 0.024958,
+          "sampleTime": 22050,
+          "segment": 0
+        },
+        {
+          "epoch": 1789089381.219393,
+          "at": "2026-09-10 18:16:21.219393-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 20750 at sampleTime 48000",
+          "ms": 0.02075,
+          "sampleTime": 48000,
+          "segment": 13
+        },
+        {
+          "epoch": 1789089381.467273,
+          "at": "2026-09-10 18:16:21.467273-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 41584 at sampleTime 60000",
+          "ms": 0.041584,
+          "sampleTime": 60000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08404873936311419,
+          "delta_ms": 0.020834000000000002,
+          "prior_at": "2026-09-10 18:16:21.219393-0700"
+        },
+        {
+          "epoch": 1789089381.715261,
+          "at": "2026-09-10 18:16:21.715261-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 104125 at sampleTime 72000",
+          "ms": 0.104125,
+          "sampleTime": 72000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.25219366916473496,
+          "delta_ms": 0.06254099999999999,
+          "prior_at": "2026-09-10 18:16:21.467273-0700"
+        },
+        {
+          "epoch": 1789089381.96327,
+          "at": "2026-09-10 18:16:21.963270-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 125000 at sampleTime 84000",
+          "ms": 0.125,
+          "sampleTime": 84000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08417034391597973,
+          "delta_ms": 0.020875000000000005,
+          "prior_at": "2026-09-10 18:16:21.715261-0700"
+        },
+        {
+          "epoch": 1789089382.219273,
+          "at": "2026-09-10 18:16:22.219273-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 145750 at sampleTime 96000",
+          "ms": 0.14575,
+          "sampleTime": 96000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08105369288152321,
+          "delta_ms": 0.02074999999999999,
+          "prior_at": "2026-09-10 18:16:21.963270-0700"
+        },
+        {
+          "epoch": 1789089382.715292,
+          "at": "2026-09-10 18:16:22.715292-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 145792 at sampleTime 120000",
+          "ms": 0.145792,
+          "sampleTime": 120000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 8.46741951516639e-05,
+          "delta_ms": 4.200000000001425e-05,
+          "prior_at": "2026-09-10 18:16:22.219273-0700"
+        },
+        {
+          "epoch": 1789089383.467239,
+          "at": "2026-09-10 18:16:23.467239-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 166583 at sampleTime 156000",
+          "ms": 0.166583,
+          "sampleTime": 156000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.02764955780504989,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:16:22.715292-0700"
+        },
+        {
+          "epoch": 1789089383.715241,
+          "at": "2026-09-10 18:16:23.715241-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 250000 at sampleTime 168000",
+          "ms": 0.25,
+          "sampleTime": 168000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.33635608747582185,
+          "delta_ms": 0.08341699999999999,
+          "prior_at": "2026-09-10 18:16:23.467239-0700"
+        },
+        {
+          "epoch": 1789089383.963235,
+          "at": "2026-09-10 18:16:23.963235-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 270792 at sampleTime 180000",
+          "ms": 0.270792,
+          "sampleTime": 180000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08384075631295886,
+          "delta_ms": 0.020791999999999977,
+          "prior_at": "2026-09-10 18:16:23.715241-0700"
+        },
+        {
+          "epoch": 1789089384.219282,
+          "at": "2026-09-10 18:16:24.219282-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 291584 at sampleTime 192000",
+          "ms": 0.291584,
+          "sampleTime": 192000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08120383817702881,
+          "delta_ms": 0.020792000000000033,
+          "prior_at": "2026-09-10 18:16:23.963235-0700"
+        },
+        {
+          "epoch": 1789089384.467236,
+          "at": "2026-09-10 18:16:24.467236-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 291625 at sampleTime 204000",
+          "ms": 0.291625,
+          "sampleTime": 204000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.00016535316419795824,
+          "delta_ms": 4.100000000001325e-05,
+          "prior_at": "2026-09-10 18:16:24.219282-0700"
+        },
+        {
+          "epoch": 1789089384.963248,
+          "at": "2026-09-10 18:16:24.963248-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 312500 at sampleTime 228000",
+          "ms": 0.3125,
+          "sampleTime": 228000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.04208567768604968,
+          "delta_ms": 0.020874999999999977,
+          "prior_at": "2026-09-10 18:16:24.467236-0700"
+        },
+        {
+          "epoch": 1789089385.219242,
+          "at": "2026-09-10 18:16:25.219242-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 333292 at sampleTime 240000",
+          "ms": 0.333292,
+          "sampleTime": 240000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08122062775200532,
+          "delta_ms": 0.020791999999999977,
+          "prior_at": "2026-09-10 18:16:24.963248-0700"
+        },
+        {
+          "epoch": 1789089385.467217,
+          "at": "2026-09-10 18:16:25.467217-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 395750 at sampleTime 252000",
+          "ms": 0.39575,
+          "sampleTime": 252000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.2518722939460543,
+          "delta_ms": 0.062458000000000014,
+          "prior_at": "2026-09-10 18:16:25.219242-0700"
+        },
+        {
+          "epoch": 1789089385.715218,
+          "at": "2026-09-10 18:16:25.715218-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 479125 at sampleTime 264000",
+          "ms": 0.479125,
+          "sampleTime": 264000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.3361880268258169,
+          "delta_ms": 0.08337500000000003,
+          "prior_at": "2026-09-10 18:16:25.467217-0700"
+        },
+        {
+          "epoch": 1789089386.219516,
+          "at": "2026-09-10 18:16:26.219516-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 500000 at sampleTime 288000",
+          "ms": 0.5,
+          "sampleTime": 288000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.04139417798682755,
+          "delta_ms": 0.020874999999999977,
+          "prior_at": "2026-09-10 18:16:25.715218-0700"
+        },
+        {
+          "epoch": 1789089386.715214,
+          "at": "2026-09-10 18:16:26.715214-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 520791 at sampleTime 312000",
+          "ms": 0.520791,
+          "sampleTime": 312000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.04194287861140451,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:16:26.219516-0700"
+        },
+        {
+          "epoch": 1789089386.963185,
+          "at": "2026-09-10 18:16:26.963185-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 541625 at sampleTime 324000",
+          "ms": 0.541625,
+          "sampleTime": 324000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08401786957366175,
+          "delta_ms": 0.02083400000000002,
+          "prior_at": "2026-09-10 18:16:26.715214-0700"
+        },
+        {
+          "epoch": 1789089387.467187,
+          "at": "2026-09-10 18:16:27.467187-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 562500 at sampleTime 348000",
+          "ms": 0.5625,
+          "sampleTime": 348000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.04141849828069612,
+          "delta_ms": 0.020874999999999977,
+          "prior_at": "2026-09-10 18:16:26.963185-0700"
+        },
+        {
+          "epoch": 1789089387.715173,
+          "at": "2026-09-10 18:16:27.715173-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 625000 at sampleTime 360000",
+          "ms": 0.625,
+          "sampleTime": 360000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.25203027701371655,
+          "delta_ms": 0.0625,
+          "prior_at": "2026-09-10 18:16:27.467187-0700"
+        },
+        {
+          "epoch": 1789089387.963167,
+          "at": "2026-09-10 18:16:27.963167-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 666625 at sampleTime 372000",
+          "ms": 0.666625,
+          "sampleTime": 372000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.1678468392423489,
+          "delta_ms": 0.04162500000000002,
+          "prior_at": "2026-09-10 18:16:27.715173-0700"
+        },
+        {
+          "epoch": 1789089388.219247,
+          "at": "2026-09-10 18:16:28.219247-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 687459 at sampleTime 384000",
+          "ms": 0.687459,
+          "sampleTime": 384000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0813573404687556,
+          "delta_ms": 0.02083400000000002,
+          "prior_at": "2026-09-10 18:16:27.963167-0700"
+        },
+        {
+          "epoch": 1789089388.467162,
+          "at": "2026-09-10 18:16:28.467162-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 687500 at sampleTime 396000",
+          "ms": 0.6875,
+          "sampleTime": 396000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0001653794024021453,
+          "delta_ms": 4.099999999995774e-05,
+          "prior_at": "2026-09-10 18:16:28.219247-0700"
+        },
+        {
+          "epoch": 1789089389.219255,
+          "at": "2026-09-10 18:16:29.219255-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 708291 at sampleTime 432000",
+          "ms": 0.708291,
+          "sampleTime": 432000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.027644184800984756,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:16:28.467162-0700"
+        },
+        {
+          "epoch": 1789089389.467161,
+          "at": "2026-09-10 18:16:29.467161-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 749958 at sampleTime 444000",
+          "ms": 0.749958,
+          "sampleTime": 444000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16807582352256656,
+          "delta_ms": 0.04166700000000001,
+          "prior_at": "2026-09-10 18:16:29.219255-0700"
+        },
+        {
+          "epoch": 1789089389.715138,
+          "at": "2026-09-10 18:16:29.715138-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 770750 at sampleTime 456000",
+          "ms": 0.77075,
+          "sampleTime": 456000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08384647955611589,
+          "delta_ms": 0.020792000000000033,
+          "prior_at": "2026-09-10 18:16:29.467161-0700"
+        },
+        {
+          "epoch": 1789089389.963137,
+          "at": "2026-09-10 18:16:29.963137-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 791625 at sampleTime 468000",
+          "ms": 0.791625,
+          "sampleTime": 468000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08417374250492451,
+          "delta_ms": 0.020874999999999977,
+          "prior_at": "2026-09-10 18:16:29.715138-0700"
+        },
+        {
+          "epoch": 1789089390.715183,
+          "at": "2026-09-10 18:16:30.715183-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 812500 at sampleTime 504000",
+          "ms": 0.8125,
+          "sampleTime": 504000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.02775760657639861,
+          "delta_ms": 0.020874999999999977,
+          "prior_at": "2026-09-10 18:16:29.963137-0700"
+        },
+        {
+          "epoch": 1789089390.963119,
+          "at": "2026-09-10 18:16:30.963119-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 833250 at sampleTime 516000",
+          "ms": 0.83325,
+          "sampleTime": 516000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08369094900660551,
+          "delta_ms": 0.020750000000000046,
+          "prior_at": "2026-09-10 18:16:30.715183-0700"
+        },
+        {
+          "epoch": 1789089391.219134,
+          "at": "2026-09-10 18:16:31.219134-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 833292 at sampleTime 528000",
+          "ms": 0.833292,
+          "sampleTime": 528000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0001640528475840058,
+          "delta_ms": 4.199999999998649e-05,
+          "prior_at": "2026-09-10 18:16:30.963119-0700"
+        },
+        {
+          "epoch": 1789089391.715107,
+          "at": "2026-09-10 18:16:31.715107-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 854125 at sampleTime 552000",
+          "ms": 0.854125,
+          "sampleTime": 552000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.042004313512583255,
+          "delta_ms": 0.02083299999999999,
+          "prior_at": "2026-09-10 18:16:31.219134-0700"
+        },
+        {
+          "epoch": 1789089391.963101,
+          "at": "2026-09-10 18:16:31.963101-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 916584 at sampleTime 564000",
+          "ms": 0.916584,
+          "sampleTime": 564000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.25185695452823664,
+          "delta_ms": 0.06245899999999993,
+          "prior_at": "2026-09-10 18:16:31.715107-0700"
+        },
+        {
+          "epoch": 1789089392.219134,
+          "at": "2026-09-10 18:16:32.219134-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 937500 at sampleTime 576000",
+          "ms": 0.9375,
+          "sampleTime": 576000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08169253619721384,
+          "delta_ms": 0.020916000000000046,
+          "prior_at": "2026-09-10 18:16:31.963101-0700"
+        },
+        {
+          "epoch": 1789089392.467101,
+          "at": "2026-09-10 18:16:32.467101-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 958250 at sampleTime 588000",
+          "ms": 0.95825,
+          "sampleTime": 588000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08368048813084787,
+          "delta_ms": 0.020750000000000046,
+          "prior_at": "2026-09-10 18:16:32.219134-0700"
+        },
+        {
+          "epoch": 1789089392.715112,
+          "at": "2026-09-10 18:16:32.715112-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 958292 at sampleTime 600000",
+          "ms": 0.958292,
+          "sampleTime": 600000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0001693474135121106,
+          "delta_ms": 4.199999999998649e-05,
+          "prior_at": "2026-09-10 18:16:32.467101-0700"
+        },
+        {
+          "epoch": 1789089393.963069,
+          "at": "2026-09-10 18:16:33.963069-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1020792 at sampleTime 660000",
+          "ms": 1.020792,
+          "sampleTime": 660000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.050081854135147784,
+          "delta_ms": 0.06249999999999989,
+          "prior_at": "2026-09-10 18:16:32.715112-0700"
+        },
+        {
+          "epoch": 1789089394.219086,
+          "at": "2026-09-10 18:16:34.219086-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1041583 at sampleTime 672000",
+          "ms": 1.041583,
+          "sampleTime": 672000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08120946055225632,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:16:33.963069-0700"
+        },
+        {
+          "epoch": 1789089394.71506,
+          "at": "2026-09-10 18:16:34.715060-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1041584 at sampleTime 696000",
+          "ms": 1.041584,
+          "sampleTime": 696000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 2.0162344626053932e-06,
+          "delta_ms": 1.000000000139778e-06,
+          "prior_at": "2026-09-10 18:16:34.219086-0700"
+        },
+        {
+          "epoch": 1789089395.219058,
+          "at": "2026-09-10 18:16:35.219058-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1062458 at sampleTime 720000",
+          "ms": 1.062458,
+          "sampleTime": 720000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.041416827637361715,
+          "delta_ms": 0.020873999999999837,
+          "prior_at": "2026-09-10 18:16:34.715060-0700"
+        },
+        {
+          "epoch": 1789089395.467045,
+          "at": "2026-09-10 18:16:35.467045-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1083250 at sampleTime 732000",
+          "ms": 1.08325,
+          "sampleTime": 732000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08384309388126385,
+          "delta_ms": 0.020792000000000144,
+          "prior_at": "2026-09-10 18:16:35.219058-0700"
+        },
+        {
+          "epoch": 1789089395.715046,
+          "at": "2026-09-10 18:16:35.715046-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1083291 at sampleTime 744000",
+          "ms": 1.083291,
+          "sampleTime": 744000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.00016532200720812114,
+          "delta_ms": 4.099999999995774e-05,
+          "prior_at": "2026-09-10 18:16:35.467045-0700"
+        },
+        {
+          "epoch": 1789089395.96304,
+          "at": "2026-09-10 18:16:35.963040-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1145750 at sampleTime 756000",
+          "ms": 1.14575,
+          "sampleTime": 756000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.2518567123960381,
+          "delta_ms": 0.06245900000000004,
+          "prior_at": "2026-09-10 18:16:35.715046-0700"
+        },
+        {
+          "epoch": 1789089396.219059,
+          "at": "2026-09-10 18:16:36.219059-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1208250 at sampleTime 768000",
+          "ms": 1.20825,
+          "sampleTime": 768000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.2441226237892535,
+          "delta_ms": 0.0625,
+          "prior_at": "2026-09-10 18:16:35.963040-0700"
+        },
+        {
+          "epoch": 1789089396.715031,
+          "at": "2026-09-10 18:16:36.715031-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1208291 at sampleTime 792000",
+          "ms": 1.208291,
+          "sampleTime": 792000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 8.266597059873983e-05,
+          "delta_ms": 4.099999999995774e-05,
+          "prior_at": "2026-09-10 18:16:36.219059-0700"
+        },
+        {
+          "epoch": 1789089396.963053,
+          "at": "2026-09-10 18:16:36.963053-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1229083 at sampleTime 804000",
+          "ms": 1.229083,
+          "sampleTime": 804000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0838312461721841,
+          "delta_ms": 0.02079199999999992,
+          "prior_at": "2026-09-10 18:16:36.715031-0700"
+        },
+        {
+          "epoch": 1789089397.963011,
+          "at": "2026-09-10 18:16:37.963011-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1270750 at sampleTime 852000",
+          "ms": 1.27075,
+          "sampleTime": 852000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.04166874849027033,
+          "delta_ms": 0.04166700000000012,
+          "prior_at": "2026-09-10 18:16:36.963053-0700"
+        },
+        {
+          "epoch": 1789089398.219017,
+          "at": "2026-09-10 18:16:38.219017-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1312458 at sampleTime 864000",
+          "ms": 1.312458,
+          "sampleTime": 864000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.1629180550640869,
+          "delta_ms": 0.041707999999999856,
+          "prior_at": "2026-09-10 18:16:37.963011-0700"
+        },
+        {
+          "epoch": 1789089398.467011,
+          "at": "2026-09-10 18:16:38.467011-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1312500 at sampleTime 876000",
+          "ms": 1.3125,
+          "sampleTime": 876000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.00016935897292961002,
+          "delta_ms": 4.2000000000097515e-05,
+          "prior_at": "2026-09-10 18:16:38.219017-0700"
+        },
+        {
+          "epoch": 1789089399.219023,
+          "at": "2026-09-10 18:16:39.219023-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1333291 at sampleTime 912000",
+          "ms": 1.333291,
+          "sampleTime": 912000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.02764716467580823,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:16:38.467011-0700"
+        },
+        {
+          "epoch": 1789089399.466989,
+          "at": "2026-09-10 18:16:39.466989-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1354125 at sampleTime 924000",
+          "ms": 1.354125,
+          "sampleTime": 924000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08401956601493213,
+          "delta_ms": 0.02083400000000002,
+          "prior_at": "2026-09-10 18:16:39.219023-0700"
+        },
+        {
+          "epoch": 1789089399.963026,
+          "at": "2026-09-10 18:16:39.963026-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1395750 at sampleTime 948000",
+          "ms": 1.39575,
+          "sampleTime": 948000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08391511009214003,
+          "delta_ms": 0.04162500000000002,
+          "prior_at": "2026-09-10 18:16:39.466989-0700"
+        },
+        {
+          "epoch": 1789089400.218965,
+          "at": "2026-09-10 18:16:40.218965-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1437459 at sampleTime 960000",
+          "ms": 1.437459,
+          "sampleTime": 960000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.1629646083283806,
+          "delta_ms": 0.041708999999999996,
+          "prior_at": "2026-09-10 18:16:39.963026-0700"
+        },
+        {
+          "epoch": 1789089400.466985,
+          "at": "2026-09-10 18:16:40.466985-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1458250 at sampleTime 972000",
+          "ms": 1.45825,
+          "sampleTime": 972000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08382793951191567,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:16:40.218965-0700"
+        },
+        {
+          "epoch": 1789089400.963019,
+          "at": "2026-09-10 18:16:40.963019-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1479084 at sampleTime 996000",
+          "ms": 1.479084,
+          "sampleTime": 996000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.042001161026802514,
+          "delta_ms": 0.02083400000000002,
+          "prior_at": "2026-09-10 18:16:40.466985-0700"
+        },
+        {
+          "epoch": 1789089401.962952,
+          "at": "2026-09-10 18:16:41.962952-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1520750 at sampleTime 1044000",
+          "ms": 1.52075,
+          "sampleTime": 1044000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.04166879162655997,
+          "delta_ms": 0.04166599999999998,
+          "prior_at": "2026-09-10 18:16:40.963019-0700"
+        },
+        {
+          "epoch": 1789089402.218974,
+          "at": "2026-09-10 18:16:42.218974-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1562500 at sampleTime 1056000",
+          "ms": 1.5625,
+          "sampleTime": 1056000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16307178663388677,
+          "delta_ms": 0.041749999999999954,
+          "prior_at": "2026-09-10 18:16:41.962952-0700"
+        },
+        {
+          "epoch": 1789089402.962928,
+          "at": "2026-09-10 18:16:42.962928-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1583250 at sampleTime 1092000",
+          "ms": 1.58325,
+          "sampleTime": 1092000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.02789151154879445,
+          "delta_ms": 0.020750000000000046,
+          "prior_at": "2026-09-10 18:16:42.218974-0700"
+        },
+        {
+          "epoch": 1789089403.466926,
+          "at": "2026-09-10 18:16:43.466926-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1604125 at sampleTime 1116000",
+          "ms": 1.604125,
+          "sampleTime": 1116000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.04141881177205766,
+          "delta_ms": 0.020874999999999977,
+          "prior_at": "2026-09-10 18:16:42.962928-0700"
+        },
+        {
+          "epoch": 1789089403.714931,
+          "at": "2026-09-10 18:16:43.714931-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1625000 at sampleTime 1128000",
+          "ms": 1.625,
+          "sampleTime": 1128000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0841717195022533,
+          "delta_ms": 0.020874999999999977,
+          "prior_at": "2026-09-10 18:16:43.466926-0700"
+        },
+        {
+          "epoch": 1789089403.962923,
+          "at": "2026-09-10 18:16:43.962923-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1645750 at sampleTime 1140000",
+          "ms": 1.64575,
+          "sampleTime": 1140000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08367204087087123,
+          "delta_ms": 0.020750000000000046,
+          "prior_at": "2026-09-10 18:16:43.714931-0700"
+        },
+        {
+          "epoch": 1789089404.218916,
+          "at": "2026-09-10 18:16:44.218916-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1687459 at sampleTime 1152000",
+          "ms": 1.687459,
+          "sampleTime": 1152000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16293030676382492,
+          "delta_ms": 0.041708999999999996,
+          "prior_at": "2026-09-10 18:16:43.962923-0700"
+        },
+        {
+          "epoch": 1789089404.466904,
+          "at": "2026-09-10 18:16:44.466904-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1708250 at sampleTime 1164000",
+          "ms": 1.70825,
+          "sampleTime": 1164000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08383873899688216,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:16:44.218916-0700"
+        },
+        {
+          "epoch": 1789089404.962912,
+          "at": "2026-09-10 18:16:44.962912-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1729125 at sampleTime 1188000",
+          "ms": 1.729125,
+          "sampleTime": 1188000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.04208600135838669,
+          "delta_ms": 0.020874999999999977,
+          "prior_at": "2026-09-10 18:16:44.466904-0700"
+        },
+        {
+          "epoch": 1789089406.218886,
+          "at": "2026-09-10 18:16:46.218886-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1833250 at sampleTime 1248000",
+          "ms": 1.83325,
+          "sampleTime": 1248000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08290379837568264,
+          "delta_ms": 0.10412500000000002,
+          "prior_at": "2026-09-10 18:16:44.962912-0700"
+        },
+        {
+          "epoch": 1789089406.466875,
+          "at": "2026-09-10 18:16:46.466875-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1895750 at sampleTime 1260000",
+          "ms": 1.89575,
+          "sampleTime": 1260000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.252027127065343,
+          "delta_ms": 0.0625,
+          "prior_at": "2026-09-10 18:16:46.218886-0700"
+        },
+        {
+          "epoch": 1789089406.71487,
+          "at": "2026-09-10 18:16:46.714870-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1895791 at sampleTime 1272000",
+          "ms": 1.895791,
+          "sampleTime": 1272000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.00016532598066060873,
+          "delta_ms": 4.099999999995774e-05,
+          "prior_at": "2026-09-10 18:16:46.466875-0700"
+        },
+        {
+          "epoch": 1789089407.218857,
+          "at": "2026-09-10 18:16:47.218857-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1916625 at sampleTime 1296000",
+          "ms": 1.916625,
+          "sampleTime": 1296000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.041338361793388956,
+          "delta_ms": 0.02083400000000002,
+          "prior_at": "2026-09-10 18:16:46.714870-0700"
+        },
+        {
+          "epoch": 1789089407.466872,
+          "at": "2026-09-10 18:16:47.466872-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1937458 at sampleTime 1308000",
+          "ms": 1.937458,
+          "sampleTime": 1308000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08399897643066521,
+          "delta_ms": 0.02083299999999988,
+          "prior_at": "2026-09-10 18:16:47.218857-0700"
+        },
+        {
+          "epoch": 1789089407.714856,
+          "at": "2026-09-10 18:16:47.714856-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1937459 at sampleTime 1320000",
+          "ms": 1.937459,
+          "sampleTime": 1320000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 4.032519325256962e-06,
+          "delta_ms": 1.000000000139778e-06,
+          "prior_at": "2026-09-10 18:16:47.466872-0700"
+        },
+        {
+          "epoch": 1789089407.962892,
+          "at": "2026-09-10 18:16:47.962892-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1958250 at sampleTime 1332000",
+          "ms": 1.95825,
+          "sampleTime": 1332000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08382246024036398,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:16:47.714856-0700"
+        },
+        {
+          "epoch": 1789089408.218887,
+          "at": "2026-09-10 18:16:48.218887-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2083250 at sampleTime 1344000",
+          "ms": 2.08325,
+          "sampleTime": 1344000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.48829071984249167,
+          "delta_ms": 0.125,
+          "prior_at": "2026-09-10 18:16:47.962892-0700"
+        },
+        {
+          "epoch": 1789089408.466848,
+          "at": "2026-09-10 18:16:48.466848-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2104084 at sampleTime 1356000",
+          "ms": 2.104084,
+          "sampleTime": 1356000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.084021343312599,
+          "delta_ms": 0.020833999999999797,
+          "prior_at": "2026-09-10 18:16:48.218887-0700"
+        },
+        {
+          "epoch": 1789089408.970849,
+          "at": "2026-09-10 18:16:48.970849-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2124958 at sampleTime 1380000",
+          "ms": 2.124958,
+          "sampleTime": 1380000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.041416572937471204,
+          "delta_ms": 0.02087400000000006,
+          "prior_at": "2026-09-10 18:16:48.466848-0700"
+        },
+        {
+          "epoch": 1789089409.218845,
+          "at": "2026-09-10 18:16:49.218845-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2145750 at sampleTime 1392000",
+          "ms": 2.14575,
+          "sampleTime": 1392000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08384011148946864,
+          "delta_ms": 0.020792000000000144,
+          "prior_at": "2026-09-10 18:16:48.970849-0700"
+        },
+        {
+          "epoch": 1789089410.466812,
+          "at": "2026-09-10 18:16:50.466812-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2208250 at sampleTime 1452000",
+          "ms": 2.20825,
+          "sampleTime": 1452000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.050081452282641235,
+          "delta_ms": 0.0625,
+          "prior_at": "2026-09-10 18:16:49.218845-0700"
+        },
+        {
+          "epoch": 1789089410.714818,
+          "at": "2026-09-10 18:16:50.714818-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2229083 at sampleTime 1464000",
+          "ms": 2.229083,
+          "sampleTime": 1464000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.084001964243862,
+          "delta_ms": 0.0208330000000001,
+          "prior_at": "2026-09-10 18:16:50.466812-0700"
+        },
+        {
+          "epoch": 1789089411.970792,
+          "at": "2026-09-10 18:16:51.970792-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2270750 at sampleTime 1524000",
+          "ms": 2.27075,
+          "sampleTime": 1524000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.03317504836675146,
+          "delta_ms": 0.0416669999999999,
+          "prior_at": "2026-09-10 18:16:50.714818-0700"
+        },
+        {
+          "epoch": 1789089412.218797,
+          "at": "2026-09-10 18:16:52.218797-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2291583 at sampleTime 1536000",
+          "ms": 2.291583,
+          "sampleTime": 1536000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08400236801870437,
+          "delta_ms": 0.0208330000000001,
+          "prior_at": "2026-09-10 18:16:51.970792-0700"
+        },
+        {
+          "epoch": 1789089412.466776,
+          "at": "2026-09-10 18:16:52.466776-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2354083 at sampleTime 1548000",
+          "ms": 2.354083,
+          "sampleTime": 1548000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.25203754642586906,
+          "delta_ms": 0.0625,
+          "prior_at": "2026-09-10 18:16:52.218797-0700"
+        },
+        {
+          "epoch": 1789089412.714795,
+          "at": "2026-09-10 18:16:52.714795-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2354084 at sampleTime 1560000",
+          "ms": 2.354084,
+          "sampleTime": 1560000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 4.031945612787884e-06,
+          "delta_ms": 9.999999996956888e-07,
+          "prior_at": "2026-09-10 18:16:52.466776-0700"
+        },
+        {
+          "epoch": 1789089413.218664,
+          "at": "2026-09-10 18:16:53.218664-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2374958 at sampleTime 1584000",
+          "ms": 2.374958,
+          "sampleTime": 1584000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.04142744945227536,
+          "delta_ms": 0.02087400000000006,
+          "prior_at": "2026-09-10 18:16:52.714795-0700"
+        },
+        {
+          "epoch": 1789089413.714767,
+          "at": "2026-09-10 18:16:53.714767-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2395709 at sampleTime 1608000",
+          "ms": 2.395709,
+          "sampleTime": 1608000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.04182800341598273,
+          "delta_ms": 0.020751000000000186,
+          "prior_at": "2026-09-10 18:16:53.218664-0700"
+        },
+        {
+          "epoch": 1789089413.970765,
+          "at": "2026-09-10 18:16:53.970765-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2416584 at sampleTime 1620000",
+          "ms": 2.416584,
+          "sampleTime": 1620000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08154356293085528,
+          "delta_ms": 0.020874999999999755,
+          "prior_at": "2026-09-10 18:16:53.714767-0700"
+        },
+        {
+          "epoch": 1789089414.466751,
+          "at": "2026-09-10 18:16:54.466751-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2520708 at sampleTime 1644000",
+          "ms": 2.520708,
+          "sampleTime": 1644000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.20993335132547192,
+          "delta_ms": 0.1041240000000001,
+          "prior_at": "2026-09-10 18:16:53.970765-0700"
+        },
+        {
+          "epoch": 1789089414.714759,
+          "at": "2026-09-10 18:16:54.714759-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2520750 at sampleTime 1656000",
+          "ms": 2.52075,
+          "sampleTime": 1656000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0001693493671060371,
+          "delta_ms": 4.2000000000097515e-05,
+          "prior_at": "2026-09-10 18:16:54.466751-0700"
+        },
+        {
+          "epoch": 1789089415.218771,
+          "at": "2026-09-10 18:16:55.218771-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2541583 at sampleTime 1680000",
+          "ms": 2.541583,
+          "sampleTime": 1680000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0413343440176087,
+          "delta_ms": 0.0208330000000001,
+          "prior_at": "2026-09-10 18:16:54.714759-0700"
+        },
+        {
+          "epoch": 1789089415.466736,
+          "at": "2026-09-10 18:16:55.466736-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2541584 at sampleTime 1692000",
+          "ms": 2.541584,
+          "sampleTime": 1692000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 4.032825627762392e-06,
+          "delta_ms": 9.999999996956888e-07,
+          "prior_at": "2026-09-10 18:16:55.218771-0700"
+        },
+        {
+          "epoch": 1789089415.970727,
+          "at": "2026-09-10 18:16:55.970727-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2583250 at sampleTime 1716000",
+          "ms": 2.58325,
+          "sampleTime": 1716000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08267212948255177,
+          "delta_ms": 0.0416660000000002,
+          "prior_at": "2026-09-10 18:16:55.466736-0700"
+        },
+        {
+          "epoch": 1789089416.218779,
+          "at": "2026-09-10 18:16:56.218779-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2666583 at sampleTime 1728000",
+          "ms": 2.666583,
+          "sampleTime": 1728000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.3359495574150864,
+          "delta_ms": 0.0833330000000001,
+          "prior_at": "2026-09-10 18:16:55.970727-0700"
+        },
+        {
+          "epoch": 1789089416.466715,
+          "at": "2026-09-10 18:16:56.466715-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2708208 at sampleTime 1740000",
+          "ms": 2.708208,
+          "sampleTime": 1740000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16788606035662312,
+          "delta_ms": 0.0416249999999998,
+          "prior_at": "2026-09-10 18:16:56.218779-0700"
+        },
+        {
+          "epoch": 1789089416.714723,
+          "at": "2026-09-10 18:16:56.714723-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2708250 at sampleTime 1752000",
+          "ms": 2.70825,
+          "sampleTime": 1752000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0001693493671060371,
+          "delta_ms": 4.2000000000097515e-05,
+          "prior_at": "2026-09-10 18:16:56.466715-0700"
+        },
+        {
+          "epoch": 1789089417.466705,
+          "at": "2026-09-10 18:16:57.466705-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2729083 at sampleTime 1788000",
+          "ms": 2.729083,
+          "sampleTime": 1788000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.027704121548198145,
+          "delta_ms": 0.0208330000000001,
+          "prior_at": "2026-09-10 18:16:56.714723-0700"
+        },
+        {
+          "epoch": 1789089417.714707,
+          "at": "2026-09-10 18:16:57.714707-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2749958 at sampleTime 1800000",
+          "ms": 2.749958,
+          "sampleTime": 1800000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0841727714515057,
+          "delta_ms": 0.020874999999999755,
+          "prior_at": "2026-09-10 18:16:57.466705-0700"
+        },
+        {
+          "epoch": 1789089417.970693,
+          "at": "2026-09-10 18:16:57.970693-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2749959 at sampleTime 1812000",
+          "ms": 2.749959,
+          "sampleTime": 1812000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 3.906460374361797e-06,
+          "delta_ms": 1.000000000139778e-06,
+          "prior_at": "2026-09-10 18:16:57.714707-0700"
+        },
+        {
+          "epoch": 1789089418.466687,
+          "at": "2026-09-10 18:16:58.466687-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2833209 at sampleTime 1836000",
+          "ms": 2.833209,
+          "sampleTime": 1836000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.1678448221908921,
+          "delta_ms": 0.08325000000000005,
+          "prior_at": "2026-09-10 18:16:57.970693-0700"
+        },
+        {
+          "epoch": 1789089418.714691,
+          "at": "2026-09-10 18:16:58.714691-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2854083 at sampleTime 1848000",
+          "ms": 2.854083,
+          "sampleTime": 1848000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08416801098246138,
+          "delta_ms": 0.02087400000000006,
+          "prior_at": "2026-09-10 18:16:58.466687-0700"
+        },
+        {
+          "epoch": 1789089418.970685,
+          "at": "2026-09-10 18:16:58.970685-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2874958 at sampleTime 1860000",
+          "ms": 2.874958,
+          "sampleTime": 1860000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08154485399784019,
+          "delta_ms": 0.020874999999999755,
+          "prior_at": "2026-09-10 18:16:58.714691-0700"
+        },
+        {
+          "epoch": 1789089419.218662,
+          "at": "2026-09-10 18:16:59.218662-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2895750 at sampleTime 1872000",
+          "ms": 2.89575,
+          "sampleTime": 1872000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08384647955611635,
+          "delta_ms": 0.020792000000000144,
+          "prior_at": "2026-09-10 18:16:58.970685-0700"
+        },
+        {
+          "epoch": 1789089420.218694,
+          "at": "2026-09-10 18:17:00.218694-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2916584 at sampleTime 1920000",
+          "ms": 2.916584,
+          "sampleTime": 1920000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.020833334414765255,
+          "delta_ms": 0.020833999999999797,
+          "prior_at": "2026-09-10 18:16:59.218662-0700"
+        },
+        {
+          "epoch": 1789089420.466714,
+          "at": "2026-09-10 18:17:00.466714-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2958250 at sampleTime 1932000",
+          "ms": 2.95825,
+          "sampleTime": 1932000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16799456147869243,
+          "delta_ms": 0.0416660000000002,
+          "prior_at": "2026-09-10 18:17:00.218694-0700"
+        },
+        {
+          "epoch": 1789089420.714653,
+          "at": "2026-09-10 18:17:00.714653-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2999959 at sampleTime 1944000",
+          "ms": 2.999959,
+          "sampleTime": 1944000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16822275450317903,
+          "delta_ms": 0.041708999999999996,
+          "prior_at": "2026-09-10 18:17:00.466714-0700"
+        },
+        {
+          "epoch": 1789089421.466639,
+          "at": "2026-09-10 18:17:01.466639-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3020750 at sampleTime 1980000",
+          "ms": 3.02075,
+          "sampleTime": 1980000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.027648120124614074,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:17:00.714653-0700"
+        },
+        {
+          "epoch": 1789089421.714645,
+          "at": "2026-09-10 18:17:01.714645-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3041583 at sampleTime 1992000",
+          "ms": 3.041583,
+          "sampleTime": 1992000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08400204499851995,
+          "delta_ms": 0.0208330000000001,
+          "prior_at": "2026-09-10 18:17:01.466639-0700"
+        },
+        {
+          "epoch": 1789089421.970637,
+          "at": "2026-09-10 18:17:01.970637-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3062417 at sampleTime 2004000",
+          "ms": 3.062417,
+          "sampleTime": 2004000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08138530042683739,
+          "delta_ms": 0.020833999999999797,
+          "prior_at": "2026-09-10 18:17:01.714645-0700"
+        },
+        {
+          "epoch": 1789089422.218629,
+          "at": "2026-09-10 18:17:02.218629-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3083250 at sampleTime 2016000",
+          "ms": 3.08325,
+          "sampleTime": 2016000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08400680979817433,
+          "delta_ms": 0.0208330000000001,
+          "prior_at": "2026-09-10 18:17:01.970637-0700"
+        },
+        {
+          "epoch": 1789089422.46663,
+          "at": "2026-09-10 18:17:02.466630-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3124958 at sampleTime 2028000",
+          "ms": 3.124958,
+          "sampleTime": 2028000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.1681766743370449,
+          "delta_ms": 0.041707999999999856,
+          "prior_at": "2026-09-10 18:17:02.218629-0700"
+        },
+        {
+          "epoch": 1789089422.714618,
+          "at": "2026-09-10 18:17:02.714618-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3249917 at sampleTime 2040000",
+          "ms": 3.249917,
+          "sampleTime": 2040000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.5038913465591554,
+          "delta_ms": 0.12495900000000004,
+          "prior_at": "2026-09-10 18:17:02.466630-0700"
+        },
+        {
+          "epoch": 1789089422.970629,
+          "at": "2026-09-10 18:17:02.970629-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3270708 at sampleTime 2052000",
+          "ms": 3.270708,
+          "sampleTime": 2052000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08121135127604333,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:17:02.714618-0700"
+        },
+        {
+          "epoch": 1789089423.218643,
+          "at": "2026-09-10 18:17:03.218643-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3270750 at sampleTime 2064000",
+          "ms": 3.27075,
+          "sampleTime": 2064000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.00016934529717048565,
+          "delta_ms": 4.2000000000097515e-05,
+          "prior_at": "2026-09-10 18:17:02.970629-0700"
+        },
+        {
+          "epoch": 1789089424.218616,
+          "at": "2026-09-10 18:17:04.218616-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3291583 at sampleTime 2112000",
+          "ms": 3.291583,
+          "sampleTime": 2112000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.020833561283213002,
+          "delta_ms": 0.0208330000000001,
+          "prior_at": "2026-09-10 18:17:03.218643-0700"
+        },
+        {
+          "epoch": 1789089424.466589,
+          "at": "2026-09-10 18:17:04.466589-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3312458 at sampleTime 2124000",
+          "ms": 3.312458,
+          "sampleTime": 2124000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08418256393294994,
+          "delta_ms": 0.020874999999999755,
+          "prior_at": "2026-09-10 18:17:04.218616-0700"
+        },
+        {
+          "epoch": 1789089424.714583,
+          "at": "2026-09-10 18:17:04.714583-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3374917 at sampleTime 2136000",
+          "ms": 3.374917,
+          "sampleTime": 2136000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.25185695452823714,
+          "delta_ms": 0.06245900000000004,
+          "prior_at": "2026-09-10 18:17:04.466589-0700"
+        },
+        {
+          "epoch": 1789089425.534592,
+          "at": "2026-09-10 18:17:05.534592-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 166625 at sampleTime 24000",
+          "ms": 0.166625,
+          "sampleTime": 24000,
+          "segment": 14
+        }
+      ],
+      "zlp": [],
+      "power": [
+        {
+          "at": "2026-09-10 18:13:22.039422-0700",
+          "epoch": 1789089202.039422,
+          "battery-power-connected": 1.0,
+          "battery-charging": 1.0,
+          "battery-temperature": 3229.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4328.0
+        },
+        {
+          "at": "2026-09-10 18:13:42.039709-0700",
+          "epoch": 1789089222.039709,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3250.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4315.0
+        },
+        {
+          "at": "2026-09-10 18:13:42.071526-0700",
+          "epoch": 1789089222.071526,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3250.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4315.0
+        },
+        {
+          "at": "2026-09-10 18:14:02.038222-0700",
+          "epoch": 1789089242.038222,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3269.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4305.0
+        },
+        {
+          "at": "2026-09-10 18:14:22.039364-0700",
+          "epoch": 1789089262.039364,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3279.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4303.0
+        },
+        {
+          "at": "2026-09-10 18:14:42.039987-0700",
+          "epoch": 1789089282.039987,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3300.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4303.0
+        },
+        {
+          "at": "2026-09-10 18:15:02.040638-0700",
+          "epoch": 1789089302.040638,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3309.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4302.0
+        },
+        {
+          "at": "2026-09-10 18:15:22.040605-0700",
+          "epoch": 1789089322.040605,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3329.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4301.0
+        },
+        {
+          "at": "2026-09-10 18:15:42.040444-0700",
+          "epoch": 1789089342.040444,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3339.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4301.0
+        },
+        {
+          "at": "2026-09-10 18:16:02.041190-0700",
+          "epoch": 1789089362.04119,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3350.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4301.0
+        },
+        {
+          "at": "2026-09-10 18:16:22.040033-0700",
+          "epoch": 1789089382.040033,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3359.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4300.0
+        },
+        {
+          "at": "2026-09-10 18:16:42.040558-0700",
+          "epoch": 1789089402.040558,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3369.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4300.0
+        },
+        {
+          "at": "2026-09-10 18:17:02.041585-0700",
+          "epoch": 1789089422.041585,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3379.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4300.0
+        },
+        {
+          "at": "2026-09-10 18:17:22.039934-0700",
+          "epoch": 1789089442.039934,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3389.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4300.0
+        },
+        {
+          "at": "2026-09-10 18:17:42.040166-0700",
+          "epoch": 1789089462.040166,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3400.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4300.0
+        },
+        {
+          "at": "2026-09-10 18:18:02.038343-0700",
+          "epoch": 1789089482.038343,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3409.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4300.0
+        },
+        {
+          "at": "2026-09-10 18:18:22.040423-0700",
+          "epoch": 1789089502.040423,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3419.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4299.0
+        },
+        {
+          "at": "2026-09-10 18:18:42.040152-0700",
+          "epoch": 1789089522.040152,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3429.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4299.0
+        },
+        {
+          "at": "2026-09-10 18:19:02.038577-0700",
+          "epoch": 1789089542.038577,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3429.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4299.0
+        },
+        {
+          "at": "2026-09-10 18:19:22.040590-0700",
+          "epoch": 1789089562.04059,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3439.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4299.0
+        },
+        {
+          "at": "2026-09-10 18:19:42.039818-0700",
+          "epoch": 1789089582.039818,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3450.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4299.0
+        },
+        {
+          "at": "2026-09-10 18:20:02.040123-0700",
+          "epoch": 1789089602.040123,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3459.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4299.0
+        },
+        {
+          "at": "2026-09-10 18:20:22.039846-0700",
+          "epoch": 1789089622.039846,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3469.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4299.0
+        },
+        {
+          "at": "2026-09-10 18:20:42.037060-0700",
+          "epoch": 1789089642.03706,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3469.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4299.0
+        },
+        {
+          "at": "2026-09-10 18:21:02.041196-0700",
+          "epoch": 1789089662.041196,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3479.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4299.0
+        },
+        {
+          "at": "2026-09-10 18:21:22.038599-0700",
+          "epoch": 1789089682.038599,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3489.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4298.0
+        },
+        {
+          "at": "2026-09-10 18:21:42.036578-0700",
+          "epoch": 1789089702.036578,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3489.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4298.0
+        },
+        {
+          "at": "2026-09-10 18:22:02.040431-0700",
+          "epoch": 1789089722.040431,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3489.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4298.0
+        }
+      ],
+      "transitions": [
+        {
+          "phase": "A1",
+          "state_at_command": "already_nominal",
+          "command": "2026-09-10T18:13:34.858794-07:00",
+          "matching_pressure_event": null,
+          "delay_seconds": null
+        },
+        {
+          "phase": "B1",
+          "state_at_command": "transition_requested",
+          "command": "2026-09-10T18:17:05.310724-07:00",
+          "matching_pressure_event": {
+            "epoch": 1789089432.252838,
+            "at": "2026-09-10 18:17:12.252838-0700",
+            "process": "thermalmonitord",
+            "message": "<Notice> Thermal pressure level 20"
+          },
+          "delay_seconds": 6.942113876342773
+        },
+        {
+          "phase": "A2",
+          "state_at_command": "transition_requested",
+          "command": "2026-09-10T18:20:42.828398-07:00",
+          "matching_pressure_event": {
+            "epoch": 1789089882.256637,
+            "at": "2026-09-10 18:24:42.256637-0700",
+            "process": "thermalmonitord",
+            "message": "<Notice> Thermal pressure level 0"
+          },
+          "delay_seconds": 239.42823910713196
+        }
+      ],
+      "sequence_holes": 0,
+      "logger_misses": [],
+      "midi_enabled_running": true,
+      "periodic_dense_episodes": [],
+      "clock_anchor_offset_span_ms": 1.5099048614501953
+    },
+    {
+      "index": 2,
+      "start": "2026-09-10T18:32:16.410109-07:00",
+      "end": "2026-09-10T18:41:18.532776-07:00",
+      "wave_seconds": 542.1226666666666,
+      "status": "thermal_crossover_incomplete",
+      "phases": [
+        {
+          "name": "A1",
+          "target": 0,
+          "start": "2026-09-10T18:33:10.924514-07:00",
+          "end": "2026-09-10T18:36:11.140397-07:00",
+          "seconds": 180.2158830165863,
+          "callbacks": 16697,
+          "actual_thermal": [
+            0.0
+          ],
+          "sample_rates": [
+            48000.0
+          ],
+          "frames": [
+            512.0
+          ],
+          "callback_stalls": 10,
+          "tx_count": 10,
+          "analog_count": 10,
+          "dsp_ms_p50_p99_max": [
+            4.729,
+            5.044,
+            15.095
+          ],
+          "dsp_overruns": 2,
+          "drift_records": 52,
+          "drift_ms_range": [
+            0.1875,
+            4.0
+          ],
+          "drift_first_last": [
+            {
+              "at": "2026-09-10 18:33:15.283339-0700",
+              "ms": 4.0,
+              "segment": 9
+            },
+            {
+              "at": "2026-09-10 18:34:41.433368-0700",
+              "ms": 0.375,
+              "segment": 16
+            }
+          ],
+          "power_snapshots": [
+            {
+              "at": "2026-09-10 18:33:22.025412-0700",
+              "epoch": 1789090402.025412,
+              "battery-power-connected": 1.0,
+              "battery-charging": 1.0,
+              "battery-temperature": 3200.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4329.0
+            },
+            {
+              "at": "2026-09-10 18:33:42.028914-0700",
+              "epoch": 1789090422.028914,
+              "battery-power-connected": 1.0,
+              "battery-charging": 1.0,
+              "battery-temperature": 3229.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4328.0
+            },
+            {
+              "at": "2026-09-10 18:34:02.032209-0700",
+              "epoch": 1789090442.032209,
+              "battery-power-connected": 1.0,
+              "battery-charging": 1.0,
+              "battery-temperature": 3250.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4328.0
+            },
+            {
+              "at": "2026-09-10 18:34:22.030588-0700",
+              "epoch": 1789090462.030588,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3279.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4316.0
+            },
+            {
+              "at": "2026-09-10 18:34:22.064495-0700",
+              "epoch": 1789090462.064495,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3279.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4316.0
+            },
+            {
+              "at": "2026-09-10 18:34:42.022578-0700",
+              "epoch": 1789090482.022578,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3300.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4314.0
+            },
+            {
+              "at": "2026-09-10 18:35:02.030043-0700",
+              "epoch": 1789090502.030043,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3309.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4314.0
+            },
+            {
+              "at": "2026-09-10 18:35:22.027732-0700",
+              "epoch": 1789090522.027732,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3329.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4313.0
+            },
+            {
+              "at": "2026-09-10 18:35:42.031371-0700",
+              "epoch": 1789090542.031371,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3350.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4312.0
+            },
+            {
+              "at": "2026-09-10 18:36:02.026147-0700",
+              "epoch": 1789090562.026147,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3359.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4312.0
+            }
+          ],
+          "zlp_reports": 3
+        },
+        {
+          "name": "B1",
+          "target": 2,
+          "start": "2026-09-10T18:36:47.918120-07:00",
+          "end": "2026-09-10T18:39:48.230546-07:00",
+          "seconds": 180.31242609024048,
+          "callbacks": 16883,
+          "actual_thermal": [
+            2.0
+          ],
+          "sample_rates": [
+            48000.0
+          ],
+          "frames": [
+            512.0
+          ],
+          "callback_stalls": 1,
+          "tx_count": 1,
+          "analog_count": 1,
+          "dsp_ms_p50_p99_max": [
+            4.706,
+            5.10418,
+            5.205
+          ],
+          "dsp_overruns": 0,
+          "drift_records": 0,
+          "drift_ms_range": [],
+          "drift_first_last": [],
+          "power_snapshots": [
+            {
+              "at": "2026-09-10 18:37:02.027952-0700",
+              "epoch": 1789090622.027952,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3400.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4312.0
+            },
+            {
+              "at": "2026-09-10 18:37:22.027465-0700",
+              "epoch": 1789090642.027465,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3409.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4312.0
+            },
+            {
+              "at": "2026-09-10 18:37:42.026980-0700",
+              "epoch": 1789090662.02698,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3419.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4311.0
+            },
+            {
+              "at": "2026-09-10 18:38:02.012562-0700",
+              "epoch": 1789090682.012562,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3429.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4311.0
+            },
+            {
+              "at": "2026-09-10 18:38:22.000662-0700",
+              "epoch": 1789090702.000662,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3439.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4311.0
+            },
+            {
+              "at": "2026-09-10 18:38:42.001959-0700",
+              "epoch": 1789090722.001959,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3439.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4311.0
+            },
+            {
+              "at": "2026-09-10 18:39:02.003895-0700",
+              "epoch": 1789090742.003895,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3450.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4311.0
+            },
+            {
+              "at": "2026-09-10 18:39:22.001876-0700",
+              "epoch": 1789090762.001876,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3459.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4311.0
+            },
+            {
+              "at": "2026-09-10 18:39:42.000931-0700",
+              "epoch": 1789090782.000931,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3469.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4311.0
+            }
+          ],
+          "zlp_reports": 0
+        }
+      ],
+      "all_tx": 11,
+      "all_stalls": 11,
+      "matched_usb_callback_wave_restart": 11,
+      "matches": [
+        {
+          "usb": {
+            "epoch": 1789090417.802989,
+            "at": "2026-09-10 18:33:37.802989-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:33:38.017362-07:00",
+            "epoch": 1789090418.017362,
+            "cb": 6914,
+            "gap_ms": 221.494,
+            "dsp_ms": 3.831,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 81.333,
+            "end_seconds": 81.487,
+            "duration_ms": 154,
+            "preceding_100ms_peak_rms_dbfs": -24.64062688203082,
+            "following_100ms_peak_rms_dbfs": -24.56789126894895,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090417.836256,
+            "at": "2026-09-10 18:33:37.836256-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.957,
+          "nearest_probe_seconds": 3.1230969429016113
+        },
+        {
+          "usb": {
+            "epoch": 1789090430.757861,
+            "at": "2026-09-10 18:33:50.757861-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:33:50.977662-07:00",
+            "epoch": 1789090430.9776616,
+            "cb": 8109,
+            "gap_ms": 223.889,
+            "dsp_ms": 4.984,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 94.236,
+            "end_seconds": 94.446,
+            "duration_ms": 210,
+            "preceding_100ms_peak_rms_dbfs": -24.721248400836604,
+            "following_100ms_peak_rms_dbfs": -24.737696519350507,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090430.794409,
+            "at": "2026-09-10 18:33:50.794409-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.882,
+          "nearest_probe_seconds": 9.613659858703613
+        },
+        {
+          "usb": {
+            "epoch": 1789090432.173845,
+            "at": "2026-09-10 18:33:52.173845-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:33:52.389378-07:00",
+            "epoch": 1789090432.3893783,
+            "cb": 8222,
+            "gap_ms": 217.549,
+            "dsp_ms": 3.737,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 95.679,
+            "end_seconds": 95.858,
+            "duration_ms": 179,
+            "preceding_100ms_peak_rms_dbfs": -25.663994277442995,
+            "following_100ms_peak_rms_dbfs": -24.658647326924488,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090432.207955,
+            "at": "2026-09-10 18:33:52.207955-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.957,
+          "nearest_probe_seconds": 11.029644012451172
+        },
+        {
+          "usb": {
+            "epoch": 1789090451.29787,
+            "at": "2026-09-10 18:34:11.297870-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:34:11.513339-07:00",
+            "epoch": 1789090451.513339,
+            "cb": 9995,
+            "gap_ms": 222.547,
+            "dsp_ms": 4.833,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 114.769,
+            "end_seconds": 114.981,
+            "duration_ms": 212,
+            "preceding_100ms_peak_rms_dbfs": -23.932594606099418,
+            "following_100ms_peak_rms_dbfs": -24.752489387549584,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090451.331813,
+            "at": "2026-09-10 18:34:11.331813-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.971,
+          "nearest_probe_seconds": 0.1762099266052246
+        },
+        {
+          "usb": {
+            "epoch": 1789090468.861379,
+            "at": "2026-09-10 18:34:28.861379-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:34:29.078329-07:00",
+            "epoch": 1789090469.078329,
+            "cb": 11622,
+            "gap_ms": 217.94,
+            "dsp_ms": 3.716,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 132.4,
+            "end_seconds": 132.545,
+            "duration_ms": 145,
+            "preceding_100ms_peak_rms_dbfs": -27.397695487644445,
+            "following_100ms_peak_rms_dbfs": -25.45865324414684,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090468.89643,
+            "at": "2026-09-10 18:34:28.896430-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.899,
+          "nearest_probe_seconds": 12.064042091369629
+        },
+        {
+          "usb": {
+            "epoch": 1789090474.697306,
+            "at": "2026-09-10 18:34:34.697306-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:34:34.913220-07:00",
+            "epoch": 1789090474.9132204,
+            "cb": 12149,
+            "gap_ms": 224.04,
+            "dsp_ms": 4.931,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 138.253,
+            "end_seconds": 138.38,
+            "duration_ms": 127,
+            "preceding_100ms_peak_rms_dbfs": -33.16362753292615,
+            "following_100ms_peak_rms_dbfs": -24.991602031308755,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090474.73206,
+            "at": "2026-09-10 18:34:34.732060-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.928,
+          "nearest_probe_seconds": 6.228115081787109
+        },
+        {
+          "usb": {
+            "epoch": 1789090480.981505,
+            "at": "2026-09-10 18:34:40.981505-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:34:41.196405-07:00",
+            "epoch": 1789090481.1964047,
+            "cb": 12718,
+            "gap_ms": 222.745,
+            "dsp_ms": 3.778,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 144.528,
+            "end_seconds": 144.663,
+            "duration_ms": 135,
+            "preceding_100ms_peak_rms_dbfs": -25.21484718841014,
+            "following_100ms_peak_rms_dbfs": -24.672584257371916,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090481.016076,
+            "at": "2026-09-10 18:34:41.016076-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.984,
+          "nearest_probe_seconds": 0
+        },
+        {
+          "usb": {
+            "epoch": 1789090484.449125,
+            "at": "2026-09-10 18:34:44.449125-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:34:44.664645-07:00",
+            "epoch": 1789090484.6646452,
+            "cb": 13023,
+            "gap_ms": 225.257,
+            "dsp_ms": 5.045,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 147.97,
+            "end_seconds": 148.131,
+            "duration_ms": 161,
+            "preceding_100ms_peak_rms_dbfs": -24.677551253643305,
+            "following_100ms_peak_rms_dbfs": -24.302778488913262,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090484.483162,
+            "at": "2026-09-10 18:34:44.483162-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.909,
+          "nearest_probe_seconds": 3.2759480476379395
+        },
+        {
+          "usb": {
+            "epoch": 1789090486.701327,
+            "at": "2026-09-10 18:34:46.701327-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:34:46.909919-07:00",
+            "epoch": 1789090486.9099188,
+            "cb": 13214,
+            "gap_ms": 219.209,
+            "dsp_ms": 3.792,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 150.16,
+            "end_seconds": 150.377,
+            "duration_ms": 217,
+            "preceding_100ms_peak_rms_dbfs": -24.631122482385706,
+            "following_100ms_peak_rms_dbfs": -25.01754869994822,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090486.726961,
+            "at": "2026-09-10 18:34:46.726961-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.949,
+          "nearest_probe_seconds": 5.5281500816345215
+        },
+        {
+          "usb": {
+            "epoch": 1789090550.896133,
+            "at": "2026-09-10 18:35:50.896133-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:35:51.112227-07:00",
+            "epoch": 1789090551.1122274,
+            "cb": 19213,
+            "gap_ms": 223.937,
+            "dsp_ms": 4.969,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 214.384,
+            "end_seconds": 214.577,
+            "duration_ms": 193,
+            "preceding_100ms_peak_rms_dbfs": -25.002064461638515,
+            "following_100ms_peak_rms_dbfs": -25.043979376519147,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090550.92903,
+            "at": "2026-09-10 18:35:50.929030-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 5.0,
+          "nearest_probe_seconds": 9.855311870574951
+        },
+        {
+          "usb": {
+            "epoch": 1789090674.506078,
+            "at": "2026-09-10 18:37:54.506078-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:37:54.743334-07:00",
+            "epoch": 1789090674.7433336,
+            "cb": 30782,
+            "gap_ms": 220.288,
+            "dsp_ms": 3.862,
+            "thermal": 2
+          },
+          "wave": {
+            "start_seconds": 337.997,
+            "end_seconds": 338.183,
+            "duration_ms": 186,
+            "preceding_100ms_peak_rms_dbfs": -26.889804858300668,
+            "following_100ms_peak_rms_dbfs": -25.00371276154594,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789090674.541454,
+            "at": "2026-09-10 18:37:54.541454-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.988,
+          "nearest_probe_seconds": 6.455363035202026
+        }
+      ],
+      "gaps": [
+        {
+          "at": "2026-09-10T18:33:38.017362-07:00",
+          "epoch": 1789090418.017362,
+          "cb": 6914,
+          "gap_ms": 221.494,
+          "dsp_ms": 3.831,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:33:50.977662-07:00",
+          "epoch": 1789090430.9776616,
+          "cb": 8109,
+          "gap_ms": 223.889,
+          "dsp_ms": 4.984,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:33:52.389378-07:00",
+          "epoch": 1789090432.3893783,
+          "cb": 8222,
+          "gap_ms": 217.549,
+          "dsp_ms": 3.737,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:34:11.513339-07:00",
+          "epoch": 1789090451.513339,
+          "cb": 9995,
+          "gap_ms": 222.547,
+          "dsp_ms": 4.833,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:34:29.078329-07:00",
+          "epoch": 1789090469.078329,
+          "cb": 11622,
+          "gap_ms": 217.94,
+          "dsp_ms": 3.716,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:34:34.913220-07:00",
+          "epoch": 1789090474.9132204,
+          "cb": 12149,
+          "gap_ms": 224.04,
+          "dsp_ms": 4.931,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:34:41.196405-07:00",
+          "epoch": 1789090481.1964047,
+          "cb": 12718,
+          "gap_ms": 222.745,
+          "dsp_ms": 3.778,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:34:44.664645-07:00",
+          "epoch": 1789090484.6646452,
+          "cb": 13023,
+          "gap_ms": 225.257,
+          "dsp_ms": 5.045,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:34:46.909919-07:00",
+          "epoch": 1789090486.9099188,
+          "cb": 13214,
+          "gap_ms": 219.209,
+          "dsp_ms": 3.792,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:35:51.112227-07:00",
+          "epoch": 1789090551.1122274,
+          "cb": 19213,
+          "gap_ms": 223.937,
+          "dsp_ms": 4.969,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:37:54.743334-07:00",
+          "epoch": 1789090674.7433336,
+          "cb": 30782,
+          "gap_ms": 220.288,
+          "dsp_ms": 3.862,
+          "thermal": 2
+        }
+      ],
+      "drifts": [
+        {
+          "epoch": 1789090336.463409,
+          "at": "2026-09-10 18:32:16.463409-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 5294834 at sampleTime 26482050",
+          "ms": 5.294834,
+          "sampleTime": 26482050,
+          "segment": 0
+        },
+        {
+          "epoch": 1789090337.463416,
+          "at": "2026-09-10 18:32:17.463416-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 5317458 at sampleTime 26526150",
+          "ms": 5.317458,
+          "sampleTime": 26526150,
+          "segment": 0,
+          "finite_difference_ms_per_second": 0.02262383818169983,
+          "delta_ms": 0.02262400000000042,
+          "prior_at": "2026-09-10 18:32:16.463409-0700"
+        },
+        {
+          "epoch": 1789090337.711433,
+          "at": "2026-09-10 18:32:17.711433-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 5317500 at sampleTime 26537175",
+          "ms": 5.3175,
+          "sampleTime": 26537175,
+          "segment": 0,
+          "finite_difference_ms_per_second": 0.00016934334366911513,
+          "delta_ms": 4.1999999999653426e-05,
+          "prior_at": "2026-09-10 18:32:17.463416-0700"
+        },
+        {
+          "epoch": 1789090378.035425,
+          "at": "2026-09-10 18:32:58.035425-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2000000 at sampleTime 1632000",
+          "ms": 2.0,
+          "sampleTime": 1632000,
+          "segment": 9
+        },
+        {
+          "epoch": 1789090395.283339,
+          "at": "2026-09-10 18:33:15.283339-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 4000000 at sampleTime 2460000",
+          "ms": 4.0,
+          "sampleTime": 2460000,
+          "segment": 9,
+          "finite_difference_ms_per_second": 0.11595605075515604,
+          "delta_ms": 2.0,
+          "prior_at": "2026-09-10 18:32:58.035425-0700"
+        },
+        {
+          "epoch": 1789090452.245747,
+          "at": "2026-09-10 18:34:12.245747-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 750000 at sampleTime 36000",
+          "ms": 0.75,
+          "sampleTime": 36000,
+          "segment": 13
+        },
+        {
+          "epoch": 1789090452.501774,
+          "at": "2026-09-10 18:34:12.501774-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 854125 at sampleTime 48000",
+          "ms": 0.854125,
+          "sampleTime": 48000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.40669541418534166,
+          "delta_ms": 0.10412500000000002,
+          "prior_at": "2026-09-10 18:34:12.245747-0700"
+        },
+        {
+          "epoch": 1789090452.749727,
+          "at": "2026-09-10 18:34:12.749727-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 937500 at sampleTime 60000",
+          "ms": 0.9375,
+          "sampleTime": 60000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.3362533255127452,
+          "delta_ms": 0.08337499999999998,
+          "prior_at": "2026-09-10 18:34:12.501774-0700"
+        },
+        {
+          "epoch": 1789090453.501709,
+          "at": "2026-09-10 18:34:13.501709-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 958292 at sampleTime 96000",
+          "ms": 0.958292,
+          "sampleTime": 96000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.027649598964629863,
+          "delta_ms": 0.020792000000000033,
+          "prior_at": "2026-09-10 18:34:12.749727-0700"
+        },
+        {
+          "epoch": 1789090454.245712,
+          "at": "2026-09-10 18:34:14.245712-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 979125 at sampleTime 132000",
+          "ms": 0.979125,
+          "sampleTime": 132000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.028001229014524554,
+          "delta_ms": 0.02083299999999999,
+          "prior_at": "2026-09-10 18:34:13.501709-0700"
+        },
+        {
+          "epoch": 1789090454.501692,
+          "at": "2026-09-10 18:34:14.501692-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1104083 at sampleTime 144000",
+          "ms": 1.104083,
+          "sampleTime": 144000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.4881552964090982,
+          "delta_ms": 0.1249579999999999,
+          "prior_at": "2026-09-10 18:34:14.245712-0700"
+        },
+        {
+          "epoch": 1789090454.74971,
+          "at": "2026-09-10 18:34:14.749710-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1187458 at sampleTime 156000",
+          "ms": 1.187458,
+          "sampleTime": 156000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.33616508133039424,
+          "delta_ms": 0.08337499999999998,
+          "prior_at": "2026-09-10 18:34:14.501692-0700"
+        },
+        {
+          "epoch": 1789090455.245696,
+          "at": "2026-09-10 18:34:15.245696-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1270750 at sampleTime 180000",
+          "ms": 1.27075,
+          "sampleTime": 180000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16793216452115958,
+          "delta_ms": 0.08329200000000014,
+          "prior_at": "2026-09-10 18:34:14.749710-0700"
+        },
+        {
+          "epoch": 1789090455.749672,
+          "at": "2026-09-10 18:34:15.749672-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1270792 at sampleTime 204000",
+          "ms": 1.270792,
+          "sampleTime": 204000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 8.333732356628717e-05,
+          "delta_ms": 4.199999999987547e-05,
+          "prior_at": "2026-09-10 18:34:15.245696-0700"
+        },
+        {
+          "epoch": 1789090455.99768,
+          "at": "2026-09-10 18:34:15.997680-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1291625 at sampleTime 216000",
+          "ms": 1.291625,
+          "sampleTime": 216000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08400131821218801,
+          "delta_ms": 0.0208330000000001,
+          "prior_at": "2026-09-10 18:34:15.749672-0700"
+        },
+        {
+          "epoch": 1789090456.749583,
+          "at": "2026-09-10 18:34:16.749583-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1395750 at sampleTime 252000",
+          "ms": 1.39575,
+          "sampleTime": 252000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.13848194792799595,
+          "delta_ms": 0.10412500000000002,
+          "prior_at": "2026-09-10 18:34:15.997680-0700"
+        },
+        {
+          "epoch": 1789090456.997623,
+          "at": "2026-09-10 18:34:16.997623-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1458291 at sampleTime 264000",
+          "ms": 1.458291,
+          "sampleTime": 264000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.2521408235304293,
+          "delta_ms": 0.06254099999999996,
+          "prior_at": "2026-09-10 18:34:16.749583-0700"
+        },
+        {
+          "epoch": 1789090457.245665,
+          "at": "2026-09-10 18:34:17.245665-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1499958 at sampleTime 276000",
+          "ms": 1.499958,
+          "sampleTime": 276000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16798357571772915,
+          "delta_ms": 0.0416669999999999,
+          "prior_at": "2026-09-10 18:34:16.997623-0700"
+        },
+        {
+          "epoch": 1789090458.245648,
+          "at": "2026-09-10 18:34:18.245648-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1499959 at sampleTime 324000",
+          "ms": 1.499959,
+          "sampleTime": 324000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 1.000017166572157e-06,
+          "delta_ms": 1.000000000139778e-06,
+          "prior_at": "2026-09-10 18:34:17.245665-0700"
+        },
+        {
+          "epoch": 1789090458.501654,
+          "at": "2026-09-10 18:34:18.501654-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1583250 at sampleTime 336000",
+          "ms": 1.58325,
+          "sampleTime": 336000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.32534784032662584,
+          "delta_ms": 0.083291,
+          "prior_at": "2026-09-10 18:34:18.245648-0700"
+        },
+        {
+          "epoch": 1789090458.749648,
+          "at": "2026-09-10 18:34:18.749648-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1624958 at sampleTime 348000",
+          "ms": 1.624958,
+          "sampleTime": 348000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.1681813631440451,
+          "delta_ms": 0.041707999999999856,
+          "prior_at": "2026-09-10 18:34:18.501654-0700"
+        },
+        {
+          "epoch": 1789090458.997618,
+          "at": "2026-09-10 18:34:18.997618-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1687458 at sampleTime 360000",
+          "ms": 1.687458,
+          "sampleTime": 360000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.25204675494995005,
+          "delta_ms": 0.0625,
+          "prior_at": "2026-09-10 18:34:18.749648-0700"
+        },
+        {
+          "epoch": 1789090459.245638,
+          "at": "2026-09-10 18:34:19.245638-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1708292 at sampleTime 372000",
+          "ms": 1.708292,
+          "sampleTime": 372000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08400131267333232,
+          "delta_ms": 0.02083400000000002,
+          "prior_at": "2026-09-10 18:34:18.997618-0700"
+        },
+        {
+          "epoch": 1789090460.501614,
+          "at": "2026-09-10 18:34:20.501614-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1729083 at sampleTime 432000",
+          "ms": 1.729083,
+          "sampleTime": 432000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.016553657623673442,
+          "delta_ms": 0.020791000000000004,
+          "prior_at": "2026-09-10 18:34:19.245638-0700"
+        },
+        {
+          "epoch": 1789090460.749627,
+          "at": "2026-09-10 18:34:20.749627-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1791625 at sampleTime 444000",
+          "ms": 1.791625,
+          "sampleTime": 444000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.2521722452736963,
+          "delta_ms": 0.0625420000000001,
+          "prior_at": "2026-09-10 18:34:20.501614-0700"
+        },
+        {
+          "epoch": 1789090460.997663,
+          "at": "2026-09-10 18:34:20.997663-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1979083 at sampleTime 456000",
+          "ms": 1.979083,
+          "sampleTime": 456000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.7557696049091733,
+          "delta_ms": 0.1874579999999999,
+          "prior_at": "2026-09-10 18:34:20.749627-0700"
+        },
+        {
+          "epoch": 1789090461.245617,
+          "at": "2026-09-10 18:34:21.245617-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 1979125 at sampleTime 468000",
+          "ms": 1.979125,
+          "sampleTime": 468000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.00016938633107538024,
+          "delta_ms": 4.2000000000097515e-05,
+          "prior_at": "2026-09-10 18:34:20.997663-0700"
+        },
+        {
+          "epoch": 1789090461.997592,
+          "at": "2026-09-10 18:34:21.997592-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2000000 at sampleTime 504000",
+          "ms": 2.0,
+          "sampleTime": 504000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.02776022919380139,
+          "delta_ms": 0.020874999999999977,
+          "prior_at": "2026-09-10 18:34:21.245617-0700"
+        },
+        {
+          "epoch": 1789090462.253594,
+          "at": "2026-09-10 18:34:22.253594-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2020750 at sampleTime 516000",
+          "ms": 2.02075,
+          "sampleTime": 516000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08105407031431916,
+          "delta_ms": 0.020750000000000046,
+          "prior_at": "2026-09-10 18:34:21.997592-0700"
+        },
+        {
+          "epoch": 1789090462.501578,
+          "at": "2026-09-10 18:34:22.501578-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2062458 at sampleTime 528000",
+          "ms": 2.062458,
+          "sampleTime": 528000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.1681881542935864,
+          "delta_ms": 0.041707999999999856,
+          "prior_at": "2026-09-10 18:34:22.253594-0700"
+        },
+        {
+          "epoch": 1789090462.749601,
+          "at": "2026-09-10 18:34:22.749601-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2104084 at sampleTime 540000",
+          "ms": 2.104084,
+          "sampleTime": 540000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16783134810815878,
+          "delta_ms": 0.04162599999999994,
+          "prior_at": "2026-09-10 18:34:22.501578-0700"
+        },
+        {
+          "epoch": 1789090462.997583,
+          "at": "2026-09-10 18:34:22.997583-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2166583 at sampleTime 552000",
+          "ms": 2.166583,
+          "sampleTime": 552000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.252030363745444,
+          "delta_ms": 0.062499000000000304,
+          "prior_at": "2026-09-10 18:34:22.749601-0700"
+        },
+        {
+          "epoch": 1789090463.253568,
+          "at": "2026-09-10 18:34:23.253568-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2249959 at sampleTime 564000",
+          "ms": 2.249959,
+          "sampleTime": 564000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.3257065568982904,
+          "delta_ms": 0.0833759999999999,
+          "prior_at": "2026-09-10 18:34:22.997583-0700"
+        },
+        {
+          "epoch": 1789090463.501522,
+          "at": "2026-09-10 18:34:23.501522-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2312458 at sampleTime 576000",
+          "ms": 2.312458,
+          "sampleTime": 576000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.25205871729767876,
+          "delta_ms": 0.06249899999999986,
+          "prior_at": "2026-09-10 18:34:23.253568-0700"
+        },
+        {
+          "epoch": 1789090463.749586,
+          "at": "2026-09-10 18:34:23.749586-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2333250 at sampleTime 588000",
+          "ms": 2.33325,
+          "sampleTime": 588000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08381706556356117,
+          "delta_ms": 0.020792000000000144,
+          "prior_at": "2026-09-10 18:34:23.501522-0700"
+        },
+        {
+          "epoch": 1789090463.997567,
+          "at": "2026-09-10 18:34:23.997567-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2395750 at sampleTime 600000",
+          "ms": 2.39575,
+          "sampleTime": 600000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.25203560787495904,
+          "delta_ms": 0.0625,
+          "prior_at": "2026-09-10 18:34:23.749586-0700"
+        },
+        {
+          "epoch": 1789090464.253551,
+          "at": "2026-09-10 18:34:24.253551-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2416584 at sampleTime 612000",
+          "ms": 2.416584,
+          "sampleTime": 612000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0813878776501261,
+          "delta_ms": 0.020833999999999797,
+          "prior_at": "2026-09-10 18:34:23.997567-0700"
+        },
+        {
+          "epoch": 1789090464.501549,
+          "at": "2026-09-10 18:34:24.501549-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2458250 at sampleTime 624000",
+          "ms": 2.45825,
+          "sampleTime": 624000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16800941997867758,
+          "delta_ms": 0.0416660000000002,
+          "prior_at": "2026-09-10 18:34:24.253551-0700"
+        },
+        {
+          "epoch": 1789090464.749551,
+          "at": "2026-09-10 18:34:24.749551-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2520750 at sampleTime 636000",
+          "ms": 2.52075,
+          "sampleTime": 636000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.2520140435071852,
+          "delta_ms": 0.0625,
+          "prior_at": "2026-09-10 18:34:24.501549-0700"
+        },
+        {
+          "epoch": 1789090464.997544,
+          "at": "2026-09-10 18:34:24.997544-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2708250 at sampleTime 648000",
+          "ms": 2.70825,
+          "sampleTime": 648000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.7560697509416838,
+          "delta_ms": 0.1875,
+          "prior_at": "2026-09-10 18:34:24.749551-0700"
+        },
+        {
+          "epoch": 1789090465.25357,
+          "at": "2026-09-10 18:34:25.253570-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2749958 at sampleTime 660000",
+          "ms": 2.749958,
+          "sampleTime": 660000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16290531110181897,
+          "delta_ms": 0.041707999999999856,
+          "prior_at": "2026-09-10 18:34:24.997544-0700"
+        },
+        {
+          "epoch": 1789090465.749549,
+          "at": "2026-09-10 18:34:25.749549-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2749959 at sampleTime 684000",
+          "ms": 2.749959,
+          "sampleTime": 684000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 2.016215078400889e-06,
+          "delta_ms": 1.000000000139778e-06,
+          "prior_at": "2026-09-10 18:34:25.253570-0700"
+        },
+        {
+          "epoch": 1789090466.253527,
+          "at": "2026-09-10 18:34:26.253527-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2791583 at sampleTime 708000",
+          "ms": 2.791583,
+          "sampleTime": 708000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08259090445289795,
+          "delta_ms": 0.041624000000000105,
+          "prior_at": "2026-09-10 18:34:25.749549-0700"
+        },
+        {
+          "epoch": 1789090466.501526,
+          "at": "2026-09-10 18:34:26.501526-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2833250 at sampleTime 720000",
+          "ms": 2.83325,
+          "sampleTime": 720000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16801264465517599,
+          "delta_ms": 0.0416669999999999,
+          "prior_at": "2026-09-10 18:34:26.253527-0700"
+        },
+        {
+          "epoch": 1789090466.749529,
+          "at": "2026-09-10 18:34:26.749529-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2854083 at sampleTime 732000",
+          "ms": 2.854083,
+          "sampleTime": 732000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.0840030948232025,
+          "delta_ms": 0.0208330000000001,
+          "prior_at": "2026-09-10 18:34:26.501526-0700"
+        },
+        {
+          "epoch": 1789090466.997517,
+          "at": "2026-09-10 18:34:26.997517-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2895750 at sampleTime 744000",
+          "ms": 2.89575,
+          "sampleTime": 744000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16802007499774027,
+          "delta_ms": 0.0416669999999999,
+          "prior_at": "2026-09-10 18:34:26.749529-0700"
+        },
+        {
+          "epoch": 1789090467.253516,
+          "at": "2026-09-10 18:34:27.253516-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2958250 at sampleTime 756000",
+          "ms": 2.95825,
+          "sampleTime": 756000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.24414172185553817,
+          "delta_ms": 0.0625,
+          "prior_at": "2026-09-10 18:34:26.997517-0700"
+        },
+        {
+          "epoch": 1789090467.749512,
+          "at": "2026-09-10 18:34:27.749512-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2999958 at sampleTime 780000",
+          "ms": 2.999958,
+          "sampleTime": 780000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08408938809185698,
+          "delta_ms": 0.041707999999999856,
+          "prior_at": "2026-09-10 18:34:27.253516-0700"
+        },
+        {
+          "epoch": 1789090467.997516,
+          "at": "2026-09-10 18:34:27.997516-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3041584 at sampleTime 792000",
+          "ms": 3.041584,
+          "sampleTime": 792000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.16784409433534167,
+          "delta_ms": 0.04162599999999994,
+          "prior_at": "2026-09-10 18:34:27.749512-0700"
+        },
+        {
+          "epoch": 1789090468.253485,
+          "at": "2026-09-10 18:34:28.253485-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3062458 at sampleTime 804000",
+          "ms": 3.062458,
+          "sampleTime": 804000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.08154892241890017,
+          "delta_ms": 0.02087400000000006,
+          "prior_at": "2026-09-10 18:34:27.997516-0700"
+        },
+        {
+          "epoch": 1789090468.50152,
+          "at": "2026-09-10 18:34:28.501520-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3062459 at sampleTime 816000",
+          "ms": 3.062459,
+          "sampleTime": 816000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 4.0316898232551e-06,
+          "delta_ms": 1.000000000139778e-06,
+          "prior_at": "2026-09-10 18:34:28.253485-0700"
+        },
+        {
+          "epoch": 1789090468.74955,
+          "at": "2026-09-10 18:34:28.749550-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 3166584 at sampleTime 828000",
+          "ms": 3.166584,
+          "sampleTime": 828000,
+          "segment": 13,
+          "finite_difference_ms_per_second": 0.4198077734222544,
+          "delta_ms": 0.1041249999999998,
+          "prior_at": "2026-09-10 18:34:28.501520-0700"
+        },
+        {
+          "epoch": 1789090469.561545,
+          "at": "2026-09-10 18:34:29.561545-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 187500 at sampleTime 24000",
+          "ms": 0.1875,
+          "sampleTime": 24000,
+          "segment": 14
+        },
+        {
+          "epoch": 1789090475.397445,
+          "at": "2026-09-10 18:34:35.397445-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 250000 at sampleTime 24000",
+          "ms": 0.25,
+          "sampleTime": 24000,
+          "segment": 15
+        },
+        {
+          "epoch": 1789090476.653377,
+          "at": "2026-09-10 18:34:36.653377-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2270750 at sampleTime 84000",
+          "ms": 2.27075,
+          "sampleTime": 84000,
+          "segment": 15,
+          "finite_difference_ms_per_second": 1.6089643793634525,
+          "delta_ms": 2.02075,
+          "prior_at": "2026-09-10 18:34:35.397445-0700"
+        },
+        {
+          "epoch": 1789090481.433368,
+          "at": "2026-09-10 18:34:41.433368-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 375000 at sampleTime 12000",
+          "ms": 0.375,
+          "sampleTime": 12000,
+          "segment": 16
+        }
+      ],
+      "zlp": [
+        {
+          "epoch": 1789090378.003403,
+          "at": "2026-09-10 18:32:58.003403-0700",
+          "process": "usbaudiod",
+          "message": "   [0xa58]:AUAInputTransferManager_completeBlock block starting at frame 2702360 recieved 1 zero length transfers, zlpCount 1"
+        },
+        {
+          "epoch": 1789090378.011395,
+          "at": "2026-09-10 18:32:58.011395-0700",
+          "process": "usbaudiod",
+          "message": "   [0xa58]:AUAInputTransferManager_completeBlock block starting at frame 2702368 recieved 1 zero length transfers, zlpCount 2"
+        },
+        {
+          "epoch": 1789090395.139289,
+          "at": "2026-09-10 18:33:15.139289-0700",
+          "process": "usbaudiod",
+          "message": "   [0xa58]:AUAInputTransferManager_completeBlock block starting at frame 2719496 recieved 1 zero length transfers, zlpCount 3"
+        },
+        {
+          "epoch": 1789090395.147288,
+          "at": "2026-09-10 18:33:15.147288-0700",
+          "process": "usbaudiod",
+          "message": "   [0xa58]:AUAInputTransferManager_completeBlock block starting at frame 2719504 recieved 1 zero length transfers, zlpCount 4"
+        },
+        {
+          "epoch": 1789090476.637117,
+          "at": "2026-09-10 18:34:36.637117-0700",
+          "process": "usbaudiod",
+          "message": "   [0xa6a]:AUAInputTransferManager_completeBlock block starting at frame 2800995 recieved 2 zero length transfers, zlpCount 2"
+        }
+      ],
+      "power": [
+        {
+          "at": "2026-09-10 18:32:22.108332-0700",
+          "epoch": 1789090342.108332,
+          "battery-power-connected": 1.0,
+          "battery-charging": 1.0,
+          "battery-temperature": 3169.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4328.0
+        },
+        {
+          "at": "2026-09-10 18:32:42.080986-0700",
+          "epoch": 1789090362.080986,
+          "battery-power-connected": 1.0,
+          "battery-charging": 1.0,
+          "battery-temperature": 3169.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4328.0
+        },
+        {
+          "at": "2026-09-10 18:33:02.029991-0700",
+          "epoch": 1789090382.029991,
+          "battery-power-connected": 1.0,
+          "battery-charging": 1.0,
+          "battery-temperature": 3179.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4328.0
+        },
+        {
+          "at": "2026-09-10 18:33:22.025412-0700",
+          "epoch": 1789090402.025412,
+          "battery-power-connected": 1.0,
+          "battery-charging": 1.0,
+          "battery-temperature": 3200.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4329.0
+        },
+        {
+          "at": "2026-09-10 18:33:42.028914-0700",
+          "epoch": 1789090422.028914,
+          "battery-power-connected": 1.0,
+          "battery-charging": 1.0,
+          "battery-temperature": 3229.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4328.0
+        },
+        {
+          "at": "2026-09-10 18:34:02.032209-0700",
+          "epoch": 1789090442.032209,
+          "battery-power-connected": 1.0,
+          "battery-charging": 1.0,
+          "battery-temperature": 3250.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4328.0
+        },
+        {
+          "at": "2026-09-10 18:34:22.030588-0700",
+          "epoch": 1789090462.030588,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3279.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4316.0
+        },
+        {
+          "at": "2026-09-10 18:34:22.064495-0700",
+          "epoch": 1789090462.064495,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3279.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4316.0
+        },
+        {
+          "at": "2026-09-10 18:34:42.022578-0700",
+          "epoch": 1789090482.022578,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3300.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4314.0
+        },
+        {
+          "at": "2026-09-10 18:35:02.030043-0700",
+          "epoch": 1789090502.030043,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3309.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4314.0
+        },
+        {
+          "at": "2026-09-10 18:35:22.027732-0700",
+          "epoch": 1789090522.027732,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3329.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4313.0
+        },
+        {
+          "at": "2026-09-10 18:35:42.031371-0700",
+          "epoch": 1789090542.031371,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3350.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4312.0
+        },
+        {
+          "at": "2026-09-10 18:36:02.026147-0700",
+          "epoch": 1789090562.026147,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3359.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4312.0
+        },
+        {
+          "at": "2026-09-10 18:36:22.029660-0700",
+          "epoch": 1789090582.02966,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3369.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4312.0
+        },
+        {
+          "at": "2026-09-10 18:36:42.028058-0700",
+          "epoch": 1789090602.028058,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3389.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4312.0
+        },
+        {
+          "at": "2026-09-10 18:37:02.027952-0700",
+          "epoch": 1789090622.027952,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3400.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4312.0
+        },
+        {
+          "at": "2026-09-10 18:37:22.027465-0700",
+          "epoch": 1789090642.027465,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3409.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4312.0
+        },
+        {
+          "at": "2026-09-10 18:37:42.026980-0700",
+          "epoch": 1789090662.02698,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3419.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        },
+        {
+          "at": "2026-09-10 18:38:02.012562-0700",
+          "epoch": 1789090682.012562,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3429.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        },
+        {
+          "at": "2026-09-10 18:38:22.000662-0700",
+          "epoch": 1789090702.000662,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3439.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        },
+        {
+          "at": "2026-09-10 18:38:42.001959-0700",
+          "epoch": 1789090722.001959,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3439.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        },
+        {
+          "at": "2026-09-10 18:39:02.003895-0700",
+          "epoch": 1789090742.003895,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3450.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        },
+        {
+          "at": "2026-09-10 18:39:22.001876-0700",
+          "epoch": 1789090762.001876,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3459.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        },
+        {
+          "at": "2026-09-10 18:39:42.000931-0700",
+          "epoch": 1789090782.000931,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3469.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        },
+        {
+          "at": "2026-09-10 18:40:02.002039-0700",
+          "epoch": 1789090802.002039,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3469.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        },
+        {
+          "at": "2026-09-10 18:40:21.999875-0700",
+          "epoch": 1789090821.999875,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3479.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        },
+        {
+          "at": "2026-09-10 18:40:42.000095-0700",
+          "epoch": 1789090842.000095,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3479.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        },
+        {
+          "at": "2026-09-10 18:41:02.000506-0700",
+          "epoch": 1789090862.000506,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3489.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4311.0
+        }
+      ],
+      "transitions": [
+        {
+          "phase": "A1",
+          "state_at_command": "already_nominal",
+          "command": "2026-09-10T18:32:40.304882-07:00",
+          "matching_pressure_event": null,
+          "delay_seconds": null
+        },
+        {
+          "phase": "B1",
+          "state_at_command": "transition_requested",
+          "command": "2026-09-10T18:36:11.141543-07:00",
+          "matching_pressure_event": {
+            "epoch": 1789090577.245226,
+            "at": "2026-09-10 18:36:17.245226-0700",
+            "process": "thermalmonitord",
+            "message": "<Notice> Thermal pressure level 20"
+          },
+          "delay_seconds": 6.103682994842529
+        },
+        {
+          "phase": "A2",
+          "state_at_command": "transition_requested",
+          "command": "2026-09-10T18:39:48.231821-07:00",
+          "matching_pressure_event": {
+            "epoch": 1789091027.247536,
+            "at": "2026-09-10 18:43:47.247536-0700",
+            "process": "thermalmonitord",
+            "message": "<Notice> Thermal pressure level 0"
+          },
+          "delay_seconds": 239.01571488380432
+        }
+      ],
+      "sequence_holes": 0,
+      "logger_misses": [],
+      "midi_enabled_running": true,
+      "periodic_dense_episodes": [],
+      "clock_anchor_offset_span_ms": 29.127120971679688
+    },
+    {
+      "index": 3,
+      "start": "2026-09-10T18:51:21.859181-07:00",
+      "end": "2026-09-10T19:00:23.896514-07:00",
+      "wave_seconds": 542.0373333333333,
+      "status": "thermal_crossover_incomplete",
+      "phases": [
+        {
+          "name": "A1",
+          "target": 0,
+          "start": "2026-09-10T18:52:15.958712-07:00",
+          "end": "2026-09-10T18:55:16.157583-07:00",
+          "seconds": 180.1988708972931,
+          "callbacks": 16736,
+          "actual_thermal": [
+            0.0
+          ],
+          "sample_rates": [
+            48000.0
+          ],
+          "frames": [
+            512.0
+          ],
+          "callback_stalls": 8,
+          "tx_count": 8,
+          "analog_count": 8,
+          "dsp_ms_p50_p99_max": [
+            4.3255,
+            5.007,
+            5.106
+          ],
+          "dsp_overruns": 0,
+          "drift_records": 10,
+          "drift_ms_range": [
+            0.125,
+            6.1875
+          ],
+          "drift_first_last": [
+            {
+              "at": "2026-09-10 18:52:44.322604-0700",
+              "ms": 2.145791,
+              "segment": 9
+            },
+            {
+              "at": "2026-09-10 18:53:37.549143-0700",
+              "ms": 0.270792,
+              "segment": 11
+            }
+          ],
+          "power_snapshots": [
+            {
+              "at": "2026-09-10 18:52:18.998000-0700",
+              "epoch": 1789091538.998,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3139.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4290.0
+            },
+            {
+              "at": "2026-09-10 18:52:38.990441-0700",
+              "epoch": 1789091558.990441,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3159.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4291.0
+            },
+            {
+              "at": "2026-09-10 18:52:58.989935-0700",
+              "epoch": 1789091578.989935,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3189.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4287.0
+            },
+            {
+              "at": "2026-09-10 18:53:18.985698-0700",
+              "epoch": 1789091598.985698,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3209.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4287.0
+            },
+            {
+              "at": "2026-09-10 18:53:38.993615-0700",
+              "epoch": 1789091618.993615,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3229.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4287.0
+            },
+            {
+              "at": "2026-09-10 18:53:58.988662-0700",
+              "epoch": 1789091638.988662,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3250.0,
+              "screen-brightness": 600000.0,
+              "battery-voltage-mV": 4285.0
+            },
+            {
+              "at": "2026-09-10 18:54:18.989066-0700",
+              "epoch": 1789091658.989066,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3269.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4286.0
+            },
+            {
+              "at": "2026-09-10 18:54:38.988008-0700",
+              "epoch": 1789091678.988008,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3289.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4287.0
+            },
+            {
+              "at": "2026-09-10 18:54:58.989135-0700",
+              "epoch": 1789091698.989135,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3300.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4288.0
+            }
+          ],
+          "zlp_reports": 4
+        },
+        {
+          "name": "B1",
+          "target": 2,
+          "start": "2026-09-10T18:55:53.312420-07:00",
+          "end": "2026-09-10T18:58:53.490324-07:00",
+          "seconds": 180.17790412902832,
+          "callbacks": 16793,
+          "actual_thermal": [
+            2.0
+          ],
+          "sample_rates": [
+            48000.0
+          ],
+          "frames": [
+            512.0
+          ],
+          "callback_stalls": 5,
+          "tx_count": 5,
+          "analog_count": 5,
+          "dsp_ms_p50_p99_max": [
+            4.679,
+            5.104079999999998,
+            5.408
+          ],
+          "dsp_overruns": 0,
+          "drift_records": 0,
+          "drift_ms_range": [],
+          "drift_first_last": [],
+          "power_snapshots": [
+            {
+              "at": "2026-09-10 18:55:58.987666-0700",
+              "epoch": 1789091758.987666,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3339.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4289.0
+            },
+            {
+              "at": "2026-09-10 18:56:19.008367-0700",
+              "epoch": 1789091779.008367,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3350.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4284.0
+            },
+            {
+              "at": "2026-09-10 18:56:38.992118-0700",
+              "epoch": 1789091798.992118,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3359.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4285.0
+            },
+            {
+              "at": "2026-09-10 18:56:58.989174-0700",
+              "epoch": 1789091818.989174,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3369.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4283.0
+            },
+            {
+              "at": "2026-09-10 18:57:18.989758-0700",
+              "epoch": 1789091838.989758,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3379.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4290.0
+            },
+            {
+              "at": "2026-09-10 18:57:38.992548-0700",
+              "epoch": 1789091858.992548,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3389.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4286.0
+            },
+            {
+              "at": "2026-09-10 18:57:58.989729-0700",
+              "epoch": 1789091878.989729,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3400.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4285.0
+            },
+            {
+              "at": "2026-09-10 18:58:18.992387-0700",
+              "epoch": 1789091898.992387,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3400.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4284.0
+            },
+            {
+              "at": "2026-09-10 18:58:38.988512-0700",
+              "epoch": 1789091918.988512,
+              "battery-power-connected": 1.0,
+              "battery-charging": 0.0,
+              "battery-temperature": 3409.0,
+              "screen-brightness": 400000.0,
+              "battery-voltage-mV": 4287.0
+            }
+          ],
+          "zlp_reports": 0
+        }
+      ],
+      "all_tx": 15,
+      "all_stalls": 15,
+      "matched_usb_callback_wave_restart": 15,
+      "matches": [
+        {
+          "usb": {
+            "epoch": 1789091592.122293,
+            "at": "2026-09-10 18:53:12.122293-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:53:12.377155-07:00",
+            "epoch": 1789091592.3771546,
+            "cb": 9613,
+            "gap_ms": 219.057,
+            "dsp_ms": 4.886,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 110.203,
+            "end_seconds": 110.355,
+            "duration_ms": 152,
+            "preceding_100ms_peak_rms_dbfs": -25.322551713770288,
+            "following_100ms_peak_rms_dbfs": -24.839757067345648,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091592.160741,
+            "at": "2026-09-10 18:53:12.160741-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.986,
+          "nearest_probe_seconds": 3.8381481170654297
+        },
+        {
+          "usb": {
+            "epoch": 1789091616.345088,
+            "at": "2026-09-10 18:53:36.345088-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:53:36.597167-07:00",
+            "epoch": 1789091616.5971668,
+            "cb": 11864,
+            "gap_ms": 220.092,
+            "dsp_ms": 3.748,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 134.426,
+            "end_seconds": 134.574,
+            "duration_ms": 148,
+            "preceding_100ms_peak_rms_dbfs": -24.641348749261148,
+            "following_100ms_peak_rms_dbfs": -25.09932453279682,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091616.379068,
+            "at": "2026-09-10 18:53:36.379068-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.993,
+          "nearest_probe_seconds": 9.615097045898438
+        },
+        {
+          "usb": {
+            "epoch": 1789091659.068645,
+            "at": "2026-09-10 18:54:19.068645-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:54:19.325849-07:00",
+            "epoch": 1789091659.325849,
+            "cb": 15850,
+            "gap_ms": 221.197,
+            "dsp_ms": 3.844,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 177.11,
+            "end_seconds": 177.3,
+            "duration_ms": 190,
+            "preceding_100ms_peak_rms_dbfs": -27.389742571167936,
+            "following_100ms_peak_rms_dbfs": -25.29800636271849,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091659.107592,
+            "at": "2026-09-10 18:54:19.107592-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.97,
+          "nearest_probe_seconds": 2.8981449604034424
+        },
+        {
+          "usb": {
+            "epoch": 1789091672.804539,
+            "at": "2026-09-10 18:54:32.804539-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:54:33.061295-07:00",
+            "epoch": 1789091673.0612946,
+            "cb": 17118,
+            "gap_ms": 221.469,
+            "dsp_ms": 3.727,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 190.886,
+            "end_seconds": 191.036,
+            "duration_ms": 150,
+            "preceding_100ms_peak_rms_dbfs": -24.50686415471599,
+            "following_100ms_peak_rms_dbfs": -24.151672243661668,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091672.840387,
+            "at": "2026-09-10 18:54:32.840387-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.892,
+          "nearest_probe_seconds": 13.155586957931519
+        },
+        {
+          "usb": {
+            "epoch": 1789091675.012514,
+            "at": "2026-09-10 18:54:35.012514-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:54:35.263127-07:00",
+            "epoch": 1789091675.2631273,
+            "cb": 17305,
+            "gap_ms": 217.216,
+            "dsp_ms": 4.893,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 193.018,
+            "end_seconds": 193.237,
+            "duration_ms": 219,
+            "preceding_100ms_peak_rms_dbfs": -24.422849303646828,
+            "following_100ms_peak_rms_dbfs": -25.525647922153883,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091675.041039,
+            "at": "2026-09-10 18:54:35.041039-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.919,
+          "nearest_probe_seconds": 10.947611808776855
+        },
+        {
+          "usb": {
+            "epoch": 1789091683.780426,
+            "at": "2026-09-10 18:54:43.780426-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:54:44.037994-07:00",
+            "epoch": 1789091684.0379941,
+            "cb": 18108,
+            "gap_ms": 220.088,
+            "dsp_ms": 3.882,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 201.786,
+            "end_seconds": 202.011,
+            "duration_ms": 225,
+            "preceding_100ms_peak_rms_dbfs": -24.73240555728335,
+            "following_100ms_peak_rms_dbfs": -24.324269577620704,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091683.818381,
+            "at": "2026-09-10 18:54:43.818381-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.982,
+          "nearest_probe_seconds": 2.1796998977661133
+        },
+        {
+          "usb": {
+            "epoch": 1789091699.100292,
+            "at": "2026-09-10 18:54:59.100292-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:54:59.353037-07:00",
+            "epoch": 1789091699.3530369,
+            "cb": 19524,
+            "gap_ms": 222.553,
+            "dsp_ms": 3.847,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 217.125,
+            "end_seconds": 217.326,
+            "duration_ms": 201,
+            "preceding_100ms_peak_rms_dbfs": -25.651991046472425,
+            "following_100ms_peak_rms_dbfs": -24.47613071059664,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091699.135397,
+            "at": "2026-09-10 18:54:59.135397-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.994,
+          "nearest_probe_seconds": 13.005552053451538
+        },
+        {
+          "usb": {
+            "epoch": 1789091715.248063,
+            "at": "2026-09-10 18:55:15.248063-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:55:15.500998-07:00",
+            "epoch": 1789091715.5009975,
+            "cb": 21018,
+            "gap_ms": 222.802,
+            "dsp_ms": 3.743,
+            "thermal": 0
+          },
+          "wave": {
+            "start_seconds": 233.32,
+            "end_seconds": 233.473,
+            "duration_ms": 153,
+            "preceding_100ms_peak_rms_dbfs": -26.210606744715406,
+            "following_100ms_peak_rms_dbfs": -24.814137219047815,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091715.282271,
+            "at": "2026-09-10 18:55:15.282271-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.957,
+          "nearest_probe_seconds": 0.7115488052368164
+        },
+        {
+          "usb": {
+            "epoch": 1789091744.059713,
+            "at": "2026-09-10 18:55:44.059713-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:55:44.313687-07:00",
+            "epoch": 1789091744.3136868,
+            "cb": 23699,
+            "gap_ms": 225.63,
+            "dsp_ms": 4.909,
+            "thermal": 2
+          },
+          "wave": {
+            "start_seconds": 262.122,
+            "end_seconds": 262.284,
+            "duration_ms": 162,
+            "preceding_100ms_peak_rms_dbfs": -24.558545835637066,
+            "following_100ms_peak_rms_dbfs": -24.421658189733098,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091744.094984,
+            "at": "2026-09-10 18:55:44.094984-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.811,
+          "nearest_probe_seconds": 8.835901021957397
+        },
+        {
+          "usb": {
+            "epoch": 1789091756.847554,
+            "at": "2026-09-10 18:55:56.847554-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:55:57.101558-07:00",
+            "epoch": 1789091757.101558,
+            "cb": 24878,
+            "gap_ms": 222.54,
+            "dsp_ms": 3.802,
+            "thermal": 2
+          },
+          "wave": {
+            "start_seconds": 274.922,
+            "end_seconds": 275.072,
+            "duration_ms": 150,
+            "preceding_100ms_peak_rms_dbfs": -25.167093703378967,
+            "following_100ms_peak_rms_dbfs": -24.444693132730002,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091756.882183,
+            "at": "2026-09-10 18:55:56.882183-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.978,
+          "nearest_probe_seconds": 3.5392980575561523
+        },
+        {
+          "usb": {
+            "epoch": 1789091773.267348,
+            "at": "2026-09-10 18:56:13.267348-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:56:13.521399-07:00",
+            "epoch": 1789091773.5213995,
+            "cb": 26398,
+            "gap_ms": 217.111,
+            "dsp_ms": 3.74,
+            "thermal": 2
+          },
+          "wave": {
+            "start_seconds": 291.319,
+            "end_seconds": 291.491,
+            "duration_ms": 172,
+            "preceding_100ms_peak_rms_dbfs": -24.975563454658726,
+            "following_100ms_peak_rms_dbfs": -24.340764196909078,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091773.300727,
+            "at": "2026-09-10 18:56:13.300727-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.834,
+          "nearest_probe_seconds": 10.047133922576904
+        },
+        {
+          "usb": {
+            "epoch": 1789091800.335009,
+            "at": "2026-09-10 18:56:40.335009-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:56:40.593488-07:00",
+            "epoch": 1789091800.5934885,
+            "cb": 28916,
+            "gap_ms": 223.97,
+            "dsp_ms": 3.686,
+            "thermal": 2
+          },
+          "wave": {
+            "start_seconds": 318.422,
+            "end_seconds": 318.561,
+            "duration_ms": 139,
+            "preceding_100ms_peak_rms_dbfs": -26.503350027509143,
+            "following_100ms_peak_rms_dbfs": -25.394036825490637,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091800.372694,
+            "at": "2026-09-10 18:56:40.372694-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.963,
+          "nearest_probe_seconds": 12.979460000991821
+        },
+        {
+          "usb": {
+            "epoch": 1789091815.423087,
+            "at": "2026-09-10 18:56:55.423087-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:56:55.685614-07:00",
+            "epoch": 1789091815.6856136,
+            "cb": 30311,
+            "gap_ms": 223.127,
+            "dsp_ms": 4.957,
+            "thermal": 2
+          },
+          "wave": {
+            "start_seconds": 333.485,
+            "end_seconds": 333.653,
+            "duration_ms": 168,
+            "preceding_100ms_peak_rms_dbfs": -27.878643793851957,
+            "following_100ms_peak_rms_dbfs": -24.68326011839106,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091815.462674,
+            "at": "2026-09-10 18:56:55.462674-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.82,
+          "nearest_probe_seconds": 1.4629168510437012
+        },
+        {
+          "usb": {
+            "epoch": 1789091831.722595,
+            "at": "2026-09-10 18:57:11.722595-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:57:11.977074-07:00",
+            "epoch": 1789091831.977074,
+            "cb": 31819,
+            "gap_ms": 217.135,
+            "dsp_ms": 4.967,
+            "thermal": 2
+          },
+          "wave": {
+            "start_seconds": 349.782,
+            "end_seconds": 349.944,
+            "duration_ms": 162,
+            "preceding_100ms_peak_rms_dbfs": -25.506565202697654,
+            "following_100ms_peak_rms_dbfs": -24.180307256140768,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091831.75701,
+            "at": "2026-09-10 18:57:11.757010-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 4.955,
+          "nearest_probe_seconds": 11.591645002365112
+        },
+        {
+          "usb": {
+            "epoch": 1789091973.140625,
+            "at": "2026-09-10 18:59:33.140625-0700",
+            "process": "kernel",
+            "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+          },
+          "callback": {
+            "at": "2026-09-10T18:59:33.396608-07:00",
+            "epoch": 1789091973.3966084,
+            "cb": 45057,
+            "gap_ms": 225.47,
+            "dsp_ms": 4.956,
+            "thermal": 2
+          },
+          "wave": {
+            "start_seconds": 491.165,
+            "end_seconds": 491.357,
+            "duration_ms": 192,
+            "preceding_100ms_peak_rms_dbfs": -25.23563077314688,
+            "following_100ms_peak_rms_dbfs": -24.521705945832363,
+            "surrounded_by_signal": true
+          },
+          "restart": {
+            "epoch": 1789091973.174688,
+            "at": "2026-09-10 18:59:33.174688-0700",
+            "process": "audiomxd",
+            "message": "    HALS_PlugInDevice.cpp:2660   HALS_PlugInDevice::HandlePlugIn_RequestConfigChange: <private>  --- restarting IO"
+          },
+          "prior100ms_max_dsp_ms": 5.122,
+          "nearest_probe_seconds": 9.447890043258667
+        }
+      ],
+      "gaps": [
+        {
+          "at": "2026-09-10T18:53:12.377155-07:00",
+          "epoch": 1789091592.3771546,
+          "cb": 9613,
+          "gap_ms": 219.057,
+          "dsp_ms": 4.886,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:53:36.597167-07:00",
+          "epoch": 1789091616.5971668,
+          "cb": 11864,
+          "gap_ms": 220.092,
+          "dsp_ms": 3.748,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:54:19.325849-07:00",
+          "epoch": 1789091659.325849,
+          "cb": 15850,
+          "gap_ms": 221.197,
+          "dsp_ms": 3.844,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:54:33.061295-07:00",
+          "epoch": 1789091673.0612946,
+          "cb": 17118,
+          "gap_ms": 221.469,
+          "dsp_ms": 3.727,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:54:35.263127-07:00",
+          "epoch": 1789091675.2631273,
+          "cb": 17305,
+          "gap_ms": 217.216,
+          "dsp_ms": 4.893,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:54:44.037994-07:00",
+          "epoch": 1789091684.0379941,
+          "cb": 18108,
+          "gap_ms": 220.088,
+          "dsp_ms": 3.882,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:54:59.353037-07:00",
+          "epoch": 1789091699.3530369,
+          "cb": 19524,
+          "gap_ms": 222.553,
+          "dsp_ms": 3.847,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:55:15.500998-07:00",
+          "epoch": 1789091715.5009975,
+          "cb": 21018,
+          "gap_ms": 222.802,
+          "dsp_ms": 3.743,
+          "thermal": 0
+        },
+        {
+          "at": "2026-09-10T18:55:44.313687-07:00",
+          "epoch": 1789091744.3136868,
+          "cb": 23699,
+          "gap_ms": 225.63,
+          "dsp_ms": 4.909,
+          "thermal": 2
+        },
+        {
+          "at": "2026-09-10T18:55:57.101558-07:00",
+          "epoch": 1789091757.101558,
+          "cb": 24878,
+          "gap_ms": 222.54,
+          "dsp_ms": 3.802,
+          "thermal": 2
+        },
+        {
+          "at": "2026-09-10T18:56:13.521399-07:00",
+          "epoch": 1789091773.5213995,
+          "cb": 26398,
+          "gap_ms": 217.111,
+          "dsp_ms": 3.74,
+          "thermal": 2
+        },
+        {
+          "at": "2026-09-10T18:56:40.593488-07:00",
+          "epoch": 1789091800.5934885,
+          "cb": 28916,
+          "gap_ms": 223.97,
+          "dsp_ms": 3.686,
+          "thermal": 2
+        },
+        {
+          "at": "2026-09-10T18:56:55.685614-07:00",
+          "epoch": 1789091815.6856136,
+          "cb": 30311,
+          "gap_ms": 223.127,
+          "dsp_ms": 4.957,
+          "thermal": 2
+        },
+        {
+          "at": "2026-09-10T18:57:11.977074-07:00",
+          "epoch": 1789091831.977074,
+          "cb": 31819,
+          "gap_ms": 217.135,
+          "dsp_ms": 4.967,
+          "thermal": 2
+        },
+        {
+          "at": "2026-09-10T18:59:33.396608-07:00",
+          "epoch": 1789091973.3966084,
+          "cb": 45057,
+          "gap_ms": 225.47,
+          "dsp_ms": 4.956,
+          "thermal": 2
+        }
+      ],
+      "drifts": [
+        {
+          "epoch": 1789091483.217585,
+          "at": "2026-09-10 18:51:23.217585-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 5249459 at sampleTime 26195400",
+          "ms": 5.249459,
+          "sampleTime": 26195400,
+          "segment": 0
+        },
+        {
+          "epoch": 1789091490.066661,
+          "at": "2026-09-10 18:51:30.066661-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 125000 at sampleTime 24000",
+          "ms": 0.125,
+          "sampleTime": 24000,
+          "segment": 9
+        },
+        {
+          "epoch": 1789091494.818645,
+          "at": "2026-09-10 18:51:34.818645-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 125042 at sampleTime 252000",
+          "ms": 0.125042,
+          "sampleTime": 252000,
+          "segment": 9,
+          "finite_difference_ms_per_second": 8.838413375243868e-06,
+          "delta_ms": 4.199999999998649e-05,
+          "prior_at": "2026-09-10 18:51:30.066661-0700"
+        },
+        {
+          "epoch": 1789091564.322604,
+          "at": "2026-09-10 18:52:44.322604-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2145791 at sampleTime 3588000",
+          "ms": 2.145791,
+          "sampleTime": 3588000,
+          "segment": 9,
+          "finite_difference_ms_per_second": 0.029073869040031536,
+          "delta_ms": 2.020749,
+          "prior_at": "2026-09-10 18:51:34.818645-0700"
+        },
+        {
+          "epoch": 1789091564.570573,
+          "at": "2026-09-10 18:52:44.570573-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 2145792 at sampleTime 3600000",
+          "ms": 2.145792,
+          "sampleTime": 3600000,
+          "segment": 9,
+          "finite_difference_ms_per_second": 4.03275971204132e-06,
+          "delta_ms": 1.000000000139778e-06,
+          "prior_at": "2026-09-10 18:52:44.322604-0700"
+        },
+        {
+          "epoch": 1789091568.818565,
+          "at": "2026-09-10 18:52:48.818565-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 4166583 at sampleTime 3804000",
+          "ms": 4.166583,
+          "sampleTime": 3804000,
+          "segment": 9,
+          "finite_difference_ms_per_second": 0.47570501427365625,
+          "delta_ms": 2.020791,
+          "prior_at": "2026-09-10 18:52:44.570573-0700"
+        },
+        {
+          "epoch": 1789091569.322564,
+          "at": "2026-09-10 18:52:49.322564-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 4166625 at sampleTime 3828000",
+          "ms": 4.166625,
+          "sampleTime": 3828000,
+          "segment": 9,
+          "finite_difference_ms_per_second": 8.333349953217185e-05,
+          "delta_ms": 4.1999999999653426e-05,
+          "prior_at": "2026-09-10 18:52:48.818565-0700"
+        },
+        {
+          "epoch": 1789091574.826522,
+          "at": "2026-09-10 18:52:54.826522-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 6187458 at sampleTime 4092000",
+          "ms": 6.187458,
+          "sampleTime": 4092000,
+          "segment": 9,
+          "finite_difference_ms_per_second": 0.36715994513350814,
+          "delta_ms": 2.0208330000000005,
+          "prior_at": "2026-09-10 18:52:49.322564-0700"
+        },
+        {
+          "epoch": 1789091576.3225,
+          "at": "2026-09-10 18:52:56.322500-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 6187459 at sampleTime 4164000",
+          "ms": 6.187459,
+          "sampleTime": 4164000,
+          "segment": 9,
+          "finite_difference_ms_per_second": 6.68459081899743e-07,
+          "delta_ms": 9.999999992515995e-07,
+          "prior_at": "2026-09-10 18:52:54.826522-0700"
+        },
+        {
+          "epoch": 1789091577.074498,
+          "at": "2026-09-10 18:52:57.074498-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 6187500 at sampleTime 4200000",
+          "ms": 6.1875,
+          "sampleTime": 4200000,
+          "segment": 9,
+          "finite_difference_ms_per_second": 5.452142539243595e-05,
+          "delta_ms": 4.1000000000401826e-05,
+          "prior_at": "2026-09-10 18:52:56.322500-0700"
+        },
+        {
+          "epoch": 1789091592.825457,
+          "at": "2026-09-10 18:53:12.825457-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 125000 at sampleTime 24000",
+          "ms": 0.125,
+          "sampleTime": 24000,
+          "segment": 10
+        },
+        {
+          "epoch": 1789091616.797261,
+          "at": "2026-09-10 18:53:36.797261-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 270791 at sampleTime 12000",
+          "ms": 0.270791,
+          "sampleTime": 12000,
+          "segment": 11
+        },
+        {
+          "epoch": 1789091617.549143,
+          "at": "2026-09-10 18:53:37.549143-0700",
+          "process": "usbaudiod",
+          "message": "   [0x98b]:AUAAudioDevice_updateTimeStamp ioDriftNS 270792 at sampleTime 48000",
+          "ms": 0.270792,
+          "sampleTime": 48000,
+          "segment": 11,
+          "finite_difference_ms_per_second": 1.3299957952753309e-06,
+          "delta_ms": 9.999999999732445e-07,
+          "prior_at": "2026-09-10 18:53:36.797261-0700"
+        }
+      ],
+      "zlp": [
+        {
+          "epoch": 1789091564.138572,
+          "at": "2026-09-10 18:52:44.138572-0700",
+          "process": "usbaudiod",
+          "message": "   [0xa9a]:AUAInputTransferManager_completeBlock block starting at frame 3888500 recieved 2 zero length transfers, zlpCount 2"
+        },
+        {
+          "epoch": 1789091568.650538,
+          "at": "2026-09-10 18:52:48.650538-0700",
+          "process": "usbaudiod",
+          "message": "   [0xa9a]:AUAInputTransferManager_completeBlock block starting at frame 3893012 recieved 2 zero length transfers, zlpCount 4"
+        },
+        {
+          "epoch": 1789091574.802513,
+          "at": "2026-09-10 18:52:54.802513-0700",
+          "process": "usbaudiod",
+          "message": "   [0xa9a]:AUAInputTransferManager_completeBlock block starting at frame 3899164 recieved 1 zero length transfers, zlpCount 5"
+        },
+        {
+          "epoch": 1789091574.810488,
+          "at": "2026-09-10 18:52:54.810488-0700",
+          "process": "usbaudiod",
+          "message": "   [0xa9a]:AUAInputTransferManager_completeBlock block starting at frame 3899172 recieved 1 zero length transfers, zlpCount 6"
+        }
+      ],
+      "power": [
+        {
+          "at": "2026-09-10 18:51:38.990196-0700",
+          "epoch": 1789091498.990196,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3109.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4293.0
+        },
+        {
+          "at": "2026-09-10 18:51:58.998769-0700",
+          "epoch": 1789091518.998769,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3119.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4294.0
+        },
+        {
+          "at": "2026-09-10 18:52:18.998000-0700",
+          "epoch": 1789091538.998,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3139.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4290.0
+        },
+        {
+          "at": "2026-09-10 18:52:38.990441-0700",
+          "epoch": 1789091558.990441,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3159.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4291.0
+        },
+        {
+          "at": "2026-09-10 18:52:58.989935-0700",
+          "epoch": 1789091578.989935,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3189.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4287.0
+        },
+        {
+          "at": "2026-09-10 18:53:18.985698-0700",
+          "epoch": 1789091598.985698,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3209.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4287.0
+        },
+        {
+          "at": "2026-09-10 18:53:38.993615-0700",
+          "epoch": 1789091618.993615,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3229.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4287.0
+        },
+        {
+          "at": "2026-09-10 18:53:58.988662-0700",
+          "epoch": 1789091638.988662,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3250.0,
+          "screen-brightness": 600000.0,
+          "battery-voltage-mV": 4285.0
+        },
+        {
+          "at": "2026-09-10 18:54:18.989066-0700",
+          "epoch": 1789091658.989066,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3269.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4286.0
+        },
+        {
+          "at": "2026-09-10 18:54:38.988008-0700",
+          "epoch": 1789091678.988008,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3289.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4287.0
+        },
+        {
+          "at": "2026-09-10 18:54:58.989135-0700",
+          "epoch": 1789091698.989135,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3300.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4288.0
+        },
+        {
+          "at": "2026-09-10 18:55:18.988599-0700",
+          "epoch": 1789091718.988599,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3319.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4286.0
+        },
+        {
+          "at": "2026-09-10 18:55:38.990201-0700",
+          "epoch": 1789091738.990201,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3329.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4287.0
+        },
+        {
+          "at": "2026-09-10 18:55:58.987666-0700",
+          "epoch": 1789091758.987666,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3339.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4289.0
+        },
+        {
+          "at": "2026-09-10 18:56:19.008367-0700",
+          "epoch": 1789091779.008367,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3350.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4284.0
+        },
+        {
+          "at": "2026-09-10 18:56:38.992118-0700",
+          "epoch": 1789091798.992118,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3359.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4285.0
+        },
+        {
+          "at": "2026-09-10 18:56:58.989174-0700",
+          "epoch": 1789091818.989174,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3369.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4283.0
+        },
+        {
+          "at": "2026-09-10 18:57:18.989758-0700",
+          "epoch": 1789091838.989758,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3379.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4290.0
+        },
+        {
+          "at": "2026-09-10 18:57:38.992548-0700",
+          "epoch": 1789091858.992548,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3389.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4286.0
+        },
+        {
+          "at": "2026-09-10 18:57:58.989729-0700",
+          "epoch": 1789091878.989729,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3400.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4285.0
+        },
+        {
+          "at": "2026-09-10 18:58:18.992387-0700",
+          "epoch": 1789091898.992387,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3400.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4284.0
+        },
+        {
+          "at": "2026-09-10 18:58:38.988512-0700",
+          "epoch": 1789091918.988512,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3409.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4287.0
+        },
+        {
+          "at": "2026-09-10 18:58:58.988291-0700",
+          "epoch": 1789091938.988291,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3419.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4283.0
+        },
+        {
+          "at": "2026-09-10 18:59:18.986129-0700",
+          "epoch": 1789091958.986129,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3419.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4285.0
+        },
+        {
+          "at": "2026-09-10 18:59:38.988418-0700",
+          "epoch": 1789091978.988418,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3419.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4283.0
+        },
+        {
+          "at": "2026-09-10 18:59:58.989154-0700",
+          "epoch": 1789091998.989154,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3429.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4283.0
+        },
+        {
+          "at": "2026-09-10 19:00:18.987172-0700",
+          "epoch": 1789092018.987172,
+          "battery-power-connected": 1.0,
+          "battery-charging": 0.0,
+          "battery-temperature": 3429.0,
+          "screen-brightness": 400000.0,
+          "battery-voltage-mV": 4283.0
+        }
+      ],
+      "transitions": [
+        {
+          "phase": "A1",
+          "state_at_command": "already_nominal",
+          "command": "2026-09-10T18:51:45.820548-07:00",
+          "matching_pressure_event": null,
+          "delay_seconds": null
+        },
+        {
+          "phase": "B1",
+          "state_at_command": "transition_requested",
+          "command": "2026-09-10T18:55:16.159149-07:00",
+          "matching_pressure_event": {
+            "epoch": 1789091722.244645,
+            "at": "2026-09-10 18:55:22.244645-0700",
+            "process": "thermalmonitord",
+            "message": "<Notice> Thermal pressure level 20"
+          },
+          "delay_seconds": 6.085496187210083
+        },
+        {
+          "phase": "A2",
+          "state_at_command": "transition_requested",
+          "command": "2026-09-10T18:58:53.493189-07:00",
+          "matching_pressure_event": {
+            "epoch": 1789092162.247528,
+            "at": "2026-09-10 19:02:42.247528-0700",
+            "process": "thermalmonitord",
+            "message": "<Notice> Thermal pressure level 0"
+          },
+          "delay_seconds": 228.75433897972107
+        }
+      ],
+      "sequence_holes": 0,
+      "logger_misses": [],
+      "midi_enabled_running": true,
+      "periodic_dense_episodes": [],
+      "clock_anchor_offset_span_ms": 6.855964660644531
+    }
+  ],
+  "limits": [
+    "Thermal nominal return unavailable during90-second off window; user accepts this caveat and no reversed-order comparison prerequisite.",
+    "Phase counts use complete callback logs and actual state. No claim against subtle clicks.",
+    "ioDriftNS private meaning unverified; event-driven finite differences are not instantaneous physical oscillator drift.",
+    "Native xr records timestamp discontinuities, not a DSP overrun counter.",
+    "Matched analog near-silence durations reflect detection threshold and analog settling.",
+    "Battery sensor/private temperature scaling is not hub or MAYA temperature."
+  ],
+  "totals": {
+    "0": {
+      "seconds": 540.6466779708862,
+      "tx": 22,
+      "stalls": 22,
+      "analog": 22
+    },
+    "2": {
+      "seconds": 540.6783812046051,
+      "tx": 6,
+      "stalls": 6,
+      "analog": 6
+    }
+  }
+}

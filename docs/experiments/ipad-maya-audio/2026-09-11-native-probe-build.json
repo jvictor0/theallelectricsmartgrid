@@ -1,0 +1,36 @@
+{
+  "juce_version": "8.0.15",
+  "source_sha256": "708c0a543ddbefe7c9cb83bc1d3428e62b18dd2124133f051582bdacba112339",
+  "instrumented_sha256": "77973ebedff38a536fd3ce5b6f2eac40a4849bcba64828e6d71a3726da932844",
+  "bridge_sha256": "a912fd62db77b766066216321a46a47a4af91099cea7c61058502486b424bba5",
+  "native_probe": true,
+  "sample_rate": 48000,
+  "default_frames": 512,
+  "builtAt": "2026-09-11T17:46:18.131071-07:00",
+  "app": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid/JUCE/SmartGridOne/Builds/iOS/build/Release/SmartGridOne.app",
+  "bundleId": "com.theallelectricsmartgrid.smartgridone",
+  "binarySha256": "9730188b588c3061cd5bdc19b2e586af9e49bf464a0a7c9d1103930352dfc3a6",
+  "sources": {
+    "JUCE/SmartGridOne/Source/RemoteIOProbeBridge.hpp": "a912fd62db77b766066216321a46a47a4af91099cea7c61058502486b424bba5",
+    "JUCE/SmartGridOne/Source/RemoteIOProbeBridge.mm": "78eade996176d274e58f430fe7602e1194f2c510bc264eb5b987ac196d349bf2",
+    "private/src/RemoteIOCapture.hpp": "e04a671b750774959345138fefb492768ae95f3c76e91dc6f2d1c744050b6d64",
+    "private/src/ThreadId.hpp": "a1d92f0a7300a25e5150953fef08c2bcf0635dde97178a1a01f0c70f5396049e",
+    "JUCE/SmartGridOne/Source/MainComponent.cpp": "4535b4ea68afb7456251fc41962d66d35433f70c714d645c1667b93810878cf4",
+    "JUCE/SmartGridOne/Source/MainComponent.h": "669dcdfe80b23295be161c650e34d63d0b2c568ab1fbb2162044b6b01a136ecb",
+    "JUCE/SmartGridOne/scripts/decode_remoteio.py": "79ae305ca6bd89e5c068c2bec7303ad293ca80481f1e518044443fa5f018621d",
+    "JUCE/SmartGridOne/scripts/prepare_ios_audio_module.py": "28cea1a944d6e568ff5f16e45f56bf41828bbb2768c19861f7aaf3e16ac48ef5",
+    "JUCE/SmartGridOne/scripts/usb_trace_details.py": "94547c3eae6b975ec4196588663158314cf2244a905abb33a6f1784cc8aaabb6"
+  },
+  "signatureVerification": "codesign --verify --deep --strict: passed using host trust store",
+  "deployed": false,
+  "defaults": {
+    "SMARTGRID_NATIVE_CAPTURE": "1",
+    "SMARTGRID_NATIVE_CAPTURE_PCM": "0",
+    "SMARTGRID_AUDIO_TEST_MODE": "normal",
+    "SMARTGRID_AUDIO_TEST_PLAY": "1",
+    "SMARTGRID_UI_RENDER": "1",
+    "SMARTGRID_MIDI_SEND_THREAD": "1"
+  },
+  "inputs": 0,
+  "onDeviceValidation": "Pending; no device accessed for this preparation"
+}

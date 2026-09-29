@@ -1,0 +1,9 @@
+{
+  "shared_upstream_dependency_files": 25,
+  "generated_audio_module_dependency_files": 6,
+  "old_shared_root_references": [],
+  "native_adjustment": [
+    "native/juce_Audio_ios.cpp"
+  ],
+  "exact_native_default512_patch_verified": true
+}

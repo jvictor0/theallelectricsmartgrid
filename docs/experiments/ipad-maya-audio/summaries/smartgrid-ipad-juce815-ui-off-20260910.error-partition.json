@@ -1,0 +1,27 @@
+{
+  "startup_errors": [
+    {
+      "timestamp": "2026-09-10 12:26:39.156122-0700",
+      "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+    },
+    {
+      "timestamp": "2026-09-10 12:26:59.826909-0700",
+      "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+    },
+    {
+      "timestamp": "2026-09-10 12:27:10.138828-0700",
+      "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+    },
+    {
+      "timestamp": "2026-09-10 12:27:40.618624-0700",
+      "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+    }
+  ],
+  "measured_errors": [
+    {
+      "timestamp": "2026-09-10 12:28:06.646462-0700",
+      "message": "AppleUSBIORequest: AppleUSBIORequest::complete: device 4 (MAYA44 USB+@00140000) endpoint 0x82: status 0xe00002ed (transaction error)"
+    }
+  ],
+  "post_recording_errors": []
+}

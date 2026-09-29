@@ -1,0 +1,174 @@
+{
+  "source_worktree": "/Users/joyo/.codex/worktrees/e18e/theallelectricsmartgrid",
+  "preserved_local_date": "2026-09-28",
+  "files": {
+    "JUCE/SmartGridOne/Source/MainComponent.cpp": {
+      "sha256": "a905a0f47bf250ad8446c9455dba31df98f1f2777e9b99acc885611eee53e5ce",
+      "bytes": 17989
+    },
+    "JUCE/SmartGridOne/Source/WrldBuildrComponent.hpp": {
+      "sha256": "231c5ab9d7cae5b10f2bbd46112b575d1cc2d3d2ce41c2f019efebf95676f1f9",
+      "bytes": 18668
+    },
+    "JUCE/SmartGridOne/Source/NonagonWrapper.hpp": {
+      "sha256": "6cc3aa4acb0da57ec3ba42c2479c648c40d953277943d0fcbc5435c72a45710c",
+      "bytes": 25194
+    },
+    "private/src/SmartBus.hpp": {
+      "sha256": "7d0e9da27f489270f3e7debb59a895928b3d009b160c2bff2df1ab08933981b0",
+      "bytes": 8868
+    },
+    "private/src/EncoderUIState.hpp": {
+      "sha256": "b3fe15f8413af19417cbeea0a4a7dfacf0b67061a0ec39a1e80888fab1f3ee6b",
+      "bytes": 7300
+    },
+    "private/src/AnalogUIState.hpp": {
+      "sha256": "9237d90f972eadbd3806c4471fae57fe0de2109e4de2449352ddbb10c8603471",
+      "bytes": 1159
+    },
+    "private/src/VoiceMachineEnums.hpp": {
+      "sha256": "964461744f09c0077467ec007976882cc9e45b3c941a6c6d81778e773f885df2",
+      "bytes": 2936
+    },
+    "private/src/SmartGridOneEncoders.hpp": {
+      "sha256": "e4c6b8efd414fc545bc5709f89fc90aecc4a9343a11b32ce9eea2573fef86a7f",
+      "bytes": 17000
+    },
+    "JUCE/SmartGridOne/Source/SmartGridOneVisualizerMain.hpp": {
+      "sha256": "95cf4e57d11e7337823f4be6a96c035b5b86b3a63fd6cc8e839ac43779fa977c",
+      "bytes": 14457
+    },
+    "JUCE/SmartGridOne/Source/ForEachSmartGridOneVisualizer.hpp": {
+      "sha256": "37e40099d2d9a7596147fee46c5055f5523d22460db069a8afa5c49f123b3d52",
+      "bytes": 7931
+    },
+    "JUCE/SmartGridOne/Source/ScopeComponent.hpp": {
+      "sha256": "e23778ad56d67c52cfa4df9658658bed5732b39987467211a36b561482915048",
+      "bytes": 34218
+    },
+    "private/src/ScopeWriter.hpp": {
+      "sha256": "d2b955bfd6a233854f6a5f60c689c873007c6561af81c7053c4b7951b81861a6",
+      "bytes": 19003
+    },
+    "JUCE/SmartGridOne/Source/PathDrawer.hpp": {
+      "sha256": "d37f22c99fc449ee03ad0defc26accf2dd7021590d064c24017c916f045abfcb",
+      "bytes": 6531
+    },
+    "JUCE/SmartGridOne/Source/ForEachModulationVisualizer.hpp": {
+      "sha256": "03425515563c28ff547dc441fafd28c8612f1cc3fa51a869a66639e9444946c8",
+      "bytes": 6907
+    },
+    "JUCE/SmartGridOne/Source/GangedRandomLFOComponent.hpp": {
+      "sha256": "50f5d260c2b91c2661d2cedda1ded1d895a11c9dfcd2f3497c98ce0b703aa6b7",
+      "bytes": 10125
+    },
+    "JUCE/SmartGridOne/Source/MeterComponent.hpp": {
+      "sha256": "e15c207afcf46477b37a8accfc8c0d6f4073bc0d7fe4d82758c8a61ecff34245",
+      "bytes": 14805
+    },
+    "JUCE/SmartGridOne/Source/EncoderComponent.hpp": {
+      "sha256": "31a3e304d6aefc7ea75fd57222b9f9b475cabce3dfadc51f2dc508b35d2b63c0",
+      "bytes": 20862
+    },
+    "private/src/TheNonagonSquiggleBoy.hpp": {
+      "sha256": "7c601182901fa2e6d75018feccf1f0fd5b188d18e443c956272817dbb76bc568",
+      "bytes": 22051
+    },
+    "private/src/SquiggleBoy.hpp": {
+      "sha256": "19ecf870c1b6b23237f55b20bfa12e253f9c6ab2ab2c5cf30a2bbbeff110409b",
+      "bytes": 75616
+    },
+    "private/src/SnapshotUIState.hpp": {
+      "sha256": "7e83cfd99462fe8e14721125e59efe1d5451b9b507680048ea44162a74e02ec5",
+      "bytes": 945
+    },
+    "private/src/Metering.hpp": {
+      "sha256": "3c6259358f2ed7ce6eb1d819069bd8ba6b22ad8918d76be14e5cef897be1a592",
+      "bytes": 5849
+    },
+    "private/src/GangedRandomLFO.hpp": {
+      "sha256": "3a9bf7d5a68eb3fc51c605e53470ee6b35895bb683b6d42beab7bf5cd28d8146",
+      "bytes": 12634
+    },
+    "JUCE/SmartGridOne/Source/SampleTrioWaveformVisualizerComponent.hpp": {
+      "sha256": "01ecfa3a39e4dbbb391568d43c9dfa03bd97d6dfb07f92f79eab03f4ff26df67",
+      "bytes": 4687
+    },
+    "private/src/AudioBuffer.hpp": {
+      "sha256": "04916a5ffbe04e3fe0d73072c0dd6a7a26b1cc847c411df1da0479ad21903f35",
+      "bytes": 13637
+    },
+    "JUCE/SmartGridOne/Source/MidiSender.hpp": {
+      "sha256": "2fa70b79d9a9f98b92658ecd1294164e3bfdc65e6b09fccea300f4e3dc27d511",
+      "bytes": 11613
+    },
+    "private/src/CircularQueue.hpp": {
+      "sha256": "f64c0f329c5465a446ab279cab588e780441b203060774d0b99d4fa135a192a7",
+      "bytes": 3835
+    },
+    "JUCE/SmartGridOne/Source/MidiHandlers.hpp": {
+      "sha256": "a1c4cf704b48cc7a3e886d0b750f86a25d58b72b55187ce310039d2aca614b3e",
+      "bytes": 6302
+    },
+    "private/src/MessageInBus.hpp": {
+      "sha256": "db112bb76ae588744e5b3709d4666a7b1fa83c42ca5b3160e7da2bdb7d84b5c3",
+      "bytes": 1739
+    },
+    "private/src/AsyncLogger.hpp": {
+      "sha256": "e5f77e587d7b49e50c00ab3513962be6cc90292c757b0d320049ca4a2b3c5328",
+      "bytes": 7760
+    },
+    "JUCE/SmartGridOne/Source/MainComponent.h": {
+      "sha256": "669dcdfe80b23295be161c650e34d63d0b2c568ab1fbb2162044b6b01a136ecb",
+      "bytes": 12880
+    },
+    "private/src/IOTaskThread.hpp": {
+      "sha256": "ff921dc554e30da75663519d2284a68fda3a91216d1f79d1508a9a721571ce71",
+      "bytes": 19659
+    },
+    "JUCE/SmartGridOne/Source/AudioPlatformDiagnostics.mm": {
+      "sha256": "557a68a386bf9b614f189f602cd35b20bea9a5112cdcd890aac07ca87e787cf8",
+      "bytes": 2048
+    },
+    "private/src/SampleTimer.hpp": {
+      "sha256": "f201ba957b2f0e40c4cc3623135e82888482b8609d76eceaf777c5592979d593",
+      "bytes": 1948
+    },
+    "JUCE/SmartGridOne/Source/ConfigPage.hpp": {
+      "sha256": "258ce20f7733ab8cce9fcb1002072e7ae0d34d9c58fd732c3ef629a4f2f9b5c5",
+      "bytes": 19467
+    },
+    "JUCE/SmartGridOne/scripts/prepare_ios_audio_module.py": {
+      "sha256": "70a2047c82a77fea454bdfa086aa2fa35b42a2894e128d89af1e96c255d81686",
+      "bytes": 16978
+    },
+    "JUCE/SmartGridOne/Builds/iOS/SmartGridOne.xcodeproj/project.pbxproj": {
+      "sha256": "c99d02a30738e7c1cc138c8686f89200ef189fcf2426ee05a66b0452b4165536",
+      "bytes": 47680
+    },
+    "JUCE/SmartGridOne/SmartGridOne.jucer": {
+      "sha256": "7ba99a0efafaa49b6dd012050d125a1d53ff58285c10ee298f2cd88d3ca7f60e",
+      "bytes": 7478
+    },
+    "private/src/AudioCallbackDiagnostics.hpp": {
+      "sha256": "d7be30ee541882d99c5e958ee20505fd503e5c50c0da43f61f12f42fa6890b21",
+      "bytes": 1109
+    },
+    "docs/superpowers/plans/2026-09-10-midi-sysex-worker.md": {
+      "sha256": "d117f55d5e37611335b95324f55eab0e33718b8a04362083e2c3d73cb5621e43",
+      "bytes": 11458
+    },
+    "docs/superpowers/plans/2026-09-10-midi-sender-off-experiment.md": {
+      "sha256": "66b8adffbc9b33313eaf8043525be19874fe5f67a39668c040d1d1489d7ace20",
+      "bytes": 6158
+    },
+    "docs/superpowers/plans/2026-09-10-audio-ui-isolation.md": {
+      "sha256": "33451762b94c9319f579174c27f478f3545359868f051e39cd401bf5fe1f86c2",
+      "bytes": 9737
+    },
+    "JUCE/SmartGridOne/scripts/combined_system_trace.md": {
+      "sha256": "00549ca35984bee28b089f1b14747dc43f55484cbc9d70b2edf689eaf98ecd7b",
+      "bytes": 7703
+    }
+  }
+}

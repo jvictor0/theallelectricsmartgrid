@@ -1,0 +1,30 @@
+{
+  "checked_local": "2026-09-10T12:47:38.849038-07:00",
+  "wav": "/private/tmp/smartgrid-ipad-after-juce815-test-signal-20260910.wav",
+  "seconds_scanned": 10.0,
+  "method": "Both-channel RMS below -75 dBFS in 1 ms bins for at least 20 ms. Candidates only: natural rests and user transport changes must be excluded and device logs used for fault attribution.",
+  "near_silence_intervals": [
+    {
+      "start_seconds": 3.363,
+      "end_seconds": 3.5,
+      "duration_ms": 137,
+      "preceding_100ms_peak_rms_dbfs": -26.280716311785632,
+      "following_100ms_peak_rms_dbfs": -24.93369668151083,
+      "surrounded_by_signal": true
+    }
+  ],
+  "ten_second_levels": [
+    {
+      "start_seconds": 0.0,
+      "seconds": 10.0,
+      "rms_dbfs": [
+        -31.886105639170964,
+        -30.317939027056614
+      ],
+      "peak_dbfs": [
+        -21.98036246367788,
+        -21.752394496171647
+      ]
+    }
+  ]
+}

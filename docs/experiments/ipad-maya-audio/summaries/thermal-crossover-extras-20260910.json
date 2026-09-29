@@ -1,0 +1,461 @@
+{
+  "r2_all_processing_overruns": [
+    {
+      "cb": 1.0,
+      "t_us": 183805575304.0,
+      "gap_us": 0.0,
+      "prev_budget_us": 0.0,
+      "dsp_us": 19501.0,
+      "n": 470.0,
+      "sr": 48000.0,
+      "xr": 0.0,
+      "thermal": -1.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090344.066714,
+      "wav_seconds": 7.656605005264282,
+      "wave_aligned_seconds": 7.536351919174194
+    },
+    {
+      "cb": 14210.0,
+      "t_us": 183959042128.0,
+      "gap_us": 10654.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 12111.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.5339556,
+      "wav_seconds": 161.1238465309143,
+      "wave_aligned_seconds": 161.00065482044263
+    },
+    {
+      "cb": 14212.0,
+      "t_us": 183959063475.0,
+      "gap_us": 9229.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 15095.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.555307,
+      "wav_seconds": 161.14519786834717,
+      "wave_aligned_seconds": 161.022005390038
+    }
+  ],
+  "r2_two_short_holes": [
+    {
+      "start": 161.0014375,
+      "end": 161.01175,
+      "ms": 10.3125
+    },
+    {
+      "start": 161.02277083333334,
+      "end": 161.03304166666666,
+      "ms": 10.270833333333334
+    }
+  ],
+  "r2_local_callbacks": [
+    {
+      "cb": 14201.0,
+      "t_us": 183958946114.0,
+      "gap_us": 10665.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 4892.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.4379208,
+      "wav_seconds": 161.02781176567078,
+      "wave_aligned_seconds": 160.90462350880446
+    },
+    {
+      "cb": 14202.0,
+      "t_us": 183958956783.0,
+      "gap_us": 10669.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 3833.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.448592,
+      "wav_seconds": 161.0384829044342,
+      "wave_aligned_seconds": 160.91529426381206
+    },
+    {
+      "cb": 14203.0,
+      "t_us": 183958967444.0,
+      "gap_us": 10661.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 4901.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.4592552,
+      "wav_seconds": 161.04914617538452,
+      "wave_aligned_seconds": 160.92595715128948
+    },
+    {
+      "cb": 14204.0,
+      "t_us": 183958978115.0,
+      "gap_us": 10671.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 3710.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.4699287,
+      "wav_seconds": 161.05981969833374,
+      "wave_aligned_seconds": 160.93663029039712
+    },
+    {
+      "cb": 14205.0,
+      "t_us": 183958988780.0,
+      "gap_us": 10665.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 4958.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.4805958,
+      "wav_seconds": 161.07048678398132,
+      "wave_aligned_seconds": 160.94729699243462
+    },
+    {
+      "cb": 14206.0,
+      "t_us": 183958999446.0,
+      "gap_us": 10666.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 3786.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.491264,
+      "wav_seconds": 161.0811550617218,
+      "wave_aligned_seconds": 160.95796488652215
+    },
+    {
+      "cb": 14207.0,
+      "t_us": 183959010113.0,
+      "gap_us": 10667.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 5026.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.5019336,
+      "wav_seconds": 161.09182453155518,
+      "wave_aligned_seconds": 160.9686339726597
+    },
+    {
+      "cb": 14208.0,
+      "t_us": 183959020781.0,
+      "gap_us": 10668.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 3802.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.5126038,
+      "wav_seconds": 161.1024947166443,
+      "wave_aligned_seconds": 160.97930377402727
+    },
+    {
+      "cb": 14209.0,
+      "t_us": 183959031474.0,
+      "gap_us": 10693.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 4880.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.5232992,
+      "wav_seconds": 161.11319017410278,
+      "wave_aligned_seconds": 160.98999884685537
+    },
+    {
+      "cb": 14210.0,
+      "t_us": 183959042128.0,
+      "gap_us": 10654.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 12111.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.5339556,
+      "wav_seconds": 161.1238465309143,
+      "wave_aligned_seconds": 161.00065482044263
+    },
+    {
+      "cb": 14211.0,
+      "t_us": 183959054246.0,
+      "gap_us": 12118.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 4989.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.5460758,
+      "wav_seconds": 161.1359667778015,
+      "wave_aligned_seconds": 161.01277463146113
+    },
+    {
+      "cb": 14212.0,
+      "t_us": 183959063475.0,
+      "gap_us": 9229.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 15095.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.555307,
+      "wav_seconds": 161.14519786834717,
+      "wave_aligned_seconds": 161.022005390038
+    },
+    {
+      "cb": 14213.0,
+      "t_us": 183959078577.0,
+      "gap_us": 15102.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 4861.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.5704122,
+      "wav_seconds": 161.16030311584473,
+      "wave_aligned_seconds": 161.03711009432016
+    },
+    {
+      "cb": 14214.0,
+      "t_us": 183959084780.0,
+      "gap_us": 6203.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 5460.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.5766165,
+      "wav_seconds": 161.1665074825287,
+      "wave_aligned_seconds": 161.04331423788247
+    },
+    {
+      "cb": 14215.0,
+      "t_us": 183959095447.0,
+      "gap_us": 10667.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 4883.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.587286,
+      "wav_seconds": 161.17717695236206,
+      "wave_aligned_seconds": 161.05398332402004
+    },
+    {
+      "cb": 14216.0,
+      "t_us": 183959106123.0,
+      "gap_us": 10676.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 3776.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.597964,
+      "wav_seconds": 161.18785500526428,
+      "wave_aligned_seconds": 161.06466099291777
+    },
+    {
+      "cb": 14217.0,
+      "t_us": 183959116781.0,
+      "gap_us": 10658.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 4944.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.6086245,
+      "wav_seconds": 161.19851541519165,
+      "wave_aligned_seconds": 161.07532101947513
+    },
+    {
+      "cb": 14218.0,
+      "t_us": 183959127449.0,
+      "gap_us": 10668.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 3833.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.619295,
+      "wav_seconds": 161.20918583869934,
+      "wave_aligned_seconds": 161.0859910592527
+    },
+    {
+      "cb": 14219.0,
+      "t_us": 183959138110.0,
+      "gap_us": 10661.0,
+      "prev_budget_us": 10667.0,
+      "dsp_us": 4990.0,
+      "n": 512.0,
+      "sr": 48000.0,
+      "xr": 9.0,
+      "thermal": 0.0,
+      "lp": 0.0,
+      "muted": 0.0,
+      "epoch": 1789090497.629958,
+      "wav_seconds": 161.21984887123108,
+      "wave_aligned_seconds": 161.0966537083201
+    }
+  ],
+  "r2_alignment_calibration": [
+    {
+      "callback_seconds": 81.607253074646,
+      "wave_end_seconds": 81.487,
+      "offset_seconds": -0.12025308609008789
+    },
+    {
+      "callback_seconds": 94.56755256652832,
+      "wave_end_seconds": 94.446,
+      "offset_seconds": -0.1215524673461914
+    },
+    {
+      "callback_seconds": 95.97926926612854,
+      "wave_end_seconds": 95.858,
+      "offset_seconds": -0.12126922607421875
+    },
+    {
+      "callback_seconds": 115.10322999954224,
+      "wave_end_seconds": 114.981,
+      "offset_seconds": -0.12223005294799805
+    },
+    {
+      "callback_seconds": 132.66822004318237,
+      "wave_end_seconds": 132.545,
+      "offset_seconds": -0.12321996688842773
+    },
+    {
+      "callback_seconds": 138.50311136245728,
+      "wave_end_seconds": 138.38,
+      "offset_seconds": -0.12311124801635742
+    },
+    {
+      "callback_seconds": 144.78629565238953,
+      "wave_end_seconds": 144.663,
+      "offset_seconds": -0.12329554557800293
+    },
+    {
+      "callback_seconds": 148.254536151886,
+      "wave_end_seconds": 148.131,
+      "offset_seconds": -0.1235361099243164
+    },
+    {
+      "callback_seconds": 150.49980974197388,
+      "wave_end_seconds": 150.377,
+      "offset_seconds": -0.12280964851379395
+    },
+    {
+      "callback_seconds": 214.70211839675903,
+      "wave_end_seconds": 214.577,
+      "offset_seconds": -0.12511849403381348
+    },
+    {
+      "callback_seconds": 338.3332245349884,
+      "wave_end_seconds": 338.183,
+      "offset_seconds": -0.1502244472503662
+    }
+  ],
+  "brightness_changes": [
+    {
+      "run": 1,
+      "changes": [
+        {
+          "at": "2026-09-10 18:13:22.039422-0700",
+          "brightness": 600000.0
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "changes": [
+        {
+          "at": "2026-09-10 18:32:22.108332-0700",
+          "brightness": 600000.0
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "changes": [
+        {
+          "at": "2026-09-10 18:51:38.990196-0700",
+          "brightness": 600000.0
+        },
+        {
+          "at": "2026-09-10 18:54:18.989066-0700",
+          "brightness": 400000.0
+        }
+      ]
+    }
+  ],
+  "alignment_limit": "Device-log anchors interpolated; callback waveform axis is additionally corrected using independently matched long-interruption ends. This empirical correction includes recorder startup latency, clock drift and analog settling. It supports local timing association, not sample-perfect proof."
+}

@@ -1,0 +1,93 @@
+{
+  "base": "/private/tmp/smartgrid-ipad-midi-worker-off-20260910",
+  "completed_local": "2026-09-10T14:59:57.165636-07:00",
+  "seconds": 960,
+  "source_binary_sha256": "c1ab35fd9cd627798583aaa08ba40e12cabde0915acbcb0275b0d1ad32961fd6",
+  "outcome": "Both symptoms reproduced with MIDI worker disabled and queue discarded.",
+  "long_interruptions": {
+    "waveform": 39,
+    "USB_transaction_failures": 39,
+    "driver_restarts": 39,
+    "native_callback_gaps": 39,
+    "matched_episodes": 39,
+    "duration_ms_min_median_max": [
+      216.64583333333334,
+      225.66666666666666,
+      229.85416666666666
+    ]
+  },
+  "periodic": [
+    {
+      "bin_start_seconds": 26,
+      "bin_end_seconds": 39,
+      "first_hole_seconds": 26.311541666666667,
+      "last_hole_end_seconds": 38.472145833333336,
+      "short_holes": 578,
+      "width_ms_min_median_p99_max": [
+        0.4166666666666667,
+        1.0833333333333333,
+        1.6506250000000002,
+        1.75
+      ],
+      "flat_fraction_within_episode_envelope": 0.0519282724782383
+    }
+  ],
+  "all_short_candidates": 609,
+  "midi": {
+    "samples": 954,
+    "all_disabled_stopped_empty": true,
+    "discard_monotonic": true,
+    "first": {
+      "enabled": 0,
+      "running": 0,
+      "queued": 0,
+      "discarded": 31407,
+      "local_time": "14:36:12"
+    },
+    "last": {
+      "enabled": 0,
+      "running": 0,
+      "queued": 0,
+      "discarded": 278802,
+      "local_time": "14:52:12"
+    },
+    "time_selection": "App wall-clock seconds inside nominal recording interval; edge samples can differ by less than one second."
+  },
+  "callbacks": {
+    "callbacks": 89229,
+    "sample_rates": [
+      48000.0
+    ],
+    "frame_sizes": [
+      512.0
+    ],
+    "thermal_states": [
+      0.0
+    ],
+    "sequence_holes": 0,
+    "dsp_ms_p50_p99_max": [
+      4.079,
+      4.938,
+      5.376
+    ],
+    "measured_dsp_overruns": 0,
+    "xrun_start_end": [
+      0,
+      39
+    ],
+    "clock_fit_max_residual_ms": 2.9714107513427734
+  },
+  "zero_length_reports": 7,
+  "zero_length_transfers_reported": 10,
+  "io_drift_records": 65,
+  "config_and_patch_unchanged": true,
+  "recording_stderr_bytes": 0,
+  "limits": [
+    "Timed DSP excludes subsequent logger/outer native work.",
+    "Analog/log clocks are offset; observed callback-resume minus analog-gap-end137.9\u2013152.0ms is capture alignment, not a measured causal delay.",
+    "Queue samples cover954 once-second observations; edge selection is to whole wall-clock seconds.",
+    "Other direct audio-thread MIDI/SysEx sends remained active in this binary.",
+    "This tests necessity of this worker path in one measured condition; it does not exclude combined workload effects."
+  ],
+  "next": "User-authorized routing of normal audio-frame SysEx and short MIDI onto worker; implementation in progress."
+}

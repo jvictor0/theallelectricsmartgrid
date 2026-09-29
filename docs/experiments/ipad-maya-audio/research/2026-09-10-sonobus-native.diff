@@ -1,0 +1,181 @@
+--- /private/tmp/smartgrid-juce815-ios-build/Build/Intermediates.noindex/SmartGridOne.build/SmartGridJuceModules/juce_audio_devices/native/juce_Audio_ios.cpp
++++ /private/tmp/smartgrid-research-20260910-juce-control/sonobus173-juce-ios.cpp
+@@ -197,7 +197,7 @@
+ - (void) handleRouteChange: (NSNotification*) notification
+ {
+     NSUInteger value;
+-
++    
+     if (juce::getNotificationValueForKey (notification, AVAudioSessionRouteChangeReasonKey, value))
+         audioSessionHolder->handleRouteChange ((AVAudioSessionRouteChangeReason) value);
+ }
+@@ -361,9 +361,9 @@
+         close();
+     }
+ 
+-    static void setAudioSessionCategory (NSString* category)
+-    {
+-        NSUInteger options = 0;
++    static void setAudioSessionCategory (NSString* category, NSUInteger extraoptions = 0)
++    {
++        NSUInteger options = extraoptions;
+ 
+        #if ! JUCE_DISABLE_AUDIO_MIXING_WITH_OTHER_APPS
+         options |= AVAudioSessionCategoryOptionMixWithOthers; // Alternatively AVAudioSessionCategoryOptionDuckOthers
+@@ -380,7 +380,7 @@
+             options |= AVAudioSessionCategoryOptionDefaultToSpeaker
+                      | AVAudioSessionCategoryOptionAllowAirPlay
+                      | AVAudioSessionCategoryOptionAllowBluetoothA2DP
+-                     | bluetoothOption;
++            ; // | bluetoothOption; // you don't really want this for an audio app, as using bluetooth input devices SUCKS. this should be configurable TODO
+         }
+ 
+         JUCE_NSERROR_CHECK ([[AVAudioSession sharedInstance] setCategory: category
+@@ -543,11 +543,9 @@
+         // probing the sample rate via an AudioQueue seems to work reliably
+         if (@available (iOS 18, *))
+         {
+-            // We could verify that things seem to work as expected again
+-            // from 18.7.3 and up, so avoid creating an AudioQueue. We
+-            // have no way of testing the minor versions 18.7.0 to 18.7.2,
+-            // as currently no simulator is available for 18.7.
+-            if (@available (iOS 18.7.3, *))
++            // On iOS 26, things seem to work as expected again,
++            // so avoid creating an AudioQueue
++            if (@available (iOS 26, *))
+                 return session.sampleRate;
+ 
+             return getSampleRateFromAudioQueue().value_or (session.sampleRate);
+@@ -702,7 +700,7 @@
+ 
+         setAudioSessionActive (true);
+         setAudioSessionCategory (requestedInputChannels > 0 ? AVAudioSessionCategoryPlayAndRecord
+-                                                            : AVAudioSessionCategoryPlayback);
++                                                            : AVAudioSessionCategoryPlayback, allowBluetoothInput ? AVAudioSessionCategoryOptionAllowBluetooth : 0);
+         channelData.reconfigure (requestedInputChannels, requestedOutputChannels);
+         setTargetSampleRateAndBufferSize();
+         updateHardwareInfo (true);
+@@ -786,6 +784,41 @@
+ 
+         return session.mode == mode;
+     }
++
++    bool setInputGain(float val)
++    {
++        NSError * err;
++        
++        JUCE_IOS_AUDIO_LOG("Input gain is settable: "<< (int) [[AVAudioSession sharedInstance] isInputGainSettable]);
++        
++        if (![[AVAudioSession sharedInstance] setInputGain:val error:&err]) {
++            JUCE_IOS_AUDIO_LOG("Error setting input gain: " << String([err.description UTF8String]));
++        }
++        else {
++            return true;
++        }
++        return false;
++    }
++    
++    float getInputGain() const
++    {
++        return [[AVAudioSession sharedInstance] inputGain];
++    }
++
++    void setAllowBluetoothInput(bool flag) {
++        if (allowBluetoothInput != flag) {
++            allowBluetoothInput = flag;
++            if (isRunning) {
++                setAudioSessionCategory( requestedInputChannels > 0 ? AVAudioSessionCategoryPlayAndRecord
++                                        : AVAudioSessionCategoryPlayback, allowBluetoothInput ? AVAudioSessionCategoryOptionAllowBluetooth : 0);
++            }
++        }
++    }
++
++    bool getAllowBluetoothInput() const {
++        return allowBluetoothInput;
++    }
++
+ 
+     //==============================================================================
+     class PlayHead final : public AudioPlayHead
+@@ -1000,6 +1033,19 @@
+         if (isRunning)
+             invokeAudioDeviceErrorCallback (reasonString);
+ 
++        auto session = [AVAudioSession sharedInstance];
++        auto route = session.currentRoute;
++        headphonesConnected = false;
++        for (AVAudioSessionPortDescription* port in route.outputs)
++        {           
++            if ([[port portType] isEqualToString:AVAudioSessionPortHeadphones] 
++                || [[port portType] isEqualToString:AVAudioSessionPortHeadsetMic]
++                || [[port portType] isEqualToString:AVAudioSessionPortLineOut]
++                || [[port portType] isEqualToString:AVAudioSessionPortUSBAudio]) { 
++                headphonesConnected = true;
++            }
++        }
++        
+         switch (reason)
+         {
+         case AVAudioSessionRouteChangeReasonCategoryChange:
+@@ -1321,10 +1367,12 @@
+ 
+     // If the routing is set to go through the receiver (i.e. the speaker, but quiet), this re-routes it
+     // to make it loud. Needed because by default when using an input + output, the output is kept quiet.
+-    static void fixAudioRouteIfSetToReceiver()
++    void fixAudioRouteIfSetToReceiver()
+     {
+         auto session = [AVAudioSession sharedInstance];
+         auto route = session.currentRoute;
++
++        headphonesConnected = false;
+ 
+         for (AVAudioSessionPortDescription* port in route.outputs)
+         {
+@@ -1333,6 +1381,13 @@
+                 JUCE_NSERROR_CHECK ([session overrideOutputAudioPort: AVAudioSessionPortOverrideSpeaker
+                                                                error: &error]);
+                 setAudioSessionActive (true);
++            }
++            
++            if ([[port portType] isEqualToString:AVAudioSessionPortHeadphones] 
++                || [[port portType] isEqualToString:AVAudioSessionPortHeadsetMic]
++                || [[port portType] isEqualToString:AVAudioSessionPortLineOut]
++                || [[port portType] isEqualToString:AVAudioSessionPortUSBAudio]) { 
++                headphonesConnected = true;
+             }
+         }
+     }
+@@ -1585,7 +1640,7 @@
+    #if TARGET_IPHONE_SIMULATOR
+     static constexpr int defaultBufferSize = 512;
+    #else
+-    static constexpr int defaultBufferSize = 512;
++    static constexpr int defaultBufferSize = 256;
+    #endif
+     int targetBufferSize = defaultBufferSize, bufferSize = targetBufferSize;
+ 
+@@ -1597,6 +1652,8 @@
+     static inline LruCache<String, Array<double>> deviceSampleRatesCache;
+ 
+     bool interAppAudioConnected = false;
++    bool headphonesConnected = false;
++    bool allowBluetoothInput = false;
+ 
+     MidiMessageCollector* messageCollector = nullptr;
+ 
+@@ -1676,6 +1733,15 @@
+ #endif
+ void iOSAudioIODevice::switchApplication()                          { return pimpl->switchApplication(); }
+ 
++bool iOSAudioIODevice::isHeadphonesConnected() const                { return pimpl->headphonesConnected; }
++
++bool iOSAudioIODevice::setInputGain (float val)  { return pimpl->setInputGain(val); }
++float iOSAudioIODevice::getInputGain () const  { return pimpl->getInputGain(); }
++
++void iOSAudioIODevice::setAllowBluetoothInput (bool val)  { pimpl->setAllowBluetoothInput(val); }
++bool iOSAudioIODevice::getAllowBluetoothInput () const  { return pimpl->getAllowBluetoothInput(); }
++
++    
+ //==============================================================================
+ iOSAudioIODeviceType::iOSAudioIODeviceType()
+     : AudioIODeviceType (iOSAudioDeviceName)

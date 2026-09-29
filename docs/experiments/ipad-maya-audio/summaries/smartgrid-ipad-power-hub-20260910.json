@@ -1,0 +1,255 @@
+{
+  "collected_local": "2026-09-10T12:54:31.314729-07:00",
+  "queries": {
+    "battery_domain": {
+      "value": {
+        "BatteryCurrentCapacity": 100,
+        "BatteryIsCharging": false,
+        "ExternalChargeCapable": true,
+        "ExternalConnected": true,
+        "FullyCharged": false,
+        "GasGaugeCapability": true,
+        "HasBattery": true
+      }
+    },
+    "battery": {
+      "present": true,
+      "selected": [
+        {
+          "path": "/AdapterDetails",
+          "value": {
+            "AdapterID": 0,
+            "AdapterPowerTier": 2,
+            "AdapterVoltage": 15000,
+            "Current": 2270,
+            "Description": "pd charger",
+            "FamilyCode": -536854518,
+            "IsWireless": false,
+            "PMUConfiguration": 2270,
+            "UsbHvcHvcIndex": 3,
+            "UsbHvcMenu": [
+              {
+                "Index": 0,
+                "MaxCurrent": 2000,
+                "MaxVoltage": 5000
+              },
+              {
+                "Index": 1,
+                "MaxCurrent": 2110,
+                "MaxVoltage": 9000
+              },
+              {
+                "Index": 2,
+                "MaxCurrent": 2080,
+                "MaxVoltage": 12000
+              },
+              {
+                "Index": 3,
+                "MaxCurrent": 2270,
+                "MaxVoltage": 15000
+              },
+              {
+                "Index": 4,
+                "MaxCurrent": 3250,
+                "MaxVoltage": 20000
+              }
+            ],
+            "Watts": 34
+          }
+        },
+        {
+          "path": "/Amperage",
+          "value": 0
+        },
+        {
+          "path": "/BatteryData/LifetimeData/AverageTemperature",
+          "value": 19
+        },
+        {
+          "path": "/BatteryData/LifetimeData/MaximumTemperature",
+          "value": 369
+        },
+        {
+          "path": "/BatteryData/LifetimeData/MinimumTemperature",
+          "value": 75
+        },
+        {
+          "path": "/BatteryData/LifetimeData/TemperatureSamples",
+          "value": 238464
+        },
+        {
+          "path": "/BatteryData/MaxCapacity",
+          "value": 100
+        },
+        {
+          "path": "/BatteryData/Voltage",
+          "value": 4258
+        },
+        {
+          "path": "/ChargerData",
+          "value": {
+            "ChargerID": 4294967295,
+            "ChargerInhibitReason": 0,
+            "ChargerResetCounter": 0,
+            "ChargerStatus": "b'\\x04\\x00\\x0e@(\\x89 \\x00\\x18\\x80\\x00\\x00\\t3\\x8aUUU\\x15\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'",
+            "ChargingCurrent": 0,
+            "ChargingVoltage": 4359,
+            "NotChargingReason": 256,
+            "SlowChargingReason": 0,
+            "TimeChargingThermallyLimited": 1920,
+            "VacVoltageLimit": 4330
+          }
+        },
+        {
+          "path": "/CurrentCapacity",
+          "value": 100
+        },
+        {
+          "path": "/ExternalChargeCapable",
+          "value": true
+        },
+        {
+          "path": "/ExternalConnected",
+          "value": true
+        },
+        {
+          "path": "/FullyCharged",
+          "value": false
+        },
+        {
+          "path": "/InstantAmperage",
+          "value": 0
+        },
+        {
+          "path": "/IsCharging",
+          "value": false
+        },
+        {
+          "path": "/MaxCapacity",
+          "value": 100
+        },
+        {
+          "path": "/PowerTelemetryData",
+          "value": {
+            "AccumulatedAdapterEfficiencyLoss": 19598002112805,
+            "AccumulatedBatteryDischarge": -78801803,
+            "AccumulatedBatteryPower": 106902506,
+            "AccumulatedSystemEnergyConsumed": 259376937,
+            "AccumulatedSystemLoad": 905967148,
+            "AccumulatedSystemPowerIn": 934067851,
+            "AccumulatedWallEnergyEstimate": 325701725,
+            "AdapterEfficiencyLoss": 181,
+            "AdapterEfficiencyLossAccumulatorCount": 182333,
+            "BatteryDischargeAccumulatorCount": 167177,
+            "BatteryPower": 0,
+            "BatteryPowerAccumulatorCount": 14727,
+            "PowerTelemetryErrorCount": 0,
+            "SystemCurrentIn": 814,
+            "SystemEnergyConsumed": 3324,
+            "SystemLoad": 11969,
+            "SystemLoadAccumulatorCount": 311390,
+            "SystemPowerIn": 11969,
+            "SystemPowerInAccumulatorCount": 182403,
+            "SystemVoltageIn": 14705,
+            "WallEnergyEstimate": 3505
+          }
+        },
+        {
+          "path": "/Temperature",
+          "value": 3369
+        },
+        {
+          "path": "/VirtualTemperature",
+          "value": 3369
+        },
+        {
+          "path": "/Voltage",
+          "value": 4258
+        }
+      ]
+    },
+    "usb_devices": {
+      "present": true,
+      "selected": [
+        {
+          "path": "/Device Speed",
+          "value": 2
+        },
+        {
+          "path": "/USB Product Name",
+          "value": "USB2.0 Hub"
+        },
+        {
+          "path": "/USB Vendor Name",
+          "value": "VIA Labs, Inc."
+        },
+        {
+          "path": "/bDeviceClass",
+          "value": 9
+        },
+        {
+          "path": "/bDeviceProtocol",
+          "value": 2
+        },
+        {
+          "path": "/bDeviceSubClass",
+          "value": 0
+        },
+        {
+          "path": "/bcdDevice",
+          "value": 740
+        },
+        {
+          "path": "/idProduct",
+          "value": 10274
+        },
+        {
+          "path": "/idVendor",
+          "value": 8457
+        }
+      ]
+    },
+    "usb_hub": {
+      "present": true,
+      "selected": [
+        {
+          "path": "/Device Speed",
+          "value": 2
+        },
+        {
+          "path": "/USB Product Name",
+          "value": "USB2.0 Hub"
+        },
+        {
+          "path": "/USB Vendor Name",
+          "value": "VIA Labs, Inc."
+        },
+        {
+          "path": "/bDeviceClass",
+          "value": 9
+        },
+        {
+          "path": "/bDeviceProtocol",
+          "value": 2
+        },
+        {
+          "path": "/bDeviceSubClass",
+          "value": 0
+        },
+        {
+          "path": "/bcdDevice",
+          "value": 740
+        },
+        {
+          "path": "/idProduct",
+          "value": 10274
+        },
+        {
+          "path": "/idVendor",
+          "value": 8457
+        }
+      ]
+    }
+  },
+  "wifi_connections_preference": false
+}

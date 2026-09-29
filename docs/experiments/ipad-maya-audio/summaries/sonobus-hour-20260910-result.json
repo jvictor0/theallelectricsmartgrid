@@ -1,0 +1,87 @@
+{
+  "base": "/private/tmp/smartgrid-ipad-sonobus-hour-20260910",
+  "completed_local": "2026-09-10T14:33:09.662541-07:00",
+  "window": {
+    "start": "2026-09-10T13:25:49.141815-07:00",
+    "end": "2026-09-10T14:25:49.141815-07:00",
+    "seconds": 3600,
+    "preflight_exclusion_seconds": 45,
+    "steady_state_seconds": 3555
+  },
+  "recording_stderr_bytes": 0,
+  "log_query_note": "log show warns about wall-clock adjustment; analysis explicitly filters each JSON timestamp. Nominal recorder-to-iPad wall-clock alignment, not sample accurate.",
+  "full_capture": {
+    "all_log_rows": 38370,
+    "usb_audio_rows": 1735,
+    "matches": {
+      "transaction_failures": [],
+      "driver_restart_messages": [],
+      "zero_length_transfer_messages": [],
+      "io_drift_messages": []
+    }
+  },
+  "steady_state": {
+    "all_log_rows": 37916,
+    "usb_audio_rows": 1713,
+    "matches": {
+      "transaction_failures": [],
+      "driver_restart_messages": [],
+      "zero_length_transfer_messages": [],
+      "io_drift_messages": []
+    }
+  },
+  "configuration_evidence": {
+    "preferences": [
+      {
+        "timestamp": "2026-09-10 13:17:55.021825-0700",
+        "message": "-CMSessionMgr- cmsmGetAudioConfigurationsControlSessions: Arbitrating session={clientName:'sid:0x6d1a4, SonoBus(18546), 'prim'', preferredIOBufferFrames:0, preferredIOBufferDuration:0.005333, preferredOutputSampleRate:48000.000000} with session={clientName:'sid:0x6d1a4, SonoBus(18546), 'prim'', preferredIOBufferFrames:0, preferredIOBufferDuration:0.005333, preferredOutputSampleRate:48000.000000}"
+      },
+      {
+        "timestamp": "2026-09-10 13:17:55.035211-0700",
+        "message": "-CMSessionMgr- cmsmGetAudioConfigurationsControlSessions: Arbitrating session={clientName:'sid:0x6d1a4, SonoBus(18546), 'prim'', preferredIOBufferFrames:0, preferredIOBufferDuration:0.005333, preferredOutputSampleRate:48000.000000} with session={clientName:'sid:0x6d1a4, SonoBus(18546), 'prim'', preferredIOBufferFrames:0, preferredIOBufferDuration:0.005333, preferredOutputSampleRate:48000.000000}"
+      }
+    ],
+    "actual_maya_stream": [
+      {
+        "timestamp": "2026-09-10 13:17:55.024945-0700",
+        "message": "   VirtualAudio_PlugIn.mm:7717    - VirtualAudio_Stream: [ id: 3107; addr: 0xc170488c0; dir: in; owning VAD: [ 86/0xc16fb6000 ]; virt strms: [ addr: 0xc16ffb000; dir: in; pref virt chans: 0; forced virt chans: 0; actual strm: [ id: 2652; addr: 0xc17030be8; dir: in ] ]; associated ports: { [ type: pusi; uid: AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1; addr: 0xc169baa18; conn: 1; rout: 1; quies: 1 ] } ]; fmt: [ 32/48000/4; flags: 0x9; bpp: 16; fpp: 1; Bpf: 16 ]"
+      },
+      {
+        "timestamp": "2026-09-10 13:17:55.024947-0700",
+        "message": "   VirtualAudio_PlugIn.mm:7717    - VirtualAudio_Stream: [ id: 3108; addr: 0xc1704abc0; dir: out; owning VAD: [ 86/0xc16fb6000 ]; virt strms: [ addr: 0xc16ff8400; dir: out; pref virt chans: 0; forced virt chans: 0; actual strm: [ id: 2651; addr: 0xc17032d98; dir: out ] ]; associated ports: { [ type: puso; uid: AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:140000:2,1; addr: 0xc169bbc18; conn: 1; rout: 1; quies: 1 ] } ]; fmt: [ 32/48000/4; flags: 0x9; bpp: 16; fpp: 1; Bpf: 16 ]"
+      }
+    ],
+    "actual_buffer": [
+      {
+        "timestamp": "2026-09-10 13:17:55.024468-0700",
+        "message": "AggregateDevice_CommonBase.cpp:3368  Requested to set 256, setting buffer frame size of 256 on aggregate device 3101."
+      },
+      {
+        "timestamp": "2026-09-10 13:17:55.038978-0700",
+        "message": "AggregateDevice_CommonBase.cpp:3368  Requested to set 256, setting buffer frame size of 256 on aggregate device 3101."
+      }
+    ]
+  },
+  "configuration_conclusion": "SonoBus requested48k and5.333ms; contemporaneous MAYA hardware stream format48k/four channels and actual aggregate256 frames, also confirmed by post-capture HAL report. App active input/output channel mask and native callback frame distribution unobserved.",
+  "waveform": {
+    "near_silence_candidates": 0,
+    "short_flat_candidates": 0,
+    "long_flat_candidates": 0,
+    "dense_periodic_episodes": 0
+  },
+  "post_capture_overload": [
+    {
+      "timestamp": "2026-09-10 14:25:56.237263-0700",
+      "message": "        HALS_OverloadMessage.cpp:247   HALS_OverloadMessage: Overload possibly due to HAL client proc exceeding io cycle budget."
+    },
+    {
+      "timestamp": "2026-09-10 14:25:56.237264-0700",
+      "message": "        HALS_OverloadMessage.cpp:254   HALS_OverloadMessage: Overload possibly due to safety violation."
+    },
+    {
+      "timestamp": "2026-09-10 14:25:56.238800-0700",
+      "message": "Sending message. { reporterID=468151435380, category=IO, type=error, message=[\"wg_total_wakeups\": Optional(15), \"io_cycle_budget\": Optional(6020875), \"output_device_source_list\": Optional(Unknown), \"smallest_buffer_frame_size\": Optional(256), \"input_device_transport_list\": Optional(USB, USB), \"is_recovering\": Optional(0), \"anchor_sample_time\": Optional(450), \"safety_violation_time_gap\": Optional(0.0007291666666666667), \"wg_user_time_mach\": Optional(2460), \"safety_violation\": Optional(1), \"output_device_transport_list\": Optional(USB), \"cause\": Optional(ClientHALIODurationExceededBudget,SafetyViolationOccurred), \"lateness\": Optional(4), \"wg_instructions\": Optional(349703), \"HAL_client_IO_duration\": Optional(6038583), \"input_device_uid_list\": Optional(AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:0:2,1, AppleUSBAudioEngine:ESI Audiotechnik GmbH:MAYA44 USB+:0:2,1), \"is_prewarming\": Optional(0), \"scheduler_latency\": Optional(12541), \"safety_violation_sample_gap\": Optional(35), \"io_cycle\": Optional(765228), \"time_since_prev_overload\": Optional<\u2026> }"
+    }
+  ],
+  "interpretation": "No measured long-interruption or periodic-blanking candidates and no recorded USB-audio transaction failures/restart/drift/ZLP messages during this hour. Not a claim against every subtle click. Supports a working JUCE control at48k/256, not an exact512 buffer match or proof all hardware/driver behavior is fault-free."
+}

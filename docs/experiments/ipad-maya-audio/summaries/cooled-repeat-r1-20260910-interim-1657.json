@@ -1,0 +1,23 @@
+{
+  "saved_local": "2026-09-10T17:03:11.699095-07:00",
+  "base": "/private/tmp/smartgrid-ipad-cooled-r1-20260910",
+  "seconds_scanned": 499.711,
+  "post_playback_long_candidates": 18,
+  "first_core_start_seconds": 87.438,
+  "first_core_approx_local": "2026-09-10T16:50:27.894310-07:00",
+  "near_silent_core_duration_ms_range": [
+    117,
+    227
+  ],
+  "waveform_inspection": "Three representative events (WAV87.438,229.001,448.611s) visually confirm abrupt simultaneous stereo loss, flat near-zero interval, and resumed music. Analog settling means actual loss can begin before the -75dBFS core.",
+  "plot": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.early-dropouts-1657.png",
+  "activity": "/private/tmp/smartgrid-ipad-cooled-r1-20260910.activity-1657.json",
+  "planned_leading_silence_excluded": [
+    0,
+    11.62
+  ],
+  "initial_thermal_state": 0,
+  "during_recording_ipad_queries": false,
+  "limits": "USB/callback correlation, thermal evolution and periodic corruption remain pending post-capture logs and full waveform analysis. A cooled same-build recurrence supports state dependence but does not prove cooling caused it.",
+  "next": "Continue full scheduled recording through17:05; no iPad queries before completion."
+}

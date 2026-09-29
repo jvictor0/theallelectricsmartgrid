@@ -1,0 +1,228 @@
+{
+  "completed_local": "2026-09-10T16:45:36.048764-07:00",
+  "base": "/private/tmp/smartgrid-ipad-hot-hour-20260910",
+  "user_requested_seconds": 300,
+  "original_recorder_limit": 3600,
+  "requested_stop": {
+    "requested_local": "2026-09-10T16:36:22.346037-07:00",
+    "reason": "User shortened the additional run to five minutes, then requested cooling and repeating the same build if clean.",
+    "original_maximum_seconds": 3600,
+    "requested_seconds": 300,
+    "planned_stop_local": "2026-09-10T16:39:52.524944-07:00",
+    "status": "sent_sigint_to_verified_sox",
+    "signalled_pid": 30143,
+    "ended_local": "2026-09-10T16:39:52.543579-07:00"
+  },
+  "recording": {
+    "started_local": "2026-09-10T16:34:52.524944-07:00",
+    "started_epoch_ns": 1789083292524944000,
+    "started_monotonic_ns": 3570299386616291,
+    "device": "K-Mix",
+    "input_channels": [
+      3,
+      4
+    ],
+    "rate": 48000,
+    "bits": 24,
+    "maximum_seconds": 3600,
+    "command": [
+      "/opt/homebrew/bin/sox",
+      "--buffer",
+      "131072",
+      "-q",
+      "-t",
+      "coreaudio",
+      "-r",
+      "48000",
+      "-c",
+      "8",
+      "K-Mix",
+      "-b",
+      "24",
+      "/private/tmp/smartgrid-ipad-hot-hour-20260910.wav",
+      "remix",
+      "3",
+      "4",
+      "trim",
+      "0",
+      "3600"
+    ],
+    "wrapper_pid": 30136,
+    "source": "User-authorized one-hour continuation after same-binary hot restart. Same PID19797, normal UI/DSP/autoplay, JUCE8.0.15, actual MAYA48k/512, zero app inputs/four outputs, MIDI worker enabled and user confirms physical WRLD.BLDR LEDs work. Last sampled iPad thermal serious2; no induced condition. If the full hour is clean, cool the iPad to measured nominal then repeat same playback condition.",
+    "status": "recorded",
+    "sox_pid": 30143,
+    "system_log_pid": 30141,
+    "keep_awake_pid": 30142,
+    "returncode": 0,
+    "ended_local": "2026-09-10T16:39:52.300944-07:00",
+    "ended_epoch_ns": 1789083592300944000,
+    "wrapper_ended_local": "2026-09-10T16:39:52.624248-07:00",
+    "wrapper_started_epoch_ns": 1789083292524964000,
+    "wrapper_ended_epoch_ns": 1789083592624338000,
+    "measured_wav_seconds": 299.776,
+    "timing_note": "Window local and epoch boundaries are derived from the same ISO timestamps at microsecond precision. End is nominal recorder start plus exact WAVE data-frame duration. Original separately sampled wrapper epoch timestamps and completion time are retained in wrapper_* fields and the raw recorder JSON. Independent audio clocks/start latency mean this is not sample-accurate device-log alignment."
+  },
+  "callbacks": {
+    "app_log": "/private/tmp/smartgrid-ipad-hot-hour-20260910.app.log",
+    "recording_metadata": "/private/tmp/smartgrid-ipad-hot-hour-20260910.window.json",
+    "callbacks": 28104,
+    "sample_rates": [
+      48000.0
+    ],
+    "frame_sizes": [
+      512.0
+    ],
+    "thermal_states": [
+      2.0
+    ],
+    "low_power_states": [
+      0.0
+    ],
+    "muted_states": [
+      0.0
+    ],
+    "sequence_holes": 0,
+    "logger_miss_lines_entire_log": [],
+    "dsp_ms_p50_p99_max": [
+      4.426,
+      5.15,
+      5.224
+    ],
+    "gap_ms_p50_p99_max": [
+      10.666,
+      10.676,
+      10.696
+    ],
+    "measured_dsp_overruns": 0,
+    "xrun_start_end": [
+      2,
+      2
+    ],
+    "callback_gaps_gt20ms": [],
+    "xrun_increments": [],
+    "clock_offset_fit_slope": 3.744365464600928e-05,
+    "clock_fit_max_residual_ms": 6.3495635986328125,
+    "limit": "dsp_us measures the instrumented processing region; it excludes subsequent callback logging and outer JUCE/native work. xr is the native device counter."
+  },
+  "correlation": {
+    "base": "/private/tmp/smartgrid-ipad-hot-hour-20260910",
+    "recording_start": "2026-09-10T16:34:52.524944-07:00",
+    "recording_end": "2026-09-10T16:39:52.300944-07:00",
+    "recording_seconds": 299.776,
+    "kernel_maya_transaction_failures": 0,
+    "audio_restart_records": 0,
+    "near_silence_wave_intervals": 0,
+    "native_callback_gaps_gt100ms": 0,
+    "matched_usb_error_messages": 0,
+    "matched_interruption_episodes": 0,
+    "unique_matched_callbacks": 0,
+    "unique_matched_wave_intervals": 0,
+    "zero_length_reports": 0,
+    "zero_length_transfers_reported": 0,
+    "io_drift_records": 0,
+    "callback_resume_minus_wav_end_ms_range": [],
+    "correlation_limit": "Wave event matching uses a conservative 750 ms neighborhood and reports unique callback/wave episodes. Multiple USB failure messages can belong to one interruption. Recorder/CoreAudio startup latency and independent audio clocks shift WAV timing relative to app logs; offsets are not causal transport latency measurements.",
+    "rows": [],
+    "zlp_events": [],
+    "drift_events": []
+  },
+  "midi": {
+    "base": "/private/tmp/smartgrid-ipad-hot-hour-20260910",
+    "samples": 299,
+    "malformed_samples": [],
+    "all_enabled_running": true,
+    "all_sysex_depth_bounded": true,
+    "all_fault_discard_counts_zero": true,
+    "monotonic_counters": {
+      "discarded": true,
+      "sysex_enqueued": true,
+      "sysex_submitted": true,
+      "sysex_full": true,
+      "sysex_discarded": true,
+      "sysex_invalid": true
+    },
+    "first": {
+      "enabled": 1,
+      "running": 1,
+      "queued": 4,
+      "discarded": 0,
+      "sysex_queued": 0,
+      "sysex_enqueued": 52908,
+      "sysex_submitted": 52908,
+      "sysex_full": 0,
+      "sysex_discarded": 0,
+      "sysex_invalid": 0,
+      "local_time": "16:34:52"
+    },
+    "last": {
+      "enabled": 1,
+      "running": 1,
+      "queued": 3,
+      "discarded": 0,
+      "sysex_queued": 0,
+      "sysex_enqueued": 65386,
+      "sysex_submitted": 65386,
+      "sysex_full": 0,
+      "sysex_discarded": 0,
+      "sysex_invalid": 0,
+      "local_time": "16:39:52"
+    },
+    "ranges": {
+      "enabled": [
+        1,
+        1
+      ],
+      "running": [
+        1,
+        1
+      ],
+      "queued": [
+        1,
+        5
+      ],
+      "discarded": [
+        0,
+        0
+      ],
+      "sysex_queued": [
+        0,
+        1
+      ],
+      "sysex_enqueued": [
+        52908,
+        65386
+      ],
+      "sysex_submitted": [
+        52908,
+        65386
+      ],
+      "sysex_full": [
+        0,
+        0
+      ],
+      "sysex_discarded": [
+        0,
+        0
+      ],
+      "sysex_invalid": [
+        0,
+        0
+      ]
+    },
+    "totals_between_samples": {
+      "sysex_enqueued": 12478,
+      "sysex_submitted": 12478
+    },
+    "time_selection": "App wall-clock seconds within nominal recording interval; edge observations may differ by less than one second. Counters/depth are independently sampled. Submissions are handler calls, not hardware acknowledgments; depth is approximate."
+  },
+  "periodic": {
+    "base": "/private/tmp/smartgrid-ipad-hot-hour-20260910",
+    "seconds": 299.776,
+    "short_candidates": 0,
+    "episodes": [],
+    "method": "Consecutive 1-second bins with at least 10 short flat candidates form dense episodes. Same criterion as the earlier UI comparison. Natural quiet/smooth music can produce candidates; inspect waveform and cadence to attribute periodic blanking. Analog settling affects widths. No claim against subtle clicks."
+  },
+  "physical_midi_output": "User confirmed WRLD.BLDR LEDs work in this restarted build.",
+  "outcome": "The299.776-second continuation was clean by both established symptom detectors and device/callback logs: no long gap, short flat candidate, dense periodic episode, MAYA transaction error, restart or xrun increment; thermal2 throughout.",
+  "duration_note": "The user shortened the existing hour request. SoX received an orderly SIGINT at300wall-clock seconds; retained PCM duration is299.776seconds. Original raw command/metadata preserved."
+}

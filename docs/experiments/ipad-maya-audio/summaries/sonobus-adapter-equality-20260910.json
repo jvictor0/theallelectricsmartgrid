@@ -1,0 +1,18 @@
+[
+  {
+    "component": "AudioProcessorPlayer",
+    "sonobus_file": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-juce-processorplayer.cpp",
+    "upstream815_file": "/private/tmp/smartgrid-juce-8.0.15/modules/juce_audio_utils/players/juce_AudioProcessorPlayer.cpp",
+    "byte_identical": true,
+    "sonobus_sha256": "3a612074560cc9ac331c3e5c5d11b02bb57531955a0b2235e43e9a63941c97c6",
+    "upstream815_sha256": "3a612074560cc9ac331c3e5c5d11b02bb57531955a0b2235e43e9a63941c97c6"
+  },
+  {
+    "component": "AudioSourcePlayer",
+    "sonobus_file": "/private/tmp/smartgrid-research-20260910-juce-control/sonobus173-juce-sourceplayer.cpp",
+    "upstream815_file": "/private/tmp/smartgrid-juce-8.0.15/modules/juce_audio_devices/sources/juce_AudioSourcePlayer.cpp",
+    "byte_identical": true,
+    "sonobus_sha256": "efef2a56f3d5568448d8275b5b9def5fde78ce5787cae1e2d6649634d02d809c",
+    "upstream815_sha256": "efef2a56f3d5568448d8275b5b9def5fde78ce5787cae1e2d6649634d02d809c"
+  }
+]
