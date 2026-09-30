@@ -110,7 +110,7 @@ In addition to pitch, the logic matrix provides **extra timbre modulators**. For
 
 ## 6. Edit acceptance, cache updates, and note timing
 
-The Nonagon supplies each input's gate value and a separate `m_ticked` flag from `AnyTick(i)`. A modulated loop crossing counts even when consecutive rhythm steps have the same gate value.
+The Nonagon supplies the transport's `m_running` state, each input's gate value, and a separate `m_ticked` flag from `AnyTick(i)`. A modulated loop crossing counts even when consecutive rhythm steps have the same gate value. While transport is stopped, regular processing accepts all LameJuis parameters and rebuilds the sheaf as needed, including after patch loads and live edits, without starting transport or generating clock events. Edits and loads while running follow these rules:
 
 - A co-mute or matrix element for input **i** is accepted only on **i**'s tick. A faster input cannot accept a slower input's pending edit.
 - A row accepts its RHS table and output target on a tick from any input that is non-muted in either its accepted or requested matrix. The row then recomputes its active-input count, high count, and output. Accumulator interval changes are accepted whenever LameJuis processes.

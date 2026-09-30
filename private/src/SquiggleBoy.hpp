@@ -1085,7 +1085,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             }
         };
 
-        std::atomic<VisualDisplayMode> m_visualDisplayMode;
+        std::atomic<VisualDisplayMode> m_visualDisplayMode = VisualDisplayMode::Voice;
         std::atomic<StreamingRecorder::State> m_recordingState = StreamingRecorder::State::Idle;
         std::atomic<StreamingRecorder::Error> m_recordingError = StreamingRecorder::Error::None;
 
@@ -1104,7 +1104,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         GangedRandomLFOUIState<4> m_quadGangedRandomLFOUIState[x_numGangedRandomLFOs];
         GangedRandomLFOUIState<1> m_globalGangedRandomLFOUIState[2];
 
-        std::atomic<size_t> m_activeTrack;
+        std::atomic<size_t> m_activeTrack = 0;
 
         VoiceFilterUIState m_voiceFilterUIState[x_numVoices];
         VoiceSourceUIState m_voiceSourceUIState[x_numVoices];

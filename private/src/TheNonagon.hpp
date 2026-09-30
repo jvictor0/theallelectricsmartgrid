@@ -153,6 +153,7 @@ struct TheNonagonInternal
 
     void SetLameJuisInput(Input& input)
     {
+        input.m_lameJuisInput.m_running = input.m_running;
         for (size_t i = 0; i < x_numTimeBits; ++i)
         {
             input.m_lameJuisInput.m_inputBitInput[i].m_value = m_theoryOfTime.GetLoop(i, 0).m_gate;
@@ -321,7 +322,7 @@ struct TheNonagonInternal
             m_noteWriter.RecordStartIndex();
         }
 
-        if (m_theoryOfTime.AnyChangeInMicroBlock())
+        if (!input.m_running || m_theoryOfTime.AnyChangeInMicroBlock())
         {
             SetIndexArpInputs(input);
             m_indexArp.Process(input.m_arpInput);

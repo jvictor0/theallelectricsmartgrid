@@ -61,6 +61,7 @@ struct LameJuisInternal
 
         struct Input
         {
+            bool m_running = false;
             bool m_rhs[x_numInputs + 1];
             SwitchVal m_switch;
             MatrixSwitch m_elements[x_numInputs];
@@ -181,12 +182,12 @@ struct LameJuisInternal
 
         void Process(Input& input)
         {
-            bool anyEffect = false;
+            bool anyEffect = !input.m_running;
             bool switchChange = false;
 
             for (size_t i = 0; i < x_numInputs; ++i)
             {
-                if (m_owner->m_inputs[i].m_ticked &&
+                if ((!input.m_running || m_owner->m_inputs[i].m_ticked) &&
                     (m_elements[i] != MatrixSwitch::Muted ||
                      input.m_elements[i] != MatrixSwitch::Muted))
                 {
@@ -485,6 +486,7 @@ struct LameJuisInternal
         {
             struct Input
             {
+                bool m_running = false;
                 bool m_coMutes[x_numInputs];
                 
                 Input()
@@ -523,7 +525,7 @@ struct LameJuisInternal
                 for (size_t i = 0; i < x_numInputs; ++i)
                 {
                     if (m_coMutes[i] != input.m_coMutes[i] &&
-                        m_owner->m_owner->m_inputs[i].m_ticked)
+                        (!input.m_running || m_owner->m_owner->m_inputs[i].m_ticked))
                     {
                         m_coMutes[i] = input.m_coMutes[i];
                         m_owner->m_gridSheafView.SetLens(GetLens());
@@ -701,6 +703,7 @@ struct LameJuisInternal
     
     struct Input
     {        
+        bool m_running = false;
         InputBit::Input m_inputBitInput[x_numInputs];
         LogicOperation::Input m_operationInput[x_numOperations];
         Accumulator::Input m_accumulatorInput[x_numAccumulators];
@@ -749,6 +752,7 @@ struct LameJuisInternal
 
         for (size_t i = 0; i < x_numOperations; ++i)
         {
+            input.m_operationInput[i].m_running = input.m_running;
             m_operations[i].Process(input.m_operationInput[i]);
         }
 
@@ -761,6 +765,7 @@ struct LameJuisInternal
 
         for (size_t i = 0; i < x_numLanes; ++i)
         {
+            input.m_laneInput[i].m_coMuteInput.m_running = input.m_running;
             m_lanes[i].Process(input.m_laneInput[i]);
         }
     }

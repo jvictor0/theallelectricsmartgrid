@@ -196,13 +196,13 @@ struct TheNonagonSquiggleBoyInternal
             SetBlendFactor(static_cast<float>(blendJ.NumberValue()));
         }
 
+        m_stateSaver.SetFromJSON(rootJ.Get("stateSaver"));
+
         JSON nonagonJ = rootJ.Get("nonagon");
         if (!nonagonJ.IsNull())
         {
             m_nonagon.FromJSON(nonagonJ);
         }
-
-        m_stateSaver.SetFromJSON(rootJ.Get("stateSaver"));
 
         JSON configGridJ = rootJ.Get("configGrid");
         if (!configGridJ.IsNull())
@@ -222,7 +222,7 @@ struct TheNonagonSquiggleBoyInternal
         }
 
         m_configGrid.PropagateSourceSelection();
-        m_squiggleBoy.UpdateEncodersForMachine();
+        m_squiggleBoy.SetTrack(static_cast<size_t>(m_activeTrio));
     }
 
     void CopyToScene(int scene)
@@ -244,6 +244,7 @@ struct TheNonagonSquiggleBoyInternal
         {
             m_stateSaver.RevertToDefaultAllScenes();
             m_configGrid.RevertToDefault();
+            m_squiggleBoy.SetTrack(static_cast<size_t>(m_activeTrio));
         }
     }
 
@@ -581,7 +582,7 @@ struct TheNonagonSquiggleBoyInternal
         , m_activeTrioState(nullptr)
         , m_squiggleBoy(&m_context, &m_stateSaver)
         , m_nonagon(false, &m_context)
-        , m_activeTrio(TheNonagonSmartGrid::Trio::Fire)
+        , m_activeTrio(TheNonagonSmartGrid::Trio::Water)
         , m_timer(0)
         , m_clockMode(ClockMode::Internal)
         , m_clockTick(false)

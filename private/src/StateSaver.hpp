@@ -108,6 +108,8 @@ struct StateSaverTemp
                 s->SetFromJSON(val);
             }
         }
+
+        Process();
     }
 
     void SetBoundaries()
@@ -167,13 +169,13 @@ struct StateSaverTemp
         if (m_prevScene1 != sceneManager.m_scene1)
         {
             m_prevScene1 = sceneManager.m_scene1;
-            HandleBlendChanges(0, sceneManager.m_blendFactor);
+            HandleBlendChanges(1, sceneManager.m_blendFactor);
         }
 
         if (m_prevScene2 != sceneManager.m_scene2)
         {
             m_prevScene2 = sceneManager.m_scene2;
-            HandleBlendChanges(1, sceneManager.m_blendFactor);
+            HandleBlendChanges(0, sceneManager.m_blendFactor);
         }
 
         if (m_prevBlendFactor != sceneManager.m_blendFactor)
