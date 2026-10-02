@@ -24,6 +24,8 @@ Treat clean generated audio at the internal recording tap as established investi
 
 ## Read first
 
+- [October 1 mechanism synthesis](2026-10-01-mechanism-synthesis.md): ranked hypotheses for rare entry into a bad audio state followed by recurring bursts; separates timing/clock/buffer trouble from the WRLD endpoint failure introduced during upstream recovery. Includes hub topology, evidence limits and the missing narrow recovery test.
+
 - [October 1 periodic corruption and driver timing](2026-10-01-periodic-glitches-and-driver-timing.md): first audible recovery without a recorded USB audio restart; timing discrepancy keeps rising, later short bursts recur, and Maya input underflows appear during diagnostic collection. Clean DSP generation remains established. Artifacts are local, with paths recorded in the entry.
 
 - [September 28 evening recurrence before deployment](2026-09-28-evening-recurrence-before-deployment.md): approximately 37 minutes of streaming without the fault signature, followed by background/StopIO, sleep, USB 3 resume trouble, and Maya empty transfers at system-sound startup. Installation follows over three minutes later. Maya, WRLD and USB2-hub session IDs remain unchanged from the earlier working state; full sysdiagnose preserved without recovery intervention.
