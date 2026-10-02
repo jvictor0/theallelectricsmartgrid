@@ -1,6 +1,6 @@
 # iPad / MAYA44 audio investigation
 
-Living experiment notebook, updated September 28, 2026. The latest [evening recurrence](2026-09-28-evening-recurrence-before-deployment.md) shows Maya's USB fault beginning after sleep/wake, more than three minutes before the app installation the user associated with it. A new failed-state sysdiagnose is saved; no recovery was attempted while the user was AFK. The [earlier silent-Maya / WRLD.BLDR recovery investigation](2026-09-28-silent-maya-usb-reset-recovery.md) includes September 24/27 context, failed media-service/app resets, and successful physical recovery before this recurrence. No permanent fix is established. These are separate symptom records from the earlier sporadic interruptions and periodic blanking below. No capture or new experiment remains active.
+Living experiment notebook, updated October 1, 2026. The latest [periodic-glitch recurrence](2026-10-01-periodic-glitches-and-driver-timing.md) returns to the original periodic corruption: spontaneous recovery around 20:35, further bursts at 20:39, 20:42 and 20:47, growing driver timing discrepancy and later input underflows. The [September 28 evening recurrence](2026-09-28-evening-recurrence-before-deployment.md) and [earlier silent-Maya / WRLD.BLDR recovery investigation](2026-09-28-silent-maya-usb-reset-recovery.md) document the separate persistent-silence/USB-reset problem. No permanent fix is established.
 
 **The earlier sporadic interruptions and periodic blanking remain unresolved in the recorded JUCE 8.0.2 and 8.0.15 comparisons.** The [completed upgrade comparison](2026-09-10-juce815-comparison.md) reproduced matched USB-restart interruptions and sustained periodic blanking at nominal iPad thermal state. See the [ordered experiment queue](next-experiments.md) and the new [hub power/heat hypothesis](2026-09-10-hub-power.md).
 
@@ -23,6 +23,8 @@ Treat clean generated audio at the internal recording tap as established investi
 [Updated thermal-mechanism interpretation after native tracing](2026-09-10-thermal-mechanisms-after-native-trace.md) separates power-demand and host-timing hypotheses from the now-weakened app CPU-starvation explanation.
 
 ## Read first
+
+- [October 1 periodic corruption and driver timing](2026-10-01-periodic-glitches-and-driver-timing.md): first audible recovery without a recorded USB audio restart; timing discrepancy keeps rising, later short bursts recur, and Maya input underflows appear during diagnostic collection. Clean DSP generation remains established. Artifacts are local, with paths recorded in the entry.
 
 - [September 28 evening recurrence before deployment](2026-09-28-evening-recurrence-before-deployment.md): approximately 37 minutes of streaming without the fault signature, followed by background/StopIO, sleep, USB 3 resume trouble, and Maya empty transfers at system-sound startup. Installation follows over three minutes later. Maya, WRLD and USB2-hub session IDs remain unchanged from the earlier working state; full sysdiagnose preserved without recovery intervention.
 
