@@ -1,5 +1,26 @@
 # Next experiments: iPad / MAYA44 audio
 
+## October 2 priority: periodic corruption during a performance
+
+The user identifies periodic corruption as the primary problem because it can begin during a set. Persistent silence and one-way MIDI failure have been startup/between-session problems in their observations, not mid-set reproductions. Investigate these separately; do not make completion of the startup-reset tree a prerequisite for the periodic investigation. The original periodic symptom can be absent for weeks, then recur every few minutes within one episode. Brief clean substitutions cannot establish prevention.
+
+**Next practical periodic experiment, proposed only:** use an active recurring episode during rehearsal as a temporary reproduction window. Record Maya's physical analog output through an independent recording path, retain the existing 48 kHz/512-frame settings, and time at least two bursts before changing anything. The external recording measures burst timing and waveform; it does not repeat the established clean-DSP check. Mark collection activity and keep heavy sysdiagnose generation outside the measured window.
+
+Force-quit/reopen SmartGrid once, keeping all USB cables and power unchanged. Verify actual audio-driver StopIO/StartIO and unchanged USB device session identities; an app transport pause is not necessarily a driver-stream reset. If the driver never stops, label the intervention an app restart rather than a verified stream restart. Observe several previous inter-burst intervals afterward (roughly 15–20 minutes for the October 1 cadence), extending if recurrence timing warrants it. That window tests an ongoing cluster, not weeks-long prevention.
+
+- If bursts continue across the verified stream restart, test Maya's own USB reconnect next, while retaining the other connections. This tests whether resetting its USB connection achieves something stream reinitialization did not.
+- If bursts stop, or recur with a new onset delay after the stream restart, retain the timing/driver evidence and repeat the same intervention on another active cluster before attributing recovery to it. Spontaneous recovery is already established. A repeatable response would prioritize stream initialization, timeline and buffering state; stream restart may also reprogram the device, so it does not uniquely blame app or host software.
+- If the restart produces persistent silence, record a separate startup failure; do not count that as a clean periodic trial.
+
+If these comparisons remain ambiguous, the missing boundary measurement is synchronized USB packet contents/timing and analog output. Ordinary Wi-Fi logs and existing kernel traces are not raw USB packet captures. A protocol analyzer would require suitable external hardware and capture/storage setup; none is installed or started by this proposal. Neither more DSP checks nor recurring disruptive resets constitute a performance fix.
+
+**Secondary startup tree, after the Maya-only reconnect test:**
+
+- If Maya-only reconnect succeeds, the next narrow distinction is data reconnection versus loss of Maya power: reset/reconnect only its data connection while maintaining and verifying its supply. Success would show a power cycle is unnecessary; failure followed by ordinary cable-reconnect success would implicate state cleared by the fuller reset, without uniquely identifying its owner. This requires controlled USB test hardware or a verified equivalent. No such per-device power-preserving reset has been demonstrated through the current iPad tools, so do not promise it as an available Wi-Fi command.
+- If Maya-only reconnect fails but the upstream reconnect succeeds, prioritize a different-hub comparison under matched startup/sleep/wake conditions. Require positive failures with the original hub around the comparison; a clean replacement session with no reproducing original baseline is inconclusive. A failure on the replacement means the original physical hub is not necessary for that symptom. Repeated failure only with the original hub would support a hub/topology interaction, not automatically a defective unit.
+
+All interventions above remain proposals. No deployment, hardware change, capture or background monitor was started by this update.
+
 ## September 28 update: silent USB audio and one-way MIDI recovery
 
 [Completed investigation and evidence](2026-09-28-silent-maya-usb-reset-recovery.md). This adds a separate silent/enumerated-device failure to the older dropout/periodic-blanking queue below. Both Maya audio and WRLD.BLDR feedback were restored by the end. No new experiment is active; no app, firmware or logging profile was deployed.
