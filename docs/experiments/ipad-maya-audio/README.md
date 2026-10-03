@@ -24,6 +24,8 @@ Treat clean generated audio at the internal recording tap as established investi
 
 ## Read first
 
+- [October 3 startup silence and PD power topology](2026-10-03-startup-silence-and-pd-power.md): Maya empty transfers begin at system-sound startup before SmartGrid launches. Charger cycles leave USB connected; upstream reconnect ends the signature but starts WRLD OUT stalls. User still reports silence, including on speakers, so recovery is not established. Includes the identified Satechi hub, limits of power-role control, local artifact paths and an explicitly incomplete sysdiagnose.
+
 - [October 1 mechanism synthesis](2026-10-01-mechanism-synthesis.md): ranked hypotheses for rare entry into a bad audio state followed by recurring bursts; separates timing/clock/buffer trouble from the WRLD endpoint failure introduced during upstream recovery. Includes hub topology, evidence limits and the missing narrow recovery test.
 
 - [October 1 periodic corruption and driver timing](2026-10-01-periodic-glitches-and-driver-timing.md): first audible recovery without a recorded USB audio restart; timing discrepancy keeps rising, later short bursts recur, and Maya input underflows appear during diagnostic collection. Clean DSP generation remains established. Artifacts are local, with paths recorded in the entry.
