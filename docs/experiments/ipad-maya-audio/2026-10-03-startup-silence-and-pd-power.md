@@ -59,6 +59,37 @@ The 44.1 kHz system-sound start is worth retaining, but it is not a necessary pr
 
 ## Power topology and the user's proposed restriction
 
+### Later clarification: an upstream cable and coupler are present
+
+The user subsequently confirmed that the **currently failing setup** uses
+`iPad → USB-C male-to-male cable → female-to-female coupler → hub's captive plug`,
+rather than plugging the hub directly into the iPad. Coupler model, cable model,
+length and the date this arrangement was introduced are not yet supplied. Do
+not assume every earlier journal run used it. USB enumeration does not reveal
+these passive components, so prior “iPad-to-hub cable” descriptions do not
+establish a direct physical connection.
+
+A suitably wired coupler can work in a fixed orientation. Orientation alone,
+however, does not validate the entire extended connection: extra cable and
+contacts affect signal quality and power-path resistance, and USB-C's CC/VCONN
+connections must remain correct. CC handles attachment, orientation and PD
+communication; charging or enumeration alone is not an end-to-end reliability
+test. [Infineon CC explanation](https://community.infineon.com/t5/Knowledge-Base-Articles/FAQs-on-CCGX-EZ-PD-CCGx-Product-USB-Type-C-Cables-EMCA/ta-p/247747),
+[TI signal-integrity discussion](https://www.ti.com/document-viewer/lit/html/SSZTAQ5/GUID-1C471AB6-06C8-4439-9206-831A76936EE4).
+
+This is an additional candidate to isolate, not an established fault. A direct
+hub-to-iPad comparison should keep the charger and downstream devices/cables
+unchanged. **Immediate recovery after removing the extension is ambiguous:**
+it also reconnects/resets the upstream USB path, which has previously restored
+Maya without changing the cable arrangement. Compare repeated matched
+idle/sleep/wake trials with the original arrangement and the direct connection.
+For rare periodic corruption, record exposure and recurrence; a short clean
+direct run cannot prove elimination. USB3 signal issues alone would not
+establish the cause of Maya's USB2 audio failures. No physical change or trial
+was performed by this journal update.
+
+### Power sources
+
 USB data-host role and power direction are separate: a host can receive power while controlling peripherals. [USB-IF's PD overview](https://www.usb.org/usb-charger-pd) explicitly describes reversible power direction and powered hubs supplying their host. [Satechi's product specification](https://satechi.com/products/4-port-usb-c-hub-with-pd) lists up to 100 W PD input and 75 W host output. These are ratings, not measured consumption.
 
 | Connections | Expected power flow, based on the product function and user observations |

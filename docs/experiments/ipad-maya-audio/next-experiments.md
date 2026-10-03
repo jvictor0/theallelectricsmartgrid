@@ -1,5 +1,11 @@
 # Next experiments: iPad / MAYA44 audio
 
+## October 3 topology clarification: upstream extension and coupler
+
+The user confirms the current failing rig includes an extra USB-C male-to-male cable and female-to-female coupler between iPad and the hub's captive plug. Model/length and its presence in older trials remain unknown. See the [recorded topology and limitations](2026-10-03-startup-silence-and-pd-power.md#later-clarification-an-upstream-cable-and-coupler-are-present).
+
+A direct hub-to-iPad connection is now a useful baseline for the sleep/wake comparison below, holding charger and downstream connections fixed. Removal necessarily resets the upstream USB connection, so immediate recovery cannot distinguish extension removal from the already-known reconnect recovery. Compare repeated original/direct trials; keep the separate rare periodic symptom and its exposure times in view. This does not establish a cable/coupler diagnosis or initiate a hardware change.
+
 ## October 3 update: MIDI resolved; Maya sleep/wake comparison
 
 [WRLD one-way MIDI is fixed in firmware](2026-10-03-wrld-usb-reset-firmware-defect.md#resolution-update), deployed and reported working by the user. Remove it from the open root-cause queue; its reset defect does not establish a common cause with Maya. Earlier dated entries below retain their historical observations.
