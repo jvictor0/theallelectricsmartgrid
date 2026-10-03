@@ -407,7 +407,7 @@ DOCTEST_TEST_CASE("Melody: slice separators follow read gates and ignore co-mute
     DOCTEST_CHECK_FALSE(HasPixels(image, juce::Rectangle<int>(0, 235, 16, 5)));
 }
 
-DOCTEST_TEST_CASE("Melody: horizontal grid marks whole octaves inside fractional pitch bounds")
+DOCTEST_TEST_CASE("Melody: diminished grid ranks octaves above tritones and off minor thirds")
 {
     MelodyRig rig;
     rig.m_voiceOffset = 0;
@@ -420,17 +420,37 @@ DOCTEST_TEST_CASE("Melody: horizontal grid marks whole octaves inside fractional
 
     harmonic.m_voiceChooserState[0].m_strategy.store(Strategy::None);
     auto& arp = state.m_indexArpUIState.m_arpUIState[0];
-    arp.m_min.store(0.25f);
-    arp.m_max.store(2.25f);
-    juce::Image image(juce::Image::ARGB, 340, 500, true);
-    juce::Graphics graphics(image);
-    rig.m_visualizer.Draw(graphics, image.getBounds());
+    for (float offset : {0.0f, -3.0f})
+    {
+        DOCTEST_CAPTURE(offset);
+        arp.m_min.store(0.25f + offset);
+        arp.m_max.store(2.25f + offset);
+        juce::Image image(juce::Image::ARGB, 340, 500, true);
+        juce::Graphics graphics(image);
+        rig.m_visualizer.Draw(graphics, image.getBounds());
 
-    // The pitch plot spans y=8..404: whole octaves fall at y=255.5 and y=57.5.
-    //
-    DOCTEST_CHECK(image.getPixelAt(200, 255) != image.getPixelAt(200, 259));
-    DOCTEST_CHECK(image.getPixelAt(200, 57) != image.getPixelAt(200, 61));
-    DOCTEST_CHECK(image.getPixelAt(200, 206) == image.getPixelAt(200, 210));
+        // Sum adjacent pixels to compare line strength across subpixel positions.
+        // The plot spans y=8..404, with 198 pixels per octave.
+        //
+        auto LineStrength = [&](int row)
+        {
+            float strength = 0.0f;
+            for (int y = row - 1; y <= row + 1; ++y)
+            {
+                strength += image.getPixelAt(200, y).getBrightness();
+            }
+
+            return strength;
+        };
+
+        DOCTEST_CHECK(LineStrength(57) > LineStrength(156));
+        DOCTEST_CHECK(LineStrength(255) > LineStrength(354));
+        DOCTEST_CHECK(LineStrength(156) > LineStrength(107));
+        DOCTEST_CHECK(LineStrength(354) > LineStrength(305));
+        DOCTEST_CHECK(LineStrength(107) > LineStrength(111));
+        DOCTEST_CHECK(LineStrength(206) > LineStrength(210));
+        DOCTEST_CHECK(LineStrength(305) > LineStrength(309));
+    }
 }
 
 DOCTEST_TEST_CASE("Melody: motive identity follows held notes across rests and signed reset boundaries")
@@ -628,6 +648,41 @@ DOCTEST_TEST_CASE("Melody: period exactly 128 aligns and caches beyond the nomin
     CheckPeriodWindow(rig, -1, -128, 0);
 }
 
+DOCTEST_TEST_CASE("Melody: period exactly 256 fills every displayed voice at signed boundaries and seeks")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 16);
+    SetGateRhythm(rig, 4, {true, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false});
+    CheckPeriodWindow(rig, 255, 0, 256);
+    CheckPeriodWindow(rig, 256, 256, 512);
+    CheckPeriodWindow(rig, -1, -256, 0);
+    CheckPeriodWindow(rig, 0, 0, 256);
+    CheckPeriodWindow(rig, 512, 512, 768);
+    CheckPeriodWindow(rig, -512, -512, -256);
+
+    auto& state = rig.m_ui->m_nonagonUIState;
+    for (auto& muted : state.m_muted)
+    {
+        muted.store(true);
+    }
+
+    CheckPeriodWindow(rig, 1023, 768, 1024);
+    DOCTEST_CHECK(state.m_sequences[0].StartPosition() <= 768);
+    DOCTEST_CHECK(state.m_sequences[0].EndPosition() >= 1024);
+}
+
+DOCTEST_TEST_CASE("Melody: combined arp and gate periods between 128 and 256 remain visible")
+{
+    MelodyRig rig;
+    ConfigurePeriodRig(rig, 4);
+    SetGateRhythm(rig, 2, {true, false, false});
+    auto& state = rig.m_ui->m_nonagonUIState;
+    state.m_indexArpUIState.m_clockSelect[0].store(4);
+    state.m_indexArpUIState.m_arpUIState[0].m_rhythmLength.store(5);
+    CheckPeriodWindow(rig, 25, 0, 240);
+}
+
 DOCTEST_TEST_CASE("Melody: oversized arp is omitted before gate rhythm contributions")
 {
     MelodyRig rig;
@@ -646,20 +701,25 @@ DOCTEST_TEST_CASE("Melody: oversized gate rhythms are neglected in ascending loo
     SetGateRhythm(rig, 0, {true, false, false, false, false, false, false, false,
         false, false, false, false, false, false, false});
     SetGateRhythm(rig, 1, {true, false, false, false, false, false, false});
-    CheckPeriodWindow(rig, 25, 14, 28);
+    rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_periodTicks[1].store(8);
+    CheckPeriodWindow(rig, 25, 0, 56);
     auto& sequence = rig.m_ui->m_nonagonUIState.m_sequences[0];
     DOCTEST_CHECK((sequence.GetPoint(15).m_timeSlice.m_bits & 1) != 0);
     DOCTEST_CHECK((sequence.GetPoint(16).m_timeSlice.m_bits & 1) == 0);
 }
 
-DOCTEST_TEST_CASE("Melody: residual oversized clock periods scroll in centered 128 tick windows")
+DOCTEST_TEST_CASE("Melody: residual oversized clock periods scroll in centered 256 tick windows")
 {
     MelodyRig rig;
     ConfigurePeriodRig(rig, 1);
-    rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_periodTicks[0].store(129);
+    rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_periodTicks[0].store(257);
     SetGateRhythm(rig, 0, {true, false});
-    CheckPeriodWindow(rig, 9, -55, 73);
-    CheckPeriodWindow(rig, -9, -73, 55);
+    CheckPeriodWindow(rig, 9, -119, 137);
+    CheckPeriodWindow(rig, -9, -137, 119);
+    CheckPeriodWindow(rig, 0, -128, 128);
+    CheckPeriodWindow(rig, 256, 128, 384);
+    CheckPeriodWindow(rig, 257, 129, 385);
+    CheckPeriodWindow(rig, -1, -129, 127);
 }
 
 DOCTEST_TEST_CASE("Melody: a nonreference displayed page interval controls the trio arp repeat")
@@ -701,7 +761,7 @@ DOCTEST_TEST_CASE("Melody: huge constant gate clocks do not force scrolling")
     SetGateRhythm(rig, 0, {false, false, false});
     CheckPeriodWindow(rig, 9, 9, 10);
     SetGateRhythm(rig, 0, {true, false});
-    CheckPeriodWindow(rig, 9, -55, 73);
+    CheckPeriodWindow(rig, 9, -119, 137);
 }
 
 DOCTEST_TEST_CASE("Melody: huge effective gate resets preserve primitive periods without scanning the reset prefix")
@@ -756,11 +816,11 @@ DOCTEST_TEST_CASE("Melody: scrolling seeks fill the visible window despite overl
 {
     MelodyRig rig;
     ConfigurePeriodRig(rig, 1);
-    rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_periodTicks[0].store(129);
+    rig.m_ui->m_nonagonUIState.m_theoryOfTimeUIState.m_periodTicks[0].store(257);
     SetGateRhythm(rig, 0, {true, false});
-    CheckPeriodWindow(rig, 0, -64, 64);
-    CheckPeriodWindow(rig, 200, 136, 264);
-    CheckPeriodWindow(rig, -200, -264, -136);
+    CheckPeriodWindow(rig, 0, -128, 128);
+    CheckPeriodWindow(rig, 400, 272, 528);
+    CheckPeriodWindow(rig, -400, -528, -272);
 }
 
 DOCTEST_TEST_CASE("Melody: aligned seeks fill the visible window despite overlapping cache buffers")

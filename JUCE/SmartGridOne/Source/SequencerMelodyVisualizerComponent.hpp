@@ -15,10 +15,10 @@
 struct SequencerMelodyVisualizerComponent : public SmartGridOneMainVisualizerComponent
 {
     static constexpr size_t x_voicesPerTrio = TheNonagonInternal::x_voicesPerTrio;
-    static constexpr int64_t x_maxSteps = 128;
+    static constexpr int64_t x_maxSteps = 256;
     static constexpr int64_t x_overBudget = x_maxSteps + 1;
-    static_assert(x_maxSteps <= TheNonagonUIState::Sequence::x_maxExtend,
-        "The visible window must fill in one cache update.");
+    static_assert(x_maxSteps <= TheNonagonUIState::Sequence::x_maxSize,
+        "The visible window must fit in the sequence cache.");
 
     struct PitchSlice
     {
@@ -257,6 +257,22 @@ struct SequencerMelodyVisualizerComponent : public SmartGridOneMainVisualizerCom
         return {position - x_maxSteps / 2, position + x_maxSteps / 2};
     }
 
+    void PrepareSequence(const Frame& frame, size_t voiceIndex, int64_t cachePeriod)
+    {
+        auto& state = m_uiState->m_nonagonUIState;
+        const auto& sequence = state.m_sequences[voiceIndex];
+        for (int64_t extended = 0; extended < x_maxSteps; extended += TheNonagonUIState::Sequence::x_maxExtend)
+        {
+            state.Process(frame.m_position, voiceIndex, cachePeriod);
+            if (sequence.StartPosition() <= frame.m_start && sequence.EndPosition() >= frame.m_end)
+            {
+                return;
+            }
+        }
+
+        assert(sequence.StartPosition() <= frame.m_start && sequence.EndPosition() >= frame.m_end);
+    }
+
     bool PrepareFrame(Frame& frame)
     {
         frame = {};
@@ -318,16 +334,20 @@ struct SequencerMelodyVisualizerComponent : public SmartGridOneMainVisualizerCom
         auto window = GetWindow(frame.m_position, viewPeriod);
         frame.m_start = window.first;
         frame.m_end = window.second;
-        state.PreProcess(frame.m_position, viewPeriod);
+        // Scrolling windows need a centered cache instead of a partial aligned cycle.
+        //
+        int64_t cachePeriod = viewPeriod <= x_maxSteps
+            ? viewPeriod : TheNonagonUIState::Sequence::x_maxSize + 1;
+        state.PreProcess(frame.m_position, cachePeriod);
         for (size_t index = 0; index < frame.m_numVoices; ++index)
         {
-            state.Process(frame.m_position, frame.m_voices[index], viewPeriod);
+            PrepareSequence(frame, frame.m_voices[index], cachePeriod);
         }
 
         if (std::find(frame.m_voices.begin(), frame.m_voices.begin() + frame.m_numVoices,
                 frame.m_referenceVoice) == frame.m_voices.begin() + frame.m_numVoices)
         {
-            state.Process(frame.m_position, frame.m_referenceVoice, viewPeriod);
+            PrepareSequence(frame, frame.m_referenceVoice, cachePeriod);
         }
 
         SetRanges(frame);
@@ -720,11 +740,18 @@ struct SequencerMelodyVisualizerComponent : public SmartGridOneMainVisualizerCom
         }
 
         auto rows = juce::Rectangle<float>(plot.getX(), plot.getBottom() + rowGap, plot.getWidth(), rowsHeight);
-        for (float pitch = std::ceil(frame.m_minPitch); pitch <= frame.m_maxPitch; pitch += 1.0f)
+        int firstDivision = static_cast<int>(std::ceil(frame.m_minPitch * 4.0f));
+        int lastDivision = static_cast<int>(std::floor(frame.m_maxPitch * 4.0f));
+        for (int division = firstDivision; division <= lastDivision; ++division)
         {
+            float pitch = static_cast<float>(division) * 0.25f;
             float y = PitchY(pitch, frame, plot);
-            g.setColour(juce::Colours::white.withAlpha(0.06f));
-            g.drawLine(plot.getX(), y, plot.getRight(), y, 0.5f);
+            bool octave = division % 4 == 0;
+            bool tritone = division % 2 == 0;
+            float alpha = octave ? 0.40f : tritone ? 0.25f : 0.15f;
+            float thickness = octave ? 1.25f : 1.0f;
+            g.setColour(juce::Colours::white.withAlpha(alpha));
+            g.drawLine(plot.getX(), y, plot.getRight(), y, thickness);
         }
 
         {
