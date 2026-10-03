@@ -1,5 +1,11 @@
 # Next experiments: iPad / MAYA44 audio
 
+## October 3 update: MIDI resolved; Maya sleep/wake comparison
+
+[WRLD one-way MIDI is fixed in firmware](2026-10-03-wrld-usb-reset-firmware-defect.md#resolution-update), deployed and reported working by the user. Remove it from the open root-cause queue; its reset defect does not establish a common cause with Maya. Earlier dated entries below retain their historical observations.
+
+The user clarified that the suspected idle state is screen locked/asleep, not full shutdown. The [dedicated-iPad note](2026-10-03-dedicated-ipad-and-sleep-wake.md) compares Apple's guidance with the September 28 and October 3 wake/startup failures. Proposed startup comparison: actual audio stop/start while awake versus stop/sleep/wake/start, holding USB and power fixed; continued real playback with the screen locked is an additional control if supported. Confirm driver I/O transitions and audible output. No settings or tests have been activated. The periodic-glitch investigation below remains the priority when that symptom is present.
+
 ## October 2 priority: periodic corruption during a performance
 
 The user identifies periodic corruption as the primary problem because it can begin during a set. Persistent silence and one-way MIDI failure have been startup/between-session problems in their observations, not mid-set reproductions. Investigate these separately; do not make completion of the startup-reset tree a prerequisite for the periodic investigation. The original periodic symptom can be absent for weeks, then recur every few minutes within one episode. Brief clean substitutions cannot establish prevention.

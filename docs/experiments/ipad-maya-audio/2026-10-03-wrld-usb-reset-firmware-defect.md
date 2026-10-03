@@ -1,5 +1,39 @@
 # October 3: WRLD one-way MIDI and a USB-reset firmware defect
 
+## Resolution update
+
+**Resolved in firmware; the user reports successful hardware behavior after
+deployment.** The YTX task implemented the repair in commit
+`46e47e79e678adfe6e6cca06df871c9db8fd1803`, followed by deployment documentation
+in `3cc49d6`. These commits were landed and pushed to the repository's `joyo` branch; the task verified that its fresh build matches the deployed image. The user
+approved deployment, reported “works nice land it” in the implementation task,
+and confirmed here that the MIDI problem is fixed. Exact reconnect-cycle
+counts and a post-fix iPad system capture were not supplied; do not describe
+this as an extended instrumented hardware trial.
+
+The receive handler now resets/rearms its existing buffers and endpoint on
+configuration, restores DATA0, and protects reads against reset interrupts.
+A related MIDIUSB stale-read case was also corrected. Seventeen USB regression
+cases and three existing encoder checks passed; the firmware built using the
+modified repository core. MAIN-only deployment acknowledged all 870 blocks,
+and the controller answered a MIDI handshake and version request afterward.
+AUX firmware was unchanged. See the [implementation record](https://github.com/jvictor0/ytx-controller/blob/3cc49d6/docs/usb-midi-reset.md).
+
+Deployed MAIN image SHA-256:
+`96579c17b96c7b5bc6e61fc162d8d642799a3d3256406a2ee631c73fee8ddb53`.
+Local build/deployment artifacts remain at `/private/tmp/wrld-usb-reset-build/`,
+including `final-output/ytx-main-controller.ino.app.bin` and
+`deployment-receipt.json`. Bootloader acknowledgements and post-restart replies
+were verified; flash readback was not performed.
+
+The MIDI failure has its own identified cause: powered USB reconnection exposed
+a WRLD firmware defect. Its appearance after Maya recovery was not evidence
+that the two devices shared an underlying fault. Maya audio remains the open
+investigation, with startup silence and periodic corruption retained as separate
+observations until their relationship is established.
+
+The remaining sections record the investigation before the repair and deployment.
+
 ## Finding and confidence
 
 The user reports a reliable reproduction: start with working bidirectional MIDI,
@@ -11,9 +45,9 @@ feedback; restarting SmartGrid did not.
 **A concrete receive-endpoint reinitialization defect was found in the YTX
 firmware source and reproduced using that source in a local register model.**
 The locally saved firmware ELF contains the same defective branch. It is a
-strong causal candidate for this hardware symptom, but the firmware actually
-flashed on WRLD has not been identified byte-for-byte and no corrected firmware
-has been tried on the controller yet. The current hardware state was preserved.
+strong causal candidate at this stage; the original firmware actually flashed
+on WRLD was not identified byte-for-byte. The failed hardware state was preserved
+during the initial investigation. See the later resolution update above.
 
 This finding concerns one-way WRLD MIDI. It does not establish a cause or fix
 for Maya's periodic audio corruption or startup silence.
@@ -125,14 +159,15 @@ hashes for both inspected files:
 - `USBCore.cpp`: `2f6355abd4480f1beb8aa9a15d7b8da3d8b3209dcec1e4bb75e3ab04d05830d5`
 - `SAMD21_USBDevice.h`: `41796c2335c2f86b28ac2669c7e11668a0bbe65bb64ac7e42474cb6632912779`
 
-## Implementation handoff and decisive test
+## Initial implementation handoff and proposed physical test
 
 The user authorized a new YTX task to fix the identified firmware defect:
 [Fix WRLD MIDI receive after USB reconnect](codex://threads/01a10308-37e1-75e1-8f5d-e6e714de83e1).
 It was started with the source findings, local reproduction, artifact paths,
 evidence limits, and instructions to implement/test in an isolated managed
 worktree. No firmware flashing, app restart, or hardware reset was authorized
-as part of that task.
+as part of the initial task. The user later approved deployment separately and
+reported success, as recorded above.
 
 The decisive physical validation is a separately approved corrected-firmware
 trial: verify working bidirectional MIDI, keep the hub/WRLD powered, repeatedly
