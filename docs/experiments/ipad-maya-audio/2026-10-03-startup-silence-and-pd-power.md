@@ -64,8 +64,13 @@ The 44.1 kHz system-sound start is worth retaining, but it is not a necessary pr
 The user subsequently confirmed that the **currently failing setup** uses
 `iPad → USB-C male-to-male cable → female-to-female coupler → hub's captive plug`,
 rather than plugging the hub directly into the iPad. Coupler model, cable model,
-length and the date this arrangement was introduced are not yet supplied. Do
-not assume every earlier journal run used it. USB enumeration does not reveal
+exact length and the date this arrangement was introduced are not yet supplied.
+The user describes the added arrangement as very short/small, reports stable
+operation apart from the investigated faults, and says the reverse orientation
+does not work. They marked the working orientation and consistently use it.
+This reduces concern about accidental orientation changes; it does not measure
+the assembled link's electrical behavior. Do not assume every earlier journal
+run used it. USB enumeration does not reveal
 these passive components, so prior “iPad-to-hub cable” descriptions do not
 establish a direct physical connection.
 
