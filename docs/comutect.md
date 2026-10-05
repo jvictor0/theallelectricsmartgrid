@@ -17,39 +17,55 @@ Buckle up kiddos.
 
 Let 
 
-$$I \eq \{0,1\}$$
+```math
+I = \{0,1\}
+```
 
-be the set of bools, and $\mathbb{P}$ be the space of pitches (if you'd like $\mathbb{Q}^+$ or $\log{\mathbb{Q}^+}$, it doesn't matter).  Then we can consider LaMeJuIS's switches and intervals to define a function
+be the set of bools, and $`\mathbb{P}`$ be the space of pitches (if you'd like $`\mathbb{Q}^+`$ or $`\log{\mathbb{Q}^+}`$, it doesn't matter).  Then we can consider LaMeJuIS's switches and intervals to define a function
 
-$$F_M : I^6 \to \mathbb{P}$$
+```math
+F_M : I^6 \to \mathbb{P}
+```
 
-The subscript $M$ here just reminds us the function depends on the matrix of logic switches and knobs and intervals and all that, but not the co-mutes and percentiles.  Before we go to co-muting, lets describe muting in this language.  Suppose we want to mute the second and fourth input.  Define
+The subscript $`M`$ here just reminds us the function depends on the matrix of logic switches and knobs and intervals and all that, but not the co-mutes and percentiles.  Before we go to co-muting, lets describe muting in this language.  Suppose we want to mute the second and fourth input.  Define
 
-$$\iota_{2,4} : I^4 \sim I\times \{0,\}\times I\times \{0,\}\times I\times I \to I^6$$
+```math
+\iota_{2,4} : I^4 \sim I\times \{0,\}\times I\times \{0,\}\times I\times I \to I^6
+```
 
-to be the inclusion.  Then to mute inputs 2 and 4, simply compute the pullback $i^*F_M:I^4\to\mathbb{P}$.  All I've done is used way to fancy language to describe a simple idea. But it highlights something: although this is musically useful, it uses a non-canonical map, which makes category theory nerds anxious.  It can also be accomplished with an external muting module.
+to be the inclusion.  Then to mute inputs 2 and 4, simply compute the pullback $`i^*F_M:I^4\to\mathbb{P}`$.  All I've done is used way to fancy language to describe a simple idea. But it highlights something: although this is musically useful, it uses a non-canonical map, which makes category theory nerds anxious.  It can also be accomplished with an external muting module.
 
-To see co-muting, first let $A$ denote the product of the non-co-muted inputs and $B$ the product of the comuted inputs, so we have
+To see co-muting, first let $`A`$ denote the product of the non-co-muted inputs and $`B`$ the product of the comuted inputs, so we have
 
-$$A\times B \sim I^6$$
+```math
+A\times B \sim I^6
+```
 
 (note we may have to re-order inputs in the product, as the comuted inputs need not be contiguous).  So we have
 
-$$F_M:A\times B \to \mathbb{P}$$
+```math
+F_M:A\times B \to \mathbb{P}
+```
 
-Using the good ol [tensor-hom adjoint](https://en.wikipedia.org/wiki/Tensor-hom_adjunction) (also known as [currying](https://en.wikipedia.org/wiki/Currying)), we can partially apply $F_M$ to $A$ to see it as a map
+Using the good ol [tensor-hom adjoint](https://en.wikipedia.org/wiki/Tensor-hom_adjunction) (also known as [currying](https://en.wikipedia.org/wiki/Currying)), we can partially apply $`F_M`$ to $`A`$ to see it as a map
 
-$$\tilde{F_M} : A \to \operatorname{Func}(B, \mathbb{P})$$
+```math
+\tilde{F_M} : A \to \mathrm{Func}(B, \mathbb{P})
+```
 
-That is, "fix the non-co-muted inputs to get a function from the co-muted inputs to $\mathbb{P}$".  But by considering the image of $B$ in $\mathbb{P}$ (as a finite multiset), we get a function
+That is, "fix the non-co-muted inputs to get a function from the co-muted inputs to $`\mathbb{P}`$".  But by considering the image of $`B`$ in $`\mathbb{P}`$ (as a finite multiset), we get a function
 
-$$\operatorname{Func}(B, \mathbb{P}) \to \operatorname{multiset}\(\mathbb{P}\)$$
+```math
+\mathrm{Func}(B, \mathbb{P}) \to \mathrm{multiset}(\mathbb{P})
+```
 
-which finally can map to $\mathbb{P}$ by taking the nth percentile.  Putting it all together,
+which finally can map to $`\mathbb{P}`$ by taking the nth percentile.  Putting it all together,
 
-$$A \to^{\tilde{F}_M} \operatorname{Func}(B, \mathbb{P})\to \operatorname{multiset}\(\mathbb{P}\)\to^{\operatorname{percentile}} \mathbb{P}$$
+```math
+A \to^{\tilde{F}_M} \mathrm{Func}(B, \mathbb{P})\to \mathrm{multiset}(\mathbb{P})\to^{\mathrm{percentile}} \mathbb{P}
+```
 
-Remembering that $A$ is a product of some of the inputs, this is again a function mapping some of the inputs to pitch.  The values of $B$, the co-muted inputs, don't matter, but their effect on $F_M$ still do.  This is a lot of math, but it turns out it sounds better than I could have hoped, while giving you a very natural parameter (the percentile) to sequence.
+Remembering that $`A`$ is a product of some of the inputs, this is again a function mapping some of the inputs to pitch.  The values of $`B`$, the co-muted inputs, don't matter, but their effect on $`F_M`$ still do.  This is a lot of math, but it turns out it sounds better than I could have hoped, while giving you a very natural parameter (the percentile) to sequence.
 
 If you're into this, or you know about someone thinking about synthesizers in this way, hit me up.  A niche within a niche can get lonely.
 
