@@ -17,6 +17,12 @@ Let **M : I⁶ → pitch**. Here "pitch" is represented as **volt-per-octave** (
 - **Equivalence** — For **x**, **y** in I⁶, define **x ~_U y** iff **x** and **y** agree on the read bits. In code: `Lens::Equivalent(a,b)` is `(a.m_bits ^ b.m_bits) & m_bits == 0`.
 - **Harmonic Sheaf** — Define **F^M_x(U) = { M(y) | y ~_U x }**. So at time **x**, for a given lens U, we take all time slices equivalent to **x** under U and collect their M-values. This set is chosen statelessly from **x**; if **x** jumps (e.g. from time modulation), the set changes accordingly.
 
+For the relation between slices and available pitches, see
+[Harmonic incidence and Boolean geometry](harmonic-incidence.md). It defines the
+up/down Galois connection and its Boolean zero-locus interpretation.
+[Harmonic concepts and persistence](harmonic-persistence.md) develops formal
+concepts, Dowker filtrations, and persistent homology of that relation.
+
 ---
 
 ## 2. Trios and lens assignment

@@ -10,6 +10,8 @@ It interfaces with a custom MIDI controller.
 
 - **[Theory of Time](../theory-of-time.md)** — Global clock: absolute phase, six time loops, whole-cycle rhythm gates, and signed loop-cycle positions. Loop rhythm edits apply at the loop's next modulated tick.
 - **[LameJuis](../lamejuis.md)** — Esoteric sequencer: lens U, sheaf F^M_x(U), index arp, logic operations → M(x) in just intonation; one output per trio; stateless in time.
+  - **[Harmonic incidence and Boolean geometry](../harmonic-incidence.md)** — Slice–pitch relations, the up/down Galois connection, Boolean availability functions, and Stone-space zero loci.
+  - **[Harmonic concepts and persistence](../harmonic-persistence.md)** — Formal concepts, Dowker filtrations and their duality, and persistent homology barcodes.
 - **[Multi-Phasor Gate](../multi-phasor-gate.md)** — When the Nonagon emits a trigger per voice: trigger logic (pitch-changed / sub-trigger, mutes, interrupt) and phasor-based gate timing (50% duty per step).
 - **[Nonagon (sequencer)](../nonagon.md)** — Theory of Time, voice/arp logic ([LameJuis](../lamejuis.md)), [trigger decision](../multi-phasor-gate.md) (Multi-Phasor Gate), note writer, and related UI.
   - **[Sequencer UI State](../sequencer-ui-state.md)** — Published timebase, harmonic and arp snapshots, shared forward pitch queries, and bounded sequence caches.
