@@ -1,81 +1,122 @@
-# October 6: periodic glitches captured on K-Mix inputs 3/4
+# October 6: eight periodic corruption bursts captured on K-Mix inputs 3/4
 
-Initial findings recorded at approximately 16:42 PDT. Capture remains active at this checkpoint, with an intended end around 17:04:37 PDT. This is not a completed-run report.
+The first capture is complete and analyzed. **Eight sustained analog corruption bursts match the user's listening reports, including the coarse episode around 17:00.** Both channels show synchronized short cuts with timing near the configured 512-frame period. The evidence favors a downstream buffer/timing-alignment hypothesis but does not locate the failing component. Clean generated DSP remains established prior evidence; this experiment did not repeat that test. No reset, app restart, deployment, cable/power change or sysdiagnose was performed during that first capture. The user subsequently performed an upstream reconnect during the continuation, recorded below.
 
-The user reported intermittent periodic corruption, spontaneous recovery before the initial request, and further bursts at approximately **16:35**, **16:39**, **16:41**, and **16:42**. The first three lasted a few seconds; the user described 16:42 as possibly shorter. A proposed two-minute cycle remains untested. These are listening reports with minute-level timing. The user explicitly identified the periodic symptom, not persistent startup silence, and requested recording interface inputs 3/4.
+A separate 15-minute continuation began at **17:07:33 PDT** after another user report. It is still recording at this journal checkpoint and is expected to end around 17:22:33. Its completion and analysis must be checked separately. The main capture's completed status does not apply to the continuation.
 
-## Useful evidence so far
+## Captured events
 
-- The latest persisted SmartGrid log begins at 16:30:51. Its settled setup at 16:30:54 is Maya, 48 kHz, 512 frames, four inputs and four outputs. Through the initial snapshot's last record at 16:33:55, thermal state is nominal and MIDI submissions report no errors. The one initial audio timing record reports one processing overrun and no xruns, long gaps or format mutes. This is aggregate app evidence, not a per-callback trace or an analog quality measurement.
-- The first iPad archive retains actual events from **16:19:19.000 through 16:34:20.999 PDT**. Maya enumerates at 16:30:18.843; driver device object `0x376` and input transfer manager `0x390` are explicitly associated with Maya. The final recorded Maya StartIO in this archive is at 16:30:53. Subsequent reported `ioDriftNS` values increase, reaching 250,519,000 at 16:33:27.491. This private field is not a calibrated analog delay.
-- Maya input-transfer underflows occur at **16:32:58.580**, **16:34:11.371**, **16:34:11.443**, and **16:34:11.483**. They precede the archive request at 16:34:19. The initial filtered archive has no later StartIO/StopIO after the settled startup. The three retained transaction errors at 16:30:23 identify WRLD endpoint zero, not Maya; do not conflate those enumeration events with periodic audio corruption or the resolved WRLD firmware defect.
-- The external recording contains a clear corruption burst matching the user's **16:39** report. A spectrogram of SoX recording seconds 50–70 shows added broadband energy starting around recording second 53 and clearing around second 63. This corresponds approximately to **16:39:15–16:39:25 PDT**; launch/capture latency and the early recorder warning below prevent millisecond-accurate wall-clock attribution.
-- During recording seconds 54–60, both channels repeatedly approach silence together. A preliminary detector requiring both channels below -65 dBFS for at least 1 ms finds many short holes; the longest observed so far is about 7.42 ms. Many adjacent hole starts are approximately 10.67 ms apart, consistent with the configured 512-frame period at 48 kHz. This is waveform evidence of periodic partial blanking, not proof of the failing software or hardware component. Clean generated DSP remains established context.
-- The 16:41 and 16:42 reports are marked for analysis; it was not yet analyzed at this checkpoint. The recording and live logs continue. No audio reset, app restart, deployment, cable/power change or sysdiagnose was initiated by this capture.
+The user requested recording physical interface inputs 3/4 and explicitly identified periodic corruption rather than startup silence. The Mac's K-Mix receives Maya's analog output. The verified main recording contains **1,575 seconds**, stereo, 48 kHz, 24-bit. Recorder launch was **16:38:21.601 PDT** and successful exit was **17:04:36.975**.
 
-## Capture quality and limitations
+| Approximate local onset | Approximate recovery | Spectral duration | Seconds since preceding onset |
+| --- | --- | --- | --- |
+| 16:39:15 | 16:39:25 | 10.3 s | — |
+| 16:41:06 | 16:41:13 | 7.6 s | 111.0 |
+| 16:42:34 | 16:42:38 | 3.7 s | 88.2 |
+| 16:44:25 | 16:44:33 | 8.0 s | 110.7 |
+| 16:46:59 | 16:47:14 | 15.5 s | 153.9 |
+| 16:50:22 | 16:50:41 | 19.0 s | 203.3 |
+| 16:54:55 | 16:55:14 | 19.3 s | 273.0 |
+| 17:00:19 | 17:00:46 | 27.0 s | 323.8 |
 
-The first recorder used FFmpeg/AVFoundation on the Mac's K-Mix, selecting zero-based channels 2/3 as stereo, at 48 kHz/24-bit. It started around **16:34:37 PDT** and wrote one-minute wall-clock segments. Verification found only **53.152 seconds of PCM in the first nominal minute**, so this path cannot support precise timing or attribution of its discontinuities. Its files are preserved, including the interval containing the 16:35 listening report, but the recording defect must be considered when interpreting them.
+These are recorder launch plus sample offsets, rounded to seconds, **not calibrated wall-clock boundaries**. Recorder warnings below add alignment uncertainty. The user initially dictated `4:44:57-ish to 4:55:15`, then explicitly confirmed **16:54:57–16:55:15**. The eighth event was reported as “5:00-ish” and “really coarse.” Earlier reports included approximately 16:35, before the reliable recording began.
 
-A replacement using the previously employed SoX/CoreAudio path started at **16:38:21.601 PDT**, with K-Mix eight-channel input and explicit `remix 3 4` stereo output. It records the unchanged Mac interface at 48 kHz/24-bit. The first recorder was stopped at 16:38:57.442 after verifying the replacement. SoX sample duration tracked elapsed time: about 35.612 captured seconds versus 35.837 seconds since process launch, then 81.977 versus 82.193 seconds. SoX reports one discarded-buffer/overrun warning around recording second 12.15, during the overlap with FFmpeg, before the 16:39 burst. Preserve that limitation; there was no additional warning in the checked burst interval. This is not a claim of loss-free or calibrated sample-to-wall-clock alignment.
+The proposed fixed two-minute recurrence is not supported. Later onset intervals lengthen markedly, and later bursts also last longer. A changing relative clock/buffer phase could produce such behavior, but this time series alone does not prove that mechanism or a thermal cause.
 
-The active SoX WAV header contains a provisional duration until recording closes. Use actual available PCM bytes for interim analysis, and verify the final header/duration after completion.
+**Material change:** the spectral detector also flags intervals after approximately 17:02. The user confirmed starting to jam and changing the material then. Those are unclassified spectral candidates, not additional confirmed glitches. The machine-generated finalizer's `spectral_bursts` list is a detector output and includes those candidates; use the eight-event table above for the user-matched result.
 
-Filtered live iPad audio/USB logs began receiving device events at **16:36:09.678 PDT**, using the existing paired Wi-Fi connection and `OsTraceService.syslog` flags `0x184`. Device timestamps and host receipt timestamps are saved separately. Live capture ends at the same planned wall time or at a 128 MiB saved-data limit. It may omit events and impose load; absent messages do not establish absence of a fault. Initial historical collection overlaps the first recorder's startup, while the subsequent analog capture uses live logging rather than repeated heavyweight diagnostics.
+**Unrecorded follow-up:** the user reported another burst at **17:06:13–17:06:38**. This lies after the completed recording and before the continuation started; its waveform was not captured. Preserve the listening observation without presenting it as a measured analog interval.
+
+## What the waveform adds
+
+All eight matched episodes contain broadband disturbance and repeated short near-silence intervals in both channels. A 150 ms comparison from the first and eighth episodes visually shows aligned abrupt cuts and flat sections in both channels. Their similarity supports treating the coarse 17:00 episode as the same observed waveform phenomenon.
+
+The eighth episode lasts **27.0 seconds**, compared with 19.0 and 19.3 seconds for the preceding two. Its detector finds 310 stereo quiet runs of at least 1 ms; their maximum length is approximately **7.02 ms**, versus 7.42 ms in the first episode. Its greater total duration is established; the data do not show uniquely longer individual holes. The count depends on signal content and threshold and is not a count of USB errors, all inserted zero intervals, or a perceptual severity scale.
+
+There is evidence of block-related timing beyond selecting adjacent holes near an expected separation:
+
+- Fold **all detected quiet-run starts** within each second of the eighth episode against candidate periods from 450 to 600 samples, in 0.1-sample steps. Across 23 seconds with at least eight detections, mean circular coherence peaks near **512 samples** (0.810); comparison values are 0.237 at 480, 0.326 at 500, 0.772 at 511 and 0.769 at 513. The peak has finite width and does not establish an exact oscillator frequency. At nominal 48 kHz, 512 samples is 10.667 ms, matching the configured app buffer size.
+- In eighth-burst WAV seconds 1320–1325, the start-edge phase remains around sample 325–334 modulo 512 while median detected width grows from about **1.94 to 4.60 ms**. Later, during seconds 1336–1341, the end-edge phase is relatively stable near sample 499–510 while widths contract. The seventh episode has similar growth. These are threshold-derived edge measurements on musical material, not a native buffer trace.
+
+**Working interpretation:** repeated partial blanking tied to a buffer-scale period, with changing cut width, is compatible with two timing/buffer boundaries moving relative to one another. Candidate locations include the native output handoff, iOS USB audio buffering/clock handling, and the Maya side. It is stronger evidence for investigating downstream timing than for revisiting the synthesizer's sample generation. It does not establish which candidate is responsible, prove implicit feedback, or exclude the physical USB path as an initiating factor.
+
+## Underflows: positive evidence, unknown logging completeness
+
+The retained message is `AUAInputTransferManager_completeBlock USB underflow`, emitted by Apple's `usbaudiod` for Maya input transfer manager `0x390`. This describes the **Maya → iPad input path**, while the audible symptom is **iPad → Maya playback**. The negative numeric argument is undocumented in the sources found; do not label it frames, packets, milliseconds or an OSStatus code.
+
+The initial archive contains four earlier input-underflow messages at **16:32:58.580**, **16:34:11.371**, **16:34:11.443** and **16:34:11.483**, before the first capture request. The live stream then contains **612 additional messages** between device times **16:39:44.041 and 16:49:01.112**. The final historical archive contains **the same 612 numeric arguments in the same order**, with rendered wall times approximately 16:39:44.063–16:49:01.149. Do not add the live and historical counts together as separate incidents.
+
+**The user raised an important interpretation correction: repeated driver errors may be throttled.** Agreement between the live stream and historical archive makes loss confined to our live collector less likely, but both can share driver-side suppression or unified-logging loss. No explicit Maya-underflow suppression notice was found, and no public source for this private call site's throttle policy was established. Absence of a suppression notice is not evidence that suppression is absent.
+
+Therefore:
+
+- Recorded messages are positive evidence that the USB input driver reported underflow conditions.
+- Their count is a count of retained messages, not a validated count or rate of all underflows.
+- A gap in messages does **not** establish a healthy interval, disprove ongoing underflows, or weaken a possible common timing cause of input and output trouble.
+- The mismatch between logged-message times and audible bursts makes the message stream unsuitable as a complete audible-fault detector. It does not disprove underflow causality.
+
+The earlier live checkpoints noted later bursts after the last recorded underflow. **Withdraw any implication that the underlying underflows necessarily stopped at that timestamp. Only the retained messages stopped.** The waveform establishes the audible intervals independently.
+
+Apple's [USB audio design considerations](https://developer.apple.com/documentation/technotes/tn3190-usb-audio-device-design-considerations) describe clock/feedback arrangements that can couple input and output timing. Maya's actual feedback/clock arrangement is not established here; do not assert it uses implicit feedback.
+
+## Device state and archive coverage
+
+The initial archive retains events from **16:19:19.000 through 16:34:20.999 PDT**. Maya enumerates at 16:30:18.843; device object `0x376` and input transfer manager `0x390` are explicitly associated with it. The last recorded startup StartIO is at 16:30:53.965. The private `ioDriftNS` field increases to **250,519,000 at 16:33:27.491**, before the reliable analog capture. This is not a calibrated analog delay and is not available through the later measured bursts. Three transaction errors at 16:30:23 identify **WRLD endpoint zero**, not Maya; they are not evidence that the resolved WRLD firmware defect returned.
+
+Live audio/USB logging retains device events from **16:36:09.678 through 17:04:36.969**. It received 232,293 events and saved 2,912 matching records; the helper stopped at its deadline. The final historical archive retains **16:34:49.000 through 17:04:51.968**. It has no retained `StartIO`, `StopIO`, USB transaction-error or `ioDriftNS` message in the inspected audio/USB records. Treat these as coverage-qualified log observations, not guaranteed absence of the corresponding internal activity.
+
+The final SmartGrid log retains records through **17:04:10**. It continues reporting Maya at 48 kHz/512 frames, four inputs and four outputs, nominal thermal state, low-power mode off and no MIDI submission errors. Only the initial audio-timing record at 16:30:54 is present (one processing overrun, no xruns, long gaps or format mutes); no subsequent timing-counter change or app audio reopen is retained. This is aggregate evidence, not a per-callback trace. Periodic `Delay buffer wrap around` messages are not by themselves fault evidence.
+
+The finalizer completed successfully at **17:05:42.620**, including app/system captures, waveform analysis, closed-header verification and archive decoding. Its success concerns capture and analysis, not resolution of the Maya fault.
+
+## Capture quality and reproducible analysis
+
+The original FFmpeg/AVFoundation recorder began around **16:34:37** and wrote one-minute wall-clock files, but the first nominal minute contains only **53.152 seconds of PCM**. Those files remain preserved, including the 16:35 report, with unreliable timing/continuity. FFmpeg was stopped at 16:38:57.442 after verifying the SoX replacement.
+
+The main SoX/CoreAudio recording selects K-Mix physical channels using `-c 8 K-Mix ... remix 3 4`, at 48 kHz/24-bit. Its closed WAV header verifies 1,575 seconds and 453,600,080 bytes. SHA-256: `71e561e5573db2ca435573fd485857c50b8fb4716246997c27b202c2839aa185`.
+
+There are **five** Mac recorder discarded-buffer warnings at approximate recorded elapsed seconds **12.15, 322.75, 1184.57 (twice), and 1508.45**. All lie outside the eight matched burst intervals; the final warning is during the changed-material interval. The discarded durations are unknown, so this is not a globally lossless capture or a calibrated sample-to-wall-clock mapping. These Mac recording warnings are separate from iPad USB input underflows. User listening reports independently corroborate the sustained episodes.
+
+The spectral detector calculates 6–20 kHz RMS in each channel with 100 ms Hann-windowed FFTs, requires both channels above -80 dBFS, bridges gaps up to 0.5 seconds and retains intervals at least one second long. All eight matched events persist at thresholds from -85 to -75 dBFS, shifting boundaries by at most 0.2 seconds. Typical earlier background high-band RMS is about -104 dBFS. This criterion depends on the material, as the post-17:02 change demonstrates; it is not a universal glitch detector.
+
+Quiet-run detection requires both channels below -65 dBFS for at least 1 ms. It can miss inserted flat regions because of analog residuals and can include naturally quiet material. A bounded-memory, ten-second chunk implementation was verified identical to the original implementation over their shared first 377.3 seconds. Use actual PCM bytes for an active WAV; its provisional header duration is not valid until close.
 
 ## Artifacts on the Mac
 
-All raw data remains outside Git:
+Raw data and derived artifacts remain outside Git in:
 
-- Run directory: `/Users/joyo/Documents/SmartGridOne/diagnostics/20261006T233430Z-periodic-maya/`
-- Main ongoing recording: `sox-kmix-inputs-3-4.wav` in that directory. `sox-status.json` and `sox-recorder.log` retain its command, launch timing, process ID, warnings and eventual completion result.
-- Earlier limited-quality recordings: `kmix-inputs-3-4-20261006T*.wav`; `recorder.log` and `recorder-change.json` describe their capture and replacement.
-- User markers: `user-observations.jsonl`.
-- Live device evidence: `live-audio-usb.jsonl`, `live-status.json`, `live-collector.log`; helper source preserved as `maya-periodic-live-20261006.py`. Status counters are finalized when the helper exits, not continuously updated.
-- Spectrogram of the 16:39 burst: `sox-50-70s-spectrum.png`. Its horizontal axis is seconds within a 20-second excerpt starting at recording second 50, not wall-clock seconds.
-- Initial app snapshot: `/Users/joyo/Documents/SmartGridOne/diagnostics/20261006T233422.751006Z-app/2026-10-06T16-30-51-324.log`.
-- Initial system archive: `/Users/joyo/Documents/SmartGridOne/diagnostics/20261006T233419.377615Z-system.logarchive/`. Derived `system-all-before.txt` and `system-audio-before.txt` are in the run directory.
+`/Users/joyo/Documents/SmartGridOne/diagnostics/20261006T233430Z-periodic-maya/`
 
-Next analysis is to finish the bounded capture, validate recorder continuity and final WAV length, identify additional analog bursts, and correlate their intervals with the retained device logs. No recovery or permanent fix has been demonstrated.
+Key files:
 
-## 16:50 checkpoint: five measured bursts and their timing
+- `sox-kmix-inputs-3-4.wav`, `sox-status.json`, `sox-recorder.log`, `final-wav-validation.log`, `completed-capture-qualification.json`.
+- `analysis-final.json`, `analyze-maya-periodic-chunks-20261006.py`, `maya-burst-details.json`, `maya-period-coherence.json`, `summarize-maya-capture-20261006.py`.
+- `maya-waveform-comparison.png` compares first/eighth episodes; `sox-50-70s-spectrum.png` and `burst-1647-spectrum.png` show earlier spectra. Excerpt time axes are recording-relative, not wall-clock time.
+- `user-observations.jsonl` preserves reports and corrections.
+- `live-audio-usb.jsonl`, `live-status.json`, `live-collector.log`, `maya-periodic-live-20261006.py`.
+- `final-app/2026-10-06T16-30-51-324.log`, `final-system.logarchive/`, `final-system-audio.log`, `final-system-all.log`, `finalization-status.json`, `finalizer.log`, `finalize-maya-periodic-20261006.py`.
+- Earlier limited-quality `kmix-inputs-3-4-20261006T*.wav`, `recorder.log`, `recorder-change.json` and checkpoint analysis files remain for provenance.
+- Active continuation: `sox-continuation-1706.wav`, `sox-continuation-1706-status.json`, `sox-continuation-1706.log`, `maya-continuation-20261006.py`. The filename refers to the triggering report; actual launch was 17:07:33.108. Recording is bounded to 900 captured seconds. No continuation analysis or completion is claimed here.
 
-The user subsequently reported **16:44:25-ish** and **16:47:00–16:47:13**, describing the latter as possibly the longest yet. Analysis of the first 621.2 available SoX seconds identifies five sustained broadband disturbances. They match the five listening reports since SoX began:
+Initial app snapshot: `/Users/joyo/Documents/SmartGridOne/diagnostics/20261006T233422.751006Z-app/2026-10-06T16-30-51-324.log`.
 
-| Approximate local onset | Approximate recovery | Spectral interval | Time since preceding onset |
-| --- | --- | --- | --- |
-| 16:39:15 | 16:39:25 | 10.3 s | — |
-| 16:41:06 | 16:41:13 | 7.6 s | 111.0 s |
-| 16:42:34 | 16:42:38 | 3.7 s | 88.2 s |
-| 16:44:25 | 16:44:33 | 8.0 s | 110.7 s |
-| 16:46:59 | 16:47:14 | 15.5 s | 153.9 s |
+Intermediate app snapshot: `/Users/joyo/Documents/SmartGridOne/diagnostics/20261006T234913.166614Z-app/2026-10-06T16-30-51-324.log`.
 
-The recurrence is therefore not a fixed two-minute cycle in this interval. The shorter 16:42 event and longest 16:47 event agree with the listening descriptions. Times use recorder launch plus sample offset and are approximate, not calibrated wall-clock boundaries.
+Initial system archive: `/Users/joyo/Documents/SmartGridOne/diagnostics/20261006T233419.377615Z-system.logarchive/`; decoded initial logs are in the run directory.
 
-**Method:** calculate 6–20 kHz RMS independently in both channels using 100 ms Hann-windowed FFTs. Require both channels above -80 dBFS, bridge gaps up to 0.5 seconds, and retain intervals at least one second long. Changing the threshold from -85 to -75 dBFS preserves all five events, shifting the fifth onset by 0.2 seconds and two endpoints by 0.1 seconds at most. Background high-band RMS is typically about -104 dBFS in this material; the bursts rise substantially above that. This measures spectral disturbance, not an independently calibrated perceptual audibility threshold. A chunked implementation gives identical FFT and quiet-run results to the initial whole-buffer implementation over their shared interval.
+## What would discriminate the remaining mechanisms
 
-The first burst contains 120 detected stereo near-silence runs of at least 1 ms using the -65 dBFS peak threshold. Of its adjacent detected onsets, 39 are within 24 samples of a 512-sample separation; their median is 512 samples (10.667 ms). Other bursts also contain repeated short holes, with observed maxima around 6.8–8.3 ms in the first four events. The separately preserved 150 ms waveform excerpt shows aligned abrupt cuts/flat intervals in both channels. This strengthens the evidence for block-related downstream corruption; selecting adjacent onsets near 512 is not an independent discovery of an exact clock period or proof of which component causes it.
+The capture establishes a repeatable waveform shape and timing scale, not a root cause. A future native output-boundary trace aligned with analog capture could establish whether valid blocks reach iOS on time while the analog signal is being cut. That would test the handoff after the already-established clean DSP, not retest the synthesizer. The requested audio-reset button would provide a separate controlled recovery experiment; no such reset was performed here. A software recovery result still would not establish that Maya was power-cycled or uniquely locate the original fault.
 
-Through live device time **16:46:51.799**, 605 Maya input underflows are retained, beginning at **16:39:44.041**. The first captured audible/spectral burst ends before that first retained underflow. Numerous later underflows occur between spectral bursts. No StartIO, StopIO, USB transaction-error or `ioDriftNS` message appears in the inspected live records. This stream is filtered and may omit events, so a final historical archive should corroborate coverage; do not infer a clean driver merely from missing messages. Underflow count is not a reliable direct indicator of this audible symptom.
+## User-initiated upstream reconnect during continuation
 
-A second app snapshot was requested at **16:49:13** and retains records through **16:49:03**. Maya remains 48 kHz/512 frames, with four input/output channels, nominal thermal state, and no MIDI errors. Only the initial 16:30:54 audio timing record is present; no later counter-change report or reopen/reset message is retained. This is consistent with continuing app I/O, not proof from a native per-callback trace.
+The user chose to unplug/replug and explicitly identified **the iPad-to-hub cable**. The continuation recorder was already running. A historical archive retains actual events from **17:01:33.000 through 17:11:33.996 PDT**, including the unrecorded 17:06 listening report and the reconnect. The log shows:
 
-**Recorder qualification:** SoX reports a second discarded-buffer warning around recording second **322.75** (approximately 16:43:44), in addition to the initial warning at 12.15. Both are outside the five identified burst intervals. Their lost duration is not known, so preserve uncertainty in absolute alignment and do not claim globally lossless recording. Analysis was changed to bounded chunks to reduce Mac memory pressure. The sustained multi-second corruption and matching user listening reports are separate from those brief recorder warnings.
+- **17:09:53.573–17:09:53.688:** Maya endpoint transaction errors, StopIO, whole-hub hardware connection loss and termination of Maya and WRLD. These errors accompany the deliberate unplug and must not be counted as spontaneous periodic-glitch causes.
+- **17:09:57.546:** upstream hubs re-enumerate.
+- **17:10:02.310:** Maya re-enumerates at 12 Mbps.
+- **17:10:03.781–17:10:04.848:** seven Maya StartIO attempts interleaved with StopIO. Driver startup reports excessive zero-length packets and increases `lockDelayMS` from 24 through 100, 150, 200 to 250. The final recorded StartIO in this archive completes at 17:10:04.848. These are observed startup/recovery messages, not proof of the cause of the preceding periodic symptom.
 
-Additional local artifacts in the same run directory:
+This test rebuilds the upstream USB topology and Maya driver/stream state. It is **not** an isolated Maya-only disconnect, does not establish that Maya lost power, and cannot by itself distinguish host, hub, device or connection-state causes. A sustained clean post-reconnect interval would be useful; immediate recovery is ambiguous because earlier episodes already self-cleared. No successful recovery or disappearance of recurrence is claimed at this checkpoint.
 
-- `analysis-checkpoint-1648.json`: verified detector results for the first 621.2 captured seconds, including per-channel spectral levels and candidate quiet intervals.
-- `analyze-maya-periodic-chunks-20261006.py`: reproducible bounded-memory analysis; original whole-buffer helper also retained for provenance.
-- `burst-1647-excerpt.wav` and `burst-1647-spectrum.png`: closed 30-second excerpt beginning at recording second 510, with the longest measured burst.
-- `burst-waveform-55p2s-x8.png`: 150 ms excerpt beginning at recording second 55.2, shown with 8× display gain. This is a visualization only; the source WAV is unmodified.
-- Second app snapshot: `/Users/joyo/Documents/SmartGridOne/diagnostics/20261006T234913.166614Z-app/2026-10-06T16-30-51-324.log`.
-
-Capture continues toward the original 17:04:37 cutoff. No reset/recovery intervention has been tested. The next checkpoint must verify final recorder status rather than assuming the planned capture completed.
-
-## 16:53 checkpoint: sixth burst and automatic capture finalization
-
-The user reports **16:50:23-ish through 16:50:40**. The first 812.0 captured seconds contain a sixth spectral burst at recording offsets **720.2–739.2 seconds**, approximately **16:50:22–16:50:41**, lasting **19.0 seconds** including the lower-level edges. Its onset is **203.3 seconds** after the fifth onset, further excluding a fixed two-minute recurrence in this interval. The same six intervals persist over -85 to -75 dBFS detector thresholds. Artifact: `analysis-checkpoint-1651.json` in the run directory.
-
-Through the inspected live stream's **16:51:54.803** last event, the input-underflow count is 612 and its last occurrence is **16:49:01.112**. No underflow is retained during the sixth spectral burst; other driver messages continue. No StartIO/StopIO, transaction-error or drift message is retained. The SoX warning count remains two. These observations further limit input-underflow logging as a detector for analog corruption.
-
-A bounded finalizer is running on the Mac. After the existing recorder reports completion, it will take a final small app snapshot, collect a historical system archive for the preceding 30 minutes, run the bounded-memory waveform analysis and check the closed WAV header. It writes `finalization-status.json` and `finalizer.log`; expected outputs include `final-app/`, `final-system.logarchive/`, `analysis-final.json`, `final-wav-validation.log`, and decoded final system logs. The helper is preserved as `finalize-maya-periodic-20261006.py`. These are planned outputs at this checkpoint, not claims that final collection succeeded. The finalizer does not reset or deploy anything and does not update Git on its own.
+Artifacts are in the same local run directory: `reconnect-system.logarchive/`, `reconnect-system-all.log`, `reconnect-system-audio-selected.log`. A separate filtered live stream began at device time **17:11:21.967** and is bounded to 17:22:33: `reconnect-live-audio-usb.jsonl`, `reconnect-live-status.json`, `reconnect-live-collector.log`, with helper `maya-reconnect-live-20261006.py`. It started after the physical reconnect; the historical archive supplies that transition. The continuation WAV still requires final header/quality verification and analysis.
