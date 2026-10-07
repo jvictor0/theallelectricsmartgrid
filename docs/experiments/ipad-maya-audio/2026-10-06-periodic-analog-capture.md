@@ -115,7 +115,7 @@ The user chose to unplug/replug and explicitly identified **the iPad-to-hub cabl
 - **17:09:53.573–17:09:53.688:** Maya endpoint transaction errors, StopIO, whole-hub hardware connection loss and termination of Maya and WRLD. These errors accompany the deliberate unplug and must not be counted as spontaneous periodic-glitch causes.
 - **17:09:57.546:** upstream hubs re-enumerate.
 - **17:10:02.310:** Maya re-enumerates at 12 Mbps.
-- **17:10:03.781–17:10:04.848:** seven Maya StartIO attempts interleaved with StopIO. Driver startup reports excessive zero-length packets and increases `lockDelayMS` from 24 through 100, 150, 200 to 250. The final recorded StartIO in this archive completes at 17:10:04.848. These are observed startup/recovery messages, not proof of the cause of the preceding periodic symptom.
+- **17:10:03.781–17:10:04.848:** six Maya StartIO calls interleaved with StopIO. Driver startup reports excessive zero-length packets and increases `lockDelayMS` from 24 through 100, 150, 200 to 250. The final recorded StartIO in this archive completes at 17:10:04.848. These are observed startup/recovery messages, not proof of the cause of the preceding periodic symptom.
 
 This test rebuilds the upstream USB topology and Maya driver/stream state. It is **not** an isolated Maya-only disconnect, does not establish that Maya lost power, and cannot by itself distinguish host, hub, device or connection-state causes. A sustained clean post-reconnect interval would be useful; immediate recovery is ambiguous because earlier episodes already self-cleared. No successful recovery or disappearance of recurrence is claimed at this checkpoint.
 
@@ -142,3 +142,27 @@ The power/attach transition could be a **one-time trigger**, with recurring buff
 The observed zero-length startup packets and driver lock-delay escalation at today's reconnect are concrete evidence that stream startup involved settling/retries. They motivate inspecting the first attachment as well as recovery; they do not prove clock-lock failure, Maya's feedback mode, or causality for the periodic waveform. Apple's [USB audio design guidance](https://developer.apple.com/documentation/technotes/tn3190-usb-audio-device-design-considerations) distinguishes clock synchronization/feedback modes and, for programmable ADC2+ clocks, says rate-setting completion should await a valid clock. That general requirement must not be assigned to Maya's implementation without establishing its actual mode.
 
 **Next controlled comparison, proposed only:** record from before the first iPad attachment after a documented long powered/no-host interval. Compare that preparation on another occasion with the same long-powered hub but power-cycle only Maya via its own USB cable immediately before attaching the still-disconnected iPad. Keep hub external power, app/version, playback material, cables and first-attachment procedure matched. The Maya-only preparation changes its power/USB presence while retaining hub powered history. Repeated prevention under that condition would implicate Maya's pre-attachment state or its interaction with hub initialization; a failure would not uniquely clear Maya. If the bad state appears, preserve the first-attachment logs before recovery, then use Maya-only recovery to test whether rebuilding the whole upstream hub is necessary. These are proposals, not remotely executed interventions or demonstrated fixes.
+
+## First-attachment logs recovered through 15:55; direct startup comparison
+
+The user asked whether the attachment near 16:00 was captured. A new read-only historical retrieval requested **15:55 PDT onward** and retained dated events from **15:55:00.000 through 17:39:38.985** (937,461 dated records). The first retained hub/Maya attachment is at **16:30**, with no earlier matching USB plug, hub/Maya/WRLD enumeration or termination event found in that retained window. This is a log observation, not a guarantee that every possible event was emitted. The original 16:19–16:34 archive already contains this attachment; the new archive establishes earlier coverage.
+
+| Time, PDT | Retained observation |
+| --- | --- |
+| 16:30:12 | USB-C connection becomes active; kernel and powerd report wake due to `USBPlugEvent`. |
+| 16:30:12.553 | SpringBoard changes AC status from NO to YES; Wi-Fi reports external power at 16:30:12.555. This is iPad power telemetry, not a measurement of Maya's supply. |
+| 16:30:14.050 / .074 | USB2 and USB3 hub functions enumerate. |
+| 16:30:18.843 | Maya enumerates at 12 Mbps. |
+| 16:30:23.700 | WRLD enumerates at 12 Mbps. |
+| 16:30:35.933 | First retained Maya StartIO, before SmartGrid's foreground launch. |
+| 16:30:50.101 | SmartGrid process 9918 is marked running/foreground; initial launch state follows. |
+| 16:30:53.965–16:30:54 | Settled Maya StartIO completes; SmartGrid reports actual 48 kHz/512, four inputs and outputs. |
+| 16:32:58.580 | First retained Maya input-underflow message in this session. |
+
+The initial Maya device is configured at 48 kHz at 16:30:20.202. Its explicit subsequent rate changes are 44.1 kHz at 16:30:36.686, 48 kHz at 16:30:51.539, 44.1 kHz at 16:30:52.292 and 48 kHz at 16:30:53.275. Across eight initial StartIO calls, every emitted startup `lockDelayMS` is **24**. There are no retained excessive-zero-length/startup-delay-escalation messages in the initial archive. Do not describe these eight calls as eight failed starts; some are ordinary lifecycle/rate changes.
+
+The later recovery reconnect explicitly sets Maya to **48 kHz**, has six StartIO calls with startup delays **24, 100, 150, 200, 250, 250 ms**, and logs excessive zero-length input packets causing the first four increases. Thus first attachment and recovery differ in both rate-change history and the driver's startup settling delay. The private `lockDelayMS` field is not the app's buffer duration or measured end-to-end latency, and these differences are not causal proof. [Earlier explicit-48-only](2026-09-11-explicit48-cooled-result.md) and [single-start](2026-09-11-single-start-result.md) trials still reproduced faults, so do not present suppressing sample-rate probes or startup cycling as an untested guaranteed cure.
+
+The timeline shows iPad external power recognized about six seconds before Maya enumeration, consistent with attachment to the already-powered hub. It cannot independently establish how long the disconnected hub/Maya had been powered; that part remains the user's overnight observation. Audio I/O on Maya began before SmartGrid launched, so the first stream transition is not confined to the app's own startup.
+
+Local artifacts in the existing run directory: `first-attach-history-system.logarchive/`, `first-attach-history-all.log`, `first-attach-history-summary.json`, and `first-attach-versus-reconnect-selected.log`. These include both first attachment and recovery. No new device reset, deployment, playback or power intervention was performed for this retrieval.
