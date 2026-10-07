@@ -26,6 +26,8 @@ Treat clean generated audio at the internal recording tap as established investi
 
 ## Read first
 
+- [October 6 charging chimes and USB routing](2026-10-06-charging-chime-and-usb-routing.md): five charging-sound requests during ad hoc plug tests; two used the speaker before Maya enumeration, three used Maya during confirmed hub-power-only changes. System sounds start idle Maya streams. The original 16:30 charging chime used the speaker and is distinct from the later SpringBoard 44.1 kHz request.
+
 - [October 3 WRLD USB-reset firmware defect — resolved](2026-10-03-wrld-usb-reset-firmware-defect.md): receive endpoint skipped after powered USB reconnect; fixed and deployed, with successful hardware behavior reported by the user. Includes regression coverage, firmware identity and local artifact paths. Maya's audio faults remain open.
 
 - [October 3 dedicated iPad operation and sleep/wake](2026-10-03-dedicated-ipad-and-sleep-wake.md): the user means screen locked/asleep, not full shutdown. Two captures support testing resume or audio start after idle. Apple's kiosk, audio lifecycle and accessory guidance; proposed comparisons only.
