@@ -228,3 +228,10 @@ Nominal verified20:08:42; fresh same-build900second trial starts2026-09-11T20:09
 ## Single-start result, September11 21:10
 
 Completed authorized single-start lifecycle trial:22errors/20long dropouts in15nominal minutes despite one activation/initialize/start and no measured lifecycle transitions.24isolated short plateaus remain. Temporary startup unit/session cycling is not necessary for sporadic failures; no further experiment started. See2026-09-11-single-start-result.md.
+
+
+## October 6: first attachment after long powered idle — new candidate trigger
+
+The user's retrospective observation is that all four remembered rare periodic bad-state episodes followed prolonged external hub/Maya power with the iPad disconnected (overnight on October 6); a subsequent upstream reconnect reportedly clears the state. See the [capture, mechanism limits and proposed controlled comparison](2026-10-06-periodic-analog-capture.md#user-observation-all-four-remembered-bad-state-episodes-followed-long-powered-idle-without-the-ipad). This distinguishes the rare transition into a susceptible state from its repeated within-session bursts. Exposure denominator and minimum idle duration remain unknown.
+
+Prioritize capturing the **first attachment**, before any recovery, after a documented powered/no-host interval. A matched later preparation can power-cycle only Maya before attaching the iPad while leaving the hub's powered history intact. Preserve unchanged playback material for waveform comparison. If the failure returns, Maya-only recovery remains the narrower test of whether upstream-hub reconstruction is necessary. No new deployment, overnight automation, or hardware intervention has been started by this proposal. The October 6 analog recordings and bounded log streams have all completed.
