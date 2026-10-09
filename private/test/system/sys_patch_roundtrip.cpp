@@ -570,14 +570,9 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: malformed JSON returns false and stays N
     rig.SetEncoder(ex, ey, 0.42f);
     rig.RunFrames(2);
 
-    // Payloads that must return false from LoadPatch (parse failures).
-    // jansson rejects: empty string, non-JSON text, truncated JSON, syntax error,
-    // and "null" (IsNull() == true → LoadPatch returns false).
-    // NOTE: "[]" is valid JSON (an array) and jansson parses it successfully.
-    // LoadPatch then calls RequestLoad(json_array) which also succeeds (returns
-    // true), because the JSON is non-null.  FromJSON silently skips top-level
-    // keys it doesn't find.  So "[]" is NOT a "returns false" case — it is a
-    // graceful no-op.  We document this separately below.
+    const float originalValue = rig.EncoderValue(ex, ey);
+
+    // Invalid JSON or a non-object patch root must be rejected.
     //
     const std::string strictBadPayloads[] = {
         "",
@@ -585,25 +580,15 @@ DOCTEST_TEST_CASE("sys_patch_roundtrip: malformed JSON returns false and stays N
         "{",
         "{\"key\": }",
         "null",
+        "[]",
     };
 
     for (const auto& bad : strictBadPayloads)
     {
-        bool result = rig.LoadPatch(bad);
-        DOCTEST_CHECK_FALSE(result);
+        DOCTEST_CHECK_FALSE(rig.LoadPatch(bad));
     }
 
-    // "[]" parses as a valid empty JSON array; LoadPatch accepts it (no crash)
-    // but applies no state changes.  Just verify NaN-cleanliness.
-    //
-    {
-        bool result = rig.LoadPatch("[]");
-        // BUG? LoadPatch("[]") returns true even though the JSON structure is
-        // wrong (array instead of object). FromJSON silently ignores it.
-        // We don't fail the test for this — document the semantic.
-        //
-        (void)result;
-    }
+    DOCTEST_CHECK(rig.EncoderValue(ex, ey) == doctest::Approx(originalValue));
 
     // System should still process without NaN.
     //

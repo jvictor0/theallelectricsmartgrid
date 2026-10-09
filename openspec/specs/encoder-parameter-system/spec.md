@@ -1,13 +1,13 @@
 # Encoder Parameter System Specification
 
 ## Purpose
-The encoder parameter system (`private/src/Encoder.hpp`, `private/src/EncoderBank.hpp`, `private/src/EncoderBankBank.hpp`) is the software-defined knob layer for Smart Grid One. Every synthesis parameter is a `BankedEncoderCell` owned by a global `EncoderBankBank` and placed into 4×4 encoder bank grids. Each cell stores a normalized base value per track per scene, accepts up to 15 routable modulation slots whose depths are themselves full encoder cells, supports 16 gesture (macro) targets, morphs between two active scenes (see scene-state-management), and publishes per-voice outputs to the DSP engine through a parameter slew filter and to the UI through `EncoderBankUIState`. Modulation sources such as the PolyXFader LFOs (see polyxfader-lfos) and AHD envelopes (see ahd-envelopes) are external DSP components that write into shared per-bank-mode `ModulatorValues`; the encoder cells consume those values but do not own the sources.
+The encoder parameter system (`private/src/Encoder.hpp`, `private/src/EncoderBank.hpp`, `private/src/EncoderBankBank.hpp`) is the software-defined knob layer for Smart Grid One. Every synthesis parameter is a `BankedEncoderCell` owned by a global `EncoderBankBank` and placed into 4×4 encoder bank grids. Voice parameters have distinct Water, Fire, and Earth cells; Quad and Global parameters have one cell. Each cell stores a normalized base value per scene, accepts up to 15 routable modulation slots whose depths are themselves full encoder cells, supports 16 gesture (macro) targets, morphs between two active scenes (see scene-state-management), and publishes per-voice outputs to the DSP engine through a parameter slew filter and to the UI through `EncoderBankUIState`. Modulation sources such as the PolyXFader LFOs (see polyxfader-lfos) and AHD envelopes (see ahd-envelopes) are external DSP components that write into shared per-bank-mode `ModulatorValues`; the encoder cells consume those values but do not own the sources.
 ## Requirements
 ### Requirement: Constructor-Bound Scene Manager
-`EncoderBankBank` SHALL receive `SmartGridOneContext*` in its constructor and use that context for every `CreateEncoder` call. `SmartGridOneEncoders` SHALL receive the context and trio/voice counts in its constructor and initialize its modes, banks, and named parameters before construction completes. `SquiggleBoyWithEncoderBank` SHALL pass its constructor-supplied context through this chain. The context SHALL supply the shared scene manager and parameter event logger and outlive its encoder consumers.
+`EncoderBankBank` SHALL receive `SmartGridOneContext*` in its constructor and use that context for every `CreateEncoder` call. `SmartGridOneEncoders` SHALL receive the context in its constructor and use its fixed three-trio, three-voices-per-trio layout and initialize its modes, banks, and named parameters before construction completes. `SquiggleBoyWithEncoderBank` SHALL pass its constructor-supplied context through this chain. The context SHALL supply the shared scene manager and parameter event logger and outlive its encoder consumers.
 
 #### Scenario: Constructed encoder system has initialized parameters
-- **WHEN** `SmartGridOneEncoders(context, 3, 3)` finishes construction
+- **WHEN** `SmartGridOneEncoders(context)` finishes construction
 - **THEN** its named parameters and banks are initialized using the supplied context
 - **AND** callers can process and query the encoder system without first calling `Init(sceneManager, ...)`
 
@@ -15,27 +15,47 @@ The encoder parameter system (`private/src/Encoder.hpp`, `private/src/EncoderBan
 - **WHEN** an encoder is created through `EncoderBankBank::CreateEncoder`
 - **THEN** it receives the context supplied to the bank owner at construction, without a separate per-call context argument
 
-### Requirement: Per-Track Per-Scene Base Value Storage
-Every parameter SHALL be stored as a normalized base value in [0, 1] indexed by track and by scene (`StateEncoderCell::m_values[track][scene]`, with `SceneManager::x_numScenes == 8` persistent scenes), so that all voices within a track share one base value while modulation and gestures differentiate the voices.
-The bank's mode fixes the track/voice topology: Voice banks use 3 tracks × 3 voices, Quad banks 1 track × 4 voices, and Global banks 1 track × 1 voice.
+### Requirement: Independent Trio Cells with Per-Scene Base Storage
+Every cell SHALL store eight normalized scene values (`m_values[scene]`), one banked base value, and one scene activation flag per gesture (`m_isActive[scene]`). Voice parameters SHALL have distinct Water, Fire, and Earth cells and independent child trees. All voices of a cell SHALL share its base and gesture target values; modulation SHALL compute independent outputs per local voice.
 
-#### Scenario: Voices in a track share the base value
-- **WHEN** a Voice-bank parameter's base value for track 1 is 0.6 and no modulation or gesture is active
-- **THEN** all three voice channels of track 1 produce output 0.6
-- **AND** `EncoderBankUIState::GetValue(i, j, k)` reads 0.6 for each of track 1's voice channels k
+The owner index SHALL be `EncoderIndex(param, trio) = param * 3 + trio`. Voice parameters SHALL occupy all three slots. Quad and Global parameters SHALL occupy only the trio-zero slot. Voice modes SHALL have three channels each, Quad four, and Global one.
 
-#### Scenario: Scene-blended base value
-- **WHEN** a track's base value is 0.2 in scene 1 and 0.8 in scene 2, scene 1 and scene 2 are the active pair, and the global blend factor is 0.25
-- **THEN** the effective base value is 0.2 × 0.75 + 0.8 × 0.25 = 0.35
+#### Scenario: Trio base values are independent
+- **WHEN** Water, Fire, and Earth cells for a Voice parameter hold 0.2, 0.6, and 0.8 with no modulation
+- **THEN** parameter reads for voices 0–2, 3–5, and 6–8 return 0.2, 0.6, and 0.8 respectively
+- **AND** editing Water leaves Fire and Earth scene values and child trees unchanged
+
+#### Scenario: Scene blend reads stored state rather than computed output
+- **WHEN** a cell stores 0.2 and 0.8 in the active scenes and the blend factor is 0.25
+- **THEN** its banked base becomes 0.35 even if its previous modulated output differs
+- **AND** setting, loading, or copying scene values SHALL NOT substitute the derived cell's post-modulation UI value for the stored base blend
+
+### Requirement: Bank Families Route to the Selected Trio
+The encoder owner SHALL contain twelve Voice banks (four families with Water, Fire, and Earth instances), four Quad banks, and four Global banks, using five modes. `SetTrack(trio)` SHALL select that trio's instance of the active Voice-bank family; on a Quad or Global bank it SHALL only remember the trio for future Voice-bank selection. Controller bank selectors SHALL continue to represent four Voice families. Visualizers SHALL recognize every trio instance of a family.
+
+#### Scenario: Track change preserves the Voice-bank family
+- **WHEN** Filter and Amp is selected for Water and the performer selects Fire
+- **THEN** the selected bank is FilterAndAmpFire and its UI channels 0–2 represent voices 3–5
+- **AND** the Filter and Amp visualizer and modulation controls remain available
+
+#### Scenario: Global selection preserves a pending trio choice
+- **WHEN** Theory of Time is selected and the performer selects Earth
+- **THEN** Theory of Time remains selected
+- **AND** subsequently selecting Source opens SourceEarth
+
+#### Scenario: A bank reset is local to its trio
+- **WHEN** the performer resets the selected Water Source bank
+- **THEN** only placed cells in SourceWater revert for the active scenes
+- **AND** Fire, Earth, and inactive scenes retain their stored values
 
 ### Requirement: Blend-Proportional Encoder Increments
-When a physical encoder is turned at an intermediate blend factor t (0 < t < 1), the system SHALL distribute the increment across both active scenes' stored values for the current track, adding `delta × (1 − t)` to the scene-1 value and `delta × t` to the scene-2 value, so the blended output moves by exactly `delta`.
+When a physical encoder is turned at an intermediate blend factor t (0 < t < 1), the system SHALL distribute the increment across both active scenes' stored values for the current track, adding `delta × (1 − t)` to the scene-1 value and `delta × t` to the scene-2 value, so, without clamping, the blended output changes by `delta × ((1 − t)² + t²)`.
 If one scene's value would leave [0, 1], that value is clamped and the other scene's value is solved so the blended output still lands on the clamped target. At t == 0 or t == 1 only the single fully-active scene's value changes.
 
 #### Scenario: Mid-blend turn updates both scenes
 - **WHEN** the blend factor is 0.5, a track's stored values are 0.4 (scene 1) and 0.6 (scene 2), and the encoder receives an increment of +0.2
 - **THEN** the scene-1 value becomes 0.5 and the scene-2 value becomes 0.7
-- **AND** the blended output rises from 0.5 to 0.7
+- **AND** the blended output rises from 0.5 to 0.6
 
 #### Scenario: Clamped scene is compensated
 - **WHEN** the blend factor is 0.5 and an increment would push the scene-2 value above 1
@@ -43,7 +63,7 @@ If one scene's value would leave [0, 1], that value is clamped and the other sce
 
 ### Requirement: Fifteen Modulation Slots with Nested Depth Cells
 Every `BankedEncoderCell` SHALL expose up to 15 modulation slots (`x_numModulators == 15`); each slot's depth is itself a full `BankedEncoderCell`, so modulation depths can in turn be modulated and gesture-controlled to arbitrary nesting depth.
-Pressing a connected encoder enters selection mode: the 4×4 grid switches to show the selected cell's 15 depth cells plus the selected cell itself at position (3, 3). Depth cells whose values are zero everywhere, with no active sub-modulators or gestures, are garbage-collected when the selection is closed.
+Pressing a connected encoder enters selection mode: the 4×4 grid switches to show the selected cell's 15 depth cells plus the selected cell itself at position (3, 3). Depth cells whose normalized values are neutral (0.5) everywhere, with no active sub-modulators or gestures, are garbage-collected when the selection is closed.
 
 #### Scenario: Selecting a parameter exposes its depth cells
 - **WHEN** the performer presses a connected base parameter encoder (without shift)
@@ -51,22 +71,27 @@ Pressing a connected encoder enters selection mode: the 4×4 grid switches to sh
 - **AND** each depth cell reports through `EncoderUIState::GetConnected` whether a modulation source is wired to its slot in the current bank mode
 
 #### Scenario: Zeroed depth cell is garbage-collected
-- **WHEN** a depth cell's value is 0 in every scene and track, it has no active sub-modulators or gestures, and the selection is deselected
+- **WHEN** a depth cell's normalized value is 0.5 in every scene, it has no active sub-modulators or gestures, and the selection is deselected
 - **THEN** the depth cell is released back to the encoder pool and excluded from serialization
 
 ### Requirement: Crossfade Modulation Mixing per Voice
-The system SHALL compute each parameter's per-voice output as a crossfade between the post-gesture base value and the modulation sources: with total modulation weight `W = Σ sourceOutput × amplitude` and weighted value `V = Σ sourceOutput × depthValue × amplitude` over active slots, the output is `base × (1 − W) + V` when W ≤ 1, and `V / W` when W > 1.
-Source values and amplitudes are read per voice channel from the shared `ModulatorValues::m_value[slot][channel]` and `m_amplitude[slot][channel]` of the cell's bank mode, written by external DSP components (PolyXFader LFOs, AHD envelopes, ganged random LFOs, sheafy modulators). A depth value of 1 with source output 1 therefore yields full takeover of the parameter.
+Depth cells SHALL be bipolar: normalized position `u` exposes signed knob position `b = 2u − 1`, with effective depth `sign(b) × (9^abs(b) − 1) / 8`. The parent SHALL apply this curve once per route after recursive depth computation. For each local voice, let `d` be curved depth times source amplitude, `W = Σ abs(d)`, `V = Σ d × sourceValue`, and `O = Σ max(0, −d)`. The normalized output SHALL be `base × max(0, 1 − W) + (V + O) / max(1, W)`. Negative depths crossfade toward the inverted source. Changes to source amplitude alone SHALL invalidate the cached output.
+
+Source values and amplitudes SHALL use local channel indexes in the cell's mode. Water, Fire, and Earth SHALL have independent source arrays. The DSP producer SHALL route each trio's envelope, LFO, and sheaf channels to its corresponding mode.
 
 #### Scenario: Full-depth modulation overrides the base
-- **WHEN** one modulation slot has source output 1.0, amplitude 1, and depth value 1.0 on a voice channel
-- **THEN** that channel's output equals 1.0 regardless of the base value
-- **AND** `GetMinValue` reports 0 and `GetMaxValue` reports 1 for that channel
+- **WHEN** one slot has source value 0.8, amplitude 1, and signed depth position 1
+- **THEN** that channel's output is 0.8 regardless of the base
+- **AND** the modulation extent is [0, 1]
 
-#### Scenario: Partial modulation crossfades
-- **WHEN** the post-gesture base value is 0.5 and one slot contributes source output 0.5, amplitude 1, depth 0.8 on a channel
-- **THEN** the channel output is 0.5 × (1 − 0.5) + 0.5 × 0.8 = 0.65
-- **AND** `GetMinValue` reports 0.25 and `GetMaxValue` reports 0.75 (the modulation extent around the diminished base)
+#### Scenario: Negative depth inverts the source
+- **WHEN** the signed depth position is -1, source value is 0.8, and amplitude is 1
+- **THEN** that channel's output is 0.2
+
+#### Scenario: Partial modulation uses the curved depth
+- **WHEN** the base is 0.3, signed depth position is 0.5, source value is 0.8, and amplitude is 1
+- **THEN** effective depth is 0.25 and output is 0.425
+- **AND** the modulation extent is [0.225, 0.475]
 
 #### Scenario: Per-voice polyphonic outputs from a shared base
 - **WHEN** a per-voice modulation source (such as a voice AHD envelope) holds different values for the three voices of a track
@@ -74,7 +99,7 @@ Source values and amplitudes are read per voice channel from the shared `Modulat
 
 ### Requirement: Sixteen Gesture Targets with Constant-Output Editing
 Every parameter SHALL support 16 gesture parameters (`x_numGestureParams == 16`), each pairing a hidden target-state `BankedEncoderCell` with a live weight in [0, 1] supplied through `ModulatorValues::m_gestureWeights` from physical analog inputs. For each track the post-gesture value is the weight-normalized blend `Σᵢ wᵢ × (base × (1 − wᵢ) + targetᵢ × wᵢ) / Σᵢ wᵢ` over gestures active for that track and scene; with no active gestures it is the base value.
-Gesture activation is stored per scene per track (`m_isActive`), and the effective weight is the scene-blended activation times the live weight. Turning an encoder while gestures are active splits the physical delta between the gesture targets (proportional to w²) and the base (proportional to w(1 − w)), normalized by the weight sum, so the audible output tracks the physical motion. A shift-press while gestures are selected deactivates those gestures for the current scene(s) instead of zeroing modulators.
+Gesture activation is stored per scene in each independent cell (`m_isActive[scene]`), and the effective weight is the scene-blended activation times the live weight. Turning an encoder while gestures are active splits the physical delta between the gesture targets (proportional to w²) and the base (proportional to w(1 − w)), normalized by the weight sum, so the audible output tracks the physical motion. A shift-press while gestures are selected deactivates those gestures for the current scene(s) instead of zeroing modulators.
 
 #### Scenario: Gesture endpoints
 - **WHEN** a single gesture with target value 0.9 is active on a parameter whose base is 0.3
@@ -161,19 +186,35 @@ The system SHALL pass each of a cell's up-to-16 per-channel outputs through a on
 - **AND** the next `GetSlewedValue` call returns 0.5 without an exponential approach from the previous output
 
 ### Requirement: Named JSON Serialization via the Global Owner
-The system SHALL serialize all encoder state through `EncoderBankBank::ToJSON`/`FromJSON`, which iterate the flat owner array of named encoder cells; each cell writes its per-scene per-track base values, its non-null modulation depth cells (recursively), its gesture target cells, and—for gesture cells—the per-scene per-track activation flags.
+The system SHALL serialize all encoder state through `EncoderBankBank::ToJSON`/`FromJSON`, which iterate the flat owner array of named encoder cells; each cell writes eight flat per-scene base values in `values.values`, its non-null modulation depth cells (recursively), its gesture target cells, and—for gesture cells—the eight per-scene activation flags in `active`.
+Voice root names SHALL append Water, Fire, or Earth (for example `Harmonics1Fire`); Quad and Global names SHALL remain unsuffixed. Patch JSON SHALL carry top-level integer `version: 1`. Missing or explicit zero
+SHALL be treated as legacy version 0 and upgraded in memory on the message
+thread before a load is published to audio. Opening SHALL NOT rewrite the disk
+file; the converted form SHALL be written on a normal save. Negative, future, noninteger, and
+null versions SHALL be rejected. Duplicate top-level `version` or
+`squiggleBoy` keys SHALL be rejected. A version 1 object SHALL be passed through.
+The version 0 upgrade SHALL split known Voice roots into Water, Fire, and Earth,
+selecting track indexes 0, 1, and 2 from every scene row recursively through
+modulators and gestures. Gesture activation SHALL select
+`active[scene * 16 + trio]`. Shared roots SHALL retain their name and select
+track zero. Missing entries SHALL become zero or false; absent fields SHALL
+remain absent. Unknown roots and fields SHALL survive. Already suffixed Voice
+roots and already scalar shared values or eight-entry shared activation arrays
+SHALL be preserved during the transition. Ambiguous collisions
+between legacy and already suffixed Voice roots SHALL be rejected. Recording
+container version 5 is independent of patch version.
 Loading looks each parameter up by name, rebuilds depth and gesture cells from the JSON, garbage-collects empty cells, recomputes affecting bitmasks, and sets force-update. Banks deselect any open modulator selection before loading so visible grid pointers never dangle.
 
 #### Scenario: JSON round-trip restores modulation topology
-- **WHEN** a patch is saved with a parameter whose base is 0.7 in scene 3, with modulation slot 6 at depth 0.4 and gesture 2 active on track 0 in scene 0
-- **THEN** loading that JSON restores the scene-3 base to 0.7, recreates the slot-6 depth cell with value 0.4, recreates the gesture-2 target cell, and restores its scene-0/track-0 activation flag
+- **WHEN** a patch is saved with a parameter whose base is 0.7 in scene 3, with modulation slot 6 at depth 0.4 and gesture 2 active on that cell in scene 0
+- **THEN** loading that JSON restores the scene-3 base to 0.7, recreates the slot-6 depth cell with value 0.4, recreates the gesture-2 target cell, and restores its scene-0 activation flag
 
 #### Scenario: Unknown parameters are skipped
 - **WHEN** the JSON being loaded lacks an entry for a named encoder
 - **THEN** that encoder keeps its current state and loading continues with the remaining parameters
 
 ### Requirement: Encoder JSON Float Load Accepts All Numeric Spellings
-When loading named encoder state from JSON, the system SHALL restore normalized per-track per-scene base values from JSON numeric values regardless of whether the token is represented internally as an integer node or a real node. A saved encoder base value of `1.0` MUST NOT become `0.0` solely because the JSON text spells the value as `1`.
+When loading named encoder state from JSON, the system SHALL restore per-scene knob values, converting bipolar signed values back to normalized storage, from JSON numeric values regardless of whether the token is represented internally as an integer node or a real node. A saved encoder base value of `1.0` MUST NOT become `0.0` solely because the JSON text spells the value as `1`.
 This applies to base parameter cells, modulation depth cells, and gesture target cells because all are serialized through the same `StateEncoderCell` value arrays.
 
 #### Scenario: Whole-number base value restores as one
@@ -186,12 +227,12 @@ This applies to base parameter cells, modulation depth cells, and gesture target
 - **THEN** the corresponding stored base value is restored as `0.5`
 
 #### Scenario: Nested modulation depth whole-number restores
-- **WHEN** a saved modulation depth cell contains a whole-number normalized value in its `values` array
+- **WHEN** a saved modulation depth cell contains a whole-number knob value in its `values` array
 - **THEN** loading the patch restores that depth value numerically instead of converting it to zero
 
 ### Requirement: UI State Publication Through Atomics
-The system SHALL publish the selected bank's visible 4×4 grid to an `EncoderBankUIState` of lock-free atomics every UI population pass: per cell the post-modulation output per channel (`GetValue(i, j, k)`), the modulation extent (`GetMinValue`/`GetMaxValue`), brightness, connectedness (`GetConnected`), color, short name, switch values, and the per-track affecting-modulator and affecting-gesture bitmasks; plus bank-level track/voice counts and current track.
-Brightness encodes modulation takeover (1 minus the current track's modulation weight, clamped to [0, 1]); during the scene blinker's off phase, base parameters with no selected gestures additionally dim by their gesture weight sum so gesture-captured knobs blink. Disconnected cells publish connected == false, brightness 0, and zeroed values.
+The system SHALL publish the selected bank's visible 4×4 grid to an `EncoderBankUIState` of lock-free atomics every UI population pass: per cell the post-modulation output per channel (`GetValue(i, j, k)`), the modulation extent (`GetMinValue`/`GetMaxValue`), brightness, connectedness (`GetConnected`), color, short name, switch values, and the cell's affecting-modulator and affecting-gesture bitmasks; plus the selected bank's local voice count. The UI SHALL use local channels from zero with no track offset.
+Brightness encodes modulation takeover (1 minus local channel zero's absolute modulation weight, clamped to [0, 1]); during the scene blinker's off phase, base parameters with no selected gestures additionally dim by their gesture weight sum so gesture-captured knobs blink. Disconnected cells publish connected == false, brightness 0, and zeroed values.
 
 #### Scenario: Empty grid position reads disconnected
 - **WHEN** a grid position holds no connected cell (for example after a machine change placed nullptr there)
@@ -199,13 +240,13 @@ Brightness encodes modulation takeover (1 minus the current track's modulation w
 - **AND** `GetValue(i, j, k)` returns 0 for every channel k
 
 #### Scenario: Modulated cell dims and reports extent
-- **WHEN** the current track's modulation weight on a visible cell is 0.75
+- **WHEN** local channel zero's absolute modulation weight on a visible cell is 0.75
 - **THEN** `GetBrightness` for that cell reads 0.25
 - **AND** `GetMinValue`/`GetMaxValue` bracket the channel outputs so the UI can draw the modulation arc
 
 ### Requirement: Shift-Press Reset Semantics
 When the centralized shift flag is held and a connected encoder is pressed (`EncoderBankInternal::HandlePress` with `SceneManager::m_shift` true → `BankedEncoderCell::HandleShiftPress`), the system SHALL reset that cell's modulation and gesture configuration for the current track and SHALL invalidate the change-driven recompute cache so the reset is reflected in both the published value and the affecting bitmasks.
-The reset has two branches: when no gestures are selected it zeroes all modulation depth slots for the current track AND deactivates every gesture linked to that cell for the current track (`ZeroModulators`, which calls `DeactivateGesture` per gesture and garbage-collects the emptied cells), returning the encoder to its fully ungestured, unmodulated base value; when one or more gestures are selected it instead deactivates only each selected gesture for the current scene(s) (`DeactivateGestureCurrentScene`), leaving modulators intact. In both branches the cell SHALL recompute its affecting-modulator and affecting-gesture bitmasks from the root (`SetModulatorsAffectingRecursive`) AND set its force-update flag (`SetForceUpdateRecursive`), so the next control frame recomputes the output and the `EncoderBankUIState` masks and value agree.
+The reset has two branches: when no gestures are selected it neutralizes all modulation depth slots of that cell for the active scenes AND deactivates every gesture linked to that cell for the current track (`ZeroModulators`, which calls `DeactivateGesture` per gesture and garbage-collects the emptied cells), returning the encoder to its fully ungestured, unmodulated base value; when one or more gestures are selected it instead deactivates only each selected gesture for the current scene(s) (`DeactivateGestureCurrentScene`), leaving modulators intact. In both branches the cell SHALL recompute its affecting-modulator and affecting-gesture bitmasks from the root (`SetModulatorsAffectingRecursive`) AND set its force-update flag (`SetForceUpdateRecursive`), so the next control frame recomputes the output and the `EncoderBankUIState` masks and value agree.
 
 #### Scenario: Shift-press reset of a modulated encoder restores the base value and clears the mask
 - **WHEN** a base parameter at base value 0.3 has a modulation slot whose depth drives its output away from 0.3, no gestures are selected, and the performer shift-presses that encoder
@@ -214,7 +255,7 @@ The reset has two branches: when no gestures are selected it zeroes all modulati
 
 #### Scenario: Shift-press reset of nested modulation clears the whole subtree
 - **WHEN** a base parameter has a modulation depth cell that is itself modulated (nested depth) and the performer shift-presses the base encoder with no gestures selected
-- **THEN** the base cell and its depth subtree are zeroed for the current track and garbage-collected
+- **THEN** the depth subtree is neutralized for the active scenes and cells with no remaining scene state are garbage-collected; the base value and inactive scenes are preserved
 - **AND** the published modulatorsAffecting bitmask is empty and the published value converges to the base value after settle frames
 
 #### Scenario: Shift-press reset clears the encoder's linked gesture
@@ -272,7 +313,7 @@ The encoder parameter system SHALL expose a new six-position switch-valued param
 - **THEN** the named encoder JSON path restores that loop selector parameter value
 
 ### Requirement: Stored Encoder Assignments Emit Parameter Events
-While recording, encoder value assignments routed through `SetAndRecordValue` SHALL capture the root parameter name, scene, track, complete tagged child path, and value converted to patch JSON units. Gesture activation through `SetActive` SHALL emit EncoderActivate; when activation inherits a parent value, the copied value SHALL also emit EncoderSet. Event capture SHALL occur before smoothing or modulation and SHALL NOT allocate on the audio thread. Only gesture nodes SHALL emit activation events.
+While recording, encoder value assignments routed through `SetAndRecordValue` SHALL capture the root parameter name (including the trio suffix for Voice parameters), scene, complete tagged child path, and value converted to patch JSON units. Gesture activation through `SetActive` SHALL emit EncoderActivate; when activation inherits a parent value, the copied value SHALL also emit EncoderSet. Event capture SHALL occur before smoothing or modulation and SHALL NOT allocate on the audio thread. Only gesture nodes SHALL emit activation events. Format-v5 encoder events SHALL omit the track byte; the root name supplies trio identity. Replay SHALL address flat scene arrays for new patches.
 
 #### Scenario: Bipolar nested parameter edit
 - **WHEN** a bipolar modulator or gesture stores normalized value 0.75 during recording

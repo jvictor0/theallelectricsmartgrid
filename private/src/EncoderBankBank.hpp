@@ -11,14 +11,12 @@ struct EncoderBankBank
 
     struct BankMode
     {
-        size_t m_numTracks;
         size_t m_numVoices;
         SmartGrid::BankedEncoderCell::ModulatorValues m_modulatorValues;
         SmartGrid::BankedEncoderCell::SharedEncoderState m_sharedEncoderState;
         
         BankMode()
-            : m_numTracks(0)
-            , m_numVoices(0)
+            : m_numVoices(0)
             , m_modulatorValues()
             , m_sharedEncoderState()
         {
@@ -71,12 +69,9 @@ struct EncoderBankBank
 
     void InitMode(
         size_t modeIx,
-        size_t numTracks,
         size_t numVoices)
     {
-        m_bankModes[modeIx].m_numTracks = numTracks;
         m_bankModes[modeIx].m_numVoices = numVoices;
-        m_bankModes[modeIx].m_sharedEncoderState.m_numTracks = numTracks;
         m_bankModes[modeIx].m_sharedEncoderState.m_numVoices = numVoices;
         m_bankModes[modeIx].m_sharedEncoderState.m_modulatorValues = &m_bankModes[modeIx].m_modulatorValues;
    }
@@ -88,7 +83,6 @@ struct EncoderBankBank
         m_banks[bankIx].Init(
             m_context,
             &m_bankModes[modeIx].m_modulatorValues, 
-            m_bankModes[modeIx].m_numTracks, 
             m_bankModes[modeIx].m_numVoices);
    }
 
@@ -114,10 +108,9 @@ struct EncoderBankBank
             SmartGrid::BankedEncoderCell::EncoderType::BaseParam);
         SmartGrid::BankedEncoderCell* cell = m_encoders[index].get();
         cell->m_sharedEncoderState = &m_bankModes[modeIx].m_sharedEncoderState;
-        cell->m_numTracks = m_bankModes[modeIx].m_numTracks;
         cell->m_bipolar = bipolar;
         cell->m_defaultValue = cell->ToNormalized(defaultValue);
-        cell->SetValue(cell->m_defaultValue, true, true);
+        cell->SetValue(cell->m_defaultValue, true);
         cell->InitSlewState(cell->m_defaultValue);
         cell->m_connected = true;
         cell->m_color = color;
@@ -190,19 +183,6 @@ struct EncoderBankBank
         }
     }
 
-    void SetTrack(size_t modeIx, size_t track)
-    {
-        m_bankModes[modeIx].m_sharedEncoderState.m_currentTrack = track;
-
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            if (m_bankConfigs[i].m_modeIx == modeIx)
-            {
-                m_banks[i].SetTrack(track);
-            }
-        }
-    }
-
     bool EncoderBelongsToMode(size_t encoderIx, size_t modeIx)
     {
         SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIx);
@@ -248,7 +228,7 @@ struct EncoderBankBank
         {
             if (m_bankConfigs[i].m_modeIx == modeIx)
             {
-                m_banks[i].ComputeGesturesAffectingPerTrack();
+                m_banks[i].ComputeGesturesAffecting();
             }
         }
     }
@@ -332,7 +312,7 @@ struct EncoderBankBank
 
     void ResetGrid(uint64_t ix)
     {
-        m_banks[ix].RevertToDefault(false, false);
+        m_banks[ix].RevertToDefault(false);
         m_banks[ix].SetAllModulatorsAffecting();
     }
 
@@ -340,19 +320,6 @@ struct EncoderBankBank
     {
         SmartGrid::Color color = m_bankConfigs[ix].m_color;
         return m_selectedBank == ix ? color : color.Dim();
-    }
-
-    // Returns the union of gestures affecting all banks for the specified track
-    //
-    BitSet16 GetGesturesAffectingForTrack(size_t track)
-    {
-        BitSet16 result;
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            result = result.Union(m_banks[i].GetGesturesAffectingForTrack(track));
-        }
-
-        return result;
     }
 
     BitSet16 GetGesturesAffecting()
@@ -374,7 +341,7 @@ struct EncoderBankBank
         {
             if (m_banks[i].GetGesturesAffecting().Get(gesture))
             {
-                if (found)
+                if (found && result != m_bankConfigs[i].m_color)
                 {
                     return SmartGrid::Color::White;
                 }
@@ -387,18 +354,18 @@ struct EncoderBankBank
         return result;
     }
 
-    // Returns the gestures affecting the specified bank for the specified track
+    // Returns the gestures affecting the specified bank
     //
-    BitSet16 GetGesturesAffectingBankForTrack(size_t bank, size_t track)
+    BitSet16 GetGesturesAffectingBank(size_t bank)
     {
-        return m_banks[bank].GetGesturesAffectingForTrack(track);
+        return m_banks[bank].GetGesturesAffecting();
     }
 
-    // Returns true if the specified gesture affects the specified bank for the specified track
+    // Returns true if the specified gesture affects the specified bank
     //
-    bool IsGestureAffectingBank(int gesture, size_t bank, size_t track)
+    bool IsGestureAffectingBank(int gesture, size_t bank)
     {
-        return m_banks[bank].GetGesturesAffectingForTrack(track).Get(gesture);
+        return m_banks[bank].GetGesturesAffecting().Get(gesture);
     }
 
     void ClearGesture(int gesture)
@@ -454,12 +421,12 @@ struct EncoderBankBank
             });
     }
 
-    void RevertToDefault(bool allScenes, bool allTracks)
+    void RevertToDefault(bool allScenes)
     {
         ForEachNamedEncoder(
-            [allScenes, allTracks](size_t, SmartGrid::BankedEncoderCell* cell)
+            [allScenes](size_t, SmartGrid::BankedEncoderCell* cell)
             {
-                cell->RevertToDefault(allScenes, allTracks);
+                cell->RevertToDefault(allScenes);
             });
 
         SetAllModulatorsAffectingForAllModes();
@@ -479,21 +446,6 @@ struct EncoderBankBank
         {
             m_banks[m_selectedBank].PopulateUIState(uiState);
         }
-    }
-
-    int GetCurrentTrack(size_t modeIx)
-    {
-        // Find first bank with this mode
-        //
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            if (m_bankConfigs[i].m_modeIx == modeIx)
-            {
-                return m_banks[i].GetCurrentTrack();
-            }
-        }
-
-        return 0;
     }
 
     SmartGrid::BankedEncoderCell::ModulatorValues& GetModulatorValues(size_t modeIx)

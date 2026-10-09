@@ -316,7 +316,7 @@ struct EncoderComponent : public juce::Component
             for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(); ++i)
             {
                 auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * (0.45f - i * 0.05f);
-                size_t voice = m_ui.m_uiState->GetNumVoices() * m_ui.m_uiState->GetCurrentTrack() + i;
+                size_t voice = i;
 
                 // Skip if voice index would be out of bounds
                 //
@@ -347,7 +347,7 @@ struct EncoderComponent : public juce::Component
 
                 // Calculate the indicator position
                 //
-                size_t voice = m_ui.m_uiState->GetNumVoices() * m_ui.m_uiState->GetCurrentTrack() + i;
+                size_t voice = i;
 
                 // Skip if voice index would be out of bounds
                 //

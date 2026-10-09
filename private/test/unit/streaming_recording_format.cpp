@@ -98,7 +98,7 @@ DOCTEST_TEST_CASE("recording format: master metadata matches reader contracts")
 
 DOCTEST_TEST_CASE("recording format: all track types match the independent Python golden records")
 {
-    std::ifstream input(std::string(SMARTGRID_REPO_ROOT) + "/private/test/fixtures/streaming-recording/golden-v4.json");
+    std::ifstream input(std::string(SMARTGRID_REPO_ROOT) + "/private/test/fixtures/streaming-recording/golden-v5.json");
     DOCTEST_REQUIRE(input.good());
     const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     JsonArena arena(1024 * 1024);
@@ -284,7 +284,7 @@ DOCTEST_TEST_CASE("recording format: param event snapshots the stored scene at i
     DOCTEST_CHECK(event.m_sample == 5);
 }
 
-DOCTEST_TEST_CASE("recording format: new headers declare version four")
+DOCTEST_TEST_CASE("recording format: new headers declare version five")
 {
     RecordingFormat::Session session;
     session.m_gitCommitSha = std::string(40, 'a');
@@ -295,7 +295,7 @@ DOCTEST_TEST_CASE("recording format: new headers declare version four")
     const std::string text(bytes.begin() + 12, bytes.end());
     JsonArena arena(1024 * 1024);
     const JSON header = arena.Loads(text.c_str());
-    DOCTEST_CHECK(header.Get("format_version").IntegerValue() == 4);
+    DOCTEST_CHECK(header.Get("format_version").IntegerValue() == 5);
 }
 
 DOCTEST_TEST_CASE("recording format: event groups sort by name and time with stable ties")
@@ -314,7 +314,7 @@ DOCTEST_TEST_CASE("recording format: event groups sort by name and time with sta
     const int32_t samples[8]{};
     std::vector<uint8_t> bytes;
     DOCTEST_REQUIRE(RecordingFormat::EncodeBlock(session, samples, 8, 8, bytes, events));
-    DOCTEST_CHECK(std::string(bytes.begin(), bytes.begin() + 4) == "BLK4");
+    DOCTEST_CHECK(std::string(bytes.begin(), bytes.begin() + 4) == "BLK5");
     const std::vector<uint8_t> expected =
     {
         2, 0, 0, 0,
@@ -343,7 +343,6 @@ DOCTEST_TEST_CASE("recording format: parameter types serialize only their own fi
     encoder.m_type = ParamEvent::Type::EncoderSet;
     encoder.m_name = "A";
     encoder.m_scene = 2;
-    encoder.m_track = 3;
     std::fill(std::begin(encoder.m_encoderPath), std::end(encoder.m_encoderPath), -1);
     encoder.m_encoderPath[0] = 2;
     encoder.m_encoderPath[1] = 0x81;
@@ -355,7 +354,6 @@ DOCTEST_TEST_CASE("recording format: parameter types serialize only their own fi
     active.m_value[0] = 1;
     ParamEvent gesture = ParamEvent::MkGestureSet(7, 0.25f, 10);
     gesture.m_scene = -99;
-    gesture.m_track = -99;
     ParamEvent blend = ParamEvent::MkBlendSet(0.75f, 11);
     blend.m_gesture = -99;
     std::vector<uint8_t> bytes;
@@ -368,9 +366,9 @@ DOCTEST_TEST_CASE("recording format: parameter types serialize only their own fi
         3, 4, 0, 0, 1, 0, 0, 0,
         3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 64, 63,
         4, 4, 1, 0, 1, 0, 0, 0, 'A',
-        4, 0, 0, 0, 2, 0, 0, 0, 2, 3, 2, 2, 129, 0, 0, 0, 63,
+        4, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 129, 0, 0, 0, 63,
         5, 1, 1, 0, 1, 0, 0, 0, 'A',
-        4, 0, 0, 0, 0, 0, 0, 0, 2, 3, 1, 129, 1,
+        4, 0, 0, 0, 0, 0, 0, 0, 2, 1, 129, 1,
     };
     DOCTEST_CHECK(bytes == expected);
 }
@@ -397,10 +395,7 @@ DOCTEST_TEST_CASE("recording format: rejects invalid typed parameter payloads")
     encoder.m_encoderPath[0] = -1;
     std::vector<uint8_t> bytes;
     DOCTEST_CHECK(RecordingFormat::AppendParamEvents(bytes, {encoder}, 0, 1));
-    DOCTEST_CHECK(bytes.size() == 4 + 8 + 7 + 11 + 4);
-    encoder.m_track = 16;
-    DOCTEST_CHECK_FALSE(RecordingFormat::AppendParamEvents(bytes, {encoder}, 0, 1));
-    encoder.m_track = 0;
+    DOCTEST_CHECK(bytes.size() == 4 + 8 + 7 + 10 + 4);
     encoder.m_scene = 8;
     DOCTEST_CHECK_FALSE(RecordingFormat::AppendParamEvents(bytes, {encoder}, 0, 1));
 }

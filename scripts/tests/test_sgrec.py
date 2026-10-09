@@ -73,6 +73,73 @@ def patch_entry(sample, order, patch, restore_faders=None):
     return struct.pack('<II', sample, order) + flags + struct.pack('<I', len(body)) + body
 
 
+class TracklessEncoderEventTests(unittest.TestCase):
+    def test_version_five_encoder_event_has_no_track(self):
+        sgrec = load_reader(self)
+        entry = struct.pack('<IIBBf', 1, 0, 2, 0, 0.75)
+        data = struct.pack('<I', 1) + parameter_group(4, 4, 'CarrierWater', [entry])
+        block = types.SimpleNamespace(m_event_data=data, m_frame_count=4, m_start_frame=0)
+        event, = sgrec.param_events(block, 5)
+        self.assertIsNone(event.m_track)
+        patch = {'squiggleBoy': {'CarrierWater': {'values': {'values': [0.0] * 8}}}}
+        sgrec.apply_param_event(patch, event)
+        self.assertEqual(patch['squiggleBoy']['CarrierWater']['values']['values'][2], 0.75)
+
+
+class TrioEncoderReplayTests(unittest.TestCase):
+    def setUp(self):
+        self.m_header = json.loads((x_fixtures / 'golden.json').read_text())['header']
+        self.m_patch = {'squiggleBoy': {
+            name: {'values': {'values': [0.25] * 8}}
+            for name in ('CarrierWater', 'CarrierFire', 'CarrierEarth')
+        }}
+        self.m_header.update(format_version=5, initial_patch=self.m_patch)
+
+    def reader(self, groups):
+        legacy = ordered_record(0, 4, groups)
+        record = checksum_record(b'BLK5' + legacy[4:-4])
+        return load_reader(self).Reader(io.BytesIO(
+            header_bytes(self.m_header) + record + completion(4)))
+
+    def test_flat_base_edits_preserve_other_trios_and_scenes(self):
+        group = parameter_group(4, 4, 'CarrierFire', [struct.pack('<IIBBf', 1, 0, 2, 0, 0.75)])
+        reader = self.reader([group])
+        patch = reader.PatchAtSample(1)
+        self.assertEqual(patch['squiggleBoy']['CarrierFire']['values']['values'],
+                         [0.25, 0.25, 0.75, 0.25, 0.25, 0.25, 0.25, 0.25])
+        for name in ('CarrierWater', 'CarrierEarth'):
+            self.assertEqual(patch['squiggleBoy'][name], self.m_patch['squiggleBoy'][name])
+        self.assertEqual(reader.PatchAtSample(0), self.m_patch)
+
+    def test_new_nested_gesture_uses_flat_values_and_activation(self):
+        groups = [
+            parameter_group(4, 4, 'CarrierEarth', [struct.pack('<IIBBBBf', 1, 0, 3, 2, 1, 130, -0.5)]),
+            parameter_group(5, 1, 'CarrierEarth', [struct.pack('<IIBBBBB', 1, 1, 3, 2, 1, 130, 1)]),
+        ]
+        patch = self.reader(groups).PatchAtSample(1)
+        depth = patch['squiggleBoy']['CarrierEarth']['modulators'][1]
+        self.assertEqual(depth['values']['values'], [0.0] * 8)
+        gesture = depth['gestures'][2]
+        self.assertEqual(gesture['values']['values'], [0.0, 0.0, 0.0, -0.5, 0.0, 0.0, 0.0, 0.0])
+        self.assertEqual(gesture['active'], [False, False, False, True, False, False, False, False])
+
+    def test_patch_load_restores_flat_nested_values(self):
+        gesture = {'values': {'values': [-0.5] * 8}, 'active': [False, True] + [False] * 6}
+        depth = {'values': {'values': [0.0] * 8}, 'gestures': [gesture] + [None] * 15}
+        carrier = {'values': {'values': [0.75] * 8}, 'modulators': [depth] + [None] * 14}
+        loaded = {'squiggleBoy': {'CarrierFire': carrier}}
+        group = parameter_group(6, 0, '', [patch_entry(1, 0, loaded, False)])
+        patch = self.reader([group]).PatchAtSample(1)
+        self.assertEqual(patch['squiggleBoy']['CarrierFire'], carrier)
+        self.assertEqual(patch['squiggleBoy']['CarrierWater'], self.m_patch['squiggleBoy']['CarrierWater'])
+
+    def test_supplied_short_scene_array_clears_omitted_scenes_like_live_load(self):
+        loaded = {'squiggleBoy': {'CarrierFire': {'values': {'values': [0.75]}}}}
+        group = parameter_group(6, 0, '', [patch_entry(1, 0, loaded, False)])
+        patch = self.reader([group]).PatchAtSample(1)
+        self.assertEqual(patch['squiggleBoy']['CarrierFire']['values']['values'], [0.75] + [0.0] * 7)
+
+
 class PatchLoadReplayTests(unittest.TestCase):
     def setUp(self):
         self.m_header = json.loads((x_fixtures / 'golden.json').read_text())['header']
@@ -447,7 +514,7 @@ class ReaderTests(unittest.TestCase):
     def test_metadata_and_allocation_limits_fail_before_payload_reads(self):
         sgrec = load_reader(self)
         variants = [
-            dict(self.m_header, format_version=5),
+            dict(self.m_header, format_version=6),
             dict(self.m_header, format_version=True),
             dict(self.m_header, git_commit_sha='short'),
             dict(self.m_header, recorded_at_utc='yesterday'),
@@ -909,7 +976,7 @@ class CppStateFixtureTests(unittest.TestCase):
             self.assertEqual(reader.m_header['initial_patch']['stateSaver']['sceneStateRight'][0], 1)
             self.assertEqual(initial['stateSaver']['sceneStateRight'][0], 2)
             self.assertEqual(initial['stateSaver']['sourceMonitor_0'], [1])
-            self.assertEqual(set(initial), {'nonagon', 'squiggleBoy', 'stateSaver', 'configGrid', 'faders', 'blend'})
+            self.assertEqual(set(initial), {'version', 'nonagon', 'squiggleBoy', 'stateSaver', 'configGrid', 'faders', 'blend'})
             self.assertEqual(initial['blend'], 0.125)
             first = reader.PatchAtSample(1)
             self.assertEqual(first['nonagon']['Mute_0'], [1, 0, 0, 0, 0, 0, 0, 0])
@@ -918,15 +985,15 @@ class CppStateFixtureTests(unittest.TestCase):
             self.assertAlmostEqual(first['blend'], 8192 / 16383)
             self.assertAlmostEqual(first['faders'][3], 4096 / 16383)
             third = reader.PatchAtSample(3)
-            encoder = third['squiggleBoy']['Harmonics1']
-            self.assertEqual(encoder['values']['values'][2][1], 0.625)
+            encoder = third['squiggleBoy']['Harmonics1Water']
+            self.assertEqual(third['squiggleBoy']['Harmonics1Fire']['values']['values'][2], 0.625)
             gesture = encoder['gestures'][2]
             self.assertTrue(gesture['active'][0])
-            self.assertEqual(gesture['values']['values'][0][0], 0.75)
+            self.assertEqual(gesture['values']['values'][0], 0.75)
             self.assertNotIn('modulators', gesture)
             nested = encoder['modulators'][1]['gestures'][0]
-            self.assertTrue(nested['active'][16])
-            self.assertEqual(nested['values']['values'][1][0], 0.25)
+            self.assertTrue(nested['active'][1])
+            self.assertEqual(nested['values']['values'][1], 0.25)
             last = reader.PatchAtSample(4)
             self.assertEqual(last['nonagon']['Mute_0'], [1, 0, 1, 0, 0, 0, 0, 0])
             self.assertEqual(last['stateSaver']['activeTrio'], [0, 0, 0, 0])
@@ -934,7 +1001,7 @@ class CppStateFixtureTests(unittest.TestCase):
             self.assertEqual(last['configGrid']['sourceSelected'][0], [True, True, False, False])
             self.assertEqual(last['stateSaver']['sourceMonitor_0'], [1])
             self.assertEqual(last['stateSaver']['sourceMonitor_1'], [0])
-            self.assertFalse(last['squiggleBoy']['Harmonics1']['gestures'][2]['active'][0])
+            self.assertFalse(last['squiggleBoy']['Harmonics1Water']['gestures'][2]['active'][0])
             self.assertEqual(last['faders'][3], 1.0)
             self.assertEqual(reader.PatchAtSample(0), initial)
 

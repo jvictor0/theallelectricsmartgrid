@@ -31,7 +31,7 @@ void SetParamValue(
     SmartGridOneEncoders::Param param,
     float value)
 {
-    SmartGrid::BankedEncoderCell* cell = squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(static_cast<size_t>(param));
+    SmartGrid::BankedEncoderCell* cell = squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(squiggleBoy.m_encoders.EncoderIndex(param, 0));
     DOCTEST_REQUIRE(cell);
 
     for (size_t i = 0; i < 16; ++i)

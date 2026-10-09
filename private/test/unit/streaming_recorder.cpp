@@ -149,9 +149,9 @@ DOCTEST_TEST_CASE("streaming recorder: queued patch readers prevent reuse until 
     recorder.Shutdown();
     DOCTEST_CHECK(recorder.GetError() == StreamingRecorder::Error::None);
     const std::string bytes(memory->m_bytes.begin(), memory->m_bytes.end());
-    const size_t first = bytes.find("{\"old\":42}");
+    const size_t first = bytes.find("{\"old\":42,\"version\":1}");
     DOCTEST_REQUIRE(first != std::string::npos);
-    DOCTEST_CHECK(bytes.find("{\"old\":42}", first + 1) != std::string::npos);
+    DOCTEST_CHECK(bytes.find("{\"old\":42,\"version\":1}", first + 1) != std::string::npos);
     DOCTEST_CHECK(bytes.find("{\"new\":99}") == std::string::npos);
 }
 

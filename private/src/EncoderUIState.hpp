@@ -48,9 +48,7 @@ struct EncoderBankUIState
     std::atomic<SmartGrid::Color> m_indicatorColor[16];
     std::atomic<SmartGrid::Color> m_mainIndicatorColor;
 
-    std::atomic<int> m_numTracks;
     std::atomic<int> m_numVoices;
-    std::atomic<int> m_currentTrack;
 
     std::atomic<SmartGridOne::ModulationGlyphs> m_modulationGlyphs[16];
     std::atomic<SmartGrid::Color> m_modulationGlyphColor[16];
@@ -60,9 +58,7 @@ struct EncoderBankUIState
         , m_strings{}
         , m_indicatorColor{}
         , m_mainIndicatorColor(SmartGrid::Color::Off)
-        , m_numTracks(0)
         , m_numVoices(1)
-        , m_currentTrack(0)
         , m_modulationGlyphs{}
         , m_modulationGlyphColor{}
     {
@@ -126,19 +122,9 @@ struct EncoderBankUIState
         m_states[i][j].m_bipolar.store(bipolar);
     }
 
-    int GetNumTracks()
-    {
-        return m_numTracks.load();
-    }
-
     int GetNumVoices()
     {
         return m_numVoices.load();
-    }
-
-    int GetCurrentTrack()
-    {
-        return m_currentTrack.load();
     }
 
     bool GetConnected(size_t i, size_t j)
@@ -199,19 +185,9 @@ struct EncoderBankUIState
         }
     }
 
-    void SetNumTracks(int numTracks)
-    {
-        m_numTracks.store(numTracks);
-    }
-
     void SetNumVoices(int numVoices)
     {
         m_numVoices.store(numVoices);
-    }
-
-    void SetCurrentTrack(int currentTrack)
-    {
-        m_currentTrack.store(currentTrack);
     }
 
     void SetConnected(size_t i, size_t j, bool connected)

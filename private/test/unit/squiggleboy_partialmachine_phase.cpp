@@ -28,10 +28,10 @@ DOCTEST_TEST_CASE("SquiggleBoy effect returns reach unity and reverb covers the 
         DOCTEST_CHECK(synth->m_mixerState.m_returnGain[effect].m_expParam == doctest::Approx(1.0f));
     }
 
-    auto* reverbReturn = synth->m_encoders.m_encoderBankBank.GetEncoder(static_cast<size_t>(SmartGridOneEncoders::Param::ReverbReturn));
+    auto* reverbReturn = synth->m_encoders.m_encoderBankBank.GetEncoder(synth->m_encoders.EncoderIndex(SmartGridOneEncoders::Param::ReverbReturn, 0));
     for (float value : {0.5f, 0.0f})
     {
-        reverbReturn->SetValue(value, true, true);
+        reverbReturn->SetValue(value, true);
         reverbReturn->SetForceUpdateRecursive();
         for (size_t frame = 0; frame < 512; ++frame)
         {

@@ -86,6 +86,7 @@ playground.xcworkspace
 # IDE
 .idea/
 *.iml
+/.vscode/settings.json
 .codex/worktrees/
 
 # macOS

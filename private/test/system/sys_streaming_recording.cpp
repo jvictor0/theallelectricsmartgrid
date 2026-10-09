@@ -17,13 +17,13 @@ DOCTEST_TEST_CASE("recording engine: bulk patch replay checkpoints include loads
     const std::string base = rig.SavePatch();
     encoder->FillModulators(&internal.m_context);
     auto* depth = encoder->m_modulators.m_modulators[0].get();
-    depth->SetAndRecordValue(0.875f, 0, 0);
+    depth->SetAndRecordValue(0.875f, 0);
     depth->m_modulators.AddGesture(depth, 0);
-    depth->m_modulators.m_gestures[0]->SetAndRecordValue(0.75f, 0, 0);
-    depth->m_modulators.m_gestures[0]->SetActive(true, 0, 0);
+    depth->m_modulators.m_gestures[0]->SetAndRecordValue(0.75f, 0);
+    depth->m_modulators.m_gestures[0]->SetActive(true, 0);
     encoder->m_modulators.AddGesture(encoder, 1);
-    encoder->m_modulators.m_gestures[1]->SetAndRecordValue(0.625f, 0, 0);
-    encoder->m_modulators.m_gestures[1]->SetActive(true, 0, 0);
+    encoder->m_modulators.m_gestures[1]->SetAndRecordValue(0.625f, 0);
+    encoder->m_modulators.m_gestures[1]->SetActive(true, 0);
     const std::string rich = rig.SavePatch();
     DOCTEST_REQUIRE(rig.PrepareRecording(directory.string()));
     auto session = recorder.m_session;
@@ -68,11 +68,11 @@ DOCTEST_TEST_CASE("recording engine: bulk patch replay checkpoints include loads
         SampleTimer::IncrementSample();
         if (sample == 1)
         {
-            encoder->SetAndRecordValue(0.9f, 0, 0);
+            encoder->SetAndRecordValue(0.9f, 0);
             load(base, true);
             DOCTEST_CHECK(encoder->m_modulators.m_modulators[0].get() == nullptr);
             DOCTEST_CHECK(encoder->m_modulators.m_gestures[1].get() == nullptr);
-            encoder->SetAndRecordValue(0.6f, 0, 0);
+            encoder->SetAndRecordValue(0.6f, 0);
         }
         else if (sample == 2)
         {
@@ -93,14 +93,14 @@ DOCTEST_TEST_CASE("recording engine: bulk patch replay checkpoints include loads
         }
         else if (sample == 4)
         {
-            encoder->SetAndRecordValue(0.25f, 0, 0);
+            encoder->SetAndRecordValue(0.25f, 0);
             internal.HandleParamSet({SmartGrid::MessageIn::Mode::ParamSet14, 0, 0, 4096});
         }
         else if (sample == 5)
         {
             TheNonagonSquiggleBoyInternal::SaveLoadJSONCell reload(&internal, false);
             reload.OnPress(127);
-            encoder->SetAndRecordValue(0.125f, 0, 0);
+            encoder->SetAndRecordValue(0.125f, 0);
             reload.OnPress(127);
         }
         else if (sample == 6)
@@ -112,7 +112,7 @@ DOCTEST_TEST_CASE("recording engine: bulk patch replay checkpoints include loads
             DOCTEST_REQUIRE(interchange.RequestNew());
             internal.HandleStateInterchange();
             DOCTEST_CHECK_FALSE(interchange.IsNewRequested());
-            encoder->SetAndRecordValue(0.5f, 0, 0);
+            encoder->SetAndRecordValue(0.5f, 0);
         }
 
         internal.ProcessSample(input);
@@ -350,8 +350,9 @@ DOCTEST_TEST_CASE("recording engine: initial patch and all parameter types reach
         {
             internal.m_configGrid.m_sourceWidthStates[0]->Set(SourceMixer::SourceWidth::Stereo);
             internal.m_configGrid.m_sourceSelectedStates[0][1]->Set(true);
-            encoder->SetAndRecordValue(0.75f, 0, 0);
-            encoder->SetAndRecordValue(0.625f, 2, 1);
+            encoder->SetAndRecordValue(0.75f, 0);
+            internal.m_squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(
+                internal.m_squiggleBoy.m_encoders.EncoderIndex(SmartGridOneEncoders::Param::Harmonics1, 1))->SetAndRecordValue(0.625f, 2);
         }
         else if (frame == 3)
         {
@@ -365,14 +366,14 @@ DOCTEST_TEST_CASE("recording engine: initial patch and all parameter types reach
             auto* depth = encoder->m_modulators.m_modulators[1].get();
             depth->m_modulators.AddGesture(depth, 0);
             auto* nestedGesture = depth->m_modulators.m_gestures[0].get();
-            nestedGesture->SetAndRecordValue(0.625f, 1, 0);
-            nestedGesture->SetActive(true, 1, 0);
+            nestedGesture->SetAndRecordValue(0.625f, 1);
+            nestedGesture->SetActive(true, 1);
         }
         else if (frame == 4)
         {
             internal.m_configGrid.Get(6, 0)->OnPress(127);
             internal.m_configGrid.Get(7, 0)->OnPress(127);
-            encoder->m_modulators.m_gestures[2]->SetActive(false, 0, 0);
+            encoder->m_modulators.m_gestures[2]->SetActive(false, 0);
             internal.HandleParamSet({SmartGrid::MessageIn::Mode::ParamSet14, 4, 0, 16383});
         }
 
@@ -408,7 +409,7 @@ DOCTEST_TEST_CASE("recording engine: initial patch and all parameter types reach
     DOCTEST_CHECK(patch.Get("stateSaver").Get("sourceMonitor_0").GetAt(0).IntegerValue() == 1);
     DOCTEST_CHECK_FALSE(patch.Get("faders").IsNull());
     DOCTEST_CHECK(patch.Get("blend").NumberValue() == 0.125);
-    DOCTEST_CHECK(patch.Get("squiggleBoy").Get("Harmonics1").Get("gestures").IsNull());
+    DOCTEST_CHECK(patch.Get("squiggleBoy").Get("Harmonics1Water").Get("gestures").IsNull());
     DOCTEST_CHECK(recorder.m_writtenFrames == 5);
     if (const char* output = std::getenv("SMARTGRID_STATE_RECORDING_FIXTURE"))
     {
@@ -446,16 +447,19 @@ DOCTEST_TEST_CASE("recording engine: reconstructed patch loads recorded state an
     DOCTEST_CHECK(internal.m_context.m_sceneManager.m_blendFactor == doctest::Approx(8192.0f / 16383.0f));
     DOCTEST_CHECK(internal.m_squiggleBoyState.m_faders[3] == doctest::Approx(4096.0f / 16383.0f));
     auto* encoder = internal.m_squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(0);
-    DOCTEST_CHECK(encoder->m_values[1][2] == 0.625f);
+    auto* fireEncoder = internal.m_squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(
+        internal.m_squiggleBoy.m_encoders.EncoderIndex(SmartGridOneEncoders::Param::Harmonics1, 1));
+    DOCTEST_REQUIRE(fireEncoder != nullptr);
+    DOCTEST_CHECK(fireEncoder->m_values[2] == 0.625f);
     auto* gesture = encoder->m_modulators.m_gestures[2].get();
     DOCTEST_REQUIRE(gesture != nullptr);
-    DOCTEST_CHECK(gesture->m_isActive[0][0]);
-    DOCTEST_CHECK(gesture->m_values[0][0] == 0.75f);
+    DOCTEST_CHECK(gesture->m_isActive[0]);
+    DOCTEST_CHECK(gesture->m_values[0] == 0.75f);
     auto* depth = encoder->m_modulators.m_modulators[1].get();
     DOCTEST_REQUIRE(depth != nullptr);
     DOCTEST_REQUIRE(depth->m_modulators.m_gestures[0].get() != nullptr);
-    DOCTEST_CHECK(depth->m_modulators.m_gestures[0]->m_isActive[1][0]);
-    DOCTEST_CHECK(depth->m_modulators.m_gestures[0]->m_values[0][1] == 0.625f);
+    DOCTEST_CHECK(depth->m_modulators.m_gestures[0]->m_isActive[1]);
+    DOCTEST_CHECK(depth->m_modulators.m_gestures[0]->m_values[1] == 0.625f);
 }
 
 DOCTEST_TEST_CASE("recording engine: owner destruction drains events before freeing states")

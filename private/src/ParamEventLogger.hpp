@@ -50,21 +50,21 @@ struct ParamEventLogger
         }
     }
 
-    void RecordEncoderSet(SmartGrid::StateEncoderCell* stateEncoderCell, int scene, int track)
+    void RecordEncoderSet(SmartGrid::StateEncoderCell* stateEncoderCell, int scene)
     {
         if (!m_suspended && m_recorder->GetState() == StreamingRecorder::State::Recording)
         {
             size_t sample = SampleTimer::GetSample() - m_recorder->m_recordingStartSample;
-            m_recorder->RecordParamEvent(ParamEvent::MkEncoderSet(stateEncoderCell, scene, track, sample));
+            m_recorder->RecordParamEvent(ParamEvent::MkEncoderSet(stateEncoderCell, scene, sample));
         }
     }
 
-    void RecordEncoderActivate(SmartGrid::BankedEncoderCell* cell, int scene, int track)
+    void RecordEncoderActivate(SmartGrid::BankedEncoderCell* cell, int scene)
     {
         if (!m_suspended && m_recorder->GetState() == StreamingRecorder::State::Recording)
         {
             size_t sample = SampleTimer::GetSample() - m_recorder->m_recordingStartSample;
-            m_recorder->RecordParamEvent(ParamEvent::MkEncoderActivate(cell, scene, track, sample));
+            m_recorder->RecordParamEvent(ParamEvent::MkEncoderActivate(cell, scene, sample));
         }
     }
 };

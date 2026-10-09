@@ -155,6 +155,7 @@ struct TheNonagonSquiggleBoyInternal
     JSON ToJSON(JsonArena& a)
     {
         JSON rootJ = a.Object();
+        rootJ.SetNew("version", a.Integer(PatchFormat::x_currentVersion));
         rootJ.SetNew("nonagon", m_nonagon.ToJSON(a));
         rootJ.SetNew("squiggleBoy", m_squiggleBoy.ToJSON(a));
         rootJ.SetNew("stateSaver", m_stateSaver.ToJSON(a));

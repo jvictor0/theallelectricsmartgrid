@@ -4,7 +4,7 @@ The Smart Grid One relies entirely on a software-defined parameter system. All "
 
 The core implementation spans `private/src/Encoder.hpp`, `private/src/EncoderBank.hpp`, and `private/src/EncoderBankBank.hpp`.
 
-Ownership lives in `EncoderBankBank`: it owns a flat array of `BankedEncoderCell` instances indexed by `SmartGridOneEncoders::Param`. Each `EncoderBankInternal` starts with null base cells and receives raw pointers through `PlaceEncoder(...)`. This makes encoder swapping explicit and keeps base cells empty until they are placed.
+Ownership lives in `EncoderBankBank`: it owns a flat array of `BankedEncoderCell` instances indexed by `EncoderIndex(param, trio) = param * 3 + trio`. Voice parameters have separate Water, Fire, and Earth cells; Quad and Global parameters use only the trio-zero slot. Each `EncoderBankInternal` starts with null base cells and receives raw pointers through `PlaceEncoder(...)`. This makes encoder swapping explicit and keeps base cells empty until they are placed.
 
 Serialization follows ownership: `EncoderBankBank::ToJSON()` iterates the full encoder array and writes each named parameter, and `FromJSON()` does the inverse by looking up each name and updating the encoder state.
 
@@ -15,7 +15,7 @@ encoder ownership chain. It provides the scene manager, recorder, and parameter
 event logger:
 
 - `EncoderBankBank(numBanks, numModes, numEncoders, context)` stores the context used by every `CreateEncoder(...)` call.
-- `SmartGridOneEncoders(context, numTrios, voicesPerTrio)` initializes modes, banks, and named parameters during construction.
+- `SmartGridOneEncoders(context)` initializes the fixed three-trio, three-voices-per-trio layout during construction.
 - `SquiggleBoyWithEncoderBank(context)` constructs that encoder system for the Nonagon's trio/voice layout.
 
 The context must outlive these objects. Encoder cells serialize through
@@ -23,36 +23,51 @@ The context must outlive these objects. Encoder cells serialize through
 
 ## Parameter recording
 
-`SetAndRecordValue` updates a stored scene/track value and emits EncoderSet while
+`SetAndRecordValue` updates a stored scene value in one named cell and emits EncoderSet while
 recording. The event converts normalized storage through `ToValue`, matching
 ordinary patch JSON before smoothing or modulation. `SetActive` records gesture
 activation; when activation inherits a parent's value, that copied value also
-passes through `SetAndRecordValue`. Root names identify parameters, and each
-nested path hop identifies a gesture or modulator index.
+passes through `SetAndRecordValue`. Voice root names include a Water, Fire, or
+Earth suffix; Quad and Global names stay unsuffixed. Each nested path hop identifies a gesture or modulator index.
 
 The recorder groups these assignments with StateChange, GestureSet (fader), and
-BlendSet events. The Python reader reconstructs values and activation, including
-neutral nested nodes first created after the header snapshot. FromJSON writes
+BlendSet events. Format-v5 recording replay uses flat scene arrays and activation
+flags, including
+neutral nested nodes first created after the header snapshot. Encoder events no
+longer carry a track field; the root name identifies the trio. FromJSON writes
 raw values and activation flags; one PatchLoad event captures the whole load,
 including replacement/removal of children. Gestures are always leaves; normal
 modulators may nest or have gesture leaves. See the exact
 [recording protocol and limitations](streaming-recording-format.md).
 
-## Base Structure: Tracks and Voices
+## Base Structure: Trios and Voices
 
-To accommodate polyphony and quadraphonic effects, the parameter system is structured hierarchically.
-- **Voices**: The synthesizer engine runs 9 simultaneous voices. For quadraphonic effects (like the Quad Delay, Quad Reverb, and Partial Machine), there are 4 independent channels (effectively acting as voices in the parameter system).
-- **Tracks**: Voices are grouped into tracks. For example, the 9 voices are grouped into 3 trios. The parameter system addresses these as 3 tracks, with 3 voices per track.
-- **Banks**: Parameters are grouped into Banks (e.g., "Source", "Filter", "Delay"). Each bank defines its **Bank Mode**, which dictates the number of tracks and voices per track.
-  - **Voice Banks** (3 tracks × 3 voices): Parameters shared across a trio, but affecting all 9 voices.
-  - **Quad Banks** (1 track × 4 voices): Used for the Quad Delay, Quad Reverb, Partial Machine, and Quad LFOs, allowing independent modulation for each speaker channel or frequency-dependent lane.
-  - **Global Banks** (1 track × 1 voice): Used for global settings like the Theory of Time clock or mastering EQ.
+Tracks remain a performer-facing choice, but encoder cells no longer contain a
+track dimension. Each cell stores eight scene values and one banked base value.
+Its bank mode determines the number of independent output channels:
 
-**Crucially, the base value of a knob is identical for all voices within a track. However, modulation and gestures can apply *different* offsets to each voice within that track.**
+- Water, Fire, and Earth each have their own Voice mode with three local channels.
+- Source, Filter and Amp, Panning and Sequencing, and Voice LFOs each have three
+  bank instances, one per trio: twelve Voice banks altogether.
+- Delay, Reverb, Partial Machine, and Quad LFOs share the four-channel Quad mode.
+- Theory of Time, Mastering, Inputs, and Deep Vocoder share the one-channel Global mode.
+
+There are twenty bank instances and five modes. `SetTrack(trio)` selects the
+corresponding instance of the current Voice-bank family. It remembers the trio
+while a Quad or Global bank is selected, without changing that selected bank.
+`GetValue(param, voice)` and `GetValueNoSlew(param, voice)` map voice 0–8 to
+`trio = voice / 3` and local channel `voice % 3`. Quad and Global reads use their
+channel directly. UI and MIDI consume local channels starting at zero.
+
+A base value and gesture target are shared by the voices of one cell. Modulation
+sources and computed outputs vary per local voice. Each trio owns independent
+modulation depth and gesture subtrees, so editing or resetting Water does not
+edit Fire or Earth. Whole-patch reset, scene copy, and gesture deletion traverse
+the named owner array across all trios, including hidden parameters.
 
 ## Base Encoders vs. Banked Encoders
 
-- `StateEncoderCell`: The base class that holds the actual numerical state. It stores a value in the normalized range `[0, 1]`.
+- `StateEncoderCell`: The base class that holds the actual numerical state. It stores `m_values[scene]` in the normalized range `[0, 1]` and publishes the scene blend through one state pointer. Scene operations must read stored values, independently of a derived cell's modulated UI getter.
 - `BankedEncoderCell`: Extends the state cell to support deep, polyphonic modulation and macro gestures. 
 
 Every state encoder has an `m_bipolar` flag. Scene storage, gesture targets,
@@ -66,8 +81,28 @@ remain unipolar. Gesture target cells inherit their parent's polarity.
 
 JSON saves the **knob position**, in `[-1, 1]` for bipolar encoders and `[0, 1]`
 for unipolar encoders. Loading converts signed values back to normalized storage.
-Polarity comes from the parameter declaration or child role, not a saved field;
-there is no patch version or legacy-depth conversion.
+Polarity comes from the parameter declaration or child role, not a saved field.
+A named cell saves `values.values` as eight numbers; a gesture also saves `active`
+as eight booleans. There is no inner track array.
+
+Patch JSON has a top-level integer `version`. Current saves, including recording
+snapshots, write version 1; a missing version means version 0. On the message
+thread, `StateInterchange::ParseForLoad` upgrades version 0 in memory before
+publishing the tree to audio. Opening a legacy patch does not rewrite its disk
+file; the upgraded form is written by a normal save. It splits each legacy
+Voice root into Water, Fire,
+and Earth roots. For each scene, trio indexes 0, 1, and 2 select the old
+scene-by-track value; gesture activation selects `active[scene * 16 + trio]`.
+The mapping recurses through modulators and gestures, retaining null slots and
+signed patch values. Shared parameters retain their names and select track zero.
+Missing scene or track values become zero, and missing activation flags become
+false. Missing fields stay absent for partial loads. Unknown root fields and
+encoder names pass through unchanged. Already suffixed Voice roots stay intact,
+and already scalar shared values or eight-entry shared activation arrays are
+preserved during the transition. Explicit version 0 follows the same
+upgrade; version 1 is used unchanged. Negative, future, noninteger, and null
+versions are rejected, as are duplicate top-level `version` or `squiggleBoy`
+keys and legacy Voice roots that collide with a suffixed root. Recording container format version 5 is independent of patch version.
 
 ## Deep Modulation
 
@@ -94,13 +129,9 @@ Depth reset, activity detection, and garbage collection use the neutral position
 even when the current scene blend produces zero depth. Bipolar encoder rings
 show a center marker; encoder-set messages and MIDI values remain normalized.
 
-Old saved positive modulation depths are read as positive signed knob positions.
-An old `0` stays neutral and `1` stays full depth, while an old `0.5` now produces
-depth `0.25`. This intentionally weakens intermediate old depths, including those
-in nested modulation. Saving writes the knob position, so repeated save/load does
-not repeatedly apply the exponential curve. Changing an existing top-level
-parameter to bipolar likewise requires deliberately updating its DSP callers and
-accepting the new interpretation of its old saved values.
+Saving writes the signed knob position, so repeated save/load must not reapply
+the exponential depth curve. Changing a top-level parameter to bipolar also
+requires updating its DSP callers to consume the signed domain.
 
 ## Gestures (Macros)
 
@@ -108,7 +139,7 @@ accepting the new interpretation of its old saved values.
 - A gesture allows you to define a "Target State" for a parameter.
 - When the gesture is at `0.0`, the parameter sits at its base knob value.
 - When the gesture is at `1.0`, the parameter moves to the Target State.
-- Like modulation depths, the Target State is implemented as a full `BankedEncoderCell` (though hidden from the normal UI) and is polyphonic.
+- Like modulation depths, the Target State is implemented as a leaf `BankedEncoderCell` (hidden from the normal UI), with one target and activation flag per scene for its owning trio.
 - If you physically turn an encoder while a gesture is active, the system correctly updates the base knob or the Target State to match your physical action, ensuring the UI and physical knobs never fall out of sync.
 
 ## Scene Morphing
@@ -133,7 +164,7 @@ See [Partial Machine](partial-machine.md) for the DSP-side mapping.
 
 Each parameter in the Voice banks can specify which source and filter machines it applies to via bit vectors (`MachineFlags`). Parameters are defined in `ForEachSmartGridOneParam.hpp` with `sourceMachines` and `filterMachines` arguments (e.g. `MachineFlags::x_dualWaveShapingVCOOnly` for parameters that only affect the Dual Wave Shaping VCO source).
 
-When the user selects a different source machine (e.g. Thru) or filter machine, `UpdateEncodersForMachine()` runs and swaps the actual encoder pointers in the grid. Parameters that do not apply are removed by placing `nullptr` in those positions, which leaves the cell empty and disconnected. This keeps the encoder grid relevant to the active machine while preserving encoder state in the owner array. The update is triggered on machine change (config page) and track change (since each track can have different machines).
+When the user selects a different source machine (e.g. Thru) or filter machine, `UpdateEncodersForMachine()` runs and swaps the actual encoder pointers in the grid. Parameters that do not apply are removed by placing `nullptr` in those positions, which leaves the cell empty and disconnected. This keeps the encoder grid relevant to the active machine while preserving encoder state in the owner array. The update is triggered on machine change (config page) and track change (since each trio can have different machines). Only the selected trio's four Voice banks are rebuilt; the other trios retain their cells and placements.
 
 ## Related
 - [DSP Overview](dsp-overview.md)

@@ -249,6 +249,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
 
     void DispatchPaint(juce::Graphics& g, SmartGridOneEncoders::Bank bank)
     {
+        bank = SmartGridOneEncoders::BankForTrio(bank, 0);
         // Draw visualizers for standard blocks (0-3)
         //
 #define F(name, vizBank, block, ctor, flags) \
@@ -296,9 +297,10 @@ struct SmartGridOneVisualizerMain : public juce::Component
         }
         
         SmartGridOneEncoders::Bank bank = m_nonagon->GetSelectedEncoderBank();
+        SmartGridOneEncoders::Bank familyBank = SmartGridOneEncoders::BankForTrio(bank, 0);
         
 #define F(name, vizBank, block, ctor, flags) \
-        if (bank == SmartGridOneEncoders::Bank::vizBank && block >= 0 && block < static_cast<int>(x_numBlocks)) \
+        if (familyBank == SmartGridOneEncoders::Bank::vizBank && block >= 0 && block < static_cast<int>(x_numBlocks)) \
         { \
             if (m_##name) \
             { \
@@ -314,7 +316,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
 #undef F
         
 #define F(name, vizBank, block, ctor, flags) \
-        if (bank == SmartGridOneEncoders::Bank::vizBank && block == -1) \
+        if (familyBank == SmartGridOneEncoders::Bank::vizBank && block == -1) \
         { \
             if (m_##name) \
             { \
@@ -334,6 +336,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
 
     bool IsVoiceModeActive(SmartGridOneEncoders::Bank bank)
     {
+        bank = SmartGridOneEncoders::BankForTrio(bank, 0);
         switch (bank)
         {
             case SmartGridOneEncoders::Bank::Source:
@@ -355,7 +358,8 @@ struct SmartGridOneVisualizerMain : public juce::Component
         SmartGridOneEncoders::BankMode modeForBank = m_nonagon->GetModeForEncoderBank(bank);
 
 #define G(name, slot, ctor, mode, color) \
-        if (m_##name && modeForBank == mode) \
+        if (m_##name && (mode == SmartGridOneEncoders::BankMode::Voice \
+            ? SmartGridOneEncoders::IsVoiceMode(modeForBank) : modeForBank == mode)) \
         { \
             auto modBounds = GetModPanelBounds(slot); \
             int inset = std::max(1, static_cast<int>(std::ceil(std::min(modBounds.getWidth(), modBounds.getHeight()) * 0.02f))); \
@@ -385,7 +389,8 @@ struct SmartGridOneVisualizerMain : public juce::Component
         SmartGridOneEncoders::BankMode modeForBank = m_nonagon->GetModeForEncoderBank(bank);
 
 #define G(name, slot, ctor, mode, color) \
-        if (m_##name && modeForBank == mode) \
+        if (m_##name && (mode == SmartGridOneEncoders::BankMode::Voice \
+            ? SmartGridOneEncoders::IsVoiceMode(modeForBank) : modeForBank == mode)) \
         { \
             auto modBounds = GetModPanelBounds(slot); \
             if (modBounds.contains(position)) \

@@ -472,8 +472,7 @@ namespace SmartGrid
                     return false;
                 }
 
-                size_t currentTrack = m_owner->m_encoderState->GetCurrentTrack() * m_owner->m_encoderState->GetNumVoices();
-                float value = m_owner->m_encoderState->GetValue(m_x, m_y, currentTrack);
+                float value = m_owner->m_encoderState->GetValue(m_x, m_y, 0);
 
                 if (!m_owner->m_sent[m_x][m_y] || 
                     m_owner->m_values[m_x][m_y] != static_cast<uint8_t>(value * 127))
@@ -497,8 +496,7 @@ namespace SmartGrid
 
             BasicMidi operator*() const
             {
-                size_t currentTrack = m_owner->m_encoderState->GetCurrentTrack() * m_owner->m_encoderState->GetNumVoices();
-                float valueF = m_owner->m_encoderState->GetValue(m_x, m_y, currentTrack);
+                float valueF = m_owner->m_encoderState->GetValue(m_x, m_y, 0);
                 uint8_t value = static_cast<uint8_t>(valueF * 127);
                 m_owner->m_values[m_x][m_y] = value;
                 m_owner->m_sent[m_x][m_y] = true;

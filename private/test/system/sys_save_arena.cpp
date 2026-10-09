@@ -189,7 +189,7 @@ DOCTEST_TEST_CASE("sys_save_arena: recording snapshot and all parameter types al
     mute->Set(true);
     rig.Internal().HandleParamSet({SmartGrid::MessageIn::Mode::ParamSet14, 0, 0, 8192});
     rig.Internal().HandleParamSet({SmartGrid::MessageIn::Mode::ParamSet14, 1, 0, 4096});
-    encoder->SetAndRecordValue(0.25f, 0, 0);
+    encoder->SetAndRecordValue(0.25f, 0);
     gesture->SetActive(true);
     recorder.BeginFrame();
     recorder.CommitFrame();
@@ -215,9 +215,9 @@ DOCTEST_TEST_CASE("sys_save_arena: recorded full patch load and reset allocate n
     auto* root = rig.Internal().m_squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(0);
     root->FillModulators(&rig.Internal().m_context);
     auto* depth = root->m_modulators.m_modulators[0].get();
-    depth->SetAndRecordValue(0.75f, 0, 0);
+    depth->SetAndRecordValue(0.75f, 0);
     depth->m_modulators.AddGesture(depth, 1);
-    depth->m_modulators.m_gestures[1]->SetActive(true, 0, 0);
+    depth->m_modulators.m_gestures[1]->SetActive(true, 0);
     const std::string text = rig.SavePatch();
     const auto directory = std::filesystem::temp_directory_path()
         / ("smartgrid-load-allocations-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));

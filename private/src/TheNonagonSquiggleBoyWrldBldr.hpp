@@ -403,35 +403,35 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             // Voice banks
             //
-            for (size_t i = 0; i < SmartGridOneEncoders::x_numVoiceBanks; ++i)
+            for (size_t i = 0; i < SmartGridOneEncoders::x_voiceSelectorBanks.size(); ++i)
             {
                 Put(i, 3, new GestureAwareSelectorCell(
                     m_owner, 
                     std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(
                         &owner->m_internal->m_squiggleBoy,
-                        SmartGridOneEncoders::BankFromOrdinal(i))));
+                        SmartGridOneEncoders::x_voiceSelectorBanks[i])));
             }
 
             // Quad banks
             //
-            for (size_t i = 0; i < SmartGridOneEncoders::x_numQuadBanks; ++i)
+            for (size_t i = 0; i < SmartGridOneEncoders::x_quadSelectorBanks.size(); ++i)
             {
                 Put(i, 2, new GestureAwareSelectorCell(
                     m_owner, 
                     std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(
                         &owner->m_internal->m_squiggleBoy,
-                        SmartGridOneEncoders::BankFromOrdinal(SmartGridOneEncoders::x_numVoiceBanks + i))));
+                        SmartGridOneEncoders::x_quadSelectorBanks[i])));
             }
 
             // Global banks
             //
-            for (size_t i = 0; i < SmartGridOneEncoders::x_numGlobalBanks; ++i)
+            for (size_t i = 0; i < SmartGridOneEncoders::x_globalSelectorBanks.size(); ++i)
             {
                 Put(SmartGridOneEncoders::x_numQuadBanks + i, 2, new GestureAwareSelectorCell(
                     m_owner, 
                     std::make_unique<SquiggleBoyWithEncoderBank::SelectorCell>(
                         &owner->m_internal->m_squiggleBoy,
-                        SmartGridOneEncoders::BankFromOrdinal(SmartGridOneEncoders::x_numVoiceBanks + SmartGridOneEncoders::x_numQuadBanks + i))));
+                        SmartGridOneEncoders::x_globalSelectorBanks[i])));
             }
 
             Put(0, 4, m_owner->m_internal->MakeShiftCell());

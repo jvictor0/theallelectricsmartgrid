@@ -67,7 +67,7 @@
 //   SynthRig::ResetToDefaults() → StateInterchange::RequestNew() →
 //   TheNonagonSquiggleBoyInternal::RevertToDefault(allScenes=true, allTracks=true)
 //   → BankedEncoderCell::RevertToDefault → ZeroModulators (clears all gesture
-//   sub-cells and modulator amounts) + SetValue(defaultValue, true, true).
+//   sub-cells and modulator amounts) + SetValue(defaultValue, true).
 //   defaultValue = value at the time SetAsDefault() was last called (during
 //   construction / config).  Typically 0 for most encoders.
 

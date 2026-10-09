@@ -76,3 +76,12 @@ configuration and legacy monitors, fader/blend restoration policy, save-pad
 reloads, same-sample ordering, and whole-patch reset. JSON float comparisons
 allow normal float32 round-trip error; only sample-directory fields are excluded.
 The seeded parameter fixture now includes a load performed while recording.
+
+## Encoder refactor fixture (v5)
+
+`golden-v5.json` carries forward the PCM24 samples, descriptors, audio payloads,
+empty event sections, and END1 marker from `golden-v4.json`. Its header declares
+version 5; each record tag is BLK5 and its CRC is recalculated with Python
+`zlib.crc32`. This isolates the container-version change from audio coding. The
+C++ writer test compares complete records against these independent bytes.
+Existing v1 and v4 fixtures remain available for legacy reader coverage.

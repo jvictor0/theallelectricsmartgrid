@@ -77,8 +77,8 @@ def validate_header(header):
     for field in required:
         if field not in header:
             raise RecordingError(f'Missing session field: {field}')
-    if type(header['format_version']) is not int or header['format_version'] not in (1, 2, 3, 4):
-        raise RecordingError('Unsupported format_version; expected 1, 2, 3, or 4')
+    if type(header['format_version']) is not int or header['format_version'] not in (1, 2, 3, 4, 5):
+        raise RecordingError('Unsupported format_version; expected 1, 2, 3, 4, or 5')
     timestamp = header['recorded_at_utc']
     if not isinstance(timestamp, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)', timestamp):
         raise RecordingError('recorded_at_utc must be an ISO 8601 UTC timestamp')
@@ -360,7 +360,7 @@ class ParamEvent:
     m_sample: int
     m_value: bytes | float | bool | dict
     m_scene: int = 0
-    m_track: int = 0
+    m_track: int | None = None
     m_gesture: int = 0
     m_path: tuple = ()
     m_order: int = 0
@@ -427,8 +427,11 @@ def param_events(block, version=2):
                 if event.m_gesture >= 16:
                     raise RecordingError('Invalid gesture index')
             elif event_type in (4, 5):
-                event.m_scene, event.m_track, path_length = fields('<BBB')
-                if event.m_track >= 16 or path_length > 16:
+                if version >= 5:
+                    event.m_scene, path_length = fields('<BB')
+                else:
+                    event.m_scene, event.m_track, path_length = fields('<BBB')
+                if (event.m_track is not None and event.m_track >= 16) or path_length > 16:
                     raise RecordingError('Invalid encoder track or path length')
                 event.m_path = fields(f'<{path_length}B')
                 if any(not (hop < 15 or 128 <= hop < 144) for hop in event.m_path):
@@ -516,19 +519,29 @@ def load_encoder(node, source, *, bipolar=False, gesture=False):
     incoming = source.get('values')
     if incoming is not None:
         rows = incoming.get('values', [])
-        track_count = len(rows[7]) if len(rows) >= 8 else 0
-        for scene in range(8):
-            row = rows[scene] if scene < len(rows) else []
-            previous = values[scene]
-            values[scene] = [previous[track] if track < len(previous) else 0.0 for track in range(track_count)]
-            for track, value in enumerate(row[:track_count]):
-                value = patch_float(value)
-                if bipolar:
-                    value = patch_float(patch_float(patch_float(value + 1.0) * 0.5) * 2.0 - 1.0)
-                values[scene][track] = value
+        if values and isinstance(values[0], list):
+            track_count = len(rows[7]) if len(rows) >= 8 else 0
+            for scene in range(8):
+                row = rows[scene] if scene < len(rows) else []
+                previous = values[scene]
+                values[scene] = [previous[track] if track < len(previous) else 0.0 for track in range(track_count)]
+                for track, value in enumerate(row[:track_count]):
+                    value = patch_float(value)
+                    if bipolar:
+                        value = patch_float(patch_float(patch_float(value + 1.0) * 0.5) * 2.0 - 1.0)
+                    values[scene][track] = value
+        else:
+            for scene in range(8):
+                value = 0.0
+                if scene < len(rows):
+                    value = patch_float(rows[scene])
+                    if bipolar:
+                        value = patch_float(patch_float(patch_float(value + 1.0) * 0.5) * 2.0 - 1.0)
+                values[scene] = value
     if gesture:
         active = source.get('active') or []
-        node['active'] = [active[index] is True if index < len(active) else False for index in range(128)]
+        node['active'] = [active[index] is True if index < len(active) else False
+                          for index in range(len(node.get('active', [])))]
     for key, size in (('modulators', 15), ('gestures', 16)):
         node.pop(key, None)
         incoming_children = source.get(key)
@@ -538,12 +551,19 @@ def load_encoder(node, source, *, bipolar=False, gesture=False):
         for index, child_source in enumerate(incoming_children[:size]):
             if child_source is None:
                 continue
-            child = {'values': {'values': [[0.0] * len(values[0]) for _ in range(8)]}}
+            child_values = ([[0.0] * len(values[0]) for _ in range(8)]
+                            if values and isinstance(values[0], list) else [0.0] * 8)
+            child = {'values': {'values': child_values}}
             is_gesture = key == 'gestures'
+            if is_gesture:
+                child['active'] = [False] * (128 if values and isinstance(values[0], list) else 8)
             load_encoder(child, child_source, bipolar=bipolar or not is_gesture, gesture=is_gesture)
+            stored_values = child['values']['values']
+            any_value = (any(value != 0.0 for row in stored_values for value in row)
+                         if stored_values and isinstance(stored_values[0], list)
+                         else any(value != 0.0 for value in stored_values))
             keep = (any(child['active']) if is_gesture else
-                    ('modulators' in child or 'gestures' in child
-                     or any(value != 0.0 for row in child['values']['values'] for value in row)))
+                    ('modulators' in child or 'gestures' in child or any_value))
             if keep:
                 children[index] = child
         if any(child is not None for child in children):
@@ -605,16 +625,25 @@ def apply_encoder_event(patch, event):
             if children[index] is None:
                 # New depths and inactive gestures start neutral in patch units.
                 #
-                track_count = len(node['values']['values'][0])
-                child = {'values': {'values': [[0.0] * track_count for _ in range(8)]}}
+                values = node['values']['values']
+                track_count = len(values[0]) if values and isinstance(values[0], list) else None
+                child_values = ([0.0] * 8 if track_count is None
+                                else [[0.0] * track_count for _ in range(8)])
+                child = {'values': {'values': child_values}}
                 if gesture:
-                    child['active'] = [False] * 128
+                    child['active'] = [False] * (8 if track_count is None else 128)
                 children[index] = child
             node = children[index]
         if event.m_type == 4:
-            node['values']['values'][event.m_scene][event.m_track] = event.m_value
+            if event.m_track is None:
+                node['values']['values'][event.m_scene] = event.m_value
+            else:
+                node['values']['values'][event.m_scene][event.m_track] = event.m_value
         else:
-            node['active'][event.m_scene * 16 + event.m_track] = event.m_value
+            if event.m_track is None:
+                node['active'][event.m_scene] = event.m_value
+            else:
+                node['active'][event.m_scene * 16 + event.m_track] = event.m_value
     except (KeyError, IndexError, TypeError, AttributeError) as error:
         raise RecordingError(f'Cannot update patch encoder: {event.m_name}') from error
 

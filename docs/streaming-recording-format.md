@@ -1,4 +1,4 @@
-# SmartGrid streaming recordings (v4)
+# SmartGrid streaming recordings (v5)
 
 Performance recordings use `.sgrec` files. They contain separate input stems,
 mono sub lanes, quad effect returns, and the actual mastered stereo and quad
@@ -14,7 +14,7 @@ counts, written bytes and queue high-water mark.
 
 ## Inspect and extract
 
-Use Python 3.10 or newer. Decoding selected v4 FLAC audio also needs libFLAC
+Use Python 3.10 or newer. Decoding selected v4/v5 FLAC audio also needs libFLAC
 (`brew install flac` on macOS, or your platform's libFLAC package). No Python
 package is required: the reader uses ctypes. Header inspection, patch queries,
 and legacy v1–v3 extraction do not load libFLAC.
@@ -77,9 +77,10 @@ Sample-directory changes and sample assets remain untracked. Ordinary scene
 copies and value edits use assignment events. A scene switch alone reads stored
 state and needs no per-value event.
 
-Audio extraction accepts v1 through v4 and ignores patch/event semantics.
-V4 adds length-prefixed FLAC audio and keeps v3 event semantics.
-Patch reconstruction requires a v2, v3, or v4 initial patch and recognized event
+Audio extraction accepts v1 through v5 and ignores patch/event semantics.
+V4 adds length-prefixed FLAC audio and keeps v3 event semantics. V5 removes
+the track field from encoder events and uses independent named trio cells.
+Patch reconstruction requires a v2, v3, v4, or v5 initial patch and recognized event
 types. V2 retains its historical assignment semantics and cannot reconstruct
 unrecorded load/reset effects or recover cross-type capture order.
 
@@ -93,14 +94,14 @@ format, including its big-endian metadata. There is no container alignment or pa
 | ASCII `SMRTGRID` | 8 |
 | UTF-8 JSON length (`u32`) | 4 |
 | JSON session header | declared length |
-| Independent `BLK4` records | variable |
+| Independent `BLK5` records | variable |
 | `END1` clean-completion marker | 16 |
 
 Required JSON fields:
 
 ```json
 {
-  "format_version": 4,
+  "format_version": 5,
   "initial_patch": {"nonagon": {}, "squiggleBoy": {}, "stateSaver": {}, "configGrid": {}, "faders": [], "blend": 0.0},
   "recorded_at_utc": "2026-09-14T12:34:56Z",
   "git_commit_sha": "0123456789abcdef0123456789abcdef01234567",
@@ -149,7 +150,7 @@ Nonfinite submissions fail capture before accepting that frame.
 
 | Field | Representation |
 | --- | --- |
-| Tag | `BLK4` (4 bytes) |
+| Tag | `BLK5` (4 bytes) |
 | Total record bytes, including CRC | `u32` |
 | Start frame | `u64` |
 | Frame count | `u32` |
@@ -191,7 +192,7 @@ Each group contains:
 | Name | declared UTF-8 bytes, without terminator |
 | Entries | type-specific fields below |
 
-Every v3/v4 entry starts with a block-relative sample offset (`u32`) and capture
+Every v3/v4/v5 entry starts with a block-relative sample offset (`u32`) and capture
 order (`u32`). Replay sorts all entries in the block by `(sample, order)`, so
 grouping does not reorder assignments around loads or snapshots. Only fields
 relevant to the type follow; there is no struct padding or placeholder data.
@@ -201,13 +202,12 @@ relevant to the type follow; there is no struct padding or placeholder data.
 | 1 StateChange | State name | 1, 2, 4, or 8 | scene:`u8`, value bytes |
 | 2 GestureSet | Empty | 4 | gesture/fader index:`u8`, value:`float32` |
 | 3 BlendSet | Empty | 4 | value:`float32` |
-| 4 EncoderSet | Root parameter name | 4 | scene:`u8`, track:`u8`, path length:`u8`, path bytes, value:`float32` |
-| 5 EncoderActivate | Root parameter name | 1 | scene:`u8`, track:`u8`, path length:`u8`, path bytes, active:`u8` |
+| 4 EncoderSet | Root parameter name | 4 | scene:`u8`, path length:`u8`, path bytes, value:`float32` |
+| 5 EncoderActivate | Root parameter name | 1 | scene:`u8`, path length:`u8`, path bytes, active:`u8` |
 | 6 PatchLoad | Empty | 0 | restoreFaders:`u8`, JSON length:`u32`, UTF-8 patch JSON |
 | 7 PatchSnapshot | Empty | 0 | JSON length:`u32`, UTF-8 patch JSON |
 
-Floats are finite little-endian IEEE-754 binary32. Scenes are 0..7; tracks and
-faders are 0..15. Activation is 0 or 1. Encoder paths have 0..16 hops: each byte
+Floats are finite little-endian IEEE-754 binary32. Scenes are 0..7 and faders are 0..15; v5 encoder events have no track field. Activation is 0 or 1. Encoder paths have 0..16 hops: each byte
 is a modulator index 0..14 or `0x80 | gesture_index` (128..143). An empty path
 addresses the root encoder; activation requires a final gesture hop. Gestures
 are leaves in supported edits; a nested gesture follows zero or more normal
@@ -223,13 +223,20 @@ bytes at `scene * value_width` in the named `nonagon` or `stateSaver` entry;
 wire bytes above 127 become negative byte numbers in patch JSON. It also mirrors
 the legacy source-width/selection copies in `configGrid`.
 
+V5 uses independent named trio cells (`Harmonics1Water`, `Harmonics1Fire`,
+`Harmonics1Earth`) with flat `values.values[scene]` and `active[scene]` arrays.
+Encoder events omit the track byte; trio identity comes from the root name.
 GestureSet assigns `faders[index]`; BlendSet assigns top-level `blend`. Encoder
-values are captured in patch units (`ToValue`), including bipolar values, and
-assign `squiggleBoy[name]...values.values[scene][track]`. Activation assigns the
-node's flat `active[scene * 16 + track]`. Missing nested nodes start with neutral
-zero patch values and inactive gestures; existing nodes and other scenes/tracks
+values are captured in patch units (`ToValue`), including bipolar values.
+Missing nested nodes start with eight neutral zero patch values and, for
+gestures, eight inactive flags. Existing nodes and unrelated scenes and trios
 are preserved. The root must already exist in the initial patch. New patches
 save and load `blend`; older patches without it leave the current blend unchanged.
+
+V2–v4 encoder events include a track byte after the scene byte, address
+`values.values[scene][track]`, and use `active[scene * 16 + track]`. Readers retain
+this layout for existing recordings; that does not upgrade old patches for the
+refactored synthesizer.
 
 PatchLoad follows the live loader's partial-load rules. Missing state fields and
 encoder roots are preserved. Supplied state byte arrays replace each started
@@ -258,8 +265,9 @@ V1 uses `BLK1` and ends immediately after audio payloads and CRC, with a minimum
 record size of 26 bytes. V2 uses `BLK2`, assignment types 1–5, and entries that
 start with sample offset alone; it has no capture-order field or bulk patch
 types. Readers preserve the stored order of same-sample v2 assignments.
-V3 uses `BLK3` with the current event representation and legacy audio encodings.
-V2 through v4 readers derive audio payload lengths, then skip the remaining
+V3 uses `BLK3` with capture ordering and legacy audio encodings. V4 uses `BLK4`
+and adds FLAC. V5 uses `BLK5` with the same audio encoding and trackless encoder
+events. V2 through v5 readers derive audio payload lengths, then skip the remaining
 bytes before CRC. They need no event decoder. FLAC stream lengths allow
 unselected audio to be skipped after checking its metadata and bounds.
 Patch queries decode the trailer and reject an unknown event type in a block needed by the query. They do not decode audio or validate unrelated patch fields.
@@ -272,9 +280,9 @@ For `N` frames:
 - **1: legacy delta**, width 0 through 25. First value is PCM24; subsequent
   mathematical adjacent differences use signed two's-complement, packed LSB
   first, with zero final high padding bits. Length is
-  `3 + ceil((N-1)*width/8)`. The v4 writer uses this only at width zero for
+  `3 + ceil((N-1)*width/8)`. The v4/v5 writer uses this only at width zero for
   constant streams, storing one three-byte value. Readers retain all widths.
-- **2: FLAC**, descriptor width zero, available in v4. A `u32` little-endian
+- **2: FLAC**, descriptor width zero, available in v4 and v5. A `u32` little-endian
   byte length precedes a complete native FLAC stream beginning with `fLaC`.
   The length excludes itself. STREAMINFO must declare one channel, 24 bits per
   sample, the session sample rate, exactly `N` samples, and internal block

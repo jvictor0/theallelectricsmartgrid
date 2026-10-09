@@ -2,6 +2,7 @@
 
 #include "JuceSon.hpp"
 #include "PatchArena.hpp"
+#include "PatchFormat.hpp"
 #include <atomic>
 #include <string>
 
@@ -169,13 +170,24 @@ struct StateInterchange
             return JSON::Null();
         }
 
-        m_loadArena.Reset();
-        JSON parsed = m_loadArena.Loads(text);
-        while (parsed.IsNull() && m_loadArena.Failed())
+        JSON parsed;
+        do
         {
-            m_loadArena.GrowAndReset();
+            m_loadArena.Reset();
             parsed = m_loadArena.Loads(text);
+            if (!parsed.IsNull())
+            {
+                parsed = PatchFormat::Upgrade(m_loadArena, parsed);
+            }
+
+            if (!m_loadArena.Failed())
+            {
+                break;
+            }
+
+            m_loadArena.GrowAndReset();
         }
+        while (true);
 
         m_loadArena.FinishWrite(parsed);
         return parsed;

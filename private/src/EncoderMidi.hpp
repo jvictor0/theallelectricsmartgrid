@@ -177,7 +177,7 @@ namespace SmartGrid
                 }
                 else if (m_phase == 2)
                 {
-                    return m_owner->m_values[m_x][m_y] != m_encoderBankState->GetValue(m_x, m_y, m_phase);
+                    return m_owner->m_values[m_x][m_y] != m_encoderBankState->GetValue(m_x, m_y, 0);
                 }
 
                 return false;
@@ -212,8 +212,7 @@ namespace SmartGrid
                 }
                 else if (m_phase == 2)
                 {
-                    size_t currentTrack = m_encoderBankState->GetCurrentTrack() * m_encoderBankState->GetNumVoices();
-                    float valueF = m_encoderBankState->GetValue(m_x, m_y, currentTrack);
+                    float valueF = m_encoderBankState->GetValue(m_x, m_y, 0);
                     uint8_t value = valueF * 127;
                     m_owner->m_values[m_x][m_y] = valueF;
                     return BasicMidi::CC(0, -1, 0 /*channel*/, EncoderMidi::PosToNote(m_x, m_y), value);

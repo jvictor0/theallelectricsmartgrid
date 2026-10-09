@@ -33,12 +33,12 @@ struct ParamEvent
         BlendSet,
 
         // Represents an encoder being set.
-        // Uses name, scene, track, path and value/len.
+        // Uses name, scene, path and value/len.
         //
         EncoderSet,
 
         // Represents an encoder being activated.
-        // Uses name, scene, track, path and value/len.
+        // Uses name, scene, path and value/len.
         //
         EncoderActivate,
 
@@ -56,7 +56,6 @@ struct ParamEvent
       , m_sample(0)
       , m_name(nullptr)
       , m_scene(0)
-      , m_track(0)
       , m_gesture(0)
       , m_valueLen(0)
       , m_value{0}
@@ -72,7 +71,6 @@ struct ParamEvent
     size_t m_sample;
     const char* m_name;
     int m_scene;
-    int m_track;
     int m_gesture;
 
     uint8_t m_valueLen;
@@ -165,6 +163,6 @@ struct ParamEvent
         return event;
     }
 
-    static ParamEvent MkEncoderSet(SmartGrid::StateEncoderCell* stateEncoderCell, int scene, int track, size_t sample);
-    static ParamEvent MkEncoderActivate(SmartGrid::BankedEncoderCell* cell, int scene, int track, size_t sample);
+    static ParamEvent MkEncoderSet(SmartGrid::StateEncoderCell* stateEncoderCell, int scene, size_t sample);
+    static ParamEvent MkEncoderActivate(SmartGrid::BankedEncoderCell* cell, int scene, size_t sample);
 };

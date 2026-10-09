@@ -14,6 +14,7 @@
 
 struct RecordingFormat
 {
+    static constexpr int x_formatVersion = 5;
     static constexpr size_t x_maxHeaderBytes = 1024 * 1024;
     static constexpr size_t x_maxBlockBytes = 64 * 1024 * 1024;
     static constexpr size_t x_maxTracks = 128;
@@ -269,7 +270,7 @@ struct RecordingFormat
 
         JsonArena arena(x_maxHeaderBytes);
         JSON header = arena.Object();
-        header.SetNew("format_version", arena.Integer(4));
+        header.SetNew("format_version", arena.Integer(x_formatVersion));
         header.SetNew("initial_patch", initialPatch.IsNull() ? arena.Object() : initialPatch);
         header.SetNew("recorded_at_utc", arena.String(session.m_recordedAtUtc.c_str()));
         header.SetNew("git_commit_sha", arena.String(session.m_gitCommitSha.c_str()));
@@ -344,8 +345,7 @@ struct RecordingFormat
 
         if (event.m_type == Type::EncoderSet || event.m_type == Type::EncoderActivate)
         {
-            if (name[0] == '\0' || event.m_scene < 0 || event.m_scene >= 8
-                || event.m_track < 0 || event.m_track >= 16)
+            if (name[0] == '\0' || event.m_scene < 0 || event.m_scene >= 8)
             {
                 return false;
             }
@@ -448,7 +448,7 @@ struct RecordingFormat
                 }
                 else if (event.m_type == ParamEvent::Type::EncoderSet || event.m_type == ParamEvent::Type::EncoderActivate)
                 {
-                    groupBytes += 3 + event.EncoderPathLength();
+                    groupBytes += 2 + event.EncoderPathLength();
                 }
             }
 
@@ -478,7 +478,6 @@ struct RecordingFormat
                     case ParamEvent::Type::EncoderSet:
                     case ParamEvent::Type::EncoderActivate:
                         AppendLE(output, event.m_scene, 1);
-                        AppendLE(output, event.m_track, 1);
                         AppendLE(output, event.EncoderPathLength(), 1);
                         for (size_t hop = 0; hop < event.EncoderPathLength(); ++hop)
                         {
@@ -531,7 +530,7 @@ struct RecordingFormat
         }
 
         output.clear();
-        output.insert(output.end(), {'B', 'L', 'K', '4'});
+        output.insert(output.end(), {'B', 'L', 'K', static_cast<uint8_t>('0' + x_formatVersion)});
         AppendLE(output, 0, 4);
         AppendLE(output, startFrame, 8);
         AppendLE(output, frames, 4);

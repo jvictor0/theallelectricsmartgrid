@@ -27,14 +27,13 @@ struct BankedEncoderCell : public StateEncoderCell
 
     struct ModulatorValues;
     
-    struct SharedEncoderState : public SharedEncoderStateBase
+    struct SharedEncoderState
     {
         size_t m_numVoices;
         ModulatorValues* m_modulatorValues;
 
         SharedEncoderState()
-            : SharedEncoderStateBase()
-            , m_numVoices(0)
+            : m_numVoices(0)
             , m_modulatorValues(nullptr)
         {
         }
@@ -178,7 +177,6 @@ struct BankedEncoderCell : public StateEncoderCell
                 if (!m_modulators[i].get())
                 {
                     m_modulators[i] = Make(context, parent, i, BankedEncoderCell::EncoderType::ModulatorAmount);
-                    m_modulators[i]->m_numTracks = parent->m_numTracks;
                     m_activeModulators[m_numActiveModulators] = i;
                     ++m_numActiveModulators;
                 }
@@ -190,7 +188,6 @@ struct BankedEncoderCell : public StateEncoderCell
             if (!m_gestures[gestureIx].get())
             {
                 m_gestures[gestureIx] = Make(parent->m_context, parent, gestureIx, BankedEncoderCell::EncoderType::GestureParam);
-                m_gestures[gestureIx]->m_numTracks = parent->m_numTracks;
             }
         }
 
@@ -238,19 +235,10 @@ struct BankedEncoderCell : public StateEncoderCell
             }
         }
 
-        void ComputePostGestureValues(
-            ModulatorValues* modulatorValues,
-            size_t currentTrack)
-        {            
-            size_t numTracks = m_owner->m_sharedEncoderState->m_numTracks;
-
-            double gestureWeightSum[16];
-            double gestureValue[16];
-            for (size_t i = 0; i < numTracks; ++i)
-            {
-                gestureWeightSum[i] = 0;
-                gestureValue[i] = 0;
-            }
+        void ComputePostGestureValues(ModulatorValues* modulatorValues)
+        {
+            double gestureWeightSum = 0;
+            double gestureValue = 0;
 
             for (size_t i = 0; i < x_numGestureParams; ++i)
             {
@@ -258,35 +246,26 @@ struct BankedEncoderCell : public StateEncoderCell
                 {
                     BankedEncoderCell* cell = m_gestures[i].get();
                     cell->Compute();
-                    for (size_t j = 0; j < numTracks; ++j)
-                    {
-                        cell->SetEffectiveModulatorWeight(modulatorValues->m_gestureWeights[i], j);
-                        double w = cell->m_effectiveModulatorWeights[j];
-                        gestureWeightSum[j] += w;
-                        float bankedValue = m_owner->m_bankedValue[j];
-                        gestureValue[j] += w * static_cast<double>(bankedValue * (1 - w) + static_cast<double>(cell->m_bankedValue[j]) * w);
-                    }
-                }                
+                    cell->SetEffectiveModulatorWeight(modulatorValues->m_gestureWeights[i]);
+                    double w = cell->m_effectiveModulatorWeight;
+                    gestureWeightSum += w;
+                    float bankedValue = m_owner->m_bankedValue;
+                    gestureValue += w * static_cast<double>(bankedValue * (1 - w) + static_cast<double>(cell->m_bankedValue) * w);
+                }
             }
 
-            for (size_t i = 0; i < numTracks; ++i)
-            {
-                m_owner->m_postGestureValue[i] = gestureWeightSum[i] > 0 ? static_cast<float>(gestureValue[i] / gestureWeightSum[i]) : m_owner->m_bankedValue[i];
-                m_owner->m_gestureWeightSum[i] = static_cast<float>(gestureWeightSum[i]);
-            }
+            m_owner->m_postGestureValue = gestureWeightSum > 0 ? static_cast<float>(gestureValue / gestureWeightSum) : m_owner->m_bankedValue;
+            m_owner->m_gestureWeightSum = static_cast<float>(gestureWeightSum);
         }
 
-        void Compute(
-            ModulatorValues* modulatorValues,
-            size_t track)
-        { 
-            size_t numTracks = m_owner->m_sharedEncoderState->m_numTracks;
+        void Compute(ModulatorValues* modulatorValues)
+        {
             size_t numVoices = m_owner->GetSharedEncoderState()->m_numVoices;
 
             float modValue[16];
             float modWeight[16];
             float modOffset[16];
-            for (size_t i = 0; i < numTracks * numVoices; ++i)
+            for (size_t i = 0; i < numVoices; ++i)
             {
                 modValue[i] = 0;
                 modWeight[i] = 0;
@@ -302,35 +281,27 @@ struct BankedEncoderCell : public StateEncoderCell
 
                 BankedEncoderCell* cell = GetModulator(i);
                 cell->Compute();
-                for (size_t j = 0; j < numTracks; ++j)
-                {
-                    for (size_t k = 0; k < numVoices; ++k)
-                    {
-                        size_t ix = j * numVoices + k;
-                        float amp = modulatorValues->m_amplitude[m_activeModulators[i]][ix];
-                        float depth = ModulationDepthFromValue(cell->GetValueNoSlew(ix)) * amp;
-                        modValue[ix] += depth * modulatorValues->m_value[m_activeModulators[i]][ix];
-                        modWeight[ix] += std::fabs(depth);
-                        modOffset[ix] += std::max(0.0f, -depth);
-                    }
-                }                
-            }
-
-            for (size_t i = 0; i < numTracks; ++i)
-            {
-                float value = m_owner->m_postGestureValue[i];
                 for (size_t j = 0; j < numVoices; ++j)
                 {
-                    size_t ix = i * numVoices + j;
-                    float denominator = std::max(1.0f, modWeight[ix]);
-                    float baseWeight = std::max(0.0f, 1.0f - modWeight[ix]);
-                    m_owner->m_output[ix] = value * baseWeight + (modValue[ix] + modOffset[ix]) / denominator;
-                    m_owner->m_minValue[ix] = value * baseWeight;
-                    m_owner->m_maxValue[ix] = value * baseWeight + std::min(1.0f, modWeight[ix]);
+                    float amp = modulatorValues->m_amplitude[m_activeModulators[i]][j];
+                    float depth = ModulationDepthFromValue(cell->GetValueNoSlew(j)) * amp;
+                    modValue[j] += depth * modulatorValues->m_value[m_activeModulators[i]][j];
+                    modWeight[j] += std::fabs(depth);
+                    modOffset[j] += std::max(0.0f, -depth);
                 }
             }
 
-            float brightnessVal = 1 - modWeight[numVoices * track];
+            float value = m_owner->m_postGestureValue;
+            for (size_t i = 0; i < numVoices; ++i)
+            {
+                float denominator = std::max(1.0f, modWeight[i]);
+                float baseWeight = std::max(0.0f, 1.0f - modWeight[i]);
+                m_owner->m_output[i] = value * baseWeight + (modValue[i] + modOffset[i]) / denominator;
+                m_owner->m_minValue[i] = value * baseWeight;
+                m_owner->m_maxValue[i] = value * baseWeight + std::min(1.0f, modWeight[i]);
+            }
+
+            float brightnessVal = 1 - modWeight[0];
 
             m_owner->m_brightness = std::max(0.0f, std::min(1.0f, brightnessVal));
         }
@@ -356,21 +327,22 @@ struct BankedEncoderCell : public StateEncoderCell
         : StateEncoderCell()
         , m_parent(nullptr)
         , m_ownerBank(nullptr)
+        , m_sharedEncoderState(nullptr)
         , m_name(nullptr)
         , m_shortName(nullptr)
-        , m_gestureWeightSum{}
+        , m_gestureWeightSum(1)
         , m_brightness(1)
         , m_connected(false)
         , m_modulators(this)
         , m_depth(0)
         , m_index(0)
-        , m_bankedValue{}
-        , m_postGestureValue{}
+        , m_bankedValue(0)
+        , m_postGestureValue(0)
         , m_output{}
         , m_maxValue{}
         , m_minValue{}
         , m_defaultValue(0)
-        , m_effectiveModulatorWeights{}
+        , m_effectiveModulatorWeight(0)
         , m_isVisible(false)
         , m_type(EncoderType::BaseParam)
         , m_isActive{}
@@ -379,43 +351,33 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
-            for (size_t j = 0; j < 16; ++j)
-            {
-                m_isActive[i][j] = false;
-            }
+            m_isActive[i] = false;
         }
 
         for (size_t i = 0; i < 16; ++i)
         {
-            m_gestureWeightSum[i] = 1;
-            m_bankedValue[i] = 0;
             m_output[i] = 0;
             m_slew[i].SetAlphaFromNatFreq(500.0f / 48000.0f);
             m_slew[i].m_output = 0;
-            m_effectiveModulatorWeights[i] = 0;
         }
 
         m_modulatorsAffecting.Clear();
         m_gesturesAffecting.Clear();
-        for (size_t i = 0; i < 16; ++i)
-        {
-            m_modulatorsAffectingPerTrack[i].Clear();
-            m_gesturesAffectingPerTrack[i].Clear();
-        }
     }
 
     BankedEncoderCell(
         SmartGridOneContext* context, BankedEncoderCell* parent, int index, EncoderType modulatorType)
-        : StateEncoderCell(context, parent ? parent->m_sharedEncoderState : nullptr)
-        , m_gestureWeightSum{}
+        : StateEncoderCell(context)
+        , m_sharedEncoderState(parent ? parent->m_sharedEncoderState : nullptr)
+        , m_gestureWeightSum(1)
         , m_modulators(this)
-        , m_bankedValue{}
-        , m_postGestureValue{}
+        , m_bankedValue(0)
+        , m_postGestureValue(0)
         , m_output{}
         , m_maxValue{}
         , m_minValue{}
         , m_defaultValue(0)
-        , m_effectiveModulatorWeights{}
+        , m_effectiveModulatorWeight(0)
         , m_isActive{}
         , m_switchValues(0)
     {
@@ -425,15 +387,11 @@ struct BankedEncoderCell : public StateEncoderCell
         m_type = modulatorType;
         m_bipolar = m_type == EncoderType::ModulatorAmount ||
             (m_type == EncoderType::GestureParam && parent->m_bipolar);
-        m_numTracks = parent ? parent->m_numTracks : 0;
         m_defaultValue = GetNeutralNormalizedValue();
 
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
-            for (size_t j = 0; j < 16; ++j)
-            {
-                m_isActive[i][j] = false;
-            }
+            m_isActive[i] = false;
         }
 
         if (depth > 0)
@@ -455,33 +413,27 @@ struct BankedEncoderCell : public StateEncoderCell
         }
         
         m_brightness = 1;
-        for (size_t i = 0; i < 16; ++i)
-        {
-            m_gestureWeightSum[i] = 1;
-        }
-
         m_depth = depth;
         m_index = index;
         m_isVisible = false;
         m_modulatorsAffecting.Clear();
         m_gesturesAffecting.Clear();
         m_forceUpdate = true;
+        for (size_t scene = 0; scene < SceneManager::x_numScenes; ++scene)
+        {
+            m_values[scene] = m_defaultValue;
+        }
+
+        m_bankedValue = m_defaultValue;
+        SetStatePtr(&m_bankedValue);
+        m_postGestureValue = m_defaultValue;
         for (size_t i = 0; i < 16; ++i)
         {
-            for (size_t scene = 0; scene < SceneManager::x_numScenes; ++scene)
-            {
-                m_values[i][scene] = m_defaultValue;
-            }
-
-            m_bankedValue[i] = m_defaultValue;
-            SetStatePtr(&m_bankedValue[i], i);
-            m_postGestureValue[i] = m_defaultValue;
             m_output[i] = m_defaultValue;
             m_minValue[i] = m_defaultValue;
             m_maxValue[i] = m_defaultValue;
             m_slew[i].SetAlphaFromNatFreq(500.0f / 48000.0f);
             m_slew[i].m_output = m_defaultValue;
-            m_effectiveModulatorWeights[i] = 0;
         }
     }
 
@@ -522,7 +474,7 @@ struct BankedEncoderCell : public StateEncoderCell
         }
 
         float mainWeight = 0;
-        float gestureWeightSum = m_gestureWeightSum[m_sharedEncoderState->m_currentTrack];
+        float gestureWeightSum = m_gestureWeightSum;
         if (gestureWeightSum > 0)
         {
             for (size_t i = 0; i < x_numGestureParams; ++i)
@@ -530,7 +482,7 @@ struct BankedEncoderCell : public StateEncoderCell
                 BankedEncoderCell* gestureCell = m_modulators.m_gestures[i].get();
                 if (gestureCell)
                 {
-                    float weight = gestureCell->m_effectiveModulatorWeights[m_sharedEncoderState->m_currentTrack];
+                    float weight = gestureCell->m_effectiveModulatorWeight;
                     gestureCell->IncrementInternal(delta * weight * weight / gestureWeightSum);
                     gestureCell->m_forceUpdate = true;
                     mainWeight += weight * (1 - weight);
@@ -548,22 +500,22 @@ struct BankedEncoderCell : public StateEncoderCell
         SetForceUpdateRecursive();        
     }
 
-    void SetEffectiveModulatorWeight(float weight, int track)
+    void SetEffectiveModulatorWeight(float weight)
     {
-        float w1 = m_isActive[m_context->m_sceneManager.m_scene1][track] ? weight : 0;
-        float w2 = m_isActive[m_context->m_sceneManager.m_scene2][track] ? weight : 0;
-        m_effectiveModulatorWeights[track] = w1 * (1 - m_context->m_sceneManager.m_blendFactor) + w2 * m_context->m_sceneManager.m_blendFactor;
+        float w1 = m_isActive[m_context->m_sceneManager.m_scene1] ? weight : 0;
+        float w2 = m_isActive[m_context->m_sceneManager.m_scene2] ? weight : 0;
+        m_effectiveModulatorWeight = w1 * (1 - m_context->m_sceneManager.m_blendFactor) + w2 * m_context->m_sceneManager.m_blendFactor;
     }
 
     void SetDefaultValue()
     {
-        m_defaultValue = m_bankedValue[m_sharedEncoderState->m_currentTrack];
+        m_defaultValue = m_bankedValue;
     }
 
-    void RevertToDefault(bool allScenes, bool allTracks)
+    void RevertToDefault(bool allScenes)
     {
-        ZeroModulators(allScenes, allTracks);
-        SetValue(m_defaultValue, allScenes, allTracks);
+        ZeroModulators(allScenes);
+        SetValue(m_defaultValue, allScenes);
         InitSlewState(m_defaultValue);
         SetForceUpdateRecursive();
         SetModulatorsAffecting();
@@ -579,7 +531,7 @@ struct BankedEncoderCell : public StateEncoderCell
             {
                 if (GetSelectedGestures().Get(i))
                 {
-                    if (m_modulators.m_gestures[i] && m_modulators.m_gestures[i]->IsActiveForCurrentTrack())
+                    if (m_modulators.m_gestures[i] && m_modulators.m_gestures[i]->IsActive())
                     {
                         return m_modulators.m_gestures[i]->GetSquareColor();
                     }
@@ -601,7 +553,7 @@ struct BankedEncoderCell : public StateEncoderCell
             m_type == EncoderType::BaseParam &&
             GetSelectedGestures().IsZero())
         {
-            return (1 - m_gestureWeightSum[m_sharedEncoderState->m_currentTrack]) * m_brightness;
+            return (1 - m_gestureWeightSum) * m_brightness;
         }
         else
         {
@@ -616,7 +568,7 @@ struct BankedEncoderCell : public StateEncoderCell
 
     virtual float GetNormalizedValue() override
     {
-        return m_output[GetSharedEncoderState()->m_numVoices * m_sharedEncoderState->m_currentTrack];
+        return m_output[0];
     }
 
     BankedEncoderCell* GetModulator(size_t i)
@@ -657,10 +609,7 @@ struct BankedEncoderCell : public StateEncoderCell
     void CopyToScene(size_t scene)
     {
         StateEncoderCell::CopyToScene(scene);
-        for (size_t i = 0; i < 16; ++i)
-        {
-            SetActive(IsActiveForTrack(i), scene, i);
-        }
+        SetActive(IsActive(), scene);
 
         for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
         {
@@ -680,7 +629,7 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         if (GetSelectedGestures().IsZero())
         {
-            ZeroModulators(false, false);
+            ZeroModulators(false);
         }
         else
         {
@@ -708,47 +657,41 @@ struct BankedEncoderCell : public StateEncoderCell
         SetForceUpdateRecursive();
     }
 
-    void ZeroModulators(bool allScenes, bool allTracks)
+    void ZeroModulators(bool allScenes)
     {
         for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
         {
-            GetModulator(i)->SetValue(GetModulator(i)->GetNeutralNormalizedValue(), allScenes, allTracks);
-            GetModulator(i)->ZeroModulators(allScenes, allTracks);
+            GetModulator(i)->SetValue(GetModulator(i)->GetNeutralNormalizedValue(), allScenes);
+            GetModulator(i)->ZeroModulators(allScenes);
         }
 
         for (size_t i = 0; i < x_numGestureParams; ++i)
         {
             if (m_modulators.m_gestures[i])
             {
-                m_modulators.m_gestures[i]->SetValue(m_modulators.m_gestures[i]->GetNeutralNormalizedValue(), allScenes, allTracks);
-                DeactivateGesture(i, allScenes, allTracks);
+                m_modulators.m_gestures[i]->SetValue(m_modulators.m_gestures[i]->GetNeutralNormalizedValue(), allScenes);
+                DeactivateGesture(i, allScenes);
             }
         }
 
         GarbageCollectModulators();
     }
 
-    void DeactivateGesture(size_t gestureIx, bool allScenes, bool allTracks)
+    void DeactivateGesture(size_t gestureIx, bool allScenes)
     {
         if (!m_modulators.m_gestures[gestureIx])
         {
             return;
         }
 
-        size_t startTrack = allTracks ? 0 : m_sharedEncoderState->m_currentTrack;
-        size_t endTrack = allTracks ? m_numTracks : m_sharedEncoderState->m_currentTrack + 1;
-
-        for (size_t t = startTrack; t < endTrack; ++t)
+        for (size_t s = 0; s < SceneManager::x_numScenes; ++s)
         {
-            for (size_t s = 0; s < SceneManager::x_numScenes; ++s)
+            if (!allScenes && !m_context->m_sceneManager.IsSceneActive(s))
             {
-                if (!allScenes && !m_context->m_sceneManager.IsSceneActive(s))
-                {
-                    continue;
-                }
-
-                m_modulators.m_gestures[gestureIx]->SetActive(false, s, t);
+                continue;
             }
+
+            m_modulators.m_gestures[gestureIx]->SetActive(false, s);
         }
     }
 
@@ -758,12 +701,9 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
             {
-                for (size_t j = 0; j < 16; ++j)
+                if (m_isActive[i])
                 {
-                    if (m_isActive[i][j])
-                    {
-                        return false;
-                    }
+                    return false;
                 }
             }
 
@@ -797,17 +737,17 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             if (m_forceUpdate || !m_gesturesAffecting.Intersect(modulatorValues->m_changedGestures).IsZero())
             {
-                m_modulators.ComputePostGestureValues(modulatorValues, m_sharedEncoderState->m_currentTrack);
+                m_modulators.ComputePostGestureValues(modulatorValues);
             }
 
-            m_modulators.Compute(modulatorValues, m_sharedEncoderState->m_currentTrack);
+            m_modulators.Compute(modulatorValues);
         }
         
         if (m_depth > 0)
         {
             if (m_type == EncoderType::ModulatorAmount)
             {
-                m_brightness = std::max(0.0f, std::min(1.0f, modulatorValues->m_value[m_index][m_sharedEncoderState->m_currentTrack * GetSharedEncoderState()->m_numVoices]));
+                m_brightness = std::max(0.0f, std::min(1.0f, modulatorValues->m_value[m_index][0]));
             }
         }
 
@@ -861,10 +801,7 @@ struct BankedEncoderCell : public StateEncoderCell
             JSON activeJ = a.Array();
             for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
             {
-                for (size_t j = 0; j < 16; ++j)
-                {
-                    activeJ.AppendNew(a.Boolean(m_isActive[i][j]));
-                }
+                activeJ.AppendNew(a.Boolean(m_isActive[i]));
             }
 
             rootJ.SetNew("active", activeJ);
@@ -920,11 +857,7 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
             {
-                for (size_t j = 0; j < 16; ++j)
-                {
-                    bool active = activeJ.GetAt(i * 16 + j).BooleanValue();
-                    m_isActive[i][j] = active;
-                }
+                m_isActive[i] = activeJ.GetAt(i).BooleanValue();
             }
         }
 
@@ -955,7 +888,7 @@ struct BankedEncoderCell : public StateEncoderCell
         m_forceUpdate = true;
     }
 
-    bool IsActiveForTrack(size_t track)
+    bool IsActive()
     {
         if (m_type != EncoderType::GestureParam)
         {
@@ -963,41 +896,36 @@ struct BankedEncoderCell : public StateEncoderCell
         }
         else
         {
-            return (m_context->m_sceneManager.Scene2Active() && m_isActive[m_context->m_sceneManager.m_scene2][track])
-                || (m_context->m_sceneManager.Scene1Active() && m_isActive[m_context->m_sceneManager.m_scene1][track]);
+            return (m_context->m_sceneManager.Scene2Active() && m_isActive[m_context->m_sceneManager.m_scene2])
+                || (m_context->m_sceneManager.Scene1Active() && m_isActive[m_context->m_sceneManager.m_scene1]);
         }
-    }
-
-    bool IsActiveForCurrentTrack()
-    {
-        return IsActiveForTrack(m_sharedEncoderState->m_currentTrack);
     }
 
     bool IsActiveBothScenes()
     {
-        return (!m_context->m_sceneManager.Scene2Active() || m_isActive[m_context->m_sceneManager.m_scene2][m_sharedEncoderState->m_currentTrack])
-            && (!m_context->m_sceneManager.Scene1Active() || m_isActive[m_context->m_sceneManager.m_scene1][m_sharedEncoderState->m_currentTrack]);
+        return (!m_context->m_sceneManager.Scene2Active() || m_isActive[m_context->m_sceneManager.m_scene2])
+            && (!m_context->m_sceneManager.Scene1Active() || m_isActive[m_context->m_sceneManager.m_scene1]);
     }
 
     void ToggleActive()
     {
         if (m_context->m_sceneManager.Scene2Active())
         {
-            m_isActive[m_context->m_sceneManager.m_scene2][m_sharedEncoderState->m_currentTrack] = !m_isActive[m_context->m_sceneManager.m_scene2][m_sharedEncoderState->m_currentTrack];
+            m_isActive[m_context->m_sceneManager.m_scene2] = !m_isActive[m_context->m_sceneManager.m_scene2];
         }
         
         if (m_context->m_sceneManager.Scene1Active())
         {
-            m_isActive[m_context->m_sceneManager.m_scene1][m_sharedEncoderState->m_currentTrack] = !m_isActive[m_context->m_sceneManager.m_scene1][m_sharedEncoderState->m_currentTrack];
+            m_isActive[m_context->m_sceneManager.m_scene1] = !m_isActive[m_context->m_sceneManager.m_scene1];
         }
     }
 
-    void SetActive(bool active, int scene, int track)
+    void SetActive(bool active, int scene)
     {
-        m_isActive[scene][track] = active;
+        m_isActive[scene] = active;
         if (m_type == EncoderType::GestureParam)
         {
-            m_context->m_paramEventLogger.RecordEncoderActivate(this, scene, track);
+            m_context->m_paramEventLogger.RecordEncoderActivate(this, scene);
         }
     }
 
@@ -1005,26 +933,26 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         if (m_context->m_sceneManager.Scene2Active())
         {
-            if (active && !m_isActive[m_context->m_sceneManager.m_scene2][m_sharedEncoderState->m_currentTrack])
+            if (active && !m_isActive[m_context->m_sceneManager.m_scene2])
             {
-                SetAndRecordValue(m_parent->m_values[m_sharedEncoderState->m_currentTrack][m_context->m_sceneManager.m_scene2],
-                    m_context->m_sceneManager.m_scene2, m_sharedEncoderState->m_currentTrack);
-                SetStateForTrack(m_sharedEncoderState->m_currentTrack);
+                SetAndRecordValue(m_parent->m_values[m_context->m_sceneManager.m_scene2],
+                    m_context->m_sceneManager.m_scene2);
+                SetState();
             }
 
-            SetActive(active, m_context->m_sceneManager.m_scene2, m_sharedEncoderState->m_currentTrack);
+            SetActive(active, m_context->m_sceneManager.m_scene2);
         }
         
         if (m_context->m_sceneManager.Scene1Active())
         {
-            if (active && !m_isActive[m_context->m_sceneManager.m_scene1][m_sharedEncoderState->m_currentTrack])
+            if (active && !m_isActive[m_context->m_sceneManager.m_scene1])
             {
-                SetAndRecordValue(m_parent->m_values[m_sharedEncoderState->m_currentTrack][m_context->m_sceneManager.m_scene1],
-                    m_context->m_sceneManager.m_scene1, m_sharedEncoderState->m_currentTrack);
-                SetStateForTrack(m_sharedEncoderState->m_currentTrack);
+                SetAndRecordValue(m_parent->m_values[m_context->m_sceneManager.m_scene1],
+                    m_context->m_sceneManager.m_scene1);
+                SetState();
             }
 
-            SetActive(active, m_context->m_sceneManager.m_scene1, m_sharedEncoderState->m_currentTrack);
+            SetActive(active, m_context->m_sceneManager.m_scene1);
         }
     }
 
@@ -1032,33 +960,30 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         if (m_context->m_sceneManager.Scene2Active())
         {
-            SetActive(false, m_context->m_sceneManager.m_scene2, m_sharedEncoderState->m_currentTrack);
+            SetActive(false, m_context->m_sceneManager.m_scene2);
         }
         
         if (m_context->m_sceneManager.Scene1Active())
         {
-            SetActive(false, m_context->m_sceneManager.m_scene1, m_sharedEncoderState->m_currentTrack);
+            SetActive(false, m_context->m_sceneManager.m_scene1);
         }
     }
 
-    // Recursively deactivates the specified gesture in all tracks for the current scene(s)
+    // Recursively deactivates the specified gesture for the current scene(s)
     //
     void ClearGesture(int gesture)
     {
         if (m_modulators.m_gestures[gesture])
         {
             BankedEncoderCell* gestureCell = m_modulators.m_gestures[gesture].get();
-            for (size_t track = 0; track < m_numTracks; ++track)
+            if (m_context->m_sceneManager.Scene2Active())
             {
-                if (m_context->m_sceneManager.Scene2Active())
-                {
-                    gestureCell->SetActive(false, m_context->m_sceneManager.m_scene2, track);
-                }
+                gestureCell->SetActive(false, m_context->m_sceneManager.m_scene2);
+            }
 
-                if (m_context->m_sceneManager.Scene1Active())
-                {
-                    gestureCell->SetActive(false, m_context->m_sceneManager.m_scene1, track);
-                }
+            if (m_context->m_sceneManager.Scene1Active())
+            {
+                gestureCell->SetActive(false, m_context->m_sceneManager.m_scene1);
             }
         }
 
@@ -1071,20 +996,11 @@ struct BankedEncoderCell : public StateEncoderCell
     void SetModulatorsAffecting()
     {
         m_modulatorsAffecting.Clear();
-        for (size_t i = 0; i < m_numTracks; ++i)
-        {
-            m_modulatorsAffectingPerTrack[i].Clear();
-        }
 
         for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
         {
             GetModulator(i)->SetModulatorsAffecting();
             m_modulatorsAffecting = GetModulator(i)->m_modulatorsAffecting.Union(m_modulatorsAffecting);
-            
-            for (size_t j = 0; j < m_numTracks; ++j)
-            {
-                m_modulatorsAffectingPerTrack[j] = GetModulator(i)->m_modulatorsAffectingPerTrack[j].Union(m_modulatorsAffectingPerTrack[j]);
-            }
         }
 
         if (m_depth > 0)
@@ -1092,14 +1008,6 @@ struct BankedEncoderCell : public StateEncoderCell
             if (!m_modulatorsAffecting.IsZero() || !IsNeutralCurrentScene() || m_isVisible)
             {
                 m_modulatorsAffecting.Set(m_index, true);
-            }
-
-            for (size_t i = 0; i < m_numTracks; ++i)
-            {
-                if (!m_modulatorsAffectingPerTrack[i].IsZero() || !IsNeutralCurrentSceneForTrack(i))
-                {
-                    m_modulatorsAffectingPerTrack[i].Set(m_index, true);
-                }
             }
         }
 
@@ -1114,27 +1022,14 @@ struct BankedEncoderCell : public StateEncoderCell
         }
 
         m_gesturesAffecting.Clear();
-        for (size_t j = 0; j < 16; ++j)
-        {
-            m_gesturesAffectingPerTrack[j].Clear();
-        }
-
         for (size_t i = 0; i < x_numGestureParams; ++i)
         {
-            if (m_modulators.m_gestures[i])
+            if (m_modulators.m_gestures[i] && m_modulators.m_gestures[i]->IsActive())
             {
-                for (size_t j = 0; j < m_numTracks; ++j)
+                m_gesturesAffecting.Set(i, true);
+                if (m_type == EncoderType::ModulatorAmount)
                 {
-                    if (m_modulators.m_gestures[i]->IsActiveForTrack(j))
-                    {
-                        m_gesturesAffecting.Set(i, true);
-                        m_gesturesAffectingPerTrack[j].Set(i, true);
-                        if (m_type == EncoderType::ModulatorAmount)
-                        {
-                            m_modulatorsAffecting.Set(m_index, true);
-                            m_modulatorsAffectingPerTrack[j].Set(m_index, true);
-                        }
-                    }
+                    m_modulatorsAffecting.Set(m_index, true);
                 }
             }
         }
@@ -1142,10 +1037,6 @@ struct BankedEncoderCell : public StateEncoderCell
         for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
         {
             m_gesturesAffecting = m_gesturesAffecting.Union(GetModulator(i)->m_gesturesAffecting);
-            for (size_t j = 0; j < m_numTracks; ++j)
-            {
-                m_gesturesAffectingPerTrack[j] = m_gesturesAffectingPerTrack[j].Union(GetModulator(i)->m_gesturesAffectingPerTrack[j]);
-            }
         }
     }
 
@@ -1157,10 +1048,9 @@ struct BankedEncoderCell : public StateEncoderCell
             INFO("--------------------------------");
         }
 
-        INFO("%sEncoder %d banked value: %f modulators affecting 0x%04x (0x%04x), gestures affecting 0x%04x (0x%04x)", 
-            indentString.c_str(), m_index, m_bankedValue[m_sharedEncoderState->m_currentTrack], 
-            m_modulatorsAffecting.m_bits, m_modulatorsAffectingPerTrack[m_sharedEncoderState->m_currentTrack].m_bits, 
-            m_gesturesAffecting.m_bits, m_gesturesAffectingPerTrack[m_sharedEncoderState->m_currentTrack].m_bits);
+        INFO("%sEncoder %d banked value: %f modulators affecting 0x%04x, gestures affecting 0x%04x",
+            indentString.c_str(), m_index, m_bankedValue,
+            m_modulatorsAffecting.m_bits, m_gesturesAffecting.m_bits);
 
         for (int i = 0; i < m_modulators.m_numActiveModulators; ++i)
         {
@@ -1177,7 +1067,7 @@ struct BankedEncoderCell : public StateEncoderCell
 
     SharedEncoderState* GetSharedEncoderState()
     {
-        return static_cast<SharedEncoderState*>(m_sharedEncoderState);
+        return m_sharedEncoderState;
     }
 
     BitSet16 GetSelectedGestures()
@@ -1187,30 +1077,29 @@ struct BankedEncoderCell : public StateEncoderCell
         
     BankedEncoderCell* m_parent;
     EncoderBankInternal* m_ownerBank;
+    SharedEncoderState* m_sharedEncoderState;
     Color m_color;
     const char* m_name;
     const char* m_shortName;
-    float m_gestureWeightSum[16];
+    float m_gestureWeightSum;
     float m_brightness;
     bool m_connected;
     Modulators m_modulators;
     int m_depth;
     int m_index;
-    float m_bankedValue[16];
-    float m_postGestureValue[16];
+    float m_bankedValue;
+    float m_postGestureValue;
     float m_output[16];
     OPLowPassFilter m_slew[16];
     float m_maxValue[16];
     float m_minValue[16];
     float m_defaultValue;
-    float m_effectiveModulatorWeights[16];
+    float m_effectiveModulatorWeight;
     BitSet16 m_modulatorsAffecting;
-    BitSet16 m_modulatorsAffectingPerTrack[16];
     BitSet16 m_gesturesAffecting;
-    BitSet16 m_gesturesAffectingPerTrack[16];
     bool m_isVisible;
     BankedEncoderCell::EncoderType m_type;
-    bool m_isActive[SceneManager::x_numScenes][16];
+    bool m_isActive[SceneManager::x_numScenes];
     bool m_forceUpdate;
     int m_switchValues;
 };
@@ -1230,10 +1119,8 @@ struct EncoderBankInternal : public EncoderGrid
     SmartGridOneContext* m_context;
     BankedEncoderCell* m_baseCell[4][4];
     BankedEncoderCell* m_selected;
-    size_t m_totalVoices;
     size_t m_activeEncoderPrefix;
     BankedEncoderCell::SharedEncoderState m_sharedEncoderState;
-    BitSet16 m_gesturesAffectingPerTrack[16];
     BitSet16 m_gesturesAffecting;
 
     void SetVisibleCell(int x, int y, BankedEncoderCell* cell)
@@ -1254,18 +1141,15 @@ struct EncoderBankInternal : public EncoderGrid
     EncoderBankInternal()
         : m_context(nullptr)
         , m_selected(nullptr)
-        , m_totalVoices(0)
         , m_activeEncoderPrefix(0)
     {
     }
 
-    void Init(SmartGridOneContext* context, BankedEncoderCell::ModulatorValues* modulatorValues, size_t numTracks, size_t numVoices)
+    void Init(SmartGridOneContext* context, BankedEncoderCell::ModulatorValues* modulatorValues, size_t numVoices)
     {
         m_context = context;
         m_sharedEncoderState.m_modulatorValues = modulatorValues;
-        m_sharedEncoderState.m_numTracks = numTracks;
         m_sharedEncoderState.m_numVoices = numVoices;
-        m_totalVoices = numVoices * numTracks;
 
         for (int i = 0; i < 4; ++i)
         {
@@ -1275,8 +1159,6 @@ struct EncoderBankInternal : public EncoderGrid
                 SetVisibleCell(i, j, nullptr);
             }
         }
-
-        SetNumTracks(numTracks);
     }
 
     void PlaceEncoder(int x, int y, BankedEncoderCell* encoder)
@@ -1307,7 +1189,7 @@ struct EncoderBankInternal : public EncoderGrid
         }
     }
 
-    void RevertToDefault(bool allScenes, bool allTracks)
+    void RevertToDefault(bool allScenes)
     {
         for (int i = 0; i < 4; ++i)
         {
@@ -1315,7 +1197,7 @@ struct EncoderBankInternal : public EncoderGrid
             {
                 if (m_baseCell[i][j])
                 {
-                    m_baseCell[i][j]->RevertToDefault(allScenes, allTracks);
+                    m_baseCell[i][j]->RevertToDefault(allScenes);
                 }
             }
         }
@@ -1354,33 +1236,23 @@ struct EncoderBankInternal : public EncoderGrid
             }
         }
 
-        ComputeGesturesAffectingPerTrack();
+        ComputeGesturesAffecting();
     }
 
-    void ComputeGesturesAffectingPerTrack()
+    void ComputeGesturesAffecting()
     {
         m_gesturesAffecting.Clear();
-        for (size_t t = 0; t < 16; ++t)
+        for (int i = 0; i < 4; ++i)
         {
-            m_gesturesAffectingPerTrack[t].Clear();
-            for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 4; ++j)
             {
-                for (int j = 0; j < 4; ++j)
+                BankedEncoderCell* cell = GetBase(i, j);
+                if (cell)
                 {
-                    BankedEncoderCell* cell = GetBase(i, j);
-                    if (cell)
-                    {
-                        m_gesturesAffectingPerTrack[t] = m_gesturesAffectingPerTrack[t].Union(cell->m_gesturesAffectingPerTrack[t]);                    
-                        m_gesturesAffecting = m_gesturesAffecting.Union(cell->m_gesturesAffectingPerTrack[t]);
-                    }
+                    m_gesturesAffecting = m_gesturesAffecting.Union(cell->m_gesturesAffecting);
                 }
             }
         }
-    }
-
-    BitSet16 GetGesturesAffectingForTrack(size_t track)
-    {
-        return m_gesturesAffectingPerTrack[track];
     }
 
     BitSet16 GetGesturesAffecting()
@@ -1411,26 +1283,6 @@ struct EncoderBankInternal : public EncoderGrid
         }
 
         SetAllModulatorsAffecting();
-    }
-
-    void SetNumTracks(size_t numTracks)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            for (int j = 0; j < 4; ++j)
-            {
-                BankedEncoderCell* cell = GetBase(i, j);
-                if (cell)
-                {
-                    cell->SetNumTracks(numTracks);
-                }
-            }
-        }
-    }
-
-    void SetTrack(size_t track)
-    {
-        m_sharedEncoderState.m_currentTrack = track;
     }
 
     void HandleChangedSceneManager()
@@ -1580,7 +1432,7 @@ struct EncoderBankInternal : public EncoderGrid
             }
         }
 
-        ComputeGesturesAffectingPerTrack();
+        ComputeGesturesAffecting();
     }
 
     float GetValue(size_t i, size_t j, size_t channel)
@@ -1618,7 +1470,7 @@ struct EncoderBankInternal : public EncoderGrid
         else if (msg.m_mode == MessageIn::Mode::EncoderSet)
         {
             // Deterministic absolute set of the BASE banked value for the
-            // CURRENT track/scene-blend. Unlike EncoderIncDec, this does NOT
+            // current scene blend. Unlike EncoderIncDec, this does NOT
             // depend on msg.m_timestamp (no acceleration) and does not simulate
             // gestures. If the cell has active gesture weighting, the final
             // output may differ from the base value. Mirrors RevertToDefault's
@@ -1653,15 +1505,15 @@ struct EncoderBankInternal : public EncoderGrid
                     uiState->SetBipolar(i, j, cell->m_bipolar);
                     uiState->SetColor(i, j, cell->GetSquareColor());
                     uiState->SetBrightness(i, j, cell->GetBrightness());
-                    for (size_t k = 0; k < m_sharedEncoderState.m_numTracks * m_sharedEncoderState.m_numVoices; ++k)
+                    for (size_t k = 0; k < m_sharedEncoderState.m_numVoices; ++k)
                     {
                         uiState->SetValue(i, j, k, cell->m_output[k]);
                         uiState->SetMinValue(i, j, k, cell->m_minValue[k]);
                         uiState->SetMaxValue(i, j, k, cell->m_maxValue[k]);
                     }
 
-                    uiState->SetModulatorsAffecting(i, j, cell->m_modulatorsAffectingPerTrack[m_sharedEncoderState.m_currentTrack]);
-                    uiState->SetGesturesAffecting(i, j, cell->m_gesturesAffectingPerTrack[m_sharedEncoderState.m_currentTrack]);
+                    uiState->SetModulatorsAffecting(i, j, cell->m_modulatorsAffecting);
+                    uiState->SetGesturesAffecting(i, j, cell->m_gesturesAffecting);
                     uiState->SetSwitchValues(i, j, cell->m_switchValues);
                 }
                 else
@@ -1669,7 +1521,7 @@ struct EncoderBankInternal : public EncoderGrid
                     uiState->SetConnected(i, j, false);
                     uiState->SetBipolar(i, j, false);
                     uiState->SetBrightness(i, j, 0);
-                    for (size_t k = 0; k < m_sharedEncoderState.m_numTracks * m_sharedEncoderState.m_numVoices; ++k)
+                    for (size_t k = 0; k < m_sharedEncoderState.m_numVoices; ++k)
                     {
                         uiState->SetValue(i, j, k, 0);
                         uiState->SetMinValue(i, j, k, 0);
@@ -1685,14 +1537,7 @@ struct EncoderBankInternal : public EncoderGrid
             }
         }
 
-        uiState->SetNumTracks(m_sharedEncoderState.m_numTracks);
         uiState->SetNumVoices(m_sharedEncoderState.m_numVoices);
-        uiState->SetCurrentTrack(m_sharedEncoderState.m_currentTrack);
-    }
-
-    int GetCurrentTrack()
-    {
-        return m_sharedEncoderState.m_currentTrack;
     }
 };
 
@@ -1705,12 +1550,12 @@ inline void BankedEncoderCell::SetModulatorsAffectingRecursive()
     }
 
     cell->SetModulatorsAffecting();
-    m_ownerBank->ComputeGesturesAffectingPerTrack();
+    m_ownerBank->ComputeGesturesAffecting();
 }
 
 }
 
-inline ParamEvent ParamEvent::MkEncoderSet(SmartGrid::StateEncoderCell* stateEncoderCell, int scene, int track, size_t sample)
+inline ParamEvent ParamEvent::MkEncoderSet(SmartGrid::StateEncoderCell* stateEncoderCell, int scene, size_t sample)
 {
     SmartGrid::BankedEncoderCell* cell = static_cast<SmartGrid::BankedEncoderCell*>(stateEncoderCell);
     if (cell->m_depth > x_maxEncoderPath)
@@ -1723,9 +1568,8 @@ inline ParamEvent ParamEvent::MkEncoderSet(SmartGrid::StateEncoderCell* stateEnc
     event.m_sample = sample;
     event.m_isGesture = cell->m_type == SmartGrid::BankedEncoderCell::EncoderType::GestureParam;
     event.m_scene = scene;
-    event.m_track = track;
     event.m_valueLen = sizeof(float);
-    const float value = cell->ToValue(cell->m_values[track][scene]);
+    const float value = cell->ToValue(cell->m_values[scene]);
     std::memcpy(event.m_value, &value, sizeof(float));
 
     while (cell->m_depth > 0)
@@ -1739,7 +1583,7 @@ inline ParamEvent ParamEvent::MkEncoderSet(SmartGrid::StateEncoderCell* stateEnc
     return event;
 }
 
-inline ParamEvent ParamEvent::MkEncoderActivate(SmartGrid::BankedEncoderCell* cell, int scene, int track, size_t sample)
+inline ParamEvent ParamEvent::MkEncoderActivate(SmartGrid::BankedEncoderCell* cell, int scene, size_t sample)
 {
     if (cell->m_depth > x_maxEncoderPath)
     {
@@ -1751,9 +1595,8 @@ inline ParamEvent ParamEvent::MkEncoderActivate(SmartGrid::BankedEncoderCell* ce
     event.m_type = ParamEvent::Type::EncoderActivate;
     event.m_sample = sample;
     event.m_scene = scene;
-    event.m_track = track;
     event.m_valueLen = sizeof(bool);
-    std::memcpy(event.m_value, &cell->m_isActive[scene][track], sizeof(bool));
+    std::memcpy(event.m_value, &cell->m_isActive[scene], sizeof(bool));
     event.m_gesture = cell->m_index;
 
     while (cell->m_depth > 0)

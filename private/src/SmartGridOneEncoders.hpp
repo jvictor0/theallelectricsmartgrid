@@ -6,44 +6,66 @@
 #include "SmartGridOneScopeEnums.hpp"
 #include "VoiceMachineEnums.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 struct SmartGridOneEncoders
 {
-    static constexpr size_t x_numBankModes = 3;
-    static constexpr size_t x_numVoiceBanks = 4;
+    static constexpr size_t x_numTrios = 3;
+    static constexpr size_t x_voicesPerTrio = 3;
+    static constexpr size_t x_numVoiceBanks = 4 * x_numTrios;
     static constexpr size_t x_numQuadBanks = 4;
     static constexpr size_t x_numGlobalBanks = 4;
     static constexpr size_t x_totalNumBanks = x_numVoiceBanks + x_numQuadBanks + x_numGlobalBanks;
 
     enum class BankMode : int
     {
-        Voice = 0,
-        Quad = 1,
-        Global = 2
+        VoiceWater = 0,
+        VoiceFire = 1,
+        VoiceEarth = 2,
+        Quad = 3,
+        Global = 4,
+        NumModes = 5,
+        Voice = VoiceWater
     };
+
+    static constexpr size_t x_numBankModes = static_cast<size_t>(BankMode::NumModes);
 
     enum class Bank : int
     {
-        Source = 0,
-        FilterAndAmp = 1,
-        PanningAndSequencing = 2,
-        VoiceLFOs = 3,
-        Delay = 4,
-        Reverb = 5,
-        PartialMachine = 6,
-        QuadLFOs = 7,
-        TheoryOfTime = 8,
-        Mastering = 9,
-        Inputs = 10,
-        DeepVocoder = 11,
-        NumBanks = 12
+        SourceWater = 0,
+        SourceFire = 1,
+        SourceEarth = 2,
+        FilterAndAmpWater = 3,
+        FilterAndAmpFire = 4,
+        FilterAndAmpEarth = 5,
+        PanningAndSequencingWater = 6,
+        PanningAndSequencingFire = 7,
+        PanningAndSequencingEarth = 8,
+        VoiceLFOsWater = 9,
+        VoiceLFOsFire = 10,
+        VoiceLFOsEarth = 11,
+        Delay = 12,
+        Reverb = 13,
+        PartialMachine = 14,
+        QuadLFOs = 15,
+        TheoryOfTime = 16,
+        Mastering = 17,
+        Inputs = 18,
+        DeepVocoder = 19,
+        NumBanks = 20,
+        Source = SourceWater,
+        FilterAndAmp = FilterAndAmpWater,
+        PanningAndSequencing = PanningAndSequencingWater,
+        VoiceLFOs = VoiceLFOsWater
     };
 
-    static Bank BankFromOrdinal(size_t ordinal)
-    {
-        return static_cast<Bank>(ordinal);
-    }
+    static constexpr std::array<Bank, 4> x_voiceSelectorBanks =
+    {{Bank::Source, Bank::FilterAndAmp, Bank::PanningAndSequencing, Bank::VoiceLFOs}};
+    static constexpr std::array<Bank, 4> x_quadSelectorBanks =
+    {{Bank::Delay, Bank::Reverb, Bank::PartialMachine, Bank::QuadLFOs}};
+    static constexpr std::array<Bank, 4> x_globalSelectorBanks =
+    {{Bank::TheoryOfTime, Bank::Mastering, Bank::Inputs, Bank::DeepVocoder}};
 
     struct ParamAddress
     {
@@ -117,7 +139,7 @@ struct SmartGridOneEncoders
         {
             case 0:
             {
-                if (mode == BankMode::Voice || mode == BankMode::Quad)
+                if (IsVoiceMode(mode) || mode == BankMode::Quad)
                 {
                     return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[0]);
                 }
@@ -125,7 +147,7 @@ struct SmartGridOneEncoders
             }
             case 1:
             {
-                if (mode == BankMode::Voice || mode == BankMode::Quad)
+                if (IsVoiceMode(mode) || mode == BankMode::Quad)
                 {
                     return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[1]);
                 }
@@ -167,7 +189,7 @@ struct SmartGridOneEncoders
             }
             case 4:
             {
-                if (mode == BankMode::Voice)
+                if (IsVoiceMode(mode))
                 {
                     return ModulatorSkin(SmartGridOne::ModulationGlyphs::ADSR, x_colors[2]);
                 }
@@ -182,7 +204,7 @@ struct SmartGridOneEncoders
             }
             case 5:
             {
-                if (mode == BankMode::Voice)
+                if (IsVoiceMode(mode))
                 {
                     return ModulatorSkin(SmartGridOne::ModulationGlyphs::ADSR, x_colors[3]);
                 }
@@ -197,7 +219,7 @@ struct SmartGridOneEncoders
             }
             case 8:
             {
-                if (mode == BankMode::Voice)
+                if (IsVoiceMode(mode))
                 {
                     return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[2]);
                 }
@@ -208,7 +230,7 @@ struct SmartGridOneEncoders
             }
             case 9:
             {
-                if (mode == BankMode::Voice)
+                if (IsVoiceMode(mode))
                 {
                     return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[3]);
                 }
@@ -219,7 +241,7 @@ struct SmartGridOneEncoders
             }
             case 10:
             {
-                if (mode == BankMode::Voice)
+                if (IsVoiceMode(mode))
                 {
                     return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[4]);
                 }
@@ -237,17 +259,17 @@ struct SmartGridOneEncoders
 
     static SmartGrid::Color LFOColor(size_t i)
     {
-        return GetModulatorSkin(6 + i, BankMode::Voice).m_color;
+        return GetModulatorSkin(6 + i, BankMode::VoiceWater).m_color;
     }
 
     static SmartGrid::Color ADSRColor(size_t i)
     {
-        return GetModulatorSkin(4 + i, BankMode::Voice).m_color;
+        return GetModulatorSkin(4 + i, BankMode::VoiceWater).m_color;
     }
 
     static SmartGrid::Color SheafColor(size_t i)
     {
-        return GetModulatorSkin(8 + i, BankMode::Voice).m_color;
+        return GetModulatorSkin(8 + i, BankMode::VoiceWater).m_color;
     }
 
     static SmartGrid::Color QuadratureColor(size_t i)
@@ -262,19 +284,63 @@ struct SmartGridOneEncoders
 
     EncoderBankBank m_encoderBankBank;
     Bank m_selectedBank;
+    size_t m_selectedTrio;
 
-    SmartGridOneEncoders(
-        SmartGridOneContext* context,
-        size_t numTrios,
-        size_t voicesPerTrio)
+    SmartGridOneEncoders(SmartGridOneContext* context)
         : m_encoderBankBank(
             static_cast<int>(Bank::NumBanks),
             x_numBankModes,
-            x_numParams,
+            x_numParams * x_numTrios,
             context)
-        , m_selectedBank(Bank::Source)
+        , m_selectedBank(Bank::SourceWater)
+        , m_selectedTrio(0)
     {
-        Init(numTrios, voicesPerTrio);
+        Init();
+    }
+
+    static bool IsVoiceBank(Bank bank)
+    {
+        return static_cast<size_t>(bank) < x_numVoiceBanks;
+    }
+
+    static Bank BankForTrio(Bank bank, size_t trio)
+    {
+        if (!IsVoiceBank(bank))
+        {
+            return bank;
+        }
+
+        size_t family = static_cast<size_t>(bank) / x_numTrios;
+        return static_cast<Bank>(family * x_numTrios + trio);
+    }
+
+    static bool IsVoiceMode(BankMode mode)
+    {
+        return mode == BankMode::VoiceWater || mode == BankMode::VoiceFire || mode == BankMode::VoiceEarth;
+    }
+
+    static BankMode VoiceModeForTrio(size_t trio)
+    {
+        switch (trio)
+        {
+            case 0:
+            {
+                return BankMode::VoiceWater;
+            }
+            case 1:
+            {
+                return BankMode::VoiceFire;
+            }
+            default:
+            {
+                return BankMode::VoiceEarth;
+            }
+        }
+    }
+
+    size_t EncoderIndex(Param param, size_t trio)
+    {
+        return static_cast<size_t>(param) * x_numTrios + trio;
     }
 
     // Param address lookup
@@ -307,14 +373,33 @@ struct SmartGridOneEncoders
     //
     BankMode GetModeForBank(Bank bank)
     {
-        return static_cast<BankMode>(m_encoderBankBank.GetModeForBank(static_cast<size_t>(bank)));
+        size_t bankIx = static_cast<size_t>(bank);
+        if (bankIx < x_numVoiceBanks)
+        {
+            return VoiceModeForTrio(bankIx % x_numTrios);
+        }
+
+        if (bankIx < x_numVoiceBanks + x_numQuadBanks)
+        {
+            return BankMode::Quad;
+        }
+
+        return BankMode::Global;
     }
 
     // Value getters - use encoder index (Param enum) for O(1) lookup, not grid position
     //
     float GetValue(Param param, int voice)
     {
-        return m_encoderBankBank.GetValueByEncoderIndex(static_cast<size_t>(param), static_cast<size_t>(voice));
+        ParamAddress address = GetParamAddress(param);
+        if (IsVoiceMode(GetModeForBank(address.bank)))
+        {
+            size_t trio = static_cast<size_t>(voice) / x_voicesPerTrio;
+            size_t trioVoice = static_cast<size_t>(voice) % x_voicesPerTrio;
+            return m_encoderBankBank.GetValueByEncoderIndex(EncoderIndex(param, trio), trioVoice);
+        }
+
+        return m_encoderBankBank.GetValueByEncoderIndex(EncoderIndex(param, 0), static_cast<size_t>(voice));
     }
 
     float GetValue(Param param)
@@ -324,7 +409,15 @@ struct SmartGridOneEncoders
 
     float GetValueNoSlew(Param param, int voice)
     {
-        return m_encoderBankBank.GetValueNoSlewByEncoderIndex(static_cast<size_t>(param), static_cast<size_t>(voice));
+        ParamAddress address = GetParamAddress(param);
+        if (IsVoiceMode(GetModeForBank(address.bank)))
+        {
+            size_t trio = static_cast<size_t>(voice) / x_voicesPerTrio;
+            size_t trioVoice = static_cast<size_t>(voice) % x_voicesPerTrio;
+            return m_encoderBankBank.GetValueNoSlewByEncoderIndex(EncoderIndex(param, trio), trioVoice);
+        }
+
+        return m_encoderBankBank.GetValueNoSlewByEncoderIndex(EncoderIndex(param, 0), static_cast<size_t>(voice));
     }
 
     float GetValueNoSlew(Param param)
@@ -340,7 +433,11 @@ struct SmartGridOneEncoders
             return 0;
         }
 
-        int switchVal = static_cast<int>(std::round(m_encoderBankBank.GetNormalizedValueNoSlewByEncoderIndex(static_cast<size_t>(param), static_cast<size_t>(voice)) * static_cast<float>(paramSwitch.m_numValues - 1)));
+        ParamAddress address = GetParamAddress(param);
+        bool isVoiceMode = IsVoiceMode(GetModeForBank(address.bank));
+        size_t trio = isVoiceMode ? static_cast<size_t>(voice) / x_voicesPerTrio : 0;
+        size_t channel = isVoiceMode ? static_cast<size_t>(voice) % x_voicesPerTrio : static_cast<size_t>(voice);
+        int switchVal = static_cast<int>(std::round(m_encoderBankBank.GetNormalizedValueNoSlewByEncoderIndex(EncoderIndex(param, trio), channel) * static_cast<float>(paramSwitch.m_numValues - 1)));
         return std::max(0, std::min(paramSwitch.m_numValues - 1, switchVal));
     }
 
@@ -358,42 +455,62 @@ struct SmartGridOneEncoders
 
     // Initialization
     //
-    void Init(size_t numTrios, size_t voicesPerTrio)
+    void Init()
     {
-        m_encoderBankBank.InitMode(static_cast<int>(BankMode::Voice), numTrios, voicesPerTrio);
-        m_encoderBankBank.InitMode(static_cast<int>(BankMode::Quad), 1, 4);
-        m_encoderBankBank.InitMode(static_cast<int>(BankMode::Global), 1, 1);
+        for (size_t trio = 0; trio < x_numTrios; ++trio)
+        {
+            BankMode mode = VoiceModeForTrio(trio);
+            m_encoderBankBank.InitMode(static_cast<size_t>(mode), x_voicesPerTrio);
+            m_encoderBankBank.InitBank(static_cast<size_t>(BankForTrio(Bank::Source, trio)), static_cast<size_t>(mode), SmartGrid::Color::Red);
+            m_encoderBankBank.InitBank(static_cast<size_t>(BankForTrio(Bank::FilterAndAmp, trio)), static_cast<size_t>(mode), SmartGrid::Color::Green);
+            m_encoderBankBank.InitBank(static_cast<size_t>(BankForTrio(Bank::PanningAndSequencing, trio)), static_cast<size_t>(mode), SmartGrid::Color::Orange);
+            m_encoderBankBank.InitBank(static_cast<size_t>(BankForTrio(Bank::VoiceLFOs, trio)), static_cast<size_t>(mode), SmartGrid::Color::Blue);
+        }
 
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::Source), static_cast<int>(BankMode::Voice), SmartGrid::Color::Red);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::FilterAndAmp), static_cast<int>(BankMode::Voice), SmartGrid::Color::Green);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::PanningAndSequencing), static_cast<int>(BankMode::Voice), SmartGrid::Color::Orange);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::VoiceLFOs), static_cast<int>(BankMode::Voice), SmartGrid::Color::Blue);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::Delay), static_cast<int>(BankMode::Quad), SmartGrid::Color::Pink);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::Reverb), static_cast<int>(BankMode::Quad), SmartGrid::Color::Fuscia);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::PartialMachine), static_cast<int>(BankMode::Quad), SmartGrid::Color::Cyan);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::QuadLFOs), static_cast<int>(BankMode::Quad), SmartGrid::Color::DarkPurple);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::TheoryOfTime), static_cast<int>(BankMode::Global), SmartGrid::Color::Yellow);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::Mastering), static_cast<int>(BankMode::Global), SmartGrid::Color::SeaGreen);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::Inputs), static_cast<int>(BankMode::Global), SmartGrid::Color::White);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::DeepVocoder), static_cast<int>(BankMode::Global), SmartGrid::Color::Ocean);
+        m_encoderBankBank.InitMode(static_cast<size_t>(BankMode::Quad), 4);
+        m_encoderBankBank.InitMode(static_cast<size_t>(BankMode::Global), 1);
+
+        m_encoderBankBank.InitBank(static_cast<int>(Bank::Delay), static_cast<size_t>(BankMode::Quad), SmartGrid::Color::Pink);
+        m_encoderBankBank.InitBank(static_cast<int>(Bank::Reverb), static_cast<size_t>(BankMode::Quad), SmartGrid::Color::Fuscia);
+        m_encoderBankBank.InitBank(static_cast<int>(Bank::PartialMachine), static_cast<size_t>(BankMode::Quad), SmartGrid::Color::Cyan);
+        m_encoderBankBank.InitBank(static_cast<int>(Bank::QuadLFOs), static_cast<size_t>(BankMode::Quad), SmartGrid::Color::DarkPurple);
+        m_encoderBankBank.InitBank(static_cast<int>(Bank::TheoryOfTime), static_cast<size_t>(BankMode::Global), SmartGrid::Color::Yellow);
+        m_encoderBankBank.InitBank(static_cast<int>(Bank::Mastering), static_cast<size_t>(BankMode::Global), SmartGrid::Color::SeaGreen);
+        m_encoderBankBank.InitBank(static_cast<int>(Bank::Inputs), static_cast<size_t>(BankMode::Global), SmartGrid::Color::White);
+        m_encoderBankBank.InitBank(static_cast<int>(Bank::DeepVocoder), static_cast<size_t>(BankMode::Global), SmartGrid::Color::Ocean);
 
 #define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) \
         { \
-            size_t modeIx = static_cast<size_t>(GetModeForBank(Bank::bank)); \
-            size_t index = m_encoderBankBank.CreateEncoder(static_cast<size_t>(Param::name), modeIx, default, #name, #shortName, color, switchValues, bipolar); \
-            m_encoderBankBank.PlaceEncoder(index, static_cast<size_t>(Bank::bank), x, y); \
+            Bank baseBank = Bank::bank; \
+            if (IsVoiceMode(GetModeForBank(baseBank))) \
+            { \
+                const char* x_names[x_numTrios] = {#name "Water", #name "Fire", #name "Earth"}; \
+                const char* x_shortNames[x_numTrios] = {#shortName, #shortName, #shortName}; \
+                for (size_t trio = 0; trio < x_numTrios; ++trio) \
+                { \
+                    size_t index = m_encoderBankBank.CreateEncoder(EncoderIndex(Param::name, trio), static_cast<size_t>(VoiceModeForTrio(trio)), default, x_names[trio], x_shortNames[trio], color, switchValues, bipolar); \
+                    m_encoderBankBank.PlaceEncoder(index, static_cast<size_t>(BankForTrio(baseBank, trio)), x, y); \
+                } \
+            } \
+            else \
+            { \
+                BankMode mode = GetModeForBank(baseBank); \
+                size_t index = m_encoderBankBank.CreateEncoder(EncoderIndex(Param::name, 0), static_cast<size_t>(mode), default, #name, #shortName, color, switchValues, bipolar); \
+                m_encoderBankBank.PlaceEncoder(index, static_cast<size_t>(baseBank), x, y); \
+            } \
         }
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
 
         // Set modulator colors for each mode
         //
-        for (size_t mode = 0; mode < x_numBankModes; ++mode)
+        for (size_t modeIx = 0; modeIx < x_numBankModes; ++modeIx)
         {
-            auto& modValues = m_encoderBankBank.GetModulatorValues(mode);
+            BankMode mode = static_cast<BankMode>(modeIx);
+            auto& modValues = m_encoderBankBank.GetModulatorValues(modeIx);
             for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numModulators; ++i)
             {
-                modValues.SetModulatorColor(i, GetModulatorSkin(i, static_cast<BankMode>(mode)).m_color);
+                modValues.SetModulatorColor(i, GetModulatorSkin(i, mode).m_color);
             }
         }
 
@@ -404,6 +521,7 @@ struct SmartGridOneEncoders
     //
     void SelectBank(Bank bank)
     {
+        bank = BankForTrio(bank, m_selectedTrio);
         m_selectedBank = bank;
         m_encoderBankBank.SelectGrid(static_cast<int>(bank));
     }
@@ -415,43 +533,43 @@ struct SmartGridOneEncoders
 
     bool IsVoiceBankSelected()
     {
-        return GetSelectedMode() == BankMode::Voice;
+        return IsVoiceMode(GetSelectedMode());
     }
 
-    // Track selection (always routes to Voice mode)
+    // Track selection routes to the corresponding voice bank
     //
     void SetTrack(size_t track)
     {
-        m_encoderBankBank.SetTrack(static_cast<size_t>(BankMode::Voice), track);
+        m_selectedTrio = track;
+        if (IsVoiceBank(m_selectedBank))
+        {
+            SelectBank(BankForTrio(m_selectedBank, track));
+        }
     }
 
     int GetCurrentTrack()
     {
-        return m_encoderBankBank.GetCurrentTrack(static_cast<size_t>(BankMode::Voice));
+        return static_cast<int>(m_selectedTrio);
     }
 
     void UpdateEncodersForMachine(
         VoiceMachine::SourceMachine sourceMachine,
         VoiceMachine::FilterMachine filterMachine)
     {
-        for (size_t bankIx = 0; bankIx < static_cast<size_t>(Bank::NumBanks); ++bankIx)
+        for (Bank bank : {Bank::Source, Bank::FilterAndAmp, Bank::PanningAndSequencing, Bank::VoiceLFOs})
         {
-            if (GetModeForBank(static_cast<Bank>(bankIx)) == BankMode::Voice)
-            {
-                m_encoderBankBank.NullBank(bankIx);
-            }
+            m_encoderBankBank.NullBank(static_cast<size_t>(BankForTrio(bank, m_selectedTrio)));
         }
 
 #define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) \
         { \
-            if (GetModeForBank(Bank::bank) == BankMode::Voice) \
+            if (IsVoiceMode(GetModeForBank(Bank::bank))) \
             { \
                 MachineFlags flags{BitSet8(sourceMachines), BitSet8(filterMachines)}; \
                 bool applies = flags.AppliesToSource(sourceMachine) && flags.AppliesToFilter(filterMachine); \
-                size_t encoderIndex = applies ? static_cast<size_t>(Param::name) : x_numParams; \
                 if (applies) \
                 { \
-                    m_encoderBankBank.PlaceEncoder(encoderIndex, static_cast<size_t>(Bank::bank), x, y); \
+                    m_encoderBankBank.PlaceEncoder(EncoderIndex(Param::name, m_selectedTrio), static_cast<size_t>(BankForTrio(Bank::bank, m_selectedTrio)), x, y); \
                 } \
             } \
         }
@@ -483,24 +601,24 @@ struct SmartGridOneEncoders
 
     BitSet16 GetGesturesAffectingBankForTrack(Bank bank, size_t track)
     {
-        return m_encoderBankBank.GetGesturesAffectingBankForTrack(static_cast<size_t>(bank), track);
+        return m_encoderBankBank.GetGesturesAffectingBank(static_cast<size_t>(BankForTrio(bank, track)));
     }
 
     bool IsGestureAffectingBank(int gesture, Bank bank, size_t track)
     {
-        return m_encoderBankBank.IsGestureAffectingBank(gesture, static_cast<size_t>(bank), track);
+        return m_encoderBankBank.IsGestureAffectingBank(gesture, static_cast<size_t>(BankForTrio(bank, track)));
     }
 
     // Color getters
     //
     SmartGrid::Color GetSelectorColor(Bank bank)
     {
-        return m_encoderBankBank.GetSelectorColor(static_cast<int>(bank));
+        return m_encoderBankBank.GetSelectorColor(static_cast<int>(BankForTrio(bank, m_selectedTrio)));
     }
 
     SmartGrid::Color GetBankColor(Bank bank)
     {
-        return m_encoderBankBank.m_bankConfigs[static_cast<int>(bank)].m_color;
+        return m_encoderBankBank.m_bankConfigs[static_cast<int>(BankForTrio(bank, m_selectedTrio))].m_color;
     }
 
     // Processing
@@ -534,14 +652,14 @@ struct SmartGridOneEncoders
         m_encoderBankBank.CopyToScene(scene);
     }
 
-    void RevertToDefault(bool allScenes, bool allTracks)
+    void RevertToDefault(bool allScenes)
     {
-        m_encoderBankBank.RevertToDefault(allScenes, allTracks);
+        m_encoderBankBank.RevertToDefault(allScenes);
     }
 
     void ResetBank(Bank bank)
     {
-        m_encoderBankBank.ResetGrid(static_cast<uint64_t>(bank));
+        m_encoderBankBank.ResetGrid(static_cast<uint64_t>(BankForTrio(bank, m_selectedTrio)));
     }
 
     // Serialization
