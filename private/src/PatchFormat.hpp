@@ -1,6 +1,7 @@
 #pragma once
 
 #include "JuceSon.hpp"
+#include "SmartGridOneLayout.hpp"
 #include <cstring>
 #include <string>
 
@@ -58,15 +59,22 @@ struct PatchFormat
 
     static Scope ParamScope(const char* name)
     {
-#define F(param, shortName, bank, x, y, defaultValue, title, color, machine, flags, discrete, bipolar) \
-        if (strcmp(name, #param) == 0) \
-        { \
-            return strcmp(#bank, "Source") == 0 || strcmp(#bank, "FilterAndAmp") == 0 || \
-                strcmp(#bank, "PanningAndSequencing") == 0 || strcmp(#bank, "VoiceLFOs") == 0 \
-                    ? Scope::Voice : Scope::Shared; \
-        }
+        static constexpr const char* x_names[] =
+        {
+#define F(param, shortName, mode, defaultValue, title, color, discrete, bipolar) #param,
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
+        };
+
+        for (size_t i = 0; i < SmartGridOneLayout::x_numParams; ++i)
+        {
+            if (strcmp(name, x_names[i]) == 0)
+            {
+                return SmartGridOneLayout::GetParamMode(static_cast<SmartGridOneLayout::Param>(i)) ==
+                    SmartGridOneLayout::ParamMode::Voice ? Scope::Voice : Scope::Shared;
+            }
+        }
+
         return Scope::Unknown;
     }
 

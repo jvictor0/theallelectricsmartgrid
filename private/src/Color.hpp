@@ -230,6 +230,7 @@ namespace SmartGrid
         static const Color White;
         static const Color Red;
         static const Color Orange;
+        static const Color Mauve;
         static const Color Yellow;
         static const Color Green;
         static const Color SeaGreen;
@@ -307,6 +308,7 @@ namespace SmartGrid
     inline const Color Color::White{253, 253, 253};
     inline const Color Color::Red{255, 30, 18};
     inline const Color Color::Orange{255, 108, 29};
+    inline const Color Color::Mauve{127, 84, 139};
     inline const Color Color::Yellow{255, 248, 63};
     inline const Color Color::Green{9, 255, 29};
     inline const Color Color::SeaGreen{9, 246, 59};

@@ -116,11 +116,22 @@ DOCTEST_TEST_CASE("encoder catalogue baseline: construction metadata")
     {
         const ExpectedParam& expected = x_parameters[i];
         Param param = static_cast<Param>(i);
-        auto address = encoders.GetParamAddress(param);
         DOCTEST_INFO(expected.m_name);
-        DOCTEST_CHECK(address.bank == expected.m_bank);
-        DOCTEST_CHECK(address.x == expected.m_x);
-        DOCTEST_CHECK(address.y == expected.m_y);
+        using Layout = SmartGridOneLayout;
+        auto slot = Layout::x_tables.m_paramSlots[i];
+        DOCTEST_CHECK(static_cast<Bank>(Layout::GetSlotInstance(slot, 0)) == expected.m_bank);
+        bool placed = false;
+        for (const auto& member : Layout::x_pageMembers)
+        {
+            if (member.m_param == param)
+            {
+                placed = true;
+                DOCTEST_CHECK(member.m_x == expected.m_x);
+                DOCTEST_CHECK(member.m_y == expected.m_y);
+            }
+        }
+
+        DOCTEST_CHECK(placed);
         DOCTEST_CHECK(Encoders::GetParamSwitch(param).m_numValues == expected.m_switchValues);
         for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
         {

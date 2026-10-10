@@ -97,7 +97,6 @@ DOCTEST_TEST_CASE("encoder_trios: global voice reads and UI use the selected tri
     }
 
     rig.m_encoders.Process();
-    const auto address = rig.m_encoders.GetParamAddress(Encoders::Param::Harmonics1);
     for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
     {
         rig.m_encoders.SetTrack(trio);
@@ -110,7 +109,7 @@ DOCTEST_TEST_CASE("encoder_trios: global voice reads and UI use the selected tri
             const int voice = static_cast<int>(trio * Encoders::x_voicesPerTrio + local);
             DOCTEST_CHECK(rig.m_encoders.GetValueNoSlew(Encoders::Param::Harmonics1, voice) == doctest::Approx(x_bases[trio]));
             DOCTEST_CHECK(rig.m_encoders.GetValue(Encoders::Param::Harmonics1, voice) == doctest::Approx(x_bases[trio]));
-            DOCTEST_CHECK(ui.GetValue(address.x, address.y, local) == doctest::Approx(x_bases[trio]));
+            DOCTEST_CHECK(ui.GetValue(0, 0, local) == doctest::Approx(x_bases[trio]));
         }
     }
 }

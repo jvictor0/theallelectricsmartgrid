@@ -2,7 +2,7 @@
 
 #include "BitSet.hpp"
 #include "EncoderBankBank.hpp"
-#include "MachineFlags.hpp"
+#include "SmartGridOneLayout.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 #include "VoiceMachineEnums.hpp"
 #include <algorithm>
@@ -11,12 +11,16 @@
 
 struct SmartGridOneEncoders
 {
-    static constexpr size_t x_numTrios = 3;
+    using Layout = SmartGridOneLayout;
+    using Param = Layout::Param;
+    using ParamMode = Layout::ParamMode;
+    using Page = Layout::Page;
+    using Slot = Layout::Slot;
+
+    static constexpr size_t x_numTrios = Layout::x_numTrios;
     static constexpr size_t x_voicesPerTrio = 3;
-    static constexpr size_t x_numVoiceBanks = 4 * x_numTrios;
-    static constexpr size_t x_numQuadBanks = 4;
-    static constexpr size_t x_numGlobalBanks = 4;
-    static constexpr size_t x_totalNumBanks = x_numVoiceBanks + x_numQuadBanks + x_numGlobalBanks;
+    static constexpr size_t x_totalNumBanks = Layout::x_tables.m_numSlotInstances;
+    static constexpr size_t x_numParams = Layout::x_numParams;
 
     enum class BankMode : int
     {
@@ -33,27 +37,27 @@ struct SmartGridOneEncoders
 
     enum class Bank : int
     {
-        SourceWater = 0,
-        SourceFire = 1,
-        SourceEarth = 2,
-        FilterAndAmpWater = 3,
-        FilterAndAmpFire = 4,
-        FilterAndAmpEarth = 5,
-        PanningAndSequencingWater = 6,
-        PanningAndSequencingFire = 7,
-        PanningAndSequencingEarth = 8,
-        VoiceLFOsWater = 9,
-        VoiceLFOsFire = 10,
-        VoiceLFOsEarth = 11,
-        Delay = 12,
-        Reverb = 13,
-        PartialMachine = 14,
-        QuadLFOs = 15,
-        TheoryOfTime = 16,
-        Mastering = 17,
-        Inputs = 18,
-        DeepVocoder = 19,
-        NumBanks = 20,
+        SourceWater = Layout::GetSlotInstance(Slot::Source, 0),
+        SourceFire = Layout::GetSlotInstance(Slot::Source, 1),
+        SourceEarth = Layout::GetSlotInstance(Slot::Source, 2),
+        FilterAndAmpWater = Layout::GetSlotInstance(Slot::FilterAndAmp, 0),
+        FilterAndAmpFire = Layout::GetSlotInstance(Slot::FilterAndAmp, 1),
+        FilterAndAmpEarth = Layout::GetSlotInstance(Slot::FilterAndAmp, 2),
+        PanningAndSequencingWater = Layout::GetSlotInstance(Slot::PanningAndSequencing, 0),
+        PanningAndSequencingFire = Layout::GetSlotInstance(Slot::PanningAndSequencing, 1),
+        PanningAndSequencingEarth = Layout::GetSlotInstance(Slot::PanningAndSequencing, 2),
+        VoiceLFOsWater = Layout::GetSlotInstance(Slot::VoiceLFOs, 0),
+        VoiceLFOsFire = Layout::GetSlotInstance(Slot::VoiceLFOs, 1),
+        VoiceLFOsEarth = Layout::GetSlotInstance(Slot::VoiceLFOs, 2),
+        Delay = Layout::GetSlotInstance(Slot::Delay, 0),
+        Reverb = Layout::GetSlotInstance(Slot::Reverb, 0),
+        PartialMachine = Layout::GetSlotInstance(Slot::PartialMachine, 0),
+        QuadLFOs = Layout::GetSlotInstance(Slot::QuadLFOs, 0),
+        TheoryOfTime = Layout::GetSlotInstance(Slot::TheoryOfTime, 0),
+        Mastering = Layout::GetSlotInstance(Slot::Mastering, 0),
+        Inputs = Layout::GetSlotInstance(Slot::Inputs, 0),
+        DeepVocoder = Layout::GetSlotInstance(Slot::DeepVocoder, 0),
+        NumBanks = x_totalNumBanks,
         Source = SourceWater,
         FilterAndAmp = FilterAndAmpWater,
         PanningAndSequencing = PanningAndSequencingWater,
@@ -67,25 +71,13 @@ struct SmartGridOneEncoders
     static constexpr std::array<Bank, 4> x_globalSelectorBanks =
     {{Bank::TheoryOfTime, Bank::Mastering, Bank::Inputs, Bank::DeepVocoder}};
 
-    struct ParamAddress
-    {
-        Bank bank;
-        int x;
-        int y;
-
-        ParamAddress(Bank bank, int x, int y)
-            : bank(bank)
-            , x(x)
-            , y(y)
-        {
-        }
-    };
+    static constexpr size_t x_numQuadBanks = x_quadSelectorBanks.size();
 
     struct ParamSwitch
     {
         int m_numValues;
 
-        ParamSwitch(int numValues = 0)
+        ParamSwitch(int numValues)
             : m_numValues(numValues)
         {
         }
@@ -96,19 +88,15 @@ struct SmartGridOneEncoders
         }
     };
 
-    enum class Param
-    {
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) name,
-#include "ForEachSmartGridOneParam.hpp"
-#undef F
-    };
-
-    static constexpr size_t x_numParams =
-        0
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) + 1
-#include "ForEachSmartGridOneParam.hpp"
-#undef F
-        ;
+    static_assert(static_cast<int>(Bank::SourceWater) == 0 &&
+        static_cast<int>(Bank::FilterAndAmpWater) == 3 &&
+        static_cast<int>(Bank::PanningAndSequencingWater) == 6 &&
+        static_cast<int>(Bank::VoiceLFOsWater) == 9 &&
+        static_cast<int>(Bank::Delay) == 12 && static_cast<int>(Bank::Reverb) == 13 &&
+        static_cast<int>(Bank::PartialMachine) == 14 && static_cast<int>(Bank::QuadLFOs) == 15 &&
+        static_cast<int>(Bank::TheoryOfTime) == 16 && static_cast<int>(Bank::Mastering) == 17 &&
+        static_cast<int>(Bank::Inputs) == 18 && static_cast<int>(Bank::DeepVocoder) == 19 &&
+        static_cast<int>(Bank::NumBanks) == 20, "Slot instances must preserve the Bank API");
 
     // Modulator skin information
     //
@@ -285,6 +273,7 @@ struct SmartGridOneEncoders
     EncoderBankBank m_encoderBankBank;
     Bank m_selectedBank;
     size_t m_selectedTrio;
+    std::array<size_t, x_totalNumBanks> m_boundPages;
 
     SmartGridOneEncoders(SmartGridOneContext* context)
         : m_encoderBankBank(
@@ -295,23 +284,20 @@ struct SmartGridOneEncoders
         , m_selectedBank(Bank::SourceWater)
         , m_selectedTrio(0)
     {
+        m_boundPages.fill(Layout::x_noRoute);
         Init();
     }
 
     static bool IsVoiceBank(Bank bank)
     {
-        return static_cast<size_t>(bank) < x_numVoiceBanks;
+        Slot slot = Layout::x_tables.m_slotInstances[static_cast<size_t>(bank)].m_slot;
+        return Layout::x_tables.m_slots[static_cast<size_t>(slot)].m_numInstances == x_numTrios;
     }
 
     static Bank BankForTrio(Bank bank, size_t trio)
     {
-        if (!IsVoiceBank(bank))
-        {
-            return bank;
-        }
-
-        size_t family = static_cast<size_t>(bank) / x_numTrios;
-        return static_cast<Bank>(family * x_numTrios + trio);
+        Slot slot = Layout::x_tables.m_slotInstances[static_cast<size_t>(bank)].m_slot;
+        return static_cast<Bank>(Layout::GetSlotInstance(slot, trio));
     }
 
     static bool IsVoiceMode(BankMode mode)
@@ -343,56 +329,37 @@ struct SmartGridOneEncoders
         return static_cast<size_t>(param) * x_numTrios + trio;
     }
 
-    // Param address lookup
-    //
-    ParamAddress GetParamAddress(Param param)
-    {
-        switch (param)
-        {
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) case Param::name: return ParamAddress(Bank::bank, x, y);
-#include "ForEachSmartGridOneParam.hpp"
-#undef F
-            default:
-                return ParamAddress(Bank::Source, 0, 0);
-        }
-    }
-
     static ParamSwitch GetParamSwitch(Param param)
     {
-        switch (param)
+        static constexpr std::array x_switchValues =
         {
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) case Param::name: return ParamSwitch(switchValues);
+#define F(name, shortName, mode, defaultValue, description, color, switchValues, bipolar) switchValues,
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
-            default:
-                return ParamSwitch();
-        }
+        };
+
+        return ParamSwitch(x_switchValues[static_cast<size_t>(param)]);
     }
 
     // BankMode lookup for a bank
     //
     BankMode GetModeForBank(Bank bank)
     {
-        size_t bankIx = static_cast<size_t>(bank);
-        if (bankIx < x_numVoiceBanks)
+        const auto& instance = Layout::x_tables.m_slotInstances[static_cast<size_t>(bank)];
+        ParamMode mode = Layout::x_tables.m_slots[static_cast<size_t>(instance.m_slot)].m_mode;
+        if (mode == ParamMode::Voice)
         {
-            return VoiceModeForTrio(bankIx % x_numTrios);
+            return VoiceModeForTrio(instance.m_trio);
         }
 
-        if (bankIx < x_numVoiceBanks + x_numQuadBanks)
-        {
-            return BankMode::Quad;
-        }
-
-        return BankMode::Global;
+        return mode == ParamMode::Quad ? BankMode::Quad : BankMode::Global;
     }
 
     // Value getters - use encoder index (Param enum) for O(1) lookup, not grid position
     //
     float GetValue(Param param, int voice)
     {
-        ParamAddress address = GetParamAddress(param);
-        if (IsVoiceMode(GetModeForBank(address.bank)))
+        if (Layout::GetParamMode(param) == ParamMode::Voice)
         {
             size_t trio = static_cast<size_t>(voice) / x_voicesPerTrio;
             size_t trioVoice = static_cast<size_t>(voice) % x_voicesPerTrio;
@@ -409,8 +376,7 @@ struct SmartGridOneEncoders
 
     float GetValueNoSlew(Param param, int voice)
     {
-        ParamAddress address = GetParamAddress(param);
-        if (IsVoiceMode(GetModeForBank(address.bank)))
+        if (Layout::GetParamMode(param) == ParamMode::Voice)
         {
             size_t trio = static_cast<size_t>(voice) / x_voicesPerTrio;
             size_t trioVoice = static_cast<size_t>(voice) % x_voicesPerTrio;
@@ -433,8 +399,7 @@ struct SmartGridOneEncoders
             return 0;
         }
 
-        ParamAddress address = GetParamAddress(param);
-        bool isVoiceMode = IsVoiceMode(GetModeForBank(address.bank));
+        bool isVoiceMode = Layout::GetParamMode(param) == ParamMode::Voice;
         size_t trio = isVoiceMode ? static_cast<size_t>(voice) / x_voicesPerTrio : 0;
         size_t channel = isVoiceMode ? static_cast<size_t>(voice) % x_voicesPerTrio : static_cast<size_t>(voice);
         int switchVal = static_cast<int>(std::round(m_encoderBankBank.GetNormalizedValueNoSlewByEncoderIndex(EncoderIndex(param, trio), channel) * static_cast<float>(paramSwitch.m_numValues - 1)));
@@ -455,52 +420,109 @@ struct SmartGridOneEncoders
 
     // Initialization
     //
+    static SmartGrid::Color GetRouteColor(size_t route)
+    {
+        static const std::array x_colors =
+        {
+#define F(slot, enumtype, enumval, page, color) color,
+#include "ForEachSmartGridOneSlot.hpp"
+#undef F
+        };
+
+        return x_colors[route];
+    }
+
+    void BindPage(Slot slot, size_t trio, size_t route)
+    {
+        if (route == Layout::x_noRoute)
+        {
+            return;
+        }
+
+        size_t bankIx = Layout::GetSlotInstance(slot, trio);
+        Page page = Layout::x_slotRoutes[route].m_page;
+        size_t pageInstance = Layout::GetPageInstance(page, trio);
+        m_encoderBankBank.m_bankConfigs[bankIx].m_color = GetRouteColor(route);
+        if (m_boundPages[bankIx] == pageInstance)
+        {
+            return;
+        }
+
+        auto& bank = m_encoderBankBank.m_banks[bankIx];
+        bank.Deselect();
+        const auto& grid = Layout::x_tables.m_pages[static_cast<size_t>(page)].m_grid;
+        for (size_t position = 0; position < Layout::x_gridSize; ++position)
+        {
+            Param param = grid[position];
+            auto* cell = param == Param::NumParams ? nullptr : m_encoderBankBank.GetEncoder(
+                EncoderIndex(param, Layout::GetParamMode(param) == ParamMode::Voice ? trio : 0));
+            bank.PlaceEncoder(static_cast<int>(position % 4), static_cast<int>(position / 4), cell);
+        }
+
+        bank.ComputeGesturesAffecting();
+        bank.ProcessTopology();
+        m_boundPages[bankIx] = pageInstance;
+    }
+
     void Init()
     {
         for (size_t trio = 0; trio < x_numTrios; ++trio)
         {
-            BankMode mode = VoiceModeForTrio(trio);
-            m_encoderBankBank.InitMode(static_cast<size_t>(mode), x_voicesPerTrio);
-            m_encoderBankBank.InitBank(static_cast<size_t>(BankForTrio(Bank::Source, trio)), static_cast<size_t>(mode), SmartGrid::Color::Red);
-            m_encoderBankBank.InitBank(static_cast<size_t>(BankForTrio(Bank::FilterAndAmp, trio)), static_cast<size_t>(mode), SmartGrid::Color::Green);
-            m_encoderBankBank.InitBank(static_cast<size_t>(BankForTrio(Bank::PanningAndSequencing, trio)), static_cast<size_t>(mode), SmartGrid::Color::Orange);
-            m_encoderBankBank.InitBank(static_cast<size_t>(BankForTrio(Bank::VoiceLFOs, trio)), static_cast<size_t>(mode), SmartGrid::Color::Blue);
+            m_encoderBankBank.InitMode(static_cast<size_t>(VoiceModeForTrio(trio)), x_voicesPerTrio);
         }
 
         m_encoderBankBank.InitMode(static_cast<size_t>(BankMode::Quad), 4);
         m_encoderBankBank.InitMode(static_cast<size_t>(BankMode::Global), 1);
-
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::Delay), static_cast<size_t>(BankMode::Quad), SmartGrid::Color::Pink);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::Reverb), static_cast<size_t>(BankMode::Quad), SmartGrid::Color::Fuscia);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::PartialMachine), static_cast<size_t>(BankMode::Quad), SmartGrid::Color::Cyan);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::QuadLFOs), static_cast<size_t>(BankMode::Quad), SmartGrid::Color::DarkPurple);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::TheoryOfTime), static_cast<size_t>(BankMode::Global), SmartGrid::Color::Yellow);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::Mastering), static_cast<size_t>(BankMode::Global), SmartGrid::Color::SeaGreen);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::Inputs), static_cast<size_t>(BankMode::Global), SmartGrid::Color::White);
-        m_encoderBankBank.InitBank(static_cast<int>(Bank::DeepVocoder), static_cast<size_t>(BankMode::Global), SmartGrid::Color::Ocean);
-
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) \
-        { \
-            Bank baseBank = Bank::bank; \
-            if (IsVoiceMode(GetModeForBank(baseBank))) \
-            { \
-                const char* x_names[x_numTrios] = {#name "Water", #name "Fire", #name "Earth"}; \
-                const char* x_shortNames[x_numTrios] = {#shortName, #shortName, #shortName}; \
-                for (size_t trio = 0; trio < x_numTrios; ++trio) \
-                { \
-                    size_t index = m_encoderBankBank.CreateEncoder(EncoderIndex(Param::name, trio), static_cast<size_t>(VoiceModeForTrio(trio)), default, x_names[trio], x_shortNames[trio], color, switchValues, bipolar); \
-                    m_encoderBankBank.PlaceEncoder(index, static_cast<size_t>(BankForTrio(baseBank, trio)), x, y); \
-                } \
-            } \
-            else \
-            { \
-                BankMode mode = GetModeForBank(baseBank); \
-                size_t index = m_encoderBankBank.CreateEncoder(EncoderIndex(Param::name, 0), static_cast<size_t>(mode), default, #name, #shortName, color, switchValues, bipolar); \
-                m_encoderBankBank.PlaceEncoder(index, static_cast<size_t>(baseBank), x, y); \
-            } \
+        for (size_t bankIx = 0; bankIx < x_totalNumBanks; ++bankIx)
+        {
+            Slot slot = Layout::x_tables.m_slotInstances[bankIx].m_slot;
+            size_t route = Layout::x_tables.m_slots[static_cast<size_t>(slot)].m_routes[0];
+            m_encoderBankBank.InitBank(bankIx, static_cast<size_t>(GetModeForBank(static_cast<Bank>(bankIx))), GetRouteColor(route));
         }
+
+        struct ParamDefinition
+        {
+            float m_defaultValue;
+            const char* m_names[4];
+            const char* m_shortName;
+            SmartGrid::Color m_color;
+            int m_switchValues;
+            bool m_bipolar;
+        };
+
+        static const ParamDefinition x_params[] =
+        {
+#define F(name, shortName, mode, defaultValue, description, color, switchValues, bipolar) \
+            {defaultValue, {#name, #name "Water", #name "Fire", #name "Earth"}, #shortName, color, switchValues, bipolar},
 #include "ForEachSmartGridOneParam.hpp"
 #undef F
+        };
+
+        for (size_t paramIx = 0; paramIx < x_numParams; ++paramIx)
+        {
+            Param param = static_cast<Param>(paramIx);
+            ParamMode mode = Layout::GetParamMode(param);
+            const auto& definition = x_params[paramIx];
+            size_t numInstances = mode == ParamMode::Voice ? x_numTrios : 1;
+            for (size_t trio = 0; trio < numInstances; ++trio)
+            {
+                BankMode bankMode = mode == ParamMode::Voice ? VoiceModeForTrio(trio) :
+                    mode == ParamMode::Quad ? BankMode::Quad : BankMode::Global;
+                size_t index = m_encoderBankBank.CreateEncoder(EncoderIndex(param, trio),
+                    static_cast<size_t>(bankMode), definition.m_defaultValue,
+                    definition.m_names[mode == ParamMode::Voice ? trio + 1 : 0],
+                    definition.m_shortName, definition.m_color, definition.m_switchValues, definition.m_bipolar);
+                size_t owner = Layout::GetSlotInstance(Layout::x_tables.m_paramSlots[paramIx], trio);
+                m_encoderBankBank.GetEncoder(index)->m_ownerBank = &m_encoderBankBank.m_banks[owner];
+            }
+        }
+
+        for (size_t bankIx = 0; bankIx < x_totalNumBanks; ++bankIx)
+        {
+            const auto& instance = Layout::x_tables.m_slotInstances[bankIx];
+            size_t route = Layout::x_tables.m_slots[static_cast<size_t>(instance.m_slot)].m_routes[0];
+            BindPage(instance.m_slot, instance.m_trio, route);
+        }
 
         // Set modulator colors for each mode
         //
@@ -552,29 +574,31 @@ struct SmartGridOneEncoders
         return static_cast<int>(m_selectedTrio);
     }
 
+    template <typename Machine>
+    void UpdateSlotsForMachine(Machine machine, size_t trio)
+    {
+        const auto& affected = Layout::x_tables.m_affectedSlots[static_cast<size_t>(Layout::GetMachineType(machine))];
+        for (size_t i = 0; i < affected.m_count; ++i)
+        {
+            Slot slot = affected.m_slots[i];
+            BindPage(slot, trio, Layout::GetRoute(slot, machine));
+        }
+    }
+
+    void UpdateEncodersForMachine(
+        VoiceMachine::SourceMachine sourceMachine,
+        VoiceMachine::FilterMachine filterMachine,
+        size_t trio)
+    {
+        UpdateSlotsForMachine(sourceMachine, trio);
+        UpdateSlotsForMachine(filterMachine, trio);
+    }
+
     void UpdateEncodersForMachine(
         VoiceMachine::SourceMachine sourceMachine,
         VoiceMachine::FilterMachine filterMachine)
     {
-        for (Bank bank : {Bank::Source, Bank::FilterAndAmp, Bank::PanningAndSequencing, Bank::VoiceLFOs})
-        {
-            m_encoderBankBank.NullBank(static_cast<size_t>(BankForTrio(bank, m_selectedTrio)));
-        }
-
-#define F(name, shortName, bank, x, y, default, description, color, sourceMachines, filterMachines, switchValues, bipolar) \
-        { \
-            if (IsVoiceMode(GetModeForBank(Bank::bank))) \
-            { \
-                MachineFlags flags{BitSet8(sourceMachines), BitSet8(filterMachines)}; \
-                bool applies = flags.AppliesToSource(sourceMachine) && flags.AppliesToFilter(filterMachine); \
-                if (applies) \
-                { \
-                    m_encoderBankBank.PlaceEncoder(EncoderIndex(Param::name, m_selectedTrio), static_cast<size_t>(BankForTrio(Bank::bank, m_selectedTrio)), x, y); \
-                } \
-            } \
-        }
-#include "ForEachSmartGridOneParam.hpp"
-#undef F
+        UpdateEncodersForMachine(sourceMachine, filterMachine, m_selectedTrio);
     }
 
     // Gesture handling

@@ -1460,17 +1460,22 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SetTrack(size_t track)
     {
+        UpdateEncodersForMachine(track);
         m_encoders.SetTrack(track);
-        UpdateEncodersForMachine();
+    }
+
+    void UpdateEncodersForMachine(size_t track)
+    {
+        size_t voiceIx = track * x_voicesPerTrack;
+        m_encoders.UpdateEncodersForMachine(
+            m_state[voiceIx].m_voiceConfig.m_sourceMachine,
+            m_state[voiceIx].m_voiceConfig.m_filterMachine,
+            track);
     }
 
     void UpdateEncodersForMachine()
     {
-        int track = m_encoders.GetCurrentTrack();
-        size_t voiceIx = static_cast<size_t>(track) * x_voicesPerTrack;
-        m_encoders.UpdateEncodersForMachine(
-            m_state[voiceIx].m_voiceConfig.m_sourceMachine,
-            m_state[voiceIx].m_voiceConfig.m_filterMachine);
+        UpdateEncodersForMachine(static_cast<size_t>(m_encoders.GetCurrentTrack()));
     }
 
     void ResetBank(Bank bank)
