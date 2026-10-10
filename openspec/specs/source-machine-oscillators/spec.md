@@ -7,7 +7,7 @@ Defines the per-voice sound generation stage of the Smart Grid One DSP engine: t
 
 ### Requirement: Per-Voice Source Machine Selection
 Each voice SHALL generate its raw signal with exactly one of four source machines selected by `VoiceConfig::SourceMachine`: Dual Wave Shaping VCO (`DualWaveShapingVCO`), Thru, Physical Modeling (`PhysicalModelingSource`), or Sample (`SampleSource`).
-`SquiggleBoySource` owns all four machines and dispatches `ProcessUBlock` to the selected one; every machine renders a 4x-oversampled u-block (`x_oversample = 4`). The active selection is published to the UI thread as an atomic in `VoiceSourceUIState::m_sourceMachine`. Parameters are tagged with `MachineFlags` so only controls matching the active machine are connected.
+`SquiggleBoySource` owns all four machines and dispatches `ProcessUBlock` to the selected one; every machine renders a 4x-oversampled u-block (`x_oversample = 4`). The active selection is published to the UI thread as an atomic in `VoiceSourceUIState::m_sourceMachine`. For each trio, the selected `VoiceMachine::SourceMachine` value directly routes the Source slot to its corresponding page in `ForEachSmartGridOneSlot.hpp`; the page memberships in `ForEachSmartGridOnePage.hpp` determine which owned parameter cells are connected to the visible 4×4 grid.
 
 #### Scenario: Switching the source machine changes dispatch and UI state
 - **WHEN** a voice's `VoiceConfig::SourceMachine` is set to `Sample`
