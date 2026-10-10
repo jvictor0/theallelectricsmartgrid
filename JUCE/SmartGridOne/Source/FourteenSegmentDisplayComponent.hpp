@@ -187,9 +187,16 @@ struct FourteenSegmentDisplayComponent : public juce::Component
         repaint();
     }
 
-    void SetOnColor(juce::Colour color)
+    void SetReadableOnColor(juce::Colour color)
     {
-        m_onColor = color;
+        static constexpr float x_minPerceivedBrightness = 0.65f;
+
+        m_onColor = color.brighter(0.15f);
+        while (m_onColor.getPerceivedBrightness() < x_minPerceivedBrightness)
+        {
+            m_onColor = m_onColor.brighter(0.1f);
+        }
+
         repaint();
     }
 

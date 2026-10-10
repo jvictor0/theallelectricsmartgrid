@@ -84,7 +84,9 @@ struct EncoderComponent : public juce::Component
         s_glyphImages.LoadImages();
         setSize(x_defaultPadSize, x_defaultPadSize);
         addAndMakeVisible(m_segmentDisplay);
-        m_segmentDisplay.SetOffColor(juce::Colour(40, 40, 40));
+        m_segmentDisplay.setInterceptsMouseClicks(false, false);
+        m_segmentDisplay.SetOffColor(juce::Colour(16, 16, 16));
+        m_segmentDisplay.SetSegmentThickness(0.12f);
         m_segmentDisplay.SetNumChars(4);
     }
 
@@ -398,10 +400,10 @@ struct EncoderComponent : public juce::Component
         auto displayX = static_cast<int>(centerX - displayWidth / 2.0f);
         auto displayY = static_cast<int>(centerY + radius * 0.6f);
 
-        auto squareColor = m_ui.m_uiState->GetBrightnessAdjustedColor(m_x, m_y);
-        if (false)
+        if (true)
         {
-            m_segmentDisplay.SetOnColor(J(squareColor));
+            m_segmentDisplay.setVisible(m_ui.m_uiState->GetConnected(m_x, m_y));
+            m_segmentDisplay.SetReadableOnColor(J(m_ui.m_uiState->GetRawColor(m_x, m_y)));
 
             const char* shortName = m_ui.m_uiState->GetShortName(m_x, m_y);
             m_segmentDisplay.SetText(shortName ? juce::String(shortName) : "");
@@ -409,6 +411,7 @@ struct EncoderComponent : public juce::Component
         }
         else
         {
+            auto squareColor = m_ui.m_uiState->GetBrightnessAdjustedColor(m_x, m_y);
             auto rectSize = radius * 0.3f;
             auto squareX = centerX - 3 * rectSize / 2;
             auto squareY = centerY + radius * 0.6f;
