@@ -48,6 +48,22 @@ The encoder owner SHALL contain twelve Voice banks (four families with Water, Fi
 - **THEN** only placed cells in SourceWater revert for the active scenes
 - **AND** Fire, Earth, and inactive scenes retain their stored values
 
+### Requirement: Normalized Parameter, Page, and Slot Catalogues
+The system SHALL define parameters in `ForEachSmartGridOneParam.hpp` as `F(name, shortName, mode, defaultValue, description, color, switchValues, bipolar)`, page memberships in `ForEachSmartGridOnePage.hpp` as `F(page, param, x, y)`, and slot routes in `ForEachSmartGridOneSlot.hpp` as `F(slot, enumtype, enumval, page, color)`. Parameter rows SHALL own value and persistence metadata without machine masks or unique page coordinates. Page membership SHALL permit a parameter to appear on multiple alternative pages without creating another parameter cell. Typed source and singleton route rows SHALL select the page and color for each logical slot.
+
+`SmartGridOneLayout::BuildPageAndSlotTables` SHALL validate catalogue references, page coordinates, route coverage and machine types, and one logical owner slot per parameter at compile time. It SHALL derive page and slot instances, Voice trio replication, slot modes, direct machine-value routes, affected-slot lists, and parameter owner slots. `SmartGridOneEncoders::Bank` numeric values SHALL preserve the established 20-bank layout through derived slot-instance offsets.
+
+#### Scenario: Shared source parameter appears on alternative pages
+- **WHEN** `FilterDrive` is a member of several source pages and the selected source machine changes
+- **THEN** the routed Source grid shows the membership and coordinates of the selected page
+- **AND** all alternatives refer to the same named parameter cell for that trio
+
+#### Scenario: Machine change binds only affected slots
+- **WHEN** a source machine changes for one trio
+- **THEN** the typed route selects its source page and color without scanning the full parameter catalogue
+- **AND** the other trios and unrelated singleton slots retain their bound pages and cell identities
+- **AND** a changed page closes the previous modulation selection before replacing its sixteen grid positions
+
 ### Requirement: Blend-Proportional Encoder Increments
 When a physical encoder is turned at an intermediate blend factor t (0 < t < 1), the system SHALL distribute the increment across both active scenes' stored values for the current track, adding `delta × (1 − t)` to the scene-1 value and `delta × t` to the scene-2 value, so, without clamping, the blended output changes by `delta × ((1 − t)² + t²)`.
 If one scene's value would leave [0, 1], that value is clamped and the other scene's value is solved so the blended output still lands on the clamped target. At t == 0 or t == 1 only the single fully-active scene's value changes.

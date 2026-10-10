@@ -160,11 +160,19 @@ The Partial Machine uses a Quad bank differently from Delay and Reverb. Its four
 
 See [Partial Machine](partial-machine.md) for the DSP-side mapping.
 
-## Machine-Specific Parameters
+## Parameter Catalogues and Machine Pages
 
-Each parameter in the Voice banks can specify which source and filter machines it applies to via bit vectors (`MachineFlags`). Parameters are defined in `ForEachSmartGridOneParam.hpp` with `sourceMachines` and `filterMachines` arguments (e.g. `MachineFlags::x_dualWaveShapingVCOOnly` for parameters that only affect the Dual Wave Shaping VCO source).
+The encoder layout has three separate catalogues:
 
-When the user selects a different source machine (e.g. Thru) or filter machine, `UpdateEncodersForMachine()` runs and swaps the actual encoder pointers in the grid. Parameters that do not apply are removed by placing `nullptr` in those positions, which leaves the cell empty and disconnected. This keeps the encoder grid relevant to the active machine while preserving encoder state in the owner array. The update is triggered on machine change (config page) and track change (since each trio can have different machines). Only the selected trio's four Voice banks are rebuilt; the other trios retain their cells and placements.
+- `ForEachSmartGridOneParam.hpp` defines each parameter once as `F(name, shortName, mode, defaultValue, description, color, switchValues, bipolar)`. This row determines its identifier, ownership mode, value metadata, and persisted name. It has no grid coordinate or machine mask.
+- `ForEachSmartGridOnePage.hpp` places parameters on named 4×4 pages as `F(page, param, x, y)`. A parameter can appear on several alternative pages, such as `FilterDrive` on the Dual VCO, Thru, Physical Modeling, and Sample source pages. Each page has at most one parameter per coordinate.
+- `ForEachSmartGridOneSlot.hpp` routes a logical bank slot and typed machine value to a page and selector color as `F(slot, enumtype, enumval, page, color)`. Source uses `VoiceMachine::SourceMachine`; fixed slots use `SingletonMachine::Unit`. The PanningAndSequencing slot, for example, routes to the `PanAndMelody` page.
+
+`SmartGridOneLayout::BuildPageAndSlotTables` validates references, page coordinates, typed route coverage, and one logical owner slot per parameter at compile time. It derives page and slot instance offsets, the three Voice replicas, slot modes, direct machine-value route tables, and each parameter's owning slot. The 20 `SmartGridOneEncoders::Bank` values come from those offsets, with compile-time assertions preserving their existing numbers. Parameter cells remain in `EncoderBankBank`'s named owner array; each is assigned its derived owner bank even when its page is hidden. Page alternatives contain layout only, not additional parameter cells.
+
+When a source machine changes, `UpdateEncodersForMachine()` uses the precomputed affected-slot list and the machine enum value to select the route for that trio. `BindPage()` updates the route color, then changes the live 4×4 grid only if its page differs. A page change deselects any open modulation view, places sixteen cell pointers or nulls, and refreshes gesture and topology state. An unchanged page keeps its existing cells. The update does not scan the parameter catalogue or rebuild unrelated singleton slots. The selected trio's source slot changes independently of the other trios. Visible-bank reset still visits only the currently placed cells, while named-parameter processing and whole-patch operations include hidden cells.
+
+`VoiceMachine::SourceMachineFlags` in `VoiceMachineEnums.hpp` is separate from this page routing and remains available to source-specific visualizers.
 
 ## Related
 - [DSP Overview](dsp-overview.md)

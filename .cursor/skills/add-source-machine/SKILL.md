@@ -1,6 +1,6 @@
 ---
 name: add-source-machine
-description: How to add a new source machine to Smart Grid One. Covers VoiceMachineEnums, creating the DSP class, integrating into SquiggleBoySource, SetEncoderParameters wiring, and MachineFlags updates. Use when adding a new oscillator, synth engine, or audio source.
+description: How to add a new source machine to Smart Grid One. Covers VoiceMachineEnums, creating the DSP class, integrating into SquiggleBoySource, SetEncoderParameters wiring, and parameter page/slot routing. Use when adding a new oscillator, synth engine, or audio source.
 ---
 
 # Adding a New Source Machine to Smart Grid One
@@ -13,8 +13,8 @@ A source machine generates audio before it reaches the filter. Examples: `DualWa
 2. Create a DSP class file for the new machine
 3. Add the machine instance and input struct to `SquiggleBoySource`
 4. Integrate into `ProcessUBlock` and dispatch in `SetEncoderParams` in `SquiggleBoySource`
-5. Update machine flags (`MachineFlags.hpp` and `VoiceMachineEnums.hpp`) if the machine count changes
-6. Add machine-specific parameters to `ForEachSmartGridOneParam.hpp`
+5. Add the source page and typed Source-slot route
+6. Add parameter metadata and page memberships; update visualizer flags if needed
 7. If the source has an internal AHD envelope, connect it in `SquiggleBoyVoice`
 
 ## Step 1: Update VoiceMachineEnums.hpp
@@ -27,8 +27,9 @@ enum class SourceMachine : int
     DualWaveShapingVCO = 0,
     Thru = 1,
     PhysicalModeling = 2,
-    MyNewSource = 3,           // ADD: new machine
-    NumSourceMachines = 4,     // UPDATE: increment count
+    Sample = 3,
+    MyNewSource = 4,
+    NumSourceMachines = 5,
 };
 ```
 
@@ -45,15 +46,17 @@ inline const char* ToString(SourceMachine machine)
             return "Thru";
         case SourceMachine::PhysicalModeling:
             return "PhysMod";
-        case SourceMachine::MyNewSource:      // ADD
-            return "MySource";                // ADD: short display name
+        case SourceMachine::Sample:
+            return "Sample";
+        case SourceMachine::MyNewSource:
+            return "MySource";
     }
 
     return "Unknown";
 }
 ```
 
-If you add a new source-machine enum value, also update `VoiceMachine::SourceMachineFlags` in `VoiceMachineEnums.hpp`:
+If a visualizer gates on the new source machine, update the separate `VoiceMachine::SourceMachineFlags` in `VoiceMachineEnums.hpp`:
 
 - add a bit constant for the new machine
 - include it in `x_all`
@@ -230,31 +233,34 @@ void SetEncoderParams(
 
 Recommended pattern: keep machine-specific parameter mapping inside the machine class (`MyNewSource::SetEncoderParams`) to keep `SquiggleBoySource` as a thin dispatcher.
 
-## Step 5: Update Machine Flags
+## Step 5: Add the Source Page and Route
 
-If the total number of source machines changes, update `MachineFlags.hpp`:
-
-```cpp
-static constexpr uint8_t x_all = 0b1111;                   // 4 machines
-static constexpr uint8_t x_dualWaveShapingVCOOnly = 0b0001;
-static constexpr uint8_t x_physicalModelingOnly = 0b0100;
-static constexpr uint8_t x_myNewSourceOnly = 0b1000;       // ADD: for machine-specific params
-static constexpr size_t x_numSourceMachines = 4;           // UPDATE to match enum count
-```
-
-Also update `VoiceMachine::SourceMachineFlags` in `VoiceMachineEnums.hpp` so source-specific visualizers can gate correctly.
-
-## Step 6: Add Machine-Specific Parameters
-
-In `ForEachSmartGridOneParam.hpp`, add parameters for your machine using the machine-specific flag:
+Give the new source its own `SmartGridOneLayout::Page` value in `SmartGridOneLayout.hpp`. Add a typed route in `ForEachSmartGridOneSlot.hpp` using its existing five-field signature:
 
 ```cpp
-F(MyNewParam, MNP, Source, 0, 0, 0.5, "My New Param", SmartGrid::Color::Cyan, 
-  MachineFlags::x_myNewSourceOnly,  // Only show for MyNewSource
-  MachineFlags::x_all)              // All filter machines
+F(Source, VoiceMachine::SourceMachine, MyNewSource, MyNewSourcePage, SmartGrid::Color::Cyan)
 ```
 
-Parameters at the same (x, y) position can coexist if they have different machine flags - only the matching machine's params will appear.
+Each `SourceMachine` value needs exactly one Source-slot route. `SmartGridOneLayout::BuildPageAndSlotTables` uses the enum value as a direct route index and checks coverage at compile time. It derives the new page's trio instances and keeps the existing live Source slot for each trio; this does not create another owner cell for a shared parameter.
+
+## Step 6: Add Parameter Metadata and Page Memberships
+
+Add any new parameters once to `ForEachSmartGridOneParam.hpp` using its eight-field metadata signature. Place each one in `ForEachSmartGridOnePage.hpp` using the four-field page signature:
+
+```cpp
+// ForEachSmartGridOneParam.hpp
+//
+F(MyNewParam, MNP, Voice, 0.5, "My New Param", SmartGrid::Color::Cyan, 0, false)
+
+// ForEachSmartGridOnePage.hpp
+//
+F(MyNewSourcePage, MyNewParam, 0, 0)
+F(MyNewSourcePage, FilterDrive, 2, 2)
+```
+
+A shared parameter may appear on several source pages at the same or different coordinates. Each page coordinate must be unique within that page. The layout helper checks that every parameter belongs to one logical slot, even if it appears on several alternatives. Existing parameter names, defaults, and order are persisted behavior; preserve them when only adding a machine page.
+
+`MachineFlags.hpp` no longer exists and does not control parameter visibility. If source-specific visualizers need to gate on the new machine, add its bit and an optional helper to `VoiceMachine::SourceMachineFlags` in `VoiceMachineEnums.hpp`. Its `x_all` must cover the new bit.
 
 ## Step 7: Connect Internal AHD (if applicable)
 
@@ -297,9 +303,11 @@ float Processs(Input& input)
 | `private/src/VoiceMachineEnums.hpp` | Add enum value, update count, add ToString case |
 | `private/src/MyNewSource.hpp` | **Create new file** with DSP implementation |
 | `private/src/SquiggleBoySource.hpp` | Add include, member, input struct, ProcessUBlock case, SetEncoderParams dispatch |
-| `private/src/MachineFlags.hpp` | Update `x_numSourceMachines`, update `x_all`, add bitmask constant |
-| `private/src/VoiceMachineEnums.hpp` | Update `SourceMachineFlags` constants/helpers for visualizer gating |
-| `private/src/ForEachSmartGridOneParam.hpp` | Add machine-specific parameters |
+| `private/src/SmartGridOneLayout.hpp` | Add the source page identifier |
+| `private/src/ForEachSmartGridOneSlot.hpp` | Add a typed Source-slot route for the new machine |
+| `private/src/ForEachSmartGridOnePage.hpp` | Place the new and any shared parameters on the source page |
+| `private/src/VoiceMachineEnums.hpp` | Update `SourceMachineFlags` only if visualizers need source gating |
+| `private/src/ForEachSmartGridOneParam.hpp` | Add metadata rows for new parameters only |
 | `private/src/SquiggleBoy.hpp` | (Optional) Connect internal AHD in SetGates and Processs |
 
 ## Checklist
@@ -311,7 +319,7 @@ float Processs(Input& input)
 - [ ] Member and input struct added to SquiggleBoySource
 - [ ] ProcessUBlock case added in SquiggleBoySource
 - [ ] SetEncoderParams dispatch added in SquiggleBoySource (machine owns its own parameter setter)
-- [ ] MachineFlags constants updated (`x_all`, `x_numSourceMachines`, new bitmask)
-- [ ] VoiceMachine::SourceMachineFlags updated (`x_all` + machine-specific bit/helper)
-- [ ] Machine-specific parameters added to ForEachSmartGridOneParam.hpp
+- [ ] New page identifier and typed Source-slot route added
+- [ ] New parameter metadata and source-page memberships added as needed
+- [ ] VoiceMachine::SourceMachineFlags updated if source-specific visualizers need the new bit
 - [ ] (If applicable) Internal AHD connected in SquiggleBoyVoice::SetGates and Processs

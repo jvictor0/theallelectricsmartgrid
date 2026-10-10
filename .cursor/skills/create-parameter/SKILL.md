@@ -9,26 +9,35 @@ description: How to add a new parameter to Smart Grid One. Covers ForEachSmartGr
 
 Adding a parameter requires: (1) declaring it in the parameter list, (2) wiring it in `SetEncoderParameters`, and optionally (3) using exponential mapping or per-sample slew for oversampled blocks.
 
-## Step 1: Add to ForEachSmartGridOneParam.hpp
+## Step 1: Define the parameter and its page placement
 
-Add an `F(...)` line in `private/src/ForEachSmartGridOneParam.hpp`:
+Add one metadata row to `private/src/ForEachSmartGridOneParam.hpp`:
 
+```cpp
+F(name, shortName, mode, defaultValue, description, color, switchValues, bipolar)
 ```
-F(name, shortName, bank, x, y, default, "Description", color, sourceMachines, filterMachines)
+
+- **name**: `SmartGridOneLayout::Param` identifier (for example `MyCutoff`)
+- **shortName**: 3–4 character encoder label
+- **mode**: `Voice`, `Quad`, or `Global`; Voice creates one owned cell per trio
+- **defaultValue**: Default in the exposed knob domain
+- **description**, **color**: Long name and encoder color
+- **switchValues**: Number of discrete values, or `0` for a continuous control
+- **bipolar**: Whether the exposed knob domain is signed
+
+For example, a Voice parameter on the Thru source page can use an unoccupied coordinate:
+
+```cpp
+// ForEachSmartGridOneParam.hpp
+//
+F(MyCutoff, CUT, Voice, 0.5, "My Cutoff", SmartGrid::Color::Green, 0, false)
+
+// ForEachSmartGridOnePage.hpp
+//
+F(ThruSource, MyCutoff, 0, 0)
 ```
 
-- **name**: C++ enum identifier (e.g. `MyParam`)
-- **shortName**: 3–4 char label for encoder display (e.g. `MYP`)
-- **bank**: `Source`, `FilterAndAmp`, `PanningAndSequencing`, `VoiceLFOs`, etc.
-- **x, y**: Grid position 0–3 within the bank
-- **default**: Normalized default in [0, 1]
-- **sourceMachines** / **filterMachines**: `MachineFlags::x_all` for all machines, or `MachineFlags::x_dualWaveShapingVCOOnly` etc. for machine-specific params
-
-Example:
-
-```
-F(MyCutoff, CUT, FilterAndAmp, 2, 2, 0.5, "My Cutoff", SmartGrid::Color::Green, MachineFlags::x_all, MachineFlags::x_all)
-```
+The page row uses `F(page, param, x, y)` with zero-based coordinates from 0 through 3. `ForEachSmartGridOneSlot.hpp` already routes `VoiceMachine::SourceMachine::Thru` from the Source slot to `ThruSource`, so no new route is needed. For a machine-dependent control, place the same parameter on the relevant source pages; one parameter can occur on multiple alternative pages while retaining a single owned cell per trio. Add or adjust a route row only when adding a page alternative or a new slot. The route signature is `F(slot, enumtype, enumval, page, color)`. `SmartGridOneLayout::BuildPageAndSlotTables` validates references, coordinates, route coverage, and logical ownership at compile time; the route's machine enum selects the page directly.
 
 ## Step 2: Wire in SetEncoderParameters (SquiggleBoy.hpp)
 
@@ -105,7 +114,9 @@ For the full system map (DSP, Theory of Time, LameJuis, etc.), see [docs index](
 
 ## Checklist
 
-- [ ] F(...) added in ForEachSmartGridOneParam.hpp with bank, grid slot, machine flags
+- [ ] Parameter metadata row added in ForEachSmartGridOneParam.hpp with the correct mode and value fields
+- [ ] Page membership added in ForEachSmartGridOnePage.hpp at a free coordinate on each intended page
+- [ ] Slot route added in ForEachSmartGridOneSlot.hpp only if a new page alternative or slot needs one
 - [ ] Assignment added in SetEncoderParameters in correct loop (voice/quad/global)
 - [ ] GetValue vs GetValueNoSlew chosen correctly
 - [ ] If exponential: ExpParam or ZeroedExpParam in input struct, `.Update()` in SetEncoderParameters
