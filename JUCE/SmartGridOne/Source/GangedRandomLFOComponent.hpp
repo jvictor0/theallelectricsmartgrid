@@ -291,7 +291,7 @@ struct GangedRandomLFOComponent : public SmartGridOneMainVisualizerComponent
             {
                 float centerX = std::clamp(dot.x, bounds.getX() + radius, bounds.getRight() - radius);
                 float centerY = std::clamp(dot.y, bounds.getY() + radius, bounds.getBottom() - radius);
-                graphics.setColour(color);
+                graphics.setColour(J(m_fixedColor));
                 graphics.fillEllipse(
                     centerX - radius,
                     centerY - radius,

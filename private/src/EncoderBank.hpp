@@ -39,12 +39,7 @@ struct BankedEncoderCell : public StateEncoderCell
         }
     };
 
-    enum class EncoderType
-    {
-        BaseParam,
-        ModulatorAmount,
-        GestureParam
-    };
+    using EncoderType = ::SmartGrid::EncoderType;
 
     static constexpr size_t x_numModulators = 15;
     static constexpr size_t x_numGestureParams = 16;
@@ -1510,6 +1505,8 @@ struct EncoderBankInternal : public EncoderGrid
                 if (cell && cell->m_connected)
                 {
                     uiState->SetConnected(i, j, true);
+                    uiState->SetEncoderType(i, j, cell->m_type);
+                    uiState->SetIndex(i, j, cell->m_index);
                     uiState->SetBipolar(i, j, cell->m_bipolar);
                     uiState->SetColor(i, j, cell->GetSquareColor());
                     uiState->SetBrightness(i, j, cell->GetBrightness());
@@ -1530,6 +1527,8 @@ struct EncoderBankInternal : public EncoderGrid
                 else
                 {
                     uiState->SetConnected(i, j, false);
+                    uiState->SetEncoderType(i, j, BankedEncoderCell::EncoderType::BaseParam);
+                    uiState->SetIndex(i, j, -1);
                     uiState->SetBipolar(i, j, false);
                     uiState->SetBrightness(i, j, 0);
                     for (size_t k = 0; k < m_sharedEncoderState.m_numVoices; ++k)

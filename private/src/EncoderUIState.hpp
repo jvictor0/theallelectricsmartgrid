@@ -3,6 +3,7 @@
 #include <atomic>
 #include "SmartGrid.hpp"
 #include "AtomicString.hpp"
+#include "EncoderEnums.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 
 struct EncoderUIState
@@ -13,6 +14,8 @@ struct EncoderUIState
     std::atomic<float> m_minValues[16];
     std::atomic<float> m_maxValues[16];
     std::atomic<bool> m_connected;
+    std::atomic<SmartGrid::EncoderType> m_encoderType{SmartGrid::EncoderType::BaseParam};
+    std::atomic<int> m_index{-1};
     std::atomic<BitSet16> m_modulatorsAffecting;
     std::atomic<BitSet16> m_gesturesAffecting;
     std::atomic<const char*> m_shortName;
@@ -49,6 +52,7 @@ struct EncoderBankUIState
     std::atomic<SmartGrid::Color> m_mainIndicatorColor;
 
     std::atomic<int> m_numVoices;
+    std::atomic<SmartGridOne::EncoderBankMode> m_mode{SmartGridOne::EncoderBankMode::Voice};
 
     std::atomic<SmartGridOne::ModulationGlyphs> m_modulationGlyphs[16];
     std::atomic<SmartGrid::Color> m_modulationGlyphColor[16];
@@ -135,6 +139,36 @@ struct EncoderBankUIState
     bool GetConnected(size_t i, size_t j)
     {
         return m_states[i][j].m_connected.load();
+    }
+
+    SmartGridOne::EncoderBankMode GetMode()
+    {
+        return m_mode.load();
+    }
+
+    void SetMode(SmartGridOne::EncoderBankMode mode)
+    {
+        m_mode.store(mode);
+    }
+
+    SmartGrid::EncoderType GetEncoderType(size_t i, size_t j)
+    {
+        return m_states[i][j].m_encoderType.load();
+    }
+
+    void SetEncoderType(size_t i, size_t j, SmartGrid::EncoderType type)
+    {
+        m_states[i][j].m_encoderType.store(type);
+    }
+
+    int GetIndex(size_t i, size_t j)
+    {
+        return m_states[i][j].m_index.load();
+    }
+
+    void SetIndex(size_t i, size_t j, int index)
+    {
+        m_states[i][j].m_index.store(index);
     }
 
     void SetColor(size_t i, size_t j, SmartGrid::Color color)

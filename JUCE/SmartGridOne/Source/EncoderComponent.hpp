@@ -1,9 +1,10 @@
 #pragma once
 
-#include "SmartGridInclude.hpp"
 #include <JuceHeader.h>
+#include "SmartGridInclude.hpp"
 #include "BinaryData.h"
 #include "FourteenSegmentDisplayComponent.hpp"
+#include "ModulatorVisualizers.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -71,14 +72,16 @@ struct EncoderComponent : public juce::Component
     static inline ModulatorGlyphImages s_glyphImages;
 
     EncoderBankUI m_ui;
+    ModulatorVisualizers& m_modulatorVisualizers;
     int m_x;
     int m_y;
     bool m_badgesAbove;
     juce::Point<float> m_lastMousePosition;
     FourteenSegmentDisplayComponent m_segmentDisplay;
 
-    EncoderComponent(EncoderBankUI uiState, int x, int y, bool badgesAbove)
+    EncoderComponent(EncoderBankUI uiState, int x, int y, bool badgesAbove, ModulatorVisualizers& modulatorVisualizers)
         : m_ui(uiState)
+        , m_modulatorVisualizers(modulatorVisualizers)
         , m_x(x)
         , m_y(y)
         , m_badgesAbove(badgesAbove)
@@ -224,6 +227,28 @@ struct EncoderComponent : public juce::Component
         {
             BitSet16 modulatorsAffecting = m_ui.m_uiState->GetModulatorsAffecting(m_x, m_y);
             BitSet16 gesturesAffecting = m_ui.m_uiState->GetGesturesAffecting(m_x, m_y);
+            auto type = m_ui.m_uiState->GetEncoderType(m_x, m_y);
+            auto mode = m_ui.m_uiState->GetMode();
+            SmartGridOneMainVisualizerComponent* visualizer = nullptr;
+            if (type == SmartGrid::EncoderType::ModulatorAmount)
+            {
+                visualizer = m_modulatorVisualizers.Get(mode, m_ui.m_uiState->GetIndex(m_x, m_y));
+            }
+            else if (type == SmartGrid::EncoderType::BaseParam)
+            {
+                visualizer = m_modulatorVisualizers.GetSingle(mode, modulatorsAffecting);
+            }
+
+            if (visualizer)
+            {
+                juce::Graphics::ScopedSaveState savedState(g);
+                auto dialBounds = bounds.toNearestInt();
+                g.reduceClipRegion(dialBounds);
+                g.setOrigin(dialBounds.getPosition());
+                g.beginTransparencyLayer(0.5f);
+                visualizer->Draw(g, dialBounds.withPosition(0, 0));
+                g.endTransparencyLayer();
+            }
 
             size_t numModulators = modulatorsAffecting.Count();
             size_t numGestures = gesturesAffecting.Count();

@@ -18,7 +18,7 @@ struct EncoderGrid : public juce::Component
     int m_gridWidth;
     int m_gridHeight;
     
-    EncoderGrid(EncoderBankUI uiState, int startX, int startY, int endX, int endY, bool badgesAbove)
+    EncoderGrid(EncoderBankUI uiState, int startX, int startY, int endX, int endY, bool badgesAbove, ModulatorVisualizers& modulatorVisualizers)
         : m_ui(uiState)
         , m_cellSize(100) // Default cell size
         , m_startX(startX)
@@ -36,7 +36,7 @@ struct EncoderGrid : public juce::Component
             {
                 // Create the encoder component
                 //
-                m_encoders.push_back(std::make_unique<EncoderComponent>(m_ui, x, y, badgesAbove));
+                m_encoders.push_back(std::make_unique<EncoderComponent>(m_ui, x, y, badgesAbove, modulatorVisualizers));
                 
                 // Add the encoder as a child component
                 //

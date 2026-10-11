@@ -4,6 +4,7 @@
 #include "SmartGridInclude.hpp"
 #include "NonagonWrapper.hpp"
 #include "SmartGridOneMainVisualizerComponent.hpp"
+#include "ModulatorVisualizers.hpp"
 #include "ScopeComponent.hpp"
 #include "SequencerMelodyVisualizerComponent.hpp"
 #include "GangedRandomLFOComponent.hpp"
@@ -66,6 +67,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
     int m_gridHeight;
     
     int m_scopeVoiceOffset;
+    ModulatorVisualizers m_modulatorVisualizers;
     
     std::unique_ptr<MeteringComponent> m_meteringComponent;
     
@@ -74,7 +76,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
 #include "ForEachSmartGridOneVisualizer.hpp"
 #undef F
 
-#define G(name, slot, ctor, mode, color) \
+#define G(name, slot, ctor, mode, color, modulator) \
     std::unique_ptr<SmartGridOneMainVisualizerComponent> m_##name;
 #include "ForEachModulationVisualizer.hpp"
 #undef G
@@ -101,8 +103,15 @@ struct SmartGridOneVisualizerMain : public juce::Component
 #include "ForEachSmartGridOneVisualizer.hpp"
 #undef F
 
-#define G(name, slot, ctor, mode, color) \
-        m_##name = ctor;
+#define G(name, slot, ctor, mode, color, modulator) \
+        { \
+            auto factory = [&]([[maybe_unused]] int* scopeVoiceOffset) \
+            { \
+                return ctor; \
+            }; \
+            m_##name = factory(&m_scopeVoiceOffset); \
+            m_modulatorVisualizers.Add(modulator, factory); \
+        }
 #include "ForEachModulationVisualizer.hpp"
 #undef G
         
@@ -357,7 +366,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
     {
         SmartGridOneEncoders::BankMode modeForBank = m_nonagon->GetModeForEncoderBank(bank);
 
-#define G(name, slot, ctor, mode, color) \
+#define G(name, slot, ctor, mode, color, modulator) \
         if (m_##name && (mode == SmartGridOneEncoders::BankMode::Voice \
             ? SmartGridOneEncoders::IsVoiceMode(modeForBank) : modeForBank == mode)) \
         { \
@@ -388,7 +397,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
         auto position = event.getPosition();
         SmartGridOneEncoders::BankMode modeForBank = m_nonagon->GetModeForEncoderBank(bank);
 
-#define G(name, slot, ctor, mode, color) \
+#define G(name, slot, ctor, mode, color, modulator) \
         if (m_##name && (mode == SmartGridOneEncoders::BankMode::Voice \
             ? SmartGridOneEncoders::IsVoiceMode(modeForBank) : modeForBank == mode)) \
         { \

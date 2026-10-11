@@ -23,16 +23,7 @@ struct SmartGridOneEncoders
     static constexpr size_t x_totalNumBanks = Layout::x_tables.m_numSlotInstances;
     static constexpr size_t x_numParams = Layout::x_numParams;
 
-    enum class BankMode : int
-    {
-        VoiceWater = 0,
-        VoiceFire = 1,
-        VoiceEarth = 2,
-        Quad = 3,
-        Global = 4,
-        NumModes = 5,
-        Voice = VoiceWater
-    };
+    using BankMode = SmartGridOne::EncoderBankMode;
 
     static constexpr size_t x_numBankModes = static_cast<size_t>(BankMode::NumModes);
 
@@ -509,6 +500,7 @@ struct SmartGridOneEncoders
         m_encoderBankBank.PopulateUIState(uiState);
 
         BankMode mode = GetSelectedMode();
+        uiState->SetMode(mode);
         for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numModulators; ++i)
         {
             ModulatorSkin skin = GetModulatorSkin(i, mode);

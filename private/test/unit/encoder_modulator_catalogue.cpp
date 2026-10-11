@@ -15,20 +15,20 @@ struct ExpectedSkin
 
 const ExpectedSkin x_voice[] =
 {
-    {Glyph::SmoothRandom, {255, 30, 18}}, {Glyph::SmoothRandom, {134, 63, 249}},
+    {Glyph::SmoothRandom, {255, 30, 18}}, {Glyph::SmoothRandom, {127, 84, 139}},
     {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
     {Glyph::ADSR, {255, 108, 29}}, {Glyph::ADSR, {0, 247, 167}},
-    {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {127, 84, 139}},
+    {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {134, 63, 249}},
     {Glyph::Sheaf, {0, 127, 127}}, {Glyph::Sheaf, {28, 30, 124}},
     {Glyph::Sheaf, {4, 123, 29}}, {Glyph::Spread, {143, 143, 143}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {253, 253, 253}}
 };
 const ExpectedSkin x_quad[] =
 {
-    {Glyph::SmoothRandom, {255, 30, 18}}, {Glyph::SmoothRandom, {134, 63, 249}},
+    {Glyph::SmoothRandom, {255, 30, 18}}, {Glyph::SmoothRandom, {127, 84, 139}},
     {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
     {Glyph::Quadrature, {255, 108, 29}}, {Glyph::Quadrature, {0, 247, 167}},
-    {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {127, 84, 139}},
+    {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {134, 63, 249}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
     {Glyph::Spread, {143, 143, 143}}, {Glyph::None, {0, 0, 0}},
     {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {253, 253, 253}}
@@ -42,6 +42,90 @@ const ExpectedSkin x_global[] =
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
     {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {253, 253, 253}}
 };
+}
+
+DOCTEST_TEST_CASE("encoder visualizers: published identity follows mode navigation nested depths and reset")
+{
+    GlobalEnv::ResetPerTest();
+    SmartGridOneContext context;
+    Encoders encoders(&context);
+    EncoderBankUIState ui;
+    using Type = SmartGrid::BankedEncoderCell::EncoderType;
+    for (int mode = 0; mode < 5; ++mode)
+    {
+        DOCTEST_CAPTURE(mode);
+        if (mode < 3)
+        {
+            encoders.SetTrack(mode);
+            encoders.SelectBank(Encoders::Bank::Source);
+        }
+        else
+        {
+            encoders.SelectBank(mode == 3 ? Encoders::Bank::Delay : Encoders::Bank::Mastering);
+        }
+
+        auto& banks = encoders.m_encoderBankBank;
+        auto& bank = banks.m_banks[banks.m_selectedBank];
+        SmartGrid::BankedEncoderCell* base = nullptr;
+        int baseX = 0;
+        int baseY = 0;
+        for (int x = 0; x < 4 && !base; ++x)
+        {
+            for (int y = 0; y < 4 && !base; ++y)
+            {
+                auto* candidate = bank.GetBase(x, y);
+                if (candidate && candidate->m_connected)
+                {
+                    base = candidate;
+                    baseX = x;
+                    baseY = y;
+                }
+            }
+        }
+
+        DOCTEST_REQUIRE(base != nullptr);
+        bank.HandlePress(baseX, baseY);
+        encoders.PopulateUIState(&ui);
+        DOCTEST_CHECK(ui.GetMode() == static_cast<Encoders::BankMode>(mode));
+        DOCTEST_CHECK(ui.GetEncoderType(3, 3) == Type::BaseParam);
+        for (int index = 0; index < 15; ++index)
+        {
+            DOCTEST_CHECK(ui.GetEncoderType(index % 4, index / 4) == Type::ModulatorAmount);
+            DOCTEST_CHECK(ui.GetIndex(index % 4, index / 4) == index);
+        }
+
+        const int source = mode == 4 ? 2 : 6;
+        bank.HandlePress(source % 4, source / 4);
+        encoders.PopulateUIState(&ui);
+        DOCTEST_CHECK(ui.GetEncoderType(3, 3) == Type::ModulatorAmount);
+        DOCTEST_CHECK(ui.GetIndex(3, 3) == source);
+        context.m_sceneManager.m_shift = true;
+        bank.HandlePress(3, 3);
+        context.m_sceneManager.m_shift = false;
+        encoders.PopulateUIState(&ui);
+        DOCTEST_CHECK(ui.GetConnected(3, 3));
+        DOCTEST_CHECK(ui.GetIndex(3, 3) == source);
+        DOCTEST_CHECK(ui.GetEncoderType(0, 0) == Type::ModulatorAmount);
+        DOCTEST_CHECK(ui.GetIndex(0, 0) == 0);
+
+        bank.HandlePress(3, 3);
+        encoders.PopulateUIState(&ui);
+        DOCTEST_CHECK(ui.GetEncoderType(baseX, baseY) == Type::BaseParam);
+        DOCTEST_CHECK(ui.GetIndex(baseX, baseY) == base->m_index);
+
+        base->m_modulators.AddGesture(base, 0);
+        auto* gesture = base->m_modulators.m_gestures[0].get();
+        bank.SetVisible(baseX, baseY, gesture);
+        encoders.PopulateUIState(&ui);
+        DOCTEST_CHECK(ui.GetEncoderType(baseX, baseY) == Type::GestureParam);
+        DOCTEST_CHECK(ui.GetIndex(baseX, baseY) == 0);
+        bank.SetVisible(baseX, baseY, nullptr);
+        encoders.PopulateUIState(&ui);
+        DOCTEST_CHECK_FALSE(ui.GetConnected(baseX, baseY));
+        DOCTEST_CHECK(ui.GetIndex(baseX, baseY) == -1);
+        DOCTEST_CHECK(ui.GetEncoderType(baseX, baseY) == Type::BaseParam);
+        bank.SetVisible(baseX, baseY, base);
+    }
 }
 
 DOCTEST_TEST_CASE("modulator catalogue: every mode presents preserved sources and empty slots")

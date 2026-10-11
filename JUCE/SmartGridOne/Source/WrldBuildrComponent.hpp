@@ -245,6 +245,7 @@ struct WrldBuildrComponent : public juce::Component
     std::unique_ptr<BasicPadGridHolder> m_leftArcadeGrid;
     std::unique_ptr<BasicPadGridHolder> m_rightArcadeGrid;
 
+    std::unique_ptr<SmartGridOneVisualizerMain> m_visualizerMain;
     std::unique_ptr<EncoderGridHolder> m_encoderGrids[4];
 
     std::unique_ptr<FaderHolder> m_faderGrids[8];
@@ -255,8 +256,6 @@ struct WrldBuildrComponent : public juce::Component
     std::unique_ptr<JoyStickHolder> m_joyStickFixed;
 
     std::unique_ptr<VoiceConfigComponent> m_voiceConfigComponent;
-
-    std::unique_ptr<SmartGridOneVisualizerMain> m_visualizerMain;
 
     bool m_drawGrid;
 
@@ -313,9 +312,11 @@ struct WrldBuildrComponent : public juce::Component
         m_rightArcadeGrid->m_padHeight = 2;
         addAndMakeVisible(m_rightArcadeGrid->m_padGrid.get());
         
+        m_visualizerMain = std::make_unique<SmartGridOneVisualizerMain>(m_nonagon);
         for (int i = 0; i < 4; ++i)
         {
-            auto encoderGrid = std::make_unique<EncoderGrid>(m_nonagon->MkEncoderBankUI(), 0, i, 4, i + 1, i % 2 == 1);
+            auto encoderGrid = std::make_unique<EncoderGrid>(
+                m_nonagon->MkEncoderBankUI(), 0, i, 4, i + 1, i % 2 == 1, m_visualizerMain->m_modulatorVisualizers);
             int xPos = 8 + 8 * (i / 2);
             float yPos = 2.5f * (i % 2);
             m_encoderGrids[i] = std::make_unique<EncoderGridHolder>(std::move(encoderGrid), xPos, yPos);
@@ -349,7 +350,6 @@ struct WrldBuildrComponent : public juce::Component
         m_joyStickFixed = std::make_unique<JoyStickHolder>(std::move(joyStickReturn), 4, 4);
         addAndMakeVisible(m_joyStickFixed->m_joyStick.get());
 
-        m_visualizerMain = std::make_unique<SmartGridOneVisualizerMain>(m_nonagon);
         addAndMakeVisible(m_visualizerMain.get());
 
         m_initialized = true;

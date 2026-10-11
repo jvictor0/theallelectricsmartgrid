@@ -160,7 +160,7 @@ struct PolyphonicScopeComponent : public SmartGridOneMainVisualizerComponent
             ScopeReaderFactory factory(m_scopeWriter, voiceIx, m_scopeIx, x_numXSamples, 1);
             ScopeReader scopeReader = factory.Create();
             pathDrawer.DrawScopePath(g, juceColor, scopeReader, m_yScale, m_yOffset);
-            pathDrawer.DrawScopeMarker(g, juce::Colours::white, scopeReader, m_yScale, m_yOffset);
+            pathDrawer.DrawScopeMarker(g, juceColor, scopeReader, m_yScale, m_yOffset);
         }
     }
 };
