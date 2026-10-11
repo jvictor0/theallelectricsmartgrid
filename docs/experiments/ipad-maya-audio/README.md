@@ -26,7 +26,7 @@ Treat clean generated audio at the internal recording tap as established investi
 
 ## Read first
 
-- [October 11 Reset Audio recovery and recurrence watch](2026-10-11-reset-audio-recovery.md): user reports periodic artifacts clearing after the new button; logs show stream/session restart with the same Maya device and a temporary 44.1 kHz transition. A bounded analog/live-log watch is running; durable recovery is not established.
+- [October 11 Reset Audio recovery — observation complete](2026-10-11-reset-audio-recovery.md): user reports about 20 minutes of clean audio after the new button, then ends playback without recurrence. Logs show stream/session restart with the same Maya device; prior frame-count and drift messages disappear from collected post-reset logs. One sustained recovery, not yet a repeatable fix. Analog recording has discarded buffers and stopped early for low disk space; capture and monitoring are now stopped.
 
 - [October 6 charging chimes and USB routing](2026-10-06-charging-chime-and-usb-routing.md): five charging-sound requests during ad hoc plug tests; two used the speaker before Maya enumeration, three used Maya during confirmed hub-power-only changes. System sounds start idle Maya streams. The original 16:30 charging chime used the speaker and is distinct from the later SpringBoard 44.1 kHz request.
 

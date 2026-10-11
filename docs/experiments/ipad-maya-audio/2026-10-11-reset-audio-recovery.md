@@ -4,6 +4,8 @@
 
 The user reported the familiar artifacts around **11:14 PDT**, pressed the newly installed **Reset Audio** button, and heard the artifacts go away. They requested a Mac watch because recurrence remained uncertain. This is one user-observed immediate recovery after a software intervention. The failing analog interval was not recorded by this task. Prior episodes have also cleared spontaneously; temporal association alone does not establish a repeatable remedy.
 
+**Completed result:** the user subsequently reported **about 20 minutes of clean audible playback**, contrasting this with the usual recurrence every few minutes, and then said they had turned it off. Classify this as **one sustained, user-observed recovery after Reset Audio, with no reported recurrence before the user ended the observation**. The longer clean exposure strengthens the evidence beyond immediate relief between bursts. It supports software reinitialization as a practical recovery candidate; it does not establish repeatability or identify the root cause. The analog recorder and live logger have stopped, and the heartbeat is paused. Final verification and limitations are below.
+
 **Initial checkpoint, approximately 11:20:** app/system logs are saved; a bounded analog recording and live iPad logging are running. Recording started at **11:17:14.093**, about three minutes after reset completion, and is scheduled to end around **11:47:14**. Live logging first retains an event at **11:18:21.442** and ends at 11:47:20. Final verification and assessment remain pending. This task performed no deployment, new reset, app restart or hardware intervention.
 
 ## Reset evidence
@@ -62,3 +64,19 @@ Raw artifacts and helpers remain on the Mac, outside Git:
 - App snapshot: `/Users/joyo/Documents/SmartGridOne/diagnostics/20261011T181640.805099Z-app/2026-10-11T10-55-51-786.log`
 - Watch directory: `/Users/joyo/Documents/SmartGridOne/diagnostics/20261011T181700Z-reset-watch/`
 - Watch files: `system-before-audio-usb.log`, `kmix-inputs-3-4.wav`, `recording-status.json`, `sox-recorder.log`, `live-audio-usb.jsonl`, `live-status.json`, `analysis-latest.json`, `record-watch.py`, `collect-live.py`, `analyze-watch.py`.
+
+## Completed capture and user-ended exposure
+
+The user's approximately 20-minute listening report is the primary evidence for sustained audible recovery. “Turned it off” ends the observation; the exact physical action is not assumed. No continued clean exposure after that point is claimed.
+
+SoX had already stopped at **11:33:19.925 PDT**, with exit code 0, because free disk space fell below the recorder's **1 GiB** floor. The wall interval was 965.830 seconds, well below the 30-minute deadline. At 11:34:31 the Mac had **779,853,824 bytes** free. No diagnostic files were deleted. The originally planned 30-minute exposure was not completed.
+
+The closed WAV is **277,717,784 bytes**, stereo 48 kHz/24-bit PCM, containing **964.297583 seconds** (16m04.298s). Its finalized data length exactly matches the actual PCM bytes. SoX emitted **52 discarded-buffer warnings**. Missing audio duration is not known precisely; the difference between launch-to-exit time and PCM duration also includes startup/shutdown timing. Do not align later PCM times to wall time as if the recording were lossless.
+
+The final exploratory screen finds no periodic-cut candidate in 964 complete seconds. Both-channel RMS exceeds −55 dBFS in seconds **0–910** (911 seconds); second 911 fades and seconds 912 onward are near the noise floor. This is consistent with the user ending playback, but is not independent proof of which control/device they turned off. The recording therefore supplies roughly 15m11s of active-signal observation, beginning about three minutes after reset, followed by quiet audio. Detector sensitivity to arbitrary music, capture data loss, and the lack of a failed-state analog control still limit inference.
+
+The live logger was deliberately interrupted after the user ended the observation. It saved **1,561 records** from 120,525 received events, with retained device times **11:18:21.442–11:34:30.373**. It contains no matches for the earlier frame-count warning, driver drift, underflow, transaction-error, excessive-zero-length, Maya start/stop or USB-enumeration/termination signatures. Missing messages remain inconclusive. Its raw status defaults to `reason: deadline` even on SIGINT; actual termination was **user-ended observation**, with process exit 130 and completed final metadata at 11:34:32.303. The corrected reason is preserved separately rather than silently rewriting the raw status.
+
+The `watch-maya-after-audio-reset` heartbeat is **PAUSED**. No further recording was started. Given the completed live stream and low free disk space, no additional large historical archive was collected at shutdown.
+
+Final local evidence in the watch directory: `analysis-final.json`, `analysis-final-console.txt`, `completion-summary.json`, `user-ended-observation.json`, `monitor-checkpoint.json`, and `monitor-events.jsonl`, alongside the WAV/log files listed above. These artifacts remain local; this report records the useful result and limits in Git.
