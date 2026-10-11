@@ -104,7 +104,7 @@ class PublishingClientTests(unittest.TestCase):
                     calls.append((time.monotonic(), self.path))
                     if mode == 'old':
                         return self._json(404, {'error': 'not found'})
-                    if mode == 'retry-lost' and self.path == '/v1/publishing/uploads' and not dropped:
+                    if mode in ('retry-lost', 'two-recordings') and self.path == '/v1/publishing/uploads' and not dropped:
                         self.rfile.read(int(self.headers['Content-Length']))
                         dropped.append(True)
                         self.close_connection = True
@@ -125,10 +125,15 @@ class PublishingClientTests(unittest.TestCase):
                                         capture_output=True, text=True, timeout=25)
                 ended = time.monotonic()
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                if mode in ('old', 'wrong', 'large-metadata'):
+                if mode in ('old', 'wrong', 'large-metadata', 'close-race'):
                     self.assertEqual(api.uploads, [])
                     self.assertFalse([path for _, path in calls if path == '/v1/publishing/uploads'],
                                      'unbounded request was sent to receiver')
+                elif mode == 'two-recordings':
+                    self.assertEqual(len(api.uploads), 2)
+                    self.assertEqual(api.uploads[0][1:], ('Custom title', artwork.read_bytes()))
+                    self.assertEqual(api.uploads[1][1:], ('Second current title', artwork.read_bytes() + b'B'))
+                    self.assertEqual(len(accepted), 2)
                 else:
                     self.assertEqual(len(api.uploads), 1)
                     self.assertEqual(api.uploads[0][1:], ('Smart Grid Nightly 2026/10/02', b'') if mode == 'default' else ('Custom title', artwork.read_bytes()))
@@ -169,6 +174,12 @@ class PublishingClientTests(unittest.TestCase):
 
     def test_unbounded_metadata_is_rejected_before_network_transfer(self):
         self.run_scenario('large-metadata')
+
+    def test_close_interleaves_with_task_creation_without_invalidated_session_exception(self):
+        self.run_scenario('close-race')
+
+    def test_second_recording_cannot_overwrite_uncertain_first_request(self):
+        self.run_scenario('two-recordings')
 
     def test_wrong_fingerprint_rejects_receiver(self):
         self.run_scenario('wrong')

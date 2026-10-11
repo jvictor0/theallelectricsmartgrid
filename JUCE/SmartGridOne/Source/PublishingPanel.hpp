@@ -289,7 +289,7 @@ struct PublishingPanel : juce::Component, juce::ListBoxModel
         const bool pending = row != nullptr && m_snapshot.m_pendingRecordingId == row->m_id;
         for (auto* component : std::initializer_list<juce::Component*>{&m_title, &m_default, &m_files, &m_photos, &m_remove})
         {
-            component->setEnabled(editable && !m_snapshot.m_busy && !pending);
+            component->setEnabled(editable && row != nullptr && m_snapshot.CanEditRecording(row->m_id));
         }
 
         m_refresh.setEnabled(m_snapshot.m_selected && !m_snapshot.m_busy);
@@ -319,6 +319,11 @@ struct PublishingPanel : juce::Component, juce::ListBoxModel
                 detail += "\nSoundCloud may have accepted this upload. Check the account or link an existing track. Upload again may create a duplicate.";
             }
 
+            if (!m_snapshot.m_pendingRequestId.empty() && !pending)
+            {
+                detail += "\nResolve the pending upload before uploading another recording. This draft can still be edited.";
+            }
+
             if (pending)
             {
                 detail += "\nChecking the accepted request. A request retry uses the same identity.";
@@ -338,7 +343,7 @@ struct PublishingPanel : juce::Component, juce::ListBoxModel
             : "Upload");
         const bool validTitle = row != nullptr && (CurrentDraft().m_useDefault ? m_snapshot.m_catalogReady : !CurrentDraft().m_title.trim().isEmpty());
         m_upload.setEnabled(row != nullptr && (row->m_state == "uploaded" ? !row->m_permalink.empty()
-            : editable && !m_snapshot.m_busy && validTitle));
+            : editable && m_snapshot.CanSubmitRecording(row->m_id) && validTitle));
     }
 
     void Upload()
@@ -355,9 +360,14 @@ struct PublishingPanel : juce::Component, juce::ListBoxModel
             return;
         }
 
+        if (!m_snapshot.CanSubmitRecording(row->m_id))
+        {
+            return;
+        }
+
         auto& draft = CurrentDraft();
         const bool pending = m_snapshot.m_pendingRecordingId == row->m_id;
-        if (!draft.m_hasRequest || (!pending && (row->m_state == "failed" || row->m_state == "unknown")))
+        if (!pending || !draft.m_hasRequest)
         {
             draft.m_request = {};
             draft.m_request.m_recordingId = row->m_id;

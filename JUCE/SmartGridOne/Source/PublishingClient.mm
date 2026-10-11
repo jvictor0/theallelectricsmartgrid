@@ -77,6 +77,7 @@ struct PublishingClient::Impl
     mutable std::mutex m_statusMutex;
     Status m_status;
     std::mutex m_commandsMutex;
+    std::mutex m_networkMutex;
     std::condition_variable m_wake;
     std::deque<Command> m_commands;
     std::atomic<bool> m_cancelled{true};
@@ -95,8 +96,12 @@ struct PublishingClient::Impl
 
     void Stop()
     {
-        m_cancelled.store(true);
-        [m_session invalidateAndCancel];
+        {
+            std::lock_guard<std::mutex> lock(m_networkMutex);
+            m_cancelled.store(true);
+            [m_session invalidateAndCancel];
+        }
+
         m_wake.notify_all();
         if (m_worker.joinable())
         {
@@ -172,14 +177,23 @@ struct PublishingClient::Impl
         }
 
         const auto response = std::make_shared<Response>();
-        NSURLSessionDataTask* task = [m_session dataTaskWithRequest:request completionHandler:^(NSData* data, NSURLResponse* reply, NSError* error)
         {
-            response->m_data = data;
-            response->m_error = error;
-            response->m_code = [reply isKindOfClass:[NSHTTPURLResponse class]] ? static_cast<NSHTTPURLResponse*>(reply).statusCode : 0;
-            dispatch_semaphore_signal(response->m_done);
-        }];
-        [task resume];
+            std::lock_guard<std::mutex> lock(m_networkMutex);
+            if (m_cancelled.load() || m_session == nil)
+            {
+                throw std::runtime_error("Publishing controls closed");
+            }
+
+            NSURLSessionDataTask* task = [m_session dataTaskWithRequest:request completionHandler:^(NSData* data, NSURLResponse* reply, NSError* error)
+            {
+                response->m_data = data;
+                response->m_error = error;
+                response->m_code = [reply isKindOfClass:[NSHTTPURLResponse class]] ? static_cast<NSHTTPURLResponse*>(reply).statusCode : 0;
+                dispatch_semaphore_signal(response->m_done);
+            }];
+            [task resume];
+        }
+
         dispatch_semaphore_wait(response->m_done, DISPATCH_TIME_FOREVER);
         if (m_cancelled.load())
         {
@@ -317,6 +331,15 @@ struct PublishingClient::Impl
         else
         {
             const auto& upload = command.m_upload;
+            {
+                std::lock_guard<std::mutex> lock(m_statusMutex);
+                if (!m_status.m_pendingRequestId.empty()
+                    && (m_status.m_pendingRecordingId != upload.m_recordingId || m_status.m_pendingRequestId != upload.m_requestId))
+                {
+                    throw std::runtime_error("Resolve the pending upload before submitting another request");
+                }
+            }
+
             constexpr size_t x_maxArtwork = 10 * 1024 * 1024;
             if (upload.m_artwork.size() > x_maxArtwork || upload.m_requestId.empty())
             {

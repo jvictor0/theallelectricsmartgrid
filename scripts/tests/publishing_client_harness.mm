@@ -1,9 +1,30 @@
 #include "PublishingClient.hpp"
 #import <Foundation/Foundation.h>
+#import <objc/runtime.h>
+#include <atomic>
+#include <thread>
 #include <chrono>
 #include <fstream>
 #include <iostream>
 #include <functional>
+
+static dispatch_semaphore_t x_taskEntered;
+static dispatch_semaphore_t x_taskRelease;
+static IMP x_originalCreate;
+static std::atomic<bool> x_taskPaused{false};
+
+static id PausedTaskCreate(id session, SEL selector, NSURLRequest* request, id completion)
+{
+    bool expected = false;
+    if (x_taskPaused.compare_exchange_strong(expected, true))
+    {
+        dispatch_semaphore_signal(x_taskEntered);
+        dispatch_semaphore_wait(x_taskRelease, DISPATCH_TIME_FOREVER);
+    }
+
+    using Create = id (*)(id, SEL, NSURLRequest*, id);
+    return reinterpret_cast<Create>(x_originalCreate)(session, selector, request, completion);
+}
 
 static bool Wait(const std::function<bool()>& predicate)
 {
@@ -41,6 +62,38 @@ int main(int argc, char** argv)
         }
 
         client.Open();
+        if (mode == "close-race")
+        {
+            x_taskEntered = dispatch_semaphore_create(0);
+            x_taskRelease = dispatch_semaphore_create(0);
+            NSURLSession* probe = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration ephemeralSessionConfiguration]];
+            const SEL selector = @selector(dataTaskWithRequest:completionHandler:);
+            Method method = class_getInstanceMethod([probe class], selector);
+            x_originalCreate = method_setImplementation(method, reinterpret_cast<IMP>(PausedTaskCreate));
+            [probe invalidateAndCancel];
+            client.Select(receiver, "test-code");
+            if (dispatch_semaphore_wait(x_taskEntered, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC)) != 0)
+            {
+                return 28;
+            }
+
+            std::thread release([]()
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                dispatch_semaphore_signal(x_taskRelease);
+            });
+            client.Close();
+            release.join();
+            method_setImplementation(method, x_originalCreate);
+            if (client.Snapshot().m_busy || client.Snapshot().m_selected)
+            {
+                return 29;
+            }
+
+            std::cout << "closed during task creation" << std::endl;
+            return 0;
+        }
+
         SyncClient sync(argv[1]);
         sync.Open();
         if (mode == "concurrent")
@@ -126,6 +179,37 @@ int main(int argc, char** argv)
             return 0;
         }
 
+        PublishingClient::Upload second;
+        if (mode == "two-recordings")
+        {
+            if (!Wait([&]() { auto status = client.Snapshot(); return !status.m_busy && !status.m_error.empty(); }))
+            {
+                return 30;
+            }
+
+            second = request;
+            second.m_recordingId = initial.m_recordings.back().m_id;
+            second.m_version = initial.m_recordings.back().m_version;
+            second.m_requestId = "second-request";
+            second.m_title = "Old second title";
+            const auto controls = client.Snapshot();
+            if (controls.CanEditRecording(request.m_recordingId) || !controls.CanEditRecording(second.m_recordingId)
+                || !controls.CanSubmitRecording(request.m_recordingId) || controls.CanSubmitRecording(second.m_recordingId))
+            {
+                return 34;
+            }
+
+            client.Submit(second);
+            [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
+            const auto uncertain = client.Snapshot();
+            if (uncertain.m_pendingRequestId != "native-request" || uncertain.m_pendingRecordingId != request.m_recordingId)
+            {
+                return 31;
+            }
+
+            client.Submit(request);
+        }
+
         if (mode == "retry-lost")
         {
             if (!Wait([&]() { auto s = client.Snapshot(); return !s.m_busy && !s.m_error.empty(); }))
@@ -190,6 +274,32 @@ int main(int argc, char** argv)
             || snapshot.m_recordings.front().m_permalink.empty())
         {
             return 21;
+        }
+
+        if (mode == "two-recordings")
+        {
+            if (!client.Snapshot().CanSubmitRecording(second.m_recordingId) || !client.Snapshot().CanEditRecording(second.m_recordingId))
+            {
+                return 35;
+            }
+
+            second.m_title = "Second current title";
+            second.m_artwork.push_back('B');
+            client.Submit(second);
+            if (!Wait([&]() { return client.Snapshot().m_recordings.back().m_state == "uploaded"; }))
+            {
+                return 32;
+            }
+
+            if (client.Snapshot().m_recordings.back().m_title != "Second current title")
+            {
+                return 33;
+            }
+
+            client.Close();
+            sync.Close();
+            [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:2.2]];
+            return 0;
         }
 
         const auto older = snapshot.m_recordings.back();

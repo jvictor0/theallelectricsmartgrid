@@ -57,6 +57,16 @@ struct PublishingClient
         std::vector<Track> m_tracks;
         std::string m_pendingRecordingId;
         std::string m_pendingRequestId;
+
+        bool CanEditRecording(const std::string& recordingId) const
+        {
+            return !m_busy && (m_pendingRequestId.empty() || m_pendingRecordingId != recordingId);
+        }
+
+        bool CanSubmitRecording(const std::string& recordingId) const
+        {
+            return !m_busy && (m_pendingRequestId.empty() || m_pendingRecordingId == recordingId);
+        }
     };
 
     struct Upload
