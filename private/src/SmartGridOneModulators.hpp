@@ -51,6 +51,7 @@ struct Skin
 {
     SmartGridOne::ModulationGlyphs m_glyph = SmartGridOne::ModulationGlyphs::None;
     SmartGrid::Color m_color;
+    const char* m_shortName = nullptr;
 };
 
 constexpr Mode GetMode(VoiceModulator)
@@ -72,7 +73,7 @@ constexpr auto BuildSkins()
 {
     std::array<std::array<Skin, 15>, 3> skins{};
     bool occupied[3][15]{};
-    auto add = [&](Mode mode, size_t index, SmartGrid::Color color, SmartGridOne::ModulationGlyphs glyph)
+    auto add = [&](Mode mode, size_t index, SmartGrid::Color color, SmartGridOne::ModulationGlyphs glyph, const char* shortName)
     {
         size_t row = static_cast<size_t>(mode);
         if (row >= skins.size() || index >= skins[0].size() || occupied[row][index])
@@ -81,12 +82,12 @@ constexpr auto BuildSkins()
         }
 
         occupied[row][index] = true;
-        skins[row][index] = {glyph, color};
+        skins[row][index] = {glyph, color, shortName};
     };
 
-#define F(enumType, enumValue, mode, color, glyph) \
+#define F(enumType, enumValue, mode, color, glyph, shortName) \
     static_assert(GetMode(enumType::enumValue) == Mode::mode, "Modulator enum/mode mismatch"); \
-    add(Mode::mode, static_cast<size_t>(enumType::enumValue), color, SmartGridOne::ModulationGlyphs::glyph);
+    add(Mode::mode, static_cast<size_t>(enumType::enumValue), color, SmartGridOne::ModulationGlyphs::glyph, #shortName);
 #include "ForEachSmartGridOneModulator.hpp"
 #undef F
     return skins;

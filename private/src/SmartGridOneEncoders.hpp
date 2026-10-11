@@ -370,7 +370,7 @@ struct SmartGridOneEncoders
             BindPage(instance.m_slot, instance.m_trio, route);
         }
 
-        // Set modulator colors for each mode
+        // Set modulator colors and short names for each mode
         //
         for (size_t modeIx = 0; modeIx < x_numBankModes; ++modeIx)
         {
@@ -378,7 +378,8 @@ struct SmartGridOneEncoders
             auto& modValues = m_encoderBankBank.GetModulatorValues(modeIx);
             for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numModulators; ++i)
             {
-                modValues.SetModulatorColor(i, GetModulatorSkin(i, mode).m_color);
+                ModulatorSkin skin = GetModulatorSkin(i, mode);
+                modValues.SetModulatorSkin(i, skin.m_color, skin.m_shortName);
             }
         }
 

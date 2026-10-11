@@ -34,7 +34,7 @@ struct EncoderRig
         m_banks.PlaceEncoder(0, 0, 0, 0);
         for (size_t i = 0; i < Cell::x_numModulators; ++i)
         {
-            Sources().SetModulatorColor(i, SmartGrid::Color::Red);
+            Sources().SetModulatorSkin(i, SmartGrid::Color::Red, nullptr);
         }
     }
 

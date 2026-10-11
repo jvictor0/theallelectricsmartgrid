@@ -57,6 +57,7 @@ struct BankedEncoderCell : public StateEncoderCell
             , m_amplitude{}
             , m_modulatorConnected{}
             , m_modulatorColor{}
+            , m_modulatorShortName{}
             , m_gestureWeights{}
             , m_gestureWeightsPrev{}
         {
@@ -131,9 +132,10 @@ struct BankedEncoderCell : public StateEncoderCell
             }                    
         }
 
-        void SetModulatorColor(size_t index, Color color)
+        void SetModulatorSkin(size_t index, Color color, const char* shortName)
         {
             m_modulatorColor[index] = color;
+            m_modulatorShortName[index] = shortName;
             m_modulatorConnected[index] = true;
         }
         
@@ -143,6 +145,7 @@ struct BankedEncoderCell : public StateEncoderCell
         float m_amplitudePrev[x_numModulators][16];
         bool m_modulatorConnected[x_numModulators];
         Color m_modulatorColor[x_numModulators];
+        const char* m_modulatorShortName[x_numModulators];
 
         float m_gestureWeights[x_numGestureParams];
         float m_gestureWeightsPrev[x_numGestureParams];
@@ -381,6 +384,7 @@ struct BankedEncoderCell : public StateEncoderCell
         SmartGridOneContext* context, BankedEncoderCell* parent, int index, EncoderType modulatorType)
         : StateEncoderCell(context)
         , m_sharedEncoderState(parent ? parent->m_sharedEncoderState : nullptr)
+        , m_shortName(nullptr)
         , m_gestureWeightSum(1)
         , m_modulators(this)
         , m_bankedValue(0)
@@ -411,6 +415,7 @@ struct BankedEncoderCell : public StateEncoderCell
             if (m_type == EncoderType::ModulatorAmount)
             {
                 m_color = GetSharedEncoderState()->m_modulatorValues->m_modulatorColor[index];
+                m_shortName = GetSharedEncoderState()->m_modulatorValues->m_modulatorShortName[index];
                 m_connected = GetSharedEncoderState()->m_modulatorValues->m_modulatorConnected[index];
             }
             else
