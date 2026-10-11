@@ -12,6 +12,7 @@ struct SampleTimer
     size_t m_frame;
     size_t m_sample;
     size_t m_frameZeroTimeUs;
+    bool m_needsTimeAnchor = true;
     static SampleTimer* s_instance;
     
     SampleTimer()
@@ -30,9 +31,10 @@ struct SampleTimer
 
     static void StartFrame(size_t wallclockTimeUs)
     {
-        if (s_instance->m_frame == 0)
+        if (s_instance->m_needsTimeAnchor)
         {
-            s_instance->m_frameZeroTimeUs = wallclockTimeUs;
+            s_instance->m_frameZeroTimeUs = wallclockTimeUs - s_instance->m_sample * 1000 * 1000 / x_sampleRate;
+            s_instance->m_needsTimeAnchor = false;
         }
         else
         {
@@ -43,6 +45,14 @@ struct SampleTimer
         }
 
         ++s_instance->m_frame;
+    }
+
+    // Reattach wall-clock time on the next audio block, retaining musical time.
+    // Call only while the audio source is detached.
+    //
+    static void Resume()
+    {
+        s_instance->m_needsTimeAnchor = true;
     }
 
     static size_t GetAbsTimeUs()

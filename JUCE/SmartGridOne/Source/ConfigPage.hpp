@@ -126,7 +126,8 @@ class ConfigPage : public juce::Component
 public:
     static constexpr size_t x_numControllers = 8;
 
-    ConfigPage(NonagonWrapper* nonagon, Configuration* configuration, juce::AudioDeviceManager* audioDeviceManager)
+    ConfigPage(NonagonWrapper* nonagon, Configuration* configuration, juce::AudioDeviceManager* audioDeviceManager,
+        std::function<juce::String()> resetAudio)
         : m_nonagon(nonagon)
         , m_sections{
             ControllerSection("Launchpad Top Left", ControllerSection::Type::Launchpad),
@@ -176,6 +177,19 @@ public:
         addAndMakeVisible(m_externalClockCheckbox);
         m_externalClockCheckbox.onClick = [this]() { OnExternalClockCheckboxChanged(); };
 
+#if JUCE_IOS
+        m_resetAudioButton.setButtonText("Reset Audio");
+        addAndMakeVisible(m_resetAudioButton);
+        m_resetAudioButton.onClick = [resetAudio]()
+        {
+            const auto error = resetAudio();
+            INFO("Audio reset: %s", error.isEmpty() ? "complete" : error.toRawUTF8());
+            juce::AlertWindow::showMessageBoxAsync(
+                error.isEmpty() ? juce::MessageBoxIconType::InfoIcon : juce::MessageBoxIconType::WarningIcon,
+                "Audio Reset", error.isEmpty() ? "Audio restarted." : error);
+        };
+#endif
+
         addAndMakeVisible(m_audioInputRow);
         addAndMakeVisible(m_audioOutputRow);
 
@@ -212,6 +226,9 @@ public:
         auto stereoBounds = bounds.removeFromTop(40);
         m_stereoCheckbox.setBounds(stereoBounds.removeFromLeft(150).reduced(5));
         m_externalClockCheckbox.setBounds(stereoBounds.removeFromLeft(220).reduced(5));
+#if JUCE_IOS
+        m_resetAudioButton.setBounds(stereoBounds.removeFromLeft(150).reduced(5));
+#endif
 
         const int audioRowHeight = 30;
         const int audioRowWidth = 350;
@@ -599,6 +616,7 @@ public:
     ConfigDropdownRow m_audioOutputRow;
     juce::ToggleButton m_stereoCheckbox;
     juce::ToggleButton m_externalClockCheckbox;
+    juce::TextButton m_resetAudioButton;
     juce::String m_initialAudioInputDeviceName;
     juce::String m_initialAudioOutputDeviceName;
     Configuration* m_configuration;

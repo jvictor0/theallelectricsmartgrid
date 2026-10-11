@@ -1,4 +1,4 @@
-"""Build the pinned JUCE audio-device overlay for Apple MIDI scheduling."""
+"""Build the pinned JUCE overlay for Apple MIDI scheduling and iOS audio reset."""
 
 import argparse
 import hashlib
@@ -169,6 +169,260 @@ void Output::addDisconnectionListener (DisconnectionListener& x)""")
     return text.replace("\n", newline).encode()
 
 
+def PatchIOSAudioHeader(data):
+    if hashlib.sha256(data).hexdigest() != "11f7426a9d415275a2720cf4b05e899221e5e6460c81982325e1c8a6ef1412a9":
+        raise ValueError("Audio reset requires the audited JUCE 8.0.15 iOS header")
+    return Replace(data, b"    void close() override;",
+                   b"    ~iOSAudioIODevice() override;\r\n    String ResetAudio();\r\n    void close() override;")
+
+
+def PatchIOSAudio(data):
+    if hashlib.sha256(data).hexdigest() != "708c0a543ddbefe7c9cb83bc1d3428e62b18dd2124133f051582bdacba112339":
+        raise ValueError("Audio reset requires the audited JUCE 8.0.15 iOS backend")
+    text = data.decode().replace("\r\n", "\n")
+    text = Replace(text, "static constexpr int defaultBufferSize = 256;",
+                   "static constexpr int defaultBufferSize = 512;")
+    # Preserve JUCE's iOS 18 activation warm-up, with checked construction and
+    # callback storage that survives a failed native disposal.
+    begin = text.index("class SubstituteAudioUnit")
+    end = text.index("struct iOSAudioIODevice::Pimpl", begin)
+    warmup = text[begin:end]
+    warmup = Replace(warmup, "public:\n", """public:
+    static String WarmUp()
+    {
+        auto unit = std::make_unique<SubstituteAudioUnit>();
+        unit->waitForAudioCallback();
+        auto error = unit->m_error;
+        if (unit->audioUnit != nullptr)
+        {
+            AudioOutputUnitStop(unit->audioUnit);
+            AudioUnitUninitialize(unit->audioUnit);
+            const auto status = AudioComponentInstanceDispose(unit->audioUnit);
+            if (status != noErr)
+            {
+                error += " Warm-up AudioComponentInstanceDispose failed (OSStatus " + String(status) + ")";
+                // A native callback may still signal this unit's event.
+                //
+                unit.release();
+            }
+        }
+
+        return error;
+    }
+
+    bool CheckStatus(OSStatus status, const char* operation)
+    {
+        if (status == noErr)
+        {
+            return true;
+        }
+
+        m_error = String("Audio warm-up ") + operation + " failed (OSStatus " + String(status) + ")";
+        return false;
+    }
+
+    String m_error;
+
+""")
+    warmup = Replace(warmup, """        if (audioUnit != nullptr)
+        {
+            AudioComponentInstanceDispose (audioUnit);
+            audioUnit = nullptr;
+        }
+
+""", "")
+    warmup = Replace(warmup, """        AudioComponentInstanceNew (comp, &audioUnit);
+
+        if (audioUnit == nullptr)
+            return false;""", """        if (comp == nullptr)
+        {
+            m_error = "Audio warm-up RemoteIO component unavailable";
+            return false;
+        }
+
+        if (!CheckStatus(AudioComponentInstanceNew(comp, &audioUnit), "AudioComponentInstanceNew"))
+        {
+            return false;
+        }
+
+        if (audioUnit == nullptr)
+        {
+            m_error = "Audio warm-up returned no unit";
+            return false;
+        }
+""")
+    warmup = re.sub(r"^( +)(Audio(?:Unit(?:SetProperty|Initialize)|OutputUnitStart) \([^;]+\));$",
+                   lambda m: m[1] + 'if (!CheckStatus(' + m[2] + ', "' + m[2].split(' ')[0] + '"))\n' + m[1] + '{\n' + m[1] + '    return false;\n' + m[1] + '}\n',
+                   warmup, flags=re.MULTILINE)
+    warmup = Replace(warmup, """        AudioComponentInstanceDispose (audioUnit);
+        audioUnit = nullptr;
+
+        return result;""", """        if (!result)
+        {
+            m_error = "Audio warm-up timed out waiting for the native callback";
+        }
+
+        return result;""")
+    text = text[:begin] + warmup + text[end:]
+    text = Replace(text, """                SubstituteAudioUnit au;
+                [[maybe_unused]] const auto success = au.waitForAudioCallback();
+                jassert (success);""", """                const auto error = SubstituteAudioUnit::WarmUp();
+                if (error.isNotEmpty())
+                {
+                    Logger::writeToLog(error);
+                }
+""")
+    reset = Path(__file__).with_name("SmartGridIOSAudioReset.inc").read_text()
+    text = Replace(text, "    String open (const BigInteger& inputChannelsWanted,", reset + "\n    String open (const BigInteger& inputChannelsWanted,")
+    text = Replace(text, """        close();
+
+        firstHostTime = true;""", """        close();
+        if (audioUnit != nullptr)
+        {
+            return lastError;
+        }
+
+        m_resetPending = false;
+
+        firstHostTime = true;""")
+    begin = text.index("    void close()\n", text.index("struct iOSAudioIODevice::Pimpl"))
+    end = text.index("    void start (", begin)
+    text = text[:begin] + """    void close()
+    {
+        stop();
+        m_resetPending = true;
+        cancelPendingUpdate();
+        isRunning = false;
+        if (!DisposeAudioUnit())
+        {
+            Logger::writeToLog(lastError);
+            return;
+        }
+
+        setAudioSessionActive(false);
+    }
+
+""" + text[end:]
+    begin = text.index("    void stop()\n", begin)
+    end = text.index("    bool setAudioPreprocessingEnabled", begin)
+    text = text[:begin] + """    void stop()
+    {
+        AudioIODeviceCallback* lastCallback;
+        {
+            const ScopedLock lock(callbackLock);
+            lastCallback = std::exchange(callback, nullptr);
+            m_resumeCallback = nullptr;
+        }
+
+        if (lastCallback != nullptr)
+        {
+            lastCallback->audioDeviceStopped();
+        }
+    }
+
+""" + text[end:]
+    # Session notifications are delivered on arbitrary native threads. Queue
+    # lifecycle handling using the holder, never a raw device pointer.
+    for signature, args, capture in [
+        ("void AudioSessionHolder::handleStatusChange (bool enabled, const char* reason) const", "enabled, reason", "enabled, reason"),
+        ("void AudioSessionHolder::handleRouteChange (AVAudioSessionRouteChangeReason reason)", "reason", "reason"),
+    ]:
+        name = signature.split("::")[1].split(" (")[0]
+        text = Replace(text, signature + "\n{", signature + "\n{" + f"""
+    if (!MessageManager::getInstance()->isThisTheMessageThread())
+    {{
+        MessageManager::callAsync([holder = SharedResourcePointer<AudioSessionHolder>(), {capture}]()
+        {{
+            holder->{name}({args});
+        }});
+        return;
+    }}
+""")
+    for signature in ["    void handleStatusChange (bool enabled, const char* reason)",
+                      "    void handleRouteChange (AVAudioSessionRouteChangeReason reason)",
+                      "    void handleAsyncUpdate() override"]:
+        text = Replace(text, signature + "\n    {", signature + "\n    {\n        if (m_resetPending)\n        {\n            return;\n        }\n")
+    text = Replace(text,
+        "        static_cast<Pimpl*> (data)->handleAudioUnitPropertyChange (unit, propertyID, scope, element);",
+        """        // Native property callbacks must not inspect or reconstruct the unit.
+        // The async update runs on the same message thread as ResetAudio.
+        //
+        static_cast<Pimpl*>(data)->triggerAsyncUpdate();""")
+    # Take the render lock before touching the unit or its channel buffers.
+    text = Replace(text, """        OSStatus err = noErr;
+
+        recordXruns (time, numFrames);""", """        const ScopedTryLock stl(callbackLock);
+        if (!stl.isLocked())
+        {
+            for (UInt32 c = 0; c < data->mNumberBuffers; ++c)
+            {
+                zeromem(data->mBuffers[c].mData, data->mBuffers[c].mDataByteSize);
+            }
+
+            return noErr;
+        }
+
+        OSStatus err = noErr;
+
+        recordXruns (time, numFrames);""")
+    text = Replace(text, "        const ScopedTryLock stl (callbackLock);\n", "")
+    # Check the operations used to construct the replacement RemoteIO unit.
+    begin = text.index("    bool createAudioUnit()")
+    end = text.index("    void fillHostCallbackInfo", begin)
+    create = text[begin:end]
+    create = Replace(create, """        if (audioUnit != nullptr)
+        {
+            AudioComponentInstanceDispose (audioUnit);
+            audioUnit = nullptr;
+        }""", """        if (!DisposeAudioUnit())
+        {
+            return false;
+        }
+""")
+    create = Replace(create, "        AudioComponentInstanceNew (comp, &audioUnit);", """        if (comp == nullptr)
+        {
+            lastError = "RemoteIO audio component unavailable";
+            return false;
+        }
+
+        if (!CheckAudioStatus(AudioComponentInstanceNew(comp, &audioUnit), "AudioComponentInstanceNew"))
+        {
+            return false;
+        }
+""")
+    create = Replace(create, """        if (audioUnit == nullptr)
+            return false;""", """        if (audioUnit == nullptr)
+        {
+            lastError = "AudioComponentInstanceNew returned no audio unit";
+            return false;
+        }
+""")
+    create = re.sub(r"^( +)(AudioUnit(?:SetProperty|Initialize|AddPropertyListener) \([^;]+\));$",
+                    lambda m: m[1] + 'if (!CheckAudioStatus(' + m[2] + ', "' + m[2].split(' ')[0] + '"))\n' + m[1] + '{\n' + m[1] + '    return false;\n' + m[1] + '}\n',
+                    create, flags=re.MULTILINE)
+    text = text[:begin] + create + text[end:]
+    text = Replace(text, "void iOSAudioIODevice::close()", """String iOSAudioIODevice::ResetAudio()
+{
+    return pimpl->ResetAudio();
+}
+
+iOSAudioIODevice::~iOSAudioIODevice()
+{
+    pimpl->close();
+    if (pimpl->audioUnit != nullptr)
+    {
+        // Failed native disposal may still reference this callback context.
+        // Retain it until process exit; there is no safe owner to return it to.
+        //
+        pimpl->sessionHolder->activeDevices.removeFirstMatchingValue(pimpl.get());
+        pimpl.release();
+    }
+}
+
+void iOSAudioIODevice::close()""")
+    return text.replace("\n", "\r\n").encode()
+
+
 def Prepare(source, destination, ios_buffer):
     source = source.resolve()
     destination = destination.resolve()
@@ -188,12 +442,8 @@ def Prepare(source, destination, ios_buffer):
         Path("midi_io/ump/juce_UMPOutput.cpp"): PatchUMPCpp,
     }
     if ios_buffer:
-        def PatchAudio(data):
-            if data.count(b"static constexpr int defaultBufferSize = 256;") != 1:
-                raise ValueError("JUCE iOS default buffer context changed")
-            return data.replace(b"static constexpr int defaultBufferSize = 256;",
-                                b"static constexpr int defaultBufferSize = 512;")
-        patches[Path("native/juce_Audio_ios.cpp")] = PatchAudio
+        patches[Path("native/juce_Audio_ios.cpp")] = PatchIOSAudio
+        patches[Path("native/juce_Audio_ios.h")] = PatchIOSAudioHeader
 
     for path in source.rglob("*"):
         if not path.is_file():

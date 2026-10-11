@@ -26,7 +26,7 @@ juce_add_modules("${MODULES}/juce_core" "${MODULES}/juce_events"
     "${OVERLAY}/juce_audio_devices")
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FLAC REQUIRED IMPORTED_TARGET flac)
-add_executable(smartgrid_midi_tests reconnect.cpp
+add_executable(smartgrid_midi_tests reconnect.cpp audio_reattachment.cpp
     ../unit/midi_output_schedule.cpp
     ../unit/midi_sysex_queue.cpp
     ../unit/midi_realtime.cpp

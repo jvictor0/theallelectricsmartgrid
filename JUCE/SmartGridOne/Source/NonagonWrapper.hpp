@@ -548,6 +548,7 @@ struct NonagonWrapper
     TheNonagonSquiggleBoyInternal m_internal;
     NonagonWrapperQuadLaunchpadTwister m_quadLaunchpadTwister;
     NonagonWrapperWrldBldr m_wrldBldr;
+    bool m_audioPrepared = false;
 
     struct IOInfo
     {
@@ -591,12 +592,21 @@ struct NonagonWrapper
 
     void PrepareToPlay(int numSamples, double sampleRate)
     {
-        m_internal.PrepareRecording();
+        if (!m_audioPrepared)
+        {
+            SampleTimer::Init(numSamples);
+            m_internal.PrepareRecording();
+            m_audioPrepared = true;
+        }
+
+        SampleTimer::Resume();
     }
 
     void ReleaseResources()
     {
-        m_internal.ShutdownRecording();
+        // The engine and recorder belong to this wrapper, not the native device.
+        // Destruction shuts them down after the audio source has been detached.
+        //
     }
 
     void SetSampleDirectoryRootAbsolute(const std::filesystem::path& absolutePath)

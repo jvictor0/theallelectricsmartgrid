@@ -178,7 +178,18 @@ void MainComponent::OnConfigButtonClicked()
 {
     if (!m_configPage)
     {
-        m_configPage = std::make_unique<ConfigPage>(&m_nonagon, &m_configuration, &m_deviceManager);
+        m_configPage = std::make_unique<ConfigPage>(&m_nonagon, &m_configuration, &m_deviceManager,
+            [this]() -> juce::String
+            {
+#if JUCE_IOS
+                if (auto* device = dynamic_cast<juce::iOSAudioIODevice*>(m_deviceManager.getCurrentAudioDevice()))
+                {
+                    return device->ResetAudio();
+                }
+#endif
+
+                return "No iOS audio device available to reset.";
+            });
         addAndMakeVisible(m_configPage.get());
     }
     

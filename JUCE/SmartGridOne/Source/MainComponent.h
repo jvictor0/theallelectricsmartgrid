@@ -37,7 +37,6 @@ public:
         m_appObserver.PrepareAudio();
         if (AudioCallbackDiagnostics::CanRender(sampleRate) && samplesPerBlockExpected == x_requiredBlockFrames)
         {
-            SampleTimer::Init(samplesPerBlockExpected);
             m_nonagon.PrepareToPlay(samplesPerBlockExpected, sampleRate);
             m_audioReady.store(true, std::memory_order_release);
         }
