@@ -267,12 +267,7 @@ DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base a
     // gesturesAffecting should now include bit 0 (gesture 0 is active).
     //
     BitSet16 gAff = GesturesAffecting(rig, ex, ey);
-    if (gAff.IsZero())
-    {
-        DOCTEST_WARN_MESSAGE(false,
-            "// BUG?: gesturesAffecting is zero after gesture setup — "
-            "gesture sub-cell may not be active for current scene");
-    }
+    DOCTEST_CHECK(gAff.Get(0));
 
     // -----------------------------------------------------------------------
     // Verify weight interpolation:
@@ -305,23 +300,9 @@ DOCTEST_TEST_CASE("sys_gestures: gesture modulates encoder output between base a
     // With fader=1 during gesture increment, gesture cell should be higher
     // than base (we pushed up from 0.30).
     //
-    if (out_w1 > out_w0 + kTol)
-    {
-        // Ordering: out_w0 <= out_w50 <= out_w1 (monotone in weight)
-        //
-        DOCTEST_CHECK(out_w50 >= out_w0 - kTol);
-        DOCTEST_CHECK(out_w50 <= out_w1 + kTol);
-    }
-    else
-    {
-        // The gesture and base ended up at the same value.  This can happen
-        // if the gesture cell is initialised to the parent value (which
-        // happens when the gesture is freshly activated with w=1).  Document.
-        //
-        DOCTEST_WARN_MESSAGE(out_w1 > out_w0 + kTol,
-            "// NOTE: out_w1 <= out_w0; gesture cell and base converged — "
-            "check BankedEncoderCell::SetActive (initialises gesture to parent value)");
-    }
+    DOCTEST_CHECK(out_w1 > out_w0 + kTol);
+    DOCTEST_CHECK(out_w0 == doctest::Approx(kBase).epsilon(kTol));
+    DOCTEST_CHECK(out_w50 == doctest::Approx((out_w0 + out_w1) * 0.5f).epsilon(kTol));
 
     DOCTEST_CHECK_FALSE(rig.SawNaN());
 }
@@ -356,15 +337,7 @@ DOCTEST_TEST_CASE("sys_gestures: gesturesAffecting bitmask reflects active gestu
     rig.RunFrames(kSettleFrames);
 
     BitSet16 after = GesturesAffecting(rig, ex, ey);
-    // Expect bit 1 to be set.
-    //
-    if (!after.Get(1))
-    {
-        DOCTEST_WARN_MESSAGE(false,
-            "// BUG?: gesturesAffecting bit 1 not set after gesture setup on gesture 1");
-    }
-    // At minimum, the bitmask changed.
-    //
+    DOCTEST_CHECK(after.Get(1));
     DOCTEST_CHECK_FALSE(rig.SawNaN());
 }
 

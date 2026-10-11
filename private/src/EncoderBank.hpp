@@ -483,6 +483,10 @@ struct BankedEncoderCell : public StateEncoderCell
                     }
                 }
             }
+
+            // Include newly activated gestures before distributing this edit.
+            //
+            m_modulators.ComputePostGestureValues(GetSharedEncoderState()->m_modulatorValues);
         }
 
         float mainWeight = 0;

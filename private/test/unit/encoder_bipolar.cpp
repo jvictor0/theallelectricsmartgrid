@@ -620,6 +620,26 @@ DOCTEST_TEST_CASE("encoder_bipolar: small signed depths meet continuously at zer
     DOCTEST_CHECK(positive - negative < 0.00001f);
 }
 
+DOCTEST_TEST_CASE("encoder gestures: first edit uses the newly activated gesture weight")
+{
+    const float x_weights[] = {0.0f, 0.5f, 1.0f};
+    for (float weight : x_weights)
+    {
+        DOCTEST_CAPTURE(weight);
+        EncoderRig rig(false, 0.3f);
+        rig.Sources().m_gestureWeights[0] = weight;
+        rig.Sources().m_selectedGestures.Set(0, true);
+        rig.Compute();
+
+        rig.Carrier().Increment(0.1f);
+
+        DOCTEST_CHECK(rig.Carrier().m_values[0] == doctest::Approx(0.3f + 0.1f * (1.0f - weight)));
+        DOCTEST_REQUIRE(rig.Carrier().m_modulators.m_gestures[0]);
+        DOCTEST_CHECK(rig.Carrier().m_modulators.m_gestures[0]->m_values[0]
+            == doctest::Approx(0.3f + 0.1f * weight));
+    }
+}
+
 DOCTEST_TEST_CASE("encoder_bipolar: gesture sweeps a bipolar parameter across zero")
 {
     EncoderRig rig(true, -0.5f);

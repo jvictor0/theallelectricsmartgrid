@@ -399,6 +399,10 @@ struct EncoderBankBank
             }
         }
 
+        for (size_t i = 0; i < m_numBanks; ++i)
+        {
+            m_banks[i].ComputeGesturesAffecting();
+        }
     }
 
     void CopyToScene(int scene)

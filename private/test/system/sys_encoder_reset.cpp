@@ -72,15 +72,10 @@ float DefaultEncoderValue(SynthRig& rig, int ex, int ey)
     return banks.m_banks[banks.m_selectedBank].GetBase(ex, ey)->m_defaultValue;
 }
 
-// Set up a single connected encoder with base value `base` and gesture
-// `gesture` driven (analog input/fader at `weight`) so the encoder's published
-// output is pushed away from base WITHOUT clamping the gesture target (a clamped
-// target leaks the surplus increment into the base and muddies the test). Leaves
-// the fader at `weight`. Reports (ex,ey) and `ungesturedBase` — the output with
-// the gesture neutralized (fader 0), i.e. the target when only the gesture clears.
-//
-// Mirrors the front-door recipe in sys_gestures.cpp: arm the fader first so
-// increments route to the gesture cell, hold the gesture pad, increment, release.
+// Create a distinct gesture target at full weight, then set its playback weight.
+// Editing at half weight would move the base and target equally and leave no
+// difference for the reset assertions to detect. Reports the encoder position
+// and its ungestured base, leaving the fader at `weight` for the clear operation.
 //
 void SetupGesturedEncoder(SynthRig& rig, int& ex, int& ey, int gesture,
                           float base, float weight, float& ungesturedBase)
@@ -95,13 +90,12 @@ void SetupGesturedEncoder(SynthRig& rig, int& ex, int& ey, int gesture,
     rig.SetEncoder(ex, ey, base);
     rig.RunFrames(kSettleFrames);
 
-    rig.SetFader(gesture, weight);
+    rig.SetFader(gesture, 1.0f);
     rig.RunFrames(2);
 
     rig.PressGesturePad(gesture);
     rig.RunFrames(1);
-    // Moderate drive: enough to move the output clearly off base, but not so far
-    // that the gesture target clamps at 1.0 (which would leak into the base).
+    // Moderate drive moves the gesture target away from the unchanged base.
     //
     for (int i = 0; i < 4; ++i)
     {
