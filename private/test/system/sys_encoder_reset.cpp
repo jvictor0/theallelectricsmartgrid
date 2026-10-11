@@ -66,12 +66,18 @@ BitSet16 GesturesAffecting(SynthRig& rig, int ex, int ey)
     return rig.UIState().m_squiggleBoyUIState.m_encoderBankUIState.GetGesturesAffecting(ex, ey);
 }
 
+float DefaultEncoderValue(SynthRig& rig, int ex, int ey)
+{
+    auto& banks = rig.Internal().m_squiggleBoy.m_encoders.m_encoderBankBank;
+    return banks.m_banks[banks.m_selectedBank].GetBase(ex, ey)->m_defaultValue;
+}
+
 // Set up a single connected encoder with base value `base` and gesture
 // `gesture` driven (analog input/fader at `weight`) so the encoder's published
 // output is pushed away from base WITHOUT clamping the gesture target (a clamped
 // target leaks the surplus increment into the base and muddies the test). Leaves
 // the fader at `weight`. Reports (ex,ey) and `ungesturedBase` — the output with
-// the gesture neutralized (fader 0), i.e. the true post-clear target.
+// the gesture neutralized (fader 0), i.e. the target when only the gesture clears.
 //
 // Mirrors the front-door recipe in sys_gestures.cpp: arm the fader first so
 // increments route to the gesture cell, hold the gesture pad, increment, release.
@@ -160,20 +166,21 @@ void ApplyClear(SynthRig& rig, ClearMethod m, int ex, int ey, int gesture)
 } // namespace
 
 // ---------------------------------------------------------------------------
-// Bug 1 — shift-press the ENCODER clears its linked gesture AND restores base.
+// Bug 1 — shift-press the ENCODER clears its linked gesture AND restores default.
 //
 // With a gesture active (fader up) the output is driven off-base. Shift-pressing
-// the encoder (no gesture selected) routes to HandleShiftPress -> ZeroModulators,
-// which deactivates the linked gesture. The encoder must return to its ungestured
-// base value. Pre-fix it stays frozen at the gestured value.
+// the encoder (no gesture selected) routes to HandleShiftPress -> RevertToDefault,
+// which deactivates the linked gesture and restores the default value. Without
+// cache invalidation the output stays frozen at the gestured value.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("sys_encoder_reset: shift-press encoder clears linked gesture and restores base")
+DOCTEST_TEST_CASE("sys_encoder_reset: shift-press encoder clears linked gesture and restores default")
 {
     SynthRig rig;
     int ex = -1, ey = -1;
     float ungesturedBase = 0.0f;
     SetupGesturedEncoder(rig, ex, ey, /*gesture=*/0, /*base=*/0.20f, /*weight=*/1.0f, ungesturedBase);
+    const float defaultValue = DefaultEncoderValue(rig, ex, ey);
 
     // Precondition: the gesture really moved the output away from base, and the
     // affecting mask shows the gesture (otherwise the test proves nothing).
@@ -196,10 +203,9 @@ DOCTEST_TEST_CASE("sys_encoder_reset: shift-press encoder clears linked gesture 
     //
     DOCTEST_CHECK(GesturesAffecting(rig, ex, ey).IsZero());
 
-    // ...AND the published value must return to the ungestured base (NOT frozen
-    // at `gestured`).
+    // ...AND the published value must return to the default.
     //
-    DOCTEST_CHECK(std::fabs(rig.EncoderValue(ex, ey) - ungesturedBase) <= kTol);
+    DOCTEST_CHECK(std::fabs(rig.EncoderValue(ex, ey) - defaultValue) <= kTol);
 
     // The gesture is truly gone: sweeping its analog input no longer moves output.
     //
@@ -254,8 +260,8 @@ DOCTEST_TEST_CASE("sys_encoder_reset: shift-press gesture button deletes gesture
 // position (down / middle / up) for both clear methods.
 //
 // The requester's point: regardless of where the gesture-weight analog input
-// sits at clear time, deleting the gesture must return the encoder to its
-// ungestured base, and a subsequent input sweep must no longer move it.
+// sits at clear time, clearing must restore the default (encoder shift) or the
+// ungestured base (gesture button). A subsequent input sweep must not move it.
 // ---------------------------------------------------------------------------
 //
 DOCTEST_TEST_CASE("sys_encoder_reset: gesture clear is correct at every analog-input position")
@@ -288,12 +294,14 @@ DOCTEST_TEST_CASE("sys_encoder_reset: gesture clear is correct at every analog-i
                 DOCTEST_CHECK(std::fabs(rig.EncoderValue(ex, ey) - ungesturedBase) > 2.0f * kTol);
             }
 
+            const float expected = method == ClearMethod::EncoderShift
+                ? DefaultEncoderValue(rig, ex, ey) : ungesturedBase;
             ApplyClear(rig, method, ex, ey, gesture);
 
-            // Gesture gone from the mask, output back at the ungestured base.
+            // Gesture gone from the mask, output restored for this clear method.
             //
             DOCTEST_CHECK(GesturesAffecting(rig, ex, ey).Get(gesture) == false);
-            DOCTEST_CHECK(std::fabs(rig.EncoderValue(ex, ey) - ungesturedBase) <= kTol);
+            DOCTEST_CHECK(std::fabs(rig.EncoderValue(ex, ey) - expected) <= kTol);
 
             // Post-clear: the analog input is inert (gesture truly removed).
             //
@@ -391,6 +399,7 @@ DOCTEST_TEST_CASE("sys_encoder_reset: negative depth survives patch loading and 
     int ex = -1;
     int ey = -1;
     DOCTEST_REQUIRE(FindConnected(rig, ex, ey));
+    const float defaultValue = DefaultEncoderValue(rig, ex, ey);
     rig.SetEncoder(ex, ey, 0.3f);
     rig.PressEncoder(ex, ey);
     rig.ReleaseEncoder(ex, ey);
@@ -422,7 +431,7 @@ DOCTEST_TEST_CASE("sys_encoder_reset: negative depth survives patch loading and 
     });
     rig.RunFrames(kSettleFrames);
     DOCTEST_CHECK(ModulatorsAffecting(rig, ex, ey).IsZero());
-    DOCTEST_CHECK(rig.EncoderValue(ex, ey) == doctest::Approx(0.3f).epsilon(0.001f));
+    DOCTEST_CHECK(rig.EncoderValue(ex, ey) == doctest::Approx(defaultValue).epsilon(0.001f));
     rig.PressEncoder(ex, ey);
     rig.ReleaseEncoder(ex, ey);
     rig.RunFrames(2);

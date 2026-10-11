@@ -86,7 +86,14 @@ DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep ownership
     {
         auto* hidden = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(Encoders::Param::SampleStart, trio));
         DOCTEST_REQUIRE(hidden->m_ownerBank == &encoders.m_encoderBankBank.m_banks[trio]);
-        DOCTEST_CHECK_FALSE(hidden->m_isVisible);
+        for (int x = 0; x < 4; ++x)
+        {
+            for (int y = 0; y < 4; ++y)
+            {
+                DOCTEST_CHECK(hidden->m_ownerBank->GetVisible(x, y) != hidden);
+            }
+        }
+
         hidden->SetValue(0.37f, true);
         hidden->SetForceUpdateRecursive();
     }

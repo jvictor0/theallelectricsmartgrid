@@ -313,9 +313,10 @@ struct BankedEncoderCell : public StateEncoderCell
                 m_owner->m_maxValue[i] = value * baseWeight + std::min(1.0f, modWeight[i]);
             }
 
-            float brightnessVal = 1 - modWeight[0];
-
-            m_owner->m_brightness = std::max(0.0f, std::min(1.0f, brightnessVal));
+            if (m_owner->m_depth == 0)
+            {
+                m_owner->m_brightness = std::clamp(1 - modWeight[0], 0.0f, 1.0f);
+            }
         }
 
         void SetAllStates()
@@ -355,7 +356,6 @@ struct BankedEncoderCell : public StateEncoderCell
         , m_minValue{}
         , m_defaultValue(0)
         , m_effectiveModulatorWeight(0)
-        , m_isVisible(false)
         , m_type(EncoderType::BaseParam)
         , m_isActive{}
         , m_forceUpdate(false)
@@ -427,7 +427,6 @@ struct BankedEncoderCell : public StateEncoderCell
         m_brightness = 1;
         m_depth = depth;
         m_index = index;
-        m_isVisible = false;
         m_modulatorsAffecting.Clear();
         m_gesturesAffecting.Clear();
         m_forceUpdate = true;
@@ -466,6 +465,8 @@ struct BankedEncoderCell : public StateEncoderCell
 
     virtual void Increment(float delta) override
     {
+        Compute();
+
         if (m_type != EncoderType::GestureParam && !GetSelectedGestures().IsZero())
         {
             // Add all selected gestures
@@ -479,7 +480,6 @@ struct BankedEncoderCell : public StateEncoderCell
                     if (!gestureCell->IsActiveBothScenes())
                     {
                         gestureCell->SetActive(true);
-                        SetModulatorsAffectingRecursive();
                     }
                 }
             }
@@ -509,7 +509,8 @@ struct BankedEncoderCell : public StateEncoderCell
             IncrementInternal(delta);
         }
 
-        SetForceUpdateRecursive();        
+        SetModulatorsAffectingRecursive();
+        SetForceUpdateRecursive();
     }
 
     void SetEffectiveModulatorWeight(float weight)
@@ -530,7 +531,7 @@ struct BankedEncoderCell : public StateEncoderCell
         SetValue(m_defaultValue, allScenes);
         InitSlewState(m_defaultValue);
         SetForceUpdateRecursive();
-        SetModulatorsAffecting();
+        SetModulatorsAffectingRecursive();
     }
 
     Color GetSquareColor()
@@ -561,6 +562,11 @@ struct BankedEncoderCell : public StateEncoderCell
 
     float GetBrightness()
     {
+        if (m_type == EncoderType::ModulatorAmount)
+        {
+            return std::clamp(GetSharedEncoderState()->m_modulatorValues->m_value[m_index][0], 0.0f, 1.0f);
+        }
+
         if (m_context->m_sceneManager.m_blinker.m_blink &&
             m_type == EncoderType::BaseParam &&
             GetSelectedGestures().IsZero())
@@ -575,7 +581,7 @@ struct BankedEncoderCell : public StateEncoderCell
 
     virtual uint8_t GetAnimationValue() override
     {
-        return BrightnessToAnimationValue(m_brightness);
+        return BrightnessToAnimationValue(GetBrightness());
     }
 
     virtual float GetNormalizedValue() override
@@ -641,7 +647,8 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         if (GetSelectedGestures().IsZero())
         {
-            ZeroModulators(false);
+            RevertToDefault(false);
+            return;
         }
         else
         {
@@ -740,7 +747,11 @@ struct BankedEncoderCell : public StateEncoderCell
         ModulatorValues* modulatorValues = GetSharedEncoderState()->m_modulatorValues;
         if (!m_connected)
         {
-            m_brightness = 0;
+            if (m_depth == 0)
+            {
+                m_brightness = 0;
+            }
+
             return;
         }
         else if (m_forceUpdate || 
@@ -753,14 +764,6 @@ struct BankedEncoderCell : public StateEncoderCell
             }
 
             m_modulators.Compute(modulatorValues);
-        }
-        
-        if (m_depth > 0)
-        {
-            if (m_type == EncoderType::ModulatorAmount)
-            {
-                m_brightness = std::max(0.0f, std::min(1.0f, modulatorValues->m_value[m_index][0]));
-            }
         }
 
         m_forceUpdate = false;
@@ -1017,7 +1020,7 @@ struct BankedEncoderCell : public StateEncoderCell
 
         if (m_depth > 0)
         {
-            if (!m_modulatorsAffecting.IsZero() || !IsNeutralCurrentScene() || m_isVisible)
+            if (!m_modulatorsAffecting.IsZero() || !IsNeutralCurrentScene())
             {
                 m_modulatorsAffecting.Set(m_index, true);
             }
@@ -1109,7 +1112,6 @@ struct BankedEncoderCell : public StateEncoderCell
     float m_effectiveModulatorWeight;
     BitSet16 m_modulatorsAffecting;
     BitSet16 m_gesturesAffecting;
-    bool m_isVisible;
     BankedEncoderCell::EncoderType m_type;
     bool m_isActive[SceneManager::x_numScenes];
     bool m_forceUpdate;
@@ -1135,21 +1137,6 @@ struct EncoderBankInternal : public EncoderGrid
     BankedEncoderCell::SharedEncoderState m_sharedEncoderState;
     BitSet16 m_gesturesAffecting;
 
-    void SetVisibleCell(int x, int y, BankedEncoderCell* cell)
-    {
-        BankedEncoderCell* current = static_cast<BankedEncoderCell*>(GetVisible(x, y));
-        if (current)
-        {
-            current->m_isVisible = false;
-        }
-        
-        SetVisible(x, y, cell);
-        if (cell)
-        {
-            cell->m_isVisible = true;
-        }
-    }
-    
     EncoderBankInternal()
         : m_context(nullptr)
         , m_selected(nullptr)
@@ -1168,7 +1155,7 @@ struct EncoderBankInternal : public EncoderGrid
             for (int j = 0; j < 4; ++j)
             {
                 m_baseCell[i][j] = nullptr;
-                SetVisibleCell(i, j, nullptr);
+                SetVisible(i, j, nullptr);
             }
         }
     }
@@ -1183,7 +1170,7 @@ struct EncoderBankInternal : public EncoderGrid
 
         if (!m_selected)
         {
-            SetVisibleCell(x, y, encoder);
+            SetVisible(x, y, encoder);
         }
     }
 
@@ -1348,11 +1335,11 @@ struct EncoderBankInternal : public EncoderGrid
 
         cell->FillModulators(m_context);
         m_selected = cell;
-        SetVisibleCell(3, 3, m_selected);
+        SetVisible(3, 3, m_selected);
         for (size_t i = 0; i < BankedEncoderCell::x_numModulators; ++i)
         {
             auto xy = ModulatorIndexToXY(i);
-            SetVisibleCell(xy.first, xy.second, m_selected->m_modulators.m_modulators[i].get());
+            SetVisible(xy.first, xy.second, m_selected->m_modulators.m_modulators[i].get());
         }
 
         m_selected->SetModulatorsAffecting();
@@ -1368,7 +1355,7 @@ struct EncoderBankInternal : public EncoderGrid
                 for (int j = 0; j < 4; ++j)
                 {
                     BankedEncoderCell* cell = m_baseCell[i][j];
-                    SetVisibleCell(i, j, cell);
+                    SetVisible(i, j, cell);
                     if (cell)
                     {
                         cell->SetModulatorsAffecting();
@@ -1391,6 +1378,10 @@ struct EncoderBankInternal : public EncoderGrid
         if (m_context->m_sceneManager.m_shift)
         {
             cell->HandleShiftPress();
+            if (m_selected == cell)
+            {
+                MakeSelection(x, y, cell);
+            }
         }
         else if (m_selected && x == 3 && y == 3)
         {
@@ -1486,7 +1477,7 @@ struct EncoderBankInternal : public EncoderGrid
             // depend on msg.m_timestamp (no acceleration) and does not simulate
             // gestures. If the cell has active gesture weighting, the final
             // output may differ from the base value. Mirrors RevertToDefault's
-            // bookkeeping (SetForceUpdateRecursive + SetModulatorsAffecting) so
+            // bookkeeping (SetForceUpdateRecursive + SetModulatorsAffectingRecursive) so
             // UI state and downstream compute stay coherent.
             //
             BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(msg.m_x, msg.m_y));
@@ -1494,7 +1485,7 @@ struct EncoderBankInternal : public EncoderGrid
             {
                 cell->SetToValue(msg.SetValueFloat());
                 cell->SetForceUpdateRecursive();
-                cell->SetModulatorsAffecting();
+                cell->SetModulatorsAffectingRecursive();
             }
         }
         else if (msg.m_mode == MessageIn::Mode::EncoderPush)
@@ -1517,11 +1508,14 @@ struct EncoderBankInternal : public EncoderGrid
                     uiState->SetBipolar(i, j, cell->m_bipolar);
                     uiState->SetColor(i, j, cell->GetSquareColor());
                     uiState->SetBrightness(i, j, cell->GetBrightness());
+                    bool neutralDepth = cell->m_type == BankedEncoderCell::EncoderType::ModulatorAmount &&
+                        cell->m_modulatorsAffecting.IsZero();
                     for (size_t k = 0; k < m_sharedEncoderState.m_numVoices; ++k)
                     {
-                        uiState->SetValue(i, j, k, cell->m_output[k]);
-                        uiState->SetMinValue(i, j, k, cell->m_minValue[k]);
-                        uiState->SetMaxValue(i, j, k, cell->m_maxValue[k]);
+                        float value = neutralDepth ? cell->GetNeutralNormalizedValue() : cell->m_output[k];
+                        uiState->SetValue(i, j, k, value);
+                        uiState->SetMinValue(i, j, k, neutralDepth ? value : cell->m_minValue[k]);
+                        uiState->SetMaxValue(i, j, k, neutralDepth ? value : cell->m_maxValue[k]);
                     }
 
                     uiState->SetModulatorsAffecting(i, j, cell->m_modulatorsAffecting);
