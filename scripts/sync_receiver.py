@@ -13,11 +13,14 @@ import subprocess
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from email import policy
+from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from recording_export import extract_stereo_recording
+from soundcloud_publisher import PublishingError, PublishingService, x_max_artwork
 
 
 x_chunk_size = 1024 * 1024
@@ -70,7 +73,7 @@ def _safe_path(root, relative, create=False):
 class SyncServer(ThreadingHTTPServer):
     daemon_threads = False
 
-    def __init__(self, address, root, token):
+    def __init__(self, address, root, token, publisher=None):
         self.m_root = Path(root)
         self.m_token = token
         self.m_receipts = {}
@@ -80,6 +83,12 @@ class SyncServer(ThreadingHTTPServer):
         self.m_closing = False
         self.m_worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix='sg-extract')
         super().__init__(address, SyncHandler)
+        self.m_publishing_error = ''
+        try:
+            self.m_publisher = publisher or PublishingService(self.m_root, None)
+        except Exception as failure:
+            self.m_publisher = None
+            self.m_publishing_error = str(failure)
 
     def process_request(self, request, client_address):
         with self.m_lock:
@@ -120,6 +129,8 @@ class SyncServer(ThreadingHTTPServer):
             connection.close()
         super().server_close()
         self.m_worker.shutdown(wait=True, cancel_futures=True)
+        if self.m_publisher is not None:
+            self.m_publisher.Close()
 
     def VerifiedReceipt(self, relative, digest):
         with self.m_lock:
@@ -179,6 +190,12 @@ class SyncServer(ThreadingHTTPServer):
                 {'state': 'failed', 'sha256': digest, 'error': error} if error else
                 {'state': 'complete', 'sha256': digest}
             )
+
+        if not error and self.m_publisher is not None:
+            try:
+                self.m_publisher.RecordingAdded(output)
+            except Exception as failure:
+                self.m_publishing_error = str(failure)
 
 
 class SyncHandler(BaseHTTPRequestHandler):
@@ -244,6 +261,10 @@ class SyncHandler(BaseHTTPRequestHandler):
             return
         route, query = self._route()
         try:
+            if route == '/v1/publishing':
+                if self.server.m_publisher is None:
+                    return self._json(503, {'error': self.server.m_publishing_error})
+                return self._json(200, self.server.m_publisher.Snapshot())
             if route == '/v1/manifest':
                 patches = []
                 root = self.server.m_root / 'patches'
@@ -286,6 +307,68 @@ class SyncHandler(BaseHTTPRequestHandler):
                                                   'error': 'no matching upload'})
             return self._json(404, {'error': 'unknown endpoint'})
         except (ValueError, OSError) as failure:
+            return self._json(400, {'error': str(failure)})
+
+    def _control_body(self):
+        length_text = self.headers.get('Content-Length', '')
+        if self.headers.get('Transfer-Encoding') or not length_text.isascii() or not length_text.isdecimal():
+            raise PublishingError('A bounded Content-Length is required')
+        length = int(length_text)
+        if length > x_max_artwork + 64 * 1024:
+            raise PublishingError('Publishing request too large', 413)
+        return b''.join(self._body(length))
+
+    def _upload_parts(self, body):
+        content_type = self.headers.get('Content-Type', '')
+        if '\r' in content_type or '\n' in content_type:
+            raise PublishingError('Invalid multipart Content-Type')
+        message = BytesParser(policy=policy.default).parsebytes(
+            ('Content-Type: ' + content_type + '\r\nMIME-Version: 1.0\r\n\r\n').encode() + body)
+        if message.get_content_type() != 'multipart/form-data' or not message.is_multipart() or message.defects:
+            raise PublishingError('Expected multipart form data')
+        parts = {}
+        for part in message.iter_parts():
+            name = part.get_param('name', header='content-disposition')
+            if part.is_multipart() or part.defects or part.get_content_disposition() != 'form-data' or name not in ('metadata', 'artwork') or name in parts:
+                raise PublishingError('Invalid multipart fields')
+            parts[name] = part
+        if 'metadata' not in parts:
+            raise PublishingError('Missing upload metadata')
+        metadata = parts['metadata'].get_payload(decode=True)
+        if len(metadata) > 16 * 1024:
+            raise PublishingError('Upload metadata too large', 413)
+        artwork = parts['artwork'].get_payload(decode=True) if 'artwork' in parts else b''
+        artwork_type = parts['artwork'].get_content_type() if artwork else ''
+        return json.loads(metadata), artwork, artwork_type
+
+    def do_POST(self):
+        self.close_connection = True
+        if not self._authorized():
+            return
+        route, query = self._route()
+        if route not in ('/v1/publishing/refresh', '/v1/publishing/uploads', '/v1/publishing/links'):
+            return self._json(404, {'error': 'unknown endpoint'})
+        if self.server.m_publisher is None:
+            return self._json(503, {'error': self.server.m_publishing_error})
+        try:
+            body = self._control_body()
+            if route == '/v1/publishing/uploads':
+                metadata, artwork, artwork_type = self._upload_parts(body)
+                job = self.server.m_publisher.Submit(metadata, artwork, artwork_type)
+                return self._json(200 if job['state'] == 'uploaded' else 202, job)
+            if self.headers.get_content_type() != 'application/json' or len(body) > 16 * 1024:
+                raise PublishingError('Expected bounded JSON metadata')
+            metadata = json.loads(body)
+            if not isinstance(metadata, dict):
+                raise PublishingError('JSON object required')
+            if route == '/v1/publishing/refresh':
+                if metadata:
+                    raise PublishingError('Refresh metadata must be empty')
+                return self._json(202, self.server.m_publisher.Refresh())
+            return self._json(200, self.server.m_publisher.Link(metadata))
+        except PublishingError as failure:
+            return self._json(failure.status, {'error': str(failure)})
+        except (ValueError, OSError, TypeError, RecursionError) as failure:
             return self._json(400, {'error': str(failure)})
 
     def do_PUT(self):
@@ -355,8 +438,8 @@ class SyncHandler(BaseHTTPRequestHandler):
             return self._json(400, {'error': str(failure)})
 
 
-def create_server(host, port, root, token):
-    return SyncServer((host, port), root, token)
+def create_server(host, port, root, token, publisher=None):
+    return SyncServer((host, port), root, token, publisher)
 
 
 def enable_tls(server, certificate, key):
@@ -404,7 +487,18 @@ def main():
     parser.add_argument('--identity-dir', type=Path, default=Path.home() / '.config/smartgridone/sync')
     args = parser.parse_args()
     key, certificate, token, identifier, fingerprint = _identity(args.identity_dir)
-    server = create_server(args.host, args.port, args.root, token)
+    from soundcloud_connect import LoadSavedAPI
+    try:
+        api = LoadSavedAPI()
+    except Exception:
+        api = None
+        print('SoundCloud authorization unavailable; run Mac connection setup.', flush=True)
+    publisher = None
+    try:
+        publisher = PublishingService(args.root, api)
+    except Exception:
+        print('SoundCloud publishing unavailable; sync remains available.', flush=True)
+    server = create_server(args.host, args.port, args.root, token, publisher)
     enable_tls(server, certificate, key)
     advertisement = subprocess.Popen(['dns-sd', '-R', args.name, '_sgsync._tcp.',
                                       'local.', str(server.server_port), 'version=1',

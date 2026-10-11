@@ -90,6 +90,89 @@ class ReceiverTests(unittest.TestCase):
             'X-SHA256': digest or hashlib.sha256(body).hexdigest(),
         })
 
+    def test_publishing_snapshot_is_authenticated_and_locally_cached(self):
+        status, payload = self.Request('GET', '/v1/publishing')
+        self.assertEqual(status, 200)
+        snapshot = json.loads(payload)
+        self.assertTrue(snapshot['available'])
+        self.assertFalse(snapshot['account']['connected'])
+        self.assertEqual(snapshot['recordings'], [])
+        self.assertEqual(self.Request('GET', '/v1/publishing', headers={'Authorization': 'Bearer wrong'})[0], 401)
+        self.assertEqual(self.Request('POST', '/v1/publishing/refresh', b'{}', {'Content-Type': 'application/json'})[0], 202)
+        self.assertEqual(self.Request('POST', '/v1/publishing/links', b'{"recording_id":"../escape","version":"v","track_id":"x"}', {'Content-Type': 'application/json'})[0], 404)
+        self.assertEqual(self.Request('POST', '/v1/publishing/refresh', b'[]', {'Content-Type': 'application/json'})[0], 400)
+
+    def test_publishing_catalog_failure_preserves_successful_sync_receipt(self):
+        fixture = Path(__file__).resolve().parents[2] / 'private/test/fixtures/streaming-recording/golden.sgrec'
+        body = fixture.read_bytes()
+        digest = hashlib.sha256(body).hexdigest()
+        self.m_server.m_publisher.m_db.execute('DROP TABLE recordings')
+        self.m_server.m_publisher.m_db.commit()
+        self.assertEqual(self.Put('recording', 'publishing-failure.sgrec', body)[0], 200)
+        for _ in range(100):
+            _, payload = self.Request('GET', f'/v1/recording?path=publishing-failure.sgrec&sha256={digest}')
+            receipt = json.loads(payload)
+            if receipt['state'] != 'extracting':
+                break
+            time.sleep(0.03)
+        self.assertEqual(receipt['state'], 'complete')
+        self.assertTrue((self.m_root / 'recordings/publishing-failure_stereo.wav').is_file())
+
+    def test_completed_extraction_is_added_to_publishing_catalog(self):
+        fixture = Path(__file__).resolve().parents[2] / 'private/test/fixtures/streaming-recording/golden.sgrec'
+        body = fixture.read_bytes()
+        self.assertEqual(self.Put('recording', 'catalog.sgrec', body)[0], 200)
+        for _ in range(100):
+            status, payload = self.Request('GET', '/v1/publishing')
+            self.assertEqual(status, 200)
+            rows = json.loads(payload)['recordings']
+            if rows:
+                break
+            time.sleep(0.03)
+        self.assertEqual(rows[0]['filename'], 'catalog_stereo.wav')
+        self.assertEqual(rows[0]['state'], 'ready')
+
+    def test_publishing_upload_multipart_deduplication_and_boundaries(self):
+        from soundcloud_publisher import PublishingService
+        from test_soundcloud_publishing import ExternalAPI
+        audio = self.m_root / 'recordings/recording-2026-10-01T210000_stereo.wav'
+        audio.parent.mkdir()
+        with wave.open(str(audio), 'wb') as output:
+            output.setnchannels(2)
+            output.setsampwidth(2)
+            output.setframerate(100)
+            output.writeframes(b'\0' * 2000)
+        service = PublishingService(self.m_root, ExternalAPI())
+        self.m_server.shutdown()
+        self.m_server.server_close()
+        self.m_thread.join(timeout=3)
+        self.m_server = create_server('127.0.0.1', 0, self.m_root, 'secret', publisher=service)
+        self.m_thread = threading.Thread(target=self.m_server.serve_forever, daemon=True)
+        self.m_thread.start()
+        self.Request('POST', '/v1/publishing/refresh', b'{}', {'Content-Type': 'application/json'})
+        for _ in range(100):
+            snapshot = json.loads(self.Request('GET', '/v1/publishing')[1])
+            if snapshot['catalog_ready']:
+                break
+            time.sleep(0.01)
+        for _ in range(5):
+            self.assertEqual(self.Request('GET', '/v1/publishing')[0], 200)
+        self.assertEqual(service.m_api.list_reads, 1)
+        row = snapshot['recordings'][0]
+        metadata = {'recording_id': row['id'], 'version': row['version'], 'request_id': 'http-request', 'title': None, 'retry_of': None}
+        body = b'--test\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n' + json.dumps(metadata).encode() + b'\r\n--test--\r\n'
+        headers = {'Content-Type': 'multipart/form-data; boundary=test'}
+        status, payload = self.Request('POST', '/v1/publishing/uploads', body, headers)
+        self.assertEqual(status, 202)
+        job = json.loads(payload)
+        status, payload = self.Request('POST', '/v1/publishing/uploads', body, headers)
+        self.assertIn(status, (200, 202))
+        self.assertEqual(json.loads(payload)['job_id'], job['job_id'])
+        bad = body.replace(b'http-request', b'other-request').replace(row['version'].encode(), b'stale')
+        self.assertEqual(self.Request('POST', '/v1/publishing/uploads', bad, headers)[0], 409)
+        self.assertEqual(self.Request('POST', '/v1/publishing/uploads', b'bad body', headers)[0], 400)
+        self.assertEqual(self.Request('POST', '/v1/publishing/uploads', b'', {'Content-Length': str(12 * 1024 * 1024), **headers})[0], 413)
+
     def test_manifest_requires_auth_and_reports_patch_hash(self):
         patch = self.m_root / 'patches' / 'sub' / 'tone.json'
         patch.parent.mkdir(parents=True)
