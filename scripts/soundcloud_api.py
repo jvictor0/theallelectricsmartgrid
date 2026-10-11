@@ -36,6 +36,8 @@ class HTTPTransport:
                 headers = dict(headers, **{'Content-Length': str(sum(len(part) for part in body))})
             connection.request(method, parsed.path + ('?' + parsed.query if parsed.query else ''), body=body, headers=headers)
             response = connection.getresponse()
+            if not 200 <= response.status < 300:
+                return response.status, {}
             payload = response.read(4 * 1024 * 1024 + 1)
             if len(payload) > 4 * 1024 * 1024:
                 raise APIError('SoundCloud response too large', uncertain=method == 'POST')

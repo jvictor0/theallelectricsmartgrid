@@ -4,13 +4,13 @@ import sys
 import tempfile
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 if importlib.util.find_spec('soundcloud_api'):
-    from soundcloud_api import SoundCloudAPI, APIError
+    from soundcloud_api import SoundCloudAPI, APIError, HTTPTransport
     from soundcloud_connect import ConnectionFlow
 else:
     SoundCloudAPI = None
@@ -113,6 +113,23 @@ class APITests(unittest.TestCase):
                     api.Upload(path, 'Title', None, lambda p: None)
                 self.assertEqual(failure.exception.uncertain, uncertain)
                 self.assertEqual(len(transport.requests), 1)
+
+    def test_http_rejection_status_is_classified_before_receipt_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'audio.wav'
+            path.write_bytes(b'audio')
+            for status, payload, uncertain in [(422, b'', False), (401, b'<html>Unauthorized</html>', False), (503, b'<html>Unavailable</html>', True)]:
+                with self.subTest(status=status):
+                    response = Mock(status=status)
+                    response.read.return_value = payload
+                    connection = Mock()
+                    connection.getresponse.return_value = response
+                    api = SoundCloudAPI(self.storage, HTTPTransport())
+                    with patch('soundcloud_api.http.client.HTTPSConnection', return_value=connection):
+                        with self.assertRaises(APIError) as failure:
+                            api.Upload(path, 'Title', None, lambda p: None)
+                    self.assertEqual(failure.exception.uncertain, uncertain)
+                    self.assertIn('HTTP ' + str(status), str(failure.exception))
 
     def test_receiver_loads_saved_authorization_only_once(self):
         from soundcloud_connect import LoadSavedAPI
