@@ -63,6 +63,7 @@ struct PublishingClient::Impl
     enum struct Kind
     {
         Refresh,
+        LocalSnapshot,
         Upload,
         Link
     };
@@ -328,7 +329,7 @@ struct PublishingClient::Impl
             Request("POST", "/links", JSON(@{@"recording_id": PublishingNative(link.m_recordingId),
                 @"version": PublishingNative(link.m_version), @"track_id": PublishingNative(link.m_trackId)}), @"application/json");
         }
-        else
+        else if (command.m_kind == Kind::Upload)
         {
             const auto& upload = command.m_upload;
             {
@@ -580,7 +581,12 @@ void PublishingClient::Link(const LinkRequest& request)
 
 void PublishingClient::SetSyncBusy(bool busy)
 {
-    m_impl->m_syncBusy.store(busy);
+    const bool wasBusy = m_impl->m_syncBusy.exchange(busy);
+    if (wasBusy && !busy)
+    {
+        m_impl->Queue({Impl::Kind::LocalSnapshot, {}, {}});
+    }
+
 }
 
 PublishingClient::Status PublishingClient::Snapshot() const

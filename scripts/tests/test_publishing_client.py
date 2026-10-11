@@ -69,6 +69,17 @@ class PublishingClientTests(unittest.TestCase):
                 return original_upload(*args)
             api.Upload = delayed_upload
             service = PublishingService(mac, api)
+            catalog_entered = threading.Event()
+            premature_receipts = []
+            if mode == 'final-sync':
+                name = 'recording-2026-10-03T210000.sgrec'
+                (ipad / 'recordings' / name).write_bytes((ROOT / 'private/test/fixtures/streaming-recording/golden.sgrec').read_bytes())
+                original_add = service.RecordingAdded
+                def delayed_add(path):
+                    catalog_entered.set()
+                    time.sleep(0.4)
+                    original_add(path)
+                service.RecordingAdded = delayed_add
             if mode == 'retry-lost':
                 service.Refresh()
                 deadline = time.monotonic() + 3
@@ -90,10 +101,17 @@ class PublishingClientTests(unittest.TestCase):
                     calls.append((time.monotonic(), self.path))
                     if mode == 'old' and self.path == '/v1/publishing':
                         return self._json(404, {'error': 'not found'})
+                    if mode == 'final-sync' and self.path.startswith('/v1/recording?') and (mac / 'recordings' / name).exists():
+                        if not catalog_entered.wait(1):
+                            raise AssertionError('extraction did not reach catalog visibility')
                     if mode == 'concurrent' and self.path.startswith('/v1/manifest'):
                         time.sleep(3)
                     super().do_GET()
                 def _json(self, status, value):
+                    if mode == 'final-sync' and self.path.startswith('/v1/recording?') and value.get('state') == 'complete':
+                        if len(service.Snapshot()['recordings']) != 3:
+                            premature_receipts.append(value)
+
                     if mode == 'lost' and self.path == '/v1/publishing/uploads' and status == 202:
                         self.close_connection = True
                         self.connection.shutdown(socket.SHUT_RDWR)
@@ -125,7 +143,7 @@ class PublishingClientTests(unittest.TestCase):
                                         capture_output=True, text=True, timeout=25)
                 ended = time.monotonic()
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                if mode in ('old', 'wrong', 'large-metadata', 'close-race'):
+                if mode in ('old', 'wrong', 'large-metadata', 'close-race', 'final-sync'):
                     self.assertEqual(api.uploads, [])
                     self.assertFalse([path for _, path in calls if path == '/v1/publishing/uploads'],
                                      'unbounded request was sent to receiver')
@@ -145,6 +163,14 @@ class PublishingClientTests(unittest.TestCase):
                                          'control requests continued while inactive')
                     receipts = service.Snapshot()['recordings']
                     self.assertEqual(receipts[1]['permalink'], 'https://soundcloud.com/test/historic')
+                if mode == 'final-sync':
+                    self.assertEqual(premature_receipts, [], 'sync completed before the new export was visible')
+                    self.assertFalse((ipad / 'recordings' / name).exists())
+                    self.assertTrue((mac / 'recordings' / 'recording-2026-10-03T210000_stereo.wav').exists())
+                    self.assertEqual([path for _, path in calls].count('/v1/publishing/refresh'), 1,
+                                     'busy-to-idle fetched remote SoundCloud metadata')
+                    self.assertEqual(api.list_reads, 1)
+                    self.assertGreater(ended - calls[-1][0], 2.1, 'idle transition sent requests after Close')
                 count = len(calls)
                 time.sleep(0.2)
                 self.assertEqual(len(calls), count, 'requests continued after Close')
@@ -180,6 +206,9 @@ class PublishingClientTests(unittest.TestCase):
 
     def test_second_recording_cannot_overwrite_uncertain_first_request(self):
         self.run_scenario('two-recordings')
+
+    def test_final_sync_export_appears_when_idle_precedes_next_poll(self):
+        self.run_scenario('final-sync')
 
     def test_wrong_fingerprint_rejects_receiver(self):
         self.run_scenario('wrong')

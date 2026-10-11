@@ -125,6 +125,50 @@ int main(int argc, char** argv)
             return 10;
         }
 
+        if (mode == "final-sync")
+        {
+            if (!Wait([&]() { auto state = client.Snapshot(); return !state.m_busy && !state.m_refreshing; }))
+            {
+                return 36;
+            }
+
+            if (client.Snapshot().m_recordings.size() != 2)
+            {
+                return 37;
+            }
+
+            const auto started = std::chrono::steady_clock::now();
+            client.SetSyncBusy(true);
+            sync.Start(receiver, "test-code");
+            if (!Wait([&]() { return !sync.Snapshot().m_busy; }) || sync.Snapshot().m_failed)
+            {
+                return 38;
+            }
+
+            if (std::chrono::steady_clock::now() - started >= std::chrono::milliseconds(1900))
+            {
+                return 39;
+            }
+
+            client.SetSyncBusy(false);
+            if (!Wait([&]()
+            {
+                auto state = client.Snapshot();
+                return state.m_recordings.size() == 3 && state.m_recordings.front().m_date == "2026/10/03";
+            }))
+            {
+                return 40;
+            }
+
+            client.Close();
+            client.SetSyncBusy(true);
+            client.SetSyncBusy(false);
+            sync.Close();
+            [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:2.2]];
+            std::cout << "final synced recording visible" << std::endl;
+            return 0;
+        }
+
         const auto initial = client.Snapshot();
         if (initial.m_recordings.front().m_date != "2026/10/02")
         {

@@ -183,6 +183,12 @@ class SyncServer(ThreadingHTTPServer):
             error = str(failure)
         finally:
             temporary.unlink(missing_ok=True)
+        if not error and self.m_publisher is not None:
+            try:
+                self.m_publisher.RecordingAdded(output)
+            except Exception as failure:
+                self.m_publishing_error = str(failure)
+
         with self.m_lock:
             if not error:
                 self.m_output_hashes[(relative, digest)] = output_hash
@@ -190,12 +196,6 @@ class SyncServer(ThreadingHTTPServer):
                 {'state': 'failed', 'sha256': digest, 'error': error} if error else
                 {'state': 'complete', 'sha256': digest}
             )
-
-        if not error and self.m_publisher is not None:
-            try:
-                self.m_publisher.RecordingAdded(output)
-            except Exception as failure:
-                self.m_publishing_error = str(failure)
 
 
 class SyncHandler(BaseHTTPRequestHandler):
