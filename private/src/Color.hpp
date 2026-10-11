@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cmath>
 #include "HSV.hpp"
 #include <vector>
 
@@ -112,6 +113,26 @@ namespace SmartGrid
         constexpr Color Dim() const
         {
             return AdjustBrightness(1.0 / 6.0);
+        }
+
+        bool PrefersBlackForeground() const
+        {
+            auto linear = [](uint8_t channel)
+            {
+                float value = static_cast<float>(channel) / 255.0f;
+                return value <= 0.04045f ? value / 12.92f :
+                    std::pow((value + 0.055f) / 1.055f, 2.4f);
+            };
+
+            float luminance = 0.2126f * linear(m_red) +
+                0.7152f * linear(m_green) + 0.0722f * linear(m_blue);
+            float blackContrast = (luminance + 0.05f) / 0.05f;
+            float whiteContrast = 1.05f / (luminance + 0.05f);
+
+            // Keep white unless black provides at least twice the contrast.
+            //
+            constexpr float x_minContrastAdvantage = 2.0f;
+            return blackContrast >= x_minContrastAdvantage * whiteContrast;
         }
 
         Color Saturate() const
@@ -304,17 +325,17 @@ namespace SmartGrid
     // Color inline const definitions
     inline const Color Color::InvalidColor{0, 0, 0, 1};
     inline const Color Color::Off{0, 0, 0};
-    inline const Color Color::Grey{143, 143, 143};
-    inline const Color Color::White{253, 253, 253};
-    inline const Color Color::Red{255, 30, 18};
+    inline constexpr Color Color::Grey{143, 143, 143};
+    inline constexpr Color Color::White{253, 253, 253};
+    inline constexpr Color Color::Red{255, 30, 18};
     inline constexpr Color Color::Orange{255, 108, 29};
-    inline const Color Color::Mauve{127, 84, 139};
+    inline constexpr Color Color::Mauve{127, 84, 139};
     inline constexpr Color Color::Yellow{255, 248, 63};
     inline const Color Color::Green{9, 255, 29};
     inline constexpr Color Color::SeaGreen{9, 246, 59};
-    inline const Color Color::Ocean{0, 247, 167};
+    inline constexpr Color Color::Ocean{0, 247, 167};
     inline const Color Color::Blue{0, 60, 249};
-    inline const Color Color::Fuscia{255, 71, 250};
+    inline constexpr Color Color::Fuscia{255, 71, 250};
     inline constexpr Color Color::Indigo{56, 61, 249};
     inline constexpr Color Color::Cyan{0, 255, 255};
     inline constexpr Color Color::Purple{134, 63, 249};

@@ -253,7 +253,9 @@ struct EncoderComponent : public juce::Component
                     );
 
                     juce::Image& img = s_glyphImages.GetImage(glyph);
-                    g.drawImage(img, imageRect, juce::RectanglePlacement::centred);
+                    g.setColour(juce::Colours::black);
+                    g.drawImage(img, imageRect, juce::RectanglePlacement::centred,
+                        color.PrefersBlackForeground());
                 }
 
                 ++badgeIndex;

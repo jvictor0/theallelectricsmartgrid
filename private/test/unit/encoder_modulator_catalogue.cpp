@@ -15,32 +15,32 @@ struct ExpectedSkin
 
 const ExpectedSkin x_voice[] =
 {
-    {Glyph::SmoothRandom, {127, 54, 14}}, {Glyph::SmoothRandom, {127, 124, 31}},
-    {Glyph::SmoothRandom, {0, 127, 127}}, {Glyph::SmoothRandom, {28, 30, 124}},
-    {Glyph::ADSR, {0, 127, 127}}, {Glyph::ADSR, {28, 30, 124}},
-    {Glyph::LFO, {4, 123, 29}}, {Glyph::LFO, {0, 127, 127}},
+    {Glyph::SmoothRandom, {255, 30, 18}}, {Glyph::SmoothRandom, {134, 63, 249}},
+    {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
+    {Glyph::ADSR, {255, 108, 29}}, {Glyph::ADSR, {0, 247, 167}},
+    {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {127, 84, 139}},
     {Glyph::Sheaf, {0, 127, 127}}, {Glyph::Sheaf, {28, 30, 124}},
-    {Glyph::Sheaf, {4, 123, 29}}, {Glyph::Spread, {28, 30, 124}},
-    {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {4, 123, 29}}
+    {Glyph::Sheaf, {4, 123, 29}}, {Glyph::Spread, {143, 143, 143}},
+    {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {253, 253, 253}}
 };
 const ExpectedSkin x_quad[] =
 {
-    {Glyph::SmoothRandom, {127, 54, 14}}, {Glyph::SmoothRandom, {127, 124, 31}},
-    {Glyph::SmoothRandom, {0, 127, 127}}, {Glyph::SmoothRandom, {28, 30, 124}},
-    {Glyph::Quadrature, {255, 50, 120}}, {Glyph::Quadrature, {134, 63, 249}},
-    {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {134, 63, 249}},
+    {Glyph::SmoothRandom, {255, 30, 18}}, {Glyph::SmoothRandom, {134, 63, 249}},
+    {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
+    {Glyph::Quadrature, {255, 108, 29}}, {Glyph::Quadrature, {0, 247, 167}},
+    {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {127, 84, 139}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
-    {Glyph::Spread, {28, 30, 124}}, {Glyph::None, {0, 0, 0}},
-    {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {4, 123, 29}}
+    {Glyph::Spread, {143, 143, 143}}, {Glyph::None, {0, 0, 0}},
+    {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {253, 253, 253}}
 };
 const ExpectedSkin x_global[] =
 {
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
-    {Glyph::SmoothRandom, {0, 127, 127}}, {Glyph::SmoothRandom, {28, 30, 124}},
+    {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
-    {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {4, 123, 29}}
+    {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {253, 253, 253}}
 };
 }
 
