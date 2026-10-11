@@ -73,16 +73,18 @@ struct EncoderComponent : public juce::Component
     EncoderBankUI m_ui;
     int m_x;
     int m_y;
+    bool m_badgesAbove;
     juce::Point<float> m_lastMousePosition;
     FourteenSegmentDisplayComponent m_segmentDisplay;
 
-    EncoderComponent(EncoderBankUI uiState, int x, int y)
+    EncoderComponent(EncoderBankUI uiState, int x, int y, bool badgesAbove)
         : m_ui(uiState)
         , m_x(x)
         , m_y(y)
+        , m_badgesAbove(badgesAbove)
     {
         s_glyphImages.LoadImages();
-        setSize(x_defaultPadSize, x_defaultPadSize);
+        SetSize(x_defaultPadSize);
         addAndMakeVisible(m_segmentDisplay);
         m_segmentDisplay.setInterceptsMouseClicks(false, false);
         m_segmentDisplay.SetOffColor(juce::Colour(16, 16, 16));
@@ -90,9 +92,14 @@ struct EncoderComponent : public juce::Component
         m_segmentDisplay.SetNumChars(4);
     }
 
+    static int GetHeightForWidth(int width)
+    {
+        return width + width / 4;
+    }
+
     void SetSize(int size)
     {
-        setSize(size, size);
+        setSize(size, GetHeightForWidth(size));
     }
 
     static float ValueToArcAngle(float value)
@@ -206,7 +213,10 @@ struct EncoderComponent : public juce::Component
 
     void paint(juce::Graphics& g) override
     {
-        auto bounds = getLocalBounds().toFloat();
+        auto badgeArea = getLocalBounds().toFloat();
+        auto bounds = m_badgesAbove
+            ? badgeArea.removeFromBottom(badgeArea.getWidth())
+            : badgeArea.removeFromTop(badgeArea.getWidth());
         auto centerX = bounds.getCentreX();
         auto centerY = bounds.getCentreY();
 
@@ -217,7 +227,33 @@ struct EncoderComponent : public juce::Component
 
             size_t numModulators = modulatorsAffecting.Count();
             size_t numGestures = gesturesAffecting.Count();
-            float innerRadius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * (0.45f - m_ui.m_uiState->GetNumVoices() * 0.05f);
+            size_t numBadges = numModulators + numGestures;
+            // Fit the largest badges into the reserved strip, using up to
+            // three rows for the full set of modulators and gestures.
+            //
+            size_t badgeColumns = std::max(size_t{1}, numBadges);
+            float badgeSize = std::min(badgeArea.getHeight(), badgeArea.getWidth() / badgeColumns);
+            for (size_t rows = 2; rows <= 3 && numBadges > 0; ++rows)
+            {
+                size_t columns = (numBadges + rows - 1) / rows;
+                float size = std::min(badgeArea.getWidth() / columns, badgeArea.getHeight() / rows);
+                if (size > badgeSize)
+                {
+                    badgeColumns = columns;
+                    badgeSize = size;
+                }
+            }
+
+            size_t badgeRows = (numBadges + badgeColumns - 1) / badgeColumns;
+            float badgeTop = m_badgesAbove ? badgeArea.getBottom() - badgeRows * badgeSize : badgeArea.getY();
+            auto GetBadgeBounds = [&](size_t index)
+            {
+                size_t row = index / badgeColumns;
+                size_t columns = std::min(badgeColumns, numBadges - row * badgeColumns);
+                float x = badgeArea.getCentreX() - columns * badgeSize * 0.5f + (index % badgeColumns) * badgeSize;
+                float y = badgeTop + row * badgeSize;
+                return juce::Rectangle<float>(x, y, badgeSize, badgeSize).reduced(0.5f);
+            };
 
             // Draw modulator badges with glyph images
             //
@@ -229,8 +265,7 @@ struct EncoderComponent : public juce::Component
                     continue;
                 }
 
-                float badgeX, badgeY, badgeLength;
-                GetBadgePosition(centerX, centerY, innerRadius, badgeIndex, numModulators, true, badgeX, badgeY, badgeLength);
+                auto badgeBounds = GetBadgeBounds(badgeIndex);
 
                 // Draw glyph image on top with 5% margins and rounded corners
                 //
@@ -240,17 +275,11 @@ struct EncoderComponent : public juce::Component
                     // Draw badge background with gradient, outline, and highlight
                     //
                     SmartGrid::Color color = m_ui.m_uiState->GetModulationGlyphColor(modIndex);
-                    DrawBadgeBackground(g, badgeX, badgeY, badgeLength, color);
+                    DrawBadgeBackground(g, badgeBounds, color);
 
                     // Create rectangle with 5% margin on each side (10% total reduction)
                     //
-                    float margin = badgeLength * 0.05f;
-                    juce::Rectangle<float> imageRect(
-                        badgeX + margin,
-                        badgeY + margin,
-                        badgeLength - margin * 2.0f,
-                        badgeLength - margin * 2.0f
-                    );
+                    auto imageRect = badgeBounds.reduced(badgeBounds.getWidth() * 0.05f);
 
                     juce::Image& img = s_glyphImages.GetImage(glyph);
                     g.setColour(juce::Colours::black);
@@ -271,25 +300,21 @@ struct EncoderComponent : public juce::Component
                     continue;
                 }
 
-                float badgeX, badgeY, badgeLength;
-                GetBadgePosition(centerX, centerY, innerRadius, gestureBadgeIndex, numGestures, false, badgeX, badgeY, badgeLength);
+                auto badgeBounds = GetBadgeBounds(numModulators + gestureBadgeIndex);
 
                 // Draw dark grey badge background
                 //
                 SmartGrid::Color color = GetGestureColor(gestureIndex);
-                DrawBadgeBackground(g, badgeX, badgeY, badgeLength, color);
+                DrawBadgeBackground(g, badgeBounds, color);
 
                 // Draw gesture symbol as white text
                 //
                 juce::String symbol = GetGestureSymbol(gestureIndex);
                 g.setColour(juce::Colours::white);
-                g.setFont(badgeLength * 0.6f);
+                g.setFont(badgeBounds.getWidth() * 0.6f);
                 g.drawFittedText(
                     symbol,
-                    static_cast<int>(badgeX),
-                    static_cast<int>(badgeY),
-                    static_cast<int>(badgeLength),
-                    static_cast<int>(badgeLength),
+                    badgeBounds.toNearestInt(),
                     juce::Justification::centred,
                     1
                 );
@@ -454,10 +479,9 @@ struct EncoderComponent : public juce::Component
         m_ui.m_messageBus->Push(SmartGrid::MessageIn(timestamp, m_ui.m_routeId, SmartGrid::MessageIn::Mode::EncoderPush, m_x, m_y, 1));
     }
 
-    void DrawBadgeBackground(juce::Graphics& g, float badgeX, float badgeY, float badgeLength, SmartGrid::Color color)
+    void DrawBadgeBackground(juce::Graphics& g, juce::Rectangle<float> badgeRect, SmartGrid::Color color)
     {
-        juce::Rectangle<float> badgeRect(badgeX, badgeY, badgeLength, badgeLength);
-        float cornerSize = badgeLength * 0.08f;
+        float cornerSize = badgeRect.getWidth() * 0.08f;
 
         // Convert SmartGrid::Color to JUCE Colour
         //
@@ -478,8 +502,8 @@ struct EncoderComponent : public juce::Component
         {
             // Create a radial gradient for LED effect
             //
-            float centerX = badgeX + badgeLength * 0.5f;
-            float centerY = badgeY + badgeLength * 0.5f;
+            float centerX = badgeRect.getCentreX();
+            float centerY = badgeRect.getCentreY();
             juce::ColourGradient gradient(
                 juceColor.withAlpha(1.0f),
                 centerX,
@@ -544,32 +568,4 @@ struct EncoderComponent : public juce::Component
         return SmartGrid::Color::Off;
     }
 
-    void GetBadgePosition(
-        float centerX, 
-        float centerY, 
-        float radius,        
-        size_t ix, 
-        size_t total,
-        bool upper,
-        float& badgeX, 
-        float& badgeY, 
-        float& badgeLength)
-    {
-        if (total <= 8)
-        {
-            badgeLength = 1.0 / std::sqrt(1 + static_cast<float>(total) * static_cast<float>(total) / 4.0f);
-            badgeX = - badgeLength * total / 2.0f + ix * badgeLength;
-            badgeY = badgeLength;
-        }
-        else 
-        {
-            badgeLength = 1.0 / (2 * std::sqrt(5));
-            badgeX = -4.0 / (2 * std::sqrt(5)) + (ix % 8) * badgeLength;
-            badgeY = 2.0 / (2 * std::sqrt(5)) - (ix / 8) * badgeLength;
-        }
-
-        badgeX = centerX + radius * badgeX;
-        badgeLength = radius * badgeLength;            
-        badgeY = upper ? centerY - radius * badgeY : centerY + radius * badgeY - badgeLength;        
-    }
 };

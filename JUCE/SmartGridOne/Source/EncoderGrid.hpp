@@ -18,7 +18,7 @@ struct EncoderGrid : public juce::Component
     int m_gridWidth;
     int m_gridHeight;
     
-    EncoderGrid(EncoderBankUI uiState, int startX, int startY, int endX, int endY)
+    EncoderGrid(EncoderBankUI uiState, int startX, int startY, int endX, int endY, bool badgesAbove)
         : m_ui(uiState)
         , m_cellSize(100) // Default cell size
         , m_startX(startX)
@@ -36,7 +36,7 @@ struct EncoderGrid : public juce::Component
             {
                 // Create the encoder component
                 //
-                m_encoders.push_back(std::make_unique<EncoderComponent>(m_ui, x, y));
+                m_encoders.push_back(std::make_unique<EncoderComponent>(m_ui, x, y, badgesAbove));
                 
                 // Add the encoder as a child component
                 //
@@ -58,6 +58,7 @@ struct EncoderGrid : public juce::Component
         // Calculate encoder size to fit within cell with spacing
         //
         int encoderSize = m_cellSize - x_encoderSpacing;
+        int rowHeight = EncoderComponent::GetHeightForWidth(m_cellSize);
         
         // Position and size each encoder
         //
@@ -76,7 +77,7 @@ struct EncoderGrid : public juce::Component
                     // Center the encoder within its grid cell
                     //
                     int encoderX = localX * m_cellSize + x_encoderSpacing / 2;
-                    int encoderY = localY * m_cellSize + x_encoderSpacing / 2;
+                    int encoderY = localY * rowHeight + x_encoderSpacing / 2;
                     
                     m_encoders[encoderIndex]->setTopLeftPosition(encoderX, encoderY);
                     m_encoders[encoderIndex]->SetSize(encoderSize);
@@ -88,7 +89,7 @@ struct EncoderGrid : public juce::Component
         // Update component size
         //
         int totalWidth = m_cellSize * m_gridWidth;
-        int totalHeight = m_cellSize * m_gridHeight;
+        int totalHeight = rowHeight * m_gridHeight;
         setSize(totalWidth, totalHeight);
     }
     

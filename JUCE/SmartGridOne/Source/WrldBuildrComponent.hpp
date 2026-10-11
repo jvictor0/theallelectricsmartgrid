@@ -70,16 +70,16 @@ struct EncoderGridHolder
 {
     std::unique_ptr<EncoderGrid> m_encoderGrid;
     int m_gridX;
-    int m_gridY;
+    float m_gridY;
     
-    EncoderGridHolder(std::unique_ptr<EncoderGrid> encoderGrid, int gridX, int gridY)
+    EncoderGridHolder(std::unique_ptr<EncoderGrid> encoderGrid, int gridX, float gridY)
         : m_encoderGrid(std::move(encoderGrid))
         , m_gridX(gridX)
         , m_gridY(gridY)
     {
     }
     
-    void SetPosition(int gridX, int gridY)
+    void SetPosition(int gridX, float gridY)
     {
         m_gridX = gridX;
         m_gridY = gridY;
@@ -90,12 +90,10 @@ struct EncoderGridHolder
         if (m_encoderGrid)
         {
             int subgridX = mainGridX + (m_gridX * cellSize);
-            int subgridY = mainGridY + (m_gridY * cellSize);
-            int subgridWidth = m_encoderGrid->m_gridWidth * cellSize;
-            int subgridHeight = m_encoderGrid->m_gridHeight * cellSize;
+            int subgridY = mainGridY + juce::roundToInt(m_gridY * cellSize);
             
-            m_encoderGrid->setBounds(subgridX, subgridY, subgridWidth, subgridHeight);
             m_encoderGrid->SetCellSize(2 * cellSize);
+            m_encoderGrid->setTopLeftPosition(subgridX, subgridY);
         }
     }
 };
@@ -317,9 +315,9 @@ struct WrldBuildrComponent : public juce::Component
         
         for (int i = 0; i < 4; ++i)
         {
-            auto encoderGrid = std::make_unique<EncoderGrid>(m_nonagon->MkEncoderBankUI(), 0, i, 4, i + 1);
+            auto encoderGrid = std::make_unique<EncoderGrid>(m_nonagon->MkEncoderBankUI(), 0, i, 4, i + 1, i % 2 == 1);
             int xPos = 8 + 8 * (i / 2);
-            int yPos = 3 * (i % 2);
+            float yPos = 2.5f * (i % 2);
             m_encoderGrids[i] = std::make_unique<EncoderGridHolder>(std::move(encoderGrid), xPos, yPos);
             addAndMakeVisible(m_encoderGrids[i]->m_encoderGrid.get());
         }
