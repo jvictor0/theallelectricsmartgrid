@@ -603,7 +603,7 @@ struct TheNonagonSmartGrid
                 Put(xPos, 7, m_owner->TimeBitCell(i));
             }
 
-            Put(6, 7, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits));            
+            Put(6, 7, m_owner->TimeBitCell(TheNonagonInternal::x_numTimeBits - 1));
         }
     };
 
