@@ -235,7 +235,7 @@ F(
         m_nonagon->GetQuadControlScopeWriter(),
         static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1),
         4,
-        SmartGridOneEncoders::QuadLFOColor(0),
+        GetModulatorColor(QuadModulator::LFO1),
         0.9f,
         0.05f),
     VoiceMachine::SourceMachineFlags::All())
@@ -247,7 +247,7 @@ F(
         m_nonagon->GetQuadControlScopeWriter(),
         static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2),
         4,
-        SmartGridOneEncoders::QuadLFOColor(1),
+        GetModulatorColor(QuadModulator::LFO2),
         0.9f,
         0.05f),
     VoiceMachine::SourceMachineFlags::All())

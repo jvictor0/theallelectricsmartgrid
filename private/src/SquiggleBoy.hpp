@@ -1493,26 +1493,26 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 size_t voice = track * x_voicesPerTrack + trackVoice;
                 for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
                 {
-                    modulatorValues.m_value[j][trackVoice] = m_gangedRandomLFO[j][track].Output(trackVoice);
+                    modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Random1) + j][trackVoice] = m_gangedRandomLFO[j][track].Output(trackVoice);
                 }
 
-                modulatorValues.m_value[4][trackVoice] = m_voices[voice].m_amp.m_modulationAHD.m_rawOutput;
-                modulatorValues.m_value[5][trackVoice] = m_voices[voice].m_amp.m_ahd.m_rawOutput;
-                modulatorValues.m_amplitude[4][trackVoice] = m_voices[voice].m_amp.m_modulationAHD.m_amplitude;
-                modulatorValues.m_amplitude[5][trackVoice] = m_voices[voice].m_amp.m_ahd.m_amplitude;
+                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::ModulationEnvelope)][trackVoice] = m_voices[voice].m_amp.m_modulationAHD.m_rawOutput;
+                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::AmpEnvelope)][trackVoice] = m_voices[voice].m_amp.m_ahd.m_rawOutput;
+                modulatorValues.m_amplitude[static_cast<size_t>(VoiceModulator::ModulationEnvelope)][trackVoice] = m_voices[voice].m_amp.m_modulationAHD.m_amplitude;
+                modulatorValues.m_amplitude[static_cast<size_t>(VoiceModulator::AmpEnvelope)][trackVoice] = m_voices[voice].m_amp.m_ahd.m_amplitude;
 
-                modulatorValues.m_value[6][trackVoice] = m_voices[voice].m_squiggleLFO[0].m_output;
-                modulatorValues.m_value[7][trackVoice] = m_voices[voice].m_squiggleLFO[1].m_output;
-                modulatorValues.m_amplitude[6][trackVoice] = m_voices[voice].m_squiggleLFO[0].m_polyXFader.m_amplitude;
-                modulatorValues.m_amplitude[7][trackVoice] = m_voices[voice].m_squiggleLFO[1].m_polyXFader.m_amplitude;
+                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::LFO1)][trackVoice] = m_voices[voice].m_squiggleLFO[0].m_output;
+                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::LFO2)][trackVoice] = m_voices[voice].m_squiggleLFO[1].m_output;
+                modulatorValues.m_amplitude[static_cast<size_t>(VoiceModulator::LFO1)][trackVoice] = m_voices[voice].m_squiggleLFO[0].m_polyXFader.m_amplitude;
+                modulatorValues.m_amplitude[static_cast<size_t>(VoiceModulator::LFO2)][trackVoice] = m_voices[voice].m_squiggleLFO[1].m_polyXFader.m_amplitude;
 
-                modulatorValues.m_value[8][trackVoice] = input.m_sheafyModulators[voice][0];
-                modulatorValues.m_value[9][trackVoice] = input.m_sheafyModulators[voice][1];
-                modulatorValues.m_value[10][trackVoice] = input.m_sheafyModulators[voice][2];
+                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Sheaf1)][trackVoice] = input.m_sheafyModulators[voice][0];
+                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Sheaf2)][trackVoice] = input.m_sheafyModulators[voice][1];
+                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Sheaf3)][trackVoice] = input.m_sheafyModulators[voice][2];
 
-                modulatorValues.m_value[11][trackVoice] = static_cast<float>(trackVoice) / (x_voicesPerTrack - 1);
+                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Spread)][trackVoice] = static_cast<float>(trackVoice) / (x_voicesPerTrack - 1);
 
-                modulatorValues.m_value[14][trackVoice] = m_rGen.UniGen();
+                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Noise)][trackVoice] = m_rGen.UniGen();
             }
 
             for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
@@ -1530,20 +1530,20 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             for (size_t random = 0; random < x_numGangedRandomLFOs; ++random)
             {
-                modulatorValues.m_value[random][i] = m_quadGangedRandomLFO[random].Output(i);
+                modulatorValues.m_value[static_cast<size_t>(QuadModulator::Random1) + random][i] = m_quadGangedRandomLFO[random].Output(i);
             }
 
-            modulatorValues.m_value[4][i] = m_delay.m_lfo.m_output[i] / 2.0 + 0.5;
-            modulatorValues.m_value[5][i] = m_reverb.m_lfo.m_output[i] / 2.0 + 0.5;
+            modulatorValues.m_value[static_cast<size_t>(QuadModulator::DelayLFO)][i] = m_delay.m_lfo.m_output[i] / 2.0 + 0.5;
+            modulatorValues.m_value[static_cast<size_t>(QuadModulator::ReverbLFO)][i] = m_reverb.m_lfo.m_output[i] / 2.0 + 0.5;
 
-            modulatorValues.m_value[6][i] = m_quadSquiggleLFO[0][i].m_output;
-            modulatorValues.m_value[7][i] = m_quadSquiggleLFO[1][i].m_output;
-            modulatorValues.m_amplitude[6][i] = m_quadSquiggleLFO[0][i].m_polyXFader.m_amplitude;
-            modulatorValues.m_amplitude[7][i] = m_quadSquiggleLFO[1][i].m_polyXFader.m_amplitude;
+            modulatorValues.m_value[static_cast<size_t>(QuadModulator::LFO1)][i] = m_quadSquiggleLFO[0][i].m_output;
+            modulatorValues.m_value[static_cast<size_t>(QuadModulator::LFO2)][i] = m_quadSquiggleLFO[1][i].m_output;
+            modulatorValues.m_amplitude[static_cast<size_t>(QuadModulator::LFO1)][i] = m_quadSquiggleLFO[0][i].m_polyXFader.m_amplitude;
+            modulatorValues.m_amplitude[static_cast<size_t>(QuadModulator::LFO2)][i] = m_quadSquiggleLFO[1][i].m_polyXFader.m_amplitude;
 
-            modulatorValues.m_value[11][i] = static_cast<float>(i % 4) / 3;
+            modulatorValues.m_value[static_cast<size_t>(QuadModulator::Spread)][i] = static_cast<float>(i % 4) / 3;
 
-            modulatorValues.m_value[14][i] = m_rGen.UniGen();
+            modulatorValues.m_value[static_cast<size_t>(QuadModulator::Noise)][i] = m_rGen.UniGen();
         }
 
         for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
@@ -1556,10 +1556,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         auto& modulatorValues = m_encoders.GetModulatorValues(BankMode::Global);
 
-        modulatorValues.m_value[2][0] = m_globalGangedRandomLFO[0].Output(0);
-        modulatorValues.m_value[3][0] = m_globalGangedRandomLFO[1].Output(0);
+        modulatorValues.m_value[static_cast<size_t>(GlobalModulator::Random1)][0] = m_globalGangedRandomLFO[0].Output(0);
+        modulatorValues.m_value[static_cast<size_t>(GlobalModulator::Random2)][0] = m_globalGangedRandomLFO[1].Output(0);
 
-        modulatorValues.m_value[14][0] = m_rGen.UniGen();
+        modulatorValues.m_value[static_cast<size_t>(GlobalModulator::Noise)][0] = m_rGen.UniGen();
 
         for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
         {

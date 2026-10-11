@@ -107,7 +107,8 @@ keys and legacy Voice roots that collide with a suffixed root. Recording contain
 ## Deep Modulation
 
 Every `BankedEncoderCell` can act as a modulation destination.
-- Up to 15 internal "LFOs" or envelopes (e.g., the PolyXFader LFOs, AHD envelopes) can be routed to any parameter.
+- Every parameter retains fifteen modulation depth positions for allocation, connection, and persistence. Skins do not determine source availability or gate processing.
+- `ForEachSmartGridOneModulator.hpp` defines typed source skins as `F(enumType, enumValue, mode, color, glyph)`. Voice skins are shared by Water, Fire, and Earth; missing skins are Off/None. Global defines only random sources at positions 2 and 3 and noise at 14, so positions 6, 7, and 11 have no skin. Existing stored depths at those positions remain intact.
 - The **Modulation Depth** is itself implemented as a full `BankedEncoderCell`. This means you can modulate the modulation depth (e.g., using an LFO to slowly fade in an envelope's effect on the filter cutoff).
 - Depth cells are bipolar, with normalized position `0.5` meaning no modulation.
   Their signed knob position `b` maps to effective depth

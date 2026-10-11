@@ -307,19 +307,19 @@ namespace SmartGrid
     inline const Color Color::Grey{143, 143, 143};
     inline const Color Color::White{253, 253, 253};
     inline const Color Color::Red{255, 30, 18};
-    inline const Color Color::Orange{255, 108, 29};
+    inline constexpr Color Color::Orange{255, 108, 29};
     inline const Color Color::Mauve{127, 84, 139};
-    inline const Color Color::Yellow{255, 248, 63};
+    inline constexpr Color Color::Yellow{255, 248, 63};
     inline const Color Color::Green{9, 255, 29};
-    inline const Color Color::SeaGreen{9, 246, 59};
+    inline constexpr Color Color::SeaGreen{9, 246, 59};
     inline const Color Color::Ocean{0, 247, 167};
     inline const Color Color::Blue{0, 60, 249};
     inline const Color Color::Fuscia{255, 71, 250};
-    inline const Color Color::Indigo{56, 61, 249};
-    inline const Color Color::Cyan{0, 255, 255};
-    inline const Color Color::Purple{134, 63, 249};
+    inline constexpr Color Color::Indigo{56, 61, 249};
+    inline constexpr Color Color::Cyan{0, 255, 255};
+    inline constexpr Color Color::Purple{134, 63, 249};
     inline const Color Color::DarkPurple{88, 28, 168};
-    inline const Color Color::Pink{255, 50, 120};
+    inline constexpr Color Color::Pink{255, 50, 120};
 
     // ColorScheme inline definitions (not constexpr due to std::vector)
     inline ColorScheme ColorScheme::Whites{std::vector<Color>({Color::White.Dim(), Color::Grey, Color::White})};

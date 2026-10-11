@@ -145,11 +145,11 @@ G(
         m_nonagon->GetQuadControlScopeWriter(),
         static_cast<size_t>(SmartGridOne::QuadControlScopes::DelayLFO),
         4,
-        SmartGridOneEncoders::QuadratureColor(0),
+        GetModulatorColor(QuadModulator::DelayLFO),
         0.5f,
         0.5f),
     SmartGridOneEncoders::BankMode::Quad,
-    SmartGridOneEncoders::QuadratureColor(0))
+    GetModulatorColor(QuadModulator::DelayLFO))
 G(
     ReverbLFO,
     5,
@@ -157,11 +157,11 @@ G(
         m_nonagon->GetQuadControlScopeWriter(),
         static_cast<size_t>(SmartGridOne::QuadControlScopes::ReverbLFO),
         4,
-        SmartGridOneEncoders::QuadratureColor(1),
+        GetModulatorColor(QuadModulator::ReverbLFO),
         0.5f,
         0.5f),
     SmartGridOneEncoders::BankMode::Quad,
-    SmartGridOneEncoders::QuadratureColor(1))
+    GetModulatorColor(QuadModulator::ReverbLFO))
 G(
     QuadLFO1Scope,
     6,
@@ -169,11 +169,11 @@ G(
         m_nonagon->GetQuadControlScopeWriter(),
         static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1),
         4,
-        SmartGridOneEncoders::QuadLFOColor(0),
+        GetModulatorColor(QuadModulator::LFO1),
         0.9f,
         0.05f),
     SmartGridOneEncoders::BankMode::Quad,
-    SmartGridOneEncoders::QuadLFOColor(0))
+    GetModulatorColor(QuadModulator::LFO1))
 G(
     QuadLFO2Scope,
     7,
@@ -181,11 +181,11 @@ G(
         m_nonagon->GetQuadControlScopeWriter(),
         static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2),
         4,
-        SmartGridOneEncoders::QuadLFOColor(1),
+        GetModulatorColor(QuadModulator::LFO2),
         0.9f,
         0.05f),
     SmartGridOneEncoders::BankMode::Quad,
-    SmartGridOneEncoders::QuadLFOColor(1))
+    GetModulatorColor(QuadModulator::LFO2))
 G(
     GlobalGangedRandom1Scope,
     2,

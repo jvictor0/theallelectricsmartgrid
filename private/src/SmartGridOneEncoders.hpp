@@ -3,6 +3,7 @@
 #include "BitSet.hpp"
 #include "EncoderBankBank.hpp"
 #include "SmartGridOneLayout.hpp"
+#include "SmartGridOneModulators.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 #include "VoiceMachineEnums.hpp"
 #include <algorithm>
@@ -98,176 +99,21 @@ struct SmartGridOneEncoders
         static_cast<int>(Bank::Inputs) == 18 && static_cast<int>(Bank::DeepVocoder) == 19 &&
         static_cast<int>(Bank::NumBanks) == 20, "Slot instances must preserve the Bank API");
 
-    // Modulator skin information
-    //
-    struct ModulatorSkin
-    {
-        SmartGridOne::ModulationGlyphs m_glyph;
-        SmartGrid::Color m_color;
+    using ModulatorSkin = SmartGridOneModulators::Skin;
 
-        ModulatorSkin(SmartGridOne::ModulationGlyphs glyph, SmartGrid::Color color)
-            : m_glyph(glyph)
-            , m_color(color)
-        {
-        }
-    };
+    static_assert(SmartGrid::BankedEncoderCell::x_numModulators == SmartGridOneModulators::x_skins[0].size(),
+        "Modulator skin table must cover the persisted positions");
 
     static ModulatorSkin GetModulatorSkin(size_t index, BankMode mode)
     {
-        static const SmartGrid::Color x_colors[5] =
+        size_t row = IsVoiceMode(mode) ? 0 : mode == BankMode::Quad ? 1 : 2;
+        if (index >= SmartGridOneModulators::x_skins[0].size() ||
+            (!IsVoiceMode(mode) && mode != BankMode::Quad && mode != BankMode::Global))
         {
-            SmartGrid::Color::Orange.AdjustBrightness(0.5),
-            SmartGrid::Color::Yellow.AdjustBrightness(0.5),
-            SmartGrid::Color::Cyan.AdjustBrightness(0.5),
-            SmartGrid::Color::Indigo.AdjustBrightness(0.5),
-            SmartGrid::Color::SeaGreen.AdjustBrightness(0.5)
-        };
-
-        switch (index)
-        {
-            case 0:
-            {
-                if (IsVoiceMode(mode) || mode == BankMode::Quad)
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[0]);
-                }
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-            }
-            case 1:
-            {
-                if (IsVoiceMode(mode) || mode == BankMode::Quad)
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[1]);
-                }
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-            }
-            case 2:
-            {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[2]);
-            }
-            case 3:
-            {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::SmoothRandom, x_colors[3]);
-            }
-            case 6:
-            {
-                if (mode == BankMode::Quad)
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::LFO, SmartGrid::Color::Pink);
-                }
-
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::LFO, x_colors[4]);
-            }
-            case 7:
-            {
-                if (mode == BankMode::Quad)
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::LFO, SmartGrid::Color::Purple);
-                }
-
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::LFO, x_colors[2]);
-            }
-            case 11:
-            {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::Spread, x_colors[3]);
-            }
-            case 14:
-            {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::Noise, x_colors[4]);
-            }
-            case 4:
-            {
-                if (IsVoiceMode(mode))
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::ADSR, x_colors[2]);
-                }
-                else if (mode == BankMode::Quad)
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Quadrature, SmartGrid::Color::Pink);
-                }
-                else
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-                }
-            }
-            case 5:
-            {
-                if (IsVoiceMode(mode))
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::ADSR, x_colors[3]);
-                }
-                else if (mode == BankMode::Quad)
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Quadrature, SmartGrid::Color::Purple);
-                }
-                else
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-                }
-            }
-            case 8:
-            {
-                if (IsVoiceMode(mode))
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[2]);
-                }
-                else
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-                }
-            }
-            case 9:
-            {
-                if (IsVoiceMode(mode))
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[3]);
-                }
-                else
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-                }
-            }
-            case 10:
-            {
-                if (IsVoiceMode(mode))
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::Sheaf, x_colors[4]);
-                }
-                else
-                {
-                    return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-                }
-            }
-            default:
-            {
-                return ModulatorSkin(SmartGridOne::ModulationGlyphs::None, SmartGrid::Color::Off);
-            }
+            return {};
         }
-    }
 
-    static SmartGrid::Color LFOColor(size_t i)
-    {
-        return GetModulatorSkin(6 + i, BankMode::VoiceWater).m_color;
-    }
-
-    static SmartGrid::Color ADSRColor(size_t i)
-    {
-        return GetModulatorSkin(4 + i, BankMode::VoiceWater).m_color;
-    }
-
-    static SmartGrid::Color SheafColor(size_t i)
-    {
-        return GetModulatorSkin(8 + i, BankMode::VoiceWater).m_color;
-    }
-
-    static SmartGrid::Color QuadratureColor(size_t i)
-    {
-        return GetModulatorSkin(4 + i, BankMode::Quad).m_color;
-    }
-
-    static SmartGrid::Color QuadLFOColor(size_t i)
-    {
-        return GetModulatorSkin(6 + i, BankMode::Quad).m_color;
+        return SmartGridOneModulators::x_skins[row][index];
     }
 
     EncoderBankBank m_encoderBankBank;

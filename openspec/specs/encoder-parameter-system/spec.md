@@ -79,12 +79,14 @@ If one scene's value would leave [0, 1], that value is clamped and the other sce
 
 ### Requirement: Fifteen Modulation Slots with Nested Depth Cells
 Every `BankedEncoderCell` SHALL expose up to 15 modulation slots (`x_numModulators == 15`); each slot's depth is itself a full `BankedEncoderCell`, so modulation depths can in turn be modulated and gesture-controlled to arbitrary nesting depth.
+Source skins SHALL be authored in `ForEachSmartGridOneModulator.hpp` as `F(enumType, enumValue, mode, color, glyph)` using explicit Voice, Quad, and Global enums with preserved numeric indices. Voice skins SHALL be shared across all trios. Missing skins SHALL be Off/None. Global SHALL define only random sources at indices 2 and 3 and noise at 14; removing skins at 6, 7, and 11 SHALL preserve stored depths and the fifteen-position allocation, connection, and processing contract.
+
 Pressing a connected encoder enters selection mode: the 4×4 grid switches to show the selected cell's 15 depth cells plus the selected cell itself at position (3, 3). Depth cells whose normalized values are neutral (0.5) everywhere, with no active sub-modulators or gestures, are garbage-collected when the selection is closed.
 
 #### Scenario: Selecting a parameter exposes its depth cells
 - **WHEN** the performer presses a connected base parameter encoder (without shift)
 - **THEN** the visible grid is repopulated with that parameter's 15 modulation depth cells and the parameter itself at (3, 3)
-- **AND** each depth cell reports through `EncoderUIState::GetConnected` whether a modulation source is wired to its slot in the current bank mode
+- **AND** each depth cell retains the generic connection contract through `EncoderUIState::GetConnected`; an Off/None skin SHALL NOT disconnect its position or gate modulation computation
 
 #### Scenario: Zeroed depth cell is garbage-collected
 - **WHEN** a depth cell's normalized value is 0.5 in every scene, it has no active sub-modulators or gestures, and the selection is deselected
