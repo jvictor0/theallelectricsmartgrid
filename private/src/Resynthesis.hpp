@@ -15,6 +15,7 @@ struct Resynthesizer
     static constexpr size_t x_bits = 12;
     static constexpr size_t x_hopDenom = 4;
     static constexpr size_t x_numOscillators = 3;
+    static constexpr float x_immediateSlewUp = 0.5f;
     typedef BasicWaveTableGeneric<x_bits> Buffer;
     typedef DiscreteFourierTransformGeneric<x_bits> DFT;
     static constexpr size_t x_tableSize = Buffer::x_tableSize;
@@ -175,7 +176,7 @@ struct Resynthesizer
                 }
 
                 parent = m_results[parentResultIdx].m_parent;
-                float omegaInstantaneous = m_owner->m_omegaInstantaneous[parent];
+                double omegaInstantaneous = m_owner->m_omegaInstantaneous[parent];
                 bool willAlias = Resynthesizer::WillAlias(omegaInstantaneous, bin);
                 if (willAlias && false)
                 {
@@ -432,7 +433,7 @@ struct Resynthesizer
         Input()
             : m_unisonGain(0.0)
             , m_unisonDetune(1.0)
-            , m_slewUp(0.5)
+            , m_slewUp(x_immediateSlewUp)
             , m_slewDown(0.5)
             , m_rmsThreshold(1.0)
             , m_rmsQuiet(0)
@@ -473,7 +474,15 @@ struct Resynthesizer
     void SetSlewUp(float cyclesPerSample)
     {
         float old = m_synthesisMagnitudes[0].m_slewUp.m_alpha;
-        m_synthesisMagnitudes[0].SetSlewUp(cyclesPerSample);
+        if (cyclesPerSample >= x_immediateSlewUp)
+        {
+            m_synthesisMagnitudes[0].m_slewUp.m_alpha = 1.0f;
+        }
+        else
+        {
+            m_synthesisMagnitudes[0].SetSlewUp(cyclesPerSample);
+        }
+
         if (old != m_synthesisMagnitudes[0].m_slewUp.m_alpha)
         {
             for (size_t i = 1; i < x_maxComponents; ++i)
@@ -517,12 +526,12 @@ struct Resynthesizer
         return static_cast<float>(bin) / x_tableSize;
     }
 
-    static int BinOmega(float omega)
+    static int BinOmega(double omega)
     {
         return std::min<int>(std::max<int>(1, static_cast<int>(std::round(omega * x_tableSize))), x_tableSize - 1);
     }
 
-    static bool WillAlias(float omegaInstantaneous, int bin)
+    static bool WillAlias(double omegaInstantaneous, int bin)
     {
         bool result = 0.5f / x_H < std::abs(omegaInstantaneous - OmegaBin(bin));
         return result;
@@ -548,14 +557,16 @@ struct Resynthesizer
 
     void SetAnalysisOmega(int bin)
     {
-        float omegaBin = OmegaBin(bin);
-        float deltaPhiExpected = omegaBin * x_H;
-        float deltaPhi = m_analysisPhase[bin] - m_prevAnalysisPhase[bin];
+        double omegaBin = OmegaBin(bin);
+        double deltaPhiExpected = omegaBin * x_H;
+        // Preserve the measured phase difference through wrapping and frequency storage.
+        //
+        double deltaPhi = static_cast<double>(m_analysisPhase[bin]) - m_prevAnalysisPhase[bin];
         
         deltaPhi -= deltaPhiExpected;
         deltaPhi = PrincArg(deltaPhi);
         
-        float omegaAnalysis = omegaBin + deltaPhi / x_H;
+        double omegaAnalysis = omegaBin + deltaPhi / x_H;
         m_omegaInstantaneous[bin] = omegaAnalysis;
     }
 
@@ -721,7 +732,7 @@ struct Resynthesizer
     SlewUp m_synthesisMagnitudes[x_maxComponents];
     float m_analysisMagnitudes[x_maxComponents];
     float m_prevAnalysisMagnitudes[x_maxComponents];
-    float m_omegaInstantaneous[x_maxComponents];    
+    double m_omegaInstantaneous[x_maxComponents];
     float m_analysisPhase[x_maxComponents];
     float m_prevAnalysisPhase[x_maxComponents];
     Oscillator m_oscillators[x_numOscillators];

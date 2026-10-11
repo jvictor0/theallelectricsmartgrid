@@ -90,12 +90,15 @@ struct MathGeneric
 
     static std::complex<float> Polar(float mag, double phase)
     {
-        return std::complex<float>(mag * Cos(phase), mag * Sin(phase));
+        return Polar2pi(mag, phase / (2.0 * M_PI));
     }
 
     static std::complex<float> Polar2pi(float mag, double phase)
     {
-        return std::complex<float>(mag * Cos2pi(phase), mag * Sin2pi(phase));
+        // Reduce in double precision before narrowing to the float lookup phase.
+        //
+        const float wrappedPhase = static_cast<float>(phase - std::floor(phase));
+        return std::complex<float>(mag * Cos2pi(wrappedPhase), mag * Sin2pi(wrappedPhase));
     }
 
     static float Hann(size_t index)

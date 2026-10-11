@@ -382,7 +382,9 @@ struct QuadDelayInputSetter
             resynthInput.m_fade[0] = input.m_resynthShiftFadeKnob[i];
             resynthInput.m_unisonDetune = m_unisonDetune[i].Update(input.m_resynthUnisonKnob[i]);
             resynthInput.m_unisonGain = m_unisonGain[i].Update(std::min<float>(1.0, 10 * input.m_resynthUnisonKnob[i]));
-            resynthInput.m_slewUp = m_slewUp[i].Update(1.0f - input.m_resynthSlewUpKnob[i]);
+            resynthInput.m_slewUp = input.m_resynthSlewUpKnob[i] < 0.05f
+                ? Resynthesizer::x_immediateSlewUp
+                : m_slewUp[i].Update(1.0f - input.m_resynthSlewUpKnob[i]);
         }
 
         if (delay)

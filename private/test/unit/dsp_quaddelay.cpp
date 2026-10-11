@@ -30,12 +30,67 @@
 #include "../support/GlobalEnv.hpp"
 #include "../support/NanScan.hpp"
 #include "../support/Signal.hpp"
+#include "../support/TimeRig.hpp"
 
 #include <memory>
 
 #include "QuadDelay.hpp"
 #include "OLA.hpp"
 #include "SampleTimer.hpp"
+
+DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothing at the boundary")
+{
+    GlobalEnv::ResetPerTest();
+    TimeRig clock;
+    clock.AdvanceSample();
+    QuadDelayInputSetter setter;
+    QuadDelayInputSetter::Input input;
+    input.m_theoryOfTime = clock.Get();
+    QuadDelay::Input delayInput;
+    delayInput.m_writeHeadPosition = QuadDouble(0, 0, 0, 0);
+    auto synth = std::make_unique<Resynthesizer>();
+    const float settings[] = {0.0f, std::nextafter(0.05f, 0.0f), 0.05f, 0.75f, 0.02f};
+    for (size_t pass = 0; pass < 5; ++pass)
+    {
+        for (size_t channel = 0; channel < 4; ++channel)
+        {
+            input.m_resynthSlewUpKnob[channel] = settings[(pass + channel) % 5];
+        }
+
+        setter.Process(input, delayInput, nullptr);
+        for (size_t channel = 0; channel < 4; ++channel)
+        {
+            const float knob = input.m_resynthSlewUpKnob[channel];
+            DOCTEST_CAPTURE(knob);
+            DOCTEST_CAPTURE(channel);
+            Resynthesizer::Grain grain;
+            grain.m_buffer.m_table[Resynthesizer::x_N / 2] = 1.0f;
+            for (auto& magnitude : synth->m_synthesisMagnitudes)
+            {
+                magnitude.m_output = 0.0f;
+            }
+
+            synth->StartGrain(&grain, delayInput.m_grainManagerInput.m_input[channel].m_resynthInput);
+            for (size_t bin : {size_t(1), size_t(85), Resynthesizer::x_maxComponents - 1})
+            {
+                const float actual = synth->m_synthesisMagnitudes[bin].m_output;
+                const float target = synth->m_analysisMagnitudes[bin];
+                DOCTEST_REQUIRE(target > 0.0f);
+                if (knob < 0.05f)
+                {
+                    DOCTEST_CHECK(actual == target);
+                }
+                else
+                {
+                    const double rate = std::pow(2048.0, 1.0 - knob) / 4096.0;
+                    const double alpha = 1.0 - std::exp(-2.0 * M_PI * rate);
+                    DOCTEST_CHECK(actual / target == doctest::Approx(alpha).epsilon(1e-5));
+                    DOCTEST_CHECK(actual < target);
+                }
+            }
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
