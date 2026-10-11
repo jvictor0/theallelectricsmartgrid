@@ -68,7 +68,7 @@ Existing bearer authentication applies to every endpoint. JSON responses:
 - `SoundCloudAPI` exposes `Account()`, `Tracks()`, `Upload(path,title,artwork_path,progress)`. It owns token access/refresh and distinguishes definite rejection from uncertain transmission outcome. Tests substitute an external API boundary, not catalog/job behavior.
 - Main receiver loads saved authorization once; unit-created receivers must not access the real Keychain or internet.
 
-- [ ] **Step 1: Write and run failing behavior tests.** Use temporary directories, actual stereo WAV fixtures, and a recording fake external SoundCloud API. For example:
+- [x] **Step 1: Write and run failing behavior tests.** Use temporary directories, actual stereo WAV fixtures, and a recording fake external SoundCloud API. For example:
 
 ```python
 def test_next_title_and_receipt_survive_restart(self):
@@ -93,7 +93,7 @@ remote list failure, failed/unknown outcomes, restart state, and historical link
 Run `python3 -m unittest discover -s scripts/tests -p 'test_soundcloud_*.py' -v`.
 Record the expected missing-behavior failure before adding implementation.
 
-- [ ] **Step 2: Implement catalog and jobs.** Scan only final stereo exports,
+- [x] **Step 2: Implement catalog and jobs.** Scan only final stereo exports,
   read bounded headers (support RIFF and RF64 produced by existing extractor),
   persist recording IDs and size/mtime versions, date/duration, account-scoped
   remote metadata, jobs, reservations and receipts in `.soundcloud.sqlite3`.
@@ -104,7 +104,7 @@ Record the expected missing-behavior failure before adding implementation.
   jobs. Release definite failures, retain unknown reservations. Reset interrupted
   uploading jobs to unknown on restart. Stream files; no archive hashing.
 
-- [ ] **Step 3: Implement official API and connection setup.** Consult
+- [x] **Step 3: Implement official API and connection setup.** Consult
   `https://developers.soundcloud.com/docs/api/guide` and the official OpenAPI
   reference for exact fields. Stream multipart `POST /tracks` with
   `track[asset_data]`, `track[title]`, `track[genre]=Electronic`,
@@ -121,7 +121,7 @@ Record the expected missing-behavior failure before adding implementation.
   Test outgoing fields/body, pagination, refresh rotation, error classification,
   state rejection, and stored credentials through injectable transport/storage.
 
-- [ ] **Step 4: Integrate receiver.** Add handlers with a bounded image/metadata
+- [x] **Step 4: Integrate receiver.** Add handlers with a bounded image/metadata
   request size and multipart parser, catalog ID/version boundary checks, and
   existing bearer authorization. Bind operations to the server catalog only.
   Start background refresh on demand, update catalog when extraction publishes
@@ -130,7 +130,7 @@ Record the expected missing-behavior failure before adding implementation.
   Ensure tests instantiate an unconnected or fake-API service without touching
   the user's account. Repeated control requests must not retrigger remote scans.
 
-- [ ] **Step 5: Verify and commit.** Run the new tests plus
+- [x] **Step 5: Verify and commit.** Run the new tests plus
   `python3 -m unittest discover -s scripts/tests -p 'test_sync_receiver.py' -v`.
   Localhost tests require the supported sandbox escalation. Existing baseline:
   15 tests pass. Update relevant OpenSpec tasks only once tested. Commit task files
@@ -153,7 +153,7 @@ Record the expected missing-behavior failure before adding implementation.
 - Bulk sync and publishing share certificate-checking code and receiver identity,
   but have separate request/session, cancellation, progress, and worker state.
 
-- [ ] **Step 1: Add a failing native integration scenario.** Use a real loopback
+- [x] **Step 1: Add a failing native integration scenario.** Use a real loopback
   TLS receiver with fake SoundCloud backend. Harness selects a receiver while a
   delayed bulk sync runs, reads newest rows, submits a custom title/artwork, and
   observes the uploaded link. A second scenario closes/backgrounds the native
@@ -173,7 +173,7 @@ Compile native tests with clang++/Foundation/Security and run their Python drive
 Missing types/behavior establishes the initial failure. Also cover wrong TLS
 fingerprint, no work after Close, cancel sync independent of publishing, and 404.
 
-- [ ] **Step 2: Implement isolated control networking.** Use ephemeral sessions
+- [x] **Step 2: Implement isolated control networking.** Use ephemeral sessions
   and pinned HTTPS, drain on Close/inactivity without main-thread waits on
   main-thread callbacks, parse metadata into snapshots on a worker. Serialize
   short controls within that worker; do not block it on bulk transfer. Refresh
@@ -182,7 +182,7 @@ fingerprint, no work after Close, cancel sync independent of publishing, and 404
   after discovery; no auto-restart of bulk sync or publication. Retain submitted
   request identity across a lost response; catalog/job state recovers it.
 
-- [ ] **Step 3: Build the screen.** Selecting the Mac starts sync and selects its
+- [x] **Step 3: Build the screen.** Selecting the Mac starts sync and selects its
   publishing control session. Keep receiver switching and sync strip visible.
   Show newest-first rows, stable selection, actual posted title/link, job progress
   and concise errors. Add title editor, Use default, optional image thumbnail,
@@ -193,7 +193,7 @@ fingerprint, no work after Close, cancel sync independent of publishing, and 404
   duplicate-risk text only in that state. Normal Upload has no confirmation.
   Only enable automatic-title submission with a valid account catalog.
 
-- [ ] **Step 4: Add the system image picker.** Photos/Files must use native picker
+- [x] **Step 4: Add the system image picker.** Photos/Files must use native picker
   grants only, preserve drafts on cancellation/inactivity, and pass normalized
   JPEG/PNG bytes to control networking. Decode/resize/encode off the audio and
   message threads. On iPad use PHPicker/UIKit document picker (or proven JUCE
@@ -201,7 +201,7 @@ fingerprint, no work after Close, cancel sync independent of publishing, and 404
   chooser. Lifetime callbacks use safe ownership and temporary images are cleaned
   up after upload/draft disposal. Keep image transfer bounded to the receiver limit.
 
-- [ ] **Step 5: Verify and commit.** Run native tests and existing sync client
+- [x] **Step 5: Verify and commit.** Run native tests and existing sync client
   regression tests. Build macOS and iOS using their checked-in Xcode projects,
   with derived data/temp outputs in supported writable locations. Simulator or
   unsigned builds can validate compilation before any device deployment. Fix
@@ -218,20 +218,40 @@ fingerprint, no work after Close, cancel sync independent of publishing, and 404
 - Consumes the completed Mac endpoints, setup command, native client and UI.
 - Produces tested operator instructions and an honest task completion record.
 
-- [ ] **Step 1: Verify supported builds and workflow.** Reuse build results for
+- [x] **Step 1: Verify supported builds and workflow.** Reuse build results for
   unchanged code. Exercise a real local receiver with fake remote service and
   the native client if not already covered by Task 2. Run existing sync/extraction
   regression tests once. Use a reachable iPad for the single UI walkthrough if
   deployment/access is available; record a concrete limitation otherwise. Do not
   connect the real SoundCloud account or publish a real track as a test.
 
-- [ ] **Step 2: Document exact setup and usage.** Show app registration callback,
+- [x] **Step 2: Document exact setup and usage.** Show app registration callback,
   command for initial Mac connection, receiver start, choosing the Mac and a
   recording, default metadata, image selection, historical linking, and recovery
   after an unknown result. Explain leaving the page versus stopping the Mac
   receiver. State any remaining user-run account setup or physical-device check.
 
-- [ ] **Step 3: Validate and commit.** Run
+- [x] **Step 3: Validate and commit.** Run
   `openspec validate ipad-soundcloud-upload --strict`, inspect `git diff --check`,
   mark only verified tasks complete, and commit documentation with
   `docs: describe iPad SoundCloud publishing setup and verification`.
+
+### Verification ledger (2026-10-11)
+
+- Tasks 1 and 2 are complete through `98ed28f`. Task reports record backend/API
+  RED/GREEN tests, 19 receiver tests, 53 extraction tests (six fixture-dependent
+  skips), native publishing/sync regressions, and final macOS/iPad simulator
+  builds. These unchanged checks are reused for Task 3.
+- Task 3 records exact operator setup/use/recovery and the attempted walkthrough.
+  Strict OpenSpec validation and whitespace checks passed; interactive limits
+  remain explicitly unchecked below.
+  The focused topology UI-construction fix `33aa724` removed an existing bounds
+  crash; both Apple targets rebuilt successfully afterward.
+- [ ] Simulator UI walkthrough: launch subsequently aborts in
+  `AURemoteIO::Start` / `_ReportRPCTimeout` before Sync UI, including after one
+  restart. No list/title/image/picker or leaving/reopening check was completed.
+- [ ] Physical-iPad walkthrough: the paired iPad Air 13-inch (M3) remains
+  unavailable in `xcrun devicectl list devices`. Compilation and simulator
+  checks do not establish physical-device behavior.
+- [ ] User-run SoundCloud application registration/consent and live Mac Keychain
+  setup. No real account connection or publication was performed as a test.

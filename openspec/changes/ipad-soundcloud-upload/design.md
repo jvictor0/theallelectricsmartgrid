@@ -331,3 +331,32 @@ for regressions; no repeated whole-library checks.
 The user approved implementation on 2026-10-11. Use the recommended official API
 backend with a one-time Mac account connection. Creating an actual public test
 post is separate from implementing this feature.
+
+## Implemented operator interface (2026-10-11)
+
+The completed screen uses **Upload**, **Choose image (Files)**, **Photos**,
+**Remove image**, **Use default**, **Refresh catalog**, and **Link existing**.
+The existing-account track selector supports explicit historical association;
+Uploaded changes the primary action to **Open on SoundCloud**. An unresolved
+acceptance response retains its captured request and exposes **Retry same
+request**. It prevents publication of another recording until resolved, while
+allowing that other draft to be edited. A remote unknown result instead offers
+**Open SoundCloud account** and explicit **Upload again** with duplicate-risk
+text. No ordinary-upload confirmation was added.
+
+Mac setup is `python3 scripts/soundcloud_connect.py`, with privately prompted
+app ID/secret and registered callback `http://127.0.0.1:47659/callback` by default.
+Credentials and rotated tokens use Mac Keychain service
+`com.theallelectricsmartgrid.soundcloud`, account `publisher`. Restart
+`python3 scripts/sync_receiver.py` after connecting; authorization is loaded once
+at receiver startup. Exact setup, everyday use, and recovery instructions are
+in `docs/ipad-tools.md`.
+
+Backend/native fixture tests and macOS/iPad simulator compilation are verified.
+The simulator walkthrough remains unverified: launch aborts before Sync UI in
+`AURemoteIO::Start` / `_ReportRPCTimeout`, including after one restart. A focused
+pre-existing topology construction error was repaired without audio changes.
+Physical iPad verification is tracked separately because the paired device was
+unavailable on 2026-10-11. Live application registration/consent/Keychain setup
+remains a user action, and real public test publication requires separate
+authorization.

@@ -124,13 +124,15 @@ stops discovery and resolving, cancels requests, closes the session, and joins
 the transfer worker before returning to File. App inactivity does the same.
 Returning to the app while the page remains open restarts discovery, but does
 not restart a transfer. There are no background sessions, startup discovery,
-audio callbacks, audio-engine hooks, or audio-thread polling for sync. The Cancel
-button stops the transfer while leaving page discovery available.
+audio callbacks, audio-engine hooks, or audio-thread polling for sync.
+**Cancel sync** stops the transfer while leaving discovery and publishing
+controls available.
 
 The separately launched Mac receiver listens only while its command is running;
 press Ctrl-C to stop it. Its default port is 47658, and Bonjour publishes the
-port, so no address entry or LAN scan is needed. `--name`, `--port`, `--host`, and `--root`
-can override the defaults. Receiver keys and identity are stored under
+port, so no address entry or LAN scan is needed. `--name`, `--port`, `--host`,
+`--root`, and `--identity-dir` can override the defaults. Receiver keys and
+identity are stored under
 `~/.config/smartgridone/sync`, outside the repository. Keep that directory to
 preserve pairing. HTTPS uses the pinned certificate and a private access code.
 
@@ -154,3 +156,136 @@ connections during a 20-second launch observation. Physical screen-lock and
 background transitions still need verification. Compare transfer MiB/s with
 `sync_ipad.py --transport wifi` on the same recording and network before drawing
 conclusions about relative speed.
+
+## Publish a Mac recording to SoundCloud from the iPad
+
+### Connect the account once on the Mac
+
+Register a SoundCloud application for the account you intend to publish from.
+Its registered redirect must exactly match the setup callback; the default is
+`http://127.0.0.1:47659/callback`. From the repository root on the Mac, run:
+
+```bash
+python3 scripts/soundcloud_connect.py
+```
+
+The command privately prompts for the application's client ID and client secret,
+then asks for the registered callback URL. Press Return to use the default.
+Complete the browser consent using the intended SoundCloud account. Setup uses
+PKCE and state, verifies the account, and reports that it is connected in Mac
+Keychain. Credentials and rotating tokens are stored under service
+`com.theallelectricsmartgrid.soundcloud`, account `publisher`; they are not stored
+with recordings or in the repository. The setup command has no credential flags.
+
+Start, or restart, the receiver after connecting:
+
+```bash
+python3 scripts/sync_receiver.py
+```
+
+The receiver loads authorization at startup. Keep the Mac awake and this command
+running. The default archive is `~/Documents/SmartGridOne`; `--root` chooses a
+different archive. Its `.soundcloud.sqlite3` stores non-secret catalog data, jobs,
+and receipts. Preserve it to retain upload history. Receiver pairing still uses
+its separate identity directory and access code described above.
+
+No SoundCloud login is added on the iPad. Its existing pinned receiver pairing
+allows publication to the account configured on that Mac. The panel message
+**Connect SoundCloud on the Mac receiver to enable publishing. Sync is available.**
+means setup is missing or authorization needs repair: run the connection command
+again and restart the receiver. An older receiver shows an
+update message while ordinary sync remains available.
+
+### Choose a recording and upload
+
+1. Open **File > Sync with Mac** and select the Mac. Pair with its fingerprint
+   and access code if needed. Selecting it starts normal sync and loads the
+   publishing panel independently; existing stereo masters can be selected
+   before sync finishes. Check the displayed SoundCloud account.
+2. Choose a stereo recording from the newest-first list. Only completed
+   `*_stereo.wav` exports appear. The selected details show its filename and
+   default title; recording date and duration appear in the list.
+3. Leave the title automatic, or enter a custom title. **Use default** restores
+   automatic naming. The default is `Smart Grid Nightly YYYY/MM/DD`, using the
+   recording's stored local start date. The first known post for a date has no
+   suffix; subsequent defaults begin at ` #2`. Existing posts and pending jobs
+   affect the number, which the Mac assigns when it accepts the upload. Custom
+   titles are trimmed and receive no automatic suffix. Older numbered files use
+   SGREC start metadata or a stored modification-time fallback; edit the title
+   if that displayed date is unsuitable.
+4. Artwork is empty by default. Optionally tap **Choose image (Files)** or
+   **Photos** and select an image in the system picker. Only the selected image
+   is read; Photos does not require access to the whole library. The app
+   normalizes the image and shows a thumbnail. **Remove image** clears it;
+   cancelling the picker preserves the draft. No artwork is inherited from a
+   previous recording.
+5. Tap **Upload** once. Publication is immediate, with genre **Electronic** and
+   **public** visibility. No description or tags are added. The row shows Queued,
+   Uploading, then Uploaded. The posted title and link replace the draft, and
+   **Open on SoundCloud** opens the receipt's link. Uploaded means SoundCloud
+   accepted creation; its processing may continue afterward.
+
+**Refresh catalog** rescans local stereo exports and refreshes the configured
+account's track metadata, including tracks uploaded manually elsewhere. Ordinary
+status polling reads the Mac's saved state. If the first account listing fails,
+automatic naming waits for a successful refresh; a complete cached listing can
+continue to supply defaults after a later refresh failure.
+
+### Link a historical upload or recover a result
+
+For a recording already published manually, select its track in **Select an
+existing account track** and tap **Link existing**. The receiver can suggest a
+unique nightly date and duration match; verify the selected track before
+explicitly linking it. Custom titles and ambiguous matches can be selected from
+the same account-track list. Linking records Uploaded for this file version and
+account without sending audio again. Use **Refresh catalog** if the track is
+missing from the list.
+
+A definite rejection shows its error and **Retry**. Fix the cause before retrying.
+If the iPad loses the receiver's acceptance response, it retains the request
+identity and checks the Mac's status. **Retry same request** uses that same
+identity to recover the accepted job. Resolve this pending upload before
+uploading another recording; other drafts can still be edited.
+
+An **unknown** result means SoundCloud may already have accepted the Mac's
+request. Tap **Open SoundCloud account**, inspect the account, and refresh/link
+an existing track if it was created. Only use **Upload again** after checking:
+that explicit new attempt may create a duplicate. Unknown results never trigger
+an automatic second creation request.
+
+### Leaving the page versus stopping the receiver
+
+**Cancel sync** stops only iPad file transfer. Leaving the Sync page or making
+the app inactive stops iPad discovery, requests, and polling; an upload already
+accepted by the Mac continues there. Reopen the page and choose the Mac to see
+its saved job or receipt. Foreground return to an already-open page reconnects
+after discovery without automatically restarting file transfer or submitting
+another upload.
+
+Stopping the receiver with Ctrl-C, sleeping the Mac, or interrupting its network
+can interrupt the outgoing publication. On receiver restart, queued jobs resume,
+completed receipts remain Uploaded, and jobs interrupted while Uploading become
+Unknown for explicit recovery. The original and stereo recordings remain on the
+Mac regardless of publication outcome.
+
+### Publishing verification and remaining setup
+
+On 2026-10-11, both macOS and iPad simulator builds succeeded. Focused tests used
+real local HTTPS receivers, temporary stereo files, and a fake external account.
+Automated tests covered independent bulk/control requests, close/inactivity,
+recovery of a lost acceptance response without another creation, historical linking, metadata,
+artwork, restart persistence, and the existing sync/extraction regressions.
+
+The iPad Air 13-inch (M3), iOS 18.5 simulator walkthrough could not reach the
+Sync page. An existing topology cell construction crash was fixed and both
+Apple targets rebuilt successfully; launch then aborted in the simulator audio
+service (`_ReportRPCTimeout` / `AURemoteIO::Start`) even after one simulator
+restart. No interactive recording selection, title/image editing, native picker,
+or leaving/reopening check was completed. These checks remain pending.
+
+The paired iPad Air 13-inch (M3) was unavailable in `xcrun devicectl list devices`
+on 2026-10-11. A physical-device walkthrough of selection, image picking,
+leaving/reopening during a Mac job, and foreground transitions remains pending.
+The user's SoundCloud application registration, browser consent, and real
+Keychain access also remain user-run setup; no real account was connected and no
+real track was published during verification.
