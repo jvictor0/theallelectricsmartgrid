@@ -1,4 +1,5 @@
 #include "SyncClient.hpp"
+#include "PinnedReceiver.hpp"
 
 #import <Foundation/Foundation.h>
 #import <Security/Security.h>
@@ -678,17 +679,7 @@ struct SyncClient::Impl
     }
 
     SecTrustRef trust = challenge.protectionSpace.serverTrust;
-    SecCertificateRef certificate = trust == nullptr || SecTrustGetCertificateCount(trust) == 0
-        ? nullptr : SecTrustGetCertificateAtIndex(trust, 0);
-    CFDataRef der = certificate == nullptr ? nullptr : SecCertificateCopyData(certificate);
-    bool matched = false;
-    if (der != nullptr)
-    {
-        unsigned char digest[CC_SHA256_DIGEST_LENGTH];
-        CC_SHA256(CFDataGetBytePtr(der), static_cast<CC_LONG>(CFDataGetLength(der)), digest);
-        matched = Hex(digest, sizeof(digest)) == m_owner->m_receiver.m_fingerprint;
-        CFRelease(der);
-    }
+    const bool matched = ReceiverCertificateMatches(trust, m_owner->m_receiver.m_fingerprint);
 
     completion(matched ? NSURLSessionAuthChallengeUseCredential : NSURLSessionAuthChallengeCancelAuthenticationChallenge,
         matched ? [NSURLCredential credentialForTrust:trust] : nil);

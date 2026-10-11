@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D92700000000000000000003 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D92600000000000000000003; };
+		D92700000000000000000002 /* PhotosUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D92600000000000000000002; };
+		D92700000000000000000001 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D92600000000000000000001; };
+		D92500000000000000000004 /* PublishingArtwork.mm in Sources */ = {isa = PBXBuildFile; fileRef = D92400000000000000000004; settings = {COMPILER_FLAGS = "-fobjc-arc -Wno-deprecated-declarations"; }; };
+		D92500000000000000000001 /* PublishingClient.mm in Sources */ = {isa = PBXBuildFile; fileRef = D92400000000000000000001; settings = {COMPILER_FLAGS = "-fobjc-arc -Wno-deprecated-declarations"; }; };
 		D1F1AC000000000000000001 /* RecordingFlacCodec.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D1F1AC000000000000000002 /* RecordingFlacCodec.cpp */; };
 		D92300000000000000000003 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D92300000000000000000004; };
 		D92300000000000000000001 /* SyncClient.mm in Sources */ = {isa = PBXBuildFile; fileRef = D92300000000000000000002; settings = {COMPILER_FLAGS = "-fobjc-arc -Wno-deprecated-declarations"; }; };
@@ -58,6 +63,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		D92600000000000000000003 /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
+		D92600000000000000000002 /* PhotosUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PhotosUI.framework; path = System/Library/Frameworks/PhotosUI.framework; sourceTree = SDKROOT; };
+		D92600000000000000000001 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
+		D92400000000000000000006 /* PinnedReceiver.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = PinnedReceiver.hpp; path = ../../Source/PinnedReceiver.hpp; sourceTree = SOURCE_ROOT; };
+		D92400000000000000000005 /* PublishingArtwork.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = PublishingArtwork.hpp; path = ../../Source/PublishingArtwork.hpp; sourceTree = SOURCE_ROOT; };
+		D92400000000000000000004 /* PublishingArtwork.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = PublishingArtwork.mm; path = ../../Source/PublishingArtwork.mm; sourceTree = SOURCE_ROOT; };
+		D92400000000000000000003 /* PublishingPanel.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = PublishingPanel.hpp; path = ../../Source/PublishingPanel.hpp; sourceTree = SOURCE_ROOT; };
+		D92400000000000000000002 /* PublishingClient.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = PublishingClient.hpp; path = ../../Source/PublishingClient.hpp; sourceTree = SOURCE_ROOT; };
+		D92400000000000000000001 /* PublishingClient.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = PublishingClient.mm; path = ../../Source/PublishingClient.mm; sourceTree = SOURCE_ROOT; };
 		D1F1AC000000000000000002 /* RecordingFlacCodec.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = RecordingFlacCodec.cpp; path = ../../../../private/src/RecordingFlacCodec.cpp; sourceTree = SOURCE_ROOT; };
 		D1F1AC000000000000000003 /* RecordingFlacCodec.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = RecordingFlacCodec.hpp; path = ../../../../private/src/RecordingFlacCodec.hpp; sourceTree = SOURCE_ROOT; };
 		D92300000000000000000004 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
@@ -141,6 +155,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D92700000000000000000003 /* UniformTypeIdentifiers.framework in Frameworks */,
+				D92700000000000000000002 /* PhotosUI.framework in Frameworks */,
+				D92700000000000000000001 /* ImageIO.framework in Frameworks */,
 				D92300000000000000000003 /* Security.framework in Frameworks */,
 				51702EFB562EA3C614E91C26 /* Accelerate.framework in Frameworks */,
 				1032A8EF23E8BA17B96ECCA0 /* AudioToolbox.framework in Frameworks */,
@@ -177,6 +194,12 @@
 		0E4C058CE212679537C73A1A /* JUCE Library Code */ = {
 			isa = PBXGroup;
 			children = (
+				D92400000000000000000001 /* PublishingClient.mm */,
+				D92400000000000000000002 /* PublishingClient.hpp */,
+				D92400000000000000000003 /* PublishingPanel.hpp */,
+				D92400000000000000000004 /* PublishingArtwork.mm */,
+				D92400000000000000000005 /* PublishingArtwork.hpp */,
+				D92400000000000000000006 /* PinnedReceiver.hpp */,
 				D1F1AC000000000000000002 /* RecordingFlacCodec.cpp */,
 				D1F1AC000000000000000003 /* RecordingFlacCodec.hpp */,
 				4FCA89CDA741C43A6530C4C7 /* BinaryData.cpp */,
@@ -289,6 +312,9 @@
 		F5C25E4CC3EFF394F00C3976 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				D92600000000000000000003 /* UniformTypeIdentifiers.framework */,
+				D92600000000000000000002 /* PhotosUI.framework */,
+				D92600000000000000000001 /* ImageIO.framework */,
 				E840B8E021511E1772167837 /* Accelerate.framework */,
 				D137D1EE5ACAD3FF6E844926 /* AudioToolbox.framework */,
 				D29D0429B733F5F684A3683A /* AVFoundation.framework */,
@@ -415,6 +441,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				D1F1AC000000000000000001 /* RecordingFlacCodec.cpp in Sources */,
+				D92500000000000000000001 /* PublishingClient.mm in Sources */,
+				D92500000000000000000004 /* PublishingArtwork.mm in Sources */,
 				D92300000000000000000001 /* SyncClient.mm in Sources */,
 				D1A600000000000000000001 /* AudioPlatformDiagnostics.mm in Sources */,
 				7C3D921A962E5C14F052B487 /* IOUtils.cpp in Sources */,

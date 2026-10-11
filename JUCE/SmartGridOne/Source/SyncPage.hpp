@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "SyncClient.hpp"
+#include "PublishingPanel.hpp"
 
 // The page owns every sync resource. Destroying it drains the client before
 // navigation returns to the instrument. No engine or audio state is involved.
@@ -9,7 +10,7 @@
 struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
 {
     explicit SyncPage(const juce::File& root)
-        : m_client(root.getFullPathName().toStdString()), m_receivers("Receivers", this)
+        : m_client(root.getFullPathName().toStdString()), m_publishingPanel(m_publishing), m_receivers("Receivers", this)
     {
         m_title.setText("Sync with Mac", juce::dontSendNotification);
         m_title.setFont(juce::FontOptions(24.0f));
@@ -30,7 +31,7 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
         {
             Begin(m_receivers.getSelectedRow(), true);
         };
-        for (auto* component : std::initializer_list<juce::Component*>{&m_title, &m_hint, &m_receivers, &m_status, &m_progress, &m_cancel, &m_pair})
+        for (auto* component : std::initializer_list<juce::Component*>{&m_title, &m_hint, &m_receivers, &m_status, &m_progress, &m_cancel, &m_pair, &m_publishingPanel})
         {
             addAndMakeVisible(component);
         }
@@ -42,6 +43,7 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
     {
         jassert(isShowing());
         m_client.Open();
+        m_publishing.Open();
         startTimer(200);
         Refresh();
     }
@@ -52,6 +54,7 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
         {
             stopTimer();
             m_client.Close();
+            m_publishing.Close();
         }
     }
 
@@ -65,6 +68,7 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
         }
 
         m_client.Close();
+        m_publishing.Close();
     }
 
     void paint(juce::Graphics& graphics) override
@@ -77,12 +81,13 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
         auto area = getLocalBounds().reduced(24);
         m_title.setBounds(area.removeFromTop(48));
         m_hint.setBounds(area.removeFromTop(48));
-        auto buttons = area.removeFromBottom(44);
-        m_cancel.setBounds(buttons.removeFromRight(160));
-        m_pair.setBounds(buttons.removeFromLeft(240));
-        m_progress.setBounds(area.removeFromBottom(44));
-        m_status.setBounds(area.removeFromBottom(72));
-        m_receivers.setBounds(area.reduced(0, 12));
+        m_receivers.setBounds(area.removeFromTop(92).reduced(0, 4));
+        auto strip = area.removeFromTop(40);
+        m_pair.setBounds(strip.removeFromLeft(230));
+        m_cancel.setBounds(strip.removeFromRight(160));
+        m_progress.setBounds(strip);
+        m_status.setBounds(area.removeFromTop(40));
+        m_publishingPanel.setBounds(area);
     }
 
     int getNumRows() override
@@ -110,7 +115,7 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
 
     void Begin(int row, bool repair)
     {
-        if (m_snapshot.m_busy || row < 0 || row >= getNumRows() || m_pairing != nullptr)
+        if (row < 0 || row >= getNumRows() || m_pairing != nullptr)
         {
             return;
         }
@@ -119,6 +124,7 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
         const auto token = repair ? std::string() : SyncClient::LoadToken(receiver);
         if (!token.empty())
         {
+            Select(receiver, token);
             m_client.Start(receiver, token);
             Refresh();
             return;
@@ -144,6 +150,7 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
             if (result == 1 && !code.empty())
             {
                 SyncClient::SaveToken(receiver, code);
+                safe->Select(receiver, code);
                 safe->m_client.Start(receiver, code);
                 safe->Refresh();
             }
@@ -174,11 +181,25 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
     void Refresh()
     {
         m_snapshot = m_client.Snapshot();
+        m_publishing.SetSyncBusy(m_snapshot.m_busy);
+        if (!m_selectedReceiver.empty() && !m_publishing.Snapshot().m_selected)
+        {
+            for (const auto& receiver : m_snapshot.m_receivers)
+            {
+                if (receiver.m_id + ":" + receiver.m_fingerprint == m_selectedReceiver)
+                {
+                    m_publishing.Select(receiver, SyncClient::LoadToken(receiver));
+                    break;
+                }
+            }
+        }
+
+        m_publishingPanel.Refresh();
         m_receivers.updateContent();
         m_receivers.repaint();
         m_status.setText(juce::String(m_snapshot.m_message), juce::dontSendNotification);
         m_cancel.setEnabled(m_snapshot.m_busy);
-        m_pair.setEnabled(!m_snapshot.m_busy);
+        m_pair.setEnabled(true);
         constexpr double x_mib = 1024.0 * 1024.0;
         m_progress.setText(m_snapshot.m_busy && m_snapshot.m_total != 0
             ? juce::String(m_snapshot.m_sent / x_mib, 1) + " / " + juce::String(m_snapshot.m_total / x_mib, 1)
@@ -186,7 +207,17 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
             : juce::String(), juce::dontSendNotification);
     }
 
+    void Select(const SyncClient::Receiver& receiver, const std::string& token)
+    {
+        m_selectedReceiver = receiver.m_id + ":" + receiver.m_fingerprint;
+        m_publishingPanel.SetReceiver(m_selectedReceiver);
+        m_publishing.Select(receiver, token);
+    }
+
     SyncClient m_client;
+    PublishingClient m_publishing;
+    PublishingPanel m_publishingPanel;
+    std::string m_selectedReceiver;
     SyncClient::Status m_snapshot;
     juce::Label m_title;
     juce::Label m_hint;
