@@ -81,6 +81,18 @@ struct BankedEncoderCell : public StateEncoderCell
             }
         }
 
+        template <typename Modulator>
+        void Set(Modulator modulator, size_t voice, float value)
+        {
+            m_value[static_cast<size_t>(modulator)][voice] = value;
+        }
+
+        template <typename Modulator>
+        void SetAmplitude(Modulator modulator, size_t voice, float amplitude)
+        {
+            m_amplitude[static_cast<size_t>(modulator)][voice] = amplitude;
+        }
+
         void ComputeChanged()
         {
             m_changedModulators.Clear();

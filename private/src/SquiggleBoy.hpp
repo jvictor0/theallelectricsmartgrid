@@ -1493,26 +1493,26 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 size_t voice = track * x_voicesPerTrack + trackVoice;
                 for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
                 {
-                    modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Random1) + j][trackVoice] = m_gangedRandomLFO[j][track].Output(trackVoice);
+                    modulatorValues.Set(j, trackVoice, m_gangedRandomLFO[j][track].Output(trackVoice));
                 }
 
-                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::ModulationEnvelope)][trackVoice] = m_voices[voice].m_amp.m_modulationAHD.m_rawOutput;
-                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::AmpEnvelope)][trackVoice] = m_voices[voice].m_amp.m_ahd.m_rawOutput;
-                modulatorValues.m_amplitude[static_cast<size_t>(VoiceModulator::ModulationEnvelope)][trackVoice] = m_voices[voice].m_amp.m_modulationAHD.m_amplitude;
-                modulatorValues.m_amplitude[static_cast<size_t>(VoiceModulator::AmpEnvelope)][trackVoice] = m_voices[voice].m_amp.m_ahd.m_amplitude;
+                modulatorValues.Set(VoiceModulator::ModulationEnvelope, trackVoice, m_voices[voice].m_amp.m_modulationAHD.m_rawOutput);
+                modulatorValues.Set(VoiceModulator::AmpEnvelope, trackVoice, m_voices[voice].m_amp.m_ahd.m_rawOutput);
+                modulatorValues.SetAmplitude(VoiceModulator::ModulationEnvelope, trackVoice, m_voices[voice].m_amp.m_modulationAHD.m_amplitude);
+                modulatorValues.SetAmplitude(VoiceModulator::AmpEnvelope, trackVoice, m_voices[voice].m_amp.m_ahd.m_amplitude);
 
-                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::LFO1)][trackVoice] = m_voices[voice].m_squiggleLFO[0].m_output;
-                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::LFO2)][trackVoice] = m_voices[voice].m_squiggleLFO[1].m_output;
-                modulatorValues.m_amplitude[static_cast<size_t>(VoiceModulator::LFO1)][trackVoice] = m_voices[voice].m_squiggleLFO[0].m_polyXFader.m_amplitude;
-                modulatorValues.m_amplitude[static_cast<size_t>(VoiceModulator::LFO2)][trackVoice] = m_voices[voice].m_squiggleLFO[1].m_polyXFader.m_amplitude;
+                modulatorValues.Set(VoiceModulator::LFO1, trackVoice, m_voices[voice].m_squiggleLFO[0].m_output);
+                modulatorValues.Set(VoiceModulator::LFO2, trackVoice, m_voices[voice].m_squiggleLFO[1].m_output);
+                modulatorValues.SetAmplitude(VoiceModulator::LFO1, trackVoice, m_voices[voice].m_squiggleLFO[0].m_polyXFader.m_amplitude);
+                modulatorValues.SetAmplitude(VoiceModulator::LFO2, trackVoice, m_voices[voice].m_squiggleLFO[1].m_polyXFader.m_amplitude);
 
-                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Sheaf1)][trackVoice] = input.m_sheafyModulators[voice][0];
-                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Sheaf2)][trackVoice] = input.m_sheafyModulators[voice][1];
-                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Sheaf3)][trackVoice] = input.m_sheafyModulators[voice][2];
+                modulatorValues.Set(VoiceModulator::Sheaf1, trackVoice, input.m_sheafyModulators[voice][0]);
+                modulatorValues.Set(VoiceModulator::Sheaf2, trackVoice, input.m_sheafyModulators[voice][1]);
+                modulatorValues.Set(VoiceModulator::Sheaf3, trackVoice, input.m_sheafyModulators[voice][2]);
 
-                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Spread)][trackVoice] = static_cast<float>(trackVoice) / (x_voicesPerTrack - 1);
+                modulatorValues.Set(VoiceModulator::Spread, trackVoice, static_cast<float>(trackVoice) / (x_voicesPerTrack - 1));
 
-                modulatorValues.m_value[static_cast<size_t>(VoiceModulator::Noise)][trackVoice] = m_rGen.UniGen();
+                modulatorValues.Set(VoiceModulator::Noise, trackVoice, m_rGen.UniGen());
             }
 
             for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
@@ -1530,20 +1530,20 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             for (size_t random = 0; random < x_numGangedRandomLFOs; ++random)
             {
-                modulatorValues.m_value[static_cast<size_t>(QuadModulator::Random1) + random][i] = m_quadGangedRandomLFO[random].Output(i);
+                modulatorValues.Set(random, i, m_quadGangedRandomLFO[random].Output(i));
             }
 
-            modulatorValues.m_value[static_cast<size_t>(QuadModulator::DelayLFO)][i] = m_delay.m_lfo.m_output[i] / 2.0 + 0.5;
-            modulatorValues.m_value[static_cast<size_t>(QuadModulator::ReverbLFO)][i] = m_reverb.m_lfo.m_output[i] / 2.0 + 0.5;
+            modulatorValues.Set(QuadModulator::DelayLFO, i, m_delay.m_lfo.m_output[i] / 2.0 + 0.5);
+            modulatorValues.Set(QuadModulator::ReverbLFO, i, m_reverb.m_lfo.m_output[i] / 2.0 + 0.5);
 
-            modulatorValues.m_value[static_cast<size_t>(QuadModulator::LFO1)][i] = m_quadSquiggleLFO[0][i].m_output;
-            modulatorValues.m_value[static_cast<size_t>(QuadModulator::LFO2)][i] = m_quadSquiggleLFO[1][i].m_output;
-            modulatorValues.m_amplitude[static_cast<size_t>(QuadModulator::LFO1)][i] = m_quadSquiggleLFO[0][i].m_polyXFader.m_amplitude;
-            modulatorValues.m_amplitude[static_cast<size_t>(QuadModulator::LFO2)][i] = m_quadSquiggleLFO[1][i].m_polyXFader.m_amplitude;
+            modulatorValues.Set(QuadModulator::LFO1, i, m_quadSquiggleLFO[0][i].m_output);
+            modulatorValues.Set(QuadModulator::LFO2, i, m_quadSquiggleLFO[1][i].m_output);
+            modulatorValues.SetAmplitude(QuadModulator::LFO1, i, m_quadSquiggleLFO[0][i].m_polyXFader.m_amplitude);
+            modulatorValues.SetAmplitude(QuadModulator::LFO2, i, m_quadSquiggleLFO[1][i].m_polyXFader.m_amplitude);
 
-            modulatorValues.m_value[static_cast<size_t>(QuadModulator::Spread)][i] = static_cast<float>(i % 4) / 3;
+            modulatorValues.Set(QuadModulator::Spread, i, static_cast<float>(i % 4) / 3);
 
-            modulatorValues.m_value[static_cast<size_t>(QuadModulator::Noise)][i] = m_rGen.UniGen();
+            modulatorValues.Set(QuadModulator::Noise, i, m_rGen.UniGen());
         }
 
         for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
@@ -1556,10 +1556,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         auto& modulatorValues = m_encoders.GetModulatorValues(BankMode::Global);
 
-        modulatorValues.m_value[static_cast<size_t>(GlobalModulator::Random1)][0] = m_globalGangedRandomLFO[0].Output(0);
-        modulatorValues.m_value[static_cast<size_t>(GlobalModulator::Random2)][0] = m_globalGangedRandomLFO[1].Output(0);
+        modulatorValues.Set(GlobalModulator::Random1, 0, m_globalGangedRandomLFO[0].Output(0));
+        modulatorValues.Set(GlobalModulator::Random2, 0, m_globalGangedRandomLFO[1].Output(0));
 
-        modulatorValues.m_value[static_cast<size_t>(GlobalModulator::Noise)][0] = m_rGen.UniGen();
+        modulatorValues.Set(GlobalModulator::Noise, 0, m_rGen.UniGen());
 
         for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
         {
