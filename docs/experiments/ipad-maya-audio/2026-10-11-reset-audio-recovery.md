@@ -30,6 +30,16 @@ There is one retained input underflow at **10:55:56.037**, argument `-380`, duri
 
 ## Implementation and interpretation
 
+### Follow-up: concrete log changes around reset
+
+Inspection through approximately **11:28** finds **28,129** `audiomxd` diagnostics saying `VirtualAudioDevice_Default: IOProc expected 1014, got 512 frames`, starting **10:55:56.030** and ending **11:14:00.157**, immediately before SmartGrid stops playing at 00.172 and Maya StopIO at 00.181. They occur throughout the running interval, rather than appearing uniquely at the user's approximate artifact onset. The app's own telemetry reports 512 frames. The diagnostic describes a system expectation mismatch; it does not establish that 502 samples were dropped or locate the audible corruption.
+
+Over the last five pre-reset minutes, the private driver `ioDriftNS` value rises from **2,854,167 at 11:09:00.945** to **6,750,042 at 11:13:55.946**. There are no retained USB underflow, transaction-error, zero-length or StartIO/StopIO messages within that five-minute interval. Thus no distinct transport error marks the reported onset in this evidence. Missing errors remain inconclusive because emission/suppression behavior is unknown.
+
+Neither the frame-count diagnostic nor `ioDriftNS` appears after reset in the historical selection through 11:15:37, or in the live stream from **11:18:21.442 through 11:27:46.375**. There is a gap between those two windows; do not describe this as uninterrupted post-reset log coverage. This is a useful before/after change consistent with reinitialization and the user's audible recovery. Driver counters, internal expectations and logging can themselves reset, so message disappearance is not an independent proof of lasting physical recovery.
+
+The analog screen has examined **622 complete seconds** without a periodic-cut candidate. SoX has now emitted **nine discarded-buffer warnings**, including a cluster near recorded elapsed 10:21. These belong to the Mac capture path and compromise completeness and precise wall-time alignment. Preserve them as recording defects, not Maya output faults. The initial 142-second warning-free observation above remains a historical checkpoint, not the quality classification for the full recording.
+
 Fetched main and updated the clean diagnostic worktree to **`33613ced7759c464e7e4b094c391c66092fcd1ac`**, “Add user-triggered iOS audio reset while retaining engine state.” `JUCE/SmartGridOne/scripts/SmartGridIOSAudioReset.inc` detaches the callback; stops, uninitializes and disposes the audio unit; deactivates AVAudioSession; reapplies its configuration and preferred format; reactivates it; runs the iOS RemoteIO warm-up; validates the format; recreates/starts the audio unit; and reattaches the callback. Engine state is retained. This source commit is not an independently extracted hash of the installed executable.
 
 The temporary **48 → 44.1 → 48 kHz** transition accompanies reported recovery. SpringBoard briefly regains rate control while SmartGrid is inactive; its exact audible effect was not identified. This does not exclude a rate transition as a trigger under different preceding hardware conditions.
