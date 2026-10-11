@@ -5,6 +5,7 @@
 #include "NonagonWrapper.hpp"
 #include "SmartGridOneMainVisualizerComponent.hpp"
 #include "ModulatorVisualizers.hpp"
+#include "EncoderModulatorComponents.hpp"
 #include "ScopeComponent.hpp"
 #include "SequencerMelodyVisualizerComponent.hpp"
 #include "GangedRandomLFOComponent.hpp"
@@ -78,8 +79,10 @@ struct SmartGridOneVisualizerMain : public juce::Component
 
 #define G(name, slot, ctor, mode, color, modulator) \
     std::unique_ptr<SmartGridOneMainVisualizerComponent> m_##name;
+#define H(modulator, ctor)
 #include "ForEachModulationVisualizer.hpp"
 #undef G
+#undef H
     
     SmartGridOneVisualizerMain(NonagonWrapper* nonagon)
         : m_nonagon(nonagon)
@@ -112,8 +115,14 @@ struct SmartGridOneVisualizerMain : public juce::Component
             m_##name = factory(&m_scopeVoiceOffset); \
             m_modulatorVisualizers.Add(modulator, factory); \
         }
+#define H(modulator, ctor) \
+        m_modulatorVisualizers.Add(modulator, [&](int*) \
+        { \
+            return ctor; \
+        });
 #include "ForEachModulationVisualizer.hpp"
 #undef G
+#undef H
         
         m_meteringComponent = std::make_unique<MeteringComponent>(uiState);
         
@@ -388,8 +397,10 @@ struct SmartGridOneVisualizerMain : public juce::Component
             m_##name->Draw(g, juce::Rectangle<int>(0, 0, innerBounds.getWidth(), innerBounds.getHeight())); \
             g.restoreState(); \
         }
+#define H(modulator, ctor)
 #include "ForEachModulationVisualizer.hpp"
 #undef G
+#undef H
     }
 
     void DispatchModulationClick(const juce::MouseEvent& event, SmartGridOneEncoders::Bank bank)
@@ -408,8 +419,10 @@ struct SmartGridOneVisualizerMain : public juce::Component
                 m_##name->OnClick(localEvent); \
             } \
         }
+#define H(modulator, ctor)
 #include "ForEachModulationVisualizer.hpp"
 #undef G
+#undef H
     }
     
     void ExcludeEncoderClip(juce::Graphics& g)

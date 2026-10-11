@@ -3,6 +3,7 @@
 #include "ModulatorVisualizers.hpp"
 #include "ScopeComponent.hpp"
 #include "GangedRandomLFOComponent.hpp"
+#include "EncoderModulatorComponents.hpp"
 
 namespace
 {
@@ -106,13 +107,15 @@ DOCTEST_TEST_CASE("Encoder visualizers: catalogue supplies only supported source
     auto state = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto* uiState = state.get();
     ModulatorVisualizers visualizers;
-#define G(name, slot, ctor, mode, color, modulator) \
+#define H(modulator, ctor) \
     visualizers.Add(modulator, [&]([[maybe_unused]] int* scopeVoiceOffset) \
     { \
         return ctor; \
     });
+#define G(name, slot, ctor, mode, color, modulator) H(modulator, ctor)
 #include "ForEachModulationVisualizer.hpp"
 #undef G
+#undef H
 
     for (Mode mode : {Mode::VoiceWater, Mode::VoiceFire, Mode::VoiceEarth, Mode::Quad, Mode::Global})
     {
@@ -120,9 +123,19 @@ DOCTEST_TEST_CASE("Encoder visualizers: catalogue supplies only supported source
         {
             DOCTEST_CAPTURE(mode);
             DOCTEST_CAPTURE(index);
-            bool expected = mode == Mode::Global ? index == 2 || index == 3 : index < 8;
+            bool expected = index == 14 || (mode == Mode::Global ? index == 2 || index == 3
+                : index < 8 || index == 11 || (SmartGridOneEncoders::IsVoiceMode(mode) && index < 11));
             DOCTEST_CHECK((visualizers.Get(mode, index) != nullptr) == expected);
         }
+    }
+
+    for (int index : {8, 9, 10, 11, 14})
+    {
+        auto* source = visualizers.Get(Mode::Voice, index);
+        DOCTEST_REQUIRE(source != nullptr);
+        DOCTEST_CHECK(visualizers.GetSingle(Mode::Voice, 1 << index) == source);
+        DOCTEST_CHECK(visualizers.GetSingle(Mode::Voice, (1 << index) | (1 << 12) | (1 << 13)) == source);
+        DOCTEST_CHECK(visualizers.GetSingle(Mode::Voice, (1 << index) | (1 << 6)) == nullptr);
     }
 
     auto* scope = dynamic_cast<ScopeComponent*>(visualizers.Get(Mode::Voice, 6));

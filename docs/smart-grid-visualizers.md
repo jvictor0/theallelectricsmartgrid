@@ -11,8 +11,9 @@ This document describes the visualizer system for the Smart Grid One display. Vi
 | `SmartGridOneMainVisualizerComponent.hpp` | Base class for all visualizers. Defines `Draw()` and optional `OnClick()`. |
 | `SmartGridOneVisualizerMain.hpp` | Main container component. Owns visualizer instances, handles layout, dispatch, and metering. |
 | `ForEachSmartGridOneVisualizer.hpp` | X-macro list mapping (name, bank, block, constructor, source-machine flags) for each visualizer. |
-| `ForEachModulationVisualizer.hpp` | X-macro list mapping (name, panel slot, constructor, mode, color, optional typed modulator) for modulation visualizers. |
-| `ModulatorVisualizers.hpp` | Owns the second visualizer instances used behind depth encoders, indexed by mode and modulator. |
+| `ForEachModulationVisualizer.hpp` | X-macro list with panel entries and encoder-only modulator entries. |
+| `ModulatorVisualizers.hpp` | Owns encoder background instances, indexed by mode and modulator. |
+| `EncoderModulatorComponents.hpp` | Individual Sheafy dials, Noise traces, and Spread bars for encoder backgrounds. |
 | `GangedRandomLFOComponent.hpp` | Predictive wait/move view for one fixed-size correlated random gang. |
 | `PartialMachineComponents.hpp` | Partial Machine input-spectrum and spatial atom views. |
 
@@ -44,13 +45,17 @@ Metering occupies (8, 5), 16×2 cells.
 
 ### Modulator backgrounds in encoders
 
-`EncoderBankUIState` publishes the selected bank mode and each visible cell's encoder type and index. Connected `ModulatorAmount` cells use those fields to look up their source's background, including nested selected depths at (3,3). Base parameters show a background when exactly one affecting modulator has a visualizer; unassociated sources (such as Noise) and gesture assignments do not count. Gesture cells do not draw a background. Depth cells always retain their own source, even when another modulator affects the depth, and depth zero still shows its source.
+`EncoderBankUIState` publishes the selected bank mode and each visible cell's encoder type and index. Connected `ModulatorAmount` cells use those fields to look up their source's background, including nested selected depths at (3,3). Base parameters show a background when exactly one affecting modulator has a visualizer; unassociated sources and gesture assignments do not count. Gesture cells do not draw a background. Depth cells always retain their own source, even when another modulator affects the depth, and depth zero still shows its source.
 
-The modulation visualizer catalogue associates each supported panel with a `VoiceModulator`, `QuadModulator`, or `GlobalModulator` enum. The panel slot is independent of this association; `std::nullopt` leaves a panel unassociated (currently the combined Sheafy panel). Noise, Spread, and Sheaf depths have no background.
+The modulation visualizer catalogue associates each supported panel with a `VoiceModulator`, `QuadModulator`, or `GlobalModulator` enum. `G(name, slot, constructor, mode, color, modulator)` defines a panel and its optional encoder association. The panel slot is independent of this association; `std::nullopt` leaves a panel unassociated (currently the combined Sheafy panel). `H(modulator, constructor)` defines an encoder-only view: Sheaf 1–3, Voice/Quad Spread, and Noise in all three modes. These entries add no bottom panels or panel click handling.
 
-`SmartGridOneVisualizerMain` uses each associated constructor twice: once for the existing panel, once for the encoder background. The latter instances occupy a fixed 3×15 owning table (18 populated entries). All three voice bank modes share the Voice row and follow the existing active-trio UI state. Scope buffers and random-LFO snapshots are shared, while panel voice selection is separate from background scope selection.
+`SmartGridOneVisualizerMain` uses each associated panel constructor twice: once for the existing panel, once for the encoder background. Encoder-only constructors run once. Background instances occupy a fixed 3×15 owning table (26 populated entries). All three voice bank modes share the Voice row and follow the existing active-trio UI state. Scope buffers and random-LFO snapshots are shared, while panel voice selection is separate from background scope selection.
 
 Each encoder draws its background inside the square dial area at 50% opacity using a JUCE transparency layer. Its arcs, indicators, name and badges retain their normal appearance. The badge strip is outside the clip, whether above or below the dial. Depths use direct lookup. Base parameters inspect only their affecting-modulator bits and stop at the second eligible source. Drawing constructs no visualizer objects; background views receive no mouse events. Ganged-random and quad LFO indicator dots use the supplied modulator color, while their path colors stay unchanged.
+
+Individual Sheafy dials fit inside the encoder's voice rings and share its 270-degree sweep. Spokes show the selected axis's attainable values for the active trio's current lens and time slice. Three concentric filled arcs show the actual held values in voice colors, read from `m_nonagonUIState.m_extraTimbre`; these include unison selection and may differ from the next pending pitch choices. The existing combined Sheafy panel is unchanged.
+
+Noise draws a fresh UI-generated random trace each frame, without reading or advancing the DSP random generator. Spread draws three or four narrow bars for its fixed values from zero to one, centered inside the innermost encoder ring. Its bars use active-trio voice colors in Voice mode and fixed voice colors in Quad mode. Both follow the corresponding visual styles in Sheaf. All named modulators now have backgrounds, so combining Noise or Spread with an LFO counts as two eligible sources and hides the base parameter's background.
 
 ### Bank-to-Visualizer Mapping
 

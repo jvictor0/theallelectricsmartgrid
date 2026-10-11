@@ -19,8 +19,8 @@ const ExpectedSkin x_voice[] =
     {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
     {Glyph::ADSR, {255, 108, 29}}, {Glyph::ADSR, {0, 247, 167}},
     {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {134, 63, 249}},
-    {Glyph::Sheaf, {0, 127, 127}}, {Glyph::Sheaf, {28, 30, 124}},
-    {Glyph::Sheaf, {4, 123, 29}}, {Glyph::Spread, {143, 143, 143}},
+    {Glyph::Sheaf, {0, 255, 255}}, {Glyph::Sheaf, {56, 61, 249}},
+    {Glyph::Sheaf, {9, 246, 59}}, {Glyph::Spread, {143, 143, 143}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {253, 253, 253}}
 };
 const ExpectedSkin x_quad[] =
@@ -125,6 +125,48 @@ DOCTEST_TEST_CASE("encoder visualizers: published identity follows mode navigati
         DOCTEST_CHECK(ui.GetIndex(baseX, baseY) == -1);
         DOCTEST_CHECK(ui.GetEncoderType(baseX, baseY) == Type::BaseParam);
         bank.SetVisible(baseX, baseY, base);
+    }
+}
+
+DOCTEST_TEST_CASE("encoder visualizers: Sheafy UI publishes held outputs including unison instead of pending choices")
+{
+    synthrig::SynthRig rig;
+    auto& nonagon = rig.Internal().m_nonagon;
+    for (size_t trio = 0; trio < 3; ++trio)
+    {
+        nonagon.m_state.m_trigLogic.m_unisonMaster[trio] = trio == 0 ? 1 : -1;
+        for (size_t voice = 0; voice < 3; ++voice)
+        {
+            auto& section = nonagon.m_nonagon.m_lameJuis.m_lanes[trio].m_pitch[voice].m_section;
+            for (size_t axis = 0; axis < 3; ++axis)
+            {
+                section.m_high[axis] = static_cast<uint8_t>((voice + axis) % 4);
+                section.m_total[axis] = 4;
+            }
+
+            nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[trio * 3 + voice].m_trig = true;
+        }
+    }
+
+    nonagon.m_nonagon.SetOutputs(nonagon.m_state);
+    auto& ui = rig.UIState().m_nonagonUIState;
+    const float expected[3][3] = {{0, 0.25f, 0.5f}, {0.25f, 0.5f, 0.75f}, {0.5f, 0.75f, 0}};
+    for (int publication = 0; publication < 2; ++publication)
+    {
+        nonagon.PopulateUIState(&ui);
+        for (size_t voice = 0; voice < 9; ++voice)
+        {
+            for (size_t axis = 0; axis < 3; ++axis)
+            {
+                DOCTEST_CHECK(ui.m_extraTimbre[voice][axis].load() == expected[voice < 3 ? 1 : voice % 3][axis]);
+            }
+
+            nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[voice].m_trig = false;
+            auto& pending = nonagon.m_nonagon.m_lameJuis.m_lanes[voice / 3].m_pitch[voice % 3].m_section;
+            pending.Clear();
+        }
+
+        nonagon.m_nonagon.SetOutputs(nonagon.m_state);
     }
 }
 

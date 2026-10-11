@@ -6,9 +6,9 @@ F(VoiceModulator, ModulationEnvelope, Voice, SmartGrid::Color::Orange, ADSR, MEN
 F(VoiceModulator, AmpEnvelope, Voice, SmartGrid::Color::Ocean, ADSR, AENV)
 F(VoiceModulator, LFO1, Voice, SmartGrid::Color::Pink, LFO, LFO1)
 F(VoiceModulator, LFO2, Voice, SmartGrid::Color::Purple, LFO, LFO2)
-F(VoiceModulator, Sheaf1, Voice, SmartGrid::Color::Cyan.AdjustBrightness(0.5f), Sheaf, SHF1)
-F(VoiceModulator, Sheaf2, Voice, SmartGrid::Color::Indigo.AdjustBrightness(0.5f), Sheaf, SHF2)
-F(VoiceModulator, Sheaf3, Voice, SmartGrid::Color::SeaGreen.AdjustBrightness(0.5f), Sheaf, SHF3)
+F(VoiceModulator, Sheaf1, Voice, SmartGrid::Color::Cyan, Sheaf, SHF1)
+F(VoiceModulator, Sheaf2, Voice, SmartGrid::Color::Indigo, Sheaf, SHF2)
+F(VoiceModulator, Sheaf3, Voice, SmartGrid::Color::SeaGreen, Sheaf, SHF3)
 F(VoiceModulator, Spread, Voice, SmartGrid::Color::Grey, Spread, SPRD)
 F(VoiceModulator, Noise, Voice, SmartGrid::Color::White, Noise, NOIS)
 

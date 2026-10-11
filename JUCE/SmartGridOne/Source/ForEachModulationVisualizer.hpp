@@ -1,4 +1,5 @@
-// G(VisualizerName, Slot, ComponentConstructor, Mode, Color, Modulator)
+// G(VisualizerName, Slot, ComponentConstructor, Mode, Color, Modulator): panel and optional encoder view
+// H(Modulator, ComponentConstructor): encoder view only
 //
 G(
     GangedRandom1Scope,
@@ -227,3 +228,12 @@ G(
     SmartGridOneEncoders::BankMode::Global,
     SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Global).m_color,
     GlobalModulator::Random2)
+
+H(VoiceModulator::Sheaf1, std::make_unique<SheafyModulatorDialComponent>(uiState, VoiceModulator::Sheaf1))
+H(VoiceModulator::Sheaf2, std::make_unique<SheafyModulatorDialComponent>(uiState, VoiceModulator::Sheaf2))
+H(VoiceModulator::Sheaf3, std::make_unique<SheafyModulatorDialComponent>(uiState, VoiceModulator::Sheaf3))
+H(VoiceModulator::Spread, std::make_unique<SpreadModulatorComponent>(SquiggleBoy::x_voicesPerTrack, &uiState->m_squiggleBoyUIState.m_activeTrack))
+H(QuadModulator::Spread, std::make_unique<SpreadModulatorComponent>(4, nullptr))
+H(VoiceModulator::Noise, std::make_unique<NoiseModulatorComponent>(GetModulatorColor(VoiceModulator::Noise)))
+H(QuadModulator::Noise, std::make_unique<NoiseModulatorComponent>(GetModulatorColor(QuadModulator::Noise)))
+H(GlobalModulator::Noise, std::make_unique<NoiseModulatorComponent>(GetModulatorColor(GlobalModulator::Noise)))

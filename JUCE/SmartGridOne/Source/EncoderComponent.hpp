@@ -5,6 +5,7 @@
 #include "BinaryData.h"
 #include "FourteenSegmentDisplayComponent.hpp"
 #include "ModulatorVisualizers.hpp"
+#include "EncoderGeometry.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -105,11 +106,6 @@ struct EncoderComponent : public juce::Component
         setSize(size, GetHeightForWidth(size));
     }
 
-    static float ValueToArcAngle(float value)
-    {
-        return juce::MathConstants<float>::pi * 1.25f + value * juce::MathConstants<float>::pi * 1.5f;
-    }
-
     static void DrawArc(
         juce::Graphics& g,
         float centerX,
@@ -120,7 +116,7 @@ struct EncoderComponent : public juce::Component
         float strokeWidth)
     {
         juce::Path arcPath;
-        arcPath.addCentredArc(centerX, centerY, radius, radius, 0.0f, ValueToArcAngle(startValue), ValueToArcAngle(endValue), true);
+        arcPath.addCentredArc(centerX, centerY, radius, radius, 0.0f, EncoderGeometry::ValueToArcAngle(startValue), EncoderGeometry::ValueToArcAngle(endValue), true);
         g.strokePath(arcPath, juce::PathStrokeType(strokeWidth));
     }
 
@@ -168,8 +164,8 @@ struct EncoderComponent : public juce::Component
                 continue;
             }
 
-            float startAngle = ValueToArcAngle(segmentStart);
-            float endAngle = ValueToArcAngle(segmentEnd);
+            float startAngle = EncoderGeometry::ValueToArcAngle(segmentStart);
+            float endAngle = EncoderGeometry::ValueToArcAngle(segmentEnd);
             if (switchVal > 0 && segmentStart <= switchStart)
             {
                 startAngle += x_switchGapRadians;
@@ -358,7 +354,7 @@ struct EncoderComponent : public juce::Component
                 DrawArcWithSwitchGaps(g, centerX, centerY, radius, 0.0f, 1.0f, switchValues, 2.0f);
                 if (m_ui.m_uiState->GetBipolar(m_x, m_y))
                 {
-                    float angle = ValueToArcAngle(0.5f);
+                    float angle = EncoderGeometry::ValueToArcAngle(0.5f);
                     float markerX = centerX + radius * std::sin(angle);
                     float markerY = centerY - radius * std::cos(angle);
                     g.fillEllipse(markerX - 2.0f, markerY - 2.0f, 4.0f, 4.0f);

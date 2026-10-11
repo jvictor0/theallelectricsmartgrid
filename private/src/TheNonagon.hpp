@@ -77,6 +77,7 @@ struct TheNonagonInternal
         std::atomic<bool> m_gate[x_numVoices];
         std::atomic<bool> m_muted[x_numVoices];
         std::atomic<float> m_cyclesPerSamplePitch[x_numVoices];
+        std::atomic<float> m_extraTimbre[x_numVoices][x_numExtraTimbres]{};
 
         int GetLoopMultiplier(int trioIndex)
         {
@@ -1460,6 +1461,10 @@ struct TheNonagonSmartGrid
             uiState->SetMuted(i, m_state.m_trigLogic.m_mute[i]);
             float cyclesPerSample = PhaseUtils::VOctToNatural(m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
             uiState->SetCyclesPerSamplePitch(i, cyclesPerSample);
+            for (size_t axis = 0; axis < TheNonagonInternal::x_numExtraTimbres; ++axis)
+            {
+                uiState->m_extraTimbre[i][axis].store(m_nonagon.m_output.m_extraTimbre[i][axis]);
+            }
         }
     }
     
