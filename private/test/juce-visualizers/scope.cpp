@@ -4,6 +4,120 @@
 #include "QuadDelayEnvelopeVisualizerComponent.hpp"
 #include <memory>
 
+namespace
+{
+struct PeakedResponse : TransferFunction
+{
+    float m_frequency;
+
+    explicit PeakedResponse(float frequency)
+        : m_frequency(frequency)
+    {
+    }
+
+    float FrequencyResponse(float frequency) const override
+    {
+        float distance = std::log(frequency / m_frequency) / 0.03f;
+        return std::exp(-distance * distance);
+    }
+
+    std::complex<float> TransferFunctionValue(float frequency) const override
+    {
+        return {FrequencyResponse(frequency), 0.0f};
+    }
+};
+
+template<typename Matches>
+float FindPeakX(const juce::Image& image, Matches matches)
+{
+    for (int y = 0; y < image.getHeight(); ++y)
+    {
+        int sumX = 0;
+        int count = 0;
+        for (int x = 0; x < image.getWidth(); ++x)
+        {
+            if (matches(image.getPixelAt(x, y)))
+            {
+                sumX += x;
+                ++count;
+            }
+        }
+
+        if (count > 0)
+        {
+            return static_cast<float>(sumX) / count;
+        }
+    }
+
+    DOCTEST_FAIL("No curve pixels found");
+    return -1.0f;
+}
+}
+
+DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequency axis")
+{
+    bool logX = true;
+    DOCTEST_SUBCASE("logarithmic")
+    {
+        logX = true;
+    }
+
+    DOCTEST_SUBCASE("linear")
+    {
+        logX = false;
+    }
+
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    ui->m_squiggleBoyUIState.m_activeTrack.store(1);
+    auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[3];
+    filter.m_lpLadder.m_alpha.store(1.0f);
+    filter.m_lpLadder.m_feedback.store(0.0f);
+    filter.m_hp4Pole.m_g.store(0.0f);
+    filter.m_hp4Pole.m_k.store(1.0f);
+    auto writer = std::make_unique<ScopeWriter>(9, 1);
+    int voiceOffset = 0;
+
+    for (int bin : {4, 16, 64, 192})
+    {
+        DOCTEST_CAPTURE(bin);
+        float frequency = static_cast<float>(bin) / BasicWaveTable::x_tableSize;
+        for (size_t sample = 0; sample < BasicWaveTable::x_tableSize; ++sample)
+        {
+            float value = 0.05f * std::sin(2.0f * static_cast<float>(M_PI) * frequency * sample);
+            writer->Write(0, 3, value);
+            writer->AdvanceIndex();
+        }
+
+        writer->Publish();
+        AnalyserComponent analyser(WindowedFFT(writer.get(), 0), &voiceOffset, ui.get());
+        analyser.m_logX = logX;
+        juce::Image spectrum(juce::Image::ARGB, 1024, 400, true);
+        juce::Graphics spectrumGraphics(spectrum);
+        analyser.Draw(spectrumGraphics, spectrum.getBounds());
+
+        PeakedResponse response(frequency / SquiggleBoyVoice::x_oversample);
+        PathDrawer drawer(400, 1024, 0, 0);
+        drawer.m_logX = logX;
+        juce::Image transfer(juce::Image::ARGB, 1024, 400, true);
+        juce::Graphics transferGraphics(transfer);
+        drawer.DrawFrequencyResponse(transferGraphics, juce::Colours::white, response,
+            1.0f / SquiggleBoyVoice::x_oversample);
+
+        float spectrumX = FindPeakX(spectrum, [](juce::Colour pixel)
+        {
+            return pixel.getGreen() > 24 && pixel.getGreen() > 2 * pixel.getRed()
+                && pixel.getGreen() > 2 * pixel.getBlue();
+        });
+        float transferX = FindPeakX(transfer, [](juce::Colour pixel)
+        {
+            return pixel.getAlpha() > 24;
+        });
+        DOCTEST_CAPTURE(spectrumX);
+        DOCTEST_CAPTURE(transferX);
+        DOCTEST_CHECK(std::abs(spectrumX - transferX) <= 3.0f);
+    }
+}
+
 DOCTEST_TEST_CASE("Scope: reduced point counts preserve the time axis and end marker")
 {
     auto writer = std::make_unique<ScopeWriter>(1, 1);

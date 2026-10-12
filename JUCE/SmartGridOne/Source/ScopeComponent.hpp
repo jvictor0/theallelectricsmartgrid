@@ -303,8 +303,6 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
 
     bool m_logX;
 
-    float m_bucketExpX[DiscreteFourierTransform::x_maxComponents];
-
     AnalyserComponent(
         WindowedFFT windowedFFT, 
         int* voiceOffset, 
@@ -321,11 +319,6 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
             m_windowedFFT[i] = windowedFFT;
         }
 
-        float m = static_cast<float>(DiscreteFourierTransform::x_maxComponents);
-        for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
-        {
-            m_bucketExpX[i] = std::pow(m - 1, static_cast<float>(i) / m) / (2 * m);
-        }
     }
 
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
@@ -361,28 +354,15 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
 
             m_windowedFFT[i].Compute(voiceIx);
 
-            juce::Path path;
-            path.startNewSubPath(0, height);
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
-
-            for (size_t j = 1; j < DiscreteFourierTransform::x_maxComponents; ++j)
-            {
-                float freq = m_logX ? m_bucketExpX[j] : static_cast<float>(j) / (2 * DiscreteFourierTransform::x_maxComponents);
-                float y = (m_windowedFFT[i].GetMagDb(freq) + 60) / 60;
-                float screenY = height * (1 - y);
-                float x = static_cast<float>(j) / static_cast<float>(DiscreteFourierTransform::x_maxComponents);
-                float screenX = width * x;
-                g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
-                path.lineTo(screenX, screenY);
-            }
-        
-            path.lineTo(width, height);
-            g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
-            g.strokePath(path, juce::PathStrokeType(1.0f));
-
-            color = color.Interpolate(SmartGrid::Color::White, 0.5f);
             PathDrawer responseDrawer(height, width, 0, 0);
             responseDrawer.m_logX = m_logX;
+            responseDrawer.DrawWindowedDFT(
+                g,
+                juce::Colour(color.m_red, color.m_green, color.m_blue),
+                &m_windowedFFT[i]);
+
+            color = color.Interpolate(SmartGrid::Color::White, 0.5f);
             responseDrawer.DrawFrequencyResponse(
                 g,
                 juce::Colour(color.m_red, color.m_green, color.m_blue),

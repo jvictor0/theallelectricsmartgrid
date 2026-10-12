@@ -36,7 +36,7 @@ Behavior:
 
 ## Integration Points
 
-- `AnalyserComponent` uses `DrawFrequencyResponse` for voice filter overlays
+- `AnalyserComponent` uses `DrawWindowedDFT` and `DrawFrequencyResponse` on the same `PathDrawer`, so the spectrum and voice filter overlay share one frequency axis. FFT bin count must not define a separate logarithmic display axis. Frequencies on this axis are cycles per base-rate sample; the voice overlay applies `1 / x_oversample` when evaluating oversampled filter coefficients.
 - `QuadAnalyserComponent` uses `DrawFrequencyResponse` for delay/reverb/partial-machine overlays, passing the per-speaker transfer-function provider
 - `PhysicalModelingFrequencyResponseComponent` uses `DrawFrequencyResponse` for source-machine-specific response drawing
 

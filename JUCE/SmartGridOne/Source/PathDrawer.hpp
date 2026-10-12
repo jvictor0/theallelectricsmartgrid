@@ -119,22 +119,32 @@ struct PathDrawer
     struct WindowedDFTFn
     {
         WindowedFFT* m_windowedFFT;
+        float m_freqScale;
 
-        WindowedDFTFn(WindowedFFT* windowedFFT)
+        WindowedDFTFn(WindowedFFT* windowedFFT, float freqScale)
             : m_windowedFFT(windowedFFT)
+            , m_freqScale(freqScale)
         {
         }
 
         float operator()(float x) const
         {
-            return PathDrawer::NormalizeDb(m_windowedFFT->GetMagDb(x));
+            return PathDrawer::NormalizeDb(m_windowedFFT->GetMagDb(x * m_freqScale));
         }
     };
 
     void DrawWindowedDFT(juce::Graphics& g, juce::Colour colour, WindowedFFT* windowedFFT)
     {
-        WindowedDFTFn fn(windowedFFT);
+        WindowedDFTFn fn(windowedFFT, FrequencyAxisScale());
         DrawPath(g, colour, fn);
+    }
+
+    float FrequencyAxisScale() const
+    {
+        // DrawPath supplies frequencies on the log axis and point indices on the linear axis.
+        // Convert linear indices to cycles per base-rate sample, ending just below Nyquist.
+        //
+        return m_logX ? 1.0f : 1.0f / (2.0f * x_numPoints);
     }
 
     struct FrequencyResponseFn
@@ -161,7 +171,7 @@ struct PathDrawer
         const TransferFunction& transferFunction,
         float freqScale)
     {
-        FrequencyResponseFn fn(&transferFunction, freqScale);
+        FrequencyResponseFn fn(&transferFunction, freqScale * FrequencyAxisScale());
         DrawPath(g, colour, fn);
     }
 
