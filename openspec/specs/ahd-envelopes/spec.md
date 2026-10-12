@@ -27,7 +27,7 @@ At trigger, the envelope SHALL capture its selected source phase's cycle ratio t
 - **THEN** elapsed position advances at half speed
 
 ### Requirement: Trigger and Release via AHDControl
-The system SHALL start an envelope when `AHDControl.m_trig` is true, entering the Running state, and SHALL move a non-Idle envelope to the Release state when `AHDControl.m_release` is true without a trigger. Both flags are produced by the multi-phasor-gate; the envelope consumes no gate signal. A `m_changed` flag SHALL be set on any state transition (used by scope recording to mark envelope start and end).
+The system SHALL start an envelope when `AHDControl.m_trig` is true, entering the Running state, and SHALL move a non-Idle envelope to the Release state when `AHDControl.m_release` is true without a trigger. Both flags are produced by the multi-phasor-gate; the envelope consumes no gate signal. A `m_changed` flag SHALL be set on any state transition. Each `Process(Input&)` call SHALL clear both input event flags after reading them, including a release ignored while Idle or superseded by a trigger. It SHALL report the consumed trigger through `m_triggered` for that call; a following call without a trigger SHALL reset `m_triggered` to false. The shared `AHDControl` SHALL remain unchanged so every envelope can receive its own copy. Scope recording SHALL use `m_triggered` to mark starts and `m_changed` with Idle to mark ends.
 
 #### Scenario: Trigger starts the envelope
 - **WHEN** `m_trig` is true while the envelope is Idle
@@ -37,6 +37,13 @@ The system SHALL start an envelope when `AHDControl.m_trig` is true, entering th
 - **WHEN** `m_release` is true and the state is Running
 - **THEN** the state becomes Release and the raw output ramps down from its current value
 - **AND** `m_release` is ignored while the envelope is already Idle
+
+#### Scenario: Physical-model events are delivered once per microblock
+- **WHEN** physical modeling processes a microblock at four times the base sample rate
+- **THEN** trigger and release events are delivered only at internal sample zero
+- **AND** a trigger on the immediately following microblock captures the previous raw output once and starts a new attack
+- **AND** both input event flags are false after consumption without caller cleanup
+- **AND** when both events are present, trigger takes precedence for the entire microblock
 
 ### Requirement: Attack Stage With Constant-Time Configuration
 The system SHALL ramp the raw output from `m_startOutput` toward 1.0 during attack as `attackPos = samples * attackIncrement + m_startOutput`. The attack increment is derived from a user time setting in the range 1 ms to 2.5 s (`x_attackTimeMin`/`x_attackTimeMax`) as `1 / (48000 * attackTime)` via an exponential parameter, using the fixed 48 kHz constant in phase-derived sample units. Wall-clock attack duration follows global phase motion and the captured source ratio and envelope period; those two captured factors need not cancel in the production voice path. On retrigger, `m_startOutput` SHALL be set to the current raw output so the attack continues from the present level instead of snapping to zero.
@@ -66,12 +73,21 @@ The system SHALL ramp the raw output down from 1.0 after the hold ends as `decay
 - **AND** on the frame the value would go negative, the output is 0.0, the state is Idle, and `m_changed` is true
 
 ### Requirement: Release Ramp on Interruption
-The system SHALL, while in the Release state, decrement the raw output by the decay increment once per processed sample (a linear wall-clock ramp at the configured decay rate, independent of phase tracking). When the raw output reaches or falls below 0 it SHALL clamp to 0 and the state SHALL return to Idle.
+The system SHALL, while in the Release state, decrement the raw output by `decayIncrement * input.m_releaseFactor` per call (a linear wall-clock ramp at the configured decay rate, independent of phase tracking). `Process(Input&)` SHALL use the input's release factor, which defaults to 1 base sample per call; physical modeling SHALL initialize it to 0.25 for each of its four internal samples. This factor SHALL affect only explicit release, leaving phase-driven attack, hold, and running decay increments unchanged. When the raw output reaches or falls below 0 it SHALL clamp to 0 and the state SHALL return to Idle.
 
 #### Scenario: Release ramps at the decay rate
 - **WHEN** an envelope holding at raw output 1.0 with a 100 ms decay setting enters Release
-- **THEN** the raw output reaches 0 after 4800 processed samples and the state becomes Idle
+- **THEN** the raw output reaches 0 after 4800 base samples of elapsed time and the state becomes Idle
 - **AND** a clock-phase modulation during the release does not alter the release ramp speed
+
+#### Scenario: Oversampled release retains elapsed time
+- **WHEN** the same envelope is processed at four times the base sample rate with `input.m_releaseFactor` set to 0.25 base samples per call
+- **THEN** its release reaches zero after the same elapsed base-sample time as base-rate processing, allowing floating-point rounding at the final sample
+- **AND** running attack, hold, and decay continue to use phase-derived fractional base-sample positions
+
+#### Scenario: Physical-model short timing range is preserved
+- **WHEN** the physical-model envelope uses its shortest attack and decay settings
+- **THEN** attack is 100 µs and decay is 500 µs in phase-derived sample units, with a maximum setting of 2.5 s for each
 
 ### Requirement: Amplitude Scaling With Polarity
 The system SHALL maintain both a raw output (`m_rawOutput`, the pure 0-1 envelope shape) and an amplitude-scaled output (`m_output`). With amplitude polarity true, `m_output = m_rawOutput * amplitude`; with polarity false (inverted), `m_output = (1 - amplitude) + m_rawOutput * amplitude`, so amplitude 0 yields a constant 1.0. The voice amp envelope uses polarity false (amplitude blends between drone and full envelope shaping) and the modulation envelope uses polarity true (see voice-architecture).

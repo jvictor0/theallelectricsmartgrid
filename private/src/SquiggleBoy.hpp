@@ -289,7 +289,7 @@ struct SquiggleBoyVoice
             m_subRunning = false;
         }
 
-        void WriteEnvelopeScopes(Input& input)
+        void WriteEnvelopeScopes()
         {
             if (SampleTimer::IsControlFrame())
             {
@@ -297,7 +297,7 @@ struct SquiggleBoyVoice
                 m_ampEnvelopeScopeWriter.Write(m_ahd.m_output);
             }
 
-            if (input.m_modulationAHDInput.m_trig)
+            if (m_modulationAHD.m_triggered)
             {
                 m_modulationEnvelopeScopeWriter.RecordStart();
             }
@@ -307,7 +307,7 @@ struct SquiggleBoyVoice
                 m_modulationEnvelopeScopeWriter.RecordEnd();
             }
 
-            if (input.m_ahdInput.m_trig)
+            if (m_ahd.m_triggered)
             {
                 m_ampEnvelopeScopeWriter.RecordStart();
             }
@@ -356,7 +356,7 @@ struct SquiggleBoyVoice
             float subOut = freqDependentGain * subGain * sub;
             
             m_scopeWriter.Write(mainOut + m_subOut);
-            if (input.m_ahdInput.m_trig)
+            if (m_ahd.m_triggered)
             {
                 m_scopeWriter.RecordStart();
             }
@@ -366,7 +366,7 @@ struct SquiggleBoyVoice
                 m_scopeWriter.RecordEnd();
             }
 
-            WriteEnvelopeScopes(input);
+            WriteEnvelopeScopes();
 
             m_subOut = subOut * input.m_gain.m_expParam;
             m_output = mainOut * input.m_gain.m_expParam;

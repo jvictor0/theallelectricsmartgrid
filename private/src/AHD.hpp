@@ -49,6 +49,10 @@ struct AHD
         double m_holdLoops;
         float m_decayIncrement;
 
+        // Base samples elapsed per Process call, used only for explicit release.
+        //
+        float m_releaseFactor;
+
         float m_amplitude;
         bool m_amplitudePolarity;
 
@@ -64,6 +68,7 @@ struct AHD
             , m_attackIncrement(0.0f)
             , m_holdLoops(0.0)
             , m_decayIncrement(0.0f)
+            , m_releaseFactor(1.0f)
             , m_amplitude(1.0f)
             , m_amplitudePolarity(true)
             , m_trig(false)
@@ -167,6 +172,10 @@ struct AHD
 
     State m_state;
     bool m_changed;
+
+    // Reports the trigger consumed by the most recent Process call.
+    //
+    bool m_triggered;
     float m_output;
     float m_rawOutput;
     float m_startOutput;
@@ -175,6 +184,7 @@ struct AHD
     AHD()
         : m_state(State::Idle)
         , m_changed(false)
+        , m_triggered(false)
         , m_output(0.0f)
         , m_rawOutput(0.0f)
         , m_startOutput(0.0f)
@@ -185,7 +195,8 @@ struct AHD
     float Process(Input& input)
     {
         m_changed = false;
-        if (input.m_trig)
+        m_triggered = input.m_trig;
+        if (m_triggered)
         {
             m_changed = m_state != State::Running;
             m_state = State::Running;
@@ -196,6 +207,11 @@ struct AHD
             m_changed = m_state != State::Release;
             m_state = State::Release;
         }
+
+        // Consume both events, including a release superseded by a trigger.
+        //
+        input.m_trig = false;
+        input.m_release = false;
 
         switch (m_state)
         {
@@ -246,7 +262,7 @@ struct AHD
             }
             case State::Release:
             {
-                m_rawOutput -= input.m_decayIncrement;
+                m_rawOutput -= input.m_decayIncrement * input.m_releaseFactor;
                 if (m_rawOutput <= 0.0f)
                 {
                     m_changed = true;

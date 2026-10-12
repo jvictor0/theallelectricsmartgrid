@@ -26,6 +26,32 @@
 
 #include "StateVariableFilter.hpp"
 
+DOCTEST_TEST_CASE("LinearSVF: morph follows positive quarter-circle LP BP HP weights")
+{
+    LinearStateVariableFilter filter;
+    filter.m_lowPass = 2.0f;
+    filter.m_bandPass = 3.0f;
+    filter.m_highPass = 5.0f;
+
+    const float x_blends[] = {-0.2f, 0.0f, 0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.75f, 0.875f, 1.0f, 1.2f};
+    const float x_outputs[] = {2.0f, 2.0f, 2.99580936f, 3.535533906f, 3.53700546f, 3.0f, 4.68505576f, 5.65685425f, 5.76744796f, 5.0f, 5.0f};
+    for (size_t i = 0; i < sizeof(x_blends) / sizeof(x_blends[0]); ++i)
+    {
+        DOCTEST_INFO("blend=" << x_blends[i]);
+        DOCTEST_CHECK(filter.GetMorphedOutput(x_blends[i]) == doctest::Approx(x_outputs[i]).epsilon(0.00001));
+    }
+}
+
+DOCTEST_TEST_CASE("LinearSVF: morph is continuous through the band-pass midpoint")
+{
+    LinearStateVariableFilter filter;
+    filter.m_lowPass = 2.0f;
+    filter.m_bandPass = 3.0f;
+    filter.m_highPass = 5.0f;
+    DOCTEST_CHECK(filter.GetMorphedOutput(0.499999f) == doctest::Approx(3.0f).epsilon(0.00001));
+    DOCTEST_CHECK(filter.GetMorphedOutput(0.500001f) == doctest::Approx(3.0f).epsilon(0.00001));
+}
+
 using namespace TestSpectral;
 using namespace TestSignal;
 

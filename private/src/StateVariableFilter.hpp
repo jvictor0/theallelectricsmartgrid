@@ -121,24 +121,36 @@ struct LinearStateVariableFilter
         return m_notch;
     }
 
-    // Equal-power morph: 0-0.5 LP->BP, 0.5-1 BP->HP
-    //
-    float GetMorphedOutput(float blend) const
+    struct MorphWeights
     {
+        float m_lowPass;
+        float m_bandPass;
+        float m_highPass;
+    };
+
+    // Equal-power quarter-circle morph: 0-0.5 LP->BP, 0.5-1 BP->HP.
+    //
+    static MorphWeights GetMorphWeights(float blend)
+    {
+        blend = std::max(0.0f, std::min(1.0f, blend));
         if (blend <= 0.5f)
         {
-            float t = blend * 2.0f;
-            float lpGain = Math::Cos2pi(t);
-            float bpGain = Math::Sin2pi(t);
-            return m_lowPass * lpGain + m_bandPass * bpGain;
+            float phase = blend * 0.5f;
+            return {Math::Cos2pi(phase), Math::Sin2pi(phase), 0.0f};
         }
         else
         {
-            float t = (blend - 0.5f) * 2.0f;
-            float bpGain = Math::Cos2pi(t);
-            float hpGain = Math::Sin2pi(t);
-            return m_bandPass * bpGain + m_highPass * hpGain;
+            float phase = (blend - 0.5f) * 0.5f;
+            return {0.0f, Math::Cos2pi(phase), Math::Sin2pi(phase)};
         }
+    }
+
+    float GetMorphedOutput(float blend) const
+    {
+        MorphWeights weights = GetMorphWeights(blend);
+        return m_lowPass * weights.m_lowPass +
+            m_bandPass * weights.m_bandPass +
+            m_highPass * weights.m_highPass;
     }
 
     void SetCutoff(float cutoff)

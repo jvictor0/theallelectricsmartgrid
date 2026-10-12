@@ -3,7 +3,7 @@
 
 #include "AHD.hpp"
 #include "BitCrush.hpp"
-#include "CombFilterWithOnePole.hpp"
+#include "TunedDecayComb.hpp"
 #include "Math.hpp"
 #include "Noise.hpp"
 #include "PhaseUtils.hpp"
@@ -18,9 +18,9 @@
 // Physical modeling source machine.
 //
 // Signal chain:
-//   White Noise -> Sample Rate Reducer -> 2-pole SVF (with morph) 
-//   -> AHD envelope (inverted, exponential) amplitude modulation
-//   -> Comb Filter with one-pole damping in feedback loop
+//   White Noise -> 2-pole SVF (with morph)
+//   -> AHD envelope (inverted, exponential) -> Sample Rate Reducer
+//   -> Tuned decay comb with phase-compensated two-pole low-pass damping
 //
 struct PhysicalModelingSource
 {
@@ -32,7 +32,7 @@ struct PhysicalModelingSource
         std::atomic<float> m_mainSVFG;
         std::atomic<float> m_mainSVFK;
         std::atomic<float> m_mainSVFMorph;
-        CombFilterWithOnePole::UIState m_combFilter;
+        TunedDecayComb::UIState m_combFilter;
 
         UIState()
             : m_mainSVFG(0.0f)
@@ -46,27 +46,11 @@ struct PhysicalModelingSource
             float freq = std::max(0.0f, std::min(0.5f, normalizedFreq));
             float g = m_mainSVFG.load();
             float k = m_mainSVFK.load();
-            float morph = std::max(0.0f, std::min(1.0f, m_mainSVFMorph.load()));
-
-            std::complex<float> svfTransfer(0.0f, 0.0f);
-            if (morph <= 0.5f)
-            {
-                float blend = morph * 2.0f;
-                float lpGain = Math::Cos2pi(blend);
-                float bpGain = Math::Sin2pi(blend);
-                svfTransfer =
-                    lpGain * LinearStateVariableFilter::LowPassTransferFunction(g, k, freq) +
-                    bpGain * LinearStateVariableFilter::BandPassTransferFunction(g, k, freq);
-            }
-            else
-            {
-                float blend = (morph - 0.5f) * 2.0f;
-                float bpGain = Math::Cos2pi(blend);
-                float hpGain = Math::Sin2pi(blend);
-                svfTransfer =
-                    bpGain * LinearStateVariableFilter::BandPassTransferFunction(g, k, freq) +
-                    hpGain * LinearStateVariableFilter::HighPassTransferFunction(g, k, freq);
-            }
+            auto weights = LinearStateVariableFilter::GetMorphWeights(m_mainSVFMorph.load());
+            std::complex<float> svfTransfer =
+                weights.m_lowPass * LinearStateVariableFilter::LowPassTransferFunction(g, k, freq) +
+                weights.m_bandPass * LinearStateVariableFilter::BandPassTransferFunction(g, k, freq) +
+                weights.m_highPass * LinearStateVariableFilter::HighPassTransferFunction(g, k, freq);
 
             return svfTransfer * m_combFilter.TransferFunctionValue(freq);
         }
@@ -93,9 +77,9 @@ struct PhysicalModelingSource
     //
     AHD m_ahd;
 
-    // Comb filter with one-pole damping in feedback
+    // Tuned decay comb with phase-compensated two-pole low-pass damping
     //
-    CombFilterWithOnePole m_combFilter;
+    TunedDecayComb m_combFilter;
 
     // Output buffers
     //
@@ -106,7 +90,7 @@ struct PhysicalModelingSource
     SampleTop m_top;
 
     // Slewed parameters for oversampled processing
-    // Note: Comb filter params (freq, feedback, damping) are slewed inside the comb filter
+    // The comb crossfades parameter changes internally
     //
     ParamSlew m_sampleRateReducerFreqSlew;
     ParamSlew m_mainSVFCutoffSlew;
@@ -125,7 +109,7 @@ struct PhysicalModelingSource
         PhaseUtils::ExpParam m_sampleRateReducerFreq;
 
         // Row 1: AHD envelope (inverted like amp section)
-        // InputSetter allows 100 µs min for very short attack/decay
+        // InputSetter allows 100 µs minimum attack and 500 µs minimum decay
         //
         AHD::SlewedInputSetter m_ahdInputSetter;
         AHD::Input m_ahdInput;
@@ -136,21 +120,26 @@ struct PhysicalModelingSource
         float m_combFeedback;
 
         // Comb damping params
-        // Cutoff: normalized frequency [0, 0.5], converted to alpha internally
+        // Prototype -3 dB cutoff: exponential 2x to 128x pitch, default 16x
+        // Variable Q retains a unity peak and exact stationary fundamental decay
+        // Clamped below processing Nyquist; only exact DECAY center bypasses
         //
-        PhaseUtils::ExpParam m_combDampenCutoff;
+        float m_combDamp;
 
         Input()
             : m_baseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
             , m_mainSVFCutoff(0.001f, 0.499f)
             , m_mainSVFMorph(0.5f)
-            , m_sampleRateReducerFreq(0.001f, 2.0f)
-            , m_ahdInputSetter(x_oversample, 0.0001f, 2.5f, 0.0001f, 2.5f)
+            // Headroom lets the parameter slew reach the full-rate bypass.
+            //
+            , m_sampleRateReducerFreq(0.001f, 4.0001f)
+            , m_ahdInputSetter(x_oversample, 0.0001f, 2.5f, 0.0005f, 2.5f)
             , m_combFeedback(0.0f)
-            , m_combDampenCutoff(0.001f, 0.499f)
+            , m_combDamp(0.5f)
         {
             m_mainSVFResonance.SetBaseByCenter(0.125);
             m_ahdInput.m_amplitudePolarity = false;
+            m_ahdInput.m_releaseFactor = 1.0f / static_cast<float>(x_oversample);
         }
 
         void SetAHD(float attack, float hold, float decay, float amplitude)
@@ -161,7 +150,6 @@ struct PhysicalModelingSource
 
     PhysicalModelingSource()
         : m_noise(42)
-        , m_combFilter(x_oversample)
         , m_output(0.0f)
         , m_top(false)
         , m_sampleRateReducerFreqSlew(x_oversample)
@@ -180,25 +168,13 @@ struct PhysicalModelingSource
         m_mainSVFResonanceSlew.Update(input.m_mainSVFResonance.m_expParam);
         m_mainSVFMorphSlew.Update(input.m_mainSVFMorph);
 
-        // Set comb filter params once per block
-        // Comb filter internally slews feedback and compensated delay
-        // Adjust frequencies for oversample rate
+        // Update exact comb coefficients outside the oversampled loop.
         //
-        float adjustedBaseFreq = input.m_baseFreq / x_oversample;
-        float adjustedDampenCutoff = std::min(0.499f, input.m_combDampenCutoff.m_expParam / x_oversample);
-
-        // Convert cutoff to one-pole alpha
-        //
-        float alpha = OPLowPassFilter::AlphaFromNatFreq(adjustedDampenCutoff);
-
-        m_combFilter.SetDampingTime(
-            input.m_combFeedback,
-            48000.0f,
-            static_cast<float>(x_oversample));
-
         m_combFilter.SetParams(
-            adjustedBaseFreq,
-            alpha);
+            input.m_baseFreq / x_oversample,
+            input.m_combFeedback,
+            input.m_combDamp,
+            48000.0 * x_oversample);
 
         for (size_t i = 0; i < x_uBlockSize; ++i)
         {
@@ -240,7 +216,7 @@ struct PhysicalModelingSource
             m_sampleRateReducer.SetFreq(sampleRateReducerFreq / x_oversample);
             float prefiltered = m_sampleRateReducer.Process(envelopedSignal);
 
-            // 5. Comb filter with one-pole damping in feedback
+            // 5. Tuned decay comb with phase-compensated two-pole low-pass damping
             //
             m_output = m_combFilter.Process(prefiltered);
             m_uBlockOutput[i] = m_output;
@@ -312,6 +288,6 @@ struct PhysicalModelingSource
 
         // Comb damping params
         //
-        input.m_combDampenCutoff.Update(encoders.GetValueNoSlew(Param::PMCombDampenCutoff, voiceIx));
+        input.m_combDamp = encoders.GetValueNoSlew(Param::PMCombDampenCutoff, voiceIx);
     }
 };

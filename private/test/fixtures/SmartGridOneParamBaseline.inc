@@ -1,4 +1,4 @@
-// Original twelve-field parameter baseline, with approved modulator palette changes.
+// Original twelve-field parameter baseline, with approved palette and PM defaults.
 // It is deliberately independent of the production catalogue include and macro signature.
 //
 
@@ -11,16 +11,16 @@ BASELINE_PARAM(VPSD2, D2, Source, 2, 1, 0.5, "VCO 2 D", SmartGrid::Color::Red, 0
 BASELINE_PARAM(PhaseMod1, PM1, Source, 3, 0, 0, "VCO 2->1 PM", SmartGrid::Color::Red, 0x01, 0xFF, 0, false)
 BASELINE_PARAM(PhaseMod2, PM2, Source, 3, 1, 0, "VCO 1->2 PM", SmartGrid::Color::Red, 0x01, 0xFF, 0, false)
 BASELINE_PARAM(OscillatorMix, MIX, Source, 0, 2, 0, "VCO 1 Fade", SmartGrid::Color::Yellow, 0x01, 0xFF, 0, false)
-BASELINE_PARAM(PMMainSVFCutoff, CUT, Source, 0, 0, 0.5, "PM SVF Cutoff", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
-BASELINE_PARAM(PMMainSVFResonance, RES, Source, 1, 0, 0.3, "PM SVF Resonance", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
-BASELINE_PARAM(PMMainSVFMorph, MRPH, Source, 2, 0, 0.5, "PM SVF Morph", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
-BASELINE_PARAM(PMSampleRateReduction, RATE, Source, 3, 0, 0.5, "PM Sample Rate", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
+BASELINE_PARAM(PMMainSVFCutoff, CUT, Source, 0, 0, 1, "PM SVF Cutoff", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
+BASELINE_PARAM(PMMainSVFResonance, RES, Source, 1, 0, 0, "PM SVF Resonance", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
+BASELINE_PARAM(PMMainSVFMorph, MRPH, Source, 2, 0, 0, "PM SVF Morph", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
+BASELINE_PARAM(PMSampleRateReduction, RATE, Source, 3, 0, 0, "PM Sample Rate", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
 BASELINE_PARAM(PMAHDAttack, ATK, Source, 0, 1, 0, "PM AHD Attack", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
-BASELINE_PARAM(PMAHDHold, HOLD, Source, 1, 1, 0.5, "PM AHD Hold", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
-BASELINE_PARAM(PMAHDDecay, DEC, Source, 2, 1, 0.3, "PM AHD Decay", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
+BASELINE_PARAM(PMAHDHold, HOLD, Source, 1, 1, 0.25, "PM AHD Hold", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
+BASELINE_PARAM(PMAHDDecay, DEC, Source, 2, 1, 0, "PM AHD Decay", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
 BASELINE_PARAM(PMAmplitude, AMP, Source, 3, 1, 1, "PM Amplitude", SmartGrid::Color::Red, 0x04, 0xFF, 0, false)
-BASELINE_PARAM(PMCombFeedback, FDBK, Source, 0, 2, 0.5, "PM Comb Feedback", SmartGrid::Color::Yellow, 0x04, 0xFF, 0, false)
-BASELINE_PARAM(PMCombDampenCutoff, DAMP, Source, 0, 3, 0.5, "PM Comb Dampen Cutoff", SmartGrid::Color::Yellow, 0x04, 0xFF, 0, false)
+BASELINE_PARAM(PMCombFeedback, FDBK, Source, 0, 2, 0.8, "PM Comb Feedback", SmartGrid::Color::Yellow, 0x04, 0xFF, 0, false)
+BASELINE_PARAM(PMCombDampenCutoff, DAMP, Source, 0, 3, 0.5, "PM Comb Damping Cutoff", SmartGrid::Color::Yellow, 0x04, 0xFF, 0, false)
 BASELINE_PARAM(FilterDrive, DRV, Source, 2, 2, 0, "Saturation", SmartGrid::Color::Green, 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(BitReduction, BR, Source, 1, 2, 0, "Bit Reduction", SmartGrid::Color::Green, 0x01, 0xFF, 0, false)
 BASELINE_PARAM(SampleRateReduction, SRR, Source, 3, 2, 0, "Sample Rate Reduction", SmartGrid::Color::Green, 0xFF, 0xFF, 0, false)

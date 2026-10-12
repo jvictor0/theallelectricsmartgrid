@@ -22,6 +22,119 @@
 
 #include "AHD.hpp"
 
+DOCTEST_TEST_CASE("AHD: consumes simultaneous events once and accepts the next trigger")
+{
+    TheoryOfTimeBase time;
+    AHD envelope;
+    AHD::Input input;
+    input.m_theoryOfTime = &time;
+    input.m_envelopePeriodSamples = 8.0;
+    input.m_attackIncrement = 0.125f;
+    input.m_decayIncrement = 0.125f;
+    input.m_trig = true;
+    input.m_release = true;
+    time.m_samples[0].m_modulatedPhase = 0.25;
+
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.25f));
+    DOCTEST_CHECK_FALSE(input.m_trig);
+    DOCTEST_CHECK_FALSE(input.m_release);
+    DOCTEST_CHECK(envelope.m_triggered);
+    DOCTEST_CHECK(envelope.m_state == AHD::State::Running);
+
+    time.m_samples[0].m_modulatedPhase = 0.5;
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.5f));
+    DOCTEST_CHECK(envelope.m_startOutput == 0.0f);
+    DOCTEST_CHECK_FALSE(envelope.m_triggered);
+    DOCTEST_CHECK(envelope.m_state == AHD::State::Running);
+
+    input.m_startGlobalPhase = 0.5;
+    input.m_trig = true;
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.5f));
+    DOCTEST_CHECK(envelope.m_startOutput == doctest::Approx(0.5f));
+    DOCTEST_CHECK_FALSE(input.m_trig);
+    DOCTEST_CHECK(envelope.m_triggered);
+}
+
+DOCTEST_TEST_CASE("AHD: consumes release even while idle")
+{
+    AHD envelope;
+    AHD::Input input;
+    input.m_release = true;
+    DOCTEST_CHECK(envelope.Process(input) == 0.0f);
+    DOCTEST_CHECK_FALSE(input.m_release);
+    DOCTEST_CHECK(envelope.m_state == AHD::State::Idle);
+
+    envelope.m_state = AHD::State::Running;
+    envelope.m_rawOutput = 1.0f;
+    input.m_decayIncrement = 0.125f;
+    input.m_release = true;
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.875f));
+    DOCTEST_CHECK_FALSE(input.m_release);
+    DOCTEST_CHECK(envelope.m_state == AHD::State::Release);
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.75f));
+}
+
+DOCTEST_TEST_CASE("AHD: explicit release duration is measured in base samples")
+{
+    AHD base;
+    AHD oversampled;
+    base.m_state = AHD::State::Running;
+    oversampled.m_state = AHD::State::Running;
+    base.m_rawOutput = 1.0f;
+    oversampled.m_rawOutput = 1.0f;
+    AHD::Input input;
+    input.m_release = true;
+    input.m_decayIncrement = 1.0f / 8.0f;
+    AHD::Input oversampledInput = input;
+    oversampledInput.m_releaseFactor = 0.25f;
+
+    for (size_t sample = 0; sample < 8; ++sample)
+    {
+        base.Process(input);
+        for (size_t subSample = 0; subSample < 4; ++subSample)
+        {
+            oversampled.Process(oversampledInput);
+        }
+
+        DOCTEST_CHECK(base.m_rawOutput == doctest::Approx(1.0f - static_cast<float>(sample + 1) / 8.0f));
+        DOCTEST_CHECK(oversampled.m_rawOutput == doctest::Approx(base.m_rawOutput));
+        DOCTEST_CHECK(oversampled.m_state == base.m_state);
+        DOCTEST_CHECK_FALSE(input.m_release);
+        DOCTEST_CHECK_FALSE(oversampledInput.m_release);
+    }
+
+    DOCTEST_CHECK(base.m_state == AHD::State::Idle);
+    DOCTEST_CHECK(oversampled.m_state == AHD::State::Idle);
+    DOCTEST_CHECK(base.m_changed);
+    DOCTEST_CHECK(oversampled.m_changed);
+}
+
+DOCTEST_TEST_CASE("AHD: release factor leaves phase-driven attack hold and decay unchanged")
+{
+    TheoryOfTimeBase time;
+    AHD::Input input;
+    input.m_theoryOfTime = &time;
+    input.m_startGlobalPhase = 0.0;
+    input.m_envelopePeriodSamples = 1000.0;
+    input.m_attackIncrement = 1.0f / 100.0f;
+    input.m_holdLoops = 0.1;
+    input.m_decayIncrement = 1.0f / 100.0f;
+    AHD::Input oversampledInput = input;
+    oversampledInput.m_releaseFactor = 0.25f;
+    const double x_phases[] = {0.05, 0.15, 0.25};
+    const float x_outputs[] = {0.5f, 1.0f, 0.5f};
+    for (size_t stage = 0; stage < 3; ++stage)
+    {
+        time.m_samples[0].m_modulatedPhase = x_phases[stage];
+        AHD base;
+        AHD oversampled;
+        base.m_state = AHD::State::Running;
+        oversampled.m_state = AHD::State::Running;
+        DOCTEST_CHECK(base.Process(input) == doctest::Approx(x_outputs[stage]));
+        DOCTEST_CHECK(oversampled.Process(oversampledInput) == doctest::Approx(x_outputs[stage]));
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helper: set up a minimal AHD + TimeRig + AHDControl and run for N samples.
 // Returns the per-sample output vector.
@@ -89,9 +202,6 @@ struct AHDRig
     {
         input.m_samplePosition = static_cast<float>(rig.CurrentUBlockIndex());
         float out = ahd.Process(input);
-        // Clear trig after first Process (was a one-shot edge).
-        //
-        input.m_trig = false;
         rig.AdvanceSample();
         return out;
     }
