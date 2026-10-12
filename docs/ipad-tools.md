@@ -38,6 +38,10 @@ stops the command; fix the reported cause and rerun it from the beginning.
 
 Other targets are `ios-build`, `ios-install`, and the compatibility alias
 `deploy-ios`. `ios-install` installs the existing build without launching it.
+All three use `build/xcode/ios/Release/Products/SmartGridOne.app` by default;
+`CONFIG=Debug` selects the separate Debug directory. Build caches and products
+stay in this checkout. See [building.md](building.md) for incremental builds,
+configuration selection, and cleanup.
 
 ```bash
 make ios-deploy IPAD_HOST=192.168.1.80 IOS_DEVICE=00008122-001439681EA1001C

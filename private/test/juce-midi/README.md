@@ -3,9 +3,7 @@
 Run on macOS with Xcode command-line tools, CMake, pkg-config, and libFLAC installed. Initialize the pinned JUCE submodule first.
 
 ```sh
-cmake -S private/test/juce-midi -B /tmp/smartgrid-midi-tests
-cmake --build /tmp/smartgrid-midi-tests -j 6
-ctest --test-dir /tmp/smartgrid-midi-tests --output-on-failure
+make midi-test JOBS=6
 ```
 
 The test process creates and disposes only its own CoreMIDI virtual endpoints. It exercises the real application handlers, wrapper, sender, and generated JUCE overlay; no physical controller or audio device is needed. A desktop sandbox must permit CoreMIDI access.

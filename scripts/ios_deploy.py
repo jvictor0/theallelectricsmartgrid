@@ -16,12 +16,11 @@ from ipad_device import connect_developer, connect_ipad, device_host, device_udi
 APP_BUNDLE_ID = "com.theallelectricsmartgrid.smartgridone"
 DEFAULT_APP = (
     Path(__file__).resolve().parents[1]
-    / "JUCE"
-    / "SmartGridOne"
-    / "Builds"
-    / "iOS"
     / "build"
+    / "xcode"
+    / "ios"
     / "Release"
+    / "Products"
     / "SmartGridOne.app"
 )
 

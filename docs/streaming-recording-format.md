@@ -380,14 +380,17 @@ before allocator/logging overhead. A longer disk stall can
 produce an incomplete recording and visible error. Source-width switches keep
 track IDs and types. Noise mode zeroes skipped stems and still records masters.
 
-Build and run the standalone recorder measurement after configuring CMake tests:
+Build and run the standalone recorder measurement from the checkout root. Keep
+the generated header, executable, and measurements in the worktree:
 
 ```sh
-c++ -std=c++17 -O2 -Iprivate/src -I/tmp/smartgrid-recording-build/generated \
+mkdir -p build/tools build/results/recording-bench
+python3 scripts/generate_build_info.py . build/tools/SmartGridBuildInfo.hpp
+c++ -std=c++17 -O2 -Iprivate/src -Ibuild/tools \
   -DSMARTGRID_RECORDING_SYSTEM_FLAC=1 $(pkg-config --cflags flac) \
   private/test/tools/benchmark_recording.cpp private/src/RecordingFlacCodec.cpp \
-  $(pkg-config --libs flac) -o /tmp/benchmark_recording -pthread
-/tmp/benchmark_recording /tmp/recording-bench audio 30
+  $(pkg-config --libs flac) -o build/tools/benchmark_recording -pthread
+build/tools/benchmark_recording build/results/recording-bench audio 30
 ```
 
 Modes are `silence`, `audio` (sine audio with moving pans), and `noise` (independent

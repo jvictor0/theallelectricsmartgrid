@@ -148,9 +148,7 @@ within the displayed pitch range.
 Native drawing and range regressions live in `private/test/juce-visualizers`:
 
 ```sh
-cmake -S private/test/juce-visualizers -B /tmp/smartgrid-visualizer-tests
-cmake --build /tmp/smartgrid-visualizer-tests -j 6
-ctest --test-dir /tmp/smartgrid-visualizer-tests --output-on-failure
+make visualizers-test JOBS=6
 ```
 
 See [Nonagon](nonagon.md), [LameJuis](lamejuis.md), and

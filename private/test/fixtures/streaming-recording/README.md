@@ -37,26 +37,27 @@ boundaries. Audio extraction tests deliberately ignore malformed event semantics
 The real-engine test records all five types across a four-frame block boundary.
 The existing seeded `sys_patch_roundtrip` test now runs with recording enabled
 and can export its two complete live-patch checkpoints for Python comparison.
-Generated recordings stay in temporary directories; no sample assets or
+Generated recordings stay in ignored result directories; no sample assets or
 sample-recording directories are added to version control.
 
-Run the cross-language checks with an already configured CMake test build:
+Run the cross-language checks from the checkout root, reusing the core build:
 
 ```sh
-cmake --build /tmp/smartgrid-recording-v2-build -j 4
-SMARTGRID_STATE_RECORDING_FIXTURE=/tmp/parameter-events.sgrec \
-SMARTGRID_RANDOM_PARAM_FIXTURE=/tmp/random-parameters.sgrec \
-SMARTGRID_RECORDING_FIXTURE_OUTPUT=/tmp/mixer-recording.sgrec \
-  /tmp/smartgrid-recording-v2-build/smartgrid_tests \
+make core-build JOBS=4
+mkdir -p build/results/recording-fixtures
+SMARTGRID_STATE_RECORDING_FIXTURE="$PWD/build/results/recording-fixtures/parameter-events.sgrec" \
+SMARTGRID_RANDOM_PARAM_FIXTURE="$PWD/build/results/recording-fixtures/random-parameters.sgrec" \
+SMARTGRID_RECORDING_FIXTURE_OUTPUT="$PWD/build/results/recording-fixtures/mixer-recording.sgrec" \
+  build/core/RelWithDebInfo/smartgrid_tests \
   --test-case='recording engine:*,sys_patch_roundtrip: seeded*,recording mixer:*'
-SMARTGRID_STATE_RECORDING_FIXTURE=/tmp/parameter-events.sgrec \
-SMARTGRID_RANDOM_PARAM_FIXTURE=/tmp/random-parameters.sgrec \
-SMARTGRID_RECORDING_FIXTURE_OUTPUT=/tmp/mixer-recording.sgrec \
+SMARTGRID_STATE_RECORDING_FIXTURE="$PWD/build/results/recording-fixtures/parameter-events.sgrec" \
+SMARTGRID_RANDOM_PARAM_FIXTURE="$PWD/build/results/recording-fixtures/random-parameters.sgrec" \
+SMARTGRID_RECORDING_FIXTURE_OUTPUT="$PWD/build/results/recording-fixtures/mixer-recording.sgrec" \
   python3 -m unittest discover -s scripts/tests -p test_sgrec.py
-python3 scripts/extract_recording.py patch /tmp/parameter-events.sgrec \
-  --sample 3 -o /tmp/reconstructed-parameters.json
-SMARTGRID_RECONSTRUCTED_PATCH=/tmp/reconstructed-parameters.json \
-  /tmp/smartgrid-recording-v2-build/smartgrid_tests \
+python3 scripts/extract_recording.py patch build/results/recording-fixtures/parameter-events.sgrec \
+  --sample 3 -o build/results/recording-fixtures/reconstructed-parameters.json
+SMARTGRID_RECONSTRUCTED_PATCH="$PWD/build/results/recording-fixtures/reconstructed-parameters.json" \
+  build/core/RelWithDebInfo/smartgrid_tests \
   --test-case='recording engine: reconstructed*'
 ```
 
@@ -67,7 +68,7 @@ records and checks successful completion even without exporting a fixture.
 
 ### Recorded patch-load checkpoints
 
-`SMARTGRID_PATCH_LOAD_FIXTURE=/tmp/smartgrid-patch-loads.sgrec` exports the
+`SMARTGRID_PATCH_LOAD_FIXTURE="$PWD/build/results/recording-fixtures/patch-loads.sgrec"` exports the
 `recording engine: bulk patch replay checkpoints include loads reloads and resets`
 fixture and a `.json` array of live `{sample, patch}` checkpoints. Set the same
 environment variable when running `scripts/tests/test_sgrec.py` to verify v3

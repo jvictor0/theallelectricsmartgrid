@@ -6,7 +6,8 @@ Defines the maintained build entry points for the repository so obsolete wrapper
 
 ### Requirement: Supported Build Entry Points
 The repository SHALL define the maintained build entry points as the SmartGridOne
-JUCE app builds, including iOS, and the standalone CMake test executable. The
+JUCE app builds, including iOS, the standalone CMake test executable, and the
+macOS JUCE visualizer and MIDI integration tests. The
 repository root and `JUCE/SmartGridOne` Makefiles SHALL expose `ios-build`,
 `ios-install`, and `ios-deploy`, with `deploy-ios` retained as a deployment alias.
 
@@ -18,7 +19,8 @@ repository root and `JUCE/SmartGridOne` Makefiles SHALL expose `ios-build`,
 
 #### Scenario: Maintained tests are discoverable
 - **WHEN** a developer inspects test build files
-- **THEN** the maintained test entry point is the standalone CMake target under `private/test`
+- **THEN** the standalone CMake target under `private/test` is available through `make core-test`
+- **AND** `make visualizers-test` and `make midi-test` run the macOS JUCE suites
 
 #### Scenario: Run an iOS goal from the root
 - **WHEN** the user runs an iOS Make goal from the repository root
@@ -28,6 +30,41 @@ repository root and `JUCE/SmartGridOne` Makefiles SHALL expose `ios-build`,
 - **WHEN** the user runs plain `make` from the repository root
 - **THEN** the root `all` target forwards to the SmartGridOne JUCE Makefile's `all` target
 - **AND** root `build`, `clean`, and `run` forward to the equivalent JUCE app targets
+
+### Requirement: Incremental output belongs to the invoking worktree
+Make targets SHALL resolve paths from their checkout rather than the caller's
+working directory. Default outputs SHALL use stable ignored directories under
+`build/core/<configuration>`, `build/visualizers/<configuration>`,
+`build/midi/<configuration>`, `build/xcode/macos/<configuration>`, and
+`build/xcode/ios/<configuration>`. Repeated builds SHALL reuse those directories.
+Core tests SHALL retain the RelWithDebInfo default with assertions enabled.
+
+#### Scenario: Invoke Make from another directory
+- **WHEN** Make is invoked with `-C` or an absolute `-f` path to either Makefile
+- **THEN** its build, run, and install commands use outputs belonging to that Makefile's checkout
+- **AND** Xcode DerivedData, intermediates, precompiled headers, and products stay under that checkout's canonical Xcode build directory
+
+#### Scenario: Repeat a build after validation
+- **WHEN** a target is built again with the same configuration
+- **THEN** it uses the same cache, intermediates, and product paths incrementally
+- **AND** no new temporary build directory is allocated
+
+### Requirement: Scoped cleanup and worktree completion
+`make clean` SHALL remove only the canonical disposable trees documented in
+`docs/building.md`, across all configurations, without invoking Xcode. It SHALL
+preserve unique results stored under `build/results/`, sources, dependencies
+outside those trees, and unrelated outputs. Worktree completion SHALL preserve
+needed ignored results after validation and landing and before removal through
+the owning worktree tool; a preceding clean SHALL NOT be required.
+
+#### Scenario: Retain a worktree and reclaim its build output
+- **WHEN** `make clean` runs without active builds or tests
+- **THEN** it removes the documented canonical output trees
+- **AND** it leaves `build/results/`, dependencies, legacy output, and other worktrees alone
+
+#### Scenario: A canonical directory is a symlink
+- **WHEN** a cleanup target or its ancestor below the checkout root is a symlink
+- **THEN** cleanup fails before deleting any target
 
 ### Requirement: Root Makefile has no Rack SDK integration
 The root Makefile SHALL NOT contain Rack SDK includes, `RACK_DIR` configuration,
