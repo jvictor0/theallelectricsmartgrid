@@ -36,6 +36,19 @@ namespace SmartGrid
                 message.m_routeId = static_cast<int>(TheNonagonSquiggleBoyWrldBldr::Routes::Encoder);
                 return message;
             }
+            else if (msg.Channel() == 8)
+            {
+                if (msg.Status() != BasicMidi::x_statusCC || msg.GetCC() >= 16
+                    || msg.GetValue() > 127 || msg.GetValue() == 64)
+                {
+                    return MessageIn();
+                }
+
+                const auto pos = EncoderMidi::NoteToPos(msg.GetCC());
+                const int routeId = static_cast<int>(TheNonagonSquiggleBoyWrldBldr::Routes::Encoder);
+                return MessageIn(msg.m_timestamp, routeId, MessageIn::Mode::EncoderExponentialDelta,
+                    pos.first, pos.second, msg.GetValue());
+            }
             else if (msg.Channel() == 2)
             {
                 int routeId = static_cast<int>(TheNonagonSquiggleBoyWrldBldr::Routes::Analog);

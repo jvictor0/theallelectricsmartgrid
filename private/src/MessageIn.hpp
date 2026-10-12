@@ -23,7 +23,8 @@ namespace SmartGrid
             MidiClock,
             MidiStart,
             MidiContinue,
-            MidiStop
+            MidiStop,
+            EncoderExponentialDelta
         };
 
         size_t m_timestamp;

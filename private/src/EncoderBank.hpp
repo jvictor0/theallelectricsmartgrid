@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Encoder.hpp"
+#include "ExponentialEncoderDelta.hpp"
 #include "BitSet.hpp"
 #include "Filter.hpp"
 #include "MessageIn.hpp"
@@ -1472,6 +1473,19 @@ struct EncoderBankInternal : public EncoderGrid
             if (cell && cell->m_sharedEncoderState)
             {
                 cell->HandleIncDec(msg.m_timestamp, msg.m_amount);
+            }
+        }
+        else if (msg.m_mode == MessageIn::Mode::EncoderExponentialDelta)
+        {
+            if (msg.m_amount < 0 || msg.m_amount > 127 || msg.m_amount == 64)
+            {
+                return;
+            }
+
+            BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(msg.m_x, msg.m_y));
+            if (cell && cell->m_sharedEncoderState)
+            {
+                cell->Increment(static_cast<float>(ExponentialEncoderDelta::Decode(static_cast<uint8_t>(msg.m_amount))));
             }
         }
         else if (msg.m_mode == MessageIn::Mode::EncoderSet)
