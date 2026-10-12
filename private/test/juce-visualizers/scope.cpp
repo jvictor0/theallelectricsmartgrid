@@ -40,7 +40,7 @@ DOCTEST_TEST_CASE("Scope: reduced point counts preserve the time axis and end ma
     }
 }
 
-DOCTEST_TEST_CASE("Delay waveform: reduced columns retain peaks from every source bin")
+DOCTEST_TEST_CASE("Delay waveform: full resolution retains peaks in individual source bins")
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState.m_delayUIState;
@@ -51,22 +51,23 @@ DOCTEST_TEST_CASE("Delay waveform: reduced columns retain peaks from every sourc
         snapshot = QuadDelay::UISnapshot();
         for (auto& lane : snapshot.m_delayEnvelopeState)
         {
-            for (size_t column : {0, 64, 255})
+            for (size_t firstBin : {0, 256, 1020})
             {
-                lane.m_maxEnvelope[column * 4 + offset] = 1;
-                lane.m_minEnvelope[column * 4 + (offset + 1) % 4] = -1;
+                lane.m_maxEnvelope[firstBin + offset] = 1;
+                lane.m_minEnvelope[firstBin + offset] = -1;
             }
         }
 
         state.CommitSnapshot();
         QuadDelayEnvelopeVisualizerComponent visualizer(ui.get());
-        juce::Image image(juce::Image::ARGB, 256, 400, true);
+        juce::Image image(juce::Image::ARGB, 1024, 400, true);
         juce::Graphics g(image);
         visualizer.Draw(g, image.getBounds());
         for (int lane = 0; lane < 4; ++lane)
         {
-            for (int x : {0, 64, 255})
+            for (int firstBin : {0, 256, 1020})
             {
+                int x = firstBin + static_cast<int>(offset);
                 DOCTEST_CHECK(image.getPixelAt(x, lane * 100 + 5).getRed() > 100);
                 DOCTEST_CHECK(image.getPixelAt(x, lane * 100 + 95).getRed() > 100);
             }
