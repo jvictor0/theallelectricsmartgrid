@@ -12,6 +12,9 @@
 #include <thread>
 #include <unistd.h>
 
+static_assert(sizeof(AsyncLogQueue) < 4096,
+    "The logger must not embed its multi-megabyte message buffers");
+
 struct StdoutCapture
 {
     std::filesystem::path m_path;
@@ -115,6 +118,27 @@ DOCTEST_TEST_CASE("async logger routes different thread ids to separate queues")
     DOCTEST_CHECK(AsyncLogQueue::s_instance.QueueSizeForTesting(ThreadId::Audio) == 1);
     DOCTEST_CHECK(AsyncLogQueue::s_instance.QueueSizeForTesting(ThreadId::MidiSender) == 1);
     DOCTEST_CHECK(AsyncLogQueue::s_instance.QueueSizeForTesting(ThreadId::Unknown) == 0);
+}
+
+DOCTEST_TEST_CASE("async logger construction prepares every queue for immediate logging")
+{
+    AsyncLogQueue logger;
+
+    for (size_t i = 0; i < x_threadIdCount; ++i)
+    {
+        ThreadId threadId = static_cast<ThreadId>(i);
+        ScopedThreadId scopedThreadId(threadId);
+        DOCTEST_CHECK(logger.QueueSizeForTesting(threadId) == 0);
+        DOCTEST_CHECK(logger.MissedCountForTesting(threadId) == 0);
+
+        logger.Log("startup message %zu", i);
+
+        DOCTEST_CHECK(logger.QueueSizeForTesting(threadId) == 1);
+        LogMessage* message = logger.m_queues[i].PeekPtr();
+        DOCTEST_REQUIRE(message != nullptr);
+        DOCTEST_CHECK(message->m_threadId == threadId);
+        DOCTEST_CHECK(std::string(message->m_message) == "startup message " + std::to_string(i));
+    }
 }
 
 DOCTEST_TEST_CASE("async logger drains queues round robin")

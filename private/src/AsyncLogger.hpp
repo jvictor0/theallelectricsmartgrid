@@ -8,6 +8,7 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <string>
 
 #include "CircularQueue.hpp"
@@ -70,7 +71,10 @@ struct AsyncLogQueue
 {
     static constexpr size_t x_queueSize = 16384;
 
-    std::array<CircularQueue<LogMessage, x_queueSize>, x_threadIdCount> m_queues;
+    // Allocate the large queue array at startup so every translation unit does
+    // not emit its storage as part of the inline singleton. Logging never allocates.
+    //
+    std::unique_ptr<CircularQueue<LogMessage, x_queueSize>[]> m_queues;
     std::array<std::atomic<size_t>, x_threadIdCount> m_missed;
     size_t m_nextDrainIndex;
     std::string m_logDirectory;
@@ -78,7 +82,7 @@ struct AsyncLogQueue
     std::ofstream m_logFile;
 
     AsyncLogQueue()
-        : m_queues()
+        : m_queues(std::make_unique<CircularQueue<LogMessage, x_queueSize>[]>(x_threadIdCount))
         , m_missed()
         , m_nextDrainIndex(0)
         , m_logDirectory()
