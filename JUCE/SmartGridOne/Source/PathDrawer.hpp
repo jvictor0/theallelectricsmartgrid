@@ -101,7 +101,6 @@ struct PathDrawer
             float screenY = m_height * (1 - y);
             float x = static_cast<float>(j) / static_cast<float>(x_numPoints);
             float screenX = m_width * x;
-            g.setColour(colour);
             if (j == 0)
             {
                 path.startNewSubPath(m_xMin + screenX, m_yMin + screenY);
@@ -191,13 +190,14 @@ struct PathDrawer
         juce::Path path;
         ScopeReaderFn fn(&scopeReader, yScale, yOffset);
         double transferSample = scopeReader.m_transferXSample;
+        size_t numPoints = scopeReader.m_numXSamples;
 
-        for (size_t j = 0; j < x_numPoints; ++j)
+        for (size_t j = 0; j < numPoints; ++j)
         {
             double sample = static_cast<double>(j);
             float y = fn(sample);
             float screenY = m_height * (1.0f - y);
-            float screenX = m_width * static_cast<float>(j) / static_cast<float>(x_numPoints);
+            float screenX = m_width * static_cast<float>(j) / static_cast<float>(numPoints);
             if (j == 0 || (sample - 1.0 < transferSample && transferSample <= sample))
             {
                 path.startNewSubPath(m_xMin + screenX, m_yMin + screenY);
@@ -220,8 +220,9 @@ struct PathDrawer
         float yOffset)
     {
         double transferSample = std::max(0.0, scopeReader.m_transferXSample - 1.0);
-        double clampedSample = std::min(transferSample, static_cast<double>(x_numPoints - 1));
-        double xFrac = clampedSample / static_cast<double>(x_numPoints - 1);
+        double lastSample = static_cast<double>(scopeReader.m_numXSamples - 1);
+        double clampedSample = std::min(transferSample, lastSample);
+        double xFrac = clampedSample / lastSample;
         float screenX = m_xMin + m_width * xFrac;
         float y = ScopeReaderFn(&scopeReader, yScale, yOffset)(clampedSample);
         float screenY = m_yMin + m_height * (1.0f - y);

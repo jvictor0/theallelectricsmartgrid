@@ -18,7 +18,8 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
 
     static constexpr size_t x_voicesPerTrack = 3;
     ScopeReaderFactory m_scopeReaderFactory;
-    static constexpr size_t x_numXSamples = 1024;
+    static constexpr size_t x_numAudioSamples = 1024;
+    static constexpr size_t x_numControlSamples = 256;
     std::atomic<size_t>* m_voiceIx;
     size_t m_scopeIx;
     ScopeWriter* m_scopeWriter;
@@ -34,7 +35,8 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
         ScopeType scopeType,
         TheNonagonSquiggleBoyInternal::UIState* uiState)
         : SmartGridOneMainVisualizerComponent()
-        , m_scopeReaderFactory(scopeWriter, uiState->m_squiggleBoyUIState.m_activeTrack.load(), scopeIx, x_numXSamples, 1)
+        , m_scopeReaderFactory(scopeWriter, uiState->m_squiggleBoyUIState.m_activeTrack.load(), scopeIx,
+            scopeType == ScopeType::Control ? x_numControlSamples : x_numAudioSamples, 1)
         , m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
         , m_scopeIx(scopeIx)
         , m_scopeWriter(scopeWriter)
@@ -118,7 +120,7 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
 
 struct PolyphonicScopeComponent : public SmartGridOneMainVisualizerComponent
 {
-    static constexpr size_t x_numXSamples = 1024;
+    static constexpr size_t x_numXSamples = ScopeComponent::x_numControlSamples;
 
     ScopeWriter* m_scopeWriter;
     size_t m_scopeIx;

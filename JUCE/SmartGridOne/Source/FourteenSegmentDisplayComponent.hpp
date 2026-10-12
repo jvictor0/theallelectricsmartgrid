@@ -183,6 +183,11 @@ struct FourteenSegmentDisplayComponent : public juce::Component
 
     void SetText(const juce::String& text)
     {
+        if (m_text == text)
+        {
+            return;
+        }
+
         m_text = text;
         repaint();
     }
@@ -191,12 +196,18 @@ struct FourteenSegmentDisplayComponent : public juce::Component
     {
         static constexpr float x_minPerceivedBrightness = 0.65f;
 
-        m_onColor = color.brighter(0.15f);
-        while (m_onColor.getPerceivedBrightness() < x_minPerceivedBrightness)
+        auto onColor = color.brighter(0.15f);
+        while (onColor.getPerceivedBrightness() < x_minPerceivedBrightness)
         {
-            m_onColor = m_onColor.brighter(0.1f);
+            onColor = onColor.brighter(0.1f);
         }
 
+        if (m_onColor == onColor)
+        {
+            return;
+        }
+
+        m_onColor = onColor;
         repaint();
     }
 

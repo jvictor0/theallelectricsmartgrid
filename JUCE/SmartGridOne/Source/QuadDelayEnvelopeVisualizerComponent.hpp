@@ -11,6 +11,8 @@ struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerC
     static constexpr float x_rangeSlewTimeSeconds = 10.0f;
     static constexpr float x_frameRate = 60.0f;
     static constexpr float x_rangeSlewAlpha = 0.00167f;
+    static constexpr size_t x_numColumns = 256;
+    static_assert(x_numColumns <= QuadDelay::x_positionalBufferSize);
 
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     float m_slewedMin{0.0f};
@@ -65,17 +67,25 @@ struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerC
             range = 1.0f;
         }
 
-        float segmentWidth = width / static_cast<float>(QuadDelay::x_positionalBufferSize);
+        float segmentWidth = width / static_cast<float>(x_numColumns);
         for (int delayLineIdx = 0; delayLineIdx < 4; ++delayLineIdx)
         {
             float sliceY = bounds.getY() + static_cast<float>(delayLineIdx) * sliceHeight;
             auto& envelopeState = snapshot.m_delayEnvelopeState[delayLineIdx];
 
-            for (size_t bufIdx = 0; bufIdx < QuadDelay::x_positionalBufferSize; ++bufIdx)
+            g.setColour(juce::Colours::white.withAlpha(0.7f));
+            for (size_t column = 0; column < x_numColumns; ++column)
             {
-                float x = bounds.getX() + static_cast<float>(bufIdx) * segmentWidth;
-                float minEnv = envelopeState.m_minEnvelope[bufIdx];
-                float maxEnv = envelopeState.m_maxEnvelope[bufIdx];
+                size_t first = column * QuadDelay::x_positionalBufferSize / x_numColumns;
+                size_t end = (column + 1) * QuadDelay::x_positionalBufferSize / x_numColumns;
+                float x = bounds.getX() + static_cast<float>(column) * segmentWidth;
+                float minEnv = envelopeState.m_minEnvelope[first];
+                float maxEnv = envelopeState.m_maxEnvelope[first];
+                for (size_t bufIdx = first + 1; bufIdx < end; ++bufIdx)
+                {
+                    minEnv = std::min(minEnv, envelopeState.m_minEnvelope[bufIdx]);
+                    maxEnv = std::max(maxEnv, envelopeState.m_maxEnvelope[bufIdx]);
+                }
 
                 float yMin = sliceY + sliceHeight * (1.0f - (minEnv - m_slewedMin) / range);
                 float yMax = sliceY + sliceHeight * (1.0f - (maxEnv - m_slewedMin) / range);
@@ -84,7 +94,6 @@ struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerC
                     std::swap(yMin, yMax);
                 }
 
-                g.setColour(juce::Colours::white.withAlpha(0.7f));
                 g.fillRect(x, yMin, segmentWidth + 0.5f, yMax - yMin);
             }
 

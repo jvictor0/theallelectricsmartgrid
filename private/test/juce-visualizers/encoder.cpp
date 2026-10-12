@@ -10,6 +10,30 @@ namespace
 using Mode = SmartGridOne::EncoderBankMode;
 using Type = SmartGrid::EncoderType;
 
+struct RepaintCounter : juce::CachedComponentImage
+{
+    int m_invalidations = 0;
+
+    void paint(juce::Graphics&) override
+    {
+    }
+
+    bool invalidateAll() override
+    {
+        ++m_invalidations;
+        return true;
+    }
+
+    bool invalidate(const juce::Rectangle<int>&) override
+    {
+        return invalidateAll();
+    }
+
+    void releaseResources() override
+    {
+    }
+};
+
 struct SolidVisualizer : SmartGridOneMainVisualizerComponent
 {
     juce::Colour m_color;
@@ -58,6 +82,34 @@ void CheckRandomMarkers(typename GangedRandomLFOComponent<Voices>::ColorMode mod
         DOCTEST_CHECK(image.getPixelAt(54, y) == J(color));
     }
 }
+}
+
+DOCTEST_TEST_CASE("Encoder labels: painting unchanged labels does not request another repaint")
+{
+    EncoderBankUIState bank;
+    auto& cell = bank.m_states[0][0];
+    cell.m_connected.store(true);
+    cell.m_color.store(SmartGrid::Color::Pink);
+    cell.m_shortName.store("TIME");
+    ModulatorVisualizers visualizers;
+    EncoderComponent encoder(EncoderBankUI(0, &bank, nullptr), 0, 0, false, visualizers);
+    auto* counter = new RepaintCounter;
+    encoder.m_segmentDisplay.setCachedComponentImage(counter);
+    juce::Image image(juce::Image::ARGB, 100, 125, true);
+    juce::Graphics g(image);
+    encoder.paint(g);
+
+    counter->m_invalidations = 0;
+    encoder.paint(g);
+    DOCTEST_CHECK(counter->m_invalidations == 0);
+
+    cell.m_shortName.store("FDBK");
+    encoder.paint(g);
+    DOCTEST_CHECK(counter->m_invalidations > 0);
+    counter->m_invalidations = 0;
+    cell.m_color.store(SmartGrid::Color::Cyan);
+    encoder.paint(g);
+    DOCTEST_CHECK(counter->m_invalidations > 0);
 }
 
 DOCTEST_TEST_CASE("Modulator markers: random dots use the source color in every voice color mode")
