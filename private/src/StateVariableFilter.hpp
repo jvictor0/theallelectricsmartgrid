@@ -167,7 +167,13 @@ struct LinearStateVariableFilter
         // resonance 1 -> Q = x_qMax (high resonance), k = 1/x_qMax
         //
         float expResonance = m_resonance.Update(resonance);        
-        m_k = 1.0f / expResonance;
+        SetQ(expResonance);
+    }
+
+    void SetQ(float q)
+    {
+        assert(q > 0.0f);
+        m_k = 1.0f / q;
         UpdateCoefficients();
     }
 

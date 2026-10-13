@@ -239,3 +239,193 @@ DOCTEST_TEST_CASE("LadderFilterLP: NaN-clean across parameter sweep")
         }
     }
 }
+
+DOCTEST_TEST_CASE("LadderFilterLP: four-pole detectors focus on the loop resonance")
+{
+    GlobalEnv::ResetPerTest();
+
+    constexpr float x_cutoff = 0.005f;
+    LadderFilterLP reference;
+    reference.SetCutoff(x_cutoff);
+    double alpha = reference.m_stage4.m_alpha;
+    double ratio = alpha / (1.0 - alpha);
+    float center = static_cast<float>(std::acos(1.0 - 0.5 * ratio * ratio) / (2.0 * M_PI));
+    float frequencies[] = {center * 0.1f, center, center * 10.0f};
+    float detectedPower[3] = {};
+    for (int i = 0; i < 3; ++i)
+    {
+        LadderFilterLP filter;
+        filter.SetCutoff(x_cutoff);
+        filter.SetResonance(0.0f);
+        TestSignal::Sine sine(frequencies[i] * static_cast<float>(kSR), kSR, 1.0f);
+        for (int sample = 0; sample < 48000; ++sample)
+        {
+            filter.Process(sine.Next());
+            if (sample >= 24000)
+            {
+                detectedPower[i] += filter.m_inputEnvelope.GetPower() / 24000.0f;
+            }
+        }
+    }
+
+    // Unity gain at the center preserves the sine's mean-square power.
+    //
+    DOCTEST_CHECK(detectedPower[1] == doctest::Approx(0.5f).epsilon(0.01f));
+
+    // Reject tones a decade away by at least 25 dB relative to the center.
+    //
+    DOCTEST_CHECK(detectedPower[0] < 0.003f * detectedPower[1]);
+    DOCTEST_CHECK(detectedPower[2] < 0.003f * detectedPower[1]);
+}
+
+DOCTEST_TEST_CASE("LadderFilterLP: RMS damping suppresses resonance over the noise floor")
+{
+    GlobalEnv::ResetPerTest();
+
+    LadderFilterLP filter;
+    filter.SetCutoff(0.002f);
+    filter.SetSaturationGain(2.0f);
+    filter.SetResonance(1.0f);
+
+    float noiseAmplitude = 0.0f;
+    DOCTEST_SUBCASE("silence")
+    {
+    }
+
+    DOCTEST_SUBCASE("quiet noise floor")
+    {
+        noiseAmplitude = 0.000001f;
+    }
+
+    TestSignal::WhiteNoise noise(0xA1D1A1D100000004ull);
+    float outputPowerSum = 0.0f;
+    float feedbackSum = 0.0f;
+    for (int i = 0; i < 96000; ++i)
+    {
+        float input = i == 0 ? 0.001f : noiseAmplitude * noise.Next();
+        float output = filter.Process(input);
+        DOCTEST_REQUIRE(std::isfinite(output));
+        if (i >= 48000)
+        {
+            outputPowerSum += output * output;
+            feedbackSum += filter.m_kEff;
+        }
+    }
+
+    float outputRms = std::sqrt(outputPowerSum / 48000.0f);
+    DOCTEST_INFO("settled output RMS: " << outputRms);
+    DOCTEST_INFO("settled feedback: " << feedbackSum / 48000.0f);
+    DOCTEST_CHECK(outputRms < 0.15f);
+    DOCTEST_CHECK(feedbackSum / 48000.0f < 1.0f);
+}
+
+DOCTEST_TEST_CASE("LadderFilterLP: RMS damping preserves tones and distinguishes driven noise from the floor")
+{
+    GlobalEnv::ResetPerTest();
+
+    LadderFilterLP filter;
+    LadderFilterLP floorFilter;
+    for (LadderFilterLP* configured : {&filter, &floorFilter})
+    {
+        configured->SetCutoff(0.002f);
+        configured->SetSaturationGain(2.0f);
+        configured->SetResonance(1.0f);
+    }
+
+    bool useNoise = false;
+    DOCTEST_SUBCASE("partial near resonance")
+    {
+    }
+
+    DOCTEST_SUBCASE("broadband noise")
+    {
+        useNoise = true;
+    }
+
+    TestSignal::Sine sine(224.0f, kSR, 0.5f);
+    TestSignal::WhiteNoise noise(0xA1D1A1D100000003ull);
+    float feedbackSum = 0.0f;
+    float floorFeedbackSum = 0.0f;
+    for (int i = 0; i < 96000; ++i)
+    {
+        float input = useNoise ? 0.5f * noise.Next() : sine.Next();
+        DOCTEST_REQUIRE(std::isfinite(filter.Process(input)));
+        if (useNoise)
+        {
+            floorFilter.Process(i == 0 ? 0.001f : input * 0.000002f);
+        }
+
+        if (i >= 48000)
+        {
+            feedbackSum += filter.m_kEff;
+            floorFeedbackSum += floorFilter.m_kEff;
+        }
+    }
+
+    float meanFeedback = feedbackSum / 48000.0f;
+    DOCTEST_INFO("driven feedback: " << meanFeedback);
+
+    if (useNoise)
+    {
+        // Noise can trigger damping, but strong excitation must retain
+        // substantially more resonance than the same noise at the floor.
+        //
+        float meanFloorFeedback = floorFeedbackSum / 48000.0f;
+        DOCTEST_INFO("noise-floor feedback: " << meanFloorFeedback);
+        DOCTEST_CHECK(meanFeedback > 2.0f * meanFloorFeedback);
+    }
+    else
+    {
+        DOCTEST_CHECK(meanFeedback > 0.95f * filter.m_feedback);
+    }
+}
+
+DOCTEST_TEST_CASE("LadderFilterLP: reset clears RMS damping history")
+{
+    GlobalEnv::ResetPerTest();
+
+    LadderFilterLP filter;
+    LadderFilterLP fresh;
+    for (LadderFilterLP* configured : {&filter, &fresh})
+    {
+        configured->SetCutoff(0.002f);
+        configured->SetSaturationGain(2.0f);
+        configured->SetResonance(1.0f);
+    }
+
+    for (int i = 0; i < 24000; ++i)
+    {
+        filter.Process(i == 0 ? 0.001f : 0.0f);
+    }
+
+    filter.Reset();
+    for (int i = 0; i < 4096; ++i)
+    {
+        float input = i == 0 ? 0.1f : 0.0f;
+        DOCTEST_CHECK(filter.Process(input) == fresh.Process(input));
+        DOCTEST_CHECK(filter.m_kEff == fresh.m_kEff);
+    }
+}
+
+DOCTEST_TEST_CASE("LadderFilterLP: direct resonance height matches the linear response")
+{
+    GlobalEnv::ResetPerTest();
+
+    LadderFilterLP filter;
+    for (float alpha : {0.01f, 0.1f, 0.5f, 0.7f, 0.95f})
+    {
+        filter.SetAlphaDirect(alpha);
+        float frequency = 0.5f;
+        if (alpha < 2.0f / 3.0f)
+        {
+            double ratio = static_cast<double>(alpha) / (1.0 - alpha);
+            frequency = static_cast<float>(std::acos(1.0 - 0.5 * ratio * ratio) / (2.0 * M_PI));
+        }
+
+        float feedback = std::min(3.9f, 0.9f * filter.m_criticalFeedback);
+        float height = 1.0f / (filter.m_criticalFeedback - feedback);
+        float reference = LadderFilterLP::FrequencyResponse(alpha, feedback, frequency) / (1.0f + feedback);
+        DOCTEST_INFO("alpha: " << alpha);
+        DOCTEST_CHECK(height == doctest::Approx(reference).epsilon(0.001f));
+    }
+}

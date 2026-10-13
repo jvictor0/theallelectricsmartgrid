@@ -2,13 +2,63 @@
 
 #include "Filter.hpp"
 #include "DebugMeter.hpp"
+#include "StateVariableFilter.hpp"
 #include <atomic>
 #include <cmath>
 #include <complex>
 
+struct BandPassedEnvelopeFollower
+{
+    static constexpr float x_rmsCycles = 2.0f;
+
+    LinearStateVariableFilter m_stage1;
+    LinearStateVariableFilter m_stage2;
+    float m_power;
+    float m_powerAlpha;
+
+    BandPassedEnvelopeFollower()
+        : m_power(0.0f)
+        , m_powerAlpha(0.0f)
+    {
+        // Q = 1 gives each bandpass unity gain at its center frequency.
+        //
+        m_stage1.SetQ(1.0f);
+        m_stage2.SetQ(1.0f);
+    }
+
+    void SetCutoff(float cutoff, float envelopeCutoff)
+    {
+        m_stage1.SetCutoff(cutoff);
+        m_stage2.SetCutoff(cutoff);
+        m_powerAlpha = -std::expm1(-envelopeCutoff / x_rmsCycles);
+    }
+
+    float Process(float input)
+    {
+        m_stage1.Process(input);
+        m_stage2.Process(m_stage1.GetBandPass());
+        float bandPass = m_stage2.GetBandPass();
+        m_power += m_powerAlpha * (bandPass * bandPass - m_power);
+        return m_power;
+    }
+
+    float GetPower() const
+    {
+        return m_power;
+    }
+
+    void Reset()
+    {
+        m_stage1.Reset();
+        m_stage2.Reset();
+        m_power = 0.0f;
+    }
+};
+
 struct LadderFilterLP
 {
     static constexpr float x_maxCutoff = 0.499f;
+    static constexpr float x_dampingEpsilon = 0.0001f;
 
     struct UIState
     {
@@ -47,6 +97,10 @@ struct LadderFilterLP
     float m_output;
     float m_kEff;
 
+    BandPassedEnvelopeFollower m_inputEnvelope;
+    BandPassedEnvelopeFollower m_feedbackEnvelope;
+    float m_criticalFeedback;
+
     // Debug meters: input, feedback input, output
     //
     static constexpr bool x_debugMetersOn = false;
@@ -71,6 +125,7 @@ struct LadderFilterLP
         , m_input(0.0f)
         , m_output(0.0f)
         , m_kEff(0.0f)
+        , m_criticalFeedback(4.0f)
     {
         m_saturator.SetInputGain(0.5f);
         m_fbSaturator.SetInputGain(1.0f);
@@ -92,7 +147,26 @@ struct LadderFilterLP
         float perStageGain = (m_stage4.m_alpha / (2.0f - m_stage4.m_alpha)) * smallSignalGain;
         float Cpi = std::pow(perStageGain, 4.0f);
         float kSafe = 0.9f / (Cpi + 1e-8f);
-        m_kEff = std::min(m_feedback, kSafe);
+        float baseFeedback = std::min(m_feedback, kSafe);
+
+        // At the ideal loop's 180-degree crossover, the raw LP gain is
+        // 1 / (critical feedback - feedback). No saturation or output gain.
+        //
+        float referenceGain = 1.0f / (m_criticalFeedback - baseFeedback);
+
+        // Compare the previous sample's mean-square estimates in power units.
+        // Epsilon squared is the input power floor; epsilon scales excess power.
+        //
+        float inputPower = m_inputEnvelope.GetPower();
+        float feedbackPower = m_feedbackEnvelope.GetPower();
+        float excessPower = std::max(0.0f,
+            feedbackPower - referenceGain * referenceGain * inputPower)
+            / (inputPower + x_dampingEpsilon * x_dampingEpsilon);
+
+        // Scale damping by the three saturators inside the feedback loop.
+        //
+        float dampingStrength = smallSignalGain * smallSignalGain * smallSignalGain;
+        m_kEff = baseFeedback / (1.0f + dampingStrength * x_dampingEpsilon * excessPower);
 
         // Apply resonance feedback from LP output
         //
@@ -122,6 +196,9 @@ struct LadderFilterLP
         float stage4Out = m_saturator.Process(stage4Pre);
         m_meterStage4Post.Process(stage4Out);
 
+        m_inputEnvelope.Process(input);
+        m_feedbackEnvelope.Process(stage4Pre);
+
         // Output gain compensation to counter resonance-induced passband drop
         // Maintains approximately unity DC gain as resonance increases
         //
@@ -137,7 +214,13 @@ struct LadderFilterLP
 
     void SetCutoff(float cutoff)
     {
-        m_cutoff = std::min(x_maxCutoff, cutoff);
+        cutoff = std::min(x_maxCutoff, cutoff);
+        if (cutoff == m_cutoff && m_stage4.m_alpha > 0.0f)
+        {
+            return;
+        }
+
+        m_cutoff = cutoff;
         float c = Math::Cos2pi(m_cutoff);
 
         // Solve for the -3dB point: |H|² = 2^(-1/4) per stage
@@ -158,6 +241,28 @@ struct LadderFilterLP
         m_stage2.m_alpha = alpha;
         m_stage3.m_alpha = alpha;
         m_stage4.m_alpha = alpha;
+
+        // Unit-gain one-poles with one sample of feedback delay. The first
+        // unit-circle crossing moves to Nyquist when alpha reaches 2/3.
+        //
+        float bandPassCutoff = 0.5f;
+        if (alpha < 2.0f / 3.0f)
+        {
+            float ratio = (2.0f - alpha) / (1.0f - alpha);
+            m_criticalFeedback = ratio * ratio;
+            bandPassCutoff = std::asin(alpha / (2.0f * (1.0f - alpha))) / static_cast<float>(M_PI);
+        }
+        else
+        {
+            float ratio = (2.0f - alpha) / alpha;
+            float ratioSquared = ratio * ratio;
+            m_criticalFeedback = ratioSquared * ratioSquared;
+        }
+
+        // Track the loop resonance while retaining the ladder cutoff's envelope timing.
+        //
+        m_inputEnvelope.SetCutoff(bandPassCutoff, m_cutoff);
+        m_feedbackEnvelope.SetCutoff(bandPassCutoff, m_cutoff);
     }
 
     void SetResonance(float resonance)
@@ -165,16 +270,20 @@ struct LadderFilterLP
         // Calculate feedback amount based on resonance
         // Higher resonance = more feedback = more pronounced filter character
         //
-        m_feedback = resonance * 4.0f;
+        m_feedback = resonance * 3.9f;
     }
 
     void Reset()
     {
         m_input = 0.0f;
+        m_output = 0.0f;
+        m_kEff = 0.0f;
         m_stage1.m_output = 0.0f;
         m_stage2.m_output = 0.0f;
         m_stage3.m_output = 0.0f;
         m_stage4.m_output = 0.0f;
+        m_inputEnvelope.Reset();
+        m_feedbackEnvelope.Reset();
 
         m_meterInput.Reset();
         m_meterFbInput.Reset();
@@ -808,4 +917,3 @@ struct LadderFilterHP
         return std::abs(TransferFunction(alpha, feedback, freq));
     }
 };
-
