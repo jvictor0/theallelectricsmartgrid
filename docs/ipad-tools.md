@@ -231,6 +231,9 @@ status polling reads the Mac's saved state. If the first account listing fails,
 automatic naming waits for a successful refresh; a complete cached listing can
 continue to supply defaults after a later refresh failure.
 
+Cloud-only recordings are skipped without downloading them during catalog scans.
+Download a recording on the Mac first, then use **Refresh catalog** to include it.
+
 ### Link a historical upload or recover a result
 
 For a recording already published manually, select its track in **Select an

@@ -3,6 +3,7 @@
 import os
 import re
 import sqlite3
+import stat
 import struct
 import uuid
 from datetime import datetime
@@ -13,6 +14,11 @@ from sgrec import Reader
 
 x_timestamp = re.compile(r'recording-(\d{4}-\d{2}-\d{2})T(\d{2})(\d{2})(\d{2})')
 x_header_limit = 1024 * 1024
+x_dataless_flag = getattr(stat, 'SF_DATALESS', 0x40000000)
+
+
+def IsCloudOnly(path):
+    return bool(getattr(path.stat(), 'st_flags', 0) & x_dataless_flag)
 
 
 def SafePath(root, relative):
@@ -79,7 +85,7 @@ def RecordedAt(path):
     for suffix in ('.sgrec', '.wav'):
         source_path = original.with_suffix(suffix)
         if source_path.is_file() and not source_path.is_symlink():
-            if suffix == '.sgrec':
+            if suffix == '.sgrec' and not IsCloudOnly(source_path):
                 try:
                     with source_path.open('rb') as source:
                         stamp = Reader(source).m_header['recorded_at_utc']
@@ -131,7 +137,7 @@ class RecordingCatalog:
                     continue
                 try:
                     path = SafePath(self.m_root, relative)
-                    if not path.is_file():
+                    if not path.is_file() or IsCloudOnly(path):
                         continue
                     version = Version(path)
                     previous = self.m_db.execute('SELECT * FROM recordings WHERE path=?', (relative,)).fetchone()

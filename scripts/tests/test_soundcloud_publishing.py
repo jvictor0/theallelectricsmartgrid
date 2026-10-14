@@ -9,6 +9,8 @@ import unittest
 import wave
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 if importlib.util.find_spec('soundcloud_publisher'):
@@ -281,6 +283,36 @@ class PublishingTests(unittest.TestCase):
         valid.symlink_to(truncated)
         with self.assertRaises(PublishingError):
             self.service.Submit(self.metadata(rows[0]), b'', '')
+
+    def test_startup_skips_cloud_only_audio_without_reading_it(self):
+        local = self.write_stereo('recording-7_stereo.wav')
+        original = local.with_name('recording-7.sgrec')
+        original.write_bytes(b'cloud placeholder')
+        cloud = self.write_stereo()
+        cloud_files = {original, cloud}
+        original_stat = Path.stat
+        original_open = Path.open
+
+        def file_stat(path, *args, **kwargs):
+            result = original_stat(path, *args, **kwargs)
+            if path in cloud_files:
+                return SimpleNamespace(st_mode=result.st_mode, st_mtime=result.st_mtime,
+                                       st_flags=0x40000000)
+            return result
+
+        def file_open(path, *args, **kwargs):
+            self.assertNotIn(path, cloud_files, 'Catalog must not download cloud-only files')
+            return original_open(path, *args, **kwargs)
+
+        with patch.object(Path, 'stat', file_stat), patch.object(Path, 'open', file_open):
+            self.restart(api=False)
+            rows = self.service.Snapshot()['recordings']
+            self.assertEqual([row['filename'] for row in rows], [local.name])
+            expected = datetime.fromtimestamp(original_stat(original).st_mtime).strftime('%Y/%m/%d')
+            self.assertEqual(rows[0]['date'], expected)
+
+        self.service.m_catalog.Scan()
+        self.assertEqual(len(self.service.Snapshot()['recordings']), 2)
 
     def test_invalid_id_types_are_rejected_at_service_boundary(self):
         self.write_stereo()
