@@ -284,7 +284,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: RMS damping suppresses resonance over the noi
 
     LadderFilterLP filter;
     filter.SetCutoff(0.002f);
-    filter.SetSaturationGain(2.0f);
+    filter.SetSaturationGainAndBias(2.0f, 0.0f);
     filter.SetResonance(1.0f);
 
     float noiseAmplitude = 0.0f;
@@ -328,7 +328,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: RMS damping preserves tones and distinguishes
     for (LadderFilterLP* configured : {&filter, &floorFilter})
     {
         configured->SetCutoff(0.002f);
-        configured->SetSaturationGain(2.0f);
+        configured->SetSaturationGainAndBias(2.0f, 0.0f);
         configured->SetResonance(1.0f);
     }
 
@@ -389,7 +389,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: reset clears RMS damping history")
     for (LadderFilterLP* configured : {&filter, &fresh})
     {
         configured->SetCutoff(0.002f);
-        configured->SetSaturationGain(2.0f);
+        configured->SetSaturationGainAndBias(2.0f, 0.0f);
         configured->SetResonance(1.0f);
     }
 

@@ -134,7 +134,7 @@ DOCTEST_TEST_CASE("encoder layout binding: moved controls survive machine change
 
     const MovedControl x_controls[] =
     {
-        {Param::FilterDrive, Bank::Shape, 2, 2},
+        {Param::FilterDrive, Bank::Shape, 0, 2},
         {Param::SampleRateReduction, Bank::Shape, 3, 2},
         {Param::SubOscillator, Bank::AmpAndRouting, 3, 1},
         {Param::AmpAHDAttack, Bank::AmpAndRouting, 0, 2},
@@ -177,8 +177,15 @@ DOCTEST_TEST_CASE("encoder layout binding: moved controls survive machine change
             {
                 for (auto filter : {Filter::SVF2Pole, Filter::Ladder4Pole})
                 {
+                    const auto previousPage = encoders.m_boundPages[static_cast<size_t>(encoders.m_selectedBank)];
                     encoders.UpdateEncodersForMachine(source, filter);
                     DOCTEST_CHECK(bank.GetBase(control.m_x, control.m_y) == cell);
+                    if (encoders.m_boundPages[static_cast<size_t>(encoders.m_selectedBank)] != previousPage)
+                    {
+                        DOCTEST_CHECK(bank.m_selected == nullptr);
+                        bank.MakeSelection(control.m_x, control.m_y, cell);
+                    }
+
                     DOCTEST_CHECK(bank.m_selected == cell);
                     DOCTEST_CHECK(cell->m_ownerBank == &bank);
                     DOCTEST_CHECK(cell->GetModulator(0)->m_ownerBank == &bank);

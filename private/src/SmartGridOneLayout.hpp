@@ -50,6 +50,7 @@ struct SmartGridOneLayout
         Inputs,
         DeepVocoder,
         AmpAndRouting,
+        ShapeSVF,
         NumPages
     };
 

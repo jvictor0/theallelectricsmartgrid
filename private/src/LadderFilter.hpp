@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Filter.hpp"
+#include "DualBiasedSaturator.hpp"
 #include "DebugMeter.hpp"
 #include "StateVariableFilter.hpp"
 #include <atomic>
@@ -87,8 +88,7 @@ struct LadderFilterLP
     OPLowPassFilter m_stage3;
     OPLowPassFilter m_stage4;
 
-    TanhSaturator<true> m_saturator;
-    TanhSaturator<false> m_fbSaturator;
+    DualBiasedSaturator m_saturator;
 
     float m_cutoff;
     float m_feedback;
@@ -100,6 +100,7 @@ struct LadderFilterLP
     BandPassedEnvelopeFollower m_inputEnvelope;
     BandPassedEnvelopeFollower m_feedbackEnvelope;
     float m_criticalFeedback;
+    float m_baseFeedback;
 
     // Debug meters: input, feedback input, output
     //
@@ -127,14 +128,13 @@ struct LadderFilterLP
         , m_kEff(0.0f)
         , m_criticalFeedback(4.0f)
     {
-        m_saturator.SetInputGain(0.5f);
-        m_fbSaturator.SetInputGain(1.0f);
+        m_saturator.SetGainAndBias(0.5f, 0.0);
     }
 
     void PopulateUIState(UIState* uiState)
     {
         uiState->m_alpha.store(m_stage4.m_alpha);
-        uiState->m_feedback.store(m_kEff);
+        uiState->m_feedback.store(m_baseFeedback);
     }
 
     float Process(float input)
@@ -143,16 +143,16 @@ struct LadderFilterLP
 
         // Calculate effective Nyquist gain including saturation small-signal gain
         //
-        float smallSignalGain = m_saturator.DerivativeZero();
+        float smallSignalGain = m_saturator.MaxDerivative();
         float perStageGain = (m_stage4.m_alpha / (2.0f - m_stage4.m_alpha)) * smallSignalGain;
         float Cpi = std::pow(perStageGain, 4.0f);
         float kSafe = 0.9f / (Cpi + 1e-8f);
-        float baseFeedback = std::min(m_feedback, kSafe);
+        m_baseFeedback = std::min(m_feedback, kSafe);
 
         // At the ideal loop's 180-degree crossover, the raw LP gain is
         // 1 / (critical feedback - feedback). No saturation or output gain.
         //
-        float referenceGain = 1.0f / (m_criticalFeedback - baseFeedback);
+        float referenceGain = 1.0f / (m_criticalFeedback - m_baseFeedback);
 
         // Compare the previous sample's mean-square estimates in power units.
         // Epsilon squared is the input power floor; epsilon scales excess power.
@@ -166,7 +166,7 @@ struct LadderFilterLP
         // Scale damping by the three saturators inside the feedback loop.
         //
         float dampingStrength = smallSignalGain * smallSignalGain * smallSignalGain;
-        m_kEff = baseFeedback / (1.0f + dampingStrength * x_dampingEpsilon * excessPower);
+        m_kEff = m_baseFeedback / (1.0f + dampingStrength * x_dampingEpsilon * excessPower);
 
         // Apply resonance feedback from LP output
         //
@@ -207,9 +207,9 @@ struct LadderFilterLP
         return m_output;
     }
 
-    void SetSaturationGain(float gain)
+    void SetSaturationGainAndBias(float gain, float bias)
     {
-        m_saturator.SetInputGain(gain);
+        m_saturator.SetGainAndBias(gain, bias);
     }
 
     void SetCutoff(float cutoff)
@@ -305,8 +305,8 @@ struct LadderFilterLP
             return;
         }
 
-        float smallSignalGain = m_saturator.DerivativeZero();
-        float satInputGain = m_saturator.m_inputGain;
+        float smallSignalGain = m_saturator.MaxDerivative();
+        float satInputGain = m_saturator.m_gain;
         float perStageGain = (m_stage4.m_alpha / (2.0f - m_stage4.m_alpha)) * smallSignalGain;
         float Cpi = std::pow(perStageGain, 4.0f);
 

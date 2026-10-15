@@ -85,6 +85,8 @@ struct SquiggleBoyVoice
         ParamSlew m_lpResonanceSlew;
         ParamSlew m_hpResonanceSlew;
         ParamSlew m_saturationGainSlew;
+        ParamSlew m_inputBiasSlew;
+        ParamSlew m_saturationBiasSlew;
         ParamSlew m_sampleRateReducerFreqSlew;
 
         FilterSection()
@@ -95,6 +97,8 @@ struct SquiggleBoyVoice
             , m_lpResonanceSlew(x_oversample)
             , m_hpResonanceSlew(x_oversample)
             , m_saturationGainSlew(x_oversample)
+            , m_inputBiasSlew(x_oversample)
+            , m_saturationBiasSlew(x_oversample)
             , m_sampleRateReducerFreqSlew(x_oversample)
         {
             // 5 Hz at 192kHz (48kHz * 4x oversample)
@@ -103,20 +107,28 @@ struct SquiggleBoyVoice
             m_saturator.SetInputGain(0.25f);
         }
 
-        void ProcessLadder4Pole(float input, float hpFreq, float lpFreq, float hpResonance, float lpResonance, float saturationGain)
+        void ProcessLadder4Pole(
+            float input,
+            float hpFreq,
+            float lpFreq,
+            float hpResonance,
+            float lpResonance,
+            float saturationGain,
+            float saturationBias,
+            float inputBias)
         {
             m_hp4Pole.SetCutoff(hpFreq);
             m_hp4Pole.SetResonance(hpResonance);
             m_lpLadder.SetCutoff(lpFreq);
             m_lpLadder.SetResonance(lpResonance);
-            m_lpLadder.SetSaturationGain(saturationGain);
+            m_lpLadder.SetSaturationGainAndBias(saturationGain, saturationBias);
 
-            m_output = m_lpLadder.Process(input);
+            m_output = m_lpLadder.Process(input + inputBias);
             m_hp4Pole.Process(m_output);
             m_output = m_hp4Pole.GetOutput();
         }
 
-        void ProcessSVF2Pole(float input, float hpFreq, float lpFreq, float hpResonance, float lpResonance, float saturationGain)
+        void ProcessSVF2Pole(float input, float hpFreq, float lpFreq, float hpResonance, float lpResonance, float saturationGain, float inputBias)
         {
             m_hpSVF.SetCutoff(hpFreq);
             m_hpSVF.SetResonance(hpResonance);
@@ -124,7 +136,7 @@ struct SquiggleBoyVoice
             m_lpSVF.SetResonance(lpResonance);
             m_saturator.SetInputGain(saturationGain);
             
-            m_lpSVF.Process(m_saturator.Process(input));
+            m_lpSVF.Process(m_saturator.Process(input + inputBias));
             m_output = m_saturator.Process(m_lpSVF.GetLowPass());
             m_hpSVF.Process(m_output);
             m_output = m_saturator.Process(m_hpSVF.GetHighPass());
@@ -138,6 +150,8 @@ struct SquiggleBoyVoice
             PhaseUtils::ZeroedExpParam m_lpResonance;
             PhaseUtils::ZeroedExpParam m_hpResonance;
             PhaseUtils::ExpParam m_saturationGain;
+            PhaseUtils::ZeroedExpParam m_inputBias;
+            PhaseUtils::ZeroedExpParam m_saturationBias;
 
             VoiceConfig* m_voiceConfig;
 
@@ -152,6 +166,10 @@ struct SquiggleBoyVoice
             {
                 m_lpResonance.SetBaseByCenter(0.125);
                 m_hpResonance.SetBaseByCenter(0.125);
+                m_inputBias.SetMax(3.0f);
+                m_inputBias.SetBaseByCenter(0.5f / 3.0f);
+                m_saturationBias.SetMax(3.0f);
+                m_saturationBias.SetBaseByCenter(0.5f / 3.0f);
             }
         };
 
@@ -171,6 +189,8 @@ struct SquiggleBoyVoice
             m_lpResonanceSlew.Update(input.m_lpResonance.m_expParam);
             m_hpResonanceSlew.Update(input.m_hpResonance.m_expParam);
             m_saturationGainSlew.Update(input.m_saturationGain.m_expParam);
+            m_inputBiasSlew.Update(input.m_inputBias.m_expParam);
+            m_saturationBiasSlew.Update(input.m_saturationBias.m_expParam);
             m_sampleRateReducerFreqSlew.Update(input.m_sampleRateReducerFreq.m_expParam);
 
             for (size_t i = 0; i < x_uBlockSize; ++i)
@@ -182,6 +202,8 @@ struct SquiggleBoyVoice
                 float hpResonance = m_hpResonanceSlew.Process();
                 float sampleRateReducerFreq = m_sampleRateReducerFreqSlew.Process();
                 float saturationGain = m_saturationGainSlew.Process();
+                float inputBias = m_inputBiasSlew.Process();
+                float saturationBias = m_saturationBiasSlew.Process();
 
                 // Compute filter frequencies adjusted for oversampled rate
                 //
@@ -192,11 +214,11 @@ struct SquiggleBoyVoice
 
                 if (input.m_voiceConfig->m_filterMachine == VoiceConfig::FilterMachine::Ladder4Pole)
                 {
-                    ProcessLadder4Pole(dcBlocked, hpFreq, lpFreq, hpResonance, lpResonance, saturationGain);
+                    ProcessLadder4Pole(dcBlocked, hpFreq, lpFreq, hpResonance, lpResonance, saturationGain, saturationBias, inputBias);
                 }
                 else
                 {
-                    ProcessSVF2Pole(dcBlocked, hpFreq, lpFreq, hpResonance, lpResonance, saturationGain);
+                    ProcessSVF2Pole(dcBlocked, hpFreq, lpFreq, hpResonance, lpResonance, saturationGain, inputBias);
                 }
 
                 m_sampleRateReducer.SetFreq(vcoBaseFreq * sampleRateReducerFreq / x_oversample);
@@ -1610,6 +1632,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_filterInput.m_lpResonance.Update(m_encoders.GetValueNoSlew(Param::LPResonance, i));
             m_state[i].m_filterInput.m_hpResonance.Update(m_encoders.GetValueNoSlew(Param::HPResonance, i));
             m_state[i].m_filterInput.m_saturationGain.Update(m_encoders.GetValueNoSlew(Param::FilterDrive, i));
+            m_state[i].m_filterInput.m_inputBias.Update(m_encoders.GetValueNoSlew(Param::FilterInputBias, i));
+            m_state[i].m_filterInput.m_saturationBias.Update(m_encoders.GetValueNoSlew(Param::FilterSymmetricBias, i));
 
             m_state[i].m_ampInput.SetModulationAHD(
                 m_encoders.GetValueNoSlew(Param::ModAHDAttack, i), 

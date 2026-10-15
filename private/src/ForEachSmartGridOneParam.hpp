@@ -174,3 +174,5 @@ F(DVGainThresh3, THR, Global, 0.5, "Deep Vocoder Gain Threshold Trio 3", SmartGr
 F(DVRatio3, RATO, Global, 0.5, "Deep Vocoder Ratio Trio 3", SmartGrid::Color::Ocean, 0, false)
 F(DVSlopeDown3, FALL, Global, 0.5, "Deep Vocoder Slope Down Trio 3", SmartGrid::Color::Ocean, 0, false)
 F(DVSlopeUp3, RISE, Global, 0.5, "Deep Vocoder Slope Up Trio 3", SmartGrid::Color::Ocean, 0, false)
+F(FilterInputBias, BIAS, Voice, 0, "Input Bias", SmartGrid::Color::Green, 0, false)
+F(FilterSymmetricBias, SBIA, Voice, 0, "Symmetric Bias", SmartGrid::Color::Green, 0, false)
