@@ -271,7 +271,7 @@ completed receipts remain Uploaded, and jobs interrupted while Uploading become
 Unknown for explicit recovery. The original and stereo recordings remain on the
 Mac regardless of publication outcome.
 
-### Publishing verification and remaining setup
+### Publishing verification
 
 On 2026-10-11, both macOS and iPad simulator builds succeeded. Focused tests used
 real local HTTPS receivers, temporary stereo files, and a fake external account.
@@ -283,12 +283,20 @@ The iPad Air 13-inch (M3), iOS 18.5 simulator walkthrough could not reach the
 Sync page. An existing topology cell construction crash was fixed and both
 Apple targets rebuilt successfully; launch then aborted in the simulator audio
 service (`_ReportRPCTimeout` / `AURemoteIO::Start`) even after one simulator
-restart. No interactive recording selection, title/image editing, native picker,
-or leaving/reopening check was completed. These checks remain pending.
+restart. The agent did not complete an interactive simulator walkthrough.
 
 The paired iPad Air 13-inch (M3) was unavailable in `xcrun devicectl list devices`
-on 2026-10-11. A physical-device walkthrough of selection, image picking,
-leaving/reopening during a Mac job, and foreground transitions remains pending.
-The user's SoundCloud application registration, browser consent, and real
-Keychain access also remain user-run setup; no real account was connected and no
-real track was published during verification.
+on 2026-10-11. On 2026-10-13, macOS and physical-iPad Release builds succeeded,
+and the iPad app was installed and launched over Wi-Fi. The SoundCloud app was
+registered, account access authorized, credentials saved in Mac Keychain, and
+298 existing account tracks loaded successfully. Catalog startup was corrected
+to skip iCloud-only files without downloading them; the focused catalog and
+receiver tests passed.
+
+On 2026-10-14, the user confirmed the outstanding manual walkthrough steps were
+already completed and instructed landing. Manual selection, title/image editing,
+native image picking, leaving/reopening, and foreground lifecycle acceptance are
+recorded as user-reported verification. This does not turn the earlier blocked
+simulator attempt into a passing agent run. No agent-initiated real publication
+was performed during verification. The receiver was stopped at the user's
+request; landing does not rebuild, redeploy, or restart it.
