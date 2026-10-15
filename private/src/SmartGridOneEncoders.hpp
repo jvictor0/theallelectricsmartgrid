@@ -32,9 +32,9 @@ struct SmartGridOneEncoders
         SourceWater = Layout::GetSlotInstance(Slot::Source, 0),
         SourceFire = Layout::GetSlotInstance(Slot::Source, 1),
         SourceEarth = Layout::GetSlotInstance(Slot::Source, 2),
-        FilterAndAmpWater = Layout::GetSlotInstance(Slot::FilterAndAmp, 0),
-        FilterAndAmpFire = Layout::GetSlotInstance(Slot::FilterAndAmp, 1),
-        FilterAndAmpEarth = Layout::GetSlotInstance(Slot::FilterAndAmp, 2),
+        ShapeWater = Layout::GetSlotInstance(Slot::Shape, 0),
+        ShapeFire = Layout::GetSlotInstance(Slot::Shape, 1),
+        ShapeEarth = Layout::GetSlotInstance(Slot::Shape, 2),
         PanningAndSequencingWater = Layout::GetSlotInstance(Slot::PanningAndSequencing, 0),
         PanningAndSequencingFire = Layout::GetSlotInstance(Slot::PanningAndSequencing, 1),
         PanningAndSequencingEarth = Layout::GetSlotInstance(Slot::PanningAndSequencing, 2),
@@ -49,15 +49,19 @@ struct SmartGridOneEncoders
         Mastering = Layout::GetSlotInstance(Slot::Mastering, 0),
         Inputs = Layout::GetSlotInstance(Slot::Inputs, 0),
         DeepVocoder = Layout::GetSlotInstance(Slot::DeepVocoder, 0),
+        AmpAndRoutingWater = Layout::GetSlotInstance(Slot::AmpAndRouting, 0),
+        AmpAndRoutingFire = Layout::GetSlotInstance(Slot::AmpAndRouting, 1),
+        AmpAndRoutingEarth = Layout::GetSlotInstance(Slot::AmpAndRouting, 2),
         NumBanks = x_totalNumBanks,
         Source = SourceWater,
-        FilterAndAmp = FilterAndAmpWater,
+        Shape = ShapeWater,
         PanningAndSequencing = PanningAndSequencingWater,
-        VoiceLFOs = VoiceLFOsWater
+        VoiceLFOs = VoiceLFOsWater,
+        AmpAndRouting = AmpAndRoutingWater
     };
 
-    static constexpr std::array<Bank, 4> x_voiceSelectorBanks =
-    {{Bank::Source, Bank::FilterAndAmp, Bank::PanningAndSequencing, Bank::VoiceLFOs}};
+    static constexpr std::array<Bank, 5> x_voiceSelectorBanks =
+    {{Bank::Source, Bank::Shape, Bank::AmpAndRouting, Bank::PanningAndSequencing, Bank::VoiceLFOs}};
     static constexpr std::array<Bank, 4> x_quadSelectorBanks =
     {{Bank::Delay, Bank::Reverb, Bank::PartialMachine, Bank::QuadLFOs}};
     static constexpr std::array<Bank, 4> x_globalSelectorBanks =
@@ -81,14 +85,15 @@ struct SmartGridOneEncoders
     };
 
     static_assert(static_cast<int>(Bank::SourceWater) == 0 &&
-        static_cast<int>(Bank::FilterAndAmpWater) == 3 &&
+        static_cast<int>(Bank::ShapeWater) == 3 &&
         static_cast<int>(Bank::PanningAndSequencingWater) == 6 &&
         static_cast<int>(Bank::VoiceLFOsWater) == 9 &&
         static_cast<int>(Bank::Delay) == 12 && static_cast<int>(Bank::Reverb) == 13 &&
         static_cast<int>(Bank::PartialMachine) == 14 && static_cast<int>(Bank::QuadLFOs) == 15 &&
         static_cast<int>(Bank::TheoryOfTime) == 16 && static_cast<int>(Bank::Mastering) == 17 &&
         static_cast<int>(Bank::Inputs) == 18 && static_cast<int>(Bank::DeepVocoder) == 19 &&
-        static_cast<int>(Bank::NumBanks) == 20, "Slot instances must preserve the Bank API");
+        static_cast<int>(Bank::AmpAndRoutingWater) == 20 &&
+        static_cast<int>(Bank::NumBanks) == 23, "Slot instances must preserve the Bank API");
 
     using ModulatorSkin = SmartGridOneModulators::Skin;
 

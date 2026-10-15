@@ -24,12 +24,13 @@ struct VoiceSelectorCase
     std::array<Bank, 3> m_banks;
 };
 
-constexpr std::array<VoiceSelectorCase, 4> x_voiceSelectors =
+constexpr std::array<VoiceSelectorCase, 5> x_voiceSelectors =
 {{
     {0, {{Bank::SourceWater, Bank::SourceFire, Bank::SourceEarth}}},
-    {1, {{Bank::FilterAndAmpWater, Bank::FilterAndAmpFire, Bank::FilterAndAmpEarth}}},
-    {2, {{Bank::PanningAndSequencingWater, Bank::PanningAndSequencingFire, Bank::PanningAndSequencingEarth}}},
-    {3, {{Bank::VoiceLFOsWater, Bank::VoiceLFOsFire, Bank::VoiceLFOsEarth}}}
+    {1, {{Bank::ShapeWater, Bank::ShapeFire, Bank::ShapeEarth}}},
+    {2, {{Bank::AmpAndRoutingWater, Bank::AmpAndRoutingFire, Bank::AmpAndRoutingEarth}}},
+    {3, {{Bank::PanningAndSequencingWater, Bank::PanningAndSequencingFire, Bank::PanningAndSequencingEarth}}},
+    {4, {{Bank::VoiceLFOsWater, Bank::VoiceLFOsFire, Bank::VoiceLFOsEarth}}}
 }};
 
 constexpr std::array<SelectorCase, 4> x_quadSelectors =
@@ -64,7 +65,7 @@ void CheckSelectors(SmartGrid::Grid& grid, int voiceRow, int sharedRow,
         }
     }
 
-    DOCTEST_CHECK(grid.Get(4, voiceRow) == nullptr);
+    DOCTEST_CHECK(grid.Get(5, voiceRow) == nullptr);
     for (const auto& selector : x_quadSelectors)
     {
         auto* cell = grid.Get(selector.m_x, sharedRow);
@@ -84,13 +85,13 @@ void CheckSelectors(SmartGrid::Grid& grid, int voiceRow, int sharedRow,
 
 }
 
-DOCTEST_TEST_CASE("encoder selectors: Quad Launchpad exposes four families and shared banks")
+DOCTEST_TEST_CASE("encoder selectors: Quad Launchpad exposes five families and shared banks")
 {
     synthrig::SynthRig rig;
     CheckSelectors(*rig.Quad().m_bottomRightGrid, 9, 8, rig.Internal());
 }
 
-DOCTEST_TEST_CASE("encoder selectors: WorldBuilder exposes four families and shared banks")
+DOCTEST_TEST_CASE("encoder selectors: WorldBuilder exposes five families and shared banks")
 {
     synthrig::SynthRig rig;
     TheNonagonSquiggleBoyWrldBldr world(&rig.Internal());
@@ -103,10 +104,11 @@ DOCTEST_TEST_CASE("encoder display: every selected trio bank maps to its family 
     auto& synth = rig.Internal().m_squiggleBoy;
     auto& ui = rig.Internal().m_uiState.m_squiggleBoyUIState;
     using Display = SquiggleBoyWithEncoderBank::UIState::VisualDisplayMode;
-    const std::array<std::pair<Bank, Display>, 4> cases =
+    const std::array<std::pair<Bank, Display>, 5> cases =
     {{
         {Bank::Source, Display::Voice},
-        {Bank::FilterAndAmp, Display::Filter},
+        {Bank::Shape, Display::Filter},
+        {Bank::AmpAndRouting, Display::AmpAndRouting},
         {Bank::PanningAndSequencing, Display::PanAndMelody},
         {Bank::VoiceLFOs, Display::Control}
     }};

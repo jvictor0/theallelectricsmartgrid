@@ -116,3 +116,95 @@ DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep ownership
         DOCTEST_CHECK(hidden->m_values[0] == hidden->m_defaultValue);
     }
 }
+
+DOCTEST_TEST_CASE("encoder layout binding: moved controls survive machine changes and patch reloads")
+{
+    GlobalEnv::ResetPerTest();
+    SmartGridOneContext context;
+    Encoders encoders(&context);
+    using Param = Encoders::Param;
+    using Bank = Encoders::Bank;
+    struct MovedControl
+    {
+        Param m_param;
+        Bank m_bank;
+        int m_x;
+        int m_y;
+    };
+
+    const MovedControl x_controls[] =
+    {
+        {Param::FilterDrive, Bank::Shape, 2, 2},
+        {Param::SampleRateReduction, Bank::Shape, 3, 2},
+        {Param::SubOscillator, Bank::AmpAndRouting, 3, 1},
+        {Param::AmpAHDAttack, Bank::AmpAndRouting, 0, 2},
+        {Param::AmpAHDHold, Bank::AmpAndRouting, 1, 2},
+        {Param::AmpAHDDecay, Bank::AmpAndRouting, 2, 2},
+        {Param::AmpAmplitude, Bank::AmpAndRouting, 3, 2},
+        {Param::AmpGain, Bank::AmpAndRouting, 0, 3},
+        {Param::DelaySend, Bank::AmpAndRouting, 1, 3},
+        {Param::ReverbSend, Bank::AmpAndRouting, 2, 3},
+        {Param::PartialMachineSend, Bank::AmpAndRouting, 3, 3}
+    };
+
+    for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
+    {
+        for (const auto& control : x_controls)
+        {
+            auto* cell = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(control.m_param, trio));
+            cell->SetValue(0.2f * static_cast<float>(trio + 1), true);
+            cell->FillModulators(&context);
+            cell->GetModulator(0)->SetValue(0.6f, true);
+            cell->m_modulators.AddGesture(cell, 2);
+            cell->m_modulators.m_gestures[2]->SetActive(true, 0);
+            cell->m_modulators.m_gestures[2]->SetValue(0.8f, true);
+            cell->SetModulatorsAffecting();
+        }
+    }
+
+    JsonArena arena(JsonArena::kDefaultCapacity);
+    JSON saved = encoders.ToJSON(arena);
+    for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
+    {
+        encoders.SetTrack(trio);
+        for (const auto& control : x_controls)
+        {
+            auto* cell = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(control.m_param, trio));
+            encoders.SelectBank(control.m_bank);
+            auto& bank = encoders.m_encoderBankBank.m_banks[static_cast<size_t>(encoders.m_selectedBank)];
+            bank.MakeSelection(control.m_x, control.m_y, cell);
+            for (auto source : {Source::Thru, Source::PhysicalModeling, Source::Sample, Source::DualWaveShapingVCO})
+            {
+                for (auto filter : {Filter::SVF2Pole, Filter::Ladder4Pole})
+                {
+                    encoders.UpdateEncodersForMachine(source, filter);
+                    DOCTEST_CHECK(bank.GetBase(control.m_x, control.m_y) == cell);
+                    DOCTEST_CHECK(bank.m_selected == cell);
+                    DOCTEST_CHECK(cell->m_ownerBank == &bank);
+                    DOCTEST_CHECK(cell->GetModulator(0)->m_ownerBank == &bank);
+                    DOCTEST_CHECK(cell->m_values[0] == doctest::Approx(0.2f * static_cast<float>(trio + 1)));
+                    DOCTEST_CHECK(cell->GetModulator(0)->m_values[0] == doctest::Approx(0.6f));
+                    DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_values[0] == doctest::Approx(0.8f));
+                }
+            }
+        }
+    }
+
+    encoders.RevertToDefault(true);
+    encoders.FromJSON(saved);
+    for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
+    {
+        for (const auto& control : x_controls)
+        {
+            auto* cell = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(control.m_param, trio));
+            DOCTEST_CHECK(cell->m_values[0] == doctest::Approx(0.2f * static_cast<float>(trio + 1)));
+            DOCTEST_REQUIRE(cell->m_modulators.m_modulators[0]);
+            DOCTEST_CHECK(cell->GetModulator(0)->m_values[0] == doctest::Approx(0.6f));
+            DOCTEST_REQUIRE(cell->m_modulators.m_gestures[2]);
+            DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_isActive[0]);
+            DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_values[0] == doctest::Approx(0.8f));
+            auto bank = Encoders::BankForTrio(control.m_bank, trio);
+            DOCTEST_CHECK(cell->m_ownerBank == &encoders.m_encoderBankBank.m_banks[static_cast<size_t>(bank)]);
+        }
+    }
+}

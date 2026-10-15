@@ -354,21 +354,7 @@ struct SmartGridOneVisualizerMain : public juce::Component
 
     bool IsVoiceModeActive(SmartGridOneEncoders::Bank bank)
     {
-        bank = SmartGridOneEncoders::BankForTrio(bank, 0);
-        switch (bank)
-        {
-            case SmartGridOneEncoders::Bank::Source:
-            case SmartGridOneEncoders::Bank::FilterAndAmp:
-            case SmartGridOneEncoders::Bank::PanningAndSequencing:
-            case SmartGridOneEncoders::Bank::VoiceLFOs:
-            {
-                return true;
-            }
-            default:
-            {
-                return false;
-            }
-        }
+        return SmartGridOneEncoders::IsVoiceBank(bank);
     }
 
     void DispatchModulationPaint(juce::Graphics& g, SmartGridOneEncoders::Bank bank)

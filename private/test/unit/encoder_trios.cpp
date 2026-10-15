@@ -118,8 +118,8 @@ DOCTEST_TEST_CASE("encoder_trios: track changes preserve bank families and globa
 {
     GlobalEnv::ResetPerTest();
     TrioEncoderRig rig;
-    for (auto family : {Encoders::Bank::Source, Encoders::Bank::FilterAndAmp,
-             Encoders::Bank::PanningAndSequencing, Encoders::Bank::VoiceLFOs})
+    for (auto family : {Encoders::Bank::Source, Encoders::Bank::Shape,
+             Encoders::Bank::PanningAndSequencing, Encoders::Bank::VoiceLFOs, Encoders::Bank::AmpAndRouting})
     {
         rig.m_encoders.SelectBank(family);
         for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
@@ -133,8 +133,8 @@ DOCTEST_TEST_CASE("encoder_trios: track changes preserve bank families and globa
     rig.m_encoders.SelectBank(Encoders::Bank::TheoryOfTime);
     rig.m_encoders.SetTrack(1);
     DOCTEST_CHECK(rig.m_encoders.m_selectedBank == Encoders::Bank::TheoryOfTime);
-    rig.m_encoders.SelectBank(Encoders::Bank::FilterAndAmp);
-    DOCTEST_CHECK(rig.m_encoders.m_selectedBank == Encoders::Bank::FilterAndAmpFire);
+    rig.m_encoders.SelectBank(Encoders::Bank::Shape);
+    DOCTEST_CHECK(rig.m_encoders.m_selectedBank == Encoders::Bank::ShapeFire);
 }
 
 DOCTEST_TEST_CASE("encoder_trios: modulation is independent across modes and local voices")

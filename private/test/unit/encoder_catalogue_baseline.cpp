@@ -37,7 +37,7 @@ const ExpectedParam x_parameters[] =
 #undef BASELINE_PARAM
 };
 
-const std::array<SmartGrid::Color, 20> x_bankColors =
+const std::array<SmartGrid::Color, 23> x_bankColors =
 {{
     SmartGrid::Color::Red, SmartGrid::Color::Red, SmartGrid::Color::Red,
     SmartGrid::Color::Green, SmartGrid::Color::Green, SmartGrid::Color::Green,
@@ -45,7 +45,8 @@ const std::array<SmartGrid::Color, 20> x_bankColors =
     SmartGrid::Color::Blue, SmartGrid::Color::Blue, SmartGrid::Color::Blue,
     SmartGrid::Color::Pink, SmartGrid::Color::Fuscia, SmartGrid::Color::Cyan,
     SmartGrid::Color::DarkPurple, SmartGrid::Color::Yellow, SmartGrid::Color::SeaGreen,
-    SmartGrid::Color::White, SmartGrid::Color::Ocean
+    SmartGrid::Color::White, SmartGrid::Color::Ocean,
+    SmartGrid::Color::Ocean, SmartGrid::Color::Ocean, SmartGrid::Color::Ocean
 }};
 
 std::string ExpectedName(const ExpectedParam& expected, size_t trio)
@@ -106,7 +107,8 @@ DOCTEST_TEST_CASE("encoder catalogue baseline: construction metadata")
 
     for (size_t bank = 0; bank < x_bankColors.size(); ++bank)
     {
-        auto expectedMode = bank < 12 ? static_cast<Mode>(bank % 3) :
+        auto expectedMode = bank >= 20 ? static_cast<Mode>(bank - 20) :
+            bank < 12 ? static_cast<Mode>(bank % 3) :
             (bank < 16 ? Mode::Quad : Mode::Global);
         DOCTEST_CHECK(encoders.m_encoderBankBank.m_bankConfigs[bank].m_modeIx == static_cast<size_t>(expectedMode));
         DOCTEST_CHECK(encoders.m_encoderBankBank.m_bankConfigs[bank].m_color == x_bankColors[bank]);
@@ -173,7 +175,7 @@ DOCTEST_TEST_CASE("encoder catalogue baseline: every machine and trio grid")
                     static_cast<VoiceMachine::FilterMachine>(filter));
             }
 
-            for (int bank = 0; bank < 20; ++bank)
+            for (size_t bank = 0; bank < x_bankColors.size(); ++bank)
             {
                 for (int y = 0; y < 4; ++y)
                 {
@@ -186,7 +188,7 @@ DOCTEST_TEST_CASE("encoder catalogue baseline: every machine and trio grid")
                         DOCTEST_CHECK((actual != nullptr) == (expected != nullptr));
                         if (actual && expected)
                         {
-                            size_t cellTrio = bank < 12 ? static_cast<size_t>(bank % 3) : 0;
+                            size_t cellTrio = bank >= 20 ? bank - 20 : bank < 12 ? bank % 3 : 0;
                             DOCTEST_CHECK(std::string(actual->m_name) == ExpectedName(*expected, cellTrio));
                             DOCTEST_CHECK(actual->m_color == expected->m_color);
                         }

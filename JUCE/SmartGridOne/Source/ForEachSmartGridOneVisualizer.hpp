@@ -69,17 +69,17 @@ F(
         uiState),
     VoiceMachine::SourceMachineFlags::All())
 
-// FilterAndAmp bank
+// AmpAndRouting bank
 //
 F(
     VoiceMeter,
-    FilterAndAmp,
+    AmpAndRouting,
     0,
     std::make_unique<VoiceMeterComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     PostAmpScope,
-    FilterAndAmp,
+    AmpAndRouting,
     1,
     std::make_unique<ScopeComponent>(
         3,
@@ -88,9 +88,12 @@ F(
         ScopeComponent::ScopeType::Audio,
         uiState),
     VoiceMachine::SourceMachineFlags::All())
+
+// Shape bank
+//
 F(
     FilterScope,
-    FilterAndAmp,
+    Shape,
     2,
     std::make_unique<ScopeComponent>(
         2,
@@ -101,7 +104,7 @@ F(
     VoiceMachine::SourceMachineFlags::All())
 F(
     FilterAnalyzer,
-    FilterAndAmp,
+    Shape,
     3,
     std::make_unique<AnalyserComponent>(
         WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp)),

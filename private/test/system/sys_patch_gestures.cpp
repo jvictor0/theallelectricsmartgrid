@@ -51,7 +51,7 @@ DOCTEST_TEST_CASE("Patch gestures: fresh load publishes assigned colors without 
     {
         PatchGestureRig source;
         source.AddGesture(0, Encoders::Bank::Source, 0, 0, 0);
-        source.AddGesture(9, Encoders::Bank::FilterAndAmp, 2, 2, 1);
+        source.AddGesture(9, Encoders::Bank::Shape, 2, 2, 1);
         source.m_rig.Internal().SetActiveTrio(TheNonagonSmartGrid::Trio::Water);
         DOCTEST_REQUIRE(source.PublishedColor(0) == Color::Red);
         DOCTEST_REQUIRE(source.PublishedColor(9) == Color::Green);
@@ -83,7 +83,7 @@ DOCTEST_TEST_CASE("Patch gestures: same-scene loads replace assignment colors")
     const std::string emptyPatch = fixture.m_rig.SavePatch();
     fixture.AddGesture(0, Encoders::Bank::Source, 0, 0, 0);
     const std::string redPatch = fixture.m_rig.SavePatch();
-    fixture.AddGesture(0, Encoders::Bank::FilterAndAmp, 0, 2, 1);
+    fixture.AddGesture(0, Encoders::Bank::Shape, 0, 2, 1);
     const std::string mixedPatch = fixture.m_rig.SavePatch();
     DOCTEST_REQUIRE_FALSE(emptyPatch.empty());
     DOCTEST_REQUIRE_FALSE(redPatch.empty());

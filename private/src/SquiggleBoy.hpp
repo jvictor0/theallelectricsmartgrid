@@ -949,7 +949,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             Reverb,
             QuadMaster,
             StereoMaster,
-            SourceMixer
+            SourceMixer,
+            AmpAndRouting
         };
 
         struct VoiceFilterUIState : TransferFunction
@@ -1938,9 +1939,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Voice);
                 break;
             }
-            case Bank::FilterAndAmp:
+            case Bank::Shape:
             {
                 uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Filter);
+                break;
+            }
+            case Bank::AmpAndRouting:
+            {
+                uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::AmpAndRouting);
                 break;
             }
             case Bank::PanningAndSequencing:

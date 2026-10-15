@@ -38,7 +38,7 @@ struct SmartGridOneLayout
         ThruSource,
         PhysicalModelingSource,
         SampleSource,
-        FilterAndAmp,
+        Shape,
         PanAndMelody,
         VoiceLFOs,
         Delay,
@@ -49,13 +49,14 @@ struct SmartGridOneLayout
         Mastering,
         Inputs,
         DeepVocoder,
+        AmpAndRouting,
         NumPages
     };
 
     enum class Slot
     {
         Source,
-        FilterAndAmp,
+        Shape,
         PanningAndSequencing,
         VoiceLFOs,
         Delay,
@@ -66,6 +67,7 @@ struct SmartGridOneLayout
         Mastering,
         Inputs,
         DeepVocoder,
+        AmpAndRouting,
         NumSlots
     };
 
