@@ -1,4 +1,5 @@
 import importlib.util
+import http.client
 import json
 import sys
 import tempfile
@@ -10,7 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 if importlib.util.find_spec('soundcloud_api'):
-    from soundcloud_api import SoundCloudAPI, APIError, HTTPTransport
+    from soundcloud_api import SoundCloudAPI, APIError, HTTPTransport, x_error_body_limit
     from soundcloud_connect import ConnectionFlow
 else:
     SoundCloudAPI = None
@@ -130,6 +131,64 @@ class APITests(unittest.TestCase):
                             api.Upload(path, 'Title', None, lambda p: None)
                     self.assertEqual(failure.exception.uncertain, uncertain)
                     self.assertIn('HTTP ' + str(status), str(failure.exception))
+
+    def test_http_error_body_is_logged_and_retained_without_credentials(self):
+        payloads = [json.dumps({'errors': [{'error_message': 'Track was created but response failed'}],
+                               'message': 'access=old refresh=refresh-one secret=secret client=client'}).encode(),
+                    b'Upstream error\naccess=old refresh=refresh-one secret=secret client=client\x1b']
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                response = Mock(status=400)
+                response.read.return_value = payload
+                connection = Mock()
+                connection.getresponse.return_value = response
+                api = SoundCloudAPI(self.storage, HTTPTransport())
+                with patch('soundcloud_api.http.client.HTTPSConnection', return_value=connection):
+                    with self.assertLogs('soundcloud_api', level='WARNING') as logs:
+                        with self.assertRaises(APIError) as failure:
+                            api.Request('POST', 'https://api.soundcloud.com/tracks')
+                message = str(failure.exception)
+                self.assertIn('HTTP 400', message)
+                self.assertIn('Track was created' if payload.startswith(b'{') else 'Upstream error', message)
+                self.assertIn('[redacted]', message)
+                self.assertIn(message, logs.output[0])
+                self.assertIn('POST /tracks', logs.output[0])
+                self.assertEqual(len(logs.output), 1)
+                self.assertNotIn('\n', message)
+                self.assertNotIn('\x1b', message)
+                for key in ('access_token', 'refresh_token', 'client_secret', 'client_id'):
+                    self.assertNotIn('='+self.storage.value[key], message)
+                connection.request.assert_called_once()
+                connection.close.assert_called_once()
+
+    def test_http_error_body_is_bounded_and_marks_truncation(self):
+        response = Mock(status=400)
+        response.read.return_value = b'x' * (x_error_body_limit + 1)
+        connection = Mock()
+        connection.getresponse.return_value = response
+        with patch('soundcloud_api.http.client.HTTPSConnection', return_value=connection):
+            status, result = HTTPTransport().Request('POST', 'https://api.soundcloud.com/tracks', {}, None)
+        self.assertEqual(status, 400)
+        self.assertEqual(result['message'], 'x' * x_error_body_limit)
+        self.assertTrue(result['truncated'])
+        response.read.assert_called_once_with(x_error_body_limit + 1)
+
+    def test_unreadable_error_body_keeps_http_status_and_outcome(self):
+        for status, uncertain in ((400, False), (503, True)):
+            for error in (TimeoutError(), http.client.IncompleteRead(b'partial')):
+                with self.subTest(status=status, error=type(error).__name__):
+                    response = Mock(status=status)
+                    response.read.side_effect = error
+                    connection = Mock()
+                    connection.getresponse.return_value = response
+                    api = SoundCloudAPI(self.storage, HTTPTransport())
+                    with patch('soundcloud_api.http.client.HTTPSConnection', return_value=connection):
+                        with self.assertLogs('soundcloud_api', level='WARNING'):
+                            with self.assertRaises(APIError) as failure:
+                                api.Request('POST', 'https://api.soundcloud.com/tracks')
+                    self.assertIn('HTTP ' + str(status), str(failure.exception))
+                    self.assertIn('Could not read', str(failure.exception))
+                    self.assertEqual(failure.exception.uncertain, uncertain)
 
     def test_receiver_loads_saved_authorization_only_once(self):
         from soundcloud_connect import LoadSavedAPI

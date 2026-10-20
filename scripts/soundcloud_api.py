@@ -2,6 +2,7 @@
 
 import http.client
 import json
+import logging
 import mimetypes
 import secrets
 import threading
@@ -13,6 +14,7 @@ from urllib.parse import urlencode, urlsplit
 x_api_origin = 'https://api.soundcloud.com'
 x_token_url = 'https://secure.soundcloud.com/oauth/token'
 x_chunk_size = 256 * 1024
+x_error_body_limit = 16 * 1024
 
 
 class APIError(Exception):
@@ -37,7 +39,17 @@ class HTTPTransport:
             connection.request(method, parsed.path + ('?' + parsed.query if parsed.query else ''), body=body, headers=headers)
             response = connection.getresponse()
             if not 200 <= response.status < 300:
-                return response.status, {}
+                try:
+                    payload = response.read(x_error_body_limit + 1)
+                except (OSError, http.client.HTTPException):
+                    return response.status, {'message': 'Could not read SoundCloud error response'}
+                if len(payload) > x_error_body_limit:
+                    return response.status, {'message': payload[:x_error_body_limit].decode('utf-8', errors='replace'),
+                                             'truncated': True}
+                try:
+                    return response.status, json.loads(payload)
+                except (ValueError, UnicodeDecodeError):
+                    return response.status, {'message': payload.decode('utf-8', errors='replace')} if payload else {}
             payload = response.read(4 * 1024 * 1024 + 1)
             if len(payload) > 4 * 1024 * 1024:
                 raise APIError('SoundCloud response too large', uncertain=method == 'POST')
@@ -131,7 +143,14 @@ class SoundCloudAPI:
         except Exception:
             raise APIError('SoundCloud connection failed', uncertain=method == 'POST') from None
         if not 200 <= status < 300:
-            raise APIError(f'SoundCloud rejected request (HTTP {status})', uncertain=method == 'POST' and status >= 500)
+            detail = json.dumps(result, ensure_ascii=True) if result else ''
+            for key in ('access_token', 'refresh_token', 'client_secret', 'client_id'):
+                secret = self.m_tokens.get(key)
+                if secret:
+                    detail = detail.replace(json.dumps(secret, ensure_ascii=True)[1:-1], '[redacted]')
+            message = f'SoundCloud rejected request (HTTP {status})' + (': ' + detail if detail else '')
+            logging.getLogger(__name__).warning('%s %s: %s', method, urlsplit(url).path, message)
+            raise APIError(message, uncertain=method == 'POST' and status >= 500)
         return result
 
     def Account(self):
