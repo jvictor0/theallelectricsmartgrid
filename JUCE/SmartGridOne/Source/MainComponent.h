@@ -10,6 +10,7 @@
 #include "PatchChooser.hpp"
 #include "IOUtils.hpp"
 #include "WrldBuildrComponent.hpp"
+#include "WrldBuildrVisualizerPage.hpp"
 #include "Configuration.hpp"
 #include "ClockModeConfigJSON.hpp"
 #include "ThreadId.hpp"
@@ -240,6 +241,7 @@ private:
     std::unique_ptr<PatchChooser> m_patchChooser;
     std::unique_ptr<VersionChooser> m_versionChooser;
     std::unique_ptr<WrldBuildrComponent> m_wrldBuildrGrid;
+    std::unique_ptr<WrldBuildrVisualizerPage> m_wrldBuildrVisualizerPage;
     juce::TextButton m_configButton;
     juce::TextButton m_backButton;
     juce::TextButton m_fileButton;

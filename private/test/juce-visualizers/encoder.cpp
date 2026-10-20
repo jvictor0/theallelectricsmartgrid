@@ -4,6 +4,7 @@
 #include "ScopeComponent.hpp"
 #include "GangedRandomLFOComponent.hpp"
 #include "EncoderModulatorComponents.hpp"
+#include "EncoderModulatorVisualizers.hpp"
 
 namespace
 {
@@ -159,15 +160,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: catalogue supplies only supported source
     auto state = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto* uiState = state.get();
     ModulatorVisualizers visualizers;
-#define H(modulator, ctor) \
-    visualizers.Add(modulator, [&]([[maybe_unused]] int* scopeVoiceOffset) \
-    { \
-        return ctor; \
-    });
-#define G(name, slot, ctor, mode, color, modulator) H(modulator, ctor)
-#include "ForEachModulationVisualizer.hpp"
-#undef G
-#undef H
+    InitializeEncoderModulatorVisualizers(visualizers, uiState);
 
     for (Mode mode : {Mode::VoiceWater, Mode::VoiceFire, Mode::VoiceEarth, Mode::Quad, Mode::Global})
     {

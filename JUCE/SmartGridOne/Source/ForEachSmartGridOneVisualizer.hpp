@@ -1,8 +1,9 @@
-// F(VisualizerName, Bank, Block, ComponentConstructor, SourceMachineFlags)
+// F(VisualizerName, Bank, Slot, SlotSpan, Region, ComponentConstructor, SourceMachineFlags)
 //
 // Bank: from SmartGridOneEncoders::Bank enum
-// Block: 0 = (0,0), 1 = (0,8), 2 = (8,8), 3 = (16,8)
-// Block -1 = special/full-width
+// Slot: zero-based position in the three-slot visualizer row
+// SlotSpan: number of consecutive slots occupied, including their internal gaps
+// Region: VisualizerRegion within that span (Full, Top, Bottom, or a corner)
 //
 // Source bank
 //
@@ -12,6 +13,8 @@ F(
     VCO1Scope,
     Source,
     0,
+    1,
+    Top,
     std::make_unique<ScopeComponent>(
         0,
         m_nonagon->GetAudioScopeWriter(),
@@ -22,7 +25,9 @@ F(
 F(
     VCO2Scope,
     Source,
+    0,
     1,
+    Bottom,
     std::make_unique<ScopeComponent>(
         1,
         m_nonagon->GetAudioScopeWriter(),
@@ -33,7 +38,9 @@ F(
 F(
     SampleTrioWaveform,
     Source,
+    0,
     1,
+    Full,
     std::make_unique<SampleTrioWaveformVisualizerComponent>(uiState),
     VoiceMachine::SourceMachineFlags::SampleOnly())
 
@@ -43,6 +50,8 @@ F(
     PhysModFreqResponse,
     Source,
     0,
+    1,
+    Full,
     std::make_unique<PhysicalModelingFrequencyResponseComponent>(
         uiState,
         &m_scopeVoiceOffset),
@@ -51,7 +60,9 @@ F(
 F(
     PostFilterScope,
     Source,
-    2,
+    1,
+    1,
+    Full,
     std::make_unique<ScopeComponent>(
         2,
         m_nonagon->GetAudioScopeWriter(),
@@ -62,7 +73,9 @@ F(
 F(
     SourceAnalyzer,
     Source,
-    3,
+    2,
+    1,
+    Full,
     std::make_unique<AnalyserComponent>(
         WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp)),
         &m_scopeVoiceOffset,
@@ -72,15 +85,11 @@ F(
 // AmpAndRouting bank
 //
 F(
-    VoiceMeter,
-    AmpAndRouting,
-    0,
-    std::make_unique<VoiceMeterComponent>(uiState),
-    VoiceMachine::SourceMachineFlags::All())
-F(
     PostAmpScope,
     AmpAndRouting,
+    0,
     1,
+    Full,
     std::make_unique<ScopeComponent>(
         3,
         m_nonagon->GetAudioScopeWriter(),
@@ -94,7 +103,9 @@ F(
 F(
     FilterScope,
     Shape,
-    2,
+    0,
+    1,
+    Full,
     std::make_unique<ScopeComponent>(
         2,
         m_nonagon->GetAudioScopeWriter(),
@@ -105,7 +116,9 @@ F(
 F(
     FilterAnalyzer,
     Shape,
-    3,
+    1,
+    1,
+    Full,
     std::make_unique<AnalyserComponent>(
         WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp)),
         &m_scopeVoiceOffset,
@@ -118,12 +131,16 @@ F(
     SoundStage,
     PanningAndSequencing,
     0,
+    1,
+    Full,
     std::make_unique<SoundStageComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     MelodyRoll,
     PanningAndSequencing,
-    -1,
+    1,
+    2,
+    Full,
     std::make_unique<SequencerMelodyVisualizerComponent>(
         uiState,
         &m_scopeVoiceOffset,
@@ -136,8 +153,10 @@ F(
     ControlScope0,
     VoiceLFOs,
     0,
+    1,
+    Full,
     std::make_unique<ScopeComponent>(
-        0,
+        static_cast<size_t>(SmartGridOne::ControlScopes::LFO1),
         m_nonagon->GetControlScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
@@ -147,30 +166,10 @@ F(
     ControlScope1,
     VoiceLFOs,
     1,
+    1,
+    Full,
     std::make_unique<ScopeComponent>(
-        1,
-        m_nonagon->GetControlScopeWriter(),
-        &m_scopeVoiceOffset,
-        ScopeComponent::ScopeType::Control,
-        uiState),
-    VoiceMachine::SourceMachineFlags::All())
-F(
-    ControlScope2,
-    VoiceLFOs,
-    2,
-    std::make_unique<ScopeComponent>(
-        2,
-        m_nonagon->GetControlScopeWriter(),
-        &m_scopeVoiceOffset,
-        ScopeComponent::ScopeType::Control,
-        uiState),
-    VoiceMachine::SourceMachineFlags::All())
-F(
-    ControlScope3,
-    VoiceLFOs,
-    3,
-    std::make_unique<ScopeComponent>(
-        3,
+        static_cast<size_t>(SmartGridOne::ControlScopes::LFO2),
         m_nonagon->GetControlScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
@@ -183,6 +182,8 @@ F(
     DelayAnalyzer,
     Delay,
     0,
+    1,
+    Full,
     std::make_unique<QuadAnalyserComponent>(
         uiState,
         QuadAnalyserComponent::Type::Delay),
@@ -191,6 +192,8 @@ F(
     QuadDelayEnvelope,
     Delay,
     1,
+    1,
+    Full,
     std::make_unique<QuadDelayEnvelopeVisualizerComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 
@@ -200,6 +203,8 @@ F(
     ReverbAnalyzer,
     Reverb,
     0,
+    1,
+    Full,
     std::make_unique<QuadAnalyserComponent>(
         uiState,
         QuadAnalyserComponent::Type::Reverb),
@@ -211,6 +216,8 @@ F(
     PartialMachineAnalyzer,
     PartialMachine,
     0,
+    1,
+    Full,
     std::make_unique<QuadAnalyserComponent>(
         uiState,
         QuadAnalyserComponent::Type::PartialMachine),
@@ -219,12 +226,16 @@ F(
     PartialMachineInputSpectrum,
     PartialMachine,
     1,
+    1,
+    Full,
     std::make_unique<PartialMachineInputSpectrumComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     PartialMachineSpatial,
     PartialMachine,
     2,
+    1,
+    Full,
     std::make_unique<PartialMachineSpatialComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 
@@ -234,6 +245,8 @@ F(
     QuadLFO1MainScope,
     QuadLFOs,
     0,
+    1,
+    Full,
     std::make_unique<PolyphonicScopeComponent>(
         m_nonagon->GetQuadControlScopeWriter(),
         static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1),
@@ -246,6 +259,8 @@ F(
     QuadLFO2MainScope,
     QuadLFOs,
     1,
+    1,
+    Full,
     std::make_unique<PolyphonicScopeComponent>(
         m_nonagon->GetQuadControlScopeWriter(),
         static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2),
@@ -261,6 +276,8 @@ F(
     QuadAnalyzer,
     TheoryOfTime,
     0,
+    1,
+    Full,
     std::make_unique<QuadAnalyserComponent>(
         uiState,
         QuadAnalyserComponent::Type::Master),
@@ -269,40 +286,44 @@ F(
     QuadDelayEnvelopeTot,
     TheoryOfTime,
     1,
+    1,
+    Full,
     std::make_unique<QuadDelayEnvelopeVisualizerComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     TheoryOfTimeViz,
     TheoryOfTime,
     2,
+    1,
+    Full,
     std::make_unique<TheoryOfTimeScopeComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 
 // Mastering bank
 //
 F(
-    SourceMixerRed,
+    MultibandGainRed,
     Mastering,
     0,
-    std::make_unique<SourceMixerReductionComponent>(uiState),
+    1,
+    Full,
+    std::make_unique<MultibandGainReductionComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     SourceMixerFreq,
     Mastering,
     1,
+    1,
+    Full,
     std::make_unique<SourceMixerFrequencyComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     MultibandEQ,
     Mastering,
     2,
+    1,
+    Full,
     std::make_unique<MultibandEQComponent>(uiState),
-    VoiceMachine::SourceMachineFlags::All())
-F(
-    MultibandGainRed,
-    Mastering,
-    3,
-    std::make_unique<MultibandGainReductionComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 
 // Inputs bank
@@ -311,25 +332,25 @@ F(
     InputsSourceMixerRed,
     Inputs,
     0,
+    1,
+    Full,
     std::make_unique<SourceMixerReductionComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     InputsSourceMixerFreq,
     Inputs,
     1,
+    1,
+    Full,
     std::make_unique<SourceMixerFrequencyComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     InputsMultibandEQ,
     Inputs,
     2,
+    1,
+    Full,
     std::make_unique<MultibandEQComponent>(uiState),
-    VoiceMachine::SourceMachineFlags::All())
-F(
-    InputsMultibandGainRed,
-    Inputs,
-    3,
-    std::make_unique<MultibandGainReductionComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 
 // DeepVocoder bank
@@ -338,23 +359,23 @@ F(
     DeepVocoderSourceMixerRed,
     DeepVocoder,
     0,
+    1,
+    Full,
     std::make_unique<SourceMixerReductionComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     DeepVocoderSourceMixerFreq,
     DeepVocoder,
     1,
+    1,
+    Full,
     std::make_unique<SourceMixerFrequencyComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     DeepVocoderMultibandEQ,
     DeepVocoder,
     2,
+    1,
+    Full,
     std::make_unique<MultibandEQComponent>(uiState),
-    VoiceMachine::SourceMachineFlags::All())
-F(
-    DeepVocoderMultibandGainRed,
-    DeepVocoder,
-    3,
-    std::make_unique<MultibandGainReductionComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())

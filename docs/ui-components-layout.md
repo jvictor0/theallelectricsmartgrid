@@ -35,7 +35,7 @@ This page documents the JUCE-side control widgets and how they are assembled int
 
 ## `WrldBuildrComponent` composition
 
-`WrldBuildrComponent` (`JUCE/SmartGridOne/Source/WrldBuildrComponent.hpp`) is the main composition root for the controller/visualizer page.
+`WrldBuildrComponent` (`JUCE/SmartGridOne/Source/WrldBuildrComponent.hpp`) is the controller page shown when World Builder is disconnected. It always shows its pad grids, encoders, faders and joysticks, including in hardware config mode.
 
 It places controls on a 24x18 logical grid with holder types:
 
@@ -43,17 +43,14 @@ It places controls on a 24x18 logical grid with holder types:
 - `EncoderGridHolder`
 - `FaderHolder`
 - `JoyStickHolder`
-- `ScopeComponentHolder`
 
-### Display modes
+### Connected visualizer page
 
-`WrldBuildrComponent::SetDisplayMode()` switches between:
+`MainComponent` switches to `WrldBuildrVisualizerPage` when World Builder connects. The original controller page has no visualizer mode or voice-config overlay.
 
-- **Controller** mode:
-  - shows pad grids, encoder grids, faders, joysticks.
-- **Visualizer** mode:
-  - hides controller widgets,
-  - shows scoped/FFT/metering components based on `VisualDisplayMode`.
+The experimental connected page uses a 64×48 logical grid: three blank rows at the top, three 21×21 visualizer slots separated by half-cell gaps, a four-row status/meter strip, and two rows of eight encoders. Each encoder has an 8×8 dial and an 8×2 badge strip. The 48×4 meters are right aligned; File, Config and CPU controls sit to their left. Hardware voice config overlays the meter region and extends upward while active.
+
+The connected page directly owns the main visualizer catalogue. Each entry specifies a starting slot, slot span and full/half/quadrant region. Dual VCO scopes share the first slot vertically, and the melody roll spans the last two slots. Voice LFOs shows only its two LFO scopes. Mastering uses final output multiband meters, while Inputs and Deep Vocoder use input source meters. Each keeps both frequency plots, so every page fits in the three-slot row; catalogue bounds are checked at compile time. Both pages initialize encoder modulation backgrounds through `InitializeEncoderModulatorVisualizers`; standalone modulation panels are temporarily absent.
 
 ### Responsive layout
 

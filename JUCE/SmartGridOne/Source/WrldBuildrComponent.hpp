@@ -3,14 +3,11 @@
 #include <JuceHeader.h>
 #include "BasicPadGrid.hpp"
 #include "EncoderGrid.hpp"
+#include "EncoderModulatorVisualizers.hpp"
+#include "NonagonWrapper.hpp"
 #include "FaderComponent.hpp"
 #include "JoyStickComponent.hpp"
-#include "ScopeComponent.hpp"
 #include "SmartGridInclude.hpp"
-#include "MeterComponent.hpp"
-#include "MasteringComponents.hpp"
-#include "SmartGridOneVisualizerMain.hpp"
-#include "VoiceConfigComponent.hpp"
 
 struct BasicPadGridHolder
 {
@@ -177,49 +174,6 @@ struct JoyStickHolder
     }
 };
 
-struct ScopeComponentHolder
-{
-    std::unique_ptr<juce::Component> m_scopeComponent;
-    int m_gridX;
-    int m_gridY;
-    int m_scopeWidth;
-    int m_scopeHeight;
-    
-    ScopeComponentHolder(std::unique_ptr<juce::Component> scopeComponent, int gridX, int gridY, int scopeWidth, int scopeHeight)
-        : m_scopeComponent(std::move(scopeComponent))
-        , m_gridX(gridX)
-        , m_gridY(gridY)
-        , m_scopeWidth(scopeWidth)
-        , m_scopeHeight(scopeHeight)
-    {
-    }
-    
-    void SetPosition(int gridX, int gridY)
-    {
-        m_gridX = gridX;
-        m_gridY = gridY;
-    }
-    
-    void SetSize(int scopeWidth, int scopeHeight)
-    {
-        m_scopeWidth = scopeWidth;
-        m_scopeHeight = scopeHeight;
-    }
-    
-    void SetBounds(int cellSize, int mainGridX, int mainGridY)
-    {
-        if (m_scopeComponent)
-        {
-            int scopeX = mainGridX + (m_gridX * cellSize);
-            int scopeY = mainGridY + (m_gridY * cellSize);
-            int scopeWidth = m_scopeWidth * cellSize;
-            int scopeHeight = m_scopeHeight * cellSize;
-            
-            m_scopeComponent->setBounds(scopeX, scopeY, scopeWidth, scopeHeight);
-        }
-    }
-};
-
 struct WrldBuildrComponent : public juce::Component
 {
     static constexpr int x_gridWidth = 24;
@@ -234,8 +188,6 @@ struct WrldBuildrComponent : public juce::Component
     int m_gridWidth;
     int m_gridHeight;
 
-    int m_scopeVoiceOffset;
-    
     std::unique_ptr<BasicPadGridHolder> m_leftPadGrid;
     std::unique_ptr<BasicPadGridHolder> m_rightPadGrid;
     std::unique_ptr<BasicPadGridHolder> m_bottomCenterGrid;
@@ -245,7 +197,7 @@ struct WrldBuildrComponent : public juce::Component
     std::unique_ptr<BasicPadGridHolder> m_leftArcadeGrid;
     std::unique_ptr<BasicPadGridHolder> m_rightArcadeGrid;
 
-    std::unique_ptr<SmartGridOneVisualizerMain> m_visualizerMain;
+    ModulatorVisualizers m_modulatorVisualizers;
     std::unique_ptr<EncoderGridHolder> m_encoderGrids[4];
 
     std::unique_ptr<FaderHolder> m_faderGrids[8];
@@ -254,8 +206,6 @@ struct WrldBuildrComponent : public juce::Component
 
     std::unique_ptr<JoyStickHolder> m_joyStickReturn;
     std::unique_ptr<JoyStickHolder> m_joyStickFixed;
-
-    std::unique_ptr<VoiceConfigComponent> m_voiceConfigComponent;
 
     bool m_drawGrid;
 
@@ -269,7 +219,6 @@ struct WrldBuildrComponent : public juce::Component
         setWantsKeyboardFocus(true);
         
         m_drawGrid = false;
-        m_scopeVoiceOffset = -1;
         
         // Create the 8x8 pad grid for the range 0,0,8,8
         //
@@ -312,20 +261,16 @@ struct WrldBuildrComponent : public juce::Component
         m_rightArcadeGrid->m_padHeight = 2;
         addAndMakeVisible(m_rightArcadeGrid->m_padGrid.get());
         
-        m_visualizerMain = std::make_unique<SmartGridOneVisualizerMain>(m_nonagon);
+        InitializeEncoderModulatorVisualizers(m_modulatorVisualizers, m_nonagon->GetUIState());
         for (int i = 0; i < 4; ++i)
         {
             auto encoderGrid = std::make_unique<EncoderGrid>(
-                m_nonagon->MkEncoderBankUI(), 0, i, 4, i + 1, i % 2 == 1, m_visualizerMain->m_modulatorVisualizers);
+                m_nonagon->MkEncoderBankUI(), 0, i, 4, i + 1, i % 2 == 1, m_modulatorVisualizers);
             int xPos = 8 + 8 * (i / 2);
             float yPos = 2.5f * (i % 2);
             m_encoderGrids[i] = std::make_unique<EncoderGridHolder>(std::move(encoderGrid), xPos, yPos);
             addAndMakeVisible(m_encoderGrids[i]->m_encoderGrid.get());
         }
-
-        m_voiceConfigComponent = std::make_unique<VoiceConfigComponent>(m_nonagon);
-        addAndMakeVisible(m_voiceConfigComponent.get());
-        m_voiceConfigComponent->setVisible(false);
 
         for (int i = 0; i < 8; ++i)
         {
@@ -350,8 +295,6 @@ struct WrldBuildrComponent : public juce::Component
         m_joyStickFixed = std::make_unique<JoyStickHolder>(std::move(joyStickReturn), 4, 4);
         addAndMakeVisible(m_joyStickFixed->m_joyStick.get());
 
-        addAndMakeVisible(m_visualizerMain.get());
-
         m_initialized = true;
 
         // Calculate initial layout
@@ -372,8 +315,6 @@ struct WrldBuildrComponent : public juce::Component
     
     void paint(juce::Graphics& g) override
     {
-        UpdateConfigModeVisibility();
-
         // Fill background
         //
         g.fillAll(juce::Colours::black);
@@ -440,65 +381,6 @@ struct WrldBuildrComponent : public juce::Component
         }
     }
 
-    void SetDisplayMode()
-    {
-        switch (m_nonagon->GetDisplayMode())
-        {
-            case TheNonagonSquiggleBoyWrldBldr::DisplayMode::Controller:
-            {
-                SetDisplayModeController(true);
-                if (m_visualizerMain)
-                {
-                    m_visualizerMain->setVisible(false);
-                }
-                break;
-            }
-            case TheNonagonSquiggleBoyWrldBldr::DisplayMode::Visualizer:
-            {
-                SetDisplayModeController(false);
-                if (m_visualizerMain)
-                {
-                    m_visualizerMain->setVisible(true);
-                    m_visualizerMain->repaint();
-                }
-                break;
-            }
-        }
-    }
-
-    void SetDisplayModeController(bool isVisible)
-    {
-        m_leftPadGrid->m_padGrid->setVisible(isVisible);
-        m_rightPadGrid->m_padGrid->setVisible(isVisible);
-        m_leftTopGrid->m_padGrid->setVisible(isVisible);
-        m_timerGrid->m_padGrid->setVisible(isVisible);
-        m_belowEncodersGrid->m_padGrid->setVisible(isVisible);
-         
-        for (int i = 0; i < 8; ++i)
-        {
-            m_faderGrids[i]->m_fader->setVisible(isVisible);
-        }
-
-        m_xFader->m_fader->setVisible(isVisible);
-        m_joyStickReturn->m_joyStick->setVisible(isVisible);
-        m_joyStickFixed->m_joyStick->setVisible(isVisible);
-    }
-
-    void UpdateConfigModeVisibility()
-    {
-        bool isConfigMode = m_nonagon->GetGridsMode() == TheNonagonSquiggleBoyWrldBldr::GridsMode::Config;
-
-        for (int i = 0; i < 4; ++i)
-        {
-            m_encoderGrids[i]->m_encoderGrid->setVisible(!isConfigMode);
-        }
-
-        if (m_voiceConfigComponent)
-        {
-            m_voiceConfigComponent->setVisible(isConfigMode);
-        }
-    }
-        
     void UpdatePadGridPosition()
     {
         if (!m_initialized)
@@ -520,15 +402,6 @@ struct WrldBuildrComponent : public juce::Component
             m_encoderGrids[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
         }
 
-        if (m_voiceConfigComponent)
-        {
-            int x = m_gridX + 8 * m_cellSize;
-            int y = m_gridY;
-            int width = 16 * m_cellSize;
-            int height = 5 * m_cellSize;
-            m_voiceConfigComponent->setBounds(x, y, width, height);
-        }
-
         for (int i = 0; i < 8; ++i)
         {
             m_faderGrids[i]->SetBounds(m_cellSize, m_gridX, m_gridY);
@@ -537,10 +410,5 @@ struct WrldBuildrComponent : public juce::Component
         m_xFader->SetBounds(m_cellSize, m_gridX, m_gridY);
         m_joyStickReturn->SetBounds(m_cellSize, m_gridX, m_gridY);
         m_joyStickFixed->SetBounds(m_cellSize, m_gridX, m_gridY);
-        
-        if (m_visualizerMain)
-        {
-            m_visualizerMain->setBounds(getLocalBounds());
-        }
     }
 };

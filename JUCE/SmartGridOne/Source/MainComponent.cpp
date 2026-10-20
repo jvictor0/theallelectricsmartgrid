@@ -56,6 +56,8 @@ MainComponent::MainComponent()
     // Set up world builder grid
     m_wrldBuildrGrid = std::make_unique<WrldBuildrComponent>(&m_nonagon);
     addAndMakeVisible(m_wrldBuildrGrid.get());
+    m_wrldBuildrVisualizerPage = std::make_unique<WrldBuildrVisualizerPage>(&m_nonagon);
+    addChildComponent(m_wrldBuildrVisualizerPage.get());
     
     // Ensure config page starts closed
     m_showingConfig = false;
@@ -76,12 +78,6 @@ MainComponent::MainComponent()
     setSize(1000, 700);
     resized();
     
-    // Force the world builder grid to update its display mode
-    if (m_wrldBuildrGrid)
-    {
-        m_wrldBuildrGrid->SetDisplayMode();
-    }
-
     // Trigger a repaint to ensure everything is drawn correctly
     repaint();
 }
@@ -113,9 +109,21 @@ void MainComponent::paint (juce::Graphics& g)
 void MainComponent::resized()
 {
     auto bounds = getLocalBounds();
-    
-    // Right side panel area
-    auto rightPanel = bounds.removeFromRight(50);
+    bool showingHome = !m_showingConfig && !m_showingFile;
+    bool showingVisualizer = showingHome && m_nonagon.m_wrldBldr.IsOpen();
+    if (m_wrldBuildrVisualizerPage)
+    {
+        m_wrldBuildrVisualizerPage->setVisible(showingVisualizer);
+    }
+
+    if (m_wrldBuildrGrid)
+    {
+        m_wrldBuildrGrid->setVisible(showingHome && !showingVisualizer);
+    }
+
+    // The connected page places the existing status controls beside its meters.
+    //
+    auto rightPanel = showingVisualizer ? juce::Rectangle<int>() : bounds.removeFromRight(50);
     
     // Config button in top right
     m_configButton.setBounds(rightPanel.removeFromTop(50));
@@ -144,6 +152,11 @@ void MainComponent::resized()
     else if (m_filePage && m_showingFile)
     {
         m_filePage->setBounds(bounds);
+    }
+    else if (m_wrldBuildrVisualizerPage && showingVisualizer)
+    {
+        m_wrldBuildrVisualizerPage->setBounds(bounds);
+        m_wrldBuildrVisualizerPage->LayoutStatusControls(m_cpuLabel, m_fileButton, m_configButton);
     }
     else if (m_wrldBuildrGrid && !m_showingConfig && !m_showingFile)
     {
@@ -533,7 +546,11 @@ void MainComponent::timerCallback()
     // Re-renderthe component at 60 FPS
     //
     HandleStateInterchange();
-    m_wrldBuildrGrid->SetDisplayMode();
+    bool showingVisualizer = !m_showingConfig && !m_showingFile && m_nonagon.m_wrldBldr.IsOpen();
+    if (m_wrldBuildrVisualizerPage->isVisible() != showingVisualizer)
+    {
+        resized();
+    }
 
     m_cpuUsageBuffer.Write(m_deviceManager.getCpuUsage() * 100.0);
     m_cpuLabel.setText(juce::String(m_cpuUsageBuffer.Max(), 1) + "%", juce::dontSendNotification);
