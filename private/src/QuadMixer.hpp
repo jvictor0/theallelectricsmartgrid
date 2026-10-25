@@ -230,12 +230,6 @@ struct QuadMixerInternal
         {
             for (size_t i = 0; i < input.m_numInputs; ++i)
             {
-                if (input.m_monitor[i])
-                {
-                    m_quadToStereoMixdown.MixSample(input.m_x[i], input.m_y[i], input.m_input[i] * input.m_gain[i].m_expParam);
-                    m_quadToStereoMixdown.MixSample(0.5f, 0.5f, input.m_monoIn[i]);
-                }
-
                 QuadFloat pan = QuadFloat::Pan(input.m_x[i], input.m_y[i], input.m_input[i]);
 
                 for (size_t j = 0; j < x_numSends; ++j)
@@ -251,6 +245,8 @@ struct QuadMixerInternal
 
                 if (input.m_monitor[i])
                 {
+                    m_quadToStereoMixdown.MixSample(input.m_x[i], input.m_y[i], input.m_input[i] * input.m_gain[i].m_expParam * reduction);
+                    m_quadToStereoMixdown.MixSample(0.5f, 0.5f, input.m_monoIn[i] * reduction);
                     m_output.m_output += postFader;
                 }
 
@@ -288,9 +284,9 @@ struct QuadMixerInternal
         {
             for (size_t j = 0; j < x_numSends; ++j)
             {
-                m_quadToStereoMixdown.MixQuadSample(input.m_return[j] * input.m_returnGain[j].m_expParam);
                 QuadFloat postReturn = input.m_return[j] * input.m_returnGain[j].m_expParam;
                 postReturn = m_returnMeters[j].ProcessAndSaturate(postReturn);
+                m_quadToStereoMixdown.MixQuadSample(postReturn);
                 m_output.m_output += postReturn;            
 
                 if (m_recordingFrameActive)
