@@ -109,6 +109,7 @@ struct StreamingRecorder
     struct Page
     {
         std::vector<float> m_samples;
+        std::vector<double> m_parameters;
         uint32_t m_frames = 0;
     };
 
@@ -137,6 +138,8 @@ struct StreamingRecorder
     std::vector<uint8_t> m_positions;
     std::vector<float> m_staging;
     std::vector<int32_t> m_block;
+    std::vector<double> m_parameterStaging;
+    std::vector<double> m_parameterBlock;
     std::vector<uint8_t> m_encoded;
     std::thread m_worker;
     std::atomic<State> m_state{State::Idle};
@@ -156,6 +159,10 @@ struct StreamingRecorder
     uint64_t m_acceptedFrames = 0;
     bool m_errorLogged = false;
     size_t m_recordingStartSample = 0;
+    bool m_transportSubmitted = false;
+    bool m_transportRunning = false;
+    bool m_hasRecordedTransport = false;
+    bool m_recordedTransportRunning = false;
 
     ~StreamingRecorder()
     {
@@ -192,8 +199,11 @@ struct StreamingRecorder
         for (auto& page : m_ring->m_data)
         {
             page.m_samples.resize(streams * x_pageFrames);
+            page.m_parameters.resize(m_session.m_parameters.size() * x_pageFrames);
         }
 
+        m_parameterStaging.resize(m_session.m_parameters.size());
+        m_parameterBlock.resize(m_session.m_parameters.size() * m_session.m_blockFrames);
         m_staging.resize(streams);
         m_block.resize(streams * m_session.m_blockFrames);
         m_encoded.reserve(streams * m_session.m_blockFrames * 3 + 4096);
@@ -237,6 +247,7 @@ struct StreamingRecorder
         m_page = nullptr;
         m_frameOpen = false;
         m_acceptedFrames = 0;
+        m_hasRecordedTransport = false;
         m_writtenFrames = 0;
         m_writtenBytes = 0;
         m_queueHighWater = 0;
@@ -356,6 +367,8 @@ struct StreamingRecorder
         if (m_frameOpen)
         {
             std::fill(m_staging.begin(), m_staging.end(), 0.0f);
+            std::fill(m_parameterStaging.begin(), m_parameterStaging.end(), 0.0);
+            m_transportSubmitted = false;
         }
 
         return m_frameOpen;
@@ -387,6 +400,36 @@ struct StreamingRecorder
         }
     }
 
+    void SubmitParameter(size_t index, double value)
+    {
+        if (!m_frameOpen)
+        {
+            return;
+        }
+
+        if (index >= m_parameterStaging.size())
+        {
+            Fail(Error::InvalidConfiguration);
+        }
+        else if (!std::isfinite(value))
+        {
+            Fail(Error::InvalidSample);
+        }
+        else
+        {
+            m_parameterStaging[index] = value;
+        }
+    }
+
+    void SubmitTransport(bool running)
+    {
+        if (m_frameOpen)
+        {
+            m_transportSubmitted = true;
+            m_transportRunning = running;
+        }
+    }
+
     void CommitFrame()
     {
         if (!m_frameOpen)
@@ -413,6 +456,20 @@ struct StreamingRecorder
             m_page->m_frames = 0;
         }
 
+        if (m_transportSubmitted && (!m_hasRecordedTransport || m_transportRunning != m_recordedTransportRunning))
+        {
+            RecordParamEvent(ParamEvent::MkTransport(m_transportRunning, m_acceptedFrames));
+            if (m_error != Error::None)
+            {
+                return;
+            }
+
+            m_recordedTransportRunning = m_transportRunning;
+            m_hasRecordedTransport = true;
+        }
+
+        std::copy(m_parameterStaging.begin(), m_parameterStaging.end(),
+            m_page->m_parameters.begin() + m_page->m_frames * m_parameterStaging.size());
         std::copy(m_staging.begin(), m_staging.end(),
             m_page->m_samples.begin() + m_page->m_frames * m_staging.size());
         ++m_page->m_frames;
@@ -526,7 +583,7 @@ struct StreamingRecorder
         }
 
         if (!RecordingFormat::EncodeBlock(m_session, m_block.data(), frames,
-                m_writtenFrames.load(), m_encoded, events)
+                m_writtenFrames.load(), m_encoded, events, m_parameterBlock.data())
             || !m_sink->Write(m_encoded.data(), m_encoded.size()))
         {
             SetError(Error::Write);
@@ -637,6 +694,12 @@ struct StreamingRecorder
                             {
                                 m_block[stream * m_session.m_blockFrames + blockFrames] =
                                     RecordingFormat::Quantize(page->m_samples[frame * streams + stream], m_positions[stream]);
+                            }
+
+                            for (size_t parameter = 0; parameter < m_parameterStaging.size(); ++parameter)
+                            {
+                                m_parameterBlock[parameter * m_session.m_blockFrames + blockFrames] =
+                                    page->m_parameters[frame * m_parameterStaging.size() + parameter];
                             }
 
                             if (++blockFrames == m_session.m_blockFrames)

@@ -805,7 +805,7 @@ struct SquiggleBoy
         ProcessWaveTableGenerators();
     }
 
-    void ProcessSample(const AudioInputBuffer& audioInputBuffer, const bool* sourceMonitor)
+    void ProcessSample(const AudioInputBuffer& audioInputBuffer, const bool* sourceMonitor, bool transportRunning)
     {
         m_sourceMixerState.SetInputs(audioInputBuffer);
 
@@ -897,6 +897,13 @@ struct SquiggleBoy
         }
 
         m_mixer.ProcessInputs(m_mixerState);
+        if (m_mixer.m_recordingFrameActive && m_theoryOfTime != nullptr)
+        {
+            const auto& time = m_theoryOfTime->m_samples[SampleTimer::GetUBlockIndex()];
+            m_mixer.m_recorder->SubmitParameter(0, time.m_unmodulatedPhase);
+            m_mixer.m_recorder->SubmitTransport(transportRunning);
+        }
+
 
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Dry)].Write(m_mixer.m_output.m_output);
 
@@ -1323,6 +1330,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         float m_faders[x_numFaders];
         bool m_sourceMonitor[SourceMixer::x_numSources];
+        bool m_transportRunning = false;
         SampleTop m_top;
 
         PhaseUtils::ExpParam m_tempo;
@@ -2009,6 +2017,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         SetEncoderParameters(input);
 
-        this->SquiggleBoy::ProcessSample(audioInputBuffer, input.m_sourceMonitor);
+        this->SquiggleBoy::ProcessSample(audioInputBuffer, input.m_sourceMonitor, input.m_transportRunning);
     }
 };

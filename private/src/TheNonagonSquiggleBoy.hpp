@@ -324,6 +324,7 @@ struct TheNonagonSquiggleBoyInternal
 
     void SetSquiggleBoyInputs()
     {
+        m_squiggleBoyState.m_transportRunning = m_running;
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
             if (m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig)            

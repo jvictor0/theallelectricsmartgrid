@@ -220,7 +220,7 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
     const auto process = [&]()
     {
         SampleTimer::IncrementSample();
-        engine.ProcessSample(input, monitors);
+        engine.ProcessSample(input, monitors, false);
     };
     DOCTEST_REQUIRE(recorder.GetState() == StreamingRecorder::State::Recording);
     for (size_t frame = 0; frame < 16; ++frame)
@@ -488,5 +488,82 @@ DOCTEST_TEST_CASE("recording engine: owner destruction drains events before free
     }
 
     DOCTEST_CHECK(files == 1);
+    std::filesystem::remove_all(directory);
+}
+
+DOCTEST_TEST_CASE("recording engine: UI and MIDI transport and unmodulated phase align with audio")
+{
+    const auto directory = std::filesystem::temp_directory_path()
+        / ("smartgrid-timeline-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(directory);
+    synthrig::SynthRig rig;
+    rig.StartSequencer();
+    auto& internal = rig.Internal();
+    auto& recorder = internal.m_context.m_recorder;
+    auto& time = internal.m_nonagon.m_nonagon.m_theoryOfTime;
+    auto& encoders = internal.m_squiggleBoy.m_encoders;
+    auto* modulation = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(
+        SmartGridOneEncoders::Param::TempoLFOIndex, 0));
+    modulation->SetValue(1.0f, true);
+    modulation->SetForceUpdateRecursive();
+    rig.RunSamples(48000);
+    DOCTEST_REQUIRE(rig.PrepareRecording(directory.string()));
+    auto session = recorder.m_session;
+    session.m_blockFrames = 16;
+    DOCTEST_REQUIRE(recorder.Prepare(session, directory.string()));
+    DOCTEST_REQUIRE(internal.StartRecording());
+    std::vector<uint8_t> expected;
+    bool sawModulation = false;
+    for (size_t frame = 0; frame < 173; ++frame)
+    {
+        if (frame == 24)
+        {
+            rig.PressRunning();
+        }
+        else if (frame == 56)
+        {
+            rig.PressRunning();
+        }
+        else if (frame == 25 || frame == 57)
+        {
+            rig.ReleaseRunning();
+        }
+        else if (frame == 96 || frame == 128)
+        {
+            internal.Apply(SmartGrid::MessageIn(frame == 96
+                ? SmartGrid::MessageIn::Mode::MidiStop : SmartGrid::MessageIn::Mode::MidiStart, 0, 0));
+        }
+
+        rig.RunSamples(1);
+        const auto& sample = time.m_samples[SampleTimer::GetUBlockIndex()];
+        DOCTEST_REQUIRE(recorder.m_parameterStaging.size() == 1);
+        DOCTEST_CHECK(RecordingDoubleCodec::Bits(recorder.m_parameterStaging[0])
+            == RecordingDoubleCodec::Bits(sample.m_unmodulatedPhase));
+        DOCTEST_CHECK(recorder.m_recordedTransportRunning == internal.m_running);
+        sawModulation |= sample.m_modulatedPhase != sample.m_unmodulatedPhase;
+        RecordingDoubleCodec::AppendBits(expected, RecordingDoubleCodec::Bits(sample.m_unmodulatedPhase));
+        expected.push_back(internal.m_running ? 1 : 0);
+    }
+
+    recorder.Shutdown();
+    DOCTEST_REQUIRE(recorder.GetError() == StreamingRecorder::Error::None);
+    DOCTEST_CHECK(recorder.m_writtenFrames == 173);
+    DOCTEST_INFO("index=" << encoders.GetValue(SmartGridOneEncoders::Param::TempoLFOIndex)
+        << " depth=" << internal.m_nonagon.m_state.m_theoryOfTimeInput.m_modIndex.m_expParam
+        << " raw=" << time.m_phaseModLFO.m_rawOutput
+        << " center=" << time.m_phaseModLFO.m_center);
+    DOCTEST_CHECK(sawModulation);
+    if (const char* output = std::getenv("SMARTGRID_ENGINE_TIMELINE_FIXTURE"))
+    {
+        for (const auto& entry : std::filesystem::directory_iterator(directory))
+        {
+            std::filesystem::copy_file(entry.path(), output, std::filesystem::copy_options::overwrite_existing);
+        }
+
+        std::ofstream snapshot(std::string(output) + ".expected", std::ios::binary);
+        snapshot.write(reinterpret_cast<const char*>(expected.data()), expected.size());
+        DOCTEST_REQUIRE(snapshot.good());
+    }
+
     std::filesystem::remove_all(directory);
 }

@@ -100,6 +100,7 @@ struct QuadMixerInternal
         session.m_sampleRate = sampleRate;
         session.m_blockFrames = sampleRate;
         session.m_gitCommitSha = SmartGridBuildInfo::x_gitCommitSha;
+        session.m_parameters = {"global_phase_unmodulated"};
         if (numInputs > x_maxInputs || numMonoInputs > numInputs)
         {
             return session;

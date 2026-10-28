@@ -98,7 +98,7 @@ DOCTEST_TEST_CASE("recording format: master metadata matches reader contracts")
 
 DOCTEST_TEST_CASE("recording format: all track types match the independent Python golden records")
 {
-    std::ifstream input(std::string(SMARTGRID_REPO_ROOT) + "/private/test/fixtures/streaming-recording/golden-v5.json");
+    std::ifstream input(std::string(SMARTGRID_REPO_ROOT) + "/private/test/fixtures/streaming-recording/golden-v6.json");
     DOCTEST_REQUIRE(input.good());
     const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     JsonArena arena(1024 * 1024);
@@ -295,7 +295,7 @@ DOCTEST_TEST_CASE("recording format: new headers declare version five")
     const std::string text(bytes.begin() + 12, bytes.end());
     JsonArena arena(1024 * 1024);
     const JSON header = arena.Loads(text.c_str());
-    DOCTEST_CHECK(header.Get("format_version").IntegerValue() == 5);
+    DOCTEST_CHECK(header.Get("format_version").IntegerValue() == 6);
 }
 
 DOCTEST_TEST_CASE("recording format: event groups sort by name and time with stable ties")
@@ -314,7 +314,7 @@ DOCTEST_TEST_CASE("recording format: event groups sort by name and time with sta
     const int32_t samples[8]{};
     std::vector<uint8_t> bytes;
     DOCTEST_REQUIRE(RecordingFormat::EncodeBlock(session, samples, 8, 8, bytes, events));
-    DOCTEST_CHECK(std::string(bytes.begin(), bytes.begin() + 4) == "BLK5");
+    DOCTEST_CHECK(std::string(bytes.begin(), bytes.begin() + 4) == "BLK6");
     const std::vector<uint8_t> expected =
     {
         2, 0, 0, 0,
@@ -424,4 +424,22 @@ DOCTEST_TEST_CASE("recording format: patch payloads retain order across differen
         2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, '{', '}',
     };
     DOCTEST_CHECK(bytes == expected);
+}
+
+DOCTEST_TEST_CASE("recording format: parameter names and combined decoded storage are bounded")
+{
+    RecordingFormat::Session session;
+    session.m_gitCommitSha = std::string(40, 'a');
+    session.m_tracks = {{0, "audio", RecordingFormat::TrackType::Mono, "input", "post_fader"}};
+    session.m_parameters = {"phase"};
+    DOCTEST_REQUIRE(RecordingFormat::Validate(session));
+    session.m_parameters.push_back("phase");
+    DOCTEST_CHECK_FALSE(RecordingFormat::Validate(session));
+    session.m_parameters = {""};
+    DOCTEST_CHECK_FALSE(RecordingFormat::Validate(session));
+    session.m_parameters = {"phase"};
+    session.m_blockFrames = RecordingFormat::x_maxBlockBytes / sizeof(int32_t);
+    DOCTEST_CHECK_FALSE(RecordingFormat::Validate(session));
+    session.m_parameters.clear();
+    DOCTEST_CHECK(RecordingFormat::Validate(session));
 }

@@ -8,7 +8,7 @@ type-ordered signed int32 arrays.
 """
 
 from array import array
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import copy
 import json
@@ -43,6 +43,7 @@ class Block:
     m_frame_count: int
     m_tracks: dict
     m_event_data: memoryview | None = None
+    m_parameters: dict = field(default_factory=dict)
 
 
 def read_exact(source, count, label):
@@ -77,8 +78,8 @@ def validate_header(header):
     for field in required:
         if field not in header:
             raise RecordingError(f'Missing session field: {field}')
-    if type(header['format_version']) is not int or header['format_version'] not in (1, 2, 3, 4, 5):
-        raise RecordingError('Unsupported format_version; expected 1, 2, 3, 4, or 5')
+    if type(header['format_version']) is not int or header['format_version'] not in (1, 2, 3, 4, 5, 6):
+        raise RecordingError('Unsupported format_version; expected 1, 2, 3, 4, 5, or 6')
     timestamp = header['recorded_at_utc']
     if not isinstance(timestamp, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)', timestamp):
         raise RecordingError('recorded_at_utc must be an ISO 8601 UTC timestamp')
@@ -119,7 +120,12 @@ def validate_header(header):
         stream_count += len(x_stream_names[track['type']])
     if array('i').itemsize != 4:
         raise RecordingError('This reader requires a platform with four-byte array integers')
-    if header['block_frames'] * stream_count * 4 > x_max_decoded_bytes:
+    parameters = header.get('parameters', []) if header['format_version'] >= 6 else []
+    if (not isinstance(parameters, list) or len(parameters) > x_max_tracks
+            or any(not isinstance(name, str) or not name for name in parameters)
+            or len(set(parameters)) != len(parameters)):
+        raise RecordingError('parameters must contain at most 128 unique nonempty names')
+    if header['block_frames'] * (stream_count * 4 + len(parameters) * 8) > x_max_decoded_bytes:
         raise RecordingError('Declared decoded block exceeds the 64 MiB limit')
     return tracks_by_id
 
@@ -169,6 +175,64 @@ def decode_stream(payload, frame_count, encoding, width, coordinate):
     return values
 
 
+def decode_double_stream(payload, frames, encoding):
+    """Decode finite binary64 values without floating point predictor arithmetic."""
+    if frames < 1 or encoding not in (0, 1) or len(payload) < 8:
+        raise RecordingError('Invalid double stream')
+    values = array('d')
+    mask = (1 << 64) - 1
+    offset = 8
+    previous, = struct.unpack_from('<Q', payload)
+    delta = 0
+
+    def append(bits):
+        value, = struct.unpack('<d', struct.pack('<Q', bits))
+        if not math.isfinite(value):
+            raise RecordingError('Nonfinite parameter value')
+        values.append(value)
+
+    def varint():
+        nonlocal offset
+        value = 0
+        for shift in range(0, 70, 7):
+            if offset >= len(payload):
+                raise RecordingError('Truncated parameter varint')
+            byte = payload[offset]
+            offset += 1
+            if shift == 63 and byte > 1:
+                raise RecordingError('Parameter varint exceeds u64')
+            value |= (byte & 127) << shift
+            if byte < 128:
+                if shift and byte == 0:
+                    raise RecordingError('Noncanonical parameter varint')
+                return value
+        raise RecordingError('Parameter varint exceeds u64')
+
+    if encoding == 0:
+        if len(payload) != frames * 8:
+            raise RecordingError('Invalid raw double stream length')
+        for index in range(frames):
+            append(struct.unpack_from('<Q', payload, index * 8)[0])
+        return values
+    append(previous)
+    while len(values) < frames:
+        token = varint()
+        if token == 0:
+            count = varint()
+            if not 1 <= count <= frames - len(values):
+                raise RecordingError('Invalid parameter prediction run')
+        else:
+            residual = (token >> 1) ^ -(token & 1)
+            delta = (delta + residual) & mask
+            count = 1
+        for _ in range(count):
+            previous = (previous + delta) & mask
+            append(previous)
+    if offset != len(payload):
+        raise RecordingError('Trailing bytes in parameter stream')
+    return values
+
+
 class Reader:
     """Read metadata immediately; validate data and completion while iterating."""
 
@@ -190,7 +254,7 @@ class Reader:
         self.m_tracks_by_id = validate_header(self.m_header)
         self.m_data_offset = 12 + length
 
-    def Blocks(self, track_ids=None, *, include_events=False):
+    def Blocks(self, track_ids=None, *, include_events=False, include_parameters=False):
         if self.m_started:
             raise RecordingError('The recording stream has already been consumed')
         selected_track_ids = None if track_ids is None else frozenset(track_ids)
@@ -232,7 +296,8 @@ class Reader:
                 offset += count
             del view
             self.CheckCrc(raw)
-            block = self.DecodeBlock(memoryview(raw), selected_track_ids, include_events=include_events)
+            block = self.DecodeBlock(memoryview(raw), selected_track_ids, include_events=include_events,
+                                     include_parameters=include_parameters)
             self.m_total_frames += block.m_frame_count
             self.m_short_block = block.m_frame_count < self.m_header['block_frames']
             del raw
@@ -245,7 +310,7 @@ class Reader:
         if actual != expected:
             raise RecordingError(f'CRC mismatch at frame {self.m_total_frames}')
 
-    def DecodeBlock(self, raw, selected_track_ids=None, *, include_events=False):
+    def DecodeBlock(self, raw, selected_track_ids=None, *, include_events=False, include_parameters=False):
         start, frames, track_count = struct.unpack_from('<QIH', raw, 8)
         if start != self.m_total_frames:
             raise RecordingError(f'Frame discontinuity: expected {self.m_total_frames}, found {start}')
@@ -321,8 +386,22 @@ class Reader:
             for index, values in enumerate(streams):
                 if values is None:
                     streams[index] = array('i', [0]) * frames
-        events = raw[audio_end:-4] if include_events and self.m_header['format_version'] >= 2 else None
-        return Block(start, frames, {track_id: tuple(streams) for track_id, streams in tracks.items()}, events)
+        parameters = {}
+        if self.m_header['format_version'] >= 6:
+            for name in self.m_header.get('parameters', []):
+                if offset + 5 > len(raw) - 4:
+                    raise RecordingError('Truncated parameter descriptor')
+                encoding, length = struct.unpack_from('<BI', raw, offset)
+                offset += 5
+                if encoding not in (0, 1) or length < 8 or offset + length > len(raw) - 4:
+                    raise RecordingError('Invalid parameter encoding or length')
+                if (encoding == 0 and length != frames * 8) or (encoding == 1 and length > 8 + (frames - 1) * 10):
+                    raise RecordingError('Invalid parameter payload size')
+                if include_parameters:
+                    parameters[name] = decode_double_stream(raw[offset:offset + length], frames, encoding)
+                offset += length
+        events = raw[offset:-4] if include_events and self.m_header['format_version'] >= 2 else None
+        return Block(start, frames, {track_id: tuple(streams) for track_id, streams in tracks.items()}, events, parameters)
 
     def PatchAtSample(self, sample):
         """Replay tracked edits through sample (inclusive) from the initial patch.
@@ -384,12 +463,13 @@ def param_events(block, version=2):
     group_count, = fields('<I')
     for _ in range(group_count):
         event_type, width, name_length, count = fields('<BBHI')
-        if event_type not in ((1, 2, 3, 4, 5, 6, 7) if version >= 3 else (1, 2, 3, 4, 5)):
+        supported = range(1, 10) if version >= 6 else range(1, 8) if version >= 3 else range(1, 6)
+        if event_type not in supported:
             raise RecordingError(f'Unsupported patch event type: {event_type}')
         if ((event_type == 1 and width not in (1, 2, 4, 8))
                 or (event_type in (2, 3, 4) and width != 4)
                 or (event_type == 5 and width != 1)
-                or (event_type in (6, 7) and width != 0)):
+                or (event_type in (6, 7, 8, 9) and width != 0)):
             raise RecordingError('Invalid event value width')
         if bool(name_length) != (event_type in (1, 4, 5)):
             raise RecordingError('Invalid event name length')
@@ -404,6 +484,10 @@ def param_events(block, version=2):
             event = ParamEvent(event_type, name, block.m_start_frame + sample_offset, b'')
             if version >= 3:
                 event.m_order, = fields('<I')
+            if event_type in (8, 9):
+                event.m_value = event_type == 8
+                yield event
+                continue
             if event_type in (6, 7):
                 if event_type == 6:
                     restore_faders, = fields('<B')
@@ -455,6 +539,8 @@ def param_events(block, version=2):
 
 
 def apply_param_event(patch, event):
+    if event.m_type in (8, 9):
+        return
     if event.m_type == 1:
         apply_state_change(patch, event.m_name, event.m_scene, event.m_value)
     elif event.m_type == 2:

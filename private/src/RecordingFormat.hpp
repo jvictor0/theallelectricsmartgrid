@@ -3,6 +3,7 @@
 #include "Json.hpp"
 #include "ParamEvent.hpp"
 #include "RecordingFlacCodec.hpp"
+#include "RecordingDoubleCodec.hpp"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -14,7 +15,7 @@
 
 struct RecordingFormat
 {
-    static constexpr int x_formatVersion = 5;
+    static constexpr int x_formatVersion = 6;
     static constexpr size_t x_maxHeaderBytes = 1024 * 1024;
     static constexpr size_t x_maxBlockBytes = 64 * 1024 * 1024;
     static constexpr size_t x_maxTracks = 128;
@@ -69,6 +70,7 @@ struct RecordingFormat
         std::string m_gitCommitSha;
         std::string m_recordedAtUtc;
         std::vector<Track> m_tracks;
+        std::vector<std::string> m_parameters;
 
         size_t StreamCount() const
         {
@@ -141,8 +143,26 @@ struct RecordingFormat
             }
         }
 
-        const size_t streams = session.StreamCount();
-        return streams <= x_maxBlockBytes / sizeof(int32_t) / session.m_blockFrames;
+        if (session.m_parameters.size() > x_maxTracks)
+        {
+            return false;
+        }
+
+        for (size_t i = 0; i < session.m_parameters.size(); ++i)
+        {
+            const auto& name = session.m_parameters[i];
+            if (name.empty() || std::find(session.m_parameters.begin(), session.m_parameters.begin() + i, name)
+                != session.m_parameters.begin() + i)
+            {
+                return false;
+            }
+
+            textBytes += name.size();
+        }
+
+        const size_t frameBytes = session.StreamCount() * sizeof(int32_t)
+            + session.m_parameters.size() * sizeof(double);
+        return textBytes <= x_maxHeaderBytes && frameBytes <= x_maxBlockBytes / session.m_blockFrames;
     }
 
     static int32_t Quantize(float sample, bool position = false)
@@ -289,6 +309,13 @@ struct RecordingFormat
         }
 
         header.SetNew("tracks", tracks);
+        JSON parameters = arena.Array();
+        for (const auto& name : session.m_parameters)
+        {
+            parameters.AppendNew(arena.String(name.c_str()));
+        }
+
+        header.SetNew("parameters", parameters);
         if (arena.Failed())
         {
             return false;
@@ -317,7 +344,7 @@ struct RecordingFormat
     static const char* EventName(const ParamEvent& event)
     {
         return event.m_type == ParamEvent::Type::GestureSet || event.m_type == ParamEvent::Type::BlendSet
-            || event.IsPatch()
+            || event.IsPatch() || event.IsTransport()
             ? "" : event.m_name;
     }
 
@@ -328,6 +355,11 @@ struct RecordingFormat
         if (name == nullptr || std::strlen(name) > UINT16_MAX)
         {
             return false;
+        }
+
+        if (event.IsTransport())
+        {
+            return event.m_valueLen == 0;
         }
 
         if (event.IsPatch())
@@ -515,10 +547,24 @@ struct RecordingFormat
     }
 
     static bool EncodeBlock(const Session& session, const int32_t* samples,
-        uint32_t frames, uint64_t startFrame, std::vector<uint8_t>& output,
-        const std::vector<ParamEvent>& events = {})
+        uint32_t frames, uint64_t startFrame, std::vector<uint8_t>& output)
     {
-        if (!Validate(session) || frames == 0 || frames > session.m_blockFrames || samples == nullptr)
+        return EncodeBlock(session, samples, frames, startFrame, output, {}, nullptr);
+    }
+
+    static bool EncodeBlock(const Session& session, const int32_t* samples,
+        uint32_t frames, uint64_t startFrame, std::vector<uint8_t>& output,
+        const std::vector<ParamEvent>& events)
+    {
+        return EncodeBlock(session, samples, frames, startFrame, output, events, nullptr);
+    }
+
+    static bool EncodeBlock(const Session& session, const int32_t* samples,
+        uint32_t frames, uint64_t startFrame, std::vector<uint8_t>& output,
+        const std::vector<ParamEvent>& events, const double* parameters)
+    {
+        if (!Validate(session) || frames == 0 || frames > session.m_blockFrames || samples == nullptr
+            || (!session.m_parameters.empty() && parameters == nullptr))
         {
             return false;
         }
@@ -585,6 +631,25 @@ struct RecordingFormat
         output[20] = static_cast<uint8_t>(included);
         output[21] = static_cast<uint8_t>(included >> 8);
         output.erase(output.begin() + descriptorOffset, output.begin() + payloadStart);
+        for (size_t parameter = 0; parameter < session.m_parameters.size(); ++parameter)
+        {
+            const size_t descriptor = output.size();
+            output.resize(descriptor + 5);
+            uint8_t encoding;
+            if (!RecordingDoubleCodec::Encode(parameters + parameter * session.m_blockFrames,
+                frames, output, encoding))
+            {
+                return false;
+            }
+
+            output[descriptor] = encoding;
+            const size_t bytes = output.size() - descriptor - 5;
+            for (size_t i = 0; i < 4; ++i)
+            {
+                output[descriptor + 1 + i] = static_cast<uint8_t>(bytes >> (8 * i));
+            }
+        }
+
         if (!AppendParamEvents(output, events, startFrame, frames)
             || output.size() + 4 > x_maxBlockBytes)
         {

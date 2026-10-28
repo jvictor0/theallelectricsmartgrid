@@ -4,6 +4,7 @@
 #include "StateInterchange.hpp"
 
 #include <limits>
+#include <fstream>
 
 namespace
 {
@@ -542,4 +543,45 @@ DOCTEST_TEST_CASE("streaming recorder: event queue overflow fails instead of los
     DOCTEST_CHECK(stalled);
     DOCTEST_CHECK(error == StreamingRecorder::Error::Overrun);
     DOCTEST_CHECK(recorder.m_paramEventsRing->IsEmpty());
+}
+
+DOCTEST_TEST_CASE("streaming recorder: timeline follows accepted frames and resets across sessions")
+{
+    auto sink = std::make_unique<MemorySink>();
+    auto* memory = sink.get();
+    StreamingRecorder recorder;
+    auto session = Session();
+    session.m_parameters = {"global_phase_unmodulated"};
+    DOCTEST_REQUIRE(recorder.Prepare(session, "/unused", std::move(sink)));
+    for (size_t take = 0; take < 2; ++take)
+    {
+        DOCTEST_REQUIRE(recorder.Start());
+        for (size_t frame = 0; frame < 19; ++frame)
+        {
+            DOCTEST_REQUIRE(recorder.BeginFrame());
+            const bool running = frame < 8 || frame >= 16;
+            const double phase = running ? 1048576.0 + frame * 0.125 : 0.0;
+            recorder.SubmitParameter(0, phase);
+            recorder.SubmitTransport(running);
+            recorder.CommitFrame();
+        }
+
+        recorder.Stop();
+        DOCTEST_REQUIRE(Await([&]() { return recorder.GetState() == StreamingRecorder::State::Idle; }));
+        DOCTEST_CHECK(recorder.m_writtenFrames == 19);
+        if (const char* path = std::getenv("SMARTGRID_TIMELINE_FIXTURE"))
+        {
+            std::ofstream output(path, std::ios::binary);
+            output.write(reinterpret_cast<const char*>(memory->m_bytes.data()), memory->m_bytes.size());
+            DOCTEST_REQUIRE(output.good());
+        }
+    }
+
+    DOCTEST_REQUIRE(recorder.Start());
+    DOCTEST_REQUIRE(recorder.BeginFrame());
+    recorder.SubmitParameter(0, std::numeric_limits<double>::infinity());
+    recorder.CommitFrame();
+    DOCTEST_CHECK(recorder.GetError() == StreamingRecorder::Error::InvalidSample);
+    DOCTEST_CHECK(recorder.m_acceptedFrames == 0);
+    recorder.Shutdown();
 }

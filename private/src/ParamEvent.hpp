@@ -49,6 +49,11 @@ struct ParamEvent
         // Replace the entire patch after a whole-patch reset.
         //
         PatchSnapshot,
+
+        // Effective transport state, with no name or value payload.
+        //
+        TransportStart,
+        TransportStop,
     };
 
     ParamEvent()
@@ -89,6 +94,19 @@ struct ParamEvent
     const char* m_patchText = nullptr;
     size_t m_patchBytes = 0;
     uint32_t m_order = 0;
+
+    bool IsTransport() const
+    {
+        return m_type == Type::TransportStart || m_type == Type::TransportStop;
+    }
+
+    static ParamEvent MkTransport(bool running, size_t sample)
+    {
+        ParamEvent event;
+        event.m_type = running ? Type::TransportStart : Type::TransportStop;
+        event.m_sample = sample;
+        return event;
+    }
 
     bool IsPatch() const
     {

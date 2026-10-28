@@ -86,3 +86,24 @@ version 5; each record tag is BLK5 and its CRC is recalculated with Python
 `zlib.crc32`. This isolates the container-version change from audio coding. The
 C++ writer test compares complete records against these independent bytes.
 Existing v1 and v4 fixtures remain available for legacy reader coverage.
+
+## V6 transport and sampled parameters
+
+`golden-v6.json` preserves the v5 audio golden payloads with a v6 tag/CRC and
+an empty parameter table. Historical goldens remain unchanged. The timeline
+regressions additionally export C++ fixtures for independent Python decoding:
+
+```sh
+SMARTGRID_DOUBLE_CODEC_FIXTURE="$PWD/build/results/double-codec.bin" \
+SMARTGRID_TIMELINE_FIXTURE="$PWD/build/results/timeline.sgrec" \
+SMARTGRID_ENGINE_TIMELINE_FIXTURE="$PWD/build/results/engine-timeline.sgrec" \
+  build/core/RelWithDebInfo/smartgrid_tests --test-case='recording*,streaming recorder*'
+SMARTGRID_DOUBLE_CODEC_FIXTURE="$PWD/build/results/double-codec.bin" \
+SMARTGRID_TIMELINE_FIXTURE="$PWD/build/results/timeline.sgrec" \
+SMARTGRID_ENGINE_TIMELINE_FIXTURE="$PWD/build/results/engine-timeline.sgrec" \
+  python3 -m unittest discover -s scripts/tests -p test_sgrec_timeline.py
+```
+
+These cover exact binary64 roundtrips, realistic ramps, resets, reversal, random
+finite doubles, malformed predictors, initial transport state, UI/MIDI changes,
+block boundaries, partial tails, and recorder restart.

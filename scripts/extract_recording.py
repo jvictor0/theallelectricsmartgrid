@@ -150,9 +150,11 @@ def inspect(input_path, verify=False):
             print(f'  streams: {", ".join(x_stream_names[track["type"]])}')
             if track['type'] == 'panned_mono':
                 print('  x/y: positions in [0, 8388607], divide by 8388607; extraction writes sample_val as mono.')
+        for name in header.get('parameters', []):
+            print(f'Parameter: {name} | lossless float64 per audio frame')
         if verify:
             try:
-                for block in reader.Blocks():
+                for block in reader.Blocks(include_parameters=True):
                     del block
             except RecordingError as error:
                 print(f'Incomplete after {reader.m_total_frames} frames: {error}', file=sys.stderr)

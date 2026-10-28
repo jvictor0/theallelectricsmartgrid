@@ -1,4 +1,4 @@
-# SmartGrid streaming recordings (v5)
+# SmartGrid streaming recordings (v6)
 
 Performance recordings use `.sgrec` files. They contain separate input stems,
 mono sub lanes, quad effect returns, and the actual mastered stereo and quad
@@ -14,7 +14,7 @@ counts, written bytes and queue high-water mark.
 
 ## Inspect and extract
 
-Use Python 3.10 or newer. Decoding selected v4/v5 FLAC audio also needs libFLAC
+Use Python 3.10 or newer. Decoding selected v4–v6 FLAC audio also needs libFLAC
 (`brew install flac` on macOS, or your platform's libFLAC package). No Python
 package is required: the reader uses ctypes. Header inspection, patch queries,
 and legacy v1–v3 extraction do not load libFLAC.
@@ -77,10 +77,11 @@ Sample-directory changes and sample assets remain untracked. Ordinary scene
 copies and value edits use assignment events. A scene switch alone reads stored
 state and needs no per-value event.
 
-Audio extraction accepts v1 through v5 and ignores patch/event semantics.
+Audio extraction accepts v1 through v6 and ignores patch/event semantics.
 V4 adds length-prefixed FLAC audio and keeps v3 event semantics. V5 removes
 the track field from encoder events and uses independent named trio cells.
-Patch reconstruction requires a v2, v3, v4, or v5 initial patch and recognized event
+V6 adds lossless sampled parameters and transport events.
+Patch reconstruction requires a v2–v6 initial patch and recognized event
 types. V2 retains its historical assignment semantics and cannot reconstruct
 unrecorded load/reset effects or recover cross-type capture order.
 
@@ -94,19 +95,20 @@ format, including its big-endian metadata. There is no container alignment or pa
 | ASCII `SMRTGRID` | 8 |
 | UTF-8 JSON length (`u32`) | 4 |
 | JSON session header | declared length |
-| Independent `BLK5` records | variable |
+| Independent `BLK6` records | variable |
 | `END1` clean-completion marker | 16 |
 
 Required JSON fields:
 
 ```json
 {
-  "format_version": 5,
+  "format_version": 6,
   "initial_patch": {"nonagon": {}, "squiggleBoy": {}, "stateSaver": {}, "configGrid": {}, "faders": [], "blend": 0.0},
   "recorded_at_utc": "2026-09-14T12:34:56Z",
   "git_commit_sha": "0123456789abcdef0123456789abcdef01234567",
   "sample_rate": 48000,
   "block_frames": 48000,
+  "parameters": ["global_phase_unmodulated"],
   "tracks": [
     {"id": 0, "name": "Voice 1", "type": "panned_mono", "role": "input", "tap": "post_fader"}
   ]
@@ -150,13 +152,14 @@ Nonfinite submissions fail capture before accepting that frame.
 
 | Field | Representation |
 | --- | --- |
-| Tag | `BLK5` (4 bytes) |
+| Tag | `BLK6` (4 bytes) |
 | Total record bytes, including CRC | `u32` |
 | Start frame | `u64` |
 | Frame count | `u32` |
 | Included track count | `u16` |
 | Descriptors, ascending track ID | variable |
 | Stream payloads, descriptor order | variable |
+| Sampled parameter streams, header order | variable |
 | Event group count | `u32` |
 | Event groups | variable |
 | CRC-32/ISO-HDLC | `u32` |
@@ -174,8 +177,56 @@ A track is omitted when its quantized audio is zero throughout the block.
 For panned mono, only `sample_val` determines omission. Omitted tracks decode to
 zero streams, including zero coordinates. An included panned track retains all
 coordinates, including those on locally silent frames. Entirely silent blocks
-still have records with zero descriptors. With no events they occupy 30 bytes
+still have records with zero descriptors. With no parameters or events they occupy 30 bytes
 including CRC; otherwise their event groups follow the empty audio payload.
+
+### Sampled parameters and transport (v6)
+
+The header's `parameters` array lists unique, nonempty parameter names (at most
+128). Omission means an empty list. Each parameter is a finite IEEE-754 binary64
+value for every accepted audio frame. The engine records
+`global_phase_unmodulated` in absolute master-loop units, including integer loop
+count; it is neither wrapped nor clamped nor converted to float32. It captures
+`TheoryOfTime` at the current audio sample's microblock index, excluding phase
+modulation. The timing engine may continue advancing through note tails after transport
+stops; it resets phase to zero once its clock stops.
+
+Each block stores all declared parameters, even in silent blocks. For each name
+in header order it stores `encoding:u8`, `payload_bytes:u32`, then the payload.
+Parameter encoding IDs are separate from audio encoding IDs. Predictors reset
+at each block, including a short final block:
+
+- **0: raw binary64**: exactly `8*N` little-endian bytes.
+- **1: integer second differences**: the first value's 64-bit IEEE bit pattern,
+  little-endian, then unsigned LEB128 tokens. Let `previous` be the previous bit
+  pattern and initialize `delta` to zero. A nonzero token decodes a signed
+  residual with `(token >> 1) ^ -(token & 1)`; add it to `delta`, then add `delta`
+  to `previous`, both modulo 2^64, to obtain the next value's bits. A zero token
+  is followed by a positive unsigned LEB128 run length: repeat the current
+  `delta` for that many values. Runs cannot exceed the remaining frame count.
+  Varints must be minimal and fit u64. Trailing bytes and nonfinite reconstructed
+  values are rejected.
+
+The writer chooses raw when compression does not save space. Prediction uses
+integer bit patterns throughout, preserving every finite double, signed zero,
+large coordinates, reverse motion, and resets without floating point roundoff.
+Steady ramps typically have long runs of constant bit increments between
+exponent boundaries. All compression runs on the recording worker.
+
+TransportStart/TransportStop describe the transport control state at the same
+audio sample, regardless of whether it was changed by the UI or MIDI. They do
+not wait for note tails to finish. Frame zero emits the current state, including
+a TransportStop if recording begins while stopped; subsequent events appear only when that state changes. Repeated
+start/stop commands with no effective change add no event. Empty recordings
+have no transport events. These events do not change reconstructed patch JSON.
+
+Use `Reader.Blocks(include_parameters=True, include_events=True)` to read the
+phase from `block.m_parameters['global_phase_unmodulated']` (an `array('d')`)
+and decode transport with `param_events(block, reader.m_header['format_version'])`.
+Pass `track_ids=()` to avoid decoding audio. Ordinary audio extraction and patch
+queries check parameter framing and skip its payload; `info --verify` also
+decodes and validates parameters. Readers still accept v1–v5 files, which have
+no sampled parameter section. Older readers must be updated to accept v6 files.
 
 ### Event groups
 
@@ -192,7 +243,7 @@ Each group contains:
 | Name | declared UTF-8 bytes, without terminator |
 | Entries | type-specific fields below |
 
-Every v3/v4/v5 entry starts with a block-relative sample offset (`u32`) and capture
+Every v3–v6 entry starts with a block-relative sample offset (`u32`) and capture
 order (`u32`). Replay sorts all entries in the block by `(sample, order)`, so
 grouping does not reorder assignments around loads or snapshots. Only fields
 relevant to the type follow; there is no struct padding or placeholder data.
@@ -206,6 +257,8 @@ relevant to the type follow; there is no struct padding or placeholder data.
 | 5 EncoderActivate | Root parameter name | 1 | scene:`u8`, path length:`u8`, path bytes, active:`u8` |
 | 6 PatchLoad | Empty | 0 | restoreFaders:`u8`, JSON length:`u32`, UTF-8 patch JSON |
 | 7 PatchSnapshot | Empty | 0 | JSON length:`u32`, UTF-8 patch JSON |
+| 8 TransportStart (v6) | Empty | 0 | none |
+| 9 TransportStop (v6) | Empty | 0 | none |
 
 Floats are finite little-endian IEEE-754 binary32. Scenes are 0..7 and faders are 0..15; v5 encoder events have no track field. Activation is 0 or 1. Encoder paths have 0..16 hops: each byte
 is a modulator index 0..14 or `0x80 | gesture_index` (128..143). An empty path
@@ -216,7 +269,7 @@ The in-memory `ParamEvent` path uses -1 for unused slots; this sentinel and the
 redundant `m_gesture`/`m_isGesture` encoder fields are not serialized.
 
 Each name appears once per type per block. GestureSet, BlendSet, PatchLoad, and
-PatchSnapshot groups have zero name bytes. Entries retain every submitted value,
+PatchSnapshot, TransportStart, and TransportStop groups have zero name bytes. Entries retain every submitted value,
 including repeated values.
 StateChange copies the specified scene's stored bytes at capture. Replay replaces
 bytes at `scene * value_width` in the named `nonagon` or `stateSaver` entry;
@@ -267,7 +320,8 @@ start with sample offset alone; it has no capture-order field or bulk patch
 types. Readers preserve the stored order of same-sample v2 assignments.
 V3 uses `BLK3` with capture ordering and legacy audio encodings. V4 uses `BLK4`
 and adds FLAC. V5 uses `BLK5` with the same audio encoding and trackless encoder
-events. V2 through v5 readers derive audio payload lengths, then skip the remaining
+events. V6 uses `BLK6`, adds sampled parameters before events, and adds transport
+event types 8–9. V2 through v6 audio readers derive payload lengths, then skip the remaining
 bytes before CRC. They need no event decoder. FLAC stream lengths allow
 unselected audio to be skipped after checking its metadata and bounds.
 Patch queries decode the trailer and reject an unknown event type in a block needed by the query. They do not decode audio or validate unrelated patch fields.
@@ -280,9 +334,9 @@ For `N` frames:
 - **1: legacy delta**, width 0 through 25. First value is PCM24; subsequent
   mathematical adjacent differences use signed two's-complement, packed LSB
   first, with zero final high padding bits. Length is
-  `3 + ceil((N-1)*width/8)`. The v4/v5 writer uses this only at width zero for
+  `3 + ceil((N-1)*width/8)`. The v4–v6 writer uses this only at width zero for
   constant streams, storing one three-byte value. Readers retain all widths.
-- **2: FLAC**, descriptor width zero, available in v4 and v5. A `u32` little-endian
+- **2: FLAC**, descriptor width zero, available in v4–v6. A `u32` little-endian
   byte length precedes a complete native FLAC stream beginning with `fLaC`.
   The length excludes itself. STREAMINFO must declare one channel, 24 bits per
   sample, the session sample rate, exactly `N` samples, and internal block
@@ -329,16 +383,17 @@ audio sizes, ranges, padding, whole-block CRC, frame continuity and completion.
 It parses the header JSON but does not validate or interpret `initial_patch` or
 the event trailer. Patch queries check event framing and the fields they need to update, without a whole-patch schema validator.
 Allocation limits are 1 MiB header JSON, 128 tracks, 64 MiB encoded record and 64 MiB
-decoded int32 block. Discard each `Reader.Blocks()` result before requesting the
+decoded audio/parameter block (int32 audio plus binary64 parameters). Discard each `Reader.Blocks()` result before requesting the
 next one to retain the streaming memory bound.
 
 ## Recorder ownership and measurement
 
 `Prepare` allocates storage and starts the persistent worker outside audio.
-One SPSC ring holds 32 pages of 1024 frame-major float frames. The worker retains
+One SPSC ring holds 32 pages of 1024 frame-major float audio frames and
+parallel double parameter frames. The worker retains
 each slot until consumed, transposes and quantizes into a one-second block, then
 compresses and writes directly. Capture only checks finiteness, stages/copies
-floats and publishes pages. A second preallocated SPSC queue holds 1024 fixed
+floats and doubles, captures transport changes, and publishes pages. A second preallocated SPSC queue holds 1024 fixed
 parameter events. Events are published before their audio pages; the worker drains
 them before finalizing each block, then sorts and groups them. Queue exhaustion
 is a recording error, including while the file is opening. Start and stop do no
