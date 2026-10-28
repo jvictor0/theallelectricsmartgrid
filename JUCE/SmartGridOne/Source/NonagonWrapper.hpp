@@ -875,6 +875,12 @@ struct NonagonWrapper
                 {
                     bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = output.m_stereoOutput[j];
                 }
+
+                if (ioInfo.m_numOutputs >= 4)
+                {
+                    bufferToFill.buffer->getWritePointer(2, bufferToFill.startSample)[i] = output.m_stereoOutput[0];
+                    bufferToFill.buffer->getWritePointer(3, bufferToFill.startSample)[i] = output.m_stereoOutput[1];
+                }
             }
             else
             {
