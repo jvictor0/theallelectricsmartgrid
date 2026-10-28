@@ -35,6 +35,39 @@ AHD::AHDControl TriggerControl(double phaseRatio, double envelopePeriodSamples)
     return control;
 }
 
+struct IntegratedEnvelopeRig
+{
+    TheoryOfTimeBase m_time;
+    AHD m_envelope;
+    AHD::Input m_input;
+    AHD::AHDControl m_control;
+
+    IntegratedEnvelopeRig()
+    {
+        ConfigureEnvelope(m_input, m_time);
+        m_input.m_attackIncrement = 1.0f / 16.0f;
+        m_input.m_holdLoops = 0.25;
+        m_input.m_decayIncrement = 1.0f / 32.0f;
+        m_control = TriggerControl(1.0, 64.0);
+        SetGlobalPhase(m_time, 10.0);
+        Trigger();
+    }
+
+    void Trigger()
+    {
+        m_control.m_trig = true;
+        m_input.Set(m_control);
+        m_envelope.Process(m_input);
+        m_control.m_trig = false;
+    }
+
+    float Process(double samples)
+    {
+        SetGlobalPhase(m_time, 10.0 + samples / 64.0);
+        return m_envelope.Process(m_input);
+    }
+};
+
 MultiPhasorGateInternal::Input GateInput(
     TheoryOfTimeBase& time,
     bool trig,
@@ -248,7 +281,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate applies the same threshold in reverse")
     DOCTEST_CHECK_FALSE(gate.m_gate[0]);
 }
 
-DOCTEST_TEST_CASE("AHD live hold control uses the captured period")
+DOCTEST_TEST_CASE("AHD live hold edits do not reposition a running decay")
 {
     TheoryOfTimeBase time;
     SetGlobalPhase(time, 1.0);
@@ -264,7 +297,136 @@ DOCTEST_TEST_CASE("AHD live hold control uses the captured period")
     SetGlobalPhase(time, 1.75);
     DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.75f));
     input.m_holdLoops = 0.5;
-    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(1.0f));
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.75f));
     input.m_holdLoops = 0.0;
-    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.5f));
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.75f));
+    SetGlobalPhase(time, 1.8);
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.65f));
+}
+
+DOCTEST_TEST_CASE("AHD integrates live attack changes without jumping")
+{
+    IntegratedEnvelopeRig rig;
+    DOCTEST_REQUIRE(rig.Process(4.0) == doctest::Approx(0.25f));
+
+    rig.m_input.m_attackIncrement = 1.0f / 8.0f;
+    DOCTEST_CHECK(rig.Process(4.0) == doctest::Approx(0.25f));
+    DOCTEST_CHECK(rig.Process(6.0) == doctest::Approx(0.5f));
+    DOCTEST_CHECK(rig.Process(5.0) == doctest::Approx(0.375f));
+
+    rig.m_input.m_attackIncrement = 1.0f / 32.0f;
+    DOCTEST_CHECK(rig.Process(5.0) == doctest::Approx(0.375f));
+    DOCTEST_CHECK(rig.Process(9.0) == doctest::Approx(0.5f));
+    DOCTEST_CHECK(rig.Process(5.0) == doctest::Approx(0.375f));
+}
+
+DOCTEST_TEST_CASE("AHD integrates live decay changes without jumping")
+{
+    IntegratedEnvelopeRig rig;
+    DOCTEST_REQUIRE(rig.Process(40.0) == doctest::Approx(0.75f));
+
+    rig.m_input.m_attackIncrement = 1.0f / 8.0f;
+    rig.m_input.m_holdLoops = 0.5;
+    rig.m_input.m_decayIncrement = 1.0f / 16.0f;
+    DOCTEST_CHECK(rig.Process(40.0) == doctest::Approx(0.75f));
+    DOCTEST_CHECK(rig.Process(42.0) == doctest::Approx(0.625f));
+    DOCTEST_CHECK(rig.Process(40.0) == doctest::Approx(0.75f));
+
+    rig.m_input.m_decayIncrement = 1.0f / 64.0f;
+    DOCTEST_CHECK(rig.Process(40.0) == doctest::Approx(0.75f));
+    DOCTEST_CHECK(rig.Process(48.0) == doctest::Approx(0.625f));
+    DOCTEST_CHECK(rig.Process(40.0) == doctest::Approx(0.75f));
+}
+
+DOCTEST_TEST_CASE("AHD live hold changes preserve fractional progress and captured period")
+{
+    IntegratedEnvelopeRig rig;
+    DOCTEST_REQUIRE(rig.Process(24.0) == 1.0f);
+    rig.m_control.m_envelopePeriodSamples = 128.0;
+    rig.m_control.m_phaseRatio = 2.0;
+    rig.m_input.Set(rig.m_control);
+    rig.m_input.m_holdLoops = 0.5;
+    rig.m_input.m_attackIncrement = 1.0f;
+    DOCTEST_CHECK(rig.Process(24.0) == 1.0f);
+    DOCTEST_CHECK(rig.Process(39.0) == 1.0f);
+    DOCTEST_CHECK(rig.Process(41.0) == doctest::Approx(31.0f / 32.0f));
+    DOCTEST_CHECK(rig.Process(24.0) == 1.0f);
+
+    rig.m_input.m_holdLoops = 0.125;
+    DOCTEST_CHECK(rig.Process(24.0) == 1.0f);
+    DOCTEST_CHECK(rig.Process(27.0) == 1.0f);
+    DOCTEST_CHECK(rig.Process(29.0) == doctest::Approx(31.0f / 32.0f));
+}
+
+DOCTEST_TEST_CASE("AHD skips a zero hold in either direction without losing elapsed time")
+{
+    IntegratedEnvelopeRig rig;
+    DOCTEST_REQUIRE(rig.Process(24.0) == 1.0f);
+    rig.m_input.m_holdLoops = 0.0;
+    DOCTEST_CHECK(rig.Process(24.0) == 1.0f);
+    DOCTEST_CHECK(rig.Process(25.0) == doctest::Approx(31.0f / 32.0f));
+    DOCTEST_CHECK(rig.Process(23.0) == doctest::Approx(15.0f / 16.0f));
+    DOCTEST_CHECK(rig.Process(25.0) == doctest::Approx(31.0f / 32.0f));
+}
+
+DOCTEST_TEST_CASE("AHD reverses through all stages and across the trigger origin")
+{
+    for (double holdLoops : {0.0, 0.25})
+    {
+        IntegratedEnvelopeRig rig;
+        rig.m_input.m_holdLoops = holdLoops;
+        const double x_positions[] = {
+            0.0, 8.0, 16.0, 24.0, 32.0, 40.0,
+            32.0, 24.0, 16.0, 8.0, 0.0,
+            -8.0, -40.0, -8.0, 8.0, 0.0, 40.0, 0.0,
+        };
+        for (double position : x_positions)
+        {
+            double samples = std::abs(position);
+            double holdEnd = 16.0 + holdLoops * 64.0;
+            double expected = samples < 16.0 ? samples / 16.0
+                : samples < holdEnd ? 1.0 : 1.0 - (samples - holdEnd) / 32.0;
+            DOCTEST_INFO("position = ", position, ", hold = ", holdLoops);
+            DOCTEST_CHECK(rig.Process(position) == doctest::Approx(expected));
+            DOCTEST_CHECK(rig.m_envelope.m_state == AHD::State::Running);
+            DOCTEST_CHECK_FALSE(rig.m_envelope.m_changed);
+        }
+
+        DOCTEST_CHECK(rig.Process(65.0) == 0.0f);
+        DOCTEST_CHECK(rig.m_envelope.m_state == AHD::State::Idle);
+        DOCTEST_CHECK(rig.m_envelope.m_changed);
+        DOCTEST_CHECK(rig.Process(8.0) == 0.0f);
+        DOCTEST_CHECK_FALSE(rig.m_envelope.m_changed);
+    }
+}
+
+DOCTEST_TEST_CASE("AHD carries fractional time across stage boundaries in both directions")
+{
+    IntegratedEnvelopeRig rig;
+    rig.m_input.m_attackIncrement = 0.125f;
+    rig.m_input.m_holdLoops = 2.0 / 64.0;
+    rig.m_input.m_decayIncrement = 0.125f;
+    DOCTEST_CHECK(rig.Process(7.75) == doctest::Approx(7.75 / 8.0));
+    DOCTEST_CHECK(rig.Process(10.25) == doctest::Approx(7.75 / 8.0));
+    DOCTEST_CHECK(rig.Process(7.5) == doctest::Approx(7.5 / 8.0));
+    DOCTEST_CHECK(rig.Process(12.0) == doctest::Approx(0.75f));
+    DOCTEST_CHECK(rig.Process(4.0) == doctest::Approx(0.5f));
+}
+
+DOCTEST_TEST_CASE("AHD retrigger resets integration while preserving the current output")
+{
+    IntegratedEnvelopeRig rig;
+    DOCTEST_REQUIRE(rig.Process(40.0) == doctest::Approx(0.75f));
+    rig.Trigger();
+    DOCTEST_CHECK(rig.m_envelope.m_rawOutput == doctest::Approx(0.75f));
+    DOCTEST_CHECK(rig.m_envelope.m_startOutput == doctest::Approx(0.75f));
+    DOCTEST_CHECK(rig.Process(42.0) == doctest::Approx(0.875f));
+    DOCTEST_CHECK(rig.Process(40.0) == doctest::Approx(0.75f));
+    DOCTEST_CHECK(rig.Process(38.0) == doctest::Approx(0.875f));
+
+    rig.m_input.m_release = true;
+    DOCTEST_CHECK(rig.Process(38.0) == doctest::Approx(0.84375f));
+    rig.Trigger();
+    DOCTEST_CHECK(rig.Process(38.0) == doctest::Approx(0.84375f));
+    DOCTEST_CHECK(rig.Process(39.0) == doctest::Approx(0.90625f));
 }

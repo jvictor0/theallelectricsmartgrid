@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 
 #include "Slew.hpp"
@@ -13,6 +14,13 @@ struct AHD
         Idle,
         Running,
         Release,
+    };
+
+    enum class Stage
+    {
+        Attack,
+        Hold,
+        Decay,
     };
 
     struct AHDControl
@@ -180,6 +188,9 @@ struct AHD
     float m_rawOutput;
     float m_startOutput;
     float m_amplitude;
+    Stage m_stage;
+    double m_stagePosition;
+    double m_previousSamples;
 
     AHD()
         : m_state(State::Idle)
@@ -189,9 +200,120 @@ struct AHD
         , m_rawOutput(0.0f)
         , m_startOutput(0.0f)
         , m_amplitude(1.0f)
+        , m_stage(Stage::Attack)
+        , m_stagePosition(0.0)
+        , m_previousSamples(0.0)
     {
     }
-    
+
+    void AdvanceStages(double deltaSamples, const Input& input)
+    {
+        // A step can cross multiple stages in either direction. Only the time
+        // remaining after each boundary is applied to the next stage's rate.
+        //
+        while (deltaSamples != 0.0)
+        {
+            bool forward = deltaSamples > 0.0;
+            double increment = 0.0;
+            switch (m_stage)
+            {
+                case Stage::Attack:
+                {
+                    increment = input.m_attackIncrement;
+                    break;
+                }
+                case Stage::Hold:
+                {
+                    double holdSamples = input.m_holdLoops * input.m_envelopePeriodSamples;
+                    if (holdSamples == 0.0)
+                    {
+                        m_stage = forward ? Stage::Decay : Stage::Attack;
+                        m_stagePosition = forward ? 0.0 : 1.0;
+                        continue;
+                    }
+
+                    increment = 1.0 / holdSamples;
+                    break;
+                }
+                case Stage::Decay:
+                {
+                    increment = input.m_decayIncrement;
+                    break;
+                }
+            }
+
+            if (increment == 0.0)
+            {
+                break;
+            }
+
+            double position = m_stagePosition + deltaSamples * increment;
+            if (!forward && m_stage == Stage::Attack)
+            {
+                m_stagePosition = std::max(static_cast<double>(m_startOutput), position);
+                break;
+            }
+
+            if (forward ? position < 1.0 : position > 0.0)
+            {
+                m_stagePosition = position;
+                break;
+            }
+
+            double boundary = forward ? 1.0 : 0.0;
+            double samplesToBoundary = (boundary - m_stagePosition) / increment;
+            deltaSamples = forward
+                ? std::max(0.0, deltaSamples - samplesToBoundary)
+                : std::min(0.0, deltaSamples - samplesToBoundary);
+            m_stagePosition = forward ? 0.0 : 1.0;
+            switch (m_stage)
+            {
+                case Stage::Attack:
+                {
+                    m_stage = Stage::Hold;
+                    break;
+                }
+                case Stage::Hold:
+                {
+                    m_stage = forward ? Stage::Decay : Stage::Attack;
+                    break;
+                }
+                case Stage::Decay:
+                {
+                    if (forward)
+                    {
+                        m_state = State::Idle;
+                        m_changed = true;
+                        m_rawOutput = 0.0f;
+                        return;
+                    }
+
+                    m_stage = Stage::Hold;
+                    break;
+                }
+            }
+        }
+
+        switch (m_stage)
+        {
+            case Stage::Attack:
+            {
+                m_rawOutput = static_cast<float>(m_stagePosition);
+                break;
+            }
+            case Stage::Hold:
+            {
+                m_rawOutput = 1.0f;
+                break;
+            }
+            case Stage::Decay:
+            {
+                m_rawOutput = static_cast<float>(1.0 - m_stagePosition);
+                break;
+            }
+        }
+    }
+
     float Process(Input& input)
     {
         m_changed = false;
@@ -201,6 +323,9 @@ struct AHD
             m_changed = m_state != State::Running;
             m_state = State::Running;
             m_startOutput = m_rawOutput;
+            m_stage = Stage::Attack;
+            m_stagePosition = m_startOutput;
+            m_previousSamples = 0.0;
         }
         else if (input.m_release && m_state != State::Idle)
         {
@@ -228,35 +353,9 @@ struct AHD
                     PhaseDomain::Modulated);
                 double samples = std::abs(phase - input.m_startGlobalPhase)
                     * input.m_phaseRatio * input.m_envelopePeriodSamples;
-                double attackPos = samples * static_cast<double>(input.m_attackIncrement) + static_cast<double>(m_startOutput);
-                if (attackPos < 1.0)
-                {
-                    m_rawOutput = static_cast<float>(attackPos);
-                }
-                else
-                {
-                    double attackEndSamples = (1.0 - static_cast<double>(m_startOutput)) / static_cast<double>(input.m_attackIncrement);
-                    double holdSamples = input.m_holdLoops * input.m_envelopePeriodSamples;
-                    double holdEndSamples = attackEndSamples + holdSamples;
-                    if (samples < holdEndSamples)
-                    {
-                        m_rawOutput = 1.0f;
-                    }
-                    else
-                    {
-                        double decayPos = 1.0 - (samples - holdEndSamples) * static_cast<double>(input.m_decayIncrement);
-                        if (decayPos < 0.0)
-                        {
-                            m_rawOutput = 0.0f;
-                            m_state = State::Idle;
-                            m_changed = true;
-                        }
-                        else
-                        {
-                            m_rawOutput = static_cast<float>(decayPos);
-                        }
-                    }
-                }
+                double deltaSamples = samples - m_previousSamples;
+                m_previousSamples = samples;
+                AdvanceStages(deltaSamples, input);
 
                 break;
             }
