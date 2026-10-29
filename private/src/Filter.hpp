@@ -442,7 +442,7 @@ struct TanhSaturator
         }
     }
 
-    float Tanh(float x)
+    static float Tanh(float x)
     {
         float y = x * (27.0f + x * x) / (27.0f + 9.0f * x * x);
         return std::min(1.0f, std::max(-1.0f, y));

@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cmath>
+#include "Filter.hpp"
 #include "StereoUtils.hpp"
 #include "QuadUtils.hpp"
 
@@ -61,7 +62,7 @@ struct Meter
 
     float ProcessAndSaturate(float input, float* reduction)
     {
-        float output = std::atan(input * M_PI / 2) / (M_PI / 2);
+        float output = TanhSaturator<false>::Tanh(input);
         Process(output);
         *reduction = std::max(0.00000000001f, std::abs(output)) / std::max(0.00000000001f, std::abs(input));
         ProcessReduction(*reduction);

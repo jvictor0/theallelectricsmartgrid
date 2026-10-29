@@ -22,7 +22,7 @@ Before leaving the synthesizer, both the Quad and Stereo mixdowns pass through a
 
 The Multiband Saturator splits the signal into 4 frequency bands using 4th-order Linkwitz-Riley crossovers (`LinkwitzRileyCrossover`).
 - Each band can have its gain adjusted independently.
-- Each band is then passed through an arctan saturator (`ProcessAndSaturate` in `Metering`), providing soft clipping and harmonic saturation.
+- Each band is then passed through a tanh saturator (`ProcessAndSaturate` in `Metering`), using the clamped rational approximation from `TanhSaturator` to provide soft clipping and harmonic saturation.
 - Because the saturation is applied per-band, it prevents intermodulation distortion (e.g., heavy bass notes won't cause the high frequencies to duck or distort).
 - The bands are then summed back together, providing a loud, glued, and polished final output.
 

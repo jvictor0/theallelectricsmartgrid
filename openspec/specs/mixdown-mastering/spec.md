@@ -1,12 +1,12 @@
 # Mixdown and Mastering Specification
 
 ## Purpose
-The mixdown and mastering stage (`QuadMixerInternal` in `private/src/QuadMixer.hpp`, `DualMasteringChain` in `private/src/QuadMasterChain.hpp`, `MultibandSaturator` in `private/src/MultibandSaturator.hpp`) is the final stage of the DSP engine. It mixes the nine quad-panned voices (see quad-panning and voice-architecture) and the source-mixer inputs into a main quad bus, feeds three send buses for quad-delay, quad-reverb, and partial-machine, sums their returns with cross-feed routing, and simultaneously produces three output formats: the primary quadraphonic mix, a stereo mixdown built through a 30-degree rotation matrix, and a dedicated mono sub channel. Both quad and stereo mixes pass through parallel four-band mastering chains with Linkwitz-Riley crossovers, per-band gain, and arctan saturation before leaving the synthesizer.
+The mixdown and mastering stage (`QuadMixerInternal` in `private/src/QuadMixer.hpp`, `DualMasteringChain` in `private/src/QuadMasterChain.hpp`, `MultibandSaturator` in `private/src/MultibandSaturator.hpp`) is the final stage of the DSP engine. It mixes the nine quad-panned voices (see quad-panning and voice-architecture) and the source-mixer inputs into a main quad bus, feeds three send buses for quad-delay, quad-reverb, and partial-machine, sums their returns with cross-feed routing, and simultaneously produces three output formats: the primary quadraphonic mix, a stereo mixdown built through a 30-degree rotation matrix, and a dedicated mono sub channel. Both quad and stereo mixes pass through parallel four-band mastering chains with Linkwitz-Riley crossovers, per-band gain, and tanh saturation before leaving the synthesizer.
 
 ## Requirements
 
 ### Requirement: Voice Mixing into the Quad Bus
-The system SHALL mix up to 16 input slots into the main quad bus: the nine voices occupy slots 0-8 with per-voice quad pan coordinates (`m_x`, `m_y`) and gain, and the source-mixer's external sources occupy the following slots panned to center (0.5, 0.5) at unity gain. Each voice is panned with `QuadFloat::Pan(x, y, input)`, soft-limited by a per-voice meter whose arctan saturation yields a reduction factor applied to the post-fader signal, and added to the quad output when its monitor flag is set. Each voice's sub-oscillator output arrives on a separate mono lane (`m_monoIn`), is panned to center, and is summed post-fader with the voice (see voice-architecture for the sub-oscillator itself).
+The system SHALL mix up to 16 input slots into the main quad bus: the nine voices occupy slots 0-8 with per-voice quad pan coordinates (`m_x`, `m_y`) and gain, and the source-mixer's external sources occupy the following slots panned to center (0.5, 0.5) at unity gain. Each voice is panned with `QuadFloat::Pan(x, y, input)`, soft-limited by a per-voice meter whose tanh saturation yields a reduction factor applied to the post-fader signal, and added to the quad output when its monitor flag is set. Each voice's sub-oscillator output arrives on a separate mono lane (`m_monoIn`), is panned to center, and is summed post-fader with the voice (see voice-architecture for the sub-oscillator itself).
 
 #### Scenario: Voice placement follows pan coordinates
 - **WHEN** voice 0 plays with pan coordinates (x, y) = (1.0, 0.5) and gain 1.0
@@ -15,7 +15,7 @@ The system SHALL mix up to 16 input slots into the main quad bus: the nine voice
 
 #### Scenario: Hot voices are soft-limited per voice
 - **WHEN** a voice's post-gain sample plus its sub lane drives its meter beyond unity
-- **THEN** the meter's arctan stage computes a reduction factor below 1 that scales that voice's contribution to the quad bus, leaving the other voices unaffected
+- **THEN** the meter's tanh stage computes a reduction factor below 1 that scales that voice's contribution to the quad bus, leaving the other voices unaffected
 
 ### Requirement: Three Effect Send Buses
 The system SHALL maintain exactly three quad send buses (`x_numSends = 3`): send 0 feeds quad-delay, send 1 feeds quad-reverb, and send 2 feeds partial-machine (`SquiggleBoy::ProcessSends`). Each voice contributes its panned signal times an independent per-voice, per-send gain, so any voice can feed any combination of effects. The source-mixer input slots have all send gains forced to zero.
@@ -26,7 +26,7 @@ The system SHALL maintain exactly three quad send buses (`x_numSends = 3`): send
 - **AND** voice 0 can simultaneously feed the reverb and partial machine at unrelated gains
 
 ### Requirement: Effect Return Summation
-The system SHALL sum the three effect returns (quad-delay, quad-reverb, partial-machine outputs) into the main quad bus, each scaled by its return gain and passed through a per-return quad meter with arctan saturation (`ProcessReturns`). The delay and reverb also receive their own post-gain returns back as feedback inputs to their processors. Partial Machine return gain SHALL come from `PartialMachineVolume` (encoder 3,3), the same `m_returnGain` path as `DelayReturn` and `ReverbReturn`.
+The system SHALL sum the three effect returns (quad-delay, quad-reverb, partial-machine outputs) into the main quad bus, each scaled by its return gain and passed through a per-return quad meter with tanh saturation (`ProcessReturns`). The delay and reverb also receive their own post-gain returns back as feedback inputs to their processors. Partial Machine return gain SHALL come from `PartialMachineVolume` (encoder 3,3), the same `m_returnGain` path as `DelayReturn` and `ReverbReturn`.
 
 #### Scenario: Return gain scales an effect into the mix
 - **WHEN** the reverb produces output and its return gain is 0.5
@@ -71,14 +71,14 @@ The system SHALL split every mastering-chain channel into four frequency bands u
 - **THEN** all three crossover points move up together, because the mid and high crossovers are computed as the bass frequency multiplied by their factors
 
 ### Requirement: Per-Band Gain and Arctan Saturation
-The system SHALL apply an independent gain (exponential range 1/16 to 2) to each band and pass each band of each channel through its own arctan soft-clip stage `atan(x * pi/2) / (pi/2)` (`Meter::ProcessAndSaturate` in `private/src/Metering.hpp`) before recombination. Saturating per band prevents intermodulation between bands: heavy bass drive generates harmonics only within the bass band's path and does not modulate the high bands. Per-band and master meters are exposed through `MultibandSaturator::UIState`, whose `TransferFunction` reproduces the crossover-plus-gain response analytically for display.
+The system SHALL apply an independent gain (exponential range 1/16 to 2) to each band and pass each band of each channel through its own tanh soft-clip stage using `TanhSaturator`'s rational approximation `x * (27 + x*x) / (27 + 9*x*x)`, clamped to [-1, 1] (`Meter::ProcessAndSaturate` in `private/src/Metering.hpp`) before recombination. Saturating per band prevents intermodulation between bands: heavy bass drive generates harmonics only within the bass band's path and does not modulate the high bands. Per-band and master meters are exposed through `MultibandSaturator::UIState`, whose `TransferFunction` reproduces the crossover-plus-gain response analytically for display.
 
 #### Scenario: Band gains shape tone independently
 - **WHEN** band 0's gain is raised to 2 and the other bands stay at 1
 - **THEN** only content below the low crossover is boosted (and saturates earlier), while bands 1-3 pass unchanged
 
 #### Scenario: Bass drive does not distort highs
-- **WHEN** band 0 is driven hard into its arctan stage while band 3 carries a quiet high-frequency signal
+- **WHEN** band 0 is driven hard into its tanh stage while band 3 carries a quiet high-frequency signal
 - **THEN** band 3's output remains clean because each band saturates in isolation before the bands are summed
 
 ### Requirement: Mono Bass Extraction
@@ -93,11 +93,11 @@ The system SHALL always run the mastering chains with mono bass enabled (`monoTh
 - **THEN** `QuadFloatWithStereoAndSub::m_sub` equals the quad mastering chain's saturated mono band 0, scaled afterwards by the master volume alongside the quad and stereo outputs
 
 ### Requirement: Master Gain and Output Stage
-The system SHALL scale each mastering chain's recombined signal by a master gain (exponential range 1/4 to 2, `Param::MasterGain`) and pass each channel through a final arctan saturation stage with master metering. After mastering, `SquiggleBoy` multiplies the quad, stereo, and sub outputs by the global master volume (`m_masterVolume`).
+The system SHALL scale each mastering chain's recombined signal by a master gain (exponential range 1/4 to 2, `Param::MasterGain`) and pass each channel through a final tanh saturation stage with master metering. After mastering, `SquiggleBoy` multiplies the quad, stereo, and sub outputs by the global master volume (`m_masterVolume`).
 
 #### Scenario: Master gain drives the final saturator
 - **WHEN** the master gain is raised toward 2 with a hot mix
-- **THEN** every output channel is scaled then soft-clipped by the final atan stage, so peak output approaches but never exceeds the saturator's ceiling
+- **THEN** every output channel is scaled then soft-clipped by the final tanh stage, so peak output approaches but never exceeds the saturator's ceiling
 
 ### Requirement: Dual-Chain Parallel Mastering
 The system SHALL master the stereo and quad mixes through separate `MasteringChain` instances (`DualMasteringChain`: a 2-channel and a 4-channel `MultibandSaturator`) with independent filter and meter state, while a single set of controls (band gains, master gain, bass frequency, crossover factors) updates both chains identically (`DualMasteringChain::Input` setters). The stereo chain's saturator state feeds the mastering UI.
