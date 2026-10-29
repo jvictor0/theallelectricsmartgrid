@@ -83,6 +83,7 @@ struct TheoryOfTimeBase
     };
 
     std::array<Sample, x_microBlockBufferSize> m_samples;
+    double m_globalPeriodSamples = 1.0;
 
     static int64_t ComputeGlobalTickPosition(double phase, int64_t globalPeriodTicks)
     {

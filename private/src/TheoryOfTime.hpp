@@ -25,7 +25,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
     SmartGrid::MessageOutBuffer* m_messageOutBuffer;
     PolyXFaderInternal m_phaseModLFO;
     ScopeWriterHolder m_scopeWriter;
-    double m_globalPeriodSamples;
 
     struct Input : public TheoryOfTimeBase::Input
     {
@@ -102,7 +101,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
         PolyXFaderInternal::Input lfoInput = input.m_phaseModLFOInput;
         lfoInput.m_attackFrac = 0.1f + 0.8f * lfoInput.m_attackFrac;
-        lfoInput.m_continuousShape = true;
         lfoInput.m_mult = input.m_lfoMult.m_expParam;
         lfoInput.m_theoryOfTime = this;
         lfoInput.m_phaseDomain = PhaseDomain::Unmodulated;
@@ -124,7 +122,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
     TheoryOfTime()
         : m_messageOutBuffer(nullptr)
     {
-        m_globalPeriodSamples = 1.0;
     }
 
     void Process(size_t j, Input& input)

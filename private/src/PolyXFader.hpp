@@ -28,7 +28,7 @@ struct PolyXFaderInternal
 
         bool m_trig;
         float m_shFade;
-        bool m_continuousShape;
+        TanhSaturator<true> m_shapeSaturator;
 
         Input()
             : m_theoryOfTime(nullptr)
@@ -44,7 +44,7 @@ struct PolyXFaderInternal
             , m_center(0.0f)
             , m_trig(false)
             , m_shFade(0.0f)
-            , m_continuousShape(false)
+            , m_shapeSaturator(0.0f)
         {
             for (size_t i = 0; i < 16; ++i)
             {
@@ -87,26 +87,20 @@ struct PolyXFaderInternal
         
         float Shape(float shape, float in)
         {
-            if (m_continuousShape)
+            if (shape <= 0.0f)
             {
-                float sine = (-Math::Cos2pi(in / 2) + 1) / 2;
-                return sine + shape * (in - sine);
+                return in;
             }
 
-            if (shape < 0.45)
+            float sine = (1.0f - Math::Cos2pi(in / 2.0f)) / 2.0f;
+            if (shape <= 0.5f)
             {
-                shape *= 2;
-                float fullShape = (- Math::Cos2pi(in / 2) + 1) / 2;
-                return in * shape + fullShape * (1 - shape);
+                return in + 2.0f * shape * (sine - in);
             }
-            else if (shape < 0.55)
-            {
-                return in;
-            }
-            else
-            {
-                return in;
-            }
+
+            constexpr float x_maxShapeDrive = 8.0f;
+            m_shapeSaturator.SetInputGain(x_maxShapeDrive * (2.0f * shape - 1.0f));
+            return (1.0f + m_shapeSaturator.Process(2.0f * sine - 1.0f)) / 2.0f;
         }
     };
 
@@ -115,27 +109,28 @@ struct PolyXFaderInternal
         , m_amplitude(1.0f)
         , m_slope(0.0f)
         , m_center(0.0f)
-        , m_valuesPreQuantize{}
-        , m_valuesPostQuantize{}
+        , m_values{}
         , m_weights{}
         , m_totalWeight(0.0f)
+        , m_mixSlewFreq(0.0f)
         , m_rawOutput(0.0f)
         , m_output(0.0f)
         , m_top(false)
         , m_shValue(0.0f)
     {
-        m_slew.SetAlphaFromNatFreq(500.0f / 48000.0f);
+        m_shSlew.SetAlphaFromNatFreq(500.0f / 48000.0f);
     }
     
     size_t m_size;
     float m_amplitude;
     float m_slope;
     float m_center;
-    float m_valuesPreQuantize[16];
-    float m_valuesPostQuantize[16];
+    float m_values[16];
     float m_weights[16];
     float m_totalWeight;
-    OPLowPassFilter m_slew;
+    OPLowPassFilter m_mixSlew;
+    float m_mixSlewFreq;
+    OPLowPassFilter m_shSlew;
     float m_rawOutput;
     float m_output;
     SampleTop m_top;
@@ -191,13 +186,16 @@ struct PolyXFaderInternal
         }
         
         m_top = SampleTop::AndIdentity(m_totalWeight > 0.0f);
+        size_t sampleIndex = static_cast<size_t>(std::floor(input.m_samplePosition));
+        int64_t maxCycleRatio = 0;
         for (size_t i = 0; i < m_size; ++i)
         {
             if (m_weights[i] != 0)
             {
+                maxCycleRatio = std::max(maxCycleRatio, input.m_theoryOfTime->GetCycleRatio(i, sampleIndex));
                 m_top = m_top && input.m_theoryOfTime->CrossedCycleBoundary(i, static_cast<size_t>(std::round(input.m_samplePosition)), input.m_phaseDomain);
-                m_valuesPostQuantize[i] = Quantize(input, i, input.ComputePhase(i));
-                output += m_valuesPostQuantize[i] * m_weights[i] * input.m_externalWeights[i];
+                m_values[i] = input.ComputePhase(i);
+                output += m_values[i] * m_weights[i] * input.m_externalWeights[i];
             }
         }
 
@@ -208,38 +206,31 @@ struct PolyXFaderInternal
             output /= m_totalWeight;
         }
 
+        float slewFreq = static_cast<float>(8.0 * input.m_mult * maxCycleRatio / input.m_theoryOfTime->m_globalPeriodSamples);
+        assert(slewFreq >= 0.0f);
+        if (slewFreq != m_mixSlewFreq)
+        {
+            m_mixSlewFreq = slewFreq;
+            if (slewFreq > 0.0f)
+            {
+                m_mixSlew.SetAlphaFromNatFreq(slewFreq);
+            }
+            else
+            {
+                m_mixSlew.m_alpha = 0.0f;
+            }
+        }
+
+        output = m_mixSlew.Process(output);
         m_amplitude = input.m_amplitude;
         if (input.m_trig)
         {
             m_shValue = output;
         }
         
-        float blended = m_shValue * input.m_shFade + output * (1 - input.m_shFade);
-        m_rawOutput = m_slew.Process(blended);
+        float held = m_shSlew.Process(m_shValue);
+        m_rawOutput = held * input.m_shFade + output * (1 - input.m_shFade);
         m_output = m_rawOutput * input.m_amplitude + (1 - input.m_amplitude) * 0.5;
     }
 
-    float Quantize(Input& input, size_t i, float value)
-    {
-        if (input.m_continuousShape || input.m_shape <= 0.55)
-        {
-            m_valuesPreQuantize[i] = value;
-            return value;
-        }
-        else
-        {
-            int numBits = std::max<int>(0, std::round(16 * (1 - input.m_shape)));
-            float thisQuanized = std::round(value * (1 << numBits)) / (1 << numBits);
-            float oldQuanized = std::round(m_valuesPreQuantize[i] * (1 << numBits)) / (1 << numBits);
-            if (thisQuanized == oldQuanized)
-            {
-                return m_valuesPostQuantize[i];
-            }
-            else
-            {
-                m_valuesPreQuantize[i] = value;
-                return thisQuanized;
-            }
-        }   
-    }
 };

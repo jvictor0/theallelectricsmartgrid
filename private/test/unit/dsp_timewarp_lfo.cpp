@@ -15,7 +15,7 @@ struct TimeWarpLFORig
         m_input.m_phaseModLFOInput.m_center = 1.0f;
         m_input.m_phaseModLFOInput.m_slope = 0.0f;
         m_input.m_phaseModLFOInput.m_attackFrac = 0.5f;
-        m_input.m_phaseModLFOInput.m_shape = 1.0f;
+        m_input.m_phaseModLFOInput.m_shape = 0.0f;
         m_input.m_lfoMult.m_expParam = 1.0f;
     }
 
@@ -25,26 +25,31 @@ struct TimeWarpLFORig
         sample.m_unmodulatedPhase = phase;
         TheoryOfTimeBase::SetLoopPeriods(sample);
         m_time.ProcessPhaseModLFO(1, m_input);
-        return m_time.m_phaseModLFO.m_valuesPostQuantize[TheoryOfTimeBase::x_globalLoop];
+        return m_time.m_phaseModLFO.m_values[TheoryOfTimeBase::x_globalLoop];
     }
 };
 }
 
-DOCTEST_TEST_CASE("TimeWarpLFO: Shape continuously blends sine into triangle")
+DOCTEST_TEST_CASE("TimeWarpLFO: Shape blends triangle into sine then progressively saturates")
 {
     TimeWarpLFORig rig;
     constexpr float x_phase = 0.125f;
     constexpr float x_triangle = 0.25f;
     const float sine = (1.0f - std::cos(static_cast<float>(M_PI) / 4.0f)) / 2.0f;
 
-    rig.m_input.m_phaseModLFOInput.m_shape = 1.0f;
+    rig.m_input.m_phaseModLFOInput.m_shape = 0.0f;
     DOCTEST_CHECK(rig.Evaluate(x_phase) == doctest::Approx(x_triangle));
 
-    rig.m_input.m_phaseModLFOInput.m_shape = 0.0f;
+    rig.m_input.m_phaseModLFOInput.m_shape = 0.5f;
     DOCTEST_CHECK(rig.Evaluate(x_phase) == doctest::Approx(sine));
 
-    rig.m_input.m_phaseModLFOInput.m_shape = 0.5f;
+    rig.m_input.m_phaseModLFOInput.m_shape = 0.25f;
     DOCTEST_CHECK(rig.Evaluate(x_phase) == doctest::Approx((sine + x_triangle) / 2.0f));
+
+    rig.m_input.m_phaseModLFOInput.m_shape = 0.75f;
+    float saturated = rig.Evaluate(0.22f);
+    rig.m_input.m_phaseModLFOInput.m_shape = 1.0f;
+    DOCTEST_CHECK(rig.Evaluate(0.22f) < saturated);
 }
 
 DOCTEST_TEST_CASE("TimeWarpLFO: Skew endpoints map to ten and ninety percent")
@@ -108,7 +113,7 @@ DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the glob
     input.m_freq = 1.0 / 192000.0;
     input.m_lfoMult.m_expParam = 16;
     input.m_modIndex.m_expParam = 1;
-    input.m_phaseModLFOInput.m_shape = 1;
+    input.m_phaseModLFOInput.m_shape = 0;
     input.m_phaseModLFOInput.m_attackFrac = 0.5f;
     input.m_phaseModLFOInput.m_slope = 0;
     OPLowPassFilter encoder;
@@ -145,10 +150,10 @@ DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the glob
     DOCTEST_CHECK(maxSpeedDifference < 0.1);
 }
 
-DOCTEST_TEST_CASE("PolyXFader: default Shape mode keeps stepped quantization")
+DOCTEST_TEST_CASE("PolyXFader: square-like Shape responds continuously without quantizer history")
 {
     TheoryOfTimeBase time;
-    time.m_samples[0].m_unmodulatedPhase = 0.125;
+    time.m_samples[0].m_unmodulatedPhase = 0.22;
     TheoryOfTimeBase::SetLoopPeriods(time.m_samples[0]);
 
     PolyXFaderInternal fader;
@@ -162,5 +167,62 @@ DOCTEST_TEST_CASE("PolyXFader: default Shape mode keeps stepped quantization")
     input.m_phaseShift = -0.75f;
     fader.Process(input);
 
-    DOCTEST_CHECK(fader.m_valuesPostQuantize[0] == doctest::Approx(0.0f));
+    float before = fader.m_values[0];
+    DOCTEST_CHECK(before > 0.0f);
+    DOCTEST_CHECK(before < 0.1f);
+
+    time.m_samples[0].m_unmodulatedPhase += 0.0001;
+    fader.Process(input);
+    DOCTEST_CHECK(fader.m_values[0] > before);
+    DOCTEST_CHECK(fader.m_values[0] - before < 0.01f);
+
+    PolyXFaderInternal fresh;
+    fresh.Process(input);
+    DOCTEST_CHECK(fader.m_values[0] == fresh.m_values[0]);
+}
+
+DOCTEST_TEST_CASE("PolyXFader: Shape endpoints and sine boundary stay continuous and normalized")
+{
+    PolyXFaderInternal::Input input;
+    DOCTEST_CHECK(input.m_shape == 0.0f);
+
+    for (float shape : {0.0f, 0.25f, std::nextafter(0.5f, 0.0f), 0.5f, std::nextafter(0.5f, 1.0f), 0.5625f, 0.75f, 1.0f})
+    {
+        DOCTEST_CHECK(input.Shape(shape, 0.0f) == doctest::Approx(0.0f).epsilon(0.000001));
+        DOCTEST_CHECK(input.Shape(shape, 0.5f) == doctest::Approx(0.5f).epsilon(0.000001));
+        DOCTEST_CHECK(input.Shape(shape, 1.0f) == doctest::Approx(1.0f).epsilon(0.000001));
+
+        float previous = 0.0f;
+        for (size_t i = 0; i <= 1024; ++i)
+        {
+            float position = static_cast<float>(i) / 1024.0f;
+            float value = input.Shape(shape, position);
+            DOCTEST_CHECK(std::isfinite(value));
+            DOCTEST_CHECK(value >= 0.0f);
+            DOCTEST_CHECK(value <= 1.0f);
+            DOCTEST_CHECK(value >= previous);
+            DOCTEST_CHECK(value - previous < 0.02f);
+            DOCTEST_CHECK(value + input.Shape(shape, 1.0f - position) == doctest::Approx(1.0f).epsilon(0.00001));
+            previous = value;
+        }
+    }
+
+    float sine = input.Shape(0.5f, 0.3f);
+    DOCTEST_CHECK(input.Shape(std::nextafter(0.5f, 0.0f), 0.3f) == doctest::Approx(sine).epsilon(0.000001));
+    DOCTEST_CHECK(input.Shape(std::nextafter(0.5f, 1.0f), 0.3f) == doctest::Approx(sine).epsilon(0.000001));
+}
+
+DOCTEST_TEST_CASE("PolyXFader: increasing Shape above sine progressively sharpens the waveform")
+{
+    PolyXFaderInternal::Input input;
+    float previous = input.Shape(0.5f, 0.45f);
+    for (size_t i = 1; i <= 100; ++i)
+    {
+        float shape = 0.5f + 0.5f * static_cast<float>(i) / 100.0f;
+        float value = input.Shape(shape, 0.45f);
+        DOCTEST_CHECK(value < previous);
+        previous = value;
+    }
+
+    DOCTEST_CHECK(previous < 0.1f);
 }

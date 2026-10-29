@@ -19,9 +19,9 @@ This is a direct function of the current phase and accepted topology, including 
 
 ## Time-warp modulation controls
 
-The clock's phase-modulation LFO uses a continuous sine-to-triangle Shape blend over the full normalized knob range. Shape zero is sinusoidal, Shape one is triangular, and intermediate values blend them without quantization. Skew maps the full knob range to attack fractions 0.1 through 0.9; its midpoint remains symmetric at 0.5. Existing control filtering, loop blending, output slew and fractional-Mult lobes are retained.
+The clock's phase-modulation LFO shares the voice and quad LFO Shape curve: zero (the default) is triangle, 0.5 is sine, and values above 0.5 progressively apply normalized tanh to make the sine square-like. There is no waveform quantization. Skew maps the full knob range to attack fractions 0.1 through 0.9; its midpoint remains symmetric at 0.5. Existing control filtering, loop blending and fractional-Mult lobes are retained. The mixed waveform passes through one low-pass filter at eight times the fastest contributing phasor's expected frequency, as described in [PolyXFader LFOs](polyxfader-lfos.md).
 
-These restrictions apply specifically to the time-warp LFO. Voice and quad LFOs retain their existing Shape and Skew behavior. High Mult can still reverse time; reversals remain an intentional part of the effect.
+The narrower Skew range applies specifically to the time-warp LFO. Voice and quad LFOs retain their wider Skew range. High Mult can still reverse time; reversals remain an intentional part of the effect.
 
 ## Shared integer position
 

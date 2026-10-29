@@ -65,7 +65,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader partial lobes remain loop periodic")
     lfo.m_mult = 2.5f;
     lfo.m_phaseShift = -0.75f;
     lfo.m_attackFrac = 0.5f;
-    lfo.m_shape = 0.5f;
+    lfo.m_shape = 0.0f;
     clock.m_unmodulatedPhase = 0.9;
     time.Process(1, clock);
     float first = lfo.ComputePhase(5);
@@ -166,16 +166,16 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader evaluates accepted reparenting witho
     input.m_mult = 2.5f;
     input.m_phaseShift = -0.75f;
     input.m_attackFrac = 0.5f;
-    input.m_shape = 0.5f;
+    input.m_shape = 0.0f;
     input.m_samplePosition = 3.5f;
     lfo.Process(input);
-    DOCTEST_CHECK(lfo.m_valuesPostQuantize[3] == doctest::Approx(0.0));
+    DOCTEST_CHECK(lfo.m_values[3] == doctest::Approx(0.0));
     input.m_samplePosition = 3.75f;
     lfo.Process(input);
-    DOCTEST_CHECK(lfo.m_valuesPostQuantize[3] == doctest::Approx(0.05));
+    DOCTEST_CHECK(lfo.m_values[3] == doctest::Approx(0.05));
     input.m_samplePosition = 4.0f;
     lfo.Process(input);
-    DOCTEST_CHECK(lfo.m_valuesPostQuantize[3] == doctest::Approx(0.15));
+    DOCTEST_CHECK(lfo.m_values[3] == doctest::Approx(0.15));
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while control scope captures slot-zero modulated phase")
@@ -297,7 +297,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader quarter-cycle channel offsets match 
     unshifted.m_mult = 1.0f;
     unshifted.m_phaseShift = 0.0f;
     unshifted.m_attackFrac = 0.5f;
-    unshifted.m_shape = 0.5f;
+    unshifted.m_shape = 0.0f;
 
     PolyXFaderInternal::Input quarter;
     quarter = unshifted;
@@ -339,7 +339,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader sample-and-hold captures on delay-lo
     input.m_center = 0.0f;
     input.m_mult = 1.0f;
     input.m_attackFrac = 0.5f;
-    input.m_shape = 0.5f;
+    input.m_shape = 0.0f;
     input.m_shFade = 1.0f;
     input.m_amplitude = 1.0f;
 
