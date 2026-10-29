@@ -22,7 +22,7 @@ The processor sums each quad sample to mono and writes it into a 4096-sample ana
 
 Each tracked atom carries:
 
-- an analysis frequency, cached log2 frequency, magnitude, and frame-start phase,
+- an accepted analysis frequency and cached log2 frequency used as the held pitch target, its frame-start phase, and the latest matched analysis magnitude,
 - a synthesis frequency and magnitude,
 - a synthesis phase,
 - a frequency-dependent parameter index.
@@ -37,13 +37,17 @@ Residual reduction feedback preserves zero envelopes. Its magnitude floor is cap
 
 Density does not enforce minimum spacing between partials or choose how many partials the sound may contain. A separate 256-partial budget keeps the strongest analysis peaks before matching and the strongest synthesis magnitudes after each update. This bounds matching to at most 256 old atoms by 256 incoming peaks during normal processing. Extraction still examines the full spectrum; discarded analysis peaks have already been subtracted and are not restored to the residual.
 
-`AtomMatcher` sorts existing atoms by their last analysis frequency and sorts new peaks by frequency. It chooses a one-to-one assignment that preserves that order and maximizes the total score:
+`AtomMatcher` sorts existing atoms by their held analysis-frequency targets and sorts new peaks by frequency. It chooses a one-to-one assignment that preserves that order and maximizes the total score:
 
 `theta = analysisMagnitude * max(0, 1 - octaveDistance / density)`
 
-The distance is measured from the old atom's last analysis frequency, before portamento, detune, or pitch shift. Matching uses density at the old atom's stored parameter index and excludes peaks below 0.001 times its synthesis magnitude. Equal total scores prefer more matches. Assignment is completed before any tracked frequency or magnitude changes, so synthesis-magnitude order cannot give the first atom a greedy claim on a neighbor's continuation. The matcher uses Hirschberg reconstruction with quadratic time in the two atom counts and linear member-owned workspace.
+The distance is measured from the old atom's held target, before portamento, detune, or pitch shift. Matching uses density at the old atom's stored parameter index and excludes peaks below 0.001 times its synthesis magnitude. Equal total scores prefer more matches. Assignment is completed before any tracked frequency or magnitude changes, so synthesis-magnitude order cannot give the first atom a greedy claim on a neighbor's continuation. The matcher uses Hirschberg reconstruction with quadratic time in the two atom counts and linear member-owned workspace.
 
-A matched atom follows its selected peak with the attack/decay and portamento controls. An unmatched old atom continues decaying; a strong nearby analysis peak can also suppress it, whether that peak matched another atom or will become a new one. Suppression is applied once per hop before ordinary decay: if its weighted score `theta` exceeds the old magnitude `a`, the magnitude becomes `a * a / theta`. This can remove a quiet tail quickly even with a long decay setting.
+A matched atom changes its held pitch target only when the incoming raw analysis magnitude is at least its synthesis magnitude before the envelope update. A weaker match still updates the analysis magnitude and decay envelope, but retains the accepted frequency, cached log frequency, phase, and parameter index. This prevents a quiet peak from moving a loud tail's target or matching anchor. A later stronger peak can take over normally; this is not a permanent latch.
+
+The hold occurs before portamento. Every surviving matched or unmatched atom continues gliding toward its held target at the normal portamento rate. Attack, decay, and portamento use the held target's parameter index; a stronger accepted peak updates that index before those controls are evaluated.
+
+An unmatched old atom normally decays. A strong nearby analysis peak can kill it immediately, whether that peak matched another atom or will become a new one: if the peak's weighted score `theta` exceeds the old synthesis magnitude, that atom is zeroed and removed before the next synthesis frame. Equality or a weaker cone leaves ordinary decay intact. Already queued overlap-add windows finish normally.
 
 Selection and suppression both evaluate density at the old atom's stored parameter index, so differing lane values do not change the cone between those two steps.
 

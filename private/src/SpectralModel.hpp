@@ -153,16 +153,23 @@ struct SpectralModelGeneric
 
         void Merge(const AnalysisAtom& analysisAtom, Input& input)
         {
-            float slewUpAlpha = input.m_slewUpAlpha.Process(analysisAtom.m_index);
-            float slewDownAlpha = input.m_slewDownAlpha.Process(analysisAtom.m_index);
-            float omegaPortamentoAlpha = input.m_omegaPortamentoAlpha.Process(analysisAtom.m_index);
+            // Compare before the envelope update. A weaker peak cannot move the
+            // held target or its matching anchor, but portamento still runs.
+            //
+            if (m_synthesisMagnitude <= analysisAtom.m_analysisMagnitude)
+            {
+                AnalysisAtom::m_analysisOmega = analysisAtom.m_analysisOmega;
+                AnalysisAtom::m_logAnalysisOmega = analysisAtom.m_logAnalysisOmega;
+                AnalysisAtom::m_analysisPhase = analysisAtom.m_analysisPhase;
+                AnalysisAtom::m_index = analysisAtom.m_index;
+            }
+
+            float slewUpAlpha = input.m_slewUpAlpha.Process(AnalysisAtom::m_index);
+            float slewDownAlpha = input.m_slewDownAlpha.Process(AnalysisAtom::m_index);
+            float omegaPortamentoAlpha = input.m_omegaPortamentoAlpha.Process(AnalysisAtom::m_index);
             m_synthesisMagnitude = BiDirectionalSlew::Process(m_synthesisMagnitude, analysisAtom.m_analysisMagnitude, slewUpAlpha, slewDownAlpha);
-            AnalysisAtom::m_analysisOmega = analysisAtom.m_analysisOmega;
-            AnalysisAtom::m_logAnalysisOmega = analysisAtom.m_logAnalysisOmega;
             AnalysisAtom::m_analysisMagnitude = analysisAtom.m_analysisMagnitude;
-            AnalysisAtom::m_analysisPhase = analysisAtom.m_analysisPhase;
-            AnalysisAtom::m_index = analysisAtom.m_index;
-            m_synthesisOmega = Slew::Process(m_synthesisOmega, analysisAtom.m_analysisOmega, omegaPortamentoAlpha);
+            m_synthesisOmega = Slew::Process(m_synthesisOmega, AnalysisAtom::m_analysisOmega, omegaPortamentoAlpha);
         }
 
         void MergeNoMatch(Input& input)
@@ -176,13 +183,15 @@ struct SpectralModelGeneric
 
         void MergeDominated(const AnalysisAtom& analysisAtom, float density, Input& input)
         {
-            float factor = AnalysisAtom::PreferredMatchTheta(
+            float theta = AnalysisAtom::PreferredMatchTheta(
                 analysisAtom,
                 AnalysisAtom::m_logAnalysisOmega,
-                density) / m_synthesisMagnitude;
-            if (1.0 < factor)
+                density);
+            if (m_synthesisMagnitude < theta)
             {
-                m_synthesisMagnitude /= factor;
+                m_synthesisMagnitude = 0.0f;
+                AnalysisAtom::m_analysisMagnitude = 0.0f;
+                return;
             }
 
             MergeNoMatch(input);

@@ -44,6 +44,7 @@ DOCTEST_TEST_CASE("SpectralModel tracking theta prefers nearby continuation over
     Input input = MakeInput(0.1f);
     model.m_atoms.Add(MakeAtom(0.10f));
     Atom* atom = model.m_atoms[0];
+    atom->m_synthesisMagnitude = 0.5f;
     AnalysisAtomArray atoms;
     float nearbyOmega = AtOctaveDistance(0.10f, 0.01f);
     float fartherOmega = AtOctaveDistance(0.10f, 0.08f);
@@ -121,9 +122,9 @@ DOCTEST_TEST_CASE("SpectralModel dominated merge follows the octave density cone
     Input input = MakeInput(0.5f);
     input.m_slewDownAlpha = ScalarParameter::Parameter(0.0f);
 
-    const float distances[] = {0.0f, 0.25f, 0.5f};
-    const float expectedMagnitudes[] = {0.0625f, 0.125f, 0.25f};
-    for (size_t i = 0; i < 3; ++i)
+    const float distances[] = {0.0f, 0.25f, 0.375f, 0.5f};
+    const float expectedMagnitudes[] = {0.0f, 0.0f, 0.25f, 0.25f};
+    for (size_t i = 0; i < 4; ++i)
     {
         Atom atom = MakeAtom(0.10f);
         atom.m_synthesisMagnitude = 0.25f;
@@ -145,7 +146,7 @@ DOCTEST_TEST_CASE("SpectralModel domination uses the old atom density across lan
     using LaneParameter = FrequencyDependentParameter::Parameter;
     const float oldDensities[] = {0.249999f, 0.25f, 0.250001f, 1.0f};
     const float peakDensities[] = {1.0f, 1.0f, 1.0f, 0.01f};
-    const float expectedMagnitudes[] = {0.25f, 0.25f, 0.25f, 1.0f / 12.0f};
+    const bool expectedAlive[] = {true, true, true, false};
     for (size_t i = 0; i < 4; ++i)
     {
         LaneModel model;
@@ -166,8 +167,13 @@ DOCTEST_TEST_CASE("SpectralModel domination uses the old atom density across lan
 
         model.TrackAnalysisAtoms(peaks, input);
 
-        DOCTEST_REQUIRE(model.IsAtomAllocated(tail));
-        DOCTEST_CHECK(tail->m_synthesisMagnitude == doctest::Approx(expectedMagnitudes[i]));
+        DOCTEST_REQUIRE(model.IsAtomAllocated(tail) == expectedAlive[i]);
+        if (expectedAlive[i])
+        {
+            DOCTEST_CHECK(tail->m_synthesisMagnitude == doctest::Approx(0.25f));
+        }
+
+        DOCTEST_CHECK(model.m_atoms.Size() == (expectedAlive[i] ? 2 : 1));
     }
 }
 
@@ -278,7 +284,7 @@ DOCTEST_TEST_CASE("SpectralModel matcher rejects weak pairs before reserving an 
     DOCTEST_CHECK(results.m_analysisAtomResults[1].m_isMatched);
 }
 
-DOCTEST_TEST_CASE("SpectralModel unclaimed analysis peak can suppress a tail before its attack")
+DOCTEST_TEST_CASE("SpectralModel unclaimed analysis peak kills a dominated tail before its attack")
 {
     using LaneModel = SpectralModelGeneric<12, FrequencyDependentParameter>;
     using LaneParameter = FrequencyDependentParameter::Parameter;
@@ -305,11 +311,109 @@ DOCTEST_TEST_CASE("SpectralModel unclaimed analysis peak can suppress a tail bef
     DOCTEST_REQUIRE_FALSE(results.m_synthesisAtomResults[1].m_isMatch);
     DOCTEST_CHECK(results.m_synthesisAtomResults[1].m_analysisAtom == &peaks[0]);
     DOCTEST_CHECK_FALSE(results.m_analysisAtomResults[0].m_isMatched);
-    DOCTEST_REQUIRE(model.IsAtomAllocated(tail));
-    DOCTEST_CHECK(tail->m_synthesisMagnitude == doctest::Approx(0.1f * 0.1f / 0.3f));
-    DOCTEST_REQUIRE(model.m_atoms.Size() == 3);
-    DOCTEST_CHECK(model.m_atoms[2]->m_analysisOmega == doctest::Approx(middleOmega));
-    DOCTEST_CHECK(model.m_atoms[2]->m_synthesisMagnitude == doctest::Approx(0.03f));
+    DOCTEST_CHECK_FALSE(model.IsAtomAllocated(tail));
+    DOCTEST_REQUIRE(model.m_atoms.Size() == 2);
+    DOCTEST_CHECK(model.m_atoms[1]->m_analysisOmega == doctest::Approx(middleOmega));
+    DOCTEST_CHECK(model.m_atoms[1]->m_synthesisMagnitude == doctest::Approx(0.03f));
+}
+
+DOCTEST_TEST_CASE("SpectralModel weak matches hold the target while portamento and decay continue")
+{
+    Input input = MakeInput(1.0f);
+    input.m_slewUpAlpha = ScalarParameter::Parameter(0.25f);
+    input.m_omegaPortamentoAlpha = ScalarParameter::Parameter(0.5f);
+    Atom atom(0.125f, 1.0f, ScalarParameter::Index(), 0.0625f, 1.0f, 0.375f);
+    AnalysisAtom weak(0.1875f, 0.25f, 0.25f, ScalarParameter::Index());
+
+    atom.Merge(weak, input);
+
+    DOCTEST_CHECK(atom.m_analysisOmega == doctest::Approx(0.125f));
+    DOCTEST_CHECK(atom.m_logAnalysisOmega == doctest::Approx(-3.0f));
+    DOCTEST_CHECK(atom.m_analysisPhase == doctest::Approx(0.0f));
+    DOCTEST_CHECK(atom.m_analysisMagnitude == doctest::Approx(0.25f));
+    DOCTEST_CHECK(atom.m_synthesisMagnitude == doctest::Approx(0.25f));
+    DOCTEST_CHECK(atom.m_synthesisOmega == doctest::Approx(0.09375f));
+    DOCTEST_CHECK(atom.m_synthesisPhase == doctest::Approx(0.375f));
+
+    input.m_slewDownAlpha = ScalarParameter::Parameter(0.25f);
+    atom.MergeNoMatch(input);
+    DOCTEST_CHECK(atom.m_synthesisMagnitude == doctest::Approx(0.1875f));
+    DOCTEST_CHECK(atom.m_synthesisOmega == doctest::Approx(0.109375f));
+
+    AnalysisAtom strong(0.1875f, 0.5f, 0.25f, ScalarParameter::Index());
+    atom.Merge(strong, input);
+    DOCTEST_CHECK(atom.m_analysisOmega == doctest::Approx(0.1875f));
+    DOCTEST_CHECK(atom.m_logAnalysisOmega == doctest::Approx(std::log2f(0.1875f)));
+    DOCTEST_CHECK(atom.m_analysisPhase == doctest::Approx(0.25f));
+    DOCTEST_CHECK(atom.m_synthesisMagnitude == doctest::Approx(0.265625f));
+    DOCTEST_CHECK(atom.m_synthesisOmega == doctest::Approx(0.1484375f));
+    DOCTEST_CHECK(atom.m_synthesisPhase == doctest::Approx(0.375f));
+}
+
+DOCTEST_TEST_CASE("SpectralModel pitch takeover compares raw peak strength with the pre-merge envelope")
+{
+    Input input = MakeInput(1.0f);
+    const float magnitudes[] = {0.999f, 1.0f, 1.001f};
+    const float targets[] = {0.125f, 0.1875f, 0.1875f};
+    for (size_t i = 0; i < 3; ++i)
+    {
+        Atom atom = MakeAtom(0.125f);
+        AnalysisAtom peak(0.1875f, magnitudes[i], 0.0f, ScalarParameter::Index());
+        atom.Merge(peak, input);
+        DOCTEST_CHECK(atom.m_analysisOmega == doctest::Approx(targets[i]));
+        DOCTEST_CHECK(atom.m_synthesisOmega == doctest::Approx(targets[i]));
+        DOCTEST_CHECK(atom.m_synthesisMagnitude == doctest::Approx(magnitudes[i]));
+    }
+}
+
+DOCTEST_TEST_CASE("SpectralModel a weak match cannot walk the held matching anchor")
+{
+    Model model;
+    Input input = MakeInput(0.25f);
+    input.m_slewDownAlpha = ScalarParameter::Parameter(0.0f);
+    model.m_atoms.Add(MakeAtom(0.10f));
+    Atom* held = model.m_atoms[0];
+    AnalysisAtomArray peaks;
+    AddAnalysisAtom(peaks, AtOctaveDistance(0.10f, 0.2f), 0.1f);
+    model.TrackAnalysisAtoms(peaks, input);
+    DOCTEST_REQUIRE(model.m_atoms.Size() == 1);
+    DOCTEST_REQUIRE(model.m_matcher.m_result.m_synthesisAtomResults[0].m_isMatch);
+    DOCTEST_CHECK(held->m_analysisOmega == doctest::Approx(0.10f));
+
+    peaks.Clear();
+    AddAnalysisAtom(peaks, AtOctaveDistance(0.10f, 0.4f), 0.1f);
+    model.TrackAnalysisAtoms(peaks, input);
+    DOCTEST_CHECK_FALSE(model.m_matcher.m_result.m_synthesisAtomResults[0].m_isMatch);
+    DOCTEST_REQUIRE(model.m_atoms.Size() == 2);
+    DOCTEST_REQUIRE(model.IsAtomAllocated(held));
+    DOCTEST_CHECK(held->m_analysisOmega == doctest::Approx(0.10f));
+    DOCTEST_CHECK(held->m_synthesisMagnitude == doctest::Approx(1.0f));
+}
+
+DOCTEST_TEST_CASE("SpectralModel held pitch retains its parameter lane until a stronger peak takes over")
+{
+    using LaneModel = SpectralModelGeneric<12, FrequencyDependentParameter>;
+    using LaneParameter = FrequencyDependentParameter::Parameter;
+    using LaneIndex = FrequencyDependentParameter::Index;
+    LaneModel::Input input;
+    input.m_slewUpAlpha = LaneParameter(0.5f);
+    input.m_slewDownAlpha = LaneParameter(0.25f);
+    input.m_slewDownAlpha.m_parameters[1] = 1.0f;
+    input.m_omegaPortamentoAlpha = LaneParameter(0.5f);
+    input.m_omegaPortamentoAlpha.m_parameters[1] = 1.0f;
+    LaneModel::Atom atom(0.1f, 1.0f, LaneIndex(0, 0), 0.05f, 1.0f, 0.0f);
+    LaneModel::AnalysisAtom peak(0.125f, 0.5f, 0.0f, LaneIndex(0, 1));
+    atom.Merge(peak, input);
+    DOCTEST_CHECK(atom.m_index.m_index == 0);
+    DOCTEST_CHECK(atom.m_synthesisMagnitude == doctest::Approx(0.875f));
+    DOCTEST_CHECK(atom.m_synthesisOmega == doctest::Approx(0.075f));
+
+    peak.m_analysisMagnitude = 1.0f;
+    atom.Merge(peak, input);
+    DOCTEST_CHECK(atom.m_index.m_index == 1);
+    DOCTEST_CHECK(atom.m_analysisOmega == doctest::Approx(0.125f));
+    DOCTEST_CHECK(atom.m_synthesisMagnitude == doctest::Approx(0.9375f));
+    DOCTEST_CHECK(atom.m_synthesisOmega == doctest::Approx(0.125f));
 }
 
 DOCTEST_TEST_CASE("SpectralModel matcher clears previous results with empty input on either side")

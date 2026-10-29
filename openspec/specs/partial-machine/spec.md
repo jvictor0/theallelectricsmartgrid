@@ -21,7 +21,7 @@ The system SHALL sum each incoming quad sample to mono (`QuadFloat::Sum`) and wr
 - **AND** the next assignment has at most 256 old atoms and 256 incoming peaks, even when previous partials are still decaying
 
 ### Requirement: Ordered One-to-One Spectral Matching
-The system SHALL compute the complete assignment of existing atoms to new analysis peaks before changing tracked frequencies or magnitudes. `AtomMatcher::Match` SHALL sort old atom pointers by their last analysis log2 frequency and sort analysis peaks by log2 frequency. Each old atom and each peak MAY participate in at most one match, and matches SHALL preserve frequency order without crossings. Synthesis magnitude, portamento, pitch shift, and unison SHALL NOT determine this order.
+The system SHALL compute the complete assignment of existing atoms to new analysis peaks before changing tracked frequencies or magnitudes. `AtomMatcher::Match` SHALL sort old atom pointers by their held target's analysis log2 frequency and sort analysis peaks by log2 frequency. Each old atom and each peak MAY participate in at most one match, and matches SHALL preserve frequency order without crossings. Synthesis magnitude, portamento, pitch shift, and unison SHALL NOT determine this order.
 
 A pair SHALL be eligible only when `octaveDistance <= density` and `analysisMagnitude / synthesisMagnitude >= 0.001`. Here `octaveDistance = abs(peak.logAnalysisOmega - atom.logAnalysisOmega)` and density is evaluated at the old atom's stored parameter index. The score SHALL be `theta = analysisMagnitude * max(0, 1 - octaveDistance / density)`. Zero density SHALL permit only an exact-frequency match, scored at its full analysis magnitude.
 
@@ -56,7 +56,7 @@ The assignment SHALL maximize the sum of theta over all matches; only equal tota
 ### Requirement: Density Controls Replacement and Coexistence
 The density value SHALL be a per-side frequency radius in octaves, exponentially mapped from one cent to one octave. The clockwise knob direction SHALL invert that range: counterclockwise gives the broadest window, and clockwise gives the narrowest. Density SHALL NOT impose minimum spacing between analysis peaks or directly determine the atom count.
 
-After assignment, each unmatched old atom SHALL select the eligible current peak with the highest theta in its density window as a possible dominator. This peak MAY already be matched or MAY still be unclaimed. A peak with raw magnitude below the old synthesis magnitude SHALL NOT suppress it. Otherwise, when the domination theta exceeds the old magnitude `a`, the system SHALL reduce the magnitude to `a * a / theta`, then apply ordinary unmatched decay. Suppression SHALL use raw analysis magnitude without waiting for the new atom's attack envelope.
+After assignment, each unmatched old atom SHALL select the eligible current peak with the highest theta in its density window as a possible dominator. This peak MAY already be matched or MAY still be unclaimed. When the domination theta strictly exceeds the old synthesis magnitude, the system SHALL zero the atom's magnitude and remove it before the next synthesis frame. A theta equal to or below that magnitude SHALL leave ordinary unmatched decay intact. Domination SHALL use raw analysis magnitude without waiting for the new atom's attack envelope. Already queued overlap-add windows SHALL finish normally.
 
 Selection and suppression SHALL both evaluate density at the old atom's stored parameter index, preserving the same theta cone even when the peak's parameter lanes differ.
 
@@ -68,11 +68,12 @@ Selection and suppression SHALL both evaluate density at the old atom's stored p
 #### Scenario: New unclaimed peak can suppress an old tail
 - **WHEN** the global noncrossing assignment leaves a peak unclaimed and an old atom unmatched
 - **AND** that peak is the old atom's strongest eligible dominator
-- **THEN** the peak can suppress the old atom and subsequently start a new atom with its own attack
+- **THEN** a domination theta greater than the old synthesis magnitude kills the old atom before the next synthesis frame
+- **AND** the peak subsequently starts a new atom with its own attack
 
 #### Scenario: Density controls replacement versus mixing
 - **WHEN** a strong analysis peak lies near an unmatched old atom and density lanes have equal values
-- **THEN** a broad counterclockwise window increases its domination score and can suppress the tail before ordinary decay
+- **THEN** a broad counterclockwise window increases its domination score and kills the tail when that score exceeds the tail's synthesis magnitude
 - **AND** a narrow clockwise window reduces or eliminates this suppression, allowing the old and new partials to coexist longer
 
 #### Scenario: Boundary candidates have zero theta
@@ -80,7 +81,9 @@ Selection and suppression SHALL both evaluate density at the old atom's stored p
 - **THEN** theta is zero, while a same-magnitude peak at the old analysis frequency retains its full magnitude as theta
 
 ### Requirement: Spectral Atom Tracking Dynamics
-The caller SHALL merge matched atoms with their selected peaks, slewing synthesis magnitude toward analysis magnitude using separate attack (`slewUpAlpha`, 0.01-2 s) and decay (`slewDownAlpha`, 0.01-10 s) rates. Synthesis frequency SHALL glide toward analysis frequency at the portamento rate (0.01-2 s). Matched atoms SHALL retain their synthesis phase and refresh their analysis frequency, cached log2 frequency, magnitude, phase, and parameter index from the selected peak.
+The caller SHALL compare the incoming raw analysis magnitude with the atom's synthesis magnitude before updating its envelope. If the incoming magnitude is at least as large, the atom SHALL accept the peak's analysis frequency, cached log2 frequency, analysis phase, and parameter index as its new held pitch target. Otherwise, those pitch-related fields SHALL remain unchanged. The held frequency SHALL also remain the reference for subsequent matching and domination. A later equal or stronger peak SHALL be able to replace the target; holding SHALL NOT latch permanently.
+
+Every matched atom SHALL refresh its analysis magnitude and slew synthesis magnitude toward it using separate attack (`slewUpAlpha`, 0.01-2 s) and decay (`slewDownAlpha`, 0.01-10 s) rates. Attack, decay, and portamento SHALL use the held target's parameter index after any accepted takeover. Synthesis frequency SHALL always glide toward the held target at the portamento rate (0.01-2 s), including while a weaker match holds the target. Holding SHALL occur before portamento and SHALL NOT freeze the current synthesis frequency or reset synthesis phase.
 
 Matched peaks SHALL NOT spawn duplicate atoms. Each unclaimed peak at or above `x_deathMag = 1e-5` SHALL start a new atom at its analysis frequency with zero synthesis phase and initial magnitude `max(attackSlew(0, analysisMagnitude), x_deathMag)`. New atoms SHALL come only from input analysis, without synthetic harmonic generation or separate organic/synthetic mix gains. Unmatched old atoms SHALL decay toward zero while retaining their last analysis frequency as the portamento target. After merging and births, the system SHALL retain at most 256 atoms (`InputSetter::x_numAtoms`) by synthesis magnitude and remove nonfinite magnitudes or magnitudes below `x_deathMag`.
 
@@ -88,6 +91,23 @@ Matched peaks SHALL NOT spawn duplicate atoms. Each unclaimed peak at or above `
 - **WHEN** a tracked partial disappears for one hop and ordinary decay leaves it above the death magnitude
 - **AND** no current peak suppresses it
 - **THEN** the atom survives and can recover if a later peak is matched within its density window
+
+#### Scenario: Weaker input holds the target while an unfinished glide continues
+- **WHEN** a matched analysis peak has a smaller magnitude than the atom's pre-merge synthesis magnitude
+- **THEN** the held frequency, cached log frequency, analysis phase, and parameter index remain unchanged
+- **AND** the synthesis envelope follows decay toward the matched magnitude
+- **AND** synthesis frequency continues portamento toward the held target
+- **AND** a following unmatched hop continues portamento toward the same target
+
+#### Scenario: Stronger analysis replaces a held target
+- **WHEN** an equal or stronger analysis peak matches an atom with a held target
+- **THEN** the target and its parameter index update to the new peak before envelope and portamento processing
+- **AND** synthesis phase remains continuous
+
+#### Scenario: Instantaneous envelope decay cannot bypass the pitch hold
+- **WHEN** a weaker peak matches and the decay slew reaches its magnitude within that hop
+- **THEN** pitch acceptance still uses the synthesis magnitude from before the envelope update
+- **AND** the weaker peak cannot move the held target on that hop
 
 #### Scenario: No old atoms or no analysis peaks
 - **WHEN** no old atoms exist
