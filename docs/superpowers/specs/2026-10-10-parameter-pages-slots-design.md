@@ -2,10 +2,11 @@
 
 ## Agreed scope
 
-Separate the current parameter catalogue into three X-macro catalogues. This is
-a structural refactor: preserve parameter order and names, descriptions, short
-labels, defaults, switch counts, bipolar flags, colors, coordinates, selector
-positions, visual display mappings, modulation behavior, and persistence.
+Separate the parameter catalogue into three X-macro catalogues. Preserve
+parameter order and names, descriptions, short labels, defaults, switch counts,
+bipolar flags, colors, modulation behavior, and persistence. Page layouts,
+selector positions, and visual display mappings can then change independently
+of parameter state, including the mixed FX Matrix and separate Sub page below.
 
 ```cpp
 PARAM(name, shortName, mode, defaultValue, description,
@@ -39,8 +40,8 @@ Author each page layout and each slot routing row once. A page containing any
 Voice parameter has three bound instances; a page without Voice parameters has
 one. A slot with any Voice-containing candidate page likewise has three
 instances. SingletonMachine describes the number of machine choices, not the
-number of trio instances. Shared parameter references keep their single owner
-even when used in a trio-bound layout.
+number of trio instances. Shared parameter references keep their single state
+instance even when used in a trio-bound layout or displayed on multiple pages.
 
 Introduce a `constexpr BuildPageAndSlotTables()` helper to resolve descriptor
 relationships and derive page grids, instance counts and offsets, machine
@@ -66,15 +67,28 @@ parameters occupy only instance zero. DSP lookup uses parameter mode directly.
 
 Bind a selected page instance to a slot instance's existing grid. Alternative
 source pages are immutable layouts with bound parameter references, not
-additional owners of encoder state or simultaneously populated UI grids. This
-preserves the existing single owner-bank association and gesture aggregation.
-The current data never places a parameter into two simultaneously bound slots;
-check that invariant rather than introducing general multi-owner machinery.
+additional owners of encoder state. Multiple simultaneously bound slots may
+reference the same parameter. Each grid derives its gesture mask from the
+parameters it displays, without a cached owner-bank association. Global gesture
+indicators inspect the independently owned parameters, including hidden ones;
+their color comes from the affected encoders, becoming white when colors differ.
+
+Scope, channel count, modulation glyphs, and indicator colors belong to each
+encoder's UI state. A mixed page can therefore follow the selected trio for
+voice parameters while retaining the same quad parameters. FX Matrix uses this
+arrangement: the voice gain and sends occupy row zero, and shared effect returns,
+feedback/decay, and cross-sends occupy the remaining rows. Those shared controls
+also remain on their effect pages. Shape contains the amp envelope on row two
+and drive/SRR at (2,3)/(3,3). Sub's top row contains VOL (volume), DRIV (tanh
+drive), RISE, and FALL. Rise/fall are independent one-pole time constants,
+exponentially mapped from 1 ms to 1 s / 5 s. The existing `SubOscillator` identity
+now controls gain across its whole range; the three new parameters are appended
+to preserve all existing parameter indices.
 
 Preserve the existing Bank-facing selector API as a compatibility boundary where
 that avoids unrelated controller and visualizer edits. Resolve it through the
-derived slot-instance tables, preserving the current twenty bank instances and
-their ordering. A machine change uses the machine's precomputed affected-slot
+derived slot-instance tables, preserving existing bank indices and appending new
+slot families. A machine change uses the machine's precomputed affected-slot
 list; a page bind visits only that page's fixed sixteen positions. No parameter
 catalogue scans, machine-rule scans, or unrelated page rebinds are needed at
 runtime. Rebinding to the same page is a no-op.

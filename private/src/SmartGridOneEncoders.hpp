@@ -49,19 +49,23 @@ struct SmartGridOneEncoders
         Mastering = Layout::GetSlotInstance(Slot::Mastering, 0),
         Inputs = Layout::GetSlotInstance(Slot::Inputs, 0),
         DeepVocoder = Layout::GetSlotInstance(Slot::DeepVocoder, 0),
-        AmpAndRoutingWater = Layout::GetSlotInstance(Slot::AmpAndRouting, 0),
-        AmpAndRoutingFire = Layout::GetSlotInstance(Slot::AmpAndRouting, 1),
-        AmpAndRoutingEarth = Layout::GetSlotInstance(Slot::AmpAndRouting, 2),
+        FXMatrixWater = Layout::GetSlotInstance(Slot::FXMatrix, 0),
+        FXMatrixFire = Layout::GetSlotInstance(Slot::FXMatrix, 1),
+        FXMatrixEarth = Layout::GetSlotInstance(Slot::FXMatrix, 2),
+        SubWater = Layout::GetSlotInstance(Slot::Sub, 0),
+        SubFire = Layout::GetSlotInstance(Slot::Sub, 1),
+        SubEarth = Layout::GetSlotInstance(Slot::Sub, 2),
         NumBanks = x_totalNumBanks,
         Source = SourceWater,
         Shape = ShapeWater,
         PanningAndSequencing = PanningAndSequencingWater,
         VoiceLFOs = VoiceLFOsWater,
-        AmpAndRouting = AmpAndRoutingWater
+        FXMatrix = FXMatrixWater,
+        Sub = SubWater
     };
 
-    static constexpr std::array<Bank, 5> x_voiceSelectorBanks =
-    {{Bank::Source, Bank::Shape, Bank::AmpAndRouting, Bank::PanningAndSequencing, Bank::VoiceLFOs}};
+    static constexpr std::array<Bank, 6> x_voiceSelectorBanks =
+    {{Bank::Source, Bank::Shape, Bank::FXMatrix, Bank::PanningAndSequencing, Bank::VoiceLFOs, Bank::Sub}};
     static constexpr std::array<Bank, 4> x_quadSelectorBanks =
     {{Bank::Delay, Bank::Reverb, Bank::PartialMachine, Bank::QuadLFOs}};
     static constexpr std::array<Bank, 4> x_globalSelectorBanks =
@@ -92,8 +96,9 @@ struct SmartGridOneEncoders
         static_cast<int>(Bank::PartialMachine) == 14 && static_cast<int>(Bank::QuadLFOs) == 15 &&
         static_cast<int>(Bank::TheoryOfTime) == 16 && static_cast<int>(Bank::Mastering) == 17 &&
         static_cast<int>(Bank::Inputs) == 18 && static_cast<int>(Bank::DeepVocoder) == 19 &&
-        static_cast<int>(Bank::AmpAndRoutingWater) == 20 &&
-        static_cast<int>(Bank::NumBanks) == 23, "Slot instances must preserve the Bank API");
+        static_cast<int>(Bank::FXMatrixWater) == 20 &&
+        static_cast<int>(Bank::SubWater) == 23 &&
+        static_cast<int>(Bank::NumBanks) == 26, "Slot instances must preserve the Bank API");
 
     using ModulatorSkin = SmartGridOneModulators::Skin;
 
@@ -301,7 +306,6 @@ struct SmartGridOneEncoders
             bank.PlaceEncoder(static_cast<int>(position % 4), static_cast<int>(position / 4), cell);
         }
 
-        bank.ComputeGesturesAffecting();
         bank.ProcessTopology();
         m_boundPages[bankIx] = pageInstance;
     }
@@ -350,12 +354,10 @@ struct SmartGridOneEncoders
             {
                 BankMode bankMode = mode == ParamMode::Voice ? VoiceModeForTrio(trio) :
                     mode == ParamMode::Quad ? BankMode::Quad : BankMode::Global;
-                size_t index = m_encoderBankBank.CreateEncoder(EncoderIndex(param, trio),
+                m_encoderBankBank.CreateEncoder(EncoderIndex(param, trio),
                     static_cast<size_t>(bankMode), definition.m_defaultValue,
                     definition.m_names[mode == ParamMode::Voice ? trio + 1 : 0],
                     definition.m_shortName, definition.m_color, definition.m_switchValues, definition.m_bipolar);
-                size_t owner = Layout::GetSlotInstance(Layout::x_tables.m_paramSlots[paramIx], trio);
-                m_encoderBankBank.GetEncoder(index)->m_ownerBank = &m_encoderBankBank.m_banks[owner];
             }
         }
 
@@ -504,12 +506,17 @@ struct SmartGridOneEncoders
     {
         m_encoderBankBank.PopulateUIState(uiState);
 
-        BankMode mode = GetSelectedMode();
-        uiState->SetMode(mode);
-        for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numModulators; ++i)
+        for (size_t x = 0; x < 4; ++x)
         {
-            ModulatorSkin skin = GetModulatorSkin(i, mode);
-            uiState->SetModulationGlyph(i, skin.m_glyph, skin.m_color);
+            for (size_t y = 0; y < 4; ++y)
+            {
+                BankMode mode = uiState->GetMode(x, y);
+                for (size_t i = 0; i < 16; ++i)
+                {
+                    ModulatorSkin skin = GetModulatorSkin(i, mode);
+                    uiState->SetModulationGlyph(x, y, i, skin.m_glyph, skin.m_color);
+                }
+            }
         }
     }
 

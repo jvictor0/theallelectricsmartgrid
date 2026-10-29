@@ -224,7 +224,7 @@ struct EncoderComponent : public juce::Component
             BitSet16 modulatorsAffecting = m_ui.m_uiState->GetModulatorsAffecting(m_x, m_y);
             BitSet16 gesturesAffecting = m_ui.m_uiState->GetGesturesAffecting(m_x, m_y);
             auto type = m_ui.m_uiState->GetEncoderType(m_x, m_y);
-            auto mode = m_ui.m_uiState->GetMode();
+            auto mode = m_ui.m_uiState->GetMode(m_x, m_y);
             SmartGridOneMainVisualizerComponent* visualizer = nullptr;
             if (type == SmartGrid::EncoderType::ModulatorAmount)
             {
@@ -290,12 +290,12 @@ struct EncoderComponent : public juce::Component
 
                 // Draw glyph image on top with 5% margins and rounded corners
                 //
-                SmartGridOne::ModulationGlyphs glyph = m_ui.m_uiState->GetModulationGlyph(modIndex);
+                SmartGridOne::ModulationGlyphs glyph = m_ui.m_uiState->GetModulationGlyph(m_x, m_y, modIndex);
                 if (s_glyphImages.HasImage(glyph))
                 {
                     // Draw badge background with gradient, outline, and highlight
                     //
-                    SmartGrid::Color color = m_ui.m_uiState->GetModulationGlyphColor(modIndex);
+                    SmartGrid::Color color = m_ui.m_uiState->GetModulationGlyphColor(m_x, m_y, modIndex);
                     DrawBadgeBackground(g, badgeBounds, color);
 
                     // Create rectangle with 5% margin on each side (10% total reduction)
@@ -343,7 +343,7 @@ struct EncoderComponent : public juce::Component
                 ++gestureBadgeIndex;
             }
 
-            for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(); ++i)
+            for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(m_x, m_y); ++i)
             {
                 auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * (0.45f - i * 0.05f);
                 int switchValues = m_ui.m_uiState->GetSwitchValues(m_x, m_y);
@@ -363,7 +363,7 @@ struct EncoderComponent : public juce::Component
 
             // Draw the thicker, brighter arc between min and max values
             //
-            for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(); ++i)
+            for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(m_x, m_y); ++i)
             {
                 auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * (0.45f - i * 0.05f);
                 size_t voice = i;
@@ -386,12 +386,12 @@ struct EncoderComponent : public juce::Component
                     continue;
                 }
 
-                auto indicatorColor = m_ui.m_uiState->GetIndicatorColor(voice);
+                auto indicatorColor = m_ui.m_uiState->GetIndicatorColor(m_x, m_y, voice);
                 g.setColour(juce::Colour(indicatorColor.m_red, indicatorColor.m_green, indicatorColor.m_blue));
                 DrawArcWithSwitchGaps(g, centerX, centerY, radius, minValue, maxValue, switchValues, 3.0f);
             }
 
-            for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(); ++i)
+            for (size_t i = 0; i < m_ui.m_uiState->GetNumVoices(m_x, m_y); ++i)
             {
                 auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * (0.45f - i * 0.05f);
 
@@ -424,7 +424,7 @@ struct EncoderComponent : public juce::Component
                 auto indicatorX = centerX + radius * std::cos(indicatorAngle);
                 auto indicatorY = centerY + radius * std::sin(indicatorAngle);
 
-                auto indicatorColor = m_ui.m_uiState->GetIndicatorColor(voice);
+                auto indicatorColor = m_ui.m_uiState->GetIndicatorColor(m_x, m_y, voice);
                 g.setColour(juce::Colour(indicatorColor.m_red, indicatorColor.m_green, indicatorColor.m_blue));
                 DrawSwitchValueArc(
                     g,

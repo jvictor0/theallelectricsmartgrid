@@ -72,6 +72,7 @@ struct EncoderBankBank
         size_t numVoices)
     {
         m_bankModes[modeIx].m_numVoices = numVoices;
+        m_bankModes[modeIx].m_sharedEncoderState.m_modeIx = modeIx;
         m_bankModes[modeIx].m_sharedEncoderState.m_numVoices = numVoices;
         m_bankModes[modeIx].m_sharedEncoderState.m_modulatorValues = &m_bankModes[modeIx].m_modulatorValues;
    }
@@ -212,14 +213,6 @@ struct EncoderBankBank
             {
                 cell->SetModulatorsAffecting();
             });
-
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            if (m_bankConfigs[i].m_modeIx == modeIx)
-            {
-                m_banks[i].ComputeGesturesAffecting();
-            }
-        }
     }
 
     void SetAllModulatorsAffectingForAllModes()
@@ -314,10 +307,11 @@ struct EncoderBankBank
     BitSet16 GetGesturesAffecting()
     {
         BitSet16 result;
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            result = result.Union(m_banks[i].GetGesturesAffecting());
-        }
+        ForEachNamedEncoder(
+            [&result](size_t, SmartGrid::BankedEncoderCell* cell)
+            {
+                result = result.Union(cell->m_gesturesAffecting);
+            });
 
         return result;
     }
@@ -326,16 +320,17 @@ struct EncoderBankBank
     {
         bool found = false;
         SmartGrid::Color result = SmartGrid::Color::Off;
-        for (size_t i = 0; i < m_numBanks; ++i)
+        for (size_t i = 0; i < m_numEncoders; ++i)
         {
-            if (m_banks[i].GetGesturesAffecting().Get(gesture))
+            auto* cell = GetEncoder(i);
+            if (cell && cell->m_name && cell->m_gesturesAffecting.Get(gesture))
             {
-                if (found && result != m_bankConfigs[i].m_color)
+                if (found && result != cell->m_color)
                 {
                     return SmartGrid::Color::White;
                 }
 
-                result = m_bankConfigs[i].m_color;
+                result = cell->m_color;
                 found = true;
             }
         }
@@ -397,11 +392,6 @@ struct EncoderBankBank
                     cell->FromJSON(paramJ);
                 }
             }
-        }
-
-        for (size_t i = 0; i < m_numBanks; ++i)
-        {
-            m_banks[i].ComputeGesturesAffecting();
         }
     }
 

@@ -49,7 +49,8 @@ struct SmartGridOneLayout
         Mastering,
         Inputs,
         DeepVocoder,
-        AmpAndRouting,
+        FXMatrix,
+        Sub,
         NumPages
     };
 
@@ -67,7 +68,8 @@ struct SmartGridOneLayout
         Mastering,
         Inputs,
         DeepVocoder,
-        AmpAndRouting,
+        FXMatrix,
+        Sub,
         NumSlots
     };
 
@@ -195,7 +197,6 @@ struct SmartGridOneLayout
         std::array<PageTable, x_numPages> m_pages;
         std::array<SlotTable, x_numSlots> m_slots;
         std::array<SlotInstance, x_numSlots * x_numTrios> m_slotInstances;
-        std::array<Slot, x_numParams> m_paramSlots;
         std::array<AffectedSlots, x_numMachineTypes> m_affectedSlots;
         size_t m_numPageInstances;
         size_t m_numSlotInstances;
@@ -209,6 +210,7 @@ struct SmartGridOneLayout
     {
         Tables tables{};
         tables.m_valid = true;
+        std::array<bool, x_numParams> placedParams{};
         std::array<ParamMode, x_numPages> pageModes{};
         for (auto& mode : pageModes)
         {
@@ -234,11 +236,6 @@ struct SmartGridOneLayout
             {
                 route = x_noRoute;
             }
-        }
-
-        for (auto& slot : tables.m_paramSlots)
-        {
-            slot = Slot::NumSlots;
         }
 
         for (const auto& member : members)
@@ -309,13 +306,7 @@ struct SmartGridOneLayout
                     continue;
                 }
 
-                auto& owner = tables.m_paramSlots[static_cast<size_t>(param)];
-                if (owner != Slot::NumSlots && owner != route.m_slot)
-                {
-                    tables.m_valid = false;
-                }
-
-                owner = route.m_slot;
+                placedParams[static_cast<size_t>(param)] = true;
             }
         }
 
@@ -347,9 +338,9 @@ struct SmartGridOneLayout
             affected.m_slots[affected.m_count++] = static_cast<Slot>(slotIx);
         }
 
-        for (Slot owner : tables.m_paramSlots)
+        for (bool placed : placedParams)
         {
-            if (owner == Slot::NumSlots)
+            if (!placed)
             {
                 tables.m_valid = false;
             }

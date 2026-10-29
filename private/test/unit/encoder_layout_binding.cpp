@@ -68,8 +68,8 @@ DOCTEST_TEST_CASE("encoder layout binding: routes preserve owned hidden cells ne
             DOCTEST_CHECK(cell->m_modulators.m_modulators[0]->m_modulators.m_modulators[1].get() == nested[trio]);
             DOCTEST_CHECK(nested[trio]->m_values[0] == doctest::Approx(0.7f));
             DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_values[0] == doctest::Approx(0.8f));
-            DOCTEST_CHECK(cell->m_ownerBank == &encoders.m_encoderBankBank.m_banks[trio]);
-            DOCTEST_CHECK(nested[trio]->m_ownerBank == cell->m_ownerBank);
+            DOCTEST_CHECK(cell->GetSharedEncoderState()->m_modeIx == trio);
+            DOCTEST_CHECK(nested[trio]->GetSharedEncoderState() == cell->GetSharedEncoderState());
             cell->SetModulatorsAffecting();
             DOCTEST_CHECK(encoders.m_selectedBank == Encoders::Bank::Delay);
             DOCTEST_CHECK(delay.m_selected == delayCell);
@@ -77,7 +77,7 @@ DOCTEST_TEST_CASE("encoder layout binding: routes preserve owned hidden cells ne
     }
 }
 
-DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep ownership processing and reset scope")
+DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep processing and reset scope")
 {
     GlobalEnv::ResetPerTest();
     SmartGridOneContext context;
@@ -85,12 +85,12 @@ DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep ownership
     for (size_t trio = 0; trio < 3; ++trio)
     {
         auto* hidden = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(Encoders::Param::SampleStart, trio));
-        DOCTEST_REQUIRE(hidden->m_ownerBank == &encoders.m_encoderBankBank.m_banks[trio]);
+        DOCTEST_REQUIRE(hidden->GetSharedEncoderState()->m_modeIx == trio);
         for (int x = 0; x < 4; ++x)
         {
             for (int y = 0; y < 4; ++y)
             {
-                DOCTEST_CHECK(hidden->m_ownerBank->GetVisible(x, y) != hidden);
+                DOCTEST_CHECK(encoders.m_encoderBankBank.m_banks[trio].GetVisible(x, y) != hidden);
             }
         }
 
@@ -105,7 +105,7 @@ DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep ownership
         DOCTEST_CHECK(encoders.GetValueNoSlew(Encoders::Param::SampleStart, static_cast<int>(trio * 3)) == doctest::Approx(0.37f));
         hidden->FillModulators(&context);
         auto* child = hidden->m_modulators.m_modulators[0].get();
-        DOCTEST_REQUIRE(child->m_ownerBank == hidden->m_ownerBank);
+        DOCTEST_REQUIRE(child->GetSharedEncoderState() == hidden->GetSharedEncoderState());
         child->SetModulatorsAffectingRecursive();
         encoders.SetTrack(trio);
         encoders.ResetBank(Encoders::Bank::Source);
@@ -134,17 +134,17 @@ DOCTEST_TEST_CASE("encoder layout binding: moved controls survive machine change
 
     const MovedControl x_controls[] =
     {
-        {Param::FilterDrive, Bank::Shape, 2, 2},
-        {Param::SampleRateReduction, Bank::Shape, 3, 2},
-        {Param::SubOscillator, Bank::AmpAndRouting, 3, 1},
-        {Param::AmpAHDAttack, Bank::AmpAndRouting, 0, 2},
-        {Param::AmpAHDHold, Bank::AmpAndRouting, 1, 2},
-        {Param::AmpAHDDecay, Bank::AmpAndRouting, 2, 2},
-        {Param::AmpAmplitude, Bank::AmpAndRouting, 3, 2},
-        {Param::AmpGain, Bank::AmpAndRouting, 0, 3},
-        {Param::DelaySend, Bank::AmpAndRouting, 1, 3},
-        {Param::ReverbSend, Bank::AmpAndRouting, 2, 3},
-        {Param::PartialMachineSend, Bank::AmpAndRouting, 3, 3}
+        {Param::FilterDrive, Bank::Shape, 2, 3},
+        {Param::SampleRateReduction, Bank::Shape, 3, 3},
+        {Param::SubOscillator, Bank::Sub, 0, 0},
+        {Param::AmpAHDAttack, Bank::Shape, 0, 2},
+        {Param::AmpAHDHold, Bank::Shape, 1, 2},
+        {Param::AmpAHDDecay, Bank::Shape, 2, 2},
+        {Param::AmpAmplitude, Bank::Shape, 3, 2},
+        {Param::AmpGain, Bank::FXMatrix, 0, 0},
+        {Param::DelaySend, Bank::FXMatrix, 1, 0},
+        {Param::ReverbSend, Bank::FXMatrix, 2, 0},
+        {Param::PartialMachineSend, Bank::FXMatrix, 3, 0}
     };
 
     for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
@@ -180,8 +180,7 @@ DOCTEST_TEST_CASE("encoder layout binding: moved controls survive machine change
                     encoders.UpdateEncodersForMachine(source, filter);
                     DOCTEST_CHECK(bank.GetBase(control.m_x, control.m_y) == cell);
                     DOCTEST_CHECK(bank.m_selected == cell);
-                    DOCTEST_CHECK(cell->m_ownerBank == &bank);
-                    DOCTEST_CHECK(cell->GetModulator(0)->m_ownerBank == &bank);
+                    DOCTEST_CHECK(cell->GetModulator(0)->GetSharedEncoderState() == cell->GetSharedEncoderState());
                     DOCTEST_CHECK(cell->m_values[0] == doctest::Approx(0.2f * static_cast<float>(trio + 1)));
                     DOCTEST_CHECK(cell->GetModulator(0)->m_values[0] == doctest::Approx(0.6f));
                     DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_values[0] == doctest::Approx(0.8f));
@@ -204,7 +203,7 @@ DOCTEST_TEST_CASE("encoder layout binding: moved controls survive machine change
             DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_isActive[0]);
             DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_values[0] == doctest::Approx(0.8f));
             auto bank = Encoders::BankForTrio(control.m_bank, trio);
-            DOCTEST_CHECK(cell->m_ownerBank == &encoders.m_encoderBankBank.m_banks[static_cast<size_t>(bank)]);
+            DOCTEST_CHECK(encoders.m_encoderBankBank.m_banks[static_cast<size_t>(bank)].GetBase(control.m_x, control.m_y) == cell);
         }
     }
 }

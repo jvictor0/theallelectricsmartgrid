@@ -21,6 +21,12 @@ struct EncoderUIState
     std::atomic<const char*> m_shortName;
     std::atomic<int> m_switchValues;
     std::atomic<bool> m_bipolar{false};
+    std::atomic<SmartGrid::Color> m_indicatorColor[16];
+    std::atomic<SmartGrid::Color> m_mainIndicatorColor;
+    std::atomic<int> m_numVoices;
+    std::atomic<SmartGridOne::EncoderBankMode> m_mode{SmartGridOne::EncoderBankMode::NumModes};
+    std::atomic<SmartGridOne::ModulationGlyphs> m_modulationGlyphs[16];
+    std::atomic<SmartGrid::Color> m_modulationGlyphColor[16];
 
     EncoderUIState()
         : m_color(SmartGrid::Color::Off)
@@ -33,12 +39,20 @@ struct EncoderUIState
         , m_gesturesAffecting{}
         , m_shortName(nullptr)
         , m_switchValues(0)
+        , m_indicatorColor{}
+        , m_mainIndicatorColor(SmartGrid::Color::Off)
+        , m_numVoices(0)
+        , m_modulationGlyphs{}
+        , m_modulationGlyphColor{}
     {
         for (size_t i = 0; i < 16; ++i)
         {
             m_values[i] = 0;
             m_minValues[i] = 0;
             m_maxValues[i] = 1;
+            m_indicatorColor[i].store(SmartGrid::Color::Off);
+            m_modulationGlyphs[i].store(SmartGridOne::ModulationGlyphs::None);
+            m_modulationGlyphColor[i].store(SmartGrid::Color::Off);
         }
     }
 };
@@ -48,32 +62,10 @@ struct EncoderBankUIState
     EncoderUIState m_states[4][4];
     AtomicString m_strings[4][4];
 
-    std::atomic<SmartGrid::Color> m_indicatorColor[16];
-    std::atomic<SmartGrid::Color> m_mainIndicatorColor;
-
-    std::atomic<int> m_numVoices;
-    std::atomic<SmartGridOne::EncoderBankMode> m_mode{SmartGridOne::EncoderBankMode::Voice};
-
-    std::atomic<SmartGridOne::ModulationGlyphs> m_modulationGlyphs[16];
-    std::atomic<SmartGrid::Color> m_modulationGlyphColor[16];
-
     EncoderBankUIState()
         : m_states{}
         , m_strings{}
-        , m_indicatorColor{}
-        , m_mainIndicatorColor(SmartGrid::Color::Off)
-        , m_numVoices(1)
-        , m_modulationGlyphs{}
-        , m_modulationGlyphColor{}
     {
-        for (size_t i = 0; i < 16; ++i)
-        {
-            m_indicatorColor[i].store(SmartGrid::Color::Off);
-            m_modulationGlyphs[i].store(SmartGridOne::ModulationGlyphs::None);
-            m_modulationGlyphColor[i].store(SmartGrid::Color::Off);
-        }
-
-        m_mainIndicatorColor.store(SmartGrid::Color::Off);
     }
 
     SmartGrid::Color GetColor(size_t i, size_t j)
@@ -91,9 +83,9 @@ struct EncoderBankUIState
         return m_states[i][j].m_color.load().AdjustBrightness(m_states[i][j].m_brightness.load());
     }
 
-    SmartGrid::Color GetIndicatorColor(size_t i)
+    SmartGrid::Color GetIndicatorColor(size_t i, size_t j, size_t channel)
     {
-        return m_indicatorColor[i].load();
+        return m_states[i][j].m_indicatorColor[channel].load();
     }
 
     float GetBrightness(size_t i, size_t j)
@@ -131,9 +123,9 @@ struct EncoderBankUIState
         m_states[i][j].m_bipolar.store(bipolar);
     }
 
-    int GetNumVoices()
+    int GetNumVoices(size_t i, size_t j)
     {
-        return m_numVoices.load();
+        return m_states[i][j].m_numVoices.load();
     }
 
     bool GetConnected(size_t i, size_t j)
@@ -141,14 +133,14 @@ struct EncoderBankUIState
         return m_states[i][j].m_connected.load();
     }
 
-    SmartGridOne::EncoderBankMode GetMode()
+    SmartGridOne::EncoderBankMode GetMode(size_t i, size_t j)
     {
-        return m_mode.load();
+        return m_states[i][j].m_mode.load();
     }
 
-    void SetMode(SmartGridOne::EncoderBankMode mode)
+    void SetMode(size_t i, size_t j, SmartGridOne::EncoderBankMode mode)
     {
-        m_mode.store(mode);
+        m_states[i][j].m_mode.store(mode);
     }
 
     SmartGrid::EncoderType GetEncoderType(size_t i, size_t j)
@@ -176,19 +168,19 @@ struct EncoderBankUIState
         m_states[i][j].m_color.store(color);
     }
     
-    void SetIndicatorColor(size_t i, SmartGrid::Color color)
+    void SetIndicatorColor(size_t i, size_t j, size_t channel, SmartGrid::Color color)
     {
-        m_indicatorColor[i].store(color);
+        m_states[i][j].m_indicatorColor[channel].store(color);
     }
 
-    void SetMainIndicatorColor(SmartGrid::Color color)
+    void SetMainIndicatorColor(size_t i, size_t j, SmartGrid::Color color)
     {
-        m_mainIndicatorColor.store(color);
+        m_states[i][j].m_mainIndicatorColor.store(color);
     }
     
     SmartGrid::Color GetMainIndicatorColor(size_t i, size_t j)
     {
-        return m_states[i][j].m_connected.load() ? m_mainIndicatorColor.load() : SmartGrid::Color::Off;
+        return m_states[i][j].m_connected.load() ? m_states[i][j].m_mainIndicatorColor.load() : SmartGrid::Color::Off;
     }
 
     void SetBrightness(size_t i, size_t j, float brightness)
@@ -224,9 +216,9 @@ struct EncoderBankUIState
         }
     }
 
-    void SetNumVoices(int numVoices)
+    void SetNumVoices(size_t i, size_t j, int numVoices)
     {
-        m_numVoices.store(numVoices);
+        m_states[i][j].m_numVoices.store(numVoices);
     }
 
     void SetConnected(size_t i, size_t j, bool connected)
@@ -259,20 +251,20 @@ struct EncoderBankUIState
         return m_states[i][j].m_gesturesAffecting.load();
     }
 
-    void SetModulationGlyph(size_t i, SmartGridOne::ModulationGlyphs glyph, SmartGrid::Color color)
+    void SetModulationGlyph(size_t i, size_t j, size_t index, SmartGridOne::ModulationGlyphs glyph, SmartGrid::Color color)
     {
-        m_modulationGlyphs[i].store(glyph);
-        m_modulationGlyphColor[i].store(color);
+        m_states[i][j].m_modulationGlyphs[index].store(glyph);
+        m_states[i][j].m_modulationGlyphColor[index].store(color);
     }
 
-    SmartGridOne::ModulationGlyphs GetModulationGlyph(size_t i)
+    SmartGridOne::ModulationGlyphs GetModulationGlyph(size_t i, size_t j, size_t index)
     {
-        return m_modulationGlyphs[i].load();
+        return m_states[i][j].m_modulationGlyphs[index].load();
     }
 
-    SmartGrid::Color GetModulationGlyphColor(size_t i)
+    SmartGrid::Color GetModulationGlyphColor(size_t i, size_t j, size_t index)
     {
-        return m_modulationGlyphColor[i].load();
+        return m_states[i][j].m_modulationGlyphColor[index].load();
     }
 
     void SetShortName(size_t i, size_t j, const char* shortName)

@@ -85,17 +85,18 @@ DOCTEST_TEST_CASE("encoder layout: malformed descriptors cannot produce valid ro
         DOCTEST_CHECK_FALSE(Layout::BuildPageAndSlotTables(Layout::x_paramModes, Layout::x_pageMembers, routes).m_valid);
     }
 
-    DOCTEST_SUBCASE("unplaced parameter has no owner")
+    DOCTEST_SUBCASE("unplaced parameter")
     {
         auto members = Layout::x_pageMembers;
         members.back().m_param = members[members.size() - 2].m_param;
         DOCTEST_CHECK_FALSE(Layout::BuildPageAndSlotTables(Layout::x_paramModes, members, Layout::x_slotRoutes).m_valid);
     }
+}
 
-    DOCTEST_SUBCASE("one parameter cannot belong to simultaneous slots")
-    {
-        auto members = Layout::x_pageMembers;
-        members.back().m_param = Layout::Param::Harmonics1;
-        DOCTEST_CHECK_FALSE(Layout::BuildPageAndSlotTables(Layout::x_paramModes, members, Layout::x_slotRoutes).m_valid);
-    }
+DOCTEST_TEST_CASE("encoder layout: a parameter can appear on multiple routed pages")
+{
+    std::array<Layout::PageMember, Layout::x_pageMembers.size() + 1> members{};
+    std::copy(Layout::x_pageMembers.begin(), Layout::x_pageMembers.end(), members.begin());
+    members.back() = {Layout::Page::ThruSource, Layout::Param::DelayTime, 0, 0};
+    DOCTEST_CHECK(Layout::BuildPageAndSlotTables(Layout::x_paramModes, members, Layout::x_slotRoutes).m_valid);
 }

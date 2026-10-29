@@ -227,6 +227,10 @@ struct SquiggleBoyVoice
 
     struct AmpSection
     {
+        static constexpr float x_subSlewMinSeconds = 0.001f;
+        static constexpr float x_subRiseMaxSeconds = 1.0f;
+        static constexpr float x_subFallMaxSeconds = 5.0f;
+
         AHD m_ahd;
         AHD m_modulationAHD;
 
@@ -236,7 +240,7 @@ struct SquiggleBoyVoice
         OPLowPassFilter m_freqDependentGainSlew;
         float m_freqDependentGainTarget;
 
-        OPLowPassFilter m_subFilter;
+        BiDirectionalSlew m_subSlew;
 
         ScopeWriterHolder m_scopeWriter;
         ScopeWriterHolder m_modulationEnvelopeScopeWriter;
@@ -255,6 +259,8 @@ struct SquiggleBoyVoice
             PhaseUtils::ZeroedExpParam m_gain;
             PhaseUtils::ZeroedExpParam m_subGain;
             PhaseUtils::ExpParam m_subTanhGain;
+            PhaseUtils::ExpParam m_subRiseSeconds;
+            PhaseUtils::ExpParam m_subFallSeconds;
 
             ScopeWriterHolder m_scopeWriter;
             TanhSaturator<true> m_subTanhSaturator;
@@ -274,9 +280,11 @@ struct SquiggleBoyVoice
             }
 
             Input()
+                : m_subTanhGain(0.125f, 8.0f)
+                , m_subRiseSeconds(x_subSlewMinSeconds, x_subRiseMaxSeconds)
+                , m_subFallSeconds(x_subSlewMinSeconds, x_subFallMaxSeconds)
             {
                 m_subTrig = false;
-                m_subTanhGain = PhaseUtils::ExpParam(0.125, 8.0);
                 m_gainSlew.SetAlphaFromNatFreq(500.0f / 48000.0f);
             }
         };
@@ -285,7 +293,6 @@ struct SquiggleBoyVoice
             : m_output(0)
         {
             m_freqDependentGainSlew.SetAlphaFromNatFreq(250.0f / 48000.0f);
-            m_subFilter.SetAlphaFromNatFreq(170.0f / 48000.0f);
             m_subRunning = false;
         }
 
@@ -351,9 +358,12 @@ struct SquiggleBoyVoice
             input.m_ahdInput.m_samplePosition = static_cast<float>(SampleTimer::GetUBlockIndex());
             float ahdEnv = PhaseUtils::ZeroedExpParam::Compute(10.0f, m_ahd.Process(input.m_ahdInput));
 
-            float subGain = m_subFilter.Process(m_subRunning ? input.m_subGain.m_expParam * ahdEnv : 0.0f);            
+            constexpr float x_slewTimeToCycles = 1.0f / (2.0f * static_cast<float>(M_PI) * SampleTimer::x_sampleRate);
+            m_subSlew.SetSlewUp(x_slewTimeToCycles / input.m_subRiseSeconds.m_expParam);
+            m_subSlew.SetSlewDown(x_slewTimeToCycles / input.m_subFallSeconds.m_expParam);
+            float subEnvelope = m_subSlew.Process(m_subRunning ? input.m_subGain.m_expParam * ahdEnv : 0.0f);
             float mainOut = freqDependentGain * ahdEnv * filterOutput;
-            float subOut = freqDependentGain * subGain * sub;
+            float subOut = freqDependentGain * subEnvelope * sub;
             
             m_scopeWriter.Write(mainOut + m_subOut);
             if (m_ahd.m_triggered)
@@ -957,7 +967,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             QuadMaster,
             StereoMaster,
             SourceMixer,
-            AmpAndRouting
+            FXMatrix,
+            Sub
         };
 
         struct VoiceFilterUIState : TransferFunction
@@ -1608,8 +1619,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_state[i].m_subInput.m_baseFreq = baseFreq;
 
             m_state[i].m_filterInput.m_sampleRateReducerFreq.Update(1 - m_encoders.GetValueNoSlew(Param::SampleRateReduction, i));
-            m_state[i].m_ampInput.m_subGain.Update(std::min<float>(1.0, m_encoders.GetValue(Param::SubOscillator, i) * 2));
-            m_state[i].m_ampInput.m_subTanhGain.Update(std::max<float>(0.0, m_encoders.GetValue(Param::SubOscillator, i) * 2 - 1.0));
+            m_state[i].m_ampInput.m_subGain.Update(m_encoders.GetValue(Param::SubOscillator, i));
+            m_state[i].m_ampInput.m_subTanhGain.Update(m_encoders.GetValue(Param::SubTanhGain, i));
+            m_state[i].m_ampInput.m_subRiseSeconds.Update(m_encoders.GetValueNoSlew(Param::SubSlewRise, i));
+            m_state[i].m_ampInput.m_subFallSeconds.Update(m_encoders.GetValueNoSlew(Param::SubSlewFall, i));
             
             m_state[i].m_filterInput.m_vcoBaseFreq = m_voices[i].m_baseFreqSlew.m_output;            
             
@@ -1952,9 +1965,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Filter);
                 break;
             }
-            case Bank::AmpAndRouting:
+            case Bank::FXMatrix:
             {
-                uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::AmpAndRouting);
+                uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::FXMatrix);
+                break;
+            }
+            case Bank::Sub:
+            {
+                uiState->m_visualDisplayMode.store(UIState::VisualDisplayMode::Sub);
                 break;
             }
             case Bank::PanningAndSequencing:

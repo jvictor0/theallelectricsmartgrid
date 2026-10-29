@@ -6,6 +6,7 @@
 #include <vector>
 #include "PathDrawer.hpp"
 #include "SmartGridOneMainVisualizerComponent.hpp"
+#include "SmartGridOneModulators.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 
 struct ScopeComponent : public SmartGridOneMainVisualizerComponent
@@ -97,7 +98,7 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
             if (m_scopeType == ScopeType::Control)
             {
                 size_t modulatorIx = SmartGridOne::ControlScopeToModulatorIndex(m_scopeIx);
-                SmartGrid::Color markerColor = m_uiState->m_squiggleBoyUIState.m_encoderBankUIState.GetModulationGlyphColor(modulatorIx);
+                SmartGrid::Color markerColor = GetModulatorColor(static_cast<VoiceModulator>(modulatorIx));
                 if (markerColor == SmartGrid::Color::Off)
                 {
                     markerColor = color;

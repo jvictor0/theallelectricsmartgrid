@@ -543,24 +543,29 @@ struct TheNonagonSquiggleBoyInternal
     void PopulateUIState()
     {
         m_squiggleBoy.PopulateUIState(&m_uiState.m_squiggleBoyUIState);
-        if (m_squiggleBoy.AreVoiceEncodersActive())
+        auto& encoderState = m_uiState.m_squiggleBoyUIState.m_encoderBankUIState;
+        for (size_t x = 0; x < 4; ++x)
         {
-            for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
+            for (size_t y = 0; y < 4; ++y)
             {
-                SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
-                m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetIndicatorColor(i, color);
-            }
+                auto mode = encoderState.GetMode(x, y);
+                bool voiceMode = SmartGridOneEncoders::IsVoiceMode(mode);
+                auto trio = static_cast<TheNonagonSmartGrid::Trio>(mode);
+                size_t numVoices = static_cast<size_t>(encoderState.GetNumVoices(x, y));
+                for (size_t channel = 0; channel < 16; ++channel)
+                {
+                    SmartGrid::Color color = SmartGrid::Color::Off;
+                    if (channel < numVoices)
+                    {
+                        color = voiceMode ? TheNonagonSmartGrid::VoiceColor(trio, channel) : SmartGrid::Color::White;
+                    }
 
-            m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetMainIndicatorColor(TheNonagonSmartGrid::TrioColor(m_activeTrio));
-        }
-        else
-        {
-            for (size_t i = 0; i < 4; ++i)
-            {                
-                m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetIndicatorColor(i, SmartGrid::Color::White);
-            }
+                    encoderState.SetIndicatorColor(x, y, channel, color);
+                }
 
-            m_uiState.m_squiggleBoyUIState.m_encoderBankUIState.SetMainIndicatorColor(SmartGrid::Color::White);
+                encoderState.SetMainIndicatorColor(x, y, numVoices == 0 ? SmartGrid::Color::Off :
+                    voiceMode ? TheNonagonSmartGrid::TrioColor(trio) : SmartGrid::Color::White);
+            }
         }
 
         m_uiState.m_analogUIState.SetValue(0, m_context.m_sceneManager.m_blendFactor);

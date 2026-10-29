@@ -82,20 +82,17 @@ F(
         uiState),
     VoiceMachine::SourceMachineFlags::All())
 
-// AmpAndRouting bank
+// FXMatrix bank
 //
 F(
-    PostAmpScope,
-    AmpAndRouting,
+    FXMatrixQuadAnalyzer,
+    FXMatrix,
     0,
-    1,
+    3,
     Full,
-    std::make_unique<ScopeComponent>(
-        3,
-        m_nonagon->GetAudioScopeWriter(),
-        &m_scopeVoiceOffset,
-        ScopeComponent::ScopeType::Audio,
-        uiState),
+    std::make_unique<QuadAnalyserComponent>(
+        uiState,
+        QuadAnalyserComponent::Type::Master),
     VoiceMachine::SourceMachineFlags::All())
 
 // Shape bank
@@ -122,6 +119,19 @@ F(
     std::make_unique<AnalyserComponent>(
         WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp)),
         &m_scopeVoiceOffset,
+        uiState),
+    VoiceMachine::SourceMachineFlags::All())
+F(
+    PostAmpScope,
+    Shape,
+    2,
+    1,
+    Full,
+    std::make_unique<ScopeComponent>(
+        static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp),
+        m_nonagon->GetAudioScopeWriter(),
+        &m_scopeVoiceOffset,
+        ScopeComponent::ScopeType::Audio,
         uiState),
     VoiceMachine::SourceMachineFlags::All())
 

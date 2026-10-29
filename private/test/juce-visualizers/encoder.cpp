@@ -255,7 +255,9 @@ DOCTEST_TEST_CASE("Encoder visualizers: dial background is clipped translated an
     ui.SetConnected(3, 3, true);
     ui.SetEncoderType(3, 3, Type::ModulatorAmount);
     ui.SetIndex(3, 3, 6);
-    ui.SetIndicatorColor(0, SmartGrid::Color::White);
+    ui.SetMode(3, 3, Mode::Voice);
+    ui.SetNumVoices(3, 3, 1);
+    ui.SetIndicatorColor(3, 3, 0, SmartGrid::Color::White);
     for (bool badgesAbove : {false, true})
     {
         EncoderComponent encoder(EncoderBankUI(0, &ui, nullptr), 3, 3, badgesAbove, visualizers);
@@ -288,7 +290,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: only connected associated depths draw in
     });
     auto* visualizer = static_cast<SolidVisualizer*>(visualizers.Get(Mode::Global, 2));
     EncoderComponent encoder(EncoderBankUI(0, &ui, nullptr), 3, 3, false, visualizers);
-    ui.SetMode(Mode::Global);
+    ui.SetMode(3, 3, Mode::Global);
     ui.SetIndex(3, 3, 2);
     ui.SetEncoderType(3, 3, Type::ModulatorAmount);
     juce::Image image(juce::Image::ARGB, 100, 125, true);
@@ -311,7 +313,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: only connected associated depths draw in
     encoder.paint(g);
     DOCTEST_CHECK(visualizer->m_draws == 1);
     ui.SetIndex(3, 3, 2);
-    ui.SetMode(Mode::Voice);
+    ui.SetMode(3, 3, Mode::Voice);
     encoder.paint(g);
     DOCTEST_CHECK(visualizer->m_draws == 1);
 }
@@ -369,7 +371,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: base parameters follow one eligible sour
         DOCTEST_CAPTURE(test.m_mode);
         DOCTEST_CAPTURE(test.m_type);
         DOCTEST_CAPTURE(test.m_modulators);
-        ui.SetMode(test.m_mode);
+        ui.SetMode(3, 3, test.m_mode);
         ui.SetEncoderType(3, 3, test.m_type);
         ui.SetIndex(3, 3, test.m_index);
         ui.SetModulatorsAffecting(3, 3, BitSet16(test.m_modulators));
@@ -379,5 +381,54 @@ DOCTEST_TEST_CASE("Encoder visualizers: base parameters follow one eligible sour
         encoder.paint(g);
         auto expected = test.m_background.isTransparent() ? test.m_background : test.m_background.withAlpha(0.5f);
         DOCTEST_CHECK(image.getPixelAt(50, 50) == expected);
+    }
+}
+
+DOCTEST_TEST_CASE("Encoder visualizers: adjacent voice and quad controls render their own scopes and channel counts")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    EncoderBankUIState ui;
+    ModulatorVisualizers visualizers;
+    visualizers.Add(VoiceModulator::ModulationEnvelope, [](int*)
+    {
+        return std::make_unique<SolidVisualizer>(juce::Colours::red);
+    });
+    visualizers.Add(QuadModulator::DelayLFO, [](int*)
+    {
+        return std::make_unique<SolidVisualizer>(juce::Colours::blue);
+    });
+    ui.SetMode(0, 0, Mode::VoiceEarth);
+    ui.SetNumVoices(0, 0, 3);
+    ui.SetMode(1, 0, Mode::Quad);
+    ui.SetNumVoices(1, 0, 4);
+    for (size_t x = 0; x < 2; ++x)
+    {
+        ui.SetConnected(x, 0, true);
+        ui.SetModulatorsAffecting(x, 0, BitSet16(1 << 4));
+        for (size_t channel = 0; channel < 4; ++channel)
+        {
+            ui.SetValue(x, 0, channel, 0.0f);
+            ui.SetMinValue(x, 0, channel, 0.0f);
+            ui.SetMaxValue(x, 0, channel, 0.0f);
+            ui.SetIndicatorColor(x, 0, channel, SmartGrid::Color::White);
+        }
+    }
+
+    for (Type type : {Type::BaseParam, Type::ModulatorAmount})
+    {
+        for (int x = 0; x < 2; ++x)
+        {
+            DOCTEST_CAPTURE(type);
+            DOCTEST_CAPTURE(x);
+            ui.SetEncoderType(x, 0, type);
+            ui.SetIndex(x, 0, 4);
+            EncoderComponent encoder(EncoderBankUI(0, &ui, nullptr), x, 0, false, visualizers);
+            juce::Image image(juce::Image::ARGB, 100, 125, true);
+            juce::Graphics g(image);
+            encoder.paint(g);
+            auto background = x == 0 ? juce::Colours::red : juce::Colours::blue;
+            DOCTEST_CHECK(image.getPixelAt(50, 50) == background.withAlpha(0.5f));
+            DOCTEST_CHECK(image.getPixelAt(50, 20).getAlpha() == (x == 0 ? 128 : 255));
+        }
     }
 }

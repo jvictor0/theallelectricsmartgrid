@@ -11,8 +11,6 @@
 namespace SmartGrid
 {
 
-struct EncoderBankInternal;
-
 struct BankedEncoderCell : public StateEncoderCell
 {
     static constexpr size_t x_encoderPoolSize = 512;
@@ -30,11 +28,13 @@ struct BankedEncoderCell : public StateEncoderCell
     
     struct SharedEncoderState
     {
+        size_t m_modeIx;
         size_t m_numVoices;
         ModulatorValues* m_modulatorValues;
 
         SharedEncoderState()
-            : m_numVoices(0)
+            : m_modeIx(static_cast<size_t>(SmartGridOne::EncoderBankMode::NumModes))
+            , m_numVoices(0)
             , m_modulatorValues(nullptr)
         {
         }
@@ -338,7 +338,6 @@ struct BankedEncoderCell : public StateEncoderCell
     BankedEncoderCell()
         : StateEncoderCell()
         , m_parent(nullptr)
-        , m_ownerBank(nullptr)
         , m_sharedEncoderState(nullptr)
         , m_name(nullptr)
         , m_shortName(nullptr)
@@ -395,7 +394,6 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         int depth = parent ? parent->m_depth + 1 : 0;
         m_parent = parent;
-        m_ownerBank = parent ? parent->m_ownerBank : nullptr;
         m_type = modulatorType;
         m_bipolar = m_type == EncoderType::ModulatorAmount ||
             (m_type == EncoderType::GestureParam && parent->m_bipolar);
@@ -1096,7 +1094,6 @@ struct BankedEncoderCell : public StateEncoderCell
     }
         
     BankedEncoderCell* m_parent;
-    EncoderBankInternal* m_ownerBank;
     SharedEncoderState* m_sharedEncoderState;
     Color m_color;
     const char* m_name;
@@ -1140,7 +1137,6 @@ struct EncoderBankInternal : public EncoderGrid
     BankedEncoderCell* m_selected;
     size_t m_activeEncoderPrefix;
     BankedEncoderCell::SharedEncoderState m_sharedEncoderState;
-    BitSet16 m_gesturesAffecting;
 
     EncoderBankInternal()
         : m_context(nullptr)
@@ -1168,11 +1164,6 @@ struct EncoderBankInternal : public EncoderGrid
     void PlaceEncoder(int x, int y, BankedEncoderCell* encoder)
     {
         m_baseCell[x][y] = encoder;
-        if (encoder)
-        {
-            encoder->m_ownerBank = this;
-        }
-
         if (!m_selected)
         {
             SetVisible(x, y, encoder);
@@ -1239,13 +1230,11 @@ struct EncoderBankInternal : public EncoderGrid
                 }
             }
         }
-
-        ComputeGesturesAffecting();
     }
 
-    void ComputeGesturesAffecting()
+    BitSet16 GetGesturesAffecting()
     {
-        m_gesturesAffecting.Clear();
+        BitSet16 gestures;
         for (int i = 0; i < 4; ++i)
         {
             for (int j = 0; j < 4; ++j)
@@ -1253,15 +1242,12 @@ struct EncoderBankInternal : public EncoderGrid
                 BankedEncoderCell* cell = GetBase(i, j);
                 if (cell)
                 {
-                    m_gesturesAffecting = m_gesturesAffecting.Union(cell->m_gesturesAffecting);
+                    gestures = gestures.Union(cell->m_gesturesAffecting);
                 }
             }
         }
-    }
 
-    BitSet16 GetGesturesAffecting()
-    {
-        return m_gesturesAffecting;
+        return gestures;
     }
 
     void ClearGesture(int gesture)
@@ -1439,8 +1425,6 @@ struct EncoderBankInternal : public EncoderGrid
                 }
             }
         }
-
-        ComputeGesturesAffecting();
     }
 
     float GetValue(size_t i, size_t j, size_t channel)
@@ -1520,6 +1504,11 @@ struct EncoderBankInternal : public EncoderGrid
             {
                 BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(i, j));
 
+                auto* shared = cell ? cell->GetSharedEncoderState() : nullptr;
+                size_t numVoices = shared ? shared->m_numVoices : 0;
+                uiState->SetMode(i, j, shared ? static_cast<SmartGridOne::EncoderBankMode>(shared->m_modeIx)
+                    : SmartGridOne::EncoderBankMode::NumModes);
+                uiState->SetNumVoices(i, j, static_cast<int>(numVoices));
                 if (cell && cell->m_connected)
                 {
                     uiState->SetConnected(i, j, true);
@@ -1530,7 +1519,7 @@ struct EncoderBankInternal : public EncoderGrid
                     uiState->SetBrightness(i, j, cell->GetBrightness());
                     bool neutralDepth = cell->m_type == BankedEncoderCell::EncoderType::ModulatorAmount &&
                         cell->m_modulatorsAffecting.IsZero();
-                    for (size_t k = 0; k < m_sharedEncoderState.m_numVoices; ++k)
+                    for (size_t k = 0; k < numVoices; ++k)
                     {
                         float value = neutralDepth ? cell->GetNeutralNormalizedValue() : cell->m_output[k];
                         uiState->SetValue(i, j, k, value);
@@ -1549,7 +1538,7 @@ struct EncoderBankInternal : public EncoderGrid
                     uiState->SetIndex(i, j, -1);
                     uiState->SetBipolar(i, j, false);
                     uiState->SetBrightness(i, j, 0);
-                    for (size_t k = 0; k < m_sharedEncoderState.m_numVoices; ++k)
+                    for (size_t k = 0; k < 16; ++k)
                     {
                         uiState->SetValue(i, j, k, 0);
                         uiState->SetMinValue(i, j, k, 0);
@@ -1564,8 +1553,6 @@ struct EncoderBankInternal : public EncoderGrid
                 uiState->SetShortName(i, j, cell ? cell->m_shortName : nullptr);
             }
         }
-
-        uiState->SetNumVoices(m_sharedEncoderState.m_numVoices);
     }
 };
 
@@ -1578,7 +1565,6 @@ inline void BankedEncoderCell::SetModulatorsAffectingRecursive()
     }
 
     cell->SetModulatorsAffecting();
-    m_ownerBank->ComputeGesturesAffecting();
 }
 
 }

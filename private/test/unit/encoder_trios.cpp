@@ -103,7 +103,7 @@ DOCTEST_TEST_CASE("encoder_trios: global voice reads and UI use the selected tri
         rig.m_encoders.SelectBank(Encoders::Bank::Source);
         EncoderBankUIState ui;
         rig.m_encoders.PopulateUIState(&ui);
-        DOCTEST_CHECK(ui.GetNumVoices() == 3);
+        DOCTEST_CHECK(ui.GetNumVoices(0, 0) == 3);
         for (size_t local = 0; local < Encoders::x_voicesPerTrio; ++local)
         {
             const int voice = static_cast<int>(trio * Encoders::x_voicesPerTrio + local);
@@ -119,7 +119,7 @@ DOCTEST_TEST_CASE("encoder_trios: track changes preserve bank families and globa
     GlobalEnv::ResetPerTest();
     TrioEncoderRig rig;
     for (auto family : {Encoders::Bank::Source, Encoders::Bank::Shape,
-             Encoders::Bank::PanningAndSequencing, Encoders::Bank::VoiceLFOs, Encoders::Bank::AmpAndRouting})
+             Encoders::Bank::PanningAndSequencing, Encoders::Bank::VoiceLFOs, Encoders::Bank::FXMatrix, Encoders::Bank::Sub})
     {
         rig.m_encoders.SelectBank(family);
         for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)

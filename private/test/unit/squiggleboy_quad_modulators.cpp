@@ -72,9 +72,9 @@ DOCTEST_TEST_CASE("Quad random LFOs drive and display all four modulation slots"
     for (size_t slot = 0; slot < 4; ++slot)
     {
         DOCTEST_CAPTURE(slot);
-        DOCTEST_CHECK(uiState.m_encoderBankUIState.GetModulationGlyph(slot) ==
+        DOCTEST_CHECK(uiState.m_encoderBankUIState.GetModulationGlyph(0, 0, slot) ==
             SmartGridOne::ModulationGlyphs::SmoothRandom);
-        DOCTEST_CHECK(uiState.m_encoderBankUIState.GetModulationGlyphColor(slot) ==
+        DOCTEST_CHECK(uiState.m_encoderBankUIState.GetModulationGlyphColor(0, 0, slot) ==
             SmartGridOneEncoders::GetModulatorSkin(slot, SmartGridOneEncoders::BankMode::Voice).m_color);
 
         GangedRandomLFOSnapshot<4> snapshot;

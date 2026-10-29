@@ -86,7 +86,7 @@ DOCTEST_TEST_CASE("encoder visualizers: published identity follows mode navigati
         DOCTEST_REQUIRE(base != nullptr);
         bank.HandlePress(baseX, baseY);
         encoders.PopulateUIState(&ui);
-        DOCTEST_CHECK(ui.GetMode() == static_cast<Encoders::BankMode>(mode));
+        DOCTEST_CHECK(ui.GetMode(3, 3) == static_cast<Encoders::BankMode>(mode));
         DOCTEST_CHECK(ui.GetEncoderType(3, 3) == Type::BaseParam);
         for (int index = 0; index < 15; ++index)
         {
@@ -209,7 +209,7 @@ DOCTEST_TEST_CASE("modulator catalogue: legacy global empty depths survive patch
         bank.MakeSelection(3, 0, cell);
         auto* depth = cell->m_modulators.m_modulators[index].get();
         DOCTEST_CHECK(bank.GetVisible(index % 4, index / 4) == depth);
-        DOCTEST_CHECK(depth->m_ownerBank == &bank);
+        DOCTEST_CHECK(depth->GetSharedEncoderState() == cell->GetSharedEncoderState());
         auto& sources = encoders.GetModulatorValues(Encoders::BankMode::Global);
         sources.m_value[index][0] = 0.8f;
         cell->SetStateRecursive();
@@ -219,8 +219,8 @@ DOCTEST_TEST_CASE("modulator catalogue: legacy global empty depths survive patch
         EncoderBankUIState ui;
         encoders.PopulateUIState(&ui);
         DOCTEST_CHECK(ui.GetConnected(index % 4, index / 4));
-        DOCTEST_CHECK(ui.GetModulationGlyph(index) == Glyph::None);
-        DOCTEST_CHECK(ui.GetModulationGlyphColor(index) == SmartGrid::Color(0, 0, 0));
+        DOCTEST_CHECK(ui.GetModulationGlyph(index % 4, index / 4, index) == Glyph::None);
+        DOCTEST_CHECK(ui.GetModulationGlyphColor(index % 4, index / 4, index) == SmartGrid::Color(0, 0, 0));
         DOCTEST_CHECK(std::isfinite(cell->GetValueNoSlew(0)));
         DOCTEST_CHECK(cell->GetValueNoSlew(0) == doctest::Approx(0.8f));
         DOCTEST_CHECK(bank.GetVisible(index % 4, index / 4) == depth);
