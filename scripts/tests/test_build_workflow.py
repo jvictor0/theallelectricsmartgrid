@@ -27,12 +27,26 @@ class BuildWorkflowTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(REPO_ROOT / name, target)
         self.log = self.caller / "commands.jsonl"
+        self.juce_header = self.root / "third_party/JUCE/modules/juce_core/juce_core.h"
         self.tool = self.caller / "record-command"
         self.tool.write_text(
             f"#!{sys.executable}\n"
             "import json, os, pathlib, sys\n"
             "with open(os.environ['COMMAND_LOG'], 'a') as log:\n"
             "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "header = pathlib.Path(os.environ['JUCE_HEADER'])\n"
+            "if 'submodule' in sys.argv:\n"
+            "    if os.environ.get('FAIL_JUCE_SETUP'):\n"
+            "        sys.exit(8)\n"
+            "    checkout = pathlib.Path(sys.argv[sys.argv.index('-C') + 1])\n"
+            "    assert header.is_relative_to(checkout)\n"
+            "    header.parent.mkdir(parents=True, exist_ok=True)\n"
+            "    header.write_text('initialized')\n"
+            "needs_juce = '-project' in sys.argv or any(\n"
+            "    part in arg for arg in sys.argv\n"
+            "    for part in ('juce-midi', 'juce-visualizers', 'build/midi/', 'build/visualizers/'))\n"
+            "if needs_juce and not header.is_file():\n"
+            "    sys.exit('JUCE must be initialized before building')\n"
             "if '-project' in sys.argv:\n"
             "    if os.environ.get('FAIL_BUILD'):\n"
             "        sys.exit(7)\n"
@@ -44,7 +58,11 @@ class BuildWorkflowTests(unittest.TestCase):
             "    exe.chmod(0o755)\n"
         )
         self.tool.chmod(0o755)
+        for name in ("git", "cmake", "ctest"):
+            (self.caller / name).symlink_to(self.tool)
         self.env = dict(os.environ, COMMAND_LOG=str(self.log),
+                        JUCE_HEADER=str(self.juce_header),
+                        PATH=str(self.caller) + os.pathsep + os.environ["PATH"],
                         RUN_MARKER=str(self.caller / "ran"))
 
     def make(self, *args, app=False, success=True):
@@ -62,6 +80,39 @@ class BuildWorkflowTests(unittest.TestCase):
 
     def commands(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()]
+
+    def test_missing_juce_is_initialized_once_before_parallel_builds(self):
+        self.make("-j4", "build", "visualizers-test", "midi-test")
+        commands = self.commands()
+        self.assertEqual(commands[0], ["-C", str(self.root), "submodule", "update",
+                                       "--init", "--recursive", "--", "third_party/JUCE"])
+        self.assertEqual(sum("submodule" in args for args in commands), 1)
+        self.assertEqual(len(commands), 8)
+        self.assertTrue(self.juce_header.is_file())
+        before = len(commands)
+        self.make("build", app=True)
+        self.assertEqual(len(self.commands()), before + 1)
+        self.assertIn("-project", self.commands()[-1])
+
+    def test_failed_juce_setup_prevents_build_and_deploy(self):
+        self.env["FAIL_JUCE_SETUP"] = "1"
+        for app, target in ((False, "build"), (True, "build-sanitized"),
+                            (False, "ios-deploy"), (True, "deploy-ios"),
+                            (False, "midi-test"), (False, "visualizers-test"),
+                            (True, "clang-tidy")):
+            with self.subTest(app=app, target=target):
+                self.make("-j4", target, app=app, success=False)
+                commands = self.commands()
+                self.assertEqual(len(commands), 1)
+                self.assertIn("submodule", commands[0])
+                self.assertFalse(self.juce_header.exists())
+                self.log.unlink()
+
+    def test_core_tests_do_not_initialize_juce(self):
+        self.make("core-test")
+        self.assertEqual(len(self.commands()), 3)
+        self.assertFalse(any("submodule" in args for args in self.commands()))
+        self.assertFalse(self.juce_header.exists())
 
     def test_native_run_and_sanitizer_use_the_built_product_from_any_cwd(self):
         for app, target, config in ((False, "run", "Release"),

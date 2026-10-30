@@ -1,6 +1,6 @@
 REPO_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 JUCE_DIR := $(REPO_ROOT)/JUCE/SmartGridOne
-JUCE_TARGETS := build clean run build-sanitized run-sanitized clang-tidy \
+JUCE_TARGETS := juce-setup juce-deps build clean run build-sanitized run-sanitized clang-tidy \
 	ios-setup ios-build ios-install ios-deploy deploy-ios list-ios-devices
 JOBS ?= 4
 CORE_CONFIG ?= RelWithDebInfo
@@ -14,6 +14,10 @@ all: build
 
 $(JUCE_TARGETS):
 	$(MAKE) -C "$(JUCE_DIR)" $@
+
+# Complete setup once before starting recursive builds, including parallel goals.
+build run build-sanitized run-sanitized clang-tidy ios-build ios-deploy deploy-ios \
+	visualizers-configure midi-configure: juce-deps
 
 define cmake_targets
 .PHONY: $(1)-configure $(1)-build $(1)-test

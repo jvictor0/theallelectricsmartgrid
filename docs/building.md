@@ -7,6 +7,24 @@ Commands below run from the checkout root. From elsewhere, use
 the Makefile, not the caller's working directory. The app Makefile also supports
 `make -C JUCE/SmartGridOne <app-target>` and an absolute `-f` path.
 
+## Set up JUCE in a new checkout or worktree
+
+App builds, `ios-deploy` (and `deploy-ios`), `clang-tidy`, and the MIDI and
+visualizer test targets automatically initialize JUCE when it is missing from
+the checkout or worktree. Setup finishes before compilation starts, including
+with parallel Make goals. An initialized JUCE checkout is left untouched.
+
+To explicitly initialize or update JUCE to the repository's pinned revision, run:
+
+```sh
+make juce-setup
+```
+
+This runs `git submodule update --init --recursive -- third_party/JUCE` from
+the checkout root, checking out the JUCE revision pinned by this repository.
+It is safe to rerun and may download missing Git objects. Automatic setup uses
+the same command; if it fails, the build stops before compiling or deploying.
+
 ## Build and test
 
 | Command | Default output directory |
@@ -25,8 +43,8 @@ Each build reconfigures the same cache and builds incrementally; test targets
 build first and run CTest with failure output. Use `JOBS=6` to change CMake build
 parallelism (default 4), and `CMAKE_ARGS='...'` for additional configure options.
 The core requires CMake, a C++17 compiler, Python 3, pkg-config, and libFLAC.
-JUCE tests require macOS and the pinned `third_party/JUCE` submodule, initialized
-with `git submodule update --init --recursive`.
+JUCE tests require macOS; their Make targets initialize the pinned
+`third_party/JUCE` submodule automatically when it is missing.
 
 Use `CORE_CONFIG=Debug`, `VISUALIZERS_CONFIG=Debug`, or `MIDI_CONFIG=Debug` for
 separate debug test builds. Core tests default to RelWithDebInfo with assertions

@@ -18,9 +18,17 @@ IOS_REQUIREMENTS = $(REPO_ROOT)/scripts/requirements-ios.txt
 IOS_DEVICE ?=
 IPAD_HOST ?=
 
-.PHONY: all build clean run build-sanitized run-sanitized clang-tidy ios-setup ios-build ios-install ios-deploy deploy-ios list-ios-devices
+.PHONY: all juce-setup juce-deps build clean run build-sanitized run-sanitized clang-tidy ios-setup ios-build ios-install ios-deploy deploy-ios list-ios-devices
 
 all: build
+
+juce-setup:
+	git -C "$(REPO_ROOT)" submodule update --init --recursive -- third_party/JUCE
+
+juce-deps:
+	@test -f "$(REPO_ROOT)/third_party/JUCE/modules/juce_core/juce_core.h" || $(MAKE) -C "$(APP_DIR)" juce-setup
+
+build build-sanitized clang-tidy ios-build: juce-deps
 
 define xcode_build
 	$(XCODEBUILD) -project "$(1)" -scheme "$(SCHEME)" -configuration "$(3)" \

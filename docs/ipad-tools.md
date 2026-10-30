@@ -5,8 +5,8 @@ SmartGridOne iPad without a USB cable.
 
 ## One-time setup
 
-1. Initialize the repository's pinned dependencies with
-   `git submodule update --init --recursive`.
+1. JUCE is initialized automatically by the build/deploy targets when missing.
+   To prepare it separately, run `make juce-setup`.
 2. Connect the iPad by USB, unlock it, trust this Mac, and enable Wi-Fi device
    connections in Finder or Xcode.
 3. Enable Developer Mode on the iPad.
