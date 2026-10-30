@@ -162,6 +162,35 @@ DOCTEST_TEST_CASE("exponential encoder: clamping and legacy increments retain ex
     DOCTEST_CHECK(rig.Cell().m_values[0] == doctest::Approx(EncoderCell::x_minSpeed));
 }
 
+DOCTEST_TEST_CASE("encoder shift-turn: exponential MIDI adjusts descendants and leaves the parent unchanged")
+{
+    GlobalEnv::ResetPerTest();
+    ExponentialEncoderRig rig;
+    auto& sources = rig.m_banks.m_bankModes[0].m_modulatorValues;
+    sources.SetModulatorSkin(0, Color::Red, nullptr);
+    sources.SetModulatorSkin(1, Color::Blue, nullptr);
+    rig.Cell().FillModulators(&rig.m_context);
+    auto& positive = *rig.Cell().m_modulators.m_modulators[0];
+    auto& negative = *rig.Cell().m_modulators.m_modulators[1];
+    positive.SetValue(0.75f, true);
+    negative.SetValue(0.25f, true);
+    rig.Cell().SetStateRecursive();
+    rig.Cell().SetModulatorsAffecting();
+    rig.m_banks.Process();
+    rig.m_context.m_sceneManager.m_shift = true;
+
+    rig.Turn(0, 1000);
+    DOCTEST_CHECK(positive.m_values[0] == doctest::Approx(0.7070092952684131).epsilon(1e-6));
+    DOCTEST_CHECK(negative.m_values[0] == doctest::Approx(0.29299070473158695).epsilon(1e-6));
+    rig.Turn(127, 2000);
+    DOCTEST_CHECK(positive.m_values[0] == doctest::Approx(0.7464179529562318).epsilon(1e-6));
+    DOCTEST_CHECK(negative.m_values[0] == doctest::Approx(0.25358204704376825).epsilon(1e-6));
+    DOCTEST_CHECK(rig.Cell().m_values[0] == 0.5f);
+    DOCTEST_CHECK(positive.m_values[1] == 0.75f);
+    DOCTEST_CHECK(negative.m_values[1] == 0.25f);
+    DOCTEST_CHECK(rig.Cell().m_modulators.m_modulators[2]->m_values[0] == 0.5f);
+}
+
 DOCTEST_TEST_CASE("exponential encoder: ignored values do not activate gestures and valid edits do")
 {
     ExponentialEncoderRig rig;

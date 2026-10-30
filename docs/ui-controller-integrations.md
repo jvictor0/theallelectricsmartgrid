@@ -82,6 +82,15 @@ In `JUCE/SmartGridOne/Source/NonagonWrapper.hpp`:
 - `MidiEncoderOutputHandler` uses `EncoderMidiWriter` for encoder ring/value output.
 - Input handlers forward raw `BasicMidi` to integration owners.
 
+### Shift-turn modulation adjustment
+
+On either controller, hold Shift and turn a parent encoder to adjust all its
+existing modulation depths recursively. Counterclockwise reduces their
+magnitudes to zero; clockwise increases nonzero magnitudes while preserving
+polarity. The parent's own value stays unchanged. See
+[the encoder controls](encoder-system.md#adjusting-all-modulation-depths-from-a-parent-encoder)
+for scene blending, gesture behavior, and editing a depth after it reaches zero.
+
 ## `NonagonWrapper` as top-level aggregator
 
 `NonagonWrapper` owns:

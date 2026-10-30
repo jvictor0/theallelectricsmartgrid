@@ -65,7 +65,7 @@ The system SHALL define parameters in `ForEachSmartGridOneParam.hpp` as `F(name,
 - **AND** a changed page closes the previous modulation selection before replacing its sixteen grid positions
 
 ### Requirement: Blend-Proportional Encoder Increments
-When a physical encoder is turned at an intermediate blend factor t (0 < t < 1), the system SHALL distribute the increment across both active scenes' stored values for the current track, adding `delta × (1 − t)` to the scene-1 value and `delta × t` to the scene-2 value, so, without clamping, the blended output changes by `delta × ((1 − t)² + t²)`.
+When a physical encoder is turned without Shift at an intermediate blend factor t (0 < t < 1), the system SHALL distribute the increment across both active scenes' stored values for the current track, adding `delta × (1 − t)` to the scene-1 value and `delta × t` to the scene-2 value, so, without clamping, the blended output changes by `delta × ((1 − t)² + t²)`.
 If one scene's value would leave [0, 1], that value is clamped and the other scene's value is solved so the blended output still lands on the clamped target. At t == 0 or t == 1 only the single fully-active scene's value changes.
 
 #### Scenario: Mid-blend turn updates both scenes
@@ -91,6 +91,51 @@ Pressing a connected encoder enters selection mode: the 4×4 grid switches to sh
 #### Scenario: Zeroed depth cell is garbage-collected
 - **WHEN** a depth cell's normalized value is 0.5 in every scene, it has no active sub-modulators or gestures, and the selection is deselected
 - **THEN** the depth cell is released back to the encoder pool and excluded from serialization
+
+### Requirement: Shift-Turn Adjusts Existing Modulation Depths Recursively
+Holding the centralized scene-manager Shift flag while turning an encoder SHALL adjust every existing modulation-depth descendant of the addressed cell, leaving that cell's own base and gesture targets unchanged. Both legacy `EncoderIncDec` and exponential-relative `EncoderExponentialDelta` inputs SHALL support this operation. Missing modulation slots SHALL remain absent. Each descendant SHALL be visited once even when dependency refreshes reorder the active-modulator list. The operation SHALL NOT garbage-collect cells referenced by an open modulation page; normal deselection cleanup remains responsible for collecting neutral depths.
+
+For every edited stored value, counterclockwise motion SHALL reduce its magnitude toward zero, and clockwise motion SHALL increase its magnitude while preserving its sign. A step reaching or crossing zero SHALL clamp exactly to zero. Values already at zero SHALL stay zero in either direction. For bipolar depth cells, zero is normalized `0.5`; outward motion SHALL clamp at normalized `0` or `1`. Ordinary turns without Shift SHALL retain signed zero crossing, and absolute encoder-set messages SHALL continue to edit the addressed base even while Shift is held.
+
+The operation SHALL preserve normal gesture selection and live-weight edit distribution at each depth. Selected gestures SHALL be activated on existing descendants using the ordinary inherited target value; weighted edits SHALL then use the magnitude rule independently for each base or gesture target. Only active scenes SHALL change. At blend `t`, scene shares SHALL remain `delta × (1 − t)` and `delta × t`, with each scene clamping independently and no compensation into the other scene. Edited cells and their ancestors SHALL refresh dependency masks and force recomputation so published values reflect the adjustment even when no modulation source changes.
+
+#### Scenario: Both polarities move toward zero
+- **WHEN** a parent has signed depth positions `+0.5` and `-0.5`, and Shift-counterclockwise supplies normalized delta `-0.125`
+- **THEN** those positions become `+0.25` and `-0.25`
+- **AND** the parent's own stored value, other parameter trees, and inactive scenes remain unchanged
+
+#### Scenario: Zero remains neutral and clockwise preserves polarity
+- **WHEN** Shift-counterclockwise overshoots zero on positive and negative depths
+- **THEN** both clamp to signed zero
+- **AND** further shifted turns in either direction leave them zero
+- **AND** Shift-clockwise on other nonzero depths increases their magnitudes without changing sign, up to full depth
+
+#### Scenario: A neutralized sibling does not skip later descendants
+- **WHEN** the first depth reaches zero during a recursive adjustment and dependency refresh reorders active slots
+- **THEN** every remaining sibling and nested descendant receives the edit exactly once
+- **AND** missing slots remain absent
+
+#### Scenario: Scene clamping is independent
+- **WHEN** a depth stores normalized `0.55` and `0.2` in the active scenes, blend is `0.25`, and normalized delta is `-0.4`
+- **THEN** the scene values become `0.5` and `0.3`
+- **AND** the first scene's zero clamp does not increase the second scene's adjustment
+
+#### Scenario: Held gesture edits its target
+- **WHEN** a depth has a single active gesture held at full weight and the parent receives a shifted turn
+- **THEN** the depth's gesture target moves according to its own polarity and zero clamp
+- **AND** that depth's stored base stays unchanged, so releasing the gesture can restore its prior base depth
+
+#### Scenario: Open modulation page remains usable after neutralization
+- **WHEN** the performer shift-turns the selected parent at `(3, 3)` until all its descendants are neutral
+- **THEN** the existing visible depth cells remain connected with valid pointers and report neutral values
+- **AND** the parent's output returns to its value without those modulation contributions
+- **AND** a subsequent ordinary depth turn can establish a new signed amount
+- **AND** neutral cells with no retained scene or gesture state may be collected when the page is deselected
+
+#### Scenario: Ordinary edits retain their previous semantics
+- **WHEN** a parameter is turned without Shift or receives an absolute encoder-set message
+- **THEN** it edits the addressed value instead of recursively adjusting descendants
+- **AND** ordinary scene compensation occurs only when a candidate leaves the normalized range, not when it lands exactly on an endpoint
 
 ### Requirement: Crossfade Modulation Mixing per Voice
 Depth cells SHALL be bipolar: normalized position `u` exposes signed knob position `b = 2u − 1`, with effective depth `sign(b) × (9^abs(b) − 1) / 8`. The parent SHALL apply this curve once per route after recursive depth computation. For each local voice, let `d` be curved depth times source amplitude, `W = Σ abs(d)`, `V = Σ d × sourceValue`, and `O = Σ max(0, −d)`. The normalized output SHALL be `base × max(0, 1 − W) + (V + O) / max(1, W)`. Negative depths crossfade toward the inverted source. Changes to source amplitude alone SHALL invalidate the cached output.

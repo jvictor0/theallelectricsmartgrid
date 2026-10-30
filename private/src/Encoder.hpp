@@ -286,7 +286,30 @@ struct StateEncoderCell : public EncoderCell
         *m_state = GetSceneNormalizedValue();
     }
 
-    void IncrementInternal(float delta)
+    float Combine(float value, float delta, bool towardsZero)
+    {
+        if (towardsZero)
+        {
+            if (value == GetNeutralNormalizedValue())
+            {
+                return value;
+            }
+
+            if (ToValue(value) < 0)
+            {
+                delta = -delta;
+            }
+
+            if (ToValue(value) * ToValue(value + delta) <= 0)
+            {
+                return GetNeutralNormalizedValue();
+            }
+        }
+
+        return std::max(0.0f, std::min(1.0f, value + delta));
+    }
+
+    void IncrementInternal(float delta, bool towardsZero)
     {
         if (delta == 0)
         {
@@ -298,11 +321,16 @@ struct StateEncoderCell : public EncoderCell
         float t = m_context->m_sceneManager.m_blendFactor;
         if (t <= 0)
         {
-            SetAndRecordValue(std::max(0.0f, std::min(1.0f, m_values[s1] + delta)), s1);
+            SetAndRecordValue(Combine(m_values[s1], delta, towardsZero), s1);
         }
         else if (t >= 1)
         {
-            SetAndRecordValue(std::max(0.0f, std::min(1.0f, m_values[s2] + delta)), s2);
+            SetAndRecordValue(Combine(m_values[s2], delta, towardsZero), s2);
+        }
+        else if (towardsZero)
+        {
+            SetAndRecordValue(Combine(m_values[s1], delta * (1.0f - t), towardsZero), s1);
+            SetAndRecordValue(Combine(m_values[s2], delta * t, towardsZero), s2);
         }
         else
         {
@@ -332,7 +360,7 @@ struct StateEncoderCell : public EncoderCell
     void SetToValue(float value)
     {
         float delta = value - GetSceneNormalizedValue();
-        IncrementInternal(delta);
+        IncrementInternal(delta, false);
     }
 
     void SetValue(float value, bool allScenes)

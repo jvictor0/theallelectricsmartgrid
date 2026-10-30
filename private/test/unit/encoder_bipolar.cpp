@@ -19,6 +19,7 @@ struct EncoderRig
 {
     SmartGridOneContext m_context;
     EncoderBankBank m_banks;
+    size_t m_turnTimestamp = 0;
 
     EncoderRig(bool bipolar, float defaultValue)
         : m_banks(2, 2, 2, &m_context)
@@ -66,6 +67,18 @@ struct EncoderRig
         m_context.m_sceneManager.m_shift = false;
     }
 
+    void Turn(int x, int y, int64_t steps, bool shift)
+    {
+        // Keep turns far enough apart to exercise a known, unaccelerated delta.
+        //
+        m_turnTimestamp += 1000000;
+        m_context.m_sceneManager.m_shift = shift;
+        m_banks.m_banks[0].Apply(SmartGrid::MessageIn(m_turnTimestamp, -1,
+            SmartGrid::MessageIn::Mode::EncoderIncDec, x, y, steps));
+        m_context.m_sceneManager.m_shift = false;
+        m_banks.Process();
+    }
+
     void Compute()
     {
         Carrier().SetStateRecursive();
@@ -102,6 +115,264 @@ DOCTEST_TEST_CASE("encoder_bipolar: new depths are centered and collectible")
     DOCTEST_CHECK(depth.CanBeGarbageCollected());
     depth.SetValue(0.0f, true);
     DOCTEST_CHECK_FALSE(depth.CanBeGarbageCollected());
+}
+
+DOCTEST_TEST_CASE("encoder shift-turn: adjusts magnitudes without changing polarity or reviving zero")
+{
+    GlobalEnv::ResetPerTest();
+    EncoderRig rig(false, 0.3f);
+    rig.Turn(0, 0, 100, true);
+    DOCTEST_CHECK(rig.Carrier().m_modulators.m_numActiveModulators == 0);
+    DOCTEST_CHECK(rig.Carrier().m_values[0] == doctest::Approx(0.3f));
+
+    Cell& positive = rig.Depth(rig.Carrier(), 0);
+    Cell& negative = rig.Depth(rig.Carrier(), 1);
+    Cell& neutral = rig.Depth(rig.Carrier(), 2);
+    Cell& other = rig.Depth(rig.OtherTrio(), 0);
+    positive.SetValue(0.75f, true);
+    negative.SetValue(0.25f, true);
+    other.SetValue(0.75f, true);
+    rig.Compute();
+
+    rig.Turn(0, 0, -125, true);
+    DOCTEST_CHECK(positive.m_values[0] == doctest::Approx(0.625f));
+    DOCTEST_CHECK(negative.m_values[0] == doctest::Approx(0.375f));
+    rig.Turn(0, 0, 125, true);
+    DOCTEST_CHECK(positive.m_values[0] == doctest::Approx(0.75f));
+    DOCTEST_CHECK(negative.m_values[0] == doctest::Approx(0.25f));
+    DOCTEST_CHECK(neutral.m_values[0] == 0.5f);
+
+    rig.Turn(0, 0, 1000, true);
+    DOCTEST_CHECK(positive.m_values[0] == 1.0f);
+    DOCTEST_CHECK(negative.m_values[0] == 0.0f);
+    rig.Turn(0, 0, -1000, true);
+    DOCTEST_CHECK(positive.m_values[0] == 0.5f);
+    DOCTEST_CHECK(negative.m_values[0] == 0.5f);
+    rig.Turn(0, 0, -100, true);
+    rig.Turn(0, 0, 100, true);
+    DOCTEST_CHECK(positive.m_values[0] == 0.5f);
+    DOCTEST_CHECK(negative.m_values[0] == 0.5f);
+    DOCTEST_CHECK(rig.Carrier().m_values[0] == doctest::Approx(0.3f));
+    DOCTEST_CHECK(other.m_values[0] == 0.75f);
+    DOCTEST_CHECK(positive.m_values[1] == 0.75f);
+    DOCTEST_CHECK(negative.m_values[1] == 0.25f);
+}
+
+DOCTEST_TEST_CASE("encoder shift-turn: visits every sibling and descendant once when a route becomes neutral")
+{
+    GlobalEnv::ResetPerTest();
+    EncoderRig rig(false, 0.3f);
+    Cell& first = rig.Depth(rig.Carrier(), 0);
+    Cell& second = rig.Depth(rig.Carrier(), 4);
+    Cell& last = rig.Depth(rig.Carrier(), 14);
+    Cell& nested = rig.Depth(second, 7);
+    Cell& deepest = rig.Depth(nested, 3);
+    first.SetValue(0.55f, true);
+    second.SetValue(0.8f, true);
+    last.SetValue(0.2f, true);
+    nested.SetValue(0.7f, true);
+    deepest.SetValue(0.25f, true);
+    rig.Carrier().GarbageCollectModulators();
+    rig.Compute();
+    DOCTEST_REQUIRE(rig.Carrier().GetModulator(0) == &first);
+
+    rig.Turn(0, 0, -100, true);
+
+    DOCTEST_CHECK(first.m_values[0] == 0.5f);
+    DOCTEST_CHECK(second.m_values[0] == doctest::Approx(0.7f));
+    DOCTEST_CHECK(last.m_values[0] == doctest::Approx(0.3f));
+    DOCTEST_CHECK(nested.m_values[0] == doctest::Approx(0.6f));
+    DOCTEST_CHECK(deepest.m_values[0] == doctest::Approx(0.35f));
+    DOCTEST_CHECK_FALSE(rig.Carrier().m_modulators.m_modulators[1]);
+    DOCTEST_CHECK(rig.Carrier().m_modulators.m_numActiveModulators == 3);
+}
+
+DOCTEST_TEST_CASE("encoder shift-turn: active scenes clamp independently and inactive scenes retain their values")
+{
+    struct Scenario
+    {
+        float m_blend;
+        float m_first;
+        float m_second;
+        int64_t m_steps;
+        float m_expectedFirst;
+        float m_expectedSecond;
+    };
+
+    const Scenario x_scenarios[] =
+    {
+        {0.0f, 0.55f, 0.2f, -400, 0.5f, 0.2f},
+        {0.25f, 0.55f, 0.2f, -400, 0.5f, 0.3f},
+        {1.0f, 0.55f, 0.2f, -400, 0.55f, 0.5f},
+        {0.5f, 0.0f, 0.6f, 100, 0.0f, 0.65f}
+    };
+
+    for (const auto& scenario : x_scenarios)
+    {
+        DOCTEST_CAPTURE(scenario.m_blend);
+        DOCTEST_CAPTURE(scenario.m_steps);
+        GlobalEnv::ResetPerTest();
+        EncoderRig rig(false, 0.3f);
+        Cell& depth = rig.Depth(rig.Carrier(), 0);
+        depth.SetValue(0.9f, true);
+        depth.SetAndRecordValue(scenario.m_first, 0);
+        depth.SetAndRecordValue(scenario.m_second, 1);
+        rig.m_context.m_sceneManager.m_blendFactor = scenario.m_blend;
+        rig.Compute();
+
+        rig.Turn(0, 0, scenario.m_steps, true);
+
+        DOCTEST_CHECK(depth.m_values[0] == doctest::Approx(scenario.m_expectedFirst));
+        DOCTEST_CHECK(depth.m_values[1] == doctest::Approx(scenario.m_expectedSecond));
+        for (size_t scene = 2; scene < SmartGrid::SceneManager::x_numScenes; ++scene)
+        {
+            DOCTEST_CHECK(depth.m_values[scene] == doctest::Approx(0.9f));
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("encoder shift-turn: neutralizing a displayed subtree preserves the page and restores the output")
+{
+    for (bool nested : {false, true})
+    {
+        GlobalEnv::ResetPerTest();
+        EncoderRig rig(false, 0.3f);
+        auto& bank = rig.m_banks.m_banks[0];
+        Cell* selected = &rig.Carrier();
+        rig.Press(0, 0, false);
+        if (nested)
+        {
+            selected = &rig.Depth(rig.Carrier(), 0);
+            selected->SetValue(0.75f, true);
+            rig.Press(0, 0, false);
+        }
+
+        Cell& depth = rig.Depth(*selected, 0);
+        depth.SetValue(1.0f, false);
+        rig.Sources().m_value[0][0] = 0.8f;
+        rig.Sources().m_value[0][1] = 0.2f;
+        rig.Compute();
+        rig.m_banks.Process();
+        const float x_base = selected->m_values[0];
+        std::array<Cell*, Cell::x_numModulators> visible;
+        for (size_t i = 0; i < visible.size(); ++i)
+        {
+            visible[i] = selected->m_modulators.m_modulators[i].get();
+        }
+
+        rig.Turn(3, 3, -1000, true);
+        EncoderBankUIState ui;
+        bank.PopulateUIState(&ui);
+
+        DOCTEST_CHECK(bank.m_selected == selected);
+        DOCTEST_CHECK(selected->m_values[0] == x_base);
+        DOCTEST_CHECK(selected->m_modulators.m_numActiveModulators == Cell::x_numModulators);
+        for (size_t i = 0; i < visible.size(); ++i)
+        {
+            DOCTEST_CHECK(selected->m_modulators.m_modulators[i].get() == visible[i]);
+            DOCTEST_CHECK(bank.GetVisible(i % 4, i / 4) == visible[i]);
+            DOCTEST_CHECK(ui.GetConnected(i % 4, i / 4));
+            DOCTEST_CHECK(ui.GetModulatorsAffecting(i % 4, i / 4).IsZero());
+            for (size_t voice = 0; voice < 2; ++voice)
+            {
+                DOCTEST_CHECK(ui.GetValue(i % 4, i / 4, voice) == 0.5f);
+                DOCTEST_CHECK(ui.GetValue(3, 3, voice) == doctest::Approx(x_base));
+            }
+        }
+
+        rig.Turn(0, 0, -100, false);
+        DOCTEST_CHECK(depth.m_values[0] == doctest::Approx(0.4f));
+        rig.Turn(3, 3, -200, true);
+        rig.Press(3, 3, false);
+        DOCTEST_CHECK(bank.m_selected == nullptr);
+        DOCTEST_CHECK(selected->m_modulators.m_numActiveModulators == 0);
+    }
+}
+
+DOCTEST_TEST_CASE("encoder shift-turn: gesture weights distribute edits between depth bases and targets")
+{
+    for (float weight : {0.0f, 0.5f, 1.0f})
+    {
+        DOCTEST_CAPTURE(weight);
+        GlobalEnv::ResetPerTest();
+        EncoderRig rig(false, 0.3f);
+        Cell& depth = rig.Depth(rig.Carrier(), 0);
+        depth.SetValue(0.75f, true);
+        depth.m_modulators.AddGesture(&depth, 0);
+        Cell& target = *depth.m_modulators.m_gestures[0];
+        target.SetActive(true);
+        target.SetValue(0.25f, true);
+        rig.Sources().m_gestureWeights[0] = weight;
+        rig.Compute();
+
+        rig.Turn(0, 0, -100, true);
+
+        DOCTEST_CHECK(depth.m_values[0] == doctest::Approx(0.75f - 0.1f * (1.0f - weight)));
+        DOCTEST_CHECK(target.m_values[0] == doctest::Approx(0.25f + 0.1f * weight));
+        DOCTEST_CHECK(depth.m_values[1] == 0.75f);
+        DOCTEST_CHECK(target.m_values[1] == 0.25f);
+        DOCTEST_CHECK(rig.Carrier().m_values[0] == doctest::Approx(0.3f));
+        DOCTEST_CHECK_FALSE(rig.Carrier().m_modulators.m_gestures[0]);
+    }
+}
+
+DOCTEST_TEST_CASE("encoder shift-turn: selected gestures capture existing depths without adding routes")
+{
+    GlobalEnv::ResetPerTest();
+    EncoderRig rig(false, 0.3f);
+    Cell& depth = rig.Depth(rig.Carrier(), 3);
+    depth.SetValue(0.75f, true);
+    rig.Carrier().GarbageCollectModulators();
+    rig.Sources().m_selectedGestures.Set(0, true);
+    rig.Sources().m_gestureWeights[0] = 0.5f;
+    rig.Compute();
+
+    rig.Turn(0, 0, -100, true);
+
+    DOCTEST_REQUIRE(depth.m_modulators.m_gestures[0]);
+    Cell& target = *depth.m_modulators.m_gestures[0];
+    DOCTEST_CHECK(target.m_isActive[0]);
+    DOCTEST_CHECK_FALSE(target.m_isActive[1]);
+    DOCTEST_CHECK(target.m_values[0] == doctest::Approx(0.7f));
+    DOCTEST_CHECK(depth.m_values[0] == doctest::Approx(0.7f));
+    DOCTEST_CHECK(rig.Carrier().m_modulators.m_numActiveModulators == 1);
+    DOCTEST_CHECK_FALSE(rig.Carrier().m_modulators.m_modulators[0]);
+    DOCTEST_CHECK_FALSE(rig.Carrier().m_modulators.m_gestures[0]);
+}
+
+DOCTEST_TEST_CASE("encoder shift-turn: ordinary turns retain signed crossing and exact scene endpoint behavior")
+{
+    GlobalEnv::ResetPerTest();
+    EncoderRig rig(true, 0.1f);
+    Cell& depth = rig.Depth(rig.Carrier(), 0);
+    depth.SetValue(0.75f, true);
+    rig.Compute();
+    rig.Turn(0, 0, -100, false);
+    DOCTEST_CHECK(rig.Carrier().m_values[0] == doctest::Approx(0.45f));
+    DOCTEST_CHECK(depth.m_values[0] == 0.75f);
+
+    rig.Carrier().SetAndRecordValue(0.75f, 0);
+    rig.Carrier().SetAndRecordValue(0.25f, 1);
+    rig.m_context.m_sceneManager.m_blendFactor = 0.5f;
+    rig.Compute();
+    rig.Turn(0, 0, 500, false);
+    DOCTEST_CHECK(rig.Carrier().m_values[0] == 1.0f);
+    DOCTEST_CHECK(rig.Carrier().m_values[1] == 0.5f);
+}
+
+DOCTEST_TEST_CASE("encoder shift-turn: absolute sets keep targeting the base while shift is held")
+{
+    GlobalEnv::ResetPerTest();
+    EncoderRig rig(false, 0.3f);
+    Cell& depth = rig.Depth(rig.Carrier(), 0);
+    depth.SetValue(0.75f, true);
+    rig.Compute();
+    rig.m_context.m_sceneManager.m_shift = true;
+
+    rig.m_banks.m_banks[0].Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 0, 0.7f));
+
+    DOCTEST_CHECK(rig.Carrier().m_values[0] == doctest::Approx(0.7f).epsilon(0.0001));
+    DOCTEST_CHECK(depth.m_values[0] == 0.75f);
 }
 
 DOCTEST_TEST_CASE("encoder_bipolar: visible neutral depths animate without adding modulation badges")

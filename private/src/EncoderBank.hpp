@@ -464,6 +464,20 @@ struct BankedEncoderCell : public StateEncoderCell
 
     virtual void Increment(float delta) override
     {
+        Increment(delta, false);
+    }
+
+    void Increment(float delta, bool towardsZero)
+    {
+        if (m_type != EncoderType::GestureParam &&
+            !towardsZero &&
+            m_context->m_sceneManager.m_shift)
+        {
+            RecursivelyIncrementModulatorsTowardsZero(delta);
+            Compute();
+            return;
+        }
+
         Compute();
 
         if (m_type != EncoderType::GestureParam && !GetSelectedGestures().IsZero())
@@ -498,18 +512,33 @@ struct BankedEncoderCell : public StateEncoderCell
                 if (gestureCell)
                 {
                     float weight = gestureCell->m_effectiveModulatorWeight;
-                    gestureCell->IncrementInternal(delta * weight * weight / gestureWeightSum);
+                    gestureCell->IncrementInternal(delta * weight * weight / gestureWeightSum, towardsZero);
                     gestureCell->m_forceUpdate = true;
                     mainWeight += weight * (1 - weight);
                 }
             }
 
-            IncrementInternal(delta * mainWeight / gestureWeightSum);
+            IncrementInternal(delta * mainWeight / gestureWeightSum, towardsZero);
             m_forceUpdate = true;
         }
         else
         {
-            IncrementInternal(delta);
+            IncrementInternal(delta, towardsZero);
+        }
+
+        SetModulatorsAffectingRecursive();
+        SetForceUpdateRecursive();
+    }
+
+    void RecursivelyIncrementModulatorsTowardsZero(float delta)
+    {
+        for (size_t i = 0; i < x_numModulators; ++i)
+        {
+            if (m_modulators.m_modulators[i])
+            {
+                m_modulators.m_modulators[i]->Increment(delta, true);
+                m_modulators.m_modulators[i]->RecursivelyIncrementModulatorsTowardsZero(delta);
+            }
         }
 
         SetModulatorsAffectingRecursive();

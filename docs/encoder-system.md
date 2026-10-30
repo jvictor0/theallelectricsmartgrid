@@ -134,6 +134,46 @@ Saving writes the signed knob position, so repeated save/load must not reapply
 the exponential depth curve. Changing a top-level parameter to bipolar also
 requires updating its DSP callers to consume the signed domain.
 
+## Adjusting all modulation depths from a parent encoder
+
+Hold **Shift** and turn a parameter encoder to adjust its existing modulation
+depths together, including depths nested beneath them. The parameter's own base
+and gesture targets stay unchanged. This works from the normal bank page and
+from the selected parameter at the bottom-right of a modulation page. Shift-turn
+on a depth encoder applies the same operation to that depth's descendants.
+
+| Action | Result for each edited depth value |
+| --- | --- |
+| Shift + counterclockwise | Move toward zero, stopping exactly at zero |
+| Shift + clockwise | Move away from zero on its existing positive or negative side, clamping at full depth |
+| Either direction at zero | Stay at zero |
+
+Zero is signed depth `0`, stored as normalized `0.5`. The operation changes
+magnitude without crossing polarity, and does not create missing modulation
+routes. Once a depth reaches zero, edit that depth normally to establish a new
+positive or negative amount. Ordinary turns still edit the addressed value and
+can cross zero. Absolute encoder-set messages also retain their normal behavior
+while Shift is held. Both legacy accelerated turns and WRLD exponential-relative
+MIDI turns support Shift.
+
+Only the current parameter tree and active scenes are edited. At scene blend
+`t`, the two stored values receive `delta * (1 - t)` and `delta * t`, each moving
+relative to its own sign and clamping independently. A scene reaching zero or
+full depth does not transfer its unused motion to the other scene. Inactive
+scenes and other parameters or trios retain their values.
+
+Gesture editing follows the normal live-weight distribution at each depth:
+selected gestures are captured there, and the turn is split between the depth's
+base and its active gesture targets. With a single gesture at full weight, only
+its target moves; releasing it can therefore restore the unchanged base depth.
+This does not rewrite every stored gesture target regardless of its weight.
+
+The recursive edit refreshes modulation dependencies and computed outputs but
+does not collect cells while the modulation page may still reference them.
+Neutral depths remain connected and editable until normal deselection cleanup.
+Regression coverage lives in `private/test/unit/encoder_bipolar.cpp` and
+`private/test/unit/encoder_exponential.cpp` under `encoder shift-turn:*`.
+
 ## Gestures (Macros)
 
 **Gestures** are macro controls mapped to physical analog inputs (Like sliders and joysticks).
