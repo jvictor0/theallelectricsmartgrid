@@ -161,3 +161,36 @@ DOCTEST_TEST_CASE("Sub: page controls reach each trio independently and round tr
 
     DOCTEST_CHECK_FALSE(rig.SawNaN());
 }
+
+DOCTEST_TEST_CASE("Sub: analyzer feed separates the shaped sub from main audio and retains its tail")
+{
+    GlobalEnv::ResetPerTest();
+    auto writer = std::make_unique<ScopeWriter>(1, static_cast<size_t>(SmartGridOne::AudioScopes::NumScopes));
+    auto voice = std::make_unique<SquiggleBoyVoice>();
+    voice->SetupAudioScopeWriters(writer.get(), 0);
+    SubAmpRig rig;
+    rig.m_amp.m_scopeWriter = voice->m_amp.m_scopeWriter;
+    rig.m_amp.m_subScopeWriter = voice->m_amp.m_subScopeWriter;
+    rig.m_input.m_gain.m_expParam = 0.5f;
+    rig.m_amp.m_subSlew.m_output = 1.0f;
+    const size_t mainScope = static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp);
+    const size_t subScope = static_cast<size_t>(SmartGridOne::AudioScopes::Sub);
+    rig.RunSamples(1);
+    DOCTEST_CHECK(writer->ReadSample(mainScope, 0, 0) == doctest::Approx(1.0f));
+    DOCTEST_CHECK(writer->ReadSample(subScope, 0, 0) == doctest::Approx(rig.m_amp.m_subOut / 0.5f));
+    DOCTEST_CHECK(writer->ReadSample(subScope, 0, 0) > 0.0f);
+    rig.m_amp.m_subRunning = false;
+    rig.m_input.m_subFallSeconds.Update(0.0f);
+    for (size_t sample = 1; sample <= 600; ++sample)
+    {
+        writer->AdvanceIndex();
+        rig.RunSamples(1);
+        if (sample == 48)
+        {
+            DOCTEST_CHECK(rig.m_amp.m_ahd.m_state == AHD::State::Idle);
+            DOCTEST_CHECK(writer->ReadSample(subScope, 0, sample) > 0.0f);
+        }
+    }
+
+    DOCTEST_CHECK(std::abs(writer->ReadSample(subScope, 0, 600)) < 0.00001f);
+}

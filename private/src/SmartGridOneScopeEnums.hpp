@@ -8,7 +8,8 @@ namespace SmartGridOne
         VCO2 = 1,
         PostFilter = 2,
         PostAmp = 3,
-        NumScopes = 4
+        Sub = 4,
+        NumScopes = 5
     };
 
     enum class ControlScopes : size_t
@@ -57,7 +58,8 @@ namespace SmartGridOne
         Dry = 3,
         Stereo = 4,
         PartialMachine = 5,
-        NumScopes = 6
+        Sub = 6,
+        NumScopes = 7
     };
 
     enum class QuadControlScopes : size_t

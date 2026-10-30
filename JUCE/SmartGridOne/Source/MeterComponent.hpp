@@ -159,8 +159,8 @@ struct MeteringComponent : public juce::Component
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
 
-    // Total slots: 70 bars
-    // Voice: 18 (9 level + 9 reduction)
+    // Total slots: 70
+    // Voice: 18, split into 36 half-width sub/main level and reduction bars.
     // Source: 8 source groups split internally into left/right lanes.
     // Quad Returns: 24 (3 sends x 4 channels x 2)
     // Stereo Master: 20 (5 groups x 2 channels x 2)
@@ -168,9 +168,9 @@ struct MeteringComponent : public juce::Component
     static constexpr size_t x_quadSlotsPerSend = 8;
     static constexpr float x_voiceStart = 0.0f;
     static constexpr float x_voiceSlots = 18.0f;
-    static constexpr float x_sourceStart = 18.0f;
+    static constexpr float x_sourceStart = x_voiceStart + x_voiceSlots;
     static constexpr float x_sourceSlots = 8.0f;
-    static constexpr float x_quadStart = 26.0f;
+    static constexpr float x_quadStart = x_sourceStart + x_sourceSlots;
     static constexpr float x_quadSlots = static_cast<float>(QuadMixerInternal::x_numSends * x_quadSlotsPerSend);
     static constexpr float x_stereoStart = x_quadStart + x_quadSlots;
     static constexpr float x_stereoSlots = 20.0f;
@@ -237,28 +237,29 @@ struct MeteringComponent : public juce::Component
 
     void DrawVoiceMeters(juce::Graphics& g, VUBarDrawer& vuBarDrawer)
     {
-        // 9 voices, each with level + reduction = 18 bars
+        // Split each voice's original footprint into sub and main meters,
+        // with their reduction bars on the outside of the pair.
         //
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
             MeterReader* meterReader = &GetSquiggleBoyUIState()->m_voiceMeterReader[i];
-            float rms = meterReader->GetRMSDbFSNormalized();
-            float reduction = meterReader->GetReductionDbFSNormalized();
-
+            MeterReader* subMeterReader = &GetSquiggleBoyUIState()->m_subMeterReader[i];
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
             juce::Colour jColor(color.m_red, color.m_green, color.m_blue);
+            float slot = x_voiceStart + 2 * i;
 
-            // Level bar
-            //
-            float levelX0 = (x_voiceStart + 2 * i) / x_totalSlots;
-            float levelX1 = (x_voiceStart + 2 * i + 1) / x_totalSlots;
-            vuBarDrawer.DrawBar(g, jColor, levelX0, levelX1, rms);
-
-            // Reduction bar
-            //
-            float reductionX0 = (x_voiceStart + 2 * i + 1) / x_totalSlots;
-            float reductionX1 = (x_voiceStart + 2 * i + 2) / x_totalSlots;
-            vuBarDrawer.DrawReduction(g, juce::Colours::red, reductionX0, reductionX1, reduction);
+            vuBarDrawer.DrawReduction(g, juce::Colours::red,
+                slot / x_totalSlots, (slot + 0.5f) / x_totalSlots,
+                subMeterReader->GetReductionDbFSNormalized());
+            vuBarDrawer.DrawBar(g, jColor,
+                (slot + 0.5f) / x_totalSlots, (slot + 1.0f) / x_totalSlots,
+                subMeterReader->GetRMSDbFSNormalized());
+            vuBarDrawer.DrawBar(g, jColor,
+                (slot + 1.0f) / x_totalSlots, (slot + 1.5f) / x_totalSlots,
+                meterReader->GetRMSDbFSNormalized());
+            vuBarDrawer.DrawReduction(g, juce::Colours::red,
+                (slot + 1.5f) / x_totalSlots, (slot + 2.0f) / x_totalSlots,
+                meterReader->GetReductionDbFSNormalized());
         }
     }
 

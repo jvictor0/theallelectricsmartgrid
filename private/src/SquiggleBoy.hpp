@@ -243,6 +243,7 @@ struct SquiggleBoyVoice
         BiDirectionalSlew m_subSlew;
 
         ScopeWriterHolder m_scopeWriter;
+        ScopeWriterHolder m_subScopeWriter;
         ScopeWriterHolder m_modulationEnvelopeScopeWriter;
         ScopeWriterHolder m_ampEnvelopeScopeWriter;
         bool m_subRunning;
@@ -291,6 +292,7 @@ struct SquiggleBoyVoice
 
         AmpSection()
             : m_output(0)
+            , m_subOut(0)
         {
             m_freqDependentGainSlew.SetAlphaFromNatFreq(250.0f / 48000.0f);
             m_subRunning = false;
@@ -365,7 +367,8 @@ struct SquiggleBoyVoice
             float mainOut = freqDependentGain * ahdEnv * filterOutput;
             float subOut = freqDependentGain * subEnvelope * sub;
             
-            m_scopeWriter.Write(mainOut + m_subOut);
+            m_scopeWriter.Write(mainOut);
+            m_subScopeWriter.Write(subOut);
             if (m_ahd.m_triggered)
             {
                 m_scopeWriter.RecordStart();
@@ -468,6 +471,7 @@ struct SquiggleBoyVoice
         m_source.m_dualWaveShapingVCO.m_scopeWriter[1] = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::VCO2));
         m_filter.m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::PostFilter));
         m_amp.m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp));
+        m_amp.m_subScopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::Sub));
     }
 
     void SetupControlScopeWriters(ScopeWriter* scopeWriter, size_t voiceIx)
@@ -915,7 +919,8 @@ struct SquiggleBoy
         }
 
 
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Dry)].Write(m_mixer.m_output.m_output);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Dry)].Write(m_mixer.m_dryOutput);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Sub)].Write(m_mixer.m_subOutput);
 
         ProcessSends();
 
@@ -933,9 +938,9 @@ struct SquiggleBoy
 
     void WriteQuadScopes()
     {
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Delay)].Write(m_mixerState.m_return[0]);
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Reverb)].Write(m_mixerState.m_return[1]);
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine)].Write(m_mixerState.m_return[2]);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Delay)].Write(m_mixer.m_returnOutput[0]);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Reverb)].Write(m_mixer.m_returnOutput[1]);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine)].Write(m_mixer.m_returnOutput[2]);
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Master)].Write(m_output.m_output);
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Stereo)].Write(
             m_output.m_stereoOutput.CombineToQuad(m_mixer.m_quadToStereoMixdown.m_output));
@@ -1132,6 +1137,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         std::atomic<float> m_yPos[x_numVoices];
 
         MeterReader m_voiceMeterReader[x_numVoices + SourceMixer::x_numOutputChannels];
+        MeterReader m_subMeterReader[x_numVoices];
         QuadMeterReader m_returnMeterReader[QuadMixerInternal::x_numSends];
         QuadMeterReader m_quadMasterMeterReader;
         StereoMeterReader m_stereoMasterMeterReader;
@@ -1149,6 +1155,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void ReadMeters()
         {
+            for (size_t i = 0; i < x_numVoices; ++i)
+            {
+                m_subMeterReader[i].Process();
+            }
+
             for (size_t i = 0; i < x_numVoices + SourceMixer::x_numOutputChannels; ++i)
             {
                 m_voiceMeterReader[i].Process();
@@ -1165,6 +1176,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void SetMeterReaders(QuadMixerInternal* mixer)
         {
+            for (size_t i = 0; i < x_numVoices; ++i)
+            {
+                m_subMeterReader[i].m_meter = &mixer->m_monoMeters[i];
+            }
+
             for (size_t i = 0; i < x_numVoices + SourceMixer::x_numOutputChannels; ++i)
             {
                 m_voiceMeterReader[i].m_meter = &mixer->m_voiceMeters[i];
@@ -1312,6 +1328,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Reverb)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Reverb));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Master)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Master));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Dry)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Dry));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Sub)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Sub));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Stereo)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Stereo));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine));
 

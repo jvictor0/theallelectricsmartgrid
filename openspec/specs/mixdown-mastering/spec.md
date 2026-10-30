@@ -6,7 +6,7 @@ The mixdown and mastering stage (`QuadMixerInternal` in `private/src/QuadMixer.h
 ## Requirements
 
 ### Requirement: Voice Mixing into the Quad Bus
-The system SHALL mix up to 16 input slots into the main quad bus: the nine voices occupy slots 0-8 with per-voice quad pan coordinates (`m_x`, `m_y`) and gain, and the source-mixer's external sources occupy the following slots panned to center (0.5, 0.5) at unity gain. Each voice is panned with `QuadFloat::Pan(x, y, input)`, soft-limited by a per-voice meter whose tanh saturation yields a reduction factor applied to the post-fader signal, and added to the quad output when its monitor flag is set. Each voice's sub-oscillator output arrives on a separate mono lane (`m_monoIn`), is panned to center, and is summed post-fader with the voice (see voice-architecture for the sub-oscillator itself).
+The system SHALL support up to 32 panned input slots in the main quad bus: the nine voices occupy slots 0-8 with per-voice quad pan coordinates (`m_x`, `m_y`) and gain, and the source-mixer's eight external input lanes occupy slots 9-16 at unity gain with positions determined by their mono/stereo configuration. Each voice is panned with `QuadFloat::Pan(x, y, input)`, soft-limited by a per-voice meter whose tanh saturation yields a reduction factor applied to the post-fader signal, and added to the quad output when its monitor flag is set. Each voice's sub-oscillator output arrives on a separate mono lane (`m_monoIn`), passes through its own meter and tanh saturation, and is panned to center in both live output buses when its independent mono monitor flag is set. Mono lanes have no mixer gain parameter and do not feed effect sends (see voice-architecture for the sub-oscillator itself).
 
 #### Scenario: Voice placement follows pan coordinates
 - **WHEN** voice 0 plays with pan coordinates (x, y) = (1.0, 0.5) and gain 1.0
@@ -14,8 +14,13 @@ The system SHALL mix up to 16 input slots into the main quad bus: the nine voice
 - **AND** the same panned signal, scaled by the voice's send gains, feeds the send buses
 
 #### Scenario: Hot voices are soft-limited per voice
-- **WHEN** a voice's post-gain sample plus its sub lane drives its meter beyond unity
-- **THEN** the meter's tanh stage computes a reduction factor below 1 that scales that voice's contribution to the quad bus, leaving the other voices unaffected
+- **WHEN** a voice's post-gain sample drives its meter beyond unity
+- **THEN** the meter's tanh stage computes a reduction factor below 1 that scales that voice's contribution to the quad bus, leaving its sub lane and other voices unaffected
+
+#### Scenario: Sub levels bypass the voice mixer gain and sends
+- **WHEN** a sub lane carries audio while its voice mixer gain is zero
+- **THEN** the sub is independently saturated and mixed at center without that gain
+- **AND** changing the sub level does not change the voice saturation or any effect send
 
 ### Requirement: Three Effect Send Buses
 The system SHALL maintain exactly three quad send buses (`x_numSends = 3`): send 0 feeds quad-delay, send 1 feeds quad-reverb, and send 2 feeds partial-machine (`SquiggleBoy::ProcessSends`). Each voice contributes its panned signal times an independent per-voice, per-send gain, so any voice can feed any combination of effects. The source-mixer input slots have all send gains forced to zero.
@@ -111,12 +116,12 @@ The system SHALL master the stereo and quad mixes through separate `MasteringCha
 - **THEN** `SetGain` updates the corresponding band gain in both the stereo and quad saturator inputs, keeping the two formats tonally matched
 
 ### Requirement: Separate Panned and Mono Recording Taps
-Performance recording SHALL capture every panned mixer input as a `panned_mono` track and each declared `m_monoIn` lane as a separate `mono` track. For ordinary mixing, recorded panned audio SHALL equal input times fader gain times the existing shared per-input meter reduction, with the current pan coordinates; recorded mono audio SHALL equal the mono lane times that same reduction without the voice fader gain. Recording SHALL remain independent of monitor flags and SHALL NOT change the live mix, sends, meters, or saturation processing.
+Performance recording SHALL capture every panned mixer input as a `panned_mono` track and each declared `m_monoIn` lane as a separate `mono` track. For ordinary mixing, recorded panned audio SHALL equal the saturation of (input times fader gain), with the current pan coordinates; recorded mono audio SHALL equal its independently saturated mono lane without the voice fader gain. Their tap labels SHALL be `post_fader_post_saturation` and `post_saturation`, respectively. Recording SHALL remain independent of both monitor flags and SHALL NOT change the live mix, sends, meters, or saturation processing.
 
-#### Scenario: Voice and sub share their original reduction
-- **WHEN** a voice and its centered mono lane jointly drive the per-voice saturation
-- **THEN** both recorded contributions use the reduction already computed for their combined level
-- **AND** panning and summing the two unquantized contributions reproduces the former recorded quad stem
+#### Scenario: Voice and sub have independent saturation
+- **WHEN** a voice and its centered mono lane both carry audio
+- **THEN** each recorded contribution uses the saturation already computed for that lane
+- **AND** a hot or opposite-polarity sub cannot change the recorded voice's saturation
 
 #### Scenario: Monitor-disabled input remains recordable
 - **WHEN** a source monitor flag is false while the source has audio

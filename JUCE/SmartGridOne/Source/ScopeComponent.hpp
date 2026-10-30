@@ -293,6 +293,12 @@ struct MelodyRollComponent : public SmartGridOneMainVisualizerComponent
 
 struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
 {
+    enum class FilterOverlay
+    {
+        Voice,
+        None,
+    };
+
     static constexpr size_t x_voicesPerTrack = 3;
     WindowedFFT m_windowedFFT[x_voicesPerTrack];
     std::atomic<size_t>* m_voiceIx;
@@ -303,17 +309,28 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
     SquiggleBoyWithEncoderBank::UIState::VoiceFilterUIState* m_voiceFilterUIState;
 
     bool m_logX;
+    FilterOverlay m_filterOverlay;
 
     AnalyserComponent(
         WindowedFFT windowedFFT, 
         int* voiceOffset, 
         TheNonagonSquiggleBoyInternal::UIState* uiState)
+        : AnalyserComponent(windowedFFT, voiceOffset, uiState, FilterOverlay::Voice)
+    {
+    }
+
+    AnalyserComponent(
+        WindowedFFT windowedFFT,
+        int* voiceOffset,
+        TheNonagonSquiggleBoyInternal::UIState* uiState,
+        FilterOverlay filterOverlay)
         : SmartGridOneMainVisualizerComponent()
         , m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
         , m_voiceOffset(voiceOffset)
         , m_uiState(uiState)
         , m_voiceFilterUIState(uiState->m_squiggleBoyUIState.m_voiceFilterUIState)
         , m_logX(true)
+        , m_filterOverlay(filterOverlay)
     {
         for (size_t i = 0; i < x_voicesPerTrack; ++i)
         {
@@ -363,12 +380,15 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
                 juce::Colour(color.m_red, color.m_green, color.m_blue),
                 &m_windowedFFT[i]);
 
-            color = color.Interpolate(SmartGrid::Color::White, 0.5f);
-            responseDrawer.DrawFrequencyResponse(
-                g,
-                juce::Colour(color.m_red, color.m_green, color.m_blue),
-                m_voiceFilterUIState[voiceIx],
-                1.0f / SquiggleBoyVoice::x_oversample);
+            if (m_filterOverlay == FilterOverlay::Voice)
+            {
+                color = color.Interpolate(SmartGrid::Color::White, 0.5f);
+                responseDrawer.DrawFrequencyResponse(
+                    g,
+                    juce::Colour(color.m_red, color.m_green, color.m_blue),
+                    m_voiceFilterUIState[voiceIx],
+                    1.0f / SquiggleBoyVoice::x_oversample);
+            }
         }
     }
 
@@ -389,10 +409,11 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
         Delay,
         Reverb,
         PartialMachine,
-        Master
+        Master,
+        Mix,
     };
 
-    QuadWindowedFFT m_quadWindowedFFT[4];
+    QuadWindowedFFT m_quadWindowedFFT[5];
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     bool m_drawAll;
 
@@ -414,6 +435,7 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
             m_quadWindowedFFT[1] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Reverb));
             m_quadWindowedFFT[2] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine));
             m_quadWindowedFFT[3] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Dry));
+            m_quadWindowedFFT[4] = QuadWindowedFFT(&uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Sub));
         }
     }
 
@@ -436,6 +458,11 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
 
     const TransferFunction* GetTransferFunctionForSpeaker(Type type, size_t speakerIx) const
     {
+        if (m_type == Type::Mix)
+        {
+            return nullptr;
+        }
+
         switch (type)
         {
             case Type::Delay:
@@ -445,6 +472,7 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
             case Type::PartialMachine:
                 return &m_uiState->m_squiggleBoyUIState.m_partialMachineUIState.m_quadComponentTransferFunction[speakerIx];
             case Type::Master:
+            case Type::Mix:
                 return nullptr;
         }
 
@@ -455,8 +483,9 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
     {
         g.fillAll(juce::Colours::black);
 
-        if (m_drawAll && m_type != Type::Master)
+        if (m_type == Type::Mix || (m_drawAll && m_type != Type::Master))
         {
+            DrawOne(g, 4, Type::Master, SmartGrid::Color::White, boundsRect);
             DrawOne(g, 3, Type::Master, SmartGrid::Color::Yellow, boundsRect);
 
             if (m_type == Type::Delay)
@@ -471,7 +500,7 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
                 DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
                 DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
             }
-            else if (m_type == Type::PartialMachine)
+            else if (m_type == Type::PartialMachine || m_type == Type::Mix)
             {
                 DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
                 DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
@@ -528,7 +557,10 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
 
     void OnClick(const juce::MouseEvent& event) override
     {
-        m_drawAll = !m_drawAll;
+        if (m_type != Type::Mix)
+        {
+            m_drawAll = !m_drawAll;
+        }
     }
 };
 

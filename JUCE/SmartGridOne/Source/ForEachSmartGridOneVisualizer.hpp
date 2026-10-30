@@ -92,7 +92,7 @@ F(
     Full,
     std::make_unique<QuadAnalyserComponent>(
         uiState,
-        QuadAnalyserComponent::Type::Master),
+        QuadAnalyserComponent::Type::Mix),
     VoiceMachine::SourceMachineFlags::All())
 
 // Shape bank
@@ -184,6 +184,21 @@ F(
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
         uiState),
+    VoiceMachine::SourceMachineFlags::All())
+
+// Sub bank
+//
+F(
+    SubAnalyzer,
+    Sub,
+    0,
+    3,
+    Full,
+    std::make_unique<AnalyserComponent>(
+        WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SmartGridOne::AudioScopes::Sub)),
+        &m_scopeVoiceOffset,
+        uiState,
+        AnalyserComponent::FilterOverlay::None),
     VoiceMachine::SourceMachineFlags::All())
 
 // Delay bank

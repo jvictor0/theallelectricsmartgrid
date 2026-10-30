@@ -428,6 +428,11 @@ capture without waiting or overwriting. New starts are rejected until worker
 closure is acknowledged. Shutdown runs after audio callbacks are quiescent and
 drains/joins before storage destruction.
 
+Panned inputs are captured after their mixer gain and independent saturation
+(`post_fader_post_saturation`). Mono sub lanes use their own saturation
+(`post_saturation`), with no mixer gain or effect sends. Both taps are captured
+regardless of their independent live-monitor flags.
+
 The current mixer has 31 tracks / 78 streams: 17 panned inputs, 9 mono lanes,
 3 quad returns and the two masters. Its ring holds about 0.68 seconds; storage
 is about 35 MiB for audio, plus two 8 MiB arenas for initial/reset snapshots and event storage,

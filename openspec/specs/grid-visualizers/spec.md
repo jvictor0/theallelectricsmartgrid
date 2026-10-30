@@ -5,6 +5,41 @@ The grid visualizer system (`JUCE/SmartGridOne/Source/SmartGridOneVisualizerMain
 
 ## Requirements
 
+### Requirement: Per-Voice Sub Meter and Spectrum
+The metering strip SHALL split each voice's original meter footprint into four equal bars ordered left to right: sub reduction, sub level, main level, main reduction. Both level bars SHALL use the voice color, and both reduction bars SHALL use red. Sub levels and reductions SHALL come from the corresponding mono lane's independent saturation meter before monitoring. The source, return, and master meters SHALL retain their original positions and widths. The Sub page SHALL show a full-width spectrum analyzer for the active trio's shaped and enveloped sub audio, using the usual all-voices or individual-voice selection and voice colors. It SHALL omit the main voice filter-response overlay.
+
+#### Scenario: Each sub is metered beside its own voice
+- **WHEN** a voice's sub saturates while its main signal remains quiet
+- **THEN** the leftmost reduction bar and adjacent sub level reflect that mono lane
+- **AND** the main level and rightmost reduction bar reflect only the main voice signal
+
+#### Scenario: Sub analyzer follows the selected trio
+- **WHEN** the Sub page is selected and the active trio changes
+- **THEN** the analyzer reads that trio's sub audio channels, including release tails
+- **AND** main voice audio and main filter settings do not alter the displayed sub spectrum
+
+### Requirement: Separate Sub and Dry Quad Spectra
+Combined quad analyzers SHALL display subs in white, dry inputs in yellow, delay in pink, reverb in purple, and Partial Machine in cyan. Dry and sub scopes SHALL contain separate monitored sums after input saturation, before effects returns and mastering. Dry SHALL include the panned voice and external source inputs and SHALL exclude the centered mono sub lanes. The sub scope SHALL contain only those centered mono lanes. These display taps SHALL NOT alter live audio, recording, or effects routing.
+
+The FX Matrix page SHALL always display all five spectra without transfer-function overlays. Effect pages SHALL include the white sub spectrum in their combined view and retain their existing effect response overlays and solo toggle. The Mastering page SHALL continue to display the mastered output spectrum.
+
+Delay, reverb, and Partial Machine scopes SHALL read the same per-return quad samples added to the mix and recorded as effect stems, after return gain and return saturation but before mastering and master volume. A zero return gain or noise mode SHALL produce silence in that effect's scope. This SHALL apply to every analyzer using those scopes, including the FX Matrix and individual effect pages.
+
+#### Scenario: Subs are isolated from dry
+- **WHEN** only monitored sub lanes produce audio
+- **THEN** the white spectrum shows that audio and the yellow dry spectrum is silent
+- **AND** disabling a sub lane's monitor removes its contribution from the white spectrum
+
+#### Scenario: FX Matrix displays five sources
+- **WHEN** the FX Matrix page is selected
+- **THEN** each speaker's analyzer shows sub, dry, delay, reverb, and Partial Machine spectra in their respective colors
+- **AND** no filter or effect transfer-function curve is drawn
+
+#### Scenario: Effect spectra follow their return faders
+- **WHEN** an effect continues producing audio while its return gain is reduced to zero
+- **THEN** its spectrum decays to silence on every page that displays it
+- **AND** raising the return gain displays the gain-scaled, saturated return contribution before mastering
+
 ### Requirement: Visualizer Render-Closure Abstraction
 Visualizers SHALL implement the `SmartGridOneMainVisualizerComponent` interface: a pure virtual `Draw(juce::Graphics&, juce::Rectangle<int> bounds)` plus an optional `OnClick(const juce::MouseEvent&)` override that defaults to a no-op. Visualizers are not JUCE Components; the single hosting component `SmartGridOneVisualizerMain` owns them, sets the clip region and origin before each call, and passes block-local bounds anchored at (0, 0).
 

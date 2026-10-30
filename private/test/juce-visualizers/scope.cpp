@@ -118,6 +118,146 @@ DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequen
     }
 }
 
+DOCTEST_TEST_CASE("Analyser: sub spectrum follows the trio and ignores the main signal and filter")
+{
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& writer = ui->m_squiggleBoyUIState.m_audioScopeWriter;
+    const size_t subScope = static_cast<size_t>(SmartGridOne::AudioScopes::Sub);
+    const size_t mainScope = static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp);
+    for (size_t sample = 0; sample < BasicWaveTable::x_tableSize; ++sample)
+    {
+        for (size_t trio = 0; trio < SquiggleBoy::x_numTracks; ++trio)
+        {
+            const float phase = 2.0f * static_cast<float>(M_PI) * sample / BasicWaveTable::x_tableSize;
+            writer.Write(subScope, trio * 3, 0.5f * std::sin((8 + 8 * trio) * phase));
+            writer.Write(mainScope, trio * 3, 0.9f * std::sin(64 * phase));
+        }
+
+        writer.AdvanceIndex();
+    }
+
+    writer.Publish();
+    int voiceOffset = 0;
+    for (size_t trio = 0; trio < SquiggleBoy::x_numTracks; ++trio)
+    {
+        ui->m_squiggleBoyUIState.m_activeTrack.store(trio);
+        AnalyserComponent analyser(WindowedFFT(&writer, subScope), &voiceOffset, ui.get(),
+            AnalyserComponent::FilterOverlay::None);
+        juce::Image spectrum(juce::Image::ARGB, 512, 200, true);
+        juce::Graphics graphics(spectrum);
+        analyser.Draw(graphics, spectrum.getBounds());
+        const auto& components = analyser.m_windowedFFT[0].m_dft.m_components;
+        size_t peak = 0;
+        for (size_t bin = 1; bin < DiscreteFourierTransform::x_maxComponents; ++bin)
+        {
+            if (std::abs(components[bin]) > std::abs(components[peak]))
+            {
+                peak = bin;
+            }
+        }
+
+        DOCTEST_CHECK(peak == 8 + 8 * trio);
+        auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[trio * 3];
+        filter.m_lpLadder.m_alpha.store(0.01f);
+        filter.m_lpLadder.m_feedback.store(3.0f);
+        AnalyserComponent changedFilter(WindowedFFT(&writer, subScope), &voiceOffset, ui.get(),
+            AnalyserComponent::FilterOverlay::None);
+        juce::Image unchangedSpectrum(juce::Image::ARGB, 512, 200, true);
+        juce::Graphics changedGraphics(unchangedSpectrum);
+        changedFilter.Draw(changedGraphics, unchangedSpectrum.getBounds());
+        bool equal = true;
+        for (int y = 0; y < spectrum.getHeight(); ++y)
+        {
+            for (int x = 0; x < spectrum.getWidth(); ++x)
+            {
+                equal = equal && spectrum.getPixelAt(x, y) == unchangedSpectrum.getPixelAt(x, y);
+            }
+        }
+
+        DOCTEST_CHECK(equal);
+    }
+}
+
+DOCTEST_TEST_CASE("Quad analyser: mix draws five separate colored spectra without transfer functions")
+{
+    using Scope = SmartGridOne::QuadScopes;
+    using Type = QuadAnalyserComponent::Type;
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& writer = ui->m_squiggleBoyUIState.m_quadScopeWriter;
+    for (size_t sample = 0; sample < BasicWaveTable::x_tableSize; ++sample)
+    {
+        const float phase = 2.0f * static_cast<float>(M_PI) * sample / BasicWaveTable::x_tableSize;
+        for (size_t scope = 0; scope < static_cast<size_t>(Scope::NumScopes); ++scope)
+        {
+            for (size_t speaker = 0; speaker < 4; ++speaker)
+            {
+                writer.Write(scope, speaker, 0.5f * std::sin((8 + 16 * scope + 2 * speaker) * phase));
+            }
+        }
+
+        writer.AdvanceIndex();
+    }
+
+    writer.Publish();
+    auto analyser = std::make_unique<QuadAnalyserComponent>(ui.get(), Type::Mix);
+    analyser->m_drawAll = false;
+    juce::Image spectrum(juce::Image::ARGB, 1024, 512, true);
+    juce::Graphics graphics(spectrum);
+    analyser->Draw(graphics, spectrum.getBounds());
+    const Scope x_scopes[] = {Scope::Delay, Scope::Reverb, Scope::PartialMachine, Scope::Dry, Scope::Sub};
+    const SmartGrid::Color x_colors[] =
+    {
+        SmartGrid::Color::Pink, SmartGrid::Color::Fuscia, SmartGrid::Color::Cyan,
+        SmartGrid::Color::Yellow, SmartGrid::Color::White
+    };
+    for (size_t source = 0; source < 5; ++source)
+    {
+        DOCTEST_CAPTURE(source);
+        for (size_t speaker = 0; speaker < 4; ++speaker)
+        {
+            const auto& components = analyser->m_quadWindowedFFT[source].m_dft[speaker].m_components;
+            size_t peak = 0;
+            for (size_t bin = 1; bin < DiscreteFourierTransform::x_maxComponents; ++bin)
+            {
+                if (std::abs(components[bin]) > std::abs(components[peak]))
+                {
+                    peak = bin;
+                }
+            }
+
+            DOCTEST_CHECK(peak == 8 + 16 * static_cast<size_t>(x_scopes[source]) + 2 * speaker);
+            for (Type type : {Type::Delay, Type::Reverb, Type::PartialMachine})
+            {
+                DOCTEST_CHECK(analyser->GetTransferFunctionForSpeaker(type, speaker) == nullptr);
+            }
+        }
+
+        const auto color = x_colors[source];
+        const int maxColor = std::max({color.m_red, color.m_green, color.m_blue});
+        size_t pixels[4] = {};
+        for (int y = 0; y < spectrum.getHeight(); ++y)
+        {
+            for (int x = 0; x < spectrum.getWidth(); ++x)
+            {
+                const auto pixel = spectrum.getPixelAt(x, y);
+                const int maxPixel = std::max({pixel.getRed(), pixel.getGreen(), pixel.getBlue()});
+                if (maxPixel > 32
+                    && std::abs(pixel.getRed() * maxColor - color.m_red * maxPixel) <= 3 * maxColor
+                    && std::abs(pixel.getGreen() * maxColor - color.m_green * maxPixel) <= 3 * maxColor
+                    && std::abs(pixel.getBlue() * maxColor - color.m_blue * maxPixel) <= 3 * maxColor)
+                {
+                    ++pixels[(y >= spectrum.getHeight() / 2 ? 2 : 0) + (x >= spectrum.getWidth() / 2 ? 1 : 0)];
+                }
+            }
+        }
+
+        for (size_t count : pixels)
+        {
+            DOCTEST_CHECK(count > 5);
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("Scope: reduced point counts preserve the time axis and end marker")
 {
     auto writer = std::make_unique<ScopeWriter>(1, 1);
