@@ -111,6 +111,115 @@ class PublishingTests(unittest.TestCase):
         self.assertEqual((receipt['state'], receipt['job_id'], receipt['permalink']),
                          ('uploaded', job['job_id'], 'https://soundcloud.com/test/1'))
 
+    def announce(self, name='recording-2026-10-01T210000.sgrec', digest='a' * 64):
+        self.service.RegisterTransfer({'path': name, 'sha256': digest,
+                                      'recorded_at': '2026-10-01T21:00:00'})
+        return self.service.Snapshot()['recordings'][0]
+
+    def test_queued_transfer_survives_restart_and_only_uploads_verified_export(self):
+        self.refresh()
+        row = self.announce()
+        self.assertEqual(row['state'], 'pending')
+        artwork = b'\x89PNG\r\n\x1a\ncover'
+        metadata = self.metadata(row, title='Queued title')
+        job = self.service.Submit(metadata, artwork, 'image/png')
+        self.assertEqual(job['state'], 'waiting')
+        self.restart()
+        self.assertEqual(self.refresh()['recordings'][0]['state'], 'waiting')
+        self.assertEqual(self.api.uploads, [])
+        path = self.write_stereo()
+        self.service.RecordingAdded(path)
+        self.assertEqual(self.service.Snapshot()['recordings'][0]['state'], 'waiting')
+        self.service.TransferFinished('recording-2026-10-01T210000.sgrec', 'b' * 64, '')
+        self.assertEqual(self.api.uploads, [])
+        self.service.TransferFinished('recording-2026-10-01T210000.sgrec', 'a' * 64, '')
+        self.wait_for(lambda: self.service.Snapshot()['recordings'][0]['state'] == 'uploaded')
+        result = self.service.Snapshot()['recordings'][0]
+        self.assertEqual((result['id'], result['job_id']), (row['id'], job['job_id']))
+        self.assertEqual(self.api.uploads, [(path.read_bytes(), 'Queued title', artwork)])
+        self.assertEqual(self.service.Submit(metadata, artwork, 'image/png')['job_id'], job['job_id'])
+        self.service.TransferFinished('recording-2026-10-01T210000.sgrec', 'a' * 64, '')
+        self.restart()
+        self.assertEqual(len(self.api.uploads), 1)
+
+    def test_pending_transfers_reserve_titles_and_reject_conflicts_and_links(self):
+        self.refresh()
+        first = self.announce()
+        self.service.Submit(self.metadata(first), b'', '')
+        self.service.RegisterTransfer({'path': 'recording-2026-10-01T220000.sgrec',
+                                       'sha256': 'b' * 64, 'recorded_at': '2026-10-01T22:00:00'})
+        second = self.service.Snapshot()['recordings'][0]
+        job = self.service.Submit(self.metadata(second, 'second'), b'', '')
+        self.assertEqual(job['title'], 'Smart Grid Nightly 2026/10/01 #2')
+        with self.assertRaises(PublishingError):
+            self.announce(digest='c' * 64)
+        with self.assertRaises(PublishingError):
+            self.service.Link({**self.metadata(first), 'track_id': 'anything'})
+        self.service.TransferFinished('recording-2026-10-01T210000.sgrec', 'a' * 64, 'Extraction failed')
+        failed = self.service.Snapshot()['recordings'][1]
+        self.assertEqual((failed['state'], failed['error']), ('waiting', 'Extraction failed'))
+        self.assertEqual(self.api.uploads, [])
+
+    def test_pending_transfer_without_upload_becomes_ready_with_same_identity(self):
+        row = self.announce()
+        self.write_stereo()
+        self.service.TransferFinished('recording-2026-10-01T210000.sgrec', 'a' * 64, '')
+        ready = self.service.Snapshot()['recordings'][0]
+        self.assertEqual((ready['id'], ready['state']), (row['id'], 'ready'))
+        self.assertEqual(ready['draft_version'], row['draft_version'])
+        self.assertNotEqual(ready['version'], row['version'])
+        self.assertEqual(ready['duration_seconds'], 5)
+        self.assertEqual(self.api.uploads, [])
+
+    def test_upload_tapped_as_transfer_finishes_uses_the_same_recording(self):
+        self.refresh()
+        pending = self.announce()
+        self.write_stereo()
+        self.service.TransferFinished('recording-2026-10-01T210000.sgrec', 'a' * 64, '')
+        self.service.Submit(self.metadata(pending), b'', '')
+        self.wait_for(lambda: self.service.Snapshot()['recordings'][0]['state'] == 'uploaded')
+        self.assertEqual(len(self.api.uploads), 1)
+        self.write_stereo(seconds=6)
+        self.refresh()
+        with self.assertRaises(PublishingError):
+            self.service.Submit(self.metadata(pending, 'stale-transfer'), b'', '')
+        self.assertNotEqual(self.service.Snapshot()['recordings'][0]['draft_version'], pending['draft_version'])
+
+    def test_failed_transfer_keeps_queue_until_successful_retry(self):
+        self.refresh()
+        row = self.announce()
+        self.service.Submit(self.metadata(row), b'', '')
+        self.service.TransferFinished('recording-2026-10-01T210000.sgrec', 'a' * 64, 'Incomplete recording')
+        self.restart()
+        self.assertEqual(self.announce()['error'], 'Incomplete recording')
+        self.write_stereo()
+        self.service.TransferFinished('recording-2026-10-01T210000.sgrec', 'a' * 64, '')
+        self.wait_for(lambda: self.service.Snapshot()['recordings'][0]['state'] == 'uploaded')
+        self.assertEqual(len(self.api.uploads), 1)
+
+    def test_incoming_recording_metadata_boundaries(self):
+        metadata = {'path': 'recording.sgrec', 'sha256': 'a' * 64, 'recorded_at': '2026-10-01T21:00:00'}
+        for change in ({'path': '../escape.sgrec'}, {'path': '/escape.sgrec'}, {'path': 'x/../escape.sgrec'},
+                       {'path': '.hidden.sgrec'}, {'path': 'x_stereo.wav'}, {'sha256': 'bad'},
+                       {'recorded_at': 'yesterday'}, {'path': 'recording.txt'}):
+            with self.subTest(change=change), self.assertRaises(PublishingError):
+                self.service.RegisterTransfer({**metadata, **change})
+        self.assertEqual(self.service.Snapshot()['recordings'], [])
+
+    def test_queued_transfer_rechecks_upload_limits_when_export_is_ready(self):
+        self.refresh()
+        row = self.announce()
+        self.service.Submit(self.metadata(row), b'', '')
+        with wave.open(str(self.root / 'recordings/recording-2026-10-01T210000_stereo.wav'), 'wb') as output:
+            output.setnchannels(2)
+            output.setsampwidth(2)
+            output.setframerate(1)
+            output.writeframes(b'\0' * (25 * 3600 * 4))
+        self.service.TransferFinished('recording-2026-10-01T210000.sgrec', 'a' * 64, '')
+        self.wait_for(lambda: self.service.Snapshot()['recordings'][0]['state'] == 'failed')
+        self.assertIn('limits', self.service.Snapshot()['recordings'][0]['error'])
+        self.assertEqual(self.api.uploads, [])
+
     def test_successful_prior_receipt_durably_claims_new_request_identity(self):
         self.write_stereo()
         self.write_stereo('recording-2026-10-02T210000_stereo.wav')

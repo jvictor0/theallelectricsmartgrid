@@ -49,7 +49,7 @@ class IdentityTests(unittest.TestCase):
                 connection.request('GET', '/v1/manifest', headers={'Authorization': 'Bearer secret'})
                 response = connection.getresponse()
                 self.assertEqual(response.status, 200)
-                self.assertEqual(json.loads(response.read()), {'version': 1, 'patches': []})
+                self.assertEqual(json.loads(response.read()), {'version': 1, 'patches': [], 'publishing_transfers': True})
                 connection.close()
             finally:
                 idle.close()
@@ -101,6 +101,20 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(self.Request('POST', '/v1/publishing/refresh', b'{}', {'Content-Type': 'application/json'})[0], 202)
         self.assertEqual(self.Request('POST', '/v1/publishing/links', b'{"recording_id":"../escape","version":"v","track_id":"x"}', {'Content-Type': 'application/json'})[0], 404)
         self.assertEqual(self.Request('POST', '/v1/publishing/refresh', b'[]', {'Content-Type': 'application/json'})[0], 400)
+
+    def test_incoming_recordings_endpoint_requires_auth_and_valid_metadata(self):
+        route = '/v1/publishing/transfers'
+        headers = {'Content-Type': 'application/json'}
+        metadata = {'path': 'recording.sgrec', 'sha256': 'a' * 64, 'recorded_at': '2026-10-01T21:00:00'}
+        body = json.dumps(metadata).encode()
+        self.assertEqual(self.Request('POST', route, body, {**headers, 'Authorization': 'Bearer wrong'})[0], 401)
+        self.assertEqual(self.Request('POST', route, b'[]', headers)[0], 400)
+        self.assertEqual(self.Request('POST', route, json.dumps({**metadata, 'path': '../escape.sgrec'}).encode(), headers)[0], 400)
+        self.assertEqual(self.Request('POST', route, body, headers)[0], 202)
+        self.assertEqual(self.Request('POST', route, body, headers)[0], 202)
+        rows = json.loads(self.Request('GET', '/v1/publishing')[1])['recordings']
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['state'], 'pending')
 
     def test_publishing_catalog_failure_preserves_successful_sync_receipt(self):
         fixture = Path(__file__).resolve().parents[2] / 'private/test/fixtures/streaming-recording/golden.sgrec'
@@ -183,7 +197,7 @@ class ReceiverTests(unittest.TestCase):
         connection.close()
         status, body = self.Request('GET', '/v1/manifest')
         self.assertEqual(status, 200)
-        self.assertEqual(json.loads(body), {'version': 1, 'patches': [{
+        self.assertEqual(json.loads(body), {'version': 1, 'publishing_transfers': True, 'patches': [{
             'path': 'sub/tone.json', 'size': 3,
             'sha256': hashlib.sha256(b'abc').hexdigest(),
         }]})

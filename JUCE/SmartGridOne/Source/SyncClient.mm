@@ -251,6 +251,38 @@ struct SyncClient::Impl
             && memcmp(header + 12, "ds64", 4) == 0 && Little(header + 20, 8) + 8 == size;
     }
 
+    NSString* RecordedAt(const fs::path& path)
+    {
+        std::ifstream input(path, std::ios::binary);
+        unsigned char prefix[12]{};
+        input.read(reinterpret_cast<char*>(prefix), sizeof(prefix));
+        if (input.gcount() == sizeof(prefix) && memcmp(prefix, "SMRTGRID", 8) == 0)
+        {
+            const auto length = Little(prefix + 8, 4);
+            if (length > 0 && length <= 1024 * 1024)
+            {
+                std::vector<char> bytes(static_cast<size_t>(length));
+                if (input.read(bytes.data(), static_cast<std::streamsize>(length)))
+                {
+                    id json = [NSJSONSerialization JSONObjectWithData:[NSData dataWithBytes:bytes.data() length:bytes.size()] options:0 error:nil];
+                    if ([json isKindOfClass:[NSDictionary class]] && [json[@"recorded_at_utc"] isKindOfClass:[NSString class]])
+                    {
+                        return json[@"recorded_at_utc"];
+                    }
+                }
+            }
+        }
+
+        NSDictionary* attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:Native(path.string()) error:nil];
+        NSDate* modified = attributes[NSFileModificationDate];
+        if (modified == nil)
+        {
+            throw std::runtime_error("Cannot read recording date");
+        }
+
+        return [[[NSISO8601DateFormatter alloc] init] stringFromDate:modified];
+    }
+
     struct Response
     {
         NSData* m_data = nil;
@@ -260,8 +292,8 @@ struct SyncClient::Impl
     };
 
     NSData* Request(const std::string& method, const std::string& endpoint,
-        const std::string& relative = {}, const fs::path& upload = {},
-        const std::string& digest = {}, const fs::path& download = {})
+        const std::string& relative, const fs::path& upload,
+        const std::string& digest, const fs::path& download, NSDictionary* metadata)
     {
         Check();
         NSURLComponents* url = [[NSURLComponents alloc] init];
@@ -289,6 +321,12 @@ struct SyncClient::Impl
             [request setValue:Native(digest) forHTTPHeaderField:@"X-SHA256"];
             [request setValue:Native(std::to_string(fs::file_size(upload))) forHTTPHeaderField:@"Content-Length"];
             [request setValue:@"application/octet-stream" forHTTPHeaderField:@"Content-Type"];
+        }
+
+        if (metadata != nil)
+        {
+            request.HTTPBody = [NSJSONSerialization dataWithJSONObject:metadata options:0 error:nil];
+            [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
         }
 
         auto response = std::make_shared<Response>();
@@ -384,7 +422,7 @@ struct SyncClient::Impl
         try
         {
             Message("Receiving patch: " + relative);
-            Request("GET", "patch", relative, {}, {}, partial);
+            Request("GET", "patch", relative, {}, {}, partial, nil);
             if (Hash(partial) != digest)
             {
                 throw std::runtime_error("Patch checksum mismatch: " + relative);
@@ -408,7 +446,7 @@ struct SyncClient::Impl
     void UploadLog(const std::string& relative)
     {
         const auto source = Local("logs", relative);
-        NSDictionary* remote = Json(Request("GET", "log", relative));
+        NSDictionary* remote = Json(Request("GET", "log", relative, {}, {}, {}, nil));
         NSNumber* remoteSize = remote[@"size"];
         if ([remoteSize isKindOfClass:[NSNumber class]] && remoteSize.longLongValue >= 0
             && remoteSize.unsignedLongLongValue >= fs::file_size(source))
@@ -442,7 +480,7 @@ struct SyncClient::Impl
             }
 
             Message("Sending log: " + relative);
-            Request("PUT", "log", relative, snapshot, Hash(snapshot));
+            Request("PUT", "log", relative, snapshot, Hash(snapshot), {}, nil);
             fs::remove(snapshot);
         }
         catch (...)
@@ -459,7 +497,7 @@ struct SyncClient::Impl
             try
             {
                 Message("Comparing patches");
-                NSDictionary* manifest = Json(Request("GET", "manifest"));
+                NSDictionary* manifest = Json(Request("GET", "manifest", {}, {}, {}, {}, nil));
                 if (![manifest[@"version"] isKindOfClass:[NSNumber class]] || [manifest[@"version"] intValue] != 1 || ![manifest[@"patches"] isKindOfClass:[NSArray class]])
                 {
                     throw std::runtime_error("Unsupported receiver manifest");
@@ -484,7 +522,7 @@ struct SyncClient::Impl
                     {
                         const auto path = Local("patches", relative);
                         Message("Sending patch: " + relative);
-                        Request("PUT", "patch", relative, path, Hash(path));
+                        Request("PUT", "patch", relative, path, Hash(path), {}, nil);
                     }
                 }
 
@@ -516,19 +554,39 @@ struct SyncClient::Impl
                     Message("Checking recording: " + relative);
                     const auto digest = Hash(path);
                     Check();
-                    NSDictionary* existing = Json(Request("GET", "recording", relative, {}, digest));
+                    recordings.push_back({relative, digest, size, modified});
+                    if ([manifest[@"publishing_transfers"] boolValue])
+                    {
+                        try
+                        {
+                            Request("POST", "publishing/transfers", {}, {}, {}, {},
+                                @{@"path": Native(relative), @"sha256": Native(digest), @"recorded_at": RecordedAt(path)});
+                        }
+                        catch (const std::exception& error)
+                        {
+                            Check();
+                            std::lock_guard<std::mutex> lock(m_statusMutex);
+                            m_status.m_publishingError = "Could not list pending recording: " + std::string(error.what());
+                        }
+                    }
+                }
+
+                for (const auto& recording : recordings)
+                {
+                    const auto& relative = recording.m_relative;
+                    const auto& digest = recording.m_digest;
+                    const auto path = Local("recordings", relative);
+                    NSDictionary* existing = Json(Request("GET", "recording", relative, {}, digest, {}, nil));
                     const auto state = Text(existing[@"state"]);
                     if (state == "missing")
                     {
-                        Message("Sending recording " + std::to_string(recordings.size() + 1) + ": " + relative);
-                        Request("PUT", "recording", relative, path, digest);
+                        Message("Sending recording: " + relative);
+                        Request("PUT", "recording", relative, path, digest, {}, nil);
                     }
                     else if (state != "extracting" && state != "complete")
                     {
                         throw std::runtime_error("Receiver cannot use recording: " + relative + ": " + Text(existing[@"error"]));
                     }
-
-                    recordings.push_back({relative, digest, size, modified});
                 }
 
                 for (const auto& relative : Files("logs"))
@@ -541,7 +599,7 @@ struct SyncClient::Impl
                     Message("Extracting stereo: " + recording.m_relative);
                     while (true)
                     {
-                        NSDictionary* receipt = Json(Request("GET", "recording", recording.m_relative, {}, recording.m_digest));
+                        NSDictionary* receipt = Json(Request("GET", "recording", recording.m_relative, {}, recording.m_digest, {}, nil));
                         const auto state = Text(receipt[@"state"]);
                         if (state == "failed")
                         {
@@ -854,6 +912,7 @@ void SyncClient::Start(const Receiver& receiver, const std::string& token)
         std::lock_guard<std::mutex> lock(state.m_statusMutex);
         state.m_status.m_busy = true;
         state.m_status.m_failed = false;
+        state.m_status.m_publishingError.clear();
         state.m_status.m_sent = 0;
         state.m_status.m_total = 0;
     }

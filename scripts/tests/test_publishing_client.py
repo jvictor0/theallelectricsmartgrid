@@ -26,7 +26,8 @@ class PublishingClientTests(unittest.TestCase):
     def setUpClass(cls):
         cls.build = tempfile.TemporaryDirectory()
         root = Path(cls.build.name)
-        cls.binary = root / 'publisher'
+        cls.binary = ROOT / 'build/native-tests' / 'publisher'
+        cls.binary.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(['clang++', '-std=c++17', '-fobjc-arc', '-Wno-deprecated-declarations',
                         '-framework', 'Foundation', '-framework', 'Security',
                         '-I', str(ROOT / 'JUCE/SmartGridOne/Source'),
@@ -69,6 +70,13 @@ class PublishingClientTests(unittest.TestCase):
                 return original_upload(*args)
             api.Upload = delayed_upload
             service = PublishingService(mac, api)
+            incoming = []
+            if mode == 'queued-transfer':
+                for day in ('03', '04'):
+                    name = f'recording-2026-10-{day}T210000.sgrec'
+                    (ipad / 'recordings' / name).write_bytes((ROOT / 'private/test/fixtures/streaming-recording/golden.sgrec').read_bytes())
+                    incoming.append(name)
+                (ipad / 'recordings/unfinished.sgrec').write_bytes(b'SMRTGRIDunfinished')
             catalog_entered = threading.Event()
             premature_receipts = []
             if mode == 'final-sync':
@@ -96,7 +104,19 @@ class PublishingClientTests(unittest.TestCase):
             calls = []
             accepted = []
             dropped = []
+            before_transfer = []
             class Handler(SyncHandler):
+                def do_PUT(self):
+                    if mode == 'queued-transfer' and self.path.startswith('/v1/recording?') and not before_transfer:
+                        before_transfer.extend(service.Snapshot()['recordings'])
+                        deadline = time.monotonic() + 10
+                        while time.monotonic() < deadline:
+                            rows = service.Snapshot()['recordings']
+                            if sum(row['state'] == 'waiting' for row in rows) == 2:
+                                break
+                            time.sleep(0.02)
+                        time.sleep(0.3)
+                    super().do_PUT()
                 def do_GET(self):
                     calls.append((time.monotonic(), self.path))
                     if mode == 'old' and self.path == '/v1/publishing':
@@ -147,6 +167,16 @@ class PublishingClientTests(unittest.TestCase):
                     self.assertEqual(api.uploads, [])
                     self.assertFalse([path for _, path in calls if path == '/v1/publishing/uploads'],
                                      'unbounded request was sent to receiver')
+                elif mode == 'queued-transfer':
+                    self.assertEqual(len(before_transfer), 4)
+                    self.assertEqual(sum(row['state'] == 'pending' for row in before_transfer), 2)
+                    self.assertEqual(len(api.uploads), 2)
+                    self.assertEqual(sorted(upload[1:] for upload in api.uploads), [('Queued 1', b''), ('Queued 2', b'')])
+                    self.assertEqual([row['title'] for row in service.Snapshot()['recordings'][:2]], ['Queued 1', 'Queued 2'])
+                    self.assertEqual(len(accepted), 2)
+                    self.assertTrue(all(not (ipad / 'recordings' / name).exists() for name in incoming))
+                    self.assertTrue((ipad / 'recordings/unfinished.sgrec').exists())
+                    self.assertEqual([row['state'] for row in service.Snapshot()['recordings'][:2]], ['uploaded', 'uploaded'])
                 elif mode == 'two-recordings':
                     self.assertEqual(len(api.uploads), 2)
                     self.assertEqual(api.uploads[0][1:], ('Custom title', artwork.read_bytes()))
@@ -209,6 +239,9 @@ class PublishingClientTests(unittest.TestCase):
 
     def test_final_sync_export_appears_when_idle_precedes_next_poll(self):
         self.run_scenario('final-sync')
+
+    def test_incoming_recordings_can_queue_before_transfer_and_finish_with_controls_closed(self):
+        self.run_scenario('queued-transfer')
 
     def test_wrong_fingerprint_rejects_receiver(self):
         self.run_scenario('wrong')

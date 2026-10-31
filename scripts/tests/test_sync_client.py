@@ -21,7 +21,8 @@ class NativeClientTests(unittest.TestCase):
     def setUpClass(cls):
         cls.m_build = tempfile.TemporaryDirectory()
         build = Path(cls.m_build.name)
-        cls.m_binary = build / 'client'
+        cls.m_binary = ROOT / 'build/native-tests' / 'sync-client'
+        cls.m_binary.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(['clang++', '-std=c++17', '-fobjc-arc', '-Wno-deprecated-declarations',
                         '-framework', 'Foundation', '-framework', 'Security',
                         '-I', str(ROOT / 'JUCE/SmartGridOne/Source'),

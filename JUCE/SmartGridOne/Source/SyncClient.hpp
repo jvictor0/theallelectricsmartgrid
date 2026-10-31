@@ -23,6 +23,7 @@ struct SyncClient
     {
         std::vector<Receiver> m_receivers;
         std::string m_message = "Open Sync to discover receivers";
+        std::string m_publishingError;
         uint64_t m_sent = 0;
         uint64_t m_total = 0;
         double m_bytesPerSecond = 0;

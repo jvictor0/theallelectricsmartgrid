@@ -125,6 +125,66 @@ int main(int argc, char** argv)
             return 10;
         }
 
+        if (mode == "queued-transfer")
+        {
+            client.SetSyncBusy(true);
+            sync.Start(receiver, "test-code");
+            if (!Wait([&]()
+            {
+                const auto state = client.Snapshot();
+                return !state.m_busy && state.m_recordings.size() == 4
+                    && state.m_recordings[0].m_state == "pending" && state.m_recordings[1].m_state == "pending";
+            }))
+            {
+                return 41;
+            }
+
+            const auto incoming = client.Snapshot().m_recordings;
+            for (size_t i = 0; i < 2; ++i)
+            {
+                PublishingClient::Upload queued;
+                queued.m_recordingId = incoming[i].m_id;
+                queued.m_version = incoming[i].m_version;
+                queued.m_requestId = "queued-" + std::to_string(i);
+                queued.m_useDefault = false;
+                queued.m_title = "Queued " + std::to_string(i + 1);
+                client.Submit(queued);
+                if (!Wait([&]()
+                {
+                    const auto state = client.Snapshot();
+                    return !state.m_busy && state.m_recordings[i].m_state == "waiting" && state.m_pendingRequestId.empty();
+                }))
+                {
+                    return 42;
+                }
+            }
+
+            client.Close();
+            if (!Wait([&]() { return !sync.Snapshot().m_busy; }) || sync.Snapshot().m_failed)
+            {
+                return 43;
+            }
+
+            client.Open();
+            client.Select(receiver, "test-code");
+            client.SetSyncBusy(false);
+            if (!Wait([&]()
+            {
+                const auto state = client.Snapshot();
+                return state.m_recordings.size() == 4 && state.m_recordings[0].m_state == "uploaded"
+                    && state.m_recordings[1].m_state == "uploaded"
+                    && state.m_recordings[0].m_draftVersion == incoming[0].m_draftVersion
+                    && state.m_recordings[0].m_version != incoming[0].m_version;
+            }))
+            {
+                return 44;
+            }
+
+            client.Close();
+            sync.Close();
+            return 0;
+        }
+
         if (mode == "final-sync")
         {
             if (!Wait([&]() { auto state = client.Snapshot(); return !state.m_busy && !state.m_refreshing; }))

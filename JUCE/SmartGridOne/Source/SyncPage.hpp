@@ -197,7 +197,8 @@ struct SyncPage : juce::Component, juce::ListBoxModel, juce::Timer
         m_publishingPanel.Refresh();
         m_receivers.updateContent();
         m_receivers.repaint();
-        m_status.setText(juce::String(m_snapshot.m_message), juce::dontSendNotification);
+        m_status.setText(juce::String(m_snapshot.m_message)
+            + (m_snapshot.m_publishingError.empty() ? juce::String() : " — " + juce::String(m_snapshot.m_publishingError)), juce::dontSendNotification);
         m_cancel.setEnabled(m_snapshot.m_busy);
         m_pair.setEnabled(true);
         constexpr double x_mib = 1024.0 * 1024.0;

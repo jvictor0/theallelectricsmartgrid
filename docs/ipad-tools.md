@@ -202,9 +202,12 @@ update message while ordinary sync remains available.
    and access code if needed. Selecting it starts normal sync and loads the
    publishing panel independently; existing stereo masters can be selected
    before sync finishes. Check the displayed SoundCloud account.
-2. Choose a stereo recording from the newest-first list. Only completed
-   `*_stereo.wav` exports appear. The selected details show its filename and
-   default title; recording date and duration appear in the list.
+2. Choose a recording from the newest-first list. Completed `*_stereo.wav`
+   exports and incoming recordings appear together. Before sending audio, the
+   iPad announces each finished source recording; these rows show **Pending
+   transfer**. Unfinished recordings are excluded. Duration appears once the
+   Mac has extracted the stereo file. This requires an updated Mac receiver;
+   older receivers continue to support ordinary sync.
 3. Leave the title automatic, or enter a custom title. **Use default** restores
    automatic naming. The default is `Smart Grid Nightly YYYY/MM/DD`, using the
    recording's stored local start date. The first known post for a date has no
@@ -219,9 +222,14 @@ update message while ordinary sync remains available.
    normalizes the image and shows a thumbnail. **Remove image** clears it;
    cancelling the picker preserves the draft. No artwork is inherited from a
    previous recording.
-5. Tap **Upload** once. Publication is immediate, with genre **Electronic** and
-   **public** visibility. No description or tags are added. The row shows Queued,
-   Uploading, then Uploaded. The posted title and link replace the draft, and
+5. Tap **Upload to SoundCloud** once. An incoming recording shows **Queued after
+   transfer**: the Mac saves the request, title, and artwork, then starts the
+   SoundCloud upload after that exact source recording has transferred and its
+   stereo export is ready. You can queue several recordings while sync runs;
+   each becomes eligible as its export completes. A recording already on the
+   Mac enters the upload queue immediately. Publication uses genre **Electronic**
+   and **public** visibility; no description or tags are added. The row proceeds
+   through Queued, Uploading, then Uploaded. The posted title and link replace the draft, and
    **Open on SoundCloud** opens the receipt's link. Uploaded means SoundCloud
    accepted creation; its processing may continue afterward.
 
@@ -265,6 +273,13 @@ its saved job or receipt. Foreground return to an already-open page reconnects
 after discovery without automatically restarting file transfer or submitting
 another upload.
 
+Requests marked **Queued after transfer** also survive leaving the page or
+restarting the receiver. If transfer is cancelled or fails before the stereo
+export is ready, the request stays waiting. Select the Mac again to resume
+sync; publication starts only after a successful matching transfer and
+extraction. An extraction error is displayed on the waiting row. Pending
+transfers cannot be linked to historical tracks until the export is ready.
+
 Stopping the receiver with Ctrl-C, sleeping the Mac, or interrupting its network
 can interrupt the outgoing publication. On receiver restart, queued jobs resume,
 completed receipts remain Uploaded, and jobs interrupted while Uploading become
@@ -272,6 +287,14 @@ Unknown for explicit recovery. The original and stereo recordings remain on the
 Mac regardless of publication outcome.
 
 ### Publishing verification
+
+On 2026-10-29, queued-after-transfer coverage passed with 33 publishing/API
+tests, 13 native publishing scenarios, 12 native sync scenarios, and 20 receiver
+tests. The native TLS scenario queues two incoming recordings before the first
+audio transfer, closes the publishing controls, and recovers both completed
+receipts. Backend cases cover restart persistence, title/artwork retention,
+digest matching, failed-transfer recovery, and a tap during transfer completion.
+These checks use a fake SoundCloud API; no real track was published.
 
 On 2026-10-11, both macOS and iPad simulator builds succeeded. Focused tests used
 real local HTTPS receivers, temporary stereo files, and a fake external account.

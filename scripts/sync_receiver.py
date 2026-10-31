@@ -183,9 +183,11 @@ class SyncServer(ThreadingHTTPServer):
             error = str(failure)
         finally:
             temporary.unlink(missing_ok=True)
-        if not error and self.m_publisher is not None:
+        if self.m_publisher is not None:
             try:
-                self.m_publisher.RecordingAdded(output)
+                if not error:
+                    self.m_publisher.RecordingAdded(output)
+                self.m_publisher.TransferFinished(relative, digest, error or '')
             except Exception as failure:
                 self.m_publishing_error = str(failure)
 
@@ -277,7 +279,8 @@ class SyncHandler(BaseHTTPRequestHandler):
                         if path.is_file():
                             patches.append({'path': path.relative_to(root).as_posix(),
                                             'size': path.stat().st_size, 'sha256': _digest(path)})
-                return self._json(200, {'version': 1, 'patches': patches})
+                return self._json(200, {'version': 1, 'patches': patches,
+                                        'publishing_transfers': self.server.m_publisher is not None})
             if route == '/v1/patch':
                 path = _safe_path(self.server.m_root / 'patches', self._relative(query))
                 if not path.is_file():
@@ -346,7 +349,7 @@ class SyncHandler(BaseHTTPRequestHandler):
         if not self._authorized():
             return
         route, query = self._route()
-        if route not in ('/v1/publishing/refresh', '/v1/publishing/uploads', '/v1/publishing/links'):
+        if route not in ('/v1/publishing/refresh', '/v1/publishing/uploads', '/v1/publishing/links', '/v1/publishing/transfers'):
             return self._json(404, {'error': 'unknown endpoint'})
         if self.server.m_publisher is None:
             return self._json(503, {'error': self.server.m_publishing_error})
@@ -361,6 +364,9 @@ class SyncHandler(BaseHTTPRequestHandler):
             metadata = json.loads(body)
             if not isinstance(metadata, dict):
                 raise PublishingError('JSON object required')
+            if route == '/v1/publishing/transfers':
+                self.server.m_publisher.RegisterTransfer(metadata)
+                return self._json(202, {})
             if route == '/v1/publishing/refresh':
                 if metadata:
                     raise PublishingError('Refresh metadata must be empty')

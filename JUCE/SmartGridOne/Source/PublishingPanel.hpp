@@ -93,7 +93,8 @@ struct PublishingPanel : juce::Component, juce::ListBoxModel
     std::string DraftKey() const
     {
         const auto* row = Selected();
-        return row == nullptr ? std::string() : m_receiver + ":" + row->m_id + ":" + row->m_version;
+        return row == nullptr ? std::string() : m_receiver + ":" + row->m_id + ":"
+            + (row->m_draftVersion.empty() ? row->m_version : row->m_draftVersion);
     }
 
     Draft& CurrentDraft()
@@ -236,7 +237,10 @@ struct PublishingPanel : juce::Component, juce::ListBoxModel
         graphics.drawText(juce::String(row.m_title.empty() ? row.m_suggestedTitle : row.m_title),
             12, 8, width - 24, 26, juce::Justification::centredLeft);
         const auto minutes = static_cast<int>(row.m_durationSeconds / 60);
-        juce::String detail = juce::String(row.m_date) + "    " + juce::String(minutes) + " min    " + juce::String(row.m_state);
+        const bool transferring = row.m_state == "pending" || row.m_state == "waiting";
+        juce::String detail = juce::String(row.m_date) + "    "
+            + (transferring ? juce::String() : juce::String(minutes) + " min    ")
+            + (row.m_state == "pending" ? "Pending transfer" : row.m_state == "waiting" ? "Queued after transfer" : juce::String(row.m_state));
         if (row.m_state == "uploading")
         {
             detail += " " + juce::String(row.m_progress * 100, 0) + "%";
@@ -285,7 +289,8 @@ struct PublishingPanel : juce::Component, juce::ListBoxModel
     {
         const auto* row = Selected();
         const bool connected = m_snapshot.m_selected && m_snapshot.m_available && m_snapshot.m_account.m_connected;
-        const bool editable = connected && row != nullptr && (row->m_state == "ready" || row->m_state == "failed" || row->m_state == "unknown");
+        const bool transferring = row != nullptr && (row->m_state == "pending" || row->m_state == "waiting");
+        const bool editable = connected && row != nullptr && (row->m_state == "pending" || row->m_state == "ready" || row->m_state == "failed" || row->m_state == "unknown");
         const bool pending = row != nullptr && m_snapshot.m_pendingRecordingId == row->m_id;
         for (auto* component : std::initializer_list<juce::Component*>{&m_title, &m_default, &m_files, &m_photos, &m_remove})
         {
@@ -293,8 +298,8 @@ struct PublishingPanel : juce::Component, juce::ListBoxModel
         }
 
         m_refresh.setEnabled(m_snapshot.m_selected && !m_snapshot.m_busy);
-        m_tracks.setEnabled(editable && !m_snapshot.m_busy && !pending);
-        m_link.setEnabled(editable && !m_snapshot.m_busy && !pending && m_tracks.getSelectedId() > 0);
+        m_tracks.setEnabled(editable && !transferring && !m_snapshot.m_busy && !pending);
+        m_link.setEnabled(editable && !transferring && !m_snapshot.m_busy && !pending && m_tracks.getSelectedId() > 0);
         m_account.setVisible(row != nullptr && row->m_state == "unknown");
         juce::String detail;
         if (row != nullptr)
@@ -312,6 +317,13 @@ struct PublishingPanel : juce::Component, juce::ListBoxModel
             if (!row->m_error.empty())
             {
                 detail += "\n" + juce::String(row->m_error);
+            }
+
+            if (transferring)
+            {
+                detail += row->m_state == "waiting"
+                    ? "\nSoundCloud upload saved on the Mac. Waiting for transfer and stereo extraction. Resume sync if the transfer stops."
+                    : "\nWaiting for transfer to the Mac. Upload queues SoundCloud publication after transfer and stereo extraction.";
             }
 
             if (row->m_state == "unknown")
@@ -340,7 +352,8 @@ struct PublishingPanel : juce::Component, juce::ListBoxModel
             : pending ? "Retry same request"
             : row != nullptr && row->m_state == "failed" ? "Retry"
             : row != nullptr && row->m_state == "unknown" ? "Upload again"
-            : "Upload");
+            : row != nullptr && row->m_state == "waiting" ? "Queued after transfer"
+            : "Upload to SoundCloud");
         const bool validTitle = row != nullptr && (CurrentDraft().m_useDefault ? m_snapshot.m_catalogReady : !CurrentDraft().m_title.trim().isEmpty());
         m_upload.setEnabled(row != nullptr && (row->m_state == "uploaded" ? !row->m_permalink.empty()
             : editable && m_snapshot.CanSubmitRecording(row->m_id) && validTitle));

@@ -113,6 +113,9 @@ class RecordingCatalog:
             CREATE TABLE IF NOT EXISTS recordings (
                 id TEXT PRIMARY KEY, path TEXT UNIQUE, version TEXT, recorded_at TEXT,
                 date TEXT, duration REAL, size INTEGER, present INTEGER);
+            CREATE TABLE IF NOT EXISTS transfers (
+                recording_id TEXT PRIMARY KEY, source TEXT UNIQUE, sha256 TEXT,
+                finished INTEGER, error TEXT, version TEXT);
             CREATE TABLE IF NOT EXISTS accounts (
                 id TEXT PRIMARY KEY, name TEXT, ready INTEGER, tracks TEXT);
             CREATE TABLE IF NOT EXISTS requests (
@@ -128,7 +131,7 @@ class RecordingCatalog:
         self.m_db.commit()
 
     def Scan(self):
-        self.m_db.execute('UPDATE recordings SET present=0')
+        self.m_db.execute('UPDATE recordings SET present=0 WHERE id NOT IN (SELECT recording_id FROM transfers WHERE finished=0)')
         directory = self.m_root / 'recordings'
         if directory.exists() and not directory.is_symlink():
             for path in directory.rglob('*_stereo.wav'):
@@ -141,6 +144,8 @@ class RecordingCatalog:
                         continue
                     version = Version(path)
                     previous = self.m_db.execute('SELECT * FROM recordings WHERE path=?', (relative,)).fetchone()
+                    if previous and self.Pending(previous['id']):
+                        continue
                     if previous and previous['version'] == version:
                         self.m_db.execute('UPDATE recordings SET present=1 WHERE id=?', (previous['id'],))
                         continue
@@ -153,6 +158,9 @@ class RecordingCatalog:
                 except (OSError, ValueError):
                     continue
         self.m_db.commit()
+
+    def Pending(self, identifier):
+        return self.m_db.execute('SELECT * FROM transfers WHERE recording_id=? AND finished=0', (identifier,)).fetchone()
 
     def Rows(self):
         return self.m_db.execute('SELECT * FROM recordings WHERE present=1 ORDER BY recorded_at DESC, path DESC').fetchall()

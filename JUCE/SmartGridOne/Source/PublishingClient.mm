@@ -263,6 +263,7 @@ struct PublishingClient::Impl
                 Recording recording;
                 recording.m_id = PublishingText(row[@"id"]);
                 recording.m_version = PublishingText(row[@"version"]);
+                recording.m_draftVersion = PublishingText(row[@"draft_version"]);
                 recording.m_filename = PublishingText(row[@"filename"]);
                 recording.m_recordedAt = PublishingText(row[@"recorded_at"]);
                 recording.m_date = PublishingText(row[@"date"]);
@@ -400,7 +401,7 @@ struct PublishingClient::Impl
 
         return std::any_of(m_status.m_recordings.begin(), m_status.m_recordings.end(), [](const Recording& row)
         {
-            return row.m_state == "queued" || row.m_state == "uploading";
+            return row.m_state == "pending" || row.m_state == "waiting" || row.m_state == "queued" || row.m_state == "uploading";
         });
     }
 

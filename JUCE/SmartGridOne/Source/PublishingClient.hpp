@@ -21,6 +21,7 @@ struct PublishingClient
     {
         std::string m_id;
         std::string m_version;
+        std::string m_draftVersion;
         std::string m_filename;
         std::string m_recordedAt;
         std::string m_date;

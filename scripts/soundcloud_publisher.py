@@ -7,9 +7,10 @@ import re
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from pathlib import Path
 
-from recording_catalog import RecordingCatalog, SafePath, Version
+from recording_catalog import RecordingCatalog, SafePath, Version, WaveDuration, x_timestamp
 from soundcloud_api import APIError
 
 
@@ -77,7 +78,7 @@ class PublishingService:
                 slot = int(match[2] or 1)
                 known[track['id']] = slot
                 highest = max(highest, slot)
-        for job in self.m_db.execute("SELECT * FROM jobs WHERE account=? AND date=? AND state IN ('queued','uploading','uploaded','unknown')", (self.m_account['id'], date)):
+        for job in self.m_db.execute("SELECT * FROM jobs WHERE account=? AND date=? AND state IN ('waiting','queued','uploading','uploaded','unknown')", (self.m_account['id'], date)):
             identity = job['track_id'] or job['job_id']
             known[identity] = job['slot'] or 1
             match = x_nightly.fullmatch(job['title'])
@@ -100,14 +101,19 @@ class PublishingService:
             result = []
             for row in rows:
                 job = self.CurrentJob(row)
+                transfer = self.m_catalog.Pending(row['id'])
+                origin = transfer or self.m_db.execute('SELECT * FROM transfers WHERE recording_id=? AND version=?',
+                                                       (row['id'], row['version'])).fetchone()
                 matches = candidates[row['id']]
                 candidate = matches[0] if len(matches) == 1 and sum(matches[0] in ids for ids in candidates.values()) == 1 else ''
-                result.append({'id': row['id'], 'version': row['version'], 'filename': Path(row['path']).name,
+                result.append({'id': row['id'], 'version': row['version'],
+                    'draft_version': 'transfer:' + origin['sha256'] if origin else row['version'],
+                    'filename': Path(row['path']).name,
                     'recorded_at': row['recorded_at'], 'date': row['date'], 'duration_seconds': row['duration'],
                     'size': row['size'], 'suggested_title': self.Title(row['date'], self.Slot(row['date'])),
-                    'state': job['state'] if job else 'ready', 'title': job['title'] if job else '',
+                    'state': job['state'] if job else ('pending' if transfer else 'ready'), 'title': job['title'] if job else '',
                     'permalink': job['permalink'] if job else '', 'job_id': job['job_id'] if job else '',
-                    'error': job['error'] if job else '', 'progress': job['progress'] if job else 0.0,
+                    'error': transfer['error'] if transfer else (job['error'] if job else ''), 'progress': job['progress'] if job else 0.0,
                     'candidate_id': candidate})
             return {'available': True, 'account': dict(self.m_account), 'refreshing': self.m_refreshing,
                     'error': self.m_error, 'catalog_ready': self.m_ready, 'recordings': result,
@@ -154,7 +160,75 @@ class PublishingService:
             SafePath(self.m_catalog.m_root, relative)
             self.m_catalog.Scan()
 
-    def Validate(self, metadata):
+    def RegisterTransfer(self, metadata):
+        if not isinstance(metadata, dict):
+            raise PublishingError('metadata must be an object')
+        source = metadata.get('path')
+        digest = metadata.get('sha256')
+        stamp = metadata.get('recorded_at')
+        if (not isinstance(source, str) or not source or len(source) > 4096
+                or any(p in ('', '.', '..') or p.startswith('.') for p in source.split('/'))
+                or any(c in source for c in ('\\', '\x00', ':'))
+                or Path(source).suffix.lower() not in ('.sgrec', '.wav')
+                or source.endswith('_stereo.wav')):
+            raise PublishingError('Invalid incoming recording path')
+        if not isinstance(digest, str) or re.fullmatch('[0-9a-f]{64}', digest) is None:
+            raise PublishingError('Invalid incoming recording digest')
+        if not isinstance(stamp, str) or len(stamp) > 64:
+            raise PublishingError('Invalid recording timestamp')
+        try:
+            recorded = datetime.fromisoformat(stamp.replace('Z', '+00:00'))
+            if recorded.tzinfo:
+                recorded = recorded.astimezone().replace(tzinfo=None)
+            match = x_timestamp.search(Path(source).name)
+            if match:
+                recorded = datetime.fromisoformat(f'{match[1]}T{match[2]}:{match[3]}:{match[4]}')
+            original = SafePath(self.m_catalog.m_root, 'recordings/' + source)
+            output = original.with_stem(original.stem + '_stereo').with_suffix('.wav')
+            relative = output.relative_to(self.m_catalog.m_root).as_posix()
+            SafePath(self.m_catalog.m_root, relative)
+        except (ValueError, OSError) as failure:
+            raise PublishingError(str(failure)) from None
+        with self.m_lock:
+            previous = self.m_db.execute('SELECT * FROM transfers WHERE source=?', (source,)).fetchone()
+            if previous:
+                if previous['sha256'] != digest:
+                    raise PublishingError('Incoming recording conflicts with previous transfer', 409)
+                return
+            existing = self.m_db.execute('SELECT * FROM recordings WHERE path=?', (relative,)).fetchone()
+            if existing or output.exists():
+                return
+            identifier = uuid.uuid4().hex
+            self.m_db.execute('INSERT INTO recordings VALUES (?,?,?,?,?,?,?,1)',
+                (identifier, relative, 'transfer:' + digest, recorded.isoformat(), recorded.strftime('%Y/%m/%d'), 0, 0))
+            self.m_db.execute("INSERT INTO transfers VALUES (?,?,?,0,'','')", (identifier, source, digest))
+            self.m_db.commit()
+
+    def TransferFinished(self, source, digest, error):
+        with self.m_lock:
+            transfer = self.m_db.execute('SELECT * FROM transfers WHERE source=? AND sha256=? AND finished=0',
+                                        (source, digest)).fetchone()
+            if transfer is None:
+                return
+            identifier = transfer['recording_id']
+            if error:
+                self.m_db.execute('UPDATE transfers SET error=? WHERE recording_id=?', (error, identifier))
+                self.m_db.commit()
+                return
+            row = self.m_db.execute('SELECT * FROM recordings WHERE id=?', (identifier,)).fetchone()
+            path = SafePath(self.m_catalog.m_root, row['path'])
+            duration = WaveDuration(path)
+            version = Version(path)
+            self.m_db.execute('UPDATE recordings SET version=?,duration=?,size=?,present=1 WHERE id=?',
+                              (version, duration, path.stat().st_size, identifier))
+            self.m_db.execute("UPDATE transfers SET finished=1,error='',version=? WHERE recording_id=?", (version, identifier))
+            self.m_db.execute("UPDATE jobs SET version=?,state='queued' WHERE recording_id=? AND state='waiting'",
+                              (version, identifier))
+            self.m_db.commit()
+            for job in self.m_db.execute("SELECT job_id FROM jobs WHERE recording_id=? AND state='queued'", (identifier,)).fetchall():
+                self.m_worker.submit(self.Run, job['job_id'])
+
+    def Validate(self, metadata, allow_pending=False):
         if not isinstance(metadata, dict):
             raise PublishingError('metadata must be an object')
         if any(not isinstance(metadata.get(field), str) or not 0 < len(metadata[field]) <= 256 for field in ('recording_id', 'version')):
@@ -162,12 +236,21 @@ class PublishingService:
         row = self.m_db.execute('SELECT * FROM recordings WHERE id=? AND present=1', (metadata.get('recording_id'),)).fetchone()
         if row is None:
             raise PublishingError('Unknown recording', 404)
+        if self.m_catalog.Pending(row['id']):
+            if not allow_pending or metadata.get('version') != row['version']:
+                raise PublishingError('Recording transfer is pending', 409)
+            return row, None
         try:
             path = SafePath(self.m_catalog.m_root, row['path'])
             current = Version(path)
         except (ValueError, OSError):
             raise PublishingError('Recording unavailable or changed', 409) from None
-        if metadata.get('version') != row['version'] or current != row['version']:
+        requested_version = metadata.get('version')
+        if allow_pending and requested_version.startswith('transfer:'):
+            transfer = self.m_db.execute('SELECT * FROM transfers WHERE recording_id=? AND finished=1', (row['id'],)).fetchone()
+            if transfer and requested_version == 'transfer:' + transfer['sha256'] and transfer['version'] == row['version']:
+                requested_version = row['version']
+        if requested_version != row['version'] or current != row['version']:
             raise PublishingError('Recording version changed', 409)
         return row, path
 
@@ -194,7 +277,7 @@ class PublishingService:
                 if replay['identity'] != identity or replay['account'] != self.m_account['id']:
                     raise PublishingError('Request identity conflict', 409)
                 return self.Reply(self.m_db.execute('SELECT * FROM jobs WHERE job_id=?', (replay['job_id'],)).fetchone())
-            row, _ = self.Validate(metadata)
+            row, _ = self.Validate(metadata, allow_pending=True)
             if not self.m_account['connected'] or self.m_api is None:
                 raise PublishingError('Connect SoundCloud on the Mac', 503)
             if title is None and not self.m_ready:
@@ -205,7 +288,7 @@ class PublishingService:
                     self.m_db.execute('INSERT INTO requests VALUES (?,?,?,?)', (request, identity, self.m_account['id'], previous['job_id']))
                     self.m_db.commit()
                     return self.Reply(previous)
-                if previous['state'] in ('queued', 'uploading'):
+                if previous['state'] in ('waiting', 'queued', 'uploading'):
                     raise PublishingError('Recording already has an active job', 409)
                 if retry != previous['job_id'] or previous['state'] not in ('failed', 'unknown'):
                     raise PublishingError('Explicit retry of the previous attempt is required', 409)
@@ -216,6 +299,7 @@ class PublishingService:
             slot = self.Slot(row['date'])
             actual_title = title.strip() if title is not None else self.Title(row['date'], slot)
             job_id = uuid.uuid4().hex
+            state = 'waiting' if self.m_catalog.Pending(row['id']) else 'queued'
             staged = ''
             if artwork:
                 directory = SafePath(self.m_catalog.m_root, '.soundcloud-artwork')
@@ -232,12 +316,13 @@ class PublishingService:
                     os.close(descriptor)
                 staged = destination.relative_to(self.m_catalog.m_root).as_posix()
             self.m_db.execute('''INSERT INTO jobs (job_id,request_id,identity,account,recording_id,version,date,title,slot,artwork,state,progress,error,track_id,permalink)
-                                  VALUES (?,?,?,?,?,?,?,?,?,?,'queued',0,'','','')''',
-                (job_id, request, identity, self.m_account['id'], row['id'], row['version'], row['date'], actual_title, slot, staged))
+                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,0,'','','')''',
+                (job_id, request, identity, self.m_account['id'], row['id'], row['version'], row['date'], actual_title, slot, staged, state))
             self.m_db.execute('INSERT INTO requests VALUES (?,?,?,?)', (request, identity, self.m_account['id'], job_id))
             self.m_db.commit()
             job = self.m_db.execute('SELECT * FROM jobs WHERE job_id=?', (job_id,)).fetchone()
-            self.m_worker.submit(self.Run, job_id)
+            if state == 'queued':
+                self.m_worker.submit(self.Run, job_id)
             return self.Reply(job)
 
     def Run(self, job_id):
@@ -245,9 +330,11 @@ class PublishingService:
         try:
             with self.m_lock:
                 job = self.m_db.execute('SELECT * FROM jobs WHERE job_id=?', (job_id,)).fetchone()
-                if job['account'] != self.m_account['id'] or self.m_api is None:
+                if job['state'] != 'queued' or job['account'] != self.m_account['id'] or self.m_api is None:
                     return
                 row, path = self.Validate({'recording_id': job['recording_id'], 'version': job['version']})
+                if row['duration'] > 24 * 3600 or row['size'] > 4 * 1024 ** 3:
+                    raise PublishingError('Recording exceeds SoundCloud upload limits')
                 artwork = SafePath(self.m_catalog.m_root, job['artwork']) if job['artwork'] else None
                 self.m_db.execute("UPDATE jobs SET state='uploading' WHERE job_id=?", (job_id,))
                 self.m_db.commit()
