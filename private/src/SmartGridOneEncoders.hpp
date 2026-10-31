@@ -2,6 +2,7 @@
 
 #include "BitSet.hpp"
 #include "EncoderBankBank.hpp"
+#include "ModulationMatrixUIState.hpp"
 #include "SmartGridOneLayout.hpp"
 #include "SmartGridOneModulators.hpp"
 #include "SmartGridOneScopeEnums.hpp"
@@ -126,7 +127,7 @@ struct SmartGridOneEncoders
         : m_encoderBankBank(
             static_cast<int>(Bank::NumBanks),
             x_numBankModes,
-            x_numParams * x_numTrios,
+            Layout::x_numParamInstances,
             context)
         , m_selectedBank(Bank::SourceWater)
         , m_selectedTrio(0)
@@ -171,9 +172,9 @@ struct SmartGridOneEncoders
         }
     }
 
-    size_t EncoderIndex(Param param, size_t trio)
+    static constexpr size_t EncoderIndex(Param param, size_t trio)
     {
-        return static_cast<size_t>(param) * x_numTrios + trio;
+        return Layout::GetParamInstanceId(param, trio);
     }
 
     static ParamSwitch GetParamSwitch(Param param)
@@ -500,6 +501,17 @@ struct SmartGridOneEncoders
     void Apply(SmartGrid::MessageIn msg)
     {
         m_encoderBankBank.Apply(msg);
+    }
+
+    void PopulateModulationMatrixUIState(ModulationMatrixUIState* uiState)
+    {
+        m_encoderBankBank.ForEachNamedEncoder(
+            [uiState](size_t paramId, SmartGrid::BankedEncoderCell* cell)
+            {
+                assert(cell->GetSharedEncoderState()->m_modeIx
+                    == static_cast<size_t>(ModulationMatrixUIState::GetMode(paramId)));
+                uiState->SetModulatorsAffecting(paramId, cell->m_modulatorsAffecting);
+            });
     }
 
     void PopulateUIState(EncoderBankUIState* uiState)

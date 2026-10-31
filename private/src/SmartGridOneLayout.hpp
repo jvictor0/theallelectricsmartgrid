@@ -3,6 +3,7 @@
 #include "VoiceMachineEnums.hpp"
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstddef>
 
 enum class SingletonMachine
@@ -82,6 +83,7 @@ struct SmartGridOneLayout
     };
 
     static constexpr size_t x_numParams = static_cast<size_t>(Param::NumParams);
+    static constexpr size_t x_numParamInstances = x_numParams * x_numTrios;
     static constexpr size_t x_numPages = static_cast<size_t>(Page::NumPages);
     static constexpr size_t x_numSlots = static_cast<size_t>(Slot::NumSlots);
     static constexpr size_t x_numMachineTypes = static_cast<size_t>(MachineType::NumTypes);
@@ -354,6 +356,17 @@ struct SmartGridOneLayout
     static constexpr ParamMode GetParamMode(Param param)
     {
         return x_paramModes[static_cast<size_t>(param)];
+    }
+
+    // Runtime storage identity shared by encoders and UI state. Quad/global
+    // parameters are created only at trio zero; the remaining two positions
+    // address reserved, empty slots. Persist names, not these numeric IDs.
+    //
+    static constexpr size_t GetParamInstanceId(Param param, size_t trio)
+    {
+        assert(static_cast<size_t>(param) < x_numParams);
+        assert(trio < x_numTrios);
+        return static_cast<size_t>(param) * x_numTrios + trio;
     }
 
     static constexpr size_t GetPageInstance(Page page, size_t trio);

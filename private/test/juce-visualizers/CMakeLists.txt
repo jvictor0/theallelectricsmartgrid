@@ -15,7 +15,7 @@ include("${REPO_ROOT}/third_party/JUCE/extras/Build/CMake/JUCEModuleSupport.cmak
 juce_add_modules("${MODULES}/juce_core" "${MODULES}/juce_events"
     "${MODULES}/juce_graphics" "${MODULES}/juce_data_structures"
     "${MODULES}/juce_gui_basics" "${MODULES}/juce_audio_basics")
-add_executable(smartgrid_visualizer_tests melody.cpp encoder.cpp modulator.cpp scope.cpp layout.cpp
+add_executable(smartgrid_visualizer_tests melody.cpp encoder.cpp modulator.cpp scope.cpp layout.cpp lfo_targets.cpp
     "${REPO_ROOT}/JUCE/SmartGridOne/JuceLibraryCode/BinaryData.cpp")
 target_include_directories(smartgrid_visualizer_tests PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}" "${MODULES}"

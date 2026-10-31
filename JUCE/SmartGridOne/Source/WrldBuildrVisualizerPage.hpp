@@ -2,6 +2,7 @@
 
 #include "EncoderComponent.hpp"
 #include "EncoderModulatorVisualizers.hpp"
+#include "LFOTargetVisualizers.hpp"
 #include "NonagonWrapper.hpp"
 #include "MeterComponent.hpp"
 #include "MasteringComponents.hpp"
@@ -47,6 +48,8 @@ struct WrldBuildrVisualizerPage : public juce::Component
     ModulatorVisualizers m_modulatorVisualizers;
     MeteringComponent m_meteringComponent;
     std::vector<VisualizerSlot> m_slots;
+    std::array<SmartGridOneMainVisualizerComponent*, SmartGridOneParamVisualizers::x_numVisualizers>
+        m_visualizers{};
     std::array<std::unique_ptr<EncoderComponent>, 16> m_encoders;
     VoiceConfigComponent m_voiceConfigComponent;
     float m_cellSize = 0.0f;
@@ -64,6 +67,7 @@ struct WrldBuildrVisualizerPage : public juce::Component
         { \
             auto visualizer = ctor; \
             visualizer->m_sourceMachineFlags = flags; \
+            m_visualizers[static_cast<size_t>(SmartGridOneParamVisualizers::Visualizer::name)] = visualizer.get(); \
             m_slots.push_back({SmartGridOneEncoders::Bank::bank, slot, span, \
                 VisualizerRegion::region, std::move(visualizer)}); \
         }
@@ -97,12 +101,12 @@ struct WrldBuildrVisualizerPage : public juce::Component
         return {left, top, right - left, bottom - top};
     }
 
-    juce::Rectangle<int> GetSlotBounds(const VisualizerSlot& slot) const
+    juce::Rectangle<int> GetSlotBounds(int slot, int span, VisualizerRegion region) const
     {
-        auto bounds = GetGridBounds(slot.m_slot * (x_visualizerSize + x_visualizerGap),
-            x_visualizerY, slot.m_slotSpan * x_visualizerSize
-                + (slot.m_slotSpan - 1) * x_visualizerGap, x_visualizerSize);
-        return GetVisualizerRegionBounds(bounds, slot.m_region);
+        auto bounds = GetGridBounds(slot * (x_visualizerSize + x_visualizerGap),
+            x_visualizerY, span * x_visualizerSize
+                + (span - 1) * x_visualizerGap, x_visualizerSize);
+        return GetVisualizerRegionBounds(bounds, region);
     }
 
     void resized() override
@@ -169,6 +173,36 @@ struct WrldBuildrVisualizerPage : public juce::Component
         return false;
     }
 
+    template<typename Func>
+    void ForEachVisibleVisualizer(Func func)
+    {
+        for (const auto& slot : m_slots)
+        {
+            if (ShouldShowSlot(slot))
+            {
+                func(*slot.m_visualizer, GetSlotBounds(slot.m_slot, slot.m_slotSpan, slot.m_region));
+            }
+        }
+
+        auto bank = SmartGridOneEncoders::BankForTrio(m_nonagon->GetSelectedEncoderBank(), 0);
+        if (bank != SmartGridOneEncoders::Bank::VoiceLFOs && bank != SmartGridOneEncoders::Bank::QuadLFOs)
+        {
+            return;
+        }
+
+        auto* uiState = m_nonagon->GetSquiggleBoyUIState();
+        auto targets = LFOTargetVisualizers::Find(uiState->m_modulationMatrixUIState,
+            bank == SmartGridOneEncoders::Bank::VoiceLFOs
+                ? LFOTargetVisualizers::Page::Voice : LFOTargetVisualizers::Page::Quad,
+            uiState->m_activeTrack.load());
+        for (size_t i = 0; i < targets.m_count; ++i)
+        {
+            auto* visualizer = m_visualizers[static_cast<size_t>(targets.m_visualizers[i])];
+            assert(visualizer != nullptr);
+            func(*visualizer, GetSlotBounds(2, 1, targets.GetRegion(i)));
+        }
+    }
+
     void UpdateConfigModeVisibility()
     {
         bool isConfigMode = m_nonagon->GetGridsMode()
@@ -181,33 +215,28 @@ struct WrldBuildrVisualizerPage : public juce::Component
     {
         UpdateConfigModeVisibility();
         g.fillAll(juce::Colours::black);
-        for (const auto& slot : m_slots)
+        ForEachVisibleVisualizer([&g](SmartGridOneMainVisualizerComponent& visualizer, juce::Rectangle<int> bounds)
         {
-            if (ShouldShowSlot(slot))
+            if (bounds.isEmpty())
             {
-                auto bounds = GetSlotBounds(slot);
-                if (bounds.isEmpty())
-                {
-                    continue;
-                }
-
-                juce::Graphics::ScopedSaveState savedState(g);
-                g.reduceClipRegion(bounds);
-                g.setOrigin(bounds.getPosition());
-                slot.m_visualizer->Draw(g, bounds.withPosition(0, 0));
+                return;
             }
-        }
+
+            juce::Graphics::ScopedSaveState savedState(g);
+            g.reduceClipRegion(bounds);
+            g.setOrigin(bounds.getPosition());
+            visualizer.Draw(g, bounds.withPosition(0, 0));
+        });
     }
 
     void mouseDown(const juce::MouseEvent& event) override
     {
-        for (const auto& slot : m_slots)
+        ForEachVisibleVisualizer([&event](SmartGridOneMainVisualizerComponent& visualizer, juce::Rectangle<int> bounds)
         {
-            auto bounds = GetSlotBounds(slot);
-            if (bounds.contains(event.getPosition()) && ShouldShowSlot(slot))
+            if (bounds.contains(event.getPosition()))
             {
-                slot.m_visualizer->OnClick(event.withNewPosition(event.position - bounds.getPosition().toFloat()));
+                visualizer.OnClick(event.withNewPosition(event.position - bounds.getPosition().toFloat()));
             }
-        }
+        });
     }
 };

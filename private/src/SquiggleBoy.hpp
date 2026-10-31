@@ -1118,6 +1118,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         std::atomic<StreamingRecorder::Error> m_recordingError = StreamingRecorder::Error::None;
 
         EncoderBankUIState m_encoderBankUIState;
+        ModulationMatrixUIState m_modulationMatrixUIState;
         ScopeWriter m_audioScopeWriter;
         ScopeWriter m_controlScopeWriter;
         ScopeWriter m_quadScopeWriter;
@@ -1918,6 +1919,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         uiState->m_recordingState.store(GetRecordingState());
         uiState->m_recordingError.store(GetRecordingError());
         m_encoders.PopulateUIState(&uiState->m_encoderBankUIState);
+        m_encoders.PopulateModulationMatrixUIState(&uiState->m_modulationMatrixUIState);
         uiState->m_activeTrack.store(m_encoders.GetCurrentTrack());
 
         for (size_t random = 0; random < x_numGangedRandomLFOs; ++random)

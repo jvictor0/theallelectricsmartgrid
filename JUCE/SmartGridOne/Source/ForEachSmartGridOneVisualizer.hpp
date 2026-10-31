@@ -126,12 +126,38 @@ F(
     Shape,
     2,
     1,
-    Full,
+    Top,
     std::make_unique<ScopeComponent>(
         static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp),
         m_nonagon->GetAudioScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Audio,
+        uiState),
+    VoiceMachine::SourceMachineFlags::All())
+F(
+    ShapeModulationEnvelopeScope,
+    Shape,
+    2,
+    1,
+    BottomLeft,
+    std::make_unique<ScopeComponent>(
+        static_cast<size_t>(SmartGridOne::ControlScopes::ModulationEnvelope),
+        m_nonagon->GetControlScopeWriter(),
+        &m_scopeVoiceOffset,
+        ScopeComponent::ScopeType::Control,
+        uiState),
+    VoiceMachine::SourceMachineFlags::All())
+F(
+    ShapeAmpEnvelopeScope,
+    Shape,
+    2,
+    1,
+    BottomRight,
+    std::make_unique<ScopeComponent>(
+        static_cast<size_t>(SmartGridOne::ControlScopes::AmpEnvelope),
+        m_nonagon->GetControlScopeWriter(),
+        &m_scopeVoiceOffset,
+        ScopeComponent::ScopeType::Control,
         uiState),
     VoiceMachine::SourceMachineFlags::All())
 
