@@ -281,7 +281,7 @@ struct SquiggleBoyVoice
             }
 
             Input()
-                : m_subTanhGain(0.125f, 8.0f)
+                : m_subTanhGain(0.125f, 32.0f)
                 , m_subRiseSeconds(x_subSlewMinSeconds, x_subRiseMaxSeconds)
                 , m_subFallSeconds(x_subSlewMinSeconds, x_subFallMaxSeconds)
             {

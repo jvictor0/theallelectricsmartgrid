@@ -104,7 +104,7 @@ DOCTEST_TEST_CASE("Sub: volume and drive independently control sub audio without
     rig.m_input.m_subGain.Update(0.0f);
     rig.RunSamples(1000);
     DOCTEST_CHECK(std::abs(rig.m_amp.m_subOut) < 1e-6f);
-    DOCTEST_CHECK(rig.m_input.m_subTanhGain.m_expParam == 8.0f);
+    DOCTEST_CHECK(rig.m_input.m_subTanhGain.m_expParam == 32.0f);
     DOCTEST_CHECK(rig.m_amp.m_output == 1.0f);
 }
 
@@ -151,7 +151,7 @@ DOCTEST_TEST_CASE("Sub: page controls reach each trio independently and round tr
             DOCTEST_CHECK(input.m_subGain.m_expParam ==
                 doctest::Approx((std::pow(20.0f, setting[0]) - 1.0f) / 19.0f).epsilon(0.001));
             DOCTEST_CHECK(input.m_subTanhGain.m_expParam ==
-                doctest::Approx(0.125f * std::pow(64.0f, setting[1])).epsilon(0.001));
+                doctest::Approx(0.125f * std::pow(256.0f, setting[1])).epsilon(0.001));
             DOCTEST_CHECK(input.m_subRiseSeconds.m_expParam ==
                 doctest::Approx(0.001f * std::pow(1000.0f, setting[2])).epsilon(0.001));
             DOCTEST_CHECK(input.m_subFallSeconds.m_expParam ==
