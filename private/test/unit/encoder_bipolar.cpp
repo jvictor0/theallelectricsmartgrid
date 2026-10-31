@@ -407,7 +407,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: publishing live depth brightness does not re
     rig.Sources().m_value[0][0] = 0.2f;
     bank.Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 0, 1.0f));
     rig.m_banks.Process();
-    DOCTEST_REQUIRE(rig.Carrier().GetValueNoSlew(0) == doctest::Approx(0.2f));
+    DOCTEST_REQUIRE(rig.Carrier().GetValue(0) == doctest::Approx(0.2f));
 
     rig.Sources().m_value[0][0] = 0.8f;
     rig.Sources().ComputeChanged();
@@ -418,7 +418,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: publishing live depth brightness does not re
     DOCTEST_CHECK(ui.GetBrightness(0, 0) == doctest::Approx(0.8f));
     DOCTEST_CHECK(ui.GetBrightness(3, 3) == 0.0f);
     DOCTEST_CHECK(ui.GetValue(3, 3, 0) == doctest::Approx(0.2f));
-    DOCTEST_CHECK(rig.Carrier().GetValueNoSlew(0) == doctest::Approx(0.2f));
+    DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.2f));
 }
 
 DOCTEST_TEST_CASE("encoder_bipolar: first depth turn activates modulation and returning to zero clears it")
@@ -432,8 +432,8 @@ DOCTEST_TEST_CASE("encoder_bipolar: first depth turn activates modulation and re
 
     bank.Apply(SmartGrid::MessageIn(1000000, -1, SmartGrid::MessageIn::Mode::EncoderIncDec, 2, 3, 500));
     rig.m_banks.Process();
-    DOCTEST_CHECK(rig.Carrier().GetValueNoSlew(0) == doctest::Approx(0.8f));
-    DOCTEST_CHECK(rig.Carrier().GetValueNoSlew(1) == doctest::Approx(0.2f));
+    DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.8f));
+    DOCTEST_CHECK(rig.Carrier().GetValue(1) == doctest::Approx(0.2f));
     EncoderBankUIState ui;
     bank.PopulateUIState(&ui);
     DOCTEST_CHECK(ui.GetModulatorsAffecting(3, 3).m_bits == (1 << 14));
@@ -441,8 +441,8 @@ DOCTEST_TEST_CASE("encoder_bipolar: first depth turn activates modulation and re
 
     bank.Apply(SmartGrid::MessageIn(2000000, -1, SmartGrid::MessageIn::Mode::EncoderIncDec, 2, 3, -500));
     rig.m_banks.Process();
-    DOCTEST_CHECK(rig.Carrier().GetValueNoSlew(0) == doctest::Approx(0.3f));
-    DOCTEST_CHECK(rig.Carrier().GetValueNoSlew(1) == doctest::Approx(0.3f));
+    DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.3f));
+    DOCTEST_CHECK(rig.Carrier().GetValue(1) == doctest::Approx(0.3f));
     bank.PopulateUIState(&ui);
     DOCTEST_CHECK(ui.GetModulatorsAffecting(3, 3).IsZero());
     DOCTEST_CHECK(ui.GetValue(2, 3, 0) == 0.5f);
@@ -462,12 +462,12 @@ DOCTEST_TEST_CASE("encoder_bipolar: nested absolute depth edits update ancestor 
     rig.Sources().m_value[1][0] = 1.0f;
     bank.Apply(SmartGrid::MessageIn::EncoderSetMsg(1, 0, 1.0f));
     rig.m_banks.Process();
-    DOCTEST_CHECK(rig.Carrier().GetValueNoSlew(0) == doctest::Approx(0.8f));
+    DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.8f));
     DOCTEST_CHECK(rig.Carrier().m_modulatorsAffecting.m_bits == 3);
 
     rig.Sources().m_value[1][0] = 0.5f;
     rig.m_banks.Process();
-    DOCTEST_CHECK(rig.Carrier().GetValueNoSlew(0) == doctest::Approx(0.3f));
+    DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.3f));
 }
 
 DOCTEST_TEST_CASE("encoder_bipolar: shift-clicking a visible depth clears its route and displayed value")
@@ -479,7 +479,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: shift-clicking a visible depth clears its ro
     rig.Sources().m_value[0][0] = 0.8f;
     bank.Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 0, 1.0f));
     rig.m_banks.Process();
-    DOCTEST_REQUIRE(rig.Carrier().GetValueNoSlew(0) == doctest::Approx(0.8f));
+    DOCTEST_REQUIRE(rig.Carrier().GetValue(0) == doctest::Approx(0.8f));
 
     rig.Press(0, 0, true);
     rig.m_banks.Process();
@@ -685,7 +685,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: seeded edits navigation scenes and shift res
                 }
             }
 
-            DOCTEST_CHECK(rig.OtherTrio().GetValueNoSlew(0) == doctest::Approx(0.3f));
+            DOCTEST_CHECK(rig.OtherTrio().GetValue(0) == doctest::Approx(0.3f));
         }
 
         for (int count : actionCounts)
@@ -777,20 +777,17 @@ DOCTEST_TEST_CASE("encoder_bipolar: unversioned JSON stores signed knob position
     DOCTEST_CHECK(rig.Carrier().m_bankedValue == doctest::Approx(0.3f));
 }
 
-DOCTEST_TEST_CASE("encoder_bipolar: DSP getters convert once while UI and slew stay normalized")
+DOCTEST_TEST_CASE("encoder_bipolar: DSP getters convert once while UI stays normalized")
 {
     EncoderRig rig(true, 0.0f);
     DOCTEST_CHECK(rig.Carrier().m_values[0] == 0.5f);
     rig.Carrier().SetValue(0.25f, true);
-    rig.Carrier().InitSlewState(0.25f);
     rig.Compute();
     DOCTEST_CHECK(rig.Carrier().GetValue() == -0.5f);
     DOCTEST_CHECK(rig.Carrier().m_bankedValue == 0.25f);
     DOCTEST_CHECK(rig.m_banks.GetValueByEncoderIndex(0, 0) == -0.5f);
-    DOCTEST_CHECK(rig.m_banks.GetValueNoSlewByEncoderIndex(0, 0) == -0.5f);
+    DOCTEST_CHECK(rig.m_banks.GetNormalizedValueByEncoderIndex(0, 0) == 0.25f);
     DOCTEST_CHECK(rig.m_banks.GetValue(0, 0, 0, 0) == -0.5f);
-    DOCTEST_CHECK(rig.m_banks.GetValueNoSlew(0, 0, 0, 0) == -0.5f);
-    DOCTEST_CHECK(rig.Carrier().m_slew[0].m_output == 0.25f);
 
     EncoderBankUIState ui;
     rig.m_banks.m_banks[0].PopulateUIState(&ui);
@@ -931,23 +928,21 @@ DOCTEST_TEST_CASE("encoder_bipolar: gesture sweeps a bipolar parameter across ze
         carrier.Compute();
         for (size_t voice = 0; voice < 2; ++voice)
         {
-            DOCTEST_CHECK(carrier.GetValueNoSlew(voice) == doctest::Approx(expected[i]));
+            DOCTEST_CHECK(carrier.GetValue(voice) == doctest::Approx(expected[i]));
         }
 
-        DOCTEST_CHECK(rig.OtherTrio().GetValueNoSlew(0) == -0.5f);
+        DOCTEST_CHECK(rig.OtherTrio().GetValue(0) == -0.5f);
     }
 }
 
-DOCTEST_TEST_CASE("encoder_bipolar: reset without gestures restores the signed default and slew")
+DOCTEST_TEST_CASE("encoder_bipolar: reset without gestures restores the signed default")
 {
     EncoderRig rig(true, -0.5f);
     Cell& carrier = rig.Carrier();
     carrier.SetValue(0.875f, true);
     carrier.m_values[2] = 0.625f;
-    carrier.InitSlewState(0.875f);
     rig.Compute();
-    DOCTEST_REQUIRE(carrier.GetValueNoSlew(0) == 0.75f);
-    DOCTEST_REQUIRE(carrier.GetSlewedValue(0) == 0.75f);
+    DOCTEST_REQUIRE(carrier.GetValue(0) == 0.75f);
 
     rig.m_banks.ResetGrid(0);
     carrier.Compute();
@@ -955,9 +950,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: reset without gestures restores the signed d
     DOCTEST_CHECK(carrier.m_values[2] == 0.625f);
     for (size_t voice = 0; voice < 2; ++voice)
     {
-        DOCTEST_CHECK(carrier.GetValueNoSlew(voice) == -0.5f);
-        DOCTEST_CHECK(carrier.GetSlewedValue(voice) == -0.5f);
-        DOCTEST_CHECK(carrier.m_slew[voice].m_output == 0.25f);
+        DOCTEST_CHECK(carrier.GetValue(voice) == -0.5f);
     }
 }
 
@@ -995,15 +988,13 @@ DOCTEST_TEST_CASE("encoder_bipolar: reset with an active gesture restores the si
     gesture.SetValue(1.0f, true);
     rig.Sources().m_gestureWeights[0] = 1.0f;
     rig.Compute();
-    carrier.InitSlewState(1.0f);
-    DOCTEST_REQUIRE(carrier.GetValueNoSlew(0) == 1.0f);
+    DOCTEST_REQUIRE(carrier.GetValue(0) == 1.0f);
     DOCTEST_REQUIRE(carrier.m_gesturesAffecting.Get(0));
 
     carrier.RevertToDefault(false);
     carrier.Compute();
     DOCTEST_CHECK(carrier.GetValue() == -0.5f);
-    DOCTEST_CHECK(carrier.GetValueNoSlew(0) == -0.5f);
-    DOCTEST_CHECK(carrier.GetSlewedValue(0) == -0.5f);
+    DOCTEST_CHECK(carrier.GetValue(0) == -0.5f);
     DOCTEST_CHECK(carrier.m_gesturesAffecting.IsZero());
     DOCTEST_CHECK(carrier.m_modulators.m_gestures[0].get() == nullptr);
 
@@ -1013,7 +1004,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: reset with an active gesture restores the si
         rig.Sources().m_gestureWeights[0] = weight;
         rig.Sources().ComputeChanged();
         carrier.Compute();
-        DOCTEST_CHECK(carrier.GetValueNoSlew(0) == -0.5f);
+        DOCTEST_CHECK(carrier.GetValue(0) == -0.5f);
     }
 }
 

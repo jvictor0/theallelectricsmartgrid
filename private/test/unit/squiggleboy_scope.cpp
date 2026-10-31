@@ -1,5 +1,6 @@
 #include "doctest.h"
 #include "../support/SynthRig.hpp"
+#include "Saturator.hpp"
 
 DOCTEST_TEST_CASE("Quad scopes: all effects follow return gain and saturation before mastering")
 {

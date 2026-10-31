@@ -6,6 +6,7 @@
 #include "PhaseUtils.hpp"
 #include "QuadUtils.hpp"
 #include "SampleTimer.hpp"
+#include "Saturator.hpp"
 #include "ScopeWriter.hpp"
 #include "SnapshotUIState.hpp"
 #include "SmartGridOneScopeEnums.hpp"

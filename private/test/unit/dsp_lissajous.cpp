@@ -5,6 +5,7 @@
 #include "Filter.hpp"
 #include "Lissajous.hpp"
 #include "PartialMachine.hpp"
+#include "Saturator.hpp"
 
 namespace
 {

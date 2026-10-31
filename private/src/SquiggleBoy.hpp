@@ -33,6 +33,7 @@
 #include "RecordingBuffer.hpp"
 #include "SquiggleBoyVoiceConfig.hpp"
 #include "RecordingManager.hpp"
+#include "Saturator.hpp"
 #include "DirectoryExplorer.hpp"
 #include "SnapshotUIState.hpp"
 #include "Oversample.hpp"
@@ -260,7 +261,6 @@ struct SquiggleBoyVoice
             AHD::InputSetter m_modulationAHDInputSetter;
             AHD::Input m_modulationAHDInput;
 
-            OPLowPassFilter m_gainSlew;
             PhaseUtils::ZeroedExpParam m_gain;
             PhaseUtils::ZeroedExpParam m_subGain;
             PhaseUtils::ExpParam m_subTanhGain;
@@ -290,7 +290,6 @@ struct SquiggleBoyVoice
                 , m_subFallSeconds(x_subSlewMinSeconds, x_subFallMaxSeconds)
             {
                 m_subTrig = false;
-                m_gainSlew.SetAlphaFromNatFreq(500.0f / 48000.0f);
             }
         };
 
@@ -367,7 +366,7 @@ struct SquiggleBoyVoice
             constexpr float x_slewTimeToCycles = 1.0f / (2.0f * static_cast<float>(M_PI) * SampleTimer::x_sampleRate);
             m_subSlew.SetSlewUp(x_slewTimeToCycles / input.m_subRiseSeconds.m_expParam);
             m_subSlew.SetSlewDown(x_slewTimeToCycles / input.m_subFallSeconds.m_expParam);
-            float subEnvelope = m_subSlew.Process(m_subRunning ? input.m_subGain.m_expParam * ahdEnv : 0.0f);
+            float subEnvelope = m_subSlew.Process(m_subRunning ? static_cast<float>(input.m_subGain.m_expParam * ahdEnv) : 0.0f);
             float mainOut = freqDependentGain * ahdEnv * filterOutput;
             float subOut = freqDependentGain * subEnvelope * sub;
             
@@ -1670,25 +1669,25 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             m_state[i].m_subInput.m_baseFreq = baseFreq;
 
-            m_state[i].m_filterInput.m_sampleRateReducerFreq.Update(1 - m_encoders.GetValueNoSlew(Param::SampleRateReduction, i));
+            m_state[i].m_filterInput.m_sampleRateReducerFreq.Update(1 - m_encoders.GetValue(Param::SampleRateReduction, i));
             m_state[i].m_ampInput.m_subGain.Update(m_encoders.GetValue(Param::SubOscillator, i));
             m_state[i].m_ampInput.m_subTanhGain.Update(m_encoders.GetValue(Param::SubTanhGain, i));
-            m_state[i].m_ampInput.m_subRiseSeconds.Update(m_encoders.GetValueNoSlew(Param::SubSlewRise, i));
-            m_state[i].m_ampInput.m_subFallSeconds.Update(m_encoders.GetValueNoSlew(Param::SubSlewFall, i));
+            m_state[i].m_ampInput.m_subRiseSeconds.Update(m_encoders.GetValue(Param::SubSlewRise, i));
+            m_state[i].m_ampInput.m_subFallSeconds.Update(m_encoders.GetValue(Param::SubSlewFall, i));
             
             m_state[i].m_filterInput.m_vcoBaseFreq = m_voices[i].m_baseFreqSlew.m_output;            
             
-            m_state[i].m_filterInput.m_lpCutoffFactor.Update(m_encoders.GetValueNoSlew(Param::LPCutoff, i));
-            m_state[i].m_filterInput.m_hpCutoffFactor.Update(m_encoders.GetValueNoSlew(Param::HPCutoff, i));
-            m_state[i].m_filterInput.m_lpResonance.Update(m_encoders.GetValueNoSlew(Param::LPResonance, i));
-            m_state[i].m_filterInput.m_hpResonance.Update(m_encoders.GetValueNoSlew(Param::HPResonance, i));
-            m_state[i].m_filterInput.m_saturationGain.Update(m_encoders.GetValueNoSlew(Param::FilterDrive, i));
+            m_state[i].m_filterInput.m_lpCutoffFactor.Update(m_encoders.GetValue(Param::LPCutoff, i));
+            m_state[i].m_filterInput.m_hpCutoffFactor.Update(m_encoders.GetValue(Param::HPCutoff, i));
+            m_state[i].m_filterInput.m_lpResonance.Update(m_encoders.GetValue(Param::LPResonance, i));
+            m_state[i].m_filterInput.m_hpResonance.Update(m_encoders.GetValue(Param::HPResonance, i));
+            m_state[i].m_filterInput.m_saturationGain.Update(m_encoders.GetValue(Param::FilterDrive, i));
 
             m_state[i].m_ampInput.SetModulationAHD(
-                m_encoders.GetValueNoSlew(Param::ModAHDAttack, i), 
-                m_encoders.GetValueNoSlew(Param::ModAHDHold, i), 
-                m_encoders.GetValueNoSlew(Param::ModAHDDecay, i), 
-                m_encoders.GetValueNoSlew(Param::ModAmplitude, i));
+                m_encoders.GetValue(Param::ModAHDAttack, i), 
+                m_encoders.GetValue(Param::ModAHDHold, i), 
+                m_encoders.GetValue(Param::ModAHDDecay, i), 
+                m_encoders.GetValue(Param::ModAmplitude, i));
 
             m_state[i].m_ampInput.m_vcoTargetFreq = input.m_baseFreq[i];
             m_state[i].m_ampInput.SetAHD(
@@ -1697,9 +1696,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_encoders.GetValue(Param::AmpAHDDecay, i), 
                 m_encoders.GetValue(Param::AmpAmplitude, i));
 
-            m_state[i].m_ampInput.m_gain.Update(m_state[i].m_ampInput.m_gainSlew.Process(input.GetGainFader(i)));
+            m_state[i].m_ampInput.m_gain.Update(input.GetGainFader(i));
 
-            m_state[i].m_panInput.m_radius.Update(m_encoders.GetValueNoSlew(Param::PanRadius, i));
+            m_state[i].m_panInput.m_radius.Update(m_encoders.GetValue(Param::PanRadius, i));
             float staticOffset = static_cast<float>(i % x_numTracks) / x_numTracks + static_cast<float>(i / x_numTracks) / (x_numTracks * x_numTracks);
             m_state[i].m_panInput.m_phaseShift = staticOffset + m_encoders.GetValue(Param::PanPhaseShift, i);
             m_state[i].m_panInput.m_multX = m_encoders.GetValue(Param::PanMultX, i) * 4 + 1;
@@ -1854,18 +1853,18 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_masterChainInput.SetMasterGain(m_encoders.GetValue(Param::MasterGain));
         m_masterVolume.Update(m_encoders.GetValue(Param::MasterVolume));
 
-        m_sourceMixerState.m_sources[0].m_hpCutoff.Update(m_encoders.GetValueNoSlew(Param::Source1HP));
-        m_sourceMixerState.m_sources[0].m_lpFactor.Update(m_encoders.GetValueNoSlew(Param::Source1LP));
-        m_sourceMixerState.m_sources[0].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValueNoSlew(Param::Source1Gain)));
-        m_sourceMixerState.m_sources[1].m_hpCutoff.Update(m_encoders.GetValueNoSlew(Param::Source2HP));
-        m_sourceMixerState.m_sources[1].m_lpFactor.Update(m_encoders.GetValueNoSlew(Param::Source2LP));
-        m_sourceMixerState.m_sources[1].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValueNoSlew(Param::Source2Gain)));
-        m_sourceMixerState.m_sources[2].m_hpCutoff.Update(m_encoders.GetValueNoSlew(Param::Source3HP));
-        m_sourceMixerState.m_sources[2].m_lpFactor.Update(m_encoders.GetValueNoSlew(Param::Source3LP));
-        m_sourceMixerState.m_sources[2].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValueNoSlew(Param::Source3Gain)));
-        m_sourceMixerState.m_sources[3].m_hpCutoff.Update(m_encoders.GetValueNoSlew(Param::Source4HP));
-        m_sourceMixerState.m_sources[3].m_lpFactor.Update(m_encoders.GetValueNoSlew(Param::Source4LP));
-        m_sourceMixerState.m_sources[3].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValueNoSlew(Param::Source4Gain)));
+        m_sourceMixerState.m_sources[0].m_hpCutoff.Update(m_encoders.GetValue(Param::Source1HP));
+        m_sourceMixerState.m_sources[0].m_lpFactor.Update(m_encoders.GetValue(Param::Source1LP));
+        m_sourceMixerState.m_sources[0].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValue(Param::Source1Gain)));
+        m_sourceMixerState.m_sources[1].m_hpCutoff.Update(m_encoders.GetValue(Param::Source2HP));
+        m_sourceMixerState.m_sources[1].m_lpFactor.Update(m_encoders.GetValue(Param::Source2LP));
+        m_sourceMixerState.m_sources[1].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValue(Param::Source2Gain)));
+        m_sourceMixerState.m_sources[2].m_hpCutoff.Update(m_encoders.GetValue(Param::Source3HP));
+        m_sourceMixerState.m_sources[2].m_lpFactor.Update(m_encoders.GetValue(Param::Source3LP));
+        m_sourceMixerState.m_sources[2].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValue(Param::Source3Gain)));
+        m_sourceMixerState.m_sources[3].m_hpCutoff.Update(m_encoders.GetValue(Param::Source4HP));
+        m_sourceMixerState.m_sources[3].m_lpFactor.Update(m_encoders.GetValue(Param::Source4LP));
+        m_sourceMixerState.m_sources[3].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValue(Param::Source4Gain)));
 
         m_deepVocoderState.SetSlew(m_encoders.GetValue(Param::DeepVocoderSlewUp), m_encoders.GetValue(Param::DeepVocoderSlewDown));
         

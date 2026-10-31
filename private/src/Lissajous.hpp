@@ -3,6 +3,7 @@
 #include "Filter.hpp"
 #include "Math.hpp"
 #include "PhaseUtils.hpp"
+#include "Saturator.hpp"
 
 struct LissajousLFOInternal
 {    

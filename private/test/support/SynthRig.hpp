@@ -269,6 +269,15 @@ public:
         PushInternal(SmartGrid::MessageIn(SmartGrid::MessageIn::Mode::EncoderRelease, x, y));
     }
 
+    // Encoder edits ramp in over up to EncoderEditList::x_maxRampSamples. Runs past
+    // the longest ramp plus one frame so the settled value reaches UIState.
+    //
+    void SettleEncoderEdits()
+    {
+        RunSamples(SmartGrid::EncoderEditList::x_maxRampSamples);
+        RunFrames(1);
+    }
+
     // ---- Pad verbs (through the grid wrapper's MessageInBus) ---------------
     //
     // routeId is one of Route::RouteTopLeft .. RouteBottomRight. A press carries a

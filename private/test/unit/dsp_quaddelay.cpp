@@ -8,10 +8,11 @@
 // QuadDelayInputSetter has computed the positions.
 //
 // Wiring discovered:
-//   - Input::m_writeHeadPosition[4] and m_readHeadPosition[4] are QuadDouble:
-//     "warped time" (monotonically increasing write position, read = write - delay).
-//   - Input::m_relativeWriteHeadPosition / m_relativeReadHeadPosition are
-//     QuadFloat normalised [0,1]; used for UI only.
+//   - Input::m_writeHeadPosition (double, shared by all channels) and
+//     m_readHeadPosition (QuadDouble) are "warped time" (monotonically
+//     increasing write position, read = write - delay).
+//   - Input::m_relativeWriteHeadPosition (float) / m_relativeReadHeadPosition
+//     (QuadFloat) are normalised [0,1]; used for UI only.
 //   - Input::m_input  = external audio input, m_return = feedback audio return.
 //   - feedback <= 0 disables the feedback path.
 //   - m_lfoInput.m_freq  -- LFO frequency per channel; 0 = no LFO.
@@ -47,7 +48,7 @@ DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothin
     QuadDelayInputSetter::Input input;
     input.m_theoryOfTime = clock.Get();
     QuadDelay::Input delayInput;
-    delayInput.m_writeHeadPosition = QuadDouble(0, 0, 0, 0);
+    delayInput.m_writeHeadPosition = 0;
     auto synth = std::make_unique<Resynthesizer>();
     const float settings[] = {0.0f, std::nextafter(0.05f, 0.0f), 0.05f, 0.75f, 0.02f};
     for (size_t pass = 0; pass < 5; ++pass)
@@ -70,7 +71,7 @@ DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothin
                 magnitude.m_output = 0.0f;
             }
 
-            synth->StartGrain(&grain, delayInput.m_grainManagerInput.m_input[channel].m_resynthInput);
+            synth->StartGrain(&grain, delayInput.m_grainManagerInput.m_resynthInput[channel]);
             for (size_t bin : {size_t(1), size_t(85), Resynthesizer::x_maxComponents - 1})
             {
                 const float actual = synth->m_synthesisMagnitudes[bin].m_output;
@@ -103,19 +104,19 @@ namespace
 // writePos tracks the absolute "warped time" of the write head.
 // readPos  = writePos - delayLength (lag by a fixed delay).
 //
-void AdvanceHeads(QuadDouble& writePos, QuadDouble& readPos, double delayLen)
+void AdvanceHeads(double& writePos, QuadDouble& readPos, double delayLen)
 {
+    writePos += 1.0;
     for (size_t i = 0; i < 4; ++i)
     {
-        writePos[i] += 1.0;
-        readPos[i]   = writePos[i] - delayLen;
+        readPos[i] = writePos - delayLen;
     }
 }
 
 // Build a minimal, valid QuadDelay::Input for a given write/read position pair
 // with zero feedback and no modulation. Grain-manager input left as default.
 //
-QuadDelay::Input MakeBasicInput(QuadDouble writePos, QuadDouble readPos,
+QuadDelay::Input MakeBasicInput(double writePos, QuadDouble readPos,
                                 QuadFloat externalIn, float feedback = 0.0f,
                                 float modDepth = 0.0f)
 {
@@ -129,7 +130,7 @@ QuadDelay::Input MakeBasicInput(QuadDouble writePos, QuadDouble readPos,
     inp.m_readHeadPosition   = readPos;
     // Default relative positions (UI, does not affect audio path).
     //
-    inp.m_relativeWriteHeadPosition = QuadFloat(-1.0f, -1.0f, -1.0f, -1.0f);
+    inp.m_relativeWriteHeadPosition = -1.0f;
     inp.m_relativeReadHeadPosition  = QuadFloat(-1.0f, -1.0f, -1.0f, -1.0f);
     // Wide-open damping filter: pass everything.
     //
@@ -165,7 +166,7 @@ DOCTEST_TEST_CASE("QuadDelay: silence in -> silence out")
     auto qdPtr = std::make_unique<QuadDelay>();
     QuadDelay& qd = *qdPtr;
 
-    QuadDouble writePos(kDelayLen, kDelayLen, kDelayLen, kDelayLen);
+    double writePos = kDelayLen;
     QuadDouble readPos(0.0, 0.0, 0.0, 0.0);
 
     const int warmup = static_cast<int>(kDelayLen) + 64;
@@ -210,7 +211,7 @@ DOCTEST_TEST_CASE("QuadDelay: warmed impulse produces finite nonzero output")
     {
         float impulse = sample == x_impulseSample ? 1.0f : 0.0f;
         auto input = MakeBasicInput(
-            QuadDouble(sample, sample, sample, sample),
+            sample,
             QuadDouble(sample - x_delay, sample - x_delay, sample - x_delay, sample - x_delay),
             QuadFloat(impulse, 0, 0, 0));
         QuadFloat output = delay->Process(input);
@@ -244,12 +245,12 @@ DOCTEST_TEST_CASE("QuadDelay: steady tones retain gain and shift by the requeste
         {
             float tone = 0.01f * std::cos(2.0 * M_PI * 18.0 * sample / 4096.0);
             auto input = MakeBasicInput(
-                QuadDouble(sample, sample, sample, sample),
+                sample,
                 QuadDouble(sample - 8192, sample - 8192, sample - 8192, sample - 8192),
                 QuadFloat(tone, 0, 0, 0));
             input.m_bffBase = QuadFloat(1.0f / 65536.0f, 1.0f / 65536.0f, 1.0f / 65536.0f, 1.0f / 65536.0f);
             input.m_bffWidth = QuadFloat(65536, 65536, 65536, 65536);
-            auto& resynthesis = input.m_grainManagerInput.m_input[0].m_resynthInput;
+            auto& resynthesis = input.m_grainManagerInput.m_resynthInput[0];
             resynthesis.m_shift[0] = Q(2, 1);
             resynthesis.m_fade[0] = shifted ? 1.0f : 0.0f;
             float output = delay->Process(input)[0];
@@ -296,7 +297,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - random seeded modulation, finite+bounded"
     //
     const int N = 2 * 48000;
 
-    QuadDouble writePos(kDelayLen, kDelayLen, kDelayLen, kDelayLen);
+    double writePos = kDelayLen;
     QuadDouble readPos(0.0, 0.0, 0.0, 0.0);
 
     float maxAbs = 0.0f;
@@ -396,13 +397,12 @@ DOCTEST_TEST_CASE("QuadDelay: stress - varying write/read speed (ToT simulation)
         //
         double readPos = writeRaw - kDelayLen;
 
-        QuadDouble wp(writeRaw, writeRaw, writeRaw, writeRaw);
         QuadDouble rp(readPos,  readPos,  readPos,  readPos);
 
         float inSample = audioNoise.Next() * 0.05f;
         QuadFloat qin(inSample, inSample, inSample, inSample);
 
-        QuadDelay::Input inp = MakeBasicInput(wp, rp, qin, 0.5f, 0.0f);
+        QuadDelay::Input inp = MakeBasicInput(writeRaw, rp, qin, 0.5f, 0.0f);
         inp.m_return = previousOutput;
         QuadFloat out = qd.Process(inp);
         previousOutput = out;

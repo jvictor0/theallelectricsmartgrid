@@ -156,7 +156,7 @@ struct HiddenDetuneFixture
 
     float WaterDetuneVoice(size_t voice)
     {
-        return m_rig.Internal().m_squiggleBoy.m_encoders.GetValueNoSlew(Param::OscillatorDetune, static_cast<int>(voice));
+        return m_rig.Internal().m_squiggleBoy.m_encoders.GetValue(Param::OscillatorDetune, static_cast<int>(voice));
     }
 
     void SelectDetuneModulators()
@@ -603,7 +603,7 @@ DOCTEST_TEST_CASE("sys_gestures: hidden machine-dependent detune catches modulat
     fixture.DeselectDetuneModulators();
 
     auto& modulatorValues = fixture.m_rig.Internal().m_squiggleBoy.m_encoders.GetModulatorValues(SmartGridOneEncoders::BankMode::Voice);
-    for (size_t voice = 0; voice < 16; ++voice)
+    for (size_t voice = 0; voice < QuadFloat::x_numChannels; ++voice)
     {
         modulatorValues.m_value[11][voice] = 0.0f;
     }
@@ -615,7 +615,7 @@ DOCTEST_TEST_CASE("sys_gestures: hidden machine-dependent detune catches modulat
         << visibleLowValue);
 
     fixture.SelectEarthSource();
-    for (size_t voice = 0; voice < 16; ++voice)
+    for (size_t voice = 0; voice < QuadFloat::x_numChannels; ++voice)
     {
         modulatorValues.m_value[11][voice] = 1.0f;
     }

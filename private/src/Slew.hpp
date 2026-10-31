@@ -188,6 +188,55 @@ struct ParamSlew
     }
 };
 
+// One-pole slew that lands exactly on its target once within x_settleDistance, so
+// consumers that test for changes or for exact endpoints see the glide finish.
+//
+struct SettlingSlew
+{
+    static constexpr float x_settleDistance = 1.0e-6f;
+
+    OPLowPassFilter m_filter;
+    float m_target;
+
+    SettlingSlew()
+        : m_target(0.0f)
+    {
+    }
+
+    void SetAlphaFromNatFreq(float cyclesPerSample)
+    {
+        m_filter.SetAlphaFromNatFreq(cyclesPerSample);
+    }
+
+    void SetTarget(float current, float target)
+    {
+        m_filter.m_output = current;
+        m_target = target;
+    }
+
+    void Snap(float value)
+    {
+        m_filter.m_output = value;
+        m_target = value;
+    }
+
+    bool IsSettled() const
+    {
+        return m_filter.m_output == m_target;
+    }
+
+    float Process()
+    {
+        m_filter.Process(m_target);
+        if (std::abs(m_target - m_filter.m_output) < x_settleDistance)
+        {
+            m_filter.m_output = m_target;
+        }
+
+        return m_filter.m_output;
+    }
+};
+
 struct ParamSlewDouble
 {
     OPLowPassFilterDouble m_filter;

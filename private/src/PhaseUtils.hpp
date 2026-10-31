@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cassert>
 #include "AsyncLogger.hpp"
+#include "MultiChannelNumber.hpp"
 
 namespace PhaseUtils
 {
@@ -103,67 +104,79 @@ inline void HalfRangeCrossfade(float value, float& left, float& right)
     }
 }
 
-struct ExpParam
+template <typename Number, size_t Size>
+struct ExpParamGeneric
 {
-    float m_baseParam;
-    float m_expParam;
-    float m_max;
-    float m_base;
-    float m_factor;
+    using Vector = MultiChannelNumber<Number, Size>;
+    Vector m_baseParam;
+    Vector m_expParam;
+    Number m_max;
+    Number m_log2Base;
+    Number m_factor;
 
-    ExpParam()
-        : ExpParam(2.0f)
+    ExpParamGeneric()
+        : ExpParamGeneric(static_cast<Number>(2))
     {
     }
 
-    explicit ExpParam(float base)
-        : m_baseParam(0)
-        , m_expParam(1)
+    explicit ExpParamGeneric(Number base)
+        : m_baseParam(Vector::Splat(0))
+        , m_expParam(Vector::Splat(1))
         , m_max(base)
-        , m_base(base)
+        , m_log2Base(std::log2(base))
         , m_factor(1)
     {
     }
 
-    explicit ExpParam(float min, float max)
-        : m_baseParam(0)
-        , m_expParam(min)
+    explicit ExpParamGeneric(Number min, Number max)
+        : m_baseParam(Vector::Splat(0))
+        , m_expParam(Vector::Splat(min))
         , m_max(max)
-        , m_base(max / min)
+        , m_log2Base(std::log2(max / min))
         , m_factor(min)
     {
     }
 
-    float Update(float value)
+    // factor * base^value, computed as factor * 2^(value * log2(base)) with the
+    // fast vector Exp2 (a few float ulps from std::pow).
+    //
+    static Vector Evaluate(Number factor, Number log2Base, const Vector& value)
+    {
+        return (value * log2Base).Exp2() * factor;
+    }
+
+    Vector Update(const Vector& value)
     {
         if (m_baseParam != value)
         {
             m_baseParam = value;
-            m_expParam = m_factor * std::powf(m_base, value);
+            m_expParam = Evaluate(m_factor, m_log2Base, value);
         }
 
         return m_expParam;
     }
 
-    static float Compute(float min, float max, float value)
+    static Vector Compute(Number min, Number max, const Vector& value)
     {
-        return min * std::powf(max / min, value);
+        return Evaluate(min, std::log2(max / min), value);
     }
 
-    float Update(float min, float max, float value)
+    Vector Update(Number min, Number max, const Vector& value)
     {
         if (m_baseParam != value || m_max != max || m_factor != min)
         {
             m_factor = min;
             m_max = max;
-            m_base = max / min;
-            m_expParam = m_factor * std::powf(m_base, value);
+            m_log2Base = std::log2(max / min);
+            m_expParam = Evaluate(m_factor, m_log2Base, value);
             m_baseParam = value;
         }
 
         return m_expParam;
     }
 };
+
+using ExpParam = ExpParamGeneric<float, 1>;
 
 struct SimpleOsc
 {
@@ -191,27 +204,31 @@ struct SimpleOsc
     }
 };
 
-struct ZeroedExpParam
+template <typename Number, size_t Size>
+struct ZeroedExpParamGeneric
 {
-    float m_base;
-    float m_expParam;
-    float m_baseParam;
-    float m_max;
+    using Vector = MultiChannelNumber<Number, Size>;
+    Number m_base;
+    Number m_log2Base;
+    Vector m_expParam;
+    Vector m_baseParam;
+    Number m_max;
 
-    explicit ZeroedExpParam(float base)
+    explicit ZeroedExpParamGeneric(Number base)
         : m_base(base)
-        , m_expParam(0)
-        , m_baseParam(0)
-        , m_max(1.0)
+        , m_log2Base(std::log2(base))
+        , m_expParam(Vector::Splat(0))
+        , m_baseParam(Vector::Splat(0))
+        , m_max(1)
     {
     }
 
-    ZeroedExpParam()
-        : ZeroedExpParam(20)
+    ZeroedExpParamGeneric()
+        : ZeroedExpParamGeneric(static_cast<Number>(20))
     {
     }
 
-    void SetBaseByCenter(float center)
+    void SetBaseByCenter(Number center)
     {
         // (sqrt(base) - 1) / (base - 1) = center
         // sqrt(base) - 1 = center * (base - 1)
@@ -225,68 +242,50 @@ struct ZeroedExpParam
         // Using quadratic formula: x = (1 ± sqrt(1 - 4*center*(1-center))) / (2*center)
         // We want the positive solution that gives base > 1
         //        
-        float discriminant = 1 - 4 * center * (1 - center);
-        float sqrt_base = (1 + std::sqrt(discriminant)) / (2 * center);
+        Number discriminant = 1 - 4 * center * (1 - center);
+        Number sqrt_base = (1 + std::sqrt(discriminant)) / (2 * center);
         m_base = sqrt_base * sqrt_base;
-        m_expParam = (std::powf(m_base, m_baseParam) - 1) / (m_base - 1);
+        m_log2Base = std::log2(m_base);
+        m_expParam = Evaluate(m_base, m_log2Base, m_baseParam);
     }
 
-    void SetMax(float max)
+    void SetMax(Number max)
     {
         m_max = max;
     }
 
-    static float Compute(float base, float value)
+    // (base^value - 1) / (base - 1), computed with base^value as
+    // 2^(value * log2(base)) through the fast vector Exp2.
+    //
+    static Vector Evaluate(Number base, Number log2Base, const Vector& value)
     {
-        return (std::powf(base, value) - 1) / (base - 1);
+        return ((value * log2Base).Exp2() - static_cast<Number>(1)) / (base - 1);
     }
 
-    float Update(float value)
+    static float Compute(float base, float value)
+    {
+        using Mono = MultiChannelNumber<float, 1>;
+        return ((Mono(value) * std::log2(base)).Exp2() - 1.0f) / (base - 1);
+    }
+
+    static Vector Compute(Number base, const Vector& value)
+    {
+        return Evaluate(base, std::log2(base), value);
+    }
+
+    Vector Update(const Vector& value)
     {
         if (m_baseParam != value)
         {
             m_baseParam = value;
-            m_expParam = m_max * Compute(m_base, value);
+            m_expParam = Evaluate(m_base, m_log2Base, value) * m_max;
         }
 
         return m_expParam;
-    }  
-};
-
-struct ExpHalfRangeCrossfade
-{
-    ZeroedExpParam m_leftFade;
-    ZeroedExpParam m_rightFade;
-    
-    void SetBaseByCenter(float center)
-    {
-        m_leftFade.SetBaseByCenter(center);
-        m_rightFade.SetBaseByCenter(center);
-    }
-
-    void Process(float value, float& left, float& right)
-    {
-        if (value <= 0.0f)
-        {
-            left = 1.0f;
-            right = 0.0f;
-        }
-        else if (value < 0.5f)
-        {
-            left = 1.0f;
-            right = m_rightFade.Update(2.0f * value);
-        }
-        else if (value < 1.0f)
-        {
-            left = 1.0f - m_leftFade.Update(2.0f * value - 1.0f);
-            right = 1.0f;
-        }
-        else
-        {
-            left = 0.0f;
-            right = 1.0f;
-        }
     }
 };
+
+using ZeroedExpParam = ZeroedExpParamGeneric<float, 1>;
+
 
 } // namespace PhaseUtils

@@ -12,13 +12,14 @@ namespace
 
 constexpr size_t x_testSize = 1 << 16;
 using Storage = QuadDelayLineMovableWriter<x_testSize>;
+using Line = DelayLineMovableWriter<x_testSize>;
 
 }
 
 DOCTEST_TEST_CASE("DelayWarp: negative audio positions wrap by the physical buffer size")
 {
-    auto storage = std::make_unique<Storage>();
-    auto& line = storage->m_delayLine[0];
+    auto storage = std::make_unique<Line>();
+    auto& line = *storage;
     line.m_delayLine[x_testSize - 2] = -2;
     line.m_delayLine[x_testSize - 1] = -1;
     line.m_delayLine[0] = 0;
@@ -33,8 +34,8 @@ DOCTEST_TEST_CASE("DelayWarp: negative audio positions wrap by the physical buff
 
 DOCTEST_TEST_CASE("DelayWarp: negative envelope positions wrap by the bucket count")
 {
-    auto storage = std::make_unique<Storage>();
-    auto& line = storage->m_delayLine[0];
+    auto storage = std::make_unique<Line>();
+    auto& line = *storage;
     line.m_maxEnvelope[62] = 0.8f;
     line.m_maxEnvelope[63] = 0.4f;
     line.m_minEnvelope[62] = -0.8f;
@@ -46,8 +47,8 @@ DOCTEST_TEST_CASE("DelayWarp: negative envelope positions wrap by the bucket cou
 
 DOCTEST_TEST_CASE("DelayWarp: ascending inverse mapping crosses negative time and zero")
 {
-    auto storage = std::make_unique<Storage>();
-    auto& line = storage->m_delayLine[0];
+    auto storage = std::make_unique<Line>();
+    auto& line = *storage;
     double realBase = line.m_lastTime;
     for (int n = 0; n < 64; ++n)
     {
@@ -61,8 +62,8 @@ DOCTEST_TEST_CASE("DelayWarp: ascending inverse mapping crosses negative time an
 
 DOCTEST_TEST_CASE("DelayWarp: abrupt forward acceleration cannot overshoot recorded timestamps")
 {
-    auto storage = std::make_unique<Storage>();
-    auto& line = storage->m_delayLine[0];
+    auto storage = std::make_unique<Line>();
+    auto& line = *storage;
     double realBase = line.m_lastTime;
     for (int n = 0; n < 20; ++n)
     {
@@ -77,8 +78,8 @@ DOCTEST_TEST_CASE("DelayWarp: abrupt forward acceleration cannot overshoot recor
 
 DOCTEST_TEST_CASE("DelayWarp: fractional inverse lookup stays between its adjacent timestamps")
 {
-    auto storage = std::make_unique<Storage>();
-    auto& line = storage->m_delayLine[0];
+    auto storage = std::make_unique<Line>();
+    auto& line = *storage;
     line.m_writeHeadInverse[x_testSize - 1] = -1000;
     line.m_writeHeadInverse[0] = 100;
     line.m_writeHeadInverse[1] = 101;
@@ -89,8 +90,8 @@ DOCTEST_TEST_CASE("DelayWarp: fractional inverse lookup stays between its adjace
 
 DOCTEST_TEST_CASE("DelayWarp: reversal preserves old history until forward motion replaces it")
 {
-    auto storage = std::make_unique<Storage>();
-    auto& line = storage->m_delayLine[0];
+    auto storage = std::make_unique<Line>();
+    auto& line = *storage;
     double realBase = line.m_lastTime;
     for (int position = 0; position <= 100; ++position)
     {
@@ -116,8 +117,8 @@ DOCTEST_TEST_CASE("DelayWarp: reversal preserves old history until forward motio
 
 DOCTEST_TEST_CASE("DelayWarp: held positions resume from the latest recorded timestamp")
 {
-    auto storage = std::make_unique<Storage>();
-    auto& line = storage->m_delayLine[0];
+    auto storage = std::make_unique<Line>();
+    auto& line = *storage;
     double realBase = line.m_lastTime;
     const double positions[] = {100, 101, 101, 101, 102, 103, 104};
     for (double position : positions)
@@ -132,8 +133,8 @@ DOCTEST_TEST_CASE("DelayWarp: the first forward interval replaces history immedi
 {
     for (double offset : {0.0, -60.0})
     {
-        auto storage = std::make_unique<Storage>();
-        auto& line = storage->m_delayLine[0];
+        auto storage = std::make_unique<Line>();
+        auto& line = *storage;
         double realBase = line.m_lastTime;
         for (int position = 0; position <= 100; ++position)
         {
@@ -159,8 +160,8 @@ DOCTEST_TEST_CASE("DelayWarp: fast quad grains retain a steady tone with real-ti
 {
     GlobalEnv::ResetPerTest();
     auto storage = std::make_unique<Storage>();
-    auto grains = std::make_unique<QuadGrainManager<DelayLineMovableWriter<x_testSize>>>(storage.get());
-    QuadGrainManager<DelayLineMovableWriter<x_testSize>>::Input input;
+    auto grains = std::make_unique<QuadGrainManager<Storage>>(storage.get());
+    QuadGrainManager<Storage>::Input input;
     QuadFloat offsets(0.5f, 500.25f, -500.5f, 0.0f);
     std::array<double, 4> blockEnergy{};
     std::array<double, 4> minRms{1, 1, 1, 1};
@@ -169,9 +170,9 @@ DOCTEST_TEST_CASE("DelayWarp: fast quad grains retain a steady tone with real-ti
     {
         double write = 10000.0 + 5.0 * n;
         float sample = 0.2f * std::sin(2 * M_PI * 750 * n / 48000.0);
-        storage->Write(QuadFloat(sample, sample, sample, sample), QuadDouble(write, write, write, write));
+        storage->Write(QuadFloat(sample, sample, sample, sample), write);
         QuadDouble read(write - 4500, write - 4500, write - 4500, write - 30000);
-        QuadFloat output = grains->Process(read, offsets, input);
+        QuadFloat output = grains->Process(read, offsets, input, storage->m_lastTime - 1.0);
         if (n >= 16384)
         {
             for (size_t channel = 0; channel < 4; ++channel)
@@ -202,7 +203,7 @@ namespace
 
 struct ObservedAudioBuffer
 {
-    DelayLineMovableWriter<x_testSize>* m_line;
+    Line* m_line;
     double m_firstRead = std::numeric_limits<double>::infinity();
     double m_lastRead = -std::numeric_limits<double>::infinity();
 
@@ -223,8 +224,8 @@ struct ObservedAudioBuffer
 
 DOCTEST_TEST_CASE("DelayWarp: the complete grain and its interpolation support precede the writer")
 {
-    auto storage = std::make_unique<Storage>();
-    auto& line = storage->m_delayLine[0];
+    auto storage = std::make_unique<Line>();
+    auto& line = *storage;
     line.m_writeHeadInverse[10] = 99100.25;
     double firstRead = 94879;
     double lastRead = 99998;
@@ -274,7 +275,7 @@ DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without los
         QuadDelayInputSetter::Input setterInput;
         setterInput.m_theoryOfTime = rig.Get();
         QuadDelay::Input delayInput;
-        delayInput.m_writeHeadPosition = QuadDouble(0, 0, 0, 0);
+        delayInput.m_writeHeadPosition = 0;
         for (size_t channel = 0; channel < 4; ++channel)
         {
             setterInput.m_loopSelectorSwitchVal[channel] = 5;
@@ -282,8 +283,8 @@ DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without los
 
         constexpr size_t x_audioSize = 1 << 20;
         auto storage = std::make_unique<QuadDelayLineMovableWriter<x_audioSize>>();
-        auto grains = std::make_unique<QuadGrainManager<DelayLineMovableWriter<x_audioSize>>>(storage.get());
-        QuadGrainManager<DelayLineMovableWriter<x_audioSize>>::Input grainInput;
+        auto grains = std::make_unique<QuadGrainManager<QuadDelayLineMovableWriter<x_audioSize>>>(storage.get());
+        QuadGrainManager<QuadDelayLineMovableWriter<x_audioSize>>::Input grainInput;
         bool finite = true;
         bool reversed = false;
         bool negativePosition = false;
@@ -297,7 +298,7 @@ DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without los
         {
             rig.AdvanceSample();
             setter.Process(setterInput, delayInput, nullptr);
-            double head = delayInput.m_writeHeadPosition[0];
+            double head = delayInput.m_writeHeadPosition;
             if (n > 0)
             {
                 reversed = reversed || head < lastHead;
@@ -308,7 +309,7 @@ DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without los
             lastHead = head;
             float sample = 0.2f * std::sin(2 * M_PI * 750 * n / 48000.0);
             storage->Write(QuadFloat(sample, sample, sample, sample), delayInput.m_writeHeadPosition);
-            QuadFloat output = grains->Process(delayInput.m_readHeadPosition, QuadFloat(0, 0, 0, 0), grainInput);
+            QuadFloat output = grains->Process(delayInput.m_readHeadPosition, QuadFloat(0, 0, 0, 0), grainInput, storage->m_lastTime - 1.0);
             finite = finite && std::isfinite(output[0]);
             if (n >= 384000)
             {

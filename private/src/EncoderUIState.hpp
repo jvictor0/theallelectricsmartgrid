@@ -10,7 +10,7 @@
 struct EncoderUIState
 {
     static constexpr size_t x_numModulators = 15;
-    static constexpr size_t x_maxVoices = 16;
+    static constexpr size_t x_maxVoices = 4;
 
     struct ModulationWeights
     {
@@ -23,9 +23,9 @@ struct EncoderUIState
     std::atomic<float> m_modulatorWeights[x_maxVoices][x_numModulators]{};
     std::atomic<SmartGrid::Color> m_color;
     std::atomic<float> m_brightness;
-    std::atomic<float> m_values[16];
-    std::atomic<float> m_minValues[16];
-    std::atomic<float> m_maxValues[16];
+    std::atomic<float> m_values[x_maxVoices];
+    std::atomic<float> m_minValues[x_maxVoices];
+    std::atomic<float> m_maxValues[x_maxVoices];
     std::atomic<bool> m_connected;
     std::atomic<SmartGrid::EncoderType> m_encoderType{SmartGrid::EncoderType::BaseParam};
     std::atomic<int> m_index{-1};
@@ -34,7 +34,7 @@ struct EncoderUIState
     std::atomic<const char*> m_shortName;
     std::atomic<int> m_switchValues;
     std::atomic<bool> m_bipolar{false};
-    std::atomic<SmartGrid::Color> m_indicatorColor[16];
+    std::atomic<SmartGrid::Color> m_indicatorColor[x_maxVoices];
     std::atomic<SmartGrid::Color> m_mainIndicatorColor;
     std::atomic<int> m_numVoices;
     std::atomic<SmartGridOne::EncoderBankMode> m_mode{SmartGridOne::EncoderBankMode::NumModes};
@@ -87,12 +87,16 @@ struct EncoderUIState
         , m_modulationGlyphs{}
         , m_modulationGlyphColor{}
     {
-        for (size_t i = 0; i < 16; ++i)
+        for (size_t i = 0; i < x_maxVoices; ++i)
         {
             m_values[i] = 0;
             m_minValues[i] = 0;
             m_maxValues[i] = 1;
             m_indicatorColor[i].store(SmartGrid::Color::Off);
+        }
+
+        for (size_t i = 0; i < 16; ++i)
+        {
             m_modulationGlyphs[i].store(SmartGridOne::ModulationGlyphs::None);
             m_modulationGlyphColor[i].store(SmartGrid::Color::Off);
         }
@@ -252,7 +256,7 @@ struct EncoderBankUIState
 
     void SetValues(size_t i, size_t j, float* values)
     {
-        for (size_t k = 0; k < 16; ++k)
+        for (size_t k = 0; k < EncoderUIState::x_maxVoices; ++k)
         {
             m_states[i][j].m_values[k].store(values[k]);
         }

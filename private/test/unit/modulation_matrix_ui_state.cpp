@@ -196,10 +196,12 @@ DOCTEST_TEST_CASE("modulation matrix: normal UI publication includes encoder edi
     auto& bank = encoders.m_encoderBankBank.m_banks[static_cast<size_t>(encoders.m_selectedBank)];
     bank.MakeSelection(2, 1, bank.GetBase(2, 1));
     encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(2, 1, 0.75f));
+    encoders.m_encoderBankBank.FlushEdits();
     internal.PopulateUIState();
     DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 2, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 1, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
     encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(2, 1, 0.5f));
+    encoders.m_encoderBankBank.FlushEdits();
     internal.PopulateUIState();
     // The 14-bit absolute-set format cannot represent exactly 0.5. Its small
     // positive depth still affects the parameter, just as the badge reports.

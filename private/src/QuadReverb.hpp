@@ -1,9 +1,11 @@
 #pragma once
 
 #include "QuadUtils.hpp"
+#include "AllPassFilter.hpp"
 #include "DelayLine.hpp"
 #include "QuadLFO.hpp"
 #include "Filter.hpp"
+#include "Saturator.hpp"
 #include "PhaseUtils.hpp"
 struct QuadReverb
 {
@@ -42,7 +44,7 @@ struct QuadReverb
     QuadAllPassFilter m_preFeedbackFilter;
     PostFeedbackFilter m_postFeedbackFilter;
 
-    TanhSaturator<true> m_saturator;
+    QuadTanhSaturator<true> m_saturator;
 
     QuadFloat m_output;
 
@@ -70,9 +72,10 @@ struct QuadReverb
         m_postFeedbackFilter.m_apf2.SetDelaySamples(2, 113);
         m_postFeedbackFilter.m_apf2.SetDelaySamples(3, 293);
 
-        // m_inputFilter has 4 quad channels (m_allPassFilter[4]), each an 8-stage
-        // ParallelAllPassFilter. SetDelaySamples(stage, channel, samples) indexes the
-        // channel as the second arg, so the channel loop must stay within [0, 4).
+        // m_inputFilter is 8 quad all-pass stages in parallel.
+        // SetDelaySamples(stage, channel, samples) indexes the channel as the second
+        // arg, so the channel loop must stay within [0, 4).
+        //
         for (size_t ch = 0; ch < 4; ++ch)
         {
             m_inputFilter.SetDelaySamples(0, ch, 37);
@@ -131,8 +134,8 @@ struct QuadReverb
     {
         for (int i = 0; i < 4; ++i)
         {
-            uiState->m_dampingFilter[i].m_hpAlpha.store(m_postFeedbackFilter.m_bff.m_filters[i].m_highPassFilter.m_alpha);
-            uiState->m_dampingFilter[i].m_lpAlpha.store(m_postFeedbackFilter.m_bff.m_filters[i].m_lowPassFilter.m_alpha);
+            uiState->m_dampingFilter[i].m_hpAlpha.store(m_postFeedbackFilter.m_bff.m_highPassFilter.m_alpha[i]);
+            uiState->m_dampingFilter[i].m_lpAlpha.store(m_postFeedbackFilter.m_bff.m_lowPassFilter.m_alpha[i]);
         }
     }
 

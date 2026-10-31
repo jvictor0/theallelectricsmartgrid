@@ -50,13 +50,13 @@ DOCTEST_TEST_CASE("encoder_trios: defaults and assignments reach the computed ba
     Cell& cell = rig.Carrier(0);
     cell.Compute();
     DOCTEST_CHECK(cell.m_bankedValue == doctest::Approx(cell.m_defaultValue));
-    DOCTEST_CHECK(cell.GetValueNoSlew(0) == doctest::Approx(cell.m_defaultValue));
+    DOCTEST_CHECK(cell.GetValue(0) == doctest::Approx(cell.m_defaultValue));
 
     rig.SetCarrier(0, 0.7f);
     cell.Compute();
     DOCTEST_CHECK(cell.m_values[0] == doctest::Approx(0.7f));
     DOCTEST_CHECK(cell.m_bankedValue == doctest::Approx(0.7f));
-    DOCTEST_CHECK(cell.GetValueNoSlew(0) == doctest::Approx(0.7f));
+    DOCTEST_CHECK(cell.GetValue(0) == doctest::Approx(0.7f));
 }
 
 DOCTEST_TEST_CASE("encoder_trios: scene refresh and copy use stored base values")
@@ -78,7 +78,7 @@ DOCTEST_TEST_CASE("encoder_trios: scene refresh and copy use stored base values"
     cell.SetStateRecursive();
     cell.SetModulatorsAffecting();
     cell.Compute();
-    DOCTEST_CHECK(cell.GetValueNoSlew(0) == doctest::Approx(0.9f));
+    DOCTEST_CHECK(cell.GetValue(0) == doctest::Approx(0.9f));
 
     rig.m_encoders.CopyToScene(2);
     DOCTEST_CHECK(cell.m_values[2] == doctest::Approx(0.35f));
@@ -93,7 +93,6 @@ DOCTEST_TEST_CASE("encoder_trios: global voice reads and UI use the selected tri
     for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
     {
         rig.SetCarrier(trio, x_bases[trio]);
-        rig.Carrier(trio).InitSlewState(x_bases[trio]);
     }
 
     rig.m_encoders.Process();
@@ -107,7 +106,7 @@ DOCTEST_TEST_CASE("encoder_trios: global voice reads and UI use the selected tri
         for (size_t local = 0; local < Encoders::x_voicesPerTrio; ++local)
         {
             const int voice = static_cast<int>(trio * Encoders::x_voicesPerTrio + local);
-            DOCTEST_CHECK(rig.m_encoders.GetValueNoSlew(Encoders::Param::Harmonics1, voice) == doctest::Approx(x_bases[trio]));
+            DOCTEST_CHECK(rig.m_encoders.GetValue(Encoders::Param::Harmonics1, voice) == doctest::Approx(x_bases[trio]));
             DOCTEST_CHECK(rig.m_encoders.GetValue(Encoders::Param::Harmonics1, voice) == doctest::Approx(x_bases[trio]));
             DOCTEST_CHECK(ui.GetValue(0, 0, local) == doctest::Approx(x_bases[trio]));
         }
@@ -159,7 +158,7 @@ DOCTEST_TEST_CASE("encoder_trios: modulation is independent across modes and loc
     rig.m_encoders.Process();
     for (int voice = 0; voice < 9; ++voice)
     {
-        DOCTEST_CHECK(rig.m_encoders.GetValueNoSlew(Encoders::Param::Harmonics1, voice) == doctest::Approx(static_cast<float>(voice + 1) / 10.0f));
+        DOCTEST_CHECK(rig.m_encoders.GetValue(Encoders::Param::Harmonics1, voice) == doctest::Approx(static_cast<float>(voice + 1) / 10.0f));
     }
 }
 
@@ -226,7 +225,7 @@ DOCTEST_TEST_CASE("encoder_trios: new patches round trip named flat scenes and g
     for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
     {
         DOCTEST_CHECK(rig.Carrier(trio).m_values[0] == doctest::Approx(x_bases[trio]));
-        DOCTEST_CHECK(rig.Carrier(trio).GetValueNoSlew(0) == doctest::Approx(x_bases[trio]));
+        DOCTEST_CHECK(rig.Carrier(trio).GetValue(0) == doctest::Approx(x_bases[trio]));
     }
 
     DOCTEST_REQUIRE(fire.m_modulators.m_gestures[2]);
@@ -253,5 +252,5 @@ DOCTEST_TEST_CASE("encoder_trios: short numeric scene arrays clear omitted entri
         DOCTEST_CHECK(rig.Carrier(1).m_values[scene] == 0.0f);
     }
 
-    DOCTEST_CHECK(rig.Carrier(1).GetValueNoSlew(0) == 1.0f);
+    DOCTEST_CHECK(rig.Carrier(1).GetValue(0) == 1.0f);
 }

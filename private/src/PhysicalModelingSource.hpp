@@ -268,18 +268,18 @@ struct PhysicalModelingSource
 
         // Row 0: Main SVF params + sample rate reduction
         //
-        input.m_mainSVFCutoff.Update(encoders.GetValueNoSlew(Param::PMMainSVFCutoff, voiceIx));
-        input.m_mainSVFResonance.Update(encoders.GetValueNoSlew(Param::PMMainSVFResonance, voiceIx));
-        input.m_mainSVFMorph = encoders.GetValueNoSlew(Param::PMMainSVFMorph, voiceIx);
-        input.m_sampleRateReducerFreq.Update(1 - encoders.GetValueNoSlew(Param::PMSampleRateReduction, voiceIx));
+        input.m_mainSVFCutoff.Update(encoders.GetValue(Param::PMMainSVFCutoff, voiceIx));
+        input.m_mainSVFResonance.Update(encoders.GetValue(Param::PMMainSVFResonance, voiceIx));
+        input.m_mainSVFMorph = encoders.GetValue(Param::PMMainSVFMorph, voiceIx);
+        input.m_sampleRateReducerFreq.Update(1 - encoders.GetValue(Param::PMSampleRateReduction, voiceIx));
 
         // Row 1: AHD envelope params (inverted like amp section)
         //
         input.SetAHD(
-            encoders.GetValueNoSlew(Param::PMAHDAttack, voiceIx),
-            encoders.GetValueNoSlew(Param::PMAHDHold, voiceIx),
-            encoders.GetValueNoSlew(Param::PMAHDDecay, voiceIx),
-            encoders.GetValueNoSlew(Param::PMAmplitude, voiceIx));
+            encoders.GetValue(Param::PMAHDAttack, voiceIx),
+            encoders.GetValue(Param::PMAHDHold, voiceIx),
+            encoders.GetValue(Param::PMAHDDecay, voiceIx),
+            encoders.GetValue(Param::PMAmplitude, voiceIx));
 
         // Row 2: Comb filter params
         // Feedback knob is mapped in the comb filter to signed damping time
@@ -288,6 +288,6 @@ struct PhysicalModelingSource
 
         // Comb damping params
         //
-        input.m_combDamp = encoders.GetValueNoSlew(Param::PMCombDampenCutoff, voiceIx);
+        input.m_combDamp = encoders.GetValue(Param::PMCombDampenCutoff, voiceIx);
     }
 };

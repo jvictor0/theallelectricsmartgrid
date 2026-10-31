@@ -115,10 +115,10 @@ DOCTEST_TEST_CASE("Patch gestures: loaded targets respond to faders without scen
     {
         PatchGestureRig source;
         source.AddGesture(0, Encoders::Bank::Source, 0, 0, 0);
-        target = source.m_rig.Internal().m_squiggleBoy.m_encoders.GetValueNoSlew(Encoders::Param::Harmonics1);
+        target = source.m_rig.Internal().m_squiggleBoy.m_encoders.GetValue(Encoders::Param::Harmonics1);
         source.m_rig.SetFader(0, 0.0f);
         source.m_rig.RunFrames(4);
-        base = source.m_rig.Internal().m_squiggleBoy.m_encoders.GetValueNoSlew(Encoders::Param::Harmonics1);
+        base = source.m_rig.Internal().m_squiggleBoy.m_encoders.GetValue(Encoders::Param::Harmonics1);
         DOCTEST_REQUIRE(std::fabs(target - base) > 0.01f);
         source.m_rig.SetFader(0, 1.0f);
         source.m_rig.RunFrames(4);
@@ -133,7 +133,7 @@ DOCTEST_TEST_CASE("Patch gestures: loaded targets respond to faders without scen
     DOCTEST_REQUIRE(loaded.m_rig.LoadPatch(patch));
     loaded.m_rig.RunFrames(2);
     auto& encoders = loaded.m_rig.Internal().m_squiggleBoy.m_encoders;
-    DOCTEST_CHECK(encoders.GetValueNoSlew(Encoders::Param::Harmonics1) == doctest::Approx(target));
+    DOCTEST_CHECK(encoders.GetValue(Encoders::Param::Harmonics1) == doctest::Approx(target));
 
     const float x_weights[] = {0.0f, 0.5f, 1.0f};
     for (float weight : x_weights)
@@ -141,12 +141,12 @@ DOCTEST_TEST_CASE("Patch gestures: loaded targets respond to faders without scen
         DOCTEST_CAPTURE(weight);
         loaded.m_rig.SetFader(0, weight);
         loaded.m_rig.RunFrames(4);
-        DOCTEST_CHECK(encoders.GetValueNoSlew(Encoders::Param::Harmonics1)
+        DOCTEST_CHECK(encoders.GetValue(Encoders::Param::Harmonics1)
             == doctest::Approx(base * (1.0f - weight) + target * weight).epsilon(0.001));
     }
 
     DOCTEST_REQUIRE(loaded.m_rig.ReloadPatch(emptyPatch));
     loaded.m_rig.RunFrames(2);
-    DOCTEST_CHECK(encoders.GetValueNoSlew(Encoders::Param::Harmonics1) == doctest::Approx(0.0f));
+    DOCTEST_CHECK(encoders.GetValue(Encoders::Param::Harmonics1) == doctest::Approx(0.0f));
     DOCTEST_CHECK_FALSE(loaded.m_rig.SawNaN());
 }

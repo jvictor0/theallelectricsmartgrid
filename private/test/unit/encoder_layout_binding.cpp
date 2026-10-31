@@ -102,7 +102,7 @@ DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep processin
     for (size_t trio = 0; trio < 3; ++trio)
     {
         auto* hidden = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(Encoders::Param::SampleStart, trio));
-        DOCTEST_CHECK(encoders.GetValueNoSlew(Encoders::Param::SampleStart, static_cast<int>(trio * 3)) == doctest::Approx(0.37f));
+        DOCTEST_CHECK(encoders.GetValue(Encoders::Param::SampleStart, static_cast<int>(trio * 3)) == doctest::Approx(0.37f));
         hidden->FillModulators(&context);
         auto* child = hidden->m_modulators.m_modulators[0].get();
         DOCTEST_REQUIRE(child->GetSharedEncoderState() == hidden->GetSharedEncoderState());

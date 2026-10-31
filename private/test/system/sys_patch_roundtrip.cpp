@@ -145,9 +145,9 @@ void AssertEncoderValues(synthrig::SynthRig& rig,
     }
 }
 
-float ParamValueNoSlew(synthrig::SynthRig& rig, SmartGridOneEncoders::Param param)
+float ParamValue(synthrig::SynthRig& rig, SmartGridOneEncoders::Param param)
 {
-    return rig.Internal().m_squiggleBoy.m_encoders.GetValueNoSlew(param);
+    return rig.Internal().m_squiggleBoy.m_encoders.GetValue(param);
 }
 
 float FaderValue(synthrig::SynthRig& rig, size_t fader)
@@ -204,7 +204,7 @@ void CheckParamNear(synthrig::SynthRig& rig,
                     const char* name,
                     float expected)
 {
-    float actual = ParamValueNoSlew(rig, param);
+    float actual = ParamValue(rig, param);
     DOCTEST_CHECK_MESSAGE(
         std::fabs(actual - expected) <= kTol,
         std::string(name) << " expected=" << expected << " actual=" << actual);
