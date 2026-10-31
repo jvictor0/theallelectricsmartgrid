@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EncoderBank.hpp"
+#include "EncoderEditList.hpp"
 #include "SampleTimer.hpp"
 
 struct EncoderBankBank
@@ -41,6 +42,7 @@ struct EncoderBankBank
     BankConfig* m_bankConfigs;
     BankMode* m_bankModes;
     SmartGrid::EncoderPtr* m_encoders;
+    SmartGrid::EncoderEditList m_editList;
 
     EncoderBankBank(
         size_t numBanks,
@@ -112,7 +114,6 @@ struct EncoderBankBank
         cell->m_bipolar = bipolar;
         cell->m_defaultValue = cell->ToNormalized(defaultValue);
         cell->SetValue(cell->m_defaultValue, true);
-        cell->InitSlewState(cell->m_defaultValue);
         cell->m_connected = true;
         cell->m_color = color;
         cell->m_name = name;
@@ -136,24 +137,13 @@ struct EncoderBankBank
         SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIndex);
         if (cell)
         {
-            return cell->GetSlewedValue(channel);
+            return cell->GetValue(channel);
         }
 
         return 0.0f;
     }
 
-    float GetValueNoSlewByEncoderIndex(size_t encoderIndex, size_t channel)
-    {
-        SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIndex);
-        if (cell)
-        {
-            return cell->GetValueNoSlew(channel);
-        }
-
-        return 0.0f;
-    }
-
-    float GetNormalizedValueNoSlewByEncoderIndex(size_t encoderIndex, size_t channel)
+    float GetNormalizedValueByEncoderIndex(size_t encoderIndex, size_t channel)
     {
         SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIndex);
         return cell ? cell->m_output[channel] : 0.0f;
@@ -225,32 +215,44 @@ struct EncoderBankBank
 
     void Process()
     {
-        if (SampleTimer::IsControlFrame())
+        m_editList.Process(m_context->m_sceneManager);
+        for (size_t i = 0; i < m_numModes; ++i)
         {
-            for (size_t i = 0; i < m_numModes; ++i)
+            m_bankModes[i].m_modulatorValues.ComputeChanged();
+        }
+
+        SmartGrid::SceneManager& sceneManager = m_context->m_sceneManager;
+        bool blendChanged = sceneManager.m_changed && !sceneManager.m_changedScene;
+        if (blendChanged)
+        {
+            SetBlendChanged(true);
+        }
+        else
+        {
+            if (sceneManager.m_changed)
             {
-                m_bankModes[i].m_modulatorValues.ComputeChanged();
+                HandleChangedSceneManager();
+            }
+
+            if (sceneManager.m_changedScene)
+            {
+                HandleChangedSceneManagerScene();
             }
         }
 
-        if (m_context->m_sceneManager.m_changed)
-        {
-            HandleChangedSceneManager();
-        }
+        ForEachNamedEncoder(
+            [](size_t, SmartGrid::BankedEncoderCell* cell)
+            {
+                cell->Compute();
+            });
 
-        if (m_context->m_sceneManager.m_changedScene)
+        if (blendChanged)
         {
-            HandleChangedSceneManagerScene();
+            SetBlendChanged(false);
         }
 
         if (SampleTimer::IsControlFrame())
         {
-            ForEachNamedEncoder(
-                [](size_t, SmartGrid::BankedEncoderCell* cell)
-                {
-                    cell->Compute();
-                });
-
             for (size_t i = 0; i < m_numBanks; ++i)
             {
                 m_banks[i].ProcessTopology();
@@ -267,6 +269,14 @@ struct EncoderBankBank
             });
     }
 
+    void SetBlendChanged(bool blendChanged)
+    {
+        for (size_t i = 0; i < m_numModes; ++i)
+        {
+            m_bankModes[i].m_modulatorValues.m_blendChanged = blendChanged;
+        }
+    }
+
     void HandleChangedSceneManagerScene()
     {
         SetAllModulatorsAffectingForAllModes();
@@ -275,11 +285,6 @@ struct EncoderBankBank
     float GetValue(size_t ix, size_t i, size_t j, size_t channel)
     {
         return m_banks[ix].GetValue(i, j, channel);
-    }
-
-    float GetValueNoSlew(size_t ix, size_t i, size_t j, size_t channel)
-    {
-        return m_banks[ix].GetValueNoSlew(i, j, channel);
     }
 
     void SelectGrid(int ix)
@@ -366,6 +371,7 @@ struct EncoderBankBank
 
     JSON ToJSON(JsonArena& a)
     {
+        FlushEdits();
         JSON rootJ = a.Object();
         for (size_t i = 0; i < m_numEncoders; ++i)
         {
@@ -381,6 +387,7 @@ struct EncoderBankBank
 
     void FromJSON(JSON rootJ)
     {
+        m_editList.Clear();
         for (size_t i = 0; i < m_numEncoders; ++i)
         {
             SmartGrid::BankedEncoderCell* cell = m_encoders[i].get();
@@ -406,6 +413,7 @@ struct EncoderBankBank
 
     void RevertToDefault(bool allScenes)
     {
+        m_editList.Clear();
         ForEachNamedEncoder(
             [allScenes](size_t, SmartGrid::BankedEncoderCell* cell)
             {
@@ -417,10 +425,59 @@ struct EncoderBankBank
 
     void Apply(SmartGrid::MessageIn msg)
     {
-        if (m_selectedBank >= 0)
+        if (m_selectedBank >= 0 && !QueueEdit(m_banks[m_selectedBank], msg))
         {
             m_banks[m_selectedBank].Apply(msg);
         }
+    }
+
+    // Queues encoder turns and absolute sets on the edit list instead of applying
+    // them on arrival. Returns false for messages the bank should handle itself.
+    //
+    bool QueueEdit(SmartGrid::EncoderBankInternal& bank, SmartGrid::MessageIn msg)
+    {
+        using Mode = SmartGrid::MessageIn::Mode;
+        if (msg.m_mode != Mode::EncoderIncDec &&
+            msg.m_mode != Mode::EncoderExponentialDelta &&
+            msg.m_mode != Mode::EncoderSet)
+        {
+            return false;
+        }
+
+        SmartGrid::BankedEncoderCell* cell = static_cast<SmartGrid::BankedEncoderCell*>(bank.GetVisible(msg.m_x, msg.m_y));
+        if (!cell || !cell->m_sharedEncoderState)
+        {
+            return true;
+        }
+
+        if (msg.m_mode == Mode::EncoderIncDec)
+        {
+            float delta = cell->IncDecDelta(msg.m_timestamp, msg.m_amount);
+            if (delta != 0)
+            {
+                m_editList.AddRelative(cell, delta);
+            }
+        }
+        else if (msg.m_mode == Mode::EncoderExponentialDelta)
+        {
+            if (msg.m_amount < 0 || msg.m_amount > 127 || msg.m_amount == 64)
+            {
+                return true;
+            }
+
+            m_editList.AddRelative(cell, static_cast<float>(SmartGrid::ExponentialEncoderDelta::Decode(static_cast<uint8_t>(msg.m_amount))));
+        }
+        else
+        {
+            m_editList.AddAbsolute(cell, msg.SetValueFloat());
+        }
+
+        return true;
+    }
+
+    void FlushEdits()
+    {
+        m_editList.Flush();
     }
 
     void PopulateUIState(EncoderBankUIState* uiState)

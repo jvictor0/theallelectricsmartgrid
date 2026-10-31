@@ -140,8 +140,7 @@ namespace
 
         DOCTEST_REQUIRE(cell != nullptr);
         cell->SetValue(value, true);
-        cell->InitSlewState(value);
-        for (size_t i = 0; i < 16; ++i)
+        for (size_t i = 0; i < QuadFloat::x_numChannels; ++i)
         {
             cell->m_output[i] = value;
         }

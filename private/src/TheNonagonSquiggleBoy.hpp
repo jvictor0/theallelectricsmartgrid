@@ -61,8 +61,16 @@ struct TheNonagonSquiggleBoyInternal
         KMixMidi m_kMixMidi;
     };
 
+    static constexpr float x_inputSlewCutoff = 500.0f / 48000.0f;
+
     SquiggleBoyWithEncoderBank::Input m_squiggleBoyState;
     TheNonagonSmartGrid m_nonagon;
+
+    // Incoming blend and fader messages glide m_blendFactor and m_faders to their new
+    // values; direct writes to those values still apply immediately.
+    //
+    SettlingSlew m_blendSlew;
+    SettlingSlew m_faderSlew[SquiggleBoyWithEncoderBank::x_numFaders];
 
     UIState m_uiState;
     IOState m_ioState;
@@ -192,6 +200,7 @@ struct TheNonagonSquiggleBoyInternal
         for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
         {
             m_squiggleBoyState.m_faders[i] = static_cast<float>(fadersJ.GetAt(i).NumberValue());
+            m_faderSlew[i].Snap(m_squiggleBoyState.m_faders[i]);
         }
     }
 
@@ -268,6 +277,7 @@ struct TheNonagonSquiggleBoyInternal
     void SetBlendFactor(float blendFactor)
     {
         m_context.m_sceneManager.m_blendFactor = blendFactor;
+        m_blendSlew.Snap(blendFactor);
     }
 
     void SetActiveTrio(TheNonagonSmartGrid::Trio trio)
@@ -280,13 +290,30 @@ struct TheNonagonSquiggleBoyInternal
     {
         if (msg.m_x == 0)
         {
-            m_context.m_sceneManager.m_blendFactor = msg.AmountFloat();
+            m_blendSlew.SetTarget(m_context.m_sceneManager.m_blendFactor, msg.AmountFloat());
             m_context.m_paramEventLogger.RecordBlendChange(msg.AmountFloat());
         }
         else
         {
-            m_squiggleBoyState.m_faders[msg.m_x - 1] = msg.AmountFloat();
+            size_t fader = static_cast<size_t>(msg.m_x - 1);
+            m_faderSlew[fader].SetTarget(m_squiggleBoyState.m_faders[fader], msg.AmountFloat());
             m_context.m_paramEventLogger.RecordFaderChange(msg.m_x - 1, msg.AmountFloat());
+        }
+    }
+
+    void ProcessInputSlews()
+    {
+        if (!m_blendSlew.IsSettled())
+        {
+            m_context.m_sceneManager.m_blendFactor = m_blendSlew.Process();
+        }
+
+        for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
+        {
+            if (!m_faderSlew[i].IsSettled())
+            {
+                m_squiggleBoyState.m_faders[i] = m_faderSlew[i].Process();
+            }
         }
     }
 
@@ -514,6 +541,8 @@ struct TheNonagonSquiggleBoyInternal
 
     QuadFloatWithStereoAndSub ProcessSample(const AudioInputBuffer& audioInputBuffer)
     {
+        ProcessInputSlews();
+
         // Process scene manager first to set changed flags
         //
         m_context.m_sceneManager.Process();
@@ -558,7 +587,7 @@ struct TheNonagonSquiggleBoyInternal
                 bool voiceMode = SmartGridOneEncoders::IsVoiceMode(mode);
                 auto trio = static_cast<TheNonagonSmartGrid::Trio>(mode);
                 size_t numVoices = static_cast<size_t>(encoderState.GetNumVoices(x, y));
-                for (size_t channel = 0; channel < 16; ++channel)
+                for (size_t channel = 0; channel < EncoderUIState::x_maxVoices; ++channel)
                 {
                     SmartGrid::Color color = SmartGrid::Color::Off;
                     if (channel < numVoices)
@@ -600,6 +629,12 @@ struct TheNonagonSquiggleBoyInternal
         , m_clockMode(ClockMode::Internal)
         , m_clockTick(false)
     {
+        m_blendSlew.SetAlphaFromNatFreq(x_inputSlewCutoff);
+        for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
+        {
+            m_faderSlew[i].SetAlphaFromNatFreq(x_inputSlewCutoff);
+        }
+
         m_nonagon.m_activeTrio = &m_activeTrio;
         m_configGrid.Init(&m_squiggleBoy, &m_activeTrio, &m_uiState.m_squiggleBoyUIState);
         m_sceneStateLeft = m_stateSaver.Insert("sceneStateLeft", &m_context.m_sceneManager.m_scene1);

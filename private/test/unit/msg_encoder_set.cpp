@@ -77,6 +77,7 @@ void ApplyAndRun(SmartGrid::MessageInBus& bus,
 {
     bus.Push(msg);
     bus.ProcessMessages(&system, SmartGrid::MessageInLatency::WithLatency(msg.m_timestamp));
+    system.m_squiggleBoy.m_encoders.m_encoderBankBank.FlushEdits();
     SystemFixture::RunFrame(system);
 }
 

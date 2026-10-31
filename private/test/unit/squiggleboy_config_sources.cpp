@@ -34,10 +34,9 @@ void SetParamValue(
     SmartGrid::BankedEncoderCell* cell = squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(squiggleBoy.m_encoders.EncoderIndex(param, 0));
     DOCTEST_REQUIRE(cell);
 
-    for (size_t i = 0; i < 16; ++i)
+    for (size_t i = 0; i < QuadFloat::x_numChannels; ++i)
     {
         cell->m_output[i] = value;
-        cell->m_slew[i].m_output = value;
     }
 }
 

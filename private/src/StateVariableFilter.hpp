@@ -4,6 +4,7 @@
 #include "Filter.hpp"
 #include "Math.hpp"
 #include "PhaseUtils.hpp"
+#include "Saturator.hpp"
 #include <atomic>
 #include <cmath>
 #include <complex>

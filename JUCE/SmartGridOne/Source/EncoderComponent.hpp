@@ -375,7 +375,7 @@ struct EncoderComponent : public juce::Component
 
                 // Skip if voice index would be out of bounds
                 //
-                if (voice >= 16)
+                if (voice >= EncoderUIState::x_maxVoices)
                 {
                     continue;
                 }
@@ -406,7 +406,7 @@ struct EncoderComponent : public juce::Component
 
                 // Skip if voice index would be out of bounds
                 //
-                if (voice >= 16)
+                if (voice >= EncoderUIState::x_maxVoices)
                 {
                     continue;
                 }

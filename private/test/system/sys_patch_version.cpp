@@ -9,13 +9,13 @@ DOCTEST_TEST_CASE("sys_patch_version: legacy trio values survive live load save 
     DOCTEST_REQUIRE(rig.LoadPatch(legacy));
     rig.RunFrames(2);
     auto& encoders = rig.Internal().m_squiggleBoy.m_encoders;
-    DOCTEST_CHECK(encoders.GetValueNoSlew(SmartGridOneEncoders::Param::Harmonics1, 0) == doctest::Approx(0.11));
-    DOCTEST_CHECK(encoders.GetValueNoSlew(SmartGridOneEncoders::Param::Harmonics1, 3) == doctest::Approx(0.22));
-    DOCTEST_CHECK(encoders.GetValueNoSlew(SmartGridOneEncoders::Param::Harmonics1, 6) == doctest::Approx(0.33));
-    DOCTEST_CHECK(encoders.GetValueNoSlew(SmartGridOneEncoders::Param::HPCutoff, 3) == doctest::Approx(0.25));
-    DOCTEST_CHECK(encoders.GetValueNoSlew(SmartGridOneEncoders::Param::PanRadius, 6) == doctest::Approx(0.39));
-    DOCTEST_CHECK(encoders.GetValueNoSlew(SmartGridOneEncoders::Param::LFO1Skew, 0) == doctest::Approx(0.19));
-    DOCTEST_CHECK(encoders.GetValueNoSlew(SmartGridOneEncoders::Param::DelayTime, 0) == doctest::Approx(0.71));
+    DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::Harmonics1, 0) == doctest::Approx(0.11));
+    DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::Harmonics1, 3) == doctest::Approx(0.22));
+    DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::Harmonics1, 6) == doctest::Approx(0.33));
+    DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::HPCutoff, 3) == doctest::Approx(0.25));
+    DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::PanRadius, 6) == doctest::Approx(0.39));
+    DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::LFO1Skew, 0) == doctest::Approx(0.19));
+    DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::DelayTime, 0) == doctest::Approx(0.71));
     std::string saved = rig.SavePatch();
     JsonArena arena;
     arena.Init(JsonArena::kDefaultCapacity);
@@ -35,5 +35,5 @@ DOCTEST_TEST_CASE("sys_patch_version: legacy trio values survive live load save 
     DOCTEST_CHECK(earthGesture.Get("active").GetAt(0).BooleanValue());
     DOCTEST_REQUIRE(rig.LoadPatch(saved));
     rig.RunFrames(2);
-    DOCTEST_CHECK(encoders.GetValueNoSlew(SmartGridOneEncoders::Param::Harmonics1, 3) == doctest::Approx(0.22));
+    DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::Harmonics1, 3) == doctest::Approx(0.22));
 }

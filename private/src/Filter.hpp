@@ -7,39 +7,53 @@
 #include <cmath>
 #include <complex>
 
-struct OPLowPassFilter
+template <typename Number, size_t Size>
+struct OPLowPassFilterGeneric
 {
-    static constexpr float x_maxCutoff = 0.499f;
+    using Vector = MultiChannelNumber<Number, Size>;
+    static constexpr Number x_maxCutoff = static_cast<Number>(0.499);
     
-    float m_alpha;
-    float m_output;
+    Vector m_alpha;
+    Vector m_output;
 
-    OPLowPassFilter()
-        : m_alpha(0.0f)
-        , m_output(0.0f)
+    OPLowPassFilterGeneric()
+        : m_alpha(Vector::Splat(0))
+        , m_output(Vector::Splat(0))
     {
     }
 
-    float Process(float input)
+    Vector Process(const Vector& input)
     {
-        m_output = m_alpha * input + (1.0f - m_alpha) * m_output;
+        m_output = m_alpha * input + (Vector::Splat(1) - m_alpha) * m_output;
         return m_output;
     }
 
-    void SetAlphaFromNatFreq(float cyclesPerSample)
+    void SetAlphaFromNatFreq(Number cyclesPerSample)
     {
-        cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
-        assert(cyclesPerSample > 0);
+        m_alpha = AlphaFromNatFreq(Vector::Splat(cyclesPerSample));
+    }
+
+    void SetAlphaFromNatFreq(const Vector& cyclesPerSample)
+    {
         m_alpha = AlphaFromNatFreq(cyclesPerSample);
     }
 
-    static float AlphaFromNatFreq(float cyclesPerSample)
+    // Radians per sample, with the cutoff clamped to x_maxCutoff.
+    //
+    static Vector OmegaFromNatFreq(const Vector& cyclesPerSample)
     {
-        cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
-        assert(cyclesPerSample > 0);
+        Vector clamped = Vector::Min(Vector::Splat(x_maxCutoff), cyclesPerSample);
+        for (size_t i = 0; i < Size; ++i)
+        {
+            assert(clamped[i] > 0);
+        }
 
-        float omega = 2.0f * M_PI * cyclesPerSample;   // radians per sample
-        return 1.0f - std::exp(-omega);
+        return clamped * static_cast<Number>(2 * M_PI);
+    }
+
+    static Vector AlphaFromNatFreq(const Vector& cyclesPerSample)
+    {
+        return Vector::Splat(1) - (-OmegaFromNatFreq(cyclesPerSample)).Exp();
     }
 
     static std::complex<float> TransferFunction(float alpha, float freq)
@@ -116,120 +130,47 @@ struct OPLowPassFilter
     }
 };
 
-struct OPLowPassFilterDouble
+using OPLowPassFilter = OPLowPassFilterGeneric<float, 1>;
+using OPLowPassFilterDouble = OPLowPassFilterGeneric<double, 1>;
+using QuadOPLowPassFilter = OPLowPassFilterGeneric<float, 4>;
+
+template <typename Number, size_t Size>
+struct OPHighPassFilterGeneric
 {
-    static constexpr double x_maxCutoff = 0.499;
+    using Vector = MultiChannelNumber<Number, Size>;
     
-    double m_alpha;
-    double m_output;
+    Vector m_alpha;
+    Vector m_output;
+    Vector m_prevInput;
 
-    OPLowPassFilterDouble()
-        : m_alpha(0.0)
-        , m_output(0.0)
+    OPHighPassFilterGeneric()
+        : m_alpha(Vector::Splat(0))
+        , m_output(Vector::Splat(0))
+        , m_prevInput(Vector::Splat(0))
     {
     }
 
-    double Process(double input)
+    Vector Process(const Vector& input)
     {
-        m_output = m_alpha * input + (1.0 - m_alpha) * m_output;
-        return m_output;
-    }
-
-    void SetAlphaFromNatFreq(double cyclesPerSample)
-    {
-        cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
-        assert(cyclesPerSample > 0);
-
-        double omega = 2.0 * M_PI * cyclesPerSample;
-        m_alpha = 1.0 - std::exp(-omega);
-    }
-};
-
-template<size_t Size>
-struct BulkFilter
-{   
-    static constexpr float x_maxCutoff = 0.499f;
-    float m_alpha;
-    alignas(16) float m_target[Size];
-    alignas(16) float m_output[Size];
-
-    BulkFilter()
-        : m_alpha(0.0f)
-        , m_target{}
-        , m_output{0.0f}
-    {
-        SetAlphaFromNatFreq(500.0 / 48000.0);
-
-        assert(reinterpret_cast<uintptr_t>(m_output) % 16 == 0);
-        assert(reinterpret_cast<uintptr_t>(m_target) % 16 == 0);
-
-        memset(m_output, 0, Size * sizeof(float));
-        memset(m_target, 0, Size * sizeof(float));
-    }
-
-    void SetAlphaFromNatFreq(float cyclesPerSample)
-    {
-        cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
-        assert(cyclesPerSample > 0);
-
-        float omega = 2.0f * M_PI * cyclesPerSample;   // radians per sample
-        m_alpha = 1.0f - std::exp(-omega);
-        // float rc = 1.0f / (2.0f * M_PI * cyclesPerSample);
-        // m_alpha = 1.0f / (rc + 1.0f);
-    }  
-
-    void LoadTarget(size_t n, size_t offset, float* target)
-    {
-        memcpy(m_target + offset, target, n * sizeof(float));
-    }
-
-    void Process(size_t n)
-    {
-        float* target = static_cast<float*>(__builtin_assume_aligned(m_target, 16));
-        float* output = static_cast<float*>(__builtin_assume_aligned(m_output, 16));
-        float alpha = m_alpha;
-        float oneMinusAlpha = 1.0f - m_alpha;
-
-        n = ((n + 3) / 4) * 4;
-
-        //#pragma clang loop vectorize(enable) interleave(enable)
-        for (size_t i = 0; i < n; ++i)
-        {
-            output[i] = alpha * target[i] + oneMinusAlpha * output[i];
-        }
-    }
-};
-
-struct OPHighPassFilter
-{
-    static constexpr float x_maxCutoff = 0.499f;
-    
-    float m_alpha;
-    float m_output;
-    float m_prevInput;
-
-    OPHighPassFilter()
-        : m_alpha(0.0f)
-        , m_output(0.0f)
-        , m_prevInput(0.0f)
-    {
-    }
-
-    float Process(float input)
-    {
-        float output = m_alpha * (m_output + input - m_prevInput);
+        Vector output = m_alpha * (m_output + input - m_prevInput);
         m_prevInput = input;
         m_output = output;
         return output;
     }
 
-    void SetAlphaFromNatFreq(float cyclesPerSample)
+    void SetAlphaFromNatFreq(Number cyclesPerSample)
     {
-        cyclesPerSample = std::min(x_maxCutoff, cyclesPerSample);
-        assert(cyclesPerSample > 0);
+        m_alpha = AlphaFromNatFreq(Vector::Splat(cyclesPerSample));
+    }
 
-        float omega = 2.0f * M_PI * cyclesPerSample;   // radians per sample
-        m_alpha = std::exp(-omega);
+    void SetAlphaFromNatFreq(const Vector& cyclesPerSample)
+    {
+        m_alpha = AlphaFromNatFreq(cyclesPerSample);
+    }
+
+    static Vector AlphaFromNatFreq(const Vector& cyclesPerSample)
+    {
+        return (-OPLowPassFilterGeneric<Number, Size>::OmegaFromNatFreq(cyclesPerSample)).Exp();
     }
 
     static std::complex<float> TransferFunction(float alpha, float freq)
@@ -262,6 +203,9 @@ struct OPHighPassFilter
     }
 };
 
+using OPHighPassFilter = OPHighPassFilterGeneric<float, 1>;
+using QuadOPHighPassFilter = OPHighPassFilterGeneric<float, 4>;
+
 // Damping filter: HP + LP in series. UI state implements TransferFunction for visualization.
 //
 struct DampingFilter
@@ -291,282 +235,32 @@ struct DampingFilter
     };
 };
 
-struct OPBaseWidthFilter
+template <typename Number, size_t Size>
+struct OPBaseWidthFilterGeneric
 {
-    OPHighPassFilter m_highPassFilter;
-    OPLowPassFilter m_lowPassFilter;
+    using Vector = MultiChannelNumber<Number, Size>;
 
-    OPBaseWidthFilter()
-    {
-    }
+    OPHighPassFilterGeneric<Number, Size> m_highPassFilter;
+    OPLowPassFilterGeneric<Number, Size> m_lowPassFilter;
 
-    void SetBaseWidth(float base, float width)
+    void SetBaseWidth(Number base, Number width)
     {
         m_highPassFilter.SetAlphaFromNatFreq(base);
         m_lowPassFilter.SetAlphaFromNatFreq(base * width);
     }
 
-    float Process(float input)
+    void SetBaseWidth(const Vector& base, const Vector& width)
     {
-        float highPassOutput = m_highPassFilter.Process(input);
-        float lowPassOutput = m_lowPassFilter.Process(highPassOutput);
-        return lowPassOutput;
+        m_highPassFilter.SetAlphaFromNatFreq(base);
+        m_lowPassFilter.SetAlphaFromNatFreq(base * width);
+    }
+
+    Vector Process(const Vector& input)
+    {
+        Vector highPassOutput = m_highPassFilter.Process(input);
+        return m_lowPassFilter.Process(highPassOutput);
     }
 };
 
-struct QuadOPLowPassFilter
-{
-    OPLowPassFilter m_filters[4];
-    QuadFloat m_output;
-
-    QuadFloat Process(const QuadFloat& input)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_output[i] = m_filters[i].Process(input[i]);
-        }
-        
-        return m_output;
-    }
-
-    void SetAlphaFromNatFreq(float cyclesPerSample)
-    {
-        m_filters[0].SetAlphaFromNatFreq(cyclesPerSample);
-        for (int i = 1; i < 4; ++i)
-        {
-            m_filters[i].m_alpha = m_filters[0].m_alpha;
-        }
-    }
-
-    void SetAlphaFromNatFreq(QuadFloat cyclesPerSample)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_filters[i].SetAlphaFromNatFreq(cyclesPerSample[i]);
-        }
-    }
-};
-
-struct QuadOPHighPassFilter
-{
-    OPHighPassFilter m_filters[4];
-    QuadFloat m_output;
-
-    QuadFloat Process(const QuadFloat& input)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_output[i] = m_filters[i].Process(input[i]);
-        }
-        
-        return m_output;
-    }
-
-    void SetAlphaFromNatFreq(float cyclesPerSample)
-    {
-        m_filters[0].SetAlphaFromNatFreq(cyclesPerSample);
-        for (int i = 1; i < 4; ++i)
-        {
-            m_filters[i].m_alpha = m_filters[0].m_alpha;
-        }
-    }
-
-    void SetAlphaFromNatFreq(QuadFloat cyclesPerSample)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_filters[i].SetAlphaFromNatFreq(cyclesPerSample[i]);
-        }
-    }
-};
-
-struct QuadOPBaseWidthFilter
-{
-    OPBaseWidthFilter m_filters[4];
-    QuadFloat m_output;
-
-    QuadFloat Process(const QuadFloat& input)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_output[i] = m_filters[i].Process(input[i]);
-        }
-        
-        return m_output;
-    }
-
-    void SetBaseWidth(float base, float width)
-    {
-        m_filters[0].SetBaseWidth(base, width);
-        for (int i = 1; i < 4; ++i)
-        {
-            m_filters[i].m_highPassFilter.m_alpha = m_filters[0].m_highPassFilter.m_alpha;
-            m_filters[i].m_lowPassFilter.m_alpha = m_filters[0].m_lowPassFilter.m_alpha;
-        }
-    }
-
-    void SetBaseWidth(QuadFloat base, QuadFloat width)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_filters[i].SetBaseWidth(base[i], width[i]);
-        }
-    }
-};
-
-template<bool Normalize>
-struct TanhSaturator
-{
-    float m_inputGain;
-    float m_tanhGain;
-
-    TanhSaturator()
-        : m_inputGain(1.0f)
-        , m_tanhGain(0.7615941559557649f)
-    {
-    }
-
-    TanhSaturator(float gain)
-        : m_inputGain(1.0)
-        , m_tanhGain(0.7615941559557649f)
-    {
-        SetInputGain(gain);
-    }
-
-    void SetInputGain(float gain)
-    {
-        if (gain != m_inputGain)
-        {
-            m_inputGain = gain;
-            m_tanhGain = Tanh(m_inputGain);
-        }
-    }
-
-    static float Tanh(float x)
-    {
-        float y = x * (27.0f + x * x) / (27.0f + 9.0f * x * x);
-        return std::min(1.0f, std::max(-1.0f, y));
-    }
-
-    // Derivative of Process w.r.t. input
-    // Non-normalized: d/dx[Tanh(gain*x)] = gain * sech²(gain*x)
-    // Normalized: d/dx[Tanh(gain*x)/tanhGain] = gain * sech²(gain*x) / tanhGain
-    //
-    float Derivative(float input)
-    {
-        float scaledInput = m_inputGain * input;
-        if (1.0 <= std::fabs(Tanh(scaledInput)))
-        {
-            return 0.0f;
-        }
-
-        // Rational tanh and its derivative sech^2 as a rational function
-        // y = x * (27 + x^2) / (27 + 9*x^2)
-        // dy/dx = [ (27 + x^2) + 2x^2 ] / (27 + 9*x^2) - x*(27 + x^2)*18x / (27 + 9*x^2)^2
-        //        = (27 + 3x^2) / (27 + 9x^2) - [18x^2 (27 + x^2)] / (27 + 9x^2)^2
-
-        float x = scaledInput;
-        float x2 = x * x;
-        float denom = 27.0f + 9.0f * x2;
-
-        // Derivative of the numerator
-        float num1 = 27.0f + 3.0f * x2;
-        float num2 = 18.0f * x2 * (27.0f + x2);
-
-        float numerator = num1 * denom - num2;
-        float denominator = denom * denom;
-
-        float sech2 = numerator / denominator;
-
-        if (Normalize)
-        {
-            return m_inputGain * sech2 / m_tanhGain;
-        }
-        else
-        {
-            return m_inputGain * sech2;
-        }
-    }
-
-    float DerivativeZero()
-    {
-        if (Normalize)
-        {
-            return m_inputGain / m_tanhGain;
-        }
-        else
-        {
-            return m_inputGain;
-        }
-    }
-
-    float Process(float input)
-    {
-        float scaledInput = m_inputGain * input;
-        float output = Tanh(scaledInput);
-        return Normalize ? output / m_tanhGain : output;
-    }
-
-    QuadFloat Process(const QuadFloat& input)
-    {
-        QuadFloat output;
-        for (int i = 0; i < 4; ++i)
-        {
-            output[i] = Process(input[i]);
-        }
-
-        return output;
-    }
-};
-
-template<bool Normalize>
-struct ATanSaturator
-{
-    float m_inputGain;
-    float m_atanGain;
-
-    ATanSaturator()
-        : m_inputGain(1.0f)
-        , m_atanGain(0.0f)
-    {
-    }
-
-    ATanSaturator(float gain)
-        : m_inputGain(1.0)
-        , m_atanGain(0.0f)
-    {
-        SetInputGain(gain);
-    }
-
-    float Saturate(float input)
-    {
-        return std::atan(input * M_PI / 2) / (M_PI / 2);
-    }
-
-    void SetInputGain(float gain)
-    {
-        if (gain != m_inputGain)
-        {
-            m_inputGain = gain;
-            m_atanGain = Saturate(m_inputGain);
-        }
-    }
-
-    float Process(float input)
-    {
-        float scaledInput = m_inputGain * input;
-        float output = Saturate(scaledInput);
-        return Normalize ? output / m_atanGain : output;
-    }
-
-    QuadFloat Process(const QuadFloat& input)
-    {
-        QuadFloat output;
-        for (int i = 0; i < 4; ++i)
-        {
-            output[i] = Process(input[i]);
-        }
-
-        return output;
-    }
-};
+using OPBaseWidthFilter = OPBaseWidthFilterGeneric<float, 1>;
+using QuadOPBaseWidthFilter = OPBaseWidthFilterGeneric<float, 4>;

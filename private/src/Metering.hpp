@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cmath>
 #include "Filter.hpp"
+#include "Saturator.hpp"
 #include "StereoUtils.hpp"
 #include "QuadUtils.hpp"
 

@@ -121,7 +121,7 @@ DOCTEST_TEST_CASE("SynthRig: encoder set values read back")
     for (float v : values)
     {
         rig.SetEncoder(ex, ey, v);
-        rig.RunFrames(1);
+        rig.SettleEncoderEdits();
         DOCTEST_CHECK(std::fabs(rig.EncoderValue(ex, ey) - v) <= tol);
     }
 

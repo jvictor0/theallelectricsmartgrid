@@ -1,6 +1,7 @@
 #include "doctest.h"
 #include "support/GlobalEnv.hpp"
 #include "QuadMixer.hpp"
+#include "Saturator.hpp"
 #include "SmartGridBuildInfo.hpp"
 #include <atomic>
 #include <filesystem>

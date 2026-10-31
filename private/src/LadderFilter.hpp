@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Filter.hpp"
+#include "Saturator.hpp"
 #include "DebugMeter.hpp"
 #include "StateVariableFilter.hpp"
 #include <atomic>
@@ -311,7 +312,7 @@ struct LadderFilterLP
         float Cpi = std::pow(perStageGain, 4.0f);
 
         printf("=== LadderFilterLP Debug ===\n");
-        printf("Cutoff: %.6f  Alpha: %.6f\n", m_cutoff, m_stage1.m_alpha);
+        printf("Cutoff: %.6f  Alpha: %.6f\n", m_cutoff, static_cast<float>(m_stage1.m_alpha));
         printf("Feedback: %.6f  kEff: %.6f\n", m_feedback, m_kEff);
         printf("Sat InputGain: %.6f  SmallSigGain: %.6f\n", satInputGain, smallSignalGain);
         printf("PerStageGain: %.6f  Cpi: %.6f\n", perStageGain, Cpi);

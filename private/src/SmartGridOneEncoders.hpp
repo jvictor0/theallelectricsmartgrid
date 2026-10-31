@@ -222,23 +222,6 @@ struct SmartGridOneEncoders
         return GetValue(param, 0);
     }
 
-    float GetValueNoSlew(Param param, int voice)
-    {
-        if (Layout::GetParamMode(param) == ParamMode::Voice)
-        {
-            size_t trio = static_cast<size_t>(voice) / x_voicesPerTrio;
-            size_t trioVoice = static_cast<size_t>(voice) % x_voicesPerTrio;
-            return m_encoderBankBank.GetValueNoSlewByEncoderIndex(EncoderIndex(param, trio), trioVoice);
-        }
-
-        return m_encoderBankBank.GetValueNoSlewByEncoderIndex(EncoderIndex(param, 0), static_cast<size_t>(voice));
-    }
-
-    float GetValueNoSlew(Param param)
-    {
-        return GetValueNoSlew(param, 0);
-    }
-
     int GetSwitchVal(Param param, int voice)
     {
         ParamSwitch paramSwitch = GetParamSwitch(param);
@@ -250,7 +233,7 @@ struct SmartGridOneEncoders
         bool isVoiceMode = Layout::GetParamMode(param) == ParamMode::Voice;
         size_t trio = isVoiceMode ? static_cast<size_t>(voice) / x_voicesPerTrio : 0;
         size_t channel = isVoiceMode ? static_cast<size_t>(voice) % x_voicesPerTrio : static_cast<size_t>(voice);
-        int switchVal = static_cast<int>(std::round(m_encoderBankBank.GetNormalizedValueNoSlewByEncoderIndex(EncoderIndex(param, trio), channel) * static_cast<float>(paramSwitch.m_numValues - 1)));
+        int switchVal = static_cast<int>(std::round(m_encoderBankBank.GetNormalizedValueByEncoderIndex(EncoderIndex(param, trio), channel) * static_cast<float>(paramSwitch.m_numValues - 1)));
         return std::max(0, std::min(paramSwitch.m_numValues - 1, switchVal));
     }
 

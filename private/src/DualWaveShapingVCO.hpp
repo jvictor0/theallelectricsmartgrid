@@ -201,21 +201,21 @@ struct DualWaveShapingVCO
         using Param = SmartGridOneEncoders::Param;
 
         input.m_baseFreq = baseFreq;
-        input.m_morphHarmonics[0] = encoders.GetValueNoSlew(Param::Harmonics1, voiceIx);
-        input.m_morphHarmonics[1] = encoders.GetValueNoSlew(Param::Harmonics2, voiceIx);
+        input.m_morphHarmonics[0] = encoders.GetValue(Param::Harmonics1, voiceIx);
+        input.m_morphHarmonics[1] = encoders.GetValue(Param::Harmonics2, voiceIx);
         input.m_wtBlend[0] = wtBlend0;
         input.m_wtBlend[1] = wtBlend1;
 
-        input.m_v[0] = encoders.GetValueNoSlew(Param::VPSV1, voiceIx);
-        input.m_v[1] = encoders.GetValueNoSlew(Param::VPSV2, voiceIx);
-        input.m_d[0] = encoders.GetValueNoSlew(Param::VPSD1, voiceIx);
-        input.m_d[1] = encoders.GetValueNoSlew(Param::VPSD2, voiceIx);
-        input.m_crossModIndex[0].Update(encoders.GetValueNoSlew(Param::PhaseMod1, voiceIx));
-        input.m_crossModIndex[1].Update(encoders.GetValueNoSlew(Param::PhaseMod2, voiceIx));
+        input.m_v[0] = encoders.GetValue(Param::VPSV1, voiceIx);
+        input.m_v[1] = encoders.GetValue(Param::VPSV2, voiceIx);
+        input.m_d[0] = encoders.GetValue(Param::VPSD1, voiceIx);
+        input.m_d[1] = encoders.GetValue(Param::VPSD2, voiceIx);
+        input.m_crossModIndex[0].Update(encoders.GetValue(Param::PhaseMod1, voiceIx));
+        input.m_crossModIndex[1].Update(encoders.GetValue(Param::PhaseMod2, voiceIx));
 
-        input.m_fade = encoders.GetValueNoSlew(Param::OscillatorMix, voiceIx);
-        input.m_bitCrushAmount = encoders.GetValueNoSlew(Param::BitReduction, voiceIx);
-        input.m_offsetFreqFactor.Update(encoders.GetValueNoSlew(Param::PitchOffset, voiceIx));
-        input.m_detune.Update(encoders.GetValueNoSlew(Param::OscillatorDetune, voiceIx));
+        input.m_fade = encoders.GetValue(Param::OscillatorMix, voiceIx);
+        input.m_bitCrushAmount = encoders.GetValue(Param::BitReduction, voiceIx);
+        input.m_offsetFreqFactor.Update(encoders.GetValue(Param::PitchOffset, voiceIx));
+        input.m_detune.Update(encoders.GetValue(Param::OscillatorDetune, voiceIx));
     }
 };

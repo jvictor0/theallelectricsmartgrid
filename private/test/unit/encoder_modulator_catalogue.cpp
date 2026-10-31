@@ -221,8 +221,8 @@ DOCTEST_TEST_CASE("modulator catalogue: legacy global empty depths survive patch
         DOCTEST_CHECK(ui.GetConnected(index % 4, index / 4));
         DOCTEST_CHECK(ui.GetModulationGlyph(index % 4, index / 4, index) == Glyph::None);
         DOCTEST_CHECK(ui.GetModulationGlyphColor(index % 4, index / 4, index) == SmartGrid::Color(0, 0, 0));
-        DOCTEST_CHECK(std::isfinite(cell->GetValueNoSlew(0)));
-        DOCTEST_CHECK(cell->GetValueNoSlew(0) == doctest::Approx(0.8f));
+        DOCTEST_CHECK(std::isfinite(cell->GetValue(0)));
+        DOCTEST_CHECK(cell->GetValue(0) == doctest::Approx(0.8f));
         DOCTEST_CHECK(bank.GetVisible(index % 4, index / 4) == depth);
         auto skin = Encoders::GetModulatorSkin(index, Encoders::BankMode::Global);
         DOCTEST_CHECK(skin.m_color == SmartGrid::Color(0, 0, 0));

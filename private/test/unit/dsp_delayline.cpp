@@ -290,10 +290,8 @@ DOCTEST_TEST_CASE("DelayLine: sweeping read position is click-free")
     DOCTEST_INFO("static max delta=" << staticDelta
                  << " sweep max delta=" << maxDelta);
 
-    // The swept version uses XFader-based crossfade internally (via
-    // DelayLine::Read(XFader)) only when called with XFader; plain Read()
-    // uses cubic interpolation at every sample. A slow sweep should stay
-    // within a reasonable multiple of the static worst-case delta.
+    // Read() uses cubic interpolation at every sample. A slow sweep should
+    // stay within a reasonable multiple of the static worst-case delta.
     //
     DOCTEST_CHECK(maxDelta < staticDelta * 10.0f + 0.1f);
 

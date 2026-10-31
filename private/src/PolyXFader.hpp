@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Filter.hpp"
+#include "Saturator.hpp"
 #include "Math.hpp"
 
 #include "TheoryOfTimeBase.hpp"

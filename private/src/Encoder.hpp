@@ -30,9 +30,20 @@ struct EncoderCell
 
     void HandleIncDec(size_t timestamp, int64_t delta)
     {
+        float scaled = IncDecDelta(timestamp, delta);
+        if (scaled != 0)
+        {
+            Increment(scaled);
+        }
+    }
+
+    // Updates the acceleration state for one tick and returns the scaled delta.
+    //
+    float IncDecDelta(size_t timestamp, int64_t delta)
+    {
         if (delta == 0)
         {
-            return;
+            return 0;
         }
 
         int currentSign = (delta > 0) ? 1 : -1;
@@ -108,7 +119,7 @@ struct EncoderCell
         m_lastDeltaSign = currentSign;
         m_lastSpeed = speed;
         
-        Increment(delta * speed);
+        return static_cast<float>(delta) * speed;
     }
 
     virtual float GetNormalizedValue() = 0;

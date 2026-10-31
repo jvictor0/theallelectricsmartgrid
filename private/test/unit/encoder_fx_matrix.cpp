@@ -39,6 +39,7 @@ DOCTEST_TEST_CASE("FX Matrix: voice edits follow the trio while shared controls 
             encoders.EncoderIndex(Param::AmpGain, trio)));
         encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 0, 0.2f * static_cast<float>(trio + 1)));
         encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 1, 0.7f));
+        encoders.m_encoderBankBank.FlushEdits();
         delay->m_output[3] = 0.84f;
         internal.PopulateUIState();
         DOCTEST_CHECK(ui.GetMode(0, 0) == Encoders::VoiceModeForTrio(trio));
@@ -56,6 +57,7 @@ DOCTEST_TEST_CASE("FX Matrix: voice edits follow the trio while shared controls 
     encoders.SelectBank(Bank::Delay);
     DOCTEST_CHECK(delay->m_values[0] == doctest::Approx(0.7f).epsilon(0.0001f));
     encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(3, 3, 0.4f));
+    encoders.m_encoderBankBank.FlushEdits();
     for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
     {
         encoders.SetTrack(trio);

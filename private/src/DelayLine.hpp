@@ -4,7 +4,6 @@
 #include "PhaseUtils.hpp"
 #include "Filter.hpp"
 #include "NormGen.hpp"
-#include "InterleavedArray.hpp"
 #include "Math.hpp"
 #include "Resynthesis.hpp"
 #include <algorithm>
@@ -12,159 +11,37 @@
 #include <type_traits>
 #include <utility>
 
-struct XFader
+// Ring buffer of Size interleaved channels, each read at its own delay.
+//
+template <typename Number, size_t Size, size_t MaxDelaySamples>
+struct DelayLineGeneric
 {
-    static constexpr float x_fadeIncr = 1.0 / (48000.0 * 0.005);
+    using Vector = MultiChannelNumber<Number, Size>;
+    static constexpr size_t x_maxDelaySamples = MaxDelaySamples;
 
-    double m_left;
-    double m_right;
-    float m_fade;
-    bool m_fadeDone;
-    bool m_leftSet;
-
-    XFader()
-        : m_left(0.0f)
-        , m_right(0.0f)
-        , m_fade(0.0f)
-        , m_fadeDone(true)
-        , m_leftSet(false)
-    {
-    }
-
-    void Process()
-    {
-        if (!m_fadeDone)
-        {
-            m_fade += x_fadeIncr;
-            if (m_fade >= 1.0f)
-            {
-                m_fadeDone = true;
-                m_left = m_right;
-                m_fade = 0;
-            }
-        }
-    }
-
-    void Start(double right)
-    {
-        if (!m_leftSet)
-        {
-            m_left = right;
-            m_leftSet = true;
-            m_fadeDone = true;
-        }
-        else
-        {
-            m_right = right;
-            m_fade = 0.0f;
-            m_fadeDone = false;
-        }
-    }
-
-    double GetValue(bool left)
-    {
-        return left ? m_left : m_right;
-    }
-
-    float GetFade(bool left)
-    {
-        return left ? 1.0f - m_fade : m_fade;
-    }
-
-    template<class T, double (T::*ReadFunc)(double)>
-    double Read(T* delayLine)
-    {
-        if (m_fadeDone)
-        {
-            return (delayLine->*ReadFunc)(m_left);
-        }
-        else
-        {
-            double readLeft = (delayLine->*ReadFunc)(m_left);
-            double readRight = (delayLine->*ReadFunc)(m_right);
-            return readLeft * (1.0f - m_fade) + readRight * m_fade;
-        }
-    }
-};
-
-struct QuadXFader
-{
-    XFader m_fader[4];
-
-    QuadXFader ScaleOffset(QuadFloat scale, QuadFloat offset)
-    {
-        QuadXFader result;
-        for (size_t i = 0; i < 4; ++i)
-        {
-            result.m_fader[i].m_left = scale[i] * m_fader[i].m_left + offset[i];
-            result.m_fader[i].m_right = scale[i] * m_fader[i].m_right + offset[i];
-            result.m_fader[i].m_fade = m_fader[i].m_fade;
-            result.m_fader[i].m_fadeDone = m_fader[i].m_fadeDone;
-            result.m_fader[i].m_leftSet = m_fader[i].m_leftSet;
-        }
-
-        return result;
-    }
-
-    QuadXFader ModOne()
-    {
-        QuadXFader result;
-        for (size_t i = 0; i < 4; ++i)
-        {
-            result.m_fader[i].m_left = m_fader[i].m_left - std::floor(m_fader[i].m_left);
-            result.m_fader[i].m_right = m_fader[i].m_right - std::floor(m_fader[i].m_right);
-            result.m_fader[i].m_fade = m_fader[i].m_fade;
-            result.m_fader[i].m_fadeDone = m_fader[i].m_fadeDone;
-            result.m_fader[i].m_leftSet = m_fader[i].m_leftSet;
-        }
-
-        return result;
-    }
-
-    void Process()
-    {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_fader[i].Process();
-        }
-    }
-
-    template<class T, double (T::*ReadFunc)(double)>
-    QuadDouble Read(T* delayLine)
-    {
-        QuadDouble result;
-        for (size_t i = 0; i < 4; ++i)
-        {
-            result[i] = m_fader[i].template Read<T, ReadFunc>(delayLine);
-        }
-
-        return result;
-    }
-};
-
-template<size_t Size = 1 << 16>
-struct DelayLine
-{
-    static constexpr size_t x_maxDelaySamples = Size;
-    float m_delayLine[x_maxDelaySamples] = {0.0f};
+    Vector m_delayLine[x_maxDelaySamples];
     size_t m_index;
 
-    DelayLine()
+    DelayLineGeneric()
         : m_index(0)
     {
+        for (size_t i = 0; i < x_maxDelaySamples; ++i)
+        {
+            m_delayLine[i] = Vector::Splat(0);
+        }
     }
 
-    void Write(float x)
+    void Write(const Vector& x)
     {
         m_delayLine[m_index] = x;
         m_index = (m_index + 1) % x_maxDelaySamples;
     }
 
-    float MirrorDelayTime(float delaySamples)
+    static Number MirrorDelayTime(Number delaySamples)
     {
-        while (delaySamples < 0.0f || delaySamples > x_maxDelaySamples)
+        while (delaySamples < 0 || delaySamples > x_maxDelaySamples)
         {
-            if (delaySamples < 0.0f)
+            if (delaySamples < 0)
             {
                 delaySamples = -delaySamples;
             }
@@ -175,55 +52,65 @@ struct DelayLine
         }
 
         return delaySamples;
-    }        
-
-    float Read(float delaySamples)
-    {
-        delaySamples = MirrorDelayTime(delaySamples);
-        
-        // use cubic interpolation
-        //
-        float index = m_index - delaySamples + 2 * x_maxDelaySamples;
-        return ReadAtIndex(index);
     }
 
-    double ReadDouble(double delaySamples)
+    Vector Read(const Vector& delaySamples)
     {
-        return Read(static_cast<float>(delaySamples));
+        Vector result;
+        for (size_t i = 0; i < Size; ++i)
+        {
+            // use cubic interpolation
+            //
+            Number index = m_index - MirrorDelayTime(delaySamples[i]) + 2 * x_maxDelaySamples;
+            result[i] = ReadAtIndex(i, index);
+        }
+
+        return result;
     }
 
-    float ReadAtIndex(float index)
+    Number ReadAtIndex(size_t channel, Number index)
     {
         size_t iSub1 = static_cast<size_t>(index - 1) % x_maxDelaySamples;
         size_t i0 = (iSub1 + 1) % x_maxDelaySamples;
         size_t i1 = (iSub1 + 2) % x_maxDelaySamples;
         size_t i2 = (iSub1 + 3) % x_maxDelaySamples;
 
-        float c = m_delayLine[i1] - m_delayLine[iSub1];
-        float d = 2 * m_delayLine[iSub1] - 5 * m_delayLine[i0] + 4 * m_delayLine[i1] - m_delayLine[i2];
-        float e = -m_delayLine[iSub1] + 3 * (m_delayLine[i0] - m_delayLine[i1]) + m_delayLine[i2];
-        float alpha = index - std::floor(index);
-        
-        return m_delayLine[i0] + alpha * (c + alpha * (d + alpha * e)) / 2;
-    }
+        Number ySub1 = m_delayLine[iSub1][channel];
+        Number y0 = m_delayLine[i0][channel];
+        Number y1 = m_delayLine[i1][channel];
+        Number y2 = m_delayLine[i2][channel];
 
-    float Read(XFader fader)
-    {
-        return static_cast<float>(fader.Read<DelayLine, &DelayLine::ReadDouble>(this));
+        Number c = y1 - ySub1;
+        Number d = 2 * ySub1 - 5 * y0 + 4 * y1 - y2;
+        Number e = -ySub1 + 3 * (y0 - y1) + y2;
+        Number alpha = index - std::floor(index);
+        
+        return y0 + alpha * (c + alpha * (d + alpha * e)) / 2;
     }
 };
 
-template<size_t Size>
-struct DelayLineMovableWriter
+template <size_t MaxDelaySamples>
+using DelayLine = DelayLineGeneric<float, 1, MaxDelaySamples>;
+
+template <size_t MaxDelaySamples>
+using QuadDelayLine = DelayLineGeneric<float, 4, MaxDelaySamples>;
+
+// Delay line whose write head moves through warped time. All channels share one
+// write head, so the warped-to-real time map is scalar while audio and envelopes
+// are interleaved per channel.
+//
+template <typename Number, size_t Size, size_t MaxDelaySamples>
+struct DelayLineMovableWriterGeneric
 {
-    static constexpr size_t x_maxDelaySamples = Size;
+    using Vector = MultiChannelNumber<Number, Size>;
+    static constexpr size_t x_maxDelaySamples = MaxDelaySamples;
     static constexpr size_t x_envelopeBucketSamples = 1024;
     static constexpr size_t x_envelopeBucketCount = x_maxDelaySamples / x_envelopeBucketSamples;
 
-    InterleavedArrayHolder<float, x_maxDelaySamples, 4> m_delayLine;
-    InterleavedArrayHolder<double, x_maxDelaySamples, 4> m_writeHeadInverse;
-    InterleavedArrayHolder<float, x_envelopeBucketCount, 4> m_maxEnvelope;
-    InterleavedArrayHolder<float, x_envelopeBucketCount, 4> m_minEnvelope;
+    Vector m_delayLine[x_maxDelaySamples];
+    double m_writeHeadInverse[x_maxDelaySamples];
+    Vector m_maxEnvelope[x_envelopeBucketCount];
+    Vector m_minEnvelope[x_envelopeBucketCount];
 
     static constexpr size_t x_scatterBufferSize = 8;
     size_t m_scatterHead;
@@ -238,7 +125,7 @@ struct DelayLineMovableWriter
 
     double m_lastTime;
 
-    DelayLineMovableWriter()
+    DelayLineMovableWriterGeneric()
         : m_scatterHead(x_scatterBufferSize)
         , m_turnaroundWarpedTime(0.0)
         , m_descending(false)
@@ -246,29 +133,16 @@ struct DelayLineMovableWriter
         , m_ascendingCount(0)
         , m_lastTime(17700716)
     {
-    }
-
-    void SetArray(InterleavedArray<float, x_maxDelaySamples, 4>* delayLine, InterleavedArray<double, x_maxDelaySamples, 4>* writeHeadInverse, InterleavedArray<float, x_envelopeBucketCount, 4>* maxEnvelope, InterleavedArray<float, x_envelopeBucketCount, 4>* minEnvelope, size_t foldIx)
-    {
-        m_delayLine.m_array = delayLine;
-        m_delayLine.m_foldIx = foldIx;
-        m_writeHeadInverse.m_array = writeHeadInverse;
-        m_writeHeadInverse.m_foldIx = foldIx;
-        m_maxEnvelope.m_array = maxEnvelope;
-        m_maxEnvelope.m_foldIx = foldIx;
-        m_minEnvelope.m_array = minEnvelope;
-        m_minEnvelope.m_foldIx = foldIx;
-
         for (size_t i = 0; i < x_maxDelaySamples; ++i)
         {
-            m_delayLine[i] = 0.0f;
+            m_delayLine[i] = Vector::Splat(0);
             m_writeHeadInverse[i] = i;
         }
 
         for (size_t i = 0; i < x_envelopeBucketCount; ++i)
         {
-            m_maxEnvelope[i] = 0;
-            m_minEnvelope[i] = 0;
+            m_maxEnvelope[i] = Vector::Splat(0);
+            m_minEnvelope[i] = Vector::Splat(0);
         }
     }
 
@@ -299,7 +173,7 @@ struct DelayLineMovableWriter
         return static_cast<size_t>(PhaseUtils::FloorMod(index, static_cast<int64_t>(x_maxDelaySamples)));
     }
 
-    void Write(float x, double time)
+    void Write(const Vector& x, double time)
     {
         if (time < m_lastWarpedTime)
         {
@@ -340,12 +214,12 @@ struct DelayLineMovableWriter
         if (index % x_envelopeBucketSamples == 0)
         {
             m_maxEnvelope[envelopeBucketIndex] = x;
-            m_minEnvelope[envelopeBucketIndex] = x;            
+            m_minEnvelope[envelopeBucketIndex] = x;
         }
         else
         {
-            m_maxEnvelope[envelopeBucketIndex] = std::max(m_maxEnvelope[envelopeBucketIndex], x);
-            m_minEnvelope[envelopeBucketIndex] = std::min(m_minEnvelope[envelopeBucketIndex], x);
+            m_maxEnvelope[envelopeBucketIndex] = Vector::Max(m_maxEnvelope[envelopeBucketIndex], x);
+            m_minEnvelope[envelopeBucketIndex] = Vector::Min(m_minEnvelope[envelopeBucketIndex], x);
         }
 
         if (index == 0)
@@ -356,45 +230,34 @@ struct DelayLineMovableWriter
         m_lastTime += 1.0;
     }
 
-    template<class T>
-    T ReadAtIndex(double index, InterleavedArrayHolder<T, x_maxDelaySamples, 4>& line)
+    Vector ReadAtIndex(double index)
     {
         size_t i0 = WrapIndex(static_cast<int64_t>(std::floor(index)));
         size_t iSub1 = (i0 + x_maxDelaySamples - 1) % x_maxDelaySamples;
         size_t i1 = (i0 + 1) % x_maxDelaySamples;
         size_t i2 = (i0 + 2) % x_maxDelaySamples;
 
-        T c = line[i1] - line[iSub1];
-        T d = 2 * line[iSub1] - 5 * line[i0] + 4 * line[i1] - line[i2];
-        T e = -line[iSub1] + 3 * (line[i0] - line[i1]) + line[i2];
-        T alpha = index - std::floor(index);
+        const Vector& ySub1 = m_delayLine[iSub1];
+        const Vector& y0 = m_delayLine[i0];
+        const Vector& y1 = m_delayLine[i1];
+        const Vector& y2 = m_delayLine[i2];
+
+        Vector c = y1 - ySub1;
+        Vector d = ySub1 * 2 - y0 * 5 + y1 * 4 - y2;
+        Vector e = -ySub1 + (y0 - y1) * 3 + y2;
+        Number alpha = static_cast<Number>(index - std::floor(index));
         
-        return line[i0] + alpha * (c + alpha * (d + alpha * e)) / 2;
+        return y0 + (c + (d + e * alpha) * alpha) * alpha / 2;
     }
 
-    float Read(double warpedTime)
+    Vector Read(double warpedTime)
     {
-        double realTime = GetRealTime(warpedTime);
-        return ReadAtIndex(realTime, m_delayLine);
+        return ReadAtIndex(GetRealTime(warpedTime));
     }
 
-    float ReadWithOffset(double warpedTime, double offset)
+    Vector ReadWithOffset(double warpedTime, double offset)
     {
-        return ReadAtIndex(GetRealTime(warpedTime) + offset, m_delayLine);
-    }
-
-    float ReadWithOffset(XFader fader, double offset)
-    {
-        if (fader.m_fadeDone)
-        {
-            return ReadWithOffset(fader.m_left, offset);
-        }
-        else
-        {
-            float readLeft = ReadWithOffset(fader.m_left, offset);
-            float readRight = ReadWithOffset(fader.m_right, offset);
-            return readLeft * (1.0f - fader.m_fade) + readRight * fader.m_fade;
-        }
+        return ReadAtIndex(GetRealTime(warpedTime) + offset);
     }
 
     double GetRealTime(double warpedTime)
@@ -406,40 +269,64 @@ struct DelayLineMovableWriter
         return m_writeHeadInverse[i0] + alpha * (m_writeHeadInverse[i1] - m_writeHeadInverse[i0]);
     }
 
-    std::pair<float, float> GetEnvelopeAtRealTime(double realTime)
+    std::pair<Vector, Vector> GetEnvelopeAtRealTime(double realTime)
     {
         double envelopeIndexFloat = realTime / static_cast<double>(x_envelopeBucketSamples) - 0.5;
 
         int64_t bucketIndex = static_cast<int64_t>(std::floor(envelopeIndexFloat));
         size_t index0 = static_cast<size_t>(PhaseUtils::FloorMod(bucketIndex, static_cast<int64_t>(x_envelopeBucketCount)));
         size_t index1 = (index0 + 1) % x_envelopeBucketCount;
-        float frac = static_cast<float>(envelopeIndexFloat - std::floor(envelopeIndexFloat));
+        Number frac = static_cast<Number>(envelopeIndexFloat - std::floor(envelopeIndexFloat));
 
-        float maxVal = m_maxEnvelope[index0] * (1.0f - frac) + m_maxEnvelope[index1] * frac;
-        float minVal = m_minEnvelope[index0] * (1.0f - frac) + m_minEnvelope[index1] * frac;
+        Vector maxVal = m_maxEnvelope[index0] * (1 - frac) + m_maxEnvelope[index1] * frac;
+        Vector minVal = m_minEnvelope[index0] * (1 - frac) + m_minEnvelope[index1] * frac;
 
         return {maxVal, minVal};
     }
 
-    std::pair<float, float> GetEnvelopeAtWarpedTime(double warpedTime)
+    std::pair<Vector, Vector> GetEnvelopeAtWarpedTime(double warpedTime)
     {
         return GetEnvelopeAtRealTime(GetRealTime(warpedTime));
     }
 
-    float ReadRealTime(double realTime)
+    Vector ReadRealTime(double realTime)
     {
-        return ReadAtIndex(realTime, m_delayLine);
+        return ReadAtIndex(realTime);
     }
 
-    float Read(XFader fader)
+    // Each channel read at its own real time.
+    //
+    Vector ReadRealTime(const MultiChannelNumber<double, Size>& realTime)
     {
-        return fader.Read<DelayLineMovableWriter, &DelayLineMovableWriter::Read>(this);
+        Vector result;
+        for (size_t i = 0; i < Size; ++i)
+        {
+            result[i] = ReadAtIndex(realTime[i])[i];
+        }
+
+        return result;
     }
 };
 
-template<typename AudioBufferType>
-struct GrainManager
+template <size_t MaxDelaySamples>
+using DelayLineMovableWriter = DelayLineMovableWriterGeneric<float, 1, MaxDelaySamples>;
+
+template <size_t MaxDelaySamples>
+using QuadDelayLineMovableWriter = DelayLineMovableWriterGeneric<float, 4, MaxDelaySamples>;
+
+// Launches resynthesized grains from an audio buffer on a shared schedule. Each
+// grain covers all Size channels, which start and end together but read from
+// their own times and resynthesize independently.
+//
+// The audio buffer provides GetRealTime(double warpedTime) and
+// ReadRealTime(MultiChannelNumber<double, Size> realTime).
+//
+template <typename AudioBufferType, size_t Size>
+struct GrainManagerGeneric
 {
+    using Vector = MultiChannelNumber<float, Size>;
+    using TimeVector = MultiChannelNumber<double, Size>;
+
     struct Grain
     {
         Grain()
@@ -451,41 +338,46 @@ struct GrainManager
         {
         }
 
-        float Process()
+        Vector Process()
         {
-            return m_grain.Process() / 1.5;
+            Vector result;
+            for (size_t i = 0; i < Size; ++i)
+            {
+                result[i] = m_grain[i].Process() / 1.5;
+            }
+
+            return result;
         }
 
-        void Start(Resynthesizer::Input& input, double startTime, double warpedTime)
+        void Start(Resynthesizer::Input* input, const TimeVector& startTime)
         {
-            Resynthesizer::Buffer prevTable;
-
-            double rms = 0;
-
-            for (size_t i = 0; i < Resynthesizer::x_tableSize; ++i)
+            Resynthesizer::Buffer* prevTable = m_owner->m_prevTable;
+            for (size_t k = 0; k < Resynthesizer::x_tableSize; ++k)
             {
-                float window = Math4096::Hann(i);
-                m_grain.m_buffer.m_table[i] = m_audioBuffer->ReadRealTime(startTime + i) * window;
-                rms += m_grain.m_buffer.m_table[i] * m_grain.m_buffer.m_table[i];
+                float window = Math4096::Hann(k);
+                Vector current = m_audioBuffer->ReadRealTime(startTime + k) * window;
+                Vector previous = m_audioBuffer->ReadRealTime(startTime + k - Resynthesizer::x_H) * window;
+                for (size_t i = 0; i < Size; ++i)
+                {
+                    m_grain[i].m_buffer.m_table[k] = current[i];
+                    prevTable[i].m_table[k] = previous[i];
+                }
             }
 
-            for (size_t i = 0; i < Resynthesizer::x_tableSize; ++i)
+            for (size_t i = 0; i < Size; ++i)
             {
-                float window = Math4096::Hann(i);
-                prevTable.m_table[i] = m_audioBuffer->ReadRealTime(startTime + i - Resynthesizer::x_H) * window;
+                m_owner->m_resynthesizer[i].Process(prevTable[i], &m_grain[i], input[i]);
             }
-
-            m_owner->m_resynthesizer.Process(prevTable, &m_grain, input);
         }
 
         bool IsRunning() const
         {
-            return m_grain.m_running;
+            return m_grain[0].m_running;
         }
 
-        Resynthesizer::Grain m_grain;
+        Resynthesizer::Grain m_grain[Size];
         AudioBufferType* m_audioBuffer;
-        GrainManager* m_owner;
+        GrainManagerGeneric* m_owner;
     };
     
     static constexpr size_t x_maxGrains = 1024;
@@ -495,8 +387,9 @@ struct GrainManager
     AudioBufferType* m_audioBuffer;
     RGen m_rgen;
     int m_samplesToNextGrain;
-    double m_lastSampleOffset;
-    Resynthesizer m_resynthesizer;
+    Vector m_lastSampleOffset;
+    Resynthesizer m_resynthesizer[Size];
+    Resynthesizer::Buffer m_prevTable[Size];
 
     void CompactGrains()
     {
@@ -532,10 +425,10 @@ struct GrainManager
         return grain;
     }
 
-    float ProcessGrains()
+    Vector ProcessGrains()
     {
         bool anyFreed = false;
-        float result = 0.0f;
+        Vector result = Vector::Splat(0);
         for (size_t i = 0; i < m_numGrains; ++i)
         {
             result += m_grainsArray[i]->Process();
@@ -558,33 +451,41 @@ struct GrainManager
 
     struct Input
     {
-        Resynthesizer::Input m_resynthInput;
+        Resynthesizer::Input m_resynthInput[Size];
     };
 
-    float Process(double warpedTime, double sampleOffset, Input& input,
-        double latestSampleTime = std::numeric_limits<double>::infinity())
+    // Recorded sample banks have no write frontier.
+    //
+    Vector Process(const TimeVector& warpedTime, const Vector& sampleOffset, Input& input)
+    {
+        return Process(warpedTime, sampleOffset, input, std::numeric_limits<double>::infinity());
+    }
+
+    Vector Process(const TimeVector& warpedTime, const Vector& sampleOffset, Input& input, double latestSampleTime)
     {
         if (!m_audioBuffer)
         {
-            return 0.0f;
+            return Vector::Splat(0);
         }
 
-        float result = ProcessGrains();
+        Vector result = ProcessGrains();
         --m_samplesToNextGrain;
         if (m_samplesToNextGrain <= 0)
         {
             Grain* grain = AllocateGrain();
             if (grain)
             {
-                double startTime = m_audioBuffer->GetRealTime(warpedTime) + sampleOffset;
-
                 // Protect the full analysis window after mapping to real time.
                 // Cubic audio interpolation reads two samples beyond its floor index.
-                // Recorded sample banks use the default unbounded frontier.
                 //
                 double latestStart = latestSampleTime - (Resynthesizer::x_N - 1) - 2;
-                startTime = std::min(startTime, latestStart);
-                grain->Start(input.m_resynthInput, startTime, warpedTime);
+                TimeVector startTime;
+                for (size_t i = 0; i < Size; ++i)
+                {
+                    startTime[i] = std::min(m_audioBuffer->GetRealTime(warpedTime[i]) + sampleOffset[i], latestStart);
+                }
+
+                grain->Start(input.m_resynthInput, startTime);
             }
 
             m_samplesToNextGrain = Resynthesizer::GetGrainLaunchSamples();
@@ -595,10 +496,10 @@ struct GrainManager
         return result;
     }
 
-    GrainManager()
+    GrainManagerGeneric()
         : m_audioBuffer(nullptr)
         , m_samplesToNextGrain(0)
-        , m_lastSampleOffset(0)
+        , m_lastSampleOffset(Vector::Splat(0))
     {
         m_numGrains = 0;
         for (size_t i = 0; i < x_maxGrains; ++i)
@@ -606,284 +507,16 @@ struct GrainManager
             m_grainsArray[i] = nullptr;
         }
     }
-};
 
-struct AllPassFilter
-{
-    static constexpr size_t x_maxDelaySamples = 4096;
-    float m_delayLine[x_maxDelaySamples] = {0.0f};
-    int m_index;
-    float m_gain;
-    int m_delaySamples;
-    float m_output;
-
-    AllPassFilter()
-        : m_index(0)
-        , m_gain(0.5f)
-        , m_delaySamples(0)
-        , m_output(0.0f)
+    explicit GrainManagerGeneric(AudioBufferType* audioBuffer)
+        : GrainManagerGeneric()
     {
-        Clear();
-    }
-
-    void Clear()
-    {
-        for (size_t i = 0; i < x_maxDelaySamples; ++i)
-        {
-            m_delayLine[i] = 0.0f;
-        }
-        
-        m_index = 0;
-        m_output = 0.0f;
-    }
-    
-    float Process(float x)
-    {
-        m_output = -m_gain * x + m_delayLine[(m_index + x_maxDelaySamples - m_delaySamples) % x_maxDelaySamples];
-        m_delayLine[m_index] = x + m_gain * m_output;
-        m_index = (m_index + 1) % x_maxDelaySamples;
-        return m_output;
+        m_audioBuffer = audioBuffer;
     }
 };
 
-template<int Size>
-struct ParallelAllPassFilter
-{
-    AllPassFilter m_filters[Size];
-    float m_output;
+template <typename AudioBufferType>
+using GrainManager = GrainManagerGeneric<AudioBufferType, 1>;
 
-    ParallelAllPassFilter()
-        : m_filters{}
-        , m_output(0.0f)
-    {
-    }
-
-    void SetDelaySamples(int i, size_t delaySamples)
-    {
-        m_filters[i].m_delaySamples = delaySamples;
-    }
-
-    void SetGain(float gain)
-    {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_filters[i].m_gain = gain;
-        }
-    }
-
-    float Process(float input)
-    {
-        m_output = 0;
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_output += m_filters[i].Process(input);
-        }
-
-        m_output /= Size;
-        return m_output;
-    }
-};
-
-template<size_t Size>
-struct QuadDelayLine
-{
-    DelayLine<Size> m_delayLine[4];
-
-    void Write(QuadFloat x)
-    {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_delayLine[i].Write(x[i]);
-        }
-    }
-
-    QuadFloat Read(QuadFloat delaySamples)
-    {
-        return QuadFloat(
-            m_delayLine[0].Read(delaySamples[0]),
-            m_delayLine[1].Read(delaySamples[1]),
-            m_delayLine[2].Read(delaySamples[2]),
-            m_delayLine[3].Read(delaySamples[3]));
-    }
-
-    QuadFloat Read(QuadXFader fader)
-    {
-        QuadFloat result;
-        for (size_t i = 0; i < 4; ++i)
-        {
-            result[i] = fader.m_fader[i].Read<DelayLine<Size>, &DelayLine<Size>::Read>(&m_delayLine[i]);
-        }
-
-        return result;
-    }
-
-    struct UIState
-    {
-        typename DelayLine<Size>::UIState m_delayLineUIState[4];
-
-        UIState()
-        {
-        }
-    };   
-    
-    void PopulateUIState(UIState* uiState)
-    {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_delayLine[i].PopulateUIState(&uiState->m_delayLineUIState[i]);
-        }
-    }
-};
-
-template<size_t Size>
-struct QuadDelayLineMovableWriter
-{
-    static constexpr size_t x_envelopeBucketCount = DelayLineMovableWriter<Size>::x_envelopeBucketCount;
-
-    InterleavedArray<float, Size, 4> m_delayLineArray;
-    InterleavedArray<double, Size, 4> m_writeHeadInverseArray;
-    InterleavedArray<float, x_envelopeBucketCount, 4> m_maxEnvelopeArray;
-    InterleavedArray<float, x_envelopeBucketCount, 4> m_minEnvelopeArray;
-    DelayLineMovableWriter<Size> m_delayLine[4];
-
-    QuadDelayLineMovableWriter()
-    {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_delayLine[i].SetArray(&m_delayLineArray, &m_writeHeadInverseArray, &m_maxEnvelopeArray, &m_minEnvelopeArray, i);
-        }
-    }
-
-    void Write(QuadFloat x, QuadDouble time)
-    {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_delayLine[i].Write(x[i], time[i]);
-        }
-    }
-
-    QuadFloat Read(QuadXFader fader)
-    {
-        QuadFloat result;
-        for (size_t i = 0; i < 4; ++i)
-        {
-            result[i] = m_delayLine[i].Read(fader.m_fader[i]);
-        }
-
-        return result;
-    }
-};
-
-template<typename AudioBufferType>
-struct QuadGrainManager
-{
-    GrainManager<AudioBufferType> m_grainManager[4];
-
-    struct Input
-    {
-        typename GrainManager<AudioBufferType>::Input m_input[4];
-    };
-
-    template<size_t Size>
-    QuadGrainManager(QuadDelayLineMovableWriter<Size>* quadDelayLine)
-    {
-        static_assert(std::is_same_v<AudioBufferType, DelayLineMovableWriter<Size>>);
-
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_grainManager[i].m_audioBuffer = &quadDelayLine->m_delayLine[i];
-        }
-    }
-
-    QuadFloat Process(QuadDouble readHead, QuadFloat sampleOffset, Input& input)
-    {
-        QuadFloat result;
-        for (size_t i = 0; i < 4; ++i)
-        {
-            double latestSampleTime = m_grainManager[i].m_audioBuffer->m_lastTime - 1.0;
-            result[i] = m_grainManager[i].Process(readHead[i], sampleOffset[i], input.m_input[i], latestSampleTime);
-        }
-
-        return result;
-    }
-};
-
-struct QuadAllPassFilter
-{
-    AllPassFilter m_allPassFilter[4];
-
-    QuadFloat Process(QuadFloat x)
-    {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_allPassFilter[i].Process(x[i]);
-        }
-
-        return GetOutput();
-    }
-
-    QuadFloat GetOutput()
-    {
-        return QuadFloat(
-            m_allPassFilter[0].m_output,
-            m_allPassFilter[1].m_output,
-            m_allPassFilter[2].m_output,
-            m_allPassFilter[3].m_output);
-    }
-
-    void SetDelaySamples(int i, int delaySamples)
-    {
-        m_allPassFilter[i].m_delaySamples = delaySamples;
-    }
-
-    int GetDelaySamples(int i)
-    {
-        return m_allPassFilter[i].m_delaySamples;
-    }
-
-    void SetGain(float gain)
-    {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_allPassFilter[i].m_gain = gain;
-        }
-    }
-};
-
-template<size_t Size>
-struct QuadParallelAllPassFilter
-{
-    ParallelAllPassFilter<Size> m_allPassFilter[4];
-
-    QuadFloat Process(QuadFloat x)
-    {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_allPassFilter[i].Process(x[i]);
-        }
-
-        return GetOutput();
-    }
-
-    QuadFloat GetOutput()
-    {
-        return QuadFloat(
-            m_allPassFilter[0].m_output,
-            m_allPassFilter[1].m_output,
-            m_allPassFilter[2].m_output,
-            m_allPassFilter[3].m_output);
-    }
-
-    void SetDelaySamples(int i, int j, int delaySamples)
-    {
-        m_allPassFilter[j].SetDelaySamples(i, delaySamples);
-    }
-
-    void SetGain(float gain)
-    {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_allPassFilter[i].SetGain(gain);
-        }
-    }
-};
+template <typename AudioBufferType>
+using QuadGrainManager = GrainManagerGeneric<AudioBufferType, 4>;
