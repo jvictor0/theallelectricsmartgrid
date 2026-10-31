@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <random>
 #include <utility>
+#include "SampleEventHistory.hpp"
+#include "SampleTimer.hpp"
 
 struct GangedRandomLFOTiming
 {
@@ -158,8 +160,90 @@ struct GangedRandomLFOVoiceUIState
 };
 
 template<size_t x_voiceCount>
+struct GangedRandomLFOHistory : SampleEventHistory<5 * x_voiceCount, 256>
+{
+    using History = SampleEventHistory<5 * x_voiceCount, 256>;
+
+    void RecordRound(
+        size_t sample,
+        const GangedRandomLFOVoice* voices,
+        const GangedRandomLFOVoiceInput* inputs)
+    {
+        typename History::Event event;
+        event.m_sample = sample;
+        for (size_t voice = 0; voice < x_voiceCount; ++voice)
+        {
+            size_t offset = voice * 5;
+            event.m_values[offset] = voices[voice].m_source;
+            event.m_values[offset + 1] = voices[voice].m_target;
+            event.m_values[offset + 2] = inputs[voice].m_waitingIncrement;
+            event.m_values[offset + 3] = inputs[voice].m_movingIncrement;
+            event.m_values[offset + 4] = inputs[voice].m_shape;
+        }
+
+        this->Record(event);
+    }
+
+    bool ReadValue(size_t voice, double sample, float& value) const
+    {
+        value = 0.0f;
+        typename History::Event event;
+        if (voice >= x_voiceCount || !this->FindAtOrBefore(sample, event))
+        {
+            return false;
+        }
+
+        value = Evaluate(event, voice, sample);
+        return true;
+    }
+
+    float GetValue(size_t voice, double sample) const
+    {
+        float value = 0.0f;
+        ReadValue(voice, sample, value);
+        return value;
+    }
+
+    static float Evaluate(const typename History::Event& event, size_t voice, double sample)
+    {
+        size_t offset = voice * 5;
+        float source = static_cast<float>(event.m_values[offset]);
+        float target = static_cast<float>(event.m_values[offset + 1]);
+        double waitingSamples = std::ceil(1.0 / event.m_values[offset + 2]);
+        double movingIncrement = event.m_values[offset + 3];
+        float shape = static_cast<float>(event.m_values[offset + 4]);
+        double elapsed = sample - static_cast<double>(event.m_sample);
+        return GangedRandomLFOShapedInterpolate(
+            source, target, shape, (elapsed - waitingSamples) * movingIncrement);
+    }
+
+    bool GetRound(size_t voice, double knownThrough, double sample, float& value,
+        double& start, double& end) const
+    {
+        typename History::Event event;
+        if (voice >= x_voiceCount || !this->FindAtOrBefore(knownThrough, event))
+        {
+            return false;
+        }
+
+        start = static_cast<double>(event.m_sample);
+        end = start;
+        for (size_t lane = 0; lane < x_voiceCount; ++lane)
+        {
+            double duration = std::ceil(1.0 / event.m_values[lane * 5 + 2])
+                + std::ceil(1.0 / event.m_values[lane * 5 + 3]);
+            end = std::max(end, start + duration);
+        }
+
+        value = Evaluate(event, voice, sample);
+        return true;
+    }
+};
+
+template<size_t x_voiceCount>
 struct GangedRandomLFOUIState
 {
+    GangedRandomLFOHistory<x_voiceCount> m_history;
     std::atomic<uint32_t> m_revision{0};
     std::atomic<double> m_sampleRate{0.0};
     std::atomic<double> m_roundElapsedSamples{0.0};
@@ -252,6 +336,7 @@ struct GangedRandomLFO
     DrawSource m_draws;
     double m_sampleRate{0.0};
     double m_roundElapsedSamples{0.0};
+    GangedRandomLFOHistory<x_voiceCount>* m_history = nullptr;
 
     GangedRandomLFO() = default;
 
@@ -352,6 +437,10 @@ struct GangedRandomLFO
         }
 
         m_roundElapsedSamples = 0.0;
+        if (m_history)
+        {
+            m_history->RecordRound(SampleTimer::GetSample(), m_voices, m_voiceInputs);
+        }
     }
 
     void PopulateUIState(GangedRandomLFOUIState<x_voiceCount>* uiState) const

@@ -1533,6 +1533,9 @@ struct EncoderBankInternal : public EncoderGrid
             {
                 BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(i, j));
 
+                auto& encoderState = uiState->m_states[i][j];
+                encoderState.m_weightsRevision.fetch_add(1);
+                float weights[EncoderUIState::x_maxVoices][EncoderUIState::x_numModulators]{};
                 auto* shared = cell ? cell->GetSharedEncoderState() : nullptr;
                 size_t numVoices = shared ? shared->m_numVoices : 0;
                 uiState->SetMode(i, j, shared ? static_cast<SmartGridOne::EncoderBankMode>(shared->m_modeIx)
@@ -1540,6 +1543,22 @@ struct EncoderBankInternal : public EncoderGrid
                 uiState->SetNumVoices(i, j, static_cast<int>(numVoices));
                 if (cell && cell->m_connected)
                 {
+                    // Publish current direct depths, including scene/gesture and
+                    // depth modulation. Scope samples already include source amplitude.
+                    //
+                    for (size_t route = 0; route < cell->m_modulators.m_numActiveModulators; ++route)
+                    {
+                        auto* amount = cell->GetModulator(route);
+                        if (!amount->m_modulatorsAffecting.IsZero())
+                        {
+                            for (size_t voice = 0; voice < numVoices; ++voice)
+                            {
+                                weights[voice][amount->m_index] =
+                                    BankedEncoderCell::ModulationDepthFromValue(amount->GetValueNoSlew(voice));
+                            }
+                        }
+                    }
+
                     uiState->SetConnected(i, j, true);
                     uiState->SetEncoderType(i, j, cell->m_type);
                     uiState->SetIndex(i, j, cell->m_index);
@@ -1580,6 +1599,15 @@ struct EncoderBankInternal : public EncoderGrid
                 }
 
                 uiState->SetShortName(i, j, cell ? cell->m_shortName : nullptr);
+                for (size_t voice = 0; voice < EncoderUIState::x_maxVoices; ++voice)
+                {
+                    for (size_t modulator = 0; modulator < EncoderUIState::x_numModulators; ++modulator)
+                    {
+                        encoderState.m_modulatorWeights[voice][modulator].store(weights[voice][modulator]);
+                    }
+                }
+
+                encoderState.m_weightsRevision.fetch_add(1);
             }
         }
     }

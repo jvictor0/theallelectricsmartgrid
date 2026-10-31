@@ -12,6 +12,7 @@
 #include "StateSaver.hpp"
 #include "SquiggleBoyConfig.hpp"
 #include "ExternalClockSync.hpp"
+#include "SmartGridOneModulatorHistory.hpp"
 #include <cassert>
 
 struct TheNonagonSquiggleBoyInternal
@@ -43,6 +44,11 @@ struct TheNonagonSquiggleBoyInternal
         TheNonagonInternal::UIState m_nonagonUIState;
         AnalogUIState<1 + SquiggleBoyWithEncoderBank::x_numFaders> m_analogUIState;
         std::atomic<uint8_t> m_gridsMode;
+
+        float GetModulatorValue(ModulatorRef modulator, double sample) const
+        {
+            return SmartGridOneModulatorHistory::GetModulatorValue(*this, modulator, sample);
+        }
 
         UIState()
             : m_gridsMode(0)
@@ -603,6 +609,7 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoy.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
         m_squiggleBoy.Config(m_squiggleBoyState);
         m_squiggleBoy.SetupUIState(&m_uiState.m_squiggleBoyUIState);
+        m_uiState.m_nonagonUIState.m_noteWriter = &m_nonagon.m_nonagon.m_noteWriter;
         m_nonagon.SetupMonoScopeWriter(&m_uiState.m_squiggleBoyUIState.m_monoScopeWriter);
         m_nonagon.SetupMessageOutBuffer(&m_messageOutBuffer);
     }

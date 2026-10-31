@@ -2,6 +2,7 @@
 
 #include "SmartGridInclude.hpp"
 #include "SmartGridOneMainVisualizerComponent.hpp"
+#include "ModulatorTimeAxisComponent.hpp"
 
 #include <JuceHeader.h>
 #include <algorithm>
@@ -11,7 +12,7 @@
 #include <cstddef>
 
 template<size_t x_voiceCount>
-struct GangedRandomLFOComponent : public SmartGridOneMainVisualizerComponent
+struct GangedRandomLFOComponent : public ModulatorTimeAxisComponent
 {
     enum class ColorMode
     {
@@ -43,7 +44,7 @@ struct GangedRandomLFOComponent : public SmartGridOneMainVisualizerComponent
         std::atomic<size_t>* selectedGang,
         ColorMode colorMode,
         SmartGrid::Color fixedColor)
-        : SmartGridOneMainVisualizerComponent()
+        : ModulatorTimeAxisComponent()
         , m_uiStates(uiStates)
         , m_numGangs(numGangs)
         , m_selectedGang(selectedGang)
@@ -181,6 +182,11 @@ struct GangedRandomLFOComponent : public SmartGridOneMainVisualizerComponent
 
     void Draw(juce::Graphics& graphics, juce::Rectangle<int> boundsRect) override
     {
+        if (DrawTimeAxis(graphics, boundsRect))
+        {
+            return;
+        }
+
         graphics.fillAll(juce::Colours::black);
 
         juce::Rectangle<float> bounds = boundsRect.toFloat();

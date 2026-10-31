@@ -8,6 +8,68 @@ using Mode = Encoders::BankMode;
 using Glyph = SmartGridOne::ModulationGlyphs;
 }
 
+DOCTEST_TEST_CASE("Encoder UI weights: publish current direct per-channel depths without source amplitude or transitive routes")
+{
+    synthrig::SynthRig rig;
+    auto& internal = rig.Internal();
+    auto& encoders = internal.m_squiggleBoy.m_encoders;
+    encoders.SetTrack(2);
+    encoders.SelectBank(Encoders::Bank::Source);
+    auto& bank = encoders.m_encoderBankBank.m_banks[static_cast<size_t>(encoders.m_selectedBank)];
+    auto* quad = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(Encoders::Param::DelayTime, 0));
+    bank.PlaceEncoder(2, 3, quad);
+    quad->m_modulators.FillModulators(quad, quad->m_context);
+    auto* depth = quad->m_modulators.m_modulators[4].get();
+    depth->SetValue(0.75f, true);
+    depth->m_modulators.FillModulators(depth, depth->m_context);
+    depth->m_modulators.m_modulators[6]->SetValue(1.0f, true);
+    auto* sources = quad->GetSharedEncoderState()->m_modulatorValues;
+    for (size_t channel = 0; channel < 4; ++channel)
+    {
+        sources->m_value[6][channel] = 0.125f + 0.25f * channel;
+        sources->m_amplitude[4][channel] = 0.01f;
+    }
+
+    quad->SetStateRecursive();
+    quad->SetModulatorsAffecting();
+    quad->Compute();
+    internal.PopulateUIState();
+    auto& state = rig.UIState().m_squiggleBoyUIState.m_encoderBankUIState.m_states[2][3];
+    EncoderUIState::ModulationWeights snapshot;
+    DOCTEST_REQUIRE(state.ReadModulationWeights(snapshot));
+    DOCTEST_CHECK(snapshot.m_mode == Mode::Quad);
+    DOCTEST_CHECK(snapshot.m_numVoices == 4);
+    DOCTEST_CHECK(state.m_modulatorsAffecting.load().Get(6));
+    for (size_t channel = 0; channel < 4; ++channel)
+    {
+        float bipolarDepth = -0.75f + 0.5f * channel;
+        float expected = SmartGrid::BankedEncoderCell::ModulationDepthFromValue(bipolarDepth);
+        DOCTEST_CHECK(snapshot.m_weights[channel][4] == doctest::Approx(expected));
+        DOCTEST_CHECK(snapshot.m_weights[channel][6] == 0.0f);
+    }
+
+    state.m_weightsRevision.fetch_add(1);
+    DOCTEST_CHECK_FALSE(state.ReadModulationWeights(snapshot));
+    state.m_weightsRevision.fetch_add(1);
+    bank.PlaceEncoder(2, 3, bank.GetBase(0, 0));
+    internal.PopulateUIState();
+    DOCTEST_REQUIRE(state.ReadModulationWeights(snapshot));
+    DOCTEST_CHECK(snapshot.m_mode == Mode::VoiceEarth);
+    DOCTEST_CHECK(snapshot.m_numVoices == 3);
+    DOCTEST_CHECK(snapshot.m_weights[3][4] == 0.0f);
+    bank.PlaceEncoder(2, 3, nullptr);
+    internal.PopulateUIState();
+    DOCTEST_REQUIRE(state.ReadModulationWeights(snapshot));
+    DOCTEST_CHECK(snapshot.m_numVoices == 0);
+    for (const auto& voice : snapshot.m_weights)
+    {
+        for (float weight : voice)
+        {
+            DOCTEST_CHECK(weight == 0.0f);
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("Encoder UI scope: mixed controls publish independent channels glyphs and colors across trios")
 {
     synthrig::SynthRig rig;

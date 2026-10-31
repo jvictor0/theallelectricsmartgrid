@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <array>
 #include "SmartGrid.hpp"
 #include "AtomicString.hpp"
 #include "EncoderEnums.hpp"
@@ -8,6 +9,18 @@
 
 struct EncoderUIState
 {
+    static constexpr size_t x_numModulators = 15;
+    static constexpr size_t x_maxVoices = 16;
+
+    struct ModulationWeights
+    {
+        SmartGridOne::EncoderBankMode m_mode = SmartGridOne::EncoderBankMode::NumModes;
+        size_t m_numVoices = 0;
+        std::array<std::array<float, x_numModulators>, x_maxVoices> m_weights{};
+    };
+
+    std::atomic<size_t> m_weightsRevision{0};
+    std::atomic<float> m_modulatorWeights[x_maxVoices][x_numModulators]{};
     std::atomic<SmartGrid::Color> m_color;
     std::atomic<float> m_brightness;
     std::atomic<float> m_values[16];
@@ -27,6 +40,35 @@ struct EncoderUIState
     std::atomic<SmartGridOne::EncoderBankMode> m_mode{SmartGridOne::EncoderBankMode::NumModes};
     std::atomic<SmartGridOne::ModulationGlyphs> m_modulationGlyphs[16];
     std::atomic<SmartGrid::Color> m_modulationGlyphColor[16];
+
+    bool ReadModulationWeights(ModulationWeights& result) const
+    {
+        for (size_t attempt = 0; attempt < 4; ++attempt)
+        {
+            size_t revision = m_weightsRevision.load();
+            if (revision % 2 != 0)
+            {
+                continue;
+            }
+
+            result.m_mode = m_mode.load();
+            result.m_numVoices = static_cast<size_t>(m_numVoices.load());
+            for (size_t voice = 0; voice < x_maxVoices; ++voice)
+            {
+                for (size_t modulator = 0; modulator < x_numModulators; ++modulator)
+                {
+                    result.m_weights[voice][modulator] = m_modulatorWeights[voice][modulator].load();
+                }
+            }
+
+            if (m_weightsRevision.load() == revision)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     EncoderUIState()
         : m_color(SmartGrid::Color::Off)

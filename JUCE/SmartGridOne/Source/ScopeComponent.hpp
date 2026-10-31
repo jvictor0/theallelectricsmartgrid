@@ -8,8 +8,9 @@
 #include "SmartGridOneMainVisualizerComponent.hpp"
 #include "SmartGridOneModulators.hpp"
 #include "SmartGridOneScopeEnums.hpp"
+#include "ModulatorTimeAxisComponent.hpp"
 
-struct ScopeComponent : public SmartGridOneMainVisualizerComponent
+struct ScopeComponent : public ModulatorTimeAxisComponent
 {
     enum class ScopeType
     {
@@ -35,7 +36,7 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
         int* voiceOffset,
         ScopeType scopeType,
         TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : SmartGridOneMainVisualizerComponent()
+        : ModulatorTimeAxisComponent()
         , m_scopeReaderFactory(scopeWriter, uiState->m_squiggleBoyUIState.m_activeTrack.load(), scopeIx,
             scopeType == ScopeType::Control ? x_numControlSamples : x_numAudioSamples, 1)
         , m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
@@ -45,10 +46,19 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
         , m_voiceOffset(voiceOffset)
         , m_scopeType(scopeType)
     {
+        if (scopeType == ScopeType::Control)
+        {
+            Configure(uiState, Mode::Voice, SmartGridOne::ControlScopeToModulatorIndex(scopeIx), voiceOffset);
+        }
     }
 
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
+        if (DrawTimeAxis(g, boundsRect))
+        {
+            return;
+        }
+
         // Fill background
         //
         g.fillAll(juce::Colours::black);
@@ -119,7 +129,7 @@ struct ScopeComponent : public SmartGridOneMainVisualizerComponent
     }
 };
 
-struct PolyphonicScopeComponent : public SmartGridOneMainVisualizerComponent
+struct PolyphonicScopeComponent : public ModulatorTimeAxisComponent
 {
     static constexpr size_t x_numXSamples = ScopeComponent::x_numControlSamples;
 
@@ -137,7 +147,7 @@ struct PolyphonicScopeComponent : public SmartGridOneMainVisualizerComponent
         SmartGrid::Color color,
         float yScale,
         float yOffset)
-        : SmartGridOneMainVisualizerComponent()
+        : ModulatorTimeAxisComponent()
         , m_scopeWriter(scopeWriter)
         , m_scopeIx(scopeIx)
         , m_numVoices(numVoices)
@@ -147,8 +157,23 @@ struct PolyphonicScopeComponent : public SmartGridOneMainVisualizerComponent
     {
     }
 
+    PolyphonicScopeComponent(TheNonagonSquiggleBoyInternal::UIState* uiState, QuadModulator modulator)
+        : PolyphonicScopeComponent(&uiState->m_squiggleBoyUIState.m_quadControlScopeWriter,
+            SmartGridOneModulatorHistory::GetControlScope(*uiState, ModulatorRef(modulator, 0)).m_lane,
+            4, GetModulatorColor(modulator),
+            modulator == QuadModulator::DelayLFO || modulator == QuadModulator::ReverbLFO ? 0.5f : 0.9f,
+            modulator == QuadModulator::DelayLFO || modulator == QuadModulator::ReverbLFO ? 0.5f : 0.05f)
+    {
+        Configure(uiState, Mode::Quad, static_cast<size_t>(modulator), nullptr);
+    }
+
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
+        if (DrawTimeAxis(g, boundsRect))
+        {
+            return;
+        }
+
         g.fillAll(juce::Colours::black);
 
         auto bounds = boundsRect.toFloat();

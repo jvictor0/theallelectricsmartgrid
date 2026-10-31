@@ -78,6 +78,7 @@ struct TheNonagonInternal
         std::atomic<bool> m_muted[x_numVoices];
         std::atomic<float> m_cyclesPerSamplePitch[x_numVoices];
         std::atomic<float> m_extraTimbre[x_numVoices][x_numExtraTimbres]{};
+        const NonagonNoteWriter* m_noteWriter = nullptr;
 
         int GetLoopMultiplier(int trioIndex)
         {
@@ -279,6 +280,7 @@ struct TheNonagonInternal
                 }
 
                 NonagonNoteWriter::EventData eventData;
+                eventData.m_startSample = SampleTimer::GetSample();
                 eventData.m_voiceIx = i;
                 eventData.m_voltPerOct = m_output.m_voltPerOct[i];
                 double phase = m_theoryOfTime.GetPhase(TheoryOfTimeBase::x_globalLoop, 0, PhaseDomain::Unmodulated);

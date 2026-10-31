@@ -3,6 +3,7 @@
 #include <atomic>
 #include "AdaptiveWaveTable.hpp"
 #include "Filter.hpp"
+#include "SampleEventHistory.hpp"
 
 struct ScopeWriter
 {
@@ -12,7 +13,10 @@ struct ScopeWriter
 
     size_t m_index;
     std::atomic<size_t> m_publishedIndex;
-    float m_buffer[x_bufferSize];
+    static_assert(std::atomic<float>::is_always_lock_free);
+    std::atomic<float> m_buffer[x_bufferSize];
+    size_t m_writeEndIndex = 0;
+    std::atomic<size_t> m_oldestHistoryIndex{0};
 
     static constexpr size_t x_maxScopes = 16;
     static constexpr size_t x_maxVoices = 16;
@@ -45,25 +49,25 @@ struct ScopeWriter
         }
     }
 
-    size_t GetPhysicalIndex(size_t scope, size_t voice, size_t index)
+    size_t GetPhysicalIndex(size_t scope, size_t voice, size_t index) const
     {
         return (index * m_voices * m_scopes + scope * m_voices + voice) % x_bufferSize;
     }
 
-    size_t MaxIndexes()
+    size_t MaxIndexes() const
     {
         return x_bufferSize / (m_voices * m_scopes);
     }
 
-    float ReadSample(size_t scope, size_t voice, size_t index)
+    float ReadSample(size_t scope, size_t voice, size_t index) const
     {
-        return m_buffer[GetPhysicalIndex(scope, voice, index)];
+        return m_buffer[GetPhysicalIndex(scope, voice, index)].load(std::memory_order_acquire);
     }
 
-    float Read(size_t scope, size_t voice, double index)
+    float Read(size_t scope, size_t voice, double index) const
     {
         size_t index1 = GetPhysicalIndex(scope, voice, static_cast<size_t>(index));
-        float value1 = m_buffer[index1];
+        float value1 = m_buffer[index1].load(std::memory_order_acquire);
         double wayThrough = index - std::floor(index);
         if (wayThrough == 0.0)
         {
@@ -71,20 +75,57 @@ struct ScopeWriter
         }
 
         size_t index2 = GetPhysicalIndex(scope, voice, static_cast<size_t>(index) + 1);
-        float value2 = m_buffer[index2];
+        float value2 = m_buffer[index2].load(std::memory_order_acquire);
         return value1 * (1 - wayThrough) + value2 * wayThrough;
+    }
+
+    bool ReadHistory(size_t scope, size_t voice, double index, float& value) const
+    {
+        value = 0.0f;
+        size_t published = m_publishedIndex.load();
+        if (scope >= m_scopes || voice >= m_voices || !std::isfinite(index)
+            || index < static_cast<double>(m_oldestHistoryIndex.load())
+            || published == 0 || index > static_cast<double>(published - 1))
+        {
+            return false;
+        }
+
+        float result = Read(scope, voice, index);
+        if (index < static_cast<double>(m_oldestHistoryIndex.load()))
+        {
+            return false;
+        }
+
+        value = result;
+        return true;
+    }
+
+    void PrepareWrite(size_t index)
+    {
+        // Invalidate reused history before the release store of its new sample.
+        // An acquire reader that sees that new sample must also see this bound
+        // when it checks again after interpolation.
+        //
+        if (index >= m_writeEndIndex)
+        {
+            m_writeEndIndex = index + 1;
+            if (m_writeEndIndex > MaxIndexes())
+            {
+                m_oldestHistoryIndex.store(m_writeEndIndex - MaxIndexes());
+            }
+        }
     }
 
     void Write(size_t scope, size_t voice, float value)
     {
-        size_t index = GetPhysicalIndex(scope, voice, m_index);
-        m_buffer[index] = value;
+        Write(scope, voice, 0, value);
     }
 
     void Write(size_t scope, size_t voice, size_t uBlockIndex, float value)
     {
+        PrepareWrite(m_index + uBlockIndex);
         size_t index = GetPhysicalIndex(scope, voice, m_index + uBlockIndex);
-        m_buffer[index] = value;
+        m_buffer[index].store(value, std::memory_order_release);
     }
 
     void AdvanceIndex()
@@ -386,7 +427,7 @@ struct QuadWindowedFFT
 
 struct ScopeReader
 {
-    ScopeWriter* m_scopeWriter;
+    const ScopeWriter* m_scopeWriter;
     size_t m_voiceIx;
     size_t m_scopeIx;
     size_t m_numXSamples;
@@ -402,7 +443,7 @@ struct ScopeReader
     bool m_empty;
 
     ScopeReader(
-        ScopeWriter* scopeWriter, 
+        const ScopeWriter* scopeWriter,
         size_t voiceIx, 
         size_t scopeIx,
         size_t numXSamples,
@@ -581,6 +622,11 @@ struct PeriodicEventWriter
 struct NonagonNoteWriter
 {
     static constexpr size_t x_numVoices = 9;
+    using TimbreHistory = SampleEventHistory<3, 256>;
+    // Keep immutable per-voice events for UI queries. The display note ring also
+    // edits note ends and copies held notes at cycle boundaries.
+    //
+    TimbreHistory m_timbreHistory[x_numVoices];
     struct EventData
     {
         uint8_t m_voiceIx;
@@ -588,6 +634,7 @@ struct NonagonNoteWriter
         float m_startPosition;
         float m_endPosition;
         float m_timbre[3];
+        size_t m_startSample = 0;
 
         EventData()
             : m_voiceIx(0)
@@ -619,6 +666,19 @@ struct NonagonNoteWriter
     }
 
     void RecordNote(EventData& eventData)
+    {
+        TimbreHistory::Event event;
+        event.m_sample = eventData.m_startSample;
+        for (size_t i = 0; i < 3; ++i)
+        {
+            event.m_values[i] = eventData.m_timbre[i];
+        }
+
+        m_timbreHistory[eventData.m_voiceIx].Record(event);
+        RecordNoteSegment(eventData);
+    }
+
+    void RecordNoteSegment(EventData& eventData)
     {
         bool isFirstEvent = m_events.m_lastStartIndex.load() == m_events.m_index.load();
         if (m_lastNoteIndex[eventData.m_voiceIx] != -1)
@@ -666,7 +726,7 @@ struct NonagonNoteWriter
                 EventData eventData = m_events.m_events[m_lastNoteIndex[i] % x_numEvents];
                 RecordNoteEnd(i, 1.0);
                 eventData.m_startPosition = 0;
-                RecordNote(eventData);
+                RecordNoteSegment(eventData);
             }
         }
     }

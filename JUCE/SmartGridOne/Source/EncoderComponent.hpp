@@ -229,10 +229,14 @@ struct EncoderComponent : public juce::Component
             if (type == SmartGrid::EncoderType::ModulatorAmount)
             {
                 visualizer = m_modulatorVisualizers.Get(mode, m_ui.m_uiState->GetIndex(m_x, m_y));
+                if (visualizer)
+                {
+                    visualizer->ClearWeightedModulators();
+                }
             }
             else if (type == SmartGrid::EncoderType::BaseParam)
             {
-                visualizer = m_modulatorVisualizers.GetSingle(mode, modulatorsAffecting);
+                visualizer = m_modulatorVisualizers.GetForParameter(m_ui.m_uiState->m_states[m_x][m_y]);
             }
 
             if (visualizer)
@@ -243,6 +247,7 @@ struct EncoderComponent : public juce::Component
                 g.setOrigin(dialBounds.getPosition());
                 g.beginTransparencyLayer(0.5f);
                 visualizer->Draw(g, dialBounds.withPosition(0, 0));
+                visualizer->ClearWeightedModulators();
                 g.endTransparencyLayer();
             }
 

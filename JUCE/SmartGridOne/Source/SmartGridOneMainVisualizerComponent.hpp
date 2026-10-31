@@ -3,6 +3,8 @@
 #include "VoiceMachineEnums.hpp"
 #include <JuceHeader.h>
 
+struct WeightedModulators;
+
 struct SmartGridOneMainVisualizerComponent
 {
     using SourceMachineFlags = VoiceMachine::SourceMachineFlags;
@@ -31,6 +33,23 @@ struct SmartGridOneMainVisualizerComponent
     // Main drawing method - receives bounds for the block area
     //
     virtual void Draw(juce::Graphics& g, juce::Rectangle<int> bounds) = 0;
+
+    virtual double GetTimeExtent() const
+    {
+        return 0.0;
+    }
+
+    virtual void SetWeightedModulators(size_t voice, const WeightedModulators& modulators)
+    {
+    }
+
+    virtual void ClearWeightedModulators()
+    {
+    }
+
+    virtual void SetVoiceTrack(size_t track)
+    {
+    }
 
     // Optional click handler - event position is in block-local coordinates
     //

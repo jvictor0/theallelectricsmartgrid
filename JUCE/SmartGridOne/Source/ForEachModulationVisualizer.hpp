@@ -155,52 +155,28 @@ G(
 G(
     DelayLFO,
     4,
-    std::make_unique<PolyphonicScopeComponent>(
-        &uiState->m_squiggleBoyUIState.m_quadControlScopeWriter,
-        static_cast<size_t>(SmartGridOne::QuadControlScopes::DelayLFO),
-        4,
-        GetModulatorColor(QuadModulator::DelayLFO),
-        0.5f,
-        0.5f),
+    std::make_unique<PolyphonicScopeComponent>(uiState, QuadModulator::DelayLFO),
     SmartGridOneEncoders::BankMode::Quad,
     GetModulatorColor(QuadModulator::DelayLFO),
     QuadModulator::DelayLFO)
 G(
     ReverbLFO,
     5,
-    std::make_unique<PolyphonicScopeComponent>(
-        &uiState->m_squiggleBoyUIState.m_quadControlScopeWriter,
-        static_cast<size_t>(SmartGridOne::QuadControlScopes::ReverbLFO),
-        4,
-        GetModulatorColor(QuadModulator::ReverbLFO),
-        0.5f,
-        0.5f),
+    std::make_unique<PolyphonicScopeComponent>(uiState, QuadModulator::ReverbLFO),
     SmartGridOneEncoders::BankMode::Quad,
     GetModulatorColor(QuadModulator::ReverbLFO),
     QuadModulator::ReverbLFO)
 G(
     QuadLFO1Scope,
     6,
-    std::make_unique<PolyphonicScopeComponent>(
-        &uiState->m_squiggleBoyUIState.m_quadControlScopeWriter,
-        static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1),
-        4,
-        GetModulatorColor(QuadModulator::LFO1),
-        0.9f,
-        0.05f),
+    std::make_unique<PolyphonicScopeComponent>(uiState, QuadModulator::LFO1),
     SmartGridOneEncoders::BankMode::Quad,
     GetModulatorColor(QuadModulator::LFO1),
     QuadModulator::LFO1)
 G(
     QuadLFO2Scope,
     7,
-    std::make_unique<PolyphonicScopeComponent>(
-        &uiState->m_squiggleBoyUIState.m_quadControlScopeWriter,
-        static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2),
-        4,
-        GetModulatorColor(QuadModulator::LFO2),
-        0.9f,
-        0.05f),
+    std::make_unique<PolyphonicScopeComponent>(uiState, QuadModulator::LFO2),
     SmartGridOneEncoders::BankMode::Quad,
     GetModulatorColor(QuadModulator::LFO2),
     QuadModulator::LFO2)

@@ -1127,6 +1127,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         ScopeWriter m_sourceMixerScopeWriter;
         ScopeWriter m_monoScopeWriter;
         ScopeWriter m_monoAudioScopeWriter;
+        std::atomic<size_t> m_firstAudioSample{0};
+        std::atomic<size_t> m_firstControlSample{0};
 
         GangedRandomLFOUIState<x_voicesPerTrack>
             m_gangedRandomLFOUIState[x_numGangedRandomLFOs][x_numTracks];
@@ -1274,6 +1276,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void AdvanceScopeIndices()
         {
+            if (m_audioScopeWriter.m_index == 0)
+            {
+                m_firstAudioSample.store(SampleTimer::GetSample());
+            }
+
             m_audioScopeWriter.AdvanceIndex();
             m_quadScopeWriter.AdvanceIndex();
             m_sourceMixerScopeWriter.AdvanceIndex();
@@ -1281,6 +1288,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             if (SampleTimer::IsControlFrame())
             {
+                if (m_controlScopeWriter.m_index == 0)
+                {
+                    m_firstControlSample.store(SampleTimer::GetSample());
+                }
+
                 m_controlScopeWriter.AdvanceIndex();
                 m_quadControlScopeWriter.AdvanceIndex();
                 m_globalControlScopeWriter.AdvanceIndex();
@@ -1350,6 +1362,24 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SetupUIState(UIState* uiState)
     {
+        for (size_t random = 0; random < x_numGangedRandomLFOs; ++random)
+        {
+            for (size_t track = 0; track < x_numTracks; ++track)
+            {
+                m_gangedRandomLFO[random][track].m_history =
+                    &uiState->m_gangedRandomLFOUIState[random][track].m_history;
+            }
+
+            m_quadGangedRandomLFO[random].m_history =
+                &uiState->m_quadGangedRandomLFOUIState[random].m_history;
+        }
+
+        for (size_t random = 0; random < 2; ++random)
+        {
+            m_globalGangedRandomLFO[random].m_history =
+                &uiState->m_globalGangedRandomLFOUIState[random].m_history;
+        }
+
         uiState->SetMeterReaders(&m_mixer);
         m_sourceMixer.SetupUIState(&uiState->m_sourceMixerUIState, m_sourceMixerState);
         SetupScopeWriters(uiState);

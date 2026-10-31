@@ -43,6 +43,36 @@ enum class GlobalModulator : size_t
     Noise = 14
 };
 
+// Voice indices span all tracks (0..8); quad channels are 0..3.
+//
+struct ModulatorRef
+{
+    SmartGridOneLayout::ParamMode m_mode;
+    size_t m_index;
+    size_t m_voice;
+
+    ModulatorRef(VoiceModulator modulator, size_t voice)
+        : m_mode(SmartGridOneLayout::ParamMode::Voice)
+        , m_index(static_cast<size_t>(modulator))
+        , m_voice(voice)
+    {
+    }
+
+    ModulatorRef(QuadModulator modulator, size_t channel)
+        : m_mode(SmartGridOneLayout::ParamMode::Quad)
+        , m_index(static_cast<size_t>(modulator))
+        , m_voice(channel)
+    {
+    }
+
+    explicit ModulatorRef(GlobalModulator modulator)
+        : m_mode(SmartGridOneLayout::ParamMode::Global)
+        , m_index(static_cast<size_t>(modulator))
+        , m_voice(0)
+    {
+    }
+};
+
 namespace SmartGridOneModulators
 {
 using Mode = SmartGridOneLayout::ParamMode;

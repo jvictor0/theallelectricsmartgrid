@@ -8,6 +8,7 @@
 inline void InitializeEncoderModulatorVisualizers(
     ModulatorVisualizers& visualizers, TheNonagonSquiggleBoyInternal::UIState* uiState)
 {
+    visualizers.m_uiState = uiState;
 #define H(modulator, ctor) \
     visualizers.Add(modulator, [&]([[maybe_unused]] int* scopeVoiceOffset) \
     { \

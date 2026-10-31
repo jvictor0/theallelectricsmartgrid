@@ -298,13 +298,7 @@ F(
     0,
     1,
     Full,
-    std::make_unique<PolyphonicScopeComponent>(
-        m_nonagon->GetQuadControlScopeWriter(),
-        static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1),
-        4,
-        GetModulatorColor(QuadModulator::LFO1),
-        0.9f,
-        0.05f),
+    std::make_unique<PolyphonicScopeComponent>(uiState, QuadModulator::LFO1),
     VoiceMachine::SourceMachineFlags::All())
 F(
     QuadLFO2MainScope,
@@ -312,13 +306,7 @@ F(
     1,
     1,
     Full,
-    std::make_unique<PolyphonicScopeComponent>(
-        m_nonagon->GetQuadControlScopeWriter(),
-        static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2),
-        4,
-        GetModulatorColor(QuadModulator::LFO2),
-        0.9f,
-        0.05f),
+    std::make_unique<PolyphonicScopeComponent>(uiState, QuadModulator::LFO2),
     VoiceMachine::SourceMachineFlags::All())
 
 // TheoryOfTime bank
