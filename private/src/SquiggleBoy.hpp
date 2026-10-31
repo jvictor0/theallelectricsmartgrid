@@ -54,6 +54,9 @@ struct SquiggleBoyVoice
 
     struct FilterSection
     {
+        static constexpr float x_lpPitchTracking = 0.707f;
+        static constexpr float x_lpTrackingPivot = 261.6256f / SampleTimer::x_sampleRate;
+
         // Ladder filters (4-pole)
         //
         LadderFilterLP m_lpLadder;
@@ -186,7 +189,8 @@ struct SquiggleBoyVoice
                 // Compute filter frequencies adjusted for oversampled rate
                 //
                 float hpFreq = std::min<float>(0.5 / x_oversample, vcoBaseFreq * hpCutoff / x_oversample);
-                float lpFreq = std::min<float>(0.5 / x_oversample, vcoBaseFreq * hpCutoff * lpCutoff / x_oversample);
+                float lpBaseFreq = x_lpTrackingPivot * std::pow(vcoBaseFreq / x_lpTrackingPivot, x_lpPitchTracking);
+                float lpFreq = std::min<float>(0.5 / x_oversample, lpBaseFreq * hpCutoff * lpCutoff / x_oversample);
 
                 float dcBlocked = m_svfDCBlocker.Process(vcoOutput[i]);
 

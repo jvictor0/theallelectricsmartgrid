@@ -43,12 +43,20 @@ All three stages use one `TanhSaturator` whose input gain is the slewed saturati
 - **THEN** all three tanh stages run at input gain 5, producing markedly more harmonic saturation than the minimum gain of 0.25
 
 ### Requirement: Pitch-Tracking Cutoff Frequencies
-The filter section SHALL derive both cutoff frequencies from the voice base frequency: `hpFreq = min(0.5 / 4, vcoBaseFreq * hpCutoffFactor / 4)` and `lpFreq = min(0.5 / 4, vcoBaseFreq * hpCutoffFactor * lpCutoffFactor / 4)`, where division by 4 normalizes to the oversampled rate.
-`hpCutoffFactor` is an exponential parameter spanning 0.25 to 256 and `lpCutoffFactor` spans 0.25 to 1024; because the low-pass cutoff multiplies the high-pass cutoff by its own factor, the low-pass is anchored relative to the high-pass and both track played pitch. When the voice's source machine is Thru, the tracking base frequency is fixed at 80 Hz (80 / 48000) instead of the voice pitch. Base frequency, cutoff factors, resonances, and saturation gain are all slewed per oversampled sample.
+The filter section SHALL derive both cutoff frequencies from the voice base frequency: `hpFreq = min(0.5 / 4, vcoBaseFreq * hpCutoffFactor / 4)` and `lpFreq = min(0.5 / 4, pivot * (vcoBaseFreq / pivot)^0.707 * hpCutoffFactor * lpCutoffFactor / 4)`, where `pivot = 261.6256 / 48000` and division by 4 normalizes to the oversampled rate.
+`hpCutoffFactor` is an exponential parameter spanning 0.25 to 256 and `lpCutoffFactor` spans 0.25 to 1024. The low-pass tracks 0.707 octaves per VCO octave around middle C (261.6256 Hz), while the high-pass cutoff factor multiplies both cutoffs linearly. The original LP/HP relationship is preserved at a middle-C VCO frequency for every high-pass cutoff factor. When the voice's source machine is Thru, the tracking base frequency is fixed at 80 Hz (80 / 48000) instead of the voice pitch. Base frequency, cutoff factors, resonances, and saturation gain are all slewed per oversampled sample.
 
 #### Scenario: Cutoffs follow the played note
 - **WHEN** a voice's base frequency doubles (up one octave) with cutoff factors unchanged
-- **THEN** both `hpFreq` and `lpFreq` double, up to the oversampled-domain clamp of 0.5 / 4
+- **THEN** `hpFreq` doubles and `lpFreq` increases by a factor of `2^0.707`, each up to the oversampled-domain clamp of 0.5 / 4
+
+#### Scenario: The low-pass retains its original ratio at the pivot
+- **WHEN** the voice's base frequency is middle C (261.6256 Hz)
+- **THEN** the low-pass cutoff before clamping is `261.6256 Hz * hpCutoffFactor * lpCutoffFactor`
+
+#### Scenario: High-pass cutoff factor moves both cutoffs together
+- **WHEN** the high-pass cutoff factor doubles with voice base frequency and low-pass cutoff factor unchanged
+- **THEN** both cutoffs double, each up to the oversampled-domain clamp of 0.5 / 4
 
 #### Scenario: Thru mode anchors the filter at 80 Hz
 - **WHEN** the voice's source machine is Thru
