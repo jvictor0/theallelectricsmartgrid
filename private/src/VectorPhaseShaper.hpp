@@ -2,123 +2,104 @@
 #include <cstddef>
 #include <cmath>
 #include "plugin.hpp"
-#include "Slew.hpp"
 #include "Filter.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
 #include "MorphingWaveTable.hpp"
 #include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 #include "SampleTop.hpp"
 
-struct VectorPhaseShaperInternal
+// Each channel reads its own pair of wavetables; the phase distortion runs
+// across all channels at once.
+//
+template <size_t Size>
+struct VectorPhaseShaperGeneric
 {
-    MorphingWaveTable m_morphingWaveTable;
-    float m_phase;
-    float m_voct;
-    float m_freq;
-    float m_vKnob;
-    float m_vTarget;
-    OPLowPassFilter m_v;
-    float m_floorV;
-    float m_dKnob;
-    float m_dTarget;
-    OPLowPassFilter m_d;
-    float m_b;
-    float m_c;
-    float m_out;
-    float m_dScale;
-    float m_phaseMod;
-    SampleTop m_top;
+    using Vector = MultiChannelNumber<float, Size>;
+
+    MorphingWaveTable m_morphingWaveTable[Size];
+    Vector m_phase;
+    Vector m_freq;
+    Vector m_vKnob;
+    Vector m_vTarget;
+    OPLowPassFilterGeneric<float, Size> m_v;
+    Vector m_dKnob;
+    Vector m_dTarget;
+    OPLowPassFilterGeneric<float, Size> m_d;
+    Vector m_out;
+    Vector m_dScale;
+    Vector m_phaseMod;
+    SampleTop m_top[Size];
 
     struct Input
     {
-        bool m_useVoct;
-        float m_voct;
-        float m_freq;
-        float m_v;
-        float m_d;
-        float m_phaseMod;
-        float m_morphHarmonics;
-        float m_wtBlend;
+        Vector m_freq;
+        Vector m_v;
+        Vector m_d;
+        Vector m_phaseMod;
+        Vector m_morphHarmonics;
+        Vector m_wtBlend;
         float m_maxFreq;
 
         Input()
-            : m_useVoct(true)
-            , m_voct(0)
-            , m_freq(0)
-            , m_v(0.5)
-            , m_d(0.5)
-            , m_phaseMod(0)
-            , m_morphHarmonics(1.0)
-            , m_wtBlend(0)
+            : m_freq(Vector::Splat(0))
+            , m_v(Vector::Splat(0.5))
+            , m_d(Vector::Splat(0.5))
+            , m_phaseMod(Vector::Splat(0))
+            , m_morphHarmonics(Vector::Splat(1))
+            , m_wtBlend(Vector::Splat(0))
             , m_maxFreq(0.1)
         {
         }
     };
 
-    void Process(Input& input, double deltaT)
+    void Process(const Input& input, double deltaT)
     {
-        if (input.m_useVoct)
-        {
-            SetFreq(input.m_voct, deltaT);
-        }
-        else
-        {
-            m_freq = input.m_freq;
-            SetDScale();
-        }
-
+        m_freq = input.m_freq;
+        SetDScale();
         SetDV(input.m_d, input.m_v);
         m_phaseMod = input.m_phaseMod;
         UpdatePhase(deltaT);
         Evaluate(input);
     }
-    
-    VectorPhaseShaperInternal()
-        : m_phase(0)
-        , m_voct(NAN)
-        , m_freq(0)
-        , m_floorV(0)
-        , m_b(0)
-        , m_c(0)
-        , m_out(0)
-        , m_dScale(1.0f)
-        , m_phaseMod(0)
-        , m_top(false)
-    {
-        m_v.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(25.0));
-        m_d.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(25.0));
-        SetDV(0.5, 0.5);
-    }
 
-    void SetFreq(float voct, float delta)
+    VectorPhaseShaperGeneric()
+        : m_phase(Vector::Splat(0))
+        , m_freq(Vector::Splat(0))
+        , m_vKnob(Vector::Splat(NAN))
+        , m_vTarget(Vector::Splat(0))
+        , m_dKnob(Vector::Splat(NAN))
+        , m_dTarget(Vector::Splat(0))
+        , m_out(Vector::Splat(0))
+        , m_dScale(Vector::Splat(1))
+        , m_phaseMod(Vector::Splat(0))
     {
-        if (voct != m_voct)
+        for (size_t i = 0; i < Size; ++i)
         {
-            m_voct = voct;
-            m_freq = PhaseUtils::VOctToNatural(voct, delta);
+            m_top[i] = false;
         }
 
-        SetDScale();
+        m_v.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(25.0));
+        m_d.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(25.0));
+        SetDV(Vector::Splat(0.5), Vector::Splat(0.5));
     }
 
+    // 4 * freq / d < 0.5, so 8 * freq < d: dScale = max(0, 1 - 16 * freq)
+    //
     void SetDScale()
     {
-        // 4 * freq / d < 0.5
-        // 8 * freq < d
-        // dScale = max(0, 1 - 16 * freq)
-        //
-        m_dScale = std::max(0.0f, 1 - 16 * m_freq);
+        m_dScale = Vector::Max(Vector::Splat(0), Vector::Splat(1) - m_freq * 16);
     }
-    
-    void SetDV(float d, float v)
+
+    void SetDV(const Vector& d, const Vector& v)
     {
         if (d != m_dKnob)
         {
             m_dKnob = d;
-            m_dTarget = (1.0 - Math::Cos2pi(d / 2)) / 2;
+            m_dTarget = (Vector::Splat(1) - Math::Cos2pi(d * 0.5)) * 0.5;
         }
-        
+
         if (v != m_vKnob)
         {
             m_vKnob = v;
@@ -126,281 +107,143 @@ struct VectorPhaseShaperInternal
         }
 
         m_d.Process(m_dTarget);
-        float oldV = m_v.m_output;
         m_v.Process(m_vTarget);
-        if (oldV != m_v.m_output)
-        {
-            m_floorV = std::floor(m_v.m_output);
-            m_b = m_v.m_output - m_floorV;
-            m_c = Math::Cos2pi(m_b);
-        }
     }
-    
+
     void UpdatePhase(double deltaT)
     {
-        m_top = false;
         m_phase += m_freq;
-        while (m_phase >= 1)
+        Vector wrapped = m_phase - m_phase.Floor();
+        for (size_t i = 0; i < Size; ++i)
         {
-            m_phase -= 1;
-            m_top = SampleTop::FromWrap(m_phase, m_freq, deltaT);
+            m_top[i] = false;
+            if (1 <= m_phase[i])
+            {
+                m_top[i] = SampleTop::FromWrap(wrapped[i], m_freq[i], deltaT);
+            }
         }
+
+        m_phase = Vector::IfLess(m_phase, Vector::Splat(1), m_phase, wrapped);
     }
 
-    bool NeedsAntiAlias(float phi_vps)
+    // Quintic Hermite segment on [a, b] with zero second derivatives at both ends.
+    //
+    static Vector HermiteQuinticSegmentC2Zero(
+        const Vector& a,
+        const Vector& b,
+        const Vector& yA,
+        const Vector& mA,
+        const Vector& yB,
+        const Vector& mB,
+        const Vector& t)
     {
-        if (m_floorV == 0)
-        {
-            return false;
-        }
-        else if (m_b < 0.5)
-        {
-            return m_floorV < phi_vps;
-        }
-        else
-        {
-            return m_floorV + 0.5 < phi_vps;
-        }
+        Vector h = b - a;
+        Vector s = (t - a) / h;
+        Vector slope = h * mA;
+        Vector r1 = yB - (yA + slope);
+        Vector r2 = h * mB - slope;
+
+        Vector d = r1 * 10 - r2 * 4;
+        Vector e = r2 * 7 - r1 * 15;
+        Vector f = r1 * 6 - r2 * 3;
+
+        return yA + s * (slope + s * s * (d + s * (e + s * f)));
     }
 
-    float HermiteQuinticSegment(float a, float b, float y_a, float m_a, float c_a, float y_b, float m_b, float c_b, float t)
+    // Two straight segments through (0, 0), (d, v) and (1, 1), joined by C2
+    // quintic elbows of width 2 * delta at d and across the cycle wrap. The
+    // elbows never overlap, so one quintic evaluates whichever elbow t is in.
+    //
+    static Vector PhiVPSQuinticElbow(const Vector& t, const Vector& v, const Vector& d)
     {
-        const float h  = b - a;
-        const float s  = (t - a) / h;        // normalized in [0,1]
-        const float s2 = s * s;
-        const float s3 = s2 * s;
-        const float s4 = s3 * s;
-        const float s5 = s4 * s;
+        Vector one = Vector::Splat(1);
+        Vector slopeLeft = v / d;
+        Vector slopeRight = (one - v) / (one - d);
+        Vector delta = Vector::Min(d, one - d) * 0.25;
 
-        // p(s) = A + B s + C s^2 + D s^3 + E s^4 + F s^5
-        const float A = y_a;
-        const float B = h * m_a;
-        const float C = 0.5f * (h * h) * c_a;
+        Vector leftB = delta;
+        Vector midA = d - delta;
+        Vector midB = d + delta;
+        Vector rightA = one - delta;
 
-        // Solve for D,E,F from end constraints at s = 1
-        // System in compact RHS form:
-        const float r1 = y_b      - (A + B + C);          // value at s=1
-        const float r2 = h * m_b  - (B + 2.0f * C);        // first-deriv at s=1
-        const float r3 = (h*h) * c_b - (2.0f * C);         // second-deriv at s=1
+        Vector lineLeft = slopeLeft * t;
+        Vector lineRight = v + slopeRight * (t - d);
 
-        // Elimination (exact, no matrix library):
-        // F = 0.5*(r3 + 12 r1 - 6 r2)
-        // E = 7 r2 - 15 r1 - r3
-        // D = 10 r1 - 4 r2 + 0.5 r3
-        const float F = 0.5f * (r3 + 12.0f * r1 - 6.0f * r2);
-        const float E = 7.0f * r2 - 15.0f * r1 - r3;
-        const float D = 10.0f * r1 - 4.0f * r2 + 0.5f * r3;
-
-        return (((A + B * s + C * s2) + D * s3) + E * s4) + F * s5;
-    }
-
-    float HermiteQuinticSegment_C2Zero(float a, float b,
-        float y_a, float m_a,
-        float y_b, float m_b,
-        float t)
-    {
-        const float h = b - a;
-        const float invH = 1.0f / h;
-        const float s = (t - a) * invH; // [0,1]
-
-        const float B = h * m_a;
-
-        const float r1 = y_b - (y_a + B);
-        const float r2 = h * m_b - B;
-
-        const float D = 10.0f * r1 - 4.0f * r2;
-        const float E = 7.0f  * r2 - 15.0f * r1;
-        const float F = 6.0f  * r1 - 3.0f * r2;
-
-        const float s2 = s * s;
-
-        // Horner: y = y_a + s*(B + s*(0 + s*(D + s*(E + s*F))))
+        // Left elbow: R(1) - 1 at 0 to L(delta)
+        // Middle elbow: L(d - delta) to R(d + delta)
+        // Right elbow: R(1 - delta) to L(0) + 1 = 1 at 1
         //
-        return y_a + s * (B + s2 * (D + s * (E + s * F)));
+        Vector midYA = slopeLeft * midA;
+        Vector midYB = v + slopeRight * (midB - d);
+        Vector rightYA = v + slopeRight * (rightA - d);
+        Vector leftYA = v + slopeRight * (one - d) - 1;
+        Vector leftYB = slopeLeft * leftB;
+
+        Vector a = Vector::IfLess(midB, t, rightA, midA);
+        Vector b = Vector::IfLess(midB, t, one, midB);
+        Vector yA = Vector::IfLess(midB, t, rightYA, midYA);
+        Vector yB = Vector::IfLess(midB, t, one, midYB);
+        Vector mA = Vector::IfLess(midB, t, slopeRight, slopeLeft);
+        Vector mB = Vector::IfLess(midB, t, slopeLeft, slopeRight);
+
+        a = Vector::IfLess(leftB, t, a, Vector::Splat(0));
+        b = Vector::IfLess(leftB, t, b, leftB);
+        yA = Vector::IfLess(leftB, t, yA, leftYA);
+        yB = Vector::IfLess(leftB, t, yB, leftYB);
+        mA = Vector::IfLess(leftB, t, mA, slopeRight);
+        mB = Vector::IfLess(leftB, t, mB, slopeLeft);
+
+        Vector elbow = HermiteQuinticSegmentC2Zero(a, b, yA, mA, yB, mB, t);
+
+        Vector result = Vector::IfLess(t, rightA, lineRight, elbow);
+        result = Vector::IfLess(midB, t, result, elbow);
+        result = Vector::IfLess(t, midA, lineLeft, result);
+        return Vector::IfLess(leftB, t, result, elbow);
     }
 
-    float PhiVPSQuinticElbow(float phase, float v, float d)
+    void Evaluate(const Input& input)
     {
-        float x = d;
-        float y = v;
-        float t = phase;
+        Vector d = (m_d.m_output - 0.5) * m_dScale + 0.5;
+        Vector phase = m_phase + m_phaseMod;
+        phase = phase - phase.Floor();
+        Vector phi = PhiVPSQuinticElbow(phase, m_v.m_output, d);
 
-        // Slopes of the two straight segments
-        const float mL = y / x;
-        const float mR = (1.0f - y) / (1.0f - x);
-
-        // Straight segments
-        auto L = [mL](float tt) -> float
-        {
-            return mL * tt;
-        };
-        auto R = [mR, y, x](float tt) -> float
-        {
-            return y + mR * (tt - x);
-        };
-
-        // Elbow width
-        const float delta = 0.25f * std::min(x, 1.0f - x);
-
-        // Region boundaries
-        const float left_a  = 0.0f;
-        const float left_b  = delta;
-        const float mid_a   = x - delta;
-        const float mid_b   = x + delta;
-        const float right_a = 1.0f - delta;
-        const float right_b = 1.0f;
-
-        if (t <= left_b)
-        {
-            // Left elbow: from R(t+1) - 1 at t=0, to L(t) at t=δ
-            // Endpoint jets:
-            //   at t=0:   y = R(1) - 1,    y' = mR, y'' = 0
-            //   at t=δ:   y = L(δ),        y' = mL, y'' = 0
-            const float y_a = R(1.0f) - 1.0f;
-            const float m_a = mR;
-            const float y_b = L(left_b);
-            const float m_b = mL;
-            return HermiteQuinticSegment_C2Zero(left_a, left_b, y_a, m_a, y_b, m_b, t);
-        }
-
-        if (t < mid_a)
-        {
-            // Left straight section
-            return L(t);
-        }
-
-        if (t <= mid_b)
-        {
-            // Middle elbow: L at x-δ  ->  R at x+δ  (C^2)
-            const float y_a = L(mid_a), m_a = mL;
-            const float y_b = R(mid_b), m_b = mR;
-            return HermiteQuinticSegment_C2Zero(mid_a, mid_b, y_a, m_a, y_b, m_b, t);
-        }
-
-        if (t < right_a)
-        {
-            // Right straight section
-            return R(t);
-        }
-
-        // Right elbow: from R(t) at t=1-δ, to L(t-1) + 1 at t=1
-        // Endpoint jets:
-        //   at t=1-δ: y = R(1-δ), y' = mR, y'' = 0
-        //   at t=1:   y = L(0) + 1 (=1), y' = mL, y'' = 0
-        {
-            const float y_a = R(right_a), m_a = mR;
-            const float y_b = L(0.0f) + 1.0f;
-            const float m_b = mL;
-            return HermiteQuinticSegment_C2Zero(right_a, right_b, y_a, m_a, y_b, m_b, t);
-        }
-    }
-
-    float PhiVPSCubicInterpolation(float phase, float v, float d)
-    {
-        float x = d;
-        float y = v;
-        float t = phase;
-
-        const double xm1 = x - 1.0;
-        const double x2  = x * x;
-    
-        // Optimal b3 (min ∫ f''^2 with f1''(0) = f2''(1))
-        const double b3 = (y - x) / (2.0 * x * xm1 * xm1);
-    
-        // Segment 1: f1(t) = a1 t + a3 t^3   on [0, x]
-        const double a1 = (x2 + x * y - 2.0 * y) / (2.0 * x * xm1);
-        const double a3 = (y - x) / (2.0 * x2 * xm1);
-    
-        // Segment 2: f2(t) = b0 + b1 t + b2 t^2 + b3 t^3   on [x, 1]
-        const double b0 = x * (x - y) / (2.0 * xm1 * xm1);
-        const double b1 = (x * x * x + x2 * y - 4.0 * x2 + 2.0 * y) / (2.0 * x * xm1 * xm1);
-        const double b2 = 3.0 * (x - y) / (2.0 * x * xm1 * xm1);
-    
-        if (t <= x)
-        {
-            return a1 * t + a3 * t * t * t;
-        }
-        else
-        {
-            const double t2 = t * t;
-            const double t3 = t2 * t;
-            return b0 + b1 * t + b2 * t2 + b3 * t3;
-        }
-    }
-
-    void Evaluate(Input& input)
-    {
-        float d = (m_d.m_output - 0.5) * m_dScale + 0.5;
-        float phase = m_phase + m_phaseMod;
-        phase = phase - std::floor(phase);
-        float phi_vps = PhiVPSQuinticElbow(phase, m_v.m_output, d);
-
-        float maxHarmonics = input.m_morphHarmonics;
-
-        phi_vps = phi_vps - std::floor(phi_vps);
         // A tiny negative phase can round to exactly one after adding its
         // integer wrap. One cycle is the same phase as zero.
         //
-        if (phi_vps == 1.0f)
-        {
-            phi_vps = 0.0f;
-        }
+        phi = phi - phi.Floor();
+        phi = Vector::IfLess(phi, Vector::Splat(1), phi, Vector::Splat(0));
 
-        assert(0 <= phi_vps);
-        assert(phi_vps < 1);
-        m_out = - m_morphingWaveTable.Evaluate(phi_vps, m_freq, maxHarmonics, input.m_wtBlend);
+        for (size_t i = 0; i < Size; ++i)
+        {
+            assert(0 <= phi[i]);
+            assert(phi[i] < 1);
+            m_out[i] = -m_morphingWaveTable[i].Evaluate(phi[i], m_freq[i], input.m_morphHarmonics[i], input.m_wtBlend[i]);
+        }
     }
 
-    void EvaluateOld(Input& input)
+    AdaptiveWaveTable* SetLeft(size_t channel, AdaptiveWaveTable* left)
     {
-        float d = (m_d.m_output - 0.5) * m_dScale + 0.5;
-        float phi_vps;
-        float phase = m_phase + m_phaseMod;
-        phase = phase - std::floor(phase);
-        if (phase < d)
-        {
-            phi_vps = phase * m_v.m_output / d;
-        }
-        else
-        {
-            phi_vps = m_v.m_output + (phase - d) * (1 - m_v.m_output) / (1 - d);
-        }
+        return m_morphingWaveTable[channel].SetLeft(left);
+    }
 
-        float maxHarmonics = input.m_morphHarmonics;
-        
-        if (!NeedsAntiAlias(phi_vps))
-        {
-            phi_vps = fmod(phi_vps, 1);
-            m_out = - m_morphingWaveTable.Evaluate(phi_vps, m_freq, maxHarmonics, input.m_wtBlend);
-        }
-        else
-        {
-            if (m_b < 0.5)
-            {
-                float phi_as = fmod(phi_vps, 1) / (2 * m_b);
-                float s = - m_morphingWaveTable.Evaluate(phi_as, m_freq, maxHarmonics, input.m_wtBlend);                
-                
-                float offset = m_morphingWaveTable.StartValue(input.m_wtBlend, m_freq, maxHarmonics);
-                
-                m_out = (1 - m_c) * (s + offset) / 2 - offset;
-            }
-            else
-            {
-                float phi_as = fmod(phi_vps - 0.5, 1) / (2 * (m_b - 0.5)) + 0.5;
-                float s = - m_morphingWaveTable.Evaluate(phi_as, m_freq, maxHarmonics, input.m_wtBlend);
-                float offset = m_morphingWaveTable.CenterValue(input.m_wtBlend, m_freq, maxHarmonics);            
-                m_out = (1 + m_c) * (s + offset) / 2 - offset;                
-            }
-        }
-    }            
-    
+    AdaptiveWaveTable* SetRight(size_t channel, AdaptiveWaveTable* right)
+    {
+        return m_morphingWaveTable[channel].SetRight(right);
+    }
+
     AdaptiveWaveTable* SetLeft(AdaptiveWaveTable* left)
     {
-        return m_morphingWaveTable.SetLeft(left);
+        static_assert(Size == 1, "SetLeft without a channel requires one channel");
+        return SetLeft(0, left);
     }
-    
+
     AdaptiveWaveTable* SetRight(AdaptiveWaveTable* right)
     {
-        return m_morphingWaveTable.SetRight(right);
-    }                
+        static_assert(Size == 1, "SetRight without a channel requires one channel");
+        return SetRight(0, right);
+    }
 };
+
+using VectorPhaseShaperInternal = VectorPhaseShaperGeneric<1>;
+using TrioVectorPhaseShaper = VectorPhaseShaperGeneric<3>;

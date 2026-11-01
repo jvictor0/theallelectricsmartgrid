@@ -1,73 +1,84 @@
 #pragma once
 
+#include "MultiChannelNumber.hpp"
 #include <cmath>
 
-struct BitRateReducer
+template <size_t Size>
+struct BitRateReducerGeneric
 {
-    float m_amount;
-    float m_steps;
+    using Vector = MultiChannelNumber<float, Size>;
 
-    BitRateReducer()
-        : m_amount(0.0f)
-        , m_steps(0.0f)
+    Vector m_amount;
+    Vector m_steps;
+
+    BitRateReducerGeneric()
+        : m_amount(Vector::Splat(0))
+        , m_steps(Vector::Splat(0))
     {
     }
 
-    void SetAmount(float amount)
+    // Effective bits fall from 16 to -1 as (1 - amount)^3.5; the step size is
+    // 2^-bits.
+    //
+    void SetAmount(const Vector& amount)
     {
         if (amount != m_amount)
         {
-            static constexpr float maxBits = 16;
+            static constexpr float x_maxBits = 16;
 
-            float ebits = (1 + maxBits) * std::powf(1.0 - amount, 3.5) - 1;
-            m_steps = std::powf(2.0, -ebits);
+            Vector remaining = Vector::Splat(1) - amount;
+            Vector curve = remaining * remaining * remaining * remaining.Sqrt();
+            Vector ebits = curve * (1 + x_maxBits) - 1;
+            m_steps = (-ebits).Exp2();
             m_amount = amount;
         }
     }
 
-    float Process(float input)
+    // A zero amount passes the input through unchanged.
+    //
+    Vector Process(const Vector& input)
     {
-        if (m_amount == 0.0f)
-        {
-            return input;
-        }
-
-        return std::roundf((input + 1) / m_steps) * m_steps - 1;
+        Vector crushed = ((input + 1) / m_steps).Round() * m_steps - 1;
+        return Vector::IfLess(Vector::Splat(0), m_amount, crushed, input);
     }
 };
 
-struct SampleRateReducer
-{
-    float m_freq;
-    float m_phase;
-    float m_output;
+using BitRateReducer = BitRateReducerGeneric<1>;
+using TrioBitRateReducer = BitRateReducerGeneric<3>;
 
-    SampleRateReducer()
-        : m_freq(0.0f)
-        , m_phase(0.0f)
-        , m_output(0.0f)
+template <size_t Size>
+struct SampleRateReducerGeneric
+{
+    using Vector = MultiChannelNumber<float, Size>;
+
+    Vector m_freq;
+    Vector m_phase;
+    Vector m_output;
+
+    SampleRateReducerGeneric()
+        : m_freq(Vector::Splat(0))
+        , m_phase(Vector::Splat(0))
+        , m_output(Vector::Splat(0))
     {
     }
 
-    void SetFreq(float freq)
+    void SetFreq(const Vector& freq)
     {
         m_freq = freq;
     }
 
-    float Process(float input)
+    // Channels at or above one cycle per sample bypass and hold their phase.
+    //
+    Vector Process(const Vector& input)
     {
-        if (m_freq >= 1.0)
-        {
-            return input;
-        }
-
-        m_phase += m_freq;
-        if (m_phase >= 1.0)
-        {
-            m_phase = m_phase - std::floor(m_phase);
-            m_output = input;
-        }
-
-        return m_output;
+        Vector one = Vector::Splat(1);
+        m_phase += Vector::IfLess(m_freq, one, m_freq, Vector::Splat(0));
+        Vector wrapped = m_phase - m_phase.Floor();
+        m_output = Vector::IfLess(m_phase, one, m_output, input);
+        m_phase = Vector::IfLess(m_phase, one, m_phase, wrapped);
+        return Vector::IfLess(m_freq, one, m_output, input);
     }
 };
+
+using SampleRateReducer = SampleRateReducerGeneric<1>;
+using TrioSampleRateReducer = SampleRateReducerGeneric<3>;

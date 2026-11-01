@@ -270,6 +270,19 @@ struct DelayLineMovableWriterGeneric
         return m_writeHeadInverse[i0] + alpha * (m_writeHeadInverse[i1] - m_writeHeadInverse[i0]);
     }
 
+    // Each channel mapped from its own warped time.
+    //
+    MultiChannelNumber<double, Size> GetRealTime(const MultiChannelNumber<double, Size>& warpedTime)
+    {
+        MultiChannelNumber<double, Size> result;
+        for (size_t i = 0; i < Size; ++i)
+        {
+            result[i] = GetRealTime(warpedTime[i]);
+        }
+
+        return result;
+    }
+
     std::pair<Vector, Vector> GetEnvelopeAtRealTime(double realTime)
     {
         double envelopeIndexFloat = realTime / static_cast<double>(x_envelopeBucketSamples) - 0.5;
@@ -319,8 +332,8 @@ using QuadDelayLineMovableWriter = DelayLineMovableWriterGeneric<float, 4, MaxDe
 // grain covers all Size channels, which start and end together but read from
 // their own times and resynthesize independently.
 //
-// The audio buffer provides GetRealTime(double warpedTime) and
-// ReadRealTime(MultiChannelNumber<double, Size> realTime).
+// The audio buffer provides GetRealTime and ReadRealTime, both taking
+// MultiChannelNumber<double, Size> times.
 //
 template <typename AudioBufferType, size_t Size>
 struct GrainManagerGeneric
@@ -469,11 +482,9 @@ struct GrainManagerGeneric
                 // Cubic audio interpolation reads two samples beyond its floor index.
                 //
                 double latestStart = latestSampleTime - (Resynth::x_N - 1) - 2;
-                TimeVector startTime;
-                for (size_t i = 0; i < Size; ++i)
-                {
-                    startTime[i] = std::min(m_audioBuffer->GetRealTime(warpedTime[i]) + sampleOffset[i], latestStart);
-                }
+                TimeVector startTime = TimeVector::Min(
+                    m_audioBuffer->GetRealTime(warpedTime) + sampleOffset.template Convert<double>(),
+                    TimeVector::Splat(latestStart));
 
                 grain->Start(input.m_resynthInput, startTime);
             }

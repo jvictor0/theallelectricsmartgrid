@@ -174,9 +174,9 @@ struct TheoryOfTime : public TheoryOfTimeBase
             m_scopeWriter.Write(phase - std::floor(phase));
         }
 
-        if (m_phaseModLFO.m_top)
+        if (m_phaseModLFO.m_top[0])
         {
-            m_scopeWriter.RecordStart(m_phaseModLFO.m_top.GetBatchedControlPosition(j - 1));
+            m_scopeWriter.RecordStart(m_phaseModLFO.m_top[0].GetBatchedControlPosition(j - 1));
         }
     }
 

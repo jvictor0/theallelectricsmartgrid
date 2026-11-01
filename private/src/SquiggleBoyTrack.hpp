@@ -438,9 +438,9 @@ struct SquiggleBoyTrack
                 m_scopeWriter.Write(m_polyXFader.m_output);
             }
 
-            if (m_polyXFader.m_top)
+            if (m_polyXFader.m_top[0])
             {
-                m_scopeWriter.RecordStart(m_polyXFader.m_top.GetControlPosition(SampleTimer::GetUBlockIndex()));
+                m_scopeWriter.RecordStart(m_polyXFader.m_top[0].GetControlPosition(SampleTimer::GetUBlockIndex()));
             }
 
             return m_output;
@@ -515,8 +515,8 @@ struct SquiggleBoyTrack
             m_ampInput.m_modulationAHDInput.Set(m_ahdControl);
             m_sourceInput.m_physicalModelingInput.m_ahdInput.Set(m_ahdControl);
 
-            m_squiggleLFOInput[0].m_polyXFaderInput.m_trig = m_ahdControl.m_trig;
-            m_squiggleLFOInput[1].m_polyXFaderInput.m_trig = m_ahdControl.m_trig;
+            m_squiggleLFOInput[0].m_polyXFaderInput.m_trig[0] = m_ahdControl.m_trig;
+            m_squiggleLFOInput[1].m_polyXFaderInput.m_trig[0] = m_ahdControl.m_trig;
         }
 
         void SetTheoryOfTimeInputs(TheoryOfTime* theoryOfTime)

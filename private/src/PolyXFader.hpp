@@ -3,151 +3,151 @@
 #include "Filter.hpp"
 #include "Saturator.hpp"
 #include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 #include "SampleTimer.hpp"
 
 #include "TheoryOfTimeBase.hpp"
 
-struct PolyXFaderInternal
-{    
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <cstdint>
+
+// Crossfades the theory-of-time loops for Size voices at once. The loops are
+// shared, so a loop is evaluated for every lane whenever any lane weights it.
+//
+template <size_t Size>
+struct PolyXFaderGeneric
+{
+    using Vector = MultiChannelNumber<float, Size>;
+    using DoubleVector = MultiChannelNumber<double, Size>;
+    static constexpr size_t x_maxSize = 16;
+
     struct Input
     {
         TheoryOfTimeBase* m_theoryOfTime;
         PhaseDomain m_phaseDomain;
         float m_samplePosition;
 
-        float m_attackFrac;
-        float m_shape;
-        float m_mult;
-        float m_amplitude;
+        Vector m_attackFrac;
+        Vector m_shape;
+        Vector m_mult;
+        Vector m_amplitude;
 
-        float m_phaseShift;
+        Vector m_phaseShift;
 
         size_t m_size;
-        float m_slope;
-        float m_center;
+        Vector m_slope;
+        Vector m_center;
 
-        float m_externalWeights[16];
+        Vector m_externalWeights[x_maxSize];
 
-        bool m_trig;
-        float m_shFade;
-        TanhSaturator<true> m_shapeSaturator;
+        bool m_trig[Size];
+        Vector m_shFade;
 
         Input()
             : m_theoryOfTime(nullptr)
             , m_phaseDomain(PhaseDomain::Modulated)
             , m_samplePosition(0.0f)
-            , m_attackFrac(0.0f)
-            , m_shape(0.0f)
-            , m_mult(0.0f)
-            , m_amplitude(1.0f)
-            , m_phaseShift(0.0f)
+            , m_attackFrac()
+            , m_shape()
+            , m_mult()
+            , m_amplitude(Vector::Splat(1))
+            , m_phaseShift()
             , m_size(0)
-            , m_slope(0.0f)
-            , m_center(0.0f)
-            , m_trig(false)
-            , m_shFade(0.0f)
-            , m_shapeSaturator(0.0f)
+            , m_slope()
+            , m_center()
+            , m_trig{}
+            , m_shFade()
         {
-            for (size_t i = 0; i < 16; ++i)
+            for (size_t i = 0; i < x_maxSize; ++i)
             {
-                m_externalWeights[i] = 1.0f;
+                m_externalWeights[i] = Vector::Splat(1);
             }
         }
 
-        float ComputePhase(size_t i)
+        Vector ComputePhase(size_t i) const
         {
-            float mult = m_mult;
-            float amp = 1;
-            double phase = m_theoryOfTime->GetPhase(i, m_samplePosition, m_phaseDomain) + m_phaseShift + 0.75;
-            float t = static_cast<float>(phase - std::floor(phase)) * mult;
-            float floorMult = std::floorf(mult);
+            double loopPhase = m_theoryOfTime->GetPhase(i, m_samplePosition, m_phaseDomain);
+            DoubleVector phase = DoubleVector::Splat(loopPhase) + m_phaseShift.template Convert<double>() + 0.75;
+            Vector t = (phase - phase.Floor()).template Convert<float>() * m_mult;
+            Vector floorMult = m_mult.Floor();
 
-            if (floorMult < t)
-            {
-                amp = mult - floorMult;
-                t = (t - floorMult) / amp;
-            }
-            else
-            {
-                t = t - std::floorf(t);
-            }
-            
+            // Past the last whole cycle the partial cycle is stretched to full
+            // length and scaled down by its fraction.
+            //
+            Vector partialAmp = m_mult - floorMult;
+            Vector partialT = (t - floorMult) / partialAmp;
+            Vector wholeT = t - t.Floor();
+            Vector amp = Vector::IfLess(floorMult, t, partialAmp, Vector::Splat(1));
+            t = Vector::IfLess(floorMult, t, partialT, wholeT);
+
             // Clamp attackFrac to avoid division by zero at extremes
             //
-            float safeAttackFrac = std::max(0.001f, std::min(0.999f, m_attackFrac));
-            
-            if (t <= safeAttackFrac)
-            {
-                return amp * Shape(m_shape, t / safeAttackFrac);
-            }
-            else
-            {
-                float decay = 1 - (t - safeAttackFrac) / (1 - safeAttackFrac);
-                return amp * Shape(m_shape, decay);
-            }
+            Vector safeAttackFrac = Vector::Max(Vector::Splat(0.001f), Vector::Min(Vector::Splat(0.999f), m_attackFrac));
+            Vector rise = t / safeAttackFrac;
+            Vector decay = Vector::Splat(1) - (t - safeAttackFrac) / (Vector::Splat(1) - safeAttackFrac);
+            return amp * Shape(m_shape, Vector::IfLess(safeAttackFrac, t, decay, rise));
         }
-        
-        float Shape(float shape, float in)
+
+        static Vector Shape(const Vector& shape, const Vector& in)
         {
-            if (shape <= 0.0f)
-            {
-                return in;
-            }
+            static constexpr float x_maxShapeDrive = 8.0f;
+            using Saturator = TanhSaturatorGeneric<float, Size, true>;
 
-            float sine = (1.0f - Math::Cos2pi(in / 2.0f)) / 2.0f;
-            if (shape <= 0.5f)
-            {
-                return in + 2.0f * shape * (sine - in);
-            }
+            Vector sine = (Vector::Splat(1) - Math::Cos2pi(in * 0.5f)) * 0.5f;
+            Vector towardSine = in + shape * 2 * (sine - in);
 
-            constexpr float x_maxShapeDrive = 8.0f;
-            m_shapeSaturator.SetInputGain(x_maxShapeDrive * (2.0f * shape - 1.0f));
-            return (1.0f + m_shapeSaturator.Process(2.0f * sine - 1.0f)) / 2.0f;
+            Vector drive = (shape * 2 - 1) * x_maxShapeDrive;
+            Vector saturated = (Saturator::Tanh(drive * (sine * 2 - 1)) / Saturator::Tanh(drive) + 1) * 0.5f;
+
+            Vector shaped = Vector::IfLess(Vector::Splat(0.5f), shape, saturated, towardSine);
+            return Vector::IfLess(Vector(), shape, shaped, in);
         }
     };
 
-    PolyXFaderInternal()
+    PolyXFaderGeneric()
         : m_size(0)
-        , m_amplitude(1.0f)
-        , m_slope(0.0f)
-        , m_center(0.0f)
+        , m_amplitude(Vector::Splat(1))
+        , m_slope()
+        , m_center()
         , m_values{}
         , m_weights{}
-        , m_totalWeight(0.0f)
-        , m_mixSlewFreq(0.0f)
-        , m_rawOutput(0.0f)
-        , m_output(0.0f)
-        , m_top(false)
-        , m_shValue(0.0f)
+        , m_totalWeight()
+        , m_mixSlewFreq()
+        , m_rawOutput()
+        , m_output()
+        , m_top{}
+        , m_shValue()
     {
         m_shSlew.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(500.0));
     }
-    
-    size_t m_size;
-    float m_amplitude;
-    float m_slope;
-    float m_center;
-    float m_values[16];
-    float m_weights[16];
-    float m_totalWeight;
-    OPLowPassFilter m_mixSlew;
-    float m_mixSlewFreq;
-    OPLowPassFilter m_shSlew;
-    float m_rawOutput;
-    float m_output;
-    SampleTop m_top;
-    float m_shValue;
 
-    float ComputeWeight(size_t index)
+    size_t m_size;
+    Vector m_amplitude;
+    Vector m_slope;
+    Vector m_center;
+    Vector m_values[x_maxSize];
+    Vector m_weights[x_maxSize];
+    Vector m_totalWeight;
+    OPLowPassFilterGeneric<float, Size> m_mixSlew;
+    Vector m_mixSlewFreq;
+    OPLowPassFilterGeneric<float, Size> m_shSlew;
+    Vector m_rawOutput;
+    Vector m_output;
+    SampleTop m_top[Size];
+    Vector m_shValue;
+
+    static float ComputeWeight(size_t index, size_t size, float centerParam, float slopeParam)
     {
-        float center = m_center * m_size;
-        float preSlope = m_slope * m_size;
+        float center = centerParam * size;
+        float preSlope = slopeParam * size;
         float slope = preSlope < 0.5 ? 2 : 1.0 / preSlope;
         if (center < 0.25 && index == 0)
         {
             return 1.0f;
         }
-        else if (center >= m_size - 0.25 && index == m_size - 1)
+        else if (center >= size - 0.25 && index == size - 1)
         {
             return 1.0f;
         }
@@ -165,74 +165,113 @@ struct PolyXFaderInternal
         }
     }
 
+    static bool AnyNonZero(const Vector& values)
+    {
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            if (values[lane] != 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     void Process(Input& input)
     {
+        assert(input.m_size <= x_maxSize);
         if (m_size != input.m_size || m_slope != input.m_slope || m_center != input.m_center)
         {
             m_size = input.m_size;
             m_slope = input.m_slope;
             m_center = input.m_center;
-            m_totalWeight = 0.0f;
+            m_totalWeight = Vector();
 
             for (size_t i = 0; i < m_size; ++i)
             {
-                m_weights[i] = ComputeWeight(i);
+                for (size_t lane = 0; lane < Size; ++lane)
+                {
+                    m_weights[i][lane] = ComputeWeight(i, m_size, m_center[lane], m_slope[lane]);
+                }
+
                 m_totalWeight += m_weights[i];
             }
         }
 
-        float output = 0.0f;
         if (m_size == 0)
         {
             return;
         }
-        
-        m_top = SampleTop::AndIdentity(m_totalWeight > 0.0f);
+
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            m_top[lane] = SampleTop::AndIdentity(m_totalWeight[lane] > 0.0f);
+        }
+
         size_t sampleIndex = static_cast<size_t>(std::floor(input.m_samplePosition));
-        int64_t maxCycleRatio = 0;
+        size_t topIndex = static_cast<size_t>(std::round(input.m_samplePosition));
+        int64_t maxCycleRatio[Size] = {};
+        Vector output;
         for (size_t i = 0; i < m_size; ++i)
         {
-            if (m_weights[i] != 0)
+            if (!AnyNonZero(m_weights[i]))
             {
-                maxCycleRatio = std::max(maxCycleRatio, input.m_theoryOfTime->GetCycleRatio(i, sampleIndex));
-                m_top = m_top && input.m_theoryOfTime->CrossedCycleBoundary(i, static_cast<size_t>(std::round(input.m_samplePosition)), input.m_phaseDomain);
-                m_values[i] = input.ComputePhase(i);
-                output += m_values[i] * m_weights[i] * input.m_externalWeights[i];
+                continue;
             }
+
+            int64_t cycleRatio = input.m_theoryOfTime->GetCycleRatio(i, sampleIndex);
+            SampleTop crossed = input.m_theoryOfTime->CrossedCycleBoundary(i, topIndex, input.m_phaseDomain);
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                if (m_weights[i][lane] != 0)
+                {
+                    maxCycleRatio[lane] = std::max(maxCycleRatio[lane], cycleRatio);
+                    m_top[lane] = m_top[lane] && crossed;
+                }
+            }
+
+            m_values[i] = input.ComputePhase(i);
+            output += m_values[i] * m_weights[i] * input.m_externalWeights[i];
         }
 
         // Avoid division by zero if all weights are zero
         //
-        if (m_totalWeight > 0.0f)
+        output = Vector::IfLess(Vector(), m_totalWeight, output / m_totalWeight, output);
+
+        Vector slewFreq;
+        for (size_t lane = 0; lane < Size; ++lane)
         {
-            output /= m_totalWeight;
+            slewFreq[lane] = static_cast<float>(8.0 * input.m_mult[lane] * maxCycleRatio[lane] / input.m_theoryOfTime->m_globalPeriodSamples);
+            assert(slewFreq[lane] >= 0.0f);
         }
 
-        float slewFreq = static_cast<float>(8.0 * input.m_mult * maxCycleRatio / input.m_theoryOfTime->m_globalPeriodSamples);
-        assert(slewFreq >= 0.0f);
         if (slewFreq != m_mixSlewFreq)
         {
             m_mixSlewFreq = slewFreq;
-            if (slewFreq > 0.0f)
-            {
-                m_mixSlew.SetAlphaFromNatFreq(slewFreq);
-            }
-            else
-            {
-                m_mixSlew.m_alpha = 0.0f;
-            }
+
+            // A zero slew frequency holds the mix. Stand in a valid cutoff for
+            // those lanes so the alpha computation stays in range.
+            //
+            Vector validFreq = Vector::IfLess(Vector(), slewFreq, slewFreq, Vector::Splat(0.25f));
+            m_mixSlew.m_alpha = Vector::IfLess(Vector(), slewFreq, OPLowPassFilterGeneric<float, Size>::AlphaFromNatFreq(validFreq), Vector());
         }
 
         output = m_mixSlew.Process(output);
         m_amplitude = input.m_amplitude;
-        if (input.m_trig)
+        for (size_t lane = 0; lane < Size; ++lane)
         {
-            m_shValue = output;
+            if (input.m_trig[lane])
+            {
+                m_shValue[lane] = output[lane];
+            }
         }
-        
-        float held = m_shSlew.Process(m_shValue);
-        m_rawOutput = held * input.m_shFade + output * (1 - input.m_shFade);
-        m_output = m_rawOutput * input.m_amplitude + (1 - input.m_amplitude) * 0.5;
-    }
 
+        Vector held = m_shSlew.Process(m_shValue);
+        m_rawOutput = held * input.m_shFade + output * (Vector::Splat(1) - input.m_shFade);
+        m_output = m_rawOutput * input.m_amplitude + (Vector::Splat(1) - input.m_amplitude) * 0.5f;
+    }
 };
+
+using PolyXFaderInternal = PolyXFaderGeneric<1>;
+using TrioPolyXFader = PolyXFaderGeneric<3>;

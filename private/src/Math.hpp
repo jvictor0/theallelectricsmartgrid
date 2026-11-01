@@ -135,9 +135,21 @@ struct MathGeneric
         return s / c;
     }
 
+    template<typename Number, size_t Size>
+    static MultiChannelNumber<Number, Size> Tan2pi(const MultiChannelNumber<Number, Size>& x)
+    {
+        return Sin2pi(x) / Cos2pi(x);
+    }
+
     static float TanPi(float x)
     {
         return Tan2pi(x / 2.0f);
+    }
+
+    template<typename Number, size_t Size>
+    static MultiChannelNumber<Number, Size> TanPi(const MultiChannelNumber<Number, Size>& x)
+    {
+        return Tan2pi(x * static_cast<Number>(0.5));
     }
 
     static float Tan(float x)

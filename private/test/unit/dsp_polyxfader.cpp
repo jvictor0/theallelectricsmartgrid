@@ -54,7 +54,7 @@ DOCTEST_TEST_CASE("PolyXFader: shaped mix slews at the fastest active frequency 
     rig.m_input.m_shape = 0.0f;
     rig.m_input.m_externalWeights[0] = 0.5f;
     rig.m_input.m_externalWeights[1] = 1.5f;
-    rig.m_input.m_trig = true;
+    rig.m_input.m_trig[0] = true;
     rig.m_input.m_shFade = 1.0f;
     rig.Process(128);
 
@@ -65,7 +65,7 @@ DOCTEST_TEST_CASE("PolyXFader: shaped mix slews at the fastest active frequency 
     DOCTEST_CHECK(rig.m_fader.m_values[0] == 0.75f);
     DOCTEST_CHECK(rig.m_fader.m_values[1] == 0.25f);
 
-    rig.m_input.m_trig = false;
+    rig.m_input.m_trig[0] = false;
     rig.Process(128);
     DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(expected).epsilon(0.0001));
 }
@@ -230,14 +230,14 @@ DOCTEST_TEST_CASE("PolyXFader: 500 Hz slew applies only to S&H before blending a
         DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(continuous).epsilon(0.0001));
 
         rig.m_input.m_shFade = fade;
-        rig.m_input.m_trig = true;
+        rig.m_input.m_trig[0] = true;
         rig.Process(1);
         double captured = 1.0 - PolyXFaderSlewRig::Decay(48.0, 129);
         double held = captured * (1.0 - PolyXFaderSlewRig::Decay(500.0, 1));
         DOCTEST_CHECK(rig.m_fader.m_shValue == doctest::Approx(captured).epsilon(0.0001));
         DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(fade * held + (1.0 - fade) * captured).epsilon(0.0001));
 
-        rig.m_input.m_trig = false;
+        rig.m_input.m_trig[0] = false;
         rig.Process(7);
         continuous = 1.0 - PolyXFaderSlewRig::Decay(48.0, 136);
         held = captured * (1.0 - PolyXFaderSlewRig::Decay(500.0, 8));

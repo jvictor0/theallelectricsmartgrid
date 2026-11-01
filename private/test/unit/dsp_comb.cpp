@@ -467,6 +467,60 @@ DOCTEST_TEST_CASE("TunedDecayComb: excited modulation crosses delay boundaries a
     }
 }
 
+// Parameters may arrive every sample; coefficients only follow at crossfade
+// starts. A fade's incoming branch must not move, the settled branch must
+// match the latest parameters, and a change undone before the next fade must
+// not start one.
+//
+DOCTEST_TEST_CASE("TunedDecayComb: per-sample parameters coalesce at crossfade starts")
+{
+    constexpr double x_rate = 192000.0;
+    TunedDecayComb comb;
+    comb.SetParams(200.0 / x_rate, 0.9, 0.5, x_rate);
+    comb.Process(0.0f);
+
+    comb.SetParams(300.0 / x_rate, 0.9, 0.5, x_rate);
+    comb.SetParams(200.0 / x_rate, 0.9, 0.5, x_rate);
+    comb.Process(0.0f);
+    DOCTEST_CHECK_FALSE(comb.m_transition);
+
+    size_t starts = 0;
+    bool wasTransition = false;
+    TunedDecayComb::Coefficients incoming;
+    for (int i = 0; i < 5000; ++i)
+    {
+        comb.SetParams((300.0 + 0.05 * i) / x_rate, 0.9, 0.5, x_rate);
+        comb.Process(i == 0 ? 1.0f : 0.0f);
+        if (comb.m_transition && !wasTransition)
+        {
+            ++starts;
+            incoming = comb.m_branch[1].m_coeff.Get(0);
+        }
+        else if (comb.m_transition)
+        {
+            DOCTEST_REQUIRE(comb.m_branch[1].m_coeff.Get(0).m_a == incoming.m_a);
+        }
+
+        wasTransition = comb.m_transition;
+    }
+
+    DOCTEST_CHECK(starts >= 4);
+    DOCTEST_CHECK(starts <= 6);
+
+    comb.SetParams(500.0 / x_rate, 0.9, 0.5, x_rate);
+    for (int i = 0; i < 4000; ++i)
+    {
+        comb.Process(0.0f);
+    }
+
+    TunedDecayComb reference;
+    reference.SetParams(500.0 / x_rate, 0.9, 0.5, x_rate);
+    DOCTEST_CHECK_FALSE(comb.m_transition);
+    DOCTEST_CHECK_FALSE(comb.m_pending);
+    DOCTEST_CHECK(comb.m_branch[0].m_coeff.Get(0).m_delay == reference.m_branch[0].m_coeff.Get(0).m_delay);
+    DOCTEST_CHECK(comb.m_branch[0].m_coeff.Get(0).m_a == reference.m_branch[0].m_coeff.Get(0).m_a);
+}
+
 // Every impulse sample must scale by the same radial time factor, even the
 // nonfundamental transient. This catches unscaled interpolation and SVF memory.
 //

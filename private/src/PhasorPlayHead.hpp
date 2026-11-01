@@ -1,55 +1,70 @@
 #pragma once
 
+#include "MultiChannelNumber.hpp"
 #include "PhaseUtils.hpp"
 #include "TheoryOfTime.hpp"
 #include <algorithm>
 #include <cmath>
 
-struct PhasorPlayHead
+// Maps each channel's Theory of Time loop phase to a normalized position in
+// [0, 1): speed and length scale the phase, which wraps within the length and
+// is offset by the start.
+//
+template <size_t Size>
+struct PhasorPlayHeadGeneric
 {
+    using Vector = MultiChannelNumber<float, Size>;
+    using DoubleVector = MultiChannelNumber<double, Size>;
+    using IndexVector = MultiChannelNumber<int, Size>;
+
     struct Input
     {
         TheoryOfTime* m_theoryOfTime;
-        float m_start;
-        float m_length;
-        float m_speed;
-        int m_loopIndex;
+        Vector m_start;
+        Vector m_length;
+        Vector m_speed;
+        IndexVector m_loopIndex;
         int m_sampleIndex;
 
         Input()
             : m_theoryOfTime(nullptr)
-            , m_start(0.0f)
-            , m_length(1.0f)
-            , m_speed(1.0f)
-            , m_loopIndex(0)
+            , m_start(Vector::Splat(0))
+            , m_length(Vector::Splat(1))
+            , m_speed(Vector::Splat(1))
+            , m_loopIndex(IndexVector::Splat(0))
             , m_sampleIndex(0)
         {
         }
     };
 
-    float Process(Input const& input)
+    // Channels with a non-positive length read position 0.
+    //
+    Vector Process(Input const& input)
     {
         if (!input.m_theoryOfTime)
         {
-            return 0.0f;
-        }
-
-        double length = static_cast<double>(input.m_length);
-        if (length <= 0.0)
-        {
-            return 0.0f;
+            return Vector::Splat(0);
         }
 
         size_t sampleIdx =
             static_cast<size_t>(input.m_sampleIndex) % TheoryOfTimeBase::x_microBlockSize;
         TheoryOfTime* tot = input.m_theoryOfTime;
-        size_t loopIx = static_cast<size_t>(std::max(0, input.m_loopIndex));
 
-        double loopScaled =
-            tot->GetPhase(loopIx, sampleIdx, PhaseDomain::Modulated) * static_cast<double>(input.m_speed) * length;
-        double start = static_cast<double>(input.m_start);
-        double wrapped = PhaseUtils::WrapMod(0, length, loopScaled) + start;
-        double fractional = wrapped - std::floor(wrapped);
-        return static_cast<float>(fractional);
+        DoubleVector phase;
+        for (size_t i = 0; i < Size; ++i)
+        {
+            size_t loopIx = static_cast<size_t>(std::max(0, input.m_loopIndex[i]));
+            phase[i] = tot->GetPhase(loopIx, sampleIdx, PhaseDomain::Modulated);
+        }
+
+        DoubleVector length = input.m_length.template Convert<double>();
+        DoubleVector loopScaled = phase * input.m_speed.template Convert<double>() * length;
+        DoubleVector wrapped = loopScaled - length * (loopScaled / length).Floor() + input.m_start.template Convert<double>();
+        DoubleVector fractional = wrapped - wrapped.Floor();
+        DoubleVector zero = DoubleVector::Splat(0);
+        return DoubleVector::IfLess(zero, length, fractional, zero).template Convert<float>();
     }
 };
+
+using PhasorPlayHead = PhasorPlayHeadGeneric<1>;
+using TrioPhasorPlayHead = PhasorPlayHeadGeneric<3>;

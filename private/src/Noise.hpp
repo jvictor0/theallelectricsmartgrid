@@ -1,114 +1,134 @@
 #pragma once
 
-#include <random>
+#include "MultiChannelNumber.hpp"
 #include <cmath>
+#include <cstdint>
 
-// White noise generator using Box-Muller transform for Gaussian distribution
+// Approximately Gaussian white noise per channel, with standard deviation 1/3.
+// Each channel runs its own xorshift32 generator; two draws split into four
+// 16-bit uniforms whose Irwin-Hall sum is rescaled to the target deviation.
+// Output is bounded to +-2 / sqrt(3).
 //
-struct WhiteNoise
+template <size_t Size>
+struct WhiteNoiseGeneric
 {
-    WhiteNoise(unsigned int seed = 0)
-        : m_generator(seed)
-        , m_distribution(0.0, 1.0)
+    using Vector = MultiChannelNumber<float, Size>;
+    using StateVector = uint32_t __attribute__((vector_size(sizeof(uint32_t) * Size)));
+
+    StateVector m_state;
+
+    explicit WhiteNoiseGeneric(uint32_t seed)
     {
+        SetSeed(seed);
     }
 
-    double Generate()
+    void SetSeed(uint32_t seed)
     {
-        double u1 = m_distribution(m_generator);
-        double u2 = m_distribution(m_generator);
-        
-        // Box-Muller transform
+        for (size_t i = 0; i < Size; ++i)
+        {
+            uint32_t channelSeed = (seed + static_cast<uint32_t>(i) + 1) * 2654435761u;
+            m_state[i] = channelSeed == 0 ? 1 : channelSeed;
+        }
+    }
+
+    StateVector Next()
+    {
+        m_state ^= m_state << 13;
+        m_state ^= m_state >> 17;
+        m_state ^= m_state << 5;
+        return m_state;
+    }
+
+    // Uniform on [0, 1) from the top 24 bits of one draw.
+    //
+    Vector Uniform()
+    {
+        using FloatVector = typename Vector::Vector;
+        static constexpr float x_scale = 1.0f / 16777216.0f;
+
+        return Vector::FromVector(__builtin_convertvector(Next() >> 8, FloatVector) * x_scale);
+    }
+
+    Vector Generate()
+    {
+        using FloatVector = typename Vector::Vector;
+        static constexpr float x_uniformScale = 1.0f / 65536.0f;
+
+        StateVector first = Next();
+        StateVector second = Next();
+        FloatVector sum = __builtin_convertvector(first & 0xFFFF, FloatVector);
+        sum += __builtin_convertvector(first >> 16, FloatVector);
+        sum += __builtin_convertvector(second & 0xFFFF, FloatVector);
+        sum += __builtin_convertvector(second >> 16, FloatVector);
+
+        // Four 16-bit uniforms sum to mean 4 * 32767.5; scaled to [0, 1) they
+        // have variance 1/3.
         //
-        double z0 = std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2);
-        
-        // Normalize to [-1, 1] range using zero normalization
-        // Scale by a factor to fit most of the Gaussian distribution within bounds
-        // Using 3.0 as scaling factor covers ~99.7% of the distribution
-        //
-        z0 = z0 / 3.0;
-        
-        return z0;
+        static constexpr float x_mean = 4.0f * 32767.5f;
+        static constexpr float x_scale = x_uniformScale / 3.0f * 1.7320508075688772f;
+        return Vector::FromVector((sum - x_mean) * x_scale);
     }
-
-    void SetSeed(unsigned int seed)
-    {
-        m_generator.seed(seed);
-    }
-
-    std::mt19937 m_generator;
-    std::uniform_real_distribution<double> m_distribution;
 };
 
-// Pink noise generator using Voss-McCartney algorithm
+using TrioWhiteNoise = WhiteNoiseGeneric<3>;
+
+// Voss-McCartney pink noise in [-1, 1] per channel. Seven rows of uniform
+// values each redraw at half the rate of the previous one; all channels redraw
+// the same rows on the same sample, drawing from WhiteNoiseGeneric.
 //
-struct PinkNoise
+template <size_t Size>
+struct PinkNoiseGeneric
 {
-    PinkNoise(unsigned int seed = 0)
-        : m_generator(seed)
-        , m_distribution(0.0, 1.0)
-        , m_whiteValues()
-        , m_pinkValue(0.0)
+    using Vector = MultiChannelNumber<float, Size>;
+    static constexpr int x_numRows = 7;
+    static constexpr int x_maxKey = (1 << x_numRows) - 1;
+
+    WhiteNoiseGeneric<Size> m_white;
+    Vector m_rows[x_numRows];
+    int m_key;
+
+    explicit PinkNoiseGeneric(uint32_t seed)
+        : m_white(seed)
         , m_key(0)
-        , m_maxKey(0x7f)
     {
-        // Initialize white noise values
-        //
-        for (int i = 0; i < 7; ++i)
-        {
-            m_whiteValues[i] = m_distribution(m_generator);
-        }
-        
-        m_pinkValue = 0.0;
-        m_key = 0;
+        SetSeed(seed);
     }
 
-    double Generate()
+    void SetSeed(uint32_t seed)
+    {
+        m_white.SetSeed(seed);
+        m_key = 0;
+        for (int i = 0; i < x_numRows; ++i)
+        {
+            m_rows[i] = m_white.Uniform();
+        }
+    }
+
+    // The sum of seven uniforms has mean 3.5 and range [0, 7].
+    //
+    Vector Generate()
     {
         int lastKey = m_key;
-        
         m_key++;
-        if (m_key > m_maxKey)
+        if (m_key > x_maxKey)
         {
             m_key = 1;
         }
-        
+
         int diff = lastKey ^ m_key;
-        double sum = 0.0;
-        
-        for (int i = 0; i < 7; ++i)
+        Vector sum = Vector::Splat(0);
+        for (int i = 0; i < x_numRows; ++i)
         {
             if (diff & (1 << i))
             {
-                m_whiteValues[i] = m_distribution(m_generator);
+                m_rows[i] = m_white.Uniform();
             }
-            sum += m_whiteValues[i];
-        }
-        
-        // Normalize to [-1, 1] range with proper centering
-        // Raw sum has mean 3.5 and range [0, 7]
-        // Center by subtracting mean, then scale to [-1, 1]
-        //
-        m_pinkValue = ((sum - 3.5) / 3.5);
-        return m_pinkValue;
-    }
 
-    void SetSeed(unsigned int seed)
-    {
-        m_generator.seed(seed);
-        m_key = 0;
-        // Reinitialize white noise values
-        //
-        for (int i = 0; i < 7; ++i)
-        {
-            m_whiteValues[i] = m_distribution(m_generator);
+            sum += m_rows[i];
         }
-    }
 
-    std::mt19937 m_generator;
-    std::uniform_real_distribution<double> m_distribution;
-    double m_whiteValues[7];
-    double m_pinkValue;
-    int m_key;
-    int m_maxKey;
-}; 
+        return (sum - 3.5f) / 3.5f;
+    }
+};
+
+using TrioPinkNoise = PinkNoiseGeneric<3>;

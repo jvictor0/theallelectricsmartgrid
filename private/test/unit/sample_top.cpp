@@ -15,15 +15,14 @@ DOCTEST_TEST_CASE("SampleTop: VPS stores base-rate offsets even when processed a
 
     table.Generate();
     VectorPhaseShaperInternal vps;
-    vps.m_morphingWaveTable.SetLeft(&table);
-    vps.m_morphingWaveTable.SetRight(&table);
+    vps.SetLeft(&table);
+    vps.SetRight(&table);
     vps.m_phase = 0.9921875f;
     VectorPhaseShaperInternal::Input input;
-    input.m_useVoct = false;
     input.m_freq = 0.015625f;
     vps.Process(input, 1.0 / 192000.0);
-    DOCTEST_CHECK(vps.m_top.m_triggered);
-    DOCTEST_CHECK(vps.m_top.m_offset == doctest::Approx(-0.125));
+    DOCTEST_CHECK(vps.m_top[0].m_triggered);
+    DOCTEST_CHECK(vps.m_top[0].m_offset == doctest::Approx(-0.125));
 }
 
 DOCTEST_TEST_CASE("SampleTop: interpolates the latest crossed boundary in either direction")
@@ -68,13 +67,13 @@ DOCTEST_TEST_CASE("SampleTop: VPS publishes the fractional crossing on its exist
     vps.m_phase = 0.9765625f;
     vps.m_freq = 0.015625f;
     vps.UpdatePhase(1.0 / SampleTimer::x_sampleRate);
-    DOCTEST_CHECK_FALSE(vps.m_top.m_triggered);
+    DOCTEST_CHECK_FALSE(vps.m_top[0].m_triggered);
     vps.UpdatePhase(1.0 / SampleTimer::x_sampleRate);
-    DOCTEST_CHECK(vps.m_top.m_triggered);
-    DOCTEST_CHECK(vps.m_top.m_offset == doctest::Approx(-0.5));
+    DOCTEST_CHECK(vps.m_top[0].m_triggered);
+    DOCTEST_CHECK(vps.m_top[0].m_offset == doctest::Approx(-0.5));
     vps.UpdatePhase(1.0 / SampleTimer::x_sampleRate);
-    DOCTEST_CHECK_FALSE(vps.m_top.m_triggered);
-    DOCTEST_CHECK(vps.m_top.m_offset == 0.0);
+    DOCTEST_CHECK_FALSE(vps.m_top[0].m_triggered);
+    DOCTEST_CHECK(vps.m_top[0].m_offset == 0.0);
 }
 
 DOCTEST_TEST_CASE("SampleTop: Theory of Time retains both domains through rollover and stop")
@@ -142,14 +141,14 @@ DOCTEST_TEST_CASE("SampleTop: PolyXFader retains the latest top when all active 
     input.m_slope = 0.5f;
     input.m_samplePosition = 2.0f;
     lfo.Process(input);
-    DOCTEST_CHECK(lfo.m_top.m_triggered);
-    DOCTEST_CHECK(lfo.m_top.m_offset == doctest::Approx(-4.0 / 21.0));
+    DOCTEST_CHECK(lfo.m_top[0].m_triggered);
+    DOCTEST_CHECK(lfo.m_top[0].m_offset == doctest::Approx(-4.0 / 21.0));
 
     clock.m_unmodulatedPhase = 0.85;
     time.Process(3, clock);
     input.m_size = 2;
     input.m_samplePosition = 3.0f;
     lfo.Process(input);
-    DOCTEST_CHECK_FALSE(lfo.m_top.m_triggered);
-    DOCTEST_CHECK(lfo.m_top.m_offset == 0.0);
+    DOCTEST_CHECK_FALSE(lfo.m_top[0].m_triggered);
+    DOCTEST_CHECK(lfo.m_top[0].m_offset == 0.0);
 }

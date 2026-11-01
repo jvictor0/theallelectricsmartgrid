@@ -386,3 +386,125 @@ struct AHD
         return m_output;
     }
 };
+
+// Size envelopes sharing one theory of time. The stage machine branches per
+// channel, so each channel runs a scalar AHD; parameter mapping and outputs
+// are vectors.
+//
+template <size_t Size>
+struct AHDGeneric
+{
+    using Vector = MultiChannelNumber<float, Size>;
+
+    struct Input
+    {
+        AHD::Input m_channels[Size];
+
+        void SetTheoryOfTime(TheoryOfTimeBase* theoryOfTime)
+        {
+            for (size_t i = 0; i < Size; ++i)
+            {
+                m_channels[i].m_theoryOfTime = theoryOfTime;
+            }
+        }
+
+        void SetSamplePosition(float samplePosition)
+        {
+            for (size_t i = 0; i < Size; ++i)
+            {
+                m_channels[i].m_samplePosition = samplePosition;
+            }
+        }
+
+        void SetReleaseFactor(float releaseFactor)
+        {
+            for (size_t i = 0; i < Size; ++i)
+            {
+                m_channels[i].m_releaseFactor = releaseFactor;
+            }
+        }
+
+        void Set(size_t channel, AHD::AHDControl& control)
+        {
+            m_channels[channel].Set(control);
+        }
+    };
+
+    struct InputSetter
+    {
+        PhaseUtils::ExpParamGeneric<float, Size> m_attack;
+        PhaseUtils::ZeroedExpParamGeneric<float, Size> m_hold;
+        PhaseUtils::ExpParamGeneric<float, Size> m_decay;
+
+        InputSetter()
+            : InputSetter(
+                AHD::InputSetter::x_attackTimeMin,
+                AHD::InputSetter::x_attackTimeMax,
+                AHD::InputSetter::x_decayTimeMin,
+                AHD::InputSetter::x_decayTimeMax)
+        {
+        }
+
+        InputSetter(float attackTimeMin, float attackTimeMax, float decayTimeMin, float decayTimeMax)
+            : m_attack(SampleTimer::SecondsToCycPerSamp(attackTimeMax), SampleTimer::SecondsToCycPerSamp(attackTimeMin))
+            , m_hold()
+            , m_decay(SampleTimer::SecondsToCycPerSamp(decayTimeMax), SampleTimer::SecondsToCycPerSamp(decayTimeMin))
+        {
+            m_hold.SetBaseByCenter(1.0f / 32);
+            m_hold.SetMax(16.0f);
+        }
+
+        void Set(const Vector& attack, const Vector& hold, const Vector& decay, const Vector& amplitude, bool amplitudePolarity, Input& input)
+        {
+            Vector attackIncrement = m_attack.Update(Vector::Splat(1) - attack);
+            Vector decayIncrement = m_decay.Update(Vector::Splat(1) - decay);
+
+            // Hold is in loop divisions (0 to 16).
+            //
+            Vector holdLoops = m_hold.Update(hold);
+
+            for (size_t i = 0; i < Size; ++i)
+            {
+                AHD::Input& channel = input.m_channels[i];
+                channel.m_attackIncrement = attackIncrement[i];
+                channel.m_decayIncrement = decayIncrement[i];
+                channel.m_holdLoops = static_cast<double>(holdLoops[i]);
+                channel.m_amplitude = amplitude[i];
+                channel.m_amplitudePolarity = amplitudePolarity;
+            }
+        }
+    };
+
+    AHD m_channels[Size];
+    Vector m_output;
+    Vector m_rawOutput;
+
+    AHDGeneric()
+        : m_output()
+        , m_rawOutput()
+    {
+    }
+
+    Vector Process(Input& input)
+    {
+        for (size_t i = 0; i < Size; ++i)
+        {
+            m_output[i] = m_channels[i].Process(input.m_channels[i]);
+            m_rawOutput[i] = m_channels[i].m_rawOutput;
+        }
+
+        return m_output;
+    }
+
+    Vector GetOutput() const
+    {
+        return m_output;
+    }
+
+    Vector GetRawOutput() const
+    {
+        return m_rawOutput;
+    }
+};
+
+using TrioAHD = AHDGeneric<3>;

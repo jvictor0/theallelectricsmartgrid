@@ -129,9 +129,9 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
         oscillator.m_offsetFreqFactorSlew.m_filter.m_output = 1.0f;
         for (size_t i = 0; i < 2; ++i)
         {
-            oscillator.m_vco[i].m_phase = 0.9921875f - static_cast<float>(topOversample) / 64.0f;
-            oscillator.m_vco[i].m_morphingWaveTable.SetLeft(&table);
-            oscillator.m_vco[i].m_morphingWaveTable.SetRight(&table);
+            oscillator.m_core.m_vco[i].m_phase = 0.9921875f - static_cast<float>(topOversample) / 64.0f;
+            oscillator.m_core.m_vco[i].SetLeft(&table);
+            oscillator.m_core.m_vco[i].SetRight(&table);
             oscillator.m_scopeWriter[i] = ScopeWriterHolder(writer.get(), 0, i);
         }
 

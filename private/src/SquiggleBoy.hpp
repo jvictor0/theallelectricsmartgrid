@@ -202,14 +202,14 @@ struct SquiggleBoy
                 m_waveTableGenerator[i].GenerateCompletely();
                 for (size_t k = 0; k < x_voicesPerTrack; ++k)
                 {
-                    m_waveTableGenerator[i].SetLeft(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_vco[i]);
+                    m_waveTableGenerator[i].SetLeft(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_core.m_vco[i]);
                 }
 
                 m_waveTableGenerator[i].Clear();
                 m_waveTableGenerator[i].GenerateCompletely();
                 for (size_t k = 0; k < x_voicesPerTrack; ++k)
                 {
-                    m_waveTableGenerator[i].SetRight(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_vco[i]);
+                    m_waveTableGenerator[i].SetRight(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_core.m_vco[i]);
                 }
 
                 m_waveTableGenerator[i].m_leftVisible[j] = true;
@@ -251,7 +251,7 @@ struct SquiggleBoy
                         INFO("New right wavetable for VCO %zu track %zu", i, j);
                         for (size_t k = 0; k < x_voicesPerTrack; ++k)
                         {
-                            m_waveTableGenerator[i].SetRight(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_vco[i]);
+                            m_waveTableGenerator[i].SetRight(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_core.m_vco[i]);
                         }
 
                         m_waveTableGenerator[i].m_rightVisible[j] = false;
@@ -264,7 +264,7 @@ struct SquiggleBoy
                         INFO("New left wavetable for VCO %zu track %zu", i, j);
                         for (size_t k = 0; k < x_voicesPerTrack; ++k)
                         {
-                            m_waveTableGenerator[i].SetLeft(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_vco[i]);
+                            m_waveTableGenerator[i].SetLeft(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_core.m_vco[i]);
                         }
 
                         m_waveTableGenerator[i].m_leftVisible[j] = false;
@@ -1244,7 +1244,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
             m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
             m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::QuadLFO1SampleAndHold, i);
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_trig = delayLoopTop;
+            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_trig[0] = delayLoopTop;
 
             m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::QuadLFO2Skew, i);
             m_quadSquiggleLFOInput[1][i].m_mult.Update(m_encoders.GetValue(Param::QuadLFO2Mult, i));
@@ -1256,7 +1256,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
             m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
             m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::QuadLFO2SampleAndHold, i);
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_trig = delayLoopTop;
+            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_trig[0] = delayLoopTop;
         }
 
         QuadReverbInputSetter::Input reverbInputSetterInput;
