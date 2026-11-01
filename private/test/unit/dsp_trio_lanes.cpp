@@ -187,14 +187,12 @@ DOCTEST_TEST_CASE("Trio: SVF channels match mono filters")
             resonance[i] = 0.3f * i;
         }
 
-        trio.SetCutoff(cutoff);
-        trio.SetResonance(resonance);
+        trio.SetCutoffAndResonance(cutoff, resonance);
         trio.Process(input);
         TrioFloat trioMorphed = trio.GetMorphedOutput(TrioFloat(morph[0], morph[1], morph[2]));
         for (size_t i = 0; i < 3; ++i)
         {
-            mono[i].SetCutoff(cutoff[i]);
-            mono[i].SetResonance(resonance[i]);
+            mono[i].SetCutoffAndResonance(cutoff[i], resonance[i]);
             mono[i].Process(input[i]);
             morphed.Add(i, trioMorphed[i], mono[i].GetMorphedOutput(morph[i])[0]);
             lowPass.Add(i, trio.m_lowPass[i], mono[i].m_lowPass[0]);

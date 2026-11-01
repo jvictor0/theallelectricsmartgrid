@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SquiggleBoyShape.hpp"
 #include "SquiggleBoySource.hpp"
 #include "VoiceMachineEnums.hpp"
 #include "QuadUtils.hpp"
@@ -35,183 +36,6 @@ struct SquiggleBoyTrack
     static constexpr size_t x_recordingBufferWriterSize = RecordingManager::x_numVoices;
 
     using VoiceConfig = SquiggleBoyVoiceConfig;
-
-    struct FilterSection
-    {
-        static constexpr float x_lpPitchTracking = 0.707f;
-        static constexpr float x_lpTrackingPivot = SampleTimer::HzToCycPerSamp(261.6256f);
-
-        // Ladder filters (4-pole)
-        //
-        LadderFilterLP m_lpLadder;
-        LinearSVF4PoleHighPass m_hp4Pole;
-
-        // SVF filters (2-pole)
-        //
-        LinearStateVariableFilter m_lpSVF;
-        LinearStateVariableFilter m_hpSVF;
-
-        TanhSaturator<true> m_saturator;
-
-        // DC blocker before SVF (5 Hz at oversample rate)
-        //
-        OPHighPassFilter m_svfDCBlocker;
-
-        SampleRateReducer m_sampleRateReducer;
-
-        float m_output;
-        float m_uBlockOutput[x_uBlockSize];
-
-        ScopeWriterHolder m_scopeWriter;
-
-        // Slewed parameters
-        //
-        ParamSlew m_vcoBaseFreqSlew;
-        ParamSlew m_lpCutoffSlew;
-        ParamSlew m_hpCutoffSlew;
-        ParamSlew m_lpResonanceSlew;
-        ParamSlew m_hpResonanceSlew;
-        ParamSlew m_saturationGainSlew;
-        ParamSlew m_sampleRateReducerFreqSlew;
-
-        FilterSection()
-            : m_output(0)
-            , m_vcoBaseFreqSlew(x_oversample)
-            , m_lpCutoffSlew(x_oversample)
-            , m_hpCutoffSlew(x_oversample)
-            , m_lpResonanceSlew(x_oversample)
-            , m_hpResonanceSlew(x_oversample)
-            , m_saturationGainSlew(x_oversample)
-            , m_sampleRateReducerFreqSlew(x_oversample)
-        {
-            // 5 Hz at the oversampled rate
-            //
-            m_svfDCBlocker.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(5.0) / x_oversample);
-            m_saturator.SetInputGain(0.25f);
-        }
-
-        void ProcessLadder4Pole(float input, float hpFreq, float lpFreq, float hpResonance, float lpResonance, float saturationGain)
-        {
-            m_hp4Pole.SetCutoff(hpFreq);
-            m_hp4Pole.SetResonance(hpResonance);
-            m_lpLadder.SetCutoff(lpFreq);
-            m_lpLadder.SetResonance(lpResonance);
-            m_lpLadder.SetSaturationGain(saturationGain);
-
-            m_output = m_lpLadder.Process(input);
-            m_hp4Pole.Process(m_output);
-            m_output = m_hp4Pole.GetOutput();
-        }
-
-        void ProcessSVF2Pole(float input, float hpFreq, float lpFreq, float hpResonance, float lpResonance, float saturationGain)
-        {
-            m_hpSVF.SetCutoff(hpFreq);
-            m_hpSVF.SetResonance(hpResonance);
-            m_lpSVF.SetCutoff(lpFreq);
-            m_lpSVF.SetResonance(lpResonance);
-            m_saturator.SetInputGain(saturationGain);
-            
-            m_lpSVF.Process(m_saturator.Process(input));
-            m_output = m_saturator.Process(m_lpSVF.GetLowPass());
-            m_hpSVF.Process(m_output);
-            m_output = m_saturator.Process(m_hpSVF.GetHighPass());
-        }
-
-        struct Input
-        {
-            float m_vcoBaseFreq;
-            PhaseUtils::ExpParam m_lpCutoffFactor;
-            PhaseUtils::ExpParam m_hpCutoffFactor;
-            PhaseUtils::ZeroedExpParam m_lpResonance;
-            PhaseUtils::ZeroedExpParam m_hpResonance;
-            PhaseUtils::ExpParam m_saturationGain;
-
-            VoiceConfig* m_voiceConfig;
-
-            PhaseUtils::ExpParam m_sampleRateReducerFreq;
-
-            Input()
-                : m_vcoBaseFreq(PhaseUtils::VOctToNatural(0.0, SampleTimer::x_samplePeriod))
-                , m_lpCutoffFactor(0.25f, 1024.0f)
-                , m_hpCutoffFactor(0.25f, 256.0f)
-                , m_saturationGain(0.25f, 5.0f)
-                , m_sampleRateReducerFreq(1.0f, 2048.0f)
-            {
-                m_lpResonance.SetBaseByCenter(0.125);
-                m_hpResonance.SetBaseByCenter(0.125);
-            }
-        };
-
-        void ProcessUBlock(Input& input, const float* vcoOutput, const SampleTop* top)
-        {
-            float baseFreq = input.m_vcoBaseFreq;
-            if (input.m_voiceConfig->m_sourceMachine == VoiceConfig::SourceMachine::Thru)
-            {
-                baseFreq = SampleTimer::HzToCycPerSamp(80.0);
-            }
-
-            // Update slew targets
-            //
-            m_vcoBaseFreqSlew.Update(baseFreq);
-            m_lpCutoffSlew.Update(input.m_lpCutoffFactor.m_expParam);
-            m_hpCutoffSlew.Update(input.m_hpCutoffFactor.m_expParam);
-            m_lpResonanceSlew.Update(input.m_lpResonance.m_expParam);
-            m_hpResonanceSlew.Update(input.m_hpResonance.m_expParam);
-            m_saturationGainSlew.Update(input.m_saturationGain.m_expParam);
-            m_sampleRateReducerFreqSlew.Update(input.m_sampleRateReducerFreq.m_expParam);
-
-            for (size_t i = 0; i < x_uBlockSize; ++i)
-            {
-                float vcoBaseFreq = m_vcoBaseFreqSlew.Process();
-                float lpCutoff = m_lpCutoffSlew.Process();
-                float hpCutoff = m_hpCutoffSlew.Process();
-                float lpResonance = m_lpResonanceSlew.Process();
-                float hpResonance = m_hpResonanceSlew.Process();
-                float sampleRateReducerFreq = m_sampleRateReducerFreqSlew.Process();
-                float saturationGain = m_saturationGainSlew.Process();
-
-                // Compute filter frequencies adjusted for oversampled rate
-                //
-                float hpFreq = std::min<float>(0.5 / x_oversample, vcoBaseFreq * hpCutoff / x_oversample);
-                float lpBaseFreq = x_lpTrackingPivot * std::pow(vcoBaseFreq / x_lpTrackingPivot, x_lpPitchTracking);
-                float lpFreq = std::min<float>(0.5 / x_oversample, lpBaseFreq * hpCutoff * lpCutoff / x_oversample);
-
-                float dcBlocked = m_svfDCBlocker.Process(vcoOutput[i]);
-
-                if (input.m_voiceConfig->m_filterMachine == VoiceConfig::FilterMachine::Ladder4Pole)
-                {
-                    ProcessLadder4Pole(dcBlocked, hpFreq, lpFreq, hpResonance, lpResonance, saturationGain);
-                }
-                else
-                {
-                    ProcessSVF2Pole(dcBlocked, hpFreq, lpFreq, hpResonance, lpResonance, saturationGain);
-                }
-
-                m_sampleRateReducer.SetFreq(vcoBaseFreq * sampleRateReducerFreq / x_oversample);
-                m_output = m_sampleRateReducer.Process(m_output);
-
-                m_uBlockOutput[i] = m_output;
-
-                // Base-rate operations every x_oversample samples
-                //
-                if ((i + 1) % x_oversample == 0)
-                {
-                    size_t baseIndex = i / x_oversample;
-
-                    m_scopeWriter.Write(baseIndex, m_output);
-                    if (top[baseIndex])
-                    {
-                        m_scopeWriter.RecordStart(top[baseIndex].GetPosition(baseIndex));
-                    }
-                }
-            }
-        }
-
-        void DebugPrint()
-        {
-            m_lpLadder.DebugPrint();
-        }
-    };
 
     struct AmpSection
     {
@@ -456,7 +280,7 @@ struct SquiggleBoyTrack
     {
         m_source.m_dualWaveShapingVCO.m_scopeWriter[0] = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::VCO1));
         m_source.m_dualWaveShapingVCO.m_scopeWriter[1] = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::VCO2));
-        m_filter.m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::PostFilter));
+        m_shape.SetScopeWriters(scopeWriter, voiceIx);
         m_amp.m_scopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp));
         m_amp.m_subScopeWriter = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::Sub));
     }
@@ -473,12 +297,13 @@ struct SquiggleBoyTrack
     PhaseUtils::ExpParam m_baseFreqSlewAmount;
     SquiggleBoySource m_source;
     VCO m_sub;
-    FilterSection m_filter;
+    SquiggleBoyShape m_shape;
     AmpSection m_amp;
     PanSection m_pan;
     SquiggleLFO m_squiggleLFO[2];
 
     Downsampler m_downsampler;
+    float m_uBlockShapeOut[x_uBlockSize];
     float m_uBlockFilterOut[SampleTimer::x_controlFrameRate];
 
     float m_output;
@@ -498,14 +323,13 @@ struct SquiggleBoyTrack
 
         SubInput m_subInput;
         SquiggleBoySource::Input m_sourceInput;
-        FilterSection::Input m_filterInput;
+        SquiggleBoyShape::Input m_shapeInput;
         AmpSection::Input m_ampInput;
         PanSection::Input m_panInput;
         SquiggleLFO::Input m_squiggleLFOInput[2];
 
         Input()
         {
-            m_filterInput.m_voiceConfig = &m_voiceConfig;
             m_ampInput.m_voiceConfig = &m_voiceConfig;
         }
 
@@ -540,13 +364,31 @@ struct SquiggleBoyTrack
 
         m_source.ProcessUBlock(input.m_sourceInput);
 
-        m_filter.ProcessUBlock(input.m_filterInput, m_source.m_uBlockOutput, m_source.m_uBlockTop);
-        m_downsampler.Process(m_filter.m_uBlockOutput, m_uBlockFilterOut);
+        input.m_shapeInput.m_sourceMachine = input.m_voiceConfig.m_sourceMachine;
+        input.m_shapeInput.m_filterMachine = input.m_voiceConfig.m_filterMachine;
+        for (size_t i = 0; i < x_uBlockSize; ++i)
+        {
+            m_uBlockShapeOut[i] = m_shape.Process(input.m_shapeInput, m_source.m_uBlockOutput[i]);
+
+            // Base-rate operations every x_oversample samples
+            //
+            if ((i + 1) % x_oversample == 0)
+            {
+                size_t baseIndex = i / x_oversample;
+                m_shape.m_scopeWriter[0].Write(baseIndex, m_uBlockShapeOut[i]);
+                if (m_source.m_uBlockTop[baseIndex])
+                {
+                    m_shape.m_scopeWriter[0].RecordStart(m_source.m_uBlockTop[baseIndex].GetPosition(baseIndex));
+                }
+            }
+        }
+
+        m_downsampler.Process(m_uBlockShapeOut, m_uBlockFilterOut);
     }
 
     void DebugPrint()
     {
-        m_filter.DebugPrint();
+        m_shape.DebugPrint();
     }
 
     float Processs(Input& input)

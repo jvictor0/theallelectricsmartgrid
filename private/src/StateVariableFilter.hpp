@@ -175,8 +175,7 @@ struct LinearStateVariableFilterGeneric : LinearStateVariableFilterBase
         , m_bandPass()
         , m_notch()
     {
-        SetCutoff(m_cutoff);
-        SetResonance(Vector());
+        SetCutoffAndResonance(m_cutoff, Vector());
     }
 
     void Process(const Vector& input)
@@ -234,30 +233,24 @@ struct LinearStateVariableFilterGeneric : LinearStateVariableFilterBase
         return Vector::IfLess(half, clamped, highHalf, lowHalf);
     }
 
-    void SetCutoff(const Vector& cutoff)
-    {
-        m_cutoff = Vector::Min(Vector::Splat(x_maxCutoff), cutoff);
-        m_g = Math::TanPi(m_cutoff);
-        UpdateCoefficients();
-    }
-
-    void SetResonance(const Vector& resonance)
+    void SetCutoffAndResonance(const Vector& cutoff, const Vector& resonance)
     {
         // k = 1/Q, where Q ranges from x_qMin to x_qMax
         // resonance 0 -> Q = x_qMin (Butterworth-ish), k = 1/x_qMin
         // resonance 1 -> Q = x_qMax (high resonance), k = 1/x_qMax
         //
-        Vector expResonance = m_resonance.Update(resonance);
-        SetQ(expResonance);
+        SetCutoffAndQ(cutoff, m_resonance.Update(resonance));
     }
 
-    void SetQ(const Vector& q)
+    void SetCutoffAndQ(const Vector& cutoff, const Vector& q)
     {
         for (size_t i = 0; i < Size; ++i)
         {
             assert(q[i] > 0);
         }
 
+        m_cutoff = Vector::Min(Vector::Splat(x_maxCutoff), cutoff);
+        m_g = Math::TanPi(m_cutoff);
         m_k = Vector::Splat(1) / q;
         UpdateCoefficients();
     }
@@ -368,16 +361,10 @@ struct LinearSVF4PoleHighPassGeneric : LinearSVF4PoleHighPassBase
         return m_output;
     }
 
-    void SetCutoff(const Vector& cutoff)
+    void SetCutoffAndResonance(const Vector& cutoff, const Vector& resonance)
     {
-        m_stage1.SetCutoff(cutoff);
-        m_stage2.SetCutoff(cutoff);
-    }
-
-    void SetResonance(const Vector& resonance)
-    {
-        m_stage1.SetResonance(resonance);
-        m_stage2.SetResonance(resonance);
+        m_stage1.SetCutoffAndResonance(cutoff, resonance);
+        m_stage2.SetCutoffAndResonance(cutoff, resonance);
     }
 
     void Reset()
@@ -529,8 +516,7 @@ struct NonlinearStateVariableFilter
         m_ic1.SetAlphaFromNatFreq(5.0f / 192000.0f);
         m_ic2.SetAlphaFromNatFreq(5.0f / 192000.0f);
         
-        SetCutoff(m_cutoff);
-        SetResonance(0.0f);
+        SetCutoffAndResonance(m_cutoff, 0.0f);
     }
 
     void Process(float input)
@@ -688,14 +674,10 @@ struct NonlinearStateVariableFilter
         return m_notch;
     }
 
-    void SetCutoff(float cutoff)
+    void SetCutoffAndResonance(float cutoff, float resonance)
     {
         m_cutoff = std::min(x_maxCutoff, cutoff);
         m_g = Math::TanPi(m_cutoff);
-    }
-
-    void SetResonance(float resonance)
-    {
         float expResonance = m_resonance.Update(resonance);
         m_R = 1.0f / expResonance;
     }

@@ -1128,19 +1128,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             m_state[i].m_subInput.m_baseFreq = baseFreq;
 
-            m_state[i].m_filterInput.m_sampleRateReducerFreq.Update(1 - m_encoders.GetValue(Param::SampleRateReduction, i));
             m_state[i].m_ampInput.m_subGain.Update(m_encoders.GetValue(Param::SubOscillator, i));
             m_state[i].m_ampInput.m_subTanhGain.Update(m_encoders.GetValue(Param::SubTanhGain, i));
             m_state[i].m_ampInput.m_subRiseSeconds.Update(m_encoders.GetValue(Param::SubSlewRise, i));
             m_state[i].m_ampInput.m_subFallSeconds.Update(m_encoders.GetValue(Param::SubSlewFall, i));
             
-            m_state[i].m_filterInput.m_vcoBaseFreq = m_voices[i].m_baseFreqSlew.m_output;            
-            
-            m_state[i].m_filterInput.m_lpCutoffFactor.Update(m_encoders.GetValue(Param::LPCutoff, i));
-            m_state[i].m_filterInput.m_hpCutoffFactor.Update(m_encoders.GetValue(Param::HPCutoff, i));
-            m_state[i].m_filterInput.m_lpResonance.Update(m_encoders.GetValue(Param::LPResonance, i));
-            m_state[i].m_filterInput.m_hpResonance.Update(m_encoders.GetValue(Param::HPResonance, i));
-            m_state[i].m_filterInput.m_saturationGain.Update(m_encoders.GetValue(Param::FilterDrive, i));
+            m_state[i].m_shapeInput.m_sourceMachine = m_state[i].m_voiceConfig.m_sourceMachine;
+            m_state[i].m_shapeInput.m_filterMachine = m_state[i].m_voiceConfig.m_filterMachine;
+            m_voices[i].m_shape.SetEncoderParams(m_encoders, m_state[i].m_shapeInput, i, baseFreq);
 
             m_state[i].m_ampInput.SetModulationAHD(
                 m_encoders.GetValue(Param::ModAHDAttack, i), 
@@ -1444,10 +1439,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             uiState->SetPos(i, m_voices[i].m_pan.m_outputX, m_voices[i].m_pan.m_outputY);
             uiState->PopulateVoiceFilterUIState(
                 i,
-                &m_voices[i].m_filter.m_lpLadder,
-                &m_voices[i].m_filter.m_hp4Pole,
-                &m_voices[i].m_filter.m_lpSVF,
-                &m_voices[i].m_filter.m_hpSVF,
+                &m_voices[i].m_shape.m_ladder4Pole.m_lpLadder,
+                &m_voices[i].m_shape.m_ladder4Pole.m_hp4Pole,
+                &m_voices[i].m_shape.m_svf2Pole.m_lpSVF,
+                &m_voices[i].m_shape.m_svf2Pole.m_hpSVF,
                 m_state[i].m_voiceConfig.m_filterMachine);
             uiState->PopulateVoiceSourceUIState(
                 i,

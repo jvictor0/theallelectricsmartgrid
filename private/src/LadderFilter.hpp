@@ -27,14 +27,14 @@ struct BandPassedEnvelopeFollowerGeneric
     {
         // Q = 1 gives each bandpass unity gain at its center frequency.
         //
-        m_stage1.SetQ(Vector::Splat(1));
-        m_stage2.SetQ(Vector::Splat(1));
+        m_stage1.SetCutoffAndQ(m_stage1.m_cutoff, Vector::Splat(1));
+        m_stage2.SetCutoffAndQ(m_stage2.m_cutoff, Vector::Splat(1));
     }
 
     void SetCutoff(const Vector& cutoff, const Vector& envelopeCutoff)
     {
-        m_stage1.SetCutoff(cutoff);
-        m_stage2.SetCutoff(cutoff);
+        m_stage1.SetCutoffAndQ(cutoff, Vector::Splat(1));
+        m_stage2.SetCutoffAndQ(cutoff, Vector::Splat(1));
         for (size_t i = 0; i < Size; ++i)
         {
             m_powerAlpha[i] = -std::expm1(-envelopeCutoff[i] / x_rmsCycles);

@@ -3,6 +3,7 @@
 #include "BitSet.hpp"
 #include "EncoderBankBank.hpp"
 #include "ModulationMatrixUIState.hpp"
+#include "MultiChannelNumber.hpp"
 #include "SmartGridOneLayout.hpp"
 #include "SmartGridOneModulators.hpp"
 #include "SmartGridOneScopeEnums.hpp"
@@ -220,6 +221,21 @@ struct SmartGridOneEncoders
     float GetValue(Param param)
     {
         return GetValue(param, 0);
+    }
+
+    // Values for a track of Size consecutive voices, starting at voice
+    // track * Size.
+    //
+    template <size_t Size>
+    MultiChannelNumber<float, Size> GetValue(Param param, size_t track)
+    {
+        MultiChannelNumber<float, Size> result;
+        for (size_t i = 0; i < Size; ++i)
+        {
+            result[i] = GetValue(param, static_cast<int>(track * Size + i));
+        }
+
+        return result;
     }
 
     int GetSwitchVal(Param param, int voice)

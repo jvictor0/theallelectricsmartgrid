@@ -151,8 +151,8 @@ struct SourceMixer
                     float sample = input.m_uBlockInput[lane][i] * gain;
                     preFilterScopeSample[lane] = sample;
 
-                    m_hpFilter[lane].SetCutoff(hpCutoff);
-                    m_lpFilter[lane].SetCutoff(hpCutoff * lpFactor);
+                    m_hpFilter[lane].SetCutoffAndResonance(hpCutoff, 0.0f);
+                    m_lpFilter[lane].SetCutoffAndResonance(hpCutoff * lpFactor, 0.0f);
                     m_lpFilter[lane].Process(sample);
                     sample = m_lpFilter[lane].GetLowPass();
                     m_hpFilter[lane].Process(sample);
