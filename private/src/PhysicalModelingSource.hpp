@@ -121,8 +121,7 @@ struct PhysicalModelingSourceGeneric : PhysicalModelingSourceBase
 
         // Morph inside the SVF: blend 0 = LP, 1 = HP, equal power.
         //
-        m_mainSVF.SetCutoff(input.m_mainSVFCutoff);
-        m_mainSVF.SetResonance(input.m_mainSVFResonance);
+        m_mainSVF.SetCutoffAndResonance(input.m_mainSVFCutoff, input.m_mainSVFResonance);
         m_mainSVF.Process(noise);
         m_mainSVFMorph = input.m_mainSVFMorph;
         Vector svfOut = m_mainSVF.GetMorphedOutput(m_mainSVFMorph);

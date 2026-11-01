@@ -136,12 +136,22 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
         }
 
         source.ProcessUBlock(sourceInput);
-        SquiggleBoyVoiceConfig config;
-        SquiggleBoyTrack::FilterSection filter;
-        SquiggleBoyTrack::FilterSection::Input filterInput;
-        filterInput.m_voiceConfig = &config;
-        filter.m_scopeWriter = ScopeWriterHolder(writer.get(), 0, 2);
-        filter.ProcessUBlock(filterInput, source.m_uBlockOutput, source.m_uBlockTop);
+        SquiggleBoyShape filter;
+        SquiggleBoyShape::Input filterInput;
+        filter.m_scopeWriter[0] = ScopeWriterHolder(writer.get(), 0, 2);
+        for (size_t i = 0; i < SquiggleBoySource::x_uBlockSize; ++i)
+        {
+            float output = filter.Process(filterInput, source.m_uBlockOutput[i]);
+            if ((i + 1) % SquiggleBoyShape::x_oversample == 0)
+            {
+                size_t baseIndex = i / SquiggleBoyShape::x_oversample;
+                filter.m_scopeWriter[0].Write(baseIndex, output);
+                if (source.m_uBlockTop[baseIndex])
+                {
+                    filter.m_scopeWriter[0].RecordStart(source.m_uBlockTop[baseIndex].GetPosition(baseIndex));
+                }
+            }
+        }
         writer->m_index += SampleTimer::x_controlFrameRate;
         writer->Publish();
         constexpr double x_expectedStarts[] = {99.125, 99.375, 99.625, 99.875};

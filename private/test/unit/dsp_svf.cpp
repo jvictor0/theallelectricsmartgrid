@@ -74,8 +74,7 @@ static SVFOutputs measureSVFTF(float cutoffCps, float resonance,
     const std::size_t half = N / 2;
 
     LinearStateVariableFilter svf;
-    svf.SetCutoff(cutoffCps);
-    svf.SetResonance(resonance);
+    svf.SetCutoffAndResonance(cutoffCps, resonance);
 
     std::vector<float> in(N), outLP(N), outHP(N), outBP(N);
     TestSignal::WhiteNoise noise(seed);
@@ -141,8 +140,7 @@ DOCTEST_TEST_CASE("LinearSVF: LP measured response matches analytic (1.5 dB)")
     // Get g and k from a filter instance.
     //
     LinearStateVariableFilter svf;
-    svf.SetCutoff(cutoffCps);
-    svf.SetResonance(resonance);
+    svf.SetCutoffAndResonance(cutoffCps, resonance);
     float g = svf.m_g;
     float k = svf.m_k;
 
@@ -171,8 +169,7 @@ DOCTEST_TEST_CASE("LinearSVF: HP measured response matches analytic (1.5 dB)")
     const float resonance = 0.0f;
 
     LinearStateVariableFilter svf;
-    svf.SetCutoff(cutoffCps);
-    svf.SetResonance(resonance);
+    svf.SetCutoffAndResonance(cutoffCps, resonance);
     float g = svf.m_g;
     float k = svf.m_k;
 
@@ -204,8 +201,7 @@ DOCTEST_TEST_CASE("LinearSVF: BP measured response matches analytic (2 dB)")
     const float resonance = 0.0f;
 
     LinearStateVariableFilter svf;
-    svf.SetCutoff(cutoffCps);
-    svf.SetResonance(resonance);
+    svf.SetCutoffAndResonance(cutoffCps, resonance);
     float g = svf.m_g;
     float k = svf.m_k;
 
@@ -234,8 +230,7 @@ DOCTEST_TEST_CASE("LinearSVF: high resonance output bounded (stability)")
     const float resonance = 1.0f;  // max resonance
 
     LinearStateVariableFilter svf;
-    svf.SetCutoff(cutoffCps);
-    svf.SetResonance(resonance);
+    svf.SetCutoffAndResonance(cutoffCps, resonance);
 
     // Drive with sine at cutoff for many samples.
     //
@@ -281,8 +276,7 @@ DOCTEST_TEST_CASE("LinearSVF: NaN-clean across parameter sweep")
         for (float res : resonances)
         {
             LinearStateVariableFilter svf;
-            svf.SetCutoff(cps);
-            svf.SetResonance(res);
+            svf.SetCutoffAndResonance(cps, res);
             for (std::size_t i = 0; i < nSamples; ++i)
             {
                 svf.Process(noise.Next());
@@ -306,8 +300,7 @@ DOCTEST_TEST_CASE("LinearSVF4PoleHP: passband near 0 dB above cutoff")
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
     LinearSVF4PoleHighPass hp4;
-    hp4.SetCutoff(cutoffCps);
-    hp4.SetResonance(0.0f);
+    hp4.SetCutoffAndResonance(cutoffCps, 0.0f);
 
     float g = hp4.m_stage1.m_g;
     float k = hp4.m_stage1.m_k;
