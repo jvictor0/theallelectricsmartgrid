@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PhaseUtils.hpp"
+#include "SampleTimer.hpp"
 
 struct ADSR
 {
@@ -37,7 +38,6 @@ struct ADSR
 
     struct InputSetter
     {
-        static constexpr float x_sampleRate = 48000.0f;
         static constexpr float x_attackTimeMin = 0.001f;
         static constexpr float x_attackTimeMax = 2.5f;
         static constexpr float x_decayTimeMin = 0.01f;
@@ -48,9 +48,9 @@ struct ADSR
         PhaseUtils::ExpParam m_release;
 
         InputSetter()
-            : m_attack(1 / (x_sampleRate * x_attackTimeMax), 1 / (x_sampleRate * x_attackTimeMin))
-            , m_decay(1 / (x_sampleRate * x_decayTimeMax), 1 / (x_sampleRate * x_decayTimeMin))
-            , m_release(1 / (x_sampleRate * x_decayTimeMax), 1 / (x_sampleRate * x_decayTimeMin))
+            : m_attack(SampleTimer::SecondsToCycPerSamp(x_attackTimeMax), SampleTimer::SecondsToCycPerSamp(x_attackTimeMin))
+            , m_decay(SampleTimer::SecondsToCycPerSamp(x_decayTimeMax), SampleTimer::SecondsToCycPerSamp(x_decayTimeMin))
+            , m_release(SampleTimer::SecondsToCycPerSamp(x_decayTimeMax), SampleTimer::SecondsToCycPerSamp(x_decayTimeMin))
         {
         }
 

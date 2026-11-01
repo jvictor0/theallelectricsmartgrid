@@ -79,7 +79,7 @@ struct SourceMixer
 
             Input()
                 : m_gain(8.0f)
-                , m_hpCutoff(20.0 / 48000.0, 20000.0 / 48000.0)
+                , m_hpCutoff(SampleTimer::HzToCycPerSamp(20.0), SampleTimer::HzToCycPerSamp(20000.0))
                 , m_lpFactor(1.0, 1000.0)
             {
                 for (size_t lane = 0; lane < x_numSourceLanes; ++lane)

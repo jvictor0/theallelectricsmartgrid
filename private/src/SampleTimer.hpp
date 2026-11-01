@@ -2,9 +2,17 @@
 
 #include <atomic>
 
+// Engine samples run at x_sampleRate, x_oversample per host frame. The host
+// rate is the audio callback rate; effect internals, the encoder matrix and
+// recordings that run at the host rate use the Host conversions.
+//
 struct SampleTimer
 {
-    static constexpr size_t x_sampleRate = 48000;
+    static constexpr size_t x_hostSampleRate = 48000;
+    static constexpr size_t x_oversample = 1;
+    static constexpr size_t x_sampleRate = x_hostSampleRate * x_oversample;
+    static constexpr double x_samplePeriod = 1.0 / static_cast<double>(x_sampleRate);
+    static constexpr double x_hostSamplePeriod = 1.0 / static_cast<double>(x_hostSampleRate);
     static constexpr double x_slew = 0.01;
     static constexpr size_t x_samplesPerProcessFrame = 512;
     static constexpr size_t x_controlFrameRate = 8;
@@ -79,6 +87,63 @@ struct SampleTimer
     static size_t GetSample()
     {
         return s_instance ? s_instance->m_sample : 0;
+    }
+
+    static size_t GetHostSample()
+    {
+        return GetSample() / x_oversample;
+    }
+
+    static bool IsHostFrame()
+    {
+        return s_instance->m_sample % x_oversample == 0;
+    }
+
+    static size_t GetSubSampleIndex()
+    {
+        return s_instance->m_sample % x_oversample;
+    }
+
+    static constexpr double HzToCycPerSamp(double hz)
+    {
+        return hz / static_cast<double>(x_sampleRate);
+    }
+
+    static constexpr double HzToCycPerHostSamp(double hz)
+    {
+        return hz / static_cast<double>(x_hostSampleRate);
+    }
+
+    static constexpr double CycPerSampToHz(double cyclesPerSample)
+    {
+        return cyclesPerSample * static_cast<double>(x_sampleRate);
+    }
+
+    static constexpr double CycPerHostSampToHz(double cyclesPerSample)
+    {
+        return cyclesPerSample * static_cast<double>(x_hostSampleRate);
+    }
+
+    static constexpr double SecondsToSamples(double seconds)
+    {
+        return seconds * static_cast<double>(x_sampleRate);
+    }
+
+    static constexpr double SecondsToHostSamples(double seconds)
+    {
+        return seconds * static_cast<double>(x_hostSampleRate);
+    }
+
+    // Per-sample increment that traverses a unit range in the given time.
+    //
+    static constexpr double SecondsToCycPerSamp(double seconds)
+    {
+        return 1.0 / (seconds * static_cast<double>(x_sampleRate));
+    }
+
+    static constexpr double SecondsToCycPerHostSamp(double seconds)
+    {
+        return 1.0 / (seconds * static_cast<double>(x_hostSampleRate));
     }
 };
 

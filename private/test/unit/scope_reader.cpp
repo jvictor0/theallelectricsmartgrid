@@ -137,8 +137,8 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
 
         source.ProcessUBlock(sourceInput);
         SquiggleBoyVoiceConfig config;
-        SquiggleBoyVoice::FilterSection filter;
-        SquiggleBoyVoice::FilterSection::Input filterInput;
+        SquiggleBoyTrack::FilterSection filter;
+        SquiggleBoyTrack::FilterSection::Input filterInput;
         filterInput.m_voiceConfig = &config;
         filter.m_scopeWriter = ScopeWriterHolder(writer.get(), 0, 2);
         filter.ProcessUBlock(filterInput, source.m_uBlockOutput, source.m_uBlockTop);
@@ -222,8 +222,8 @@ DOCTEST_TEST_CASE("ScopeReader: PolyXFader top reaches its control-rate scope be
     }
 
     writer->m_index = 10;
-    SquiggleBoyVoice::SquiggleLFO lfo;
-    SquiggleBoyVoice::SquiggleLFO::Input input;
+    SquiggleBoyTrack::SquiggleLFO lfo;
+    SquiggleBoyTrack::SquiggleLFO::Input input;
     input.m_polyXFaderInput.m_theoryOfTime = &time;
     input.m_polyXFaderInput.m_size = 1;
     lfo.m_scopeWriter = ScopeWriterHolder(writer.get(), 0, 0);
@@ -364,8 +364,8 @@ DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top in slot zero keeps the precedin
     }
 
     writer->m_index = 20;
-    SquiggleBoyVoice::SquiggleLFO lfo;
-    SquiggleBoyVoice::SquiggleLFO::Input input;
+    SquiggleBoyTrack::SquiggleLFO lfo;
+    SquiggleBoyTrack::SquiggleLFO::Input input;
     input.m_polyXFaderInput.m_theoryOfTime = &time;
     input.m_polyXFaderInput.m_size = 1;
     lfo.m_scopeWriter = ScopeWriterHolder(writer.get(), 0, 0);

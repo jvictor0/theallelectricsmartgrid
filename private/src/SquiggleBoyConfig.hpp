@@ -272,7 +272,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
                     continue;
                 }
 
-                AssignSourceChannel(tIdx, voiceIdx, SquiggleBoyVoice::VoiceConfig::SourceAssignment::Left(i));
+                AssignSourceChannel(tIdx, voiceIdx, SquiggleBoyTrack::VoiceConfig::SourceAssignment::Left(i));
                 ++voiceIdx;
 
                 if (TheNonagonInternal::x_voicesPerTrio <= voiceIdx)
@@ -282,7 +282,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
                 if (IsSourceStereo(i))
                 {
-                    AssignSourceChannel(tIdx, voiceIdx, SquiggleBoyVoice::VoiceConfig::SourceAssignment::Right(i));
+                    AssignSourceChannel(tIdx, voiceIdx, SquiggleBoyTrack::VoiceConfig::SourceAssignment::Right(i));
                     ++voiceIdx;
                 }
 
@@ -294,7 +294,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
             while (voiceIdx < TheNonagonInternal::x_voicesPerTrio)
             {
-                AssignSourceChannel(tIdx, voiceIdx, SquiggleBoyVoice::VoiceConfig::SourceAssignment::Silent());
+                AssignSourceChannel(tIdx, voiceIdx, SquiggleBoyTrack::VoiceConfig::SourceAssignment::Silent());
                 ++voiceIdx;
             }
         }
@@ -303,7 +303,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
     void AssignSourceChannel(
         size_t trioIdx,
         size_t voiceInTrio,
-        SquiggleBoyVoice::VoiceConfig::SourceAssignment assignment)
+        SquiggleBoyTrack::VoiceConfig::SourceAssignment assignment)
     {
         size_t voiceIdx = trioIdx * TheNonagonInternal::x_voicesPerTrio + voiceInTrio;
         m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_sourceAssignment = assignment;
@@ -445,14 +445,14 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             }
         }
 
-        Put(0, 0, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::SourceMachine, true, x_numSourceMachines>(
+        Put(0, 0, new EnumIncDecCell<SquiggleBoyTrack::VoiceConfig::SourceMachine, true, x_numSourceMachines>(
             this, m_voiceSourceMachineStates));
-        Put(0, 1, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::SourceMachine, false, x_numSourceMachines>(
+        Put(0, 1, new EnumIncDecCell<SquiggleBoyTrack::VoiceConfig::SourceMachine, false, x_numSourceMachines>(
             this, m_voiceSourceMachineStates));
 
-        Put(0, 6, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::FilterMachine, true, x_numFilterMachines>(
+        Put(0, 6, new EnumIncDecCell<SquiggleBoyTrack::VoiceConfig::FilterMachine, true, x_numFilterMachines>(
             this, m_voiceFilterMachineStates));
-        Put(0, 7, new EnumIncDecCell<SquiggleBoyVoice::VoiceConfig::FilterMachine, false, x_numFilterMachines>(
+        Put(0, 7, new EnumIncDecCell<SquiggleBoyTrack::VoiceConfig::FilterMachine, false, x_numFilterMachines>(
             this, m_voiceFilterMachineStates));
 
         Put(1, 0, new SampleDirectoryInitCell(this, SampleDirectorySlot::One, 0));

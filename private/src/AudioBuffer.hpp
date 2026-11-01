@@ -52,7 +52,7 @@ struct AudioBuffer
         wavReader.WriteLeftRightSum(m_buffer);
 
         const double fileRate = static_cast<double>(wavReader.m_sampleRate);
-        const double hostRate = static_cast<double>(SampleTimer::x_sampleRate);
+        const double hostRate = static_cast<double>(SampleTimer::x_hostSampleRate);
         if (0.0 < fileRate)
         {
             const double rel = std::abs(fileRate - hostRate) / hostRate;

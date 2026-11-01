@@ -69,7 +69,6 @@ struct ADSP
 
     struct InputSetter
     {
-        static constexpr float x_sampleRate = 48000.0f;
         static constexpr float x_attackTimeMin = 0.001f;
         static constexpr float x_attackTimeMax = 2.5f;
         static constexpr float x_decayTimeMin = 0.01f;
@@ -81,8 +80,8 @@ struct ADSP
         PhaseUtils::ZeroedExpParam m_phasorMult;
 
         InputSetter()
-            : m_attack(1 / (x_sampleRate * x_attackTimeMax), 1 / (x_sampleRate * x_attackTimeMin))
-            , m_decay(1 / (x_sampleRate * x_decayTimeMax), 1 / (x_sampleRate * x_decayTimeMin))
+            : m_attack(SampleTimer::SecondsToCycPerSamp(x_attackTimeMax), SampleTimer::SecondsToCycPerSamp(x_attackTimeMin))
+            , m_decay(SampleTimer::SecondsToCycPerSamp(x_decayTimeMax), SampleTimer::SecondsToCycPerSamp(x_decayTimeMin))
         {
             m_phasorMult.SetBaseByCenter(2.0 / x_maxPhasorMult);
         }
@@ -92,7 +91,7 @@ struct ADSP
             input.m_attackIncrement = m_attack.Update(1.0 - attack);
             input.m_decayIncrement = m_decay.Update(1.0 - decay);
             input.m_sustainLevel = sustain;
-            input.m_releaseIncrement = 1.0 / x_sampleRate;
+            input.m_releaseIncrement = SampleTimer::SecondsToCycPerSamp(1.0);
             input.m_phasorMult = x_maxPhasorMult * m_phasorMult.Update(1.0 - phasorMult);
         }
     };

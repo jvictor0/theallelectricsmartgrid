@@ -386,9 +386,9 @@ DOCTEST_TEST_CASE("QuadDFT residual component add preserves existing component")
 
     dft.AddComponent(k, std::complex<float>(2.0f, 0.0f), QuadFloat(1.0f, 0.0f, 0.0f, 0.0f));
 
-    DOCTEST_CHECK(dft.m_dfts[0].m_components[k].real() == doctest::Approx(3.0f));
-    DOCTEST_CHECK(dft.m_dfts[0].m_components[k].imag() == doctest::Approx(0.0f));
-    DOCTEST_CHECK(dft.m_dfts[1].m_components[k].real() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_dfts[0].m_components[k][0].real() == doctest::Approx(3.0f));
+    DOCTEST_CHECK(dft.m_dfts[0].m_components[k][0].imag() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_dfts[1].m_components[k][0].real() == doctest::Approx(0.0f));
 }
 
 DOCTEST_TEST_CASE("QuadDFT WriteBinCenteredWindowedPartial pans Hann taps")
@@ -402,12 +402,12 @@ DOCTEST_TEST_CASE("QuadDFT WriteBinCenteredWindowedPartial pans Hann taps")
         std::complex<float>(2.0f, 0.0f),
         QuadFloat(1.0f, 0.5f, 0.0f, 0.0f));
 
-    DOCTEST_CHECK(dft.m_dfts[0].m_components[k - 1].real() == doctest::Approx(-0.5f));
-    DOCTEST_CHECK(dft.m_dfts[0].m_components[k].real() == doctest::Approx(2.0f));
-    DOCTEST_CHECK(dft.m_dfts[0].m_components[k + 1].real() == doctest::Approx(-0.5f));
-    DOCTEST_CHECK(dft.m_dfts[1].m_components[k].real() == doctest::Approx(0.5f));
-    DOCTEST_CHECK(dft.m_dfts[1].m_components[k - 1].real() == doctest::Approx(-0.25f));
-    DOCTEST_CHECK(dft.m_dfts[2].m_components[k].real() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_dfts[0].m_components[k - 1][0].real() == doctest::Approx(-0.5f));
+    DOCTEST_CHECK(dft.m_dfts[0].m_components[k][0].real() == doctest::Approx(2.0f));
+    DOCTEST_CHECK(dft.m_dfts[0].m_components[k + 1][0].real() == doctest::Approx(-0.5f));
+    DOCTEST_CHECK(dft.m_dfts[1].m_components[k][0].real() == doctest::Approx(0.5f));
+    DOCTEST_CHECK(dft.m_dfts[1].m_components[k - 1][0].real() == doctest::Approx(-0.25f));
+    DOCTEST_CHECK(dft.m_dfts[2].m_components[k][0].real() == doctest::Approx(0.0f));
 }
 
 DOCTEST_TEST_CASE("ResidualMachine writes bin-centered Hann residual")
@@ -427,16 +427,16 @@ DOCTEST_TEST_CASE("ResidualMachine writes bin-centered Hann residual")
     bool sawEnergy = false;
     for (int ch = 0; ch < 4; ++ch)
     {
-        float center = std::abs(dft.m_dfts[ch].m_components[k]);
+        float center = std::abs(dft.m_dfts[ch].m_components[k][0]);
         if (center < 1e-6f)
         {
             continue;
         }
 
         sawEnergy = true;
-        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k - 1]) == doctest::Approx(0.5f * center));
-        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k + 1]) == doctest::Approx(0.5f * center));
-        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k + 2]) == doctest::Approx(0.0f));
+        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k - 1][0]) == doctest::Approx(0.5f * center));
+        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k + 1][0]) == doctest::Approx(0.5f * center));
+        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k + 2][0]) == doctest::Approx(0.0f));
     }
 
     DOCTEST_CHECK(sawEnergy);

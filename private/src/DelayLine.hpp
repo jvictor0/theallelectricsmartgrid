@@ -6,6 +6,7 @@
 #include "NormGen.hpp"
 #include "Math.hpp"
 #include "Resynthesis.hpp"
+#include "SampleTimer.hpp"
 #include <algorithm>
 #include <limits>
 #include <type_traits>
@@ -117,7 +118,7 @@ struct DelayLineMovableWriterGeneric
     double m_scatterBufferWarpedTime[x_scatterBufferSize] = {0.0};
     double m_scatterBufferTime[x_scatterBufferSize] = {0.0};
 
-    static constexpr double x_turnaroundFadeSamples = 0.005 * 48000.0;
+    static constexpr double x_turnaroundFadeSamples = SampleTimer::SecondsToHostSamples(0.005);
     double m_turnaroundWarpedTime;
     bool m_descending;
     double m_lastWarpedTime;
@@ -326,6 +327,7 @@ struct GrainManagerGeneric
 {
     using Vector = MultiChannelNumber<float, Size>;
     using TimeVector = MultiChannelNumber<double, Size>;
+    using Resynth = ResynthesizerGeneric<float, Size>;
 
     struct Grain
     {
@@ -340,42 +342,30 @@ struct GrainManagerGeneric
 
         Vector Process()
         {
-            Vector result;
-            for (size_t i = 0; i < Size; ++i)
-            {
-                result[i] = m_grain[i].Process() / 1.5;
-            }
-
-            return result;
+            return m_grain.Process() / 1.5;
         }
 
-        void Start(Resynthesizer::Input* input, const TimeVector& startTime)
+        // One input per channel.
+        //
+        void Start(typename Resynth::Input* input, const TimeVector& startTime)
         {
-            Resynthesizer::Buffer* prevTable = m_owner->m_prevTable;
-            for (size_t k = 0; k < Resynthesizer::x_tableSize; ++k)
+            typename Resynth::Buffer& prevTable = m_owner->m_prevTable;
+            for (size_t k = 0; k < Resynth::x_tableSize; ++k)
             {
                 float window = Math4096::Hann(k);
-                Vector current = m_audioBuffer->ReadRealTime(startTime + k) * window;
-                Vector previous = m_audioBuffer->ReadRealTime(startTime + k - Resynthesizer::x_H) * window;
-                for (size_t i = 0; i < Size; ++i)
-                {
-                    m_grain[i].m_buffer.m_table[k] = current[i];
-                    prevTable[i].m_table[k] = previous[i];
-                }
+                m_grain.m_buffer.m_table[k] = m_audioBuffer->ReadRealTime(startTime + k) * window;
+                prevTable.m_table[k] = m_audioBuffer->ReadRealTime(startTime + k - Resynth::x_H) * window;
             }
 
-            for (size_t i = 0; i < Size; ++i)
-            {
-                m_owner->m_resynthesizer[i].Process(prevTable[i], &m_grain[i], input[i]);
-            }
+            m_owner->m_resynthesizer.Process(prevTable, &m_grain, input);
         }
 
         bool IsRunning() const
         {
-            return m_grain[0].m_running;
+            return m_grain.m_running;
         }
 
-        Resynthesizer::Grain m_grain[Size];
+        typename Resynth::Grain m_grain;
         AudioBufferType* m_audioBuffer;
         GrainManagerGeneric* m_owner;
     };
@@ -388,8 +378,8 @@ struct GrainManagerGeneric
     RGen m_rgen;
     int m_samplesToNextGrain;
     Vector m_lastSampleOffset;
-    Resynthesizer m_resynthesizer[Size];
-    Resynthesizer::Buffer m_prevTable[Size];
+    Resynth m_resynthesizer;
+    typename Resynth::Buffer m_prevTable;
 
     void CompactGrains()
     {
@@ -451,7 +441,7 @@ struct GrainManagerGeneric
 
     struct Input
     {
-        Resynthesizer::Input m_resynthInput[Size];
+        typename Resynth::Input m_resynthInput[Size];
     };
 
     // Recorded sample banks have no write frontier.
@@ -478,7 +468,7 @@ struct GrainManagerGeneric
                 // Protect the full analysis window after mapping to real time.
                 // Cubic audio interpolation reads two samples beyond its floor index.
                 //
-                double latestStart = latestSampleTime - (Resynthesizer::x_N - 1) - 2;
+                double latestStart = latestSampleTime - (Resynth::x_N - 1) - 2;
                 TimeVector startTime;
                 for (size_t i = 0; i < Size; ++i)
                 {
@@ -488,7 +478,7 @@ struct GrainManagerGeneric
                 grain->Start(input.m_resynthInput, startTime);
             }
 
-            m_samplesToNextGrain = Resynthesizer::GetGrainLaunchSamples();
+            m_samplesToNextGrain = Resynth::GetGrainLaunchSamples();
         }
 
         m_lastSampleOffset = sampleOffset;

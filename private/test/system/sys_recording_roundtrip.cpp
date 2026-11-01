@@ -4,7 +4,7 @@
 //
 //   arm:      RecordingManager::StartRecording(Trio) registers each trio voice's
 //             RecordingBuffer into its own RecordingBufferWriter. From then on,
-//             SquiggleBoyVoice::Processs() pushes that voice's *synth output*
+//             SquiggleBoyTrack::Processs() pushes that voice's *synth output*
 //             (m_output) into the recording buffer every sample. NOTE: the
 //             sampler-looper records the trio's INTERNAL synth audio, not the
 //             injectable external audio input. (SynthRig::SetAudioInput feeds the

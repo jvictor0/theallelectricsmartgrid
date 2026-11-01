@@ -61,7 +61,7 @@ struct TheNonagonSquiggleBoyInternal
         KMixMidi m_kMixMidi;
     };
 
-    static constexpr float x_inputSlewCutoff = 500.0f / 48000.0f;
+    static constexpr float x_inputSlewCutoff = SampleTimer::HzToCycPerSamp(500.0);
 
     SquiggleBoyWithEncoderBank::Input m_squiggleBoyState;
     TheNonagonSmartGrid m_nonagon;
@@ -362,7 +362,7 @@ struct TheNonagonSquiggleBoyInternal
         {
             if (m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig)            
             {
-                float baseFreq = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
+                float baseFreq = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], SampleTimer::x_samplePeriod);
                 m_squiggleBoy.m_state[i].m_ampInput.m_subTrig = m_nonagon.m_state.m_trigLogic.IsUnisonMaster(i);
 
                 // UNDONE(DEEP_VOCODER)
@@ -551,13 +551,13 @@ struct TheNonagonSquiggleBoyInternal
         //
         m_stateSaver.Process();
 
-        m_timer += 1.0 / 48000.0;        
+        m_timer += SampleTimer::x_samplePeriod;
 
         SetNonagonInputs();
-        m_nonagon.ProcessSample(1.0 / 48000.0);
+        m_nonagon.ProcessSample(SampleTimer::x_samplePeriod);
         
         SetSquiggleBoyInputs();
-        m_squiggleBoy.ProcessSample(m_squiggleBoyState, 1.0 / 48000.0, audioInputBuffer);
+        m_squiggleBoy.ProcessSample(m_squiggleBoyState, SampleTimer::x_samplePeriod, audioInputBuffer);
 
         m_output = m_squiggleBoy.m_output;
 

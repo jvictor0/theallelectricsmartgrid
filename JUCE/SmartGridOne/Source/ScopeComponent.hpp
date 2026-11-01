@@ -412,7 +412,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
                     g,
                     juce::Colour(color.m_red, color.m_green, color.m_blue),
                     m_voiceFilterUIState[voiceIx],
-                    1.0f / SquiggleBoyVoice::x_oversample);
+                    1.0f / SquiggleBoyTrack::x_oversample);
             }
         }
     }
@@ -705,7 +705,7 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
             }
 
             auto& sourceUIState = m_uiState->m_squiggleBoyUIState.m_voiceSourceUIState[voiceIx];
-            if (sourceUIState.m_sourceMachine.load() != SquiggleBoyVoice::VoiceConfig::SourceMachine::PhysicalModeling)
+            if (sourceUIState.m_sourceMachine.load() != SquiggleBoyTrack::VoiceConfig::SourceMachine::PhysicalModeling)
             {
                 continue;
             }

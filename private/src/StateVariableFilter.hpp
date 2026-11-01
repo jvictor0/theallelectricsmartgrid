@@ -376,7 +376,7 @@ struct NonlinearStateVariableFilter
     static constexpr float x_newtonEps = 1e-8f;
     static constexpr float x_newtonDamp = 1.0f;
 
-    // DEBUG: Trace interval (48000 * 4 = 192000 samples = 1 second at 4x oversampling)
+    // DEBUG: Trace interval (1 second at 4x oversampling)
     //
     static constexpr size_t x_debugTraceInterval = 192000;
 

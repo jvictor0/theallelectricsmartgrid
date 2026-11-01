@@ -253,7 +253,7 @@ struct StreamingRecorder
         m_queueHighWater = 0;
         m_maxBlockMicros = 0;
         m_initialPatch = initialPatch;
-        m_recordingStartSample = SampleTimer::GetSample();
+        m_recordingStartSample = SampleTimer::GetHostSample();
         m_stopRequested = false;
         m_error = Error::None;
         m_errorLogged = false;

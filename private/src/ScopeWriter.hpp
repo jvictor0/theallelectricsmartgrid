@@ -340,8 +340,8 @@ struct WindowedFFT
     
         for (size_t i = 0; i < DiscreteFourierTransform::x_maxComponents; ++i)
         {
-            float re = m_dft.m_components[i].real();
-            float im = m_dft.m_components[i].imag();
+            float re = m_dft.m_components[i][0].real();
+            float im = m_dft.m_components[i][0].imag();
             float mag = std::max(0.00001f, 2 * std::sqrtf(re * re + im * im));
             m_filters[i].Process(mag);
         }
@@ -403,9 +403,9 @@ struct QuadWindowedFFT
         {
             for (size_t j = 0; j < DiscreteFourierTransform::x_maxComponents; ++j)
             {
-                m_filters[i][0][j].Process(m_dft[i].m_components[j].real());
-                m_filters[i][1][j].Process(m_dft[i].m_components[j].imag());
-                m_filters[i][2][j].Process(std::abs(m_dft[i].m_components[j]));
+                m_filters[i][0][j].Process(m_dft[i].m_components[j][0].real());
+                m_filters[i][1][j].Process(m_dft[i].m_components[j][0].imag());
+                m_filters[i][2][j].Process(std::abs(m_dft[i].m_components[j][0]));
             }
         }
     }

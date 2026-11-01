@@ -18,7 +18,7 @@ DOCTEST_TEST_CASE("Resynthesizer tracks a stable partial without accumulating ph
         float previousPhase = initialPhase;
         auto& oscillator = synth->m_oscillators[0];
         oscillator.m_synthesisPhase[bin] = initialPhase;
-        Resynthesizer::PVDR pvdr(synth.get());
+        Resynthesizer::PVDR pvdr(synth.get(), 0);
         pvdr.m_size = 1;
         pvdr.m_results[0].m_bin = bin;
         pvdr.m_results[0].m_parent = bin;

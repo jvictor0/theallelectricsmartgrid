@@ -5,6 +5,7 @@
 #include "Slew.hpp"
 #include "Filter.hpp"
 #include "PhaseUtils.hpp"
+#include "SampleTimer.hpp"
 #include "MorphingWaveTable.hpp"
 #include "Math.hpp"
 #include "SampleTop.hpp"
@@ -85,8 +86,8 @@ struct VectorPhaseShaperInternal
         , m_phaseMod(0)
         , m_top(false)
     {
-        m_v.SetAlphaFromNatFreq(25.0 / 48000.0);
-        m_d.SetAlphaFromNatFreq(25.0 / 48000.0);
+        m_v.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(25.0));
+        m_d.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(25.0));
         SetDV(0.5, 0.5);
     }
 

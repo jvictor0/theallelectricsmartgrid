@@ -5,6 +5,7 @@
 
 #include "Slew.hpp"
 #include "PhaseUtils.hpp"
+#include "SampleTimer.hpp"
 #include "TheoryOfTimeBase.hpp"
 
 struct AHD
@@ -32,7 +33,7 @@ struct AHD
 
         AHDControl()
             : m_phaseRatio(1.0)
-            , m_envelopePeriodSamples(48000.0)
+            , m_envelopePeriodSamples(SampleTimer::SecondsToSamples(1.0))
             , m_release(false)
             , m_trig(false)
         {
@@ -70,7 +71,7 @@ struct AHD
         Input()
             : m_startGlobalPhase(0.0)
             , m_phaseRatio(1.0)
-            , m_envelopePeriodSamples(48000.0)
+            , m_envelopePeriodSamples(SampleTimer::SecondsToSamples(1.0))
             , m_theoryOfTime(nullptr)
             , m_samplePosition(0.0f)
             , m_attackIncrement(0.0f)
@@ -105,7 +106,6 @@ struct AHD
 
     struct InputSetter
     {
-        static constexpr float x_sampleRate = 48000.0f;
         static constexpr float x_attackTimeMin = 0.001f;
         static constexpr float x_attackTimeMax = 2.5f;
         static constexpr float x_decayTimeMin = 0.01f;
@@ -121,8 +121,8 @@ struct AHD
         }
 
         InputSetter(float attackTimeMin, float attackTimeMax, float decayTimeMin, float decayTimeMax)
-            : m_attack(1.0f / (x_sampleRate * attackTimeMax), 1.0f / (x_sampleRate * attackTimeMin))
-            , m_decay(1.0f / (x_sampleRate * decayTimeMax), 1.0f / (x_sampleRate * decayTimeMin))
+            : m_attack(SampleTimer::SecondsToCycPerSamp(attackTimeMax), SampleTimer::SecondsToCycPerSamp(attackTimeMin))
+            , m_decay(SampleTimer::SecondsToCycPerSamp(decayTimeMax), SampleTimer::SecondsToCycPerSamp(decayTimeMin))
         {
             m_hold.SetBaseByCenter(1.0 / 32);
             m_hold.SetMax(16.0);

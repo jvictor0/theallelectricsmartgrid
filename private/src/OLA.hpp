@@ -7,8 +7,8 @@ struct OLA
 {
     static constexpr size_t x_bits = 12;
     static constexpr size_t x_hopDenom = 4;
-    typedef BasicWaveTableGeneric<x_bits> Buffer;
-    typedef DiscreteFourierTransformGeneric<x_bits> DFT;
+    typedef BasicWaveTableGeneric<float, 1, x_bits> Buffer;
+    typedef DiscreteFourierTransformGeneric<float, 1, x_bits> DFT;
     static constexpr size_t x_tableSize = Buffer::x_tableSize;
     static constexpr size_t x_maxComponents = DFT::x_maxComponents;
     static constexpr size_t x_N = x_tableSize;

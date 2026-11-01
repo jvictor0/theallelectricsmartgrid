@@ -15,8 +15,10 @@ struct MultibandSaturator
     float m_output[NumChannels];
     float m_sub;
 
-    MultichannelMeter<NumChannels> m_meter[NumBands];
-    MultichannelMeter<NumChannels> m_masterMeter;
+    using Vector = MultiChannelFloat<NumChannels>;
+
+    MeterGeneric<float, NumChannels> m_meter[NumBands];
+    MeterGeneric<float, NumChannels> m_masterMeter;
 
     MultibandSaturator()
         : m_output{}
@@ -32,8 +34,8 @@ struct MultibandSaturator
         std::atomic<float> m_masterGain;
         std::atomic<float> m_crossoverFreq[NumBands - 1];
 
-        MultichannelMeterReader<NumChannels> m_meterReader[NumBands];
-        MultichannelMeterReader<NumChannels> m_masterMeterReader;
+        MeterReaderGeneric<float, NumChannels> m_meterReader[NumBands];
+        MeterReaderGeneric<float, NumChannels> m_masterMeterReader;
 
         UIState()
             : m_gain{}
@@ -77,10 +79,10 @@ struct MultibandSaturator
     {
         for (size_t i = 0; i < NumBands; ++i)
         {
-            uiState->m_meterReader[i].SetMeterReaders(&m_meter[i]);
+            uiState->m_meterReader[i].SetMeter(&m_meter[i]);
         }
 
-        uiState->m_masterMeterReader.SetMeterReaders(&m_masterMeter);
+        uiState->m_masterMeterReader.SetMeter(&m_masterMeter);
     }
 
     struct Input
@@ -231,30 +233,36 @@ struct MultibandSaturator
             BuildBandsRecursive(bands[i], in[i], NumBands, 0, i);
         }
 
-        m_sub = 0;
-        for (size_t i = 0; i < NumChannels; ++i)
+        Vector output = Vector::Splat(0);
+        for (size_t j = monoTheBass ? 1 : 0; j < NumBands; ++j)
         {
-            m_output[i] = 0.0f;
-            for (size_t j = monoTheBass ? 1 : 0; j < NumBands; ++j)
+            Vector band;
+            for (size_t i = 0; i < NumChannels; ++i)
             {
-                m_output[i] += m_meter[j].m_meters[i].ProcessAndSaturate(input.m_gain[j].m_expParam * bands[i][j]);
+                band[i] = bands[i][j];
             }
 
-            if (monoTheBass)
+            output += m_meter[j].ProcessAndSaturate(band * input.m_gain[j].m_expParam);
+        }
+
+        m_sub = 0;
+        if (monoTheBass)
+        {
+            for (size_t i = 0; i < NumChannels; ++i)
             {
                 m_sub += bands[i][0];
             }
+
+            // The summed bass feeds every channel of the bass band's meter.
+            //
+            float sub = input.m_gain[0].m_expParam * m_sub / NumChannels;
+            m_sub = m_meter[0].ProcessAndSaturate(Vector::Splat(sub))[0];
         }
 
-        if (monoTheBass)
-        {
-            m_sub = m_meter[0].m_meters[0].ProcessAndSaturate(input.m_gain[0].m_expParam * m_sub / NumChannels);
-        }
-
+        output = m_masterMeter.ProcessAndSaturate((output + m_sub) * input.m_masterGain.m_expParam);
         for (size_t i = 0; i < NumChannels; ++i)
         {
-            m_output[i] += m_sub;
-            m_output[i] = m_masterMeter.m_meters[i].ProcessAndSaturate(input.m_masterGain.m_expParam * m_output[i]);
+            m_output[i] = output[i];
         }
     }
 

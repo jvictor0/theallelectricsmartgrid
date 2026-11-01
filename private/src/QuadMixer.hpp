@@ -248,7 +248,7 @@ struct QuadMixerInternal
                     m_send[j] += pan * input.m_sendGain[i][j].m_expParam;
                 }
 
-                float reduction;
+                Meter::Vector reduction;
                 m_voiceMeters[i].ProcessAndSaturate(input.m_input[i] * input.m_gain[i].m_expParam, &reduction);
 
                 QuadFloat postFader = pan * input.m_gain[i].m_expParam * reduction;

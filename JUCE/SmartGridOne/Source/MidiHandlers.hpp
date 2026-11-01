@@ -239,7 +239,7 @@ struct MidiOutputHandler
         AutoLockSpin lock(m_mutex);
         if (IsOpen())
         {
-            m_midiOutput->sendBlockOfMessages(buffer, blockTimestampMs, SampleTimer::x_sampleRate);
+            m_midiOutput->sendBlockOfMessages(buffer, blockTimestampMs, SampleTimer::x_hostSampleRate);
         }
     }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Filter.hpp"
+#include "SampleTimer.hpp"
 #include <random>
 
 struct RandomLFO
@@ -18,7 +19,7 @@ struct RandomLFO
         , m_samplesToChange(64)
     {
         m_trg = s_distribution(s_rng);
-        m_filter.SetAlphaFromNatFreq(0.05 / 48000);
+        m_filter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(0.05));
         m_filter.m_output = m_trg;
     }
 

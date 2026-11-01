@@ -2,6 +2,7 @@
 
 #include "Filter.hpp"
 #include "PhaseUtils.hpp"
+#include "SampleTimer.hpp"
 
 struct Slew
 {
@@ -174,7 +175,7 @@ struct ParamSlew
     ParamSlew(float relativeSampleRate)
         : m_target(0.0f)
     {
-        m_filter.SetAlphaFromNatFreq((1000.0f / 48000.0f) / relativeSampleRate);
+        m_filter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1000.0) / relativeSampleRate);
     }
 
     void Update(float value)
@@ -250,7 +251,7 @@ struct ParamSlewDouble
     ParamSlewDouble(double relativeSampleRate)
         : m_target(0.0)
     {
-        m_filter.SetAlphaFromNatFreq((1000.0 / 48000.0) / relativeSampleRate);
+        m_filter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1000.0) / relativeSampleRate);
     }
 
     void Update(double value)
@@ -277,13 +278,13 @@ struct ExpParamSlew
     ExpParamSlew(float relativeSampleRate, float base)
         : m_expParam(base)
     {
-        m_filter.SetAlphaFromNatFreq((1000.0f / 48000.0f) / relativeSampleRate);
+        m_filter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1000.0) / relativeSampleRate);
     }
 
     ExpParamSlew(float relativeSampleRate, float min, float max)
         : m_expParam(min, max)
     {
-        m_filter.SetAlphaFromNatFreq((1000.0f / 48000.0f) / relativeSampleRate);
+        m_filter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1000.0) / relativeSampleRate);
     }
 
     void Update(float value)
@@ -310,7 +311,7 @@ struct ZeroedExpParamSlew
     ZeroedExpParamSlew(float relativeSampleRate, float base)
         : m_expParam(base)
     {
-        m_filter.SetAlphaFromNatFreq((1000.0f / 48000.0f) / relativeSampleRate);
+        m_filter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1000.0) / relativeSampleRate);
     }
 
     void SetBaseByCenter(float center)

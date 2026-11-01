@@ -2,18 +2,30 @@
 
 #include <complex>
 #include <cmath>
-#include "BasicWaveTable.hpp"
+#include <cstddef>
+
+// Defined in MultiChannelNumber.hpp and BasicWaveTable.hpp, which include this
+// file. The vector overloads below only need them complete where they are used.
+//
+template<class Number, size_t Size>
+struct MultiChannelNumber;
+
+template<typename RealType, size_t Size>
+struct MultiChannelComplex;
+
+template<typename Number, size_t Size, size_t Bits>
+struct BasicWaveTableGeneric;
 
 template<size_t Bits>
 struct MathGeneric
 {
     inline static MathGeneric s_instance;
-    static constexpr size_t x_tableSize = BasicWaveTableGeneric<Bits>::x_tableSize;
+    static constexpr size_t x_tableSize = 1 << Bits;
     static constexpr int x_hannKernelRadius = 8;
     static constexpr size_t x_hannKernelTableSize = x_tableSize;
     static constexpr float x_hannKernelMinOffset = -static_cast<float>(x_hannKernelRadius);
     static constexpr float x_hannKernelWidth = 2.0f * static_cast<float>(x_hannKernelRadius) + 1.0f;
-    BasicWaveTableGeneric<Bits> m_cosTable;
+    float m_cosTable[x_tableSize];
     std::complex<float> m_rootOfUnity[x_tableSize];
     std::complex<float> m_hannKernel[x_hannKernelTableSize + 1];
 
@@ -23,7 +35,7 @@ struct MathGeneric
         //
         for (size_t i = 0; i < x_tableSize; ++i)
         {
-            m_cosTable.Write(i, cosf(2.0f * M_PI * i / x_tableSize));
+            m_cosTable[i] = cosf(2.0f * M_PI * i / x_tableSize);
         }
 
         // Initialize root of unity table
@@ -47,12 +59,51 @@ struct MathGeneric
         return s_instance.m_rootOfUnity[index];
     }
 
+    // Linear interpolation of the cosine table at phase in [0, 1].
+    //
+    static float EvaluateCosTable(float phase)
+    {
+        float pos = phase * x_tableSize;
+        float floored = std::floor(pos);
+        int index = static_cast<int>(floored) % x_tableSize;
+        float frac = pos - floored;
+        return s_instance.m_cosTable[index] * (1.0f - frac) + s_instance.m_cosTable[(index + 1) % x_tableSize] * frac;
+    }
+
+    template<typename Number, size_t Size>
+    static MultiChannelNumber<Number, Size> EvaluateCosTable(const MultiChannelNumber<Number, Size>& phase)
+    {
+        using Vector = MultiChannelNumber<Number, Size>;
+        Vector pos = phase * x_tableSize;
+        Vector floored = pos.Floor();
+        Vector frac = pos - floored;
+        Vector y0;
+        Vector y1;
+        for (size_t i = 0; i < Size; ++i)
+        {
+            int index = static_cast<int>(floored[i]) % x_tableSize;
+            y0[i] = s_instance.m_cosTable[index];
+            y1[i] = s_instance.m_cosTable[(index + 1) % x_tableSize];
+        }
+
+        return y0 * (Vector::Splat(1) - frac) + y1 * frac;
+    }
+
     static float Sin2pi(float x)
     {
         float phase = x - std::floor(x);
         phase += 0.75f;
         phase -= std::floor(phase);
-        return s_instance.m_cosTable.Evaluate(phase);
+        return EvaluateCosTable(phase);
+    }
+
+    template<typename Number, size_t Size>
+    static MultiChannelNumber<Number, Size> Sin2pi(const MultiChannelNumber<Number, Size>& x)
+    {
+        MultiChannelNumber<Number, Size> phase = x - x.Floor();
+        phase = phase + 0.75f;
+        phase = phase - phase.Floor();
+        return EvaluateCosTable(phase);
     }
 
     static float Sin(float x)
@@ -63,7 +114,13 @@ struct MathGeneric
     static float Cos2pi(float x)
     {
         float phase = x - std::floor(x);
-        return s_instance.m_cosTable.Evaluate(phase);
+        return EvaluateCosTable(phase);
+    }
+
+    template<typename Number, size_t Size>
+    static MultiChannelNumber<Number, Size> Cos2pi(const MultiChannelNumber<Number, Size>& x)
+    {
+        return EvaluateCosTable(x - x.Floor());
     }
 
     static float Cos(float x)
@@ -101,16 +158,26 @@ struct MathGeneric
         return std::complex<float>(mag * Cos2pi(wrappedPhase), mag * Sin2pi(wrappedPhase));
     }
 
-    static float Hann(size_t index)
+    template<size_t Size>
+    static MultiChannelComplex<float, Size> Polar2pi(const MultiChannelNumber<float, Size>& mag, const MultiChannelNumber<double, Size>& phase)
     {
-        return 0.5f * (1.0f - s_instance.m_cosTable.m_table[index]);
+        // Reduce in double precision before narrowing to the float lookup phase.
+        //
+        MultiChannelNumber<float, Size> wrappedPhase = (phase - phase.Floor()).template Convert<float>();
+        return MultiChannelComplex<float, Size>(mag * Cos2pi(wrappedPhase), mag * Sin2pi(wrappedPhase));
     }
 
-    static void Hann(BasicWaveTableGeneric<Bits>& table)
+    static float Hann(size_t index)
+    {
+        return 0.5f * (1.0f - s_instance.m_cosTable[index]);
+    }
+
+    template<typename Number, size_t Size>
+    static void Hann(BasicWaveTableGeneric<Number, Size, Bits>& table)
     {
         for (size_t i = 0; i < x_tableSize; ++i)
         {
-            float window = Hann(i);
+            Number window = Hann(i);
             table.m_table[i] *= window;
         }
     }

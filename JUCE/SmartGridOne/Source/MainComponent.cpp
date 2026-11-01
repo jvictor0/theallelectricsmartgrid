@@ -291,7 +291,7 @@ void MainComponent::OnBackButtonClicked()
 void MainComponent::OpenAudioDevice()
 {
     juce::AudioDeviceManager::AudioDeviceSetup setup;
-    setup.sampleRate = static_cast<double>(SampleTimer::x_sampleRate);
+    setup.sampleRate = static_cast<double>(SampleTimer::x_hostSampleRate);
     setup.bufferSize = x_requiredBlockFrames;
     setup.inputDeviceName = m_configuration.m_audioInputDeviceName;
     setup.outputDeviceName = m_configuration.m_audioOutputDeviceName;
@@ -313,7 +313,7 @@ void MainComponent::OpenAudioDevice()
         INFO("Audio initialization rejected: actual_rate=%.0f actual_frames=%d required_rate=%zu required_frames=%d",
             device != nullptr ? device->getCurrentSampleRate() : 0.0,
             device != nullptr ? device->getCurrentBufferSizeSamples() : 0,
-            SampleTimer::x_sampleRate, x_requiredBlockFrames);
+            SampleTimer::x_hostSampleRate, x_requiredBlockFrames);
         m_deviceManager.closeAudioDevice();
         return;
     }

@@ -68,13 +68,13 @@ DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothin
             grain.m_buffer.m_table[Resynthesizer::x_N / 2] = 1.0f;
             for (auto& magnitude : synth->m_synthesisMagnitudes)
             {
-                magnitude.m_output = 0.0f;
+                magnitude = 0.0f;
             }
 
-            synth->StartGrain(&grain, delayInput.m_grainManagerInput.m_resynthInput[channel]);
+            synth->StartGrain(&grain, &delayInput.m_grainManagerInput.m_resynthInput[channel]);
             for (size_t bin : {size_t(1), size_t(85), Resynthesizer::x_maxComponents - 1})
             {
-                const float actual = synth->m_synthesisMagnitudes[bin].m_output;
+                const float actual = synth->m_synthesisMagnitudes[bin][0];
                 const float target = synth->m_analysisMagnitudes[bin];
                 DOCTEST_REQUIRE(target > 0.0f);
                 if (knob < 0.05f)
@@ -264,15 +264,15 @@ DOCTEST_TEST_CASE("QuadDelay: steady tones retain gain and shift by the requeste
         OLA::DFT spectrum;
         spectrum.Transform(buffer);
         size_t targetBin = shifted ? 36 : 18;
-        DOCTEST_CHECK(std::abs(spectrum.m_components[targetBin]) > 0.005f);
-        DOCTEST_CHECK(std::abs(spectrum.m_components[targetBin]) < 0.0056f);
+        DOCTEST_CHECK(std::abs(spectrum.m_components[targetBin][0]) > 0.005f);
+        DOCTEST_CHECK(std::abs(spectrum.m_components[targetBin][0]) < 0.0056f);
         DOCTEST_CHECK(energy / 4096.0 > 0.00005);
         DOCTEST_CHECK(energy / 4096.0 < 0.000063);
         for (size_t bin = 1; bin < OLA::x_maxComponents; ++bin)
         {
             if (bin != targetBin)
             {
-                DOCTEST_REQUIRE(std::abs(spectrum.m_components[bin]) < 1e-5f);
+                DOCTEST_REQUIRE(std::abs(spectrum.m_components[bin][0]) < 1e-5f);
             }
         }
     }

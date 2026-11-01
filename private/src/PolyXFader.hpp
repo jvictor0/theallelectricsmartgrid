@@ -3,6 +3,7 @@
 #include "Filter.hpp"
 #include "Saturator.hpp"
 #include "Math.hpp"
+#include "SampleTimer.hpp"
 
 #include "TheoryOfTimeBase.hpp"
 
@@ -119,7 +120,7 @@ struct PolyXFaderInternal
         , m_top(false)
         , m_shValue(0.0f)
     {
-        m_shSlew.SetAlphaFromNatFreq(500.0f / 48000.0f);
+        m_shSlew.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(500.0));
     }
     
     size_t m_size;

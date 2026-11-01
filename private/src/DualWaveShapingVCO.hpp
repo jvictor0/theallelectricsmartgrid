@@ -61,7 +61,7 @@ struct DualWaveShapingVCO
         Input()
             : m_v{0.5, 0.5}
             , m_d{0.5, 0.5}
-            , m_baseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
+            , m_baseFreq(PhaseUtils::VOctToNatural(0.0, SampleTimer::x_samplePeriod))
             , m_morphHarmonics{0.0, 0.0}
             , m_wtBlend{0, 0}
             , m_offsetFreqFactor(4)
@@ -135,9 +135,9 @@ struct DualWaveShapingVCO
                 vcoInput[j].m_morphHarmonics = m_morphHarmonics[j].Update(vcoInput[j].m_freq, vcoInput[j].m_maxFreq, input.m_morphHarmonics[j]);
             }
 
-            m_vco[0].Process(vcoInput[0], 1.0 / (SampleTimer::x_sampleRate * x_oversample));
+            m_vco[0].Process(vcoInput[0], SampleTimer::x_samplePeriod / x_oversample);
             vcoInput[1].m_phaseMod = m_vco[0].m_out * m_crossModIndexSlew[1].Process();
-            m_vco[1].Process(vcoInput[1], 1.0 / (SampleTimer::x_sampleRate * x_oversample));
+            m_vco[1].Process(vcoInput[1], SampleTimer::x_samplePeriod / x_oversample);
 
             top[0].AccumulateOversample(m_vco[0].m_top, i, x_oversample);
             top[1].AccumulateOversample(m_vco[1].m_top, i, x_oversample);

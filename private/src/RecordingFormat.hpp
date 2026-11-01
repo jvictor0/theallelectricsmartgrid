@@ -4,6 +4,7 @@
 #include "ParamEvent.hpp"
 #include "RecordingFlacCodec.hpp"
 #include "RecordingDoubleCodec.hpp"
+#include "SampleTimer.hpp"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -65,8 +66,8 @@ struct RecordingFormat
 
     struct Session
     {
-        uint32_t m_sampleRate = 48000;
-        uint32_t m_blockFrames = 48000;
+        uint32_t m_sampleRate = static_cast<uint32_t>(SampleTimer::x_hostSampleRate);
+        uint32_t m_blockFrames = static_cast<uint32_t>(SampleTimer::x_hostSampleRate);
         std::string m_gitCommitSha;
         std::string m_recordedAtUtc;
         std::vector<Track> m_tracks;

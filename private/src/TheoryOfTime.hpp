@@ -39,7 +39,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
             m_modIndex.SetBaseByCenter(1.0 / 16);
 
-            float paramFilterFreq = 0.1 / 48000.0 * SampleTimer::x_controlFrameRate;
+            float paramFilterFreq = SampleTimer::HzToCycPerSamp(0.1) * SampleTimer::x_controlFrameRate;
             m_lfoSkewFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoMultFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoShapeFilter.SetAlphaFromNatFreq(paramFilterFreq);

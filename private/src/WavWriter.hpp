@@ -4,6 +4,7 @@
 #include "QuadUtils.hpp"
 #include "StereoUtils.hpp"
 #include "AsyncLogger.hpp"
+#include "SampleTimer.hpp"
 #include <cstring>
 #include <cstdint>
 #include <algorithm>
@@ -65,7 +66,7 @@ struct MultichannelWavWriter
     std::string m_filename;
 
     MultichannelWavWriter()
-      : m_sampleRate(48000)
+      : m_sampleRate(SampleTimer::x_hostSampleRate)
       , m_numChannels(0)
       , m_isOpen(false)
       , m_samplesWritten(0)

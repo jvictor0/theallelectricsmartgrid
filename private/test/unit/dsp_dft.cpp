@@ -35,7 +35,7 @@ constexpr double kSampleRate = 48000.0;
 
 // ---------------------------------------------------------------------------
 // Normalization: a pure cosine at an exact bin, run through the RAW repo FFT
-// (no window), must give |m_components[k0]| == A/2, and DC gives |X[0]| == A.
+// (no window), must give |m_components[k0][0]| == A/2, and DC gives |X[0]| == A.
 // This documents the 1/N forward-FFT normalization.
 // ---------------------------------------------------------------------------
 //
@@ -46,7 +46,7 @@ DOCTEST_TEST_CASE("repo FFT normalization: cosine at exact bin => A/2, DC => A")
     const std::size_t k0 = 40;
     const float A = 0.7f;
 
-    BasicWaveTableGeneric<10> table;
+    BasicWaveTableGeneric<float, 1, 10> table;
     for (std::size_t i = 0; i < kN; ++i)
     {
         table.m_table[i] = A * std::cos(2.0 * M_PI * static_cast<double>(k0) *
@@ -58,22 +58,22 @@ DOCTEST_TEST_CASE("repo FFT normalization: cosine at exact bin => A/2, DC => A")
 
     // Bin k0 magnitude is A/2.
     //
-    DOCTEST_CHECK(std::abs(dft.m_components[k0]) == doctest::Approx(A / 2.0f).epsilon(0.01));
+    DOCTEST_CHECK(std::abs(dft.m_components[k0][0]) == doctest::Approx(A / 2.0f).epsilon(0.01));
     // Neighboring bins essentially zero.
     //
-    DOCTEST_CHECK(std::abs(dft.m_components[k0 - 1]) < 1e-3f);
-    DOCTEST_CHECK(std::abs(dft.m_components[k0 + 1]) < 1e-3f);
+    DOCTEST_CHECK(std::abs(dft.m_components[k0 - 1][0]) < 1e-3f);
+    DOCTEST_CHECK(std::abs(dft.m_components[k0 + 1][0]) < 1e-3f);
 
     // DC: constant level A => |X[0]| == A.
     //
-    BasicWaveTableGeneric<10> dcTable;
+    BasicWaveTableGeneric<float, 1, 10> dcTable;
     for (std::size_t i = 0; i < kN; ++i)
     {
         dcTable.m_table[i] = A;
     }
     DiscreteFourierTransform dcDft;
     dcDft.Transform(dcTable);
-    DOCTEST_CHECK(std::abs(dcDft.m_components[0]) == doctest::Approx(A).epsilon(0.01));
+    DOCTEST_CHECK(std::abs(dcDft.m_components[0][0]) == doctest::Approx(A).epsilon(0.01));
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +143,7 @@ DOCTEST_TEST_CASE("repo FFT: impulse -> flat spectrum at 1/N")
 {
     GlobalEnv::ResetPerTest();
 
-    BasicWaveTableGeneric<10> table;  // zeroed
+    BasicWaveTableGeneric<float, 1, 10> table;  // zeroed
     table.m_table[0] = 1.0f;
 
     DiscreteFourierTransform dft;
@@ -152,7 +152,7 @@ DOCTEST_TEST_CASE("repo FFT: impulse -> flat spectrum at 1/N")
     const float expected = 1.0f / static_cast<float>(kN);
     for (std::size_t k = 0; k < kN / 2; ++k)
     {
-        DOCTEST_CHECK(std::abs(dft.m_components[k]) == doctest::Approx(expected).epsilon(0.01));
+        DOCTEST_CHECK(std::abs(dft.m_components[k][0]) == doctest::Approx(expected).epsilon(0.01));
     }
 }
 
@@ -170,7 +170,7 @@ DOCTEST_TEST_CASE("repo FFT: Parseval energy identity (unwindowed)")
 {
     GlobalEnv::ResetPerTest();
 
-    BasicWaveTableGeneric<10> table;
+    BasicWaveTableGeneric<float, 1, 10> table;
     for (std::size_t i = 0; i < kN; ++i)
     {
         double t = static_cast<double>(i) / static_cast<double>(kN);
@@ -191,11 +191,11 @@ DOCTEST_TEST_CASE("repo FFT: Parseval energy identity (unwindowed)")
 
     // Full-spectrum energy: DC + 2 * lower-half (k=1..N/2-1). No Nyquist term.
     //
-    double specEnergy = static_cast<double>(std::abs(dft.m_components[0])) *
-                        std::abs(dft.m_components[0]);
+    double specEnergy = static_cast<double>(std::abs(dft.m_components[0][0])) *
+                        std::abs(dft.m_components[0][0]);
     for (std::size_t k = 1; k < kN / 2; ++k)
     {
-        double m = static_cast<double>(std::abs(dft.m_components[k]));
+        double m = static_cast<double>(std::abs(dft.m_components[k][0]));
         specEnergy += 2.0 * m * m;
     }
 
@@ -283,14 +283,14 @@ DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: interior bin writes Hann tap
     std::complex<float> value(2.0f, 0.0f);
     dft.WriteBinCenteredWindowedPartial(k, value);
 
-    DOCTEST_CHECK(dft.m_components[k - 1].real() == doctest::Approx(-0.5f));
-    DOCTEST_CHECK(dft.m_components[k].real() == doctest::Approx(1.0f));
-    DOCTEST_CHECK(dft.m_components[k + 1].real() == doctest::Approx(-0.5f));
-    DOCTEST_CHECK(dft.m_components[k - 1].imag() == doctest::Approx(0.0f));
-    DOCTEST_CHECK(dft.m_components[k].imag() == doctest::Approx(0.0f));
-    DOCTEST_CHECK(dft.m_components[k + 1].imag() == doctest::Approx(0.0f));
-    DOCTEST_CHECK(dft.m_components[0].real() == doctest::Approx(0.0f));
-    DOCTEST_CHECK(dft.m_components[k + 2].real() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[k - 1][0].real() == doctest::Approx(-0.5f));
+    DOCTEST_CHECK(dft.m_components[k][0].real() == doctest::Approx(1.0f));
+    DOCTEST_CHECK(dft.m_components[k + 1][0].real() == doctest::Approx(-0.5f));
+    DOCTEST_CHECK(dft.m_components[k - 1][0].imag() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[k][0].imag() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[k + 1][0].imag() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[0][0].real() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[k + 2][0].real() == doctest::Approx(0.0f));
 }
 
 DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: DC is a no-op")
@@ -300,8 +300,8 @@ DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: DC is a no-op")
     dft.m_components[1] = std::complex<float>(4.0f, 0.0f);
     dft.WriteBinCenteredWindowedPartial(0, std::complex<float>(1.0f, 0.0f));
 
-    DOCTEST_CHECK(dft.m_components[0].real() == doctest::Approx(3.0f));
-    DOCTEST_CHECK(dft.m_components[1].real() == doctest::Approx(4.0f));
+    DOCTEST_CHECK(dft.m_components[0][0].real() == doctest::Approx(3.0f));
+    DOCTEST_CHECK(dft.m_components[1][0].real() == doctest::Approx(4.0f));
 }
 
 DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: first AC bin omits DC tap")
@@ -309,9 +309,9 @@ DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: first AC bin omits DC tap")
     DiscreteFourierTransform dft;
     dft.WriteBinCenteredWindowedPartial(1, std::complex<float>(4.0f, 0.0f));
 
-    DOCTEST_CHECK(dft.m_components[0].real() == doctest::Approx(0.0f));
-    DOCTEST_CHECK(dft.m_components[1].real() == doctest::Approx(2.0f));
-    DOCTEST_CHECK(dft.m_components[2].real() == doctest::Approx(-1.0f));
+    DOCTEST_CHECK(dft.m_components[0][0].real() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[1][0].real() == doctest::Approx(2.0f));
+    DOCTEST_CHECK(dft.m_components[2][0].real() == doctest::Approx(-1.0f));
 }
 
 DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: last bin omits missing upper tap")
@@ -320,8 +320,8 @@ DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: last bin omits missing upper
     constexpr size_t k = DiscreteFourierTransform::x_maxComponents - 1;
     dft.WriteBinCenteredWindowedPartial(k, std::complex<float>(4.0f, 0.0f));
 
-    DOCTEST_CHECK(dft.m_components[k - 1].real() == doctest::Approx(-1.0f));
-    DOCTEST_CHECK(dft.m_components[k].real() == doctest::Approx(2.0f));
+    DOCTEST_CHECK(dft.m_components[k - 1][0].real() == doctest::Approx(-1.0f));
+    DOCTEST_CHECK(dft.m_components[k][0].real() == doctest::Approx(2.0f));
 }
 
 DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: adds to existing bins")
@@ -332,7 +332,7 @@ DOCTEST_TEST_CASE("WriteBinCenteredWindowedPartial: adds to existing bins")
     dft.m_components[9] = std::complex<float>(1.0f, 0.0f);
     dft.WriteBinCenteredWindowedPartial(8, std::complex<float>(2.0f, 0.0f));
 
-    DOCTEST_CHECK(dft.m_components[7].real() == doctest::Approx(0.5f));
-    DOCTEST_CHECK(dft.m_components[8].real() == doctest::Approx(2.0f));
-    DOCTEST_CHECK(dft.m_components[9].real() == doctest::Approx(0.5f));
+    DOCTEST_CHECK(dft.m_components[7][0].real() == doctest::Approx(0.5f));
+    DOCTEST_CHECK(dft.m_components[8][0].real() == doctest::Approx(2.0f));
+    DOCTEST_CHECK(dft.m_components[9][0].real() == doctest::Approx(0.5f));
 }

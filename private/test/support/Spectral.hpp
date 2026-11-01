@@ -3,7 +3,7 @@
 // Spectral.hpp -- FFT wrapper + transfer-function assertions for DSP tests.
 //
 // FROZEN API (WP-2). Built on the repo's own FFT
-// (DiscreteFourierTransformGeneric<Bits> in AdaptiveWaveTable.hpp), NOT on
+// (DiscreteFourierTransformGeneric<float, 1, Bits> in AdaptiveWaveTable.hpp), NOT on
 // ScopeWriter::WindowedFFT.
 //
 // NORMALIZATION of the repo FFT (verified by reading AdaptiveWaveTable.hpp and
@@ -11,8 +11,8 @@
 //   - Forward transform is a standard DFT with twiddle exp(-i*2*pi*j/len)
 //     scaled by 1/N: m_components[k] = (1/N) * sum_i x[i] exp(-i 2pi k i / N).
 //   - Therefore for a real cosine x[i] = A*cos(2*pi*k0*i/N) with 0 < k0 < N/2,
-//     |m_components[k0]| = A/2 (energy splits between +k0 and -k0).
-//   - For DC (x[i] = A), |m_components[0]| = A.
+//     |m_components[k0][0]| = A/2 (energy splits between +k0 and -k0).
+//   - For DC (x[i] = A), |m_components[0][0]| = A.
 //   - m_components holds only the lower half: k in [0, N/2).
 //
 // We apply a Hann window before transforming (raw, un-normalized Hann). This
@@ -36,8 +36,8 @@ namespace TestSpectral
 {
 
 // Supported FFT sizes map to the repo's two DFT typedefs.
-//   1024 -> DiscreteFourierTransformGeneric<10>
-//   4096 -> DiscreteFourierTransformGeneric<12>
+//   1024 -> DiscreteFourierTransformGeneric<float, 1, 10>
+//   4096 -> DiscreteFourierTransformGeneric<float, 1, 12>
 //
 inline constexpr std::size_t kFftSize1024 = 1024;
 inline constexpr std::size_t kFftSize4096 = 4096;
@@ -45,16 +45,16 @@ inline constexpr std::size_t kFftSize4096 = 4096;
 // ---------------------------------------------------------------------------
 // MagnitudeSpectrumT<Bits> -- templated core. Applies a Hann window, copies
 // (zero-padding / truncating) into the repo wavetable, runs the repo FFT, and
-// returns |m_components[k]| for k in [0, N/2).
+// returns |m_components[k][0]| for k in [0, N/2).
 // ---------------------------------------------------------------------------
 //
 template <std::size_t Bits>
 inline std::vector<float> MagnitudeSpectrumT(const float* buf, std::size_t n)
 {
-    constexpr std::size_t N = BasicWaveTableGeneric<Bits>::x_tableSize;
+    constexpr std::size_t N = BasicWaveTableGeneric<float, 1, Bits>::x_tableSize;
     constexpr std::size_t half = N / 2;
 
-    BasicWaveTableGeneric<Bits> table;  // zero-initialized
+    BasicWaveTableGeneric<float, 1, Bits> table;  // zero-initialized
     const std::size_t m = (n < N) ? n : N;
     for (std::size_t i = 0; i < m; ++i)
     {
@@ -66,13 +66,13 @@ inline std::vector<float> MagnitudeSpectrumT(const float* buf, std::size_t n)
     }
     // Remaining [m, N) stay zero (zero-pad).
 
-    DiscreteFourierTransformGeneric<Bits> dft;
+    DiscreteFourierTransformGeneric<float, 1, Bits> dft;
     dft.Transform(table);
 
     std::vector<float> mag(half);
     for (std::size_t k = 0; k < half; ++k)
     {
-        mag[k] = std::abs(dft.m_components[k]);
+        mag[k] = std::abs(dft.m_components[k][0]);
     }
     return mag;
 }

@@ -8,14 +8,15 @@
 #include <cstring>
 #include <type_traits>
 
-// Fixed-width bundle of per-channel values.  Element-wise operations run on a
-// compiler vector type.  Width-specific functions static_assert on Size; class
-// template member bodies are only compiled when called, so each width only sees
-// the functions it uses.
+// Fixed-width bundle of arithmetic per-channel values. Element-wise operations
+// run on a compiler vector type.
+// Width-specific functions static_assert on Size; class template member bodies
+// are only compiled when called, so each width only sees the functions it uses.
 //
 template<class Number, size_t Size>
 struct MultiChannelNumber
 {
+    static_assert(std::is_arithmetic<Number>::value, "MultiChannelNumber requires arithmetic elements; use MultiChannelComplex for complex values");
     static_assert(Size > 0 && (Size & (Size - 1)) == 0, "MultiChannelNumber size must be a power of two");
 
     static constexpr size_t x_numChannels = Size;
@@ -196,6 +197,32 @@ struct MultiChannelNumber
     MultiChannelNumber Abs() const
     {
         return FromVector(__builtin_elementwise_abs(Load()));
+    }
+
+    MultiChannelNumber Floor() const
+    {
+        return FromVector(__builtin_elementwise_floor(Load()));
+    }
+
+    // Per-channel static_cast to another number type.
+    //
+    template<class Other>
+    MultiChannelNumber<Other, Size> Convert() const
+    {
+        using OtherVector = typename MultiChannelNumber<Other, Size>::Vector;
+        return MultiChannelNumber<Other, Size>::FromVector(__builtin_convertvector(Load(), OtherVector));
+    }
+
+    // Per-channel a < b ? ifLess : otherwise.
+    //
+    static MultiChannelNumber IfLess(const MultiChannelNumber& a, const MultiChannelNumber& b, const MultiChannelNumber& ifLess, const MultiChannelNumber& otherwise)
+    {
+        return FromVector(a.Load() < b.Load() ? ifLess.Load() : otherwise.Load());
+    }
+
+    MultiChannelNumber Sqrt() const
+    {
+        return FromVector(__builtin_elementwise_sqrt(Load()));
     }
 
     // Per-channel std::max(a, b): returns a unless a < b.

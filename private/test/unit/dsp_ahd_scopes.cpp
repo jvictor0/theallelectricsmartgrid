@@ -9,9 +9,9 @@ DOCTEST_TEST_CASE("AHD: consumed voice events preserve scope starts retriggers a
 {
     GlobalEnv::ResetPerTest();
     auto scopes = std::make_unique<ScopeWriter>(1, 3);
-    SquiggleBoyVoice::AmpSection amp;
-    SquiggleBoyVoice::AmpSection::Input input;
-    SquiggleBoyVoice::VoiceConfig config;
+    SquiggleBoyTrack::AmpSection amp;
+    SquiggleBoyTrack::AmpSection::Input input;
+    SquiggleBoyTrack::VoiceConfig config;
     TheoryOfTimeBase time;
     input.m_voiceConfig = &config;
     input.m_vcoTargetFreq = 50.0f / 48000.0f;

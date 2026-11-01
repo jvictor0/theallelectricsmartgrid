@@ -4,14 +4,18 @@
 #include <cstddef>
 #include <cmath>
 
+#include "MultiChannelNumber.hpp"
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvla-cxx-extension"
 
-template<size_t Bits>
+template<typename Number, size_t Size, size_t Bits>
 struct BasicWaveTableGeneric
 {
+    using Vector = MultiChannelNumber<Number, Size>;
+
     static constexpr size_t x_tableSize = 1 << Bits;
-    float m_table[x_tableSize];
+    Vector m_table[x_tableSize];
 
     BasicWaveTableGeneric()
         : m_table{}
@@ -23,29 +27,29 @@ struct BasicWaveTableGeneric
     {
         for (size_t i = 0; i < x_tableSize; ++i)
         {
-            m_table[i] = 0;
+            m_table[i] = Vector::Splat(0);
         }
     }
 
-    float Evaluate(float phase) const
+    Vector Evaluate(Number phase) const
     {
         return EvaluateLinear(phase);
     }
 
-    float EvaluateLinear(float phase) const
+    Vector EvaluateLinear(Number phase) const
     {
-        float pos = phase * x_tableSize;
-        float floored = std::floor(pos);
+        Number pos = phase * x_tableSize;
+        Number floored = std::floor(pos);
         int index = static_cast<int>(floored) % x_tableSize;
-        float frac = pos - floored;
-        return m_table[index] * (1.0f - frac) + m_table[(index + 1) % x_tableSize] * frac;
+        Number frac = pos - floored;
+        return m_table[index] * (1 - frac) + m_table[(index + 1) % x_tableSize] * frac;
     }
 
-    float EvaluateCubic(float phase) const
+    Vector EvaluateCubic(Number phase) const
     {
-        float pos = phase * x_tableSize;
+        Number pos = phase * x_tableSize;
         int index = static_cast<int>(std::floor(pos)) % x_tableSize;
-        float frac = pos - static_cast<float>(index);
+        Number frac = pos - static_cast<Number>(index);
 
         // Get four sample points for cubic interpolation
         //
@@ -54,66 +58,68 @@ struct BasicWaveTableGeneric
         int i2 = (index + 1) % x_tableSize;
         int i3 = (index + 2) % x_tableSize;
 
-        float y0 = m_table[i0];
-        float y1 = m_table[i1];
-        float y2 = m_table[i2];
-        float y3 = m_table[i3];
+        const Vector& y0 = m_table[i0];
+        const Vector& y1 = m_table[i1];
+        const Vector& y2 = m_table[i2];
+        const Vector& y3 = m_table[i3];
 
         // Cubic interpolation (Catmull-Rom)
         //
-        float a0 = -0.5f * y0 + 1.5f * y1 - 1.5f * y2 + 0.5f * y3;
-        float a1 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-        float a2 = -0.5f * y0 + 0.5f * y2;
-        float a3 = y1;
+        Vector a0 = y0 * -0.5f + y1 * 1.5f - y2 * 1.5f + y3 * 0.5f;
+        Vector a1 = y0 - y1 * 2.5f + y2 * 2.0f - y3 * 0.5f;
+        Vector a2 = y0 * -0.5f + y2 * 0.5f;
+        const Vector& a3 = y1;
 
         return ((a0 * frac + a1) * frac + a2) * frac + a3;
     }
 
-    void Write(size_t index, float value)
+    void Write(size_t index, const Vector& value)
     {
         assert(index >= 0 && index < x_tableSize);
         m_table[index] = value;
     }
 
-    float Amplitude() const
+    Vector Amplitude() const
     {
-        float max = 0;
+        Vector max = Vector::Splat(0);
         for (size_t i = 0; i < x_tableSize; ++i)
         {
-            max = std::max(max, std::abs(m_table[i]));
+            max = Vector::Max(max, m_table[i].Abs());
         }
 
         return max;
     }
 
-    float RMSAmplitude() const
+    Vector RMSAmplitude() const
     {
-        float sum = 0;
+        Vector sum = Vector::Splat(0);
         for (size_t i = 0; i < x_tableSize; ++i)
         {
             sum += m_table[i] * m_table[i];
         }
 
-        return std::sqrt(sum / x_tableSize);
+        return (sum / x_tableSize).Sqrt();
     }
 
+    // Normalizes each channel independently. Silent channels become zero.
+    //
     void NormalizeAmplitude()
     {
-        float rms = RMSAmplitude();
-
-        if (rms < 0.00000001)
+        Vector rms = RMSAmplitude();
+        Vector divisor = rms * static_cast<Number>(std::sqrt(2.0));
+        Vector keep = Vector::Splat(1);
+        for (size_t i = 0; i < Size; ++i)
         {
-            for (size_t i = 0; i < x_tableSize; ++i)
+            if (rms[i] < 0.00000001)
             {
-                m_table[i] = 0;
+                divisor[i] = 1;
+                keep[i] = 0;
             }
-
-            return;
         }
 
         for (size_t i = 0; i < x_tableSize; ++i)
         {
-            m_table[i] /= (rms * sqrt(2));
+            m_table[i] = m_table[i] / divisor * keep;
         }
     }
 
@@ -121,7 +127,7 @@ struct BasicWaveTableGeneric
     {
         for (size_t i = 0; i < x_tableSize; ++i)
         {
-            m_table[i] = - 2 * (i / static_cast<float>(x_tableSize) - 0.5f);
+            m_table[i] = Vector::Splat(- 2 * (i / static_cast<Number>(x_tableSize) - 0.5f));
         }
     }
 
@@ -129,7 +135,7 @@ struct BasicWaveTableGeneric
     {
         for (size_t i = 0; i < x_tableSize; ++i)
         {
-            m_table[i] = (i / static_cast<float>(x_tableSize) < 0.5f) ? 1.0f : -1.0f;
+            m_table[i] = Vector::Splat((i / static_cast<Number>(x_tableSize) < 0.5f) ? 1.0f : -1.0f);
         }
     }
 
@@ -137,23 +143,22 @@ struct BasicWaveTableGeneric
     {
         for (size_t i = 0; i < x_tableSize; ++i)
         {
-            m_table[i] += cosf(2.0f * M_PI * harmonic * i / x_tableSize);
+            m_table[i] += Vector::Splat(cosf(2.0f * M_PI * harmonic * i / x_tableSize));
         }
     }
 
-    float StartValue() const
+    Vector StartValue() const
     {
         return m_table[0];
     }
 
-    float CenterValue() const
+    Vector CenterValue() const
     {
         return m_table[x_tableSize / 2];
     }
 };
 
-typedef BasicWaveTableGeneric<10> BasicWaveTable;
-typedef BasicWaveTableGeneric<12> BasicWaveTable4096;
+using BasicWaveTable = BasicWaveTableGeneric<float, 1, 10>;
+using BasicWaveTable4096 = BasicWaveTableGeneric<float, 1, 12>;
 
 #pragma clang diagnostic pop
-
