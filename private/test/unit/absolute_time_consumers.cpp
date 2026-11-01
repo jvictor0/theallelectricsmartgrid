@@ -346,24 +346,24 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader sample-and-hold captures on delay-lo
     clock.m_unmodulatedPhase = 0.1;
     time.Process(1, clock);
     input.m_samplePosition = 1.0f;
-    input.m_trig = time.CrossedCycleBoundary(delayLoop, 1, PhaseDomain::Modulated).m_triggered;
-    DOCTEST_REQUIRE(input.m_trig);
+    input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, 1, PhaseDomain::Modulated).m_triggered;
+    DOCTEST_REQUIRE(input.m_trig[0]);
     lfo.Process(input);
     float captured = lfo.m_shValue;
 
     clock.m_unmodulatedPhase = 0.4;
     time.Process(2, clock);
     input.m_samplePosition = 2.0f;
-    input.m_trig = time.CrossedCycleBoundary(delayLoop, 2, PhaseDomain::Modulated).m_triggered;
-    DOCTEST_CHECK_FALSE(input.m_trig);
+    input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, 2, PhaseDomain::Modulated).m_triggered;
+    DOCTEST_CHECK_FALSE(input.m_trig[0]);
     lfo.Process(input);
     DOCTEST_CHECK(lfo.m_shValue == doctest::Approx(captured));
 
     clock.m_unmodulatedPhase = 1.3;
     time.Process(3, clock);
     input.m_samplePosition = 3.0f;
-    input.m_trig = time.CrossedCycleBoundary(delayLoop, 3, PhaseDomain::Modulated).m_triggered;
-    DOCTEST_REQUIRE(input.m_trig);
+    input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, 3, PhaseDomain::Modulated).m_triggered;
+    DOCTEST_REQUIRE(input.m_trig[0]);
     lfo.Process(input);
     DOCTEST_CHECK(std::abs(lfo.m_shValue - captured) > 1e-4f);
 }

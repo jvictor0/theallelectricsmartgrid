@@ -17,7 +17,7 @@ template<class Number, size_t Size>
 struct MultiChannelNumber
 {
     static_assert(std::is_arithmetic<Number>::value, "MultiChannelNumber requires arithmetic elements; use MultiChannelComplex for complex values");
-    static_assert(Size > 0 && (Size & (Size - 1)) == 0, "MultiChannelNumber size must be a power of two");
+    static_assert(Size == 3 || (Size > 0 && (Size & (Size - 1)) == 0), "MultiChannelNumber size must be a power of two or three");
 
     static constexpr size_t x_numChannels = Size;
     using Vector = Number __attribute__((vector_size(sizeof(Number) * Size)));
@@ -38,6 +38,12 @@ struct MultiChannelNumber
         : m_values{left, right}
     {
         static_assert(Size == 2, "two-value constructor requires two channels");
+    }
+
+    MultiChannelNumber(Number x, Number y, Number z)
+        : m_values{x, y, z}
+    {
+        static_assert(Size == 3, "three-value constructor requires three channels");
     }
 
     MultiChannelNumber(Number x, Number y, Number z, Number w)
@@ -204,6 +210,13 @@ struct MultiChannelNumber
         return FromVector(__builtin_elementwise_floor(Load()));
     }
 
+    // Per-channel std::round: halves round away from zero.
+    //
+    MultiChannelNumber Round() const
+    {
+        return FromVector(__builtin_elementwise_round(Load()));
+    }
+
     // Per-channel static_cast to another number type.
     //
     template<class Other>
@@ -283,6 +296,43 @@ struct MultiChannelNumber
             for (size_t i = 0; i < Size; ++i)
             {
                 result.m_values[i] = std::exp2(m_values[i]);
+            }
+
+            return result;
+        }
+    }
+
+    // Fast per-channel log2(x) for positive normal float x. Writes x as 2^e * m
+    // with m in [sqrt(1/2), sqrt(2)) and sums the odd series of
+    // log2(m) = 2 * atanh(t) / ln(2) in t = (m - 1) / (m + 1); |t| < 0.172, so
+    // five terms reach float precision. Other channel types fall back to
+    // std::log2 per channel.
+    //
+    MultiChannelNumber Log2() const
+    {
+        if constexpr (std::is_same<Number, float>::value)
+        {
+            using IntVector = int32_t __attribute__((vector_size(sizeof(int32_t) * Size)));
+            static constexpr int32_t x_sqrtHalfBits = 0x3F3504F3;
+
+            IntVector bits = __builtin_bit_cast(IntVector, Load());
+            IntVector exponent = (bits - x_sqrtHalfBits) >> 23;
+            Vector m = __builtin_bit_cast(Vector, bits - (exponent << 23));
+            Vector t = (m - 1.0f) / (m + 1.0f);
+            Vector t2 = t * t;
+
+            Vector p = t2 * 0.32059889797532520f + 0.41219858311113240f;
+            p = p * t2 + 0.57707801635558536f;
+            p = p * t2 + 0.96179669392597560f;
+            p = p * t2 + 2.88539008177792681f;
+            return FromVector(p * t + __builtin_convertvector(exponent, Vector));
+        }
+        else
+        {
+            MultiChannelNumber result;
+            for (size_t i = 0; i < Size; ++i)
+            {
+                result.m_values[i] = std::log2(m_values[i]);
             }
 
             return result;

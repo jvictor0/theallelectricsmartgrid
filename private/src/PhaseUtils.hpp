@@ -162,6 +162,14 @@ struct ExpParamGeneric
         return Evaluate(min, std::log2(max / min), value);
     }
 
+    // min * (max / min)^value with a range per channel, using the fast vector
+    // Log2 and Exp2.
+    //
+    static Vector ComputeRange(const Vector& min, const Vector& max, const Vector& value)
+    {
+        return (value * (max / min).Log2()).Exp2() * min;
+    }
+
     Vector Update(Number min, Number max, const Vector& value)
     {
         if (m_baseParam != value || m_max != max || m_factor != min)

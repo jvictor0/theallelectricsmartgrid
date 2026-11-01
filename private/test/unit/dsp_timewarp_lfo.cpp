@@ -141,7 +141,7 @@ DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the glob
             double speed = 192000 * (moving.m_samples[j].m_modulatedPhase - moving.m_samples[j - 1].m_modulatedPhase);
             double referenceSpeed = 192000 * (reference.m_samples[j].m_modulatedPhase - reference.m_samples[j - 1].m_modulatedPhase);
             maxSpeedDifference = std::max(maxSpeedDifference, std::abs(speed - referenceSpeed));
-            minWeight = std::min(minWeight, moving.m_phaseModLFO.m_totalWeight);
+            minWeight = std::min(minWeight, moving.m_phaseModLFO.m_totalWeight[0]);
         }
     }
 

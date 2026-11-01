@@ -26,7 +26,7 @@ struct QuadMixerInternal
     size_t m_recordingNumInputs = 0;
     size_t m_recordingNumMonoInputs = 0;
     bool m_recordingFrameActive = false;
-    PinkNoise m_pinkNoise;
+    PinkNoiseGeneric<1> m_pinkNoise;
 
     Meter m_voiceMeters[x_maxInputs];
     Meter m_monoMeters[x_maxInputs];
@@ -41,6 +41,7 @@ struct QuadMixerInternal
 
     QuadMixerInternal(SmartGridOneContext* context)
         : m_recorder(&context->m_recorder)
+        , m_pinkNoise(0)
     {
     }
     

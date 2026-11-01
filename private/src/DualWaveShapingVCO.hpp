@@ -2,6 +2,7 @@
 
 #include "BitCrush.hpp"
 #include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
 #include "SmartGridOneEncoders.hpp"
@@ -9,14 +10,101 @@
 #include "Slew.hpp"
 #include "VectorPhaseShaper.hpp"
 
+// Two cross phase-modulated vector phase shapers, crossfaded and bit crushed.
+// Processes one sample per call for every channel.
+//
+template <size_t Size>
+struct DualWaveShapingVCOGeneric
+{
+    using Vector = MultiChannelNumber<float, Size>;
+    using VCO = VectorPhaseShaperGeneric<Size>;
+
+    VCO m_vco[2];
+    BitRateReducerGeneric<Size> m_bitRateReducer;
+    Vector m_output;
+
+    // Frequencies are in cycles per sample at the processing rate.
+    //
+    struct Input
+    {
+        Vector m_v[2];
+        Vector m_d[2];
+        Vector m_wtBlend[2];
+        Vector m_morphHarmonics[2];
+        Vector m_crossModIndex[2];
+        Vector m_baseFreq;
+        Vector m_offsetFreqFactor;
+        Vector m_detune;
+        Vector m_fade;
+        Vector m_bitCrushAmount;
+
+        Input()
+            : m_v{Vector::Splat(0.5), Vector::Splat(0.5)}
+            , m_d{Vector::Splat(0.5), Vector::Splat(0.5)}
+            , m_wtBlend{Vector::Splat(0), Vector::Splat(0)}
+            , m_morphHarmonics{Vector::Splat(0), Vector::Splat(0)}
+            , m_crossModIndex{Vector::Splat(0), Vector::Splat(0)}
+            , m_baseFreq(Vector::Splat(0))
+            , m_offsetFreqFactor(Vector::Splat(1))
+            , m_detune(Vector::Splat(1))
+            , m_fade(Vector::Splat(0))
+            , m_bitCrushAmount(Vector::Splat(0))
+        {
+        }
+    };
+
+    DualWaveShapingVCOGeneric()
+        : m_output(Vector::Splat(0))
+    {
+    }
+
+    Vector Process(const Input& input, double deltaT)
+    {
+        typename VCO::Input vcoInput[2];
+        for (int j = 0; j < 2; ++j)
+        {
+            vcoInput[j].m_v = input.m_v[j];
+            vcoInput[j].m_d = input.m_d[j];
+            vcoInput[j].m_wtBlend = input.m_wtBlend[j];
+        }
+
+        vcoInput[0].m_freq = input.m_baseFreq * input.m_detune;
+        vcoInput[1].m_freq = input.m_baseFreq * input.m_offsetFreqFactor / input.m_detune;
+        for (int j = 0; j < 2; ++j)
+        {
+            vcoInput[j].m_morphHarmonics = PhaseUtils::ExpParamGeneric<float, Size>::ComputeRange(
+                vcoInput[j].m_freq,
+                Vector::Splat(vcoInput[j].m_maxFreq),
+                input.m_morphHarmonics[j]);
+        }
+
+        vcoInput[0].m_phaseMod = input.m_crossModIndex[0] * m_vco[1].m_out;
+        m_vco[0].Process(vcoInput[0], deltaT);
+        vcoInput[1].m_phaseMod = m_vco[0].m_out * input.m_crossModIndex[1];
+        m_vco[1].Process(vcoInput[1], deltaT);
+
+        Vector quarterFade = input.m_fade * 0.25;
+        Vector mixed = m_vco[0].m_out * Math::Cos2pi(quarterFade) + m_vco[1].m_out * Math::Cos2pi(quarterFade + 0.75);
+
+        m_bitRateReducer.SetAmount(input.m_bitCrushAmount);
+        m_output = m_bitRateReducer.Process(mixed);
+        return m_output;
+    }
+};
+
+using TrioDualWaveShapingVCO = DualWaveShapingVCOGeneric<3>;
+
+// Mono micro-block shell: slews the control-rate inputs into the core at four
+// times the base rate.
+//
 struct DualWaveShapingVCO
 {
     static constexpr size_t x_oversample = 4;
     static constexpr size_t x_uBlockSize = SampleTimer::x_controlFrameRate * x_oversample;
 
-    VectorPhaseShaperInternal m_vco[2];
+    using Core = DualWaveShapingVCOGeneric<1>;
 
-    BitRateReducer m_bitRateReducer;
+    Core m_core;
 
     SampleTop m_top;
     float m_output;
@@ -25,8 +113,6 @@ struct DualWaveShapingVCO
     float m_uBlockOutput[x_uBlockSize];
 
     ScopeWriterHolder m_scopeWriter[2];
-
-    PhaseUtils::ExpParam m_morphHarmonics[2];
 
     // Slewed parameters
     //
@@ -107,49 +193,29 @@ struct DualWaveShapingVCO
         m_detuneSlew.Update(input.m_detune.m_expParam);
 
         SampleTop top[2];
+        Core::Input coreInput;
 
         for (size_t i = 0; i < x_uBlockSize; ++i)
         {
-            VectorPhaseShaperInternal::Input vcoInput[2];
-
-            vcoInput[0].m_useVoct = false;
-            vcoInput[1].m_useVoct = false;
-
             for (int j = 0; j < 2; ++j)
             {
-                vcoInput[j].m_v = m_vSlew[j].Process();
-                vcoInput[j].m_d = m_dSlew[j].Process();
-                vcoInput[j].m_wtBlend = m_wtBlendSlew[j].Process();
+                coreInput.m_v[j] = m_vSlew[j].Process();
+                coreInput.m_d[j] = m_dSlew[j].Process();
+                coreInput.m_wtBlend[j] = m_wtBlendSlew[j].Process();
+                coreInput.m_morphHarmonics[j] = input.m_morphHarmonics[j];
+                coreInput.m_crossModIndex[j] = m_crossModIndexSlew[j].Process();
             }
 
-            float baseFreq = m_baseFreqSlew.Process() / x_oversample;
-            float offsetFreqFactor = m_offsetFreqFactorSlew.Process();
-            float detune = m_detuneSlew.Process();
+            coreInput.m_baseFreq = m_baseFreqSlew.Process() / x_oversample;
+            coreInput.m_offsetFreqFactor = m_offsetFreqFactorSlew.Process();
+            coreInput.m_detune = m_detuneSlew.Process();
+            coreInput.m_fade = m_fadeSlew.Process();
+            coreInput.m_bitCrushAmount = m_bitCrushAmountSlew.Process();
 
-            vcoInput[0].m_phaseMod = m_crossModIndexSlew[0].Process() * m_vco[1].m_out;
-            vcoInput[0].m_freq = baseFreq * detune;
-            vcoInput[1].m_freq = baseFreq * offsetFreqFactor / detune;
+            m_uBlockOutput[i] = m_core.Process(coreInput, SampleTimer::x_samplePeriod / x_oversample);
 
-            for (int j = 0; j < 2; ++j)
-            {
-                vcoInput[j].m_morphHarmonics = m_morphHarmonics[j].Update(vcoInput[j].m_freq, vcoInput[j].m_maxFreq, input.m_morphHarmonics[j]);
-            }
-
-            m_vco[0].Process(vcoInput[0], SampleTimer::x_samplePeriod / x_oversample);
-            vcoInput[1].m_phaseMod = m_vco[0].m_out * m_crossModIndexSlew[1].Process();
-            m_vco[1].Process(vcoInput[1], SampleTimer::x_samplePeriod / x_oversample);
-
-            top[0].AccumulateOversample(m_vco[0].m_top, i, x_oversample);
-            top[1].AccumulateOversample(m_vco[1].m_top, i, x_oversample);
-
-            float fade = m_fadeSlew.Process();
-            float mixed = m_vco[0].m_out * Math::Cos2pi(fade / 4) + m_vco[1].m_out * Math::Cos2pi(fade / 4 + 0.75);
-
-            float bitCrushAmount = m_bitCrushAmountSlew.Process();
-            m_bitRateReducer.SetAmount(bitCrushAmount);
-            float crushed = m_bitRateReducer.Process(mixed);
-
-            m_uBlockOutput[i] = crushed;
+            top[0].AccumulateOversample(m_core.m_vco[0].m_top[0], i, x_oversample);
+            top[1].AccumulateOversample(m_core.m_vco[1].m_top[0], i, x_oversample);
 
             // Base-rate operations every x_oversample samples
             //
@@ -157,8 +223,8 @@ struct DualWaveShapingVCO
             {
                 size_t baseIndex = i / x_oversample;
 
-                m_scopeWriter[0].Write(baseIndex, m_vco[0].m_out);
-                m_scopeWriter[1].Write(baseIndex, m_vco[1].m_out);
+                m_scopeWriter[0].Write(baseIndex, m_core.m_vco[0].m_out);
+                m_scopeWriter[1].Write(baseIndex, m_core.m_vco[1].m_out);
 
                 if (top[0])
                 {

@@ -244,7 +244,7 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
     for (int f = 0; f < nFrames; ++f)
     {
         ss.ProcessUBlock(inp);
-        double pos = ss.m_previousTotalPhaseTime;
+        double pos = ss.m_core.m_previousTotalPhaseTime[0];
 
         if (pos > prevPos)
         {

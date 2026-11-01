@@ -5,6 +5,7 @@
 #include "BitCrush.hpp"
 #include "TunedDecayComb.hpp"
 #include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 #include "Noise.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
@@ -13,6 +14,7 @@
 #include "StateVariableFilter.hpp"
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <complex>
 
 // Physical modeling source machine.
@@ -22,11 +24,8 @@
 //   -> AHD envelope (inverted, exponential) -> Sample Rate Reducer
 //   -> Tuned decay comb with phase-compensated two-pole low-pass damping
 //
-struct PhysicalModelingSource
+struct PhysicalModelingSourceBase
 {
-    static constexpr size_t x_oversample = 4;
-    static constexpr size_t x_uBlockSize = SampleTimer::x_controlFrameRate * x_oversample;
-
     struct UIState : TransferFunction
     {
         std::atomic<float> m_mainSVFG;
@@ -60,26 +59,115 @@ struct PhysicalModelingSource
             return std::abs(TransferFunctionValue(normalizedFreq));
         }
     };
+};
 
-    // Noise source
-    //
-    WhiteNoise m_noise;
+// One sample per call for every channel. The amplitude envelope comes from
+// the caller.
+//
+template <size_t Size>
+struct PhysicalModelingSourceGeneric : PhysicalModelingSourceBase
+{
+    using Vector = MultiChannelNumber<float, Size>;
 
-    // Sample rate reducer
-    //
-    SampleRateReducer m_sampleRateReducer;
+    WhiteNoiseGeneric<Size> m_noise;
+    SampleRateReducerGeneric<Size> m_sampleRateReducer;
+    LinearStateVariableFilterGeneric<float, Size> m_mainSVF;
+    TunedDecayCombGeneric<Size> m_combFilter;
+    Vector m_mainSVFMorph;
+    Vector m_output;
 
-    // Main SVF (pre-envelope)
+    // Frequencies are in cycles per sample at the processing rate. The
+    // envelope is the AHD output in [0, 1].
     //
-    LinearStateVariableFilter m_mainSVF;
+    struct Input
+    {
+        Vector m_mainSVFCutoff;
+        Vector m_mainSVFResonance;
+        Vector m_mainSVFMorph;
+        Vector m_sampleRateReducerFreq;
+        Vector m_envelope;
+
+        Input()
+            : m_mainSVFCutoff(Vector::Splat(0.001))
+            , m_mainSVFResonance(Vector::Splat(0))
+            , m_mainSVFMorph(Vector::Splat(0.5))
+            , m_sampleRateReducerFreq(Vector::Splat(1))
+            , m_envelope(Vector::Splat(0))
+        {
+        }
+    };
+
+    explicit PhysicalModelingSourceGeneric(uint32_t seed)
+        : m_noise(seed)
+        , m_mainSVFMorph(Vector::Splat(0.5))
+        , m_output(Vector::Splat(0))
+    {
+    }
+
+    void SetCombParams(const Vector& normalizedFrequency, const Vector& decayKnob, const Vector& dampKnob, double sampleRate)
+    {
+        m_combFilter.SetParams(
+            normalizedFrequency.template Convert<double>(),
+            decayKnob.template Convert<double>(),
+            dampKnob.template Convert<double>(),
+            sampleRate);
+    }
+
+    Vector Process(const Input& input)
+    {
+        static constexpr float x_envelopeBase = 10.0f;
+
+        Vector noise = m_noise.Generate();
+
+        // Morph inside the SVF: blend 0 = LP, 1 = HP, equal power.
+        //
+        m_mainSVF.SetCutoff(input.m_mainSVFCutoff);
+        m_mainSVF.SetResonance(input.m_mainSVFResonance);
+        m_mainSVF.Process(noise);
+        m_mainSVFMorph = input.m_mainSVFMorph;
+        Vector svfOut = m_mainSVF.GetMorphedOutput(m_mainSVFMorph);
+
+        // The envelope is inverted (like the amp section): at 0 amplitude the
+        // output is at full. An exponential curve gives natural modulation.
+        //
+        Vector envValue = PhaseUtils::ZeroedExpParamGeneric<float, Size>::Evaluate(
+            x_envelopeBase,
+            std::log2(x_envelopeBase),
+            input.m_envelope);
+
+        m_sampleRateReducer.SetFreq(input.m_sampleRateReducerFreq);
+        Vector prefiltered = m_sampleRateReducer.Process(svfOut * envValue);
+
+        m_output = m_combFilter.Process(prefiltered);
+        return m_output;
+    }
+
+    void PopulateUIState(UIState* uiState, size_t channel) const
+    {
+        uiState->m_mainSVFG.store(m_mainSVF.m_g[channel]);
+        uiState->m_mainSVFK.store(m_mainSVF.m_k[channel]);
+        uiState->m_mainSVFMorph.store(m_mainSVFMorph[channel]);
+        m_combFilter.PopulateUIState(&uiState->m_combFilter, channel);
+    }
+};
+
+using TrioPhysicalModelingSource = PhysicalModelingSourceGeneric<3>;
+
+// Mono micro-block shell: owns the AHD and slews the control-rate inputs into
+// the core at four times the base rate.
+//
+struct PhysicalModelingSource : PhysicalModelingSourceBase
+{
+    static constexpr size_t x_oversample = 4;
+    static constexpr size_t x_uBlockSize = SampleTimer::x_controlFrameRate * x_oversample;
+
+    using Core = PhysicalModelingSourceGeneric<1>;
+
+    Core m_core;
 
     // AHD envelope for amplitude modulation
     //
     AHD m_ahd;
-
-    // Tuned decay comb with phase-compensated two-pole low-pass damping
-    //
-    TunedDecayComb m_combFilter;
 
     // Output buffers
     //
@@ -95,7 +183,7 @@ struct PhysicalModelingSource
     ParamSlew m_sampleRateReducerFreqSlew;
     ParamSlew m_mainSVFCutoffSlew;
     ParamSlew m_mainSVFResonanceSlew;
-    ParamSlew m_mainSVFMorphSlew;    
+    ParamSlew m_mainSVFMorphSlew;
 
     struct Input
     {
@@ -149,7 +237,7 @@ struct PhysicalModelingSource
     };
 
     PhysicalModelingSource()
-        : m_noise(42)
+        : m_core(42)
         , m_output(0.0f)
         , m_top(false)
         , m_sampleRateReducerFreqSlew(x_oversample)
@@ -168,57 +256,31 @@ struct PhysicalModelingSource
         m_mainSVFResonanceSlew.Update(input.m_mainSVFResonance.m_expParam);
         m_mainSVFMorphSlew.Update(input.m_mainSVFMorph);
 
-        // Update exact comb coefficients outside the oversampled loop.
+        // The comb computes exact coefficients from these when its next
+        // crossfade starts.
         //
-        m_combFilter.SetParams(
+        m_core.SetCombParams(
             input.m_baseFreq / x_oversample,
             input.m_combFeedback,
             input.m_combDamp,
             static_cast<double>(SampleTimer::x_sampleRate * x_oversample));
 
+        Core::Input coreInput;
         for (size_t i = 0; i < x_uBlockSize; ++i)
         {
             input.m_ahdInput.m_samplePosition = static_cast<float>(i) / x_oversample;
             input.m_ahdInputSetter.Process(input.m_ahdInput);
-            float ahdEnv = m_ahd.Process(input.m_ahdInput);
+            coreInput.m_envelope = m_ahd.Process(input.m_ahdInput);
 
-            // Process slews
+            // Frequencies move to the oversampled rate; the SVF cutoff stays
+            // below the base-rate Nyquist.
             //
-            float sampleRateReducerFreq = m_sampleRateReducerFreqSlew.Process();
-            float mainSVFCutoff = m_mainSVFCutoffSlew.Process();
-            float mainSVFResonance = m_mainSVFResonanceSlew.Process();
-            float mainSVFMorph = m_mainSVFMorphSlew.Process();
+            coreInput.m_sampleRateReducerFreq = m_sampleRateReducerFreqSlew.Process() / x_oversample;
+            coreInput.m_mainSVFCutoff = std::min(0.499f / x_oversample, m_mainSVFCutoffSlew.Process() / x_oversample);
+            coreInput.m_mainSVFResonance = m_mainSVFResonanceSlew.Process();
+            coreInput.m_mainSVFMorph = m_mainSVFMorphSlew.Process();
 
-            // 1. Generate white noise
-            //
-            float noise = static_cast<float>(m_noise.Generate());
-
-            // 3. Main SVF processing (morph inside SVF: blend 0=LP, 1=HP, equal power)
-            // Adjust cutoff for oversample rate
-            //
-            float adjustedMainCutoff = std::min(0.499f / x_oversample, mainSVFCutoff / x_oversample);
-            m_mainSVF.SetCutoff(adjustedMainCutoff);
-            m_mainSVF.SetResonance(mainSVFResonance);
-            m_mainSVF.Process(noise);
-            float svfOut = m_mainSVF.GetMorphedOutput(mainSVFMorph);
-
-            // 4. AHD envelope amplitude modulation
-            // The envelope is inverted (like amp section): at 0 amplitude, output is at full
-            // Apply exponential curve for natural modulation
-            // Use slewed envelope for smooth oversampled modulation
-            //
-            float envValue = PhaseUtils::ZeroedExpParam::Compute(10.0f, ahdEnv);
-            float envelopedSignal = svfOut * envValue;
-
-            // 2. Sample rate reduction
-            // Adjust for oversample rate
-            //
-            m_sampleRateReducer.SetFreq(sampleRateReducerFreq / x_oversample);
-            float prefiltered = m_sampleRateReducer.Process(envelopedSignal);
-
-            // 5. Tuned decay comb with phase-compensated two-pole low-pass damping
-            //
-            m_output = m_combFilter.Process(prefiltered);
+            m_output = m_core.Process(coreInput);
             m_uBlockOutput[i] = m_output;
 
             // Base-rate operations every x_oversample samples
@@ -250,10 +312,8 @@ struct PhysicalModelingSource
 
     void PopulateUIState(UIState* uiState)
     {
-        uiState->m_mainSVFG.store(m_mainSVF.m_g);
-        uiState->m_mainSVFK.store(m_mainSVF.m_k);
+        m_core.PopulateUIState(uiState, 0);
         uiState->m_mainSVFMorph.store(m_mainSVFMorphSlew.m_filter.m_output);
-        m_combFilter.PopulateUIState(&uiState->m_combFilter);
     }
 
     void SetEncoderParams(

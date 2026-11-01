@@ -15,18 +15,18 @@ DOCTEST_TEST_CASE("VectorPhaseShaper wraps a negative elbow value that rounds to
     }
 
     table.Generate();
-    shaper.m_morphingWaveTable.SetLeft(&table);
-    shaper.m_morphingWaveTable.SetRight(&table);
+    shaper.SetLeft(&table);
+    shaper.SetRight(&table);
     shaper.m_dScale = 1.0f;
     shaper.m_d.m_output = 0.01f;
     shaper.m_v.m_output = 1.01f;
     shaper.m_freq = 0.001f;
     shaper.m_phase = 0.0f;
     shaper.Evaluate(input);
-    float atBoundary = shaper.m_out;
+    float atBoundary = shaper.m_out[0];
 
     shaper.m_phase = 1e-10f;
     shaper.Evaluate(input);
-    DOCTEST_CHECK(std::isfinite(shaper.m_out));
-    DOCTEST_CHECK(std::abs(shaper.m_out - atBoundary) < 1e-5f);
+    DOCTEST_CHECK(std::isfinite(shaper.m_out[0]));
+    DOCTEST_CHECK(std::abs(shaper.m_out[0] - atBoundary) < 1e-5f);
 }

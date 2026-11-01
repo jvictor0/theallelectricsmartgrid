@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <random>
 #include <utility>
+#include "MultiChannelNumber.hpp"
 #include "SampleEventHistory.hpp"
 #include "SampleTimer.hpp"
 
@@ -330,6 +331,7 @@ template<size_t x_voiceCount, typename DrawSource = GangedRandomLFODrawSource>
 struct GangedRandomLFO
 {
     static_assert(x_voiceCount > 0, "a ganged random LFO requires at least one voice");
+    using Vector = MultiChannelNumber<float, x_voiceCount>;
 
     GangedRandomLFOVoice m_voices[x_voiceCount];
     GangedRandomLFOVoiceInput m_voiceInputs[x_voiceCount];
@@ -376,9 +378,28 @@ struct GangedRandomLFO
         }
     }
 
+    // One engine sample, the same Process shape as the other per-voice DSP.
+    //
+    Vector Process(const GangedRandomLFOInput& input)
+    {
+        Process(SampleTimer::x_samplePeriod, input);
+        return GetOutput();
+    }
+
     float Output(size_t voice) const
     {
         return m_voices[voice].m_output;
+    }
+
+    Vector GetOutput() const
+    {
+        Vector output;
+        for (size_t voice = 0; voice < x_voiceCount; ++voice)
+        {
+            output[voice] = m_voices[voice].m_output;
+        }
+
+        return output;
     }
 
     std::array<double, x_voiceCount> SampleCorrelatedIncrements(
@@ -477,3 +498,6 @@ struct GangedRandomLFO
         uiState->m_revision.store(startRevision + 2u, std::memory_order_release);
     }
 };
+
+using TrioGangedRandomLFO = GangedRandomLFO<3>;
+using QuadGangedRandomLFO = GangedRandomLFO<4>;

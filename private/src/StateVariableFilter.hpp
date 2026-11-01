@@ -3,14 +3,20 @@
 #include "DCServo.hpp"
 #include "Filter.hpp"
 #include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 #include "PhaseUtils.hpp"
 #include "Saturator.hpp"
+#include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <cmath>
 #include <complex>
 #include <cstdio>
 
-struct LinearStateVariableFilter
+// Width-independent parts of the linear SVF: constants, UI state and the
+// scalar transfer functions the UI evaluates.
+//
+struct LinearStateVariableFilterBase
 {
     static constexpr float x_maxCutoff = 0.499f;
     static constexpr float x_qMin = 0.5f;
@@ -29,98 +35,19 @@ struct LinearStateVariableFilter
 
         float LowPassFrequencyResponse(float freq)
         {
-            return LinearStateVariableFilter::LowPassFrequencyResponse(m_g.load(), m_k.load(), freq);
+            return LinearStateVariableFilterBase::LowPassFrequencyResponse(m_g.load(), m_k.load(), freq);
         }
 
         float HighPassFrequencyResponse(float freq)
         {
-            return LinearStateVariableFilter::HighPassFrequencyResponse(m_g.load(), m_k.load(), freq);
+            return LinearStateVariableFilterBase::HighPassFrequencyResponse(m_g.load(), m_k.load(), freq);
         }
 
         float BandPassFrequencyResponse(float freq)
         {
-            return LinearStateVariableFilter::BandPassFrequencyResponse(m_g.load(), m_k.load(), freq);
+            return LinearStateVariableFilterBase::BandPassFrequencyResponse(m_g.load(), m_k.load(), freq);
         }
     };
-
-    float m_cutoff;
-    PhaseUtils::ExpParam m_resonance;
-
-    float m_g;
-    float m_k;
-    float m_a1;
-    float m_a2;
-    float m_a3;
-
-    float m_ic1eq;
-    float m_ic2eq;
-
-    float m_input;
-    float m_lowPass;
-    float m_highPass;
-    float m_bandPass;
-    float m_notch;
-
-    LinearStateVariableFilter()
-        : m_cutoff(0.1f)
-        , m_resonance(20.0f)
-        , m_g(0.0f)
-        , m_k(0.0f)
-        , m_a1(0.0f)
-        , m_a2(0.0f)
-        , m_a3(0.0f)
-        , m_ic1eq(0.0f)
-        , m_ic2eq(0.0f)
-        , m_input(0.0f)
-        , m_lowPass(0.0f)
-        , m_highPass(0.0f)
-        , m_bandPass(0.0f)
-        , m_notch(0.0f)
-    {
-        m_resonance = PhaseUtils::ExpParam(x_qMin, x_qMax);
-        SetCutoff(m_cutoff);
-        SetResonance(0.0f);
-    }
-
-    void Process(float input)
-    {
-        m_input = input;
-
-        // Trapezoidal SVF implementation
-        // Based on the TPT (topology-preserving transform) structure
-        //
-        float v3 = input - m_ic2eq;
-        float v1 = m_a1 * m_ic1eq + m_a2 * v3;
-        float v2 = m_ic2eq + m_a2 * m_ic1eq + m_a3 * v3;
-
-        m_ic1eq = 2.0f * v1 - m_ic1eq;
-        m_ic2eq = 2.0f * v2 - m_ic2eq;
-
-        m_lowPass = v2;
-        m_bandPass = v1;
-        m_highPass = input - m_k * v1 - v2;
-        m_notch = m_lowPass + m_highPass;
-    }
-
-    float GetLowPass() const
-    {
-        return m_lowPass;
-    }
-
-    float GetHighPass() const
-    {
-        return m_highPass;
-    }
-
-    float GetBandPass() const
-    {
-        return m_bandPass;
-    }
-
-    float GetNotch() const
-    {
-        return m_notch;
-    }
 
     struct MorphWeights
     {
@@ -146,62 +73,6 @@ struct LinearStateVariableFilter
         }
     }
 
-    float GetMorphedOutput(float blend) const
-    {
-        MorphWeights weights = GetMorphWeights(blend);
-        return m_lowPass * weights.m_lowPass +
-            m_bandPass * weights.m_bandPass +
-            m_highPass * weights.m_highPass;
-    }
-
-    void SetCutoff(float cutoff)
-    {
-        m_cutoff = std::min(x_maxCutoff, cutoff);
-        m_g = Math::TanPi(m_cutoff);
-        UpdateCoefficients();
-    }
-
-    void SetResonance(float resonance)
-    {
-        // k = 1/Q, where Q ranges from x_qMin to x_qMax
-        // resonance 0 -> Q = x_qMin (Butterworth-ish), k = 1/x_qMin
-        // resonance 1 -> Q = x_qMax (high resonance), k = 1/x_qMax
-        //
-        float expResonance = m_resonance.Update(resonance);        
-        SetQ(expResonance);
-    }
-
-    void SetQ(float q)
-    {
-        assert(q > 0.0f);
-        m_k = 1.0f / q;
-        UpdateCoefficients();
-    }
-
-    void UpdateCoefficients()
-    {
-        m_a1 = 1.0f / (1.0f + m_g * (m_g + m_k));
-        m_a2 = m_g * m_a1;
-        m_a3 = m_g * m_a2;
-    }
-
-    void Reset()
-    {
-        m_ic1eq = 0.0f;
-        m_ic2eq = 0.0f;
-        m_input = 0.0f;
-        m_lowPass = 0.0f;
-        m_highPass = 0.0f;
-        m_bandPass = 0.0f;
-        m_notch = 0.0f;
-    }
-
-    void PopulateUIState(UIState* uiState)
-    {
-        uiState->m_g.store(m_g);
-        uiState->m_k.store(m_k);
-    }
-
     static std::complex<float> LowPassTransferFunction(float g, float k, float freq)
     {
         // Calculate normalized frequency (omega)
@@ -214,7 +85,6 @@ struct LinearStateVariableFilter
         // For normalized frequency, T = 1, so s = (1 - z^-1) / (1 + z^-1) * 2
         // But since we use g = tan(pi*fc), we work directly with g
         //
-        std::complex<float> num = g * g;
         std::complex<float> s = (std::complex<float>(1.0f, 0.0f) - zInv) / (std::complex<float>(1.0f, 0.0f) + zInv);
         s = s / g;
         std::complex<float> den = s * s + k * s + std::complex<float>(1.0f, 0.0f);
@@ -266,13 +136,173 @@ struct LinearStateVariableFilter
     }
 };
 
-// 4-pole highpass filter by cascading two LinearStateVariableFilters
-//
-struct LinearSVF4PoleHighPass
+template <typename Number, size_t Size>
+struct LinearStateVariableFilterGeneric : LinearStateVariableFilterBase
 {
-    static constexpr float x_maxCutoff = LinearStateVariableFilter::x_maxCutoff;
-    static constexpr float x_qMin = LinearStateVariableFilter::x_qMin;
-    static constexpr float x_qMax = LinearStateVariableFilter::x_qMax;
+    using Vector = MultiChannelNumber<Number, Size>;
+
+    Vector m_cutoff;
+    PhaseUtils::ExpParamGeneric<Number, Size> m_resonance;
+
+    Vector m_g;
+    Vector m_k;
+    Vector m_a1;
+    Vector m_a2;
+    Vector m_a3;
+
+    Vector m_ic1eq;
+    Vector m_ic2eq;
+
+    Vector m_input;
+    Vector m_lowPass;
+    Vector m_highPass;
+    Vector m_bandPass;
+    Vector m_notch;
+
+    LinearStateVariableFilterGeneric()
+        : m_cutoff(Vector::Splat(static_cast<Number>(0.1)))
+        , m_resonance(x_qMin, x_qMax)
+        , m_g()
+        , m_k()
+        , m_a1()
+        , m_a2()
+        , m_a3()
+        , m_ic1eq()
+        , m_ic2eq()
+        , m_input()
+        , m_lowPass()
+        , m_highPass()
+        , m_bandPass()
+        , m_notch()
+    {
+        SetCutoff(m_cutoff);
+        SetResonance(Vector());
+    }
+
+    void Process(const Vector& input)
+    {
+        m_input = input;
+
+        // Trapezoidal SVF implementation
+        // Based on the TPT (topology-preserving transform) structure
+        //
+        Vector v3 = input - m_ic2eq;
+        Vector v1 = m_a1 * m_ic1eq + m_a2 * v3;
+        Vector v2 = m_ic2eq + m_a2 * m_ic1eq + m_a3 * v3;
+
+        m_ic1eq = v1 * 2 - m_ic1eq;
+        m_ic2eq = v2 * 2 - m_ic2eq;
+
+        m_lowPass = v2;
+        m_bandPass = v1;
+        m_highPass = input - m_k * v1 - v2;
+        m_notch = m_lowPass + m_highPass;
+    }
+
+    Vector GetLowPass() const
+    {
+        return m_lowPass;
+    }
+
+    Vector GetHighPass() const
+    {
+        return m_highPass;
+    }
+
+    Vector GetBandPass() const
+    {
+        return m_bandPass;
+    }
+
+    Vector GetNotch() const
+    {
+        return m_notch;
+    }
+
+    // Vector form of GetMorphWeights: both halves use the same quarter-circle
+    // phase, pairing LP with BP below 0.5 and BP with HP above.
+    //
+    Vector GetMorphedOutput(const Vector& blend) const
+    {
+        Vector half = Vector::Splat(0.5);
+        Vector clamped = Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(0), blend));
+        Vector phase = Vector::IfLess(half, clamped, (clamped - 0.5) * 0.5, clamped * 0.5);
+        Vector cosine = Math::Cos2pi(phase);
+        Vector sine = Math::Sin2pi(phase);
+        Vector lowHalf = m_lowPass * cosine + m_bandPass * sine;
+        Vector highHalf = m_bandPass * cosine + m_highPass * sine;
+        return Vector::IfLess(half, clamped, highHalf, lowHalf);
+    }
+
+    void SetCutoff(const Vector& cutoff)
+    {
+        m_cutoff = Vector::Min(Vector::Splat(x_maxCutoff), cutoff);
+        m_g = Math::TanPi(m_cutoff);
+        UpdateCoefficients();
+    }
+
+    void SetResonance(const Vector& resonance)
+    {
+        // k = 1/Q, where Q ranges from x_qMin to x_qMax
+        // resonance 0 -> Q = x_qMin (Butterworth-ish), k = 1/x_qMin
+        // resonance 1 -> Q = x_qMax (high resonance), k = 1/x_qMax
+        //
+        Vector expResonance = m_resonance.Update(resonance);
+        SetQ(expResonance);
+    }
+
+    void SetQ(const Vector& q)
+    {
+        for (size_t i = 0; i < Size; ++i)
+        {
+            assert(q[i] > 0);
+        }
+
+        m_k = Vector::Splat(1) / q;
+        UpdateCoefficients();
+    }
+
+    void UpdateCoefficients()
+    {
+        m_a1 = Vector::Splat(1) / (m_g * (m_g + m_k) + 1);
+        m_a2 = m_g * m_a1;
+        m_a3 = m_g * m_a2;
+    }
+
+    void Reset()
+    {
+        m_ic1eq = Vector();
+        m_ic2eq = Vector();
+        m_input = Vector();
+        m_lowPass = Vector();
+        m_highPass = Vector();
+        m_bandPass = Vector();
+        m_notch = Vector();
+    }
+
+    void PopulateUIState(UIState* uiState, size_t channel)
+    {
+        uiState->m_g.store(m_g[channel]);
+        uiState->m_k.store(m_k[channel]);
+    }
+
+    void PopulateUIState(UIState* uiState)
+    {
+        static_assert(Size == 1, "multi-channel filters must name the channel to publish");
+        PopulateUIState(uiState, 0);
+    }
+};
+
+using LinearStateVariableFilter = LinearStateVariableFilterGeneric<float, 1>;
+using TrioLinearStateVariableFilter = LinearStateVariableFilterGeneric<float, 3>;
+
+// 4-pole highpass filter by cascading two linear SVFs
+//
+struct LinearSVF4PoleHighPassBase
+{
+    static constexpr float x_maxCutoff = LinearStateVariableFilterBase::x_maxCutoff;
+    static constexpr float x_qMin = LinearStateVariableFilterBase::x_qMin;
+    static constexpr float x_qMax = LinearStateVariableFilterBase::x_qMax;
 
     struct UIState
     {
@@ -292,40 +322,59 @@ struct LinearSVF4PoleHighPass
 
             // Cascade two 2-pole highpass responses
             //
-            float hp2pole = LinearStateVariableFilter::HighPassFrequencyResponse(g, k, freq);
+            float hp2pole = LinearStateVariableFilterBase::HighPassFrequencyResponse(g, k, freq);
             return hp2pole * hp2pole;
         }
     };
 
-    LinearStateVariableFilter m_stage1;
-    LinearStateVariableFilter m_stage2;
+    static std::complex<float> TransferFunction(float g, float k, float freq)
+    {
+        // Cascade two 2-pole highpass transfer functions
+        //
+        std::complex<float> hp2pole = LinearStateVariableFilterBase::HighPassTransferFunction(g, k, freq);
+        return hp2pole * hp2pole;
+    }
 
-    float m_output;
+    static float FrequencyResponse(float g, float k, float freq)
+    {
+        return std::abs(TransferFunction(g, k, freq));
+    }
+};
 
-    LinearSVF4PoleHighPass()
-        : m_output(0.0f)
+template <typename Number, size_t Size>
+struct LinearSVF4PoleHighPassGeneric : LinearSVF4PoleHighPassBase
+{
+    using Vector = MultiChannelNumber<Number, Size>;
+
+    LinearStateVariableFilterGeneric<Number, Size> m_stage1;
+    LinearStateVariableFilterGeneric<Number, Size> m_stage2;
+
+    Vector m_output;
+
+    LinearSVF4PoleHighPassGeneric()
+        : m_output()
     {
     }
 
-    void Process(float input)
+    void Process(const Vector& input)
     {
         m_stage1.Process(input);
         m_stage2.Process(m_stage1.GetHighPass());
         m_output = m_stage2.GetHighPass();
     }
 
-    float GetOutput() const
+    Vector GetOutput() const
     {
         return m_output;
     }
 
-    void SetCutoff(float cutoff)
+    void SetCutoff(const Vector& cutoff)
     {
         m_stage1.SetCutoff(cutoff);
         m_stage2.SetCutoff(cutoff);
     }
 
-    void SetResonance(float resonance)
+    void SetResonance(const Vector& resonance)
     {
         m_stage1.SetResonance(resonance);
         m_stage2.SetResonance(resonance);
@@ -335,28 +384,24 @@ struct LinearSVF4PoleHighPass
     {
         m_stage1.Reset();
         m_stage2.Reset();
-        m_output = 0.0f;
+        m_output = Vector();
+    }
+
+    void PopulateUIState(UIState* uiState, size_t channel)
+    {
+        uiState->m_g.store(m_stage1.m_g[channel]);
+        uiState->m_k.store(m_stage1.m_k[channel]);
     }
 
     void PopulateUIState(UIState* uiState)
     {
-        uiState->m_g.store(m_stage1.m_g);
-        uiState->m_k.store(m_stage1.m_k);
-    }
-
-    static std::complex<float> TransferFunction(float g, float k, float freq)
-    {
-        // Cascade two 2-pole highpass transfer functions
-        //
-        std::complex<float> hp2pole = LinearStateVariableFilter::HighPassTransferFunction(g, k, freq);
-        return hp2pole * hp2pole;
-    }
-
-    static float FrequencyResponse(float g, float k, float freq)
-    {
-        return std::abs(TransferFunction(g, k, freq));
+        static_assert(Size == 1, "multi-channel filters must name the channel to publish");
+        PopulateUIState(uiState, 0);
     }
 };
+
+using LinearSVF4PoleHighPass = LinearSVF4PoleHighPassGeneric<float, 1>;
+using TrioLinearSVF4PoleHighPass = LinearSVF4PoleHighPassGeneric<float, 3>;
 
 // Nonlinear TPT/ZDF SVF with saturation ONLY on the summer (hp drive)
 // 1D Newton solve for v3 (saturated highpass output)

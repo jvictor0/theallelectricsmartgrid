@@ -473,22 +473,34 @@ struct SquiggleBoyWaveTableGenerator
         m_randomWaveTable.GenerateCompletely(m_state);
     }
 
-    void SetLeft(VectorPhaseShaperInternal* vps)
+    template <size_t Size>
+    void SetLeft(VectorPhaseShaperGeneric<Size>* vps, size_t channel)
     {
-        AdaptiveWaveTable* waveTable = vps->SetLeft(m_randomWaveTable.PopWaveTable());
+        AdaptiveWaveTable* waveTable = vps->SetLeft(channel, m_randomWaveTable.PopWaveTable());
         if (waveTable)
         {
             FreeWaveTable(waveTable);
         }
     }
-    
-    void SetRight(VectorPhaseShaperInternal* vps)
+
+    template <size_t Size>
+    void SetRight(VectorPhaseShaperGeneric<Size>* vps, size_t channel)
     {
-        AdaptiveWaveTable* waveTable = vps->SetRight(m_randomWaveTable.PopWaveTable());
+        AdaptiveWaveTable* waveTable = vps->SetRight(channel, m_randomWaveTable.PopWaveTable());
         if (waveTable)
         {
             FreeWaveTable(waveTable);
         }
+    }
+
+    void SetLeft(VectorPhaseShaperInternal* vps)
+    {
+        SetLeft(vps, 0);
+    }
+
+    void SetRight(VectorPhaseShaperInternal* vps)
+    {
+        SetRight(vps, 0);
     }
 
     void FreeWaveTable(AdaptiveWaveTable* waveTable)
