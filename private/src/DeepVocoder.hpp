@@ -3,6 +3,7 @@
 #include "SnapshotUIState.hpp"
 #include "SpectralModel.hpp"
 #include "PhaseUtils.hpp"
+#include "SampleTimer.hpp"
 #include "TheNonagon.hpp"
 #include "AHD.hpp"
 #include <atomic>
@@ -54,8 +55,8 @@ struct DeepVocoder
         size_t m_numAtoms;
 
         Input()
-            : m_slewUp(0.1f * 48000.0f / x_H, 10.0f * 48000.0f / x_H)
-            , m_slewDown(0.5f * 48000.0f / x_H, 60.0f * 48000.0f / x_H)
+            : m_slewUp(SampleTimer::SecondsToHostSamples(0.1) / x_H, SampleTimer::SecondsToHostSamples(10.0) / x_H)
+            , m_slewDown(SampleTimer::SecondsToHostSamples(0.5) / x_H, SampleTimer::SecondsToHostSamples(60.0) / x_H)
             , m_enabled(false)
             , m_numAtoms(64)
         {

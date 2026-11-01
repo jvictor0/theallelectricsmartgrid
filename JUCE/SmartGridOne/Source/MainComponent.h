@@ -44,7 +44,7 @@ public:
         else
         {
             INFO("Audio format rejected: rate=%.0f frames=%d required_rate=%zu required_frames=%d",
-                sampleRate, samplesPerBlockExpected, SampleTimer::x_sampleRate, x_requiredBlockFrames);
+                sampleRate, samplesPerBlockExpected, SampleTimer::x_hostSampleRate, x_requiredBlockFrames);
         }
     }
 

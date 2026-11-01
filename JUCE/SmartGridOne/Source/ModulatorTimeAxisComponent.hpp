@@ -66,7 +66,7 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
         if (m_fallback)
         {
             double now = SmartGridOneModulatorHistory::GetLatestSample(*m_historyUIState);
-            return now < 0.0 ? ModulatorTimeAxis{} : ModulatorTimeAxis{now - SampleTimer::x_sampleRate, now};
+            return now < 0.0 ? ModulatorTimeAxis{} : ModulatorTimeAxis{now - SampleTimer::SecondsToSamples(1.0), now};
         }
 
         return SmartGridOneModulatorHistory::GetTimeAxis(*m_historyUIState, GetSource(voice));

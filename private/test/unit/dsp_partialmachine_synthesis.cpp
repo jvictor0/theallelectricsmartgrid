@@ -67,14 +67,14 @@ DOCTEST_TEST_CASE("PartialMachine shifted partials preserve pitch and magnitude 
         DOCTEST_CAPTURE(example.m_sourceBin);
         DOCTEST_CAPTURE(example.m_ratio);
         auto spectrum = RenderAtom(example.m_sourceBin, example.m_ratio);
-        float targetMagnitude = std::abs(spectrum.m_components[example.m_targetBin]);
+        float targetMagnitude = std::abs(spectrum.m_components[example.m_targetBin][0]);
         DOCTEST_CHECK(targetMagnitude > 0.07f);
         DOCTEST_CHECK(targetMagnitude < 0.08f);
         for (size_t bin = 1; bin < OLA::x_maxComponents; ++bin)
         {
             if (bin != static_cast<size_t>(example.m_targetBin))
             {
-                DOCTEST_REQUIRE(std::abs(spectrum.m_components[bin]) < 1e-4f);
+                DOCTEST_REQUIRE(std::abs(spectrum.m_components[bin][0]) < 1e-4f);
             }
         }
     }
@@ -84,8 +84,8 @@ DOCTEST_TEST_CASE("PartialMachine shifted unison keeps its center and detuned up
 {
     GlobalEnv::ResetPerTest();
     auto spectrum = RenderAtom(225, 2.0f, 1.0f);
-    float centerMagnitude = std::abs(spectrum.m_components[450]);
-    float upperMagnitude = std::abs(spectrum.m_components[477]);
+    float centerMagnitude = std::abs(spectrum.m_components[450][0]);
+    float upperMagnitude = std::abs(spectrum.m_components[477][0]);
     DOCTEST_CHECK(centerMagnitude > 0.032f);
     DOCTEST_CHECK(centerMagnitude < 0.035f);
     DOCTEST_CHECK(upperMagnitude > 0.065f);
@@ -108,7 +108,7 @@ DOCTEST_TEST_CASE("PartialMachine pitch ratio scales emitted phase while the acc
         PartialMachine::SynthesisContext context;
         context.ProcessAtom(atom, input);
         DOCTEST_CHECK(atom.m_synthesisPhase == doctest::Approx(accumulatedPhases[frame]));
-        auto component = context.m_dft.m_dfts[0].m_components[bins[frame]];
+        auto component = context.m_dft.m_dfts[0].m_components[bins[frame]][0];
         DOCTEST_REQUIRE(std::abs(component) > 0.01f);
         auto unit = component / std::abs(component);
         DOCTEST_CHECK(unit.real() == doctest::Approx(std::cos(2.0 * M_PI * phases[frame])).epsilon(1e-4));

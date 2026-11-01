@@ -88,8 +88,8 @@ struct LinkwitzRileyCrossover
         float q1 = 1.0f / (2.0f * std::cos(M_PI / 8.0f));
         float q2 = 1.0f / (2.0f * std::cos(3.0f * M_PI / 8.0f));
 
-        std::complex<float> lowPassResponse1 = BiquadSection::TransferFunction(cosw, sinw, q1, freq);
-        std::complex<float> lowPassResponse2 = BiquadSection::TransferFunction(cosw, sinw, q2, freq);
+        std::complex<float> lowPassResponse1 = BiquadSection::TransferFunction(cosw, sinw, q1, freq, false);
+        std::complex<float> lowPassResponse2 = BiquadSection::TransferFunction(cosw, sinw, q2, freq, false);
         std::complex<float> highPassResponse1 = BiquadSection::TransferFunction(cosw, sinw, q1, freq, true);
         std::complex<float> highPassResponse2 = BiquadSection::TransferFunction(cosw, sinw, q2, freq, true);
 

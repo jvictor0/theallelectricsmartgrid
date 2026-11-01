@@ -3,14 +3,14 @@
 
 namespace
 {
-using Amp = SquiggleBoyVoice::AmpSection;
+using Amp = SquiggleBoyTrack::AmpSection;
 using Encoders = SmartGridOneEncoders;
 
 struct SubAmpRig
 {
     Amp m_amp;
     Amp::Input m_input;
-    SquiggleBoyVoice::VoiceConfig m_config;
+    SquiggleBoyTrack::VoiceConfig m_config;
 
     SubAmpRig()
     {
@@ -166,7 +166,7 @@ DOCTEST_TEST_CASE("Sub: analyzer feed separates the shaped sub from main audio a
 {
     GlobalEnv::ResetPerTest();
     auto writer = std::make_unique<ScopeWriter>(1, static_cast<size_t>(SmartGridOne::AudioScopes::NumScopes));
-    auto voice = std::make_unique<SquiggleBoyVoice>();
+    auto voice = std::make_unique<SquiggleBoyTrack>();
     voice->SetupAudioScopeWriters(writer.get(), 0);
     SubAmpRig rig;
     rig.m_amp.m_scopeWriter = voice->m_amp.m_scopeWriter;

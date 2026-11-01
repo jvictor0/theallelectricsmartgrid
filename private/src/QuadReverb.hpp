@@ -7,6 +7,8 @@
 #include "Filter.hpp"
 #include "Saturator.hpp"
 #include "PhaseUtils.hpp"
+#include "SampleTimer.hpp"
+
 struct QuadReverb
 {
     struct PostFeedbackFilter
@@ -95,7 +97,7 @@ struct QuadReverb
     {
         SetAPFGain(0.6);
         SetAPFDelayTimes();
-        m_lfo.SetSlew(10.0 / 48000.0);
+        m_lfo.SetSlew(SampleTimer::HzToCycPerSamp(10.0));
     }
     
     struct Input
@@ -216,9 +218,9 @@ struct QuadReverbInputSetter
             m_delayTime[i] = PhaseUtils::ExpParam(60.0, 1024.0 * 60.0);
             m_dampingBase[i] = PhaseUtils::ExpParam(1.0 / 2048.0, 0.5);
             m_dampingWidth[i] = PhaseUtils::ExpParam(1.0, 2048.0);
-            m_modFreq[i] = PhaseUtils::ExpParam(0.05 / 48000.0, 1024.0 * 0.05 / 48000.0);
-            m_delayTimeFilter[i].SetAlphaFromNatFreq(1.0 / 48000.0);
-            m_modDepthFilter[i].SetAlphaFromNatFreq(1.0 / 48000.0);
+            m_modFreq[i] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05));
+            m_delayTimeFilter[i].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
+            m_modDepthFilter[i].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
             m_feedback[i].SetBaseByCenter(0.25);
         }
     }

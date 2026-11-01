@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cmath>
+#include "SampleTimer.hpp"
+
 struct Blink
 {
     bool m_blink;
@@ -13,7 +16,7 @@ struct Blink
 
     void Process()
     {
-        m_time += 1.0 / 48000.0;
+        m_time += SampleTimer::x_samplePeriod;
         if (1.0 <= m_time)
         {
             m_time -= 1.0;

@@ -12,8 +12,8 @@
 template <size_t Bits, typename ParameterProvider>
 struct SpectralModelGeneric
 {
-    typedef BasicWaveTableGeneric<Bits> Buffer;
-    typedef DiscreteFourierTransformGeneric<Bits> DFT;
+    typedef BasicWaveTableGeneric<float, 1, Bits> Buffer;
+    typedef DiscreteFourierTransformGeneric<float, 1, Bits> DFT;
     typedef typename ParameterProvider::Index ParameterIndex;
     typedef typename ParameterProvider::Parameter Parameter;
     static constexpr size_t x_tableSize = Buffer::x_tableSize;
@@ -354,7 +354,7 @@ struct SpectralModelGeneric
         float mags[x_maxComponents];
         for (size_t i = 1; i < x_maxComponents; ++i)
         {
-            mags[i] = std::abs(dft.m_components[i]);            
+            mags[i] = std::abs(dft.m_components[i][0]);            
         }
 
         // Locate each peak, fit its coefficient, and subtract it from the DFT.
@@ -393,7 +393,7 @@ struct SpectralModelGeneric
                 for (int bin = firstBin; bin <= lastBin; ++bin)
                 {
                     auto kernel = MathGeneric<Bits>::HannKernel(exactBin - static_cast<float>(bin));
-                    projection += std::conj(kernel) * dft.m_components[bin];
+                    projection += std::conj(kernel) * dft.m_components[bin][0];
                     kernelEnergy += std::norm(kernel);
                 }
 
@@ -758,7 +758,7 @@ struct SpectralModelGeneric
         typename ResidualModel::Input residualInput;
         for (size_t i = 0; i < ResidualModel::x_numBuckets; ++i)
         {
-            residualInput.m_analysisResidualMagnitudes[i] = std::abs(dft.m_components[i]);
+            residualInput.m_analysisResidualMagnitudes[i] = std::abs(dft.m_components[i][0]);
         }
 
         m_residualModel.Process(input, residualInput);

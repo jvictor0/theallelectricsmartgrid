@@ -49,7 +49,7 @@ struct QuadDelay
         , m_saturator(0.5f)
         , m_output()
     {
-        m_lfo.SetSlew(10.0 / 48000.0);
+        m_lfo.SetSlew(SampleTimer::HzToCycPerSamp(10.0));
     }
     
     struct Input
@@ -260,9 +260,9 @@ struct QuadDelayInputSetter
         {
             m_dampingBase[i] = PhaseUtils::ExpParam(1.0 / 2048.0, 0.5);
             m_dampingWidth[i] = PhaseUtils::ExpParam(1.0, 2048.0);
-            m_modFreq[i] = PhaseUtils::ExpParam(0.05 / 48000.0, 1024.0 * 0.05 / 48000.0);
-            m_modDepthFilter[i].SetAlphaFromNatFreq(1.0 / 48000.0);
-            m_rotateFilter[i].SetAlphaFromNatFreq(1.0 / 48000.0);
+            m_modFreq[i] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05));
+            m_modDepthFilter[i].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
+            m_rotateFilter[i].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
             m_feedback[i].SetBaseByCenter(0.25);
 
             m_unisonDetune[i] = PhaseUtils::ExpParam(1.03);

@@ -95,13 +95,13 @@ DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequen
         juce::Graphics spectrumGraphics(spectrum);
         analyser.Draw(spectrumGraphics, spectrum.getBounds());
 
-        PeakedResponse response(frequency / SquiggleBoyVoice::x_oversample);
+        PeakedResponse response(frequency / SquiggleBoyTrack::x_oversample);
         PathDrawer drawer(400, 1024, 0, 0);
         drawer.m_logX = logX;
         juce::Image transfer(juce::Image::ARGB, 1024, 400, true);
         juce::Graphics transferGraphics(transfer);
         drawer.DrawFrequencyResponse(transferGraphics, juce::Colours::white, response,
-            1.0f / SquiggleBoyVoice::x_oversample);
+            1.0f / SquiggleBoyTrack::x_oversample);
 
         float spectrumX = FindPeakX(spectrum, [](juce::Colour pixel)
         {
@@ -150,7 +150,7 @@ DOCTEST_TEST_CASE("Analyser: sub spectrum follows the trio and ignores the main 
         size_t peak = 0;
         for (size_t bin = 1; bin < DiscreteFourierTransform::x_maxComponents; ++bin)
         {
-            if (std::abs(components[bin]) > std::abs(components[peak]))
+            if (std::abs(components[bin][0]) > std::abs(components[peak][0]))
             {
                 peak = bin;
             }
@@ -219,7 +219,7 @@ DOCTEST_TEST_CASE("Quad analyser: mix draws five separate colored spectra withou
             size_t peak = 0;
             for (size_t bin = 1; bin < DiscreteFourierTransform::x_maxComponents; ++bin)
             {
-                if (std::abs(components[bin]) > std::abs(components[peak]))
+                if (std::abs(components[bin][0]) > std::abs(components[peak][0]))
                 {
                     peak = bin;
                 }

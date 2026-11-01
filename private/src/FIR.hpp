@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Math.hpp"
+#include "SampleTimer.hpp"
 #include "Slew.hpp"
 #include "TransferFunction.hpp"
 #include <algorithm>
@@ -79,7 +80,7 @@ struct FIR
         //
         for (size_t i = 0; i < Size; ++i)
         {
-            m_tapSlew[i].SetAlphaFromNatFreq((1000.0f / 48000.0f) / x_oversample);
+            m_tapSlew[i].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1000.0) / x_oversample);
             m_tapSlew[i].m_output = 0.0f;
         }
 

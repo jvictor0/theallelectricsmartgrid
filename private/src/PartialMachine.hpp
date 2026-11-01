@@ -258,7 +258,7 @@ struct PartialMachine
 
     struct InputSetter
     {
-        static constexpr float x_hopSeconds = static_cast<float>(SpectralModel::x_H) / static_cast<float>(SampleTimer::x_sampleRate);
+        static constexpr float x_hopSeconds = static_cast<float>(SpectralModel::x_H) / static_cast<float>(SampleTimer::x_hostSampleRate);
         static constexpr size_t x_numAtoms = 256;
 
         struct Input

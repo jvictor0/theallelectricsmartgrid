@@ -1461,7 +1461,7 @@ struct TheNonagonSmartGrid
         {
             uiState->SetGate(i, m_nonagon.m_multiPhasorGate.m_gate[i]);
             uiState->SetMuted(i, m_state.m_trigLogic.m_mute[i]);
-            float cyclesPerSample = PhaseUtils::VOctToNatural(m_nonagon.m_output.m_voltPerOct[i], 1.0 / 48000.0);
+            float cyclesPerSample = PhaseUtils::VOctToNatural(m_nonagon.m_output.m_voltPerOct[i], SampleTimer::x_samplePeriod);
             uiState->SetCyclesPerSamplePitch(i, cyclesPerSample);
             for (size_t axis = 0; axis < TheNonagonInternal::x_numExtraTimbres; ++axis)
             {

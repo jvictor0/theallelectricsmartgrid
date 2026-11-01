@@ -18,7 +18,7 @@ struct ParamEventLogger
     {
         if (m_recorder->IsRecording())
         {
-            const size_t sample = SampleTimer::GetSample() - m_recorder->m_recordingStartSample;
+            const size_t sample = SampleTimer::GetHostSample() - m_recorder->m_recordingStartSample;
             m_recorder->RecordParamEvent(ParamEvent::MkPatch(arena, restoreFaders, snapshot, sample));
         }
     }
@@ -27,7 +27,7 @@ struct ParamEventLogger
     {
         if (!m_suspended && m_recorder->GetState() == StreamingRecorder::State::Recording)
         {
-            size_t sample = SampleTimer::GetSample() - m_recorder->m_recordingStartSample;
+            size_t sample = SampleTimer::GetHostSample() - m_recorder->m_recordingStartSample;
             m_recorder->RecordParamEvent(ParamEvent::MkStateChange(state, scene, sample));
         }
     }
@@ -36,7 +36,7 @@ struct ParamEventLogger
     {
         if (!m_suspended && m_recorder->GetState() == StreamingRecorder::State::Recording)
         {
-            size_t sample = SampleTimer::GetSample() - m_recorder->m_recordingStartSample;
+            size_t sample = SampleTimer::GetHostSample() - m_recorder->m_recordingStartSample;
             m_recorder->RecordParamEvent(ParamEvent::MkGestureSet(static_cast<int>(faderIndex), value, sample));
         }
     }
@@ -45,7 +45,7 @@ struct ParamEventLogger
     {
         if (!m_suspended && m_recorder->GetState() == StreamingRecorder::State::Recording)
         {
-            size_t sample = SampleTimer::GetSample() - m_recorder->m_recordingStartSample;
+            size_t sample = SampleTimer::GetHostSample() - m_recorder->m_recordingStartSample;
             m_recorder->RecordParamEvent(ParamEvent::MkBlendSet(value, sample));
         }
     }
@@ -54,7 +54,7 @@ struct ParamEventLogger
     {
         if (!m_suspended && m_recorder->GetState() == StreamingRecorder::State::Recording)
         {
-            size_t sample = SampleTimer::GetSample() - m_recorder->m_recordingStartSample;
+            size_t sample = SampleTimer::GetHostSample() - m_recorder->m_recordingStartSample;
             m_recorder->RecordParamEvent(ParamEvent::MkEncoderSet(stateEncoderCell, scene, sample));
         }
     }
@@ -63,7 +63,7 @@ struct ParamEventLogger
     {
         if (!m_suspended && m_recorder->GetState() == StreamingRecorder::State::Recording)
         {
-            size_t sample = SampleTimer::GetSample() - m_recorder->m_recordingStartSample;
+            size_t sample = SampleTimer::GetHostSample() - m_recorder->m_recordingStartSample;
             m_recorder->RecordParamEvent(ParamEvent::MkEncoderActivate(cell, scene, sample));
         }
     }

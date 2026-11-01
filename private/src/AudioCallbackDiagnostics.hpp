@@ -39,6 +39,6 @@ struct AudioCallbackDiagnostics
 
     static bool CanRender(double sampleRate)
     {
-        return sampleRate == static_cast<double>(SampleTimer::x_sampleRate);
+        return sampleRate == static_cast<double>(SampleTimer::x_hostSampleRate);
     }
 };

@@ -4,6 +4,7 @@
 #include <cassert>
 #include "AsyncLogger.hpp"
 #include "MultiChannelNumber.hpp"
+#include "SampleTimer.hpp"
 
 namespace PhaseUtils
 {
@@ -185,7 +186,7 @@ struct SimpleOsc
 
     SimpleOsc()
         : m_phase(0)
-        , m_phaseDelta(0.025f / 44100.0f, 1.0f / 44100.0f)
+        , m_phaseDelta(SampleTimer::HzToCycPerSamp(0.025), SampleTimer::HzToCycPerSamp(1.0))
     {
     }
 

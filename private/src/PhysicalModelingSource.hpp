@@ -127,7 +127,7 @@ struct PhysicalModelingSource
         float m_combDamp;
 
         Input()
-            : m_baseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
+            : m_baseFreq(PhaseUtils::VOctToNatural(0.0, SampleTimer::x_samplePeriod))
             , m_mainSVFCutoff(0.001f, 0.499f)
             , m_mainSVFMorph(0.5f)
             // Headroom lets the parameter slew reach the full-rate bypass.
@@ -174,7 +174,7 @@ struct PhysicalModelingSource
             input.m_baseFreq / x_oversample,
             input.m_combFeedback,
             input.m_combDamp,
-            48000.0 * x_oversample);
+            static_cast<double>(SampleTimer::x_sampleRate * x_oversample));
 
         for (size_t i = 0; i < x_uBlockSize; ++i)
         {

@@ -3,18 +3,18 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include "SampleTimer.hpp"
 
 struct Phasor2Tick
 {
     // MIDI clock: 24 pulses per quarter note (PPQN)
-    // 90 BPM = 36 Hz = 36/48000 cycles per sample
-    // 180 BPM = 72 Hz = 72/48000 cycles per sample
-    // Target: 135 BPM = 54 Hz = 54/48000 cycles per sample (middle of range)
+    // 90 BPM = 36 Hz
+    // 180 BPM = 72 Hz
+    // Target: 135 BPM = 54 Hz (middle of range)
     //
-    static constexpr double x_sampleRate = 48000.0;
-    static constexpr double x_targetTickFreq = 54.0 / x_sampleRate;
-    static constexpr double x_minTickFreq = 36.0 / x_sampleRate;
-    static constexpr double x_maxTickFreq = 72.0 / x_sampleRate;
+    static constexpr double x_targetTickFreq = SampleTimer::HzToCycPerSamp(54.0);
+    static constexpr double x_minTickFreq = SampleTimer::HzToCycPerSamp(36.0);
+    static constexpr double x_maxTickFreq = SampleTimer::HzToCycPerSamp(72.0);
 
     size_t m_divisions;
     double m_lastPhase;

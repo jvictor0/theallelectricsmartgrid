@@ -6,265 +6,229 @@
 #include "Saturator.hpp"
 #include "StereoUtils.hpp"
 #include "QuadUtils.hpp"
+#include "SampleTimer.hpp"
 
-struct Meter
+template <typename Number, size_t Size>
+struct MeterGeneric
 {
-    static constexpr float x_smoothingAlphaDown = 0.0002;
-    static constexpr float x_smoothingAlphaUp = 0.0008;
-    static constexpr float x_smoothingAlphaReduction = 0.0005;
-    static constexpr float x_peakSmoothingAlpha = 0.00005;
+    using Vector = MultiChannelNumber<Number, Size>;
 
-    static constexpr size_t x_peakHistorySize = 48000;
+    static constexpr Number x_smoothingAlphaDown = static_cast<Number>(0.0002);
+    static constexpr Number x_smoothingAlphaUp = static_cast<Number>(0.0008);
+    static constexpr Number x_smoothingAlphaReduction = static_cast<Number>(0.0005);
+    static constexpr Number x_peakSmoothingAlpha = static_cast<Number>(0.00005);
+    static constexpr Number x_floor = static_cast<Number>(0.00000000001);
 
-    float m_rms;
-    float m_peak;
-    float m_reduction;
-    size_t m_samplesSincePeak;
+    static constexpr size_t x_peakHistorySize = SampleTimer::x_hostSampleRate;
 
-    Meter()
-        : m_rms(0.0f)
-        , m_peak(0.0f)
-        , m_reduction(1.0f)
-        , m_samplesSincePeak(0)
+    Vector m_rms;
+    Vector m_peak;
+    Vector m_reduction;
+    size_t m_samplesSincePeak[Size];
+
+    MeterGeneric()
+        : m_rms(Vector::Splat(0))
+        , m_peak(Vector::Splat(0))
+        , m_reduction(Vector::Splat(1))
+        , m_samplesSincePeak{}
     {
     }
 
-    void Process(float input)
+    void Process(const Vector& input)
     {
-        float inputSquared = input * input;
-        if (m_rms < inputSquared)
+        Vector inputSquared = input * input;
+        Vector magnitude = input.Abs();
+        for (size_t i = 0; i < Size; ++i)
         {
-            m_rms = m_rms * (1 - x_smoothingAlphaUp) + inputSquared * x_smoothingAlphaUp;
-        }
-        else
-        {
-            m_rms = m_rms * (1 - x_smoothingAlphaDown) + inputSquared * x_smoothingAlphaDown;
-        }
+            Number alpha = m_rms[i] < inputSquared[i] ? x_smoothingAlphaUp : x_smoothingAlphaDown;
+            m_rms[i] = m_rms[i] * (1 - alpha) + inputSquared[i] * alpha;
 
-        if (m_peak < std::abs(input))
-        {
-            m_peak = std::abs(input);
-            m_samplesSincePeak = 0;
-        }
-        else if (m_samplesSincePeak < x_peakHistorySize)
-        {
-            m_samplesSincePeak++;
-        }
-        else
-        {
-            m_peak = m_peak * (1 - x_peakSmoothingAlpha) + std::abs(input) * x_peakSmoothingAlpha;
+            if (m_peak[i] < magnitude[i])
+            {
+                m_peak[i] = magnitude[i];
+                m_samplesSincePeak[i] = 0;
+            }
+            else if (m_samplesSincePeak[i] < x_peakHistorySize)
+            {
+                m_samplesSincePeak[i]++;
+            }
+            else
+            {
+                m_peak[i] = m_peak[i] * (1 - x_peakSmoothingAlpha) + magnitude[i] * x_peakSmoothingAlpha;
+            }
         }
     }
 
-    void ProcessReduction(float reduction)
+    void ProcessReduction(const Vector& reduction)
     {
         m_reduction = m_reduction * (1 - x_smoothingAlphaReduction) + reduction * x_smoothingAlphaReduction;
     }
 
-    float ProcessAndSaturate(float input, float* reduction)
+    Vector ProcessAndSaturate(const Vector& input, Vector* reduction)
     {
-        float output = TanhSaturator<false>::Tanh(input);
+        Vector output = TanhSaturatorGeneric<Number, Size, false>::Tanh(input);
         Process(output);
-        *reduction = std::max(0.00000000001f, std::abs(output)) / std::max(0.00000000001f, std::abs(input));
+        Vector floor = Vector::Splat(x_floor);
+        *reduction = Vector::Max(floor, output.Abs()) / Vector::Max(floor, input.Abs());
         ProcessReduction(*reduction);
         return output;
     }
 
-    float ProcessAndSaturate(float input)
+    Vector ProcessAndSaturate(const Vector& input)
     {
-        float reduction;
+        Vector reduction;
         return ProcessAndSaturate(input, &reduction);
     }
 
-    static float GetRMSDbFS(float rms)
+    static Number GetRMSDbFS(Number rms)
     {
-        return 10 * std::log10(std::max(0.00000000001f, rms));
+        return 10 * std::log10(std::max(x_floor, rms));
     }
 
-    static float GetPeakDbFS(float peak)
+    static Number GetPeakDbFS(Number peak)
     {
-        return 20 * std::log10(std::max(0.00000000001f, peak));
+        return 20 * std::log10(std::max(x_floor, peak));
     }
 };
 
-struct MeterReader
+// Publishes a meter's per-channel levels to the UI thread. The channel-free
+// getters read the only channel of a mono reader.
+//
+template <typename Number, size_t Size>
+struct MeterReaderGeneric
 {
+    using Meter = MeterGeneric<Number, Size>;
+
     Meter* m_meter;
 
-    std::atomic<float> m_rms;
-    std::atomic<float> m_peak;
-    std::atomic<float> m_reduction;
+    std::atomic<Number> m_rms[Size];
+    std::atomic<Number> m_peak[Size];
+    std::atomic<Number> m_reduction[Size];
 
-    MeterReader()
-      : m_meter(nullptr)
-      , m_rms(0.0f)
-      , m_peak(0.0f)
-      , m_reduction(0.0f)
+    MeterReaderGeneric()
+        : MeterReaderGeneric(nullptr)
     {
     }
 
-    MeterReader(Meter* meter)
-      : m_meter(meter)
-      , m_rms(0.0f)
-      , m_peak(0.0f)
-      , m_reduction(0.0f)
-    {
-    }
-    
-    void Process()
-    {
-        m_rms.store(m_meter->m_rms);
-        m_peak.store(m_meter->m_peak);
-        m_reduction.store(m_meter->m_reduction);
-    }
-
-    float GetRMSDbFS() const
-    {
-        return Meter::GetRMSDbFS(m_rms.load());
-    }
-    
-    float GetPeakDbFS() const
-    {
-        return Meter::GetPeakDbFS(m_peak.load());
-    }
-
-    float GetReductionDbFS() const
-    {
-        return Meter::GetPeakDbFS(m_reduction.load());
-    }
-
-    float GetRMSLinear() const
-    {
-        return m_rms.load();
-    }
-
-    float GetPeakLinear() const
-    {
-        return m_peak.load();
-    }
-
-    float GetRMSDbFSNormalized() const
-    {
-        return std::max(0.0f, (60.0f + GetRMSDbFS()) / 60.0f);
-    }
-
-    float GetPeakDbFSNormalized() const
-    {
-        return std::max(0.0f, (60.0f + GetPeakDbFS()) / 60.0f);
-    }
-
-    float GetReductionDbFSNormalized() const
-    {
-        return std::max(0.0f, (12.0f + GetReductionDbFS()) / 12.0f);
-    }
-};
-
-template<size_t Size>
-struct MultichannelMeter
-{
-    Meter m_meters[Size];
-
-    MultichannelMeter()
-    {
-    }
-    
-    void Process(MultiChannelFloat<Size> input)
+    MeterReaderGeneric(Meter* meter)
+        : m_meter(meter)
     {
         for (size_t i = 0; i < Size; ++i)
         {
-            m_meters[i].Process(input[i]);
+            m_rms[i].store(0);
+            m_peak[i].store(0);
+            m_reduction[i].store(0);
         }
     }
 
-    MultiChannelFloat<Size> ProcessAndSaturate(MultiChannelFloat<Size> input)
+    void SetMeter(Meter* meter)
     {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            input[i] = m_meters[i].ProcessAndSaturate(input[i]);
-        }
-        return input;
-    }
-};
-
-template<size_t Size>
-struct MultichannelMeterReader
-{
-    MultichannelMeter<Size>* m_meter;
-
-    MeterReader m_meterReaders[Size];
-
-    MultichannelMeterReader()
-      : m_meter(nullptr)
-
-    {
-    }
-
-    MultichannelMeterReader(MultichannelMeter<Size>* meter)
-    {
-        SetMeterReaders(meter);
-    }
-
-    void SetMeterReaders(MultichannelMeter<Size>* meter)
-    {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_meterReaders[i].m_meter = &meter->m_meters[i];
-        }
-
         m_meter = meter;
     }
-    
+
     void Process()
     {
         for (size_t i = 0; i < Size; ++i)
         {
-            m_meterReaders[i].Process();
+            m_rms[i].store(m_meter->m_rms[i]);
+            m_peak[i].store(m_meter->m_peak[i]);
+            m_reduction[i].store(m_meter->m_reduction[i]);
         }
     }
 
-    float GetRMSDbFS(size_t i) const
+    Number GetRMSDbFS(size_t i) const
     {
-        return m_meterReaders[i].GetRMSDbFS();
-    }
-    
-    float GetPeakDbFS(size_t i) const
-    {
-        return m_meterReaders[i].GetPeakDbFS();
+        return Meter::GetRMSDbFS(m_rms[i].load());
     }
 
-    float GetReductionDbFS(size_t i) const
+    Number GetPeakDbFS(size_t i) const
     {
-        return m_meterReaders[i].GetReductionDbFS();
+        return Meter::GetPeakDbFS(m_peak[i].load());
     }
 
-    float GetRMSLinear(size_t i) const
+    Number GetReductionDbFS(size_t i) const
     {
-        return m_meterReaders[i].GetRMSLinear();
+        return Meter::GetPeakDbFS(m_reduction[i].load());
     }
 
-    float GetPeakLinear(size_t i) const
+    Number GetRMSLinear(size_t i) const
     {
-        return m_meterReaders[i].GetPeakLinear();
+        return m_rms[i].load();
     }
 
-    float GetRMSDbFSNormalized(size_t i) const
+    Number GetPeakLinear(size_t i) const
     {
-        return m_meterReaders[i].GetRMSDbFSNormalized();
+        return m_peak[i].load();
     }
 
-    float GetPeakDbFSNormalized(size_t i) const
+    Number GetRMSDbFSNormalized(size_t i) const
     {
-        return m_meterReaders[i].GetPeakDbFSNormalized();
+        return std::max<Number>(0, (60 + GetRMSDbFS(i)) / 60);
     }
 
-    float GetReductionDbFSNormalized(size_t i) const
+    Number GetPeakDbFSNormalized(size_t i) const
     {
-        return m_meterReaders[i].GetReductionDbFSNormalized();
+        return std::max<Number>(0, (60 + GetPeakDbFS(i)) / 60);
+    }
+
+    Number GetReductionDbFSNormalized(size_t i) const
+    {
+        return std::max<Number>(0, (12 + GetReductionDbFS(i)) / 12);
+    }
+
+    Number GetRMSDbFS() const
+    {
+        static_assert(Size == 1, "channel-free getters require one channel");
+        return GetRMSDbFS(0);
+    }
+
+    Number GetPeakDbFS() const
+    {
+        static_assert(Size == 1, "channel-free getters require one channel");
+        return GetPeakDbFS(0);
+    }
+
+    Number GetReductionDbFS() const
+    {
+        static_assert(Size == 1, "channel-free getters require one channel");
+        return GetReductionDbFS(0);
+    }
+
+    Number GetRMSLinear() const
+    {
+        static_assert(Size == 1, "channel-free getters require one channel");
+        return GetRMSLinear(0);
+    }
+
+    Number GetPeakLinear() const
+    {
+        static_assert(Size == 1, "channel-free getters require one channel");
+        return GetPeakLinear(0);
+    }
+
+    Number GetRMSDbFSNormalized() const
+    {
+        static_assert(Size == 1, "channel-free getters require one channel");
+        return GetRMSDbFSNormalized(0);
+    }
+
+    Number GetPeakDbFSNormalized() const
+    {
+        static_assert(Size == 1, "channel-free getters require one channel");
+        return GetPeakDbFSNormalized(0);
+    }
+
+    Number GetReductionDbFSNormalized() const
+    {
+        static_assert(Size == 1, "channel-free getters require one channel");
+        return GetReductionDbFSNormalized(0);
     }
 };
 
-typedef MultichannelMeter<2> StereoMeter;
-typedef MultichannelMeter<4> QuadMeter;
+using Meter = MeterGeneric<float, 1>;
+using StereoMeter = MeterGeneric<float, 2>;
+using QuadMeter = MeterGeneric<float, 4>;
 
-typedef MultichannelMeterReader<2> StereoMeterReader;
-typedef MultichannelMeterReader<4> QuadMeterReader;
+using MeterReader = MeterReaderGeneric<float, 1>;
+using StereoMeterReader = MeterReaderGeneric<float, 2>;
+using QuadMeterReader = MeterReaderGeneric<float, 4>;

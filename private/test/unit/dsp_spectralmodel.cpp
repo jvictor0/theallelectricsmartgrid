@@ -545,8 +545,8 @@ DOCTEST_TEST_CASE("SpectralModel analysis reports sinusoid phase at the start of
             double residualEnergy = 0;
             for (size_t k = 1; k < Model::x_maxComponents; ++k)
             {
-                originalEnergy += std::norm(spectrum.m_components[k]);
-                residualEnergy += std::norm(residual.m_components[k]);
+                originalEnergy += std::norm(spectrum.m_components[k][0]);
+                residualEnergy += std::norm(residual.m_components[k][0]);
             }
 
             double maxFraction = bin == 32.0f ? 1e-7 : 0.002;
@@ -615,9 +615,9 @@ DOCTEST_TEST_CASE("SpectralModel analysis leaves the residual in the DFT for ove
                 double differenceEnergy = 0.0;
                 for (size_t k = 1; k < Model::x_maxComponents; ++k)
                 {
-                    originalEnergy += std::norm(spectrum.m_components[k]);
-                    residualEnergy += std::norm(residual.m_components[k]);
-                    double difference = std::abs(residual.m_components[k]) - model.m_residualModel.GetEnvelope(k);
+                    originalEnergy += std::norm(spectrum.m_components[k][0]);
+                    residualEnergy += std::norm(residual.m_components[k][0]);
+                    double difference = std::abs(residual.m_components[k][0]) - model.m_residualModel.GetEnvelope(k);
                     differenceEnergy += difference * difference;
                 }
 
@@ -656,7 +656,7 @@ DOCTEST_TEST_CASE("SpectralModel residual extraction cancels Hann-windowed tones
             double residualEnergy = 0;
             for (size_t k = 1; k < Model::x_maxComponents; ++k)
             {
-                originalEnergy += std::norm(raw.m_components[k]);
+                originalEnergy += std::norm(raw.m_components[k][0]);
                 double magnitude = model.m_residualModel.GetEnvelope(k);
                 residualEnergy += magnitude * magnitude;
             }
@@ -694,7 +694,7 @@ DOCTEST_TEST_CASE("SpectralModel residual subtraction never adds energy to nearb
             double residualEnergy = 0;
             for (size_t bin = 1; bin < Model::x_maxComponents; ++bin)
             {
-                originalEnergy += std::norm(raw.m_components[bin]);
+                originalEnergy += std::norm(raw.m_components[bin][0]);
                 double magnitude = model.m_residualModel.GetEnvelope(bin);
                 residualEnergy += magnitude * magnitude;
             }

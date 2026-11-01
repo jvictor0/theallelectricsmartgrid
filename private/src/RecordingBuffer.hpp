@@ -170,7 +170,7 @@ struct RecordingBuffer
         }
 
         auto writer = std::make_unique<MultichannelWavWriter>();
-        writer->Open(1, std::string(filename), static_cast<uint32_t>(SampleTimer::x_sampleRate));
+        writer->Open(1, std::string(filename), static_cast<uint32_t>(SampleTimer::x_hostSampleRate));
 
         double loopFraction = 1.0 / static_cast<double>(numRepeats);
         double outputSamplesPerGlobalCycle = static_cast<double>(globalSamples);

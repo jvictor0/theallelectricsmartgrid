@@ -8,7 +8,7 @@
 
 struct ExternalClockSync
 {
-    static constexpr double x_defaultFreqOut = 1.0 / static_cast<double>(SampleTimer::x_sampleRate);
+    static constexpr double x_defaultFreqOut = SampleTimer::HzToCycPerSamp(1.0);
 
     enum class State
     {
