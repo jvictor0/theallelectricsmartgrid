@@ -2,90 +2,84 @@
 #include "Slew.hpp"
 #include "Filter.hpp"
 #include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 #include "PhaseUtils.hpp"
 #include "Saturator.hpp"
 
-struct LissajousLFOInternal
-{    
+template <size_t Size>
+struct LissajousLFOGeneric
+{
+    using Vector = MultiChannelNumber<float, Size>;
+    using Saturator = TanhSaturatorGeneric<float, Size, false>;
+
     struct Input
     {
         static constexpr float x_maxRadius = 5.0f;
         static constexpr float x_centerRadius = 1.0f;
 
-        float m_multX;
-        float m_multY;
+        Vector m_multX;
+        Vector m_multY;
 
-        float m_centerX;
-        float m_centerY;
+        Vector m_centerX;
+        Vector m_centerY;
 
-        float m_phaseShift;
+        Vector m_phaseShift;
 
-        PhaseUtils::ZeroedExpParam m_radius;
-        TanhSaturator<false> m_saturator;
+        PhaseUtils::ZeroedExpParamGeneric<float, Size> m_radius;
 
         Input()
-            : m_multX(1.0f)
-            , m_multY(1.0f)
-            , m_centerX(0)
-            , m_centerY(0)
-            , m_phaseShift(0.0f)
+            : m_multX(Vector::Splat(1))
+            , m_multY(Vector::Splat(1))
+            , m_centerX(Vector::Splat(0))
+            , m_centerY(Vector::Splat(0))
+            , m_phaseShift(Vector::Splat(0))
         {
             m_radius.SetMax(x_maxRadius);
             m_radius.SetBaseByCenter(x_centerRadius / x_maxRadius);
-            m_radius.Update(0.5f);
+            m_radius.Update(Vector::Splat(0.5f));
         }
 
-        std::pair<float, float> Compute(float t)
+        // Past the last whole cycle the partial cycle is stretched to full
+        // length and scaled down by its fraction.
+        //
+        static Vector Wrap(const Vector& t, const Vector& mult, Vector& amp)
         {
-            float ampX = 1;
-            float ampY = 1;
-            t += m_phaseShift;
-            float tx = (t + 0.25 - std::floorf(t + 0.25)) * m_multX;
-            float ty = (t - std::floorf(t)) * m_multY;
-            float floorMultX = std::floorf(m_multX);
-            float floorMultY = std::floorf(m_multY);
+            Vector floorMult = mult.Floor();
+            Vector partialAmp = mult - floorMult;
+            amp = Vector::IfLess(floorMult, t, partialAmp, Vector::Splat(1));
+            return Vector::IfLess(floorMult, t, (t - floorMult) / partialAmp, t - t.Floor());
+        }
 
-            if (floorMultX < tx)
-            {
-                ampX = m_multX - floorMultX;
-                tx = (tx - floorMultX) / ampX;
-            }
-            else
-            {
-                tx = tx - std::floorf(tx);
-            }
+        void Compute(const Vector& phase, Vector& outX, Vector& outY) const
+        {
+            Vector t = phase + m_phaseShift;
+            Vector shiftedX = t + 0.25f;
+            Vector ampX;
+            Vector ampY;
+            Vector tx = Wrap((shiftedX - shiftedX.Floor()) * m_multX, m_multX, ampX);
+            Vector ty = Wrap((t - t.Floor()) * m_multY, m_multY, ampY);
 
-            if (floorMultY < ty)
-            {
-                ampY = m_multY - floorMultY;
-                ty = (ty - floorMultY) / ampY;
-            }
-            else
-            {
-                ty = ty - std::floorf(ty);
-            }
-
-            float rad = m_radius.m_expParam;
-            return std::make_pair(
-                m_saturator.Process(rad * ampX * Math::Sin2pi(tx) + (1 - rad / x_maxRadius) * m_centerX),
-                m_saturator.Process(rad * ampY * Math::Sin2pi(ty) + (1 - rad / x_maxRadius) * m_centerY));
+            Vector rad = m_radius.m_expParam;
+            Vector centerWeight = Vector::Splat(1) - rad / x_maxRadius;
+            outX = Saturator::Tanh(rad * ampX * Math::Sin2pi(tx) + centerWeight * m_centerX);
+            outY = Saturator::Tanh(rad * ampY * Math::Sin2pi(ty) + centerWeight * m_centerY);
         }
     };
 
-    LissajousLFOInternal()
-        : m_outputX(0.0f)
-        , m_outputY(0.0f)
+    LissajousLFOGeneric()
+        : m_outputX(Vector::Splat(0))
+        , m_outputY(Vector::Splat(0))
     {
     }
-    
-    float m_outputX;
-    float m_outputY;
 
-    void Process(float in, Input& input)
+    Vector m_outputX;
+    Vector m_outputY;
+
+    void Process(const Vector& in, const Input& input)
     {
-        std::pair<float, float> out = input.Compute(in);
-        m_outputX = out.first;
-        m_outputY = out.second;
+        input.Compute(in, m_outputX, m_outputY);
     }
 };
 
+using LissajousLFOInternal = LissajousLFOGeneric<1>;
+using TrioLissajousLFO = LissajousLFOGeneric<3>;

@@ -1,6 +1,7 @@
 #include "doctest.h"
 #include "PhysicalModelingSource.hpp"
 #include <cmath>
+#include <memory>
 
 namespace
 {
@@ -8,22 +9,31 @@ namespace
 struct PhysicalEnvelopeRig
 {
     TheoryOfTimeBase m_time;
-    PhysicalModelingSource m_source;
+    std::unique_ptr<PhysicalModelingSource> m_source;
     PhysicalModelingSource::Input m_input;
 
     PhysicalEnvelopeRig(float attackSeconds, float decaySeconds)
+        : m_source(std::make_unique<PhysicalModelingSource>(42))
     {
-        m_input.m_ahdInput.m_theoryOfTime = &m_time;
-        m_input.SetAHD(
+        m_input.m_ahdInput.SetTheoryOfTime(&m_time);
+        m_source->m_ahdInputSetter.Set(
             std::log(attackSeconds / 0.0001f) / std::log(2.5f / 0.0001f),
             0.0f,
             std::log(decaySeconds / 0.0005f) / std::log(2.5f / 0.0005f),
-            1.0f);
+            1.0f,
+            false,
+            m_input.m_ahdInput);
         SetClock(0.0);
-        for (size_t block = 0; block < 128; ++block)
-        {
-            m_source.ProcessUBlock(m_input);
-        }
+    }
+
+    AHD& Envelope()
+    {
+        return m_source->m_ahd.m_channels[0];
+    }
+
+    AHD::Input& EnvelopeInput()
+    {
+        return m_input.m_ahdInput.m_channels[0];
     }
 
     void SetClock(double baseSample)
@@ -36,98 +46,109 @@ struct PhysicalEnvelopeRig
         }
     }
 
+    // One control frame of samples, at positions 0 through 7.
+    //
+    void ProcessFrame()
+    {
+        for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
+        {
+            m_input.m_ahdInput.SetSamplePosition(static_cast<float>(i));
+            m_source->ProcessWithAHD(m_input);
+        }
+    }
+
     void Trigger()
     {
         AHD::AHDControl control;
         control.m_trig = true;
-        m_input.m_ahdInput.Set(control);
+        m_input.m_ahdInput.Set(0, control);
     }
 };
 
 }
 
-DOCTEST_TEST_CASE("PhysicalModeling: consumes events once per microblock and accepts consecutive triggers")
+DOCTEST_TEST_CASE("PhysicalModeling: consumes events once and accepts consecutive triggers")
 {
     PhysicalEnvelopeRig rig(0.01f, 0.01f);
     rig.Trigger();
-    rig.m_input.m_ahdInput.m_release = true;
-    rig.m_source.ProcessUBlock(rig.m_input);
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_rawOutput == doctest::Approx(7.75f / 480.0f).epsilon(0.00001));
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_startOutput == doctest::Approx(0.0f));
-    DOCTEST_CHECK_FALSE(rig.m_input.m_ahdInput.m_trig);
-    DOCTEST_CHECK_FALSE(rig.m_input.m_ahdInput.m_release);
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_state == AHD::State::Running);
+    rig.EnvelopeInput().m_release = true;
+    rig.ProcessFrame();
+    DOCTEST_CHECK(rig.Envelope().m_rawOutput == doctest::Approx(7.0f / 480.0f).epsilon(0.00001));
+    DOCTEST_CHECK(rig.Envelope().m_startOutput == doctest::Approx(0.0f));
+    DOCTEST_CHECK_FALSE(rig.EnvelopeInput().m_trig);
+    DOCTEST_CHECK_FALSE(rig.EnvelopeInput().m_release);
+    DOCTEST_CHECK(rig.Envelope().m_state == AHD::State::Running);
 
     rig.SetClock(8.0);
     rig.Trigger();
-    rig.m_source.ProcessUBlock(rig.m_input);
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_startOutput == doctest::Approx(7.75f / 480.0f).epsilon(0.00001));
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_rawOutput == doctest::Approx(15.5f / 480.0f).epsilon(0.00001));
-    DOCTEST_CHECK_FALSE(rig.m_input.m_ahdInput.m_trig);
+    rig.ProcessFrame();
+    DOCTEST_CHECK(rig.Envelope().m_startOutput == doctest::Approx(7.0f / 480.0f).epsilon(0.00001));
+    DOCTEST_CHECK(rig.Envelope().m_rawOutput == doctest::Approx(14.0f / 480.0f).epsilon(0.00001));
+    DOCTEST_CHECK_FALSE(rig.EnvelopeInput().m_trig);
 }
 
-DOCTEST_TEST_CASE("PhysicalModeling: explicit release advances at the base sample rate")
+DOCTEST_TEST_CASE("PhysicalModeling: explicit release advances at the sample rate")
 {
     PhysicalEnvelopeRig rig(0.01f, 0.01f);
-    rig.m_source.m_ahd.m_state = AHD::State::Running;
-    rig.m_source.m_ahd.m_rawOutput = 1.0f;
-    rig.m_input.m_ahdInput.m_release = true;
+    rig.Envelope().m_state = AHD::State::Running;
+    rig.Envelope().m_rawOutput = 1.0f;
+    rig.EnvelopeInput().m_release = true;
 
     AHD base;
     base.m_state = AHD::State::Running;
     base.m_rawOutput = 1.0f;
-    AHD::Input baseInput = rig.m_input.m_ahdInput;
+    AHD::Input baseInput = rig.EnvelopeInput();
     baseInput.m_releaseFactor = 1.0f;
-    size_t releaseBlocks = 0;
-    for (; releaseBlocks < 62 && rig.m_source.m_ahd.m_state != AHD::State::Idle; ++releaseBlocks)
+    size_t releaseFrames = 0;
+    for (; releaseFrames < 62 && rig.Envelope().m_state != AHD::State::Idle; ++releaseFrames)
     {
-        rig.m_source.ProcessUBlock(rig.m_input);
-        for (size_t sample = 0; sample < 8; ++sample)
+        rig.ProcessFrame();
+        for (size_t sample = 0; sample < SampleTimer::x_controlFrameRate; ++sample)
         {
             base.Process(baseInput);
         }
 
-        DOCTEST_CHECK(rig.m_source.m_ahd.m_rawOutput == doctest::Approx(base.m_rawOutput).epsilon(0.00001).scale(1.0));
-        DOCTEST_CHECK_FALSE(rig.m_input.m_ahdInput.m_release);
+        DOCTEST_CHECK(rig.Envelope().m_rawOutput == doctest::Approx(base.m_rawOutput).epsilon(0.00001).scale(1.0));
+        DOCTEST_CHECK_FALSE(rig.EnvelopeInput().m_release);
     }
 
-    DOCTEST_CHECK(releaseBlocks >= 60);
-    DOCTEST_CHECK(releaseBlocks <= 61);
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_state == AHD::State::Idle);
+    DOCTEST_CHECK(releaseFrames >= 60);
+    DOCTEST_CHECK(releaseFrames <= 61);
+    DOCTEST_CHECK(rig.Envelope().m_state == AHD::State::Idle);
     DOCTEST_CHECK(base.m_state == AHD::State::Idle);
 }
 
-DOCTEST_TEST_CASE("PhysicalModeling: running decay uses phase sample units without oversample scaling")
+DOCTEST_TEST_CASE("PhysicalModeling: running decay uses phase sample units")
 {
     PhysicalEnvelopeRig rig(0.0001f, 0.01f);
     rig.Trigger();
-    rig.m_source.ProcessUBlock(rig.m_input);
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_rawOutput == doctest::Approx(1.0f - (7.75f - 4.8f) / 480.0f).epsilon(0.00001));
+    rig.ProcessFrame();
+    DOCTEST_CHECK(rig.Envelope().m_rawOutput == doctest::Approx(1.0f - (7.0f - 4.8f) / 480.0f).epsilon(0.00001));
     rig.SetClock(56.0);
-    rig.m_source.ProcessUBlock(rig.m_input);
+    rig.ProcessFrame();
 
     AHD base;
     base.m_state = AHD::State::Running;
-    AHD::Input input = rig.m_input.m_ahdInput;
+    AHD::Input input = rig.EnvelopeInput();
     base.Process(input);
-    DOCTEST_CHECK(base.m_rawOutput == doctest::Approx(1.0f - (63.75f - 4.8f) / 480.0f).epsilon(0.00001));
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_rawOutput == doctest::Approx(base.m_rawOutput).epsilon(0.00001));
+    DOCTEST_CHECK(base.m_rawOutput == doctest::Approx(1.0f - (63.0f - 4.8f) / 480.0f).epsilon(0.00001));
+    DOCTEST_CHECK(rig.Envelope().m_rawOutput == doctest::Approx(base.m_rawOutput).epsilon(0.00001));
 }
 
 DOCTEST_TEST_CASE("PhysicalModeling: minimum attack is 100 microseconds and decay is 500 microseconds")
 {
     PhysicalEnvelopeRig rig(0.0001f, 0.0005f);
     rig.Trigger();
-    rig.m_source.ProcessUBlock(rig.m_input);
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_rawOutput == doctest::Approx(0.877083333f).epsilon(0.00001));
+    rig.ProcessFrame();
+    DOCTEST_CHECK(rig.Envelope().m_rawOutput == doctest::Approx(1.0f - (7.0f - 4.8f) / 24.0f).epsilon(0.00001));
     rig.SetClock(8.0);
-    rig.m_source.ProcessUBlock(rig.m_input);
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_state == AHD::State::Running);
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_rawOutput == doctest::Approx(0.54375f).epsilon(0.00001));
+    rig.ProcessFrame();
+    DOCTEST_CHECK(rig.Envelope().m_state == AHD::State::Running);
+    DOCTEST_CHECK(rig.Envelope().m_rawOutput == doctest::Approx(1.0f - (15.0f - 4.8f) / 24.0f).epsilon(0.00001));
     rig.SetClock(24.0);
-    rig.m_source.ProcessUBlock(rig.m_input);
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_state == AHD::State::Idle);
-    DOCTEST_CHECK(rig.m_source.m_ahd.m_rawOutput == 0.0f);
+    rig.ProcessFrame();
+    DOCTEST_CHECK(rig.Envelope().m_state == AHD::State::Idle);
+    DOCTEST_CHECK(rig.Envelope().m_rawOutput == 0.0f);
 }
 
 DOCTEST_TEST_CASE("PhysicalModeling: UI morph response follows LP BP HP quarter-circle weights")

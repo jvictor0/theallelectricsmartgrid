@@ -256,7 +256,7 @@ std::vector<float> RecordKnownSignalIntoVoice0(SynthRig& rig)
     rm.StartRecording(TheNonagonInternal::Trio::Water);
     rig.RunSeconds(3.6);
 
-    std::vector<float>& buf = boy.m_voices[0].m_recordingBuffer.m_buffer;
+    std::vector<float>& buf = boy.m_tracks[0].m_recordingBuffer[0].m_buffer;
     OverwriteWithKnownSignal(buf);
     std::vector<float> captured = buf;
 
@@ -289,14 +289,14 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     rm.StartRecording(TheNonagonInternal::Trio::Water);
     DOCTEST_CHECK(rm.AnyRecording());
     DOCTEST_CHECK(rm.m_numRecording == 3);
-    DOCTEST_CHECK(boy.m_voices[0].m_recordingBuffer.m_state == RecordingBuffer::State::Recording);
+    DOCTEST_CHECK(boy.m_tracks[0].m_recordingBuffer[0].m_state == RecordingBuffer::State::Recording);
 
     // Capture ~0.9 of a master loop so delta is comfortably in (0,1] and the
     // alignment picks the 0.5 sub-loop (repeats=2 -> full-loop WAV).
     //
     rig.RunSeconds(3.6);
 
-    RecordingBuffer& buf0 = boy.m_voices[0].m_recordingBuffer;
+    RecordingBuffer& buf0 = boy.m_tracks[0].m_recordingBuffer[0];
     DOCTEST_CHECK(buf0.m_buffer.size() > 0);
 
     // Inject a known, deterministic signal into voice 0's captured buffer BEFORE
@@ -326,7 +326,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     //
     int frames = PumpUntil(rig, [&]() {
         return !FindRecordingWav(td.Path(), "_voice0").empty() &&
-               boy.m_state[0].m_voiceConfig.m_audioBufferBank != nullptr;
+               boy.m_voiceConfig[0].m_audioBufferBank != nullptr;
     });
     DOCTEST_REQUIRE_MESSAGE(frames >= 0,
         "timed out waiting for IoTaskThread to persist + install the recording bank");
@@ -427,7 +427,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
 
     // ---- on-persist reload installed the bank into the voice's SampleSource ----
     //
-    AudioBufferBank* bank = boy.m_state[0].m_voiceConfig.m_audioBufferBank;
+    AudioBufferBank* bank = boy.m_voiceConfig[0].m_audioBufferBank;
     DOCTEST_REQUIRE(bank != nullptr);
     DOCTEST_REQUIRE(bank->m_audioBuffers.size() == 1);
     const std::vector<float>& reloaded = bank->m_audioBuffers[0]->m_buffer;
@@ -467,12 +467,12 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
         RecordKnownSignalIntoVoice0(rig);
 
         int frames = PumpUntil(rig, [&]() {
-            AudioBufferBank* b = boy.m_state[0].m_voiceConfig.m_audioBufferBank;
+            AudioBufferBank* b = boy.m_voiceConfig[0].m_audioBufferBank;
             return b != nullptr && !b->m_directoryName.empty() && b->m_audioBuffers.size() == 1;
         });
         DOCTEST_REQUIRE_MESSAGE(frames >= 0, "timed out persisting on producer rig");
 
-        AudioBufferBank* bank = boy.m_state[0].m_voiceConfig.m_audioBufferBank;
+        AudioBufferBank* bank = boy.m_voiceConfig[0].m_audioBufferBank;
         relativeDir = bank->m_directoryName;
         originalReloaded = bank->m_audioBuffers[0]->m_buffer;
         DOCTEST_CHECK_FALSE(relativeDir.empty());
@@ -486,7 +486,7 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
         rig2.IoThread().SetSampleDirectoryRootAbsolute(td.Path());
         SquiggleBoy& boy2 = Boy(rig2);
 
-        AudioBufferBank** sink = &boy2.m_state[0].m_voiceConfig.m_audioBufferBank;
+        AudioBufferBank** sink = &boy2.m_voiceConfig[0].m_audioBufferBank;
         DOCTEST_REQUIRE(*sink == nullptr);
 
         bool pushed = rig2.IoThread().PushLoadAudioBufferBankFromDirectory(
@@ -546,12 +546,12 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
         RecordKnownSignalIntoVoice0(rig);
 
         int frames = PumpUntil(rig, [&]() {
-            AudioBufferBank* b = boy.m_state[0].m_voiceConfig.m_audioBufferBank;
+            AudioBufferBank* b = boy.m_voiceConfig[0].m_audioBufferBank;
             return b != nullptr && !b->m_directoryName.empty();
         });
         DOCTEST_REQUIRE_MESSAGE(frames >= 0, "timed out persisting before patch save");
 
-        relativeDir = boy.m_state[0].m_voiceConfig.m_audioBufferBank->m_directoryName;
+        relativeDir = boy.m_voiceConfig[0].m_audioBufferBank->m_directoryName;
         DOCTEST_CHECK_FALSE(relativeDir.empty());
 
         // Sequencer is still running -- stop it so the save isn't racing audio.
@@ -568,7 +568,7 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
         rig2.IoThread().SetSampleDirectoryRootAbsolute(td.Path());
         SquiggleBoy& boy2 = Boy(rig2);
 
-        DOCTEST_REQUIRE(boy2.m_state[0].m_voiceConfig.m_audioBufferBank == nullptr);
+        DOCTEST_REQUIRE(boy2.m_voiceConfig[0].m_audioBufferBank == nullptr);
 
         bool loaded = rig2.LoadPatch(patchStr);
         DOCTEST_REQUIRE(loaded);
@@ -577,13 +577,13 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
         // until the bank lands.
         //
         int frames = PumpUntil(rig2, [&]() {
-            AudioBufferBank* b = boy2.m_state[0].m_voiceConfig.m_audioBufferBank;
+            AudioBufferBank* b = boy2.m_voiceConfig[0].m_audioBufferBank;
             return b != nullptr && b->m_audioBuffers.size() == 1;
         });
         DOCTEST_REQUIRE_MESSAGE(frames >= 0,
             "timed out reloading sample bank from saved patch");
 
-        AudioBufferBank* bank = boy2.m_state[0].m_voiceConfig.m_audioBufferBank;
+        AudioBufferBank* bank = boy2.m_voiceConfig[0].m_audioBufferBank;
         DOCTEST_REQUIRE(bank != nullptr);
         DOCTEST_CHECK(bank->m_directoryName == relativeDir);
         DOCTEST_REQUIRE(bank->m_audioBuffers.size() == 1);
@@ -647,8 +647,8 @@ DOCTEST_TEST_CASE("WP-9: shutdown after draining an in-flight persist is safe (U
         // audio core.
         //
         int frames = PumpUntil(rig, [&]() {
-            return boy.m_state[0].m_voiceConfig.m_audioBufferBank != nullptr &&
-                   boy.m_voices[0].m_recordingBuffer.m_state == RecordingBuffer::State::Idle;
+            return boy.m_voiceConfig[0].m_audioBufferBank != nullptr &&
+                   boy.m_tracks[0].m_recordingBuffer[0].m_state == RecordingBuffer::State::Idle;
         });
         DOCTEST_REQUIRE_MESSAGE(frames >= 0, "timed out draining the persist task before shutdown");
 
@@ -695,14 +695,14 @@ DOCTEST_TEST_CASE("WP-9: arming without a completed loop writes no file (clean s
         // the smallest internal sub-loop yields repeats<=0 -> State::Error -> the
         // buffer is Reset and nothing is persisted.
         //
-        RecordingBuffer& buf0 = boy.m_voices[0].m_recordingBuffer;
+        RecordingBuffer& buf0 = boy.m_tracks[0].m_recordingBuffer[0];
         DOCTEST_CHECK(buf0.m_state == RecordingBuffer::State::Idle); // Reset() ran
 
         // Give the I/O thread ample frames to (not) produce anything.
         //
         rig.RunFrames(200);
         DOCTEST_CHECK(CountRecordingWavs(td.Path()) == 0);
-        DOCTEST_CHECK(boy.m_state[0].m_voiceConfig.m_audioBufferBank == nullptr);
+        DOCTEST_CHECK(boy.m_voiceConfig[0].m_audioBufferBank == nullptr);
     }
 
     // (b) Never armed: a fresh rig that just runs produces no recordings.
@@ -720,6 +720,6 @@ DOCTEST_TEST_CASE("WP-9: arming without a completed loop writes no file (clean s
 
         DOCTEST_CHECK_FALSE(boy.m_recordingManager.AnyRecording());
         DOCTEST_CHECK(CountRecordingWavs(td.Path()) == 0);
-        DOCTEST_CHECK(boy.m_state[0].m_voiceConfig.m_audioBufferBank == nullptr);
+        DOCTEST_CHECK(boy.m_voiceConfig[0].m_audioBufferBank == nullptr);
     }
 }

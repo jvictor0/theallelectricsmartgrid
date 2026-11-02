@@ -129,12 +129,12 @@ struct HiddenDetuneFixture
 
         for (size_t voice = 0; voice < 3; ++voice)
         {
-            m_rig.Internal().m_squiggleBoy.m_state[voice].m_voiceConfig.m_sourceMachine = SourceMachine::DualWaveShapingVCO;
+            m_rig.Internal().m_squiggleBoy.m_voiceConfig[voice].m_sourceMachine = SourceMachine::DualWaveShapingVCO;
         }
 
         for (size_t voice = 3; voice < 6; ++voice)
         {
-            m_rig.Internal().m_squiggleBoy.m_state[voice].m_voiceConfig.m_sourceMachine = SourceMachine::Sample;
+            m_rig.Internal().m_squiggleBoy.m_voiceConfig[voice].m_sourceMachine = SourceMachine::Sample;
         }
 
         SelectWaterSource();

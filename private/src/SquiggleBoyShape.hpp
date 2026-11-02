@@ -4,6 +4,7 @@
 #include "Ladder4PoleShape.hpp"
 #include "MultiChannelNumber.hpp"
 #include "SampleTimer.hpp"
+#include "SampleTop.hpp"
 #include "ScopeWriter.hpp"
 #include "SmartGridOneEncoders.hpp"
 #include "SmartGridOneScopeEnums.hpp"
@@ -24,7 +25,7 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     using Ladder4PoleShape = Ladder4PoleShapeGeneric<Size>;
     using SVF2PoleShape = SVF2PoleShapeGeneric<Size>;
 
-    // DC blocker before the filter machines (5 Hz at the oversampled rate)
+    // DC blocker before the filter machines (5 Hz)
     //
     OPHighPassFilterGeneric<float, Size> m_dcBlocker;
 
@@ -55,7 +56,7 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     SquiggleBoyShapeGeneric()
         : m_output(Vector::Splat(0))
     {
-        m_dcBlocker.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(5.0) / x_oversample);
+        m_dcBlocker.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(5.0));
     }
 
     void SetScopeWriters(ScopeWriter* scopeWriter, size_t track)
@@ -86,6 +87,20 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         }
 
         return m_output;
+    }
+
+    // Writes the post-filter scopes, starting a cycle at each source top.
+    //
+    void WriteScopes(const SampleTop* top)
+    {
+        for (size_t i = 0; i < Size; ++i)
+        {
+            m_scopeWriter[i].Write(m_output[i]);
+            if (top[i])
+            {
+                m_scopeWriter[i].RecordStart(top[i].m_offset);
+            }
+        }
     }
 
     // Called from SetEncoderParameters to set the shape encoder params.

@@ -237,16 +237,17 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
     SquiggleBoyWithEncoderBank::Input input;
     for (size_t voice = 0; voice < 9; ++voice)
     {
-        auto& source = synth.m_voices[voice];
+        auto& source = synth.m_tracks[voice / 3];
+        const size_t lane = voice % 3;
         const float offset = 0.01f * static_cast<float>(voice);
-        source.m_amp.m_modulationAHD.m_rawOutput = 0.11f + offset;
-        source.m_amp.m_ahd.m_rawOutput = 0.22f + offset;
-        source.m_amp.m_modulationAHD.m_amplitude = 0.33f + offset;
-        source.m_amp.m_ahd.m_amplitude = 0.44f + offset;
+        source.m_amp.m_modulationAHD.m_channels[lane].m_rawOutput = 0.11f + offset;
+        source.m_amp.m_ahd.m_channels[lane].m_rawOutput = 0.22f + offset;
+        source.m_amp.m_modulationAHD.m_channels[lane].m_amplitude = 0.33f + offset;
+        source.m_amp.m_ahd.m_channels[lane].m_amplitude = 0.44f + offset;
         for (size_t lfo = 0; lfo < 2; ++lfo)
         {
-            source.m_squiggleLFO[lfo].m_output = 0.51f + 0.1f * lfo + offset;
-            source.m_squiggleLFO[lfo].m_polyXFader.m_amplitude = 0.71f + 0.1f * lfo + offset;
+            source.m_squiggleLFO[lfo].m_output[lane] = 0.51f + 0.1f * lfo + offset;
+            source.m_squiggleLFO[lfo].m_polyXFader.m_amplitude[lane] = 0.71f + 0.1f * lfo + offset;
         }
 
         for (size_t sheaf = 0; sheaf < 3; ++sheaf)
@@ -256,7 +257,7 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
 
         for (size_t random = 0; random < 4; ++random)
         {
-            synth.m_gangedRandomLFO[random][voice / 3].m_voices[voice % 3].m_output = 0.13f + 0.1f * random + offset;
+            source.m_gangedRandomLFO[random].m_voices[lane].m_output = 0.13f + 0.1f * random + offset;
         }
     }
 

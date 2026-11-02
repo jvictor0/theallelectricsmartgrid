@@ -43,7 +43,7 @@ void SetParamValue(
 SourceAssignment AssignmentAt(synthrig::SynthRig& rig, size_t trioIdx, size_t voiceInTrio)
 {
     size_t voiceIdx = trioIdx * TheNonagonInternal::x_voicesPerTrio + voiceInTrio;
-    return rig.Internal().m_squiggleBoy.m_state[voiceIdx].m_voiceConfig.m_sourceAssignment;
+    return rig.Internal().m_squiggleBoy.m_voiceConfig[voiceIdx].m_sourceAssignment;
 }
 
 void CheckAssignment(SourceAssignment assignment, SourceChannel channel, size_t sourceIndex)

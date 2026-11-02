@@ -79,7 +79,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: Nonagon wires source ratio separately from voic
     DOCTEST_CHECK(envelope.Process(envelopeInput) == doctest::Approx(0.525));
 }
 
-DOCTEST_TEST_CASE("AbsoluteTime: physical-model slewed hold scales with captured period")
+DOCTEST_TEST_CASE("AbsoluteTime: physical-model hold scales with captured period")
 {
     for (double period : {3000.0, 48000.0})
     {
@@ -87,14 +87,11 @@ DOCTEST_TEST_CASE("AbsoluteTime: physical-model slewed hold scales with captured
         auto clock = FlatClock(1.0);
         FillClock(time, clock, 0.0);
         time.RolloverMicroblockBuffer();
+        PhysicalModelingSource::Envelope::InputSetter setter(0.0001f, 2.5f, 0.0005f, 2.5f);
         PhysicalModelingSource::Input sourceInput;
-        sourceInput.SetAHD(0.0f, 1.0f, 0.5f, 1.0f);
-        auto& input = sourceInput.m_ahdInput;
+        setter.Set(0.0f, 1.0f, 0.5f, 1.0f, false, sourceInput.m_ahdInput);
+        auto& input = sourceInput.m_ahdInput.m_channels[0];
         input.m_theoryOfTime = &time;
-        for (size_t i = 0; i < 4096; ++i)
-        {
-            sourceInput.m_ahdInputSetter.Process(input);
-        }
 
         DOCTEST_REQUIRE(input.m_holdLoops == doctest::Approx(16.0));
         AHD::AHDControl control;

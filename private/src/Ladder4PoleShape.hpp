@@ -21,7 +21,7 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
     LinearSVF4PoleHighPassGeneric<float, Size> m_hp4Pole;
     SampleRateReducerGeneric<Size> m_sampleRateReducer;
 
-    // The base frequency is in cycles per base-rate sample.
+    // The base frequency is in cycles per sample.
     //
     struct Input
     {

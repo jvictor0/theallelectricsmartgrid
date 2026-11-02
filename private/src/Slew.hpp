@@ -89,22 +89,26 @@ struct OPSlew
     }
 };
 
-struct BiDirectionalSlew
+template <size_t Size>
+struct BiDirectionalSlewGeneric
 {
-    float m_output;
-    OPLowPassFilter m_slewUp;
-    OPLowPassFilter m_slewDown;
+    using Vector = MultiChannelNumber<float, Size>;
 
-    BiDirectionalSlew() : m_output(0)
+    Vector m_output;
+    OPLowPassFilterGeneric<float, Size> m_slewUp;
+    OPLowPassFilterGeneric<float, Size> m_slewDown;
+
+    BiDirectionalSlewGeneric()
+        : m_output(Vector::Splat(0))
     {
     }
 
-    void SetSlewUp(float cyclesPerSample)
+    void SetSlewUp(const Vector& cyclesPerSample)
     {
         m_slewUp.SetAlphaFromNatFreq(cyclesPerSample);
     }
 
-    void SetSlewDown(float cyclesPerSample)
+    void SetSlewDown(const Vector& cyclesPerSample)
     {
         m_slewDown.SetAlphaFromNatFreq(cyclesPerSample);
     }
@@ -121,12 +125,16 @@ struct BiDirectionalSlew
         }
     }
 
-    float Process(float trg)
+    Vector Process(const Vector& trg)
     {
-        m_output = Process(m_output, trg, m_slewUp.m_alpha, m_slewDown.m_alpha);
+        Vector alpha = Vector::IfLess(m_output, trg, m_slewUp.m_alpha, m_slewDown.m_alpha);
+        m_output = m_output + alpha * (trg - m_output);
         return m_output;
     }
 };
+
+using BiDirectionalSlew = BiDirectionalSlewGeneric<1>;
+using TrioBiDirectionalSlew = BiDirectionalSlewGeneric<3>;
 
 struct SlewUp
 {

@@ -1,27 +1,30 @@
 #pragma once
 
 #include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 
-struct VCO
+template <size_t Size>
+struct VCOGeneric
 {
-    float m_output;
-    float m_phase;
+    using Vector = MultiChannelNumber<float, Size>;
 
-    VCO()
+    Vector m_output;
+    Vector m_phase;
+
+    VCOGeneric()
+        : m_output(Vector::Splat(0))
+        , m_phase(Vector::Splat(0))
     {
-        m_output = 0;
-        m_phase = 0;
     }
 
-    float Process(float freq)
+    Vector Process(const Vector& freq)
     {
         m_phase += freq;
-        while (m_phase >= 1)
-        {
-            m_phase -= 1;
-        }
-        
+        m_phase = Vector::IfLess(m_phase, Vector::Splat(1), m_phase, m_phase - m_phase.Floor());
         m_output = Math::Sin2pi(m_phase);
         return m_output;
     }
 };
+
+using VCO = VCOGeneric<1>;
+using TrioVCO = VCOGeneric<3>;

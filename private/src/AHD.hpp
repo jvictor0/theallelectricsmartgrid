@@ -142,42 +142,6 @@ struct AHD
         }
     };
 
-    struct SlewedInputSetter
-    {
-        InputSetter m_inputSetter;
-        ParamSlew m_attackSlew;
-        ParamSlew m_decaySlew;
-        ParamSlew m_holdSlew;
-        ParamSlew m_amplitudeSlew;
-
-        SlewedInputSetter(float relativeSampleRate, float attackTimeMin, float attackTimeMax, float decayTimeMin, float decayTimeMax)
-            : m_inputSetter(attackTimeMin, attackTimeMax, decayTimeMin, decayTimeMax)
-            , m_attackSlew(relativeSampleRate)
-            , m_decaySlew(relativeSampleRate)
-            , m_holdSlew(relativeSampleRate)
-            , m_amplitudeSlew(relativeSampleRate)
-        {
-        }
-
-        void SetTargets(float attack, float hold, float decay, float amplitude)
-        {
-            Input input;
-            m_inputSetter.Set(attack, hold, decay, amplitude, true, input);
-            m_attackSlew.Update(input.m_attackIncrement);
-            m_decaySlew.Update(input.m_decayIncrement);
-            m_holdSlew.Update(input.m_holdLoops);
-            m_amplitudeSlew.Update(input.m_amplitude);
-        }
-
-        void Process(Input& input)
-        {
-            input.m_attackIncrement = m_attackSlew.Process();
-            input.m_decayIncrement = m_decaySlew.Process();
-            input.m_holdLoops = m_holdSlew.Process();
-            input.m_amplitude = m_amplitudeSlew.Process();
-        }
-    };
-
     State m_state;
     bool m_changed;
 

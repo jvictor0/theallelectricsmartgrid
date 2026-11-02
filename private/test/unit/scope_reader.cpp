@@ -120,39 +120,25 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
         auto& source = *sourceStorage;
         auto& oscillator = source.m_dualWaveShapingVCO;
         SquiggleBoySource::Input sourceInput;
-        auto& input = sourceInput.m_dualWaveShapingVCOInput;
-        input.m_baseFreq = 0.0625f;
-        input.m_detune.m_expParam = 1.0f;
-        input.m_offsetFreqFactor.m_expParam = 1.0f;
-        oscillator.m_baseFreqSlew.m_filter.m_output = input.m_baseFreq;
-        oscillator.m_detuneSlew.m_filter.m_output = 1.0f;
-        oscillator.m_offsetFreqFactorSlew.m_filter.m_output = 1.0f;
+        sourceInput.m_dualWaveShapingVCOInput.m_baseFreq = 0.0625f;
         for (size_t i = 0; i < 2; ++i)
         {
-            oscillator.m_core.m_vco[i].m_phase = 0.9921875f - static_cast<float>(topOversample) / 64.0f;
-            oscillator.m_core.m_vco[i].SetLeft(&table);
-            oscillator.m_core.m_vco[i].SetRight(&table);
-            oscillator.m_scopeWriter[i] = ScopeWriterHolder(writer.get(), 0, i);
+            oscillator.m_vco[i].m_phase = 0.9921875f - static_cast<float>(topOversample) / 64.0f;
+            oscillator.m_vco[i].SetLeft(&table);
+            oscillator.m_vco[i].SetRight(&table);
+            oscillator.m_scopeWriter[i][0] = ScopeWriterHolder(writer.get(), 0, i);
         }
 
-        source.ProcessUBlock(sourceInput);
         SquiggleBoyShape filter;
         SquiggleBoyShape::Input filterInput;
         filter.m_scopeWriter[0] = ScopeWriterHolder(writer.get(), 0, 2);
-        for (size_t i = 0; i < SquiggleBoySource::x_uBlockSize; ++i)
+        for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
         {
-            float output = filter.Process(filterInput, source.m_uBlockOutput[i]);
-            if ((i + 1) % SquiggleBoyShape::x_oversample == 0)
-            {
-                size_t baseIndex = i / SquiggleBoyShape::x_oversample;
-                filter.m_scopeWriter[0].Write(baseIndex, output);
-                if (source.m_uBlockTop[baseIndex])
-                {
-                    filter.m_scopeWriter[0].RecordStart(source.m_uBlockTop[baseIndex].GetPosition(baseIndex));
-                }
-            }
+            filter.Process(filterInput, source.Process(sourceInput));
+            filter.WriteScopes(source.m_top);
+            writer->AdvanceIndex();
         }
-        writer->m_index += SampleTimer::x_controlFrameRate;
+
         writer->Publish();
         constexpr double x_expectedStarts[] = {99.125, 99.375, 99.625, 99.875};
         for (size_t scope = 0; scope < 3; ++scope)
@@ -232,11 +218,11 @@ DOCTEST_TEST_CASE("ScopeReader: PolyXFader top reaches its control-rate scope be
     }
 
     writer->m_index = 10;
-    SquiggleBoyTrack::SquiggleLFO lfo;
-    SquiggleBoyTrack::SquiggleLFO::Input input;
+    SquiggleLFOGeneric<1> lfo;
+    SquiggleLFOGeneric<1>::Input input;
     input.m_polyXFaderInput.m_theoryOfTime = &time;
     input.m_polyXFaderInput.m_size = 1;
-    lfo.m_scopeWriter = ScopeWriterHolder(writer.get(), 0, 0);
+    lfo.m_scopeWriter[0] = ScopeWriterHolder(writer.get(), 0, 0);
     SampleTimer::s_instance->m_sample = 2;
     lfo.Process(input);
     writer->AdvanceIndex();
@@ -374,11 +360,11 @@ DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top in slot zero keeps the precedin
     }
 
     writer->m_index = 20;
-    SquiggleBoyTrack::SquiggleLFO lfo;
-    SquiggleBoyTrack::SquiggleLFO::Input input;
+    SquiggleLFOGeneric<1> lfo;
+    SquiggleLFOGeneric<1>::Input input;
     input.m_polyXFaderInput.m_theoryOfTime = &time;
     input.m_polyXFaderInput.m_size = 1;
-    lfo.m_scopeWriter = ScopeWriterHolder(writer.get(), 0, 0);
+    lfo.m_scopeWriter[0] = ScopeWriterHolder(writer.get(), 0, 0);
     SampleTimer::s_instance->m_sample = 8;
     lfo.Process(input);
     writer->AdvanceIndex();
