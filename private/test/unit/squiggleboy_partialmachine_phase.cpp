@@ -66,6 +66,6 @@ DOCTEST_TEST_CASE("SquiggleBoy partial machine azimuth offset follows pan phase"
     float panPhase = squiggleBoy->m_panPhase.m_phase;
 
     DOCTEST_REQUIRE(panPhase > 0.001f);
-    DOCTEST_CHECK(squiggleBoy->m_state[0].m_panInput.m_input == doctest::Approx(panPhase).epsilon(1e-6));
+    DOCTEST_CHECK(squiggleBoy->m_trackState[0].m_panInput.m_input == doctest::Approx(panPhase).epsilon(1e-6));
     DOCTEST_CHECK(squiggleBoy->m_partialMachineState.m_synthesisContextInput.m_azimuthOffset == doctest::Approx(panPhase).epsilon(1e-6));
 }

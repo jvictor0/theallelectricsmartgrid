@@ -3,7 +3,6 @@
 #include "AudioBuffer.hpp"
 #include "DelayLine.hpp"
 #include "MultiChannelNumber.hpp"
-#include "Oversample.hpp"
 #include "PhasorPlayHead.hpp"
 #include "SampleTimer.hpp"
 #include "SampleTop.hpp"
@@ -69,12 +68,31 @@ struct AudioBufferBankChannels
     }
 };
 
-// Resynthesized sample playback for every channel at the base rate. Grains
-// launch on one schedule for all channels, and the resynthesizer's FFTs run
-// across channels.
+// Width-independent parts of the sample source: UI state.
+//
+struct SampleSourceBase
+{
+    struct UIState
+    {
+        std::atomic<double> m_samplePosition;
+        std::atomic<float> m_start;
+        std::atomic<float> m_length;
+
+        UIState()
+            : m_samplePosition(0.0)
+            , m_start(0.0f)
+            , m_length(1.0f)
+        {
+        }
+    };
+};
+
+// Resynthesized sample playback for every channel, one sample per call.
+// Grains launch on one schedule for all channels, and the resynthesizer's
+// FFTs run across channels.
 //
 template <size_t Size>
-struct SampleSourceGeneric
+struct SampleSourceGeneric : SampleSourceBase
 {
     using Vector = MultiChannelNumber<float, Size>;
     using TimeVector = MultiChannelNumber<double, Size>;
@@ -87,6 +105,8 @@ struct SampleSourceGeneric
     PlayHead m_phasorPlayHead;
     TimeVector m_previousTotalPhaseTime;
     SampleTop m_top[Size];
+    Vector m_sampleStart;
+    Vector m_sampleLength;
 
     struct Input
     {
@@ -102,6 +122,8 @@ struct SampleSourceGeneric
 
     SampleSourceGeneric()
         : m_previousTotalPhaseTime(TimeVector::Splat(0))
+        , m_sampleStart(Vector::Splat(0))
+        , m_sampleLength(Vector::Splat(1))
     {
         for (size_t i = 0; i < Size; ++i)
         {
@@ -115,7 +137,7 @@ struct SampleSourceGeneric
         m_grainManager.m_audioBuffer = m_audioBufferBanks.IsEmpty() ? nullptr : &m_audioBufferBanks;
     }
 
-    // One base-rate sample at sampleIndex within the microblock.
+    // One sample at sampleIndex within the theory of time's sample buffer.
     //
     Vector Process(Input& input, int sampleIndex)
     {
@@ -131,95 +153,26 @@ struct SampleSourceGeneric
         m_previousTotalPhaseTime = totalPhaseTime;
         return output;
     }
-};
 
-using TrioSampleSource = SampleSourceGeneric<3>;
-
-// Mono micro-block shell: runs the core at the base rate and upsamples.
-//
-struct SampleSource
-{
-    static constexpr size_t x_oversample = 4;
-    static constexpr size_t x_uBlockSize = SampleTimer::x_controlFrameRate * x_oversample;
-
-    using Core = SampleSourceGeneric<1>;
-    using Input = Core::Input;
-
-    struct UIState
+    void PopulateUIState(UIState* uiState, size_t channel) const
     {
-        std::atomic<double> m_samplePosition;
-        std::atomic<float> m_start;
-        std::atomic<float> m_length;
-
-        UIState()
-            : m_samplePosition(0.0)
-            , m_start(0.0f)
-            , m_length(1.0f)
-        {
-        }
-    };
-
-    Core m_core;
-
-    SampleTop m_uBlockTop[SampleTimer::x_controlFrameRate];
-    float m_uBlockBaseOutput[SampleTimer::x_controlFrameRate];
-    float m_uBlockOutput[x_uBlockSize];
-    Upsampler m_upsampler;
-    float m_sampleStart;
-    float m_sampleLength;
-
-    SampleSource()
-        : m_upsampler(x_oversample)
-        , m_sampleStart(0.0f)
-        , m_sampleLength(1.0f)
-    {
-        for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
-        {
-            m_uBlockTop[i] = false;
-            m_uBlockBaseOutput[i] = 0.0f;
-        }
-
-        for (size_t i = 0; i < x_uBlockSize; ++i)
-        {
-            m_uBlockOutput[i] = 0.0f;
-        }
-    }
-
-    void SetAudioBufferBank(AudioBufferBank* audioBufferBank)
-    {
-        m_core.SetAudioBufferBank(0, audioBufferBank);
-    }
-
-    void ProcessUBlock(Input& input)
-    {
-        for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
-        {
-            m_uBlockBaseOutput[i] = m_core.Process(input, static_cast<int>(i));
-            m_uBlockTop[i] = m_core.m_top[0];
-        }
-
-        m_upsampler.Process(m_uBlockBaseOutput, m_uBlockOutput);
+        uiState->m_samplePosition.store(m_previousTotalPhaseTime[channel], std::memory_order_relaxed);
+        uiState->m_start.store(m_sampleStart[channel], std::memory_order_relaxed);
+        uiState->m_length.store(m_sampleLength[channel], std::memory_order_relaxed);
     }
 
     void PopulateUIState(UIState* uiState) const
     {
-        uiState->m_samplePosition.store(m_core.m_previousTotalPhaseTime[0], std::memory_order_relaxed);
-        uiState->m_start.store(m_sampleStart, std::memory_order_relaxed);
-        uiState->m_length.store(m_sampleLength, std::memory_order_relaxed);
+        static_assert(Size == 1, "multi-channel sources must name the channel to publish");
+        PopulateUIState(uiState, 0);
     }
 
     void SetEncoderParams(
         SmartGridOneEncoders& encoders,
         Input& input,
-        size_t voiceIx,
-        float)
+        size_t track)
     {
         using Param = SmartGridOneEncoders::Param;
-
-        int voice = static_cast<int>(voiceIx);
-
-        int switchVal = encoders.GetSwitchVal(Param::SampleLoopIndex, voice);
-        input.m_phasorPlayHeadInput.m_loopIndex = TheoryOfTimeBase::x_numLoops - switchVal - 1;
 
         static constexpr float x_readHeadSpeeds[17] =
         {
@@ -242,16 +195,22 @@ struct SampleSource
             4.0f
         };
 
-        int speedIx = encoders.GetSwitchVal(Param::SampleReadSpeed, voice);
-        float speed = x_readHeadSpeeds[speedIx];
+        for (size_t i = 0; i < Size; ++i)
+        {
+            int voice = static_cast<int>(track * Size + i);
+            int switchVal = encoders.GetSwitchVal(Param::SampleLoopIndex, voice);
+            input.m_phasorPlayHeadInput.m_loopIndex[i] = TheoryOfTimeBase::x_numLoops - switchVal - 1;
 
-        float startVal = encoders.GetValue(Param::SampleStart, voice);
-        float lengthVal = encoders.GetValue(Param::SampleLength, voice);
-        lengthVal = std::max(lengthVal, 1.0e-6f);
-        input.m_phasorPlayHeadInput.m_start = startVal;
-        input.m_phasorPlayHeadInput.m_length = lengthVal;
-        input.m_phasorPlayHeadInput.m_speed = speed;
-        m_sampleStart = startVal;
-        m_sampleLength = lengthVal;
+            int speedIx = encoders.GetSwitchVal(Param::SampleReadSpeed, voice);
+            input.m_phasorPlayHeadInput.m_speed[i] = x_readHeadSpeeds[speedIx];
+        }
+
+        m_sampleStart = encoders.GetValue<Size>(Param::SampleStart, track);
+        m_sampleLength = Vector::Max(encoders.GetValue<Size>(Param::SampleLength, track), Vector::Splat(1.0e-6f));
+        input.m_phasorPlayHeadInput.m_start = m_sampleStart;
+        input.m_phasorPlayHeadInput.m_length = m_sampleLength;
     }
 };
+
+using SampleSource = SampleSourceGeneric<1>;
+using TrioSampleSource = SampleSourceGeneric<3>;

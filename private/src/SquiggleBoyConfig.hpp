@@ -244,7 +244,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             {
                 size_t baseIdx = static_cast<size_t>(m_owner->ActiveTrio()) * TheNonagonInternal::x_voicesPerTrio;
                 size_t voiceIdx = baseIdx + m_owner->m_activeSampleDirectoryVoice;
-                audioBufferBankSink = &m_owner->m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank;
+                audioBufferBankSink = &m_owner->m_squiggleBoy->m_voiceConfig[voiceIdx].m_audioBufferBank;
             }
 
             m_owner->m_ioTaskThread->PushDirectoryExplorerCommand(&m_owner->m_directoryExplorer, m_messageType, audioBufferBankSink);
@@ -306,7 +306,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         SquiggleBoyTrack::VoiceConfig::SourceAssignment assignment)
     {
         size_t voiceIdx = trioIdx * TheNonagonInternal::x_voicesPerTrio + voiceInTrio;
-        m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_sourceAssignment = assignment;
+        m_squiggleBoy->m_voiceConfig[voiceIdx].m_sourceAssignment = assignment;
     }
 
     size_t SourceChannelCount(size_t trioIdx) const
@@ -424,9 +424,9 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
             m_voiceSourceMachineStates[i] = squiggleBoyWithEncoders->m_stateSaver->Insert(
-                "voiceSourceMachine", i, &squiggleBoyWithEncoders->m_state[i].m_voiceConfig.m_sourceMachine);
+                "voiceSourceMachine", i, &squiggleBoyWithEncoders->m_voiceConfig[i].m_sourceMachine);
             m_voiceFilterMachineStates[i] = squiggleBoyWithEncoders->m_stateSaver->Insert(
-                "voiceFilterMachine", i, &squiggleBoyWithEncoders->m_state[i].m_voiceConfig.m_filterMachine);
+                "voiceFilterMachine", i, &squiggleBoyWithEncoders->m_voiceConfig[i].m_filterMachine);
         }
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
@@ -508,7 +508,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
         {
             for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
             {
-                AudioBufferBank* bank = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank;
+                AudioBufferBank* bank = m_squiggleBoy->m_voiceConfig[i].m_audioBufferBank;
                 if (bank)
                 {
                     bank->m_directoryName.clear();
@@ -535,7 +535,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
-            AudioBufferBank* bank = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank;
+            AudioBufferBank* bank = m_squiggleBoy->m_voiceConfig[i].m_audioBufferBank;
             const char* rel = (bank && !bank->m_directoryName.empty()) ? bank->m_directoryName.c_str() : "";
             dirsJ.AppendNew(a.String(rel));
         }
@@ -637,7 +637,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
             JSON entryJ = dirsJ.GetAt(i);
             const char* rel = entryJ.StringValue();
 
-            AudioBufferBank*& bankRef = m_squiggleBoy->m_state[i].m_voiceConfig.m_audioBufferBank;
+            AudioBufferBank*& bankRef = m_squiggleBoy->m_voiceConfig[i].m_audioBufferBank;
 
             if (!rel || rel[0] == '\0')
             {
@@ -670,7 +670,7 @@ struct SquiggleBoyConfigGrid : public SmartGrid::Grid
 
         size_t baseIdx = static_cast<size_t>(ActiveTrio()) * TheNonagonInternal::x_voicesPerTrio;
         size_t voiceIdx = baseIdx + voiceIndex;
-        AudioBufferBank* bank = m_squiggleBoy->m_state[voiceIdx].m_voiceConfig.m_audioBufferBank;
+        AudioBufferBank* bank = m_squiggleBoy->m_voiceConfig[voiceIdx].m_audioBufferBank;
 
         const char* relativeForInit = (bank && !bank->m_directoryName.empty()) ? bank->m_directoryName.c_str() : "";
 

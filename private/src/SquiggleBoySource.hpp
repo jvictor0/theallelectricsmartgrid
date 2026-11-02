@@ -3,184 +3,186 @@
 #include "AudioBuffer.hpp"
 #include "DualWaveShapingVCO.hpp"
 #include "DualSampleSource.hpp"
-#include "Oversample.hpp"
+#include "MultiChannelNumber.hpp"
 #include "PhysicalModelingSource.hpp"
 #include "SampleTimer.hpp"
+#include "SampleTop.hpp"
 #include "SmartGridOneEncoders.hpp"
-#include "SmartGridOneScopeEnums.hpp"
 #include "SourceMixer.hpp"
 #include "SquiggleBoyVoiceConfig.hpp"
 #include "VoiceMachineEnums.hpp"
 
 struct TheoryOfTime;
 
-// Encapsulates source machine selection and dispatch logic.
-// Contains all source machines and handles ProcessUBlock dispatch and encoder wiring.
+// Encapsulates source machine selection and dispatch logic. Contains all
+// source machines and handles Process dispatch and encoder wiring. One sample
+// per call for every channel; channel i is voice track * Size + i.
 //
-struct SquiggleBoySource
+template <size_t Size>
+struct SquiggleBoySourceGeneric
 {
+    using Vector = MultiChannelNumber<float, Size>;
     using SourceMachine = VoiceMachine::SourceMachine;
-
-    static constexpr size_t x_oversample = 4;
-    static constexpr size_t x_uBlockSize = SampleTimer::x_controlFrameRate * x_oversample;
+    using DualWaveShapingVCOType = DualWaveShapingVCOGeneric<Size>;
+    using PhysicalModelingType = PhysicalModelingSourceGeneric<Size>;
+    using SampleSourceType = SampleSourceGeneric<Size>;
 
     // Source machines
     //
-    DualWaveShapingVCO m_dualWaveShapingVCO;
-    PhysicalModelingSource m_physicalModeling;
-    SampleSource m_sampleSource;
+    DualWaveShapingVCOType m_dualWaveShapingVCO;
+    PhysicalModelingType m_physicalModeling;
+    SampleSourceType m_sampleSource;
 
-    // Output buffers
-    //
-    float* m_uBlockOutput;
-    SampleTop* m_uBlockTop;
-
-    // Thru mode upsampling
-    //
-    Upsampler m_upsampler;
-    float m_upsampledSource[x_uBlockSize];
-    float m_silentSource[x_uBlockSize];
+    Vector m_output;
+    SampleTop m_top[Size];
 
     struct Input
     {
         using SourceAssignment = SquiggleBoyVoiceConfig::SourceAssignment;
 
         SourceMachine m_sourceMachine;
-        SourceAssignment m_sourceAssignment;
+        SourceAssignment m_sourceAssignment[Size];
         SourceMixer* m_sourceMixer;
         TheoryOfTime* m_theoryOfTime;
 
-        DualWaveShapingVCO::Input m_dualWaveShapingVCOInput;
-        PhysicalModelingSource::Input m_physicalModelingInput;
-        SampleSource::Input m_sampleSourceInput;
+        typename DualWaveShapingVCOType::Input m_dualWaveShapingVCOInput;
+        typename PhysicalModelingType::Input m_physicalModelingInput;
+        typename SampleSourceType::Input m_sampleSourceInput;
 
-        AudioBufferBank* m_audioBufferBank;
+        AudioBufferBank* m_audioBufferBank[Size];
 
         Input()
             : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
-            , m_sourceAssignment(SourceAssignment::Left(0))
             , m_sourceMixer(nullptr)
             , m_theoryOfTime(nullptr)
-            , m_audioBufferBank(nullptr)
         {
+            for (size_t i = 0; i < Size; ++i)
+            {
+                m_sourceAssignment[i] = SourceAssignment::Left(0);
+                m_audioBufferBank[i] = nullptr;
+            }
         }
     };
 
-    SquiggleBoySource()
-        : m_uBlockOutput(nullptr)
-        , m_uBlockTop(nullptr)
-        , m_upsampler(x_oversample)
+    SquiggleBoySourceGeneric()
+        : m_physicalModeling(42)
+        , m_output(Vector::Splat(0))
     {
-        for (size_t i = 0; i < x_uBlockSize; ++i)
+        ClearTops();
+    }
+
+    void SetScopeWriters(ScopeWriter* scopeWriter, size_t track)
+    {
+        m_dualWaveShapingVCO.SetScopeWriters(scopeWriter, track);
+    }
+
+    void ClearTops()
+    {
+        for (size_t i = 0; i < Size; ++i)
         {
-            m_silentSource[i] = 0.0f;
+            m_top[i] = false;
         }
     }
 
-    void SetScopeWriters(ScopeWriter* scopeWriter, size_t voiceIx)
+    Vector Process(Input& input)
     {
-        m_dualWaveShapingVCO.m_scopeWriter[0] = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::VCO1));
-        m_dualWaveShapingVCO.m_scopeWriter[1] = ScopeWriterHolder(scopeWriter, voiceIx, static_cast<size_t>(SmartGridOne::AudioScopes::VCO2));
-    }
-
-    void ProcessUBlock(Input& input)
-    {
+        ClearTops();
         switch (input.m_sourceMachine)
         {
             case SourceMachine::DualWaveShapingVCO:
             {
-                m_dualWaveShapingVCO.ProcessUBlock(input.m_dualWaveShapingVCOInput);
-                m_uBlockOutput = m_dualWaveShapingVCO.m_uBlockOutput;
-                m_uBlockTop = m_dualWaveShapingVCO.m_uBlockTop;
+                m_output = m_dualWaveShapingVCO.Process(input.m_dualWaveShapingVCOInput);
+                for (size_t i = 0; i < Size; ++i)
+                {
+                    m_top[i] = m_dualWaveShapingVCO.m_vco[0].m_top[i];
+                }
+
                 break;
             }
 
             case SourceMachine::Thru:
             {
-                const float* sourceBlock = GetThruSourceBlock(input);
-                if (sourceBlock)
+                for (size_t i = 0; i < Size; ++i)
                 {
-                    m_upsampler.Process(sourceBlock, m_upsampledSource);
-                    m_uBlockOutput = m_upsampledSource;
-                }
-                else
-                {
-                    for (size_t i = 0; i < x_uBlockSize; ++i)
-                    {
-                        m_silentSource[i] = 0.0f;
-                    }
-
-                    m_uBlockOutput = m_silentSource;
+                    m_output[i] = GetThruSample(input, i);
                 }
 
-                m_uBlockTop = m_dualWaveShapingVCO.m_uBlockTop;
                 break;
             }
 
             case SourceMachine::PhysicalModeling:
             {
-                m_physicalModeling.ProcessUBlock(input.m_physicalModelingInput);
-                m_uBlockOutput = m_physicalModeling.m_uBlockOutput;
-                m_uBlockTop = m_physicalModeling.m_uBlockTop;
+                input.m_physicalModelingInput.m_ahdInput.SetSamplePosition(static_cast<float>(SampleTimer::GetUBlockIndex()));
+                m_output = m_physicalModeling.ProcessWithAHD(input.m_physicalModelingInput);
                 break;
             }
 
             case SourceMachine::Sample:
-            {        
-                m_sampleSource.SetAudioBufferBank(input.m_audioBufferBank);
+            {
+                for (size_t i = 0; i < Size; ++i)
+                {
+                    m_sampleSource.SetAudioBufferBank(i, input.m_audioBufferBank[i]);
+                }
+
                 input.m_sampleSourceInput.m_theoryOfTime = input.m_theoryOfTime;
-                m_sampleSource.ProcessUBlock(input.m_sampleSourceInput);
-                m_uBlockOutput = m_sampleSource.m_uBlockOutput;
-                m_uBlockTop = m_sampleSource.m_uBlockTop;
+                m_output = m_sampleSource.Process(input.m_sampleSourceInput, SampleTimer::GetUBlockIndex());
+                for (size_t i = 0; i < Size; ++i)
+                {
+                    m_top[i] = m_sampleSource.m_top[i];
+                }
+
                 break;
             }
 
             default:
                 break;
         }
+
+        return m_output;
     }
 
-    const float* GetThruSourceBlock(Input& input)
+    float GetThruSample(Input& input, size_t channel)
     {
         using SourceAssignment = SquiggleBoyVoiceConfig::SourceAssignment;
         using Channel = SourceAssignment::Channel;
 
         if (!input.m_sourceMixer)
         {
-            return nullptr;
+            return 0.0f;
         }
 
-        if (input.m_sourceAssignment.m_channel == Channel::Silent)
+        const SourceAssignment& assignment = input.m_sourceAssignment[channel];
+        if (assignment.m_channel == Channel::Silent)
         {
-            return nullptr;
+            return 0.0f;
         }
 
-        if (SourceMixer::x_numSources <= input.m_sourceAssignment.m_sourceIndex)
+        if (SourceMixer::x_numSources <= assignment.m_sourceIndex)
         {
-            return nullptr;
+            return 0.0f;
         }
 
-        size_t lane = input.m_sourceAssignment.m_channel == Channel::Right ? 1 : 0;
-        return input.m_sourceMixer->m_sources[input.m_sourceAssignment.m_sourceIndex].m_uBlockOutput[lane];
+        size_t lane = assignment.m_channel == Channel::Right ? 1 : 0;
+        return input.m_sourceMixer->m_sources[assignment.m_sourceIndex].m_uBlockOutput[lane][SampleTimer::GetUBlockIndex()];
     }
 
     // Called from SetEncoderParameters to set source-specific encoder params.
-    // Takes the encoder bank and voice index, dispatches to the appropriate machine.
+    // Dispatches to the active machine.
     //
     void SetEncoderParams(
         SmartGridOneEncoders& encoders,
         Input& input,
-        size_t voiceIx,
-        float baseFreq,
-        float wtBlend0,
-        float wtBlend1)
+        size_t track,
+        const Vector& baseFreq,
+        const Vector& wtBlend0,
+        const Vector& wtBlend1)
     {
         switch (input.m_sourceMachine)
         {
             case SourceMachine::DualWaveShapingVCO:
             {
                 m_dualWaveShapingVCO.SetEncoderParams(
-                    encoders, input.m_dualWaveShapingVCOInput, voiceIx, baseFreq, wtBlend0, wtBlend1);
+                    encoders, input.m_dualWaveShapingVCOInput, track, baseFreq, wtBlend0, wtBlend1);
                 break;
             }
 
@@ -194,13 +196,13 @@ struct SquiggleBoySource
 
             case SourceMachine::PhysicalModeling:
             {
-                m_physicalModeling.SetEncoderParams(encoders, input.m_physicalModelingInput, voiceIx, baseFreq);
+                m_physicalModeling.SetEncoderParams(encoders, input.m_physicalModelingInput, track, baseFreq);
                 break;
             }
 
             case SourceMachine::Sample:
             {
-                m_sampleSource.SetEncoderParams(encoders, input.m_sampleSourceInput, voiceIx, baseFreq);
+                m_sampleSource.SetEncoderParams(encoders, input.m_sampleSourceInput, track);
                 break;
             }
 
@@ -209,3 +211,6 @@ struct SquiggleBoySource
         }
     }
 };
+
+using SquiggleBoySource = SquiggleBoySourceGeneric<1>;
+using TrioSquiggleBoySource = SquiggleBoySourceGeneric<3>;

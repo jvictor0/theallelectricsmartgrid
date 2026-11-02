@@ -283,7 +283,7 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
             for (size_t voice = 0; voice < 9; ++voice)
             {
                 random.push_back({ModulatorRef(static_cast<VoiceModulator>(slot), voice),
-                    static_cast<double>(sample), synth.m_gangedRandomLFO[slot][voice / 3].Output(voice % 3)});
+                    static_cast<double>(sample), synth.m_tracks[voice / 3].m_gangedRandomLFO[slot].Output(voice % 3)});
             }
 
             for (size_t channel = 0; channel < 4; ++channel)
@@ -303,15 +303,16 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
         {
             for (size_t voice = 0; voice < 9; ++voice)
             {
-                auto& source = synth.m_voices[voice];
+                auto& source = synth.m_tracks[voice / 3];
+                const size_t lane = voice % 3;
                 scopes.push_back({ModulatorRef(VoiceModulator::LFO1, voice),
-                    static_cast<double>(sample), source.m_squiggleLFO[0].m_polyXFader.m_output});
+                    static_cast<double>(sample), source.m_squiggleLFO[0].m_polyXFader.m_output[lane]});
                 scopes.push_back({ModulatorRef(VoiceModulator::LFO2, voice),
-                    static_cast<double>(sample), source.m_squiggleLFO[1].m_polyXFader.m_output});
+                    static_cast<double>(sample), source.m_squiggleLFO[1].m_polyXFader.m_output[lane]});
                 scopes.push_back({ModulatorRef(VoiceModulator::ModulationEnvelope, voice),
-                    static_cast<double>(sample), source.m_amp.m_modulationAHD.m_output});
+                    static_cast<double>(sample), source.m_amp.m_modulationAHD.m_output[lane]});
                 scopes.push_back({ModulatorRef(VoiceModulator::AmpEnvelope, voice),
-                    static_cast<double>(sample), source.m_amp.m_ahd.m_output});
+                    static_cast<double>(sample), source.m_amp.m_ahd.m_output[lane]});
             }
 
             for (size_t channel = 0; channel < 4; ++channel)

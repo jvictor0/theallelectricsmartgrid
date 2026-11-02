@@ -5,21 +5,18 @@
 //   2. GrainManager<AudioBufferBank> -- launches Resynthesizer grains every
 //      Resynthesizer::x_H (= 1024) samples, reads from the buffer via
 //      AudioBufferBank::ReadRealTime / GetRealTime.
-//   3. Upsampler (x4) -- upsamples the 8-sample micro-block to 32 samples.
 //
 // In-memory wiring: we construct a real AudioBufferBank by directly pushing a
 // shared_ptr<AudioBuffer> with a known waveform (no file I/O required).
 //
 // Wiring (from SquiggleBoySource.hpp):
-//   m_sampleSource.SetAudioBufferBank(input.m_audioBufferBank);
+//   m_sampleSource.SetAudioBufferBank(channel, input.m_audioBufferBank);
 //   input.m_sampleSourceInput.m_theoryOfTime = input.m_theoryOfTime;
-//   m_sampleSource.ProcessUBlock(input.m_sampleSourceInput);
-//   m_uBlockOutput = m_sampleSource.m_uBlockOutput;
+//   m_output = m_sampleSource.Process(input.m_sampleSourceInput, sampleIndex);
 //
-// ProcessUBlock operates per "micro-block" = 8 audio samples. We must call it
-// once per control frame (= one micro-block). TimeRig already drives
-// SampleTimer correctly per control frame, so we call ProcessUBlock once per
-// AdvanceControlFrame().
+// Process runs one sample at sampleIndex within the theory of time's sample
+// buffer. TimeRig drives SampleTimer per control frame, so ProcessFrame runs
+// that frame's samples once per AdvanceControlFrame().
 //
 // NOTE: Grain synthesis uses Resynthesizer which requires the buffer to have
 // enough data for one Resynthesizer::x_tableSize = 4096 window before a grain
@@ -108,9 +105,19 @@ SampleSource::Input MakeBasicInput(TheoryOfTime* tot, int loopIndex = 0)
     return inp;
 }
 
-// The upsampled output block size.
+// Samples per control frame.
 //
-constexpr size_t kUBlockSize = SampleTimer::x_controlFrameRate * SampleSource::x_oversample; // 8*4=32
+constexpr size_t kFrameSize = SampleTimer::x_controlFrameRate;
+
+// Runs one control frame of samples into output.
+//
+void ProcessFrame(SampleSource& ss, SampleSource::Input& inp, float* output)
+{
+    for (size_t i = 0; i < kFrameSize; ++i)
+    {
+        output[i] = ss.Process(inp, static_cast<int>(i));
+    }
+}
 
 }  // namespace
 
@@ -131,6 +138,7 @@ DOCTEST_TEST_CASE("SampleSource: no buffer -> silent output")
     //
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
+    float output[kFrameSize];
     // No SetAudioBufferBank call -> m_grainManager.m_audioBuffer == nullptr.
 
     SampleSource::Input inp = MakeBasicInput(rig.Get(), 0);
@@ -138,14 +146,14 @@ DOCTEST_TEST_CASE("SampleSource: no buffer -> silent output")
     const int nFrames = 32;
     for (int f = 0; f < nFrames; ++f)
     {
-        ss.ProcessUBlock(inp);
+        ProcessFrame(ss, inp, output);
 
-        TestNan::AssertClean(ss.m_uBlockOutput, kUBlockSize);
+        TestNan::AssertClean(output, kFrameSize);
 
-        for (size_t i = 0; i < kUBlockSize; ++i)
+        for (size_t i = 0; i < kFrameSize; ++i)
         {
-            DOCTEST_INFO("no-buf output[" << i << "]=" << ss.m_uBlockOutput[i]);
-            DOCTEST_CHECK(ss.m_uBlockOutput[i] == 0.0f);
+            DOCTEST_INFO("no-buf output[" << i << "]=" << output[i]);
+            DOCTEST_CHECK(output[i] == 0.0f);
         }
 
         rig.AdvanceControlFrame();
@@ -174,7 +182,8 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
     //
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
-    ss.SetAudioBufferBank(bank.get());
+    float output[kFrameSize];
+    ss.SetAudioBufferBank(0, bank.get());
 
     SampleSource::Input inp = MakeBasicInput(rig.Get(), 0);
 
@@ -185,11 +194,11 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
     const int nFrames = 4 * static_cast<int>(SampleTimer::x_sampleRate / SampleTimer::x_controlFrameRate);
     for (int f = 0; f < nFrames; ++f)
     {
-        ss.ProcessUBlock(inp);
+        ProcessFrame(ss, inp, output);
 
-        for (size_t i = 0; i < kUBlockSize; ++i)
+        for (size_t i = 0; i < kFrameSize; ++i)
         {
-            float v = ss.m_uBlockOutput[i];
+            float v = output[i];
             if (std::isnan(v) || std::isinf(v))
             {
                 anyBad = true;
@@ -204,9 +213,9 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
     // Final frame output must be bounded (ramp values are in [0,1] so
     // resynthesized output should be reasonably small; generous bound ±5).
     //
-    for (size_t i = 0; i < kUBlockSize; ++i)
+    for (size_t i = 0; i < kFrameSize; ++i)
     {
-        DOCTEST_CHECK(std::abs(ss.m_uBlockOutput[i]) < 5.0f);
+        DOCTEST_CHECK(std::abs(output[i]) < 5.0f);
     }
 }
 
@@ -230,7 +239,8 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
     //
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
-    ss.SetAudioBufferBank(bank.get());
+    float output[kFrameSize];
+    ss.SetAudioBufferBank(0, bank.get());
     SampleSource::Input inp = MakeBasicInput(rig.Get(), /*loopIndex=*/TimeRig::x_globalLoop);
     inp.m_phasorPlayHeadInput.m_speed  = 1.0f;
     inp.m_phasorPlayHeadInput.m_start  = 0.0f;
@@ -243,8 +253,8 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
     const int nFrames = 300;
     for (int f = 0; f < nFrames; ++f)
     {
-        ss.ProcessUBlock(inp);
-        double pos = ss.m_core.m_previousTotalPhaseTime[0];
+        ProcessFrame(ss, inp, output);
+        double pos = ss.m_previousTotalPhaseTime[0];
 
         if (pos > prevPos)
         {
@@ -283,7 +293,8 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
     //
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
-    ss.SetAudioBufferBank(bank.get());
+    float output[kFrameSize];
+    ss.SetAudioBufferBank(0, bank.get());
 
     TestSignal::WhiteNoise rng(0xABCDEF1234567890ULL);
 
@@ -323,11 +334,11 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
             rig.SetGlobalPeriodSamples(newPeriod);
         }
 
-        ss.ProcessUBlock(inp);
+        ProcessFrame(ss, inp, output);
 
-        for (size_t i = 0; i < kUBlockSize; ++i)
+        for (size_t i = 0; i < kFrameSize; ++i)
         {
-            float v = ss.m_uBlockOutput[i];
+            float v = output[i];
             if (std::isnan(v) || std::isinf(v))
             {
                 anyBad = true;
@@ -367,7 +378,8 @@ DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
     //
     auto ssHolder = std::make_unique<SampleSource>();
     SampleSource& ss = *ssHolder;
-    ss.SetAudioBufferBank(bank.get());
+    float output[kFrameSize];
+    ss.SetAudioBufferBank(0, bank.get());
     SampleSource::Input inp = MakeBasicInput(rig.Get(), TimeRig::x_globalLoop);
     inp.m_phasorPlayHeadInput.m_speed  = 1.0f;
     inp.m_phasorPlayHeadInput.m_start  = 0.0f;
@@ -380,11 +392,11 @@ DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
     const int nFrames = 20 * 512 / static_cast<int>(SampleTimer::x_controlFrameRate);
     for (int f = 0; f < nFrames; ++f)
     {
-        ss.ProcessUBlock(inp);
+        ProcessFrame(ss, inp, output);
 
-        for (size_t i = 0; i < kUBlockSize; ++i)
+        for (size_t i = 0; i < kFrameSize; ++i)
         {
-            float v = ss.m_uBlockOutput[i];
+            float v = output[i];
             if (std::isnan(v) || std::isinf(v))
             {
                 anyBad = true;

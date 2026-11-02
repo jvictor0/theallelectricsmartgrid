@@ -258,7 +258,6 @@ DOCTEST_TEST_CASE("Trio: dual wave shaping VCO channels match mono cores")
     ChannelDifference output;
     ChannelDifference tops;
     size_t topCount[3] = {0, 0, 0};
-    const double deltaT = 1.0 / 192000.0;
     for (size_t n = 0; n < 8000; ++n)
     {
         for (size_t i = 0; i < 3; ++i)
@@ -295,10 +294,10 @@ DOCTEST_TEST_CASE("Trio: dual wave shaping VCO channels match mono cores")
             monoInput[i].m_bitCrushAmount = trioInput.m_bitCrushAmount[i];
         }
 
-        TrioFloat trioOutput = trio->Process(trioInput, deltaT);
+        TrioFloat trioOutput = trio->Process(trioInput);
         for (size_t i = 0; i < 3; ++i)
         {
-            float monoOutput = mono[i]->Process(monoInput[i], deltaT);
+            float monoOutput = mono[i]->Process(monoInput[i]);
             output.Add(i, trioOutput[i], monoOutput);
 
             const SampleTop& trioTop = trio->m_vco[0].m_top[i];

@@ -49,9 +49,9 @@ struct SampleTop
             ? SampleTop(true, std::max(m_offset, other.m_offset)) : SampleTop();
     }
 
-    static SampleTop FromWrap(double phase, double frequency, double deltaT)
+    static SampleTop FromWrap(double phase, double frequency)
     {
-        return {true, -phase / frequency * deltaT * SampleTimer::x_sampleRate};
+        return {true, -phase / frequency};
     }
 
     void AccumulateOversample(const SampleTop& top, size_t index, size_t oversample)

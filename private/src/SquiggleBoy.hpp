@@ -48,7 +48,9 @@ struct SquiggleBoy
     static constexpr size_t x_numVoices = 9;
     static constexpr size_t x_numTracks = 3;
     static constexpr size_t x_voicesPerTrack = x_numVoices / x_numTracks;
-    static constexpr size_t x_numGangedRandomLFOs = 4;
+    static constexpr size_t x_numGangedRandomLFOs = SquiggleBoyTrack::x_numGangedRandomLFOs;
+
+    static_assert(x_voicesPerTrack == 3, "tracks are trios");
 
     struct MixerInput : QuadMixerInternal::Input
     {
@@ -61,11 +63,10 @@ struct SquiggleBoy
 
     SquiggleBoyWaveTableGenerator m_waveTableGenerator[2];
 
-    SquiggleBoyTrack m_voices[x_numVoices];
-    GangedRandomLFO<x_voicesPerTrack> m_gangedRandomLFO[x_numGangedRandomLFOs][x_numTracks];
+    SquiggleBoyTrack m_tracks[x_numTracks];
     GangedRandomLFO<4> m_quadGangedRandomLFO[x_numGangedRandomLFOs];
     GangedRandomLFO<1> m_globalGangedRandomLFO[2];
-    SquiggleBoyTrack::SquiggleLFO m_quadSquiggleLFO[2][4];
+    SquiggleLFOGeneric<1> m_quadSquiggleLFO[2][4];
 
     SourceMixer m_sourceMixer;
     SourceMixer::Input m_sourceMixerState;
@@ -86,10 +87,11 @@ struct SquiggleBoy
 
     QuadFloatWithStereoAndSub m_output;
 
-    SquiggleBoyTrack::Input m_state[x_numVoices];
+    SquiggleBoyVoiceConfig m_voiceConfig[x_numVoices];
+    SquiggleBoyTrack::Input m_trackState[x_numTracks];
     GangedRandomLFOInput m_gangedRandomLFOInput[x_numGangedRandomLFOs];
     GangedRandomLFOInput m_globalGangedRandomLFOInput[2];
-    SquiggleBoyTrack::SquiggleLFO::Input m_quadSquiggleLFOInput[2][4];
+    SquiggleLFOGeneric<1>::Input m_quadSquiggleLFOInput[2][4];
     MixerInput m_mixerState;
 
     QuadDelayInputSetter m_delayInputSetter;
@@ -121,9 +123,14 @@ struct SquiggleBoy
         m_mixerState.m_numMonoInputs = x_numVoices;
         m_theoryOfTime = nullptr;
 
-        for (size_t i = 0; i < x_numVoices; ++i)
+        for (size_t track = 0; track < x_numTracks; ++track)
         {
-            m_state[i].m_sourceInput.m_sourceMixer = &m_sourceMixer;
+            m_trackState[track].m_sourceInput.m_sourceMixer = &m_sourceMixer;
+            m_trackState[track].m_gangedRandomLFOInput = m_gangedRandomLFOInput;
+            for (size_t i = 0; i < x_voicesPerTrack; ++i)
+            {
+                m_trackState[track].m_voiceConfig[i] = &m_voiceConfig[track * x_voicesPerTrack + i];
+            }
         }
 
         m_gangedRandomLFOInput[0] = GangedRandomLFOInput::Standard(1.0, 0.1f);
@@ -202,14 +209,14 @@ struct SquiggleBoy
                 m_waveTableGenerator[i].GenerateCompletely();
                 for (size_t k = 0; k < x_voicesPerTrack; ++k)
                 {
-                    m_waveTableGenerator[i].SetLeft(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_core.m_vco[i]);
+                    m_waveTableGenerator[i].SetLeft(&m_tracks[j].m_source.m_dualWaveShapingVCO.m_vco[i], k);
                 }
 
                 m_waveTableGenerator[i].Clear();
                 m_waveTableGenerator[i].GenerateCompletely();
                 for (size_t k = 0; k < x_voicesPerTrack; ++k)
                 {
-                    m_waveTableGenerator[i].SetRight(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_core.m_vco[i]);
+                    m_waveTableGenerator[i].SetRight(&m_tracks[j].m_source.m_dualWaveShapingVCO.m_vco[i], k);
                 }
 
                 m_waveTableGenerator[i].m_leftVisible[j] = true;
@@ -233,13 +240,13 @@ struct SquiggleBoy
                     bool needLeft = m_waveTableGenerator[i].m_leftVisible[j];
                     for (size_t k = 0; k < x_voicesPerTrack; ++k)
                     {
-                        if (m_gangedRandomLFO[2 + i][j].Output(k) < 1)
+                        if (m_tracks[j].m_gangedRandomLFO[2 + i].Output(k) < 1)
                         {
                             needLeft = false;
                             m_waveTableGenerator[i].m_leftVisible[j] = true;
                         }
 
-                        if (m_gangedRandomLFO[2 + i][j].Output(k) > 0)
+                        if (m_tracks[j].m_gangedRandomLFO[2 + i].Output(k) > 0)
                         {
                             needRight = false;
                             m_waveTableGenerator[i].m_rightVisible[j] = true;
@@ -251,7 +258,7 @@ struct SquiggleBoy
                         INFO("New right wavetable for VCO %zu track %zu", i, j);
                         for (size_t k = 0; k < x_voicesPerTrack; ++k)
                         {
-                            m_waveTableGenerator[i].SetRight(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_core.m_vco[i]);
+                            m_waveTableGenerator[i].SetRight(&m_tracks[j].m_source.m_dualWaveShapingVCO.m_vco[i], k);
                         }
 
                         m_waveTableGenerator[i].m_rightVisible[j] = false;
@@ -264,7 +271,7 @@ struct SquiggleBoy
                         INFO("New left wavetable for VCO %zu track %zu", i, j);
                         for (size_t k = 0; k < x_voicesPerTrack; ++k)
                         {
-                            m_waveTableGenerator[i].SetLeft(&m_voices[j * x_voicesPerTrack + k].m_source.m_dualWaveShapingVCO.m_core.m_vco[i]);
+                            m_waveTableGenerator[i].SetLeft(&m_tracks[j].m_source.m_dualWaveShapingVCO.m_vco[i], k);
                         }
 
                         m_waveTableGenerator[i].m_leftVisible[j] = false;
@@ -296,13 +303,6 @@ struct SquiggleBoy
 
         for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
         {
-            for (size_t track = 0; track < x_numTracks; ++track)
-            {
-                m_gangedRandomLFO[j][track].Process(
-                    SampleTimer::x_samplePeriod,
-                    m_gangedRandomLFOInput[j]);
-            }
-
             m_quadGangedRandomLFO[j].Process(SampleTimer::x_samplePeriod, m_gangedRandomLFOInput[j]);
         }
 
@@ -322,19 +322,25 @@ struct SquiggleBoy
             m_sourceMixer.ProcessUBlock(m_sourceMixerState);
         }
 
-        for (size_t i = 0; i < x_numVoices; ++i)
+        for (size_t track = 0; track < x_numTracks; ++track)
         {
-            m_state[i].m_panInput.m_input = m_panPhase.m_phase;
+            SquiggleBoyTrack& squiggleBoyTrack = m_tracks[track];
+            m_trackState[track].m_panInput.m_input = m_panPhase.m_phase;
 
-            m_mixerState.m_input[i] = m_voices[i].Processs(m_state[i]);
-            m_mixerState.m_monoIn[i] = m_voices[i].m_amp.m_subOut;
-            m_mixerState.m_x[i] = m_voices[i].m_pan.m_outputX;
-            m_mixerState.m_y[i] = m_voices[i].m_pan.m_outputY;
+            SquiggleBoyTrack::Vector output = squiggleBoyTrack.Processs(m_trackState[track]);
+            for (size_t i = 0; i < x_voicesPerTrack; ++i)
+            {
+                size_t voice = track * x_voicesPerTrack + i;
+                m_mixerState.m_input[voice] = output[i];
+                m_mixerState.m_monoIn[voice] = squiggleBoyTrack.m_amp.m_subOut[i];
+                m_mixerState.m_x[voice] = squiggleBoyTrack.m_pan.m_outputX[i];
+                m_mixerState.m_y[voice] = squiggleBoyTrack.m_pan.m_outputY[i];
+            }
         }
 
         if (SampleTimer::GetSample() % SampleTimer::x_sampleRate == 0)
         {
-            m_voices[0].DebugPrint();
+            m_tracks[0].DebugPrint();
         }
 
         m_deepVocoderState.m_enabled = m_sourceMixer.IsVocoderEnabled(m_sourceMixerState);
@@ -665,23 +671,22 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void PopulateVoiceFilterUIState(
             size_t i,
-            LadderFilterLP* lpLadder,
-            LinearSVF4PoleHighPass* hp4Pole,
-            LinearStateVariableFilter* lpSVF,
-            LinearStateVariableFilter* hpSVF,
+            SquiggleBoyTrack::Shape* shape,
+            size_t channel,
             SquiggleBoyTrack::VoiceConfig::FilterMachine filterMachine)
         {
-            lpLadder->PopulateUIState(&m_voiceFilterUIState[i].m_lpLadder);
-            hp4Pole->PopulateUIState(&m_voiceFilterUIState[i].m_hp4Pole);
-            lpSVF->PopulateUIState(&m_voiceFilterUIState[i].m_lpSVF);
-            hpSVF->PopulateUIState(&m_voiceFilterUIState[i].m_hpSVF);
+            shape->m_ladder4Pole.m_lpLadder.PopulateUIState(&m_voiceFilterUIState[i].m_lpLadder, channel);
+            shape->m_ladder4Pole.m_hp4Pole.PopulateUIState(&m_voiceFilterUIState[i].m_hp4Pole, channel);
+            shape->m_svf2Pole.m_lpSVF.PopulateUIState(&m_voiceFilterUIState[i].m_lpSVF, channel);
+            shape->m_svf2Pole.m_hpSVF.PopulateUIState(&m_voiceFilterUIState[i].m_hpSVF, channel);
             m_voiceFilterUIState[i].m_filterMachine.store(filterMachine);
         }
 
         void PopulateVoiceSourceUIState(
             size_t i,
             SquiggleBoyTrack::VoiceConfig* voiceConfig,
-            SquiggleBoySource* squiggleBoySource)
+            SquiggleBoyTrack::Source* squiggleBoySource,
+            size_t channel)
         {
             m_voiceSourceUIState[i].m_sourceMachine.store(voiceConfig->m_sourceMachine);
 
@@ -691,12 +696,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             if (voiceConfig->m_sourceMachine == SquiggleBoyTrack::VoiceConfig::SourceMachine::PhysicalModeling)
             {
-                PhysicalModelingSource* physicalModeling = &squiggleBoySource->m_physicalModeling;
-                physicalModeling->PopulateUIState(&m_voiceSourceUIState[i].m_physicalModelingUIState);
+                squiggleBoySource->m_physicalModeling.PopulateUIState(&m_voiceSourceUIState[i].m_physicalModelingUIState, channel);
             }
             else if (voiceConfig->m_sourceMachine == SquiggleBoyTrack::VoiceConfig::SourceMachine::Sample)
             {
-                squiggleBoySource->m_sampleSource.PopulateUIState(&m_voiceSourceUIState[i].m_sampleSourceUIState);
+                squiggleBoySource->m_sampleSource.PopulateUIState(&m_voiceSourceUIState[i].m_sampleSourceUIState, channel);
                 if (bank)
                 {
                     bank->PopulateUIState(&m_voiceSourceUIState[i].m_audioBufferBankUIState);
@@ -789,11 +793,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         for (size_t i = 0; i < 4; ++i)
         {
-            m_quadSquiggleLFO[0][i].m_scopeWriter = ScopeWriterHolder(
+            m_quadSquiggleLFO[0][i].m_scopeWriter[0] = ScopeWriterHolder(
                 &uiState->m_quadControlScopeWriter,
                 i,
                 static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1));
-            m_quadSquiggleLFO[1][i].m_scopeWriter = ScopeWriterHolder(
+            m_quadSquiggleLFO[1][i].m_scopeWriter[0] = ScopeWriterHolder(
                 &uiState->m_quadControlScopeWriter,
                 i,
                 static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2));
@@ -811,10 +815,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         m_sourceMixer.SetupScopeWriters(&uiState->m_sourceMixerScopeWriter);
         
-        for (size_t i = 0; i < x_numVoices; ++i)
+        for (size_t track = 0; track < x_numTracks; ++track)
         {
-            m_voices[i].SetupAudioScopeWriters(&uiState->m_audioScopeWriter, i);
-            m_voices[i].SetupControlScopeWriters(&uiState->m_controlScopeWriter, i);
+            m_tracks[track].SetupAudioScopeWriters(&uiState->m_audioScopeWriter, track);
+            m_tracks[track].SetupControlScopeWriters(&uiState->m_controlScopeWriter, track);
         }
     }
 
@@ -824,7 +828,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             for (size_t track = 0; track < x_numTracks; ++track)
             {
-                m_gangedRandomLFO[random][track].m_history =
+                m_tracks[track].m_gangedRandomLFO[random].m_history =
                     &uiState->m_gangedRandomLFOUIState[random][track].m_history;
             }
 
@@ -956,21 +960,26 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void Config(Input& input)
     {
-        for (size_t i = 0; i < x_numVoices; ++i)
+        for (size_t track = 0; track < x_numTracks; ++track)
         {
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
+            m_trackState[track].m_squiggleLFOInput[0].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_trackState[track].m_squiggleLFOInput[1].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_trackState[track].m_squiggleLFOInput[0].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
+            m_trackState[track].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
 
-            m_state[i].SetTheoryOfTimeInputs(m_theoryOfTime);
+            m_trackState[track].SetTheoryOfTimeInputs(m_theoryOfTime);
 
-            m_voices[i].m_recordingBuffer.m_theoryOfTime = m_theoryOfTime;
-            m_recordingManager.m_voiceRecordingBuffers[i] = &m_voices[i].m_recordingBuffer;
-            m_recordingManager.m_voiceBufferWriters[i] = &m_voices[i].m_recordingBufferWriter;
-            m_recordingManager.m_voiceConfig[i] = &m_state[i].m_voiceConfig;
-            m_recordingManager.m_ioTaskThread = m_ioTaskThread;
+            for (size_t i = 0; i < x_voicesPerTrack; ++i)
+            {
+                size_t voice = track * x_voicesPerTrack + i;
+                m_tracks[track].m_recordingBuffer[i].m_theoryOfTime = m_theoryOfTime;
+                m_recordingManager.m_voiceRecordingBuffers[voice] = &m_tracks[track].m_recordingBuffer[i];
+                m_recordingManager.m_voiceBufferWriters[voice] = &m_tracks[track].m_recordingBufferWriter[i];
+                m_recordingManager.m_voiceConfig[voice] = &m_voiceConfig[voice];
+            }
         }
+
+        m_recordingManager.m_ioTaskThread = m_ioTaskThread;
 
         for (size_t i = 0; i < 4; ++i)
         {
@@ -998,8 +1007,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         size_t voiceIx = track * x_voicesPerTrack;
         m_encoders.UpdateEncodersForMachine(
-            m_state[voiceIx].m_voiceConfig.m_sourceMachine,
-            m_state[voiceIx].m_voiceConfig.m_filterMachine,
+            m_voiceConfig[voiceIx].m_sourceMachine,
+            m_voiceConfig[voiceIx].m_filterMachine,
             track);
     }
 
@@ -1018,23 +1027,26 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         for (size_t track = 0; track < x_numTracks; ++track)
         {
             auto& modulatorValues = m_encoders.GetModulatorValues(SmartGridOneEncoders::VoiceModeForTrio(track));
+            SquiggleBoyTrack& squiggleBoyTrack = m_tracks[track];
             for (size_t trackVoice = 0; trackVoice < x_voicesPerTrack; ++trackVoice)
             {
                 size_t voice = track * x_voicesPerTrack + trackVoice;
                 for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
                 {
-                    modulatorValues.Set(j, trackVoice, m_gangedRandomLFO[j][track].Output(trackVoice));
+                    modulatorValues.Set(j, trackVoice, squiggleBoyTrack.m_gangedRandomLFO[j].Output(trackVoice));
                 }
 
-                modulatorValues.Set(VoiceModulator::ModulationEnvelope, trackVoice, m_voices[voice].m_amp.m_modulationAHD.m_rawOutput);
-                modulatorValues.Set(VoiceModulator::AmpEnvelope, trackVoice, m_voices[voice].m_amp.m_ahd.m_rawOutput);
-                modulatorValues.SetAmplitude(VoiceModulator::ModulationEnvelope, trackVoice, m_voices[voice].m_amp.m_modulationAHD.m_amplitude);
-                modulatorValues.SetAmplitude(VoiceModulator::AmpEnvelope, trackVoice, m_voices[voice].m_amp.m_ahd.m_amplitude);
+                const AHD& modulationAHD = squiggleBoyTrack.m_amp.m_modulationAHD.m_channels[trackVoice];
+                const AHD& ampAHD = squiggleBoyTrack.m_amp.m_ahd.m_channels[trackVoice];
+                modulatorValues.Set(VoiceModulator::ModulationEnvelope, trackVoice, modulationAHD.m_rawOutput);
+                modulatorValues.Set(VoiceModulator::AmpEnvelope, trackVoice, ampAHD.m_rawOutput);
+                modulatorValues.SetAmplitude(VoiceModulator::ModulationEnvelope, trackVoice, modulationAHD.m_amplitude);
+                modulatorValues.SetAmplitude(VoiceModulator::AmpEnvelope, trackVoice, ampAHD.m_amplitude);
 
-                modulatorValues.Set(VoiceModulator::LFO1, trackVoice, m_voices[voice].m_squiggleLFO[0].m_output);
-                modulatorValues.Set(VoiceModulator::LFO2, trackVoice, m_voices[voice].m_squiggleLFO[1].m_output);
-                modulatorValues.SetAmplitude(VoiceModulator::LFO1, trackVoice, m_voices[voice].m_squiggleLFO[0].m_polyXFader.m_amplitude);
-                modulatorValues.SetAmplitude(VoiceModulator::LFO2, trackVoice, m_voices[voice].m_squiggleLFO[1].m_polyXFader.m_amplitude);
+                modulatorValues.Set(VoiceModulator::LFO1, trackVoice, squiggleBoyTrack.m_squiggleLFO[0].m_output[trackVoice]);
+                modulatorValues.Set(VoiceModulator::LFO2, trackVoice, squiggleBoyTrack.m_squiggleLFO[1].m_output[trackVoice]);
+                modulatorValues.SetAmplitude(VoiceModulator::LFO1, trackVoice, squiggleBoyTrack.m_squiggleLFO[0].m_polyXFader.m_amplitude[trackVoice]);
+                modulatorValues.SetAmplitude(VoiceModulator::LFO2, trackVoice, squiggleBoyTrack.m_squiggleLFO[1].m_polyXFader.m_amplitude[trackVoice]);
 
                 modulatorValues.Set(VoiceModulator::Sheaf1, trackVoice, input.m_sheafyModulators[voice][0]);
                 modulatorValues.Set(VoiceModulator::Sheaf2, trackVoice, input.m_sheafyModulators[voice][1]);
@@ -1099,95 +1111,28 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SetEncoderParameters(Input& input)
     {
-        for (size_t i = 0; i < x_numVoices; ++i)
+        for (size_t track = 0; track < x_numTracks; ++track)
         {
-            float freqSlewAmount = m_voices[i].m_baseFreqSlewAmount.Update(1.0 - m_encoders.GetValue(Param::Portamento, i));
-            m_voices[i].m_baseFreqSlew.SetAlphaFromNatFreq(freqSlewAmount);
-            float baseFreq = m_voices[i].m_baseFreqSlew.Process(input.m_baseFreq[i]);
-
-            // Set source machine for the source dispatch
-            // (m_sourceMixer is already set in the constructor)
-            //
-            m_state[i].m_sourceInput.m_sourceMachine = m_state[i].m_voiceConfig.m_sourceMachine;
-
-            // Dispatch encoder params to the appropriate source machine
-            //
-            size_t track = i / x_voicesPerTrack;
-            size_t trackVoice = i % x_voicesPerTrack;
-            float wtBlend0 = m_gangedRandomLFO[2][track].Output(trackVoice);
-            float wtBlend1 = m_gangedRandomLFO[3][track].Output(trackVoice);
-            m_voices[i].m_source.SetEncoderParams(
-                m_encoders, m_state[i].m_sourceInput, i, baseFreq, wtBlend0, wtBlend1);
-
-            AudioBufferBank* audioBufferBank = m_state[i].m_voiceConfig.m_audioBufferBank;
-            if (audioBufferBank)
+            SquiggleBoyTrack::Vector targetFreq;
+            for (size_t i = 0; i < x_voicesPerTrack; ++i)
             {
-                audioBufferBank->m_bankPosition =
-                    std::clamp(m_encoders.GetValue(Param::SampleBankPosition, i), 0.0f, 1.0f);
+                targetFreq[i] = input.m_baseFreq[track * x_voicesPerTrack + i];
             }
 
-            m_state[i].m_subInput.m_baseFreq = baseFreq;
+            m_tracks[track].SetEncoderParams(
+                m_encoders,
+                m_trackState[track],
+                track,
+                targetFreq,
+                SquiggleBoyTrack::Vector::Splat(input.GetGainFader(track * x_voicesPerTrack)));
+        }
 
-            m_state[i].m_ampInput.m_subGain.Update(m_encoders.GetValue(Param::SubOscillator, i));
-            m_state[i].m_ampInput.m_subTanhGain.Update(m_encoders.GetValue(Param::SubTanhGain, i));
-            m_state[i].m_ampInput.m_subRiseSeconds.Update(m_encoders.GetValue(Param::SubSlewRise, i));
-            m_state[i].m_ampInput.m_subFallSeconds.Update(m_encoders.GetValue(Param::SubSlewFall, i));
-            
-            m_state[i].m_shapeInput.m_sourceMachine = m_state[i].m_voiceConfig.m_sourceMachine;
-            m_state[i].m_shapeInput.m_filterMachine = m_state[i].m_voiceConfig.m_filterMachine;
-            m_voices[i].m_shape.SetEncoderParams(m_encoders, m_state[i].m_shapeInput, i, baseFreq);
-
-            m_state[i].m_ampInput.SetModulationAHD(
-                m_encoders.GetValue(Param::ModAHDAttack, i), 
-                m_encoders.GetValue(Param::ModAHDHold, i), 
-                m_encoders.GetValue(Param::ModAHDDecay, i), 
-                m_encoders.GetValue(Param::ModAmplitude, i));
-
-            m_state[i].m_ampInput.m_vcoTargetFreq = input.m_baseFreq[i];
-            m_state[i].m_ampInput.SetAHD(
-                m_encoders.GetValue(Param::AmpAHDAttack, i), 
-                m_encoders.GetValue(Param::AmpAHDHold, i), 
-                m_encoders.GetValue(Param::AmpAHDDecay, i), 
-                m_encoders.GetValue(Param::AmpAmplitude, i));
-
-            m_state[i].m_ampInput.m_gain.Update(input.GetGainFader(i));
-
-            m_state[i].m_panInput.m_radius.Update(m_encoders.GetValue(Param::PanRadius, i));
-            float staticOffset = static_cast<float>(i % x_numTracks) / x_numTracks + static_cast<float>(i / x_numTracks) / (x_numTracks * x_numTracks);
-            m_state[i].m_panInput.m_phaseShift = staticOffset + m_encoders.GetValue(Param::PanPhaseShift, i);
-            m_state[i].m_panInput.m_multX = m_encoders.GetValue(Param::PanMultX, i) * 4 + 1;
-            m_state[i].m_panInput.m_multY = m_encoders.GetValue(Param::PanMultY, i) * 4 + 1;
-            m_state[i].m_panInput.m_centerX = m_encoders.GetValue(Param::PanCenterX, i) * 2 - 1;
-            m_state[i].m_panInput.m_centerY = m_encoders.GetValue(Param::PanCenterY, i) * 2 - 1;
-
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::LFO1Skew, i);
-            m_state[i].m_squiggleLFOInput[0].m_mult.Update(m_encoders.GetValue(Param::LFO1Mult, i));
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_shape = m_encoders.GetValue(Param::LFO1Shape, i);
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_amplitude = m_encoders.GetValue(Param::LFO1Amplitude, i);
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_center = 1 - m_encoders.GetValue(Param::LFO1Center, i);
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_slope = m_encoders.GetValue(Param::LFO1Slope, i);
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::LFO1PhaseShift, i) * (static_cast<float>(i % x_numTracks) / x_numTracks);
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-            m_state[i].m_squiggleLFOInput[0].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::LFO1SampleAndHold, i);
-
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::LFO2Skew, i);
-            m_state[i].m_squiggleLFOInput[1].m_mult.Update(m_encoders.GetValue(Param::LFO2Mult, i));
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_shape = m_encoders.GetValue(Param::LFO2Shape, i);
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_amplitude = m_encoders.GetValue(Param::LFO2Amplitude, i);
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_center = 1 - m_encoders.GetValue(Param::LFO2Center, i);
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_slope = m_encoders.GetValue(Param::LFO2Slope, i);
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::LFO2PhaseShift, i) * (static_cast<float>(i % x_numTracks) / x_numTracks);
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-            m_state[i].m_squiggleLFOInput[1].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::LFO2SampleAndHold, i);
-
+        for (size_t i = 0; i < x_numVoices; ++i)
+        {
             m_mixerState.m_gain[i].Update(m_encoders.GetValue(Param::AmpGain, i));
             m_mixerState.m_sendGain[i][0].Update(m_encoders.GetValue(Param::DelaySend, i));
             m_mixerState.m_sendGain[i][1].Update(m_encoders.GetValue(Param::ReverbSend, i));
             m_mixerState.m_sendGain[i][2].Update(m_encoders.GetValue(Param::PartialMachineSend, i));
-
-            m_state[i].SetGates();
         }
 
         QuadDelayInputSetter::Input delayInputSetterInput;
@@ -1409,7 +1354,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             for (size_t track = 0; track < x_numTracks; ++track)
             {
-                m_gangedRandomLFO[random][track].PopulateUIState(
+                m_tracks[track].m_gangedRandomLFO[random].PopulateUIState(
                     &uiState->m_gangedRandomLFOUIState[random][track]);
             }
 
@@ -1434,20 +1379,24 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         
         uiState->ReadMeters();
 
-        for (size_t i = 0; i < x_numVoices; ++i)
+        for (size_t track = 0; track < x_numTracks; ++track)
         {
-            uiState->SetPos(i, m_voices[i].m_pan.m_outputX, m_voices[i].m_pan.m_outputY);
-            uiState->PopulateVoiceFilterUIState(
-                i,
-                &m_voices[i].m_shape.m_ladder4Pole.m_lpLadder,
-                &m_voices[i].m_shape.m_ladder4Pole.m_hp4Pole,
-                &m_voices[i].m_shape.m_svf2Pole.m_lpSVF,
-                &m_voices[i].m_shape.m_svf2Pole.m_hpSVF,
-                m_state[i].m_voiceConfig.m_filterMachine);
-            uiState->PopulateVoiceSourceUIState(
-                i,
-                &m_state[i].m_voiceConfig,
-                &m_voices[i].m_source);
+            SquiggleBoyTrack& squiggleBoyTrack = m_tracks[track];
+            for (size_t i = 0; i < x_voicesPerTrack; ++i)
+            {
+                size_t voice = track * x_voicesPerTrack + i;
+                uiState->SetPos(voice, squiggleBoyTrack.m_pan.m_outputX[i], squiggleBoyTrack.m_pan.m_outputY[i]);
+                uiState->PopulateVoiceFilterUIState(
+                    voice,
+                    &squiggleBoyTrack.m_shape,
+                    i,
+                    m_voiceConfig[voice].m_filterMachine);
+                uiState->PopulateVoiceSourceUIState(
+                    voice,
+                    &m_voiceConfig[voice],
+                    &squiggleBoyTrack.m_source,
+                    i);
+            }
         }
 
         m_mixerState.m_masterChainInput.PopulateUIState(&uiState->m_stereoMasteringChainUIState);

@@ -3,25 +3,23 @@
 
 namespace
 {
-using Amp = SquiggleBoyTrack::AmpSection;
+using Amp = SquiggleBoyTrackGeneric<1>::AmpSection;
 using Encoders = SmartGridOneEncoders;
 
 struct SubAmpRig
 {
     Amp m_amp;
     Amp::Input m_input;
-    SquiggleBoyTrack::VoiceConfig m_config;
 
     SubAmpRig()
     {
-        m_input.m_voiceConfig = &m_config;
         m_input.m_vcoTargetFreq = 50.0f / SampleTimer::x_sampleRate;
         m_input.m_gain.Update(1.0f);
         m_input.m_subGain.Update(1.0f);
-        m_input.m_ahdInput.m_amplitudePolarity = false;
-        m_input.m_ahdInput.m_amplitude = 0.0f;
+        m_input.m_ahdInput.m_channels[0].m_amplitudePolarity = false;
+        m_input.m_ahdInput.m_channels[0].m_amplitude = 0.0f;
         m_amp.m_subOut = 0.0f;
-        m_amp.m_subRunning = true;
+        m_amp.m_subRunning[0] = true;
         m_amp.m_freqDependentGainTarget = 1.0f;
         m_amp.m_freqDependentGainSlew.m_output = 1.0f;
     }
@@ -54,7 +52,7 @@ DOCTEST_TEST_CASE("Sub: envelope rise and fall have independent exponential time
         DOCTEST_CHECK(rig.m_amp.m_output == doctest::Approx(1.0f));
         float peak = rig.m_amp.m_subOut;
         float envelope = rig.m_amp.m_subSlew.m_output;
-        rig.m_amp.m_subRunning = false;
+        rig.m_amp.m_subRunning[0] = false;
         rig.RunSamples(static_cast<size_t>(std::lround(fallSeconds * SampleTimer::x_sampleRate)));
         DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == doctest::Approx(envelope * std::exp(-1.0)).epsilon(0.002));
         DOCTEST_CHECK(rig.m_amp.m_subOut == doctest::Approx(peak * std::exp(-1.0)).epsilon(0.002));
@@ -77,7 +75,7 @@ DOCTEST_TEST_CASE("Sub: changing slew times retains the envelope and its directi
     DOCTEST_CHECK(rig.m_amp.m_subSlew.m_slewDown.m_alpha == fallAlpha);
     DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output ==
         doctest::Approx(1.0 - (1.0 - rising) * std::exp(-1.0)));
-    rig.m_amp.m_subRunning = false;
+    rig.m_amp.m_subRunning[0] = false;
     rig.RunSamples(4800);
     const float falling = rig.m_amp.m_subSlew.m_output;
     const float riseAlpha = rig.m_amp.m_subSlew.m_slewUp.m_alpha;
@@ -146,15 +144,16 @@ DOCTEST_TEST_CASE("Sub: page controls reach each trio independently and round tr
 
         for (size_t voice = 0; voice < SquiggleBoy::x_numVoices; ++voice)
         {
-            const auto& input = synth.m_state[voice].m_ampInput;
+            const auto& input = synth.m_trackState[voice / Encoders::x_voicesPerTrio].m_ampInput;
+            const size_t lane = voice % Encoders::x_voicesPerTrio;
             const float* setting = x_settings[voice / Encoders::x_voicesPerTrio];
-            DOCTEST_CHECK(input.m_subGain.m_expParam ==
+            DOCTEST_CHECK(input.m_subGain.m_expParam[lane] ==
                 doctest::Approx((std::pow(20.0f, setting[0]) - 1.0f) / 19.0f).epsilon(0.001));
-            DOCTEST_CHECK(input.m_subTanhGain.m_expParam ==
+            DOCTEST_CHECK(input.m_subTanhGain.m_expParam[lane] ==
                 doctest::Approx(0.125f * std::pow(256.0f, setting[1])).epsilon(0.001));
-            DOCTEST_CHECK(input.m_subRiseSeconds.m_expParam ==
+            DOCTEST_CHECK(input.m_subRiseSeconds.m_expParam[lane] ==
                 doctest::Approx(0.001f * std::pow(1000.0f, setting[2])).epsilon(0.001));
-            DOCTEST_CHECK(input.m_subFallSeconds.m_expParam ==
+            DOCTEST_CHECK(input.m_subFallSeconds.m_expParam[lane] ==
                 doctest::Approx(0.001f * std::pow(5000.0f, setting[3])).epsilon(0.001));
         }
     }
@@ -166,11 +165,11 @@ DOCTEST_TEST_CASE("Sub: analyzer feed separates the shaped sub from main audio a
 {
     GlobalEnv::ResetPerTest();
     auto writer = std::make_unique<ScopeWriter>(1, static_cast<size_t>(SmartGridOne::AudioScopes::NumScopes));
-    auto voice = std::make_unique<SquiggleBoyTrack>();
+    auto voice = std::make_unique<SquiggleBoyTrackGeneric<1>>();
     voice->SetupAudioScopeWriters(writer.get(), 0);
     SubAmpRig rig;
-    rig.m_amp.m_scopeWriter = voice->m_amp.m_scopeWriter;
-    rig.m_amp.m_subScopeWriter = voice->m_amp.m_subScopeWriter;
+    rig.m_amp.m_scopeWriter[0] = voice->m_amp.m_scopeWriter[0];
+    rig.m_amp.m_subScopeWriter[0] = voice->m_amp.m_subScopeWriter[0];
     rig.m_input.m_gain.m_expParam = 0.5f;
     rig.m_amp.m_subSlew.m_output = 1.0f;
     const size_t mainScope = static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp);
@@ -179,7 +178,7 @@ DOCTEST_TEST_CASE("Sub: analyzer feed separates the shaped sub from main audio a
     DOCTEST_CHECK(writer->ReadSample(mainScope, 0, 0) == doctest::Approx(1.0f));
     DOCTEST_CHECK(writer->ReadSample(subScope, 0, 0) == doctest::Approx(rig.m_amp.m_subOut / 0.5f));
     DOCTEST_CHECK(writer->ReadSample(subScope, 0, 0) > 0.0f);
-    rig.m_amp.m_subRunning = false;
+    rig.m_amp.m_subRunning[0] = false;
     rig.m_input.m_subFallSeconds.Update(0.0f);
     for (size_t sample = 1; sample <= 600; ++sample)
     {
@@ -187,7 +186,7 @@ DOCTEST_TEST_CASE("Sub: analyzer feed separates the shaped sub from main audio a
         rig.RunSamples(1);
         if (sample == 48)
         {
-            DOCTEST_CHECK(rig.m_amp.m_ahd.m_state == AHD::State::Idle);
+            DOCTEST_CHECK(rig.m_amp.m_ahd.m_channels[0].m_state == AHD::State::Idle);
             DOCTEST_CHECK(writer->ReadSample(subScope, 0, sample) > 0.0f);
         }
     }

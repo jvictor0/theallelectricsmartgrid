@@ -28,7 +28,7 @@ struct SVF2PoleShapeGeneric : SquiggleBoyShapeBase
     Vector m_saturationGain;
     Vector m_saturationTanhGain;
 
-    // The base frequency is in cycles per base-rate sample.
+    // The base frequency is in cycles per sample.
     //
     struct Input
     {

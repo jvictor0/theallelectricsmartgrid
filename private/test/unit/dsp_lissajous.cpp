@@ -16,6 +16,14 @@ float SaturateAxis(float radius, float value)
     return saturator.Process(value);
 }
 
+std::pair<float, float> Compute(const LissajousLFOInternal::Input& input, float t)
+{
+    LissajousLFOInternal::Vector x;
+    LissajousLFOInternal::Vector y;
+    input.Compute(t, x, y);
+    return std::make_pair(x, y);
+}
+
 }
 
 DOCTEST_TEST_CASE("Lissajous radius is zeroed exp from 0 to 5 with 1 at center")
@@ -33,7 +41,7 @@ DOCTEST_TEST_CASE("Lissajous radius is zeroed exp from 0 to 5 with 1 at center")
 DOCTEST_TEST_CASE("Lissajous radius 1 traces an unnormalized tanh circle")
 {
     LissajousLFOInternal::Input input;
-    std::pair<float, float> xy = input.Compute(0.0f);
+    std::pair<float, float> xy = Compute(input, 0.0f);
     DOCTEST_CHECK(xy.first == doctest::Approx(SaturateAxis(1.0f, 1.0f)).epsilon(1e-5));
     DOCTEST_CHECK(xy.second == doctest::Approx(0.0f).epsilon(1e-5));
 }
@@ -44,7 +52,7 @@ DOCTEST_TEST_CASE("Lissajous radius 0 collapses to the center")
     input.m_radius.Update(0.0f);
     input.m_centerX = 0.5f;
     input.m_centerY = -0.5f;
-    std::pair<float, float> xy = input.Compute(0.3f);
+    std::pair<float, float> xy = Compute(input, 0.3f);
     DOCTEST_CHECK(xy.first == doctest::Approx(SaturateAxis(1.0f, 0.5f)).epsilon(1e-5));
     DOCTEST_CHECK(xy.second == doctest::Approx(SaturateAxis(1.0f, -0.5f)).epsilon(1e-5));
 }
@@ -52,10 +60,10 @@ DOCTEST_TEST_CASE("Lissajous radius 0 collapses to the center")
 DOCTEST_TEST_CASE("Lissajous high radius squishes the circle toward a square")
 {
     LissajousLFOInternal::Input input;
-    std::pair<float, float> circleXY = input.Compute(0.125f);
+    std::pair<float, float> circleXY = Compute(input, 0.125f);
 
     input.m_radius.Update(1.0f);
-    std::pair<float, float> squareXY = input.Compute(0.125f);
+    std::pair<float, float> squareXY = Compute(input, 0.125f);
 
     DOCTEST_CHECK(circleXY.first == doctest::Approx(SaturateAxis(1.0f, Math::Sin2pi(0.375f))).epsilon(1e-5));
     DOCTEST_CHECK(circleXY.second == doctest::Approx(SaturateAxis(1.0f, Math::Sin2pi(0.125f))).epsilon(1e-5));

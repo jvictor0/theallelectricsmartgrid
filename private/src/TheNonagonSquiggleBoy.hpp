@@ -363,7 +363,8 @@ struct TheNonagonSquiggleBoyInternal
             if (m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig)            
             {
                 float baseFreq = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], SampleTimer::x_samplePeriod);
-                m_squiggleBoy.m_state[i].m_ampInput.m_subTrig = m_nonagon.m_state.m_trigLogic.IsUnisonMaster(i);
+                m_squiggleBoy.m_trackState[i / SquiggleBoy::x_voicesPerTrack].m_ampInput.m_subTrig[i % SquiggleBoy::x_voicesPerTrack] =
+                    m_nonagon.m_state.m_trigLogic.IsUnisonMaster(i);
 
                 // UNDONE(DEEP_VOCODER)
                 //
@@ -379,15 +380,21 @@ struct TheNonagonSquiggleBoyInternal
                 }
             }
 
-            m_squiggleBoy.m_state[i].m_ahdControl = m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i];
-            m_squiggleBoy.m_state[i].m_ampInput.m_modulationAHDInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
-            m_squiggleBoy.m_state[i].m_ampInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
-            m_squiggleBoy.m_state[i].m_sourceInput.m_physicalModelingInput.m_ahdInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
-            m_squiggleBoy.m_state[i].m_sourceInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
+            m_squiggleBoy.m_trackState[i / SquiggleBoy::x_voicesPerTrack].m_ahdControl[i % SquiggleBoy::x_voicesPerTrack] =
+                m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i];
 
             m_squiggleBoyState.m_sheafyModulators[i][0] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][0];
             m_squiggleBoyState.m_sheafyModulators[i][1] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][1];
             m_squiggleBoyState.m_sheafyModulators[i][2] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][2];
+        }
+
+        for (size_t track = 0; track < SquiggleBoy::x_numTracks; ++track)
+        {
+            SquiggleBoyTrack::Input& trackInput = m_squiggleBoy.m_trackState[track];
+            trackInput.m_ampInput.m_modulationAHDInput.SetTheoryOfTime(&m_nonagon.m_nonagon.m_theoryOfTime);
+            trackInput.m_ampInput.m_ahdInput.SetTheoryOfTime(&m_nonagon.m_nonagon.m_theoryOfTime);
+            trackInput.m_sourceInput.m_physicalModelingInput.m_ahdInput.SetTheoryOfTime(&m_nonagon.m_nonagon.m_theoryOfTime);
+            trackInput.m_sourceInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
         }
 
         m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.CrossedCycleBoundary(TheoryOfTimeBase::x_globalLoop, SampleTimer::GetUBlockIndex(), PhaseDomain::Modulated);

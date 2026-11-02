@@ -412,7 +412,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
                     g,
                     juce::Colour(color.m_red, color.m_green, color.m_blue),
                     m_voiceFilterUIState[voiceIx],
-                    1.0f / SquiggleBoyTrack::x_oversample);
+                    1.0f / SampleTimer::x_oversample);
             }
         }
     }
@@ -717,7 +717,7 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
                 g,
                 juce::Colour(color.m_red, color.m_green, color.m_blue),
                 sourceUIState.m_physicalModelingUIState,
-                1.0f / PhysicalModelingSource::x_oversample);
+                1.0f / SampleTimer::x_oversample);
         }
     }
 

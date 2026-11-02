@@ -5,7 +5,7 @@
 #include "PolyXFader.hpp"
 #include "VectorPhaseShaper.hpp"
 
-DOCTEST_TEST_CASE("SampleTop: VPS stores base-rate offsets even when processed at four times the rate")
+DOCTEST_TEST_CASE("SampleTop: VPS stores the wrap offset in samples")
 {
     AdaptiveWaveTable table;
     for (size_t i = 0; i < BasicWaveTable::x_tableSize; ++i)
@@ -20,9 +20,9 @@ DOCTEST_TEST_CASE("SampleTop: VPS stores base-rate offsets even when processed a
     vps.m_phase = 0.9921875f;
     VectorPhaseShaperInternal::Input input;
     input.m_freq = 0.015625f;
-    vps.Process(input, 1.0 / 192000.0);
+    vps.Process(input);
     DOCTEST_CHECK(vps.m_top[0].m_triggered);
-    DOCTEST_CHECK(vps.m_top[0].m_offset == doctest::Approx(-0.125));
+    DOCTEST_CHECK(vps.m_top[0].m_offset == doctest::Approx(-0.5));
 }
 
 DOCTEST_TEST_CASE("SampleTop: interpolates the latest crossed boundary in either direction")
@@ -66,12 +66,12 @@ DOCTEST_TEST_CASE("SampleTop: VPS publishes the fractional crossing on its exist
     VectorPhaseShaperInternal vps;
     vps.m_phase = 0.9765625f;
     vps.m_freq = 0.015625f;
-    vps.UpdatePhase(1.0 / SampleTimer::x_sampleRate);
+    vps.UpdatePhase();
     DOCTEST_CHECK_FALSE(vps.m_top[0].m_triggered);
-    vps.UpdatePhase(1.0 / SampleTimer::x_sampleRate);
+    vps.UpdatePhase();
     DOCTEST_CHECK(vps.m_top[0].m_triggered);
     DOCTEST_CHECK(vps.m_top[0].m_offset == doctest::Approx(-0.5));
-    vps.UpdatePhase(1.0 / SampleTimer::x_sampleRate);
+    vps.UpdatePhase();
     DOCTEST_CHECK_FALSE(vps.m_top[0].m_triggered);
     DOCTEST_CHECK(vps.m_top[0].m_offset == 0.0);
 }

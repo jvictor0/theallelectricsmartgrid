@@ -49,18 +49,18 @@ struct VectorPhaseShaperGeneric
             , m_phaseMod(Vector::Splat(0))
             , m_morphHarmonics(Vector::Splat(1))
             , m_wtBlend(Vector::Splat(0))
-            , m_maxFreq(0.1)
+            , m_maxFreq(SampleTimer::HzToCycPerSamp(19200.0))
         {
         }
     };
 
-    void Process(const Input& input, double deltaT)
+    void Process(const Input& input)
     {
         m_freq = input.m_freq;
         SetDScale();
         SetDV(input.m_d, input.m_v);
         m_phaseMod = input.m_phaseMod;
-        UpdatePhase(deltaT);
+        UpdatePhase();
         Evaluate(input);
     }
 
@@ -110,7 +110,7 @@ struct VectorPhaseShaperGeneric
         m_v.Process(m_vTarget);
     }
 
-    void UpdatePhase(double deltaT)
+    void UpdatePhase()
     {
         m_phase += m_freq;
         Vector wrapped = m_phase - m_phase.Floor();
@@ -119,7 +119,7 @@ struct VectorPhaseShaperGeneric
             m_top[i] = false;
             if (1 <= m_phase[i])
             {
-                m_top[i] = SampleTop::FromWrap(wrapped[i], m_freq[i], deltaT);
+                m_top[i] = SampleTop::FromWrap(wrapped[i], m_freq[i]);
             }
         }
 
