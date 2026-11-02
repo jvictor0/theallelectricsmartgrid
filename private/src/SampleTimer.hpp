@@ -85,12 +85,12 @@ struct SampleTimer
 
     static bool IsHostFrame()
     {
-        return s_instance->m_sample % x_oversample == 0;
+        return GetSubSampleIndex() == 0;
     }
 
     static size_t GetSubSampleIndex()
     {
-        return s_instance->m_sample % x_oversample;
+        return GetSample() % x_oversample;
     }
 
     static constexpr double HzToCycPerSamp(double hz)

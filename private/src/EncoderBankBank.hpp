@@ -217,7 +217,23 @@ struct EncoderBankBank
         }
     }
 
+    // Called every engine sample. Modulators are decimated every sample; the
+    // matrix itself computes on host frames.
+    //
     void Process()
+    {
+        for (size_t i = 0; i < m_numModes; ++i)
+        {
+            m_bankModes[i].m_modulatorValues.ProcessSample();
+        }
+
+        if (SampleTimer::IsHostFrame())
+        {
+            ProcessHostFrame();
+        }
+    }
+
+    void ProcessHostFrame()
     {
         for (size_t i = 0; i < m_numModes; ++i)
         {

@@ -321,6 +321,16 @@ DOCTEST_TEST_CASE("Trio: dual wave shaping VCO channels match mono cores")
 
 DOCTEST_TEST_CASE("Trio: physical modeling channels match mono cores through shared comb transitions")
 {
+    bool allChannelsMove = false;
+    DOCTEST_SUBCASE("only one channel changes")
+    {
+    }
+
+    DOCTEST_SUBCASE("all channels change independently at the same cadence")
+    {
+        allChannelsMove = true;
+    }
+
     auto trio = std::make_unique<TrioPhysicalModelingSource>(42);
     std::unique_ptr<PhysicalModelingSourceGeneric<1>> mono[3];
     for (size_t i = 0; i < 3; ++i)
@@ -338,8 +348,8 @@ DOCTEST_TEST_CASE("Trio: physical modeling channels match mono cores through sha
     {
         if (n % 32 == 0)
         {
-            // Only the last channel's pitch moves after the first third, so
-            // the others ride through its comb transitions.
+            // Matching edit cadence gives the mono references the same fade
+            // schedule, with either one moving channel or three distinct moves.
             //
             TrioFloat frequency;
             TrioFloat damp;
@@ -351,7 +361,11 @@ DOCTEST_TEST_CASE("Trio: physical modeling channels match mono cores through sha
 
             if (n > 4000)
             {
-                frequency[2] = 0.006f + 0.001f * static_cast<float>(std::sin(0.001 * n));
+                for (size_t i = allChannelsMove ? 0 : 2; i < 3; ++i)
+                {
+                    frequency[i] += 0.001f * static_cast<float>(std::sin(0.001 * n * (i + 1)));
+                    damp[i] += 0.05f * static_cast<float>(std::cos(0.002 * n * (i + 1)));
+                }
             }
 
             trio->SetCombParams(frequency, TrioFloat(decay[0], decay[1], decay[2]), damp, 192000.0);
@@ -384,6 +398,58 @@ DOCTEST_TEST_CASE("Trio: physical modeling channels match mono cores through sha
     }
 
     output.Check(1e-6);
+}
+
+DOCTEST_TEST_CASE("Trio: staggered comb edits preserve channel isolation and reach every latest target")
+{
+    auto comb = std::make_unique<TrioTunedDecayComb>();
+    auto permuted = std::make_unique<TrioTunedDecayComb>();
+    using Vector = TrioTunedDecayComb::DoubleVector;
+    Vector frequency(0.003, 0.006, 0.01);
+    Vector decay(0.65, 0.7, 0.8);
+    Vector damp(0.3, 0.5, 0.7);
+    double energy[2] = {};
+    const size_t cadences[] = {37, 61, 97};
+    for (size_t sample = 0; sample < 7000; ++sample)
+    {
+        if (sample < 6000)
+        {
+            for (size_t lane = 0; lane < 3; ++lane)
+            {
+                if (sample % cadences[lane] == 0)
+                {
+                    frequency[lane] = 0.003 * (lane + 1) + 0.0005 * std::sin(0.01 * sample * (lane + 1));
+                    damp[lane] = 0.5 + 0.2 * std::cos(0.003 * sample * (lane + 1));
+                }
+            }
+        }
+
+        comb->SetParams(frequency, decay, damp, 48000.0);
+        permuted->SetParams(Vector(frequency[2], frequency[0], frequency[1]),
+            Vector(decay[2], decay[0], decay[1]), Vector(damp[2], damp[0], damp[1]), 48000.0);
+        TrioFloat input(0.1f * std::sin(0.02 * sample), 0.1f * std::cos(0.03 * sample), 0);
+        TrioFloat output = comb->Process(input);
+        TrioFloat shuffled = permuted->Process(TrioFloat(input[2], input[0], input[1]));
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            DOCTEST_REQUIRE(std::isfinite(output[lane]));
+            DOCTEST_REQUIRE(output[lane] == doctest::Approx(shuffled[(lane + 1) % 3]).epsilon(1e-6));
+        }
+
+        DOCTEST_REQUIRE(output[2] == 0.0f);
+        energy[0] += output[0] * output[0];
+        energy[1] += output[1] * output[1];
+    }
+
+    DOCTEST_CHECK(energy[0] > 0.01);
+    DOCTEST_CHECK(energy[1] > 0.01);
+    DOCTEST_CHECK_FALSE(comb->m_transition);
+    DOCTEST_CHECK_FALSE(comb->m_pending);
+    for (size_t lane = 0; lane < 3; ++lane)
+    {
+        DOCTEST_CHECK(comb->m_targetParams.m_frequency[lane] == frequency[lane]);
+        DOCTEST_CHECK(comb->m_targetParams.m_dampOctaves[lane] == doctest::Approx(1 + 6 * damp[lane]));
+    }
 }
 
 DOCTEST_TEST_CASE("Trio: phasor play head channels match mono heads")

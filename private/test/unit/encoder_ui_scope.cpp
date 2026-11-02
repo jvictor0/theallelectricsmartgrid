@@ -31,6 +31,7 @@ DOCTEST_TEST_CASE("Encoder UI weights: publish current direct per-channel depths
         sources->m_amplitude[4][channel] = 0.01f;
     }
 
+    sources->ProcessSample();
     quad->SetStateRecursive();
     quad->SetModulatorsAffecting();
     quad->Compute(false);

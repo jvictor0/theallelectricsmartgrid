@@ -87,3 +87,42 @@ target_compile_options(smartgrid_tests PRIVATE -Wall -Wno-unused-parameter)
 # --test-case=... etc. to the binary directly.
 # ---------------------------------------------------------------------------
 add_test(NAME smartgrid_tests COMMAND smartgrid_tests)
+
+# Exercise the real parameter path at ratio 4 without changing the production
+# rate. Copy headers so quoted sibling includes use the same rate everywhere.
+# configure_file tracks source edits and only updates changed copies.
+set(HOST_RATE_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/host-rate-src")
+file(GLOB_RECURSE HOST_RATE_HEADERS CONFIGURE_DEPENDS "${SRC_DIR}/*.hpp" "${SRC_DIR}/*.h")
+foreach(header IN LISTS HOST_RATE_HEADERS)
+    file(RELATIVE_PATH relative "${SRC_DIR}" "${header}")
+    if(NOT relative STREQUAL "SampleTimer.hpp")
+        configure_file("${header}" "${HOST_RATE_SRC_DIR}/${relative}" COPYONLY)
+    endif()
+endforeach()
+configure_file("${SRC_DIR}/SampleTimer.hpp" "${HOST_RATE_SRC_DIR}/SampleTimer.hpp.in" COPYONLY)
+file(READ "${HOST_RATE_SRC_DIR}/SampleTimer.hpp.in" HOST_RATE_TIMER)
+if(NOT HOST_RATE_TIMER MATCHES "static constexpr size_t x_oversample = [0-9]+;")
+    message(FATAL_ERROR "Update the host-rate test configuration for SampleTimer's rate declaration")
+endif()
+string(REGEX REPLACE "static constexpr size_t x_oversample = [0-9]+;"
+    "static constexpr size_t x_oversample = 4;" HOST_RATE_TIMER "${HOST_RATE_TIMER}")
+file(GENERATE OUTPUT "${HOST_RATE_SRC_DIR}/SampleTimer.hpp" CONTENT "${HOST_RATE_TIMER}")
+configure_file("${SRC_DIR}/RecordingFlacCodec.cpp" "${HOST_RATE_SRC_DIR}/RecordingFlacCodec.cpp" COPYONLY)
+
+add_executable(smartgrid_host_rate_tests
+    ${TEST_DIR}/support/TestMain.cpp
+    ${TEST_DIR}/unit/encoder_host_rate.cpp
+    "${HOST_RATE_SRC_DIR}/RecordingFlacCodec.cpp"
+)
+add_dependencies(smartgrid_host_rate_tests smartgrid_build_info)
+target_include_directories(smartgrid_host_rate_tests PRIVATE
+    ${TEST_DIR} "${HOST_RATE_SRC_DIR}" "${BUILD_INFO_DIR}")
+target_compile_definitions(smartgrid_host_rate_tests PRIVATE
+    DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES=1
+    SMARTGRID_RECORDING_SYSTEM_FLAC=1
+    SMARTGRID_REPO_ROOT="${REPO_ROOT}"
+    SMARTGRID_TEST_OVERSAMPLE=4
+)
+target_compile_options(smartgrid_host_rate_tests PRIVATE -funroll-loops -Wall -Wno-unused-parameter)
+target_link_libraries(smartgrid_host_rate_tests PRIVATE PkgConfig::FLAC)
+add_test(NAME smartgrid_host_rate_tests COMMAND smartgrid_host_rate_tests)
