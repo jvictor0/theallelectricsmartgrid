@@ -174,8 +174,8 @@ Gesture activation is stored per scene in each independent cell (`m_isActive[sce
 - **THEN** the increment is distributed between the gesture target cell and the base value rather than applied to the base alone
 - **AND** subsequent releases of the gesture leave both the base and target reflecting the edit
 
-### Requirement: Change-Driven Recompute Every Sample
-The system SHALL run `EncoderBankBank::Process` once per engine sample, from `SquiggleBoyWithEncoderBank::ProcessSample` before encoder values are applied to DSP inputs. Each pass SHALL call `ModulatorValues::ComputeChanged()` for every bank mode, apply the scene-manager flags, and then call `Compute` on every named cell. A connected cell SHALL mix gestures and modulation only when the pass's blend-changed flag is set, its force-update countdown (`m_samplesForceUpdate`) is non-zero, or its affecting-modulator/affecting-gesture bitmasks intersect the bank mode's changed-modulator/changed-gesture bitmasks; otherwise its outputs retain their previous values.
+### Requirement: Change-Driven Recompute Every Host Frame
+The system SHALL run `EncoderBankBank::Process` once per engine sample, from `SquiggleBoyWithEncoderBank::ProcessSample` before encoder values are applied to DSP inputs. Every call SHALL run `ModulatorValues::ProcessSample()` for every bank mode, which decimates each modulator slot's raw per-sample value (`m_value`) to the host rate (`m_hostValue`) through a second-order Butterworth `DownsamplerGeneric` at ratio `SampleTimer::x_oversample` (a passthrough at ratio 1). Every slot SHALL be decimated; modulator amplitudes SHALL NOT be decimated. On host frames only (`SampleTimer::IsHostFrame()`), the call SHALL then run the matrix pass (`ProcessHostFrame`): call `ModulatorValues::ComputeChanged()` for every bank mode, comparing the decimated values and the amplitudes against their previous values, apply the scene-manager flags, and then call `Compute` on every named cell. Modulation mixing SHALL read the decimated values. A connected cell SHALL mix gestures and modulation only when the pass's blend-changed flag is set, its force-update countdown (`m_samplesForceUpdate`) is non-zero, or its affecting-modulator/affecting-gesture bitmasks intersect the bank mode's changed-modulator/changed-gesture bitmasks; otherwise its outputs retain their previous values.
 Scene-manager change flags trigger bulk refreshes: a blend-only change (`m_changed` without `m_changedScene`) sets `m_blendChanged` for that pass so every cell re-reads its scene-blended banked value and recomputes; a change that sets `m_changedScene` re-derives every cell's banked values recursively (`SetStateRecursive`, which also starts each cell's force-update countdown) and recomputes the affecting bitmasks (see scene-state-management).
 
 Force-update SHALL be a countdown of `TickDistributor::x_maxSamplesToDistribute` (50 ms of host samples). Setting it (`SetForceUpdateRecursive` for the cell and its ancestors, or a target change through `SetTarget` for the cell alone) SHALL make the cell recompute on every pass until the count reaches zero. Each `Compute(true)` pass with a non-zero count SHALL advance the cell's scene values toward their targets and decrement the count; the cell SHALL recompute its affecting bitmasks when the count starts and again when it reaches zero.
@@ -187,9 +187,9 @@ Because recompute is change-driven and a cell that is no longer modulated or ges
 - **THEN** its Compute pass performs no gesture or modulation mixing and its outputs retain their previous values
 
 #### Scenario: Source change recomputes routed parameters
-- **WHEN** a PolyXFader LFO routed to a parameter produces a new value on an engine sample
+- **WHEN** a PolyXFader LFO routed to a parameter produces a new decimated value on a host frame
 - **THEN** that slot's bit is set in the bank mode's changed-modulator bitmask
-- **AND** every cell whose affecting bitmask includes that slot recomputes its outputs in the same `EncoderBankBank::Process` pass
+- **AND** every cell whose affecting bitmask includes that slot recomputes its outputs in the same matrix pass
 
 #### Scenario: Clearing modulation forces a corrective recompute
 - **WHEN** a parameter is currently modulated (its affecting-modulator bitmask is non-empty and its output differs from its base value) and an operation clears that modulation so the affecting bitmask becomes empty
@@ -241,8 +241,8 @@ Machine-dependent parameters SHALL remain wired to their bank-mode shared state 
 - **THEN** the visible `EncoderBankUIState` for the selected topology reports the incompatible grid position as disconnected or zeroed
 - **AND** direct parameter-index reads for compatible tracks continue to expose the parameter's computed semantic output
 
-### Requirement: Unfiltered Per-Sample Output Reads with Source-Side Smoothing
-The DSP engine SHALL read a cell's computed output every engine sample through `GetValue(channel)`, which returns `ToValue(m_output[channel])` (`2u − 1` for bipolar cells, `u` otherwise) with no output filter. `SmartGridOneEncoders::GetValue(param, voice)` SHALL map Voice parameters to the trio cell `voice / 3` and local channel `voice % 3`, and read Quad and Global channels directly.
+### Requirement: Interpolated Per-Sample Output Reads with Source-Side Smoothing
+The matrix SHALL write cell outputs through `SetOutput(output, hostSample)`, stamped with `SampleTimer::GetHostSample()`, which keeps the output from before the first write of each host frame in `m_outputPrev`. The DSP engine SHALL read a cell's output every engine sample through `GetValue(channel)`, without a sample index; it reads the host sample and sub-sample index from `SampleTimer`. When the cell was written in the current host frame, `GetValue` SHALL interpolate linearly from `m_outputPrev` to `m_output`, weighting the previous output by `(x_oversample - 1 - subSampleIndex) / x_oversample`, so it reaches the latest output on the frame's last engine sample and lags by up to one host frame; otherwise it SHALL return the latest output. It SHALL return `ToValue` of the result (`2u − 1` for bipolar cells, `u` otherwise). At ratio 1 the weight is zero and `GetValue` returns the latest output. Matrix-internal and UI reads SHALL use the raw latest output (`GetLatestValue(channel)` or `m_output`). `SmartGridOneEncoders::GetValue(param, voice)` SHALL map Voice parameters to the trio cell `voice / 3` and local channel `voice % 3`, and read Quad and Global channels directly.
 Smoothing SHALL happen where values enter the encoder system:
 - Stored edits: `SetTarget` writes a per-scene target (`m_targets[scene]`) and records the change in the cell's `TickDistributor`. While the cell's force-update countdown runs, `MoveValuesTowardsTargets` moves each current scene value (`m_values[scene]`) linearly toward its target over the interval since the previous change, clamped to `TickDistributor::x_minSamplesToDistribute`..`x_maxSamplesToDistribute` (2–50 ms of host samples), and lands exactly on the target at the last step. A further edit during a ramp SHALL accumulate against the target and restart the ramp over the new interval. Patch JSON SHALL save targets.
 - Scene blend and faders: blend and fader parameter-set messages SHALL set `SettlingSlew` targets that `ProcessInputSlews` advances every sample with a 500 Hz one-pole low-pass, before the scene manager and encoders run, stopping once the value settles on its target. Restoring a blend factor or saved fader positions SHALL snap the corresponding slew to the restored value.
@@ -257,8 +257,12 @@ Smoothing SHALL happen where values enter the encoder system:
 - **THEN** the target accumulates the second edit and the remaining ramp is 480 samples
 
 #### Scenario: DSP reads follow the computed output
-- **WHEN** a cell's output changes during an `EncoderBankBank::Process` pass
+- **WHEN** a cell's output changes during a matrix pass at ratio 1
 - **THEN** a `GetValue` call later in the same engine sample returns the new output, without an exponential approach from the previous output
+
+#### Scenario: DSP reads interpolate across a host frame
+- **WHEN** the oversampling ratio is 4 and a matrix pass moves a cell's output from 0.2 to 1.0
+- **THEN** `GetValue` returns 0.4, 0.6, 0.8, and 1.0 on the four engine samples of that host frame
 
 ### Requirement: Named JSON Serialization via the Global Owner
 The system SHALL serialize all encoder state through `EncoderBankBank::ToJSON`/`FromJSON`, which iterate the flat owner array of named encoder cells; each cell writes eight flat per-scene base values in `values.values`, its non-null modulation depth cells (recursively), its gesture target cells, and—for gesture cells—the eight per-scene activation flags in `active`.

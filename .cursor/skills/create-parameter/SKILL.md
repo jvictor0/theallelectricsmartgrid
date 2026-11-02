@@ -51,7 +51,7 @@ Assign to the correct input struct member (`input.m_sourceInput`, `input.m_shape
 
 ## Smoothing
 
-`GetValue` returns the cell's current post-modulation value with no further slew. Smoothing happens at the sources: modulators are continuous, scene blend and fader inputs are slewed on arrival, and encoder ticks and `EncoderSet` messages are spread over the time since the cell's previous edit (`TickDistributor`, 2 to 50 ms). Consumers read the value every engine sample and do not add their own parameter slew.
+The encoder matrix computes on host frames, and `GetValue` interpolates linearly across each host frame from the previous output to the latest (exact at oversample 1), with no further slew. Smoothing happens at the sources: modulators are continuous, scene blend and fader inputs are slewed on arrival, and encoder ticks and `EncoderSet` messages are spread over the time since the cell's previous edit (`TickDistributor`, 2 to 50 ms). Consumers read the value every engine sample and do not add their own parameter slew.
 
 ## Step 3: Exponential Parameters (PhaseUtils)
 

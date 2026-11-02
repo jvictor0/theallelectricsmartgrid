@@ -16,7 +16,7 @@ struct Blink
 
     void Process()
     {
-        m_time += SampleTimer::x_samplePeriod;
+        m_time += SampleTimer::x_hostSamplePeriod;
         if (1.0 <= m_time)
         {
             m_time -= 1.0;

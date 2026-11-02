@@ -8,6 +8,8 @@
 #include "EncoderUIState.hpp"
 #include "FixedAllocator.hpp"
 #include "QuadUtils.hpp"
+#include "Oversample.hpp"
+#include "SampleTimer.hpp"
 
 namespace SmartGrid
 {
@@ -46,10 +48,17 @@ struct BankedEncoderCell : public StateEncoderCell
     static constexpr size_t x_numModulators = 15;
     static constexpr size_t x_numGestureParams = 16;
 
+    // Modulators are set every engine sample. ProcessSample decimates them to
+    // the host rate, where the matrix reads them.
+    //
     struct ModulatorValues
     {
+        static constexpr size_t x_decimatorOrder = 2;
+        using Decimator = DownsamplerGeneric<float, 4, x_decimatorOrder, SampleTimer::x_oversample>;
+
         ModulatorValues()
             : m_value{}
+            , m_hostValue{}
             , m_valuePrev{}
             , m_amplitude{}
             , m_modulatorConnected{}
@@ -86,17 +95,28 @@ struct BankedEncoderCell : public StateEncoderCell
             m_amplitude[static_cast<size_t>(modulator)][voice] = amplitude;
         }
 
+        void ProcessSample()
+        {
+            for (size_t i = 0; i < x_numModulators; ++i)
+            {
+                // The filter can overshoot; matrix inputs stay normalized.
+                //
+                QuadFloat value = m_decimators[i].Process(m_value[i]);
+                m_hostValue[i] = QuadFloat::Min(QuadFloat::Splat(1), QuadFloat::Max(QuadFloat(), value));
+            }
+        }
+
         void ComputeChanged()
         {
             m_changedModulators.Clear();
             m_changedGestures.Clear();
             for (size_t i = 0; i < x_numModulators; ++i)
             {
-                if (m_value[i] != m_valuePrev[i] ||
+                if (m_hostValue[i] != m_valuePrev[i] ||
                     m_amplitude[i] != m_amplitudePrev[i])
                 {
                     m_changedModulators.Set(i, true);
-                    m_valuePrev[i] = m_value[i];
+                    m_valuePrev[i] = m_hostValue[i];
                     m_amplitudePrev[i] = m_amplitude[i];
                 }
             }
@@ -132,6 +152,8 @@ struct BankedEncoderCell : public StateEncoderCell
         }
         
         QuadFloat m_value[x_numModulators];
+        QuadFloat m_hostValue[x_numModulators];
+        Decimator m_decimators[x_numModulators];
         QuadFloat m_valuePrev[x_numModulators];
         QuadFloat m_amplitude[x_numModulators];
         QuadFloat m_amplitudePrev[x_numModulators];
@@ -332,7 +354,7 @@ struct BankedEncoderCell : public StateEncoderCell
                 cell->Compute(advanceState);
                 QuadFloat depth = ModulationDepthFromValue(cell->GetQuadValue());
                 depth *= modulatorValues->m_amplitude[m_activeModulators[i]];
-                modValue += depth * modulatorValues->m_value[m_activeModulators[i]];
+                modValue += depth * modulatorValues->m_hostValue[m_activeModulators[i]];
                 modWeight += depth.Abs();
                 modOffset += QuadFloat::Max(QuadFloat(), -depth);
             }
@@ -341,7 +363,7 @@ struct BankedEncoderCell : public StateEncoderCell
             QuadFloat denominator = QuadFloat::Max(one, modWeight);
             QuadFloat baseWeight = QuadFloat::Max(QuadFloat(), one - modWeight);
             QuadFloat baseValue = QuadFloat::Splat(m_owner->m_postGestureValue) * baseWeight;
-            m_owner->m_output = baseValue + (modValue + modOffset) / denominator;
+            m_owner->SetOutput(baseValue + (modValue + modOffset) / denominator, SampleTimer::GetHostSample());
             m_owner->m_minValue = baseValue;
             m_owner->m_maxValue = baseValue + QuadFloat::Min(one, modWeight);
 
@@ -380,6 +402,8 @@ struct BankedEncoderCell : public StateEncoderCell
         , m_bankedValue(0)
         , m_postGestureValue(0)
         , m_output{}
+        , m_outputPrev{}
+        , m_outputHostSample(0)
         , m_maxValue{}
         , m_minValue{}
         , m_defaultValue(0)
@@ -407,6 +431,8 @@ struct BankedEncoderCell : public StateEncoderCell
         , m_bankedValue(0)
         , m_postGestureValue(0)
         , m_output{}
+        , m_outputPrev{}
+        , m_outputHostSample(0)
         , m_maxValue{}
         , m_minValue{}
         , m_defaultValue(0)
@@ -461,6 +487,7 @@ struct BankedEncoderCell : public StateEncoderCell
         SetStatePtr(&m_bankedValue);
         m_postGestureValue = m_defaultValue;
         m_output = QuadFloat::Splat(m_defaultValue);
+        m_outputPrev = m_output;
         m_minValue = QuadFloat::Splat(m_defaultValue);
         m_maxValue = QuadFloat::Splat(m_defaultValue);
     }
@@ -642,7 +669,48 @@ struct BankedEncoderCell : public StateEncoderCell
 
     using StateEncoderCell::GetValue;
 
+    void SetOutput(const QuadFloat& output, size_t hostSample)
+    {
+        if (m_outputHostSample != hostSample)
+        {
+            m_outputPrev = m_output;
+            m_outputHostSample = hostSample;
+        }
+
+        m_output = output;
+    }
+
+    // Weight of the previous host frame's output at a sub-sample. Reaches
+    // zero on the frame's last sample, so outputs lag by up to one host frame.
+    //
+    static float GetPreviousOutputWeight(size_t subSampleIndex, size_t oversample)
+    {
+        return static_cast<float>(oversample - 1 - subSampleIndex) / static_cast<float>(oversample);
+    }
+
+    // DSP-facing read, interpolated from the previous host frame's output to
+    // the latest one across the current host frame.
+    //
     float GetValue(size_t channel) const
+    {
+        return GetInterpolatedValue(
+            channel,
+            SampleTimer::GetHostSample(),
+            GetPreviousOutputWeight(SampleTimer::GetSubSampleIndex(), SampleTimer::x_oversample));
+    }
+
+    float GetInterpolatedValue(size_t channel, size_t hostSample, float previousOutputWeight) const
+    {
+        float output = m_output[channel];
+        if (m_outputHostSample == hostSample)
+        {
+            output += (m_outputPrev[channel] - output) * previousOutputWeight;
+        }
+
+        return ToValue(output);
+    }
+
+    float GetLatestValue(size_t channel) const
     {
         return ToValue(m_output[channel]);
     }
@@ -1164,6 +1232,8 @@ struct BankedEncoderCell : public StateEncoderCell
     float m_bankedValue;
     float m_postGestureValue;
     QuadFloat m_output;
+    QuadFloat m_outputPrev;
+    size_t m_outputHostSample;
     QuadFloat m_maxValue;
     QuadFloat m_minValue;
     float m_defaultValue;
@@ -1550,7 +1620,7 @@ struct EncoderBankInternal : public EncoderGrid
                             for (size_t voice = 0; voice < numVoices; ++voice)
                             {
                                 weights[voice][amount->m_index] =
-                                    BankedEncoderCell::ModulationDepthFromValue(amount->GetValue(voice));
+                                    BankedEncoderCell::ModulationDepthFromValue(amount->GetLatestValue(voice));
                             }
                         }
                     }

@@ -550,9 +550,13 @@ struct TheNonagonSquiggleBoyInternal
     {
         ProcessInputSlews();
 
-        // Process scene manager first to set changed flags
+        // Process scene manager first to set changed flags. The flags feed the
+        // encoder matrix, which computes on host frames.
         //
-        m_context.m_sceneManager.Process();
+        if (SampleTimer::IsHostFrame())
+        {
+            m_context.m_sceneManager.Process();
+        }
 
         // Process state saver with scene manager state
         //

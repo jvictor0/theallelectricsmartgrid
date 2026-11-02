@@ -16,7 +16,7 @@ Scene 1 is considered active when blend < 1 and scene 2 when blend > 0, so edits
 - **THEN** `Scene2Active()` is false and edits gated on active scenes (such as `ZeroCurrentScene`) modify only scene 1's stored values
 
 ### Requirement: Per-Frame Change Detection Flags
-The system SHALL compare the scene indices and blend factor to the previous frame at the start of every sample (`SceneManager::Process`, called before all consumers) and publish two flags: `m_changed` when the blend factor or either scene index differs from the previous frame, and `m_changedScene` when a scene index changed, or when the blend or assignment changed while the new or previous blend sits at an endpoint (exactly 0 or 1).
+The system SHALL compare the scene indices and blend factor to the previous frame at the start of every host frame (`SceneManager::Process`, called on host frames before all consumers, at the encoder matrix rate) and publish two flags: `m_changed` when the blend factor or either scene index differs from the previous frame, and `m_changedScene` when a scene index changed, or when the blend or assignment changed while the new or previous blend sits at an endpoint (exactly 0 or 1).
 Both flags are cleared each frame before re-evaluation.
 
 #### Scenario: Mid-range blend motion
@@ -45,7 +45,7 @@ The 8-scene `StateSaver` instance likewise consumes scene/blend changes to swap 
 - **THEN** each bank recomputes which modulators and gestures affect each parameter under the new scene pair
 
 ### Requirement: Centralized Shift Flag and UI Blinker
-The system SHALL hold a single shift flag on the `SceneManager` (`m_shift`), set by the owning controller layer and read by all press-and-hold consumers, and a `Blink` instance processed each frame for UI feedback such as gesture-capture blinking.
+The system SHALL hold a single shift flag on the `SceneManager` (`m_shift`), set by the owning controller layer and read by all press-and-hold consumers, and a `Blink` instance processed each host frame, advancing in host time, for UI feedback such as gesture-capture blinking.
 A shift-press on an encoder zeroes its modulator tree for the current scene(s) and track (or deactivates the selected gestures); the Nonagon sequencer reads the same flag for its shift behaviors.
 
 #### Scenario: Shift-press zeroes modulators

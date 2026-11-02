@@ -72,7 +72,7 @@ struct SceneManager
         return (sceneIx == m_scene1 && Scene1Active()) || (sceneIx == m_scene2 && Scene2Active());
     }
 
-    // Process method called first each frame
+    // Process method called first each host frame
     // Compares current state to previous state and sets m_changed and m_changedScene flags
     //
     void Process()

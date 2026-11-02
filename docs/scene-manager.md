@@ -18,7 +18,7 @@ It allows the rest of the parameter system to read a single blended value from s
 
 ## Change detection
 
-At the start of each sample, `SceneManager::Process()` compares current scene/blend state to previous values and emits flags:
+At the start of each host frame, `SceneManager::Process()` compares current scene/blend state to previous values and emits flags. It runs at the encoder matrix rate, so flags hold until the matrix reads them:
 
 - `m_changed` when blend or scene assignment changed
 - `m_changedScene` when scene indices changed, or a change moves from or to a blend endpoint
