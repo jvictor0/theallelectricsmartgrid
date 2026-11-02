@@ -347,7 +347,6 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
 
     void ProcessSample()
     {
-        m_gridHolder.Process(SampleTimer::x_samplePeriod);
         ProcessMessages();
     }
 

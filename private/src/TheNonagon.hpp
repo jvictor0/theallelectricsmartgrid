@@ -24,7 +24,6 @@ struct TheNonagonInternal
     static constexpr size_t x_numVoices = 9;
     static constexpr size_t x_numTrios = 3;
     static constexpr size_t x_voicesPerTrio = 3;
-    static constexpr size_t x_numGridIds = 16;
     static constexpr size_t x_numExtraTimbres = 3;
 
     enum class Trio : int
@@ -121,7 +120,6 @@ struct TheNonagonInternal
     {
         bool m_gate[x_numVoices];
         float m_voltPerOct[x_numVoices];
-        float m_gridId[x_numGridIds];
         float m_extraTimbre[x_numVoices][x_numExtraTimbres];
 
         Output()
@@ -197,26 +195,37 @@ struct TheNonagonInternal
         input.m_multiPhasorGateInput.m_globalPeriodSamples = m_theoryOfTime.m_globalPeriodSamples;
         input.m_multiPhasorGateInput.m_phaseRatio = static_cast<double>(m_theoryOfTime.GetCycleRatio(0, 0));
 
+        // The gate only reads a voice's cycle ratio when that voice triggers.
+        //
         for (size_t i = 0; i < x_numVoices; ++i)
         {
-            int64_t denom = 1;
-            int voiceClock = input.m_arpInput.m_clockSelect[i / x_voicesPerTrio];
-            if (voiceClock >= 0)
+            if (input.m_multiPhasorGateInput.m_trigs[i] && input.m_multiPhasorGateInput.m_newTrigCanStart[i])
             {
-                denom = m_theoryOfTime.GetCycleRatio(voiceClock, 0);
+                input.m_multiPhasorGateInput.m_voiceCycleRatio[i] = VoiceCycleRatio(input, i / x_voicesPerTrio);
             }
-
-            for (size_t j = 0; j < x_numTimeBits; ++j)
-            {                    
-                bool coMute = m_lameJuis.m_lanes[i / x_voicesPerTrio].m_coMuteState.m_coMutes[j];
-                if (!coMute)
-                {
-                    denom = std::lcm(denom, m_theoryOfTime.GetCycleRatio(j, 0));
-                }
-            }
-
-            input.m_multiPhasorGateInput.m_voiceCycleRatio[i] = denom;
         }
+    }
+
+    // The finest grid the trio's unmuted time bits and clock select tick on.
+    //
+    int64_t VoiceCycleRatio(const Input& input, size_t trio) const
+    {
+        int64_t ratio = 1;
+        int voiceClock = input.m_arpInput.m_clockSelect[trio];
+        if (voiceClock >= 0)
+        {
+            ratio = m_theoryOfTime.GetCycleRatio(voiceClock, 0);
+        }
+
+        for (size_t j = 0; j < x_numTimeBits; ++j)
+        {
+            if (!m_lameJuis.m_lanes[trio].m_coMuteState.m_coMutes[j])
+            {
+                ratio = std::lcm(ratio, m_theoryOfTime.GetCycleRatio(j, 0));
+            }
+        }
+
+        return ratio;
     }
 
     void SetIndexArpInputs(Input& input)
@@ -1275,31 +1284,18 @@ struct TheNonagonSmartGrid
         }
     };
 
-    size_t m_theoryOfTimeTopologyGridId;
     SmartGrid::Grid* m_theoryOfTimeTopologyGrid;
-    size_t m_theoryOfTimeRhythmGridId;
     SmartGrid::Grid* m_theoryOfTimeRhythmGrid;
-    size_t m_theoryOfTimeRhythmResetGridId;
     SmartGrid::Grid* m_theoryOfTimeRhythmResetGrid;
-    size_t m_lameJuisCoMuteGridId;
     SmartGrid::Grid* m_lameJuisCoMuteGrid;
-    size_t m_lameJuisMatrixGridId;
     SmartGrid::Grid* m_lameJuisMatrixGrid;
-    size_t m_lameJuisRHSGridId;
     SmartGrid::Grid* m_lameJuisRHSGrid;
-    size_t m_lameJuisIntervalGridId;
     SmartGrid::Grid* m_lameJuisIntervalGrid;
-    size_t m_indexArpFireGridId;
     SmartGrid::Grid* m_indexArpFireGrid;
-    size_t m_indexArpEarthGridId;
     SmartGrid::Grid* m_indexArpEarthGrid;
-    size_t m_indexArpWaterGridId;
     SmartGrid::Grid* m_indexArpWaterGrid;
-    size_t m_sheafViewGridFireGridId;
     SmartGrid::Grid* m_sheafViewGridFireGrid;
-    size_t m_sheafViewGridEarthGridId;
     SmartGrid::Grid* m_sheafViewGridEarthGrid;
-    size_t m_sheafViewGridWaterGridId;
     SmartGrid::Grid* m_sheafViewGridWaterGrid;
 
     Trio* m_activeTrio;
@@ -1345,67 +1341,50 @@ struct TheNonagonSmartGrid
         // TheoryOfTime
         //
         m_theoryOfTimeTopologyGrid = new TheoryOfTimeTopologyPage(this, false /*isPan*/);
-        m_theoryOfTimeTopologyGridId = m_gridHolder.AddGrid(m_theoryOfTimeTopologyGrid);
+        m_gridHolder.AddGrid(m_theoryOfTimeTopologyGrid);
 
         m_theoryOfTimeRhythmGrid = new TheoryOfTimeRhythmPage(this);
-        m_theoryOfTimeRhythmGridId = m_gridHolder.AddGrid(m_theoryOfTimeRhythmGrid);
+        m_gridHolder.AddGrid(m_theoryOfTimeRhythmGrid);
 
         m_theoryOfTimeRhythmResetGrid = new TheoryOfTimeRhythmResetPage(this);
-        m_theoryOfTimeRhythmResetGridId = m_gridHolder.AddGrid(m_theoryOfTimeRhythmResetGrid);
+        m_gridHolder.AddGrid(m_theoryOfTimeRhythmResetGrid);
         
         // LaMeJuIS
         //
         m_lameJuisCoMuteGrid = new LameJuisCoMutePage(this);
-        m_lameJuisCoMuteGridId = m_gridHolder.AddGrid(m_lameJuisCoMuteGrid);
+        m_gridHolder.AddGrid(m_lameJuisCoMuteGrid);
         
         m_lameJuisMatrixGrid = new LameJuisMatrixPage(this);
-        m_lameJuisMatrixGridId = m_gridHolder.AddGrid(m_lameJuisMatrixGrid);
+        m_gridHolder.AddGrid(m_lameJuisMatrixGrid);
         
         m_lameJuisRHSGrid = new LameJuisRHSPage(this);
-        m_lameJuisRHSGridId = m_gridHolder.AddGrid(m_lameJuisRHSGrid);
+        m_gridHolder.AddGrid(m_lameJuisRHSGrid);
         
         m_lameJuisIntervalGrid = new LameJuisIntervalPage(this);
-        m_lameJuisIntervalGridId = m_gridHolder.AddGrid(m_lameJuisIntervalGrid);
+        m_gridHolder.AddGrid(m_lameJuisIntervalGrid);
  
         // Sequencers
         //
         m_indexArpFireGrid = new IndexArpPage(this, Trio::Fire);
-        m_indexArpFireGridId = m_gridHolder.AddGrid(m_indexArpFireGrid);
+        m_gridHolder.AddGrid(m_indexArpFireGrid);
         
         m_indexArpEarthGrid = new IndexArpPage(this, Trio::Earth);
-        m_indexArpEarthGridId = m_gridHolder.AddGrid(m_indexArpEarthGrid);
+        m_gridHolder.AddGrid(m_indexArpEarthGrid);
         
         m_indexArpWaterGrid = new IndexArpPage(this, Trio::Water);
-        m_indexArpWaterGridId = m_gridHolder.AddGrid(m_indexArpWaterGrid);
+        m_gridHolder.AddGrid(m_indexArpWaterGrid);
 
         // Palettes
         //
         m_sheafViewGridFireGrid = new SheafViewGrid(this, Trio::Fire);
-        m_sheafViewGridFireGridId = m_gridHolder.AddGrid(m_sheafViewGridFireGrid);
+        m_gridHolder.AddGrid(m_sheafViewGridFireGrid);
         
         m_sheafViewGridEarthGrid = new SheafViewGrid(this, Trio::Earth);
-        m_sheafViewGridEarthGridId = m_gridHolder.AddGrid(m_sheafViewGridEarthGrid);
+        m_gridHolder.AddGrid(m_sheafViewGridEarthGrid);
         
         m_sheafViewGridWaterGrid = new SheafViewGrid(this, Trio::Water);
-        m_sheafViewGridWaterGridId = m_gridHolder.AddGrid(m_sheafViewGridWaterGrid);
+        m_gridHolder.AddGrid(m_sheafViewGridWaterGrid);
 
-    }
-
-    void RemoveGridIds()
-    {
-        m_theoryOfTimeTopologyGrid->RemoveGridId();
-        m_theoryOfTimeRhythmGrid->RemoveGridId();
-        m_theoryOfTimeRhythmResetGrid->RemoveGridId();
-        m_lameJuisCoMuteGrid->RemoveGridId();
-        m_lameJuisMatrixGrid->RemoveGridId();
-        m_lameJuisRHSGrid->RemoveGridId();
-        m_lameJuisIntervalGrid->RemoveGridId();
-        m_indexArpFireGrid->RemoveGridId();
-        m_indexArpEarthGrid->RemoveGridId();
-        m_indexArpWaterGrid->RemoveGridId();
-        m_sheafViewGridFireGrid->RemoveGridId();
-        m_sheafViewGridEarthGrid->RemoveGridId();
-        m_sheafViewGridWaterGrid->RemoveGridId();
     }
 
     void SetupMonoScopeWriter(ScopeWriter* scopeWriter)
@@ -1454,7 +1433,7 @@ struct TheNonagonSmartGrid
 
         for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
         {
-            uiState->SetLoopMultiplier(i, m_state.m_multiPhasorGateInput.m_voiceCycleRatio[i * TheNonagonInternal::x_voicesPerTrio]);
+            uiState->SetLoopMultiplier(i, m_nonagon.VoiceCycleRatio(m_state, i));
         }
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
@@ -1470,12 +1449,11 @@ struct TheNonagonSmartGrid
         }
     }
     
-    void ProcessSample(float dt)
+    void ProcessSample()
     {
         if (SampleTimer::IsControlFrame())
         {
             m_stateSaver.Process();
-            m_gridHolder.Process(dt);
             m_nonagon.Process(m_state);
         }
         else

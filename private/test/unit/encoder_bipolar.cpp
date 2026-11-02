@@ -65,6 +65,7 @@ struct EncoderRig
         m_context.m_sceneManager.m_shift = shift;
         m_banks.m_banks[0].Apply(SmartGrid::MessageIn(SmartGrid::MessageIn::Mode::EncoderPush, x, y));
         m_context.m_sceneManager.m_shift = false;
+        Settle();
     }
 
     void Turn(int x, int y, int64_t steps, bool shift)
@@ -76,17 +77,27 @@ struct EncoderRig
         m_banks.m_banks[0].Apply(SmartGrid::MessageIn(m_turnTimestamp, -1,
             SmartGrid::MessageIn::Mode::EncoderIncDec, x, y, steps));
         m_context.m_sceneManager.m_shift = false;
-        m_banks.Process();
+        Settle();
+    }
+
+    void Settle()
+    {
+        for (size_t i = 0; i < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++i)
+        {
+            SampleTimer::IncrementSample();
+            m_banks.Process();
+        }
     }
 
     void Compute()
     {
         Carrier().SetStateRecursive();
         Carrier().SetModulatorsAffecting();
-        Carrier().Compute();
+        Carrier().Compute(false);
         OtherTrio().SetStateRecursive();
         OtherTrio().SetModulatorsAffecting();
-        OtherTrio().Compute();
+        OtherTrio().Compute(false);
+        Settle();
     }
 };
 
@@ -370,6 +381,7 @@ DOCTEST_TEST_CASE("encoder shift-turn: absolute sets keep targeting the base whi
     rig.m_context.m_sceneManager.m_shift = true;
 
     rig.m_banks.m_banks[0].Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 0, 0.7f));
+    rig.Settle();
 
     DOCTEST_CHECK(rig.Carrier().m_values[0] == doctest::Approx(0.7f).epsilon(0.0001));
     DOCTEST_CHECK(depth.m_values[0] == 0.75f);
@@ -406,7 +418,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: publishing live depth brightness does not re
     bank.MakeSelection(0, 0, &rig.Carrier());
     rig.Sources().m_value[0][0] = 0.2f;
     bank.Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 0, 1.0f));
-    rig.m_banks.Process();
+    rig.Settle();
     DOCTEST_REQUIRE(rig.Carrier().GetValue(0) == doctest::Approx(0.2f));
 
     rig.Sources().m_value[0][0] = 0.8f;
@@ -431,7 +443,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: first depth turn activates modulation and re
     rig.Sources().m_value[14][1] = 0.2f;
 
     bank.Apply(SmartGrid::MessageIn(1000000, -1, SmartGrid::MessageIn::Mode::EncoderIncDec, 2, 3, 500));
-    rig.m_banks.Process();
+    rig.Settle();
     DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.8f));
     DOCTEST_CHECK(rig.Carrier().GetValue(1) == doctest::Approx(0.2f));
     EncoderBankUIState ui;
@@ -440,7 +452,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: first depth turn activates modulation and re
     DOCTEST_CHECK(ui.GetValue(2, 3, 0) == 1.0f);
 
     bank.Apply(SmartGrid::MessageIn(2000000, -1, SmartGrid::MessageIn::Mode::EncoderIncDec, 2, 3, -500));
-    rig.m_banks.Process();
+    rig.Settle();
     DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.3f));
     DOCTEST_CHECK(rig.Carrier().GetValue(1) == doctest::Approx(0.3f));
     bank.PopulateUIState(&ui);
@@ -461,7 +473,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: nested absolute depth edits update ancestor 
     rig.Sources().m_value[0][0] = 0.8f;
     rig.Sources().m_value[1][0] = 1.0f;
     bank.Apply(SmartGrid::MessageIn::EncoderSetMsg(1, 0, 1.0f));
-    rig.m_banks.Process();
+    rig.Settle();
     DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.8f));
     DOCTEST_CHECK(rig.Carrier().m_modulatorsAffecting.m_bits == 3);
 
@@ -478,7 +490,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: shift-clicking a visible depth clears its ro
     rig.Press(0, 0, false);
     rig.Sources().m_value[0][0] = 0.8f;
     bank.Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 0, 1.0f));
-    rig.m_banks.Process();
+    rig.Settle();
     DOCTEST_REQUIRE(rig.Carrier().GetValue(0) == doctest::Approx(0.8f));
 
     rig.Press(0, 0, true);
@@ -523,7 +535,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: shift-clicking the selected parent keeps its
         }
 
         bank.Apply(SmartGrid::MessageIn::EncoderSetMsg(2, 3, 1.0f));
-        rig.m_banks.Process();
+        rig.Settle();
         bank.PopulateUIState(&ui);
         DOCTEST_CHECK(ui.GetValue(2, 3, 0) == 1.0f);
         DOCTEST_CHECK(ui.GetModulatorsAffecting(3, 3).Get(14));
@@ -641,7 +653,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: seeded edits navigation scenes and shift res
             }
 
             rig.m_context.m_sceneManager.Process();
-            rig.m_banks.Process();
+            rig.Settle();
             Cell* owner = &rig.Carrier();
             for (int part : selection)
             {
@@ -753,7 +765,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: amplitude alone invalidates the modulation o
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.8f));
     rig.Sources().m_amplitude[0][0] = 0.0f;
     rig.Sources().ComputeChanged();
-    rig.Carrier().Compute();
+    rig.Carrier().Compute(false);
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.3f));
 }
 
@@ -766,6 +778,8 @@ DOCTEST_TEST_CASE("encoder_bipolar: unversioned JSON stores signed knob position
     for (float value : stored)
     {
         depth.StateEncoderCell::FromJSON(StoredValues(arena, value));
+        depth.SetForceUpdateRecursive();
+        rig.Settle();
         DOCTEST_CHECK(depth.m_bankedValue == doctest::Approx((value + 1.0f) * 0.5f));
         JSON saved = depth.ToJSON(arena);
         DOCTEST_CHECK(saved.Get("values").Get("values").GetAt(0).NumberValue() == doctest::Approx(value));
@@ -774,6 +788,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: unversioned JSON stores signed knob position
     }
 
     rig.Carrier().StateEncoderCell::FromJSON(StoredValues(arena, 0.3f));
+    rig.Settle();
     DOCTEST_CHECK(rig.Carrier().m_bankedValue == doctest::Approx(0.3f));
 }
 
@@ -803,9 +818,9 @@ DOCTEST_TEST_CASE("encoder_bipolar: centered scenes preserve negative routes and
     EncoderRig rig(false, 0.3f);
     Cell& depth = rig.Depth(rig.Carrier(), 0);
     depth.SetValue(0.5f, true);
-    depth.m_values[0] = 0.0f;
-    depth.m_values[1] = 1.0f;
-    depth.m_values[2] = 0.25f;
+    depth.SetAndRecordValue(0.0f, 0);
+    depth.SetAndRecordValue(1.0f, 1);
+    depth.SetAndRecordValue(0.25f, 2);
     rig.m_context.m_sceneManager.m_blendFactor = 0.5f;
     rig.Sources().m_value[0][0] = 0.8f;
     rig.Compute();
@@ -817,7 +832,8 @@ DOCTEST_TEST_CASE("encoder_bipolar: centered scenes preserve negative routes and
     rig.Compute();
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.425f));
     rig.Carrier().HandleShiftPress();
-    rig.Carrier().Compute();
+    rig.Settle();
+    rig.Carrier().Compute(false);
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.3f));
     DOCTEST_CHECK(rig.Carrier().m_modulatorsAffecting.IsZero());
     DOCTEST_CHECK(rig.Depth(rig.Carrier(), 0).m_values[0] == 0.5f);
@@ -832,10 +848,11 @@ DOCTEST_TEST_CASE("encoder_bipolar: shift reset preserves hidden gesture values"
     Cell& gesture = *carrier.m_modulators.m_gestures[0];
     gesture.m_isActive[0] = true;
     gesture.m_isActive[2] = true;
-    gesture.m_values[0] = 0.75f;
-    gesture.m_values[2] = 0.25f;
+    gesture.SetAndRecordValue(0.75f, 0);
+    gesture.SetAndRecordValue(0.25f, 2);
 
     carrier.HandleShiftPress();
+    rig.Settle();
 
     DOCTEST_REQUIRE(carrier.m_modulators.m_gestures[0]);
     DOCTEST_CHECK(carrier.m_modulators.m_gestures[0]->m_isActive[2]);
@@ -900,7 +917,7 @@ DOCTEST_TEST_CASE("encoder gestures: first edit uses the newly activated gesture
         rig.Compute();
 
         rig.Carrier().Increment(0.1f);
-
+        rig.Settle();
         DOCTEST_CHECK(rig.Carrier().m_values[0] == doctest::Approx(0.3f + 0.1f * (1.0f - weight)));
         DOCTEST_REQUIRE(rig.Carrier().m_modulators.m_gestures[0]);
         DOCTEST_CHECK(rig.Carrier().m_modulators.m_gestures[0]->m_values[0]
@@ -925,7 +942,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: gesture sweeps a bipolar parameter across ze
     {
         rig.Sources().m_gestureWeights[0] = weights[i];
         rig.Sources().ComputeChanged();
-        carrier.Compute();
+        carrier.Compute(false);
         for (size_t voice = 0; voice < 2; ++voice)
         {
             DOCTEST_CHECK(carrier.GetValue(voice) == doctest::Approx(expected[i]));
@@ -940,12 +957,13 @@ DOCTEST_TEST_CASE("encoder_bipolar: reset without gestures restores the signed d
     EncoderRig rig(true, -0.5f);
     Cell& carrier = rig.Carrier();
     carrier.SetValue(0.875f, true);
-    carrier.m_values[2] = 0.625f;
+    carrier.SetAndRecordValue(0.625f, 2);
     rig.Compute();
     DOCTEST_REQUIRE(carrier.GetValue(0) == 0.75f);
 
     rig.m_banks.ResetGrid(0);
-    carrier.Compute();
+    rig.Settle();
+    carrier.Compute(false);
     DOCTEST_CHECK(carrier.GetValue() == -0.5f);
     DOCTEST_CHECK(carrier.m_values[2] == 0.625f);
     for (size_t voice = 0; voice < 2; ++voice)
@@ -962,12 +980,12 @@ DOCTEST_TEST_CASE("encoder_bipolar: all-scene reset restores hidden scenes acros
     {
         for (size_t scene = 0; scene < SmartGrid::SceneManager::x_numScenes; ++scene)
         {
-            cell->m_values[scene] = 0.875f;
+            cell->SetAndRecordValue(0.875f, scene);
         }
     }
 
     rig.m_banks.RevertToDefault(true);
-
+    rig.Settle();
     for (Cell* cell : {&carrier, &rig.OtherTrio()})
     {
         for (size_t scene = 0; scene < SmartGrid::SceneManager::x_numScenes; ++scene)
@@ -992,7 +1010,8 @@ DOCTEST_TEST_CASE("encoder_bipolar: reset with an active gesture restores the si
     DOCTEST_REQUIRE(carrier.m_gesturesAffecting.Get(0));
 
     carrier.RevertToDefault(false);
-    carrier.Compute();
+    rig.Settle();
+    carrier.Compute(false);
     DOCTEST_CHECK(carrier.GetValue() == -0.5f);
     DOCTEST_CHECK(carrier.GetValue(0) == -0.5f);
     DOCTEST_CHECK(carrier.m_gesturesAffecting.IsZero());
@@ -1003,7 +1022,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: reset with an active gesture restores the si
     {
         rig.Sources().m_gestureWeights[0] = weight;
         rig.Sources().ComputeChanged();
-        carrier.Compute();
+        carrier.Compute(false);
         DOCTEST_CHECK(carrier.GetValue(0) == -0.5f);
     }
 }

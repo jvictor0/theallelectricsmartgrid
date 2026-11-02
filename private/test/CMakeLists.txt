@@ -45,7 +45,6 @@ add_custom_target(smartgrid_build_info
 # ---------------------------------------------------------------------------
 set(TEST_SOURCES
     ${TEST_DIR}/support/TestMain.cpp
-    ${SRC_DIR}/SmartGrid.cpp
     ${SRC_DIR}/RecordingFlacCodec.cpp
     ${TEST_DIR}/unit/infra_spike.cpp
 )

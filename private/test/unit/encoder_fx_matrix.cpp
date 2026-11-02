@@ -39,7 +39,6 @@ DOCTEST_TEST_CASE("FX Matrix: voice edits follow the trio while shared controls 
             encoders.EncoderIndex(Param::AmpGain, trio)));
         encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 0, 0.2f * static_cast<float>(trio + 1)));
         encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 1, 0.7f));
-        encoders.m_encoderBankBank.FlushEdits();
         delay->m_output[3] = 0.84f;
         internal.PopulateUIState();
         DOCTEST_CHECK(ui.GetMode(0, 0) == Encoders::VoiceModeForTrio(trio));
@@ -55,16 +54,15 @@ DOCTEST_TEST_CASE("FX Matrix: voice edits follow the trio while shared controls 
     }
 
     encoders.SelectBank(Bank::Delay);
-    DOCTEST_CHECK(delay->m_values[0] == doctest::Approx(0.7f).epsilon(0.0001f));
+    DOCTEST_CHECK(delay->m_targets[0] == doctest::Approx(0.7f).epsilon(0.0001f));
     encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(3, 3, 0.4f));
-    encoders.m_encoderBankBank.FlushEdits();
     for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
     {
         encoders.SetTrack(trio);
         encoders.SelectBank(Bank::FXMatrix);
         auto& matrix = GetBank(encoders, Bank::FXMatrix, trio);
-        DOCTEST_CHECK(matrix.GetBase(0, 1)->m_values[0] == doctest::Approx(0.4f).epsilon(0.0001f));
-        DOCTEST_CHECK(matrix.GetBase(0, 0)->m_values[0] ==
+        DOCTEST_CHECK(matrix.GetBase(0, 1)->m_targets[0] == doctest::Approx(0.4f).epsilon(0.0001f));
+        DOCTEST_CHECK(matrix.GetBase(0, 0)->m_targets[0] ==
             doctest::Approx(0.2f * static_cast<float>(trio + 1)).epsilon(0.0001f));
     }
 }
@@ -108,17 +106,17 @@ DOCTEST_TEST_CASE("FX Matrix: nested gestures reload and reset consistently on e
             auto* alias = matrix.GetBase(0, 1);
             DOCTEST_REQUIRE(alias == delay);
             DOCTEST_CHECK(matrix.GetGesturesAffecting().Get(2));
-            DOCTEST_CHECK(alias->m_values[0] == doctest::Approx(0.35f));
+            DOCTEST_CHECK(alias->m_targets[0] == doctest::Approx(0.35f));
             DOCTEST_REQUIRE(alias->m_modulators.m_modulators[4]);
             auto* loadedDepth = alias->m_modulators.m_modulators[4].get();
-            DOCTEST_CHECK(loadedDepth->m_values[0] == doctest::Approx(0.75f).epsilon(0.0001f));
+            DOCTEST_CHECK(loadedDepth->m_targets[0] == doctest::Approx(0.75f).epsilon(0.0001f));
             DOCTEST_REQUIRE(loadedDepth->m_modulators.m_gestures[2]);
             DOCTEST_CHECK(loadedDepth->m_modulators.m_gestures[2]->m_isActive[0]);
         }
 
         encoders.SetTrack(1);
         encoders.ResetBank(Bank::FXMatrix);
-        DOCTEST_CHECK(delay->m_values[0] == delay->m_defaultValue);
+        DOCTEST_CHECK(delay->m_targets[0] == delay->m_defaultValue);
         DOCTEST_CHECK_FALSE(delayBank.GetGesturesAffecting().Get(2));
         for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
         {

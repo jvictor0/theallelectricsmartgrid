@@ -204,6 +204,12 @@ DOCTEST_TEST_CASE("modulator catalogue: legacy global empty depths survive patch
         JSON saved = encoders.ToJSON(arena);
         encoders.RevertToDefault(true);
         encoders.FromJSON(saved);
+        for (size_t sample = 0; sample < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++sample)
+        {
+            SampleTimer::IncrementSample();
+            encoders.Process();
+        }
+
         DOCTEST_REQUIRE(cell->m_modulators.m_modulators[index].get() != nullptr);
         DOCTEST_CHECK(cell->m_modulators.m_modulators[index].get()->m_values[0] == 1.0f);
         bank.MakeSelection(3, 0, cell);
@@ -214,7 +220,7 @@ DOCTEST_TEST_CASE("modulator catalogue: legacy global empty depths survive patch
         sources.m_value[index][0] = 0.8f;
         cell->SetStateRecursive();
         cell->SetModulatorsAffecting();
-        cell->Compute();
+        cell->Compute(false);
         encoders.Process();
         EncoderBankUIState ui;
         encoders.PopulateUIState(&ui);

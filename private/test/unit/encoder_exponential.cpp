@@ -136,15 +136,15 @@ DOCTEST_TEST_CASE("exponential encoder: movement ignores arrival timing and reta
         rig.Turn(65, 100);
         rig.Turn(65, 100 + interval);
         rig.Turn(63, 100 + interval * 2);
-        DOCTEST_CHECK(rig.Cell().m_values[0] == 0.5f + 1.0f / 65536.0f);
+        DOCTEST_CHECK(rig.Cell().m_targets[0] == 0.5f + 1.0f / 65536.0f);
         DOCTEST_CHECK(rig.Cell().m_lastTimestamp == 99);
         DOCTEST_CHECK(rig.Cell().m_lastSpeed == EncoderCell::x_maxSpeed);
         DOCTEST_CHECK(rig.Cell().m_lastDeltaSign == -1);
 
         rig.Turn(127, 100 + interval * 3);
-        DOCTEST_CHECK(rig.Cell().m_values[0] == doctest::Approx(0.5394239164768812).epsilon(1e-6));
+        DOCTEST_CHECK(rig.Cell().m_targets[0] == doctest::Approx(0.5394239164768812).epsilon(1e-6));
         rig.Turn(0, 100 + interval * 4);
-        DOCTEST_CHECK(rig.Cell().m_values[0] == doctest::Approx(0.4964332117452942).epsilon(1e-6));
+        DOCTEST_CHECK(rig.Cell().m_targets[0] == doctest::Approx(0.4964332117452942).epsilon(1e-6));
     }
 }
 
@@ -153,13 +153,13 @@ DOCTEST_TEST_CASE("exponential encoder: clamping and legacy increments retain ex
     ExponentialEncoderRig rig;
     rig.Cell().SetValue(0.99f, true);
     rig.Turn(127, 1);
-    DOCTEST_CHECK(rig.Cell().m_values[0] == 1.0f);
+    DOCTEST_CHECK(rig.Cell().m_targets[0] == 1.0f);
     rig.Cell().SetValue(0.01f, true);
     rig.Turn(0, 2);
-    DOCTEST_CHECK(rig.Cell().m_values[0] == 0.0f);
+    DOCTEST_CHECK(rig.Cell().m_targets[0] == 0.0f);
 
     rig.m_banks.m_banks[0].Apply(WrldBLDRMidi::FromMidi(BasicMidi::CC(1000, -1, 0, 0, 65)));
-    DOCTEST_CHECK(rig.Cell().m_values[0] == doctest::Approx(EncoderCell::x_minSpeed));
+    DOCTEST_CHECK(rig.Cell().m_targets[0] == doctest::Approx(EncoderCell::x_minSpeed));
 }
 
 DOCTEST_TEST_CASE("encoder shift-turn: exponential MIDI adjusts descendants and leaves the parent unchanged")
@@ -180,15 +180,15 @@ DOCTEST_TEST_CASE("encoder shift-turn: exponential MIDI adjusts descendants and 
     rig.m_context.m_sceneManager.m_shift = true;
 
     rig.Turn(0, 1000);
-    DOCTEST_CHECK(positive.m_values[0] == doctest::Approx(0.7070092952684131).epsilon(1e-6));
-    DOCTEST_CHECK(negative.m_values[0] == doctest::Approx(0.29299070473158695).epsilon(1e-6));
+    DOCTEST_CHECK(positive.m_targets[0] == doctest::Approx(0.7070092952684131).epsilon(1e-6));
+    DOCTEST_CHECK(negative.m_targets[0] == doctest::Approx(0.29299070473158695).epsilon(1e-6));
     rig.Turn(127, 2000);
-    DOCTEST_CHECK(positive.m_values[0] == doctest::Approx(0.7464179529562318).epsilon(1e-6));
-    DOCTEST_CHECK(negative.m_values[0] == doctest::Approx(0.25358204704376825).epsilon(1e-6));
-    DOCTEST_CHECK(rig.Cell().m_values[0] == 0.5f);
-    DOCTEST_CHECK(positive.m_values[1] == 0.75f);
-    DOCTEST_CHECK(negative.m_values[1] == 0.25f);
-    DOCTEST_CHECK(rig.Cell().m_modulators.m_modulators[2]->m_values[0] == 0.5f);
+    DOCTEST_CHECK(positive.m_targets[0] == doctest::Approx(0.7464179529562318).epsilon(1e-6));
+    DOCTEST_CHECK(negative.m_targets[0] == doctest::Approx(0.25358204704376825).epsilon(1e-6));
+    DOCTEST_CHECK(rig.Cell().m_targets[0] == 0.5f);
+    DOCTEST_CHECK(positive.m_targets[1] == 0.75f);
+    DOCTEST_CHECK(negative.m_targets[1] == 0.25f);
+    DOCTEST_CHECK(rig.Cell().m_modulators.m_modulators[2]->m_targets[0] == 0.5f);
 }
 
 DOCTEST_TEST_CASE("exponential encoder: ignored values do not activate gestures and valid edits do")
@@ -204,10 +204,10 @@ DOCTEST_TEST_CASE("exponential encoder: ignored values do not activate gestures 
     }
 
     DOCTEST_CHECK_FALSE(rig.Cell().m_modulators.m_gestures[0]);
-    DOCTEST_CHECK(rig.Cell().m_values[0] == 0.5f);
+    DOCTEST_CHECK(rig.Cell().m_targets[0] == 0.5f);
     rig.Turn(127, 2);
     DOCTEST_REQUIRE(rig.Cell().m_modulators.m_gestures[0]);
-    DOCTEST_CHECK(rig.Cell().m_values[0] == doctest::Approx(0.5197043288439094).epsilon(1e-6));
-    DOCTEST_CHECK(rig.Cell().m_modulators.m_gestures[0]->m_values[0]
+    DOCTEST_CHECK(rig.Cell().m_targets[0] == doctest::Approx(0.5197043288439094).epsilon(1e-6));
+    DOCTEST_CHECK(rig.Cell().m_modulators.m_gestures[0]->m_targets[0]
         == doctest::Approx(0.5197043288439094).epsilon(1e-6));
 }

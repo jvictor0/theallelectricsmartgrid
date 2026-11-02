@@ -3,9 +3,8 @@
 // SystemFixture: process-wide singleton owner for the one
 // TheNonagonSquiggleBoyInternal instance the test binary is allowed to build.
 //
-// The global grid-id allocator (SmartGrid::g_gridIds) does not support repeated
-// construction of the whole-system object, so every test that needs a live
-// system shares a single instance via SharedSystem(). The instance is created
+// Every test that needs a live system shares a single instance via
+// SharedSystem(). The instance is created
 // lazily on first use (after GlobalEnv::ResetPerTest has reset the SampleTimer).
 //
 // Tests that mutate the shared system (e.g. pushing encoder messages) should

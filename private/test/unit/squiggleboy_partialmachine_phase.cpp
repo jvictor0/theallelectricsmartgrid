@@ -33,8 +33,9 @@ DOCTEST_TEST_CASE("SquiggleBoy effect returns reach unity and reverb covers the 
     {
         reverbReturn->SetValue(value, true);
         reverbReturn->SetForceUpdateRecursive();
-        for (size_t frame = 0; frame < 512; ++frame)
+        for (size_t sample = 0; sample < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++sample)
         {
+            SampleTimer::IncrementSample();
             synth->m_encoders.Process();
             synth->SetEncoderParameters(input);
         }

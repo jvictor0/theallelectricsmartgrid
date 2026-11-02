@@ -44,10 +44,10 @@ The system SHALL route grid messages to cells through `Grid`, a 2D array of owne
 - **THEN** `Grid::Get` returns null, no cell handler runs, and `GetColor` for those coordinates returns `Color::Off`
 
 ### Requirement: Grid Coordinate Window
-The system SHALL address grid cells in a signed logical coordinate window defined at compile time: by default x in [-1, 9) and y in [-1, 10) with `x_gridMaxSize` 11, so a Launchpad's 8x8 pad field plus its edge buttons fit one grid; under the `SMART_BOX` build the window is x in [0, 20), y in [0, 8) with `x_gridMaxSize` 20. Bus storage and iteration translate logical coordinates to physical array indices by subtracting `x_gridXMin`/`x_gridYMin`.
+The system SHALL address grid cells in a signed logical coordinate window defined at compile time: x in [-1, 9) and y in [-1, 10) with `x_gridMaxSize` 11, so a Launchpad's 8x8 pad field plus its edge buttons fit one grid. Bus storage and iteration translate logical coordinates to physical array indices by subtracting `x_gridXMin`/`x_gridYMin`.
 
 #### Scenario: Logical edge coordinate maps to physical index zero
-- **WHEN** a default-build component stores a value at logical coordinates (-1, -1)
+- **WHEN** a component stores a value at logical coordinates (-1, -1)
 - **THEN** it occupies physical index (0, 0) in the backing 11x11 array and reads back from logical (-1, -1)
 
 #### Scenario: Iterator reports physical coordinates
@@ -76,28 +76,6 @@ The system SHALL let output handlers detect "nothing changed" without iterating:
 #### Scenario: New epoch yields a full sweep
 - **WHEN** a handler calls `begin(&storedEpoch)` after the bus epoch has advanced
 - **THEN** `storedEpoch` is set to the current bus epoch and the iterator visits every logical coordinate in the grid window, yielding a `Message` per cell
-
-### Requirement: Grid Identity and Per-Route Bus Isolation
-The system SHALL identify grids by IDs in [0, `x_numGridIds`) with `x_numGridIds` = 256. `GridIdAllocator::Alloc` claims the lowest free ID with an atomic exchange and returns the sentinel `x_numGridIds` when all 256 are taken; `Free` releases an ID for reuse. `SmartBusHolder` owns one `SmartBus` (input velocity bus plus output color bus) per grid ID, so writes through `PutColor`/`PutVelocity` for one grid ID never alter another route's state or epochs.
-
-#### Scenario: Allocated IDs are unique
-- **WHEN** two grids allocate IDs from the same `GridIdAllocator`
-- **THEN** they receive distinct values, each less than 256
-
-#### Scenario: Exhaustion returns the sentinel
-- **WHEN** `Alloc` is called after all 256 IDs are allocated
-- **THEN** it returns `x_numGridIds` (256), the "no grid ID" sentinel
-
-#### Scenario: Routes are isolated
-- **WHEN** `SmartBusHolder::PutColor(gridIdA, x, y, c)` stores a changed color
-- **THEN** only the buses at `m_buses[gridIdA]` have their epochs incremented, and `GetColor(gridIdB, x, y)` for any other grid ID is unchanged
-
-### Requirement: Periodic Bus I/O Cadence
-The system SHALL drive each grid's bus traffic from `AbstractGrid::ProcessStatic(dt)`: incoming bus state is applied via `ApplyFromBus()` on every call, while `OutputToBus()` publication is throttled to at most once per `x_busIOInterval` (0.005 seconds) of accumulated `dt`.
-
-#### Scenario: Output publication is throttled
-- **WHEN** `ProcessStatic` is called repeatedly with `dt` values summing to less than 0.005 seconds since the last publication
-- **THEN** `OutputToBus()` is not called again, while `ApplyFromBus()` runs on every invocation
 
 ### Requirement: PadUI Bridge Between UI and Buses
 The system SHALL expose pad state to UI components through `PadUI`, which binds logical coordinates and a route ID to a `SmartBusColor` for readback and a `MessageInBus` for interaction. `PadUI::GetColor()` atomically reads `SmartBusColor::Get(m_x, m_y)`; `OnPress(timestamp)` pushes a `MessageIn` with mode `PadPress`, the route ID, the pad coordinates, and amount 1; `OnRelease(timestamp)` pushes mode `PadRelease` with amount 0. `PadUIGrid` is a factory that mints `PadUI` handles sharing one route's buses.

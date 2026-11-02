@@ -561,7 +561,7 @@ struct TheNonagonSquiggleBoyInternal
         m_timer += SampleTimer::x_samplePeriod;
 
         SetNonagonInputs();
-        m_nonagon.ProcessSample(SampleTimer::x_samplePeriod);
+        m_nonagon.ProcessSample();
         
         SetSquiggleBoyInputs();
         m_squiggleBoy.ProcessSample(m_squiggleBoyState, SampleTimer::x_samplePeriod, audioInputBuffer);
@@ -647,7 +647,6 @@ struct TheNonagonSquiggleBoyInternal
         m_sceneStateLeft = m_stateSaver.Insert("sceneStateLeft", &m_context.m_sceneManager.m_scene1);
         m_sceneStateRight = m_stateSaver.Insert("sceneStateRight", &m_context.m_sceneManager.m_scene2);
         m_activeTrioState = m_stateSaver.Insert("activeTrio", &m_activeTrio);
-        m_nonagon.RemoveGridIds();
         m_squiggleBoy.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
         m_squiggleBoy.Config(m_squiggleBoyState);
         m_squiggleBoy.SetupUIState(&m_uiState.m_squiggleBoyUIState);

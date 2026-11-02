@@ -168,7 +168,7 @@ namespace SmartGrid
             
             buffer[pos++] = 3;
             
-            SmartBusOutput::Iterator itr = m_bus->begin(&m_epoch);
+            SmartBusColor::Iterator itr = m_bus->begin(&m_epoch);
             while (!itr.Done()) 
             {
                 if (!LPMidi::ShapeSupports(m_shape, itr.m_x, itr.m_y))

@@ -4,7 +4,7 @@
 // front door and dispatched to TheNonagonSquiggleBoyInternal::Apply, sets the
 // targeted encoder to a value in [0,1] deterministically -- bypassing the
 // timestamp-dependent acceleration of EncoderIncDec -- and that the result is
-// observable in the encoder bank UIState after a process frame.
+// observable in the encoder bank UIState after the ramp settles.
 //
 // See SystemFixture.hpp: the whole-system instance is a process-wide singleton
 // (the global grid-id allocator does not support repeated construction), so we
@@ -31,7 +31,7 @@ namespace
 constexpr size_t kChannel = 0;
 
 // Read back the value the encoder bank published to UIState for cell (x,y),
-// channel k. This is cell->m_output[k] (the un-slewed computed value), populated
+// channel k. This is cell->m_output[k] (the computed value), populated
 // during ProcessFrame -> PopulateUIState.
 //
 float ReadEncoderValue(TheNonagonSquiggleBoyInternal& system, int x, int y, size_t k = kChannel)
@@ -65,7 +65,7 @@ bool FindConnectedCell(TheNonagonSquiggleBoyInternal& system, int& outX, int& ou
     return false;
 }
 
-// Push an EncoderSet message through the bus and process a frame so the new
+// Push an EncoderSet message through the bus and process the ramp so the new
 // value propagates to compute + UIState. Uses the Routes::Encoder routeId is not
 // needed here: ProcessMessages dispatches straight to internal.Apply, which is
 // exactly what the bus does for the internal target.
@@ -77,8 +77,12 @@ void ApplyAndRun(SmartGrid::MessageInBus& bus,
 {
     bus.Push(msg);
     bus.ProcessMessages(&system, SmartGrid::MessageInLatency::WithLatency(msg.m_timestamp));
-    system.m_squiggleBoy.m_encoders.m_encoderBankBank.FlushEdits();
-    SystemFixture::RunFrame(system);
+    const size_t x_framesToSettle = SmartGrid::TickDistributor::x_maxSamplesToDistribute /
+        SampleTimer::x_samplesPerProcessFrame + 2;
+    for (size_t frame = 0; frame < x_framesToSettle; ++frame)
+    {
+        SystemFixture::RunFrame(system);
+    }
 }
 
 } // namespace

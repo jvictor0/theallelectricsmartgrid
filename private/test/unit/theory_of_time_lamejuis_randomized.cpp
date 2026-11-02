@@ -308,7 +308,7 @@ struct FrontendRig
         }
 
         SampleTimer::s_instance->m_sample = m_frame * 8;
-        m_frontend->ProcessSample(1.0f / 48000.0f);
+        m_frontend->ProcessSample();
         ++m_frame;
         for (size_t sample = 1; sample <= 8; ++sample)
         {

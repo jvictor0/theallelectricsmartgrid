@@ -131,6 +131,7 @@ DOCTEST_TEST_CASE("Sub: page controls reach each trio independently and round tr
         rig.RunFrames(2);
     }
 
+    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     const std::string patch = rig.SavePatch();
     DOCTEST_REQUIRE_FALSE(patch.empty());
     for (bool reload : {false, true})
@@ -139,6 +140,7 @@ DOCTEST_TEST_CASE("Sub: page controls reach each trio independently and round tr
         {
             rig.ResetToDefaults();
             DOCTEST_REQUIRE(rig.LoadPatch(patch));
+            rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
             rig.RunFrames(2);
         }
 

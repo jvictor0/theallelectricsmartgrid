@@ -59,9 +59,8 @@ DOCTEST_TEST_CASE("TheoryOfTime constructs")
 DOCTEST_TEST_CASE("TheNonagonSquiggleBoyInternal constructs and processes samples")
 {
     // NOTE: There is exactly ONE TheNonagonSquiggleBoyInternal in the whole test
-    // binary, owned by SystemFixture::SharedSystem() (the global grid-id
-    // allocator SmartGrid::g_gridIds may not support repeated construction).
-    // This and the EncoderSet tests share that singleton.
+    // binary, owned by SystemFixture::SharedSystem(). This and the EncoderSet
+    // tests share that singleton.
     //
     // Construction does NOT require an IoTaskThread: all m_ioTaskThread pointers
     // default to nullptr and are only dereferenced during recording, which we do
