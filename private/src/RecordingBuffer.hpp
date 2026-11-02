@@ -49,8 +49,7 @@ struct RecordingBuffer
 
     double SampleGlobalPhase() const
     {
-        size_t j = static_cast<size_t>(SampleTimer::GetUBlockIndex());
-        return m_theoryOfTime.load()->GetPhase(TheoryOfTimeBase::x_globalLoop, j, PhaseDomain::Unmodulated);
+        return m_theoryOfTime.load()->GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Unmodulated);
     }
 
     int ComputeRecordingRepeats(double spanGlobalCycles) const
@@ -61,8 +60,7 @@ struct RecordingBuffer
             return 0;
         }
 
-        size_t j = static_cast<size_t>(SampleTimer::GetUBlockIndex());
-        int64_t globalPeriodTicks = theoryOfTime->GetPeriodTicks(TheoryOfTimeBase::x_globalLoop, j);
+        int64_t globalPeriodTicks = theoryOfTime->GetPeriodTicks(TheoryOfTimeBase::x_globalLoop);
         if (globalPeriodTicks <= 0)
         {
             return 0;
@@ -73,7 +71,7 @@ struct RecordingBuffer
 
         for (int loopIndex = 0; loopIndex < TheoryOfTimeBase::x_numLoops; ++loopIndex)
         {
-            int64_t cycleRatio = theoryOfTime->GetCycleRatio(loopIndex, j);
+            int64_t cycleRatio = theoryOfTime->GetCycleRatio(loopIndex);
             double relativeSize = 1.0 / static_cast<double>(cycleRatio);
             if (relativeSize <= spanGlobalCycles && bestRelativeSize < relativeSize)
             {

@@ -2,7 +2,7 @@
 
 `AHD` in `private/src/AHD.hpp` integrates attack, hold, and decay using changes in phase-derived elapsed time. At a trigger, its input captures:
 
-- the global phase at the start of the microblock;
+- the current sample's modulated global phase;
 - the relevant source loop's cycle ratio to the global loop;
 - the envelope period in samples.
 
@@ -23,7 +23,9 @@ The absolute distance preserves existing reverse behavior: moving back toward th
 
 Each AHD instance consumes its own input events: `Process` clears both `m_trig` and `m_release`, including an ignored release while idle or a release superseded by a simultaneous trigger. The next call continues the envelope without caller cleanup. `m_triggered` reports whether the most recent call consumed a trigger, so scope consumers can record starts after processing. The shared `AHDControl` is not consumed; amp, modulation, and physical-model envelopes each receive their own input copy.
 
-Physical modeling processes four internal samples per 48 kHz base sample and sets `input.m_releaseFactor` to `0.25f`. AHD consumes trigger and release on internal sample zero of each microblock. A new trigger in the immediately following microblock still retriggers the envelope and captures the previous raw output once. Running stages use fractional base-sample positions and use physical-model attack from 100 µs to 2.5 s and decay from 500 µs to 2.5 s. With settled 10 ms attack parameters and one phase-derived sample per base sample, the first block ends at position 7.75 and raw output `7.75 / 480`.
+The running stage reads the current sample's modulated global phase on every call. Trigger and release are consumed on the sample they arrive.
+
+Physical modeling's `ProcessWithAHD` runs its AHD and then the source once per engine sample, leaving `input.m_releaseFactor` at its default of 1. A new trigger on the next sample still retriggers the envelope and captures the previous raw output once. Running stages use phase-derived sample positions and use physical-model attack from 100 µs to 2.5 s and decay from 500 µs to 2.5 s. With settled 10 ms attack parameters and phase advancing one sample per call, eight calls starting at the trigger end at position 7 and raw output `7 / 480`.
 
 Attack and decay controls remain sample-based increments. Hold is configured in loop periods (`m_holdLoops`) and converted with the captured envelope period during integration. Live hold changes therefore remain available without accidentally adopting a new topology's period. Tempo or phase modulation changes global phase motion and consequently envelope progression. The outer Idle/Running/Release state and `m_changed` lifecycle notifications are independent of the internal Attack/Hold/Decay stage.
 

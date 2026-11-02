@@ -50,7 +50,7 @@ DOCTEST_TEST_CASE("AHD: consumed voice events preserve scope starts retriggers a
         DOCTEST_CHECK(scopes->m_startIndices[scope][0][0] == 10.0);
     }
 
-    time.m_samples[0].m_modulatedPhase = 0.5;
+    time.m_sample.m_modulatedPhase = 0.5;
     scopes->m_index = 14;
     amp.Process(input, 1.0f, 0.0f);
     DOCTEST_CHECK(ahd.m_rawOutput == doctest::Approx(0.5f));

@@ -1,13 +1,13 @@
 # Filter System Specification
 
 ## Purpose
-Defines the per-voice filter section of the Smart Grid One DSP engine: the two selectable filter machines (Ladder and SVF), their pitch-tracking cutoff law, post-filter sample-rate reduction, and the UIState paradigm that separates stateful audio-thread DSP from the stateless transfer functions used by the JUCE filter-response visualizers. The filter section sits between the source machine output (source-machine-oscillators) and the amp section (voice-architecture, ahd-envelopes), and runs in the voice's 4x-oversampled domain.
+Defines the per-voice filter section of the Smart Grid One DSP engine: the two selectable filter machines (Ladder and SVF), their pitch-tracking cutoff law, post-filter sample-rate reduction, and the UIState paradigm that separates stateful audio-thread DSP from the stateless transfer functions used by the JUCE filter-response visualizers. The filter section (`SquiggleBoyShape`) sits between the source machine output (source-machine-oscillators) and the amp section (voice-architecture, ahd-envelopes), and processes one engine sample (`SampleTimer::x_sampleRate`) per call for each track's three voices.
 
 ## Requirements
 
 ### Requirement: Per-Voice Filter Machine Selection
-Each voice's filter section SHALL process the source machine's oversampled output with exactly one of two filter machines selected by `VoiceConfig::FilterMachine`: Ladder4Pole (the Ladder Filter Machine) or SVF2Pole (the SVF Filter Machine).
-Before either machine, the input passes a shared DC-blocking one-pole high-pass fixed at 5 Hz at the oversampled rate (5 / 192000). Both machines consume the same parameter set (cutoff factors, resonances, saturation gain), and the selection is evaluated per oversampled sample from the live voice config.
+Each voice's filter section SHALL process the source machine's output with exactly one of two filter machines selected by `VoiceConfig::FilterMachine`: Ladder4Pole (the Ladder Filter Machine, `Ladder4PoleShape`) or SVF2Pole (the SVF Filter Machine, `SVF2PoleShape`).
+Before either machine, the input passes a shared DC-blocking one-pole high-pass fixed at 5 Hz at the engine rate (`SampleTimer::HzToCycPerSamp(5)`). Both machines consume the same parameter set (cutoff factors, resonances, saturation gain, sample-rate-reducer factor), and the selection is evaluated every engine sample from the track's live voice config (see voice-architecture).
 
 #### Scenario: Filter machine switch redirects processing
 - **WHEN** a voice's `VoiceConfig::FilterMachine` changes from `Ladder4Pole` to `SVF2Pole`
@@ -32,7 +32,7 @@ The ladder is four cascaded one-pole low-pass stages with a `TanhSaturator` afte
 
 ### Requirement: SVF Filter Machine
 The SVF Filter Machine SHALL apply a 2-pole SVF low-pass followed by a 2-pole SVF high-pass (both `LinearStateVariableFilter`, a TPT/trapezoidal structure) with three tanh saturation stages: before the low-pass, between the two filters, and after the high-pass.
-All three stages use one `TanhSaturator` whose input gain is the slewed saturation gain parameter (exponential, 0.25 to 5). The SVF computes `g = tan(pi * cutoff)` and `k = 1 / Q` with Q mapped exponentially from the resonance knob.
+All three stages use one normalized `TanhSaturator`, `Tanh(gain * x) / Tanh(gain)`, whose input gain is the saturation gain parameter (exponential, 0.25 to 5). The SVF computes `g = tan(pi * cutoff)` and `k = 1 / Q` with Q mapped exponentially from the resonance knob.
 
 #### Scenario: Three saturation stages shape the signal path
 - **WHEN** a sample is processed in SVF2Pole mode
@@ -43,12 +43,12 @@ All three stages use one `TanhSaturator` whose input gain is the slewed saturati
 - **THEN** all three tanh stages run at input gain 5, producing markedly more harmonic saturation than the minimum gain of 0.25
 
 ### Requirement: Pitch-Tracking Cutoff Frequencies
-The filter section SHALL derive both cutoff frequencies from the voice base frequency: `hpFreq = min(0.5 / 4, vcoBaseFreq * hpCutoffFactor / 4)` and `lpFreq = min(0.5 / 4, pivot * (vcoBaseFreq / pivot)^0.707 * hpCutoffFactor * lpCutoffFactor / 4)`, where `pivot = 261.6256 / 48000` and division by 4 normalizes to the oversampled rate.
-`hpCutoffFactor` is an exponential parameter spanning 0.25 to 256 and `lpCutoffFactor` spans 0.25 to 1024. The low-pass tracks 0.707 octaves per VCO octave around middle C (261.6256 Hz), while the high-pass cutoff factor multiplies both cutoffs linearly. The original LP/HP relationship is preserved at a middle-C VCO frequency for every high-pass cutoff factor. When the voice's source machine is Thru, the tracking base frequency is fixed at 80 Hz (80 / 48000) instead of the voice pitch. Base frequency, cutoff factors, resonances, and saturation gain are all slewed per oversampled sample.
+The filter section SHALL derive both cutoff frequencies from the voice base frequency in cycles per engine sample: `hpFreq = min(maxCutoff, vcoBaseFreq * hpCutoffFactor)` and `lpFreq = min(maxCutoff, pivot * (vcoBaseFreq / pivot)^0.707 * hpCutoffFactor * lpCutoffFactor)`, where `pivot = HzToCycPerSamp(261.6256)` and `maxCutoff = 0.5 / SampleTimer::x_oversample` keeps both cutoffs below the host Nyquist.
+`hpCutoffFactor` is an exponential parameter spanning 0.25 to 256 and `lpCutoffFactor` spans 0.25 to 1024. The low-pass tracks 0.707 octaves per VCO octave around middle C (261.6256 Hz), while the high-pass cutoff factor multiplies both cutoffs linearly. The original LP/HP relationship is preserved at a middle-C VCO frequency for every high-pass cutoff factor. When the voice's source machine is Thru, the tracking base frequency is fixed at 80 Hz (`HzToCycPerSamp(80)`) instead of the voice pitch. Cutoff factors, resonances, and saturation gain are read from the encoders every engine sample without per-parameter slew; the base frequency arrives through the track's portamento one-pole.
 
 #### Scenario: Cutoffs follow the played note
 - **WHEN** a voice's base frequency doubles (up one octave) with cutoff factors unchanged
-- **THEN** `hpFreq` doubles and `lpFreq` increases by a factor of `2^0.707`, each up to the oversampled-domain clamp of 0.5 / 4
+- **THEN** `hpFreq` doubles and `lpFreq` increases by a factor of `2^0.707`, each up to the clamp of `0.5 / x_oversample`
 
 #### Scenario: The low-pass retains its original ratio at the pivot
 - **WHEN** the voice's base frequency is middle C (261.6256 Hz)
@@ -56,14 +56,14 @@ The filter section SHALL derive both cutoff frequencies from the voice base freq
 
 #### Scenario: High-pass cutoff factor moves both cutoffs together
 - **WHEN** the high-pass cutoff factor doubles with voice base frequency and low-pass cutoff factor unchanged
-- **THEN** both cutoffs double, each up to the oversampled-domain clamp of 0.5 / 4
+- **THEN** both cutoffs double, each up to the clamp of `0.5 / x_oversample`
 
 #### Scenario: Thru mode anchors the filter at 80 Hz
 - **WHEN** the voice's source machine is Thru
-- **THEN** the filter tracking frequency is 80 / 48000 regardless of the voice's pitch input, so external audio is filtered against a fixed 80 Hz anchor
+- **THEN** the filter tracking frequency is 80 Hz in cycles per engine sample regardless of the voice's pitch input, so external audio is filtered against a fixed 80 Hz anchor
 
 ### Requirement: Post-Filter Sample-Rate Reduction
-The filter section SHALL apply a `SampleRateReducer` to the selected filter machine's output, with reduction frequency `vcoBaseFreq * sampleRateReducerFactor / 4`, where the factor is an exponential parameter spanning 1 to 2048.
+The filter section SHALL apply a `SampleRateReducer` to the selected filter machine's output, with reduction frequency `vcoBaseFreq * sampleRateReducerFactor` in cycles per engine sample, where the factor is an exponential parameter spanning 1 to 2048. Channels whose reduction frequency reaches one cycle per engine sample bypass the reducer.
 Because the reduction frequency is proportional to the voice base frequency, the digital-degradation character tracks pitch; at the maximum factor the reduction frequency is far above the audible band and the stage is effectively transparent.
 
 #### Scenario: Sample-rate reduction tracks pitch

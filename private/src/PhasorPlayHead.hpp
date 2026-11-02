@@ -24,7 +24,6 @@ struct PhasorPlayHeadGeneric
         Vector m_length;
         Vector m_speed;
         IndexVector m_loopIndex;
-        int m_sampleIndex;
 
         Input()
             : m_theoryOfTime(nullptr)
@@ -32,7 +31,6 @@ struct PhasorPlayHeadGeneric
             , m_length(Vector::Splat(1))
             , m_speed(Vector::Splat(1))
             , m_loopIndex(IndexVector::Splat(0))
-            , m_sampleIndex(0)
         {
         }
     };
@@ -46,15 +44,13 @@ struct PhasorPlayHeadGeneric
             return Vector::Splat(0);
         }
 
-        size_t sampleIdx =
-            static_cast<size_t>(input.m_sampleIndex) % TheoryOfTimeBase::x_microBlockSize;
         TheoryOfTime* tot = input.m_theoryOfTime;
 
         DoubleVector phase;
         for (size_t i = 0; i < Size; ++i)
         {
             size_t loopIx = static_cast<size_t>(std::max(0, input.m_loopIndex[i]));
-            phase[i] = tot->GetPhase(loopIx, sampleIdx, PhaseDomain::Modulated);
+            phase[i] = tot->GetPhase(loopIx, PhaseDomain::Modulated);
         }
 
         DoubleVector length = input.m_length.template Convert<double>();

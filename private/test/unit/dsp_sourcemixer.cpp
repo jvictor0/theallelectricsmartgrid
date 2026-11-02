@@ -8,13 +8,14 @@
 namespace
 {
 
-void FillUBlock(SourceMixer::Source::Input& input, float left, float right)
+void ProcessConstant(SourceMixer::Source& source, SourceMixer::Source::Input& input, float left, float right)
 {
     input.m_gain.m_expParam = 1.0f;
-    for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
+    input.m_input[0] = left;
+    input.m_input[1] = right;
+    for (size_t i = 0; i < 8; ++i)
     {
-        input.m_uBlockInput[0][i] = left;
-        input.m_uBlockInput[1][i] = right;
+        source.Process(input);
     }
 }
 
@@ -36,8 +37,8 @@ DOCTEST_TEST_CASE("SourceMixer input config maps mono left and silences right")
     input.m_sources[2].m_config.m_width = SourceMixer::SourceWidth::Mono;
     input.SetInputs(audioInput);
 
-    DOCTEST_CHECK(input.m_sources[2].m_uBlockInput[0][0] == doctest::Approx(5.0f));
-    DOCTEST_CHECK(input.m_sources[2].m_uBlockInput[1][0] == doctest::Approx(0.0f));
+    DOCTEST_CHECK(input.m_sources[2].m_input[0] == doctest::Approx(5.0f));
+    DOCTEST_CHECK(input.m_sources[2].m_input[1] == doctest::Approx(0.0f));
 }
 
 DOCTEST_TEST_CASE("SourceMixer input config maps stereo left and right lanes")
@@ -56,8 +57,8 @@ DOCTEST_TEST_CASE("SourceMixer input config maps stereo left and right lanes")
     input.m_sources[3].m_config.m_width = SourceMixer::SourceWidth::Stereo;
     input.SetInputs(audioInput);
 
-    DOCTEST_CHECK(input.m_sources[3].m_uBlockInput[0][0] == doctest::Approx(7.0f));
-    DOCTEST_CHECK(input.m_sources[3].m_uBlockInput[1][0] == doctest::Approx(8.0f));
+    DOCTEST_CHECK(input.m_sources[3].m_input[0] == doctest::Approx(7.0f));
+    DOCTEST_CHECK(input.m_sources[3].m_input[1] == doctest::Approx(8.0f));
 }
 
 DOCTEST_TEST_CASE("SourceMixer UIState exposes static DSP-owned source colors")
@@ -83,9 +84,7 @@ DOCTEST_TEST_CASE("SourceMixer mono processing leaves right lane silent")
     SourceMixer::Input input;
 
     input.m_sources[0].m_config.m_width = SourceMixer::SourceWidth::Mono;
-    FillUBlock(input.m_sources[0], 1.0f, 0.0f);
-
-    mixer.m_sources[0].ProcessUBlock(input.m_sources[0]);
+    ProcessConstant(mixer.m_sources[0], input.m_sources[0], 1.0f, 0.0f);
 
     float left = mixer.m_sources[0].m_output[0];
     float right = mixer.m_sources[0].m_output[1];
@@ -102,9 +101,7 @@ DOCTEST_TEST_CASE("SourceMixer stereo processing keeps lanes independent")
     SourceMixer::Input input;
 
     input.m_sources[1].m_config.m_width = SourceMixer::SourceWidth::Stereo;
-    FillUBlock(input.m_sources[1], 1.0f, 0.1f);
-
-    mixer.m_sources[1].ProcessUBlock(input.m_sources[1]);
+    ProcessConstant(mixer.m_sources[1], input.m_sources[1], 1.0f, 0.1f);
 
     float left = mixer.m_sources[1].m_output[0];
     float right = mixer.m_sources[1].m_output[1];

@@ -187,8 +187,8 @@ The header's `parameters` array lists unique, nonempty parameter names (at most
 value for every accepted audio frame. The engine records
 `global_phase_unmodulated` in absolute master-loop units, including integer loop
 count; it is neither wrapped nor clamped nor converted to float32. It captures
-`TheoryOfTime` at the current audio sample's microblock index, excluding phase
-modulation. The timing engine may continue advancing through note tails after transport
+the unmodulated phase of `TheoryOfTime`'s current sample (`m_sample`), excluding
+phase modulation. The timing engine may continue advancing through note tails after transport
 stops; it resets phase to zero once its clock stops.
 
 Each block stores all declared parameters, even in silent blocks. For each name
@@ -414,7 +414,7 @@ grow that arena until every reader releases it. The worker serializes the patch
 as it drains events, releases the arena immediately, and retains its own bytes
 until block writing. Busy message-thread loads are deferred before parsing and
 retried by the timer; a newer pending request replaces an older pending request.
-Save requests and saved-pad reloads defer to a later control frame if necessary.
+Save requests and saved-pad reloads defer to a later process frame if necessary.
 Error, overflow, shutdown, and discarded-tail paths release retained references.
 
 Whole-patch reset uses another preallocated 8 MiB arena for its resulting

@@ -19,25 +19,26 @@ It manages **9 voices** arranged in **3 trios**.
 
 ## 2. Process Flow
 
-For every micro block, the Theory of Time computes all samples in that block **plus** the first sample of the next block. Slot 8 holds the first sample of the next micro block (computed in the current block). At the start of each micro block, `RolloverMicroblockBuffer` copies slot 8 into slot 0—the first sample of this block was computed in the previous block. The Nonagon then runs at that sample (sequencer logic, outputs), and `Process(j)` for j=1..8 computes the rest of this block and the first sample of the next. This ensures that interpolation anywhere inside a micro block always has accurate boundary samples.
+`Process` runs once per engine sample. It first advances the Theory of Time by one sample, so the sequencer logic always reads the sample just produced. Triggers, gate ends, and note starts and ends are therefore sample-exact.
 
-During a control frame, `Process` executes the following steps:
+Each call executes the following steps:
 
-1. **Rollover and Theory of Time (sample 0)**:
-   - `SetTheoryOfTimeInput(input)` prepares the global clock inputs.
-   - `m_theoryOfTime.RolloverMicroblockBuffer()` copies slot 8 into slot 0 (sample 0 of this block was computed in the previous block).
+1. **Theory of Time**:
+   - `SetTheoryOfTimeInput(input)` keeps the timebase running while the user transport is running or any Multi-Phasor Gate voice gate is still high.
+   - `m_theoryOfTime.Process(input.m_theoryOfTimeInput)` advances the current sample. When the user transport is stopped and no voice gate keeps the timebase alive, this takes the stopped branch of `TheoryOfTimeBase::Process`, keeping accepted topology and periods current and clearing phases, positions, gates, and crossing flags.
    - If the global loop crosses an unmodulated cycle boundary (`CrossedCycleBoundary`), it records a start index in the note writer.
 
-2. **Index Arp and LameJuis (Only on change)**:
-   - If the Theory of Time reported position motion, startup, stop, or an accepted topology edit in the micro block (`m_theoryOfTime.AnyChangeInMicroBlock()`), the sequencer state must be updated.
-   - `SetIndexArpInputs(input)` samples signed `m_clockPosition` from `GetLoopCyclePosition(clockLoop, 0, resetLoop)` when `AnyTick(clockLoop)` is true. Read flags follow ticks of lens dimensions, even when neighboring loop rhythm values are equal. One unit of clock position spans a complete loop cycle.
+2. **Index Arp and LameJuis (On change, or while the transport is stopped)**:
+   - If the user transport is stopped, or the Theory of Time reports position motion, startup, stop, or an accepted topology edit on this sample (`m_theoryOfTime.AnyChange()`), the sequencer state is updated.
+   - `SetIndexArpInputs(input)` samples signed `m_clockPosition` from `GetLoopCyclePosition(clockLoop, resetLoop)` when `AnyTick(clockLoop)` is true. Read flags follow ticks of lens dimensions, even when neighboring loop rhythm values are equal. One unit of clock position spans a complete loop cycle.
    - `m_indexArp.Process(input.m_arpInput)` runs the arpeggiators to find the point in the range.
    - `SetLameJuisInput(input)` feeds the Theory of Time gates and the index arp outputs (as `m_choiceValue` for the chosen strategy) into LameJuis.
    - `m_lameJuis.Process(input.m_lameJuisInput)` evaluates the logic matrix and sheaf to produce pitches and extra timbres.
 
 3. **Multi-Phasor Gate (Only when running)**:
-   - If the transport is running (`m_theoryOfTime.m_samples[0].m_running`), `SetMultiPhasorGateInputs(input)` evaluates trigger logic (pitch-changed, sub-trigger, mutes, interrupts).
+   - If the timebase is running (`m_theoryOfTime.m_sample.m_running`), `SetMultiPhasorGateInputs(input)` evaluates trigger logic (pitch-changed, sub-trigger, mutes, interrupts).
    - `m_multiPhasorGate.Process(input.m_multiPhasorGateInput)` determines which voices emit a trigger and tracks their gate lengths based on the absolute modulated global phase.
+   - Otherwise the Multi-Phasor Gate and LameJuis are reset before outputs are set.
 
 4. **Outputs and Note Writer**:
    - `SetOutputs(input)` gathers the results.
@@ -47,10 +48,6 @@ During a control frame, `Process` executes the following steps:
      - Records a note-on event (`m_noteWriter.RecordNote`).
    - For each triggering voice, it latches the extra timbre modulators from the LameJuis section into `m_output.m_extraTimbre[i][j]` (via `result.m_section.Timbre(j)`). These are captured per voice at trigger time and are not slewed.
    - If a voice's gate turns off (`!m_multiPhasorGate.m_gate[i]`), it clears `m_output.m_gate[i]` and records a note-off (`m_noteWriter.RecordNoteEnd`).
-
-5. **Theory of Time (samples 1–8)**:
-   - `m_theoryOfTime.Process(j, input.m_theoryOfTimeInput)` is called for `j = 1` through `8` to compute the rest of this micro block (samples 1–7) and the first sample of the next block (slot 8).
-   - When the user transport is stopped and no voice gate keeps the timebase alive, those calls take the stopped branch of `TheoryOfTimeBase::Process`, keeping accepted topology and periods current and clearing phases, positions, gates, and crossing flags. Multi-Phasor Gate and LameJuis are reset before outputs are set.
 
 ---
 

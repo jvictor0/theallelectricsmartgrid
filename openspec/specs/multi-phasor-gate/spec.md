@@ -1,16 +1,16 @@
 # Multi-Phasor Gate Specification
 
 ## Purpose
-The Multi-Phasor Gate (`MultiPhasorGateInternal` in `private/src/MultiPhasorGate.hpp`) converts per-voice trigger requests from the sequencer into per-voice trigger and gate signals by tracking absolute modulated global phase from the phasor-timebase. Its trigger logic (`NonagonTrigLogic`) combines LameJuis pitch-changed triggers, index-arp sub-triggers, mutes, trio interrupt rules, and unison mastering into trigger requests; the gate stage then times note starts and gate-offs against each voice's normalized phase and publishes envelope timing to the AHD envelopes via `AHDControl` (see ahd-envelopes). The nonagon-sequencer supplies the inputs each control frame.
+The Multi-Phasor Gate (`MultiPhasorGateInternal` in `private/src/MultiPhasorGate.hpp`) converts per-voice trigger requests from the sequencer into per-voice trigger and gate signals by tracking absolute modulated global phase from the phasor-timebase. Its trigger logic (`NonagonTrigLogic`) combines LameJuis pitch-changed triggers, index-arp sub-triggers, mutes, trio interrupt rules, and unison mastering into trigger requests; the gate stage then times note starts and gate-offs against each voice's normalized phase and publishes envelope timing to the AHD envelopes via `AHDControl` (see ahd-envelopes). The nonagon-sequencer supplies the inputs on each engine sample while the timebase runs.
 
 ## Requirements
 
 ### Requirement: Per-Voice Trigger Emission
-The system SHALL emit a per-voice trigger by setting `m_ahdControl[i].m_trig = m_trigs[i] && m_newTrigCanStart[i] && !m_mute[i]` each time `Process` runs, and SHALL clear `m_ahdControl[i].m_release` on the frame a trigger is emitted. The emitted trigger is the single "start a note" signal consumed downstream: the sequencer latches pitch and records a note event from it, and the DSP voices start their AHD envelopes from it.
+The system SHALL emit a per-voice trigger by setting `m_ahdControl[i].m_trig = m_trigs[i] && m_newTrigCanStart[i] && !m_mute[i]` each time `Process` runs, and SHALL clear `m_ahdControl[i].m_release` on the sample a trigger is emitted. The emitted trigger is the single "start a note" signal consumed downstream: the sequencer latches pitch and records a note event from it, and the DSP voices start their AHD envelopes from it.
 
 #### Scenario: Trigger accepted for an unmuted voice
 - **WHEN** `m_trigs[i]` is true, `m_newTrigCanStart[i]` is true, and `m_mute[i]` is false for voice i
-- **THEN** `m_ahdControl[i].m_trig` is true for that frame and `m_ahdControl[i].m_release` is set false
+- **THEN** `m_ahdControl[i].m_trig` is true for that sample and `m_ahdControl[i].m_release` is set false
 - **AND** `m_gate[i]` becomes true and new bounds capture the current global phase, voice cycle ratio, and global period
 
 #### Scenario: Muted voice still tracks phase but emits no trigger
@@ -19,7 +19,7 @@ The system SHALL emit a per-voice trigger by setting `m_ahdControl[i].m_trig = m
 - **AND** `m_preGate[i]` is set true and `m_bounds[i].Set(globalPhase, m_voiceCycleRatio[i], m_globalPeriodSamples)` still records the gate start, so phase tracking continues while muted
 
 ### Requirement: Trigger Source Selection Per Trio
-The trigger logic SHALL request a trigger for voice i (`m_trigs[i]`) when the voice's trio is configured to fire on pitch-changed and the voice's LameJuis pitch-changed flag is set, or when the trio is configured to fire on sub-trigger and the voice's index-arp sub-trigger flag is set. Defaults are `m_trigOnPitchChanged = true` and `m_trigOnSubTrigger = false` per trio. The pitch-changed flag is set only when the phasor-timebase reports a change in the microblock and the LameJuis lane raised its trigger; the sub-trigger flag requires the index arp's `m_triggered` plus the same change condition (see nonagon-sequencer).
+The trigger logic SHALL request a trigger for voice i (`m_trigs[i]`) when the voice's trio is configured to fire on pitch-changed and the voice's LameJuis pitch-changed flag is set, or when the trio is configured to fire on sub-trigger and the voice's index-arp sub-trigger flag is set. Defaults are `m_trigOnPitchChanged = true` and `m_trigOnSubTrigger = false` per trio. The pitch-changed flag is set only when the phasor-timebase reports a change on the current sample and the LameJuis lane raised its trigger; the sub-trigger flag requires the index arp's `m_triggered` plus the same change condition (see nonagon-sequencer).
 
 #### Scenario: Default configuration fires on pitch change only
 - **WHEN** a trio uses default trigger configuration and voice i's LameJuis pitch-changed flag is true while its sub-trigger flag is also true
@@ -27,7 +27,7 @@ The trigger logic SHALL request a trigger for voice i (`m_trigs[i]`) when the vo
 - **AND** disabling `m_trigOnPitchChanged` for that trio with `m_trigOnSubTrigger` still false yields `m_trigs[i]` false even though the sub-trigger flag is set
 
 #### Scenario: Sub-trigger mode fires from the index arp
-- **WHEN** a trio has `m_trigOnSubTrigger = true` and voice i's index arp triggered during a microblock with a Theory of Time change
+- **WHEN** a trio has `m_trigOnSubTrigger = true` and voice i's index arp triggered on a sample with a Theory of Time change
 - **THEN** `m_trigs[i]` is true even if the LameJuis pitch did not change
 
 ### Requirement: New-Trigger Permission and Early Mute
@@ -39,10 +39,10 @@ The trigger logic SHALL allow a new trigger to start (`m_newTrigCanStart[i]`) on
 - **AND** a voice whose gate is already tracking phase reaches gate-off and receives `m_ahdControl[i].m_release = true` because `m_newTrigCanStart[i]` is false at the half-period point
 
 ### Requirement: Trio Interrupt Rules
-The trigger logic SHALL cancel voice i's trigger request when, for any lower-index voice j with `m_interrupt[trio(i)][trio(j)]` enabled, voice j has a trigger request this frame and is not muted. Voices within the same trio SHALL be exempt from interrupting each other while that trio has a unison master assigned.
+The trigger logic SHALL cancel voice i's trigger request when, for any lower-index voice j with `m_interrupt[trio(i)][trio(j)]` enabled, voice j has a trigger request this sample and is not muted. Voices within the same trio SHALL be exempt from interrupting each other while that trio has a unison master assigned.
 
 #### Scenario: Lower-index voice cancels higher-index voice across trios
-- **WHEN** `m_interrupt[1][0]` is true, voice 1 (trio 0) has `m_trigs[1]` true and `m_mute[1]` false, and voice 4 (trio 1) also has a trigger request this frame
+- **WHEN** `m_interrupt[1][0]` is true, voice 1 (trio 0) has `m_trigs[1]` true and `m_mute[1]` false, and voice 4 (trio 1) also has a trigger request this sample
 - **THEN** `m_trigs[4]` is forced false and voice 4 emits no trigger
 - **AND** voice 1's own trigger request is unaffected
 
@@ -59,7 +59,7 @@ The trigger logic SHALL, when `m_unisonMaster[trioId]` is not -1, evaluate every
 - **AND** if `m_mute[1]` is true, voice 1 emits no trigger while voices 0 and 2 do
 
 ### Requirement: Gate Duration of Half a Voice Period
-The system SHALL turn a voice's gate off when absolute distance from the trigger origin reaches 0.5 in the voice's normalized phase, retaining the intentional half-voice-cycle note duration independently of whole-cycle timebase rhythms. On gate start, `PhasorBounds::Set` records the current absolute modulated global phase, the voice's `m_voiceCycleRatio[i]`, and `m_globalPeriodSamples`; on each frame, `PhasorBounds::Process` returns the absolute modulated global phase distance from the captured origin multiplied by the captured voice cycle ratio (`abs(globalPhase - startGlobalPhase) * capturedVoiceRatio`). When that normalized phase reaches or exceeds 0.5, `m_gate[i]` and `m_preGate[i]` are cleared; if additionally `!m_newTrigCanStart[i] || m_mute[i]`, the system sets `m_ahdControl[i].m_release = true` and stops tracking (`m_set[i] = false`).
+The system SHALL turn a voice's gate off when absolute distance from the trigger origin reaches 0.5 in the voice's normalized phase, retaining the intentional half-voice-cycle note duration independently of whole-cycle timebase rhythms. On gate start, `PhasorBounds::Set` records the current absolute modulated global phase, the voice's `m_voiceCycleRatio[i]`, and `m_globalPeriodSamples`; on each sample, `PhasorBounds::Process` returns the absolute modulated global phase distance from the captured origin multiplied by the captured voice cycle ratio (`abs(globalPhase - startGlobalPhase) * capturedVoiceRatio`). When that normalized phase reaches or exceeds 0.5, `m_gate[i]` and `m_preGate[i]` are cleared; if additionally `!m_newTrigCanStart[i] || m_mute[i]`, the system sets `m_ahdControl[i].m_release = true` and stops tracking (`m_set[i] = false`).
 
 #### Scenario: Gate goes low at half period
 - **WHEN** voice i with `m_voiceCycleRatio[i] = 4` is triggered and the absolute modulated global phase then advances by 0.125 of the global loop

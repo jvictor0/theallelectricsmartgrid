@@ -79,7 +79,7 @@ The system SHALL set a single gain coefficient for every all-pass filter in the 
 - **THEN** every all-pass filter's gain is 0.6 and the LFO slew limit is set to 10/48000
 
 ### Requirement: Smoothed Control Mapping
-The `QuadReverbInputSetter` SHALL map the per-channel knob inputs to DSP parameters once per control pass: reverb time through a one-pole slew filter then an exponential map, modulation depth through a zeroed exponential map then a one-pole slew filter, damping base/width and modulation frequency through exponential maps, and feedback through a zeroed exponential map (centered at 0.25) scaled by 1.25. The per-channel widen parameter is driven at its maximum constant value; the widen knob input is not consulted.
+The `QuadReverbInputSetter` SHALL map the per-channel knob inputs to DSP parameters once per engine sample: reverb time through a one-pole slew filter then an exponential map, modulation depth through a zeroed exponential map then a one-pole slew filter, damping base/width and modulation frequency through exponential maps, and feedback through a zeroed exponential map (centered at 0.25) scaled by 1.25. The per-channel widen parameter is driven at its maximum constant value; the widen knob input is not consulted.
 
 #### Scenario: Reverb time changes glide
 - **WHEN** the reverb-time knob jumps between two values

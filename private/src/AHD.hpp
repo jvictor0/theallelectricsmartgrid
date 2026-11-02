@@ -52,7 +52,6 @@ struct AHD
         double m_phaseRatio;
         double m_envelopePeriodSamples;
         TheoryOfTimeBase* m_theoryOfTime;
-        float m_samplePosition;
 
         float m_attackIncrement;
         double m_holdLoops;
@@ -73,7 +72,6 @@ struct AHD
             , m_phaseRatio(1.0)
             , m_envelopePeriodSamples(SampleTimer::SecondsToSamples(1.0))
             , m_theoryOfTime(nullptr)
-            , m_samplePosition(0.0f)
             , m_attackIncrement(0.0f)
             , m_holdLoops(0.0)
             , m_decayIncrement(0.0f)
@@ -89,11 +87,8 @@ struct AHD
         {
             if (control.m_trig)
             {
-                // Trigs can only happen at the first sample of a microblock...
-                //
                 m_startGlobalPhase = m_theoryOfTime->GetPhase(
                     TheoryOfTimeBase::x_globalLoop,
-                    0.0,
                     PhaseDomain::Modulated);
                 m_phaseRatio = control.m_phaseRatio;
                 m_envelopePeriodSamples = control.m_envelopePeriodSamples;
@@ -313,7 +308,6 @@ struct AHD
             {
                 double phase = input.m_theoryOfTime->GetPhase(
                     TheoryOfTimeBase::x_globalLoop,
-                    input.m_samplePosition,
                     PhaseDomain::Modulated);
                 double samples = std::abs(phase - input.m_startGlobalPhase)
                     * input.m_phaseRatio * input.m_envelopePeriodSamples;
@@ -369,14 +363,6 @@ struct AHDGeneric
             for (size_t i = 0; i < Size; ++i)
             {
                 m_channels[i].m_theoryOfTime = theoryOfTime;
-            }
-        }
-
-        void SetSamplePosition(float samplePosition)
-        {
-            for (size_t i = 0; i < Size; ++i)
-            {
-                m_channels[i].m_samplePosition = samplePosition;
             }
         }
 

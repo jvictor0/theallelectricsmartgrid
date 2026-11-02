@@ -1,7 +1,7 @@
 # Encoder Parameter System Specification
 
 ## Purpose
-The encoder parameter system (`private/src/Encoder.hpp`, `private/src/EncoderBank.hpp`, `private/src/EncoderBankBank.hpp`) is the software-defined knob layer for Smart Grid One. Every synthesis parameter is a `BankedEncoderCell` owned by a global `EncoderBankBank` and placed into 4×4 encoder bank grids. Voice parameters have distinct Water, Fire, and Earth cells; Quad and Global parameters have one cell. Each cell stores a normalized base value per scene, accepts up to 15 routable modulation slots whose depths are themselves full encoder cells, supports 16 gesture (macro) targets, morphs between two active scenes (see scene-state-management), and publishes per-voice outputs to the DSP engine through a parameter slew filter and to the UI through `EncoderBankUIState`. Modulation sources such as the PolyXFader LFOs (see polyxfader-lfos) and AHD envelopes (see ahd-envelopes) are external DSP components that write into shared per-bank-mode `ModulatorValues`; the encoder cells consume those values but do not own the sources.
+The encoder parameter system (`private/src/Encoder.hpp`, `private/src/EncoderBank.hpp`, `private/src/EncoderBankBank.hpp`) is the software-defined knob layer for Smart Grid One. Every synthesis parameter is a `BankedEncoderCell` owned by a global `EncoderBankBank` and placed into 4×4 encoder bank grids. Voice parameters have distinct Water, Fire, and Earth cells; Quad and Global parameters have one cell. Each cell stores a normalized base value per scene, accepts up to 15 routable modulation slots whose depths are themselves full encoder cells, supports 16 gesture (macro) targets, morphs between two active scenes (see scene-state-management), and publishes per-voice outputs that the DSP engine reads every sample through `GetValue` and the UI reads through `EncoderBankUIState`. Modulation sources such as the PolyXFader LFOs (see polyxfader-lfos) and AHD envelopes (see ahd-envelopes) are external DSP components that write into shared per-bank-mode `ModulatorValues`; the encoder cells consume those values but do not own the sources.
 ## Requirements
 ### Requirement: Constructor-Bound Scene Manager
 `EncoderBankBank` SHALL receive `SmartGridOneContext*` in its constructor and use that context for every `CreateEncoder` call. `SmartGridOneEncoders` SHALL receive the context in its constructor and use its fixed three-trio, three-voices-per-trio layout and initialize its modes, banks, and named parameters before construction completes. `SquiggleBoyWithEncoderBank` SHALL pass its constructor-supplied context through this chain. The context SHALL supply the shared scene manager and parameter event logger and outlive its encoder consumers.
@@ -16,7 +16,7 @@ The encoder parameter system (`private/src/Encoder.hpp`, `private/src/EncoderBan
 - **THEN** it receives the context supplied to the bank owner at construction, without a separate per-call context argument
 
 ### Requirement: Independent Trio Cells with Per-Scene Base Storage
-Every cell SHALL store eight normalized scene values (`m_values[scene]`), one banked base value, and one scene activation flag per gesture (`m_isActive[scene]`). Voice parameters SHALL have distinct Water, Fire, and Earth cells and independent child trees. All voices of a cell SHALL share its base and gesture target values; modulation SHALL compute independent outputs per local voice.
+Every cell SHALL store eight normalized scene targets (`m_targets[scene]`), eight current scene values (`m_values[scene]`) that ramp toward those targets, one banked base value, and one scene activation flag per gesture (`m_isActive[scene]`). Voice parameters SHALL have distinct Water, Fire, and Earth cells and independent child trees. All voices of a cell SHALL share its base and gesture target values; modulation SHALL compute independent outputs per local voice.
 
 The owner index SHALL be `EncoderIndex(param, trio) = param * 3 + trio`. Voice parameters SHALL occupy all three slots. Quad and Global parameters SHALL occupy only the trio-zero slot. Voice modes SHALL have three channels each, Quad four, and Global one.
 
@@ -174,26 +174,28 @@ Gesture activation is stored per scene in each independent cell (`m_isActive[sce
 - **THEN** the increment is distributed between the gesture target cell and the base value rather than applied to the base alone
 - **AND** subsequent releases of the gesture leave both the base and target reflecting the edit
 
-### Requirement: Change-Driven Recompute on Control Frames
-The system SHALL recompute parameter outputs only on control frames (`EncoderBankBank::Process` gates on `SampleTimer::IsControlFrame()`), and only for cells whose force-update flag is set or whose affecting-modulator/affecting-gesture bitmasks intersect the bank mode's changed-modulator/changed-gesture bitmasks computed by `ModulatorValues::ComputeChanged()`.
-Scene-manager change flags trigger bulk refreshes: a blend change (`m_changed`) re-derives every cell's banked values from scene storage, and a scene-index change (`m_changedScene`) recomputes the affecting bitmasks (see scene-state-management).
+### Requirement: Change-Driven Recompute Every Sample
+The system SHALL run `EncoderBankBank::Process` once per engine sample, from `SquiggleBoyWithEncoderBank::ProcessSample` before encoder values are applied to DSP inputs. Each pass SHALL call `ModulatorValues::ComputeChanged()` for every bank mode, apply the scene-manager flags, and then call `Compute` on every named cell. A connected cell SHALL mix gestures and modulation only when the pass's blend-changed flag is set, its force-update countdown (`m_samplesForceUpdate`) is non-zero, or its affecting-modulator/affecting-gesture bitmasks intersect the bank mode's changed-modulator/changed-gesture bitmasks; otherwise its outputs retain their previous values.
+Scene-manager change flags trigger bulk refreshes: a blend-only change (`m_changed` without `m_changedScene`) sets `m_blendChanged` for that pass so every cell re-reads its scene-blended banked value and recomputes; a change that sets `m_changedScene` re-derives every cell's banked values recursively (`SetStateRecursive`, which also starts each cell's force-update countdown) and recomputes the affecting bitmasks (see scene-state-management).
 
-Because recompute is change-driven and a cell that is no longer modulated or gestured has an empty affecting bitmask (so no source change can ever re-trigger it), any operation that mutates a cell's modulation configuration, gesture configuration, or base value outside the normal per-frame source path — shift-press encoder reset (`HandleShiftPress`), gesture-button delete (`ClearGesture` / `SetAllModulatorsAffecting`), `RevertToDefault`, absolute set (`EncoderSet`), and JSON load (`FromJSON`) — SHALL set the affected cells' force-update flag (`SetForceUpdateRecursive`) in addition to recomputing the affecting bitmasks (`SetModulatorsAffecting`/`SetModulatorsAffectingRecursive`). Force-update is the only signal that can drive the one corrective recompute after modulation or a gesture is cleared; omitting it leaves the lazy cache serving a stale post-modulation/post-gesture output indefinitely (a frozen value that disagrees with the now-empty affecting bitmask).
+Force-update SHALL be a countdown of `TickDistributor::x_maxSamplesToDistribute` (50 ms of host samples). Setting it (`SetForceUpdateRecursive` for the cell and its ancestors, or a target change through `SetTarget` for the cell alone) SHALL make the cell recompute on every pass until the count reaches zero. Each `Compute(true)` pass with a non-zero count SHALL advance the cell's scene values toward their targets and decrement the count; the cell SHALL recompute its affecting bitmasks when the count starts and again when it reaches zero.
+
+Because recompute is change-driven and a cell that is no longer modulated or gestured has an empty affecting bitmask (so no source change can ever re-trigger it), any operation that mutates a cell's modulation configuration, gesture configuration, or base value outside the normal per-sample source path — shift-press encoder reset (`HandleShiftPress`), gesture-button delete (`ClearGesture` / `SetAllModulatorsAffecting`), `RevertToDefault`, absolute set (`EncoderSet`), and JSON load (`FromJSON`) — SHALL set the affected cells' force-update countdown (`SetForceUpdateRecursive`) in addition to recomputing the affecting bitmasks (`SetModulatorsAffecting`/`SetModulatorsAffectingRecursive`). Force-update is the only signal that can drive the corrective recompute after modulation or a gesture is cleared; omitting it leaves the lazy cache serving a stale post-modulation/post-gesture output indefinitely (a frozen value that disagrees with the now-empty affecting bitmask).
 
 #### Scenario: Unaffected parameter skips recompute
-- **WHEN** a parameter has no active modulators or gestures and neither its force-update flag nor the scene manager's change flags are set
+- **WHEN** a parameter has no active modulators or gestures, its force-update countdown is zero, and the scene manager's change flags are not set
 - **THEN** its Compute pass performs no gesture or modulation mixing and its outputs retain their previous values
 
 #### Scenario: Source change recomputes routed parameters
-- **WHEN** a PolyXFader LFO routed to a parameter produces a new value on a control frame
+- **WHEN** a PolyXFader LFO routed to a parameter produces a new value on an engine sample
 - **THEN** that slot's bit is set in the bank mode's changed-modulator bitmask
-- **AND** every cell whose affecting bitmask includes that slot recomputes its outputs on the same control frame
+- **AND** every cell whose affecting bitmask includes that slot recomputes its outputs in the same `EncoderBankBank::Process` pass
 
 #### Scenario: Clearing modulation forces a corrective recompute
 - **WHEN** a parameter is currently modulated (its affecting-modulator bitmask is non-empty and its output differs from its base value) and an operation clears that modulation so the affecting bitmask becomes empty
-- **THEN** the operation sets the cell's force-update flag
-- **AND** on the next control frame the cell recomputes its output to the unmodulated base value even though no modulation source changed
-- **AND** the published `EncoderBankUIState` value for the cell converges to the base value within the parameter-slew bound rather than remaining frozen at the prior modulated value
+- **THEN** the operation starts the cell's force-update countdown
+- **AND** the cell recomputes on every following pass even though no modulation source changed, reaching the unmodulated base value by the time the countdown ends
+- **AND** the published `EncoderBankUIState` value for the cell follows at the next UI population pass rather than remaining frozen at the prior modulated value
 
 ### Requirement: Hidden Machine-Dependent Parameters Remain Semantically Live
 Machine-dependent parameters SHALL remain wired to their bank-mode shared state and participate in semantic parameter operations even when the selected track's machine topology hides them from the visible 4x4 bank. Hiding a parameter from the current bank view SHALL affect only controller/UI placement; it MUST NOT prevent the parameter from recomputing DSP outputs, receiving gesture/modulator change edges, clearing gestures, reverting defaults, copying scenes, or publishing correct values when read by parameter index.
@@ -201,13 +203,13 @@ Machine-dependent parameters SHALL remain wired to their bank-mode shared state 
 #### Scenario: Hidden parameter catches gesture weight changes
 - **WHEN** a Voice-bank parameter is exposed for Water's source machine, hidden when Earth's source machine is selected, and has gesture 2 controlling its Spread modulation depth
 - **AND** gesture 2's live weight changes while Earth is selected
-- **THEN** the hidden Water parameter recomputes on the next control frame
+- **THEN** the hidden Water parameter recomputes on the next `EncoderBankBank::Process` pass
 - **AND** reading the Water parameter by parameter index returns the value corresponding to the new gesture weight when Water is selected again
 - **AND** Earth's visible bank view may still publish that grid position as disconnected or zero because Earth does not expose the parameter
 
 #### Scenario: Hidden parameter catches modulation source changes
-- **WHEN** a Voice-bank parameter is hidden by the selected track's machine topology but has an active modulation slot whose source changes on a control frame
-- **THEN** the hidden parameter recomputes from the changed source on the same control frame
+- **WHEN** a Voice-bank parameter is hidden by the selected track's machine topology but has an active modulation slot whose source changes on an engine sample
+- **THEN** the hidden parameter recomputes from the changed source in the same `EncoderBankBank::Process` pass
 - **AND** DSP reads by parameter index observe the updated per-voice output even though the parameter is absent from the visible bank view
 
 #### Scenario: Clearing a gesture reaches hidden parameters
@@ -219,7 +221,7 @@ Machine-dependent parameters SHALL remain wired to their bank-mode shared state 
 #### Scenario: Full patch default reset reaches hidden parameters
 - **WHEN** a machine-dependent parameter has a non-default base value, active modulation depth, or active gesture while hidden by the selected track's machine topology
 - **AND** an operation reverts the full patch scope to defaults
-- **THEN** the hidden parameter's base value, modulation depth subtree, gesture state, slew state, and computed output are reset according to the same rules as visible parameters in that scope
+- **THEN** the hidden parameter's base value, modulation depth subtree, gesture state, value distribution, and computed output are reset according to the same rules as visible parameters in that scope
 - **AND** the reset value is observed through parameter-index DSP reads without requiring the parameter to become visible first
 
 #### Scenario: Visible bank reset does not reach hidden parameters
@@ -239,14 +241,24 @@ Machine-dependent parameters SHALL remain wired to their bank-mode shared state 
 - **THEN** the visible `EncoderBankUIState` for the selected topology reports the incompatible grid position as disconnected or zeroed
 - **AND** direct parameter-index reads for compatible tracks continue to expose the parameter's computed semantic output
 
-### Requirement: Parameter Slew on Final Outputs
-The system SHALL pass each of a cell's up-to-16 per-channel outputs through a one-pole low-pass slew filter (natural frequency 500 Hz at 48 kHz) when read by the DSP engine via `GetSlewedValue`, smoothing the control-frame staircase; an unslewed read path (`GetValueNoSlew`) is also provided.
-`InitSlewState(value)` resets all 16 slew filters to a given value; it is applied when an encoder is created with its default value and on `RevertToDefault`, preventing audible sweeps from stale slew state.
+### Requirement: Unfiltered Per-Sample Output Reads with Source-Side Smoothing
+The DSP engine SHALL read a cell's computed output every engine sample through `GetValue(channel)`, which returns `ToValue(m_output[channel])` (`2u − 1` for bipolar cells, `u` otherwise) with no output filter. `SmartGridOneEncoders::GetValue(param, voice)` SHALL map Voice parameters to the trio cell `voice / 3` and local channel `voice % 3`, and read Quad and Global channels directly.
+Smoothing SHALL happen where values enter the encoder system:
+- Stored edits: `SetTarget` writes a per-scene target (`m_targets[scene]`) and records the change in the cell's `TickDistributor`. While the cell's force-update countdown runs, `MoveValuesTowardsTargets` moves each current scene value (`m_values[scene]`) linearly toward its target over the interval since the previous change, clamped to `TickDistributor::x_minSamplesToDistribute`..`x_maxSamplesToDistribute` (2–50 ms of host samples), and lands exactly on the target at the last step. A further edit during a ramp SHALL accumulate against the target and restart the ramp over the new interval. Patch JSON SHALL save targets.
+- Scene blend and faders: blend and fader parameter-set messages SHALL set `SettlingSlew` targets that `ProcessInputSlews` advances every sample with a 500 Hz one-pole low-pass, before the scene manager and encoders run, stopping once the value settles on its target. Restoring a blend factor or saved fader positions SHALL snap the corresponding slew to the restored value.
 
-#### Scenario: Revert does not glide from stale state
-- **WHEN** a parameter is reverted to its default value of 0.5
-- **THEN** every slew filter's state is set to 0.5 immediately
-- **AND** the next `GetSlewedValue` call returns 0.5 without an exponential approach from the previous output
+#### Scenario: Encoder edit ramps to its target
+- **WHEN** a cell has had no change for at least 50 ms and an edit moves a scene target from 0.25 to 0.35
+- **THEN** that scene's current value moves linearly toward 0.35 over 2400 samples at 48 kHz, reaching about 0.27 after 480 samples
+- **AND** it lands exactly on 0.35 at the end of the ramp
+
+#### Scenario: Rapid edits shorten the ramp
+- **WHEN** a second edit arrives 480 samples after the first
+- **THEN** the target accumulates the second edit and the remaining ramp is 480 samples
+
+#### Scenario: DSP reads follow the computed output
+- **WHEN** a cell's output changes during an `EncoderBankBank::Process` pass
+- **THEN** a `GetValue` call later in the same engine sample returns the new output, without an exponential approach from the previous output
 
 ### Requirement: Named JSON Serialization via the Global Owner
 The system SHALL serialize all encoder state through `EncoderBankBank::ToJSON`/`FromJSON`, which iterate the flat owner array of named encoder cells; each cell writes eight flat per-scene base values in `values.values`, its non-null modulation depth cells (recursively), its gesture target cells, and—for gesture cells—the eight per-scene activation flags in `active`.
@@ -283,7 +295,7 @@ This applies to base parameter cells, modulation depth cells, and gesture target
 #### Scenario: Whole-number base value restores as one
 - **WHEN** a named encoder cell is loaded from JSON whose `values` array contains the token `1`
 - **THEN** the corresponding stored base value is restored as `1.0`
-- **AND** the cell's computed unslewed output is `1.0` after load processing
+- **AND** the cell's computed output (`GetValue`) is `1.0` after load processing
 
 #### Scenario: Fractional base value still restores
 - **WHEN** a named encoder cell is loaded from JSON whose `values` array contains the token `0.5`
@@ -309,45 +321,45 @@ Brightness encodes modulation takeover (1 minus local channel zero's absolute mo
 
 ### Requirement: Shift-Press Reset Semantics
 When the centralized shift flag is held and a connected encoder is pressed (`EncoderBankInternal::HandlePress` with `SceneManager::m_shift` true → `BankedEncoderCell::HandleShiftPress`), the system SHALL reset that cell's modulation and gesture configuration for the current track and SHALL invalidate the change-driven recompute cache so the reset is reflected in both the published value and the affecting bitmasks.
-The reset has two branches: when no gestures are selected it neutralizes all modulation depth slots of that cell for the active scenes AND deactivates every gesture linked to that cell for the current track (`ZeroModulators`, which calls `DeactivateGesture` per gesture and garbage-collects the emptied cells), returning the encoder to its fully ungestured, unmodulated base value; when one or more gestures are selected it instead deactivates only each selected gesture for the current scene(s) (`DeactivateGestureCurrentScene`), leaving modulators intact. In both branches the cell SHALL recompute its affecting-modulator and affecting-gesture bitmasks from the root (`SetModulatorsAffectingRecursive`) AND set its force-update flag (`SetForceUpdateRecursive`), so the next control frame recomputes the output and the `EncoderBankUIState` masks and value agree.
+The reset has two branches: when no gestures are selected it neutralizes all modulation depth slots of that cell for the active scenes AND deactivates every gesture linked to that cell for the current track (`ZeroModulators`, which calls `DeactivateGesture` per gesture and garbage-collects the emptied cells), returning the encoder to its fully ungestured, unmodulated base value; when one or more gestures are selected it instead deactivates only each selected gesture for the current scene(s) (`DeactivateGestureCurrentScene`), leaving modulators intact. In both branches the cell SHALL recompute its affecting-modulator and affecting-gesture bitmasks from the root (`SetModulatorsAffectingRecursive`) AND start its force-update countdown (`SetForceUpdateRecursive`), so the following `EncoderBankBank::Process` passes recompute the output and the `EncoderBankUIState` masks and value agree.
 
 #### Scenario: Shift-press reset of a modulated encoder restores the base value and clears the mask
 - **WHEN** a base parameter at base value 0.3 has a modulation slot whose depth drives its output away from 0.3, no gestures are selected, and the performer shift-presses that encoder
-- **THEN** after a few control frames the cell's published `EncoderBankUIState` modulatorsAffecting bitmask is empty
-- **AND** the cell's published value and `GetValue` converge to the base value 0.3 within the parameter-slew bound (the value is NOT left frozen at the prior modulated value)
+- **THEN** once the force-update countdown completes the cell's published `EncoderBankUIState` modulatorsAffecting bitmask is empty
+- **AND** the cell's published value and `GetValue` reach the base value 0.3 by then (the value is NOT left frozen at the prior modulated value)
 
 #### Scenario: Shift-press reset of nested modulation clears the whole subtree
 - **WHEN** a base parameter has a modulation depth cell that is itself modulated (nested depth) and the performer shift-presses the base encoder with no gestures selected
 - **THEN** the depth subtree is neutralized for the active scenes and cells with no remaining scene state are garbage-collected; the base value and inactive scenes are preserved
-- **AND** the published modulatorsAffecting bitmask is empty and the published value converges to the base value after settle frames
+- **AND** the published modulatorsAffecting bitmask is empty and the published value reaches the base value once the force-update countdown completes
 
 #### Scenario: Shift-press reset clears the encoder's linked gesture
 - **WHEN** a parameter has an active gesture linked to it (gesture target set, gesture weight positioned anywhere — down, middle, or up), no gesture is selected, and the performer shift-presses the encoder
-- **THEN** the linked gesture is deactivated for the current track and the published gesturesAffecting bitmask is empty after settle frames
-- **AND** the published value and `GetValue` return to the ungestured base value within the slew bound, regardless of where the gesture-weight analog input sits
+- **THEN** the linked gesture is deactivated for the current track and the published gesturesAffecting bitmask is empty once the force-update countdown completes
+- **AND** the published value and `GetValue` return to the ungestured base value by then, regardless of where the gesture-weight analog input sits
 - **AND** subsequently sweeping that gesture-weight analog input no longer moves the encoder output
 
 #### Scenario: Shift-press with a gesture selected deactivates the gesture, not the modulators
 - **WHEN** a parameter has both an active modulation slot and an active gesture, the gesture is currently selected, and the performer shift-presses the encoder
 - **THEN** the selected gesture is deactivated for the current scene(s) while the modulation slot remains active
-- **AND** the published gesturesAffecting bitmask drops the gesture's bit and the published value reflects the still-active modulation after settle frames
+- **AND** the published gesturesAffecting bitmask drops the gesture's bit and the published value reflects the still-active modulation once the force-update countdown completes
 
 ### Requirement: Gesture Removal Invalidates the Recompute Cache
-When a gesture is deleted by shift-pressing its gesture-selector pad (`GestureSelectorCell::OnPress` with `SceneManager::m_shift` true → `ClearGesture`), the system SHALL deactivate that gesture for the current scene(s) across all tracks, recompute the affecting bitmasks (`SetAllModulatorsAffecting`), AND set force-update on the affected cells so each encoder that had been driven by that gesture is recomputed back to its ungestured value on the next control frame. The corrected output SHALL be independent of the gesture-weight analog-input position held at deletion time: deleting the gesture returns the encoder to its base (post-remaining-modulation) value whether the analog input is down, middle, or up.
+When a gesture is deleted by shift-pressing its gesture-selector pad (`GestureSelectorCell::OnPress` with `SceneManager::m_shift` true → `ClearGesture`), the system SHALL deactivate that gesture for the current scene(s) across all tracks, recompute the affecting bitmasks (`SetAllModulatorsAffecting`), AND start the force-update countdown on the affected cells so each encoder that had been driven by that gesture is recomputed back to its ungestured value by the following `EncoderBankBank::Process` passes. The corrected output SHALL be independent of the gesture-weight analog-input position held at deletion time: deleting the gesture returns the encoder to its base (post-remaining-modulation) value whether the analog input is down, middle, or up.
 
 #### Scenario: Deleting a gesture restores the ungestured value
 - **WHEN** an encoder is driven away from its base value by an active gesture and the performer shift-presses that gesture's selector pad to delete it
-- **THEN** the encoder's published gesturesAffecting bit for that gesture clears after settle frames
-- **AND** the encoder's published value and `GetValue` return to the ungestured base value within the slew bound (the value is NOT left frozen at the prior gestured value)
+- **THEN** the encoder's published gesturesAffecting bit for that gesture clears once the force-update countdown completes
+- **AND** the encoder's published value and `GetValue` return to the ungestured base value by then (the value is NOT left frozen at the prior gestured value)
 
 #### Scenario: Gesture deletion is correct at every analog-input position
 - **WHEN** the same gesture-delete is performed three times from fresh setups with the gesture-weight analog input held at 0 (down), 0.5 (middle), and 1 (up) respectively
-- **THEN** in all three cases the encoder returns to the same ungestured base value after settle frames
+- **THEN** in all three cases the encoder returns to the same ungestured base value once the force-update countdown completes
 - **AND** in all three cases a subsequent sweep of the gesture-weight analog input has no effect on the encoder output
 
 #### Scenario: Gesture deletion leaves other modulation intact
 - **WHEN** an encoder has both an active gesture and an active modulation slot and the gesture is deleted via shift-press on its selector pad
-- **THEN** the gesture's contribution is removed and the encoder's value reflects only the remaining modulation after settle frames
+- **THEN** the gesture's contribution is removed and the encoder's value reflects only the remaining modulation once the force-update countdown completes
 - **AND** the published modulatorsAffecting bitmask still includes the surviving modulation slot
 
 ### Requirement: Theory Of Time Loop Selector Parameter

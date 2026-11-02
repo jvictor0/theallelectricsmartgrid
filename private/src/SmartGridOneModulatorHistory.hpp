@@ -111,7 +111,7 @@ bool ReadModulatorValue(const UIState& uiState, ModulatorRef modulator, double s
     }
 
     double scopeIndex = (sample - static_cast<double>(state.m_firstControlSample.load()))
-        / SampleTimer::x_controlFrameRate;
+        / ScopeWriter::x_controlDecimation;
     using Mode = SmartGridOneLayout::ParamMode;
     switch (modulator.m_mode)
     {
@@ -344,9 +344,9 @@ ModulatorTimeAxis GetTimeAxis(const UIState& uiState, ModulatorRef modulator)
     }
 
     double origin = static_cast<double>(uiState.m_squiggleBoyUIState.m_firstControlSample.load());
-    axis.m_start = origin + reader.m_startIndex * SampleTimer::x_controlFrameRate;
-    axis.m_end = origin + reader.m_transferIndex * SampleTimer::x_controlFrameRate;
-    axis.m_wrappedStart = origin + reader.m_postTransferIndex * SampleTimer::x_controlFrameRate;
+    axis.m_start = origin + reader.m_startIndex * ScopeWriter::x_controlDecimation;
+    axis.m_end = origin + reader.m_transferIndex * ScopeWriter::x_controlDecimation;
+    axis.m_wrappedStart = origin + reader.m_postTransferIndex * ScopeWriter::x_controlDecimation;
     axis.m_transfer = reader.m_transferXSample / reader.m_numXSamples;
     axis.m_present = std::clamp((reader.m_transferXSample - 1.0) / reader.m_numXSamples, 0.0, 1.0);
     return axis;
@@ -377,7 +377,7 @@ bool ReadDisplayValue(const UIState& uiState, ModulatorRef modulator, double sam
         }
 
         double last = static_cast<double>(uiState.m_squiggleBoyUIState.m_firstControlSample.load())
-            + static_cast<double>(count - 1) * SampleTimer::x_controlFrameRate;
+            + static_cast<double>(count - 1) * ScopeWriter::x_controlDecimation;
         if (!ReadModulatorValue(uiState, modulator, std::min(sample, std::min(last, now)), value))
         {
             return false;

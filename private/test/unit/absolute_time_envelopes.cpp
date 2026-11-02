@@ -8,17 +8,13 @@ namespace
 
 void SetGlobalPhase(TheoryOfTimeBase& time, double phase)
 {
-    for (TheoryOfTimeBase::Sample& sample : time.m_samples)
-    {
-        sample.m_unmodulatedPhase = phase;
-        sample.m_modulatedPhase = phase;
-    }
+    time.m_sample.m_unmodulatedPhase = phase;
+    time.m_sample.m_modulatedPhase = phase;
 }
 
 void ConfigureEnvelope(AHD::Input& input, TheoryOfTimeBase& time)
 {
     input.m_theoryOfTime = &time;
-    input.m_samplePosition = 0.0f;
     input.m_attackIncrement = 0.001f;
     input.m_holdLoops = 0.25;
     input.m_decayIncrement = 0.001f;
@@ -110,12 +106,7 @@ DOCTEST_TEST_CASE("AHD keeps trigger timing after an accepted topology edit")
         auto advance = [](TheoryOfTimeBase& time, TheoryOfTimeBase::Input& clock, double phase)
         {
             clock.m_unmodulatedPhase = phase;
-            for (size_t j = 1; j <= TheoryOfTimeBase::x_microBlockSize; ++j)
-            {
-                time.Process(j, clock);
-            }
-
-            time.RolloverMicroblockBuffer();
+            time.Process(clock);
         };
 
         advance(referenceTime, referenceClock, origins[stage]);
@@ -126,8 +117,8 @@ DOCTEST_TEST_CASE("AHD keeps trigger timing after an accepted topology edit")
         AHD::Input editedInput;
         ConfigureEnvelope(referenceInput, referenceTime);
         ConfigureEnvelope(editedInput, editedTime);
-        AHD::AHDControl referenceControl = TriggerControl(referenceTime.GetCycleRatio(0, 0), 1000.0);
-        AHD::AHDControl editedControl = TriggerControl(editedTime.GetCycleRatio(0, 0), 1000.0);
+        AHD::AHDControl referenceControl = TriggerControl(referenceTime.GetCycleRatio(0), 1000.0);
+        AHD::AHDControl editedControl = TriggerControl(editedTime.GetCycleRatio(0), 1000.0);
         referenceInput.Set(referenceControl);
         editedInput.Set(editedControl);
         reference.Process(referenceInput);
@@ -143,7 +134,7 @@ DOCTEST_TEST_CASE("AHD keeps trigger timing after an accepted topology edit")
         {
             advance(referenceTime, referenceClock, phase);
             advance(editedTime, editedClock, phase);
-            editedControl.m_phaseRatio = editedTime.GetCycleRatio(0, 0);
+            editedControl.m_phaseRatio = editedTime.GetCycleRatio(0);
             referenceInput.Set(referenceControl);
             editedInput.Set(editedControl);
             reference.Process(referenceInput);
@@ -151,13 +142,13 @@ DOCTEST_TEST_CASE("AHD keeps trigger timing after an accepted topology edit")
             DOCTEST_CHECK(edited.m_rawOutput == doctest::Approx(reference.m_rawOutput));
             if (phase < 2.0)
             {
-                DOCTEST_REQUIRE(editedTime.GetLoop(0, 0).m_input.m_parentIndex == 4);
-                DOCTEST_REQUIRE(editedTime.GetCycleRatio(0, 0) == 2);
+                DOCTEST_REQUIRE(editedTime.GetLoop(0).m_input.m_parentIndex == 4);
+                DOCTEST_REQUIRE(editedTime.GetCycleRatio(0) == 2);
             }
             else
             {
-                DOCTEST_REQUIRE(editedTime.GetLoop(0, 0).m_input.m_parentIndex == 5);
-                DOCTEST_REQUIRE(editedTime.GetCycleRatio(0, 0) == 6);
+                DOCTEST_REQUIRE(editedTime.GetLoop(0).m_input.m_parentIndex == 5);
+                DOCTEST_REQUIRE(editedTime.GetCycleRatio(0) == 6);
             }
 
             if (phase == 2.0)

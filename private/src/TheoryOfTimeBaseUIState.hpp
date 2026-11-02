@@ -94,7 +94,7 @@ struct TheoryOfTimeBaseUIState
                 ? -1
                 : m_snapshotPeriodTicks[resetLoopIndex];
             resetCycleCount = TheoryOfTimeBase::GetResetCycleCount(loopPeriodTicks, resetPeriodTicks);
-            loopCyclePosition = TheoryOfTimeBase::GetLoopCyclePosition(
+            loopCyclePosition = TheoryOfTimeBase::GetLoopCyclePositionFromTicks(
                 loopPeriodTicks,
                 resetPeriodTicks,
                 globalTickPosition);
@@ -107,7 +107,7 @@ struct TheoryOfTimeBaseUIState
             int64_t rhythmResetPeriodTicks = rhythm.m_resetLoopIndex == -1
                 ? -1
                 : m_snapshotPeriodTicks[rhythm.m_resetLoopIndex];
-            int64_t rhythmLoopCyclePosition = TheoryOfTimeBase::GetLoopCyclePosition(
+            int64_t rhythmLoopCyclePosition = TheoryOfTimeBase::GetLoopCyclePositionFromTicks(
                 m_snapshotPeriodTicks[i],
                 rhythmResetPeriodTicks,
                 globalTickPosition);
@@ -130,10 +130,10 @@ inline void TheoryOfTimeBase::PopulateUIState(TheoryOfTimeBaseUIState& uiState, 
 {
     for (int64_t i = 0; i < TheoryOfTimeBase::x_numLoops; ++i)
     {
-        uiState.m_periodTicks[i].store(GetPeriodTicks(i, 0));
+        uiState.m_periodTicks[i].store(GetPeriodTicks(i));
         input.m_rhythm[i].PopulateUIState(uiState.m_rhythm[i]);
     }
 
-    uiState.m_globalPhase.store(GetPhase(x_globalLoop, 0, PhaseDomain::Modulated));
-    uiState.m_globalTickPosition.store(GetGlobalTickPosition(0, PhaseDomain::Modulated));
+    uiState.m_globalPhase.store(GetPhase(x_globalLoop, PhaseDomain::Modulated));
+    uiState.m_globalTickPosition.store(GetGlobalTickPosition(PhaseDomain::Modulated));
 }

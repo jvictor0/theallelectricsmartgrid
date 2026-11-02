@@ -109,7 +109,7 @@ If the visualizer needs data that does not yet exist in UI state:
 ### Wiring
 
 1. Add the member to the appropriate UI state struct.
-2. Ensure the DSP or nonagon code **writes** to it (e.g. in `Process()`, `WriteScopes()`, or a dedicated `PopulateUIState()` path).
+2. Ensure the DSP or nonagon code **writes** to it (e.g. in `Process()`, `WriteScopes()`, or a dedicated `PopulateUIState()` path). Scope producers call `Write` and `RecordStart`/`RecordEnd` every engine sample; the `ScopeWriter` keeps one value per decimation period (1 for audio-rate scopes, `ScopeWriter::x_controlDecimation` for control-rate scopes) and converts `RecordStart(sampleOffset)` offsets, given in engine samples, to its own index. A new writer must also be advanced in `UIState::AdvanceScopeIndices()` and published in `SquiggleBoyWithEncoderBank::PopulateUIState()`.
 3. The visualizer receives `TheNonagonSquiggleBoyInternal::UIState*` via `NonagonWrapper::GetUIState()`, which contains `m_squiggleBoyUIState`.
 
 ### NonagonWrapper accessors

@@ -10,24 +10,35 @@ Defined in `private/src/ScopeWriter.hpp`.
 
 - `m_buffer`: interleaved sample storage.
 - logical indexing via `(scope, voice, index) -> physical index`.
-- `AdvanceIndex()` advances write position each sample/frame boundary.
+- decimation: `ScopeWriter(voices, scopes)` stores every engine sample;
+  `ScopeWriter(voices, scopes, decimation)` stores one value per `decimation`
+  engine samples.
+- `Write(scope, voice, value)` is called every engine sample. Only the sample
+  with `m_subIndex == 0` (`IsWriteSample()`) is stored, at `m_index`; the other
+  writes are dropped.
+- `AdvanceIndex()` runs once per engine sample. It increments `m_subIndex` and,
+  when that wraps at the decimation, advances `m_index` by one.
 - `Publish()` atomically exposes latest stable index (`m_publishedIndex`) and commits marker updates.
 
 It also stores cycle markers:
 
-- `RecordStart(scope, voice[, sampleOffset])`
-- `RecordEnd(scope, voice[, uBlockIndex])`
+- `RecordStart(scope, voice[, sampleOffset])` stores the fractional index
+  `m_index + (m_subIndex + sampleOffset) / decimation`. `sampleOffset` is in
+  engine samples relative to the current sample.
+- `RecordEnd(scope, voice)` stores `m_index`, rounded up to the next stored
+  sample when it is called between stored samples.
 
 These markers are used for cycle-aware waveform views.
 
-Top events use `SampleTop`: a trigger flag and a double offset in base-rate audio
-samples from the sample carrying the event. VPS uses its existing `deltaT` to
-normalize the offset immediately; the dual VCO rebases it within the output sample
-before passing it to the source and filter. These values travel through their
-existing top members and buffers. Theory of Time stores it in each loop's crossing
-events, which PolyXFader forwards to the LFO and Theory of Time scopes. Each
-producer interpolates the phase crossing; scope start markers store the resulting
-double positions. Other start events keep their recorded sample position.
+Top events use `SampleTop`: a trigger flag and a double offset in engine samples
+from the sample carrying the event. VPS derives the offset from the wrapped phase
+and frequency (`SampleTop::FromWrap`); the dual VCO records each oscillator's top
+on its own scope and forwards VCO 1's top to the source, whose post-filter scope
+uses it. These values travel through their existing top members and buffers.
+Theory of Time stores it in each loop's crossing events, which PolyXFader forwards
+to the LFO and Theory of Time scopes. Each producer interpolates the phase
+crossing and passes the offset to `RecordStart`; the writer stores the resulting
+double position. Other start events are recorded at the current sample.
 
 ## Write helpers: `ScopeWriterHolder`
 
@@ -39,8 +50,9 @@ double positions. Other start events keep their recorded sample position.
 
 Modules write with minimal overhead:
 
-- `Write(value)` / `Write(uBlockIndex, value)`
-- `RecordStart()` / `RecordEnd()`
+- `Write(value)` / `WriteAtVoice(voiceIx, value)` / `Write(QuadFloat)` (four consecutive voices)
+- `IsWriteSample()`, so a producer can skip computing a value the writer would drop
+- `RecordStart()` / `RecordStart(sampleOffset)` / `RecordStartAtVoice(voiceIx, sampleOffset)` / `RecordEnd()`
 
 This is how voice VCO/filter/amp/LFO and quad buses push data into visualization buffers.
 
@@ -73,48 +85,47 @@ The reader linearly interpolates captured values at the fractional positions.
 The path and marker drawing retain those fractional positions. Views whose start
 is not yet published or has fallen outside the retained history are empty.
 
-`SampleTop` owns phase interpolation, oversample accumulation, top combination,
-and conversion to scope positions. `SampleTimer::GetUBlockIndex()` is the base-rate
-audio sample within an eight-sample microblock (`0..7`). The dual VCO's oversampled
-loop index runs from `0..31`; its existing `baseIndex` runs from `0..7`.
-Control-rate LFO scopes use `SampleTop::GetControlPosition` to express these
-positions in their eight-audio-samples-per-scope-sample units. The reader and
-visualizer have no oversampling information.
+`SampleTop` owns phase interpolation, top combination, and conversion to sample
+positions (`GetPosition`). Offsets are always in engine samples. Producers pass
+them unchanged to `RecordStart`, and the writer converts them to its own index
+units by dividing by its decimation. The reader and visualizer have no decimation
+information.
 
-The Theory of Time scope captures one modulated phase sample per microblock.
-On `Process(1)`, it writes the wrapped phase from slot zero at the current mono
-control-scope index. Slot zero was carried from the previous block's slot eight
-by `RolloverMicroblockBuffer`; it is the current block's first audio sample.
-This matches the mono writer's one advance per eight audio samples and prevents
-successive batches from overwriting each other's scope samples.
+Control, quad control, global control, and mono writers use
+`ScopeWriter::x_controlDecimation` (8); audio, quad, source-mixer, and mono audio
+writers use decimation 1. `SquiggleBoyWithEncoderBank::UIState::AdvanceScopeIndices()`
+advances every writer once per engine sample, at the end of
+`TheNonagonSquiggleBoyInternal::ProcessSample`. It also stores `m_firstAudioSample`
+and `m_firstControlSample`, the engine samples of audio index 0 and control index
+0. The modulator history (`SmartGridOneModulatorHistory.hpp`) maps an engine
+sample to a control index as `(sample - m_firstControlSample) / x_controlDecimation`.
 
-The phase-modulation PolyXFader evaluates slot `j - 1` in `Process(j)`. Its tops
-still travel through the same path on every call, but are recorded using
-`SampleTop::GetBatchedControlPosition(j - 1)`: `(j - 1 + offset) / 8` relative to
-the writer's current index. The complete batch runs before that writer advances,
-so the one-index adjustment in `GetControlPosition` does not apply here. For
-example, at writer index 100, a top halfway between slots one and two is at
-100.1875. A top halfway between slots seven and eight is consumed after rollover
-at the next block's slot zero: writer index 101 plus `-0.5 / 8` is 100.9375.
+Theory of Time keeps one current sample (`m_sample`), which `Process` advances in
+place; consumers read that current sample. The Theory of Time scope writes the
+wrapped modulated global-loop phase on the mono writer's write samples, so it
+stores one phase per `x_controlDecimation` engine samples. The phase-modulation
+PolyXFader runs before the base advances, reading the crossings still held in
+`m_sample`. When it reports a top, the scope calls `RecordStart(offset)` with the
+top's fractional offset. For example, at writer index 100 and sub-index 2, an
+offset of `-0.5` engine samples is stored at `100 + 1.5 / 8 = 100.1875`.
 
-Beyond replacing boolean top members, buffers, arguments, and return values, the
-audio-thread changes for fractional tops and their scope capture are:
+The producers of fractional tops and their scope capture are:
 
-| Location | Change and reason |
+| Location | Behavior |
 | --- | --- |
-| VPS | Replace the existing `true` assignment on a wrap with `SampleTop::FromWrap`. Forward the existing `deltaT` to `UpdatePhase`; use double precision for that duration. This supplies fractional timing in base-rate units without changing phase advancement or wrap detection. |
-| Dual VCO | Supply the real duration through the existing `deltaT` argument instead of its unused zero placeholder. Replace the two boolean OR assignments with `AccumulateOversample` calls, retaining a top until the base-rate sample is emitted. Record `top.GetPosition(baseIndex)` at the existing scope calls. |
-| Sample source | Replace the floor-comparison expression with `SampleTop::FromPhases`, which uses the same crossing test and adds its fractional timing. |
-| Theory of Time base | After the existing lattice crossing assignments, call `InterpolatePhases` once per domain. Trigger flags, start/stop behavior, topology acceptance, and buffer rollover stay as before. Timing is attached before topology changes, so it travels with the existing event. |
-| PolyXFader | Initialize with `AndIdentity` so the existing `&&` expression retains the latest fractional crossing when all active loops cross. Its original early return and zero-weight true event are preserved. The overloaded operator evaluates both operands; the crossing accessor only reads stored state. |
-| QuadLFO | Retain the phase before wrapping so `SampleTop::FromPhases` can interpolate the actual step, including existing phase synchronization. The existing scope call receives `GetControlPosition`. |
-| Filter and SquiggleLFO scopes | Replace the existing start argument with `GetPosition` or `GetControlPosition`. The latter accounts for the control writer advancing after audio sample zero. |
-| Theory of Time scope | On `j == 1` only, read the modulated phase at slot zero and use the current-index `Write` overload. This captures one correctly aligned control sample instead of eight overlapping audio-indexed writes. Replace the start argument with `GetBatchedControlPosition(j - 1)` to convert the PolyXFader's original audio timestamp into control-scope units before the writer advances. Clock, gate, MIDI, modulation processing, top propagation, and buffers are unchanged. |
-| Boolean-only delay trigger | Read `m_triggered` from the existing crossing result; timing is irrelevant to sample-and-hold triggering. |
-| Scope writer | Accept/store double start positions and allow a fractional position in the existing per-voice helper. Initialize the existing pending-marker counter to zero so the first event has a defined slot. Buffer writes and publication cadence are unchanged. |
+| VPS | On a wrap, `SampleTop::FromWrap(wrapped, freq)` sets the offset to `-wrapped / freq` engine samples. Phase advancement and wrap detection do not depend on the offset. |
+| Dual VCO | Each oscillator's scope calls `RecordStart(top.m_offset)` on its wrap. VCO 1's top becomes the source top. |
+| Sample source | `SampleTop::FromPhases` applies the floor-crossing test between the previous and current total phase and adds its fractional timing. |
+| Theory of Time base | `SetCrossings` sets each loop's crossing flags, then calls `InterpolatePhases` once per domain; the start sample keeps offset zero. Crossings are set before topology acceptance, so timing travels with the event that made an edit eligible. |
+| PolyXFader | Initializes each lane with `AndIdentity`, so the `&&` combination retains the latest fractional crossing when all active loops cross. With zero total weight the lane keeps a true event at offset zero. |
+| QuadLFO | Retains the unwrapped phase so `SampleTop::FromPhases` can interpolate the actual step, including phase synchronization, and records it with `RecordStartAtVoice(i, offset)`. |
+| Filter and SquiggleLFO scopes | Pass the source or PolyXFader top's offset to `RecordStart`. |
+| Theory of Time scope | Writes the modulated phase only when `IsWriteSample()` is true and records the phase-modulation PolyXFader's top with `RecordStart(offset)`. |
+| Boolean-only delay trigger | Reads `m_triggered` from the crossing result; timing is irrelevant to sample-and-hold triggering. |
+| Scope writer | Stores double start positions and integer end positions. The pending-marker counter starts at zero so the first event has a defined slot. |
 
-Reader interpolation, readable-history checks, and drawing changes execute on the
-UI side. Integer buffer addresses and publication counters remain integers.
+Reader interpolation, readable-history checks, and drawing execute on the UI
+side. Integer buffer addresses and publication counters remain integers.
 
 `ScopeReaderFactory` provides lightweight creation with current voice/scope context.
 

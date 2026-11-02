@@ -76,27 +76,25 @@ DOCTEST_TEST_CASE("SampleTop: VPS publishes the fractional crossing on its exist
     DOCTEST_CHECK(vps.m_top[0].m_offset == 0.0);
 }
 
-DOCTEST_TEST_CASE("SampleTop: Theory of Time retains both domains through rollover and stop")
+DOCTEST_TEST_CASE("SampleTop: Theory of Time retains both domains and clears them on stop")
 {
     TheoryOfTimeBase time;
     TheoryOfTimeBase::Input input;
     input.m_running = true;
     input.m_unmodulatedPhase = 0.875;
-    time.Process(7, input);
-    DOCTEST_CHECK(time.CrossedCycleBoundary(5, 7, PhaseDomain::Modulated).m_offset == 0.0);
+    time.Process(input);
+    DOCTEST_CHECK(time.CrossedCycleBoundary(5, PhaseDomain::Modulated).m_offset == 0.0);
     input.m_unmodulatedPhase = 1.125;
     input.m_phaseOffset = -0.25;
-    time.Process(8, input);
-
-    time.RolloverMicroblockBuffer();
-    SampleTop unmodulated = time.CrossedCycleBoundary(5, 0, PhaseDomain::Unmodulated);
-    SampleTop modulated = time.CrossedCycleBoundary(5, 0, PhaseDomain::Modulated);
+    time.Process(input);
+    SampleTop unmodulated = time.CrossedCycleBoundary(5, PhaseDomain::Unmodulated);
+    SampleTop modulated = time.CrossedCycleBoundary(5, PhaseDomain::Modulated);
     DOCTEST_CHECK(unmodulated.m_triggered);
     DOCTEST_CHECK(unmodulated.m_offset == doctest::Approx(-0.5));
     DOCTEST_CHECK_FALSE(modulated.m_triggered);
     input.m_running = false;
-    time.Process(1, input);
-    SampleTop stopped = time.CrossedCycleBoundary(5, 1, PhaseDomain::Unmodulated);
+    time.Process(input);
+    SampleTop stopped = time.CrossedCycleBoundary(5, PhaseDomain::Unmodulated);
     DOCTEST_CHECK_FALSE(stopped.m_triggered);
     DOCTEST_CHECK(stopped.m_offset == 0.0);
 }
@@ -108,13 +106,13 @@ DOCTEST_TEST_CASE("SampleTop: topology changes retain the crossing computed befo
     input.m_running = true;
     input.m_input[4].m_parentMult = 2;
     input.m_unmodulatedPhase = 1.125;
-    time.Process(1, input);
+    time.Process(input);
     input.m_input[4].m_parentMult = 3;
     input.m_unmodulatedPhase = 2.625;
-    time.Process(2, input);
+    time.Process(input);
 
-    DOCTEST_REQUIRE(time.GetCycleRatio(4, 2) == 3);
-    SampleTop top = time.CrossedCycleBoundary(4, 2, PhaseDomain::Modulated);
+    DOCTEST_REQUIRE(time.GetCycleRatio(4) == 3);
+    SampleTop top = time.CrossedCycleBoundary(4, PhaseDomain::Modulated);
     DOCTEST_CHECK(top.m_triggered);
     DOCTEST_CHECK(top.m_offset == doctest::Approx(-1.0 / 12.0));
 }
@@ -129,9 +127,9 @@ DOCTEST_TEST_CASE("SampleTop: PolyXFader retains the latest top when all active 
     clock.m_input[1].m_parentIndex = 5;
     clock.m_input[1].m_parentMult = 3;
     clock.m_unmodulatedPhase = 0.1;
-    time.Process(1, clock);
+    time.Process(clock);
     clock.m_unmodulatedPhase = 0.8;
-    time.Process(2, clock);
+    time.Process(clock);
 
     PolyXFaderInternal lfo;
     PolyXFaderInternal::Input input;
@@ -139,15 +137,13 @@ DOCTEST_TEST_CASE("SampleTop: PolyXFader retains the latest top when all active 
     input.m_size = 2;
     input.m_center = 0.5f;
     input.m_slope = 0.5f;
-    input.m_samplePosition = 2.0f;
     lfo.Process(input);
     DOCTEST_CHECK(lfo.m_top[0].m_triggered);
     DOCTEST_CHECK(lfo.m_top[0].m_offset == doctest::Approx(-4.0 / 21.0));
 
     clock.m_unmodulatedPhase = 0.85;
-    time.Process(3, clock);
+    time.Process(clock);
     input.m_size = 2;
-    input.m_samplePosition = 3.0f;
     lfo.Process(input);
     DOCTEST_CHECK_FALSE(lfo.m_top[0].m_triggered);
     DOCTEST_CHECK(lfo.m_top[0].m_offset == 0.0);

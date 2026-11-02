@@ -76,10 +76,9 @@ namespace
         }
 
         TheNonagonSquiggleBoyInternal& system = rig.Internal();
-        size_t j = static_cast<size_t>(SampleTimer::GetUBlockIndex());
-        double phase = system.m_nonagon.m_nonagon.m_theoryOfTime.GetPhase(TheoryOfTimeBase::x_globalLoop, j, PhaseDomain::Unmodulated);
+        double phase = system.m_nonagon.m_nonagon.m_theoryOfTime.GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Unmodulated);
         int loopIndex = system.ExternalClockLoopIndex();
-        double multiplier = system.m_nonagon.m_nonagon.m_theoryOfTime.GetCycleRatio(loopIndex, j);
+        double multiplier = system.m_nonagon.m_nonagon.m_theoryOfTime.GetCycleRatio(loopIndex);
         double selectedPhase = phase * multiplier;
         selectedPhase = selectedPhase - std::floor(selectedPhase);
         double expectedSelectedPhase = static_cast<double>(system.m_clockSynchronizer.m_ticksOffset) /

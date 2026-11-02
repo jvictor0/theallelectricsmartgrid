@@ -95,7 +95,6 @@ struct MultiPhasorGateInternal
     {
         double globalPhase = input.m_theoryOfTime->GetPhase(
             TheoryOfTimeBase::x_globalLoop,
-            0.0,
             PhaseDomain::Modulated);
 
         m_anyGate = false;

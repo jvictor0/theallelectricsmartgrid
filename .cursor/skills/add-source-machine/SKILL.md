@@ -7,15 +7,17 @@ description: How to add a new source machine to Smart Grid One. Covers VoiceMach
 
 ## Overview
 
-A source machine generates audio before it reaches the filter. Examples: `DualWaveShapingVCO` (wavetable/phase-shaping VCO), `PhysicalModeling` (noise-excited comb filter), `Thru` (passes external audio). Adding a new source machine requires:
+A source machine generates audio before it reaches the filter. Examples: `DualWaveShapingVCO` (wavetable/phase-shaping VCO), `PhysicalModelingSource` (noise-excited tuned comb), `SampleSource` (grain-resynthesized sample playback, in `DualSampleSource.hpp`), and `Thru` (passes external audio from `SourceMixer`).
+
+Each of the three `SquiggleBoyTrack`s (`SquiggleBoyTrack.hpp`) processes a trio of voices. The track's `SquiggleBoySourceGeneric<3>` owns one instance of every machine, each generic over the channel count (`<Size>`) and holding one channel per voice in a `MultiChannelNumber<float, Size>` (`TrioFloat` for a trio). Every `Process` call renders one engine sample for every channel at `SampleTimer::x_sampleRate`; there are no blocks or internal resamplers. Adding a new source machine requires:
 
 1. Update the enum in `VoiceMachineEnums.hpp`
 2. Create a DSP class file for the new machine
 3. Add the machine instance and input struct to `SquiggleBoySource`
-4. Integrate into `ProcessUBlock` and dispatch in `SetEncoderParams` in `SquiggleBoySource`
+4. Integrate into `Process` and dispatch in `SetEncoderParams` in `SquiggleBoySource`
 5. Add the source page and typed Source-slot route
 6. Add parameter metadata and page memberships; update visualizer flags if needed
-7. If the source has an internal AHD envelope, connect it in `SquiggleBoyVoice`
+7. If the source has an internal AHD envelope, connect it in `SquiggleBoyTrack`
 
 ## Step 1: Update VoiceMachineEnums.hpp
 
@@ -50,11 +52,13 @@ inline const char* ToString(SourceMachine machine)
             return "Sample";
         case SourceMachine::MyNewSource:
             return "MySource";
+        default:
+            return "Unknown";
     }
-
-    return "Unknown";
 }
 ```
+
+If the machine is pitched, add it to the synth-like cases of `IsSynthLike`; the amp section applies its frequency-dependent gain only to synth-like sources.
 
 If a visualizer gates on the new source machine, update the separate `VoiceMachine::SourceMachineFlags` in `VoiceMachineEnums.hpp`:
 
@@ -69,137 +73,162 @@ Create a new header file `private/src/MyNewSource.hpp` following the pattern of 
 ```cpp
 #pragma once
 
+#include "MultiChannelNumber.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
-#include "Slew.hpp"
+#include "SampleTop.hpp"
+#include "SmartGridOneEncoders.hpp"
 
-struct MyNewSource
+// One sample per call for every channel. Channel i is voice track * Size + i.
+//
+template <size_t Size>
+struct MyNewSourceGeneric
 {
-    static constexpr size_t x_oversample = 4;
-    static constexpr size_t x_uBlockSize = SampleTimer::x_controlFrameRate * x_oversample;
+    using Vector = MultiChannelNumber<float, Size>;
 
-    // Output buffers (required interface)
+    Vector m_phase;
+    Vector m_output;
+    SampleTop m_top[Size];
+
+    // Encoder mappings
     //
-    bool m_uBlockTop[SampleTimer::x_controlFrameRate];
-    float m_uBlockOutput[x_uBlockSize];
+    PhaseUtils::ExpParamGeneric<float, Size> m_myParamMapping;
 
-    // Internal DSP state
+    // Frequencies are in cycles per engine sample.
     //
-    float m_phase;
-
-    // Slewed parameters (for oversampled processing)
-    //
-    ParamSlew m_myParamSlew;
-
     struct Input
     {
-        float m_baseFreq;
-        float m_myParam;
+        Vector m_baseFreq;
+        Vector m_myParam;
 
         Input()
-            : m_baseFreq(PhaseUtils::VOctToNatural(0.0, 1.0 / 48000.0))
-            , m_myParam(0.5f)
+            : m_baseFreq(Vector::Splat(0))
+            , m_myParam(Vector::Splat(1))
         {
         }
     };
 
-    MyNewSource()
-        : m_phase(0.0f)
-        , m_myParamSlew(x_oversample)
+    MyNewSourceGeneric()
+        : m_phase(Vector::Splat(0))
+        , m_output(Vector::Splat(0))
+        , m_myParamMapping(0.25f, 4.0f)
     {
-    }
-
-    void ProcessUBlock(const Input& input)
-    {
-        // Update slew targets at start of block
-        //
-        m_myParamSlew.Update(input.m_myParam);
-
-        for (size_t i = 0; i < x_uBlockSize; ++i)
+        for (size_t i = 0; i < Size; ++i)
         {
-            float myParam = m_myParamSlew.Process();
-            float baseFreq = input.m_baseFreq / x_oversample;
-
-            // Your DSP here
-            //
-            m_phase += baseFreq;
-            if (m_phase >= 1.0f)
-            {
-                m_phase -= 1.0f;
-            }
-
-            m_uBlockOutput[i] = /* your output */;
-
-            // Track zero crossings for sync (every x_oversample samples)
-            //
-            if ((i + 1) % x_oversample == 0)
-            {
-                size_t baseIndex = i / x_oversample;
-                m_uBlockTop[baseIndex] = /* true if top of cycle */;
-            }
+            m_top[i] = false;
         }
     }
+
+    Vector Process(const Input& input)
+    {
+        m_phase += input.m_baseFreq;
+        Vector wrapped = m_phase - m_phase.Floor();
+        for (size_t i = 0; i < Size; ++i)
+        {
+            m_top[i] = false;
+            if (1 <= m_phase[i])
+            {
+                m_top[i] = SampleTop::FromWrap(wrapped[i], input.m_baseFreq[i]);
+            }
+        }
+
+        m_phase = Vector::IfLess(m_phase, Vector::Splat(1), m_phase, wrapped);
+
+        // Your DSP here, using m_phase and input.m_myParam
+        //
+        m_output = /* your output */;
+        return m_output;
+    }
+
+    void SetEncoderParams(
+        SmartGridOneEncoders& encoders,
+        Input& input,
+        size_t track,
+        const Vector& baseFreq)
+    {
+        using Param = SmartGridOneEncoders::Param;
+
+        input.m_baseFreq = baseFreq;
+        input.m_myParam = m_myParamMapping.Update(encoders.GetValue<Size>(Param::MyNewParam, track));
+    }
 };
+
+using MyNewSource = MyNewSourceGeneric<1>;
+using TrioMyNewSource = MyNewSourceGeneric<3>;
 ```
 
 Key requirements:
-- `m_uBlockOutput[x_uBlockSize]`: oversampled audio output buffer
-- `m_uBlockTop[SampleTimer::x_controlFrameRate]`: cycle-top flags for filter key tracking
-- Use `ParamSlew` for any parameter consumed in the oversampled loop
+- `Vector Process(const Input& input)`: renders one engine sample for every channel and returns it
+- `m_top[Size]` (`SampleTop`): optional cycle-top events with a fractional sample offset; the track starts post-filter scope cycles on them. `SampleTop::FromWrap` (phase wrap) and `SampleTop::FromPhases` (integer crossing between two phases) build them
+- Frequencies and times are per engine sample; convert constants with the `SampleTimer` helpers (`HzToCycPerSamp`, `SecondsToSamples`, `SecondsToCycPerSamp`, and the `Host` variants for values defined per host sample)
+- `SetEncoderParams` runs every engine sample; read each value with `encoders.GetValue<Size>(Param::X, track)` and map it through `PhaseUtils::ExpParamGeneric` / `ZeroedExpParamGeneric` `Update`, which only recompute when the value changes. Encoder values arrive smoothed at their sources, so no per-parameter slew is needed
 
 ## Step 3: Add to SquiggleBoySource
 
-In `private/src/SquiggleBoySource.hpp`, add the include, member, and input struct:
+In `private/src/SquiggleBoySource.hpp`, add the include, a type alias, the member, and the input struct:
 
 ```cpp
 #include "DualWaveShapingVCO.hpp"
-#include "MyNewSource.hpp"              // ADD
+#include "MyNewSource.hpp"
 
-// ... inside struct SquiggleBoySource ...
+// ... inside struct SquiggleBoySourceGeneric ...
+
+    using MyNewSourceType = MyNewSourceGeneric<Size>;
 
     // Source machines
     //
-    DualWaveShapingVCO m_dualWaveShapingVCO;
-    PhysicalModelingSource m_physicalModeling;
-    MyNewSource m_myNewSource;          // ADD
+    DualWaveShapingVCOType m_dualWaveShapingVCO;
+    PhysicalModelingType m_physicalModeling;
+    SampleSourceType m_sampleSource;
+    MyNewSourceType m_myNewSource;
 
 // ... inside struct Input ...
 
-    DualWaveShapingVCO::Input m_dualWaveShapingVCOInput;
-    PhysicalModelingSource::Input m_physicalModelingInput;
-    MyNewSource::Input m_myNewSourceInput;  // ADD
+    typename DualWaveShapingVCOType::Input m_dualWaveShapingVCOInput;
+    typename PhysicalModelingType::Input m_physicalModelingInput;
+    typename SampleSourceType::Input m_sampleSourceInput;
+    typename MyNewSourceType::Input m_myNewSourceInput;
 ```
 
-## Step 4: Integrate into ProcessUBlock and SetEncoderParams
+## Step 4: Integrate into Process and SetEncoderParams
 
-In `SquiggleBoySource::ProcessUBlock`, add a case for your machine:
+`SquiggleBoySource::Process` clears `m_top`, dispatches to the selected machine, and returns `m_output`. Add a case for your machine, copying its tops if it produces them:
 
 ```cpp
-void ProcessUBlock(Input& input)
+Vector Process(Input& input)
 {
+    ClearTops();
     switch (input.m_sourceMachine)
     {
         case SourceMachine::DualWaveShapingVCO:
         {
-            m_dualWaveShapingVCO.ProcessUBlock(input.m_dualWaveShapingVCOInput);
-            m_uBlockOutput = m_dualWaveShapingVCO.m_uBlockOutput;
-            m_uBlockTop = m_dualWaveShapingVCO.m_uBlockTop;
+            m_output = m_dualWaveShapingVCO.Process(input.m_dualWaveShapingVCOInput);
+            for (size_t i = 0; i < Size; ++i)
+            {
+                m_top[i] = m_dualWaveShapingVCO.m_vco[0].m_top[i];
+            }
+
             break;
         }
 
         // ... other cases ...
 
-        case SourceMachine::MyNewSource:  // ADD
+        case SourceMachine::MyNewSource:
         {
-            m_myNewSource.ProcessUBlock(input.m_myNewSourceInput);
-            m_uBlockOutput = m_myNewSource.m_uBlockOutput;
-            m_uBlockTop = m_myNewSource.m_uBlockTop;
+            m_output = m_myNewSource.Process(input.m_myNewSourceInput);
+            for (size_t i = 0; i < Size; ++i)
+            {
+                m_top[i] = m_myNewSource.m_top[i];
+            }
+
             break;
         }
 
         default:
             break;
     }
+
+    return m_output;
 }
 ```
 
@@ -209,18 +238,18 @@ In `SquiggleBoySource::SetEncoderParams`, add a case that dispatches to the mach
 void SetEncoderParams(
     SmartGridOneEncoders& encoders,
     Input& input,
-    size_t voiceIx,
-    float baseFreq,
-    float wtBlend0,
-    float wtBlend1)
+    size_t track,
+    const Vector& baseFreq,
+    const Vector& wtBlend0,
+    const Vector& wtBlend1)
 {
     switch (input.m_sourceMachine)
     {
         // ... existing cases ...
 
-        case SourceMachine::MyNewSource:  // ADD
+        case SourceMachine::MyNewSource:
         {
-            m_myNewSource.SetEncoderParams(encoders, input.m_myNewSourceInput, voiceIx, baseFreq);
+            m_myNewSource.SetEncoderParams(encoders, input.m_myNewSourceInput, track, baseFreq);
             break;
         }
 
@@ -228,10 +257,9 @@ void SetEncoderParams(
             break;
     }
 }
-
 ```
 
-Recommended pattern: keep machine-specific parameter mapping inside the machine class (`MyNewSource::SetEncoderParams`) to keep `SquiggleBoySource` as a thin dispatcher.
+Recommended pattern: keep machine-specific parameter mapping inside the machine class (`MyNewSource::SetEncoderParams`) to keep `SquiggleBoySource` as a thin dispatcher. If the machine writes its own audio scopes, give it a `SetScopeWriters(scopeWriter, track)` like `DualWaveShapingVCO` and call it from `SquiggleBoySource::SetScopeWriters`; call `ScopeWriterHolder::Write(value)` every sample.
 
 ## Step 5: Add the Source Page and Route
 
@@ -264,62 +292,62 @@ A shared parameter may appear on several source pages at the same or different c
 
 ## Step 7: Connect Internal AHD (if applicable)
 
-If your source has an internal AHD envelope (like PhysicalModeling), you need to:
+If your source has an internal AHD envelope (like `PhysicalModelingSource`), you need to:
 
-1. In `SquiggleBoyVoice::Input::SetGates()`, set the AHD input from the voice's AHDControl:
+1. Give the machine an `AHDGeneric<Size>` envelope, an `Envelope::Input m_ahdInput` in its `Input`, and an `Envelope::InputSetter` driven from its `SetEncoderParams`.
+
+2. In `SquiggleBoyTrack::Input::SetGates()`, set the AHD input from each voice's `AHDControl`:
 
 ```cpp
 void SetGates()
-{            
-    m_filterInput.m_ahdInput.Set(m_ahdControl);
-    m_ampInput.m_ahdInput.Set(m_ahdControl);
-    m_sourceInput.m_myNewSourceInput.m_ahdInput.Set(m_ahdControl);  // ADD
-    // ...
+{
+    for (size_t i = 0; i < Size; ++i)
+    {
+        m_ampInput.m_ahdInput.Set(i, m_ahdControl[i]);
+        m_ampInput.m_modulationAHDInput.Set(i, m_ahdControl[i]);
+        m_sourceInput.m_physicalModelingInput.m_ahdInput.Set(i, m_ahdControl[i]);
+        m_sourceInput.m_myNewSourceInput.m_ahdInput.Set(i, m_ahdControl[i]);
+        // ...
+    }
 }
 ```
 
-2. In `SquiggleBoyVoice::Processs()`, process the AHD at control rate:
+3. Run the envelope once per engine sample inside the machine, as `PhysicalModelingSource::ProcessWithAHD` does, and call that from the machine's case in `SquiggleBoySource::Process`:
 
 ```cpp
-float Processs(Input& input)
+Vector ProcessWithAHD(Input& input)
 {
-    // ...
-    
-    // Process MyNewSource AHD if that source is active
-    //
-    if (input.m_voiceConfig.m_sourceMachine == VoiceConfig::SourceMachine::MyNewSource)
-    {
-        m_source.m_myNewSource.m_ahd.Process(input.m_sourceInput.m_myNewSourceInput.m_ahdInput);
-    }
-    
-    // ...
+    input.m_envelope = m_ahd.Process(input.m_ahdInput);
+    return Process(input);
 }
 ```
+
+`AHD::Process` consumes the trigger and release events, so each one is applied once.
 
 ## Files Modified
 
 | File | Changes |
 |------|---------|
-| `private/src/VoiceMachineEnums.hpp` | Add enum value, update count, add ToString case |
+| `private/src/VoiceMachineEnums.hpp` | Add enum value, update count, add ToString case, update `IsSynthLike` if pitched |
 | `private/src/MyNewSource.hpp` | **Create new file** with DSP implementation |
-| `private/src/SquiggleBoySource.hpp` | Add include, member, input struct, ProcessUBlock case, SetEncoderParams dispatch |
+| `private/src/SquiggleBoySource.hpp` | Add include, type alias, member, input struct, Process case, SetEncoderParams dispatch |
 | `private/src/SmartGridOneLayout.hpp` | Add the source page identifier |
 | `private/src/ForEachSmartGridOneSlot.hpp` | Add a typed Source-slot route for the new machine |
 | `private/src/ForEachSmartGridOnePage.hpp` | Place the new and any shared parameters on the source page |
 | `private/src/VoiceMachineEnums.hpp` | Update `SourceMachineFlags` only if visualizers need source gating |
 | `private/src/ForEachSmartGridOneParam.hpp` | Add metadata rows for new parameters only |
-| `private/src/SquiggleBoy.hpp` | (Optional) Connect internal AHD in SetGates and Processs |
+| `private/src/SquiggleBoyTrack.hpp` | (Optional) Connect internal AHD in `Input::SetGates` |
 
 ## Checklist
 
 - [ ] Enum value added to `SourceMachine` in VoiceMachineEnums.hpp
 - [ ] `NumSourceMachines` incremented
-- [ ] ToString case added
-- [ ] DSP class created with `m_uBlockOutput` and `m_uBlockTop`
+- [ ] ToString case added (and `IsSynthLike` case if pitched)
+- [ ] DSP class created, generic over `Size`, with a per-sample `Vector Process(const Input&)` and optional `m_top`
 - [ ] Member and input struct added to SquiggleBoySource
-- [ ] ProcessUBlock case added in SquiggleBoySource
+- [ ] Process case added in SquiggleBoySource, copying tops if the machine produces them
 - [ ] SetEncoderParams dispatch added in SquiggleBoySource (machine owns its own parameter setter)
 - [ ] New page identifier and typed Source-slot route added
 - [ ] New parameter metadata and source-page memberships added as needed
 - [ ] VoiceMachine::SourceMachineFlags updated if source-specific visualizers need the new bit
-- [ ] (If applicable) Internal AHD connected in SquiggleBoyVoice::SetGates and Processs
+- [ ] (If applicable) Internal AHD connected in `SquiggleBoyTrack::Input::SetGates` and run in the machine's Process

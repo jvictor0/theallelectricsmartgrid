@@ -55,7 +55,7 @@ Its bank mode determines the number of independent output channels:
 There are twenty bank instances and five modes. `SetTrack(trio)` selects the
 corresponding instance of the current Voice-bank family. It remembers the trio
 while a Quad or Global bank is selected, without changing that selected bank.
-`GetValue(param, voice)` and `GetValueNoSlew(param, voice)` map voice 0–8 to
+`GetValue(param, voice)` maps voice 0–8 to
 `trio = voice / 3` and local channel `voice % 3`. Quad and Global reads use their
 channel directly. UI and MIDI consume local channels starting at zero.
 
@@ -67,12 +67,12 @@ the named owner array across all trios, including hidden parameters.
 
 ## Base Encoders vs. Banked Encoders
 
-- `StateEncoderCell`: The base class that holds the actual numerical state. It stores `m_values[scene]` in the normalized range `[0, 1]` and publishes the scene blend through one state pointer. Scene operations must read stored values, independently of a derived cell's modulated UI getter.
+- `StateEncoderCell`: The base class that holds the actual numerical state. It stores a per-scene target `m_targets[scene]` and current value `m_values[scene]` in the normalized range `[0, 1]`, and publishes the scene blend of the current values through one state pointer. Scene operations must read stored values, independently of a derived cell's modulated UI getter.
 - `BankedEncoderCell`: Extends the state cell to support deep, polyphonic modulation and macro gestures. 
 
 Every state encoder has an `m_bipolar` flag. Scene storage, gesture targets,
-computed outputs, slew state, and UI/MIDI knob coordinates stay in `[0, 1]`.
-DSP `GetValue` and `GetValueNoSlew` getters automatically return `2u - 1` for a
+computed outputs, and UI/MIDI knob coordinates stay in `[0, 1]`.
+The DSP `GetValue` getter automatically returns `2u - 1` for a
 bipolar encoder and `u` for a unipolar encoder. Switch indexing still uses the
 normalized position. The parameter declaration's trailing `bipolar` flag and
 default value configure this behavior; defaults are in the exposed knob domain
@@ -190,10 +190,12 @@ The entire state of all encoders (base values, modulation depths, and gesture ta
 - `GetSceneValue` reads each parameter's per-scene array and interpolates `values[m_scene1]` and `values[m_scene2]` by `m_blendFactor`.
 - Because every parameter is continuously interpolating between the two active scenes, moving the scene crossfader smoothly morphs every aspect of the sound engine simultaneously.
 
-## UI State and Parameter Slew
+## UI State and Parameter Smoothing
 
 - `EncoderBankUIState`: Manages the communication between the deep software state and the physical hardware/screen UI. It handles the rendering of LED rings and the processing of delta increments from physical endless encoders.
-- **Parameter Slew**: We only calculate the parameter values every eight samples on control frames, the DSP engine applies a slew filter (`ParamSlew` or `FixedSlew`) to the final, post-modulation parameter values before using them in audio calculations. During oversampled blocks, this slew rate is adjusted automatically.
+- **Per-sample computation**: `EncoderBankBank::Process` runs every engine sample, before `SetEncoderParameters`. It calls `ModulatorValues::ComputeChanged()` for each bank mode, applies scene-blend and scene-change flags, then calls `Compute` on every named cell, including hidden ones. A cell only recomputes its gestures and modulation when the blend changed, its force-update countdown (`m_samplesForceUpdate`) is running, or its affecting-modulator or affecting-gesture bitmask intersects the changed bitmasks. The DSP reads `GetValue` every sample; outputs are not filtered.
+- **Edit distribution**: Edits change a scene's target (`SetTarget`). The cell's `TickDistributor` then moves the current scene values linearly toward their targets over the interval since the previous change, clamped to 2–50 ms of host samples, and lands exactly on the target. A further edit during a ramp accumulates against the target and restarts the ramp over the new interval. Each target change also starts a 50 ms force-update countdown; encoder turns and resets set it on ancestors too (`SetForceUpdateRecursive`), so the affected tree recomputes every sample while the ramp runs.
+- **Scene blend and faders**: Blend and fader messages set targets on `SettlingSlew` filters. `ProcessInputSlews()` advances them each sample with a 500 Hz one-pole low-pass before the scene manager and encoders run, and stops once each value settles on its target.
 
 ## Frequency-Dependent Quad Parameters
 

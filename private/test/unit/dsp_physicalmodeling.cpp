@@ -8,12 +8,15 @@ namespace
 
 struct PhysicalEnvelopeRig
 {
+    static constexpr size_t x_frameSamples = 8;
     TheoryOfTimeBase m_time;
+    double m_baseSample;
     std::unique_ptr<PhysicalModelingSource> m_source;
     PhysicalModelingSource::Input m_input;
 
     PhysicalEnvelopeRig(float attackSeconds, float decaySeconds)
-        : m_source(std::make_unique<PhysicalModelingSource>(42))
+        : m_baseSample(0.0)
+        , m_source(std::make_unique<PhysicalModelingSource>(42))
     {
         m_input.m_ahdInput.SetTheoryOfTime(&m_time);
         m_source->m_ahdInputSetter.Set(
@@ -38,21 +41,24 @@ struct PhysicalEnvelopeRig
 
     void SetClock(double baseSample)
     {
-        for (size_t i = 0; i < m_time.m_samples.size(); ++i)
-        {
-            double phase = 1.0 + (baseSample + static_cast<double>(i)) / 48000.0;
-            m_time.m_samples[i].m_unmodulatedPhase = phase;
-            m_time.m_samples[i].m_modulatedPhase = phase;
-        }
+        m_baseSample = baseSample;
+        SetClockPosition(0);
     }
 
-    // One control frame of samples, at positions 0 through 7.
+    void SetClockPosition(size_t offset)
+    {
+        double phase = 1.0 + (m_baseSample + static_cast<double>(offset)) / 48000.0;
+        m_time.m_sample.m_unmodulatedPhase = phase;
+        m_time.m_sample.m_modulatedPhase = phase;
+    }
+
+    // Eight samples, at clock positions base through base + 7.
     //
     void ProcessFrame()
     {
-        for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
+        for (size_t i = 0; i < x_frameSamples; ++i)
         {
-            m_input.m_ahdInput.SetSamplePosition(static_cast<float>(i));
+            SetClockPosition(i);
             m_source->ProcessWithAHD(m_input);
         }
     }
@@ -103,7 +109,7 @@ DOCTEST_TEST_CASE("PhysicalModeling: explicit release advances at the sample rat
     for (; releaseFrames < 62 && rig.Envelope().m_state != AHD::State::Idle; ++releaseFrames)
     {
         rig.ProcessFrame();
-        for (size_t sample = 0; sample < SampleTimer::x_controlFrameRate; ++sample)
+        for (size_t sample = 0; sample < PhysicalEnvelopeRig::x_frameSamples; ++sample)
         {
             base.Process(baseInput);
         }

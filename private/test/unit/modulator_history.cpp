@@ -4,6 +4,19 @@
 #include <limits>
 #include <thread>
 
+namespace
+{
+
+void AdvanceControlIndex(ScopeWriter& writer)
+{
+    for (size_t i = 0; i < writer.m_decimation; ++i)
+    {
+        writer.AdvanceIndex();
+    }
+}
+
+}
+
 DOCTEST_TEST_CASE("Weighted modulators: normalized signed depths mix recorded signals and hold the latest sample")
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
@@ -15,9 +28,9 @@ DOCTEST_TEST_CASE("Weighted modulators: normalized signed depths mix recorded si
     {
         state.m_controlScopeWriter.Write(0, 0, 0.2f * (index + 1));
         state.m_controlScopeWriter.Write(1, 0, 0.4f);
-        state.m_controlScopeWriter.AdvanceIndex();
+        AdvanceControlIndex(state.m_controlScopeWriter);
         state.m_quadControlScopeWriter.Write(0, 0, -0.5f);
-        state.m_quadControlScopeWriter.AdvanceIndex();
+        AdvanceControlIndex(state.m_quadControlScopeWriter);
     }
 
     state.m_controlScopeWriter.Publish();
@@ -106,7 +119,7 @@ DOCTEST_TEST_CASE("Modulator time axes: scope wrapping maps every point to its o
         }
 
         scope.Write(0, 0, static_cast<float>(index) / 12.0f);
-        scope.AdvanceIndex();
+        AdvanceControlIndex(scope);
     }
 
     scope.Publish();
@@ -299,7 +312,7 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
                 static_cast<double>(sample), synth.m_globalGangedRandomLFO[slot].Output(0)});
         }
 
-        if (sample % 8 == 0)
+        if (sample % ScopeWriter::x_controlDecimation == 1)
         {
             for (size_t voice = 0; voice < 9; ++voice)
             {
@@ -331,7 +344,7 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
 
     DOCTEST_CHECK(ui.GetModulatorValue(ModulatorRef(VoiceModulator::Spread, 1), 32.0) == 0.0f);
     rig.Internal().PopulateUIState();
-    DOCTEST_CHECK(ui.m_squiggleBoyUIState.m_firstControlSample.load() == 8);
+    DOCTEST_CHECK(ui.m_squiggleBoyUIState.m_firstControlSample.load() == 1);
     for (const auto& observation : random)
     {
         DOCTEST_CAPTURE(observation.m_sample);
@@ -354,7 +367,7 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
         }
     }
 
-    DOCTEST_CHECK(ui.GetModulatorValue(ModulatorRef(VoiceModulator::LFO1, 0), 7.99) == 0.0f);
+    DOCTEST_CHECK(ui.GetModulatorValue(ModulatorRef(VoiceModulator::LFO1, 0), 0.99) == 0.0f);
     for (size_t voice = 0; voice < 9; ++voice)
     {
         DOCTEST_CHECK(ui.GetModulatorValue(ModulatorRef(VoiceModulator::Spread, voice), 20.5)

@@ -1,17 +1,17 @@
 # Source Machine Oscillators Specification
 
 ## Purpose
-Defines the per-voice sound generation stage of the Smart Grid One DSP engine: the four selectable source machines (Dual Wave Shaping VCO, Thru, Physical Modeling, and Sample) and the always-present per-voice sub-oscillator. The source machine is the first stage of each voice; its 4x-oversampled output feeds the per-voice filter machine described in filter-system, and its amplitude shaping is governed by the envelopes described in ahd-envelopes. Voice structure, triggering, and mixdown are covered by voice-architecture; the grain engine shared with the Sample source is covered by phase-vocoder.
+Defines the per-voice sound generation stage of the Smart Grid One DSP engine: the four selectable source machines (Dual Wave Shaping VCO, Thru, Physical Modeling, and Sample) and the always-present per-voice sub-oscillator. The source machine is the first stage of each voice; its engine-rate output, one sample per call, feeds the per-voice filter machine described in filter-system, and its amplitude shaping is governed by the envelopes described in ahd-envelopes. Voice structure, triggering, and mixdown are covered by voice-architecture; the grain engine shared with the Sample source is covered by phase-vocoder.
 
 ## Requirements
 
 ### Requirement: Per-Voice Source Machine Selection
 Each voice SHALL generate its raw signal with exactly one of four source machines selected by `VoiceConfig::SourceMachine`: Dual Wave Shaping VCO (`DualWaveShapingVCO`), Thru, Physical Modeling (`PhysicalModelingSource`), or Sample (`SampleSource`).
-`SquiggleBoySource` owns all four machines and dispatches `ProcessUBlock` to the selected one; every machine renders a 4x-oversampled u-block (`x_oversample = 4`). The active selection is published to the UI thread as an atomic in `VoiceSourceUIState::m_sourceMachine`. For each trio, the selected `VoiceMachine::SourceMachine` value directly routes the Source slot to its corresponding page in `ForEachSmartGridOneSlot.hpp`; the page memberships in `ForEachSmartGridOnePage.hpp` determine which owned parameter cells are connected to the visible 4×4 grid.
+Each track's `SquiggleBoySourceGeneric<3>` owns the machines for its three voices and dispatches `Process` to the selected one; every machine renders one engine sample (`SampleTimer::x_sampleRate`) for all three voices per call and Thru reads the assigned `SourceMixer` lane directly. The active selection is published to the UI thread as an atomic in `VoiceSourceUIState::m_sourceMachine`. For each trio, the selected `VoiceMachine::SourceMachine` value directly routes the Source slot to its corresponding page in `ForEachSmartGridOneSlot.hpp`; the page memberships in `ForEachSmartGridOnePage.hpp` determine which owned parameter cells are connected to the visible 4×4 grid.
 
 #### Scenario: Switching the source machine changes dispatch and UI state
 - **WHEN** a voice's `VoiceConfig::SourceMachine` is set to `Sample`
-- **THEN** `SquiggleBoySource::ProcessUBlock` processes only the `SampleSource` for that voice and exposes its u-block output to the filter section
+- **THEN** `SquiggleBoySource::Process` processes only the `SampleSource` for that voice's track and returns its sample output to the filter section
 - **AND** `VoiceSourceUIState::m_sourceMachine` for that voice reads `Sample`
 
 #### Scenario: Source-specific UI state is populated only for the active machine
@@ -45,7 +45,7 @@ The v knob scales by 4 to a vertical inflection in [0, 4]; the warped phase is w
 
 ### Requirement: Dual Oscillator Tuning, Cross-Modulation, and Mix
 The Dual Wave Shaping VCO SHALL run two oscillators with VCO 0 at `baseFreq * detune` and VCO 1 at `baseFreq * offsetFreqFactor / detune`, mutually phase-modulating each other with per-direction cross-modulation indices, mixed by an equal-power crossfade and passed through a `BitRateReducer`.
-`offsetFreqFactor` and `detune` are exponential parameters; the cross-modulation indices (`m_crossModIndex[2]`, knob 0-1, zeroed exponential) scale each oscillator's output as a phase-modulation input to the other. The mix gains are `Cos2pi(fade / 4)` for VCO 0 and `Cos2pi(fade / 4 + 0.75)` (= `Sin2pi(fade / 4)`) for VCO 1, a quarter-turn equal-power law. The bit crush amount slews and degrades the mixed output. All control parameters are slewed across the oversampled u-block.
+`offsetFreqFactor` and `detune` are exponential parameters; the cross-modulation indices (`m_crossModIndex[2]`, knob 0-1, zeroed exponential) scale each oscillator's output as a phase-modulation input to the other. The mix gains are `Cos2pi(fade / 4)` for VCO 0 and `Cos2pi(fade / 4 + 0.75)` (= `Sin2pi(fade / 4)`) for VCO 1, a quarter-turn equal-power law. The bit crush amount degrades the mixed output. All control parameters are read from the encoders every engine sample, without per-parameter slew.
 
 #### Scenario: Equal-power crossfade endpoints
 - **WHEN** fade = 0
@@ -58,9 +58,9 @@ The Dual Wave Shaping VCO SHALL run two oscillators with VCO 0 at `baseFreq * de
 
 ### Requirement: Physical Modeling Signal Chain
 The Physical Modeling source machine SHALL process white noise through a morphable 2-pole SVF, apply inverted exponential AHD amplitude modulation, apply sample-rate reduction, and feed the result into a `TunedDecayComb` whose delay frequency tracks the voice base frequency.
-The SVF morph SHALL use shared quarter-circle weights: LP at 0, BP at 0.5, HP at 1, with nonnegative sine/cosine gains between endpoints. The source SHALL retain 4× processing, inverted amplitude-depth semantics, a 100 µs–2.5 s attack range, and a 500 µs–2.5 s decay range. AHD durations SHALL advance in base-rate samples and block trigger/release events SHALL be delivered once per microblock.
+The SVF morph SHALL use shared quarter-circle weights: LP at 0, BP at 0.5, HP at 1, with nonnegative sine/cosine gains between endpoints. The source SHALL run at the engine rate and retain inverted amplitude-depth semantics, a 100 µs–2.5 s attack range, and a 500 µs–2.5 s decay range. `ProcessWithAHD` SHALL run the AHD once per engine sample, so AHD durations advance in engine samples and each trigger/release event is consumed by one `AHD::Process` call.
 
-Factory defaults SHALL be CUT=1, RES=0, MRPH=0, RATE=0, FDBK=0.8, DAMP=0.5, ATK=0, HOLD=0.25, DEC=0, and AMP=1. RATE=0 SHALL reach full-rate 192 kHz bypass after parameter slewing; the exponential mapping SHALL retain its 48 Hz lower endpoint. Existing saved parameter values SHALL remain intact.
+Factory defaults SHALL be CUT=1, RES=0, MRPH=0, RATE=0, FDBK=0.8, DAMP=0.5, ATK=0, HOLD=0.25, DEC=0, and AMP=1. RATE=0 SHALL map to at least one cycle per engine sample and so bypass the sample-rate reducer at the full processing rate; the exponential mapping, in cycles per host sample divided by `SampleTimer::x_oversample`, SHALL retain its 48 Hz lower endpoint. Existing saved parameter values SHALL remain intact.
 
 DECAY SHALL map `u=abs(2*knob-1)` to `T60=0.001*5000^u` seconds, negative polarity below 0.5, positive above, dry at 0.5. Every noncenter setting SHALL apply the exponential radial decay without additional feedback scaling. Settled fundamental T60 SHALL equal the selected value at every DAMP setting, for fractional periods, both signs, and clamped pitch boundaries. The selected T60 SHALL remain a ceiling for all other stationary modal lifetimes.
 
@@ -68,13 +68,13 @@ DAMP SHALL retain persisted identifier `PMCombDampenCutoff`, default 0.5, and la
 
 The prototype SHALL be `H0(z)=L(z)/(1-sign*z^-N*A(z)*L(z))`. With `omega=2*pi*f0/Fs`, `t=tan(pi*f0/Fs)`, `v=tan(pi*fc/Fs)/t`, `shape=hypot(1,v*v-1)`, and `u2=1/shape`, coefficients SHALL be `g=t*sqrt(shape)`, `k=sqrt(2*(1-u2))`, and `gain=sqrt((1-u2)*(1+u2))`. The low-pass SHALL be `L(z)=gain*g^2*(1+z^-1)^2/((1+k*g+g^2)+2*(g^2-1)*z^-1+(1-k*g+g^2)*z^-2)`. Phase compensation SHALL use `D=(theta+filterPhase)/omega`, `filterPhase=-atan2(k*sqrt(u2),1-u2)` except zero at bypass, where theta is 2π positive and π negative. Integer delay SHALL be `N=max(1,floor(D)-1)`, and delta SHALL be `D-N`. The unity-magnitude allpass SHALL use `A(z)=(a+z^-1)/(1+a*z^-1)`, `a=(tan(omega/2)-tan(omega*delta/2))/(tan(omega/2)+tan(omega*delta/2))`. Radial substitution `H(z)=H0(z/r)`, `r=exp(-ln(1000)/(Fs*T60))`, SHALL apply to integer memory (`r^N`), allpass memory, and both low-pass memories. No stationary mode SHALL decay more slowly than the selected T60.
 
-At fundamental 220 Hz, 192 kHz processing, DAMP=1/3 (8× prototype cutoff), and selected T60=5 s, negative/positive third-mode tuning SHALL agree within 0.2 cents with independent 658.545543665752/659.270770269177 Hz (−3.819368033379/−1.913886817808 cents), and T60 SHALL agree within 1% with 1.427293671700/2.210498614261 s. Full-open third modes SHALL remain near harmonic and near 5 s. At minimum DAMP, independent negative/positive third-mode predictions are 636.849346134625/654.515578308296 Hz and 0.013876206521/0.028245094224 s T60. The implementation SHALL document their rapid loss and the fundamental leakage limitation of late-time third-mode projection, and verify rapid upper-mode suppression through emitted audio.
+At fundamental 220 Hz, a 192 kHz comb sample rate, DAMP=1/3 (8× prototype cutoff), and selected T60=5 s, negative/positive third-mode tuning SHALL agree within 0.2 cents with independent 658.545543665752/659.270770269177 Hz (−3.819368033379/−1.913886817808 cents), and T60 SHALL agree within 1% with 1.427293671700/2.210498614261 s. Full-open third modes SHALL remain near harmonic and near 5 s. At minimum DAMP, independent negative/positive third-mode predictions are 636.849346134625/654.515578308296 Hz and 0.013876206521/0.028245094224 s T60. The implementation SHALL document their rapid loss and the fundamental leakage limitation of late-time third-mode projection, and verify rapid upper-mode suppression through emitted audio.
 
-The implementation SHALL clamp normalized pitch to `[cycles/16383,0.25]` (cycles=1 positive/center, 0.5 negative) and retain the 16384-sample shared delay. At the highest negative-feedback pitches D may lie below 2; N SHALL remain 1 with a positive delta below 1, avoiding underflow and a zero-delay read. The cutoff SHALL clamp below processing-rate Nyquist; host output retains its base-rate Nyquist limit. Coefficients SHALL update outside the oversampled loop. Shared-delay dual branches SHALL crossfade filtered outputs over 5 ms, coalescing new targets during transitions without allocations, locks, or delay-buffer copies; stationary guarantees apply after settling.
+The implementation SHALL clamp normalized pitch to `[cycles/16383,0.25]` (cycles=1 positive/center, 0.5 negative) and retain the 16384-sample shared delay. At the highest negative-feedback pitches D may lie below 2; N SHALL remain 1 with a positive delta below 1, avoiding underflow and a zero-delay read. The cutoff SHALL clamp below processing-rate Nyquist; host output retains its Nyquist limit. Parameter updates, made every engine sample, SHALL only store clamped physical values; coefficients SHALL be computed for changed channels when a crossfade starts. Shared-delay dual branches SHALL crossfade filtered outputs over 5 ms, coalescing new targets during transitions without allocations, locks, or delay-buffer copies; stationary guarantees apply after settling.
 
 #### Scenario: Comb resonance tracks voice pitch
 - **WHEN** the voice base frequency changes within the representable bounds
-- **THEN** integer delay, allpass, and low-pass phase SHALL converge to the played fundamental at `baseFreq/x_oversample`
+- **THEN** integer delay, allpass, and low-pass phase SHALL converge to the played fundamental at `baseFreq` cycles per engine sample, with the comb sample rate `SampleTimer::x_sampleRate`
 - **AND** changing settled DAMP SHALL retain fundamental tuning and the exact selected fundamental T60
 
 #### Scenario: Radial decay includes all filter memories
@@ -99,8 +99,8 @@ The atomics are `m_mainSVFG`, `m_mainSVFK`, `m_mainSVFMorph`, and the nested `Tu
 - **THEN** it returns `std::abs(TransferFunctionValue(f))`
 
 ### Requirement: Sample Source Playback
-The Sample source machine SHALL read audio from the voice's assigned `AudioBufferBank` at a play-head position generated by `PhasorPlayHead` from a selected Theory of Time loop, rendered through a `GrainManager` and upsampled into the voice's 4x-oversampled domain.
-`SampleLoopIndex` selects which of the six Theory of Time loops drives the read head. `SampleStart` and `SampleLength` define a normalized wrapped window (length clamped to at least 1e-6). `SampleReadSpeed` selects one of 17 quantized rates: -4, -3, -2, -3/2, -4/3, -1, -1/2, -1/4, 0, 1/4, 1/2, 1, 4/3, 3/2, 2, 3, 4. `SampleBankPosition` scans the bank's WAV files: even segments select a single file, odd segments linearly blend adjacent files. Grain resynthesis uses the same grain path as phase-vocoder; grains are rendered at the base control rate and upsampled by 4 into the oversampled u-block.
+The Sample source machine SHALL read audio from the voice's assigned `AudioBufferBank` at a play-head position generated by `PhasorPlayHead` from a selected Theory of Time loop, rendered through a `GrainManager` one engine sample per call.
+`SampleLoopIndex` selects which of the six Theory of Time loops drives the read head. `SampleStart` and `SampleLength` define a normalized wrapped window (length clamped to at least 1e-6). `SampleReadSpeed` selects one of 17 quantized rates: -4, -3, -2, -3/2, -4/3, -1, -1/2, -1/4, 0, 1/4, 1/2, 1, 4/3, 3/2, 2, 3, 4. `SampleBankPosition` scans the bank's WAV files: even segments select a single file, odd segments linearly blend adjacent files. Grain resynthesis uses the same grain path as phase-vocoder; the trio's grains launch on one schedule for all three voices and are rendered per engine sample.
 
 #### Scenario: Stopped read speed freezes the play head
 - **WHEN** `SampleReadSpeed` selects the middle switch position (index 8)
@@ -110,11 +110,11 @@ The Sample source machine SHALL read audio from the voice's assigned `AudioBuffe
 - **WHEN** `SampleSource::PopulateUIState` runs
 - **THEN** `SampleSource::UIState` atomically publishes `m_samplePosition` (total phase time), `m_start`, and `m_length` for the waveform visualizer
 
-#### Scenario: Loop wrap marks a u-block top
-- **WHEN** the play head's total phase time crosses an integer boundary between consecutive base-rate samples
-- **THEN** the corresponding `m_uBlockTop` entry is set true, marking a playback wrap for downstream consumers
+#### Scenario: Loop wrap marks a cycle top
+- **WHEN** the play head's total phase time crosses an integer boundary between consecutive engine samples
+- **THEN** `SampleSource::m_top` for that voice is set by `SampleTop::FromPhases` with the fractional offset of the crossing, and `SquiggleBoySource` forwards it so the track starts a post-filter scope cycle there
 
-The play head SHALL apply speed and window scaling to absolute modulated loop phase before wrapping at the playback output. It SHALL NOT restart fractional-speed playback at every source-loop boundary. All existing bank selection, grain rendering, upsampling, window, and speed controls SHALL remain available.
+The play head SHALL apply speed and window scaling to absolute modulated loop phase before wrapping at the playback output. It SHALL NOT restart fractional-speed playback at every source-loop boundary. All existing bank selection, grain rendering, window, and speed controls SHALL remain available.
 
 #### Scenario: Half speed spans two source loops
 - **WHEN** start is 0, length is 1, speed is 0.5, and absolute loop phase progresses through 0.5, 1.5, and 2.5
@@ -176,25 +176,25 @@ When source trim is sent to K-Mix, the system SHALL map each source index to two
 - **AND** physical input channel 5 receives the current trim value
 
 ### Requirement: Thru Source Machine
-The Thru source machine SHALL pass the external `SourceMixer` source channel assigned by the voice's source assignment through the voice, upsampling the source's base-rate u-block by 4 into the oversampled domain so the voice's filter and amp sections shape outside audio.
+The Thru source machine SHALL pass the external `SourceMixer` source channel assigned by the voice's source assignment through the voice, reading the source lane's current sample every engine sample so the voice's filter and amp sections shape outside audio.
 
 A source assignment SHALL identify one of three states: Silent, Source Left, or Source Right. A Silent assignment SHALL produce zero source output. A Source Left assignment SHALL read the selected source's left lane. A Source Right assignment SHALL read the selected source's right lane, which is silence when the selected source is configured as Mono.
 
 #### Scenario: External mono audio is forwarded into the voice chain
-- **WHEN** a voice in Thru mode processes a u-block and its assignment is Source Left for a Mono source carrying external input audio
-- **THEN** the voice's source output equals the 4x-upsampled left source block, which then feeds the voice's filter machine whose cutoff anchor in Thru mode is specified in filter-system
+- **WHEN** a voice in Thru mode processes a sample and its assignment is Source Left for a Mono source carrying external input audio
+- **THEN** the voice's source output equals the left source lane's sample, which then feeds the voice's filter machine whose cutoff anchor in Thru mode is specified in filter-system
 
 #### Scenario: External stereo right audio is forwarded into the voice chain
-- **WHEN** a voice in Thru mode processes a u-block and its assignment is Source Right for a Stereo source carrying right-channel external input audio
-- **THEN** the voice's source output equals the 4x-upsampled right source block, which then feeds the voice's filter machine
+- **WHEN** a voice in Thru mode processes a sample and its assignment is Source Right for a Stereo source carrying right-channel external input audio
+- **THEN** the voice's source output equals the right source lane's sample, which then feeds the voice's filter machine
 
 #### Scenario: Silent assignment produces silence
-- **WHEN** a voice in Thru mode processes a u-block and its source assignment is Silent
+- **WHEN** a voice in Thru mode processes a sample and its source assignment is Silent
 - **THEN** the voice's source output is silence before the filter machine
 
 ### Requirement: Sub-Oscillator
-Each voice SHALL run a sine sub-oscillator (`VCO`) at half the voice base frequency (one octave down) at the base sample rate, saturate it with a per-voice tanh stage, gate its level with the main voice AHD envelope, and emit it as a per-voice mono signal.
-The sub runs every sample regardless of source machine. Its tanh input gain is an exponential parameter spanning 0.125 to 32 (`0.125 * 256^x` for normalized Drive position `x`). Sub Volume uses a zeroed exponential curve `(20^x - 1) / 19`, spanning exact silence to unity. The sub only sounds when the amp section's sub trigger was true at the most recent AHD trigger (latched into `m_subRunning`); its gain is the sub gain parameter multiplied by the main AHD envelope's exponential value, smoothed by a 170 Hz one-pole. The result is scaled by the voice's frequency-dependent gain and voice gain, published as `m_subOut`, and injected into the quad mixer as a center-panned mono input (mixdown behavior is covered by voice-architecture).
+Each voice SHALL run a sine sub-oscillator (`VCO`) at half the voice base frequency (one octave down) at the engine rate, saturate it with a per-voice tanh stage, gate its level with the main voice AHD envelope, and emit it as a per-voice mono signal.
+The sub runs every sample regardless of source machine. Its tanh input gain is an exponential parameter spanning 0.125 to 32 (`0.125 * 256^x` for normalized Drive position `x`). Sub Volume uses a zeroed exponential curve `(20^x - 1) / 19`, spanning exact silence to unity. The sub only sounds when the amp section's sub trigger was true at the most recent AHD trigger (latched into `m_subRunning`); its gain is the sub gain parameter multiplied by the main AHD envelope's exponential value, smoothed by a bidirectional slew whose rise time (Sub Envelope Rise, 1 ms to 1 s) and fall time (Sub Envelope Fall, 1 ms to 5 s) are exponential parameters. The result is scaled by the voice's frequency-dependent gain and voice gain, published as `m_subOut`, and injected into the quad mixer as a center-panned mono input (mixdown behavior is covered by voice-architecture).
 
 #### Scenario: Sub is silent without its trigger
 - **WHEN** an AHD trigger arrives with the amp section's sub trigger input false

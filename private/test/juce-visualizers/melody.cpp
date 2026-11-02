@@ -518,12 +518,7 @@ DOCTEST_TEST_CASE("Melody: playhead follows published continuous phase within ti
     {
         DOCTEST_CAPTURE(example.m_phase);
         input.m_unmodulatedPhase = example.m_phase - input.m_phaseOffset;
-        for (size_t sample = 1; sample <= TheoryOfTimeBase::x_microBlockSize; ++sample)
-        {
-            clock.Process(sample, input);
-        }
-
-        clock.RolloverMicroblockBuffer();
+        clock.Process(input);
         clock.PopulateUIState(time, input);
         juce::Image image(juce::Image::ARGB, 340, 500, true);
         juce::Graphics graphics(image);

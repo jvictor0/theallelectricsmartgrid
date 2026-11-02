@@ -12,11 +12,10 @@
 // Wiring (from SquiggleBoySource.hpp):
 //   m_sampleSource.SetAudioBufferBank(channel, input.m_audioBufferBank);
 //   input.m_sampleSourceInput.m_theoryOfTime = input.m_theoryOfTime;
-//   m_output = m_sampleSource.Process(input.m_sampleSourceInput, sampleIndex);
+//   m_output = m_sampleSource.Process(input.m_sampleSourceInput);
 //
-// Process runs one sample at sampleIndex within the theory of time's sample
-// buffer. TimeRig drives SampleTimer per control frame, so ProcessFrame runs
-// that frame's samples once per AdvanceControlFrame().
+// Process runs one sample at the theory of time's current sample. ProcessFrame
+// runs a batch of samples, advancing the TimeRig after each one.
 //
 // NOTE: Grain synthesis uses Resynthesizer which requires the buffer to have
 // enough data for one Resynthesizer::x_tableSize = 4096 window before a grain
@@ -105,17 +104,18 @@ SampleSource::Input MakeBasicInput(TheoryOfTime* tot, int loopIndex = 0)
     return inp;
 }
 
-// Samples per control frame.
+// Samples per checked batch.
 //
-constexpr size_t kFrameSize = SampleTimer::x_controlFrameRate;
+constexpr size_t kFrameSize = 8;
 
-// Runs one control frame of samples into output.
+// Runs one batch of samples into output, advancing the rig after each.
 //
-void ProcessFrame(SampleSource& ss, SampleSource::Input& inp, float* output)
+void ProcessFrame(TimeRig& rig, SampleSource& ss, SampleSource::Input& inp, float* output)
 {
     for (size_t i = 0; i < kFrameSize; ++i)
     {
-        output[i] = ss.Process(inp, static_cast<int>(i));
+        output[i] = ss.Process(inp);
+        rig.AdvanceSample();
     }
 }
 
@@ -131,7 +131,7 @@ DOCTEST_TEST_CASE("SampleSource: no buffer -> silent output")
     TimeRig rig;
     rig.SetGlobalPeriodSamples(512.0);
     rig.SetRunning(true);
-    rig.AdvanceControlFrame();  // prime
+    rig.AdvanceSamples(8);
 
     // SampleSource is several MB — heap-allocate to avoid blowing the stack
     // (stack-allocating it overflows depending on stack-base placement).
@@ -146,7 +146,7 @@ DOCTEST_TEST_CASE("SampleSource: no buffer -> silent output")
     const int nFrames = 32;
     for (int f = 0; f < nFrames; ++f)
     {
-        ProcessFrame(ss, inp, output);
+        ProcessFrame(rig, ss, inp, output);
 
         TestNan::AssertClean(output, kFrameSize);
 
@@ -155,8 +155,6 @@ DOCTEST_TEST_CASE("SampleSource: no buffer -> silent output")
             DOCTEST_INFO("no-buf output[" << i << "]=" << output[i]);
             DOCTEST_CHECK(output[i] == 0.0f);
         }
-
-        rig.AdvanceControlFrame();
     }
 }
 
@@ -171,7 +169,7 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
     TimeRig rig;
     rig.SetGlobalPeriodSamples(4096.0);  // slow cycle so playhead moves gently
     rig.SetRunning(true);
-    rig.AdvanceControlFrame();
+    rig.AdvanceSamples(8);
 
     // 4096 * 2 samples so we have enough for grain launch.
     //
@@ -191,10 +189,10 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
 
     // Run 4 seconds worth of frames to get grains launching.
     //
-    const int nFrames = 4 * static_cast<int>(SampleTimer::x_sampleRate / SampleTimer::x_controlFrameRate);
+    const int nFrames = 4 * static_cast<int>(SampleTimer::x_sampleRate / kFrameSize);
     for (int f = 0; f < nFrames; ++f)
     {
-        ProcessFrame(ss, inp, output);
+        ProcessFrame(rig, ss, inp, output);
 
         for (size_t i = 0; i < kFrameSize; ++i)
         {
@@ -204,8 +202,6 @@ DOCTEST_TEST_CASE("SampleSource: ramp buffer -> finite bounded output")
                 anyBad = true;
             }
         }
-
-        rig.AdvanceControlFrame();
     }
 
     DOCTEST_CHECK(!anyBad);
@@ -230,8 +226,7 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
     TimeRig rig;
     rig.SetGlobalPeriodSamples(2048.0);
     rig.SetRunning(true);
-    rig.AdvanceControlFrame();
-    rig.AdvanceControlFrame();
+    rig.AdvanceSamples(16);
 
     auto bank = MakeBufferBank(MakeRamp(8192));
     // SampleSource is several MB — heap-allocate to avoid blowing the stack
@@ -253,7 +248,7 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
     const int nFrames = 300;
     for (int f = 0; f < nFrames; ++f)
     {
-        ProcessFrame(ss, inp, output);
+        ProcessFrame(rig, ss, inp, output);
         double pos = ss.m_previousTotalPhaseTime[0];
 
         if (pos > prevPos)
@@ -265,8 +260,6 @@ DOCTEST_TEST_CASE("SampleSource: phasor playhead position increases with phasor"
             maxPos = pos;
         }
         prevPos = pos;
-
-        rig.AdvanceControlFrame();
     }
 
     DOCTEST_INFO("maxPos=" << maxPos << " posEverMoved=" << posEverMoved);
@@ -285,7 +278,7 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
     TimeRig rig;
     rig.SetGlobalPeriodSamples(1024.0);
     rig.SetRunning(true);
-    rig.AdvanceControlFrame();
+    rig.AdvanceSamples(8);
 
     auto bank = MakeBufferBank(MakeSine(8192, 220.0, 48000.0));
     // SampleSource is several MB — heap-allocate to avoid blowing the stack
@@ -303,9 +296,9 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
     bool anyBad = false;
     float maxAbs = 0.0f;
 
-    // 2 seconds of control frames.
+    // 2 seconds of frames.
     //
-    const int nFrames = 2 * static_cast<int>(SampleTimer::x_sampleRate / SampleTimer::x_controlFrameRate);
+    const int nFrames = 2 * static_cast<int>(SampleTimer::x_sampleRate / kFrameSize);
 
     for (int f = 0; f < nFrames; ++f)
     {
@@ -334,7 +327,7 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
             rig.SetGlobalPeriodSamples(newPeriod);
         }
 
-        ProcessFrame(ss, inp, output);
+        ProcessFrame(rig, ss, inp, output);
 
         for (size_t i = 0; i < kFrameSize; ++i)
         {
@@ -348,8 +341,6 @@ DOCTEST_TEST_CASE("SampleSource: stress - random speed/start/length + ToT tempo 
                 maxAbs = std::max(maxAbs, std::abs(v));
             }
         }
-
-        rig.AdvanceControlFrame();
     }
 
     DOCTEST_INFO("stress maxAbs=" << maxAbs);
@@ -370,7 +361,7 @@ DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
     TimeRig rig;
     rig.SetGlobalPeriodSamples(512.0);  // fast loop so we get many wraps
     rig.SetRunning(true);
-    rig.AdvanceControlFrame();
+    rig.AdvanceSamples(8);
 
     auto bank = MakeBufferBank(MakeRamp(8192));
     // SampleSource is several MB — heap-allocate to avoid blowing the stack
@@ -389,10 +380,10 @@ DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
 
     // 20 master loop periods worth of frames.
     //
-    const int nFrames = 20 * 512 / static_cast<int>(SampleTimer::x_controlFrameRate);
+    const int nFrames = 20 * 512 / static_cast<int>(kFrameSize);
     for (int f = 0; f < nFrames; ++f)
     {
-        ProcessFrame(ss, inp, output);
+        ProcessFrame(rig, ss, inp, output);
 
         for (size_t i = 0; i < kFrameSize; ++i)
         {
@@ -402,8 +393,6 @@ DOCTEST_TEST_CASE("SampleSource: loop wrap - stays finite across boundaries")
                 anyBad = true;
             }
         }
-
-        rig.AdvanceControlFrame();
     }
 
     DOCTEST_CHECK(!anyBad);

@@ -6,7 +6,12 @@ The visualization pipeline (`private/src/ScopeWriter.hpp`, `TransferFunction.hpp
 ## Requirements
 
 ### Requirement: Interleaved Circular Buffer Indexing
-The system SHALL store all scopes and voices of a `ScopeWriter` in one interleaved float ring buffer of `x_bufferSize` (32 * 1024 * 1024) samples, mapping a logical position to physical storage as `(index * voices * scopes + scope * voices + voice) % x_bufferSize`. `MaxIndexes()` reports the per-stream capacity `x_bufferSize / (voices * scopes)`. Writes target the current write index `m_index` (plus an optional intra-block `uBlockIndex` offset); `AdvanceIndex()` advances the write position by one.
+The system SHALL store all scopes and voices of a `ScopeWriter` in one interleaved float ring buffer of `x_bufferSize` (32 * 1024 * 1024) samples, mapping a logical position to physical storage as `(index * voices * scopes + scope * voices + voice) % x_bufferSize`. `MaxIndexes()` reports the per-stream capacity `x_bufferSize / (voices * scopes)`. A writer SHALL store one value per `m_decimation` engine samples, where the decimation is 1 for `ScopeWriter(voices, scopes)` and the given value for `ScopeWriter(voices, scopes, decimation)`. Callers SHALL call `Write(scope, voice, value)` every engine sample; only the sample with `m_subIndex == 0` (`IsWriteSample()`) is stored at the current write index `m_index`. `AdvanceIndex()`, called once per engine sample, increments `m_subIndex` and, when it reaches the decimation, wraps it to zero and advances `m_index` by one. Control, quad control, global control, and mono writers SHALL use `ScopeWriter::x_controlDecimation` (8); audio, quad, source-mixer, and mono audio writers SHALL use decimation 1.
+
+#### Scenario: Decimated writer stores one sample per decimation period
+- **WHEN** a writer with decimation 8 receives a `Write` and an `AdvanceIndex` on each of eight consecutive engine samples, starting with `m_subIndex == 0`
+- **THEN** only the first sample's value is stored, at the starting `m_index`
+- **AND** `m_index` has advanced by one and `m_subIndex` is zero again
 
 #### Scenario: Distinct streams never collide
 - **WHEN** two writes occur at the same logical index for different (scope, voice) pairs within configured bounds
@@ -17,7 +22,7 @@ The system SHALL store all scopes and voices of a `ScopeWriter` in one interleav
 - **THEN** the physical index wraps modulo `x_bufferSize` and overwrites the oldest samples of that stream
 
 ### Requirement: Lock-Free DSP Writes
-The system SHALL let DSP modules write without locks or allocation through `ScopeWriterHolder`, which binds a `ScopeWriter*` to a fixed voice index and scope index and forwards `Write(value)`, `Write(uBlockIndex, value)`, quad writes (four consecutive voice slots), and `RecordStart`/`RecordEnd` calls. A holder with a null writer drops all calls.
+The system SHALL let DSP modules write without locks or allocation through `ScopeWriterHolder`, which binds a `ScopeWriter*` to a fixed voice index and scope index and forwards `Write(value)`, `WriteAtVoice(voiceIx, value)`, quad writes (four consecutive voice slots), `IsWriteSample()`, `RecordStart()`, `RecordStart(sampleOffset)`, `RecordStartAtVoice(voiceIx, sampleOffset)`, and `RecordEnd()` calls. A holder with a null writer drops all calls, and its `IsWriteSample()` returns false.
 
 #### Scenario: Quad write fans out to four voice slots
 - **WHEN** a holder bound to voice base v writes a `QuadFloat`
@@ -39,11 +44,16 @@ The system SHALL expose new samples to readers only through `Publish()`: the wri
 - **THEN** `m_publishedIndex` equals the current write index and each stream's `m_startIndexIndex` atomic has advanced by the number of cycle starts recorded since the previous publish
 
 ### Requirement: Cycle Markers
-The system SHALL record waveform cycle boundaries per (scope, voice) stream in rings of `x_numStartIndices` (256) start/end index pairs: `RecordStart(scope, voice[, uBlockIndex])` stores the upcoming cycle's start index and stages a marker advance; `RecordEnd` stores the end index for the most recently started cycle. Marker advances become visible to readers only at `Publish()`, and visualizers use the pairs to segment waveforms into complete cycles.
+The system SHALL record waveform cycle boundaries per (scope, voice) stream in rings of `x_numStartIndices` (256) start/end index pairs: `RecordStart(scope, voice[, sampleOffset])` stores the upcoming cycle's fractional start index `m_index + (m_subIndex + sampleOffset) / m_decimation`, where `sampleOffset` is in engine samples relative to the current sample, and stages a marker advance; `RecordEnd(scope, voice)` stores the end index for the most recently started cycle as `m_index`, rounded up to the next stored sample when called between stored samples. Marker advances become visible to readers only at `Publish()`, and visualizers use the pairs to segment waveforms into complete cycles.
 
 #### Scenario: Start and end bracket a cycle
 - **WHEN** a stream records `RecordStart` at index a, writes samples, records `RecordEnd` at index b, and publishes
 - **THEN** the stream's latest marker pair reads (a, b) and a reader can sample exactly the cycle [a, b)
+
+#### Scenario: Fractional start on a decimated writer
+- **WHEN** a writer with decimation 8 is at `m_index` 100 and `m_subIndex` 2, and a producer calls `RecordStart` with `sampleOffset` -0.5
+- **THEN** the stored start index is 100.1875
+- **AND** a `RecordEnd` on that same engine sample stores 101
 
 #### Scenario: Marker ring wraps
 - **WHEN** more than 256 cycles are recorded on one stream
@@ -83,7 +93,7 @@ The system SHALL define `TransferFunction` (`private/src/TransferFunction.hpp`) 
 - **THEN** it queries a UIState object's `TransferFunction` methods, and no audio-thread DSP class is reachable through the `TransferFunction` interface
 
 ### Requirement: Derived UI Snapshots Populated on the Control Thread
-The system SHALL populate aggregated visualization state in `PopulateUIState(...)` methods executed on the control thread, never the audio thread, writing into atomic UIState fields that the JUCE thread reads directly. Current producers include `QuadDelay::PopulateUIState` (per-channel min/max envelope buckets remapped against the master-loop position plus relative read/write head positions), `AudioBufferBank`/`SampleSource` UIState (waveform min/max buckets, read-head position, and active start/length window), and `PartialMachine::PopulateUIState` (the tracked spectral atom list and frequency-dependent transfer functions).
+The system SHALL populate aggregated visualization state in `PopulateUIState(...)` methods executed on the audio thread once per process frame (`ProcessFrame`, every `x_samplesPerProcessFrame` engine samples), writing into atomic UIState fields that the JUCE thread reads directly. Current producers include `QuadDelay::PopulateUIState` (per-channel min/max envelope buckets remapped against the master-loop position plus relative read/write head positions), `AudioBufferBank`/`SampleSource` UIState (waveform min/max buckets, read-head position, and active start/length window), and `PartialMachine::PopulateUIState` (the tracked spectral atom list and frequency-dependent transfer functions).
 
 #### Scenario: Delay envelope view reads snapshot slots
 - **WHEN** the quad delay envelope visualizer renders a frame

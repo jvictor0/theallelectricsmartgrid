@@ -137,12 +137,9 @@ struct SampleSourceGeneric : SampleSourceBase
         m_grainManager.m_audioBuffer = m_audioBufferBanks.IsEmpty() ? nullptr : &m_audioBufferBanks;
     }
 
-    // One sample at sampleIndex within the theory of time's sample buffer.
-    //
-    Vector Process(Input& input, int sampleIndex)
+    Vector Process(Input& input)
     {
         input.m_phasorPlayHeadInput.m_theoryOfTime = input.m_theoryOfTime;
-        input.m_phasorPlayHeadInput.m_sampleIndex = sampleIndex;
         TimeVector totalPhaseTime = m_phasorPlayHead.Process(input.m_phasorPlayHeadInput).template Convert<double>();
         Vector output = m_grainManager.Process(totalPhaseTime, Vector::Splat(0), input.m_grainManagerInput);
         for (size_t i = 0; i < Size; ++i)

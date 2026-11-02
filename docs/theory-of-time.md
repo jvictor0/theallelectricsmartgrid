@@ -36,7 +36,7 @@ loopCyclePosition = floorDiv(modulatedGlobalTickPosition, loopPeriodTicks)
 
 One gate step is one complete loop cycle. For global cycle ratios 1, 2, and 3, the global period is 6 ticks and the respective loop periods are 6, 3, and 2 ticks. Positions remain absolute in storage. `PhaseUtils::FloorDiv` and `FloorMod` use Euclidean arithmetic for negative positions.
 
-`GetLoopCyclePosition(loop, sample, resetLoop)` infers reset ancestry from the accepted periods. A reset is valid when its period is an integer multiple of the clock period, even if it is on another explicit parent path. Reset -1 or a non-divisible reset leaves the absolute position. For a valid reset:
+`GetLoopCyclePosition(loop, resetLoop)` infers reset ancestry from the accepted periods. A reset is valid when its period is an integer multiple of the clock period, even if it is on another explicit parent path. Reset -1 or a non-divisible reset leaves the absolute position. For a valid reset:
 
 ```
 cyclesPerReset = resetPeriodTicks / loopPeriodTicks
@@ -49,7 +49,7 @@ A self reset or a reset to another equal-period loop therefore always returns ze
 
 Every loop has a `TheoryOfTimeRhythm`: up to 16 gate values, an active size, and an optional reset loop. On that loop's modulated cycle crossing, its gate becomes `rhythm.gate[floorMod(loopCyclePosition, rhythm.size)]`. The default is size 2 with `[true, false]`: one complete cycle on, then one complete cycle off. This loop rhythm supplies the LameJuis time bit; each voice's index-arp rhythm is a separate pattern.
 
-`CrossedCycleBoundary` reports a change in the floor-divided cycle index in the requested domain, in either direction. `AnyTick(loop)` aggregates the loop's modulated crossings over the microblock. A tick remains an event when neighboring rhythm values are equal, a seek skips several steps, or self reset leaves the selected index at zero. Consumers receive at most one event per sample, without synthesized intermediate steps.
+`CrossedCycleBoundary` reports a change in the floor-divided cycle index in the requested domain, in either direction. `AnyTick(loop)` reports the loop's modulated crossing on the current sample. A tick remains an event when neighboring rhythm values are equal, a seek skips several steps, or self reset leaves the selected index at zero. Consumers receive at most one event per sample, without synthesized intermediate steps.
 
 Gate, size, and reset edits become audible only at the edited loop's next modulated tick. Between its ticks the gate holds, including when a faster loop ticks. A rhythm edit alone does not raise `m_anyChange`. Startup explicitly marks every loop as crossed and evaluates all rhythms; stopping forces all gates false.
 
@@ -59,7 +59,7 @@ A running topology edit accepts the requested parent and multiplier together onl
 
 For a running sample, processing derives positions, computes crossings, accepts eligible topology edits, remaps positions if the lattice changed, and finally evaluates gates for the loops whose crossing flags are set. Remapping preserves the events that admitted the edit and raises `m_anyChange`; the remap itself is not elapsed travel. Gate lookup uses the accepted topology and its reset ancestry. A stored reset whose period no longer divides in this way is ignored; it becomes effective again when the period relationship returns, at the loop's next tick. Explicit parent-path changes alone do not invalidate a compatible reset.
 
-Changing topology recomputes cycle ratios and lattice periods. Absolute child phase can change by whole cycles at an aligned edit. Periodic outputs agree at the mathematical boundary; coordinates remain direct functions of the new topology. Fractional sample queries interpolate global phase first, then apply the topology of their interval. They do not interpolate between differently mapped child coordinates.
+Changing topology recomputes cycle ratios and lattice periods. Absolute child phase can change by whole cycles at an aligned edit. Periodic outputs agree at the mathematical boundary; coordinates remain direct functions of the new topology. Queries apply the current sample's accepted topology to its global phase, so a child coordinate moves to its new mapping on the accepting sample without passing through intermediate values.
 
 Topology acceptance uses modulated boundaries. The phase-modulation LFO uses unmodulated phase, so those boundaries can differ under phase modulation; that existing distinction is preserved.
 
@@ -69,11 +69,13 @@ Wrld.Bldr's TheoryOfTimeRhythm mode pairs a left rhythm page with a right reset 
 
 The engine supports 16 rhythm slots. The grid edits slots 0 through 7 and sizes 1 through 8; StateSaver persists the size and reset plus gate slots 0 through 7. Persistence does not clamp an imported size to eight, and engine slots 8 through 15 have no saved gate entries. StateSaver keys are `TheoryOfTimeRhythm` (loop, step), `TheoryOfTimeRhythmSize` (loop), and `TheoryOfTimeRhythmReset` (loop). Loading a patch with missing rhythm keys preserves the current registered values, following the ordinary StateSaver policy; a fresh instance starts with the default rhythm. Controller mode ordinals are runtime state and require no patch migration.
 
-## Microblock snapshots
+## Current sample
 
-Each microblock has eight audio samples and one lookahead sample. `RolloverMicroblockBuffer` copies slot 8 to slot 0, then processing fills slots 1 through 8. Every slot contains its phases, positions, accepted loop topology, gates, and events. Queries take an explicit sample index; `GetPhase` also accepts fractional positions through 8 inclusive.
+`TheoryOfTimeBase` holds one `Sample`, `m_sample`, containing its phases, positions, accepted loop topology, gates, crossing events, running flag, and change flag. `Process` advances it in place by exactly one engine sample; crossings compare against the phases it held before the call. Queries take no sample index and read the current sample: `GetLoop`, `GetPhase`, `GetGlobalTickPosition`, `GetPeriodTicks`, `GetCycleRatio`, `CrossedCycleBoundary`, `GetLoopCyclePosition`, and `GetResetCycleCount`. `AnyChange()` reports position motion, startup, stop, or an accepted topology edit on the current sample; `AnyTick(loop)` reports the loop's modulated crossing on the current sample. The static `GetLoopCyclePosition(sample, loop, resetLoop)`, `GetLoopCyclePositionFromTicks`, and `GetResetCycleCount(loopPeriodTicks, resetPeriodTicks)` evaluate the same arithmetic from a given sample or from tick periods.
 
-When stopped, all phases and positions are zero and gates and crossing flags are false. Completing the stopped block also clears slot 0 while preserving the stop/topology-change notification. Accepted topology remains available for the next start.
+`TheoryOfTime::Process` runs once per engine sample. It advances the unmodulated phase by `m_freq` (or sets it to zero when stopped), evaluates the phase-modulation LFO from the previous sample's phases, advances the base sample, emits transport start and stop messages, emits a MIDI clock message on any sample where `Phasor2Tick` sees a division crossing, and writes the mono scope.
+
+When stopped, all phases and positions are zero and gates and crossing flags are false. The stop transition and any accepted stopped topology edit raise the change flag for that sample. Accepted topology remains available for the next start.
 
 ## Consumers
 

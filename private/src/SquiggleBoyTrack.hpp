@@ -56,20 +56,15 @@ struct SquiggleLFOGeneric
     Vector Process(Input& input)
     {
         input.m_polyXFaderInput.m_mult = input.m_mult.m_expParam;
-        input.m_polyXFaderInput.m_samplePosition = static_cast<float>(SampleTimer::GetUBlockIndex());
         m_polyXFader.Process(input.m_polyXFaderInput);
         m_output = m_polyXFader.m_rawOutput;
 
         for (size_t i = 0; i < Size; ++i)
         {
-            if (SampleTimer::IsControlFrame())
-            {
-                m_scopeWriter[i].Write(m_polyXFader.m_output[i]);
-            }
-
+            m_scopeWriter[i].Write(m_polyXFader.m_output[i]);
             if (m_polyXFader.m_top[i])
             {
-                m_scopeWriter[i].RecordStart(m_polyXFader.m_top[i].GetControlPosition(SampleTimer::GetUBlockIndex()));
+                m_scopeWriter[i].RecordStart(m_polyXFader.m_top[i].m_offset);
             }
         }
 
@@ -184,12 +179,8 @@ struct SquiggleBoyTrackGeneric
             {
                 const AHD& modulationAHD = m_modulationAHD.m_channels[i];
                 const AHD& ahd = m_ahd.m_channels[i];
-                if (SampleTimer::IsControlFrame())
-                {
-                    m_modulationEnvelopeScopeWriter[i].Write(modulationAHD.m_output);
-                    m_ampEnvelopeScopeWriter[i].Write(ahd.m_output);
-                }
-
+                m_modulationEnvelopeScopeWriter[i].Write(modulationAHD.m_output);
+                m_ampEnvelopeScopeWriter[i].Write(ahd.m_output);
                 if (modulationAHD.m_triggered)
                 {
                     m_modulationEnvelopeScopeWriter[i].RecordStart();
@@ -246,10 +237,7 @@ struct SquiggleBoyTrackGeneric
 
             // AHD::Process now applies amplitude and polarity internally
             //
-            float samplePosition = static_cast<float>(SampleTimer::GetUBlockIndex());
-            input.m_modulationAHDInput.SetSamplePosition(samplePosition);
             m_modulationAHD.Process(input.m_modulationAHDInput);
-            input.m_ahdInput.SetSamplePosition(samplePosition);
             Vector ahdEnv = PhaseUtils::ZeroedExpParamGeneric<float, Size>::Compute(10.0f, m_ahd.Process(input.m_ahdInput));
 
             constexpr float x_slewTimeToCycles = static_cast<float>(SampleTimer::HzToCycPerSamp(1.0 / (2.0 * M_PI)));

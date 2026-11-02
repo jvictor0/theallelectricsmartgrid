@@ -317,10 +317,7 @@ struct SquiggleBoy
             }
         }
 
-        if (SampleTimer::IsControlFrame())
-        {
-            m_sourceMixer.ProcessUBlock(m_sourceMixerState);
-        }
+        m_sourceMixer.Process(m_sourceMixerState);
 
         for (size_t track = 0; track < x_numTracks; ++track)
         {
@@ -381,8 +378,7 @@ struct SquiggleBoy
         m_mixer.ProcessInputs(m_mixerState);
         if (m_mixer.m_recordingFrameActive && m_theoryOfTime != nullptr)
         {
-            const auto& time = m_theoryOfTime->m_samples[SampleTimer::GetUBlockIndex()];
-            m_mixer.m_recorder->SubmitParameter(0, time.m_unmodulatedPhase);
+            m_mixer.m_recorder->SubmitParameter(0, m_theoryOfTime->m_sample.m_unmodulatedPhase);
             m_mixer.m_recorder->SubmitTransport(transportRunning);
         }
 
@@ -721,12 +717,12 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         UIState()
             : m_audioScopeWriter(x_numVoices, static_cast<size_t>(SmartGridOne::AudioScopes::NumScopes))
-            , m_controlScopeWriter(x_numVoices, static_cast<size_t>(SmartGridOne::ControlScopes::NumScopes))
+            , m_controlScopeWriter(x_numVoices, static_cast<size_t>(SmartGridOne::ControlScopes::NumScopes), ScopeWriter::x_controlDecimation)
             , m_quadScopeWriter(4, static_cast<size_t>(SmartGridOne::QuadScopes::NumScopes))
-            , m_quadControlScopeWriter(4, static_cast<size_t>(SmartGridOne::QuadControlScopes::NumScopes))
-            , m_globalControlScopeWriter(1, static_cast<size_t>(SmartGridOne::GlobalControlScopes::NumScopes))
+            , m_quadControlScopeWriter(4, static_cast<size_t>(SmartGridOne::QuadControlScopes::NumScopes), ScopeWriter::x_controlDecimation)
+            , m_globalControlScopeWriter(1, static_cast<size_t>(SmartGridOne::GlobalControlScopes::NumScopes), ScopeWriter::x_controlDecimation)
             , m_sourceMixerScopeWriter(SourceMixer::x_numSources, static_cast<size_t>(SmartGridOne::SourceScopes::NumScopes))
-            , m_monoScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoScopes::NumScopes))
+            , m_monoScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoScopes::NumScopes), ScopeWriter::x_controlDecimation)
             , m_monoAudioScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoAudioScopes::NumScopes))
         {
             for (size_t i = 0; i < x_numVoices; ++i)
@@ -748,18 +744,15 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_sourceMixerScopeWriter.AdvanceIndex();
             m_monoAudioScopeWriter.AdvanceIndex();
 
-            if (SampleTimer::IsControlFrame())
+            if (m_controlScopeWriter.m_index == 0 && m_controlScopeWriter.IsWriteSample())
             {
-                if (m_controlScopeWriter.m_index == 0)
-                {
-                    m_firstControlSample.store(SampleTimer::GetSample());
-                }
-
-                m_controlScopeWriter.AdvanceIndex();
-                m_quadControlScopeWriter.AdvanceIndex();
-                m_globalControlScopeWriter.AdvanceIndex();
-                m_monoScopeWriter.AdvanceIndex();
+                m_firstControlSample.store(SampleTimer::GetSample());
             }
+
+            m_controlScopeWriter.AdvanceIndex();
+            m_quadControlScopeWriter.AdvanceIndex();
+            m_globalControlScopeWriter.AdvanceIndex();
+            m_monoScopeWriter.AdvanceIndex();
         }
     };
 
@@ -1165,13 +1158,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_returnSendGain[0][2].Update(m_encoders.GetValue(Param::DelayPartialMachineSend));
         m_mixerState.m_returnGain[0].Update(m_encoders.GetValue(Param::DelayReturn));
 
-        size_t delayLoopSampleIndex = static_cast<size_t>(std::round(SampleTimer::GetUBlockIndex()));
         for (int i = 0; i < 4; ++i)
         {
             float channelFrac = static_cast<float>(i) / 4.0f;
             bool delayLoopTop = m_theoryOfTime->CrossedCycleBoundary(
                 m_delayInputSetter.m_readTapeHead[i].m_loopSelector,
-                delayLoopSampleIndex,
                 PhaseDomain::Modulated).m_triggered;
 
             m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::QuadLFO1Skew, i);

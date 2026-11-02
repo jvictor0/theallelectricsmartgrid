@@ -1,7 +1,7 @@
 # I/O Task Thread Specification
 
 ## Purpose
-The I/O task thread (`private/src/IOTaskThread.hpp`) centralizes all file-system work — sample directory browsing, sample bank loading and reloading, recording persistence, and deferred deletion of retired banks — on a dedicated background worker so that file I/O never occurs on the realtime audio thread. Producers push `IoTaskElement` tasks into a bounded queue; the worker processes them against the configured absolute sample root and pushes completed tasks to an acknowledgment queue, which the audio side drains once per control frame to install results atomically. Sampler-looper-recording uses this capability for the disk half of its workflow, and the sample source machines (see source-machine-oscillators) consume the installed `AudioBufferBank`s.
+The I/O task thread (`private/src/IOTaskThread.hpp`) centralizes all file-system work — sample directory browsing, sample bank loading and reloading, recording persistence, and deferred deletion of retired banks — on a dedicated background worker so that file I/O never occurs on the realtime audio thread. Producers push `IoTaskElement` tasks into a bounded queue; the worker processes them against the configured absolute sample root and pushes completed tasks to an acknowledgment queue, which the audio side drains once per process frame (every `SampleTimer::x_samplesPerProcessFrame` engine samples) to install results atomically. Sampler-looper-recording uses this capability for the disk half of its workflow, and the sample source machines (see source-machine-oscillators) consume the installed `AudioBufferBank`s.
 
 ## Requirements
 
@@ -54,7 +54,7 @@ The system SHALL expose one producer method per task type: `PushDirectoryExplore
 - **THEN** the queued element records that bank so the worker can reuse its unchanged buffers
 
 ### Requirement: Frame-Synchronous Acknowledgment Installs Results
-The system SHALL apply task results only on the audio side via `Acknowledge()`, called once per audio control frame from `NonagonWrapper::ProcessFrame()`: it pops every completed task and, for bank-producing tasks (load, reload, persist-with-sink, explorer Yes), swaps the result `AudioBufferBank*` into the caller's sink pointer; for PersistRecording tasks it resets the destination voice's `RecordingBuffer` to Idle so it can be reused.
+The system SHALL apply task results only on the audio side via `Acknowledge()`, called once per process frame (every `SampleTimer::x_samplesPerProcessFrame`, 512, engine samples) from `NonagonWrapper::ProcessFrame()`: it pops every completed task and, for bank-producing tasks (load, reload, persist-with-sink, explorer Yes), swaps the result `AudioBufferBank*` into the caller's sink pointer; for PersistRecording tasks it resets the destination voice's `RecordingBuffer` to Idle so it can be reused.
 
 #### Scenario: Bank pointer swap on acknowledgment
 - **WHEN** a completed load task with result bank B and sink pointing at bank A is acknowledged

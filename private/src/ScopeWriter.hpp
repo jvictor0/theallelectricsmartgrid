@@ -5,11 +5,18 @@
 #include "Filter.hpp"
 #include "SampleEventHistory.hpp"
 
+// Stores one value per m_decimation engine samples. Callers write and record
+// events every sample; writes between stored samples are dropped and event
+// offsets are converted to fractional indices.
+//
 struct ScopeWriter
 {
     static constexpr size_t x_bufferSize = 32 * 1024 * 1024;
+    static constexpr size_t x_controlDecimation = 8;
     size_t m_voices;
     size_t m_scopes;
+    size_t m_decimation;
+    size_t m_subIndex;
 
     size_t m_index;
     std::atomic<size_t> m_publishedIndex;
@@ -29,8 +36,15 @@ struct ScopeWriter
     size_t m_advanceStartIndices[x_maxScopes][x_maxVoices];
 
     ScopeWriter(size_t voices, size_t scopes)
+        : ScopeWriter(voices, scopes, 1)
+    {
+    }
+
+    ScopeWriter(size_t voices, size_t scopes, size_t decimation)
         : m_voices(voices)
         , m_scopes(scopes)
+        , m_decimation(decimation)
+        , m_subIndex(0)
         , m_index(0)
         , m_publishedIndex(0)
     {
@@ -116,21 +130,31 @@ struct ScopeWriter
         }
     }
 
-    void Write(size_t scope, size_t voice, float value)
+    bool IsWriteSample() const
     {
-        Write(scope, voice, 0, value);
+        return m_subIndex == 0;
     }
 
-    void Write(size_t scope, size_t voice, size_t uBlockIndex, float value)
+    void Write(size_t scope, size_t voice, float value)
     {
-        PrepareWrite(m_index + uBlockIndex);
-        size_t index = GetPhysicalIndex(scope, voice, m_index + uBlockIndex);
+        if (!IsWriteSample())
+        {
+            return;
+        }
+
+        PrepareWrite(m_index);
+        size_t index = GetPhysicalIndex(scope, voice, m_index);
         m_buffer[index].store(value, std::memory_order_release);
     }
 
     void AdvanceIndex()
     {
-        ++m_index;
+        ++m_subIndex;
+        if (m_subIndex == m_decimation)
+        {
+            m_subIndex = 0;
+            ++m_index;
+        }
     }
 
     void Publish()
@@ -155,24 +179,24 @@ struct ScopeWriter
         RecordStart(scope, voice, 0);
     }
 
+    // sampleOffset is in engine samples relative to the current sample.
+    //
     void RecordStart(size_t scope, size_t voice, double sampleOffset)
     {
         size_t curStartIndex = m_startIndexIndex[scope][voice].load() + m_advanceStartIndices[scope][voice];
         curStartIndex %= x_numStartIndices;
-        m_startIndices[scope][voice][curStartIndex] = static_cast<double>(m_index) + sampleOffset;
+        m_startIndices[scope][voice][curStartIndex] = static_cast<double>(m_index)
+            + (static_cast<double>(m_subIndex) + sampleOffset) / static_cast<double>(m_decimation);
         m_advanceStartIndices[scope][voice] += 1;
     }
 
+    // An end between stored samples rounds up to the next stored sample.
+    //
     void RecordEnd(size_t scope, size_t voice)
-    {
-        RecordEnd(scope, voice, 0);
-    }
-
-    void RecordEnd(size_t scope, size_t voice, size_t uBlockIndex)
     {
         size_t curEndIndex = m_startIndexIndex[scope][voice].load() + m_advanceStartIndices[scope][voice] - 1;
         curEndIndex %= x_numStartIndices;
-        m_endIndices[scope][voice][curEndIndex] = m_index + uBlockIndex;
+        m_endIndices[scope][voice][curEndIndex] = m_index + (IsWriteSample() ? 0 : 1);
     }
 };
 
@@ -212,12 +236,9 @@ struct ScopeWriterHolder
         }
     }
 
-    void Write(size_t uBlockIndex, float value)
+    bool IsWriteSample() const
     {
-        if (m_scopeWriter)
-        {
-            m_scopeWriter->Write(m_scopeIx, m_voiceIx, uBlockIndex, value);
-        }
+        return m_scopeWriter && m_scopeWriter->IsWriteSample();
     }
 
     void Write(QuadFloat value)
@@ -260,14 +281,6 @@ struct ScopeWriterHolder
         if (m_scopeWriter)
         {
             m_scopeWriter->RecordEnd(m_scopeIx, m_voiceIx);
-        }
-    }
-
-    void RecordEnd(size_t uBlockIndex)
-    {
-        if (m_scopeWriter)
-        {
-            m_scopeWriter->RecordEnd(m_scopeIx, m_voiceIx, uBlockIndex);
         }
     }
 };

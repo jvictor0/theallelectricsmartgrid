@@ -33,7 +33,7 @@ DOCTEST_TEST_CASE("AHD: consumes simultaneous events once and accepts the next t
     input.m_decayIncrement = 0.125f;
     input.m_trig = true;
     input.m_release = true;
-    time.m_samples[0].m_modulatedPhase = 0.25;
+    time.m_sample.m_modulatedPhase = 0.25;
 
     DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.25f));
     DOCTEST_CHECK_FALSE(input.m_trig);
@@ -41,7 +41,7 @@ DOCTEST_TEST_CASE("AHD: consumes simultaneous events once and accepts the next t
     DOCTEST_CHECK(envelope.m_triggered);
     DOCTEST_CHECK(envelope.m_state == AHD::State::Running);
 
-    time.m_samples[0].m_modulatedPhase = 0.5;
+    time.m_sample.m_modulatedPhase = 0.5;
     DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.5f));
     DOCTEST_CHECK(envelope.m_startOutput == 0.0f);
     DOCTEST_CHECK_FALSE(envelope.m_triggered);
@@ -125,7 +125,7 @@ DOCTEST_TEST_CASE("AHD: release factor leaves phase-driven attack hold and decay
     const float x_outputs[] = {0.5f, 1.0f, 0.5f};
     for (size_t stage = 0; stage < 3; ++stage)
     {
-        time.m_samples[0].m_modulatedPhase = x_phases[stage];
+        time.m_sample.m_modulatedPhase = x_phases[stage];
         AHD base;
         AHD oversampled;
         base.m_state = AHD::State::Running;
@@ -176,10 +176,9 @@ struct AHDRig
         control.m_trig    = false;
         control.m_release = false;
 
-        // Prime a couple of control frames so the topology is settled.
+        // Prime a few samples so the topology is settled.
         //
-        rig.AdvanceControlFrame();
-        rig.AdvanceControlFrame();
+        rig.AdvanceSamples(16);
     }
 
     void SetAHD(float attack, float hold, float decay)
@@ -190,17 +189,16 @@ struct AHDRig
     void Trigger()
     {
         control.m_trig = true;
-        control.m_phaseRatio = static_cast<double>(rig.Get()->GetCycleRatio(m_sourceLoopIndex, 0));
+        control.m_phaseRatio = static_cast<double>(rig.Get()->GetCycleRatio(m_sourceLoopIndex));
         control.m_envelopePeriodSamples = m_envelopePeriodSamples;
         input.Set(control);
         control.m_trig = false; // one-shot: clear for next Set() calls
     }
 
-    // Process one sample, using the current SampleTimer uBlock index.
+    // Process one sample at the current theory of time sample.
     //
     float ProcessOneSample()
     {
-        input.m_samplePosition = static_cast<float>(rig.CurrentUBlockIndex());
         float out = ahd.Process(input);
         rig.AdvanceSample();
         return out;
@@ -447,7 +445,7 @@ DOCTEST_TEST_CASE("AHD: accepted multiplier change does not rescale a running en
     {
         r.input.Set(r.control);
         r.ProcessOneSample();
-        if (r.rig.Get()->GetCycleRatio(4, 0) == 4)
+        if (r.rig.Get()->GetCycleRatio(4) == 4)
         {
             accepted = true;
             break;

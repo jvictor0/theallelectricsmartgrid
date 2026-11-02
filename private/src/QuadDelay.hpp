@@ -279,12 +279,9 @@ struct QuadDelayInputSetter
 
     void Process(Input& input, QuadDelay::Input& delayInput, QuadDelay* delay)
     {
-        int totLoopSelectorSample = static_cast<int>(std::round(SampleTimer::GetUBlockIndex()));
-
         WriteTapeHead::Input writeInput;
         writeInput.m_theoryOfTime = input.m_theoryOfTime;
-        writeInput.m_sampleIndex = totLoopSelectorSample;
-        writeInput.m_running = input.m_theoryOfTime->m_samples[totLoopSelectorSample].m_running;
+        writeInput.m_running = input.m_theoryOfTime->m_sample.m_running;
         writeInput.m_globalPeriodSamples = input.m_theoryOfTime->m_globalPeriodSamples;
         m_writeTapeHead.Update(writeInput);
 
@@ -295,13 +292,12 @@ struct QuadDelayInputSetter
                 delayInput.m_writeHeadPosition,
                 writeHeadPosition, 
                 std::abs(writeHeadPosition - delayInput.m_writeHeadPosition));
-            INFO("time sample %d loop %d modulated %f unmodulated %f global %f ratio %lld",
-                totLoopSelectorSample,
+            INFO("time loop %d modulated %f unmodulated %f global %f ratio %lld",
                 m_readTapeHead[0].m_loopSelector,
-                input.m_theoryOfTime->GetPhase(m_readTapeHead[0].m_loopSelector, totLoopSelectorSample, PhaseDomain::Modulated),
-                input.m_theoryOfTime->GetPhase(m_readTapeHead[0].m_loopSelector, totLoopSelectorSample, PhaseDomain::Unmodulated),
-                input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, totLoopSelectorSample, PhaseDomain::Modulated),
-                static_cast<long long>(input.m_theoryOfTime->GetCycleRatio(m_readTapeHead[0].m_loopSelector, totLoopSelectorSample)));
+                input.m_theoryOfTime->GetPhase(m_readTapeHead[0].m_loopSelector, PhaseDomain::Modulated),
+                input.m_theoryOfTime->GetPhase(m_readTapeHead[0].m_loopSelector, PhaseDomain::Unmodulated),
+                input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated),
+                static_cast<long long>(input.m_theoryOfTime->GetCycleRatio(m_readTapeHead[0].m_loopSelector)));
         }
 
         delayInput.m_writeHeadPosition = writeHeadPosition;
@@ -315,7 +311,7 @@ struct QuadDelayInputSetter
             int totLoopSelector =
                 TheoryOfTimeBase::x_numLoops - input.m_loopSelectorSwitchVal[i] - 1;
 
-            if (input.m_theoryOfTime->CrossedCycleBoundary(m_readTapeHead[i].m_loopSelector, totLoopSelectorSample, PhaseDomain::Modulated))
+            if (input.m_theoryOfTime->CrossedCycleBoundary(m_readTapeHead[i].m_loopSelector, PhaseDomain::Modulated))
             {
                 float possibleBufferFracs[5] = {0.8, 2.0/3.0, 1.0, 3.0/4.0, 5.0/8.0};
                 m_bufferFrac[i] = possibleBufferFracs[input.m_delayTimeFactorSwitchVal[i]];
@@ -343,7 +339,6 @@ struct QuadDelayInputSetter
 
             ReadTapeHead::Input readInput;
             readInput.m_theoryOfTime = input.m_theoryOfTime;
-            readInput.m_sampleIndex = totLoopSelectorSample;
             readInput.m_bufferFraction = m_bufferFrac[i] * widen;
             readInput.m_readHeadSpeed = possibleReadHeadSpeeds[input.m_readHeadSpeedSwitchVal[i]];
             readInput.m_requestedLoopSelector = totLoopSelector;
@@ -395,8 +390,7 @@ struct QuadDelayInputSetter
 
         if (delay)
         {
-            size_t sampleIndex = static_cast<size_t>(std::round(SampleTimer::GetUBlockIndex())) % TheoryOfTimeBase::x_microBlockSize;
-            double phase = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, sampleIndex, PhaseDomain::Modulated);
+            double phase = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated);
             double x = phase - std::floor(phase);
             delay->m_positionalBufferRecorder.Record(x, delayInput.m_writeHeadPosition);
         }

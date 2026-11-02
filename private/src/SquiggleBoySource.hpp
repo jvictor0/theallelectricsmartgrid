@@ -112,7 +112,6 @@ struct SquiggleBoySourceGeneric
 
             case SourceMachine::PhysicalModeling:
             {
-                input.m_physicalModelingInput.m_ahdInput.SetSamplePosition(static_cast<float>(SampleTimer::GetUBlockIndex()));
                 m_output = m_physicalModeling.ProcessWithAHD(input.m_physicalModelingInput);
                 break;
             }
@@ -125,7 +124,7 @@ struct SquiggleBoySourceGeneric
                 }
 
                 input.m_sampleSourceInput.m_theoryOfTime = input.m_theoryOfTime;
-                m_output = m_sampleSource.Process(input.m_sampleSourceInput, SampleTimer::GetUBlockIndex());
+                m_output = m_sampleSource.Process(input.m_sampleSourceInput);
                 for (size_t i = 0; i < Size; ++i)
                 {
                     m_top[i] = m_sampleSource.m_top[i];
@@ -163,7 +162,7 @@ struct SquiggleBoySourceGeneric
         }
 
         size_t lane = assignment.m_channel == Channel::Right ? 1 : 0;
-        return input.m_sourceMixer->m_sources[assignment.m_sourceIndex].m_uBlockOutput[lane][SampleTimer::GetUBlockIndex()];
+        return input.m_sourceMixer->m_sources[assignment.m_sourceIndex].m_output[lane];
     }
 
     // Called from SetEncoderParameters to set source-specific encoder params.

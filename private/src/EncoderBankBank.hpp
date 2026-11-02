@@ -253,14 +253,6 @@ struct EncoderBankBank
         {
             SetBlendChanged(false);
         }
-
-        if (SampleTimer::IsControlFrame())
-        {
-            for (size_t i = 0; i < m_numBanks; ++i)
-            {
-                m_banks[i].ProcessTopology();
-            }
-        }
     }
 
     void HandleChangedSceneManager()
