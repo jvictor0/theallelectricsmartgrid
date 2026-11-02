@@ -392,7 +392,7 @@ DOCTEST_TEST_CASE("Trio: phasor play head channels match mono heads")
     TimeRig rig;
     rig.SetGlobalPeriodSamples(1024.0);
     rig.SetRunning(true);
-    rig.AdvanceControlFrame();
+    rig.AdvanceSamples(8);
 
     TrioPhasorPlayHead trio;
     PhasorPlayHead mono[3];
@@ -417,28 +417,23 @@ DOCTEST_TEST_CASE("Trio: phasor play head channels match mono heads")
 
     ChannelDifference position;
     double maxZeroLength = 0.0;
-    for (size_t frame = 0; frame < 300; ++frame)
+    for (size_t sample = 0; sample < 2400; ++sample)
     {
-        for (int sample = 0; sample < 8; ++sample)
+        TrioFloat trioPosition = trio.Process(trioInput);
+        for (size_t i = 0; i < 3; ++i)
         {
-            trioInput.m_sampleIndex = sample;
-            TrioFloat trioPosition = trio.Process(trioInput);
-            for (size_t i = 0; i < 3; ++i)
+            float monoPosition = mono[i].Process(monoInput[i]);
+            if (length[i] > 0.0f)
             {
-                monoInput[i].m_sampleIndex = sample;
-                float monoPosition = mono[i].Process(monoInput[i]);
-                if (length[i] > 0.0f)
-                {
-                    position.Add(i, trioPosition[i], monoPosition);
-                }
-                else
-                {
-                    maxZeroLength = std::max(maxZeroLength, std::abs(static_cast<double>(trioPosition[i])) + std::abs(monoPosition));
-                }
+                position.Add(i, trioPosition[i], monoPosition);
+            }
+            else
+            {
+                maxZeroLength = std::max(maxZeroLength, std::abs(static_cast<double>(trioPosition[i])) + std::abs(monoPosition));
             }
         }
 
-        rig.AdvanceControlFrame();
+        rig.AdvanceSample();
     }
 
     for (size_t i = 0; i < 2; ++i)
@@ -457,7 +452,7 @@ DOCTEST_TEST_CASE("Trio: sample source channels match mono cores with their own 
     TimeRig rig;
     rig.SetGlobalPeriodSamples(4096.0);
     rig.SetRunning(true);
-    rig.AdvanceControlFrame();
+    rig.AdvanceSamples(8);
 
     std::shared_ptr<AudioBufferBank> banks[3] = {
         MakeSineBank(16384, 0.01),
@@ -492,19 +487,16 @@ DOCTEST_TEST_CASE("Trio: sample source channels match mono cores with their own 
     }
 
     ChannelDifference output;
-    for (size_t frame = 0; frame < 1500; ++frame)
+    for (size_t sample = 0; sample < 12000; ++sample)
     {
-        for (int sample = 0; sample < 8; ++sample)
+        TrioFloat trioOutput = trio->Process(trioInput);
+        for (size_t i = 0; i < 3; ++i)
         {
-            TrioFloat trioOutput = trio->Process(trioInput, sample);
-            for (size_t i = 0; i < 3; ++i)
-            {
-                output.Add(i, trioOutput[i], mono[i]->Process(monoInput[i], sample)[0]);
-                DOCTEST_REQUIRE(trio->m_top[i].m_triggered == mono[i]->m_top[0].m_triggered);
-            }
+            output.Add(i, trioOutput[i], mono[i]->Process(monoInput[i])[0]);
+            DOCTEST_REQUIRE(trio->m_top[i].m_triggered == mono[i]->m_top[0].m_triggered);
         }
 
-        rig.AdvanceControlFrame();
+        rig.AdvanceSample();
     }
 
     output.Check(1e-5);

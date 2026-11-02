@@ -1190,13 +1190,11 @@ struct EncoderBankInternal : public EncoderGrid
     SmartGridOneContext* m_context;
     BankedEncoderCell* m_baseCell[4][4];
     BankedEncoderCell* m_selected;
-    size_t m_activeEncoderPrefix;
     BankedEncoderCell::SharedEncoderState m_sharedEncoderState;
 
     EncoderBankInternal()
         : m_context(nullptr)
         , m_selected(nullptr)
-        , m_activeEncoderPrefix(0)
     {
     }
 
@@ -1348,23 +1346,6 @@ struct EncoderBankInternal : public EncoderGrid
     void HandleChangedSceneManagerScene()
     {
         SetAllModulatorsAffecting();
-    }
-
-    void ProcessTopology()
-    {
-        m_activeEncoderPrefix = 0;
-
-        for (int i = 0; i < 4; ++i)
-        {
-            for (int j = 0; j < 4; ++j)
-            {
-                BankedEncoderCell* cell = GetBase(i, j);
-                if (cell && cell->m_connected)
-                {
-                    m_activeEncoderPrefix = i * 4 + j + 1;
-                }
-            }
-        }
     }
 
     std::pair<int, int> ModulatorIndexToXY(int index)

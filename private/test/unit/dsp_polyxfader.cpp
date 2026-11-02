@@ -14,9 +14,9 @@ struct PolyXFaderSlewRig
     PolyXFaderSlewRig()
     {
         m_time.m_globalPeriodSamples = 48000.0;
-        m_time.m_samples[0].m_unmodulatedPhase = 0.25;
-        m_time.m_samples[0].m_loops[0].m_input.m_parentMult = 3;
-        TheoryOfTimeBase::SetLoopPeriods(m_time.m_samples[0]);
+        m_time.m_sample.m_unmodulatedPhase = 0.25;
+        m_time.m_sample.m_loops[0].m_input.m_parentMult = 3;
+        TheoryOfTimeBase::SetLoopPeriods(m_time.m_sample);
         m_input.m_theoryOfTime = &m_time;
         m_input.m_phaseDomain = PhaseDomain::Unmodulated;
         m_input.m_phaseShift = -0.75f;
@@ -50,7 +50,7 @@ DOCTEST_TEST_CASE("PolyXFader: shaped mix slews at the fastest active frequency 
     // Isolate mixed-waveform slew and capture from the S&H slew.
     //
     rig.m_fader.m_shSlew.m_alpha = 1.0f;
-    rig.m_time.m_samples[0].m_unmodulatedPhase = 0.0625;
+    rig.m_time.m_sample.m_unmodulatedPhase = 0.0625;
     rig.m_input.m_shape = 0.0f;
     rig.m_input.m_externalWeights[0] = 0.5f;
     rig.m_input.m_externalWeights[1] = 1.5f;
@@ -87,7 +87,7 @@ DOCTEST_TEST_CASE("PolyXFader: zero-weight components are skipped and excluded f
     DOCTEST_CHECK(rig.m_fader.m_values[0] == 1.0f);
     DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(expected).epsilon(0.0001));
 
-    rig.m_time.m_samples[0].m_unmodulatedPhase = 0.0;
+    rig.m_time.m_sample.m_unmodulatedPhase = 0.0;
     rig.Process(1);
     expected *= PolyXFaderSlewRig::Decay(48.0, 1);
     DOCTEST_CHECK(rig.m_fader.m_values[0] == 0.0f);
@@ -98,10 +98,10 @@ DOCTEST_TEST_CASE("PolyXFader: zero-weight components are skipped and excluded f
 DOCTEST_TEST_CASE("PolyXFader: a later component with a small nonzero weight determines the maximum cutoff")
 {
     PolyXFaderSlewRig rig;
-    rig.m_time.m_samples[0].m_loops[0].m_input.m_parentIndex = TheoryOfTimeBase::x_globalLoop;
-    rig.m_time.m_samples[0].m_loops[0].m_input.m_parentMult = 1;
-    rig.m_time.m_samples[0].m_loops[1].m_input.m_parentMult = 3;
-    TheoryOfTimeBase::SetLoopPeriods(rig.m_time.m_samples[0]);
+    rig.m_time.m_sample.m_loops[0].m_input.m_parentIndex = TheoryOfTimeBase::x_globalLoop;
+    rig.m_time.m_sample.m_loops[0].m_input.m_parentMult = 1;
+    rig.m_time.m_sample.m_loops[1].m_input.m_parentMult = 3;
+    TheoryOfTimeBase::SetLoopPeriods(rig.m_time.m_sample);
     rig.m_input.m_center = 0.13f;
     rig.Process(128);
 
@@ -116,9 +116,9 @@ DOCTEST_TEST_CASE("PolyXFader: multiplier and tempo changes retune slew without 
     PolyXFaderSlewRig rig;
     rig.m_input.m_size = 1;
     rig.m_input.m_mult = 1.0f;
-    rig.m_time.m_samples[0].m_loops[0].m_input.m_parentMult = 1;
-    TheoryOfTimeBase::SetLoopPeriods(rig.m_time.m_samples[0]);
-    rig.m_time.m_samples[0].m_unmodulatedPhase = 0.5;
+    rig.m_time.m_sample.m_loops[0].m_input.m_parentMult = 1;
+    TheoryOfTimeBase::SetLoopPeriods(rig.m_time.m_sample);
+    rig.m_time.m_sample.m_unmodulatedPhase = 0.5;
     rig.Process(128);
     double expected = 1.0 - PolyXFaderSlewRig::Decay(8.0, 128);
     DOCTEST_REQUIRE(rig.m_fader.m_rawOutput == doctest::Approx(expected).epsilon(0.0001));
@@ -147,9 +147,9 @@ DOCTEST_TEST_CASE("PolyXFader: skew changes are smoothed after waveform shaping"
     rig.m_input.m_size = 1;
     rig.m_input.m_mult = 1.0f;
     rig.m_input.m_shape = 0.0f;
-    rig.m_time.m_samples[0].m_unmodulatedPhase = 0.125;
-    rig.m_time.m_samples[0].m_loops[0].m_input.m_parentMult = 1;
-    TheoryOfTimeBase::SetLoopPeriods(rig.m_time.m_samples[0]);
+    rig.m_time.m_sample.m_unmodulatedPhase = 0.125;
+    rig.m_time.m_sample.m_loops[0].m_input.m_parentMult = 1;
+    TheoryOfTimeBase::SetLoopPeriods(rig.m_time.m_sample);
     rig.Process(128);
     double expected = 0.25 * (1.0 - PolyXFaderSlewRig::Decay(8.0, 128));
     DOCTEST_REQUIRE(rig.m_fader.m_rawOutput == doctest::Approx(expected).epsilon(0.0001));
@@ -165,19 +165,15 @@ DOCTEST_TEST_CASE("PolyXFader: cutoff uses the waveform interval topology and no
 {
     PolyXFaderSlewRig rig;
     rig.m_input.m_size = 1;
-    rig.m_input.m_samplePosition = 1.75f;
-    rig.m_time.m_samples[1] = rig.m_time.m_samples[0];
-    rig.m_time.m_samples[2] = rig.m_time.m_samples[0];
-    rig.m_time.m_samples[2].m_loops[0].m_input.m_parentMult = 9;
-    TheoryOfTimeBase::SetLoopPeriods(rig.m_time.m_samples[2]);
-    rig.m_time.m_samples[1].m_modulatedPhase = 10.0;
-    rig.m_time.m_samples[2].m_modulatedPhase = -10.0;
+    rig.m_time.m_sample.m_modulatedPhase = 10.0;
     rig.Process(128);
 
     double expected = 1.0 - PolyXFaderSlewRig::Decay(48.0, 128);
     DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(expected).epsilon(0.0001));
 
-    rig.m_input.m_samplePosition = 2.0f;
+    rig.m_time.m_sample.m_loops[0].m_input.m_parentMult = 9;
+    TheoryOfTimeBase::SetLoopPeriods(rig.m_time.m_sample);
+    rig.m_time.m_sample.m_modulatedPhase = -10.0;
     rig.Process(1);
     expected = 1.0 + (expected - 1.0) * PolyXFaderSlewRig::Decay(144.0, 1);
     DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(expected).epsilon(0.0001));
@@ -193,8 +189,8 @@ DOCTEST_TEST_CASE("PolyXFader: time-warp mix cutoff follows the global clock fre
     input.m_phaseModLFOInput.m_center = 1.0f;
     input.m_phaseModLFOInput.m_shape = 0.0f;
     input.m_phaseModLFOInput.m_attackFrac = 0.5f;
-    time.m_samples[0].m_unmodulatedPhase = 0.1;
-    time.Process(1, input);
+    time.m_sample.m_unmodulatedPhase = 0.1;
+    time.Process(input);
 
     double expected = 0.5 * (1.0 - PolyXFaderSlewRig::Decay(20.0, 1));
     DOCTEST_CHECK(time.m_phaseModLFO.m_rawOutput == doctest::Approx(expected).epsilon(0.0001));
@@ -214,7 +210,7 @@ DOCTEST_TEST_CASE("PolyXFader: zero frequency holds state and high cutoffs stay 
 
     rig.m_input.m_mult = 1.0f;
     rig.m_time.m_globalPeriodSamples = 48000.0;
-    rig.m_time.m_samples[0].m_unmodulatedPhase = 0.0;
+    rig.m_time.m_sample.m_unmodulatedPhase = 0.0;
     rig.Process(128);
     double expected = PolyXFaderSlewRig::Decay(24.0, 128);
     DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(expected).epsilon(0.0001));

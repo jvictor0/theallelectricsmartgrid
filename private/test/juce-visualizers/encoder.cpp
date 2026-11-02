@@ -11,6 +11,14 @@ namespace
 using Mode = SmartGridOne::EncoderBankMode;
 using Type = SmartGrid::EncoderType;
 
+void AdvanceControlIndex(ScopeWriter& writer)
+{
+    for (size_t i = 0; i < writer.m_decimation; ++i)
+    {
+        writer.AdvanceIndex();
+    }
+}
+
 struct RepaintCounter : juce::CachedComponentImage
 {
     int m_invalidations = 0;
@@ -475,7 +483,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: longest axis hosts the normalized mi
             ui->m_nonagonUIState.m_muted[voice].store(false);
         }
 
-        scope.AdvanceIndex();
+        AdvanceControlIndex(scope);
     }
 
     scope.Publish();
@@ -633,7 +641,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: random time axes keep other sources 
     for (size_t sample = 0; sample < 4; ++sample)
     {
         state.m_quadControlScopeWriter.Write(4, 0, 0.4f);
-        state.m_quadControlScopeWriter.AdvanceIndex();
+        AdvanceControlIndex(state.m_quadControlScopeWriter);
     }
 
     state.m_quadControlScopeWriter.Publish();

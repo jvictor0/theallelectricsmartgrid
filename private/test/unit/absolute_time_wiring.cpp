@@ -22,13 +22,9 @@ TheoryOfTimeBase::Input FlatClock(double phase)
     return clock;
 }
 
-void FillClock(TheoryOfTimeBase& time, TheoryOfTimeBase::Input& clock, double increment)
+void Step(TheoryOfTimeBase& time, const TheoryOfTimeBase::Input& clock)
 {
-    for (size_t j = 1; j <= TheoryOfTimeBase::x_microBlockSize; ++j)
-    {
-        clock.m_unmodulatedPhase += increment;
-        time.Process(j, clock);
-    }
+    time.Process(clock);
 }
 
 }
@@ -41,8 +37,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: Nonagon wires source ratio separately from voic
     auto clock = FlatClock(1.25);
     clock.m_input[0].m_parentMult = 7;
     clock.m_input[4].m_parentMult = 3;
-    FillClock(nonagon->m_theoryOfTime, clock, 0.0);
-    nonagon->m_theoryOfTime.RolloverMicroblockBuffer();
+    Step(nonagon->m_theoryOfTime, clock);
     nonagon->m_theoryOfTime.m_globalPeriodSamples = 18000.0;
     for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
     {
@@ -74,8 +69,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: Nonagon wires source ratio separately from voic
     envelope.Process(envelopeInput);
     envelopeInput.m_trig = false;
     clock.m_unmodulatedPhase = 1.375;
-    FillClock(nonagon->m_theoryOfTime, clock, 0.0);
-    nonagon->m_theoryOfTime.RolloverMicroblockBuffer();
+    Step(nonagon->m_theoryOfTime, clock);
     DOCTEST_CHECK(envelope.Process(envelopeInput) == doctest::Approx(0.525));
 }
 
@@ -85,8 +79,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: physical-model hold scales with captured period
     {
         TheoryOfTimeBase time;
         auto clock = FlatClock(1.0);
-        FillClock(time, clock, 0.0);
-        time.RolloverMicroblockBuffer();
+        Step(time, clock);
         PhysicalModelingSource::Envelope::InputSetter setter(0.0001f, 2.5f, 0.0005f, 2.5f);
         PhysicalModelingSource::Input sourceInput;
         setter.Set(0.0f, 1.0f, 0.5f, 1.0f, false, sourceInput.m_ahdInput);
@@ -106,70 +99,65 @@ DOCTEST_TEST_CASE("AbsoluteTime: physical-model hold scales with captured period
         double holdSamples = 16.0 * period;
         double decaySamples = 1.0 / input.m_decayIncrement;
         clock.m_unmodulatedPhase = 1.0 + (attackSamples + holdSamples - 1.0) / period;
-        FillClock(time, clock, 0.0);
-        time.RolloverMicroblockBuffer();
+        Step(time, clock);
         envelope.Process(input);
         DOCTEST_CHECK(envelope.m_rawOutput == doctest::Approx(1.0));
         clock.m_unmodulatedPhase = 1.0 + (attackSamples + holdSamples + 0.5 * decaySamples) / period;
-        FillClock(time, clock, 0.0);
-        time.RolloverMicroblockBuffer();
+        Step(time, clock);
         envelope.Process(input);
         DOCTEST_CHECK(envelope.m_rawOutput == doctest::Approx(0.5).epsilon(0.01));
     }
 }
 
-DOCTEST_TEST_CASE("AbsoluteTime: delay setter follows per-sample phase through rollover and tempo glue")
+DOCTEST_TEST_CASE("AbsoluteTime: delay setter follows per-sample phase and tempo glue")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTime time;
     auto clock = FlatClock(100.0);
-    FillClock(time, clock, 0.0);
-    time.RolloverMicroblockBuffer();
+    Step(time, clock);
     time.m_globalPeriodSamples = 64.0;
     QuadDelayInputSetter setter;
     QuadDelayInputSetter::Input input;
     QuadDelay::Input output;
     input.m_theoryOfTime = &time;
     input.m_readHeadSpeedSwitchVal[1] = 6;
-    for (size_t block = 0; block < 2; ++block)
+    for (size_t sample = 0; sample < 16; ++sample)
     {
-        FillClock(time, clock, 1.0 / 64.0);
-        for (size_t j = 0; j < TheoryOfTimeBase::x_microBlockSize; ++j)
+        SampleTimer::s_instance->m_sample = sample;
+        setter.Process(input, output, nullptr);
+        DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(sample));
+        DOCTEST_CHECK(output.m_relativeWriteHeadPosition >= 0.0f);
+        DOCTEST_CHECK(output.m_relativeWriteHeadPosition < 1.0f);
+        double top = output.m_writeHeadPosition - Resynthesizer::GetGrainLaunchSamples();
+        for (size_t channel = 0; channel < 4; ++channel)
         {
-            SampleTimer::s_instance->m_sample = block * 8 + j;
-            setter.Process(input, output, nullptr);
-            DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(block * 8 + j));
-            DOCTEST_CHECK(output.m_relativeWriteHeadPosition >= 0.0f);
-            DOCTEST_CHECK(output.m_relativeWriteHeadPosition < 1.0f);
-            double top = output.m_writeHeadPosition - Resynthesizer::GetGrainLaunchSamples();
-            for (size_t channel = 0; channel < 4; ++channel)
-            {
-                DOCTEST_CHECK(output.m_readHeadPosition[channel] >= top - 64.0);
-                DOCTEST_CHECK(output.m_readHeadPosition[channel] < top);
-                DOCTEST_CHECK(output.m_relativeReadHeadPosition[channel] >= 0.0f);
-                DOCTEST_CHECK(output.m_relativeReadHeadPosition[channel] < 1.0f);
-            }
+            DOCTEST_CHECK(output.m_readHeadPosition[channel] >= top - 64.0);
+            DOCTEST_CHECK(output.m_readHeadPosition[channel] < top);
+            DOCTEST_CHECK(output.m_relativeReadHeadPosition[channel] >= 0.0f);
+            DOCTEST_CHECK(output.m_relativeReadHeadPosition[channel] < 1.0f);
         }
 
-        time.RolloverMicroblockBuffer();
+        clock.m_unmodulatedPhase += 1.0 / 64.0;
+        Step(time, clock);
     }
 
     time.m_globalPeriodSamples = 128.0;
-    FillClock(time, clock, 1.0 / 128.0);
     SampleTimer::s_instance->m_sample = 16;
     setter.Process(input, output, nullptr);
     DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(15.0));
+    clock.m_unmodulatedPhase += 1.0 / 128.0;
+    Step(time, clock);
     SampleTimer::s_instance->m_sample = 17;
     setter.Process(input, output, nullptr);
     DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(16.0));
 
-    time.RolloverMicroblockBuffer();
     clock.m_running = false;
-    FillClock(time, clock, 0.0);
-    SampleTimer::s_instance->m_sample = 24;
+    Step(time, clock);
+    SampleTimer::s_instance->m_sample = 18;
     setter.Process(input, output, nullptr);
     DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(17.0));
-    SampleTimer::s_instance->m_sample = 25;
+    Step(time, clock);
+    SampleTimer::s_instance->m_sample = 19;
     setter.Process(input, output, nullptr);
     DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(18.0));
 }
@@ -182,8 +170,7 @@ DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and
     auto clock = FlatClock(0.1);
     clock.m_input[0].m_parentMult = 7;
     clock.m_input[4].m_parentMult = 3;
-    FillClock(nonagon->m_theoryOfTime, clock, 0.0);
-    nonagon->m_theoryOfTime.RolloverMicroblockBuffer();
+    Step(nonagon->m_theoryOfTime, clock);
     nonagon->m_theoryOfTime.m_globalPeriodSamples = 21000.0;
     for (size_t bit = 0; bit < TheNonagonInternal::x_numTimeBits; ++bit)
     {
@@ -215,14 +202,12 @@ DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and
     nonagon->SetMultiPhasorGateInputs(input);
     DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0) == 3);
     clock.m_unmodulatedPhase = 0.1 + 0.49 / 21.0;
-    FillClock(nonagon->m_theoryOfTime, clock, 0.0);
-    nonagon->m_theoryOfTime.RolloverMicroblockBuffer();
+    Step(nonagon->m_theoryOfTime, clock);
     nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
     DOCTEST_CHECK(nonagon->m_multiPhasorGate.m_gate[0]);
     DOCTEST_CHECK(nonagon->m_multiPhasorGate.m_ahdControl[0].m_envelopePeriodSamples == 1000.0);
     clock.m_unmodulatedPhase = 0.1 + 0.51 / 21.0;
-    FillClock(nonagon->m_theoryOfTime, clock, 0.0);
-    nonagon->m_theoryOfTime.RolloverMicroblockBuffer();
+    Step(nonagon->m_theoryOfTime, clock);
     nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
     DOCTEST_CHECK_FALSE(nonagon->m_multiPhasorGate.m_gate[0]);
 }
@@ -241,17 +226,14 @@ DOCTEST_TEST_CASE("WholeTick: Nonagon clocks and reads tick even when gate value
         nonagon->m_lameJuis.m_lanes[0].m_coMuteState.m_coMutes[bit] = bit != 5;
     }
 
-    FillClock(nonagon->m_theoryOfTime, clock, 0.0);
-    nonagon->m_theoryOfTime.RolloverMicroblockBuffer();
+    Step(nonagon->m_theoryOfTime, clock);
     clock.m_unmodulatedPhase = 0.5;
-    FillClock(nonagon->m_theoryOfTime, clock, 0.0);
-    nonagon->m_theoryOfTime.RolloverMicroblockBuffer();
+    Step(nonagon->m_theoryOfTime, clock);
     nonagon->SetIndexArpInputs(input);
     DOCTEST_CHECK_FALSE(input.m_arpInput.m_clocks[5]);
     DOCTEST_CHECK_FALSE(input.m_arpInput.m_input[0].m_read);
     clock.m_unmodulatedPhase = 1.1;
-    FillClock(nonagon->m_theoryOfTime, clock, 0.0);
-    nonagon->m_theoryOfTime.RolloverMicroblockBuffer();
+    Step(nonagon->m_theoryOfTime, clock);
     nonagon->SetIndexArpInputs(input);
     nonagon->SetLameJuisInput(input);
     DOCTEST_CHECK(input.m_lameJuisInput.m_inputBitInput[5].m_value);

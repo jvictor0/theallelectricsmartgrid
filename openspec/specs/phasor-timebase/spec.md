@@ -75,7 +75,7 @@ The system SHALL compute each loop's global cycle ratio as the product of its po
 - **THEN** the global period is 3 ticks and the faster loop period is 1 tick
 
 ### Requirement: Integer Position and Gate
-The system SHALL derive absolute signed 64-bit global tick position P by flooring global phase times the current global lattice period. A loop of period L SHALL have loop-cycle position FloorDiv(P,L), using Euclidean arithmetic. On each modulated cycle crossing, its gate SHALL be read from its configured rhythm at FloorMod(GetLoopCyclePosition(loop, sample, resetLoop), rhythmSize); between its crossings the gate SHALL hold. Crossing flags SHALL compare consecutive absolute phases in consistent lattice units before accepted topology edits. After accepting edits, the system SHALL remap positions, preserve those crossing flags, and evaluate gates using the accepted topology. A coordinate remap SHALL NOT create additional elapsed-travel events or rewrite previous coordinates.
+The system SHALL derive absolute signed 64-bit global tick position P by flooring global phase times the current global lattice period. A loop of period L SHALL have loop-cycle position FloorDiv(P,L), using Euclidean arithmetic. On each modulated cycle crossing, its gate SHALL be read from its configured rhythm at FloorMod(GetLoopCyclePosition(loop, resetLoop), rhythmSize); between its crossings the gate SHALL hold. Crossing flags SHALL compare consecutive absolute phases in consistent lattice units before accepted topology edits. After accepting edits, the system SHALL remap positions, preserve those crossing flags, and evaluate gates using the accepted topology. A coordinate remap SHALL NOT create additional elapsed-travel events or rewrite previous coordinates.
 
 #### Scenario: Negative whole-cycle index
 - **WHEN** P is -1, L is 8, reset is absent, and the default rhythm is evaluated
@@ -127,24 +127,25 @@ The system SHALL expose GetLoopCyclePosition instead of recursive monodromy reco
 - **WHEN** distinct loops have equal periods even on separate parent paths
 - **THEN** selecting either as the other's reset returns zero
 
-### Requirement: Microblock Buffer with Lookahead Sample
-The system SHALL retain nine sample slots for an eight-sample microblock and copy slot 8 to slot 0 on rollover. GetPhase SHALL interpolate absolute global phase before applying the interval's accepted loop ratio. For fractional positions in [j,j+1), it SHALL use j's topology; at j+1 it SHALL use j+1's topology. Slot 8 SHALL be queryable, and interpolation in [7,8] SHALL use both endpoints. No wrapped or differently mapped child coordinates SHALL be interpolated across a cycle or topology boundary.
+### Requirement: Single In-Place Current Sample
+The system SHALL keep exactly one current sample holding absolute phases, global tick positions, accepted loop topology, gates, crossing events, the running flag, and the any-change flag. Each `Process` call SHALL advance that sample in place by exactly one engine sample, computing crossings against the phases it held before the call. Queries SHALL take no sample index and SHALL report the current sample. AnyChange SHALL report position motion, startup, stop, or an accepted topology edit on the current sample, and AnyTick(loop) SHALL report that loop's modulated cycle crossing on the current sample. Child coordinates SHALL use the topology accepted on the current sample and SHALL NOT be interpolated between samples.
 
-#### Scenario: Ordinary wrap interpolation
-- **WHEN** global endpoint phases are 0.99 and 1.01
-- **THEN** the midpoint phase is 1.00 and a wrapped midpoint output is 0
+#### Scenario: One call advances one sample
+- **WHEN** the running timebase holds unmodulated global phase 0.99 and `Process` is called with unmodulated phase 1.01
+- **THEN** GetPhase(global, Unmodulated) returns 1.01 and CrossedCycleBoundary(global, Unmodulated) is set
+- **AND** a following call with phase 1.03 reports no global crossing
 
-#### Scenario: Topology edit does not sweep through discarded cycles
-- **WHEN** the loop ratio changes from 2 to 3 at global phase 10 at sample j+1
-- **THEN** queries before j+1 use ratio 2 and queries at j+1 use ratio 3
-- **AND** interpolation does not traverse child phases 20 through 30
+#### Scenario: Topology edit applies on the accepting sample
+- **WHEN** an accepted edit changes a loop's ratio from 2 to 3 on the sample at global phase 10
+- **THEN** the previous sample's loop phase used ratio 2 and the accepting sample's loop phase is 30
+- **AND** no query reports child phases between 20 and 30
 
-#### Scenario: Lookahead rollover
-- **WHEN** the microblock rolls over
-- **THEN** slot 8's absolute phases, coordinates, topology, and event state become slot 0's state
+#### Scenario: Change flags describe only the current sample
+- **WHEN** a sample reports AnyChange and the next running sample has the same modulated global tick position, no accepted topology edit, and no transport transition
+- **THEN** AnyChange is false on that next sample and AnyTick is false for every loop
 
 ### Requirement: Transport Start and Stop
-The system SHALL initialize deterministic absolute coordinates and explicit startup events when transport starts. Startup SHALL accept requested valid topology and emit the initial loop-cycle crossing events without inventing a wrapped previous position. On stop, phase, current and previous positions, gates, and motion outputs SHALL clear to zero/false while topology-derived periods remain available. Stopped multiplier edits SHALL recompute periods only when accepted topology changes; startup SHALL accept requested parent changes without waiting for motion. The any-change signal SHALL be raised for the stop transition or an observable stopped topology edit, and remain false for unchanged stopped frames.
+The system SHALL initialize deterministic absolute coordinates and explicit startup events when transport starts. Startup SHALL accept requested valid topology and emit the initial loop-cycle crossing events without inventing a wrapped previous position. On stop, phase, current and previous positions, gates, and motion outputs SHALL clear to zero/false while topology-derived periods remain available. Stopped multiplier edits SHALL recompute periods only when accepted topology changes; startup SHALL accept requested parent changes without waiting for motion. The any-change signal SHALL be raised for the stop transition or an observable stopped topology edit, and remain false for unchanged stopped samples.
 
 #### Scenario: First run
 - **WHEN** transport starts
@@ -210,7 +211,7 @@ The system SHALL accept `TheoryOfTime::Input::m_freq` as the already-selected ef
 - **THEN** the integration writes the clock synchronizer's frequency estimate into `TheoryOfTime::Input::m_freq`
 
 ### Requirement: Absolute Global Coordinates and Consistent Queries
-The system SHALL store absolute unmodulated and modulated global phases as doubles without wrapping or winding counters. Phase SHALL mean absolute cycles, position SHALL mean signed 64-bit common-lattice ticks, and cycle ratio SHALL mean loop cycles per global cycle. The public API SHALL use global, unmodulated, and modulated terminology, explicit loop/sample coordinates, and one phase query accepting a PhaseDomain enum. It SHALL remove direct/indirect and unwound aliases, Boolean phase-domain selectors, recursive MonodromyNumber, and duplicate multiplier conventions. Existing persisted parameter keys SHALL remain unchanged; the rhythm pages SHALL add only their documented StateSaver registrations.
+The system SHALL store absolute unmodulated and modulated global phases as doubles without wrapping or winding counters. Phase SHALL mean absolute cycles, position SHALL mean signed 64-bit common-lattice ticks, and cycle ratio SHALL mean loop cycles per global cycle. The public API SHALL use global, unmodulated, and modulated terminology, explicit loop indices on the current sample, and one phase query accepting a PhaseDomain enum. It SHALL remove direct/indirect and unwound aliases, Boolean phase-domain selectors, recursive MonodromyNumber, and duplicate multiplier conventions. Existing persisted parameter keys SHALL remain unchanged; the rhythm pages SHALL add only their documented StateSaver registrations.
 
 #### Scenario: Input preserves whole cycles
 - **WHEN** unmodulated phase is 12.75 and the offset is -0.5

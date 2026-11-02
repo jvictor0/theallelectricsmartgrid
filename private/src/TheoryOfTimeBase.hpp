@@ -42,8 +42,6 @@ struct TheoryOfTimeBase
 {
     static constexpr size_t x_numLoops = 6;
     static constexpr size_t x_globalLoop = x_numLoops - 1;
-    static constexpr size_t x_microBlockSize = SampleTimer::x_controlFrameRate;
-    static constexpr size_t x_microBlockBufferSize = x_microBlockSize + 1;
 
     struct Sample
     {
@@ -82,7 +80,7 @@ struct TheoryOfTimeBase
         }
     };
 
-    std::array<Sample, x_microBlockBufferSize> m_samples;
+    Sample m_sample;
     double m_globalPeriodSamples = 1.0;
 
     static int64_t ComputeGlobalTickPosition(double phase, int64_t globalPeriodTicks)
@@ -97,57 +95,39 @@ struct TheoryOfTimeBase
         return static_cast<int64_t>(globalTickPosition);
     }
 
-    void RolloverMicroblockBuffer()
-    {
-        m_samples[0] = m_samples[x_microBlockSize];
-    }
-
-    const TimeLoop& GetLoop(size_t loopIndex, size_t sampleIndex) const
-    {
-        assert(loopIndex < x_numLoops && sampleIndex < x_microBlockBufferSize);
-        return m_samples[sampleIndex].m_loops[loopIndex];
-    }
-
-    double GetPhase(size_t loopIndex, double samplePosition, PhaseDomain domain) const
+    const TimeLoop& GetLoop(size_t loopIndex) const
     {
         assert(loopIndex < x_numLoops);
-        assert(std::isfinite(samplePosition) && samplePosition >= 0.0 && samplePosition <= x_microBlockSize);
-        size_t first = static_cast<size_t>(std::floor(samplePosition));
-        size_t second = std::min(first + 1, x_microBlockSize);
-        const Sample& before = m_samples[first];
-        const Sample& after = m_samples[second];
-        double start = domain == PhaseDomain::Unmodulated ? before.m_unmodulatedPhase : before.m_modulatedPhase;
-        double end = domain == PhaseDomain::Unmodulated ? after.m_unmodulatedPhase : after.m_modulatedPhase;
-        double globalPhase = start + (end - start) * (samplePosition - static_cast<double>(first));
-
-        // Apply the interval's topology after interpolation so an edit cannot sweep
-        // through the integer cycles between two differently mapped loop phases.
-        //
-        return globalPhase * static_cast<double>(before.m_loops[loopIndex].m_cycleRatio);
+        return m_sample.m_loops[loopIndex];
     }
 
-    int64_t GetGlobalTickPosition(size_t sampleIndex, PhaseDomain domain) const
+    double GetPhase(size_t loopIndex, PhaseDomain domain) const
     {
-        assert(sampleIndex < x_microBlockBufferSize);
-        const Sample& sample = m_samples[sampleIndex];
+        assert(loopIndex < x_numLoops);
+        double globalPhase = domain == PhaseDomain::Unmodulated ? m_sample.m_unmodulatedPhase : m_sample.m_modulatedPhase;
+        return globalPhase * static_cast<double>(m_sample.m_loops[loopIndex].m_cycleRatio);
+    }
+
+    int64_t GetGlobalTickPosition(PhaseDomain domain) const
+    {
         return domain == PhaseDomain::Unmodulated
-            ? sample.m_unmodulatedGlobalTickPosition
-            : sample.m_modulatedGlobalTickPosition;
+            ? m_sample.m_unmodulatedGlobalTickPosition
+            : m_sample.m_modulatedGlobalTickPosition;
     }
 
-    int64_t GetPeriodTicks(size_t loopIndex, size_t sampleIndex) const
+    int64_t GetPeriodTicks(size_t loopIndex) const
     {
-        return GetLoop(loopIndex, sampleIndex).m_periodTicks;
+        return GetLoop(loopIndex).m_periodTicks;
     }
 
-    int64_t GetCycleRatio(size_t loopIndex, size_t sampleIndex) const
+    int64_t GetCycleRatio(size_t loopIndex) const
     {
-        return GetLoop(loopIndex, sampleIndex).m_cycleRatio;
+        return GetLoop(loopIndex).m_cycleRatio;
     }
 
-    SampleTop CrossedCycleBoundary(size_t loopIndex, size_t sampleIndex, PhaseDomain domain) const
+    SampleTop CrossedCycleBoundary(size_t loopIndex, PhaseDomain domain) const
     {
-        const TimeLoop& loop = GetLoop(loopIndex, sampleIndex);
+        const TimeLoop& loop = GetLoop(loopIndex);
         return domain == PhaseDomain::Unmodulated ? loop.m_unmodulatedCycleCrossed : loop.m_modulatedCycleCrossed;
     }
 
@@ -158,10 +138,10 @@ struct TheoryOfTimeBase
         int64_t loopPeriodTicks = sample.m_loops[loopIndex].m_periodTicks;
         int64_t resetPeriodTicks = resetLoopIndex == -1 ? -1 : sample.m_loops[resetLoopIndex].m_periodTicks;
         int64_t globalTickPosition = sample.m_modulatedGlobalTickPosition;
-        return GetLoopCyclePosition(loopPeriodTicks, resetPeriodTicks, globalTickPosition);
+        return GetLoopCyclePositionFromTicks(loopPeriodTicks, resetPeriodTicks, globalTickPosition);
     }
 
-    static int64_t GetLoopCyclePosition(
+    static int64_t GetLoopCyclePositionFromTicks(
         int64_t loopPeriodTicks,
         int64_t resetPeriodTicks,
         int64_t globalTickPosition)
@@ -178,15 +158,14 @@ struct TheoryOfTimeBase
         }
     }
 
-    int64_t GetLoopCyclePosition(size_t loopIndex, size_t sampleIndex, int resetLoopIndex) const
+    int64_t GetLoopCyclePosition(size_t loopIndex, int resetLoopIndex) const
     {
-        assert(sampleIndex < x_microBlockBufferSize);
-        return GetLoopCyclePosition(m_samples[sampleIndex], loopIndex, resetLoopIndex);
+        return GetLoopCyclePosition(m_sample, loopIndex, resetLoopIndex);
     }
 
-    int64_t GetLoopCyclePosition(size_t loopIndex, size_t sampleIndex) const
+    int64_t GetLoopCyclePosition(size_t loopIndex) const
     {
-        return GetLoopCyclePosition(loopIndex, sampleIndex, -1);
+        return GetLoopCyclePosition(loopIndex, -1);
     }
 
     static int64_t GetResetCycleCount(int64_t loopPeriodTicks, int64_t resetPeriodTicks)
@@ -200,38 +179,22 @@ struct TheoryOfTimeBase
         return 0;
     }
 
-    int64_t GetResetCycleCount(size_t loopIndex, size_t sampleIndex, int resetLoopIndex) const
+    int64_t GetResetCycleCount(size_t loopIndex, int resetLoopIndex) const
     {
         assert(resetLoopIndex >= -1 && resetLoopIndex < static_cast<int>(x_numLoops));
         return GetResetCycleCount(
-            GetPeriodTicks(loopIndex, sampleIndex),
-            resetLoopIndex == -1 ? -1 : GetPeriodTicks(resetLoopIndex, sampleIndex));
+            GetPeriodTicks(loopIndex),
+            resetLoopIndex == -1 ? -1 : GetPeriodTicks(resetLoopIndex));
     }
 
-    bool AnyChangeInMicroBlock() const
+    bool AnyChange() const
     {
-        for (size_t j = 0; j < x_microBlockSize; ++j)
-        {
-            if (m_samples[j].m_anyChange)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return m_sample.m_anyChange;
     }
 
     bool AnyTick(size_t loopIndex) const
     {
-        for (size_t j = 0; j < x_microBlockSize; ++j)
-        {
-            if (GetLoop(loopIndex, j).m_modulatedCycleCrossed)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return GetLoop(loopIndex).m_modulatedCycleCrossed.m_triggered;
     }
 
     static void SetLoopPeriods(Sample& sample)
@@ -322,13 +285,13 @@ struct TheoryOfTimeBase
         }
     }
 
-    static void SetCrossings(Sample& sample, const Sample& previous, bool started)
+    static void SetCrossings(Sample& sample, double previousUnmodulatedPhase, double previousModulatedPhase, bool started)
     {
         int64_t globalPeriodTicks = sample.m_loops[x_globalLoop].m_periodTicks;
         int64_t previousUnmodulatedGlobalTickPosition =
-            ComputeGlobalTickPosition(previous.m_unmodulatedPhase, globalPeriodTicks);
+            ComputeGlobalTickPosition(previousUnmodulatedPhase, globalPeriodTicks);
         int64_t previousModulatedGlobalTickPosition =
-            ComputeGlobalTickPosition(previous.m_modulatedPhase, globalPeriodTicks);
+            ComputeGlobalTickPosition(previousModulatedPhase, globalPeriodTicks);
         sample.m_anyChange =
             started || sample.m_modulatedGlobalTickPosition != previousModulatedGlobalTickPosition;
         for (TimeLoop& loop : sample.m_loops)
@@ -340,17 +303,20 @@ struct TheoryOfTimeBase
                 PhaseUtils::FloorDiv(sample.m_unmodulatedGlobalTickPosition, loop.m_periodTicks)
                     != PhaseUtils::FloorDiv(previousUnmodulatedGlobalTickPosition, loop.m_periodTicks);
 
-            loop.m_modulatedCycleCrossed.InterpolatePhases(previous.m_modulatedPhase, sample.m_modulatedPhase, loop.m_cycleRatio, started);
-            loop.m_unmodulatedCycleCrossed.InterpolatePhases(previous.m_unmodulatedPhase, sample.m_unmodulatedPhase, loop.m_cycleRatio, started);
+            loop.m_modulatedCycleCrossed.InterpolatePhases(previousModulatedPhase, sample.m_modulatedPhase, loop.m_cycleRatio, started);
+            loop.m_unmodulatedCycleCrossed.InterpolatePhases(previousUnmodulatedPhase, sample.m_unmodulatedPhase, loop.m_cycleRatio, started);
         }
     }
 
-    void Process(size_t sampleIndex, const Input& input)
+    // Advances m_sample by one sample in place. Crossings compare against the
+    // previous phases, saved before they are overwritten.
+    //
+    void Process(const Input& input)
     {
-        assert(sampleIndex > 0 && sampleIndex < x_microBlockBufferSize);
-        const Sample& previous = m_samples[sampleIndex - 1];
-        Sample& sample = m_samples[sampleIndex];
-        sample = previous;
+        Sample& sample = m_sample;
+        bool wasRunning = sample.m_running;
+        double previousUnmodulatedPhase = sample.m_unmodulatedPhase;
+        double previousModulatedPhase = sample.m_modulatedPhase;
         sample.m_running = input.m_running;
 
         if (!input.m_running)
@@ -366,23 +332,11 @@ struct TheoryOfTimeBase
                 loop.m_unmodulatedCycleCrossed = false;
             }
 
-            sample.m_anyChange = previous.m_running || changed;
-            if (sampleIndex == x_microBlockSize)
-            {
-                bool anyChange = false;
-                for (size_t j = 1; j <= x_microBlockSize; ++j)
-                {
-                    anyChange = anyChange || m_samples[j].m_anyChange;
-                }
-
-                m_samples[0] = sample;
-                m_samples[0].m_anyChange = anyChange;
-            }
-
+            sample.m_anyChange = wasRunning || changed;
             return;
         }
 
-        bool started = !previous.m_running;
+        bool started = !wasRunning;
         if (started)
         {
             AcceptTopology(sample, input, false);
@@ -391,7 +345,7 @@ struct TheoryOfTimeBase
         sample.m_unmodulatedPhase = input.m_unmodulatedPhase;
         sample.m_modulatedPhase = input.m_unmodulatedPhase + input.m_phaseOffset;
         SetPositions(sample);
-        SetCrossings(sample, previous, started);
+        SetCrossings(sample, previousUnmodulatedPhase, previousModulatedPhase, started);
 
         if (!started && AcceptTopology(sample, input, true))
         {

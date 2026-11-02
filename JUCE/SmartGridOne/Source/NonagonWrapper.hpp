@@ -861,8 +861,8 @@ struct NonagonWrapper
                 bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = 0.0f;
             }
 
-            const bool controlFrame = SampleTimer::IncrementSample();
-            if (controlFrame)
+            const bool processFrame = SampleTimer::IncrementSample();
+            if (processFrame)
             {
                 ProcessFrame();
             }

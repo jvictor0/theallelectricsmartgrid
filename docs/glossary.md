@@ -20,7 +20,7 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 
 - **loop-cycle position** — Signed 64-bit whole-cycle coordinate returned by `GetLoopCyclePosition`: floor-divide the absolute modulated global tick position by the clock loop period. A reset whose period is divisible by the clock period is an inferred ancestor, even on another parent path, and reduces the position modulo that number of clock cycles. Self and equal-period resets return zero. No reset or a non-divisible reset leaves the absolute position. Earlier documentation called this the gate-step index or monodromy.
 
-- **tick** — A loop's modulated cycle-crossing event. `AnyTick` reports whether one occurred in a microblock, even when the loop gate stays at the same value or reset leaves the index unchanged.
+- **tick** — A loop's modulated cycle-crossing event. `AnyTick` reports whether one occurred on the current sample, even when the loop gate stays at the same value or reset leaves the index unchanged.
 
 - **loop rhythm** — Per-loop gate pattern evaluated at each tick and held between ticks. The default `[true, false]` spans two full cycles. The engine supports 16 slots; the current grid and StateSaver expose eight. It is separate from the per-voice index-arp rhythm.
 

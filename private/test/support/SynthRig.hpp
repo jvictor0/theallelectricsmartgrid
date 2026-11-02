@@ -196,8 +196,8 @@ public:
 
         for (std::size_t i = 0; i < n; ++i)
         {
-            const bool controlFrame = SampleTimer::IncrementSample();
-            if (controlFrame)
+            const bool processFrame = SampleTimer::IncrementSample();
+            if (processFrame)
             {
                 m_quad->ProcessFrame();
                 m_internal->ProcessFrame();
@@ -592,7 +592,7 @@ public:
     double GlobalPhase() const
     {
         return m_internal->m_nonagon.m_nonagon.m_theoryOfTime
-            .GetPhase(TheoryOfTimeBase::x_globalLoop, SampleTimer::GetUBlockIndex(), PhaseDomain::Modulated);
+            .GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated);
     }
 
     // Blend / scene observables.

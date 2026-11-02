@@ -535,7 +535,7 @@ DOCTEST_TEST_CASE("recording engine: UI and MIDI transport and unmodulated phase
         }
 
         rig.RunSamples(1);
-        const auto& sample = time.m_samples[SampleTimer::GetUBlockIndex()];
+        const auto& sample = time.m_sample;
         DOCTEST_REQUIRE(recorder.m_parameterStaging.size() == 1);
         DOCTEST_CHECK(RecordingDoubleCodec::Bits(recorder.m_parameterStaging[0])
             == RecordingDoubleCodec::Bits(sample.m_unmodulatedPhase));

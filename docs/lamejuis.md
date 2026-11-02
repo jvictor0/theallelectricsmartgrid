@@ -38,7 +38,7 @@ The **index arp** (`IndexArp`, used per voice inside `NonagonIndexArp`) turns th
 ### 3.1 Clock and reset
 
 - The performer chooses a **clock loop** and optionally a **reset loop** (any loop whose accepted period is divisible by the clock period; or no reset, i.e. reset index -1).
-- When `AnyTick(clockLoop)` reports a whole-cycle crossing in the microblock, the Nonagon sets `m_clockPosition` from `GetLoopCyclePosition(clockLoop, 0, resetLoop)`.
+- When `AnyTick(clockLoop)` reports a whole-cycle crossing on the current sample, the Nonagon sets `m_clockPosition` from `GetLoopCyclePosition(clockLoop, resetLoop)`.
 - Without reset, this is the signed absolute loop-cycle position. An inferred ancestor reset reduces it modulo the number of clock cycles in that reset period; self and equal-period resets return zero. The relationship follows divisibility, including compatible loops on separate explicit parent paths. Reverse motion decreases the position; a multi-cycle seek reports a crossing even if the final gate bit is unchanged. See [Theory of Time](theory-of-time.md#shared-integer-position).
 
 ### 3.2 Gate sequencer (rhythm)
@@ -60,7 +60,7 @@ This per-voice arp rhythm is separate from the per-loop Theory of Time rhythm th
 then optionally wrapped (cycle) or inverted, then scaled from [0,1] to **[m_min, m_max]**.
 - The **note index** and **motive position** together determine a single choice value. That value is passed to LameJuis as **m_choiceValue** and interpreted by the chosen strategy (e.g. percentile or closest-mod-octave).
 
-- **When the Nonagon updates the index arp** — `AnyChangeInMicroBlock()` causes the Nonagon to refresh arp inputs and run the arp and LameJuis. The selected clock's `AnyTick` drives clock updates; no clock selection sets the clock position to zero. Read updates follow crossing dimensions selected by the lens. The clock and motive positions stay signed 64-bit values; bounded output mapping uses double until its final float result.
+- **When the Nonagon updates the index arp** — On each engine sample where `AnyChange()` is true, or the user transport is stopped, the Nonagon refreshes arp inputs and runs the arp and LameJuis. The selected clock's `AnyTick` drives clock updates; no clock selection sets the clock position to zero. Read updates follow crossing dimensions selected by the lens. The clock and motive positions stay signed 64-bit values; bounded output mapping uses double until its final float result.
 
 ---
 
@@ -120,7 +120,7 @@ The Nonagon supplies the transport's `m_running` state, each input's gate value,
 
 - A co-mute or matrix element for input **i** is accepted only on **i**'s tick. A faster input cannot accept a slower input's pending edit.
 - A row accepts its RHS table and output target on a tick from any input that is non-muted in either its accepted or requested matrix. The row then recomputes its active-input count, high count, and output. Accumulator interval changes are accepted whenever LameJuis processes.
-- When the last non-muted input's mute is accepted, the row becomes false and the sheaf rebuild removes it from all accumulator totals immediately, before that frame's lane selection. RHS and target edits while the row stays empty remain pending. A requested unmute reactivates the row only when that input ticks; that tick also accepts the pending RHS and target.
+- When the last non-muted input's mute is accepted, the row becomes false and the sheaf rebuild removes it from all accumulator totals immediately, before that sample's lane selection. RHS and target edits while the row stays empty remain pending. A requested unmute reactivates the row only when that input ticks; that tick also accepts the pending RHS and target.
 - Accepted matrix, RHS, target, or interval changes invalidate the 64-section cache. Co-mutes select a fiber through that cache. At initialization the grid's coordinate converter receives the initial lane lens, so the grid is correct even before any co-mute edit.
 
 A channel selects a new section only on its existing read flag or arp trigger. Section equality compares both `m_high` and `m_total` for every accumulator; the selected result also compares evaluated pitch. Thus a denominator-only change can request another note at the same pitch, on the next permitted channel update. This includes zero-high sections such as 0/4 and 0/3, even though both timbre ratios are zero. Cache rebuilding and equality checks do not add reads or move them off the rhythmic grid. The existing trigger, mute, and interrupt controls still determine whether a requested note starts.

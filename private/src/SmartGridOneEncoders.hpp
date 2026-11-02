@@ -306,7 +306,6 @@ struct SmartGridOneEncoders
             bank.PlaceEncoder(static_cast<int>(position % 4), static_cast<int>(position / 4), cell);
         }
 
-        bank.ProcessTopology();
         m_boundPages[bankIx] = pageInstance;
     }
 

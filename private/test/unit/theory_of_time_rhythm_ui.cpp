@@ -108,12 +108,7 @@ struct RhythmUIRig
     {
         auto& time = m_nonagon->m_nonagon.m_theoryOfTime;
         input.m_unmodulatedPhase = phase;
-        for (size_t sample = 1; sample <= TheoryOfTimeBase::x_microBlockSize; ++sample)
-        {
-            time.TheoryOfTimeBase::Process(sample, input);
-        }
-
-        time.RolloverMicroblockBuffer();
+        time.TheoryOfTimeBase::Process(input);
     }
 };
 

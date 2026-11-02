@@ -1,7 +1,7 @@
 # Nonagon Sequencer Specification
 
 ## Purpose
-The Nonagon (`TheNonagonInternal` in `private/src/TheNonagon.hpp`) is the core sequencer that wires the phasor timebase (see phasor-timebase), the LameJuis pitch engine and index arp (see lamejuis-sequencer), and the Multi-Phasor Gate (see multi-phasor-gate) into a single nine-voice polyphonic sequence generator. It runs the subcomponents in a fixed per-frame order, distributes outputs between them, emits per-voice gates, volt-per-octave pitches, and extra timbre values, and records note events into the note writer for MIDI and UI consumption.
+The Nonagon (`TheNonagonInternal` in `private/src/TheNonagon.hpp`) is the core sequencer that wires the phasor timebase (see phasor-timebase), the LameJuis pitch engine and index arp (see lamejuis-sequencer), and the Multi-Phasor Gate (see multi-phasor-gate) into a single nine-voice polyphonic sequence generator. It runs the subcomponents in a fixed per-sample order, distributes outputs between them, emits per-voice gates, volt-per-octave pitches, and extra timbre values, and records note events into the note writer for MIDI and UI consumption.
 ## Requirements
 ### Requirement: Nine Voices in Three Trios
 The system SHALL manage exactly 9 voices arranged in 3 trios — voices 0–2 (Water), 3–5 (Earth), and 6–8 (Fire) — where each trio shares a single LameJuis lane for its pitch logic.
@@ -11,34 +11,34 @@ Per-trio settings (clock select, reset select, co-mutes, section choice strategy
 - **WHEN** voice 4 needs a pitch
 - **THEN** it reads channel 1 of LameJuis lane 1 (4 / 3 = trio 1, 4 mod 3 = channel 1)
 
-### Requirement: Fixed Per-Frame Pipeline Order
-The system SHALL execute the following order on every control frame: set timebase inputs and roll over the microblock buffer; record a start-of-loop marker if the global loop crossed an unmodulated cycle boundary; if AnyChangeInMicroBlock reports a change, run the index arp then LameJuis; if the timebase is running, run the Multi-Phasor Gate, otherwise reset both the Multi-Phasor Gate and LameJuis; set outputs and record notes; then process the timebase for samples 1 through 8.
-Sample 0 of each microblock was computed in the previous frame (see phasor-timebase), so sequencer logic always runs on an already-computed boundary sample. During the final timebase processing loop, non-running samples SHALL use the stopped branch of `TheoryOfTimeBase::Process` to maintain accepted periods and topology while clearing phases, positions, gates, and crossing flags.
+### Requirement: Fixed Per-Sample Pipeline Order
+The system SHALL execute the following order on every engine sample: set timebase inputs and advance the timebase by one sample; record a start-of-loop marker if the global loop crossed an unmodulated cycle boundary; if the user transport is stopped or AnyChange reports a change, run the index arp then LameJuis; if the timebase is running, run the Multi-Phasor Gate, otherwise reset both the Multi-Phasor Gate and LameJuis; then set outputs and record notes.
+Sequencer logic always reads the sample the timebase has just produced (see phasor-timebase), so triggers, gate ends, and note starts and ends are sample-exact. A non-running timebase sample SHALL use the stopped branch of `TheoryOfTimeBase::Process` to maintain accepted periods and topology while clearing phases, positions, gates, and crossing flags.
 
-#### Scenario: Pipeline runs in order on a changing frame
-- **WHEN** a control frame begins and at least one time loop's integer position changed in the microblock
-- **THEN** the microblock rollover happens before any sequencer logic
-- **AND** the index arp runs before LameJuis, LameJuis before the Multi-Phasor Gate, and outputs are set before the timebase computes samples 1 through 8
+#### Scenario: Pipeline runs in order on a changing sample
+- **WHEN** an engine sample is processed and at least one time loop's integer position changed on it
+- **THEN** the timebase advances to that sample before any sequencer logic
+- **AND** the index arp runs before LameJuis, LameJuis before the Multi-Phasor Gate, and outputs are set last
 
-#### Scenario: Stopped frame maintains timebase state
+#### Scenario: Stopped sample maintains timebase state
 - **WHEN** the user transport is not running and no voice gate keeps the timebase alive
-- **THEN** the Multi-Phasor Gate and LameJuis are reset before outputs are set
-- **AND** the timebase processing loop calls its not-running path for samples 1 through 8
+- **THEN** the timebase advance takes its not-running path
+- **AND** the Multi-Phasor Gate and LameJuis are reset before outputs are set
 
 ### Requirement: Change-Gated Sequencer Evaluation
-The system SHALL run the index arp and LameJuis only on frames where the phasor timebase reports a change in the microblock (position motion, startup, stop, or accepted topology edit); on all other frames the previous arp outputs and LameJuis pitches persist unchanged.
+While the user transport is running, the system SHALL run the index arp and LameJuis only on samples where the phasor timebase reports a change (position motion, startup, stop, or accepted topology edit); on all other running samples the previous arp outputs and LameJuis pitches persist unchanged. While the user transport is stopped, the system SHALL run them on every sample.
 
-#### Scenario: Quiet frame preserves pitches
-- **WHEN** no time loop position changes, no topology edit is accepted, and no transport transition occurs during a microblock
-- **THEN** neither the index arp nor LameJuis is processed that frame
-- **AND** every lane's selected pitch and trigger flags remain those of the last changing frame
+#### Scenario: Quiet sample preserves pitches
+- **WHEN** the user transport is running and no time loop position changes, no topology edit is accepted, and no transport transition occurs on a sample
+- **THEN** neither the index arp nor LameJuis is processed that sample
+- **AND** every lane's selected pitch and trigger flags remain those of the last changing sample
 
 ### Requirement: Whole-Cycle Tick Wiring to the Index Arp
-The system SHALL use AnyTick(loop) to supply loop clock events and read flags for dimensions selected by each lane's lens. It SHALL also supply each LameJuis input with its gate value and a separate AnyTick(loop) flag so input configuration accepts modulated crossings independently of Boolean gate changes. For a selected trio clock that ticked, it SHALL sample the signed whole-cycle coordinate GetLoopCyclePosition(clockSelect, 0, resetSelect). A tick SHALL remain observable when loop gate values repeat or self reset keeps the position at zero. With no clock selected (-1), clock position SHALL be zero and no clock event supplied; a read without a clock SHALL reset the arp coordinates. A tick from another loop SHALL leave the selected clock position unchanged.
+The system SHALL use AnyTick(loop) to supply loop clock events and read flags for dimensions selected by each lane's lens. It SHALL also supply each LameJuis input with its gate value and a separate AnyTick(loop) flag so input configuration accepts modulated crossings independently of Boolean gate changes. For a selected trio clock that ticked, it SHALL sample the signed whole-cycle coordinate GetLoopCyclePosition(clockSelect, resetSelect). A tick SHALL remain observable when loop gate values repeat or self reset keeps the position at zero. With no clock selected (-1), clock position SHALL be zero and no clock event supplied; a read without a clock SHALL reset the arp coordinates. A tick from another loop SHALL leave the selected clock position unchanged.
 
 #### Scenario: Clock tick samples the whole-cycle coordinate
-- **WHEN** trio 2's selected clock loop ticks during a changing microblock
-- **THEN** its clock position is GetLoopCyclePosition(clockSelect[2], 0, resetSelect[2])
+- **WHEN** trio 2's selected clock loop ticks on a changing sample
+- **THEN** its clock position is GetLoopCyclePosition(clockSelect[2], resetSelect[2])
 - **AND** an unchanged loop gate does not suppress the clock
 
 #### Scenario: Non-selected tick only updates matching reads
@@ -55,23 +55,23 @@ The system SHALL use AnyTick(loop) to supply loop clock events and read flags fo
 - **THEN** the edit alone does not cause an arp clock or sequencer evaluation
 
 ### Requirement: Per-Voice Trigger Emission Rules
-The system SHALL request a trigger for voice i when the timebase changed in the microblock and either (a) the trio's trig-on-pitch-changed mode is enabled and the lane channel's pitch changed, or (b) the trio's trig-on-sub-trigger mode is enabled and the voice's index arp triggered; subject to mute, unison, and interrupt rules evaluated by the trigger logic and consumed by the Multi-Phasor Gate (see multi-phasor-gate).
-When a trio's unison master is set, all three voices of the trio evaluate the master voice's pitch-changed and sub-trigger flags. When interrupt is enabled from trio A to trio B, a triggering, unmuted lower-index voice in trio B cancels the trigger of a higher-index voice in trio A on the same frame. Muted voices never start a note.
+The system SHALL request a trigger for voice i when the timebase changed on the current sample and either (a) the trio's trig-on-pitch-changed mode is enabled and the lane channel's pitch changed, or (b) the trio's trig-on-sub-trigger mode is enabled and the voice's index arp triggered; subject to mute, unison, and interrupt rules evaluated by the trigger logic and consumed by the Multi-Phasor Gate (see multi-phasor-gate).
+When a trio's unison master is set, all three voices of the trio evaluate the master voice's pitch-changed and sub-trigger flags. When interrupt is enabled from trio A to trio B, a triggering, unmuted lower-index voice in trio B cancels the trigger of a higher-index voice in trio A on the same sample. Muted voices never start a note.
 
 #### Scenario: Pitch-changed trigger
-- **WHEN** trig-on-pitch-changed is enabled for a trio and a lane channel selects a different section than before during a changing frame
+- **WHEN** trig-on-pitch-changed is enabled for a trio and a lane channel selects a different section than before on a changing sample
 - **THEN** a trigger is requested for the corresponding voice
 
 #### Scenario: Interrupt cancels a higher voice
-- **WHEN** interrupt is enabled for voice i's trio against voice j's trio, j < i, and voice j triggers unmuted on the same frame
-- **THEN** voice i's trigger is cancelled for that frame
+- **WHEN** interrupt is enabled for voice i's trio against voice j's trio, j < i, and voice j triggers unmuted on the same sample
+- **THEN** voice i's trigger is cancelled for that sample
 
 #### Scenario: Muted voice does not sound
 - **WHEN** a voice is muted and its trigger condition is met
 - **THEN** no AHD trigger is emitted and the voice's output gate stays false
 
 ### Requirement: Output Gate Lifecycle
-The system SHALL set `m_output.m_gate[i]` true on the frame the Multi-Phasor Gate emits an AHD trigger for voice i, and SHALL set it false — recording a note-off in the note writer — on the first frame the Multi-Phasor Gate's gate for that voice is no longer high.
+The system SHALL set `m_output.m_gate[i]` true on the sample the Multi-Phasor Gate emits an AHD trigger for voice i, and SHALL set it false — recording a note-off in the note writer — on the first sample the Multi-Phasor Gate's gate for that voice is no longer high.
 The Multi-Phasor Gate deactivates a voice's gate after half a voice period of absolute modulated global phase travel (see multi-phasor-gate); the Nonagon only mirrors that state into its output and the note writer.
 
 #### Scenario: Gate turns off and records note end
@@ -97,7 +97,7 @@ The latched values are emitted in `m_output.m_extraTimbre[voice][0..2]` and reco
 - **AND** the value persists unchanged until the voice's next trigger
 
 ### Requirement: Note Writer Recording
-The system SHALL record note events through the NonagonNoteWriter: a note-on per trigger carrying the voice index, volt-per-octave pitch, start position (wrapped unmodulated global phase), and the three extra timbres; a note-off setting the event's end position; and a start-of-loop marker on an unmodulated global cycle-crossing event at slot 0.
+The system SHALL record note events through the NonagonNoteWriter: a note-on per trigger carrying the voice index, volt-per-octave pitch, start position (wrapped unmodulated global phase), and the three extra timbres; a note-off setting the event's end position; and a start-of-loop marker on an unmodulated global cycle-crossing event on the current sample.
 A new note-on for a voice that still has an open note first closes the open note at the new start position. At the start-of-loop marker, voices with open notes are closed at position 1.0 and re-recorded starting at position 0, so events never span the loop boundary.
 
 #### Scenario: Global boundary splits held notes
@@ -114,7 +114,7 @@ This lets sounding notes finish after the performer stops the transport, guarant
 - **THEN** the timebase keeps running until that gate deactivates
 - **AND** once no gate is high the timebase stops and the Multi-Phasor Gate and LameJuis are reset
 
-#### Scenario: Not-running frame updates stopped timebase contract
+#### Scenario: Not-running sample updates stopped timebase contract
 - **WHEN** the performer leaves the transport stopped
 - **THEN** downstream sequencer and gate state is reset
 - **AND** the timebase maintains accepted loop periods and topology while phases, positions, gates, and crossing flags remain cleared

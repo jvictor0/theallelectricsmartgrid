@@ -1,16 +1,16 @@
 # Voice Architecture Specification
 
 ## Purpose
-The DSP engine (`SquiggleBoy` in `private/src/SquiggleBoy.hpp`) hosts nine independent synthesizer voices (`SquiggleBoyVoice`), each a complete chain of source machine, filter section, amp section, pan section, and sub-oscillator. Voices are organized into three trios that act as tracks sharing base parameter values with per-voice modulation. Each voice processes its source and filter at 4x internal oversampling, downsamples, applies AHD-driven amplification (see ahd-envelopes), and pans into a quadraphonic field. Triggers and envelope timing arrive from the multi-phasor-gate; source detail lives in source-machine-oscillators and filter detail in filter-system.
+The DSP engine (`SquiggleBoy` in `private/src/SquiggleBoy.hpp`) hosts nine independent synthesizer voices, each a complete chain of source machine, filter section, amp section, pan section, and sub-oscillator. Voices are organized into three trios, each processed by one `SquiggleBoyTrack` (`private/src/SquiggleBoyTrack.hpp`) that holds its three voices as `TrioFloat` channels, shares base parameter values, and keeps per-voice modulation and state. Each track processes source, filter, AHD-driven amplification (see ahd-envelopes), and quadraphonic panning one engine sample at a time at `SampleTimer::x_sampleRate`. Triggers and envelope timing arrive from the multi-phasor-gate; source detail lives in source-machine-oscillators and filter detail in filter-system.
 
 ## Requirements
 
 ### Requirement: Fixed Nine-Voice Polyphony
-The system SHALL provide exactly nine voices (`SquiggleBoy::x_numVoices = 9`), each with its own persistent `SquiggleBoyVoice` instance and `SquiggleBoyVoice::Input` state. There is no voice stealing or dynamic voice allocation: voice index i is permanently bound to sequencer voice i, and every voice is processed every sample.
+The system SHALL provide exactly nine voices (`SquiggleBoy::x_numVoices = 9`), each with its own persistent channel of DSP state in one of the three `SquiggleBoyTrack` instances (`m_tracks`) and their `SquiggleBoyTrack::Input` state (`m_trackState`). There is no voice stealing or dynamic voice allocation: voice index i is permanently bound to sequencer voice i, as channel `i % 3` of track `i / 3`, and every voice is processed every engine sample.
 
 #### Scenario: All voices process every sample
-- **WHEN** `SquiggleBoy::ProcessSample` runs for one audio sample
-- **THEN** `m_voices[i].Processs(m_state[i])` executes for all i in 0..8 and each voice's output, sub output, and pan X/Y are written into the mixer input slots 0..8
+- **WHEN** `SquiggleBoy::ProcessSample` runs for one engine sample
+- **THEN** `m_tracks[track].Processs(m_trackState[track])` executes for all three tracks and each voice's output, sub output, and pan X/Y are written into the mixer input slots 0..8
 - **AND** a voice with no active envelope contributes silence rather than being deallocated
 
 ### Requirement: Trio Track Grouping
@@ -22,7 +22,7 @@ The system SHALL group the nine voices into three tracks of three voices each (`
 - **AND** wavetable generators push the same left/right wavetables to all three voices of a track
 
 ### Requirement: Per-Voice Signal Chain
-Each voice SHALL process audio through the chain: source machine, then filter section, then downsample, then amp section, then pan section. `ProcessUBlock` runs the source and filter at the oversampled rate once per control frame; `Processs` then per sample feeds the downsampled filter output and the sub-oscillator sample into `AmpSection::Process` and drives `PanSection::Process`, which maps a Lissajous LFO to pan coordinates `m_outputX`/`m_outputY` in [0, 1] for the quadraphonic mixer.
+Each voice SHALL process audio through the chain: source machine, then filter section, then amp section, then pan section. For every engine sample, `SquiggleBoyTrack::Processs` runs `SquiggleBoySource::Process` and `SquiggleBoyShape::Process` for one sample, feeds the filter output and the sub-oscillator sample into `AmpSection::Process`, and drives `PanSection::Process`, which maps a Lissajous LFO to pan coordinates `m_outputX`/`m_outputY` in [0, 1] for the quadraphonic mixer.
 
 #### Scenario: Signal ordering is observable on the scopes
 - **WHEN** a voice plays a note
@@ -37,24 +37,24 @@ Each voice SHALL include a per-voice sub-oscillator that produces audio one octa
 - **THEN** the sub signal present on the mono lane `m_monoIn[i]` follows the amp envelope, reaching zero when the envelope returns to zero
 - **AND** a subsequent trigger with `m_subTrig` false disables the sub for that note
 
-### Requirement: Internal 4x Oversampling
-Each voice SHALL run its source machine and filter section at 4x the base sample rate (`x_oversample = 4`, e.g. 192 kHz for a 48 kHz session), processing micro-blocks of `x_uBlockSize = SampleTimer::x_controlFrameRate * 4` oversampled samples per control frame, and SHALL downsample the filter output back to the base rate (`Downsampler m_downsampler`) before the amp section. Filter cutoffs are scaled by `1/x_oversample` for the oversampled rate, and the filter's DC blocker is tuned at 5 Hz relative to 192 kHz.
+### Requirement: Engine-Rate Voice Processing
+Each track SHALL run its source machine, filter section, amp section, and pan section at the engine rate `SampleTimer::x_sampleRate = x_hostSampleRate * x_oversample`, one engine sample per `Processs` call, with `SampleTimer::x_oversample` engine samples per host frame. There are no voice-internal blocks or resamplers. Frequencies are in cycles per engine sample and rate-dependent constants are converted with the `SampleTimer` helpers; the filter's DC blocker is tuned at `HzToCycPerSamp(5)`, and filter cutoffs clamp at `0.5 / x_oversample`, the host Nyquist in cycles per engine sample.
 
-#### Scenario: Oversampled micro-block per control frame
-- **WHEN** `SampleTimer::IsControlFrame()` is true for a sample
-- **THEN** the voice processes one micro-block of `x_uBlockSize` oversampled samples through source and filter and stores `SampleTimer::x_controlFrameRate` downsampled samples in `m_uBlockFilterOut`
-- **AND** the amp section consumes one downsampled sample per base-rate sample via `SampleTimer::GetUBlockIndex()`
+#### Scenario: One engine sample per call
+- **WHEN** `SquiggleBoyTrack::Processs` runs once
+- **THEN** each of the track's three voices advances its source, filter, sub-oscillator, amp, and pan state by one engine sample
+- **AND** the amp section multiplies that same sample's filter output by the amp envelope
 
-### Requirement: Parameter Slewing Per Control Frame
-The system SHALL update voice parameter targets once per control frame and slew them per oversampled sample to avoid zipper noise. The filter section maintains `ParamSlew` instances (constructed with the oversample factor) for VCO base frequency, low-pass and high-pass cutoff and resonance, saturation gain, and sample-rate-reducer frequency; `Update` sets the target at micro-block start and `Process` interpolates each oversampled sample.
+### Requirement: Per-Sample Parameter Updates
+The system SHALL compute encoder cells (`EncoderBankBank::Process`) and set voice parameters (`SetEncoderParameters`, then `SquiggleBoyTrack::SetEncoderParams` per track) before every engine sample. Track and machine setters read `encoders.GetValue<Size>(Param, track)` as `TrioFloat` values and map them through `PhaseUtils::ExpParamGeneric` / `ZeroedExpParamGeneric` `Update`; the filter machines hold these mappings for low-pass and high-pass cutoff factor and resonance, saturation gain, and sample-rate-reducer frequency. Consumers apply no per-parameter slew; smoothing happens at the sources (modulators, scene blend and fader input slews, and encoder edits spread over time by `TickDistributor`). Voice base frequency passes through a portamento one-pole (`m_baseFreqSlew`) controlled by the `Portamento` parameter.
 
-#### Scenario: Cutoff change is interpolated
-- **WHEN** the low-pass cutoff factor target changes between two control frames
-- **THEN** the effective cutoff applied to the filter moves smoothly across the `x_uBlockSize` oversampled samples of the micro-block rather than stepping once
-- **AND** the same slewing applies to resonance and saturation gain changes
+#### Scenario: Cutoff change reaches the filter on the next sample
+- **WHEN** the low-pass cutoff encoder value changes between two engine samples
+- **THEN** the filter machine computes its next sample with the cutoff mapped from the new value
+- **AND** resonance and saturation gain changes apply on the next sample in the same way
 
 ### Requirement: Voice Configuration
-Each voice SHALL be configured by a `SquiggleBoyVoiceConfig` carrying: the source machine selection (`DualWaveShapingVCO`, `PhysicalModeling`, `Thru`, or `Sample`), the filter machine selection (`Ladder4Pole` or `SVF2Pole`), a source assignment, and an `AudioBufferBank` pointer used by the Sample source machine. The source assignment SHALL be able to represent Silent, Source Left for a source index, and Source Right for a source index. Defaults are `DualWaveShapingVCO`, `Ladder4Pole`, source 0 Left for compatibility, and a null buffer bank. The filter and amp sections read the active configuration through a shared pointer in the voice input, selecting the DSP path per micro-block.
+Each voice SHALL be configured by a `SquiggleBoyVoiceConfig` carrying: the source machine selection (`DualWaveShapingVCO`, `PhysicalModeling`, `Thru`, or `Sample`), the filter machine selection (`Ladder4Pole` or `SVF2Pole`), a source assignment, and an `AudioBufferBank` pointer used by the Sample source machine. The source assignment SHALL be able to represent Silent, Source Left for a source index, and Source Right for a source index. Defaults are `DualWaveShapingVCO`, `Ladder4Pole`, source 0 Left for compatibility, and a null buffer bank. Each track input holds a pointer to each of its voices' configs. Machines are chosen per track: every engine sample, `SquiggleBoyTrack::Input::SetMachines` copies the first voice's source and filter machine into the source, filter, and amp inputs (the UI keeps them equal across a track's voices) and copies each voice's source assignment and buffer bank, so the DSP path follows the live config on the next sample.
 
 #### Scenario: Filter machine selection switches the DSP path
 - **WHEN** a voice's config has `m_filterMachine = Ladder4Pole`
@@ -100,7 +100,7 @@ Each voice's amp section SHALL host two phase-driven AHD envelopes sharing the s
 
 #### Scenario: Both envelopes start on one trigger
 - **WHEN** `AHDControl.m_trig` is true for a voice
-- **THEN** `m_ahd` and `m_modulationAHD` both enter their attack stage on the same control frame
+- **THEN** `m_ahd` and `m_modulationAHD` both enter their attack stage on the same engine sample
 - **AND** different attack/hold/decay settings on each envelope produce independently shaped outputs from the shared timing
 
 ### Requirement: Voice UI State Exposure
@@ -116,9 +116,9 @@ The system SHALL expose per-voice UI state through `SquiggleBoyWithEncoderBank::
 - **THEN** `m_voiceSourceUIState[i].m_sampleDirectoryUIState.GetPath()` returns the bank's directory name, capped at 511 characters plus terminator
 
 ### Requirement: Per-Voice Scope Observability
-The system SHALL write per-voice signals to dedicated scope channels via `ScopeWriterHolder`: audio scopes `VCO1`, `VCO2`, `PostFilter`, and `PostAmp` per voice, and control scopes `LFO1`, `LFO2`, `ModulationEnvelope`, and `AmpEnvelope` per voice. Audio scopes record at the base sample rate from within the oversampled loop; envelope scopes record once per control frame, with record-start marks on envelope trigger and record-end marks when the envelope returns to Idle.
+The system SHALL write per-voice signals to dedicated scope channels via `ScopeWriterHolder`: audio scopes `VCO1`, `VCO2`, `PostFilter`, `PostAmp`, and `Sub` per voice, and control scopes `LFO1`, `LFO2`, `ModulationEnvelope`, and `AmpEnvelope` per voice. Every scope is written with `ScopeWriterHolder::Write(value)` once per engine sample. The audio scope writer stores every sample (decimation 1); control scope writers store one value per `ScopeWriter::x_controlDecimation = 8` samples and convert record-start offsets to fractional stored indices. Envelope scopes get record-start marks on envelope trigger and record-end marks when the envelope returns to Idle; `PostFilter` cycles start at the source's cycle tops (`SquiggleBoySource::m_top`), with their fractional offsets.
 
 #### Scenario: Amp envelope visible on its scope channel
 - **WHEN** voice i plays a note
-- **THEN** the `ControlScopes::AmpEnvelope` channel for voice i shows the amp AHD output starting at the trigger frame and ending when the envelope state returns to Idle
+- **THEN** the `ControlScopes::AmpEnvelope` channel for voice i shows the amp AHD output starting at the trigger sample and ending when the envelope state returns to Idle
 - **AND** `AudioScopes::PostAmp` for the same voice shows the corresponding audio amplitude contour

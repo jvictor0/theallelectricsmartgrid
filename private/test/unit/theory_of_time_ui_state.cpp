@@ -21,12 +21,7 @@ TheoryOfTimeBase::Input FlatSnapshotClock()
 
 void PrepareSnapshotClock(TheoryOfTimeBase& time, const TheoryOfTimeBase::Input& input)
 {
-    for (size_t sample = 1; sample <= TheoryOfTimeBase::x_microBlockSize; ++sample)
-    {
-        time.Process(sample, input);
-    }
-
-    time.RolloverMicroblockBuffer();
+    time.Process(input);
 }
 }
 
@@ -161,15 +156,15 @@ DOCTEST_TEST_CASE("SequencerUI: reset inference completes the divisibility squar
     ui.Snapshot();
 
     DOCTEST_REQUIRE(ui.GetGlobalPeriodTicks() == 6);
-    DOCTEST_CHECK(time.GetLoopCyclePosition(2, 0, -1) == 10);
-    DOCTEST_CHECK(time.GetLoopCyclePosition(2, 0, 3) == 0);
+    DOCTEST_CHECK(time.GetLoopCyclePosition(2, -1) == 10);
+    DOCTEST_CHECK(time.GetLoopCyclePosition(2, 3) == 0);
     DOCTEST_CHECK(ui.GetTimePoint(10, 2, 3).m_loopCyclePosition == 0);
     DOCTEST_CHECK(ui.GetTimePoint(-1, 2, 3).m_loopCyclePosition == 1);
-    DOCTEST_CHECK(time.GetLoopCyclePosition(2, 0, 1) == 0);
+    DOCTEST_CHECK(time.GetLoopCyclePosition(2, 1) == 0);
     DOCTEST_CHECK(ui.GetTimePoint(10, 2, 1).m_loopCyclePosition == 0);
-    DOCTEST_CHECK(time.GetLoopCyclePosition(3, 0, 4) == 5);
+    DOCTEST_CHECK(time.GetLoopCyclePosition(3, 4) == 5);
     DOCTEST_CHECK(ui.GetTimePoint(10, 3, 4).m_loopCyclePosition == 5);
-    DOCTEST_CHECK(time.GetLoop(2, 0).m_gate);
+    DOCTEST_CHECK(time.GetLoop(2).m_gate);
     DOCTEST_CHECK(ui.GetTimePoint(10, 2, 3).m_timeSlice.Get(2));
 }
 

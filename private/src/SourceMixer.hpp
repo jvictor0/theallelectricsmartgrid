@@ -71,24 +71,18 @@ struct SourceMixer
     {
         struct Input
         {
-            float m_uBlockInput[x_numSourceLanes][SampleTimer::x_controlFrameRate];
+            float m_input[x_numSourceLanes];
             PhaseUtils::ZeroedExpParam m_gain;
             PhaseUtils::ExpParam m_hpCutoff;
             PhaseUtils::ExpParam m_lpFactor;
             SourceConfig m_config;
 
             Input()
-                : m_gain(8.0f)
+                : m_input{}
+                , m_gain(8.0f)
                 , m_hpCutoff(SampleTimer::HzToCycPerSamp(20.0), SampleTimer::HzToCycPerSamp(20000.0))
                 , m_lpFactor(1.0, 1000.0)
             {
-                for (size_t lane = 0; lane < x_numSourceLanes; ++lane)
-                {
-                    for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
-                    {
-                        m_uBlockInput[lane][i] = 0.0f;
-                    }
-                }
             }
         };
 
@@ -119,57 +113,32 @@ struct SourceMixer
         };
 
         Source()
+            : m_output{}
         {
-            for (size_t lane = 0; lane < x_numSourceLanes; ++lane)
-            {
-                m_output[lane] = 0.0f;
-                for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
-                {
-                    m_uBlockOutput[lane][i] = 0.0f;
-                }
-            }
         }
 
-        void ProcessUBlock(const Input& input)
+        void Process(const Input& input)
         {
-            // Update slew targets.
-            //
-            m_gainSlew.Update(input.m_gain.m_expParam);
-            m_hpCutoffSlew.Update(input.m_hpCutoff.m_expParam);
-            m_lpFactorSlew.Update(input.m_lpFactor.m_expParam);
-
-            for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
-            {
-                float gain = m_gainSlew.Process();
-                float hpCutoff = m_hpCutoffSlew.Process();
-                float lpFactor = m_lpFactorSlew.Process();
-                float preFilterScopeSample[x_numSourceLanes];
-                float postFilterScopeSample[x_numSourceLanes];
-
-                for (size_t lane = 0; lane < x_numSourceLanes; ++lane)
-                {
-                    float sample = input.m_uBlockInput[lane][i] * gain;
-                    preFilterScopeSample[lane] = sample;
-
-                    m_hpFilter[lane].SetCutoffAndResonance(hpCutoff, 0.0f);
-                    m_lpFilter[lane].SetCutoffAndResonance(hpCutoff * lpFactor, 0.0f);
-                    m_lpFilter[lane].Process(sample);
-                    sample = m_lpFilter[lane].GetLowPass();
-                    m_hpFilter[lane].Process(sample);
-                    sample = m_hpFilter[lane].GetHighPass();
-
-                    postFilterScopeSample[lane] = sample;
-                    m_uBlockOutput[lane][i] = sample;
-                }
-
-                m_preFilterScopeWriter.Write(i, 0.5f * (preFilterScopeSample[0] + preFilterScopeSample[1]));
-                m_postFilterScopeWriter.Write(i, 0.5f * (postFilterScopeSample[0] + postFilterScopeSample[1]));
-            }
+            float gain = input.m_gain.m_expParam;
+            float hpCutoff = input.m_hpCutoff.m_expParam;
+            float lpFactor = input.m_lpFactor.m_expParam;
+            float preFilterScopeSample[x_numSourceLanes];
 
             for (size_t lane = 0; lane < x_numSourceLanes; ++lane)
             {
-                m_output[lane] = m_uBlockOutput[lane][SampleTimer::x_controlFrameRate - 1];
+                float sample = input.m_input[lane] * gain;
+                preFilterScopeSample[lane] = sample;
+
+                m_hpFilter[lane].SetCutoffAndResonance(hpCutoff, 0.0f);
+                m_lpFilter[lane].SetCutoffAndResonance(hpCutoff * lpFactor, 0.0f);
+                m_lpFilter[lane].Process(sample);
+                sample = m_lpFilter[lane].GetLowPass();
+                m_hpFilter[lane].Process(sample);
+                m_output[lane] = m_hpFilter[lane].GetHighPass();
             }
+
+            m_preFilterScopeWriter.Write(0.5f * (preFilterScopeSample[0] + preFilterScopeSample[1]));
+            m_postFilterScopeWriter.Write(0.5f * (m_output[0] + m_output[1]));
         }
 
         void PopulateUIState(UIState* uiState)
@@ -187,18 +156,11 @@ struct SourceMixer
         }
 
         float m_output[x_numSourceLanes];
-        float m_uBlockOutput[x_numSourceLanes][SampleTimer::x_controlFrameRate];
 
         LinearStateVariableFilter m_lpFilter[x_numSourceLanes];
         LinearStateVariableFilter m_hpFilter[x_numSourceLanes];
         ScopeWriterHolder m_preFilterScopeWriter;
         ScopeWriterHolder m_postFilterScopeWriter;
-
-        // Slewed parameters.
-        //
-        ParamSlew m_gainSlew;
-        ParamSlew m_hpCutoffSlew;
-        ParamSlew m_lpFactorSlew;
 
         void SetupScopeWriters(ScopeWriter* scopeWriter, size_t sourceIx)
         {
@@ -222,22 +184,21 @@ struct SourceMixer
 
         void SetInputs(const AudioInputBuffer& audioInputBuffer)
         {
-            size_t uBlockIndex = SampleTimer::GetUBlockIndex();
             for (size_t i = 0; i < x_numSources; ++i)
             {
                 size_t leftInput = i * x_numSourceLanes;
                 size_t rightInput = leftInput + 1;
 
-                m_sources[i].m_uBlockInput[0][uBlockIndex] =
+                m_sources[i].m_input[0] =
                     leftInput < audioInputBuffer.m_numInputs ? audioInputBuffer.m_input[leftInput] : 0.0f;
 
                 if (m_sources[i].m_config.IsStereo() && rightInput < audioInputBuffer.m_numInputs)
                 {
-                    m_sources[i].m_uBlockInput[1][uBlockIndex] = audioInputBuffer.m_input[rightInput];
+                    m_sources[i].m_input[1] = audioInputBuffer.m_input[rightInput];
                 }
                 else
                 {
-                    m_sources[i].m_uBlockInput[1][uBlockIndex] = 0.0f;
+                    m_sources[i].m_input[1] = 0.0f;
                 }
             }
         }
@@ -277,11 +238,11 @@ struct SourceMixer
         }
     }
 
-    void ProcessUBlock(Input& input)
+    void Process(const Input& input)
     {
         for (size_t i = 0; i < x_numSources; ++i)
         {
-            m_sources[i].ProcessUBlock(input.m_sources[i]);
+            m_sources[i].Process(input.m_sources[i]);
         }
     }
 

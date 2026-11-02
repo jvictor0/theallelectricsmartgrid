@@ -103,7 +103,7 @@ struct FrontendRig
     std::array<ExpectedRow, x_bits> m_rows;
     std::array<std::array<bool, x_bits>, x_lanes> m_coMutes{};
     std::array<size_t, x_bits> m_ticks{};
-    size_t m_frame = 0;
+    size_t m_step = 0;
     size_t m_constantGateTicks = 0;
     size_t m_denominatorOnlyTriggers = 0;
     size_t m_backwardTicks = 0;
@@ -156,10 +156,10 @@ struct FrontendRig
         return result;
     }
 
-    void CheckClock(const TheoryOfTimeBase::Sample& previous, size_t sampleIndex)
+    void CheckClock(const TheoryOfTimeBase::Sample& previous)
     {
         const auto& request = m_frontend->m_state.m_theoryOfTimeInput;
-        const auto& sample = m_frontend->m_nonagon.m_theoryOfTime.m_samples[sampleIndex];
+        const auto& sample = m_frontend->m_nonagon.m_theoryOfTime.m_sample;
         bool started = !previous.m_running;
         std::array<bool, x_bits> ticks{};
         std::array<int64_t, x_bits> ratios{};
@@ -191,7 +191,6 @@ struct FrontendRig
 
         for (size_t bit = 0; bit < x_bits; ++bit)
         {
-            DOCTEST_CAPTURE(sampleIndex);
             DOCTEST_CAPTURE(bit);
             const auto& loop = sample.m_loops[bit];
             const auto& rhythm = request.m_rhythm[bit];
@@ -219,35 +218,43 @@ struct FrontendRig
 
     void Step()
     {
-        DOCTEST_CAPTURE(m_frame);
+        DOCTEST_CAPTURE(m_step);
         DOCTEST_CAPTURE(m_lastEdit);
         auto& engine = m_frontend->m_nonagon;
         auto& request = m_frontend->m_state;
-        auto previous = engine.m_theoryOfTime.m_samples[8];
-        std::array<bool, x_bits> ticks{};
-        bool process = false;
-        for (size_t sample = 1; sample <= 8; ++sample)
-        {
-            process = process || engine.m_theoryOfTime.m_samples[sample].m_anyChange;
-            for (size_t bit = 0; bit < x_bits; ++bit)
-            {
-                ticks[bit] = ticks[bit] || engine.m_theoryOfTime.m_samples[sample].m_loops[bit].m_modulatedCycleCrossed;
-            }
-        }
-
-        uint8_t bits = 0;
-        for (size_t bit = 0; bit < x_bits; ++bit)
-        {
-            bits |= static_cast<uint8_t>(previous.m_loops[bit].m_gate ? 1u << bit : 0);
-            m_ticks[bit] += ticks[bit];
-        }
-
+        auto previous = engine.m_theoryOfTime.m_sample;
         auto oldCoMutes = m_coMutes;
         std::array<int64_t, x_lanes> expectedClockPosition;
         std::array<std::array<HarmonicSheaf::SectionWithValue, 3>, 3> oldNotes;
         for (size_t lane = 0; lane < x_lanes; ++lane)
         {
             expectedClockPosition[lane] = request.m_arpInput.m_clockPosition[lane];
+            for (size_t voice = 0; voice < 3; ++voice)
+            {
+                oldNotes[lane][voice] = engine.m_lameJuis.m_lanes[lane].m_pitch[voice];
+            }
+        }
+
+        SampleTimer::s_instance->m_sample = m_step;
+        m_frontend->ProcessSample();
+        ++m_step;
+        CheckClock(previous);
+
+        // The sequencer runs on the sample the theory of time just produced.
+        //
+        const auto& current = engine.m_theoryOfTime.m_sample;
+        bool process = current.m_anyChange;
+        std::array<bool, x_bits> ticks{};
+        uint8_t bits = 0;
+        for (size_t bit = 0; bit < x_bits; ++bit)
+        {
+            ticks[bit] = current.m_loops[bit].m_modulatedCycleCrossed.m_triggered;
+            bits |= static_cast<uint8_t>(current.m_loops[bit].m_gate ? 1u << bit : 0);
+            m_ticks[bit] += ticks[bit];
+        }
+
+        for (size_t lane = 0; lane < x_lanes; ++lane)
+        {
             int clock = request.m_arpInput.m_clockSelect[lane];
             if (process && clock < 0)
             {
@@ -255,20 +262,15 @@ struct FrontendRig
             }
             else if (process && ticks[clock])
             {
-                int64_t ratio = previous.m_loops[clock].m_cycleRatio;
-                int64_t index = Cycle(previous.m_modulatedPhase, ratio);
+                int64_t ratio = current.m_loops[clock].m_cycleRatio;
+                int64_t index = Cycle(current.m_modulatedPhase, ratio);
                 int reset = request.m_arpInput.m_resetSelect[lane];
-                if (reset >= 0 && ratio % previous.m_loops[reset].m_cycleRatio == 0)
+                if (reset >= 0 && ratio % current.m_loops[reset].m_cycleRatio == 0)
                 {
-                    index = Wrap(index, ratio / previous.m_loops[reset].m_cycleRatio);
+                    index = Wrap(index, ratio / current.m_loops[reset].m_cycleRatio);
                 }
 
                 expectedClockPosition[lane] = index;
-            }
-
-            for (size_t voice = 0; voice < 3; ++voice)
-            {
-                oldNotes[lane][voice] = engine.m_lameJuis.m_lanes[lane].m_pitch[voice];
             }
         }
 
@@ -305,15 +307,6 @@ struct FrontendRig
                     }
                 }
             }
-        }
-
-        SampleTimer::s_instance->m_sample = m_frame * 8;
-        m_frontend->ProcessSample();
-        ++m_frame;
-        for (size_t sample = 1; sample <= 8; ++sample)
-        {
-            CheckClock(previous, sample);
-            previous = engine.m_theoryOfTime.m_samples[sample];
         }
 
         for (size_t row = 0; row < x_bits; ++row)
@@ -414,7 +407,7 @@ struct FrontendRig
                     m_denominatorOnlyTriggers += changed && old.m_value == minimum
                         && std::equal(std::begin(old.m_section.m_high), std::end(old.m_section.m_high), std::begin(selected.m_high));
                 }
-                else if (previous.m_running && m_frame > 1)
+                else if (previous.m_running && m_step > 1)
                 {
                     DOCTEST_REQUIRE(SameSection(actual.m_section, old.m_section));
                     DOCTEST_REQUIRE(actual.m_value == old.m_value);
@@ -428,9 +421,9 @@ struct FrontendRig
         }
     }
 
-    void Advance(size_t frames)
+    void Advance(size_t steps)
     {
-        for (size_t frame = 0; frame < frames; ++frame)
+        for (size_t step = 0; step < steps; ++step)
         {
             Step();
         }
@@ -445,8 +438,8 @@ struct FrontendRig
             DOCTEST_CAPTURE(bit);
             if (bit < 5)
             {
-                DOCTEST_REQUIRE(time.GetLoop(bit, 8).m_input.m_parentIndex == input.m_theoryOfTimeInput.m_input[bit].m_parentIndex);
-                DOCTEST_REQUIRE(time.GetLoop(bit, 8).m_input.m_parentMult == input.m_theoryOfTimeInput.m_input[bit].m_parentMult);
+                DOCTEST_REQUIRE(time.GetLoop(bit).m_input.m_parentIndex == input.m_theoryOfTimeInput.m_input[bit].m_parentIndex);
+                DOCTEST_REQUIRE(time.GetLoop(bit).m_input.m_parentMult == input.m_theoryOfTimeInput.m_input[bit].m_parentMult);
             }
 
             for (size_t lane = 0; lane < x_lanes; ++lane)
@@ -520,15 +513,15 @@ struct FrontendRig
         // every old/requested parent and every input repeated acceptance ticks.
         //
         auto before = m_ticks;
-        size_t frames = static_cast<size_t>(std::ceil(4.0 / (8.0 * m_frontend->m_state.m_theoryOfTimeInput.m_freq)));
-        Advance(frames);
+        size_t steps = static_cast<size_t>(std::ceil(4.0 / m_frontend->m_state.m_theoryOfTimeInput.m_freq));
+        Advance(steps);
         CheckSettled();
         for (size_t bit = 0; bit < x_bits; ++bit)
         {
             DOCTEST_REQUIRE(m_ticks[bit] >= before[bit] + 2);
         }
 
-        Advance(frames);
+        Advance(steps);
         CheckSettled();
     }
 

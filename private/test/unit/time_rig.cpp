@@ -21,10 +21,8 @@
 namespace
 {
 
-// Advance `rig` one sample at a time for `n` samples, recording the master
-// indirect phasor at the current slot after each sample. The very first slot of
-// a control frame (uBlock 0) is the rolled-over boundary sample from the prior
-// frame, so the trace is the "now" value a per-sample consumer would read.
+// Advance `rig` one sample at a time for `n` samples, recording the global
+// phase a per-sample consumer would read after each sample.
 //
 std::vector<double> TraceGlobalPhase(TimeRig& rig, size_t n)
 {
@@ -57,7 +55,6 @@ DOCTEST_TEST_CASE("TimeRig: construction is SampleTimer-coherent and starts stop
 
     DOCTEST_CHECK(rig.IsRunning() == false);
     DOCTEST_CHECK(SampleTimer::GetSample() == 0);
-    DOCTEST_CHECK(rig.CurrentUBlockIndex() == 0);
     DOCTEST_CHECK(rig.Get() != nullptr);
 }
 
@@ -76,7 +73,6 @@ DOCTEST_TEST_CASE("TimeRig: SampleTimer advances in lockstep with AdvanceSample"
     {
         rig.AdvanceSample();
         DOCTEST_CHECK(SampleTimer::GetSample() == i);
-        DOCTEST_CHECK(rig.CurrentUBlockIndex() == i % SampleTimer::x_controlFrameRate);
     }
 }
 
@@ -91,17 +87,15 @@ DOCTEST_TEST_CASE("TimeRig: global phase is absolute and cycle events mark integ
     rig.SetGlobalPeriodSamples(periodSamples);
     rig.SetRunning(true);
 
-    // Prime one control frame so slot 0 holds live data, then trace.
+    // Prime one sample so the theory of time holds live data, then trace.
     //
-    rig.AdvanceControlFrame();
+    rig.AdvanceSample();
 
     double prev = rig.GlobalPhase();
     int wraps = 0;
     int topCount = 0;
 
-    // Run several master periods. Only inspect on control-frame boundaries so we
-    // read the freshly-rolled-over slot-0 "now" value (top events are recorded
-    // per control sample and surface at the slot consumed each sample).
+    // Run several master periods, inspecting every sample.
     //
     const size_t totalSamples = static_cast<size_t>(periodSamples) * 6;
     for (size_t i = 0; i < totalSamples; ++i)
@@ -147,12 +141,10 @@ DOCTEST_TEST_CASE("TimeRig: child loop completes `mult` cycles per parent cycle"
 
     // Prime: accept the requested topology at startup.
     //
-    rig.AdvanceControlFrame();
-    rig.AdvanceControlFrame();
+    rig.AdvanceSamples(16);
 
     // Count master tops and child(loop 4) tops over several master periods.
-    // Tops are single-control-sample events that can fire at any slot within a
-    // micro block, so we must inspect every sample's slot, not just slot 0.
+    // Tops are single-sample events, so inspect every sample.
     //
     int masterTops = 0;
     int childTops = 0;
@@ -190,7 +182,7 @@ DOCTEST_TEST_CASE("TimeRig: doubling tempo halves the master period")
 
         // Prime.
         //
-        rig.AdvanceControlFrame();
+        rig.AdvanceSample();
 
         // Find first top, then measure samples to the next top.
         //
@@ -217,10 +209,8 @@ DOCTEST_TEST_CASE("TimeRig: doubling tempo halves the master period")
     double slow = MeasurePeriod(256.0);
     double fast = MeasurePeriod(128.0);
 
-    // Period is quantized to control frames (8 samples), so allow a frame of slop.
-    //
-    DOCTEST_CHECK(slow == doctest::Approx(256.0).epsilon(0.06));
-    DOCTEST_CHECK(fast == doctest::Approx(128.0).epsilon(0.06));
+    DOCTEST_CHECK(slow == doctest::Approx(256.0));
+    DOCTEST_CHECK(fast == doctest::Approx(128.0));
     // Doubling tempo (halving period) halves measured period.
     //
     DOCTEST_CHECK(fast == doctest::Approx(slow / 2.0).epsilon(0.1));
@@ -254,11 +244,10 @@ DOCTEST_TEST_CASE("TimeRig: stopped multiplier changes recompute loop sizes befo
     TimeRig rig;
 
     rig.SetMultiplier(4, 3);
-    rig.AdvanceControlFrame();
+    rig.AdvanceSample();
 
     DOCTEST_CHECK(rig.IsRunning() == false);
-    DOCTEST_CHECK(rig.AnyChangeInMicroBlock() == true);
-    DOCTEST_CHECK(rig.AnyChange(0) == true);
+    DOCTEST_CHECK(rig.AnyChange() == true);
     DOCTEST_CHECK(rig.GetPeriodTicks(4) == 16);
     DOCTEST_CHECK(rig.GetPeriodTicks(TimeRig::x_globalLoop) == 48);
     DOCTEST_CHECK(rig.GetGlobalTickPosition() == 0);
@@ -281,12 +270,11 @@ DOCTEST_TEST_CASE("TimeRig: stopping a running rig halts the phasor")
     DOCTEST_CHECK(rig.IsRunning() == true);
 
     rig.SetRunning(false);
-    // One control frame to let the stop take effect.
+    // One sample to let the stop take effect.
     //
-    rig.AdvanceControlFrame();
+    rig.AdvanceSample();
     DOCTEST_CHECK(rig.IsRunning() == false);
-    DOCTEST_CHECK(rig.AnyChangeInMicroBlock() == true);
-    DOCTEST_CHECK(rig.AnyChange(0) == true);
+    DOCTEST_CHECK(rig.AnyChange() == true);
     DOCTEST_CHECK(rig.GetPeriodTicks(4) == 16);
     DOCTEST_CHECK(rig.GetPeriodTicks(TimeRig::x_globalLoop) == 48);
     DOCTEST_CHECK(rig.GetGlobalTickPosition() == 0);
@@ -339,7 +327,7 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
     TimeRig rig;
     rig.SetGlobalPeriodSamples(256.0);
     rig.SetRunning(true);
-    rig.AdvanceControlFrame();
+    rig.AdvanceSample();
 
     // Wire an AHD against loop 4 fed by the rig's TheoryOfTime.
     //
@@ -366,7 +354,7 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
     //
     AHD::AHDControl control;
     control.m_trig = true;
-    control.m_phaseRatio = static_cast<double>(rig.Get()->GetCycleRatio(4, 0));
+    control.m_phaseRatio = static_cast<double>(rig.Get()->GetCycleRatio(4));
     control.m_envelopePeriodSamples = input.m_envelopePeriodSamples;
     input.Set(control);
 
@@ -377,7 +365,6 @@ DOCTEST_TEST_CASE("TimeRig: drives an AHD envelope to nonzero and back to ~0")
     //
     for (size_t i = 0; i < 4000; ++i)
     {
-        input.m_samplePosition = static_cast<float>(rig.CurrentUBlockIndex());
         float out = ahd.Process(input);
         DOCTEST_CHECK(std::isfinite(out));
         peak = std::max(peak, out);

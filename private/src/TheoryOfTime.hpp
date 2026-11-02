@@ -39,7 +39,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
             m_modIndex.SetBaseByCenter(1.0 / 16);
 
-            float paramFilterFreq = SampleTimer::HzToCycPerSamp(0.1) * SampleTimer::x_controlFrameRate;
+            float paramFilterFreq = SampleTimer::HzToCycPerSamp(0.8);
             m_lfoSkewFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoMultFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoShapeFilter.SetAlphaFromNatFreq(paramFilterFreq);
@@ -85,18 +85,21 @@ struct TheoryOfTime : public TheoryOfTimeBase
         {
             if (m_phaseModLFO.m_weights[i] > 0)
             {
-                lfoPeriod = std::lcm(lfoPeriod, GetPeriodTicks(i, 0));
+                lfoPeriod = std::lcm(lfoPeriod, GetPeriodTicks(i));
             }
         }
 
-        uiState->SetTimeYModAmount(GetPeriodTicks(x_globalLoop, 0) / lfoPeriod);
+        uiState->SetTimeYModAmount(GetPeriodTicks(x_globalLoop) / lfoPeriod);
     }
 
-    void ProcessPhaseModLFO(size_t j, Input& input)
+    // Reads the previous sample, which m_sample still holds until Process
+    // advances it.
+    //
+    void ProcessPhaseModLFO(Input& input)
     {
         for (size_t i = 0; i < x_numLoops; ++i)
         {
-            input.m_phaseModLFOInput.m_externalWeights[i] = 1.0 / static_cast<double>(GetCycleRatio(i, j - 1));
+            input.m_phaseModLFOInput.m_externalWeights[i] = 1.0 / static_cast<double>(GetCycleRatio(i));
         }
 
         PolyXFaderInternal::Input lfoInput = input.m_phaseModLFOInput;
@@ -104,7 +107,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
         lfoInput.m_mult = input.m_lfoMult.m_expParam;
         lfoInput.m_theoryOfTime = this;
         lfoInput.m_phaseDomain = PhaseDomain::Unmodulated;
-        lfoInput.m_samplePosition = static_cast<float>(j - 1);
         m_phaseModLFO.Process(lfoInput);
         input.m_phaseOffset = -2 * input.m_modIndex.m_expParam * m_phaseModLFO.m_rawOutput;
     }
@@ -124,9 +126,8 @@ struct TheoryOfTime : public TheoryOfTimeBase
     {
     }
 
-    void Process(size_t j, Input& input)
+    void Process(Input& input)
     {
-        assert(j > 0 && j < x_microBlockBufferSize);
         if (input.m_running)
         {
             input.m_unmodulatedPhase += input.m_freq;
@@ -137,10 +138,10 @@ struct TheoryOfTime : public TheoryOfTimeBase
         }
 
         m_globalPeriodSamples = 1.0 / input.m_freq;
-        bool wasRunning = m_samples[j - 1].m_running;
+        bool wasRunning = m_sample.m_running;
 
-        ProcessPhaseModLFO(j, input);
-        TheoryOfTimeBase::Process(j, input);
+        ProcessPhaseModLFO(input);
+        TheoryOfTimeBase::Process(input);
 
         if (wasRunning != input.m_running)
         {
@@ -160,35 +161,33 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
         if (input.m_running)
         {
-            if (m_phasor2Tick.Process(GetPhase(x_globalLoop, 0, PhaseDomain::Unmodulated)) && m_messageOutBuffer)
+            if (m_phasor2Tick.Process(GetPhase(x_globalLoop, PhaseDomain::Unmodulated)) && m_messageOutBuffer)
             {
                 m_messageOutBuffer->Push(SmartGrid::MessageOut::Clock());
             }
         }
 
-        if (j == 1)
+        if (m_scopeWriter.IsWriteSample())
         {
-            // Slot zero is this microblock's control sample, carried by rollover.
-            //
-            double phase = GetPhase(x_globalLoop, 0, PhaseDomain::Modulated);
+            double phase = GetPhase(x_globalLoop, PhaseDomain::Modulated);
             m_scopeWriter.Write(phase - std::floor(phase));
         }
 
         if (m_phaseModLFO.m_top[0])
         {
-            m_scopeWriter.RecordStart(m_phaseModLFO.m_top[0].GetBatchedControlPosition(j - 1));
+            m_scopeWriter.RecordStart(m_phaseModLFO.m_top[0].m_offset);
         }
     }
 
-    void PrintState(size_t sampleIndex)
+    void PrintState()
     {
         for (size_t i = 0; i < x_numLoops; ++i)
         {
-            const TimeLoop& loop = GetLoop(i, sampleIndex);
-            INFO("time sample %zu loop %zu unmodulated %f modulated %f ratio %lld period %lld gate %d",
-                sampleIndex, i,
-                GetPhase(i, sampleIndex, PhaseDomain::Unmodulated),
-                GetPhase(i, sampleIndex, PhaseDomain::Modulated),
+            const TimeLoop& loop = GetLoop(i);
+            INFO("time loop %zu unmodulated %f modulated %f ratio %lld period %lld gate %d",
+                i,
+                GetPhase(i, PhaseDomain::Unmodulated),
+                GetPhase(i, PhaseDomain::Modulated),
                 static_cast<long long>(loop.m_cycleRatio),
                 static_cast<long long>(loop.m_periodTicks), loop.m_gate);
         }

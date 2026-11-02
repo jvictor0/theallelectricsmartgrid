@@ -16,15 +16,14 @@ struct TapeHead
     {
     }
 
-    double ComputeLoopSamples(TheoryOfTime* theoryOfTime, int sampleIndex, int loopSelector)
+    double ComputeLoopSamples(TheoryOfTime* theoryOfTime, int loopSelector)
     {
         if (!theoryOfTime)
         {
             return 0.0;
         }
 
-        size_t sampleIdx = static_cast<size_t>(sampleIndex) % TheoryOfTimeBase::x_microBlockSize;
-        int64_t cycleRatio = theoryOfTime->GetCycleRatio(loopSelector, sampleIdx);
+        int64_t cycleRatio = theoryOfTime->GetCycleRatio(loopSelector);
         if (cycleRatio <= 0)
         {
             return 0.0;
@@ -39,13 +38,11 @@ struct WriteTapeHead : TapeHead
     struct Input
     {
         TheoryOfTime* m_theoryOfTime;
-        int m_sampleIndex;
         bool m_running;
         double m_globalPeriodSamples;
 
         Input()
             : m_theoryOfTime(nullptr)
-            , m_sampleIndex(0)
             , m_running(false)
             , m_globalPeriodSamples(1.0)
         {
@@ -70,8 +67,7 @@ struct WriteTapeHead : TapeHead
             return;
         }
 
-        size_t sampleIdx = static_cast<size_t>(input.m_sampleIndex) % TheoryOfTimeBase::x_microBlockSize;
-        double theoryPosition = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, sampleIdx, PhaseDomain::Modulated) * input.m_globalPeriodSamples;
+        double theoryPosition = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated) * input.m_globalPeriodSamples;
 
         bool runningChanged = input.m_running != m_running;
         bool globalPeriodSamplesChanged = input.m_globalPeriodSamples != m_globalPeriodSamples;
@@ -83,7 +79,7 @@ struct WriteTapeHead : TapeHead
         m_running = input.m_running;
         m_globalPeriodSamples = input.m_globalPeriodSamples;
 
-        m_relativePosition = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, sampleIdx, PhaseDomain::Modulated);
+        m_relativePosition = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated);
         if (!m_running)
         {
             m_actualPosition = m_actualPosition + 1.0;
@@ -101,14 +97,12 @@ struct ReadTapeHead : TapeHead
     struct Input
     {
         TheoryOfTime* m_theoryOfTime;
-        int m_sampleIndex;
         double m_bufferFraction;
         double m_readHeadSpeed;
         int m_requestedLoopSelector;
 
         Input()
             : m_theoryOfTime(nullptr)
-            , m_sampleIndex(0)
             , m_bufferFraction(0.0)
             , m_readHeadSpeed(1.0)
             , m_requestedLoopSelector(TheoryOfTimeBase::x_globalLoop)
@@ -133,14 +127,14 @@ struct ReadTapeHead : TapeHead
         }
 
         bool allowLoopSwitch = input.m_requestedLoopSelector != m_loopSelector &&
-            input.m_theoryOfTime->CrossedCycleBoundary(m_loopSelector, input.m_sampleIndex, PhaseDomain::Modulated) &&
-            input.m_theoryOfTime->CrossedCycleBoundary(input.m_requestedLoopSelector, input.m_sampleIndex, PhaseDomain::Modulated);
+            input.m_theoryOfTime->CrossedCycleBoundary(m_loopSelector, PhaseDomain::Modulated) &&
+            input.m_theoryOfTime->CrossedCycleBoundary(input.m_requestedLoopSelector, PhaseDomain::Modulated);
         if (allowLoopSwitch)
         {
             m_loopSelector = input.m_requestedLoopSelector;
         }
 
-        double loopSamples = ComputeLoopSamples(input.m_theoryOfTime, input.m_sampleIndex, m_loopSelector);
+        double loopSamples = ComputeLoopSamples(input.m_theoryOfTime, m_loopSelector);
         double effectiveDelaySamples = loopSamples * input.m_bufferFraction;
         double hopSamples = static_cast<double>(Resynthesizer::GetGrainLaunchSamples());
         double globalPeriodSamples = m_writeTapeHead->m_globalPeriodSamples;

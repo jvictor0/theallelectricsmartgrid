@@ -27,7 +27,6 @@ struct PolyXFaderGeneric
     {
         TheoryOfTimeBase* m_theoryOfTime;
         PhaseDomain m_phaseDomain;
-        float m_samplePosition;
 
         Vector m_attackFrac;
         Vector m_shape;
@@ -48,7 +47,6 @@ struct PolyXFaderGeneric
         Input()
             : m_theoryOfTime(nullptr)
             , m_phaseDomain(PhaseDomain::Modulated)
-            , m_samplePosition(0.0f)
             , m_attackFrac()
             , m_shape()
             , m_mult()
@@ -68,7 +66,7 @@ struct PolyXFaderGeneric
 
         Vector ComputePhase(size_t i) const
         {
-            double loopPhase = m_theoryOfTime->GetPhase(i, m_samplePosition, m_phaseDomain);
+            double loopPhase = m_theoryOfTime->GetPhase(i, m_phaseDomain);
             DoubleVector phase = DoubleVector::Splat(loopPhase) + m_phaseShift.template Convert<double>() + 0.75;
             Vector t = (phase - phase.Floor()).template Convert<float>() * m_mult;
             Vector floorMult = m_mult.Floor();
@@ -209,8 +207,6 @@ struct PolyXFaderGeneric
             m_top[lane] = SampleTop::AndIdentity(m_totalWeight[lane] > 0.0f);
         }
 
-        size_t sampleIndex = static_cast<size_t>(std::floor(input.m_samplePosition));
-        size_t topIndex = static_cast<size_t>(std::round(input.m_samplePosition));
         int64_t maxCycleRatio[Size] = {};
         Vector output;
         for (size_t i = 0; i < m_size; ++i)
@@ -220,8 +216,8 @@ struct PolyXFaderGeneric
                 continue;
             }
 
-            int64_t cycleRatio = input.m_theoryOfTime->GetCycleRatio(i, sampleIndex);
-            SampleTop crossed = input.m_theoryOfTime->CrossedCycleBoundary(i, topIndex, input.m_phaseDomain);
+            int64_t cycleRatio = input.m_theoryOfTime->GetCycleRatio(i);
+            SampleTop crossed = input.m_theoryOfTime->CrossedCycleBoundary(i, input.m_phaseDomain);
             for (size_t lane = 0; lane < Size; ++lane)
             {
                 if (m_weights[i][lane] != 0)

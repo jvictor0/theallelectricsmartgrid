@@ -2,15 +2,13 @@
 
 #include <algorithm>
 #include <cmath>
-
-#include "SampleTimer.hpp"
+#include <cstddef>
 
 struct SampleTop
 {
     bool m_triggered;
 
-    // Offset from the sample carrying this event, always in base-rate samples.
-    // Halfway through a 4x oversample is -0.125, not -0.5.
+    // Offset in engine samples from the sample carrying this event.
     //
     double m_offset;
 
@@ -74,21 +72,6 @@ struct SampleTop
     double GetPosition(double sampleIndex) const
     {
         return sampleIndex + m_offset;
-    }
-
-    double GetControlPosition(size_t uBlockIndex) const
-    {
-        // The control writer advances just after sample zero of each microblock.
-        //
-        return GetPosition(static_cast<double>(uBlockIndex)) / SampleTimer::x_controlFrameRate
-            - (uBlockIndex == 0 ? 0.0 : 1.0);
-    }
-
-    double GetBatchedControlPosition(size_t uBlockIndex) const
-    {
-        // The whole microblock is computed before the control writer advances.
-        //
-        return GetPosition(static_cast<double>(uBlockIndex)) / SampleTimer::x_controlFrameRate;
     }
 
     static SampleTop FromPhases(double previous, double current)

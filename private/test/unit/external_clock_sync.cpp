@@ -142,7 +142,7 @@ DOCTEST_TEST_CASE("ExternalClockSync: stopped estimate uses selected loop multip
     GlobalEnv::ResetPerTest();
     TimeRig rig;
 
-    rig.AdvanceControlFrame();
+    rig.AdvanceSample();
 
     ExternalClockSync sync;
     ExternalClockSync::Input input;
@@ -154,8 +154,7 @@ DOCTEST_TEST_CASE("ExternalClockSync: stopped estimate uses selected loop multip
         sync.Process(input);
     }
 
-    size_t j = static_cast<size_t>(SampleTimer::GetUBlockIndex());
-    double multiplier = input.m_theoryOfTime->GetCycleRatio(input.m_loopIndex, j);
+    double multiplier = input.m_theoryOfTime->GetCycleRatio(input.m_loopIndex);
     double expectedFreq = 1.0 / (static_cast<double>(input.m_ticksMultiplier) * multiplier * 40.0);
 
     input.m_clockTick = true;

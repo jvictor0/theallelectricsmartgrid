@@ -21,10 +21,10 @@ struct TimeWarpLFORig
 
     float Evaluate(float phase)
     {
-        TheoryOfTimeBase::Sample& sample = m_time.m_samples[0];
+        TheoryOfTimeBase::Sample& sample = m_time.m_sample;
         sample.m_unmodulatedPhase = phase;
         TheoryOfTimeBase::SetLoopPeriods(sample);
-        m_time.ProcessPhaseModLFO(1, m_input);
+        m_time.ProcessPhaseModLFO(m_input);
         return m_time.m_phaseModLFO.m_values[TheoryOfTimeBase::x_globalLoop];
     }
 };
@@ -124,25 +124,17 @@ DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the glob
     for (int n = 1; n <= 56000; ++n)
     {
         input.m_phaseModLFOInput.m_center = 1 - input.m_lfoCenterFilter.Process(encoder.Process(0.0418f));
-        if (n % 8 != 0)
-        {
-            continue;
-        }
-
         reachedBoundary = reachedBoundary || input.m_phaseModLFOInput.m_center == 23.0f / 24.0f;
-        moving.RolloverMicroblockBuffer();
         TheoryOfTime reference = moving;
         TheoryOfTime::Input referenceInput = input;
         referenceInput.m_phaseModLFOInput.m_center = 1;
-        for (size_t j = 1; j <= 8; ++j)
-        {
-            moving.Process(j, input);
-            reference.Process(j, referenceInput);
-            double speed = 192000 * (moving.m_samples[j].m_modulatedPhase - moving.m_samples[j - 1].m_modulatedPhase);
-            double referenceSpeed = 192000 * (reference.m_samples[j].m_modulatedPhase - reference.m_samples[j - 1].m_modulatedPhase);
-            maxSpeedDifference = std::max(maxSpeedDifference, std::abs(speed - referenceSpeed));
-            minWeight = std::min(minWeight, moving.m_phaseModLFO.m_totalWeight[0]);
-        }
+        double previousPhase = moving.m_sample.m_modulatedPhase;
+        moving.Process(input);
+        reference.Process(referenceInput);
+        double speed = 192000 * (moving.m_sample.m_modulatedPhase - previousPhase);
+        double referenceSpeed = 192000 * (reference.m_sample.m_modulatedPhase - previousPhase);
+        maxSpeedDifference = std::max(maxSpeedDifference, std::abs(speed - referenceSpeed));
+        minWeight = std::min(minWeight, moving.m_phaseModLFO.m_totalWeight[0]);
     }
 
     DOCTEST_REQUIRE(reachedBoundary);
@@ -153,8 +145,8 @@ DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the glob
 DOCTEST_TEST_CASE("PolyXFader: square-like Shape responds continuously without quantizer history")
 {
     TheoryOfTimeBase time;
-    time.m_samples[0].m_unmodulatedPhase = 0.22;
-    TheoryOfTimeBase::SetLoopPeriods(time.m_samples[0]);
+    time.m_sample.m_unmodulatedPhase = 0.22;
+    TheoryOfTimeBase::SetLoopPeriods(time.m_sample);
 
     PolyXFaderInternal fader;
     PolyXFaderInternal::Input input;
@@ -171,7 +163,7 @@ DOCTEST_TEST_CASE("PolyXFader: square-like Shape responds continuously without q
     DOCTEST_CHECK(before > 0.0f);
     DOCTEST_CHECK(before < 0.1f);
 
-    time.m_samples[0].m_unmodulatedPhase += 0.0001;
+    time.m_sample.m_unmodulatedPhase += 0.0001;
     fader.Process(input);
     DOCTEST_CHECK(fader.m_values[0] > before);
     DOCTEST_CHECK(fader.m_values[0] - before < 0.01f);

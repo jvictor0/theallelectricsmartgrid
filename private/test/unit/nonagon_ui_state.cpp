@@ -43,12 +43,7 @@ struct NonagonSnapshotRig
             input.m_arpInput.m_pageInterval[voice] = 0.125f;
         }
 
-        for (size_t sample = 1; sample <= TheoryOfTimeBase::x_microBlockSize; ++sample)
-        {
-            nonagon.m_theoryOfTime.TheoryOfTimeBase::Process(sample, input.m_theoryOfTimeInput);
-        }
-
-        nonagon.m_theoryOfTime.RolloverMicroblockBuffer();
+        nonagon.m_theoryOfTime.TheoryOfTimeBase::Process(input.m_theoryOfTimeInput);
         nonagon.SetIndexArpInputs(input);
         nonagon.m_indexArp.Process(input.m_arpInput);
         nonagon.SetLameJuisInput(input);

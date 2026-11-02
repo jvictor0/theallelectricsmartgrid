@@ -9,6 +9,22 @@
 
 namespace
 {
+void WriteAt(ScopeWriter& writer, size_t scope, size_t voice, size_t index, float value)
+{
+    size_t current = writer.m_index;
+    writer.m_index = index;
+    writer.Write(scope, voice, value);
+    writer.m_index = current;
+}
+
+void AdvanceTo(ScopeWriter& writer, size_t index)
+{
+    while (writer.m_index < index || !writer.IsWriteSample())
+    {
+        writer.AdvanceIndex();
+    }
+}
+
 struct ScopeReaderFixture
 {
     std::unique_ptr<ScopeWriter> m_writer = std::make_unique<ScopeWriter>(1, 1);
@@ -19,7 +35,7 @@ struct ScopeReaderFixture
         {
             float value = index < 20 ? static_cast<float>(index) - 10.0f
                                     : currentOffset + static_cast<float>(index - 20);
-            m_writer->Write(0, 0, index, value);
+            WriteAt(*m_writer, 0, 0, index, value);
         }
 
         m_writer->RecordStart(0, 0, 10);
@@ -111,7 +127,7 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
         {
             for (size_t i = 0; i < 100; ++i)
             {
-                writer->Write(scope, 0, i, -0.25f);
+                WriteAt(*writer, scope, 0, i, -0.25f);
             }
         }
 
@@ -132,7 +148,7 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
         SquiggleBoyShape filter;
         SquiggleBoyShape::Input filterInput;
         filter.m_scopeWriter[0] = ScopeWriterHolder(writer.get(), 0, 2);
-        for (size_t i = 0; i < SampleTimer::x_controlFrameRate; ++i)
+        for (size_t i = 0; i < 8; ++i)
         {
             filter.Process(filterInput, source.Process(sourceInput));
             filter.WriteScopes(source.m_top);
@@ -155,7 +171,7 @@ DOCTEST_TEST_CASE("ScopeReader: interpolated cycle length and reads survive buff
     writer->m_index = writer->MaxIndexes() - 16;
     for (size_t i = 0; i < 25; ++i)
     {
-        writer->Write(0, 0, i, static_cast<float>(i));
+        WriteAt(*writer, 0, 0, writer->m_index + i, static_cast<float>(i));
     }
 
     writer->RecordStart(0, 0, 9.75);
@@ -207,32 +223,32 @@ DOCTEST_TEST_CASE("ScopeReader: PolyXFader top reaches its control-rate scope be
     }
 
     clock.m_unmodulatedPhase = 0.875;
-    time.Process(1, clock);
+    time.Process(clock);
     clock.m_unmodulatedPhase = 1.125;
-    time.Process(2, clock);
+    time.Process(clock);
 
-    auto writer = std::make_unique<ScopeWriter>(1, 1);
+    auto writer = std::make_unique<ScopeWriter>(1, 1, ScopeWriter::x_controlDecimation);
     for (size_t i = 0; i < 12; ++i)
     {
-        writer->Write(0, 0, i, 0.5f);
+        WriteAt(*writer, 0, 0, i, 0.5f);
     }
 
-    writer->m_index = 10;
+    writer->m_index = 9;
+    writer->m_subIndex = 2;
     SquiggleLFOGeneric<1> lfo;
     SquiggleLFOGeneric<1>::Input input;
     input.m_polyXFaderInput.m_theoryOfTime = &time;
     input.m_polyXFaderInput.m_size = 1;
     lfo.m_scopeWriter[0] = ScopeWriterHolder(writer.get(), 0, 0);
-    SampleTimer::s_instance->m_sample = 2;
     lfo.Process(input);
-    writer->AdvanceIndex();
+    AdvanceTo(*writer, 11);
     writer->Publish();
     ScopeReader reader(writer.get(), 0, 0, 1024, 1);
 
     DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(9.1875));
 }
 
-DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one slot-zero phase per control sample")
+DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one phase per control sample")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTime time;
@@ -241,22 +257,22 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one slot-zero phase per 
     input.m_freq = 1.0 / 32.0;
     input.m_modIndex.m_expParam = 0.0;
 
-    auto writer = std::make_unique<ScopeWriter>(1, 1);
+    auto writer = std::make_unique<ScopeWriter>(1, 1, ScopeWriter::x_controlDecimation);
     for (size_t index = 99; index < 113; ++index)
     {
-        writer->Write(0, 0, index, -1.0f);
+        WriteAt(*writer, 0, 0, index, -1.0f);
     }
 
     writer->m_index = 100;
     time.SetupMonoScopeWriter(writer.get());
-    constexpr float x_phases[] = {0.0f, 0.25f, 0.5f, 0.75f, 0.0f};
+    constexpr float x_phases[] = {0.03125f, 0.28125f, 0.53125f, 0.78125f, 0.03125f};
     for (size_t block = 0; block < 5; ++block)
     {
         DOCTEST_CAPTURE(block);
-        time.RolloverMicroblockBuffer();
-        for (size_t j = 1; j <= TheoryOfTimeBase::x_microBlockSize; ++j)
+        for (size_t sample = 0; sample < ScopeWriter::x_controlDecimation; ++sample)
         {
-            time.Process(j, input);
+            time.Process(input);
+            writer->AdvanceIndex();
         }
 
         DOCTEST_CHECK(writer->ReadSample(0, 0, 99) == -1.0f);
@@ -269,12 +285,10 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one slot-zero phase per 
         {
             DOCTEST_CHECK(writer->ReadSample(0, 0, future) == -1.0f);
         }
-
-        writer->AdvanceIndex();
     }
 }
 
-DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into the control batch including rollover")
+DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into decimated control samples across blocks")
 {
     struct Case
     {
@@ -283,8 +297,9 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into the con
         size_t m_firstBlockStarts;
     };
 
-    // At 1/8 cycle per audio sample, these crossings occur at slots 1.5, 6.5,
-    // 7, 7.5 and 8. The last two are consumed after slot 8 rolls into slot 0.
+    // At 1/8 cycle per audio sample, these crossings land 1.5, 6.5, 7, 7.5
+    // and 8 samples after the first stored sample. The last two fall after
+    // the first block's final sample, so the second block records them.
     //
     constexpr Case x_cases[] =
     {
@@ -311,23 +326,22 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into the con
             input.m_input[i].m_parentMult = 1;
         }
 
-        auto writer = std::make_unique<ScopeWriter>(1, 1);
+        auto writer = std::make_unique<ScopeWriter>(1, 1, ScopeWriter::x_controlDecimation);
         writer->m_index = 100;
         time.SetupMonoScopeWriter(writer.get());
         for (size_t block = 0; block < 2; ++block)
         {
-            time.RolloverMicroblockBuffer();
-            for (size_t j = 1; j <= TheoryOfTimeBase::x_microBlockSize; ++j)
+            for (size_t sample = 0; sample < ScopeWriter::x_controlDecimation; ++sample)
             {
-                time.Process(j, input);
+                time.Process(input);
+                writer->AdvanceIndex();
             }
 
-            writer->AdvanceIndex();
             writer->Publish();
             DOCTEST_CHECK(writer->m_startIndexIndex[0][0].load() == (block == 0 ? item.m_firstBlockStarts : 2));
 
             // Keep the second block below the next crossing while making its
-            // slot-zero phase available for the reader's fractional lookup.
+            // first-sample phase available for the reader's fractional lookup.
             //
             input.m_freq = 1.0 / 256.0;
         }
@@ -339,7 +353,7 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into the con
     }
 }
 
-DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top in slot zero keeps the preceding fractional time")
+DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top on a stored sample keeps the preceding fractional time")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTimeBase time;
@@ -348,15 +362,14 @@ DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top in slot zero keeps the precedin
     clock.m_input[0].m_parentIndex = 5;
     clock.m_input[0].m_parentMult = 1;
     clock.m_unmodulatedPhase = 0.875;
-    time.Process(7, clock);
+    time.Process(clock);
     clock.m_unmodulatedPhase = 1.125;
-    time.Process(8, clock);
-    time.RolloverMicroblockBuffer();
+    time.Process(clock);
 
-    auto writer = std::make_unique<ScopeWriter>(1, 1);
+    auto writer = std::make_unique<ScopeWriter>(1, 1, ScopeWriter::x_controlDecimation);
     for (size_t i = 0; i < 21; ++i)
     {
-        writer->Write(0, 0, i, 0.5f);
+        WriteAt(*writer, 0, 0, i, 0.5f);
     }
 
     writer->m_index = 20;
@@ -365,36 +378,35 @@ DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top in slot zero keeps the precedin
     input.m_polyXFaderInput.m_theoryOfTime = &time;
     input.m_polyXFaderInput.m_size = 1;
     lfo.m_scopeWriter[0] = ScopeWriterHolder(writer.get(), 0, 0);
-    SampleTimer::s_instance->m_sample = 8;
     lfo.Process(input);
-    writer->AdvanceIndex();
+    AdvanceTo(*writer, 21);
     writer->Publish();
     ScopeReader reader(writer.get(), 0, 0, 1024, 1);
 
     DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(19.9375));
 }
 
-DOCTEST_TEST_CASE("ScopeReader: QuadLFO top accounts for the advanced control writer")
+DOCTEST_TEST_CASE("ScopeReader: QuadLFO top lands between control samples")
 {
     GlobalEnv::ResetPerTest();
-    auto writer = std::make_unique<ScopeWriter>(4, 1);
+    auto writer = std::make_unique<ScopeWriter>(4, 1, ScopeWriter::x_controlDecimation);
     for (size_t voice = 0; voice < 4; ++voice)
     {
         for (size_t i = 0; i < 11; ++i)
         {
-            writer->Write(0, voice, i, 0.5f);
+            WriteAt(*writer, 0, voice, i, 0.5f);
         }
     }
 
-    writer->m_index = 10;
+    writer->m_index = 9;
+    writer->m_subIndex = 7;
     QuadLFO lfo;
     QuadLFO::Input input;
     input.m_freq = QuadFloat(0.25f, 0.125f, 0.0625f, 0.03125f);
     lfo.m_phase[0] = 0.875f;
     lfo.ConfigureScopeWriter(writer.get(), 0);
-    SampleTimer::s_instance->m_sample = 7;
     lfo.Process(input);
-    writer->AdvanceIndex();
+    AdvanceTo(*writer, 11);
     writer->Publish();
     ScopeReader reader(writer.get(), 0, 0, 1024, 1);
 

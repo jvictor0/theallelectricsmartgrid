@@ -29,12 +29,13 @@ DOCTEST_TEST_CASE("audio output routing duplicates stereo only when outputs 3 an
         app->SetRecordingDirectory(directory.String().c_str());
         app->PrepareToPlay(512, 48000);
 
-        // Seed distinct source lanes for the sample before the next DSP control update.
+        // Seed distinct filter state in each source lane so the lanes ring out
+        // differently without any audio input.
         //
         auto& synth = app->m_internal.m_squiggleBoy;
         synth.m_sourceMixerState.m_sources[0].m_config.m_width = SourceMixer::SourceWidth::Stereo;
-        synth.m_sourceMixer.m_sources[0].m_output[0] = 0.25f;
-        synth.m_sourceMixer.m_sources[0].m_output[1] = -0.5f;
+        synth.m_sourceMixer.m_sources[0].m_lpFilter[0].m_ic2eq = 0.25f;
+        synth.m_sourceMixer.m_sources[0].m_lpFilter[1].m_ic2eq = -0.5f;
 
         const int numChannels = std::max(numInputs, numOutputs);
         juce::AudioBuffer<float> buffer(numChannels, 3);

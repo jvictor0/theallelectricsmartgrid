@@ -41,7 +41,7 @@ struct TheoryOfTimeRhythmCell : public SmartGrid::Cell
         {
             int resetLoopIndex = m_resetState->Get<int>();
             int64_t currentRhythmSlotIndex = PhaseUtils::FloorMod(
-                m_theoryOfTime->GetLoopCyclePosition(m_loopIndex, 0, resetLoopIndex),
+                m_theoryOfTime->GetLoopCyclePosition(m_loopIndex, resetLoopIndex),
                 m_sizeState->Get<int>());
             bool currentGate = m_gateState->Get<bool>();
             if (currentRhythmSlotIndex == m_rhythmSlotIndex)
@@ -90,7 +90,7 @@ struct TheoryOfTimeRhythmResetCell : public SmartGrid::Cell
     bool IsEnabled()
     {
         return m_loopIndex != m_candidateLoopIndex
-            && m_theoryOfTime->GetResetCycleCount(m_loopIndex, 0, m_candidateLoopIndex) > 0;
+            && m_theoryOfTime->GetResetCycleCount(m_loopIndex, m_candidateLoopIndex) > 0;
     }
 
     virtual void OnPress(uint8_t) override

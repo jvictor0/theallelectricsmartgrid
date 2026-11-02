@@ -1,8 +1,7 @@
 #pragma once
 
-// Drives the real clock at the host cadence: slots 1 through 8 are prepared at
-// each control boundary, slot 8 rolls into slot 0, and consumers read the current
-// SampleTimer slot. Phase queries return absolute cycles in the selected domain.
+// Drives the real clock at the host cadence, one theory of time sample per
+// audio sample. Phase queries return absolute cycles in the selected domain.
 // Call GlobalEnv::ResetPerTest before constructing a fixture.
 //
 
@@ -17,7 +16,6 @@ struct TimeRig
 {
     static constexpr size_t x_numLoops = TheoryOfTimeBase::x_numLoops;       // 6
     static constexpr int    x_globalLoop = TheoryOfTimeBase::x_globalLoop;   // 5
-    static constexpr size_t x_controlFrameRate = SampleTimer::x_controlFrameRate; // 8
 
     TheoryOfTime m_tot;
     TheoryOfTime::Input m_input;
@@ -43,7 +41,7 @@ struct TimeRig
 
         m_input.m_running = false;
 
-        // Default: global loop period of 256 samples (32 control frames).
+        // Default: global loop period of 256 samples.
         // m_freq is the phase advanced per audio sample.
         //
         m_input.m_freq = 1.0 / 256.0;
@@ -67,7 +65,7 @@ struct TimeRig
 
     bool IsRunning() const
     {
-        return m_tot.m_samples[CurrentUBlockIndex()].m_running;
+        return m_tot.m_sample.m_running;
     }
 
     // Set the global phase advanced per audio sample (Internal clock). The
@@ -120,18 +118,15 @@ struct TimeRig
 
     // --- Advancing -----------------------------------------------------------
 
-    // Advance exactly one audio sample, mirroring the real host:
-    //   1. SampleTimer::IncrementSample()  (m_sample advances by 1)
-    //   2. on a control-frame boundary, run one TheoryOfTime control frame.
+    // Advance exactly one audio sample, then drain the message buffer. The
+    // MessageOutBuffer has a fixed capacity of 16 and never self-clears; the
+    // real host drains it every frame.
     //
     void AdvanceSample()
     {
         SampleTimer::IncrementSample();
-
-        if (SampleTimer::IsControlFrame())
-        {
-            RunControlFrame();
-        }
+        m_tot.Process(m_input);
+        m_messageOut.Clear();
     }
 
     void AdvanceSamples(size_t n)
@@ -140,15 +135,6 @@ struct TimeRig
         {
             AdvanceSample();
         }
-    }
-
-    // Advance one full control frame (8 samples). Lands on a control-frame
-    // boundary (assuming you started on one, which you do right after
-    // ResetPerTest()).
-    //
-    void AdvanceControlFrame()
-    {
-        AdvanceSamples(x_controlFrameRate);
     }
 
     // --- Accessors -----------------------------------------------------------
@@ -171,13 +157,6 @@ struct TimeRig
         return m_messageOut;
     }
 
-    // The slot index for "now" = m_sample % 8, in [0, 7].
-    //
-    size_t CurrentUBlockIndex() const
-    {
-        return static_cast<size_t>(SampleTimer::GetUBlockIndex());
-    }
-
     double GlobalPeriodSamples() const
     {
         return m_tot.m_globalPeriodSamples;
@@ -185,7 +164,7 @@ struct TimeRig
 
     double GetPhase(size_t loop, PhaseDomain domain = PhaseDomain::Modulated) const
     {
-        return m_tot.GetPhase(loop, CurrentUBlockIndex(), domain);
+        return m_tot.GetPhase(loop, domain);
     }
 
     double GlobalPhase() const
@@ -195,22 +174,22 @@ struct TimeRig
 
     bool CycleCrossed(size_t loop, PhaseDomain domain = PhaseDomain::Modulated) const
     {
-        return m_tot.CrossedCycleBoundary(loop, CurrentUBlockIndex(), domain).m_triggered;
+        return m_tot.CrossedCycleBoundary(loop, domain).m_triggered;
     }
 
     bool Gate(size_t loop) const
     {
-        return m_tot.GetLoop(loop, CurrentUBlockIndex()).m_gate;
+        return m_tot.GetLoop(loop).m_gate;
     }
 
     int64_t GetPeriodTicks(size_t loop) const
     {
-        return m_tot.GetPeriodTicks(loop, CurrentUBlockIndex());
+        return m_tot.GetPeriodTicks(loop);
     }
 
     int64_t GetGlobalTickPosition(PhaseDomain domain) const
     {
-        return m_tot.GetGlobalTickPosition(CurrentUBlockIndex(), domain);
+        return m_tot.GetGlobalTickPosition(domain);
     }
 
     int64_t GetGlobalTickPosition() const
@@ -218,35 +197,8 @@ struct TimeRig
         return GetGlobalTickPosition(PhaseDomain::Modulated);
     }
 
-    bool AnyChangeInMicroBlock() const
+    bool AnyChange() const
     {
-        return m_tot.AnyChangeInMicroBlock();
-    }
-
-    bool AnyChange(size_t j) const
-    {
-        assert(j < TheoryOfTimeBase::x_microBlockBufferSize);
-        return m_tot.m_samples[j].m_anyChange;
-    }
-
-private:
-    // Run a single control frame exactly like TheNonagonInternal::Process:
-    // rollover, then Process(j) for j = 1..8, then drain the message buffer
-    // (the real system drains it through its MIDI/message consumer).
-    //
-    void RunControlFrame()
-    {
-        m_tot.RolloverMicroblockBuffer();
-
-        for (size_t j = 1; j < TheoryOfTimeBase::x_microBlockBufferSize; ++j)
-        {
-            m_tot.Process(j, m_input);
-        }
-
-        // The MessageOutBuffer has a fixed capacity of 16 and never self-clears;
-        // TheoryOfTime pushes Start/Stop/Clock messages into it. The real host
-        // drains it every frame; mirror that so it never silently saturates.
-        //
-        m_messageOut.Clear();
+        return m_tot.AnyChange();
     }
 };

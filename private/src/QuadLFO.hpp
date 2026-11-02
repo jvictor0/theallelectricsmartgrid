@@ -106,17 +106,13 @@ struct QuadLFO
 
         if (m_scopeWriterHolder.m_scopeWriter)
         {
-            if (SampleTimer::IsControlFrame())
-            {
-                m_scopeWriterHolder.Write(m_output);
-            }
-
+            m_scopeWriterHolder.Write(m_output);
             for (size_t i = 0; i < 4; ++i)
             {
                 if (m_phase[i] < prevPhase[i])
                 {
                     SampleTop top = SampleTop::FromPhases(prevPhase[i], unwrappedPhase[i]);
-                    m_scopeWriterHolder.RecordStartAtVoice(i, top.GetControlPosition(SampleTimer::GetUBlockIndex()));
+                    m_scopeWriterHolder.RecordStartAtVoice(i, top.m_offset);
                 }
             }
         }
