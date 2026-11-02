@@ -30,20 +30,9 @@ struct EncoderCell
 
     void HandleIncDec(size_t timestamp, int64_t delta)
     {
-        float scaled = IncDecDelta(timestamp, delta);
-        if (scaled != 0)
-        {
-            Increment(scaled);
-        }
-    }
-
-    // Updates the acceleration state for one tick and returns the scaled delta.
-    //
-    float IncDecDelta(size_t timestamp, int64_t delta)
-    {
         if (delta == 0)
         {
-            return 0;
+            return;
         }
 
         int currentSign = (delta > 0) ? 1 : -1;
@@ -119,7 +108,7 @@ struct EncoderCell
         m_lastDeltaSign = currentSign;
         m_lastSpeed = speed;
         
-        return static_cast<float>(delta) * speed;
+        Increment(delta * speed);
     }
 
     virtual float GetNormalizedValue() = 0;
@@ -139,6 +128,56 @@ struct EncoderCell
     static uint8_t BrightnessToAnimationValue(float brightness)
     {
         return 17 + brightness * 30;
+    }
+};
+
+struct TickDistributor
+{
+    static constexpr size_t x_minSamplesToDistribute = static_cast<size_t>(SampleTimer::SecondsToHostSamples(0.002));
+    static constexpr size_t x_maxSamplesToDistribute = static_cast<size_t>(SampleTimer::SecondsToHostSamples(0.050));
+
+    size_t m_samplesSinceLastChange;
+    size_t m_samplesToDistribute;
+
+    TickDistributor()
+        : m_samplesSinceLastChange(x_maxSamplesToDistribute)
+        , m_samplesToDistribute(0)
+    {
+    }
+
+    float GetStep(float target, float value)
+    {
+        assert(m_samplesToDistribute > 0);
+        return (target - value) / static_cast<float>(m_samplesToDistribute);
+    }
+
+    void RecordSample()
+    {
+        if (m_samplesSinceLastChange < x_maxSamplesToDistribute)
+        {
+            ++m_samplesSinceLastChange;
+        }
+
+        if (m_samplesToDistribute > 0)
+        {
+            --m_samplesToDistribute;
+        }
+    }
+
+    void RecordChange()
+    {
+        if (m_samplesSinceLastChange > 0)
+        {
+            m_samplesToDistribute = std::clamp(m_samplesSinceLastChange,
+                x_minSamplesToDistribute, x_maxSamplesToDistribute);
+        }
+
+        m_samplesSinceLastChange = 0;
+    }
+
+    bool IsDone()
+    {
+        return x_maxSamplesToDistribute <= m_samplesSinceLastChange && m_samplesToDistribute == 0;
     }
 };
 
@@ -163,7 +202,7 @@ struct StateEncoderCell : public EncoderCell
 
     void CopyToScene(size_t scene)
     {
-        SetAndRecordValue(GetSceneNormalizedValue(), scene);
+        SetAndRecordValue(GetSceneTargetNormalizedValue(), scene);
 
         SetState();
     }
@@ -185,6 +224,11 @@ struct StateEncoderCell : public EncoderCell
 
     bool IsNeutralCurrentScene()
     {
+        if (!m_tickDistributor.IsDone())
+        {
+            return false;
+        }
+
         if (m_values[m_context->m_sceneManager.m_scene1] != GetNeutralNormalizedValue() && m_context->m_sceneManager.m_blendFactor < 1)
         {
             return false;
@@ -199,8 +243,11 @@ struct StateEncoderCell : public EncoderCell
     }
 
     float m_values[SceneManager::x_numScenes];
+    float m_targets[SceneManager::x_numScenes];
     float* m_state;
     SmartGridOneContext* m_context;
+    TickDistributor m_tickDistributor;
+    size_t m_samplesForceUpdate = 0;
 
     JSON ToJSON(JsonArena& a)
     {
@@ -208,7 +255,7 @@ struct StateEncoderCell : public EncoderCell
         JSON values = a.Array();
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
-            values.AppendNew(a.Real(ToValue(m_values[i])));
+            values.AppendNew(a.Real(ToValue(m_targets[i])));
         }
 
         root.SetNew("values", values);
@@ -221,37 +268,53 @@ struct StateEncoderCell : public EncoderCell
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
             float value = ToNormalized(static_cast<float>(values.GetAt(i).NumberValue()));
-            m_values[i] = value;
+            SetTarget(value, i);
         }
 
         SetState();
     }
 
+    void SetTarget(float value, int scene)
+    {
+        if (m_targets[scene] == value)
+        {
+            return;
+        }
+
+        m_targets[scene] = value;
+        m_tickDistributor.RecordChange();
+        m_samplesForceUpdate = TickDistributor::x_maxSamplesToDistribute;
+    }
+
     void SetAndRecordValue(float value, int scene)
     {
-        m_values[scene] = value;
+        SetTarget(value, scene);
         m_context->m_paramEventLogger.RecordEncoderSet(this, scene);
     }
     
     StateEncoderCell()
         : m_values{}
+        , m_targets{}
         , m_state(nullptr)
         , m_context(nullptr)
     {
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
             m_values[i] = 0;
+            m_targets[i] = 0;
         }
     }
 
     StateEncoderCell(SmartGridOneContext* context)
         : m_values{}
+        , m_targets{}
         , m_state(nullptr)
         , m_context(context)
     {
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
             m_values[i] = 0;
+            m_targets[i] = 0;
         }
     }
 
@@ -274,8 +337,18 @@ struct StateEncoderCell : public EncoderCell
         return m_context->m_sceneManager.GetSceneValue(m_values);
     }
 
+    float GetSceneTargetNormalizedValue()
+    {
+        return m_context->m_sceneManager.GetSceneValue(m_targets);
+    }
+
     bool AllNeutral()
     {
+        if (!m_tickDistributor.IsDone())
+        {
+            return false;
+        }
+
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
             if (m_values[i] != GetNeutralNormalizedValue())
@@ -332,31 +405,31 @@ struct StateEncoderCell : public EncoderCell
         float t = m_context->m_sceneManager.m_blendFactor;
         if (t <= 0)
         {
-            SetAndRecordValue(Combine(m_values[s1], delta, towardsZero), s1);
+            SetAndRecordValue(Combine(m_targets[s1], delta, towardsZero), s1);
         }
         else if (t >= 1)
         {
-            SetAndRecordValue(Combine(m_values[s2], delta, towardsZero), s2);
+            SetAndRecordValue(Combine(m_targets[s2], delta, towardsZero), s2);
         }
         else if (towardsZero)
         {
-            SetAndRecordValue(Combine(m_values[s1], delta * (1.0f - t), towardsZero), s1);
-            SetAndRecordValue(Combine(m_values[s2], delta * t, towardsZero), s2);
+            SetAndRecordValue(Combine(m_targets[s1], delta * (1.0f - t), towardsZero), s1);
+            SetAndRecordValue(Combine(m_targets[s2], delta * t, towardsZero), s2);
         }
         else
         {
-            float value = std::max(0.0f, std::min(1.0f, GetSceneNormalizedValue() + delta));
-            float newValue1 = m_values[s1] + delta * (1.0f - t);
-            float newValue2 = m_values[s2] + delta * t;
+            float value = std::max(0.0f, std::min(1.0f, GetSceneTargetNormalizedValue() + delta));
+            float newValue1 = m_targets[s1] + delta * (1.0f - t);
+            float newValue2 = m_targets[s2] + delta * t;
             if (newValue1 < 0 || newValue1 > 1)
             {
                 SetAndRecordValue(std::max(0.0f, std::min(1.0f, newValue1)), s1);
-                SetAndRecordValue((value - m_values[s1] * (1 - t)) / t, s2);
+                SetAndRecordValue((value - m_targets[s1] * (1 - t)) / t, s2);
             }
             else if (newValue2 < 0 || newValue2 > 1)
             {
                 SetAndRecordValue(std::max(0.0f, std::min(1.0f, newValue2)), s2);
-                SetAndRecordValue((value - m_values[s2] * t) / (1 - t), s1);
+                SetAndRecordValue((value - m_targets[s2] * t) / (1 - t), s1);
             }
             else
             {
@@ -370,7 +443,7 @@ struct StateEncoderCell : public EncoderCell
 
     void SetToValue(float value)
     {
-        float delta = value - GetSceneNormalizedValue();
+        float delta = value - GetSceneTargetNormalizedValue();
         IncrementInternal(delta, false);
     }
 
@@ -385,6 +458,32 @@ struct StateEncoderCell : public EncoderCell
 
             SetAndRecordValue(value, s);
         }
+
+        SetState();
+    }
+
+    void MoveValuesTowardsTargets()
+    {
+        if (m_tickDistributor.m_samplesToDistribute == 0)
+        {
+            m_tickDistributor.RecordSample();
+            return;
+        }
+
+        for (size_t s = 0; s < SceneManager::x_numScenes; ++s)
+        {
+            if (m_tickDistributor.m_samplesToDistribute == 1)
+            {
+                m_values[s] = m_targets[s];
+            }
+            else if (0 < m_tickDistributor.m_samplesToDistribute)
+            {
+                float step = m_tickDistributor.GetStep(m_targets[s], m_values[s]);
+                m_values[s] = std::max(0.0f, std::min(1.0f, m_values[s] + step));
+            }
+        }
+
+        m_tickDistributor.RecordSample();
 
         SetState();
     }

@@ -34,10 +34,20 @@ struct TrioEncoderRig
             m_encoders.EncoderIndex(Encoders::Param::Harmonics1, trio));
     }
 
+    void Settle()
+    {
+        for (size_t i = 0; i < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++i)
+        {
+            SampleTimer::IncrementSample();
+            m_encoders.Process();
+        }
+    }
+
     void SetCarrier(size_t trio, float value)
     {
         Carrier(trio).SetValue(value, true);
         Carrier(trio).SetForceUpdateRecursive();
+        Settle();
     }
 };
 
@@ -48,12 +58,12 @@ DOCTEST_TEST_CASE("encoder_trios: defaults and assignments reach the computed ba
     GlobalEnv::ResetPerTest();
     TrioEncoderRig rig;
     Cell& cell = rig.Carrier(0);
-    cell.Compute();
+    cell.Compute(false);
     DOCTEST_CHECK(cell.m_bankedValue == doctest::Approx(cell.m_defaultValue));
     DOCTEST_CHECK(cell.GetValue(0) == doctest::Approx(cell.m_defaultValue));
 
     rig.SetCarrier(0, 0.7f);
-    cell.Compute();
+    cell.Compute(false);
     DOCTEST_CHECK(cell.m_values[0] == doctest::Approx(0.7f));
     DOCTEST_CHECK(cell.m_bankedValue == doctest::Approx(0.7f));
     DOCTEST_CHECK(cell.GetValue(0) == doctest::Approx(0.7f));
@@ -68,7 +78,8 @@ DOCTEST_TEST_CASE("encoder_trios: scene refresh and copy use stored base values"
     cell.SetAndRecordValue(0.8f, 1);
     rig.m_context.m_sceneManager.m_blendFactor = 0.25f;
     cell.SetStateRecursive();
-    cell.Compute();
+    rig.Settle();
+    cell.Compute(false);
     DOCTEST_CHECK(cell.m_bankedValue == doctest::Approx(0.35f));
 
     cell.FillModulators(&rig.m_context);
@@ -77,10 +88,12 @@ DOCTEST_TEST_CASE("encoder_trios: scene refresh and copy use stored base values"
     cell.GetModulator(0)->SetValue(1.0f, true);
     cell.SetStateRecursive();
     cell.SetModulatorsAffecting();
-    cell.Compute();
+    rig.Settle();
+    cell.Compute(false);
     DOCTEST_CHECK(cell.GetValue(0) == doctest::Approx(0.9f));
 
     rig.m_encoders.CopyToScene(2);
+    rig.Settle();
     DOCTEST_CHECK(cell.m_values[2] == doctest::Approx(0.35f));
     DOCTEST_CHECK(cell.GetModulator(0)->m_values[2] == 1.0f);
 }
@@ -95,7 +108,7 @@ DOCTEST_TEST_CASE("encoder_trios: global voice reads and UI use the selected tri
         rig.SetCarrier(trio, x_bases[trio]);
     }
 
-    rig.m_encoders.Process();
+    rig.Settle();
     for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
     {
         rig.m_encoders.SetTrack(trio);
@@ -155,7 +168,7 @@ DOCTEST_TEST_CASE("encoder_trios: modulation is independent across modes and loc
         cell.SetModulatorsAffecting();
     }
 
-    rig.m_encoders.Process();
+    rig.Settle();
     for (int voice = 0; voice < 9; ++voice)
     {
         DOCTEST_CHECK(rig.m_encoders.GetValue(Encoders::Param::Harmonics1, voice) == doctest::Approx(static_cast<float>(voice + 1) / 10.0f));
@@ -173,11 +186,13 @@ DOCTEST_TEST_CASE("encoder_trios: bank reset preserves sibling trios and inactiv
 
     rig.m_encoders.SetTrack(1);
     rig.m_encoders.ResetBank(Encoders::Bank::Source);
+    rig.Settle();
     DOCTEST_CHECK(rig.Carrier(1).m_values[0] == rig.Carrier(1).m_defaultValue);
     DOCTEST_CHECK(rig.Carrier(1).m_values[2] == 0.7f);
     DOCTEST_CHECK(rig.Carrier(0).m_values[0] == 0.7f);
     DOCTEST_CHECK(rig.Carrier(2).m_values[0] == 0.7f);
     rig.m_encoders.RevertToDefault(true);
+    rig.Settle();
     for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
     {
         for (float value : rig.Carrier(trio).m_values)
@@ -220,8 +235,9 @@ DOCTEST_TEST_CASE("encoder_trios: new patches round trip named flat scenes and g
     DOCTEST_CHECK(active.Size() == 8);
     DOCTEST_CHECK(active.GetAt(3).BooleanValue());
     rig.m_encoders.RevertToDefault(true);
+    rig.Settle();
     rig.m_encoders.FromJSON(saved);
-    rig.m_encoders.Process();
+    rig.Settle();
     for (size_t trio = 0; trio < Encoders::x_numTrios; ++trio)
     {
         DOCTEST_CHECK(rig.Carrier(trio).m_values[0] == doctest::Approx(x_bases[trio]));
@@ -244,7 +260,8 @@ DOCTEST_TEST_CASE("encoder_trios: short numeric scene arrays clear omitted entri
     JSON values = arena.Loads(R"({"values":[1,0.75]})");
     rig.Carrier(1).StateEncoderCell::FromJSON(values);
     rig.Carrier(1).SetForceUpdateRecursive();
-    rig.Carrier(1).Compute();
+    rig.Settle();
+    rig.Carrier(1).Compute(false);
     DOCTEST_CHECK(rig.Carrier(1).m_values[0] == 1.0f);
     DOCTEST_CHECK(rig.Carrier(1).m_values[1] == 0.75f);
     for (size_t scene = 2; scene < SmartGrid::SceneManager::x_numScenes; ++scene)

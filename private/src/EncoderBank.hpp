@@ -156,19 +156,6 @@ struct BankedEncoderCell : public StateEncoderCell
 
     virtual ~BankedEncoderCell()
     {
-        CancelPendingEdit();
-    }
-
-    // Drops this cell's pending edit, if any. The edit list discards the emptied
-    // entry on its next pass.
-    //
-    void CancelPendingEdit()
-    {
-        if (m_editSlot)
-        {
-            *m_editSlot = nullptr;
-            m_editSlot = nullptr;
-        }
     }
     
     struct Modulators
@@ -308,7 +295,7 @@ struct BankedEncoderCell : public StateEncoderCell
             m_numActiveGestures = kept;
         }
 
-        void ComputePostGestureValues(ModulatorValues* modulatorValues)
+        void ComputePostGestureValues(ModulatorValues* modulatorValues, bool advanceState)
         {
             double gestureWeightSum = 0;
             double gestureValue = 0;
@@ -316,7 +303,7 @@ struct BankedEncoderCell : public StateEncoderCell
             for (size_t i = 0; i < m_numActiveGestures; ++i)
             {
                 BankedEncoderCell* cell = GetGesture(i);
-                cell->Compute();
+                cell->Compute(advanceState);
                 cell->SetEffectiveModulatorWeight(modulatorValues->m_gestureWeights[GetGestureIndex(i)]);
                 double w = cell->m_effectiveModulatorWeight;
                 gestureWeightSum += w;
@@ -328,7 +315,7 @@ struct BankedEncoderCell : public StateEncoderCell
             m_owner->m_gestureWeightSum = static_cast<float>(gestureWeightSum);
         }
 
-        void Compute(ModulatorValues* modulatorValues)
+        void Compute(ModulatorValues* modulatorValues, bool advanceState)
         {
             QuadFloat modValue;
             QuadFloat modWeight;
@@ -342,7 +329,7 @@ struct BankedEncoderCell : public StateEncoderCell
                 }
 
                 BankedEncoderCell* cell = GetModulator(i);
-                cell->Compute();
+                cell->Compute(advanceState);
                 QuadFloat depth = ModulationDepthFromValue(cell->GetQuadValue());
                 depth *= modulatorValues->m_amplitude[m_activeModulators[i]];
                 modValue += depth * modulatorValues->m_value[m_activeModulators[i]];
@@ -399,10 +386,7 @@ struct BankedEncoderCell : public StateEncoderCell
         , m_effectiveModulatorWeight(0)
         , m_type(EncoderType::BaseParam)
         , m_isActive{}
-        , m_forceUpdate(false)
         , m_switchValues(0)
-        , m_editSlot(nullptr)
-        , m_lastEditSample(0)
     {
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
@@ -429,8 +413,6 @@ struct BankedEncoderCell : public StateEncoderCell
         , m_effectiveModulatorWeight(0)
         , m_isActive{}
         , m_switchValues(0)
-        , m_editSlot(nullptr)
-        , m_lastEditSample(0)
     {
         int depth = parent ? parent->m_depth + 1 : 0;
         m_parent = parent;
@@ -468,10 +450,11 @@ struct BankedEncoderCell : public StateEncoderCell
         m_index = index;
         m_modulatorsAffecting.Clear();
         m_gesturesAffecting.Clear();
-        m_forceUpdate = true;
+        m_samplesForceUpdate = TickDistributor::x_maxSamplesToDistribute;
         for (size_t scene = 0; scene < SceneManager::x_numScenes; ++scene)
         {
             m_values[scene] = m_defaultValue;
+            m_targets[scene] = m_defaultValue;
         }
 
         m_bankedValue = m_defaultValue;
@@ -490,7 +473,7 @@ struct BankedEncoderCell : public StateEncoderCell
 
     void SetForceUpdateRecursive()
     {
-        m_forceUpdate = true;
+        m_samplesForceUpdate = TickDistributor::x_maxSamplesToDistribute;
         if (m_parent)
         {
             m_parent->SetForceUpdateRecursive();
@@ -509,11 +492,11 @@ struct BankedEncoderCell : public StateEncoderCell
             m_context->m_sceneManager.m_shift)
         {
             RecursivelyIncrementModulatorsTowardsZero(delta);
-            Compute();
+            Compute(false);
             return;
         }
 
-        Compute();
+        Compute(false);
 
         if (m_type != EncoderType::GestureParam && !GetSelectedGestures().IsZero())
         {
@@ -534,7 +517,7 @@ struct BankedEncoderCell : public StateEncoderCell
 
             // Include newly activated gestures before distributing this edit.
             //
-            m_modulators.ComputePostGestureValues(GetSharedEncoderState()->m_modulatorValues);
+            m_modulators.ComputePostGestureValues(GetSharedEncoderState()->m_modulatorValues, false);
         }
 
         float mainWeight = 0;
@@ -546,12 +529,12 @@ struct BankedEncoderCell : public StateEncoderCell
                 BankedEncoderCell* gestureCell = m_modulators.GetGesture(i);
                 float weight = gestureCell->m_effectiveModulatorWeight;
                 gestureCell->IncrementInternal(delta * weight * weight / gestureWeightSum, towardsZero);
-                gestureCell->m_forceUpdate = true;
+                gestureCell->m_samplesForceUpdate = TickDistributor::x_maxSamplesToDistribute;
                 mainWeight += weight * (1 - weight);
             }
 
             IncrementInternal(delta * mainWeight / gestureWeightSum, towardsZero);
-            m_forceUpdate = true;
+            m_samplesForceUpdate = TickDistributor::x_maxSamplesToDistribute;
         }
         else
         {
@@ -586,7 +569,7 @@ struct BankedEncoderCell : public StateEncoderCell
 
     void SetDefaultValue()
     {
-        m_defaultValue = m_bankedValue;
+        m_defaultValue = GetSceneTargetNormalizedValue();
     }
 
     void RevertToDefault(bool allScenes)
@@ -690,6 +673,7 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         StateEncoderCell::CopyToScene(scene);
         SetActive(IsActive(), scene);
+        SetForceUpdateRecursive();
 
         for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
         {
@@ -704,7 +688,6 @@ struct BankedEncoderCell : public StateEncoderCell
 
     void HandleShiftPress()
     {
-        CancelPendingEdit();
         if (GetSelectedGestures().IsZero())
         {
             RevertToDefault(false);
@@ -738,6 +721,7 @@ struct BankedEncoderCell : public StateEncoderCell
 
     void ZeroModulators(bool allScenes)
     {
+        SetForceUpdateRecursive();
         for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
         {
             GetModulator(i)->SetValue(GetModulator(i)->GetNeutralNormalizedValue(), allScenes);
@@ -792,8 +776,17 @@ struct BankedEncoderCell : public StateEncoderCell
         }
     }
 
-    void Compute()
+    void Compute(bool advanceState)
     {
+        if (advanceState && m_samplesForceUpdate > 0)
+        {
+            MoveValuesTowardsTargets();
+            if (m_samplesForceUpdate == TickDistributor::x_maxSamplesToDistribute)
+            {
+                SetModulatorsAffecting();
+            }
+        }
+
         ModulatorValues* modulatorValues = GetSharedEncoderState()->m_modulatorValues;
         bool blendChanged = modulatorValues->m_blendChanged;
         if (blendChanged)
@@ -808,24 +801,30 @@ struct BankedEncoderCell : public StateEncoderCell
                 m_brightness = 0;
             }
 
-            return;
         }
         else if (blendChanged ||
-                 m_forceUpdate || 
+                 m_samplesForceUpdate ||
                  !m_modulatorsAffecting.Intersect(modulatorValues->m_changedModulators).IsZero() ||
                  !m_gesturesAffecting.Intersect(modulatorValues->m_changedGestures).IsZero())
         {
             if (blendChanged ||
-                m_forceUpdate ||
+                m_samplesForceUpdate ||
                 !m_gesturesAffecting.Intersect(modulatorValues->m_changedGestures).IsZero())
             {
-                m_modulators.ComputePostGestureValues(modulatorValues);
+                m_modulators.ComputePostGestureValues(modulatorValues, advanceState);
             }
 
-            m_modulators.Compute(modulatorValues);
+            m_modulators.Compute(modulatorValues, advanceState);
         }
 
-        m_forceUpdate = false;
+        if (advanceState && m_samplesForceUpdate > 0)
+        {
+            --m_samplesForceUpdate;
+            if (m_samplesForceUpdate == 0)
+            {
+                SetModulatorsAffecting();
+            }
+        }
     }
 
     JSON ToJSON(JsonArena& a)
@@ -941,7 +940,7 @@ struct BankedEncoderCell : public StateEncoderCell
             SetModulatorsAffecting();
         }
 
-        m_forceUpdate = true;
+        m_samplesForceUpdate = TickDistributor::x_maxSamplesToDistribute;
     }
 
     void FillModulators(SmartGridOneContext* context)
@@ -959,7 +958,7 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         SetState();
         m_modulators.SetAllStates();
-        m_forceUpdate = true;
+        m_samplesForceUpdate = TickDistributor::x_maxSamplesToDistribute;
     }
 
     bool IsActive()
@@ -1009,7 +1008,8 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             if (active && !m_isActive[m_context->m_sceneManager.m_scene2])
             {
-                SetAndRecordValue(m_parent->m_values[m_context->m_sceneManager.m_scene2],
+                m_values[m_context->m_sceneManager.m_scene2] = m_parent->m_values[m_context->m_sceneManager.m_scene2];
+                SetAndRecordValue(m_parent->m_targets[m_context->m_sceneManager.m_scene2],
                     m_context->m_sceneManager.m_scene2);
                 SetState();
             }
@@ -1021,7 +1021,8 @@ struct BankedEncoderCell : public StateEncoderCell
         {
             if (active && !m_isActive[m_context->m_sceneManager.m_scene1])
             {
-                SetAndRecordValue(m_parent->m_values[m_context->m_sceneManager.m_scene1],
+                m_values[m_context->m_sceneManager.m_scene1] = m_parent->m_values[m_context->m_sceneManager.m_scene1];
+                SetAndRecordValue(m_parent->m_targets[m_context->m_sceneManager.m_scene1],
                     m_context->m_sceneManager.m_scene1);
                 SetState();
             }
@@ -1171,13 +1172,7 @@ struct BankedEncoderCell : public StateEncoderCell
     BitSet16 m_gesturesAffecting;
     BankedEncoderCell::EncoderType m_type;
     bool m_isActive[SceneManager::x_numScenes];
-    bool m_forceUpdate;
     int m_switchValues;
-
-    // Points at this cell's entry in an EncoderEditList while an edit is pending.
-    //
-    BankedEncoderCell** m_editSlot;
-    size_t m_lastEditSample;
 };
 
 inline SegmentedAllocator<BankedEncoderCell, BankedEncoderCell::x_encoderPoolSize> BankedEncoderCell::s_allocator;
@@ -1660,7 +1655,7 @@ inline ParamEvent ParamEvent::MkEncoderSet(SmartGrid::StateEncoderCell* stateEnc
     event.m_isGesture = cell->m_type == SmartGrid::BankedEncoderCell::EncoderType::GestureParam;
     event.m_scene = scene;
     event.m_valueLen = sizeof(float);
-    const float value = cell->ToValue(cell->m_values[scene]);
+    const float value = cell->ToValue(cell->m_targets[scene]);
     std::memcpy(event.m_value, &value, sizeof(float));
 
     while (cell->m_depth > 0)

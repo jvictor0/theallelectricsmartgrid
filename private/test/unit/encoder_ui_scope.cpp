@@ -23,6 +23,7 @@ DOCTEST_TEST_CASE("Encoder UI weights: publish current direct per-channel depths
     depth->SetValue(0.75f, true);
     depth->m_modulators.FillModulators(depth, depth->m_context);
     depth->m_modulators.m_modulators[6]->SetValue(1.0f, true);
+    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     auto* sources = quad->GetSharedEncoderState()->m_modulatorValues;
     for (size_t channel = 0; channel < 4; ++channel)
     {
@@ -32,7 +33,7 @@ DOCTEST_TEST_CASE("Encoder UI weights: publish current direct per-channel depths
 
     quad->SetStateRecursive();
     quad->SetModulatorsAffecting();
-    quad->Compute();
+    quad->Compute(false);
     internal.PopulateUIState();
     auto& state = rig.UIState().m_squiggleBoyUIState.m_encoderBankUIState.m_states[2][3];
     EncoderUIState::ModulationWeights snapshot;

@@ -15,11 +15,7 @@ struct ButtonBankInternal : Grid
     size_t m_width[x_baseGridSize];
     VoiceAllocator<CellVoice> m_voiceAllocator;
 
-#ifndef SMART_BOX
     static constexpr size_t x_maxWidth = x_baseGridSize;
-#else
-    static constexpr size_t x_maxWidth = 16;
-#endif
 
     struct BankedButton : public Cell
     {

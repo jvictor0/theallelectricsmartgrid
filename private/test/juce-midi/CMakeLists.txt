@@ -33,7 +33,6 @@ add_executable(smartgrid_midi_tests reconnect.cpp audio_reattachment.cpp audio_o
     ../unit/midi_sysex_queue.cpp
     ../unit/midi_realtime.cpp
     ../system/midi_clock_sync.cpp
-    "${REPO_ROOT}/private/src/SmartGrid.cpp"
     "${REPO_ROOT}/private/src/RecordingFlacCodec.cpp")
 target_include_directories(smartgrid_midi_tests PRIVATE
     "${OVERLAY}" "${MODULES}" "${CMAKE_CURRENT_BINARY_DIR}"

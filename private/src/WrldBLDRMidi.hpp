@@ -227,7 +227,7 @@ namespace SmartGrid
             }
             else
             {
-                SmartBusOutput::Iterator coolDownItr(m_bus);
+                SmartBusColor::Iterator coolDownItr(m_bus);
                 while (!coolDownItr.Done())
                 {
                     if (m_cooldown[coolDownItr.GetXPhysical()][coolDownItr.GetYPhysical()] > 0)
@@ -307,7 +307,7 @@ namespace SmartGrid
 
         void WriteGrid(YaeltexColorSysexBuffer& buffer, size_t& budget)
         {
-            SmartBusOutput::Iterator itr(m_bus);
+            SmartBusColor::Iterator itr(m_bus);
             for (; !itr.Done(); ++itr)
             {
                 if (budget == 0)

@@ -191,15 +191,12 @@ DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and
     }
 
     input.m_arpInput.m_clockSelect[0] = -1;
-    nonagon->SetMultiPhasorGateInputs(input);
-    DOCTEST_CHECK(input.m_multiPhasorGateInput.m_voiceCycleRatio[0] == 1);
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0) == 1);
     input.m_arpInput.m_clockSelect[0] = 4;
-    nonagon->SetMultiPhasorGateInputs(input);
-    DOCTEST_CHECK(input.m_multiPhasorGateInput.m_voiceCycleRatio[0] == 3);
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0) == 3);
     input.m_arpInput.m_clockSelect[0] = -1;
     nonagon->m_lameJuis.m_lanes[0].m_coMuteState.m_coMutes[0] = false;
-    nonagon->SetMultiPhasorGateInputs(input);
-    DOCTEST_CHECK(input.m_multiPhasorGateInput.m_voiceCycleRatio[0] == 7);
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0) == 7);
 
     input.m_arpInput.m_clockSelect[0] = 4;
     input.m_running = true;
@@ -216,7 +213,7 @@ DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and
     nonagon->m_lameJuis.m_lanes[0].m_coMuteState.m_coMutes[0] = true;
     nonagon->m_theoryOfTime.m_globalPeriodSamples = 63000.0;
     nonagon->SetMultiPhasorGateInputs(input);
-    DOCTEST_CHECK(input.m_multiPhasorGateInput.m_voiceCycleRatio[0] == 3);
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0) == 3);
     clock.m_unmodulatedPhase = 0.1 + 0.49 / 21.0;
     FillClock(nonagon->m_theoryOfTime, clock, 0.0);
     nonagon->m_theoryOfTime.RolloverMicroblockBuffer();

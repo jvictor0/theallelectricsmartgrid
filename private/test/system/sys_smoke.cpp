@@ -121,7 +121,8 @@ DOCTEST_TEST_CASE("SynthRig: encoder set values read back")
     for (float v : values)
     {
         rig.SetEncoder(ex, ey, v);
-        rig.SettleEncoderEdits();
+        rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+        rig.RunFrames(1);
         DOCTEST_CHECK(std::fabs(rig.EncoderValue(ex, ey) - v) <= tol);
     }
 

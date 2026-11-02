@@ -102,25 +102,6 @@ namespace midi
         uint8_t getNote() const { return bytes.size() > 1 ? bytes[1] : 0; }
         uint8_t getValue() const { return bytes.size() > 2 ? bytes[2] : 0; }
     };
-
-    struct InputQueue
-    {
-        bool empty() const { return true; }
-        void pop() {}
-        Message front() const { return Message(); }
-        void setDriverId(int) {}
-        void setDeviceId(int) {}
-        bool tryPop(Message*, int64_t) { return false; }
-    };
-
-    struct Output
-    {
-        void sendMessage(const Message&) {}
-        int getChannel() const { return 0; }
-        void setDriverId(int) {}
-        void setDeviceId(int) {}
-        void setChannel(uint8_t) {}
-    };
 }
 
 namespace rack

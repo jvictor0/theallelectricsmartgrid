@@ -62,7 +62,6 @@ class BuildInfoTests(unittest.TestCase):
         (self.m_repo / "scripts").mkdir()
         shutil.copyfile(x_repoRoot / "private/test/CMakeLists.txt", test_dir / "CMakeLists.txt")
         shutil.copyfile(x_generator, self.m_repo / "scripts/generate_build_info.py")
-        (self.m_repo / "private/src/SmartGrid.cpp").write_text("")
         (test_dir / "unit/infra_spike.cpp").write_text("")
         (test_dir / "support/TestMain.cpp").write_text(
             '#include "SmartGridBuildInfo.hpp"\n'

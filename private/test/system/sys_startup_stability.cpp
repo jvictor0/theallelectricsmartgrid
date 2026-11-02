@@ -230,7 +230,8 @@ DOCTEST_TEST_CASE("startup: repeated start/stop cycles stay stable")
     DOCTEST_REQUIRE(ex >= 0);
     const float tol = 1.0f / 16383.0f + 1e-3f;
     rig.SetEncoder(ex, ey, 0.33f);
-    rig.SettleEncoderEdits();
+    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+    rig.RunFrames(1);
     DOCTEST_CHECK(std::fabs(rig.EncoderValue(ex, ey) - 0.33f) <= tol);
 }
 

@@ -26,10 +26,9 @@
 // One system per process? -> NO. Fresh state per rig.
 // ---------------------------------------------------------------------------
 // WP-0/WP-1 assumed one TheNonagonSquiggleBoyInternal per process because of a
-// global grid-id allocator. That allocator is now effectively a no-op
-// (SmartGrid::AllocGridId() returns the "unallocated" sentinel and
-// FreeGridId() does nothing), so constructing and destroying multiple system
-// instances -- sequentially or concurrently -- is safe and leak-free. This was
+// global grid-id allocator. That allocator is gone, so constructing and
+// destroying multiple system instances -- sequentially or concurrently -- is
+// safe and leak-free. This was
 // verified empirically (5 fresh instances run identically and finite). Every
 // SynthRig therefore builds its own pristine system in its constructor; tests
 // get clean state simply by creating a new SynthRig (or calling
@@ -181,9 +180,9 @@ public:
     //            internal.ProcessFrame + SendMidiOutput + ioTaskThread.Acknowledge;
     //            we drop the MIDI-out send -- it has no audio/state effect -- and
     //            keep the rest in order.)
-    //        b. quad.ProcessSample()  -- runs the pad grids (m_gridHolder.Process)
-    //           then drains the grid MessageInBus (ProcessMessages) at the current
-    //           GetAbsTimeUs(). This is where queued pad presses take effect.
+    //        b. quad.ProcessSample()  -- drains the grid MessageInBus
+    //           (ProcessMessages) at the current GetAbsTimeUs(). This is where
+    //           queued pad presses take effect.
     //        c. output = internal.ProcessSample(audioInput).
     //        d. capture output; sticky NaN/Inf scan over every channel.
     //
@@ -267,15 +266,6 @@ public:
     void ReleaseEncoder(int x, int y)
     {
         PushInternal(SmartGrid::MessageIn(SmartGrid::MessageIn::Mode::EncoderRelease, x, y));
-    }
-
-    // Encoder edits ramp in over up to EncoderEditList::x_maxRampSamples. Runs past
-    // the longest ramp plus one frame so the settled value reaches UIState.
-    //
-    void SettleEncoderEdits()
-    {
-        RunSamples(SmartGrid::EncoderEditList::x_maxRampSamples);
-        RunFrames(1);
     }
 
     // ---- Pad verbs (through the grid wrapper's MessageInBus) ---------------

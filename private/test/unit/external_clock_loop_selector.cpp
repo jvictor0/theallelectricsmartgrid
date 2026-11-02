@@ -66,6 +66,7 @@ DOCTEST_TEST_CASE("External clock loop selector survives patch round trip")
     TheNonagonSquiggleBoyInternal& system = rig.Internal();
 
     SetExternalClockLoopSwitch(system, 5);
+    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     rig.RunFrames(2);
 
     DOCTEST_REQUIRE(system.m_squiggleBoy.m_encoders.GetSwitchVal(SmartGridOneEncoders::Param::ExternalClockLoop) == 5);
@@ -74,10 +75,12 @@ DOCTEST_TEST_CASE("External clock loop selector survives patch round trip")
     DOCTEST_REQUIRE_FALSE(patch.empty());
 
     rig.ResetToDefaults();
+    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     rig.RunFrames(2);
     DOCTEST_REQUIRE(system.m_squiggleBoy.m_encoders.GetSwitchVal(SmartGridOneEncoders::Param::ExternalClockLoop) == 3);
 
     DOCTEST_REQUIRE(rig.LoadPatch(patch));
+    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     rig.RunFrames(2);
 
     DOCTEST_CHECK(system.m_squiggleBoy.m_encoders.GetSwitchVal(SmartGridOneEncoders::Param::ExternalClockLoop) == 5);

@@ -64,10 +64,10 @@ DOCTEST_TEST_CASE("encoder layout binding: routes preserve owned hidden cells ne
             encoders.UpdateEncodersForMachine(machine, Filter::Ladder4Pole);
             auto* cell = carriers[trio];
             DOCTEST_CHECK(cell == encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(Encoders::Param::Harmonics1, trio)));
-            DOCTEST_CHECK(cell->m_values[0] == doctest::Approx(0.2f * static_cast<float>(trio + 1)));
+            DOCTEST_CHECK(cell->m_targets[0] == doctest::Approx(0.2f * static_cast<float>(trio + 1)));
             DOCTEST_CHECK(cell->m_modulators.m_modulators[0]->m_modulators.m_modulators[1].get() == nested[trio]);
-            DOCTEST_CHECK(nested[trio]->m_values[0] == doctest::Approx(0.7f));
-            DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_values[0] == doctest::Approx(0.8f));
+            DOCTEST_CHECK(nested[trio]->m_targets[0] == doctest::Approx(0.7f));
+            DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_targets[0] == doctest::Approx(0.8f));
             DOCTEST_CHECK(cell->GetSharedEncoderState()->m_modeIx == trio);
             DOCTEST_CHECK(nested[trio]->GetSharedEncoderState() == cell->GetSharedEncoderState());
             cell->SetModulatorsAffecting();
@@ -98,7 +98,12 @@ DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep processin
         hidden->SetForceUpdateRecursive();
     }
 
-    encoders.Process();
+    for (size_t sample = 0; sample < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++sample)
+    {
+        SampleTimer::IncrementSample();
+        encoders.Process();
+    }
+
     for (size_t trio = 0; trio < 3; ++trio)
     {
         auto* hidden = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(Encoders::Param::SampleStart, trio));
@@ -109,11 +114,11 @@ DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep processin
         child->SetModulatorsAffectingRecursive();
         encoders.SetTrack(trio);
         encoders.ResetBank(Encoders::Bank::Source);
-        DOCTEST_CHECK(hidden->m_values[0] == doctest::Approx(0.37f));
+        DOCTEST_CHECK(hidden->m_targets[0] == doctest::Approx(0.37f));
         encoders.UpdateEncodersForMachine(Source::Sample, Filter::Ladder4Pole);
         DOCTEST_CHECK(encoders.m_encoderBankBank.m_banks[trio].GetBase(1, 0) == hidden);
         encoders.ResetBank(Encoders::Bank::Source);
-        DOCTEST_CHECK(hidden->m_values[0] == hidden->m_defaultValue);
+        DOCTEST_CHECK(hidden->m_targets[0] == hidden->m_defaultValue);
     }
 }
 
@@ -181,9 +186,9 @@ DOCTEST_TEST_CASE("encoder layout binding: moved controls survive machine change
                     DOCTEST_CHECK(bank.GetBase(control.m_x, control.m_y) == cell);
                     DOCTEST_CHECK(bank.m_selected == cell);
                     DOCTEST_CHECK(cell->GetModulator(0)->GetSharedEncoderState() == cell->GetSharedEncoderState());
-                    DOCTEST_CHECK(cell->m_values[0] == doctest::Approx(0.2f * static_cast<float>(trio + 1)));
-                    DOCTEST_CHECK(cell->GetModulator(0)->m_values[0] == doctest::Approx(0.6f));
-                    DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_values[0] == doctest::Approx(0.8f));
+                    DOCTEST_CHECK(cell->m_targets[0] == doctest::Approx(0.2f * static_cast<float>(trio + 1)));
+                    DOCTEST_CHECK(cell->GetModulator(0)->m_targets[0] == doctest::Approx(0.6f));
+                    DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_targets[0] == doctest::Approx(0.8f));
                 }
             }
         }
@@ -196,12 +201,12 @@ DOCTEST_TEST_CASE("encoder layout binding: moved controls survive machine change
         for (const auto& control : x_controls)
         {
             auto* cell = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(control.m_param, trio));
-            DOCTEST_CHECK(cell->m_values[0] == doctest::Approx(0.2f * static_cast<float>(trio + 1)));
+            DOCTEST_CHECK(cell->m_targets[0] == doctest::Approx(0.2f * static_cast<float>(trio + 1)));
             DOCTEST_REQUIRE(cell->m_modulators.m_modulators[0]);
-            DOCTEST_CHECK(cell->GetModulator(0)->m_values[0] == doctest::Approx(0.6f));
+            DOCTEST_CHECK(cell->GetModulator(0)->m_targets[0] == doctest::Approx(0.6f));
             DOCTEST_REQUIRE(cell->m_modulators.m_gestures[2]);
             DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_isActive[0]);
-            DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_values[0] == doctest::Approx(0.8f));
+            DOCTEST_CHECK(cell->m_modulators.m_gestures[2]->m_targets[0] == doctest::Approx(0.8f));
             auto bank = Encoders::BankForTrio(control.m_bank, trio);
             DOCTEST_CHECK(encoders.m_encoderBankBank.m_banks[static_cast<size_t>(bank)].GetBase(control.m_x, control.m_y) == cell);
         }

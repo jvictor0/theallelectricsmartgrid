@@ -10,6 +10,16 @@ using Encoders = SmartGridOneEncoders;
 using Param = Encoders::Param;
 using Cell = SmartGrid::BankedEncoderCell;
 
+void Settle(Encoders& encoders)
+{
+    for (size_t sample = 0; sample < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++sample)
+    {
+        SampleTimer::IncrementSample();
+        encoders.m_encoderBankBank.m_context->m_sceneManager.Process();
+        encoders.Process();
+    }
+}
+
 Cell& GetCell(Encoders& encoders, Param param, size_t trio)
 {
     return *encoders.m_encoderBankBank.GetEncoder(Matrix::GetParamId(param, trio));
@@ -85,6 +95,7 @@ DOCTEST_TEST_CASE("modulation matrix: recursive depths and gestures match the ba
 
     auto publishAndCheckBadges = [&]()
     {
+        Settle(encoders);
         encoders.PopulateUIState(&badges);
         encoders.PopulateModulationMatrixUIState(&matrix);
         auto bits = badges.GetModulatorsAffecting(2, 1);
@@ -107,6 +118,7 @@ DOCTEST_TEST_CASE("modulation matrix: recursive depths and gestures match the ba
     DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 0, Matrix::GetModulatorId(VoiceModulator::LFO2, 0)));
 
     nested.SetValue(0.5f, true);
+    nested.SetForceUpdateRecursive();
     nested.SetModulatorsAffectingRecursive();
     encoders.ClearGesture(2);
     publishAndCheckBadges();
@@ -146,6 +158,7 @@ DOCTEST_TEST_CASE("modulation matrix: reverse lookup includes hidden parameters 
     encoders.PopulateModulationMatrixUIState(&matrix);
     DOCTEST_CHECK(GetTargets(matrix, Matrix::GetModulatorId(VoiceModulator::LFO1, 1)) == fireTargets);
     encoders.ResetBank(Encoders::Bank::Source);
+    Settle(encoders);
     encoders.PopulateModulationMatrixUIState(&matrix);
     DOCTEST_CHECK(GetTargets(matrix, Matrix::GetModulatorId(VoiceModulator::LFO1, 1)).empty());
     DOCTEST_CHECK(GetTargets(matrix, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)) == earthTargets);
@@ -161,6 +174,7 @@ DOCTEST_TEST_CASE("modulation matrix: scene changes resets and patch reloads rep
     auto& depth = AddDepth(GetCell(encoders, Param::LPCutoff, 1), VoiceModulator::LFO1, 0.5f);
     depth.SetValue(0.75f, false);
     depth.SetModulatorsAffectingRecursive();
+    Settle(encoders);
     size_t modulatorId = Matrix::GetModulatorId(VoiceModulator::LFO1, 1);
     encoders.PopulateModulationMatrixUIState(&matrix);
     DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 1, modulatorId));
@@ -177,9 +191,11 @@ DOCTEST_TEST_CASE("modulation matrix: scene changes resets and patch reloads rep
     JsonArena arena(JsonArena::kDefaultCapacity);
     JSON saved = encoders.ToJSON(arena);
     encoders.RevertToDefault(true);
+    Settle(encoders);
     encoders.PopulateModulationMatrixUIState(&matrix);
     DOCTEST_CHECK(GetTargets(matrix, modulatorId).empty());
     encoders.FromJSON(saved);
+    Settle(encoders);
     encoders.PopulateModulationMatrixUIState(&matrix);
     DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 1, modulatorId));
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 0, modulatorId));
@@ -196,12 +212,12 @@ DOCTEST_TEST_CASE("modulation matrix: normal UI publication includes encoder edi
     auto& bank = encoders.m_encoderBankBank.m_banks[static_cast<size_t>(encoders.m_selectedBank)];
     bank.MakeSelection(2, 1, bank.GetBase(2, 1));
     encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(2, 1, 0.75f));
-    encoders.m_encoderBankBank.FlushEdits();
+    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     internal.PopulateUIState();
     DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 2, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 1, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
     encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(2, 1, 0.5f));
-    encoders.m_encoderBankBank.FlushEdits();
+    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     internal.PopulateUIState();
     // The 14-bit absolute-set format cannot represent exactly 0.5. Its small
     // positive depth still affects the parameter, just as the badge reports.
@@ -210,6 +226,7 @@ DOCTEST_TEST_CASE("modulation matrix: normal UI publication includes encoder edi
     bank.m_context->m_sceneManager.m_shift = true;
     encoders.Apply(SmartGrid::MessageIn(SmartGrid::MessageIn::Mode::EncoderPush, 2, 1));
     bank.m_context->m_sceneManager.m_shift = false;
+    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     internal.PopulateUIState();
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 2, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
 }
