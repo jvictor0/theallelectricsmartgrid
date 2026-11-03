@@ -80,14 +80,14 @@ DOCTEST_TEST_CASE("Quad random LFOs drive and display all four modulation slots"
         GangedRandomLFOSnapshot<4> snapshot;
         DOCTEST_REQUIRE(uiState.m_quadGangedRandomLFOUIState[slot].ReadSnapshot(snapshot));
         DOCTEST_CHECK(snapshot.m_sampleRate == static_cast<double>(SampleTimer::x_sampleRate));
-        DOCTEST_CHECK(snapshot.m_roundElapsedSamples == 2.0);
+        DOCTEST_CHECK(snapshot.m_roundElapsedSamples == 1.0);
         for (size_t channel = 0; channel < 4; ++channel)
         {
             DOCTEST_CAPTURE(channel);
             const float source = 0.1f * static_cast<float>(slot + 1);
-            const float step = 0.002f * static_cast<float>(channel + 1);
-            DOCTEST_CHECK(values.m_value[slot][channel] == doctest::Approx(source + step));
-            DOCTEST_CHECK(snapshot.m_voices[channel].m_output == doctest::Approx(source + 2.0f * step));
+            const float step = 0.2f * std::min(1.0f, 0.32f * static_cast<float>(channel + 1)) / 32.0f;
+            DOCTEST_CHECK(values.m_value[slot][channel] == doctest::Approx(source));
+            DOCTEST_CHECK(snapshot.m_voices[channel].m_output == doctest::Approx(source + step));
         }
     }
 }

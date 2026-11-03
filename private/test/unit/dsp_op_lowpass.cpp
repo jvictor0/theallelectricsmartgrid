@@ -28,6 +28,75 @@
 using namespace TestSpectral;
 using namespace TestSignal;
 
+template<typename Number, size_t Size>
+void CheckApproximateAlpha()
+{
+    using Filter = OPLowPassFilterGeneric<Number, Size>;
+    using Vector = typename Filter::Vector;
+    double maxAlphaError = 0;
+    double maxRateError = 0;
+    for (bool logarithmic : {false, true})
+    {
+        Number previous = 0;
+        for (size_t i = 1; i <= 10000; ++i)
+        {
+            Vector frequencies;
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                double position = static_cast<double>((i - 1) * Size + lane + 1) / (10000 * Size);
+                frequencies[lane] = static_cast<Number>(logarithmic ? std::pow(10.0, -20.0 + 20.0 * position) : position);
+            }
+
+            Vector alphas = Filter::AlphaFromNatFreqApprox(frequencies);
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                double omega = 2.0 * M_PI * std::min<double>(frequencies[lane], Filter::x_maxCutoff);
+                double expected = -std::expm1(-omega);
+                double actual = alphas[lane];
+                DOCTEST_REQUIRE(actual > 0.0);
+                DOCTEST_REQUIRE(actual < 1.0);
+                DOCTEST_CHECK(alphas[lane] >= previous);
+                previous = alphas[lane];
+                maxAlphaError = std::max(maxAlphaError, std::abs(actual / expected - 1.0));
+                maxRateError = std::max(maxRateError, std::abs(-std::log1p(-actual) / omega - 1.0));
+            }
+        }
+    }
+
+    DOCTEST_INFO("alpha relative error=" << maxAlphaError << " decay-rate relative error=" << maxRateError);
+    DOCTEST_CHECK(maxAlphaError < (sizeof(Number) == sizeof(float) ? 6e-7 : 1.5e-7));
+    DOCTEST_CHECK(maxRateError < (sizeof(Number) == sizeof(float) ? 3e-6 : 1.1e-6));
+
+    Filter filter;
+    filter.m_output = Vector::Splat(static_cast<Number>(0.25));
+    filter.SetAlphaFromNatFreqApprox(static_cast<Number>(1e-12));
+    DOCTEST_CHECK(filter.m_alpha[0] > 0);
+    DOCTEST_CHECK(filter.m_output == Vector::Splat(static_cast<Number>(0.25)));
+    Vector frequencies;
+    for (size_t lane = 0; lane < Size; ++lane)
+    {
+        frequencies[lane] = static_cast<Number>(0.01 * (lane + 1));
+    }
+
+    filter.SetAlphaFromNatFreqApprox(frequencies);
+    Vector output = filter.Process(Vector::Splat(1));
+    for (size_t lane = 0; lane < Size; ++lane)
+    {
+        double expected = 1.0 - 0.75 * std::exp(-2.0 * M_PI * frequencies[lane]);
+        DOCTEST_CHECK(std::abs(output[lane] - expected) < 1e-6);
+    }
+}
+
+DOCTEST_TEST_CASE("OPLowPassFilter: approximate alpha preserves precision, response and cutoff clamp")
+{
+    CheckApproximateAlpha<float, 1>();
+    CheckApproximateAlpha<float, 3>();
+    CheckApproximateAlpha<float, 4>();
+    CheckApproximateAlpha<double, 1>();
+    CheckApproximateAlpha<double, 3>();
+    CheckApproximateAlpha<double, 4>();
+}
+
 namespace
 {
 constexpr double kSR = 48000.0;
@@ -200,4 +269,27 @@ DOCTEST_TEST_CASE("OPLowPassFilter: SetAlphaFromNatFreq places -3dB correctly")
     //
     DOCTEST_CHECK(hAtCutoff > 0.4f);
     DOCTEST_CHECK(hAtCutoff < 0.9f);
+}
+
+DOCTEST_TEST_CASE("Approximate dynamic slew coefficients preserve the slow double-state response")
+{
+    OPLowPassFilterGeneric<double, 3> approximate;
+    OPLowPassFilterGeneric<double, 3> reference;
+    for (size_t sample = 0; sample < 192000; ++sample)
+    {
+        MultiChannelNumber<float, 3> frequency(0.125f / 192000.0f, 25.0f / 192000.0f, 500.0f / 192000.0f);
+        frequency *= sample < 96000 ? 1.0f : 0.5f;
+        approximate.m_alpha = OPLowPassFilterGeneric<float, 3>::AlphaFromNatFreqApprox(frequency).Convert<double>();
+        reference.SetAlphaFromNatFreq(frequency.Convert<double>());
+        MultiChannelNumber<double, 3> target = MultiChannelNumber<double, 3>::Splat(sample < 96000 ? 1.0 : 0.0);
+        auto actual = approximate.Process(target);
+        auto expected = reference.Process(target);
+        if (sample % 127 == 0)
+        {
+            for (size_t lane = 0; lane < 3; ++lane)
+            {
+                DOCTEST_CHECK(actual[lane] == doctest::Approx(expected[lane]).epsilon(2e-6).scale(1));
+            }
+        }
+    }
 }

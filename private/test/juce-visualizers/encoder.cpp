@@ -95,7 +95,7 @@ void CheckRandomMarkers(typename GangedRandomLFOComponent<Voices>::ColorMode mod
     for (size_t voice = 0; voice < Voices; ++voice)
     {
         int y = 164 - 40 * static_cast<int>(voice);
-        DOCTEST_CHECK(image.getPixelAt(54, y) == J(color));
+        DOCTEST_CHECK(image.getPixelAt(49, y) == J(color));
     }
 }
 }
@@ -655,15 +655,15 @@ DOCTEST_TEST_CASE("Encoder weighted curves: random time axes keep other sources 
     encoder.m_modulatorWeights[0][6].store(0.3f);
     auto* selected = visualizers.GetForParameter(encoder);
     DOCTEST_REQUIRE(selected == visualizers.Get(Mode::Quad, 0));
-    DOCTEST_CHECK(selected->GetTimeExtent() == 200.0);
+    DOCTEST_CHECK(selected->GetTimeExtent() == 224.0);
     juce::Image image(juce::Image::ARGB, 208, 208, true);
     juce::Graphics g(image);
     selected->Draw(g, image.getBounds());
-    DOCTEST_CHECK(image.getPixelAt(36, 134) == J(GetModulatorColor(QuadModulator::Random1)));
+    DOCTEST_CHECK(image.getPixelAt(33, 134) == J(GetModulatorColor(QuadModulator::Random1)));
     bool futureCurve = false;
     for (int y = 115; y < 125; ++y)
     {
-        futureCurve |= image.getPixelAt(158, y) != juce::Colours::black;
+        futureCurve |= image.getPixelAt(140, y) != juce::Colours::black;
     }
 
     DOCTEST_CHECK(futureCurve);

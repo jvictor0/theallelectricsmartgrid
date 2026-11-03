@@ -1,51 +1,62 @@
 #pragma once
 
 #include "AdaptiveWaveTable.hpp"
-#include "FixedAllocator.hpp"
 
-struct MorphingWaveTable
+template<typename Number, size_t Size>
+struct MorphingWaveTableGeneric
 {
-    AdaptiveWaveTable* m_left;
-    AdaptiveWaveTable* m_right;
+    using Vector = MultiChannelNumber<Number, Size>;
+    using Table = AdaptiveWaveTableGeneric<Number, 1>;
+    using Evaluation = AdaptiveWaveTableGeneric<Number, Size>;
 
-    MorphingWaveTable()
-        : m_left(nullptr)
-        , m_right(nullptr)
+    Table* m_left[Size]{};
+    Table* m_right[Size]{};
+
+    Table* SetLeft(size_t channel, Table* left)
     {
-    }
-    
-    AdaptiveWaveTable* SetLeft(AdaptiveWaveTable* left)
-    {
-        AdaptiveWaveTable* old = m_left;
-        m_left = left;
-        return old;
-    }
-    
-    AdaptiveWaveTable* SetRight(AdaptiveWaveTable* right)
-    {
-        AdaptiveWaveTable* old = m_right;
-        m_right = right;
+        Table* old = m_left[channel];
+        m_left[channel] = left;
         return old;
     }
 
-    float Evaluate(float phase, float freq, float maxFreq, float blend)
+    Table* SetRight(size_t channel, Table* right)
     {
-        AdaptiveWaveTable::EvalSite site;
-        m_left->EvaluateSite(freq, maxFreq, site);
-        m_right->EvaluateSite(freq, maxFreq, site);
-        float left = m_left->Evaluate(phase, site);
-        float right = m_right->Evaluate(phase, site);
-        return left * (1 - blend) + right * blend;
+        Table* old = m_right[channel];
+        m_right[channel] = right;
+        return old;
     }
 
-    float StartValue(float blend, float freq, float maxFreq)
+    Table* SetLeft(Table* left)
     {
-        return Evaluate(0, freq, maxFreq, blend);
+        static_assert(Size == 1, "SetLeft without a channel requires one channel");
+        return SetLeft(0, left);
     }
 
-    float CenterValue(float blend, float freq, float maxFreq)
+    Table* SetRight(Table* right)
     {
-        return Evaluate(0.5, freq, maxFreq, blend);
+        static_assert(Size == 1, "SetRight without a channel requires one channel");
+        return SetRight(0, right);
+    }
+
+    Vector Evaluate(const Vector& phase, const Vector& freq, const Vector& maxFreq, const Vector& blend) const
+    {
+        typename Evaluation::EvalSite site;
+        Evaluation::EvaluateSite(freq, maxFreq, site);
+        typename Evaluation::Lookup lookup(phase);
+        Vector left = Evaluation::Evaluate(lookup, site, m_left);
+        Vector right = Evaluation::Evaluate(lookup, site, m_right);
+        return left * (Vector::Splat(1) - blend) + right * blend;
+    }
+
+    Vector StartValue(const Vector& blend, const Vector& freq, const Vector& maxFreq) const
+    {
+        return Evaluate(Vector(), freq, maxFreq, blend);
+    }
+
+    Vector CenterValue(const Vector& blend, const Vector& freq, const Vector& maxFreq) const
+    {
+        return Evaluate(Vector::Splat(static_cast<Number>(0.5)), freq, maxFreq, blend);
     }
 };
 
+using MorphingWaveTable = MorphingWaveTableGeneric<float, 1>;

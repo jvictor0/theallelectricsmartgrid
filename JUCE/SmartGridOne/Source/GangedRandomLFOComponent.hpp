@@ -106,23 +106,13 @@ struct GangedRandomLFOComponent : public ModulatorTimeAxisComponent
         const VoiceTiming& timing,
         double sample) const
     {
-        if (sample <= timing.m_waitingSamples)
-        {
-            return voice.m_source;
-        }
-
-        if (sample >= timing.m_totalSamples)
-        {
-            return voice.m_target;
-        }
-
-        double movingProgress =
-            (sample - timing.m_waitingSamples) * voice.m_movingIncrement;
-        return GangedRandomLFOShapedInterpolate(
+        return GangedRandomLFOFrameInterpolate(
             voice.m_source,
             voice.m_target,
             voice.m_shape,
-            movingProgress);
+            timing.m_waitingSamples,
+            voice.m_movingIncrement,
+            sample);
     }
 
     juce::Point<float> PointAtSample(
@@ -235,6 +225,7 @@ struct GangedRandomLFOComponent : public ModulatorTimeAxisComponent
             return;
         }
 
+        sharedDurationSamples = std::ceil(sharedDurationSamples / x_gangedRandomFrameSamples) * x_gangedRandomFrameSamples;
         double presentSample = std::clamp(
             snapshot.m_roundElapsedSamples,
             0.0,

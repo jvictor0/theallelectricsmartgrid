@@ -124,8 +124,7 @@ struct SmartGridOneEncoders
     Bank m_selectedBank;
     size_t m_selectedTrio;
     std::array<size_t, x_totalNumBanks> m_boundPages;
-    size_t m_hostSample = 0;
-    float m_previousOutputWeight = SmartGrid::BankedEncoderCell::GetPreviousOutputWeight(0, SampleTimer::x_oversample);
+    const QuadFloat* m_values;
 
     SmartGridOneEncoders(SmartGridOneContext* context)
         : m_encoderBankBank(
@@ -135,6 +134,7 @@ struct SmartGridOneEncoders
             context)
         , m_selectedBank(Bank::SourceWater)
         , m_selectedTrio(0)
+        , m_values(m_encoderBankBank.m_valueCaches[0].data())
     {
         m_boundPages.fill(Layout::x_noRoute);
         Init();
@@ -215,12 +215,10 @@ struct SmartGridOneEncoders
         {
             size_t trio = static_cast<size_t>(voice) / x_voicesPerTrio;
             size_t trioVoice = static_cast<size_t>(voice) % x_voicesPerTrio;
-            return m_encoderBankBank.GetValueByEncoderIndex(
-                EncoderIndex(param, trio), trioVoice, m_hostSample, m_previousOutputWeight);
+            return m_values[EncoderIndex(param, trio)][trioVoice];
         }
 
-        return m_encoderBankBank.GetValueByEncoderIndex(
-            EncoderIndex(param, 0), static_cast<size_t>(voice), m_hostSample, m_previousOutputWeight);
+        return m_values[EncoderIndex(param, 0)][voice];
     }
 
     float GetValue(Param param)
@@ -240,9 +238,8 @@ struct SmartGridOneEncoders
             bool isVoiceMode = Layout::GetParamMode(param) == ParamMode::Voice;
             if ((Size == 3 && isVoiceMode) || (!isVoiceMode && track == 0))
             {
-                QuadFloat output = m_encoderBankBank.GetValuesByEncoderIndex(
-                    EncoderIndex(param, isVoiceMode ? track : 0), m_hostSample, m_previousOutputWeight);
-                return MultiChannelNumber<float, Size>::FromVector(output.Load());
+                return MultiChannelNumber<float, Size>::FromVector(
+                    m_values[EncoderIndex(param, isVoiceMode ? track : 0)].Load());
             }
         }
 
@@ -510,10 +507,7 @@ struct SmartGridOneEncoders
     //
     void Process()
     {
-        size_t sample = SampleTimer::GetSample();
-        m_hostSample = sample / SampleTimer::x_oversample;
-        m_previousOutputWeight = SmartGrid::BankedEncoderCell::GetPreviousOutputWeight(
-            sample % SampleTimer::x_oversample, SampleTimer::x_oversample);
+        m_values = m_encoderBankBank.m_valueCaches[SampleTimer::GetSubSampleIndex()].data();
         m_encoderBankBank.Process();
     }
 

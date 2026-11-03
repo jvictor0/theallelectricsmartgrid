@@ -335,10 +335,8 @@ struct PartialMachine
 
         static void StoreAlpha(const QuadFloat& seconds, FrequencyDependentParameter::Parameter& parameter)
         {
-            for (int i = 0; i < FrequencyDependentParameter::x_numParameters; ++i)
-            {
-                parameter.m_parameters[i] = TimeToAlpha(seconds[i]);
-            }
+            QuadFloat cyclesPerHop = QuadFloat::Splat(x_hopSeconds / (2.0f * static_cast<float>(M_PI))) / seconds;
+            Store(QuadOPLowPassFilter::AlphaFromNatFreqApprox(cyclesPerHop), parameter);
         }
 
         void SetInput(const Input& knobInput, PartialMachine::Input& input)

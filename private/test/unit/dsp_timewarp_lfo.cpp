@@ -175,37 +175,27 @@ DOCTEST_TEST_CASE("PolyXFader: square-like Shape responds continuously without q
     DOCTEST_CHECK(fader.m_values[0] == fresh.m_values[0]);
 }
 
-namespace
+DOCTEST_TEST_CASE("PolyXFader: Shape morphs fixed linear, sine and saturated sine curves")
 {
-
-float DrivenSine(float drive, float position)
-{
-    using Saturator = TanhSaturatorGeneric<float, 1, true>;
-    float sine = (1.0f - Math::Cos2pi(position * 0.5f)) * 0.5f;
-    float tanhDrive = Saturator::Tanh(MultiChannelNumber<float, 1>(drive))[0];
-    return (Saturator::Tanh(MultiChannelNumber<float, 1>(drive * (sine * 2.0f - 1.0f)))[0] / tanhDrive + 1.0f) * 0.5f;
-}
-
-}
-
-DOCTEST_TEST_CASE("PolyXFader: Shape drive is exponential from 0.25 at the sine boundary to 8 at full")
-{
-    PolyXFaderInternal::Input input;
-    float aboveSine = std::nextafter(0.5f, 1.0f);
-    for (float position : {0.1f, 0.3f, 0.45f, 0.7f})
+    for (size_t i = 0; i <= 4096; ++i)
     {
-        DOCTEST_CHECK(input.Shape(aboveSine, position) == doctest::Approx(DrivenSine(0.25f, position)).epsilon(0.00001));
-        DOCTEST_CHECK(input.Shape(0.75f, position) == doctest::Approx(DrivenSine(std::sqrt(2.0f), position)).epsilon(0.00001));
-        DOCTEST_CHECK(input.Shape(1.0f, position) == doctest::Approx(DrivenSine(8.0f, position)).epsilon(0.00001));
-    }
+        float position = static_cast<float>(i) / 4096.0f;
+        double sine = (1.0 - std::cos(M_PI * position)) * 0.5;
+        double t = 8.0 * (2.0 * sine - 1.0);
+        double hard = (1.0 + std::clamp(t * (27.0 + t * t) / (27.0 + 9.0 * t * t), -1.0, 1.0)) * 0.5;
+        for (float shape : {0.0f, 0.25f, 0.5f, 0.625f, 0.75f, 1.0f})
+        {
+            double expected = shape <= 0.5f
+                ? position + (2.0 * shape) * (sine - position)
+                : sine + (2.0 * shape - 1.0) * (hard - sine);
+            double actual = PolyXFaderInternal::Input::Shape(shape, position)[0];
+            DOCTEST_CHECK(std::abs(actual - expected) < 0.00003);
+        }
 
-    // The positive minimum drive leaves a small step just above the sine
-    // boundary.
-    //
-    float sine = input.Shape(0.5f, 0.3f);
-    float step = input.Shape(aboveSine, 0.3f) - sine;
-    DOCTEST_CHECK(step < 0.0f);
-    DOCTEST_CHECK(step > -0.01f);
+        float atSine = PolyXFaderInternal::Input::Shape(0.5f, position)[0];
+        float aboveSine = PolyXFaderInternal::Input::Shape(std::nextafter(0.5f, 1.0f), position)[0];
+        DOCTEST_CHECK(std::abs(aboveSine - atSine) < 0.000001f);
+    }
 }
 
 DOCTEST_TEST_CASE("PolyXFader: Shape lanes match mono evaluation")

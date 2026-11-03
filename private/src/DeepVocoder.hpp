@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SnapshotUIState.hpp"
+#include "Filter.hpp"
 #include "SpectralModel.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
@@ -78,8 +79,8 @@ struct DeepVocoder
         SpectralModel::Input MakeSpectralInput() const
         {
             SpectralModel::Input result;
-            result.m_slewUpAlpha.m_value = 1.0f - std::exp(-1.0f / m_slewUp.m_expParam);
-            result.m_slewDownAlpha.m_value = 1.0f - std::exp(-1.0f / m_slewDown.m_expParam);
+            result.m_slewUpAlpha.m_value = OPLowPassFilter::AlphaFromNatFreqApprox(1.0f / (2.0f * static_cast<float>(M_PI) * m_slewUp.m_expParam))[0];
+            result.m_slewDownAlpha.m_value = OPLowPassFilter::AlphaFromNatFreqApprox(1.0f / (2.0f * static_cast<float>(M_PI) * m_slewDown.m_expParam))[0];
             result.m_omegaPortamentoAlpha.m_value = 1.0f;
             result.m_omegaDensity.m_value = 1.0f / 12.0f;
             result.m_gainThreshold = 1e-4f;

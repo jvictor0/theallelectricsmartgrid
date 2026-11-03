@@ -89,19 +89,19 @@ DOCTEST_TEST_CASE("Weighted modulators: future random samples use only the publi
         voice.Reset(0.1f);
     }
 
-    history.RecordRound(160, voices, inputs);
+    history.RecordRound(164, voices, inputs);
     ModulatorRef source(VoiceModulator::Random1, 4);
     WeightedModulators weights;
     weights.Add(source, 1.0f);
     using SmartGridOneModulatorHistory::GetWeightedModulatorValue;
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 110.0) == doctest::Approx(0.2f));
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 140.0) == doctest::Approx(0.5f));
+    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 110.0) == doctest::Approx(0.2f + 0.18f * 10 / 32));
+    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 140.0) == doctest::Approx(0.38f + 0.42f * 8 / 32));
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 10000.0) == doctest::Approx(0.8f));
     auto axis = SmartGridOneModulatorHistory::GetTimeAxis(*ui, source);
-    DOCTEST_CHECK(axis.GetExtent() == 60.0);
+    DOCTEST_CHECK(axis.GetExtent() == 64.0);
     DOCTEST_CHECK(axis.GetSample(0.0) == 100.0);
-    DOCTEST_CHECK(axis.GetSample(1.0) == 160.0);
-    DOCTEST_CHECK(axis.m_present == doctest::Approx(32.0 / 60.0));
+    DOCTEST_CHECK(axis.GetSample(1.0) == 164.0);
+    DOCTEST_CHECK(axis.m_present == doctest::Approx(32.0 / 64.0));
     DOCTEST_CHECK(axis.m_predictive);
 }
 
@@ -243,23 +243,19 @@ DOCTEST_TEST_CASE("Modulator history: random curves hold for the gang and retain
     inputs[0] = {0.5, 0.5, 0.0f};
     inputs[1] = {0.25, 0.25, 1.0f};
     history.RecordRound(100, voices, inputs);
-    for (size_t elapsed = 1; elapsed <= 8; ++elapsed)
+    for (size_t elapsed = 0; elapsed <= 32; ++elapsed)
     {
-        for (size_t voice = 0; voice < 2; ++voice)
-        {
-            float expected = voices[voice].Process(inputs[voice]);
-            DOCTEST_CHECK(history.GetValue(voice, 100.0 + elapsed) == doctest::Approx(expected));
-        }
+        DOCTEST_CHECK(history.GetValue(0, 100.0 + elapsed) == doctest::Approx(elapsed / 32.0f));
+        DOCTEST_CHECK(history.GetValue(1, 100.0 + elapsed) == doctest::Approx(0.8f * elapsed / 32.0f));
     }
 
-    DOCTEST_CHECK(history.GetValue(0, 102.5) == doctest::Approx(0.25f));
-    DOCTEST_CHECK(history.GetValue(0, 107.0) == doctest::Approx(1.0f));
+    DOCTEST_CHECK(history.GetValue(0, 102.5) == doctest::Approx(2.5f / 32));
     voices[0].Reset(0.25f);
     voices[1].Reset(0.5f);
-    history.RecordRound(108, voices, inputs);
-    DOCTEST_CHECK(history.GetValue(0, 103.0) == doctest::Approx(0.5f));
-    DOCTEST_CHECK(history.GetValue(0, 108.0) == doctest::Approx(1.0f));
-    DOCTEST_CHECK(history.GetValue(0, 111.0) == doctest::Approx(0.625f));
+    history.RecordRound(132, voices, inputs);
+    DOCTEST_CHECK(history.GetValue(0, 116.0) == doctest::Approx(0.5f));
+    DOCTEST_CHECK(history.GetValue(0, 132.0) == doctest::Approx(1.0f));
+    DOCTEST_CHECK(history.GetValue(0, 148.0) == doctest::Approx(0.625f));
     DOCTEST_CHECK(history.GetValue(0, 99.99) == 0.0f);
 }
 

@@ -225,6 +225,25 @@ DOCTEST_TEST_CASE("PolyXFader: zero frequency holds state and high cutoffs stay 
     DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(expected).epsilon(0.0001));
 }
 
+DOCTEST_TEST_CASE("PolyXFader: tiny approximate coefficients still advance double slew state")
+{
+    PolyXFaderSlewRig rig;
+    rig.m_input.m_size = 1;
+    rig.m_input.m_mult = 1.0f;
+    rig.m_time.m_globalPeriodSamples = 1e12;
+    rig.m_time.m_sample.m_loops[0].m_input.m_parentMult = 1;
+    TheoryOfTimeBase::SetLoopPeriods(rig.m_time.m_sample);
+    rig.m_time.m_sample.m_unmodulatedPhase = 0.5;
+    rig.m_fader.m_mixSlew.m_output = 0.25;
+    rig.Process(1000);
+
+    double expectedAdvance = 0.75 * -std::expm1(-2.0 * M_PI * 8.0 / 1e12 * 1000.0);
+    double actualAdvance = rig.m_fader.m_mixSlew.m_output[0] - 0.25;
+    DOCTEST_CHECK(rig.m_fader.m_mixSlew.m_alpha[0] > 0);
+    DOCTEST_CHECK(actualAdvance > 0);
+    DOCTEST_CHECK(actualAdvance == doctest::Approx(expectedAdvance).epsilon(0.00001));
+}
+
 DOCTEST_TEST_CASE("PolyXFader: 500 Hz slew applies only to S&H before blending and stays warm while dry")
 {
     for (float fade : {0.0f, 0.35f, 1.0f})

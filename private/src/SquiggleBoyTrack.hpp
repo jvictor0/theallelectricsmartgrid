@@ -448,8 +448,9 @@ struct SquiggleBoyTrackGeneric
         const Vector& targetFreq,
         const Vector& gainFader)
     {
-        m_baseFreqSlew.SetAlphaFromNatFreq(m_baseFreqSlewAmount.Update(
-            Vector::Splat(1) - encoders.GetValue<Size>(Param::Portamento, track)).template Convert<double>());
+        Vector slewFrequency = m_baseFreqSlewAmount.Update(
+            Vector::Splat(1) - encoders.GetValue<Size>(Param::Portamento, track));
+        m_baseFreqSlew.m_alpha = OPLowPassFilterGeneric<float, Size>::AlphaFromNatFreqApprox(slewFrequency).template Convert<double>();
         Vector baseFreq = m_baseFreqSlew.Process(targetFreq.template Convert<double>()).template Convert<float>();
 
         input.SetMachines();
