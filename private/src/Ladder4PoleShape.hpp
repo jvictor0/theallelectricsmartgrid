@@ -9,8 +9,9 @@
 #include "SquiggleBoyShapeBase.hpp"
 #include "StateVariableFilter.hpp"
 
-// 4-pole ladder low-pass into a 4-pole SVF high-pass, then the sample rate
-// reducer. One sample per call for every channel.
+// 4-pole ladder low-pass into the sample rate reducer, then a 4-pole SVF
+// high-pass, so the high-pass also removes bass the reducer generates. One
+// sample per call for every channel.
 //
 template <size_t Size>
 struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
@@ -53,10 +54,9 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
         m_lpLadder.SetResonance(input.m_lpResonance.m_expParam);
         m_lpLadder.SetSaturationGain(input.m_saturationGain.m_expParam);
 
-        m_hp4Pole.Process(m_lpLadder.Process(x));
-
         m_sampleRateReducer.SetFreq(SampleRateReducerFreq(input.m_baseFreq, input.m_sampleRateReducerFreq.m_expParam));
-        return m_sampleRateReducer.Process(m_hp4Pole.GetOutput());
+        m_hp4Pole.Process(m_sampleRateReducer.Process(m_lpLadder.Process(x)));
+        return m_hp4Pole.GetOutput();
     }
 
     void SetEncoderParams(

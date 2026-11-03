@@ -112,8 +112,11 @@ struct SourceMixer
             }
         };
 
+        using Vector = MultiChannelNumber<float, x_numSourceLanes>;
+        using Filter = LinearStateVariableFilterGeneric<float, x_numSourceLanes>;
+
         Source()
-            : m_output{}
+            : m_output()
         {
         }
 
@@ -122,22 +125,15 @@ struct SourceMixer
             float gain = input.m_gain.m_expParam;
             float hpCutoff = input.m_hpCutoff.m_expParam;
             float lpFactor = input.m_lpFactor.m_expParam;
-            float preFilterScopeSample[x_numSourceLanes];
+            Vector sample = Vector(input.m_input) * gain;
 
-            for (size_t lane = 0; lane < x_numSourceLanes; ++lane)
-            {
-                float sample = input.m_input[lane] * gain;
-                preFilterScopeSample[lane] = sample;
+            m_hpFilter.SetCutoffAndResonance(Vector::Splat(hpCutoff), Vector());
+            m_lpFilter.SetCutoffAndResonance(Vector::Splat(hpCutoff * lpFactor), Vector());
+            m_lpFilter.Process(sample);
+            m_hpFilter.Process(m_lpFilter.GetLowPass());
+            m_output = m_hpFilter.GetHighPass();
 
-                m_hpFilter[lane].SetCutoffAndResonance(hpCutoff, 0.0f);
-                m_lpFilter[lane].SetCutoffAndResonance(hpCutoff * lpFactor, 0.0f);
-                m_lpFilter[lane].Process(sample);
-                sample = m_lpFilter[lane].GetLowPass();
-                m_hpFilter[lane].Process(sample);
-                m_output[lane] = m_hpFilter[lane].GetHighPass();
-            }
-
-            m_preFilterScopeWriter.Write(0.5f * (preFilterScopeSample[0] + preFilterScopeSample[1]));
+            m_preFilterScopeWriter.Write(0.5f * (sample[0] + sample[1]));
             m_postFilterScopeWriter.Write(0.5f * (m_output[0] + m_output[1]));
         }
 
@@ -145,8 +141,8 @@ struct SourceMixer
         {
             for (size_t lane = 0; lane < x_numSourceLanes; ++lane)
             {
-                m_hpFilter[lane].PopulateUIState(&uiState->m_hpFilter[lane]);
-                m_lpFilter[lane].PopulateUIState(&uiState->m_lpFilter[lane]);
+                m_hpFilter.PopulateUIState(&uiState->m_hpFilter[lane], lane);
+                m_lpFilter.PopulateUIState(&uiState->m_lpFilter[lane], lane);
             }
         }
 
@@ -155,10 +151,10 @@ struct SourceMixer
             uiState->m_width.store(input.m_config.m_width);
         }
 
-        float m_output[x_numSourceLanes];
+        Vector m_output;
 
-        LinearStateVariableFilter m_lpFilter[x_numSourceLanes];
-        LinearStateVariableFilter m_hpFilter[x_numSourceLanes];
+        Filter m_lpFilter;
+        Filter m_hpFilter;
         ScopeWriterHolder m_preFilterScopeWriter;
         ScopeWriterHolder m_postFilterScopeWriter;
 

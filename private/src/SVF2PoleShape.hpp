@@ -9,8 +9,9 @@
 #include "SquiggleBoyShapeBase.hpp"
 #include "StateVariableFilter.hpp"
 
-// Saturated 2-pole SVF low-pass into a 2-pole SVF high-pass, then the sample
-// rate reducer. One sample per call for every channel.
+// Saturated 2-pole SVF low-pass into the sample rate reducer, then a 2-pole
+// SVF high-pass, so the high-pass also removes bass the reducer generates. One
+// sample per call for every channel.
 //
 template <size_t Size>
 struct SVF2PoleShapeGeneric : SquiggleBoyShapeBase
@@ -81,12 +82,10 @@ struct SVF2PoleShapeGeneric : SquiggleBoyShapeBase
             input.m_lpResonance.m_expParam);
         SetSaturationGain(input.m_saturationGain.m_expParam);
 
-        m_lpSVF.Process(Saturate(x));
-        m_hpSVF.Process(Saturate(m_lpSVF.GetLowPass()));
-        Vector output = Saturate(m_hpSVF.GetHighPass());
-
         m_sampleRateReducer.SetFreq(SampleRateReducerFreq(input.m_baseFreq, input.m_sampleRateReducerFreq.m_expParam));
-        return m_sampleRateReducer.Process(output);
+        m_lpSVF.Process(Saturate(x));
+        m_hpSVF.Process(m_sampleRateReducer.Process(Saturate(m_lpSVF.GetLowPass())));
+        return Saturate(m_hpSVF.GetHighPass());
     }
 
     void SetEncoderParams(

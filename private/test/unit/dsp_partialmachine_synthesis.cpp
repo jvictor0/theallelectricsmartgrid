@@ -19,22 +19,24 @@ PartialMachine::SynthesisContext::Input SynthesisInput(float ratio)
     return input;
 }
 
-OLA::DFT RenderAtom(int sourceBin, float ratio, float unison = 0.0f)
+PartialMachine::SpectralModel::DFT RenderAtom(int sourceBin, float ratio, float unison = 0.0f)
 {
     PartialMachine::SpectralModel::Atom atom;
     atom.m_synthesisOmega = static_cast<float>(sourceBin) / 4096.0f;
     atom.m_synthesisMagnitude = 0.1f;
     auto input = SynthesisInput(ratio);
     input.m_unison = PartialMachine::Parameter(unison);
-    QuadOLA ola;
-    OLA::Buffer buffer;
+    PartialMachine::SynthesisOLA ola;
+    PartialMachine::SynthesisOLA::Frame frame;
+    PartialMachine::SpectralModel::Buffer buffer;
     for (size_t sample = 0; sample < 16384; ++sample)
     {
         if (sample % 1024 == 0)
         {
             PartialMachine::SynthesisContext context;
             context.ProcessAtom(atom, input);
-            ola.Write(context.m_dft);
+            context.m_dft.InverseTransform(frame, PartialMachine::SynthesisDFT::x_maxComponents);
+            ola.Write(frame);
         }
 
         float output = ola.Process()[0];
@@ -44,7 +46,7 @@ OLA::DFT RenderAtom(int sourceBin, float ratio, float unison = 0.0f)
         }
     }
 
-    OLA::DFT spectrum;
+    PartialMachine::SpectralModel::DFT spectrum;
     spectrum.Transform(buffer);
     return spectrum;
 }
@@ -70,7 +72,7 @@ DOCTEST_TEST_CASE("PartialMachine shifted partials preserve pitch and magnitude 
         float targetMagnitude = std::abs(spectrum.m_components[example.m_targetBin][0]);
         DOCTEST_CHECK(targetMagnitude > 0.07f);
         DOCTEST_CHECK(targetMagnitude < 0.08f);
-        for (size_t bin = 1; bin < OLA::x_maxComponents; ++bin)
+        for (size_t bin = 1; bin < PartialMachine::SpectralModel::x_maxComponents; ++bin)
         {
             if (bin != static_cast<size_t>(example.m_targetBin))
             {
@@ -108,7 +110,7 @@ DOCTEST_TEST_CASE("PartialMachine pitch ratio scales emitted phase while the acc
         PartialMachine::SynthesisContext context;
         context.ProcessAtom(atom, input);
         DOCTEST_CHECK(atom.m_synthesisPhase == doctest::Approx(accumulatedPhases[frame]));
-        auto component = context.m_dft.m_dfts[0].m_components[bins[frame]][0];
+        auto component = context.m_dft.m_components[bins[frame]][0];
         DOCTEST_REQUIRE(std::abs(component) > 0.01f);
         auto unit = component / std::abs(component);
         DOCTEST_CHECK(unit.real() == doctest::Approx(std::cos(2.0 * M_PI * phases[frame])).epsilon(1e-4));

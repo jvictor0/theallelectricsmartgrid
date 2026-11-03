@@ -1,7 +1,7 @@
 // dsp_partialmachine.cpp  --  unit tests for PartialMachine
 //
 // PartialMachine drives spectral analysis (SpectralModel::ExtractAtoms) +
-// synthesis (SynthesisContext + QuadDFT) + OLA read-back every x_H samples.
+// synthesis (SynthesisContext + quad SynthesisDFT) + OLA read-back every x_H samples.
 //
 // Wiring (from SquiggleBoy.hpp):
 //   m_partialMachine.Process(m_mixer.m_send[2], m_partialMachineState)
@@ -378,36 +378,23 @@ DOCTEST_TEST_CASE("PartialMachine: two-partial sine input -> finite output")
     }
 }
 
-DOCTEST_TEST_CASE("QuadDFT residual component add preserves existing component")
+DOCTEST_TEST_CASE("Synthesis DFT panned bin-centered partial writes Hann taps per channel")
 {
-    QuadDFT dft;
+    using DFT = PartialMachine::SynthesisDFT;
+    DFT dft;
     constexpr size_t k = 8;
-    dft.m_dfts[0].m_components[k] = std::complex<float>(1.0f, 0.0f);
-
-    dft.AddComponent(k, std::complex<float>(2.0f, 0.0f), QuadFloat(1.0f, 0.0f, 0.0f, 0.0f));
-
-    DOCTEST_CHECK(dft.m_dfts[0].m_components[k][0].real() == doctest::Approx(3.0f));
-    DOCTEST_CHECK(dft.m_dfts[0].m_components[k][0].imag() == doctest::Approx(0.0f));
-    DOCTEST_CHECK(dft.m_dfts[1].m_components[k][0].real() == doctest::Approx(0.0f));
-}
-
-DOCTEST_TEST_CASE("QuadDFT WriteBinCenteredWindowedPartial pans Hann taps")
-{
-    QuadDFT dft;
-    constexpr size_t k = 8;
-    dft.m_dfts[0].m_components[k] = std::complex<float>(1.0f, 0.0f);
+    dft.m_components[k] = DFT::ComplexVector(QuadFloat(1.0f, 0.0f, 0.0f, 0.0f), QuadFloat());
 
     dft.WriteBinCenteredWindowedPartial(
         k,
-        std::complex<float>(2.0f, 0.0f),
-        QuadFloat(1.0f, 0.5f, 0.0f, 0.0f));
+        DFT::ComplexVector(std::complex<float>(2.0f, 0.0f)) * QuadFloat(1.0f, 0.5f, 0.0f, 0.0f));
 
-    DOCTEST_CHECK(dft.m_dfts[0].m_components[k - 1][0].real() == doctest::Approx(-0.5f));
-    DOCTEST_CHECK(dft.m_dfts[0].m_components[k][0].real() == doctest::Approx(2.0f));
-    DOCTEST_CHECK(dft.m_dfts[0].m_components[k + 1][0].real() == doctest::Approx(-0.5f));
-    DOCTEST_CHECK(dft.m_dfts[1].m_components[k][0].real() == doctest::Approx(0.5f));
-    DOCTEST_CHECK(dft.m_dfts[1].m_components[k - 1][0].real() == doctest::Approx(-0.25f));
-    DOCTEST_CHECK(dft.m_dfts[2].m_components[k][0].real() == doctest::Approx(0.0f));
+    DOCTEST_CHECK(dft.m_components[k - 1][0].real() == doctest::Approx(-0.5f));
+    DOCTEST_CHECK(dft.m_components[k][0].real() == doctest::Approx(2.0f));
+    DOCTEST_CHECK(dft.m_components[k + 1][0].real() == doctest::Approx(-0.5f));
+    DOCTEST_CHECK(dft.m_components[k][1].real() == doctest::Approx(0.5f));
+    DOCTEST_CHECK(dft.m_components[k - 1][1].real() == doctest::Approx(-0.25f));
+    DOCTEST_CHECK(dft.m_components[k][2].real() == doctest::Approx(0.0f));
 }
 
 DOCTEST_TEST_CASE("ResidualMachine writes bin-centered Hann residual")
@@ -421,22 +408,22 @@ DOCTEST_TEST_CASE("ResidualMachine writes bin-centered Hann residual")
     constexpr size_t k = 8;
     pm.m_spectralModel.m_residualModel.m_magnitudes[k] = 1.0f;
 
-    QuadDFT dft;
+    PartialMachine::SynthesisDFT dft;
     pm.m_residualMachine.Process(dft, pm.m_spectralModel, input);
 
     bool sawEnergy = false;
     for (int ch = 0; ch < 4; ++ch)
     {
-        float center = std::abs(dft.m_dfts[ch].m_components[k][0]);
+        float center = std::abs(dft.m_components[k][ch]);
         if (center < 1e-6f)
         {
             continue;
         }
 
         sawEnergy = true;
-        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k - 1][0]) == doctest::Approx(0.5f * center));
-        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k + 1][0]) == doctest::Approx(0.5f * center));
-        DOCTEST_CHECK(std::abs(dft.m_dfts[ch].m_components[k + 2][0]) == doctest::Approx(0.0f));
+        DOCTEST_CHECK(std::abs(dft.m_components[k - 1][ch]) == doctest::Approx(0.5f * center));
+        DOCTEST_CHECK(std::abs(dft.m_components[k + 1][ch]) == doctest::Approx(0.5f * center));
+        DOCTEST_CHECK(std::abs(dft.m_components[k + 2][ch]) == doctest::Approx(0.0f));
     }
 
     DOCTEST_CHECK(sawEnergy);
@@ -503,7 +490,7 @@ DOCTEST_TEST_CASE("PartialMachine residual feedback permits decay below its magn
         for (float expected : {5e-7f, 2.5e-7f, 1.25e-7f})
         {
             residual.Process(input.m_spectralModelInput, silence);
-            QuadDFT dft;
+            PartialMachine::SynthesisDFT dft;
             pm.m_residualMachine.Process(dft, pm.m_spectralModel, input);
             DOCTEST_CAPTURE(feedback);
             DOCTEST_CHECK(residual.GetEnvelope(8) == doctest::Approx(expected).epsilon(1e-5).scale(0.0));
@@ -649,7 +636,7 @@ DOCTEST_TEST_CASE("PartialMachine: espace etale parameter slice stays finite und
     {
         for (size_t i = 0; i < PartialMachine::SpectralModel::x_tableSize; ++i)
         {
-            if (!std::isfinite(pm.m_ola.m_olas[ch].m_buffer.m_table[i]))
+            if (!std::isfinite(pm.m_ola.m_buffer.m_table[i][ch]))
             {
                 ++badOlaSamples;
             }

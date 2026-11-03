@@ -12,7 +12,7 @@ struct QuadLFO
 
     QuadFloat m_output;
 
-    OPLowPassFilter m_slew[4];
+    OPLowPassFilterGeneric<float, 4> m_slew;
 
     ScopeWriterHolder m_scopeWriterHolder;
 
@@ -28,10 +28,7 @@ struct QuadLFO
 
     void SetSlew(float freq)
     {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_slew[i].SetAlphaFromNatFreq(freq);
-        }
+        m_slew.SetAlphaFromNatFreq(freq);
     }
 
     static float GetPhase(int i, float phaseKnob)
@@ -98,11 +95,8 @@ struct QuadLFO
 
         QuadFloat phase = m_phase + input.GetPhaseOffset();
         phase = phase.ModOne();
-        for (int i = 0; i < 4; ++i)
-        {
-            m_slew[i].SetAlphaFromNatFreq(input.m_freq[i] * 2);
-            m_output[i] = m_slew[i].Process(Math::Sin2pi(phase[i]));
-        }
+        m_slew.SetAlphaFromNatFreq(input.m_freq * 2);
+        m_output = m_slew.Process(Math::Sin2pi(phase));
 
         if (m_scopeWriterHolder.m_scopeWriter)
         {

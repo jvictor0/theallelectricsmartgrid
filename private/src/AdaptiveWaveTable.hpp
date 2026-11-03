@@ -126,70 +126,64 @@ struct DiscreteFourierTransformGeneric
         }
     }
 
-    void InverseTransform(Table& waveTable, size_t maxComponents)
+    template<size_t OutputBits>
+    void InverseTransform(BasicWaveTableGeneric<Number, Size, OutputBits>& output, size_t maxComponents) const
     {
-        ComplexVector workspace[x_tableSize];
-        InverseTransform(waveTable, maxComponents, workspace);
+        ComplexVector workspace[BasicWaveTableGeneric<Number, Size, OutputBits>::x_tableSize];
+        InverseTransform(output, maxComponents, workspace);
     }
 
-    // The workspace holds x_tableSize values and is overwritten.
+    // Evaluates the band-limited spectrum at 1 << OutputBits points. A larger
+    // output interpolates the same spectrum: bins keep their indices, added
+    // bins stay zero, and the forward 1 / x_tableSize normalization is kept.
+    // The source Nyquist bin is not stored and stays omitted. The workspace
+    // holds 1 << OutputBits values and is overwritten.
     //
-    void InverseTransform(Table& waveTable, size_t maxComponents, ComplexVector* workspace)
+    template<size_t OutputBits>
+    void InverseTransform(BasicWaveTableGeneric<Number, Size, OutputBits>& output, size_t maxComponents, ComplexVector* workspace) const
     {
+        static_assert(Bits <= OutputBits, "InverseTransform output must be at least the source size");
+        constexpr size_t x_outputSize = BasicWaveTableGeneric<Number, Size, OutputBits>::x_tableSize;
+
         // Limit components to available range
         //
         size_t componentsToUse = ((maxComponents + 1) > x_maxComponents) ? x_maxComponents : maxComponents + 1;
-        
-        // Clear the wave table
-        //
-        for (size_t i = 0; i < x_tableSize; ++i)
-        {
-            waveTable.m_table[i] = Vector::Splat(0);
-        }
-        
-        // Zero out unused components for band limiting
-        //
-        for (size_t k = 0; k < x_tableSize; ++k)
+
+        for (size_t k = 0; k < x_outputSize; ++k)
         {
             workspace[k] = ComplexVector();
         }
-        
-        // Copy complex components directly
-        //
+
         for (size_t k = 0; k < componentsToUse; ++k)
         {
             workspace[k] = m_components[k];
-
-            if (0 < k && k < x_tableSize / 2)
+            if (0 < k)
             {
-                workspace[x_tableSize - k] = workspace[k].Conj();
+                workspace[x_outputSize - k] = m_components[k].Conj();
             }
-        }        
+        }
 
-        // Perform inverse FFT
-        //
-        IFFT(workspace, x_tableSize);
-        
-        // Extract real part and normalize
-        //
-        for (size_t i = 0; i < x_tableSize; ++i)
+        IFFT<OutputBits>(workspace);
+
+        for (size_t i = 0; i < x_outputSize; ++i)
         {
-            waveTable.m_table[i] = workspace[i].real();
+            output.m_table[i] = workspace[i].real();
         }
     }
 
-    void IFFT(ComplexVector* data, size_t N)
+    // Unnormalized inverse FFT of 1 << OutputBits values, with twiddles from
+    // MathGeneric<OutputBits>.
+    //
+    template<size_t OutputBits>
+    static void IFFT(ComplexVector* data)
     {
-        if (N <= 1)
-        {
-            return;
-        }
+        constexpr size_t x_N = static_cast<size_t>(1) << OutputBits;
 
         // Bit-reversal permutation
         //
-        for (size_t i = 1, j = 0; i < N; ++i)
+        for (size_t i = 1, j = 0; i < x_N; ++i)
         {
-            size_t bit = N >> 1;
+            size_t bit = x_N >> 1;
             for (; j & bit; bit >>= 1)
             {
                 j ^= bit;
@@ -203,15 +197,15 @@ struct DiscreteFourierTransformGeneric
 
         // Iterative butterfly operations (IFFT uses positive exponent)
         //
-        for (size_t len = 2; len <= N; len <<= 1)
+        for (size_t len = 2; len <= x_N; len <<= 1)
         {
             size_t halfLen = len >> 1;
-            for (size_t i = 0; i < N; i += len)
+            for (size_t i = 0; i < x_N; i += len)
             {
                 for (size_t j = 0; j < halfLen; ++j)
                 {
-                    size_t rootOfUnityIndex = j * x_tableSize / len;
-                    ComplexVector twiddle = ComplexVector::Splat(MathGeneric<Bits>::RootOfUnityByIndex(rootOfUnityIndex));
+                    size_t rootOfUnityIndex = j * x_N / len;
+                    ComplexVector twiddle = ComplexVector::Splat(MathGeneric<OutputBits>::RootOfUnityByIndex(rootOfUnityIndex));
                     ComplexVector t = data[i + j + halfLen] * twiddle;
                     ComplexVector u = data[i + j];
                     data[i + j] = u + t;
@@ -225,11 +219,25 @@ struct DiscreteFourierTransformGeneric
     //
     void WriteWindowedPartial(const Vector& phase, const Vector& magnitude, Number exactFrequency)
     {
+        ComplexVector phaseFactor(magnitude * MathGeneric<Bits>::Cos2pi(phase), magnitude * MathGeneric<Bits>::Sin2pi(phase));
+        WriteHannKernel(phaseFactor, exactFrequency);
+    }
+
+    // One partial at a shared frequency and phase, with per-channel magnitude,
+    // such as a panned partial. The phase is evaluated once for all channels.
+    //
+    void WriteWindowedPartial(Number phase, const Vector& magnitude, Number exactFrequency)
+    {
+        ComplexVector phaseFactor(magnitude * MathGeneric<Bits>::Cos2pi(phase), magnitude * MathGeneric<Bits>::Sin2pi(phase));
+        WriteHannKernel(phaseFactor, exactFrequency);
+    }
+
+    void WriteHannKernel(const ComplexVector& phaseFactor, Number exactFrequency)
+    {
         Number exactBin = exactFrequency * static_cast<Number>(x_tableSize);
         int centerBin = static_cast<int>(std::floor(exactBin));
         int firstBin = std::max(1, centerBin - x_partialKernelRadius);
         int lastBin = std::min(static_cast<int>(x_maxComponents) - 1, centerBin + x_partialKernelRadius);
-        ComplexVector phaseFactor(magnitude * MathGeneric<Bits>::Cos2pi(phase), magnitude * MathGeneric<Bits>::Sin2pi(phase));
 
         for (int k = firstBin; k <= lastBin; ++k)
         {

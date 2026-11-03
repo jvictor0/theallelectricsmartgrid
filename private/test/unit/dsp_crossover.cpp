@@ -22,6 +22,7 @@
 #include "../support/NanScan.hpp"
 
 #include "LinkwitzRileyCrossover.hpp"
+#include "MultibandSaturator.hpp"
 
 using namespace TestSpectral;
 using namespace TestSignal;
@@ -284,5 +285,53 @@ DOCTEST_TEST_CASE("LinkwitzRileyCrossover: NaN-clean across crossover sweep")
         DOCTEST_INFO("cutoffCps=" << cps);
         TestNan::AssertClean(outLP.data(), nSamples);
         TestNan::AssertClean(outHP.data(), nSamples);
+    }
+}
+
+DOCTEST_TEST_CASE("MultibandSaturator: vector band split matches per-channel mono crossovers through cutoff changes")
+{
+    using Saturator = MultibandSaturator<4, 2>;
+    Saturator saturator;
+    LinkwitzRileyCrossover mono[2][3];
+    for (size_t sample = 0; sample < 4096; ++sample)
+    {
+        float cutoffs[3] = {0.002f, 0.01f, 0.05f};
+        if (2048 <= sample)
+        {
+            cutoffs[0] = 0.004f;
+            cutoffs[1] = 0.02f;
+            cutoffs[2] = 0.08f;
+        }
+
+        float in[2] = {
+            std::sin(0.031f * static_cast<float>(sample)) + 0.3f * std::sin(0.73f * static_cast<float>(sample)),
+            ((sample / 61) % 2 == 0 ? 0.5f : -0.5f) + 0.2f * std::sin(0.0071f * static_cast<float>(sample)),
+        };
+
+        for (size_t j = 0; j < 3; ++j)
+        {
+            saturator.m_linkwitzRileyCrossover[j].SetCyclesPerSample(cutoffs[j]);
+        }
+
+        Saturator::Vector bands[4];
+        saturator.BuildBandsRecursive(bands, Saturator::Vector(in), 4, 0);
+        for (size_t channel = 0; channel < 2; ++channel)
+        {
+            for (size_t j = 0; j < 3; ++j)
+            {
+                mono[channel][j].SetCyclesPerSample(cutoffs[j]);
+            }
+
+            // Four bands split at the middle crossover, then each half.
+            //
+            LinkwitzRileyCrossover::CrossoverOutput middle = mono[channel][1].Process(in[channel]);
+            LinkwitzRileyCrossover::CrossoverOutput low = mono[channel][0].Process(middle.m_lowPass);
+            LinkwitzRileyCrossover::CrossoverOutput high = mono[channel][2].Process(middle.m_highPass);
+            float expected[4] = {low.m_lowPass, low.m_highPass, high.m_lowPass, high.m_highPass};
+            for (size_t j = 0; j < 4; ++j)
+            {
+                DOCTEST_CHECK(bands[j][channel] == doctest::Approx(expected[j]).epsilon(0.00001).scale(1.0));
+            }
+        }
     }
 }

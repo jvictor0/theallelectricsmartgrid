@@ -331,9 +331,9 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
             for (size_t channel = 0; channel < 4; ++channel)
             {
                 scopes.push_back({ModulatorRef(QuadModulator::LFO1, channel),
-                    static_cast<double>(sample), synth.m_quadSquiggleLFO[0][channel].m_polyXFader.m_output});
+                    static_cast<double>(sample), synth.m_quadSquiggleLFO[0].m_polyXFader.m_output[channel]});
                 scopes.push_back({ModulatorRef(QuadModulator::LFO2, channel),
-                    static_cast<double>(sample), synth.m_quadSquiggleLFO[1][channel].m_polyXFader.m_output});
+                    static_cast<double>(sample), synth.m_quadSquiggleLFO[1].m_polyXFader.m_output[channel]});
                 scopes.push_back({ModulatorRef(QuadModulator::DelayLFO, channel),
                     static_cast<double>(sample), synth.m_delay.m_lfo.m_output[channel]});
                 scopes.push_back({ModulatorRef(QuadModulator::ReverbLFO, channel),

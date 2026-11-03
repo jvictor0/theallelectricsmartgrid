@@ -36,7 +36,7 @@
 #include <memory>
 
 #include "QuadDelay.hpp"
-#include "OLA.hpp"
+#include "AdaptiveWaveTable.hpp"
 #include "SampleTimer.hpp"
 
 DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothing at the boundary")
@@ -239,7 +239,7 @@ DOCTEST_TEST_CASE("QuadDelay: steady tones retain gain and shift by the requeste
     {
         GlobalEnv::ResetPerTest();
         auto delay = std::make_unique<QuadDelay>();
-        OLA::Buffer buffer;
+        DiscreteFourierTransform4096::Table buffer;
         double energy = 0;
         for (int sample = 0; sample < 32768; ++sample)
         {
@@ -261,14 +261,14 @@ DOCTEST_TEST_CASE("QuadDelay: steady tones retain gain and shift by the requeste
             }
         }
 
-        OLA::DFT spectrum;
+        DiscreteFourierTransform4096 spectrum;
         spectrum.Transform(buffer);
         size_t targetBin = shifted ? 36 : 18;
         DOCTEST_CHECK(std::abs(spectrum.m_components[targetBin][0]) > 0.005f);
         DOCTEST_CHECK(std::abs(spectrum.m_components[targetBin][0]) < 0.0056f);
         DOCTEST_CHECK(energy / 4096.0 > 0.00005);
         DOCTEST_CHECK(energy / 4096.0 < 0.000063);
-        for (size_t bin = 1; bin < OLA::x_maxComponents; ++bin)
+        for (size_t bin = 1; bin < DiscreteFourierTransform4096::x_maxComponents; ++bin)
         {
             if (bin != targetBin)
             {

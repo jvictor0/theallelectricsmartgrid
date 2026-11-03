@@ -1,33 +1,34 @@
 #pragma once
 
-#include "AdaptiveWaveTable.hpp"
-#include "QuadUtils.hpp"
+#include "BasicWaveTable.hpp"
 
-struct OLA
+// Overlap-add of prepared time-domain frames over Size interleaved channels.
+// Write adds a frame starting at the next sample Process returns; Process
+// reads and clears one sample. Windowing and normalization stay with the
+// caller.
+//
+template<typename Number, size_t Size, size_t Bits>
+struct OLAGeneric
 {
-    static constexpr size_t x_bits = 12;
-    static constexpr size_t x_hopDenom = 4;
-    typedef BasicWaveTableGeneric<float, 1, x_bits> Buffer;
-    typedef DiscreteFourierTransformGeneric<float, 1, x_bits> DFT;
-    static constexpr size_t x_tableSize = Buffer::x_tableSize;
-    static constexpr size_t x_maxComponents = DFT::x_maxComponents;
-    static constexpr size_t x_N = x_tableSize;
-    static constexpr size_t x_H = x_N / x_hopDenom;
+    using Frame = BasicWaveTableGeneric<Number, Size, Bits>;
+    using Vector = MultiChannelNumber<Number, Size>;
+
+    static constexpr size_t x_frameSize = Frame::x_tableSize;
 
     size_t m_index;
-    Buffer m_buffer;
+    Frame m_buffer;
 
-    OLA()
+    OLAGeneric()
         : m_index(0)
     {
     }
 
-    float Process()
+    Vector Process()
     {
-        float result = m_buffer.m_table[m_index];
-        m_buffer.m_table[m_index] = 0.0f;
+        Vector result = m_buffer.m_table[m_index];
+        m_buffer.m_table[m_index] = Vector::Splat(0);
         ++m_index;
-        if (m_index == x_tableSize)
+        if (m_index == x_frameSize)
         {
             m_index = 0;
         }
@@ -35,75 +36,17 @@ struct OLA
         return result;
     }
 
-    void Write(DFT& dft)
+    void Write(const Frame& frame)
     {
-        Buffer buffer;
-        dft.InverseTransform(buffer, x_maxComponents);
-        for (size_t i = 0; i < x_tableSize; ++i)
+        size_t split = x_frameSize - m_index;
+        for (size_t i = 0; i < split; ++i)
         {
-            size_t index = (m_index + i) % x_tableSize;
-            m_buffer.m_table[index] += buffer.m_table[i];
-        }
-    }
-};
-
-struct QuadBuffer
-{
-    OLA::Buffer m_buffers[4];
-};
-
-struct QuadDFT
-{
-    OLA::DFT m_dfts[4];
-
-    void AddComponent(size_t componentIndex, std::complex<float> value, QuadFloat distribution)
-    {
-        if (componentIndex == 0 || OLA::x_maxComponents <= componentIndex)
-        {
-            return;
+            m_buffer.m_table[m_index + i] += frame.m_table[i];
         }
 
-        for (int i = 0; i < 4; ++i)
+        for (size_t i = split; i < x_frameSize; ++i)
         {
-            m_dfts[i].m_components[componentIndex] += value * distribution[i];
-        }
-    }
-
-    void WriteWindowedPartial(float magnitude, float phase, float exactFrequency, QuadFloat distribution)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_dfts[i].WriteWindowedPartial(phase, magnitude * distribution[i], exactFrequency);
-        }
-    }
-
-    void WriteBinCenteredWindowedPartial(size_t bin, std::complex<float> value, QuadFloat distribution)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_dfts[i].WriteBinCenteredWindowedPartial(bin, value * distribution[i]);
-        }
-    }
-};
-
-struct QuadOLA
-{
-    OLA m_olas[4];
-
-    QuadFloat Process()
-    {
-        return QuadFloat(
-            m_olas[0].Process(),
-            m_olas[1].Process(),
-            m_olas[2].Process(),
-            m_olas[3].Process());
-    }
-
-    void Write(QuadDFT& dft)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            m_olas[i].Write(dft.m_dfts[i]);
+            m_buffer.m_table[i - split] += frame.m_table[i];
         }
     }
 };

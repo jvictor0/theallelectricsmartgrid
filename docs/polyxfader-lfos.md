@@ -20,7 +20,7 @@ The PolyXFader LFOs support a variety of shaping and modulation options:
 
 - **Skew (Attack Fraction)**: Controls the symmetry of the waveform, similar to a pulse-width or ramp-skew control (`m_attackFrac`).
 - **Phase Shift**: Offsets the starting phase of the LFO (`m_phaseShift`).
-- **Shape**: Defaults to `0`, a triangle at centered Skew. From `0` to `0.5`, it crossfades continuously from triangle to sine. Above `0.5`, the bipolar sine passes through the existing normalized tanh saturator with drive `8 × (2 × Shape − 1)`, approaching a square-like waveform at `1`. Normalization preserves the 0–1 range, and fractional-Mult lobes retain their reduced amplitude. No quantizer or quantizer history is used.
+- **Shape**: Defaults to `0`, a triangle at centered Skew. From `0` to `0.5`, it crossfades continuously from triangle to sine. Above `0.5`, the bipolar sine passes through the existing normalized tanh saturator with drive `ExpParam(0.25, 8)` of `2 × Shape − 1`: exponential from 0.25 just above `0.5` to 8 at `1`, approaching a square-like waveform. The positive minimum drive leaves a small step just above `0.5`. Normalization preserves the 0–1 range, and fractional-Mult lobes retain their reduced amplitude. No quantizer or quantizer history is used.
 - **Multiplier**: Scales the frequency of the LFO relative to the input phasors (`m_mult`).
 - **Sample and Hold (S+H) Mix**: The LFO output can be blended with a Sample and Hold (S+H) value. The S+H value is captured whenever `m_trig` is asserted, and the mix between the continuous LFO and the stepped S+H is controlled by the `m_shFade` parameter. Voice LFOs trigger from the voice AHD gate; quad LFOs trigger from each channel's active delay-loop top.
 
@@ -29,7 +29,7 @@ The PolyXFader LFOs support a variety of shaping and modulation options:
 These LFOs are used extensively throughout the system:
 - **Phase-Modulation LFO**: The Theory of Time uses a dedicated PolyXFader to modulate the global clock phase. It uses the same triangle → sine → tanh-shaped sine curve as the voice and quad LFOs. Its normalized Skew knob maps to attack fractions 0.1–0.9 on an evaluation copy; the stored knob and its slow control filter remain normalized. Time reversals and fractional-Mult lobes are preserved.
 - **Voice LFOs**: Each voice (`SquiggleBoyVoice`) has two dedicated `SquiggleLFO` instances (which wrap `PolyXFaderInternal`) for per-voice modulation. Their phase-shift knobs spread the nine voices by thirds (`voice % 3 / 3`).
-- **Quad LFOs**: `SquiggleBoy` runs the same two PolyXFader shapes across four quad channels on the `QuadLFOs` encoder bank. Phase-shift knobs spread those channels by quarters (`channel / 4`), and each channel's Sample-and-Hold captures when that channel's active delay loop crosses its modulated cycle boundary. Outputs feed Quad modulator slots 6 and 7.
+- **Quad LFOs**: `SquiggleBoy` runs the same two PolyXFader shapes as two four-lane `SquiggleLFOGeneric<4>` instances, one lane per quad channel, on the `QuadLFOs` encoder bank. Their parameters are read as interpolated four-lane encoder values. Phase-shift knobs spread those channels by quarters (`channel / 4`), and each channel's Sample-and-Hold captures when that channel's active delay loop crosses its modulated cycle boundary. Outputs feed Quad modulator slots 6 and 7.
 
 ## Related
 - [Theory of Time](theory-of-time.md)

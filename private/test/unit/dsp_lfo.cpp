@@ -632,3 +632,44 @@ DOCTEST_TEST_CASE("GangedRandomLFO publishes a coherent predictive snapshot")
     uiState.m_revision.store(1, std::memory_order_release);
     DOCTEST_CHECK_FALSE(uiState.ReadSnapshot(snapshot));
 }
+
+DOCTEST_TEST_CASE("QuadLFO: packed lanes match per-lane sine and slews through frequency and phase changes")
+{
+    GlobalEnv::ResetPerTest();
+
+    QuadLFO lfo;
+    QuadLFO::Input input;
+    QuadFloat phase(0.0f, 0.0f, 0.0f, 0.0f);
+    OPLowPassFilter slew[4];
+    for (size_t sample = 0; sample < 8192; ++sample)
+    {
+        input.m_freq = sample < 4096
+            ? QuadFloat(0.001f, 0.001f, 0.0017f, 0.0031f)
+            : QuadFloat(0.002f, 0.0021f, 0.002f, 0.0005f);
+        input.m_phaseKnob = sample < 2048
+            ? QuadFloat(0.1f, 0.2f, 0.4f, 0.6f)
+            : QuadFloat(0.9f, 0.35f, 0.44f, 0.05f);
+        lfo.Process(input);
+
+        // Per-lane reference of the same channel-zero catch and offsets.
+        //
+        for (int i = 1; i < 4; ++i)
+        {
+            if (input.m_freq[i] / input.m_freq[0] < 1.0001 && 0.9999 < input.m_freq[i] / input.m_freq[0])
+            {
+                float toCatch = (std::abs(phase[i] - phase[0]) > 0.5 && phase[i] < phase[0]) ? phase[0] - 1 : phase[0];
+                phase[i] = (1 - 5 * input.m_freq[i]) * phase[i] + 5 * input.m_freq[i] * toCatch;
+            }
+        }
+
+        phase += input.m_freq;
+        phase = phase.ModOne();
+        QuadFloat offsetPhase = (phase + input.GetPhaseOffset()).ModOne();
+        for (int i = 0; i < 4; ++i)
+        {
+            slew[i].SetAlphaFromNatFreq(input.m_freq[i] * 2);
+            float expected = slew[i].Process(Math::Sin2pi(offsetPhase[i]));
+            DOCTEST_CHECK(lfo.m_output[i] == doctest::Approx(expected).epsilon(0.00001).scale(1.0));
+        }
+    }
+}
