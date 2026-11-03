@@ -147,6 +147,18 @@ struct EncoderBankBank
         return 0.0f;
     }
 
+    float GetValueByEncoderIndex(size_t encoderIndex, size_t channel, size_t hostSample, float previousOutputWeight)
+    {
+        SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIndex);
+        return cell ? cell->GetInterpolatedValue(channel, hostSample, previousOutputWeight) : 0.0f;
+    }
+
+    QuadFloat GetValuesByEncoderIndex(size_t encoderIndex, size_t hostSample, float previousOutputWeight)
+    {
+        SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIndex);
+        return cell ? cell->GetInterpolatedValue(hostSample, previousOutputWeight) : QuadFloat{};
+    }
+
     float GetNormalizedValueByEncoderIndex(size_t encoderIndex, size_t channel)
     {
         SmartGrid::BankedEncoderCell* cell = GetEncoder(encoderIndex);
