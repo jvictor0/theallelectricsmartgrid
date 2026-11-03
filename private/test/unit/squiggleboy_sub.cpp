@@ -51,7 +51,7 @@ DOCTEST_TEST_CASE("Sub: envelope rise and fall have independent exponential time
         DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == doctest::Approx(1.0 - std::exp(-1.0)).epsilon(0.002));
         DOCTEST_CHECK(rig.m_amp.m_output == doctest::Approx(1.0f));
         float peak = rig.m_amp.m_subOut;
-        float envelope = rig.m_amp.m_subSlew.m_output;
+        double envelope = rig.m_amp.m_subSlew.m_output;
         rig.m_amp.m_subRunning[0] = false;
         rig.RunSamples(static_cast<size_t>(std::lround(fallSeconds * SampleTimer::x_sampleRate)));
         DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == doctest::Approx(envelope * std::exp(-1.0)).epsilon(0.002));
@@ -66,22 +66,24 @@ DOCTEST_TEST_CASE("Sub: changing slew times retains the envelope and its directi
     SubAmpRig rig;
     rig.m_input.m_subRiseSeconds.Update(1.0f);
     rig.m_input.m_subFallSeconds.Update(1.0f);
-    rig.RunSamples(4800);
-    const float rising = rig.m_amp.m_subSlew.m_output;
-    const float fallAlpha = rig.m_amp.m_subSlew.m_slewDown.m_alpha;
+    const size_t partial = static_cast<size_t>(SampleTimer::SecondsToSamples(0.1));
+    const size_t fastest = static_cast<size_t>(SampleTimer::SecondsToSamples(0.001));
+    rig.RunSamples(partial);
+    const double rising = rig.m_amp.m_subSlew.m_output;
+    const double fallAlpha = rig.m_amp.m_subSlew.m_slewDown.m_alpha;
     rig.m_input.m_subRiseSeconds.Update(0.0f);
     DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == rising);
-    rig.RunSamples(48);
+    rig.RunSamples(fastest);
     DOCTEST_CHECK(rig.m_amp.m_subSlew.m_slewDown.m_alpha == fallAlpha);
     DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output ==
         doctest::Approx(1.0 - (1.0 - rising) * std::exp(-1.0)));
     rig.m_amp.m_subRunning[0] = false;
-    rig.RunSamples(4800);
-    const float falling = rig.m_amp.m_subSlew.m_output;
-    const float riseAlpha = rig.m_amp.m_subSlew.m_slewUp.m_alpha;
+    rig.RunSamples(partial);
+    const double falling = rig.m_amp.m_subSlew.m_output;
+    const double riseAlpha = rig.m_amp.m_subSlew.m_slewUp.m_alpha;
     rig.m_input.m_subFallSeconds.Update(0.0f);
     DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == falling);
-    rig.RunSamples(48);
+    rig.RunSamples(fastest);
     DOCTEST_CHECK(rig.m_amp.m_subSlew.m_slewUp.m_alpha == riseAlpha);
     DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == doctest::Approx(falling * std::exp(-1.0)));
 }
@@ -96,11 +98,11 @@ DOCTEST_TEST_CASE("Sub: volume and drive independently control sub audio without
     rig.m_input.m_subTanhGain.Update(1.0f);
     rig.RunSamples(1);
     DOCTEST_CHECK(rig.m_amp.m_subOut > lowDrive * 2.0f);
-    DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == 1.0f);
+    DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == 1.0);
     DOCTEST_CHECK(rig.m_input.m_subGain.m_expParam == 1.0f);
     DOCTEST_CHECK(rig.m_amp.m_output == 1.0f);
     rig.m_input.m_subGain.Update(0.0f);
-    rig.RunSamples(1000);
+    rig.RunSamples(1000 * SampleTimer::x_oversample);
     DOCTEST_CHECK(std::abs(rig.m_amp.m_subOut) < 1e-6f);
     DOCTEST_CHECK(rig.m_input.m_subTanhGain.m_expParam == 32.0f);
     DOCTEST_CHECK(rig.m_amp.m_output == 1.0f);
@@ -131,7 +133,7 @@ DOCTEST_TEST_CASE("Sub: page controls reach each trio independently and round tr
         rig.RunFrames(2);
     }
 
-    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     const std::string patch = rig.SavePatch();
     DOCTEST_REQUIRE_FALSE(patch.empty());
     for (bool reload : {false, true})
@@ -140,7 +142,7 @@ DOCTEST_TEST_CASE("Sub: page controls reach each trio independently and round tr
         {
             rig.ResetToDefaults();
             DOCTEST_REQUIRE(rig.LoadPatch(patch));
-            rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+            rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
             rig.RunFrames(2);
         }
 
@@ -182,16 +184,18 @@ DOCTEST_TEST_CASE("Sub: analyzer feed separates the shaped sub from main audio a
     DOCTEST_CHECK(writer->ReadSample(subScope, 0, 0) > 0.0f);
     rig.m_amp.m_subRunning[0] = false;
     rig.m_input.m_subFallSeconds.Update(0.0f);
-    for (size_t sample = 1; sample <= 600; ++sample)
+    const size_t idleSample = 48 * SampleTimer::x_oversample;
+    const size_t tailSample = 600 * SampleTimer::x_oversample;
+    for (size_t sample = 1; sample <= tailSample; ++sample)
     {
         writer->AdvanceIndex();
         rig.RunSamples(1);
-        if (sample == 48)
+        if (sample == idleSample)
         {
             DOCTEST_CHECK(rig.m_amp.m_ahd.m_channels[0].m_state == AHD::State::Idle);
             DOCTEST_CHECK(writer->ReadSample(subScope, 0, sample) > 0.0f);
         }
     }
 
-    DOCTEST_CHECK(std::abs(writer->ReadSample(subScope, 0, 600)) < 0.00001f);
+    DOCTEST_CHECK(std::abs(writer->ReadSample(subScope, 0, tailSample)) < 0.00001f);
 }

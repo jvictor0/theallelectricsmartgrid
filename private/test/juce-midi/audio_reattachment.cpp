@@ -48,7 +48,7 @@ DOCTEST_TEST_CASE("audio reattachment preserves the live engine and recording")
     app->Process(block, io);
     DOCTEST_CHECK(recorder.IsRecording());
     DOCTEST_CHECK(recorder.m_acceptedFrames == acceptedFrames + 512);
-    DOCTEST_CHECK(SampleTimer::GetSample() == sample + 512);
+    DOCTEST_CHECK(SampleTimer::GetSample() == sample + 512 * SampleTimer::x_oversample);
     app.reset();
     size_t recordings = 0;
     for (const auto& file : std::filesystem::directory_iterator(directory.Path()))
@@ -70,7 +70,8 @@ DOCTEST_TEST_CASE("audio reattachment anchors MIDI time to the first resumed blo
     app->SetRecordingDirectory(directory.String().c_str());
     app->PrepareToPlay(512, 48000);
     SampleTimer::StartFrame(1000000);
-    for (int sample = 0; sample < 512; ++sample)
+    const size_t blockSamples = 512 * SampleTimer::x_oversample;
+    for (size_t sample = 0; sample < blockSamples; ++sample)
     {
         SampleTimer::IncrementSample();
     }
@@ -78,12 +79,16 @@ DOCTEST_TEST_CASE("audio reattachment anchors MIDI time to the first resumed blo
     app->ReleaseResources();
     app->PrepareToPlay(512, 48000);
     SampleTimer::StartFrame(9000000);
-    DOCTEST_CHECK(SampleTimer::GetSample() == 512);
+    DOCTEST_CHECK(SampleTimer::GetSample() == blockSamples);
     DOCTEST_CHECK(SampleTimer::GetAbsTimeUs() == 9000000);
     const auto scheduled = SmartGrid::MidiOutputSchedule::Plan(SampleTimer::GetAbsTimeUs(), 9005000, 24000000);
     DOCTEST_CHECK_FALSE(scheduled.m_drop);
     DOCTEST_CHECK(scheduled.m_hostTicks == 216480000);
-    SampleTimer::IncrementSample();
+    for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+    {
+        SampleTimer::IncrementSample();
+    }
+
     DOCTEST_CHECK(SampleTimer::GetAbsTimeUs() == 9000021);
     DOCTEST_CHECK_FALSE(app->m_internal.m_running);
     DOCTEST_CHECK_FALSE(app->m_internal.m_context.m_recorder.IsRecording());

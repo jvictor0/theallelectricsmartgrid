@@ -1,4 +1,5 @@
 #include "doctest.h"
+#include "support/HostFrames.hpp"
 #include "support/SynthRig.hpp"
 #include <filesystem>
 #include <thread>
@@ -30,7 +31,7 @@ DOCTEST_TEST_CASE("recording engine: bulk patch replay checkpoints include loads
     session.m_blockFrames = 4;
     DOCTEST_REQUIRE(recorder.Prepare(session, directory.string()));
     rig.PressPad(synthrig::SynthRig::RouteBottomLeft, -1, 7);
-    rig.RunSamples(1);
+    rig.RunSamples(hostframes::SamplesBeforeNextHostFrame() + 1);
     DOCTEST_REQUIRE(recorder.IsRecording());
     std::vector<std::string> checkpoints;
     JsonArena snapshot(JsonArena::kDefaultCapacity);
@@ -65,6 +66,7 @@ DOCTEST_TEST_CASE("recording engine: bulk patch replay checkpoints include loads
     AudioInputBuffer input;
     for (size_t sample = 1; sample <= 7; ++sample)
     {
+        rig.RunSamples(hostframes::SamplesBeforeNextHostFrame());
         SampleTimer::IncrementSample();
         if (sample == 1)
         {
@@ -217,13 +219,23 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
         true, true, true, true
     };
 
+    // Runs through the next recorded host frame.
+    //
     const auto process = [&]()
     {
-        SampleTimer::IncrementSample();
-        engine.ProcessSample(input, monitors, false);
+        const size_t samples = hostframes::SamplesBeforeNextHostFrame() + 1;
+        for (size_t i = 0; i < samples; ++i)
+        {
+            SampleTimer::IncrementSample();
+            engine.ProcessSample(input, monitors, false);
+        }
     };
+
+    // Host frames for the recording decimators to settle on constant pan coordinates.
+    //
+    constexpr size_t x_settleFrames = 64;
     DOCTEST_REQUIRE(recorder.GetState() == StreamingRecorder::State::Recording);
-    for (size_t frame = 0; frame < 16; ++frame)
+    for (size_t frame = 0; frame < x_settleFrames; ++frame)
     {
         process();
     }
@@ -236,13 +248,13 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
     DOCTEST_REQUIRE(std::abs(sample(30)) > 0.000001f);
     DOCTEST_CHECK(engine.m_output.m_output == QuadFloat());
     DOCTEST_CHECK(engine.m_output.m_stereoOutput == StereoFloat());
-    DOCTEST_CHECK(sample(9, 1) == 0.5f);
-    DOCTEST_CHECK(sample(9, 2) == 0.5f);
-    DOCTEST_CHECK(sample(10) == 0.0f);
+    DOCTEST_CHECK(sample(9, 1) == doctest::Approx(0.5f));
+    DOCTEST_CHECK(sample(9, 2) == doctest::Approx(0.5f));
+    DOCTEST_CHECK(sample(10) == doctest::Approx(0.0f));
 
     synth.m_masterVolume.m_expParam = 0.25f;
     synth.m_sourceMixerState.m_sources[0].m_config.m_width = SourceMixer::SourceWidth::Stereo;
-    for (size_t frame = 0; frame < 16; ++frame)
+    for (size_t frame = 0; frame < x_settleFrames; ++frame)
     {
         process();
         for (size_t channel = 0; channel < 4; ++channel)
@@ -258,22 +270,24 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
         }
     }
 
-    DOCTEST_CHECK(sample(9, 1) == 1.0f);
-    DOCTEST_CHECK(sample(9, 2) == 0.0f);
-    DOCTEST_CHECK(sample(10, 1) == 0.0f);
-    DOCTEST_CHECK(sample(10, 2) == 1.0f);
+    DOCTEST_CHECK(sample(9, 1) == doctest::Approx(1.0f));
+    DOCTEST_CHECK(sample(9, 2) == doctest::Approx(0.0f));
+    DOCTEST_CHECK(sample(10, 1) == doctest::Approx(0.0f));
+    DOCTEST_CHECK(sample(10, 2) == doctest::Approx(1.0f));
     DOCTEST_CHECK(std::abs(sample(10)) > 0.000001f);
     synth.m_sourceMixerState.m_sources[0].m_config.m_width = SourceMixer::SourceWidth::Mono;
-    for (size_t frame = 0; frame < 16; ++frame)
+    for (size_t frame = 0; frame < x_settleFrames; ++frame)
     {
         process();
     }
 
+    // The recording decimator's group delay lags the decaying tail slightly.
+    //
     Meter tailMeter;
     const float filteredTail = synth.m_sourceMixer.m_sources[0].m_output[1];
-    DOCTEST_CHECK(sample(10) == doctest::Approx(tailMeter.ProcessAndSaturate(filteredTail)));
-    DOCTEST_CHECK(sample(10, 1) == 0.5f);
-    DOCTEST_CHECK(sample(10, 2) == 0.5f);
+    DOCTEST_CHECK(sample(10) == doctest::Approx(tailMeter.ProcessAndSaturate(filteredTail)).epsilon(0.02));
+    DOCTEST_CHECK(sample(10, 1) == doctest::Approx(0.5f));
+    DOCTEST_CHECK(sample(10, 2) == doctest::Approx(0.5f));
     DOCTEST_REQUIRE(recorder.m_session.m_tracks.size() == tracks.size());
     for (size_t track = 0; track < tracks.size(); ++track)
     {
@@ -330,12 +344,13 @@ DOCTEST_TEST_CASE("recording engine: initial patch and all parameter types reach
     DOCTEST_REQUIRE(recorder.Prepare(session, directory.string()));
     rig.PressPad(synthrig::SynthRig::RouteBottomLeft, -1, 7);
     rig.PressScenePad(2);
-    rig.RunSamples(1);
+    rig.RunSamples(hostframes::SamplesBeforeNextHostFrame() + 1);
     DOCTEST_REQUIRE(recorder.GetState() == StreamingRecorder::State::Recording);
     DOCTEST_REQUIRE(recorder.m_acceptedFrames == 1);
     AudioInputBuffer input;
     for (size_t frame = 1; frame <= 4; ++frame)
     {
+        rig.RunSamples(hostframes::SamplesBeforeNextHostFrame());
         SampleTimer::IncrementSample();
         if (frame == 1)
         {
@@ -534,7 +549,7 @@ DOCTEST_TEST_CASE("recording engine: UI and MIDI transport and unmodulated phase
                 ? SmartGrid::MessageIn::Mode::MidiStop : SmartGrid::MessageIn::Mode::MidiStart, 0, 0));
         }
 
-        rig.RunSamples(1);
+        rig.RunSamples(hostframes::SamplesBeforeNextHostFrame() + 1);
         const auto& sample = time.m_sample;
         DOCTEST_REQUIRE(recorder.m_parameterStaging.size() == 1);
         DOCTEST_CHECK(RecordingDoubleCodec::Bits(recorder.m_parameterStaging[0])

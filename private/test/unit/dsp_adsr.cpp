@@ -61,7 +61,7 @@ DOCTEST_TEST_CASE("ADSR: full shape — attack rises to 1, decay to sustain, sus
     // === Attack phase ===
     //
     float peak = 0.0f;
-    const size_t maxAttack = 500;
+    const size_t maxAttack = 500 * SampleTimer::x_oversample;
     std::vector<float> buf;
     buf.reserve(2000);
 
@@ -81,7 +81,7 @@ DOCTEST_TEST_CASE("ADSR: full shape — attack rises to 1, decay to sustain, sus
 
     // Collect Decay phase
     //
-    for (size_t i = 0; i < 500 && adsr.m_state == ADSR::State::Decay; ++i)
+    for (size_t i = 0; i < 500 * SampleTimer::x_oversample && adsr.m_state == ADSR::State::Decay; ++i)
     {
         buf.push_back(adsr.Process(inp));
     }
@@ -106,7 +106,7 @@ DOCTEST_TEST_CASE("ADSR: full shape — attack rises to 1, decay to sustain, sus
     // === Release: drop gate ===
     //
     inp.m_gate = false;
-    for (size_t i = 0; i < 500 && adsr.m_state != ADSR::State::Idle; ++i)
+    for (size_t i = 0; i < 500 * SampleTimer::x_oversample && adsr.m_state != ADSR::State::Idle; ++i)
     {
         buf.push_back(adsr.Process(inp));
     }
@@ -180,7 +180,7 @@ DOCTEST_TEST_CASE("ADSR: sustain level clamps output correctly")
     //
     adsr.Process(inp);
     inp.m_trig = false;
-    for (size_t i = 0; i < 1000 && adsr.m_state != ADSR::State::Sustain; ++i)
+    for (size_t i = 0; i < 1000 * SampleTimer::x_oversample && adsr.m_state != ADSR::State::Sustain; ++i)
     {
         adsr.Process(inp);
     }
@@ -274,7 +274,7 @@ DOCTEST_TEST_CASE("ADSR: re-trigger in Sustain state restarts Attack")
 
     // Run to Sustain
     //
-    for (size_t i = 0; i < 1000 && adsr.m_state != ADSR::State::Sustain; ++i)
+    for (size_t i = 0; i < 1000 * SampleTimer::x_oversample && adsr.m_state != ADSR::State::Sustain; ++i)
     {
         adsr.Process(inp);
     }
@@ -291,7 +291,7 @@ DOCTEST_TEST_CASE("ADSR: re-trigger in Sustain state restarts Attack")
     // Should rise to peak again
     //
     float peak = adsr.m_output;
-    for (size_t i = 0; i < 500 && adsr.m_state == ADSR::State::Attack; ++i)
+    for (size_t i = 0; i < 500 * SampleTimer::x_oversample && adsr.m_state == ADSR::State::Attack; ++i)
     {
         float v = adsr.Process(inp);
         peak = std::max(peak, v);

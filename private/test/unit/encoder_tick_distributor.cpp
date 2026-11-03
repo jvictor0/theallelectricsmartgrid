@@ -2,6 +2,7 @@
 
 #include "EncoderBankBank.hpp"
 #include "../support/GlobalEnv.hpp"
+#include "../support/HostFrames.hpp"
 
 namespace
 {
@@ -31,8 +32,12 @@ struct TickRig
         return *m_banks.GetEncoder(0);
     }
 
-    void Run(size_t samples)
+    // Advances whole host frames, the unit of tick distribution, ending where
+    // interpolated reads equal the latest output.
+    //
+    void RunHostFrames(size_t hostFrames)
     {
+        const size_t samples = hostframes::SamplesToHostFrameEnd(hostFrames);
         for (size_t i = 0; i < samples; ++i)
         {
             SampleTimer::IncrementSample();
@@ -82,7 +87,7 @@ DOCTEST_TEST_CASE("encoder distribution: new ticks accumulate against targets an
     cell.Increment(0.1f);
     DOCTEST_CHECK(cell.m_values[0] == 0.25f);
     DOCTEST_CHECK(cell.m_targets[0] == doctest::Approx(0.35f));
-    rig.Run(480);
+    rig.RunHostFrames(480);
     DOCTEST_CHECK(cell.m_values[0] == doctest::Approx(0.27f));
     cell.SetTarget(cell.m_targets[0], 0);
     DOCTEST_CHECK(cell.m_tickDistributor.m_samplesToDistribute == Distributor::x_maxSamplesToDistribute - 480);
@@ -91,10 +96,10 @@ DOCTEST_TEST_CASE("encoder distribution: new ticks accumulate against targets an
     DOCTEST_CHECK(cell.m_tickDistributor.m_samplesToDistribute == 480);
     cell.SetToValue(0.6f);
     DOCTEST_CHECK(cell.m_targets[0] == doctest::Approx(0.6f));
-    rig.Run(480);
+    rig.RunHostFrames(480);
     DOCTEST_CHECK(cell.m_values[0] == cell.m_targets[0]);
 
-    rig.Run(Distributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute);
     rig.m_context.m_sceneManager.m_blendFactor = 0.5f;
     cell.Increment(0.1f);
     DOCTEST_CHECK(cell.m_targets[0] == doctest::Approx(0.65f));
@@ -113,7 +118,7 @@ DOCTEST_TEST_CASE("encoder distribution: nested edits advance once per process a
     auto& nested = *child.m_modulators.m_modulators[1];
     rig.m_banks.GetModulatorValues(0).m_value[0] = QuadFloat::Splat(1.0f);
     rig.m_banks.GetModulatorValues(0).m_value[1] = QuadFloat::Splat(1.0f);
-    rig.Run(Distributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute);
     DOCTEST_REQUIRE(root.m_samplesForceUpdate == 0);
     nested.Increment(0.25f);
     for (size_t i = 0; i < 5; ++i)
@@ -125,17 +130,17 @@ DOCTEST_TEST_CASE("encoder distribution: nested edits advance once per process a
     DOCTEST_CHECK(nested.m_values[0] == 0.5f);
     DOCTEST_CHECK(nested.m_tickDistributor.m_samplesToDistribute == Distributor::x_maxSamplesToDistribute);
     DOCTEST_CHECK(root.m_samplesForceUpdate == Distributor::x_maxSamplesToDistribute);
-    rig.Run(1);
+    rig.RunHostFrames(1);
     DOCTEST_CHECK(nested.m_values[0] > 0.5f);
     DOCTEST_CHECK(root.m_samplesForceUpdate == Distributor::x_maxSamplesToDistribute - 1);
     DOCTEST_CHECK(child.m_samplesForceUpdate == root.m_samplesForceUpdate);
-    rig.Run(Distributor::x_maxSamplesToDistribute - 1);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute - 1);
     DOCTEST_CHECK(nested.m_values[0] == 0.75f);
     DOCTEST_CHECK(root.m_samplesForceUpdate == 0);
     DOCTEST_CHECK(root.GetValue(0) > 0.25f);
 
     nested.Increment(-0.25f);
-    rig.Run(Distributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute);
     DOCTEST_CHECK(root.GetValue(0) == 0.25f);
     DOCTEST_CHECK(root.m_modulatorsAffecting.IsZero());
     DOCTEST_CHECK(root.m_samplesForceUpdate == 0);
@@ -153,16 +158,16 @@ DOCTEST_TEST_CASE("encoder distribution: resetting a nested depth keeps unchange
     rig.m_banks.GetModulatorValues(0).m_value[0] = QuadFloat::Splat(1.0f);
     rig.m_banks.GetModulatorValues(0).m_value[1] = QuadFloat::Splat(1.0f);
     nested.Increment(0.25f);
-    rig.Run(Distributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute);
     DOCTEST_REQUIRE(child.m_targets[0] == 0.5f);
     DOCTEST_REQUIRE(child.m_samplesForceUpdate == 0);
 
     root.RevertToDefault(true);
     DOCTEST_CHECK(child.m_samplesForceUpdate == Distributor::x_maxSamplesToDistribute);
-    rig.Run(1);
+    rig.RunHostFrames(1);
     DOCTEST_CHECK(nested.m_values[0] < 0.75f);
     DOCTEST_CHECK(nested.m_values[0] > 0.5f);
-    rig.Run(Distributor::x_maxSamplesToDistribute - 1);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute - 1);
     DOCTEST_CHECK(nested.m_values[0] == 0.5f);
     DOCTEST_CHECK(root.GetValue(0) == 0.25f);
     DOCTEST_CHECK(root.m_modulatorsAffecting.IsZero());
@@ -180,14 +185,14 @@ DOCTEST_TEST_CASE("encoder distribution: scene copies advance hidden targets thr
     auto& nested = *child.m_modulators.m_modulators[1];
     nested.SetAndRecordValue(0.75f, 2);
     nested.SetForceUpdateRecursive();
-    rig.Run(Distributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute);
     DOCTEST_REQUIRE(root.m_modulatorsAffecting.IsZero());
     DOCTEST_REQUIRE(root.m_samplesForceUpdate == 0);
 
     rig.m_banks.CopyToScene(2);
     DOCTEST_CHECK(root.m_samplesForceUpdate == Distributor::x_maxSamplesToDistribute);
     DOCTEST_CHECK(child.m_samplesForceUpdate == Distributor::x_maxSamplesToDistribute);
-    rig.Run(Distributor::x_maxSamplesToDistribute / 2);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute / 2);
     DOCTEST_CHECK(nested.m_values[2] == doctest::Approx(0.625f));
     float value = nested.m_values[2];
     size_t remaining = nested.m_tickDistributor.m_samplesToDistribute;
@@ -195,7 +200,7 @@ DOCTEST_TEST_CASE("encoder distribution: scene copies advance hidden targets thr
     root.Compute(false);
     DOCTEST_CHECK(nested.m_values[2] == value);
     DOCTEST_CHECK(nested.m_tickDistributor.m_samplesToDistribute == remaining);
-    rig.Run(Distributor::x_maxSamplesToDistribute / 2);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute / 2);
     DOCTEST_CHECK(nested.m_values[2] == 0.5f);
     DOCTEST_CHECK(root.GetValue(0) == 0.25f);
     DOCTEST_CHECK(root.m_samplesForceUpdate == 0);
@@ -221,7 +226,7 @@ DOCTEST_TEST_CASE("encoder distribution: recording and patches store targets wit
     JsonArena arena(4096);
     JSON saved = rig.Cell().StateEncoderCell::ToJSON(arena);
     DOCTEST_CHECK(saved.Get("values").GetAt(0).NumberValue() == 0.75);
-    rig.Run(Distributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute);
     DOCTEST_CHECK(rig.Cell().m_values[0] == 0.75f);
     DOCTEST_CHECK_FALSE(recorder.m_paramEventsRing->Pop(event));
 
@@ -229,7 +234,7 @@ DOCTEST_TEST_CASE("encoder distribution: recording and patches store targets wit
     rig.Cell().StateEncoderCell::FromJSON(loaded);
     DOCTEST_CHECK(rig.Cell().m_values[0] == 0.75f);
     DOCTEST_CHECK(rig.Cell().m_targets[0] == 0.2f);
-    rig.Run(Distributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(Distributor::x_maxSamplesToDistribute);
     DOCTEST_CHECK(rig.Cell().m_values[0] == 0.2f);
     DOCTEST_CHECK_FALSE(recorder.m_paramEventsRing->Pop(event));
 }

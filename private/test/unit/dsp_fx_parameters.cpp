@@ -73,8 +73,8 @@ DOCTEST_TEST_CASE("QuadReverbInputSetter: four-lane mappings and slews match per
     OPLowPassFilter modDepthFilter[4];
     for (size_t lane = 0; lane < 4; ++lane)
     {
-        delayTime[lane] = PhaseUtils::ExpParam(60.0, 1024.0 * 60.0);
-        dampingBase[lane] = PhaseUtils::ExpParam(1.0 / 2048.0, 0.5);
+        delayTime[lane] = PhaseUtils::ExpParam(60.0 * SampleTimer::x_oversample, 1024.0 * 60.0 * SampleTimer::x_oversample);
+        dampingBase[lane] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(SampleTimer::CycPerHostSampToHz(1.0 / 2048.0)), SampleTimer::HzToCycPerSamp(SampleTimer::CycPerHostSampToHz(0.5)));
         dampingWidth[lane] = PhaseUtils::ExpParam(1.0, 2048.0);
         modFreq[lane] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05));
         wideners[lane] = Widener(lane);
@@ -139,7 +139,7 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
     PhaseUtils::ExpParam slewUp[4];
     for (size_t lane = 0; lane < 4; ++lane)
     {
-        dampingBase[lane] = PhaseUtils::ExpParam(1.0 / 2048.0, 0.5);
+        dampingBase[lane] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(SampleTimer::CycPerHostSampToHz(1.0 / 2048.0)), SampleTimer::HzToCycPerSamp(SampleTimer::CycPerHostSampToHz(0.5)));
         dampingWidth[lane] = PhaseUtils::ExpParam(1.0, 2048.0);
         modFreq[lane] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05));
         modDepthFilter[lane].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));

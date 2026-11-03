@@ -7,7 +7,7 @@ DOCTEST_TEST_CASE("sys_patch_version: legacy trio values survive live load save 
     rig.RunFrames(2);
     const std::string legacy = R"({"squiggleBoy":{"Harmonics1":{"values":{"values":[[0.11,0.22,0.33],[0.41,0.52,0.63]]},"gestures":[{"values":{"values":[[0.15,0.26,0.37]]},"active":[true,true,true]}]},"HPCutoff":{"values":{"values":[[0.14,0.25,0.36]]}},"PanRadius":{"values":{"values":[[0.17,0.28,0.39]]}},"LFO1Skew":{"values":{"values":[[0.19,0.29,0.49]]}},"DelayTime":{"values":{"values":[[0.71,0.82,0.93]]}}}})";
     DOCTEST_REQUIRE(rig.LoadPatch(legacy));
-    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     rig.RunFrames(2);
     auto& encoders = rig.Internal().m_squiggleBoy.m_encoders;
     DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::Harmonics1, 0) == doctest::Approx(0.11));
@@ -35,7 +35,7 @@ DOCTEST_TEST_CASE("sys_patch_version: legacy trio values survive live load save 
     DOCTEST_CHECK(fireGesture.Get("active").GetAt(0).BooleanValue());
     DOCTEST_CHECK(earthGesture.Get("active").GetAt(0).BooleanValue());
     DOCTEST_REQUIRE(rig.LoadPatch(saved));
-    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     rig.RunFrames(2);
     DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::Harmonics1, 3) == doctest::Approx(0.22));
 }

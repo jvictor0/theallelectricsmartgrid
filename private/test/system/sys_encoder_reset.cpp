@@ -34,7 +34,7 @@ namespace
 
 using synthrig::SynthRig;
 
-constexpr int kSettleFrames = 8;
+constexpr int kSettleFrames = 8 * static_cast<int>(SampleTimer::x_oversample);
 constexpr float kTol = 1e-2f;
 
 // Locate the first connected encoder in the visible 4x4 bank.

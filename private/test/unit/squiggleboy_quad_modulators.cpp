@@ -30,8 +30,8 @@ DOCTEST_TEST_CASE("Quad random LFOs use the same timing presets as voices")
         DOCTEST_REQUIRE(uiState.m_quadGangedRandomLFOUIState[slot].ReadSnapshot(quad));
         DOCTEST_REQUIRE(uiState.m_gangedRandomLFOUIState[slot][0].ReadSnapshot(voice));
 
-        const double waitingIncrement = 1.0 / (48000.0 * x_waitingSeconds[slot]);
-        const double movingIncrement = 2.0 / (48000.0 * x_waitingSeconds[slot]);
+        const double waitingIncrement = 1.0 / (static_cast<double>(SampleTimer::x_sampleRate) * x_waitingSeconds[slot]);
+        const double movingIncrement = 2.0 / (static_cast<double>(SampleTimer::x_sampleRate) * x_waitingSeconds[slot]);
         DOCTEST_CHECK(voice.m_voices[0].m_waitingIncrement == doctest::Approx(waitingIncrement).epsilon(1e-10));
         DOCTEST_CHECK(voice.m_voices[0].m_movingIncrement == doctest::Approx(movingIncrement).epsilon(1e-10));
         for (const auto& lane : quad.m_voices)
@@ -79,7 +79,7 @@ DOCTEST_TEST_CASE("Quad random LFOs drive and display all four modulation slots"
 
         GangedRandomLFOSnapshot<4> snapshot;
         DOCTEST_REQUIRE(uiState.m_quadGangedRandomLFOUIState[slot].ReadSnapshot(snapshot));
-        DOCTEST_CHECK(snapshot.m_sampleRate == 48000.0);
+        DOCTEST_CHECK(snapshot.m_sampleRate == static_cast<double>(SampleTimer::x_sampleRate));
         DOCTEST_CHECK(snapshot.m_roundElapsedSamples == 2.0);
         for (size_t channel = 0; channel < 4; ++channel)
         {

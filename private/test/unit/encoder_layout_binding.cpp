@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include "../support/GlobalEnv.hpp"
+#include "../support/HostFrames.hpp"
 #include "SmartGridOneEncoders.hpp"
 
 namespace
@@ -98,7 +99,9 @@ DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep processin
         hidden->SetForceUpdateRecursive();
     }
 
-    for (size_t sample = 0; sample < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++sample)
+    const size_t samples = hostframes::SamplesToHostFrameEnd(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+
+    for (size_t sample = 0; sample < samples; ++sample)
     {
         SampleTimer::IncrementSample();
         encoders.Process();

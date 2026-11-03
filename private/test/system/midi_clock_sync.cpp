@@ -142,6 +142,7 @@ namespace
         for (size_t i = 0; i < QuadFloat::x_numChannels; ++i)
         {
             cell->m_output[i] = value;
+            cell->m_outputPrev[i] = value;
         }
     }
 
@@ -167,9 +168,9 @@ namespace
 
         system.SetExternalClock(false);
         system.m_running = true;
-        AdvanceSamples(rig, 4096);
+        AdvanceSamples(rig, 4096 * static_cast<int>(SampleTimer::x_oversample));
         system.m_running = false;
-        AdvanceSamples(rig, 64);
+        AdvanceSamples(rig, 64 * static_cast<int>(SampleTimer::x_oversample));
     }
 
     void ConfigureExternalClockTrial(synthrig::SynthRig& rig, DeterministicRng& rng, int loopIndex)

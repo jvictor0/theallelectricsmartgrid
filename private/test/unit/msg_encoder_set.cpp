@@ -77,7 +77,7 @@ void ApplyAndRun(SmartGrid::MessageInBus& bus,
 {
     bus.Push(msg);
     bus.ProcessMessages(&system, SmartGrid::MessageInLatency::WithLatency(msg.m_timestamp));
-    const size_t x_framesToSettle = SmartGrid::TickDistributor::x_maxSamplesToDistribute /
+    const size_t x_framesToSettle = SmartGrid::TickDistributor::x_maxSamplesToDistribute * SampleTimer::x_oversample /
         SampleTimer::x_samplesPerProcessFrame + 2;
     for (size_t frame = 0; frame < x_framesToSettle; ++frame)
     {

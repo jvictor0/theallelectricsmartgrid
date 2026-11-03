@@ -119,19 +119,20 @@ DOCTEST_TEST_CASE("AbsoluteTime: delay setter follows per-sample phase and tempo
     QuadDelayInputSetter setter;
     QuadDelayInputSetter::Input input;
     QuadDelay::Input output;
+    const double ratio = static_cast<double>(SampleTimer::x_oversample);
     input.m_theoryOfTime = &time;
     input.m_readHeadSpeedSwitchVal[1] = 6;
     for (size_t sample = 0; sample < 16; ++sample)
     {
         SampleTimer::s_instance->m_sample = sample;
         setter.Process(input, output, nullptr);
-        DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(sample));
+        DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(static_cast<double>(sample) / ratio));
         DOCTEST_CHECK(output.m_relativeWriteHeadPosition >= 0.0f);
         DOCTEST_CHECK(output.m_relativeWriteHeadPosition < 1.0f);
         double top = output.m_writeHeadPosition - Resynthesizer::GetGrainLaunchSamples();
         for (size_t channel = 0; channel < 4; ++channel)
         {
-            DOCTEST_CHECK(output.m_readHeadPosition[channel] >= top - 64.0);
+            DOCTEST_CHECK(output.m_readHeadPosition[channel] >= top - 64.0 / ratio);
             DOCTEST_CHECK(output.m_readHeadPosition[channel] < top);
             DOCTEST_CHECK(output.m_relativeReadHeadPosition[channel] >= 0.0f);
             DOCTEST_CHECK(output.m_relativeReadHeadPosition[channel] < 1.0f);
@@ -144,22 +145,22 @@ DOCTEST_TEST_CASE("AbsoluteTime: delay setter follows per-sample phase and tempo
     time.m_globalPeriodSamples = 128.0;
     SampleTimer::s_instance->m_sample = 16;
     setter.Process(input, output, nullptr);
-    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(15.0));
+    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(15.0 / ratio));
     clock.m_unmodulatedPhase += 1.0 / 128.0;
     Step(time, clock);
     SampleTimer::s_instance->m_sample = 17;
     setter.Process(input, output, nullptr);
-    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(16.0));
+    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(16.0 / ratio));
 
     clock.m_running = false;
     Step(time, clock);
     SampleTimer::s_instance->m_sample = 18;
     setter.Process(input, output, nullptr);
-    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(17.0));
+    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(17.0 / ratio));
     Step(time, clock);
     SampleTimer::s_instance->m_sample = 19;
     setter.Process(input, output, nullptr);
-    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(18.0));
+    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(18.0 / ratio));
 }
 
 DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and captures it at trigger")

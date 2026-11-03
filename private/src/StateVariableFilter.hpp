@@ -513,8 +513,8 @@ struct NonlinearStateVariableFilter
 
         // DC servo at 5 Hz for 192kHz (4x oversampled from 48kHz)
         //
-        m_ic1.SetAlphaFromNatFreq(5.0f / 192000.0f);
-        m_ic2.SetAlphaFromNatFreq(5.0f / 192000.0f);
+        m_ic1.SetAlphaFromNatFreq(static_cast<float>(SampleTimer::HzToCycPerSamp(5.0)));
+        m_ic2.SetAlphaFromNatFreq(static_cast<float>(SampleTimer::HzToCycPerSamp(5.0)));
         
         SetCutoffAndResonance(m_cutoff, 0.0f);
     }

@@ -37,6 +37,7 @@ void SetParamValue(
     for (size_t i = 0; i < QuadFloat::x_numChannels; ++i)
     {
         cell->m_output[i] = value;
+        cell->m_outputPrev[i] = value;
     }
 }
 

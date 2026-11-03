@@ -187,9 +187,12 @@ struct ExpParamGeneric
 
 using ExpParam = ExpParamGeneric<float, 1>;
 
+// The phase is double: increments near 0.025 Hz at the engine rate are below
+// float resolution.
+//
 struct SimpleOsc
 {
-    float m_phase;
+    double m_phase;
     ExpParam m_phaseDelta;
 
     SimpleOsc()
@@ -205,10 +208,10 @@ struct SimpleOsc
 
     void Process()
     {
-        m_phase += m_phaseDelta.m_expParam;
-        if (m_phase >= 1.0f)
+        m_phase += static_cast<double>(m_phaseDelta.m_expParam);
+        if (m_phase >= 1.0)
         {
-            m_phase -= 1.0f;
+            m_phase -= 1.0;
         }
     }
 };

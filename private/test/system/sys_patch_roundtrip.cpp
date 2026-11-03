@@ -42,7 +42,7 @@
 namespace
 {
 
-constexpr int kSettleFrames = 8;
+constexpr int kSettleFrames = 8 * static_cast<int>(SampleTimer::x_oversample);
 constexpr float kTol = 5e-3f;
 
 // Simple deterministic pseudo-random float in [lo, hi] using a seed.

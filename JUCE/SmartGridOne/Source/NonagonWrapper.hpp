@@ -839,6 +839,28 @@ struct NonagonWrapper
         m_internal.m_squiggleBoy.SetRecordingDirectory(directory);
     }
 
+    // Runs the engine samples of one host frame. Engine samples are numbered
+    // from 1, so the host frame's sub-sample 0 is the last of the group; its
+    // output is the decimated host-rate sample.
+    //
+    QuadFloatWithStereoAndSub ProcessHostFrame(const AudioInputBuffer& audioInputBuffer)
+    {
+        QuadFloatWithStereoAndSub output;
+        for (size_t i = 0; i < SampleTimer::x_oversample; ++i)
+        {
+            const bool processFrame = SampleTimer::IncrementSample();
+            if (processFrame)
+            {
+                ProcessFrame();
+            }
+
+            output = ProcessSample(audioInputBuffer);
+        }
+
+        assert(SampleTimer::IsHostFrame());
+        return output;
+    }
+
     void Process(const juce::AudioSourceChannelInfo& bufferToFill, IOInfo ioInfo)
     {
         double wallclockUs = juce::Time::getMillisecondCounterHiRes() * 1000;
@@ -861,14 +883,8 @@ struct NonagonWrapper
                 bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = 0.0f;
             }
 
-            const bool processFrame = SampleTimer::IncrementSample();
-            if (processFrame)
-            {
-                ProcessFrame();
-            }
+            QuadFloatWithStereoAndSub output = ProcessHostFrame(audioInputBuffer);
 
-            QuadFloatWithStereoAndSub output = ProcessSample(audioInputBuffer);
-            
             if (ioInfo.m_stereo)
             {
                 for (int j = 0; j < ioInfo.m_numChannels; ++j)

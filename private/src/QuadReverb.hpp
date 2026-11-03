@@ -195,8 +195,11 @@ struct QuadReverbInputSetter
 
     QuadZeroedExpParam m_feedback;
 
-    OPLowPassFilterGeneric<float, 4> m_delayTimeFilter;
-    OPLowPassFilterGeneric<float, 4> m_modDepthFilter;
+    // Double state: 1 Hz one-poles at the engine rate stall short of their
+    // targets in float.
+    //
+    OPLowPassFilterGeneric<double, 4> m_delayTimeFilter;
+    OPLowPassFilterGeneric<double, 4> m_modDepthFilter;
 
     struct Input
     {
@@ -242,10 +245,10 @@ struct QuadReverbInputSetter
 
     void Process(Input& input, QuadReverb::Input& reverbInput)
     {
-        reverbInput.m_delayTimeSamples = m_delayTime.Update(m_delayTimeFilter.Process(input.m_reverbTimeKnob));
+        reverbInput.m_delayTimeSamples = m_delayTime.Update(m_delayTimeFilter.Process(input.m_reverbTimeKnob.Convert<double>()).Convert<float>());
         reverbInput.m_bffBase = m_dampingBase.Update(input.m_dampingBaseKnob);
         reverbInput.m_bffWidth = m_dampingWidth.Update(input.m_dampingWidthKnob);
-        reverbInput.m_modDepth = m_modDepthFilter.Process(m_modDepth.Update(input.m_modDepthKnob));
+        reverbInput.m_modDepth = m_modDepthFilter.Process(m_modDepth.Update(input.m_modDepthKnob).Convert<double>()).Convert<float>();
         reverbInput.m_lfoInput.m_freq = m_modFreq.Update(input.m_modFreqKnob);
         reverbInput.m_feedback = m_feedback.Update(input.m_feedbackKnob) * 1.25f;
         reverbInput.m_lfoInput.m_phaseKnob = input.m_lfoPhaseKnob;

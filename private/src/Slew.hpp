@@ -89,28 +89,32 @@ struct OPSlew
     }
 };
 
+// The state is double: second-long slews at the engine rate have coefficients
+// below float resolution.
+//
 template <size_t Size>
 struct BiDirectionalSlewGeneric
 {
     using Vector = MultiChannelNumber<float, Size>;
+    using DoubleVector = MultiChannelNumber<double, Size>;
 
-    Vector m_output;
-    OPLowPassFilterGeneric<float, Size> m_slewUp;
-    OPLowPassFilterGeneric<float, Size> m_slewDown;
+    DoubleVector m_output;
+    OPLowPassFilterGeneric<double, Size> m_slewUp;
+    OPLowPassFilterGeneric<double, Size> m_slewDown;
 
     BiDirectionalSlewGeneric()
-        : m_output(Vector::Splat(0))
+        : m_output(DoubleVector::Splat(0))
     {
     }
 
     void SetSlewUp(const Vector& cyclesPerSample)
     {
-        m_slewUp.SetAlphaFromNatFreq(cyclesPerSample);
+        m_slewUp.SetAlphaFromNatFreq(cyclesPerSample.template Convert<double>());
     }
 
     void SetSlewDown(const Vector& cyclesPerSample)
     {
-        m_slewDown.SetAlphaFromNatFreq(cyclesPerSample);
+        m_slewDown.SetAlphaFromNatFreq(cyclesPerSample.template Convert<double>());
     }
 
     static float Process(float src, float trg, float slewUpAlpha, float slewDownAlpha)
@@ -127,9 +131,10 @@ struct BiDirectionalSlewGeneric
 
     Vector Process(const Vector& trg)
     {
-        Vector alpha = Vector::IfLess(m_output, trg, m_slewUp.m_alpha, m_slewDown.m_alpha);
-        m_output = m_output + alpha * (trg - m_output);
-        return m_output;
+        DoubleVector target = trg.template Convert<double>();
+        DoubleVector alpha = DoubleVector::IfLess(m_output, target, m_slewUp.m_alpha, m_slewDown.m_alpha);
+        m_output = m_output + alpha * (target - m_output);
+        return m_output.template Convert<float>();
     }
 };
 

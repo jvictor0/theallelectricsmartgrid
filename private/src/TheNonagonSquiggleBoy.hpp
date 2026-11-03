@@ -430,12 +430,12 @@ struct TheNonagonSquiggleBoyInternal
 
         using Param = SmartGridOneEncoders::Param;
 
-        theoryOfTimeInput.m_phaseModLFOInput.m_attackFrac = theoryOfTimeInput.m_lfoSkewFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOSkew));
-        theoryOfTimeInput.m_lfoMult.Update(theoryOfTimeInput.m_lfoMultFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOMult)));
-        theoryOfTimeInput.m_phaseModLFOInput.m_shape = theoryOfTimeInput.m_lfoShapeFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOShape));
-        theoryOfTimeInput.m_phaseModLFOInput.m_center = 1 - theoryOfTimeInput.m_lfoCenterFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOCenter));
-        theoryOfTimeInput.m_phaseModLFOInput.m_slope = theoryOfTimeInput.m_lfoSlopeFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOSlope));
-        theoryOfTimeInput.m_modIndex.Update(theoryOfTimeInput.m_lfoIndexFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOIndex)));
+        theoryOfTimeInput.m_phaseModLFOInput.m_attackFrac = static_cast<float>(theoryOfTimeInput.m_lfoSkewFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOSkew))[0]);
+        theoryOfTimeInput.m_lfoMult.Update(static_cast<float>(theoryOfTimeInput.m_lfoMultFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOMult))[0]));
+        theoryOfTimeInput.m_phaseModLFOInput.m_shape = static_cast<float>(theoryOfTimeInput.m_lfoShapeFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOShape))[0]);
+        theoryOfTimeInput.m_phaseModLFOInput.m_center = static_cast<float>(1.0 - theoryOfTimeInput.m_lfoCenterFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOCenter))[0]);
+        theoryOfTimeInput.m_phaseModLFOInput.m_slope = static_cast<float>(theoryOfTimeInput.m_lfoSlopeFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOSlope))[0]);
+        theoryOfTimeInput.m_modIndex.Update(static_cast<float>(theoryOfTimeInput.m_lfoIndexFilter.Process(m_squiggleBoy.m_encoders.GetValue(Param::TempoLFOIndex))[0]));
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {

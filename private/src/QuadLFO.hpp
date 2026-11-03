@@ -6,18 +6,21 @@
 #include "ScopeWriter.hpp"
 #include "Slew.hpp"
 
+// Phase and slew state are double: at the engine rate a slow LFO's per-sample
+// increment and slew coefficient are below float resolution.
+//
 struct QuadLFO
 {
-    QuadFloat m_phase;
+    QuadDouble m_phase;
 
     QuadFloat m_output;
 
-    OPLowPassFilterGeneric<float, 4> m_slew;
+    OPLowPassFilterGeneric<double, 4> m_slew;
 
     ScopeWriterHolder m_scopeWriterHolder;
 
     QuadLFO()
-        : m_phase(0.0f, 0.0f, 0.0f, 0.0f)
+        : m_phase(0.0, 0.0, 0.0, 0.0)
     {
     }
 
@@ -28,7 +31,7 @@ struct QuadLFO
 
     void SetSlew(float freq)
     {
-        m_slew.SetAlphaFromNatFreq(freq);
+        m_slew.SetAlphaFromNatFreq(static_cast<double>(freq));
     }
 
     static float GetPhase(int i, float phaseKnob)
@@ -78,25 +81,26 @@ struct QuadLFO
 
     void Process(const Input& input)
     {
-        QuadFloat prevPhase = m_phase;
+        QuadDouble prevPhase = m_phase;
+        QuadDouble freq = input.m_freq.Convert<double>();
 
         for (int i = 1; i < 4; ++i)
         {
-            if (input.m_freq[i] / input.m_freq[0] < 1.0001 && 0.9999 < input.m_freq[i] / input.m_freq[0])
+            if (freq[i] / freq[0] < 1.0001 && 0.9999 < freq[i] / freq[0])
             {
-                float toCatch = (std::abs(m_phase[i] - m_phase[0]) > 0.5 && m_phase[i] < m_phase[0]) ? m_phase[0] - 1 : m_phase[0];
-                m_phase[i] = (1 - 5 * input.m_freq[i]) * m_phase[i] + 5 * input.m_freq[i] * toCatch;
+                double toCatch = (std::abs(m_phase[i] - m_phase[0]) > 0.5 && m_phase[i] < m_phase[0]) ? m_phase[0] - 1 : m_phase[0];
+                m_phase[i] = (1 - 5 * freq[i]) * m_phase[i] + 5 * freq[i] * toCatch;
             }
         }
 
-        m_phase += input.m_freq;
-        QuadFloat unwrappedPhase = m_phase;
+        m_phase += freq;
+        QuadDouble unwrappedPhase = m_phase;
         m_phase = m_phase.ModOne();
 
-        QuadFloat phase = m_phase + input.GetPhaseOffset();
+        QuadDouble phase = m_phase + input.GetPhaseOffset().Convert<double>();
         phase = phase.ModOne();
-        m_slew.SetAlphaFromNatFreq(input.m_freq * 2);
-        m_output = m_slew.Process(Math::Sin2pi(phase));
+        m_slew.SetAlphaFromNatFreq(freq * 2.0);
+        m_output = m_slew.Process(Math::Sin2pi(phase.Convert<float>()).Convert<double>()).Convert<float>();
 
         if (m_scopeWriterHolder.m_scopeWriter)
         {

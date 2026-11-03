@@ -101,13 +101,21 @@ DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothin
 namespace
 {
 
-// Advance write/read positions by one sample (monotone counters).
+// Head positions are in host samples; an engine sample advances them by
+// 1 / x_oversample.
+//
+double HostPosition(int sample)
+{
+    return static_cast<double>(sample) / static_cast<double>(SampleTimer::x_oversample);
+}
+
+// Advance write/read positions by one engine sample (monotone counters).
 // writePos tracks the absolute "warped time" of the write head.
 // readPos  = writePos - delayLength (lag by a fixed delay).
 //
 void AdvanceHeads(double& writePos, QuadDouble& readPos, double delayLen)
 {
-    writePos += 1.0;
+    writePos += HostPosition(1);
     for (size_t i = 0; i < 4; ++i)
     {
         readPos[i] = writePos - delayLen;
@@ -204,16 +212,24 @@ DOCTEST_TEST_CASE("QuadDelay: warmed impulse produces finite nonzero output")
 {
     GlobalEnv::ResetPerTest();
     auto delay = std::make_unique<QuadDelay>();
-    constexpr int x_delay = 8192;
-    constexpr int x_impulseSample = 16384 + 317;
+    const int oversample = static_cast<int>(SampleTimer::x_oversample);
+
+    // Delay in host samples; grains cannot start within one analysis window
+    // of the write head, so shorter delays clamp.
+    //
+    constexpr double x_delayHostSamples = 8192.0;
+    const int impulseSample = (16384 + 317) * oversample;
     double energy = 0;
     double preImpulseEnergy = 0;
-    for (int sample = 0; sample < 32768; ++sample)
+    for (int sample = 0; sample < 32768 * oversample; ++sample)
     {
-        float impulse = sample == x_impulseSample ? 1.0f : 0.0f;
+        // One host sample long, so the impulse survives the delay line's host-rate storage.
+        //
+        float impulse = impulseSample <= sample && sample < impulseSample + oversample ? 1.0f : 0.0f;
+        const double readPos = HostPosition(sample) - x_delayHostSamples;
         auto input = MakeBasicInput(
-            sample,
-            QuadDouble(sample - x_delay, sample - x_delay, sample - x_delay, sample - x_delay),
+            HostPosition(sample),
+            QuadDouble(readPos, readPos, readPos, readPos),
             QuadFloat(impulse, 0, 0, 0));
         QuadFloat output = delay->Process(input);
         for (int channel = 0; channel < 4; ++channel)
@@ -223,14 +239,14 @@ DOCTEST_TEST_CASE("QuadDelay: warmed impulse produces finite nonzero output")
         }
 
         energy += output[0] * output[0];
-        if (sample < x_impulseSample)
+        if (sample < impulseSample)
         {
             preImpulseEnergy += output[0] * output[0];
         }
     }
 
     DOCTEST_CHECK(energy > 1e-4);
-    DOCTEST_CHECK(energy < 2.0);
+    DOCTEST_CHECK(energy < 2.0 * oversample);
     DOCTEST_CHECK(preImpulseEnergy < 1e-12);
 }
 
@@ -245,9 +261,10 @@ DOCTEST_TEST_CASE("QuadDelay: steady tones retain gain and shift by the requeste
         for (int sample = 0; sample < 32768; ++sample)
         {
             float tone = 0.01f * std::cos(2.0 * M_PI * 18.0 * sample / 4096.0);
+            const double readPos = HostPosition(sample - 8192);
             auto input = MakeBasicInput(
-                sample,
-                QuadDouble(sample - 8192, sample - 8192, sample - 8192, sample - 8192),
+                HostPosition(sample),
+                QuadDouble(readPos, readPos, readPos, readPos),
                 QuadFloat(tone, 0, 0, 0));
             input.m_bffBase = QuadFloat(1.0f / 65536.0f, 1.0f / 65536.0f, 1.0f / 65536.0f, 1.0f / 65536.0f);
             input.m_bffWidth = QuadFloat(65536, 65536, 65536, 65536);
@@ -393,7 +410,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - varying write/read speed (ToT simulation)
             posIncrement = 0.5 + static_cast<double>(r) * 1.5;
         }
 
-        writeRaw += posIncrement;
+        writeRaw += posIncrement * HostPosition(1);
         // Read head is always kDelayLen behind the write head.
         //
         double readPos = writeRaw - kDelayLen;

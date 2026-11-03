@@ -338,7 +338,10 @@ struct SquiggleBoyTrackGeneric
         }
     }
 
-    OPLowPassFilterGeneric<float, Size> m_baseFreqSlew;
+    // Double state: the slowest portamento stalls short of the target pitch in
+    // float at the engine rate.
+    //
+    OPLowPassFilterGeneric<double, Size> m_baseFreqSlew;
     PhaseUtils::ExpParamGeneric<float, Size> m_baseFreqSlewAmount;
     GangedRandomLFO<Size> m_gangedRandomLFO[x_numGangedRandomLFOs];
     Source m_source;
@@ -446,8 +449,8 @@ struct SquiggleBoyTrackGeneric
         const Vector& gainFader)
     {
         m_baseFreqSlew.SetAlphaFromNatFreq(m_baseFreqSlewAmount.Update(
-            Vector::Splat(1) - encoders.GetValue<Size>(Param::Portamento, track)));
-        Vector baseFreq = m_baseFreqSlew.Process(targetFreq);
+            Vector::Splat(1) - encoders.GetValue<Size>(Param::Portamento, track)).template Convert<double>());
+        Vector baseFreq = m_baseFreqSlew.Process(targetFreq.template Convert<double>()).template Convert<float>();
 
         input.SetMachines();
         m_source.SetEncoderParams(

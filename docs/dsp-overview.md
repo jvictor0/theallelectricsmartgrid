@@ -2,6 +2,12 @@
 
 The DSP engine (implemented in `private/src/SquiggleBoy.hpp` and related files) is built around a polyphonic voice architecture feeding into a quadraphonic effects and mixdown section.
 
+## Sample Rates
+
+The host runs at `SampleTimer::x_hostSampleRate` (48 kHz). The engine runs `SampleTimer::x_oversample` (4) engine samples per host frame, at `SampleTimer::x_sampleRate` (192 kHz). For each host frame, `NonagonWrapper::ProcessHostFrame` runs `x_oversample` engine samples. Each one advances `SampleTimer`, runs `ProcessFrame` on process-frame boundaries, and processes one engine sample. The frame's output is the host-rate sample produced by the output decimator. Engine samples are numbered from 1, so a host frame ends on its sub-sample 0 (`SampleTimer::IsHostFrame()`), where the encoder matrix computes and recording frames are captured.
+
+Slow one-pole slews and low-frequency phase accumulators keep double-precision state where the per-sample coefficient or increment at 192 kHz falls below float resolution. These are the LFO and random-LFO phases and slews, the Theory of Time parameter filters, the reverb and delay modulation filters, portamento, the PolyXFader mix slew, the sub envelope slew, and the pan oscillator. Their outputs stay float.
+
 ## Voice Architecture
 
 The synthesizer consists of 9 voices. Each voice (`SquiggleBoyVoice`) is a complete synthesizer chain containing:

@@ -134,8 +134,11 @@ struct PolyXFaderGeneric
     Vector m_values[x_maxSize];
     Vector m_weights[x_maxSize];
     Vector m_totalWeight;
-    OPLowPassFilterGeneric<float, Size> m_mixSlew;
-    Vector m_mixSlewFreq;
+    // Double state: slow loops give mix slews whose coefficients are below
+    // float resolution at the engine rate.
+    //
+    OPLowPassFilterGeneric<double, Size> m_mixSlew;
+    DoubleVector m_mixSlewFreq;
     OPLowPassFilterGeneric<float, Size> m_shSlew;
     Vector m_rawOutput;
     Vector m_output;
@@ -241,11 +244,11 @@ struct PolyXFaderGeneric
         //
         output = Vector::IfLess(Vector(), m_totalWeight, output / m_totalWeight, output);
 
-        Vector slewFreq;
+        DoubleVector slewFreq;
         for (size_t lane = 0; lane < Size; ++lane)
         {
-            slewFreq[lane] = static_cast<float>(8.0 * input.m_mult[lane] * maxCycleRatio[lane] / input.m_theoryOfTime->m_globalPeriodSamples);
-            assert(slewFreq[lane] >= 0.0f);
+            slewFreq[lane] = 8.0 * input.m_mult[lane] * maxCycleRatio[lane] / input.m_theoryOfTime->m_globalPeriodSamples;
+            assert(slewFreq[lane] >= 0.0);
         }
 
         if (slewFreq != m_mixSlewFreq)
@@ -255,11 +258,11 @@ struct PolyXFaderGeneric
             // A zero slew frequency holds the mix. Stand in a valid cutoff for
             // those lanes so the alpha computation stays in range.
             //
-            Vector validFreq = Vector::IfLess(Vector(), slewFreq, slewFreq, Vector::Splat(0.25f));
-            m_mixSlew.m_alpha = Vector::IfLess(Vector(), slewFreq, OPLowPassFilterGeneric<float, Size>::AlphaFromNatFreq(validFreq), Vector());
+            DoubleVector validFreq = DoubleVector::IfLess(DoubleVector(), slewFreq, slewFreq, DoubleVector::Splat(0.25));
+            m_mixSlew.m_alpha = DoubleVector::IfLess(DoubleVector(), slewFreq, OPLowPassFilterGeneric<double, Size>::AlphaFromNatFreq(validFreq), DoubleVector());
         }
 
-        output = m_mixSlew.Process(output);
+        output = m_mixSlew.Process(output.template Convert<double>()).template Convert<float>();
         m_amplitude = input.m_amplitude;
         for (size_t lane = 0; lane < Size; ++lane)
         {
