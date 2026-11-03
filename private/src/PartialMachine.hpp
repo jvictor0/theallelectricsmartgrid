@@ -3,6 +3,7 @@
 #include "Filter.hpp"
 #include "NormGen.hpp"
 #include "OLA.hpp"
+#include "Oversample.hpp"
 #include "PhaseUtils.hpp"
 #include "QuadUtils.hpp"
 #include "SampleTimer.hpp"
@@ -19,10 +20,17 @@
 
 struct PartialMachine
 {
+    // Input is summed to mono and decimated to the host rate, where the ring,
+    // analysis and synthesis spectra run. The spectra are interpolated to an
+    // engine-rate frame of the same duration at the inverse transform.
+    //
     static constexpr size_t x_bits = 12;
+    static constexpr size_t x_oversample = SampleTimer::x_oversample;
+    static constexpr size_t x_synthesisBits = x_bits + SampleTimer::x_oversampleBits;
     using SpectralModel = SpectralModelGeneric<x_bits, FrequencyDependentParameter>;
     using SynthesisDFT = DiscreteFourierTransformGeneric<float, 4, x_bits>;
-    using SynthesisOLA = OLAGeneric<float, 4, x_bits>;
+    using SynthesisOLA = OLAGeneric<float, 4, x_synthesisBits>;
+    using InputDecimator = DownsamplerGeneric<float, 1, 8, x_oversample>;
     using Parameter = FrequencyDependentParameter::Parameter;
     using AtomicParameter = FrequencyDependentParameter::AtomicParameter;
     using Index = FrequencyDependentParameter::Index;
@@ -356,6 +364,7 @@ struct PartialMachine
 
     PartialMachine()
         : m_index(0)
+        , m_inputSubSample(0)
     {
     }
 
@@ -372,11 +381,9 @@ struct PartialMachine
         m_ola.Write(m_synthesisFrame);
     }
 
-    QuadFloat Process(QuadFloat inputSample, Input& input)
+    void ProcessHostFrame(float hostInput, Input& input)
     {
-        float summedInput = inputSample.Sum();
-        m_scopeWriter.Write(summedInput);
-        m_buffer.m_table[m_index % SpectralModel::x_tableSize] = summedInput;
+        m_buffer.m_table[m_index % SpectralModel::x_tableSize] = hostInput;
         ++m_index;
 
         if (m_index % SpectralModel::x_H == 0)
@@ -389,6 +396,19 @@ struct PartialMachine
 
             m_spectralModel.ExtractAtomsAndResidual(buffer, input.m_spectralModelInput);
             ProcessSynthesisFrame(input);
+        }
+    }
+
+    QuadFloat Process(QuadFloat inputSample, Input& input)
+    {
+        float summedInput = inputSample.Sum();
+        m_scopeWriter.Write(summedInput);
+        m_inputDecimator.Process(InputDecimator::Vector::Splat(summedInput));
+        ++m_inputSubSample;
+        if (m_inputSubSample == x_oversample)
+        {
+            m_inputSubSample = 0;
+            ProcessHostFrame(m_inputDecimator.GetOutput()[0], input);
         }
 
         return m_ola.Process();
@@ -530,6 +550,8 @@ struct PartialMachine
     }        
 
     size_t m_index;
+    InputDecimator m_inputDecimator;
+    size_t m_inputSubSample;
     SpectralModel::Buffer m_buffer;
     SpectralModel m_spectralModel;
     ResidualMachine m_residualMachine;

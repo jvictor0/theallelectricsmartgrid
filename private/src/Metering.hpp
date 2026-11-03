@@ -8,10 +8,15 @@
 #include "QuadUtils.hpp"
 #include "SampleTimer.hpp"
 
+// Levels update once per host frame from the frame's mean square, peak
+// magnitude and mean reduction, so smoothing and the peak hold are in host
+// frames. Saturation runs every engine sample.
+//
 template <typename Number, size_t Size>
 struct MeterGeneric
 {
     using Vector = MultiChannelNumber<Number, Size>;
+    static constexpr size_t x_oversample = SampleTimer::x_oversample;
 
     static constexpr Number x_smoothingAlphaDown = static_cast<Number>(0.0002);
     static constexpr Number x_smoothingAlphaUp = static_cast<Number>(0.0008);
@@ -25,19 +30,47 @@ struct MeterGeneric
     Vector m_peak;
     Vector m_reduction;
     size_t m_samplesSincePeak[Size];
+    Vector m_frameSquares;
+    Vector m_frameMagnitude;
+    Vector m_frameReduction;
+    size_t m_frameSamples;
 
     MeterGeneric()
         : m_rms(Vector::Splat(0))
         , m_peak(Vector::Splat(0))
         , m_reduction(Vector::Splat(1))
         , m_samplesSincePeak{}
+        , m_frameSquares(Vector::Splat(0))
+        , m_frameMagnitude(Vector::Splat(0))
+        , m_frameReduction(Vector::Splat(0))
+        , m_frameSamples(0)
     {
     }
 
-    void Process(const Vector& input)
+    void Accumulate(const Vector& input)
     {
-        Vector inputSquared = input * input;
-        Vector magnitude = input.Abs();
+        m_frameSquares += input * input;
+        m_frameMagnitude = Vector::Max(m_frameMagnitude, input.Abs());
+    }
+
+    bool EndSample()
+    {
+        ++m_frameSamples;
+        if (m_frameSamples < x_oversample)
+        {
+            return false;
+        }
+
+        m_frameSamples = 0;
+        return true;
+    }
+
+    void ProcessHostFrame()
+    {
+        Vector inputSquared = m_frameSquares / static_cast<Number>(x_oversample);
+        Vector magnitude = m_frameMagnitude;
+        m_frameSquares = Vector::Splat(0);
+        m_frameMagnitude = Vector::Splat(0);
         for (size_t i = 0; i < Size; ++i)
         {
             Number alpha = m_rms[i] < inputSquared[i] ? x_smoothingAlphaUp : x_smoothingAlphaDown;
@@ -59,6 +92,15 @@ struct MeterGeneric
         }
     }
 
+    void Process(const Vector& input)
+    {
+        Accumulate(input);
+        if (EndSample())
+        {
+            ProcessHostFrame();
+        }
+    }
+
     void ProcessReduction(const Vector& reduction)
     {
         m_reduction = m_reduction * (1 - x_smoothingAlphaReduction) + reduction * x_smoothingAlphaReduction;
@@ -67,10 +109,17 @@ struct MeterGeneric
     Vector ProcessAndSaturate(const Vector& input, Vector* reduction)
     {
         Vector output = TanhSaturatorGeneric<Number, Size, false>::Tanh(input);
-        Process(output);
         Vector floor = Vector::Splat(x_floor);
         *reduction = Vector::Max(floor, output.Abs()) / Vector::Max(floor, input.Abs());
-        ProcessReduction(*reduction);
+        Accumulate(output);
+        m_frameReduction += *reduction;
+        if (EndSample())
+        {
+            ProcessHostFrame();
+            ProcessReduction(m_frameReduction / static_cast<Number>(x_oversample));
+            m_frameReduction = Vector::Splat(0);
+        }
+
         return output;
     }
 

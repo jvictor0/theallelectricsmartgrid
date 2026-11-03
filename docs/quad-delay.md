@@ -23,13 +23,25 @@ Inverse-map timestamps use linear interpolation both when recording an ascending
 
 Audio continues recording during time reversals. The inverse map updates only on forward motion, so backward motion reads previously mapped history; later forward motion replaces it. The turnaround sample is retained as an interpolation endpoint so the first forward interval also replaces its history. This is the intended reversal behavior.
 
+## Rate Split
+
+The delay runs at the engine rate (`SampleTimer::x_oversample` engine samples per host frame) around host-rate storage:
+
+```
+engine input + return * feedback -> tanh saturation -> order-8 Butterworth decimator
+    -> delay line write once per host frame -> 4096-sample analysis / PVDR
+    -> (4096 * x_oversample)-point IFFT -> engine-rate overlap-add, rotation, damping
+```
+
+The decimator follows the saturator so its harmonics are filtered too. The delay line, the inverse buffer, the tape-head positions, the analysis window and hop, and the LFO sample offset are all in host samples, so delay capacity and grain timing keep their physical durations. Each grain's spectrum stays on the 4096-point host-rate grid and is interpolated by a larger inverse transform into an engine-rate frame of the same 85.333 ms duration (see [Phase Vocoder](phase-vocoder.md)); there is no separate output upsampler. Rotation, damping and the LFO run every engine sample. At `x_oversample = 1` the decimator is a passthrough and behavior is unchanged.
+
 ## Read/Write Head Computation (`QuadDelayInputSetter`)
 
 The read and write heads are produced in `QuadDelayInputSetter::Process` (`private/src/QuadDelay.hpp`) per quad channel `i`.
 
 - **Loop selection**: `ReadTapeHead` receives the processed loop-selector knob value, but only accepts changes when both old and new loops are simultaneously at modulated cycle boundaries (`CrossedCycleBoundary`) to avoid discontinuities.
 - **Glue offset**: `WriteTapeHead` owns the additive glue offset that preserves continuity across transport stops and tempo-scale changes.
-  - When transport stops, glue is initialized from the current write head, then incremented each sample.
+  - When transport stops, glue is initialized from the current write head, then the head advances one host sample per host frame (`1 / x_oversample` per engine sample).
   - On a transport transition or global-period change, glue is recomputed from the previous actual position and the new theory position, preserving absolute position continuity.
 - **Delay ratio quantization**: at loop top, delay-time factor is quantized to one of:
   - `0.8`, `2/3`, `1.0`, `3/4`, `5/8`
@@ -40,7 +52,7 @@ The read and write heads are produced in `QuadDelayInputSetter::Process` (`priva
 The final head equations are:
 
 - **Write head**
-  - `writeHead = globalModulatedPhase * globalPeriodSamples + glue`
+  - `writeHead = globalModulatedPhase * globalPeriodSamples + glue`, where `globalPeriodSamples` is the Theory of Time period converted to host samples
   - stored in `delayInput.m_writeHeadPosition[i]`
 - **Read head**
   - `effectiveDelaySamples = (globalPeriodSamples / cycleRatio(selectedLoop)) * (bufferFrac * widen)`

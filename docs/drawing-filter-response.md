@@ -37,7 +37,8 @@ Behavior:
 ## Integration Points
 
 - `AnalyserComponent` uses `DrawWindowedDFT` and `DrawFrequencyResponse` on the same `PathDrawer`, so the spectrum and voice filter overlay share one frequency axis. FFT bin count must not define a separate logarithmic display axis. Frequencies on this axis are cycles per host sample (`PathDrawer::FrequencyAxisScale`); the voice filter overlay passes a frequency scale of `1 / SampleTimer::x_oversample`, converting them to cycles per engine sample for the engine-rate filter coefficients.
-- `QuadAnalyserComponent` uses `DrawFrequencyResponse` for delay/reverb/partial-machine overlays, passing the per-speaker transfer-function provider
+- `QuadAnalyserComponent` uses `DrawFrequencyResponse` for delay/reverb/partial-machine overlays, passing the per-speaker transfer-function provider. `GetTransferFunctionFrequencyScale` gives the engine-rate delay and reverb damping filters `1 / SampleTimer::x_oversample` and the Partial Machine, whose model is in cycles per host sample, a scale of 1
+- The mastering EQ and source-mixer response drawers divide the axis frequency by `SampleTimer::x_oversample` before querying their engine-rate filters
 - `PhysicalModelingFrequencyResponseComponent` uses `DrawFrequencyResponse` for source-machine-specific response drawing, with the same `1 / SampleTimer::x_oversample` frequency scale
 
 This keeps rendering logic centralized and makes new transfer-function overlays simpler to add.

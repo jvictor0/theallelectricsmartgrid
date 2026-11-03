@@ -481,6 +481,14 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
         }
     };
 
+    // Scopes are in cycles per host sample. The damping filters run at the
+    // engine rate; the partial machine's parameters are in host-rate units.
+    //
+    static float GetTransferFunctionFrequencyScale(Type type)
+    {
+        return type == Type::PartialMachine ? 1.0f : 1.0f / SampleTimer::x_oversample;
+    }
+
     const TransferFunction* GetTransferFunctionForSpeaker(Type type, size_t speakerIx) const
     {
         if (m_type == Type::Mix)
@@ -573,7 +581,7 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
                     const TransferFunction* transferFunction = GetTransferFunctionForSpeaker(type, speakerIx);
                     if (transferFunction)
                     {
-                        pathDrawer.DrawFrequencyResponse(g, juceColor, *transferFunction, 1.0f);
+                        pathDrawer.DrawFrequencyResponse(g, juceColor, *transferFunction, GetTransferFunctionFrequencyScale(type));
                     }
                 }
             }

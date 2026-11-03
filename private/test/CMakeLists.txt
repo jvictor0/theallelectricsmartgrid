@@ -112,6 +112,7 @@ configure_file("${SRC_DIR}/RecordingFlacCodec.cpp" "${HOST_RATE_SRC_DIR}/Recordi
 add_executable(smartgrid_host_rate_tests
     ${TEST_DIR}/support/TestMain.cpp
     ${TEST_DIR}/unit/encoder_host_rate.cpp
+    ${TEST_DIR}/unit/effect_rate_boundaries.cpp
     "${HOST_RATE_SRC_DIR}/RecordingFlacCodec.cpp"
 )
 add_dependencies(smartgrid_host_rate_tests smartgrid_build_info)

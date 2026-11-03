@@ -26,6 +26,10 @@ The Multiband Saturator splits the signal into 4 frequency bands using 4th-order
 - Because the saturation is applied per-band, it prevents intermodulation distortion (e.g., heavy bass notes won't cause the high frequencies to duck or distort).
 - The bands are then summed back together, providing a loud, glued, and polished final output.
 
+## Engine and Host Rates
+
+The mixer and mastering chains run at the engine rate. The mastered quad, stereo, and sub outputs pass through order-8 Butterworth decimators to the host rate before master volume is applied, and the low-band cutoff range is defined in Hz so the crossovers do not move with the oversampling ratio. Meters accumulate engine samples and update once per host frame, so peak hold and RMS smoothing are counted in host frames. Performance recording decimates each recorded stream and commits one frame per host frame; the master tracks come from the output decimator.
+
 ## Related
 - [DSP Overview](dsp-overview.md)
 - [Quad Delay](quad-delay.md)

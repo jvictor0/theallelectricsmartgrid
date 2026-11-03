@@ -38,9 +38,11 @@ struct MultibandEQComponent : public SmartGridOneMainVisualizerComponent
         {
         }
 
+        // The axis is in cycles per host sample; the crossovers run at the engine rate.
+        //
         float operator()(float freq)
         {
-            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq)) / 2;
+            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq / SampleTimer::x_oversample)) / 2;
         }
     };
 
@@ -138,9 +140,11 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         {
         }
 
+        // The axis is in cycles per host sample; the source filters run at the engine rate.
+        //
         float operator()(float freq)
         {
-            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq)) / 2;
+            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq / SampleTimer::x_oversample)) / 2;
         }
     };
 

@@ -105,7 +105,7 @@ bool ReadModulatorValue(const UIState& uiState, ModulatorRef modulator, double s
     size_t published = state.m_audioScopeWriter.m_publishedIndex.load();
     double first = static_cast<double>(state.m_firstAudioSample.load());
     if (!std::isfinite(sample) || published == 0 || sample < first
-        || sample > first + static_cast<double>(published - 1))
+        || sample > first + static_cast<double>((published - 1) * ScopeWriter::x_audioDecimation))
     {
         return false;
     }
@@ -248,7 +248,9 @@ double GetLatestSample(const UIState& uiState)
 {
     const auto& state = uiState.m_squiggleBoyUIState;
     size_t count = state.m_audioScopeWriter.m_publishedIndex.load();
-    return count == 0 ? -1.0 : static_cast<double>(state.m_firstAudioSample.load()) + count - 1;
+    return count == 0
+        ? -1.0
+        : static_cast<double>(state.m_firstAudioSample.load()) + static_cast<double>((count - 1) * ScopeWriter::x_audioDecimation);
 }
 
 struct ControlScope

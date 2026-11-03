@@ -7,7 +7,7 @@ The sampler-looper recording system (`private/src/RecordingBuffer.hpp`, `Recordi
 
 ### Requirement: Per-Voice Fixed-Capacity Recording Buffer State Machine
 The system SHALL give each of the 9 voices one `RecordingBuffer` with a fixed 16 MB capacity (4,194,304 float samples) and an explicit state machine over Idle, Recording, Done, and Error; `StartRecording()` acts only from Idle, clearing previous audio, zeroing the repeat count, and atomically storing the current unwound master-loop position from `TheoryOfTime` as the start position.
-The audio thread owns state and buffer mutation; the I/O thread only reads the position/repeat atomics after a completed recording is handed off.
+The audio thread owns state and buffer mutation; the I/O thread only reads the position/repeat atomics after a completed recording is handed off. Buffers hold host-rate audio: the track output passes through an order-8 Butterworth `DownsamplerGeneric` every engine sample, and the decimated sample is written to the recording buffers once per host frame.
 
 #### Scenario: Start from Idle captures the master position
 - **WHEN** `StartRecording()` is called on an Idle buffer while the unwound master position reads 12.25
@@ -71,7 +71,7 @@ Trio-level start/stop applies the per-voice operation to all three lanes of the 
 - **THEN** `StartRecording` runs for voices 0, 1, and 2
 
 ### Requirement: Loop-Aligned Mono WAV Persistence
-The system SHALL persist a Done recording as a mono WAV at the engine sample rate containing exactly one full master loop of samples (round(captured samples / span)): the captured audio is placed at its original loop phase, computed from the start position modulo the loop fraction 1/repeats, with silence filling positions outside the captured span, and the loop-aligned material repeated for each of the repeat count's loop divisions.
+The system SHALL persist a Done recording as a mono WAV at the host sample rate containing exactly one full master loop of samples (round(captured samples / span)): the captured audio is placed at its original loop phase, computed from the start position modulo the loop fraction 1/repeats, with silence filling positions outside the captured span, and the loop-aligned material repeated for each of the repeat count's loop divisions.
 For a capture that wraps across the master-loop boundary, the wrapped tail is written first, silence fills the gap, and the beginning of the capture is written last; for a capture within a single turn, silence pads before and after the audio. `WriteToFile` returns false if the writer reports an error.
 
 #### Scenario: Mid-loop capture is padded on both sides

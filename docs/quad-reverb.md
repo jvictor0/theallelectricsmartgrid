@@ -15,6 +15,10 @@ Unlike the highly experimental Phase Vocoder Quad Delay, the Quad Reverb follows
    - A second All-Pass Filter (`m_apf2`).
 5. **Saturation**: A `TanhSaturator` prevents the feedback loop from blowing up and adds a touch of warmth to the reverb tail.
 
+## Rate
+
+The reverb runs entirely at the engine rate. Its delay lengths are written as host-sample constants and multiplied by `SampleTimer::x_oversample`, the main ring holds `65536 * x_oversample` engine samples, and the damping base range is defined in Hz (`DampingFilter::x_minBaseHz` to `x_maxBaseHz`). Reverb time, all-pass delays, modulation depth and damping corners therefore keep their physical values at any oversampling ratio.
+
 ## Features
 
 - **Quadraphonic Mixing (Hadamard Transform)**: Inside the feedback loop, the reverb applies a Hadamard matrix transform (`output.Hadamard()` in `TransformOutput`). This mixes the four channels together in an orthogonal fashion, diffusing energy evenly and avoiding simple left/right or front/back swaps. The result is a dynamic, spatially immersive reverberant field with enhanced envelopment and movement. The Quad Delay uses a different approach (`RotateLinear` with a continuous `m_rotate` parameter) for its channel mixing.

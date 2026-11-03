@@ -9,14 +9,14 @@ The phase vocoder decouples time-stretch from perceived pitch so delay-time warp
 
 ## Processing flow (code-level)
 
-`GrainManager::Process()` launches a new grain every `Resynthesizer::GetGrainLaunchSamples()` samples, i.e. every hop `H = N / 4` (`x_hopDenom = 4`).
+`GrainManager::Process()` runs every engine sample and launches a new grain every `Resynthesizer::GetSynthesisHopSamples()` engine samples: the duration of the analysis hop `H = N / 4` (`x_hopDenom = 4`, `GetGrainLaunchSamples()` host samples). Analysis reads host-rate audio; the synthesized frame is `N * x_oversample` engine samples long.
 
 For each launched grain:
 
 1. **Read analysis buffers**
    - Current frame: from warped-time read position (`startTime`).
    - Previous frame: from `startTime - H`.
-   - Both are Hann-windowed in `Grain::Start(...)`.
+   - Both are Hann-windowed in `GrainManager::StartGrain(...)`.
 2. **Prime previous analysis**
    - `Resynthesizer::PrimeAnalysis(previousWaveTable)` stores previous bin phases/magnitudes.
 3. **Analyze current frame**
@@ -35,7 +35,8 @@ For each launched grain:
 6. **Synthesize shifted/unison spectrum**
    - `Oscillator::Synthesize(...)` writes complex bins with shift/unison gains.
 7. **Inverse transform**
-   - `InverseTransform(...)` creates the grain waveform and `grain->Start()` schedules playback.
+   - `InverseTransform(...)` interpolates the 4096-point spectrum into an `N * x_oversample`-sample engine-rate frame (`SynthesisFrame`), which is Hann-windowed again.
+   - `GrainManager` overlap-adds the frame into an `OLAGeneric` ring and reads one sample per engine sample, divided by 1.5 (four quarter-window shifts of Hann squared sum to 1.5).
 
 This is the "phase vocoder done right" principle in practice: phase propagation is controlled by measured inter-frame phase advance, not by naive phase reuse.
 
@@ -121,7 +122,7 @@ From `QuadDelayInputSetter` into `Resynthesizer::Input`:
 - `m_unisonDetune`, `m_unisonGain`
 - `m_slewUp`: partial rise-rate control for spectral bloom
 
-`m_slewDown` exists in the input struct but is not applied in this path: `StartGrain` calls only `SetSlewUp(input.m_slewUp)` (`private/src/Resynthesis.hpp:661`); there is no corresponding `SetSlewDown` call, so the slew-down value is currently inert here.
+`m_slewDown` exists in the input struct but is not applied in this path: `Synthesize` calls only `SetSlewUp(input.m_slewUp)` (`private/src/Resynthesis.hpp:661`); there is no corresponding `SetSlewDown` call, so the slew-down value is currently inert here.
 
 ## Quad Delay integration
 

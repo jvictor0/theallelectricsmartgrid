@@ -20,9 +20,14 @@ struct MultiChannelNumber
     static_assert(Size == 3 || (Size > 0 && (Size & (Size - 1)) == 0), "MultiChannelNumber size must be a power of two or three");
 
     static constexpr size_t x_numChannels = Size;
-    using Vector = Number __attribute__((vector_size(sizeof(Number) * Size)));
 
-    Number m_values[x_numChannels];
+    // Three channels are stored in four lanes so Load and Store move one whole
+    // vector. The dummy lane is never read as a channel.
+    //
+    static constexpr size_t x_numLanes = Size == 3 ? 4 : Size;
+    using Vector = Number __attribute__((vector_size(sizeof(Number) * x_numLanes)));
+
+    Number m_values[x_numLanes];
 
     MultiChannelNumber()
         : m_values{}
@@ -30,8 +35,9 @@ struct MultiChannelNumber
     }
 
     explicit MultiChannelNumber(const Number* values)
+        : m_values{}
     {
-        memcpy(m_values, values, sizeof(m_values));
+        memcpy(m_values, values, sizeof(Number) * x_numChannels);
     }
 
     MultiChannelNumber(Number left, Number right)
@@ -81,7 +87,7 @@ struct MultiChannelNumber
     static MultiChannelNumber Splat(Number value)
     {
         MultiChannelNumber result;
-        for (size_t i = 0; i < Size; ++i)
+        for (size_t i = 0; i < x_numLanes; ++i)
         {
             result.m_values[i] = value;
         }
@@ -273,7 +279,7 @@ struct MultiChannelNumber
     {
         if constexpr (std::is_same<Number, float>::value)
         {
-            using IntVector = int32_t __attribute__((vector_size(sizeof(int32_t) * Size)));
+            using IntVector = int32_t __attribute__((vector_size(sizeof(int32_t) * x_numLanes)));
 
             Vector x = Load();
             Vector n = __builtin_elementwise_floor(x + 0.5f);
@@ -312,7 +318,7 @@ struct MultiChannelNumber
     {
         if constexpr (std::is_same<Number, float>::value)
         {
-            using IntVector = int32_t __attribute__((vector_size(sizeof(int32_t) * Size)));
+            using IntVector = int32_t __attribute__((vector_size(sizeof(int32_t) * x_numLanes)));
             static constexpr int32_t x_sqrtHalfBits = 0x3F3504F3;
 
             IntVector bits = __builtin_bit_cast(IntVector, Load());

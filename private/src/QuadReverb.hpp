@@ -37,7 +37,18 @@ struct QuadReverb
         }
     };
     
-    static constexpr size_t x_delayLineSize = 1 << 16;
+    // Delay times are defined in host samples and run in engine samples, so
+    // the physical times stay fixed as the engine rate changes.
+    //
+    static constexpr size_t x_oversample = SampleTimer::x_oversample;
+    static constexpr size_t x_delayLineSize = (static_cast<size_t>(1) << 16) * x_oversample;
+    static constexpr float x_minDelayHostSamples = 60.0f;
+    static constexpr float x_maxDelayHostSamples = 1024.0f * 60.0f;
+    static constexpr float x_defaultDelayHostSamples = 64.0f;
+    static constexpr float x_modulationHostSamples = 1000.0f;
+    static constexpr int x_longestAllPassHostSamples = 877;
+    static_assert(x_maxDelayHostSamples + x_modulationHostSamples < static_cast<float>(x_delayLineSize / x_oversample), "Reverb ring must hold the longest modulated delay");
+    static_assert(static_cast<size_t>(x_longestAllPassHostSamples) * x_oversample < QuadAllPassFilter::x_maxDelaySamples, "All-pass buffers must hold the longest all-pass delay");
     QuadDelayLine<x_delayLineSize> m_delayLine;
     QuadLFO m_lfo;
 
@@ -57,22 +68,27 @@ struct QuadReverb
         m_postFeedbackFilter.SetAPFGain(gain);
     }
     
+    static int EngineSamples(int hostSamples)
+    {
+        return hostSamples * static_cast<int>(x_oversample);
+    }
+
     void SetAPFDelayTimes()
     {
-        m_preFeedbackFilter.SetDelaySamples(0, 3);
-        m_preFeedbackFilter.SetDelaySamples(1, 5);
-        m_preFeedbackFilter.SetDelaySamples(2, 7);
-        m_preFeedbackFilter.SetDelaySamples(3, 11);
+        m_preFeedbackFilter.SetDelaySamples(0, EngineSamples(3));
+        m_preFeedbackFilter.SetDelaySamples(1, EngineSamples(5));
+        m_preFeedbackFilter.SetDelaySamples(2, EngineSamples(7));
+        m_preFeedbackFilter.SetDelaySamples(3, EngineSamples(11));
 
-        m_postFeedbackFilter.m_apf1.SetDelaySamples(0, 17);
-        m_postFeedbackFilter.m_apf1.SetDelaySamples(1, 31);
-        m_postFeedbackFilter.m_apf1.SetDelaySamples(2, 53);
-        m_postFeedbackFilter.m_apf1.SetDelaySamples(3, 23);
+        m_postFeedbackFilter.m_apf1.SetDelaySamples(0, EngineSamples(17));
+        m_postFeedbackFilter.m_apf1.SetDelaySamples(1, EngineSamples(31));
+        m_postFeedbackFilter.m_apf1.SetDelaySamples(2, EngineSamples(53));
+        m_postFeedbackFilter.m_apf1.SetDelaySamples(3, EngineSamples(23));
 
-        m_postFeedbackFilter.m_apf2.SetDelaySamples(0, 149);
-        m_postFeedbackFilter.m_apf2.SetDelaySamples(1, 211);
-        m_postFeedbackFilter.m_apf2.SetDelaySamples(2, 113);
-        m_postFeedbackFilter.m_apf2.SetDelaySamples(3, 293);
+        m_postFeedbackFilter.m_apf2.SetDelaySamples(0, EngineSamples(149));
+        m_postFeedbackFilter.m_apf2.SetDelaySamples(1, EngineSamples(211));
+        m_postFeedbackFilter.m_apf2.SetDelaySamples(2, EngineSamples(113));
+        m_postFeedbackFilter.m_apf2.SetDelaySamples(3, EngineSamples(293));
 
         // m_inputFilter is 8 quad all-pass stages in parallel.
         // SetDelaySamples(stage, channel, samples) indexes the channel as the second
@@ -80,14 +96,14 @@ struct QuadReverb
         //
         for (size_t ch = 0; ch < 4; ++ch)
         {
-            m_inputFilter.SetDelaySamples(0, ch, 37);
-            m_inputFilter.SetDelaySamples(1, ch, 61);
-            m_inputFilter.SetDelaySamples(2, ch, 113);
-            m_inputFilter.SetDelaySamples(3, ch, 179);
-            m_inputFilter.SetDelaySamples(4, ch, 281);
-            m_inputFilter.SetDelaySamples(5, ch, 431);
-            m_inputFilter.SetDelaySamples(6, ch, 613);
-            m_inputFilter.SetDelaySamples(7, ch, 877);
+            m_inputFilter.SetDelaySamples(0, ch, EngineSamples(37));
+            m_inputFilter.SetDelaySamples(1, ch, EngineSamples(61));
+            m_inputFilter.SetDelaySamples(2, ch, EngineSamples(113));
+            m_inputFilter.SetDelaySamples(3, ch, EngineSamples(179));
+            m_inputFilter.SetDelaySamples(4, ch, EngineSamples(281));
+            m_inputFilter.SetDelaySamples(5, ch, EngineSamples(431));
+            m_inputFilter.SetDelaySamples(6, ch, EngineSamples(613));
+            m_inputFilter.SetDelaySamples(7, ch, EngineSamples(x_longestAllPassHostSamples));
         }
     }
 
@@ -115,7 +131,7 @@ struct QuadReverb
         QuadLFO::Input m_lfoInput; 
 
         Input()
-            : m_delayTimeSamples(64, 64, 64, 64)
+            : m_delayTimeSamples(QuadFloat::Splat(x_defaultDelayHostSamples * static_cast<float>(x_oversample)))
             , m_feedback(0.5, 0.5, 0.5, 0.5)
             , m_widen(1.0, 1.0, 1.0, 1.0)
         {
@@ -153,7 +169,7 @@ struct QuadReverb
         m_delayLine.Write(qInput);
 
         QuadFloat delayTime = input.m_delayTimeSamples * input.m_widen;
-        delayTime += m_lfo.m_output * 1000 * input.m_modDepth;
+        delayTime += m_lfo.m_output * (x_modulationHostSamples * static_cast<float>(x_oversample)) * input.m_modDepth;
         QuadFloat delayedSignal = m_delayLine.Read(delayTime);
 
         m_output = m_postFeedbackFilter.Process(input.TransformOutput(delayedSignal));
@@ -205,8 +221,10 @@ struct QuadReverbInputSetter
     };
 
     QuadReverbInputSetter()
-      : m_delayTime(60.0, 1024.0 * 60.0)
-      , m_dampingBase(1.0 / 2048.0, 0.5)
+      : m_delayTime(
+          QuadReverb::x_minDelayHostSamples * static_cast<float>(QuadReverb::x_oversample),
+          QuadReverb::x_maxDelayHostSamples * static_cast<float>(QuadReverb::x_oversample))
+      , m_dampingBase(SampleTimer::HzToCycPerSamp(DampingFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(DampingFilter::x_maxBaseHz))
       , m_dampingWidth(1.0, 2048.0)
       , m_modFreq(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05))
       , m_wideners

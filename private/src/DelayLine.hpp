@@ -5,6 +5,7 @@
 #include "Filter.hpp"
 #include "NormGen.hpp"
 #include "Math.hpp"
+#include "OLA.hpp"
 #include "Resynthesis.hpp"
 #include "SampleTimer.hpp"
 #include <algorithm>
@@ -332,8 +333,10 @@ using QuadDelayLineMovableWriter = DelayLineMovableWriterGeneric<float, 4, MaxDe
 // grain covers all Size channels, which start and end together but read from
 // their own times and resynthesize independently.
 //
-// The audio buffer provides GetRealTime and ReadRealTime, both taking
-// MultiChannelNumber<double, Size> times.
+// The audio buffer holds host-rate samples and provides GetRealTime and
+// ReadRealTime, both taking MultiChannelNumber<double, Size> host-sample times.
+// Analysis reads host-rate windows every analysis hop; synthesized frames
+// overlap-add at the engine rate, launching every synthesis hop.
 //
 template <typename AudioBufferType, size_t Size>
 struct GrainManagerGeneric
@@ -341,121 +344,40 @@ struct GrainManagerGeneric
     using Vector = MultiChannelNumber<float, Size>;
     using TimeVector = MultiChannelNumber<double, Size>;
     using Resynth = ResynthesizerGeneric<float, Size>;
+    using SynthesisOLA = OLAGeneric<float, Size, Resynth::x_synthesisBits>;
 
-    struct Grain
-    {
-        Grain()
-            : m_owner(nullptr)
-        {
-        }
+    // Hann before analysis and after synthesis: four quarter-window shifts of
+    // Hann squared sum to 1.5.
+    //
+    static constexpr float x_overlapGain = 1.5f;
 
-        void Reset()
-        {
-        }
-
-        Vector Process()
-        {
-            return m_grain.Process() / 1.5;
-        }
-
-        // One input per channel.
-        //
-        void Start(typename Resynth::Input* input, const TimeVector& startTime)
-        {
-            typename Resynth::Buffer& prevTable = m_owner->m_prevTable;
-            for (size_t k = 0; k < Resynth::x_tableSize; ++k)
-            {
-                float window = Math4096::Hann(k);
-                m_grain.m_buffer.m_table[k] = m_audioBuffer->ReadRealTime(startTime + k) * window;
-                prevTable.m_table[k] = m_audioBuffer->ReadRealTime(startTime + k - Resynth::x_H) * window;
-            }
-
-            m_owner->m_resynthesizer.Process(prevTable, &m_grain, input);
-        }
-
-        bool IsRunning() const
-        {
-            return m_grain.m_running;
-        }
-
-        typename Resynth::Grain m_grain;
-        AudioBufferType* m_audioBuffer;
-        GrainManagerGeneric* m_owner;
-    };
-    
-    static constexpr size_t x_maxGrains = 1024;
-    FixedAllocator<Grain, x_maxGrains> m_grainsAlloc;
-    Grain* m_grainsArray[x_maxGrains];
-    size_t m_numGrains;
     AudioBufferType* m_audioBuffer;
-    RGen m_rgen;
-    int m_samplesToNextGrain;
-    Vector m_lastSampleOffset;
+    size_t m_samplesToNextGrain;
     Resynth m_resynthesizer;
     typename Resynth::Buffer m_prevTable;
-
-    void CompactGrains()
-    {
-        for (size_t i = 0; i < m_numGrains;)
-        {
-            if (!m_grainsArray[i])        
-            {
-                m_grainsArray[i] = m_grainsArray[m_numGrains - 1];
-                --m_numGrains;
-            }
-            else
-            {
-                ++i;
-            }
-        }
-    }
-
-    Grain* AllocateGrain()
-    {
-        Grain* grain = m_grainsAlloc.Allocate();
-        if (grain)
-        {
-            grain->m_audioBuffer = m_audioBuffer;
-            grain->m_owner = this;
-            ++m_numGrains;
-            m_grainsArray[m_numGrains - 1] = grain;
-        }
-        else
-        {
-            INFO("Failed to allocate grain");
-        }
-
-        return grain;
-    }
-
-    Vector ProcessGrains()
-    {
-        bool anyFreed = false;
-        Vector result = Vector::Splat(0);
-        for (size_t i = 0; i < m_numGrains; ++i)
-        {
-            result += m_grainsArray[i]->Process();
-            if (!m_grainsArray[i]->IsRunning())
-            {
-                anyFreed = true;
-                m_grainsArray[i]->Reset();
-                m_grainsAlloc.Free(m_grainsArray[i]);
-                m_grainsArray[i] = nullptr;                
-            }
-        }
-
-        if (anyFreed)
-        {
-            CompactGrains();
-        }
-
-        return result;
-    }
+    typename Resynth::Buffer m_analysisTable;
+    typename Resynth::SynthesisFrame m_synthesisFrame;
+    SynthesisOLA m_ola;
 
     struct Input
     {
         typename Resynth::Input m_resynthInput[Size];
     };
+
+    // One input per channel.
+    //
+    void StartGrain(typename Resynth::Input* input, const TimeVector& startTime)
+    {
+        for (size_t k = 0; k < Resynth::x_tableSize; ++k)
+        {
+            float window = Math4096::Hann(k);
+            m_analysisTable.m_table[k] = m_audioBuffer->ReadRealTime(startTime + k) * window;
+            m_prevTable.m_table[k] = m_audioBuffer->ReadRealTime(startTime + k - Resynth::x_H) * window;
+        }
+
+        m_resynthesizer.Process(m_prevTable, m_analysisTable, m_synthesisFrame, input);
+        m_ola.Write(m_synthesisFrame);
+    }
 
     // Recorded sample banks have no write frontier.
     //
@@ -471,28 +393,24 @@ struct GrainManagerGeneric
             return Vector::Splat(0);
         }
 
-        Vector result = ProcessGrains();
-        --m_samplesToNextGrain;
-        if (m_samplesToNextGrain <= 0)
+        Vector result = m_ola.Process() / x_overlapGain;
+        if (m_samplesToNextGrain <= 1)
         {
-            Grain* grain = AllocateGrain();
-            if (grain)
-            {
-                // Protect the full analysis window after mapping to real time.
-                // Cubic audio interpolation reads two samples beyond its floor index.
-                //
-                double latestStart = latestSampleTime - (Resynth::x_N - 1) - 2;
-                TimeVector startTime = TimeVector::Min(
-                    m_audioBuffer->GetRealTime(warpedTime) + sampleOffset.template Convert<double>(),
-                    TimeVector::Splat(latestStart));
+            // Protect the full analysis window after mapping to real time.
+            // Cubic audio interpolation reads two samples beyond its floor index.
+            //
+            double latestStart = latestSampleTime - (Resynth::x_N - 1) - 2;
+            TimeVector startTime = TimeVector::Min(
+                m_audioBuffer->GetRealTime(warpedTime) + sampleOffset.template Convert<double>(),
+                TimeVector::Splat(latestStart));
 
-                grain->Start(input.m_resynthInput, startTime);
-            }
-
-            m_samplesToNextGrain = Resynth::GetGrainLaunchSamples();
+            StartGrain(input.m_resynthInput, startTime);
+            m_samplesToNextGrain = Resynth::GetSynthesisHopSamples();
         }
-
-        m_lastSampleOffset = sampleOffset;
+        else
+        {
+            --m_samplesToNextGrain;
+        }
 
         return result;
     }
@@ -500,13 +418,7 @@ struct GrainManagerGeneric
     GrainManagerGeneric()
         : m_audioBuffer(nullptr)
         , m_samplesToNextGrain(0)
-        , m_lastSampleOffset(Vector::Splat(0))
     {
-        m_numGrains = 0;
-        for (size_t i = 0; i < x_maxGrains; ++i)
-        {
-            m_grainsArray[i] = nullptr;
-        }
     }
 
     explicit GrainManagerGeneric(AudioBufferType* audioBuffer)
