@@ -37,7 +37,10 @@ struct MultiChannelNumber
     explicit MultiChannelNumber(const Number* values)
         : m_values{}
     {
-        memcpy(m_values, values, sizeof(Number) * x_numChannels);
+        for (size_t i = 0; i < x_numChannels; ++i)
+        {
+            m_values[i] = values[i];
+        }
     }
 
     MultiChannelNumber(Number left, Number right)
@@ -380,6 +383,20 @@ struct MultiChannelNumber
     bool operator!=(const MultiChannelNumber& other) const
     {
         auto differs = Load() != other.Load();
+        if constexpr (Size == 3)
+        {
+            differs[3] = 0;
+#if defined(__aarch64__)
+            // Masks are zero or -1. Four 32-bit lanes let NEON reduce float
+            // and double comparisons with one horizontal minimum.
+            //
+            using Mask = int32_t __attribute__((vector_size(sizeof(int32_t) * x_numLanes)));
+            return __builtin_reduce_min(__builtin_convertvector(differs, Mask)) != 0;
+#else
+            return __builtin_reduce_or(differs) != 0;
+#endif
+        }
+
         auto anyDiffers = differs[0];
         for (size_t i = 1; i < Size; ++i)
         {

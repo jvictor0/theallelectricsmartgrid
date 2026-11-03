@@ -710,6 +710,17 @@ struct BankedEncoderCell : public StateEncoderCell
         return ToValue(output);
     }
 
+    QuadFloat GetInterpolatedValue(size_t hostSample, float previousOutputWeight) const
+    {
+        QuadFloat output = m_output;
+        if (m_outputHostSample == hostSample)
+        {
+            output += (m_outputPrev - output) * previousOutputWeight;
+        }
+
+        return m_bipolar ? output * 2.0f - 1.0f : output;
+    }
+
     float GetLatestValue(size_t channel) const
     {
         return ToValue(m_output[channel]);
