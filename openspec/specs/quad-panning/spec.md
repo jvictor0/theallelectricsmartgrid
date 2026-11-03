@@ -6,7 +6,7 @@ The quad panning system (`SquiggleBoyVoice::PanSection` in `private/src/Squiggle
 ## Requirements
 
 ### Requirement: Shared Global Pan Phase
-The system SHALL drive panning for all nine voices from a single global phase oscillator (`SquiggleBoy::m_panPhase`, a `PhaseUtils::SimpleOsc`). The oscillator advances once per sample by a fixed phase delta of 0.025/44100 (one full pan cycle approximately every 37 seconds at 48 kHz; `SetPhaseDelta` is never called on it), and every voice's pan input receives the identical phase value each sample. No voice has an independent pan clock.
+The system SHALL drive panning for all nine voices from a single global phase oscillator (`SquiggleBoy::m_panPhase`, a `PhaseUtils::SimpleOsc`). The oscillator advances once per engine sample by a fixed phase delta of 0.025 Hz (`SampleTimer::HzToCycPerSamp(0.025)`, one full pan cycle every 40 seconds; `SetPhaseDelta` is never called on it), accumulated in a double-precision phase because the per-sample increment is below float resolution, and every voice's pan input receives the identical phase value each sample. No voice has an independent pan clock.
 
 #### Scenario: All voices share one phase clock
 - **WHEN** `SquiggleBoy::ProcessSample` runs for one audio sample

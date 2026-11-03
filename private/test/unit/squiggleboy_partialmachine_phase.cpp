@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include "../support/GlobalEnv.hpp"
+#include "../support/HostFrames.hpp"
 
 #include "AudioInputBuffer.hpp"
 #include "SceneManager.hpp"
@@ -20,6 +21,13 @@ DOCTEST_TEST_CASE("SquiggleBoy effect returns reach unity and reverb covers the 
     synth->m_theoryOfTime = &theoryOfTime;
     synth->Config(input);
     synth->m_encoders.Process();
+    const size_t frameEnd = hostframes::SamplesToHostFrameEnd(0);
+    for (size_t sample = 0; sample < frameEnd; ++sample)
+    {
+        SampleTimer::IncrementSample();
+        synth->m_encoders.Process();
+    }
+
     synth->SetEncoderParameters(input);
 
     for (size_t effect = 0; effect < 3; ++effect)
@@ -33,7 +41,8 @@ DOCTEST_TEST_CASE("SquiggleBoy effect returns reach unity and reverb covers the 
     {
         reverbReturn->SetValue(value, true);
         reverbReturn->SetForceUpdateRecursive();
-        for (size_t sample = 0; sample < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++sample)
+        const size_t samples = hostframes::SamplesToHostFrameEnd(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+        for (size_t sample = 0; sample < samples; ++sample)
         {
             SampleTimer::IncrementSample();
             synth->m_encoders.Process();
@@ -59,12 +68,12 @@ DOCTEST_TEST_CASE("SquiggleBoy partial machine azimuth offset follows pan phase"
     squiggleBoy->m_theoryOfTime = &theoryOfTime;
     squiggleBoy->Config(input);
 
-    for (size_t i = 0; i < 4096; ++i)
+    for (size_t i = 0; i < 4096 * SampleTimer::x_oversample; ++i)
     {
-        squiggleBoy->ProcessSample(input, 1.0f / 48000.0f, audioInput);
+        squiggleBoy->ProcessSample(input, static_cast<float>(SampleTimer::x_samplePeriod), audioInput);
     }
 
-    float panPhase = squiggleBoy->m_panPhase.m_phase;
+    float panPhase = static_cast<float>(squiggleBoy->m_panPhase.m_phase);
 
     DOCTEST_REQUIRE(panPhase > 0.001f);
     DOCTEST_CHECK(squiggleBoy->m_trackState[0].m_panInput.m_input == doctest::Approx(panPhase).epsilon(1e-6));

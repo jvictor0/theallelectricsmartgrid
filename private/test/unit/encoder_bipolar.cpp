@@ -9,6 +9,7 @@
 #include "EncoderBankBank.hpp"
 #include "StateSaver.hpp"
 #include "../support/GlobalEnv.hpp"
+#include "../support/HostFrames.hpp"
 
 namespace
 {
@@ -80,13 +81,19 @@ struct EncoderRig
         Settle();
     }
 
-    void Settle()
+    void RunHostFrames(size_t hostFrames)
     {
-        for (size_t i = 0; i < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++i)
+        const size_t samples = hostframes::SamplesToHostFrameEnd(hostFrames);
+        for (size_t i = 0; i < samples; ++i)
         {
             SampleTimer::IncrementSample();
             m_banks.Process();
         }
+    }
+
+    void Settle()
+    {
+        RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     }
 
     void Compute()
@@ -478,7 +485,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: nested absolute depth edits update ancestor 
     DOCTEST_CHECK(rig.Carrier().m_modulatorsAffecting.m_bits == 3);
 
     rig.Sources().m_value[1][0] = 0.5f;
-    rig.m_banks.Process();
+    rig.Settle();
     DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.3f));
 }
 

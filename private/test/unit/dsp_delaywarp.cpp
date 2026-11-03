@@ -166,22 +166,28 @@ DOCTEST_TEST_CASE("DelayWarp: fast quad grains retain a steady tone with real-ti
     std::array<double, 4> blockEnergy{};
     std::array<double, 4> minRms{1, 1, 1, 1};
     std::array<double, 4> maxRms{};
-    for (int n = 0; n < 32768; ++n)
+
+    // Each engine sample advances the host-rate storage by 1 / x_oversample of
+    // the five-sample write step.
+    //
+    const int ratio = static_cast<int>(SampleTimer::x_oversample);
+    const int block = 1024 * ratio;
+    for (int n = 0; n < 32768 * ratio; ++n)
     {
-        double write = 10000.0 + 5.0 * n;
-        float sample = 0.2f * std::sin(2 * M_PI * 750 * n / 48000.0);
+        double write = 10000.0 + 5.0 * n / ratio;
+        float sample = 0.2f * std::sin(2 * M_PI * 750 * n / (48000.0 * ratio));
         storage->Write(QuadFloat(sample, sample, sample, sample), write);
         QuadDouble read(write - 4500, write - 4500, write - 4500, write - 30000);
         QuadFloat output = grains->Process(read, offsets, input, storage->m_lastTime - 1.0);
-        if (n >= 16384)
+        if (n >= 16384 * ratio)
         {
             for (size_t channel = 0; channel < 4; ++channel)
             {
                 DOCTEST_REQUIRE(std::isfinite(output[channel]));
                 blockEnergy[channel] += output[channel] * output[channel];
-                if ((n + 1) % 1024 == 0)
+                if ((n + 1) % block == 0)
                 {
-                    double rms = std::sqrt(blockEnergy[channel] / 1024);
+                    double rms = std::sqrt(blockEnergy[channel] / block);
                     minRms[channel] = std::min(minRms[channel], rms);
                     maxRms[channel] = std::max(maxRms[channel], rms);
                     blockEnergy[channel] = 0;

@@ -135,8 +135,10 @@ public:
         m_audioInput.m_numInputs = 0;
 
         // Synthetic wallclock that advances ~one audio callback per RunSamples.
+        // It starts one bus latency in, so timestamp-0 messages are always due
+        // regardless of the engine rate.
         //
-        m_wallclockUs = 0;
+        m_wallclockUs = SmartGrid::MessageInLatency::x_latencyUs;
     }
 
     ~SynthRig()
@@ -221,6 +223,14 @@ public:
     void RunFrames(std::size_t n)
     {
         RunSamples(n * SampleTimer::x_samplesPerProcessFrame);
+    }
+
+    // RunHostFrames(n): advance by n host frames (n * x_oversample samples), the
+    // unit of the encoder matrix, tick distribution and recording frames.
+    //
+    void RunHostFrames(std::size_t n)
+    {
+        RunSamples(n * SampleTimer::x_oversample);
     }
 
     // RunSeconds(s): advance by s seconds of audio (rounded to whole samples).

@@ -110,20 +110,22 @@ DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the glob
     TheoryOfTime moving;
     TheoryOfTime::Input input;
     input.m_running = true;
-    input.m_freq = 1.0 / 192000.0;
+    input.m_freq = SampleTimer::HzToCycPerSamp(0.25);
     input.m_lfoMult.m_expParam = 16;
     input.m_modIndex.m_expParam = 1;
     input.m_phaseModLFOInput.m_shape = 0;
     input.m_phaseModLFOInput.m_attackFrac = 0.5f;
     input.m_phaseModLFOInput.m_slope = 0;
     OPLowPassFilter encoder;
-    encoder.SetAlphaFromNatFreq(500.0f / 48000.0f);
+    encoder.SetAlphaFromNatFreq(static_cast<float>(SampleTimer::HzToCycPerSamp(500.0)));
     double maxSpeedDifference = 0;
     float minWeight = 1;
     bool reachedBoundary = false;
-    for (int n = 1; n <= 56000; ++n)
+    const int samples = 56000 * static_cast<int>(SampleTimer::x_oversample);
+    for (int n = 1; n <= samples; ++n)
     {
-        input.m_phaseModLFOInput.m_center = 1 - input.m_lfoCenterFilter.Process(encoder.Process(0.0418f));
+        const float encoderValue = encoder.Process(0.0418f);
+        input.m_phaseModLFOInput.m_center = static_cast<float>(1.0 - input.m_lfoCenterFilter.Process(encoderValue)[0]);
         reachedBoundary = reachedBoundary || input.m_phaseModLFOInput.m_center == 23.0f / 24.0f;
         TheoryOfTime reference = moving;
         TheoryOfTime::Input referenceInput = input;
@@ -131,8 +133,8 @@ DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the glob
         double previousPhase = moving.m_sample.m_modulatedPhase;
         moving.Process(input);
         reference.Process(referenceInput);
-        double speed = 192000 * (moving.m_sample.m_modulatedPhase - previousPhase);
-        double referenceSpeed = 192000 * (reference.m_sample.m_modulatedPhase - previousPhase);
+        double speed = (moving.m_sample.m_modulatedPhase - previousPhase) / input.m_freq;
+        double referenceSpeed = (reference.m_sample.m_modulatedPhase - previousPhase) / input.m_freq;
         maxSpeedDifference = std::max(maxSpeedDifference, std::abs(speed - referenceSpeed));
         minWeight = std::min(minWeight, moving.m_phaseModLFO.m_totalWeight[0]);
     }

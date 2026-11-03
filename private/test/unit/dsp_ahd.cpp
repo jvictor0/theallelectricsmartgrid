@@ -245,7 +245,7 @@ DOCTEST_TEST_CASE("AHD: shape — monotone rise, hold, monotone decay")
     //   decay to 0: distance * 4800 * 0.002083 = 1 => distance = 0.1 => 4800 audio samples.
     // Total needed: ~5500 samples; use 7000 to be safe.
     //
-    const size_t totalSamples = 7000;
+    const size_t totalSamples = 7000 * SampleTimer::x_oversample;
     std::vector<float> buf = r.Run(totalSamples);
 
     // NaN-clean
@@ -317,7 +317,7 @@ DOCTEST_TEST_CASE("AHD: faster attack parameter reaches peak sooner")
 
         float peak = 0.0f;
         size_t peakIdx = 0;
-        for (size_t i = 0; i < 3000; ++i)
+        for (size_t i = 0; i < 3000 * SampleTimer::x_oversample; ++i)
         {
             float v = r.ProcessOneSample();
             if (v > peak) { peak = v; peakIdx = i; }

@@ -18,7 +18,7 @@ DOCTEST_TEST_CASE("NonagonWrapper clears each output sample before writing owned
 
     size_t inputReadPos = source.find("audioInputBuffer.m_input[j] =", processPos);
     size_t clearPos = source.find("bufferToFill.buffer->getWritePointer(j, bufferToFill.startSample)[i] = 0.0f;", processPos);
-    size_t outputPos = source.find("QuadFloatWithStereoAndSub output = ProcessSample(audioInputBuffer);", processPos);
+    size_t outputPos = source.find("QuadFloatWithStereoAndSub output = ProcessHostFrame(audioInputBuffer);", processPos);
 
     DOCTEST_CHECK(inputReadPos != std::string::npos);
     DOCTEST_CHECK(clearPos != std::string::npos);

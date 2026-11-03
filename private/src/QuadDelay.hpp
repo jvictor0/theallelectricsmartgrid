@@ -201,9 +201,12 @@ struct QuadDelayInputSetter
 
     QuadZeroedExpParam m_feedback;
 
-    OPLowPassFilterGeneric<float, 4> m_modDepthFilter;
+    // Double state: 1 Hz one-poles at the engine rate stall short of their
+    // targets in float.
+    //
+    OPLowPassFilterGeneric<double, 4> m_modDepthFilter;
 
-    OPLowPassFilterGeneric<float, 4> m_rotateFilter;
+    OPLowPassFilterGeneric<double, 4> m_rotateFilter;
 
     QuadExpParam m_unisonDetune;
     QuadZeroedExpParam m_unisonGain;
@@ -316,8 +319,8 @@ struct QuadDelayInputSetter
             rotate[i] = static_cast<float>(input.m_rotateSwitchVal[i]) / 4.0f;
         }
 
-        delayInput.m_rotate = m_rotateFilter.Process(rotate);
-        delayInput.m_modDepth = m_modDepthFilter.Process(m_modDepth.Update(input.m_modDepthKnob));
+        delayInput.m_rotate = m_rotateFilter.Process(rotate.Convert<double>()).Convert<float>();
+        delayInput.m_modDepth = m_modDepthFilter.Process(m_modDepth.Update(input.m_modDepthKnob).Convert<double>()).Convert<float>();
         delayInput.m_lfoInput.m_freq = m_modFreq.Update(input.m_modFreqKnob);
         delayInput.m_feedback = m_feedback.Update(input.m_feedbackKnob) * 1.25f;
         delayInput.m_bffBase = m_dampingBase.Update(input.m_dampingBaseKnob);

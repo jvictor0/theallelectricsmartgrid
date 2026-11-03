@@ -2,6 +2,7 @@
 #include "../support/GlobalEnv.hpp"
 #include "SmartGridOneEncoders.hpp"
 #include "../support/SynthRig.hpp"
+#include "../support/HostFrames.hpp"
 
 namespace
 {
@@ -204,7 +205,8 @@ DOCTEST_TEST_CASE("modulator catalogue: legacy global empty depths survive patch
         JSON saved = encoders.ToJSON(arena);
         encoders.RevertToDefault(true);
         encoders.FromJSON(saved);
-        for (size_t sample = 0; sample < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++sample)
+        const size_t samples = hostframes::SamplesToHostFrameEnd(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+        for (size_t sample = 0; sample < samples; ++sample)
         {
             SampleTimer::IncrementSample();
             encoders.Process();
@@ -221,7 +223,13 @@ DOCTEST_TEST_CASE("modulator catalogue: legacy global empty depths survive patch
         cell->SetStateRecursive();
         cell->SetModulatorsAffecting();
         cell->Compute(false);
-        encoders.Process();
+        const size_t frameSamples = hostframes::SamplesToHostFrameEnd(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+        for (size_t sample = 0; sample < frameSamples; ++sample)
+        {
+            SampleTimer::IncrementSample();
+            encoders.Process();
+        }
+
         EncoderBankUIState ui;
         encoders.PopulateUIState(&ui);
         DOCTEST_CHECK(ui.GetConnected(index % 4, index / 4));

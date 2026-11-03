@@ -36,7 +36,7 @@ DOCTEST_TEST_CASE("SynthRig: bypassed vocoder hands the current note to the synt
         internal.SetSquiggleBoyInputs();
 
         DOCTEST_CHECK(nonagon.m_multiPhasorGate.m_ahdControl[x_voice].m_trig);
-        DOCTEST_CHECK(internal.m_squiggleBoyState.m_baseFreq[x_voice] * 48000.0f
+        DOCTEST_CHECK(internal.m_squiggleBoyState.m_baseFreq[x_voice] * static_cast<float>(SampleTimer::x_sampleRate)
             == doctest::Approx(note.m_expectedHz));
         for (size_t sample = 0; sample < note.m_samplesAfter; ++sample)
         {
@@ -62,7 +62,7 @@ DOCTEST_TEST_CASE("SynthRig: enabled vocoder selects partials with the current n
     vocoder.Process(0.0f, input);
     for (float hz : {261.625565f, 523.251131f})
     {
-        float frequency = hz / 48000.0f;
+        float frequency = static_cast<float>(SampleTimer::HzToCycPerHostSamp(hz));
         vocoder.m_spectralModel.m_atoms.Add(
             SpectralModel::Atom(frequency, 0.25f, {}, frequency, 0.25f, 0));
     }
@@ -95,7 +95,7 @@ DOCTEST_TEST_CASE("SynthRig: enabled vocoder selects partials with the current n
         internal.SetSquiggleBoyInputs();
 
         DOCTEST_CHECK(nonagon.m_multiPhasorGate.m_ahdControl[x_voice].m_trig);
-        DOCTEST_CHECK(internal.m_squiggleBoyState.m_baseFreq[x_voice] * 48000.0f
+        DOCTEST_CHECK(internal.m_squiggleBoyState.m_baseFreq[x_voice] * static_cast<float>(SampleTimer::x_sampleRate)
             == doctest::Approx(note.m_expectedHz));
     }
 
@@ -103,7 +103,7 @@ DOCTEST_TEST_CASE("SynthRig: enabled vocoder selects partials with the current n
     nonagon.m_multiPhasorGate.m_ahdControl[x_voice].m_trig = true;
     internal.SetSquiggleBoyInputs();
     DOCTEST_CHECK_FALSE(nonagon.m_multiPhasorGate.m_ahdControl[x_voice].m_trig);
-    DOCTEST_CHECK(internal.m_squiggleBoyState.m_baseFreq[x_voice] * 48000.0f
+    DOCTEST_CHECK(internal.m_squiggleBoyState.m_baseFreq[x_voice] * static_cast<float>(SampleTimer::x_sampleRate)
         == doctest::Approx(1046.502262f));
 }
 
@@ -116,13 +116,13 @@ DOCTEST_TEST_CASE("SynthRig: enabled vocoder without partials suppresses the not
     constexpr size_t x_voice = 6;
     input.m_enabled = true;
     internal.m_squiggleBoy.m_deepVocoder.Process(0.0f, input);
-    internal.m_squiggleBoyState.m_baseFreq[x_voice] = 440.0f / 48000.0f;
+    internal.m_squiggleBoyState.m_baseFreq[x_voice] = static_cast<float>(SampleTimer::HzToCycPerSamp(440.0));
     nonagon.m_output.m_voltPerOct[x_voice] = 1.0f;
     nonagon.m_multiPhasorGate.m_ahdControl[x_voice].m_trig = true;
 
     internal.SetSquiggleBoyInputs();
 
     DOCTEST_CHECK_FALSE(nonagon.m_multiPhasorGate.m_ahdControl[x_voice].m_trig);
-    DOCTEST_CHECK(internal.m_squiggleBoyState.m_baseFreq[x_voice] * 48000.0f
+    DOCTEST_CHECK(internal.m_squiggleBoyState.m_baseFreq[x_voice] * static_cast<float>(SampleTimer::x_sampleRate)
         == doctest::Approx(440.0f));
 }

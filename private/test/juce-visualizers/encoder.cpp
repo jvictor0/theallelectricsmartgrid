@@ -501,7 +501,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: longest axis hosts the normalized mi
 
     auto* selected = visualizers.GetForParameter(encoder);
     DOCTEST_REQUIRE(selected == visualizers.Get(Mode::VoiceEarth, 6));
-    DOCTEST_CHECK(selected->GetTimeExtent() == 600.0);
+    DOCTEST_CHECK(selected->GetTimeExtent() == 75.0 * ScopeWriter::x_controlDecimation);
     auto* timeView = dynamic_cast<ModulatorTimeAxisComponent*>(selected);
     DOCTEST_REQUIRE(timeView != nullptr);
     DOCTEST_CHECK(timeView->GetFirstVoice() == 6);
@@ -534,7 +534,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: longest axis hosts the normalized mi
 
     selected = visualizers.GetForParameter(encoder);
     DOCTEST_REQUIRE(selected == visualizers.Get(Mode::VoiceEarth, 7));
-    DOCTEST_CHECK(selected->GetTimeExtent() == 400.0);
+    DOCTEST_CHECK(selected->GetTimeExtent() == 50.0 * ScopeWriter::x_controlDecimation);
     DOCTEST_CHECK_FALSE(dynamic_cast<ModulatorTimeAxisComponent*>(selected)->m_hasWeights);
 }
 
@@ -586,7 +586,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: multiple sources without time axes u
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState;
     state.m_firstAudioSample.store(0);
-    state.m_audioScopeWriter.m_publishedIndex.store(96001);
+    state.m_audioScopeWriter.m_publishedIndex.store(1 + 2 * SampleTimer::x_sampleRate / ScopeWriter::x_audioDecimation);
     ModulatorVisualizers visualizers;
     InitializeEncoderModulatorVisualizers(visualizers, ui.get());
     visualizers.m_scopeVoiceOffset = 1;
@@ -599,8 +599,8 @@ DOCTEST_TEST_CASE("Encoder weighted curves: multiple sources without time axes u
     DOCTEST_REQUIRE(selected == &visualizers.m_recentHistory);
     DOCTEST_CHECK(selected->GetTimeExtent() == SampleTimer::x_sampleRate);
     auto axis = visualizers.m_recentHistory.GetTimeAxis(1);
-    DOCTEST_CHECK(axis.GetSample(0.0) == 48000.0);
-    DOCTEST_CHECK(axis.GetSample(1.0) == 96000.0);
+    DOCTEST_CHECK(axis.GetSample(0.0) == static_cast<double>(SampleTimer::x_sampleRate));
+    DOCTEST_CHECK(axis.GetSample(1.0) == static_cast<double>(2 * SampleTimer::x_sampleRate));
     juce::Image image(juce::Image::ARGB, 200, 200, true);
     juce::Graphics g(image);
     selected->Draw(g, image.getBounds());
@@ -626,7 +626,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: random time axes keep other sources 
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState;
     state.m_firstAudioSample.store(100);
-    state.m_audioScopeWriter.m_publishedIndex.store(33);
+    state.m_audioScopeWriter.m_publishedIndex.store(1 + 32 / ScopeWriter::x_audioDecimation);
     state.m_firstControlSample.store(104);
     GangedRandomLFOVoice voices[4];
     GangedRandomLFOVoiceInput inputs[4];
@@ -638,7 +638,8 @@ DOCTEST_TEST_CASE("Encoder weighted curves: random time axes keep other sources 
     }
 
     state.m_quadGangedRandomLFOUIState[0].m_history.RecordRound(100, voices, inputs);
-    for (size_t sample = 0; sample < 4; ++sample)
+    const size_t controlSamples = std::max<size_t>(1, 32 / ScopeWriter::x_controlDecimation);
+    for (size_t sample = 0; sample < controlSamples; ++sample)
     {
         state.m_quadControlScopeWriter.Write(4, 0, 0.4f);
         AdvanceControlIndex(state.m_quadControlScopeWriter);

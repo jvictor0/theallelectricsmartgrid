@@ -33,7 +33,7 @@ struct PatchGestureRig
         m_rig.IncEncoder(x, y, 50);
         m_rig.RunFrames(1);
         pad->OnRelease();
-        m_rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+        m_rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
         m_rig.RunFrames(2);
     }
 
@@ -132,7 +132,7 @@ DOCTEST_TEST_CASE("Patch gestures: loaded targets respond to faders without scen
     const std::string emptyPatch = loaded.m_rig.SavePatch();
     DOCTEST_REQUIRE_FALSE(emptyPatch.empty());
     DOCTEST_REQUIRE(loaded.m_rig.LoadPatch(patch));
-    loaded.m_rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+    loaded.m_rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     loaded.m_rig.RunFrames(2);
     auto& encoders = loaded.m_rig.Internal().m_squiggleBoy.m_encoders;
     DOCTEST_CHECK(encoders.GetValue(Encoders::Param::Harmonics1) == doctest::Approx(target));
@@ -148,7 +148,7 @@ DOCTEST_TEST_CASE("Patch gestures: loaded targets respond to faders without scen
     }
 
     DOCTEST_REQUIRE(loaded.m_rig.ReloadPatch(emptyPatch));
-    loaded.m_rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+    loaded.m_rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     loaded.m_rig.RunFrames(2);
     DOCTEST_CHECK(encoders.GetValue(Encoders::Param::Harmonics1) == doctest::Approx(0.0f));
     DOCTEST_CHECK_FALSE(loaded.m_rig.SawNaN());

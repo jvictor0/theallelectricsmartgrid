@@ -30,7 +30,7 @@ namespace
 
 // Extra settle frames beyond the mandatory 1 for slew to converge.
 //
-constexpr int kSettleFrames = 6;
+constexpr int kSettleFrames = 6 * static_cast<int>(SampleTimer::x_oversample);
 
 // 14-bit quant + slew slack.
 //

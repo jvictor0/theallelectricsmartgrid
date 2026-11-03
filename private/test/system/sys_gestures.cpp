@@ -82,7 +82,7 @@
 namespace
 {
 
-constexpr int kSettleFrames = 8;
+constexpr int kSettleFrames = 8 * static_cast<int>(SampleTimer::x_oversample);
 constexpr float kTol = 1e-2f; // gesture math uses slew + float weighting
 
 // Locate the first connected encoder.
@@ -172,9 +172,17 @@ struct HiddenDetuneFixture
         m_rig.RunFrames(1);
     }
 
+    // The host-rate modulator decimator needs several host frames to follow a
+    // step. Whole host frames keep per-object sub-sample counters aligned.
+    //
     void ProcessInjectedModulatorValues()
     {
-        m_rig.Internal().m_squiggleBoy.m_encoders.Process();
+        const size_t samples = 16 * SampleTimer::x_oversample;
+        for (size_t i = 0; i < samples; ++i)
+        {
+            SampleTimer::IncrementSample();
+            m_rig.Internal().m_squiggleBoy.m_encoders.Process();
+        }
     }
 
     void AddGestureToSpreadDepth(int gesture)

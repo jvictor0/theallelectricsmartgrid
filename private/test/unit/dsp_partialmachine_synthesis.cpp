@@ -29,9 +29,16 @@ PartialMachine::SpectralModel::DFT RenderAtom(int sourceBin, float ratio, float 
     PartialMachine::SynthesisOLA ola;
     PartialMachine::SynthesisOLA::Frame frame;
     PartialMachine::SpectralModel::Buffer buffer;
-    for (size_t sample = 0; sample < 16384; ++sample)
+
+    // Synthesis runs at the engine rate; every x_oversample-th output sample is
+    // the host-rate signal the analysis spectrum measures.
+    //
+    const size_t oversample = PartialMachine::x_oversample;
+    const size_t hop = PartialMachine::SpectralModel::x_H * oversample;
+    const size_t start = 12288 * oversample;
+    for (size_t sample = 0; sample < 16384 * oversample; ++sample)
     {
-        if (sample % 1024 == 0)
+        if (sample % hop == 0)
         {
             PartialMachine::SynthesisContext context;
             context.ProcessAtom(atom, input);
@@ -40,9 +47,9 @@ PartialMachine::SpectralModel::DFT RenderAtom(int sourceBin, float ratio, float 
         }
 
         float output = ola.Process()[0];
-        if (sample >= 12288)
+        if (sample >= start && (sample - start) % oversample == 0)
         {
-            buffer.m_table[sample - 12288] = output;
+            buffer.m_table[(sample - start) / oversample] = output;
         }
     }
 

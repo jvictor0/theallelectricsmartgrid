@@ -361,7 +361,7 @@ struct SquiggleBoy
         for (size_t track = 0; track < x_numTracks; ++track)
         {
             SquiggleBoyTrack& squiggleBoyTrack = m_tracks[track];
-            m_trackState[track].m_panInput.m_input = m_panPhase.m_phase;
+            m_trackState[track].m_panInput.m_input = static_cast<float>(m_panPhase.m_phase);
 
             SquiggleBoyTrack::Vector output = squiggleBoyTrack.Processs(m_trackState[track]);
             for (size_t i = 0; i < x_voicesPerTrack; ++i)

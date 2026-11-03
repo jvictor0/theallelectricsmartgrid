@@ -36,9 +36,18 @@ struct PolyXFaderSlewRig
         }
     }
 
-    static double Decay(double cutoffHz, size_t samples)
+    // Decay of a slew whose cutoff is in cycles per 48000-sample global period.
+    //
+    static double Decay(double cyclesPerPeriod, size_t samples)
     {
-        return std::exp(-2.0 * M_PI * cutoffHz * static_cast<double>(samples) / 48000.0);
+        return std::exp(-2.0 * M_PI * cyclesPerPeriod * static_cast<double>(samples) / 48000.0);
+    }
+
+    // Decay of a slew with a fixed cutoff in Hz at the engine rate.
+    //
+    static double DecayHz(double cutoffHz, size_t samples)
+    {
+        return std::exp(-2.0 * M_PI * SampleTimer::HzToCycPerSamp(cutoffHz) * static_cast<double>(samples));
     }
 };
 }
@@ -229,20 +238,20 @@ DOCTEST_TEST_CASE("PolyXFader: 500 Hz slew applies only to S&H before blending a
         rig.m_input.m_trig[0] = true;
         rig.Process(1);
         double captured = 1.0 - PolyXFaderSlewRig::Decay(48.0, 129);
-        double held = captured * (1.0 - PolyXFaderSlewRig::Decay(500.0, 1));
+        double held = captured * (1.0 - PolyXFaderSlewRig::DecayHz(500.0, 1));
         DOCTEST_CHECK(rig.m_fader.m_shValue == doctest::Approx(captured).epsilon(0.0001));
         DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(fade * held + (1.0 - fade) * captured).epsilon(0.0001));
 
         rig.m_input.m_trig[0] = false;
         rig.Process(7);
         continuous = 1.0 - PolyXFaderSlewRig::Decay(48.0, 136);
-        held = captured * (1.0 - PolyXFaderSlewRig::Decay(500.0, 8));
+        held = captured * (1.0 - PolyXFaderSlewRig::DecayHz(500.0, 8));
         DOCTEST_CHECK(rig.m_fader.m_shValue == doctest::Approx(captured).epsilon(0.0001));
         DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(fade * held + (1.0 - fade) * continuous).epsilon(0.0001));
 
         rig.m_input.m_shFade = 1.0f;
         rig.Process(1);
-        held = captured * (1.0 - PolyXFaderSlewRig::Decay(500.0, 9));
+        held = captured * (1.0 - PolyXFaderSlewRig::DecayHz(500.0, 9));
         DOCTEST_CHECK(rig.m_fader.m_rawOutput == doctest::Approx(held).epsilon(0.0001));
     }
 }

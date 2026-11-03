@@ -29,10 +29,16 @@ DOCTEST_TEST_CASE("Quad scopes: all effects follow return gain and saturation be
             input.m_returnGain[effect].m_expParam = x_gains[(sample + effect) % 3];
         }
 
+        // Audio scopes store one value per host frame.
+        //
         const size_t index = writer.m_index;
-        synth.m_output = synth.m_mixer.Process(input);
-        synth.WriteQuadScopes();
-        writer.AdvanceIndex();
+        for (size_t sub = 0; sub < writer.m_decimation; ++sub)
+        {
+            synth.m_output = synth.m_mixer.Process(input);
+            synth.WriteQuadScopes();
+            writer.AdvanceIndex();
+        }
+
         writer.Publish();
         for (size_t effect = 0; effect < QuadMixerInternal::x_numSends; ++effect)
         {

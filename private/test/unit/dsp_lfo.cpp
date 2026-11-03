@@ -461,7 +461,7 @@ DOCTEST_TEST_CASE("RandomLFO: output bounded in [0, 1] and NaN-clean")
 // ---------------------------------------------------------------------------
 // Test 8: RandomLFO — smooth (MaxAbsDelta bounded by filter bandwidth)
 //
-// RandomLFO uses OPLowPassFilter at ~0.05/48000 nat-freq, so large jumps
+// RandomLFO uses a double one-pole at a 0.05 Hz nat-freq, so large jumps
 // between adjacent samples are impossible (the filter effectively limits the
 // slew rate). We check that MaxAbsDelta is well below 0.1 per sample.
 // ---------------------------------------------------------------------------
@@ -478,7 +478,7 @@ DOCTEST_TEST_CASE("RandomLFO: smooth output — MaxAbsDelta bounded by filter")
     // Skip very first samples (filter startup transient)
     //
     float maxDelta = TestContinuity::MaxAbsDelta(buf.data() + 100, n - 100);
-    // Filter at 0.05/48000 should limit jumps to << 0.01 per sample
+    // The 0.05 Hz filter should limit jumps to << 0.01 per sample
     //
     DOCTEST_CHECK(maxDelta < 0.01f);
 }
@@ -639,8 +639,8 @@ DOCTEST_TEST_CASE("QuadLFO: packed lanes match per-lane sine and slews through f
 
     QuadLFO lfo;
     QuadLFO::Input input;
-    QuadFloat phase(0.0f, 0.0f, 0.0f, 0.0f);
-    OPLowPassFilter slew[4];
+    QuadDouble phase(0.0, 0.0, 0.0, 0.0);
+    OPLowPassFilterDouble slew[4];
     for (size_t sample = 0; sample < 8192; ++sample)
     {
         input.m_freq = sample < 4096
@@ -653,22 +653,23 @@ DOCTEST_TEST_CASE("QuadLFO: packed lanes match per-lane sine and slews through f
 
         // Per-lane reference of the same channel-zero catch and offsets.
         //
+        QuadDouble freq = input.m_freq.Convert<double>();
         for (int i = 1; i < 4; ++i)
         {
-            if (input.m_freq[i] / input.m_freq[0] < 1.0001 && 0.9999 < input.m_freq[i] / input.m_freq[0])
+            if (freq[i] / freq[0] < 1.0001 && 0.9999 < freq[i] / freq[0])
             {
-                float toCatch = (std::abs(phase[i] - phase[0]) > 0.5 && phase[i] < phase[0]) ? phase[0] - 1 : phase[0];
-                phase[i] = (1 - 5 * input.m_freq[i]) * phase[i] + 5 * input.m_freq[i] * toCatch;
+                double toCatch = (std::abs(phase[i] - phase[0]) > 0.5 && phase[i] < phase[0]) ? phase[0] - 1 : phase[0];
+                phase[i] = (1 - 5 * freq[i]) * phase[i] + 5 * freq[i] * toCatch;
             }
         }
 
-        phase += input.m_freq;
+        phase += freq;
         phase = phase.ModOne();
-        QuadFloat offsetPhase = (phase + input.GetPhaseOffset()).ModOne();
+        QuadDouble offsetPhase = (phase + input.GetPhaseOffset().Convert<double>()).ModOne();
         for (int i = 0; i < 4; ++i)
         {
-            slew[i].SetAlphaFromNatFreq(input.m_freq[i] * 2);
-            float expected = slew[i].Process(Math::Sin2pi(offsetPhase[i]));
+            slew[i].SetAlphaFromNatFreq(freq[i] * 2);
+            double expected = slew[i].Process(static_cast<double>(Math::Sin2pi(static_cast<float>(offsetPhase[i]))))[0];
             DOCTEST_CHECK(lfo.m_output[i] == doctest::Approx(expected).epsilon(0.00001).scale(1.0));
         }
     }

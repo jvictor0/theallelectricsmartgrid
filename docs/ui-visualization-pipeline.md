@@ -92,11 +92,16 @@ units by dividing by its decimation. The reader and visualizer have no decimatio
 information.
 
 Control, quad control, global control, and mono writers use
-`ScopeWriter::x_controlDecimation` (8); audio, quad, source-mixer, and mono audio
-writers use `ScopeWriter::x_audioDecimation` (`SampleTimer::x_oversample`), so
-they store one value per host frame and FFT analyzers see cycles per host sample.
-Producers write host-rate signals where they exist (mixer output, Partial Machine
-input) and otherwise subsample the engine-rate signal on host frames. `SquiggleBoyWithEncoderBank::UIState::AdvanceScopeIndices()`
+`ScopeWriter::x_controlDecimation` (`8 * SampleTimer::x_oversample`), one value
+per 8 host frames at every ratio, so control histories keep their duration and
+write rate. Audio, quad, source-mixer, and mono audio writers use
+`ScopeWriter::x_audioDecimation` (`SampleTimer::x_oversample`), so they store one
+value per host frame and FFT analyzers see cycles per host sample. Producers
+write host-rate signals where they exist (mixer output, Partial Machine input)
+and otherwise subsample the engine-rate signal on host frames without an
+anti-alias filter. Voice audio scopes and the quad Dry and Sub scopes are
+subsampled this way, so their spectra fold engine-rate content above the host
+Nyquist into the display; the audio itself is decimated properly. `SquiggleBoyWithEncoderBank::UIState::AdvanceScopeIndices()`
 advances every writer once per engine sample, at the end of
 `TheNonagonSquiggleBoyInternal::ProcessSample`. It also stores `m_firstAudioSample`
 and `m_firstControlSample`, the engine samples of audio index 0 and control index
@@ -110,8 +115,9 @@ wrapped modulated global-loop phase on the mono writer's write samples, so it
 stores one phase per `x_controlDecimation` engine samples. The phase-modulation
 PolyXFader runs before the base advances, reading the crossings still held in
 `m_sample`. When it reports a top, the scope calls `RecordStart(offset)` with the
-top's fractional offset. For example, at writer index 100 and sub-index 2, an
-offset of `-0.5` engine samples is stored at `100 + 1.5 / 8 = 100.1875`.
+top's fractional offset. For example, with decimation 8, at writer index 100 and
+sub-index 2, an offset of `-0.5` engine samples is stored at
+`100 + 1.5 / 8 = 100.1875`.
 
 The producers of fractional tops and their scope capture are:
 

@@ -105,8 +105,9 @@ DOCTEST_TEST_CASE("PhysicalModeling: explicit release advances at the sample rat
     base.m_rawOutput = 1.0f;
     AHD::Input baseInput = rig.EnvelopeInput();
     baseInput.m_releaseFactor = 1.0f;
+    const size_t expectedFrames = static_cast<size_t>(SampleTimer::SecondsToSamples(0.01)) / PhysicalEnvelopeRig::x_frameSamples;
     size_t releaseFrames = 0;
-    for (; releaseFrames < 62 && rig.Envelope().m_state != AHD::State::Idle; ++releaseFrames)
+    for (; releaseFrames < expectedFrames + 2 && rig.Envelope().m_state != AHD::State::Idle; ++releaseFrames)
     {
         rig.ProcessFrame();
         for (size_t sample = 0; sample < PhysicalEnvelopeRig::x_frameSamples; ++sample)
@@ -118,8 +119,8 @@ DOCTEST_TEST_CASE("PhysicalModeling: explicit release advances at the sample rat
         DOCTEST_CHECK_FALSE(rig.EnvelopeInput().m_release);
     }
 
-    DOCTEST_CHECK(releaseFrames >= 60);
-    DOCTEST_CHECK(releaseFrames <= 61);
+    DOCTEST_CHECK(releaseFrames >= expectedFrames);
+    DOCTEST_CHECK(releaseFrames <= expectedFrames + 1);
     DOCTEST_CHECK(rig.Envelope().m_state == AHD::State::Idle);
     DOCTEST_CHECK(base.m_state == AHD::State::Idle);
 }

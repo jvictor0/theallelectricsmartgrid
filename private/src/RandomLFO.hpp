@@ -4,10 +4,13 @@
 #include "SampleTimer.hpp"
 #include <random>
 
+// The filter state is double: a 0.05 Hz one-pole at the engine rate stalls
+// short of its target in float.
+//
 struct RandomLFO
 {
     float m_trg;
-    OPLowPassFilter m_filter;
+    OPLowPassFilterDouble m_filter;
     int m_sampleCount;
     int m_samplesToChange;
     static std::mt19937 s_rng;
@@ -33,7 +36,7 @@ struct RandomLFO
         }
 
         m_filter.Process(m_trg);
-        return m_filter.m_output;
+        return static_cast<float>(m_filter.m_output[0]);
     }
 };
 

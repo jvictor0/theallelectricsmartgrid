@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include "../support/GlobalEnv.hpp"
+#include "../support/HostFrames.hpp"
 #include "SmartGridOneEncoders.hpp"
 
 namespace
@@ -36,7 +37,8 @@ struct TrioEncoderRig
 
     void Settle()
     {
-        for (size_t i = 0; i < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++i)
+        const size_t samples = hostframes::SamplesToHostFrameEnd(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+        for (size_t i = 0; i < samples; ++i)
         {
             SampleTimer::IncrementSample();
             m_encoders.Process();

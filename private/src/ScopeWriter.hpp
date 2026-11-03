@@ -9,12 +9,13 @@
 // Stores one value per m_decimation engine samples. Callers write and record
 // events every sample; writes between stored samples are dropped and event
 // offsets are converted to fractional indices. Audio scopes store one value
-// per host frame, so their spectra are in cycles per host sample.
+// per host frame, so their spectra are in cycles per host sample. Control
+// scopes store one value per 8 host frames at every rate.
 //
 struct ScopeWriter
 {
     static constexpr size_t x_bufferSize = 32 * 1024 * 1024;
-    static constexpr size_t x_controlDecimation = 8;
+    static constexpr size_t x_controlDecimation = 8 * SampleTimer::x_oversample;
     static constexpr size_t x_audioDecimation = SampleTimer::x_oversample;
     size_t m_voices;
     size_t m_scopes;

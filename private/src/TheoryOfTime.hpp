@@ -39,7 +39,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
             m_modIndex.SetBaseByCenter(1.0 / 16);
 
-            float paramFilterFreq = SampleTimer::HzToCycPerSamp(0.8);
+            double paramFilterFreq = SampleTimer::HzToCycPerSamp(0.8);
             m_lfoSkewFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoMultFilter.SetAlphaFromNatFreq(paramFilterFreq);
             m_lfoShapeFilter.SetAlphaFromNatFreq(paramFilterFreq);
@@ -48,12 +48,15 @@ struct TheoryOfTime : public TheoryOfTimeBase
             m_lfoIndexFilter.SetAlphaFromNatFreq(paramFilterFreq);
         }
 
-        OPLowPassFilter m_lfoSkewFilter;
-        OPLowPassFilter m_lfoMultFilter;
-        OPLowPassFilter m_lfoShapeFilter;
-        OPLowPassFilter m_lfoCenterFilter;
-        OPLowPassFilter m_lfoSlopeFilter;
-        OPLowPassFilter m_lfoIndexFilter;
+        // Double state: 0.8 Hz one-poles at the engine rate stall short of
+        // their targets in float.
+        //
+        OPLowPassFilterDouble m_lfoSkewFilter;
+        OPLowPassFilterDouble m_lfoMultFilter;
+        OPLowPassFilterDouble m_lfoShapeFilter;
+        OPLowPassFilterDouble m_lfoCenterFilter;
+        OPLowPassFilterDouble m_lfoSlopeFilter;
+        OPLowPassFilterDouble m_lfoIndexFilter;
 
         double m_freq;
         PolyXFaderInternal::Input m_phaseModLFOInput;

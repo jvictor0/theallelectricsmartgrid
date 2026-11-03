@@ -9,6 +9,10 @@
 
 namespace
 {
+// The fractional-offset expectations below are worked out for this decimation.
+//
+constexpr size_t x_decimation = 8;
+
 void WriteAt(ScopeWriter& writer, size_t scope, size_t voice, size_t index, float value)
 {
     size_t current = writer.m_index;
@@ -227,7 +231,7 @@ DOCTEST_TEST_CASE("ScopeReader: PolyXFader top reaches its control-rate scope be
     clock.m_unmodulatedPhase = 1.125;
     time.Process(clock);
 
-    auto writer = std::make_unique<ScopeWriter>(1, 1, ScopeWriter::x_controlDecimation);
+    auto writer = std::make_unique<ScopeWriter>(1, 1, x_decimation);
     for (size_t i = 0; i < 12; ++i)
     {
         WriteAt(*writer, 0, 0, i, 0.5f);
@@ -257,7 +261,7 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one phase per control sa
     input.m_freq = 1.0 / 32.0;
     input.m_modIndex.m_expParam = 0.0;
 
-    auto writer = std::make_unique<ScopeWriter>(1, 1, ScopeWriter::x_controlDecimation);
+    auto writer = std::make_unique<ScopeWriter>(1, 1, x_decimation);
     for (size_t index = 99; index < 113; ++index)
     {
         WriteAt(*writer, 0, 0, index, -1.0f);
@@ -269,7 +273,7 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one phase per control sa
     for (size_t block = 0; block < 5; ++block)
     {
         DOCTEST_CAPTURE(block);
-        for (size_t sample = 0; sample < ScopeWriter::x_controlDecimation; ++sample)
+        for (size_t sample = 0; sample < x_decimation; ++sample)
         {
             time.Process(input);
             writer->AdvanceIndex();
@@ -326,12 +330,12 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into decimat
             input.m_input[i].m_parentMult = 1;
         }
 
-        auto writer = std::make_unique<ScopeWriter>(1, 1, ScopeWriter::x_controlDecimation);
+        auto writer = std::make_unique<ScopeWriter>(1, 1, x_decimation);
         writer->m_index = 100;
         time.SetupMonoScopeWriter(writer.get());
         for (size_t block = 0; block < 2; ++block)
         {
-            for (size_t sample = 0; sample < ScopeWriter::x_controlDecimation; ++sample)
+            for (size_t sample = 0; sample < x_decimation; ++sample)
             {
                 time.Process(input);
                 writer->AdvanceIndex();
@@ -366,7 +370,7 @@ DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top on a stored sample keeps the pr
     clock.m_unmodulatedPhase = 1.125;
     time.Process(clock);
 
-    auto writer = std::make_unique<ScopeWriter>(1, 1, ScopeWriter::x_controlDecimation);
+    auto writer = std::make_unique<ScopeWriter>(1, 1, x_decimation);
     for (size_t i = 0; i < 21; ++i)
     {
         WriteAt(*writer, 0, 0, i, 0.5f);
@@ -389,7 +393,7 @@ DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top on a stored sample keeps the pr
 DOCTEST_TEST_CASE("ScopeReader: QuadLFO top lands between control samples")
 {
     GlobalEnv::ResetPerTest();
-    auto writer = std::make_unique<ScopeWriter>(4, 1, ScopeWriter::x_controlDecimation);
+    auto writer = std::make_unique<ScopeWriter>(4, 1, x_decimation);
     for (size_t voice = 0; voice < 4; ++voice)
     {
         for (size_t i = 0; i < 11; ++i)

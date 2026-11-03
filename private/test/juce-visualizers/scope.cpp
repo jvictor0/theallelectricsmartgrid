@@ -27,6 +27,16 @@ struct PeakedResponse : TransferFunction
     }
 };
 
+// Advances the writer to its next stored sample, so each write is stored.
+//
+void AdvanceStoredSample(ScopeWriter& writer)
+{
+    for (size_t i = 0; i < writer.m_decimation; ++i)
+    {
+        writer.AdvanceIndex();
+    }
+}
+
 template<typename Matches>
 float FindPeakX(const juce::Image& image, Matches matches)
 {
@@ -133,7 +143,7 @@ DOCTEST_TEST_CASE("Analyser: sub spectrum follows the trio and ignores the main 
             writer.Write(mainScope, trio * 3, 0.9f * std::sin(64 * phase));
         }
 
-        writer.AdvanceIndex();
+        AdvanceStoredSample(writer);
     }
 
     writer.Publish();
@@ -195,7 +205,7 @@ DOCTEST_TEST_CASE("Quad analyser: mix draws five separate colored spectra withou
             }
         }
 
-        writer.AdvanceIndex();
+        AdvanceStoredSample(writer);
     }
 
     writer.Publish();

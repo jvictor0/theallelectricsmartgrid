@@ -1,5 +1,6 @@
 #include "doctest.h"
 #include "../support/SynthRig.hpp"
+#include "../support/HostFrames.hpp"
 #include <utility>
 #include <vector>
 
@@ -10,14 +11,20 @@ using Encoders = SmartGridOneEncoders;
 using Param = Encoders::Param;
 using Cell = SmartGrid::BankedEncoderCell;
 
-void Settle(Encoders& encoders)
+void RunHostFrames(Encoders& encoders, size_t hostFrames)
 {
-    for (size_t sample = 0; sample < SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++sample)
+    const size_t samples = hostframes::SamplesToHostFrameEnd(hostFrames);
+    for (size_t sample = 0; sample < samples; ++sample)
     {
         SampleTimer::IncrementSample();
         encoders.m_encoderBankBank.m_context->m_sceneManager.Process();
         encoders.Process();
     }
+}
+
+void Settle(Encoders& encoders)
+{
+    RunHostFrames(encoders, SmartGrid::TickDistributor::x_maxSamplesToDistribute);
 }
 
 Cell& GetCell(Encoders& encoders, Param param, size_t trio)
@@ -182,8 +189,7 @@ DOCTEST_TEST_CASE("modulation matrix: scene changes resets and patch reloads rep
     for (float blend : {1.0f, 0.5f, 0.0f})
     {
         context.m_sceneManager.SetBlendFactor(blend);
-        context.m_sceneManager.Process();
-        encoders.Process();
+        RunHostFrames(encoders, 1);
         encoders.PopulateModulationMatrixUIState(&matrix);
         DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 1, modulatorId) == (blend < 1.0f));
     }
@@ -212,12 +218,12 @@ DOCTEST_TEST_CASE("modulation matrix: normal UI publication includes encoder edi
     auto& bank = encoders.m_encoderBankBank.m_banks[static_cast<size_t>(encoders.m_selectedBank)];
     bank.MakeSelection(2, 1, bank.GetBase(2, 1));
     encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(2, 1, 0.75f));
-    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     internal.PopulateUIState();
     DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 2, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 1, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
     encoders.Apply(SmartGrid::MessageIn::EncoderSetMsg(2, 1, 0.5f));
-    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     internal.PopulateUIState();
     // The 14-bit absolute-set format cannot represent exactly 0.5. Its small
     // positive depth still affects the parameter, just as the badge reports.
@@ -226,7 +232,7 @@ DOCTEST_TEST_CASE("modulation matrix: normal UI publication includes encoder edi
     bank.m_context->m_sceneManager.m_shift = true;
     encoders.Apply(SmartGrid::MessageIn(SmartGrid::MessageIn::Mode::EncoderPush, 2, 1));
     bank.m_context->m_sceneManager.m_shift = false;
-    rig.RunSamples(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+    rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     internal.PopulateUIState();
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 2, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
 }

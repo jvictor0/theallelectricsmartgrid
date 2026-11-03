@@ -1,6 +1,6 @@
 // Effect and I/O rate boundaries, written against SampleTimer::x_oversample.
-// The core suite runs them at ratio 1; smartgrid_host_rate_tests runs the
-// same cases at ratio 4.
+// The core suite runs them at the production ratio;
+// smartgrid_passthrough_rate_tests runs the same cases at ratio 1.
 //
 #include "doctest.h"
 
