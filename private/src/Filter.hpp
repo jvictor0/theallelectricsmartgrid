@@ -2,6 +2,7 @@
 
 #include "AsyncLogger.hpp"
 #include "QuadUtils.hpp"
+#include "SampleTimer.hpp"
 #include "TransferFunction.hpp"
 #include <atomic>
 #include <cmath>
@@ -210,6 +211,12 @@ using QuadOPHighPassFilter = OPHighPassFilterGeneric<float, 4>;
 //
 struct DampingFilter
 {
+    // Base frequency range of the delay and reverb damping filters, in Hz, so
+    // the damping keeps its physical frequencies at any engine rate.
+    //
+    static constexpr double x_minBaseHz = SampleTimer::CycPerHostSampToHz(1.0 / 2048.0);
+    static constexpr double x_maxBaseHz = SampleTimer::CycPerHostSampToHz(0.5);
+
     struct UIState : TransferFunction
     {
         std::atomic<float> m_hpAlpha;

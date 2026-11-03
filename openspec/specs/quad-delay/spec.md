@@ -6,7 +6,11 @@ The Quad Delay (`QuadDelay` and `QuadDelayInputSetter` in `private/src/QuadDelay
 ## Requirements
 
 ### Requirement: Time-Warped Delay Line with Movable Write Head
-The system SHALL write each input sample into a `QuadDelayLineMovableWriter` of 2^24 samples per channel at the warped-time write head position supplied per channel, and SHALL maintain a parallel inverse buffer (`m_writeHeadInverse`) that maps integer warped-time coordinates back to the wall-clock sample time at which they occurred. Audio is stored indexed by wall-clock time; reads first convert a warped-time position to wall-clock time through the inverse buffer (`GetRealTime`) and then read the audio buffer at that wall-clock index with cubic interpolation.
+The system SHALL saturate each engine-rate input sample, decimate it through an order-8 Butterworth `DownsamplerGeneric`, and write the decimated sample once per host frame into a `QuadDelayLineMovableWriter` of 2^24 host samples per channel at the warped-time write head position supplied per channel, in host samples, and SHALL maintain a parallel inverse buffer (`m_writeHeadInverse`) that maps integer warped-time coordinates back to the wall-clock sample time at which they occurred. Audio is stored indexed by wall-clock time; reads first convert a warped-time position to wall-clock time through the inverse buffer (`GetRealTime`) and then read the audio buffer at that wall-clock index with cubic interpolation.
+
+#### Scenario: One write per host frame
+- **WHEN** the delay processes `4096 * x_oversample` engine samples
+- **THEN** the delay line's wall-clock time advances by 4096 host samples
 
 #### Scenario: Inverse buffer is populated by scattering
 - **WHEN** the warped-time write head ascends across one or more integer warped-time values
@@ -17,11 +21,11 @@ The system SHALL write each input sample into a `QuadDelayLineMovableWriter` of 
 - **THEN** audio continues to be recorded at the wall-clock index, but the inverse buffer is not updated until warped time ascends again, and the turnaround warped time is recorded when ascent resumes
 
 ### Requirement: Write Head Continuity via Glue Offset
-The write head SHALL be computed per channel by `WriteTapeHead` as `unwound master phase * masterLoopSamples + glue`, where the additive glue offset preserves continuity of the absolute write position across transport state and tempo-scale changes. While the transport is stopped the write head advances by exactly one sample per sample and the glue is re-derived each sample; when the running state or the master loop length changes, the glue is re-anchored so the write head does not jump.
+The write head SHALL be computed per channel by `WriteTapeHead` as `unwound master phase * masterLoopSamples + glue`, in host samples, where `masterLoopSamples` is the Theory of Time global period divided by `x_oversample` and the additive glue offset preserves continuity of the absolute write position across transport state and tempo-scale changes. While the transport is stopped the write head advances by `1 / x_oversample` host samples per engine sample and the glue is re-derived each sample; when the running state or the master loop length changes, the glue is re-anchored so the write head does not jump.
 
 #### Scenario: Transport stop freezes warped time but not recording
 - **WHEN** the Theory of Time stops running
-- **THEN** the write head continues to advance by 1.0 per sample from its current position
+- **THEN** the write head continues to advance by one host sample per host frame from its current position
 - **AND** when the transport resumes, the glue offset makes the theory-derived position continuous with the position reached during the stop
 
 #### Scenario: Master loop length change does not jump the head
@@ -62,7 +66,7 @@ The read head SHALL be computed per channel by `ReadTapeHead` as `writeHead * re
 - **THEN** each channel's effective delay scales by its own widener ratio (exponential interpolation from 1.0 toward per-channel constants approximately 0.9786, 1.0, 0.9868, and 0.9897), slightly decorrelating the four delay lengths
 
 ### Requirement: Pitch-Preserving Grain Resynthesis
-The system SHALL read the delay line through a per-channel `GrainManager` rather than directly: every hop interval (`Resynthesizer::GetGrainLaunchSamples()`, 1024 samples), a new 4096-sample Hann-windowed grain is captured starting at the wall-clock time mapped from the current read head warped time, along with a second analysis frame exactly one hop earlier, and resynthesized by the `Resynthesizer` so the original pitch is preserved regardless of read head rate (phase-vocoder internals are specified in phase-vocoder). Active grain outputs are summed, each scaled by 1/1.5.
+The system SHALL read the delay line through a quad `GrainManager` rather than directly: every synthesis hop (`Resynthesizer::GetSynthesisHopSamples()`, 1024 * `x_oversample` engine samples, the duration of the 1024-host-sample analysis hop), a new 4096-host-sample Hann-windowed grain is captured starting at the wall-clock time mapped from the current read head warped time, along with a second analysis frame exactly one hop earlier, and resynthesized by the `Resynthesizer` into an engine-rate frame so the original pitch is preserved regardless of read head rate (phase-vocoder internals are specified in phase-vocoder). Frames are overlap-added by `OLAGeneric` and the sum is scaled by 1/1.5.
 
 #### Scenario: Pitch is stable under time warping
 - **WHEN** Theory of Time phase modulation makes the read head move through the buffer at a varying rate
@@ -70,14 +74,14 @@ The system SHALL read the delay line through a per-channel `GrainManager` rather
 
 #### Scenario: LFO modulation offsets grain start positions
 - **WHEN** the modulation depth knob is above zero
-- **THEN** each grain's wall-clock start time is offset by `lfoOutput * 1000 * modDepth` samples per channel, with the LFO frequency set by the modulation frequency knob (exponential range 0.05 Hz to 51.2 Hz at 48 kHz)
+- **THEN** each grain's wall-clock start time is offset by `lfoOutput * 1000 * modDepth` host samples per channel, with the LFO frequency set by the modulation frequency knob (exponential range 0.05 Hz to 51.2 Hz)
 
-#### Scenario: Grain pool exhaustion is non-fatal
-- **WHEN** all 1024 grains of a channel's fixed allocator are in use at a launch point
-- **THEN** no new grain starts for that hop and processing of existing grains continues
+#### Scenario: Grain storage is bounded
+- **WHEN** grains launch on every synthesis hop
+- **THEN** their output accumulates in one preallocated overlap-add ring of `4096 * x_oversample` quad frames, with no per-grain allocation
 
 ### Requirement: Pitch Shift, Unison, and Per-Partial Slew Controls
-The system SHALL forward per-channel resynthesis controls to the grain resynthesizer: a pitch-shift ratio selected from ten just-intonation ratios {1/2, 2/3, 3/4, 3/5, 4/5, 5/4, 5/3, 4/3, 3/2, 2/1}, a shift fade amount crossfading shifted synthesis against unshifted, a unison detune ratio (exponential, up to 1.03) with a unison gain that reaches full level by one tenth of the unison knob's travel, and a per-partial slew-up rate mapped exponentially from 0.5 down to 0.25/1024 per sample as the slew-up knob increases (higher knob values produce a slower spectral bloom).
+The system SHALL forward per-channel resynthesis controls to the grain resynthesizer: a pitch-shift ratio selected from ten just-intonation ratios {1/2, 2/3, 3/4, 3/5, 4/5, 5/4, 5/3, 4/3, 3/2, 2/1}, a shift fade amount crossfading shifted synthesis against unshifted, a unison detune ratio (exponential, up to 1.03) with a unison gain that reaches full level by one tenth of the unison knob's travel, and a per-partial slew-up rate mapped exponentially from 0.5 down to 0.25/1024 per host sample as the slew-up knob increases (higher knob values produce a slower spectral bloom).
 
 #### Scenario: Shift selection is a musical ratio
 - **WHEN** the resynthesis shift switch selects index 8
@@ -85,10 +89,10 @@ The system SHALL forward per-channel resynthesis controls to the grain resynthes
 
 #### Scenario: Slew-up knob slows partial fade-in
 - **WHEN** the slew-up knob is at maximum and a new grain starts
-- **THEN** each partial's synthesis magnitude rises toward its analysis magnitude at 0.25/1024 per sample (full rise spread over thousands of samples) instead of appearing at full magnitude immediately
+- **THEN** each partial's synthesis magnitude rises toward its analysis magnitude at 0.25/1024 per host sample (full rise spread over thousands of samples) instead of appearing at full magnitude immediately
 
 ### Requirement: Feedback Path with Saturation and Band-Pass Damping
-The system SHALL form the delay line input as `input + return * feedback` per channel, where the return is the delay's own previous output, the feedback gain is the feedback knob mapped through a zeroed exponential curve and scaled by 1.25 (values above 1.0 permit self-oscillation), and the sum is passed through a tanh saturator before being written. The output side SHALL pass the rotated, resynthesized signal through a `PostFeedbackFilter` band-pass (one-pole high-pass plus low-pass per channel) whose base and width are exponential mappings of the damping knobs (base 1/2048 to 0.5 normalized frequency, width 1 to 2048).
+The system SHALL form the delay line input as `input + return * feedback` per channel, where the return is the delay's own previous output, the feedback gain is the feedback knob mapped through a zeroed exponential curve and scaled by 1.25 (values above 1.0 permit self-oscillation), and the sum is passed through a tanh saturator before being written. The output side SHALL pass the rotated, resynthesized signal through a `PostFeedbackFilter` band-pass (one-pole high-pass plus low-pass per channel) whose base and width are exponential mappings of the damping knobs (base `DampingFilter::x_minBaseHz` to `x_maxBaseHz`, i.e. 1/2048 to 0.5 cycles per host sample (23.4375 Hz to 24 kHz at 48 kHz), converted to cycles per engine sample; width 1 to 2048).
 
 #### Scenario: Feedback above unity is bounded by saturation
 - **WHEN** the feedback knob is at maximum (effective gain 1.25)

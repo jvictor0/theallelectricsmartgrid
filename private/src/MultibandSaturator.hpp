@@ -5,6 +5,7 @@
 #include "LinkwitzRileyCrossover.hpp"
 #include "PhaseUtils.hpp"
 #include "Metering.hpp"
+#include "SampleTimer.hpp"
 #include <complex>
 
 template<size_t NumBands, size_t NumChannels>
@@ -104,7 +105,12 @@ struct MultibandSaturator
             m_masterGain = PhaseUtils::ExpParam(1.0 / 4.0f, 2.0f);
             m_masterGain.m_expParam = 1.0;
 
-            m_bassFreq = PhaseUtils::ExpParam(0.5 / 1024.0f, 0.5 / (std::pow(1024, static_cast<float>(NumBands - 2) / (NumBands - 1))));
+            // The crossover range is defined in cycles per host sample, so it keeps
+            // its frequencies in Hz at any engine rate.
+            //
+            m_bassFreq = PhaseUtils::ExpParam(
+                SampleTimer::HzToCycPerSamp(SampleTimer::CycPerHostSampToHz(0.5 / 1024.0f)),
+                SampleTimer::HzToCycPerSamp(SampleTimer::CycPerHostSampToHz(0.5 / (std::pow(1024, static_cast<float>(NumBands - 2) / (NumBands - 1))))));
             m_bassFreq.Update(0.5);
 
             for (size_t i = 0; i < NumBands - 2; ++i)

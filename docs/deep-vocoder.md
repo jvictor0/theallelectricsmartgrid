@@ -6,7 +6,7 @@ While a traditional vocoder imposes the amplitude envelope of an analysis signal
 
 ## Spectral Analysis
 
-The Deep Vocoder maintains a rolling buffer of incoming audio. Every hop (`x_H` samples), it performs a spectral analysis (`m_spectralModel.ExtractAtoms`).
+The Deep Vocoder runs at the host rate inside. It decimates its engine-rate input with an order-8 Butterworth `DownsamplerGeneric` and maintains a rolling buffer of host-rate audio. Every hop (`x_H` host samples), it performs a spectral analysis (`m_spectralModel.ExtractAtoms`). Atom frequencies are in cycles per host sample; `EngineOmega` divides them by `SampleTimer::x_oversample` wherever they meet voice pitches, which are in cycles per engine sample.
 - It extracts a set of "atoms" (spectral partials/peaks) representing the prominent frequencies and magnitudes present in the input signal at that moment.
 - There is no attempt to perform traditional pitch tracking or identify a single fundamental frequency. Instead, *any* sufficiently prominent partial is considered a valid target.
 

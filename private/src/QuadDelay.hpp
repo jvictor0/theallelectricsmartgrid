@@ -6,6 +6,7 @@
 #include "QuadLFO.hpp"
 #include "Filter.hpp"
 #include "Saturator.hpp"
+#include "Oversample.hpp"
 #include "PhaseUtils.hpp"
 #include "TheoryOfTime.hpp"
 #include "TapeHead.hpp"
@@ -29,10 +30,19 @@ struct QuadDelay
         }
     };
     
+    // The delay line, its positions and the sample-offset modulation are in
+    // host samples. The saturated input and feedback are decimated and written
+    // once per host frame; grains play back at the engine rate.
+    //
+    static constexpr size_t x_oversample = SampleTimer::x_oversample;
     static constexpr size_t x_delayLineSize = 1 << 24;
     static constexpr size_t x_positionalBufferSize = 1024;
+    static constexpr float x_modulationHostSamples = 1000.0f;
     using Writer = QuadDelayLineMovableWriter<x_delayLineSize>;
+    using WriteDecimator = DownsamplerGeneric<float, 4, 8, x_oversample>;
     Writer m_delayLine;
+    WriteDecimator m_writeDecimator;
+    size_t m_writeSubSample;
     QuadGrainManager<Writer> m_grainManager;
     QuadLFO m_lfo;
 
@@ -45,7 +55,8 @@ struct QuadDelay
     QuadFloat m_output;
 
     QuadDelay()
-        : m_grainManager(&m_delayLine)
+        : m_writeSubSample(0)
+        , m_grainManager(&m_delayLine)
         , m_saturator(0.5f)
         , m_output()
     {
@@ -157,9 +168,15 @@ struct QuadDelay
         QuadFloat retrn = input.m_return;
         qInput = qInput + retrn * input.m_feedback;
         qInput = m_saturator.Process(qInput);
-        m_delayLine.Write(qInput, input.m_writeHeadPosition);
+        m_writeDecimator.Process(qInput);
+        ++m_writeSubSample;
+        if (m_writeSubSample == x_oversample)
+        {
+            m_writeSubSample = 0;
+            m_delayLine.Write(m_writeDecimator.GetOutput(), input.m_writeHeadPosition);
+        }
 
-        QuadFloat sampleOffset = m_lfo.m_output * 1000 * input.m_modDepth;
+        QuadFloat sampleOffset = m_lfo.m_output * x_modulationHostSamples * input.m_modDepth;
         QuadFloat delayedSignal = m_grainManager.Process(input.m_readHeadPosition, sampleOffset, input.m_grainManagerInput, m_delayLine.m_lastTime - 1.0);
 
         m_output = m_postFeedbackFilter.Process(input.TransformOutput(delayedSignal));
@@ -242,7 +259,7 @@ struct QuadDelayInputSetter
     };
 
     QuadDelayInputSetter()
-      : m_dampingBase(1.0 / 2048.0, 0.5)
+      : m_dampingBase(SampleTimer::HzToCycPerSamp(DampingFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(DampingFilter::x_maxBaseHz))
       , m_dampingWidth(1.0, 2048.0)
       , m_modFreq(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05))
       , m_wideners
@@ -271,7 +288,7 @@ struct QuadDelayInputSetter
         WriteTapeHead::Input writeInput;
         writeInput.m_theoryOfTime = input.m_theoryOfTime;
         writeInput.m_running = input.m_theoryOfTime->m_sample.m_running;
-        writeInput.m_globalPeriodSamples = input.m_theoryOfTime->m_globalPeriodSamples;
+        writeInput.m_globalPeriodSamples = input.m_theoryOfTime->m_globalPeriodSamples / static_cast<double>(SampleTimer::x_oversample);
         m_writeTapeHead.Update(writeInput);
 
         double writeHeadPosition = m_writeTapeHead.m_actualPosition;

@@ -79,6 +79,32 @@ std::shared_ptr<AudioBufferBank> MakeSineBank(size_t length, double cyclesPerSam
 
 }
 
+DOCTEST_TEST_CASE("MultiChannelNumber: trio stores a dummy fourth lane")
+{
+    static_assert(TrioFloat::x_numChannels == 3, "trio keeps three channels");
+    static_assert(TrioFloat::x_numLanes == 4, "trio pads to four lanes");
+    static_assert(sizeof(TrioFloat) == 4 * sizeof(float), "trio storage is one full vector");
+    static_assert(sizeof(TrioFloat::Vector) == sizeof(TrioFloat), "trio vector covers its storage");
+    static_assert(MultiChannelNumber<float, 4>::x_numLanes == 4, "quad has no padding");
+
+    // A different dummy lane must not change channel comparisons or sums.
+    //
+    TrioFloat a(1.0f, 2.0f, 3.0f);
+    TrioFloat b = a;
+    b.m_values[3] = 100.0f;
+    DOCTEST_CHECK(a == b);
+    DOCTEST_CHECK(b.Sum() == 6.0f);
+    DOCTEST_CHECK(b.Average() == 2.0f);
+
+    const float source[3] = {4.0f, 5.0f, 6.0f};
+    TrioFloat loaded(source);
+    DOCTEST_CHECK(loaded == TrioFloat(4.0f, 5.0f, 6.0f));
+    DOCTEST_CHECK(loaded.m_values[3] == 0.0f);
+
+    TrioFloat product = (a + b) * TrioFloat::Splat(0.5f);
+    DOCTEST_CHECK(product == a);
+}
+
 DOCTEST_TEST_CASE("MultiChannelNumber: fast Log2 tracks std::log2")
 {
     double maxError = 0.0;

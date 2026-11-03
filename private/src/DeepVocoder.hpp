@@ -4,13 +4,20 @@
 #include "SpectralModel.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
+#include "Oversample.hpp"
 #include "TheNonagon.hpp"
 #include "AHD.hpp"
 #include <atomic>
 #include <limits>
 
+// Analysis runs at the host rate: the engine-rate input is decimated inside,
+// and atom frequencies stay in cycles per host sample. Voice pitches are in
+// cycles per engine sample; the UI state uses cycles per host sample.
+//
 struct DeepVocoder
 {
+    static constexpr size_t x_oversample = SampleTimer::x_oversample;
+    using InputDecimator = DownsamplerGeneric<float, 1, 8, x_oversample>;
     static constexpr size_t x_tableSize = SpectralModel::x_tableSize;
     static constexpr size_t x_maxComponents = SpectralModel::x_maxComponents;
     static constexpr size_t x_H = SpectralModel::x_H;
@@ -82,7 +89,8 @@ struct DeepVocoder
     };
 
     DeepVocoder()
-        : m_buffer{}
+        : m_inputSubSample(0)
+        , m_buffer{}
         , m_index(0)
     {
         for (size_t i = 0; i < x_tableSize; ++i)
@@ -91,7 +99,23 @@ struct DeepVocoder
         }
     }
 
+    static float EngineOmega(const SpectralModel::Atom* atom)
+    {
+        return atom->m_synthesisOmega / static_cast<float>(x_oversample);
+    }
+
     void Process(float inputSample, const Input& input)
+    {
+        m_inputDecimator.Process(InputDecimator::Vector::Splat(inputSample));
+        ++m_inputSubSample;
+        if (m_inputSubSample == x_oversample)
+        {
+            m_inputSubSample = 0;
+            ProcessHostFrame(m_inputDecimator.GetOutput()[0], input);
+        }
+    }
+
+    void ProcessHostFrame(float inputSample, const Input& input)
     {
         m_buffer[m_index % x_tableSize] = inputSample;
         ++m_index;
@@ -132,7 +156,7 @@ struct DeepVocoder
 
         float thresh = MagnitudeThreshold(
             m_voiceState[index].m_pitchCenter * m_voiceState[index].m_pitchRatioPre,
-            m_voiceState[index].m_atom->m_synthesisOmega,
+            EngineOmega(m_voiceState[index].m_atom),
             m_voiceState[index].m_slopeUp,
             m_voiceState[index].m_slopeDown,
             m_voiceState[index].m_gainThreshold);
@@ -167,7 +191,7 @@ struct DeepVocoder
             SpectralModel::Atom* atom = m_spectralModel.m_atoms[i];
             float threshold = MagnitudeThreshold(
                 targetOmega, 
-                atom->m_synthesisOmega, 
+                EngineOmega(atom), 
                 m_voiceState[index].m_slopeUp, 
                 m_voiceState[index].m_slopeDown, 
                 m_voiceState[index].m_gainThreshold);
@@ -191,7 +215,7 @@ struct DeepVocoder
             return targetOmega * m_voiceState[index].m_pitchRatioPost;
         }
 
-        return bestAtom->m_synthesisOmega * m_voiceState[index].m_pitchRatioPost;
+        return EngineOmega(bestAtom) * m_voiceState[index].m_pitchRatioPost;
     }
 
     struct VoiceState
@@ -327,7 +351,7 @@ struct DeepVocoder
             uiState->m_voiceUIState[i].m_threshold.store(m_voiceState[i].m_gainThreshold);
             uiState->m_voiceUIState[i].m_slopeUp.store(m_voiceState[i].m_slopeUp);
             uiState->m_voiceUIState[i].m_slopeDown.store(m_voiceState[i].m_slopeDown);
-            uiState->m_voiceUIState[i].m_pitchCenter.store(m_voiceState[i].m_pitchCenter * m_voiceState[i].m_pitchRatioPre);
+            uiState->m_voiceUIState[i].m_pitchCenter.store(m_voiceState[i].m_pitchCenter * m_voiceState[i].m_pitchRatioPre * static_cast<float>(x_oversample));
             
             if (m_voiceState[i].m_atom != nullptr)
             {
@@ -355,6 +379,8 @@ struct DeepVocoder
     }
 
     SpectralModel m_spectralModel;
+    InputDecimator m_inputDecimator;
+    size_t m_inputSubSample;
     float m_buffer[x_tableSize];
     size_t m_index;
     VoiceState m_voiceState[x_numVoices];

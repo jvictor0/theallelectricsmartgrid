@@ -52,6 +52,12 @@ struct SquiggleBoy
 
     static_assert(x_voicesPerTrack == 3, "tracks are trios");
 
+    // Host-rate audio input is interpolated to the engine rate for the
+    // source mixer. The mixer decimates the output to the host rate.
+    //
+    static constexpr size_t x_oversample = SampleTimer::x_oversample;
+    using InputUpsampler = UpsamplerGeneric<float, SourceMixer::x_numPhysicalInputChannels, 8, x_oversample>;
+
     struct MixerInput : QuadMixerInternal::Input
     {
         ScopeWriterHolder m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::NumScopes)];
@@ -87,6 +93,9 @@ struct SquiggleBoy
 
     QuadFloatWithStereoAndSub m_output;
 
+    InputUpsampler m_inputUpsampler;
+    size_t m_inputSubSample;
+
     SquiggleBoyVoiceConfig m_voiceConfig[x_numVoices];
     SquiggleBoyTrack::Input m_trackState[x_numTracks];
     GangedRandomLFOInput m_gangedRandomLFOInput[x_numGangedRandomLFOs];
@@ -119,6 +128,7 @@ struct SquiggleBoy
         , m_stateSaver(stateSaver)
         , m_ioTaskThread(nullptr)
     {
+        m_inputSubSample = 0;
         m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numOutputChannels;
         m_mixerState.m_numMonoInputs = x_numVoices;
         m_theoryOfTime = nullptr;
@@ -288,9 +298,41 @@ struct SquiggleBoy
         ProcessWaveTableGenerators();
     }
 
+    // The host input holds for the x_oversample engine samples of its frame.
+    //
+    AudioInputBuffer UpsampleInputs(const AudioInputBuffer& hostInput)
+    {
+        if (m_inputSubSample == 0)
+        {
+            InputUpsampler::Vector lanes;
+            for (size_t i = 0; i < SourceMixer::x_numPhysicalInputChannels; ++i)
+            {
+                lanes[i] = i < hostInput.m_numInputs ? hostInput.m_input[i] : 0.0f;
+            }
+
+            m_inputUpsampler.Push(lanes);
+        }
+
+        ++m_inputSubSample;
+        if (m_inputSubSample == x_oversample)
+        {
+            m_inputSubSample = 0;
+        }
+
+        InputUpsampler::Vector lanes = m_inputUpsampler.Process();
+        AudioInputBuffer result;
+        result.m_numInputs = std::min(hostInput.m_numInputs, SourceMixer::x_numPhysicalInputChannels);
+        for (size_t i = 0; i < result.m_numInputs; ++i)
+        {
+            result.m_input[i] = lanes[i];
+        }
+
+        return result;
+    }
+
     void ProcessSample(const AudioInputBuffer& audioInputBuffer, const bool* sourceMonitor, bool transportRunning)
     {
-        m_sourceMixerState.SetInputs(audioInputBuffer);
+        m_sourceMixerState.SetInputs(UpsampleInputs(audioInputBuffer));
 
         if (m_firstFrame)
         {
@@ -713,14 +755,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
 
         UIState()
-            : m_audioScopeWriter(x_numVoices, static_cast<size_t>(SmartGridOne::AudioScopes::NumScopes))
+            : m_audioScopeWriter(x_numVoices, static_cast<size_t>(SmartGridOne::AudioScopes::NumScopes), ScopeWriter::x_audioDecimation)
             , m_controlScopeWriter(x_numVoices, static_cast<size_t>(SmartGridOne::ControlScopes::NumScopes), ScopeWriter::x_controlDecimation)
-            , m_quadScopeWriter(4, static_cast<size_t>(SmartGridOne::QuadScopes::NumScopes))
+            , m_quadScopeWriter(4, static_cast<size_t>(SmartGridOne::QuadScopes::NumScopes), ScopeWriter::x_audioDecimation)
             , m_quadControlScopeWriter(4, static_cast<size_t>(SmartGridOne::QuadControlScopes::NumScopes), ScopeWriter::x_controlDecimation)
             , m_globalControlScopeWriter(1, static_cast<size_t>(SmartGridOne::GlobalControlScopes::NumScopes), ScopeWriter::x_controlDecimation)
-            , m_sourceMixerScopeWriter(SourceMixer::x_numSources, static_cast<size_t>(SmartGridOne::SourceScopes::NumScopes))
+            , m_sourceMixerScopeWriter(SourceMixer::x_numSources, static_cast<size_t>(SmartGridOne::SourceScopes::NumScopes), ScopeWriter::x_audioDecimation)
             , m_monoScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoScopes::NumScopes), ScopeWriter::x_controlDecimation)
-            , m_monoAudioScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoAudioScopes::NumScopes))
+            , m_monoAudioScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoAudioScopes::NumScopes), ScopeWriter::x_audioDecimation)
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {
@@ -731,7 +773,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void AdvanceScopeIndices()
         {
-            if (m_audioScopeWriter.m_index == 0)
+            if (m_audioScopeWriter.m_index == 0 && m_audioScopeWriter.IsWriteSample())
             {
                 m_firstAudioSample.store(SampleTimer::GetSample());
             }

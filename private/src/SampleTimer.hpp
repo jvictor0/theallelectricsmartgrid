@@ -10,6 +10,8 @@ struct SampleTimer
 {
     static constexpr size_t x_hostSampleRate = 48000;
     static constexpr size_t x_oversample = 1;
+    static constexpr size_t x_oversampleBits = x_oversample == 1 ? 0 : x_oversample == 2 ? 1 : x_oversample == 4 ? 2 : 3;
+    static_assert((static_cast<size_t>(1) << x_oversampleBits) == x_oversample, "The engine runs a power-of-two multiple of the host rate");
     static constexpr size_t x_sampleRate = x_hostSampleRate * x_oversample;
     static constexpr double x_samplePeriod = 1.0 / static_cast<double>(x_sampleRate);
     static constexpr double x_hostSamplePeriod = 1.0 / static_cast<double>(x_hostSampleRate);

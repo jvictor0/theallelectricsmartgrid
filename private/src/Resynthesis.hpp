@@ -9,6 +9,7 @@
 #include "Math.hpp"
 #include "Array.hpp"
 #include "MultiChannelComplex.hpp"
+#include "SampleTimer.hpp"
 #include "SpectralModel.hpp"
 
 // Controls for one oscillator of one channel.
@@ -135,31 +136,13 @@ struct ResynthesizerGeneric
     static constexpr size_t x_N = x_tableSize;
     static constexpr size_t x_H = x_N / x_hopDenom;
 
-    struct Grain
-    {
-        Vector Process()
-        {                
-            Vector value = m_buffer.m_table[m_index];
-            ++m_index;
-            if (m_index == x_tableSize)
-            {
-                m_running = false;
-            }
-
-            return value;
-        }
-
-        void Start()
-        {
-            m_index = 0;
-            m_running = true;
-            MathGeneric<x_bits>::Hann(m_buffer);
-        }
-
-        size_t m_index;
-        Buffer m_buffer;
-        bool m_running;
-    };
+    // Analysis runs on host-rate buffers. Synthesis interpolates the same
+    // spectrum to the engine rate, so a frame covers the analysis window's
+    // duration in engine samples.
+    //
+    static constexpr size_t x_synthesisBits = x_bits + SampleTimer::x_oversampleBits;
+    using SynthesisFrame = BasicWaveTableGeneric<Number, Size, x_synthesisBits>;
+    static constexpr size_t x_synthesisFrameSize = SynthesisFrame::x_tableSize;
 
     // Phase propagation order for one channel.
     //
@@ -772,9 +755,10 @@ struct ResynthesizerGeneric
         PrimePhases(m_analysisDft);
     }        
 
-    // One input per channel.
+    // Analyzes a Hann-windowed host-rate buffer and writes the Hann-windowed
+    // engine-rate synthesis frame. One input per channel.
     //
-    void StartGrain(Grain* grain, Input* input)
+    void Synthesize(Buffer& buffer, SynthesisFrame& frame, Input* input)
     {        
         Vector slewUp;
         for (size_t channel = 0; channel < Size; ++channel)
@@ -784,7 +768,7 @@ struct ResynthesizerGeneric
 
         SetSlewUp(slewUp);
 
-        Analyze(m_pvdr, grain->m_buffer);
+        Analyze(m_pvdr, buffer);
                 
         for (size_t i = 0; i < x_numOscillators; ++i)
         {
@@ -811,16 +795,16 @@ struct ResynthesizerGeneric
 
         //SpectralDistortion(m_synthDft, input[0]);
 
-        m_synthDft.InverseTransform(grain->m_buffer, x_maxComponents, m_workspace);
-        grain->Start();
+        m_synthDft.InverseTransform(frame, x_maxComponents, m_workspace);
+        MathGeneric<x_synthesisBits>::Hann(frame);
     }
 
     // One input per channel.
     //
-    void Process(Buffer& previousWaveTable, Grain* grain, Input* input)
+    void Process(Buffer& previousWaveTable, Buffer& buffer, SynthesisFrame& frame, Input* input)
     {
         PrimeAnalysis(previousWaveTable);
-        StartGrain(grain, input);
+        Synthesize(buffer, frame, input);
     }
 
     void PrintTopStuff()
@@ -851,9 +835,18 @@ struct ResynthesizerGeneric
         }
     }
 
+    // Analysis hop in host samples.
+    //
     static constexpr size_t GetGrainLaunchSamples()
     {
         return x_H;
+    }
+
+    // Synthesis hop in engine samples: the analysis hop's duration.
+    //
+    static constexpr size_t GetSynthesisHopSamples()
+    {
+        return x_H * SampleTimer::x_oversample;
     }
 
     Vector m_synthesisMagnitudes[x_maxComponents];
@@ -867,7 +860,9 @@ struct ResynthesizerGeneric
     PVDR m_pvdr[Size];
     DFT m_analysisDft;
     DFT m_synthDft;
-    ComplexVector m_workspace[x_tableSize];
+    // Shared by the analysis transform and the larger synthesis transform.
+    //
+    ComplexVector m_workspace[x_synthesisFrameSize];
 };
 
 using Resynthesizer = ResynthesizerGeneric<float, 1>;

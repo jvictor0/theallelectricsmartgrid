@@ -18,7 +18,7 @@ The Partial Machine return is mixed into the main quad output, and it can feed t
 
 ## Analysis and Resynthesis
 
-The processor sums each quad sample to mono and writes it into a 4096-sample analysis buffer. Every 1024 samples, it Hann-windows the buffer and calls `SpectralModelGeneric<12, FrequencyDependentParameter>::ExtractAtomsAndResidual`. Peak frequencies are interpolated between bins; magnitude and frame-start phase are fitted against the same Hann kernel used to write partials. Each fitted partial is subtracted immediately from the analysis spectrum. The remaining bin magnitudes feed the smoothed residual model.
+The processor sums each engine-rate quad sample to mono and decimates it with an order-8 Butterworth `DownsamplerGeneric`, writing one sample per host frame into a 4096-host-sample analysis buffer. Every 1024 host samples, it Hann-windows the buffer and calls `SpectralModelGeneric<12, FrequencyDependentParameter>::ExtractAtomsAndResidual`. Peak frequencies are interpolated between bins; magnitude and frame-start phase are fitted against the same Hann kernel used to write partials. Each fitted partial is subtracted immediately from the analysis spectrum. The remaining bin magnitudes feed the smoothed residual model.
 
 Each tracked atom carries:
 
@@ -27,7 +27,7 @@ Each tracked atom carries:
 - a synthesis phase,
 - a frequency-dependent parameter index.
 
-During synthesis, each atom is reduced, pitch-shifted, optionally expanded into unison copies, panned into quad, and written to one four-lane synthesis DFT (`SynthesisDFT`). Each panned copy evaluates its phase and Hann kernel once and scales the magnitude by the pan vector across all four channels. The residual model adds smoothed broadband energy with randomized phase to the same frame, using the same panned bin-centered Hann write. `InverseTransform` produces one quad frame and the generic `OLAGeneric` overlap-adds the frames into a continuous quad signal. The synthesis window comes from the partial writers; the OLA adds no window or normalization of its own. Tracked atoms come from the input analysis; synthetic harmonic atoms and their separate mix gains have been removed.
+During synthesis, each atom is reduced, pitch-shifted, optionally expanded into unison copies, panned into quad, and written to one four-lane synthesis DFT (`SynthesisDFT`). Each panned copy evaluates its phase and Hann kernel once and scales the magnitude by the pan vector across all four channels. The residual model adds smoothed broadband energy with randomized phase to the same frame, using the same panned bin-centered Hann write. The spectrum stays on the 4096-point host-rate grid, with partial frequencies in cycles per host sample. `InverseTransform` interpolates it into one engine-rate quad frame of `4096 * x_oversample` samples (the same 85.333 ms), and the generic `OLAGeneric` overlap-adds the frames, launched every `1024 * x_oversample` engine samples, into a continuous quad signal. The synthesis window comes from the partial writers; the OLA adds no window or normalization of its own. Tracked atoms come from the input analysis; synthetic harmonic atoms and their separate mix gains have been removed.
 
 Residual reduction feedback preserves zero envelopes. Its magnitude floor is capped by the current envelope, allowing quiet residual tails to decay below the atom death threshold without creating a persistent noise floor.
 

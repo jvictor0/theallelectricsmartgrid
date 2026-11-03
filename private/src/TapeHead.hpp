@@ -2,9 +2,12 @@
 
 #include "PhaseUtils.hpp"
 #include "Resynthesis.hpp"
+#include "SampleTimer.hpp"
 #include "TheoryOfTime.hpp"
 #include <cmath>
 
+// Delay tape positions in host samples. Update runs every engine sample.
+//
 struct TapeHead
 {
     double m_relativePosition;
@@ -16,7 +19,7 @@ struct TapeHead
     {
     }
 
-    double ComputeLoopSamples(TheoryOfTime* theoryOfTime, int loopSelector)
+    static double ComputeLoopSamples(TheoryOfTime* theoryOfTime, int loopSelector, double globalPeriodSamples)
     {
         if (!theoryOfTime)
         {
@@ -29,7 +32,7 @@ struct TapeHead
             return 0.0;
         }
 
-        return theoryOfTime->m_globalPeriodSamples / static_cast<double>(cycleRatio);
+        return globalPeriodSamples / static_cast<double>(cycleRatio);
     }
 };
 
@@ -39,6 +42,9 @@ struct WriteTapeHead : TapeHead
     {
         TheoryOfTime* m_theoryOfTime;
         bool m_running;
+
+        // Global loop period in host samples.
+        //
         double m_globalPeriodSamples;
 
         Input()
@@ -82,7 +88,7 @@ struct WriteTapeHead : TapeHead
         m_relativePosition = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated);
         if (!m_running)
         {
-            m_actualPosition = m_actualPosition + 1.0;
+            m_actualPosition = m_actualPosition + 1.0 / static_cast<double>(SampleTimer::x_oversample);
             m_glue = m_actualPosition - theoryPosition;
         }
         else
@@ -134,10 +140,10 @@ struct ReadTapeHead : TapeHead
             m_loopSelector = input.m_requestedLoopSelector;
         }
 
-        double loopSamples = ComputeLoopSamples(input.m_theoryOfTime, m_loopSelector);
+        double globalPeriodSamples = m_writeTapeHead->m_globalPeriodSamples;
+        double loopSamples = ComputeLoopSamples(input.m_theoryOfTime, m_loopSelector, globalPeriodSamples);
         double effectiveDelaySamples = loopSamples * input.m_bufferFraction;
         double hopSamples = static_cast<double>(Resynthesizer::GetGrainLaunchSamples());
-        double globalPeriodSamples = m_writeTapeHead->m_globalPeriodSamples;
         if (globalPeriodSamples <= 0.0 || loopSamples <= 0.0)
         {
             m_relativePosition = m_writeTapeHead->m_relativePosition;

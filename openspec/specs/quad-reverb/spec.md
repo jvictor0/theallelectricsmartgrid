@@ -6,7 +6,7 @@ The Quad Reverb (`QuadReverb` and `QuadReverbInputSetter` in `private/src/QuadRe
 ## Requirements
 
 ### Requirement: Parallel All-Pass Input Diffusion
-The system SHALL diffuse the incoming quad signal through a bank of eight parallel all-pass filters per channel (`QuadParallelAllPassFilter<8>`), whose outputs are summed and divided by eight. The eight filters use the prime delay lengths 37, 61, 113, 179, 281, 431, 613, and 877 samples (the same set on each of the four channels) to smear transients into dense early reflections while minimizing comb coloration.
+The system SHALL diffuse the incoming quad signal through a bank of eight parallel all-pass filters per channel (`QuadParallelAllPassFilter<8>`), whose outputs are summed and divided by eight. The eight filters use the prime delay lengths 37, 61, 113, 179, 281, 431, 613, and 877 host samples, each multiplied by `x_oversample` to engine samples, (the same set on each of the four channels) to smear transients into dense early reflections while minimizing comb coloration.
 
 #### Scenario: Impulse is smeared before the delay loop
 - **WHEN** a single-sample impulse arrives at a reverb input channel
@@ -17,7 +17,7 @@ The system SHALL diffuse the incoming quad signal through a bank of eight parall
 - **THEN** no two filter delay lengths share a common factor, so their reflection patterns do not reinforce a single periodic resonance
 
 ### Requirement: All-Pass Filtering of the Feedback Return
-The system SHALL pass the feedback return signal (the reverb's own previous output) through a quadraphonic all-pass filter (`m_preFeedbackFilter`) with per-channel delay lengths 3, 5, 7, and 11 samples before it is scaled by the feedback gain and summed with the diffused input. The dry input path is diffused by the parallel bank only; it is the recirculating path that passes this additional all-pass stage on every loop.
+The system SHALL pass the feedback return signal (the reverb's own previous output) through a quadraphonic all-pass filter (`m_preFeedbackFilter`) with per-channel delay lengths 3, 5, 7, and 11 host samples (times `x_oversample` in engine samples) before it is scaled by the feedback gain and summed with the diffused input. The dry input path is diffused by the parallel bank only; it is the recirculating path that passes this additional all-pass stage on every loop.
 
 #### Scenario: Each recirculation adds diffusion
 - **WHEN** a signal recirculates through the feedback loop N times
@@ -35,7 +35,7 @@ The system SHALL form the main delay line input as `diffusedInput + filteredRetu
 - **THEN** the saturator operates in its near-linear region and the tail decays geometrically with each pass
 
 ### Requirement: Modulated Main Delay Line
-The system SHALL read the reverberant tail from a four-channel delay line of 65536 samples per channel at a per-channel delay time `delayTimeSamples * widen + lfoOutput * 1000 * modDepth`. The base delay time maps the reverb-time knob exponentially over 60 to 61440 samples and is slewed by a one-pole filter; the widen factors are fixed per-channel constants (approximately 0.9786, 1.0, 0.9868, 0.9897) that decorrelate the four loop lengths; the `QuadLFO` (frequency knob mapped exponentially over 0.05 Hz to 51.2 Hz at 48 kHz, with per-channel phase offsets) adds up to ±1000 samples scaled by the modulation depth, chorusing the tail and breaking up static resonances.
+The system SHALL run entirely at the engine rate, expressing every delay length as a host-sample constant multiplied by `x_oversample` so physical times are unchanged. It SHALL read the reverberant tail from a four-channel delay line of 65536 * `x_oversample` engine samples per channel at a per-channel delay time `delayTimeSamples * widen + lfoOutput * 1000 * x_oversample * modDepth`. The base delay time maps the reverb-time knob exponentially over 60 to 61440 host samples (times `x_oversample`) and is slewed by a one-pole filter; the widen factors are fixed per-channel constants (approximately 0.9786, 1.0, 0.9868, 0.9897) that decorrelate the four loop lengths; the `QuadLFO` (frequency knob mapped exponentially over 0.05 Hz to 51.2 Hz at 48 kHz, with per-channel phase offsets) adds up to ±1000 host samples scaled by the modulation depth, chorusing the tail and breaking up static resonances.
 
 #### Scenario: Modulation depth controls tail motion
 - **WHEN** the modulation depth knob is raised from zero
@@ -57,7 +57,7 @@ The system SHALL remix the four delayed channels with an orthogonal Hadamard tra
 - **THEN** the result equals the original vector, so successive feedback passes alternate between mixed and unmixed channel alignments rather than drifting
 
 ### Requirement: Post-Feedback All-Pass and Band-Pass Damping
-The system SHALL filter the Hadamard-mixed signal through a `PostFeedbackFilter` chain of an all-pass stage (per-channel delays 17, 31, 53, 23 samples), a band-pass damping stage (`QuadOPBaseWidthFilter`, a one-pole high-pass plus one-pole low-pass per channel), and a second all-pass stage (per-channel delays 149, 211, 113, 293 samples). The band-pass base and width are exponential mappings of the damping knobs (base 1/2048 to 0.5 normalized frequency, width 1 to 2048). The chain's output is the reverb output and becomes the next pass's feedback return.
+The system SHALL filter the Hadamard-mixed signal through a `PostFeedbackFilter` chain of an all-pass stage (per-channel delays 17, 31, 53, 23 host samples), a band-pass damping stage (`QuadOPBaseWidthFilter`, a one-pole high-pass plus one-pole low-pass per channel), and a second all-pass stage (per-channel delays 149, 211, 113, 293 host samples). The band-pass base and width are exponential mappings of the damping knobs (base `DampingFilter::x_minBaseHz` to `x_maxBaseHz`, i.e. 1/2048 to 0.5 cycles per host sample (23.4375 Hz to 24 kHz at 48 kHz), converted to cycles per engine sample; width 1 to 2048). The chain's output is the reverb output and becomes the next pass's feedback return.
 
 #### Scenario: Damping rolls off the tail's extremes
 - **WHEN** the damping base and width knobs narrow the band-pass

@@ -13,7 +13,7 @@ template <size_t Size>
 struct WhiteNoiseGeneric
 {
     using Vector = MultiChannelNumber<float, Size>;
-    using StateVector = uint32_t __attribute__((vector_size(sizeof(uint32_t) * Size)));
+    using StateVector = uint32_t __attribute__((vector_size(sizeof(uint32_t) * Vector::x_numLanes)));
 
     StateVector m_state;
 
@@ -24,7 +24,7 @@ struct WhiteNoiseGeneric
 
     void SetSeed(uint32_t seed)
     {
-        for (size_t i = 0; i < Size; ++i)
+        for (size_t i = 0; i < Vector::x_numLanes; ++i)
         {
             uint32_t channelSeed = (seed + static_cast<uint32_t>(i) + 1) * 2654435761u;
             m_state[i] = channelSeed == 0 ? 1 : channelSeed;

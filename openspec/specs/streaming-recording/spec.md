@@ -85,7 +85,7 @@ The writer SHALL use `BLK5` with the existing 22-byte fixed header, track IDs, t
 - **THEN** extraction keeps only the preceding fully validated contiguous blocks and reports an incomplete session with nonzero exit status
 
 ### Requirement: Bounded Realtime Capture and Worker Ownership
-The recorder SHALL accept one complete frame at a time through one preallocated SPSC ring of frame-major pages, using the existing queue's in-place producer and consumer operations. The worker SHALL release a slot only after consuming its page; there SHALL be no separate free-page queue. The dedicated writer SHALL own transposition to per-stream blocks, quantization, activity detection, compression, checksums, file operations, and finalization. The audio path SHALL perform no allocation/deallocation, locking, sleeps, thread startup/join, or disk operations. Stop/error signaling SHALL remain available when the data ring is full.
+The recorder SHALL accept one complete host-rate frame at a time, once per host frame, through one preallocated SPSC ring of frame-major pages, using the existing queue's in-place producer and consumer operations. The worker SHALL release a slot only after consuming its page; there SHALL be no separate free-page queue. The dedicated writer SHALL own transposition to per-stream blocks, quantization, activity detection, compression, checksums, file operations, and finalization. The audio path SHALL perform no allocation/deallocation, locking, sleeps, thread startup/join, or disk operations. Stop/error signaling SHALL remain available when the data ring is full.
 
 #### Scenario: Normal capture transfers page ownership
 - **WHEN** the producer fills and publishes a capture page

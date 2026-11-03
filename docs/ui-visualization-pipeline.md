@@ -93,11 +93,15 @@ information.
 
 Control, quad control, global control, and mono writers use
 `ScopeWriter::x_controlDecimation` (8); audio, quad, source-mixer, and mono audio
-writers use decimation 1. `SquiggleBoyWithEncoderBank::UIState::AdvanceScopeIndices()`
+writers use `ScopeWriter::x_audioDecimation` (`SampleTimer::x_oversample`), so
+they store one value per host frame and FFT analyzers see cycles per host sample.
+Producers write host-rate signals where they exist (mixer output, Partial Machine
+input) and otherwise subsample the engine-rate signal on host frames. `SquiggleBoyWithEncoderBank::UIState::AdvanceScopeIndices()`
 advances every writer once per engine sample, at the end of
 `TheNonagonSquiggleBoyInternal::ProcessSample`. It also stores `m_firstAudioSample`
 and `m_firstControlSample`, the engine samples of audio index 0 and control index
-0. The modulator history (`SmartGridOneModulatorHistory.hpp`) maps an engine
+0; `m_firstAudioSample` is stored on an audio write sample. The audio-scope sample
+range multiplies published audio indices by `x_audioDecimation`. The modulator history (`SmartGridOneModulatorHistory.hpp`) maps an engine
 sample to a control index as `(sample - m_firstControlSample) / x_controlDecimation`.
 
 Theory of Time keeps one current sample (`m_sample`), which `Process` advances in

@@ -6,19 +6,19 @@ The phase vocoder (`Resynthesizer` in `private/src/Resynthesis.hpp`, driven by `
 ## Requirements
 
 ### Requirement: Grain Launch and Dual-Frame Analysis
-The system SHALL launch a new analysis/synthesis grain every hop of H = N/4 samples, where N = 4096 is the grain size (`Resynthesizer::x_bits = 12`, `x_hopDenom = 4`, so H = 1024 samples, ~21.3 ms at 48 kHz). Each launch captures two Hann-windowed frames from the delay-line buffer: the current frame at the warped-time read position and the previous frame H samples earlier (`GrainManager::Grain::Start`). The previous frame primes `m_prevAnalysisPhase`/`m_prevAnalysisMagnitudes`; the current frame is DFT-transformed for analysis. Completed synthesis grains are Hann-windowed (`Resynthesizer::Grain::Start`) and summed sample-by-sample with all other running grains, giving 75% overlap-add reconstruction.
+The system SHALL launch a new analysis/synthesis grain every analysis hop of H = N/4 host samples, where N = 4096 is the grain size (`Resynthesizer::x_bits = 12`, `x_hopDenom = 4`, so H = 1024 host samples, ~21.3 ms). `GrainManager::Process` runs every engine sample, so the launch interval is `Resynthesizer::GetSynthesisHopSamples()` = H * `x_oversample` engine samples. Each launch captures two Hann-windowed frames of host-rate audio from the buffer: the current frame at the warped-time read position and the previous frame H host samples earlier (`GrainManager::StartGrain`). The previous frame primes `m_prevAnalysisPhase`/`m_prevAnalysisMagnitudes`; the current frame is DFT-transformed for analysis. The synthesized spectrum SHALL be inverse-transformed into an N * `x_oversample`-sample engine-rate `SynthesisFrame` covering the same 85.333 ms, Hann-windowed (`Resynthesizer::Synthesize`), and overlap-added into one preallocated `OLAGeneric` ring read once per engine sample and divided by 1.5, giving 75% overlap-add reconstruction.
 
 #### Scenario: Grains overlap at 75%
-- **WHEN** the quad delay runs steadily at 48 kHz
-- **THEN** `GrainManager::Process` launches one grain every 1024 samples (`Resynthesizer::GetGrainLaunchSamples()`)
-- **AND** at any instant approximately four 4096-sample grains are running and their Hann-windowed outputs sum into the delay output
+- **WHEN** the quad delay runs steadily
+- **THEN** `GrainManager::Process` launches one grain every 1024 * `x_oversample` engine samples (`Resynthesizer::GetSynthesisHopSamples()`)
+- **AND** at any instant four overlapping 85.333 ms Hann-windowed frames sum into the delay output
 
 #### Scenario: Analysis frames are separated by exactly one hop
 - **WHEN** a grain launches at warped read position `startTime`
 - **THEN** the current analysis frame reads samples `startTime .. startTime + 4095` and the previous frame reads `startTime - 1024 .. startTime + 3071`, both multiplied by `Math4096::Hann`
 
 ### Requirement: Instantaneous Frequency from Phase Deviation
-The system SHALL compute a per-bin instantaneous frequency `m_omegaInstantaneous[bin]` (cycles per sample) by subtracting the expected phase advance `omegaBin * H` from the measured inter-frame phase difference, wrapping the residual to the principal argument in (-0.5, 0.5], and adding the correction back: `omega = omegaBin + PrincArg(deltaPhi - omegaBin * H) / H` (`Resynthesizer::SetAnalysisOmega`). This is what keeps pitch stable when the read head moves at non-unity speed.
+The system SHALL compute a per-bin instantaneous frequency `m_omegaInstantaneous[bin]` (cycles per host sample) by subtracting the expected phase advance `omegaBin * H` from the measured inter-frame phase difference, wrapping the residual to the principal argument in (-0.5, 0.5], and adding the correction back: `omega = omegaBin + PrincArg(deltaPhi - omegaBin * H) / H` (`Resynthesizer::SetAnalysisOmega`). This is what keeps pitch stable when the read head moves at non-unity speed.
 
 #### Scenario: Bin-centered sinusoid measures its own frequency
 - **WHEN** the analyzed signal is a stationary sinusoid exactly at bin k's center frequency k/4096
@@ -70,7 +70,7 @@ The system SHALL synthesize each grain through exactly three oscillators (`x_num
 - **THEN** center gain is sqrt(1/3) ≈ 0.577 and each side gain is 1/sqrt(3) ≈ 0.577, so the three detuned copies carry equal energy and the summed energy matches the unison-off case
 
 ### Requirement: Per-Partial Magnitude Slew-Up
-The system SHALL slew each bin's synthesis magnitude toward its analysis magnitude through a per-bin `SlewUp` filter (`m_synthesisMagnitudes`); synthesis reads the slewed `m_output`, not the raw analysis magnitude, so newly appearing partials bloom gradually rather than stepping in. The slew-up rate is set from `Input::m_slewUp` at every grain start (`SetSlewUp` in `Resynthesizer::StartGrain`), driven by the quad-delay's slew knob with a fastest rate of 0.25 cycles per hop.
+The system SHALL slew each bin's synthesis magnitude toward its analysis magnitude through a per-bin `SlewUp` filter (`m_synthesisMagnitudes`); synthesis reads the slewed `m_output`, not the raw analysis magnitude, so newly appearing partials bloom gradually rather than stepping in. The slew-up rate is set from `Input::m_slewUp` at every grain start (`SetSlewUp` in `Resynthesizer::Synthesize`), driven by the quad-delay's slew knob with a fastest rate of 0.25 cycles per hop.
 
 #### Scenario: New partial blooms over several grains
 - **WHEN** a partial absent from previous grains appears at full analysis magnitude and the slew-up knob is at its slowest setting
@@ -85,7 +85,7 @@ The system SHALL run four independent `GrainManager` instances — one per quad 
 - **AND** with modulation depth 0 all four channels analyze at their unmodified read-head positions
 
 ### Requirement: Deep Vocoder Atom Tracking and V-Shaped Selection
-The system SHALL run the Deep Vocoder (`DeepVocoder::Process`, called per sample from `SquiggleBoy::ProcessSample`) on a rolling 4096-sample buffer of the source-mixer's vocoder send, extracting spectral atoms via `SpectralModel::ExtractAtoms` every 1024-sample hop. When a sequencer voice triggers, `TransformNote` evaluates every current atom against a V-shaped magnitude threshold `gainThreshold * ratio^slope`, where ratio is the larger of (atomFreq/targetFreq) and (targetFreq/atomFreq), slope is `m_slopeUp` above the target and `m_slopeDown` below, and targetFreq is the voice's pitch center times its `m_pitchRatioPre`. Atoms below their threshold are ignored; among the rest, the atom with the highest score (magnitude / threshold) wins and the voice's frequency becomes the winning atom's `m_synthesisOmega` times `m_pitchRatioPost`. Each of the nine voices carries independent `gainThreshold` (range 0.001-0.2), `slopeUp`/`slopeDown` (range 1/16-16), and pitch-ratio parameters.
+The system SHALL run the Deep Vocoder (`DeepVocoder::Process`, called every engine sample from `SquiggleBoy::ProcessSample`) at the host rate: it decimates the source-mixer's vocoder send through an order-8 Butterworth `DownsamplerGeneric`, appends one sample per host frame to a rolling 4096-host-sample buffer, and extracts spectral atoms via `SpectralModel::ExtractAtoms` every 1024-host-sample hop. Atom frequencies stay in cycles per host sample; `TransformNote` divides them by `x_oversample` (`DeepVocoder::EngineOmega`) to compare with and return voice pitches in cycles per engine sample, and the UI state publishes pitch centers in cycles per host sample to match the atoms. When a sequencer voice triggers, `TransformNote` evaluates every current atom against a V-shaped magnitude threshold `gainThreshold * ratio^slope`, where ratio is the larger of (atomFreq/targetFreq) and (targetFreq/atomFreq), slope is `m_slopeUp` above the target and `m_slopeDown` below, and targetFreq is the voice's pitch center times its `m_pitchRatioPre`. Atoms below their threshold are ignored; among the rest, the atom with the highest score (magnitude / threshold) wins and the voice's frequency becomes the winning atom's `m_synthesisOmega` times `m_pitchRatioPost`. Each of the nine voices carries independent `gainThreshold` (range 0.001-0.2), `slopeUp`/`slopeDown` (range 1/16-16), and pitch-ratio parameters.
 
 #### Scenario: Strongest nearby atom wins
 - **WHEN** a voice triggers with target frequency 440 Hz, slopeUp = 2, gainThreshold = 0.01, and atoms exist at 440 Hz (magnitude 0.05) and 880 Hz (magnitude 0.05)

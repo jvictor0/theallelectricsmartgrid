@@ -64,14 +64,15 @@ DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothin
             const float knob = input.m_resynthSlewUpKnob[channel];
             DOCTEST_CAPTURE(knob);
             DOCTEST_CAPTURE(channel);
-            Resynthesizer::Grain grain;
-            grain.m_buffer.m_table[Resynthesizer::x_N / 2] = 1.0f;
+            auto buffer = std::make_unique<Resynthesizer::Buffer>();
+            auto frame = std::make_unique<Resynthesizer::SynthesisFrame>();
+            buffer->m_table[Resynthesizer::x_N / 2] = 1.0f;
             for (auto& magnitude : synth->m_synthesisMagnitudes)
             {
                 magnitude = 0.0f;
             }
 
-            synth->StartGrain(&grain, &delayInput.m_grainManagerInput.m_resynthInput[channel]);
+            synth->Synthesize(*buffer, *frame, &delayInput.m_grainManagerInput.m_resynthInput[channel]);
             for (size_t bin : {size_t(1), size_t(85), Resynthesizer::x_maxComponents - 1})
             {
                 const float actual = synth->m_synthesisMagnitudes[bin][0];

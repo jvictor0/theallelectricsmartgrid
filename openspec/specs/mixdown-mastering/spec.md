@@ -65,7 +65,7 @@ The system SHALL build the stereo mix in parallel with the quad mix, not by fold
 - **THEN** `GetPosition` returns 0.5 and the left and right channels receive equal constant-power weights sin2pi(1/8)
 
 ### Requirement: Four-Band Linkwitz-Riley Crossover Split
-The system SHALL split every mastering-chain channel into four frequency bands using fourth-order Linkwitz-Riley crossovers (each built from two cascaded second-order Butterworth sections, 24 dB/octave slopes; `LinkwitzRileyCrossover.hpp`), applied recursively: one crossover splits low half from high half, then one more on each side (`BuildBandsRecursive`). Each crossover (`LinkwitzRileyCrossoverGeneric<float, NumChannels>`) SHALL process all chain channels as one vector with shared coefficients, and each channel SHALL match an independent mono crossover. The three crossover frequencies derive from the encoder bank: band 0/1 at the low-band cutoff (`Param::LowBandCutoff` via `SetBassFreq`), band 1/2 at that frequency times the mid factor, and band 2/3 times the high factor (`SetCrossoverFreq`, factors range 1-32).
+The system SHALL split every mastering-chain channel into four frequency bands using fourth-order Linkwitz-Riley crossovers (each built from two cascaded second-order Butterworth sections, 24 dB/octave slopes; `LinkwitzRileyCrossover.hpp`), applied recursively: one crossover splits low half from high half, then one more on each side (`BuildBandsRecursive`). Each crossover (`LinkwitzRileyCrossoverGeneric<float, NumChannels>`) SHALL process all chain channels as one vector with shared coefficients, and each channel SHALL match an independent mono crossover. The three crossover frequencies derive from the encoder bank: band 0/1 at the low-band cutoff (`Param::LowBandCutoff` via `SetBassFreq`), band 1/2 at that frequency times the mid factor, and band 2/3 times the high factor (`SetCrossoverFreq`, factors range 1-32). The low-band cutoff range SHALL be defined in Hz (0.5/1024 to 0.5/1024^(2/3) cycles per host sample, about 23 Hz to 240 Hz at 48 kHz) and converted to cycles per engine sample, so crossover frequencies do not move with the oversampling ratio.
 
 #### Scenario: A tone between crossovers lands in one band
 - **WHEN** a sine sits well inside band 1 (above the low cutoff, below the mid crossover)
@@ -98,7 +98,7 @@ The system SHALL always run the mastering chains with mono bass enabled (`monoTh
 - **THEN** `QuadFloatWithStereoAndSub::m_sub` equals the quad mastering chain's saturated mono band 0, scaled afterwards by the master volume alongside the quad and stereo outputs
 
 ### Requirement: Master Gain and Output Stage
-The system SHALL scale each mastering chain's recombined signal by a master gain (exponential range 1/4 to 2, `Param::MasterGain`) and pass each channel through a final tanh saturation stage with master metering. After mastering, `SquiggleBoy` multiplies the quad, stereo, and sub outputs by the global master volume (`m_masterVolume`).
+The system SHALL scale each mastering chain's recombined signal by a master gain (exponential range 1/4 to 2, `Param::MasterGain`) and pass each channel through a final tanh saturation stage with master metering. The mastered quad, stereo, and sub outputs SHALL then pass through order-8 Butterworth decimators (`QuadMixerInternal::OutputDecimator`) to the host rate; the engine publishes one of every `x_oversample` decimated samples as the host frame. After decimation, `SquiggleBoy` multiplies the quad, stereo, and sub outputs by the global master volume (`m_masterVolume`).
 
 #### Scenario: Master gain drives the final saturator
 - **WHEN** the master gain is raised toward 2 with a hot mix
@@ -115,8 +115,15 @@ The system SHALL master the stereo and quad mixes through separate `MasteringCha
 - **WHEN** the performer changes a band EQ encoder (`Param::LowEq` through `Param::HighEq`)
 - **THEN** `SetGain` updates the corresponding band gain in both the stereo and quad saturator inputs, keeping the two formats tonally matched
 
+### Requirement: Host-Frame Metering
+Each `Meter` SHALL accumulate its engine-rate samples and update its RMS smoothing, peak, peak-hold, and reduction state once per host frame from the frame's mean square, peak magnitude, and mean reduction. Peak-hold and smoothing lengths SHALL therefore be counted in host frames, and at `x_oversample = 1` metering SHALL be identical to per-sample metering.
+
+#### Scenario: Peak hold lasts one second at any ratio
+- **WHEN** a meter sees a single peak and then silence
+- **THEN** the held peak persists for 48000 host frames regardless of the oversampling ratio
+
 ### Requirement: Separate Panned and Mono Recording Taps
-Performance recording SHALL capture every panned mixer input as a `panned_mono` track and each declared `m_monoIn` lane as a separate `mono` track. For ordinary mixing, recorded panned audio SHALL equal the saturation of (input times fader gain), with the current pan coordinates; recorded mono audio SHALL equal its independently saturated mono lane without the voice fader gain. Their tap labels SHALL be `post_fader_post_saturation` and `post_saturation`, respectively. Recording SHALL remain independent of both monitor flags and SHALL NOT change the live mix, sends, meters, or saturation processing.
+Performance recording SHALL capture every panned mixer input as a `panned_mono` track and each declared `m_monoIn` lane as a separate `mono` track. For ordinary mixing, recorded panned audio SHALL equal the saturation of (input times fader gain), with the current pan coordinates; recorded mono audio SHALL equal its independently saturated mono lane without the voice fader gain. Their tap labels SHALL be `post_fader_post_saturation` and `post_saturation`, respectively. Recording SHALL remain independent of both monitor flags and SHALL NOT change the live mix, sends, meters, or saturation processing. While recording, every recorded stream (panned inputs, mono lanes, returns) SHALL pass through its own order-8 Butterworth decimator, and the recorder SHALL begin, receive, and commit one frame per host frame. The master tracks SHALL record the output decimator's host-rate quad and stereo output. Recording decimators run only while recording, so each take starts with the decimator's short warm-up.
 
 #### Scenario: Voice and sub have independent saturation
 - **WHEN** a voice and its centered mono lane both carry audio

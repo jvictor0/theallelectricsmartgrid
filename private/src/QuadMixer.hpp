@@ -8,6 +8,8 @@
 #include "QuadMasterChain.hpp"
 #include "QuadToStereoMixdown.hpp"
 #include "Metering.hpp"
+#include "Oversample.hpp"
+#include "TrioUtils.hpp"
 #include "RecordingFormat.hpp"
 #include "SmartGridBuildInfo.hpp"
 
@@ -15,6 +17,30 @@ struct QuadMixerInternal
 {
     static constexpr size_t x_numSends = 3;
     static constexpr size_t x_maxInputs = 32;
+    static constexpr size_t x_oversample = SampleTimer::x_oversample;
+
+    // The mastered output and the recorded streams are decimated to the host
+    // rate. Recording frames begin and commit once per host frame.
+    //
+    using PannedDecimator = DownsamplerGeneric<float, 3, 8, x_oversample>;
+    using MonoDecimator = DownsamplerGeneric<float, 1, 8, x_oversample>;
+    using QuadDecimator = DownsamplerGeneric<float, 4, 8, x_oversample>;
+    using StereoDecimator = DownsamplerGeneric<float, 2, 8, x_oversample>;
+
+    struct OutputDecimator
+    {
+        QuadDecimator m_quad;
+        StereoDecimator m_stereo;
+        MonoDecimator m_sub;
+
+        QuadFloatWithStereoAndSub Process(const QuadFloatWithStereoAndSub& input)
+        {
+            return QuadFloatWithStereoAndSub(
+                m_quad.Process(input.m_output),
+                m_stereo.Process(input.m_stereoOutput),
+                m_sub.Process(MonoDecimator::Vector::Splat(input.m_sub))[0]);
+        }
+    };
 
     QuadFloatWithStereoAndSub m_output;
     QuadFloat m_dryOutput;
@@ -26,7 +52,13 @@ struct QuadMixerInternal
     size_t m_recordingNumInputs = 0;
     size_t m_recordingNumMonoInputs = 0;
     bool m_recordingFrameActive = false;
+    size_t m_recordingSubSample = 0;
     PinkNoiseGeneric<1> m_pinkNoise;
+
+    OutputDecimator m_outputDecimator;
+    PannedDecimator m_pannedRecordingDecimators[x_maxInputs];
+    MonoDecimator m_monoRecordingDecimators[x_maxInputs];
+    QuadDecimator m_returnRecordingDecimators[x_numSends];
 
     Meter m_voiceMeters[x_maxInputs];
     Meter m_monoMeters[x_maxInputs];
@@ -217,7 +249,15 @@ struct QuadMixerInternal
             m_recorder->Fail(StreamingRecorder::Error::InvalidConfiguration);
         }
 
-        m_recordingFrameActive = m_recorder->BeginFrame();
+        ++m_recordingSubSample;
+        bool hostFrame = m_recordingSubSample == x_oversample;
+        if (hostFrame)
+        {
+            m_recordingSubSample = 0;
+        }
+
+        bool recording = IsRecording();
+        m_recordingFrameActive = hostFrame && m_recorder->BeginFrame();
         m_output.m_output = QuadFloat();
         m_subOutput = QuadFloat();
         m_quadToStereoMixdown.Clear();
@@ -260,14 +300,16 @@ struct QuadMixerInternal
                     m_output.m_output += postFader;
                 }
 
-                if (m_recordingFrameActive)
+                if (recording)
                 {
-                    const float panned[] =
+                    TrioFloat panned = m_pannedRecordingDecimators[i].Process(TrioFloat(
+                        input.m_input[i] * input.m_gain[i].m_expParam * reduction[0],
+                        input.m_x[i],
+                        input.m_y[i]));
+                    if (m_recordingFrameActive)
                     {
-                        input.m_input[i] * input.m_gain[i].m_expParam * reduction,
-                        input.m_x[i], input.m_y[i]
-                    };
-                    m_recorder->Submit(i, panned, 3);
+                        m_recorder->Submit(i, panned.m_values, 3);
+                    }
                 }
             }
 
@@ -285,9 +327,13 @@ struct QuadMixerInternal
                     m_subOutput += sub;
                 }
 
-                if (m_recordingFrameActive)
+                if (recording)
                 {
-                    m_recorder->Submit(m_recordingNumInputs + i, &monoSample, 1);
+                    MonoDecimator::Vector mono = m_monoRecordingDecimators[i].Process(MonoDecimator::Vector::Splat(monoSample));
+                    if (m_recordingFrameActive)
+                    {
+                        m_recorder->Submit(m_recordingNumInputs + i, mono.m_values, 1);
+                    }
                 }
             }
         }
@@ -314,15 +360,20 @@ struct QuadMixerInternal
                 m_quadToStereoMixdown.MixQuadSample(postReturn);
                 m_output.m_output += postReturn;
 
-                if (m_recordingFrameActive)
+                if (IsRecording())
                 {
-                    m_recorder->Submit(m_recordingNumInputs + m_recordingNumMonoInputs + j, postReturn.m_values, 4);
+                    QuadFloat recorded = m_returnRecordingDecimators[j].Process(postReturn);
+                    if (m_recordingFrameActive)
+                    {
+                        m_recorder->Submit(m_recordingNumInputs + m_recordingNumMonoInputs + j, recorded.m_values, 4);
+                    }
                 }
             }
         }
 
-        m_output = m_masterChain.Process(input.m_masterChainInput, m_output.m_output, m_quadToStereoMixdown.m_output);
-        
+        m_output = m_outputDecimator.Process(
+            m_masterChain.Process(input.m_masterChainInput, m_output.m_output, m_quadToStereoMixdown.m_output));
+
         if (m_recordingFrameActive)
         {
             const size_t masterTrack = m_recordingNumInputs + m_recordingNumMonoInputs + x_numSends;

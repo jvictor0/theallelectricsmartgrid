@@ -16,6 +16,7 @@
 #include "SmartGridOneEncoders.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 #include "SampleTimer.hpp"
+#include "Oversample.hpp"
 #include "RecordingBuffer.hpp"
 #include "SquiggleBoyVoiceConfig.hpp"
 #include "RecordingManager.hpp"
@@ -349,8 +350,14 @@ struct SquiggleBoyTrackGeneric
 
     Vector m_output;
 
+    // Recording buffers hold host-rate samples: the track output is decimated
+    // and written once per host frame.
+    //
+    using RecordingDecimator = DownsamplerGeneric<float, Size, 8, SampleTimer::x_oversample>;
     RecordingBuffer m_recordingBuffer[Size];
     RecordingBufferWriter<x_recordingBufferWriterSize> m_recordingBufferWriter[Size];
+    RecordingDecimator m_recordingDecimator;
+    size_t m_recordingSubSample;
 
     struct Input
     {
@@ -419,6 +426,7 @@ struct SquiggleBoyTrackGeneric
     SquiggleBoyTrackGeneric()
         : m_baseFreqSlewAmount(SampleTimer::HzToCycPerSamp(0.125), SampleTimer::HzToCycPerSamp(500.0))
         , m_output(Vector::Splat(0))
+        , m_recordingSubSample(0)
     {
     }
 
@@ -563,9 +571,15 @@ struct SquiggleBoyTrackGeneric
         m_squiggleLFO[0].Process(input.m_squiggleLFOInput[0]);
         m_squiggleLFO[1].Process(input.m_squiggleLFOInput[1]);
 
-        for (size_t i = 0; i < Size; ++i)
+        Vector recorded = m_recordingDecimator.Process(m_output);
+        ++m_recordingSubSample;
+        if (m_recordingSubSample == SampleTimer::x_oversample)
         {
-            m_recordingBufferWriter[i].Process(m_output[i]);
+            m_recordingSubSample = 0;
+            for (size_t i = 0; i < Size; ++i)
+            {
+                m_recordingBufferWriter[i].Process(recorded[i]);
+            }
         }
 
         return m_output;
