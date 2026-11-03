@@ -65,33 +65,26 @@ DOCTEST_TEST_CASE("QuadReverbInputSetter: four-lane mappings and slews match per
     PhaseUtils::ExpParam delayTime[4];
     PhaseUtils::ExpParam dampingBase[4];
     PhaseUtils::ExpParam dampingWidth[4];
-    PhaseUtils::ExpParam modFreq[4];
     PhaseUtils::ExpParam wideners[4];
-    PhaseUtils::ZeroedExpParam modDepth[4];
     PhaseUtils::ZeroedExpParam feedback[4];
     OPLowPassFilter delayTimeFilter[4];
-    OPLowPassFilter modDepthFilter[4];
     for (size_t lane = 0; lane < 4; ++lane)
     {
         delayTime[lane] = PhaseUtils::ExpParam(60.0 * SampleTimer::x_oversample, 1024.0 * 60.0 * SampleTimer::x_oversample);
         dampingBase[lane] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(SampleTimer::CycPerHostSampToHz(1.0 / 2048.0)), SampleTimer::HzToCycPerSamp(SampleTimer::CycPerHostSampToHz(0.5)));
         dampingWidth[lane] = PhaseUtils::ExpParam(1.0, 2048.0);
-        modFreq[lane] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05));
         wideners[lane] = Widener(lane);
         delayTimeFilter[lane].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
-        modDepthFilter[lane].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
         feedback[lane].SetBaseByCenter(0.25);
     }
 
     for (size_t sample = 0; sample < 128; ++sample)
     {
         input.m_reverbTimeKnob = QuadKnob(sample, 0.0f);
-        input.m_modFreqKnob = QuadKnob(sample, 0.05f);
-        input.m_modDepthKnob = QuadKnob(sample, 0.1f);
+        input.m_delayOffsetKnob = QuadKnob(sample, 0.1f);
         input.m_feedbackKnob = QuadKnob(sample, 0.15f);
         input.m_dampingBaseKnob = QuadKnob(sample, 0.2f);
         input.m_dampingWidthKnob = QuadKnob(sample, 0.25f);
-        input.m_lfoPhaseKnob = QuadKnob(sample, 0.3f);
         setter.Process(input, output);
         for (size_t lane = 0; lane < 4; ++lane)
         {
@@ -100,11 +93,10 @@ DOCTEST_TEST_CASE("QuadReverbInputSetter: four-lane mappings and slews match per
             DOCTEST_CHECK(output.m_delayTimeSamples[lane] == doctest::Approx(delayTime[lane].Update(delayTimeFilter[lane].Process(input.m_reverbTimeKnob[lane]))).epsilon(x_tolerance));
             DOCTEST_CHECK(output.m_bffBase[lane] == doctest::Approx(dampingBase[lane].Update(input.m_dampingBaseKnob[lane])).epsilon(x_tolerance));
             DOCTEST_CHECK(output.m_bffWidth[lane] == doctest::Approx(dampingWidth[lane].Update(input.m_dampingWidthKnob[lane])).epsilon(x_tolerance));
-            DOCTEST_CHECK(output.m_modDepth[lane] == doctest::Approx(modDepthFilter[lane].Process(modDepth[lane].Update(input.m_modDepthKnob[lane]))).epsilon(x_tolerance));
-            DOCTEST_CHECK(output.m_lfoInput.m_freq[lane] == doctest::Approx(modFreq[lane].Update(input.m_modFreqKnob[lane])).epsilon(x_tolerance));
+            DOCTEST_CHECK(output.m_delayOffsetSamples[lane] == doctest::Approx(
+                (2.0f * input.m_delayOffsetKnob[lane] - 1.0f) * 1000.0f * SampleTimer::x_oversample));
             DOCTEST_CHECK(output.m_widen[lane] == doctest::Approx(wideners[lane].Update(1.0)).epsilon(x_tolerance));
             DOCTEST_CHECK(output.m_feedback[lane] == doctest::Approx(1.25 * feedback[lane].Update(input.m_feedbackKnob[lane])).epsilon(x_tolerance));
-            DOCTEST_CHECK(output.m_lfoInput.m_phaseKnob[lane] == input.m_lfoPhaseKnob[lane]);
         }
     }
 
@@ -129,10 +121,7 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
 
     PhaseUtils::ExpParam dampingBase[4];
     PhaseUtils::ExpParam dampingWidth[4];
-    PhaseUtils::ExpParam modFreq[4];
-    PhaseUtils::ZeroedExpParam modDepth[4];
     PhaseUtils::ZeroedExpParam feedback[4];
-    OPLowPassFilter modDepthFilter[4];
     OPLowPassFilter rotateFilter[4];
     PhaseUtils::ExpParam unisonDetune[4];
     PhaseUtils::ZeroedExpParam unisonGain[4];
@@ -141,8 +130,6 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
     {
         dampingBase[lane] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(SampleTimer::CycPerHostSampToHz(1.0 / 2048.0)), SampleTimer::HzToCycPerSamp(SampleTimer::CycPerHostSampToHz(0.5)));
         dampingWidth[lane] = PhaseUtils::ExpParam(1.0, 2048.0);
-        modFreq[lane] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05));
-        modDepthFilter[lane].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
         rotateFilter[lane].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
         feedback[lane].SetBaseByCenter(0.25);
         unisonDetune[lane] = PhaseUtils::ExpParam(1.03);
@@ -153,12 +140,9 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
     for (size_t sample = 0; sample < 128; ++sample)
     {
         SampleTimer::s_instance->m_sample = sample;
-        input.m_modFreqKnob = QuadKnob(sample, 0.05f);
-        input.m_modDepthKnob = QuadKnob(sample, 0.1f);
         input.m_feedbackKnob = QuadKnob(sample, 0.15f);
         input.m_dampingBaseKnob = QuadKnob(sample, 0.2f);
         input.m_dampingWidthKnob = QuadKnob(sample, 0.25f);
-        input.m_lfoPhaseKnob = QuadKnob(sample, 0.3f);
         input.m_resynthUnisonKnob = QuadKnob(sample, 0.35f) * 0.2f;
         input.m_resynthSlewUpKnob = QuadKnob(sample, 0.4f);
         input.m_resynthShiftFadeKnob = QuadKnob(sample, 0.45f);
@@ -175,12 +159,9 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
             DOCTEST_CAPTURE(lane);
             float rotate = static_cast<float>(input.m_rotateSwitchVal[lane]) / 4.0f;
             DOCTEST_CHECK(output.m_rotate[lane] == doctest::Approx(rotateFilter[lane].Process(rotate)).epsilon(x_tolerance));
-            DOCTEST_CHECK(output.m_modDepth[lane] == doctest::Approx(modDepthFilter[lane].Process(modDepth[lane].Update(input.m_modDepthKnob[lane]))).epsilon(x_tolerance));
-            DOCTEST_CHECK(output.m_lfoInput.m_freq[lane] == doctest::Approx(modFreq[lane].Update(input.m_modFreqKnob[lane])).epsilon(x_tolerance));
             DOCTEST_CHECK(output.m_feedback[lane] == doctest::Approx(1.25 * feedback[lane].Update(input.m_feedbackKnob[lane])).epsilon(x_tolerance));
             DOCTEST_CHECK(output.m_bffBase[lane] == doctest::Approx(dampingBase[lane].Update(input.m_dampingBaseKnob[lane])).epsilon(x_tolerance));
             DOCTEST_CHECK(output.m_bffWidth[lane] == doctest::Approx(dampingWidth[lane].Update(input.m_dampingWidthKnob[lane])).epsilon(x_tolerance));
-            DOCTEST_CHECK(output.m_lfoInput.m_phaseKnob[lane] == input.m_lfoPhaseKnob[lane]);
 
             const Resynthesizer::Input& resynth = output.m_grainManagerInput.m_resynthInput[lane];
             float unisonKnob = input.m_resynthUnisonKnob[lane];

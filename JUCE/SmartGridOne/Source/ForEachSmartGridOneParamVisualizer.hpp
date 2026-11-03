@@ -142,11 +142,7 @@ F(ResynthShiftInterval, DelayAnalyzer)
 F(ReverbTime, ReverbAnalyzer)
 F(ReverbDampBase, ReverbAnalyzer)
 F(ReverbDampWidth, ReverbAnalyzer)
-F(DelayModSpeed, DelayLFO)
-F(DelayModPhaseShift, DelayLFO)
 F(ReverbModDepth, ReverbAnalyzer)
-F(ReverbModSpeed, ReverbLFO)
-F(ReverbModPhaseShift, ReverbLFO)
 
 // Partial machine: tracked partials, spectral filtering, and spatial placement.
 //

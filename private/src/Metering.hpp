@@ -29,7 +29,8 @@ struct MeterGeneric
     Vector m_rms;
     Vector m_peak;
     Vector m_reduction;
-    size_t m_samplesSincePeak[Size];
+    using Counts = MultiChannelNumber<uint32_t, Size>;
+    Counts m_samplesSincePeak;
     Vector m_frameSquares;
     Vector m_frameMagnitude;
     Vector m_frameReduction;
@@ -71,25 +72,20 @@ struct MeterGeneric
         Vector magnitude = m_frameMagnitude;
         m_frameSquares = Vector::Splat(0);
         m_frameMagnitude = Vector::Splat(0);
-        for (size_t i = 0; i < Size; ++i)
-        {
-            Number alpha = m_rms[i] < inputSquared[i] ? x_smoothingAlphaUp : x_smoothingAlphaDown;
-            m_rms[i] = m_rms[i] * (1 - alpha) + inputSquared[i] * alpha;
+        Vector alpha = Vector::IfLess(m_rms, inputSquared,
+            Vector::Splat(x_smoothingAlphaUp), Vector::Splat(x_smoothingAlphaDown));
+        m_rms = Vector::FusedMultiplyAdd(inputSquared, alpha, m_rms * (Vector::Splat(1) - alpha));
 
-            if (m_peak[i] < magnitude[i])
-            {
-                m_peak[i] = magnitude[i];
-                m_samplesSincePeak[i] = 0;
-            }
-            else if (m_samplesSincePeak[i] < x_peakHistorySize)
-            {
-                m_samplesSincePeak[i]++;
-            }
-            else
-            {
-                m_peak[i] = m_peak[i] * (1 - x_peakSmoothingAlpha) + magnitude[i] * x_peakSmoothingAlpha;
-            }
-        }
+        auto newPeak = m_peak.Load() < magnitude.Load();
+        Vector decayed = Vector::FusedMultiplyAdd(magnitude, Vector::Splat(x_peakSmoothingAlpha),
+            m_peak * (1 - x_peakSmoothingAlpha));
+        Vector held = Vector::IfLess(m_samplesSincePeak.template Convert<Number>(),
+            Vector::Splat(x_peakHistorySize), m_peak, decayed);
+        m_peak = Vector::FromVector(newPeak ? magnitude.Load() : held.Load());
+        Counts next = Counts::IfLess(m_samplesSincePeak, Counts::Splat(x_peakHistorySize),
+            m_samplesSincePeak + 1, m_samplesSincePeak);
+        auto reset = __builtin_convertvector(newPeak, typename Counts::Vector);
+        m_samplesSincePeak = Counts::FromVector(reset ? Counts().Load() : next.Load());
     }
 
     void Process(const Vector& input)

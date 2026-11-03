@@ -3,7 +3,6 @@
 #include <memory>
 
 #include "../support/GlobalEnv.hpp"
-#include "QuadLFO.hpp"
 #include "ScopeWriter.hpp"
 #include "SquiggleBoy.hpp"
 
@@ -388,31 +387,4 @@ DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top on a stored sample keeps the pr
     ScopeReader reader(writer.get(), 0, 0, 1024, 1);
 
     DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(19.9375));
-}
-
-DOCTEST_TEST_CASE("ScopeReader: QuadLFO top lands between control samples")
-{
-    GlobalEnv::ResetPerTest();
-    auto writer = std::make_unique<ScopeWriter>(4, 1, x_decimation);
-    for (size_t voice = 0; voice < 4; ++voice)
-    {
-        for (size_t i = 0; i < 11; ++i)
-        {
-            WriteAt(*writer, 0, voice, i, 0.5f);
-        }
-    }
-
-    writer->m_index = 9;
-    writer->m_subIndex = 7;
-    QuadLFO lfo;
-    QuadLFO::Input input;
-    input.m_freq = QuadFloat(0.25f, 0.125f, 0.0625f, 0.03125f);
-    lfo.m_phase[0] = 0.875f;
-    lfo.ConfigureScopeWriter(writer.get(), 0);
-    lfo.Process(input);
-    AdvanceTo(*writer, 11);
-    writer->Publish();
-    ScopeReader reader(writer.get(), 0, 0, 1024, 1);
-
-    DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(9.8125));
 }

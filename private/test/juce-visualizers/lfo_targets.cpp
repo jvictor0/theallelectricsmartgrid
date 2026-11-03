@@ -76,7 +76,7 @@ DOCTEST_TEST_CASE("LFO targets: voice tracks and quad sources remain independent
     Publish(matrix, Param::DelayTime, 0, {QuadModulator::LFO1});
     Publish(matrix, Param::DelayReadSpeed, 0, {QuadModulator::LFO2});
     Publish(matrix, Param::ReverbTime, 0, {QuadModulator::LFO2});
-    Publish(matrix, Param::PartialMachineAttack, 0, {QuadModulator::DelayLFO});
+    Publish(matrix, Param::PartialMachineAttack, 0, {QuadModulator::Random1});
     Publish(matrix, Param::MasterVolume, 0, {GlobalModulator::Random1});
 
     CheckTargets(Targets::Find(matrix, Targets::Page::Voice, 0), {Visualizer::VCO1Scope});
@@ -102,12 +102,6 @@ DOCTEST_TEST_CASE("LFO targets: LFO controls never consume a target slot")
         {
             Publish(matrix, member.m_param, 0, {QuadModulator::LFO1, QuadModulator::LFO2});
         }
-    }
-
-    for (auto param : {Param::DelayModSpeed, Param::DelayModPhaseShift,
-        Param::ReverbModDepth, Param::ReverbModSpeed, Param::ReverbModPhaseShift})
-    {
-        Publish(matrix, param, 0, {QuadModulator::LFO1});
     }
 
     CheckTargets(Targets::Find(matrix, Targets::Page::Voice, 0), {});

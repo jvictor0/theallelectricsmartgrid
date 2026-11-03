@@ -47,7 +47,7 @@ DOCTEST_TEST_CASE("FX Matrix: voice edits follow the trio while shared controls 
         DOCTEST_CHECK(ui.GetNumVoices(0, 1) == 4);
         DOCTEST_CHECK(ui.GetValue(0, 1, 3) == doctest::Approx(0.84f));
         DOCTEST_CHECK(ui.GetModulationGlyph(0, 0, 4) == SmartGridOne::ModulationGlyphs::ADSR);
-        DOCTEST_CHECK(ui.GetModulationGlyph(0, 1, 4) == SmartGridOne::ModulationGlyphs::Quadrature);
+        DOCTEST_CHECK(ui.GetModulationGlyph(0, 1, 6) == SmartGridOne::ModulationGlyphs::LFO);
         DOCTEST_CHECK(ui.GetMainIndicatorColor(0, 0) ==
             TheNonagonSmartGrid::TrioColor(static_cast<TheNonagonSmartGrid::Trio>(trio)));
         DOCTEST_CHECK(ui.GetMainIndicatorColor(0, 1) == SmartGrid::Color::White);

@@ -161,8 +161,8 @@ struct PolyphonicScopeComponent : public ModulatorTimeAxisComponent
         : PolyphonicScopeComponent(&uiState->m_squiggleBoyUIState.m_quadControlScopeWriter,
             SmartGridOneModulatorHistory::GetControlScope(*uiState, ModulatorRef(modulator, 0)).m_lane,
             4, GetModulatorColor(modulator),
-            modulator == QuadModulator::DelayLFO || modulator == QuadModulator::ReverbLFO ? 0.5f : 0.9f,
-            modulator == QuadModulator::DelayLFO || modulator == QuadModulator::ReverbLFO ? 0.5f : 0.05f)
+            0.9f,
+            0.05f)
     {
         Configure(uiState, Mode::Quad, static_cast<size_t>(modulator), nullptr);
     }

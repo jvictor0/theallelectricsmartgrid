@@ -28,8 +28,6 @@ enum class QuadModulator : size_t
     Random2 = 1,
     Random3 = 2,
     Random4 = 3,
-    DelayLFO = 4,
-    ReverbLFO = 5,
     LFO1 = 6,
     LFO2 = 7,
     Spread = 11,

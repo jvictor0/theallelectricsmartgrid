@@ -187,12 +187,6 @@ bool ReadModulatorValue(const UIState& uiState, ModulatorRef modulator, double s
                 case QuadModulator::Random4:
                     return state.m_quadGangedRandomLFOUIState[modulator.m_index]
                         .m_history.ReadValue(modulator.m_voice, sample, value);
-                case QuadModulator::DelayLFO:
-                    return state.m_quadControlScopeWriter.ReadHistory(
-                        static_cast<size_t>(Scope::DelayLFO), modulator.m_voice, scopeIndex, value);
-                case QuadModulator::ReverbLFO:
-                    return state.m_quadControlScopeWriter.ReadHistory(
-                        static_cast<size_t>(Scope::ReverbLFO), modulator.m_voice, scopeIndex, value);
                 case QuadModulator::LFO1:
                     return state.m_quadControlScopeWriter.ReadHistory(
                         static_cast<size_t>(Scope::QuadLFO1), modulator.m_voice, scopeIndex, value);
@@ -279,10 +273,8 @@ ControlScope GetControlScope(const UIState& uiState, ModulatorRef modulator)
     {
         switch (static_cast<QuadModulator>(modulator.m_index))
         {
-            case QuadModulator::DelayLFO: return {&state.m_quadControlScopeWriter, 0};
-            case QuadModulator::ReverbLFO: return {&state.m_quadControlScopeWriter, 1};
-            case QuadModulator::LFO1: return {&state.m_quadControlScopeWriter, 4};
-            case QuadModulator::LFO2: return {&state.m_quadControlScopeWriter, 5};
+            case QuadModulator::LFO1: return {&state.m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1)};
+            case QuadModulator::LFO2: return {&state.m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2)};
             default: break;
         }
     }
@@ -383,13 +375,6 @@ bool ReadDisplayValue(const UIState& uiState, ModulatorRef modulator, double sam
         if (!ReadModulatorValue(uiState, modulator, std::min(sample, std::min(last, now)), value))
         {
             return false;
-        }
-
-        if (modulator.m_mode == SmartGridOneLayout::ParamMode::Quad
-            && (modulator.m_index == static_cast<size_t>(QuadModulator::DelayLFO)
-                || modulator.m_index == static_cast<size_t>(QuadModulator::ReverbLFO)))
-        {
-            value = value * 0.5f + 0.5f;
         }
 
         return true;

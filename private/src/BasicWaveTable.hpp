@@ -112,7 +112,7 @@ struct BasicWaveTableGeneric
             right[lane] = m_table[(index + 1) % x_tableSize][lane];
         }
 
-        return left * (Vector::Splat(1) - lookup.m_fraction) + right * lookup.m_fraction;
+        return Vector::FusedMultiplyAdd(lookup.m_fraction, right - left, left);
     }
 
     Vector EvaluateCubic(const Vector& phase) const

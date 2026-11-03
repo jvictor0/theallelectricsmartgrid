@@ -314,7 +314,7 @@ DOCTEST_TEST_CASE("MultibandSaturator: vector band split matches per-channel mon
         }
 
         Saturator::Vector bands[4];
-        saturator.BuildBandsRecursive(bands, Saturator::Vector(in), 4, 0);
+        saturator.BuildBands<4, 0>(bands, Saturator::Vector(in));
         for (size_t channel = 0; channel < 2; ++channel)
         {
             for (size_t j = 0; j < 3; ++j)

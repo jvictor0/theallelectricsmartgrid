@@ -2,7 +2,6 @@
 
 #include "QuadUtils.hpp"
 #include "DelayLine.hpp"
-#include "QuadLFO.hpp"
 #include "SmartGridOneContext.hpp"
 #include "Noise.hpp"
 #include "QuadMasterChain.hpp"

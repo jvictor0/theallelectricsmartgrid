@@ -28,7 +28,7 @@ const ExpectedSkin x_quad[] =
 {
     {Glyph::SmoothRandom, {255, 30, 18}}, {Glyph::SmoothRandom, {127, 84, 139}},
     {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
-    {Glyph::Quadrature, {255, 108, 29}}, {Glyph::Quadrature, {0, 247, 167}},
+    {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
     {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {134, 63, 249}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
     {Glyph::Spread, {143, 143, 143}}, {Glyph::None, {0, 0, 0}},
@@ -306,8 +306,6 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
 
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        synth.m_delay.m_lfo.m_output[channel] = -0.8f + 0.2f * channel;
-        synth.m_reverb.m_lfo.m_output[channel] = 0.2f + 0.2f * channel;
         for (size_t lfo = 0; lfo < 2; ++lfo)
         {
             synth.m_quadSquiggleLFO[lfo].m_output[channel] = 0.15f + 0.1f * channel + 0.2f * lfo;
@@ -319,8 +317,8 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
     const auto& quad = synth.m_encoders.GetModulatorValues(Encoders::BankMode::Quad);
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        DOCTEST_CHECK(quad.m_value[4][channel] == doctest::Approx(0.1f + 0.1f * channel));
-        DOCTEST_CHECK(quad.m_value[5][channel] == doctest::Approx(0.6f + 0.1f * channel));
+        DOCTEST_CHECK(quad.m_value[4][channel] == 0.0f);
+        DOCTEST_CHECK(quad.m_value[5][channel] == 0.0f);
         for (size_t lfo = 0; lfo < 2; ++lfo)
         {
             DOCTEST_CHECK(quad.m_value[6 + lfo][channel] == doctest::Approx(0.15f + 0.1f * channel + 0.2f * lfo));

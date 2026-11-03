@@ -135,6 +135,14 @@ struct MultiChannelNumber
         return FromVector(Load() * other.Load());
     }
 
+    // One rounding for a * b + c; leaves surrounding arithmetic unrestricted.
+    //
+    static MultiChannelNumber FusedMultiplyAdd(const MultiChannelNumber& a, const MultiChannelNumber& b, const MultiChannelNumber& c)
+    {
+        static_assert(std::is_floating_point<Number>::value, "FusedMultiplyAdd requires floating-point channels");
+        return FromVector(__builtin_elementwise_fma(a.Load(), b.Load(), c.Load()));
+    }
+
     MultiChannelNumber operator/(const MultiChannelNumber& other) const
     {
         return FromVector(Load() / other.Load());

@@ -16,7 +16,7 @@ struct MultibandSaturator
 
     Crossover m_linkwitzRileyCrossover[NumBands - 1];
 
-    float m_output[NumChannels];
+    Vector m_output;
     float m_sub;
 
     MeterGeneric<float, NumChannels> m_meter[NumBands];
@@ -140,24 +140,19 @@ struct MultibandSaturator
         }
     };
 
-    void BuildBandsRecursive(Vector* bands, const Vector& in, size_t size, size_t index)
+    template<size_t Count, size_t Index>
+    void BuildBands(Vector* bands, const Vector& in)
     {
-        if (size == 1)
+        if constexpr (Count == 1)
         {
-            bands[index] = in;
-        }
-        else if (size == 2)
-        {
-            typename Crossover::CrossoverOutput crossover = m_linkwitzRileyCrossover[index].Process(in);
-            bands[index] = crossover.m_lowPass;
-            bands[index + 1] = crossover.m_highPass;
+            bands[Index] = in;
         }
         else
         {
-            size_t cutIndex = index + size / 2;
-            typename Crossover::CrossoverOutput crossover = m_linkwitzRileyCrossover[cutIndex - 1].Process(in);
-            BuildBandsRecursive(bands, crossover.m_lowPass, size / 2, index);
-            BuildBandsRecursive(bands, crossover.m_highPass, (size + 1) / 2, cutIndex);
+            constexpr size_t x_cutIndex = Index + Count / 2;
+            auto crossover = m_linkwitzRileyCrossover[x_cutIndex - 1].Process(in);
+            BuildBands<Count / 2, Index>(bands, crossover.m_lowPass);
+            BuildBands<(Count + 1) / 2, x_cutIndex>(bands, crossover.m_highPass);
         }
     }
 
@@ -216,18 +211,31 @@ struct MultibandSaturator
         return std::abs(TransferFunction(uiState, freq));
     }
     
-    void Process(const Input& input, float* in, bool monoTheBass)
+    template<size_t First>
+    void SetCrossoverFrequencies(const float* frequencies)
     {
-        m_linkwitzRileyCrossover[0].SetCyclesPerSample(input.m_bassFreq.m_expParam);
-        float crossoverFreq = input.m_bassFreq.m_expParam;
+        constexpr size_t x_remaining = NumBands - 1 - First;
+        constexpr size_t x_count = x_remaining < 4 ? x_remaining : 4;
+        Crossover::SetCyclesPerSampleBatch(m_linkwitzRileyCrossover + First,
+            MultiChannelNumber<float, x_count>(frequencies + First));
+        if constexpr (x_count < x_remaining)
+        {
+            SetCrossoverFrequencies<First + x_count>(frequencies);
+        }
+    }
+
+    Vector Process(const Input& input, const Vector& in, bool monoTheBass)
+    {
+        float frequencies[NumBands - 1];
+        frequencies[0] = input.m_bassFreq.m_expParam;
         for (size_t j = 1; j < NumBands - 1; ++j)
         {
-            crossoverFreq *= input.m_crossoverFreqFactor[j - 1].m_expParam;
-            m_linkwitzRileyCrossover[j].SetCyclesPerSample(crossoverFreq);
+            frequencies[j] = frequencies[j - 1] * input.m_crossoverFreqFactor[j - 1].m_expParam;
         }
 
+        SetCrossoverFrequencies<0>(frequencies);
         Vector bands[NumBands];
-        BuildBandsRecursive(bands, Vector(in), NumBands, 0);
+        BuildBands<NumBands, 0>(bands, in);
 
         Vector output = Vector::Splat(0);
         for (size_t j = monoTheBass ? 1 : 0; j < NumBands; ++j)
@@ -250,15 +258,7 @@ struct MultibandSaturator
         }
 
         output = m_masterMeter.ProcessAndSaturate((output + m_sub) * input.m_masterGain.m_expParam);
-        for (size_t i = 0; i < NumChannels; ++i)
-        {
-            m_output[i] = output[i];
-        }
-    }
-
-    MultiChannelFloat<NumChannels> Process(const Input& input, MultiChannelFloat<NumChannels> in, bool monoTheBass)
-    {
-        Process(input, in.m_values, monoTheBass);
-        return MultiChannelFloat<NumChannels>(m_output);
+        m_output = output;
+        return m_output;
     }
 };

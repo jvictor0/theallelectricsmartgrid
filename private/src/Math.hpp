@@ -86,7 +86,7 @@ struct MathGeneric
             y1[i] = s_instance.m_cosTable[(index + 1) % x_tableSize];
         }
 
-        return y0 * (Vector::Splat(1) - frac) + y1 * frac;
+        return Vector::FusedMultiplyAdd(frac, y1 - y0, y0);
     }
 
     static float Sin2pi(float x)

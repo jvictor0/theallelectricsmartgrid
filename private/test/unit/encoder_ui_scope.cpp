@@ -110,10 +110,10 @@ DOCTEST_TEST_CASE("Encoder UI scope: mixed controls publish independent channels
         DOCTEST_CHECK(ui.GetMinValue(2, 3, 3) == doctest::Approx(0.72f));
         DOCTEST_CHECK(ui.GetMaxValue(2, 3, 3) == doctest::Approx(0.91f));
         DOCTEST_CHECK(ui.GetModulationGlyph(0, 0, 4) == Glyph::ADSR);
-        DOCTEST_CHECK(ui.GetModulationGlyph(2, 3, 4) == Glyph::Quadrature);
+        DOCTEST_CHECK(ui.GetModulationGlyph(2, 3, 6) == Glyph::LFO);
         DOCTEST_CHECK(ui.GetModulationGlyph(3, 3, 4) == Glyph::None);
         DOCTEST_CHECK(ui.GetModulationGlyphColor(0, 0, 4) == SmartGrid::Color::Orange);
-        DOCTEST_CHECK(ui.GetModulationGlyphColor(2, 3, 4) == SmartGrid::Color::Orange);
+        DOCTEST_CHECK(ui.GetModulationGlyphColor(2, 3, 6) == SmartGrid::Color::Pink);
         DOCTEST_CHECK(ui.GetModulationGlyphColor(3, 3, 4) == SmartGrid::Color::Off);
         DOCTEST_CHECK(ui.GetMainIndicatorColor(0, 0) ==
             TheNonagonSmartGrid::TrioColor(static_cast<TheNonagonSmartGrid::Trio>(trio)));
@@ -163,19 +163,19 @@ DOCTEST_TEST_CASE("Encoder UI scope: modulation and gesture descendants retain t
     bank.MakeSelection(2, 3, quad);
     internal.PopulateUIState();
     DOCTEST_CHECK(ui.GetMode(3, 3) == Mode::Quad);
-    DOCTEST_CHECK(ui.GetMode(0, 1) == Mode::Quad);
-    DOCTEST_CHECK(ui.GetNumVoices(0, 1) == 4);
-    DOCTEST_CHECK(ui.GetModulationGlyph(0, 1, 4) == Glyph::Quadrature);
-    DOCTEST_CHECK(std::string(ui.GetShortName(0, 1)) == "DLFO");
-    DOCTEST_CHECK(ui.GetMainIndicatorColor(0, 1) == SmartGrid::Color::White);
+    DOCTEST_CHECK(ui.GetMode(2, 1) == Mode::Quad);
+    DOCTEST_CHECK(ui.GetNumVoices(2, 1) == 4);
+    DOCTEST_CHECK(ui.GetModulationGlyph(2, 1, 6) == Glyph::LFO);
+    DOCTEST_CHECK(std::string(ui.GetShortName(2, 1)) == "LFO1");
+    DOCTEST_CHECK(ui.GetMainIndicatorColor(2, 1) == SmartGrid::Color::White);
 
-    auto* depth = quad->GetModulator(4);
-    bank.MakeSelection(0, 1, depth);
+    auto* depth = quad->GetModulator(6);
+    bank.MakeSelection(2, 1, depth);
     internal.PopulateUIState();
     DOCTEST_CHECK(ui.GetMode(3, 3) == Mode::Quad);
-    DOCTEST_CHECK(ui.GetMode(0, 1) == Mode::Quad);
-    DOCTEST_CHECK(ui.GetNumVoices(0, 1) == 4);
-    DOCTEST_CHECK(ui.GetModulationGlyph(0, 1, 4) == Glyph::Quadrature);
+    DOCTEST_CHECK(ui.GetMode(2, 1) == Mode::Quad);
+    DOCTEST_CHECK(ui.GetNumVoices(2, 1) == 4);
+    DOCTEST_CHECK(ui.GetModulationGlyph(2, 1, 6) == Glyph::LFO);
 
     quad->m_modulators.AddGesture(quad, 2);
     bank.MakeSelection(0, 0, quad->m_modulators.m_gestures[2].get());
@@ -183,7 +183,7 @@ DOCTEST_TEST_CASE("Encoder UI scope: modulation and gesture descendants retain t
     DOCTEST_CHECK(ui.GetEncoderType(3, 3) == SmartGrid::EncoderType::GestureParam);
     DOCTEST_CHECK(ui.GetMode(3, 3) == Mode::Quad);
     DOCTEST_CHECK(ui.GetNumVoices(3, 3) == 4);
-    DOCTEST_CHECK(ui.GetMode(0, 1) == Mode::Quad);
+    DOCTEST_CHECK(ui.GetMode(2, 1) == Mode::Quad);
 
     bank.Deselect();
     internal.PopulateUIState();

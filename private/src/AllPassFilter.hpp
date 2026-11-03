@@ -16,6 +16,7 @@ struct AllPassFilterGeneric
     size_t m_index;
     Vector m_gain;
     int m_delaySamples[Size];
+    bool m_uniformDelay = true;
     Vector m_output;
 
     AllPassFilterGeneric()
@@ -45,14 +46,22 @@ struct AllPassFilterGeneric
     Vector Process(const Vector& x)
     {
         Vector delayed;
-        for (size_t i = 0; i < Size; ++i)
+        if (m_uniformDelay)
         {
-            size_t readIndex = (m_index + x_maxDelaySamples - static_cast<size_t>(m_delaySamples[i])) % x_maxDelaySamples;
-            delayed[i] = m_delayLine[readIndex][i];
+            size_t readIndex = (m_index + x_maxDelaySamples - static_cast<size_t>(m_delaySamples[0])) % x_maxDelaySamples;
+            delayed = m_delayLine[readIndex];
+        }
+        else
+        {
+            for (size_t i = 0; i < Size; ++i)
+            {
+                size_t readIndex = (m_index + x_maxDelaySamples - static_cast<size_t>(m_delaySamples[i])) % x_maxDelaySamples;
+                delayed[i] = m_delayLine[readIndex][i];
+            }
         }
 
-        m_output = -m_gain * x + delayed;
-        m_delayLine[m_index] = x + m_gain * m_output;
+        m_output = Vector::FusedMultiplyAdd(-m_gain, x, delayed);
+        m_delayLine[m_index] = Vector::FusedMultiplyAdd(m_gain, m_output, x);
         m_index = (m_index + 1) % x_maxDelaySamples;
         return m_output;
     }
@@ -65,6 +74,11 @@ struct AllPassFilterGeneric
     void SetDelaySamples(int channel, int delaySamples)
     {
         m_delaySamples[channel] = delaySamples;
+        m_uniformDelay = true;
+        for (size_t i = 1; i < Size; ++i)
+        {
+            m_uniformDelay = m_uniformDelay && m_delaySamples[i] == m_delaySamples[0];
+        }
     }
 
     int GetDelaySamples(int channel) const

@@ -88,16 +88,10 @@ QuadDelay::Input MakeDelayInput(double writePosition, double readPosition, QuadF
     result.m_return = QuadFloat::Splat(0.0f);
     result.m_feedback = QuadFloat::Splat(feedback);
     result.m_rotate = QuadFloat::Splat(0.0f);
-    result.m_modDepth = QuadFloat::Splat(0.0f);
     result.m_writeHeadPosition = writePosition;
     result.m_readHeadPosition = QuadDouble::Splat(readPosition);
     result.m_bffBase = QuadFloat::Splat(static_cast<float>(SampleTimer::HzToCycPerSamp(0.5)));
     result.m_bffWidth = QuadFloat::Splat(65536.0f);
-    for (size_t i = 0; i < 4; ++i)
-    {
-        result.m_lfoInput.m_freq[i] = static_cast<float>(SampleTimer::HzToCycPerSamp(0.5));
-        result.m_lfoInput.m_phaseKnob[i] = 0.0f;
-    }
 
     return result;
 }
@@ -197,14 +191,8 @@ DOCTEST_TEST_CASE("Rate boundaries: a reverb impulse first arrives after the phy
     const size_t delaySamples = 1920 * x_ratio;
     input.m_delayTimeSamples = QuadFloat::Splat(static_cast<float>(delaySamples));
     input.m_feedback = QuadFloat::Splat(0.0f);
-    input.m_modDepth = QuadFloat::Splat(0.0f);
     input.m_bffBase = QuadFloat::Splat(static_cast<float>(SampleTimer::HzToCycPerSamp(0.5)));
     input.m_bffWidth = QuadFloat::Splat(65536.0f);
-    for (size_t i = 0; i < 4; ++i)
-    {
-        input.m_lfoInput.m_freq[i] = static_cast<float>(SampleTimer::HzToCycPerSamp(0.1));
-        input.m_lfoInput.m_phaseKnob[i] = 0.0f;
-    }
 
     double before = 0.0;
     double after = 0.0;

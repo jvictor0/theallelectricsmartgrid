@@ -147,7 +147,8 @@ struct VectorPhaseShaperGeneric
         Vector e = r2 * 7 - r1 * 15;
         Vector f = r1 * 6 - r2 * 3;
 
-        return yA + s * (slope + s * s * (d + s * (e + s * f)));
+        return Vector::FusedMultiplyAdd(s, Vector::FusedMultiplyAdd(s * s,
+            Vector::FusedMultiplyAdd(s, Vector::FusedMultiplyAdd(s, f, e), d), slope), yA);
     }
 
     // Two straight segments through (0, 0), (d, v) and (1, 1), joined by C2

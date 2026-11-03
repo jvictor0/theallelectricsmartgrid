@@ -438,9 +438,9 @@ struct AdaptiveWaveTableGeneric
             }
         }
 
-        Vector left = lower0 * (Vector::Splat(1) - lookup.m_fraction) + lower1 * lookup.m_fraction;
-        Vector right = upper0 * (Vector::Splat(1) - lookup.m_fraction) + upper1 * lookup.m_fraction;
-        return left * (Vector::Splat(1) - site.m_wayThrough) + right * site.m_wayThrough;
+        Vector left = Vector::FusedMultiplyAdd(lookup.m_fraction, lower1 - lower0, lower0);
+        Vector right = Vector::FusedMultiplyAdd(lookup.m_fraction, upper1 - upper0, upper0);
+        return Vector::FusedMultiplyAdd(site.m_wayThrough, right - left, left);
     }
 
     Vector Evaluate(const Vector& phase, const EvalSite& site) const
