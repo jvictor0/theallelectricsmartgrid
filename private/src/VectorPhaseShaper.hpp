@@ -18,7 +18,7 @@ struct VectorPhaseShaperGeneric
 {
     using Vector = MultiChannelNumber<float, Size>;
 
-    MorphingWaveTable m_morphingWaveTable[Size];
+    MorphingWaveTableGeneric<float, Size> m_morphingWaveTable;
     Vector m_phase;
     Vector m_freq;
     Vector m_vKnob;
@@ -218,18 +218,19 @@ struct VectorPhaseShaperGeneric
         {
             assert(0 <= phi[i]);
             assert(phi[i] < 1);
-            m_out[i] = -m_morphingWaveTable[i].Evaluate(phi[i], m_freq[i], input.m_morphHarmonics[i], input.m_wtBlend[i]);
         }
+
+        m_out = -m_morphingWaveTable.Evaluate(phi, m_freq, input.m_morphHarmonics, input.m_wtBlend);
     }
 
     AdaptiveWaveTable* SetLeft(size_t channel, AdaptiveWaveTable* left)
     {
-        return m_morphingWaveTable[channel].SetLeft(left);
+        return m_morphingWaveTable.SetLeft(channel, left);
     }
 
     AdaptiveWaveTable* SetRight(size_t channel, AdaptiveWaveTable* right)
     {
-        return m_morphingWaveTable[channel].SetRight(right);
+        return m_morphingWaveTable.SetRight(channel, right);
     }
 
     AdaptiveWaveTable* SetLeft(AdaptiveWaveTable* left)

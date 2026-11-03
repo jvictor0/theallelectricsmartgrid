@@ -553,7 +553,7 @@ struct ResynthesizerGeneric
 
     void SetSlewUp(const Vector& cyclesPerSample)
     {
-        Vector alpha = OPLowPassFilterGeneric<Number, Size>::AlphaFromNatFreq(cyclesPerSample);
+        Vector alpha = OPLowPassFilterGeneric<Number, Size>::AlphaFromNatFreqApprox(cyclesPerSample);
         for (size_t channel = 0; channel < Size; ++channel)
         {
             m_slewUpAlpha[channel] = cyclesPerSample[channel] >= x_immediateSlewUp ? static_cast<Number>(1) : alpha[channel];

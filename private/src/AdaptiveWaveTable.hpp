@@ -269,68 +269,69 @@ struct DiscreteFourierTransformGeneric
 using DiscreteFourierTransform = DiscreteFourierTransformGeneric<float, 1, 10>;
 using DiscreteFourierTransform4096 = DiscreteFourierTransformGeneric<float, 1, 12>;
 
-struct AdaptiveWaveTable
+// Immutable band limits are shared by all channel counts and sample types.
+//
+struct AdaptiveWaveTableLevels
 {
     static constexpr size_t x_maxLevels = 25;
-    static constexpr float m_levelsBase = 1.3f;
-    static constexpr size_t x_lookupSize = DiscreteFourierTransform::x_maxComponents + 1;
-    
-    BasicWaveTable m_waveTable;
-    DiscreteFourierTransform m_dft;
-    BasicWaveTable m_levels[x_maxLevels];
-    
-    static size_t s_levelComponents[x_maxLevels];
-    static size_t s_componentLookup[x_lookupSize];
-    static bool s_isInitialized;
+    static constexpr size_t x_maxComponents = DiscreteFourierTransform::x_maxComponents;
+    static constexpr size_t x_lookupSize = x_maxComponents + 1;
+    size_t m_components[x_maxLevels]{};
+    size_t m_lookup[x_lookupSize]{};
 
-    bool m_waveTableReady;
-    bool m_dftReady;
-    size_t m_levelsReady;
-    size_t m_lastLevel;
-    
-    AdaptiveWaveTable()
-        : m_waveTableReady(false)
-        , m_dftReady(false)
-        , m_levelsReady(0)
-        , m_lastLevel(0)
+    constexpr AdaptiveWaveTableLevels()
     {
-        InitializeStatic();
-    }
-    
-    static void InitializeStatic()
-    {
-        if (s_isInitialized)
-        {
-            return;
-        }
-        
-        // Initialize level components
-        //
         float components = 3;
-        s_levelComponents[0] = 1;
+        m_components[0] = 1;
         for (size_t i = 1; i < x_maxLevels; ++i)
         {
-            s_levelComponents[i] = static_cast<size_t>(components);
-            components = std::max(components * m_levelsBase, std::floor(components) + 1);
-            s_levelComponents[i] = std::min(s_levelComponents[i], DiscreteFourierTransform::x_maxComponents);
-            assert(s_levelComponents[i] < BasicWaveTable::x_tableSize);
+            m_components[i] = std::min(static_cast<size_t>(components), x_maxComponents);
+            components = std::max(components * 1.3f, static_cast<float>(static_cast<size_t>(components) + 1));
         }
-        
-        // Initialize lookup table
-        //
-        for (size_t maxComp = 0; maxComp < x_lookupSize; ++maxComp)
+
+        for (size_t count = 0; count < x_lookupSize; ++count)
         {
             size_t level = 0;
-            while (level < x_maxLevels - 1 && s_levelComponents[level + 1] < maxComp)
+            while (level + 1 < x_maxLevels && m_components[level + 1] < count)
             {
                 ++level;
             }
-            
-            s_componentLookup[maxComp] = level;
+
+            m_lookup[count] = level;
         }
-        
-        s_isInitialized = true;
     }
+};
+
+inline constexpr AdaptiveWaveTableLevels x_adaptiveWaveTableLevels;
+
+template<typename Number, size_t Size>
+struct AdaptiveWaveTableEvalSiteGeneric
+{
+    int m_lower[Size]{};
+    int m_upper[Size]{};
+    MultiChannelNumber<Number, Size> m_wayThrough;
+};
+
+template<typename Number, size_t Size>
+struct AdaptiveWaveTableGeneric
+{
+    using Vector = MultiChannelNumber<Number, Size>;
+    using WaveTable = BasicWaveTableGeneric<Number, Size, 10>;
+    using DFT = DiscreteFourierTransformGeneric<Number, Size, 10>;
+    using EvalSite = AdaptiveWaveTableEvalSiteGeneric<Number, Size>;
+    using Lookup = typename WaveTable::Lookup;
+    using MonoTable = AdaptiveWaveTableGeneric<Number, 1>;
+    static constexpr size_t x_maxLevels = AdaptiveWaveTableLevels::x_maxLevels;
+    static constexpr size_t x_lookupSize = AdaptiveWaveTableLevels::x_lookupSize;
+    inline static constexpr auto& s_levelComponents = x_adaptiveWaveTableLevels.m_components;
+    inline static constexpr auto& s_componentLookup = x_adaptiveWaveTableLevels.m_lookup;
+
+    WaveTable m_waveTable;
+    DFT m_dft;
+    WaveTable m_levels[x_maxLevels];
+    bool m_waveTableReady = false;
+    bool m_dftReady = false;
+    size_t m_levelsReady = 0;
 
     bool IsReady() const
     {
@@ -351,7 +352,7 @@ struct AdaptiveWaveTable
         m_levelsReady = 0;
     }
 
-    BasicWaveTable& GetWaveTable()
+    WaveTable& GetWaveTable()
     {
         return m_waveTable;
     }
@@ -374,89 +375,99 @@ struct AdaptiveWaveTable
         m_levelsReady = x_maxLevels;
     }
 
-    struct EvalSite
+    static void EvaluateSite(const Vector& freq, const Vector& maxFreq, EvalSite& site)
     {
-        int m_lower;
-        int m_upper;
-        float m_wayThrough;
+        Vector positive = Vector::IfLess(Vector(), freq, freq, Vector::Splat(1));
+        Vector maxComponents = Vector::Min(maxFreq / positive, Vector::Splat(DFT::x_maxComponents));
+        maxComponents = Vector::IfLess(Vector(), freq, maxComponents, Vector::Splat(DFT::x_maxComponents));
+        maxComponents = Vector::Max(Vector(), maxComponents);
+        Vector lowerComponents;
+        Vector spans = Vector::Splat(1);
+        Vector blend;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            site.m_lower[lane] = -1;
+            site.m_upper[lane] = -1;
+            if (maxFreq[lane] < freq[lane])
+            {
+                continue;
+            }
 
-        void Set(int lower, int upper, float wayThrough)
-        {
-            m_lower = lower;
-            m_upper = upper;
-            m_wayThrough = wayThrough;
-        }
-    };
+            size_t level = s_componentLookup[static_cast<size_t>(maxComponents[lane])];
+            if (level + 1 < x_maxLevels && s_levelComponents[level + 1] <= maxComponents[lane])
+            {
+                ++level;
+            }
 
-    void EvaluateSite(float freq, float maxFreq, EvalSite& site)
-    {
-        if (maxFreq < freq)
-        {
-            site.Set(-1, -1, 0);
-            return;
-        }
-
-        float maxComponents = maxFreq / freq;
-        size_t maxCompInt = static_cast<size_t>(maxComponents);
-        maxCompInt = std::min(maxCompInt, DiscreteFourierTransform::x_maxComponents);
-        
-        // Use lookup table, check if fractional part pushes us to next level
-        //
-        size_t level = s_componentLookup[maxCompInt];
-        if (level < x_maxLevels - 1 && s_levelComponents[level + 1] <= maxComponents)
-        {
-            ++level;
-        }
-        
-        if (level != m_lastLevel)
-        {
-            m_lastLevel = level;
+            site.m_lower[lane] = static_cast<int>(level);
+            if (level + 1 < x_maxLevels && maxComponents[lane] >= s_levelComponents[level]
+                && maxComponents[lane] < s_levelComponents[level + 1])
+            {
+                site.m_upper[lane] = static_cast<int>(level + 1);
+                lowerComponents[lane] = static_cast<Number>(s_levelComponents[level]);
+                spans[lane] = static_cast<Number>(s_levelComponents[level + 1] - s_levelComponents[level]);
+                blend[lane] = 1;
+            }
         }
 
-        if (level == x_maxLevels - 1)
-        {
-            site.Set(x_maxLevels - 1, -1, 0);
-        }
-        else if (maxComponents >= s_levelComponents[level] && maxComponents < s_levelComponents[level + 1])
-        {
-            // Interpolate between level and level + 1
-            //
-            float wayThrough = static_cast<float>(maxComponents - s_levelComponents[level]) / static_cast<float>(s_levelComponents[level + 1] - s_levelComponents[level]);
-            site.Set(static_cast<int>(level), static_cast<int>(level + 1), wayThrough);
-        }
-        else
-        {
-            site.Set(static_cast<int>(level), -1, 0);
-        }
-    }
-    
-    float Evaluate(float phase, EvalSite& site)
-    {
-        if (site.m_lower == -1)
-        {
-            return 0;
-        }
-        else if (site.m_upper == -1)
-        {
-            return m_levels[site.m_lower].Evaluate(phase);
-        }
-        else
-        {
-            return m_levels[site.m_lower].Evaluate(phase) * (1 - site.m_wayThrough) + m_levels[site.m_upper].Evaluate(phase) * site.m_wayThrough;
-        }
+        site.m_wayThrough = (maxComponents - lowerComponents) / spans * blend;
     }
 
-    float StartValue() const
+    // Only address-dependent loads are scalar; phase and level interpolation
+    // run across every lane together. The reader supports owned vector tables
+    // and independently allocated mono tables without copying table storage.
+    //
+    template<typename Read>
+    static Vector EvaluateWithRead(const Lookup& lookup, const EvalSite& site, const Read& read)
+    {
+        Vector lower0, lower1, upper0, upper1;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            size_t index = lookup.m_index[lane];
+            size_t next = (index + 1) % WaveTable::x_tableSize;
+            if (site.m_lower[lane] >= 0)
+            {
+                lower0[lane] = read(site.m_lower[lane], index, lane);
+                lower1[lane] = read(site.m_lower[lane], next, lane);
+            }
+
+            if (site.m_upper[lane] >= 0)
+            {
+                upper0[lane] = read(site.m_upper[lane], index, lane);
+                upper1[lane] = read(site.m_upper[lane], next, lane);
+            }
+        }
+
+        Vector left = lower0 * (Vector::Splat(1) - lookup.m_fraction) + lower1 * lookup.m_fraction;
+        Vector right = upper0 * (Vector::Splat(1) - lookup.m_fraction) + upper1 * lookup.m_fraction;
+        return left * (Vector::Splat(1) - site.m_wayThrough) + right * site.m_wayThrough;
+    }
+
+    Vector Evaluate(const Vector& phase, const EvalSite& site) const
+    {
+        return EvaluateWithRead(Lookup(phase), site, [this](int level, size_t index, size_t lane)
+        {
+            return m_levels[level].m_table[index][lane];
+        });
+    }
+
+    static Vector Evaluate(const Lookup& lookup, const EvalSite& site, MonoTable* const* tables)
+    {
+        return EvaluateWithRead(lookup, site, [tables](int level, size_t index, size_t lane)
+        {
+            return tables[lane]->m_levels[level].m_table[index][0];
+        });
+    }
+
+    Vector StartValue() const
     {
         return m_waveTable.StartValue();
     }
-    
-    float CenterValue() const
+
+    Vector CenterValue() const
     {
         return m_waveTable.CenterValue();
     }
 };
 
-inline size_t AdaptiveWaveTable::s_levelComponents[AdaptiveWaveTable::x_maxLevels];
-inline size_t AdaptiveWaveTable::s_componentLookup[AdaptiveWaveTable::x_lookupSize];
-inline bool AdaptiveWaveTable::s_isInitialized = false;
+using AdaptiveWaveTable = AdaptiveWaveTableGeneric<float, 1>;

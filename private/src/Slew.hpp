@@ -109,12 +109,12 @@ struct BiDirectionalSlewGeneric
 
     void SetSlewUp(const Vector& cyclesPerSample)
     {
-        m_slewUp.SetAlphaFromNatFreq(cyclesPerSample.template Convert<double>());
+        m_slewUp.m_alpha = OPLowPassFilterGeneric<float, Size>::AlphaFromNatFreqApprox(cyclesPerSample).template Convert<double>();
     }
 
     void SetSlewDown(const Vector& cyclesPerSample)
     {
-        m_slewDown.SetAlphaFromNatFreq(cyclesPerSample.template Convert<double>());
+        m_slewDown.m_alpha = OPLowPassFilterGeneric<float, Size>::AlphaFromNatFreqApprox(cyclesPerSample).template Convert<double>();
     }
 
     static float Process(float src, float trg, float slewUpAlpha, float slewDownAlpha)
@@ -153,7 +153,7 @@ struct SlewUp
 
     void SetSlewUp(float cyclesPerSample)
     {
-        m_slewUp.SetAlphaFromNatFreq(cyclesPerSample);
+        m_slewUp.SetAlphaFromNatFreqApprox(cyclesPerSample);
     }
 
     static float Process(float src, float trg, float slewUpAlpha)

@@ -550,7 +550,7 @@ DOCTEST_TEST_CASE("GangedRandomLFO samples a correlated round in canonical order
     DOCTEST_CHECK(lfo.m_draws.m_nextUniform == 3);
 }
 
-DOCTEST_TEST_CASE("GangedRandomLFO waits for the slowest voice before resetting")
+DOCTEST_TEST_CASE("GangedRandomLFO forecasts one round and redraws only on 32-sample boundaries")
 {
     ScriptedGangedRandomLFODrawSource draws;
     draws.m_normalResults = {
@@ -559,26 +559,60 @@ DOCTEST_TEST_CASE("GangedRandomLFO waits for the slowest voice before resetting"
     };
     draws.m_uniformResults = {0.5f, 0.0f, 1.0f, 0.5f, 0.25f, 0.75f};
     GangedRandomLFO<2, ScriptedGangedRandomLFODrawSource> lfo(std::move(draws));
-
     GangedRandomLFOInput input;
     input.m_waiting = {1.0, 0.0, 0.0};
     input.m_moving = {1.0, 0.0, 0.0};
     input.m_targetInternalSigma = 0.2f;
 
-    lfo.Process(1.0, input);
-    lfo.Process(1.0, input);
-    DOCTEST_CHECK(lfo.m_voices[0].m_state == GangedRandomLFOVoice::State::Moving);
-    DOCTEST_CHECK(lfo.m_voices[1].m_state == GangedRandomLFOVoice::State::Waiting);
-    lfo.Process(1.0, input);
-    DOCTEST_CHECK(lfo.m_voices[0].m_state == GangedRandomLFOVoice::State::Done);
-    DOCTEST_CHECK(lfo.m_voices[1].m_state == GangedRandomLFOVoice::State::Moving);
-    DOCTEST_CHECK(lfo.m_draws.m_nextNormal == 8);
-    lfo.Process(1.0, input);
-    DOCTEST_CHECK(lfo.m_draws.m_nextNormal == 8);
+    // Both voices finish within this frame; no second round is predicted.
+    //
+    for (size_t sample = 0; sample < 32; ++sample)
+    {
+        lfo.Process(1.0, input);
+        DOCTEST_CHECK(lfo.m_draws.m_nextNormal == 8);
+        DOCTEST_CHECK(lfo.Output(0) == doctest::Approx(0.25f * sample / 32));
+        DOCTEST_CHECK(lfo.Output(1) == doctest::Approx(0.75f * sample / 32));
+    }
+
     lfo.Process(1.0, input);
     DOCTEST_CHECK(lfo.m_draws.m_nextNormal == 16);
-    DOCTEST_CHECK(lfo.m_voices[0].m_state == GangedRandomLFOVoice::State::Waiting);
-    DOCTEST_CHECK(lfo.m_voices[1].m_state == GangedRandomLFOVoice::State::Waiting);
+    DOCTEST_CHECK(lfo.Output(0) == doctest::Approx(0.25f));
+    DOCTEST_CHECK(lfo.Output(1) == doctest::Approx(0.75f));
+}
+
+DOCTEST_TEST_CASE("GangedRandomLFO holds completed lanes until the slowest lane's frame ends")
+{
+    GangedRandomLFO<2> lfo(123u);
+    GangedRandomLFOInput input = GangedRandomLFOInput::Standard(1.0, 0.1f);
+    for (size_t lane = 0; lane < 2; ++lane)
+    {
+        lfo.m_voices[lane].Reset(1.0f);
+        lfo.m_voiceInputs[lane] = {1.0 / 16.0, lane == 0 ? 1.0 / 8.0 : 1.0 / 64.0, 1.0f};
+    }
+
+    for (size_t sample = 0; sample < 96; ++sample)
+    {
+        lfo.Process(1.0 / kSampleRate, input);
+        if (sample >= 32)
+        {
+            DOCTEST_CHECK(lfo.Output(0) == 1.0f);
+        }
+
+        DOCTEST_CHECK(lfo.m_voices[0].m_target == 1.0f);
+        DOCTEST_CHECK(lfo.m_voices[1].m_target == 1.0f);
+        if (sample == 48)
+        {
+            // The chord between the cosine curve's samples at 32 and 64.
+            //
+            DOCTEST_CHECK(lfo.Output(1) == doctest::Approx(0.5f));
+        }
+    }
+
+    lfo.Process(1.0 / kSampleRate, input);
+    DOCTEST_CHECK(lfo.m_roundElapsedSamples == 0.0);
+    DOCTEST_CHECK(lfo.Output(0) == 1.0f);
+    DOCTEST_CHECK(lfo.Output(1) == 1.0f);
+    DOCTEST_CHECK(lfo.m_voices[1].m_target != 1.0f);
 }
 
 DOCTEST_TEST_CASE("GangedRandomLFO is bounded NaN clean and deterministic")
@@ -672,5 +706,26 @@ DOCTEST_TEST_CASE("QuadLFO: packed lanes match per-lane sine and slews through f
             double expected = slew[i].Process(static_cast<double>(Math::Sin2pi(static_cast<float>(offsetPhase[i]))))[0];
             DOCTEST_CHECK(lfo.m_output[i] == doctest::Approx(expected).epsilon(0.00001).scale(1.0));
         }
+    }
+}
+
+DOCTEST_TEST_CASE("GangedRandomLFO history matches frame interpolation across non-binary timing boundaries")
+{
+    GlobalEnv::ResetPerTest();
+    GangedRandomLFO<3> lfo(427u);
+    GangedRandomLFOHistory<3> history;
+    lfo.m_history = &history;
+    GangedRandomLFOInput input;
+    input.m_waiting = {100.0 * SampleTimer::x_samplePeriod, 0.0, 0.0};
+    input.m_moving = {28.0 * SampleTimer::x_samplePeriod, 0.0, 0.0};
+    for (size_t sample = 0; sample < 3000; ++sample)
+    {
+        lfo.Process(input);
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            DOCTEST_CHECK(history.GetValue(lane, SampleTimer::GetSample()) == doctest::Approx(lfo.Output(lane)).epsilon(1e-6).scale(1));
+        }
+
+        SampleTimer::IncrementSample();
     }
 }

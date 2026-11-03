@@ -271,7 +271,7 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
 
         for (size_t random = 0; random < 4; ++random)
         {
-            source.m_gangedRandomLFO[random].m_voices[lane].m_output = 0.13f + 0.1f * random + offset;
+            source.m_gangedRandomLFO[random].m_output[lane] = 0.13f + 0.1f * random + offset;
         }
     }
 
@@ -330,8 +330,8 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
         DOCTEST_CHECK(quad.m_value[11][channel] == doctest::Approx(static_cast<float>(channel) / 3));
     }
 
-    synth.m_globalGangedRandomLFO[0].m_voices[0].m_output = 0.23f;
-    synth.m_globalGangedRandomLFO[1].m_voices[0].m_output = 0.67f;
+    synth.m_globalGangedRandomLFO[0].m_output[0] = 0.23f;
+    synth.m_globalGangedRandomLFO[1].m_output[0] = 0.67f;
     synth.SetGlobalModulators(input);
     const auto& global = synth.m_encoders.GetModulatorValues(Encoders::BankMode::Global);
     DOCTEST_CHECK(global.m_value[2][0] == doctest::Approx(0.23f));

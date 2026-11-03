@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <cmath>
 
 #include "MultiChannelNumber.hpp"
@@ -10,10 +11,31 @@
 #pragma clang diagnostic ignored "-Wvla-cxx-extension"
 
 template<typename Number, size_t Size, size_t Bits>
+struct WaveTableLookupGeneric
+{
+    using Vector = MultiChannelNumber<Number, Size>;
+    static constexpr size_t x_tableSize = static_cast<size_t>(1) << Bits;
+    size_t m_index[Size];
+    Vector m_fraction;
+
+    explicit WaveTableLookupGeneric(const Vector& phase)
+    {
+        Vector position = phase * static_cast<Number>(x_tableSize);
+        Vector floored = position.Floor();
+        m_fraction = position - floored;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            m_index[lane] = static_cast<size_t>(static_cast<int64_t>(floored[lane])) & (x_tableSize - 1);
+        }
+    }
+};
+
+template<typename Number, size_t Size, size_t Bits>
 struct BasicWaveTableGeneric
 {
     using Vector = MultiChannelNumber<Number, Size>;
 
+    using Lookup = WaveTableLookupGeneric<Number, Size, Bits>;
     static constexpr size_t x_tableSize = 1 << Bits;
     Vector m_table[x_tableSize];
 
@@ -71,6 +93,45 @@ struct BasicWaveTableGeneric
         const Vector& a3 = y1;
 
         return ((a0 * frac + a1) * frac + a2) * frac + a3;
+    }
+
+    Vector Evaluate(const Vector& phase) const
+    {
+        return EvaluateLinear(phase);
+    }
+
+    Vector EvaluateLinear(const Vector& phase) const
+    {
+        Lookup lookup(phase);
+        Vector left;
+        Vector right;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            size_t index = lookup.m_index[lane];
+            left[lane] = m_table[index][lane];
+            right[lane] = m_table[(index + 1) % x_tableSize][lane];
+        }
+
+        return left * (Vector::Splat(1) - lookup.m_fraction) + right * lookup.m_fraction;
+    }
+
+    Vector EvaluateCubic(const Vector& phase) const
+    {
+        Lookup lookup(phase);
+        Vector y0, y1, y2, y3;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            size_t index = lookup.m_index[lane];
+            y0[lane] = m_table[(index + x_tableSize - 1) % x_tableSize][lane];
+            y1[lane] = m_table[index][lane];
+            y2[lane] = m_table[(index + 1) % x_tableSize][lane];
+            y3[lane] = m_table[(index + 2) % x_tableSize][lane];
+        }
+
+        Vector a0 = y0 * -0.5 + y1 * 1.5 - y2 * 1.5 + y3 * 0.5;
+        Vector a1 = y0 - y1 * 2.5 + y2 * 2.0 - y3 * 0.5;
+        Vector a2 = y0 * -0.5 + y2 * 0.5;
+        return ((a0 * lookup.m_fraction + a1) * lookup.m_fraction + a2) * lookup.m_fraction + y1;
     }
 
     void Write(size_t index, const Vector& value)

@@ -39,6 +39,16 @@ struct OPLowPassFilterGeneric
         m_alpha = AlphaFromNatFreq(cyclesPerSample);
     }
 
+    void SetAlphaFromNatFreqApprox(Number cyclesPerSample)
+    {
+        m_alpha = AlphaFromNatFreqApprox(Vector::Splat(cyclesPerSample));
+    }
+
+    void SetAlphaFromNatFreqApprox(const Vector& cyclesPerSample)
+    {
+        m_alpha = AlphaFromNatFreqApprox(cyclesPerSample);
+    }
+
     // Radians per sample, with the cutoff clamped to x_maxCutoff.
     //
     static Vector OmegaFromNatFreq(const Vector& cyclesPerSample)
@@ -55,6 +65,41 @@ struct OPLowPassFilterGeneric
     static Vector AlphaFromNatFreq(const Vector& cyclesPerSample)
     {
         return Vector::Splat(1) - (-OmegaFromNatFreq(cyclesPerSample)).Exp();
+    }
+
+    // Approximate 1 - exp(-omega) directly, preserving tiny slew coefficients.
+    // Use a fourth-order series for omega <= 0.05. Above that, a sixth-order
+    // series at omega/8 and three doublings cover the full clamped range.
+    // Relative alpha error is below 6e-7 in float and 1.5e-7 in double;
+    // equivalent decay-rate error is below 3e-6 and 1.1e-6, respectively.
+    // The polynomial arithmetic is SIMD, including for double state.
+    //
+    static Vector AlphaFromNatFreqApprox(const Vector& cyclesPerSample)
+    {
+        Vector omega = OmegaFromNatFreq(cyclesPerSample);
+        if (omega == Vector::Min(omega, Vector::Splat(static_cast<Number>(0.05))))
+        {
+            Vector p = Vector::Splat(static_cast<Number>(-1.0 / 24.0));
+            p = p * omega + static_cast<Number>(1.0 / 6.0);
+            p = p * omega - static_cast<Number>(0.5);
+            p = p * omega + static_cast<Number>(1);
+            return omega * p;
+        }
+
+        Vector x = omega * static_cast<Number>(0.125);
+        Vector p = Vector::Splat(static_cast<Number>(-1.0 / 720.0));
+        p = p * x + static_cast<Number>(1.0 / 120.0);
+        p = p * x - static_cast<Number>(1.0 / 24.0);
+        p = p * x + static_cast<Number>(1.0 / 6.0);
+        p = p * x - static_cast<Number>(0.5);
+        p = p * x + static_cast<Number>(1);
+        Vector alpha = x * p;
+        for (size_t i = 0; i < 3; ++i)
+        {
+            alpha = alpha * (Vector::Splat(2) - alpha);
+        }
+
+        return alpha;
     }
 
     static std::complex<float> TransferFunction(float alpha, float freq)

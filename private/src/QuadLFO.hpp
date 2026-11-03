@@ -99,7 +99,7 @@ struct QuadLFO
 
         QuadDouble phase = m_phase + input.GetPhaseOffset().Convert<double>();
         phase = phase.ModOne();
-        m_slew.SetAlphaFromNatFreq(freq * 2.0);
+        m_slew.m_alpha = QuadOPLowPassFilter::AlphaFromNatFreqApprox(input.m_freq * 2.0f).Convert<double>();
         m_output = m_slew.Process(Math::Sin2pi(phase.Convert<float>()).Convert<double>()).Convert<float>();
 
         if (m_scopeWriterHolder.m_scopeWriter)
