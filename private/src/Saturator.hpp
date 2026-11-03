@@ -43,7 +43,7 @@ struct TanhSaturatorGeneric
     static Vector Tanh(const Vector& x)
     {
         Vector x2 = x * x;
-        Vector y = x * (x2 + 27) / (x * 9 * x + 27);
+        Vector y = x * (x2 + 27) / Vector::FusedMultiplyAdd(x * 9, x, Vector::Splat(27));
         return Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(-1), y));
     }
 

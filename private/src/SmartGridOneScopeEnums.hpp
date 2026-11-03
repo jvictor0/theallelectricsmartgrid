@@ -64,13 +64,11 @@ namespace SmartGridOne
 
     enum class QuadControlScopes : size_t
     {
-        DelayLFO = 0,
-        ReverbLFO = 1,
-        QuadGangedRandom1 = 2,
-        QuadGangedRandom2 = 3,
-        QuadLFO1 = 4,
-        QuadLFO2 = 5,
-        NumScopes = 6
+        QuadGangedRandom1 = 0,
+        QuadGangedRandom2 = 1,
+        QuadLFO1 = 2,
+        QuadLFO2 = 3,
+        NumScopes = 4
     };
 
     enum class GlobalControlScopes : size_t

@@ -31,7 +31,7 @@ DOCTEST_TEST_CASE("Weighted modulators: normalized signed depths mix recorded si
         state.m_controlScopeWriter.Write(0, 0, 0.2f * (index + 1));
         state.m_controlScopeWriter.Write(1, 0, 0.4f);
         AdvanceControlIndex(state.m_controlScopeWriter);
-        state.m_quadControlScopeWriter.Write(0, 0, -0.5f);
+        state.m_quadControlScopeWriter.Write(static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1), 0, 0.25f);
         AdvanceControlIndex(state.m_quadControlScopeWriter);
     }
 
@@ -55,7 +55,7 @@ DOCTEST_TEST_CASE("Weighted modulators: normalized signed depths mix recorded si
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 104.0 + x_control) == 0.0f);
 
     WeightedModulators bipolar;
-    bipolar.Add(ModulatorRef(QuadModulator::DelayLFO, 0), -1.0f);
+    bipolar.Add(ModulatorRef(QuadModulator::LFO1, 0), -1.0f);
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, bipolar, 104.0 + 2.0 * x_control) == doctest::Approx(0.75f));
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, bipolar, 103.0) == 0.0f);
     WeightedModulators missing;
@@ -332,10 +332,6 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
                     static_cast<double>(sample), synth.m_quadSquiggleLFO[0].m_polyXFader.m_output[channel]});
                 scopes.push_back({ModulatorRef(QuadModulator::LFO2, channel),
                     static_cast<double>(sample), synth.m_quadSquiggleLFO[1].m_polyXFader.m_output[channel]});
-                scopes.push_back({ModulatorRef(QuadModulator::DelayLFO, channel),
-                    static_cast<double>(sample), synth.m_delay.m_lfo.m_output[channel]});
-                scopes.push_back({ModulatorRef(QuadModulator::ReverbLFO, channel),
-                    static_cast<double>(sample), synth.m_reverb.m_lfo.m_output[channel]});
             }
         }
     }
@@ -356,7 +352,7 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
             == doctest::Approx(observation.m_value).epsilon(0.00001));
     }
 
-    constexpr size_t x_scopeLanes = 52;
+    constexpr size_t x_scopeLanes = 44;
     for (size_t i = 0; i < scopes.size(); ++i)
     {
         const auto& observation = scopes[i];

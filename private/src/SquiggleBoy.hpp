@@ -820,8 +820,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SetupScopeWriters(UIState* uiState)
     {
-        m_delay.m_lfo.ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::DelayLFO));
-        m_reverb.m_lfo.ConfigureScopeWriter(&uiState->m_quadControlScopeWriter, static_cast<size_t>(SmartGridOne::QuadControlScopes::ReverbLFO));
 
         for (size_t i = 0; i < 4; ++i)
         {
@@ -1105,8 +1103,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 modulatorValues.Set(random, i, m_quadGangedRandomLFO[random].Output(i));
             }
 
-            modulatorValues.Set(QuadModulator::DelayLFO, i, m_delay.m_lfo.m_output[i] / 2.0 + 0.5);
-            modulatorValues.Set(QuadModulator::ReverbLFO, i, m_reverb.m_lfo.m_output[i] / 2.0 + 0.5);
 
             modulatorValues.Set(QuadModulator::LFO1, i, m_quadSquiggleLFO[0].m_output[i]);
             modulatorValues.Set(QuadModulator::LFO2, i, m_quadSquiggleLFO[1].m_output[i]);
@@ -1183,8 +1179,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         delayInputSetterInput.m_widenKnob = m_encoders.GetValue<4>(Param::DelayWiden, 0);
         delayInputSetterInput.m_resynthUnisonKnob = m_encoders.GetValue<4>(Param::ResynthUnison, 0);
         delayInputSetterInput.m_resynthShiftFadeKnob = m_encoders.GetValue<4>(Param::ResynthShiftFade, 0);
-        delayInputSetterInput.m_modFreqKnob = m_encoders.GetValue<4>(Param::DelayModSpeed, 0);
-        delayInputSetterInput.m_lfoPhaseKnob = m_encoders.GetValue<4>(Param::DelayModPhaseShift, 0);
 
         delayInputSetterInput.m_theoryOfTime = m_theoryOfTime;
         m_delayInputSetter.Process(delayInputSetterInput, m_delayState, &m_delay);
@@ -1234,9 +1228,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         reverbInputSetterInput.m_feedbackKnob = m_encoders.GetValue<4>(Param::ReverbFeedback, 0);
         reverbInputSetterInput.m_dampingBaseKnob = m_encoders.GetValue<4>(Param::ReverbDampBase, 0);
         reverbInputSetterInput.m_dampingWidthKnob = m_encoders.GetValue<4>(Param::ReverbDampWidth, 0);
-        reverbInputSetterInput.m_modDepthKnob = m_encoders.GetValue<4>(Param::ReverbModDepth, 0);
-        reverbInputSetterInput.m_modFreqKnob = m_encoders.GetValue<4>(Param::ReverbModSpeed, 0);
-        reverbInputSetterInput.m_lfoPhaseKnob = m_encoders.GetValue<4>(Param::ReverbModPhaseShift, 0);
+        reverbInputSetterInput.m_delayOffsetKnob = m_encoders.GetValue<4>(Param::ReverbModDepth, 0);
         
         m_reverbInputSetter.Process(reverbInputSetterInput, m_reverbState);
         m_mixerState.m_returnSendGain[1][0].Update(m_encoders.GetValue(Param::ReverbDelaySend));

@@ -25,7 +25,7 @@ struct OPLowPassFilterGeneric
 
     Vector Process(const Vector& input)
     {
-        m_output = m_alpha * input + (Vector::Splat(1) - m_alpha) * m_output;
+        m_output = Vector::FusedMultiplyAdd(m_alpha, input, (Vector::Splat(1) - m_alpha) * m_output);
         return m_output;
     }
 

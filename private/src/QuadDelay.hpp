@@ -3,7 +3,6 @@
 #include "QuadUtils.hpp"
 #include "DelayLine.hpp"
 #include "PositionalBufferRecorder.hpp"
-#include "QuadLFO.hpp"
 #include "Filter.hpp"
 #include "Saturator.hpp"
 #include "Oversample.hpp"
@@ -30,21 +29,18 @@ struct QuadDelay
         }
     };
     
-    // The delay line, its positions and the sample-offset modulation are in
-    // host samples. The saturated input and feedback are decimated and written
+    // The delay line and its positions are in host samples. The saturated input and feedback are decimated and written
     // once per host frame; grains play back at the engine rate.
     //
     static constexpr size_t x_oversample = SampleTimer::x_oversample;
     static constexpr size_t x_delayLineSize = 1 << 24;
     static constexpr size_t x_positionalBufferSize = 1024;
-    static constexpr float x_modulationHostSamples = 1000.0f;
     using Writer = QuadDelayLineMovableWriter<x_delayLineSize>;
     using WriteDecimator = DownsamplerGeneric<float, 4, 8, x_oversample>;
     Writer m_delayLine;
     WriteDecimator m_writeDecimator;
     size_t m_writeSubSample;
     QuadGrainManager<Writer> m_grainManager;
-    QuadLFO m_lfo;
 
     PositionalBufferRecorder<x_positionalBufferSize> m_positionalBufferRecorder;
 
@@ -60,7 +56,6 @@ struct QuadDelay
         , m_saturator(0.5f)
         , m_output()
     {
-        m_lfo.SetSlew(SampleTimer::HzToCycPerSamp(10.0));
     }
     
     struct Input
@@ -69,7 +64,6 @@ struct QuadDelay
         QuadFloat m_return;
         QuadFloat m_feedback;
         QuadFloat m_rotate;
-        QuadFloat m_modDepth;
 
         double m_writeHeadPosition;
         QuadDouble m_readHeadPosition;
@@ -78,8 +72,6 @@ struct QuadDelay
 
         QuadFloat m_bffBase;
         QuadFloat m_bffWidth;
-
-        QuadLFO::Input m_lfoInput;
 
         QuadGrainManager<Writer>::Input m_grainManagerInput;
 
@@ -161,7 +153,6 @@ struct QuadDelay
 
     QuadFloat Process(Input& input)
     {
-        m_lfo.Process(input.m_lfoInput);
         m_postFeedbackFilter.SetBFFBaseWidth(input.m_bffBase, input.m_bffWidth);
 
         QuadFloat qInput = input.m_input;
@@ -176,8 +167,7 @@ struct QuadDelay
             m_delayLine.Write(m_writeDecimator.GetOutput(), input.m_writeHeadPosition);
         }
 
-        QuadFloat sampleOffset = m_lfo.m_output * x_modulationHostSamples * input.m_modDepth;
-        QuadFloat delayedSignal = m_grainManager.Process(input.m_readHeadPosition, sampleOffset, input.m_grainManagerInput, m_delayLine.m_lastTime - 1.0);
+        QuadFloat delayedSignal = m_grainManager.Process(input.m_readHeadPosition, QuadFloat(), input.m_grainManagerInput, m_delayLine.m_lastTime - 1.0);
 
         m_output = m_postFeedbackFilter.Process(input.TransformOutput(delayedSignal));
 
@@ -192,19 +182,16 @@ struct QuadDelayInputSetter
 
     QuadExpParam m_dampingBase;
     QuadExpParam m_dampingWidth;
-    QuadExpParam m_modFreq;
 
     // Each channel widens over its own range, so the wideners stay per channel.
     //
     PhaseUtils::ExpParam m_wideners[4];
-    QuadZeroedExpParam m_modDepth;
 
     QuadZeroedExpParam m_feedback;
 
     // Double state: 1 Hz one-poles at the engine rate stall short of their
     // targets in float.
     //
-    OPLowPassFilterGeneric<double, 4> m_modDepthFilter;
 
     OPLowPassFilterGeneric<double, 4> m_rotateFilter;
 
@@ -223,12 +210,9 @@ struct QuadDelayInputSetter
         int m_loopSelectorSwitchVal[4];
         QuadFloat m_widenKnob;
         int m_rotateSwitchVal[4];
-        QuadFloat m_modFreqKnob;
-        QuadFloat m_modDepthKnob;
         QuadFloat m_feedbackKnob;
         QuadFloat m_dampingBaseKnob;
         QuadFloat m_dampingWidthKnob;
-        QuadFloat m_lfoPhaseKnob;
 
         QuadFloat m_resynthShiftFadeKnob;
         QuadFloat m_resynthUnisonKnob;
@@ -239,12 +223,9 @@ struct QuadDelayInputSetter
 
         Input()
             : m_widenKnob()
-            , m_modFreqKnob()
-            , m_modDepthKnob()
             , m_feedbackKnob()
             , m_dampingBaseKnob()
             , m_dampingWidthKnob()
-            , m_lfoPhaseKnob()
             , m_resynthShiftFadeKnob()
             , m_resynthUnisonKnob()
             , m_resynthSlewUpKnob()
@@ -264,7 +245,6 @@ struct QuadDelayInputSetter
     QuadDelayInputSetter()
       : m_dampingBase(SampleTimer::HzToCycPerSamp(DampingFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(DampingFilter::x_maxBaseHz))
       , m_dampingWidth(1.0, 2048.0)
-      , m_modFreq(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05))
       , m_wideners
       {
         PhaseUtils::ExpParam(1.0, 0.978615137775),
@@ -276,7 +256,6 @@ struct QuadDelayInputSetter
       , m_unisonGain(20)
       , m_slewUp(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5)
     {
-        m_modDepthFilter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
         m_rotateFilter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
         m_feedback.SetBaseByCenter(0.25);
         for (int i = 0; i < 4; ++i)
@@ -320,12 +299,9 @@ struct QuadDelayInputSetter
         }
 
         delayInput.m_rotate = m_rotateFilter.Process(rotate.Convert<double>()).Convert<float>();
-        delayInput.m_modDepth = m_modDepthFilter.Process(m_modDepth.Update(input.m_modDepthKnob).Convert<double>()).Convert<float>();
-        delayInput.m_lfoInput.m_freq = m_modFreq.Update(input.m_modFreqKnob);
         delayInput.m_feedback = m_feedback.Update(input.m_feedbackKnob) * 1.25f;
         delayInput.m_bffBase = m_dampingBase.Update(input.m_dampingBaseKnob);
         delayInput.m_bffWidth = m_dampingWidth.Update(input.m_dampingWidthKnob);
-        delayInput.m_lfoInput.m_phaseKnob = input.m_lfoPhaseKnob;
 
         QuadFloat unisonDetune = m_unisonDetune.Update(input.m_resynthUnisonKnob);
         QuadFloat unisonGain = m_unisonGain.Update(QuadFloat::Min(QuadFloat::Splat(1.0f), input.m_resynthUnisonKnob * 10.0f));

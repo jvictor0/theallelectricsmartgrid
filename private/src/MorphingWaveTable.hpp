@@ -45,7 +45,7 @@ struct MorphingWaveTableGeneric
         typename Evaluation::Lookup lookup(phase);
         Vector left = Evaluation::Evaluate(lookup, site, m_left);
         Vector right = Evaluation::Evaluate(lookup, site, m_right);
-        return left * (Vector::Splat(1) - blend) + right * blend;
+        return Vector::FusedMultiplyAdd(blend, right - left, left);
     }
 
     Vector StartValue(const Vector& blend, const Vector& freq, const Vector& maxFreq) const

@@ -54,8 +54,6 @@ struct SmartGridOneParamVisualizers
             case Visualizer::LFO2Scope:
             case Visualizer::QuadLFO1Scope:
             case Visualizer::QuadLFO2Scope:
-            case Visualizer::DelayLFO:
-            case Visualizer::ReverbLFO:
                 return true;
             default: break;
         }
@@ -64,7 +62,6 @@ struct SmartGridOneParamVisualizers
         //
         switch (param)
         {
-            case Param::ReverbModDepth:
             case Param::TempoLFOSkew:
             case Param::TempoLFOMult:
             case Param::TempoLFOShape:

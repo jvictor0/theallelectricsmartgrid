@@ -117,6 +117,60 @@ struct LinkwitzRileyCrossoverGeneric : LinkwitzRileyCrossoverBase
         m_highBiquad2.SetCoefficients(cosw, sinw, q2, true);
     }
 
+    // Batch independent cutoffs across lanes, then share each coefficient set
+    // across its audio channels. Three crossovers use a padded four-lane vector.
+    //
+    template<size_t Count>
+    static void SetCyclesPerSampleBatch(LinkwitzRileyCrossoverGeneric* crossovers,
+        const MultiChannelNumber<float, Count>& cyclesPerSample)
+    {
+        using Packed = MultiChannelNumber<float, Count>;
+        Packed frequency = Packed::Min(Packed::Splat(x_maxCyclesPerSample),
+            Packed::Max(Packed::Splat(x_minCyclesPerSample), cyclesPerSample));
+
+        // Bilinear-transform coefficients using tan(pi*f). Reflect about f=1/4
+        // so the rational approximation only covers [0, pi/4]; the reflected
+        // half swaps low/high numerators and the sign of a1. This also avoids
+        // subtracting a cosine near one at very low cutoffs.
+        //
+        Packed angle = Packed::Min(frequency, Packed::Splat(0.5f) - frequency) * static_cast<float>(M_PI);
+        Packed squared = angle * angle;
+        Packed numerator = Packed::FusedMultiplyAdd(squared,
+            Packed::FusedMultiplyAdd(squared, Packed::Splat(378) - squared, Packed::Splat(-17325)), Packed::Splat(135135));
+        Packed denominator = Packed::FusedMultiplyAdd(squared,
+            Packed::FusedMultiplyAdd(squared,
+                Packed::FusedMultiplyAdd(squared, Packed::Splat(-28), Packed::Splat(3150)), Packed::Splat(-62370)), Packed::Splat(135135));
+        Packed tangent = angle * numerator / denominator;
+        Packed tangentSquared = tangent * tangent;
+        Packed sum = Packed::Splat(1) + tangentSquared;
+
+        for (size_t section = 0; section < 2; ++section)
+        {
+            float q = section == 0 ? Q1() : Q2();
+            Packed damping = tangent / q;
+            Packed reciprocal = Packed::Splat(1) / (sum + damping);
+            Packed small = tangentSquared * reciprocal;
+            Packed lowB0 = Packed::IfLess(frequency, Packed::Splat(0.25f), small, reciprocal);
+            Packed highB0 = Packed::IfLess(frequency, Packed::Splat(0.25f), reciprocal, small);
+            Packed negativeA1 = (tangentSquared - 1) * 2 * reciprocal;
+            Packed a1 = Packed::IfLess(frequency, Packed::Splat(0.25f), negativeA1, -negativeA1);
+            Packed a2 = (sum - damping) * reciprocal;
+            for (size_t lane = 0; lane < Count; ++lane)
+            {
+                auto& crossover = crossovers[lane];
+                crossover.m_cyclesPerSample = frequency[lane];
+                auto& low = section == 0 ? crossover.m_lowBiquad1 : crossover.m_lowBiquad2;
+                auto& high = section == 0 ? crossover.m_highBiquad1 : crossover.m_highBiquad2;
+                low.m_b0 = low.m_b2 = lowB0[lane];
+                low.m_b1 = 2.0f * lowB0[lane];
+                high.m_b0 = high.m_b2 = highB0[lane];
+                high.m_b1 = -2.0f * highB0[lane];
+                low.m_a1 = high.m_a1 = a1[lane];
+                low.m_a2 = high.m_a2 = a2[lane];
+            }
+        }
+    }
+
     void Reset()
     {
         m_lowBiquad1.Reset();

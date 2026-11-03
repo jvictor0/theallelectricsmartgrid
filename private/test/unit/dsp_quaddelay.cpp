@@ -15,8 +15,6 @@
 //     (QuadFloat) are normalised [0,1]; used for UI only.
 //   - Input::m_input  = external audio input, m_return = feedback audio return.
 //   - feedback <= 0 disables the feedback path.
-//   - m_lfoInput.m_freq  -- LFO frequency per channel; 0 = no LFO.
-//   - m_modDepth  -- 0 = no modulation.
 //   - m_grainManagerInput is heavy; keep as default (resynthesis inactive).
 //
 // NOTE: DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES is active; use DOCTEST_ prefixes.
@@ -126,15 +124,13 @@ void AdvanceHeads(double& writePos, QuadDouble& readPos, double delayLen)
 // with zero feedback and no modulation. Grain-manager input left as default.
 //
 QuadDelay::Input MakeBasicInput(double writePos, QuadDouble readPos,
-                                QuadFloat externalIn, float feedback = 0.0f,
-                                float modDepth = 0.0f)
+                                QuadFloat externalIn, float feedback = 0.0f)
 {
     QuadDelay::Input inp;
     inp.m_input              = externalIn;
     inp.m_return             = QuadFloat(0.0f, 0.0f, 0.0f, 0.0f);
     inp.m_feedback           = QuadFloat(feedback, feedback, feedback, feedback);
     inp.m_rotate             = QuadFloat(0.0f, 0.0f, 0.0f, 0.0f);
-    inp.m_modDepth           = QuadFloat(modDepth, modDepth, modDepth, modDepth);
     inp.m_writeHeadPosition  = writePos;
     inp.m_readHeadPosition   = readPos;
     // Default relative positions (UI, does not affect audio path).
@@ -145,15 +141,6 @@ QuadDelay::Input MakeBasicInput(double writePos, QuadDouble readPos,
     //
     inp.m_bffBase  = QuadFloat(1.0f/4096.0f, 1.0f/4096.0f, 1.0f/4096.0f, 1.0f/4096.0f);
     inp.m_bffWidth = QuadFloat(4096.0f, 4096.0f, 4096.0f, 4096.0f);
-    // QuadLFO::Process calls m_slew[i].SetAlphaFromNatFreq(freq * 2), so freq
-    // must be > 0.  Use a very slow LFO (~0.5 Hz at 48 kHz) that has negligible
-    // effect on the delay output but satisfies the assertion.
-    //
-    for (size_t i = 0; i < 4; ++i)
-    {
-        inp.m_lfoInput.m_freq[i]      = 0.5f / 48000.0f;
-        inp.m_lfoInput.m_phaseKnob[i] = 0.0f;
-    }
     return inp;
 }
 
@@ -322,7 +309,6 @@ DOCTEST_TEST_CASE("QuadDelay: stress - random seeded modulation, finite+bounded"
     bool anyNan = false;
     QuadFloat previousOutput;
     float feedback = 0.0f;
-    float modDepth = 0.0f;
 
     for (int i = 0; i < N; ++i)
     {
@@ -333,7 +319,6 @@ DOCTEST_TEST_CASE("QuadDelay: stress - random seeded modulation, finite+bounded"
             // Feedback in [0, 0.7] to stay stable.
             //
             feedback = (rng.Next() * 0.5f + 0.5f) * 0.7f;
-            modDepth = (rng.Next() * 0.5f + 0.5f) * 0.1f;
         }
 
         // Soft white noise input scaled to ~0.1.
@@ -342,7 +327,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - random seeded modulation, finite+bounded"
         QuadFloat qin(inSample, inSample, inSample, inSample);
 
         QuadDelay::Input inp = MakeBasicInput(writePos, readPos, qin,
-                                              feedback, modDepth);
+                                              feedback);
         inp.m_return = previousOutput;
         QuadFloat out = qd.Process(inp);
         previousOutput = out;
@@ -420,7 +405,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - varying write/read speed (ToT simulation)
         float inSample = audioNoise.Next() * 0.05f;
         QuadFloat qin(inSample, inSample, inSample, inSample);
 
-        QuadDelay::Input inp = MakeBasicInput(writeRaw, rp, qin, 0.5f, 0.0f);
+        QuadDelay::Input inp = MakeBasicInput(writeRaw, rp, qin, 0.5f);
         inp.m_return = previousOutput;
         QuadFloat out = qd.Process(inp);
         previousOutput = out;

@@ -153,20 +153,6 @@ G(
     SmartGridOneEncoders::GetModulatorSkin(3, SmartGridOneEncoders::BankMode::Quad).m_color,
     QuadModulator::Random4)
 G(
-    DelayLFO,
-    4,
-    std::make_unique<PolyphonicScopeComponent>(uiState, QuadModulator::DelayLFO),
-    SmartGridOneEncoders::BankMode::Quad,
-    GetModulatorColor(QuadModulator::DelayLFO),
-    QuadModulator::DelayLFO)
-G(
-    ReverbLFO,
-    5,
-    std::make_unique<PolyphonicScopeComponent>(uiState, QuadModulator::ReverbLFO),
-    SmartGridOneEncoders::BankMode::Quad,
-    GetModulatorColor(QuadModulator::ReverbLFO),
-    QuadModulator::ReverbLFO)
-G(
     QuadLFO1Scope,
     6,
     std::make_unique<PolyphonicScopeComponent>(uiState, QuadModulator::LFO1),

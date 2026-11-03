@@ -58,16 +58,47 @@ struct DelayLineGeneric
 
     Vector Read(const Vector& delaySamples)
     {
-        Vector result;
-        for (size_t i = 0; i < Size; ++i)
+        return ReadCubic(delaySamples);
+    }
+
+    Vector ReadCubic(const Vector& delaySamples)
+    {
+        Vector ySub1, y0, y1, y2, alpha;
+        for (size_t lane = 0; lane < Size; ++lane)
         {
-            // use cubic interpolation
-            //
-            Number index = m_index - MirrorDelayTime(delaySamples[i]) + 2 * x_maxDelaySamples;
-            result[i] = ReadAtIndex(i, index);
+            Number delay = MirrorDelayTime(delaySamples[lane]);
+            Number roundedDelay = std::ceil(delay);
+            size_t i0 = (m_index + x_maxDelaySamples - static_cast<size_t>(roundedDelay)) % x_maxDelaySamples;
+            size_t iSub1 = (i0 + x_maxDelaySamples - 1) % x_maxDelaySamples;
+            ySub1[lane] = m_delayLine[iSub1][lane];
+            y0[lane] = m_delayLine[(iSub1 + 1) % x_maxDelaySamples][lane];
+            y1[lane] = m_delayLine[(iSub1 + 2) % x_maxDelaySamples][lane];
+            y2[lane] = m_delayLine[(iSub1 + 3) % x_maxDelaySamples][lane];
+            alpha[lane] = roundedDelay - delay;
         }
 
-        return result;
+        Vector c = y1 - ySub1;
+        Vector d = Vector::FusedMultiplyAdd(ySub1, Vector::Splat(2),
+            Vector::FusedMultiplyAdd(y0, Vector::Splat(-5), y1 * 4)) - y2;
+        Vector e = Vector::FusedMultiplyAdd(y0 - y1, Vector::Splat(3), y2 - ySub1);
+        return Vector::FusedMultiplyAdd(alpha * static_cast<Number>(0.5),
+            Vector::FusedMultiplyAdd(alpha, Vector::FusedMultiplyAdd(alpha, e, d), c), y0);
+    }
+
+    Vector ReadLinear(const Vector& delaySamples)
+    {
+        Vector y0, y1, alpha;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            Number delay = MirrorDelayTime(delaySamples[lane]);
+            Number roundedDelay = std::ceil(delay);
+            size_t i0 = (m_index + x_maxDelaySamples - static_cast<size_t>(roundedDelay)) % x_maxDelaySamples;
+            y0[lane] = m_delayLine[i0][lane];
+            y1[lane] = m_delayLine[(i0 + 1) % x_maxDelaySamples][lane];
+            alpha[lane] = roundedDelay - delay;
+        }
+
+        return Vector::FusedMultiplyAdd(alpha, y1 - y0, y0);
     }
 
     Number ReadAtIndex(size_t channel, Number index)

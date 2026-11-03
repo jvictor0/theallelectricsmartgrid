@@ -135,7 +135,7 @@ DOCTEST_TEST_CASE("Modulator markers: random dots use the source color in every 
     CheckRandomMarkers<1>(GangedRandomLFOComponent<1>::ColorMode::Fixed);
 }
 
-DOCTEST_TEST_CASE("Modulator markers: both quad LFO families draw dots in their source color")
+DOCTEST_TEST_CASE("Modulator markers: unipolar and bipolar scopes draw dots in their source color")
 {
     auto writer = std::make_unique<ScopeWriter>(4, 1);
     for (size_t voice = 0; voice < 4; ++voice)
@@ -156,7 +156,7 @@ DOCTEST_TEST_CASE("Modulator markers: both quad LFO families draw dots in their 
     writer->Publish();
     for (bool bipolar : {false, true})
     {
-        auto color = GetModulatorColor(bipolar ? QuadModulator::DelayLFO : QuadModulator::LFO1);
+        auto color = GetModulatorColor(QuadModulator::LFO1);
         PolyphonicScopeComponent visualizer(writer.get(), 0, 4, color,
             bipolar ? 0.5f : 0.9f, bipolar ? 0.5f : 0.05f);
         juce::Image image(juce::Image::ARGB, 200, 200, true);
@@ -184,7 +184,8 @@ DOCTEST_TEST_CASE("Encoder visualizers: catalogue supplies only supported source
             DOCTEST_CAPTURE(mode);
             DOCTEST_CAPTURE(index);
             bool expected = index == 14 || (mode == Mode::Global ? index == 2 || index == 3
-                : index < 8 || index == 11 || (SmartGridOneEncoders::IsVoiceMode(mode) && index < 11));
+                : index < 4 || index == 6 || index == 7 || index == 11
+                    || (SmartGridOneEncoders::IsVoiceMode(mode) && index < 11));
             DOCTEST_CHECK((visualizers.Get(mode, index) != nullptr) == expected);
         }
     }
@@ -415,7 +416,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: adjacent voice and quad controls render 
     {
         return std::make_unique<SolidVisualizer>(juce::Colours::red);
     });
-    visualizers.Add(QuadModulator::DelayLFO, [](int*)
+    visualizers.Add(QuadModulator::Random1, [](int*)
     {
         return std::make_unique<SolidVisualizer>(juce::Colours::blue);
     });
@@ -426,10 +427,10 @@ DOCTEST_TEST_CASE("Encoder visualizers: adjacent voice and quad controls render 
     for (size_t x = 0; x < 2; ++x)
     {
         ui.SetConnected(x, 0, true);
-        ui.SetModulatorsAffecting(x, 0, BitSet16(1 << 4));
+        ui.SetModulatorsAffecting(x, 0, BitSet16(1 << (x == 0 ? 4 : 0)));
         for (size_t channel = 0; channel < 4; ++channel)
         {
-            ui.m_states[x][0].m_modulatorWeights[channel][4].store(0.25f);
+            ui.m_states[x][0].m_modulatorWeights[channel][x == 0 ? 4 : 0].store(0.25f);
             ui.SetValue(x, 0, channel, 0.0f);
             ui.SetMinValue(x, 0, channel, 0.0f);
             ui.SetMaxValue(x, 0, channel, 0.0f);
@@ -444,7 +445,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: adjacent voice and quad controls render 
             DOCTEST_CAPTURE(type);
             DOCTEST_CAPTURE(x);
             ui.SetEncoderType(x, 0, type);
-            ui.SetIndex(x, 0, 4);
+            ui.SetIndex(x, 0, x == 0 ? 4 : 0);
             EncoderComponent encoder(EncoderBankUI(0, &ui, nullptr), x, 0, false, visualizers);
             juce::Image image(juce::Image::ARGB, 100, 125, true);
             juce::Graphics g(image);
@@ -641,7 +642,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: random time axes keep other sources 
     const size_t controlSamples = std::max<size_t>(1, 32 / ScopeWriter::x_controlDecimation);
     for (size_t sample = 0; sample < controlSamples; ++sample)
     {
-        state.m_quadControlScopeWriter.Write(4, 0, 0.4f);
+        state.m_quadControlScopeWriter.Write(static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1), 0, 0.4f);
         AdvanceControlIndex(state.m_quadControlScopeWriter);
     }
 

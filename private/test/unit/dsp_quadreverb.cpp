@@ -17,7 +17,6 @@ QuadReverb::Input ReverbInput(float feedback)
         input.m_feedback[channel] = feedback;
         input.m_bffBase[channel] = 1.0f / 65536.0f;
         input.m_bffWidth[channel] = 65536.0f;
-        input.m_lfoInput.m_freq[channel] = 0.5f / 48000.0f;
     }
 
     return input;
