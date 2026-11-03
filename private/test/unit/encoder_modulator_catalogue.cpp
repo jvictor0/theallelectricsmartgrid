@@ -302,8 +302,8 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
         synth.m_reverb.m_lfo.m_output[channel] = 0.2f + 0.2f * channel;
         for (size_t lfo = 0; lfo < 2; ++lfo)
         {
-            synth.m_quadSquiggleLFO[lfo][channel].m_output = 0.15f + 0.1f * channel + 0.2f * lfo;
-            synth.m_quadSquiggleLFO[lfo][channel].m_polyXFader.m_amplitude = 0.25f + 0.1f * channel + 0.2f * lfo;
+            synth.m_quadSquiggleLFO[lfo].m_output[channel] = 0.15f + 0.1f * channel + 0.2f * lfo;
+            synth.m_quadSquiggleLFO[lfo].m_polyXFader.m_amplitude[channel] = 0.25f + 0.1f * channel + 0.2f * lfo;
         }
     }
 

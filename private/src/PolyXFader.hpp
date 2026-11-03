@@ -4,6 +4,7 @@
 #include "Saturator.hpp"
 #include "Math.hpp"
 #include "MultiChannelNumber.hpp"
+#include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
 
 #include "TheoryOfTimeBase.hpp"
@@ -88,15 +89,20 @@ struct PolyXFaderGeneric
             return amp * Shape(m_shape, Vector::IfLess(safeAttackFrac, t, decay, rise));
         }
 
+        // Below the knob center the shape blends linear toward sine; above it
+        // the sine is driven through a normalized tanh, drive exponential from
+        // x_minShapeDrive to x_maxShapeDrive.
+        //
         static Vector Shape(const Vector& shape, const Vector& in)
         {
+            static constexpr float x_minShapeDrive = 0.25f;
             static constexpr float x_maxShapeDrive = 8.0f;
             using Saturator = TanhSaturatorGeneric<float, Size, true>;
 
             Vector sine = (Vector::Splat(1) - Math::Cos2pi(in * 0.5f)) * 0.5f;
             Vector towardSine = in + shape * 2 * (sine - in);
 
-            Vector drive = (shape * 2 - 1) * x_maxShapeDrive;
+            Vector drive = PhaseUtils::ExpParamGeneric<float, Size>::Compute(x_minShapeDrive, x_maxShapeDrive, shape * 2 - 1);
             Vector saturated = (Saturator::Tanh(drive * (sine * 2 - 1)) / Saturator::Tanh(drive) + 1) * 0.5f;
 
             Vector shaped = Vector::IfLess(Vector::Splat(0.5f), shape, saturated, towardSine);

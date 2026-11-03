@@ -57,21 +57,25 @@ The system SHALL skew each cycle with `m_attackFrac` (clamped to [0.001, 0.999])
 - **WHEN** `m_attackFrac` is set to 0
 - **THEN** the effective attack fraction is 0.001 and no division by zero occurs
 
-### Requirement: Continuous Shape Morph with Quantization Hysteresis
-The system SHALL morph the waveform with `m_shape`: below 0.45 the ramp input is crossfaded between a raised-cosine sine shape and the linear ramp (linear weight `shape × 2`); from 0.45 to 0.55 the shape is the pure linear ramp; above 0.55 the shaped value is quantized to `2^numBits` levels with `numBits = max(0, round(16 × (1 − shape)))`, reaching a binary square-like output at shape 1.
-Quantization applies hysteresis: a new quantized level is emitted only when the quantized input differs from the quantized previous input; otherwise the prior post-quantize output is held, preventing chatter at level boundaries.
+### Requirement: Continuous Shape Morph with Driven Sine
+The system SHALL morph the waveform with `m_shape`, applied to each skewed ramp `in`. At shape 0 the ramp passes unchanged, a triangle at centered skew. From 0 to 0.5 the ramp crossfades toward the raised-cosine sine `(1 − cos(2π · in / 2)) / 2` with sine weight `shape × 2`. Above 0.5 the bipolar sine passes through the normalized fast tanh `(tanh(drive · (2 · sine − 1)) / tanh(drive) + 1) / 2`, with `drive = ExpParam::Compute(0.25, 8, 2 · shape − 1)`: exponential from 0.25 just above 0.5 to 8 at shape 1. Mono, trio and quad callers SHALL share this generic mapping lane by lane. No quantizer or quantizer history is used.
+Normalization keeps every shape in [0, 1]. Because the minimum drive is positive, the waveform steps slightly just above shape 0.5 rather than continuing exactly from the sine.
 
-#### Scenario: Shape zero is sinusoidal
+#### Scenario: Shape zero is the skewed ramp
 - **WHEN** `m_shape` is 0
-- **THEN** the shaping function outputs the raised-cosine curve `(1 − cos(2π · in / 2)) / 2` of the skewed ramp
+- **THEN** each loop's shaped value equals its skewed ramp
 
-#### Scenario: Full shape is binary
+#### Scenario: Shape one half is the sine
+- **WHEN** `m_shape` is 0.5
+- **THEN** each loop's shaped value is the raised-cosine sine of its skewed ramp
+
+#### Scenario: Full shape drives the sine at 8
 - **WHEN** `m_shape` is 1
-- **THEN** `numBits` is 0 and each loop's signal is rounded to 0 or 1, yielding a stepped square-like waveform
+- **THEN** the drive is 8, the endpoints of the ramp still map to 0 and 1, and the waveform approaches a square
 
-#### Scenario: Hysteresis holds between level crossings
-- **WHEN** the input ramp wobbles without crossing a quantization level boundary
-- **THEN** the post-quantize output retains its previous value
+#### Scenario: Drive starts at 0.25 above the sine boundary
+- **WHEN** `m_shape` rises just above 0.5
+- **THEN** the drive is approximately 0.25 and the output differs slightly from the undriven sine
 
 ### Requirement: Triggered Sample-and-Hold Blend
 The system SHALL capture the current mixed output into a held value whenever the trigger input `m_trig` is asserted, and blend the held value with the live output as `held × m_shFade + live × (1 − m_shFade)` before smoothing.
@@ -87,14 +91,14 @@ In the voice LFOs the trigger is the voice's AHD gate trigger (see ahd-envelopes
 
 ### Requirement: Output Slew and Amplitude Centering
 The system SHALL smooth the blended output with a one-pole low-pass slew filter (natural frequency 500 Hz at 48 kHz) to produce `m_rawOutput`, and additionally publish `m_output = m_rawOutput × m_amplitude + (1 − m_amplitude) × 0.5`, which collapses toward the 0.5 midpoint as amplitude decreases.
-The slew rounds off quantization steps from the shape control and S+H transitions.
+The slew rounds off S+H transitions.
 
 #### Scenario: Zero amplitude centers the output
 - **WHEN** `m_amplitude` is 0
 - **THEN** `m_output` is 0.5 regardless of the raw waveform
 
-#### Scenario: Quantized steps are smoothed
-- **WHEN** the shape control produces stepped level changes
+#### Scenario: Held steps are smoothed
+- **WHEN** a trigger steps the held S+H value at full fade
 - **THEN** `m_rawOutput` approaches each new level exponentially rather than discontinuously
 
 ### Requirement: Voice LFO Integration into the Modulation Matrix
@@ -110,7 +114,7 @@ The LFO also exposes a top flag, true when every weighted contributing loop repo
 - **THEN** the LFO's top flag is true on that sample and the scope recording restarts
 
 ### Requirement: Quad LFO Integration into the Modulation Matrix
-The system SHALL run two SquiggleLFO instances for each of the four quad channels, controlled from the `QuadLFOs` encoder bank, and write their raw (pre-amplitude-centering) outputs each control pass into the Quad bank mode's shared `ModulatorValues` slots 6 and 7 (`m_value[6][channel]`, `m_value[7][channel]`), with the LFO amplitudes written to the matching `m_amplitude` entries.
+The system SHALL run the two quad LFOs as four-lane `SquiggleLFOGeneric<4>` instances, one lane per quad channel, controlled from the `QuadLFOs` encoder bank through interpolated four-lane encoder reads (`GetValue<4>(param, 0)`). Each lane SHALL match an independent mono LFO given that channel's parameters, trigger and phase offset. The system SHALL write their raw (pre-amplitude-centering) outputs each control pass into the Quad bank mode's shared `ModulatorValues` slots 6 and 7 (`m_value[6][channel]`, `m_value[7][channel]`), with the LFO amplitudes written to the matching `m_amplitude` entries.
 Phase-shift knobs SHALL offset channel `i` by `knob × i / 4`, so full spread places the four channels a quarter-cycle apart. Each channel's Sample-and-Hold trigger SHALL be the modulated cycle-boundary crossing of that channel's active delay read-head loop (`ReadTapeHead::m_loopSelector`), not the merely requested delay loop index.
 
 #### Scenario: Quarter-cycle channel spread

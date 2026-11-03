@@ -4,6 +4,7 @@
 
 #include "AudioInputBuffer.hpp"
 #include "SourceMixer.hpp"
+#include <cmath>
 
 namespace
 {
@@ -108,4 +109,35 @@ DOCTEST_TEST_CASE("SourceMixer stereo processing keeps lanes independent")
 
     DOCTEST_CHECK(left > right);
     DOCTEST_CHECK(right > 0.0f);
+}
+
+DOCTEST_TEST_CASE("SourceMixer stereo filter pair matches independent mono filters through cutoff changes")
+{
+    GlobalEnv::ResetPerTest();
+
+    SourceMixer::Source source;
+    SourceMixer::Source::Input input;
+    LinearStateVariableFilter lp[SourceMixer::x_numSourceLanes];
+    LinearStateVariableFilter hp[SourceMixer::x_numSourceLanes];
+    input.m_gain.m_expParam = 1.5f;
+    for (size_t i = 0; i < 2048; ++i)
+    {
+        input.m_hpCutoff.m_expParam = i < 1024 ? 0.001f : 0.004f;
+        input.m_lpFactor.m_expParam = i < 512 ? 40.0f : 12.0f;
+        input.m_input[0] = std::sin(0.013f * static_cast<float>(i));
+        input.m_input[1] = 0.5f * std::sin(0.071f * static_cast<float>(i)) + ((i / 97) % 2 == 0 ? 0.25f : -0.25f);
+        source.Process(input);
+
+        float hpCutoff = input.m_hpCutoff.m_expParam;
+        float lpFactor = input.m_lpFactor.m_expParam;
+        for (size_t lane = 0; lane < SourceMixer::x_numSourceLanes; ++lane)
+        {
+            hp[lane].SetCutoffAndResonance(hpCutoff, 0.0f);
+            lp[lane].SetCutoffAndResonance(hpCutoff * lpFactor, 0.0f);
+            lp[lane].Process(input.m_input[lane] * 1.5f);
+            hp[lane].Process(lp[lane].GetLowPass());
+            float expected = hp[lane].GetHighPass();
+            DOCTEST_CHECK(source.m_output[lane] == doctest::Approx(expected).epsilon(0.0001).scale(1.0));
+        }
+    }
 }

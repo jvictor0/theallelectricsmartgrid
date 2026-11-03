@@ -170,28 +170,27 @@ struct QuadDelay
 
 struct QuadDelayInputSetter
 {
-    PhaseUtils::ExpParam m_dampingBase[4];
-    PhaseUtils::ExpParam m_dampingWidth[4];
-    PhaseUtils::ExpParam m_modFreq[4];
+    using QuadExpParam = PhaseUtils::ExpParamGeneric<float, 4>;
+    using QuadZeroedExpParam = PhaseUtils::ZeroedExpParamGeneric<float, 4>;
 
+    QuadExpParam m_dampingBase;
+    QuadExpParam m_dampingWidth;
+    QuadExpParam m_modFreq;
+
+    // Each channel widens over its own range, so the wideners stay per channel.
+    //
     PhaseUtils::ExpParam m_wideners[4];
-    PhaseUtils::ZeroedExpParam m_modDepth[4];
+    QuadZeroedExpParam m_modDepth;
 
-    PhaseUtils::ZeroedExpParam m_feedback[4];
+    QuadZeroedExpParam m_feedback;
 
-    OPLowPassFilter m_modDepthFilter[4];
+    OPLowPassFilterGeneric<float, 4> m_modDepthFilter;
 
-    OPLowPassFilter m_rotateFilter[4];
+    OPLowPassFilterGeneric<float, 4> m_rotateFilter;
 
-    PhaseUtils::ExpParam m_unisonDetune[4];
-    PhaseUtils::ZeroedExpParam m_unisonGain[4];
-    PhaseUtils::ExpParam m_slewUp[4];
-    PhaseUtils::ExpParam m_slewDown[4];
-
-    PhaseUtils::ExpParam m_rmsThreshold[4];
-    PhaseUtils::ExpParam m_rmsQuiet[4];
-    PhaseUtils::ExpParam m_rmsLoud[4];
-    PhaseUtils::ZeroedExpParam m_loudShift[4];
+    QuadExpParam m_unisonDetune;
+    QuadZeroedExpParam m_unisonGain;
+    QuadExpParam m_slewUp;
 
     float m_bufferFrac[4];
     WriteTapeHead m_writeTapeHead;
@@ -202,76 +201,66 @@ struct QuadDelayInputSetter
         int m_delayTimeFactorSwitchVal[4];
         int m_readHeadSpeedSwitchVal[4];
         int m_loopSelectorSwitchVal[4];
-        float m_widenKnob[4];
+        QuadFloat m_widenKnob;
         int m_rotateSwitchVal[4];
-        float m_modFreqKnob[4];
-        float m_modDepthKnob[4];
-        float m_feedbackKnob[4];
-        float m_dampingBaseKnob[4];
-        float m_dampingWidthKnob[4];
-        float m_grainSamplesKnob[4];
-        float m_grainOverlapKnob[4];
-        float m_lfoPhaseKnob[4];
+        QuadFloat m_modFreqKnob;
+        QuadFloat m_modDepthKnob;
+        QuadFloat m_feedbackKnob;
+        QuadFloat m_dampingBaseKnob;
+        QuadFloat m_dampingWidthKnob;
+        QuadFloat m_lfoPhaseKnob;
 
-        float m_resynthShiftFadeKnob[4];
-        float m_resynthUnisonKnob[4];
+        QuadFloat m_resynthShiftFadeKnob;
+        QuadFloat m_resynthUnisonKnob;
         int m_resynthShiftSwitchVal[4];
-        float m_resynthSlewUpKnob[4];
+        QuadFloat m_resynthSlewUpKnob;
         
         TheoryOfTime* m_theoryOfTime;
 
         Input()
-            : m_theoryOfTime(nullptr)
+            : m_widenKnob()
+            , m_modFreqKnob()
+            , m_modDepthKnob()
+            , m_feedbackKnob()
+            , m_dampingBaseKnob()
+            , m_dampingWidthKnob()
+            , m_lfoPhaseKnob()
+            , m_resynthShiftFadeKnob()
+            , m_resynthUnisonKnob()
+            , m_resynthSlewUpKnob()
+            , m_theoryOfTime(nullptr)
         {
             for (int i = 0; i < 4; ++i)
             {
                 m_delayTimeFactorSwitchVal[i] = 3;
                 m_readHeadSpeedSwitchVal[i] = 10;
                 m_loopSelectorSwitchVal[i] = 0;
-                m_widenKnob[i] = 0.0f;
                 m_rotateSwitchVal[i] = 1;
-                m_modFreqKnob[i] = 0.0f;
-                m_modDepthKnob[i] = 0.0f;
-                m_feedbackKnob[i] = 0.0f;
-                m_dampingBaseKnob[i] = 0.0f;
-                m_dampingWidthKnob[i] = 0.0f;
-                m_grainSamplesKnob[i] = 0.0f;
-                m_grainOverlapKnob[i] = 0.0f;
-                m_lfoPhaseKnob[i] = 0.0f;
-
-                m_resynthShiftFadeKnob[i] = 0.0f;
-                m_resynthUnisonKnob[i] = 0.0f;
                 m_resynthShiftSwitchVal[i] = 9;
-                m_resynthSlewUpKnob[i] = 0.0f;                
             }
         }
     };
 
     QuadDelayInputSetter()
-      : m_wideners
+      : m_dampingBase(1.0 / 2048.0, 0.5)
+      , m_dampingWidth(1.0, 2048.0)
+      , m_modFreq(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05))
+      , m_wideners
       {
         PhaseUtils::ExpParam(1.0, 0.978615137775),
         PhaseUtils::ExpParam(1.0, 1.0),
         PhaseUtils::ExpParam(1.0, 0.986803398875),
         PhaseUtils::ExpParam(1.0, 0.989701964951)
       }
+      , m_unisonDetune(1.03)
+      , m_unisonGain(20)
+      , m_slewUp(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5)
     {
+        m_modDepthFilter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
+        m_rotateFilter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
+        m_feedback.SetBaseByCenter(0.25);
         for (int i = 0; i < 4; ++i)
         {
-            m_dampingBase[i] = PhaseUtils::ExpParam(1.0 / 2048.0, 0.5);
-            m_dampingWidth[i] = PhaseUtils::ExpParam(1.0, 2048.0);
-            m_modFreq[i] = PhaseUtils::ExpParam(SampleTimer::HzToCycPerSamp(0.05), SampleTimer::HzToCycPerSamp(1024.0 * 0.05));
-            m_modDepthFilter[i].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
-            m_rotateFilter[i].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
-            m_feedback[i].SetBaseByCenter(0.25);
-
-            m_unisonDetune[i] = PhaseUtils::ExpParam(1.03);
-            m_unisonGain[i] = PhaseUtils::ZeroedExpParam(20);
-
-            // Range: 0.25 / (grain launch samples) to 0.5
-            //
-            m_slewUp[i] = PhaseUtils::ExpParam(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5);
-
             m_bufferFrac[i] = 1.0;
             m_readTapeHead[i].m_writeTapeHead = &m_writeTapeHead;
         }
@@ -303,6 +292,24 @@ struct QuadDelayInputSetter
         delayInput.m_writeHeadPosition = writeHeadPosition;
         double writePhase = m_writeTapeHead.m_relativePosition;
         delayInput.m_relativeWriteHeadPosition = static_cast<float>(writePhase - std::floor(writePhase));
+
+        QuadFloat rotate;
+        for (int i = 0; i < 4; ++i)
+        {
+            rotate[i] = static_cast<float>(input.m_rotateSwitchVal[i]) / 4.0f;
+        }
+
+        delayInput.m_rotate = m_rotateFilter.Process(rotate);
+        delayInput.m_modDepth = m_modDepthFilter.Process(m_modDepth.Update(input.m_modDepthKnob));
+        delayInput.m_lfoInput.m_freq = m_modFreq.Update(input.m_modFreqKnob);
+        delayInput.m_feedback = m_feedback.Update(input.m_feedbackKnob) * 1.25f;
+        delayInput.m_bffBase = m_dampingBase.Update(input.m_dampingBaseKnob);
+        delayInput.m_bffWidth = m_dampingWidth.Update(input.m_dampingWidthKnob);
+        delayInput.m_lfoInput.m_phaseKnob = input.m_lfoPhaseKnob;
+
+        QuadFloat unisonDetune = m_unisonDetune.Update(input.m_resynthUnisonKnob);
+        QuadFloat unisonGain = m_unisonGain.Update(QuadFloat::Min(QuadFloat::Splat(1.0f), input.m_resynthUnisonKnob * 10.0f));
+        QuadFloat slewUp = m_slewUp.Update(QuadFloat::Splat(1.0f) - input.m_resynthSlewUpKnob);
 
         for (int i = 0; i < 4; ++i)
         {
@@ -347,19 +354,6 @@ struct QuadDelayInputSetter
             double readPhase = m_readTapeHead[i].m_relativePosition;
             delayInput.m_relativeReadHeadPosition[i] = static_cast<float>(readPhase - std::floor(readPhase));
 
-            float rotate = static_cast<float>(input.m_rotateSwitchVal[i]) / 4.0f;
-            delayInput.m_rotate[i] = m_rotateFilter[i].Process(rotate);
-
-            delayInput.m_modDepth[i] = m_modDepthFilter[i].Process(m_modDepth[i].Update(input.m_modDepthKnob[i]));
-            delayInput.m_lfoInput.m_freq[i] = m_modFreq[i].Update(input.m_modFreqKnob[i]);
-
-            delayInput.m_feedback[i] = 1.25 * m_feedback[i].Update(input.m_feedbackKnob[i]);
-
-            delayInput.m_bffBase[i] = m_dampingBase[i].Update(input.m_dampingBaseKnob[i]);
-            delayInput.m_bffWidth[i] = m_dampingWidth[i].Update(input.m_dampingWidthKnob[i]);
-
-            delayInput.m_lfoInput.m_phaseKnob[i] = input.m_lfoPhaseKnob[i];
-
             // Resynth parameters
             //
             Resynthesizer::Input& resynthInput = delayInput.m_grainManagerInput.m_resynthInput[i];
@@ -381,11 +375,11 @@ struct QuadDelayInputSetter
             resynthInput.m_shift[0] = possibleShifts[input.m_resynthShiftSwitchVal[i]];
 
             resynthInput.m_fade[0] = input.m_resynthShiftFadeKnob[i];
-            resynthInput.m_unisonDetune = m_unisonDetune[i].Update(input.m_resynthUnisonKnob[i]);
-            resynthInput.m_unisonGain = m_unisonGain[i].Update(std::min<float>(1.0, 10 * input.m_resynthUnisonKnob[i]));
+            resynthInput.m_unisonDetune = unisonDetune[i];
+            resynthInput.m_unisonGain = unisonGain[i];
             resynthInput.m_slewUp = input.m_resynthSlewUpKnob[i] < 0.05f
                 ? Resynthesizer::x_immediateSlewUp
-                : static_cast<float>(m_slewUp[i].Update(1.0f - input.m_resynthSlewUpKnob[i]));
+                : slewUp[i];
         }
 
         if (delay)

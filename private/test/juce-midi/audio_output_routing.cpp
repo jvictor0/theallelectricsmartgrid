@@ -34,8 +34,8 @@ DOCTEST_TEST_CASE("audio output routing duplicates stereo only when outputs 3 an
         //
         auto& synth = app->m_internal.m_squiggleBoy;
         synth.m_sourceMixerState.m_sources[0].m_config.m_width = SourceMixer::SourceWidth::Stereo;
-        synth.m_sourceMixer.m_sources[0].m_lpFilter[0].m_ic2eq = 0.25f;
-        synth.m_sourceMixer.m_sources[0].m_lpFilter[1].m_ic2eq = -0.5f;
+        synth.m_sourceMixer.m_sources[0].m_lpFilter.m_ic2eq[0] = 0.25f;
+        synth.m_sourceMixer.m_sources[0].m_lpFilter.m_ic2eq[1] = -0.5f;
 
         const int numChannels = std::max(numInputs, numOutputs);
         juce::AudioBuffer<float> buffer(numChannels, 3);

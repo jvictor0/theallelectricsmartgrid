@@ -66,7 +66,7 @@ struct SquiggleBoy
     SquiggleBoyTrack m_tracks[x_numTracks];
     GangedRandomLFO<4> m_quadGangedRandomLFO[x_numGangedRandomLFOs];
     GangedRandomLFO<1> m_globalGangedRandomLFO[2];
-    SquiggleLFOGeneric<1> m_quadSquiggleLFO[2][4];
+    SquiggleLFOGeneric<4> m_quadSquiggleLFO[2];
 
     SourceMixer m_sourceMixer;
     SourceMixer::Input m_sourceMixerState;
@@ -91,7 +91,7 @@ struct SquiggleBoy
     SquiggleBoyTrack::Input m_trackState[x_numTracks];
     GangedRandomLFOInput m_gangedRandomLFOInput[x_numGangedRandomLFOs];
     GangedRandomLFOInput m_globalGangedRandomLFOInput[2];
-    SquiggleLFOGeneric<1>::Input m_quadSquiggleLFOInput[2][4];
+    SquiggleLFOGeneric<4>::Input m_quadSquiggleLFOInput[2];
     MixerInput m_mixerState;
 
     QuadDelayInputSetter m_delayInputSetter;
@@ -311,10 +311,7 @@ struct SquiggleBoy
 
         for (size_t lfo = 0; lfo < 2; ++lfo)
         {
-            for (size_t i = 0; i < 4; ++i)
-            {
-                m_quadSquiggleLFO[lfo][i].Process(m_quadSquiggleLFOInput[lfo][i]);
-            }
+            m_quadSquiggleLFO[lfo].Process(m_quadSquiggleLFOInput[lfo]);
         }
 
         m_sourceMixer.Process(m_sourceMixerState);
@@ -786,11 +783,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         for (size_t i = 0; i < 4; ++i)
         {
-            m_quadSquiggleLFO[0][i].m_scopeWriter[0] = ScopeWriterHolder(
+            m_quadSquiggleLFO[0].m_scopeWriter[i] = ScopeWriterHolder(
                 &uiState->m_quadControlScopeWriter,
                 i,
                 static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1));
-            m_quadSquiggleLFO[1][i].m_scopeWriter[0] = ScopeWriterHolder(
+            m_quadSquiggleLFO[1].m_scopeWriter[i] = ScopeWriterHolder(
                 &uiState->m_quadControlScopeWriter,
                 i,
                 static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2));
@@ -974,12 +971,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         m_recordingManager.m_ioTaskThread = m_ioTaskThread;
 
-        for (size_t i = 0; i < 4; ++i)
+        for (size_t lfo = 0; lfo < 2; ++lfo)
         {
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
+            m_quadSquiggleLFOInput[lfo].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
+            m_quadSquiggleLFOInput[lfo].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
         }
     }
 
@@ -1071,10 +1066,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             modulatorValues.Set(QuadModulator::DelayLFO, i, m_delay.m_lfo.m_output[i] / 2.0 + 0.5);
             modulatorValues.Set(QuadModulator::ReverbLFO, i, m_reverb.m_lfo.m_output[i] / 2.0 + 0.5);
 
-            modulatorValues.Set(QuadModulator::LFO1, i, m_quadSquiggleLFO[0][i].m_output);
-            modulatorValues.Set(QuadModulator::LFO2, i, m_quadSquiggleLFO[1][i].m_output);
-            modulatorValues.SetAmplitude(QuadModulator::LFO1, i, m_quadSquiggleLFO[0][i].m_polyXFader.m_amplitude);
-            modulatorValues.SetAmplitude(QuadModulator::LFO2, i, m_quadSquiggleLFO[1][i].m_polyXFader.m_amplitude);
+            modulatorValues.Set(QuadModulator::LFO1, i, m_quadSquiggleLFO[0].m_output[i]);
+            modulatorValues.Set(QuadModulator::LFO2, i, m_quadSquiggleLFO[1].m_output[i]);
+            modulatorValues.SetAmplitude(QuadModulator::LFO1, i, m_quadSquiggleLFO[0].m_polyXFader.m_amplitude[i]);
+            modulatorValues.SetAmplitude(QuadModulator::LFO2, i, m_quadSquiggleLFO[1].m_polyXFader.m_amplitude[i]);
 
             modulatorValues.Set(QuadModulator::Spread, i, static_cast<float>(i % 4) / 3);
 
@@ -1135,22 +1130,19 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_encoders.GetSwitchVal(Param::DelayTime, i);
             delayInputSetterInput.m_delayTimeFactorSwitchVal[i] = m_encoders.GetSwitchVal(Param::DelayTimeFactor, i);
             delayInputSetterInput.m_readHeadSpeedSwitchVal[i] = m_encoders.GetSwitchVal(Param::DelayReadSpeed, i);
-            delayInputSetterInput.m_feedbackKnob[i] = m_encoders.GetValue(Param::DelayFeedback, i);
-
-            delayInputSetterInput.m_dampingBaseKnob[i] = m_encoders.GetValue(Param::DelayDampBase, i);
-            delayInputSetterInput.m_dampingWidthKnob[i] = m_encoders.GetValue(Param::DelayDampWidth, i);
-            delayInputSetterInput.m_resynthSlewUpKnob[i] = m_encoders.GetValue(Param::ResynthSlewUp, i);
-
-            delayInputSetterInput.m_widenKnob[i] = m_encoders.GetValue(Param::DelayWiden, i);
             delayInputSetterInput.m_rotateSwitchVal[i] = m_encoders.GetSwitchVal(Param::DelayRotate, i);
-            delayInputSetterInput.m_resynthUnisonKnob[i] = m_encoders.GetValue(Param::ResynthUnison, i);
-
-            delayInputSetterInput.m_resynthShiftFadeKnob[i] = m_encoders.GetValue(Param::ResynthShiftFade, i);
             delayInputSetterInput.m_resynthShiftSwitchVal[i] = m_encoders.GetSwitchVal(Param::ResynthShiftInterval, i);
-
-            delayInputSetterInput.m_modFreqKnob[i] = m_encoders.GetValue(Param::DelayModSpeed, i);
-            delayInputSetterInput.m_lfoPhaseKnob[i] = m_encoders.GetValue(Param::DelayModPhaseShift, i);
         }
+
+        delayInputSetterInput.m_feedbackKnob = m_encoders.GetValue<4>(Param::DelayFeedback, 0);
+        delayInputSetterInput.m_dampingBaseKnob = m_encoders.GetValue<4>(Param::DelayDampBase, 0);
+        delayInputSetterInput.m_dampingWidthKnob = m_encoders.GetValue<4>(Param::DelayDampWidth, 0);
+        delayInputSetterInput.m_resynthSlewUpKnob = m_encoders.GetValue<4>(Param::ResynthSlewUp, 0);
+        delayInputSetterInput.m_widenKnob = m_encoders.GetValue<4>(Param::DelayWiden, 0);
+        delayInputSetterInput.m_resynthUnisonKnob = m_encoders.GetValue<4>(Param::ResynthUnison, 0);
+        delayInputSetterInput.m_resynthShiftFadeKnob = m_encoders.GetValue<4>(Param::ResynthShiftFade, 0);
+        delayInputSetterInput.m_modFreqKnob = m_encoders.GetValue<4>(Param::DelayModSpeed, 0);
+        delayInputSetterInput.m_lfoPhaseKnob = m_encoders.GetValue<4>(Param::DelayModPhaseShift, 0);
 
         delayInputSetterInput.m_theoryOfTime = m_theoryOfTime;
         m_delayInputSetter.Process(delayInputSetterInput, m_delayState, &m_delay);
@@ -1158,73 +1150,70 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_returnSendGain[0][2].Update(m_encoders.GetValue(Param::DelayPartialMachineSend));
         m_mixerState.m_returnGain[0].Update(m_encoders.GetValue(Param::DelayReturn));
 
+        static constexpr Param x_quadLFOSkew[2] = {Param::QuadLFO1Skew, Param::QuadLFO2Skew};
+        static constexpr Param x_quadLFOMult[2] = {Param::QuadLFO1Mult, Param::QuadLFO2Mult};
+        static constexpr Param x_quadLFOShape[2] = {Param::QuadLFO1Shape, Param::QuadLFO2Shape};
+        static constexpr Param x_quadLFOAmplitude[2] = {Param::QuadLFO1Amplitude, Param::QuadLFO2Amplitude};
+        static constexpr Param x_quadLFOCenter[2] = {Param::QuadLFO1Center, Param::QuadLFO2Center};
+        static constexpr Param x_quadLFOSlope[2] = {Param::QuadLFO1Slope, Param::QuadLFO2Slope};
+        static constexpr Param x_quadLFOPhaseShift[2] = {Param::QuadLFO1PhaseShift, Param::QuadLFO2PhaseShift};
+        static constexpr Param x_quadLFOSampleAndHold[2] = {Param::QuadLFO1SampleAndHold, Param::QuadLFO2SampleAndHold};
+        QuadFloat channelFrac(0.0f, 0.25f, 0.5f, 0.75f);
+        bool delayLoopTop[4];
         for (int i = 0; i < 4; ++i)
         {
-            float channelFrac = static_cast<float>(i) / 4.0f;
-            bool delayLoopTop = m_theoryOfTime->CrossedCycleBoundary(
+            delayLoopTop[i] = m_theoryOfTime->CrossedCycleBoundary(
                 m_delayInputSetter.m_readTapeHead[i].m_loopSelector,
                 PhaseDomain::Modulated).m_triggered;
+        }
 
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::QuadLFO1Skew, i);
-            m_quadSquiggleLFOInput[0][i].m_mult.Update(m_encoders.GetValue(Param::QuadLFO1Mult, i));
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_shape = m_encoders.GetValue(Param::QuadLFO1Shape, i);
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_amplitude = m_encoders.GetValue(Param::QuadLFO1Amplitude, i);
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_center = 1 - m_encoders.GetValue(Param::QuadLFO1Center, i);
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_slope = m_encoders.GetValue(Param::QuadLFO1Slope, i);
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::QuadLFO1PhaseShift, i) * channelFrac;
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::QuadLFO1SampleAndHold, i);
-            m_quadSquiggleLFOInput[0][i].m_polyXFaderInput.m_trig[0] = delayLoopTop;
-
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_attackFrac = m_encoders.GetValue(Param::QuadLFO2Skew, i);
-            m_quadSquiggleLFOInput[1][i].m_mult.Update(m_encoders.GetValue(Param::QuadLFO2Mult, i));
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_shape = m_encoders.GetValue(Param::QuadLFO2Shape, i);
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_amplitude = m_encoders.GetValue(Param::QuadLFO2Amplitude, i);
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_center = 1 - m_encoders.GetValue(Param::QuadLFO2Center, i);
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_slope = m_encoders.GetValue(Param::QuadLFO2Slope, i);
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_phaseShift = m_encoders.GetValue(Param::QuadLFO2PhaseShift, i) * channelFrac;
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_shFade = m_encoders.GetValue(Param::QuadLFO2SampleAndHold, i);
-            m_quadSquiggleLFOInput[1][i].m_polyXFaderInput.m_trig[0] = delayLoopTop;
+        for (size_t lfo = 0; lfo < 2; ++lfo)
+        {
+            SquiggleLFOGeneric<4>::Input& lfoInput = m_quadSquiggleLFOInput[lfo];
+            PolyXFaderGeneric<4>::Input& faderInput = lfoInput.m_polyXFaderInput;
+            faderInput.m_attackFrac = m_encoders.GetValue<4>(x_quadLFOSkew[lfo], 0);
+            lfoInput.m_mult.Update(m_encoders.GetValue<4>(x_quadLFOMult[lfo], 0));
+            faderInput.m_shape = m_encoders.GetValue<4>(x_quadLFOShape[lfo], 0);
+            faderInput.m_amplitude = m_encoders.GetValue<4>(x_quadLFOAmplitude[lfo], 0);
+            faderInput.m_center = QuadFloat::Splat(1.0f) - m_encoders.GetValue<4>(x_quadLFOCenter[lfo], 0);
+            faderInput.m_slope = m_encoders.GetValue<4>(x_quadLFOSlope[lfo], 0);
+            faderInput.m_phaseShift = m_encoders.GetValue<4>(x_quadLFOPhaseShift[lfo], 0) * channelFrac;
+            faderInput.m_theoryOfTime = m_theoryOfTime;
+            faderInput.m_phaseDomain = PhaseDomain::Modulated;
+            faderInput.m_shFade = m_encoders.GetValue<4>(x_quadLFOSampleAndHold[lfo], 0);
+            for (int i = 0; i < 4; ++i)
+            {
+                faderInput.m_trig[i] = delayLoopTop[i];
+            }
         }
 
         QuadReverbInputSetter::Input reverbInputSetterInput;
-        for (int i = 0; i < 4; ++i)
-        {
-            reverbInputSetterInput.m_reverbTimeKnob[i] = m_encoders.GetValue(Param::ReverbTime, i);
-            reverbInputSetterInput.m_feedbackKnob[i] = m_encoders.GetValue(Param::ReverbFeedback, i);
-
-            reverbInputSetterInput.m_dampingBaseKnob[i] = m_encoders.GetValue(Param::ReverbDampBase, i);
-            reverbInputSetterInput.m_dampingWidthKnob[i] = m_encoders.GetValue(Param::ReverbDampWidth, i);
-
-            reverbInputSetterInput.m_modDepthKnob[i] = m_encoders.GetValue(Param::ReverbModDepth, i);
-            reverbInputSetterInput.m_modFreqKnob[i] = m_encoders.GetValue(Param::ReverbModSpeed, i);
-            reverbInputSetterInput.m_lfoPhaseKnob[i] = m_encoders.GetValue(Param::ReverbModPhaseShift, i);
-        }
+        reverbInputSetterInput.m_reverbTimeKnob = m_encoders.GetValue<4>(Param::ReverbTime, 0);
+        reverbInputSetterInput.m_feedbackKnob = m_encoders.GetValue<4>(Param::ReverbFeedback, 0);
+        reverbInputSetterInput.m_dampingBaseKnob = m_encoders.GetValue<4>(Param::ReverbDampBase, 0);
+        reverbInputSetterInput.m_dampingWidthKnob = m_encoders.GetValue<4>(Param::ReverbDampWidth, 0);
+        reverbInputSetterInput.m_modDepthKnob = m_encoders.GetValue<4>(Param::ReverbModDepth, 0);
+        reverbInputSetterInput.m_modFreqKnob = m_encoders.GetValue<4>(Param::ReverbModSpeed, 0);
+        reverbInputSetterInput.m_lfoPhaseKnob = m_encoders.GetValue<4>(Param::ReverbModPhaseShift, 0);
         
         m_reverbInputSetter.Process(reverbInputSetterInput, m_reverbState);
         m_mixerState.m_returnSendGain[1][0].Update(m_encoders.GetValue(Param::ReverbDelaySend));
         m_mixerState.m_returnSendGain[1][2].Update(m_encoders.GetValue(Param::ReverbPartialMachineSend));
         m_mixerState.m_returnGain[1].Update(m_encoders.GetValue(Param::ReverbReturn));
 
-        for (int i = 0; i < 4; ++i)
-        {
-            m_partialMachineInputSetterInput.m_attack[i] = m_encoders.GetValue(Param::PartialMachineAttack, i);
-            m_partialMachineInputSetterInput.m_decay[i] = m_encoders.GetValue(Param::PartialMachineDecay, i);
-            m_partialMachineInputSetterInput.m_portamento[i] = m_encoders.GetValue(Param::PartialMachinePortamento, i);
-            m_partialMachineInputSetterInput.m_density[i] = m_encoders.GetValue(Param::PartialMachineDensity, i);
-            m_partialMachineInputSetterInput.m_bwBaseFrequency[i] = m_encoders.GetValue(Param::PartialMachineBWBase, i);
-            m_partialMachineInputSetterInput.m_bwWidth[i] = m_encoders.GetValue(Param::PartialMachineBWWidth, i);
-            m_partialMachineInputSetterInput.m_reductionFeedback[i] = m_encoders.GetValue(Param::PartialMachineReductionFeedback, i);
-            m_partialMachineInputSetterInput.m_bassCutoff[i] = m_encoders.GetValue(Param::PartialMachineBassCutoff, i);
-            m_partialMachineInputSetterInput.m_azimuthFactor[i] = m_encoders.GetValue(Param::PartialMachineAzimuthFactor, i);
-            m_partialMachineInputSetterInput.m_unison[i] = m_encoders.GetValue(Param::PartialMachineUnison, i);
-            m_partialMachineInputSetterInput.m_parameterLinearFrequency[i] = m_encoders.GetValue(Param::PartialMachineLinearFrequency, i);
-            m_partialMachineInputSetterInput.m_pitchShiftDepth[i] = m_encoders.GetValue(Param::PartialMachinePitchShiftDepth, i);
-            m_partialMachineInputSetterInput.m_pitchShift[i] = m_encoders.GetValue(Param::PartialMachinePitchShift, i);
-        }
+        m_partialMachineInputSetterInput.m_attack = m_encoders.GetValue<4>(Param::PartialMachineAttack, 0);
+        m_partialMachineInputSetterInput.m_decay = m_encoders.GetValue<4>(Param::PartialMachineDecay, 0);
+        m_partialMachineInputSetterInput.m_portamento = m_encoders.GetValue<4>(Param::PartialMachinePortamento, 0);
+        m_partialMachineInputSetterInput.m_density = m_encoders.GetValue<4>(Param::PartialMachineDensity, 0);
+        m_partialMachineInputSetterInput.m_bwBaseFrequency = m_encoders.GetValue<4>(Param::PartialMachineBWBase, 0);
+        m_partialMachineInputSetterInput.m_bwWidth = m_encoders.GetValue<4>(Param::PartialMachineBWWidth, 0);
+        m_partialMachineInputSetterInput.m_reductionFeedback = m_encoders.GetValue<4>(Param::PartialMachineReductionFeedback, 0);
+        m_partialMachineInputSetterInput.m_bassCutoff = m_encoders.GetValue<4>(Param::PartialMachineBassCutoff, 0);
+        m_partialMachineInputSetterInput.m_azimuthFactor = m_encoders.GetValue<4>(Param::PartialMachineAzimuthFactor, 0);
+        m_partialMachineInputSetterInput.m_unison = m_encoders.GetValue<4>(Param::PartialMachineUnison, 0);
+        m_partialMachineInputSetterInput.m_parameterLinearFrequency = m_encoders.GetValue<4>(Param::PartialMachineLinearFrequency, 0);
+        m_partialMachineInputSetterInput.m_pitchShiftDepth = m_encoders.GetValue<4>(Param::PartialMachinePitchShiftDepth, 0);
+        m_partialMachineInputSetterInput.m_pitchShift = m_encoders.GetValue<4>(Param::PartialMachinePitchShift, 0);
 
         m_partialMachineInputSetter.SetInput(m_partialMachineInputSetterInput, m_partialMachineState);
         m_mixerState.m_returnSendGain[2][0].Update(m_encoders.GetValue(Param::PartialMachineDelaySend));

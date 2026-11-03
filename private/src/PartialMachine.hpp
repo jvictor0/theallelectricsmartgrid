@@ -19,7 +19,10 @@
 
 struct PartialMachine
 {
-    using SpectralModel = SpectralModelGeneric<12, FrequencyDependentParameter>;
+    static constexpr size_t x_bits = 12;
+    using SpectralModel = SpectralModelGeneric<x_bits, FrequencyDependentParameter>;
+    using SynthesisDFT = DiscreteFourierTransformGeneric<float, 4, x_bits>;
+    using SynthesisOLA = OLAGeneric<float, 4, x_bits>;
     using Parameter = FrequencyDependentParameter::Parameter;
     using AtomicParameter = FrequencyDependentParameter::AtomicParameter;
     using Index = FrequencyDependentParameter::Index;
@@ -200,14 +203,14 @@ struct PartialMachine
                 float voiceMagnitude = reducedMagnitude * unisonContext.m_gain[v];
                 float voicePhase = static_cast<float>(atom.m_synthesisPhase * unisonContext.m_detune[v] * pitchShiftFactor);
                 float voiceOmega = shiftedSynthesisOmega * unisonContext.m_detune[v];
-                m_dft.WriteWindowedPartial(voiceMagnitude, voicePhase, voiceOmega, distribution);
+                m_dft.WriteWindowedPartial(voicePhase, distribution * voiceMagnitude, voiceOmega);
             }
 
             atom.UpdatePhase();
             atom.m_synthesisMagnitude = newMagnitude;
         }
 
-        QuadDFT m_dft;
+        SynthesisDFT m_dft;
     };
 
     struct Input
@@ -224,7 +227,7 @@ struct PartialMachine
     {
         RGen m_gen;
 
-        void Process(QuadDFT& dft, SpectralModel& spectralModel, Input& input)
+        void Process(SynthesisDFT& dft, SpectralModel& spectralModel, Input& input)
         {
             for (size_t k = 1; k < SpectralModel::ResidualModel::x_numBuckets; ++k)
             {
@@ -241,7 +244,7 @@ struct PartialMachine
                 std::complex<float> value(
                     reducedMagnitude * Math::Cos2pi(phase),
                     reducedMagnitude * Math::Sin2pi(phase));
-                dft.WriteBinCenteredWindowedPartial(k, value, distribution);
+                dft.WriteBinCenteredWindowedPartial(k, SynthesisDFT::ComplexVector(value) * distribution);
                 if (envelope > 0.0f)
                 {
                     // The feedback floor must not create or raise quiet residual energy.
@@ -287,31 +290,46 @@ struct PartialMachine
             return 1.0f - std::exp(-x_hopSeconds / seconds);
         }
 
-        PhaseUtils::ExpParam m_attack[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpParam m_decay[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpParam m_portamento[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpParam m_parameterLinearFrequency[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpParam m_density[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpParam m_bwBaseFrequency[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpParam m_bwWidth[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpParam m_bassCutoff[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpParam m_azimuthFactor[FrequencyDependentParameter::x_numParameters];
-        PhaseUtils::ExpParam m_pitchShiftDepth[FrequencyDependentParameter::x_numParameters];
+        using AnchorExpParam = PhaseUtils::ExpParamGeneric<float, FrequencyDependentParameter::x_numParameters>;
+
+        AnchorExpParam m_attack;
+        AnchorExpParam m_decay;
+        AnchorExpParam m_portamento;
+        AnchorExpParam m_parameterLinearFrequency;
+        AnchorExpParam m_density;
+        AnchorExpParam m_bwBaseFrequency;
+        AnchorExpParam m_bwWidth;
+        AnchorExpParam m_bassCutoff;
+        AnchorExpParam m_azimuthFactor;
+        AnchorExpParam m_pitchShiftDepth;
 
         InputSetter()
+            : m_attack(0.01, 2.0)
+            , m_decay(0.01, 10.0)
+            , m_portamento(0.01, 2.0)
+            , m_parameterLinearFrequency(1.0f / 10.0f, 100.0f)
+            , m_density(1.0f / 1200.0f, 1.0f)
+            , m_bwBaseFrequency(1.0f / 2048.0f, 0.5f)
+            , m_bwWidth(1.0f, 2048.0f)
+            , m_bassCutoff(1.0f / 2048.0f, 0.5f)
+            , m_azimuthFactor(1.0f / 32.0f, 1.0f)
+            , m_pitchShiftDepth(1.0f, 2.0f)
+        {
+        }
+
+        static void Store(const QuadFloat& value, FrequencyDependentParameter::Parameter& parameter)
         {
             for (int i = 0; i < FrequencyDependentParameter::x_numParameters; ++i)
             {
-                m_attack[i] = PhaseUtils::ExpParam(0.01, 2.0);
-                m_decay[i] = PhaseUtils::ExpParam(0.01, 10.0);
-                m_portamento[i] = PhaseUtils::ExpParam(0.01, 2.0);
-                m_parameterLinearFrequency[i] = PhaseUtils::ExpParam(1.0f / 10.0f, 100.0f);
-                m_density[i] = PhaseUtils::ExpParam(1.0f / 1200.0f, 1.0f);
-                m_bwBaseFrequency[i] = PhaseUtils::ExpParam(1.0f / 2048.0f, 0.5f);
-                m_bwWidth[i] = PhaseUtils::ExpParam(1.0f, 2048.0f);
-                m_bassCutoff[i] = PhaseUtils::ExpParam(1.0f / 2048.0f, 0.5f);
-                m_azimuthFactor[i] = PhaseUtils::ExpParam(1.0f / 32.0f, 1.0f);
-                m_pitchShiftDepth[i] = PhaseUtils::ExpParam(1.0f, 2.0f);
+                parameter.m_parameters[i] = value[i];
+            }
+        }
+
+        static void StoreAlpha(const QuadFloat& seconds, FrequencyDependentParameter::Parameter& parameter)
+        {
+            for (int i = 0; i < FrequencyDependentParameter::x_numParameters; ++i)
+            {
+                parameter.m_parameters[i] = TimeToAlpha(seconds[i]);
             }
         }
 
@@ -319,23 +337,20 @@ struct PartialMachine
         {
             input.m_spectralModelInput.m_numAtoms = x_numAtoms;
 
-            for (int i = 0; i < FrequencyDependentParameter::x_numParameters; ++i)
-            {
-                input.m_spectralModelInput.m_parameterInput.m_linearFreqs.m_parameters[i] = m_parameterLinearFrequency[i].Update(knobInput.m_parameterLinearFrequency[i]);
-                input.m_spectralModelInput.m_slewUpAlpha.m_parameters[i] = TimeToAlpha(m_attack[i].Update(knobInput.m_attack[i]));
-                input.m_spectralModelInput.m_slewDownAlpha.m_parameters[i] = TimeToAlpha(m_decay[i].Update(knobInput.m_decay[i]));
-                input.m_spectralModelInput.m_omegaPortamentoAlpha.m_parameters[i] = TimeToAlpha(m_portamento[i].Update(knobInput.m_portamento[i]));
-                input.m_spectralModelInput.m_omegaDensity.m_parameters[i] = m_density[i].Update(1.0f - knobInput.m_density[i]);
-                input.m_synthesisContextInput.m_bwBaseFrequency.m_parameters[i] = m_bwBaseFrequency[i].Update(knobInput.m_bwBaseFrequency[i]);
-                input.m_synthesisContextInput.m_bwWidth.m_parameters[i] = m_bwWidth[i].Update(knobInput.m_bwWidth[i]);
-                input.m_synthesisContextInput.m_volume.m_parameters[i] = 1.0f;
-                input.m_synthesisContextInput.m_bassCutoff.m_parameters[i] = m_bassCutoff[i].Update(knobInput.m_bassCutoff[i]);
-                input.m_synthesisContextInput.m_azimuthFactor.m_parameters[i] = m_azimuthFactor[i].Update(knobInput.m_azimuthFactor[i]);
-                input.m_synthesisContextInput.m_reductionFeedback.m_parameters[i] = knobInput.m_reductionFeedback[i];
-                input.m_synthesisContextInput.m_unison.m_parameters[i] = knobInput.m_unison[i];
-                input.m_synthesisContextInput.m_pitchShiftDepth.m_parameters[i] = m_pitchShiftDepth[i].Update(knobInput.m_pitchShiftDepth[i]);
-                input.m_synthesisContextInput.m_pitchShift.m_parameters[i] = 2.0f * knobInput.m_pitchShift[i] - 1.0f;
-            }
+            Store(m_parameterLinearFrequency.Update(knobInput.m_parameterLinearFrequency), input.m_spectralModelInput.m_parameterInput.m_linearFreqs);
+            StoreAlpha(m_attack.Update(knobInput.m_attack), input.m_spectralModelInput.m_slewUpAlpha);
+            StoreAlpha(m_decay.Update(knobInput.m_decay), input.m_spectralModelInput.m_slewDownAlpha);
+            StoreAlpha(m_portamento.Update(knobInput.m_portamento), input.m_spectralModelInput.m_omegaPortamentoAlpha);
+            Store(m_density.Update(QuadFloat::Splat(1.0f) - knobInput.m_density), input.m_spectralModelInput.m_omegaDensity);
+            Store(m_bwBaseFrequency.Update(knobInput.m_bwBaseFrequency), input.m_synthesisContextInput.m_bwBaseFrequency);
+            Store(m_bwWidth.Update(knobInput.m_bwWidth), input.m_synthesisContextInput.m_bwWidth);
+            Store(QuadFloat::Splat(1.0f), input.m_synthesisContextInput.m_volume);
+            Store(m_bassCutoff.Update(knobInput.m_bassCutoff), input.m_synthesisContextInput.m_bassCutoff);
+            Store(m_azimuthFactor.Update(knobInput.m_azimuthFactor), input.m_synthesisContextInput.m_azimuthFactor);
+            Store(knobInput.m_reductionFeedback, input.m_synthesisContextInput.m_reductionFeedback);
+            Store(knobInput.m_unison, input.m_synthesisContextInput.m_unison);
+            Store(m_pitchShiftDepth.Update(knobInput.m_pitchShiftDepth), input.m_synthesisContextInput.m_pitchShiftDepth);
+            Store(knobInput.m_pitchShift * 2.0f - 1.0f, input.m_synthesisContextInput.m_pitchShift);
         }
     };
 
@@ -353,7 +368,8 @@ struct PartialMachine
         }
 
         m_residualMachine.Process(synthesisContext.m_dft, m_spectralModel, input);
-        m_ola.Write(synthesisContext.m_dft);
+        synthesisContext.m_dft.InverseTransform(m_synthesisFrame, SynthesisDFT::x_maxComponents, m_synthesisWorkspace);
+        m_ola.Write(m_synthesisFrame);
     }
 
     QuadFloat Process(QuadFloat inputSample, Input& input)
@@ -517,6 +533,8 @@ struct PartialMachine
     SpectralModel::Buffer m_buffer;
     SpectralModel m_spectralModel;
     ResidualMachine m_residualMachine;
-    QuadOLA m_ola;
+    SynthesisOLA m_ola;
+    SynthesisOLA::Frame m_synthesisFrame;
+    SynthesisDFT::ComplexVector m_synthesisWorkspace[SynthesisOLA::x_frameSize];
     ScopeWriterHolder m_scopeWriter;
 };

@@ -58,8 +58,8 @@ Each voice SHALL be configured by a `SquiggleBoyVoiceConfig` carrying: the sourc
 
 #### Scenario: Filter machine selection switches the DSP path
 - **WHEN** a voice's config has `m_filterMachine = Ladder4Pole`
-- **THEN** the filter section processes through the 4-pole ladder low-pass followed by the 4-pole SVF high-pass
-- **AND** with `m_filterMachine = SVF2Pole` it instead processes through the saturated 2-pole SVF low-pass/high-pass chain
+- **THEN** the filter section processes through the 4-pole ladder low-pass, the sample-rate reducer, then the 4-pole SVF high-pass
+- **AND** with `m_filterMachine = SVF2Pole` it instead processes through the saturated 2-pole SVF low-pass, the sample-rate reducer, then the 2-pole SVF high-pass
 
 #### Scenario: Thru source pins the filter base frequency
 - **WHEN** a voice's config has `m_sourceMachine = Thru`

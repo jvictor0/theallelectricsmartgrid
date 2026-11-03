@@ -1,7 +1,7 @@
 # Filter System Specification
 
 ## Purpose
-Defines the per-voice filter section of the Smart Grid One DSP engine: the two selectable filter machines (Ladder and SVF), their pitch-tracking cutoff law, post-filter sample-rate reduction, and the UIState paradigm that separates stateful audio-thread DSP from the stateless transfer functions used by the JUCE filter-response visualizers. The filter section (`SquiggleBoyShape`) sits between the source machine output (source-machine-oscillators) and the amp section (voice-architecture, ahd-envelopes), and processes one engine sample (`SampleTimer::x_sampleRate`) per call for each track's three voices.
+Defines the per-voice filter section of the Smart Grid One DSP engine: the two selectable filter machines (Ladder and SVF), their pitch-tracking cutoff law, sample-rate reduction between the low-pass and high-pass stages, and the UIState paradigm that separates stateful audio-thread DSP from the stateless transfer functions used by the JUCE filter-response visualizers. The filter section (`SquiggleBoyShape`) sits between the source machine output (source-machine-oscillators) and the amp section (voice-architecture, ahd-envelopes), and processes one engine sample (`SampleTimer::x_sampleRate`) per call for each track's three voices.
 
 ## Requirements
 
@@ -19,7 +19,7 @@ Before either machine, the input passes a shared DC-blocking one-pole high-pass 
 - **THEN** the 5 Hz one-pole high-pass removes it before the selected filter machine processes the sample
 
 ### Requirement: Ladder Filter Machine
-The Ladder Filter Machine SHALL apply a 4-pole transistor-ladder low-pass (`LadderFilterLP`) followed by a 4-pole SVF high-pass (`LinearSVF4PoleHighPass`, two cascaded 2-pole SVF high-pass stages).
+The Ladder Filter Machine SHALL apply a 4-pole transistor-ladder low-pass (`LadderFilterLP`), then the sample-rate reducer, then a 4-pole SVF high-pass (`LinearSVF4PoleHighPass`, two cascaded 2-pole SVF high-pass stages).
 The ladder is four cascaded one-pole low-pass stages with a `TanhSaturator` after each stage and resonance feedback from the fourth stage's output. `SetCutoff` solves the per-stage alpha so the 4-stage cascade is -3 dB at the requested cutoff; `SetResonance` maps resonance to `feedback = resonance * 4`. Each sample, the effective feedback `m_kEff` is clamped to `0.9 / Cpi`, where `Cpi` is the fourth power of the per-stage Nyquist gain including the saturator's small-signal gain, guaranteeing stability; the output is scaled by `1 + m_kEff` to hold approximately unity DC gain as resonance rises. The saturation gain parameter sets the ladder saturators' input gain.
 
 #### Scenario: Resonance feedback is clamped for stability
@@ -31,12 +31,12 @@ The ladder is four cascaded one-pole low-pass stages with a `TanhSaturator` afte
 - **THEN** the `1 + m_kEff` output compensation counters the resonance-induced passband drop, keeping DC gain approximately 1
 
 ### Requirement: SVF Filter Machine
-The SVF Filter Machine SHALL apply a 2-pole SVF low-pass followed by a 2-pole SVF high-pass (both `LinearStateVariableFilter`, a TPT/trapezoidal structure) with three tanh saturation stages: before the low-pass, between the two filters, and after the high-pass.
+The SVF Filter Machine SHALL apply a 2-pole SVF low-pass, then the sample-rate reducer, then a 2-pole SVF high-pass (both `LinearStateVariableFilter`, a TPT/trapezoidal structure) with three tanh saturation stages: before the low-pass, between the low-pass and the reducer, and after the high-pass.
 All three stages use one normalized `TanhSaturator`, `Tanh(gain * x) / Tanh(gain)`, whose input gain is the saturation gain parameter (exponential, 0.25 to 5). The SVF computes `g = tan(pi * cutoff)` and `k = 1 / Q` with Q mapped exponentially from the resonance knob.
 
 #### Scenario: Three saturation stages shape the signal path
 - **WHEN** a sample is processed in SVF2Pole mode
-- **THEN** the signal path is saturate -> SVF low-pass -> saturate -> SVF high-pass -> saturate, with every saturator at the current saturation gain
+- **THEN** the signal path is saturate -> SVF low-pass -> saturate -> sample-rate reducer -> SVF high-pass -> saturate, with every saturator at the current saturation gain
 
 #### Scenario: Saturation gain drives drive intensity
 - **WHEN** the saturation gain parameter is at its maximum (5)
@@ -62,13 +62,17 @@ The filter section SHALL derive both cutoff frequencies from the voice base freq
 - **WHEN** the voice's source machine is Thru
 - **THEN** the filter tracking frequency is 80 Hz in cycles per engine sample regardless of the voice's pitch input, so external audio is filtered against a fixed 80 Hz anchor
 
-### Requirement: Post-Filter Sample-Rate Reduction
-The filter section SHALL apply a `SampleRateReducer` to the selected filter machine's output, with reduction frequency `vcoBaseFreq * sampleRateReducerFactor` in cycles per engine sample, where the factor is an exponential parameter spanning 1 to 2048. Channels whose reduction frequency reaches one cycle per engine sample bypass the reducer.
+### Requirement: Sample-Rate Reduction Before the High-Pass
+Each filter machine SHALL apply a `SampleRateReducer` to its low-pass output and feed the reduced signal to its high-pass, with reduction frequency `vcoBaseFreq * sampleRateReducerFactor` in cycles per engine sample, where the factor is an exponential parameter spanning 1 to 2048. Channels whose reduction frequency reaches one cycle per engine sample bypass the reducer.
 Because the reduction frequency is proportional to the voice base frequency, the digital-degradation character tracks pitch; at the maximum factor the reduction frequency is far above the audible band and the stage is effectively transparent.
 
 #### Scenario: Sample-rate reduction tracks pitch
 - **WHEN** the reduction factor is low and a voice plays a note
-- **THEN** the filter output is resampled at a rate proportional to the note's base frequency, producing pitch-tracked aliasing texture
+- **THEN** the low-pass output is resampled at a rate proportional to the note's base frequency, producing pitch-tracked aliasing texture
+
+#### Scenario: The high-pass removes bass created by the reducer
+- **WHEN** the high-pass is engaged and the reducer folds a tone to aliases below the high-pass cutoff, at any reducer setting
+- **THEN** the high-pass attenuates those aliases, so raising the reduction does not bypass the chosen low-frequency attenuation
 
 ### Requirement: Stateless Transfer Functions
 Each filter class SHALL expose static, stateless `TransferFunction` methods returning `std::complex<float>` and `FrequencyResponse` methods returning the magnitude `std::abs(TransferFunction(...))`, parameterized only by computed coefficients and a normalized frequency.

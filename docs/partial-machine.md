@@ -27,7 +27,7 @@ Each tracked atom carries:
 - a synthesis phase,
 - a frequency-dependent parameter index.
 
-During synthesis, each atom is reduced, pitch-shifted, optionally expanded into unison copies, panned into quad, and written to a `QuadDFT`. The residual model adds smoothed broadband energy with randomized phase to the same frame. `QuadOLA` overlap-adds the frames into a continuous quad signal. Tracked atoms come from the input analysis; synthetic harmonic atoms and their separate mix gains have been removed.
+During synthesis, each atom is reduced, pitch-shifted, optionally expanded into unison copies, panned into quad, and written to one four-lane synthesis DFT (`SynthesisDFT`). Each panned copy evaluates its phase and Hann kernel once and scales the magnitude by the pan vector across all four channels. The residual model adds smoothed broadband energy with randomized phase to the same frame, using the same panned bin-centered Hann write. `InverseTransform` produces one quad frame and the generic `OLAGeneric` overlap-adds the frames into a continuous quad signal. The synthesis window comes from the partial writers; the OLA adds no window or normalization of its own. Tracked atoms come from the input analysis; synthetic harmonic atoms and their separate mix gains have been removed.
 
 Residual reduction feedback preserves zero envelopes. Its magnitude floor is capped by the current envelope, allowing quiet residual tails to decay below the atom death threshold without creating a persistent noise floor.
 
