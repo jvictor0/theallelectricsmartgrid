@@ -33,9 +33,11 @@ the same command; if it fails, the build stops before compiling or deploying.
 | `make build-sanitized` / `make run-sanitized` | `build/xcode/macos/Debug/` |
 | `make ios-build` / `make ios-install` / `make ios-deploy` | `build/xcode/ios/Release/` |
 | `make core-test` | `build/core/RelWithDebInfo/` |
+| `make perf-build` / `make perf-test` / `make perf-run` | `build/tools/perf/Release/` (results in `build/results/`) |
 | `make visualizers-test` | `build/visualizers/Release/` |
 | `make midi-test` | `build/midi/Release/` |
 | `make clang-tidy` | `build/clang-tidy/report.txt` |
+| `make lean-test` | `build/lean/` |
 
 The CMake families also expose `core-configure` / `core-build`,
 `visualizers-configure` / `visualizers-build`, and `midi-configure` / `midi-build`.
@@ -78,6 +80,25 @@ directory for simultaneous builds with different options. A fresh build or an
 output location outside the worktree needs a concrete technical reason; do not
 create a new `/tmp` tree for each edit, review, or retry. Historical audit and
 experiment documents retain their original commands and evidence paths.
+
+## Performance benchmarks
+
+`make perf-test` builds the separate optimized Release harness and smoke-tests
+component, encoder matrix replay, and full SynthRig workloads. `make perf-run`
+records serial repeated timings in ms CPU/sec audio, without launching the app.
+See [the benchmark guide](../private/test/perf/README.md) for workload selection,
+input captures, measurement boundaries, and before/after comparisons. These
+targets do not change the core tests' assertion-enabled configuration.
+
+## Lean encoder specification
+
+Run `make lean-setup` once, optionally `make lean-cache` to download the pinned
+Mathlib proof cache, then `make lean-test` to check the encoder's Lean/Veil
+state machines, EARS contract proofs, proof axioms and C++ source references.
+Toolchains, dependencies and incremental proof artifacts stay in `build/lean/`;
+the small Lake configuration cache is ignored at `.lake/`. This target does not
+build or launch the audio app. Setup requirements, model coverage and proof
+boundaries are documented in [formal/Encoder/README.md](../formal/Encoder/README.md).
 
 ## Cleanup and completion
 

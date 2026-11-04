@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EncoderBank.hpp"
+#include "EncoderMatrix.hpp"
 #include "SampleTimer.hpp"
 #include <array>
 #include <vector>
@@ -44,6 +45,7 @@ struct EncoderBankBank
     BankMode* m_bankModes;
     SmartGrid::EncoderPtr* m_encoders;
     std::array<std::vector<QuadFloat>, SampleTimer::x_oversample> m_valueCaches;
+    EncoderMatrix m_matrix;
 
     EncoderBankBank(
         size_t numBanks,
@@ -114,6 +116,7 @@ struct EncoderBankBank
             nullptr,
             static_cast<int>(index),
             SmartGrid::BankedEncoderCell::EncoderType::BaseParam);
+        m_matrix.m_rebuild = true;
         SmartGrid::BankedEncoderCell* cell = m_encoders[index].get();
         cell->m_sharedEncoderState = &m_bankModes[modeIx].m_sharedEncoderState;
         cell->m_bipolar = bipolar;
@@ -283,32 +286,7 @@ struct EncoderBankBank
             }
         }
 
-        size_t hostSample = SampleTimer::GetHostSample();
-        ForEachNamedEncoder(
-            [this, hostSample](size_t index, SmartGrid::BankedEncoderCell* cell)
-            {
-                cell->Compute(true);
-                if (cell->m_outputHostSample == hostSample)
-                {
-                    QuadFloat output = cell->m_output;
-                    QuadFloat delta = cell->m_outputPrev - output;
-                    for (size_t subSample = 0; subSample < SampleTimer::x_oversample; ++subSample)
-                    {
-                        float weight = SmartGrid::BankedEncoderCell::GetPreviousOutputWeight(
-                            subSample, SampleTimer::x_oversample);
-                        QuadFloat value = output + delta * weight;
-                        m_valueCaches[subSample][index] = cell->m_bipolar ? value * 2.0f - 1.0f : value;
-                    }
-                }
-                else
-                {
-                    QuadFloat value = cell->GetQuadValue();
-                    for (auto& values : m_valueCaches)
-                    {
-                        values[index] = value;
-                    }
-                }
-            });
+        m_matrix.Process(m_encoders, m_numEncoders, sceneManager, m_valueCaches);
 
         if (blendChanged)
         {

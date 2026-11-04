@@ -34,3 +34,29 @@ endef
 $(eval $(call cmake_targets,core,private/test,CORE_CONFIG))
 $(eval $(call cmake_targets,visualizers,private/test/juce-visualizers,VISUALIZERS_CONFIG))
 $(eval $(call cmake_targets,midi,private/test/juce-midi,MIDI_CONFIG))
+
+.PHONY: lean-setup lean-cache lean-test
+lean-setup:
+	"$(REPO_ROOT)/scripts/lean.sh" setup
+
+lean-cache:
+	"$(REPO_ROOT)/scripts/lean.sh" exe cache get Mathlib.Analysis.SpecialFunctions.Pow.Real Mathlib.Tactic.Linarith Mathlib.Tactic.SplitIfs Mathlib.Tactic.NormNum Mathlib.Tactic.Ring
+
+lean-test:
+	python3 "$(REPO_ROOT)/scripts/check_encoder_spec.py"
+	"$(REPO_ROOT)/scripts/lean.sh" build
+	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/Encoder/Audit.lean"
+
+PERF_DIR := $(REPO_ROOT)/build/tools/perf/Release
+.PHONY: perf-configure perf-build perf-test perf-run
+perf-configure:
+	cmake -S "$(REPO_ROOT)/private/test/perf" -B "$(PERF_DIR)" -DCMAKE_BUILD_TYPE=Release $(CMAKE_ARGS)
+
+perf-build: perf-configure
+	cmake --build "$(PERF_DIR)" --config Release --parallel "$(JOBS)"
+
+perf-test: perf-build
+	ctest --test-dir "$(PERF_DIR)" --build-config Release --output-on-failure
+
+perf-run: perf-build
+	python3 "$(REPO_ROOT)/private/test/perf/run.py" --bin-dir "$(PERF_DIR)" $(PERF_ARGS)

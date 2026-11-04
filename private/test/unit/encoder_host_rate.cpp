@@ -433,7 +433,7 @@ DOCTEST_TEST_CASE("encoder host rate: recording timestamps and saved values desc
     }
 }
 
-DOCTEST_TEST_CASE("encoder host rate: sequencer keeps the accepted read-before-matrix timing")
+DOCTEST_TEST_CASE("encoder host rate: sequencer reads the previous cache slot before matrix processing")
 {
     GlobalEnv::ResetPerTest();
     auto system = std::make_unique<TheNonagonSquiggleBoyInternal>();
@@ -461,7 +461,9 @@ DOCTEST_TEST_CASE("encoder host rate: sequencer keeps the accepted read-before-m
         SampleTimer::IncrementSample();
         system->ProcessSample(input);
         size_t sub = SampleTimer::GetSubSampleIndex();
-        float expectedEarly = i < x_ratio ? 0.0f : static_cast<float>(sub + 1) / x_ratio;
+        // The sequencer reads before Process selects this engine sample's cache.
+        //
+        float expectedEarly = i < x_ratio ? 0.0f : static_cast<float>(sub) / x_ratio;
         float expectedLate = i < x_ratio - 1 ? 0.0f : static_cast<float>(sub + 1) / x_ratio;
         if (i == 2 * x_ratio - 1)
         {

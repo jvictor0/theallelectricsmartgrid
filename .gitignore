@@ -121,3 +121,6 @@ dist/*
 scripts/.venv-ios/
 __pycache__/
 *.pyc
+
+# Lean/Lake configuration cache; toolchains and build outputs live in build/lean.
+/.lake/

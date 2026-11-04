@@ -31,13 +31,15 @@ void SetParamValue(
     SmartGridOneEncoders::Param param,
     float value)
 {
-    SmartGrid::BankedEncoderCell* cell = squiggleBoy.m_encoders.m_encoderBankBank.GetEncoder(squiggleBoy.m_encoders.EncoderIndex(param, 0));
-    DOCTEST_REQUIRE(cell);
+    auto& bank = squiggleBoy.m_encoders.m_encoderBankBank;
+    size_t index = squiggleBoy.m_encoders.EncoderIndex(param, 0);
+    DOCTEST_REQUIRE(bank.GetEncoder(index));
 
-    for (size_t i = 0; i < QuadFloat::x_numChannels; ++i)
+    // Seed the processed parameter caches read by WriteKMixMidi.
+    //
+    for (auto& cache : bank.m_valueCaches)
     {
-        cell->m_output[i] = value;
-        cell->m_outputPrev[i] = value;
+        cache[index] = QuadFloat::Splat(value);
     }
 }
 
