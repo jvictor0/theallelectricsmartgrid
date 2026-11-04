@@ -1,10 +1,10 @@
 {
   "description": "Reviewed C++ snapshot for the Lean model. Hashes detect drift; they do not prove C++ refinement. Review correspondence before changing hashes.",
   "files": {
-    "private/src/Encoder.hpp": "2092a538abaade1145cfd70a40f544b2ff2dab24370c5387760e0d7f410e4d03",
-    "private/src/EncoderBank.hpp": "81e03ae21308c32175facda65955245ee0f3194323a26ac73273484bad7d15b6",
+    "private/src/Encoder.hpp": "a66944193265244c039117876181ab6f66cdcad6ff1c523d4e46d834c871c71e",
+    "private/src/EncoderBank.hpp": "02746bd94f8530d67cb5d5cc443c6ad340941a6ad21403b5009a2eae47534c79",
     "private/src/EncoderBankBank.hpp": "86d47c7bcf6c0f199c712ebb13834c7be201e8da5ca4f07bfabeb38047edf604",
-    "private/src/EncoderMatrix.hpp": "eb07fac35a737b061226138c94d47ed9f7de643700bd883be006d66f3958a4e9",
+    "private/src/EncoderMatrix.hpp": "9d3c89b4690c28f567908192b82c4a359a003e85c9f765190fc1d81e48214c72",
     "private/src/QuadUtils.hpp": "eb287a8dd5c2f88979153018a2b246aa7056979ae252773cccb92182c293a69b",
     "private/src/SampleTimer.hpp": "d55157bec9215ac2d96da5cff2307ee19f7c2c2145a7a2775186be31f39d10b9",
     "private/src/SceneManager.hpp": "87e9c88e2257a56f9ae392178d9976152ae74b54f67d892d829fc4df10c75e8e",
@@ -131,6 +131,10 @@
       {
         "path": "private/src/EncoderBank.hpp",
         "symbol": "static QuadFloat ModulationDepthFromValue(const QuadFloat& value)"
+      },
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "void UpdateDepths(float blend)"
       }
     ],
     "scene_edit": [

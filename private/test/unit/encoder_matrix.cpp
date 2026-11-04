@@ -256,6 +256,68 @@ DOCTEST_TEST_CASE("encoder matrix: nested signed amounts match recursive evaluat
     }
 }
 
+DOCTEST_TEST_CASE("encoder matrix: packed depth batches and tails preserve recursive outputs")
+{
+    GlobalEnv::Init();
+    std::mt19937 random(291);
+    std::uniform_real_distribution<float> value(0.0f, 1.0f);
+    for (size_t count = 0; count <= Cell::x_numModulators; ++count)
+    {
+        DOCTEST_CAPTURE(count);
+        GlobalEnv::ResetPerTest();
+        MatrixRig actual;
+        MatrixRig reference;
+        actual.Configure();
+        reference.Configure();
+        for (size_t source = 0; source < Cell::x_numModulators; ++source)
+        {
+            float left = source < count ? value(random) : 0.5f;
+            float right = source < count ? value(random) : 0.5f;
+            for (auto* rig : {&actual, &reference})
+            {
+                MatrixRig::SetSettled(*rig->Root().m_modulators.m_modulators[source], left, right);
+            }
+        }
+
+        actual.Root().SetModulatorsAffecting();
+        reference.Root().SetModulatorsAffecting();
+        for (size_t frame = 0; frame < 400; ++frame)
+        {
+            DOCTEST_CAPTURE(frame);
+            float blend = frame < 64 ? 0.0f : static_cast<float>(frame % 129) / 128.0f;
+            actual.m_context.m_sceneManager.m_blendFactor = blend;
+            reference.m_context.m_sceneManager.m_blendFactor = blend;
+            for (size_t source = 0; source < Cell::x_numModulators; ++source)
+            {
+                for (size_t lane = 0; lane < 4; ++lane)
+                {
+                    float sample = value(random);
+                    actual.Sources().m_hostValue[source][lane] = reference.Sources().m_hostValue[source][lane] = sample;
+                    if (frame % 31 == 0)
+                    {
+                        float amplitude = value(random);
+                        actual.Sources().m_amplitude[source][lane] = reference.Sources().m_amplitude[source][lane] = amplitude;
+                    }
+                }
+            }
+
+            if (frame == 200)
+            {
+                actual.m_bank.m_matrix.m_rebuild = true;
+            }
+
+            for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+            {
+                SampleTimer::IncrementSample();
+            }
+
+            actual.Process(false);
+            reference.Process(true);
+            CheckOutputs(actual, reference);
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("encoder matrix: gestures edits scenes and UI preserve recursive behavior")
 {
     GlobalEnv::Init();

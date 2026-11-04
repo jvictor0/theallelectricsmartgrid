@@ -183,8 +183,6 @@ struct TickDistributor
 
 struct StateEncoderCell : public EncoderCell
 {
-    bool m_bipolar = false;
-
     float ToValue(float normalized) const
     {
         return m_bipolar ? 2.0f * normalized - 1.0f : normalized;
@@ -248,6 +246,7 @@ struct StateEncoderCell : public EncoderCell
     SmartGridOneContext* m_context;
     TickDistributor m_tickDistributor;
     size_t m_samplesForceUpdate = 0;
+    bool m_bipolar = false;
 
     JSON ToJSON(JsonArena& a)
     {

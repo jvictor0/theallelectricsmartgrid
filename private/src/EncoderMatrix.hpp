@@ -356,6 +356,36 @@ struct EncoderMatrix
         }
     }
 
+    // The bank broadcasts blend changes to every mode. Curve four independent
+    // signed positions together, preserving the scalar scene-blend expression
+    // and the original order of each root's modulation sums.
+    //
+    void UpdateDepths(float blend)
+    {
+        size_t i = 0;
+        for (; i + 4 <= m_routes.size(); i += 4)
+        {
+            QuadFloat position;
+            for (size_t lane = 0; lane < 4; ++lane)
+            {
+                const Route& route = m_routes[i + lane];
+                float normalized = route.m_left * (1.0f - blend) + route.m_right * blend;
+                position[lane] = normalized * 2.0f - 1.0f;
+            }
+
+            QuadFloat depth = Cell::ModulationDepthFromValue(position);
+            for (size_t lane = 0; lane < 4; ++lane)
+            {
+                m_routes[i + lane].m_depth = depth[lane];
+            }
+        }
+
+        for (; i < m_routes.size(); ++i)
+        {
+            m_routes[i].UpdateDepth(blend);
+        }
+    }
+
     void Process(SmartGrid::EncoderPtr* encoders, size_t count,
         const SmartGrid::SceneManager& scene, OutputCaches& caches)
     {
@@ -368,6 +398,7 @@ struct EncoderMatrix
         const float leftWeight = 1.0f - blend;
         const size_t host = SampleTimer::GetHostSample();
         const QuadFloat one = QuadFloat::Splat(1.0f);
+        bool depthsUpdated = false;
         for (auto& root : m_roots)
         {
             Cell* cell = root.m_cell;
@@ -395,17 +426,18 @@ struct EncoderMatrix
                     continue;
                 }
 
+                if (root.m_sources->m_blendChanged && !depthsUpdated)
+                {
+                    UpdateDepths(blend);
+                    depthsUpdated = true;
+                }
+
                 QuadFloat sum;
                 QuadFloat weight;
                 QuadFloat offset;
                 for (size_t i = root.m_start; i < root.m_start + root.m_count; ++i)
                 {
                     Route& route = m_routes[i];
-                    if (root.m_sources->m_blendChanged)
-                    {
-                        route.UpdateDepth(blend);
-                    }
-
                     QuadFloat depth = QuadFloat::Splat(route.m_depth);
                     QuadFloat w = depth * root.m_sources->m_amplitude[route.m_source];
                     sum += w * root.m_sources->m_hostValue[route.m_source];

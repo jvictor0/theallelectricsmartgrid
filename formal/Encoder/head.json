@@ -533,10 +533,6 @@
     },
     {
       "path": "private/src/EncoderBank.hpp",
-      "symbol": "SmartGridOneContext* context, BankedEncoderCell* parent, int index, EncoderType modulatorType)"
-    },
-    {
-      "path": "private/src/EncoderBank.hpp",
       "symbol": "void SetActive(bool active)"
     },
     {
@@ -575,7 +571,7 @@
         "ramp",
         "initialization"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "The same modeled initialization values and leaf arithmetic/control definitions apply to both revisions. Constructor initializer expressions and body are unchanged; only initializer order follows the new member layout."
     },
     {
       "id": "E02",
@@ -1286,7 +1282,7 @@
       "anchors": [
         "gesture_allocate"
       ],
-      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+      "reason": "Gesture allocation retains its operations and initialization values. The constructor initializer list is reordered for the new member layout, with the same initializer expressions and body; the shared definitions and proofs still apply."
     },
     {
       "id": "E59",
@@ -1376,7 +1372,7 @@
         "gesture_clear",
         "compute"
       ],
-      "reason": "Separate current and HEAD Veil lifecycle machines check the same invariants for every action using the shared, identical C++ gesture operations."
+      "reason": "Separate current and HEAD Veil lifecycle machines check the same invariants. Gesture operations retain their semantics; the constructor only reorders unchanged initializer expressions to match its member layout."
     },
     {
       "id": "E64",
