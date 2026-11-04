@@ -241,6 +241,21 @@ missing/ambiguous symbols, unknown model anchors, and changed source files.
 Whole-file hashes deliberately make unrelated changes require review too.
 They are a drift alarm, not a semantic extraction or equivalence proof.
 
+The encoder layout and depth-batching optimization retains these definitions and
+contracts. `EncoderMatrix::UpdateDepths` groups four independent simple-route
+positions into the existing lane-wise depth curve after a bank-wide blend-change
+notification; scalar scene blending, route accumulation order, graph evaluation,
+fallback guards, synchronization and publication are unchanged. The slot-index
+arrays use signed bytes, with compile-time bounds for both catalogues and the
+existing `-1` sentinel. Member placement and cell alignment change storage only.
+The source audit still checks the unchanged shared C++ bodies against the pinned
+revision. The context constructor is no longer in the literal-body equality list:
+its initializer expressions and body are unchanged, but the initializer list is
+reordered to match member placement. E01, E58 and E63 record that correspondence
+review. Differential tests cover batch sizes and tails, alongside the existing
+edit, amplitude, gesture, scene, reset and output-history cases. This review does
+not extend the model's floating-point or C++ verification claims.
+
 After changing covered C++, review the affected definitions, requirements and
 proofs before updating the recorded hashes. Do not refresh fingerprints merely
 to make verification green. Add a contract to `requirements.json` when adding

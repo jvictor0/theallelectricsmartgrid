@@ -10,11 +10,16 @@
 #include "QuadUtils.hpp"
 #include "Oversample.hpp"
 #include "SampleTimer.hpp"
+#include <cstdint>
+#include <limits>
 
 namespace SmartGrid
 {
 
-struct BankedEncoderCell : public StateEncoderCell
+// Align the hot host-frame state for Apple silicon's 128-byte cache lines.
+// Compact slot lists keep the pool footprint and cell stride small.
+//
+struct alignas(128) BankedEncoderCell : public StateEncoderCell
 {
     static constexpr size_t x_encoderPoolSize = 512;
     static SegmentedAllocator<BankedEncoderCell, x_encoderPoolSize> s_allocator;
@@ -47,6 +52,8 @@ struct BankedEncoderCell : public StateEncoderCell
 
     static constexpr size_t x_numModulators = 15;
     static constexpr size_t x_numGestureParams = 16;
+    static_assert(x_numModulators - 1 <= std::numeric_limits<int8_t>::max());
+    static_assert(x_numGestureParams - 1 <= std::numeric_limits<int8_t>::max());
 
     // Modulators are set every engine sample. ProcessSample decimates them to
     // the host rate, where the matrix reads them.
@@ -184,13 +191,15 @@ struct BankedEncoderCell : public StateEncoderCell
     {
         Ptr m_modulators[x_numModulators];
         Ptr m_gestures[x_numGestureParams];
-        int m_activeModulators[x_numModulators];
+        // Slot indexes also retain the -1 sentinel for unused entries.
+        //
+        int8_t m_activeModulators[x_numModulators];
         size_t m_numActiveModulators;
 
         // Indices of the non-null m_gestures, kept in ascending order so gesture sums
         // accumulate in the same order as a full scan.
         //
-        int m_activeGestures[x_numGestureParams];
+        int8_t m_activeGestures[x_numGestureParams];
         size_t m_numActiveGestures;
         BankedEncoderCell* m_owner;
 
@@ -389,23 +398,23 @@ struct BankedEncoderCell : public StateEncoderCell
     
     BankedEncoderCell()
         : StateEncoderCell()
+        , m_outputHostSample(0)
+        , m_output{}
+        , m_outputPrev{}
+        , m_maxValue{}
+        , m_minValue{}
+        , m_gestureWeightSum(1)
+        , m_brightness(1)
+        , m_connected(false)
         , m_parent(nullptr)
         , m_sharedEncoderState(nullptr)
         , m_name(nullptr)
         , m_shortName(nullptr)
-        , m_gestureWeightSum(1)
-        , m_brightness(1)
-        , m_connected(false)
         , m_modulators(this)
         , m_depth(0)
         , m_index(0)
         , m_bankedValue(0)
         , m_postGestureValue(0)
-        , m_output{}
-        , m_outputPrev{}
-        , m_outputHostSample(0)
-        , m_maxValue{}
-        , m_minValue{}
         , m_defaultValue(0)
         , m_effectiveModulatorWeight(0)
         , m_type(EncoderType::BaseParam)
@@ -424,17 +433,17 @@ struct BankedEncoderCell : public StateEncoderCell
     BankedEncoderCell(
         SmartGridOneContext* context, BankedEncoderCell* parent, int index, EncoderType modulatorType)
         : StateEncoderCell(context)
+        , m_outputHostSample(0)
+        , m_output{}
+        , m_outputPrev{}
+        , m_maxValue{}
+        , m_minValue{}
+        , m_gestureWeightSum(1)
         , m_sharedEncoderState(parent ? parent->m_sharedEncoderState : nullptr)
         , m_shortName(nullptr)
-        , m_gestureWeightSum(1)
         , m_modulators(this)
         , m_bankedValue(0)
         , m_postGestureValue(0)
-        , m_output{}
-        , m_outputPrev{}
-        , m_outputHostSample(0)
-        , m_maxValue{}
-        , m_minValue{}
         , m_defaultValue(0)
         , m_effectiveModulatorWeight(0)
         , m_isActive{}
@@ -1289,33 +1298,37 @@ struct BankedEncoderCell : public StateEncoderCell
         return GetSharedEncoderState()->m_modulatorValues->m_selectedGestures;
     }
         
-    BankedEncoderCell* m_parent;
+    // Keep the state touched by each prepared host frame together, before the
+    // editable modulation tree and UI metadata.
+    //
     size_t m_evaluationRevision = 0;
+    size_t m_outputHostSample;
+    QuadFloat m_output;
+    QuadFloat m_outputPrev;
+    QuadFloat m_maxValue;
+    QuadFloat m_minValue;
+    float m_preparedBlend = 0;
+    float m_gestureWeightSum;
+    float m_brightness;
+    BitSet16 m_modulatorsAffecting;
+    BitSet16 m_gesturesAffecting;
     bool m_preparedValues = false;
+    bool m_connected;
+
+    BankedEncoderCell* m_parent;
     size_t m_preparedScene1 = 0;
     size_t m_preparedScene2 = 1;
-    float m_preparedBlend = 0;
     SharedEncoderState* m_sharedEncoderState;
     Color m_color;
     const char* m_name;
     const char* m_shortName;
-    float m_gestureWeightSum;
-    float m_brightness;
-    bool m_connected;
     Modulators m_modulators;
     int m_depth;
     int m_index;
     float m_bankedValue;
     float m_postGestureValue;
-    QuadFloat m_output;
-    QuadFloat m_outputPrev;
-    size_t m_outputHostSample;
-    QuadFloat m_maxValue;
-    QuadFloat m_minValue;
     float m_defaultValue;
     float m_effectiveModulatorWeight;
-    BitSet16 m_modulatorsAffecting;
-    BitSet16 m_gesturesAffecting;
     BankedEncoderCell::EncoderType m_type;
     bool m_isActive[SceneManager::x_numScenes];
     int m_switchValues;
