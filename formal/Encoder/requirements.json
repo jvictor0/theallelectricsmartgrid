@@ -1,0 +1,955 @@
+[
+  {
+    "id": "E01",
+    "status": "proved",
+    "requirement": "When an encoder is initialized with a normalized default, its scene values and targets shall be in [0,1], and its ramp counters shall satisfy remaining \u2264 force \u2264 maximum.",
+    "theorems": [
+      "Encoder.initialFrom_valid"
+    ],
+    "anchors": [
+      "ramp",
+      "initialization"
+    ]
+  },
+  {
+    "id": "E02",
+    "status": "proved",
+    "requirement": "When an unchanged target is set, target setting shall leave the cell unchanged.",
+    "theorems": [
+      "Encoder.unchanged_target_noop"
+    ],
+    "anchors": [
+      "target"
+    ]
+  },
+  {
+    "id": "E03",
+    "status": "proved",
+    "requirement": "When a target changes, the current values shall not jump and the force counter shall be set to maximum.",
+    "theorems": [
+      "Encoder.target_changes_do_not_jump",
+      "Encoder.changed_target_forces"
+    ],
+    "anchors": [
+      "target"
+    ]
+  },
+  {
+    "id": "E04",
+    "status": "proved",
+    "requirement": "When a scene target changes, every other scene target shall remain unchanged.",
+    "theorems": [
+      "Encoder.other_scenes_unchanged"
+    ],
+    "anchors": [
+      "target"
+    ]
+  },
+  {
+    "id": "E05",
+    "status": "proved",
+    "requirement": "While edits occur in the same host sample (age = 0), setting a target shall retain the existing ramp duration.",
+    "theorems": [
+      "Encoder.same_sample_edits_keep_duration"
+    ],
+    "anchors": [
+      "ramp",
+      "target"
+    ]
+  },
+  {
+    "id": "E06",
+    "status": "proved",
+    "requirement": "When SetAndRecordValue is invoked, it shall issue one recording request; computation shall issue none. The counter models requests to the logger, not retained records after logger filtering.",
+    "theorems": [
+      "Encoder.edit_records_once",
+      "Encoder.compute_does_not_record"
+    ],
+    "anchors": [
+      "recording",
+      "compute"
+    ]
+  },
+  {
+    "id": "E07",
+    "status": "proved",
+    "requirement": "When Compute is called with advanceState false, it shall not advance the ramp state.",
+    "theorems": [
+      "Encoder.compute_readonly"
+    ],
+    "anchors": [
+      "compute"
+    ]
+  },
+  {
+    "id": "E08",
+    "status": "proved",
+    "requirement": "While the force counter is zero, computation shall leave the ramp state unchanged.",
+    "theorems": [
+      "Encoder.idle_compute_noop"
+    ],
+    "anchors": [
+      "compute"
+    ]
+  },
+  {
+    "id": "E09",
+    "status": "proved",
+    "requirement": "When a normalized target is set or a compute step occurs in a valid cell, normalized scene values and valid counter bounds shall be preserved.",
+    "theorems": [
+      "Encoder.setTarget_valid",
+      "Encoder.edit_valid",
+      "Encoder.compute_valid"
+    ],
+    "anchors": [
+      "target",
+      "compute",
+      "ramp"
+    ]
+  },
+  {
+    "id": "E10",
+    "status": "proved",
+    "requirement": "While processing advances without intervening edits, a ramp with n+1 remaining samples and at least n+1 force samples shall land exactly on its targets after n+1 compute steps.",
+    "theorems": [
+      "Encoder.ramp_finishes",
+      "Encoder.run_preserves_targets"
+    ],
+    "anchors": [
+      "ramp",
+      "compute"
+    ]
+  },
+  {
+    "id": "E11",
+    "status": "proved",
+    "requirement": "When the scene tree is refreshed at an endpoint transition, its maximum force counter shall remain active for every proper prefix of maximum advancing compute steps, even when there is no value ramp.",
+    "theorems": [
+      "Encoder.force_countdown",
+      "Encoder.endpoint_refresh_keeps_force_active"
+    ],
+    "anchors": [
+      "refresh",
+      "compute"
+    ]
+  },
+  {
+    "id": "E12",
+    "status": "proved",
+    "requirement": "When patch values are saved during a ramp, serialization shall use targets converted to the external bipolar/unipolar domain; scene copy shall blend targets rather than computed outputs.",
+    "theorems": [
+      "Encoder.saving_preserves_pending_targets",
+      "Encoder.copying_uses_targets"
+    ],
+    "anchors": [
+      "persistence"
+    ]
+  },
+  {
+    "id": "E13",
+    "status": "proved",
+    "requirement": "When a scene blend is at 0 or 1, it shall select the left or right stored value respectively; at 1/2 it shall give their arithmetic mean.",
+    "theorems": [
+      "Encoder.blend_left",
+      "Encoder.blend_right",
+      "Encoder.blend_midpoint"
+    ],
+    "anchors": [
+      "numeric"
+    ]
+  },
+  {
+    "id": "E14",
+    "status": "proved",
+    "requirement": "When an interior ordinary increment edits distinct scenes without clamping, the blended target change shall be delta \u00d7 ((1-t)\u00b2+t\u00b2).",
+    "theorems": [
+      "Encoder.Crossfade.distinct_scene_increment"
+    ],
+    "anchors": [
+      "scene_edit"
+    ]
+  },
+  {
+    "id": "E15",
+    "status": "proved",
+    "requirement": "When one scene is clamped and the other is compensated with a nonzero divisor, the blended target shall equal the requested clamped overall target.",
+    "theorems": [
+      "Encoder.right_compensation_preserves_blend",
+      "Encoder.left_compensation_preserves_blend"
+    ],
+    "anchors": [
+      "scene_edit"
+    ]
+  },
+  {
+    "id": "E16",
+    "status": "proved",
+    "requirement": "When no modulation routes are active, evaluation shall return the post-gesture base; a route with zero amplitude shall not change the accumulated sums.",
+    "theorems": [
+      "Encoder.no_modulators_uses_base",
+      "Encoder.zero_amplitude_neutral"
+    ],
+    "anchors": [
+      "mix"
+    ]
+  },
+  {
+    "id": "E17",
+    "status": "proved",
+    "requirement": "When one route has full positive or negative depth and unit amplitude, evaluation shall select the source or its inverse respectively.",
+    "theorems": [
+      "Encoder.full_positive_modulation",
+      "Encoder.full_negative_modulation"
+    ],
+    "anchors": [
+      "mix"
+    ]
+  },
+  {
+    "id": "E18",
+    "status": "proved",
+    "requirement": "While base and source inputs are normalized, signed modulation mixing shall remain in [0,1], including total absolute weights greater than one.",
+    "theorems": [
+      "Encoder.route_contribution_bounded",
+      "Encoder.accumulate_valid",
+      "Encoder.fold_valid",
+      "Encoder.mix_bounded"
+    ],
+    "anchors": [
+      "mix"
+    ]
+  },
+  {
+    "id": "E19",
+    "status": "proved",
+    "requirement": "When no gestures contribute, the post-gesture base shall equal the base; a single fully held gesture shall select its banked value.",
+    "theorems": [
+      "Encoder.no_gestures_uses_base",
+      "Encoder.held_gesture_uses_banked"
+    ],
+    "anchors": [
+      "gestures"
+    ]
+  },
+  {
+    "id": "E20",
+    "status": "proved",
+    "requirement": "While a settled leaf retains its left/right values and blend, its curved depth may be reused. Live source amplitude remains outside the cached depth.",
+    "theorems": [
+      "Encoder.settled_depth_cache_valid"
+    ],
+    "anchors": [
+      "route_depth",
+      "mix"
+    ]
+  },
+  {
+    "id": "E21",
+    "status": "proved",
+    "requirement": "When an affecting source changes amplitude or an affecting gesture changes selection, the dependency predicate shall require recomputation.",
+    "theorems": [
+      "Encoder.amplitude_change_invalidates",
+      "Encoder.gesture_selection_invalidates"
+    ],
+    "anchors": [
+      "changed",
+      "dirty"
+    ]
+  },
+  {
+    "id": "E22",
+    "status": "proved",
+    "requirement": "While blend, source and gesture inputs are unchanged and force is zero, the dependency predicate shall permit skipping evaluation.",
+    "theorems": [
+      "Encoder.unchanged_inputs_skip"
+    ],
+    "anchors": [
+      "dirty"
+    ]
+  },
+  {
+    "id": "E23",
+    "status": "proved",
+    "requirement": "When an edit invalidates an explicit ancestor path including the edited cell, all path counters shall be forced and all counters outside the path shall be preserved.",
+    "theorems": [
+      "Encoder.ancestor_forced",
+      "Encoder.unrelated_counter_unchanged"
+    ],
+    "anchors": [
+      "invalidate"
+    ]
+  },
+  {
+    "id": "E24",
+    "status": "proved",
+    "requirement": "While a root has an active force counter or mismatched schedule revision, processing shall choose fallback; use of a prepared path shall require connected, settled, matching state.",
+    "theorems": [
+      "Encoder.active_ramp_falls_back",
+      "Encoder.revision_mismatch_falls_back",
+      "Encoder.prepared_requires_settled"
+    ],
+    "anchors": [
+      "eligibility"
+    ]
+  },
+  {
+    "id": "E25",
+    "status": "proved",
+    "requirement": "When deferred tree values are synchronized, synchronization shall evaluate the last evaluated snapshot and preserve live inputs, ramp state and root output history.",
+    "theorems": [
+      "Encoder.synchronization_uses_evaluated_snapshot",
+      "Encoder.synchronization_preserves_live_and_history"
+    ],
+    "anchors": [
+      "synchronization",
+      "snapshot"
+    ]
+  },
+  {
+    "id": "E26",
+    "status": "proved",
+    "requirement": "When an engine sample is not a host frame, the matrix shall not advance.",
+    "theorems": [
+      "Encoder.non_host_sample_does_not_advance_matrix"
+    ],
+    "anchors": [
+      "host_gate"
+    ]
+  },
+  {
+    "id": "E27",
+    "status": "proved",
+    "requirement": "Where a root exists and is named, it shall be eligible independently of page visibility. This is an eligibility predicate, not a proof of the C++ registry enumeration.",
+    "theorems": [
+      "Encoder.named_hidden_root_is_eligible"
+    ],
+    "anchors": [
+      "roots"
+    ]
+  },
+  {
+    "id": "E28",
+    "status": "proved",
+    "requirement": "When output is written for the first time in a host frame, the prior output shall become history; additional writes in that frame shall preserve that history.",
+    "theorems": [
+      "Encoder.first_write_saves_previous",
+      "Encoder.same_host_preserves_history"
+    ],
+    "anchors": [
+      "history"
+    ]
+  },
+  {
+    "id": "E29",
+    "status": "proved",
+    "requirement": "When reading the last valid oversample slot, output shall reach the current value; ratio-one reads shall return current output immediately.",
+    "theorems": [
+      "Encoder.last_slot_current",
+      "Encoder.ratio_one_current"
+    ],
+    "anchors": [
+      "history"
+    ]
+  },
+  {
+    "id": "E30",
+    "status": "proved",
+    "requirement": "While no output write occurred in the current host frame, every published valid oversample slot shall hold the current output.",
+    "theorems": [
+      "Encoder.unchanged_frame_constant"
+    ],
+    "anchors": [
+      "publish"
+    ]
+  },
+  {
+    "id": "E31",
+    "status": "proved",
+    "requirement": "In every reachable state of the Veil runtime, ramp bounds shall hold and a completed publication shall match interpolation of the current output/history.",
+    "theorems": [
+      "EncoderRuntime.reachable_safe"
+    ],
+    "anchors": [
+      "runtime",
+      "publish"
+    ]
+  },
+  {
+    "id": "E32",
+    "status": "proved",
+    "requirement": "Where every scheduled dependency refers to an earlier node, prepared evaluation shall equal recursive evaluation, for arbitrary graph size, nesting and pure node operations.",
+    "theorems": [
+      "Encoder.Schedule.Expr.depends_only_on_earlier",
+      "Encoder.Schedule.prepared_equals_recursive"
+    ],
+    "anchors": [
+      "schedule"
+    ]
+  },
+  {
+    "id": "E33",
+    "status": "proved",
+    "requirement": "While all dependencies of a pure node are unchanged, its previously evaluated result may be reused.",
+    "theorems": [
+      "Encoder.Schedule.unaffected_node_can_skip"
+    ],
+    "anchors": [
+      "schedule"
+    ]
+  },
+  {
+    "id": "E34",
+    "status": "proved",
+    "requirement": "In the connected-root Veil protocol, host evaluation shall preserve agreement between output and the last evaluated snapshot, including edits and input changes before the next host frame.",
+    "theorems": [
+      "EncoderPrepared.host_output_matches_evaluated",
+      "EncoderPrepared.edit_output_matches_evaluated",
+      "EncoderPrepared.inputs_output_matches_evaluated"
+    ],
+    "anchors": [
+      "prepared_process",
+      "snapshot"
+    ]
+  },
+  {
+    "id": "E35",
+    "status": "proved",
+    "requirement": "When synchronization or rebuilding completes in the connected-root protocol, materialized state shall agree with the evaluated snapshot.",
+    "theorems": [
+      "EncoderPrepared.synchronize_materialized_matches_evaluated",
+      "EncoderPrepared.rebuild_materialized_matches_evaluated"
+    ],
+    "anchors": [
+      "synchronization",
+      "rebuild"
+    ]
+  },
+  {
+    "id": "E36",
+    "status": "proved",
+    "requirement": "When the connected-root protocol actually uses prepared evaluation, its evaluation-time force counter shall be zero and its evaluation-time revision shall match the schedule.",
+    "theorems": [
+      "EncoderPrepared.host_prepared_requires_current_schedule"
+    ],
+    "anchors": [
+      "prepared_process",
+      "eligibility"
+    ]
+  },
+  {
+    "id": "E37",
+    "status": "proved",
+    "requirement": "When the crossfader enters or leaves the exact left endpoint, both change flags shall be set; every blend change shall dispatch either a blend-only refresh or a tree refresh.",
+    "theorems": [
+      "Encoder.Crossfade.leaving_left_refreshes_tree",
+      "Encoder.Crossfade.entering_left_refreshes_tree",
+      "Encoder.Crossfade.no_blend_change_is_lost"
+    ],
+    "anchors": [
+      "scene_flags"
+    ]
+  },
+  {
+    "id": "E38",
+    "status": "proved",
+    "requirement": "When a scene write uses Combine, its target shall remain normalized; ordinary turns shall clamp value plus delta, and a Shift-turn from neutral shall stay neutral. The resulting recorded turn shall preserve valid runtime state.",
+    "theorems": [
+      "Encoder.Edits.combine_bounded",
+      "Encoder.Edits.ordinary_turn",
+      "Encoder.Edits.neutral_absorbs_shift",
+      "Encoder.Edits.turn_valid"
+    ],
+    "anchors": [
+      "combine",
+      "recording"
+    ]
+  },
+  {
+    "id": "E39",
+    "status": "proved",
+    "requirement": "While editing a bipolar modulation depth with Shift-turn, its sign shall not cross zero; when the supplied delta is nonpositive, its magnitude shall not increase. For normalized targets, nonnegative deltas shall not decrease magnitude, and crossing zero shall clamp exactly to neutral.",
+    "theorems": [
+      "Encoder.Edits.shift_preserves_sign",
+      "Encoder.Edits.negative_delta_towards_zero",
+      "Encoder.Edits.positive_delta_away_from_zero",
+      "Encoder.Edits.crossing_clamps_to_zero"
+    ],
+    "anchors": [
+      "combine"
+    ]
+  },
+  {
+    "id": "E40",
+    "status": "proved",
+    "requirement": "When Shift is held on a non-gesture parameter and the edit is not already a towards-zero edit, Increment shall redirect to modulators; gesture parameters and recursive towards-zero calls shall bypass that redirection.",
+    "theorems": [
+      "Encoder.Edits.shift_dispatch"
+    ],
+    "anchors": [
+      "shift"
+    ]
+  },
+  {
+    "id": "E41",
+    "status": "proved",
+    "requirement": "When Shift-turn traverses an existing finite modulator tree, it shall preserve the root base and apply the per-node edit to every existing descendant at arbitrary depth. Per-node gesture/scene routing is factored separately. Missing paths shall remain missing.",
+    "theorems": [
+      "Encoder.Edits.shift_keeps_root",
+      "Encoder.Edits.shift_edits_every_descendant",
+      "Encoder.Edits.shift_preserves_missing"
+    ],
+    "anchors": [
+      "shift"
+    ]
+  },
+  {
+    "id": "E42",
+    "status": "proved",
+    "requirement": "When Shift-turn edits scene targets, an endpoint shall select only its scene; for distinct scenes and an interior blend, their deltas shall be weighted by 1-t and t independently.",
+    "theorems": [
+      "Encoder.Edits.shift_scene_endpoints",
+      "Encoder.Edits.shift_distinct_scenes"
+    ],
+    "anchors": [
+      "scene_edit",
+      "combine"
+    ]
+  },
+  {
+    "id": "E43",
+    "status": "proved",
+    "requirement": "Where effective gesture weights have nonzero total, the sum of quadratic gesture edit allocations and the base remainder allocation shall equal the supplied delta before scene weighting or clamping. Nonpositive turns distributed to a nonnegative gesture weight with positive total shall not increase bipolar depth magnitude.",
+    "theorems": [
+      "Encoder.Edits.weight_partition",
+      "Encoder.Edits.gesture_edit_partition",
+      "Encoder.Edits.actual_edit_partition",
+      "Encoder.Edits.negative_gesture_turn_reduces"
+    ],
+    "anchors": [
+      "gesture_edit"
+    ]
+  },
+  {
+    "id": "E44",
+    "status": "proved",
+    "requirement": "For the ideal signed exponential depth law (not a claim about SIMD rounding), zero and endpoints shall be exact, magnitude shall be monotone in its argument, the signed curve shall be odd and bounded, and inputs beyond the endpoints shall saturate. Half knob depth shall give one-quarter effective depth.",
+    "theorems": [
+      "Encoder.Curve.ideal_zero",
+      "Encoder.Curve.ideal_endpoints",
+      "Encoder.Curve.idealMagnitude_monotone",
+      "Encoder.Curve.ideal_odd",
+      "Encoder.Curve.ideal_bounded",
+      "Encoder.Curve.ideal_saturates",
+      "Encoder.Curve.ideal_half_depth"
+    ],
+    "anchors": [
+      "curve"
+    ]
+  },
+  {
+    "id": "E45",
+    "status": "proved",
+    "requirement": "For the exact-arithmetic model of the implemented binary32 polynomial constants, zero shall map to zero, opposite signed inputs shall give opposite depths, and inputs outside [-1,1] shall equal their endpoint result. This does not assert IEEE rounding error bounds or exact endpoint magnitude one.",
+    "theorems": [
+      "Encoder.Curve.approximate_zero",
+      "Encoder.Curve.approximate_odd",
+      "Encoder.Curve.approximate_saturates"
+    ],
+    "anchors": [
+      "curve",
+      "exp_polynomial"
+    ]
+  },
+  {
+    "id": "E46",
+    "status": "proved",
+    "requirement": "Where the same well-formed pure dependency graph is evaluated from the same output/history state, the working-tree prepared result and every published lane/slot shall equal the pinned HEAD recursive result and publication.",
+    "theorems": [
+      "Encoder.Head.prepared_output_equals_head",
+      "Encoder.Head.publication_equals_working_tree",
+      "Encoder.Head.prepared_publication_equals_head"
+    ],
+    "anchors": [
+      "schedule",
+      "publish",
+      "history"
+    ]
+  },
+  {
+    "id": "E47",
+    "status": "proved",
+    "requirement": "When one unit-amplitude route has negative depth -w with w in [0,1], its result shall equal base*(1-w) + w*(1-source).",
+    "theorems": [
+      "Encoder.partial_negative_modulation"
+    ],
+    "anchors": [
+      "mix"
+    ]
+  },
+  {
+    "id": "E48",
+    "status": "proved",
+    "requirement": "In every reachable state of the runtime, including reset transitions, a cell with no remaining ramp shall equal its targets, and age zero shall imply a nonempty ramp.",
+    "theorems": [
+      "EncoderRuntime.reachable_ready"
+    ],
+    "anchors": [
+      "ramp",
+      "reset"
+    ]
+  },
+  {
+    "id": "E49",
+    "status": "proved",
+    "requirement": "When resetting scene targets, selected scenes shall receive the normalized configured default, unselected targets and current values shall be preserved, and one target-recording request shall be issued per selected scene, including unchanged targets.",
+    "theorems": [
+      "Encoder.Reset.endpoint_scope",
+      "Encoder.Reset.all_scenes_selected",
+      "Encoder.Reset.reset_targets",
+      "Encoder.Reset.reset_no_jump",
+      "Encoder.Reset.reset_records"
+    ],
+    "anchors": [
+      "reset_scope",
+      "reset_write",
+      "reset"
+    ]
+  },
+  {
+    "id": "E50",
+    "status": "proved",
+    "requirement": "When a finite modulation tree is reset, its root shall receive its configured default and every existing modulation descendant shall receive neutral scoped targets and a maximum force counter, regardless of its current dependency mask.",
+    "theorems": [
+      "Encoder.Reset.reset_root_target",
+      "Encoder.Reset.reset_descendant",
+      "Encoder.Reset.reset_forces_every_descendant",
+      "Encoder.Reset.resetTree_ready"
+    ],
+    "anchors": [
+      "reset_tree",
+      "reset",
+      "invalidate"
+    ]
+  },
+  {
+    "id": "E51",
+    "status": "proved",
+    "requirement": "When reset clears linked gestures, their effective weight in the reset scene blend shall become zero; unselected activation flags and targets shall remain unchanged, and each selected scene shall issue one activation-recording request.",
+    "theorems": [
+      "Encoder.Reset.reset_gesture_weight_zero",
+      "Encoder.Reset.reset_preserves_unselected",
+      "Encoder.Reset.reset_gesture_records_activation"
+    ],
+    "anchors": [
+      "reset_gestures",
+      "reset_scope"
+    ]
+  },
+  {
+    "id": "E52",
+    "status": "proved",
+    "requirement": "After reset of a coherent valid cell, at most maximum advancing host steps without further edits shall bring every current scene value to its target, including a reset during an existing ramp. Unselected scene targets shall remain the original targets.",
+    "theorems": [
+      "Encoder.Reset.reset_ready",
+      "Encoder.Reset.run_max_lands",
+      "Encoder.Reset.reset_finishes"
+    ],
+    "anchors": [
+      "reset",
+      "reset_write",
+      "compute"
+    ]
+  },
+  {
+    "id": "E53",
+    "status": "proved",
+    "requirement": "For a connected logical tree with coherent base/modulator cells, fixed reset scene scope and no subsequent edits, advancing all required ramps for maximum host frames shall make recursive output equal the configured default independently of source values, amplitudes and stored gesture values; the final oversample slot shall publish that default in both models, with bipolar conversion.",
+    "theorems": [
+      "Encoder.Reset.reset_tree_returns_default",
+      "Encoder.Reset.both_publish_reset_default"
+    ],
+    "anchors": [
+      "reset_tree",
+      "reset_evaluate",
+      "publish"
+    ]
+  },
+  {
+    "id": "E54",
+    "status": "proved",
+    "requirement": "When reset occurs, force invalidation shall require evaluation even if all affecting dependency sets become empty and live inputs do not change; a prepared path shall be ineligible during the forced interval.",
+    "theorems": [
+      "Encoder.Reset.reset_forces",
+      "Encoder.Reset.reset_is_dirty",
+      "Encoder.Reset.reset_rejects_prepared"
+    ],
+    "anchors": [
+      "reset",
+      "dirty",
+      "eligibility"
+    ]
+  },
+  {
+    "id": "E55",
+    "status": "proved",
+    "requirement": "In the evaluation protocol, reset shall force the next host evaluation from the post-reset live snapshot. The working-tree evaluator shall use its recursive path for that evaluation.",
+    "theorems": [
+      "EncoderPrepared.reset_reset_forces_evaluation",
+      "EncoderPrepared.host_reset_evaluates",
+      "EncoderPrepared.host_reset_uses_live_snapshot",
+      "EncoderPrepared.host_reset_uses_recursive_path"
+    ],
+    "anchors": [
+      "reset",
+      "prepared_process"
+    ]
+  },
+  {
+    "id": "E56",
+    "status": "proved",
+    "requirement": "When a full parameter reset runs, every named owned root shall be included independently of visibility; a bank reset shall affect only roots placed in that bank. Missing roots and each configured default shall be preserved.",
+    "theorems": [
+      "Encoder.Reset.full_reset_reaches_hidden",
+      "Encoder.Reset.bank_reset_preserves_unplaced",
+      "Encoder.Reset.bank_reset_reaches_placed",
+      "Encoder.Reset.reset_preserves_missing_root",
+      "Encoder.Reset.reset_preserves_configured_default"
+    ],
+    "anchors": [
+      "reset_registry"
+    ]
+  },
+  {
+    "id": "E57",
+    "status": "proved",
+    "requirement": "Where garbage collection removes a settled neutral child with no surviving children or gestures, or an everywhere-inactive gesture, its contribution shall be silent and removing its zero contribution shall preserve ordered evaluation. A coherent settled neutral child shall have no pending nonneutral target. This is semantic reclamation safety, not pointer-lifetime verification.",
+    "theorems": [
+      "Encoder.Reset.collectable_modulator_silent",
+      "Encoder.Reset.inactive_gesture_weight_zero",
+      "Encoder.Reset.erase_zero_route",
+      "Encoder.Reset.erase_zero_gesture",
+      "Encoder.Reset.collected_neutral_has_no_pending_target"
+    ],
+    "anchors": [
+      "reset_collect",
+      "mix",
+      "gestures"
+    ]
+  },
+  {
+    "id": "E58",
+    "status": "proved",
+    "requirement": "When a gesture slot is requested, the model shall allocate a neutral, inactive cell inheriting parent polarity only if absent; ensuring an existing slot shall preserve it and be idempotent. This models logical optional slots, not allocator or compact-index-array correctness.",
+    "theorems": [
+      "Encoder.Gestures.ensure_existing",
+      "Encoder.Gestures.ensure_missing",
+      "Encoder.Gestures.ensure_idempotent",
+      "Encoder.Gestures.fresh_valid"
+    ],
+    "anchors": [
+      "gesture_allocate"
+    ]
+  },
+  {
+    "id": "E59",
+    "status": "proved",
+    "requirement": "When a live gesture operation visits scenes, it shall visit the right scene first if blend > 0 and the left scene second if blend < 1. Endpoints visit one scene; interior aliased decks visit the same scene twice.",
+    "theorems": [
+      "Encoder.Gestures.visited_iff",
+      "Encoder.Gestures.endpoints",
+      "Encoder.Gestures.aliased_interior"
+    ],
+    "anchors": [
+      "gesture_order",
+      "gesture_capture"
+    ]
+  },
+  {
+    "id": "E60",
+    "status": "proved",
+    "requirement": "When an inactive scene is enabled, the gesture shall copy the parent current value, record its target and become active. Already-active scenes shall retain their stored cell; disabling shall retain it. Aliased enabling shall capture once but record two flag writes. If capture changes the target, a coherent pre-capture gesture and normalized parent shall yield a coherent captured cell that reaches the copied target within the maximum host-frame ramp bound, without further edits. More generally, capture shall converge if an unchanged target with zero remaining ramp implies that the copied parent current already equals its target. Under the same state assumptions this precondition is necessary and sufficient for convergence within the maximum ramp bound; changed targets, existing ramps and already-settled captures are all permitted.",
+    "theorems": [
+      "Encoder.Gestures.capture_current_target",
+      "Encoder.Gestures.activating_inherits",
+      "Encoder.Gestures.setScene_active",
+      "Encoder.Gestures.active_not_recaptured",
+      "Encoder.Gestures.deactivate_preserves_cell",
+      "Encoder.Gestures.aliased_activation_records_once",
+      "Encoder.Gestures.capture_changed_ready",
+      "Encoder.Gestures.changed_capture_finishes",
+      "Encoder.Gestures.capture_ready",
+      "Encoder.Gestures.capture_finishes",
+      "Encoder.Gestures.activating_finishes",
+      "Encoder.Gestures.capture_finishes_iff"
+    ],
+    "anchors": [
+      "gesture_capture",
+      "gesture_flag",
+      "recording"
+    ]
+  },
+  {
+    "id": "E61",
+    "status": "proved",
+    "requirement": "When gesture activation/deactivation visits a scene list, its final flags shall equal the requested flag on visited scenes and retain their prior value elsewhere; unvisited current/target values shall remain unchanged. Every visit shall request an activation recording, including redundant writes.",
+    "theorems": [
+      "Encoder.Gestures.setScenes_unvisited",
+      "Encoder.Gestures.setScenes_flag",
+      "Encoder.Gestures.setScenes_records"
+    ],
+    "anchors": [
+      "gesture_capture",
+      "gesture_flag"
+    ]
+  },
+  {
+    "id": "E62",
+    "status": "proved",
+    "requirement": "When a gesture inactive in all contributing scenes is enabled, its immediately captured scene blend shall equal the parent current scene blend, including endpoints and aliased decks. This is capture continuity, not a claim that arbitrary multi-gesture weight changes leave output unchanged.",
+    "theorems": [
+      "Encoder.Gestures.activation_scene_values",
+      "Encoder.Gestures.capture_blend_continuity"
+    ],
+    "anchors": [
+      "gesture_capture",
+      "gesture_order",
+      "gestures"
+    ]
+  },
+  {
+    "id": "E63",
+    "status": "proved",
+    "requirement": "In each separate Veil gesture lifecycle machine, initialization and every action shall preserve normalized values/targets and bounded timers. The parent shall retain ramp coherence, and an unallocated slot shall retain its initial ghost payload. Gesture ramp coherence is deliberately not asserted: E70 disproves it.",
+    "theorems": [
+      "EncoderGestureRuntime.initializer_parent_coherent",
+      "EncoderGestureRuntime.initializer_gesture_bounds",
+      "EncoderGestureRuntime.initializer_unallocated_unchanged",
+      "EncoderGestureRuntime.parent_target_parent_coherent",
+      "EncoderGestureRuntime.parent_compute_parent_coherent",
+      "EncoderGestureRuntime.ensure_gesture_bounds",
+      "EncoderGestureRuntime.set_active_gesture_bounds",
+      "EncoderGestureRuntime.toggle_gesture_bounds",
+      "EncoderGestureRuntime.clear_gesture_bounds",
+      "EncoderGestureRuntime.gesture_compute_gesture_bounds"
+    ],
+    "anchors": [
+      "gesture_allocate",
+      "gesture_capture",
+      "gesture_toggle",
+      "gesture_clear",
+      "compute"
+    ]
+  },
+  {
+    "id": "E64",
+    "status": "proved",
+    "requirement": "When ToggleActive is called, it shall flip flags in visit order without changing the cell or recording counts. Two visits to an aliased interior scene shall cancel. This theorem describes the raw helper; it does not claim a hardware handler invokes it.",
+    "theorems": [
+      "Encoder.Gestures.toggle_preserves_data",
+      "Encoder.Gestures.toggle_same_scene_twice"
+    ],
+    "anchors": [
+      "gesture_toggle",
+      "gesture_order"
+    ]
+  },
+  {
+    "id": "E65",
+    "status": "proved",
+    "requirement": "When a stored gesture is cleared in the current scenes, it shall deactivate exactly those scenes, retain its stored cell and weight, and record every visit. Its effective weight at the fixed current blend shall become zero.",
+    "theorems": [
+      "Encoder.Gestures.deactivate_data",
+      "Encoder.Gestures.deactivate_flags",
+      "Encoder.Gestures.deactivate_records",
+      "Encoder.Gestures.deactivated_weight_zero"
+    ],
+    "anchors": [
+      "gesture_clear",
+      "gesture_flag",
+      "gestures"
+    ]
+  },
+  {
+    "id": "E66",
+    "status": "proved",
+    "requirement": "When a gesture ID is recursively cleared, every existing modulator descendant shall receive the same selected-slot operation. Other IDs, base cells, source identities, missing slots and tree topology shall be preserved.",
+    "theorems": [
+      "Encoder.Gestures.clear_selected",
+      "Encoder.Gestures.clear_unselected",
+      "Encoder.Gestures.clear_missing",
+      "Encoder.Gestures.clear_preserves_base_and_route",
+      "Encoder.Gestures.clear_every_descendant",
+      "Encoder.Gestures.clear_preserves_topology"
+    ],
+    "anchors": [
+      "gesture_clear"
+    ]
+  },
+  {
+    "id": "E67",
+    "status": "proved",
+    "requirement": "Where gestures are selected, Shift-press shall clear selected local gesture slots, preserve base values and targets and every modulator descendant, and force the edited node. The no-selection branch remains reset-to-default, not this operation.",
+    "theorems": [
+      "Encoder.Gestures.clear_selected",
+      "Encoder.Gestures.clear_unselected",
+      "Encoder.Gestures.shift_press_keeps_descendants",
+      "Encoder.Gestures.shift_press_keeps_base_targets"
+    ],
+    "anchors": [
+      "gesture_shift_press",
+      "invalidate"
+    ]
+  },
+  {
+    "id": "E68",
+    "status": "proved",
+    "requirement": "When owner-level gesture deletion runs, it shall cover named roots regardless of visibility and preserve unnamed entries; bank-local deletion shall visit only placed entries. Cleared roots shall be forced dirty even with empty dependency sets and unchanged inputs.",
+    "theorems": [
+      "Encoder.Gestures.clear_reaches_hidden",
+      "Encoder.Gestures.clear_unnamed_unchanged",
+      "Encoder.Gestures.clear_bank_preserves_unplaced",
+      "Encoder.Gestures.clear_bank_reaches_placed",
+      "Encoder.Gestures.clear_forces_root",
+      "Encoder.Gestures.clear_is_dirty"
+    ],
+    "anchors": [
+      "gesture_clear_registry",
+      "gesture_clear_bank",
+      "dirty"
+    ]
+  },
+  {
+    "id": "E69",
+    "status": "proved",
+    "requirement": "When gesture deletion supplies its resulting live snapshot, the next modeled host pass shall evaluate the then-live snapshot despite unchanged inputs or empty dependencies. The prepared implementation shall take its recursive fallback; HEAD shall eagerly materialize the snapshot.",
+    "theorems": [
+      "EncoderPrepared.clear_gesture_gesture_clear_forces_evaluation",
+      "EncoderPrepared.host_gesture_clear_evaluates",
+      "EncoderPrepared.host_gesture_clear_uses_live_snapshot",
+      "EncoderPrepared.host_gesture_clear_uses_recursive_path"
+    ],
+    "anchors": [
+      "gesture_clear_registry",
+      "runtime"
+    ]
+  },
+  {
+    "id": "E70",
+    "status": "proved",
+    "requirement": "Where activation copies a current value but the old gesture target already matches the parent target, the timer shall remain unchanged. There exists a coherent parent/gesture starting state where activation leaves a zero-duration gesture permanently away from its target, including after a downward edit clamped to that unchanged target. This is a proved counterexample to unconditional activation convergence, not a desired-behavior guarantee. This defect is explicitly accepted for now by the user; retain the counterexample without a production fix. It violates precisely the minimal extra precondition of E60.",
+    "theorems": [
+      "Encoder.Gestures.unchanged_capture_keeps_timer",
+      "Encoder.Gestures.capture_stalled_counterexample",
+      "Encoder.Gestures.capture_not_always_coherent",
+      "Encoder.Gestures.clamped_edit_does_not_repair_capture",
+      "Encoder.Gestures.zero_remaining_stays",
+      "Encoder.Gestures.accepted_counterexample_excluded"
+    ],
+    "anchors": [
+      "gesture_capture",
+      "target",
+      "scene_edit",
+      "ramp"
+    ]
+  }
+]

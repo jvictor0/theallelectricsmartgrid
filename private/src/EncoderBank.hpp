@@ -507,6 +507,55 @@ struct BankedEncoderCell : public StateEncoderCell
         }
     }
 
+    // The audio evaluator keeps child values in compact records. Materialize
+    // the editable tree only when entering the legacy ramp path or editing it.
+    // This never advances a ramp and leaves the root output history intact.
+    //
+    void SynchronizePreparedState()
+    {
+        BankedEncoderCell* root = this;
+        while (root->m_parent)
+        {
+            root = root->m_parent;
+        }
+
+        if (!root->m_preparedValues)
+        {
+            return;
+        }
+
+        ModulatorValues* sources = root->GetSharedEncoderState()->m_modulatorValues;
+        bool blendChanged = sources->m_blendChanged;
+        auto& scene = root->m_context->m_sceneManager;
+
+        // Edits can precede processing of a new scene or input value. Restore
+        // the last evaluated state before applying that edit, just as Compute
+        // would have left it. All of this runs on the audio thread.
+        //
+        std::swap(scene.m_scene1, root->m_preparedScene1);
+        std::swap(scene.m_scene2, root->m_preparedScene2);
+        std::swap(scene.m_blendFactor, root->m_preparedBlend);
+        std::swap(sources->m_hostValue, sources->m_valuePrev);
+        std::swap(sources->m_amplitude, sources->m_amplitudePrev);
+        std::swap(sources->m_gestureWeights, sources->m_gestureWeightsPrev);
+        sources->m_blendChanged = true;
+        root->SetState();
+        root->m_modulators.ComputePostGestureValues(sources, false);
+        for (size_t i = 0; i < root->m_modulators.m_numActiveModulators; ++i)
+        {
+            root->GetModulator(i)->Compute(false);
+        }
+
+        sources->m_blendChanged = blendChanged;
+        std::swap(sources->m_gestureWeights, sources->m_gestureWeightsPrev);
+        std::swap(sources->m_amplitude, sources->m_amplitudePrev);
+        std::swap(sources->m_hostValue, sources->m_valuePrev);
+        std::swap(scene.m_blendFactor, root->m_preparedBlend);
+        std::swap(scene.m_scene2, root->m_preparedScene2);
+        std::swap(scene.m_scene1, root->m_preparedScene1);
+        root->m_preparedValues = false;
+    }
+
     virtual void Increment(float delta) override
     {
         Increment(delta, false);
@@ -514,6 +563,7 @@ struct BankedEncoderCell : public StateEncoderCell
 
     void Increment(float delta, bool towardsZero)
     {
+        SynchronizePreparedState();
         if (m_type != EncoderType::GestureParam &&
             !towardsZero &&
             m_context->m_sceneManager.m_shift)
@@ -1035,6 +1085,11 @@ struct BankedEncoderCell : public StateEncoderCell
 
     void SetStateRecursive()
     {
+        if (!m_parent)
+        {
+            SynchronizePreparedState();
+        }
+
         SetState();
         m_modulators.SetAllStates();
         m_samplesForceUpdate = TickDistributor::x_maxSamplesToDistribute;
@@ -1149,6 +1204,11 @@ struct BankedEncoderCell : public StateEncoderCell
 
     void SetModulatorsAffecting()
     {
+        if (m_depth == 0)
+        {
+            ++m_evaluationRevision;
+        }
+
         m_modulatorsAffecting.Clear();
 
         for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
@@ -1230,6 +1290,11 @@ struct BankedEncoderCell : public StateEncoderCell
     }
         
     BankedEncoderCell* m_parent;
+    size_t m_evaluationRevision = 0;
+    bool m_preparedValues = false;
+    size_t m_preparedScene1 = 0;
+    size_t m_preparedScene2 = 1;
+    float m_preparedBlend = 0;
     SharedEncoderState* m_sharedEncoderState;
     Color m_color;
     const char* m_name;
@@ -1620,6 +1685,8 @@ struct EncoderBankInternal : public EncoderGrid
                 uiState->SetNumVoices(i, j, static_cast<int>(numVoices));
                 if (cell && cell->m_connected)
                 {
+                    cell->SynchronizePreparedState();
+
                     // Publish current direct depths, including scene/gesture and
                     // depth modulation. Scope samples already include source amplitude.
                     //

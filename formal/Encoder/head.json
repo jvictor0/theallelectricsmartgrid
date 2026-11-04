@@ -1,0 +1,1493 @@
+{
+  "revision": "0a0d206529be45b6ff3ac82824c65ebe73b49003",
+  "description": "Pinned committed HEAD baseline; shared leaf operations use the same Lean definitions. Hashes and source-body equality are correspondence checks, not C++ proofs.",
+  "files": {
+    "private/src/Encoder.hpp": "2092a538abaade1145cfd70a40f544b2ff2dab24370c5387760e0d7f410e4d03",
+    "private/src/EncoderBank.hpp": "44d1d369c5d6140d554839bd1172da802a92898c3bcf1e31c64831af7b60711d",
+    "private/src/EncoderBankBank.hpp": "40f1dd5415285561c4c4ba49d45ff3c7ae621cbf2200b355e1cf6ac3995f3525",
+    "private/src/QuadUtils.hpp": "eb287a8dd5c2f88979153018a2b246aa7056979ae252773cccb92182c293a69b",
+    "private/src/SampleTimer.hpp": "d55157bec9215ac2d96da5cff2307ee19f7c2c2145a7a2775186be31f39d10b9",
+    "private/src/SceneManager.hpp": "87e9c88e2257a56f9ae392178d9976152ae74b54f67d892d829fc4df10c75e8e",
+    "private/src/MultiChannelNumber.hpp": "8b9668e36f98ba97ec14661a51c58207871ea509a0b79b5011cbb8fb83bf0893"
+  },
+  "anchors": {
+    "dimensions": [
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "static constexpr size_t x_numScenes = 8;"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "static constexpr size_t x_numModulators = 15;"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "static constexpr size_t x_numGestureParams = 16;"
+      },
+      {
+        "path": "private/src/QuadUtils.hpp",
+        "symbol": "using QuadFloat = MultiChannelNumber<float, 4>;"
+      }
+    ],
+    "numeric": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "float ToValue(float normalized) const"
+      },
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "float GetSceneValue(float* values)"
+      }
+    ],
+    "ramp": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "struct TickDistributor"
+      },
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void MoveValuesTowardsTargets()"
+      }
+    ],
+    "refresh": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetStateRecursive()"
+      }
+    ],
+    "target": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void SetTarget(float value, int scene)"
+      }
+    ],
+    "recording": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void SetAndRecordValue(float value, int scene)"
+      }
+    ],
+    "compute": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Compute(bool advanceState)"
+      }
+    ],
+    "persistence": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "JSON ToJSON(JsonArena& a)"
+      },
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void CopyToScene(size_t scene)"
+      }
+    ],
+    "history": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetOutput(const QuadFloat& output, size_t hostSample)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "float GetInterpolatedValue(size_t channel, size_t hostSample, float previousOutputWeight) const"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "static float GetPreviousOutputWeight(size_t subSampleIndex, size_t oversample)"
+      }
+    ],
+    "mix": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Compute(ModulatorValues* modulatorValues, bool advanceState)"
+      }
+    ],
+    "gestures": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ComputePostGestureValues(ModulatorValues* modulatorValues, bool advanceState)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetEffectiveModulatorWeight(float weight)"
+      }
+    ],
+    "route_depth": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "static QuadFloat ModulationDepthFromValue(const QuadFloat& value)"
+      }
+    ],
+    "scene_edit": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void IncrementInternal(float delta, bool towardsZero)"
+      }
+    ],
+    "changed": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ComputeChanged()"
+      }
+    ],
+    "dirty": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "else if (blendChanged ||"
+      }
+    ],
+    "invalidate": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetForceUpdateRecursive()"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetModulatorsAffecting()"
+      }
+    ],
+    "host_gate": [
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ProcessHostFrame()"
+      },
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "if (SampleTimer::IsHostFrame())"
+      },
+      {
+        "path": "private/src/SampleTimer.hpp",
+        "symbol": "static constexpr size_t x_oversample = 4;"
+      }
+    ],
+    "runtime": [
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ProcessHostFrame()"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Compute(bool advanceState)"
+      }
+    ],
+    "scene_flags": [
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "void Process()"
+      },
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "bool blendChanged = sceneManager.m_changed && !sceneManager.m_changedScene;"
+      }
+    ],
+    "initialization": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "SmartGridOneContext* context, BankedEncoderCell* parent, int index, EncoderType modulatorType)"
+      },
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "size_t CreateEncoder("
+      }
+    ],
+    "combine": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "float Combine(float value, float delta, bool towardsZero)"
+      }
+    ],
+    "shift": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Increment(float delta, bool towardsZero)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void RecursivelyIncrementModulatorsTowardsZero(float delta)"
+      }
+    ],
+    "gesture_edit": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "gestureCell->IncrementInternal(delta * weight * weight / gestureWeightSum, towardsZero);"
+      }
+    ],
+    "curve": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "static QuadFloat ModulationDepthFromValue(const QuadFloat& value)"
+      }
+    ],
+    "exp_polynomial": [
+      {
+        "path": "private/src/MultiChannelNumber.hpp",
+        "symbol": "MultiChannelNumber Exp2() const"
+      }
+    ],
+    "publish": [
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ProcessHostFrame()"
+      }
+    ],
+    "recursive": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Compute(ModulatorValues* modulatorValues, bool advanceState)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Compute(bool advanceState)"
+      }
+    ],
+    "roots": [
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ForEachNamedEncoder(Func func)"
+      }
+    ],
+    "reset_scope": [
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "bool IsSceneActive(size_t sceneIx)"
+      },
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "bool Scene1Active()"
+      },
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "bool Scene2Active()"
+      }
+    ],
+    "reset_write": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void SetValue(float value, bool allScenes)"
+      }
+    ],
+    "reset": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void RevertToDefault(bool allScenes)\n    {\n        ZeroModulators(allScenes);"
+      }
+    ],
+    "reset_tree": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ZeroModulators(bool allScenes)"
+      }
+    ],
+    "reset_gestures": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void DeactivateGesture(size_t gestureIx, bool allScenes)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetActive(bool active, int scene)"
+      }
+    ],
+    "reset_collect": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "bool CanBeGarbageCollected()"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void GarbageCollect()"
+      },
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "bool AllNeutral()"
+      }
+    ],
+    "reset_registry": [
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void RevertToDefault(bool allScenes)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void RevertToDefault(bool allScenes)\n    {\n        for (int i = 0; i < 4; ++i)"
+      }
+    ],
+    "reset_evaluate": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Compute(bool advanceState)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ComputePostGestureValues(ModulatorValues* modulatorValues, bool advanceState)"
+      }
+    ],
+    "gesture_order": [
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "bool Scene1Active()"
+      },
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "bool Scene2Active()"
+      }
+    ],
+    "gesture_allocate": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void AddGesture(BankedEncoderCell* parent, size_t gestureIx)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "SmartGridOneContext* context, BankedEncoderCell* parent, int index, EncoderType modulatorType)"
+      }
+    ],
+    "gesture_flag": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetActive(bool active, int scene)"
+      }
+    ],
+    "gesture_capture": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetActive(bool active)"
+      }
+    ],
+    "gesture_toggle": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ToggleActive()"
+      }
+    ],
+    "gesture_clear": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void DeactivateGestureCurrentScene()"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ClearGesture(int gesture)\n    {\n        if (m_modulators.m_gestures[gesture])"
+      }
+    ],
+    "gesture_shift_press": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void HandleShiftPress()"
+      }
+    ],
+    "gesture_clear_registry": [
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ClearGesture(int gesture)"
+      }
+    ],
+    "gesture_clear_bank": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ClearGesture(int gesture)\n    {\n        for (int i = 0; i < 4; ++i)"
+      }
+    ]
+  },
+  "shared_bodies": [
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "float ToValue(float normalized) const"
+    },
+    {
+      "path": "private/src/SceneManager.hpp",
+      "symbol": "float GetSceneValue(float* values)"
+    },
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "struct TickDistributor"
+    },
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "void MoveValuesTowardsTargets()"
+    },
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "void SetTarget(float value, int scene)"
+    },
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "void SetAndRecordValue(float value, int scene)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void Compute(bool advanceState)"
+    },
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "JSON ToJSON(JsonArena& a)"
+    },
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "void CopyToScene(size_t scene)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void SetOutput(const QuadFloat& output, size_t hostSample)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "float GetInterpolatedValue(size_t channel, size_t hostSample, float previousOutputWeight) const"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "static float GetPreviousOutputWeight(size_t subSampleIndex, size_t oversample)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void ComputePostGestureValues(ModulatorValues* modulatorValues, bool advanceState)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void SetEffectiveModulatorWeight(float weight)"
+    },
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "void IncrementInternal(float delta, bool towardsZero)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void ComputeChanged()"
+    },
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "float Combine(float value, float delta, bool towardsZero)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "static QuadFloat ModulationDepthFromValue(const QuadFloat& value)"
+    },
+    {
+      "path": "private/src/MultiChannelNumber.hpp",
+      "symbol": "MultiChannelNumber Exp2() const"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void Compute(ModulatorValues* modulatorValues, bool advanceState)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void RecursivelyIncrementModulatorsTowardsZero(float delta)"
+    },
+    {
+      "path": "private/src/SceneManager.hpp",
+      "symbol": "bool IsSceneActive(size_t sceneIx)"
+    },
+    {
+      "path": "private/src/SceneManager.hpp",
+      "symbol": "bool Scene1Active()"
+    },
+    {
+      "path": "private/src/SceneManager.hpp",
+      "symbol": "bool Scene2Active()"
+    },
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "void SetValue(float value, bool allScenes)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void RevertToDefault(bool allScenes)\n    {\n        ZeroModulators(allScenes);"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void ZeroModulators(bool allScenes)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void DeactivateGesture(size_t gestureIx, bool allScenes)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void SetActive(bool active, int scene)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "bool CanBeGarbageCollected()"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void GarbageCollect()"
+    },
+    {
+      "path": "private/src/Encoder.hpp",
+      "symbol": "bool AllNeutral()"
+    },
+    {
+      "path": "private/src/EncoderBankBank.hpp",
+      "symbol": "void RevertToDefault(bool allScenes)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void RevertToDefault(bool allScenes)\n    {\n        for (int i = 0; i < 4; ++i)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void AddGesture(BankedEncoderCell* parent, size_t gestureIx)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "SmartGridOneContext* context, BankedEncoderCell* parent, int index, EncoderType modulatorType)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void SetActive(bool active)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void ToggleActive()"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void DeactivateGestureCurrentScene()"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void ClearGesture(int gesture)\n    {\n        if (m_modulators.m_gestures[gesture])"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void HandleShiftPress()"
+    },
+    {
+      "path": "private/src/EncoderBankBank.hpp",
+      "symbol": "void ClearGesture(int gesture)"
+    },
+    {
+      "path": "private/src/EncoderBank.hpp",
+      "symbol": "void ClearGesture(int gesture)\n    {\n        for (int i = 0; i < 4; ++i)"
+    }
+  ],
+  "contracts": [
+    {
+      "id": "E01",
+      "status": "shared",
+      "theorems": [
+        "Encoder.initialFrom_valid"
+      ],
+      "anchors": [
+        "ramp",
+        "initialization"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E02",
+      "status": "shared",
+      "theorems": [
+        "Encoder.unchanged_target_noop"
+      ],
+      "anchors": [
+        "target"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E03",
+      "status": "shared",
+      "theorems": [
+        "Encoder.target_changes_do_not_jump",
+        "Encoder.changed_target_forces"
+      ],
+      "anchors": [
+        "target"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E04",
+      "status": "shared",
+      "theorems": [
+        "Encoder.other_scenes_unchanged"
+      ],
+      "anchors": [
+        "target"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E05",
+      "status": "shared",
+      "theorems": [
+        "Encoder.same_sample_edits_keep_duration"
+      ],
+      "anchors": [
+        "ramp",
+        "target"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E06",
+      "status": "shared",
+      "theorems": [
+        "Encoder.edit_records_once",
+        "Encoder.compute_does_not_record"
+      ],
+      "anchors": [
+        "recording",
+        "compute"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E07",
+      "status": "shared",
+      "theorems": [
+        "Encoder.compute_readonly"
+      ],
+      "anchors": [
+        "compute"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E08",
+      "status": "shared",
+      "theorems": [
+        "Encoder.idle_compute_noop"
+      ],
+      "anchors": [
+        "compute"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E09",
+      "status": "shared",
+      "theorems": [
+        "Encoder.setTarget_valid",
+        "Encoder.edit_valid",
+        "Encoder.compute_valid"
+      ],
+      "anchors": [
+        "target",
+        "compute",
+        "ramp"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E10",
+      "status": "shared",
+      "theorems": [
+        "Encoder.ramp_finishes",
+        "Encoder.run_preserves_targets"
+      ],
+      "anchors": [
+        "ramp",
+        "compute"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E11",
+      "status": "shared",
+      "theorems": [
+        "Encoder.force_countdown",
+        "Encoder.endpoint_refresh_keeps_force_active"
+      ],
+      "anchors": [
+        "refresh",
+        "compute"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E12",
+      "status": "shared",
+      "theorems": [
+        "Encoder.saving_preserves_pending_targets",
+        "Encoder.copying_uses_targets"
+      ],
+      "anchors": [
+        "persistence"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E13",
+      "status": "shared",
+      "theorems": [
+        "Encoder.blend_left",
+        "Encoder.blend_right",
+        "Encoder.blend_midpoint"
+      ],
+      "anchors": [
+        "numeric"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E14",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Crossfade.distinct_scene_increment"
+      ],
+      "anchors": [
+        "scene_edit"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E15",
+      "status": "shared",
+      "theorems": [
+        "Encoder.right_compensation_preserves_blend",
+        "Encoder.left_compensation_preserves_blend"
+      ],
+      "anchors": [
+        "scene_edit"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E16",
+      "status": "shared",
+      "theorems": [
+        "Encoder.no_modulators_uses_base",
+        "Encoder.zero_amplitude_neutral"
+      ],
+      "anchors": [
+        "mix"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E17",
+      "status": "shared",
+      "theorems": [
+        "Encoder.full_positive_modulation",
+        "Encoder.full_negative_modulation"
+      ],
+      "anchors": [
+        "mix"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E18",
+      "status": "shared",
+      "theorems": [
+        "Encoder.route_contribution_bounded",
+        "Encoder.accumulate_valid",
+        "Encoder.fold_valid",
+        "Encoder.mix_bounded"
+      ],
+      "anchors": [
+        "mix"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E19",
+      "status": "shared",
+      "theorems": [
+        "Encoder.no_gestures_uses_base",
+        "Encoder.held_gesture_uses_banked"
+      ],
+      "anchors": [
+        "gestures"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E20",
+      "status": "not-applicable",
+      "theorems": [],
+      "anchors": [
+        "route_depth",
+        "mix"
+      ],
+      "reason": "HEAD computes curved depths recursively; it has no prepared leaf-depth cache."
+    },
+    {
+      "id": "E21",
+      "status": "shared",
+      "theorems": [
+        "Encoder.amplitude_change_invalidates",
+        "Encoder.gesture_selection_invalidates"
+      ],
+      "anchors": [
+        "changed",
+        "dirty"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E22",
+      "status": "shared",
+      "theorems": [
+        "Encoder.unchanged_inputs_skip"
+      ],
+      "anchors": [
+        "dirty"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E23",
+      "status": "shared",
+      "theorems": [
+        "Encoder.ancestor_forced",
+        "Encoder.unrelated_counter_unchanged"
+      ],
+      "anchors": [
+        "invalidate"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E24",
+      "status": "not-applicable",
+      "theorems": [],
+      "anchors": [],
+      "reason": "HEAD has no prepared path or schedule revision."
+    },
+    {
+      "id": "E25",
+      "status": "not-applicable",
+      "theorems": [],
+      "anchors": [],
+      "reason": "HEAD has no deferred tree image or synchronization operation."
+    },
+    {
+      "id": "E26",
+      "status": "shared",
+      "theorems": [
+        "Encoder.non_host_sample_does_not_advance_matrix"
+      ],
+      "anchors": [
+        "host_gate"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E27",
+      "status": "shared",
+      "theorems": [
+        "Encoder.named_hidden_root_is_eligible"
+      ],
+      "anchors": [
+        "roots"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E28",
+      "status": "shared",
+      "theorems": [
+        "Encoder.first_write_saves_previous",
+        "Encoder.same_host_preserves_history"
+      ],
+      "anchors": [
+        "history"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E29",
+      "status": "shared",
+      "theorems": [
+        "Encoder.last_slot_current",
+        "Encoder.ratio_one_current"
+      ],
+      "anchors": [
+        "history"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E30",
+      "status": "shared",
+      "theorems": [
+        "Encoder.unchanged_frame_constant"
+      ],
+      "anchors": [
+        "publish"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E31",
+      "status": "proved",
+      "theorems": [
+        "EncoderHeadRuntime.reachable_safe"
+      ],
+      "anchors": [
+        "runtime",
+        "publish"
+      ],
+      "reason": "Separate Veil runtime, proved safe on its own generated reachable states."
+    },
+    {
+      "id": "E32",
+      "status": "comparison",
+      "theorems": [
+        "Encoder.Head.prepared_output_equals_head"
+      ],
+      "anchors": [
+        "recursive"
+      ],
+      "reason": "HEAD recursive reference equals the prepared schedule under the typed graph precondition."
+    },
+    {
+      "id": "E33",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Schedule.unaffected_node_can_skip"
+      ],
+      "anchors": [
+        "recursive"
+      ],
+      "reason": "Pure dependency locality applies to recursive dirty-check skipping too; active dependency discovery remains an assumption."
+    },
+    {
+      "id": "E34",
+      "status": "analogue",
+      "theorems": [
+        "EncoderHeadProtocol.host_output_matches_evaluated",
+        "EncoderHeadProtocol.edit_output_matches_evaluated",
+        "EncoderHeadProtocol.inputs_output_matches_evaluated",
+        "EncoderHeadProtocol.host_materialized_matches_evaluated"
+      ],
+      "anchors": [
+        "runtime",
+        "recursive"
+      ],
+      "reason": "Same output/snapshot coherence; HEAD additionally materializes the whole tree eagerly."
+    },
+    {
+      "id": "E35",
+      "status": "not-applicable",
+      "theorems": [],
+      "anchors": [],
+      "reason": "HEAD materializes children eagerly; synchronize/rebuild operations do not exist. Its eager materialization invariant is proved separately."
+    },
+    {
+      "id": "E36",
+      "status": "not-applicable",
+      "theorems": [],
+      "anchors": [],
+      "reason": "HEAD has no prepared schedule eligibility guard."
+    },
+    {
+      "id": "E37",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Crossfade.leaving_left_refreshes_tree",
+        "Encoder.Crossfade.entering_left_refreshes_tree",
+        "Encoder.Crossfade.no_blend_change_is_lost"
+      ],
+      "anchors": [
+        "scene_flags"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E38",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Edits.combine_bounded",
+        "Encoder.Edits.ordinary_turn",
+        "Encoder.Edits.neutral_absorbs_shift",
+        "Encoder.Edits.turn_valid"
+      ],
+      "anchors": [
+        "combine",
+        "recording"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E39",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Edits.shift_preserves_sign",
+        "Encoder.Edits.negative_delta_towards_zero",
+        "Encoder.Edits.positive_delta_away_from_zero",
+        "Encoder.Edits.crossing_clamps_to_zero"
+      ],
+      "anchors": [
+        "combine"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E40",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Edits.shift_dispatch"
+      ],
+      "anchors": [
+        "shift"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E41",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Edits.shift_keeps_root",
+        "Encoder.Edits.shift_edits_every_descendant",
+        "Encoder.Edits.shift_preserves_missing"
+      ],
+      "anchors": [
+        "shift"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E42",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Edits.shift_scene_endpoints",
+        "Encoder.Edits.shift_distinct_scenes"
+      ],
+      "anchors": [
+        "scene_edit",
+        "combine"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E43",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Edits.weight_partition",
+        "Encoder.Edits.gesture_edit_partition",
+        "Encoder.Edits.actual_edit_partition",
+        "Encoder.Edits.negative_gesture_turn_reduces"
+      ],
+      "anchors": [
+        "gesture_edit"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E44",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Curve.ideal_zero",
+        "Encoder.Curve.ideal_endpoints",
+        "Encoder.Curve.idealMagnitude_monotone",
+        "Encoder.Curve.ideal_odd",
+        "Encoder.Curve.ideal_bounded",
+        "Encoder.Curve.ideal_saturates",
+        "Encoder.Curve.ideal_half_depth"
+      ],
+      "anchors": [
+        "curve"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E45",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Curve.approximate_zero",
+        "Encoder.Curve.approximate_odd",
+        "Encoder.Curve.approximate_saturates"
+      ],
+      "anchors": [
+        "curve",
+        "exp_polynomial"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E46",
+      "status": "comparison",
+      "theorems": [
+        "Encoder.Head.prepared_output_equals_head",
+        "Encoder.Head.publication_equals_working_tree",
+        "Encoder.Head.prepared_publication_equals_head"
+      ],
+      "anchors": [
+        "recursive",
+        "publish",
+        "history"
+      ],
+      "reason": "Cross-version model equality of evaluation and publication, not a proof of C++ graph construction or floating-point execution."
+    },
+    {
+      "id": "E47",
+      "status": "shared",
+      "theorems": [
+        "Encoder.partial_negative_modulation"
+      ],
+      "anchors": [
+        "mix"
+      ],
+      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+    },
+    {
+      "id": "E48",
+      "status": "proved",
+      "theorems": [
+        "EncoderHeadRuntime.reachable_ready"
+      ],
+      "anchors": [
+        "ramp",
+        "reset"
+      ],
+      "reason": "The stronger ramp invariant is proved on the separate HEAD runtime reachable states, including its reset action."
+    },
+    {
+      "id": "E49",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Reset.endpoint_scope",
+        "Encoder.Reset.all_scenes_selected",
+        "Encoder.Reset.reset_targets",
+        "Encoder.Reset.reset_no_jump",
+        "Encoder.Reset.reset_records"
+      ],
+      "anchors": [
+        "reset_scope",
+        "reset_write",
+        "reset"
+      ],
+      "reason": "Identical scoped reset operations use shared definitions; source-body equality and the pinned HEAD anchors are checked."
+    },
+    {
+      "id": "E50",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Reset.reset_root_target",
+        "Encoder.Reset.reset_descendant",
+        "Encoder.Reset.reset_forces_every_descendant",
+        "Encoder.Reset.resetTree_ready"
+      ],
+      "anchors": [
+        "reset_tree",
+        "reset",
+        "invalidate"
+      ],
+      "reason": "Identical scoped reset operations use shared definitions; source-body equality and the pinned HEAD anchors are checked."
+    },
+    {
+      "id": "E51",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Reset.reset_gesture_weight_zero",
+        "Encoder.Reset.reset_preserves_unselected",
+        "Encoder.Reset.reset_gesture_records_activation"
+      ],
+      "anchors": [
+        "reset_gestures",
+        "reset_scope"
+      ],
+      "reason": "Identical scoped reset operations use shared definitions; source-body equality and the pinned HEAD anchors are checked."
+    },
+    {
+      "id": "E52",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Reset.reset_ready",
+        "Encoder.Reset.run_max_lands",
+        "Encoder.Reset.reset_finishes"
+      ],
+      "anchors": [
+        "reset",
+        "reset_write",
+        "compute"
+      ],
+      "reason": "Identical scoped reset operations use shared definitions; source-body equality and the pinned HEAD anchors are checked."
+    },
+    {
+      "id": "E53",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Reset.reset_tree_returns_default",
+        "Encoder.Reset.both_publish_reset_default"
+      ],
+      "anchors": [
+        "reset_tree",
+        "reset_evaluate",
+        "publish"
+      ],
+      "reason": "Identical scoped reset operations use shared definitions; source-body equality and the pinned HEAD anchors are checked."
+    },
+    {
+      "id": "E54",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Reset.reset_forces",
+        "Encoder.Reset.reset_is_dirty"
+      ],
+      "anchors": [
+        "reset",
+        "dirty"
+      ],
+      "reason": "HEAD uses the same forced dirty evaluation; it has no prepared path to reject."
+    },
+    {
+      "id": "E55",
+      "status": "analogue",
+      "theorems": [
+        "EncoderHeadProtocol.reset_reset_forces_evaluation",
+        "EncoderHeadProtocol.host_reset_evaluates",
+        "EncoderHeadProtocol.host_reset_uses_live_snapshot"
+      ],
+      "anchors": [
+        "reset",
+        "runtime"
+      ],
+      "reason": "HEAD also forces the next host evaluation from the reset snapshot; its evaluator is always recursive."
+    },
+    {
+      "id": "E56",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Reset.full_reset_reaches_hidden",
+        "Encoder.Reset.bank_reset_preserves_unplaced",
+        "Encoder.Reset.bank_reset_reaches_placed",
+        "Encoder.Reset.reset_preserves_missing_root",
+        "Encoder.Reset.reset_preserves_configured_default"
+      ],
+      "anchors": [
+        "reset_registry"
+      ],
+      "reason": "Identical scoped reset operations use shared definitions; source-body equality and the pinned HEAD anchors are checked."
+    },
+    {
+      "id": "E57",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Reset.collectable_modulator_silent",
+        "Encoder.Reset.inactive_gesture_weight_zero",
+        "Encoder.Reset.erase_zero_route",
+        "Encoder.Reset.erase_zero_gesture",
+        "Encoder.Reset.collected_neutral_has_no_pending_target"
+      ],
+      "anchors": [
+        "reset_collect",
+        "mix",
+        "gestures"
+      ],
+      "reason": "Identical scoped reset operations use shared definitions; source-body equality and the pinned HEAD anchors are checked."
+    },
+    {
+      "id": "E58",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.ensure_existing",
+        "Encoder.Gestures.ensure_missing",
+        "Encoder.Gestures.ensure_idempotent",
+        "Encoder.Gestures.fresh_valid"
+      ],
+      "anchors": [
+        "gesture_allocate"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+    },
+    {
+      "id": "E59",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.visited_iff",
+        "Encoder.Gestures.endpoints",
+        "Encoder.Gestures.aliased_interior"
+      ],
+      "anchors": [
+        "gesture_order",
+        "gesture_capture"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+    },
+    {
+      "id": "E60",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.capture_current_target",
+        "Encoder.Gestures.activating_inherits",
+        "Encoder.Gestures.setScene_active",
+        "Encoder.Gestures.active_not_recaptured",
+        "Encoder.Gestures.deactivate_preserves_cell",
+        "Encoder.Gestures.aliased_activation_records_once",
+        "Encoder.Gestures.capture_changed_ready",
+        "Encoder.Gestures.changed_capture_finishes",
+        "Encoder.Gestures.capture_ready",
+        "Encoder.Gestures.capture_finishes",
+        "Encoder.Gestures.activating_finishes",
+        "Encoder.Gestures.capture_finishes_iff"
+      ],
+      "anchors": [
+        "gesture_capture",
+        "gesture_flag",
+        "recording"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+    },
+    {
+      "id": "E61",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.setScenes_unvisited",
+        "Encoder.Gestures.setScenes_flag",
+        "Encoder.Gestures.setScenes_records"
+      ],
+      "anchors": [
+        "gesture_capture",
+        "gesture_flag"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+    },
+    {
+      "id": "E62",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.activation_scene_values",
+        "Encoder.Gestures.capture_blend_continuity"
+      ],
+      "anchors": [
+        "gesture_capture",
+        "gesture_order",
+        "gestures"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+    },
+    {
+      "id": "E63",
+      "status": "proved",
+      "theorems": [
+        "EncoderHeadGestureRuntime.initializer_parent_coherent",
+        "EncoderHeadGestureRuntime.initializer_gesture_bounds",
+        "EncoderHeadGestureRuntime.initializer_unallocated_unchanged",
+        "EncoderHeadGestureRuntime.parent_target_parent_coherent",
+        "EncoderHeadGestureRuntime.parent_compute_parent_coherent",
+        "EncoderHeadGestureRuntime.ensure_gesture_bounds",
+        "EncoderHeadGestureRuntime.set_active_gesture_bounds",
+        "EncoderHeadGestureRuntime.toggle_gesture_bounds",
+        "EncoderHeadGestureRuntime.clear_gesture_bounds",
+        "EncoderHeadGestureRuntime.gesture_compute_gesture_bounds"
+      ],
+      "anchors": [
+        "gesture_allocate",
+        "gesture_capture",
+        "gesture_toggle",
+        "gesture_clear",
+        "compute"
+      ],
+      "reason": "Separate current and HEAD Veil lifecycle machines check the same invariants for every action using the shared, identical C++ gesture operations."
+    },
+    {
+      "id": "E64",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.toggle_preserves_data",
+        "Encoder.Gestures.toggle_same_scene_twice"
+      ],
+      "anchors": [
+        "gesture_toggle",
+        "gesture_order"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+    },
+    {
+      "id": "E65",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.deactivate_data",
+        "Encoder.Gestures.deactivate_flags",
+        "Encoder.Gestures.deactivate_records",
+        "Encoder.Gestures.deactivated_weight_zero"
+      ],
+      "anchors": [
+        "gesture_clear",
+        "gesture_flag",
+        "gestures"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+    },
+    {
+      "id": "E66",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.clear_selected",
+        "Encoder.Gestures.clear_unselected",
+        "Encoder.Gestures.clear_missing",
+        "Encoder.Gestures.clear_preserves_base_and_route",
+        "Encoder.Gestures.clear_every_descendant",
+        "Encoder.Gestures.clear_preserves_topology"
+      ],
+      "anchors": [
+        "gesture_clear"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+    },
+    {
+      "id": "E67",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.clear_selected",
+        "Encoder.Gestures.clear_unselected",
+        "Encoder.Gestures.shift_press_keeps_descendants",
+        "Encoder.Gestures.shift_press_keeps_base_targets"
+      ],
+      "anchors": [
+        "gesture_shift_press",
+        "invalidate"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+    },
+    {
+      "id": "E68",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.clear_reaches_hidden",
+        "Encoder.Gestures.clear_unnamed_unchanged",
+        "Encoder.Gestures.clear_bank_preserves_unplaced",
+        "Encoder.Gestures.clear_bank_reaches_placed",
+        "Encoder.Gestures.clear_forces_root",
+        "Encoder.Gestures.clear_is_dirty"
+      ],
+      "anchors": [
+        "gesture_clear_registry",
+        "gesture_clear_bank",
+        "dirty"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+    },
+    {
+      "id": "E69",
+      "status": "analogue",
+      "theorems": [
+        "EncoderHeadProtocol.clear_gesture_gesture_clear_forces_evaluation",
+        "EncoderHeadProtocol.host_gesture_clear_evaluates",
+        "EncoderHeadProtocol.host_gesture_clear_uses_live_snapshot"
+      ],
+      "anchors": [
+        "gesture_clear_registry",
+        "runtime"
+      ],
+      "reason": "Both protocols prove corrective next-host evaluation after deletion; only the working-tree protocol has a prepared path to reject."
+    },
+    {
+      "id": "E70",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Gestures.unchanged_capture_keeps_timer",
+        "Encoder.Gestures.capture_stalled_counterexample",
+        "Encoder.Gestures.capture_not_always_coherent",
+        "Encoder.Gestures.clamped_edit_does_not_repair_capture",
+        "Encoder.Gestures.zero_remaining_stays",
+        "Encoder.Gestures.accepted_counterexample_excluded"
+      ],
+      "anchors": [
+        "gesture_capture",
+        "target",
+        "scene_edit",
+        "ramp"
+      ],
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both. The defect is accepted for now in both versions; the E60 conditional convergence theorem and its necessary-and-sufficient precondition remain proved."
+    }
+  ]
+}

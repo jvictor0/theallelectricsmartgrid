@@ -1,0 +1,447 @@
+{
+  "description": "Reviewed C++ snapshot for the Lean model. Hashes detect drift; they do not prove C++ refinement. Review correspondence before changing hashes.",
+  "files": {
+    "private/src/Encoder.hpp": "2092a538abaade1145cfd70a40f544b2ff2dab24370c5387760e0d7f410e4d03",
+    "private/src/EncoderBank.hpp": "81e03ae21308c32175facda65955245ee0f3194323a26ac73273484bad7d15b6",
+    "private/src/EncoderBankBank.hpp": "86d47c7bcf6c0f199c712ebb13834c7be201e8da5ca4f07bfabeb38047edf604",
+    "private/src/EncoderMatrix.hpp": "eb07fac35a737b061226138c94d47ed9f7de643700bd883be006d66f3958a4e9",
+    "private/src/QuadUtils.hpp": "eb287a8dd5c2f88979153018a2b246aa7056979ae252773cccb92182c293a69b",
+    "private/src/SampleTimer.hpp": "d55157bec9215ac2d96da5cff2307ee19f7c2c2145a7a2775186be31f39d10b9",
+    "private/src/SceneManager.hpp": "87e9c88e2257a56f9ae392178d9976152ae74b54f67d892d829fc4df10c75e8e",
+    "private/src/MultiChannelNumber.hpp": "8b9668e36f98ba97ec14661a51c58207871ea509a0b79b5011cbb8fb83bf0893"
+  },
+  "anchors": {
+    "dimensions": [
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "static constexpr size_t x_numScenes = 8;"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "static constexpr size_t x_numModulators = 15;"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "static constexpr size_t x_numGestureParams = 16;"
+      },
+      {
+        "path": "private/src/QuadUtils.hpp",
+        "symbol": "using QuadFloat = MultiChannelNumber<float, 4>;"
+      }
+    ],
+    "numeric": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "float ToValue(float normalized) const"
+      },
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "float GetSceneValue(float* values)"
+      }
+    ],
+    "ramp": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "struct TickDistributor"
+      },
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void MoveValuesTowardsTargets()"
+      }
+    ],
+    "refresh": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetStateRecursive()"
+      }
+    ],
+    "target": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void SetTarget(float value, int scene)"
+      }
+    ],
+    "recording": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void SetAndRecordValue(float value, int scene)"
+      }
+    ],
+    "compute": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Compute(bool advanceState)"
+      }
+    ],
+    "persistence": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "JSON ToJSON(JsonArena& a)"
+      },
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void CopyToScene(size_t scene)"
+      }
+    ],
+    "history": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetOutput(const QuadFloat& output, size_t hostSample)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "float GetInterpolatedValue(size_t channel, size_t hostSample, float previousOutputWeight) const"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "static float GetPreviousOutputWeight(size_t subSampleIndex, size_t oversample)"
+      }
+    ],
+    "publish": [
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "static void Publish(const Root& root, OutputCaches& caches, size_t host)"
+      }
+    ],
+    "mix": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Compute(ModulatorValues* modulatorValues, bool advanceState)"
+      },
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "void ProcessGraph(const Root& root, float blend, size_t host)"
+      }
+    ],
+    "gestures": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ComputePostGestureValues(ModulatorValues* modulatorValues, bool advanceState)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetEffectiveModulatorWeight(float weight)"
+      }
+    ],
+    "route_depth": [
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "void UpdateDepth(float blend)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "static QuadFloat ModulationDepthFromValue(const QuadFloat& value)"
+      }
+    ],
+    "scene_edit": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void IncrementInternal(float delta, bool towardsZero)"
+      }
+    ],
+    "schedule": [
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "size_t PrepareNode(Cell* cell, const SmartGrid::SceneManager& scene)"
+      },
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "void ProcessGraph(const Root& root, float blend, size_t host)"
+      }
+    ],
+    "changed": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ComputeChanged()"
+      }
+    ],
+    "dirty": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "else if (blendChanged ||"
+      },
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "else if (root.m_sources->m_blendChanged"
+      }
+    ],
+    "invalidate": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetForceUpdateRecursive()"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetModulatorsAffecting()"
+      }
+    ],
+    "eligibility": [
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "static bool CanPrepare(Cell* cell)"
+      },
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "bool invalid = cell->m_samplesForceUpdate != 0 || root.m_revision != cell->m_evaluationRevision;"
+      }
+    ],
+    "synchronization": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SynchronizePreparedState()"
+      }
+    ],
+    "host_gate": [
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ProcessHostFrame()"
+      },
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "if (SampleTimer::IsHostFrame())"
+      },
+      {
+        "path": "private/src/SampleTimer.hpp",
+        "symbol": "static constexpr size_t x_oversample = 4;"
+      }
+    ],
+    "roots": [
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "if (!cell || !cell->m_name)"
+      }
+    ],
+    "runtime": [
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ProcessHostFrame()"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Compute(bool advanceState)"
+      }
+    ],
+    "snapshot": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "size_t m_preparedScene1 = 0;"
+      },
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "cell->m_preparedBlend = blend;"
+      }
+    ],
+    "rebuild": [
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "void Rebuild(SmartGrid::EncoderPtr* encoders, size_t count, const SmartGrid::SceneManager& scene)"
+      }
+    ],
+    "prepared_process": [
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "void Process(SmartGrid::EncoderPtr* encoders, size_t count,"
+      }
+    ],
+    "scene_flags": [
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "void Process()"
+      },
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "bool blendChanged = sceneManager.m_changed && !sceneManager.m_changedScene;"
+      }
+    ],
+    "initialization": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "SmartGridOneContext* context, BankedEncoderCell* parent, int index, EncoderType modulatorType)"
+      },
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "size_t CreateEncoder("
+      }
+    ],
+    "combine": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "float Combine(float value, float delta, bool towardsZero)"
+      }
+    ],
+    "shift": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Increment(float delta, bool towardsZero)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void RecursivelyIncrementModulatorsTowardsZero(float delta)"
+      }
+    ],
+    "gesture_edit": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "gestureCell->IncrementInternal(delta * weight * weight / gestureWeightSum, towardsZero);"
+      }
+    ],
+    "curve": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "static QuadFloat ModulationDepthFromValue(const QuadFloat& value)"
+      }
+    ],
+    "exp_polynomial": [
+      {
+        "path": "private/src/MultiChannelNumber.hpp",
+        "symbol": "MultiChannelNumber Exp2() const"
+      }
+    ],
+    "reset_scope": [
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "bool IsSceneActive(size_t sceneIx)"
+      },
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "bool Scene1Active()"
+      },
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "bool Scene2Active()"
+      }
+    ],
+    "reset_write": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void SetValue(float value, bool allScenes)"
+      }
+    ],
+    "reset": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void RevertToDefault(bool allScenes)\n    {\n        ZeroModulators(allScenes);"
+      }
+    ],
+    "reset_tree": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ZeroModulators(bool allScenes)"
+      }
+    ],
+    "reset_gestures": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void DeactivateGesture(size_t gestureIx, bool allScenes)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetActive(bool active, int scene)"
+      }
+    ],
+    "reset_collect": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "bool CanBeGarbageCollected()"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void GarbageCollect()"
+      },
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "bool AllNeutral()"
+      }
+    ],
+    "reset_registry": [
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void RevertToDefault(bool allScenes)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void RevertToDefault(bool allScenes)\n    {\n        for (int i = 0; i < 4; ++i)"
+      }
+    ],
+    "reset_evaluate": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void Compute(bool advanceState)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ComputePostGestureValues(ModulatorValues* modulatorValues, bool advanceState)"
+      },
+      {
+        "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "void Process(SmartGrid::EncoderPtr* encoders, size_t count,"
+      }
+    ],
+    "gesture_order": [
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "bool Scene1Active()"
+      },
+      {
+        "path": "private/src/SceneManager.hpp",
+        "symbol": "bool Scene2Active()"
+      }
+    ],
+    "gesture_allocate": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void AddGesture(BankedEncoderCell* parent, size_t gestureIx)"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "SmartGridOneContext* context, BankedEncoderCell* parent, int index, EncoderType modulatorType)"
+      }
+    ],
+    "gesture_flag": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetActive(bool active, int scene)"
+      }
+    ],
+    "gesture_capture": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SetActive(bool active)"
+      }
+    ],
+    "gesture_toggle": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ToggleActive()"
+      }
+    ],
+    "gesture_clear": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void DeactivateGestureCurrentScene()"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ClearGesture(int gesture)\n    {\n        if (m_modulators.m_gestures[gesture])"
+      }
+    ],
+    "gesture_shift_press": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void HandleShiftPress()"
+      }
+    ],
+    "gesture_clear_registry": [
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ClearGesture(int gesture)"
+      }
+    ],
+    "gesture_clear_bank": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ClearGesture(int gesture)\n    {\n        for (int i = 0; i < 4; ++i)"
+      }
+    ]
+  }
+}

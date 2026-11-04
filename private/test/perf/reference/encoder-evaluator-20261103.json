@@ -1,0 +1,258 @@
+{
+  "checkpoint": "0a0d206",
+  "branch": "per-sample-encoders",
+  "units": "ms thread CPU / second audio",
+  "timing": "Median of three 3-second runs, randomized baseline/final order within each workload; branch snapshot only. 48kHz host / 192kHz engine, release O3/LTO, no simultaneous build/test/profile.",
+  "results": [
+    {
+      "workload": "Original stress patch: matrix replay",
+      "position": "Fully left",
+      "before_ms_per_sec_audio": 356.824,
+      "after_ms_per_sec_audio": 181.569333333,
+      "reduction_percent": 49.11515667864269,
+      "before_range": {
+        "median": 356.824,
+        "min": 356.682333333,
+        "max": 357.495666667
+      },
+      "after_range": {
+        "median": 181.569333333,
+        "min": 180.896,
+        "max": 182.347333333
+      }
+    },
+    {
+      "workload": "Original stress patch: matrix replay",
+      "position": "Center",
+      "before_ms_per_sec_audio": 574.192666667,
+      "after_ms_per_sec_audio": 217.340333333,
+      "reduction_percent": 62.14853550906714,
+      "before_range": {
+        "median": 574.192666667,
+        "min": 574.072666667,
+        "max": 575.262
+      },
+      "after_range": {
+        "median": 217.340333333,
+        "min": 210.996333333,
+        "max": 223.808666667
+      }
+    },
+    {
+      "workload": "Original stress patch: matrix replay",
+      "position": "Sweep",
+      "before_ms_per_sec_audio": 800.739666667,
+      "after_ms_per_sec_audio": 366.337666667,
+      "reduction_percent": 54.250091269757576,
+      "before_range": {
+        "median": 800.739666667,
+        "min": 797.228333333,
+        "max": 800.774
+      },
+      "after_range": {
+        "median": 366.337666667,
+        "min": 362.455,
+        "max": 395.323
+      }
+    },
+    {
+      "workload": "Extra nested layer: matrix replay",
+      "position": "Fully left",
+      "before_ms_per_sec_audio": 606.408333333,
+      "after_ms_per_sec_audio": 309.263,
+      "reduction_percent": 49.000865753246025,
+      "before_range": {
+        "median": 606.408333333,
+        "min": 606.314,
+        "max": 608.655666667
+      },
+      "after_range": {
+        "median": 309.263,
+        "min": 306.663666667,
+        "max": 309.332333333
+      }
+    },
+    {
+      "workload": "Extra nested layer: matrix replay",
+      "position": "Center",
+      "before_ms_per_sec_audio": 1033.12633333,
+      "after_ms_per_sec_audio": 433.577333333,
+      "reduction_percent": 58.03249618703629,
+      "before_range": {
+        "median": 1033.12633333,
+        "min": 1033.061,
+        "max": 1041.11966667
+      },
+      "after_range": {
+        "median": 433.577333333,
+        "min": 430.391333333,
+        "max": 434.225
+      }
+    },
+    {
+      "workload": "Extra nested layer: matrix replay",
+      "position": "Sweep",
+      "before_ms_per_sec_audio": 1748.33233333,
+      "after_ms_per_sec_audio": 816.894,
+      "reduction_percent": 53.275816935554545,
+      "before_range": {
+        "median": 1748.33233333,
+        "min": 1739.30666667,
+        "max": 1755.832
+      },
+      "after_range": {
+        "median": 816.894,
+        "min": 811.322,
+        "max": 834.694
+      }
+    },
+    {
+      "workload": "Nested routing plus gestures: matrix replay",
+      "position": "Fully left",
+      "before_ms_per_sec_audio": 3704.45866667,
+      "after_ms_per_sec_audio": 1024.987,
+      "reduction_percent": 72.33099105080912,
+      "before_range": {
+        "median": 3704.45866667,
+        "min": 3694.54466667,
+        "max": 3720.50666667
+      },
+      "after_range": {
+        "median": 1024.987,
+        "min": 1018.98066667,
+        "max": 1026.45533333
+      }
+    },
+    {
+      "workload": "Nested routing plus gestures: matrix replay",
+      "position": "Center",
+      "before_ms_per_sec_audio": 4046.81366667,
+      "after_ms_per_sec_audio": 1109.54633333,
+      "reduction_percent": 72.58222333120142,
+      "before_range": {
+        "median": 4046.81366667,
+        "min": 4034.212,
+        "max": 4071.95133333
+      },
+      "after_range": {
+        "median": 1109.54633333,
+        "min": 1108.48766667,
+        "max": 1123.09166667
+      }
+    },
+    {
+      "workload": "Nested routing plus gestures: matrix replay",
+      "position": "Sweep",
+      "before_ms_per_sec_audio": 4669.87166667,
+      "after_ms_per_sec_audio": 1511.802,
+      "reduction_percent": 67.62647653060586,
+      "before_range": {
+        "median": 4669.87166667,
+        "min": 4647.941,
+        "max": 4721.59633333
+      },
+      "after_range": {
+        "median": 1511.802,
+        "min": 1499.24166667,
+        "max": 1531.17333333
+      }
+    },
+    {
+      "workload": "Original stress patch: full SynthRig",
+      "position": "Fully left",
+      "before_ms_per_sec_audio": 1164.931,
+      "after_ms_per_sec_audio": 959.554667,
+      "reduction_percent": 17.629913960569343,
+      "before_range": {
+        "median": 1164.931,
+        "min": 1147.646667,
+        "max": 1181.102667
+      },
+      "after_range": {
+        "median": 959.554667,
+        "min": 958.959333,
+        "max": 986.846333
+      }
+    },
+    {
+      "workload": "Original stress patch: full SynthRig",
+      "position": "Center",
+      "before_ms_per_sec_audio": 1461.344333,
+      "after_ms_per_sec_audio": 1058.086,
+      "reduction_percent": 27.595024929692592,
+      "before_range": {
+        "median": 1461.344333,
+        "min": 1438.853667,
+        "max": 1469.941
+      },
+      "after_range": {
+        "median": 1058.086,
+        "min": 1029.406,
+        "max": 1061.938333
+      }
+    },
+    {
+      "workload": "Original stress patch: full SynthRig",
+      "position": "Sweep",
+      "before_ms_per_sec_audio": 1758.577667,
+      "after_ms_per_sec_audio": 1183.417667,
+      "reduction_percent": 32.70597658511036,
+      "before_range": {
+        "median": 1758.577667,
+        "min": 1673.500667,
+        "max": 1827.561667
+      },
+      "after_range": {
+        "median": 1183.417667,
+        "min": 1175.836333,
+        "max": 1185.584667
+      }
+    }
+  ],
+  "tests": {
+    "core_passed": 759,
+    "core_skipped": 4,
+    "ratio1_passed": 26,
+    "core_assertions": 472793210,
+    "ratio1_assertions": 465427
+  },
+  "output_comparisons": [
+    {
+      "workload": "flat",
+      "mode": "fixed",
+      "bytes": 5264000,
+      "bit_identical": true
+    },
+    {
+      "workload": "flat",
+      "mode": "mid",
+      "bytes": 5264000,
+      "bit_identical": true
+    },
+    {
+      "workload": "flat",
+      "mode": "sweep",
+      "bytes": 5264000,
+      "bit_identical": true
+    },
+    {
+      "workload": "nested",
+      "mode": "sweep",
+      "bytes": 5264000,
+      "bit_identical": true
+    },
+    {
+      "workload": "gesture",
+      "mode": "sweep",
+      "bytes": 5264000,
+      "bit_identical": true
+    },
+    {
+      "workload": "full",
+      "mode": "scenes",
+      "bytes": 21280000,
+      "bit_identical": true
+    }
+  ],
+  "note": "Historical experiment at the listed checkpoint versus the then-uncommitted evaluator. Not a baseline produced by the maintained harness."
+}
