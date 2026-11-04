@@ -197,8 +197,9 @@ theorem force_countdown (t : Timing) (n : Nat) (s : Cell) :
     · have hz : s.force = 0 := by omega
       simp [compute, hz]
 
--- @cpp refresh: SetStateRecursive starts the full counter even without a ramp.
--- @head refresh: shared arithmetic/control operation at the pinned revision.
+-- Legacy full-counter refresh lemma for the pinned implementation.
+-- Current settled refreshes use Motion.settled_refresh_preserves_ramp_values.
+-- @head refresh: the pinned SetStateRecursive always starts the full counter.
 theorem endpoint_refresh_keeps_force_active (t : Timing) (s : Cell) (n : Nat)
     (h : n < t.maximum) :
     (run t n { s with force := t.maximum }).force > 0 := by
@@ -238,6 +239,9 @@ structure Output where
 
 def setOutput (s : Output) (host : Nat) (value : Lane → Rat) : Output :=
   ⟨value, if s.stamp = host then s.previous else s.current, host⟩
+
+theorem setOutput_current (s : Output) (host : Nat) (value : Lane → Rat) :
+    (setOutput s host value).current = value := rfl
 
 def previousWeight (slot ratio : Nat) : Rat := ((ratio - 1 - slot : Nat) : Rat) / (ratio : Rat)
 def readOutput (s : Output) (host slot ratio : Nat) (bipolar : Bool) (lane : Lane) : Rat :=

@@ -13,6 +13,7 @@ struct EncoderMatrix
     using Cell = SmartGrid::BankedEncoderCell;
     using Sources = Cell::ModulatorValues;
     using OutputCaches = std::array<std::vector<QuadFloat>, SampleTimer::x_oversample>;
+    using OutputView = std::array<QuadFloat*, SampleTimer::x_oversample>;
 
     enum class Path
     {
@@ -333,15 +334,16 @@ struct EncoderMatrix
         }
     }
 
-    static void Publish(const Root& root, OutputCaches& caches, size_t host)
+    static void Publish(const Root& root, const OutputView& caches, size_t host)
     {
         Cell* cell = root.m_cell;
+        size_t index = root.m_index;
         if (cell->m_outputHostSample != host)
         {
             QuadFloat value = cell->GetQuadValue();
             for (auto& cache : caches)
             {
-                cache[root.m_index] = value;
+                cache[index] = value;
             }
 
             return;
@@ -349,10 +351,11 @@ struct EncoderMatrix
 
         QuadFloat output = cell->m_output;
         QuadFloat delta = cell->m_outputPrev - output;
+        bool bipolar = cell->m_bipolar;
         for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
         {
             QuadFloat value = output + delta * Cell::GetPreviousOutputWeight(sample, SampleTimer::x_oversample);
-            caches[sample][root.m_index] = cell->m_bipolar ? value * 2.0f - 1.0f : value;
+            caches[sample][index] = bipolar ? value * 2.0f - 1.0f : value;
         }
     }
 
@@ -399,6 +402,16 @@ struct EncoderMatrix
         const size_t host = SampleTimer::GetHostSample();
         const QuadFloat one = QuadFloat::Splat(1.0f);
         bool depthsUpdated = false;
+
+        // Buffer storage stays fixed during processing. Capture its pointers
+        // once so publication writes do not reload vector metadata.
+        //
+        OutputView outputs;
+        for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+        {
+            outputs[sample] = caches[sample].data();
+        }
+
         for (auto& root : m_roots)
         {
             Cell* cell = root.m_cell;
@@ -422,7 +435,7 @@ struct EncoderMatrix
                 if (root.m_path == Path::Graph)
                 {
                     ProcessGraph(root, blend, host);
-                    Publish(root, caches, host);
+                    Publish(root, outputs, host);
                     continue;
                 }
 
@@ -453,7 +466,7 @@ struct EncoderMatrix
                 cell->m_brightness = std::clamp(1.0f - weight[0], 0.0f, 1.0f);
             }
 
-            Publish(root, caches, host);
+            Publish(root, outputs, host);
         }
     }
 };

@@ -588,8 +588,7 @@
       "id": "E03",
       "status": "shared",
       "theorems": [
-        "Encoder.target_changes_do_not_jump",
-        "Encoder.changed_target_forces"
+        "Encoder.target_changes_do_not_jump"
       ],
       "anchors": [
         "target"
@@ -644,17 +643,6 @@
       "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
     },
     {
-      "id": "E08",
-      "status": "shared",
-      "theorems": [
-        "Encoder.idle_compute_noop"
-      ],
-      "anchors": [
-        "compute"
-      ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
-    },
-    {
       "id": "E09",
       "status": "shared",
       "theorems": [
@@ -673,24 +661,11 @@
       "id": "E10",
       "status": "shared",
       "theorems": [
-        "Encoder.ramp_finishes",
+        "Encoder.Reset.run_max_lands",
         "Encoder.run_preserves_targets"
       ],
       "anchors": [
         "ramp",
-        "compute"
-      ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
-    },
-    {
-      "id": "E11",
-      "status": "shared",
-      "theorems": [
-        "Encoder.force_countdown",
-        "Encoder.endpoint_refresh_keeps_force_active"
-      ],
-      "anchors": [
-        "refresh",
         "compute"
       ],
       "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
@@ -828,25 +803,6 @@
       "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
     },
     {
-      "id": "E23",
-      "status": "shared",
-      "theorems": [
-        "Encoder.ancestor_forced",
-        "Encoder.unrelated_counter_unchanged"
-      ],
-      "anchors": [
-        "invalidate"
-      ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
-    },
-    {
-      "id": "E24",
-      "status": "not-applicable",
-      "theorems": [],
-      "anchors": [],
-      "reason": "HEAD has no prepared path or schedule revision."
-    },
-    {
       "id": "E25",
       "status": "not-applicable",
       "theorems": [],
@@ -965,13 +921,6 @@
       "theorems": [],
       "anchors": [],
       "reason": "HEAD materializes children eagerly; synchronize/rebuild operations do not exist. Its eager materialization invariant is proved separately."
-    },
-    {
-      "id": "E36",
-      "status": "not-applicable",
-      "theorems": [],
-      "anchors": [],
-      "reason": "HEAD has no prepared schedule eligibility guard."
     },
     {
       "id": "E37",
@@ -1158,7 +1107,6 @@
       "theorems": [
         "Encoder.Reset.reset_root_target",
         "Encoder.Reset.reset_descendant",
-        "Encoder.Reset.reset_forces_every_descendant",
         "Encoder.Reset.resetTree_ready"
       ],
       "anchors": [
@@ -1215,7 +1163,6 @@
       "id": "E54",
       "status": "shared",
       "theorems": [
-        "Encoder.Reset.reset_forces",
         "Encoder.Reset.reset_is_dirty"
       ],
       "anchors": [
@@ -1464,7 +1411,7 @@
         "gesture_clear_registry",
         "runtime"
       ],
-      "reason": "Both protocols prove corrective next-host evaluation after deletion; only the working-tree protocol has a prepared path to reject."
+      "reason": "Both protocols prove corrective next-host evaluation after deletion. The observable requirement permits either evaluation path."
     },
     {
       "id": "E70",
@@ -1484,6 +1431,84 @@
         "ramp"
       ],
       "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both. The defect is accepted for now in both versions; the E60 conditional convergence theorem and its necessary-and-sufficient precondition remain proved."
+    },
+    {
+      "id": "E71",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Motion.ramp_step_between",
+        "Encoder.Motion.stationary_run"
+      ],
+      "anchors": [
+        "ramp",
+        "compute"
+      ],
+      "reason": "The same leaf ramp and scene/gesture arithmetic applies to both models. These bounds describe observable control motion without constraining evaluation path."
+    },
+    {
+      "id": "E72",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Motion.blend_motion",
+        "Encoder.Motion.blend_motion_bound"
+      ],
+      "anchors": [
+        "numeric"
+      ],
+      "reason": "The same leaf ramp and scene/gesture arithmetic applies to both models. These bounds describe observable control motion without constraining evaluation path."
+    },
+    {
+      "id": "E73",
+      "status": "shared",
+      "theorems": [
+        "Encoder.Motion.gesture_zero_weight_motion",
+        "Encoder.Motion.blend_motion_bound"
+      ],
+      "anchors": [
+        "gestures",
+        "numeric"
+      ],
+      "reason": "The same leaf ramp and scene/gesture arithmetic applies to both models. These bounds describe observable control motion without constraining evaluation path."
+    },
+    {
+      "id": "E74",
+      "status": "analogue",
+      "theorems": [
+        "EncoderHeadProtocol.host_output_matches_evaluated",
+        "EncoderHeadProtocol.host_materialized_matches_evaluated"
+      ],
+      "anchors": [
+        "host_gate",
+        "runtime",
+        "publish"
+      ],
+      "reason": "HEAD has an eager host protocol. The new behavioral machine specifies current host inputs, ramp values and published output without choosing an evaluator; it is not a proved C++ refinement or a new equivalence proof for HEAD."
+    },
+    {
+      "id": "E75",
+      "status": "analogue",
+      "theorems": [
+        "EncoderHeadProtocol.host_output_matches_evaluated",
+        "EncoderHeadProtocol.host_materialized_matches_evaluated"
+      ],
+      "anchors": [
+        "host_gate",
+        "runtime",
+        "publish"
+      ],
+      "reason": "HEAD has an eager host protocol. The new behavioral machine specifies current host inputs, ramp values and published output without choosing an evaluator; it is not a proved C++ refinement or a new equivalence proof for HEAD."
+    },
+    {
+      "id": "E76",
+      "status": "comparison",
+      "theorems": [
+        "Encoder.Motion.settled_refresh_preserves_ramp_values"
+      ],
+      "anchors": [
+        "refresh",
+        "ramp"
+      ],
+      "reason": "The pinned implementation forces a full countdown at scene refresh. The new shortcut preserves values and saturated edit age for settled cells; its counters and path choice deliberately differ."
     }
   ]
 }

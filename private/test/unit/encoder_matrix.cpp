@@ -10,6 +10,22 @@ using Cell = SmartGrid::BankedEncoderCell;
 
 struct MatrixRig
 {
+    bool m_legacyRefresh = false;
+
+    static void ForceLegacyRefresh(Cell& cell)
+    {
+        cell.m_samplesForceUpdate = SmartGrid::TickDistributor::x_maxSamplesToDistribute;
+        for (size_t i = 0; i < cell.m_modulators.m_numActiveModulators; ++i)
+        {
+            ForceLegacyRefresh(*cell.m_modulators.GetModulator(i));
+        }
+
+        for (size_t i = 0; i < cell.m_modulators.m_numActiveGestures; ++i)
+        {
+            ForceLegacyRefresh(*cell.m_modulators.GetGesture(i));
+        }
+    }
+
     SmartGridOneContext m_context;
     EncoderBankBank m_bank;
 
@@ -140,6 +156,11 @@ struct MatrixRig
             }
         }
 
+        if (m_legacyRefresh && scene.m_changed && !blendChanged)
+        {
+            ForceLegacyRefresh(Root());
+        }
+
         Root().Compute(true);
         for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
         {
@@ -168,6 +189,80 @@ void CheckOutputs(MatrixRig& actual, MatrixRig& reference)
     }
 }
 
+}
+
+DOCTEST_TEST_CASE("encoder matrix: short settled refresh matches the legacy full window through live ramps")
+{
+    GlobalEnv::Init();
+    GlobalEnv::ResetPerTest();
+    MatrixRig actual;
+    MatrixRig reference;
+    actual.ConfigureGestures();
+    reference.ConfigureGestures();
+    reference.m_legacyRefresh = true;
+    std::mt19937 random(1741);
+    std::uniform_real_distribution<float> value(0.0f, 1.0f);
+    size_t preparedFrames = 0;
+    for (size_t frame = 0; frame < 5000; ++frame)
+    {
+        float blend = frame % 240 == 0 ? 0.0f : frame % 240 == 1 ? 1.0f
+            : 0.2f + 0.6f * static_cast<float>(frame % 96) / 95.0f;
+        for (auto* rig : {&actual, &reference})
+        {
+            rig->m_context.m_sceneManager.m_blendFactor = blend;
+            if (frame == 480 || frame == 520 || frame == 960 || frame == 1200 || frame == 1600)
+            {
+                Cell* edited = frame < 1200 ? rig->Root().m_modulators.m_modulators[2].get()
+                    : frame == 1200 ? &rig->Root() : rig->Root().m_modulators.m_gestures[1].get();
+                edited->SetValue(frame == 520 ? 0.35f : frame == 960 ? 0.85f : 0.7f, true);
+                edited->SetForceUpdateRecursive();
+                edited->SetModulatorsAffectingRecursive();
+            }
+        }
+
+        for (size_t source = 0; source < Cell::x_numModulators; ++source)
+        {
+            for (size_t lane = 0; lane < 4; ++lane)
+            {
+                float sample = value(random);
+                float amplitude = value(random);
+                actual.Sources().m_hostValue[source][lane] = reference.Sources().m_hostValue[source][lane] = sample;
+                actual.Sources().m_amplitude[source][lane] = reference.Sources().m_amplitude[source][lane] = amplitude;
+            }
+        }
+
+        for (size_t gesture = 0; gesture < Cell::x_numGestureParams; ++gesture)
+        {
+            float weight = value(random);
+            actual.Sources().m_gestureWeights[gesture] = reference.Sources().m_gestureWeights[gesture] = weight;
+        }
+
+        for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+        {
+            SampleTimer::IncrementSample();
+        }
+
+        actual.Process(false);
+        reference.Process(true);
+        CheckOutputs(actual, reference);
+        for (size_t scene = 0; scene < SmartGrid::SceneManager::x_numScenes; ++scene)
+        {
+            DOCTEST_CHECK(actual.Root().m_values[scene] == reference.Root().m_values[scene]);
+            DOCTEST_CHECK(actual.Root().m_modulators.m_modulators[2]->m_values[scene]
+                == reference.Root().m_modulators.m_modulators[2]->m_values[scene]);
+        }
+
+        DOCTEST_CHECK(actual.Root().m_tickDistributor.m_samplesSinceLastChange
+            == reference.Root().m_tickDistributor.m_samplesSinceLastChange);
+        DOCTEST_CHECK(actual.Root().m_modulators.m_modulators[2]->m_tickDistributor.m_samplesSinceLastChange
+            == reference.Root().m_modulators.m_modulators[2]->m_tickDistributor.m_samplesSinceLastChange);
+        if (frame < 480)
+        {
+            preparedFrames += actual.m_bank.m_matrix.m_roots[0].m_path == EncoderMatrix::Path::Graph;
+        }
+    }
+
+    DOCTEST_CHECK(preparedFrames > 400);
 }
 
 DOCTEST_TEST_CASE("encoder matrix: flat routes match recursive evaluation through sweeps and target changes")

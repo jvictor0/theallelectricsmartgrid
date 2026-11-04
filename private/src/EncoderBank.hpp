@@ -1101,7 +1101,25 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
 
         SetState();
         m_modulators.SetAllStates();
-        m_samplesForceUpdate = TickDistributor::x_maxSamplesToDistribute;
+        bool settled = m_tickDistributor.IsDone();
+        for (size_t i = 0; i < m_modulators.m_numActiveModulators && settled; ++i)
+        {
+            settled = m_modulators.GetModulator(i)->m_samplesForceUpdate == 1;
+        }
+
+        for (size_t i = 0; i < m_modulators.m_numActiveGestures && settled; ++i)
+        {
+            settled = m_modulators.GetGesture(i)->m_samplesForceUpdate == 1;
+        }
+
+        // A settled tree needs one fresh evaluation after a scene change.
+        // Trees with moving values retain the complete ramp update window.
+        //
+        m_samplesForceUpdate = settled ? 1 : TickDistributor::x_maxSamplesToDistribute;
+        if (settled)
+        {
+            SetModulatorsAffecting();
+        }
     }
 
     bool IsActive()

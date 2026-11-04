@@ -15,7 +15,7 @@ make perf-run PERF_ARGS='--suite encoders --seconds 6 --repeats 3'
 
 Builds reuse `build/tools/perf/Release/` (Release, NDEBUG, LTO, loop unrolling).
 Core correctness tests retain their separate configuration and assertions.
-`perf-test` smoke-runs all 117 workload/configuration combinations, exercises
+`perf-test` smoke-runs all 130 workload/configuration combinations, exercises
 bad arguments/replay files, and checks deterministic capture/output. It has **no
 timing thresholds**. This validates the harness, not DSP equivalence or quality.
 
@@ -46,6 +46,14 @@ The main unit is **milliseconds of calling-thread CPU time per second of audio**
 1000 ms/sec is one completely occupied CPU core; 10 ms/sec is 1% of that budget.
 This is an offline throughput measurement, not an iPad callback deadline or xrun
 measurement. Full SynthRig timing excludes its background I/O thread's CPU time.
+
+Prioritize the heaviest DSP workloads and callback maxima when judging an
+optimization. A substantial improvement near the real-time limit can justify a
+small regression in a case with comfortable headroom. Three to five short-run
+medians do not establish stable single-digit ms/sec audio differences. Treat
+such differences as inconclusive unless stronger measurements resolve them.
+Neither these whole-render medians nor their maximum measures the worst audio
+callback; callback maxima require separate measurement at the callback boundary.
 
 Component cases include input packing and the parameter mapping/setters shown in
 the harness. They exclude the encoder tree, live UI, and construction. Inputs
@@ -150,6 +158,86 @@ dumps contain four floats per named encoder at 1 ms intervals in enumeration
 order. Dump I/O is inside timing, so use dumps for validation, not reference
 performance. Seeded capture, full output and nested/gesture matrix output are
 checked for repeatability by `perf-test`.
+
+The `full/mixed/*` cases run a mixed fixture through the complete SynthRig:
+
+```sh
+make perf-run PERF_ARGS='--case "full/mixed/*" --seconds 6 --repeats 5'
+```
+
+The fixture alternates alphabetically sorted parameter names: 165 parameters
+receive two gestures each and have their modulation routes removed; the other
+164 retain the original modulation routes and have no gestures. Gesture targets
+reuse that parameter's values from other scenes, preserving its value range.
+The two gestures have different scene activation patterns and are distributed
+across all 16 faders. At least one is active in each scene. Fixed gesture weights
+start at 0.5.
+
+| Case | Scene blend | Gesture weights |
+| --- | --- | --- |
+| `full/mixed/fixed` | Left endpoint | Fixed at 0.5 |
+| `full/mixed/blend` | One-second triangle | Fixed at 0.5 |
+| `full/mixed/gestures` | Left endpoint | Sweeping |
+| `full/mixed/both` | One-second triangle | Sweeping |
+| `full/mixed/scenes` | Sweeping, scene pair changes each second | Sweeping |
+
+`full_gestures PATCH MODE SECONDS [DUMP]` drives the gesture weights with
+phase-offset triangles of two, three and four seconds. It sends `SetFader`
+messages every millisecond through the normal input queue and fader slews;
+faders also retain their normal mixer effects. Timing includes those input
+updates and the full synth. The runner generates `mixed-patch.json`, which can
+also be passed directly to `full` or `full_gestures`. The full results report
+loaded parameter counts and a gesture-output checksum outside the timed region.
+Protocol checks verify the split, deterministic output, and that moving the
+faders changes the gesture-controlled encoder outputs.
+
+The `consumer/flat/{fixed,sweep}` and `consumer/mixed/{fixed,sweep}` cases extend
+matrix replay with the actual `SquiggleBoy::SetEncoderParameters` call at every
+192 kHz engine sample. Each call reads the current oversample cache through the
+production getters and updates the DSP parameters. These cases guard the
+encoder/consumer boundary against moving expensive work out of the matrix and
+into `GetValue` or parameter application. Full SynthRig remains the primary
+optimization target and includes that path with live DSP feedback.
+
+Direct commands are `consumer PATCH MODE SECONDS REPLAY [DUMP]` and
+`consumer_gestures PATCH MODE SECONDS REPLAY [DUMP]`. The latter uses the mixed
+fixture with the same precomputed synthetic gesture weights as matrix replay;
+it does not run full-rig fader slews or audio DSP. Timings include publication,
+getters and parameter application together. `parameter_updates` reports the
+number of actual setter passes. Protocol checks confirm deterministic output,
+the engine-rate call count and matching encoder output with/without the consumer.
+
+## Saved patches through the full synth
+
+```sh
+make perf-run PERF_ARGS='--suite saved --patch /path/to/saved-patch.json --seconds 6 --repeats 5'
+```
+
+These four cases load the supplied patch without injecting modulation routes or
+gestures. Without `--patch`, they use the committed Espace Étale saved fixture.
+The input file is read only; normal patch loading/migration applies.
+
+| Case | Blend | Gesture faders |
+| --- | --- | --- |
+| `saved/hold` | Saved position | Saved positions |
+| `saved/blend` | One-second triangle | Saved positions |
+| `saved/gestures` | Saved position | Sweeping |
+| `saved/both` | One-second triangle | Sweeping |
+
+All four render the complete SynthRig. Gesture runs discover fader IDs linked
+to stored gestures active in at least one scene, including gestures on nested
+modulators. Only those faders receive the two-, three-, or four-second triangle
+messages; unrelated faders retain their saved positions. Their ordinary mixer
+effects and input slews remain in the workload. No gesture is activated or
+created. A patch without stored active gestures therefore has identical control
+motion in `hold`/`gestures` and in `blend`/`both`.
+
+Direct commands use `full PATCH hold SECONDS [DUMP]` to retain the loaded blend,
+or `full_saved_gestures PATCH hold|sweep SECONDS [DUMP]` to move only its gesture
+faders. The original `full_gestures` command still moves all sixteen faders for
+synthetic stress tests. JSON reports the selected fader bitmask and initial/final
+blend along with loaded parameter counts. Protocol checks exercise nonzero saved
+blend preservation, repeatability, unchanged input files, and the no-gesture case.
 
 ## Historical reference
 
