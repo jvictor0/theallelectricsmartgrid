@@ -1,8 +1,9 @@
 # Encoder state-machine specification
 
 This directory specifies the encoder runtime in **Lean 4.32.0 and Veil**, with
-70 EARS contracts and kernel-checked proofs. It models the current prepared
-evaluator, the editable recursive encoder state, and committed `HEAD` at
+71 EARS entries and kernel-checked proofs. Observable control behavior is specified
+independently of evaluation strategy. Supporting models describe the prepared
+evaluator, editable recursive encoder state, and committed `HEAD` at
 `0a0d206529be45b6ff3ac82824c65ebe73b49003`. Production C++ is
 not generated from this model and has not been formally verified by it.
 
@@ -42,6 +43,8 @@ from its own location, including when invoked from another working directory.
 | File | State/behavior | Main proof |
 | --- | --- | --- |
 | [Core.lean](Core.lean) | Eight current/target scene values; adaptive ramp timing; recording requests; four output lanes; host-frame history and oversample publication | `ramp_finishes`, `compute_valid`, `same_host_preserves_history` |
+| [Motion.lean](Motion.lean) | Ramp step bounds, settled refresh equivalence, blend sensitivity and single-fader motion | `ramp_step_between`, `settled_refresh_preserves_ramp_values`, `blend_motion_bound` |
+| [Behavior.lean](Behavior.lean) | Veil host-frame behavior with current inputs/ramp values and eager publication, independent of evaluation path | Generated preservation theorems for input freshness, evaluated output and published cache |
 | [StateMachine.lean](StateMachine.lean) | Veil actions for target setting, recorded edits, reset, compute, output writes and publication | Generated initialization/preservation theorems for `ramp_bounds` and `published_cache` |
 | [Reachability.lean](Reachability.lean) | Arbitrary action sequences in **Veil's generated transition relation** | `EncoderRuntime.reachable_safe` |
 | [Evaluation.lean](Evaluation.lean) | Ordered signed modulation sums, gestures, depth caching and compensated scene edits | `mix_bounded`, endpoint/gesture/compensation theorems |
@@ -80,13 +83,34 @@ the **last evaluated** snapshot, while preserving the live one. The protocol's
 force counter abstracts the eligibility of the active subtree; actual recursive
 eligibility is a separate C++ correspondence obligation.
 
+The behavioral machine has no prepared/fallback branch, schedule revision or
+layout constraint. Each host action advances the ramp, evaluates current inputs
+and publishes the oversample cache. One action corresponds to one 48 kHz host
+frame; it does not introduce a slower control rate. Its pure evaluation kernel
+is abstract: numerical and dependency-graph equations remain separate proofs.
+The native implementation may skip work when the result would be unchanged.
+This machine is a behavioral reference, not an automatically established
+refinement of the C++ evaluator. It retains the existing leaf ramp trajectory;
+another trajectory may replace it after establishing the motion/convergence
+contracts. It does not claim continuity across discrete patch or scene changes.
+
+E08 (force-zero no-op), E11 (mandatory full endpoint-refresh countdown), E23
+(specific ancestor force counters), E24 (ramp/revision fallback) and E36
+(prepared eligibility) are retired as requirements. Their historical lemmas
+remain available as descriptions of the old implementation. E03, E50, E54, E55
+and E69 no longer require a particular force duration or recursive evaluation
+path. Other implementation-model lemmas are supporting evidence, not a mandate
+to preserve that model when changing the implementation. E71–E76 add motion,
+freshness, publication and settled-refresh guarantees. The accepted gesture
+capture counterexample E70 remains recorded.
+
 ## What the proofs establish
 
 The [EARS manifest](requirements.json) maps each requirement to actual theorem
 names and source anchors. It covers target isolation, recording placement,
 read-only computation, normalized state, finite ramp completion, scene blending,
 signed modulation bounds, gesture endpoints, amplitude/gesture invalidation,
-ancestor forcing, prepared-path guards, snapshot synchronization, host gating,
+snapshot synchronization, host gating, current-input evaluation at host cadence,
 output history, publication, evaluation-order equivalence, Shift-turn arithmetic
 and recursive traversal, gesture edit allocation, depth-curve properties, reset-to-default, gesture activation/capture and selective deletion. E70 is a proved counterexample to unconditional activation convergence, not a desired-behavior guarantee.
 
@@ -152,7 +176,7 @@ pinned revision and puts reviewable copies in `build/lean/head-source/`; it does
 not check out or build the baseline C++.
 
 Both versions share the unchanged ramp, recording, modulation, gesture and
-interpolation definitions. The audit checks 43 corresponding C++ bodies for
+interpolation definitions. The audit checks 42 corresponding C++ bodies for
 exact textual equality. HEAD additionally has its own Veil runtime and eager
 root protocol, and its publication loop is modeled independently. We prove
 publication equality and combine it with arbitrary-depth schedule equivalence.
@@ -160,13 +184,13 @@ That comparison assumes the same valid pure graph, relevant inputs and starting
 output/history. It is not a full C++ observational-equivalence proof covering
 allocator state or all interleavings.
 
-Of 70 contracts, 57 use shared definitions, three have separate HEAD runtime
-proofs, two are cross-evaluator comparisons, three are eager protocol analogues,
-and five are working-tree-only mechanisms. See the generated table for the
-machine-audited exact classification. E20 (prepared leaf cache), E24 (schedule
-guard), E25 (deferred synchronization), E35 (synchronize/rebuild) and E36 (prepared
-eligibility at evaluation) are not mechanisms present in HEAD. HEAD instead
-proves that its derived tree remains materialized at each modeled boundary.
+See the generated table for the machine-audited classification of all 71 entries.
+E20 (prepared leaf cache), E25 (deferred synchronization) and E35
+(synchronize/rebuild) describe mechanisms absent from HEAD. HEAD instead proves
+that its derived tree remains materialized at each modeled boundary. The new
+host behavioral contracts have an eager-protocol analogue in HEAD; this is not
+a new end-to-end C++ equivalence proof. E76 compares the short and historical
+full refresh trajectories under explicit settled-state assumptions.
 
 | Behavior | Coverage and remaining boundary |
 | --- | --- |
@@ -213,8 +237,9 @@ conversion, at the final valid oversample slot in both publication models. Earli
 slots in that host frame may still interpolate from the previous output. Reset
 itself does not overwrite output history or pretend that ramping has completed.
 The protocol proofs show that the next host pass uses the post-reset live
-snapshot even when inputs are unchanged; the prepared evaluator must take its
-recursive path. The protocol's snapshot argument is the concrete reset result
+snapshot even when inputs are unchanged. The older prepared model chooses its
+recursive path, but that choice is not a behavioral requirement. The protocol's
+snapshot argument is the concrete reset result
 at this boundary, not an independent proof of the target-write formula.
 
 Full-owner reset covers named roots even when hidden. Bank reset covers only
@@ -245,7 +270,7 @@ The encoder layout and depth-batching optimization retains these definitions and
 contracts. `EncoderMatrix::UpdateDepths` groups four independent simple-route
 positions into the existing lane-wise depth curve after a bank-wide blend-change
 notification; scalar scene blending, route accumulation order, graph evaluation,
-fallback guards, synchronization and publication are unchanged. The slot-index
+fallback guards, synchronization and publication equations are unchanged. The slot-index
 arrays use signed bytes, with compile-time bounds for both catalogues and the
 existing `-1` sentinel. Member placement and cell alignment change storage only.
 The source audit still checks the unchanged shared C++ bodies against the pinned
@@ -256,6 +281,29 @@ review. Differential tests cover batch sizes and tails, alongside the existing
 edit, amplitude, gesture, scene, reset and output-history cases. This review does
 not extend the model's floating-point or C++ verification claims.
 
+Publication also captures the output-buffer pointers once per host frame, and
+the root's output index and polarity before writing cache slots. The bank
+allocates these buffers at construction; processing does not resize them. Each
+slot retains the same timestamp guard, interpolation expression and bipolar
+mapping, including ratio-one processing. This changes memory accesses only;
+the publication model and its contracts are unchanged.
+
+Endpoint refresh now gives a fully settled subtree one fresh evaluation instead
+of a mandatory 2400-frame forced interval. A subtree with moving values or an
+unsaturated edit age retains the full interval. Children are checked after their
+own refresh decisions; the short case rebuilds dependency masks before computing.
+`settled_refresh_preserves_ramp_values` proves identical current values and edit
+age for every subsequent step when remaining ramp is zero and age is saturated.
+The age condition matters: ignoring it would change the duration of later edits.
+The proof does not verify dependency-mask construction or recursive propagation;
+native differential tests compare against an explicitly emulated old full-window
+refresh through nested routes, gestures, endpoint transitions and live edits.
+
+Publication remains eager. `GetValue` still reads the published cache, and no
+work is transferred into production `SetEncoderParameters`. The maintained
+consumer benchmark calls that function at every engine sample as an additional
+performance guard. Neither the Lean models nor a source hash prove execution cost.
+
 After changing covered C++, review the affected definitions, requirements and
 proofs before updating the recorded hashes. Do not refresh fingerprints merely
 to make verification green. Add a contract to `requirements.json` when adding
@@ -263,7 +311,7 @@ a behavioral promise; its theorem must exist in the imported Lean environment.
 
 All Veil modules explicitly disable trusted SMT results and use Lean's `grind`
 solver. The audit checks all declarations in `Encoder`, `EncoderRuntime`, and
-`EncoderPrepared`, `EncoderHeadRuntime` and `EncoderHeadProtocol`, including
+`EncoderPrepared`, `EncoderBehavior`, `EncoderHeadRuntime` and `EncoderHeadProtocol`, including
 generated Veil verification conditions and both manifests' named theorems. Only
 `propext`, `Classical.choice`, and `Quot.sound` are permitted transitively;
 admitted proofs, custom axioms and native-evaluation trust axioms fail the audit.
@@ -346,8 +394,9 @@ allocation/index-array maintenance and subsequent garbage collection remain
 integration boundaries.
 
 The deletion protocols prove a corrective host evaluation even when deletion
-empties the dependency mask and all inputs remain unchanged. The current model
-must use recursive fallback; HEAD eagerly materializes the then-live snapshot.
+empties the dependency mask and all inputs remain unchanged. The older prepared
+model uses recursive fallback; HEAD eagerly materializes the then-live snapshot.
+The observable requirement does not prescribe the evaluation path.
 As with reset, the snapshot is supplied by the concrete modeled deletion at the
 protocol boundary: these are not proofs of the C++ dependency-mask builder.
 

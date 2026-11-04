@@ -11,6 +11,7 @@ import Encoder.ResetEvaluation
 import Encoder.GestureTree
 import Encoder.GestureMachine
 import Encoder.HeadGestureMachine
+import Encoder.Behavior
 import Lean.Util.CollectAxioms
 
 /-! Build-time trust audit. Inspect transitive dependencies, including generated
@@ -31,7 +32,10 @@ run_cmd do
     ``EncoderRuntime.publish_published_cache,
     ``EncoderPrepared.host_output_matches_evaluated,
     ``EncoderPrepared.synchronize_materialized_matches_evaluated,
-    ``EncoderPrepared.host_prepared_requires_current_schedule]
+    ``EncoderBehavior.host_frame_current_inputs,
+    ``EncoderBehavior.host_frame_current_ramp,
+    ``EncoderBehavior.host_frame_published_cache,
+    ``Encoder.Motion.settled_refresh_preserves_ramp_values]
   for name in required do
     unless (env.find? name).any (fun c => c matches .thmInfo _) do
       throwError "missing proved encoder contract: {name}"
@@ -74,7 +78,7 @@ run_cmd do
   for (name, info) in env.constants.toList do
     let localSpec := ["Encoder.", "EncoderRuntime.", "EncoderPrepared.",
       "EncoderHeadRuntime.", "EncoderHeadProtocol.",
-      "EncoderGestureRuntime.", "EncoderHeadGestureRuntime."].any
+      "EncoderGestureRuntime.", "EncoderHeadGestureRuntime.", "EncoderBehavior."].any
       (fun ns => name.toString.startsWith ns)
     if localSpec then
       declarations := declarations + 1

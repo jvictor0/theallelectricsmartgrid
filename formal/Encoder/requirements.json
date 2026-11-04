@@ -2,7 +2,7 @@
   {
     "id": "E01",
     "status": "proved",
-    "requirement": "When an encoder is initialized with a normalized default, its scene values and targets shall be in [0,1], and its ramp counters shall satisfy remaining \u2264 force \u2264 maximum.",
+    "requirement": "When an encoder is initialized with a normalized default, its scene values and targets shall be in [0,1].",
     "theorems": [
       "Encoder.initialFrom_valid"
     ],
@@ -25,10 +25,9 @@
   {
     "id": "E03",
     "status": "proved",
-    "requirement": "When a target changes, the current values shall not jump and the force counter shall be set to maximum.",
+    "requirement": "When a target changes, the current scene values shall not jump.",
     "theorems": [
-      "Encoder.target_changes_do_not_jump",
-      "Encoder.changed_target_forces"
+      "Encoder.target_changes_do_not_jump"
     ],
     "anchors": [
       "target"
@@ -82,20 +81,9 @@
     ]
   },
   {
-    "id": "E08",
-    "status": "proved",
-    "requirement": "While the force counter is zero, computation shall leave the ramp state unchanged.",
-    "theorems": [
-      "Encoder.idle_compute_noop"
-    ],
-    "anchors": [
-      "compute"
-    ]
-  },
-  {
     "id": "E09",
     "status": "proved",
-    "requirement": "When a normalized target is set or a compute step occurs in a valid cell, normalized scene values and valid counter bounds shall be preserved.",
+    "requirement": "When a normalized target is set or a compute step occurs in a coherent cell, normalized scene values and targets shall be preserved.",
     "theorems": [
       "Encoder.setTarget_valid",
       "Encoder.edit_valid",
@@ -110,26 +98,13 @@
   {
     "id": "E10",
     "status": "proved",
-    "requirement": "While processing advances without intervening edits, a ramp with n+1 remaining samples and at least n+1 force samples shall land exactly on its targets after n+1 compute steps.",
+    "requirement": "While host processing advances without intervening edits, a coherent ramp shall reach its targets within the configured maximum number of host frames. With the current timing this is 2400 frames (50 ms at 48 kHz).",
     "theorems": [
-      "Encoder.ramp_finishes",
+      "Encoder.Reset.run_max_lands",
       "Encoder.run_preserves_targets"
     ],
     "anchors": [
       "ramp",
-      "compute"
-    ]
-  },
-  {
-    "id": "E11",
-    "status": "proved",
-    "requirement": "When the scene tree is refreshed at an endpoint transition, its maximum force counter shall remain active for every proper prefix of maximum advancing compute steps, even when there is no value ramp.",
-    "theorems": [
-      "Encoder.force_countdown",
-      "Encoder.endpoint_refresh_keeps_force_active"
-    ],
-    "anchors": [
-      "refresh",
       "compute"
     ]
   },
@@ -268,31 +243,6 @@
     ]
   },
   {
-    "id": "E23",
-    "status": "proved",
-    "requirement": "When an edit invalidates an explicit ancestor path including the edited cell, all path counters shall be forced and all counters outside the path shall be preserved.",
-    "theorems": [
-      "Encoder.ancestor_forced",
-      "Encoder.unrelated_counter_unchanged"
-    ],
-    "anchors": [
-      "invalidate"
-    ]
-  },
-  {
-    "id": "E24",
-    "status": "proved",
-    "requirement": "While a root has an active force counter or mismatched schedule revision, processing shall choose fallback; use of a prepared path shall require connected, settled, matching state.",
-    "theorems": [
-      "Encoder.active_ramp_falls_back",
-      "Encoder.revision_mismatch_falls_back",
-      "Encoder.prepared_requires_settled"
-    ],
-    "anchors": [
-      "eligibility"
-    ]
-  },
-  {
     "id": "E25",
     "status": "proved",
     "requirement": "When deferred tree values are synchronized, synchronization shall evaluate the last evaluated snapshot and preserve live inputs, ramp state and root output history.",
@@ -422,18 +372,6 @@
     "anchors": [
       "synchronization",
       "rebuild"
-    ]
-  },
-  {
-    "id": "E36",
-    "status": "proved",
-    "requirement": "When the connected-root protocol actually uses prepared evaluation, its evaluation-time force counter shall be zero and its evaluation-time revision shall match the schedule.",
-    "theorems": [
-      "EncoderPrepared.host_prepared_requires_current_schedule"
-    ],
-    "anchors": [
-      "prepared_process",
-      "eligibility"
     ]
   },
   {
@@ -618,11 +556,10 @@
   {
     "id": "E50",
     "status": "proved",
-    "requirement": "When a finite modulation tree is reset, its root shall receive its configured default and every existing modulation descendant shall receive neutral scoped targets and a maximum force counter, regardless of its current dependency mask.",
+    "requirement": "When a finite modulation tree is reset, its root shall receive its configured default and every existing modulation descendant shall receive neutral scoped targets, regardless of its current dependency mask. The resulting base/modulation ramps shall remain coherent.",
     "theorems": [
       "Encoder.Reset.reset_root_target",
       "Encoder.Reset.reset_descendant",
-      "Encoder.Reset.reset_forces_every_descendant",
       "Encoder.Reset.resetTree_ready"
     ],
     "anchors": [
@@ -677,27 +614,23 @@
   {
     "id": "E54",
     "status": "proved",
-    "requirement": "When reset occurs, force invalidation shall require evaluation even if all affecting dependency sets become empty and live inputs do not change; a prepared path shall be ineligible during the forced interval.",
+    "requirement": "When reset occurs, its changed values shall require a fresh evaluation even if all affecting dependency sets become empty and live inputs do not change.",
     "theorems": [
-      "Encoder.Reset.reset_forces",
-      "Encoder.Reset.reset_is_dirty",
-      "Encoder.Reset.reset_rejects_prepared"
+      "Encoder.Reset.reset_is_dirty"
     ],
     "anchors": [
       "reset",
-      "dirty",
-      "eligibility"
+      "dirty"
     ]
   },
   {
     "id": "E55",
     "status": "proved",
-    "requirement": "In the evaluation protocol, reset shall force the next host evaluation from the post-reset live snapshot. The working-tree evaluator shall use its recursive path for that evaluation.",
+    "requirement": "In the evaluation protocol, reset shall require the next host evaluation to use the post-reset live snapshot. The evaluation path is unrestricted.",
     "theorems": [
       "EncoderPrepared.reset_reset_forces_evaluation",
       "EncoderPrepared.host_reset_evaluates",
-      "EncoderPrepared.host_reset_uses_live_snapshot",
-      "EncoderPrepared.host_reset_uses_recursive_path"
+      "EncoderPrepared.host_reset_uses_live_snapshot"
     ],
     "anchors": [
       "reset",
@@ -921,12 +854,11 @@
   {
     "id": "E69",
     "status": "proved",
-    "requirement": "When gesture deletion supplies its resulting live snapshot, the next modeled host pass shall evaluate the then-live snapshot despite unchanged inputs or empty dependencies. The prepared implementation shall take its recursive fallback; HEAD shall eagerly materialize the snapshot.",
+    "requirement": "When gesture deletion supplies its resulting live snapshot, the next modeled host pass shall evaluate the then-live snapshot despite unchanged inputs or empty dependencies. The evaluation path is unrestricted.",
     "theorems": [
       "EncoderPrepared.clear_gesture_gesture_clear_forces_evaluation",
       "EncoderPrepared.host_gesture_clear_evaluates",
-      "EncoderPrepared.host_gesture_clear_uses_live_snapshot",
-      "EncoderPrepared.host_gesture_clear_uses_recursive_path"
+      "EncoderPrepared.host_gesture_clear_uses_live_snapshot"
     ],
     "anchors": [
       "gesture_clear_registry",
@@ -951,5 +883,88 @@
       "scene_edit",
       "ramp"
     ]
+  },
+  {
+    "id": "E71",
+    "requirement": "With normalized current values and targets, an advancing ramp step shall lie between its previous value and target, without overshoot. A fully settled value shall remain unchanged when processing continues.",
+    "theorems": [
+      "Encoder.Motion.ramp_step_between",
+      "Encoder.Motion.stationary_run"
+    ],
+    "anchors": [
+      "ramp",
+      "compute"
+    ],
+    "status": "proved"
+  },
+  {
+    "id": "E72",
+    "requirement": "For fixed normalized scene values, changing blend by delta shall change the blended value by at most |delta|. This is a continuous-control guarantee, not continuity across arbitrary scene selection or patch loading.",
+    "theorems": [
+      "Encoder.Motion.blend_motion",
+      "Encoder.Motion.blend_motion_bound"
+    ],
+    "anchors": [
+      "numeric"
+    ],
+    "status": "proved"
+  },
+  {
+    "id": "E73",
+    "requirement": "For a single contributing gesture with nonnegative effective weight, the post-gesture value shall equal the ordinary base-to-target blend, including at zero weight. Thus a normalized single fader has the same motion bound as E72; arbitrary multi-gesture motion is not yet covered.",
+    "theorems": [
+      "Encoder.Motion.gesture_zero_weight_motion",
+      "Encoder.Motion.blend_motion_bound"
+    ],
+    "anchors": [
+      "gestures",
+      "numeric"
+    ],
+    "status": "proved"
+  },
+  {
+    "id": "E74",
+    "requirement": "In the behavioral Veil machine, each host-frame action shall evaluate the latest input snapshot and the advanced ramp values. Inputs include modulator values, amplitudes, gesture weights and blend; at the 48 kHz host cadence none may be held at a slower control rate. This is a sampling-freshness contract, not a CPU deadline proof.",
+    "theorems": [
+      "EncoderBehavior.initializer_current_inputs",
+      "EncoderBehavior.initializer_current_ramp",
+      "EncoderBehavior.initializer_evaluated_output",
+      "EncoderBehavior.host_frame_current_inputs",
+      "EncoderBehavior.host_frame_current_ramp",
+      "EncoderBehavior.host_frame_evaluated_output"
+    ],
+    "anchors": [
+      "host_gate",
+      "changed",
+      "ramp"
+    ],
+    "status": "proved"
+  },
+  {
+    "id": "E75",
+    "requirement": "In the behavioral Veil machine, every completed host-frame action shall publish all oversample slots from the evaluated output and its history. Reading the published value requires no graph evaluation; runtime cost is guarded separately by native consumer and full-rig benchmarks.",
+    "theorems": [
+      "EncoderBehavior.initializer_published_cache",
+      "EncoderBehavior.host_frame_published_cache",
+      "Encoder.last_slot_current",
+      "Encoder.ratio_one_current"
+    ],
+    "anchors": [
+      "publish",
+      "history"
+    ],
+    "status": "proved"
+  },
+  {
+    "id": "E76",
+    "requirement": "Refreshing fully settled scene values shall leave those values stationary. The current proof compares short and full refreshes when no ramp remains and edit age is saturated; it requires no particular force-counter duration or evaluation path.",
+    "theorems": [
+      "Encoder.Motion.settled_refresh_preserves_ramp_values"
+    ],
+    "anchors": [
+      "refresh",
+      "ramp"
+    ],
+    "status": "proved"
   }
 ]

@@ -18,6 +18,7 @@ import sys
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 FIXTURE = HERE / "fixtures/modulation-stress.json"
+SAVED_FIXTURE = HERE.parent / "fixtures_espace_etale_2026-06-24T10-40-13.json"
 
 
 def child_env():
@@ -35,8 +36,8 @@ def execute(command):
     if len(lines) != 1:
         raise RuntimeError(f"Expected one result: {result.stdout[-2000:]}")
     row = json.loads(lines[0])
-    for key in ("ms_per_audio_second", "us_per_transform", "cpu_seconds", "checksum"):
-        if key in row and (not math.isfinite(row[key]) or (key != "checksum" and row[key] < 0)):
+    for key in ("ms_per_audio_second", "us_per_transform", "cpu_seconds", "checksum", "gesture_checksum"):
+        if key in row and (not math.isfinite(row[key]) or (key not in ("checksum", "gesture_checksum") and row[key] < 0)):
             raise RuntimeError(f"Invalid metric {key}: {row[key]}")
     return row
 
@@ -75,6 +76,21 @@ def cases(suite):
                 result.append((f"matrix/{topology}/{mode}", "encoders", "matrix", topology, mode))
         for mode in ("fixed", "right", "mid", "sweep", "scenes"):
             result.append((f"full/{mode}", "encoders", "full", "flat", mode))
+        for name, kind, mode in (("fixed", "full", "fixed"),
+                                 ("blend", "full", "sweep"),
+                                 ("gestures", "full_gestures", "fixed"),
+                                 ("both", "full_gestures", "sweep"),
+                                 ("scenes", "full_gestures", "scenes")):
+            result.append((f"full/mixed/{name}", "encoders", kind, "mixed", mode))
+        for topology, kind in (("flat", "consumer"), ("mixed", "consumer_gestures")):
+            for mode in ("fixed", "sweep"):
+                result.append((f"consumer/{topology}/{mode}", "encoders", kind, topology, mode))
+    if suite in ("saved", "all"):
+        for name, kind, mode in (("hold", "full", "hold"),
+                                 ("blend", "full", "sweep"),
+                                 ("gestures", "full_saved_gestures", "hold"),
+                                 ("both", "full_saved_gestures", "sweep")):
+            result.append((f"saved/{name}", "encoders", kind, "saved", mode))
     return result
 
 
@@ -99,8 +115,22 @@ def derive_fixtures(output, source):
         for amount in root.get("modulators", []):
             if amount:
                 attach(amount, (index + 3) % 16, True)
+    mixed = copy.deepcopy(base)
+    mixed["faders"] = [0.5] * 16
+    for index, name in enumerate(sorted(mixed["squiggleBoy"])):
+        root = mixed["squiggleBoy"][name]
+        root.pop("gestures", None)
+        if index % 2 == 0:
+            root.pop("modulators", None)
+            values = root["values"]["values"]
+            slot = (index // 2) % 16
+            root["gestures"] = [None] * 16
+            for offset, rotation, inactive in ((0, 3, 1), (5, 5, 2)):
+                root["gestures"][(slot + offset) % 16] = {
+                    "values": {"values": [values[(scene + rotation) % 8] for scene in range(8)]},
+                    "active": [scene % 3 != inactive for scene in range(8)]}
     paths = {"flat": Path(source).resolve()}
-    for name, value in (("nested", nested), ("gestures", gesture)):
+    for name, value in (("nested", nested), ("gestures", gesture), ("mixed", mixed)):
         path = output / f"{name}-patch.json"
         path.write_text(json.dumps(value, separators=(',', ':')) + '\n')
         paths[name] = path
@@ -117,12 +147,12 @@ def positive(text):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bin-dir', type=Path, default=ROOT / 'build/tools/perf/Release')
-    parser.add_argument('--suite', choices=('components', 'encoders', 'all'), default='all')
+    parser.add_argument('--suite', choices=('components', 'encoders', 'saved', 'all'), default='all')
     parser.add_argument('--case', action='append', help='case glob; repeat to select several')
     parser.add_argument('--seconds', type=positive, default=6)
     parser.add_argument('--repeats', type=int, default=3)
     parser.add_argument('--output', type=Path)
-    parser.add_argument('--patch', type=Path, default=FIXTURE)
+    parser.add_argument('--patch', type=Path, help='patch to load; saved cases preserve its routing and gestures')
     parser.add_argument('--replay', type=Path, help='reuse exactly the same captured input across revisions')
     parser.add_argument('--smoke', action='store_true', help='all selected cases, once, 0.02 seconds; no speed assertions')
     parser.add_argument('--list', action='store_true')
@@ -143,13 +173,16 @@ def main():
     for binary in binaries.values():
         if not binary.is_file():
             parser.error(f'{binary} is missing; run make perf-build')
-    patches = {'flat': args.patch.resolve()}
+    source = args.patch or FIXTURE
+    patches = {'flat': source.resolve(), 'saved': (args.patch or SAVED_FIXTURE).resolve()}
     replay = args.replay.resolve() if args.replay else output / 'replay.bin'
-    if any(case[2] == 'matrix' for case in selected):
-        patches = derive_fixtures(output, args.patch)
+    if any(case[3] in ('nested', 'gestures', 'mixed') for case in selected):
+        patches.update(derive_fixtures(output, source))
+    replay_kinds = ('matrix', 'consumer', 'consumer_gestures')
+    if any(case[2] in replay_kinds for case in selected):
         if not args.replay:
             print('Capturing reusable modulation inputs...', flush=True)
-            execute([binaries['encoders'], 'record', args.patch, 'sweep', 0.02 if args.smoke else 1, replay])
+            execute([binaries['encoders'], 'record', source, 'sweep', 0.02 if args.smoke else 1, replay])
     def git(*arguments):
         return subprocess.check_output(['git', '-C', str(ROOT), *arguments], text=True).strip()
     metadata = {'schema': 1, 'created': datetime.datetime.now().astimezone().isoformat(),
@@ -160,7 +193,7 @@ def main():
                 'build': json.loads((args.bin_dir / 'build.json').read_text()),
                 'binaries': {name: digest(path) for name, path in binaries.items()},
                 'fixtures': {name: digest(path) for name, path in patches.items()}}
-    if any(case[2] == 'matrix' for case in selected):
+    if any(case[2] in replay_kinds for case in selected):
         metadata['replay_sha256'] = digest(replay)
     (output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
     jobs = [(case, repeat) for repeat in range(repeats) for case in selected]
@@ -172,7 +205,7 @@ def main():
             if executable == 'encoders':
                 command = [binaries[executable], 'matrix_gestures' if lanes == 'gestures' else kind,
                            patches[lanes], mode, seconds]
-                if kind == 'matrix':
+                if kind in replay_kinds:
                     command.append(replay)
             else:
                 command = [binaries[executable], kind, lanes, mode, seconds]
