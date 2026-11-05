@@ -551,7 +551,7 @@ DOCTEST_TEST_CASE("Trio: sample source channels match mono cores with their own 
         MakeSineBank(12000, 0.023),
         MakeSineBank(20000, 0.004)};
 
-    // Each grain manager holds a thousand grain buffers; keep them off the stack.
+    // Keep the synthesis frames and overlap-add buffers off the stack.
     //
     auto trio = std::make_unique<TrioSampleSource>();
     std::unique_ptr<SampleSourceGeneric<1>> mono[3];
@@ -592,4 +592,71 @@ DOCTEST_TEST_CASE("Trio: sample source channels match mono cores with their own 
     }
 
     output.Check(1e-5);
+}
+
+DOCTEST_TEST_CASE("Trio: removing a sample bank clears its audio without affecting other channels")
+{
+    GlobalEnv::ResetPerTest();
+    auto bank = MakeSineBank(16384, 32.0 / 4096.0);
+    auto silence = MakeSineBank(16384, 0.0);
+    auto trio = std::make_unique<TrioSampleSource>();
+    auto reference = std::make_unique<SampleSource>();
+    TrioSampleSource::Input input;
+    SampleSource::Input referenceInput;
+    bool keepOtherBank = true;
+    DOCTEST_SUBCASE("Another channel keeps the shared grain manager running")
+    {
+    }
+
+    DOCTEST_SUBCASE("Removing the last bank pauses the shared grain manager")
+    {
+        keepOtherBank = false;
+    }
+
+    trio->SetAudioBufferBank(0, bank.get());
+    if (keepOtherBank)
+    {
+        trio->SetAudioBufferBank(1, bank.get());
+    }
+
+    reference->SetAudioBufferBank(0, bank.get());
+    constexpr size_t x_frame = TrioSampleSource::GrainManagerType::SynthesisOLA::x_frameSize;
+    double beforeEnergy = 0;
+    for (size_t sample = 0; sample < 4 * x_frame; ++sample)
+    {
+        TrioFloat output = trio->Process(input);
+        reference->Process(referenceInput);
+        if (sample >= 3 * x_frame)
+        {
+            beforeEnergy += output[0] * output[0];
+        }
+    }
+
+    DOCTEST_REQUIRE(beforeEnergy > 1.0);
+    trio->SetAudioBufferBank(0, nullptr);
+    for (size_t sample = 0; sample < 17; ++sample)
+    {
+        TrioFloat output = trio->Process(input);
+        float referenceOutput = reference->Process(referenceInput)[0];
+        DOCTEST_REQUIRE(output[0] == 0.0f);
+        if (keepOtherBank)
+        {
+            DOCTEST_REQUIRE(output[1] == doctest::Approx(referenceOutput).epsilon(1e-5));
+        }
+    }
+
+    // Reattach before the old frame would have drained. Its queued samples and
+    // spectral state must not leak into the new silent bank.
+    //
+    trio->SetAudioBufferBank(0, silence.get());
+    for (size_t sample = 0; sample < 2 * x_frame; ++sample)
+    {
+        TrioFloat output = trio->Process(input);
+        float referenceOutput = reference->Process(referenceInput)[0];
+        DOCTEST_REQUIRE(output[0] == 0.0f);
+        if (keepOtherBank)
+        {
+            DOCTEST_REQUIRE(output[1] == doctest::Approx(referenceOutput).epsilon(1e-5));
+        }
+    }
 }

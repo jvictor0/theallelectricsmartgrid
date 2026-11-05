@@ -1,8 +1,8 @@
 {
   "description": "Reviewed C++ snapshot for the Lean model. Hashes detect drift; they do not prove C++ refinement. Review correspondence before changing hashes.",
   "files": {
-    "private/src/Encoder.hpp": "a66944193265244c039117876181ab6f66cdcad6ff1c523d4e46d834c871c71e",
-    "private/src/EncoderBank.hpp": "52fea6e36eea481c0f416f1bc7d9870ccb4e73812f6f07770c567ff691622935",
+    "private/src/Encoder.hpp": "b64a863c53080d6e61fa1b2296e13166d99f57651d3190952a032b27f9996216",
+    "private/src/EncoderBank.hpp": "708b620da955ab5ca8344764cbf5460bf457278dcf93d55826154785fba6d169",
     "private/src/EncoderBankBank.hpp": "86d47c7bcf6c0f199c712ebb13834c7be201e8da5ca4f07bfabeb38047edf604",
     "private/src/EncoderMatrix.hpp": "1e4ebbeae1a3bb5a6fa3fef27eb26ef2c6bbfa32d31c2d5f79af32ac8c9e655a",
     "private/src/QuadUtils.hpp": "eb287a8dd5c2f88979153018a2b246aa7056979ae252773cccb92182c293a69b",
@@ -445,6 +445,18 @@
       {
         "path": "private/src/EncoderBank.hpp",
         "symbol": "void ClearGesture(int gesture)\n    {\n        for (int i = 0; i < 4; ++i)"
+      }
+    ],
+    "patch_load": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void FromJSON(JSON rootJ)\n    {\n        if (m_depth == 0)"
+      }
+    ],
+    "patch_decode": [
+      {
+        "path": "private/src/Encoder.hpp",
+        "symbol": "void FromJSON(JSON root)"
       }
     ]
   }

@@ -23,6 +23,14 @@ struct OLAGeneric
     {
     }
 
+    void ClearChannel(size_t channel)
+    {
+        for (size_t i = 0; i < x_frameSize; ++i)
+        {
+            m_buffer.m_table[i][channel] = 0;
+        }
+    }
+
     Vector Process()
     {
         Vector result = m_buffer.m_table[m_index];

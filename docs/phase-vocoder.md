@@ -1,6 +1,6 @@
 # Phase Vocoder
 
-The phase-vocoder path is implemented by `Resynthesizer` (`private/src/Resynthesis.hpp`) and driven by `GrainManager` (`private/src/DelayLine.hpp`) inside the Quad Delay.
+The phase-vocoder path is implemented by `ResynthesizerGeneric` (`private/src/Resynthesis.hpp`) and driven by `GrainManagerGeneric` (`private/src/DelayLine.hpp`). Quad Delay uses one packed four-channel instance; sample playback uses one packed three-channel instance per track. Channels share the grain launch schedule, transforms and overlap-add storage while retaining independent spectra, read positions and phase propagation.
 
 ## Why it is needed
 
@@ -76,7 +76,7 @@ For each oscillator, `Synthesize()` mixes two shift layers (`Oscillator::x_numSh
   - `gainA = 1 - fade^4`
   - `gainB = fade^4`
 
-Per-bin magnitude source is `m_synthesisMagnitudes[bin].m_output`, which is slewed to reduce abrupt spectral jumps.
+Per-bin magnitude source is `m_synthesisMagnitudes[bin][channel]`, which is slewed to reduce abrupt spectral jumps.
 
 ## Pitch shifting details
 
@@ -111,7 +111,7 @@ Unison is implemented as 3-oscillator energy-distributed layering:
 
 This keeps output level controlled while adding symmetric spread.
 
-In addition, delay modulation can inject per-channel sample offsets (`sampleOffset`) before analysis grain capture, which contributes to stereo/quad width and motion.
+The generic grain manager accepts per-channel host-sample offsets before analysis capture. Quad Delay passes zero and derives channel differences from its tape heads; it has no internal LFO.
 
 ## Notes on exposed controls
 
@@ -122,14 +122,14 @@ From `QuadDelayInputSetter` into `Resynthesizer::Input`:
 - `m_unisonDetune`, `m_unisonGain`
 - `m_slewUp`: partial rise-rate control for spectral bloom
 
-`m_slewDown` exists in the input struct but is not applied in this path: `Synthesize` calls only `SetSlewUp(input.m_slewUp)` (`private/src/Resynthesis.hpp:661`); there is no corresponding `SetSlewDown` call, so the slew-down value is currently inert here.
+`m_slewDown` exists in the input struct but is not applied in this path: `Synthesize` calls only `SetSlewUp`; there is no corresponding `SetSlewDown` call, so the slew-down value is currently inert here.
 
 ## Quad Delay integration
 
 In the delay path:
 
 - `QuadDelayInputSetter` computes warped read head positions.
-- `QuadGrainManager` launches grains at those positions.
+- `QuadGrainManager` launches all four channels together at their individual mapped positions, bounded by the latest complete recorded analysis window.
 - `Resynthesizer` performs phase-coherent reconstruction.
 
 This enables:

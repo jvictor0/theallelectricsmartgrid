@@ -6,6 +6,7 @@
 #include "ExternalClockSync.hpp"
 
 #include <type_traits>
+#include <limits>
 
 DOCTEST_TEST_CASE("ExternalClockSync: constructor initializes defaults")
 {
@@ -236,4 +237,41 @@ DOCTEST_TEST_CASE("ExternalClockSync: stop transition preserves counters and tem
     DOCTEST_CHECK(sync.m_ticksOffset == ticksOffset);
     DOCTEST_CHECK(sync.m_samplesSinceLastClock == samplesSince + 1);
     DOCTEST_CHECK(sync.m_freqOut == doctest::Approx(freqOut));
+}
+
+DOCTEST_TEST_CASE("ExternalClockSync: missing clocks can span the old 32-bit sample limit")
+{
+    GlobalEnv::ResetPerTest();
+    TimeRig rig;
+    ExternalClockSync sync;
+    ExternalClockSync::Input input;
+    input.m_theoryOfTime = rig.Get();
+
+    DOCTEST_SUBCASE("Stopped transport estimates a positive interval")
+    {
+    }
+
+    DOCTEST_SUBCASE("Running transport predicts with the full interval")
+    {
+        sync.Start();
+        input.m_clockTick = true;
+        sync.Process(input);
+        input.m_clockTick = false;
+    }
+
+    const int64_t oldLimit = std::numeric_limits<int32_t>::max();
+    sync.m_samplesSinceLastClock = oldLimit - 1;
+    sync.Process(input);
+    sync.Process(input);
+    DOCTEST_REQUIRE(sync.m_samplesSinceLastClock == oldLimit + 1);
+
+    bool running = sync.IsRunning();
+    double interval = static_cast<double>(oldLimit + (running ? 2 : 1));
+    double expected = (running ? 2.0 : 1.0) / (24.0 * interval);
+    input.m_clockTick = true;
+    sync.Process(input);
+    DOCTEST_CHECK(sync.m_freqOut == doctest::Approx(expected).epsilon(1e-12).scale(0.0));
+    DOCTEST_CHECK(sync.m_freqOut > 0.0);
+    DOCTEST_CHECK(std::isfinite(1.0 / sync.EffectiveFreq()));
+    DOCTEST_CHECK(sync.m_samplesSinceLastClock == 0);
 }

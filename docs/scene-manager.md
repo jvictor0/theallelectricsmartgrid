@@ -23,7 +23,7 @@ At the start of each host frame, `SceneManager::Process()` compares current scen
 - `m_changed` when blend or scene assignment changed
 - `m_changedScene` when scene indices changed, or a change moves from or to a blend endpoint
 
-Consumers (notably encoder-bank processing) use these flags to refresh topology/state only when needed.
+Encoder-bank processing consumes these flags on the same host frame. Interior blend motion updates every named root through the prepared or recursive evaluator without rebuilding topology. Scene assignment and endpoint transitions refresh scene-dependent values and dependency masks: a settled tree needs one fresh evaluation, while a moving tree keeps advancing its target ramps. Prepared evaluation may defer materializing child values until editing, UI publication or a rebuild needs them.
 
 ## Ownership and saved selectors
 

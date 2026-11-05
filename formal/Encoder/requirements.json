@@ -966,5 +966,22 @@
       "ramp"
     ],
     "status": "proved"
+  },
+  {
+    "id": "E77",
+    "status": "proved",
+    "requirement": "Reloading the saved targets of an existing recursive encoder tree shall preserve matching cells and their ramp state except for the forced refresh countdown. Under unchanged inputs, reloading an identical settled patch shall preserve its output for every following host frame. Matching changed paths retain current values, new paths start at their constructor neutral, and absent patch paths are removed. Comparison in the serialized domain shall prevent float round-trip changes from restarting an unchanged target.",
+    "theorems": [
+      "Encoder.PatchLoad.reload_preserves_state",
+      "Encoder.PatchLoad.reload_preserves_output_trajectory",
+      "Encoder.PatchLoad.matching_cell_keeps_current",
+      "Encoder.PatchLoad.new_path_starts_at_neutral",
+      "Encoder.PatchLoad.missing_patch_removes_path",
+      "Encoder.PatchLoad.encoded_self_load"
+    ],
+    "anchors": [
+      "patch_load",
+      "patch_decode"
+    ]
   }
 ]

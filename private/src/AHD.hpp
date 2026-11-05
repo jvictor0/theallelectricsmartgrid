@@ -57,7 +57,7 @@ struct AHD
         double m_holdLoops;
         float m_decayIncrement;
 
-        // Base samples elapsed per Process call, used only for explicit release.
+        // Engine samples elapsed per Process call, used only for explicit release.
         //
         float m_releaseFactor;
 
@@ -144,7 +144,10 @@ struct AHD
     //
     bool m_triggered;
     float m_output;
-    float m_rawOutput;
+
+    // Preserve small per-sample decrements throughout long explicit releases.
+    //
+    double m_rawOutput;
     float m_startOutput;
     float m_amplitude;
     Stage m_stage;
@@ -281,7 +284,7 @@ struct AHD
         {
             m_changed = m_state != State::Running;
             m_state = State::Running;
-            m_startOutput = m_rawOutput;
+            m_startOutput = static_cast<float>(m_rawOutput);
             m_stage = Stage::Attack;
             m_stagePosition = m_startOutput;
             m_previousSamples = 0.0;
@@ -319,7 +322,7 @@ struct AHD
             }
             case State::Release:
             {
-                m_rawOutput -= input.m_decayIncrement * input.m_releaseFactor;
+                m_rawOutput -= static_cast<double>(input.m_decayIncrement) * input.m_releaseFactor;
                 if (m_rawOutput <= 0.0f)
                 {
                     m_changed = true;
@@ -334,11 +337,11 @@ struct AHD
         m_amplitude = input.m_amplitude;
         if (input.m_amplitudePolarity)
         {
-            m_output = m_rawOutput * input.m_amplitude;
+            m_output = static_cast<float>(m_rawOutput * input.m_amplitude);
         }
         else
         {
-            m_output = (1.0f - input.m_amplitude) + m_rawOutput * input.m_amplitude;
+            m_output = static_cast<float>((1.0f - input.m_amplitude) + m_rawOutput * input.m_amplitude);
         }
 
         return m_output;
@@ -440,7 +443,7 @@ struct AHDGeneric
         for (size_t i = 0; i < Size; ++i)
         {
             m_output[i] = m_channels[i].Process(input.m_channels[i]);
-            m_rawOutput[i] = m_channels[i].m_rawOutput;
+            m_rawOutput[i] = static_cast<float>(m_channels[i].m_rawOutput);
         }
 
         return m_output;

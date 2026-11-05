@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstddef>
 
 struct SampleTop
 {
@@ -50,15 +49,6 @@ struct SampleTop
     static SampleTop FromWrap(double phase, double frequency)
     {
         return {true, -phase / frequency};
-    }
-
-    void AccumulateOversample(const SampleTop& top, size_t index, size_t oversample)
-    {
-        if (top)
-        {
-            *this = top;
-            m_offset += static_cast<double>(index % oversample + 1) / static_cast<double>(oversample) - 1.0;
-        }
     }
 
     void InterpolatePhases(double previous, double current, double cycleRatio, bool started)

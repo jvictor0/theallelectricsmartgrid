@@ -64,6 +64,26 @@ double tapDFT(const float* taps, std::size_t size, double normFreq)
 
 } // namespace
 
+DOCTEST_TEST_CASE("FIR: tap changes settle at 1 kHz in engine time")
+{
+    GlobalEnv::ResetPerTest();
+    FIR<31> fir;
+    const size_t x_center = 15;
+    float initial = fir.m_slewedTaps[x_center];
+    fir.SetParams(0.05f, 0.0f, 0.5f);
+    float target = fir.m_targetTaps[x_center];
+    const size_t x_samples = static_cast<size_t>(SampleTimer::SecondsToSamples(0.00025));
+    for (size_t sample = 0; sample < x_samples; ++sample)
+    {
+        fir.Process(0.0f);
+    }
+
+    double elapsed = static_cast<double>(x_samples) / SampleTimer::x_sampleRate;
+    double expected = target + (initial - target) * std::exp(-2.0 * M_PI * 1000.0 * elapsed);
+    DOCTEST_REQUIRE(std::abs(initial - target) > 0.1f);
+    DOCTEST_CHECK(std::abs(fir.m_slewedTaps[x_center] - expected) < 1e-5);
+}
+
 // ---------------------------------------------------------------------------
 // 1. Impulse in -> taps out (exact convolution with frozen slews).
 // ---------------------------------------------------------------------------

@@ -33,11 +33,11 @@ engine input + return * feedback -> tanh saturation -> order-8 Butterworth decim
     -> (4096 * x_oversample)-point IFFT -> engine-rate overlap-add, rotation, damping
 ```
 
-The decimator follows the saturator so its harmonics are filtered too. The delay line, the inverse buffer, the tape-head positions, the analysis window and hop, and the LFO sample offset are all in host samples, so delay capacity and grain timing keep their physical durations. Each grain's spectrum stays on the 4096-point host-rate grid and is interpolated by a larger inverse transform into an engine-rate frame of the same 85.333 ms duration (see [Phase Vocoder](phase-vocoder.md)); there is no separate output upsampler. Rotation, damping and the LFO run every engine sample. At `x_oversample = 1` the decimator is a passthrough and behavior is unchanged.
+The decimator follows the saturator so its harmonics are filtered too. The delay line, inverse buffer, tape-head positions, analysis window and hop are all in host samples, so delay capacity and grain timing keep their physical durations. Each grain's spectrum stays on the 4096-point host-rate grid and is interpolated by a larger inverse transform into an engine-rate frame of the same 85.333 ms duration (see [Phase Vocoder](phase-vocoder.md)); there is no separate output upsampler. Rotation and damping run every engine sample. At `x_oversample = 1` the decimator is a passthrough. The delay has no internal LFO or LFO frequency, depth, or phase controls.
 
 ## Read/Write Head Computation (`QuadDelayInputSetter`)
 
-The read and write heads are produced in `QuadDelayInputSetter::Process` (`private/src/QuadDelay.hpp`) per quad channel `i`.
+`QuadDelayInputSetter::Process` (`private/src/QuadDelay.hpp`) produces one shared write head and a read head for each quad channel `i`. All channels share the inverse time map and positional recorder; audio and envelope values remain independent per channel.
 
 - **Loop selection**: `ReadTapeHead` receives the processed loop-selector knob value, but only accepts changes when both old and new loops are simultaneously at modulated cycle boundaries (`CrossedCycleBoundary`) to avoid discontinuities.
 - **Glue offset**: `WriteTapeHead` owns the additive glue offset that preserves continuity across transport stops and tempo-scale changes.
@@ -53,7 +53,7 @@ The final head equations are:
 
 - **Write head**
   - `writeHead = globalModulatedPhase * globalPeriodSamples + glue`, where `globalPeriodSamples` is the Theory of Time period converted to host samples
-  - stored in `delayInput.m_writeHeadPosition[i]`
+  - stored in the shared scalar `delayInput.m_writeHeadPosition`
 - **Read head**
   - `effectiveDelaySamples = (globalPeriodSamples / cycleRatio(selectedLoop)) * (bufferFrac * widen)`
   - `readTarget = writeHead * readHeadSpeed - effectiveDelaySamples`
@@ -62,10 +62,10 @@ The final head equations are:
 
 Both heads use absolute warped-sample coordinates. The read head is projected into the selected-loop-length region behind the write head, offset by the resynthesis hop size, with delay shaped by quantized ratio and widener. This warped-coordinate window selects musical delay time; it cannot by itself ensure a complete real-time analysis window.
 
-At grain launch, the delay maps the selected read head into real audio time, adds the delay LFO's sample offset, then limits the start to the latest complete analysis window:
+At grain launch, the delay maps each selected read head into real audio time, then limits the start to the latest complete analysis window. The generic grain manager accepts optional sample offsets, but Quad Delay passes zero:
 
 ```
-requestedStart = inverse(readHead) + sampleOffset
+requestedStart = inverse(readHead)
 latestStart = latestRecordedSample - (N - 1) - 2
 startTime = min(requestedStart, latestStart)
 ```
@@ -77,9 +77,9 @@ Here `N = 4096` and the extra two samples support cubic audio interpolation. Sta
 Because the read head is moving through the audio buffer at a variable rate (due to the time warping), a simple read would result in severe pitch shifting (like scratching a vinyl record).
 
 To preserve the original pitch while allowing the time-warping to stretch and compress the audio, the delay uses a **Phase Vocoder** (`Resynthesizer` in `private/src/Resynthesis.hpp`).
-- The audio is processed in overlapping grains (`GrainManager`).
+- One packed four-channel `GrainManagerGeneric` launches all channels together, with independent read positions, PVDR relationships and oscillator phases. Its FFTs and overlap-add ring carry four channels together.
 - For each synthesis frame, the system computes two analysis frames:
-  1. One at the target read position `F⁻¹(F(t) - d)`, after applying the sample offset and real-time analysis-window limit above.
+  1. One at the target read position `F⁻¹(F(t) - d)`, after applying the real-time analysis-window limit above.
   2. One exactly `H` (hop size) absolute samples before that position.
 - By comparing the phases of these two analysis frames, the resynthesizer can accurately update the synthesis phases, preserving the pitch of the original signal regardless of the playback speed. This roughly follows the "Phase Vocoder Done Right" methodology.
 

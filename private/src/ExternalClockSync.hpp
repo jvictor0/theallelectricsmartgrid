@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 
 struct ExternalClockSync
@@ -17,7 +18,7 @@ struct ExternalClockSync
         Running
     };
 
-    int m_samplesSinceLastClock;
+    int64_t m_samplesSinceLastClock;
     int m_ticksOffset;
     double m_freqOut;
     State m_state;
@@ -112,7 +113,7 @@ struct ExternalClockSync
                 double nextTicksOffset = static_cast<double>(m_ticksOffset + 1) / input.m_ticksMultiplier;
                 double currentExpectedBranch = std::round(currentPhase * multiplier - currentTicksOffset);
                 double nextExpectedPhase = (currentExpectedBranch + nextTicksOffset) / multiplier;
-                int samplesUntilNextClock = m_samplesSinceLastClock + 1;
+                int64_t samplesUntilNextClock = m_samplesSinceLastClock + 1;
                 m_freqOut = (nextExpectedPhase - currentPhase) / samplesUntilNextClock;
 
                 m_ticksOffset = (m_ticksOffset + 1) % input.m_ticksMultiplier;

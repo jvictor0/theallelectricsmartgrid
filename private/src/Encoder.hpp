@@ -266,8 +266,14 @@ struct StateEncoderCell : public EncoderCell
         JSON values = root.Get("values");
         for (size_t i = 0; i < SceneManager::x_numScenes; ++i)
         {
-            float value = ToNormalized(static_cast<float>(values.GetAt(i).NumberValue()));
-            SetTarget(value, i);
+            float value = static_cast<float>(values.GetAt(i).NumberValue());
+            // Compare in the saved domain: a bipolar float round-trip can
+            // otherwise change an identical target and restart its ramp.
+            //
+            if (value != ToValue(m_targets[i]))
+            {
+                SetTarget(ToNormalized(value), i);
+            }
         }
 
         SetState();

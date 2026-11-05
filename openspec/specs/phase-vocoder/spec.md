@@ -70,19 +70,24 @@ The system SHALL synthesize each grain through exactly three oscillators (`x_num
 - **THEN** center gain is sqrt(1/3) ≈ 0.577 and each side gain is 1/sqrt(3) ≈ 0.577, so the three detuned copies carry equal energy and the summed energy matches the unison-off case
 
 ### Requirement: Per-Partial Magnitude Slew-Up
-The system SHALL slew each bin's synthesis magnitude toward its analysis magnitude through a per-bin `SlewUp` filter (`m_synthesisMagnitudes`); synthesis reads the slewed `m_output`, not the raw analysis magnitude, so newly appearing partials bloom gradually rather than stepping in. The slew-up rate is set from `Input::m_slewUp` at every grain start (`SetSlewUp` in `Resynthesizer::Synthesize`), driven by the quad-delay's slew knob with a fastest rate of 0.25 cycles per hop.
+The system SHALL slew each bin's synthesis magnitude toward its analysis magnitude through a per-bin one-pole update (`m_synthesisMagnitudes[bin][channel]`); synthesis reads the slewed magnitude, not the raw analysis magnitude, so newly appearing partials bloom gradually rather than stepping in. The slew-up rate is set from `Input::m_slewUp` at every grain start (`SetSlewUp` in `Resynthesizer::Synthesize`), driven by the quad-delay's slew knob. Values below 0.05 select immediate attack; other settings map to a cutoff approaching 0.5 cycles per hop at the fast end and 0.25/1024 cycles per hop at the slow end.
 
 #### Scenario: New partial blooms over several grains
 - **WHEN** a partial absent from previous grains appears at full analysis magnitude and the slew-up knob is at its slowest setting
 - **THEN** the partial's synthesized magnitude starts near zero and rises toward the analysis magnitude over multiple consecutive grains instead of appearing at full level in one grain
 
-### Requirement: Per-Channel Quad Grain Processing with Sample Offsets
-The system SHALL run four independent `GrainManager` instances — one per quad channel, each with its own `Resynthesizer` state — inside `QuadGrainManager` (`private/src/DelayLine.hpp`). Each channel's grain capture position is the channel's warped read-head position plus a per-channel sample offset; the quad-delay derives these offsets from a quad LFO scaled by 1000 samples times the modulation depth (`QuadDelay.hpp`), decorrelating the four channels for quad width and motion. Read-head warping itself is owned by quad-delay.
+### Requirement: Packed Channels with Independent Phase State
+The system SHALL use one `GrainManagerGeneric` per channel group: four channels for Quad Delay and three channels per sampler track. All channels SHALL launch together and share packed transforms and one overlap-add ring, while retaining their own read positions, spectra, PVDR relationships, oscillator phases and resynthesis controls. The generic manager SHALL apply any supplied host-sample offsets after mapping warped time into real time. Quad Delay SHALL supply zero offsets and SHALL have no internal LFO.
 
-#### Scenario: Modulated offsets decorrelate channels
-- **WHEN** delay modulation depth is nonzero so the four channels receive distinct sample offsets
-- **THEN** each channel's grains are analyzed from a different buffer position and resynthesized by that channel's own oscillator phases, producing four decorrelated outputs from the same delay content
-- **AND** with modulation depth 0 all four channels analyze at their unmodified read-head positions
+#### Scenario: Channel read heads select different audio
+- **WHEN** the four delay read heads map to different recorded positions
+- **THEN** their grains launch on the same engine sample but analyze each channel's own audio window and preserve independent synthesis phases
+
+#### Scenario: Removing one sampler bank silences only that channel
+- **WHEN** a sampler channel's bank is removed while other channels remain loaded
+- **THEN** its queued overlap-add audio and persistent resynthesis state are cleared immediately
+- **AND** the other channels continue on their existing grain schedule
+- **AND** reattaching a bank cannot replay audio queued before removal
 
 ### Requirement: Deep Vocoder Atom Tracking and V-Shaped Selection
 The system SHALL run the Deep Vocoder (`DeepVocoder::Process`, called every engine sample from `SquiggleBoy::ProcessSample`) at the host rate: it decimates the source-mixer's vocoder send through an order-8 Butterworth `DownsamplerGeneric`, appends one sample per host frame to a rolling 4096-host-sample buffer, and extracts spectral atoms via `SpectralModel::ExtractAtoms` every 1024-host-sample hop. Atom frequencies stay in cycles per host sample; `TransformNote` divides them by `x_oversample` (`DeepVocoder::EngineOmega`) to compare with and return voice pitches in cycles per engine sample, and the UI state publishes pitch centers in cycles per host sample to match the atoms. When a sequencer voice triggers, `TransformNote` evaluates every current atom against a V-shaped magnitude threshold `gainThreshold * ratio^slope`, where ratio is the larger of (atomFreq/targetFreq) and (targetFreq/atomFreq), slope is `m_slopeUp` above the target and `m_slopeDown` below, and targetFreq is the voice's pitch center times its `m_pitchRatioPre`. Atoms below their threshold are ignored; among the rest, the atom with the highest score (magnitude / threshold) wins and the voice's frequency becomes the winning atom's `m_synthesisOmega` times `m_pitchRatioPost`. Each of the nine voices carries independent `gainThreshold` (range 0.001-0.2), `slopeUp`/`slopeDown` (range 1/16-16), and pitch-ratio parameters.

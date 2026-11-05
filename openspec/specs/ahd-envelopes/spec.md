@@ -1,7 +1,7 @@
 # AHD Envelopes Specification
 
 ## Purpose
-AHD (Attack-Hold-Decay) envelopes (`AHD` in `private/src/AHD.hpp`) shape voice amplitude and modulation in the DSP engine. They are phase-driven: stage progression uses absolute modulated global phase with a trigger-captured source/global ratio and envelope period from the phasor-timebase rather than wall-clock time, so envelopes stretch, compress, or reverse with clock modulation while attack and decay use 48 kHz time-parameter mappings in phase-derived sample units. Envelopes are triggered and released by the `AHDControl` structure published by the multi-phasor-gate, and each voice in voice-architecture hosts two instances: the main amp envelope and a modulation envelope.
+AHD (Attack-Hold-Decay) envelopes (`AHD` in `private/src/AHD.hpp`) shape voice amplitude and modulation in the DSP engine. They are phase-driven: stage progression uses absolute modulated global phase with a trigger-captured source/global ratio and envelope period from the phasor-timebase rather than wall-clock time, so envelopes stretch, compress, or reverse with clock modulation while attack and decay use engine-rate time-parameter mappings in phase-derived sample units. Envelopes are triggered and released by the `AHDControl` structure published by the multi-phasor-gate, and each voice in voice-architecture hosts two instances: the main amp envelope and a modulation envelope.
 
 ## Requirements
 
@@ -48,11 +48,11 @@ The system SHALL start an envelope when `AHDControl.m_trig` is true, entering th
 - **AND** a trigger on a following sample captures the previous raw output once and starts a new attack
 
 ### Requirement: Attack Stage With Constant-Time Configuration
-The system SHALL ramp the raw output from `m_startOutput` toward 1.0 during attack by accumulating `deltaSamples * attackIncrement`. The attack increment is derived from a user time setting in the range 1 ms to 2.5 s (`x_attackTimeMin`/`x_attackTimeMax`) as `1 / (48000 * attackTime)` via an exponential parameter, using the fixed 48 kHz constant in phase-derived sample units. Wall-clock attack duration follows global phase motion and the captured source ratio and envelope period; those two captured factors need not cancel in the production voice path. On retrigger, `m_startOutput` SHALL be set to the current raw output so the attack continues from the present level instead of snapping to zero.
+The system SHALL ramp the raw output from `m_startOutput` toward 1.0 during attack by accumulating `deltaSamples * attackIncrement`. The attack increment is derived from a user time setting in the range 1 ms to 2.5 s (`x_attackTimeMin`/`x_attackTimeMax`) as `1 / (SampleTimer::x_sampleRate * attackTime)` via an exponential parameter, using the engine rate in phase-derived sample units. Wall-clock attack duration follows global phase motion and the captured source ratio and envelope period; those two captured factors need not cancel in the production voice path. On retrigger, `m_startOutput` SHALL be set to the current raw output so the attack continues from the present level instead of snapping to zero.
 
 #### Scenario: Attack reaches full scale at the configured time
-- **WHEN** an Idle envelope with a 500 ms attack is triggered and its phase-derived elapsed position reaches 24000 samples
-- **THEN** the raw output rises linearly in phase-derived samples and reaches 1.0 at 24000 phase-derived samples
+- **WHEN** an Idle envelope with a 500 ms attack is triggered and its phase-derived elapsed position reaches `SampleTimer::SecondsToSamples(0.5)`
+- **THEN** the raw output rises linearly in phase-derived samples and reaches 1.0 at that position (96000 samples at 192 kHz)
 
 #### Scenario: Retrigger from a non-zero level
 - **WHEN** an envelope whose raw output is 0.6 receives a new trigger
@@ -67,11 +67,11 @@ The system SHALL hold the raw output at 1.0 after the attack completes for a dur
 - **AND** a subsequent trigger capturing twice the envelope period doubles hold length at the same hold setting; a topology edit alone does not change the active note's captured period
 
 ### Requirement: Decay Stage and Completion
-The system SHALL ramp the raw output down from 1.0 after the hold ends by accumulating `deltaSamples * decayIncrement` and subtracting that progress from 1, with the decay increment derived from a time setting in the range 10 ms to 10 s (`x_decayTimeMin`/`x_decayTimeMax`) at the unmodulated 48 kHz rate. When the raw output reaches 0, it SHALL clamp to 0 and the state SHALL return to Idle with `m_changed` set.
+The system SHALL ramp the raw output down from 1.0 after the hold ends by accumulating `deltaSamples * decayIncrement` and subtracting that progress from 1, with the decay increment derived from a time setting in the range 10 ms to 10 s (`x_decayTimeMin`/`x_decayTimeMax`) at the unmodulated engine rate. When the raw output reaches 0, it SHALL clamp to 0 and the state SHALL return to Idle with `m_changed` set.
 
 #### Scenario: Decay completes to Idle
 - **WHEN** a Running envelope with a 1 s decay passes the end of its hold stage
-- **THEN** the raw output falls linearly in phase-derived samples over 48000 samples
+- **THEN** the raw output falls linearly in phase-derived samples over `SampleTimer::x_sampleRate` samples (192000 at 192 kHz)
 - **AND** on the call where the value reaches or would pass zero, the output is 0.0, the state is Idle, and `m_changed` is true
 
 ### Requirement: Continuous Live Timing Controls
@@ -93,17 +93,22 @@ Changing attack, hold, or decay SHALL preserve the current stage progress and ra
 - **AND** two additional phase-derived samples lower the output to 0.625
 
 ### Requirement: Release Ramp on Interruption
-The system SHALL, while in the Release state, decrement the raw output by `decayIncrement * input.m_releaseFactor` per call (a linear wall-clock ramp at the configured decay rate, independent of phase tracking). `Process(Input&)` SHALL use the input's release factor, which defaults to 1 base sample per call; physical modeling SHALL leave it at that default because it processes one engine sample per call. This factor SHALL affect only explicit release, leaving phase-driven attack, hold, and running decay increments unchanged. When the raw output reaches or falls below 0 it SHALL clamp to 0 and the state SHALL return to Idle.
+The system SHALL, while in the Release state, decrement the raw output by `decayIncrement * input.m_releaseFactor` per call (a linear wall-clock ramp at the configured decay rate, independent of phase tracking). The raw accumulator SHALL use double precision so small per-sample decrements preserve long release durations; rendered output SHALL remain float. `Process(Input&)` SHALL use the input's release factor, which defaults to 1 engine sample per call; physical modeling SHALL leave it at that default because it processes one engine sample per call. This factor SHALL affect only explicit release, leaving phase-driven attack, hold, and running decay increments unchanged. When the raw output reaches or falls below 0 it SHALL clamp to 0 and the state SHALL return to Idle.
 
 #### Scenario: Release ramps at the decay rate
 - **WHEN** an envelope holding at raw output 1.0 with a 100 ms decay setting enters Release
-- **THEN** the raw output reaches 0 after 4800 base samples of elapsed time and the state becomes Idle
+- **THEN** the raw output reaches 0 after `SampleTimer::SecondsToSamples(0.1)` engine samples of elapsed time (19200 at 192 kHz), allowing rounding at the final sample, and the state becomes Idle
 - **AND** a clock-phase modulation during the release does not alter the release ramp speed
 
-#### Scenario: Oversampled release retains elapsed time
-- **WHEN** the same envelope is processed at four times the base sample rate with `input.m_releaseFactor` set to 0.25 base samples per call
-- **THEN** its release reaches zero after the same elapsed base-sample time as base-rate processing, allowing floating-point rounding at the final sample
-- **AND** running attack, hold, and decay continue to use phase-derived fractional base-sample positions
+#### Scenario: Long release preserves configured duration
+- **WHEN** an envelope at raw output 1.0 uses a 10 s decay and receives a release request on every engine sample
+- **THEN** its output is 0.5 after 5 s within float output precision
+- **AND** it reaches Idle within one engine sample of 10 s
+
+#### Scenario: Fractional-sample release retains elapsed time
+- **WHEN** the same envelope is processed four times per engine sample with `input.m_releaseFactor` set to 0.25 engine samples per call
+- **THEN** its release reaches zero after the same elapsed engine-sample time as one call per engine sample, allowing floating-point rounding at the final sample
+- **AND** running attack, hold, and decay continue to use phase-derived fractional engine-sample positions
 
 #### Scenario: Physical-model short timing range is preserved
 - **WHEN** the physical-model envelope uses its shortest attack and decay settings

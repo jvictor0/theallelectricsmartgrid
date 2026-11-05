@@ -388,6 +388,12 @@
         "path": "private/src/EncoderBank.hpp",
         "symbol": "void ClearGesture(int gesture)\n    {\n        for (int i = 0; i < 4; ++i)"
       }
+    ],
+    "patch_load": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "JSON modulatorsJ = rootJ.Get(\"modulators\");\n        m_modulators.ClearAll();"
+      }
     ]
   },
   "shared_bodies": [
@@ -1509,6 +1515,18 @@
         "ramp"
       ],
       "reason": "The pinned implementation forces a full countdown at scene refresh. The new shortcut preserves values and saturated edit age for settled cells; its counters and path choice deliberately differ."
+    },
+    {
+      "id": "E77",
+      "status": "comparison",
+      "theorems": [
+        "Encoder.PatchLoad.old_reload_counterexample",
+        "Encoder.PatchLoad.old_polynomial_reload_counterexample"
+      ],
+      "anchors": [
+        "patch_load"
+      ],
+      "reason": "The pinned loader replaces existing depth children with neutral cells. The explicit replacement transition proves an identical-patch reload excursion, also with the modeled production depth polynomial. This violates the new continuity contract; the current slot-preserving transition has separate proofs."
     }
   ]
 }

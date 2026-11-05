@@ -395,6 +395,12 @@ struct GrainManagerGeneric
         typename Resynth::Input m_resynthInput[Size];
     };
 
+    void ClearChannel(size_t channel)
+    {
+        m_ola.ClearChannel(channel);
+        m_resynthesizer.ClearChannel(channel);
+    }
+
     // One input per channel.
     //
     void StartGrain(typename Resynth::Input* input, const TimeVector& startTime)

@@ -12,6 +12,7 @@ import Encoder.GestureTree
 import Encoder.GestureMachine
 import Encoder.HeadGestureMachine
 import Encoder.Behavior
+import Encoder.PatchLoad
 import Lean.Util.CollectAxioms
 
 /-! Build-time trust audit. Inspect transitive dependencies, including generated

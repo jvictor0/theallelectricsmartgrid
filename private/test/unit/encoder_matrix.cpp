@@ -602,3 +602,201 @@ DOCTEST_TEST_CASE("encoder matrix: sparse input changes rebuilds and patch repla
         }
     }
 }
+
+DOCTEST_TEST_CASE("encoder matrix: identical patch reload preserves full modulation from the first sample")
+{
+    GlobalEnv::Init();
+    GlobalEnv::ResetPerTest();
+    MatrixRig rig;
+    rig.Root().FillModulators(&rig.m_context);
+    rig.Root().m_modulators.m_modulators[0]->Increment(0.5f);
+    rig.Sources().m_hostValue[0] = QuadFloat::Splat(1.0f);
+    auto process = [&]()
+    {
+        for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+        {
+            SampleTimer::IncrementSample();
+        }
+
+        rig.Process(false);
+    };
+    for (size_t frame = 0; frame < 2402; ++frame)
+    {
+        process();
+    }
+
+    DOCTEST_REQUIRE(rig.Root().m_output[0] == doctest::Approx(1.0f));
+    JsonArena saved(JsonArena::kDefaultCapacity);
+    JSON patch = rig.Root().ToJSON(saved);
+    rig.Root().FromJSON(patch);
+    double maximumError = 0;
+    for (size_t frame = 0; frame < 2402; ++frame)
+    {
+        process();
+        for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+        {
+            for (size_t lane = 0; lane < 4; ++lane)
+            {
+                maximumError = std::max(maximumError,
+                    std::abs(static_cast<double>(rig.m_bank.m_valueCaches[sample][0][lane]) - 1));
+            }
+        }
+    }
+
+    DOCTEST_CHECK(maximumError < 1e-6);
+}
+
+DOCTEST_TEST_CASE("encoder matrix: reload preserves nested modulation gestures and an in-flight ramp")
+{
+    GlobalEnv::Init();
+    GlobalEnv::ResetPerTest();
+    for (float blend : {0.0f, 0.5f, 1.0f})
+    {
+        MatrixRig actual;
+        MatrixRig untouched;
+        for (auto* rig : {&actual, &untouched})
+        {
+            rig->ConfigureGestures();
+            rig->m_context.m_sceneManager.m_blendFactor = blend;
+            for (size_t i = 0; i < Cell::x_numModulators; ++i)
+            {
+                rig->Sources().m_hostValue[i] = QuadFloat(0.1f, 0.4f, 0.7f, 0.9f);
+            }
+
+            for (size_t i = 0; i < Cell::x_numGestureParams; ++i)
+            {
+                rig->Sources().m_gestureWeights[i] = 0.7f;
+            }
+        }
+
+        auto process = [&]()
+        {
+            for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+            {
+                SampleTimer::IncrementSample();
+            }
+
+            actual.Process(false);
+            untouched.Process(false);
+        };
+        for (size_t frame = 0; frame < 2402; ++frame)
+        {
+            process();
+        }
+
+        DOCTEST_REQUIRE(actual.m_bank.m_matrix.m_roots[0].m_path == EncoderMatrix::Path::Graph);
+        Cell* depth = actual.Root().m_modulators.m_modulators[2].get();
+        Cell* nested = depth->m_modulators.m_modulators[4].get();
+        Cell* gesture = depth->m_modulators.m_gestures[7].get();
+        JsonArena saved(JsonArena::kDefaultCapacity);
+        actual.Root().FromJSON(actual.Root().ToJSON(saved));
+        DOCTEST_CHECK(depth->m_tickDistributor.m_samplesSinceLastChange ==
+            untouched.Root().m_modulators.m_modulators[2]->m_tickDistributor.m_samplesSinceLastChange);
+        DOCTEST_CHECK(depth->m_tickDistributor.m_samplesToDistribute ==
+            untouched.Root().m_modulators.m_modulators[2]->m_tickDistributor.m_samplesToDistribute);
+        DOCTEST_CHECK(actual.Root().m_modulators.m_modulators[2].get() == depth);
+        DOCTEST_CHECK(depth->m_modulators.m_modulators[4].get() == nested);
+        DOCTEST_CHECK(depth->m_modulators.m_gestures[7].get() == gesture);
+        DOCTEST_CHECK(gesture->m_tickDistributor.m_samplesSinceLastChange ==
+            untouched.Root().m_modulators.m_modulators[2]->m_modulators.m_gestures[7]->m_tickDistributor.m_samplesSinceLastChange);
+        DOCTEST_CHECK(gesture->m_targets[0] ==
+            untouched.Root().m_modulators.m_modulators[2]->m_modulators.m_gestures[7]->m_targets[0]);
+        for (size_t frame = 0; frame < 2500; ++frame)
+        {
+            if (frame == 8)
+            {
+                actual.Root().m_modulators.m_modulators[2]->Increment(0.1f);
+                untouched.Root().m_modulators.m_modulators[2]->Increment(0.1f);
+            }
+
+            if (frame == 20)
+            {
+                JsonArena moving(JsonArena::kDefaultCapacity);
+                float targets[SmartGrid::SceneManager::x_numScenes];
+                std::copy(std::begin(depth->m_targets), std::end(depth->m_targets), targets);
+                actual.Root().FromJSON(actual.Root().ToJSON(moving));
+                for (size_t scene = 0; scene < SmartGrid::SceneManager::x_numScenes; ++scene)
+                {
+                    DOCTEST_CHECK(depth->m_targets[scene] == targets[scene]);
+                }
+            }
+
+            process();
+            DOCTEST_INFO("blend=" << blend << " frame=" << frame);
+            CheckOutputs(actual, untouched);
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("encoder matrix: changed patch reuses matching paths and replaces absent slots")
+{
+    GlobalEnv::Init();
+    GlobalEnv::ResetPerTest();
+    MatrixRig actual;
+    MatrixRig patch;
+    for (auto* rig : {&actual, &patch})
+    {
+        rig->Root().FillModulators(&rig->m_context);
+        rig->Root().m_modulators.m_modulators[0]->FillModulators(&rig->m_context);
+    }
+
+    Cell& depth = *actual.Root().m_modulators.m_modulators[0];
+    MatrixRig::SetSettled(depth, 0.9f, 0.9f);
+    MatrixRig::SetSettled(*depth.m_modulators.m_modulators[5], 0.8f, 0.8f);
+    MatrixRig::SetSettled(*actual.Root().m_modulators.m_modulators[2], 0.8f, 0.8f);
+    actual.AddGesture(depth, 3, 0.8f, 0.8f, true, true);
+    actual.AddGesture(depth, 5, 0.7f, 0.7f, true, true);
+    Cell* oldGesture = depth.m_modulators.m_gestures[3].get();
+
+    Cell& newDepth = *patch.Root().m_modulators.m_modulators[0];
+    MatrixRig::SetSettled(newDepth, 0.6f, 0.6f);
+    MatrixRig::SetSettled(*newDepth.m_modulators.m_modulators[8], 0.9f, 0.9f);
+    MatrixRig::SetSettled(*patch.Root().m_modulators.m_modulators[1], 0.95f, 0.95f);
+    patch.AddGesture(newDepth, 3, 0.2f, 0.2f, true, true);
+    patch.AddGesture(newDepth, 7, 0.4f, 0.4f, true, true);
+    JsonArena saved(JsonArena::kDefaultCapacity);
+    patch.Root().GarbageCollectModulators();
+    actual.Root().FromJSON(patch.Root().ToJSON(saved));
+
+    DOCTEST_REQUIRE(actual.Root().m_modulators.m_modulators[0].get() == &depth);
+    DOCTEST_CHECK(depth.m_values[0] == doctest::Approx(0.9f));
+    DOCTEST_CHECK(depth.m_targets[0] == doctest::Approx(0.6f));
+    DOCTEST_CHECK_FALSE(actual.Root().m_modulators.m_modulators[2].get());
+    DOCTEST_REQUIRE(actual.Root().m_modulators.m_modulators[1].get());
+    DOCTEST_CHECK(actual.Root().m_modulators.m_modulators[1]->m_values[0] == 0.5f);
+    DOCTEST_CHECK_FALSE(depth.m_modulators.m_modulators[5].get());
+    DOCTEST_REQUIRE(depth.m_modulators.m_modulators[8].get());
+    DOCTEST_CHECK(depth.m_modulators.m_modulators[8]->m_values[0] == 0.5f);
+    DOCTEST_REQUIRE(depth.m_modulators.m_gestures[3].get() == oldGesture);
+    DOCTEST_CHECK(oldGesture->m_values[0] == doctest::Approx(0.8f));
+    DOCTEST_CHECK(oldGesture->m_targets[0] == doctest::Approx(0.2f));
+    DOCTEST_CHECK_FALSE(depth.m_modulators.m_gestures[5].get());
+    DOCTEST_REQUIRE(depth.m_modulators.m_gestures[7].get());
+    DOCTEST_CHECK(depth.m_modulators.m_gestures[7]->m_values[0] == 0.5f);
+    DOCTEST_CHECK(actual.Root().m_modulators.m_numActiveModulators == 2);
+    DOCTEST_CHECK(depth.m_modulators.m_numActiveModulators == 1);
+    DOCTEST_CHECK(depth.m_modulators.m_numActiveGestures == 2);
+    DOCTEST_CHECK(depth.m_modulators.GetGestureIndex(0) == 3);
+    DOCTEST_CHECK(depth.m_modulators.GetGestureIndex(1) == 7);
+
+    for (size_t frame = 0; frame < 2402; ++frame)
+    {
+        for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+        {
+            SampleTimer::IncrementSample();
+        }
+
+        actual.Process(false);
+    }
+
+    DOCTEST_CHECK(depth.m_values[0] == doctest::Approx(0.6f));
+    DOCTEST_CHECK(oldGesture->m_values[0] == doctest::Approx(0.2f));
+    DOCTEST_CHECK(depth.m_modulators.m_modulators[8]->m_values[0] == doctest::Approx(0.9f));
+    DOCTEST_CHECK(depth.m_modulators.m_gestures[7]->m_values[0] == doctest::Approx(0.4f));
+
+    MatrixRig empty;
+    JsonArena cleared(JsonArena::kDefaultCapacity);
+    actual.Root().FromJSON(empty.Root().ToJSON(cleared));
+    DOCTEST_CHECK(actual.Root().m_modulators.m_numActiveModulators == 0);
+    DOCTEST_CHECK(actual.Root().m_modulators.m_numActiveGestures == 0);
+}

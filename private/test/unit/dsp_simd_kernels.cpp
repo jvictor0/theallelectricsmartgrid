@@ -110,38 +110,21 @@ DOCTEST_TEST_CASE("Crossover: packed cutoff coefficients match the double-precis
         Crossover::SetCyclesPerSampleBatch(packed, frequency);
         for (size_t lane = 0; lane < 3; ++lane)
         {
-            scalar.m_cyclesPerSample = std::clamp(frequency[lane], scalar.x_minCyclesPerSample, scalar.x_maxCyclesPerSample);
-            double omega = 2.0 * M_PI * scalar.m_cyclesPerSample;
-            auto configure = [omega](auto& low, auto& high, double q)
+            scalar.SetCyclesPerSample(frequency[lane]);
+            double cutoff = std::clamp(frequency[lane], scalar.x_minCyclesPerSample, scalar.x_maxCyclesPerSample);
+            double g = std::tan(M_PI * cutoff);
+            auto check = [g](const auto& actual, double q)
             {
-                double cosine = std::cos(omega);
-                double alpha = std::sin(omega) / (2 * q);
-                double denominator = 1 + alpha;
-                low.m_b0 = low.m_b2 = (1 - cosine) * 0.5 / denominator;
-                low.m_b1 = (1 - cosine) / denominator;
-                high.m_b0 = high.m_b2 = (1 + cosine) * 0.5 / denominator;
-                high.m_b1 = -(1 + cosine) / denominator;
-                low.m_a1 = high.m_a1 = -2 * cosine / denominator;
-                low.m_a2 = high.m_a2 = (1 - alpha) / denominator;
+                double a1 = 1 / (1 + g * (g + 1 / q));
+                DOCTEST_CHECK(actual.m_a1 == doctest::Approx(a1).epsilon(2e-6).scale(1e-8));
+                DOCTEST_CHECK(actual.m_a2 == doctest::Approx(g * a1).epsilon(2e-6).scale(1e-8));
+                DOCTEST_CHECK(actual.m_a3 == doctest::Approx(g * g * a1).epsilon(2e-6).scale(1e-8));
+                DOCTEST_CHECK(actual.m_k == doctest::Approx(1 / q).epsilon(2e-6));
             };
-            configure(scalar.m_lowBiquad1, scalar.m_highBiquad1, scalar.Q1());
-            configure(scalar.m_lowBiquad2, scalar.m_highBiquad2, scalar.Q2());
             DOCTEST_CHECK(packed[lane].m_cyclesPerSample == scalar.m_cyclesPerSample);
-            auto check = [](const auto& actual, const auto& expected)
-            {
-                DOCTEST_CHECK(actual.m_b0 == doctest::Approx(expected.m_b0).epsilon(2e-6).scale(1e-7));
-                DOCTEST_CHECK(actual.m_b1 == doctest::Approx(expected.m_b1).epsilon(2e-6).scale(1e-7));
-                DOCTEST_CHECK(actual.m_b2 == doctest::Approx(expected.m_b2).epsilon(2e-6).scale(1e-7));
-                DOCTEST_CHECK(actual.m_a1 == doctest::Approx(expected.m_a1).epsilon(2e-6).scale(1));
-                DOCTEST_CHECK(actual.m_a2 == doctest::Approx(expected.m_a2).epsilon(2e-6).scale(1));
-                DOCTEST_CHECK(actual.m_a2 < 1.0f);
-                DOCTEST_CHECK(actual.m_a1 > -1.0 - actual.m_a2);
-                DOCTEST_CHECK(actual.m_a1 < 1.0 + actual.m_a2);
-            };
-            check(packed[lane].m_lowBiquad1, scalar.m_lowBiquad1);
-            check(packed[lane].m_lowBiquad2, scalar.m_lowBiquad2);
-            check(packed[lane].m_highBiquad1, scalar.m_highBiquad1);
-            check(packed[lane].m_highBiquad2, scalar.m_highBiquad2);
+            check(packed[lane].m_first, scalar.Q1());
+            check(packed[lane].m_lowSecond, scalar.Q2());
+            check(packed[lane].m_highSecond, scalar.Q2());
         }
     }
 }

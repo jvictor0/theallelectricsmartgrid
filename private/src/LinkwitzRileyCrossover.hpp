@@ -3,11 +3,10 @@
 #include <cmath>
 #include <algorithm>
 #include <complex>
-#include "ButterworthFilter.hpp"
 #include "MultiChannelNumber.hpp"
 
-// Width-independent parts of the 4th order Linkwitz-Riley crossover: cutoff
-// limits, section Qs and the scalar transfer functions the UI evaluates.
+// Legacy crossover name: the retained Qs produce fourth-order Butterworth
+// branches, not LR4. Cutoff limits and scalar response are shared by all widths.
 //
 struct LinkwitzRileyCrossoverBase
 {
@@ -20,7 +19,7 @@ struct LinkwitzRileyCrossoverBase
         std::complex<float> m_highPass;
     };
 
-    // Each filter is two 2nd-order Butterworth sections.
+    // Preserve the existing fourth-order Butterworth pole pairs.
     //
     static float Q1()
     {
@@ -34,20 +33,14 @@ struct LinkwitzRileyCrossoverBase
 
     static ComplexCrossoverOutput TransferFunction(float cutoffFreq, float freq)
     {
-        cutoffFreq = std::min(x_maxCyclesPerSample, cutoffFreq);
-
-        float omega = 2.0f * M_PI * cutoffFreq;
-        float cosw = std::cos(omega);
-        float sinw = std::sin(omega);
-        float q1 = Q1();
-        float q2 = Q2();
-
-        std::complex<float> lowPassResponse1 = BiquadSection::TransferFunction(cosw, sinw, q1, freq, false);
-        std::complex<float> lowPassResponse2 = BiquadSection::TransferFunction(cosw, sinw, q2, freq, false);
-        std::complex<float> highPassResponse1 = BiquadSection::TransferFunction(cosw, sinw, q1, freq, true);
-        std::complex<float> highPassResponse2 = BiquadSection::TransferFunction(cosw, sinw, q2, freq, true);
-
-        return {lowPassResponse1 * lowPassResponse2, highPassResponse1 * highPassResponse2};
+        double cutoff = std::clamp(cutoffFreq, x_minCyclesPerSample, x_maxCyclesPerSample);
+        double ratio = std::tan(M_PI * static_cast<double>(freq)) / std::tan(M_PI * cutoff);
+        std::complex<double> denominator =
+            std::complex<double>(1 - ratio * ratio, ratio / Q1())
+            * std::complex<double>(1 - ratio * ratio, ratio / Q2());
+        std::complex<double> low = 1.0 / denominator;
+        std::complex<double> high = (ratio * ratio * ratio * ratio) / denominator;
+        return {static_cast<std::complex<float>>(low), static_cast<std::complex<float>>(high)};
     }
 
     struct ScalarCrossoverOutput
@@ -69,52 +62,61 @@ template<typename Number, size_t Size>
 struct LinkwitzRileyCrossoverGeneric : LinkwitzRileyCrossoverBase
 {
     using Vector = MultiChannelNumber<Number, Size>;
-    using Section = BiquadSectionGeneric<Number, Size>;
-
-    // Low-pass filter: two biquad sections
-    //
-    Section m_lowBiquad1;
-    Section m_lowBiquad2;
-
-    // High-pass filter: two biquad sections
-    //
-    Section m_highBiquad1;
-    Section m_highBiquad2;
-
-    float m_cyclesPerSample;
-
-    LinkwitzRileyCrossoverGeneric()
-        : m_cyclesPerSample(0.1f)
-    {
-    }
-
     struct CrossoverOutput
     {
         Vector m_lowPass;
         Vector m_highPass;
     };
 
+    // Linear trapezoidal SVF. Coefficients are shared across audio channels;
+    // integrator states retain low-cutoff precision without DF1 pole cancellation.
+    //
+    struct Section
+    {
+        Number m_a1 = 1;
+        Number m_a2 = 0;
+        Number m_a3 = 0;
+        Number m_k = 1;
+        Vector m_ic1;
+        Vector m_ic2;
+
+        CrossoverOutput Process(const Vector& input)
+        {
+            Vector v3 = input - m_ic2;
+            Vector v1 = m_ic1 * m_a1 + v3 * m_a2;
+            Vector v2 = m_ic2 + m_ic1 * m_a2 + v3 * m_a3;
+            m_ic1 = v1 * 2 - m_ic1;
+            m_ic2 = v2 * 2 - m_ic2;
+            return {v2, input - v1 * m_k - v2};
+        }
+
+        void Reset()
+        {
+            m_ic1 = Vector();
+            m_ic2 = Vector();
+        }
+    };
+
+    Section m_first;
+    Section m_lowSecond;
+    Section m_highSecond;
+    float m_cyclesPerSample;
+
+    LinkwitzRileyCrossoverGeneric()
+    {
+        SetCyclesPerSample(0.1f);
+    }
+
     CrossoverOutput Process(const Vector& input)
     {
-        Vector lowPassOut = m_lowBiquad2.Process(m_lowBiquad1.Process(input));
-        Vector highPassOut = m_highBiquad2.Process(m_highBiquad1.Process(input));
-        return {lowPassOut, highPassOut};
+        CrossoverOutput first = m_first.Process(input);
+        return {m_lowSecond.Process(first.m_lowPass).m_lowPass,
+            m_highSecond.Process(first.m_highPass).m_highPass};
     }
 
     void SetCyclesPerSample(float cyclesPerSample)
     {
-        m_cyclesPerSample = (cyclesPerSample < x_minCyclesPerSample) ? x_minCyclesPerSample : (cyclesPerSample > x_maxCyclesPerSample) ? x_maxCyclesPerSample : cyclesPerSample;
-
-        float omega = 2.0f * M_PI * m_cyclesPerSample;
-        float cosw = std::cos(omega);
-        float sinw = std::sin(omega);
-        float q1 = Q1();
-        float q2 = Q2();
-
-        m_lowBiquad1.SetCoefficients(cosw, sinw, q1, false);
-        m_lowBiquad2.SetCoefficients(cosw, sinw, q2, false);
-        m_highBiquad1.SetCoefficients(cosw, sinw, q1, true);
-        m_highBiquad2.SetCoefficients(cosw, sinw, q2, true);
+        SetCyclesPerSampleBatch<1>(this, MultiChannelNumber<float, 1>::Splat(cyclesPerSample));
     }
 
     // Batch independent cutoffs across lanes, then share each coefficient set
@@ -128,10 +130,9 @@ struct LinkwitzRileyCrossoverGeneric : LinkwitzRileyCrossoverBase
         Packed frequency = Packed::Min(Packed::Splat(x_maxCyclesPerSample),
             Packed::Max(Packed::Splat(x_minCyclesPerSample), cyclesPerSample));
 
-        // Bilinear-transform coefficients using tan(pi*f). Reflect about f=1/4
-        // so the rational approximation only covers [0, pi/4]; the reflected
-        // half swaps low/high numerators and the sign of a1. This also avoids
-        // subtracting a cosine near one at very low cutoffs.
+        // Reflect tan(pi*f) about f=1/4 to keep the approximation in [0, pi/4].
+        // At high cutoffs compute the SVF coefficients using the reciprocal
+        // tangent, avoiding large intermediate values.
         //
         Packed angle = Packed::Min(frequency, Packed::Splat(0.5f) - frequency) * static_cast<float>(M_PI);
         Packed squared = angle * angle;
@@ -150,33 +151,34 @@ struct LinkwitzRileyCrossoverGeneric : LinkwitzRileyCrossoverBase
             Packed damping = tangent / q;
             Packed reciprocal = Packed::Splat(1) / (sum + damping);
             Packed small = tangentSquared * reciprocal;
-            Packed lowB0 = Packed::IfLess(frequency, Packed::Splat(0.25f), small, reciprocal);
-            Packed highB0 = Packed::IfLess(frequency, Packed::Splat(0.25f), reciprocal, small);
-            Packed negativeA1 = (tangentSquared - 1) * 2 * reciprocal;
-            Packed a1 = Packed::IfLess(frequency, Packed::Splat(0.25f), negativeA1, -negativeA1);
-            Packed a2 = (sum - damping) * reciprocal;
+            Packed a1 = Packed::IfLess(frequency, Packed::Splat(0.25f), reciprocal, small);
+            Packed a2 = tangent * reciprocal;
+            Packed a3 = Packed::IfLess(frequency, Packed::Splat(0.25f), small, reciprocal);
             for (size_t lane = 0; lane < Count; ++lane)
             {
                 auto& crossover = crossovers[lane];
                 crossover.m_cyclesPerSample = frequency[lane];
-                auto& low = section == 0 ? crossover.m_lowBiquad1 : crossover.m_lowBiquad2;
-                auto& high = section == 0 ? crossover.m_highBiquad1 : crossover.m_highBiquad2;
-                low.m_b0 = low.m_b2 = lowB0[lane];
-                low.m_b1 = 2.0f * lowB0[lane];
-                high.m_b0 = high.m_b2 = highB0[lane];
-                high.m_b1 = -2.0f * highB0[lane];
-                low.m_a1 = high.m_a1 = a1[lane];
-                low.m_a2 = high.m_a2 = a2[lane];
+                Section& target = section == 0 ? crossover.m_first : crossover.m_lowSecond;
+                target.m_a1 = a1[lane];
+                target.m_a2 = a2[lane];
+                target.m_a3 = a3[lane];
+                target.m_k = 1.0f / q;
+                if (section == 1)
+                {
+                    crossover.m_highSecond.m_a1 = target.m_a1;
+                    crossover.m_highSecond.m_a2 = target.m_a2;
+                    crossover.m_highSecond.m_a3 = target.m_a3;
+                    crossover.m_highSecond.m_k = target.m_k;
+                }
             }
         }
     }
 
     void Reset()
     {
-        m_lowBiquad1.Reset();
-        m_lowBiquad2.Reset();
-        m_highBiquad1.Reset();
-        m_highBiquad2.Reset();
+        m_first.Reset();
+        m_lowSecond.Reset();
+        m_highSecond.Reset();
     }
 };
 

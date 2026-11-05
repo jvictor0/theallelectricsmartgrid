@@ -74,7 +74,7 @@ DOCTEST_TEST_CASE("AHD: consumes release even while idle")
     DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.75f));
 }
 
-DOCTEST_TEST_CASE("AHD: explicit release duration is measured in base samples")
+DOCTEST_TEST_CASE("AHD: explicit release duration is measured in engine samples")
 {
     AHD base;
     AHD oversampled;
@@ -107,6 +107,37 @@ DOCTEST_TEST_CASE("AHD: explicit release duration is measured in base samples")
     DOCTEST_CHECK(oversampled.m_state == AHD::State::Idle);
     DOCTEST_CHECK(base.m_changed);
     DOCTEST_CHECK(oversampled.m_changed);
+}
+
+DOCTEST_TEST_CASE("AHD: ten second explicit release retains its duration at engine rate")
+{
+    AHD envelope;
+    envelope.m_state = AHD::State::Running;
+    envelope.m_rawOutput = 1.0f;
+    AHD::Input input;
+    AHD::InputSetter setter;
+    setter.Set(0.0f, 0.0f, 1.0f, 1.0f, true, input);
+    const size_t x_expectedSamples = static_cast<size_t>(SampleTimer::SecondsToSamples(10.0));
+    size_t samples = 0;
+    float midpoint = 0.0f;
+    while (envelope.m_state != AHD::State::Idle && samples < x_expectedSamples + 2)
+    {
+        // The gate retains its release request until the next trigger.
+        //
+        input.m_release = true;
+        envelope.Process(input);
+        ++samples;
+        if (samples == x_expectedSamples / 2)
+        {
+            midpoint = envelope.m_output;
+        }
+    }
+
+    DOCTEST_CHECK(std::abs(midpoint - 0.5f) < 1e-6f);
+    DOCTEST_CHECK(std::abs(static_cast<double>(samples) - x_expectedSamples) <= 1.0);
+    DOCTEST_CHECK(envelope.m_state == AHD::State::Idle);
+    DOCTEST_CHECK(envelope.m_output == 0.0f);
+    DOCTEST_CHECK(envelope.m_changed);
 }
 
 DOCTEST_TEST_CASE("AHD: release factor leaves phase-driven attack hold and decay unchanged")

@@ -31,6 +31,8 @@ The oscillators use **Vector Phase Shaping (VPS)** to distort the read phase of 
 - **v (Vertical)**: controls the vertical inflection point of the phase distortion.
 - **d (Horizontal)**: controls the horizontal inflection point (duty cycle/symmetry) of the phase distortion.
 
+Both inputs apply on the current engine sample without temporal smoothing. The v input scales by 4; d uses a raised-cosine mapping and frequency-dependent narrowing toward 0.5. The C2 quintic elbows smooth the phase-warp shape, not changes to either control.
+
 ### Dual Oscillator Interaction
 
 The Dual Wave Shaping VCO contains two such oscillators (VCO 0 and VCO 1):

@@ -33,7 +33,12 @@ Wavetable replacement is managed per track (trio): a `SquiggleBoyWaveTableGenera
 
 ### Requirement: Vector Phase Shaping
 Each oscillator SHALL distort its wavetable read phase with Vector Phase Shaping (VPS) controlled by two per-oscillator parameters: v (vertical inflection) and d (horizontal inflection/duty), each a 0-1 knob.
-The v knob scales by 4 to a vertical inflection in [0, 4]; the warped phase is wrapped modulo 1, so vertical inflections above 1 wind the read phase through multiple wavetable cycles per oscillator period. The phase warp is piecewise linear through the inflection point (d, v) with elbows of width `0.25 * min(d, 1 - d)` smoothed by C2-continuous quintic Hermite segments. The d knob is shaped by a raised-cosine curve, and its effective deviation from 0.5 is scaled by `max(0, 1 - 16 * freq)` so the duty distortion narrows to neutral as oscillator frequency rises. Both v and d targets are smoothed by 25 Hz one-pole filters.
+The v knob scales by 4 to a vertical inflection in [0, 4]; the warped phase is wrapped modulo 1, so vertical inflections above 1 wind the read phase through multiple wavetable cycles per oscillator period. The phase warp is piecewise linear through the inflection point (d, v) with elbows of width `0.25 * min(d, 1 - d)` smoothed by C2-continuous quintic Hermite segments. The d knob is shaped by a raised-cosine curve, and its effective deviation from 0.5 is scaled by `max(0, 1 - 16 * freq)` so the duty distortion narrows to neutral as oscillator frequency rises. Both v and d inputs SHALL apply to the current engine sample without temporal smoothing.
+
+#### Scenario: D or V changes affect the current sample
+- **WHEN** either input changes between engine samples
+- **THEN** that sample's phase warp uses the newly mapped input without a slew or low-pass transition
+- **AND** the result at a given phase and frequency does not depend on previous D or V inputs
 
 #### Scenario: Matched inflection leaves the phase undistorted
 - **WHEN** the scaled vertical inflection equals the effective horizontal inflection (for example v knob = 0.125 and d knob = 0.5, giving v = d = 0.5)

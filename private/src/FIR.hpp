@@ -18,8 +18,6 @@ struct FIR
 {
     static_assert(Size >= 3, "FIR size must be at least 3");
 
-    static constexpr size_t x_oversample = 4;
-
     // Target taps (designed from params) and slewed taps (used in processing)
     //
     float m_targetTaps[Size];
@@ -76,11 +74,11 @@ struct FIR
         , m_blend(0.0f)
         , m_asymmetry(0.5f)
     {
-        // Initialize slew filters for oversampled rate
+        // Initialize tap smoothing at 1 kHz in the engine sample domain.
         //
         for (size_t i = 0; i < Size; ++i)
         {
-            m_tapSlew[i].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1000.0) / x_oversample);
+            m_tapSlew[i].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1000.0));
             m_tapSlew[i].m_output = 0.0f;
         }
 

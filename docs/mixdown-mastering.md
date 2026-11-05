@@ -20,7 +20,7 @@ The system simultaneously generates three parallel mixdowns:
 
 Before leaving the synthesizer, both the Quad and Stereo mixdowns pass through a `DualMasteringChain`, which contains a `MultibandSaturator` (`private/src/MultibandSaturator.hpp`).
 
-The Multiband Saturator splits the signal into 4 frequency bands using 4th-order Linkwitz-Riley crossovers (`LinkwitzRileyCrossoverGeneric`). Each crossover processes all channels of the chain as one vector, computing its coefficients once per cutoff.
+The Multiband Saturator splits the signal into 4 frequency bands using fourth-order Butterworth branches (the legacy type name is `LinkwitzRileyCrossoverGeneric`). The retained section Qs are approximately 0.541196 and 1.306563: each branch is −3 dB at cutoff, and their unsaturated sum is +3 dB there, rather than a flat LR4 sum. Each crossover uses linear trapezoidal state-variable sections to avoid low-cutoff float precision loss at the engine rate. LP and HP share the first section, with a separate second section for each branch. All channels are processed as one vector, with shared coefficients and the three cutoff calculations batched across SIMD lanes.
 - Each band can have its gain adjusted independently.
 - Each band is then passed through a tanh saturator (`ProcessAndSaturate` in `Metering`), using the clamped rational approximation from `TanhSaturator` to provide soft clipping and harmonic saturation.
 - Because the saturation is applied per-band, it prevents intermodulation distortion (e.g., heavy bass notes won't cause the high frequencies to duck or distort).

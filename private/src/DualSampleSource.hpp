@@ -133,6 +133,11 @@ struct SampleSourceGeneric : SampleSourceBase
 
     void SetAudioBufferBank(size_t channel, AudioBufferBank* audioBufferBank)
     {
+        if (!audioBufferBank && m_audioBufferBanks.m_banks[channel])
+        {
+            m_grainManager.ClearChannel(channel);
+        }
+
         m_audioBufferBanks.m_banks[channel] = audioBufferBank;
         m_grainManager.m_audioBuffer = m_audioBufferBanks.IsEmpty() ? nullptr : &m_audioBufferBanks;
     }

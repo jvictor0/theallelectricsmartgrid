@@ -32,12 +32,12 @@ Both flags are cleared each frame before re-evaluation.
 - **THEN** both `m_changed` and `m_changedScene` are true on that frame
 
 ### Requirement: Consumers Refresh from Change Flags
-Encoder bank processing SHALL react to the scene manager's flags each control pass: on `m_changed`, every bank re-derives all cells' live banked values from scene storage (`SetStateRecursive`, which also forces recompute); on `m_changedScene`, every bank recomputes its affecting-modulator and affecting-gesture bitmasks so gesture activations and non-zero modulations of the newly active scene pair take effect.
+Encoder bank processing SHALL react to the scene manager's flags each host-frame matrix pass. An interior blend change (`m_changed` without `m_changedScene`) SHALL update evaluation of every named root using the new blend, including roots absent from the visible bank; prepared evaluation may retain deferred editable child state. A change with `m_changedScene` SHALL refresh scene-dependent values and affecting masks so the new scene pair and endpoint activations take effect. `SetStateRecursive` schedules one fresh evaluation for a settled tree and the full force-update window for a tree with moving values. Prepared schedule rebuilding and child synchronization SHALL preserve the observable host-frame behavior described in encoder-parameter-system.
 The 8-scene `StateSaver` instance likewise consumes scene/blend changes to swap registered discrete values between scenes.
 
 #### Scenario: Moving the blend morphs every parameter
 - **WHEN** the performer moves the scene crossfader on a frame
-- **THEN** all encoder cells in all banks refresh their banked values from the newly blended scene storage on that control pass
+- **THEN** every named encoder root evaluates the newly blended current scene values on the next host-frame matrix pass
 - **AND** `EncoderBankUIState::GetValue` reflects the morphed outputs
 
 #### Scenario: Selecting a new scene re-evaluates topology
@@ -46,11 +46,12 @@ The 8-scene `StateSaver` instance likewise consumes scene/blend changes to swap 
 
 ### Requirement: Centralized Shift Flag and UI Blinker
 The system SHALL hold a single shift flag on the `SceneManager` (`m_shift`), set by the owning controller layer and read by all press-and-hold consumers, and a `Blink` instance processed each host frame, advancing in host time, for UI feedback such as gesture-capture blinking.
-A shift-press on an encoder zeroes its modulator tree for the current scene(s) and track (or deactivates the selected gestures); the Nonagon sequencer reads the same flag for its shift behaviors.
+A shift-press with no selected gestures resets the pressed encoder to its configured default and neutralizes its modulation tree for the active scenes; with selected gestures it deactivates only those local gestures. The Nonagon sequencer reads the same flag for its shift behaviors.
 
 #### Scenario: Shift-press zeroes modulators
 - **WHEN** the shift flag is held and a connected encoder with no selected gestures is pressed
-- **THEN** all of that parameter's modulation depth cells are set to 0 for the active scene(s) on the current track and empty depth cells are garbage-collected
+- **THEN** the parameter's active-scene targets become its configured default, its descendant depth targets become normalized neutral 0.5 (signed depth 0), and linked gestures are deactivated for those scenes
+- **AND** current values ramp to the reset targets; eligible empty cells may be garbage-collected
 
 #### Scenario: One flag serves all consumers
 - **WHEN** the owner sets `m_shift` true
@@ -121,7 +122,7 @@ Only values whose boundaries lie in the swept blend interval are visited on a gi
 
 ### Requirement: Patch Persistence with Separate Encoder Serialization
 The system SHALL serialize a patch as a JSON object with distinct sections: `nonagon` (the 8-scene StateSaver), `squiggleBoy` (all encoder state via `EncoderBankBank::ToJSON`, see encoder-parameter-system), `stateSaver` (the global single-scene registry), `configGrid` (configuration including sample directories), `faders` (the sixteen SquiggleBoy analog fader values), and `blend` (the current scene crossfade); encoder state does not pass through the `StateSaver` registry.
-Save, load, and new-patch requests arrive through a state interchange polled on the audio thread: save serializes and acknowledges, load deserializes in place using the load request's `restoreFaders` policy, and a new-patch request runs `RevertToDefault(allScenes == true, allTracks == true)`, which restores encoder defaults (zeroing modulators and resetting slew state), reverts the Nonagon, resets both StateSavers, and resets the config grid.
+Save, load, and new-patch requests arrive through a state interchange polled on the audio thread: save serializes and acknowledges, load deserializes in place using the load request's `restoreFaders` policy, and a new-patch request runs `RevertToDefault(allScenes == true, allTracks == true)`, which restores encoder default targets (neutralizing modulation targets, deactivating gestures and advancing the required target ramps), reverts the Nonagon, resets both StateSavers, and resets the config grid.
 Audio-thread serialization SHALL be real-time safe: `ToJSON` SHALL allocate every node, key, and string from a caller-owned arena (see arena-json) and SHALL NOT call the system heap allocator. The arena SHALL be created and sized on the message thread and threaded as the first argument to `ToJSON`/`FromJSON`. When an audio-thread save produces a null root because the arena was exhausted, the message thread SHALL release the arena, allocate one of at least double the capacity, and re-request the save; the arena's lifetime SHALL bracket the save round-trip so the serialized tree (pointers into the arena) remains valid through the message-thread `Dumps` and save acknowledgment.
 Higher-level patch load functions SHALL pass an explicit `restoreFaders` value to patch deserialization. The top-level JUCE open/startup load path SHALL set `restoreFaders` to false when a WRLD.BLRD controller is open and true otherwise. Reload-style patch functionality SHALL set `restoreFaders` to false unconditionally. During application startup, saved WRLD.BLRD configuration SHALL be applied before the current patch load is requested, so the top-level restore policy reflects the startup controller attachment state.
 
@@ -197,16 +198,16 @@ The audio thread is never blocked on disk IO during patch load.
 - **THEN** that voice's existing audio buffer bank, if any, is released and no load task is queued
 
 ### Requirement: Reset and Edit Operations Stay Coherent Across Scenes and Patches
-Encoder reset/shift operations and discrete grid-cell edits SHALL leave the system in a state where the published UI surface and the underlying computed/stored values agree, and that agreement SHALL survive scene switches and patch save/load round-trips. Specifically: a shift-press reset performed while a given scene pair is active resets the current track's modulation for the active scene(s) only and SHALL NOT corrupt the stored values of inactive scenes; and any value altered by a reset or edit SHALL be serialized and restored by a save/load round-trip exactly as it stands after the edit (encoder state through `EncoderBankBank`, discrete grid/cell state through `StateSaver`; see encoder-parameter-system and the Theory of Time topology grid in phasor-timebase).
+Encoder reset/shift operations and discrete grid-cell edits SHALL leave the system in a state where the published UI surface and the underlying computed/stored values agree, and that agreement SHALL survive scene switches and patch save/load round-trips. Specifically: a shift-press reset performed while a given scene pair is active resets the pressed cell's default target and modulation/gesture subtree for the active scene(s) only when no gestures are selected and SHALL NOT corrupt the stored values of inactive scenes; and encoder targets altered by a reset or edit SHALL be serialized immediately and restored by a save/load round-trip, independently of in-progress current-value ramps; discrete registry values SHALL retain their stored values (encoder state through `EncoderBankBank`, discrete grid/cell state through `StateSaver`; see encoder-parameter-system and the Theory of Time topology grid in phasor-timebase).
 
 #### Scenario: Shift-reset in one scene leaves other scenes intact
 - **WHEN** a parameter is modulated in both scene 1 and scene 2, scene 1 is the active scene (blend 0), and the performer shift-presses the encoder to reset it
-- **THEN** the scene-1 modulation is cleared and the published value converges to the scene-1 base value after settle frames
+- **THEN** the scene-1 modulation is neutralized and the published value converges to the configured default after the reset ramps settle
 - **AND** switching the active scene to scene 2 republishes scene 2's still-modulated value (scene 2 was not affected by the scene-1 reset)
 
 #### Scenario: Post-reset state round-trips through a patch
 - **WHEN** an encoder is modulated, then shift-reset, then the patch is saved, the system reset to defaults, and the patch reloaded
-- **THEN** the reloaded encoder has no modulation and its published value equals the base value after settle frames, matching the state immediately after the reset
+- **THEN** the reloaded encoder has neutral modulation targets for the reset scenes and its published value reaches the configured default once the load ramps settle, matching the reset targets
 
 #### Scenario: Discrete grid-cell state round-trips and tracks scenes as registered
 - **WHEN** a discrete grid cell backed by the `StateSaver` registry (such as a Theory of Time topology multiplier) is edited, the patch is saved, the system reset, and the patch reloaded

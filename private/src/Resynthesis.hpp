@@ -513,6 +513,26 @@ struct ResynthesizerGeneric
         ResynthesizerGeneric* m_owner;
     };
 
+    void ClearChannel(size_t channel)
+    {
+        for (size_t i = 0; i < x_maxComponents; ++i)
+        {
+            m_synthesisMagnitudes[i][channel] = 0;
+            m_analysisMagnitudes[i][channel] = 0;
+            m_prevAnalysisMagnitudes[i][channel] = 0;
+            m_omegaInstantaneous[i][channel] = 0;
+            m_analysisPhase[i][channel] = 0;
+            m_prevAnalysisPhase[i][channel] = 0;
+            for (size_t oscillator = 0; oscillator < x_numOscillators; ++oscillator)
+            {
+                m_oscillators[oscillator].m_synthesisPhase[i][channel] = 0;
+            }
+        }
+
+        m_slewUpAlpha[channel] = 0;
+        m_pvdr[channel].Clear();
+    }
+
     void Clear()
     {
         for (size_t i = 0; i < x_numOscillators; ++i)

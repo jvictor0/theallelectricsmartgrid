@@ -2,7 +2,6 @@
 #include <cstddef>
 #include <cmath>
 #include "plugin.hpp"
-#include "Filter.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
 #include "MorphingWaveTable.hpp"
@@ -22,11 +21,9 @@ struct VectorPhaseShaperGeneric
     Vector m_phase;
     Vector m_freq;
     Vector m_vKnob;
-    Vector m_vTarget;
-    OPLowPassFilterGeneric<float, Size> m_v;
+    Vector m_v;
     Vector m_dKnob;
-    Vector m_dTarget;
-    OPLowPassFilterGeneric<float, Size> m_d;
+    Vector m_d;
     Vector m_out;
     Vector m_dScale;
     Vector m_phaseMod;
@@ -68,9 +65,9 @@ struct VectorPhaseShaperGeneric
         : m_phase(Vector::Splat(0))
         , m_freq(Vector::Splat(0))
         , m_vKnob(Vector::Splat(NAN))
-        , m_vTarget(Vector::Splat(0))
+        , m_v(Vector::Splat(0))
         , m_dKnob(Vector::Splat(NAN))
-        , m_dTarget(Vector::Splat(0))
+        , m_d(Vector::Splat(0))
         , m_out(Vector::Splat(0))
         , m_dScale(Vector::Splat(1))
         , m_phaseMod(Vector::Splat(0))
@@ -80,8 +77,6 @@ struct VectorPhaseShaperGeneric
             m_top[i] = false;
         }
 
-        m_v.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(25.0));
-        m_d.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(25.0));
         SetDV(Vector::Splat(0.5), Vector::Splat(0.5));
     }
 
@@ -97,17 +92,14 @@ struct VectorPhaseShaperGeneric
         if (d != m_dKnob)
         {
             m_dKnob = d;
-            m_dTarget = (Vector::Splat(1) - Math::Cos2pi(d * 0.5)) * 0.5;
+            m_d = (Vector::Splat(1) - Math::Cos2pi(d * 0.5)) * 0.5;
         }
 
         if (v != m_vKnob)
         {
             m_vKnob = v;
-            m_vTarget = v * 4;
+            m_v = v * 4;
         }
-
-        m_d.Process(m_dTarget);
-        m_v.Process(m_vTarget);
     }
 
     void UpdatePhase()
@@ -204,10 +196,10 @@ struct VectorPhaseShaperGeneric
 
     void Evaluate(const Input& input)
     {
-        Vector d = (m_d.m_output - 0.5) * m_dScale + 0.5;
+        Vector d = (m_d - 0.5) * m_dScale + 0.5;
         Vector phase = m_phase + m_phaseMod;
         phase = phase - phase.Floor();
-        Vector phi = PhiVPSQuinticElbow(phase, m_v.m_output, d);
+        Vector phi = PhiVPSQuinticElbow(phase, m_v, d);
 
         // A tiny negative phase can round to exactly one after adding its
         // integer wrap. One cycle is the same phase as zero.

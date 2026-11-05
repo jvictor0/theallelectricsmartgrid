@@ -1023,43 +1023,71 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
 
     void FromJSON(JSON rootJ)
     {
+        if (m_depth == 0)
+        {
+            SynchronizePreparedState();
+        }
+
         JSON valuesJ = rootJ.Get("values");
         if (!valuesJ.IsNull())
         {
             StateEncoderCell::FromJSON(valuesJ);
-        }        
+        }
 
+        // Keep current values and ramp state for matching paths. Rebuild the
+        // active indices from the loaded slots, including newly created paths.
+        //
         JSON modulatorsJ = rootJ.Get("modulators");
-        m_modulators.ClearAll();
-        if (!modulatorsJ.IsNull())
+        m_modulators.m_numActiveModulators = 0;
+        for (size_t i = 0; i < x_numModulators; ++i)
         {
-            for (size_t i = 0; i < x_numModulators; ++i)
+            m_modulators.m_activeModulators[i] = -1;
+        }
+
+        for (size_t i = 0; i < x_numModulators; ++i)
+        {
+            JSON modulatorJ = modulatorsJ.GetAt(i);
+            auto& modulator = m_modulators.m_modulators[i];
+            if (modulatorJ.IsNull())
             {
-                JSON modulatorJ = modulatorsJ.GetAt(i);
-                if (!modulatorJ.IsNull())
+                modulator = nullptr;
+            }
+            else
+            {
+                if (!modulator.get())
                 {
-                    if (modulatorJ.IsNull())
-                    {
-                        m_modulators.m_modulators[i] = nullptr;
-                    }
-                    else
-                    {
-                        m_modulators.m_modulators[i] = Make(m_context, this, i, BankedEncoderCell::EncoderType::ModulatorAmount);
-                        m_modulators.m_modulators[i]->FromJSON(modulatorJ);
-                        m_modulators.m_activeModulators[m_modulators.m_numActiveModulators] = i;
-                        ++m_modulators.m_numActiveModulators;
-                    }
+                    modulator = Make(m_context, this, i, BankedEncoderCell::EncoderType::ModulatorAmount);
                 }
+
+                modulator->FromJSON(modulatorJ);
+                m_modulators.m_activeModulators[m_modulators.m_numActiveModulators++] = i;
             }
         }
 
         JSON gesturesJ = rootJ.Get("gestures");
-        if (!gesturesJ.IsNull())
+        m_modulators.m_numActiveGestures = 0;
+        for (size_t i = 0; i < x_numGestureParams; ++i)
         {
-            for (size_t i = 0; i < x_numGestureParams; ++i)
+            m_modulators.m_activeGestures[i] = -1;
+        }
+
+        for (size_t i = 0; i < x_numGestureParams; ++i)
+        {
+            JSON gestureJ = gesturesJ.GetAt(i);
+            auto& gesture = m_modulators.m_gestures[i];
+            if (gestureJ.IsNull())
             {
-                m_modulators.AddGesture(this, i);
-                m_modulators.m_gestures[i]->FromJSON(gesturesJ.GetAt(i));
+                gesture = nullptr;
+            }
+            else
+            {
+                if (!gesture.get())
+                {
+                    gesture = Make(m_context, this, i, BankedEncoderCell::EncoderType::GestureParam);
+                }
+
+                gesture->FromJSON(gestureJ);
+                m_modulators.m_activeGestures[m_modulators.m_numActiveGestures++] = i;
             }
         }
 

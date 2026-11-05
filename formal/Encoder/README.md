@@ -1,7 +1,7 @@
 # Encoder state-machine specification
 
 This directory specifies the encoder runtime in **Lean 4.32.0 and Veil**, with
-71 EARS entries and kernel-checked proofs. Observable control behavior is specified
+72 EARS entries and kernel-checked proofs. Observable control behavior is specified
 independently of evaluation strategy. Supporting models describe the prepared
 evaluator, editable recursive encoder state, and committed `HEAD` at
 `0a0d206529be45b6ff3ac82824c65ebe73b49003`. Production C++ is
@@ -63,6 +63,7 @@ from its own location, including when invoked from another working directory.
 | [GestureLifecycle.lean](GestureLifecycle.lean) | Optional allocation, ordered scene capture/activation, flags, recording, toggle, deactivation and a ramp counterexample | `capture_blend_continuity`, `changed_capture_finishes`, `capture_stalled_counterexample` |
 | [GestureTree.lean](GestureTree.lean) | Keyed gesture deletion through nested modulators; selected Shift-press; owner/bank scope | `clear_every_descendant`, `shift_press_keeps_descendants`, `clear_is_dirty` |
 | [GestureMachine.lean](GestureMachine.lean), [HeadGestureMachine.lean](HeadGestureMachine.lean) | Separate current/HEAD Veil lifecycle machines with parent/gesture interleaving | All action-preservation theorems for bounds, parent coherence and absent slots |
+| [PatchLoad.lean](PatchLoad.lean) | Recursive serialized-slot replacement/reuse, current/target preservation, saved-domain comparison and an explicit old-loader counterexample | `old_polynomial_reload_counterexample`, `reload_preserves_state`, `reload_preserves_output_trajectory` |
 | [Audit.lean](Audit.lean) | Existence of every contract theorem and transitive axiom inspection | Build fails for missing proofs or unapproved axioms |
 
 The runtime model exposes small atomic operations rather than treating the whole
@@ -92,7 +93,8 @@ The native implementation may skip work when the result would be unchanged.
 This machine is a behavioral reference, not an automatically established
 refinement of the C++ evaluator. It retains the existing leaf ramp trajectory;
 another trajectory may replace it after establishing the motion/convergence
-contracts. It does not claim continuity across discrete patch or scene changes.
+contracts. It does not itself claim continuity across discrete patch or scene changes;
+`PatchLoad.lean` separately covers identical settled patch reloads.
 
 E08 (force-zero no-op), E11 (mandatory full endpoint-refresh countdown), E23
 (specific ancestor force counters), E24 (ramp/revision fallback) and E36
@@ -154,7 +156,8 @@ assume the final outputs are equal. It also does not prove that the C++
 - Initialization, edits, compute and publication are modeled separately from
   allocator ownership, UI atomic synchronization, MIDI hardware mapping,
   recording serialization/filtering, and JSON/schema migration. Persisted
-  *target selection* is modeled, not byte-for-byte serialization.
+  target selection and decoded recursive loading are modeled; byte-for-byte
+  serialization and JSON parsing are not.
 - The prepared protocol abstracts away skipped evaluations that would produce
   the same result. It does not estimate runtime or prove audio deadlines.
 
@@ -167,6 +170,54 @@ activation/deletion now have explicit models; the complete `Increment` routing
 composition, allocator behavior and compact active-index arrays remain outside
 these proofs. Existing C++ tests remain necessary for those boundaries and for
 validating model/implementation correspondence.
+
+## Patch-load coverage
+
+[PatchLoad.lean](PatchLoad.lean) models decoded patch loading as an explicit
+recursive transition. Slots retain their serialized indices, including holes;
+these are not positions in the compact active lists. The historical
+`replaceDepth` transition initializes a replacement at neutral and then writes
+saved targets. `old_reload_counterexample` proves the resulting 1 → 0.3
+excursion for an endpoint-exact depth curve; `old_polynomial_reload_counterexample`
+proves an excursion from above 0.9 to 0.3 using the existing exact-rational model
+of the production exponential polynomial. These evaluate before the first ramp
+advance. The C++ regression measures the published first-frame excursion
+(approximately 1 → 0.30008) and checks every oversample slot thereafter.
+
+The fixed `load` transition reuses matching cells recursively, creates missing
+cells at their constructor neutral, and removes absent patch slots.
+`reload_preserves_state` proves that loading saved targets preserves the entire
+logical tree and every ramp state, except for restarting force-refresh counters.
+`reload_preserves_output_trajectory` proves that an identical settled reload
+preserves observations at every following host frame under unchanged inputs.
+Its evaluator is any pure function of observed current scene values, activation
+flags and fixed external inputs; observation equality is proved, not assumed.
+The C++ tests additionally cover prepared-to-recursive transitions, nested
+modulation and gestures, endpoint/center blends, pending ramps, topology edits,
+and all published engine-sample cache entries.
+
+The saved-domain guard has a separate `encoded_self_load` theorem: it does not
+require encoding and decoding to be exact inverses. This corresponds to avoiding
+a spurious target change when a bipolar float is saved and decoded with rounding.
+The recursive model uses normalized exact arithmetic; `normalized_decode_agrees`
+connects its target writes to this guard in that domain.
+
+The tree model describes logical slots before garbage collection. Neutral,
+childless depths and inactive gestures may be reclaimed; their lack of audio
+contribution is covered by the existing reset/evaluation silence lemmas, rather
+than claiming pointer identity for reclaimed cells. Constructor neutral values
+are determined by slot kind and parent polarity, represented as node metadata.
+JSON parsing, binary32 numerical accuracy, active-list ordering, allocator
+behavior, output-history storage and C++ refinement remain test/review boundaries.
+Changing topology or activation flags in a different patch is not covered by an
+identical-patch continuity guarantee. Matching changed targets still ramp from
+current values; newly added paths ramp from neutral; removed paths disappear.
+
+Earlier bounds/convergence/publication proofs did not catch this defect because
+they omitted the patch replacement transition. Lean checks the stated model;
+the source-hash audit detects reviewed C++ drift but does not extract a model
+from C++. E77 now records the load contract, its old-loader counterexample, and
+the fixed-transition proofs.
 
 ## HEAD comparison and coverage
 
@@ -386,8 +437,8 @@ Recursive `ClearGesture(id)` clears that ID at every allocated modulator node,
 retaining the other IDs, base/route state and topology. Selected-gesture
 Shift-press clears only local linked gestures; descendant gestures remain intact.
 The no-selection Shift-press branch is the existing reset-to-default operation.
-The broader OpenSpec prose still describes that branch as preserving the base;
-this discrepancy remains unresolved, and the Lean models follow the code.
+The broader encoder and scene-state specifications describe that same
+configured-default reset; this branch does not preserve the previous base target.
 Owner-level deletion reaches named roots regardless of visibility, whereas bank
 local deletion touches only placed entries. Placement/ownership construction,
 allocation/index-array maintenance and subsequent garbage collection remain

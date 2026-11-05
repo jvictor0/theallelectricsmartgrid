@@ -14,7 +14,7 @@ The system SHALL diffuse the incoming quad signal through a bank of eight parall
 
 #### Scenario: Prime delays avoid common periodicity
 - **WHEN** the eight parallel all-pass outputs are averaged
-- **THEN** no two filter delay lengths share a common factor, so their reflection patterns do not reinforce a single periodic resonance
+- **THEN** no two host-sample delay constants share a common factor, so their reflection patterns do not reinforce a single periodic resonance
 
 ### Requirement: All-Pass Filtering of the Feedback Return
 The system SHALL pass the feedback return signal (the reverb's own previous output) through a quadraphonic all-pass filter (`m_preFeedbackFilter`) with per-channel delay lengths 3, 5, 7, and 11 host samples (times `x_oversample` in engine samples) before it is scaled by the feedback gain and summed with the diffused input. The dry input path is diffused by the parallel bank only; it is the recirculating path that passes this additional all-pass stage on every loop.
@@ -35,11 +35,15 @@ The system SHALL form the main delay line input as `diffusedInput + filteredRetu
 - **THEN** the saturator operates in its near-linear region and the tail decays geometrically with each pass
 
 ### Requirement: Modulated Main Delay Line
-The system SHALL run entirely at the engine rate, expressing every delay length as a host-sample constant multiplied by `x_oversample` so physical times are unchanged. It SHALL read the reverberant tail from a four-channel delay line of 65536 * `x_oversample` engine samples per channel at a per-channel delay time `delayTimeSamples * widen + lfoOutput * 1000 * x_oversample * modDepth`. The base delay time maps the reverb-time knob exponentially over 60 to 61440 host samples (times `x_oversample`) and is slewed by a one-pole filter; the widen factors are fixed per-channel constants (approximately 0.9786, 1.0, 0.9868, 0.9897) that decorrelate the four loop lengths; the `QuadLFO` (frequency knob mapped exponentially over 0.05 Hz to 51.2 Hz at 48 kHz, with per-channel phase offsets) adds up to ±1000 host samples scaled by the modulation depth, chorusing the tail and breaking up static resonances.
+The system SHALL run entirely at the engine rate, expressing every delay length as a host-sample constant multiplied by `x_oversample` so physical times are unchanged. It SHALL read a four-channel delay line of 65536 * `x_oversample` engine samples per channel at `delayTimeSamples * widen + delayOffsetSamples`. The base delay time maps the reverb-time knob exponentially over 60 to 61440 host samples and is slewed by a one-pole filter. Fixed per-channel widener ratios (approximately 0.9786, 1.0, 0.9868, 0.9897) decorrelate the loop lengths. The delay-offset knob SHALL map linearly as `(2 * knob - 1) * 1000 * x_oversample` engine samples, without an internal LFO or separate depth smoothing. The regular parameter modulation system MAY drive this control. Internal LFO frequency and phase controls SHALL be absent.
 
-#### Scenario: Modulation depth controls tail motion
-- **WHEN** the modulation depth knob is raised from zero
-- **THEN** each channel's read position varies by the channel's LFO output times 1000 times the depth, and at zero depth the delay times are static
+#### Scenario: Delay offset is centered and linear
+- **WHEN** a channel's delay-offset knob is 0, 0.5, or 1
+- **THEN** its offset is respectively -1000, 0, or +1000 host samples, multiplied by `x_oversample` before the delay read
+
+#### Scenario: Regular modulation moves the delay offset
+- **WHEN** a regular modulator varies the delay-offset control
+- **THEN** the resulting offset is added directly to the widened base delay on each engine sample
 
 #### Scenario: Channel loop lengths are intentionally unequal
 - **WHEN** all four channels share the same reverb-time knob value
@@ -76,10 +80,10 @@ The system SHALL set a single gain coefficient for every all-pass filter in the 
 
 #### Scenario: Default diffusion gain
 - **WHEN** a `QuadReverb` is constructed
-- **THEN** every all-pass filter's gain is 0.6 and the LFO slew limit is set to 10/48000
+- **THEN** every all-pass filter's gain is 0.6
 
 ### Requirement: Smoothed Control Mapping
-The `QuadReverbInputSetter` SHALL map the per-channel knob inputs to DSP parameters once per engine sample: reverb time through a one-pole slew filter then an exponential map, modulation depth through a zeroed exponential map then a one-pole slew filter, damping base/width and modulation frequency through exponential maps, and feedback through a zeroed exponential map (centered at 0.25) scaled by 1.25. The per-channel widen parameter is driven at its maximum constant value; the widen knob input is not consulted.
+The `QuadReverbInputSetter` SHALL map the per-channel knob inputs to DSP parameters once per engine sample: reverb time through a one-pole slew filter then an exponential map, delay offset through its centered linear map, damping base/width through exponential maps, and feedback through a zeroed exponential map (centered at 0.25) scaled by 1.25. The per-channel widen parameter is fixed at its maximum widener value.
 
 #### Scenario: Reverb time changes glide
 - **WHEN** the reverb-time knob jumps between two values

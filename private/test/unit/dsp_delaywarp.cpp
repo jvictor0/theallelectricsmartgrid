@@ -166,17 +166,24 @@ DOCTEST_TEST_CASE("DelayWarp: fast quad grains retain a steady tone with real-ti
     std::array<double, 4> blockEnergy{};
     std::array<double, 4> minRms{1, 1, 1, 1};
     std::array<double, 4> maxRms{};
+    std::array<double, 4> toneReal{};
+    std::array<double, 4> toneImag{};
 
-    // Each engine sample advances the host-rate storage by 1 / x_oversample of
-    // the five-sample write step.
+    // Move the heads every engine sample, but record once per host frame as
+    // QuadDelay does. The warped write head advances five host samples per write.
     //
     const int ratio = static_cast<int>(SampleTimer::x_oversample);
     const int block = 1024 * ratio;
     for (int n = 0; n < 32768 * ratio; ++n)
     {
         double write = 10000.0 + 5.0 * n / ratio;
-        float sample = 0.2f * std::sin(2 * M_PI * 750 * n / (48000.0 * ratio));
-        storage->Write(QuadFloat(sample, sample, sample, sample), write);
+        double phase = 2 * M_PI * SampleTimer::HzToCycPerSamp(750.0) * n;
+        if ((n + 1) % ratio == 0)
+        {
+            float sample = 0.2f * std::sin(phase);
+            storage->Write(QuadFloat::Splat(sample), write);
+        }
+
         QuadDouble read(write - 4500, write - 4500, write - 4500, write - 30000);
         QuadFloat output = grains->Process(read, offsets, input, storage->m_lastTime - 1.0);
         if (n >= 16384 * ratio)
@@ -185,6 +192,8 @@ DOCTEST_TEST_CASE("DelayWarp: fast quad grains retain a steady tone with real-ti
             {
                 DOCTEST_REQUIRE(std::isfinite(output[channel]));
                 blockEnergy[channel] += output[channel] * output[channel];
+                toneReal[channel] += output[channel] * std::cos(phase);
+                toneImag[channel] += output[channel] * std::sin(phase);
                 if ((n + 1) % block == 0)
                 {
                     double rms = std::sqrt(blockEnergy[channel] / block);
@@ -201,6 +210,8 @@ DOCTEST_TEST_CASE("DelayWarp: fast quad grains retain a steady tone with real-ti
         DOCTEST_INFO("channel " << channel << " RMS range " << minRms[channel] << " to " << maxRms[channel]);
         DOCTEST_CHECK(minRms[channel] > 0.139);
         DOCTEST_CHECK(maxRms[channel] < 0.144);
+        double toneAmplitude = 2.0 * std::hypot(toneReal[channel], toneImag[channel]) / (16384 * ratio);
+        DOCTEST_CHECK(toneAmplitude == doctest::Approx(0.2).epsilon(0.02));
     }
 }
 
@@ -299,6 +310,8 @@ DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without los
         double blockEnergy = 0;
         double minRms = 1;
         double maxRms = 0;
+        double toneReal = 0;
+        double toneImag = 0;
         int measuredSamples = 0;
         for (int n = 0; n < 576000; ++n)
         {
@@ -313,14 +326,21 @@ DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without los
 
             negativePosition = negativePosition || head < 0;
             lastHead = head;
-            float sample = 0.2f * std::sin(2 * M_PI * 750 * n / 48000.0);
-            storage->Write(QuadFloat(sample, sample, sample, sample), delayInput.m_writeHeadPosition);
+            double phase = 2 * M_PI * SampleTimer::HzToCycPerSamp(750.0) * n;
+            if ((n + 1) % SampleTimer::x_oversample == 0)
+            {
+                float sample = 0.2f * std::sin(phase);
+                storage->Write(QuadFloat::Splat(sample), delayInput.m_writeHeadPosition);
+            }
+
             QuadFloat output = grains->Process(delayInput.m_readHeadPosition, QuadFloat(0, 0, 0, 0), grainInput, storage->m_lastTime - 1.0);
             finite = finite && std::isfinite(output[0]);
             if (n >= 384000)
             {
                 ++measuredSamples;
                 blockEnergy += output[0] * output[0];
+                toneReal += output[0] * std::cos(phase);
+                toneImag += output[0] * std::sin(phase);
                 if (measuredSamples % 1024 == 0)
                 {
                     double rms = std::sqrt(blockEnergy / 1024);
@@ -338,6 +358,8 @@ DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without los
         DOCTEST_CHECK(negativePosition);
         DOCTEST_CHECK(minRms > 0.139);
         DOCTEST_CHECK(maxRms < 0.144);
+        double toneAmplitude = 2.0 * std::hypot(toneReal, toneImag) / measuredSamples;
+        DOCTEST_CHECK(toneAmplitude == doctest::Approx(0.2).epsilon(0.02));
         DOCTEST_MESSAGE("high-Mult shape=" << setting.m_shape << " index=" << setting.m_index << " skew=" << setting.m_skew
             << " RMS=" << minRms << ".." << maxRms << " max advance=" << maxAdvance);
     }
