@@ -56,3 +56,41 @@ All raw evidence remains on the Mac under:
 - `app-earlier/2026-11-05T09-28-19-862.log`.
 - `app-before/2026-11-05T09-29-32-760.log`.
 - `app-after/2026-11-05T09-37-49-754.log`.
+
+## Afternoon recurrence: captured with the app still running
+
+The user reported several more gravelly/popping episodes around 15:50 PST and asked that journal entries not each be pushed. They were unsure whether this was the morning's uninterrupted app run. The system log resolves that: **process 9536 spawned at 15:45:38.219**, with app log `2026-11-05T15-45-40-595.log` and audio setup at 15:45:46. This is a later launch, so it does not measure time to recurrence in the morning's recovered session.
+
+The new historical archive covers **15:20:31.000–15:50:32.996 PST**, with 260,476 dated records. The user confirmed changing USB or power around **15:45:50**; the exact connection/intervention is unspecified. Consequently, the transaction-error cluster accompanying this disconnect is not evidence of a spontaneous hub failure. The user also confirmed short bursts with clean audio between them; exact audible burst times remain unspecified.
+
+### Evidence before the user's USB/power intervention
+
+- **15:45:33.075:** the display changes from off to active after a touch. An inactive-backlight assertion reports about 4 h 23 min duration. This supports a wake-from-display-idle context, not a measurement of system sleep or the time the fault first developed.
+- **15:45:33.857:** Maya device `0x7e7` starts streaming in the context of SpringBoard's `SystemSoundsAndHaptics` auxiliary session `0x6a0cb`.
+- **15:45:34.126:** the Maya driver's startup check reports excessive zero-length packets. Repeated stop/start retries increase the logged lock delay from 250 to 600 ms; by **15:45:37.758**, a requested 650 ms exceeds the driver's logged 600 ms maximum. These failures precede SmartGrid process creation at 15:45:38.219. Thus abnormal USB-audio startup can occur before this app's DSP runs. This does not prove that these input-side failures are the mechanism of the later audible output bursts.
+- **15:45:41.353–15:45:50.726:** 427 retained Maya input-underflow messages, spanning app initialization and its first seconds of playback. Empty USB transfers are distinct from PCM samples with zero amplitude.
+- **15:45:50.726–15:45:58.356:** 584 kernel transaction-error messages: 570 for WRLD.BLDR and 14 for Maya. The whole hub disconnects around 15:45:50.8, then re-enumerates; Maya returns at **15:45:59.417**. The user confirmed a USB/power intervention here. This is not evidence that the previously fixed WRLD firmware bug returned.
+
+### After the reconnect, in the same app process
+
+The replacement Maya driver object is `0x89d`. Startup retries use logged lock delays of 24, 100, 150, 200 and 200 ms; the last StartIO completes at **15:46:01.642**. Across the whole archive, 903 messages mention zero-length packets/transfers, ending at 15:46:01.293. These counts describe retained messages, not individual packets or audible glitches.
+
+Eight further input-underflow messages occur at **15:46:12.291–15:46:14.363**. The private `ioDriftNS` diagnostic then provides an additional stream-timing lead: 162 messages from **15:46:02.347–15:46:43.348**, increasing from **645,833** to **247,440,500**. The field's interpretation and any audible threshold remain unvalidated; do not present it as measured analog delay or physical oscillator error. No later Maya StartIO/StopIO, USB transaction errors, or `IOProc expected ... got ... frames` messages are retained through 15:50:32.996. Missing or potentially throttled diagnostics do not establish clean audio.
+
+The app's 15:46:46 timing snapshot reports one long callback gap (23,090 microseconds), one processing overrun, zero format mutes and two JUCE xruns. No additional timing-counter change is logged through the final snapshot at **15:54:50**. These aggregate counters include startup/reconnection and cannot be assigned to a specific heard burst. The route remains Maya **48 kHz/512**, four inputs/outputs, nominal thermal state, low-power mode off, with reported CPU approximately **0.564–0.584**. There is no newly logged continuing processing-overrun pattern.
+
+One configuration detail merits preserving: after the route change, `AVAudioSession` reports **preferred rate 192 kHz, actual rate 48 kHz**. The system log explicitly records SmartGrid's 192 kHz preference and iOS choosing 48 kHz. In the inspected JUCE backend, available-rate probing requests 192 kHz, while `trySampleRate` returns early if the desired rate already equals the actual rate; this is a plausible way to leave a stale preference after probing. It is not evidence of a 192 kHz Maya hardware stream or a demonstrated cause of the artifacts. It is also distinct from the app's intentional 192 kHz internal DSP rate.
+
+The useful localization is the pre-app USB startup failure, followed by stream-timing anomalies after reconnection with stable app timing counters. Exact alignment to the user's later audible bursts still needs an audible timestamp or analog capture. No reset, app restart, deployment, setting change or hardware action was initiated by this investigation.
+
+Afternoon raw artifacts remain on the Mac under:
+
+`/Users/joyo/Documents/SmartGridOne/diagnostics/20261105T235010Z-gravel-recurrence/`
+
+- `system.logarchive/`, `system-all.log` and `system-event-summary.json`.
+- `app/2026-11-05T15-45-40-595.log`, `app-followup/2026-11-05T15-45-40-595.log` and `app-final/2026-11-05T15-45-40-595.log`.
+- Bounded live audio/USB logs in `live-audio-usb.jsonl`, with `live-status.json`.
+
+The four-minute live collector exited successfully at its deadline, **15:55:15.827**, with 35,226 messages seen and 1,551 filtered records saved (1,151,615 bytes). Saved device timestamps span **15:51:17.328–15:55:15.627**; the historical archive ends earlier, leaving an approximately 44-second gap between these sources. No matching underflow, zero-length, driver-drift, transaction-error, Maya stream restart or frame-expectation messages were found in this live window. This is log coverage, not verified clean audible exposure; no analog recording was made and exact burst alignment remains unknown. No collector was left running.
+
+This addition is kept locally; no push is authorized by this recurrence report.
