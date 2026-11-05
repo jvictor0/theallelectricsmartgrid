@@ -10,6 +10,12 @@
 
 namespace
 {
+    constexpr size_t x_subTrack = QuadMixerInternal::x_firstSubRecordingTrack;
+    constexpr size_t x_externalTrack = QuadMixerInternal::x_firstExternalRecordingTrack;
+    constexpr size_t x_returnTrack = QuadMixerInternal::x_firstReturnRecordingTrack;
+    constexpr size_t x_masterQuadTrack = QuadMixerInternal::x_masterQuadRecordingTrack;
+    constexpr size_t x_masterStereoTrack = QuadMixerInternal::x_masterStereoRecordingTrack;
+
     struct MixerRecordingTest
     {
         std::filesystem::path m_directory;
@@ -17,7 +23,7 @@ namespace
         QuadMixerInternal m_mixer;
         QuadMixerInternal::Input m_input;
 
-        MixerRecordingTest(size_t inputs = 1, size_t monoInputs = 1)
+        MixerRecordingTest()
             : m_mixer(&m_context)
         {
             static std::atomic<size_t> s_sequence = 0;
@@ -25,10 +31,8 @@ namespace
             m_directory = std::filesystem::temp_directory_path()
                 / ("smartgrid-mixer-" + std::to_string(stamp) + "-" + std::to_string(s_sequence.fetch_add(1)));
             std::filesystem::create_directories(m_directory);
-            m_input.m_numInputs = inputs;
-            m_input.m_numMonoInputs = monoInputs;
             m_mixer.m_recordingDirectory = m_directory.string();
-            DOCTEST_REQUIRE(m_mixer.PrepareRecording(inputs, monoInputs, 48000));
+            DOCTEST_REQUIRE(m_mixer.PrepareRecording(48000));
         }
 
         ~MixerRecordingTest()
@@ -43,7 +47,7 @@ namespace
 
         void Start()
         {
-            DOCTEST_REQUIRE(m_mixer.StartRecording(m_input.m_numInputs, 48000));
+            DOCTEST_REQUIRE(m_mixer.StartRecording(48000, JSON()));
             PrepareFrame(m_input, x_settleHostFrames);
             m_mixer.Process(m_input);
             DOCTEST_REQUIRE(m_mixer.m_recordingFrameActive);
@@ -75,16 +79,29 @@ namespace
             return m_context.m_recorder.m_staging[m_context.m_recorder.m_trackOffsets[track] + stream];
         }
     };
+
+    void CheckQuadApprox(const QuadFloat& actual, const QuadFloat& expected)
+    {
+        for (size_t channel = 0; channel < 4; ++channel)
+        {
+            DOCTEST_CHECK(actual[channel] == doctest::Approx(expected[channel]));
+        }
+    }
 }
 
-DOCTEST_TEST_CASE("recording mixer: current layout declares typed lanes and direct masters")
+DOCTEST_TEST_CASE("recording mixer: fixed layout declares typed lanes and direct masters")
 {
-    const auto session = QuadMixerInternal::MakeRecordingSession(17, 9, 48000);
+    const auto session = QuadMixerInternal::MakeRecordingSession(48000);
     DOCTEST_REQUIRE(RecordingFormat::Validate(session));
     DOCTEST_CHECK(session.m_sampleRate == 48000);
     DOCTEST_CHECK(session.m_blockFrames == 48000);
     DOCTEST_CHECK(session.m_gitCommitSha == SmartGridBuildInfo::x_gitCommitSha);
     DOCTEST_REQUIRE(session.m_tracks.size() == 31);
+    DOCTEST_CHECK(QuadMixerInternal::x_numRecordingTracks == 31);
+    DOCTEST_CHECK(x_externalTrack == 9);
+    DOCTEST_CHECK(x_subTrack == 17);
+    DOCTEST_CHECK(x_returnTrack == 26);
+    DOCTEST_CHECK(x_masterQuadTrack == 29);
     DOCTEST_CHECK(session.StreamCount() == 78);
     for (size_t i = 0; i < 31; ++i)
     {
@@ -102,119 +119,174 @@ DOCTEST_TEST_CASE("recording mixer: current layout declares typed lanes and dire
     DOCTEST_CHECK(session.m_tracks[30].m_tap == "post_mastering_pre_master_volume");
     DOCTEST_CHECK(session.m_tracks[0].m_tap == "post_fader_post_saturation");
     DOCTEST_CHECK(session.m_tracks[17].m_tap == "post_saturation");
-    DOCTEST_CHECK_FALSE(RecordingFormat::Validate(QuadMixerInternal::MakeRecordingSession(33, 9, 48000)));
-    DOCTEST_CHECK_FALSE(RecordingFormat::Validate(QuadMixerInternal::MakeRecordingSession(1, 2, 48000)));
 }
 
-DOCTEST_TEST_CASE("recording mixer: input and mono taps saturate independently and ignore monitor")
+DOCTEST_TEST_CASE("recording mixer: track and sub taps saturate independently")
 {
     MixerRecordingTest fixture;
-    auto& input = fixture.m_input;
-    input.m_input[0] = 0.8f;
-    input.m_gain[0].m_expParam = 0.75f;
-    input.m_monoIn[0] = 0.2f;
-    input.m_x[0] = 0.2f;
-    input.m_y[0] = 0.8f;
-    input.m_monitor[0] = false;
-    input.m_monitorMono[0] = false;
+    auto& track = fixture.m_input.m_tracks[1];
+    track.m_input[2] = 0.8f;
+    track.m_gain.m_expParam[2] = 0.75f;
+    track.m_sub[2] = 0.2f;
+    track.m_x[2] = 0.2f;
+    track.m_y[2] = 0.8f;
     fixture.Start();
 
-    const float voice = TanhSaturator<false>::Tanh(0.8f * 0.75f);
-    const float mono = TanhSaturator<false>::Tanh(0.2f);
-    DOCTEST_CHECK(fixture.Sample(0) == doctest::Approx(voice));
-    DOCTEST_CHECK(fixture.Sample(0, 1) == doctest::Approx(0.2f));
-    DOCTEST_CHECK(fixture.Sample(0, 2) == doctest::Approx(0.8f));
-    DOCTEST_CHECK(fixture.Sample(1) == doctest::Approx(mono));
+    const size_t voice = QuadMixerInternal::x_voicesPerTrack + 2;
+    DOCTEST_CHECK(fixture.Sample(voice) == doctest::Approx(TanhSaturator<false>::Tanh(0.8f) * 0.75f));
+    DOCTEST_CHECK(fixture.Sample(voice, 1) == doctest::Approx(0.2f));
+    DOCTEST_CHECK(fixture.Sample(voice, 2) == doctest::Approx(0.8f));
+    DOCTEST_CHECK(fixture.Sample(x_subTrack + voice) == doctest::Approx(TanhSaturator<false>::Tanh(0.2f)));
+    for (size_t other = 0; other < QuadMixerInternal::x_numVoices; ++other)
+    {
+        if (other != voice)
+        {
+            DOCTEST_CHECK(fixture.Sample(other) == 0.0f);
+            DOCTEST_CHECK(fixture.Sample(x_subTrack + other) == 0.0f);
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("recording mixer: unmonitored external input still records")
+{
+    MixerRecordingTest fixture;
+    auto& external = fixture.m_input.m_externals[2];
+    external.m_input[1] = 0.5f;
+    external.m_x[1] = 0.3f;
+    external.m_y[1] = 0.4f;
+    external.m_monitor = false;
+    fixture.Start();
+
+    const size_t lane = x_externalTrack + 2 * QuadMixerInternal::x_externalInputLanes + 1;
+    DOCTEST_CHECK(fixture.Sample(lane) == doctest::Approx(TanhSaturator<false>::Tanh(0.5f)));
+    DOCTEST_CHECK(fixture.Sample(lane, 1) == doctest::Approx(0.3f));
+    DOCTEST_CHECK(fixture.Sample(lane, 2) == doctest::Approx(0.4f));
     DOCTEST_CHECK(fixture.m_mixer.m_output.m_output == QuadFloat());
     DOCTEST_CHECK(fixture.m_mixer.m_output.m_stereoOutput == StereoFloat());
 }
 
-DOCTEST_TEST_CASE("recording mixer: mono saturation cannot duck the voice and bypasses gain and sends")
+DOCTEST_TEST_CASE("recording mixer: sends tap the saturated pre-fader signal and the fader scales only the dry signal")
 {
     MixerRecordingTest fixture;
-    auto& input = fixture.m_input;
-    input.m_input[0] = 4.0f;
-    input.m_gain[0].m_expParam = 1.0f;
-    input.m_x[0] = 0.2f;
-    input.m_y[0] = 0.8f;
+    auto& track = fixture.m_input.m_tracks[2];
+    track.m_input[1] = 4.0f;
+    track.m_gain.m_expParam[1] = 0.5f;
+    track.m_x[1] = 0.3f;
+    track.m_y[1] = 0.6f;
+    const float sendGains[QuadMixerInternal::x_numSends] = {0.25f, 0.5f, 1.0f};
     for (size_t send = 0; send < QuadMixerInternal::x_numSends; ++send)
     {
-        input.m_sendGain[0][send].m_expParam = 0.5f;
+        track.m_sendGain[send].m_expParam[1] = sendGains[send];
+    }
+
+    fixture.Start();
+    fixture.m_mixer.ProcessInputs(fixture.m_input);
+    const QuadFloat panned = QuadFloat::Pan(0.3f, 0.6f, TanhSaturator<false>::Tanh(4.0f));
+    for (size_t send = 0; send < QuadMixerInternal::x_numSends; ++send)
+    {
+        CheckQuadApprox(fixture.m_mixer.m_send[send], panned * sendGains[send]);
+    }
+
+    CheckQuadApprox(fixture.m_mixer.m_dryOutput, panned * 0.5f);
+    DOCTEST_CHECK(fixture.Sample(QuadMixerInternal::x_voicesPerTrack * 2 + 1) == doctest::Approx(TanhSaturator<false>::Tanh(4.0f) * 0.5f));
+    fixture.m_mixer.ProcessReturns(fixture.m_input);
+
+    track.m_gain.m_expParam[1] = 0.0f;
+    fixture.Settle(fixture.m_input);
+    fixture.m_mixer.ProcessInputs(fixture.m_input);
+    for (size_t send = 0; send < QuadMixerInternal::x_numSends; ++send)
+    {
+        CheckQuadApprox(fixture.m_mixer.m_send[send], panned * sendGains[send]);
+    }
+
+    DOCTEST_CHECK(fixture.m_mixer.m_dryOutput == QuadFloat());
+}
+
+DOCTEST_TEST_CASE("recording mixer: sub saturation cannot duck the voice and bypasses gain and sends")
+{
+    MixerRecordingTest fixture;
+    auto& track = fixture.m_input.m_tracks[0];
+    track.m_input[0] = 4.0f;
+    track.m_gain.m_expParam[0] = 1.0f;
+    track.m_x[0] = 0.2f;
+    track.m_y[0] = 0.8f;
+    for (size_t send = 0; send < QuadMixerInternal::x_numSends; ++send)
+    {
+        track.m_sendGain[send].m_expParam[0] = 0.5f;
     }
 
     fixture.Start();
     const float voice = fixture.Sample(0);
     const QuadFloat send = fixture.m_mixer.m_send[0];
-    input.m_monoIn[0] = -4.0f;
-    fixture.Settle(input);
-    fixture.m_mixer.Process(input);
+    track.m_sub[0] = -4.0f;
+    fixture.Settle(fixture.m_input);
+    fixture.m_mixer.Process(fixture.m_input);
     DOCTEST_CHECK(fixture.Sample(0) == doctest::Approx(voice));
-    const float mono = fixture.Sample(1);
-    DOCTEST_CHECK(mono == doctest::Approx(TanhSaturator<false>::Tanh(-4.0f)));
+    const float sub = fixture.Sample(x_subTrack);
+    DOCTEST_CHECK(sub == doctest::Approx(TanhSaturator<false>::Tanh(-4.0f)));
     for (size_t i = 0; i < QuadMixerInternal::x_numSends; ++i)
     {
         DOCTEST_CHECK(fixture.m_mixer.m_send[i] == send);
     }
 
-    input.m_gain[0].m_expParam = 0.0f;
-    fixture.Settle(input);
-    fixture.m_mixer.Process(input);
+    track.m_gain.m_expParam[0] = 0.0f;
+    fixture.Settle(fixture.m_input);
+    fixture.m_mixer.Process(fixture.m_input);
     DOCTEST_CHECK(fixture.Sample(0) == doctest::Approx(0.0f));
-    DOCTEST_CHECK(fixture.Sample(1) == doctest::Approx(mono));
-    input.m_input[0] = 0.0f;
-    fixture.Settle(input);
-    fixture.m_mixer.Process(input);
-    DOCTEST_CHECK(fixture.Sample(1) == doctest::Approx(mono));
+    DOCTEST_CHECK(fixture.Sample(x_subTrack) == doctest::Approx(sub));
+    track.m_input[0] = 0.0f;
+    fixture.Settle(fixture.m_input);
+    fixture.m_mixer.Process(fixture.m_input);
+    DOCTEST_CHECK(fixture.Sample(x_subTrack) == doctest::Approx(sub));
     for (const auto& output : fixture.m_mixer.m_send)
     {
         DOCTEST_CHECK(output == QuadFloat());
     }
 }
 
-DOCTEST_TEST_CASE("recording mixer: mono and panned monitors independently control both live buses")
+DOCTEST_TEST_CASE("recording mixer: tracks feed the dry bus, subs the sub bus, and the external monitor gates both live buses")
 {
     MixerRecordingTest fixture;
     auto& input = fixture.m_input;
-    input.m_input[0] = 0.8f;
-    input.m_monoIn[0] = 0.3f;
-    input.m_gain[0].m_expParam = 0.5f;
-    input.m_x[0] = 0.1f;
-    input.m_y[0] = 0.9f;
+    auto& track = input.m_tracks[0];
+    track.m_input[0] = 0.8f;
+    track.m_sub[0] = 0.3f;
+    track.m_gain.m_expParam[0] = 0.5f;
+    track.m_x[0] = 0.1f;
+    track.m_y[0] = 0.9f;
+    auto& external = input.m_externals[0];
+    external.m_input[1] = 0.6f;
+    external.m_x[1] = 0.7f;
+    external.m_y[1] = 0.2f;
     fixture.Start();
 
-    for (bool voiceMonitor : {false, true})
+    for (bool monitor : {false, true})
     {
-        for (bool monoMonitor : {false, true})
+        external.m_monitor = monitor;
+        fixture.Settle(input);
+        fixture.m_mixer.ProcessInputs(input);
+        const float voice = TanhSaturator<false>::Tanh(0.8f) * 0.5f;
+        const float lane = monitor ? TanhSaturator<false>::Tanh(0.6f) : 0.0f;
+        const float sub = TanhSaturator<false>::Tanh(0.3f);
+        const QuadFloat expectedDry = QuadFloat::Pan(0.1f, 0.9f, voice) + QuadFloat::Pan(0.7f, 0.2f, lane);
+        const QuadFloat expectedSub = QuadFloat::Pan(0.5f, 0.5f, sub);
+        QuadToStereoMixdown expectedStereo;
+        expectedStereo.Clear();
+        expectedStereo.MixSample(0.1f, 0.9f, voice);
+        expectedStereo.MixSample(0.7f, 0.2f, lane);
+        expectedStereo.MixSample(0.5f, 0.5f, sub);
+        CheckQuadApprox(fixture.m_mixer.m_output.m_output, expectedDry + expectedSub);
+        CheckQuadApprox(fixture.m_mixer.m_dryOutput, expectedDry);
+        CheckQuadApprox(fixture.m_mixer.m_subOutput, expectedSub);
+        for (size_t channel = 0; channel < 2; ++channel)
         {
-            input.m_monitor[0] = voiceMonitor;
-            input.m_monitorMono[0] = monoMonitor;
-            fixture.Settle(input);
-            fixture.m_mixer.ProcessInputs(input);
-            const float voice = voiceMonitor ? TanhSaturator<false>::Tanh(0.4f) : 0.0f;
-            const float mono = monoMonitor ? TanhSaturator<false>::Tanh(0.3f) : 0.0f;
-            const QuadFloat expectedDry = QuadFloat::Pan(0.1f, 0.9f, voice);
-            const QuadFloat expectedSub = QuadFloat::Pan(0.5f, 0.5f, mono);
-            const QuadFloat expectedQuad = expectedDry + expectedSub;
-            QuadToStereoMixdown expectedStereo;
-            expectedStereo.Clear();
-            expectedStereo.MixSample(0.1f, 0.9f, voice);
-            expectedStereo.MixSample(0.5f, 0.5f, mono);
-            for (size_t channel = 0; channel < 4; ++channel)
-            {
-                DOCTEST_CHECK(fixture.m_mixer.m_output.m_output[channel] == doctest::Approx(expectedQuad[channel]));
-                DOCTEST_CHECK(fixture.m_mixer.m_dryOutput[channel] == doctest::Approx(expectedDry[channel]));
-                DOCTEST_CHECK(fixture.m_mixer.m_subOutput[channel] == doctest::Approx(expectedSub[channel]));
-            }
-
-            for (size_t channel = 0; channel < 2; ++channel)
-            {
-                DOCTEST_CHECK(fixture.m_mixer.m_quadToStereoMixdown.m_output[channel] == doctest::Approx(expectedStereo.m_output[channel]));
-            }
-
-            DOCTEST_CHECK(fixture.Sample(0) == doctest::Approx(TanhSaturator<false>::Tanh(0.4f)));
-            DOCTEST_CHECK(fixture.Sample(1) == doctest::Approx(TanhSaturator<false>::Tanh(0.3f)));
-            fixture.m_mixer.ProcessReturns(input);
+            DOCTEST_CHECK(fixture.m_mixer.m_quadToStereoMixdown.m_output[channel] == doctest::Approx(expectedStereo.m_output[channel]));
         }
+
+        DOCTEST_CHECK(fixture.Sample(0) == doctest::Approx(voice));
+        DOCTEST_CHECK(fixture.Sample(x_externalTrack + 1) == doctest::Approx(TanhSaturator<false>::Tanh(0.6f)));
+        DOCTEST_CHECK(fixture.Sample(x_subTrack) == doctest::Approx(sub));
+        fixture.m_mixer.ProcessReturns(input);
     }
 }
 
@@ -222,10 +294,11 @@ DOCTEST_TEST_CASE("recording mixer: returns retain corner order and masters are 
 {
     MixerRecordingTest fixture;
     auto& input = fixture.m_input;
-    input.m_input[0] = 0.7f;
-    input.m_gain[0].m_expParam = 0.8f;
-    input.m_x[0] = 0.1f;
-    input.m_y[0] = 0.9f;
+    auto& track = input.m_tracks[0];
+    track.m_input[0] = 0.7f;
+    track.m_gain.m_expParam[0] = 0.8f;
+    track.m_x[0] = 0.1f;
+    track.m_y[0] = 0.9f;
     input.m_return[0] = QuadFloat(0.1f, 0.2f, 0.3f, 0.4f);
     input.m_returnGain[0].m_expParam = 0.5f;
     fixture.Start();
@@ -234,31 +307,32 @@ DOCTEST_TEST_CASE("recording mixer: returns retain corner order and masters are 
     const QuadFloat expectedReturn = expectedMeter.ProcessAndSaturate(input.m_return[0] * 0.5f);
     for (size_t i = 0; i < 4; ++i)
     {
-        DOCTEST_CHECK(fixture.Sample(2, i) == doctest::Approx(expectedReturn[i]));
+        DOCTEST_CHECK(fixture.Sample(x_returnTrack, i) == doctest::Approx(expectedReturn[i]));
         DOCTEST_CHECK(fixture.m_mixer.m_returnOutput[0][i] == expectedReturn[i]);
-        DOCTEST_CHECK(fixture.Sample(5, i) == fixture.m_mixer.m_output.m_output[i]);
+        DOCTEST_CHECK(fixture.Sample(x_masterQuadTrack, i) == fixture.m_mixer.m_output.m_output[i]);
     }
 
     for (size_t i = 0; i < 2; ++i)
     {
-        DOCTEST_CHECK(fixture.Sample(6, i) == fixture.m_mixer.m_output.m_stereoOutput[i]);
+        DOCTEST_CHECK(fixture.Sample(x_masterStereoTrack, i) == fixture.m_mixer.m_output.m_stereoOutput[i]);
     }
 
-    DOCTEST_CHECK(std::abs(fixture.Sample(5)) > 0.0001f);
-    DOCTEST_CHECK(std::abs(fixture.Sample(6)) > 0.0001f);
+    DOCTEST_CHECK(std::abs(fixture.Sample(x_masterQuadTrack)) > 0.0001f);
+    DOCTEST_CHECK(std::abs(fixture.Sample(x_masterStereoTrack)) > 0.0001f);
     QuadToStereoMixdown reconstructed;
     reconstructed.MixQuadSample(fixture.m_mixer.m_output.m_output);
-    DOCTEST_CHECK(std::abs(reconstructed.m_output[0] - fixture.Sample(6)) > 0.0001f);
+    DOCTEST_CHECK(std::abs(reconstructed.m_output[0] - fixture.Sample(x_masterStereoTrack)) > 0.0001f);
 }
 
 DOCTEST_TEST_CASE("recording mixer: noise mode zeroes skipped lanes and split processing commits masters")
 {
     MixerRecordingTest fixture;
-    fixture.m_input.m_input[0] = 0.5f;
-    fixture.m_input.m_gain[0].m_expParam = 1.0f;
-    fixture.m_input.m_monoIn[0] = 0.2f;
-    fixture.m_input.m_x[0] = 0.9f;
-    fixture.m_input.m_y[0] = 0.7f;
+    auto& track = fixture.m_input.m_tracks[0];
+    track.m_input[0] = 0.5f;
+    track.m_gain.m_expParam[0] = 1.0f;
+    track.m_sub[0] = 0.2f;
+    track.m_x[0] = 0.9f;
+    track.m_y[0] = 0.7f;
     fixture.m_input.m_return[0] = QuadFloat(0.1f, 0.2f, 0.3f, 0.4f);
     fixture.m_input.m_returnGain[0].m_expParam = 1.0f;
     fixture.Start();
@@ -275,29 +349,18 @@ DOCTEST_TEST_CASE("recording mixer: noise mode zeroes skipped lanes and split pr
     }
 
     DOCTEST_REQUIRE(fixture.m_mixer.m_recordingFrameActive);
-    for (size_t i = 0; i < fixture.m_context.m_recorder.m_trackOffsets[5]; ++i)
+    for (size_t i = 0; i < fixture.m_context.m_recorder.m_trackOffsets[x_masterQuadTrack]; ++i)
     {
         DOCTEST_CHECK(fixture.m_context.m_recorder.m_staging[i] == 0);
     }
 
-    DOCTEST_CHECK(fixture.Sample(5) == fixture.m_mixer.m_output.m_output[0]);
-    DOCTEST_CHECK(fixture.Sample(6) == fixture.m_mixer.m_output.m_stereoOutput[0]);
+    DOCTEST_CHECK(fixture.Sample(x_masterQuadTrack) == fixture.m_mixer.m_output.m_output[0]);
+    DOCTEST_CHECK(fixture.Sample(x_masterStereoTrack) == fixture.m_mixer.m_output.m_stereoOutput[0]);
     fixture.m_input.m_noiseMode = false;
     fixture.Settle(fixture.m_input);
     fixture.m_mixer.Process(fixture.m_input);
     DOCTEST_CHECK(fixture.Sample(0) > 0);
     DOCTEST_CHECK(fixture.Sample(0, 1) == doctest::Approx(0.9f));
-}
-
-DOCTEST_TEST_CASE("recording mixer: structural layout changes stop capture with an error")
-{
-    MixerRecordingTest fixture;
-    fixture.Start();
-    fixture.m_input.m_numMonoInputs = 0;
-    fixture.PrepareFrame(fixture.m_input, 0);
-    fixture.m_mixer.Process(fixture.m_input);
-    DOCTEST_CHECK_FALSE(fixture.m_mixer.m_recordingFrameActive);
-    DOCTEST_CHECK(fixture.m_mixer.GetRecordingError() == StreamingRecorder::Error::InvalidConfiguration);
 }
 
 DOCTEST_TEST_CASE("recording mixer: capture leaves live DSP unchanged and follows mastering controls")
@@ -307,15 +370,19 @@ DOCTEST_TEST_CASE("recording mixer: capture leaves live DSP unchanged and follow
     SmartGridOneContext referenceContext;
     QuadMixerInternal reference(&referenceContext);
     auto& input = fixture.m_input;
-    input.m_gain[0].m_expParam = 0.8f;
+    auto& track = input.m_tracks[0];
+    auto& external = input.m_externals[0];
+    track.m_gain.m_expParam[0] = 0.8f;
     input.m_returnGain[0].m_expParam = 0.3f;
     for (size_t frame = 0; frame < 128; ++frame)
     {
-        input.m_input[0] = std::sin(static_cast<float>(frame) * 0.3f);
-        input.m_monoIn[0] = 0.2f;
-        input.m_x[0] = static_cast<float>(frame) / 128.0f;
-        input.m_y[0] = 0.6f;
-        input.m_monitor[0] = frame % 3 != 0;
+        track.m_input[0] = std::sin(static_cast<float>(frame) * 0.3f);
+        track.m_sub[0] = 0.2f;
+        track.m_x[0] = static_cast<float>(frame) / 128.0f;
+        track.m_y[0] = 0.6f;
+        external.m_input[0] = std::sin(static_cast<float>(frame) * 0.2f);
+        external.m_x[0] = 0.4f;
+        external.m_monitor = frame % 3 != 0;
         input.m_return[0] = QuadFloat(0.1f, -0.1f, 0.2f, -0.2f);
         input.m_masterChainInput.SetMasterGain(frame < 64 ? 0.4f : 0.9f);
         QuadFloatWithStereoAndSub expected;
@@ -331,19 +398,19 @@ DOCTEST_TEST_CASE("recording mixer: capture leaves live DSP unchanged and follow
         DOCTEST_REQUIRE(fixture.m_mixer.m_recordingFrameActive);
         for (size_t channel = 0; channel < 4; ++channel)
         {
-            DOCTEST_CHECK(fixture.Sample(5, channel) == expected.m_output[channel]);
+            DOCTEST_CHECK(fixture.Sample(x_masterQuadTrack, channel) == expected.m_output[channel]);
         }
 
         for (size_t channel = 0; channel < 2; ++channel)
         {
-            DOCTEST_CHECK(fixture.Sample(6, channel) == expected.m_stereoOutput[channel]);
+            DOCTEST_CHECK(fixture.Sample(x_masterStereoTrack, channel) == expected.m_stereoOutput[channel]);
         }
     }
 }
 
 DOCTEST_TEST_CASE("recording mixer: writes full-layout fixture from accepted capture frames")
 {
-    MixerRecordingTest fixture(17, 9);
+    MixerRecordingTest fixture;
     fixture.Start();
     StreamingRecorder& recorder = fixture.m_context.m_recorder;
     const auto session = recorder.m_session;
@@ -367,14 +434,34 @@ DOCTEST_TEST_CASE("recording mixer: writes full-layout fixture from accepted cap
     {
         auto& input = fixture.m_input;
         input.m_noiseMode = frame >= 20 && frame < 24;
-        for (size_t track = 0; track < 17; ++track)
+        auto setLane = [&](size_t index, float& signal, float& x, float& y)
         {
-            input.m_input[track] = std::sin(static_cast<float>(frame + track + 1) * 0.17f) * 0.4f;
-            input.m_gain[track].m_expParam = 0.7f;
-            input.m_x[track] = static_cast<float>((frame + track) % 65) / 64.0f;
-            input.m_y[track] = 0.75f;
-            input.m_monitor[track] = track % 3 != 0;
-            input.m_monoIn[track] = track < 9 ? 0.01f * static_cast<float>(track + 1) : 0.0f;
+            signal = std::sin(static_cast<float>(frame + index + 1) * 0.17f) * 0.4f;
+            x = static_cast<float>((frame + index) % 65) / 64.0f;
+            y = 0.75f;
+        };
+
+        for (size_t track = 0; track < QuadMixerInternal::x_numTracks; ++track)
+        {
+            auto& mixerTrack = input.m_tracks[track];
+            mixerTrack.m_gain.m_expParam = TrioFloat::Splat(0.7f);
+            for (size_t lane = 0; lane < QuadMixerInternal::x_voicesPerTrack; ++lane)
+            {
+                size_t voice = track * QuadMixerInternal::x_voicesPerTrack + lane;
+                setLane(voice, mixerTrack.m_input[lane], mixerTrack.m_x[lane], mixerTrack.m_y[lane]);
+                mixerTrack.m_sub[lane] = 0.01f * static_cast<float>(voice + 1);
+            }
+        }
+
+        for (size_t i = 0; i < QuadMixerInternal::x_numExternalInputs; ++i)
+        {
+            auto& external = input.m_externals[i];
+            external.m_monitor = i % 2 != 0;
+            for (size_t lane = 0; lane < QuadMixerInternal::x_externalInputLanes; ++lane)
+            {
+                setLane(x_externalTrack + i * QuadMixerInternal::x_externalInputLanes + lane,
+                    external.m_input[lane], external.m_x[lane], external.m_y[lane]);
+            }
         }
 
         for (size_t track = 0; track < 3; ++track)

@@ -4,9 +4,9 @@ The final stages of the Smart Grid One DSP engine (`private/src/QuadMixer.hpp` a
 
 ## Mixdown
 
-The `QuadMixerInternal` takes the 9 voices (which have already been panned quadraphonically) and routes them:
-1. **Direct Out**: The quadraphonic signals are summed.
-2. **Effects Sends**: The signals are sent to the Quad Delay, Quad Reverb, and Partial Machine based on per-voice send levels.
+`QuadMixerInternal` is SquiggleBoy's mixer, not a general-purpose one. Its input is three trio tracks (each a `TrioFloat` signal with trio pan coordinates, fader gain, send gains, and the trio's sub-oscillators) plus four stereo external inputs from the source mixer. One generic `Mix` function handles every lane group: each raw lane is saturated through its meter first, then panned and routed:
+1. **Direct Out**: The saturated signals, scaled by the track fader gain, are summed into the dry bus; subs go to the sub bus at center. External inputs reach the live buses only while monitored. The fader does not drive the saturation.
+2. **Effects Sends**: The saturated, pre-fader track signals are sent to the Quad Delay, Quad Reverb, and Partial Machine based on per-voice send levels. Subs and external inputs have no sends.
 3. **Effects Returns**: The quadraphonic outputs of the Delay, Reverb, and Partial Machine are mixed back into the main quad bus.
 
 The three send returns can cross-feed each other. Delay and Reverb can send into the Partial Machine, and the Partial Machine can send back into Delay or Reverb. A return never feeds its own send bus.

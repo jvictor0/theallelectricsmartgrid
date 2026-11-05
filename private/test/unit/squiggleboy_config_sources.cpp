@@ -60,11 +60,6 @@ void CheckSilent(SourceAssignment assignment)
     DOCTEST_CHECK(assignment.m_channel == SourceChannel::Silent);
 }
 
-size_t MixerInputIndex(size_t source, size_t lane)
-{
-    return SquiggleBoy::x_numVoices + source * SourceMixer::x_numSourceLanes + lane;
-}
-
 SourceMixer::SourceConfig MakeSourceConfig(SourceMixer::SourceWidth width)
 {
     SourceMixer::SourceConfig config;
@@ -254,23 +249,6 @@ DOCTEST_TEST_CASE("SquiggleBoy config missing source selection JSON loads with n
     }
 }
 
-DOCTEST_TEST_CASE("SquiggleBoy mixer reserves separate quad mixer inputs for source lanes")
-{
-    synthrig::SynthRig rig;
-    auto& squiggleBoy = rig.Internal().m_squiggleBoy;
-
-    DOCTEST_CHECK(squiggleBoy.m_mixerState.m_numInputs == SquiggleBoy::x_numVoices + SourceMixer::x_numOutputChannels);
-
-    for (size_t source = 0; source < SourceMixer::x_numSources; ++source)
-    {
-        for (size_t lane = 0; lane < SourceMixer::x_numSourceLanes; ++lane)
-        {
-            size_t inputIndex = SquiggleBoy::x_numVoices + source * SourceMixer::x_numSourceLanes + lane;
-            DOCTEST_CHECK(inputIndex < squiggleBoy.m_mixerState.m_numInputs);
-        }
-    }
-}
-
 DOCTEST_TEST_CASE("SquiggleBoy mixer centers mono source lanes and pans stereo lanes from source input bits plus one")
 {
     synthrig::SynthRig rig;
@@ -287,8 +265,8 @@ DOCTEST_TEST_CASE("SquiggleBoy mixer centers mono source lanes and pans stereo l
     {
         for (size_t lane = 0; lane < SourceMixer::x_numSourceLanes; ++lane)
         {
-            DOCTEST_CHECK(squiggleBoy.m_mixerState.m_x[MixerInputIndex(source, lane)] == 0.5f);
-            DOCTEST_CHECK(squiggleBoy.m_mixerState.m_y[MixerInputIndex(source, lane)] == 0.5f);
+            DOCTEST_CHECK(squiggleBoy.m_mixerState.m_externals[source].m_x[lane] == 0.5f);
+            DOCTEST_CHECK(squiggleBoy.m_mixerState.m_externals[source].m_y[lane] == 0.5f);
         }
     }
 
@@ -308,14 +286,14 @@ DOCTEST_TEST_CASE("SquiggleBoy mixer centers mono source lanes and pans stereo l
             float expectedX = (panIndex & 1) ? 1.0f : 0.0f;
             float expectedY = (panIndex & 2) ? 1.0f : 0.0f;
 
-            DOCTEST_CHECK(squiggleBoy.m_mixerState.m_x[MixerInputIndex(source, lane)] == expectedX);
-            DOCTEST_CHECK(squiggleBoy.m_mixerState.m_y[MixerInputIndex(source, lane)] == expectedY);
+            DOCTEST_CHECK(squiggleBoy.m_mixerState.m_externals[source].m_x[lane] == expectedX);
+            DOCTEST_CHECK(squiggleBoy.m_mixerState.m_externals[source].m_y[lane] == expectedY);
         }
 
-        float leftX = squiggleBoy.m_mixerState.m_x[MixerInputIndex(source, 0)];
-        float leftY = squiggleBoy.m_mixerState.m_y[MixerInputIndex(source, 0)];
-        float rightX = squiggleBoy.m_mixerState.m_x[MixerInputIndex(source, 1)];
-        float rightY = squiggleBoy.m_mixerState.m_y[MixerInputIndex(source, 1)];
+        float leftX = squiggleBoy.m_mixerState.m_externals[source].m_x[0];
+        float leftY = squiggleBoy.m_mixerState.m_externals[source].m_y[0];
+        float rightX = squiggleBoy.m_mixerState.m_externals[source].m_x[1];
+        float rightY = squiggleBoy.m_mixerState.m_externals[source].m_y[1];
 
         DOCTEST_CHECK(leftX + rightX == 1.0f);
         DOCTEST_CHECK(leftY + rightY == 1.0f);
@@ -350,20 +328,18 @@ DOCTEST_TEST_CASE("Source meter layout splits stereo into left reduction, left m
     DOCTEST_CHECK(slots.m_rightReductionX1 == 12.0f);
 }
 
-DOCTEST_TEST_CASE("SquiggleBoy mixer copies source monitor state without using a source lane as storage")
+DOCTEST_TEST_CASE("SquiggleBoy mixer copies source monitor state into the source's external input")
 {
     synthrig::SynthRig rig;
     auto& grid = rig.Internal().m_configGrid;
     auto& squiggleBoy = rig.Internal().m_squiggleBoy;
 
     grid.m_sourceMonitor[1] = true;
-    squiggleBoy.m_mixerState.m_monitor[MixerInputIndex(1, 0)] = false;
-    squiggleBoy.m_mixerState.m_monitor[MixerInputIndex(1, 1)] = false;
+    squiggleBoy.m_mixerState.m_externals[1].m_monitor = false;
 
     rig.RunSamples(1);
 
-    DOCTEST_CHECK(squiggleBoy.m_mixerState.m_monitor[MixerInputIndex(1, 0)]);
-    DOCTEST_CHECK(squiggleBoy.m_mixerState.m_monitor[MixerInputIndex(1, 1)]);
+    DOCTEST_CHECK(squiggleBoy.m_mixerState.m_externals[1].m_monitor);
 }
 
 DOCTEST_TEST_CASE("SquiggleBoy writes source trims to paired physical K-Mix input channels")

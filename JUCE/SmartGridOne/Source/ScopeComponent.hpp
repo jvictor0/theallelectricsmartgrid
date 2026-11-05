@@ -223,7 +223,7 @@ struct SoundStageComponent : public SmartGridOneMainVisualizerComponent
         {
             float xPos = m_uiState->m_squiggleBoyUIState.m_xPos[i].load();
             float yPos = m_uiState->m_squiggleBoyUIState.m_yPos[i].load();
-            float volume = m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[i].GetRMSLinear();
+            float volume = m_uiState->m_squiggleBoyUIState.m_trackMeterReader[i / SquiggleBoy::x_voicesPerTrack].GetRMSLinear(i % SquiggleBoy::x_voicesPerTrack);
             auto centerX = width * xPos * (1 - border) + border * width / 2;
             auto centerY = height * (1 - yPos) * (1 - border) + border * height / 2;
 

@@ -306,7 +306,7 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
     DOCTEST_CHECK(synth.GetRecordingError() == StreamingRecorder::Error::None);
     DOCTEST_REQUIRE(synth.PrepareRecording());
     recordCell.OnPress(127);
-    synth.m_mixerState.m_numMonoInputs = 0;
+    recorder.Fail(StreamingRecorder::Error::InvalidConfiguration);
     process();
     synth.PopulateUIState(&rig.UIState().m_squiggleBoyUIState);
     DOCTEST_CHECK(rig.UIState().m_squiggleBoyUIState.m_recordingError == StreamingRecorder::Error::InvalidConfiguration);

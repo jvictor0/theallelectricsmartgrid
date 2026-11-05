@@ -143,8 +143,9 @@ struct VoiceMeterComponent : public SmartGridOneMainVisualizerComponent
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
-            float rmsdBFS = m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[i].GetRMSDbFS();
-            float peakdBFS = m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[i].GetPeakDbFS();
+            const TrioMeterReader& meterReader = m_uiState->m_squiggleBoyUIState.m_trackMeterReader[i / SquiggleBoy::x_voicesPerTrack];
+            float rmsdBFS = meterReader.GetRMSDbFS(i % SquiggleBoy::x_voicesPerTrack);
+            float peakdBFS = meterReader.GetPeakDbFS(i % SquiggleBoy::x_voicesPerTrack);
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
             m_meterDrawer[i].m_height = static_cast<float>(height) / TheNonagonInternal::x_voicesPerTrio;
             m_meterDrawer[i].m_width = static_cast<float>(width) / TheNonagonInternal::x_voicesPerTrio;
@@ -242,24 +243,26 @@ struct MeteringComponent : public juce::Component
         //
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
-            MeterReader* meterReader = &GetSquiggleBoyUIState()->m_voiceMeterReader[i];
-            MeterReader* subMeterReader = &GetSquiggleBoyUIState()->m_subMeterReader[i];
+            size_t track = i / SquiggleBoy::x_voicesPerTrack;
+            size_t lane = i % SquiggleBoy::x_voicesPerTrack;
+            TrioMeterReader* meterReader = &GetSquiggleBoyUIState()->m_trackMeterReader[track];
+            TrioMeterReader* subMeterReader = &GetSquiggleBoyUIState()->m_subMeterReader[track];
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(i);
             juce::Colour jColor(color.m_red, color.m_green, color.m_blue);
             float slot = x_voiceStart + 2 * i;
 
             vuBarDrawer.DrawReduction(g, juce::Colours::red,
                 slot / x_totalSlots, (slot + 0.5f) / x_totalSlots,
-                subMeterReader->GetReductionDbFSNormalized());
+                subMeterReader->GetReductionDbFSNormalized(lane));
             vuBarDrawer.DrawBar(g, jColor,
                 (slot + 0.5f) / x_totalSlots, (slot + 1.0f) / x_totalSlots,
-                subMeterReader->GetRMSDbFSNormalized());
+                subMeterReader->GetRMSDbFSNormalized(lane));
             vuBarDrawer.DrawBar(g, jColor,
                 (slot + 1.0f) / x_totalSlots, (slot + 1.5f) / x_totalSlots,
-                meterReader->GetRMSDbFSNormalized());
+                meterReader->GetRMSDbFSNormalized(lane));
             vuBarDrawer.DrawReduction(g, juce::Colours::red,
                 (slot + 1.5f) / x_totalSlots, (slot + 2.0f) / x_totalSlots,
-                meterReader->GetReductionDbFSNormalized());
+                meterReader->GetReductionDbFSNormalized(lane));
         }
     }
 
@@ -280,9 +283,9 @@ struct MeteringComponent : public juce::Component
 
             auto drawLane = [&](size_t meterLane, float meterX0, float meterX1, float reductionX0, float reductionX1)
             {
-                MeterReader* meterReader = &GetSquiggleBoyUIState()->m_voiceMeterReader[TheNonagonInternal::x_numVoices + i * SourceMixer::x_numSourceLanes + meterLane];
-                float rms = meterReader->GetRMSDbFSNormalized();
-                float reduction = meterReader->GetReductionDbFSNormalized();
+                StereoMeterReader* meterReader = &GetSquiggleBoyUIState()->m_externalMeterReader[i];
+                float rms = meterReader->GetRMSDbFSNormalized(meterLane);
+                float reduction = meterReader->GetReductionDbFSNormalized(meterLane);
 
                 vuBarDrawer.DrawBar(g, jColor, meterX0 / x_totalSlots, meterX1 / x_totalSlots, rms);
                 vuBarDrawer.DrawReduction(g, juce::Colours::red, reductionX0 / x_totalSlots, reductionX1 / x_totalSlots, reduction);

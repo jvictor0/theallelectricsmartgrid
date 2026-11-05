@@ -86,14 +86,12 @@ struct Mixer
     Signals m_signals{x_rate};
     Mixer()
     {
-        m_input.m_numInputs = 17;
-        m_input.m_numMonoInputs = 9;
-        for (size_t i = 0; i < 17; ++i)
+        for (auto& track : m_input.m_tracks)
         {
-            m_input.m_gain[i].m_expParam = .7f;
-            for (auto& gain : m_input.m_sendGain[i])
+            track.m_gain.m_expParam = TrioFloat::Splat(.7f);
+            for (auto& gain : track.m_sendGain)
             {
-                gain.m_expParam = .2f;
+                gain.m_expParam = TrioFloat::Splat(.2f);
             }
         }
 
@@ -107,25 +105,44 @@ struct Mixer
 
     std::array<float, 4> Process(size_t n)
     {
-        for (size_t i = 0; i < 17; ++i)
+        const auto& audio = m_signals.m_audio[n % m_signals.m_period];
+        const auto& controls = m_signals.m_controls[n % m_signals.m_period];
+        auto setLane = [&](size_t i, float& input, float& x, float& y)
         {
-            m_input.m_input[i] = m_signals.m_audio[n % m_signals.m_period][i % 4] * .1f;
-            m_input.m_x[i] = .2f + .2f * (i % 4);
-            m_input.m_y[i] = .6f;
+            input = audio[i % 4] * .1f;
+            x = .2f + .2f * (i % 4);
+            y = .6f;
             if constexpr (Mode == 3)
             {
-                m_input.m_y[i] += .2f * m_signals.m_controls[n % m_signals.m_period][i % 4];
+                y += .2f * controls[i % 4];
+            }
+        };
+
+        for (size_t track = 0; track < QuadMixerInternal::x_numTracks; ++track)
+        {
+            auto& mixerTrack = m_input.m_tracks[track];
+            for (size_t lane = 0; lane < QuadMixerInternal::x_voicesPerTrack; ++lane)
+            {
+                setLane(track * QuadMixerInternal::x_voicesPerTrack + lane, mixerTrack.m_input[lane], mixerTrack.m_x[lane], mixerTrack.m_y[lane]);
+            }
+
+            mixerTrack.m_sub = mixerTrack.m_input;
+        }
+
+        for (size_t external = 0; external < QuadMixerInternal::x_numExternalInputs; ++external)
+        {
+            auto& mixerExternal = m_input.m_externals[external];
+            for (size_t lane = 0; lane < QuadMixerInternal::x_externalInputLanes; ++lane)
+            {
+                setLane(QuadMixerInternal::x_firstExternalRecordingTrack + external * QuadMixerInternal::x_externalInputLanes + lane,
+                    mixerExternal.m_input[lane], mixerExternal.m_x[lane], mixerExternal.m_y[lane]);
             }
         }
 
-        for (size_t i = 0; i < 9; ++i)
-        {
-            m_input.m_monoIn[i] = m_input.m_input[i];
-        }
-
+        const auto& first = m_input.m_tracks[0].m_input;
         for (auto& ret : m_input.m_return)
         {
-            ret = QuadFloat(m_input.m_input);
+            ret = QuadFloat(first[0], first[1], first[2], m_input.m_tracks[1].m_input[0]);
         }
 
         if constexpr (Kind == 0)

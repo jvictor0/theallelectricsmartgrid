@@ -265,9 +265,9 @@ struct SourceMixerReductionComponent : public SmartGridOneMainVisualizerComponen
 
             auto drawLane = [&](size_t meterLane, float meterX0, float meterX1, float reductionX0, float reductionX1)
             {
-                MeterReader* meterReader = &m_uiState->m_squiggleBoyUIState.m_voiceMeterReader[TheNonagonInternal::x_numVoices + i * SourceMixer::x_numSourceLanes + meterLane];
-                float rms = meterReader->GetRMSDbFSNormalized();
-                float reduction = meterReader->GetReductionDbFSNormalized();
+                StereoMeterReader* meterReader = &m_uiState->m_squiggleBoyUIState.m_externalMeterReader[i];
+                float rms = meterReader->GetRMSDbFSNormalized(meterLane);
+                float reduction = meterReader->GetReductionDbFSNormalized(meterLane);
 
                 vuBarDrawer.DrawBar(g, J(SourceMixer::GetColor(i)), meterX0, meterX1, rms);
                 vuBarDrawer.DrawReduction(g, juce::Colours::red, reductionX0, reductionX1, reduction);

@@ -30,11 +30,11 @@ Each voice SHALL process audio through the chain: source machine, then filter se
 - **AND** the voice's pan coordinates are published to the UI via `UIState::SetPos(i, x, y)` as atomically readable X/Y positions
 
 ### Requirement: Per-Voice Sub-Oscillator
-Each voice SHALL include a per-voice sub-oscillator that produces audio one octave below the voice's base frequency, gated by the main amp envelope, and routed to the mixer's mono input lane (`m_monoIn[i]`) separately from the main quad-panned output (generation and saturation behavior is specified in source-machine-oscillators). The sub is enabled per note by the sub-trigger input, sampled by the amp section each time the amp envelope is triggered.
+Each voice SHALL include a per-voice sub-oscillator that produces audio one octave below the voice's base frequency, gated by the main amp envelope, and routed to its lane of the mixer track's sub input (`m_tracks[track].m_sub`) separately from the main quad-panned output (generation and saturation behavior is specified in source-machine-oscillators). The sub is enabled per note by the sub-trigger input, sampled by the amp section each time the amp envelope is triggered.
 
 #### Scenario: Sub follows the main envelope
 - **WHEN** a voice is triggered with `m_subTrig` true and the main AHD envelope rises and decays
-- **THEN** the sub signal present on the mono lane `m_monoIn[i]` follows the amp envelope, reaching zero when the envelope returns to zero
+- **THEN** the sub signal present on the voice's mixer sub lane follows the amp envelope, reaching zero when the envelope returns to zero
 - **AND** a subsequent trigger with `m_subTrig` false disables the sub for that note
 
 ### Requirement: Engine-Rate Voice Processing

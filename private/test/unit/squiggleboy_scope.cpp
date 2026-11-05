@@ -8,8 +8,17 @@ DOCTEST_TEST_CASE("Quad scopes: all effects follow return gain and saturation be
     auto& synth = rig.Internal().m_squiggleBoy;
     auto& input = synth.m_mixerState;
     auto& writer = rig.UIState().m_squiggleBoyUIState.m_quadScopeWriter;
-    input.m_numInputs = 0;
-    input.m_numMonoInputs = 0;
+    for (auto& track : input.m_tracks)
+    {
+        track.m_input = TrioFloat();
+        track.m_sub = TrioFloat();
+    }
+
+    for (auto& external : input.m_externals)
+    {
+        external.m_input = StereoFloat();
+    }
+
     input.m_masterChainInput.SetMasterGain(0.05f);
     const SmartGridOne::QuadScopes x_scopes[] =
     {

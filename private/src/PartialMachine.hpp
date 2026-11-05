@@ -412,6 +412,11 @@ struct PartialMachine
         return m_ola.Process();
     }
 
+    bool NextProcessDoesAnalysis() const
+    {
+        return m_inputSubSample + 1 == x_oversample && (m_index + 1) % SpectralModel::x_H == 0;
+    }
+
     void SetupAudioScopeWriter(ScopeWriter* scopeWriter)
     {
         m_scopeWriter = ScopeWriterHolder(scopeWriter, 0, static_cast<size_t>(SmartGridOne::MonoAudioScopes::PartialMachine));

@@ -51,6 +51,10 @@ struct SquiggleBoy
     static constexpr size_t x_numGangedRandomLFOs = SquiggleBoyTrack::x_numGangedRandomLFOs;
 
     static_assert(x_voicesPerTrack == 3, "tracks are trios");
+    static_assert(x_numTracks == QuadMixerInternal::x_numTracks, "the mixer has one input per track");
+    static_assert(x_voicesPerTrack == QuadMixerInternal::x_voicesPerTrack, "mixer tracks are trios");
+    static_assert(SourceMixer::x_numSources == QuadMixerInternal::x_numExternalInputs, "the mixer has one external input per source");
+    static_assert(SourceMixer::x_numSourceLanes == QuadMixerInternal::x_externalInputLanes, "external inputs are stereo");
 
     // Host-rate audio input is interpolated to the engine rate for the
     // source mixer. The mixer decimates the output to the host rate.
@@ -129,8 +133,6 @@ struct SquiggleBoy
         , m_ioTaskThread(nullptr)
     {
         m_inputSubSample = 0;
-        m_mixerState.m_numInputs = x_numVoices + SourceMixer::x_numOutputChannels;
-        m_mixerState.m_numMonoInputs = x_numVoices;
         m_theoryOfTime = nullptr;
 
         for (size_t track = 0; track < x_numTracks; ++track)
@@ -176,8 +178,7 @@ struct SquiggleBoy
 
     bool PrepareRecording()
     {
-        return m_mixer.PrepareRecording(m_mixerState.m_numInputs, m_mixerState.m_numMonoInputs,
-            static_cast<uint32_t>(SampleTimer::x_hostSampleRate));
+        return m_mixer.PrepareRecording(static_cast<uint32_t>(SampleTimer::x_hostSampleRate));
     }
 
     void ShutdownRecording()
@@ -187,8 +188,7 @@ struct SquiggleBoy
 
     bool StartRecording(JSON initialPatch)
     {
-        return m_mixer.StartRecording(m_mixerState.m_numInputs,
-            static_cast<uint32_t>(SampleTimer::x_hostSampleRate), initialPatch);
+        return m_mixer.StartRecording(static_cast<uint32_t>(SampleTimer::x_hostSampleRate), initialPatch);
     }
 
     void SetRecordingDirectory(const std::string& directory)
@@ -363,15 +363,11 @@ struct SquiggleBoy
             SquiggleBoyTrack& squiggleBoyTrack = m_tracks[track];
             m_trackState[track].m_panInput.m_input = static_cast<float>(m_panPhase.m_phase);
 
-            SquiggleBoyTrack::Vector output = squiggleBoyTrack.Processs(m_trackState[track]);
-            for (size_t i = 0; i < x_voicesPerTrack; ++i)
-            {
-                size_t voice = track * x_voicesPerTrack + i;
-                m_mixerState.m_input[voice] = output[i];
-                m_mixerState.m_monoIn[voice] = squiggleBoyTrack.m_amp.m_subOut[i];
-                m_mixerState.m_x[voice] = squiggleBoyTrack.m_pan.m_outputX[i];
-                m_mixerState.m_y[voice] = squiggleBoyTrack.m_pan.m_outputY[i];
-            }
+            QuadMixerInternal::TrackInput& mixerTrack = m_mixerState.m_tracks[track];
+            mixerTrack.m_input = squiggleBoyTrack.Processs(m_trackState[track]);
+            mixerTrack.m_sub = squiggleBoyTrack.m_amp.m_subOut;
+            mixerTrack.m_x = squiggleBoyTrack.m_pan.m_outputX;
+            mixerTrack.m_y = squiggleBoyTrack.m_pan.m_outputY;
         }
 
         if (SampleTimer::GetSample() % SampleTimer::x_sampleRate == 0)
@@ -385,31 +381,21 @@ struct SquiggleBoy
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
             bool sourceIsStereo = m_sourceMixerState.m_sources[i].m_config.IsStereo();
-
+            QuadMixerInternal::ExternalInput& external = m_mixerState.m_externals[i];
+            external.m_input = m_sourceMixer.m_sources[i].m_output;
+            external.m_monitor = sourceMonitor[i];
             for (size_t lane = 0; lane < SourceMixer::x_numSourceLanes; ++lane)
             {
-                size_t sourceInputIndex = i * SourceMixer::x_numSourceLanes + lane;
-                size_t inputIndex = x_numVoices + i * SourceMixer::x_numSourceLanes + lane;
-                m_mixerState.m_input[inputIndex] = m_sourceMixer.m_sources[i].m_output[lane];
-                m_mixerState.m_monoIn[inputIndex] = 0.0f;
                 if (sourceIsStereo)
                 {
-                    size_t panIndex = sourceInputIndex + 1;
-                    m_mixerState.m_x[inputIndex] = (panIndex & 1) ? 1.0f : 0.0f;
-                    m_mixerState.m_y[inputIndex] = (panIndex & 2) ? 1.0f : 0.0f;
+                    size_t panIndex = i * SourceMixer::x_numSourceLanes + lane + 1;
+                    external.m_x[lane] = (panIndex & 1) ? 1.0f : 0.0f;
+                    external.m_y[lane] = (panIndex & 2) ? 1.0f : 0.0f;
                 }
                 else
                 {
-                    m_mixerState.m_x[inputIndex] = 0.5f;
-                    m_mixerState.m_y[inputIndex] = 0.5f;
-                }
-
-                m_mixerState.m_gain[inputIndex].m_expParam = 1.0f;
-                m_mixerState.m_monitor[inputIndex] = sourceMonitor[i];
-
-                for (size_t j = 0; j < QuadMixerInternal::x_numSends; ++j)
-                {
-                    m_mixerState.m_sendGain[inputIndex][j].m_expParam = 0.0f;
+                    external.m_x[lane] = 0.5f;
+                    external.m_y[lane] = 0.5f;
                 }
             }
         }
@@ -642,8 +628,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         std::atomic<float> m_xPos[x_numVoices];
         std::atomic<float> m_yPos[x_numVoices];
 
-        MeterReader m_voiceMeterReader[x_numVoices + SourceMixer::x_numOutputChannels];
-        MeterReader m_subMeterReader[x_numVoices];
+        TrioMeterReader m_trackMeterReader[x_numTracks];
+        TrioMeterReader m_subMeterReader[x_numTracks];
+        StereoMeterReader m_externalMeterReader[SourceMixer::x_numSources];
         QuadMeterReader m_returnMeterReader[QuadMixerInternal::x_numSends];
         QuadMeterReader m_quadMasterMeterReader;
         StereoMeterReader m_stereoMasterMeterReader;
@@ -661,14 +648,15 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void ReadMeters()
         {
-            for (size_t i = 0; i < x_numVoices; ++i)
+            for (size_t i = 0; i < x_numTracks; ++i)
             {
+                m_trackMeterReader[i].Process();
                 m_subMeterReader[i].Process();
             }
 
-            for (size_t i = 0; i < x_numVoices + SourceMixer::x_numOutputChannels; ++i)
+            for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
             {
-                m_voiceMeterReader[i].Process();
+                m_externalMeterReader[i].Process();
             }
 
             for (size_t i = 0; i < QuadMixerInternal::x_numSends; ++i)
@@ -682,16 +670,17 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void SetMeterReaders(QuadMixerInternal* mixer)
         {
-            for (size_t i = 0; i < x_numVoices; ++i)
+            for (size_t i = 0; i < x_numTracks; ++i)
             {
-                m_subMeterReader[i].m_meter = &mixer->m_monoMeters[i];
+                m_trackMeterReader[i].SetMeter(&mixer->m_trackMeters[i]);
+                m_subMeterReader[i].SetMeter(&mixer->m_subMeters[i]);
             }
 
-            for (size_t i = 0; i < x_numVoices + SourceMixer::x_numOutputChannels; ++i)
+            for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
             {
-                m_voiceMeterReader[i].m_meter = &mixer->m_voiceMeters[i];
+                m_externalMeterReader[i].SetMeter(&mixer->m_externalMeters[i]);
             }
-            
+
             for (size_t i = 0; i < QuadMixerInternal::x_numSends; ++i)
             {
                 m_returnMeterReader[i].SetMeter(&mixer->m_returnMeters[i]);
@@ -1153,12 +1142,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 SquiggleBoyTrack::Vector::Splat(input.GetGainFader(track * x_voicesPerTrack)));
         }
 
-        for (size_t i = 0; i < x_numVoices; ++i)
+        for (size_t track = 0; track < x_numTracks; ++track)
         {
-            m_mixerState.m_gain[i].Update(m_encoders.GetValue(Param::AmpGain, i));
-            m_mixerState.m_sendGain[i][0].Update(m_encoders.GetValue(Param::DelaySend, i));
-            m_mixerState.m_sendGain[i][1].Update(m_encoders.GetValue(Param::ReverbSend, i));
-            m_mixerState.m_sendGain[i][2].Update(m_encoders.GetValue(Param::PartialMachineSend, i));
+            QuadMixerInternal::TrackInput& mixerTrack = m_mixerState.m_tracks[track];
+            mixerTrack.m_gain.Update(m_encoders.GetValue<x_voicesPerTrack>(Param::AmpGain, track));
+            mixerTrack.m_sendGain[0].Update(m_encoders.GetValue<x_voicesPerTrack>(Param::DelaySend, track));
+            mixerTrack.m_sendGain[1].Update(m_encoders.GetValue<x_voicesPerTrack>(Param::ReverbSend, track));
+            mixerTrack.m_sendGain[2].Update(m_encoders.GetValue<x_voicesPerTrack>(Param::PartialMachineSend, track));
         }
 
         QuadDelayInputSetter::Input delayInputSetterInput;
@@ -1249,7 +1239,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_partialMachineInputSetterInput.m_pitchShiftDepth = m_encoders.GetValue<4>(Param::PartialMachinePitchShiftDepth, 0);
         m_partialMachineInputSetterInput.m_pitchShift = m_encoders.GetValue<4>(Param::PartialMachinePitchShift, 0);
 
-        m_partialMachineInputSetter.SetInput(m_partialMachineInputSetterInput, m_partialMachineState);
+        if (m_partialMachine.NextProcessDoesAnalysis())
+        {
+            m_partialMachineInputSetter.SetInput(m_partialMachineInputSetterInput, m_partialMachineState);
+        }
+        
         m_mixerState.m_returnSendGain[2][0].Update(m_encoders.GetValue(Param::PartialMachineDelaySend));
         m_mixerState.m_returnSendGain[2][1].Update(m_encoders.GetValue(Param::PartialMachineReverbSend));
         m_mixerState.m_returnGain[2].Update(m_encoders.GetValue(Param::PartialMachineVolume));

@@ -86,7 +86,7 @@ Visualizers read from:
 - **`TheNonagonSquiggleBoyInternal::UIState`** — Central UI state. Access via `NonagonWrapper::GetUIState()`.
 - **`m_squiggleBoyUIState`** — Contains:
   - `m_audioScopeWriter`, `m_controlScopeWriter`, `m_quadScopeWriter`, `m_quadControlScopeWriter`, `m_globalControlScopeWriter`, `m_sourceMixerScopeWriter`, `m_monoScopeWriter`, `m_monoAudioScopeWriter` — Scope buffers
-  - `m_voiceMeterReader`, `m_returnMeterReader`, etc. — Meter readers
+  - `m_trackMeterReader`, `m_subMeterReader` (trio, per track), `m_externalMeterReader` (stereo, per source), `m_returnMeterReader`, etc. — Meter readers
   - `m_activeTrack`, `m_xPos`, `m_yPos` — Panning/position state
   - `m_gangedRandomLFOUIState`, `m_quadGangedRandomLFOUIState`, `m_globalGangedRandomLFOUIState` — Coherent predictive random-LFO snapshots
   - `m_voiceFilterUIState` — Filter response for analyzer overlays
@@ -102,14 +102,14 @@ Visualizers read from:
 | AnalyserComponent | Source, Shape | 2, 1 | WindowedFFT, voice filter UI state |
 | PhysicalModelingFrequencyResponseComponent | Source | 0 | `PhysicalModelingSource::UIState` transfer function |
 | SampleTrioWaveformVisualizerComponent | Source | 0 | `AudioBufferBank::UIState` waveform buckets plus `SampleSource::UIState` read-head/window data |
-| SoundStageComponent | PanningAndSequencing | 0 | m_xPos, m_yPos, m_voiceMeterReader |
+| SoundStageComponent | PanningAndSequencing | 0 | m_xPos, m_yPos, m_trackMeterReader |
 | SequencerMelodyVisualizerComponent | PanningAndSequencing | 1–2 | Sequencer, sheaf and global-phase UI snapshots |
 | QuadAnalyserComponent | Delay, Reverb, PartialMachine, TheoryOfTime | 0 | m_quadScopeWriter, delay/reverb/partial-machine UI state |
 | QuadDelayEnvelopeVisualizerComponent | Delay, TheoryOfTime | 1 | `m_delayUIState` envelope snapshots plus relative read/write head positions |
 | PartialMachineInputSpectrumComponent | PartialMachine | 1 | `m_monoAudioScopeWriter` plus `m_partialMachineUIState` atom snapshot |
 | PartialMachineSpatialComponent | PartialMachine | 2 | `m_partialMachineUIState` atom snapshot and frequency-dependent spatial mapping |
 | TheoryOfTimeScopeComponent | TheoryOfTime | 2 | m_monoScopeWriter |
-| SourceMixerReductionComponent | Inputs, DeepVocoder | 0 | Source lanes in m_voiceMeterReader |
+| SourceMixerReductionComponent | Inputs, DeepVocoder | 0 | m_externalMeterReader |
 | SourceMixerFrequencyComponent | Mastering, Inputs, DeepVocoder | 1 | m_sourceMixerScopeWriter |
 | MultibandEQComponent | Mastering, Inputs, DeepVocoder | 2 | m_quadScopeWriter |
 | MultibandGainReductionComponent | Mastering | 0 | m_stereoMasteringChainUIState |

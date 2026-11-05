@@ -272,8 +272,10 @@ struct MeterReaderGeneric
 
 using Meter = MeterGeneric<float, 1>;
 using StereoMeter = MeterGeneric<float, 2>;
+using TrioMeter = MeterGeneric<float, 3>;
 using QuadMeter = MeterGeneric<float, 4>;
 
 using MeterReader = MeterReaderGeneric<float, 1>;
 using StereoMeterReader = MeterReaderGeneric<float, 2>;
+using TrioMeterReader = MeterReaderGeneric<float, 3>;
 using QuadMeterReader = MeterReaderGeneric<float, 4>;
