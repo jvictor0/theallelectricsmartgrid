@@ -6,7 +6,7 @@ The sub oscillator is a per-voice, mono signal path that runs one octave below t
 
 The Sub page exposes separate exponential controls, with normalized knob position `x` from 0 to 1:
 
-- **VOL (Sub Volume)**: `(20^x - 1) / 19`, ranging from exact silence to unity. It sets the sub envelope level after saturation.
+- **VOL (Sub Volume)**: `(20^x - 1) / 19`, ranging from exact silence to unity. It scales the saturated sub output without changing the envelope or saturation.
 - **DRIV (Sub Drive)**: `0.125 * 256^x`, ranging from 0.125× (−18.1 dB) to 32× (+30.1 dB), with 2× at the midpoint. It drives the normalized tanh saturator, increasing waveform saturation rather than multiplying the final output level by the same amount.
 
 The Drive maximum was increased from 8× to 32×. Saved knob positions retain their normalized values, so nonzero Drive settings produce more saturation with the expanded range; the default minimum remains 0.125×.
@@ -14,7 +14,7 @@ The Drive maximum was increased from 8× to 32×. Saved knob positions retain th
 ## Signal Path
 
 1. **Per-voice oscillator**: Each `SquiggleBoyVoice` owns a `VCO` that generates a sine at `baseFreq / 2` (one octave down) on every audio sample. The base frequency is always set in the voice input (`m_subInput.m_baseFreq`).
-2. **Amp-section shaping**: The sub signal runs through a per-voice tanh saturator and low-pass filter inside the amp section before it is added to the mix.
+2. **Amp-section shaping**: The sub signal is multiplied by its rise/fall envelope, then passes through the normalized tanh saturator, then the Sub Volume control. The envelope therefore changes the amount of saturation during the note, while Sub Volume scales the result.
 3. **Mono injection**: The amp section produces a `m_subOut` mono signal per voice, which is injected into the mixer as `monoIn`.
 
 ## Mono Mixing and Saturation

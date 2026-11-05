@@ -55,7 +55,8 @@ DOCTEST_TEST_CASE("Sub: envelope rise and fall have independent exponential time
         rig.m_amp.m_subRunning[0] = false;
         rig.RunSamples(static_cast<size_t>(std::lround(fallSeconds * SampleTimer::x_sampleRate)));
         DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == doctest::Approx(envelope * std::exp(-1.0)).epsilon(0.002));
-        DOCTEST_CHECK(rig.m_amp.m_subOut == doctest::Approx(peak * std::exp(-1.0)).epsilon(0.002));
+        DOCTEST_CHECK(rig.m_amp.m_subOut > 0.0f);
+        DOCTEST_CHECK(rig.m_amp.m_subOut < peak);
         DOCTEST_CHECK(rig.m_amp.m_output == doctest::Approx(1.0f));
     }
 }
@@ -88,7 +89,21 @@ DOCTEST_TEST_CASE("Sub: changing slew times retains the envelope and its directi
     DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == doctest::Approx(falling * std::exp(-1.0)));
 }
 
-DOCTEST_TEST_CASE("Sub: volume and drive independently control sub audio without changing the main output")
+DOCTEST_TEST_CASE("Sub: saturation follows the envelope")
+{
+    GlobalEnv::ResetPerTest();
+    SubAmpRig rig;
+    rig.m_input.m_subRiseSeconds.Update(1.0f);
+    rig.m_input.m_subTanhGain.Update(1.0f);
+    rig.RunSamples(static_cast<size_t>(SampleTimer::SecondsToSamples(0.1)));
+    DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output > 0.09f);
+    DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output < 0.1f);
+    DOCTEST_CHECK(rig.m_amp.m_subOut > 0.5f);
+    DOCTEST_CHECK(rig.m_amp.m_subOut < 0.8f);
+    DOCTEST_CHECK(rig.m_amp.m_output == 1.0f);
+}
+
+DOCTEST_TEST_CASE("Sub: volume scales saturated audio without changing the envelope or main output")
 {
     GlobalEnv::ResetPerTest();
     SubAmpRig rig;
@@ -101,9 +116,15 @@ DOCTEST_TEST_CASE("Sub: volume and drive independently control sub audio without
     DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == 1.0);
     DOCTEST_CHECK(rig.m_input.m_subGain.m_expParam == 1.0f);
     DOCTEST_CHECK(rig.m_amp.m_output == 1.0f);
+    const float highDrive = rig.m_amp.m_subOut;
+    rig.m_input.m_subGain.Update(0.5f);
+    rig.RunSamples(1);
+    DOCTEST_CHECK(rig.m_amp.m_subOut == doctest::Approx(highDrive * rig.m_input.m_subGain.m_expParam));
+    DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == 1.0);
     rig.m_input.m_subGain.Update(0.0f);
-    rig.RunSamples(1000 * SampleTimer::x_oversample);
-    DOCTEST_CHECK(std::abs(rig.m_amp.m_subOut) < 1e-6f);
+    rig.RunSamples(1);
+    DOCTEST_CHECK(rig.m_amp.m_subOut == 0.0f);
+    DOCTEST_CHECK(rig.m_amp.m_subSlew.m_output == 1.0);
     DOCTEST_CHECK(rig.m_input.m_subTanhGain.m_expParam == 32.0f);
     DOCTEST_CHECK(rig.m_amp.m_output == 1.0f);
 }

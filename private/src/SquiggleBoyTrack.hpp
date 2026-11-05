@@ -231,9 +231,6 @@ struct SquiggleBoyTrackGeneric
                 m_subRunning[i] = input.m_subTrig[i];
             }
 
-            Vector subDrive = input.m_subTanhGain.m_expParam;
-            Vector saturatedSub = Saturator::Tanh(sub * subDrive) / Saturator::Tanh(subDrive);
-
             Vector freqDependentGain = m_freqDependentGainSlew.Process(m_freqDependentGainTarget);
 
             // AHD::Process now applies amplitude and polarity internally
@@ -244,7 +241,7 @@ struct SquiggleBoyTrackGeneric
             constexpr float x_slewTimeToCycles = static_cast<float>(SampleTimer::HzToCycPerSamp(1.0 / (2.0 * M_PI)));
             m_subSlew.SetSlewUp(Vector::Splat(x_slewTimeToCycles) / input.m_subRiseSeconds.m_expParam);
             m_subSlew.SetSlewDown(Vector::Splat(x_slewTimeToCycles) / input.m_subFallSeconds.m_expParam);
-            Vector subTarget = input.m_subGain.m_expParam * ahdEnv;
+            Vector subTarget = ahdEnv;
             for (size_t i = 0; i < Size; ++i)
             {
                 if (!m_subRunning[i])
@@ -254,8 +251,10 @@ struct SquiggleBoyTrackGeneric
             }
 
             Vector subEnvelope = m_subSlew.Process(subTarget);
+            Vector subDrive = input.m_subTanhGain.m_expParam;
+            Vector saturatedSub = Saturator::Tanh(sub * subEnvelope * subDrive) / Saturator::Tanh(subDrive);
             Vector mainOut = freqDependentGain * ahdEnv * filterOutput;
-            Vector subOut = freqDependentGain * subEnvelope * saturatedSub;
+            Vector subOut = freqDependentGain * saturatedSub * input.m_subGain.m_expParam;
 
             for (size_t i = 0; i < Size; ++i)
             {
