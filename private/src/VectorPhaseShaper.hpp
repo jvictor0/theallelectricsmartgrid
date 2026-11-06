@@ -80,11 +80,14 @@ struct VectorPhaseShaperGeneric
         SetDV(Vector::Splat(0.5), Vector::Splat(0.5));
     }
 
-    // 4 * freq / d < 0.5, so 8 * freq < d: dScale = max(0, 1 - 16 * freq)
+    // At maximum V, keep 4 * freq / d at 19 kHz by narrowing the D range.
+    // Since minimum D is (1 - dScale) / 2, dScale = 1 - 8 * freq / limit.
+    // Once D reaches 0.5, higher fundamentals can exceed the read-rate limit.
     //
     void SetDScale()
     {
-        m_dScale = Vector::Max(Vector::Splat(0), Vector::Splat(1) - m_freq * 16);
+        constexpr float x_dScalePerFreq = 8.0 / SampleTimer::HzToCycPerSamp(19000.0);
+        m_dScale = Vector::Max(Vector::Splat(0), Vector::Splat(1) - m_freq * x_dScalePerFreq);
     }
 
     void SetDV(const Vector& d, const Vector& v)
@@ -162,31 +165,22 @@ struct VectorPhaseShaperGeneric
         Vector lineLeft = slopeLeft * t;
         Vector lineRight = v + slopeRight * (t - d);
 
-        // Left elbow: R(1) - 1 at 0 to L(delta)
-        // Middle elbow: L(d - delta) to R(d + delta)
-        // Right elbow: R(1 - delta) to L(0) + 1 = 1 at 1
+        // Both halves of the wrap share one elbow on [-delta, delta].
+        // Shift the late-cycle phase down by one, then restore that cycle
+        // after evaluation. The seam value is free to move away from zero.
         //
         Vector midYA = slopeLeft * midA;
         Vector midYB = v + slopeRight * (midB - d);
-        Vector rightYA = v + slopeRight * (rightA - d);
-        Vector leftYA = v + slopeRight * (one - d) - 1;
-        Vector leftYB = slopeLeft * leftB;
+        Vector elbowT = Vector::IfLess(midB, t, t - one, t);
+        Vector a = Vector::IfLess(leftB, elbowT, midA, -delta);
+        Vector b = Vector::IfLess(leftB, elbowT, midB, delta);
+        Vector yA = Vector::IfLess(leftB, elbowT, midYA, -slopeRight * delta);
+        Vector yB = Vector::IfLess(leftB, elbowT, midYB, slopeLeft * delta);
+        Vector mA = Vector::IfLess(leftB, elbowT, slopeLeft, slopeRight);
+        Vector mB = Vector::IfLess(leftB, elbowT, slopeRight, slopeLeft);
 
-        Vector a = Vector::IfLess(midB, t, rightA, midA);
-        Vector b = Vector::IfLess(midB, t, one, midB);
-        Vector yA = Vector::IfLess(midB, t, rightYA, midYA);
-        Vector yB = Vector::IfLess(midB, t, one, midYB);
-        Vector mA = Vector::IfLess(midB, t, slopeRight, slopeLeft);
-        Vector mB = Vector::IfLess(midB, t, slopeLeft, slopeRight);
-
-        a = Vector::IfLess(leftB, t, a, Vector::Splat(0));
-        b = Vector::IfLess(leftB, t, b, leftB);
-        yA = Vector::IfLess(leftB, t, yA, leftYA);
-        yB = Vector::IfLess(leftB, t, yB, leftYB);
-        mA = Vector::IfLess(leftB, t, mA, slopeRight);
-        mB = Vector::IfLess(leftB, t, mB, slopeLeft);
-
-        Vector elbow = HermiteQuinticSegmentC2Zero(a, b, yA, mA, yB, mB, t);
+        Vector elbow = HermiteQuinticSegmentC2Zero(a, b, yA, mA, yB, mB, elbowT);
+        elbow = Vector::IfLess(midB, t, elbow + one, elbow);
 
         Vector result = Vector::IfLess(t, rightA, lineRight, elbow);
         result = Vector::IfLess(midB, t, result, elbow);
