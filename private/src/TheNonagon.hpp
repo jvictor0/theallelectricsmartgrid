@@ -1373,7 +1373,7 @@ struct TheNonagonSmartGrid
 
     }
 
-    void SetupMonoScopeWriter(ScopeWriter* scopeWriter)
+    void SetupMonoScopeWriter(ScopeWriterInput<1>* scopeWriter)
     {
         m_nonagon.m_theoryOfTime.SetupMonoScopeWriter(scopeWriter);
     }

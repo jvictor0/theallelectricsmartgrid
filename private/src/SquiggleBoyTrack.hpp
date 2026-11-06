@@ -40,7 +40,7 @@ struct SquiggleLFOGeneric
     PolyXFader m_polyXFader;
     Vector m_output;
 
-    ScopeWriterHolder m_scopeWriter[Size];
+    ScopeWriterHolderGeneric<Size> m_scopeWriter;
 
     struct Input
     {
@@ -60,12 +60,12 @@ struct SquiggleLFOGeneric
         m_polyXFader.Process(input.m_polyXFaderInput);
         m_output = m_polyXFader.m_rawOutput;
 
+        m_scopeWriter.Write(m_polyXFader.m_output);
         for (size_t i = 0; i < Size; ++i)
         {
-            m_scopeWriter[i].Write(m_polyXFader.m_output[i]);
             if (m_polyXFader.m_top[i])
             {
-                m_scopeWriter[i].RecordStart(m_polyXFader.m_top[i].m_offset);
+                m_scopeWriter.RecordStartAtVoice(i, m_polyXFader.m_top[i].m_offset);
             }
         }
 
@@ -115,10 +115,10 @@ struct SquiggleBoyTrackGeneric
 
         BiDirectionalSlewGeneric<Size> m_subSlew;
 
-        ScopeWriterHolder m_scopeWriter[Size];
-        ScopeWriterHolder m_subScopeWriter[Size];
-        ScopeWriterHolder m_modulationEnvelopeScopeWriter[Size];
-        ScopeWriterHolder m_ampEnvelopeScopeWriter[Size];
+        ScopeWriterHolderGeneric<Size> m_scopeWriter;
+        ScopeWriterHolderGeneric<Size> m_subScopeWriter;
+        ScopeWriterHolderGeneric<Size> m_modulationEnvelopeScopeWriter;
+        ScopeWriterHolderGeneric<Size> m_ampEnvelopeScopeWriter;
         bool m_subRunning[Size];
 
         struct Input
@@ -176,30 +176,30 @@ struct SquiggleBoyTrackGeneric
 
         void WriteEnvelopeScopes()
         {
+            m_modulationEnvelopeScopeWriter.Write(m_modulationAHD.m_output);
+            m_ampEnvelopeScopeWriter.Write(m_ahd.m_output);
             for (size_t i = 0; i < Size; ++i)
             {
                 const AHD& modulationAHD = m_modulationAHD.m_channels[i];
                 const AHD& ahd = m_ahd.m_channels[i];
-                m_modulationEnvelopeScopeWriter[i].Write(modulationAHD.m_output);
-                m_ampEnvelopeScopeWriter[i].Write(ahd.m_output);
                 if (modulationAHD.m_triggered)
                 {
-                    m_modulationEnvelopeScopeWriter[i].RecordStart();
+                    m_modulationEnvelopeScopeWriter.RecordStartAtVoice(i, 0.0);
                 }
 
                 if (modulationAHD.m_changed && modulationAHD.m_state == AHD::State::Idle)
                 {
-                    m_modulationEnvelopeScopeWriter[i].RecordEnd();
+                    m_modulationEnvelopeScopeWriter.RecordEndAtVoice(i);
                 }
 
                 if (ahd.m_triggered)
                 {
-                    m_ampEnvelopeScopeWriter[i].RecordStart();
+                    m_ampEnvelopeScopeWriter.RecordStartAtVoice(i, 0.0);
                 }
 
                 if (ahd.m_changed && ahd.m_state == AHD::State::Idle)
                 {
-                    m_ampEnvelopeScopeWriter[i].RecordEnd();
+                    m_ampEnvelopeScopeWriter.RecordEndAtVoice(i);
                 }
             }
         }
@@ -225,7 +225,7 @@ struct SquiggleBoyTrackGeneric
 
                 if (m_ahd.m_channels[i].m_state != AHD::State::Idle)
                 {
-                    m_scopeWriter[i].RecordEnd();
+                    m_scopeWriter.RecordEndAtVoice(i);
                 }
 
                 m_subRunning[i] = input.m_subTrig[i];
@@ -255,20 +255,20 @@ struct SquiggleBoyTrackGeneric
             Vector saturatedSub = Saturator::Tanh(sub * subEnvelope * subDrive) / Saturator::Tanh(subDrive);
             Vector mainOut = freqDependentGain * ahdEnv * filterOutput;
             Vector subOut = freqDependentGain * saturatedSub * input.m_subGain.m_expParam;
+            m_scopeWriter.Write(mainOut);
+            m_subScopeWriter.Write(subOut);
 
             for (size_t i = 0; i < Size; ++i)
             {
                 const AHD& ahd = m_ahd.m_channels[i];
-                m_scopeWriter[i].Write(mainOut[i]);
-                m_subScopeWriter[i].Write(subOut[i]);
                 if (ahd.m_triggered)
                 {
-                    m_scopeWriter[i].RecordStart();
+                    m_scopeWriter.RecordStartAtVoice(i, 0.0);
                 }
 
                 if (ahd.m_changed && ahd.m_state == AHD::State::Idle)
                 {
-                    m_scopeWriter[i].RecordEnd();
+                    m_scopeWriter.RecordEndAtVoice(i);
                 }
             }
 
@@ -313,28 +313,26 @@ struct SquiggleBoyTrackGeneric
         }
     };
 
-    void SetupAudioScopeWriters(ScopeWriter* scopeWriter, size_t track)
+    void SetupAudioScopeWriters(ScopeWriterInput<Size>* scopeWriter, size_t track)
     {
         m_source.SetScopeWriters(scopeWriter, track);
         m_shape.SetScopeWriters(scopeWriter, track);
-        for (size_t i = 0; i < Size; ++i)
-        {
-            size_t voice = track * Size + i;
-            m_amp.m_scopeWriter[i] = ScopeWriterHolder(scopeWriter, voice, static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp));
-            m_amp.m_subScopeWriter[i] = ScopeWriterHolder(scopeWriter, voice, static_cast<size_t>(SmartGridOne::AudioScopes::Sub));
-        }
+        m_amp.m_scopeWriter = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::PostAmp), track));
+        m_amp.m_subScopeWriter = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::Sub), track));
     }
 
-    void SetupControlScopeWriters(ScopeWriter* scopeWriter, size_t track)
+    void SetupControlScopeWriters(ScopeWriterInput<Size>* scopeWriter, size_t track)
     {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            size_t voice = track * Size + i;
-            m_squiggleLFO[0].m_scopeWriter[i] = ScopeWriterHolder(scopeWriter, voice, static_cast<size_t>(SmartGridOne::ControlScopes::LFO1));
-            m_squiggleLFO[1].m_scopeWriter[i] = ScopeWriterHolder(scopeWriter, voice, static_cast<size_t>(SmartGridOne::ControlScopes::LFO2));
-            m_amp.m_modulationEnvelopeScopeWriter[i] = ScopeWriterHolder(scopeWriter, voice, static_cast<size_t>(SmartGridOne::ControlScopes::ModulationEnvelope));
-            m_amp.m_ampEnvelopeScopeWriter[i] = ScopeWriterHolder(scopeWriter, voice, static_cast<size_t>(SmartGridOne::ControlScopes::AmpEnvelope));
-        }
+        m_squiggleLFO[0].m_scopeWriter = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO1), track));
+        m_squiggleLFO[1].m_scopeWriter = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO2), track));
+        m_amp.m_modulationEnvelopeScopeWriter = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::ModulationEnvelope), track));
+        m_amp.m_ampEnvelopeScopeWriter = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::AmpEnvelope), track));
     }
 
     // Double state: the slowest portamento stalls short of the target pitch in

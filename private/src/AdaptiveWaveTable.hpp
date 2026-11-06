@@ -83,7 +83,7 @@ struct DiscreteFourierTransformGeneric
         }
     }
 
-    void FFT(ComplexVector* data, size_t N)
+    static void FFT(ComplexVector* data, size_t N)
     {
         if (N <= 1)
         {

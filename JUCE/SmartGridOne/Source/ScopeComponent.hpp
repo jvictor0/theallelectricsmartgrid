@@ -98,7 +98,8 @@ struct ScopeComponent : public ModulatorTimeAxisComponent
                 }
             }
 
-            m_scopeReaderFactory.SetVoiceIx(voiceIx);
+            m_scopeReaderFactory.SetVoiceIx(voiceIx % x_voicesPerTrack);
+            m_scopeReaderFactory.SetScopeIx(SmartGridOne::VoiceScopeIndex(m_scopeIx, voiceIx / x_voicesPerTrack));
             ScopeReader scopeReader = m_scopeReaderFactory.Create();
 
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
@@ -158,7 +159,7 @@ struct PolyphonicScopeComponent : public ModulatorTimeAxisComponent
     }
 
     PolyphonicScopeComponent(TheNonagonSquiggleBoyInternal::UIState* uiState, QuadModulator modulator)
-        : PolyphonicScopeComponent(&uiState->m_squiggleBoyUIState.m_quadControlScopeWriter,
+        : PolyphonicScopeComponent(&uiState->m_squiggleBoyUIState.m_quadScopeWriter,
             SmartGridOneModulatorHistory::GetControlScope(*uiState, ModulatorRef(modulator, 0)).m_lane,
             4, GetModulatorColor(modulator),
             0.9f,
@@ -325,7 +326,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
     };
 
     static constexpr size_t x_voicesPerTrack = 3;
-    WindowedFFT m_windowedFFT[x_voicesPerTrack];
+    TrioWindowedFFT m_windowedFFT;
     std::atomic<size_t>* m_voiceIx;
 
     int* m_voiceOffset;
@@ -337,7 +338,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
     FilterOverlay m_filterOverlay;
 
     AnalyserComponent(
-        WindowedFFT windowedFFT, 
+        const TrioWindowedFFT& windowedFFT,
         int* voiceOffset, 
         TheNonagonSquiggleBoyInternal::UIState* uiState)
         : AnalyserComponent(windowedFFT, voiceOffset, uiState, FilterOverlay::Voice)
@@ -345,7 +346,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
     }
 
     AnalyserComponent(
-        WindowedFFT windowedFFT,
+        const TrioWindowedFFT& windowedFFT,
         int* voiceOffset,
         TheNonagonSquiggleBoyInternal::UIState* uiState,
         FilterOverlay filterOverlay)
@@ -357,11 +358,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
         , m_logX(true)
         , m_filterOverlay(filterOverlay)
     {
-        for (size_t i = 0; i < x_voicesPerTrack; ++i)
-        {
-            m_windowedFFT[i] = windowedFFT;
-        }
-
+        m_windowedFFT = windowedFFT;
     }
 
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
@@ -377,6 +374,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
         int voiceOffset = *m_voiceOffset;
 
         size_t baseVoiceIx = m_voiceIx->load() * x_voicesPerTrack;
+        m_windowedFFT.Compute(SmartGridOne::VoiceScopeIndex(m_windowedFFT.m_scopeIx, baseVoiceIx / x_voicesPerTrack));
         size_t numLoops = 1;
         if (voiceOffset == -1)
         {
@@ -395,15 +393,13 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
                 }
             }
 
-            m_windowedFFT[i].Compute(voiceIx);
-
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
             PathDrawer responseDrawer(height, width, 0, 0);
             responseDrawer.m_logX = m_logX;
             responseDrawer.DrawWindowedDFT(
                 g,
                 juce::Colour(color.m_red, color.m_green, color.m_blue),
-                &m_windowedFFT[i]);
+                &m_windowedFFT, voiceIx % x_voicesPerTrack);
 
             if (m_filterOverlay == FilterOverlay::Voice)
             {
@@ -412,7 +408,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
                     g,
                     juce::Colour(color.m_red, color.m_green, color.m_blue),
                     m_voiceFilterUIState[voiceIx],
-                    1.0f / SampleTimer::x_oversample);
+                    1.0f);
             }
         }
     }
@@ -468,25 +464,28 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
     {
         QuadWindowedFFT* m_quadWindowedFFT;
         size_t m_speakerIx;
+        float m_halfBucketRatio;
 
         QuadDFTFn(QuadWindowedFFT* quadWindowedFFT, size_t speakerIx)
             : m_quadWindowedFFT(quadWindowedFFT)
             , m_speakerIx(speakerIx)
+            , m_halfBucketRatio(PathDrawer::LogHalfBucketRatio())
         {
         }
 
         float operator()(float freq) const
         {
-            return PathDrawer::NormalizeDb(m_quadWindowedFFT->GetMagDb(m_speakerIx, freq));
+            return PathDrawer::NormalizeDb(m_quadWindowedFFT->GetPeakMagDb(m_speakerIx,
+                freq / m_halfBucketRatio, freq * m_halfBucketRatio));
         }
     };
 
-    // Scopes are in cycles per host sample. The damping filters run at the
-    // engine rate; the partial machine's parameters are in host-rate units.
+    // The axis and damping filters use engine-rate frequencies. The partial
+    // machine's transfer function takes host-rate frequencies.
     //
     static float GetTransferFunctionFrequencyScale(Type type)
     {
-        return type == Type::PartialMachine ? 1.0f : 1.0f / SampleTimer::x_oversample;
+        return type == Type::PartialMachine ? static_cast<float>(SampleTimer::x_oversample) : 1.0f;
     }
 
     const TransferFunction* GetTransferFunctionForSpeaker(Type type, size_t speakerIx) const
@@ -725,7 +724,7 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
                 g,
                 juce::Colour(color.m_red, color.m_green, color.m_blue),
                 sourceUIState.m_physicalModelingUIState,
-                1.0f / SampleTimer::x_oversample);
+                1.0f);
         }
     }
 

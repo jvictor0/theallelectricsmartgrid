@@ -26,7 +26,7 @@ Each voice SHALL process audio through the chain: source machine, then filter se
 
 #### Scenario: Signal ordering is observable on the scopes
 - **WHEN** a voice plays a note
-- **THEN** the `AudioScopes::PostFilter` scope channel shows the filtered pre-amp signal while `AudioScopes::PostAmp` shows the same signal multiplied by the amp envelope
+- **THEN** the `VoiceScopes::PostFilter` scope channel shows the filtered pre-amp signal while `VoiceScopes::PostAmp` shows the same signal multiplied by the amp envelope
 - **AND** the voice's pan coordinates are published to the UI via `UIState::SetPos(i, x, y)` as atomically readable X/Y positions
 
 ### Requirement: Per-Voice Sub-Oscillator
@@ -116,9 +116,9 @@ The system SHALL expose per-voice UI state through `SquiggleBoyWithEncoderBank::
 - **THEN** `m_voiceSourceUIState[i].m_sampleDirectoryUIState.GetPath()` returns the bank's directory name, capped at 511 characters plus terminator
 
 ### Requirement: Per-Voice Scope Observability
-The system SHALL write per-voice signals to dedicated scope channels via `ScopeWriterHolder`: audio scopes `VCO1`, `VCO2`, `PostFilter`, `PostAmp`, and `Sub` per voice, and control scopes `LFO1`, `LFO2`, `ModulationEnvelope`, and `AmpEnvelope` per voice. Every scope is written with `ScopeWriterHolder::Write(value)` once per engine sample. The audio scope writer stores one value per host frame (`ScopeWriter::x_audioDecimation`, subsampling the engine-rate signals without anti-alias filtering); control scope writers store one value per `ScopeWriter::x_controlDecimation` (8 host frames) engine samples and convert record-start offsets to fractional stored indices. Envelope scopes get record-start marks on envelope trigger and record-end marks when the envelope returns to Idle; `PostFilter` cycles start at the source's cycle tops (`SquiggleBoySource::m_top`), with their fractional offsets.
+The system SHALL write per-voice signals to dedicated scope channels via vector scope holders: audio scopes `VCO1`, `VCO2`, `PostFilter`, `PostAmp`, and `Sub` per voice, and control scopes `LFO1`, `LFO2`, `ModulationEnvelope`, and `AmpEnvelope` per voice. Every scope is written with a whole trio vector once per engine sample. Physical scope index SHALL be logicalScopeIx * 3 + trioIx, with lane equal to voiceIx % 3. The voice bank SHALL have 39 scopes of width three for all audio and control signals. It SHALL store each engine sample without base-rate subsampling, and record-start offsets SHALL retain fractional engine-sample coordinates. Envelope scopes get record-start marks on envelope trigger and record-end marks when the envelope returns to Idle; `PostFilter` cycles start at the source's cycle tops (`SquiggleBoySource::m_top`), with their fractional offsets.
 
 #### Scenario: Amp envelope visible on its scope channel
 - **WHEN** voice i plays a note
-- **THEN** the `ControlScopes::AmpEnvelope` channel for voice i shows the amp AHD output starting at the trigger sample and ending when the envelope state returns to Idle
-- **AND** `AudioScopes::PostAmp` for the same voice shows the corresponding audio amplitude contour
+- **THEN** the `VoiceScopes::AmpEnvelope` channel for voice i shows the amp AHD output starting at the trigger sample and ending when the envelope state returns to Idle
+- **AND** `VoiceScopes::PostAmp` for the same voice shows the corresponding audio amplitude contour

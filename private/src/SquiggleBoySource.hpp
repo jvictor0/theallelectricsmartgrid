@@ -71,7 +71,7 @@ struct SquiggleBoySourceGeneric
         ClearTops();
     }
 
-    void SetScopeWriters(ScopeWriter* scopeWriter, size_t track)
+    void SetScopeWriters(ScopeWriterInput<Size>* scopeWriter, size_t track)
     {
         m_dualWaveShapingVCO.SetScopeWriters(scopeWriter, track);
     }

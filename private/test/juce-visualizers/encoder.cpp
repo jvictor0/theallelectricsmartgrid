@@ -137,7 +137,7 @@ DOCTEST_TEST_CASE("Modulator markers: random dots use the source color in every 
 
 DOCTEST_TEST_CASE("Modulator markers: unipolar and bipolar scopes draw dots in their source color")
 {
-    auto writer = std::make_unique<ScopeWriter>(4, 1);
+    auto writer = std::make_unique<ScopeWriterGeneric<4, 1>>(1, 4096);
     for (size_t voice = 0; voice < 4; ++voice)
     {
         writer->RecordStart(0, voice);
@@ -145,15 +145,13 @@ DOCTEST_TEST_CASE("Modulator markers: unipolar and bipolar scopes draw dots in t
 
     for (size_t sample = 0; sample < 2; ++sample)
     {
-        for (size_t voice = 0; voice < 4; ++voice)
-        {
-            writer->Write(0, voice, 0.2f + 0.2f * voice);
-        }
+        writer->Write(0, QuadFloat(0.2f, 0.4f, 0.6f, 0.8f));
 
         writer->AdvanceIndex();
     }
 
     writer->Publish();
+    writer->AcceptSamples();
     for (bool bipolar : {false, true})
     {
         auto color = GetModulatorColor(QuadModulator::LFO1);
@@ -201,9 +199,9 @@ DOCTEST_TEST_CASE("Encoder visualizers: catalogue supplies only supported source
 
     auto* scope = dynamic_cast<ScopeComponent*>(visualizers.Get(Mode::Voice, 6));
     DOCTEST_REQUIRE(scope != nullptr);
-    auto& writer = uiState->m_squiggleBoyUIState.m_controlScopeWriter;
+    auto& writer = uiState->m_squiggleBoyUIState.m_voiceScopeWriter;
     DOCTEST_CHECK(scope->m_scopeWriter == &writer);
-    DOCTEST_CHECK(scope->m_scopeIx == static_cast<size_t>(SmartGridOne::ControlScopes::LFO1));
+    DOCTEST_CHECK(scope->m_scopeIx == static_cast<size_t>(SmartGridOne::VoiceScopes::LFO1));
     int panelVoiceOffset = 1;
     ScopeComponent panel(scope->m_scopeIx, &writer, &panelVoiceOffset, ScopeComponent::ScopeType::Control, uiState);
     DOCTEST_CHECK(scope->m_voiceOffset != panel.m_voiceOffset);
@@ -461,26 +459,28 @@ DOCTEST_TEST_CASE("Encoder weighted curves: longest axis hosts the normalized mi
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState;
-    state.m_firstAudioSample.store(0);
-    state.m_audioScopeWriter.m_publishedIndex.store(601);
-    state.m_firstControlSample.store(0);
-    auto& scope = state.m_controlScopeWriter;
+    state.m_firstScopeSample.store(0);
+    auto& scope = state.m_voiceScopeWriter;
     for (size_t index = 0; index <= 75; ++index)
     {
         for (size_t voice = 0; voice < 9; ++voice)
         {
             if (index == 0)
             {
-                scope.RecordStart(0, voice);
+                scope.RecordStart(SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO1), voice / 3), voice % 3);
             }
 
             if (index % 50 == 0)
             {
-                scope.RecordStart(1, voice);
+                scope.RecordStart(SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO2), voice / 3), voice % 3);
             }
 
-            scope.Write(0, voice, voice >= 6 ? 0.2f : 0.9f);
-            scope.Write(1, voice, 0.6f);
+            if (voice % 3 == 0)
+            {
+                scope.Write(SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO1), voice / 3), TrioFloat::Splat(voice >= 6 ? 0.2f : 0.9f));
+                scope.Write(SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO2), voice / 3), TrioFloat::Splat(0.6f));
+            }
+
             ui->m_nonagonUIState.m_muted[voice].store(false);
         }
 
@@ -488,6 +488,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: longest axis hosts the normalized mi
     }
 
     scope.Publish();
+    scope.AcceptSamples();
     ModulatorVisualizers visualizers;
     InitializeEncoderModulatorVisualizers(visualizers, ui.get());
     visualizers.m_scopeVoiceOffset = 0;
@@ -502,7 +503,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: longest axis hosts the normalized mi
 
     auto* selected = visualizers.GetForParameter(encoder);
     DOCTEST_REQUIRE(selected == visualizers.Get(Mode::VoiceEarth, 6));
-    DOCTEST_CHECK(selected->GetTimeExtent() == 75.0 * ScopeWriter::x_controlDecimation);
+    DOCTEST_CHECK(selected->GetTimeExtent() == 75.0);
     auto* timeView = dynamic_cast<ModulatorTimeAxisComponent*>(selected);
     DOCTEST_REQUIRE(timeView != nullptr);
     DOCTEST_CHECK(timeView->GetFirstVoice() == 6);
@@ -535,7 +536,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: longest axis hosts the normalized mi
 
     selected = visualizers.GetForParameter(encoder);
     DOCTEST_REQUIRE(selected == visualizers.Get(Mode::VoiceEarth, 7));
-    DOCTEST_CHECK(selected->GetTimeExtent() == 50.0 * ScopeWriter::x_controlDecimation);
+    DOCTEST_CHECK(selected->GetTimeExtent() == 50.0);
     DOCTEST_CHECK_FALSE(dynamic_cast<ModulatorTimeAxisComponent*>(selected)->m_hasWeights);
 }
 
@@ -586,8 +587,8 @@ DOCTEST_TEST_CASE("Encoder weighted curves: multiple sources without time axes u
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState;
-    state.m_firstAudioSample.store(0);
-    state.m_audioScopeWriter.m_publishedIndex.store(1 + 2 * SampleTimer::x_sampleRate / ScopeWriter::x_audioDecimation);
+    state.m_firstScopeSample.store(0);
+    state.m_voiceScopeWriter.m_acceptedIndex = 1 + 2 * SampleTimer::x_sampleRate;
     ModulatorVisualizers visualizers;
     InitializeEncoderModulatorVisualizers(visualizers, ui.get());
     visualizers.m_scopeVoiceOffset = 1;
@@ -626,9 +627,8 @@ DOCTEST_TEST_CASE("Encoder weighted curves: random time axes keep other sources 
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState;
-    state.m_firstAudioSample.store(100);
-    state.m_audioScopeWriter.m_publishedIndex.store(1 + 32 / ScopeWriter::x_audioDecimation);
-    state.m_firstControlSample.store(104);
+    state.m_firstScopeSample.store(100);
+    state.m_voiceScopeWriter.m_acceptedIndex = 1 + 32;
     GangedRandomLFOVoice voices[4];
     GangedRandomLFOVoiceInput inputs[4];
     for (size_t voice = 0; voice < 4; ++voice)
@@ -639,14 +639,15 @@ DOCTEST_TEST_CASE("Encoder weighted curves: random time axes keep other sources 
     }
 
     state.m_quadGangedRandomLFOUIState[0].m_history.RecordRound(100, voices, inputs);
-    const size_t controlSamples = std::max<size_t>(1, 32 / ScopeWriter::x_controlDecimation);
+    const size_t controlSamples = 33;
     for (size_t sample = 0; sample < controlSamples; ++sample)
     {
-        state.m_quadControlScopeWriter.Write(static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1), 0, 0.4f);
-        AdvanceControlIndex(state.m_quadControlScopeWriter);
+        state.m_quadScopeWriter.Write(static_cast<size_t>(SmartGridOne::QuadScopes::QuadLFO1), QuadFloat::Splat(0.4f));
+        AdvanceControlIndex(state.m_quadScopeWriter);
     }
 
-    state.m_quadControlScopeWriter.Publish();
+    state.m_quadScopeWriter.Publish();
+    state.m_quadScopeWriter.AcceptSamples();
     ModulatorVisualizers visualizers;
     InitializeEncoderModulatorVisualizers(visualizers, ui.get());
     auto& encoder = state.m_encoderBankUIState.m_states[0][0];

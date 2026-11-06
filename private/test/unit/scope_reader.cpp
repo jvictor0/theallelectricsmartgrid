@@ -12,11 +12,11 @@ namespace
 //
 constexpr size_t x_decimation = 8;
 
-void WriteAt(ScopeWriter& writer, size_t scope, size_t voice, size_t index, float value)
+void WriteAt(ScopeWriterInput<1>& writer, size_t scope, size_t voice, size_t index, float value)
 {
     size_t current = writer.m_index;
     writer.m_index = index;
-    writer.Write(scope, voice, value);
+    writer.Write(scope, MultiChannelNumber<float, 1>(value));
     writer.m_index = current;
 }
 
@@ -30,7 +30,7 @@ void AdvanceTo(ScopeWriter& writer, size_t index)
 
 struct ScopeReaderFixture
 {
-    std::unique_ptr<ScopeWriter> m_writer = std::make_unique<ScopeWriter>(1, 1);
+    std::unique_ptr<ScopeWriterGeneric<1, 1>> m_writer = std::make_unique<ScopeWriterGeneric<1, 1>>(1, 4096);
 
     ScopeReaderFixture(float currentOffset)
     {
@@ -50,6 +50,7 @@ struct ScopeReaderFixture
     {
         m_writer->m_index = index + 1;
         m_writer->Publish();
+        m_writer->AcceptSamples();
     }
 };
 }
@@ -69,7 +70,7 @@ DOCTEST_TEST_CASE("ScopeReader: fractional reads interpolate on both sides of th
 DOCTEST_TEST_CASE("ScopeReader: advancing the transfer does not move a repeating waveform")
 {
     ScopeReaderFixture fixture(0.0f);
-    for (size_t index = 21; index <= 29; ++index)
+    for (size_t index = 24; index <= 29; ++index)
     {
         fixture.PublishThrough(index);
         ScopeReader reader(fixture.m_writer.get(), 0, 0, 8, 1);
@@ -101,11 +102,12 @@ DOCTEST_TEST_CASE("ScopeReader: the right endpoint stays finite at a full transf
 
 DOCTEST_TEST_CASE("ScopeReader: one published sample has a finite display")
 {
-    auto writer = std::make_unique<ScopeWriter>(1, 1);
-    writer->Write(0, 0, 0.5f);
+    auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(1, 4096);
+    writer->Write(0, 0.5f);
     writer->RecordStart(0, 0);
     writer->AdvanceIndex();
     writer->Publish();
+    writer->AcceptSamples();
     ScopeReader reader(writer.get(), 0, 0, 8, 1);
 
     DOCTEST_CHECK(reader.Get(0.0) == doctest::Approx(0.5));
@@ -125,7 +127,7 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
     table.Generate();
     for (size_t topOversample = 0; topOversample < 4; ++topOversample)
     {
-        auto writer = std::make_unique<ScopeWriter>(1, 3);
+        auto writer = std::make_unique<ScopeWriterGeneric<1, 3>>(1, 4096);
         for (size_t scope = 0; scope < 3; ++scope)
         {
             for (size_t i = 0; i < 100; ++i)
@@ -145,12 +147,12 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
             oscillator.m_vco[i].m_phase = 0.9921875f - static_cast<float>(topOversample) / 64.0f;
             oscillator.m_vco[i].SetLeft(&table);
             oscillator.m_vco[i].SetRight(&table);
-            oscillator.m_scopeWriter[i][0] = ScopeWriterHolder(writer.get(), 0, i);
+            oscillator.m_scopeWriter[i] = ScopeWriterHolder(writer.get(), i);
         }
 
         SquiggleBoyShape filter;
         SquiggleBoyShape::Input filterInput;
-        filter.m_scopeWriter[0] = ScopeWriterHolder(writer.get(), 0, 2);
+        filter.m_scopeWriter = ScopeWriterHolder(writer.get(), 2);
         for (size_t i = 0; i < 8; ++i)
         {
             filter.Process(filterInput, source.Process(sourceInput));
@@ -159,6 +161,7 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
         }
 
         writer->Publish();
+        writer->AcceptSamples();
         constexpr double x_expectedStarts[] = {99.125, 99.375, 99.625, 99.875};
         for (size_t scope = 0; scope < 3; ++scope)
         {
@@ -170,7 +173,7 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
 
 DOCTEST_TEST_CASE("ScopeReader: interpolated cycle length and reads survive buffer wrap")
 {
-    auto writer = std::make_unique<ScopeWriter>(1, 1);
+    auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(1, 4096);
     writer->m_index = writer->MaxIndexes() - 16;
     for (size_t i = 0; i < 25; ++i)
     {
@@ -181,6 +184,7 @@ DOCTEST_TEST_CASE("ScopeReader: interpolated cycle length and reads survive buff
     writer->RecordStart(0, 0, 20.25);
     writer->m_index += 25;
     writer->Publish();
+    writer->AcceptSamples();
     ScopeReader reader(writer.get(), 0, 0, 8, 1);
 
     DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(static_cast<double>(writer->MaxIndexes()) + 4.25));
@@ -189,24 +193,27 @@ DOCTEST_TEST_CASE("ScopeReader: interpolated cycle length and reads survive buff
     DOCTEST_CHECK(reader.Get(6.5) == doctest::Approx(18.28125));
 }
 
-DOCTEST_TEST_CASE("ScopeReader: a top with no published sample waits for its data")
+DOCTEST_TEST_CASE("ScopeReader: a top beyond the accepted boundary keeps the previous cycle visible")
 {
     ScopeReaderFixture fixture(100.0f);
     fixture.m_writer->RecordStart(0, 0);
     fixture.m_writer->Publish();
+    fixture.m_writer->AcceptSamples();
     ScopeReader reader(fixture.m_writer.get(), 0, 0, 8, 1);
 
-    DOCTEST_CHECK(reader.m_empty);
-    DOCTEST_CHECK(reader.Get(reader.m_transferXSample) == 0.0f);
+    DOCTEST_CHECK_FALSE(reader.m_empty);
+    DOCTEST_CHECK(reader.m_startIndex == 20.0);
+    DOCTEST_CHECK(reader.m_transferIndex == 24.0);
 }
 
 DOCTEST_TEST_CASE("ScopeReader: a first top before sample zero has no readable history")
 {
-    auto writer = std::make_unique<ScopeWriter>(1, 1);
-    writer->Write(0, 0, 0.5f);
+    auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(1, 4096);
+    writer->Write(0, 0.5f);
     writer->RecordStart(0, 0, -0.25);
     writer->AdvanceIndex();
     writer->Publish();
+    writer->AcceptSamples();
     ScopeReader reader(writer.get(), 0, 0, 8, 1);
 
     DOCTEST_CHECK(reader.m_empty);
@@ -230,7 +237,7 @@ DOCTEST_TEST_CASE("ScopeReader: PolyXFader top reaches its control-rate scope be
     clock.m_unmodulatedPhase = 1.125;
     time.Process(clock);
 
-    auto writer = std::make_unique<ScopeWriter>(1, 1, x_decimation);
+    auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(x_decimation, 4096);
     for (size_t i = 0; i < 12; ++i)
     {
         WriteAt(*writer, 0, 0, i, 0.5f);
@@ -242,10 +249,11 @@ DOCTEST_TEST_CASE("ScopeReader: PolyXFader top reaches its control-rate scope be
     SquiggleLFOGeneric<1>::Input input;
     input.m_polyXFaderInput.m_theoryOfTime = &time;
     input.m_polyXFaderInput.m_size = 1;
-    lfo.m_scopeWriter[0] = ScopeWriterHolder(writer.get(), 0, 0);
+    lfo.m_scopeWriter = ScopeWriterHolder(writer.get(), 0);
     lfo.Process(input);
     AdvanceTo(*writer, 11);
     writer->Publish();
+    writer->AcceptSamples();
     ScopeReader reader(writer.get(), 0, 0, 1024, 1);
 
     DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(9.1875));
@@ -260,7 +268,7 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one phase per control sa
     input.m_freq = 1.0 / 32.0;
     input.m_modIndex.m_expParam = 0.0;
 
-    auto writer = std::make_unique<ScopeWriter>(1, 1, x_decimation);
+    auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(x_decimation, 4096);
     for (size_t index = 99; index < 113; ++index)
     {
         WriteAt(*writer, 0, 0, index, -1.0f);
@@ -329,7 +337,7 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into decimat
             input.m_input[i].m_parentMult = 1;
         }
 
-        auto writer = std::make_unique<ScopeWriter>(1, 1, x_decimation);
+        auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(x_decimation, 4096);
         writer->m_index = 100;
         time.SetupMonoScopeWriter(writer.get());
         for (size_t block = 0; block < 2; ++block)
@@ -341,7 +349,8 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into decimat
             }
 
             writer->Publish();
-            DOCTEST_CHECK(writer->m_startIndexIndex[0][0].load() == (block == 0 ? item.m_firstBlockStarts : 2));
+            writer->AcceptSamples();
+            DOCTEST_CHECK(writer->GetMarkers(0, 0).m_startIndexIndex.load() == (block == 0 ? item.m_firstBlockStarts : 2));
 
             // Keep the second block below the next crossing while making its
             // first-sample phase available for the reader's fractional lookup.
@@ -349,7 +358,7 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into decimat
             input.m_freq = 1.0 / 256.0;
         }
 
-        DOCTEST_CHECK(writer->m_startIndices[0][0][0] == doctest::Approx(100.125));
+        DOCTEST_CHECK(writer->GetMarkers(0, 0).m_startIndices[0] == doctest::Approx(100.125));
         ScopeReader reader(writer.get(), 0, 0, 1024, 1);
         DOCTEST_CHECK_FALSE(reader.m_empty);
         DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(item.m_startIndex));
@@ -369,7 +378,7 @@ DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top on a stored sample keeps the pr
     clock.m_unmodulatedPhase = 1.125;
     time.Process(clock);
 
-    auto writer = std::make_unique<ScopeWriter>(1, 1, x_decimation);
+    auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(x_decimation, 4096);
     for (size_t i = 0; i < 21; ++i)
     {
         WriteAt(*writer, 0, 0, i, 0.5f);
@@ -380,10 +389,11 @@ DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top on a stored sample keeps the pr
     SquiggleLFOGeneric<1>::Input input;
     input.m_polyXFaderInput.m_theoryOfTime = &time;
     input.m_polyXFaderInput.m_size = 1;
-    lfo.m_scopeWriter[0] = ScopeWriterHolder(writer.get(), 0, 0);
+    lfo.m_scopeWriter = ScopeWriterHolder(writer.get(), 0);
     lfo.Process(input);
     AdvanceTo(*writer, 21);
     writer->Publish();
+    writer->AcceptSamples();
     ScopeReader reader(writer.get(), 0, 0, 1024, 1);
 
     DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(19.9375));

@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include "ScopeComponent.hpp"
 #include "QuadDelayEnvelopeVisualizerComponent.hpp"
+#include "PartialMachineComponents.hpp"
 #include <memory>
 
 namespace
@@ -64,6 +65,27 @@ float FindPeakX(const juce::Image& image, Matches matches)
 }
 }
 
+DOCTEST_TEST_CASE("Spectrum axis: fixed low frequency through engine Nyquist with host-rate atom alignment")
+{
+    PathDrawer drawer;
+    DOCTEST_CHECK(drawer.m_bucketExpX[0] * SampleTimer::x_sampleRate == doctest::Approx(23.4375));
+    DOCTEST_CHECK(drawer.m_bucketExpX[PathDrawer::x_numPoints - 1] == doctest::Approx(0.5f));
+    for (size_t point : {0, 256, 512, 1023})
+    {
+        DOCTEST_CHECK(PathDrawer::LinearToLog(drawer.m_bucketExpX[point])
+            == doctest::Approx(static_cast<float>(point) / (PathDrawer::x_numPoints - 1)));
+    }
+
+    float engineFrequency = 3000.0f / SampleTimer::x_sampleRate;
+    float hostFrequency = 3000.0f / SampleTimer::x_hostSampleRate;
+    DOCTEST_CHECK(PartialMachineComponentUtils::ScreenXForOmega(hostFrequency, 1000.0f)
+        == doctest::Approx(1000.0f * PathDrawer::LinearToLog(engineFrequency)));
+    DOCTEST_CHECK(engineFrequency * QuadAnalyserComponent::GetTransferFunctionFrequencyScale(
+        QuadAnalyserComponent::Type::PartialMachine) == doctest::Approx(hostFrequency));
+    DOCTEST_CHECK(engineFrequency * QuadAnalyserComponent::GetTransferFunctionFrequencyScale(
+        QuadAnalyserComponent::Type::Delay) == doctest::Approx(engineFrequency));
+}
+
 DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequency axis")
 {
     bool logX = true;
@@ -84,34 +106,35 @@ DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequen
     filter.m_lpLadder.m_feedback.store(0.0f);
     filter.m_hp4Pole.m_g.store(0.0f);
     filter.m_hp4Pole.m_k.store(1.0f);
-    auto writer = std::make_unique<ScopeWriter>(9, 1);
+    auto writer = std::make_unique<ScopeWriterGeneric<3, 3>>(1, 4096);
     int voiceOffset = 0;
 
-    for (int bin : {4, 16, 64, 192})
+    for (int bin : {4, 64, 768, 1800})
     {
         DOCTEST_CAPTURE(bin);
-        float frequency = static_cast<float>(bin) / BasicWaveTable::x_tableSize;
-        for (size_t sample = 0; sample < BasicWaveTable::x_tableSize; ++sample)
+        float frequency = static_cast<float>(bin) / WindowedFFT::Transform::x_tableSize;
+        for (size_t sample = 0; sample < WindowedFFT::Transform::x_tableSize; ++sample)
         {
             float value = 0.05f * std::sin(2.0f * static_cast<float>(M_PI) * frequency * sample);
-            writer->Write(0, 3, value);
+            writer->Write(1, TrioFloat(value, 0.0f, 0.0f));
             writer->AdvanceIndex();
         }
 
         writer->Publish();
-        AnalyserComponent analyser(WindowedFFT(writer.get(), 0), &voiceOffset, ui.get());
+        writer->AcceptSamples();
+        AnalyserComponent analyser(TrioWindowedFFT(writer.get(), 0), &voiceOffset, ui.get());
         analyser.m_logX = logX;
         juce::Image spectrum(juce::Image::ARGB, 1024, 400, true);
         juce::Graphics spectrumGraphics(spectrum);
         analyser.Draw(spectrumGraphics, spectrum.getBounds());
 
-        PeakedResponse response(frequency / SampleTimer::x_oversample);
+        PeakedResponse response(frequency);
         PathDrawer drawer(400, 1024, 0, 0);
         drawer.m_logX = logX;
         juce::Image transfer(juce::Image::ARGB, 1024, 400, true);
         juce::Graphics transferGraphics(transfer);
         drawer.DrawFrequencyResponse(transferGraphics, juce::Colours::white, response,
-            1.0f / SampleTimer::x_oversample);
+            1.0f);
 
         float spectrumX = FindPeakX(spectrum, [](juce::Colour pixel)
         {
@@ -131,34 +154,35 @@ DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequen
 DOCTEST_TEST_CASE("Analyser: sub spectrum follows the trio and ignores the main signal and filter")
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
-    auto& writer = ui->m_squiggleBoyUIState.m_audioScopeWriter;
-    const size_t subScope = static_cast<size_t>(SmartGridOne::AudioScopes::Sub);
-    const size_t mainScope = static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp);
-    for (size_t sample = 0; sample < BasicWaveTable::x_tableSize; ++sample)
+    auto& writer = ui->m_squiggleBoyUIState.m_voiceScopeWriter;
+    const size_t subScope = static_cast<size_t>(SmartGridOne::VoiceScopes::Sub);
+    const size_t mainScope = static_cast<size_t>(SmartGridOne::VoiceScopes::PostAmp);
+    for (size_t sample = 0; sample < WindowedFFT::Transform::x_tableSize; ++sample)
     {
         for (size_t trio = 0; trio < SquiggleBoy::x_numTracks; ++trio)
         {
-            const float phase = 2.0f * static_cast<float>(M_PI) * sample / BasicWaveTable::x_tableSize;
-            writer.Write(subScope, trio * 3, 0.5f * std::sin((8 + 8 * trio) * phase));
-            writer.Write(mainScope, trio * 3, 0.9f * std::sin(64 * phase));
+            const float phase = 2.0f * static_cast<float>(M_PI) * sample / WindowedFFT::Transform::x_tableSize;
+            writer.Write(SmartGridOne::VoiceScopeIndex(subScope, trio), TrioFloat(0.5f * std::sin((8 + 8 * trio) * phase), 0.0f, 0.0f));
+            writer.Write(SmartGridOne::VoiceScopeIndex(mainScope, trio), TrioFloat(0.9f * std::sin(64 * phase), 0.0f, 0.0f));
         }
 
         AdvanceStoredSample(writer);
     }
 
     writer.Publish();
+    writer.AcceptSamples();
     int voiceOffset = 0;
     for (size_t trio = 0; trio < SquiggleBoy::x_numTracks; ++trio)
     {
         ui->m_squiggleBoyUIState.m_activeTrack.store(trio);
-        AnalyserComponent analyser(WindowedFFT(&writer, subScope), &voiceOffset, ui.get(),
+        AnalyserComponent analyser(TrioWindowedFFT(&writer, subScope), &voiceOffset, ui.get(),
             AnalyserComponent::FilterOverlay::None);
         juce::Image spectrum(juce::Image::ARGB, 512, 200, true);
         juce::Graphics graphics(spectrum);
         analyser.Draw(graphics, spectrum.getBounds());
-        const auto& components = analyser.m_windowedFFT[0].m_dft.m_components;
+        const auto& components = analyser.m_windowedFFT.m_dft.m_components;
         size_t peak = 0;
-        for (size_t bin = 1; bin < DiscreteFourierTransform::x_maxComponents; ++bin)
+        for (size_t bin = 1; bin < WindowedFFT::Transform::x_maxComponents; ++bin)
         {
             if (std::abs(components[bin][0]) > std::abs(components[peak][0]))
             {
@@ -170,7 +194,7 @@ DOCTEST_TEST_CASE("Analyser: sub spectrum follows the trio and ignores the main 
         auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[trio * 3];
         filter.m_lpLadder.m_alpha.store(0.01f);
         filter.m_lpLadder.m_feedback.store(3.0f);
-        AnalyserComponent changedFilter(WindowedFFT(&writer, subScope), &voiceOffset, ui.get(),
+        AnalyserComponent changedFilter(TrioWindowedFFT(&writer, subScope), &voiceOffset, ui.get(),
             AnalyserComponent::FilterOverlay::None);
         juce::Image unchangedSpectrum(juce::Image::ARGB, 512, 200, true);
         juce::Graphics changedGraphics(unchangedSpectrum);
@@ -194,21 +218,25 @@ DOCTEST_TEST_CASE("Quad analyser: mix draws five separate colored spectra withou
     using Type = QuadAnalyserComponent::Type;
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& writer = ui->m_squiggleBoyUIState.m_quadScopeWriter;
-    for (size_t sample = 0; sample < BasicWaveTable::x_tableSize; ++sample)
+    for (size_t sample = 0; sample < WindowedFFT::Transform::x_tableSize; ++sample)
     {
-        const float phase = 2.0f * static_cast<float>(M_PI) * sample / BasicWaveTable::x_tableSize;
+        const float phase = 2.0f * static_cast<float>(M_PI) * sample / WindowedFFT::Transform::x_tableSize;
         for (size_t scope = 0; scope < static_cast<size_t>(Scope::NumScopes); ++scope)
         {
+            QuadFloat values;
             for (size_t speaker = 0; speaker < 4; ++speaker)
             {
-                writer.Write(scope, speaker, 0.5f * std::sin((8 + 16 * scope + 2 * speaker) * phase));
+                values[speaker] = 0.5f * std::sin((8 + 16 * scope + 2 * speaker) * phase);
             }
+
+            writer.Write(scope, values);
         }
 
         AdvanceStoredSample(writer);
     }
 
     writer.Publish();
+    writer.AcceptSamples();
     auto analyser = std::make_unique<QuadAnalyserComponent>(ui.get(), Type::Mix);
     analyser->m_drawAll = false;
     juce::Image spectrum(juce::Image::ARGB, 1024, 512, true);
@@ -225,11 +253,11 @@ DOCTEST_TEST_CASE("Quad analyser: mix draws five separate colored spectra withou
         DOCTEST_CAPTURE(source);
         for (size_t speaker = 0; speaker < 4; ++speaker)
         {
-            const auto& components = analyser->m_quadWindowedFFT[source].m_dft[speaker].m_components;
+            const auto& components = analyser->m_quadWindowedFFT[source].m_dft.m_components;
             size_t peak = 0;
-            for (size_t bin = 1; bin < DiscreteFourierTransform::x_maxComponents; ++bin)
+            for (size_t bin = 1; bin < WindowedFFT::Transform::x_maxComponents; ++bin)
             {
-                if (std::abs(components[bin][0]) > std::abs(components[peak][0]))
+                if (std::abs(components[bin][speaker]) > std::abs(components[peak][speaker]))
                 {
                     peak = bin;
                 }
@@ -270,15 +298,16 @@ DOCTEST_TEST_CASE("Quad analyser: mix draws five separate colored spectra withou
 
 DOCTEST_TEST_CASE("Scope: reduced point counts preserve the time axis and end marker")
 {
-    auto writer = std::make_unique<ScopeWriter>(1, 1);
+    auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(1, 4096);
     writer->RecordStart(0, 0);
     for (size_t sample = 0; sample < 128; ++sample)
     {
-        writer->Write(0, 0, static_cast<float>(sample) / 127.0f);
+        writer->Write(0, static_cast<float>(sample) / 127.0f);
         writer->AdvanceIndex();
     }
 
     writer->Publish();
+    writer->AcceptSamples();
     for (size_t points : {128, 256, 1024})
     {
         DOCTEST_CAPTURE(points);

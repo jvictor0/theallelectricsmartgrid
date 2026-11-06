@@ -133,8 +133,8 @@ struct SourceMixer
             m_hpFilter.Process(m_lpFilter.GetLowPass());
             m_output = m_hpFilter.GetHighPass();
 
-            m_preFilterScopeWriter.Write(0.5f * (sample[0] + sample[1]));
-            m_postFilterScopeWriter.Write(0.5f * (m_output[0] + m_output[1]));
+            m_preFilterScopeSample = 0.5f * (sample[0] + sample[1]);
+            m_postFilterScopeSample = 0.5f * (m_output[0] + m_output[1]);
         }
 
         void PopulateUIState(UIState* uiState)
@@ -155,14 +155,8 @@ struct SourceMixer
 
         Filter m_lpFilter;
         Filter m_hpFilter;
-        ScopeWriterHolder m_preFilterScopeWriter;
-        ScopeWriterHolder m_postFilterScopeWriter;
-
-        void SetupScopeWriters(ScopeWriter* scopeWriter, size_t sourceIx)
-        {
-            m_preFilterScopeWriter = ScopeWriterHolder(scopeWriter, sourceIx, static_cast<size_t>(SmartGridOne::SourceScopes::PreFilter));
-            m_postFilterScopeWriter = ScopeWriterHolder(scopeWriter, sourceIx, static_cast<size_t>(SmartGridOne::SourceScopes::PostFilter));
-        }
+        float m_preFilterScopeSample = 0.0f;
+        float m_postFilterScopeSample = 0.0f;
     };
 
     struct Input
@@ -236,10 +230,17 @@ struct SourceMixer
 
     void Process(const Input& input)
     {
+        MultiChannelNumber<float, x_numSources> preFilter;
+        MultiChannelNumber<float, x_numSources> postFilter;
         for (size_t i = 0; i < x_numSources; ++i)
         {
             m_sources[i].Process(input.m_sources[i]);
+            preFilter[i] = m_sources[i].m_preFilterScopeSample;
+            postFilter[i] = m_sources[i].m_postFilterScopeSample;
         }
+
+        m_preFilterScopeWriter.Write(preFilter);
+        m_postFilterScopeWriter.Write(postFilter);
     }
 
     float GetDeepVocoderInput(const Input& input)
@@ -269,13 +270,15 @@ struct SourceMixer
         return false;
     }
 
-    void SetupScopeWriters(ScopeWriter* scopeWriter)
+    void SetupScopeWriters(ScopeWriterInput<x_numSources>* scopeWriter)
     {
-        for (size_t i = 0; i < x_numSources; ++i)
-        {
-            m_sources[i].SetupScopeWriters(scopeWriter, i);
-        }
+        m_preFilterScopeWriter = ScopeWriterHolderGeneric<x_numSources>(scopeWriter,
+            static_cast<size_t>(SmartGridOne::QuadScopes::SourcePreFilter));
+        m_postFilterScopeWriter = ScopeWriterHolderGeneric<x_numSources>(scopeWriter,
+            static_cast<size_t>(SmartGridOne::QuadScopes::SourcePostFilter));
     }
 
+    ScopeWriterHolderGeneric<x_numSources> m_preFilterScopeWriter;
+    ScopeWriterHolderGeneric<x_numSources> m_postFilterScopeWriter;
     Source m_sources[x_numSources];
 };

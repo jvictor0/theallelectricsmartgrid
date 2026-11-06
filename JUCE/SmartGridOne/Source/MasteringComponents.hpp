@@ -12,16 +12,14 @@
 struct MultibandEQComponent : public SmartGridOneMainVisualizerComponent
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
-    WindowedFFT m_windowedFFT[4];
+    WindowedFFTGeneric<4> m_windowedFFT;
 
     MultibandEQComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
         : SmartGridOneMainVisualizerComponent()
         , m_uiState(uiState)
     {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_windowedFFT[i] = WindowedFFT(&m_uiState->m_squiggleBoyUIState.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Stereo));
-        }
+        m_windowedFFT = WindowedFFTGeneric<4>(&m_uiState->m_squiggleBoyUIState.m_quadScopeWriter,
+            static_cast<size_t>(SmartGridOne::QuadScopes::Stereo));
     }
 
     MultibandSaturator<4, 2>::UIState* GetMasteringChainUIState()
@@ -38,11 +36,11 @@ struct MultibandEQComponent : public SmartGridOneMainVisualizerComponent
         {
         }
 
-        // The axis is in cycles per host sample; the crossovers run at the engine rate.
+        // The axis is in cycles per engine sample; the crossovers run at the engine rate.
         //
         float operator()(float freq)
         {
-            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq / SampleTimer::x_oversample)) / 2;
+            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq)) / 2;
         }
     };
 
@@ -53,11 +51,11 @@ struct MultibandEQComponent : public SmartGridOneMainVisualizerComponent
         int width = boundsRect.getWidth();
         int height = boundsRect.getHeight();
 
+        m_windowedFFT.Compute();
         for (size_t i = 0; i < 4; ++i)
         {
-            m_windowedFFT[i].Compute(i);
             PathDrawer pathDrawer(height, width, 0, 0);
-            pathDrawer.DrawWindowedDFT(g, i < 2 ? juce::Colours::white : juce::Colours::grey, &m_windowedFFT[i]);
+            pathDrawer.DrawWindowedDFT(g, i < 2 ? juce::Colours::white : juce::Colours::grey, &m_windowedFFT, i);
         }
 
         PathDrawer pathDrawer(height, width, 0, 0);
@@ -113,17 +111,16 @@ struct MultibandGainReductionComponent : public SmartGridOneMainVisualizerCompon
 struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponent
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
-    WindowedFFT m_windowedFFT[SourceMixer::x_numSources][2];
+    WindowedFFTGeneric<SourceMixer::x_numSources> m_windowedFFT[2];
 
     SourceMixerFrequencyComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
         : SmartGridOneMainVisualizerComponent()
         , m_uiState(uiState)
     {
-        for (int i = 0; i < SourceMixer::x_numSources; ++i)
-        {
-            m_windowedFFT[i][0] = WindowedFFT(&m_uiState->m_squiggleBoyUIState.m_sourceMixerScopeWriter, static_cast<size_t>(SmartGridOne::SourceScopes::PreFilter));
-            m_windowedFFT[i][1] = WindowedFFT(&m_uiState->m_squiggleBoyUIState.m_sourceMixerScopeWriter, static_cast<size_t>(SmartGridOne::SourceScopes::PostFilter));
-        }
+        m_windowedFFT[0] = WindowedFFTGeneric<4>(&m_uiState->m_squiggleBoyUIState.m_quadScopeWriter,
+            static_cast<size_t>(SmartGridOne::QuadScopes::SourcePreFilter));
+        m_windowedFFT[1] = WindowedFFTGeneric<4>(&m_uiState->m_squiggleBoyUIState.m_quadScopeWriter,
+            static_cast<size_t>(SmartGridOne::QuadScopes::SourcePostFilter));
     }
 
     SourceMixer::UIState* GetSourceMixerUIState()
@@ -140,11 +137,11 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         {
         }
 
-        // The axis is in cycles per host sample; the source filters run at the engine rate.
+        // The axis is in cycles per engine sample; the source filters run at the engine rate.
         //
         float operator()(float freq)
         {
-            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq / SampleTimer::x_oversample)) / 2;
+            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq)) / 2;
         }
     };
 
@@ -159,7 +156,7 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
 
         float operator()(float freq) const
         {
-            float threshold = m_voiceUIState->MagnitudeThreshold(freq);
+            float threshold = m_voiceUIState->MagnitudeThreshold(freq * SampleTimer::x_oversample);
             return PathDrawer::AmpToDbNormalized(threshold * 2);
         }
     };
@@ -171,20 +168,20 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         int width = boundsRect.getWidth();
         int height = boundsRect.getHeight();
 
+        m_windowedFFT[0].Compute();
+        m_windowedFFT[1].Compute();
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            m_windowedFFT[i][0].Compute(i);
             PathDrawer pathDrawer(height, width, 0, 0);
             SmartGrid::Color color = SourceMixer::GetColor(i).Dim();
-            pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[i][0]);
+            pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[0], i);
         }
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            m_windowedFFT[i][1].Compute(i);
             PathDrawer pathDrawer(height, width, 0, 0);
             SmartGrid::Color color = SourceMixer::GetColor(i);
-            pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[i][1]);
+            pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[1], i);
         }
 
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
@@ -201,7 +198,7 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         for (size_t i = 0; i < numFrequencies; ++i)
         {
             float frequency = snapshot.m_frequencies[i];
-            float x = PathDrawer::LinearToLog(frequency) * width;
+            float x = PathDrawer::LinearToLog(frequency / SampleTimer::x_oversample) * width;
             float y = PathDrawer::AmpToDbNormalized(snapshot.m_magnitudes[i] * 2) * height;
             g.setColour(juce::Colours::white);
             g.drawLine(x, height - y, x, height, 1.5f);
@@ -210,7 +207,7 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
             float usedOmega = deepVocoderUIState->GetUsedOmega(i);
-            float x = PathDrawer::LinearToLog(usedOmega) * width;
+            float x = PathDrawer::LinearToLog(usedOmega / SampleTimer::x_oversample) * width;
             g.setColour(J(TheNonagonSmartGrid::VoiceColor(i)));
             float bottom = (1 - PathDrawer::AmpToDbNormalized(deepVocoderUIState->m_voiceUIState[i].MagnitudeThreshold(usedOmega) * 2)) * height;
             float top = (1 - PathDrawer::AmpToDbNormalized(deepVocoderUIState->GetAtomMagnitude(i) * 2)) * height;

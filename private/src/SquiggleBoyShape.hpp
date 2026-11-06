@@ -36,7 +36,7 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
 
     Vector m_output;
 
-    ScopeWriterHolder m_scopeWriter[Size];
+    ScopeWriterHolderGeneric<Size> m_scopeWriter;
 
     struct Input
     {
@@ -59,12 +59,10 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         m_dcBlocker.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(5.0));
     }
 
-    void SetScopeWriters(ScopeWriter* scopeWriter, size_t track)
+    void SetScopeWriters(ScopeWriterInput<Size>* scopeWriter, size_t track)
     {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_scopeWriter[i] = ScopeWriterHolder(scopeWriter, track * Size + i, static_cast<size_t>(SmartGridOne::AudioScopes::PostFilter));
-        }
+        m_scopeWriter = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::PostFilter), track));
     }
 
     Vector Process(Input& input, const Vector& x)
@@ -93,12 +91,12 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     //
     void WriteScopes(const SampleTop* top)
     {
+        m_scopeWriter.Write(m_output);
         for (size_t i = 0; i < Size; ++i)
         {
-            m_scopeWriter[i].Write(m_output[i]);
             if (top[i])
             {
-                m_scopeWriter[i].RecordStart(top[i].m_offset);
+                m_scopeWriter.RecordStartAtVoice(i, top[i].m_offset);
             }
         }
     }

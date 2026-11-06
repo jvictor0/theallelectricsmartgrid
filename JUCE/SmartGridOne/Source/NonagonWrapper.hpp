@@ -756,24 +756,19 @@ struct NonagonWrapper
         return m_wrldBldr.MkAnalogUI(ix);
     }
 
-    ScopeWriter* GetAudioScopeWriter()
+    ScopeWriterInput<3>* GetVoiceScopeWriter()
     {
-        return &m_internal.m_uiState.m_squiggleBoyUIState.m_audioScopeWriter;
+        return &m_internal.m_uiState.m_squiggleBoyUIState.m_voiceScopeWriter;
     }
 
-    ScopeWriter* GetControlScopeWriter()
+    ScopeWriter* GetQuadScopeWriter()
     {
-        return &m_internal.m_uiState.m_squiggleBoyUIState.m_controlScopeWriter;
+        return &m_internal.m_uiState.m_squiggleBoyUIState.m_quadScopeWriter;
     }
 
-    ScopeWriter* GetQuadControlScopeWriter()
+    ScopeWriter* GetMonoScopeWriter()
     {
-        return &m_internal.m_uiState.m_squiggleBoyUIState.m_quadControlScopeWriter;
-    }
-
-    ScopeWriter* GetGlobalControlScopeWriter()
-    {
-        return &m_internal.m_uiState.m_squiggleBoyUIState.m_globalControlScopeWriter;
+        return &m_internal.m_uiState.m_squiggleBoyUIState.m_monoScopeWriter;
     }
 
     TheNonagonSquiggleBoyInternal::UIState* GetUIState()

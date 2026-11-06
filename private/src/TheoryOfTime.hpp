@@ -114,9 +114,9 @@ struct TheoryOfTime : public TheoryOfTimeBase
         input.m_phaseOffset = -2 * input.m_modIndex.m_expParam * m_phaseModLFO.m_rawOutput;
     }
 
-    void SetupMonoScopeWriter(ScopeWriter* scopeWriter)
+    void SetupMonoScopeWriter(ScopeWriterInput<1>* scopeWriter)
     {
-        m_scopeWriter = ScopeWriterHolder(scopeWriter, 0, static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime));
+        m_scopeWriter = ScopeWriterHolder(scopeWriter, static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime));
     }
 
     void SetupMessageOutBuffer(SmartGrid::MessageOutBuffer* messageOutBuffer)
@@ -173,7 +173,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
         if (m_scopeWriter.IsWriteSample())
         {
             double phase = GetPhase(x_globalLoop, PhaseDomain::Modulated);
-            m_scopeWriter.Write(phase - std::floor(phase));
+            m_scopeWriter.Write(MultiChannelNumber<float, 1>(phase - std::floor(phase)));
         }
 
         if (m_phaseModLFO.m_top[0])

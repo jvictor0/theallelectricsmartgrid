@@ -7,6 +7,8 @@
 struct PathDrawer
 {
     static constexpr size_t x_numPoints = 1024;
+    static constexpr float x_minFrequency = 1.0f / (2.0f * WindowedFFT::Transform::x_tableSize);
+    static constexpr float x_maxFrequency = 0.5f;
 
     float m_height;
     float m_width;
@@ -42,10 +44,10 @@ struct PathDrawer
 
     void ComputeBucketExpX()
     {
-        float m = static_cast<float>(x_numPoints);
         for (size_t i = 0; i < x_numPoints; ++i)
         {
-            m_bucketExpX[i] = std::pow(m - 1, static_cast<float>(i) / m) / (2 * m);
+            m_bucketExpX[i] = x_minFrequency * std::pow(x_maxFrequency / x_minFrequency,
+                static_cast<float>(i) / (x_numPoints - 1));
         }
     }
 
@@ -66,8 +68,7 @@ struct PathDrawer
 
     static float LinearToLog(float x)
     {
-        float m = static_cast<float>(x_numPoints);
-        return std::log(x * 2.0f * m) / std::log(m - 1.0f);
+        return std::log(x / x_minFrequency) / std::log(x_maxFrequency / x_minFrequency);
     }
 
     template<typename Fn>
@@ -99,7 +100,7 @@ struct PathDrawer
             float y = fn(xIn);
             y = yScale * y + yOffset;
             float screenY = m_height * (1 - y);
-            float x = static_cast<float>(j) / static_cast<float>(x_numPoints);
+            float x = static_cast<float>(j) / static_cast<float>(x_numPoints - 1);
             float screenX = m_width * x;
             if (j == 0)
             {
@@ -116,35 +117,57 @@ struct PathDrawer
         g.strokePath(path, juce::PathStrokeType(1.0f));
     }
 
+    template<size_t Size>
     struct WindowedDFTFn
     {
-        WindowedFFT* m_windowedFFT;
+        WindowedFFTGeneric<Size>* m_windowedFFT;
+        size_t m_lane;
         float m_freqScale;
+        float m_halfBucketRatio;
+        float m_halfBucketWidth;
 
-        WindowedDFTFn(WindowedFFT* windowedFFT, float freqScale)
+        WindowedDFTFn(WindowedFFTGeneric<Size>* windowedFFT, size_t lane, const PathDrawer& drawer)
             : m_windowedFFT(windowedFFT)
-            , m_freqScale(freqScale)
+            , m_lane(lane)
+            , m_freqScale(drawer.FrequencyAxisScale())
+            , m_halfBucketRatio(drawer.m_logX ? LogHalfBucketRatio() : 1.0f)
+            , m_halfBucketWidth(drawer.m_logX ? 0.0f : m_freqScale / 2.0f)
         {
         }
 
         float operator()(float x) const
         {
-            return PathDrawer::NormalizeDb(m_windowedFFT->GetMagDb(x * m_freqScale));
+            float frequency = x * m_freqScale;
+            return PathDrawer::NormalizeDb(m_windowedFFT->GetPeakMagDb(
+                m_lane,
+                frequency / m_halfBucketRatio - m_halfBucketWidth,
+                frequency * m_halfBucketRatio + m_halfBucketWidth));
         }
     };
 
     void DrawWindowedDFT(juce::Graphics& g, juce::Colour colour, WindowedFFT* windowedFFT)
     {
-        WindowedDFTFn fn(windowedFFT, FrequencyAxisScale());
+        DrawWindowedDFT(g, colour, windowedFFT, 0);
+    }
+
+    template<size_t Size>
+    void DrawWindowedDFT(juce::Graphics& g, juce::Colour colour, WindowedFFTGeneric<Size>* windowedFFT, size_t lane)
+    {
+        WindowedDFTFn<Size> fn(windowedFFT, lane, *this);
         DrawPath(g, colour, fn);
+    }
+
+    static float LogHalfBucketRatio()
+    {
+        return std::pow(x_maxFrequency / x_minFrequency, 0.5f / (x_numPoints - 1));
     }
 
     float FrequencyAxisScale() const
     {
         // DrawPath supplies frequencies on the log axis and point indices on the linear axis.
-        // Convert linear indices to cycles per base-rate sample, ending just below Nyquist.
+        // Convert linear indices to cycles per engine sample, ending at Nyquist.
         //
-        return m_logX ? 1.0f : 1.0f / (2.0f * x_numPoints);
+        return m_logX ? 1.0f : x_maxFrequency / (x_numPoints - 1);
     }
 
     struct FrequencyResponseFn

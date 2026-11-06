@@ -38,7 +38,8 @@ DOCTEST_TEST_CASE("Quad scopes: all effects follow return gain and saturation be
             input.m_returnGain[effect].m_expParam = x_gains[(sample + effect) % 3];
         }
 
-        // Audio scopes store one value per host frame.
+        // Every engine sample is observable, including the mastered signal
+        // before output decimation and the stereo mixdown before mastering.
         //
         const size_t index = writer.m_index;
         for (size_t sub = 0; sub < writer.m_decimation; ++sub)
@@ -49,6 +50,18 @@ DOCTEST_TEST_CASE("Quad scopes: all effects follow return gain and saturation be
         }
 
         writer.Publish();
+
+        writer.AcceptSamples();
+        for (size_t speaker = 0; speaker < 4; ++speaker)
+        {
+            DOCTEST_CHECK(writer.ReadSample(static_cast<size_t>(SmartGridOne::QuadScopes::Master), speaker, index)
+                == doctest::Approx(synth.m_mixer.m_engineOutput.m_output[speaker]));
+            const QuadFloat stereo = synth.m_mixer.m_engineOutput.m_stereoOutput.CombineToQuad(
+                synth.m_mixer.m_quadToStereoMixdown.m_output);
+            DOCTEST_CHECK(writer.ReadSample(static_cast<size_t>(SmartGridOne::QuadScopes::Stereo), speaker, index)
+                == doctest::Approx(stereo[speaker]));
+        }
+
         for (size_t effect = 0; effect < QuadMixerInternal::x_numSends; ++effect)
         {
             DOCTEST_CAPTURE(effect);

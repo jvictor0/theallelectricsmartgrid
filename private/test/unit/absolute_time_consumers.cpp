@@ -176,14 +176,14 @@ DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while the scope capture
     SmartGrid::MessageOutBuffer modulatedMessages;
     plain.SetupMessageOutBuffer(&plainMessages);
     modulated.SetupMessageOutBuffer(&modulatedMessages);
-    auto scope = std::make_unique<ScopeWriter>(1, 1);
-    scope->m_advanceStartIndices[0][0] = 0;
-    modulated.m_scopeWriter = ScopeWriterHolder(scope.get(), 0, 0);
+    auto scope = std::make_unique<ScopeWriterGeneric<1, 1>>(1, 4096);
+    scope->GetMarkers(0, 0).m_advanceStartIndices = 0;
+    modulated.m_scopeWriter = ScopeWriterHolder(scope.get(), 0);
     double largestOffset = 0.0;
     int clocks = 0;
     for (size_t sample = 0; sample < 512; ++sample)
     {
-        scope->Write(0, 0, -1.0f);
+        scope->Write(0, -1.0f);
         plain.Process(plainInput);
         modulated.Process(modulatedInput);
         DOCTEST_REQUIRE(plainMessages.m_numMessages == modulatedMessages.m_numMessages);

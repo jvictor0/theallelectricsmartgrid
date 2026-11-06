@@ -400,7 +400,7 @@ struct PartialMachine
     QuadFloat Process(QuadFloat inputSample, Input& input)
     {
         float summedInput = inputSample.Sum();
-        m_scopeWriter.Write(summedInput);
+        m_scopeWriter.Write(MultiChannelNumber<float, 1>(summedInput));
         m_inputDecimator.Process(InputDecimator::Vector::Splat(summedInput));
         ++m_inputSubSample;
         if (m_inputSubSample == x_oversample)
@@ -417,9 +417,9 @@ struct PartialMachine
         return m_inputSubSample + 1 == x_oversample && (m_index + 1) % SpectralModel::x_H == 0;
     }
 
-    void SetupAudioScopeWriter(ScopeWriter* scopeWriter)
+    void SetupAudioScopeWriter(ScopeWriterInput<1>* scopeWriter)
     {
-        m_scopeWriter = ScopeWriterHolder(scopeWriter, 0, static_cast<size_t>(SmartGridOne::MonoAudioScopes::PartialMachine));
+        m_scopeWriter = ScopeWriterHolder(scopeWriter, static_cast<size_t>(SmartGridOne::MonoScopes::PartialMachine));
     }
 
     struct Snapshot

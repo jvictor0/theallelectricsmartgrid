@@ -1,53 +1,72 @@
 # UI Visualization Pipeline Specification
 
 ## Purpose
-The visualization pipeline (`private/src/ScopeWriter.hpp`, `TransferFunction.hpp`, and `PopulateUIState` implementations across the DSP modules) carries runtime signal data from the audio and control threads to the JUCE thread without locks. DSP code writes interleaved samples and cycle markers into ScopeWriter ring buffers and publishes a stable read boundary atomically; readers, FFT analyzers, and derived UIState snapshots consume only published data. A shared TransferFunction interface, implemented exclusively by UIState types, supplies frequency-response overlays. The visualizers that render this data are specified in grid-visualizers; filter UIState providers in filter-system; delay and partial-machine snapshot producers in quad-delay and partial-machine.
+The visualization pipeline (`private/src/ScopeWriter.hpp`, `TransferFunction.hpp`, and `PopulateUIState` implementations across the DSP modules) carries runtime signal data from the audio thread to the JUCE thread without locks. DSP code writes engine-rate channel vectors and cycle markers into level-zero ScopeWriter rings and publishes completed positions atomically. Before painting, the UI accepts each bank through a captured position and builds its lower levels; waveform and FFT readers use that accepted frame boundary. Derived UIState snapshots retain their atomic publication protocol. A shared TransferFunction interface, implemented exclusively by UIState types, supplies frequency-response overlays. The visualizers that render this data are specified in grid-visualizers; filter UIState providers in filter-system; delay and partial-machine snapshot producers in quad-delay and partial-machine.
 
 ## Requirements
 
 ### Requirement: Interleaved Circular Buffer Indexing
-The system SHALL store all scopes and voices of a `ScopeWriter` in one interleaved float ring buffer of `x_bufferSize` (32 * 1024 * 1024) samples, mapping a logical position to physical storage as `(index * voices * scopes + scope * voices + voice) % x_bufferSize`. `MaxIndexes()` reports the per-stream capacity `x_bufferSize / (voices * scopes)`. A writer SHALL store one value per `m_decimation` engine samples, where the decimation is 1 for `ScopeWriter(voices, scopes)` and the given value for `ScopeWriter(voices, scopes, decimation)`. Callers SHALL call `Write(scope, voice, value)` every engine sample; only the sample with `m_subIndex == 0` (`IsWriteSample()`) is stored at the current write index `m_index`. `AdvanceIndex()`, called once per engine sample, increments `m_subIndex` and, when it reaches the decimation, wraps it to zero and advances `m_index` by one. Control, quad control, global control, and mono writers SHALL use `ScopeWriter::x_controlDecimation` (`8 * SampleTimer::x_oversample`), storing one value per 8 host frames at every ratio; audio, quad, source-mixer, and mono audio writers SHALL use `ScopeWriter::x_audioDecimation` (`SampleTimer::x_oversample`), storing one value per host frame; at ratio 1 this is decimation 1. Engine-rate signals written to audio writers SHALL be subsampled without an anti-alias filter, so their displayed spectra may fold content above the host Nyquist.
+The system SHALL use ScopeWriterGeneric<Size, NumScopes> with six vector rings per scope, each holding 0.25 seconds at the engine sample rate. All production scopes, including control signals, SHALL store every engine sample in one bank per vector width (one, three, or four). Higher levels SHALL be decimated by four successively with 17-tap FIR filters on the UI thread during acceptance. The audio thread SHALL write only level zero. Logical coordinates SHALL remain level-zero samples, with FIR delay and decimation phase handled internally. Vector storage SHALL interleave all lanes of one scope sample. Writes and AdvanceIndex occur at engine rate, with production base decimation equal to one. All banks SHALL share one absolute engine-sample origin. GetLod(samplesBack) SHALL select the finest retained level covering the requested lookback; history reads SHALL reject interpolation endpoints outside the accepted bounds. Capacity SHALL be independent of other scopes in the bank.
 
-#### Scenario: Decimated writer stores one sample per decimation period
-- **WHEN** a writer with decimation 8 receives a `Write` and an `AdvanceIndex` on each of eight consecutive engine samples, starting with `m_subIndex == 0`
-- **THEN** only the first sample's value is stored, at the starting `m_index`
-- **AND** `m_index` has advanced by one and `m_subIndex` is zero again
+#### Scenario: Audio and control histories share the engine timeline
+- **WHEN** a producer writes audio and control vectors on consecutive engine samples
+- **THEN** both histories store each sample and advance by one on every engine sample
+- **AND** top/start/stop offsets retain their fractional engine-sample coordinates
 
 #### Scenario: Distinct streams never collide
 - **WHEN** two writes occur at the same logical index for different (scope, voice) pairs within configured bounds
 - **THEN** their physical indices differ, and `ReadSample` for each pair returns the value written for that pair
 
 #### Scenario: Logical index wraps at capacity
-- **WHEN** a stream's logical index advances past `MaxIndexes()`
-- **THEN** the physical index wraps modulo `x_bufferSize` and overwrites the oldest samples of that stream
+- **WHEN** a stream's logical index advances past the selected level's capacity
+- **THEN** the physical index wraps modulo the per-level vector capacity and overwrites the oldest samples of that stream
+
+#### Scenario: Decimated writer stores one sample per decimation period
+- **WHEN** a non-production generic writer configured with decimation 8 receives a `Write` and an `AdvanceIndex` on each of eight consecutive engine samples, starting with `m_subIndex == 0`
+- **THEN** only the first sample's value is stored, at the starting `m_index`
+- **AND** `m_index` has advanced by one and `m_subIndex` is zero again
 
 ### Requirement: Lock-Free DSP Writes
-The system SHALL let DSP modules write without locks or allocation through `ScopeWriterHolder`, which binds a `ScopeWriter*` to a fixed voice index and scope index and forwards `Write(value)`, `WriteAtVoice(voiceIx, value)`, quad writes (four consecutive voice slots), `IsWriteSample()`, `RecordStart()`, `RecordStart(sampleOffset)`, `RecordStartAtVoice(voiceIx, sampleOffset)`, and `RecordEnd()` calls. A holder with a null writer drops all calls, and its `IsWriteSample()` returns false.
+The system SHALL provide vector-width-specific scope holders whose Write takes a whole MultiChannelNumber vector. DSP producers SHALL write vectors without locks or allocation; start/end markers remain per lane. Holders SHALL retain inert null behavior and IsWriteSample. Scalar UI reads SHALL use a common read interface independently of writer template parameters.
 
 #### Scenario: Quad write fans out to four voice slots
-- **WHEN** a holder bound to voice base v writes a `QuadFloat`
-- **THEN** components 0-3 are written to voices v through v+3 of the holder's scope at the current write index
+- **WHEN** a quad holder writes a `QuadFloat`
+- **THEN** components 0-3 are written to the four lanes of the holder's scope at the current write index
 
 #### Scenario: Null holder is inert
-- **WHEN** a default-constructed `ScopeWriterHolder` receives `Write` or `RecordStart`
+- **WHEN** a default-constructed vector scope holder receives `Write` or `RecordStart`
 - **THEN** no buffer access occurs and no fault is raised
 
 ### Requirement: Atomic Publish Boundary
-The system SHALL expose new samples to readers only through `Publish()`: the writer thread stores the current write index into the atomic `m_publishedIndex`, and pending cycle-marker advances are committed to the atomic per-stream marker counters in the same call. JUCE-thread readers treat `m_publishedIndex.load()` as the exclusive upper bound of readable data, so partially written frames are never observed.
+The audio thread SHALL publish its completed level-zero position and pending per-stream cycle-marker counters after writing the data. At the beginning of each UI paint frame, before drawing, the UI SHALL capture a published boundary for each scope bank, build its lower levels from the newly accepted samples, and update its accepted position. All waveform, FFT, and secondary-modulator reads SHALL use these accepted positions throughout the frame. Cycle start/stop metadata SHALL be snapshotted against the accepted boundary. Reaccepting the same position SHALL not rerun the cascade. Publication and acceptance do not pin level-zero slots; UI catch-up SHALL index the circular buffer directly even if the producer has overwritten samples during a long UI stall.
 
 #### Scenario: Unpublished samples are invisible
 - **WHEN** samples are written and `AdvanceIndex` is called but `Publish` has not run
 - **THEN** `m_publishedIndex` still reports the previous boundary and readers sampling up to it see only previously published data
+
+#### Scenario: Publication waits for UI acceptance
+- **WHEN** `Publish()` runs after writes and `RecordStart` calls
+- **THEN** `m_publishedIndex` and marker counters advance, but visualizer bounds and accepted markers stay unchanged until the next UI acceptance
+- **AND** the audio thread does not process a downsampler
+
+#### Scenario: Fractional cycle starts wait for their readable sample
+- **WHEN** the UI captures an exclusive sample count of 24 and the audio thread subsequently publishes a cycle start at 23.75
+- **THEN** accepting the captured boundary retains the previous readable cycle, while starts exactly at sample 23 remain eligible
+- **AND** the fractional start becomes eligible when the UI accepts sample count 25
+
+#### Scenario: Coarse history has its own live edge
+- **WHEN** a reader requests an LOD whose FIR output represents an earlier sample than level zero
+- **THEN** strict reads respect that level's valid bounds and display reads may hold its latest available value
 
 #### Scenario: Publish exposes samples and markers together
 - **WHEN** `Publish()` runs after writes and `RecordStart` calls
 - **THEN** `m_publishedIndex` equals the current write index and each stream's `m_startIndexIndex` atomic has advanced by the number of cycle starts recorded since the previous publish
 
 ### Requirement: Cycle Markers
-The system SHALL record waveform cycle boundaries per (scope, voice) stream in rings of `x_numStartIndices` (256) start/end index pairs: `RecordStart(scope, voice[, sampleOffset])` stores the upcoming cycle's fractional start index `m_index + (m_subIndex + sampleOffset) / m_decimation`, where `sampleOffset` is in engine samples relative to the current sample, and stages a marker advance; `RecordEnd(scope, voice)` stores the end index for the most recently started cycle as `m_index`, rounded up to the next stored sample when called between stored samples. Marker advances become visible to readers only at `Publish()`, and visualizers use the pairs to segment waveforms into complete cycles.
+The system SHALL record waveform cycle boundaries per (scope, voice) stream in rings of `x_numStartIndices` (256) start/end index pairs: `RecordStart(scope, voice[, sampleOffset])` stores the upcoming cycle's fractional start index `m_index + (m_subIndex + sampleOffset) / m_decimation`, where `sampleOffset` is in engine samples relative to the current sample, and stages a marker advance; `RecordEnd(scope, voice)` stores the end index for the most recently started cycle as `m_index`, rounded up to the next stored sample when called between stored samples. Marker counters become published at `Publish()`. The UI snapshots eligible marker pairs during acceptance, excluding starts beyond its last readable sample, and visualizers use those accepted pairs to segment waveforms into complete cycles.
 
 #### Scenario: Start and end bracket a cycle
-- **WHEN** a stream records `RecordStart` at index a, writes samples, records `RecordEnd` at index b, and publishes
+- **WHEN** a stream records `RecordStart` at index a, writes samples, records `RecordEnd` at index b, publishes, and the UI accepts through b
 - **THEN** the stream's latest marker pair reads (a, b) and a reader can sample exactly the cycle [a, b)
 
 #### Scenario: Fractional start on a decimated writer
@@ -60,22 +79,22 @@ The system SHALL record waveform cycle boundaries per (scope, voice) stream in r
 - **THEN** new pairs overwrite the oldest entries modulo `x_numStartIndices` while the atomic marker counter keeps increasing monotonically
 
 ### Requirement: Cycle-Aware Display Sampling
-The system SHALL build display traces with `ScopeReader`, which snapshots the latest published marker counter, derives the current and previous cycle start indices, and maps each of `numXSamples` screen positions to an interpolated buffer read (`Read` linearly interpolates between adjacent samples). When the current cycle is still shorter than the previous cycle's length, positions past the transfer point are filled from the previous cycle so the trace stays stable mid-cycle; when the apparent cycle span exceeds `MaxIndexes()` the reader reports empty and `Get` returns 0. `ScopeReaderFactory` mints readers with the current voice/scope context.
+The system SHALL preserve ScopeReader's cycle and transfer calculations in original sample coordinates. It SHALL select one LOD covering both the current cycle and any borrowed previous-cycle segment before sampling, and use that LOD for the full trace. ScopeReaderFactory SHALL retain the current voice/scope context. Strict historical reads reject unavailable history; display sampling holds the latest selected-level value at its delayed live edge. Readers SHALL be empty when required history exceeds all levels or required markers are unavailable. FFT readers SHALL explicitly use level zero.
 
 #### Scenario: Mid-cycle trace borrows the previous cycle
 - **WHEN** a reader is created while the current cycle has fewer samples than the previous cycle's length
 - **THEN** screen positions before the transfer point sample the current cycle and positions after it sample the previous cycle's corresponding region
 
 #### Scenario: Stale stream yields an empty trace
-- **WHEN** the distance from cycle start to the published index exceeds `MaxIndexes()`
+- **WHEN** the distance from cycle start to the accepted index exceeds all retained levels
 - **THEN** the reader marks itself empty and every `Get(sample)` returns 0
 
 ### Requirement: Windowed FFT Analysis with Per-Bin Smoothing
-The system SHALL compute spectra with `WindowedFFT`: it pulls the window of `BasicWaveTable::x_tableSize` samples ending at the writer's published index, applies a Hann window, runs a DFT, and feeds each bin magnitude through a per-bin `OPLowPassFilter` so the displayed spectrum is temporally smoothed. `GetMagDb(freq)` linearly interpolates between smoothed bins and returns 20*log10 of the magnitude. `QuadWindowedFFT` runs the same computation for four channels of one scope, smoothing per-channel real, imaginary, and magnitude components for quad spectrum display.
+The system SHALL compute spectra with `WindowedFFTGeneric<Size>`: it pulls a level-zero window of `1024 * SampleTimer::x_oversample` samples ending at the writer's accepted index, zero-fills unavailable startup samples, applies a Hann window, runs a SIMD FFT, and feeds each bin's vector magnitude through a per-bin `OPLowPassFilterGeneric` so the displayed spectrum is temporally smoothed. `GetMagDb` linearly interpolates between smoothed bins for the requested lane and returns 20*log10 of the magnitude. `QuadWindowedFFT` computes four channels together, preserving its existing gain and magnitude-smoothing rate.
 
-#### Scenario: Window ends at the publish boundary
-- **WHEN** `Compute(voiceIx)` runs
-- **THEN** the DFT input is exactly the published-index-aligned window read from the ScopeWriter, Hann-weighted sample by sample
+#### Scenario: Window ends at the accepted boundary
+- **WHEN** `Compute()` or `Compute(scopeIx)` runs
+- **THEN** the FFT input is the accepted-index-aligned level-zero window read from the ScopeWriter, with unavailable samples zero-filled and every sample Hann-weighted
 
 #### Scenario: Spectrum is smoothed across frames
 - **WHEN** two consecutive `Compute` calls process windows with differing bin magnitudes
@@ -102,3 +121,38 @@ The system SHALL populate aggregated visualization state in `PopulateUIState(...
 #### Scenario: Partial-machine atoms come from the published list
 - **WHEN** the partial-machine spectrum or spatial view renders
 - **THEN** the atoms drawn are exactly those in `m_partialMachineUIState`'s last published snapshot, positioned via its frequency-dependent transfer functions
+
+### Requirement: Prepared Secondary Modulator Sampling
+A secondary-modulator display reader SHALL receive its full required history interval and a fixed present position before point sampling, choose a fixed LOD for each sample-backed source, and preserve the original absolute sample timeline. Random and note event histories SHALL retain their existing independent retention and prediction behavior.
+
+#### Scenario: Long primary cycle with secondary envelope
+- **WHEN** a display requests an envelope over a cycle older than level zero retains
+- **THEN** the envelope is sampled consistently from the selected coarser level over the entire trace
+
+### Requirement: Engine-Rate Spectrum Axis
+Scope FFTs SHALL use level zero with 1,024 times the engine oversample factor in samples, preserving the previous host-rate bin spacing and observation duration. The frequency axis SHALL retain its physical low edge and extend to engine Nyquist. FFT rendering SHALL preserve narrow peaks that fall between plotted frequencies. Transfer functions and spectral markers SHALL convert their native frequency units to the same axis. Master scopes SHALL observe engine-rate signals before output decimation.
+
+#### Scenario: Engine-rate FFT retains low resolution and exposes ultrasonic content
+- **WHEN** the engine runs at 192 kHz with 4,096 FFT samples
+- **THEN** adjacent bins remain 46.875 Hz apart and the axis extends from 23.4375 Hz to 96 kHz
+- **AND** an ultrasonic tone is visible at the same physical frequency as a matching transfer-function peak
+
+#### Scenario: Host-rate spectral overlay stays aligned
+- **WHEN** partial-machine or vocoder state supplies a frequency in cycles per host sample
+- **THEN** its marker divides that frequency by the engine oversample factor to use the engine axis
+- **AND** evaluation of its host-unit response multiplies axis frequencies by that factor
+
+### Requirement: SIMD Scope Spectra
+Scope FFT components SHALL compute channel vectors together, including vector windowing, complex butterflies, magnitudes, and smoothing. Each displayed trio or quad scope SHALL require one grouped transform rather than separate per-lane transforms. Mono spectra SHALL use SIMD across four interleaved sample subsequences. FFT workspaces SHALL be allocated before computation, and all variants SHALL preserve the existing bin spacing and normalization.
+
+#### Scenario: Independent channel spectra
+- **WHEN** each channel of a trio or quad contains a different signal
+- **THEN** each lane of the SIMD spectrum matches the corresponding independent scalar FFT without cross-channel leakage
+
+#### Scenario: Mono SIMD spectrum
+- **WHEN** a mono scope is transformed using four interleaved SIMD lanes
+- **THEN** recombination produces the same spectrum as a full-length scalar transform
+
+#### Scenario: Irregular UI frame intervals
+- **WHEN** the UI accepts samples in different batch lengths without falling behind the level-zero ring
+- **THEN** every lower-level value and FIR phase equals incremental filtering of the same samples

@@ -62,6 +62,7 @@ struct QuadMixerInternal
     };
 
     QuadFloatWithStereoAndSub m_output;
+    QuadFloatWithStereoAndSub m_engineOutput;
     QuadFloat m_dryOutput;
     QuadFloat m_subOutput;
     QuadFloat m_returnOutput[x_numSends];
@@ -402,8 +403,8 @@ struct QuadMixerInternal
             }
         }
 
-        m_output = m_outputDecimator.Process(
-            m_masterChain.Process(input.m_masterChainInput, m_output.m_output, m_quadToStereoMixdown.m_output));
+        m_engineOutput = m_masterChain.Process(input.m_masterChainInput, m_output.m_output, m_quadToStereoMixdown.m_output);
+        m_output = m_outputDecimator.Process(m_engineOutput);
 
         if (m_recordingFrameActive)
         {

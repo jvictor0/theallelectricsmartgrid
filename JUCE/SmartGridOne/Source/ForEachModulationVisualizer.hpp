@@ -53,8 +53,8 @@ G(
     ModulationEnvelopeScope,
     4,
     std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::ModulationEnvelope),
-        &uiState->m_squiggleBoyUIState.m_controlScopeWriter,
+        static_cast<size_t>(SmartGridOne::VoiceScopes::ModulationEnvelope),
+        &uiState->m_squiggleBoyUIState.m_voiceScopeWriter,
         scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
         uiState),
@@ -65,8 +65,8 @@ G(
     AmpEnvelopeScope,
     5,
     std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::AmpEnvelope),
-        &uiState->m_squiggleBoyUIState.m_controlScopeWriter,
+        static_cast<size_t>(SmartGridOne::VoiceScopes::AmpEnvelope),
+        &uiState->m_squiggleBoyUIState.m_voiceScopeWriter,
         scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
         uiState),
@@ -77,8 +77,8 @@ G(
     LFO1Scope,
     6,
     std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::LFO1),
-        &uiState->m_squiggleBoyUIState.m_controlScopeWriter,
+        static_cast<size_t>(SmartGridOne::VoiceScopes::LFO1),
+        &uiState->m_squiggleBoyUIState.m_voiceScopeWriter,
         scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
         uiState),
@@ -89,8 +89,8 @@ G(
     LFO2Scope,
     7,
     std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::LFO2),
-        &uiState->m_squiggleBoyUIState.m_controlScopeWriter,
+        static_cast<size_t>(SmartGridOne::VoiceScopes::LFO2),
+        &uiState->m_squiggleBoyUIState.m_voiceScopeWriter,
         scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
         uiState),

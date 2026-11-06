@@ -7,7 +7,8 @@
 namespace
 {
 
-constexpr double x_control = static_cast<double>(ScopeWriter::x_controlDecimation);
+constexpr size_t x_lfo1Scope = SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO1), 0);
+constexpr size_t x_lfo2Scope = SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO2), 0);
 
 void AdvanceControlIndex(ScopeWriter& writer)
 {
@@ -23,20 +24,20 @@ DOCTEST_TEST_CASE("Weighted modulators: normalized signed depths mix recorded si
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState;
-    state.m_firstAudioSample.store(100);
-    state.m_audioScopeWriter.m_publishedIndex.store(1 + 4 * ScopeWriter::x_controlDecimation / ScopeWriter::x_audioDecimation);
-    state.m_firstControlSample.store(104);
+    state.m_firstScopeSample.store(104);
     for (size_t index = 0; index < 4; ++index)
     {
-        state.m_controlScopeWriter.Write(0, 0, 0.2f * (index + 1));
-        state.m_controlScopeWriter.Write(1, 0, 0.4f);
-        AdvanceControlIndex(state.m_controlScopeWriter);
-        state.m_quadControlScopeWriter.Write(static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1), 0, 0.25f);
-        AdvanceControlIndex(state.m_quadControlScopeWriter);
+        state.m_voiceScopeWriter.Write(x_lfo1Scope, TrioFloat(0.2f * (index + 1), 0.0f, 0.0f));
+        state.m_voiceScopeWriter.Write(x_lfo2Scope, TrioFloat(0.4f, 0.0f, 0.0f));
+        AdvanceControlIndex(state.m_voiceScopeWriter);
+        state.m_quadScopeWriter.Write(static_cast<size_t>(SmartGridOne::QuadScopes::QuadLFO1), QuadFloat(0.25f, 0.0f, 0.0f, 0.0f));
+        AdvanceControlIndex(state.m_quadScopeWriter);
     }
 
-    state.m_controlScopeWriter.Publish();
-    state.m_quadControlScopeWriter.Publish();
+    state.m_voiceScopeWriter.Publish();
+    state.m_voiceScopeWriter.AcceptSamples();
+    state.m_quadScopeWriter.Publish();
+    state.m_quadScopeWriter.AcceptSamples();
     WeightedModulators weights;
     weights.Add(ModulatorRef(VoiceModulator::LFO1, 0), 0.1f);
     weights.Add(ModulatorRef(VoiceModulator::LFO2, 0), -0.3f);
@@ -46,33 +47,33 @@ DOCTEST_TEST_CASE("Weighted modulators: normalized signed depths mix recorded si
     DOCTEST_CHECK(weights.m_entries[0].m_weight == doctest::Approx(0.25f));
     DOCTEST_CHECK(weights.m_entries[1].m_weight == doctest::Approx(-0.75f));
     using SmartGridOneModulatorHistory::GetWeightedModulatorValue;
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 104.0 + x_control) == doctest::Approx(0.55f));
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 104.0 + 1.5 * x_control) == doctest::Approx(0.575f));
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 100.0 + 4.0 * x_control) == doctest::Approx(0.65f));
+    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 104.0 + 1.0) == doctest::Approx(0.55f));
+    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 104.0 + 1.5) == doctest::Approx(0.575f));
+    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 107.0) == doctest::Approx(0.65f));
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 10000.0) == doctest::Approx(0.65f));
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 103.0) == 0.0f);
-    state.m_controlScopeWriter.m_oldestHistoryIndex.store(2);
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 104.0 + x_control) == 0.0f);
+    state.m_voiceScopeWriter.m_oldestHistoryIndex = 2;
+    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 104.0 + 1.0) == 0.0f);
 
     WeightedModulators bipolar;
     bipolar.Add(ModulatorRef(QuadModulator::LFO1, 0), -1.0f);
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, bipolar, 104.0 + 2.0 * x_control) == doctest::Approx(0.75f));
+    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, bipolar, 104.0 + 2.0) == doctest::Approx(0.75f));
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, bipolar, 103.0) == 0.0f);
     WeightedModulators missing;
     missing.Add(ModulatorRef(VoiceModulator::Sheaf1, 0), -1.0f);
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, missing, 104.0 + 2.0 * x_control) == 0.0f);
+    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, missing, 104.0 + 2.0) == 0.0f);
     WeightedModulators noise;
     noise.Add(ModulatorRef(GlobalModulator::Noise), 1.0f);
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, noise, 10000.0)
-        == ui->GetModulatorValue(ModulatorRef(GlobalModulator::Noise), 100.0 + 4.0 * x_control));
+        == ui->GetModulatorValue(ModulatorRef(GlobalModulator::Noise), 107.0));
 }
 
 DOCTEST_TEST_CASE("Weighted modulators: future random samples use only the published round and then hold its target")
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState;
-    state.m_firstAudioSample.store(100);
-    state.m_audioScopeWriter.m_publishedIndex.store(1 + 32 / ScopeWriter::x_audioDecimation);
+    state.m_firstScopeSample.store(100);
+    state.m_voiceScopeWriter.m_acceptedIndex = 1 + 32;
     GangedRandomLFOVoice voices[3];
     GangedRandomLFOVoiceInput inputs[3];
     for (size_t voice = 0; voice < 3; ++voice)
@@ -109,27 +110,26 @@ DOCTEST_TEST_CASE("Modulator time axes: scope wrapping maps every point to its o
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState;
-    state.m_firstAudioSample.store(100);
-    state.m_audioScopeWriter.m_publishedIndex.store(100);
-    state.m_firstControlSample.store(104);
-    auto& scope = state.m_controlScopeWriter;
+    state.m_firstScopeSample.store(104);
+    auto& scope = state.m_voiceScopeWriter;
     for (size_t index = 0; index < 12; ++index)
     {
         if (index == 0 || index == 8)
         {
-            scope.RecordStart(0, 0);
+            scope.RecordStart(x_lfo1Scope, 0);
         }
 
-        scope.Write(0, 0, static_cast<float>(index) / 12.0f);
+        scope.Write(x_lfo1Scope, TrioFloat(static_cast<float>(index) / 12.0f, 0.0f, 0.0f));
         AdvanceControlIndex(scope);
     }
 
     scope.Publish();
+    scope.AcceptSamples();
     ModulatorRef source(VoiceModulator::LFO1, 0);
     auto axis = SmartGridOneModulatorHistory::GetTimeAxis(*ui, source);
-    DOCTEST_CHECK(axis.GetExtent() == 8.0 * x_control);
+    DOCTEST_CHECK(axis.GetExtent() == 8.0);
     DOCTEST_CHECK(axis.m_transfer == doctest::Approx(3.0 / 8.0));
-    ScopeReader reader(&scope, 0, 0, 256, 1);
+    ScopeReader reader(&scope, 0, x_lfo1Scope, 256, 1);
     for (size_t point = 0; point < 256; ++point)
     {
         double sample = axis.GetSample(static_cast<double>(point) / 256.0);
@@ -197,39 +197,42 @@ DOCTEST_TEST_CASE("Modulator history: concurrent event overwrite never returns m
     writer.join();
 }
 
-DOCTEST_TEST_CASE("Modulator history: scope reads interpolate only retained published samples")
+DOCTEST_TEST_CASE("Modulator history: reads use accepted bounds and permit overwrite during a stalled frame")
 {
-    auto scope = std::make_unique<ScopeWriter>(1, 1);
+    auto scope = std::make_unique<ScopeWriterGeneric<1, 1>>(1, 4096);
     float value = 123.0f;
-    DOCTEST_CHECK_FALSE(scope->ReadHistory(0, 0, 0.0, value));
+    DOCTEST_CHECK_FALSE(scope->ReadHistory(0, 0, 0.0, 0, value));
     DOCTEST_CHECK(value == 0.0f);
-    scope->Write(0, 0, 0.2f);
+    scope->Write(0, 0.2f);
     scope->AdvanceIndex();
-    scope->Write(0, 0, 0.8f);
+    scope->Write(0, 0.8f);
     scope->AdvanceIndex();
     scope->Publish();
-    DOCTEST_REQUIRE(scope->ReadHistory(0, 0, 0.5, value));
+    scope->AcceptSamples();
+    DOCTEST_REQUIRE(scope->ReadHistory(0, 0, 0.5, 0, value));
     DOCTEST_CHECK(value == doctest::Approx(0.5f));
-    DOCTEST_REQUIRE(scope->ReadHistory(0, 0, 1.0, value));
+    DOCTEST_REQUIRE(scope->ReadHistory(0, 0, 1.0, 0, value));
     DOCTEST_CHECK(value == doctest::Approx(0.8f));
     for (double sample : {-1.0, 1.01, 2.0, std::numeric_limits<double>::infinity(),
         std::numeric_limits<double>::quiet_NaN()})
     {
-        DOCTEST_CHECK_FALSE(scope->ReadHistory(0, 0, sample, value));
+        DOCTEST_CHECK_FALSE(scope->ReadHistory(0, 0, sample, 0, value));
         DOCTEST_CHECK(value == 0.0f);
     }
 
-    DOCTEST_CHECK_FALSE(scope->ReadHistory(1, 0, 0.0, value));
-    DOCTEST_CHECK_FALSE(scope->ReadHistory(0, 1, 0.0, value));
+    DOCTEST_CHECK_FALSE(scope->ReadHistory(1, 0, 0.0, 0, value));
+    DOCTEST_CHECK_FALSE(scope->ReadHistory(0, 1, 0.0, 0, value));
     scope->m_index = scope->MaxIndexes();
-    scope->Write(0, 0, 0.9f);
-    DOCTEST_CHECK_FALSE(scope->ReadHistory(0, 0, 0.0, value));
-    DOCTEST_CHECK(value == 0.0f);
-    DOCTEST_REQUIRE(scope->ReadHistory(0, 0, 1.0, value));
+    scope->Write(0, 0.9f);
+    DOCTEST_REQUIRE(scope->ReadHistory(0, 0, 0.0, 0, value));
+    DOCTEST_CHECK(value == doctest::Approx(0.9f));
+    DOCTEST_REQUIRE(scope->ReadHistory(0, 0, 1.0, 0, value));
     DOCTEST_CHECK(value == doctest::Approx(0.8f));
     scope->AdvanceIndex();
     scope->Publish();
-    DOCTEST_REQUIRE(scope->ReadHistory(0, 0, static_cast<double>(scope->MaxIndexes()), value));
+    scope->AcceptSamples();
+    DOCTEST_CHECK_FALSE(scope->ReadHistory(0, 0, 0.0, 0, value));
+    DOCTEST_REQUIRE(scope->ReadHistory(0, 0, static_cast<double>(scope->MaxIndexes()), 0, value));
     DOCTEST_CHECK(value == doctest::Approx(0.9f));
 }
 
@@ -310,39 +313,33 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
                 static_cast<double>(sample), synth.m_globalGangedRandomLFO[slot].Output(0)});
         }
 
-        if (sample % ScopeWriter::x_controlDecimation == 1)
+        for (size_t voice = 0; voice < 9; ++voice)
         {
-            for (size_t voice = 0; voice < 9; ++voice)
-            {
-                auto& source = synth.m_tracks[voice / 3];
-                const size_t lane = voice % 3;
-                scopes.push_back({ModulatorRef(VoiceModulator::LFO1, voice),
-                    static_cast<double>(sample), source.m_squiggleLFO[0].m_polyXFader.m_output[lane]});
-                scopes.push_back({ModulatorRef(VoiceModulator::LFO2, voice),
-                    static_cast<double>(sample), source.m_squiggleLFO[1].m_polyXFader.m_output[lane]});
-                scopes.push_back({ModulatorRef(VoiceModulator::ModulationEnvelope, voice),
-                    static_cast<double>(sample), source.m_amp.m_modulationAHD.m_output[lane]});
-                scopes.push_back({ModulatorRef(VoiceModulator::AmpEnvelope, voice),
-                    static_cast<double>(sample), source.m_amp.m_ahd.m_output[lane]});
-            }
+            auto& source = synth.m_tracks[voice / 3];
+            const size_t lane = voice % 3;
+            scopes.push_back({ModulatorRef(VoiceModulator::LFO1, voice),
+                static_cast<double>(sample), source.m_squiggleLFO[0].m_polyXFader.m_output[lane]});
+            scopes.push_back({ModulatorRef(VoiceModulator::LFO2, voice),
+                static_cast<double>(sample), source.m_squiggleLFO[1].m_polyXFader.m_output[lane]});
+            scopes.push_back({ModulatorRef(VoiceModulator::ModulationEnvelope, voice),
+                static_cast<double>(sample), source.m_amp.m_modulationAHD.m_output[lane]});
+            scopes.push_back({ModulatorRef(VoiceModulator::AmpEnvelope, voice),
+                static_cast<double>(sample), source.m_amp.m_ahd.m_output[lane]});
+        }
 
-            for (size_t channel = 0; channel < 4; ++channel)
-            {
-                scopes.push_back({ModulatorRef(QuadModulator::LFO1, channel),
-                    static_cast<double>(sample), synth.m_quadSquiggleLFO[0].m_polyXFader.m_output[channel]});
-                scopes.push_back({ModulatorRef(QuadModulator::LFO2, channel),
-                    static_cast<double>(sample), synth.m_quadSquiggleLFO[1].m_polyXFader.m_output[channel]});
-            }
+        for (size_t channel = 0; channel < 4; ++channel)
+        {
+            scopes.push_back({ModulatorRef(QuadModulator::LFO1, channel),
+                static_cast<double>(sample), synth.m_quadSquiggleLFO[0].m_polyXFader.m_output[channel]});
+            scopes.push_back({ModulatorRef(QuadModulator::LFO2, channel),
+                static_cast<double>(sample), synth.m_quadSquiggleLFO[1].m_polyXFader.m_output[channel]});
         }
     }
 
-    // The audio scope publishes one sample per host frame; run one more so the
-    // published present covers every observation.
-    //
-    rig.RunSamples(ScopeWriter::x_audioDecimation);
     DOCTEST_CHECK(ui.GetModulatorValue(ModulatorRef(VoiceModulator::Spread, 1), 32.0) == 0.0f);
     rig.Internal().PopulateUIState();
-    DOCTEST_CHECK(ui.m_squiggleBoyUIState.m_firstControlSample.load() == 1);
+    ui.m_squiggleBoyUIState.AcceptScopeSamples();
+    DOCTEST_CHECK(ui.m_squiggleBoyUIState.m_firstScopeSample.load() == 1);
     for (const auto& observation : random)
     {
         DOCTEST_CAPTURE(observation.m_sample);
@@ -353,6 +350,7 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
     }
 
     constexpr size_t x_scopeLanes = 44;
+    DOCTEST_REQUIRE(scopes.size() == 64 * x_scopeLanes);
     for (size_t i = 0; i < scopes.size(); ++i)
     {
         const auto& observation = scopes[i];
@@ -360,7 +358,7 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
             == doctest::Approx(observation.m_value));
         if (i >= x_scopeLanes)
         {
-            DOCTEST_CHECK(ui.GetModulatorValue(observation.m_modulator, observation.m_sample - ScopeWriter::x_controlDecimation / 2.0)
+            DOCTEST_CHECK(ui.GetModulatorValue(observation.m_modulator, observation.m_sample - 0.5)
                 == doctest::Approx((observation.m_value + scopes[i - x_scopeLanes].m_value) * 0.5f));
         }
     }
@@ -430,4 +428,58 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
     DOCTEST_CHECK(writer.Get(writer.GetIndex() - 1).m_startSample == SampleTimer::GetSample());
     DOCTEST_CHECK(ui.GetModulatorValue(ModulatorRef(VoiceModulator::Sheaf1, 4), static_cast<double>(SampleTimer::GetSample()))
         == doctest::Approx(nonagon.m_nonagon.m_output.m_extraTimbre[4][0]));
+}
+DOCTEST_TEST_CASE("Modulator history: prepared mixtures keep one LOD across long trio and quad histories")
+{
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& state = ui->m_squiggleBoyUIState;
+    size_t storage = state.m_voiceScopeWriter.SampleStorageBytes()
+        + state.m_quadScopeWriter.SampleStorageBytes()
+        + state.m_monoScopeWriter.SampleStorageBytes();
+    DOCTEST_CHECK(storage == 212 * sizeof(float) * ScopeWriter::x_baseCapacity * ScopeWriter::x_numLevels);
+    DOCTEST_CHECK(state.m_voiceScopeWriter.m_scopes == 39);
+    DOCTEST_CHECK(state.m_quadScopeWriter.m_scopes == 13);
+    DOCTEST_CHECK(state.m_monoScopeWriter.m_scopes == 4);
+    DOCTEST_CHECK(state.m_voiceScopeWriter.m_voices == 3);
+    DOCTEST_CHECK(state.m_quadScopeWriter.m_voices == 4);
+    DOCTEST_CHECK(state.m_monoScopeWriter.m_voices == 1);
+    constexpr size_t x_samples = 2 * ScopeWriter::x_baseCapacity;
+    const size_t ampScope = SmartGridOne::VoiceScopeIndex(
+        static_cast<size_t>(SmartGridOne::VoiceScopes::AmpEnvelope), 2);
+    const size_t quadScope = static_cast<size_t>(SmartGridOne::QuadScopes::QuadLFO2);
+    for (size_t index = 0; index < x_samples; ++index)
+    {
+        state.m_voiceScopeWriter.Write(ampScope, TrioFloat(0.0f, 0.0f, static_cast<float>(index) / x_samples));
+        state.m_quadScopeWriter.Write(quadScope, QuadFloat(0.0f, 0.0f, 0.0f, 0.2f));
+        state.AdvanceScopeIndices();
+        if (index % 1024 == 1023)
+        {
+            state.m_voiceScopeWriter.Publish();
+            state.m_quadScopeWriter.Publish();
+            state.AcceptScopeSamples();
+        }
+    }
+
+    state.m_voiceScopeWriter.Publish();
+    state.m_voiceScopeWriter.AcceptSamples();
+    state.m_quadScopeWriter.Publish();
+    state.m_quadScopeWriter.AcceptSamples();
+    state.m_firstScopeSample.store(0);
+    WeightedModulators weights;
+    weights.Add(ModulatorRef(VoiceModulator::AmpEnvelope, 8), 0.75f);
+    weights.Add(ModulatorRef(QuadModulator::LFO2, 3), -0.25f);
+    double now = (x_samples - 1);
+    SmartGridOneModulatorHistory::PreparedModulatorReader reader(*ui, weights,
+        ScopeWriter::x_baseCapacity / 4.0, now);
+    DOCTEST_REQUIRE(reader.m_lods[0] == 1);
+    DOCTEST_REQUIRE(reader.m_lods[1] == 1);
+    for (double index : {ScopeWriter::x_baseCapacity / 4.0 + 0.5,
+        ScopeWriter::x_baseCapacity + 0.25, x_samples - 1000.0})
+    {
+        DOCTEST_CHECK(reader.Get(index)
+            == doctest::Approx(0.75 * index / x_samples + 0.2).epsilon(0.00001));
+    }
+
+    DOCTEST_CHECK(reader.m_lods[0] == 1);
+    DOCTEST_CHECK(reader.m_lods[1] == 1);
 }

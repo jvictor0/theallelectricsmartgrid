@@ -29,7 +29,7 @@ struct DualWaveShapingVCOGeneric
     PhaseUtils::ExpParamGeneric<float, Size> m_detuneParam;
     PhaseUtils::ZeroedExpParamGeneric<float, Size> m_crossModIndexParam[2];
 
-    ScopeWriterHolder m_scopeWriter[2][Size];
+    ScopeWriterHolderGeneric<Size> m_scopeWriter[2];
 
     // Frequencies are in cycles per sample at the processing rate.
     //
@@ -68,15 +68,12 @@ struct DualWaveShapingVCOGeneric
     {
     }
 
-    // Channel i writes voice track * Size + i.
-    //
-    void SetScopeWriters(ScopeWriter* scopeWriter, size_t track)
+    void SetScopeWriters(ScopeWriterInput<Size>* scopeWriter, size_t track)
     {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_scopeWriter[0][i] = ScopeWriterHolder(scopeWriter, track * Size + i, static_cast<size_t>(SmartGridOne::AudioScopes::VCO1));
-            m_scopeWriter[1][i] = ScopeWriterHolder(scopeWriter, track * Size + i, static_cast<size_t>(SmartGridOne::AudioScopes::VCO2));
-        }
+        m_scopeWriter[0] = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::VCO1), track));
+        m_scopeWriter[1] = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::VCO2), track));
     }
 
     Vector Process(const Input& input)
@@ -117,12 +114,12 @@ struct DualWaveShapingVCOGeneric
     {
         for (size_t j = 0; j < 2; ++j)
         {
+            m_scopeWriter[j].Write(m_vco[j].m_out);
             for (size_t i = 0; i < Size; ++i)
             {
-                m_scopeWriter[j][i].Write(m_vco[j].m_out[i]);
                 if (m_vco[j].m_top[i])
                 {
-                    m_scopeWriter[j][i].RecordStart(m_vco[j].m_top[i].m_offset);
+                    m_scopeWriter[j].RecordStartAtVoice(i, m_vco[j].m_top[i].m_offset);
                 }
             }
         }

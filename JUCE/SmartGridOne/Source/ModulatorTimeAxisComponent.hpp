@@ -157,10 +157,11 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
                 continue;
             }
 
+            double oldest = axis.m_transfer < 1.0 ? std::min(axis.m_start, axis.m_wrappedStart) : axis.m_start;
+            SmartGridOneModulatorHistory::PreparedModulatorReader reader(*m_historyUIState, weights, oldest, now);
             auto pointAt = [&](double position)
             {
-                float value = SmartGridOneModulatorHistory::GetWeightedModulatorValue(
-                    *m_historyUIState, weights, axis.GetSample(position), now);
+                float value = reader.Get(axis.GetSample(position));
                 return juce::Point<float>{plot.getX() + plot.getWidth() * static_cast<float>(position),
                     plot.getBottom() - plot.getHeight() * (value * yScale + yOffset)};
             };

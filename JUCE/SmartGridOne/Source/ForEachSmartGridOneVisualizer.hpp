@@ -17,7 +17,7 @@ F(
     Top,
     std::make_unique<ScopeComponent>(
         0,
-        m_nonagon->GetAudioScopeWriter(),
+        m_nonagon->GetVoiceScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Audio,
         uiState),
@@ -30,7 +30,7 @@ F(
     Bottom,
     std::make_unique<ScopeComponent>(
         1,
-        m_nonagon->GetAudioScopeWriter(),
+        m_nonagon->GetVoiceScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Audio,
         uiState),
@@ -65,7 +65,7 @@ F(
     Full,
     std::make_unique<ScopeComponent>(
         2,
-        m_nonagon->GetAudioScopeWriter(),
+        m_nonagon->GetVoiceScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Audio,
         uiState),
@@ -77,7 +77,7 @@ F(
     1,
     Full,
     std::make_unique<AnalyserComponent>(
-        WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp)),
+        TrioWindowedFFT(m_nonagon->GetVoiceScopeWriter(), static_cast<size_t>(SmartGridOne::VoiceScopes::PostAmp)),
         &m_scopeVoiceOffset,
         uiState),
     VoiceMachine::SourceMachineFlags::All())
@@ -105,7 +105,7 @@ F(
     Full,
     std::make_unique<ScopeComponent>(
         2,
-        m_nonagon->GetAudioScopeWriter(),
+        m_nonagon->GetVoiceScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Audio,
         uiState),
@@ -117,7 +117,7 @@ F(
     1,
     Full,
     std::make_unique<AnalyserComponent>(
-        WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp)),
+        TrioWindowedFFT(m_nonagon->GetVoiceScopeWriter(), static_cast<size_t>(SmartGridOne::VoiceScopes::PostAmp)),
         &m_scopeVoiceOffset,
         uiState),
     VoiceMachine::SourceMachineFlags::All())
@@ -128,8 +128,8 @@ F(
     1,
     Top,
     std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::AudioScopes::PostAmp),
-        m_nonagon->GetAudioScopeWriter(),
+        static_cast<size_t>(SmartGridOne::VoiceScopes::PostAmp),
+        m_nonagon->GetVoiceScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Audio,
         uiState),
@@ -141,8 +141,8 @@ F(
     1,
     BottomLeft,
     std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::ModulationEnvelope),
-        m_nonagon->GetControlScopeWriter(),
+        static_cast<size_t>(SmartGridOne::VoiceScopes::ModulationEnvelope),
+        m_nonagon->GetVoiceScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
         uiState),
@@ -154,8 +154,8 @@ F(
     1,
     BottomRight,
     std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::AmpEnvelope),
-        m_nonagon->GetControlScopeWriter(),
+        static_cast<size_t>(SmartGridOne::VoiceScopes::AmpEnvelope),
+        m_nonagon->GetVoiceScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
         uiState),
@@ -192,8 +192,8 @@ F(
     1,
     Full,
     std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::LFO1),
-        m_nonagon->GetControlScopeWriter(),
+        static_cast<size_t>(SmartGridOne::VoiceScopes::LFO1),
+        m_nonagon->GetVoiceScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
         uiState),
@@ -205,8 +205,8 @@ F(
     1,
     Full,
     std::make_unique<ScopeComponent>(
-        static_cast<size_t>(SmartGridOne::ControlScopes::LFO2),
-        m_nonagon->GetControlScopeWriter(),
+        static_cast<size_t>(SmartGridOne::VoiceScopes::LFO2),
+        m_nonagon->GetVoiceScopeWriter(),
         &m_scopeVoiceOffset,
         ScopeComponent::ScopeType::Control,
         uiState),
@@ -221,7 +221,7 @@ F(
     3,
     Full,
     std::make_unique<AnalyserComponent>(
-        WindowedFFT(m_nonagon->GetAudioScopeWriter(), static_cast<size_t>(SmartGridOne::AudioScopes::Sub)),
+        TrioWindowedFFT(m_nonagon->GetVoiceScopeWriter(), static_cast<size_t>(SmartGridOne::VoiceScopes::Sub)),
         &m_scopeVoiceOffset,
         uiState,
         AnalyserComponent::FilterOverlay::None),

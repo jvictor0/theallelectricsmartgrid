@@ -64,7 +64,7 @@ struct SquiggleBoy
 
     struct MixerInput : QuadMixerInternal::Input
     {
-        ScopeWriterHolder m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::NumScopes)];
+        ScopeWriterHolderGeneric<4> m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::NumScopes)];
 
         MixerInput()
         {
@@ -430,9 +430,9 @@ struct SquiggleBoy
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Delay)].Write(m_mixer.m_returnOutput[0]);
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Reverb)].Write(m_mixer.m_returnOutput[1]);
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine)].Write(m_mixer.m_returnOutput[2]);
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Master)].Write(m_output.m_output);
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Master)].Write(m_mixer.m_engineOutput.m_output);
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Stereo)].Write(
-            m_output.m_stereoOutput.CombineToQuad(m_mixer.m_quadToStereoMixdown.m_output));
+            m_mixer.m_engineOutput.m_stereoOutput.CombineToQuad(m_mixer.m_quadToStereoMixdown.m_output));
     }
 };
 
@@ -604,16 +604,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         EncoderBankUIState m_encoderBankUIState;
         ModulationMatrixUIState m_modulationMatrixUIState;
-        ScopeWriter m_audioScopeWriter;
-        ScopeWriter m_controlScopeWriter;
-        ScopeWriter m_quadScopeWriter;
-        ScopeWriter m_quadControlScopeWriter;
-        ScopeWriter m_globalControlScopeWriter;
-        ScopeWriter m_sourceMixerScopeWriter;
-        ScopeWriter m_monoScopeWriter;
-        ScopeWriter m_monoAudioScopeWriter;
-        std::atomic<size_t> m_firstAudioSample{0};
-        std::atomic<size_t> m_firstControlSample{0};
+        ScopeWriterGeneric<3, 3 * static_cast<size_t>(SmartGridOne::VoiceScopes::NumScopes)> m_voiceScopeWriter;
+        ScopeWriterGeneric<4, static_cast<size_t>(SmartGridOne::QuadScopes::NumScopes)> m_quadScopeWriter;
+        ScopeWriterGeneric<1, static_cast<size_t>(SmartGridOne::MonoScopes::NumScopes)> m_monoScopeWriter;
+        std::atomic<size_t> m_firstScopeSample{0};
 
         GangedRandomLFOUIState<x_voicesPerTrack>
             m_gangedRandomLFOUIState[x_numGangedRandomLFOs][x_numTracks];
@@ -744,14 +738,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
 
         UIState()
-            : m_audioScopeWriter(x_numVoices, static_cast<size_t>(SmartGridOne::AudioScopes::NumScopes), ScopeWriter::x_audioDecimation)
-            , m_controlScopeWriter(x_numVoices, static_cast<size_t>(SmartGridOne::ControlScopes::NumScopes), ScopeWriter::x_controlDecimation)
-            , m_quadScopeWriter(4, static_cast<size_t>(SmartGridOne::QuadScopes::NumScopes), ScopeWriter::x_audioDecimation)
-            , m_quadControlScopeWriter(4, static_cast<size_t>(SmartGridOne::QuadControlScopes::NumScopes), ScopeWriter::x_controlDecimation)
-            , m_globalControlScopeWriter(1, static_cast<size_t>(SmartGridOne::GlobalControlScopes::NumScopes), ScopeWriter::x_controlDecimation)
-            , m_sourceMixerScopeWriter(SourceMixer::x_numSources, static_cast<size_t>(SmartGridOne::SourceScopes::NumScopes), ScopeWriter::x_audioDecimation)
-            , m_monoScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoScopes::NumScopes), ScopeWriter::x_controlDecimation)
-            , m_monoAudioScopeWriter(1, static_cast<size_t>(SmartGridOne::MonoAudioScopes::NumScopes), ScopeWriter::x_audioDecimation)
         {
             for (size_t i = 0; i < x_numVoices; ++i)
             {
@@ -762,26 +748,26 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         void AdvanceScopeIndices()
         {
-            if (m_audioScopeWriter.m_index == 0 && m_audioScopeWriter.IsWriteSample())
+            if (m_voiceScopeWriter.m_index == 0)
             {
-                m_firstAudioSample.store(SampleTimer::GetSample());
+                m_firstScopeSample.store(SampleTimer::GetSample());
             }
 
-            m_audioScopeWriter.AdvanceIndex();
+            m_voiceScopeWriter.AdvanceIndex();
             m_quadScopeWriter.AdvanceIndex();
-            m_sourceMixerScopeWriter.AdvanceIndex();
-            m_monoAudioScopeWriter.AdvanceIndex();
-
-            if (m_controlScopeWriter.m_index == 0 && m_controlScopeWriter.IsWriteSample())
-            {
-                m_firstControlSample.store(SampleTimer::GetSample());
-            }
-
-            m_controlScopeWriter.AdvanceIndex();
-            m_quadControlScopeWriter.AdvanceIndex();
-            m_globalControlScopeWriter.AdvanceIndex();
             m_monoScopeWriter.AdvanceIndex();
         }
+
+        void AcceptScopeSamples()
+        {
+            size_t voiceEnd = m_voiceScopeWriter.m_publishedIndex.load();
+            size_t quadEnd = m_quadScopeWriter.m_publishedIndex.load();
+            size_t monoEnd = m_monoScopeWriter.m_publishedIndex.load();
+            m_voiceScopeWriter.AcceptSamples(voiceEnd);
+            m_quadScopeWriter.AcceptSamples(quadEnd);
+            m_monoScopeWriter.AcceptSamples(monoEnd);
+        }
+
     };
 
     void WriteKMixMidi(KMixMidi* kMixMidi)
@@ -810,34 +796,27 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     void SetupScopeWriters(UIState* uiState)
     {
 
-        for (size_t i = 0; i < 4; ++i)
-        {
-            m_quadSquiggleLFO[0].m_scopeWriter[i] = ScopeWriterHolder(
-                &uiState->m_quadControlScopeWriter,
-                i,
-                static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO1));
-            m_quadSquiggleLFO[1].m_scopeWriter[i] = ScopeWriterHolder(
-                &uiState->m_quadControlScopeWriter,
-                i,
-                static_cast<size_t>(SmartGridOne::QuadControlScopes::QuadLFO2));
-        }
+        m_quadSquiggleLFO[0].m_scopeWriter = ScopeWriterHolderGeneric<4>(
+            &uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::QuadLFO1));
+        m_quadSquiggleLFO[1].m_scopeWriter = ScopeWriterHolderGeneric<4>(
+            &uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::QuadLFO2));
 
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Delay)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Delay));
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Reverb)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Reverb));
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Master)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Master));
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Dry)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Dry));
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Sub)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Sub));
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Stereo)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::Stereo));
-        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine)] = ScopeWriterHolder(&uiState->m_quadScopeWriter, 0, static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Delay)] = ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Delay));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Reverb)] = ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Reverb));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Master)] = ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Master));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Dry)] = ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Dry));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Sub)] = ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Sub));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Stereo)] = ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Stereo));
+        m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine)] = ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine));
 
-        m_partialMachine.SetupAudioScopeWriter(&uiState->m_monoAudioScopeWriter);
+        m_partialMachine.SetupAudioScopeWriter(&uiState->m_monoScopeWriter);
 
-        m_sourceMixer.SetupScopeWriters(&uiState->m_sourceMixerScopeWriter);
+        m_sourceMixer.SetupScopeWriters(&uiState->m_quadScopeWriter);
         
         for (size_t track = 0; track < x_numTracks; ++track)
         {
-            m_tracks[track].SetupAudioScopeWriters(&uiState->m_audioScopeWriter, track);
-            m_tracks[track].SetupControlScopeWriters(&uiState->m_controlScopeWriter, track);
+            m_tracks[track].SetupAudioScopeWriters(&uiState->m_voiceScopeWriter, track);
+            m_tracks[track].SetupControlScopeWriters(&uiState->m_voiceScopeWriter, track);
         }
     }
 
@@ -1380,15 +1359,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 &uiState->m_globalGangedRandomLFOUIState[random]);
         }
 
-        uiState->m_audioScopeWriter.Publish();
-        uiState->m_controlScopeWriter.Publish();
+        uiState->m_voiceScopeWriter.Publish();
         uiState->m_quadScopeWriter.Publish();
-        uiState->m_quadControlScopeWriter.Publish();
-        uiState->m_globalControlScopeWriter.Publish();
-        uiState->m_sourceMixerScopeWriter.Publish();
         uiState->m_monoScopeWriter.Publish();
-        uiState->m_monoAudioScopeWriter.Publish();
-        
+
         uiState->ReadMeters();
 
         for (size_t track = 0; track < x_numTracks; ++track)

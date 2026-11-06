@@ -32,7 +32,8 @@ struct PartialMachineComponentUtils
 
     static float ScreenXForOmega(float omega, float width)
     {
-        float clampedOmega = std::min(0.5f, std::max(1.0f / static_cast<float>(PathDrawer::x_numPoints * 2), omega));
+        float clampedOmega = std::clamp(omega / SampleTimer::x_oversample,
+            PathDrawer::x_minFrequency, PathDrawer::x_maxFrequency);
         return width * PathDrawer::LinearToLog(clampedOmega);
     }
 };
@@ -46,8 +47,8 @@ struct PartialMachineInputSpectrumComponent : public SmartGridOneMainVisualizerC
         : SmartGridOneMainVisualizerComponent()
         , m_uiState(uiState)
         , m_windowedFFT(
-            &uiState->m_squiggleBoyUIState.m_monoAudioScopeWriter,
-            static_cast<size_t>(SmartGridOne::MonoAudioScopes::PartialMachine))
+            &uiState->m_squiggleBoyUIState.m_monoScopeWriter,
+            static_cast<size_t>(SmartGridOne::MonoScopes::PartialMachine))
     {
     }
 
@@ -59,7 +60,7 @@ struct PartialMachineInputSpectrumComponent : public SmartGridOneMainVisualizerC
         auto width = bounds.getWidth();
         auto height = bounds.getHeight();
 
-        m_windowedFFT.Compute(0);
+        m_windowedFFT.Compute();
         PathDrawer pathDrawer(height, width, bounds.getX(), bounds.getY());
         pathDrawer.DrawWindowedDFT(g, juce::Colours::darkgrey, &m_windowedFFT);
 
