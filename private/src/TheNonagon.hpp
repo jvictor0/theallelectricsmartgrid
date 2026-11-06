@@ -192,7 +192,6 @@ struct TheNonagonInternal
         input.m_trigLogic.SetInput(input.m_multiPhasorGateInput);
 
         input.m_multiPhasorGateInput.m_theoryOfTime = &m_theoryOfTime;
-        input.m_multiPhasorGateInput.m_globalPeriodSamples = m_theoryOfTime.m_globalPeriodSamples;
         input.m_multiPhasorGateInput.m_phaseRatio = static_cast<double>(m_theoryOfTime.GetCycleRatio(0));
 
         // The gate only reads a voice's cycle ratio when that voice triggers.

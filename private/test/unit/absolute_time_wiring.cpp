@@ -59,18 +59,18 @@ DOCTEST_TEST_CASE("AbsoluteTime: Nonagon wires source ratio separately from voic
     nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
     auto& control = nonagon->m_multiPhasorGate.m_ahdControl[0];
     DOCTEST_REQUIRE(control.m_trig);
-    DOCTEST_CHECK(control.m_envelopePeriodSamples == 6000.0);
+    DOCTEST_CHECK(control.m_envelopePeriodSamples == SampleTimer::SecondsToSamples(4.0) / 3.0);
 
     AHD envelope;
     AHD::Input envelopeInput;
     envelopeInput.m_theoryOfTime = &nonagon->m_theoryOfTime;
-    envelopeInput.m_attackIncrement = 0.0001f;
+    envelopeInput.m_attackIncrement = 1.0f / SampleTimer::SecondsToSamples(4.0);
     envelopeInput.Set(control);
     envelope.Process(envelopeInput);
     envelopeInput.m_trig = false;
     clock.m_unmodulatedPhase = 1.375;
     Step(nonagon->m_theoryOfTime, clock);
-    DOCTEST_CHECK(envelope.Process(envelopeInput) == doctest::Approx(0.525));
+    DOCTEST_CHECK(envelope.Process(envelopeInput) == doctest::Approx(7.0 / 24.0));
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: physical-model hold scales with captured period")
@@ -195,7 +195,7 @@ DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and
     DOCTEST_CHECK(input.m_multiPhasorGateInput.m_voiceCycleRatio[0] == 21);
     nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
     DOCTEST_REQUIRE(nonagon->m_multiPhasorGate.m_gate[0]);
-    DOCTEST_CHECK(nonagon->m_multiPhasorGate.m_ahdControl[0].m_envelopePeriodSamples == 1000.0);
+    DOCTEST_CHECK(nonagon->m_multiPhasorGate.m_ahdControl[0].m_envelopePeriodSamples == SampleTimer::SecondsToSamples(4.0) / 21.0);
 
     nonagon->m_indexArp.m_arp[0].m_triggered = false;
     nonagon->m_lameJuis.m_lanes[0].m_coMuteState.m_coMutes[0] = true;
@@ -206,7 +206,7 @@ DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and
     Step(nonagon->m_theoryOfTime, clock);
     nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
     DOCTEST_CHECK(nonagon->m_multiPhasorGate.m_gate[0]);
-    DOCTEST_CHECK(nonagon->m_multiPhasorGate.m_ahdControl[0].m_envelopePeriodSamples == 1000.0);
+    DOCTEST_CHECK(nonagon->m_multiPhasorGate.m_ahdControl[0].m_envelopePeriodSamples == SampleTimer::SecondsToSamples(4.0) / 21.0);
     clock.m_unmodulatedPhase = 0.1 + 0.51 / 21.0;
     Step(nonagon->m_theoryOfTime, clock);
     nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);

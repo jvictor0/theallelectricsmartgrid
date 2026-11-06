@@ -15,7 +15,6 @@ struct MultiPhasorGateInternal
     {
         bool m_trigs[x_maxPoly];
         TheoryOfTimeBase* m_theoryOfTime;
-        double m_globalPeriodSamples;
         double m_phaseRatio;
         size_t m_numTrigs;
         int64_t m_voiceCycleRatio[x_maxPoly];
@@ -24,7 +23,6 @@ struct MultiPhasorGateInternal
 
         Input()
             : m_theoryOfTime(nullptr)
-            , m_globalPeriodSamples(1.0)
             , m_phaseRatio(1.0)
             , m_numTrigs(0)
         {
@@ -63,13 +61,11 @@ struct MultiPhasorGateInternal
     {
         double m_startGlobalPhase = 0.0;
         int64_t m_voiceCycleRatio = 1;
-        double m_globalPeriodSamples = 1.0;
 
-        void Set(double globalPhase, int64_t voiceCycleRatio, double globalPeriodSamples)
+        void Set(double globalPhase, int64_t voiceCycleRatio)
         {
             m_startGlobalPhase = globalPhase;
             m_voiceCycleRatio = voiceCycleRatio;
-            m_globalPeriodSamples = globalPeriodSamples;
         }
 
         double Process(double globalPhase)
@@ -80,7 +76,9 @@ struct MultiPhasorGateInternal
 
         double EnvelopePeriodSamples()
         {
-            return m_globalPeriodSamples / static_cast<double>(m_voiceCycleRatio);
+            // Calibrate AHD to a fixed four-second global cycle.
+            //
+            return SampleTimer::SecondsToSamples(4.0) / static_cast<double>(m_voiceCycleRatio);
         }
     };
 
@@ -116,7 +114,7 @@ struct MultiPhasorGateInternal
 
                 m_preGate[i] = true;
                 m_set[i] = true;
-                m_bounds[i].Set(globalPhase, input.m_voiceCycleRatio[i], input.m_globalPeriodSamples);
+                m_bounds[i].Set(globalPhase, input.m_voiceCycleRatio[i]);
                 m_ahdControl[i].m_envelopePeriodSamples = m_bounds[i].EnvelopePeriodSamples();
             }
 

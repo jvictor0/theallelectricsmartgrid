@@ -2,7 +2,7 @@
 //
 // MultiPhasorGateInternal wiring (discovered from TheNonagon.hpp):
 //   - Called once per sample from TheNonagonInternal::Process (when running).
-//   - Input needs: m_theoryOfTime (TheoryOfTimeBase*), m_globalPeriodSamples, m_numTrigs,
+//   - Input needs: m_theoryOfTime (TheoryOfTimeBase*), m_numTrigs,
 //     m_trigs[voice], m_newTrigCanStart[voice], m_voiceCycleRatio[voice], m_mute[voice].
 //   - It fires gates based on absolute modulated global phase.
 //   - Gate goes high on trig and low at 0.5 normalized voice-cycle progress.
@@ -46,7 +46,6 @@ static MultiPhasorGateInternal::Input MakeSimpleInput(TimeRig& rig,
 {
     MultiPhasorGateInternal::Input inp;
     inp.m_theoryOfTime = rig.Get();
-    inp.m_globalPeriodSamples = rig.GlobalPeriodSamples();
     inp.m_phaseRatio = static_cast<double>(rig.Get()->GetCycleRatio(0));
     inp.m_numTrigs = 1;
 
@@ -89,7 +88,6 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate goes high on trig with newTrigCanStart=
     //
     {
         auto inp = MakeSimpleInput(rig, /*trig=*/true, /*newTrigCanStart=*/true, 1);
-        inp.m_globalPeriodSamples = rig.GlobalPeriodSamples();
         gate.Process(inp);
     }
 
@@ -117,7 +115,6 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate does not fire when newTrigCanStart=fals
         // trig=true but newTrigCanStart=false
         //
         auto inp = MakeSimpleInput(rig, /*trig=*/true, /*newTrigCanStart=*/false, 1);
-        inp.m_globalPeriodSamples = rig.GlobalPeriodSamples();
         gate.Process(inp);
     }
 
@@ -149,7 +146,6 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate falls low after phasor half-cycle")
     //
     {
         auto inp = MakeSimpleInput(rig, true, true, 1);
-        inp.m_globalPeriodSamples = rig.GlobalPeriodSamples();
         gate.Process(inp);
     }
     DOCTEST_CHECK(gate.m_gate[0] == true);
@@ -163,7 +159,6 @@ DOCTEST_TEST_CASE("MultiPhasorGate: gate falls low after phasor half-cycle")
     {
         rig.AdvanceSample();
         auto inp = MakeSimpleInput(rig, false, true, 1);
-        inp.m_globalPeriodSamples = rig.GlobalPeriodSamples();
         gate.Process(inp);
         if (!gate.m_gate[0])
         {
@@ -193,7 +188,6 @@ DOCTEST_TEST_CASE("MultiPhasorGate: no stuck gates after stop/start cycle")
     //
     {
         auto inp = MakeSimpleInput(rig, true, true, 1);
-        inp.m_globalPeriodSamples = rig.GlobalPeriodSamples();
         gate.Process(inp);
     }
     DOCTEST_CHECK(gate.m_gate[0] == true);
@@ -219,7 +213,6 @@ DOCTEST_TEST_CASE("MultiPhasorGate: no stuck gates after stop/start cycle")
 
     {
         auto inp = MakeSimpleInput(rig, false, true, 1);
-        inp.m_globalPeriodSamples = rig.GlobalPeriodSamples();
         gate.Process(inp);
     }
     DOCTEST_CHECK(gate.m_gate[0] == false);
@@ -263,7 +256,6 @@ DOCTEST_TEST_CASE("MultiPhasorGate: AHD driven by ahdControl is NaN-clean")
     for (size_t s = 0; s < totalSamples; ++s)
     {
         auto inp = MakeSimpleInput(rig, trig, true, 1);
-        inp.m_globalPeriodSamples = rig.GlobalPeriodSamples();
         gate.Process(inp);
         trig = false;
 
@@ -307,7 +299,6 @@ DOCTEST_TEST_CASE("MultiPhasorGate: two voices have independent gate state")
         inp.m_numTrigs = 2;
         inp.m_trigs[1] = false;
         inp.m_newTrigCanStart[1] = true;
-        inp.m_globalPeriodSamples = rig.GlobalPeriodSamples();
         gate.Process(inp);
     }
 

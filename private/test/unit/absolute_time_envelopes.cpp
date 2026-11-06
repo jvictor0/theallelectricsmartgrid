@@ -68,12 +68,10 @@ MultiPhasorGateInternal::Input GateInput(
     TheoryOfTimeBase& time,
     bool trig,
     int64_t voiceCycleRatio,
-    double globalPeriodSamples,
     double phaseRatio)
 {
     MultiPhasorGateInternal::Input input;
     input.m_theoryOfTime = &time;
-    input.m_globalPeriodSamples = globalPeriodSamples;
     input.m_numTrigs = 1;
     input.m_trigs[0] = trig;
     input.m_newTrigCanStart[0] = true;
@@ -218,26 +216,25 @@ DOCTEST_TEST_CASE("AHD uses absolute displacement when global phase reverses")
     DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.05f));
 }
 
-DOCTEST_TEST_CASE("MultiPhasorGate captures global origin voice ratio and period")
+DOCTEST_TEST_CASE("MultiPhasorGate captures global origin and calibrates the voice period at the reference tempo")
 {
     TheoryOfTimeBase time;
     SetGlobalPhase(time, 10.0);
     MultiPhasorGateInternal gate;
 
-    MultiPhasorGateInternal::Input input = GateInput(time, true, 4, 1000.0, 8.0);
+    MultiPhasorGateInternal::Input input = GateInput(time, true, 4, 8.0);
     gate.Process(input);
     DOCTEST_REQUIRE(gate.m_gate[0]);
     DOCTEST_CHECK(gate.m_ahdControl[0].m_phaseRatio == doctest::Approx(8.0));
-    DOCTEST_CHECK(gate.m_ahdControl[0].m_envelopePeriodSamples == doctest::Approx(250.0));
+    DOCTEST_CHECK(gate.m_ahdControl[0].m_envelopePeriodSamples == doctest::Approx(SampleTimer::SecondsToSamples(1.0)));
 
     input.m_trigs[0] = false;
     input.m_voiceCycleRatio[0] = 8;
-    input.m_globalPeriodSamples = 4000.0;
     input.m_phaseRatio = 3.0;
     SetGlobalPhase(time, 10.0625);
     gate.Process(input);
     DOCTEST_CHECK(gate.m_gate[0]);
-    DOCTEST_CHECK(gate.m_ahdControl[0].m_envelopePeriodSamples == doctest::Approx(250.0));
+    DOCTEST_CHECK(gate.m_ahdControl[0].m_envelopePeriodSamples == doctest::Approx(SampleTimer::SecondsToSamples(1.0)));
 
     SetGlobalPhase(time, 10.125);
     gate.Process(input);
@@ -246,7 +243,7 @@ DOCTEST_TEST_CASE("MultiPhasorGate captures global origin voice ratio and period
 
     input.m_trigs[0] = true;
     gate.Process(input);
-    DOCTEST_CHECK(gate.m_ahdControl[0].m_envelopePeriodSamples == doctest::Approx(500.0));
+    DOCTEST_CHECK(gate.m_ahdControl[0].m_envelopePeriodSamples == doctest::Approx(SampleTimer::SecondsToSamples(0.5)));
     DOCTEST_CHECK(gate.m_ahdControl[0].m_phaseRatio == doctest::Approx(3.0));
 
     input.m_trigs[0] = false;
@@ -257,12 +254,58 @@ DOCTEST_TEST_CASE("MultiPhasorGate captures global origin voice ratio and period
     DOCTEST_CHECK_FALSE(gate.m_set[0]);
 }
 
+DOCTEST_TEST_CASE("AHD gate timing preserves reference durations and scales every stage with tempo")
+{
+    for (double phaseRatio : {1.0, 8.0})
+    {
+        TheoryOfTimeBase time;
+        MultiPhasorGateInternal gate;
+        auto gateInput = GateInput(time, true, 4, phaseRatio);
+        AHD::Input input;
+        input.m_theoryOfTime = &time;
+        AHD::InputSetter setter;
+        setter.Set(1.0f, 0.0f, 1.0f, 1.0f, true, input);
+        input.m_holdLoops = 0.25;
+
+        // These are the pre-change durations at the reference four-second cycle.
+        //
+        double attackSamples = SampleTimer::SecondsToSamples(2.5) * 4.0 / phaseRatio;
+        double holdSamples = SampleTimer::SecondsToSamples(4.0) * 0.25 / phaseRatio;
+        double decaySamples = SampleTimer::SecondsToSamples(10.0) * 4.0 / phaseRatio;
+        const double x_positions[] = {
+            attackSamples * 0.5,
+            attackSamples + holdSamples * 0.5,
+            attackSamples + holdSamples + decaySamples * 0.5,
+            attackSamples + holdSamples + decaySamples + 1.0,
+        };
+        const float x_outputs[] = {0.5f, 1.0f, 0.5f, 0.0f};
+        AHD envelope;
+        for (double tempoScale : {1.0, 2.0, 0.5})
+        {
+            DOCTEST_INFO("tempo scale = ", tempoScale, ", source ratio = ", phaseRatio);
+            time.m_globalPeriodSamples = SampleTimer::SecondsToSamples(4.0) / tempoScale;
+            double origin = time.m_sample.m_modulatedPhase;
+            gate.Process(gateInput);
+            input.Set(gate.m_ahdControl[0]);
+            DOCTEST_CHECK(envelope.Process(input) == 0.0f);
+            for (size_t stage = 0; stage < 4; ++stage)
+            {
+                double elapsedSamples = x_positions[stage] / tempoScale;
+                SetGlobalPhase(time, origin + elapsedSamples / time.m_globalPeriodSamples);
+                DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(x_outputs[stage]));
+            }
+
+            DOCTEST_CHECK(envelope.m_state == AHD::State::Idle);
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("MultiPhasorGate applies the same threshold in reverse")
 {
     TheoryOfTimeBase time;
     SetGlobalPhase(time, 3.0);
     MultiPhasorGateInternal gate;
-    MultiPhasorGateInternal::Input input = GateInput(time, true, 4, 1000.0, 2.0);
+    MultiPhasorGateInternal::Input input = GateInput(time, true, 4, 2.0);
     gate.Process(input);
     DOCTEST_REQUIRE(gate.m_gate[0]);
 

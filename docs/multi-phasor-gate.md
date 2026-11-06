@@ -54,13 +54,12 @@ Result: **m_trigs[i]** is true only when the chosen trigger source (pitch-change
 **Timing inputs** (set by the Nonagon after `SetInput`):
 
 - `m_theoryOfTime` supplies absolute modulated global phase at slot 0.
-- `m_globalPeriodSamples` is the current global period in samples.
 - `m_voiceCycleRatio[i]` is the positive signed 64-bit LCM of the selected clock loop ratio and all read lens loop ratios, starting at one when no clock is selected. Neither contribution is doubled. It determines the voice gate period.
 - `m_phaseRatio` is the envelope source/global ratio, currently taken from loop 0. It is distinct from the voice gate ratio.
 
-A trigger is emitted when requested, allowed, and unmuted. Accepted trigger bounds capture global phase, voice cycle ratio, and global period. The gate closes when `abs(globalPhase - startGlobalPhase) * capturedVoiceCycleRatio >= 0.5`. Existing bounds do not adopt later topology changes. A retrigger captures fresh bounds. This 0.5 note-duration cutoff remains intentional; Theory of Time rhythm steps span complete loop cycles and do not change that cutoff or the clock frequency.
+A trigger is emitted when requested, allowed, and unmuted. Accepted trigger bounds capture global phase and voice cycle ratio. The gate closes when `abs(globalPhase - startGlobalPhase) * capturedVoiceCycleRatio >= 0.5`. Existing bounds do not adopt later topology changes. A retrigger captures fresh bounds. This 0.5 note-duration cutoff remains intentional; Theory of Time rhythm steps span complete loop cycles and do not change that cutoff or the clock frequency.
 
-The envelope period sent in `AHDControl` is the captured global period divided by the captured voice cycle ratio. AHD captures that period and the source phase ratio when it receives the trigger and evaluates its own elapsed position from global phase. There is no elapsed-sample relay or circle-distance tracker.
+The envelope period sent in `AHDControl` is a fixed four-second global period in engine samples divided by the captured voice cycle ratio. It is a fixed reference scale, independent of the current tempo, so attack and decay retain their timing at that reference tempo and scale with global phase. AHD captures that period and the source phase ratio when it receives the trigger and evaluates its own elapsed position from global phase. There is no elapsed-sample relay or circle-distance tracker.
 
 Mute and interrupt decisions retain their existing behavior. Muted accepted requests still establish internal bounds; they do not emit an envelope trigger. Once the half-period ends, a muted voice or one that cannot start a new trigger receives release. `m_anyGate` reports whether any voice gate remains high.
 
