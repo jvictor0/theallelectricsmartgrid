@@ -177,3 +177,4 @@ BASELINE_PARAM(DVSlopeUp3, RISE, DeepVocoder, 3, 3, 0.5, "Deep Vocoder Slope Up 
 BASELINE_PARAM(SubTanhGain, DRIV, Sub, 1, 0, 0, "Sub Drive", SmartGrid::Color::Yellow, 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(SubSlewRise, RISE, Sub, 2, 0, 0, "Sub Envelope Rise", SmartGrid::Color::Yellow, 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(SubSlewFall, FALL, Sub, 3, 0, 0, "Sub Envelope Fall", SmartGrid::Color::Yellow, 0xFF, 0xFF, 0, false)
+BASELINE_PARAM(MasterTune, TUNE, TheoryOfTime, 0, 1, 0.4806131f, "Master Tune", SmartGrid::Color::White, 0xFF, 0xFF, 0, false)

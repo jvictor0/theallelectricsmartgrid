@@ -105,9 +105,9 @@ DOCTEST_TEST_CASE("encoder catalogue baseline: construction metadata")
     GlobalEnv::ResetPerTest();
     SmartGridOneContext context;
     Encoders encoders(&context);
-    DOCTEST_REQUIRE(std::size(x_parameters) == 175);
+    DOCTEST_REQUIRE(std::size(x_parameters) == 176);
     DOCTEST_REQUIRE(Encoders::x_numParams == std::size(x_parameters));
-    DOCTEST_CHECK(encoders.m_encoderBankBank.m_numEncoders == 175 * 3);
+    DOCTEST_CHECK(encoders.m_encoderBankBank.m_numEncoders == 176 * 3);
     DOCTEST_CHECK(encoders.m_encoderBankBank.m_numBanks == x_bankColors.size());
     DOCTEST_CHECK(encoders.m_encoderBankBank.m_numModes == 5);
 

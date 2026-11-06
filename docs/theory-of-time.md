@@ -2,6 +2,42 @@
 
 The Theory of Time maps an absolute global phase into six related loops. The core is in `private/src/TheoryOfTimeBase.hpp`; `TheoryOfTime.hpp` advances the input clock, applies its phase-modulation LFO, and emits MIDI clock.
 
+## Tempo and master tuning
+
+The Theory of Time page places Tempo at `(0, 0)` and Master Tune at `(0, 1)`.
+Master Tune is a continuous exponential parameter spanning one octave, from
+187.5 to 375 Hz: the adjacent suboctaves of the 24 kHz audio Nyquist frequency
+that bracket middle C. Its default is middle C (261.6256 Hz). It tunes all nine
+voices before Deep Vocoder's pitch selection. With DV bypassed, held notes
+follow Master Tune continuously. With DV enabled, tuning moves the selection
+center for subsequent notes; the selected external pitch is preserved without
+any further master transposition, so it stays in tune with DV's dry signal.
+The resulting pitch then feeds portamento and the pitch-tracking source,
+filter, and sub oscillator paths.
+
+Tempo spans eight octaves from `Nyquist / 2^21` to `Nyquist / 2^13`
+(0.011444091796875–2.9296875 global cycles per second). External clock mode
+continues to supply the effective tempo independently of this knob. The first
+clock after MIDI Start/Continue resets the phase to the origin even if lingering
+voice gates kept the clock moving after Stop.
+
+The tuning visualizer replaces this page's quad analyzer. The outer circle is
+one logarithmic octave, with Nyquist and its suboctaves at twelve o'clock and
+frequency increasing clockwise. Tempo is yellow, Master Tune is white, and
+each unmuted voice appears in its own color using its pitch after DV and portamento.
+All three trios are shown regardless of the selected track.
+
+Inside the circle, the upper curved dial centers on tempo and marks simple
+fractions of Master Tune alongside the voices. The lower dial centers on
+Master Tune and marks simple fractions of tempo, without voice colors. Both
+dials span one semitone (−50 to +50 cents). Fractions are reduced ratios with
+numerator and denominator at most 16, folded into `[1, 2)`; their octave copies
+share a mark, so, for example, `3/2` on the tempo dial lines up with `4/3` on
+the tuning dial. Turning either knob scrolls these relations past the centers.
+The dials label their fraction marks; frequency values, units, and other text
+are omitted. The octave-equivalent 1/1 marks are larger: white for tuning on
+the tempo dial, yellow for tempo on the tuning dial.
+
 ## Coordinates and domains
 
 Phase is a `double` measured in absolute cycles. It can be negative or larger than one. There is no winding counter or reconstruction from wrapped samples. The two domains are:

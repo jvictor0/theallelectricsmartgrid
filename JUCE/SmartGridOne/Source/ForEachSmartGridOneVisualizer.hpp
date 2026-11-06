@@ -312,14 +312,12 @@ F(
 // TheoryOfTime bank
 //
 F(
-    QuadAnalyzer,
+    TuningRelations,
     TheoryOfTime,
     0,
     1,
     Full,
-    std::make_unique<QuadAnalyserComponent>(
-        uiState,
-        QuadAnalyserComponent::Type::Master),
+    std::make_unique<TuningVisualizerComponent>(uiState),
     VoiceMachine::SourceMachineFlags::All())
 F(
     QuadDelayEnvelopeTot,

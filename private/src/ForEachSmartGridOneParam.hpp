@@ -173,3 +173,4 @@ F(DVSlopeUp3, RISE, Global, 0.5, "Deep Vocoder Slope Up Trio 3", SmartGrid::Colo
 F(SubTanhGain, DRIV, Voice, 0, "Sub Drive", SmartGrid::Color::Yellow, 0, false)
 F(SubSlewRise, RISE, Voice, 0, "Sub Envelope Rise", SmartGrid::Color::Yellow, 0, false)
 F(SubSlewFall, FALL, Voice, 0, "Sub Envelope Fall", SmartGrid::Color::Yellow, 0, false)
+F(MasterTune, TUNE, Global, Tuning::x_defaultMasterTune, "Master Tune", SmartGrid::Color::White, 0, false)

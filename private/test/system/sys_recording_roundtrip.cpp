@@ -34,7 +34,7 @@
 //             then emits exactly ONE master loop (masterSamples = round(buffer /
 //             delta)) by tiling that sub-loop `repeats` times. With a ~0.9-loop
 //             recording the largest qualifying sub-loop is 0.5 -> repeats=2, so
-//             the persisted WAV is the full 4.0s master loop (192000 samples),
+//             the persisted WAV is the full default master loop (262144 samples),
 //             built from two tiles of the first half of the captured audio.
 //
 //   persist:  RecordingManager::PersistRecordingForVoice -> IoTaskThread
@@ -55,7 +55,7 @@
 //   file:     reload from a fresh rig pointed at the same root is the
 //             LoadAudioBufferBankFromDirectory path (FromJSON of a saved patch,
 //             or a direct push). The WAV is read back at host rate (no resample
-//             since same rate) into a 192000-sample mono buffer.
+//             since same rate) into a 262144-sample mono buffer.
 //
 // FRONT-DOOR vs COMPONENT-LEVEL:
 //   The sampler-looper's UI lives in SquiggleBoyConfigGrid (RecordingToggleCell
@@ -93,7 +93,8 @@ namespace
 using synthrig::SynthRig;
 using synthrig::TempDir;
 
-constexpr size_t kGlobalPeriodSamples = 192000; // 4.0s * 48000Hz
+constexpr size_t x_globalPeriodSamples = 262144;
+constexpr size_t x_captureHostSamples = x_globalPeriodSamples * 9 / 10;
 constexpr int kPumpCap = 6000;                // bounded persist/reload pump cap
 
 // Pump ProcessFrames until `pred()` is true or we hit the cap. Returns the number
@@ -254,7 +255,7 @@ std::vector<float> RecordKnownSignalIntoVoice0(SynthRig& rig)
 
     WarmUpVoices(rig);
     rm.StartRecording(TheNonagonInternal::Trio::Water);
-    rig.RunSeconds(3.6);
+    rig.RunSamples(x_captureHostSamples * SampleTimer::x_oversample);
 
     std::vector<float>& buf = boy.m_tracks[0].m_recordingBuffer[0].m_buffer;
     OverwriteWithKnownSignal(buf);
@@ -294,7 +295,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     // Capture ~0.9 of a master loop so delta is comfortably in (0,1] and the
     // alignment picks the 0.5 sub-loop (repeats=2 -> full-loop WAV).
     //
-    rig.RunSeconds(3.6);
+    rig.RunSamples(x_captureHostSamples * SampleTimer::x_oversample);
 
     RecordingBuffer& buf0 = boy.m_tracks[0].m_recordingBuffer[0];
     DOCTEST_CHECK(buf0.m_buffer.size() > 0);
@@ -353,8 +354,8 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
 
     // ---- duration / sample count matches the master loop ----
     //
-    DOCTEST_CHECK(reader.m_numFrames == kGlobalPeriodSamples);
-    DOCTEST_CHECK(wavSamples.size() == kGlobalPeriodSamples);
+    DOCTEST_CHECK(reader.m_numFrames == x_globalPeriodSamples);
+    DOCTEST_CHECK(wavSamples.size() == x_globalPeriodSamples);
 
     // ---- content not all zeros, correlates with what was recorded ----
     //
@@ -377,7 +378,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     const double span = stopPos - startPos;
     const double sourceSamplesPerMaster = static_cast<double>(bufferSize) / span;
     const size_t masterSamples = static_cast<size_t>(std::lround(sourceSamplesPerMaster));
-    DOCTEST_REQUIRE(masterSamples == kGlobalPeriodSamples);
+    DOCTEST_REQUIRE(masterSamples == x_globalPeriodSamples);
 
     const double loopFraction = 1.0 / static_cast<double>(repeats);
     const double outputSamplesPerMaster = static_cast<double>(masterSamples);
@@ -431,7 +432,7 @@ DOCTEST_TEST_CASE("WP-9: record -> persist writes a well-formed master-loop WAV"
     DOCTEST_REQUIRE(bank != nullptr);
     DOCTEST_REQUIRE(bank->m_audioBuffers.size() == 1);
     const std::vector<float>& reloaded = bank->m_audioBuffers[0]->m_buffer;
-    DOCTEST_CHECK(reloaded.size() == kGlobalPeriodSamples);
+    DOCTEST_CHECK(reloaded.size() == x_globalPeriodSamples);
     // The just-persisted-and-reloaded buffer should equal the WAV we read back.
     //
     DOCTEST_REQUIRE(reloaded.size() == wavSamples.size());
@@ -476,7 +477,7 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
         relativeDir = bank->m_directoryName;
         originalReloaded = bank->m_audioBuffers[0]->m_buffer;
         DOCTEST_CHECK_FALSE(relativeDir.empty());
-        DOCTEST_CHECK(originalReloaded.size() == kGlobalPeriodSamples);
+        DOCTEST_CHECK(originalReloaded.size() == x_globalPeriodSamples);
     }
 
     // ---- Consumer rig: fresh system, same root, drive the load path directly.
@@ -504,7 +505,7 @@ DOCTEST_TEST_CASE("WP-9: a persisted bank reloads on a fresh rig from the same r
         DOCTEST_REQUIRE(loaded->m_audioBuffers.size() == 1);
 
         const std::vector<float>& loadedBuf = loaded->m_audioBuffers[0]->m_buffer;
-        DOCTEST_CHECK(loadedBuf.size() == kGlobalPeriodSamples);
+        DOCTEST_CHECK(loadedBuf.size() == x_globalPeriodSamples);
         // Same WAV, same host rate -> identical content (no resampling involved).
         //
         DOCTEST_REQUIRE(loadedBuf.size() == originalReloaded.size());
@@ -587,7 +588,7 @@ DOCTEST_TEST_CASE("WP-9: a saved patch reloads the recorded sample bank")
         DOCTEST_REQUIRE(bank != nullptr);
         DOCTEST_CHECK(bank->m_directoryName == relativeDir);
         DOCTEST_REQUIRE(bank->m_audioBuffers.size() == 1);
-        DOCTEST_CHECK(bank->m_audioBuffers[0]->m_buffer.size() == kGlobalPeriodSamples);
+        DOCTEST_CHECK(bank->m_audioBuffers[0]->m_buffer.size() == x_globalPeriodSamples);
         DOCTEST_CHECK(Peak(bank->m_audioBuffers[0]->m_buffer) > 0.0f);
     }
 }

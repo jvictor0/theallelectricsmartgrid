@@ -10,6 +10,7 @@
 #include "QuadDelayEnvelopeVisualizerComponent.hpp"
 #include "SampleTrioWaveformVisualizerComponent.hpp"
 #include "SequencerMelodyVisualizerComponent.hpp"
+#include "TuningVisualizerComponent.hpp"
 #include "VoiceConfigComponent.hpp"
 #include "VisualizerRegion.hpp"
 #include <array>

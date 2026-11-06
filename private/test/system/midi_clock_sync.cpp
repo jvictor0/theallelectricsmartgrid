@@ -359,6 +359,27 @@ DOCTEST_TEST_CASE("MIDI clock sync armed clock does not update tempo")
     DOCTEST_CHECK(system.m_nonagon.m_state.m_theoryOfTimeInput.m_freq == doctest::Approx(0.000003));
 }
 
+DOCTEST_TEST_CASE("MIDI clock sync restarts at the origin while stopped voice gates are still active")
+{
+    synthrig::SynthRig rig;
+    auto& system = rig.Internal();
+    system.SetExternalClock(true);
+    system.m_clockSynchronizer.m_freqOut = SampleTimer::HzToCycPerSamp(0.5);
+    system.Apply(RealtimeMessage(SmartGrid::MessageIn::Mode::MidiStart));
+    auto& nonagon = system.m_nonagon.m_nonagon;
+    nonagon.m_multiPhasorGate.m_anyGate = true;
+    nonagon.m_theoryOfTime.m_sample.m_unmodulatedPhase = 0.4;
+    nonagon.m_theoryOfTime.m_sample.m_modulatedPhase = 0.4;
+    nonagon.m_theoryOfTime.m_sample.m_running = true;
+    system.m_nonagon.m_state.m_theoryOfTimeInput.m_unmodulatedPhase = 0.4;
+    system.Apply(RealtimeMessage(SmartGrid::MessageIn::Mode::MidiClock));
+    system.ProcessSample(EmptyAudioInput());
+    DOCTEST_REQUIRE(system.m_clockSynchronizer.IsRunning());
+    DOCTEST_CHECK(nonagon.m_theoryOfTime.GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Unmodulated)
+        == doctest::Approx(SampleTimer::HzToCycPerSamp(0.5)));
+    DOCTEST_CHECK(system.m_clockSynchronizer.m_freqOut == doctest::Approx(SampleTimer::HzToCycPerSamp(0.5)));
+}
+
 DOCTEST_TEST_CASE("MIDI clock sync consumes tick for one sample")
 {
     GlobalEnv::ResetPerTest();

@@ -44,6 +44,9 @@ struct TheNonagonSquiggleBoyInternal
         TheNonagonInternal::UIState m_nonagonUIState;
         AnalogUIState<1 + SquiggleBoyWithEncoderBank::x_numFaders> m_analogUIState;
         std::atomic<uint8_t> m_gridsMode;
+        std::atomic<double> m_tempoHz{Tuning::x_minTempoHz};
+        std::atomic<float> m_masterTuneHz{Tuning::x_middleCHz};
+        std::atomic<float> m_voiceFrequencyHz[SquiggleBoy::x_numVoices]{};
 
         float GetModulatorValue(ModulatorRef modulator, double sample) const
         {
@@ -64,6 +67,7 @@ struct TheNonagonSquiggleBoyInternal
     static constexpr float x_inputSlewCutoff = SampleTimer::HzToCycPerSamp(500.0);
 
     SquiggleBoyWithEncoderBank::Input m_squiggleBoyState;
+    PhaseUtils::ExpParam m_notePitchRatio[SquiggleBoy::x_numVoices];
     TheNonagonSmartGrid m_nonagon;
 
     // Incoming blend and fader messages glide m_blendFactor and m_faders to their new
@@ -358,30 +362,39 @@ struct TheNonagonSquiggleBoyInternal
     void SetSquiggleBoyInputs()
     {
         m_squiggleBoyState.m_transportRunning = m_running;
+        float masterTune = m_squiggleBoyState.m_masterTune.m_expParam;
+        auto& vocoderInput = m_squiggleBoy.m_deepVocoderState;
         for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
         {
-            if (m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig)            
+            auto& control = m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i];
+            auto& voiceInput = vocoderInput.m_voiceInput[i];
+            if (control.m_trig)
             {
-                float baseFreq = PhaseUtils::VOctToNatural(m_nonagon.m_nonagon.m_output.m_voltPerOct[i], SampleTimer::x_samplePeriod);
                 m_squiggleBoy.m_trackState[i / SquiggleBoy::x_voicesPerTrack].m_ampInput.m_subTrig[i % SquiggleBoy::x_voicesPerTrack] =
                     m_nonagon.m_state.m_trigLogic.IsUnisonMaster(i);
+                voiceInput.m_pitchRatioPost = m_nonagon.m_state.m_trioOctaveSwitchesInput.OctavizedRatio(i);
+            }
 
-                // UNDONE(DEEP_VOCODER)
-                //
-                float ratio = m_nonagon.m_state.m_trioOctaveSwitchesInput.OctavizedRatio(i);
-                baseFreq = baseFreq / ratio;
-                m_squiggleBoy.m_deepVocoderState.m_voiceInput[i].m_pitchCenter = baseFreq;
-                m_squiggleBoy.m_deepVocoderState.m_voiceInput[i].m_pitchRatioPost = ratio;
-                baseFreq = m_squiggleBoy.m_deepVocoder.TransformNote(
-                    i, m_squiggleBoy.m_deepVocoderState, &m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i]);
-                if (m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i].m_trig)                      
+            float noteRatio = m_notePitchRatio[i].Update(m_nonagon.m_nonagon.m_output.m_voltPerOct[i]);
+            voiceInput.m_pitchCenter = noteRatio * masterTune / voiceInput.m_pitchRatioPost;
+            if (control.m_trig)
+            {
+                float baseFreq = m_squiggleBoy.m_deepVocoder.TransformNote(i, vocoderInput, &control);
+                if (control.m_trig)
                 {
                     m_squiggleBoyState.m_baseFreq[i] = baseFreq;
                 }
             }
+            else if (!vocoderInput.m_enabled)
+            {
+                // Bypassed held notes follow tuning continuously. A DV-selected
+                // pitch stays at its external frequency until the next note.
+                //
+                m_squiggleBoyState.m_baseFreq[i] = voiceInput.m_pitchCenter * voiceInput.m_pitchRatioPost;
+            }
 
             m_squiggleBoy.m_trackState[i / SquiggleBoy::x_voicesPerTrack].m_ahdControl[i % SquiggleBoy::x_voicesPerTrack] =
-                m_nonagon.m_nonagon.m_multiPhasorGate.m_ahdControl[i];
+                control;
 
             m_squiggleBoyState.m_sheafyModulators[i][0] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][0];
             m_squiggleBoyState.m_sheafyModulators[i][1] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][1];
@@ -420,9 +433,17 @@ struct TheNonagonSquiggleBoyInternal
             clockSyncInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
             clockSyncInput.m_clockTick = m_clockTick;
             clockSyncInput.m_loopIndex = ExternalClockLoopIndex();
+            bool wasRunning = m_clockSynchronizer.IsRunning();
             m_clockSynchronizer.Process(clockSyncInput);
             m_running = m_clockSynchronizer.IsRunning();
             theoryOfTimeInput.m_freq = m_clockSynchronizer.EffectiveFreq();
+            if (m_running && !wasRunning)
+            {
+                // Lingering gates can keep the clock moving after Stop. The
+                // first clock after Start must still begin at the origin.
+                //
+                theoryOfTimeInput.m_unmodulatedPhase = 0.0;
+            }
         }
 
         m_nonagon.m_state.m_running = m_running;
@@ -589,6 +610,15 @@ struct TheNonagonSquiggleBoyInternal
     void PopulateUIState()
     {
         m_squiggleBoy.PopulateUIState(&m_uiState.m_squiggleBoyUIState);
+        m_uiState.m_tempoHz.store(SampleTimer::CycPerSampToHz(m_nonagon.m_state.m_theoryOfTimeInput.m_freq));
+        m_uiState.m_masterTuneHz.store(static_cast<float>(SampleTimer::CycPerSampToHz(m_squiggleBoyState.m_masterTune.m_expParam)));
+        for (size_t voice = 0; voice < SquiggleBoy::x_numVoices; ++voice)
+        {
+            float frequency = m_squiggleBoy.m_trackState[voice / SquiggleBoy::x_voicesPerTrack]
+                .m_subInput.m_baseFreq[voice % SquiggleBoy::x_voicesPerTrack];
+            m_uiState.m_voiceFrequencyHz[voice].store(static_cast<float>(SampleTimer::CycPerSampToHz(frequency)));
+        }
+
         auto& encoderState = m_uiState.m_squiggleBoyUIState.m_encoderBankUIState;
         for (size_t x = 0; x < 4; ++x)
         {

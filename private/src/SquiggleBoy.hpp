@@ -878,6 +878,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         SampleTop m_top;
 
         PhaseUtils::ExpParam m_tempo;
+        PhaseUtils::ExpParam m_masterTune;
 
         float GetGainFader(size_t i)
         {
@@ -885,8 +886,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
 
         Input()
-            : m_tempo(SampleTimer::HzToCycPerSamp(1.0 / 64.0), SampleTimer::HzToCycPerSamp(4.0))
+            : m_tempo(SampleTimer::HzToCycPerSamp(Tuning::x_minTempoHz), SampleTimer::HzToCycPerSamp(Tuning::x_maxTempoHz))
+            , m_masterTune(SampleTimer::HzToCycPerSamp(Tuning::x_minMasterTuneHz), SampleTimer::HzToCycPerSamp(Tuning::x_maxMasterTuneHz))
         {
+            m_masterTune.Update(Tuning::x_defaultMasterTune);
             for (size_t i = 0; i < x_numVoices; ++i)
             {
                 m_baseFreq[i] = PhaseUtils::VOctToNatural(0.0, SampleTimer::x_samplePeriod);
@@ -1126,6 +1129,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SetEncoderParameters(Input& input)
     {
+        input.m_masterTune.Update(m_encoders.GetValue(Param::MasterTune));
         for (size_t track = 0; track < x_numTracks; ++track)
         {
             SquiggleBoyTrack::Vector targetFreq;

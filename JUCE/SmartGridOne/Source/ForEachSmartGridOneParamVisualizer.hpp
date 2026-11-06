@@ -178,9 +178,10 @@ F(QuadLFO2Slope, QuadLFO2Scope)
 F(QuadLFO2PhaseShift, QuadLFO2Scope)
 F(QuadLFO2SampleAndHold, QuadLFO2Scope)
 
-// Tempo and time warping use the Theory of Time phase scope.
+// Tuning relations and the Theory of Time phase scope.
 //
-F(Tempo, TheoryOfTimeViz)
+F(Tempo, TuningRelations)
+F(MasterTune, TuningRelations)
 F(ExternalClockLoop, TheoryOfTimeViz)
 F(TempoLFOSkew, TheoryOfTimeViz)
 F(TempoLFOMult, TheoryOfTimeViz)

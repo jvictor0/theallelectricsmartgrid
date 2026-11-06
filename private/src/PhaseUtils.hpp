@@ -5,6 +5,7 @@
 #include "AsyncLogger.hpp"
 #include "MultiChannelNumber.hpp"
 #include "SampleTimer.hpp"
+#include "Tuning.hpp"
 
 namespace PhaseUtils
 {
@@ -28,8 +29,7 @@ inline float HzToNatural(float hz, float deltaT)
 
 inline float VOctToHz(float vOct)
 {
-    static const float x_middleC = 261.6256f;
-    return powf(2.0f, vOct) * x_middleC;
+    return powf(2.0f, vOct) * Tuning::x_middleCHz;
 }
 
 inline float VOctToNatural(float vOct, float deltaT)

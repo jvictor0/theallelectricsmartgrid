@@ -5,6 +5,7 @@
 #include "ModulationMatrixUIState.hpp"
 #include "MultiChannelNumber.hpp"
 #include "SampleTimer.hpp"
+#include "Tuning.hpp"
 #include "SmartGridOneLayout.hpp"
 #include "SmartGridOneModulators.hpp"
 #include "SmartGridOneScopeEnums.hpp"
