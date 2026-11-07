@@ -18,6 +18,7 @@ struct MultiPhasorGateInternal
         double m_phaseRatio;
         size_t m_numTrigs;
         int64_t m_voiceCycleRatio[x_maxPoly];
+        bool m_voiceCellCrossed[x_maxPoly];
         bool m_newTrigCanStart[x_maxPoly];
         bool m_mute[x_maxPoly];
 
@@ -31,6 +32,7 @@ struct MultiPhasorGateInternal
                 m_newTrigCanStart[i] = false;
                 m_trigs[i] = false;
                 m_voiceCycleRatio[i] = 1;
+                m_voiceCellCrossed[i] = false;
                 m_mute[i] = false;
             }
         }
@@ -99,6 +101,7 @@ struct MultiPhasorGateInternal
         for (size_t i = 0; i < input.m_numTrigs; ++i)
         {
             m_ahdControl[i].m_phaseRatio = input.m_phaseRatio;
+            m_ahdControl[i].m_voiceCellCrossed = input.m_voiceCellCrossed[i];
             m_ahdControl[i].m_trig = input.m_trigs[i] && input.m_newTrigCanStart[i] && !input.m_mute[i];
             if (m_ahdControl[i].m_trig)
             {

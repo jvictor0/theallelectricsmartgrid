@@ -187,7 +187,8 @@ struct SquiggleBoyTrackGeneric
                     m_modulationEnvelopeScopeWriter.RecordStartAtVoice(i, 0.0);
                 }
 
-                if (modulationAHD.m_changed && modulationAHD.m_state == AHD::State::Idle)
+                if (modulationAHD.m_voiceCellCrossed && modulationAHD.m_state == AHD::State::Idle
+                    && m_modulationEnvelopeScopeWriter.IsStartedAtVoice(i))
                 {
                     m_modulationEnvelopeScopeWriter.RecordEndAtVoice(i);
                 }
@@ -197,7 +198,8 @@ struct SquiggleBoyTrackGeneric
                     m_ampEnvelopeScopeWriter.RecordStartAtVoice(i, 0.0);
                 }
 
-                if (ahd.m_changed && ahd.m_state == AHD::State::Idle)
+                if (ahd.m_voiceCellCrossed && ahd.m_state == AHD::State::Idle
+                    && m_ampEnvelopeScopeWriter.IsStartedAtVoice(i))
                 {
                     m_ampEnvelopeScopeWriter.RecordEndAtVoice(i);
                 }
@@ -266,7 +268,8 @@ struct SquiggleBoyTrackGeneric
                     m_scopeWriter.RecordStartAtVoice(i, 0.0);
                 }
 
-                if (ahd.m_changed && ahd.m_state == AHD::State::Idle)
+                if (ahd.m_voiceCellCrossed && ahd.m_state == AHD::State::Idle
+                    && m_scopeWriter.IsStartedAtVoice(i))
                 {
                     m_scopeWriter.RecordEndAtVoice(i);
                 }

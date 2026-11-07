@@ -194,37 +194,55 @@ struct TheNonagonInternal
         input.m_multiPhasorGateInput.m_theoryOfTime = &m_theoryOfTime;
         input.m_multiPhasorGateInput.m_phaseRatio = static_cast<double>(m_theoryOfTime.GetCycleRatio(0));
 
-        // The gate only reads a voice's cycle ratio when that voice triggers.
+        // Recompute on time changes; crossings are events for this sample only.
         //
-        for (size_t i = 0; i < x_numVoices; ++i)
+        for (size_t trio = 0; trio < x_numTrios; ++trio)
         {
-            if (input.m_multiPhasorGateInput.m_trigs[i] && input.m_multiPhasorGateInput.m_newTrigCanStart[i])
+            VoiceCycleRatioResult cycle;
+            if (m_theoryOfTime.AnyChange())
             {
-                input.m_multiPhasorGateInput.m_voiceCycleRatio[i] = VoiceCycleRatio(input, i / x_voicesPerTrio);
+                cycle = VoiceCycleRatio(input, trio);
+            }
+
+            for (size_t voice = trio * x_voicesPerTrio; voice < (trio + 1) * x_voicesPerTrio; ++voice)
+            {
+                input.m_multiPhasorGateInput.m_voiceCellCrossed[voice] = cycle.m_crossed;
+                if (m_theoryOfTime.AnyChange())
+                {
+                    input.m_multiPhasorGateInput.m_voiceCycleRatio[voice] = cycle.m_ratio;
+                }
             }
         }
     }
 
+    struct VoiceCycleRatioResult
+    {
+        int64_t m_ratio = 1;
+        bool m_crossed = false;
+    };
+
     // The finest grid the trio's unmuted time bits and clock select tick on.
     //
-    int64_t VoiceCycleRatio(const Input& input, size_t trio) const
+    VoiceCycleRatioResult VoiceCycleRatio(const Input& input, size_t trio) const
     {
-        int64_t ratio = 1;
+        VoiceCycleRatioResult result;
         int voiceClock = input.m_arpInput.m_clockSelect[trio];
         if (voiceClock >= 0)
         {
-            ratio = m_theoryOfTime.GetCycleRatio(voiceClock);
+            result.m_ratio = m_theoryOfTime.GetCycleRatio(voiceClock);
+            result.m_crossed = m_theoryOfTime.AnyTick(voiceClock);
         }
 
         for (size_t j = 0; j < x_numTimeBits; ++j)
         {
             if (!m_lameJuis.m_lanes[trio].m_coMuteState.m_coMutes[j])
             {
-                ratio = std::lcm(ratio, m_theoryOfTime.GetCycleRatio(j));
+                result.m_ratio = std::lcm(result.m_ratio, m_theoryOfTime.GetCycleRatio(j));
+                result.m_crossed |= m_theoryOfTime.AnyTick(j);
             }
         }
 
-        return ratio;
+        return result;
     }
 
     void SetIndexArpInputs(Input& input)
@@ -1419,7 +1437,7 @@ struct TheNonagonSmartGrid
 
         for (size_t i = 0; i < TheNonagonInternal::x_numTrios; ++i)
         {
-            uiState->SetLoopMultiplier(i, m_nonagon.VoiceCycleRatio(m_state, i));
+            uiState->SetLoopMultiplier(i, m_nonagon.VoiceCycleRatio(m_state, i).m_ratio);
         }
 
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)

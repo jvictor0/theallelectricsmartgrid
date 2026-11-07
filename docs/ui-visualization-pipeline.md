@@ -80,6 +80,16 @@ This path is useful for views that need aggregated state rather than raw time-se
 - interpolates sample values for screen-space X positions,
 - uses marker history to stabilize wave drawing.
 
+The unfinished right side samples the previous cycle through its recorded end,
+excluding any gap before the current start. Without an explicit end marker, the
+current start remains the previous cycle's endpoint.
+
+Voice audio and AHD envelope scopes end at the first relevant modulated cycle
+crossing while their envelope is idle. Relevant cycles are the trio's selected
+clock and unmuted time bits. Theory of Time changes update the ratio and crossing
+result; AHD carries the crossing as a one-sample event. Each scope must have an
+open start before it records an end, so later idle crossings leave that end fixed.
+
 Cycle starts, lengths, transfer positions, and requested X positions use doubles.
 The reader linearly interpolates captured values at the fractional positions.
 The path and marker drawing retain those fractional positions. Views whose start

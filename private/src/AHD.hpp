@@ -30,12 +30,14 @@ struct AHD
         double m_envelopePeriodSamples;
         bool m_release;
         bool m_trig;
+        bool m_voiceCellCrossed;
 
         AHDControl()
             : m_phaseRatio(1.0)
             , m_envelopePeriodSamples(SampleTimer::SecondsToSamples(1.0))
             , m_release(false)
             , m_trig(false)
+            , m_voiceCellCrossed(false)
         {
         }
 
@@ -43,6 +45,7 @@ struct AHD
         {
             m_release = false;
             m_trig = false;
+            m_voiceCellCrossed = false;
         }
     };
 
@@ -66,6 +69,7 @@ struct AHD
 
         bool m_trig;
         bool m_release;
+        bool m_voiceCellCrossed;
 
         Input()
             : m_startGlobalPhase(0.0)
@@ -80,6 +84,7 @@ struct AHD
             , m_amplitudePolarity(true)
             , m_trig(false)
             , m_release(false)
+            , m_voiceCellCrossed(false)
         {
         }
 
@@ -96,6 +101,7 @@ struct AHD
 
             m_release = control.m_release;
             m_trig = control.m_trig;
+            m_voiceCellCrossed = control.m_voiceCellCrossed;
         }
     };
 
@@ -140,9 +146,10 @@ struct AHD
     State m_state;
     bool m_changed;
 
-    // Reports the trigger consumed by the most recent Process call.
+    // Reports the events consumed by the most recent Process call.
     //
     bool m_triggered;
+    bool m_voiceCellCrossed;
     float m_output;
 
     // Preserve small per-sample decrements throughout long explicit releases.
@@ -158,6 +165,7 @@ struct AHD
         : m_state(State::Idle)
         , m_changed(false)
         , m_triggered(false)
+        , m_voiceCellCrossed(false)
         , m_output(0.0f)
         , m_rawOutput(0.0f)
         , m_startOutput(0.0f)
@@ -280,6 +288,7 @@ struct AHD
     {
         m_changed = false;
         m_triggered = input.m_trig;
+        m_voiceCellCrossed = input.m_voiceCellCrossed;
         if (m_triggered)
         {
             m_changed = m_state != State::Running;
@@ -295,10 +304,11 @@ struct AHD
             m_state = State::Release;
         }
 
-        // Consume both events, including a release superseded by a trigger.
+        // Consume the events, including a release superseded by a trigger.
         //
         input.m_trig = false;
         input.m_release = false;
+        input.m_voiceCellCrossed = false;
 
         switch (m_state)
         {

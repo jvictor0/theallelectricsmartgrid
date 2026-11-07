@@ -29,6 +29,7 @@ struct ScopeWriter
         size_t m_endIndices[x_numStartIndices]{};
         std::atomic<size_t> m_startIndexIndex{0};
         size_t m_advanceStartIndices = 0;
+        bool m_started = false;
     };
 
     struct Level
@@ -305,6 +306,7 @@ struct ScopeWriter
         markers.m_startIndices[index] = static_cast<double>(m_index)
             + (static_cast<double>(m_subIndex) + sampleOffset) / m_decimation;
         ++markers.m_advanceStartIndices;
+        markers.m_started = true;
     }
 
     void RecordEnd(size_t scope, size_t voice)
@@ -312,6 +314,7 @@ struct ScopeWriter
         Markers& markers = GetMarkers(scope, voice);
         size_t index = (markers.m_startIndexIndex.load() + markers.m_advanceStartIndices - 1) % x_numStartIndices;
         markers.m_endIndices[index] = m_index + (IsWriteSample() ? 0 : 1);
+        markers.m_started = false;
     }
 };
 
@@ -480,6 +483,11 @@ struct ScopeWriterHolderGeneric
         {
             m_scopeWriter->RecordStart(m_scopeIx, voice, offset);
         }
+    }
+
+    bool IsStartedAtVoice(size_t voice) const
+    {
+        return m_scopeWriter && m_scopeWriter->GetMarkers(m_scopeIx, voice).m_started;
     }
 
     void RecordEndAtVoice(size_t voice)
@@ -730,6 +738,7 @@ struct ScopeReader
     double m_transferXSample;
     double m_transferIndex;
     double m_postTransferIndex;
+    double m_postTransferEndIndex;
 
     float m_startY;
     float m_prevStartY;
@@ -751,6 +760,7 @@ struct ScopeReader
         , m_transferXSample(0.0)
         , m_transferIndex(0.0)
         , m_postTransferIndex(0.0)
+        , m_postTransferEndIndex(0.0)
         , m_startY(0.0f)
         , m_prevStartY(0.0f)
         , m_empty(false)
@@ -799,6 +809,7 @@ struct ScopeReader
             double wayThrough = (m_transferIndex - m_startIndex) / prevNumSamples;
             m_transferXSample = wayThrough * m_numXSamples;
             m_postTransferIndex = prevStartIndex + (m_transferIndex - m_startIndex);
+            m_postTransferEndIndex = prevStartIndex + prevNumSamples;
         }
 
         double oldestRequired = m_transferXSample < m_numXSamples
@@ -831,7 +842,7 @@ struct ScopeReader
         else
         {
             double wayThrough = (sample - m_transferXSample) / (static_cast<double>(m_numXSamples) - m_transferXSample);
-            double index = m_postTransferIndex + wayThrough * (m_startIndex - m_postTransferIndex);
+            double index = m_postTransferIndex + wayThrough * (m_postTransferEndIndex - m_postTransferIndex);
             float value = m_scopeWriter->ReadDisplay(m_scopeIx, m_voiceIx, index, m_lod);
             return value;
         }

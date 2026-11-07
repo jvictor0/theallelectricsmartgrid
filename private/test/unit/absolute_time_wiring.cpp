@@ -179,12 +179,12 @@ DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and
     }
 
     input.m_arpInput.m_clockSelect[0] = -1;
-    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0) == 1);
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0).m_ratio == 1);
     input.m_arpInput.m_clockSelect[0] = 4;
-    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0) == 3);
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0).m_ratio == 3);
     input.m_arpInput.m_clockSelect[0] = -1;
     nonagon->m_lameJuis.m_lanes[0].m_coMuteState.m_coMutes[0] = false;
-    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0) == 7);
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0).m_ratio == 7);
 
     input.m_arpInput.m_clockSelect[0] = 4;
     input.m_running = true;
@@ -201,7 +201,7 @@ DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and
     nonagon->m_lameJuis.m_lanes[0].m_coMuteState.m_coMutes[0] = true;
     nonagon->m_theoryOfTime.m_globalPeriodSamples = 63000.0;
     nonagon->SetMultiPhasorGateInputs(input);
-    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0) == 3);
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0).m_ratio == 3);
     clock.m_unmodulatedPhase = 0.1 + 0.49 / 21.0;
     Step(nonagon->m_theoryOfTime, clock);
     nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
@@ -211,6 +211,110 @@ DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and
     Step(nonagon->m_theoryOfTime, clock);
     nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
     DOCTEST_CHECK_FALSE(nonagon->m_multiPhasorGate.m_gate[0]);
+}
+
+DOCTEST_TEST_CASE("WholeTick: voice cell crosses only for relevant modulated cycles")
+{
+    GlobalEnv::ResetPerTest();
+    auto nonagon = std::make_unique<TheNonagonInternal>();
+    TheNonagonInternal::Input input;
+    auto clock = FlatClock(0.1);
+    clock.m_input[0].m_parentMult = 7;
+    clock.m_input[4].m_parentMult = 3;
+    Step(nonagon->m_theoryOfTime, clock);
+    input.m_arpInput.m_clockSelect[0] = 4;
+    for (size_t bit = 0; bit < TheNonagonInternal::x_numTimeBits; ++bit)
+    {
+        nonagon->m_lameJuis.m_lanes[0].m_coMuteState.m_coMutes[bit] = bit != 0;
+    }
+
+    auto& loops = nonagon->m_theoryOfTime.m_sample.m_loops;
+    for (auto& loop : loops)
+    {
+        loop.m_modulatedCycleCrossed = false;
+        loop.m_unmodulatedCycleCrossed = true;
+    }
+
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0).m_ratio == 21);
+    DOCTEST_CHECK_FALSE(nonagon->VoiceCycleRatio(input, 0).m_crossed);
+    for (size_t bit = 0; bit < TheoryOfTimeBase::x_numLoops; ++bit)
+    {
+        DOCTEST_CAPTURE(bit);
+        loops[bit].m_modulatedCycleCrossed = true;
+        DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0).m_crossed == (bit == 0 || bit == 4));
+        loops[bit].m_modulatedCycleCrossed = false;
+    }
+
+    loops[0].m_modulatedCycleCrossed = true;
+    loops[4].m_modulatedCycleCrossed = true;
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0).m_crossed);
+    input.m_arpInput.m_clockSelect[0] = -1;
+    nonagon->m_lameJuis.m_lanes[0].m_coMuteState.m_coMutes[0] = true;
+    DOCTEST_CHECK(nonagon->VoiceCycleRatio(input, 0).m_ratio == 1);
+    DOCTEST_CHECK_FALSE(nonagon->VoiceCycleRatio(input, 0).m_crossed);
+}
+
+DOCTEST_TEST_CASE("WholeTick: voice crossings reach AHD without triggers and update only on time changes")
+{
+    GlobalEnv::ResetPerTest();
+    auto nonagon = std::make_unique<TheNonagonInternal>();
+    TheNonagonInternal::Input input;
+    auto clock = FlatClock(0.1);
+    clock.m_input[0].m_parentMult = 7;
+    clock.m_input[4].m_parentMult = 3;
+    Step(nonagon->m_theoryOfTime, clock);
+    input.m_running = true;
+    input.m_multiPhasorGateInput.m_numTrigs = TheNonagonInternal::x_numVoices;
+    for (size_t trio = 0; trio < TheNonagonInternal::x_numTrios; ++trio)
+    {
+        input.m_arpInput.m_clockSelect[trio] = trio == 0 ? 4 : -1;
+        for (size_t bit = 0; bit < TheNonagonInternal::x_numTimeBits; ++bit)
+        {
+            nonagon->m_lameJuis.m_lanes[trio].m_coMuteState.m_coMutes[bit] = true;
+        }
+    }
+
+    clock.m_unmodulatedPhase = 0.34;
+    Step(nonagon->m_theoryOfTime, clock);
+    nonagon->SetMultiPhasorGateInputs(input);
+    nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
+    for (size_t voice = 0; voice < TheNonagonInternal::x_numVoices; ++voice)
+    {
+        const auto& control = nonagon->m_multiPhasorGate.m_ahdControl[voice];
+        DOCTEST_CHECK_FALSE(control.m_trig);
+        DOCTEST_CHECK(control.m_voiceCellCrossed == (voice < TheNonagonInternal::x_voicesPerTrio));
+    }
+
+    auto& control = nonagon->m_multiPhasorGate.m_ahdControl[0];
+    AHD envelope;
+    AHD::Input envelopeInput;
+    envelopeInput.Set(control);
+    envelope.Process(envelopeInput);
+    DOCTEST_CHECK(envelope.m_voiceCellCrossed);
+    DOCTEST_CHECK_FALSE(envelopeInput.m_voiceCellCrossed);
+    DOCTEST_CHECK(control.m_voiceCellCrossed);
+    envelope.Process(envelopeInput);
+    DOCTEST_CHECK_FALSE(envelope.m_voiceCellCrossed);
+
+    input.m_arpInput.m_clockSelect[0] = 0;
+    clock.m_unmodulatedPhase = 0.341;
+    Step(nonagon->m_theoryOfTime, clock);
+    DOCTEST_REQUIRE_FALSE(nonagon->m_theoryOfTime.AnyChange());
+    nonagon->SetMultiPhasorGateInputs(input);
+    nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
+    DOCTEST_CHECK(input.m_multiPhasorGateInput.m_voiceCycleRatio[0] == 3);
+    DOCTEST_CHECK_FALSE(control.m_voiceCellCrossed);
+
+    clock.m_unmodulatedPhase = 0.43;
+    Step(nonagon->m_theoryOfTime, clock);
+    DOCTEST_REQUIRE(nonagon->m_theoryOfTime.AnyChange());
+    nonagon->SetMultiPhasorGateInputs(input);
+    nonagon->m_multiPhasorGate.Process(input.m_multiPhasorGateInput);
+    DOCTEST_CHECK(input.m_multiPhasorGateInput.m_voiceCycleRatio[0] == 7);
+    DOCTEST_CHECK(control.m_voiceCellCrossed);
+    DOCTEST_CHECK_FALSE(control.m_trig);
+    nonagon->m_multiPhasorGate.Reset();
+    DOCTEST_CHECK_FALSE(control.m_voiceCellCrossed);
 }
 
 DOCTEST_TEST_CASE("WholeTick: Nonagon clocks and reads tick even when gate values repeat")

@@ -5,7 +5,7 @@
 #include "SquiggleBoy.hpp"
 #include "../support/GlobalEnv.hpp"
 
-DOCTEST_TEST_CASE("AHD: consumed voice events preserve scope starts retriggers and ends")
+DOCTEST_TEST_CASE("AHD: scope starts and retriggers end once at an idle voice crossing")
 {
     GlobalEnv::ResetPerTest();
     auto scopes = std::make_unique<ScopeWriterGeneric<1, 3>>(1, 4096);
@@ -32,6 +32,19 @@ DOCTEST_TEST_CASE("AHD: consumed voice events preserve scope starts retriggers a
 
     AHD::AHDControl control;
     control.m_envelopePeriodSamples = 8.0;
+    control.m_voiceCellCrossed = true;
+    ahdInput.Set(control);
+    modulationAHDInput.Set(control);
+    scopes->m_index = 5;
+    amp.Process(input, 1.0f, 0.0f);
+    for (size_t scope = 0; scope < 3; ++scope)
+    {
+        const auto& markers = scopes->GetMarkers(scope, 0);
+        DOCTEST_CHECK(markers.m_advanceStartIndices == 0);
+        DOCTEST_CHECK(markers.m_endIndices[ScopeWriter::x_numStartIndices - 1] == 0);
+        DOCTEST_CHECK_FALSE(markers.m_started);
+    }
+
     control.m_trig = true;
     control.m_release = true;
     ahdInput.Set(control);
@@ -42,12 +55,19 @@ DOCTEST_TEST_CASE("AHD: consumed voice events preserve scope starts retriggers a
     DOCTEST_CHECK_FALSE(ahdInput.m_release);
     DOCTEST_CHECK_FALSE(modulationAHDInput.m_trig);
     DOCTEST_CHECK_FALSE(modulationAHDInput.m_release);
+    DOCTEST_CHECK_FALSE(ahdInput.m_voiceCellCrossed);
+    DOCTEST_CHECK_FALSE(modulationAHDInput.m_voiceCellCrossed);
+    DOCTEST_CHECK(ahd.m_voiceCellCrossed);
+    DOCTEST_CHECK(modulationAHD.m_voiceCellCrossed);
+    DOCTEST_CHECK(control.m_voiceCellCrossed);
     DOCTEST_CHECK(control.m_trig);
     DOCTEST_CHECK(control.m_release);
     for (size_t scope = 0; scope < 3; ++scope)
     {
         DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_advanceStartIndices == 1);
         DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_startIndices[0] == 10.0);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_endIndices[0] == 0);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_started);
     }
 
     time.m_sample.m_modulatedPhase = 0.5;
@@ -55,6 +75,8 @@ DOCTEST_TEST_CASE("AHD: consumed voice events preserve scope starts retriggers a
     amp.Process(input, 1.0f, 0.0f);
     DOCTEST_CHECK(ahd.m_rawOutput == doctest::Approx(0.5f));
     DOCTEST_CHECK(modulationAHD.m_rawOutput == doctest::Approx(0.5f));
+    DOCTEST_CHECK_FALSE(ahd.m_voiceCellCrossed);
+    DOCTEST_CHECK_FALSE(modulationAHD.m_voiceCellCrossed);
     for (size_t scope = 0; scope < 3; ++scope)
     {
         DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_advanceStartIndices == 1);
@@ -74,6 +96,7 @@ DOCTEST_TEST_CASE("AHD: consumed voice events preserve scope starts retriggers a
     }
 
     control.m_trig = false;
+    control.m_voiceCellCrossed = false;
     ahdInput.Set(control);
     modulationAHDInput.Set(control);
     scopes->m_index = 16;
@@ -83,6 +106,44 @@ DOCTEST_TEST_CASE("AHD: consumed voice events preserve scope starts retriggers a
     for (size_t scope = 0; scope < 3; ++scope)
     {
         DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_advanceStartIndices == 2);
-        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_endIndices[1] == 16);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_endIndices[1] == 0);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_started);
+    }
+
+    control.m_release = false;
+    control.m_voiceCellCrossed = true;
+    for (size_t index : {20, 24})
+    {
+        ahdInput.Set(control);
+        modulationAHDInput.Set(control);
+        scopes->m_index = index;
+        amp.Process(input, 1.0f, 0.0f);
+        DOCTEST_CHECK_FALSE(ahd.m_changed);
+        DOCTEST_CHECK_FALSE(modulationAHD.m_changed);
+        for (size_t scope = 0; scope < 3; ++scope)
+        {
+            DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_endIndices[1] == 20);
+            DOCTEST_CHECK_FALSE(scopes->GetMarkers(scope, 0).m_started);
+        }
+    }
+
+    control.m_trig = true;
+    ahdInput.Set(control);
+    modulationAHDInput.Set(control);
+    scopes->m_index = 28;
+    amp.Process(input, 1.0f, 0.0f);
+    control.m_trig = false;
+    control.m_release = true;
+    ahdInput.Set(control);
+    modulationAHDInput.Set(control);
+    scopes->m_index = 29;
+    amp.Process(input, 1.0f, 0.0f);
+    DOCTEST_CHECK(ahd.m_state == AHD::State::Idle);
+    DOCTEST_CHECK(modulationAHD.m_state == AHD::State::Idle);
+    for (size_t scope = 0; scope < 3; ++scope)
+    {
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_startIndices[2] == 28.0);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_endIndices[2] == 29);
+        DOCTEST_CHECK_FALSE(scopes->GetMarkers(scope, 0).m_started);
     }
 }

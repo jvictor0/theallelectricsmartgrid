@@ -91,6 +91,101 @@ DOCTEST_TEST_CASE("ScopeReader: fractional reads work without a previous-cycle t
     DOCTEST_CHECK(reader.Get(6.5) == doctest::Approx(111.375));
 }
 
+DOCTEST_TEST_CASE("ScopeReader: the unfinished trace uses the previous cycle before its gap")
+{
+    for (size_t gap : {0, 8, 64})
+    {
+        for (double fraction : {0.0, 0.25})
+        {
+            DOCTEST_CAPTURE(gap);
+            DOCTEST_CAPTURE(fraction);
+            ScopeWriterGeneric<1, 1> writer(1, 4096);
+            size_t currentStart = 26 + gap;
+            for (size_t index = 0; index <= currentStart + 8; ++index)
+            {
+                if (index == 10)
+                {
+                    writer.RecordStart(0, 0, fraction);
+                }
+
+                if (index == 26)
+                {
+                    writer.RecordEnd(0, 0);
+                }
+
+                if (index == currentStart)
+                {
+                    writer.RecordStart(0, 0, fraction);
+                }
+
+                float value = index < 26 ? static_cast<float>(index) - 10.0f : -1000.0f;
+                if (index >= currentStart)
+                {
+                    value = 100.0f + static_cast<float>(index - currentStart);
+                }
+
+                writer.Write(0, value);
+                writer.AdvanceIndex();
+            }
+
+            writer.Publish();
+            for (size_t elapsed : {1, 4, 8})
+            {
+                DOCTEST_CAPTURE(elapsed);
+                writer.AcceptSamples(currentStart + elapsed + 1);
+                ScopeReader reader(&writer, 0, 0, 8, 1);
+                DOCTEST_REQUIRE_FALSE(reader.m_empty);
+                double previousLength = 16.0 - fraction;
+                DOCTEST_CHECK(reader.m_transferXSample
+                    == doctest::Approx((elapsed - fraction) * 8.0 / previousLength));
+                for (double sample : {0.0, 1.5, 3.3, 6.5, 7.0})
+                {
+                    DOCTEST_CAPTURE(sample);
+                    double offset = fraction + sample * previousLength / 8.0;
+                    double expected = sample < reader.m_transferXSample ? 100.0 + offset : offset;
+                    DOCTEST_CHECK(reader.Get(sample) == doctest::Approx(expected));
+                }
+            }
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("ScopeReader: an ended short cycle borrows the previous cycle without its gap")
+{
+    ScopeWriterGeneric<1, 1> writer(1, 4096);
+    for (size_t index = 0; index < 80; ++index)
+    {
+        if (index == 10 || index == 58)
+        {
+            writer.RecordStart(0, 0);
+        }
+
+        if (index == 26 || index == 62)
+        {
+            writer.RecordEnd(0, 0);
+        }
+
+        float value = index < 26 ? static_cast<float>(index) - 10.0f : -1000.0f;
+        if (index >= 58 && index < 62)
+        {
+            value = 100.0f + static_cast<float>(index - 58);
+        }
+
+        writer.Write(0, value);
+        writer.AdvanceIndex();
+    }
+
+    writer.Publish();
+    writer.AcceptSamples();
+    ScopeReader reader(&writer, 0, 0, 8, 1);
+    DOCTEST_REQUIRE_FALSE(reader.m_empty);
+    DOCTEST_CHECK(reader.m_transferIndex == 61.0);
+    DOCTEST_CHECK(reader.Get(1.0) == doctest::Approx(102.0));
+    DOCTEST_CHECK(reader.Get(2.0) == doctest::Approx(4.0));
+    DOCTEST_CHECK(reader.Get(6.5) == doctest::Approx(13.0));
+    DOCTEST_CHECK(reader.Get(7.0) == doctest::Approx(14.0));
+}
+
 DOCTEST_TEST_CASE("ScopeReader: the right endpoint stays finite at a full transfer")
 {
     ScopeReaderFixture fixture(100.0f);
