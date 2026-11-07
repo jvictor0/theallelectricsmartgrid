@@ -128,3 +128,8 @@ target_compile_definitions(smartgrid_passthrough_rate_tests PRIVATE
 target_compile_options(smartgrid_passthrough_rate_tests PRIVATE -funroll-loops -Wall -Wno-unused-parameter)
 target_link_libraries(smartgrid_passthrough_rate_tests PRIVATE PkgConfig::FLAC)
 add_test(NAME smartgrid_passthrough_rate_tests COMMAND smartgrid_passthrough_rate_tests)
+
+option(SMARTGRID_PVDR_EXPERIMENT "Build the neutral feedback phase experiment" OFF)
+if(SMARTGRID_PVDR_EXPERIMENT)
+    include("${TEST_DIR}/experiments/pvdr_phase/targets.cmake")
+endif()
