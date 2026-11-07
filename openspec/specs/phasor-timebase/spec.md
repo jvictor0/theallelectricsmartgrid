@@ -22,6 +22,19 @@ The system SHALL maintain absolute unmodulated and modulated phases with modulat
 - **WHEN** phase modulation is evaluated
 - **THEN** its LFO reads unmodulated phases and scales contributions by loop period divided by global period
 
+### Requirement: Modulated Global Phase Increment
+The timebase SHALL expose the current sample's signed modulated global phase increment. Consecutive running samples SHALL report current modulated global phase minus previous modulated global phase. Startup SHALL report one basic unmodulated clock increment so initialization is not elapsed travel. Stopped samples SHALL report zero modulated movement; the existing basic clock increment SHALL remain independently available. Topology edits SHALL NOT introduce movement into this global increment.
+
+#### Scenario: Modulation changes direction
+- **WHEN** consecutive running modulated phases are 1.5 and 1.25
+- **THEN** the reported increment is -0.25
+- **AND** a following sample at 1.25 reports zero
+
+#### Scenario: Transport resets are not phase travel
+- **WHEN** ToT stops from a nonzero phase
+- **THEN** its modulated increment is zero
+- **AND** restarting at an arbitrary phase offset reports one basic clock increment on the startup sample
+
 ### Requirement: Outgoing Phasor-To-Tick Clock Generation
 The system SHALL keep outgoing MIDI clock generation as phasor-to-tick behavior, owned by a dedicated `Phasor2Tick` helper in `private/src/Phasor2Tick.hpp`.
 When the timebase starts running, the helper SHALL update its divisions from the current internal frequency; while running, a division crossing in the absolute unmodulated global phase SHALL emit a clock message through the configured message-out buffer.

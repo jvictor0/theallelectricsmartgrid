@@ -8,6 +8,7 @@
 #include "Filter.hpp"
 #include "Slew.hpp"
 #include "AHD.hpp"
+#include "ASD.hpp"
 #include "GangedRandomLFO.hpp"
 #include "Lissajous.hpp"
 #include "MultiChannelNumber.hpp"
@@ -98,6 +99,7 @@ struct SquiggleBoyTrackGeneric
     struct AmpSection
     {
         using Envelope = AHDGeneric<Size>;
+        using MutingEnvelope = ASDGeneric<Size>;
         using Saturator = TanhSaturatorGeneric<float, Size, true>;
 
         static constexpr float x_subSlewMinSeconds = 0.001f;
@@ -106,6 +108,7 @@ struct SquiggleBoyTrackGeneric
 
         Envelope m_ahd;
         Envelope m_modulationAHD;
+        MutingEnvelope m_mutingASD;
 
         Vector m_output;
         Vector m_subOut;
@@ -129,6 +132,7 @@ struct SquiggleBoyTrackGeneric
             typename Envelope::Input m_ahdInput;
             typename Envelope::InputSetter m_modulationAHDInputSetter;
             typename Envelope::Input m_modulationAHDInput;
+            typename MutingEnvelope::Input m_mutingASDInput;
 
             PhaseUtils::ZeroedExpParamGeneric<float, Size> m_gain;
             PhaseUtils::ZeroedExpParamGeneric<float, Size> m_subGain;
@@ -235,10 +239,32 @@ struct SquiggleBoyTrackGeneric
 
             Vector freqDependentGain = m_freqDependentGainSlew.Process(m_freqDependentGainTarget);
 
-            // AHD::Process now applies amplitude and polarity internally
-            //
+            for (size_t i = 0; i < Size; ++i)
+            {
+                const AHD::Input& ahdInput = input.m_ahdInput.m_channels[i];
+                ASD::Input& mutingInput = input.m_mutingASDInput.m_channels[i];
+                mutingInput.m_theoryOfTime = ahdInput.m_theoryOfTime;
+                mutingInput.m_phaseRatio = ahdInput.m_phaseRatio;
+                mutingInput.m_envelopePeriodSamples = ahdInput.m_envelopePeriodSamples;
+                mutingInput.m_attackIncrement = ahdInput.m_attackIncrement;
+                mutingInput.m_decayIncrement = ahdInput.m_decayIncrement;
+            }
+
+            Vector mutingEnvelope = m_mutingASD.Process(input.m_mutingASDInput);
+            Vector ampDepth;
+            for (size_t i = 0; i < Size; ++i)
+            {
+                AHD::Input& ahdInput = input.m_ahdInput.m_channels[i];
+                ampDepth[i] = ahdInput.m_amplitude;
+                ahdInput.m_amplitude = 1.0f - (1.0f - ampDepth[i]) * mutingEnvelope[i];
+            }
+
             m_modulationAHD.Process(input.m_modulationAHDInput);
             Vector ahdEnv = PhaseUtils::ZeroedExpParamGeneric<float, Size>::Compute(10.0f, m_ahd.Process(input.m_ahdInput));
+            for (size_t i = 0; i < Size; ++i)
+            {
+                input.m_ahdInput.m_channels[i].m_amplitude = ampDepth[i];
+            }
 
             constexpr float x_slewTimeToCycles = static_cast<float>(SampleTimer::HzToCycPerSamp(1.0 / (2.0 * M_PI)));
             m_subSlew.SetSlewUp(Vector::Splat(x_slewTimeToCycles) / input.m_subRiseSeconds.m_expParam);
@@ -376,6 +402,7 @@ struct SquiggleBoyTrackGeneric
 
         VoiceConfig* m_voiceConfig[Size];
         AHD::AHDControl m_ahdControl[Size];
+        ASD::ASDControl m_mutingControl[Size];
         const GangedRandomLFOInput* m_gangedRandomLFOInput;
 
         SubInput m_subInput;
@@ -413,6 +440,7 @@ struct SquiggleBoyTrackGeneric
             {
                 m_ampInput.m_ahdInput.Set(i, m_ahdControl[i]);
                 m_ampInput.m_modulationAHDInput.Set(i, m_ahdControl[i]);
+                m_ampInput.m_mutingASDInput.Set(i, m_mutingControl[i]);
                 m_sourceInput.m_physicalModelingInput.m_ahdInput.Set(i, m_ahdControl[i]);
 
                 m_squiggleLFOInput[0].m_polyXFaderInput.m_trig[i] = m_ahdControl[i].m_trig;

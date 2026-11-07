@@ -13,6 +13,7 @@ DOCTEST_TEST_CASE("AHD: scope starts and retriggers end once at an idle voice cr
     Amp amp;
     Amp::Input input;
     TheoryOfTimeBase time;
+    time.m_globalPeriodSamples = 8.0;
     input.m_vcoTargetFreq = 50.0f / 48000.0f;
     input.m_gain.Update(1.0f);
     input.m_subGain.Update(0.0f);

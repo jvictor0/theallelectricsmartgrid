@@ -969,6 +969,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_trackState[track].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
 
             m_trackState[track].SetTheoryOfTimeInputs(m_theoryOfTime);
+            m_trackState[track].m_ampInput.m_ahdInput.SetTheoryOfTime(m_theoryOfTime);
 
             for (size_t i = 0; i < x_voicesPerTrack; ++i)
             {

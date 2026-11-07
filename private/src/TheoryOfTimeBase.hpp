@@ -47,6 +47,7 @@ struct TheoryOfTimeBase
     {
         double m_unmodulatedPhase = 0.0;
         double m_modulatedPhase = 0.0;
+        double m_modulatedPhaseIncrement = 0.0;
         int64_t m_unmodulatedGlobalTickPosition = 0;
         int64_t m_modulatedGlobalTickPosition = 0;
         std::array<TimeLoop, x_numLoops> m_loops;
@@ -106,6 +107,19 @@ struct TheoryOfTimeBase
         assert(loopIndex < x_numLoops);
         double globalPhase = domain == PhaseDomain::Unmodulated ? m_sample.m_unmodulatedPhase : m_sample.m_modulatedPhase;
         return globalPhase * static_cast<double>(m_sample.m_loops[loopIndex].m_cycleRatio);
+    }
+
+    // Basic global cycles per engine sample, including while transport is stopped.
+    //
+    double GetUnmodulatedGlobalPhaseIncrement() const
+    {
+        assert(m_globalPeriodSamples > 0.0);
+        return 1.0 / m_globalPeriodSamples;
+    }
+
+    double GetModulatedGlobalPhaseIncrement() const
+    {
+        return m_sample.m_modulatedPhaseIncrement;
     }
 
     int64_t GetGlobalTickPosition(PhaseDomain domain) const
@@ -324,6 +338,7 @@ struct TheoryOfTimeBase
             bool changed = AcceptTopology(sample, input, false);
             sample.m_unmodulatedPhase = 0.0;
             sample.m_modulatedPhase = 0.0;
+            sample.m_modulatedPhaseIncrement = 0.0;
             SetPositions(sample);
             SetGates(sample, input);
             for (TimeLoop& loop : sample.m_loops)
@@ -344,6 +359,9 @@ struct TheoryOfTimeBase
 
         sample.m_unmodulatedPhase = input.m_unmodulatedPhase;
         sample.m_modulatedPhase = input.m_unmodulatedPhase + input.m_phaseOffset;
+        sample.m_modulatedPhaseIncrement = started
+            ? GetUnmodulatedGlobalPhaseIncrement()
+            : sample.m_modulatedPhase - previousModulatedPhase;
         SetPositions(sample);
         SetCrossings(sample, previousUnmodulatedPhase, previousModulatedPhase, started);
 

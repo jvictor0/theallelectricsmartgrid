@@ -18,6 +18,7 @@ struct PhysicalEnvelopeRig
         : m_baseSample(0.0)
         , m_source(std::make_unique<PhysicalModelingSource>(42))
     {
+        m_time.m_globalPeriodSamples = 48000.0;
         m_input.m_ahdInput.SetTheoryOfTime(&m_time);
         m_source->m_ahdInputSetter.Set(
             std::log(attackSeconds / 0.0001f) / std::log(2.5f / 0.0001f),
@@ -93,7 +94,7 @@ DOCTEST_TEST_CASE("PhysicalModeling: consumes events once and accepts consecutiv
     DOCTEST_CHECK_FALSE(rig.EnvelopeInput().m_trig);
 }
 
-DOCTEST_TEST_CASE("PhysicalModeling: explicit release advances at the sample rate")
+DOCTEST_TEST_CASE("PhysicalModeling: explicit release integrates the basic clock")
 {
     PhysicalEnvelopeRig rig(0.01f, 0.01f);
     rig.Envelope().m_state = AHD::State::Running;
@@ -105,7 +106,7 @@ DOCTEST_TEST_CASE("PhysicalModeling: explicit release advances at the sample rat
     base.m_rawOutput = 1.0f;
     AHD::Input baseInput = rig.EnvelopeInput();
     baseInput.m_releaseFactor = 1.0f;
-    const size_t expectedFrames = static_cast<size_t>(SampleTimer::SecondsToSamples(0.01)) / PhysicalEnvelopeRig::x_frameSamples;
+    const size_t expectedFrames = 480 / PhysicalEnvelopeRig::x_frameSamples;
     size_t releaseFrames = 0;
     for (; releaseFrames < expectedFrames + 2 && rig.Envelope().m_state != AHD::State::Idle; ++releaseFrames)
     {

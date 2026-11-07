@@ -395,6 +395,8 @@ struct TheNonagonSquiggleBoyInternal
 
             m_squiggleBoy.m_trackState[i / SquiggleBoy::x_voicesPerTrack].m_ahdControl[i % SquiggleBoy::x_voicesPerTrack] =
                 control;
+            m_squiggleBoy.m_trackState[i / SquiggleBoy::x_voicesPerTrack].m_mutingControl[i % SquiggleBoy::x_voicesPerTrack].m_gate =
+                m_nonagon.m_nonagon.m_theoryOfTime.m_sample.m_running && !m_nonagon.m_state.m_trigLogic.m_mute[i];
 
             m_squiggleBoyState.m_sheafyModulators[i][0] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][0];
             m_squiggleBoyState.m_sheafyModulators[i][1] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][1];

@@ -45,6 +45,7 @@ struct IntegratedEnvelopeRig
         m_input.m_holdLoops = 0.25;
         m_input.m_decayIncrement = 1.0f / 32.0f;
         m_control = TriggerControl(1.0, 64.0);
+        m_time.m_globalPeriodSamples = 64.0;
         SetGlobalPhase(m_time, 10.0);
         Trigger();
     }

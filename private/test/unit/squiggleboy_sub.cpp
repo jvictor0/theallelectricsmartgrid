@@ -8,11 +8,18 @@ using Encoders = SmartGridOneEncoders;
 
 struct SubAmpRig
 {
+    TheoryOfTimeBase m_time;
     Amp m_amp;
     Amp::Input m_input;
 
     SubAmpRig()
     {
+        m_time.m_sample.m_running = true;
+        m_time.m_globalPeriodSamples = SampleTimer::SecondsToSamples(1.0);
+        m_time.m_sample.m_modulatedPhaseIncrement = 1.0 / m_time.m_globalPeriodSamples;
+        m_input.m_ahdInput.SetTheoryOfTime(&m_time);
+        m_input.m_mutingASDInput.m_channels[0].m_gate = true;
+        m_amp.m_mutingASD.m_channels[0].m_rawOutput = 1.0;
         m_input.m_vcoTargetFreq = 50.0f / SampleTimer::x_sampleRate;
         m_input.m_gain.Update(1.0f);
         m_input.m_subGain.Update(1.0f);

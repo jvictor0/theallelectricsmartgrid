@@ -57,8 +57,11 @@ DOCTEST_TEST_CASE("AHD: consumes simultaneous events once and accepts the next t
 
 DOCTEST_TEST_CASE("AHD: consumes release even while idle")
 {
+    TheoryOfTimeBase time;
     AHD envelope;
     AHD::Input input;
+    input.m_theoryOfTime = &time;
+    time.m_globalPeriodSamples = input.m_envelopePeriodSamples;
     input.m_release = true;
     DOCTEST_CHECK(envelope.Process(input) == 0.0f);
     DOCTEST_CHECK_FALSE(input.m_release);
@@ -74,47 +77,121 @@ DOCTEST_TEST_CASE("AHD: consumes release even while idle")
     DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.75f));
 }
 
-DOCTEST_TEST_CASE("AHD: explicit release duration is measured in engine samples")
+DOCTEST_TEST_CASE("AHD: fractional release calls preserve duration at different tempos")
 {
-    AHD base;
-    AHD oversampled;
-    base.m_state = AHD::State::Running;
-    oversampled.m_state = AHD::State::Running;
-    base.m_rawOutput = 1.0f;
-    oversampled.m_rawOutput = 1.0f;
-    AHD::Input input;
-    input.m_release = true;
-    input.m_decayIncrement = 1.0f / 8.0f;
-    AHD::Input oversampledInput = input;
-    oversampledInput.m_releaseFactor = 0.25f;
-
-    for (size_t sample = 0; sample < 8; ++sample)
+    for (double tempoScale : {0.5, 1.0, 2.0})
     {
-        base.Process(input);
-        for (size_t subSample = 0; subSample < 4; ++subSample)
+        DOCTEST_CAPTURE(tempoScale);
+        TheoryOfTimeBase time;
+        AHD base;
+        AHD oversampled;
+        base.m_state = AHD::State::Running;
+        oversampled.m_state = AHD::State::Running;
+        base.m_rawOutput = 1.0f;
+        oversampled.m_rawOutput = 1.0f;
+        AHD::Input input;
+        input.m_theoryOfTime = &time;
+        input.m_phaseRatio = 3.0;
+        input.m_envelopePeriodSamples = 64.0;
+        time.m_globalPeriodSamples = 192.0 / tempoScale;
+        input.m_release = true;
+        input.m_decayIncrement = 1.0f / 8.0f;
+        AHD::Input oversampledInput = input;
+        oversampledInput.m_releaseFactor = 0.25f;
+        size_t samples = static_cast<size_t>(8.0 / tempoScale);
+
+        for (size_t sample = 0; sample < samples; ++sample)
         {
-            oversampled.Process(oversampledInput);
+            base.Process(input);
+            for (size_t subSample = 0; subSample < 4; ++subSample)
+            {
+                oversampled.Process(oversampledInput);
+            }
+
+            DOCTEST_CHECK(base.m_rawOutput == doctest::Approx(1.0 - (sample + 1) * tempoScale / 8.0));
+            DOCTEST_CHECK(oversampled.m_rawOutput == doctest::Approx(base.m_rawOutput));
+            DOCTEST_CHECK(oversampled.m_state == base.m_state);
+            DOCTEST_CHECK_FALSE(input.m_release);
+            DOCTEST_CHECK_FALSE(oversampledInput.m_release);
         }
 
-        DOCTEST_CHECK(base.m_rawOutput == doctest::Approx(1.0f - static_cast<float>(sample + 1) / 8.0f));
-        DOCTEST_CHECK(oversampled.m_rawOutput == doctest::Approx(base.m_rawOutput));
-        DOCTEST_CHECK(oversampled.m_state == base.m_state);
-        DOCTEST_CHECK_FALSE(input.m_release);
-        DOCTEST_CHECK_FALSE(oversampledInput.m_release);
+        DOCTEST_CHECK(base.m_state == AHD::State::Idle);
+        DOCTEST_CHECK(oversampled.m_state == AHD::State::Idle);
+        DOCTEST_CHECK(base.m_changed);
+        DOCTEST_CHECK(oversampled.m_changed);
     }
-
-    DOCTEST_CHECK(base.m_state == AHD::State::Idle);
-    DOCTEST_CHECK(oversampled.m_state == AHD::State::Idle);
-    DOCTEST_CHECK(base.m_changed);
-    DOCTEST_CHECK(oversampled.m_changed);
 }
 
-DOCTEST_TEST_CASE("AHD: ten second explicit release retains its duration at engine rate")
+DOCTEST_TEST_CASE("AHD: release integrates the basic clock through Stop and live tempo changes")
 {
+    GlobalEnv::ResetPerTest();
+    TimeRig clock;
+    clock.SetGlobalPeriodSamples(128.0);
+    clock.SetRunning(true);
+    clock.AdvanceSamples(10);
+
+    AHD envelope;
+    AHD::Input input;
+    input.m_theoryOfTime = clock.Get();
+    input.m_attackIncrement = 1.0f;
+    input.m_holdLoops = 4.0;
+    input.m_decayIncrement = 1.0f / 32.0f;
+    AHD::AHDControl control;
+    control.m_trig = true;
+    control.m_phaseRatio = 3.0;
+    control.m_envelopePeriodSamples = 64.0;
+    input.Set(control);
+    envelope.Process(input);
+    clock.AdvanceSample();
+    DOCTEST_REQUIRE(envelope.Process(input) == 1.0f);
+
+    control.m_trig = false;
+    control.m_release = true;
+    input.Set(control);
+    clock.GetInput().m_modIndex.Update(1.0f);
+    clock.AdvanceSample();
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.953125f));
+    DOCTEST_CHECK(envelope.m_state == AHD::State::Release);
+
+    clock.SetRunning(false);
+    clock.AdvanceSample();
+    DOCTEST_CHECK(clock.GlobalPhase() == 0.0);
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.90625f));
+
+    // Non-trigger control and topology changes must not replace captured scaling.
+    //
+    control.m_phaseRatio = 7.0;
+    control.m_envelopePeriodSamples = 512.0;
+    input.Set(control);
+    clock.SetMultiplier(0, 7);
+    clock.SetGlobalPeriodSamples(64.0);
+    clock.AdvanceSample();
+    DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.8125f));
+    DOCTEST_CHECK(input.m_phaseRatio == 3.0);
+    DOCTEST_CHECK(input.m_envelopePeriodSamples == 64.0);
+
+    for (size_t sample = 0; sample < 9; ++sample)
+    {
+        clock.AdvanceSample();
+        DOCTEST_CHECK_FALSE(clock.IsRunning());
+        DOCTEST_CHECK(clock.GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Unmodulated) == 0.0);
+        DOCTEST_CHECK(clock.GlobalPhase() == 0.0);
+        DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(std::max(0.0, 0.8125 - (sample + 1) * 3.0 / 32.0)));
+    }
+
+    DOCTEST_CHECK(envelope.m_state == AHD::State::Idle);
+    DOCTEST_CHECK(envelope.m_changed);
+}
+
+DOCTEST_TEST_CASE("AHD: ten second explicit release retains precision at unit clock scaling")
+{
+    TheoryOfTimeBase time;
     AHD envelope;
     envelope.m_state = AHD::State::Running;
     envelope.m_rawOutput = 1.0f;
     AHD::Input input;
+    input.m_theoryOfTime = &time;
+    time.m_globalPeriodSamples = input.m_envelopePeriodSamples;
     AHD::InputSetter setter;
     setter.Set(0.0f, 0.0f, 1.0f, 1.0f, true, input);
     const size_t x_expectedSamples = static_cast<size_t>(SampleTimer::SecondsToSamples(10.0));

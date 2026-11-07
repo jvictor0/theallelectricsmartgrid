@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 
 #include "Slew.hpp"
@@ -332,7 +333,10 @@ struct AHD
             }
             case State::Release:
             {
-                m_rawOutput -= static_cast<double>(input.m_decayIncrement) * input.m_releaseFactor;
+                assert(input.m_theoryOfTime != nullptr);
+                double deltaSamples = input.m_theoryOfTime->GetUnmodulatedGlobalPhaseIncrement()
+                    * input.m_phaseRatio * input.m_envelopePeriodSamples * input.m_releaseFactor;
+                m_rawOutput -= static_cast<double>(input.m_decayIncrement) * deltaSamples;
                 if (m_rawOutput <= 0.0f)
                 {
                     m_changed = true;
