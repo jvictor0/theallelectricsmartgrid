@@ -148,6 +148,16 @@ struct ResynthesizerGeneric
     //
     struct PVDR
     {
+        static constexpr double x_triggerMagnitudeRatio = 0.001;
+        static constexpr double x_lowMagnitudeRatio = 0.000251188643150958;
+
+        enum class GateState : uint8_t
+        {
+            Low,
+            Triggered,
+            High
+        };
+
         struct Result
         {
             int16_t m_bin;
@@ -207,12 +217,28 @@ struct ResynthesizerGeneric
                 maxMag = std::max(maxMag, m_owner->m_prevAnalysisMagnitudes[i][m_channel]);
             }
 
-            Number tolerance = maxMag * 0.00000001;
+            Number triggerMagnitude = maxMag * x_triggerMagnitudeRatio;
+            Number lowMagnitude = maxMag * x_lowMagnitudeRatio;
             RGen rgen;
             for (size_t i = 1; i < x_maxComponents; ++i)
             {
                 Number mag = m_owner->m_analysisMagnitudes[i][m_channel];
-                if (mag < tolerance)
+                GateState& state = m_gate[i];
+                if (state == GateState::Triggered)
+                {
+                    state = GateState::High;
+                }
+
+                if (mag <= 0 || mag < lowMagnitude)
+                {
+                    state = GateState::Low;
+                }
+                else if (state == GateState::Low && mag > triggerMagnitude)
+                {
+                    state = GateState::Triggered;
+                }
+
+                if (state == GateState::Low)
                 {
                     computed[i] = true;
                     PushResult(i, i, rgen.UniGenRange(-0.5, 0.5), rgen, true);
@@ -328,11 +354,23 @@ struct ResynthesizerGeneric
         {
         }
 
+        // Clear the per-grain graph while preserving the Schmitt history.
+        //
         void Clear()
         {
             m_size = 0;
         }
 
+        void Reset()
+        {
+            Clear();
+            for (size_t bin = 0; bin < x_maxComponents; ++bin)
+            {
+                m_gate[bin] = GateState::Low;
+            }
+        }
+
+        GateState m_gate[x_maxComponents]{};
         Result m_results[x_maxComponents];
         uint16_t m_resultIndices[x_maxComponents];
         size_t m_size;
@@ -378,7 +416,15 @@ struct ResynthesizerGeneric
                         delta *= detune[channel];
                     }
                     
-                    m_synthesisPhase[result.m_bin][channel] = m_synthesisPhase[result.m_parent][channel] + delta;
+                    if (result.m_bin == result.m_parent &&
+                        pvdr[channel].m_gate[result.m_bin] == PVDR::GateState::Triggered)
+                    {
+                        m_synthesisPhase[result.m_bin][channel] = m_owner->m_analysisPhase[result.m_bin][channel];
+                    }
+                    else
+                    {
+                        m_synthesisPhase[result.m_bin][channel] = m_synthesisPhase[result.m_parent][channel] + delta;
+                    }
                 }
             }
         }
@@ -530,11 +576,16 @@ struct ResynthesizerGeneric
         }
 
         m_slewUpAlpha[channel] = 0;
-        m_pvdr[channel].Clear();
+        m_pvdr[channel].Reset();
     }
 
     void Clear()
     {
+        for (size_t channel = 0; channel < Size; ++channel)
+        {
+            m_pvdr[channel].Reset();
+        }
+
         for (size_t i = 0; i < x_numOscillators; ++i)
         {
             m_oscillators[i].Clear();

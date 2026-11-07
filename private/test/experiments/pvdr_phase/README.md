@@ -1,9 +1,10 @@
 # Neutral feedback phase experiment
 
-This opt-in experiment compares conventional delay, current PVDR, and a minimal
-three-state Schmitt phase reset. It also measures a threshold-only ablation and
-an always-copy-analysis-phase reconstruction control. Production DSP is not
-modified.
+This opt-in experiment compares conventional delay, the original PVDR baseline,
+and the production three-state Schmitt phase reset. It also measures a
+threshold-only ablation and an always-copy-analysis-phase reconstruction control.
+The historical executable and data key `current` refer to PVDR before Schmitt
+snapping was implemented. The harness does not modify production source files.
 
 ## Run
 
@@ -41,9 +42,10 @@ and preserve them outside the checkout before worktree cleanup.
   Conventional output is `tape[n - delay]`. There is no clipping, saturation,
   filtering, shifting, detune, time warp, or magnitude slew. Above-unity feedback
   is rendered for a finite duration, not stabilized.
-- The current generated header is byte-for-byte production `Resynthesis.hpp`.
-  `variant.py` applies checked, narrowly scoped substitutions to generated
-  headers for the two experimental variants. Changes to source contracts fail
+- The Schmitt generated header is byte-for-byte production `Resynthesis.hpp`.
+  `variant.py` reconstructs the original −160 dB/no-reset and −60 dB/no-reset
+  controls using checked, narrowly scoped substitutions to generated headers.
+  Changes to source contracts fail
   generation rather than silently applying an approximate patch.
 - Schmitt state is per bin and persists across synthesis launches. Low becomes
   Triggered above `maxMagnitude * 0.001`; Triggered becomes High next frame;
@@ -92,5 +94,5 @@ assignment. Core tests remain assertion-enabled RelWithDebInfo.
 This isolates neutral phase behavior. It does not test the production 4x rate
 conversion, nonlinear QuadDelay processing, warp, shifts, unison, or a
 continuously high bin whose phase has been disturbed after its trigger.
-The experimental generated state is scoped to fresh renderer instances; it is
-not a production implementation of channel-reset or parameter-change policies.
+The renderer uses fresh instances per run. Production channel and full-reset
+behavior is covered separately by `dsp_resynthesis.cpp`.

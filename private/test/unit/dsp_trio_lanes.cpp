@@ -581,13 +581,20 @@ DOCTEST_TEST_CASE("Trio: sample source channels match mono cores with their own 
     ChannelDifference output;
     for (size_t sample = 0; sample < 12000; ++sample)
     {
+        // Replay identical low-bin phase noise through the packed and mono
+        // paths so the comparison measures channel processing differences.
+        //
+        const auto randomBefore = RGen::s_gen;
         TrioFloat trioOutput = trio->Process(trioInput);
+        const auto randomAfter = RGen::s_gen;
+        RGen::s_gen = randomBefore;
         for (size_t i = 0; i < 3; ++i)
         {
             output.Add(i, trioOutput[i], mono[i]->Process(monoInput[i])[0]);
             DOCTEST_REQUIRE(trio->m_top[i].m_triggered == mono[i]->m_top[0].m_triggered);
         }
 
+        DOCTEST_CHECK(RGen::s_gen == randomAfter);
         rig.AdvanceSample();
     }
 

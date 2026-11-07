@@ -29,21 +29,39 @@ The system SHALL compute a per-bin instantaneous frequency `m_omegaInstantaneous
 - **THEN** `m_omegaInstantaneous[k]` is raised above k/4096 by the wrapped phase residual divided by H, so synthesis reproduces the true frequency rather than the bin center
 
 ### Requirement: PVDR Leader/Follower Relationship Build
-The system SHALL build a PVDR (phase relationship tracker) for each grain (`PVDR::Analyze`). Bins are drained from a magnitude-ordered priority queue so high-energy bins are processed first. A bin popped on its previous-frame magnitude becomes a leader (`m_parent == m_bin`) with phase delta `m_omegaInstantaneous[bin] * H`; its immediate neighbors (bin ± 1) that are not yet computed attach as followers, storing the analysis-phase difference to their parent as `m_delta`. `PushResult` flattens ancestry so every follower references a root leader with an accumulated delta. Bins whose analysis magnitude is below `maxMagnitude * 1e-8` are marked small and given a uniformly random phase delta.
+The system SHALL build a PVDR (phase relationship tracker) for each grain (`PVDR::Analyze`). Bins are drained from a magnitude-ordered priority queue so high-energy bins are processed first. A bin popped on its previous-frame magnitude becomes a leader (`m_parent == m_bin`) with phase delta `m_omegaInstantaneous[bin] * H`; its immediate neighbors (bin ± 1) that are not yet computed attach as followers, storing the analysis-phase difference to their parent as `m_delta`. `PushResult` flattens ancestry so every follower references a root leader with an accumulated delta. Each channel SHALL maintain a persistent Low/Triggered/High Schmitt state per bin. The reference maximum SHALL be the largest magnitude across that channel's current and reference analysis frames. A Low bin SHALL become Triggered above `maxMagnitude * 10^(-60/20)`; Triggered SHALL become High on the next grain unless it falls Low. A bin SHALL become Low below `maxMagnitude * 10^(-72/20)`, or at exact silence, including when the reference maximum is zero. Threshold equality SHALL preserve Low or High state. High bins SHALL NOT retrigger merely because their magnitude rises. Low bins SHALL be marked small and given a uniformly random phase delta. There SHALL be no separate −160 dB cutoff.
 
 #### Scenario: Strong fundamental leads its neighborhood
 - **WHEN** a grain contains a strong component in bin 38 and weaker energy in bins 37 and 39
 - **THEN** bin 38 becomes a leader with delta `m_omegaInstantaneous[38] * 1024`, and bins 37 and 39 become followers whose `m_parent` is 38 and whose deltas are their analysis-phase differences from bin 38
 
-#### Scenario: Near-silent bins are randomized
-- **WHEN** a bin's analysis magnitude is below 1e-8 of the loudest bin in the grain
+#### Scenario: Low bins are randomized
+- **WHEN** a bin's Schmitt state is Low
 - **THEN** its PVDR result is marked `m_small` with a random delta in [-0.5, 0.5), it is excluded from leader status (`PVDR::IsLeader` is false), and shifted synthesis layers skip it
 
+#### Scenario: Hysteresis prevents repeated triggering
+- **WHEN** a Low bin crosses above −60 dB relative to the reference maximum
+- **THEN** it is Triggered for that grain and High on the next grain if it remains at or above −72 dB
+- **AND** subsequent magnitude rises do not retrigger it until it has fallen Low and crossed above −60 dB again
+- **AND** a High bin between −72 and −60 dB remains tracked while a Low bin in that band remains small
+
+#### Scenario: Channel reset rearms phase acquisition
+- **WHEN** the resynthesizer clears one channel
+- **THEN** its PVDR graph is cleared and all its Schmitt states become Low without changing other channels
+- **AND** a full resynthesizer clear rearms every channel
+- **AND** ordinary per-grain graph clearing preserves Schmitt history
+
 ### Requirement: Synthesis Phase Fixup
-The system SHALL advance each oscillator's persistent per-bin synthesis phase once per grain from the PVDR results (`Oscillator::FixupPhases`): a leader's phase advances by its delta multiplied by the oscillator's detune factor; a follower's phase is set to its parent's new phase plus its stored delta, and the follower's `m_omegaInstantaneous` is overwritten with the parent's so the group shares one frequency.
+The system SHALL update each oscillator's persistent per-bin synthesis phase once per grain from the PVDR results (`Oscillator::FixupPhases`). A Triggered leader SHALL set the synthesis phase exactly to that leader bin's current analysis phase, without adding an advance or scaling the reset by detune. On High grains, the leader's phase SHALL advance by its delta multiplied by the oscillator's detune factor. Low bins SHALL retain their random-increment handling. A follower's phase SHALL be set to its parent's new phase plus its stored delta, and the follower's `m_omegaInstantaneous` SHALL be overwritten with the parent's so the group shares one frequency. A follower's own Triggered state SHALL NOT independently reset its phase or its leader's phase.
+
+#### Scenario: A returning leader reacquires analysis phase
+- **WHEN** a leader emerges from Low into Triggered after a silence gap
+- **THEN** all three oscillators set that leader's synthesis phase exactly to its current analysis phase, regardless of their previous phase values
+- **AND** its followers inherit the leader's new phase through their existing analysis offsets
+- **AND** the next High grain resumes ordinary detuned phase propagation
 
 #### Scenario: Followers track leader phase across grains
-- **WHEN** consecutive grains keep bin 38 as leader of followers 37 and 39
+- **WHEN** consecutive High grains keep bin 38 as leader of followers 37 and 39
 - **THEN** each grain advances `m_synthesisPhase[38]` by `m_omegaInstantaneous[38] * 1024 * detune` and sets `m_synthesisPhase[37]` and `m_synthesisPhase[39]` relative to it, so the three-bin group reconstructs one phase-coherent partial with no drift between bins
 
 ### Requirement: Rational Pitch Shift with Dry/Shift Crossfade and Alias Guard

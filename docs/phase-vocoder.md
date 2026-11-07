@@ -54,10 +54,24 @@ This is the "phase vocoder done right" principle in practice: phase propagation 
 - Neighbor bins can attach to leaders and inherit phase structure through relative phase differences.
 - `PushResult()` recursively flattens ancestry so each result references a stable root parent.
 
+Each channel keeps a three-state Schmitt gate per bin, using the largest
+magnitude across its current and reference analysis frames:
+
+- **Low → Triggered** when magnitude rises above −60 dB of that maximum.
+- **Triggered → High** on the next grain, unless the bin falls Low.
+- **High → Low** below −72 dB; exact silence is always Low.
+
+The hysteresis band preserves the previous Low or High state. Low bins receive
+random phase increments and are excluded from shifted synthesis. There is no
+separate −160 dB cutoff or amplitude-growth retrigger. Per-grain graph clearing
+preserves gate history; channel and full resynthesizer resets rearm the gates.
+
 During synthesis:
 
 - `FixupPhases()` walks PVDR results and updates `m_synthesisPhase[bin]`.
-- Followers inherit parent phase plus stored delta; leaders get explicit phase advance.
+- A Triggered leader sets each oscillator's synthesis phase exactly to its current analysis phase.
+- On subsequent High grains, leaders resume phase advance with the oscillator's detune factor.
+- Followers inherit parent phase plus stored delta, including when their own gates trigger.
 - This keeps partial groups phase-coherent under warp and pitch transformations.
 
 ## Synthesis implementation
