@@ -289,7 +289,7 @@ struct QuadDelayInputSetter
         }
 
         delayInput.m_writeHeadPosition = writeHeadPosition;
-        double writePhase = m_writeTapeHead.m_relativePosition;
+        double writePhase = m_writeTapeHead.GetDisplayPosition();
         delayInput.m_relativeWriteHeadPosition = static_cast<float>(writePhase - std::floor(writePhase));
 
         QuadFloat rotate;
@@ -347,7 +347,8 @@ struct QuadDelayInputSetter
             readInput.m_requestedLoopSelector = totLoopSelector;
             m_readTapeHead[i].Update(readInput);
             delayInput.m_readHeadPosition[i] = m_readTapeHead[i].m_actualPosition;
-            double readPhase = m_readTapeHead[i].m_relativePosition;
+            double readPhase = writePhase +
+                (m_readTapeHead[i].m_relativePosition - m_writeTapeHead.m_relativePosition);
             delayInput.m_relativeReadHeadPosition[i] = static_cast<float>(readPhase - std::floor(readPhase));
 
             // Resynth parameters
@@ -380,8 +381,7 @@ struct QuadDelayInputSetter
 
         if (delay)
         {
-            double phase = input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated);
-            double x = phase - std::floor(phase);
+            double x = writePhase - std::floor(writePhase);
             delay->m_positionalBufferRecorder.Record(x, delayInput.m_writeHeadPosition);
         }
     }

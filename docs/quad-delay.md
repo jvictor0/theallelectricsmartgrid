@@ -43,6 +43,7 @@ The decimator follows the saturator so its harmonics are filtered too. The delay
 - **Glue offset**: `WriteTapeHead` owns the additive glue offset that preserves continuity across transport stops and tempo-scale changes.
   - When transport stops, glue is initialized from the current write head, then the head advances one host sample per host frame (`1 / x_oversample` per engine sample).
   - On a transport transition or global-period change, glue is recomputed from the previous actual position and the new theory position, preserving absolute position continuity.
+- **Delay phase while stopped**: the delay's local phase continues from its last position at `1 / globalPeriodSamples` cycles per host frame, even though Theory of Time resets to zero. Read heads retain their selected speeds. Starting transport rejoins musical phase for playback; a shared display offset keeps the waveform and write marker continuous across that phase reset.
 - **Delay ratio quantization**: at loop top, delay-time factor is quantized to one of:
   - `0.8`, `2/3`, `1.0`, `3/4`, `5/8`
   and stored as `m_bufferFrac[i]`.
@@ -56,9 +57,13 @@ The final head equations are:
   - stored in the shared scalar `delayInput.m_writeHeadPosition`
 - **Read head**
   - `effectiveDelaySamples = (globalPeriodSamples / cycleRatio(selectedLoop)) * (bufferFrac * widen)`
-  - `readTarget = writeHead * readHeadSpeed - effectiveDelaySamples`
+  - `readTarget = writeHead + delayPhase * globalPeriodSamples * (readHeadSpeed - 1) - effectiveDelaySamples`
   - `readHead = wrap_mod(writeHead - resynthesisHopSamples - selectedLoopSamples, writeHead - resynthesisHopSamples, readTarget)`
   - stored in `delayInput.m_readHeadPosition[i]`
+
+The projection is calculated once in phase units, then converted to absolute samples relative to the actual write head: `readHead = writeHead + (readPhase - delayPhase) * globalPeriodSamples`. Here `delayPhase` follows the modulated global phase while running and free-runs while stopped. The continuity glue translates both heads equally; playback speed applies only to delay phase. Multiplying the glue by read-head speed would select different audio from the displayed position whenever the speed is not 1.
+
+The waveform recorder and both displayed heads use that same delay phase plus a shared display offset. On transport restart, the offset absorbs the reset to musical phase, preserving the waveform's horizontal coordinates. Read markers still reflect any playback repositioning caused by resynchronizing to music. While stopped, the waveform continues sweeping and recording across the display instead of overwriting one frozen column.
 
 Both heads use absolute warped-sample coordinates. The read head is projected into the selected-loop-length region behind the write head, offset by the resynthesis hop size, with delay shaped by quantized ratio and widener. This warped-coordinate window selects musical delay time; it cannot by itself ensure a complete real-time analysis window.
 

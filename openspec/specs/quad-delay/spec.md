@@ -32,6 +32,12 @@ The shared write head SHALL be computed by one `WriteTapeHead` as `unwound maste
 - **WHEN** `masterLoopSamples` changes while the transport is running
 - **THEN** the glue offset is recomputed as the difference between the current actual position and the new theory position, so the write head position is continuous across the change
 
+#### Scenario: Delay phase continues while transport is stopped
+- **WHEN** transport stops and Theory of Time resets its phase to zero
+- **THEN** the delay's local phase continues from its last position, advancing by `1 / masterLoopSamples` cycles per host frame at the current tempo
+- **AND** the read heads keep their selected playback speeds within the region behind the advancing write head
+- **AND** starting transport returns the local playback phase to the modulated global phase
+
 ### Requirement: Loop Selection Gated at Loop Tops
 The system SHALL only apply a requested delay loop change when the currently selected loop and the requested loop are both simultaneously crossing a modulated cycle boundary (`CrossedCycleBoundary`). Until that dual-top condition occurs, the read head keeps using the previously selected loop. The loop selector switch value is inverted against the loop hierarchy (`x_numLoops - switchVal - 1`) to choose the requested Theory of Time loop.
 
@@ -55,7 +61,12 @@ The system SHALL quantize the delay-time factor per channel to one of {0.8, 2/3,
 - **THEN** the projected read position moves backward through warped time at one warped sample per warped sample while grains continue to be synthesized at the original pitch
 
 ### Requirement: Read Head Projection into the Selected Loop
-The read head SHALL be computed per channel by `ReadTapeHead` as `writeHead * readHeadSpeed - effectiveDelaySamples`, wrapped by `WrapMod` into the window `(writeHead - hopSamples - loopSamples, writeHead - hopSamples]`, where `loopSamples = masterLoopSamples / cycleRatio(selectedLoop)`, `effectiveDelaySamples = loopSamples * bufferFrac * widen`, and `hopSamples` is the resynthesis hop size. A parallel computation in phasor units produces the relative read head position. If the master loop or selected loop length is not positive, the read head equals the write head.
+The read head SHALL be computed per channel by `ReadTapeHead` from `delayPhase * readHeadSpeed - effectiveDelaySamples / masterLoopSamples`, wrapped by `WrapMod` in phase units into the selected-loop region behind the write phase and offset by one resynthesis hop. `delayPhase` follows modulated global phase while running and free-runs while stopped. Here `loopSamples = masterLoopSamples / cycleRatio(selectedLoop)`, `effectiveDelaySamples = loopSamples * bufferFrac * widen`, and `hopSamples` is the resynthesis hop size. The resulting `readPhase` SHALL drive both the display and the absolute audio position, with `readHead = writeHead + (readPhase - delayPhase) * masterLoopSamples`. Thus the audio head lies in `[writeHead - hopSamples - loopSamples, writeHead - hopSamples)`, and the continuity glue translates both heads equally without being multiplied by read-head speed. If the master loop or selected loop length is not positive, the read head equals the write head.
+
+#### Scenario: Non-unit speed preserves agreement between audio and display
+- **WHEN** the write head has a nonzero continuity glue offset and the read speed is slow, fast, or negative
+- **THEN** the audio and displayed read heads have the same displacement from their respective write heads, after converting phase to host samples
+- **AND** changing the glue offset translates the audio read head and write head equally without changing the displayed read phase
 
 #### Scenario: Read head stays one hop behind the write head
 - **WHEN** the read head is computed with any speed and delay ratio
@@ -115,11 +126,22 @@ The system SHALL remix the four delayed channels with a linear rotation (`QuadFl
 - **THEN** each output channel is a linear blend of the two adjacent input channels weighted by the fractional angle
 
 ### Requirement: Delay UI State Observability
-The system SHALL publish a `QuadDelay::UIState` containing per-channel damping filter alphas and a double-buffered `UISnapshot` of four `DelayEnvelopeState` entries; each entry holds the channel's relative read and write head positions (phasor units in [0, 1), or -1 before first computation; the write position is shared) and 1024-point min/max amplitude envelopes sampled by mapping recorded master-phasor positions through the positional buffer recorder, the inverse buffer (`GetRealTime`), and the writer's 1024-sample envelope buckets.
+The system SHALL publish a `QuadDelay::UIState` containing per-channel damping filter alphas and a double-buffered `UISnapshot` of four `DelayEnvelopeState` entries; each entry holds the channel's relative read and write head positions (phasor units in [0, 1), or -1 before first computation; the write position is shared) and 1024-point min/max amplitude envelopes sampled by mapping recorded display-phase positions through the positional buffer recorder, the inverse buffer (`GetRealTime`), and the writer's 1024-sample envelope buckets. The waveform recorder and both head markers SHALL share a display phase offset that preserves their coordinate origin when playback resynchronizes to musical phase on transport start.
 
 #### Scenario: Head positions track the tape heads
 - **WHEN** `PopulateUIState` runs while the delay is processing
-- **THEN** `m_relativeWriteHeadPosition` equals the fractional modulated global phase used by the shared write tape head and `m_relativeReadHeadPosition` equals the read tape head's wrapped relative position for each channel
+- **THEN** `m_relativeWriteHeadPosition` equals the write tape head's local phase plus the shared display offset, reduced to its fractional part
+- **AND** each channel's `m_relativeReadHeadPosition` uses its read phase plus the same display offset, reduced to its fractional part
+
+#### Scenario: Stopped recording remains visible across the whole display
+- **WHEN** audio is recorded while transport is stopped
+- **THEN** the waveform recorder advances with the delay's free-running phase, filling the display over a global loop period instead of repeatedly replacing one column
+- **AND** the write and read markers move in the same coordinates as that waveform
+
+#### Scenario: Restart preserves the recorded waveform
+- **WHEN** transport restarts after the delay has been free-running
+- **THEN** the display offset absorbs the playback phase reset without moving the write marker or remapping the recorded waveform
+- **AND** read markers reflect the audio heads' resynchronization to musical phase
 
 #### Scenario: Envelope reflects recorded audio
 - **WHEN** audio with a distinct amplitude profile has been written into a channel's delay line over the last loop
