@@ -121,7 +121,131 @@ struct SmartGridOneEncoders
         return SmartGridOneModulators::x_skins[row][index];
     }
 
+    struct VisibleMotion
+    {
+        // Match Sheaf's approximately 10 Hz center and residual-energy filters.
+        // All positions and spreads stay in normalized knob coordinates.
+        //
+        static constexpr float x_alpha = 2.0f * 3.14159265358979323846f * 10.0f
+            / static_cast<float>(SampleTimer::x_hostSampleRate);
+
+        struct SlotMotion
+        {
+            EncoderMatrix::ValueReader m_source;
+            QuadFloat m_center;
+            QuadFloat m_energy;
+            bool m_initialized = false;
+
+            void Seed(const QuadFloat& value)
+            {
+                m_center = value;
+                m_energy = QuadFloat();
+                m_initialized = true;
+            }
+
+            void Process(const QuadFloat& value)
+            {
+                if (!m_initialized)
+                {
+                    Seed(value);
+                    return;
+                }
+
+                m_center += (value - m_center) * x_alpha;
+                QuadFloat residual = value - m_center;
+                m_energy += (residual * residual - m_energy) * x_alpha;
+            }
+        };
+
+        std::array<SlotMotion, 16> m_slots;
+        int m_bank = -1;
+        size_t m_visibleRevision = 0;
+        size_t m_matrixGeneration = 0;
+
+        bool Matches(const EncoderBankBank& banks) const
+        {
+            return m_bank >= 0 && m_bank == banks.m_selectedBank
+                && m_visibleRevision == banks.m_banks[m_bank].m_visibleRevision;
+        }
+
+        void Process(EncoderBankBank& banks)
+        {
+            if (banks.m_selectedBank < 0)
+            {
+                m_bank = -1;
+                return;
+            }
+
+            bool newPage = !Matches(banks);
+            if (newPage || m_matrixGeneration != banks.m_matrix.m_generation)
+            {
+                m_bank = banks.m_selectedBank;
+                auto& bank = banks.m_banks[m_bank];
+                m_visibleRevision = bank.m_visibleRevision;
+                m_matrixGeneration = banks.m_matrix.m_generation;
+                for (size_t i = 0; i < m_slots.size(); ++i)
+                {
+                    auto& slot = m_slots[i];
+                    auto* cell = static_cast<SmartGrid::BankedEncoderCell*>(bank.GetVisible(i % 4, i / 4));
+                    slot.m_source = cell ? banks.m_matrix.BindValue(cell) : EncoderMatrix::ValueReader{};
+                    if (newPage)
+                    {
+                        slot.m_initialized = false;
+                    }
+                }
+            }
+
+            for (auto& slot : m_slots)
+            {
+                auto* cell = slot.m_source.m_cell;
+                if (!cell || !cell->m_connected || cell->m_switchValues > 1)
+                {
+                    slot.m_initialized = false;
+                    continue;
+                }
+
+                QuadFloat value = slot.m_source.Read(banks.m_context->m_sceneManager);
+                if (cell->m_type == SmartGrid::EncoderType::ModulatorAmount && cell->m_modulatorsAffecting.IsZero())
+                {
+                    slot.Seed(value);
+                }
+                else
+                {
+                    slot.Process(value);
+                }
+            }
+        }
+
+        void PopulateUIState(const EncoderBankBank& banks, EncoderBankUIState& ui) const
+        {
+            if (!Matches(banks))
+            {
+                return;
+            }
+
+            for (size_t i = 0; i < m_slots.size(); ++i)
+            {
+                const auto& slot = m_slots[i];
+                size_t x = i % 4;
+                size_t y = i / 4;
+                auto* cell = slot.m_source.m_cell;
+                if (!slot.m_initialized || !ui.GetConnected(x, y) || ui.GetSwitchValues(x, y) > 1
+                    || (cell->m_type == SmartGrid::EncoderType::ModulatorAmount && cell->m_modulatorsAffecting.IsZero()))
+                {
+                    continue;
+                }
+
+                for (int voice = 0; voice < ui.GetNumVoices(x, y); ++voice)
+                {
+                    ui.SetDisplayValue(x, y, voice, slot.m_center[voice]);
+                    ui.SetSpread(x, y, voice, std::sqrt(std::max(0.0f, slot.m_energy[voice])));
+                }
+            }
+        }
+    };
+
     EncoderBankBank m_encoderBankBank;
+    VisibleMotion m_visibleMotion;
     Bank m_selectedBank;
     size_t m_selectedTrio;
     std::array<size_t, x_totalNumBanks> m_boundPages;
@@ -510,6 +634,10 @@ struct SmartGridOneEncoders
     {
         m_values = m_encoderBankBank.m_valueCaches[SampleTimer::GetSubSampleIndex()].data();
         m_encoderBankBank.Process();
+        if (SampleTimer::IsHostFrame())
+        {
+            m_visibleMotion.Process(m_encoderBankBank);
+        }
     }
 
     void Apply(SmartGrid::MessageIn msg)
@@ -531,6 +659,7 @@ struct SmartGridOneEncoders
     void PopulateUIState(EncoderBankUIState* uiState)
     {
         m_encoderBankBank.PopulateUIState(uiState);
+        m_visibleMotion.PopulateUIState(m_encoderBankBank, *uiState);
 
         for (size_t x = 0; x < 4; ++x)
         {
@@ -572,6 +701,7 @@ struct SmartGridOneEncoders
 
     void FromJSON(JSON rootJ)
     {
+        m_visibleMotion = VisibleMotion{};
         m_encoderBankBank.FromJSON(rootJ);
     }
 };

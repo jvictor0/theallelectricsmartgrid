@@ -5,6 +5,7 @@
 #include "GangedRandomLFOComponent.hpp"
 #include "EncoderModulatorComponents.hpp"
 #include "EncoderModulatorVisualizers.hpp"
+#include "SmartGridOneEncoders.hpp"
 
 namespace
 {
@@ -669,4 +670,230 @@ DOCTEST_TEST_CASE("Encoder weighted curves: random time axes keep other sources 
     }
 
     DOCTEST_CHECK(futureCurve);
+}
+
+DOCTEST_TEST_CASE("Encoder motion: curved blur grows continuously and stays inside the knob domain")
+{
+    auto still = EncoderGeometry::GetMotionIndicator(45.0f, 0.5f, 0.0f);
+    auto slow = EncoderGeometry::GetMotionIndicator(45.0f, 0.5f, 0.02f);
+    auto fast = EncoderGeometry::GetMotionIndicator(45.0f, 0.5f, 0.2f);
+    DOCTEST_CHECK(still.m_end - still.m_start < 0.01f);
+    DOCTEST_CHECK(slow.m_end - slow.m_start > still.m_end - still.m_start);
+    DOCTEST_CHECK(fast.m_end - fast.m_start > slow.m_end - slow.m_start);
+    DOCTEST_CHECK(fast.m_outerWidth > still.m_outerWidth);
+    DOCTEST_CHECK(fast.m_outlineAlpha < slow.m_outlineAlpha);
+    for (float value : {0.0f, 0.5f, 1.0f})
+    {
+        auto wide = EncoderGeometry::GetMotionIndicator(45.0f, value, 0.5f);
+        DOCTEST_CHECK(wide.m_start >= 0.0f);
+        DOCTEST_CHECK(wide.m_end <= 1.0f);
+        DOCTEST_CHECK(wide.m_start <= value);
+        DOCTEST_CHECK(wide.m_end >= value);
+    }
+}
+
+DOCTEST_TEST_CASE("Encoder motion: real painting consumes voice spreads and leaves switches sharp")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    EncoderBankUIState ui;
+    ModulatorVisualizers visualizers;
+    ui.SetConnected(0, 0, true);
+    ui.SetColor(0, 0, SmartGrid::Color::Red);
+    ui.SetBrightness(0, 0, 1.0f);
+    ui.SetNumVoices(0, 0, 1);
+    ui.SetIndicatorColor(0, 0, 0, SmartGrid::Color::Red);
+    ui.SetValue(0, 0, 0, 0.5f);
+    ui.SetMinValue(0, 0, 0, 0.2f);
+    ui.SetMaxValue(0, 0, 0, 0.8f);
+    ui.SetShortName(0, 0, "MOVE");
+    EncoderComponent encoder(EncoderBankUI(0, &ui, nullptr), 0, 0, false, visualizers);
+    encoder.SetSize(160);
+    auto render = [&]()
+    {
+        juce::Image image(juce::Image::ARGB, 160, 200, true);
+        juce::Graphics g(image);
+        encoder.paintEntireComponent(g, false);
+        return image;
+    };
+    auto differences = [](const juce::Image& left, const juce::Image& right)
+    {
+        size_t count = 0;
+        for (int y = 0; y < left.getHeight(); ++y)
+        {
+            for (int x = 0; x < left.getWidth(); ++x)
+            {
+                count += left.getPixelAt(x, y) != right.getPixelAt(x, y);
+            }
+        }
+
+        return count;
+    };
+    auto still = render();
+    ui.SetSpread(0, 0, 0, 0.02f);
+    auto slow = render();
+    ui.SetSpread(0, 0, 0, 0.15f);
+    auto fast = render();
+    DOCTEST_CHECK(differences(still, fast) > differences(still, slow));
+    DOCTEST_CHECK(differences(still, slow) > 100);
+
+    ui.SetBipolar(0, 0, true);
+    auto bipolar = render();
+    // Except for the zero marker, the indicator uses the same normalized
+    // center and spread without halving either a second time.
+    //
+    for (int y = 0; y < 80; ++y)
+    {
+        for (int x = 0; x < 160; ++x)
+        {
+            if (std::abs(x - 80) > 4 || std::abs(y - 8) > 4)
+            {
+                DOCTEST_CHECK(bipolar.getPixelAt(x, y) == fast.getPixelAt(x, y));
+            }
+        }
+    }
+
+    ui.SetSwitchValues(0, 0, 5);
+    auto switchBlur = render();
+    ui.SetSpread(0, 0, 0, 0.0f);
+    auto switchStill = render();
+    DOCTEST_CHECK(differences(switchBlur, switchStill) == 0);
+
+    ui.SetBipolar(0, 0, false);
+    ui.SetSwitchValues(0, 0, 0);
+    ui.SetNumVoices(0, 0, 4);
+    for (size_t voice = 0; voice < 4; ++voice)
+    {
+        const SmartGrid::Color colors[] = {SmartGrid::Color::Red, SmartGrid::Color::Cyan,
+            SmartGrid::Color::Pink, SmartGrid::Color::White};
+        ui.SetIndicatorColor(0, 0, voice, colors[voice]);
+        ui.SetValue(0, 0, voice, 0.3f + voice * 0.12f);
+        ui.SetSpread(0, 0, voice, 0.03f + voice * 0.025f);
+    }
+
+    auto polyphonic = render();
+    DOCTEST_CHECK(differences(fast, polyphonic) > 1000);
+    if (const char* path = std::getenv("SMARTGRID_ENCODER_MOTION_PREVIEW"))
+    {
+        juce::Image preview(juce::Image::ARGB, 800, 230, true);
+        juce::Graphics g(preview);
+        g.fillAll(juce::Colour(24, 24, 28));
+        const juce::Image images[] = {still, slow, fast, polyphonic, switchStill};
+        const char* labels[] = {"Still", "Slow", "Audio rate", "Four voices", "Switch"};
+        for (int i = 0; i < 5; ++i)
+        {
+            g.drawImageAt(images[i], i * 160, 0);
+            g.setColour(juce::Colours::white);
+            g.drawText(labels[i], i * 160, 200, 160, 24, juce::Justification::centred);
+        }
+
+        juce::FileOutputStream output{juce::File(path)};
+        DOCTEST_REQUIRE(output.openedOk());
+        DOCTEST_CHECK(juce::PNGImageFormat().writeImageToStream(preview, output));
+    }
+}
+
+DOCTEST_TEST_CASE("Encoder motion: full-scale audio sine covers the entire dial through matrix and UI publication")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    SampleTimer timer;
+    timer.m_samplesPerFrame = SampleTimer::x_samplesPerProcessFrame;
+    juce::ScopedValueSetter<SampleTimer*> clock(SampleTimer::s_instance, &timer);
+    for (float frequency : {100.0f, 1000.0f, 10000.0f})
+    {
+        DOCTEST_CAPTURE(frequency);
+        SmartGridOneContext context;
+        EncoderBankBank banks(1, 1, 1, &context);
+        banks.InitMode(0, 1);
+        banks.InitBank(0, 0, SmartGrid::Color::Red);
+        banks.CreateEncoder(0, 0, 0.0f, "Sine", "SINE", SmartGrid::Color::Red, 0, true);
+        banks.PlaceEncoder(0, 0, 0, 0);
+        banks.SelectGrid(0);
+        auto& sources = banks.GetModulatorValues(0);
+        sources.SetModulatorSkin(0, SmartGrid::Color::Red, "SIN");
+        auto* cell = banks.GetEncoder(0);
+        cell->FillModulators(&context);
+        cell->m_modulators.m_modulators[0]->SetToValue(1.0f);
+        SmartGridOneEncoders::VisibleMotion motion;
+        EncoderBankUIState ui;
+        float minValue = 1.0f;
+        float maxValue = 0.0f;
+        float minCenter = 1.0f;
+        float maxCenter = 0.0f;
+        float minSpread = 1.0f;
+        float maxSpread = 0.0f;
+        float largestArcStart = 0.0f;
+        float smallestArcEnd = 1.0f;
+        for (size_t sample = 0; sample < SampleTimer::x_hostSampleRate; ++sample)
+        {
+            timer.m_sample = sample * SampleTimer::x_oversample;
+            float sine = std::sin(2.0 * juce::MathConstants<double>::pi * frequency * sample
+                / SampleTimer::x_hostSampleRate);
+            // A 0 dBFS sine has peaks at -1 and +1. The matrix consumes the
+            // corresponding unipolar coordinate, not a clipped bipolar input.
+            //
+            sources.m_hostValue[0] = QuadFloat::Splat(0.5f + 0.5f * sine);
+            context.m_sceneManager.Process();
+            banks.ProcessHostFrame();
+            motion.Process(banks);
+            if (sample < SampleTimer::x_hostSampleRate / 4)
+            {
+                continue;
+            }
+
+            banks.PopulateUIState(&ui);
+            motion.PopulateUIState(banks, ui);
+            float center = ui.GetDisplayValue(0, 0, 0);
+            float spread = ui.GetSpread(0, 0, 0);
+            auto geometry = EncoderGeometry::GetMotionIndicator(144.0f, center, spread);
+            minValue = std::min(minValue, ui.GetValue(0, 0, 0));
+            maxValue = std::max(maxValue, ui.GetValue(0, 0, 0));
+            minCenter = std::min(minCenter, center);
+            maxCenter = std::max(maxCenter, center);
+            minSpread = std::min(minSpread, spread);
+            maxSpread = std::max(maxSpread, spread);
+            largestArcStart = std::max(largestArcStart, geometry.m_start);
+            smallestArcEnd = std::min(smallestArcEnd, geometry.m_end);
+        }
+
+        DOCTEST_REQUIRE(minValue == doctest::Approx(0.0f));
+        DOCTEST_REQUIRE(maxValue == doctest::Approx(1.0f));
+        DOCTEST_CHECK(largestArcStart == 0.0f);
+        DOCTEST_CHECK(smallestArcEnd == 1.0f);
+        DOCTEST_MESSAGE(frequency << " Hz: value=" << minValue << ".." << maxValue
+            << ", center=" << minCenter << ".." << maxCenter
+            << ", spread=" << minSpread << ".." << maxSpread
+            << ", worst-case arc=" << largestArcStart << ".." << smallestArcEnd);
+        if (frequency == 1000.0f)
+        {
+            ui.SetIndicatorColor(0, 0, 0, SmartGrid::Color::Red);
+            ModulatorVisualizers visualizers;
+            EncoderComponent encoder(EncoderBankUI(0, &ui, nullptr), 0, 0, false, visualizers);
+            encoder.SetSize(320);
+            juce::Image image(juce::Image::ARGB, 320, 400, true);
+            juce::Graphics g(image);
+            g.fillAll(juce::Colour(24, 24, 28));
+            encoder.paintEntireComponent(g, false);
+            // Probe outside the thin range arc at both endpoints to verify
+            // that the thick motion indicator itself reaches each end.
+            //
+            for (float value : {0.0f, 1.0f})
+            {
+                float angle = EncoderGeometry::ValueToArcAngle(value);
+                int x = static_cast<int>(std::round(160.0f + 150.0f * std::sin(angle)));
+                int y = static_cast<int>(std::round(160.0f - 150.0f * std::cos(angle)));
+                auto pixel = image.getPixelAt(x, y);
+                DOCTEST_CHECK(pixel.getRed() > 200);
+                DOCTEST_CHECK(pixel.getGreen() < 50);
+            }
+
+            if (const char* path = std::getenv("SMARTGRID_ENCODER_SINE_PREVIEW"))
+            {
+                g.setColour(juce::Colours::white);
+                g.drawText("1 kHz sine / 0 dBFS / full depth", 0, 340, 320, 24, juce::Justification::centred);
+                juce::FileOutputStream output{juce::File(path)};
+                DOCTEST_REQUIRE(output.openedOk());
+                DOCTEST_CHECK(juce::PNGImageFormat().writeImageToStream(image, output));
+            }
+        }
+    }
 }

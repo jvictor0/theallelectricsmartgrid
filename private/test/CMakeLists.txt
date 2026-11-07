@@ -112,6 +112,7 @@ configure_file("${SRC_DIR}/RecordingFlacCodec.cpp" "${PASSTHROUGH_RATE_SRC_DIR}/
 add_executable(smartgrid_passthrough_rate_tests
     ${TEST_DIR}/support/TestMain.cpp
     ${TEST_DIR}/unit/encoder_host_rate.cpp
+    ${TEST_DIR}/unit/encoder_motion.cpp
     ${TEST_DIR}/unit/effect_rate_boundaries.cpp
     "${PASSTHROUGH_RATE_SRC_DIR}/RecordingFlacCodec.cpp"
 )

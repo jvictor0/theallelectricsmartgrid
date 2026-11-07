@@ -1396,6 +1396,13 @@ struct EncoderBankInternal : public EncoderGrid
     BankedEncoderCell* m_baseCell[4][4];
     BankedEncoderCell* m_selected;
     BankedEncoderCell::SharedEncoderState m_sharedEncoderState;
+    size_t m_visibleRevision = 0;
+
+    void SetVisible(int x, int y, EncoderCell* cell)
+    {
+        EncoderGrid::SetVisible(x, y, cell);
+        ++m_visibleRevision;
+    }
 
     EncoderBankInternal()
         : m_context(nullptr)
@@ -1736,6 +1743,11 @@ struct EncoderBankInternal : public EncoderGrid
 
                 auto& encoderState = uiState->m_states[i][j];
                 encoderState.m_weightsRevision.fetch_add(1);
+                for (size_t voice = 0; voice < EncoderUIState::x_maxVoices; ++voice)
+                {
+                    uiState->SetSpread(i, j, voice, 0.0f);
+                }
+
                 float weights[EncoderUIState::x_maxVoices][EncoderUIState::x_numModulators]{};
                 auto* shared = cell ? cell->GetSharedEncoderState() : nullptr;
                 size_t numVoices = shared ? shared->m_numVoices : 0;

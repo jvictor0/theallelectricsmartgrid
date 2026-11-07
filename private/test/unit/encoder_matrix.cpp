@@ -800,3 +800,110 @@ DOCTEST_TEST_CASE("encoder matrix: changed patch reuses matching paths and repla
     DOCTEST_CHECK(actual.Root().m_modulators.m_numActiveModulators == 0);
     DOCTEST_CHECK(actual.Root().m_modulators.m_numActiveGestures == 0);
 }
+
+namespace
+{
+Cell* CorrespondingCell(Cell* cell, Cell* root, Cell* reference)
+{
+    if (cell == root)
+    {
+        return reference;
+    }
+
+    Cell* parent = CorrespondingCell(cell->m_parent, root, reference);
+    return cell->m_type == SmartGrid::EncoderType::ModulatorAmount
+        ? parent->m_modulators.m_modulators[cell->m_index].get()
+        : parent->m_modulators.m_gestures[cell->m_index].get();
+}
+}
+
+DOCTEST_TEST_CASE("encoder matrix: visible value readers follow nested graphs editing and rebuilds without materializing cells")
+{
+    GlobalEnv::ResetPerTest();
+    MatrixRig actual;
+    MatrixRig reference;
+    actual.ConfigureGestures();
+    reference.ConfigureGestures();
+    std::array<EncoderMatrix::ValueReader, 5> readers;
+    size_t generation = 0;
+    size_t graphFrames = 0;
+    size_t editingFrames = 0;
+    size_t staleCopies = 0;
+    auto& matrix = actual.m_bank.m_matrix;
+    Cell* cells[] = {
+        &actual.Root(),
+        actual.Root().m_modulators.m_modulators[2].get(),
+        actual.Root().m_modulators.m_modulators[2]->m_modulators.m_modulators[4].get(),
+        actual.Root().m_modulators.m_modulators[7].get(),
+        actual.Root().m_modulators.m_gestures[1].get()
+    };
+    for (size_t frame = 0; frame < 6000; ++frame)
+    {
+        for (auto* rig : {&actual, &reference})
+        {
+            rig->m_context.m_sceneManager.m_blendFactor = static_cast<float>(frame % 173) / 172.0f;
+            if (frame == 1000)
+            {
+                rig->Root().m_modulators.m_modulators[2]->Increment(0.1f);
+            }
+
+            if (frame == 5000)
+            {
+                rig->m_context.m_sceneManager.m_scene2 = 3;
+            }
+
+            for (size_t source = 0; source < Cell::x_numModulators; ++source)
+            {
+                for (size_t voice = 0; voice < 4; ++voice)
+                {
+                    rig->Sources().m_hostValue[source][voice] = static_cast<float>((frame + source * 7 + voice * 13) % 97) / 96.0f;
+                }
+            }
+
+            for (size_t gesture = 0; gesture < Cell::x_numGestureParams; ++gesture)
+            {
+                rig->Sources().m_gestureWeights[gesture] = static_cast<float>((frame + gesture * 11) % 101) / 100.0f;
+            }
+        }
+
+        if (frame == 4000)
+        {
+            matrix.m_rebuild = true;
+        }
+
+        SampleTimer::s_instance->m_sample += SampleTimer::x_oversample;
+        actual.Process(false);
+        reference.Process(true);
+        if (generation != matrix.m_generation)
+        {
+            generation = matrix.m_generation;
+            for (size_t i = 0; i < readers.size(); ++i)
+            {
+                readers[i] = matrix.BindValue(cells[i]);
+            }
+        }
+
+        bool prepared = actual.Root().m_preparedValues;
+        for (size_t i = 0; i < readers.size(); ++i)
+        {
+            Cell* expected = CorrespondingCell(cells[i], &actual.Root(), &reference.Root());
+            QuadFloat before = cells[i]->m_output;
+            QuadFloat value = readers[i].Read(actual.m_context.m_sceneManager);
+            for (size_t voice = 0; voice < 4; ++voice)
+            {
+                DOCTEST_REQUIRE(value[voice] == doctest::Approx(expected->m_output[voice]).epsilon(0.000001));
+                DOCTEST_REQUIRE(cells[i]->m_output[voice] == before[voice]);
+            }
+
+            staleCopies += value[0] != before[0];
+        }
+
+        DOCTEST_REQUIRE(actual.Root().m_preparedValues == prepared);
+        graphFrames += matrix.m_roots[0].m_path == EncoderMatrix::Path::Graph;
+        editingFrames += matrix.m_roots[0].m_path == EncoderMatrix::Path::Editing;
+    }
+
+    DOCTEST_CHECK(graphFrames > 1000);
+    DOCTEST_CHECK(editingFrames > 0);
+    DOCTEST_CHECK(staleCopies > 1000);
+}

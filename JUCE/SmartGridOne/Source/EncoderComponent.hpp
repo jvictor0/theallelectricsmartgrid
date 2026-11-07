@@ -120,6 +120,26 @@ struct EncoderComponent : public juce::Component
         g.strokePath(arcPath, juce::PathStrokeType(strokeWidth));
     }
 
+    static void DrawMotionIndicator(juce::Graphics& g, float centerX, float centerY,
+        float radius, float value, float spread, juce::Colour color)
+    {
+        auto geometry = EncoderGeometry::GetMotionIndicator(radius, value, spread);
+        juce::Path path;
+        path.addCentredArc(centerX, centerY, radius, radius, 0.0f,
+            EncoderGeometry::ValueToArcAngle(geometry.m_start),
+            EncoderGeometry::ValueToArcAngle(geometry.m_end), true);
+        auto drawLayer = [&](float width, juce::Colour layerColor)
+        {
+            g.setColour(layerColor);
+            g.strokePath(path, juce::PathStrokeType(width, juce::PathStrokeType::curved,
+                juce::PathStrokeType::rounded));
+        };
+        drawLayer(geometry.m_outlineWidth, juce::Colours::black.withAlpha(geometry.m_outlineAlpha));
+        drawLayer(geometry.m_outerWidth, color.withMultipliedAlpha(geometry.m_outerAlpha));
+        drawLayer(geometry.m_midWidth, color.withMultipliedAlpha(geometry.m_midAlpha));
+        drawLayer(geometry.m_coreWidth, color.withMultipliedAlpha(geometry.m_coreAlpha));
+    }
+
     static void GetSwitchValueRange(int switchVal, int switchValues, float& startValue, float& endValue)
     {
         if (switchValues <= 1)
@@ -411,7 +431,7 @@ struct EncoderComponent : public juce::Component
                     continue;
                 }
 
-                float value = m_ui.m_uiState->GetValue(m_x, m_y, voice);
+                float value = m_ui.m_uiState->GetDisplayValue(m_x, m_y, voice);
 
                 // Skip if value is invalid
                 //
@@ -420,8 +440,21 @@ struct EncoderComponent : public juce::Component
                     continue;
                 }
 
-                float angle = value * 270.0f; // Convert value to degrees (0-270)
-                float indicatorAngle = juce::MathConstants<float>::pi * 0.75f + (angle * juce::MathConstants<float>::pi / 180.0f); // Start at 7:30 and go clockwise
+                auto indicatorColor = m_ui.m_uiState->GetIndicatorColor(m_x, m_y, voice);
+                juce::Colour color(indicatorColor.m_red, indicatorColor.m_green, indicatorColor.m_blue);
+                if (m_ui.m_uiState->GetSwitchValues(m_x, m_y) <= 1)
+                {
+                    float spread = m_ui.m_uiState->GetSpread(m_x, m_y, voice);
+                    if (std::isfinite(spread))
+                    {
+                        DrawMotionIndicator(g, centerX, centerY, radius, value, spread, color);
+                    }
+
+                    continue;
+                }
+
+                float indicatorAngle = juce::MathConstants<float>::pi * 0.75f
+                    + value * juce::MathConstants<float>::pi * 1.5f;
 
                 // Draw the small indicator circle
                 //
@@ -429,8 +462,7 @@ struct EncoderComponent : public juce::Component
                 auto indicatorX = centerX + radius * std::cos(indicatorAngle);
                 auto indicatorY = centerY + radius * std::sin(indicatorAngle);
 
-                auto indicatorColor = m_ui.m_uiState->GetIndicatorColor(m_x, m_y, voice);
-                g.setColour(juce::Colour(indicatorColor.m_red, indicatorColor.m_green, indicatorColor.m_blue));
+                g.setColour(color);
                 DrawSwitchValueArc(
                     g,
                     centerX,

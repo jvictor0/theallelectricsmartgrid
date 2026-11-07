@@ -47,6 +47,27 @@ All banks fit in the three-slot row. The catalogue is checked at compile time so
 
 Standalone modulation panels are temporarily absent. The original 24×18 controller page has no visualizer-mode switching and keeps its grids, encoders, faders and joysticks visible.
 
+### Encoder motion indicators
+
+`SmartGridOneEncoders::VisibleMotion` tracks only the selected bank's 16 visible
+cells, with four SIMD voice lanes per cell. It samples normalized knob values
+after the matrix's 48 kHz host-frame update. Approximately 10 Hz one-pole filters
+track the center and the squared high-pass residual (`value - center`); the UI
+snapshot takes the square root of the residual energy to publish motion spread.
+The filtered position has its own display field; ordinary value readback still
+publishes the instantaneous parameter output. Slow modulation moves a sharp
+indicator. Audio-rate modulation stretches it
+along the dial, using layered rounded arcs extending about two spreads either
+side of the center. Discrete switches retain their sharp indicators.
+
+The trackers read existing outputs through `EncoderMatrix::ValueReader`.
+Nested depths bind to compact graph nodes; settled leaf depths read their
+normalized scene blend, and active edits read the editable cell output.
+Bindings refresh after graph rebuilds without adding processing to matrix
+routes or nodes. Page/layout changes and patch loads cold-start the trackers;
+hidden parameters have no motion history. Both bipolar and unipolar display
+centers/spreads use the same normalized 0–1 dial coordinates.
+
 ### Modulator backgrounds in encoders
 
 `EncoderBankUIState` publishes the selected bank mode and each visible cell's encoder type and index. Connected `ModulatorAmount` cells use those fields to look up their source's background, including nested selected depths at (3,3). Base parameters show a background when exactly one affecting modulator has a visualizer; unassociated sources and gesture assignments do not count. Gesture cells do not draw a background. Depth cells always retain their own source, even when another modulator affects the depth, and depth zero still shows its source.

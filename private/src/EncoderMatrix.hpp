@@ -89,9 +89,103 @@ struct EncoderMatrix
     std::vector<Node> m_nodes;
     std::vector<NestedRoute> m_nestedRoutes;
     std::vector<Gesture> m_gestures;
+    size_t m_generation = 0;
     bool m_rebuild = true;
     int m_leftScene = -1;
     int m_rightScene = -1;
+
+    // Readers are bound outside the sample loop and expire on Rebuild. A root
+    // can enter the editing path before the next rebuild, so reads follow it.
+    //
+    struct ValueReader
+    {
+        Cell* m_cell = nullptr;
+        const Root* m_root = nullptr;
+        const QuadFloat* m_output = nullptr;
+
+        QuadFloat Read(const SmartGrid::SceneManager& scene) const
+        {
+            assert(m_cell);
+            if (!m_root)
+            {
+                return *m_output;
+            }
+
+            if (m_cell->m_type == SmartGrid::EncoderType::ModulatorAmount && m_cell->m_modulatorsAffecting.IsZero())
+            {
+                return QuadFloat::Splat(m_cell->GetNeutralNormalizedValue());
+            }
+
+            if (m_root->m_path == Path::Editing)
+            {
+                return m_cell->m_output;
+            }
+
+            if (m_output)
+            {
+                return *m_output;
+            }
+
+            // Settled leaf depths and gesture values have no graph node.
+            // Their normalized position is the scene blend before depth mapping.
+            //
+            return QuadFloat::Splat(m_cell->m_values[scene.m_scene1] * (1.0f - scene.m_blendFactor)
+                + m_cell->m_values[scene.m_scene2] * scene.m_blendFactor);
+        }
+    };
+
+    size_t FindNode(const Cell* cell, const Root& root) const
+    {
+        if (cell == root.m_cell)
+        {
+            return root.m_start + root.m_count - 1;
+        }
+
+        if (cell->m_type != SmartGrid::EncoderType::ModulatorAmount)
+        {
+            return x_leaf;
+        }
+
+        size_t parent = FindNode(cell->m_parent, root);
+        if (parent != x_leaf)
+        {
+            const Node& node = m_nodes[parent];
+            for (size_t i = node.m_start; i < node.m_start + node.m_count; ++i)
+            {
+                const NestedRoute& route = m_nestedRoutes[i];
+                if (route.m_amount.m_source == cell->m_index)
+                {
+                    return route.m_node;
+                }
+            }
+        }
+
+        return x_leaf;
+    }
+
+    ValueReader BindValue(Cell* cell) const
+    {
+        assert(cell);
+        if (!cell->m_parent)
+        {
+            return {cell, nullptr, &cell->m_output};
+        }
+
+        const Cell* rootCell = cell;
+        while (rootCell->m_parent)
+        {
+            rootCell = rootCell->m_parent;
+        }
+
+        auto root = std::find_if(m_roots.begin(), m_roots.end(),
+            [rootCell](const Root& candidate)
+            {
+                return candidate.m_cell == rootCell;
+            });
+        assert(root != m_roots.end());
+        size_t node = root->m_path == Path::Graph ? FindNode(cell, *root) : x_leaf;
+        return {cell, &*root, node == x_leaf ? nullptr : &m_nodes[node].m_output};
+    }
 
     static bool HasInputs(Cell* cell)
     {
@@ -256,6 +350,7 @@ struct EncoderMatrix
         m_leftScene = scene.m_scene1;
         m_rightScene = scene.m_scene2;
         m_rebuild = false;
+        ++m_generation;
     }
 
     void ProcessGraph(const Root& root, float blend, size_t host)

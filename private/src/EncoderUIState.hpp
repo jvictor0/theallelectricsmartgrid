@@ -24,6 +24,8 @@ struct EncoderUIState
     std::atomic<SmartGrid::Color> m_color;
     std::atomic<float> m_brightness;
     std::atomic<float> m_values[x_maxVoices];
+    std::atomic<float> m_displayValues[x_maxVoices]{};
+    std::atomic<float> m_spreads[x_maxVoices]{};
     std::atomic<float> m_minValues[x_maxVoices];
     std::atomic<float> m_maxValues[x_maxVoices];
     std::atomic<bool> m_connected;
@@ -144,6 +146,26 @@ struct EncoderBankUIState
         return m_states[i][j].m_values[k].load();
     }
 
+    float GetSpread(size_t i, size_t j, size_t k)
+    {
+        return m_states[i][j].m_spreads[k].load();
+    }
+
+    float GetDisplayValue(size_t i, size_t j, size_t k)
+    {
+        return m_states[i][j].m_displayValues[k].load();
+    }
+
+    void SetDisplayValue(size_t i, size_t j, size_t k, float value)
+    {
+        m_states[i][j].m_displayValues[k].store(value);
+    }
+
+    void SetSpread(size_t i, size_t j, size_t k, float spread)
+    {
+        m_states[i][j].m_spreads[k].store(spread);
+    }
+
     float GetMinValue(size_t i, size_t j, size_t k)
     {
         return m_states[i][j].m_minValues[k].load();
@@ -237,6 +259,7 @@ struct EncoderBankUIState
     void SetValue(size_t i, size_t j, size_t k, float value)
     {
         m_states[i][j].m_values[k].store(value);
+        SetDisplayValue(i, j, k, value);
     }
 
     void SetMinValue(size_t i, size_t j, size_t k, float value)
@@ -258,7 +281,7 @@ struct EncoderBankUIState
     {
         for (size_t k = 0; k < EncoderUIState::x_maxVoices; ++k)
         {
-            m_states[i][j].m_values[k].store(values[k]);
+            SetValue(i, j, k, values[k]);
         }
     }
 
