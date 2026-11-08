@@ -36,20 +36,14 @@ theorem setTarget_ready (t : Timing) (s : Cell) (i : Scene) (v : Rat)
     split
     · exact hs.2.1
     · have hd : 0 < duration t s.age := by
-        unfold duration
-        have hp := t.positive
-        have hm := t.ordered
-        omega
+        exact duration_positive _ _
       simp only
       split <;> grind
   · unfold setTarget
     split
     · exact hs.2.2
     · have hd : 0 < duration t s.age := by
-        unfold duration
-        have hp := t.positive
-        have hm := t.ordered
-        omega
+        exact duration_positive _ _
       intro hz
       have hp : 0 < (if s.age = 0 then s.remaining else duration t s.age) := by
         split <;> grind

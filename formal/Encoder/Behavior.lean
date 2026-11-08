@@ -20,7 +20,7 @@ claim smoothness across arbitrary patch loads or discrete topology changes.
 -/
 veil module EncoderBehavior
 
-param timing : Encoder.Timing
+param timing : Encoder.SettlingTiming
 param initialValue : Encoder.DefaultValue
 param ratio : Nat
 param bipolar : Bool

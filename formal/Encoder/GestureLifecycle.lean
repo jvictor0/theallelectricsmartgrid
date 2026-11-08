@@ -306,10 +306,7 @@ theorem capture_changed_ready (t : Timing) (parent : Cell) (i : Scene) (g : Stat
     (changed : g.cell.targets i ≠ parent.targets i) : Reset.Ready t (capture t parent i g).cell := by
   have hv := capture_valid t parent i g hp hg.1
   have hd : 0 < duration t g.cell.age := by
-    unfold duration
-    have ha := t.positive
-    have hb := t.ordered
-    omega
+    exact duration_positive _ _
   have hr : 0 < (capture t parent i g).cell.remaining := by
     simp only [capture, edit, setTarget, changed, ↓reduceIte]
     split
@@ -382,7 +379,7 @@ theorem capture_finishes_iff (t : Timing) (parent : Cell) (i : Scene) (g : State
 -- failure case; accepting the defect does not assume unconditional convergence.
 -- A kernel-checked counterexample: a settled unipolar gesture is reactivated
 -- while its parent is ramping back to zero. The copied current value sticks.
-def exampleTiming : Timing := ⟨96,2400,by decide,by decide⟩
+def exampleTiming : Timing := ⟨96,2400,by decide,by decide,false⟩
 def exampleParent : Cell := setTarget exampleTiming (initialFrom exampleTiming 1) 0 0
 def exampleCaptured : State := setScene exampleTiming exampleParent true 0 (fresh exampleTiming false)
 
@@ -402,6 +399,14 @@ theorem capture_stalled_counterexample :
   refine ⟨hp, Reset.initial_ready _ _ (by norm_num [Edits.neutral, UnitInterval]),
     by decide, by decide, by decide, ?_⟩
   intro n
+  rw [zero_remaining_stays _ _ (by decide)]
+  decide
+
+theorem current_capture_stalled_counterexample (frames : Nat) :
+    let parent := setTarget currentTiming (initialFrom currentTiming 1) 0 0
+    let captured := setScene currentTiming parent true 0 (fresh currentTiming false)
+    (run currentTiming frames captured.cell).values 0 = 1 := by
+  dsimp only
   rw [zero_remaining_stays _ _ (by decide)]
   decide
 

@@ -35,40 +35,42 @@ theorem normalized_clamp (x : Rat) (h : UnitInterval x) : clamp01 x = x := by
   unfold clamp01 UnitInterval at *
   split <;> (try split) <;> grind
 
-theorem ramp_step_between (s : Cell) (i : Scene)
+theorem ramp_step_between (t : Timing) (s : Cell) (i : Scene)
     (hv : UnitInterval (s.values i)) (ht : UnitInterval (s.targets i)) :
-    min (s.values i) (s.targets i) ≤ move s i ∧
-      move s i ≤ max (s.values i) (s.targets i) := by
+    min (s.values i) (s.targets i) ≤ move t s i ∧
+      move t s i ≤ max (s.values i) (s.targets i) := by
   unfold move
   split
   · exact ⟨min_le_left _ _, le_max_left _ _⟩
   · split
     · exact ⟨min_le_right _ _, le_max_right _ _⟩
-    · have hn : 1 ≤ s.remaining := by omega
-      have hnq : (1 : Rat) ≤ s.remaining := by exact_mod_cast hn
-      have hpos : (0 : Rat) < s.remaining := lt_of_lt_of_le (by decide) hnq
-      have hinv : 0 ≤ (1 : Rat) / s.remaining := le_of_lt (one_div_pos.mpr hpos)
-      have hle : (1 : Rat) / s.remaining ≤ 1 := by
-        apply (div_le_iff₀ hpos).mpr
-        simpa using hnq
-      have heq : s.values i + (s.targets i - s.values i) / (s.remaining : Rat) =
-          s.values i * (1 - 1 / (s.remaining : Rat)) + s.targets i / (s.remaining : Rat) := by ring
-      rw [heq]
-      have lo : min (s.values i) (s.targets i) ≤
-          s.values i * (1 - 1 / (s.remaining : Rat)) + s.targets i / (s.remaining : Rat) := by
-        have ha := mul_le_mul_of_nonneg_right (min_le_left (s.values i) (s.targets i)) (sub_nonneg.mpr hle)
-        have hb := mul_le_mul_of_nonneg_right (min_le_right (s.values i) (s.targets i)) hinv
-        simp only [div_eq_mul_inv, one_mul] at *
-        nlinarith
-      have hi : s.values i * (1 - 1 / (s.remaining : Rat)) + s.targets i / (s.remaining : Rat) ≤
-          max (s.values i) (s.targets i) := by
-        have ha := mul_le_mul_of_nonneg_right (le_max_left (s.values i) (s.targets i)) (sub_nonneg.mpr hle)
-        have hb := mul_le_mul_of_nonneg_right (le_max_right (s.values i) (s.targets i)) hinv
-        simp only [div_eq_mul_inv, one_mul] at *
-        nlinarith
-      rw [normalized_clamp _ ⟨le_trans (le_min hv.1 ht.1) lo,
-        le_trans hi (max_le hv.2 ht.2)⟩]
-      exact ⟨lo, hi⟩
+    · split
+      · exact OnePole.step_between _ _
+      · have hn : 1 ≤ s.remaining := by omega
+        have hnq : (1 : Rat) ≤ s.remaining := by exact_mod_cast hn
+        have hpos : (0 : Rat) < s.remaining := lt_of_lt_of_le (by decide) hnq
+        have hinv : 0 ≤ (1 : Rat) / s.remaining := le_of_lt (one_div_pos.mpr hpos)
+        have hle : (1 : Rat) / s.remaining ≤ 1 := by
+          apply (div_le_iff₀ hpos).mpr
+          simpa using hnq
+        have heq : s.values i + (s.targets i - s.values i) / (s.remaining : Rat) =
+            s.values i * (1 - 1 / (s.remaining : Rat)) + s.targets i / (s.remaining : Rat) := by ring
+        rw [heq]
+        have lo : min (s.values i) (s.targets i) ≤
+            s.values i * (1 - 1 / (s.remaining : Rat)) + s.targets i / (s.remaining : Rat) := by
+          have ha := mul_le_mul_of_nonneg_right (min_le_left (s.values i) (s.targets i)) (sub_nonneg.mpr hle)
+          have hb := mul_le_mul_of_nonneg_right (min_le_right (s.values i) (s.targets i)) hinv
+          simp only [div_eq_mul_inv, one_mul] at *
+          nlinarith
+        have hi : s.values i * (1 - 1 / (s.remaining : Rat)) + s.targets i / (s.remaining : Rat) ≤
+            max (s.values i) (s.targets i) := by
+          have ha := mul_le_mul_of_nonneg_right (le_max_left (s.values i) (s.targets i)) (sub_nonneg.mpr hle)
+          have hb := mul_le_mul_of_nonneg_right (le_max_right (s.values i) (s.targets i)) hinv
+          simp only [div_eq_mul_inv, one_mul] at *
+          nlinarith
+        rw [normalized_clamp _ ⟨le_trans (le_min hv.1 ht.1) lo,
+          le_trans hi (max_le hv.2 ht.2)⟩]
+        exact ⟨lo, hi⟩
 
 -- @cpp refresh: a fully settled subtree needs only one forced scene refresh.
 -- Unlike a moving ramp, extending its counter does not change its trajectory.
@@ -79,7 +81,7 @@ theorem stationary_run (t : Timing) (s : Cell) (n : Nat)
   induction n generalizing s with
   | zero => simp [run, hr, ha]
   | succ n ih =>
-    have hm : move s = s.values := by
+    have hm : move t s = s.values := by
       funext i
       simp [move, hr]
     have step : (compute t true s).values = s.values ∧

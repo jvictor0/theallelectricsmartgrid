@@ -407,23 +407,7 @@
     },
     {
       "path": "private/src/Encoder.hpp",
-      "symbol": "struct TickDistributor"
-    },
-    {
-      "path": "private/src/Encoder.hpp",
-      "symbol": "void MoveValuesTowardsTargets()"
-    },
-    {
-      "path": "private/src/Encoder.hpp",
-      "symbol": "void SetTarget(float value, int scene)"
-    },
-    {
-      "path": "private/src/Encoder.hpp",
       "symbol": "void SetAndRecordValue(float value, int scene)"
-    },
-    {
-      "path": "private/src/EncoderBank.hpp",
-      "symbol": "void Compute(bool advanceState)"
     },
     {
       "path": "private/src/Encoder.hpp",
@@ -588,7 +572,7 @@
       "anchors": [
         "target"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E03",
@@ -599,7 +583,7 @@
       "anchors": [
         "target"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E04",
@@ -610,7 +594,7 @@
       "anchors": [
         "target"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E05",
@@ -622,7 +606,7 @@
         "ramp",
         "target"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Historical edits preserve the same-sample linear duration and current values. Cadence-independent one-pole timing is current-only."
     },
     {
       "id": "E06",
@@ -635,7 +619,7 @@
         "recording",
         "compute"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E07",
@@ -646,7 +630,7 @@
       "anchors": [
         "compute"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E09",
@@ -661,7 +645,7 @@
         "compute",
         "ramp"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E10",
@@ -674,7 +658,7 @@
         "ramp",
         "compute"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "The shared finite-convergence contract holds for each policy with its own bound: historical 2400 frames; current conservative proof budget 15001 frames with early retirement."
     },
     {
       "id": "E12",
@@ -686,7 +670,7 @@
       "anchors": [
         "persistence"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E13",
@@ -699,7 +683,7 @@
       "anchors": [
         "numeric"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E14",
@@ -710,7 +694,7 @@
       "anchors": [
         "scene_edit"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E15",
@@ -722,7 +706,7 @@
       "anchors": [
         "scene_edit"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E16",
@@ -734,7 +718,7 @@
       "anchors": [
         "mix"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E17",
@@ -746,7 +730,7 @@
       "anchors": [
         "mix"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E18",
@@ -760,7 +744,7 @@
       "anchors": [
         "mix"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E19",
@@ -772,7 +756,7 @@
       "anchors": [
         "gestures"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E20",
@@ -795,7 +779,7 @@
         "changed",
         "dirty"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E22",
@@ -806,7 +790,7 @@
       "anchors": [
         "dirty"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E25",
@@ -824,7 +808,7 @@
       "anchors": [
         "host_gate"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E27",
@@ -835,7 +819,7 @@
       "anchors": [
         "roots"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E28",
@@ -847,7 +831,7 @@
       "anchors": [
         "history"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E29",
@@ -859,7 +843,7 @@
       "anchors": [
         "history"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E30",
@@ -870,7 +854,7 @@
       "anchors": [
         "publish"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E31",
@@ -939,7 +923,7 @@
       "anchors": [
         "scene_flags"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E38",
@@ -954,7 +938,7 @@
         "combine",
         "recording"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E39",
@@ -968,7 +952,7 @@
       "anchors": [
         "combine"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E40",
@@ -979,7 +963,7 @@
       "anchors": [
         "shift"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E41",
@@ -992,7 +976,7 @@
       "anchors": [
         "shift"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E42",
@@ -1005,7 +989,7 @@
         "scene_edit",
         "combine"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E43",
@@ -1019,7 +1003,7 @@
       "anchors": [
         "gesture_edit"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E44",
@@ -1036,7 +1020,7 @@
       "anchors": [
         "curve"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E45",
@@ -1050,7 +1034,7 @@
         "curve",
         "exp_polynomial"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E46",
@@ -1076,7 +1060,7 @@
       "anchors": [
         "mix"
       ],
-      "reason": "Identical modeled leaf arithmetic/control definition, reused by both models; reviewed against pinned HEAD source."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
     },
     {
       "id": "E48",
@@ -1527,6 +1511,13 @@
         "patch_load"
       ],
       "reason": "The pinned loader replaces existing depth children with neutral cells. The explicit replacement transition proves an identical-patch reload excursion, also with the modeled production depth polynomial. This violates the new continuity contract; the current slot-preserving transition has separate proofs."
+    },
+    {
+      "id": "E78",
+      "status": "not-applicable",
+      "theorems": [],
+      "anchors": [],
+      "reason": "The pinned revision uses adaptive linear ramps, not the new manual-control one-pole. Its safety and finite-convergence obligations remain covered by the shared contracts."
     }
   ]
 }

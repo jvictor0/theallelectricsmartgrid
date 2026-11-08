@@ -1,7 +1,7 @@
 # Encoder state-machine specification
 
 This directory specifies the encoder runtime in **Lean 4.32.0 and Veil**, with
-72 EARS entries and kernel-checked proofs. Observable control behavior is specified
+73 EARS entries and kernel-checked proofs. Observable control behavior is specified
 independently of evaluation strategy. Supporting models describe the prepared
 evaluator, editable recursive encoder state, and committed `HEAD` at
 `0a0d206529be45b6ff3ac82824c65ebe73b49003`. Production C++ is
@@ -42,7 +42,8 @@ from its own location, including when invoked from another working directory.
 
 | File | State/behavior | Main proof |
 | --- | --- | --- |
-| [Core.lean](Core.lean) | Eight current/target scene values; adaptive ramp timing; recording requests; four output lanes; host-frame history and oversample publication | `ramp_finishes`, `compute_valid`, `same_host_preserves_history` |
+| [OnePole.lean](OnePole.lean), [Settling.lean](Settling.lean) | Fixed coefficient, contraction, snap, finite completion, masked execution and early retirement | `run_lands`, `trajectory`, `early_retirement_preserves_values` |
+| [Core.lean](Core.lean) | Eight current/target scene values; separate linear/one-pole policies; recording requests; four output lanes; host-frame history and oversample publication | `ramp_finishes`, `compute_valid`, `same_host_preserves_history` |
 | [Motion.lean](Motion.lean) | Ramp step bounds, settled refresh equivalence, blend sensitivity and single-fader motion | `ramp_step_between`, `settled_refresh_preserves_ramp_values`, `blend_motion_bound` |
 | [Behavior.lean](Behavior.lean) | Veil host-frame behavior with current inputs/ramp values and eager publication, independent of evaluation path | Generated preservation theorems for input freshness, evaluated output and published cache |
 | [StateMachine.lean](StateMachine.lean) | Veil actions for target setting, recorded edits, reset, compute, output writes and publication | Generated initialization/preservation theorems for `ramp_bounds` and `published_cache` |
@@ -91,9 +92,8 @@ frame; it does not introduce a slower control rate. Its pure evaluation kernel
 is abstract: numerical and dependency-graph equations remain separate proofs.
 The native implementation may skip work when the result would be unchanged.
 This machine is a behavioral reference, not an automatically established
-refinement of the C++ evaluator. It retains the existing leaf ramp trajectory;
-another trajectory may replace it after establishing the motion/convergence
-contracts. It does not itself claim continuity across discrete patch or scene changes;
+refinement of the C++ evaluator. It selects the current one-pole policy whose motion/convergence
+contracts are proved separately. It does not itself claim continuity across discrete patch or scene changes;
 `PatchLoad.lean` separately covers identical settled patch reloads.
 
 E08 (force-zero no-op), E11 (mandatory full endpoint-refresh countdown), E23
@@ -226,16 +226,18 @@ whatever `HEAD` happens to point to later. Verification reads Git objects at the
 pinned revision and puts reviewable copies in `build/lean/head-source/`; it does
 not check out or build the baseline C++.
 
-Both versions share the unchanged ramp, recording, modulation, gesture and
-interpolation definitions. The audit checks 42 corresponding C++ bodies for
-exact textual equality. HEAD additionally has its own Veil runtime and eager
+Both versions satisfy policy-parameterized leaf contracts. Historical machines
+accept only linear timing; current machines accept only `currentTiming`. Recording,
+modulation, gesture and interpolation operations remain shared. The audit checks
+the remaining unchanged C++ bodies for exact textual equality; the deliberately
+changed filter and compute bodies have separately reviewed correspondence. HEAD additionally has its own Veil runtime and eager
 root protocol, and its publication loop is modeled independently. We prove
 publication equality and combine it with arbitrary-depth schedule equivalence.
 That comparison assumes the same valid pure graph, relevant inputs and starting
 output/history. It is not a full C++ observational-equivalence proof covering
 allocator state or all interleavings.
 
-See the generated table for the machine-audited classification of all 71 entries.
+See the generated table for the machine-audited classification of every entry.
 E20 (prepared leaf cache), E25 (deferred synchronization) and E35
 (synchronize/rebuild) describe mechanisms absent from HEAD. HEAD instead proves
 that its derived tree remains materialized at each modeled boundary. The new
@@ -272,7 +274,8 @@ establish it initially and preserve it through all their actions, including
 reset. This makes `reset_finishes` cover settled cells, unchanged default targets,
 and resets midway through an existing ramp. After at most `timing.maximum`
 advancing host steps without intervening target edits, the reset values reach
-their targets. With the default timing this bound is **2400 host samples**.
+their targets. The historical bound is **2400 host samples**; the current conservative bound is
+**15001 host samples**, with exact early settlement permitted.
 
 `reset_tree_returns_default` proves the combined result by induction on an
 arbitrary finite nested tree, using the actual signed mixing and gesture
@@ -339,16 +342,30 @@ slot retains the same timestamp guard, interpolation expression and bipolar
 mapping, including ratio-one processing. This changes memory accesses only;
 the publication model and its contracts are unchanged.
 
-Endpoint refresh now gives a fully settled subtree one fresh evaluation instead
-of a mandatory 2400-frame forced interval. A subtree with moving values or an
-unsaturated edit age retains the full interval. Children are checked after their
-own refresh decisions; the short case rebuilds dependency masks before computing.
-`settled_refresh_preserves_ramp_values` proves identical current values and edit
-age for every subsequent step when remaining ramp is zero and age is saturated.
-The age condition matters: ignoring it would change the duration of later edits.
-The proof does not verify dependency-mask construction or recursive propagation;
-native differential tests compare against an explicitly emulated old full-window
-refresh through nested routes, gestures, endpoint transitions and live edits.
+Manual stored scene controls now use a 20 ms time-constant one-pole at 48 kHz.
+The coefficient is the exact binary64 value of `-expm1(-1/(.020*48000))`;
+Lean treats that coefficient and all subsequent arithmetic as exact rationals.
+The filter snaps when the next residual is at most `1e-6` normalized. This is
+20 ms to 63.2%, about 92 ms to 99%, and about 277 ms for a full-scale move to
+reach the snap threshold. This is not a fixed 20 ms arrival deadline.
+
+`OnePole.run_lands` proves exact completion by 15001 frames using a conservative
+rational bound. `Settling.trajectory` matches the budgeted runtime to literal
+pole steps before the final budget step; `budget_landing_matches_pole` proves
+the final forced target agrees with the pole's own convergence. The budget is
+ghost scheduling state for shared proofs, not required CPU work: `tick_matches_pole`
+relates moving flags to pole values, and `early_retirement_preserves_values`
+justifies skipping any remaining budget after exact settlement. Retargeting
+preserves current values; the pole coefficient does not depend on edit cadence.
+
+Native code keeps double state only for moving scenes, publishes float values,
+and clears each moving bit at exact settlement. A subtree retires after its
+children and its own scenes settle, publishing the last value before rebuilding
+its dependency mask. Settled endpoint changes require one refresh. Native tests
+must cover IEEE rounding, final publication, nested propagation, patch/capture
+state, and cached execution: these integration details are not a C++ refinement
+proof. Source modulation, live gesture weights, scene blending, modulation sums
+and output-history interpolation are not fed through this pole.
 
 Publication remains eager. `GetValue` still reads the published cache, and no
 work is transferred into production `SetEncoderParameters`. The maintained
@@ -455,3 +472,8 @@ Remaining priorities include full multi-gesture bounds/edit response, complete
 `IncrementInternal` routing/clamp composition, recursive scene copy/patch loading,
 actual prepared-graph and dependency-mask construction, recording payload/replay,
 and hardware/UI routing. Theorems do not yet cover all encoder behavior.
+
+The source audit also reviewed the earlier UI-only additions in `9d6a7fb`: visible
+encoder revision/spread updates and bound matrix readers. They observe existing
+outputs and do not change leaf control arithmetic or publication. Their previously
+stale file fingerprints are updated with this review.

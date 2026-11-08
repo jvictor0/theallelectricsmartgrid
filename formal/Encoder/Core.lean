@@ -1,4 +1,4 @@
-import Std
+import Encoder.OnePole
 
 /-! Exact-arithmetic model of the encoder leaf and its output history.
 `Rat` deliberately abstracts finite C++ floats; see README.md for the boundary.
@@ -34,8 +34,17 @@ structure Timing where
   maximum : Nat
   positive : 0 < minimum
   ordered : minimum ≤ maximum
+  onePole : Bool := false
 
-instance : Inhabited Timing := ⟨⟨96, 2400, by decide, by decide⟩⟩
+instance : Inhabited Timing := ⟨⟨96, 2400, by decide, by decide, false⟩⟩
+
+-- Current and pinned historical machines choose separate control policies.
+-- The rest of the file proves their common contracts over either policy.
+def currentTiming : Timing := ⟨1, 15001, by decide, by decide, true⟩
+abbrev HistoricalTiming := {t : Timing // t.onePole = false}
+abbrev SettlingTiming := {t : Timing // t = currentTiming}
+instance : Inhabited HistoricalTiming := ⟨⟨default, rfl⟩⟩
+instance : Inhabited SettlingTiming := ⟨⟨currentTiming, rfl⟩⟩
 
 structure Cell where
   values : Scene → Rat
@@ -60,7 +69,19 @@ instance : Inhabited DefaultValue := ⟨⟨0, by unfold UnitInterval; grind⟩�
 -- @cpp ramp: TickDistributor::RecordChange
 -- @head ramp: shared arithmetic/control operation at the pinned revision.
 def duration (timing : Timing) (age : Nat) : Nat :=
-  min timing.maximum (max timing.minimum age)
+  if timing.onePole then timing.maximum else min timing.maximum (max timing.minimum age)
+
+theorem duration_positive (t : Timing) (age : Nat) : 0 < duration t age := by
+  have hp := t.positive
+  have hm := t.ordered
+  unfold duration
+  split <;> omega
+
+theorem duration_bounded (t : Timing) (age : Nat) : duration t age ≤ t.maximum := by
+  unfold duration
+  split
+  · exact Nat.le_refl _
+  · exact Nat.min_le_left _ _
 
 -- @cpp target: StateEncoderCell::SetTarget (does not itself record).
 -- @head target: shared arithmetic/control operation at the pinned revision.
@@ -76,16 +97,17 @@ def setTarget (timing : Timing) (s : Cell) (scene : Scene) (value : Rat) : Cell 
 def edit (timing : Timing) (s : Cell) (scene : Scene) (value : Rat) : Cell :=
   { setTarget timing s scene value with recorded := s.recorded + 1 }
 
-def move (s : Cell) (i : Scene) : Rat :=
+def move (t : Timing) (s : Cell) (i : Scene) : Rat :=
   if s.remaining = 0 then s.values i
   else if s.remaining = 1 then s.targets i
+  else if t.onePole then OnePole.step (s.values i) (s.targets i)
   else clamp01 (s.values i + (s.targets i - s.values i) / (s.remaining : Rat))
 
 -- @cpp compute: BankedEncoderCell::Compute; only advanceState advances time.
 -- @head compute: shared arithmetic/control operation at the pinned revision.
 def compute (timing : Timing) (advance : Bool) (s : Cell) : Cell :=
   if advance ∧ s.force > 0 then
-    { s with values := move s
+    { s with values := move timing s
              age := min timing.maximum (s.age + 1)
              remaining := s.remaining - 1
              force := s.force - 1 }
@@ -130,7 +152,7 @@ theorem setTarget_valid (t : Timing) (s : Cell) (i : Scene) (v : Rat)
     · dsimp
       split
       · omega
-      · exact Nat.min_le_left _ _
+      · exact duration_bounded _ _
     · intro j
       change UnitInterval (if j = i then v else s.targets j)
       split
@@ -179,7 +201,9 @@ theorem compute_valid (t : Timing) (s : Cell) (a : Bool) (hs : Valid t s) :
     · exact hvs i
     · split
       · exact hts i
-      · exact clamp01_bounded _
+      · split
+        · exact OnePole.step_bounded _ _ (hvs i) (hts i)
+        · exact clamp01_bounded _
   · exact hs
 
 def run (t : Timing) : Nat → Cell → Cell

@@ -2,9 +2,9 @@
   "description": "Reviewed C++ snapshot for the Lean model. Hashes detect drift; they do not prove C++ refinement. Review correspondence before changing hashes.",
   "files": {
     "private/src/Encoder.hpp": "b64a863c53080d6e61fa1b2296e13166d99f57651d3190952a032b27f9996216",
-    "private/src/EncoderBank.hpp": "708b620da955ab5ca8344764cbf5460bf457278dcf93d55826154785fba6d169",
+    "private/src/EncoderBank.hpp": "da97c9e6e5a8457d3d9ae55da63884ed8b9bb319472d0dc7be5398de66f6980f",
     "private/src/EncoderBankBank.hpp": "86d47c7bcf6c0f199c712ebb13834c7be201e8da5ca4f07bfabeb38047edf604",
-    "private/src/EncoderMatrix.hpp": "1e4ebbeae1a3bb5a6fa3fef27eb26ef2c6bbfa32d31c2d5f79af32ac8c9e655a",
+    "private/src/EncoderMatrix.hpp": "1d56d1885b1db806e92dfe5ed2ccc43c0bc02aab3ad28c13d634fc062549f9f8",
     "private/src/QuadUtils.hpp": "eb287a8dd5c2f88979153018a2b246aa7056979ae252773cccb92182c293a69b",
     "private/src/SampleTimer.hpp": "d55157bec9215ac2d96da5cff2307ee19f7c2c2145a7a2775186be31f39d10b9",
     "private/src/SceneManager.hpp": "87e9c88e2257a56f9ae392178d9976152ae74b54f67d892d829fc4df10c75e8e",

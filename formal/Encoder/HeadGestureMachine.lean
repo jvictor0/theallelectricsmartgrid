@@ -15,7 +15,7 @@ safety is Valid, not Ready: activation's timer counterexample is proved separate
 -/
 veil module EncoderHeadGestureRuntime
 
-param timing : Encoder.Timing
+param timing : Encoder.HistoricalTiming
 param initialValue : Encoder.DefaultValue
 param bipolar : Bool
 type target

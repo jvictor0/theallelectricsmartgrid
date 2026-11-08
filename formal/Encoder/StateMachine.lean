@@ -19,7 +19,7 @@ Patch decoding is outside that precondition's proof boundary.
 -/
 veil module EncoderRuntime
 
-param timing : Encoder.Timing
+param timing : Encoder.SettlingTiming
 param initialValue : Encoder.DefaultValue
 param ratio : Nat
 param bipolar : Bool

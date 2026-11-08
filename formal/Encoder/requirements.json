@@ -47,9 +47,11 @@
   {
     "id": "E05",
     "status": "proved",
-    "requirement": "While edits occur in the same host sample (age = 0), setting a target shall retain the existing ramp duration.",
+    "requirement": "While several target writes occur in the same host sample, they shall preserve current filter values and the existing progress budget. The current one-pole coefficient is independent of edit cadence.",
     "theorems": [
-      "Encoder.same_sample_edits_keep_duration"
+      "Encoder.same_sample_edits_keep_duration",
+      "Encoder.target_changes_do_not_jump",
+      "Encoder.Settling.cadence_independent"
     ],
     "anchors": [
       "ramp",
@@ -98,10 +100,13 @@
   {
     "id": "E10",
     "status": "proved",
-    "requirement": "While host processing advances without intervening edits, a coherent ramp shall reach its targets within the configured maximum number of host frames. With the current timing this is 2400 frames (50 ms at 48 kHz).",
+    "requirement": "While host processing advances without intervening edits, coherent controls shall reach their exact targets within a finite bound. The current 20 ms one-pole snaps at normalized error at most 1e-6; 15001 host frames is a conservative proof bound, not a required work interval. Historical linear controls retain their configured 2400-frame bound.",
     "theorems": [
       "Encoder.Reset.run_max_lands",
-      "Encoder.run_preserves_targets"
+      "Encoder.run_preserves_targets",
+      "Encoder.OnePole.run_lands",
+      "Encoder.Settling.trajectory",
+      "Encoder.Settling.budget_landing_matches_pole"
     ],
     "anchors": [
       "ramp",
@@ -875,7 +880,8 @@
       "Encoder.Gestures.capture_not_always_coherent",
       "Encoder.Gestures.clamped_edit_does_not_repair_capture",
       "Encoder.Gestures.zero_remaining_stays",
-      "Encoder.Gestures.accepted_counterexample_excluded"
+      "Encoder.Gestures.accepted_counterexample_excluded",
+      "Encoder.Gestures.current_capture_stalled_counterexample"
     ],
     "anchors": [
       "gesture_capture",
@@ -957,9 +963,11 @@
   },
   {
     "id": "E76",
-    "requirement": "Refreshing fully settled scene values shall leave those values stationary. The current proof compares short and full refreshes when no ramp remains and edit age is saturated; it requires no particular force-counter duration or evaluation path.",
+    "requirement": "Refreshing fully settled scene values shall leave those values stationary. The current implementation may stop filtering each exact scene immediately and return a settled subtree to cached evaluation after publishing its final value; skipping its unused progress budget preserves future values.",
     "theorems": [
-      "Encoder.Motion.settled_refresh_preserves_ramp_values"
+      "Encoder.Motion.settled_refresh_preserves_ramp_values",
+      "Encoder.Settling.idle_noop",
+      "Encoder.Settling.early_retirement_preserves_values"
     ],
     "anchors": [
       "refresh",
@@ -982,6 +990,25 @@
     "anchors": [
       "patch_load",
       "patch_decode"
+    ]
+  },
+  {
+    "id": "E78",
+    "status": "proved",
+    "requirement": "Current manual scene controls shall use a fixed 20 ms host-rate one-pole, preserve state on retarget, stay between their previous value and target, contract the target error, snap exactly within normalized residual 1e-6 and retire the moving flag. Live modulation inputs and output publication remain outside this filter. Exact arithmetic is modeled; floating-point correspondence and dependency propagation require native validation.",
+    "theorems": [
+      "Encoder.OnePole.step_between",
+      "Encoder.OnePole.step_distance",
+      "Encoder.OnePole.near_target_lands",
+      "Encoder.Settling.tick_matches_pole",
+      "Encoder.Settling.landing_retires",
+      "Encoder.target_changes_do_not_jump"
+    ],
+    "anchors": [
+      "target",
+      "ramp",
+      "compute",
+      "publish"
     ]
   }
 ]

@@ -13,6 +13,7 @@ import Encoder.GestureMachine
 import Encoder.HeadGestureMachine
 import Encoder.Behavior
 import Encoder.PatchLoad
+import Encoder.Settling
 import Lean.Util.CollectAxioms
 
 /-! Build-time trust audit. Inspect transitive dependencies, including generated
@@ -24,6 +25,9 @@ open Lean in
 run_cmd do
   let env ← getEnv
   let required := #[
+    ``Encoder.OnePole.run_lands,
+    ``Encoder.Settling.trajectory,
+    ``Encoder.Settling.early_retirement_preserves_values,
     ``Encoder.ramp_finishes,
     ``Encoder.mix_bounded,
     ``Encoder.same_host_preserves_history,

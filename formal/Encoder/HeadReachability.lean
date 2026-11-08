@@ -4,7 +4,7 @@ namespace EncoderHeadRuntime
 
 -- @head runtime: safety of arbitrary sequences of the modeled runtime operations.
 -- This is reachability in Veil's generated transition system, not a second model.
-theorem reachable_ready (timing : Encoder.Timing) (initialValue : Encoder.DefaultValue) (ratio : Nat) (bipolar : Bool)
+theorem reachable_ready (timing : Encoder.HistoricalTiming) (initialValue : Encoder.DefaultValue) (ratio : Nat) (bipolar : Bool)
     (target frame : Type) [DecidableEq target] [Inhabited target]
     [DecidableEq frame] [Inhabited frame]
     (th : Theory timing initialValue ratio bipolar target frame)
@@ -69,7 +69,7 @@ theorem reachable_ready (timing : Encoder.Timing) (initialValue : Encoder.Defaul
       exact ⟨ih.1, fun _ => rfl⟩
 
 -- Existing safety contract follows from the stronger reachable ramp invariant.
-theorem reachable_safe (timing : Encoder.Timing) (initialValue : Encoder.DefaultValue) (ratio : Nat) (bipolar : Bool)
+theorem reachable_safe (timing : Encoder.HistoricalTiming) (initialValue : Encoder.DefaultValue) (ratio : Nat) (bipolar : Bool)
     (target frame : Type) [DecidableEq target] [Inhabited target]
     [DecidableEq frame] [Inhabited frame]
     (th : Theory timing initialValue ratio bipolar target frame)
