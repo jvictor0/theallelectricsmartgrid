@@ -142,3 +142,30 @@ DOCTEST_TEST_CASE("modulator manager: instrument defaults retain source slots an
         DOCTEST_CHECK(group.m_values.m_blendChanged);
     }
 }
+
+DOCTEST_TEST_CASE("modulator manager: configured sources match each parameter's lane count")
+{
+    SmartGridOneContext context;
+    SmartGridOneEncoders encoders(&context);
+    auto& banks = encoders.m_encoderBankBank;
+    banks.ForEachNamedEncoder([&](size_t, Cell* cell)
+    {
+        size_t group = cell->m_modulatorValues->m_groupIx;
+        size_t parameterLanes = cell->GetSharedEncoderState()->m_numVoices;
+        for (size_t slot = 0; slot < x_numSlots; ++slot)
+        {
+            size_t source = banks.m_modulatorManager.m_groups[group].m_sources[slot];
+            if (source == ModulatorManager::x_noSource)
+            {
+                continue;
+            }
+
+            DOCTEST_INFO("parameter: ", cell->m_name, ", group: ", group,
+                ", slot: ", slot, ", source: ", source);
+            DOCTEST_REQUIRE(source < x_numSources);
+            size_t sourceMode = static_cast<size_t>(x_sources[source].m_mode);
+            size_t sourceLanes = banks.m_bankModes[sourceMode].m_numVoices;
+            DOCTEST_CHECK(sourceLanes == parameterLanes);
+        }
+    });
+}

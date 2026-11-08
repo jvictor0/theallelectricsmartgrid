@@ -13,6 +13,11 @@ The instrument SHALL define globally unique modulator indices, fixed enum-addres
 - **THEN** both receive the same filtered source value and amplitude
 - **AND** their parameters read their own group's local slot without a per-route global lookup
 
+#### Scenario: Compatible source lane counts
+- **WHEN** a parameter is assigned a modulation group
+- **THEN** every assigned source in that group SHALL have the same active lane count as the parameter
+- **AND** a configuration test SHALL reject mismatches, while source storage remains QuadFloat
+
 #### Scenario: Existing patch loading
 - **WHEN** an existing patch with nested depth slot 8 is loaded
 - **THEN** slot 8 refers to slot 8 of the parameter's statically assigned group
