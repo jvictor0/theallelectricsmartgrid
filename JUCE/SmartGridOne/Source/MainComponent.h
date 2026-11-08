@@ -29,7 +29,7 @@ public:
     MainComponent();
     ~MainComponent() override;
 
-    static constexpr int x_requiredBlockFrames = 512;
+    static constexpr int x_requiredBlockFrames = 1024;
 
     virtual void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override
     {
