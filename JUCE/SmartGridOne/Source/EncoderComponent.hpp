@@ -244,11 +244,12 @@ struct EncoderComponent : public juce::Component
             BitSet16 modulatorsAffecting = m_ui.m_uiState->GetModulatorsAffecting(m_x, m_y);
             BitSet16 gesturesAffecting = m_ui.m_uiState->GetGesturesAffecting(m_x, m_y);
             auto type = m_ui.m_uiState->GetEncoderType(m_x, m_y);
-            auto mode = m_ui.m_uiState->GetMode(m_x, m_y);
+            auto group = static_cast<SmartGridOneModulators::Group>(
+                m_ui.m_uiState->m_states[m_x][m_y].m_modulatorGroup.load());
             SmartGridOneMainVisualizerComponent* visualizer = nullptr;
             if (type == SmartGrid::EncoderType::ModulatorAmount)
             {
-                visualizer = m_modulatorVisualizers.Get(mode, m_ui.m_uiState->GetIndex(m_x, m_y));
+                visualizer = m_modulatorVisualizers.Get(group, m_ui.m_uiState->GetIndex(m_x, m_y));
                 if (visualizer)
                 {
                     visualizer->ClearWeightedModulators();

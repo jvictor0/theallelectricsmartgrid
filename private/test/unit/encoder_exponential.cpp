@@ -18,11 +18,11 @@ struct ExponentialEncoderRig
     EncoderBankBank m_banks;
 
     ExponentialEncoderRig()
-        : m_banks(1, 1, 1, &m_context)
+        : m_banks(1, 1, 1, 15, 1, &m_context)
     {
         m_banks.InitMode(0, 1);
         m_banks.InitBank(0, 0, Color::Red);
-        m_banks.CreateEncoder(0, 0, 0.5f, "Test", "TEST", Color::Red, 5, false);
+        m_banks.CreateEncoder(0, 0, 0, 0.5f, "Test", "TEST", Color::Red, 5, false);
         m_banks.PlaceEncoder(0, 0, 0, 0);
     }
 
@@ -166,7 +166,7 @@ DOCTEST_TEST_CASE("encoder shift-turn: exponential MIDI adjusts descendants and 
 {
     GlobalEnv::ResetPerTest();
     ExponentialEncoderRig rig;
-    auto& sources = rig.m_banks.m_bankModes[0].m_modulatorValues;
+    auto& sources = rig.m_banks.GetModulatorValues(0);
     sources.SetModulatorSkin(0, Color::Red, nullptr);
     sources.SetModulatorSkin(1, Color::Blue, nullptr);
     rig.Cell().FillModulators(&rig.m_context);
@@ -194,7 +194,7 @@ DOCTEST_TEST_CASE("encoder shift-turn: exponential MIDI adjusts descendants and 
 DOCTEST_TEST_CASE("exponential encoder: ignored values do not activate gestures and valid edits do")
 {
     ExponentialEncoderRig rig;
-    auto& sources = rig.m_banks.m_bankModes[0].m_modulatorValues;
+    auto& sources = rig.m_banks.GetModulatorValues(0);
     sources.m_selectedGestures.Set(0, true);
     sources.m_gestureWeights[0] = 0.5f;
     rig.Turn(64, 1);

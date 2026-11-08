@@ -85,8 +85,8 @@ DOCTEST_TEST_CASE("encoder_trios: scene refresh and copy use stored base values"
     DOCTEST_CHECK(cell.m_bankedValue == doctest::Approx(0.35f));
 
     cell.FillModulators(&rig.m_context);
-    auto& source = rig.m_encoders.GetModulatorValues(Encoders::BankMode::VoiceWater);
-    source.m_value[0][0] = 0.9f;
+    auto& source = rig.m_encoders.GetModulatorManager().GetSource(SmartGridOneModulators::Source::WaterRandom1);
+    source.m_value[0] = 0.9f;
     cell.GetModulator(0)->SetValue(1.0f, true);
     cell.SetStateRecursive();
     cell.SetModulatorsAffecting();
@@ -160,10 +160,11 @@ DOCTEST_TEST_CASE("encoder_trios: modulation is independent across modes and loc
         Cell& cell = rig.Carrier(trio);
         cell.FillModulators(&rig.m_context);
         cell.GetModulator(0)->SetValue(1.0f, true);
-        auto& source = rig.m_encoders.GetModulatorValues(Encoders::VoiceModeForTrio(trio));
+        auto& source = rig.m_encoders.GetModulatorManager().GetSource(
+            SmartGridOneModulators::GetSource(VoiceModulator::Random1, trio));
         for (size_t local = 0; local < Encoders::x_voicesPerTrio; ++local)
         {
-            source.m_value[0][local] = static_cast<float>(trio * 3 + local + 1) / 10.0f;
+            source.m_value[local] = static_cast<float>(trio * 3 + local + 1) / 10.0f;
         }
 
         cell.SetStateRecursive();

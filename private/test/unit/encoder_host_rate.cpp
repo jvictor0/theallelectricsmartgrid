@@ -25,16 +25,17 @@ struct HostRateRig
     EncoderBankBank m_banks;
 
     HostRateRig()
-        : m_banks(1, 1, 1, &m_context)
+        : m_banks(1, 1, 1, 15, 1, &m_context)
     {
         GlobalEnv::Init();
         GlobalEnv::ResetPerTest();
         m_banks.InitMode(0, 4);
         m_banks.InitBank(0, 0, SmartGrid::Color::Red);
-        m_banks.CreateEncoder(0, 0, 0.5f, "Carrier", "CAR", SmartGrid::Color::Red, 0, false);
+        m_banks.CreateEncoder(0, 0, 0, 0.5f, "Carrier", "CAR", SmartGrid::Color::Red, 0, false);
         m_banks.PlaceEncoder(0, 0, 0, 0);
         for (size_t i = 0; i < Cell::x_numModulators; ++i)
         {
+            m_banks.m_modulatorManager.Bind(0, i, i);
             Sources().SetModulatorSkin(i, SmartGrid::Color::Red, nullptr);
         }
     }
@@ -44,9 +45,14 @@ struct HostRateRig
         return *m_banks.GetEncoder(0);
     }
 
+    ModulatorManager::Source& InputSource(size_t index)
+    {
+        return m_banks.m_modulatorManager.GetSource(index);
+    }
+
     Cell::ModulatorValues& Sources()
     {
-        return m_banks.m_bankModes[0].m_modulatorValues;
+        return m_banks.GetModulatorValues(0);
     }
 
     Cell& Connect(size_t slot)
@@ -142,7 +148,7 @@ DOCTEST_TEST_CASE("encoder host rate: connected matrix computes only on host fra
     QuadFloat latest = cell.m_output;
     for (size_t i = 0; i < 32 * x_ratio; ++i)
     {
-        rig.Sources().m_value[3] = QuadFloat(0.1f, 0.3f, 0.6f, 0.9f) * (i % 7 < 3 ? 1.0f : 0.5f);
+        rig.InputSource(3).m_value = QuadFloat(0.1f, 0.3f, 0.6f, 0.9f) * (i % 7 < 3 ? 1.0f : 0.5f);
         SampleTimer::IncrementSample();
         rig.Process();
         size_t hostFrames = SampleTimer::GetHostSample() - startHost;
@@ -167,11 +173,11 @@ DOCTEST_TEST_CASE("encoder host rate: decimated steps stay normalized through th
 {
     HostRateRig rig;
     rig.Connect(0);
-    Cell::ModulatorValues::Decimator reference;
+    ModulatorManager::Decimator reference;
     QuadFloat initial(0.0f, 1.0f, 0.25f, 0.75f);
     for (size_t slot = 0; slot < Cell::x_numModulators; ++slot)
     {
-        rig.Sources().m_value[slot] = initial;
+        rig.InputSource(slot).m_value = initial;
     }
 
     for (size_t i = 0; i < (Distributor::x_maxSamplesToDistribute + 1) * x_ratio; ++i)
@@ -189,7 +195,7 @@ DOCTEST_TEST_CASE("encoder host rate: decimated steps stay normalized through th
         QuadFloat filtered = reference.Process(raw);
         for (size_t slot = 0; slot < Cell::x_numModulators; ++slot)
         {
-            rig.Sources().m_value[slot] = raw;
+            rig.InputSource(slot).m_value = raw;
         }
 
         rig.Step();
@@ -232,8 +238,8 @@ DOCTEST_TEST_CASE("encoder host rate: target ramps and nested ancestors advance 
     Cell& depth = *root.m_modulators.m_modulators[0];
     depth.FillModulators(&rig.m_context);
     Cell& nested = *depth.m_modulators.m_modulators[1];
-    rig.Sources().m_value[0] = QuadFloat::Splat(1);
-    rig.Sources().m_value[1] = QuadFloat::Splat(1);
+    rig.InputSource(0).m_value = QuadFloat::Splat(1);
+    rig.InputSource(1).m_value = QuadFloat::Splat(1);
     rig.Settle();
     nested.Increment(0.25f);
     size_t startHost = SampleTimer::GetHostSample();
@@ -360,7 +366,7 @@ DOCTEST_TEST_CASE("encoder host rate: scene switches activate previously hidden 
     Cell& depth = *root.m_modulators.m_modulators[2];
     depth.SetAndRecordValue(1.0f, 2);
     depth.SetForceUpdateRecursive();
-    rig.Sources().m_value[2] = QuadFloat::Splat(0.25f);
+    rig.InputSource(2).m_value = QuadFloat::Splat(0.25f);
     rig.Settle();
     DOCTEST_REQUIRE(root.m_modulatorsAffecting.IsZero());
     rig.m_context.m_sceneManager.m_scene1 = 2;
@@ -377,15 +383,15 @@ DOCTEST_TEST_CASE("encoder host rate: amplitude-only changes are sampled on host
 {
     HostRateRig rig;
     rig.Connect(0);
-    rig.Sources().m_value[0] = QuadFloat::Splat(1);
+    rig.InputSource(0).m_value = QuadFloat::Splat(1);
     rig.Settle();
-    rig.Sources().m_amplitude[0] = QuadFloat(0, 0.25f, 0.5f, 1);
+    rig.InputSource(0).m_amplitude = QuadFloat(0, 0.25f, 0.5f, 1);
     for (size_t i = 0; i < x_ratio; ++i)
     {
         rig.Step();
         for (size_t lane = 0; lane < 4; ++lane)
         {
-            float expected = SampleTimer::IsHostFrame() ? 0.5f + 0.5f * rig.Sources().m_amplitude[0][lane] : 1.0f;
+            float expected = SampleTimer::IsHostFrame() ? 0.5f + 0.5f * rig.InputSource(0).m_amplitude[lane] : 1.0f;
             DOCTEST_CHECK(rig.Carrier().GetLatestValue(lane) == doctest::Approx(expected));
         }
     }
@@ -468,7 +474,7 @@ DOCTEST_TEST_CASE("encoder host rate: sequencer reads the previous cache slot be
 
 DOCTEST_TEST_CASE("encoder host rate: ratio 4 modulator decimation passes DC and rejects engine-rate content")
 {
-    using Decimator = DownsamplerGeneric<float, 4, Cell::ModulatorValues::x_decimatorOrder, 4>;
+    using Decimator = DownsamplerGeneric<float, 4, ModulatorManager::x_decimatorOrder, 4>;
     Decimator dc;
     Decimator tone;
     float dcOut = 0.0f;

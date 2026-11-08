@@ -24,10 +24,10 @@ DOCTEST_TEST_CASE("Encoder UI weights: publish current direct per-channel depths
     depth->m_modulators.FillModulators(depth, depth->m_context);
     depth->m_modulators.m_modulators[6]->SetValue(1.0f, true);
     rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
-    auto* sources = quad->GetSharedEncoderState()->m_modulatorValues;
+    auto* sources = quad->m_modulatorValues;
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        sources->m_value[6][channel] = 0.125f + 0.25f * channel;
+        encoders.GetModulatorManager().Set(SmartGridOneModulators::Source::QuadLFO1, channel, 0.125f + 0.25f * channel);
         sources->m_amplitude[4][channel] = 0.01f;
     }
 
@@ -35,9 +35,10 @@ DOCTEST_TEST_CASE("Encoder UI weights: publish current direct per-channel depths
     //
     for (size_t sample = 0; sample < 64 * SampleTimer::x_oversample; ++sample)
     {
-        sources->ProcessSample();
+        encoders.GetModulatorManager().ProcessSample();
     }
 
+    encoders.GetModulatorManager().Gather();
     quad->SetStateRecursive();
     quad->SetModulatorsAffecting();
     quad->Compute(false);

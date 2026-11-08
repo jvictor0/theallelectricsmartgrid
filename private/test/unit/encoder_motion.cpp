@@ -14,14 +14,14 @@ struct MotionRig
     EncoderBankUIState m_ui;
 
     MotionRig()
-        : m_banks(2, 1, 2, &m_context)
+        : m_banks(2, 1, 2, 15, 1, &m_context)
     {
         GlobalEnv::ResetPerTest();
         m_banks.InitMode(0, 4);
         for (size_t i = 0; i < 2; ++i)
         {
             m_banks.InitBank(i, 0, SmartGrid::Color::Red);
-            m_banks.CreateEncoder(i, 0, i == 0 ? 0.25f : 0.5f,
+            m_banks.CreateEncoder(i, 0, 0, i == 0 ? 0.25f : 0.5f,
                 i == 0 ? "First" : "Second", "TEST", SmartGrid::Color::Red, 0, i == 1);
             m_banks.PlaceEncoder(i, i, 0, 0);
         }

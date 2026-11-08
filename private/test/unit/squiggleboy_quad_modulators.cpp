@@ -68,10 +68,11 @@ DOCTEST_TEST_CASE("Quad random LFOs drive and display all four modulation slots"
 
     rig.RunSamples(2);
     rig.Internal().PopulateUIState();
-    const auto& values = synth.m_encoders.GetModulatorValues(SmartGridOneEncoders::BankMode::Quad);
     for (size_t slot = 0; slot < 4; ++slot)
     {
         DOCTEST_CAPTURE(slot);
+        const auto& sourceValue = synth.m_encoders.GetModulatorManager().GetSource(
+            SmartGridOneModulators::GetSource(static_cast<QuadModulator>(slot)));
         DOCTEST_CHECK(uiState.m_encoderBankUIState.GetModulationGlyph(0, 0, slot) ==
             SmartGridOne::ModulationGlyphs::SmoothRandom);
         DOCTEST_CHECK(uiState.m_encoderBankUIState.GetModulationGlyphColor(0, 0, slot) ==
@@ -86,7 +87,7 @@ DOCTEST_TEST_CASE("Quad random LFOs drive and display all four modulation slots"
             DOCTEST_CAPTURE(channel);
             const float source = 0.1f * static_cast<float>(slot + 1);
             const float step = 0.2f * std::min(1.0f, 0.32f * static_cast<float>(channel + 1)) / 32.0f;
-            DOCTEST_CHECK(values.m_value[slot][channel] == doctest::Approx(source));
+            DOCTEST_CHECK(sourceValue.m_value[channel] == doctest::Approx(source));
             DOCTEST_CHECK(snapshot.m_voices[channel].m_output == doctest::Approx(source + step));
         }
     }

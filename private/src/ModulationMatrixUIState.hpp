@@ -18,14 +18,12 @@ struct ModulationMatrixUIState
 
     static constexpr size_t x_numParams = Layout::x_numParamInstances;
     static constexpr size_t x_numModulatorsPerMode = SmartGridOneModulators::x_skins[0].size();
-    static constexpr size_t x_numModulators = static_cast<size_t>(Mode::NumModes) * x_numModulatorsPerMode;
+    static constexpr size_t x_numModulators = SmartGridOneModulators::x_numSources;
 
     static_assert(std::atomic<bool>::is_always_lock_free,
         "Publishing modulation flags must not lock the audio thread");
 
-    // Rows are parameter instances; columns are mode + modulator slot, so the
-    // three voice tracks, quad, and global modulators have distinct identities.
-    // Unused parameter rows and cross-mode cells remain false.
+    // Rows are parameter instances; columns are global source identities.
     //
     std::array<std::array<std::atomic<bool>, x_numModulators>, x_numParams> m_modulatedBy;
 
@@ -69,7 +67,7 @@ struct ModulationMatrixUIState
     {
         assert(static_cast<size_t>(mode) < static_cast<size_t>(Mode::NumModes));
         assert(index < x_numModulatorsPerMode);
-        return static_cast<size_t>(mode) * x_numModulatorsPerMode + index;
+        return static_cast<size_t>(SmartGridOneModulators::x_sourceIds[static_cast<size_t>(mode)][index]);
     }
 
     static constexpr size_t GetModulatorId(VoiceModulator modulator, size_t trio)
@@ -93,14 +91,23 @@ struct ModulationMatrixUIState
     // gesture assignments, not instantaneous signal values or dependencies
     // through other base parameters. Each cell is atomic, not a whole snapshot.
     //
-    void SetModulatorsAffecting(size_t paramId, BitSet16 modulators)
+    void SetModulatorsAffecting(size_t paramId, size_t group, BitSet16 modulators)
     {
         assert(paramId == GetParamId(GetParam(paramId), GetTrio(paramId)));
-        size_t firstModulator = GetModulatorId(GetMode(paramId), 0);
-        for (size_t index = 0; index < x_numModulatorsPerMode; ++index)
+        assert(group < SmartGridOneModulators::x_numGroups);
+        std::array<bool, x_numModulators> affecting{};
+        for (size_t slot = 0; slot < x_numModulatorsPerMode; ++slot)
         {
-            m_modulatedBy[paramId][firstModulator + index].store(
-                modulators.Get(static_cast<int>(index)), std::memory_order_relaxed);
+            size_t source = static_cast<size_t>(SmartGridOneModulators::x_groups[group][slot]);
+            if (source < x_numModulators && modulators.Get(static_cast<int>(slot)))
+            {
+                affecting[source] = true;
+            }
+        }
+
+        for (size_t source = 0; source < x_numModulators; ++source)
+        {
+            m_modulatedBy[paramId][source].store(affecting[source], std::memory_order_relaxed);
         }
     }
 

@@ -3,12 +3,10 @@
 #include "Encoder.hpp"
 #include "ExponentialEncoderDelta.hpp"
 #include "BitSet.hpp"
-#include "Filter.hpp"
 #include "MessageIn.hpp"
 #include "EncoderUIState.hpp"
 #include "FixedAllocator.hpp"
 #include "QuadUtils.hpp"
-#include "Oversample.hpp"
 #include "SampleTimer.hpp"
 #include <cstdint>
 #include <limits>
@@ -32,18 +30,14 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         return MakePooled(s_allocator, std::forward<Args>(args)...);
     }
 
-    struct ModulatorValues;
-    
     struct SharedEncoderState
     {
         size_t m_modeIx;
         size_t m_numVoices;
-        ModulatorValues* m_modulatorValues;
 
         SharedEncoderState()
             : m_modeIx(static_cast<size_t>(SmartGridOne::EncoderBankMode::NumModes))
             , m_numVoices(0)
-            , m_modulatorValues(nullptr)
         {
         }
     };
@@ -55,14 +49,10 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
     static_assert(x_numModulators - 1 <= std::numeric_limits<int8_t>::max());
     static_assert(x_numGestureParams - 1 <= std::numeric_limits<int8_t>::max());
 
-    // Modulators are set every engine sample. ProcessSample decimates them to
-    // the host rate, where the matrix reads them.
+    // Group snapshots are gathered by ModulatorManager on host frames.
     //
     struct ModulatorValues
     {
-        static constexpr size_t x_decimatorOrder = 2;
-        using Decimator = DownsamplerGeneric<float, 4, x_decimatorOrder, SampleTimer::x_oversample>;
-
         ModulatorValues()
             : m_value{}
             , m_hostValue{}
@@ -87,29 +77,6 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
             {
                 m_gestureWeights[i] = 0;
                 m_gestureWeightsPrev[i] = 0;
-            }
-        }
-
-        template <typename Modulator>
-        void Set(Modulator modulator, size_t voice, float value)
-        {
-            m_value[static_cast<size_t>(modulator)][voice] = value;
-        }
-
-        template <typename Modulator>
-        void SetAmplitude(Modulator modulator, size_t voice, float amplitude)
-        {
-            m_amplitude[static_cast<size_t>(modulator)][voice] = amplitude;
-        }
-
-        void ProcessSample()
-        {
-            for (size_t i = 0; i < x_numModulators; ++i)
-            {
-                // The filter can overshoot; matrix inputs stay normalized.
-                //
-                QuadFloat value = m_decimators[i].Process(m_value[i]);
-                m_hostValue[i] = QuadFloat::Min(QuadFloat::Splat(1), QuadFloat::Max(QuadFloat(), value));
             }
         }
 
@@ -158,9 +125,9 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
             m_modulatorConnected[index] = true;
         }
         
+        size_t m_groupIx = static_cast<size_t>(-1);
         QuadFloat m_value[x_numModulators];
         QuadFloat m_hostValue[x_numModulators];
-        Decimator m_decimators[x_numModulators];
         QuadFloat m_valuePrev[x_numModulators];
         QuadFloat m_amplitude[x_numModulators];
         QuadFloat m_amplitudePrev[x_numModulators];
@@ -411,6 +378,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         , m_connected(false)
         , m_parent(nullptr)
         , m_sharedEncoderState(nullptr)
+        , m_modulatorValues(nullptr)
         , m_name(nullptr)
         , m_shortName(nullptr)
         , m_modulators(this)
@@ -443,6 +411,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         , m_minValue{}
         , m_gestureWeightSum(1)
         , m_sharedEncoderState(parent ? parent->m_sharedEncoderState : nullptr)
+        , m_modulatorValues(parent ? parent->m_modulatorValues : nullptr)
         , m_shortName(nullptr)
         , m_modulators(this)
         , m_bankedValue(0)
@@ -468,9 +437,9 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         {
             if (m_type == EncoderType::ModulatorAmount)
             {
-                m_color = GetSharedEncoderState()->m_modulatorValues->m_modulatorColor[index];
-                m_shortName = GetSharedEncoderState()->m_modulatorValues->m_modulatorShortName[index];
-                m_connected = GetSharedEncoderState()->m_modulatorValues->m_modulatorConnected[index];
+                m_color = m_modulatorValues->m_modulatorColor[index];
+                m_shortName = m_modulatorValues->m_modulatorShortName[index];
+                m_connected = m_modulatorValues->m_modulatorConnected[index];
             }
             else
             {
@@ -536,7 +505,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
             return;
         }
 
-        ModulatorValues* sources = root->GetSharedEncoderState()->m_modulatorValues;
+        ModulatorValues* sources = root->m_modulatorValues;
         bool blendChanged = sources->m_blendChanged;
         auto& scene = root->m_context->m_sceneManager;
 
@@ -606,7 +575,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
 
             // Include newly activated gestures before distributing this edit.
             //
-            m_modulators.ComputePostGestureValues(GetSharedEncoderState()->m_modulatorValues, false);
+            m_modulators.ComputePostGestureValues(m_modulatorValues, false);
         }
 
         float mainWeight = 0;
@@ -699,7 +668,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
     {
         if (m_type == EncoderType::ModulatorAmount)
         {
-            return std::clamp(GetSharedEncoderState()->m_modulatorValues->m_value[m_index][0], 0.0f, 1.0f);
+            return std::clamp(m_modulatorValues->m_value[m_index][0], 0.0f, 1.0f);
         }
 
         if (m_context->m_sceneManager.m_blinker.m_blink &&
@@ -928,7 +897,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
             }
         }
 
-        ModulatorValues* modulatorValues = GetSharedEncoderState()->m_modulatorValues;
+        ModulatorValues* modulatorValues = m_modulatorValues;
         bool blendChanged = modulatorValues->m_blendChanged;
         if (blendChanged)
         {
@@ -1363,7 +1332,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
 
     BitSet16 GetSelectedGestures()
     {
-        return GetSharedEncoderState()->m_modulatorValues->m_selectedGestures;
+        return m_modulatorValues->m_selectedGestures;
     }
         
     // Keep the state touched by each prepared host frame together, before the
@@ -1387,6 +1356,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
     size_t m_preparedScene1 = 0;
     size_t m_preparedScene2 = 1;
     SharedEncoderState* m_sharedEncoderState;
+    ModulatorValues* m_modulatorValues;
     Color m_color;
     const char* m_name;
     const char* m_shortName;
@@ -1417,7 +1387,6 @@ struct EncoderBankInternal : public EncoderGrid
     SmartGridOneContext* m_context;
     BankedEncoderCell* m_baseCell[4][4];
     BankedEncoderCell* m_selected;
-    BankedEncoderCell::SharedEncoderState m_sharedEncoderState;
     size_t m_visibleRevision = 0;
 
     void SetVisible(int x, int y, EncoderCell* cell)
@@ -1432,11 +1401,9 @@ struct EncoderBankInternal : public EncoderGrid
     {
     }
 
-    void Init(SmartGridOneContext* context, BankedEncoderCell::ModulatorValues* modulatorValues, size_t numVoices)
+    void Init(SmartGridOneContext* context)
     {
         m_context = context;
-        m_sharedEncoderState.m_modulatorValues = modulatorValues;
-        m_sharedEncoderState.m_numVoices = numVoices;
 
         for (int i = 0; i < 4; ++i)
         {
@@ -1773,6 +1740,8 @@ struct EncoderBankInternal : public EncoderGrid
                 float weights[EncoderUIState::x_maxVoices][EncoderUIState::x_numModulators]{};
                 auto* shared = cell ? cell->GetSharedEncoderState() : nullptr;
                 size_t numVoices = shared ? shared->m_numVoices : 0;
+                encoderState.m_modulatorGroup.store(cell && cell->m_modulatorValues
+                    ? cell->m_modulatorValues->m_groupIx : static_cast<size_t>(-1));
                 uiState->SetMode(i, j, shared ? static_cast<SmartGridOne::EncoderBankMode>(shared->m_modeIx)
                     : SmartGridOne::EncoderBankMode::NumModes);
                 uiState->SetNumVoices(i, j, static_cast<int>(numVoices));

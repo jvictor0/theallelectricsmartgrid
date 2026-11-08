@@ -19,6 +19,7 @@ struct SmartGridOneEncoders
     using Layout = SmartGridOneLayout;
     using Param = Layout::Param;
     using ParamMode = Layout::ParamMode;
+    using ModulatorGroup = SmartGridOneModulators::Group;
     using Page = Layout::Page;
     using Slot = Layout::Slot;
 
@@ -256,6 +257,8 @@ struct SmartGridOneEncoders
             static_cast<int>(Bank::NumBanks),
             x_numBankModes,
             Layout::x_numParamInstances,
+            SmartGridOneModulators::x_numSources,
+            SmartGridOneModulators::x_numGroups,
             context)
         , m_selectedBank(Bank::SourceWater)
         , m_selectedTrio(0)
@@ -399,9 +402,14 @@ struct SmartGridOneEncoders
 
     // Modulator values access
     //
-    SmartGrid::BankedEncoderCell::ModulatorValues& GetModulatorValues(BankMode mode)
+    SmartGrid::BankedEncoderCell::ModulatorValues& GetModulatorValues(ModulatorGroup group)
     {
-        return m_encoderBankBank.GetModulatorValues(static_cast<size_t>(mode));
+        return m_encoderBankBank.GetModulatorValues(static_cast<size_t>(group));
+    }
+
+    ModulatorManager& GetModulatorManager()
+    {
+        return m_encoderBankBank.m_modulatorManager;
     }
 
     // Initialization
@@ -493,7 +501,8 @@ struct SmartGridOneEncoders
                 BankMode bankMode = mode == ParamMode::Voice ? VoiceModeForTrio(trio) :
                     mode == ParamMode::Quad ? BankMode::Quad : BankMode::Global;
                 m_encoderBankBank.CreateEncoder(EncoderIndex(param, trio),
-                    static_cast<size_t>(bankMode), definition.m_defaultValue,
+                    static_cast<size_t>(bankMode), static_cast<size_t>(SmartGridOneModulators::GetGroup(param, trio)),
+                    definition.m_defaultValue,
                     definition.m_names[mode == ParamMode::Voice ? trio + 1 : 0],
                     definition.m_shortName, definition.m_color, definition.m_switchValues, definition.m_bipolar);
             }
@@ -506,16 +515,19 @@ struct SmartGridOneEncoders
             BindPage(instance.m_slot, instance.m_trio, route);
         }
 
-        // Set modulator colors and short names for each mode
-        //
-        for (size_t modeIx = 0; modeIx < x_numBankModes; ++modeIx)
+        for (size_t group = 0; group < SmartGridOneModulators::x_numGroups; ++group)
         {
-            BankMode mode = static_cast<BankMode>(modeIx);
-            auto& modValues = m_encoderBankBank.GetModulatorValues(modeIx);
-            for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numModulators; ++i)
+            auto& values = GetModulatorValues(static_cast<ModulatorGroup>(group));
+            for (size_t slot = 0; slot < SmartGridOneModulators::x_numSlots; ++slot)
             {
-                ModulatorSkin skin = GetModulatorSkin(i, mode);
-                modValues.SetModulatorSkin(i, skin.m_color, skin.m_shortName);
+                auto source = SmartGridOneModulators::x_groups[group][slot];
+                if (source != SmartGridOneModulators::Source::NumSources)
+                {
+                    GetModulatorManager().Bind(group, slot, static_cast<size_t>(source));
+                }
+
+                auto skin = SmartGridOneModulators::GetSkin(static_cast<ModulatorGroup>(group), slot);
+                values.SetModulatorSkin(slot, skin.m_color, skin.m_shortName);
             }
         }
 
@@ -652,7 +664,7 @@ struct SmartGridOneEncoders
             {
                 assert(cell->GetSharedEncoderState()->m_modeIx
                     == static_cast<size_t>(ModulationMatrixUIState::GetMode(paramId)));
-                uiState->SetModulatorsAffecting(paramId, cell->m_modulatorsAffecting);
+                uiState->SetModulatorsAffecting(paramId, cell->m_modulatorValues->m_groupIx, cell->m_modulatorsAffecting);
             });
     }
 
@@ -665,10 +677,10 @@ struct SmartGridOneEncoders
         {
             for (size_t y = 0; y < 4; ++y)
             {
-                BankMode mode = uiState->GetMode(x, y);
+                auto group = static_cast<ModulatorGroup>(uiState->m_states[x][y].m_modulatorGroup.load());
                 for (size_t i = 0; i < 16; ++i)
                 {
-                    ModulatorSkin skin = GetModulatorSkin(i, mode);
+                    ModulatorSkin skin = SmartGridOneModulators::GetSkin(group, i);
                     uiState->SetModulationGlyph(x, y, i, skin.m_glyph, skin.m_color);
                 }
             }

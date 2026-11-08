@@ -1,7 +1,7 @@
 # Encoder Parameter System Specification
 
 ## Purpose
-The encoder parameter system (`private/src/Encoder.hpp`, `private/src/EncoderBank.hpp`, `private/src/EncoderBankBank.hpp`, `private/src/EncoderMatrix.hpp`) is the software-defined knob layer for Smart Grid One. Every synthesis parameter is a `BankedEncoderCell` owned by a global `EncoderBankBank` and placed into 4×4 encoder bank grids. Voice parameters have distinct Water, Fire, and Earth cells; Quad and Global parameters have one cell. Each cell stores a normalized base value per scene, accepts up to 15 routable modulation slots whose depths are themselves full encoder cells, supports 16 gesture (macro) targets, morphs between two active scenes (see scene-state-management), and publishes per-voice outputs that the DSP engine reads every sample through `GetValue` and the UI reads through `EncoderBankUIState`. Modulation sources such as the PolyXFader LFOs (see polyxfader-lfos) and AHD envelopes (see ahd-envelopes) are external DSP components that write into shared per-bank-mode `ModulatorValues`; the encoder cells consume those values but do not own the sources.
+The encoder parameter system (`private/src/Encoder.hpp`, `private/src/EncoderBank.hpp`, `private/src/EncoderBankBank.hpp`, `private/src/EncoderMatrix.hpp`) is the software-defined knob layer for Smart Grid One. Every synthesis parameter is a `BankedEncoderCell` owned by a global `EncoderBankBank` and placed into 4×4 encoder bank grids. Voice parameters have distinct Water, Fire, and Earth cells; Quad and Global parameters have one cell. Each cell stores a normalized base value per scene, accepts up to 15 routable modulation slots whose depths are themselves full encoder cells, supports 16 gesture (macro) targets, morphs between two active scenes (see scene-state-management), and publishes per-voice outputs that the DSP engine reads every sample through `GetValue` and the UI reads through `EncoderBankUIState`. Modulation sources such as the PolyXFader LFOs (see polyxfader-lfos) and AHD envelopes (see ahd-envelopes) are external DSP components that publish globally indexed values to `ModulatorManager`. Fixed instrument-defined groups gather those sources into 15-slot `ModulatorValues`; parameter trees bind directly to their assigned group, independently of bank mode. Group assignments are constant across patches, and patch storage and loading retain their existing local-slot meaning.
 ## Requirements
 ### Requirement: Constructor-Bound Scene Manager
 `EncoderBankBank` SHALL receive `SmartGridOneContext*` in its constructor and use that context for every `CreateEncoder` call. `SmartGridOneEncoders` SHALL receive the context in its constructor and use its fixed three-trio, three-voices-per-trio layout and initialize its modes, banks, and named parameters before construction completes. `SquiggleBoyWithEncoderBank` SHALL pass its constructor-supplied context through this chain. The context SHALL supply the shared scene manager and parameter event logger and outlive its encoder consumers.
@@ -175,7 +175,7 @@ Gesture activation is stored per scene in each independent cell (`m_isActive[sce
 - **AND** subsequent releases of the gesture leave both the base and target reflecting the edit
 
 ### Requirement: Change-Driven Evaluation Every Host Frame
-The system SHALL run `EncoderBankBank::Process` once per engine sample, before encoder values are applied to DSP inputs. Every call SHALL run `ModulatorValues::ProcessSample()` for every bank mode, filtering every slot's raw value (`m_value`) through a second-order Butterworth `DownsamplerGeneric` at ratio `SampleTimer::x_oversample` (a passthrough at ratio 1) and clamping its matrix input (`m_hostValue`) to [0, 1]. Modulator amplitudes SHALL NOT be decimated.
+The system SHALL run `EncoderBankBank::Process` once per engine sample, before encoder values are applied to DSP inputs. Every call SHALL advance the global ModulatorManager's per-source second-order Butterworth filters at ratio SampleTimer::x_oversample (passthrough at ratio 1), clamping filtered source values to [0, 1]. Amplitudes SHALL NOT be decimated. On host frames, the manager SHALL gather source values and amplitudes into each fixed group's ModulatorValues before change detection. Encoder roots SHALL bind directly to their assigned group's values independently of bank mode; nested encoders SHALL inherit that binding.
 
 On host frames only, `ProcessHostFrame` SHALL detect changed source values, amplitudes and gestures, handle the scene-manager flags, and evaluate all named roots, including hidden ones, through `EncoderMatrix`. Outputs SHALL reflect the current relevant inputs and advancing target ramps at that host boundary. The evaluator MAY reuse an output when its relevant inputs and stored values are unchanged; it need not traverse every editable cell or invoke recursive `Compute` on every named root.
 
@@ -192,7 +192,7 @@ Changes outside the normal source-input path, including reset, gesture deletion,
 
 #### Scenario: Source change recomputes routed parameters
 - **WHEN** a PolyXFader LFO routed to a parameter produces a changed decimated value on a host frame
-- **THEN** that slot's bit is set in the bank mode's changed-modulator bitmask
+- **THEN** that slot's bit is set in the group's changed-modulator bitmask
 - **AND** every affected named root evaluates the changed value in that matrix pass, using either the prepared or recursive path
 
 #### Scenario: Settled scene refresh takes effect immediately
@@ -206,7 +206,7 @@ Changes outside the normal source-input path, including reset, gesture deletion,
 - **AND** once the reset has settled, its output is the configured default and the next UI publication reports the corrected values and masks
 
 ### Requirement: Hidden Machine-Dependent Parameters Remain Semantically Live
-Machine-dependent parameters SHALL remain wired to their bank-mode shared state and participate in semantic parameter operations even when the selected track's machine topology hides them from the visible 4x4 bank. Hiding a parameter from the current bank view SHALL affect only controller/UI placement; it MUST NOT prevent the parameter from recomputing DSP outputs, receiving gesture/modulator change edges, clearing gestures, reverting defaults, copying scenes, or publishing correct values when read by parameter index.
+Machine-dependent parameters SHALL remain wired to their bank-mode context and assigned modulation group and participate in semantic parameter operations even when the selected track's machine topology hides them from the visible 4x4 bank. Hiding a parameter from the current bank view SHALL affect only controller/UI placement; it MUST NOT prevent the parameter from recomputing DSP outputs, receiving gesture/modulator change edges, clearing gestures, reverting defaults, copying scenes, or publishing correct values when read by parameter index.
 
 #### Scenario: Hidden parameter catches gesture weight changes
 - **WHEN** a Voice-bank parameter is exposed for Water's source machine, hidden when Earth's source machine is selected, and has gesture 2 controlling its Spread modulation depth

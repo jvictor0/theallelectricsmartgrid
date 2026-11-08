@@ -9,6 +9,7 @@ struct SheafyModulatorDialComponent : SmartGridOneMainVisualizerComponent
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     VoiceModulator m_modulator;
+    int m_trackOverride = -1;
 
     SheafyModulatorDialComponent(TheNonagonSquiggleBoyInternal::UIState* uiState, VoiceModulator modulator)
         : m_uiState(uiState)
@@ -17,9 +18,15 @@ struct SheafyModulatorDialComponent : SmartGridOneMainVisualizerComponent
         jassert(modulator >= VoiceModulator::Sheaf1 && modulator <= VoiceModulator::Sheaf3);
     }
 
+    void SetVoiceTrack(size_t track) override
+    {
+        m_trackOverride = static_cast<int>(track);
+    }
+
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
-        size_t trio = m_uiState->m_squiggleBoyUIState.m_activeTrack.load();
+        size_t trio = m_trackOverride >= 0 ? static_cast<size_t>(m_trackOverride)
+            : m_uiState->m_squiggleBoyUIState.m_activeTrack.load();
         if (trio >= TheNonagonInternal::x_numTrios || boundsRect.isEmpty())
         {
             return;
@@ -101,12 +108,18 @@ struct SpreadModulatorComponent : SmartGridOneMainVisualizerComponent
 {
     size_t m_numVoices;
     std::atomic<size_t>* m_activeTrio;
+    int m_trackOverride = -1;
 
     SpreadModulatorComponent(size_t numVoices, std::atomic<size_t>* activeTrio)
         : m_numVoices(numVoices)
         , m_activeTrio(activeTrio)
     {
         jassert(numVoices > 1);
+    }
+
+    void SetVoiceTrack(size_t track) override
+    {
+        m_trackOverride = static_cast<int>(track);
     }
 
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
@@ -116,7 +129,9 @@ struct SpreadModulatorComponent : SmartGridOneMainVisualizerComponent
         float slotWidth = bounds.getWidth() / m_numVoices;
         float gap = std::min(2.0f, slotWidth * 0.2f);
         float barWidth = (slotWidth - gap) * 0.5f;
-        size_t firstVoice = m_activeTrio ? m_activeTrio->load() * TheNonagonInternal::x_voicesPerTrio : 0;
+        size_t trio = m_trackOverride >= 0 ? static_cast<size_t>(m_trackOverride)
+            : m_activeTrio ? m_activeTrio->load() : 0;
+        size_t firstVoice = trio * TheNonagonInternal::x_voicesPerTrio;
         for (size_t voice = 0; voice < m_numVoices; ++voice)
         {
             float value = static_cast<float>(voice) / (m_numVoices - 1);

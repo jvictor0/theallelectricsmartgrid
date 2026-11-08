@@ -55,6 +55,11 @@ struct GangedRandomLFOComponent : public ModulatorTimeAxisComponent
 
     size_t GetGangIndex() const
     {
+        if (m_trackOverride >= 0 && m_numGangs > 0)
+        {
+            return std::min(static_cast<size_t>(m_trackOverride), m_numGangs - 1);
+        }
+
         if (!m_selectedGang || m_numGangs == 0)
         {
             return 0;

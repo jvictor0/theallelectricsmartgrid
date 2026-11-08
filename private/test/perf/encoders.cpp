@@ -156,7 +156,7 @@ void Record(synthrig::SynthRig& rig, const std::string& mode, double seconds, co
     RunSynth(rig, SampleTimer::x_sampleRate / 2, mode, 0, nullptr, BitSet16());
     auto& bank = rig.Internal().m_squiggleBoy.m_encoders.m_encoderBankBank;
     ReplayHeader header;
-    header.m_modes = bank.m_numModes;
+    header.m_modes = bank.m_modulatorManager.m_groups.size();
     header.m_frames = static_cast<size_t>(seconds * SampleTimer::x_hostSampleRate);
     Require(header.m_frames > 0, "Capture must include a host frame");
     std::ofstream output(path, std::ios::binary);
@@ -172,10 +172,10 @@ void Record(synthrig::SynthRig& rig, const std::string& mode, double seconds, co
         rig.RunSamples(SampleTimer::x_oversample);
         Require(!rig.SawNaN(), "Nonfinite capture output");
         rig.ClearOutput();
-        for (size_t modeIndex = 0; modeIndex < bank.m_numModes; ++modeIndex)
+        for (size_t modeIndex = 0; modeIndex < bank.m_modulatorManager.m_groups.size(); ++modeIndex)
         {
             ModeInput input{};
-            const auto& source = bank.m_bankModes[modeIndex].m_modulatorValues;
+            const auto& source = bank.GetModulatorValues(modeIndex);
             for (size_t index = 0; index < Cell::x_numModulators; ++index)
             {
                 for (size_t lane = 0; lane < 4; ++lane)
@@ -242,8 +242,8 @@ void Matrix(synthrig::SynthRig& rig, const std::string& mode, double seconds, co
     RunSynth(rig, SampleTimer::x_sampleRate / 2, "fixed", 0, nullptr, BitSet16());
     auto& bank = rig.Internal().m_squiggleBoy.m_encoders.m_encoderBankBank;
     auto& scene = rig.Internal().m_context.m_sceneManager;
-    auto inputs = ReadReplay(path, bank.m_numModes);
-    size_t inputFrames = inputs.size() / bank.m_numModes;
+    auto inputs = ReadReplay(path, bank.m_modulatorManager.m_groups.size());
+    size_t inputFrames = inputs.size() / bank.m_modulatorManager.m_groups.size();
     size_t frames = static_cast<size_t>(seconds * SampleTimer::x_hostSampleRate);
     Require(frames > 0, "Duration must include a host frame");
     // Synthetic gesture weights are precomputed outside timing, as recorded sources are.
@@ -252,11 +252,11 @@ void Matrix(synthrig::SynthRig& rig, const std::string& mode, double seconds, co
     {
         for (size_t frame = 0; frame < inputFrames; ++frame)
         {
-            for (size_t modeIndex = 0; modeIndex < bank.m_numModes; ++modeIndex)
+            for (size_t modeIndex = 0; modeIndex < bank.m_modulatorManager.m_groups.size(); ++modeIndex)
             {
                 for (size_t gesture = 0; gesture < Cell::x_numGestureParams; ++gesture)
                 {
-                    inputs[frame * bank.m_numModes + modeIndex].m_gestures[gesture] =
+                    inputs[frame * bank.m_modulatorManager.m_groups.size() + modeIndex].m_gestures[gesture] =
                         0.5f + 0.45f * std::sin(frame * (0.001 + gesture * 0.00017));
                 }
             }
@@ -267,10 +267,10 @@ void Matrix(synthrig::SynthRig& rig, const std::string& mode, double seconds, co
     double start = CPUSeconds();
     for (size_t frame = 0; frame < frames; ++frame)
     {
-        for (size_t modeIndex = 0; modeIndex < bank.m_numModes; ++modeIndex)
+        for (size_t modeIndex = 0; modeIndex < bank.m_modulatorManager.m_groups.size(); ++modeIndex)
         {
-            const auto& input = inputs[(frame % inputFrames) * bank.m_numModes + modeIndex];
-            auto& source = bank.m_bankModes[modeIndex].m_modulatorValues;
+            const auto& input = inputs[(frame % inputFrames) * bank.m_modulatorManager.m_groups.size() + modeIndex];
+            auto& source = bank.GetModulatorValues(modeIndex);
             for (size_t index = 0; index < Cell::x_numModulators; ++index)
             {
                 source.m_hostValue[index] = QuadFloat(input.m_values[index]);

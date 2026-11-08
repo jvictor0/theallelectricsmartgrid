@@ -11,7 +11,7 @@
 
 struct ModulatorVisualizers
 {
-    std::array<std::array<std::unique_ptr<SmartGridOneMainVisualizerComponent>, 15>, 3> m_views;
+    std::array<std::unique_ptr<SmartGridOneMainVisualizerComponent>, SmartGridOneModulators::x_numSources> m_views;
     int m_scopeVoiceOffset = -1;
     TheNonagonSquiggleBoyInternal::UIState* m_uiState = nullptr;
     ModulatorTimeAxisComponent m_recentHistory;
@@ -19,14 +19,24 @@ struct ModulatorVisualizers
     template<typename Modulator, typename Factory>
     void Add(Modulator modulator, Factory&& factory)
     {
-        auto& view = m_views[static_cast<size_t>(SmartGridOneModulators::GetMode(modulator))]
-            [static_cast<size_t>(modulator)];
-        jassert(!view);
-        view = factory(&m_scopeVoiceOffset);
-        if (auto* timeView = dynamic_cast<ModulatorTimeAxisComponent*>(view.get()))
+        for (size_t index = 0; index < SmartGridOneModulators::x_numSources; ++index)
         {
-            timeView->Configure(m_uiState, SmartGridOneModulators::GetMode(modulator),
-                static_cast<size_t>(modulator), &m_scopeVoiceOffset);
+            auto source = static_cast<SmartGridOneModulators::Source>(index);
+            auto ref = SmartGridOneModulators::GetRef(source, 0);
+            if (ref.m_mode != SmartGridOneModulators::GetMode(modulator)
+                || ref.m_index != static_cast<size_t>(modulator))
+            {
+                continue;
+            }
+
+            auto& view = m_views[index];
+            jassert(!view);
+            view = factory(&m_scopeVoiceOffset);
+            view->SetVoiceTrack(ref.m_voice / 3);
+            if (auto* timeView = dynamic_cast<ModulatorTimeAxisComponent*>(view.get()))
+            {
+                timeView->Configure(m_uiState, ref.m_mode, ref.m_index, &m_scopeVoiceOffset);
+            }
         }
     }
 
@@ -37,36 +47,32 @@ struct ModulatorVisualizers
 
     SmartGridOneMainVisualizerComponent* Get(SmartGridOne::EncoderBankMode mode, int index) const
     {
-        if (index < 0 || index >= static_cast<int>(m_views[0].size()))
+        if (static_cast<size_t>(mode) >= SmartGridOneModulators::x_sourceIds.size()
+            || index < 0 || index >= static_cast<int>(SmartGridOneModulators::x_numSlots))
         {
             return nullptr;
         }
 
-        using Mode = SmartGridOne::EncoderBankMode;
-        switch (mode)
-        {
-            case Mode::VoiceWater:
-            case Mode::VoiceFire:
-            case Mode::VoiceEarth:
-                if (m_views[0][index])
-                {
-                    m_views[0][index]->SetVoiceTrack(static_cast<size_t>(mode));
-                }
+        size_t source = static_cast<size_t>(SmartGridOneModulators::x_sourceIds[static_cast<size_t>(mode)][index]);
+        return source < m_views.size() ? m_views[source].get() : nullptr;
+    }
 
-                return m_views[0][index].get();
-            case Mode::Quad:
-                return m_views[1][index].get();
-            case Mode::Global:
-                return m_views[2][index].get();
-            default:
-                return nullptr;
+    SmartGridOneMainVisualizerComponent* Get(SmartGridOneModulators::Group group, int slot) const
+    {
+        if (static_cast<size_t>(group) >= SmartGridOneModulators::x_numGroups
+            || slot < 0 || slot >= static_cast<int>(SmartGridOneModulators::x_numSlots))
+        {
+            return nullptr;
         }
+
+        size_t source = static_cast<size_t>(SmartGridOneModulators::x_groups[static_cast<size_t>(group)][slot]);
+        return source < m_views.size() ? m_views[source].get() : nullptr;
     }
 
     SmartGridOneMainVisualizerComponent* GetForParameter(const EncoderUIState& encoder)
     {
         EncoderUIState::ModulationWeights snapshot;
-        if (!encoder.ReadModulationWeights(snapshot))
+        if (!encoder.ReadModulationWeights(snapshot) || snapshot.m_modulatorGroup >= SmartGridOneModulators::x_numGroups)
         {
             return nullptr;
         }
@@ -101,7 +107,7 @@ struct ModulatorVisualizers
         size_t usedSources = 0;
         for (size_t index = 0; index < WeightedModulators::x_capacity; ++index)
         {
-            auto* view = Get(snapshot.m_mode, static_cast<int>(index));
+            auto* view = Get(static_cast<SmartGridOneModulators::Group>(snapshot.m_modulatorGroup), static_cast<int>(index));
             if (!view)
             {
                 continue;
@@ -113,10 +119,8 @@ struct ModulatorVisualizers
                 float weight = snapshot.m_weights[voice][index];
                 if (weight != 0.0f)
                 {
-                    ModulatorRef source(GlobalModulator::Noise);
-                    source.m_mode = mode;
-                    source.m_index = index;
-                    source.m_voice = firstVoice + voice;
+                    auto source = SmartGridOneModulators::GetRef(
+                        SmartGridOneModulators::x_groups[snapshot.m_modulatorGroup][index], voice);
                     weights[voice].Add(source, weight);
                     used = true;
                 }

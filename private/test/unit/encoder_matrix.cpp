@@ -30,11 +30,11 @@ struct MatrixRig
     EncoderBankBank m_bank;
 
     MatrixRig()
-        : m_bank(1, 1, 1, &m_context)
+        : m_bank(1, 1, 1, 15, 1, &m_context)
     {
         m_bank.InitMode(0, 4);
         m_bank.InitBank(0, 0, SmartGrid::Color::Red);
-        m_bank.CreateEncoder(0, 0, 0.3f, "Param", "P", SmartGrid::Color::Red, 0, false);
+        m_bank.CreateEncoder(0, 0, 0, 0.3f, "Param", "P", SmartGrid::Color::Red, 0, false);
         m_bank.PlaceEncoder(0, 0, 0, 0);
         for (size_t i = 0; i < Cell::x_numModulators; ++i)
         {

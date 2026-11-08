@@ -1024,87 +1024,75 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SetVoiceModulators(Input& input)
     {
+        using SmartGridOneModulators::GetSource;
+        auto& modulatorManager = m_encoders.GetModulatorManager();
         for (size_t track = 0; track < x_numTracks; ++track)
         {
-            auto& modulatorValues = m_encoders.GetModulatorValues(SmartGridOneEncoders::VoiceModeForTrio(track));
             SquiggleBoyTrack& squiggleBoyTrack = m_tracks[track];
             for (size_t trackVoice = 0; trackVoice < x_voicesPerTrack; ++trackVoice)
             {
                 size_t voice = track * x_voicesPerTrack + trackVoice;
                 for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
                 {
-                    modulatorValues.Set(j, trackVoice, squiggleBoyTrack.m_gangedRandomLFO[j].Output(trackVoice));
+                    modulatorManager.Set(GetSource(static_cast<VoiceModulator>(j), track), trackVoice, squiggleBoyTrack.m_gangedRandomLFO[j].Output(trackVoice));
                 }
 
                 const AHD& modulationAHD = squiggleBoyTrack.m_amp.m_modulationAHD.m_channels[trackVoice];
                 const AHD& ampAHD = squiggleBoyTrack.m_amp.m_ahd.m_channels[trackVoice];
-                modulatorValues.Set(VoiceModulator::ModulationEnvelope, trackVoice, modulationAHD.m_rawOutput);
-                modulatorValues.Set(VoiceModulator::AmpEnvelope, trackVoice, ampAHD.m_rawOutput);
-                modulatorValues.SetAmplitude(VoiceModulator::ModulationEnvelope, trackVoice, modulationAHD.m_amplitude);
-                modulatorValues.SetAmplitude(VoiceModulator::AmpEnvelope, trackVoice, ampAHD.m_amplitude);
+                modulatorManager.Set(GetSource(VoiceModulator::ModulationEnvelope, track), trackVoice, modulationAHD.m_rawOutput);
+                modulatorManager.Set(GetSource(VoiceModulator::AmpEnvelope, track), trackVoice, ampAHD.m_rawOutput);
+                modulatorManager.SetAmplitude(GetSource(VoiceModulator::ModulationEnvelope, track), trackVoice, modulationAHD.m_amplitude);
+                modulatorManager.SetAmplitude(GetSource(VoiceModulator::AmpEnvelope, track), trackVoice, ampAHD.m_amplitude);
 
-                modulatorValues.Set(VoiceModulator::LFO1, trackVoice, squiggleBoyTrack.m_squiggleLFO[0].m_output[trackVoice]);
-                modulatorValues.Set(VoiceModulator::LFO2, trackVoice, squiggleBoyTrack.m_squiggleLFO[1].m_output[trackVoice]);
-                modulatorValues.SetAmplitude(VoiceModulator::LFO1, trackVoice, squiggleBoyTrack.m_squiggleLFO[0].m_polyXFader.m_amplitude[trackVoice]);
-                modulatorValues.SetAmplitude(VoiceModulator::LFO2, trackVoice, squiggleBoyTrack.m_squiggleLFO[1].m_polyXFader.m_amplitude[trackVoice]);
+                modulatorManager.Set(GetSource(VoiceModulator::LFO1, track), trackVoice, squiggleBoyTrack.m_squiggleLFO[0].m_output[trackVoice]);
+                modulatorManager.Set(GetSource(VoiceModulator::LFO2, track), trackVoice, squiggleBoyTrack.m_squiggleLFO[1].m_output[trackVoice]);
+                modulatorManager.SetAmplitude(GetSource(VoiceModulator::LFO1, track), trackVoice, squiggleBoyTrack.m_squiggleLFO[0].m_polyXFader.m_amplitude[trackVoice]);
+                modulatorManager.SetAmplitude(GetSource(VoiceModulator::LFO2, track), trackVoice, squiggleBoyTrack.m_squiggleLFO[1].m_polyXFader.m_amplitude[trackVoice]);
 
-                modulatorValues.Set(VoiceModulator::Sheaf1, trackVoice, input.m_sheafyModulators[voice][0]);
-                modulatorValues.Set(VoiceModulator::Sheaf2, trackVoice, input.m_sheafyModulators[voice][1]);
-                modulatorValues.Set(VoiceModulator::Sheaf3, trackVoice, input.m_sheafyModulators[voice][2]);
+                modulatorManager.Set(GetSource(VoiceModulator::Sheaf1, track), trackVoice, input.m_sheafyModulators[voice][0]);
+                modulatorManager.Set(GetSource(VoiceModulator::Sheaf2, track), trackVoice, input.m_sheafyModulators[voice][1]);
+                modulatorManager.Set(GetSource(VoiceModulator::Sheaf3, track), trackVoice, input.m_sheafyModulators[voice][2]);
 
-                modulatorValues.Set(VoiceModulator::Spread, trackVoice, static_cast<float>(trackVoice) / (x_voicesPerTrack - 1));
+                modulatorManager.Set(GetSource(VoiceModulator::Spread, track), trackVoice, static_cast<float>(trackVoice) / (x_voicesPerTrack - 1));
 
-                modulatorValues.Set(VoiceModulator::Noise, trackVoice, m_rGen.UniGen());
-            }
-
-            for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
-            {
-                modulatorValues.m_gestureWeights[i] = input.m_faders[i];
+                modulatorManager.Set(GetSource(VoiceModulator::Noise, track), trackVoice, m_rGen.UniGen());
             }
         }
     }
 
-    void SetQuadModulators(Input& input)
+    void SetQuadModulators()
     {
-        auto& modulatorValues = m_encoders.GetModulatorValues(BankMode::Quad);
+        using SmartGridOneModulators::GetSource;
+        auto& modulatorManager = m_encoders.GetModulatorManager();
     
         for (size_t i = 0; i < 4; ++i)
         {
             for (size_t random = 0; random < x_numGangedRandomLFOs; ++random)
             {
-                modulatorValues.Set(random, i, m_quadGangedRandomLFO[random].Output(i));
+                modulatorManager.Set(GetSource(static_cast<QuadModulator>(random)), i, m_quadGangedRandomLFO[random].Output(i));
             }
 
 
-            modulatorValues.Set(QuadModulator::LFO1, i, m_quadSquiggleLFO[0].m_output[i]);
-            modulatorValues.Set(QuadModulator::LFO2, i, m_quadSquiggleLFO[1].m_output[i]);
-            modulatorValues.SetAmplitude(QuadModulator::LFO1, i, m_quadSquiggleLFO[0].m_polyXFader.m_amplitude[i]);
-            modulatorValues.SetAmplitude(QuadModulator::LFO2, i, m_quadSquiggleLFO[1].m_polyXFader.m_amplitude[i]);
+            modulatorManager.Set(GetSource(QuadModulator::LFO1), i, m_quadSquiggleLFO[0].m_output[i]);
+            modulatorManager.Set(GetSource(QuadModulator::LFO2), i, m_quadSquiggleLFO[1].m_output[i]);
+            modulatorManager.SetAmplitude(GetSource(QuadModulator::LFO1), i, m_quadSquiggleLFO[0].m_polyXFader.m_amplitude[i]);
+            modulatorManager.SetAmplitude(GetSource(QuadModulator::LFO2), i, m_quadSquiggleLFO[1].m_polyXFader.m_amplitude[i]);
 
-            modulatorValues.Set(QuadModulator::Spread, i, static_cast<float>(i % 4) / 3);
+            modulatorManager.Set(GetSource(QuadModulator::Spread), i, static_cast<float>(i % 4) / 3);
 
-            modulatorValues.Set(QuadModulator::Noise, i, m_rGen.UniGen());
+            modulatorManager.Set(GetSource(QuadModulator::Noise), i, m_rGen.UniGen());
         }
-
-        for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
-        {
-            modulatorValues.m_gestureWeights[i] = input.m_faders[i];
-        }    
     }
 
-    void SetGlobalModulators(Input& input)
+    void SetGlobalModulators()
     {
-        auto& modulatorValues = m_encoders.GetModulatorValues(BankMode::Global);
+        using SmartGridOneModulators::GetSource;
+        auto& modulatorManager = m_encoders.GetModulatorManager();
 
-        modulatorValues.Set(GlobalModulator::Random1, 0, m_globalGangedRandomLFO[0].Output(0));
-        modulatorValues.Set(GlobalModulator::Random2, 0, m_globalGangedRandomLFO[1].Output(0));
+        modulatorManager.Set(GetSource(GlobalModulator::Random1), 0, m_globalGangedRandomLFO[0].Output(0));
+        modulatorManager.Set(GetSource(GlobalModulator::Random2), 0, m_globalGangedRandomLFO[1].Output(0));
 
-        modulatorValues.Set(GlobalModulator::Noise, 0, m_rGen.UniGen());
-
-        for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numGestureParams; ++i)
-        {
-            modulatorValues.m_gestureWeights[i] = input.m_faders[i];
-        }
+        modulatorManager.Set(GetSource(GlobalModulator::Noise), 0, m_rGen.UniGen());
     }
 
     void SetEncoderParameters(Input& input)
@@ -1470,9 +1458,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     void ProcessSample(Input& input, float deltaT, const AudioInputBuffer& audioInputBuffer)
     {
         SetVoiceModulators(input);
-        SetGlobalModulators(input);
-        SetQuadModulators(input);
+        SetGlobalModulators();
+        SetQuadModulators();
 
+        m_encoders.GetModulatorManager().SetGestureWeights(input.m_faders);
         m_encoders.Process();
 
         SetEncoderParameters(input);

@@ -1,7 +1,7 @@
 # PolyXFader LFOs Specification
 
 ## Purpose
-The PolyXFader LFOs (`private/src/PolyXFader.hpp`, `PolyXFaderInternal`) are the primary phase-synchronized low-frequency oscillators of Smart Grid One. They generate no phase of their own: each LFO derives its output by shaping and mixing the explicitly selected modulated or unmodulated absolute phases of the Theory of Time loops (see phasor-timebase), so every modulation contour stays locked to the global clock and sequencer structure. Each voice carries two SquiggleLFO instances wrapping `PolyXFaderInternal`, whose outputs are written into the Voice bank mode's shared `ModulatorValues` slots and consumed by the encoder parameter system (see encoder-parameter-system). A matching pair of four-channel SquiggleLFO instances on the `QuadLFOs` bank writes the Quad mode's slots 6 and 7, with quarter-cycle channel offsets and Sample-and-Hold captured from each channel's active delay loop. The Theory of Time itself uses a dedicated instance for clock phase modulation. These are distinct from the free-running ganged random LFOs used for effect sends and wavetable drift, which are a separate system.
+The PolyXFader LFOs (`private/src/PolyXFader.hpp`, `PolyXFaderInternal`) are the primary phase-synchronized low-frequency oscillators of Smart Grid One. They generate no phase of their own: each LFO derives its output by shaping and mixing the explicitly selected modulated or unmodulated absolute phases of the Theory of Time loops (see phasor-timebase), so every modulation contour stays locked to the global clock and sequencer structure. Each voice carries two SquiggleLFO instances wrapping `PolyXFaderInternal`, whose outputs are published to the global modulator manager and gathered into the fixed voice groups' `ModulatorValues` slots and consumed by the encoder parameter system (see encoder-parameter-system). A matching pair of four-channel SquiggleLFO instances on the `QuadLFOs` bank publishes the sources assigned to the Quad group's slots 6 and 7, with quarter-cycle channel offsets and Sample-and-Hold captured from each channel's active delay loop. The Theory of Time itself uses a dedicated instance for clock phase modulation. These are distinct from the free-running ganged random LFOs used for effect sends and wavetable drift, which are a separate system.
 
 ## Requirements
 
@@ -102,7 +102,7 @@ The slew rounds off S+H transitions.
 - **THEN** `m_rawOutput` approaches each new level exponentially rather than discontinuously
 
 ### Requirement: Voice LFO Integration into the Modulation Matrix
-The system SHALL run two SquiggleLFO instances per voice and write their raw (pre-amplitude-centering) outputs each control pass into the Voice bank mode's shared `ModulatorValues` slots 6 and 7 (`m_value[6][voice]`, `m_value[7][voice]`), with the LFO amplitudes written to the matching `m_amplitude` entries; encoder cells consume these per-voice values as modulation sources (see encoder-parameter-system).
+The system SHALL run two SquiggleLFO instances per voice and publish their raw (pre-amplitude-centering) outputs and amplitudes to the corresponding globally indexed manager sources; the instrument's default voice groups SHALL gather these sources into slots 6 and 7; encoder cells consume these per-voice values as modulation sources (see encoder-parameter-system).
 The LFO also exposes a top flag, true when every weighted contributing loop reports its top (cycle start), used to restart the LFO scope display.
 
 #### Scenario: LFO modulates a routed parameter per voice
@@ -114,7 +114,7 @@ The LFO also exposes a top flag, true when every weighted contributing loop repo
 - **THEN** the LFO's top flag is true on that sample and the scope recording restarts
 
 ### Requirement: Quad LFO Integration into the Modulation Matrix
-The system SHALL run the two quad LFOs as four-lane `SquiggleLFOGeneric<4>` instances, one lane per quad channel, controlled from the `QuadLFOs` encoder bank through interpolated four-lane encoder reads (`GetValue<4>(param, 0)`). Each lane SHALL match an independent mono LFO given that channel's parameters, trigger and phase offset. The system SHALL write their raw (pre-amplitude-centering) outputs each control pass into the Quad bank mode's shared `ModulatorValues` slots 6 and 7 (`m_value[6][channel]`, `m_value[7][channel]`), with the LFO amplitudes written to the matching `m_amplitude` entries.
+The system SHALL run the two quad LFOs as four-lane `SquiggleLFOGeneric<4>` instances, one lane per quad channel, controlled from the `QuadLFOs` encoder bank through interpolated four-lane encoder reads (`GetValue<4>(param, 0)`). Each lane SHALL match an independent mono LFO given that channel's parameters, trigger and phase offset. The system SHALL publish their raw (pre-amplitude-centering) outputs and amplitudes to the corresponding globally indexed manager sources; the instrument's default Quad group SHALL gather these sources into slots 6 and 7.
 Phase-shift knobs SHALL offset channel `i` by `knob × i / 4`, so full spread places the four channels a quarter-cycle apart. Each channel's Sample-and-Hold trigger SHALL be the modulated cycle-boundary crossing of that channel's active delay read-head loop (`ReadTapeHead::m_loopSelector`), not the merely requested delay loop index.
 
 #### Scenario: Quarter-cycle channel spread

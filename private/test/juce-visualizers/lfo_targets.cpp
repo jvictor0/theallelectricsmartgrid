@@ -18,7 +18,8 @@ void Publish(ModulationMatrixUIState& matrix, Param param, size_t trio,
         bits.Set(static_cast<int>(modulator), true);
     }
 
-    matrix.SetModulatorsAffecting(ModulationMatrixUIState::GetParamId(param, trio), bits);
+    matrix.SetModulatorsAffecting(ModulationMatrixUIState::GetParamId(param, trio),
+        static_cast<size_t>(SmartGridOneModulators::GetGroup(param, trio)), bits);
 }
 
 void CheckTargets(const Targets& targets, std::initializer_list<Visualizer> expected)

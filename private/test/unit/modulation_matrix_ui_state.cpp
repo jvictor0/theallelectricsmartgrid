@@ -108,8 +108,11 @@ DOCTEST_TEST_CASE("modulation matrix: recursive depths and gestures match the ba
         auto bits = badges.GetModulatorsAffecting(2, 1);
         for (size_t index = 0; index < Matrix::x_numModulatorsPerMode; ++index)
         {
-            DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 0,
-                Matrix::GetModulatorId(Encoders::BankMode::VoiceWater, index)) == bits.Get(static_cast<int>(index)));
+            size_t source = Matrix::GetModulatorId(Encoders::BankMode::VoiceWater, index);
+            if (source < Matrix::x_numModulators)
+            {
+                DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 0, source) == bits.Get(static_cast<int>(index)));
+            }
         }
     };
 
@@ -235,4 +238,18 @@ DOCTEST_TEST_CASE("modulation matrix: normal UI publication includes encoder edi
     rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     internal.PopulateUIState();
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 2, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
+}
+
+DOCTEST_TEST_CASE("modulation matrix: group sources are independent of parameter mode")
+{
+    Matrix matrix;
+    BitSet16 slots;
+    slots.Set(static_cast<size_t>(VoiceModulator::LFO1), true);
+    size_t parameter = Matrix::GetParamId(Param::LPCutoff, 0);
+    matrix.SetModulatorsAffecting(parameter, static_cast<size_t>(SmartGridOneModulators::Group::Fire), slots);
+    DOCTEST_CHECK(matrix.IsModulatedBy(parameter, Matrix::GetModulatorId(VoiceModulator::LFO1, 1)));
+    DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(parameter, Matrix::GetModulatorId(VoiceModulator::LFO1, 0)));
+    matrix.SetModulatorsAffecting(parameter, static_cast<size_t>(SmartGridOneModulators::Group::Earth), slots);
+    DOCTEST_CHECK(matrix.IsModulatedBy(parameter, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
+    DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(parameter, Matrix::GetModulatorId(VoiceModulator::LFO1, 1)));
 }

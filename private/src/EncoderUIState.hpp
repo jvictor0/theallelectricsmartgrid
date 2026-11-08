@@ -16,9 +16,11 @@ struct EncoderUIState
     {
         SmartGridOne::EncoderBankMode m_mode = SmartGridOne::EncoderBankMode::NumModes;
         size_t m_numVoices = 0;
+        size_t m_modulatorGroup = static_cast<size_t>(-1);
         std::array<std::array<float, x_numModulators>, x_maxVoices> m_weights{};
     };
 
+    std::atomic<size_t> m_modulatorGroup{static_cast<size_t>(-1)};
     std::atomic<size_t> m_weightsRevision{0};
     std::atomic<float> m_modulatorWeights[x_maxVoices][x_numModulators]{};
     std::atomic<SmartGrid::Color> m_color;
@@ -54,6 +56,7 @@ struct EncoderUIState
             }
 
             result.m_mode = m_mode.load();
+            result.m_modulatorGroup = m_modulatorGroup.load();
             result.m_numVoices = static_cast<size_t>(m_numVoices.load());
             for (size_t voice = 0; voice < x_maxVoices; ++voice)
             {

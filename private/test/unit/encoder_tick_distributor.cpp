@@ -15,14 +15,15 @@ struct TickRig
     EncoderBankBank m_banks;
 
     TickRig()
-        : m_banks(1, 1, 1, &m_context)
+        : m_banks(1, 1, 1, 15, 1, &m_context)
     {
         m_banks.InitMode(0, 1);
         m_banks.InitBank(0, 0, SmartGrid::Color::Red);
-        m_banks.CreateEncoder(0, 0, 0.25f, "Test", "TEST", SmartGrid::Color::Red, 0, false);
+        m_banks.CreateEncoder(0, 0, 0, 0.25f, "Test", "TEST", SmartGrid::Color::Red, 0, false);
         m_banks.PlaceEncoder(0, 0, 0, 0);
         for (size_t i = 0; i < SmartGrid::BankedEncoderCell::x_numModulators; ++i)
         {
+            m_banks.m_modulatorManager.Bind(0, i, i);
             m_banks.GetModulatorValues(0).SetModulatorSkin(i, SmartGrid::Color::Red, nullptr);
         }
     }
@@ -122,8 +123,8 @@ DOCTEST_TEST_CASE("encoder distribution: nested edits advance once per process a
     auto& child = *root.m_modulators.m_modulators[0];
     child.FillModulators(&rig.m_context);
     auto& nested = *child.m_modulators.m_modulators[1];
-    rig.m_banks.GetModulatorValues(0).m_value[0] = QuadFloat::Splat(1.0f);
-    rig.m_banks.GetModulatorValues(0).m_value[1] = QuadFloat::Splat(1.0f);
+    rig.m_banks.m_modulatorManager.GetSource(0).m_value = QuadFloat::Splat(1.0f);
+    rig.m_banks.m_modulatorManager.GetSource(1).m_value = QuadFloat::Splat(1.0f);
     rig.RunHostFrames(Distributor::x_maxSamplesToDistribute);
     DOCTEST_REQUIRE(root.m_samplesForceUpdate == 0);
     nested.Increment(0.25f);
@@ -161,8 +162,8 @@ DOCTEST_TEST_CASE("encoder distribution: resetting a nested depth keeps unchange
     auto& child = *root.m_modulators.m_modulators[0];
     child.FillModulators(&rig.m_context);
     auto& nested = *child.m_modulators.m_modulators[1];
-    rig.m_banks.GetModulatorValues(0).m_value[0] = QuadFloat::Splat(1.0f);
-    rig.m_banks.GetModulatorValues(0).m_value[1] = QuadFloat::Splat(1.0f);
+    rig.m_banks.m_modulatorManager.GetSource(0).m_value = QuadFloat::Splat(1.0f);
+    rig.m_banks.m_modulatorManager.GetSource(1).m_value = QuadFloat::Splat(1.0f);
     nested.Increment(0.25f);
     rig.RunHostFrames(Distributor::x_maxSamplesToDistribute);
     DOCTEST_REQUIRE(child.m_targets[0] == 0.5f);

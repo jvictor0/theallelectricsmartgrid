@@ -23,19 +23,20 @@ struct EncoderRig
     size_t m_turnTimestamp = 0;
 
     EncoderRig(bool bipolar, float defaultValue)
-        : m_banks(2, 2, 2, &m_context)
+        : m_banks(2, 2, 2, 30, 2, &m_context)
     {
         GlobalEnv::Init();
         m_banks.InitMode(0, 2);
         m_banks.InitMode(1, 2);
         m_banks.InitBank(1, 1, SmartGrid::Color::Blue);
-        m_banks.CreateEncoder(1, 1, defaultValue, "OtherTrio", "OTHER", SmartGrid::Color::Blue, 0, bipolar);
+        m_banks.CreateEncoder(1, 1, 1, defaultValue, "OtherTrio", "OTHER", SmartGrid::Color::Blue, 0, bipolar);
         m_banks.PlaceEncoder(1, 1, 0, 0);
         m_banks.InitBank(0, 0, SmartGrid::Color::Red);
-        m_banks.CreateEncoder(0, 0, defaultValue, "Carrier", "CAR", SmartGrid::Color::Red, 0, bipolar);
+        m_banks.CreateEncoder(0, 0, 0, defaultValue, "Carrier", "CAR", SmartGrid::Color::Red, 0, bipolar);
         m_banks.PlaceEncoder(0, 0, 0, 0);
         for (size_t i = 0; i < Cell::x_numModulators; ++i)
         {
+            m_banks.m_modulatorManager.Bind(0, i, i);
             Sources().SetModulatorSkin(i, SmartGrid::Color::Red, nullptr);
         }
     }
@@ -50,9 +51,14 @@ struct EncoderRig
         return *m_banks.GetEncoder(1);
     }
 
+    ModulatorManager::Source& InputSource(size_t index)
+    {
+        return m_banks.m_modulatorManager.GetSource(index);
+    }
+
     Cell::ModulatorValues& Sources()
     {
-        return m_banks.m_bankModes[0].m_modulatorValues;
+        return m_banks.GetModulatorValues(0);
     }
 
     Cell& Depth(Cell& parent, size_t source)
@@ -267,8 +273,8 @@ DOCTEST_TEST_CASE("encoder shift-turn: neutralizing a displayed subtree preserve
 
         Cell& depth = rig.Depth(*selected, 0);
         depth.SetValue(1.0f, false);
-        rig.Sources().m_value[0][0] = 0.8f;
-        rig.Sources().m_value[0][1] = 0.2f;
+        rig.InputSource(0).m_value[0] = 0.8f;
+        rig.InputSource(0).m_value[1] = 0.2f;
         rig.Compute();
         rig.m_banks.Process();
         const float x_base = selected->m_values[0];
@@ -404,8 +410,8 @@ DOCTEST_TEST_CASE("encoder_bipolar: visible neutral depths animate without addin
 
     for (float source : {0.2f, 0.8f})
     {
-        rig.Sources().m_value[0][0] = source;
-        rig.Sources().m_value[0][1] = 1.0f - source;
+        rig.InputSource(0).m_value[0] = source;
+        rig.InputSource(0).m_value[1] = 1.0f - source;
         rig.m_banks.Process();
         bank.PopulateUIState(&ui);
 
@@ -423,12 +429,13 @@ DOCTEST_TEST_CASE("encoder_bipolar: publishing live depth brightness does not re
     EncoderRig rig(false, 0.3f);
     auto& bank = rig.m_banks.m_banks[0];
     bank.MakeSelection(0, 0, &rig.Carrier());
-    rig.Sources().m_value[0][0] = 0.2f;
+    rig.InputSource(0).m_value[0] = 0.2f;
     bank.Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 0, 1.0f));
     rig.Settle();
     DOCTEST_REQUIRE(rig.Carrier().GetValue(0) == doctest::Approx(0.2f));
 
-    rig.Sources().m_value[0][0] = 0.8f;
+    rig.InputSource(0).m_value[0] = 0.8f;
+    rig.m_banks.m_modulatorManager.Gather();
     rig.Sources().ComputeChanged();
     auto& depth = *rig.Carrier().m_modulators.m_modulators[0];
     DOCTEST_CHECK(depth.GetBrightness() == doctest::Approx(0.8f));
@@ -446,8 +453,8 @@ DOCTEST_TEST_CASE("encoder_bipolar: first depth turn activates modulation and re
     EncoderRig rig(false, 0.3f);
     auto& bank = rig.m_banks.m_banks[0];
     bank.MakeSelection(0, 0, &rig.Carrier());
-    rig.Sources().m_value[14][0] = 0.8f;
-    rig.Sources().m_value[14][1] = 0.2f;
+    rig.InputSource(14).m_value[0] = 0.8f;
+    rig.InputSource(14).m_value[1] = 0.2f;
 
     bank.Apply(SmartGrid::MessageIn(1000000, -1, SmartGrid::MessageIn::Mode::EncoderIncDec, 2, 3, 500));
     rig.Settle();
@@ -477,14 +484,14 @@ DOCTEST_TEST_CASE("encoder_bipolar: nested absolute depth edits update ancestor 
     bank.MakeSelection(0, 0, &rig.Carrier());
     auto& depth = *rig.Carrier().m_modulators.m_modulators[0];
     bank.MakeSelection(0, 0, &depth);
-    rig.Sources().m_value[0][0] = 0.8f;
-    rig.Sources().m_value[1][0] = 1.0f;
+    rig.InputSource(0).m_value[0] = 0.8f;
+    rig.InputSource(1).m_value[0] = 1.0f;
     bank.Apply(SmartGrid::MessageIn::EncoderSetMsg(1, 0, 1.0f));
     rig.Settle();
     DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.8f));
     DOCTEST_CHECK(rig.Carrier().m_modulatorsAffecting.m_bits == 3);
 
-    rig.Sources().m_value[1][0] = 0.5f;
+    rig.InputSource(1).m_value[0] = 0.5f;
     rig.Settle();
     DOCTEST_CHECK(rig.Carrier().GetValue(0) == doctest::Approx(0.3f));
 }
@@ -495,7 +502,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: shift-clicking a visible depth clears its ro
     EncoderRig rig(false, 0.3f);
     auto& bank = rig.m_banks.m_banks[0];
     rig.Press(0, 0, false);
-    rig.Sources().m_value[0][0] = 0.8f;
+    rig.InputSource(0).m_value[0] = 0.8f;
     bank.Apply(SmartGrid::MessageIn::EncoderSetMsg(0, 0, 1.0f));
     rig.Settle();
     DOCTEST_REQUIRE(rig.Carrier().GetValue(0) == doctest::Approx(0.8f));
@@ -576,7 +583,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: seeded edits navigation scenes and shift res
         {
             for (int voice = 0; voice < 2; ++voice)
             {
-                rig.Sources().m_amplitude[index][voice] = 0.0f;
+                rig.InputSource(index).m_amplitude[voice] = 0.0f;
             }
         }
 
@@ -718,7 +725,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: depth crossfades toward normal and inverted 
 {
     EncoderRig rig(false, 0.3f);
     Cell& depth = rig.Depth(rig.Carrier(), 0);
-    rig.Sources().m_value[0][0] = 0.8f;
+    rig.InputSource(0).m_value[0] = 0.8f;
     const float positions[] = {0.5f, 1.0f, 0.0f, 0.75f, 0.25f};
     const float outputs[] = {0.3f, 0.8f, 0.2f, 0.425f, 0.275f};
     for (size_t i = 0; i < 5; ++i)
@@ -737,11 +744,11 @@ DOCTEST_TEST_CASE("encoder_bipolar: mixed signs normalize absolute weights per v
     EncoderRig rig(false, 0.3f);
     rig.Depth(rig.Carrier(), 0).SetValue(1.0f, true);
     rig.Depth(rig.Carrier(), 1).SetValue(0.0f, true);
-    rig.Sources().m_value[0][0] = 0.8f;
-    rig.Sources().m_value[1][0] = 0.2f;
-    rig.Sources().m_amplitude[0][1] = 0.0f;
-    rig.Sources().m_amplitude[1][1] = 0.25f;
-    rig.Sources().m_value[1][1] = 0.8f;
+    rig.InputSource(0).m_value[0] = 0.8f;
+    rig.InputSource(1).m_value[0] = 0.2f;
+    rig.InputSource(0).m_amplitude[1] = 0.0f;
+    rig.InputSource(1).m_amplitude[1] = 0.25f;
+    rig.InputSource(1).m_value[1] = 0.8f;
     rig.Compute();
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.8f));
     DOCTEST_CHECK(rig.Carrier().m_minValue[0] == 0.0f);
@@ -754,8 +761,8 @@ DOCTEST_TEST_CASE("encoder_bipolar: recursive depth stays normalized until its p
     EncoderRig rig(false, 0.3f);
     Cell& depth = rig.Depth(rig.Carrier(), 0);
     rig.Depth(depth, 1).SetValue(1.0f, true);
-    rig.Sources().m_value[0][0] = 0.8f;
-    rig.Sources().m_value[1][0] = 0.25f;
+    rig.InputSource(0).m_value[0] = 0.8f;
+    rig.InputSource(1).m_value[0] = 0.25f;
     rig.Compute();
     DOCTEST_CHECK(depth.m_output[0] == doctest::Approx(0.25f));
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.275f));
@@ -766,11 +773,12 @@ DOCTEST_TEST_CASE("encoder_bipolar: amplitude alone invalidates the modulation o
 {
     EncoderRig rig(false, 0.3f);
     rig.Depth(rig.Carrier(), 0).SetValue(1.0f, true);
-    rig.Sources().m_value[0][0] = 0.8f;
+    rig.InputSource(0).m_value[0] = 0.8f;
     rig.Sources().ComputeChanged();
     rig.Compute();
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.8f));
-    rig.Sources().m_amplitude[0][0] = 0.0f;
+    rig.InputSource(0).m_amplitude[0] = 0.0f;
+    rig.m_banks.m_modulatorManager.Gather();
     rig.Sources().ComputeChanged();
     rig.Carrier().Compute(false);
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.3f));
@@ -829,7 +837,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: centered scenes preserve negative routes and
     depth.SetAndRecordValue(1.0f, 1);
     depth.SetAndRecordValue(0.25f, 2);
     rig.m_context.m_sceneManager.m_blendFactor = 0.5f;
-    rig.Sources().m_value[0][0] = 0.8f;
+    rig.InputSource(0).m_value[0] = 0.8f;
     rig.Compute();
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.3f));
     DOCTEST_CHECK_FALSE(depth.CanBeGarbageCollected());
@@ -876,8 +884,8 @@ DOCTEST_TEST_CASE("encoder_bipolar: recursive patches preserve signed gesture ta
     gesture.SetActive(true);
     gesture.SetValue(0.75f, true);
     rig.Depth(depth, 1).SetValue(0.75f, true);
-    rig.Sources().m_value[0][0] = 0.8f;
-    rig.Sources().m_value[1][0] = 0.25f;
+    rig.InputSource(0).m_value[0] = 0.8f;
+    rig.InputSource(1).m_value[0] = 0.25f;
     rig.Sources().m_gestureWeights[0] = 1.0f;
     rig.Compute();
     const float expected = rig.Carrier().m_output[0];
@@ -900,7 +908,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: small signed depths meet continuously at zer
 {
     EncoderRig rig(false, 0.3f);
     Cell& depth = rig.Depth(rig.Carrier(), 0);
-    rig.Sources().m_value[0][0] = 1.0f;
+    rig.InputSource(0).m_value[0] = 1.0f;
     depth.SetValue(0.50001f, true);
     rig.Compute();
     const float positive = rig.Carrier().m_output[0];

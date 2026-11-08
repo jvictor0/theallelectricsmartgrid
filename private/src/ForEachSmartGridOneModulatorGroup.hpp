@@ -1,0 +1,5 @@
+F(Water)
+F(Fire)
+F(Earth)
+F(Quad)
+F(Global)

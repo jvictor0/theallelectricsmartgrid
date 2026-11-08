@@ -220,14 +220,17 @@ DOCTEST_TEST_CASE("Encoder visualizers: catalogue supplies only supported source
         panel.Draw(g, image.getBounds());
         visualizers.Get(SmartGridOneEncoders::VoiceModeForTrio(trio), 6)->Draw(g, image.getBounds());
         DOCTEST_CHECK(panel.GetFirstVoice() == trio * 3);
-        DOCTEST_CHECK(scope->GetFirstVoice() == trio * 3);
-        auto* random = dynamic_cast<GangedRandomLFOComponent<3>*>(visualizers.Get(Mode::Voice, 0));
+        auto* trioScope = dynamic_cast<ScopeComponent*>(visualizers.Get(SmartGridOneEncoders::VoiceModeForTrio(trio), 6));
+        DOCTEST_REQUIRE(trioScope);
+        DOCTEST_CHECK(trioScope->GetFirstVoice() == trio * 3);
+        DOCTEST_CHECK(scope->GetFirstVoice() == 0);
+        auto* random = dynamic_cast<GangedRandomLFOComponent<3>*>(visualizers.Get(SmartGridOneEncoders::VoiceModeForTrio(trio), 0));
         DOCTEST_REQUIRE(random != nullptr);
         DOCTEST_CHECK(random->GetGangIndex() == trio);
     }
 }
 
-DOCTEST_TEST_CASE("Encoder visualizers: typed associations share voice views and separate modes")
+DOCTEST_TEST_CASE("Encoder visualizers: typed associations retain independent source views")
 {
     ModulatorVisualizers visualizers;
     int created = 0;
@@ -240,11 +243,11 @@ DOCTEST_TEST_CASE("Encoder visualizers: typed associations share voice views and
     visualizers.Add(QuadModulator::Random3, factory);
     visualizers.Add(GlobalModulator::Random1, factory);
     visualizers.Add(std::nullopt, factory);
-    DOCTEST_CHECK(created == 3);
+    DOCTEST_CHECK(created == 5);
     auto* voice = visualizers.Get(Mode::VoiceWater, 2);
     DOCTEST_REQUIRE(voice != nullptr);
-    DOCTEST_CHECK(visualizers.Get(Mode::VoiceFire, 2) == voice);
-    DOCTEST_CHECK(visualizers.Get(Mode::VoiceEarth, 2) == voice);
+    DOCTEST_CHECK(visualizers.Get(Mode::VoiceFire, 2) != voice);
+    DOCTEST_CHECK(visualizers.Get(Mode::VoiceEarth, 2) != voice);
     auto* quad = visualizers.Get(Mode::Quad, 2);
     auto* global = visualizers.Get(Mode::Global, 2);
     DOCTEST_REQUIRE(quad != nullptr);
@@ -271,6 +274,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: dial background is clipped translated an
     ui.SetEncoderType(3, 3, Type::ModulatorAmount);
     ui.SetIndex(3, 3, 6);
     ui.SetMode(3, 3, Mode::Voice);
+    ui.m_states[3][3].m_modulatorGroup.store(static_cast<size_t>(Mode::Voice));
     ui.SetNumVoices(3, 3, 1);
     ui.SetIndicatorColor(3, 3, 0, SmartGrid::Color::White);
     for (bool badgesAbove : {false, true})
@@ -306,6 +310,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: only connected associated depths draw in
     auto* visualizer = static_cast<SolidVisualizer*>(visualizers.Get(Mode::Global, 2));
     EncoderComponent encoder(EncoderBankUI(0, &ui, nullptr), 3, 3, false, visualizers);
     ui.SetMode(3, 3, Mode::Global);
+    ui.m_states[3][3].m_modulatorGroup.store(static_cast<size_t>(Mode::Global));
     ui.SetIndex(3, 3, 2);
     ui.SetEncoderType(3, 3, Type::ModulatorAmount);
     juce::Image image(juce::Image::ARGB, 100, 125, true);
@@ -329,6 +334,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: only connected associated depths draw in
     DOCTEST_CHECK(visualizer->m_draws == 1);
     ui.SetIndex(3, 3, 2);
     ui.SetMode(3, 3, Mode::Voice);
+    ui.m_states[3][3].m_modulatorGroup.store(static_cast<size_t>(Mode::Voice));
     encoder.paint(g);
     DOCTEST_CHECK(visualizer->m_draws == 1);
 }
@@ -387,6 +393,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: base parameters combine eligible sources
         DOCTEST_CAPTURE(test.m_type);
         DOCTEST_CAPTURE(test.m_modulators);
         ui.SetMode(3, 3, test.m_mode);
+        ui.m_states[3][3].m_modulatorGroup.store(static_cast<size_t>(test.m_mode));
         ui.SetNumVoices(3, 3, 1);
         for (size_t index = 0; index < 15; ++index)
         {
@@ -420,8 +427,10 @@ DOCTEST_TEST_CASE("Encoder visualizers: adjacent voice and quad controls render 
         return std::make_unique<SolidVisualizer>(juce::Colours::blue);
     });
     ui.SetMode(0, 0, Mode::VoiceEarth);
+    ui.m_states[0][0].m_modulatorGroup.store(static_cast<size_t>(Mode::VoiceEarth));
     ui.SetNumVoices(0, 0, 3);
     ui.SetMode(1, 0, Mode::Quad);
+    ui.m_states[1][0].m_modulatorGroup.store(static_cast<size_t>(Mode::Quad));
     ui.SetNumVoices(1, 0, 4);
     for (size_t x = 0; x < 2; ++x)
     {
@@ -495,6 +504,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: longest axis hosts the normalized mi
     visualizers.m_scopeVoiceOffset = 0;
     auto& encoder = state.m_encoderBankUIState.m_states[0][0];
     encoder.m_mode.store(Mode::VoiceEarth);
+    encoder.m_modulatorGroup.store(static_cast<size_t>(Mode::VoiceEarth));
     encoder.m_numVoices.store(3);
     for (size_t voice = 0; voice < 3; ++voice)
     {
@@ -552,6 +562,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: a single source keeps its own graphic re
     {
         size_t voices = mode == Mode::Global ? 1 : mode == Mode::Quad ? 4 : 3;
         encoder.m_mode.store(mode);
+        encoder.m_modulatorGroup.store(static_cast<size_t>(mode));
         encoder.m_numVoices.store(static_cast<int>(voices));
         for (int index = 0; index < 15; ++index)
         {
@@ -596,6 +607,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: multiple sources without time axes u
     visualizers.m_scopeVoiceOffset = 1;
     auto& encoder = state.m_encoderBankUIState.m_states[0][0];
     encoder.m_mode.store(Mode::VoiceFire);
+    encoder.m_modulatorGroup.store(static_cast<size_t>(Mode::VoiceFire));
     encoder.m_numVoices.store(3);
     encoder.m_modulatorWeights[1][11].store(-0.25f);
     encoder.m_modulatorWeights[1][8].store(0.25f);
@@ -616,6 +628,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: multiple sources without time axes u
     DOCTEST_CHECK(visualizers.GetForParameter(encoder) == nullptr);
 
     encoder.m_mode.store(Mode::Global);
+    encoder.m_modulatorGroup.store(static_cast<size_t>(Mode::Global));
     encoder.m_numVoices.store(1);
     encoder.m_modulatorWeights[0][14].store(0.5f);
     encoder.m_modulatorWeights[0][2].store(0.5f);
@@ -654,6 +667,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: random time axes keep other sources 
     InitializeEncoderModulatorVisualizers(visualizers, ui.get());
     auto& encoder = state.m_encoderBankUIState.m_states[0][0];
     encoder.m_mode.store(Mode::Quad);
+    encoder.m_modulatorGroup.store(static_cast<size_t>(Mode::Quad));
     encoder.m_numVoices.store(4);
     encoder.m_modulatorWeights[0][0].store(0.1f);
     encoder.m_modulatorWeights[0][6].store(0.3f);
@@ -803,10 +817,10 @@ DOCTEST_TEST_CASE("Encoder motion: full-scale audio sine covers the entire dial 
     {
         DOCTEST_CAPTURE(frequency);
         SmartGridOneContext context;
-        EncoderBankBank banks(1, 1, 1, &context);
+        EncoderBankBank banks(1, 1, 1, 15, 1, &context);
         banks.InitMode(0, 1);
         banks.InitBank(0, 0, SmartGrid::Color::Red);
-        banks.CreateEncoder(0, 0, 0.0f, "Sine", "SINE", SmartGrid::Color::Red, 0, true);
+        banks.CreateEncoder(0, 0, 0, 0.0f, "Sine", "SINE", SmartGrid::Color::Red, 0, true);
         banks.PlaceEncoder(0, 0, 0, 0);
         banks.SelectGrid(0);
         auto& sources = banks.GetModulatorValues(0);
@@ -897,4 +911,26 @@ DOCTEST_TEST_CASE("Encoder motion: full-scale audio sine covers the entire dial 
             }
         }
     }
+}
+
+DOCTEST_TEST_CASE("Encoder visualizers: group identity selects source track independently of parameter and active track")
+{
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    ui->m_squiggleBoyUIState.m_activeTrack.store(2);
+    ModulatorVisualizers visualizers;
+    InitializeEncoderModulatorVisualizers(visualizers, ui.get());
+    EncoderUIState encoder;
+    encoder.m_mode.store(Mode::VoiceWater);
+    encoder.m_modulatorGroup.store(static_cast<size_t>(SmartGridOneModulators::Group::Fire));
+    encoder.m_numVoices.store(3);
+    encoder.m_modulatorWeights[0][0].store(1.0f);
+    auto* source = visualizers.GetForParameter(encoder);
+    DOCTEST_REQUIRE(source == visualizers.Get(Mode::VoiceFire, 0));
+    auto* random = dynamic_cast<GangedRandomLFOComponent<3>*>(source);
+    DOCTEST_REQUIRE(random);
+    DOCTEST_CHECK(random->GetGangIndex() == 1);
+    DOCTEST_CHECK(random->GetFirstVoice() == 3);
+    auto* sheaf = dynamic_cast<SheafyModulatorDialComponent*>(visualizers.Get(SmartGridOneModulators::Group::Fire, 8));
+    DOCTEST_REQUIRE(sheaf);
+    DOCTEST_CHECK(sheaf->m_trackOverride == 1);
 }

@@ -295,7 +295,7 @@ struct EncoderMatrix
             cell->SynchronizePreparedState();
             cell->m_preparedScene1 = scene.m_scene1;
             cell->m_preparedScene2 = scene.m_scene2;
-            Root root{cell, cell->GetSharedEncoderState()->m_modulatorValues, index,
+            Root root{cell, cell->m_modulatorValues, index,
                 m_routes.size(), 0, cell->m_evaluationRevision,
                 cell->m_values[scene.m_scene1], cell->m_values[scene.m_scene2],
                 CanPrepare(cell) ? Path::Simple : Path::Editing};

@@ -218,8 +218,11 @@ DOCTEST_TEST_CASE("modulator catalogue: legacy global empty depths survive patch
         auto* depth = cell->m_modulators.m_modulators[index].get();
         DOCTEST_CHECK(bank.GetVisible(index % 4, index / 4) == depth);
         DOCTEST_CHECK(depth->GetSharedEncoderState() == cell->GetSharedEncoderState());
-        auto& sources = encoders.GetModulatorValues(Encoders::BankMode::Global);
+        // Inject at the group boundary: these legacy slots have no source.
+        //
+        auto& sources = encoders.GetModulatorValues(SmartGridOneModulators::Group::Global);
         sources.m_value[index][0] = 0.8f;
+        sources.m_hostValue[index][0] = 0.8f;
         cell->SetStateRecursive();
         cell->SetModulatorsAffecting();
         cell->Compute(false);
@@ -276,9 +279,10 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
     }
 
     synth.SetVoiceModulators(input);
+    synth.m_encoders.GetModulatorManager().Gather();
     for (size_t voice = 0; voice < 9; ++voice)
     {
-        const auto& values = synth.m_encoders.GetModulatorValues(Encoders::VoiceModeForTrio(voice / 3));
+        const auto& values = synth.m_encoders.GetModulatorValues(static_cast<SmartGridOneModulators::Group>(voice / 3));
         const size_t channel = voice % 3;
         const float offset = 0.01f * static_cast<float>(voice);
         DOCTEST_CHECK(values.m_value[4][channel] == doctest::Approx(0.11f + offset));
@@ -313,8 +317,9 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
         }
     }
 
-    synth.SetQuadModulators(input);
-    const auto& quad = synth.m_encoders.GetModulatorValues(Encoders::BankMode::Quad);
+    synth.SetQuadModulators();
+    synth.m_encoders.GetModulatorManager().Gather();
+    const auto& quad = synth.m_encoders.GetModulatorValues(SmartGridOneModulators::Group::Quad);
     for (size_t channel = 0; channel < 4; ++channel)
     {
         DOCTEST_CHECK(quad.m_value[4][channel] == 0.0f);
@@ -330,8 +335,9 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
 
     synth.m_globalGangedRandomLFO[0].m_output[0] = 0.23f;
     synth.m_globalGangedRandomLFO[1].m_output[0] = 0.67f;
-    synth.SetGlobalModulators(input);
-    const auto& global = synth.m_encoders.GetModulatorValues(Encoders::BankMode::Global);
+    synth.SetGlobalModulators();
+    synth.m_encoders.GetModulatorManager().Gather();
+    const auto& global = synth.m_encoders.GetModulatorValues(SmartGridOneModulators::Group::Global);
     DOCTEST_CHECK(global.m_value[2][0] == doctest::Approx(0.23f));
     DOCTEST_CHECK(global.m_value[3][0] == doctest::Approx(0.67f));
 }
