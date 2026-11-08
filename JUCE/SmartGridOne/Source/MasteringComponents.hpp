@@ -197,8 +197,13 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         size_t numFrequencies = snapshot.m_numFrequencies;
         for (size_t i = 0; i < numFrequencies; ++i)
         {
-            float frequency = snapshot.m_frequencies[i];
-            float x = PathDrawer::LinearToLog(frequency / SampleTimer::x_oversample) * width;
+            float frequency = snapshot.m_frequencies[i] / SampleTimer::x_oversample;
+            if (!PathDrawer::IsValidFrequency(frequency))
+            {
+                continue;
+            }
+
+            float x = PathDrawer::LinearToLog(frequency) * width;
             float y = PathDrawer::AmpToDbNormalized(snapshot.m_magnitudes[i] * 2) * height;
             g.setColour(juce::Colours::white);
             g.drawLine(x, height - y, x, height, 1.5f);
@@ -207,7 +212,16 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         for (size_t i = 0; i < TheNonagonInternal::x_numVoices; ++i)
         {
             float usedOmega = deepVocoderUIState->GetUsedOmega(i);
-            float x = PathDrawer::LinearToLog(usedOmega / SampleTimer::x_oversample) * width;
+            float frequency = usedOmega / SampleTimer::x_oversample;
+            // Unassigned voices publish -1; the initial UI state contains zero.
+            // Neither represents a frequency to plot or evaluate a threshold at.
+            //
+            if (!PathDrawer::IsValidFrequency(frequency))
+            {
+                continue;
+            }
+
+            float x = PathDrawer::LinearToLog(frequency) * width;
             g.setColour(J(TheNonagonSmartGrid::VoiceColor(i)));
             float bottom = (1 - PathDrawer::AmpToDbNormalized(deepVocoderUIState->m_voiceUIState[i].MagnitudeThreshold(usedOmega) * 2)) * height;
             float top = (1 - PathDrawer::AmpToDbNormalized(deepVocoderUIState->GetAtomMagnitude(i) * 2)) * height;
@@ -221,7 +235,7 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
                 continue;
             }
 
-            if (deepVocoderUIState->GetPitchCenter(i) <= 0.0f)
+            if (!PathDrawer::IsValidFrequency(deepVocoderUIState->GetPitchCenter(i)))
             {
                 continue;
             }

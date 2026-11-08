@@ -71,6 +71,11 @@ struct PartialMachineInputSpectrumComponent : public SmartGridOneMainVisualizerC
         for (size_t i = 0; i < snapshot.m_numAtoms; ++i)
         {
             const PartialMachine::SpectralModel::Atom& atom = snapshot.m_atoms[i];
+            if (!PathDrawer::IsValidFrequency(atom.m_synthesisOmega / SampleTimer::x_oversample))
+            {
+                continue;
+            }
+
             float reduction = PartialMachine::SynthesisContext::GetReduction(atom, dspInput.m_synthesisContextInput);
             float magnitude = PartialMachineComponentUtils::ScaledMagnitude(atom.m_synthesisMagnitude * reduction);
             float x = bounds.getX() + PartialMachineComponentUtils::ScreenXForOmega(atom.m_synthesisOmega, width);
@@ -112,6 +117,11 @@ struct PartialMachineSpatialComponent : public SmartGridOneMainVisualizerCompone
         for (size_t i = 0; i < snapshot.m_numAtoms; ++i)
         {
             const PartialMachine::SpectralModel::Atom& atom = snapshot.m_atoms[i];
+            if (!PathDrawer::IsValidFrequency(atom.m_synthesisOmega / SampleTimer::x_oversample))
+            {
+                continue;
+            }
+
             float reduction = PartialMachine::SynthesisContext::GetReduction(atom, dspInput.m_synthesisContextInput);
             float radius = PartialMachine::SynthesisContext::GetRadius(atom, dspInput.m_synthesisContextInput);
             float azimuth = PartialMachine::SynthesisContext::GetAzimuth(atom, dspInput.m_synthesisContextInput);

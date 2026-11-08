@@ -72,6 +72,11 @@ struct PathDrawer
         return std::log(x / x_minFrequency) / std::log(x_maxFrequency / x_minFrequency);
     }
 
+    static bool IsValidFrequency(float frequency)
+    {
+        return std::isfinite(frequency) && frequency > 0.0f;
+    }
+
     template<typename Fn>
     void DrawPath(juce::Graphics& g, juce::Colour colour, Fn fn)
     {
