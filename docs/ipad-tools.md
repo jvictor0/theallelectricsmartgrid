@@ -88,6 +88,37 @@ capture retains a directory ending in `.partial`; a rerun creates a fresh one.
 See the repository `ipad-logs` skill for archive queries and the full evidence
 taxonomy.
 
+### Reading newer system-log archives
+
+The iPad creates the `.logarchive` format; the collector only transfers and
+extracts it. This format is independent of SGREC. On November 8, 2026, iPadOS
+27.2 (24B119) produced `OSArchiveVersion = 6`, which both `log show` and `log
+stats` on macOS 15.7.4 rejected with "newer log tools are needed". Changing the
+SGREC reader or upgrading the collection dependency does not address that
+reader mismatch. Preserve the archive's original version metadata.
+
+[Mandiant unifiedlog_iterator v0.7.0](https://github.com/mandiant/macos-UnifiedLogs/releases/tag/v0.7.0)
+adds iOS 27 support. Its released Apple Silicon binary successfully decoded
+the original v6 archive on this Mac. Download
+`unifiedlog_iterator-v0.7.0-aarch64-apple-darwin.tar.gz` from that release,
+verify its SHA-256
+`bf5c4a3418b133fbd403ca7893a2280acb8c2c3605b4ad6f87f9fc75b35a20b7`,
+and extract under ignored `build/tools/unifiedlogs-0.7.0/`. Run:
+
+```bash
+build/tools/unifiedlogs-0.7.0/unifiedlog_iterator-v0.7.0-aarch64-apple-darwin/unifiedlog_iterator \
+  --mode log-archive --input CAPTURE.logarchive \
+  --output build/results/system-decoded.jsonl \
+  --bookmark-path build/results/log-reader-bookmark.json
+```
+
+Choose distinct output paths for each capture; decoded JSONL can be large.
+Records are not globally time-sorted. Check timestamp coverage, loss records,
+and missing-message markers before drawing conclusions. This reader reproduced
+the previous day's 2,241 invalid-number messages and both thermal-transition
+timestamps obtained with Apple's reader; that validates those anchors, not
+every possible message type. Keep raw captures alongside decoded results.
+
 ## Experimental journal
 
 The [iPad / MAYA44 investigation journal](experiments/ipad-maya-audio/README.md)
