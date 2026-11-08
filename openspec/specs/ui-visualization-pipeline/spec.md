@@ -6,7 +6,7 @@ The visualization pipeline (`private/src/ScopeWriter.hpp`, `TransferFunction.hpp
 ## Requirements
 
 ### Requirement: Interleaved Circular Buffer Indexing
-The system SHALL use ScopeWriterGeneric<Size, NumScopes> with six vector rings per scope, each holding 0.25 seconds at the engine sample rate. All production scopes, including control signals, SHALL store every engine sample in one bank per vector width (one, three, or four). Higher levels SHALL be decimated by four successively with 17-tap FIR filters on the UI thread during acceptance. The audio thread SHALL write only level zero. Logical coordinates SHALL remain level-zero samples, with FIR delay and decimation phase handled internally. Vector storage SHALL interleave all lanes of one scope sample. Writes and AdvanceIndex occur at engine rate, with production base decimation equal to one. All banks SHALL share one absolute engine-sample origin. GetLod(samplesBack) SHALL select the finest retained level covering the requested lookback; history reads SHALL reject interpolation endpoints outside the accepted bounds. Capacity SHALL be independent of other scopes in the bank.
+The system SHALL use ScopeWriterGeneric<Size, NumScopes> with six vector rings per scope, each holding 0.25 seconds at the engine sample rate. All production scopes, including control signals, SHALL store every engine sample in banks grouped by vector width (one, three, or four), including a dedicated quad delay-magnitude bank. Higher levels SHALL be decimated by four successively with 17-tap FIR filters on the UI thread during acceptance. The audio thread SHALL write only level zero, using lock-free atomic scalar lanes. Higher levels SHALL remain UI-owned. Storage coordinates SHALL remain level-zero samples, with FIR delay and decimation phase handled internally. Vector storage SHALL interleave all lanes of one scope sample. Writes and AdvanceIndex occur at engine rate, with production base decimation equal to one. All banks SHALL share one absolute engine-sample origin. GetLod(samplesBack) SHALL select the finest retained level covering the requested lookback; history reads SHALL reject interpolation endpoints outside the accepted bounds. Capacity SHALL be independent of other scopes in the bank.
 
 #### Scenario: Audio and control histories share the engine timeline
 - **WHEN** a producer writes audio and control vectors on consecutive engine samples
@@ -38,7 +38,7 @@ The system SHALL provide vector-width-specific scope holders whose Write takes a
 - **THEN** no buffer access occurs and no fault is raised
 
 ### Requirement: Atomic Publish Boundary
-The audio thread SHALL publish its completed level-zero position and pending per-stream cycle-marker counters after writing the data. At the beginning of each UI paint frame, before drawing, the UI SHALL capture a published boundary for each scope bank, build its lower levels from the newly accepted samples, and update its accepted position. All waveform, FFT, and secondary-modulator reads SHALL use these accepted positions throughout the frame. Cycle start/stop metadata SHALL be snapshotted against the accepted boundary. Reaccepting the same position SHALL not rerun the cascade. Publication and acceptance do not pin level-zero slots; UI catch-up SHALL index the circular buffer directly even if the producer has overwritten samples during a long UI stall.
+The audio thread SHALL publish its completed level-zero position and pending per-stream cycle-marker counters after writing the data. At the beginning of each UI paint frame, before drawing, the UI SHALL capture a published boundary for each scope bank, build its lower levels from the newly accepted samples, and update its accepted position. All waveform, FFT, and secondary-modulator reads SHALL use these accepted positions throughout the frame. Cycle start/stop metadata and inverse view bounds SHALL be snapshotted against the accepted boundary using atomic payloads and a publication revision. Acceptance SHALL use a bounded retry budget and keep the previous accepted frame when publication overlaps every attempt. Reaccepting the same position SHALL not rerun the cascade. Publication and acceptance do not pin level-zero slots; UI catch-up SHALL index the circular buffer directly even if the producer has overwritten samples during a long UI stall.
 
 #### Scenario: Unpublished samples are invisible
 - **WHEN** samples are written and `AdvanceIndex` is called but `Publish` has not run
@@ -76,10 +76,10 @@ The system SHALL record waveform cycle boundaries per (scope, voice) stream in r
 
 #### Scenario: Marker ring wraps
 - **WHEN** more than 256 cycles are recorded on one stream
-- **THEN** new pairs overwrite the oldest entries modulo `x_numStartIndices` while the atomic marker counter keeps increasing monotonically
+- **THEN** new pairs overwrite the oldest entries modulo `x_numStartIndices` while the oldest retained marker advances; warped rewind may reduce the active count but SHALL NOT restore overwritten entries
 
 ### Requirement: Cycle-Aware Display Sampling
-The system SHALL preserve ScopeReader's cycle and transfer calculations in original sample coordinates. It SHALL select one LOD covering both the current cycle and any borrowed previous-cycle segment before sampling, and use that LOD for the full trace. ScopeReaderFactory SHALL retain the current voice/scope context. Strict historical reads reject unavailable history; display sampling holds the latest selected-level value at its delayed live edge. Readers SHALL be empty when required history exceeds all levels or required markers are unavailable. FFT readers SHALL explicitly use level zero.
+Unbound ScopeReader instances SHALL retain cycle and transfer calculations in original sample coordinates. Bound readers SHALL compute their axes in continuous warped coordinates and compose sample queries through the published inverse view, as specified in warped-scope-history. It SHALL select one LOD covering both the current cycle and any borrowed previous-cycle segment before sampling, and use that LOD for the full trace. ScopeReaderFactory SHALL retain the current voice/scope context. Strict historical reads reject unavailable history; display sampling holds the latest selected-level value at its delayed live edge. Readers SHALL be empty when required history exceeds all levels or required markers are unavailable. FFT readers SHALL explicitly use level zero.
 
 #### Scenario: Mid-cycle trace borrows the previous cycle
 - **WHEN** a reader is created while the current cycle has fewer samples than the previous cycle's length
@@ -112,11 +112,11 @@ The system SHALL define `TransferFunction` (`private/src/TransferFunction.hpp`) 
 - **THEN** it queries a UIState object's `TransferFunction` methods, and no audio-thread DSP class is reachable through the `TransferFunction` interface
 
 ### Requirement: Derived UI Snapshots Populated on the Control Thread
-The system SHALL populate aggregated visualization state in `PopulateUIState(...)` methods executed on the audio thread once per process frame (`ProcessFrame`, every `x_samplesPerProcessFrame` engine samples), writing into atomic UIState fields that the JUCE thread reads directly. Current producers include `QuadDelay::PopulateUIState` (per-channel min/max envelope buckets remapped against the master-loop position plus relative read/write head positions), `AudioBufferBank`/`SampleSource` UIState (waveform min/max buckets, read-head position, and active start/length window), and `PartialMachine::PopulateUIState` (the tracked spectral atom list and frequency-dependent transfer functions).
+The system SHALL populate aggregated visualization state in `PopulateUIState(...)` methods executed on the audio thread once per process frame (`ProcessFrame`, every `x_samplesPerProcessFrame` engine samples), writing into atomic UIState fields that the JUCE thread reads directly. Current producers include `QuadDelay::PopulateUIState` (damping alphas, absolute warped head positions, and publication of the common magnitude scope), `AudioBufferBank`/`SampleSource` UIState (waveform min/max buckets, read-head position, and active start/length window), and `PartialMachine::PopulateUIState` (the tracked spectral atom list and frequency-dependent transfer functions).
 
-#### Scenario: Delay envelope view reads snapshot slots
+#### Scenario: Delay envelope uses the common scope
 - **WHEN** the quad delay envelope visualizer renders a frame
-- **THEN** every envelope bucket and head position it draws comes from `m_delayUIState` fields written by the most recent `PopulateUIState` call, not from the delay's audio-thread buffers
+- **THEN** it samples the accepted magnitude scope through the bounded inverse view and converts filtered magnitude to dB, with head positions from `m_delayUIState`
 
 #### Scenario: Partial-machine atoms come from the published list
 - **WHEN** the partial-machine spectrum or spatial view renders

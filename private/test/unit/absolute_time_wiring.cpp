@@ -125,6 +125,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: delay setter follows per-sample phase and tempo
     for (size_t sample = 0; sample < 16; ++sample)
     {
         SampleTimer::s_instance->m_sample = sample;
+        time.ProcessWriteTapeHead();
         setter.Process(input, output, nullptr);
         DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(static_cast<double>(sample) / ratio));
         DOCTEST_CHECK(output.m_relativeWriteHeadPosition >= 0.0f);
@@ -144,21 +145,25 @@ DOCTEST_TEST_CASE("AbsoluteTime: delay setter follows per-sample phase and tempo
 
     time.m_globalPeriodSamples = 128.0;
     SampleTimer::s_instance->m_sample = 16;
+    time.ProcessWriteTapeHead();
     setter.Process(input, output, nullptr);
     DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(15.0 / ratio));
     clock.m_unmodulatedPhase += 1.0 / 128.0;
     Step(time, clock);
     SampleTimer::s_instance->m_sample = 17;
+    time.ProcessWriteTapeHead();
     setter.Process(input, output, nullptr);
     DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(16.0 / ratio));
 
     clock.m_running = false;
     Step(time, clock);
     SampleTimer::s_instance->m_sample = 18;
+    time.ProcessWriteTapeHead();
     setter.Process(input, output, nullptr);
     DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(17.0 / ratio));
     Step(time, clock);
     SampleTimer::s_instance->m_sample = 19;
+    time.ProcessWriteTapeHead();
     setter.Process(input, output, nullptr);
     DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(18.0 / ratio));
 }

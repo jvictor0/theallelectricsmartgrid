@@ -2,14 +2,12 @@
 
 #include "QuadUtils.hpp"
 #include "DelayLine.hpp"
-#include "PositionalBufferRecorder.hpp"
 #include "Filter.hpp"
 #include "Saturator.hpp"
 #include "Oversample.hpp"
 #include "PhaseUtils.hpp"
 #include "TheoryOfTime.hpp"
 #include "TapeHead.hpp"
-#include "SnapshotUIState.hpp"
 #include "Q.hpp"
 
 struct QuadDelay
@@ -30,11 +28,11 @@ struct QuadDelay
     };
     
     // The delay line and its positions are in host samples. The saturated input and feedback are decimated and written
-    // once per host frame; grains play back at the engine rate.
+    // once per host frame; grains play back at the engine rate. The write head's inverse belongs to the theory of time,
+    // wired into m_delayLine.m_inverter at startup.
     //
     static constexpr size_t x_oversample = SampleTimer::x_oversample;
-    static constexpr size_t x_delayLineSize = 1 << 24;
-    static constexpr size_t x_positionalBufferSize = 1024;
+    static constexpr size_t x_delayLineSize = TheoryOfTime::x_timeWarpInverterSamples / x_oversample;
     using Writer = QuadDelayLineMovableWriter<x_delayLineSize>;
     using WriteDecimator = DownsamplerGeneric<float, 4, 8, x_oversample>;
     Writer m_delayLine;
@@ -42,7 +40,8 @@ struct QuadDelay
     size_t m_writeSubSample;
     QuadGrainManager<Writer> m_grainManager;
 
-    PositionalBufferRecorder<x_positionalBufferSize> m_positionalBufferRecorder;
+    ScopeWriterHolderGeneric<4> m_envelopeScopeWriter;
+    QuadFloat m_envelopeValue;
 
     PostFeedbackFilter m_postFeedbackFilter;
 
@@ -90,65 +89,46 @@ struct QuadDelay
         }
     };
 
-    struct DelayEnvelopeState
-    {
-        float m_maxEnvelope[x_positionalBufferSize];
-        float m_minEnvelope[x_positionalBufferSize];
-        float m_relativeReadHeadPosition;
-        float m_relativeWriteHeadPosition;
-
-        DelayEnvelopeState()
-            : m_relativeReadHeadPosition(-1.0f)
-            , m_relativeWriteHeadPosition(-1.0f)
-        {
-            for (int i = 0; i < x_positionalBufferSize; ++i)
-            {
-                m_maxEnvelope[i] = 0.0f;
-                m_minEnvelope[i] = 0.0f;
-            }
-        }
-    };
-
-    struct UISnapshot
-    {
-        DelayEnvelopeState m_delayEnvelopeState[4];
-    };
-
-    struct UIState : SnapshotUIState<UISnapshot>
+    struct UIState
     {
         DampingFilter::UIState m_dampingFilter[4];
+        ScopeWriterGeneric<4, 1> m_scopeWriter;
+        std::atomic<double> m_readHeadPosition[4]{};
+        std::atomic<double> m_writeHeadPosition{0.0};
     };
 
-    void PopulateUIState(UIState* uiState, QuadDelay::Input& input)
+    void SetupScopeWriter(UIState* uiState)
     {
-        for (int i = 0; i < 4; ++i)
+        assert(m_delayLine.m_inverter);
+        uiState->m_scopeWriter.SetTimeWarp(0, m_delayLine.m_inverter);
+        m_envelopeScopeWriter = ScopeWriterHolderGeneric<4>(&uiState->m_scopeWriter, 0);
+    }
+
+    void PopulateUIState(UIState* uiState, Input& input)
+    {
+        for (size_t channel = 0; channel < 4; ++channel)
         {
-            uiState->m_dampingFilter[i].m_hpAlpha.store(m_postFeedbackFilter.m_bff.m_highPassFilter.m_alpha[i]);
-            uiState->m_dampingFilter[i].m_lpAlpha.store(m_postFeedbackFilter.m_bff.m_lowPassFilter.m_alpha[i]);
+            uiState->m_dampingFilter[channel].m_hpAlpha.store(m_postFeedbackFilter.m_bff.m_highPassFilter.m_alpha[channel]);
+            uiState->m_dampingFilter[channel].m_lpAlpha.store(m_postFeedbackFilter.m_bff.m_lowPassFilter.m_alpha[channel]);
+            uiState->m_readHeadPosition[channel].store(input.m_readHeadPosition[channel] * x_oversample);
         }
 
-        UISnapshot& snapshot = uiState->BeginSnapshot();
-        for (int delayLineIdx = 0; delayLineIdx < 4; ++delayLineIdx)
-        {
-            auto& envelopeState = snapshot.m_delayEnvelopeState[delayLineIdx];
-            envelopeState.m_relativeReadHeadPosition = input.m_relativeReadHeadPosition[delayLineIdx];
-            envelopeState.m_relativeWriteHeadPosition = input.m_relativeWriteHeadPosition;
-        }
+        uiState->m_writeHeadPosition.store(input.m_writeHeadPosition * x_oversample);
+        uiState->m_scopeWriter.Publish();
+    }
 
-        for (size_t bufIdx = 0; bufIdx < x_positionalBufferSize; ++bufIdx)
-        {
-            double warpedTime = m_positionalBufferRecorder.Get(bufIdx);
-            double realTime = m_delayLine.GetRealTime(warpedTime);
-            auto [maxEnv, minEnv] = m_delayLine.GetEnvelopeAtRealTime(realTime);
-            for (int delayLineIdx = 0; delayLineIdx < 4; ++delayLineIdx)
-            {
-                auto& envelopeState = snapshot.m_delayEnvelopeState[delayLineIdx];
-                envelopeState.m_maxEnvelope[bufIdx] = maxEnv[delayLineIdx];
-                envelopeState.m_minEnvelope[bufIdx] = minEnv[delayLineIdx];
-            }
-        }
+    // The scope holds the magnitude of the latest completed host write between
+    // writes. Its real-time engine grid is shared with the control scopes.
+    //
+    void WriteAudio(const QuadFloat& audio, size_t hostSample)
+    {
+        m_delayLine.Write(audio, hostSample);
+        m_envelopeValue = audio.Abs();
+    }
 
-        uiState->CommitSnapshot();
+    void WriteEnvelopeScope()
+    {
+        m_envelopeScopeWriter.Write(m_envelopeValue);
     }
 
     QuadFloat Process(Input& input)
@@ -164,10 +144,13 @@ struct QuadDelay
         if (m_writeSubSample == x_oversample)
         {
             m_writeSubSample = 0;
-            m_delayLine.Write(m_writeDecimator.GetOutput(), input.m_writeHeadPosition);
+            WriteAudio(m_writeDecimator.GetOutput(), SampleTimer::GetHostSample());
         }
 
-        QuadFloat delayedSignal = m_grainManager.Process(input.m_readHeadPosition, QuadFloat(), input.m_grainManagerInput, m_delayLine.m_lastTime - 1.0);
+        WriteEnvelopeScope();
+
+        QuadFloat delayedSignal = m_grainManager.Process(input.m_readHeadPosition, QuadFloat(), input.m_grainManagerInput,
+            m_delayLine.GetOldestSampleTime(), m_delayLine.GetLatestSampleTime());
 
         m_output = m_postFeedbackFilter.Process(input.TransformOutput(delayedSignal));
 
@@ -196,7 +179,7 @@ struct QuadDelayInputSetter
     QuadExpParam m_slewUp;
 
     float m_bufferFrac[4];
-    WriteTapeHead m_writeTapeHead;
+    double m_previousDisplayPhase = std::numeric_limits<double>::quiet_NaN();
     ReadTapeHead m_readTapeHead[4];
 
     struct Input
@@ -250,19 +233,15 @@ struct QuadDelayInputSetter
         for (int i = 0; i < 4; ++i)
         {
             m_bufferFrac[i] = 1.0;
-            m_readTapeHead[i].m_writeTapeHead = &m_writeTapeHead;
         }
     }
 
+    // The theory of time has already advanced its write tape head this sample.
+    //
     void Process(Input& input, QuadDelay::Input& delayInput, QuadDelay* delay)
     {
-        WriteTapeHead::Input writeInput;
-        writeInput.m_theoryOfTime = input.m_theoryOfTime;
-        writeInput.m_running = input.m_theoryOfTime->m_sample.m_running;
-        writeInput.m_globalPeriodSamples = input.m_theoryOfTime->m_globalPeriodSamples / static_cast<double>(SampleTimer::x_oversample);
-        m_writeTapeHead.Update(writeInput);
-
-        double writeHeadPosition = m_writeTapeHead.m_actualPosition;
+        const WriteTapeHead& writeTapeHead = input.m_theoryOfTime->m_writeTapeHead;
+        double writeHeadPosition = ReadTapeHead::ToHostSamples(writeTapeHead.m_actualPosition);
         if (std::abs(writeHeadPosition - delayInput.m_writeHeadPosition) >= 64)
         {
             INFO("writeHeadPosition: %f -> %f (diff %f) external loop", 
@@ -278,7 +257,7 @@ struct QuadDelayInputSetter
         }
 
         delayInput.m_writeHeadPosition = writeHeadPosition;
-        double writePhase = m_writeTapeHead.GetDisplayPosition();
+        double writePhase = writeTapeHead.GetDisplayPosition();
         delayInput.m_relativeWriteHeadPosition = static_cast<float>(writePhase - std::floor(writePhase));
 
         QuadFloat rotate;
@@ -337,7 +316,7 @@ struct QuadDelayInputSetter
             m_readTapeHead[i].Update(readInput);
             delayInput.m_readHeadPosition[i] = m_readTapeHead[i].m_actualPosition;
             double readPhase = writePhase +
-                (m_readTapeHead[i].m_relativePosition - m_writeTapeHead.m_relativePosition);
+                (m_readTapeHead[i].m_relativePosition - writeTapeHead.m_relativePosition);
             delayInput.m_relativeReadHeadPosition[i] = static_cast<float>(readPhase - std::floor(readPhase));
 
             // Resynth parameters
@@ -368,10 +347,17 @@ struct QuadDelayInputSetter
                 : slewUp[i];
         }
 
-        if (delay)
+        if (delay && (!std::isfinite(m_previousDisplayPhase)
+            || std::floor(writePhase) > std::floor(m_previousDisplayPhase)))
         {
-            double x = writePhase - std::floor(writePhase);
-            delay->m_positionalBufferRecorder.Record(x, delayInput.m_writeHeadPosition);
+            double offset = std::isfinite(m_previousDisplayPhase)
+                ? SampleTop::FromPhases(m_previousDisplayPhase, writePhase).m_offset : 0.0;
+            for (size_t channel = 0; channel < 4; ++channel)
+            {
+                delay->m_envelopeScopeWriter.RecordStartAtVoice(channel, offset);
+            }
         }
+
+        m_previousDisplayPhase = writePhase;
     }
 };

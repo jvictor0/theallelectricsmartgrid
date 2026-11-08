@@ -159,7 +159,7 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
                 continue;
             }
 
-            double oldest = axis.m_transfer < 1.0 ? std::min(axis.m_start, axis.m_wrappedStart) : axis.m_start;
+            double oldest = axis.OldestSample();
             SmartGridOneModulatorHistory::PreparedModulatorReader reader(*m_historyUIState, weights, oldest, now);
             auto pointAt = [&](double position)
             {

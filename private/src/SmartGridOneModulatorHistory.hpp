@@ -59,14 +59,21 @@ struct ModulatorTimeAxis
     double m_wrappedStart = 0.0;
     double m_present = 1.0;
     bool m_predictive = false;
+    TimeWarpView m_timeWarp;
+    double m_wrappedEnd = std::numeric_limits<double>::quiet_NaN();
 
     double GetExtent() const
     {
         return std::max(0.0, m_end - m_start)
-            + (m_transfer < 1.0 ? std::max(0.0, m_start - m_wrappedStart) : 0.0);
+            + (m_transfer < 1.0 ? std::max(0.0, WrappedEnd() - m_wrappedStart) : 0.0);
     }
 
-    double GetSample(double position) const
+    double WrappedEnd() const
+    {
+        return std::isfinite(m_wrappedEnd) ? m_wrappedEnd : m_start;
+    }
+
+    double GetCoordinate(double position) const
     {
         if (position < m_transfer || m_transfer == 1.0)
         {
@@ -74,7 +81,33 @@ struct ModulatorTimeAxis
         }
 
         return m_wrappedStart + (position - m_transfer) / (1.0 - m_transfer)
-            * (m_start - m_wrappedStart);
+            * (WrappedEnd() - m_wrappedStart);
+    }
+
+    double GetSample(double position) const
+    {
+        double coordinate = GetCoordinate(position);
+        return m_timeWarp.m_source ? m_timeWarp.GetRealTime(coordinate) : coordinate;
+    }
+
+    double OldestSample() const
+    {
+        if (!m_timeWarp.m_source)
+        {
+            return m_transfer < 1.0 ? std::min(m_start, m_wrappedStart) : m_start;
+        }
+
+        double oldest = m_timeWarp.m_realTime;
+        for (size_t point = 0; point < 256; ++point)
+        {
+            double sample = GetSample(static_cast<double>(point) / 256.0);
+            if (std::isfinite(sample))
+            {
+                oldest = std::min(oldest, sample);
+            }
+        }
+
+        return oldest;
     }
 };
 
@@ -430,10 +463,13 @@ ModulatorTimeAxis GetTimeAxis(const UIState& uiState, ModulatorRef modulator)
         return axis;
     }
 
-    double origin = static_cast<double>(uiState.m_squiggleBoyUIState.m_firstScopeSample.load());
+    axis.m_timeWarp = reader.m_timeWarp;
+    double origin = axis.m_timeWarp.m_source ? 0.0
+        : static_cast<double>(uiState.m_squiggleBoyUIState.m_firstScopeSample.load());
     axis.m_start = origin + reader.m_startIndex;
     axis.m_end = origin + reader.m_transferIndex;
     axis.m_wrappedStart = origin + reader.m_postTransferIndex;
+    axis.m_wrappedEnd = origin + reader.m_postTransferEndIndex;
     axis.m_transfer = reader.m_transferXSample / reader.m_numXSamples;
     axis.m_present = std::clamp((reader.m_transferXSample - 1.0) / reader.m_numXSamples, 0.0, 1.0);
     return axis;

@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <numeric>
 
 #include "Phasor2Tick.hpp"
@@ -18,13 +19,23 @@
 #include "MessageOut.hpp"
 #include "SampleTimer.hpp"
 #include "TheoryOfTimeBaseUIState.hpp"
+#include "TimeWarpInverter.hpp"
+#include "WriteTapeHead.hpp"
 
 struct TheoryOfTime : public TheoryOfTimeBase
 {
+    // The delay write head's inverse in engine samples, covering 2^24 host
+    // samples of delay.
+    //
+    static constexpr size_t x_timeWarpInverterSamples = SampleTimer::x_oversample << 24;
+    using Inverter = TimeWarpInverter<x_timeWarpInverterSamples>;
+
     Phasor2Tick m_phasor2Tick;
     SmartGrid::MessageOutBuffer* m_messageOutBuffer;
     PolyXFaderInternal m_phaseModLFO;
     ScopeWriterHolder m_scopeWriter;
+    WriteTapeHead m_writeTapeHead;
+    std::unique_ptr<Inverter> m_timeWarpInverter;
 
     struct Input : public TheoryOfTimeBase::Input
     {
@@ -126,7 +137,21 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
     TheoryOfTime()
         : m_messageOutBuffer(nullptr)
+        , m_timeWarpInverter(std::make_unique<Inverter>())
     {
+    }
+
+    // Advances the delay write head from the current modulated phase and records
+    // it in the inverter. Process calls this every engine sample.
+    //
+    void ProcessWriteTapeHead()
+    {
+        WriteTapeHead::Input writeInput;
+        writeInput.m_theoryPhase = GetPhase(x_globalLoop, PhaseDomain::Modulated);
+        writeInput.m_running = m_sample.m_running;
+        writeInput.m_globalPeriodSamples = m_globalPeriodSamples;
+        m_writeTapeHead.Update(writeInput);
+        m_timeWarpInverter->Write(m_writeTapeHead.m_actualPosition, static_cast<double>(SampleTimer::GetSample()));
     }
 
     void Process(Input& input)
@@ -145,6 +170,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
         ProcessPhaseModLFO(input);
         TheoryOfTimeBase::Process(input);
+        ProcessWriteTapeHead();
 
         if (wasRunning != input.m_running)
         {

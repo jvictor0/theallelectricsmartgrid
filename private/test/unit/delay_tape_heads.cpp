@@ -6,6 +6,13 @@
 #include <cmath>
 #include <memory>
 
+namespace
+{
+
+constexpr double x_ratio = static_cast<double>(SampleTimer::x_oversample);
+
+}
+
 DOCTEST_TEST_CASE("Delay heads: audio and display share a position at every speed and loop")
 {
     GlobalEnv::ResetPerTest();
@@ -30,13 +37,14 @@ DOCTEST_TEST_CASE("Delay heads: audio and display share a position at every spee
                     DOCTEST_CAPTURE(phase);
                     DOCTEST_CAPTURE(glue);
                     DOCTEST_CAPTURE(speed);
-                    WriteTapeHead writer;
-                    writer.m_globalPeriodSamples = x_period;
+                    // The write head runs in engine samples; read heads in host samples.
+                    //
+                    WriteTapeHead& writer = clock.Get()->m_writeTapeHead;
+                    writer.m_globalPeriodSamples = x_period * x_ratio;
                     writer.m_relativePosition = phase;
-                    writer.m_actualPosition = phase * x_period + glue;
-                    writer.m_glue = glue;
+                    writer.m_actualPosition = (phase * x_period + glue) * x_ratio;
+                    writer.m_glue = glue * x_ratio;
                     ReadTapeHead reader;
-                    reader.m_writeTapeHead = &writer;
                     reader.m_loopSelector = loop;
                     ReadTapeHead::Input input;
                     input.m_theoryOfTime = clock.Get();
@@ -45,11 +53,11 @@ DOCTEST_TEST_CASE("Delay heads: audio and display share a position at every spee
                     input.m_readHeadSpeed = speed;
                     reader.Update(input);
 
-                    const double audioDelay = writer.m_actualPosition - reader.m_actualPosition;
+                    const double audioDelay = ReadTapeHead::ToHostSamples(writer.m_actualPosition) - reader.m_actualPosition;
                     const double displayDelay = (writer.m_relativePosition - reader.m_relativePosition) * x_period;
                     DOCTEST_CHECK(audioDelay == doctest::Approx(displayDelay).epsilon(1e-10));
                     const double hop = Resynthesizer::GetGrainLaunchSamples();
-                    const double loopSamples = TapeHead::ComputeLoopSamples(clock.Get(), loop, x_period);
+                    const double loopSamples = ReadTapeHead::ComputeLoopSamples(clock.Get(), loop, x_period);
                     DOCTEST_CHECK(audioDelay >= hop - 1e-8);
                     DOCTEST_CHECK(audioDelay <= hop + loopSamples + 1e-8);
                 }
@@ -86,19 +94,19 @@ DOCTEST_TEST_CASE("Delay heads: transport and tempo glue keep the audio aligned 
         {
             clock.AdvanceSample();
             setter.Process(input, output, nullptr);
-            const auto& writer = setter.m_writeTapeHead;
+            const auto& writer = clock.Get()->m_writeTapeHead;
             for (size_t channel = 0; channel < 4; ++channel)
             {
                 DOCTEST_CAPTURE(stage);
                 DOCTEST_CAPTURE(channel);
                 const double audioPhase = output.m_relativeWriteHeadPosition +
-                    (output.m_readHeadPosition[channel] - output.m_writeHeadPosition) / writer.m_globalPeriodSamples;
+                    (output.m_readHeadPosition[channel] - output.m_writeHeadPosition) / ReadTapeHead::ToHostSamples(writer.m_globalPeriodSamples);
                 const double phaseDifference = audioPhase - output.m_relativeReadHeadPosition[channel];
                 DOCTEST_CHECK(std::abs(phaseDifference - std::round(phaseDifference)) < 1e-6);
             }
         }
 
-        DOCTEST_REQUIRE(std::abs(setter.m_writeTapeHead.m_glue) > 1000.0);
+        DOCTEST_REQUIRE(std::abs(clock.Get()->m_writeTapeHead.m_glue) > 1000.0);
     }
 }
 
@@ -159,6 +167,9 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
     constexpr size_t x_period = 32768;
     clock.SetGlobalPeriodSamples(x_period * SampleTimer::x_oversample);
     auto delay = std::make_unique<QuadDelay>();
+    delay->m_delayLine.m_inverter = clock.Get()->m_timeWarpInverter.get();
+    QuadDelay::UIState ui;
+    delay->SetupScopeWriter(&ui);
     QuadDelayInputSetter setter;
     QuadDelayInputSetter::Input input;
     input.m_theoryOfTime = clock.Get();
@@ -173,22 +184,36 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
             const double phase = output.m_writeHeadPosition / x_period;
             const double wrappedPhase = phase - std::floor(phase);
             const float audio = 0.25 <= wrappedPhase && wrappedPhase < 0.375 ? 0.5f : 0.0f;
-            delay->m_delayLine.Write(QuadFloat::Splat(audio), output.m_writeHeadPosition);
+            delay->WriteAudio(QuadFloat::Splat(audio), SampleTimer::GetHostSample());
+        }
+
+        delay->WriteEnvelopeScope();
+        ui.m_scopeWriter.AdvanceIndex();
+        if (sample % 512 == 511)
+        {
+            ui.m_scopeWriter.Publish();
+            ui.m_scopeWriter.AcceptSamples();
         }
     }
 
     DOCTEST_REQUIRE(clock.GlobalPhase() == 0.0);
     DOCTEST_CHECK(output.m_relativeWriteHeadPosition == doctest::Approx(0.375));
-    DOCTEST_CHECK(delay->m_positionalBufferRecorder.m_maxIndex == QuadDelay::x_positionalBufferSize - 1);
-    QuadDelay::UIState ui;
     delay->PopulateUIState(&ui, output);
-    const QuadDelay::UISnapshot stopped = ui.GetCurrentSnapshot();
-    const size_t toneBucket = 5 * QuadDelay::x_positionalBufferSize / 16;
-    const size_t silentBucket = 3 * QuadDelay::x_positionalBufferSize / 4;
+    ui.m_scopeWriter.AcceptSamples();
+    constexpr size_t x_points = 1024;
+    std::array<float, x_points> stopped{};
+    ScopeReader stoppedReader(&ui.m_scopeWriter, 0, 0, x_points, 1);
+    DOCTEST_REQUIRE_FALSE(stoppedReader.m_empty);
+    for (size_t point = 0; point < x_points; ++point)
+    {
+        stopped[point] = stoppedReader.Get(static_cast<double>(point));
+    }
+
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        DOCTEST_CHECK(stopped.m_delayEnvelopeState[channel].m_maxEnvelope[toneBucket] == doctest::Approx(0.5));
-        DOCTEST_CHECK(stopped.m_delayEnvelopeState[channel].m_maxEnvelope[silentBucket] == doctest::Approx(0.0));
+        ScopeReader reader(&ui.m_scopeWriter, channel, 0, x_points, 1);
+        DOCTEST_CHECK(reader.Get(5 * x_points / 16) == doctest::Approx(0.5));
+        DOCTEST_CHECK(reader.Get(3 * x_points / 4) == doctest::Approx(0.0));
     }
 
     // Starting resets the musical phase. The displayed waveform must keep its
@@ -199,19 +224,14 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
     clock.AdvanceSample();
     setter.Process(input, output, delay.get());
     delay->PopulateUIState(&ui, output);
-    const auto& restarted = ui.GetCurrentSnapshot();
+    ui.m_scopeWriter.AcceptSamples();
     DOCTEST_CHECK(output.m_writeHeadPosition == stoppedWrite);
-    DOCTEST_CHECK(restarted.m_delayEnvelopeState[0].m_relativeWriteHeadPosition ==
-        stopped.m_delayEnvelopeState[0].m_relativeWriteHeadPosition);
-    for (size_t channel = 0; channel < 4; ++channel)
+    DOCTEST_CHECK(ui.m_writeHeadPosition.load() == stoppedWrite * SampleTimer::x_oversample);
+    ScopeReader restarted(&ui.m_scopeWriter, 0, 0, x_points, 1);
+    DOCTEST_CHECK(restarted.m_transferXSample == stoppedReader.m_transferXSample);
+    for (size_t point = 0; point < x_points; ++point)
     {
-        for (size_t bucket = 0; bucket < QuadDelay::x_positionalBufferSize; ++bucket)
-        {
-            DOCTEST_REQUIRE(restarted.m_delayEnvelopeState[channel].m_maxEnvelope[bucket] ==
-                stopped.m_delayEnvelopeState[channel].m_maxEnvelope[bucket]);
-            DOCTEST_REQUIRE(restarted.m_delayEnvelopeState[channel].m_minEnvelope[bucket] ==
-                stopped.m_delayEnvelopeState[channel].m_minEnvelope[bucket]);
-        }
+        DOCTEST_REQUIRE(restarted.Get(static_cast<double>(point)) == stopped[point]);
     }
 
     for (bool running : {true, false, true, false})
@@ -228,7 +248,7 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
     // Tempo edits while stopped change the sweep rate without moving the
     // display origin or changing the real-time write speed.
     //
-    const double previousPhase = setter.m_writeTapeHead.m_relativePosition;
+    const double previousPhase = clock.Get()->m_writeTapeHead.m_relativePosition;
     const double previousWrite = output.m_writeHeadPosition;
     clock.SetGlobalPeriodSamples(2.0 * x_period * SampleTimer::x_oversample);
     for (size_t sample = 0; sample < 1024 * SampleTimer::x_oversample; ++sample)
@@ -238,7 +258,7 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
     }
 
     DOCTEST_CHECK(output.m_writeHeadPosition - previousWrite == doctest::Approx(1024.0));
-    DOCTEST_CHECK(setter.m_writeTapeHead.m_relativePosition - previousPhase == doctest::Approx(1024.0 / (2.0 * x_period)));
+    DOCTEST_CHECK(clock.Get()->m_writeTapeHead.m_relativePosition - previousPhase == doctest::Approx(1024.0 / (2.0 * x_period)));
 }
 
 DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches grain playback")
@@ -249,23 +269,27 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
     clock.AdvanceSample();
     constexpr size_t x_period = 65536;
     constexpr double x_glue = 30000.75;
-    using Storage = QuadDelayLineMovableWriter<x_period>;
+    // A host-rate inverter, recorded once per written sample.
+    //
+    using Storage = DelayLineMovableWriterGeneric<float, 4, x_period, 1>;
     auto storage = std::make_unique<Storage>();
+    auto inverter = std::make_unique<Storage::Inverter>();
+    storage->m_inverter = inverter.get();
     auto grains = std::make_unique<QuadGrainManager<Storage>>(storage.get());
     QuadGrainManager<Storage>::Input grainInput;
-    PositionalBufferRecorder<QuadDelay::x_positionalBufferSize> positions;
-    WriteTapeHead writer;
-    writer.m_globalPeriodSamples = x_period;
+    ScopeWriterGeneric<4, 1> envelope(1, x_period);
+    envelope.SetTimeWarp(0, inverter.get());
+    WriteTapeHead& writer = clock.Get()->m_writeTapeHead;
+    writer.m_globalPeriodSamples = x_period * x_ratio;
     writer.m_relativePosition = 3.375;
-    writer.m_actualPosition = writer.m_relativePosition * x_period + x_glue;
-    writer.m_glue = x_glue;
+    writer.m_actualPosition = (writer.m_relativePosition * x_period + x_glue) * x_ratio;
+    writer.m_glue = x_glue * x_ratio;
     const double speeds[] = {1, 0.5, 2, -1};
     std::array<ReadTapeHead, 4> readers;
     QuadDouble audioHeads;
     QuadDouble displayedHeads;
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        readers[channel].m_writeTapeHead = &writer;
         ReadTapeHead::Input input;
         input.m_theoryOfTime = clock.Get();
         input.m_bufferFraction = 0.75;
@@ -276,11 +300,11 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
     }
 
     // Record one sparse tone burst per channel at the position shown by its
-    // read head. Populate the same phase-to-buffer map used by the visualizer.
+    // read head. The display composes the same inverse with a magnitude scope.
     //
     for (size_t sample = 0; sample < x_period; ++sample)
     {
-        const double position = writer.m_actualPosition - x_period + sample;
+        const double position = ReadTapeHead::ToHostSamples(writer.m_actualPosition) - x_period + sample;
         QuadFloat audio;
         for (size_t channel = 0; channel < 4; ++channel)
         {
@@ -290,22 +314,33 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
                 : 0.0f;
         }
 
-        storage->Write(audio, position);
-        positions.Record((position - x_glue) / x_period, position);
+        inverter->Write(position, static_cast<double>(sample + 1));
+        storage->Write(audio, sample + 1);
+        if (sample == 0)
+        {
+            for (size_t channel = 0; channel < 4; ++channel)
+            {
+                envelope.RecordStart(0, channel);
+            }
+        }
+
+        envelope.Write(0, audio.Abs());
+        envelope.AdvanceIndex();
     }
 
+    envelope.Publish();
+    envelope.AcceptSamples();
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        const double displayedPosition = positions.Get(readers[channel].m_relativePosition);
-        auto envelope = storage->GetEnvelopeAtWarpedTime(displayedPosition);
-        DOCTEST_REQUIRE(envelope.first[channel] > 0.1f);
-        DOCTEST_REQUIRE(envelope.second[channel] < -0.1f);
+        ScopeReader reader(&envelope, channel, 0, 1024, 1);
+        DOCTEST_REQUIRE_FALSE(reader.m_empty);
+        DOCTEST_REQUIRE(reader.ReadCoordinate(displayedHeads[channel]) > 0.1f);
     }
 
     std::array<double, 4> energy{};
     for (size_t sample = 0; sample < 8192 * SampleTimer::x_oversample; ++sample)
     {
-        QuadFloat output = grains->Process(audioHeads, QuadFloat(), grainInput, storage->m_lastTime - 1.0);
+        QuadFloat output = grains->Process(audioHeads, QuadFloat(), grainInput, storage->GetLatestSampleTime());
         for (size_t channel = 0; channel < 4; ++channel)
         {
             energy[channel] += output[channel] * output[channel];

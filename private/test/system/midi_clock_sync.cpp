@@ -295,9 +295,8 @@ DOCTEST_TEST_CASE("MIDI clock sync transport messages update internal running st
 
 DOCTEST_TEST_CASE("MIDI clock sync external transport arms until clock")
 {
-    GlobalEnv::ResetPerTest();
-    TheNonagonSquiggleBoyInternal& system = SystemFixture::SharedSystem();
-    AudioInputBuffer audioInput = EmptyAudioInput();
+    synthrig::SynthRig rig;
+    TheNonagonSquiggleBoyInternal& system = rig.Internal();
 
     system.SetExternalClock(true);
     system.m_running = false;
@@ -309,13 +308,13 @@ DOCTEST_TEST_CASE("MIDI clock sync external transport arms until clock")
     DOCTEST_CHECK(system.m_running == false);
     DOCTEST_CHECK(system.m_clockSynchronizer.m_state == ExternalClockSync::State::Armed);
 
-    system.ProcessSample(audioInput);
+    AdvanceSample(rig);
 
     DOCTEST_CHECK(system.m_running == false);
     DOCTEST_CHECK(system.m_nonagon.m_state.m_running == false);
 
     system.Apply(RealtimeMessage(SmartGrid::MessageIn::Mode::MidiClock));
-    system.ProcessSample(audioInput);
+    AdvanceSample(rig);
 
     DOCTEST_CHECK(system.m_clockSynchronizer.m_state == ExternalClockSync::State::Running);
     DOCTEST_CHECK(system.m_running == true);
@@ -326,7 +325,7 @@ DOCTEST_TEST_CASE("MIDI clock sync external transport arms until clock")
     DOCTEST_CHECK(system.m_running == true);
     DOCTEST_CHECK(system.m_clockSynchronizer.m_state == ExternalClockSync::State::Stopped);
 
-    system.ProcessSample(audioInput);
+    AdvanceSample(rig);
 
     DOCTEST_CHECK(system.m_running == false);
     DOCTEST_CHECK(system.m_nonagon.m_state.m_running == false);
@@ -334,9 +333,8 @@ DOCTEST_TEST_CASE("MIDI clock sync external transport arms until clock")
 
 DOCTEST_TEST_CASE("MIDI clock sync armed clock does not update tempo")
 {
-    GlobalEnv::ResetPerTest();
-    TheNonagonSquiggleBoyInternal& system = SystemFixture::SharedSystem();
-    AudioInputBuffer audioInput = EmptyAudioInput();
+    synthrig::SynthRig rig;
+    TheNonagonSquiggleBoyInternal& system = rig.Internal();
 
     system.SetExternalClock(true);
     system.m_running = false;
@@ -348,11 +346,11 @@ DOCTEST_TEST_CASE("MIDI clock sync armed clock does not update tempo")
 
     for (int i = 0; i < 2; ++i)
     {
-        system.ProcessSample(audioInput);
+        AdvanceSample(rig);
     }
 
     system.Apply(RealtimeMessage(SmartGrid::MessageIn::Mode::MidiClock));
-    system.ProcessSample(audioInput);
+    AdvanceSample(rig);
 
     DOCTEST_CHECK(system.m_clockSynchronizer.m_state == ExternalClockSync::State::Running);
     DOCTEST_CHECK(system.m_clockSynchronizer.m_freqOut == doctest::Approx(0.000003));
@@ -373,7 +371,7 @@ DOCTEST_TEST_CASE("MIDI clock sync restarts at the origin while stopped voice ga
     nonagon.m_theoryOfTime.m_sample.m_running = true;
     system.m_nonagon.m_state.m_theoryOfTimeInput.m_unmodulatedPhase = 0.4;
     system.Apply(RealtimeMessage(SmartGrid::MessageIn::Mode::MidiClock));
-    system.ProcessSample(EmptyAudioInput());
+    AdvanceSample(rig);
     DOCTEST_REQUIRE(system.m_clockSynchronizer.IsRunning());
     DOCTEST_CHECK(nonagon.m_theoryOfTime.GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Unmodulated)
         == doctest::Approx(SampleTimer::HzToCycPerSamp(0.5)));
@@ -382,24 +380,23 @@ DOCTEST_TEST_CASE("MIDI clock sync restarts at the origin while stopped voice ga
 
 DOCTEST_TEST_CASE("MIDI clock sync consumes tick for one sample")
 {
-    GlobalEnv::ResetPerTest();
-    TheNonagonSquiggleBoyInternal& system = SystemFixture::SharedSystem();
-    AudioInputBuffer audioInput = EmptyAudioInput();
+    synthrig::SynthRig rig;
+    TheNonagonSquiggleBoyInternal& system = rig.Internal();
 
     system.SetExternalClock(true);
     system.m_clockTick = false;
     system.m_clockSynchronizer = ExternalClockSync();
 
-    system.ProcessSample(audioInput);
+    AdvanceSample(rig);
 
     system.Apply(RealtimeMessage(SmartGrid::MessageIn::Mode::MidiClock));
     DOCTEST_CHECK(system.m_clockTick);
 
-    system.ProcessSample(audioInput);
+    AdvanceSample(rig);
     DOCTEST_CHECK_FALSE(system.m_clockTick);
     DOCTEST_CHECK(system.m_clockSynchronizer.m_samplesSinceLastClock == 0);
 
-    system.ProcessSample(audioInput);
+    AdvanceSample(rig);
     DOCTEST_CHECK_FALSE(system.m_clockTick);
     DOCTEST_CHECK(system.m_clockSynchronizer.m_samplesSinceLastClock == 1);
 }

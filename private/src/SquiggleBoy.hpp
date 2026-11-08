@@ -758,6 +758,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_voiceScopeWriter.AdvanceIndex();
             m_quadScopeWriter.AdvanceIndex();
             m_monoScopeWriter.AdvanceIndex();
+            m_delayUIState.m_scopeWriter.AdvanceIndex();
         }
 
         void AcceptScopeSamples()
@@ -768,6 +769,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_voiceScopeWriter.AcceptSamples(voiceEnd);
             m_quadScopeWriter.AcceptSamples(quadEnd);
             m_monoScopeWriter.AcceptSamples(monoEnd);
+            m_delayUIState.m_scopeWriter.AcceptSamples();
         }
 
     };
@@ -797,6 +799,24 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SetupScopeWriters(UIState* uiState)
     {
+        if (m_theoryOfTime)
+        {
+            m_delay.SetupScopeWriter(&uiState->m_delayUIState);
+            const auto* inverse = m_theoryOfTime->m_timeWarpInverter.get();
+            for (auto scope : {SmartGridOne::VoiceScopes::LFO1, SmartGridOne::VoiceScopes::LFO2,
+                SmartGridOne::VoiceScopes::ModulationEnvelope, SmartGridOne::VoiceScopes::AmpEnvelope})
+            {
+                for (size_t track = 0; track < x_numTracks; ++track)
+                {
+                    uiState->m_voiceScopeWriter.SetTimeWarp(SmartGridOne::VoiceScopeIndex(static_cast<size_t>(scope), track), inverse);
+                }
+            }
+
+            for (auto scope : {SmartGridOne::QuadScopes::QuadLFO1, SmartGridOne::QuadScopes::QuadLFO2})
+            {
+                uiState->m_quadScopeWriter.SetTimeWarp(static_cast<size_t>(scope), inverse);
+            }
+        }
 
         m_quadSquiggleLFO[0].m_scopeWriter = ScopeWriterHolderGeneric<4>(
             &uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::QuadLFO1));
@@ -1001,6 +1021,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             m_quadSquiggleLFOInput[lfo].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
             m_quadSquiggleLFOInput[lfo].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
         }
+
+        m_delay.m_delayLine.m_inverter = m_theoryOfTime->m_timeWarpInverter.get();
     }
 
     SquiggleBoyWithEncoderBank(SmartGridOneContext* context, StateSaver* stateSaver)

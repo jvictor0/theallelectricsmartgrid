@@ -3,106 +3,74 @@
 #include "SmartGridInclude.hpp"
 #include "SmartGridOneMainVisualizerComponent.hpp"
 #include "QuadDelay.hpp"
+#include "PathDrawer.hpp"
 #include <JuceHeader.h>
 #include <algorithm>
 
 struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerComponent
 {
-    static constexpr float x_rangeSlewTimeSeconds = 10.0f;
-    static constexpr float x_frameRate = 60.0f;
-    static constexpr float x_rangeSlewAlpha = 0.00167f;
-
+    static constexpr size_t x_numPoints = 1024;
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
-    float m_slewedMin{0.0f};
-    float m_slewedMax{0.0f};
 
-    QuadDelayEnvelopeVisualizerComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
-        : SmartGridOneMainVisualizerComponent()
-        , m_uiState(uiState)
+    explicit QuadDelayEnvelopeVisualizerComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
+        : m_uiState(uiState)
     {
+    }
+
+    static double HeadPosition(const ScopeReader& reader, double warpedPosition)
+    {
+        double length = reader.m_transferIndex - reader.m_startIndex;
+        if (reader.m_transferXSample < reader.m_numXSamples)
+        {
+            length += reader.m_postTransferEndIndex - reader.m_postTransferIndex;
+        }
+
+        if (length <= 0.0 || !std::isfinite(warpedPosition))
+        {
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+
+        double phase = (warpedPosition - reader.m_startIndex) / length;
+        return phase - std::floor(phase);
     }
 
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         g.fillAll(juce::Colours::black);
-
+        auto& state = m_uiState->m_squiggleBoyUIState.m_delayUIState;
         auto bounds = boundsRect.toFloat();
-        float width = bounds.getWidth();
-        float height = bounds.getHeight();
-        float sliceHeight = height / 4.0f;
-
-        auto& delayUIState = m_uiState->m_squiggleBoyUIState.m_delayUIState;
-        const QuadDelay::UISnapshot& snapshot = delayUIState.GetCurrentSnapshot();
-
-        float targetMin = snapshot.m_delayEnvelopeState[0].m_minEnvelope[0];
-        float targetMax = snapshot.m_delayEnvelopeState[0].m_maxEnvelope[0];
-        for (int delayLineIdx = 0; delayLineIdx < 4; ++delayLineIdx)
+        float laneHeight = bounds.getHeight() / 4.0f;
+        float pointWidth = bounds.getWidth() / x_numPoints;
+        for (size_t channel = 0; channel < 4; ++channel)
         {
-            auto& envelopeState = snapshot.m_delayEnvelopeState[delayLineIdx];
-            for (size_t i = 0; i < QuadDelay::x_positionalBufferSize; ++i)
+            ScopeReader reader(&state.m_scopeWriter, channel, 0, x_numPoints, 1);
+            if (reader.m_empty)
             {
-                targetMin = std::min(targetMin, envelopeState.m_minEnvelope[i]);
-                targetMax = std::max(targetMax, envelopeState.m_maxEnvelope[i]);
+                continue;
             }
-        }
 
-        float targetRange = targetMax - targetMin;
-        float currentRange = m_slewedMax - m_slewedMin;
-        if (targetRange > currentRange)
-        {
-            m_slewedMin = targetMin;
-            m_slewedMax = targetMax;
-        }
-        else
-        {
-            m_slewedMin = m_slewedMin + x_rangeSlewAlpha * (targetMin - m_slewedMin);
-            m_slewedMax = m_slewedMax + x_rangeSlewAlpha * (targetMax - m_slewedMax);
-        }
-
-        float range = m_slewedMax - m_slewedMin;
-        if (range < 1e-6f)
-        {
-            range = 1.0f;
-        }
-
-        float segmentWidth = width / static_cast<float>(QuadDelay::x_positionalBufferSize);
-        for (int delayLineIdx = 0; delayLineIdx < 4; ++delayLineIdx)
-        {
-            float sliceY = bounds.getY() + static_cast<float>(delayLineIdx) * sliceHeight;
-            auto& envelopeState = snapshot.m_delayEnvelopeState[delayLineIdx];
-
+            float top = bounds.getY() + channel * laneHeight;
             g.setColour(juce::Colours::white.withAlpha(0.7f));
-            for (size_t bufIdx = 0; bufIdx < QuadDelay::x_positionalBufferSize; ++bufIdx)
+            for (size_t point = 0; point < x_numPoints; ++point)
             {
-                float x = bounds.getX() + static_cast<float>(bufIdx) * segmentWidth;
-                float minEnv = envelopeState.m_minEnvelope[bufIdx];
-                float maxEnv = envelopeState.m_maxEnvelope[bufIdx];
-
-                float yMin = sliceY + sliceHeight * (1.0f - (minEnv - m_slewedMin) / range);
-                float yMax = sliceY + sliceHeight * (1.0f - (maxEnv - m_slewedMin) / range);
-                if (yMin > yMax)
-                {
-                    std::swap(yMin, yMax);
-                }
-
-                g.fillRect(x, yMin, segmentWidth + 0.5f, yMax - yMin);
+                float magnitude = reader.Get(static_cast<double>(point));
+                float level = std::clamp(PathDrawer::AmpToDbNormalized(magnitude), 0.0f, 1.0f);
+                float height = laneHeight * level;
+                g.fillRect(bounds.getX() + point * pointWidth, top + laneHeight - height, pointWidth + 0.5f, height);
             }
 
-            float relativeRead = envelopeState.m_relativeReadHeadPosition;
-            if (relativeRead >= 0.0f && relativeRead <= 1.0f)
+            double read = HeadPosition(reader, state.m_readHeadPosition[channel].load());
+            if (std::isfinite(read))
             {
-                float lineX = bounds.getX() + relativeRead * width;
+                float x = bounds.getX() + static_cast<float>(read) * bounds.getWidth();
                 g.setColour(juce::Colours::cyan);
-                g.drawLine(lineX, sliceY, lineX, sliceY + sliceHeight, 1.0f);
+                g.drawLine(x, top, x, top + laneHeight, 1.0f);
             }
 
-            float relativeWrite = envelopeState.m_relativeWriteHeadPosition;
-            if (relativeWrite >= 0.0f && relativeWrite <= 1.0f)
-            {
-                float lineX = bounds.getX() + relativeWrite * width;
-                g.setColour(juce::Colours::orange);
-                g.drawLine(lineX, sliceY, lineX, sliceY + sliceHeight, 1.0f);
-            }
+            float write = static_cast<float>(reader.m_transferXSample / reader.m_numXSamples);
+            float x = bounds.getX() + write * bounds.getWidth();
+            g.setColour(juce::Colours::orange);
+            g.drawLine(x, top, x, top + laneHeight, 1.0f);
         }
     }
 };

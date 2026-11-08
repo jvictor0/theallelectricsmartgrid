@@ -6,29 +6,11 @@ This page documents how runtime DSP/control data is captured and rendered in JUC
 
 Defined in `private/src/ScopeWriter.hpp`.
 
-`ScopeWriter` is a shared multi-scope, multi-voice circular buffer:
+`ScopeWriterGeneric<Size, NumScopes>` captures channel vectors in six circular levels per scope. Production banks store every engine sample. Level zero has atomic scalar lanes; levels 1–5 belong to the UI thread and decimate successively by four through 17-tap FIR filters. Each level holds the same number of vectors, so coarser levels retain longer history. Logical storage positions remain original sample indices, with FIR delay and decimation phase handled by the reader.
 
-- `m_buffer`: interleaved sample storage.
-- logical indexing via `(scope, voice, index) -> physical index`.
-- decimation: `ScopeWriter(voices, scopes)` stores every engine sample;
-  `ScopeWriter(voices, scopes, decimation)` stores one value per `decimation`
-  engine samples.
-- `Write(scope, voice, value)` is called every engine sample. Only the sample
-  with `m_subIndex == 0` (`IsWriteSample()`) is stored, at `m_index`; the other
-  writes are dropped.
-- `AdvanceIndex()` runs once per engine sample. It increments `m_subIndex` and,
-  when that wraps at the decimation, advances `m_index` by one.
-- `Publish()` atomically exposes latest stable index (`m_publishedIndex`) and commits marker updates.
+`Write(scope, vector)` stores the current sample; `AdvanceIndex()` commits it and advances once per engine sample. Generic writers can also decimate their input. `Publish()` exposes completed samples, changed cycle markers, and time-map metadata. Before painting, `AcceptSamples()` captures coherent marker metadata and builds the lower levels through its accepted sample boundary. It retries overlapping publication a bounded number of times and retains the previous frame if all attempts overlap. Atomic level-zero access permits a stalled UI to encounter overwritten values without a data race.
 
-It also stores cycle markers:
-
-- `RecordStart(scope, voice[, sampleOffset])` stores the fractional index
-  `m_index + (m_subIndex + sampleOffset) / decimation`. `sampleOffset` is in
-  engine samples relative to the current sample.
-- `RecordEnd(scope, voice)` stores `m_index`, rounded up to the next stored
-  sample when it is called between stored samples.
-
-These markers are used for cycle-aware waveform views.
+`RecordStart(scope, voice, sampleOffset)` retains a fractional real sample index. `RecordEnd` retains the corresponding end. Bound streams also store their continuous warped coordinates. On descending movement the writer undoes every crossed end and start: undoing an end reopens its start, and undoing a start restores the preceding interval. Backward start/end callbacks are ignored. Starts at an unchanged coordinate remain valid for existing transport behavior. Marker rings retain 256 intervals; expired entries cannot reappear during rewind.
 
 Top events use `SampleTop`: a trigger flag and a double offset in engine samples
 from the sample carrying the event. VPS derives the offset from the wrapped phase
@@ -44,13 +26,12 @@ double position. Other start events are recorded at the current sample.
 
 `ScopeWriterHolder` carries:
 
-- `ScopeWriter*`
-- bound `voiceIx`
+- a vector-width-specific `ScopeWriterInput<Size>*`
 - bound `scopeIx`
 
 Modules write with minimal overhead:
 
-- `Write(value)` / `WriteAtVoice(voiceIx, value)` / `Write(QuadFloat)` (four consecutive voices)
+- `Write(vector)` captures all lanes together
 - `IsWriteSample()`, so a producer can skip computing a value the writer would drop
 - `RecordStart()` / `RecordStart(sampleOffset)` / `RecordStartAtVoice(voiceIx, sampleOffset)` / `RecordEnd()`
 
@@ -62,9 +43,6 @@ Not every visualizer is backed by `ScopeWriter`. Some views publish derived UI d
 
 Current examples:
 
-- `QuadDelayEnvelopeVisualizerComponent` reads `m_delayUIState`
-- `QuadDelay::PopulateUIState(...)` copies per-channel envelope snapshots and relative read/write head positions into rotating UI slots
-- the delay envelope data is derived from `DelayLineMovableWriter` min/max buckets, remapped through `PositionalBufferRecorder` so the UI can sample the delay buffer against the current master-loop position
 - `SampleTrioWaveformVisualizerComponent` reads `m_voiceSourceUIState[i].m_audioBufferBankUIState` and `m_sampleSourceUIState`
 - `AudioBufferBank::PopulateUIState(...)` publishes min/max waveform buckets for the selected or blended bank position, while `SampleSource::PopulateUIState(...)` publishes the read-head position and active start/length window
 - `PartialMachineInputSpectrumComponent` and `PartialMachineSpatialComponent` read `m_partialMachineUIState`
@@ -98,36 +76,17 @@ is not yet published or has fallen outside the retained history are empty.
 `SampleTop` owns phase interpolation, top combination, and conversion to sample
 positions (`GetPosition`). Offsets are always in engine samples. Producers pass
 them unchanged to `RecordStart`, and the writer converts them to its own index
-units by dividing by its decimation. The reader and visualizer have no decimation
-information.
+units by dividing by its decimation. The reader converts inverse timestamps through the writer’s origin and decimation.
 
-Control, quad control, global control, and mono writers use
-`ScopeWriter::x_controlDecimation` (`8 * SampleTimer::x_oversample`), one value
-per 8 host frames at every ratio, so control histories keep their duration and
-write rate. Audio, quad, source-mixer, and mono audio writers use
-`ScopeWriter::x_audioDecimation` (`SampleTimer::x_oversample`), so they store one
-value per host frame and FFT analyzers see cycles per host sample. Producers
-write host-rate signals where they exist (mixer output, Partial Machine input)
-and otherwise subsample the engine-rate signal on host frames without an
-anti-alias filter. Voice audio scopes and the quad Dry and Sub scopes are
-subsampled this way, so their spectra fold engine-rate content above the host
-Nyquist into the display; the audio itself is decimated properly. `SquiggleBoyWithEncoderBank::UIState::AdvanceScopeIndices()`
-advances every writer once per engine sample, at the end of
-`TheNonagonSquiggleBoyInternal::ProcessSample`. It also stores `m_firstAudioSample`
-and `m_firstControlSample`, the engine samples of audio index 0 and control index
-0; `m_firstAudioSample` is stored on an audio write sample. The audio-scope sample
-range multiplies published audio indices by `x_audioDecimation`. The modulator history (`SmartGridOneModulatorHistory.hpp`) maps an engine
-sample to a control index as `(sample - m_firstControlSample) / x_controlDecimation`.
+All production scope banks advance at engine rate and share `m_firstScopeSample` as their absolute sample origin. `AdvanceScopeIndices()` runs at the end of each engine sample. Audio and FFT views remain in real time, with engine-rate level-zero spectra.
 
-Theory of Time keeps one current sample (`m_sample`), which `Process` advances in
-place; consumers read that current sample. The Theory of Time scope writes the
-wrapped modulated global-loop phase on the mono writer's write samples, so it
-stores one phase per `x_controlDecimation` engine samples. The phase-modulation
-PolyXFader runs before the base advances, reading the crossings still held in
-`m_sample`. When it reports a top, the scope calls `RecordStart(offset)` with the
-top's fractional offset. For example, with decimation 8, at writer index 100 and
-sub-index 2, an offset of `-0.5` engine samples is stored at
-`100 + 1.5 / 8 = 100.1875`.
+Voice LFOs, voice envelopes, quad LFOs, and the delay magnitude scope bind to the shared `TimeWarpInverter` owned by Theory of Time. A captured `TimeWarpView` supplies `G`, the chosen latest-forward inverse of the continuous write-head coordinate `F`. `ScopeReader` constructs starts, ends, and transfer positions in warped coordinates, then reads `S(G(w))` from its selected existing LOD. Absolute inverse timestamps are converted through the writer's origin and decimation. Modulation overlays map each axis point through the same view before reading their real-time histories. Unbound scopes retain real-time axes.
+
+The inverse has atomic double entries and a fixed lifetime. Its captured view rejects coordinates outside the retained span or ahead of the cursor, and rejects each interpolation endpoint newer than the accepted real-time cutoff. Live writes may cause temporary gaps. Marker metadata remains coherent, and neither publication nor painting locks the audio thread. The continuous coordinate, including the existing transport glue, prevents raw musical phase resets from undoing history.
+
+The delay scope stores the absolute value of each completed saturated, decimated delay-line write, held on the engine grid between host writes. Forward full display cycles record starts. Existing FIR LODs form its envelope; the UI converts filtered magnitude to dB and draws read/write markers in the same warped axis. The old delay min/max buckets and positional recorder are removed. Signed delay-return audio remains available for spectra.
+
+Theory of Time's own mono phase scope remains unbound. Fractional `SampleTop` offsets continue to travel unchanged from producers to the writer, which converts them to stored-sample units and, for bound streams, interpolates the observed warped step.
 
 The producers of fractional tops and their scope capture are:
 

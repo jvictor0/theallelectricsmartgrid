@@ -6,17 +6,15 @@
 // timestamp-dependent acceleration of EncoderIncDec -- and that the result is
 // observable in the encoder bank UIState after the ramp settles.
 //
-// See SystemFixture.hpp: the whole-system instance is a process-wide singleton
-// (the global grid-id allocator does not support repeated construction), so we
-// share it with the infra spike and operate on specific, connected cells rather
-// than assuming a pristine system.
+// Each test starts a fresh system together with its engine clock.
+//
 
 #include "doctest.h"
 
 #include <cmath>
 
-#include "../support/GlobalEnv.hpp"
 #include "../support/SystemFixture.hpp"
+#include "../support/SynthRig.hpp"
 
 #include "MessageIn.hpp"
 #include "MessageInBus.hpp"
@@ -89,9 +87,8 @@ void ApplyAndRun(SmartGrid::MessageInBus& bus,
 
 DOCTEST_TEST_CASE("EncoderSet sets an encoder to a value via the message bus")
 {
-    GlobalEnv::ResetPerTest();
-
-    TheNonagonSquiggleBoyInternal& system = SystemFixture::SharedSystem();
+    synthrig::SynthRig rig;
+    TheNonagonSquiggleBoyInternal& system = rig.Internal();
     SmartGrid::MessageInBus bus;
 
     int x = -1;
@@ -115,9 +112,8 @@ DOCTEST_TEST_CASE("EncoderSet sets an encoder to a value via the message bus")
 
 DOCTEST_TEST_CASE("EncoderSet clamps out-of-range inputs and hits extremes")
 {
-    GlobalEnv::ResetPerTest();
-
-    TheNonagonSquiggleBoyInternal& system = SystemFixture::SharedSystem();
+    synthrig::SynthRig rig;
+    TheNonagonSquiggleBoyInternal& system = rig.Internal();
     SmartGrid::MessageInBus bus;
 
     int x = -1;
@@ -153,9 +149,8 @@ DOCTEST_TEST_CASE("EncoderSet clamps out-of-range inputs and hits extremes")
 
 DOCTEST_TEST_CASE("EncoderSet is timestamp-independent (no acceleration)")
 {
-    GlobalEnv::ResetPerTest();
-
-    TheNonagonSquiggleBoyInternal& system = SystemFixture::SharedSystem();
+    synthrig::SynthRig rig;
+    TheNonagonSquiggleBoyInternal& system = rig.Internal();
 
     int x = -1;
     int y = -1;
@@ -194,9 +189,8 @@ DOCTEST_TEST_CASE("EncoderSet is timestamp-independent (no acceleration)")
 
 DOCTEST_TEST_CASE("EncoderIncDec still moves the value (non-regression)")
 {
-    GlobalEnv::ResetPerTest();
-
-    TheNonagonSquiggleBoyInternal& system = SystemFixture::SharedSystem();
+    synthrig::SynthRig rig;
+    TheNonagonSquiggleBoyInternal& system = rig.Internal();
 
     int x = -1;
     int y = -1;

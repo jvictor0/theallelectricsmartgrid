@@ -70,6 +70,7 @@ DOCTEST_TEST_CASE("SquiggleBoy partial machine azimuth offset follows pan phase"
 
     for (size_t i = 0; i < 4096 * SampleTimer::x_oversample; ++i)
     {
+        SampleTimer::IncrementSample();
         squiggleBoy->ProcessSample(input, static_cast<float>(SampleTimer::x_samplePeriod), audioInput);
     }
 

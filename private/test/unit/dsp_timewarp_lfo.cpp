@@ -122,12 +122,18 @@ DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the glob
     float minWeight = 1;
     bool reachedBoundary = false;
     const int samples = 56000 * static_cast<int>(SampleTimer::x_oversample);
+    TheoryOfTime reference;
     for (int n = 1; n <= samples; ++n)
     {
         const float encoderValue = encoder.Process(0.0418f);
         input.m_phaseModLFOInput.m_center = static_cast<float>(1.0 - input.m_lfoCenterFilter.Process(encoderValue)[0]);
         reachedBoundary = reachedBoundary || input.m_phaseModLFOInput.m_center == 23.0f / 24.0f;
-        TheoryOfTime reference = moving;
+
+        // TheoryOfTime owns its inverter and cannot be copied; mirror the clock
+        // state this step depends on instead.
+        //
+        static_cast<TheoryOfTimeBase&>(reference) = moving;
+        reference.m_phaseModLFO = moving.m_phaseModLFO;
         TheoryOfTime::Input referenceInput = input;
         referenceInput.m_phaseModLFOInput.m_center = 1;
         double previousPhase = moving.m_sample.m_modulatedPhase;

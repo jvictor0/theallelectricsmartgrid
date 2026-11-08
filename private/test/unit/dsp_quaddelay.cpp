@@ -5,7 +5,8 @@
 // (writing head/read head as simple monotone counters) rather than going
 // through QuadDelayInputSetter (which requires full TapeHead / TheoryOfTime
 // wiring). This matches how the real system works at the low level once
-// QuadDelayInputSetter has computed the positions.
+// QuadDelayInputSetter has computed the positions. DelayInverterRig records the
+// write position into the time warp inverter, as the theory of time would.
 //
 // Wiring discovered:
 //   - Input::m_writeHeadPosition (double, shared by all channels) and
@@ -26,6 +27,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "../support/DelayInverterRig.hpp"
 #include "../support/GlobalEnv.hpp"
 #include "../support/NanScan.hpp"
 #include "../support/Signal.hpp"
@@ -160,7 +162,7 @@ DOCTEST_TEST_CASE("QuadDelay: silence in -> silence out")
     // float + double arrays). Must NOT be stack-allocated.
     //
     auto qdPtr = std::make_unique<QuadDelay>();
-    QuadDelay& qd = *qdPtr;
+    DelayInverterRig rig(qdPtr.get());
 
     double writePos = kDelayLen;
     QuadDouble readPos(0.0, 0.0, 0.0, 0.0);
@@ -175,7 +177,7 @@ DOCTEST_TEST_CASE("QuadDelay: silence in -> silence out")
     {
         QuadFloat in(0.0f, 0.0f, 0.0f, 0.0f);
         QuadDelay::Input inp = MakeBasicInput(writePos, readPos, in);
-        QuadFloat out = qd.Process(inp);
+        QuadFloat out = rig.Process(inp);
         ch0out[static_cast<size_t>(i)] = out[0];
         AdvanceHeads(writePos, readPos, kDelayLen);
     }
@@ -199,6 +201,7 @@ DOCTEST_TEST_CASE("QuadDelay: warmed impulse produces finite nonzero output")
 {
     GlobalEnv::ResetPerTest();
     auto delay = std::make_unique<QuadDelay>();
+    DelayInverterRig rig(delay.get());
     const int oversample = static_cast<int>(SampleTimer::x_oversample);
 
     // Delay in host samples; grains cannot start within one analysis window
@@ -218,7 +221,7 @@ DOCTEST_TEST_CASE("QuadDelay: warmed impulse produces finite nonzero output")
             HostPosition(sample),
             QuadDouble(readPos, readPos, readPos, readPos),
             QuadFloat(impulse, 0, 0, 0));
-        QuadFloat output = delay->Process(input);
+        QuadFloat output = rig.Process(input);
         for (int channel = 0; channel < 4; ++channel)
         {
             DOCTEST_REQUIRE(std::isfinite(output[channel]));
@@ -243,10 +246,16 @@ DOCTEST_TEST_CASE("QuadDelay: steady tones retain gain and shift by the requeste
     {
         GlobalEnv::ResetPerTest();
         auto delay = std::make_unique<QuadDelay>();
+        DelayInverterRig rig(delay.get());
         DiscreteFourierTransform4096::Table buffer;
         double energy = 0;
+        // Fill both analysis windows and settle a complete overlap-add frame
+        // before measuring the steady tone, including the output PM latency.
+        // Unavailable startup grains are silent.
+        //
         constexpr int x_pmLatency = static_cast<int>(Resynthesizer::GetSynthesisHopSamples());
-        for (int sample = 0; sample < 32768 + x_pmLatency; ++sample)
+        constexpr int x_warmup = 16384 * static_cast<int>(SampleTimer::x_oversample) + x_pmLatency;
+        for (int sample = 0; sample < x_warmup + 4096; ++sample)
         {
             float tone = 0.01f * std::cos(2.0 * M_PI * 18.0 * sample / 4096.0);
             const double readPos = HostPosition(sample - 8192);
@@ -259,10 +268,10 @@ DOCTEST_TEST_CASE("QuadDelay: steady tones retain gain and shift by the requeste
             auto& resynthesis = input.m_grainManagerInput.m_resynthInput[0];
             resynthesis.m_shift[0] = Q(2, 1);
             resynthesis.m_fade[0] = shifted ? 1.0f : 0.0f;
-            float output = delay->Process(input)[0];
-            if (sample >= 28672 + x_pmLatency)
+            float output = rig.Process(input)[0];
+            if (sample >= x_warmup)
             {
-                buffer.m_table[sample - 28672 - x_pmLatency] = output;
+                buffer.m_table[sample - x_warmup] = output;
                 energy += output * output;
             }
         }
@@ -294,7 +303,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - random seeded modulation, finite+bounded"
     GlobalEnv::ResetPerTest();
 
     auto qdPtr = std::make_unique<QuadDelay>();
-    QuadDelay& qd = *qdPtr;
+    DelayInverterRig rig(qdPtr.get());
 
     TestSignal::WhiteNoise rng(0xDEADBEEF1337ULL);
     TestSignal::WhiteNoise audioNoise(0xCAFEBABE4242ULL);
@@ -330,7 +339,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - random seeded modulation, finite+bounded"
         QuadDelay::Input inp = MakeBasicInput(writePos, readPos, qin,
                                               feedback);
         inp.m_return = previousOutput;
-        QuadFloat out = qd.Process(inp);
+        QuadFloat out = rig.Process(inp);
         previousOutput = out;
         AdvanceHeads(writePos, readPos, kDelayLen);
 
@@ -368,7 +377,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - varying write/read speed (ToT simulation)
     GlobalEnv::ResetPerTest();
 
     auto qdPtr = std::make_unique<QuadDelay>();
-    QuadDelay& qd = *qdPtr;
+    DelayInverterRig rig(qdPtr.get());
 
     TestSignal::WhiteNoise rng(0xFEEDFACEULL);
     TestSignal::WhiteNoise audioNoise(0xABCD1234ULL);
@@ -408,7 +417,7 @@ DOCTEST_TEST_CASE("QuadDelay: stress - varying write/read speed (ToT simulation)
 
         QuadDelay::Input inp = MakeBasicInput(writeRaw, rp, qin, 0.5f);
         inp.m_return = previousOutput;
-        QuadFloat out = qd.Process(inp);
+        QuadFloat out = rig.Process(inp);
         previousOutput = out;
 
         for (size_t ch = 0; ch < 4; ++ch)

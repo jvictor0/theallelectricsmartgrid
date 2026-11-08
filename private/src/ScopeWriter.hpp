@@ -2,6 +2,8 @@
 
 #include <atomic>
 #include <array>
+#include <bitset>
+#include <limits>
 #include <memory>
 #include <vector>
 #include "AdaptiveWaveTable.hpp"
@@ -9,11 +11,12 @@
 #include "Filter.hpp"
 #include "SampleEventHistory.hpp"
 #include "SampleTimer.hpp"
+#include "TimeWarpView.hpp"
 
-// Common scalar read interface. Positions and cycle markers always use the
-// original stored-sample timeline. Level l has spacing 4^l and a known FIR
-// delay; publication exposes only completed samples. Ordinary vector storage
-// follows this publication protocol, without pinning slots against overwrite.
+// Common scalar read interface. Storage uses the original sample timeline;
+// bound streams also retain warped cycle markers. Level l has spacing 4^l and a known FIR
+// delay; publication exposes only completed samples. Shared level-zero samples
+// are atomic; higher levels belong to the UI thread.
 //
 struct ScopeWriter
 {
@@ -27,6 +30,11 @@ struct ScopeWriter
     {
         double m_startIndices[x_numStartIndices]{};
         size_t m_endIndices[x_numStartIndices]{};
+        double m_warpedStartIndices[x_numStartIndices]{};
+        double m_warpedEndIndices[x_numStartIndices]{};
+        bool m_hasEnd[x_numStartIndices]{};
+        size_t m_oldestStartIndex = 0;
+        std::bitset<x_numStartIndices> m_dirty;
         std::atomic<size_t> m_startIndexIndex{0};
         size_t m_advanceStartIndices = 0;
         bool m_started = false;
@@ -42,7 +50,22 @@ struct ScopeWriter
     {
         double m_startIndices[x_numStartIndices]{};
         size_t m_endIndices[x_numStartIndices]{};
+        double m_warpedStartIndices[x_numStartIndices]{};
+        double m_warpedEndIndices[x_numStartIndices]{};
+        bool m_hasEnd[x_numStartIndices]{};
         size_t m_startIndexIndex = 0;
+        size_t m_oldestStartIndex = 0;
+    };
+
+    struct PublishedMarkers
+    {
+        std::atomic<double> m_startIndices[x_numStartIndices]{};
+        std::atomic<size_t> m_endIndices[x_numStartIndices]{};
+        std::atomic<double> m_warpedStartIndices[x_numStartIndices]{};
+        std::atomic<double> m_warpedEndIndices[x_numStartIndices]{};
+        std::atomic<bool> m_hasEnd[x_numStartIndices]{};
+        std::atomic<size_t> m_startIndexIndex{0};
+        std::atomic<size_t> m_oldestStartIndex{0};
     };
 
     const size_t m_voices;
@@ -56,6 +79,22 @@ struct ScopeWriter
     size_t m_oldestHistoryIndex = 0;
     std::unique_ptr<Markers[]> m_markers;
     std::unique_ptr<AcceptedMarkers[]> m_acceptedMarkers;
+    std::unique_ptr<AcceptedMarkers[]> m_pendingMarkers;
+    std::unique_ptr<PublishedMarkers[]> m_publishedMarkers;
+    std::unique_ptr<bool[]> m_warpedScopes;
+    std::atomic<size_t> m_publicationRevision{0};
+    std::atomic<double> m_publishedRealTime{0.0};
+    std::atomic<double> m_publishedWarpedTime{0.0};
+    std::atomic<double> m_publishedOldestWarpedTime{0.0};
+    std::atomic<double> m_publishedFirstSample{0.0};
+    const TimeWarpSource* m_timeWarpSource = nullptr;
+    TimeWarpView m_acceptedTimeWarp;
+    double m_firstSample = 0.0;
+    double m_acceptedFirstSample = 0.0;
+    double m_observedRealTime = std::numeric_limits<double>::quiet_NaN();
+    double m_warpedTime = 0.0;
+    double m_warpedStep = 0.0;
+    double m_nextUndoTime = -std::numeric_limits<double>::infinity();
     Level m_levels[x_numLevels];
 
     ScopeWriter(size_t voices, size_t scopes, size_t decimation, size_t capacity)
@@ -65,6 +104,9 @@ struct ScopeWriter
         , m_capacity(capacity)
         , m_markers(std::make_unique<Markers[]>(voices * scopes))
         , m_acceptedMarkers(std::make_unique<AcceptedMarkers[]>(voices * scopes))
+        , m_pendingMarkers(std::make_unique<AcceptedMarkers[]>(voices * scopes))
+        , m_publishedMarkers(std::make_unique<PublishedMarkers[]>(voices * scopes))
+        , m_warpedScopes(std::make_unique<bool[]>(scopes))
     {
         assert(voices > 0 && scopes > 0 && decimation > 0 && capacity > 1);
     }
@@ -73,6 +115,89 @@ struct ScopeWriter
     virtual float ReadStored(size_t scope, size_t voice, size_t index, size_t lod) const = 0;
     virtual void CommitSample() = 0;
     virtual void Downsample(size_t firstIndex, size_t endIndex) = 0;
+
+    void SetTimeWarp(size_t scope, const TimeWarpSource* source)
+    {
+        assert(scope < m_scopes && source);
+        assert(!m_timeWarpSource || m_timeWarpSource == source);
+        m_timeWarpSource = source;
+        m_warpedScopes[scope] = true;
+    }
+
+    bool IsWarped(size_t scope) const
+    {
+        return m_warpedScopes[scope];
+    }
+
+    void ObserveTime()
+    {
+        if (!m_timeWarpSource || !m_timeWarpSource->m_hasObservation
+            || m_observedRealTime == m_timeWarpSource->m_observedRealTime)
+        {
+            return;
+        }
+
+        if (!std::isfinite(m_observedRealTime))
+        {
+            m_firstSample = m_timeWarpSource->m_observedRealTime
+                - static_cast<double>(m_index * m_decimation + m_subIndex);
+        }
+
+        m_observedRealTime = m_timeWarpSource->m_observedRealTime;
+        m_warpedTime = m_timeWarpSource->m_observedWarpedTime;
+        double elapsed = m_observedRealTime - m_timeWarpSource->m_previousObservedRealTime;
+        m_warpedStep = elapsed > 0.0
+            ? (m_warpedTime - m_timeWarpSource->m_previousObservedWarpedTime) / elapsed : 0.0;
+        if (m_warpedStep >= 0.0 || m_warpedTime >= m_nextUndoTime)
+        {
+            return;
+        }
+
+        m_nextUndoTime = -std::numeric_limits<double>::infinity();
+        for (size_t stream = 0; stream < m_scopes * m_voices; ++stream)
+        {
+            if (!IsWarped(stream / m_voices))
+            {
+                continue;
+            }
+
+            Markers& markers = m_markers[stream];
+            size_t count = markers.m_startIndexIndex.load() + markers.m_advanceStartIndices;
+            while (count > markers.m_oldestStartIndex)
+            {
+                size_t slot = (count - 1) % x_numStartIndices;
+                if (markers.m_hasEnd[slot] && markers.m_warpedEndIndices[slot] > m_warpedTime)
+                {
+                    markers.m_hasEnd[slot] = false;
+                    markers.m_endIndices[slot] = 0;
+                    markers.m_dirty.set(slot);
+                }
+
+                if (markers.m_warpedStartIndices[slot] <= m_warpedTime)
+                {
+                    break;
+                }
+
+                --count;
+            }
+
+            size_t published = std::min(count, markers.m_startIndexIndex.load());
+            if (published != markers.m_startIndexIndex.load())
+            {
+                markers.m_startIndexIndex.store(published);
+            }
+
+            markers.m_advanceStartIndices = count - published;
+            markers.m_started = count > markers.m_oldestStartIndex
+                && !markers.m_hasEnd[(count - 1) % x_numStartIndices];
+            if (count > markers.m_oldestStartIndex)
+            {
+                size_t slot = (count - 1) % x_numStartIndices;
+                m_nextUndoTime = std::max(m_nextUndoTime, markers.m_hasEnd[slot]
+                    ? markers.m_warpedEndIndices[slot] : markers.m_warpedStartIndices[slot]);
+            }
+        }
+    }
 
     Markers& GetMarkers(size_t scope, size_t voice)
     {
@@ -226,26 +351,61 @@ struct ScopeWriter
             return;
         }
 
-        double lastAcceptedSample = static_cast<double>(endIndex - 1);
-        for (size_t stream = 0; stream < m_scopes * m_voices; ++stream)
+        // A finite retry budget keeps paint nonblocking. Atomic payloads make
+        // an overlapping publication safe even when this attempt is rejected.
+        //
+        bool captured = false;
+        TimeWarpView view;
+        double firstSample = 0.0;
+        for (size_t attempt = 0; attempt < 3 && !captured; ++attempt)
         {
-            const Markers& source = m_markers[stream];
-            AcceptedMarkers& target = m_acceptedMarkers[stream];
-            size_t count = source.m_startIndexIndex.load();
-            size_t oldest = count > x_numStartIndices ? count - x_numStartIndices : 0;
-            while (count > oldest && source.m_startIndices[(count - 1) % x_numStartIndices] > lastAcceptedSample)
+            size_t revision = m_publicationRevision.load();
+            if (revision % 2 != 0)
             {
-                --count;
+                continue;
             }
 
-            target.m_startIndexIndex = count;
-            for (size_t marker = 0; marker < x_numStartIndices; ++marker)
+            firstSample = m_publishedFirstSample.load();
+            view = {m_timeWarpSource, m_publishedRealTime.load(), m_publishedWarpedTime.load(),
+                m_publishedOldestWarpedTime.load()};
+            view.m_realTime = std::min(view.m_realTime,
+                firstSample + static_cast<double>((endIndex - 1) * m_decimation));
+            for (size_t stream = 0; stream < m_scopes * m_voices; ++stream)
             {
-                target.m_startIndices[marker] = source.m_startIndices[marker];
-                target.m_endIndices[marker] = std::min(source.m_endIndices[marker], endIndex);
+                const PublishedMarkers& source = m_publishedMarkers[stream];
+                AcceptedMarkers& target = m_pendingMarkers[stream];
+                target.m_oldestStartIndex = source.m_oldestStartIndex.load();
+                size_t count = source.m_startIndexIndex.load();
+                for (size_t marker = 0; marker < x_numStartIndices; ++marker)
+                {
+                    target.m_startIndices[marker] = source.m_startIndices[marker].load();
+                    size_t end = source.m_endIndices[marker].load();
+                    target.m_endIndices[marker] = std::min(end, endIndex);
+                    target.m_warpedStartIndices[marker] = source.m_warpedStartIndices[marker].load();
+                    target.m_warpedEndIndices[marker] = source.m_warpedEndIndices[marker].load();
+                    target.m_hasEnd[marker] = source.m_hasEnd[marker].load() && end <= endIndex;
+                }
+
+                while (count > target.m_oldestStartIndex
+                    && target.m_startIndices[(count - 1) % x_numStartIndices] > static_cast<double>(endIndex - 1))
+                {
+                    --count;
+                }
+
+                target.m_startIndexIndex = count;
             }
+
+            captured = m_publicationRevision.load() == revision;
         }
 
+        if (!captured)
+        {
+            return;
+        }
+
+        m_acceptedMarkers.swap(m_pendingMarkers);
+        m_acceptedTimeWarp = view;
+        m_acceptedFirstSample = firstSample;
         Downsample(m_acceptedIndex, endIndex);
         m_acceptedIndex = endIndex;
         for (size_t lod = 0; lod < x_numLevels; ++lod)
@@ -265,6 +425,7 @@ struct ScopeWriter
 
     void AdvanceIndex()
     {
+        ObserveTime();
         if (IsWriteSample())
         {
             CommitSample();
@@ -279,6 +440,7 @@ struct ScopeWriter
 
     void Publish()
     {
+        m_publicationRevision.fetch_add(1);
         for (size_t i = 0; i < m_scopes * m_voices; ++i)
         {
             Markers& markers = m_markers[i];
@@ -287,9 +449,40 @@ struct ScopeWriter
                 markers.m_startIndexIndex.store(markers.m_startIndexIndex.load() + markers.m_advanceStartIndices);
                 markers.m_advanceStartIndices = 0;
             }
+
+            PublishedMarkers& target = m_publishedMarkers[i];
+            target.m_startIndexIndex.store(markers.m_startIndexIndex.load());
+            target.m_oldestStartIndex.store(markers.m_oldestStartIndex);
+            if (markers.m_dirty.any())
+            {
+                for (size_t slot = 0; slot < x_numStartIndices; ++slot)
+                {
+                    if (!markers.m_dirty.test(slot))
+                    {
+                        continue;
+                    }
+
+                    target.m_startIndices[slot].store(markers.m_startIndices[slot]);
+                    target.m_endIndices[slot].store(markers.m_endIndices[slot]);
+                    target.m_warpedStartIndices[slot].store(markers.m_warpedStartIndices[slot]);
+                    target.m_warpedEndIndices[slot].store(markers.m_warpedEndIndices[slot]);
+                    target.m_hasEnd[slot].store(markers.m_hasEnd[slot]);
+                }
+
+                markers.m_dirty.reset();
+            }
+        }
+
+        m_publishedFirstSample.store(m_firstSample);
+        if (m_timeWarpSource)
+        {
+            m_publishedRealTime.store(m_observedRealTime);
+            m_publishedWarpedTime.store(m_warpedTime);
+            m_publishedOldestWarpedTime.store(m_timeWarpSource->m_oldestWarpedTime);
         }
 
         m_publishedIndex.store(m_index);
+        m_publicationRevision.fetch_add(1);
     }
 
     void RecordStart(size_t scope, size_t voice)
@@ -301,19 +494,55 @@ struct ScopeWriter
     //
     void RecordStart(size_t scope, size_t voice, double sampleOffset)
     {
+        ObserveTime();
+        if (IsWarped(scope) && m_warpedStep < 0.0)
+        {
+            return;
+        }
+
         Markers& markers = GetMarkers(scope, voice);
-        size_t index = (markers.m_startIndexIndex.load() + markers.m_advanceStartIndices) % x_numStartIndices;
+        size_t count = markers.m_startIndexIndex.load() + markers.m_advanceStartIndices;
+        size_t index = count % x_numStartIndices;
         markers.m_startIndices[index] = static_cast<double>(m_index)
             + (static_cast<double>(m_subIndex) + sampleOffset) / m_decimation;
+        markers.m_warpedStartIndices[index] = m_warpedTime + sampleOffset * m_warpedStep;
+        markers.m_endIndices[index] = 0;
+        markers.m_hasEnd[index] = false;
+        markers.m_dirty.set(index);
+        if (count >= x_numStartIndices)
+        {
+            markers.m_oldestStartIndex = std::max(markers.m_oldestStartIndex, count + 1 - x_numStartIndices);
+        }
+
+        if (IsWarped(scope))
+        {
+            m_nextUndoTime = std::max(m_nextUndoTime, markers.m_warpedStartIndices[index]);
+        }
+
         ++markers.m_advanceStartIndices;
         markers.m_started = true;
     }
 
     void RecordEnd(size_t scope, size_t voice)
     {
+        ObserveTime();
         Markers& markers = GetMarkers(scope, voice);
-        size_t index = (markers.m_startIndexIndex.load() + markers.m_advanceStartIndices - 1) % x_numStartIndices;
+        size_t count = markers.m_startIndexIndex.load() + markers.m_advanceStartIndices;
+        if (count <= markers.m_oldestStartIndex || (IsWarped(scope) && m_warpedStep < 0.0))
+        {
+            return;
+        }
+
+        size_t index = (count - 1) % x_numStartIndices;
         markers.m_endIndices[index] = m_index + (IsWriteSample() ? 0 : 1);
+        markers.m_warpedEndIndices[index] = m_warpedTime;
+        markers.m_hasEnd[index] = true;
+        markers.m_dirty.set(index);
+        if (IsWarped(scope))
+        {
+            m_nextUndoTime = std::max(m_nextUndoTime, m_warpedTime);
+        }
+
         markers.m_started = false;
     }
 };
@@ -350,6 +579,14 @@ struct ScopeWriterGeneric : ScopeWriterInput<Size>
 
     struct Storage
     {
+        struct AtomicVector
+        {
+            std::atomic<float> m_values[sizeof(Vector) / sizeof(float)]{};
+        };
+
+        static_assert(std::atomic<float>::is_always_lock_free);
+        static_assert(sizeof(AtomicVector) == sizeof(Vector));
+        std::unique_ptr<AtomicVector[]> m_samples;
         std::vector<Vector> m_buffer[ScopeWriter::x_numLevels];
         Downsampler m_downsamplers[ScopeWriter::x_numLevels - 1];
         bool m_written = false;
@@ -372,15 +609,27 @@ struct ScopeWriterGeneric : ScopeWriterInput<Size>
     {
         for (Storage& storage : m_storage)
         {
-            for (auto& buffer : storage.m_buffer)
+            storage.m_samples = std::make_unique<typename Storage::AtomicVector[]>(capacity);
+            for (size_t lod = 1; lod < ScopeWriter::x_numLevels; ++lod)
             {
-                buffer.resize(capacity);
+                storage.m_buffer[lod].resize(capacity);
             }
         }
     }
 
     void Store(size_t scope, size_t index, size_t lod, const Vector& value)
     {
+        if (lod == 0)
+        {
+            auto& sample = m_storage[scope].m_samples[index % this->m_capacity];
+            for (size_t voice = 0; voice < Size; ++voice)
+            {
+                sample.m_values[voice].store(value[voice], std::memory_order_relaxed);
+            }
+
+            return;
+        }
+
         m_storage[scope].m_buffer[lod][index % this->m_capacity] = value;
     }
 
@@ -435,12 +684,25 @@ struct ScopeWriterGeneric : ScopeWriterInput<Size>
 
     Vector ReadStoredVector(size_t scope, size_t index, size_t lod) const override
     {
+        if (lod == 0)
+        {
+            Vector value;
+            const auto& sample = m_storage[scope].m_samples[index % this->m_capacity];
+            for (size_t voice = 0; voice < Size; ++voice)
+            {
+                value[voice] = sample.m_values[voice].load(std::memory_order_relaxed);
+            }
+
+            return value;
+        }
+
         return m_storage[scope].m_buffer[lod][index % this->m_capacity];
     }
 
     float ReadStored(size_t scope, size_t voice, size_t index, size_t lod) const override
     {
-        return m_storage[scope].m_buffer[lod][index % this->m_capacity][voice];
+        return lod == 0 ? m_storage[scope].m_samples[index % this->m_capacity].m_values[voice].load(std::memory_order_relaxed)
+            : m_storage[scope].m_buffer[lod][index % this->m_capacity][voice];
     }
 
     size_t SampleStorageBytes() const
@@ -487,6 +749,11 @@ struct ScopeWriterHolderGeneric
 
     bool IsStartedAtVoice(size_t voice) const
     {
+        if (m_scopeWriter)
+        {
+            m_scopeWriter->ObserveTime();
+        }
+
         return m_scopeWriter && m_scopeWriter->GetMarkers(m_scopeIx, voice).m_started;
     }
 
@@ -733,119 +1000,147 @@ struct ScopeReader
     size_t m_voiceIx;
     size_t m_scopeIx;
     size_t m_numXSamples;
-    
-    double m_startIndex;
-    double m_transferXSample;
-    double m_transferIndex;
-    double m_postTransferIndex;
-    double m_postTransferEndIndex;
-
-    float m_startY;
-    float m_prevStartY;
-
-    bool m_empty;
+    TimeWarpView m_timeWarp;
+    double m_startIndex = 0.0;
+    double m_transferXSample = 0.0;
+    double m_transferIndex = 0.0;
+    double m_postTransferIndex = 0.0;
+    double m_postTransferEndIndex = 0.0;
+    float m_startY = 0.0f;
+    float m_prevStartY = 0.0f;
+    bool m_empty = false;
     size_t m_lod = 0;
 
-    ScopeReader(
-        const ScopeWriter* scopeWriter,
-        size_t voiceIx, 
-        size_t scopeIx,
-        size_t numXSamples,
-        size_t numCycles)
+    ScopeReader(const ScopeWriter* scopeWriter, size_t voiceIx, size_t scopeIx,
+        size_t numXSamples, size_t numCycles)
         : m_scopeWriter(scopeWriter)
         , m_voiceIx(voiceIx)
         , m_scopeIx(scopeIx)
         , m_numXSamples(numXSamples)
-        , m_startIndex(0.0)
-        , m_transferXSample(0.0)
-        , m_transferIndex(0.0)
-        , m_postTransferIndex(0.0)
-        , m_postTransferEndIndex(0.0)
-        , m_startY(0.0f)
-        , m_prevStartY(0.0f)
-        , m_empty(false)
     {
-        size_t lastStartIndexIndex = m_scopeWriter->GetAcceptedMarkers(m_scopeIx, m_voiceIx).m_startIndexIndex;
-        m_startIndex = m_scopeWriter->GetAcceptedMarkers(m_scopeIx, m_voiceIx).m_startIndices[(lastStartIndexIndex - 1) % ScopeWriter::x_numStartIndices];
-        double prevStartIndex = m_scopeWriter->GetAcceptedMarkers(m_scopeIx, m_voiceIx).m_startIndices[(lastStartIndexIndex - 2) % ScopeWriter::x_numStartIndices];
+        if (scopeWriter->IsWarped(scopeIx))
+        {
+            m_timeWarp = scopeWriter->m_acceptedTimeWarp;
+        }
 
-        double acceptedIndex = static_cast<double>(m_scopeWriter->m_acceptedIndex);
-        if (acceptedIndex == 0.0 || m_numXSamples == 0)
+        const auto& markers = scopeWriter->GetAcceptedMarkers(scopeIx, voiceIx);
+        size_t count = markers.m_startIndexIndex;
+        double acceptedIndex = static_cast<double>(scopeWriter->m_acceptedIndex);
+        if (acceptedIndex == 0.0 || numXSamples == 0
+            || (m_timeWarp.m_source && count <= markers.m_oldestStartIndex))
         {
             m_empty = true;
             return;
         }
 
-        m_transferIndex = acceptedIndex - 1.0;
-        if (m_startIndex < 0.0 || m_startIndex > m_transferIndex)
+        size_t current = (count - 1) % ScopeWriter::x_numStartIndices;
+        size_t previous = (count - 2) % ScopeWriter::x_numStartIndices;
+        m_startIndex = m_timeWarp.m_source ? markers.m_warpedStartIndices[current] : markers.m_startIndices[current];
+        double prevStartIndex = m_timeWarp.m_source ? markers.m_warpedStartIndices[previous] : markers.m_startIndices[previous];
+        if (m_timeWarp.m_source && count - markers.m_oldestStartIndex < 2)
+        {
+            prevStartIndex = m_startIndex;
+        }
+
+        m_transferIndex = m_timeWarp.m_source ? m_timeWarp.m_warpedTime : acceptedIndex - 1.0;
+        if ((!m_timeWarp.m_source && m_startIndex < 0.0) || m_startIndex > m_transferIndex)
         {
             m_empty = true;
             return;
         }
 
-        double endIndex = m_scopeWriter->GetAcceptedMarkers(m_scopeIx, m_voiceIx).m_endIndices[(lastStartIndexIndex - 1) % ScopeWriter::x_numStartIndices];
-        if (m_startIndex < endIndex)
+        if (m_timeWarp.m_source)
         {
-            m_transferIndex = endIndex - 1;
+            if (markers.m_hasEnd[current])
+            {
+                m_transferIndex = std::min(m_transferIndex, markers.m_warpedEndIndices[current]);
+            }
+        }
+        else if (m_startIndex < markers.m_endIndices[current])
+        {
+            m_transferIndex = markers.m_endIndices[current] - 1.0;
         }
 
         double prevNumSamples = m_startIndex - prevStartIndex;
-        double prevEndIndex = m_scopeWriter->GetAcceptedMarkers(m_scopeIx, m_voiceIx).m_endIndices[(lastStartIndexIndex - 2) % ScopeWriter::x_numStartIndices];
-        if (prevStartIndex < prevEndIndex)
+        if (m_timeWarp.m_source)
         {
-            prevNumSamples = prevEndIndex - prevStartIndex;
+            if (count - markers.m_oldestStartIndex >= 2 && markers.m_hasEnd[previous])
+            {
+                prevNumSamples = markers.m_warpedEndIndices[previous] - prevStartIndex;
+            }
+        }
+        else if (prevStartIndex < markers.m_endIndices[previous])
+        {
+            prevNumSamples = markers.m_endIndices[previous] - prevStartIndex;
         }
 
         if (prevNumSamples <= 0.0 || prevNumSamples <= m_transferIndex - m_startIndex)
         {
-            // No transfer.
-            //
             m_transferXSample = m_numXSamples;
         }
         else
         {
-            // Assume number of pre transfer samples is same as previous cycle length.
-            //
-            double wayThrough = (m_transferIndex - m_startIndex) / prevNumSamples;
-            m_transferXSample = wayThrough * m_numXSamples;
+            m_transferXSample = (m_transferIndex - m_startIndex) / prevNumSamples * m_numXSamples;
             m_postTransferIndex = prevStartIndex + (m_transferIndex - m_startIndex);
             m_postTransferEndIndex = prevStartIndex + prevNumSamples;
         }
 
         double oldestRequired = m_transferXSample < m_numXSamples
             ? std::min(m_startIndex, m_postTransferIndex) : m_startIndex;
-        m_lod = m_scopeWriter->GetLod(acceptedIndex - 1.0 - oldestRequired, static_cast<size_t>(acceptedIndex));
+        if (m_timeWarp.m_source)
+        {
+            // LOD still uses retained real-time history. Unmapped points remain
+            // gaps and do not prevent the rest of the cycle from being drawn.
+            //
+            oldestRequired = std::numeric_limits<double>::infinity();
+            for (size_t point = 0; point < m_numXSamples; ++point)
+            {
+                double index = RealIndex(Coordinate(static_cast<double>(point)));
+                if (std::isfinite(index))
+                {
+                    oldestRequired = std::min(oldestRequired, index);
+                }
+            }
+        }
+
+        m_lod = scopeWriter->GetLod(acceptedIndex - 1.0 - oldestRequired, scopeWriter->m_acceptedIndex);
         m_empty = m_lod == ScopeWriter::x_numLevels;
         if (!m_empty)
         {
-            m_startY = m_scopeWriter->ReadDisplay(m_scopeIx, m_voiceIx, m_startIndex, m_lod);
-            if (prevStartIndex >= m_scopeWriter->OldestIndex(m_lod))
-            {
-                m_prevStartY = m_scopeWriter->ReadDisplay(m_scopeIx, m_voiceIx, prevStartIndex, m_lod);
-            }
+            m_startY = ReadCoordinate(m_startIndex);
+            m_prevStartY = ReadCoordinate(prevStartIndex);
         }
     }
 
-    float Get(double sample)
+    double Coordinate(double sample) const
     {
-        if (m_empty)
+        if (sample < m_transferXSample || m_transferXSample == static_cast<double>(m_numXSamples))
         {
-            return 0;
+            return m_startIndex + sample / m_transferXSample * (m_transferIndex - m_startIndex);
         }
-        else if (sample < m_transferXSample || m_transferXSample == static_cast<double>(m_numXSamples))
-        {
-            double wayThrough = sample / m_transferXSample;
-            double index = m_startIndex + wayThrough * (m_transferIndex - m_startIndex);
-            float value = m_scopeWriter->ReadDisplay(m_scopeIx, m_voiceIx, index, m_lod);
-            return value;
-        }
-        else
-        {
-            double wayThrough = (sample - m_transferXSample) / (static_cast<double>(m_numXSamples) - m_transferXSample);
-            double index = m_postTransferIndex + wayThrough * (m_postTransferEndIndex - m_postTransferIndex);
-            float value = m_scopeWriter->ReadDisplay(m_scopeIx, m_voiceIx, index, m_lod);
-            return value;
-        }
+
+        return m_postTransferIndex + (sample - m_transferXSample)
+            / (static_cast<double>(m_numXSamples) - m_transferXSample)
+            * (m_postTransferEndIndex - m_postTransferIndex);
+    }
+
+    double RealIndex(double coordinate) const
+    {
+        return m_timeWarp.m_source
+            ? (m_timeWarp.GetRealTime(coordinate) - m_scopeWriter->m_acceptedFirstSample) / m_scopeWriter->m_decimation
+            : coordinate;
+    }
+
+    float ReadCoordinate(double coordinate) const
+    {
+        double index = RealIndex(coordinate);
+        return std::isfinite(index)
+            ? m_scopeWriter->ReadDisplay(m_scopeIx, m_voiceIx, index, m_lod) : 0.0f;
+    }
+
+    float Get(double sample) const
+    {
+        return m_empty ? 0.0f : ReadCoordinate(Coordinate(sample));
     }
 };
 

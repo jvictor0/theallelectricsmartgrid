@@ -20,6 +20,40 @@ void AdvanceControlIndex(ScopeWriter& writer)
 
 }
 
+DOCTEST_TEST_CASE("Modulator time axes: warped scope and overlays read the same forward visit")
+{
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& state = ui->m_squiggleBoyUIState;
+    state.m_firstScopeSample.store(1000);
+    TimeWarpInverter<1024> inverse;
+    auto& writer = state.m_voiceScopeWriter;
+    writer.SetTimeWarp(x_lfo1Scope, &inverse);
+    for (size_t sample = 0; sample <= 80; ++sample)
+    {
+        double warped = sample <= 40 ? sample * 0.5 : 20.0 + (sample - 40) * 0.25;
+        inverse.Write(warped, 1000.0 + sample);
+        if (sample == 0 || sample == 40)
+        {
+            writer.RecordStart(x_lfo1Scope, 0);
+        }
+
+        writer.Write(x_lfo1Scope, TrioFloat(static_cast<float>(sample) / 100.0f, 0, 0));
+        writer.Write(x_lfo2Scope, TrioFloat(static_cast<float>(sample) / 200.0f, 0, 0));
+        writer.AdvanceIndex();
+    }
+
+    writer.Publish();
+    writer.AcceptSamples();
+    auto axis = SmartGridOneModulatorHistory::GetTimeAxis(*ui, ModulatorRef(VoiceModulator::LFO1, 0));
+    DOCTEST_CHECK(axis.GetSample(0.25) == 1060.0);
+    DOCTEST_CHECK(axis.GetSample(0.75) == 1030.0);
+    WeightedModulators weights;
+    weights.Add(ModulatorRef(VoiceModulator::LFO2, 0), 1.0f);
+    SmartGridOneModulatorHistory::PreparedModulatorReader overlay(*ui, weights, axis.OldestSample(), 1080.0);
+    DOCTEST_CHECK(overlay.Get(axis.GetSample(0.25)) == doctest::Approx(0.3f));
+    DOCTEST_CHECK(overlay.Get(axis.GetSample(0.75)) == doctest::Approx(0.15f));
+}
+
 DOCTEST_TEST_CASE("Weighted modulators: normalized signed depths mix recorded signals and hold the latest sample")
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();

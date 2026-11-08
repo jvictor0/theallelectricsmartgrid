@@ -124,7 +124,7 @@ The system SHALL register modulation visualizers in `ForEachModulationVisualizer
 - **THEN** its border is stroked with `SmartGrid::Color::Grey` and `Draw` receives the inset panel bounds
 
 ### Requirement: Published UIState Data Sources
-Visualizers SHALL read display data only from published UI state, never from live DSP objects: waveform views sample ScopeWriter ring buffers (audio, control, quad, source-mixer, mono, mono-audio) cycle-aware via the writers' published cycle markers; analyzers compute `WindowedFFT`/`QuadWindowedFFT` windows ending at each writer's published index and overlay transfer-function curves from UIState objects (voice filter response, damping filters, partial-machine per-speaker functions); envelope, waveform-bucket, and atom views read derived snapshots (`m_delayUIState`, sample-source and buffer-bank UIState, `m_partialMachineUIState`); meters read meter readers such as `m_trackMeterReader`. The capture and publish semantics of these sources are specified in ui-visualization-pipeline.
+Visualizers SHALL read display data through accepted UI state and explicitly shared atomic payloads. Waveform views SHALL sample ScopeWriter histories through accepted cycle markers; bound LFO, envelope, and delay-magnitude views SHALL use the captured inverse view specified in warped-scope-history. Analyzers SHALL use accepted level-zero windows and UIState transfer-function overlays. Sample waveform buckets and spectral atoms SHALL retain their derived snapshot paths. Meters SHALL use published meter readers. The capture and publication semantics are specified in ui-visualization-pipeline.
 
 #### Scenario: Scope views segment by cycle markers
 - **WHEN** a ScopeComponent renders a voice's trace

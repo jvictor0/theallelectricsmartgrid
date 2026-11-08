@@ -14,10 +14,13 @@ Assuming `F` is injective (which it sometimes is, though extreme modulation can 
 `D(t) = X(F⁻¹(F(t) - d))`
 
 To implement this, the delay requires a "moveable writehead." It must compute and store the inverse function `F⁻¹`.
-- `DelayLineMovableWriter` maintains two parallel circular buffers:
-  1. `m_delayLine`: The audio samples `X(t)`.
-  2. `m_writeHeadInverse`: The wall-clock time `t` at which each warped time `F(t)` occurred.
+- Two parallel circular buffers implement this:
+  1. `DelayLineMovableWriter::m_delayLine`: The audio samples `X(t)`, one per host sample.
+  2. `TimeWarpInverter::m_writeHeadInverse` (`private/src/TimeWarpInverter.hpp`): The wall-clock time `t` at which each warped time `F(t)` occurred, in engine samples for both. `TheoryOfTime` owns the inverter (2^26 entries, 512 MiB, matching 2^24 host samples of audio) and records its write tape head into it every engine sample. `SquiggleBoyWithEncoderBank::Config` wires `QuadDelay`'s delay line to it at startup.
+- The inverter records explicit absolute `SampleTimer` engine timestamps; it has no independently advancing clock. The delay line writes each completed host frame at `SampleTimer::GetHostSample()` and retains its own oldest/latest recorded-audio bounds. Engine sample `k * x_oversample` completes host sample `k`, so real timestamps convert by division by `x_oversample`. Warped host positions are multiplied by that factor before inverse lookup.
 - By looking up `F(t) - d` in the inverse buffer, the delay can estimate the wall-clock time `t_old` when that warped time occurred, and then read the audio sample `X(t_old)`.
+
+Unwritten inverse entries are unavailable, represented internally by NaN. Exact integer lookups require only that entry; fractional lookups require both endpoints. At grain launch, an unavailable mapping or an analysis window extending before retained audio suppresses that channel's new grain. Previously scheduled overlap-add tails continue. The existing delay waveform displays unavailable history as zero.
 
 Inverse-map timestamps use linear interpolation both when recording an ascending interval and when looking up a fractional warped position. Audio samples retain cubic interpolation. Signed absolute coordinates, including negative positions, wrap using Euclidean modulo at the physical array boundary.
 
@@ -33,15 +36,15 @@ engine input + return * feedback -> tanh saturation -> order-8 Butterworth decim
     -> (4096 * x_oversample)-point IFFT -> engine-rate overlap-add, PM read, rotation, damping
 ```
 
-The decimator follows the saturator so its harmonics are filtered too. The delay line, inverse buffer, tape-head positions, analysis window and hop are all in host samples, so delay capacity and grain timing keep their physical durations. Each grain's spectrum stays on the 4096-point host-rate grid and is interpolated by a larger inverse transform into an engine-rate frame of the same 85.333 ms duration (see [Phase Vocoder](phase-vocoder.md)); there is no separate output upsampler. Rotation and damping run every engine sample. At `x_oversample = 1` the decimator is a passthrough. The delay has no internal LFO or LFO frequency, depth, or phase controls.
+The decimator follows the saturator so its harmonics are filtered too. The delay line, read-head positions, analysis window and hop are in host samples; the write tape head and inverse buffer are in engine samples and converted at the read heads and the delay line, so delay capacity and grain timing keep their physical durations. Each grain's spectrum stays on the 4096-point host-rate grid and is interpolated by a larger inverse transform into an engine-rate frame of the same 85.333 ms duration (see [Phase Vocoder](phase-vocoder.md)); there is no separate output upsampler. Rotation and damping run every engine sample. At `x_oversample = 1` the decimator is a passthrough. The delay has no internal LFO or LFO frequency, depth, or phase controls.
 
 ## Read/Write Head Computation (`QuadDelayInputSetter`)
 
-`QuadDelayInputSetter::Process` (`private/src/QuadDelay.hpp`) produces one shared write head and a read head for each quad channel `i`. All channels share the inverse time map and positional recorder; audio and envelope values remain independent per channel.
+`QuadDelayInputSetter::Process` (`private/src/QuadDelay.hpp`) produces one shared write head and a read head for each quad channel `i`. All channels share the inverse time map and display-cycle markers; audio and scope values remain independent per channel.
 
 - **Loop selection**: `ReadTapeHead` receives the processed loop-selector knob value, but only accepts changes when both old and new loops are simultaneously at modulated cycle boundaries (`CrossedCycleBoundary`) to avoid discontinuities.
-- **Glue offset**: `WriteTapeHead` owns the additive glue offset that preserves continuity across transport stops and tempo-scale changes.
-  - When transport stops, glue is initialized from the current write head, then the head advances one host sample per host frame (`1 / x_oversample` per engine sample).
+- **Glue offset**: `WriteTapeHead`, owned and advanced by `TheoryOfTime`, holds the additive glue offset that preserves continuity across transport stops and tempo-scale changes. It runs in engine samples; `ReadTapeHead` and the setter divide by `x_oversample` for host samples.
+  - When transport stops, glue is initialized from the current write head, then the head advances one engine sample per engine sample (one host sample per host frame).
   - On a transport transition or global-period change, glue is recomputed from the previous actual position and the new theory position, preserving absolute position continuity.
 - **Delay phase while stopped**: the delay's local phase continues from its last position at `1 / globalPeriodSamples` cycles per host frame, even though Theory of Time resets to zero. Read heads retain their selected speeds. Starting transport rejoins musical phase for playback; a shared display offset keeps the waveform and write marker continuous across that phase reset.
 - **Delay ratio quantization**: at loop top, delay-time factor is quantized to one of:
@@ -53,7 +56,7 @@ The decimator follows the saturator so its harmonics are filtered too. The delay
 The final head equations are:
 
 - **Write head**
-  - `writeHead = globalModulatedPhase * globalPeriodSamples + glue`, where `globalPeriodSamples` is the Theory of Time period converted to host samples
+  - `writeHead = (globalModulatedPhase * enginePeriodSamples + glue) / x_oversample`, where `enginePeriodSamples` is the Theory of Time period; below, `globalPeriodSamples = enginePeriodSamples / x_oversample` is that period in host samples
   - stored in the shared scalar `delayInput.m_writeHeadPosition`
 - **Read head**
   - `effectiveDelaySamples = (globalPeriodSamples / cycleRatio(selectedLoop)) * bufferFrac`
@@ -63,7 +66,7 @@ The final head equations are:
 
 The projection is calculated once in phase units, then converted to absolute samples relative to the actual write head: `readHead = writeHead + (readPhase - delayPhase) * globalPeriodSamples`. Here `delayPhase` follows the modulated global phase while running and free-runs while stopped. The continuity glue translates both heads equally; playback speed applies only to delay phase. Multiplying the glue by read-head speed would select different audio from the displayed position whenever the speed is not 1.
 
-The waveform recorder and both displayed heads use that same delay phase plus a shared display offset. On transport restart, the offset absorbs the reset to musical phase, preserving the waveform's horizontal coordinates. Read markers still reflect any playback repositioning caused by resynchronizing to music. While stopped, the waveform continues sweeping and recording across the display instead of overwriting one frozen column.
+Scope starts use that same delay phase plus a shared display offset to detect full forward cycles. Waveform samples and both displayed heads use the continuous warped coordinate. On transport restart, the offset absorbs the reset to musical phase, preserving the waveform's horizontal coordinates. Read markers still reflect any playback repositioning caused by resynchronizing to music. While stopped, the waveform continues sweeping and recording across the display instead of overwriting one frozen column.
 
 Both heads use absolute warped-sample coordinates. The read head is projected into the selected-loop-length region behind the write head, offset by the resynthesis hop size, with delay shaped by the quantized ratio. This warped-coordinate window selects musical delay time; it cannot by itself ensure a complete real-time analysis window. The former Widen control and its channel-dependent delay scaling have been removed; old `DelayWiden` patch fields are ignored.
 
@@ -72,10 +75,13 @@ At grain launch, the delay maps each selected read head into real audio time, th
 ```
 requestedStart = inverse(readHead)
 latestStart = latestRecordedSample - (N - 1) - 2
-startTime = min(requestedStart, latestStart)
+startTime = min(requestedStart, latestStart)  # only for an available mapping
+earliestStart = oldestRecordedSample + H + 1
+# A start before earliestStart has unavailable previous-frame/interpolation support.
+# It contributes no new grain.
 ```
 
-Here `N = 4096` and the extra two samples support cubic audio interpolation. Starts already safely behind the writer are unchanged. Requests too close to the writer use the latest complete frame, preventing zeros or stale samples beyond the recording frontier from entering the grain. At these limits the grain follows the recording frontier until its requested time falls behind the limit again. Physical addressing remains circular, including for negative positions. Recorded sample-bank playback uses an unbounded frontier and retains its existing behavior.
+Here `N = 4096`, `H = 1024` is the analysis hop, and the extra samples support cubic audio interpolation. Starts within retained audio and safely behind the writer are unchanged. Requests too close to the writer use the latest complete frame, preventing zeros or stale samples beyond the recording frontier from entering the grain. At these limits the grain follows the recording frontier until its requested time falls behind the limit again. Physical addressing remains circular, including for negative positions. Recorded sample-bank playback uses an unbounded frontier and retains its existing behavior.
 
 ## Phase Vocoder Done Right
 
@@ -131,6 +137,16 @@ The Quad Delay supports a rich set of features:
 - **Unison and Pitch Shifting**: The phase vocoder allows for independent pitch shifting of the delayed signal. Unison adds copies above and below each channel's pitch, reaching ±40, ±45, ±50, and ±55 cents on channels 1–4 at full knob travel. Spread scales linearly in cents with the knob; side-copy gain reaches full level at one third of the knob's travel.
 - **Ping Pong**: 90-degree or 180-degree quadraphonic ping-pong routing.
 - **Return Sends**: The output of the delay can be routed directly into the Quad Reverb or the Partial Machine.
+
+## Shared warped scope display
+
+The delay envelope uses the same scope reader as the voice and quad LFOs and the voice envelopes. Let `F` map real engine samples to the continuous warped write-head coordinate, and `G` choose its latest forward inverse. Scope samples remain on the real-time grid; a display point at warped coordinate `w` reads `S(G(w))` from the selected existing LOD.
+
+`QuadDelay::WriteAudio` records the magnitude of the actual saturated, decimated host write. The dedicated quad scope holds that magnitude between host writes on the engine grid. The UI's successive FIR downsamplers form the envelope, and the visualizer converts the sampled magnitude to dB. There are no separate delay min/max buckets or positional waveform recorder. The signed delay-return scope remains the spectrum source.
+
+Starts and ends retain both real and warped coordinates. Descending time removes crossed boundaries, reopening an interval when its end is undone. Backward triggers do not append scope starts. This logic belongs to `ScopeWriter`, so delay, LFO, and envelope scopes share it. The continuous write head prevents a transport phase reset from appearing as a rewind.
+
+The UI captures marker metadata and a bounded inverse view at publication. Inverse entries and level-zero scope lanes are atomic. A lookup outside the captured warped span, or using an endpoint newer than the accepted real-time cutoff, returns unavailable and draws zero. Live overwrites can create temporary gaps; the audio thread does not wait for painting.
 
 ## Related
 - [Theory of Time](theory-of-time.md)

@@ -41,13 +41,26 @@ float Motion(const Signals& signals, size_t n, size_t c, int mode)
     return (mode == 3 || (mode == 2 && c == 1)) ? signals.m_controls[n % signals.m_period][c] : 0;
 }
 
+// The clock runs a block ahead in PrepareBlock. Each sample then loads its
+// snapshot into one view and records the view's write head into the inverter
+// the delay reads, as TheoryOfTime::Process would.
+//
 struct ClockViews
 {
     static constexpr size_t x_stride = 1;
+
+    struct Snapshot
+    {
+        TheoryOfTimeBase::Sample m_sample;
+        double m_globalPeriodSamples;
+        WriteTapeHead m_writeTapeHead;
+    };
+
     TheoryOfTime m_clock;
     TheoryOfTime::Input m_input;
     SmartGrid::MessageOutBuffer m_messages;
-    std::vector<TheoryOfTime> m_views;
+    std::vector<Snapshot> m_views;
+    TheoryOfTime m_view;
     ClockViews() : m_views(128 * x_ratio / x_stride)
     {
         m_clock.SetupMessageOutBuffer(&m_messages);
@@ -60,20 +73,32 @@ struct ClockViews
         }
     }
 
-    void PrepareBlock(size_t, size_t)
+    void PrepareBlock(size_t firstSample, size_t)
     {
         for (auto& view : m_views)
         {
+            SampleTimer::s_instance->m_sample = ++firstSample;
             m_clock.Process(m_input);
             view.m_sample = m_clock.m_sample;
             view.m_globalPeriodSamples = m_clock.m_globalPeriodSamples;
+            view.m_writeTapeHead = m_clock.m_writeTapeHead;
             m_messages.Clear();
         }
     }
 
-    TheoryOfTime* Get(size_t n)
+    TheoryOfTime* Advance(size_t n)
     {
-        return &m_views[(n % (128 * x_ratio)) / x_stride];
+        const Snapshot& snapshot = m_views[(n % (128 * x_ratio)) / x_stride];
+        m_view.m_sample = snapshot.m_sample;
+        m_view.m_globalPeriodSamples = snapshot.m_globalPeriodSamples;
+        m_view.m_writeTapeHead = snapshot.m_writeTapeHead;
+        RecordWritePosition(m_view.m_writeTapeHead.m_actualPosition);
+        return &m_view;
+    }
+
+    void RecordWritePosition(double enginePosition)
+    {
+        m_view.m_timeWarpInverter->Write(enginePosition, static_cast<double>(SampleTimer::GetSample()));
     }
 };
 
@@ -145,6 +170,7 @@ struct Delay
     ClockViews m_clock;
     Delay()
     {
+        m_core.m_delayLine.m_inverter = m_clock.m_view.m_timeWarpInverter.get();
         for (size_t c = 0; c < 4; ++c)
         {
             m_input.m_feedback[c] = 0.35f;
@@ -169,6 +195,7 @@ struct Delay
 
     std::array<float, 4> Process(size_t n)
     {
+        SampleTimer::s_instance->m_sample = n + 1;
         if constexpr (Mode != 0)
         {
             for (size_t c = 0; c < 4; ++c)
@@ -182,12 +209,13 @@ struct Delay
                 m_knobs.m_resynthUnisonKnob[c] = Mode >= 2 ? 0.15f + 0.06f * move : 0;
             }
 
-            m_knobs.m_theoryOfTime = m_clock.Get(n);
+            m_knobs.m_theoryOfTime = m_clock.Advance(n);
             m_setter.Process(m_knobs, m_input, &m_core);
         }
         else
         {
             double write = static_cast<double>(n) / x_ratio;
+            m_clock.RecordWritePosition(static_cast<double>(n));
             m_input.m_writeHeadPosition = write;
             for (size_t c = 0; c < 4; ++c)
             {

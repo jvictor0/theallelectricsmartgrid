@@ -151,6 +151,7 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
             input.m_rotateSwitchVal[lane] = static_cast<int>((lane + sample / 64) % 4);
         }
 
+        time.ProcessWriteTapeHead();
         setter.Process(input, output, nullptr);
         for (size_t lane = 0; lane < 4; ++lane)
         {

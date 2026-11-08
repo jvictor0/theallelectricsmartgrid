@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "../support/DelayInverterRig.hpp"
 #include "../support/GlobalEnv.hpp"
 #include "../support/TimeRig.hpp"
 #include "DeepVocoder.hpp"
@@ -249,8 +250,12 @@ DOCTEST_TEST_CASE("Rate boundaries: grains launch every analysis hop's duration 
 DOCTEST_TEST_CASE("Rate boundaries: grains keep a host-rate tone's pitch, gain and continuity")
 {
     GlobalEnv::ResetPerTest();
-    using Line = DelayLineMovableWriter<1 << 16>;
+    // A host-rate inverter, recorded once per written frame.
+    //
+    using Line = DelayLineMovableWriterGeneric<float, 1, 1 << 16, 1>;
     auto line = std::make_unique<Line>();
+    auto inverter = std::make_unique<Line::Inverter>();
+    line->m_inverter = inverter.get();
     auto grains = std::make_unique<GrainManager<Line>>(line.get());
     GrainManager<Line>::Input input;
     const double hostCycles = 32.0 / 4096.0;
@@ -263,11 +268,12 @@ DOCTEST_TEST_CASE("Rate boundaries: grains keep a host-rate tone's pitch, gain a
         {
             double hostFrame = static_cast<double>(n / x_ratio);
             float sample = 0.2f * static_cast<float>(std::sin(2.0 * M_PI * hostCycles * hostFrame));
-            line->Write(sample, 10000.0 + hostFrame);
+            inverter->Write(10000.0 + hostFrame, hostFrame + 1.0);
+            line->Write(sample, n / x_ratio + 1);
         }
 
         double read = 10000.0 + static_cast<double>(n) / x_ratio - 4500.0;
-        float output = grains->Process(read, 0.0f, input, line->m_lastTime - 1.0)[0];
+        float output = grains->Process(read, 0.0f, input, line->GetLatestSampleTime())[0];
         DOCTEST_REQUIRE(std::isfinite(output));
         if (n + windowSize >= numSamples)
         {
@@ -290,16 +296,25 @@ DOCTEST_TEST_CASE("Rate boundaries: the delay line is written once per host fram
 {
     GlobalEnv::ResetPerTest();
     auto delay = std::make_unique<QuadDelay>();
-    double firstTime = delay->m_delayLine.m_lastTime;
+    DelayInverterRig rig(delay.get());
+    auto& line = delay->m_delayLine;
+    DOCTEST_CHECK_FALSE(std::isfinite(line.GetLatestSampleTime()));
     const size_t numSamples = 4096 * x_ratio;
     for (size_t n = 0; n < numSamples; ++n)
     {
         double host = static_cast<double>(n) / x_ratio;
-        QuadDelay::Input input = MakeDelayInput(host, host - 2048.0, QuadFloat::Splat(0.0f), 0.0f);
-        delay->Process(input);
+        QuadDelay::Input input = MakeDelayInput(host, host - 2048.0, QuadFloat::Splat(0.5f), 0.0f);
+        rig.Process(input);
     }
 
-    DOCTEST_CHECK(delay->m_delayLine.m_lastTime - firstTime == doctest::Approx(4096.0));
+    // Writes land on the engine clock's completed host samples.
+    //
+    double lastTime = line.GetLatestSampleTime();
+    DOCTEST_CHECK(lastTime == doctest::Approx(4096.0));
+    DOCTEST_CHECK(line.GetOldestSampleTime() == 1.0);
+    DOCTEST_CHECK(line.m_delayLine[line.WrapIndex(0)][0] == 0.0f);
+    DOCTEST_CHECK(line.m_delayLine[line.WrapIndex(static_cast<int64_t>(lastTime))][0] != 0.0f);
+    DOCTEST_CHECK(line.m_delayLine[line.WrapIndex(static_cast<int64_t>(lastTime) + 1)][0] == 0.0f);
 }
 
 DOCTEST_TEST_CASE("Rate boundaries: delay tones keep their gain and shift by the requested octave")
@@ -310,6 +325,7 @@ DOCTEST_TEST_CASE("Rate boundaries: delay tones keep their gain and shift by the
         DOCTEST_CAPTURE(shifted);
         GlobalEnv::ResetPerTest();
         auto delay = std::make_unique<QuadDelay>();
+        DelayInverterRig rig(delay.get());
         const size_t numSamples = 32768 * x_ratio;
         const size_t windowSize = 4096 * x_ratio;
         std::vector<float> window;
@@ -321,7 +337,7 @@ DOCTEST_TEST_CASE("Rate boundaries: delay tones keep their gain and shift by the
             auto& resynthesis = input.m_grainManagerInput.m_resynthInput[0];
             resynthesis.m_shift[0] = Q(2, 1);
             resynthesis.m_fade[0] = shifted ? 1.0f : 0.0f;
-            float output = delay->Process(input)[0];
+            float output = rig.Process(input)[0];
             if (n + windowSize >= numSamples)
             {
                 window.push_back(output);
@@ -344,6 +360,7 @@ DOCTEST_TEST_CASE("Rate boundaries: the delay stays finite through maximum feedb
 {
     GlobalEnv::ResetPerTest();
     auto delay = std::make_unique<QuadDelay>();
+    DelayInverterRig rig(delay.get());
     RGen gen;
     QuadFloat output = QuadFloat::Splat(0.0f);
     float peak = 0.0f;
@@ -356,7 +373,7 @@ DOCTEST_TEST_CASE("Rate boundaries: the delay stays finite through maximum feedb
             : QuadFloat::Splat(0.0f);
         QuadDelay::Input input = MakeDelayInput(host, host - 4800.0, noise, 1.25f);
         input.m_return = output;
-        output = delay->Process(input);
+        output = rig.Process(input);
         for (size_t i = 0; i < 4; ++i)
         {
             DOCTEST_REQUIRE(std::isfinite(output[i]));
@@ -388,8 +405,9 @@ DOCTEST_TEST_CASE("Rate boundaries: delay tape heads count host samples")
     }
 
     DOCTEST_CHECK(delayInput.m_writeHeadPosition - start == doctest::Approx(4800.0));
-    DOCTEST_CHECK(setter.m_writeTapeHead.m_globalPeriodSamples == doctest::Approx(48000.0));
-    DOCTEST_CHECK(TapeHead::ComputeLoopSamples(clock.Get(), TheoryOfTimeBase::x_globalLoop, setter.m_writeTapeHead.m_globalPeriodSamples) == doctest::Approx(48000.0));
+    double globalPeriodSamples = ReadTapeHead::ToHostSamples(clock.Get()->m_writeTapeHead.m_globalPeriodSamples);
+    DOCTEST_CHECK(clock.Get()->m_writeTapeHead.m_globalPeriodSamples == doctest::Approx(48000.0 * x_ratio));
+    DOCTEST_CHECK(ReadTapeHead::ComputeLoopSamples(clock.Get(), TheoryOfTimeBase::x_globalLoop, globalPeriodSamples) == doctest::Approx(48000.0));
 }
 
 DOCTEST_TEST_CASE("Rate boundaries: the partial machine analyzes decimated mono input every host hop")

@@ -8,6 +8,7 @@
 #include "OLA.hpp"
 #include "Resynthesis.hpp"
 #include "SampleTimer.hpp"
+#include "TimeWarpInverter.hpp"
 #include <algorithm>
 #include <limits>
 #include <type_traits>
@@ -129,76 +130,38 @@ template <size_t MaxDelaySamples>
 using QuadDelayLine = DelayLineGeneric<float, 4, MaxDelaySamples>;
 
 // Delay line whose write head moves through warped time. All channels share one
-// write head, so the warped-to-real time map is scalar while audio and envelopes
-// are interleaved per channel.
+// write head, so the inverter's warped-to-real time map is scalar while audio and
+// envelopes are interleaved per channel.
 //
-template <typename Number, size_t Size, size_t MaxDelaySamples>
+// Audio is stored once per host sample. The inverter is owned elsewhere and
+// written every engine sample, Oversample per host sample, in engine-sample
+// warped and real time. It must record each engine sample before the delay
+// line is written or read during that sample.
+//
+template <typename Number, size_t Size, size_t MaxDelaySamples, size_t Oversample>
 struct DelayLineMovableWriterGeneric
 {
     using Vector = MultiChannelNumber<Number, Size>;
+    using Inverter = TimeWarpInverter<MaxDelaySamples * Oversample>;
     static constexpr size_t x_maxDelaySamples = MaxDelaySamples;
-    static constexpr size_t x_envelopeBucketSamples = 1024;
-    static constexpr size_t x_envelopeBucketCount = x_maxDelaySamples / x_envelopeBucketSamples;
+    static constexpr size_t x_oversample = Oversample;
 
     Vector m_delayLine[x_maxDelaySamples];
-    double m_writeHeadInverse[x_maxDelaySamples];
-    Vector m_maxEnvelope[x_envelopeBucketCount];
-    Vector m_minEnvelope[x_envelopeBucketCount];
-
-    static constexpr size_t x_scatterBufferSize = 8;
-    size_t m_scatterHead;
-    double m_scatterBufferWarpedTime[x_scatterBufferSize] = {0.0};
-    double m_scatterBufferTime[x_scatterBufferSize] = {0.0};
-
-    static constexpr double x_turnaroundFadeSamples = SampleTimer::SecondsToHostSamples(0.005);
-    double m_turnaroundWarpedTime;
-    bool m_descending;
-    double m_lastWarpedTime;
-    size_t m_ascendingCount;
-
-    double m_lastTime;
+    Inverter* m_inverter;
+    double m_firstSampleTime;
+    double m_latestSampleTime;
 
     DelayLineMovableWriterGeneric()
-        : m_scatterHead(x_scatterBufferSize)
-        , m_turnaroundWarpedTime(0.0)
-        , m_descending(false)
-        , m_lastWarpedTime(0.0)
-        , m_ascendingCount(0)
-        , m_lastTime(17700716)
+        : m_inverter(nullptr)
+        , m_firstSampleTime(std::numeric_limits<double>::infinity())
+        , m_latestSampleTime(-std::numeric_limits<double>::infinity())
     {
         for (size_t i = 0; i < x_maxDelaySamples; ++i)
         {
             m_delayLine[i] = Vector::Splat(0);
-            m_writeHeadInverse[i] = i;
         }
 
-        for (size_t i = 0; i < x_envelopeBucketCount; ++i)
-        {
-            m_maxEnvelope[i] = Vector::Splat(0);
-            m_minEnvelope[i] = Vector::Splat(0);
-        }
-    }
 
-    float GetFade(double time)
-    {
-        return std::min(1.0, (time - m_turnaroundWarpedTime) / x_turnaroundFadeSamples);
-    }
-
-    void ScatterBufferToDelayLine()
-    {
-        double timeLowSamples = m_scatterBufferWarpedTime[(m_scatterHead - 1) % x_scatterBufferSize];
-        double timeHighSamples = m_scatterBufferWarpedTime[m_scatterHead % x_scatterBufferSize];
-        double realTimeLow = m_scatterBufferTime[(m_scatterHead - 1) % x_scatterBufferSize];
-        double realTimeHigh = m_scatterBufferTime[m_scatterHead % x_scatterBufferSize];
-
-        int64_t timeLowIndex = static_cast<int64_t>(std::ceil(timeLowSamples));
-        int64_t timeHighIndex = static_cast<int64_t>(std::ceil(timeHighSamples));
-
-        for (int64_t i = timeLowIndex; i < timeHighIndex; ++i)
-        {
-            double alpha = (static_cast<double>(i) - timeLowSamples) / (timeHighSamples - timeLowSamples);
-            m_writeHeadInverse[WrapIndex(i)] = realTimeLow + alpha * (realTimeHigh - realTimeLow);
-        }
     }
 
     static size_t WrapIndex(int64_t index)
@@ -206,61 +169,39 @@ struct DelayLineMovableWriterGeneric
         return static_cast<size_t>(PhaseUtils::FloorMod(index, static_cast<int64_t>(x_maxDelaySamples)));
     }
 
-    void Write(const Vector& x, double time)
+    // The engine clock numbers samples from one. Host sample k is completed at
+    // engine sample k * Oversample.
+    //
+    template <typename Time>
+    static Time ToHostTime(const Time& engineTime)
     {
-        if (time < m_lastWarpedTime)
-        {
-            m_descending = true;
-            m_ascendingCount = 0;
-        }
-        else if (m_descending)
-        {
-            // Include the turnaround sample in the first forward interval.
-            // Descending intervals still leave inverse history untouched.
-            //
-            m_scatterBufferWarpedTime[m_scatterHead % x_scatterBufferSize] = m_lastWarpedTime;
-            m_scatterBufferTime[m_scatterHead % x_scatterBufferSize] = m_lastTime - 1.0;
-            ++m_scatterHead;
-            m_ascendingCount = 1;
-            m_turnaroundWarpedTime = time;
-            m_descending = false;
-        }
+        return engineTime / static_cast<double>(Oversample);
+    }
 
-        m_lastWarpedTime = time;
-        if (!m_descending)
-        {
-            ++m_ascendingCount;
-            m_scatterBufferWarpedTime[m_scatterHead % x_scatterBufferSize] = time;
-            m_scatterBufferTime[m_scatterHead % x_scatterBufferSize] = m_lastTime;
-            if (2 <= m_ascendingCount)
-            {
-                ScatterBufferToDelayLine();
-            }
+    // Bounds of audio actually written, independent of inverse-map updates.
+    //
+    double GetLatestSampleTime() const
+    {
+        return m_latestSampleTime;
+    }
 
-            ++m_scatterHead;
-        }
+    double GetOldestSampleTime() const
+    {
+        return std::max(m_firstSampleTime, m_latestSampleTime - static_cast<double>(x_maxDelaySamples - 1));
+    }
 
-        size_t index = WrapIndex(static_cast<int64_t>(m_lastTime));
+    void Write(const Vector& x, size_t hostSample)
+    {
+        assert(!std::isfinite(m_latestSampleTime) || static_cast<double>(hostSample) == m_latestSampleTime + 1.0);
+        m_firstSampleTime = std::min(m_firstSampleTime, static_cast<double>(hostSample));
+        m_latestSampleTime = static_cast<double>(hostSample);
+        size_t index = WrapIndex(static_cast<int64_t>(hostSample));
         m_delayLine[index] = x;
-
-        size_t envelopeBucketIndex = index / x_envelopeBucketSamples;
-        if (index % x_envelopeBucketSamples == 0)
-        {
-            m_maxEnvelope[envelopeBucketIndex] = x;
-            m_minEnvelope[envelopeBucketIndex] = x;
-        }
-        else
-        {
-            m_maxEnvelope[envelopeBucketIndex] = Vector::Max(m_maxEnvelope[envelopeBucketIndex], x);
-            m_minEnvelope[envelopeBucketIndex] = Vector::Min(m_minEnvelope[envelopeBucketIndex], x);
-        }
 
         if (index == 0)
         {
             INFO("Delay buffer wrap around");            
         }
-
-        m_lastTime += 1.0;
     }
 
     Vector ReadAtIndex(double index)
@@ -285,54 +226,28 @@ struct DelayLineMovableWriterGeneric
 
     Vector Read(double warpedTime)
     {
-        return ReadAtIndex(GetRealTime(warpedTime));
+        double realTime = GetRealTime(warpedTime);
+        return std::isfinite(realTime) ? ReadAtIndex(realTime) : Vector::Splat(0);
     }
 
     Vector ReadWithOffset(double warpedTime, double offset)
     {
-        return ReadAtIndex(GetRealTime(warpedTime) + offset);
+        double realTime = GetRealTime(warpedTime) + offset;
+        return std::isfinite(realTime) ? ReadAtIndex(realTime) : Vector::Splat(0);
     }
 
+    // Warped and real times here are in host samples.
+    //
     double GetRealTime(double warpedTime)
     {
-        double floorTime = std::floor(warpedTime);
-        size_t i0 = WrapIndex(static_cast<int64_t>(floorTime));
-        size_t i1 = (i0 + 1) % x_maxDelaySamples;
-        double alpha = warpedTime - floorTime;
-        return m_writeHeadInverse[i0] + alpha * (m_writeHeadInverse[i1] - m_writeHeadInverse[i0]);
+        assert(m_inverter);
+        return ToHostTime(m_inverter->GetRealTime(warpedTime * static_cast<double>(Oversample)));
     }
 
-    // Each channel mapped from its own warped time.
-    //
     MultiChannelNumber<double, Size> GetRealTime(const MultiChannelNumber<double, Size>& warpedTime)
     {
-        MultiChannelNumber<double, Size> result;
-        for (size_t i = 0; i < Size; ++i)
-        {
-            result[i] = GetRealTime(warpedTime[i]);
-        }
-
-        return result;
-    }
-
-    std::pair<Vector, Vector> GetEnvelopeAtRealTime(double realTime)
-    {
-        double envelopeIndexFloat = realTime / static_cast<double>(x_envelopeBucketSamples) - 0.5;
-
-        int64_t bucketIndex = static_cast<int64_t>(std::floor(envelopeIndexFloat));
-        size_t index0 = static_cast<size_t>(PhaseUtils::FloorMod(bucketIndex, static_cast<int64_t>(x_envelopeBucketCount)));
-        size_t index1 = (index0 + 1) % x_envelopeBucketCount;
-        Number frac = static_cast<Number>(envelopeIndexFloat - std::floor(envelopeIndexFloat));
-
-        Vector maxVal = m_maxEnvelope[index0] * (1 - frac) + m_maxEnvelope[index1] * frac;
-        Vector minVal = m_minEnvelope[index0] * (1 - frac) + m_minEnvelope[index1] * frac;
-
-        return {maxVal, minVal};
-    }
-
-    std::pair<Vector, Vector> GetEnvelopeAtWarpedTime(double warpedTime)
-    {
-        return GetEnvelopeAtRealTime(GetRealTime(warpedTime));
+        assert(m_inverter);
+        return ToHostTime(m_inverter->GetRealTime(warpedTime * static_cast<double>(Oversample)));
     }
 
     Vector ReadRealTime(double realTime)
@@ -355,10 +270,10 @@ struct DelayLineMovableWriterGeneric
 };
 
 template <size_t MaxDelaySamples>
-using DelayLineMovableWriter = DelayLineMovableWriterGeneric<float, 1, MaxDelaySamples>;
+using DelayLineMovableWriter = DelayLineMovableWriterGeneric<float, 1, MaxDelaySamples, SampleTimer::x_oversample>;
 
 template <size_t MaxDelaySamples>
-using QuadDelayLineMovableWriter = DelayLineMovableWriterGeneric<float, 4, MaxDelaySamples>;
+using QuadDelayLineMovableWriter = DelayLineMovableWriterGeneric<float, 4, MaxDelaySamples, SampleTimer::x_oversample>;
 
 // Launches resynthesized grains from an audio buffer on a shared schedule. Each
 // grain covers all Size channels, which start and end together but read from
@@ -406,11 +321,46 @@ struct GrainManagerGeneric
     //
     void StartGrain(typename Resynth::Input* input, const TimeVector& startTime)
     {
+        TimeVector readableTime = startTime;
+        bool anyAvailable = false;
+        for (size_t channel = 0; channel < Size; ++channel)
+        {
+            if (std::isfinite(startTime[channel]))
+            {
+                anyAvailable = true;
+            }
+            else
+            {
+                readableTime[channel] = 0.0;
+                m_resynthesizer.ClearChannel(channel);
+            }
+        }
+
+        if (!anyAvailable)
+        {
+            return;
+        }
+
         for (size_t k = 0; k < Resynth::x_tableSize; ++k)
         {
             float window = Math4096::Hann(k);
-            m_analysisTable.m_table[k] = m_audioBuffer->ReadRealTime(startTime + k) * window;
-            m_prevTable.m_table[k] = m_audioBuffer->ReadRealTime(startTime + k - Resynth::x_H) * window;
+            m_analysisTable.m_table[k] = m_audioBuffer->ReadRealTime(readableTime + k) * window;
+            m_prevTable.m_table[k] = m_audioBuffer->ReadRealTime(readableTime + k - Resynth::x_H) * window;
+        }
+
+        // Missing lanes contribute no new grain; previously scheduled OLA tails
+        // continue normally. Never pass unavailable timestamps to audio indexing.
+        //
+        for (size_t channel = 0; channel < Size; ++channel)
+        {
+            if (!std::isfinite(startTime[channel]))
+            {
+                for (size_t k = 0; k < Resynth::x_tableSize; ++k)
+                {
+                    m_analysisTable.m_table[k][channel] = 0;
+                    m_prevTable.m_table[k][channel] = 0;
+                }
+            }
         }
 
         m_resynthesizer.Process(m_prevTable, m_analysisTable, m_synthesisFrame, input);
@@ -425,6 +375,12 @@ struct GrainManagerGeneric
     }
 
     Vector Process(const TimeVector& warpedTime, const Vector& sampleOffset, Input& input, double latestSampleTime)
+    {
+        return Process(warpedTime, sampleOffset, input, -std::numeric_limits<double>::infinity(), latestSampleTime);
+    }
+
+    Vector Process(const TimeVector& warpedTime, const Vector& sampleOffset, Input& input,
+        double oldestSampleTime, double latestSampleTime)
     {
         if (!m_audioBuffer)
         {
@@ -447,9 +403,19 @@ struct GrainManagerGeneric
             // Cubic audio interpolation reads two samples beyond its floor index.
             //
             double latestStart = latestSampleTime - (Resynth::x_N - 1) - 2;
-            TimeVector startTime = TimeVector::Min(
-                m_audioBuffer->GetRealTime(warpedTime) + sampleOffset.template Convert<double>(),
-                TimeVector::Splat(latestStart));
+            double earliestStart = oldestSampleTime + Resynth::x_H + 1;
+            TimeVector startTime = m_audioBuffer->GetRealTime(warpedTime) + sampleOffset.template Convert<double>();
+            for (size_t channel = 0; channel < Size; ++channel)
+            {
+                if (std::isfinite(startTime[channel]))
+                {
+                    startTime[channel] = std::min(startTime[channel], latestStart);
+                    if (startTime[channel] < earliestStart)
+                    {
+                        startTime[channel] = std::numeric_limits<double>::quiet_NaN();
+                    }
+                }
+            }
 
             StartGrain(input.m_resynthInput, startTime);
             m_samplesToNextGrain = Resynth::GetSynthesisHopSamples();

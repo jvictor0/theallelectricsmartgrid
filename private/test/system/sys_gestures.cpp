@@ -174,15 +174,20 @@ struct HiddenDetuneFixture
 
     // The host-rate modulator decimator needs several host frames to follow a
     // step. Whole host frames keep per-object sub-sample counters aligned.
+    // This isolated encoder probe restores the engine timestamp before the
+    // full system resumes, so it does not skip recorded audio time.
     //
     void ProcessInjectedModulatorValues()
     {
+        const size_t savedSample = SampleTimer::GetSample();
         const size_t samples = 16 * SampleTimer::x_oversample;
         for (size_t i = 0; i < samples; ++i)
         {
             SampleTimer::IncrementSample();
             m_rig.Internal().m_squiggleBoy.m_encoders.Process();
         }
+
+        SampleTimer::s_instance->m_sample = savedSample;
     }
 
     void AddGestureToSpreadDepth(int gesture)

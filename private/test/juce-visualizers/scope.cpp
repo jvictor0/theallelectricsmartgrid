@@ -333,39 +333,42 @@ DOCTEST_TEST_CASE("Scope: reduced point counts preserve the time axis and end ma
     }
 }
 
-DOCTEST_TEST_CASE("Delay waveform: full resolution retains peaks in individual source bins")
+DOCTEST_TEST_CASE("Delay waveform: the shared magnitude scope draws a decibel envelope")
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState.m_delayUIState;
-    for (size_t offset = 0; offset < 4; ++offset)
+    TimeWarpInverter<8192> inverse;
+    state.m_scopeWriter.SetTimeWarp(0, &inverse);
+    for (size_t sample = 0; sample <= 2304; ++sample)
     {
-        DOCTEST_CAPTURE(offset);
-        auto& snapshot = state.BeginSnapshot();
-        snapshot = QuadDelay::UISnapshot();
-        for (auto& lane : snapshot.m_delayEnvelopeState)
+        inverse.Write(static_cast<double>(sample), static_cast<double>(sample));
+        if (sample % 1024 == 0)
         {
-            for (size_t firstBin : {0, 256, 1020})
+            for (size_t channel = 0; channel < 4; ++channel)
             {
-                lane.m_maxEnvelope[firstBin + offset] = 1;
-                lane.m_minEnvelope[firstBin + offset] = -1;
+                state.m_scopeWriter.RecordStart(0, channel);
             }
         }
 
-        state.CommitSnapshot();
-        QuadDelayEnvelopeVisualizerComponent visualizer(ui.get());
-        juce::Image image(juce::Image::ARGB, 1024, 400, true);
-        juce::Graphics g(image);
-        visualizer.Draw(g, image.getBounds());
-        for (int lane = 0; lane < 4; ++lane)
-        {
-            for (int firstBin : {0, 256, 1020})
-            {
-                int x = firstBin + static_cast<int>(offset);
-                DOCTEST_CHECK(image.getPixelAt(x, lane * 100 + 5).getRed() > 100);
-                DOCTEST_CHECK(image.getPixelAt(x, lane * 100 + 95).getRed() > 100);
-            }
+        const float levels[] = {1.0f, 0.1f, 0.01f, 0.0f};
+        state.m_scopeWriter.Write(0, QuadFloat::Splat(levels[(sample % 1024) / 256]));
+        state.m_scopeWriter.AdvanceIndex();
+    }
 
-            DOCTEST_CHECK(image.getPixelAt(32, lane * 100 + 5) == juce::Colours::black);
-        }
+    state.m_scopeWriter.Publish();
+    state.m_scopeWriter.AcceptSamples();
+    QuadDelayEnvelopeVisualizerComponent visualizer(ui.get());
+    juce::Image image(juce::Image::ARGB, 1024, 400, true);
+    juce::Graphics graphics(image);
+    visualizer.Draw(graphics, image.getBounds());
+    for (int channel = 0; channel < 4; ++channel)
+    {
+        int top = channel * 100;
+        DOCTEST_CHECK(image.getPixelAt(128, top + 5).getRed() > 100);
+        DOCTEST_CHECK(image.getPixelAt(384, top + 20) == juce::Colours::black);
+        DOCTEST_CHECK(image.getPixelAt(384, top + 50).getRed() > 100);
+        DOCTEST_CHECK(image.getPixelAt(640, top + 50) == juce::Colours::black);
+        DOCTEST_CHECK(image.getPixelAt(640, top + 85).getRed() > 100);
+        DOCTEST_CHECK(image.getPixelAt(896, top + 95) == juce::Colours::black);
     }
 }

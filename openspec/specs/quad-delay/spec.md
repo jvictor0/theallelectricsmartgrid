@@ -6,7 +6,7 @@ The Quad Delay (`QuadDelay` and `QuadDelayInputSetter` in `private/src/QuadDelay
 ## Requirements
 
 ### Requirement: Time-Warped Delay Line with Movable Write Head
-The system SHALL saturate each engine-rate input sample, decimate it through an order-8 Butterworth `DownsamplerGeneric`, and write the decimated sample once per host frame into a `QuadDelayLineMovableWriter` of 2^24 host samples per channel at one shared warped-time write head position in host samples, and SHALL maintain one shared inverse buffer (`m_writeHeadInverse`) that maps integer warped-time coordinates back to the wall-clock sample time at which they occurred. Audio is stored indexed by wall-clock time; reads first convert a warped-time position to wall-clock time through the inverse buffer (`GetRealTime`) and then read the audio buffer at that wall-clock index with cubic interpolation.
+The system SHALL saturate each engine-rate input sample, decimate it through an order-8 Butterworth `DownsamplerGeneric`, and write the decimated sample once per host frame into a `QuadDelayLineMovableWriter` of 2^24 host samples per channel, at the absolute host sample completed by the engine clock. It SHALL maintain one shared inverse buffer (`TimeWarpInverter::m_writeHeadInverse`). The inverse buffer SHALL be owned by the Theory of Time, wired to the delay at startup, written every engine sample from the shared write head, and map integer warped-time coordinates in engine samples back to the absolute `SampleTimer` engine sample at which they occurred. The caller SHALL supply each real timestamp; the inverter SHALL NOT maintain an independently advancing clock. The delay converts real timestamps by division by `x_oversample`, and tracks its actual recorded-audio bounds independently of inverse writes. Audio is stored indexed by wall-clock time; reads first convert a warped-time position to wall-clock time through the inverse buffer (`GetRealTime`) and then read the audio buffer at that wall-clock index with cubic interpolation.
 
 #### Scenario: One write per host frame
 - **WHEN** the delay processes `4096 * x_oversample` engine samples
@@ -21,7 +21,7 @@ The system SHALL saturate each engine-rate input sample, decimate it through an 
 - **THEN** audio continues to be recorded at the wall-clock index, but the inverse buffer is not updated until warped time ascends again, and the turnaround warped time is recorded when ascent resumes
 
 ### Requirement: Write Head Continuity via Glue Offset
-The shared write head SHALL be computed by one `WriteTapeHead` as `unwound master phase * masterLoopSamples + glue`, in host samples, where `masterLoopSamples` is the Theory of Time global period divided by `x_oversample` and the additive glue offset preserves continuity of the absolute write position across transport state and tempo-scale changes. While the transport is stopped the write head advances by `1 / x_oversample` host samples per engine sample and the glue is re-derived each sample; when the running state or the master loop length changes, the glue is re-anchored so the write head does not jump.
+The shared write head SHALL be computed every engine sample by one `WriteTapeHead`, owned by the Theory of Time, as `unwound master phase * engineLoopSamples + glue`, in engine samples, where `engineLoopSamples` is the Theory of Time global period and the additive glue offset preserves continuity of the absolute write position across transport state and tempo-scale changes. Read heads and the delay input SHALL use this position divided by `x_oversample`, in host samples, with `masterLoopSamples = engineLoopSamples / x_oversample`. While the transport is stopped the write head advances by one engine sample per engine sample and the glue is re-derived each sample; when the running state or the master loop length changes, the glue is re-anchored so the write head does not jump.
 
 #### Scenario: Transport stop freezes warped time but not recording
 - **WHEN** the Theory of Time stops running
@@ -150,26 +150,40 @@ The system SHALL remix the four delayed channels with a linear rotation (`QuadFl
 - **THEN** each output channel is a linear blend of the two adjacent input channels weighted by the fractional angle
 
 ### Requirement: Delay UI State Observability
-The system SHALL publish a `QuadDelay::UIState` containing per-channel damping filter alphas and a double-buffered `UISnapshot` of four `DelayEnvelopeState` entries; each entry holds the channel's relative read and write head positions (phasor units in [0, 1), or -1 before first computation; the write position is shared) and 1024-point min/max amplitude envelopes sampled by mapping recorded display-phase positions through the positional buffer recorder, the inverse buffer (`GetRealTime`), and the writer's 1024-sample envelope buckets. The waveform recorder and both head markers SHALL share a display phase offset that preserves their coordinate origin when playback resynchronizes to musical phase on transport start.
+The system SHALL publish per-channel damping filter alphas and head positions, and expose a common scope of the magnitude of each actual completed delay-line write. Forward full display cycles SHALL record scope starts; backward travel SHALL undo scope boundaries using the generic scope history. The UI SHALL draw this envelope through the shared inverse in warped coordinates, converting filtered magnitude to dB. Separate min/max envelope buckets and the positional waveform recorder SHALL be removed. Signed delay-return scopes used for spectra SHALL retain their existing signal.
 
 #### Scenario: Head positions track the tape heads
-- **WHEN** `PopulateUIState` runs while the delay is processing
-- **THEN** `m_relativeWriteHeadPosition` equals the write tape head's local phase plus the shared display offset, reduced to its fractional part
-- **AND** each channel's `m_relativeReadHeadPosition` uses its read phase plus the same display offset, reduced to its fractional part
+- **WHEN** the delay publishes its head positions
+- **THEN** the markers and waveform use the same display-cycle coordinates
 
 #### Scenario: Stopped recording remains visible across the whole display
 - **WHEN** audio is recorded while transport is stopped
-- **THEN** the waveform recorder advances with the delay's free-running phase, filling the display over a global loop period instead of repeatedly replacing one column
-- **AND** the write and read markers move in the same coordinates as that waveform
+- **THEN** the free-running continuous write head records full display-cycle starts and the envelope remains readable on that axis
 
 #### Scenario: Restart preserves the recorded waveform
 - **WHEN** transport restarts after the delay has been free-running
-- **THEN** the display offset absorbs the playback phase reset without moving the write marker or remapping the recorded waveform
-- **AND** read markers reflect the audio heads' resynchronization to musical phase
+- **THEN** the existing display offset and continuous coordinate preserve the recorded waveform and write marker
+- **AND** the read markers retain the existing resynchronization behavior
 
 #### Scenario: Envelope reflects recorded audio
-- **WHEN** audio with a distinct amplitude profile has been written into a channel's delay line over the last loop
-- **THEN** that channel's `m_maxEnvelope`/`m_minEnvelope` arrays trace the per-bucket extrema of the recorded audio at the warped-time positions held in the positional buffer
+- **WHEN** audio with a distinct amplitude profile is written into the delay
+- **THEN** its magnitude is recorded in the common scope and filtered by the existing LOD pipeline before dB display conversion
+
+### Requirement: Unavailable Inverse History
+Unwritten inverse entries SHALL be unavailable. An exact integer lookup SHALL depend only on that entry; fractional lookup SHALL require both interpolation endpoints. Grain launch SHALL preserve unavailable status before applying the latest-complete-window clamp. A channel with unavailable inverse history or insufficient retained audio for its previous/current analysis windows and cubic interpolation support SHALL contribute no new grain. Other channels and already scheduled overlap-add tails SHALL continue. Recorded sample-bank playback SHALL retain its unbounded-history behavior.
+
+#### Scenario: Cold start does not substitute recent audio for missing delay history
+- **WHEN** a one-second delay is requested before that history has been recorded
+- **THEN** an unmapped read position contributes silence rather than selecting the latest complete audio window
+- **AND** playback resumes once the mapping and required audio support become available
+
+#### Scenario: Inverse recording advances before a host write
+- **WHEN** the engine records another inverse observation between completed host samples
+- **THEN** the delay's recorded-audio frontier remains at its last actual host write
+
+#### Scenario: One channel loses its history
+- **WHEN** one quad channel has an unavailable mapping at a grain boundary
+- **THEN** its new grain is silent, the other channels continue, and its previously scheduled overlap-add tail is preserved
 
 ### Requirement: Interpolated Output Phase Modulation
 Quad Delay SHALL add H engine samples of nominal output latency and read the summed overlap-add output at `clock - H + pm` per channel on every engine sample. The PM offset SHALL range linearly from `-H + 2` to `H - 2` engine samples and SHALL use four-point Catmull-Rom cubic interpolation. The two-sample epsilon SHALL keep the interpolation support inside retained, finalized samples. Cleanup SHALL advance with the clock, retaining samples for the entire PM range independent of the modulated read positions.
