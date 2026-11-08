@@ -128,6 +128,11 @@ struct EncoderBankBank
         }
 
         cell->SetState();
+        cell->m_postGestureValue = cell->m_defaultValue;
+        cell->m_output = QuadFloat::Splat(cell->m_defaultValue);
+        cell->m_outputPrev = cell->m_output;
+        cell->m_minValue = cell->m_output;
+        cell->m_maxValue = cell->m_output;
         cell->m_connected = true;
         cell->m_color = color;
         cell->m_name = name;

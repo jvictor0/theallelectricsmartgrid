@@ -111,8 +111,8 @@ struct ExpParamGeneric
     using Vector = MultiChannelNumber<Number, Size>;
     Vector m_baseParam;
     Vector m_expParam;
-    Number m_max;
-    Number m_log2Base;
+    Vector m_max;
+    Vector m_log2Base;
     Number m_factor;
 
     ExpParamGeneric()
@@ -123,8 +123,17 @@ struct ExpParamGeneric
     explicit ExpParamGeneric(Number base)
         : m_baseParam(Vector::Splat(0))
         , m_expParam(Vector::Splat(1))
+        , m_max(Vector::Splat(base))
+        , m_log2Base(Vector::Splat(std::log2(base)))
+        , m_factor(1)
+    {
+    }
+
+    explicit ExpParamGeneric(const Vector& base)
+        : m_baseParam(Vector::Splat(0))
+        , m_expParam(Vector::Splat(1))
         , m_max(base)
-        , m_log2Base(std::log2(base))
+        , m_log2Base(base.Log2())
         , m_factor(1)
     {
     }
@@ -132,8 +141,8 @@ struct ExpParamGeneric
     explicit ExpParamGeneric(Number min, Number max)
         : m_baseParam(Vector::Splat(0))
         , m_expParam(Vector::Splat(min))
-        , m_max(max)
-        , m_log2Base(std::log2(max / min))
+        , m_max(Vector::Splat(max))
+        , m_log2Base(Vector::Splat(std::log2(max / min)))
         , m_factor(min)
     {
     }
@@ -142,6 +151,11 @@ struct ExpParamGeneric
     // fast vector Exp2 (a few float ulps from std::pow).
     //
     static Vector Evaluate(Number factor, Number log2Base, const Vector& value)
+    {
+        return Evaluate(factor, Vector::Splat(log2Base), value);
+    }
+
+    static Vector Evaluate(Number factor, const Vector& log2Base, const Vector& value)
     {
         return (value * log2Base).Exp2() * factor;
     }
@@ -172,11 +186,11 @@ struct ExpParamGeneric
 
     Vector Update(Number min, Number max, const Vector& value)
     {
-        if (m_baseParam != value || m_max != max || m_factor != min)
+        if (m_baseParam != value || m_max != Vector::Splat(max) || m_factor != min)
         {
             m_factor = min;
-            m_max = max;
-            m_log2Base = std::log2(max / min);
+            m_max = Vector::Splat(max);
+            m_log2Base = Vector::Splat(std::log2(max / min));
             m_expParam = Evaluate(m_factor, m_log2Base, value);
             m_baseParam = value;
         }

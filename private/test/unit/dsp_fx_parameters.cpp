@@ -132,7 +132,7 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
         dampingWidth[lane] = PhaseUtils::ExpParam(1.0, 2048.0);
         rotateFilter[lane].SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
         feedback[lane].SetBaseByCenter(0.25);
-        unisonDetune[lane] = PhaseUtils::ExpParam(1.03);
+        unisonDetune[lane] = PhaseUtils::ExpParam(std::exp2((40.0f + 5.0f * lane) / 1200.0f));
         unisonGain[lane] = PhaseUtils::ZeroedExpParam(20);
         slewUp[lane] = PhaseUtils::ExpParam(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5);
     }
@@ -146,7 +146,6 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
         input.m_resynthUnisonKnob = QuadKnob(sample, 0.35f) * 0.2f;
         input.m_resynthSlewUpKnob = QuadKnob(sample, 0.4f);
         input.m_resynthShiftFadeKnob = QuadKnob(sample, 0.45f);
-        input.m_widenKnob = QuadKnob(sample, 0.5f);
         for (size_t lane = 0; lane < 4; ++lane)
         {
             input.m_rotateSwitchVal[lane] = static_cast<int>((lane + sample / 64) % 4);
@@ -166,7 +165,7 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
             const Resynthesizer::Input& resynth = output.m_grainManagerInput.m_resynthInput[lane];
             float unisonKnob = input.m_resynthUnisonKnob[lane];
             DOCTEST_CHECK(resynth.m_unisonDetune == doctest::Approx(unisonDetune[lane].Update(unisonKnob)).epsilon(x_tolerance));
-            DOCTEST_CHECK(resynth.m_unisonGain == doctest::Approx(unisonGain[lane].Update(std::min<float>(1.0, 10 * unisonKnob))).epsilon(x_tolerance));
+            DOCTEST_CHECK(resynth.m_unisonGain == doctest::Approx(unisonGain[lane].Update(std::min<float>(1.0, 3 * unisonKnob))).epsilon(x_tolerance));
             float slewUpKnob = input.m_resynthSlewUpKnob[lane];
             float expectedSlewUp = slewUpKnob < 0.05f
                 ? Resynthesizer::x_immediateSlewUp
@@ -177,6 +176,88 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
 
         clock.m_unmodulatedPhase += 1.0 / 64.0;
         timeBase.Process(clock);
+    }
+}
+
+DOCTEST_TEST_CASE("QuadDelayInputSetter: equal unison knobs produce channel-specific symmetric spreads")
+{
+    GlobalEnv::ResetPerTest();
+    TheoryOfTime time;
+    TheoryOfTimeBase::Input clock = FlatClock(0.0);
+    static_cast<TheoryOfTimeBase&>(time).Process(clock);
+    time.m_globalPeriodSamples = 64.0;
+    QuadDelayInputSetter setter;
+    QuadDelayInputSetter::Input input;
+    QuadDelay::Input output;
+    input.m_theoryOfTime = &time;
+
+    DOCTEST_CHECK(Resynthesizer::GetUnisonBase()[0] == 1.03f);
+    auto trioBase = ResynthesizerGeneric<float, 3>::GetUnisonBase();
+    for (size_t channel = 0; channel < 3; ++channel)
+    {
+        DOCTEST_CHECK(trioBase[channel] == 1.03f);
+    }
+
+    const double x_maxCents[] = {40.0, 45.0, 50.0, 55.0};
+    for (float knob : {0.0f, 0.1f, 1.0f / 6.0f, 1.0f / 3.0f, 0.5f, 1.0f, 0.5f, 0.0f})
+    {
+        input.m_resynthUnisonKnob = QuadFloat::Splat(knob);
+        setter.Process(input, output, nullptr);
+        for (size_t channel = 0; channel < 4; ++channel)
+        {
+            DOCTEST_CAPTURE(knob);
+            DOCTEST_CAPTURE(channel);
+            auto& resynth = output.m_grainManagerInput.m_resynthInput[channel];
+            double upperCents = 1200.0 * std::log2(resynth.GetUnisonDetune(1));
+            double lowerCents = 1200.0 * std::log2(resynth.GetUnisonDetune(2));
+            DOCTEST_CHECK(resynth.GetUnisonDetune(0) == 1.0f);
+            DOCTEST_CHECK(std::abs(upperCents - x_maxCents[channel] * knob) < 0.001);
+            DOCTEST_CHECK(std::abs(lowerCents + x_maxCents[channel] * knob) < 0.001);
+            float centerGain = resynth.GetUnisonGainForOscillator(0);
+            float sideGain = resynth.GetUnisonGainForOscillator(1);
+            DOCTEST_CHECK(resynth.GetUnisonGainForOscillator(2) == sideGain);
+            if (knob == 0.0f)
+            {
+                DOCTEST_CHECK(centerGain == 1.0f);
+                DOCTEST_CHECK(sideGain == 0.0f);
+            }
+            else if (knob < 1.0f / 3.0f)
+            {
+                DOCTEST_CHECK(sideGain > 0.0f);
+                DOCTEST_CHECK(sideGain < centerGain);
+            }
+            else
+            {
+                DOCTEST_CHECK(centerGain == doctest::Approx(1.0f / std::sqrt(3.0f)).epsilon(x_tolerance));
+                DOCTEST_CHECK(sideGain == doctest::Approx(centerGain).epsilon(x_tolerance));
+            }
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("ExpParamGeneric: vector bases and subsequent scalar range updates match powers")
+{
+    using Param = PhaseUtils::ExpParamGeneric<float, 4>;
+    QuadFloat bases(2.0f, 3.0f, 4.0f, 8.0f);
+    QuadFloat values(0.25f, 0.5f, 0.75f, 1.0f);
+    Param param(bases);
+    for (size_t pass = 0; pass < 2; ++pass)
+    {
+        QuadFloat actual = param.Update(values);
+        for (size_t channel = 0; channel < 4; ++channel)
+        {
+            DOCTEST_CHECK(actual[channel] == doctest::Approx(std::pow(bases[channel], values[channel])).epsilon(1e-6));
+        }
+    }
+
+    for (float minimum : {1.0f, 0.5f})
+    {
+        QuadFloat actual = param.Update(minimum, 8.0f, values);
+        for (size_t channel = 0; channel < 4; ++channel)
+        {
+            double expected = minimum * std::pow(8.0 / minimum, values[channel]);
+            DOCTEST_CHECK(actual[channel] == doctest::Approx(expected).epsilon(1e-6));
+        }
     }
 }
 

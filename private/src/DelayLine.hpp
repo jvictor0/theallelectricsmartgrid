@@ -369,13 +369,13 @@ using QuadDelayLineMovableWriter = DelayLineMovableWriterGeneric<float, 4, MaxDe
 // Analysis reads host-rate windows every analysis hop; synthesized frames
 // overlap-add at the engine rate, launching every synthesis hop.
 //
-template <typename AudioBufferType, size_t Size>
+template <typename AudioBufferType, size_t Size, size_t OLALatency = 0>
 struct GrainManagerGeneric
 {
     using Vector = MultiChannelNumber<float, Size>;
     using TimeVector = MultiChannelNumber<double, Size>;
     using Resynth = ResynthesizerGeneric<float, Size>;
-    using SynthesisOLA = OLAGeneric<float, Size, Resynth::x_synthesisBits>;
+    using SynthesisOLA = OLAGeneric<float, Size, Resynth::x_synthesisBits, OLALatency>;
 
     // Hann before analysis and after synthesis: four quarter-window shifts of
     // Hann squared sum to 1.5.
@@ -393,6 +393,7 @@ struct GrainManagerGeneric
     struct Input
     {
         typename Resynth::Input m_resynthInput[Size];
+        Vector m_phaseModulation;
     };
 
     void ClearChannel(size_t channel)
@@ -430,7 +431,16 @@ struct GrainManagerGeneric
             return Vector::Splat(0);
         }
 
-        Vector result = m_ola.Process() / x_overlapGain;
+        Vector result;
+        if constexpr (OLALatency > 0)
+        {
+            result = m_ola.Process(input.m_phaseModulation) / x_overlapGain;
+        }
+        else
+        {
+            result = m_ola.Process() / x_overlapGain;
+        }
+
         if (m_samplesToNextGrain <= 1)
         {
             // Protect the full analysis window after mapping to real time.
@@ -469,4 +479,4 @@ template <typename AudioBufferType>
 using GrainManager = GrainManagerGeneric<AudioBufferType, 1>;
 
 template <typename AudioBufferType>
-using QuadGrainManager = GrainManagerGeneric<AudioBufferType, 4>;
+using QuadGrainManager = GrainManagerGeneric<AudioBufferType, 4, Resynthesizer::GetSynthesisHopSamples()>;

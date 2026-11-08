@@ -183,10 +183,6 @@ struct QuadDelayInputSetter
     QuadExpParam m_dampingBase;
     QuadExpParam m_dampingWidth;
 
-    // Each channel widens over its own range, so the wideners stay per channel.
-    //
-    PhaseUtils::ExpParam m_wideners[4];
-
     QuadZeroedExpParam m_feedback;
 
     // Double state: 1 Hz one-poles at the engine rate stall short of their
@@ -208,7 +204,6 @@ struct QuadDelayInputSetter
         int m_delayTimeFactorSwitchVal[4];
         int m_readHeadSpeedSwitchVal[4];
         int m_loopSelectorSwitchVal[4];
-        QuadFloat m_widenKnob;
         int m_rotateSwitchVal[4];
         QuadFloat m_feedbackKnob;
         QuadFloat m_dampingBaseKnob;
@@ -218,17 +213,18 @@ struct QuadDelayInputSetter
         QuadFloat m_resynthUnisonKnob;
         int m_resynthShiftSwitchVal[4];
         QuadFloat m_resynthSlewUpKnob;
+        QuadFloat m_phaseModulationKnob;
         
         TheoryOfTime* m_theoryOfTime;
 
         Input()
-            : m_widenKnob()
-            , m_feedbackKnob()
+            : m_feedbackKnob()
             , m_dampingBaseKnob()
             , m_dampingWidthKnob()
             , m_resynthShiftFadeKnob()
             , m_resynthUnisonKnob()
             , m_resynthSlewUpKnob()
+            , m_phaseModulationKnob()
             , m_theoryOfTime(nullptr)
         {
             for (int i = 0; i < 4; ++i)
@@ -245,14 +241,7 @@ struct QuadDelayInputSetter
     QuadDelayInputSetter()
       : m_dampingBase(SampleTimer::HzToCycPerSamp(DampingFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(DampingFilter::x_maxBaseHz))
       , m_dampingWidth(1.0, 2048.0)
-      , m_wideners
-      {
-        PhaseUtils::ExpParam(1.0, 0.978615137775),
-        PhaseUtils::ExpParam(1.0, 1.0),
-        PhaseUtils::ExpParam(1.0, 0.986803398875),
-        PhaseUtils::ExpParam(1.0, 0.989701964951)
-      }
-      , m_unisonDetune(1.03)
+      , m_unisonDetune(ResynthesizerGeneric<float, 4>::GetUnisonBase())
       , m_unisonGain(20)
       , m_slewUp(0.25 / Resynthesizer::GetGrainLaunchSamples(), 0.5)
     {
@@ -302,15 +291,15 @@ struct QuadDelayInputSetter
         delayInput.m_feedback = m_feedback.Update(input.m_feedbackKnob) * 1.25f;
         delayInput.m_bffBase = m_dampingBase.Update(input.m_dampingBaseKnob);
         delayInput.m_bffWidth = m_dampingWidth.Update(input.m_dampingWidthKnob);
+        delayInput.m_grainManagerInput.m_phaseModulation = input.m_phaseModulationKnob *
+            QuadGrainManager<QuadDelay::Writer>::SynthesisOLA::x_maxPhaseModulation;
 
         QuadFloat unisonDetune = m_unisonDetune.Update(input.m_resynthUnisonKnob);
-        QuadFloat unisonGain = m_unisonGain.Update(QuadFloat::Min(QuadFloat::Splat(1.0f), input.m_resynthUnisonKnob * 10.0f));
+        QuadFloat unisonGain = m_unisonGain.Update(QuadFloat::Min(QuadFloat::Splat(1.0f), input.m_resynthUnisonKnob * 3.0f));
         QuadFloat slewUp = m_slewUp.Update(QuadFloat::Splat(1.0f) - input.m_resynthSlewUpKnob);
 
         for (int i = 0; i < 4; ++i)
         {
-            float widen = m_wideners[i].Update(input.m_widenKnob[i]);
-
             int totLoopSelector =
                 TheoryOfTimeBase::x_numLoops - input.m_loopSelectorSwitchVal[i] - 1;
 
@@ -342,7 +331,7 @@ struct QuadDelayInputSetter
 
             ReadTapeHead::Input readInput;
             readInput.m_theoryOfTime = input.m_theoryOfTime;
-            readInput.m_bufferFraction = m_bufferFrac[i] * widen;
+            readInput.m_bufferFraction = m_bufferFrac[i];
             readInput.m_readHeadSpeed = possibleReadHeadSpeeds[input.m_readHeadSpeedSwitchVal[i]];
             readInput.m_requestedLoopSelector = totLoopSelector;
             m_readTapeHead[i].Update(readInput);

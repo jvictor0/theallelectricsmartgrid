@@ -167,10 +167,13 @@ DOCTEST_TEST_CASE("Rate boundaries: reverb keeps its physical delay times, modul
     QuadReverb::Input input;
 
     DOCTEST_CHECK(setter.m_delayTime.m_factor == doctest::Approx(60.0 * x_ratio));
-    DOCTEST_CHECK(setter.m_delayTime.m_max == doctest::Approx(61440.0 * x_ratio));
     DOCTEST_CHECK(input.m_delayTimeSamples[0] == doctest::Approx(64.0 * x_ratio));
     DOCTEST_CHECK(SampleTimer::CycPerSampToHz(setter.m_dampingBase.m_factor) == doctest::Approx(23.4375).epsilon(1e-6));
-    DOCTEST_CHECK(SampleTimer::CycPerSampToHz(setter.m_dampingBase.m_max) == doctest::Approx(24000.0).epsilon(1e-6));
+    for (size_t channel = 0; channel < 4; ++channel)
+    {
+        DOCTEST_CHECK(setter.m_delayTime.m_max[channel] == doctest::Approx(61440.0 * x_ratio));
+        DOCTEST_CHECK(SampleTimer::CycPerSampToHz(setter.m_dampingBase.m_max[channel]) == doctest::Approx(24000.0).epsilon(1e-6));
+    }
 
     double ringSeconds = static_cast<double>(QuadReverb::x_delayLineSize) * SampleTimer::x_samplePeriod;
     double longestSeconds = (QuadReverb::x_maxDelayHostSamples + QuadReverb::x_modulationHostSamples) * SampleTimer::x_hostSamplePeriod;

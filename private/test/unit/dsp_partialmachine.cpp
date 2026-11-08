@@ -636,7 +636,7 @@ DOCTEST_TEST_CASE("PartialMachine: espace etale parameter slice stays finite und
     {
         for (size_t i = 0; i < PartialMachine::SpectralModel::x_tableSize; ++i)
         {
-            if (!std::isfinite(pm.m_ola.m_buffer.m_table[i][ch]))
+            if (!std::isfinite(pm.m_ola.m_buffer[i][ch]))
             {
                 ++badOlaSamples;
             }

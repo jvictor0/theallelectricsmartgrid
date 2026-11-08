@@ -180,7 +180,6 @@ struct Delay
                 m_knobs.m_resynthSlewUpKnob[c] = 0.15f;
                 m_knobs.m_resynthShiftFadeKnob[c] = Mode >= 2 ? 0.45f + 0.1f * move : 0;
                 m_knobs.m_resynthUnisonKnob[c] = Mode >= 2 ? 0.15f + 0.06f * move : 0;
-                m_knobs.m_widenKnob[c] = 0.4f + 0.1f * move;
             }
 
             m_knobs.m_theoryOfTime = m_clock.Get(n);

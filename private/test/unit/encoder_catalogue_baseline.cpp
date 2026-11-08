@@ -155,7 +155,7 @@ DOCTEST_TEST_CASE("encoder catalogue baseline: construction metadata")
             DOCTEST_REQUIRE(cell != nullptr);
             DOCTEST_CHECK(std::string(cell->m_name) == ExpectedName(expected, trio));
             DOCTEST_CHECK(std::string(cell->m_shortName) == expected.m_shortName);
-            DOCTEST_CHECK(cell->m_defaultValue == doctest::Approx(expected.m_default));
+            DOCTEST_CHECK(cell->m_defaultValue == doctest::Approx(cell->ToNormalized(expected.m_default)));
             DOCTEST_CHECK(cell->m_switchValues == expected.m_switchValues);
             DOCTEST_CHECK(cell->m_bipolar == expected.m_bipolar);
             DOCTEST_CHECK(cell->m_color == expected.m_color);

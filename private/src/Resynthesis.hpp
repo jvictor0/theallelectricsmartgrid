@@ -136,6 +136,19 @@ struct ResynthesizerGeneric
     static constexpr size_t x_N = x_tableSize;
     static constexpr size_t x_H = x_N / x_hopDenom;
 
+    static Vector GetUnisonBase()
+    {
+        if constexpr (Size == 4)
+        {
+            Vector cents(40, 45, 50, 55);
+            return (cents / static_cast<Number>(1200)).Exp2();
+        }
+        else
+        {
+            return Vector::Splat(static_cast<Number>(1.03));
+        }
+    }
+
     // Analysis runs on host-rate buffers. Synthesis interpolates the same
     // spectrum to the engine rate, so a frame covers the analysis window's
     // duration in engine samples.

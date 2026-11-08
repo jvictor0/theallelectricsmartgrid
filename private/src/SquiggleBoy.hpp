@@ -1150,9 +1150,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         delayInputSetterInput.m_dampingBaseKnob = m_encoders.GetValue<4>(Param::DelayDampBase, 0);
         delayInputSetterInput.m_dampingWidthKnob = m_encoders.GetValue<4>(Param::DelayDampWidth, 0);
         delayInputSetterInput.m_resynthSlewUpKnob = m_encoders.GetValue<4>(Param::ResynthSlewUp, 0);
-        delayInputSetterInput.m_widenKnob = m_encoders.GetValue<4>(Param::DelayWiden, 0);
         delayInputSetterInput.m_resynthUnisonKnob = m_encoders.GetValue<4>(Param::ResynthUnison, 0);
         delayInputSetterInput.m_resynthShiftFadeKnob = m_encoders.GetValue<4>(Param::ResynthShiftFade, 0);
+        delayInputSetterInput.m_phaseModulationKnob = m_encoders.GetValue<4>(Param::DelayPhaseModulation, 0);
 
         delayInputSetterInput.m_theoryOfTime = m_theoryOfTime;
         m_delayInputSetter.Process(delayInputSetterInput, m_delayState, &m_delay);

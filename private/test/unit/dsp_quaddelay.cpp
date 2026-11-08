@@ -245,7 +245,8 @@ DOCTEST_TEST_CASE("QuadDelay: steady tones retain gain and shift by the requeste
         auto delay = std::make_unique<QuadDelay>();
         DiscreteFourierTransform4096::Table buffer;
         double energy = 0;
-        for (int sample = 0; sample < 32768; ++sample)
+        constexpr int x_pmLatency = static_cast<int>(Resynthesizer::GetSynthesisHopSamples());
+        for (int sample = 0; sample < 32768 + x_pmLatency; ++sample)
         {
             float tone = 0.01f * std::cos(2.0 * M_PI * 18.0 * sample / 4096.0);
             const double readPos = HostPosition(sample - 8192);
@@ -259,9 +260,9 @@ DOCTEST_TEST_CASE("QuadDelay: steady tones retain gain and shift by the requeste
             resynthesis.m_shift[0] = Q(2, 1);
             resynthesis.m_fade[0] = shifted ? 1.0f : 0.0f;
             float output = delay->Process(input)[0];
-            if (sample >= 28672)
+            if (sample >= 28672 + x_pmLatency)
             {
-                buffer.m_table[sample - 28672] = output;
+                buffer.m_table[sample - 28672 - x_pmLatency] = output;
                 energy += output * output;
             }
         }

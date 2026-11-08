@@ -30,7 +30,7 @@ The delay runs at the engine rate (`SampleTimer::x_oversample` engine samples pe
 ```
 engine input + return * feedback -> tanh saturation -> order-8 Butterworth decimator
     -> delay line write once per host frame -> 4096-sample analysis / PVDR
-    -> (4096 * x_oversample)-point IFFT -> engine-rate overlap-add, rotation, damping
+    -> (4096 * x_oversample)-point IFFT -> engine-rate overlap-add, PM read, rotation, damping
 ```
 
 The decimator follows the saturator so its harmonics are filtered too. The delay line, inverse buffer, tape-head positions, analysis window and hop are all in host samples, so delay capacity and grain timing keep their physical durations. Each grain's spectrum stays on the 4096-point host-rate grid and is interpolated by a larger inverse transform into an engine-rate frame of the same 85.333 ms duration (see [Phase Vocoder](phase-vocoder.md)); there is no separate output upsampler. Rotation and damping run every engine sample. At `x_oversample = 1` the decimator is a passthrough. The delay has no internal LFO or LFO frequency, depth, or phase controls.
@@ -56,7 +56,7 @@ The final head equations are:
   - `writeHead = globalModulatedPhase * globalPeriodSamples + glue`, where `globalPeriodSamples` is the Theory of Time period converted to host samples
   - stored in the shared scalar `delayInput.m_writeHeadPosition`
 - **Read head**
-  - `effectiveDelaySamples = (globalPeriodSamples / cycleRatio(selectedLoop)) * (bufferFrac * widen)`
+  - `effectiveDelaySamples = (globalPeriodSamples / cycleRatio(selectedLoop)) * bufferFrac`
   - `readTarget = writeHead + delayPhase * globalPeriodSamples * (readHeadSpeed - 1) - effectiveDelaySamples`
   - `readHead = wrap_mod(writeHead - resynthesisHopSamples - selectedLoopSamples, writeHead - resynthesisHopSamples, readTarget)`
   - stored in `delayInput.m_readHeadPosition[i]`
@@ -65,7 +65,7 @@ The projection is calculated once in phase units, then converted to absolute sam
 
 The waveform recorder and both displayed heads use that same delay phase plus a shared display offset. On transport restart, the offset absorbs the reset to musical phase, preserving the waveform's horizontal coordinates. Read markers still reflect any playback repositioning caused by resynchronizing to music. While stopped, the waveform continues sweeping and recording across the display instead of overwriting one frozen column.
 
-Both heads use absolute warped-sample coordinates. The read head is projected into the selected-loop-length region behind the write head, offset by the resynthesis hop size, with delay shaped by quantized ratio and widener. This warped-coordinate window selects musical delay time; it cannot by itself ensure a complete real-time analysis window.
+Both heads use absolute warped-sample coordinates. The read head is projected into the selected-loop-length region behind the write head, offset by the resynthesis hop size, with delay shaped by the quantized ratio. This warped-coordinate window selects musical delay time; it cannot by itself ensure a complete real-time analysis window. The former Widen control and its channel-dependent delay scaling have been removed; old `DelayWiden` patch fields are ignored.
 
 At grain launch, the delay maps each selected read head into real audio time, then limits the start to the latest complete analysis window. The generic grain manager accepts optional sample offsets, but Quad Delay passes zero:
 
@@ -88,6 +88,38 @@ To preserve the original pitch while allowing the time-warping to stretch and co
   2. One exactly `H` (hop size) absolute samples before that position.
 - By comparing the phases of these two analysis frames, the resynthesizer can accurately update the synthesis phases, preserving the pitch of the original signal regardless of the playback speed. This roughly follows the "Phase Vocoder Done Right" methodology.
 
+## Output Phase Modulation
+
+The **PHAS** knob occupies the delay page's bottom-left cell `(0, 3)`. It is a
+continuous bipolar control, centered at zero, with independent modulation per
+quad channel. Its mapping is linear; modulation depth uses the existing
+exponential depth controls.
+
+The shared encoder path smooths manual scene values with a one-pole filter
+whose time constant is 20 ms, then interpolates host-frame values across the
+engine samples. Live modulation stays outside that manual-control filter.
+The delay adds no further smoothing to this value. This control smoothing is
+separate from the cubic interpolation of audio samples.
+
+Let `H = 1024 * x_oversample` engine samples. Synthesis frames remain 4H long
+and launch every H samples. Quad Delay accumulates them in a 6H ring, retaining
+2H of past output. Every engine sample, each channel reads at
+`clock - H + PM`, where `PM = knob * (H - 2)`. Positive PM advances the read
+position and negative PM moves it farther into the retained history. Four-point
+Catmull-Rom cubic interpolation handles fractional positions. The two-engine-
+sample margin keeps all interpolation taps within retained, completed output.
+
+At neutral PM, this adds exactly H samples (21.333 ms) to the delay's previous
+output timing. At either endpoint the added delay is 2 or `2H - 2` engine
+samples. Cleanup follows the fixed clock, so moving the PM head backward can
+revisit intact samples. Clearing a channel clears both its history and queued
+output. Sample playback and Partial Machine keep their existing OLA timing.
+
+PM acts on the reconstructed waveform before rotation and damping, including
+the output returned to feedback. It modulates the timing of transients and
+envelopes as well as oscillator phase. Cubic interpolation and engine
+oversampling do not guarantee alias-free output under fast, deep modulation.
+
 ## Quad Delay Features
 
 The Quad Delay supports a rich set of features:
@@ -95,7 +127,7 @@ The Quad Delay supports a rich set of features:
 - **Feedback > 1**: Allows for self-oscillating, runaway feedback loops.
 - **Per-Partial Fade In (Slew Up)**: The resynthesizer can slew the amplitudes of individual partials, creating a smooth, blooming fade-in effect for the delayed signal.
 - **LP and HP Damping**: Low-pass and high-pass filters in the feedback path (`PostFeedbackFilter`) to dampen the echoes.
-- **Unison and Pitch Shifting**: The phase vocoder allows for independent pitch shifting of the delayed signal.
+- **Unison and Pitch Shifting**: The phase vocoder allows for independent pitch shifting of the delayed signal. Unison adds copies above and below each channel's pitch, reaching ±40, ±45, ±50, and ±55 cents on channels 1–4 at full knob travel. Spread scales linearly in cents with the knob; side-copy gain reaches full level at one third of the knob's travel.
 - **Ping Pong**: 90-degree or 180-degree quadraphonic ping-pong routing.
 - **Return Sends**: The output of the delay can be routed directly into the Quad Reverb or the Partial Machine.
 
