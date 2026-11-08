@@ -107,7 +107,7 @@ struct SmartGridOneEncoders
 
     using ModulatorSkin = SmartGridOneModulators::Skin;
 
-    static_assert(SmartGrid::BankedEncoderCell::x_numModulators == SmartGridOneModulators::x_skins[0].size(),
+    static_assert(SmartGrid::BankedEncoderCell::x_numModulators == SmartGridOneModulators::x_numSlots,
         "Modulator skin table must cover the persisted positions");
 
     static ModulatorSkin GetModulatorSkin(size_t index, BankMode mode)
@@ -513,6 +513,12 @@ struct SmartGridOneEncoders
             const auto& instance = Layout::x_tables.m_slotInstances[bankIx];
             size_t route = Layout::x_tables.m_slots[static_cast<size_t>(instance.m_slot)].m_routes[0];
             BindPage(instance.m_slot, instance.m_trio, route);
+        }
+
+        for (size_t source = 0; source < SmartGridOneModulators::x_numSources; ++source)
+        {
+            GetModulatorManager().GetSource(source).m_requiresDownsampling =
+                SmartGridOneModulators::x_sources[source].m_requiresDownsampling;
         }
 
         for (size_t group = 0; group < SmartGridOneModulators::x_numGroups; ++group)

@@ -45,6 +45,11 @@ void Load(synthrig::SynthRig& rig, const char* path)
         {
             random.m_draws = GangedRandomLFODrawSource(seed++);
         }
+
+        for (auto& random : track.m_source.m_dualWaveShapingVCO.m_morphRandom)
+        {
+            random.m_draws = GangedRandomLFODrawSource(seed++);
+        }
     }
 
     for (auto& random : synth.m_quadGangedRandomLFO)

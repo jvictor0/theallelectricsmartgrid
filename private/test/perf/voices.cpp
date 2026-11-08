@@ -136,10 +136,12 @@ struct Dual
     typename Core::Input m_input[3 / Size];
     Dual()
     {
+        uint32_t seed = 1000;
         for (auto& core : m_core)
         {
             for (size_t j = 0; j < 2; ++j)
             {
+                core.m_morphRandom[j].m_draws = GangedRandomLFODrawSource(seed++);
                 for (size_t c = 0; c < Size; ++c)
                 {
                     core.m_vco[j].SetLeft(c, m_left.get());
@@ -165,7 +167,6 @@ struct Dual
                     {
                         Lane(p.m_v[j], c, 0.35f + 0.15f * ch + 0.1f * move + 0.05f * j);
                         Lane(p.m_d[j], c, 0.25f + 0.2f * ch + 0.08f * move + 0.05f * j);
-                        Lane(p.m_wtBlend[j], c, 0.25f + 0.1f * ch + 0.15f * move);
                         Lane(p.m_morphHarmonics[j], c, 0.4f + 0.1f * j + 0.1f * move);
                         Lane(p.m_crossModIndex[j], c, 0.08f + 0.03f * ch);
                     }

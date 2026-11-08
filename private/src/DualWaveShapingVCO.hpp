@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BitCrush.hpp"
+#include "GangedRandomLFO.hpp"
 #include "Math.hpp"
 #include "MultiChannelNumber.hpp"
 #include "PhaseUtils.hpp"
@@ -20,6 +21,8 @@ struct DualWaveShapingVCOGeneric
     using VCO = VectorPhaseShaperGeneric<Size>;
 
     VCO m_vco[2];
+    GangedRandomLFO<Size> m_morphRandom[2];
+    GangedRandomLFOInput m_morphRandomInput = GangedRandomLFOInput::Standard(6.0, 0.1f);
     BitRateReducerGeneric<Size> m_bitRateReducer;
     Vector m_output;
 
@@ -37,7 +40,6 @@ struct DualWaveShapingVCOGeneric
     {
         Vector m_v[2];
         Vector m_d[2];
-        Vector m_wtBlend[2];
         Vector m_morphHarmonics[2];
         Vector m_crossModIndex[2];
         Vector m_baseFreq;
@@ -49,7 +51,6 @@ struct DualWaveShapingVCOGeneric
         Input()
             : m_v{Vector::Splat(0.5), Vector::Splat(0.5)}
             , m_d{Vector::Splat(0.5), Vector::Splat(0.5)}
-            , m_wtBlend{Vector::Splat(0), Vector::Splat(0)}
             , m_morphHarmonics{Vector::Splat(0), Vector::Splat(0)}
             , m_crossModIndex{Vector::Splat(0), Vector::Splat(0)}
             , m_baseFreq(Vector::Splat(0))
@@ -83,7 +84,7 @@ struct DualWaveShapingVCOGeneric
         {
             vcoInput[j].m_v = input.m_v[j];
             vcoInput[j].m_d = input.m_d[j];
-            vcoInput[j].m_wtBlend = input.m_wtBlend[j];
+            vcoInput[j].m_wtBlend = m_morphRandom[j].Process(m_morphRandomInput);
         }
 
         vcoInput[0].m_freq = input.m_baseFreq * input.m_detune;
@@ -129,17 +130,13 @@ struct DualWaveShapingVCOGeneric
         SmartGridOneEncoders& encoders,
         Input& input,
         size_t track,
-        const Vector& baseFreq,
-        const Vector& wtBlend0,
-        const Vector& wtBlend1)
+        const Vector& baseFreq)
     {
         using Param = SmartGridOneEncoders::Param;
 
         input.m_baseFreq = baseFreq;
         input.m_morphHarmonics[0] = encoders.GetValue<Size>(Param::Harmonics1, track);
         input.m_morphHarmonics[1] = encoders.GetValue<Size>(Param::Harmonics2, track);
-        input.m_wtBlend[0] = wtBlend0;
-        input.m_wtBlend[1] = wtBlend1;
 
         input.m_v[0] = encoders.GetValue<Size>(Param::VPSV1, track);
         input.m_v[1] = encoders.GetValue<Size>(Param::VPSV2, track);

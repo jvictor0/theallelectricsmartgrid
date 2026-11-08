@@ -19,7 +19,13 @@ enum class VoiceModulator : size_t
     Sheaf2 = 9,
     Sheaf3 = 10,
     Spread = 11,
-    Noise = 14
+    Noise = 14,
+    Random5 = 15,
+    Random6 = 16,
+    Random7 = 17,
+    Random8 = 18,
+    Random9 = 19,
+    Random10 = 20
 };
 
 enum class QuadModulator : size_t
@@ -31,7 +37,11 @@ enum class QuadModulator : size_t
     LFO1 = 6,
     LFO2 = 7,
     Spread = 11,
-    Noise = 14
+    Noise = 14,
+    Random5 = 15,
+    Random6 = 16,
+    Random7 = 17,
+    Random8 = 18
 };
 
 enum class GlobalModulator : size_t
@@ -97,10 +107,39 @@ constexpr Mode GetMode(GlobalModulator)
     return Mode::Global;
 }
 
+static constexpr size_t x_numSourceIndices = static_cast<size_t>(VoiceModulator::Random10) + 1;
+static constexpr size_t x_numVoiceRandoms = 10;
+static constexpr size_t x_numQuadRandoms = 8;
+static constexpr size_t x_noRandom = static_cast<size_t>(-1);
+
+constexpr VoiceModulator GetVoiceRandom(size_t index)
+{
+    assert(index < x_numVoiceRandoms);
+    return static_cast<VoiceModulator>(index < 4 ? index : index + 11);
+}
+
+constexpr QuadModulator GetQuadRandom(size_t index)
+{
+    assert(index < x_numQuadRandoms);
+    return static_cast<QuadModulator>(index < 4 ? index : index + 11);
+}
+
+inline size_t GetRandomIndex(ModulatorRef source)
+{
+    if (source.m_mode == Mode::Global)
+    {
+        return source.m_index >= 2 && source.m_index <= 3 ? source.m_index - 2 : x_noRandom;
+    }
+
+    size_t count = source.m_mode == Mode::Voice ? x_numVoiceRandoms : x_numQuadRandoms;
+    return source.m_index < 4 ? source.m_index
+        : source.m_index >= 15 && source.m_index < count + 11 ? source.m_index - 11 : x_noRandom;
+}
+
 constexpr auto BuildSkins()
 {
-    std::array<std::array<Skin, 15>, 3> skins{};
-    bool occupied[3][15]{};
+    std::array<std::array<Skin, x_numSourceIndices>, 3> skins{};
+    bool occupied[3][x_numSourceIndices]{};
     auto add = [&](Mode mode, size_t index, SmartGrid::Color color, SmartGridOne::ModulationGlyphs glyph, const char* shortName)
     {
         size_t row = static_cast<size_t>(mode);
@@ -127,7 +166,7 @@ inline constexpr auto x_skins = BuildSkins();
 //
 enum class Source : size_t
 {
-#define F(name, mode, type, value) name,
+#define F(name, mode, type, value, downsample) name,
 #include "ForEachSmartGridOneModulatorSource.hpp"
 #undef F
     NumSources
@@ -135,7 +174,7 @@ enum class Source : size_t
 
 enum class Group : size_t
 {
-#define F(name) name,
+#define F(name, lanes) name,
 #include "ForEachSmartGridOneModulatorGroup.hpp"
 #undef F
     NumGroups
@@ -144,6 +183,13 @@ enum class Group : size_t
 static constexpr size_t x_numSources = static_cast<size_t>(Source::NumSources);
 static constexpr size_t x_numGroups = static_cast<size_t>(Group::NumGroups);
 static constexpr size_t x_numSlots = 15;
+inline constexpr std::array<size_t, x_numGroups> x_groupLanes =
+{{
+#define F(name, lanes) lanes,
+#include "ForEachSmartGridOneModulatorGroup.hpp"
+#undef F
+}};
+
 using BankMode = SmartGridOne::EncoderBankMode;
 
 struct SourceDefinition
@@ -151,20 +197,21 @@ struct SourceDefinition
     BankMode m_mode;
     size_t m_index;
     Skin m_skin;
+    bool m_requiresDownsampling;
 };
 
 inline constexpr std::array<SourceDefinition, x_numSources> x_sources =
 {{
-#define F(name, mode, type, value) \
+#define F(name, mode, type, value, downsample) \
     {BankMode::mode, static_cast<size_t>(type::value), \
-        x_skins[static_cast<size_t>(GetMode(type::value))][static_cast<size_t>(type::value)]},
+        x_skins[static_cast<size_t>(GetMode(type::value))][static_cast<size_t>(type::value)], downsample},
 #include "ForEachSmartGridOneModulatorSource.hpp"
 #undef F
 }};
 
 constexpr auto BuildSourceIds()
 {
-    std::array<std::array<Source, x_numSlots>, static_cast<size_t>(BankMode::NumModes)> ids{};
+    std::array<std::array<Source, x_numSourceIndices>, static_cast<size_t>(BankMode::NumModes)> ids{};
     for (auto& mode : ids)
     {
         for (auto& source : mode)

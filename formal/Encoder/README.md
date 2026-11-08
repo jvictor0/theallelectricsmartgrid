@@ -487,9 +487,10 @@ apply; native sibling and randomized tree regressions cover this integration.
 
 The global modulator manager refactor retains the encoder model's 15 local source
 slots. `Control.Inputs` is the assigned group's host-frame snapshot, not the
-global source catalogue. Manager-owned filters advance before the host gate;
-gathering copies values and unfiltered amplitudes into each group before its
-unchanged change detection. Filter dynamics, the static source/group tables and
+global source catalogue. Declared manager-owned filters advance before the host
+gate; other sources are sampled directly on host frames. Gathering copies values
+and unfiltered amplitudes into each group before its unchanged change detection.
+Filter dynamics, the static source/group tables and
 binding construction remain native integration boundaries. Child cells inherit
 the parent's fixed group pointer, and prepared roots cache that same pointer.
 The reviewed changes leave mixing, synchronization swaps, gesture arithmetic,
@@ -498,3 +499,9 @@ All pinned shared C++ bodies remain literally identical. Native tests cover
 shared filtering, separate groups within a bank mode, child binding through
 patch load, and group-aware UI identity; this review adds no formal verification
 claim for those integration boundaries.
+
+`CreateEncoder` now initializes current and previous output to the normalized
+default, matching `StateMachine.after_init`. Scene values, targets, and the
+initial forced update still match `initialFrom`. Pre-publication cache reads
+and UI min/max initialization remain native integration boundaries; the
+delay-phase tests cover the bipolar default before processing.

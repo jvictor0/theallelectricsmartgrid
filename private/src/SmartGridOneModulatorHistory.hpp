@@ -124,15 +124,16 @@ bool ReadModulatorValue(const UIState& uiState, ModulatorRef modulator, double s
             size_t voicesPerTrack = std::size(state.m_gangedRandomLFOUIState[0][0].m_voices);
             size_t track = modulator.m_voice / voicesPerTrack;
             size_t voice = modulator.m_voice % voicesPerTrack;
+            size_t random = SmartGridOneModulators::GetRandomIndex(modulator);
+            if (random != SmartGridOneModulators::x_noRandom)
+            {
+                return state.m_gangedRandomLFOUIState[random][track]
+                    .m_history.ReadValue(voice, sample, value);
+            }
+
             using Scope = SmartGridOne::VoiceScopes;
             switch (static_cast<VoiceModulator>(modulator.m_index))
             {
-                case VoiceModulator::Random1:
-                case VoiceModulator::Random2:
-                case VoiceModulator::Random3:
-                case VoiceModulator::Random4:
-                    return state.m_gangedRandomLFOUIState[modulator.m_index][track]
-                        .m_history.ReadValue(voice, sample, value);
                 case VoiceModulator::ModulationEnvelope:
                     return state.m_voiceScopeWriter.ReadHistory(
                         SmartGridOne::VoiceScopeIndex(static_cast<size_t>(Scope::ModulationEnvelope), track), voice, scopeIndex, lod, value);
@@ -166,6 +167,8 @@ bool ReadModulatorValue(const UIState& uiState, ModulatorRef modulator, double s
                 case VoiceModulator::Noise:
                     value = Noise(modulator, sample);
                     return true;
+                default:
+                    break;
             }
 
             break;
@@ -177,15 +180,16 @@ bool ReadModulatorValue(const UIState& uiState, ModulatorRef modulator, double s
                 return false;
             }
 
+            size_t random = SmartGridOneModulators::GetRandomIndex(modulator);
+            if (random != SmartGridOneModulators::x_noRandom)
+            {
+                return state.m_quadGangedRandomLFOUIState[random]
+                    .m_history.ReadValue(modulator.m_voice, sample, value);
+            }
+
             using Scope = SmartGridOne::QuadScopes;
             switch (static_cast<QuadModulator>(modulator.m_index))
             {
-                case QuadModulator::Random1:
-                case QuadModulator::Random2:
-                case QuadModulator::Random3:
-                case QuadModulator::Random4:
-                    return state.m_quadGangedRandomLFOUIState[modulator.m_index]
-                        .m_history.ReadValue(modulator.m_voice, sample, value);
                 case QuadModulator::LFO1:
                     return state.m_quadScopeWriter.ReadHistory(
                         static_cast<size_t>(Scope::QuadLFO1), modulator.m_voice, scopeIndex, lod, value);
@@ -198,6 +202,8 @@ bool ReadModulatorValue(const UIState& uiState, ModulatorRef modulator, double s
                 case QuadModulator::Noise:
                     value = Noise(modulator, sample);
                     return true;
+                default:
+                    break;
             }
 
             break;
@@ -219,6 +225,8 @@ bool ReadModulatorValue(const UIState& uiState, ModulatorRef modulator, double s
                 case GlobalModulator::Noise:
                     value = Noise(modulator, sample);
                     return true;
+                default:
+                    break;
             }
 
             break;
@@ -294,19 +302,25 @@ bool GetRandomRound(const UIState& uiState, ModulatorRef modulator, double known
 {
     const auto& state = uiState.m_squiggleBoyUIState;
     using Mode = SmartGridOneLayout::ParamMode;
+    size_t random = SmartGridOneModulators::GetRandomIndex(modulator);
+    if (random == SmartGridOneModulators::x_noRandom)
+    {
+        return false;
+    }
+
     switch (modulator.m_mode)
     {
         case Mode::Voice:
-            return modulator.m_index < 4 && modulator.m_voice < 9
-                && state.m_gangedRandomLFOUIState[modulator.m_index][modulator.m_voice / 3]
+            return modulator.m_voice < 9
+                && state.m_gangedRandomLFOUIState[random][modulator.m_voice / 3]
                     .m_history.GetRound(modulator.m_voice % 3, knownThrough, sample, value, start, end);
         case Mode::Quad:
-            return modulator.m_index < 4 && modulator.m_voice < 4
-                && state.m_quadGangedRandomLFOUIState[modulator.m_index]
+            return modulator.m_voice < 4
+                && state.m_quadGangedRandomLFOUIState[random]
                     .m_history.GetRound(modulator.m_voice, knownThrough, sample, value, start, end);
         case Mode::Global:
-            return modulator.m_index >= 2 && modulator.m_index <= 3 && modulator.m_voice == 0
-                && state.m_globalGangedRandomLFOUIState[modulator.m_index - 2]
+            return modulator.m_voice == 0
+                && state.m_globalGangedRandomLFOUIState[random]
                     .m_history.GetRound(0, knownThrough, sample, value, start, end);
     }
 

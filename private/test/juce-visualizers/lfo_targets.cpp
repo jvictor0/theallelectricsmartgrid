@@ -15,7 +15,21 @@ void Publish(ModulationMatrixUIState& matrix, Param param, size_t trio,
     BitSet16 bits;
     for (auto modulator : modulators)
     {
-        bits.Set(static_cast<int>(modulator), true);
+        size_t source = ModulationMatrixUIState::GetModulatorId(
+            ModulationMatrixUIState::GetMode(ModulationMatrixUIState::GetParamId(param, trio)),
+            static_cast<size_t>(modulator));
+        const auto& slots = SmartGridOneModulators::x_groups[static_cast<size_t>(SmartGridOneModulators::GetGroup(param, trio))];
+        bool found = false;
+        for (size_t slot = 0; slot < slots.size(); ++slot)
+        {
+            if (static_cast<size_t>(slots[slot]) == source)
+            {
+                bits.Set(static_cast<int>(slot), true);
+                found = true;
+            }
+        }
+
+        DOCTEST_CHECK(found);
     }
 
     matrix.SetModulatorsAffecting(ModulationMatrixUIState::GetParamId(param, trio),
@@ -77,7 +91,7 @@ DOCTEST_TEST_CASE("LFO targets: voice tracks and quad sources remain independent
     Publish(matrix, Param::DelayTime, 0, {QuadModulator::LFO1});
     Publish(matrix, Param::DelayReadSpeed, 0, {QuadModulator::LFO2});
     Publish(matrix, Param::ReverbTime, 0, {QuadModulator::LFO2});
-    Publish(matrix, Param::PartialMachineAttack, 0, {QuadModulator::Random1});
+    Publish(matrix, Param::PartialMachineAttack, 0, {QuadModulator::Random5});
     Publish(matrix, Param::MasterVolume, 0, {GlobalModulator::Random1});
 
     CheckTargets(Targets::Find(matrix, Targets::Page::Voice, 0), {Visualizer::VCO1Scope});

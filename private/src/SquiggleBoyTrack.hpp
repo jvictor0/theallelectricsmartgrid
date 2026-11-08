@@ -94,7 +94,7 @@ struct SquiggleBoyTrackGeneric
     using SquiggleLFO = SquiggleLFOGeneric<Size>;
 
     static constexpr size_t x_recordingBufferWriterSize = RecordingManager::x_numVoices;
-    static constexpr size_t x_numGangedRandomLFOs = 4;
+    static constexpr size_t x_numGangedRandomLFOs = SmartGridOneModulators::x_numVoiceRandoms;
 
     struct AmpSection
     {
@@ -489,9 +489,7 @@ struct SquiggleBoyTrackGeneric
             encoders,
             input.m_sourceInput,
             track,
-            baseFreq,
-            m_gangedRandomLFO[2].GetOutput(),
-            m_gangedRandomLFO[3].GetOutput());
+            baseFreq);
 
         for (size_t i = 0; i < Size; ++i)
         {

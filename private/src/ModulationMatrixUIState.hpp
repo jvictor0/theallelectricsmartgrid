@@ -96,7 +96,7 @@ struct ModulationMatrixUIState
         assert(paramId == GetParamId(GetParam(paramId), GetTrio(paramId)));
         assert(group < SmartGridOneModulators::x_numGroups);
         std::array<bool, x_numModulators> affecting{};
-        for (size_t slot = 0; slot < x_numModulatorsPerMode; ++slot)
+        for (size_t slot = 0; slot < SmartGridOneModulators::x_numSlots; ++slot)
         {
             size_t source = static_cast<size_t>(SmartGridOneModulators::x_groups[group][slot]);
             if (source < x_numModulators && modulators.Get(static_cast<int>(slot)))

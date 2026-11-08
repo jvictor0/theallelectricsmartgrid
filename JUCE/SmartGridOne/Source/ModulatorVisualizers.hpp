@@ -48,7 +48,7 @@ struct ModulatorVisualizers
     SmartGridOneMainVisualizerComponent* Get(SmartGridOne::EncoderBankMode mode, int index) const
     {
         if (static_cast<size_t>(mode) >= SmartGridOneModulators::x_sourceIds.size()
-            || index < 0 || index >= static_cast<int>(SmartGridOneModulators::x_numSlots))
+            || index < 0 || index >= static_cast<int>(SmartGridOneModulators::x_numSourceIndices))
         {
             return nullptr;
         }

@@ -116,7 +116,8 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
             return true;
         }
 
-        bool random = !m_fallback && (m_historyMode == Mode::Global || m_historySource < 4);
+        bool random = !m_fallback && SmartGridOneModulators::GetRandomIndex(GetSource(0))
+            != SmartGridOneModulators::x_noRandom;
         bool bipolar = !m_fallback && m_historyMode == Mode::Quad
             && (m_historySource == 4 || m_historySource == 5);
         auto bounds = boundsRect.toFloat();

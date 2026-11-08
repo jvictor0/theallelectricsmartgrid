@@ -282,7 +282,7 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
     synth.m_encoders.GetModulatorManager().Gather();
     for (size_t voice = 0; voice < 9; ++voice)
     {
-        const auto& values = synth.m_encoders.GetModulatorValues(static_cast<SmartGridOneModulators::Group>(voice / 3));
+        const auto& values = synth.m_encoders.GetModulatorValues(SmartGridOneModulators::GetGroup(Encoders::Param::Harmonics1, voice / 3));
         const size_t channel = voice % 3;
         const float offset = 0.01f * static_cast<float>(voice);
         DOCTEST_CHECK(values.m_value[4][channel] == doctest::Approx(0.11f + offset));
@@ -302,7 +302,8 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
 
         for (size_t random = 0; random < 4; ++random)
         {
-            DOCTEST_CHECK(values.m_value[random][channel] == doctest::Approx(0.13f + 0.1f * random + offset));
+            DOCTEST_CHECK(values.m_value[random][channel] == doctest::Approx(
+                random < 2 ? 0.0f : 0.13f + 0.1f * (random - 2) + offset));
         }
 
         DOCTEST_CHECK(values.m_value[11][channel] == doctest::Approx(0.5f * channel));
@@ -319,7 +320,7 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
 
     synth.SetQuadModulators();
     synth.m_encoders.GetModulatorManager().Gather();
-    const auto& quad = synth.m_encoders.GetModulatorValues(SmartGridOneModulators::Group::Quad);
+    const auto& quad = synth.m_encoders.GetModulatorValues(SmartGridOneModulators::Group::QuadDelay);
     for (size_t channel = 0; channel < 4; ++channel)
     {
         DOCTEST_CHECK(quad.m_value[4][channel] == 0.0f);

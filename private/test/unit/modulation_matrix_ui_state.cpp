@@ -96,7 +96,7 @@ DOCTEST_TEST_CASE("modulation matrix: recursive depths and gestures match the ba
     EncoderBankUIState badges;
     auto& carrier = GetCell(encoders, Param::LPCutoff, 0);
     auto& lfo1 = AddDepth(carrier, VoiceModulator::LFO1, 0.5f);
-    auto& nested = AddDepth(lfo1, VoiceModulator::Random1, 0.25f);
+    auto& nested = AddDepth(lfo1, 2, 0.25f);
     auto& lfo2 = AddDepth(carrier, VoiceModulator::LFO2, 0.5f);
     encoders.SelectBank(Encoders::Bank::Shape);
 
@@ -106,9 +106,9 @@ DOCTEST_TEST_CASE("modulation matrix: recursive depths and gestures match the ba
         encoders.PopulateUIState(&badges);
         encoders.PopulateModulationMatrixUIState(&matrix);
         auto bits = badges.GetModulatorsAffecting(2, 1);
-        for (size_t index = 0; index < Matrix::x_numModulatorsPerMode; ++index)
+        for (size_t index = 0; index < SmartGridOneModulators::x_numSlots; ++index)
         {
-            size_t source = Matrix::GetModulatorId(Encoders::BankMode::VoiceWater, index);
+            size_t source = static_cast<size_t>(SmartGridOneModulators::x_groups[carrier.m_modulatorValues->m_groupIx][index]);
             if (source < Matrix::x_numModulators)
             {
                 DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 0, source) == bits.Get(static_cast<int>(index)));
@@ -118,7 +118,7 @@ DOCTEST_TEST_CASE("modulation matrix: recursive depths and gestures match the ba
 
     publishAndCheckBadges();
     DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 0, Matrix::GetModulatorId(VoiceModulator::LFO1, 0)));
-    DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 0, Matrix::GetModulatorId(VoiceModulator::Random1, 0)));
+    DOCTEST_CHECK(matrix.IsModulatedBy(Param::LPCutoff, 0, Matrix::GetModulatorId(VoiceModulator::Random3, 0)));
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 0, Matrix::GetModulatorId(VoiceModulator::LFO2, 0)));
 
     lfo2.m_modulators.AddGesture(&lfo2, 2);
@@ -133,7 +133,7 @@ DOCTEST_TEST_CASE("modulation matrix: recursive depths and gestures match the ba
     encoders.ClearGesture(2);
     publishAndCheckBadges();
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 0, Matrix::GetModulatorId(VoiceModulator::LFO1, 0)));
-    DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 0, Matrix::GetModulatorId(VoiceModulator::Random1, 0)));
+    DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 0, Matrix::GetModulatorId(VoiceModulator::Random3, 0)));
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(Param::LPCutoff, 0, Matrix::GetModulatorId(VoiceModulator::LFO2, 0)));
 }
 
@@ -246,10 +246,10 @@ DOCTEST_TEST_CASE("modulation matrix: group sources are independent of parameter
     BitSet16 slots;
     slots.Set(static_cast<size_t>(VoiceModulator::LFO1), true);
     size_t parameter = Matrix::GetParamId(Param::LPCutoff, 0);
-    matrix.SetModulatorsAffecting(parameter, static_cast<size_t>(SmartGridOneModulators::Group::Fire), slots);
+    matrix.SetModulatorsAffecting(parameter, static_cast<size_t>(SmartGridOneModulators::Group::FireSource), slots);
     DOCTEST_CHECK(matrix.IsModulatedBy(parameter, Matrix::GetModulatorId(VoiceModulator::LFO1, 1)));
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(parameter, Matrix::GetModulatorId(VoiceModulator::LFO1, 0)));
-    matrix.SetModulatorsAffecting(parameter, static_cast<size_t>(SmartGridOneModulators::Group::Earth), slots);
+    matrix.SetModulatorsAffecting(parameter, static_cast<size_t>(SmartGridOneModulators::Group::EarthSource), slots);
     DOCTEST_CHECK(matrix.IsModulatedBy(parameter, Matrix::GetModulatorId(VoiceModulator::LFO1, 2)));
     DOCTEST_CHECK_FALSE(matrix.IsModulatedBy(parameter, Matrix::GetModulatorId(VoiceModulator::LFO1, 1)));
 }

@@ -292,17 +292,17 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
     for (size_t sample = 1; sample <= 64; ++sample)
     {
         rig.RunSamples(1);
-        for (size_t slot = 0; slot < 4; ++slot)
+        for (size_t slot = 0; slot < SmartGridOneModulators::x_numVoiceRandoms; ++slot)
         {
             for (size_t voice = 0; voice < 9; ++voice)
             {
-                random.push_back({ModulatorRef(static_cast<VoiceModulator>(slot), voice),
+                random.push_back({ModulatorRef(SmartGridOneModulators::GetVoiceRandom(slot), voice),
                     static_cast<double>(sample), synth.m_tracks[voice / 3].m_gangedRandomLFO[slot].Output(voice % 3)});
             }
 
-            for (size_t channel = 0; channel < 4; ++channel)
+            for (size_t channel = 0; channel < 4 && slot < SmartGridOneModulators::x_numQuadRandoms; ++channel)
             {
-                random.push_back({ModulatorRef(static_cast<QuadModulator>(slot), channel),
+                random.push_back({ModulatorRef(SmartGridOneModulators::GetQuadRandom(slot), channel),
                     static_cast<double>(sample), synth.m_quadGangedRandomLFO[slot].Output(channel)});
             }
         }

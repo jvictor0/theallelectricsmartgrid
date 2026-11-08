@@ -49,6 +49,7 @@ struct SquiggleBoy
     static constexpr size_t x_numTracks = 3;
     static constexpr size_t x_voicesPerTrack = x_numVoices / x_numTracks;
     static constexpr size_t x_numGangedRandomLFOs = SquiggleBoyTrack::x_numGangedRandomLFOs;
+    static constexpr size_t x_numQuadGangedRandomLFOs = SmartGridOneModulators::x_numQuadRandoms;
 
     static_assert(x_voicesPerTrack == 3, "tracks are trios");
     static_assert(x_numTracks == QuadMixerInternal::x_numTracks, "the mixer has one input per track");
@@ -74,7 +75,7 @@ struct SquiggleBoy
     SquiggleBoyWaveTableGenerator m_waveTableGenerator[2];
 
     SquiggleBoyTrack m_tracks[x_numTracks];
-    GangedRandomLFO<4> m_quadGangedRandomLFO[x_numGangedRandomLFOs];
+    GangedRandomLFO<4> m_quadGangedRandomLFO[x_numQuadGangedRandomLFOs];
     GangedRandomLFO<1> m_globalGangedRandomLFO[2];
     SquiggleLFOGeneric<4> m_quadSquiggleLFO[2];
 
@@ -145,10 +146,11 @@ struct SquiggleBoy
             }
         }
 
-        m_gangedRandomLFOInput[0] = GangedRandomLFOInput::Standard(1.0, 0.1f);
-        m_gangedRandomLFOInput[1] = GangedRandomLFOInput::Standard(4.0, 0.3f);
-        m_gangedRandomLFOInput[2] = GangedRandomLFOInput::Standard(12.0, 0.2f);
-        m_gangedRandomLFOInput[3] = GangedRandomLFOInput::Standard(32.0, 0.1f);
+        for (size_t random = 0; random < x_numGangedRandomLFOs; random += 2)
+        {
+            m_gangedRandomLFOInput[random] = GangedRandomLFOInput::Standard(12.0, 0.1f);
+            m_gangedRandomLFOInput[random + 1] = GangedRandomLFOInput::Standard(24.0, 0.3f);
+        }
 
         m_globalGangedRandomLFOInput[0] = GangedRandomLFOInput::Standard(8.0, 0.2f);
         m_globalGangedRandomLFOInput[1] = GangedRandomLFOInput::Standard(16.0, 0.1f);
@@ -250,13 +252,13 @@ struct SquiggleBoy
                     bool needLeft = m_waveTableGenerator[i].m_leftVisible[j];
                     for (size_t k = 0; k < x_voicesPerTrack; ++k)
                     {
-                        if (m_tracks[j].m_gangedRandomLFO[2 + i].Output(k) < 1)
+                        if (m_tracks[j].m_source.m_dualWaveShapingVCO.m_morphRandom[i].Output(k) < 1)
                         {
                             needLeft = false;
                             m_waveTableGenerator[i].m_leftVisible[j] = true;
                         }
 
-                        if (m_tracks[j].m_gangedRandomLFO[2 + i].Output(k) > 0)
+                        if (m_tracks[j].m_source.m_dualWaveShapingVCO.m_morphRandom[i].Output(k) > 0)
                         {
                             needRight = false;
                             m_waveTableGenerator[i].m_rightVisible[j] = true;
@@ -343,7 +345,7 @@ struct SquiggleBoy
         m_panPhase.Process();
         m_partialMachineState.m_synthesisContextInput.m_azimuthOffset = m_panPhase.m_phase;
 
-        for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
+        for (size_t j = 0; j < x_numQuadGangedRandomLFOs; ++j)
         {
             m_quadGangedRandomLFO[j].Process(SampleTimer::x_samplePeriod, m_gangedRandomLFOInput[j]);
         }
@@ -611,7 +613,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         GangedRandomLFOUIState<x_voicesPerTrack>
             m_gangedRandomLFOUIState[x_numGangedRandomLFOs][x_numTracks];
-        GangedRandomLFOUIState<4> m_quadGangedRandomLFOUIState[x_numGangedRandomLFOs];
+        GangedRandomLFOUIState<4> m_quadGangedRandomLFOUIState[x_numQuadGangedRandomLFOs];
         GangedRandomLFOUIState<1> m_globalGangedRandomLFOUIState[2];
 
         std::atomic<size_t> m_activeTrack = 0;
@@ -829,7 +831,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_tracks[track].m_gangedRandomLFO[random].m_history =
                     &uiState->m_gangedRandomLFOUIState[random][track].m_history;
             }
+        }
 
+        for (size_t random = 0; random < x_numQuadGangedRandomLFOs; ++random)
+        {
             m_quadGangedRandomLFO[random].m_history =
                 &uiState->m_quadGangedRandomLFOUIState[random].m_history;
         }
@@ -1034,7 +1039,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 size_t voice = track * x_voicesPerTrack + trackVoice;
                 for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
                 {
-                    modulatorManager.Set(GetSource(static_cast<VoiceModulator>(j), track), trackVoice, squiggleBoyTrack.m_gangedRandomLFO[j].Output(trackVoice));
+                    modulatorManager.Set(GetSource(SmartGridOneModulators::GetVoiceRandom(j), track), trackVoice, squiggleBoyTrack.m_gangedRandomLFO[j].Output(trackVoice));
                 }
 
                 const AHD& modulationAHD = squiggleBoyTrack.m_amp.m_modulationAHD.m_channels[trackVoice];
@@ -1055,7 +1060,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
                 modulatorManager.Set(GetSource(VoiceModulator::Spread, track), trackVoice, static_cast<float>(trackVoice) / (x_voicesPerTrack - 1));
 
-                modulatorManager.Set(GetSource(VoiceModulator::Noise, track), trackVoice, m_rGen.UniGen());
+                if (SampleTimer::IsHostFrame())
+                {
+                    modulatorManager.Set(GetSource(VoiceModulator::Noise, track), trackVoice, m_rGen.UniGen());
+                }
             }
         }
     }
@@ -1067,9 +1075,9 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     
         for (size_t i = 0; i < 4; ++i)
         {
-            for (size_t random = 0; random < x_numGangedRandomLFOs; ++random)
+            for (size_t random = 0; random < x_numQuadGangedRandomLFOs; ++random)
             {
-                modulatorManager.Set(GetSource(static_cast<QuadModulator>(random)), i, m_quadGangedRandomLFO[random].Output(i));
+                modulatorManager.Set(GetSource(SmartGridOneModulators::GetQuadRandom(random)), i, m_quadGangedRandomLFO[random].Output(i));
             }
 
 
@@ -1080,7 +1088,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             modulatorManager.Set(GetSource(QuadModulator::Spread), i, static_cast<float>(i % 4) / 3);
 
-            modulatorManager.Set(GetSource(QuadModulator::Noise), i, m_rGen.UniGen());
+            if (SampleTimer::IsHostFrame())
+            {
+                modulatorManager.Set(GetSource(QuadModulator::Noise), i, m_rGen.UniGen());
+            }
         }
     }
 
@@ -1092,7 +1103,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         modulatorManager.Set(GetSource(GlobalModulator::Random1), 0, m_globalGangedRandomLFO[0].Output(0));
         modulatorManager.Set(GetSource(GlobalModulator::Random2), 0, m_globalGangedRandomLFO[1].Output(0));
 
-        modulatorManager.Set(GetSource(GlobalModulator::Noise), 0, m_rGen.UniGen());
+        if (SampleTimer::IsHostFrame())
+        {
+            modulatorManager.Set(GetSource(GlobalModulator::Noise), 0, m_rGen.UniGen());
+        }
     }
 
     void SetEncoderParameters(Input& input)
@@ -1337,7 +1351,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
                 m_tracks[track].m_gangedRandomLFO[random].PopulateUIState(
                     &uiState->m_gangedRandomLFOUIState[random][track]);
             }
+        }
 
+        for (size_t random = 0; random < x_numQuadGangedRandomLFOs; ++random)
+        {
             m_quadGangedRandomLFO[random].PopulateUIState(
                 &uiState->m_quadGangedRandomLFOUIState[random]);
         }

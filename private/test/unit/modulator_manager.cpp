@@ -105,7 +105,7 @@ DOCTEST_TEST_CASE("modulator manager: parameters in one bank mode use independen
     DOCTEST_CHECK(second->m_modulators.m_modulators[8]->m_modulators.m_gestures[2]->m_modulatorValues == second->m_modulatorValues);
 }
 
-DOCTEST_TEST_CASE("modulator manager: instrument defaults retain source slots and parameter scopes")
+DOCTEST_TEST_CASE("modulator manager: instrument groups expose distinct pairs and preserve other sources")
 {
     SmartGridOneContext context;
     SmartGridOneEncoders encoders(&context);
@@ -113,7 +113,17 @@ DOCTEST_TEST_CASE("modulator manager: instrument defaults retain source slots an
     {
         for (size_t slot = 0; slot < x_numSlots; ++slot)
         {
-            DOCTEST_CHECK(x_groups[group][slot] == x_sourceIds[group][slot]);
+            if (group != static_cast<size_t>(Group::Global) && slot < 2)
+            {
+                DOCTEST_CHECK(x_groups[group][slot] == Source::NumSources);
+            }
+
+            if (x_groups[group][slot] != Source::NumSources)
+            {
+                DOCTEST_CHECK(encoders.GetModulatorManager().m_groups[group].m_sources[slot]
+                    == static_cast<size_t>(x_groups[group][slot]));
+            }
+
             auto skin = GetSkin(static_cast<Group>(group), slot);
             const auto& values = encoders.GetModulatorValues(static_cast<Group>(group));
             DOCTEST_CHECK(values.m_modulatorColor[slot] == skin.m_color);
@@ -123,7 +133,7 @@ DOCTEST_TEST_CASE("modulator manager: instrument defaults retain source slots an
 
     encoders.m_encoderBankBank.ForEachNamedEncoder([](size_t, Cell* cell)
     {
-        DOCTEST_CHECK(cell->m_modulatorValues->m_groupIx == cell->GetSharedEncoderState()->m_modeIx);
+        DOCTEST_CHECK(x_groupLanes[cell->m_modulatorValues->m_groupIx] == cell->GetSharedEncoderState()->m_numVoices);
     });
 
     DOCTEST_CHECK(GetSource(VoiceModulator::LFO1, 0) != GetSource(VoiceModulator::LFO1, 1));
@@ -168,4 +178,115 @@ DOCTEST_TEST_CASE("modulator manager: configured sources match each parameter's 
             DOCTEST_CHECK(sourceLanes == parameterLanes);
         }
     });
+}
+
+DOCTEST_TEST_CASE("modulator manager: page families bind to independent random pairs")
+{
+    using Layout = SmartGridOneLayout;
+    const Group tracks[3][5] =
+    {
+        {Group::WaterSource, Group::WaterShape, Group::WaterPanMelody, Group::WaterLFO, Group::WaterSub},
+        {Group::FireSource, Group::FireShape, Group::FirePanMelody, Group::FireLFO, Group::FireSub},
+        {Group::EarthSource, Group::EarthShape, Group::EarthPanMelody, Group::EarthLFO, Group::EarthSub}
+    };
+    const Group quad[] = {Group::QuadDelay, Group::QuadReverb, Group::QuadPartialMachine, Group::QuadLFO};
+    DOCTEST_CHECK(x_numGroups == 20);
+    std::array<bool, x_numSources> usedRandoms{};
+    auto checkPair = [&](Group group, Source first, Source second, size_t lanes)
+    {
+        size_t index = static_cast<size_t>(group);
+        DOCTEST_CHECK(x_groupLanes[index] == lanes);
+        DOCTEST_CHECK(x_groups[index][0] == Source::NumSources);
+        DOCTEST_CHECK(x_groups[index][1] == Source::NumSources);
+        DOCTEST_CHECK(x_groups[index][2] == first);
+        DOCTEST_CHECK(x_groups[index][3] == second);
+        for (Source source : {first, second})
+        {
+            DOCTEST_CHECK_FALSE(usedRandoms[static_cast<size_t>(source)]);
+            usedRandoms[static_cast<size_t>(source)] = true;
+        }
+    };
+    for (size_t track = 0; track < 3; ++track)
+    {
+        for (size_t family = 0; family < 5; ++family)
+        {
+            checkPair(tracks[track][family], GetSource(GetVoiceRandom(family * 2), track),
+                GetSource(GetVoiceRandom(family * 2 + 1), track), 3);
+        }
+    }
+
+    for (size_t family = 0; family < 4; ++family)
+    {
+        checkPair(quad[family], GetSource(GetQuadRandom(family * 2)), GetSource(GetQuadRandom(family * 2 + 1)), 4);
+    }
+
+    for (const auto& member : Layout::x_pageMembers)
+    {
+        for (size_t track = 0; track < 3; ++track)
+        {
+            DOCTEST_INFO("parameter: ", static_cast<size_t>(member.m_param), ", track: ", track);
+            if (Layout::GetParamMode(member.m_param) == Layout::ParamMode::Global)
+            {
+                DOCTEST_CHECK(GetGroup(member.m_param, track) == Group::Global);
+                continue;
+            }
+
+            Group expected = Group::NumGroups;
+            switch (member.m_page)
+            {
+                case Layout::Page::DualVCOSource:
+                case Layout::Page::PhysicalModelingSource:
+                case Layout::Page::SampleSource: expected = tracks[track][0]; break;
+                case Layout::Page::Shape: expected = tracks[track][1]; break;
+                case Layout::Page::PanAndMelody: expected = tracks[track][2]; break;
+                case Layout::Page::VoiceLFOs: expected = tracks[track][3]; break;
+                case Layout::Page::Sub: expected = tracks[track][4]; break;
+                case Layout::Page::Delay: expected = Group::QuadDelay; break;
+                case Layout::Page::Reverb: expected = Group::QuadReverb; break;
+                case Layout::Page::PartialMachine: expected = Group::QuadPartialMachine; break;
+                case Layout::Page::QuadLFOs: expected = Group::QuadLFO; break;
+                case Layout::Page::FXMatrix:
+                    if (Layout::GetParamMode(member.m_param) == Layout::ParamMode::Quad)
+                    {
+                        continue;
+                    }
+
+                    expected = tracks[track][1];
+                    break;
+                default: break;
+            }
+
+            DOCTEST_REQUIRE(expected != Group::NumGroups);
+            DOCTEST_CHECK(GetGroup(member.m_param, track) == expected);
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("modulator manager: only declared sources are downsampled")
+{
+    ModulatorManager manager(2, 1);
+    manager.GetSource(0).m_requiresDownsampling = false;
+    manager.Bind(0, 2, 0);
+    manager.Bind(0, 4, 1);
+    for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+    {
+        manager.Set(0, QuadFloat::Splat(0.8f));
+        manager.Set(1, QuadFloat::Splat(0.8f));
+        manager.ProcessSample();
+        DOCTEST_CHECK(manager.m_groups[0].m_values.m_hostValue[2] == QuadFloat());
+    }
+
+    manager.Gather();
+    DOCTEST_CHECK(manager.m_groups[0].m_values.m_hostValue[2] == QuadFloat::Splat(0.8f));
+    DOCTEST_CHECK(manager.m_groups[0].m_values.m_hostValue[4][0] < 0.8f);
+    DOCTEST_CHECK(manager.GetSource(0).m_decimator.Process(QuadFloat()) == QuadFloat());
+    SmartGridOneContext context;
+    SmartGridOneEncoders encoders(&context);
+    for (size_t source = 0; source < x_numSources; ++source)
+    {
+        auto glyph = x_sources[source].m_skin.m_glyph;
+        bool expected = glyph == SmartGridOne::ModulationGlyphs::ADSR || glyph == SmartGridOne::ModulationGlyphs::LFO;
+        DOCTEST_CHECK(x_sources[source].m_requiresDownsampling == expected);
+        DOCTEST_CHECK(encoders.GetModulatorManager().GetSource(source).m_requiresDownsampling == expected);
+    }
 }

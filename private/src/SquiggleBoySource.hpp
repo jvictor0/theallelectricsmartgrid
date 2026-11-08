@@ -172,16 +172,14 @@ struct SquiggleBoySourceGeneric
         SmartGridOneEncoders& encoders,
         Input& input,
         size_t track,
-        const Vector& baseFreq,
-        const Vector& wtBlend0,
-        const Vector& wtBlend1)
+        const Vector& baseFreq)
     {
         switch (input.m_sourceMachine)
         {
             case SourceMachine::DualWaveShapingVCO:
             {
                 m_dualWaveShapingVCO.SetEncoderParams(
-                    encoders, input.m_dualWaveShapingVCOInput, track, baseFreq, wtBlend0, wtBlend1);
+                    encoders, input.m_dualWaveShapingVCOInput, track, baseFreq);
                 break;
             }
 

@@ -276,6 +276,15 @@ DOCTEST_TEST_CASE("Trio: dual wave shaping VCO channels match mono cores")
             trio->m_vco[j].SetRight(i, right.get());
             mono[i]->m_vco[j].SetLeft(left.get());
             mono[i]->m_vco[j].SetRight(right.get());
+
+            // Hold matching owned morph sources while comparing vector DSP.
+            //
+            auto& random = trio->m_morphRandom[j];
+            random.m_frameInitialized = true;
+            random.m_nextVoices[i].m_target = 0.3f * i;
+            random.m_nextVoices[i].Reset(0.3f * i);
+            mono[i]->m_morphRandom[j].m_frameInitialized = true;
+            mono[i]->m_morphRandom[j].m_nextVoices[0] = random.m_nextVoices[i];
         }
     }
 
@@ -293,7 +302,6 @@ DOCTEST_TEST_CASE("Trio: dual wave shaping VCO channels match mono cores")
             {
                 trioInput.m_v[j][i] = 0.3f + 0.2f * i + 0.1f * wobble;
                 trioInput.m_d[j][i] = 0.2f + 0.25f * i + 0.05f * j;
-                trioInput.m_wtBlend[j][i] = 0.3f * i;
                 trioInput.m_morphHarmonics[j][i] = 0.4f + 0.1f * j;
                 trioInput.m_crossModIndex[j][i] = 0.15f * i;
             }
@@ -308,7 +316,6 @@ DOCTEST_TEST_CASE("Trio: dual wave shaping VCO channels match mono cores")
             {
                 monoInput[i].m_v[j] = trioInput.m_v[j][i];
                 monoInput[i].m_d[j] = trioInput.m_d[j][i];
-                monoInput[i].m_wtBlend[j] = trioInput.m_wtBlend[j][i];
                 monoInput[i].m_morphHarmonics[j] = trioInput.m_morphHarmonics[j][i];
                 monoInput[i].m_crossModIndex[j] = trioInput.m_crossModIndex[j][i];
             }

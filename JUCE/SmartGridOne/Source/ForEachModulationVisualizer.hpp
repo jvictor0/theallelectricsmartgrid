@@ -199,3 +199,93 @@ H(QuadModulator::Spread, std::make_unique<SpreadModulatorComponent>(4, nullptr))
 H(VoiceModulator::Noise, std::make_unique<NoiseModulatorComponent>(GetModulatorColor(VoiceModulator::Noise)))
 H(QuadModulator::Noise, std::make_unique<NoiseModulatorComponent>(GetModulatorColor(QuadModulator::Noise)))
 H(GlobalModulator::Noise, std::make_unique<NoiseModulatorComponent>(GetModulatorColor(GlobalModulator::Noise)))
+
+H(
+    VoiceModulator::Random5,
+    std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(
+        uiState->m_squiggleBoyUIState.m_gangedRandomLFOUIState[4],
+        SquiggleBoy::x_numTracks,
+        &uiState->m_squiggleBoyUIState.m_activeTrack,
+        GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>::ColorMode::TrackVoices,
+        GetModulatorColor(VoiceModulator::Random5)))
+
+H(
+    VoiceModulator::Random6,
+    std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(
+        uiState->m_squiggleBoyUIState.m_gangedRandomLFOUIState[5],
+        SquiggleBoy::x_numTracks,
+        &uiState->m_squiggleBoyUIState.m_activeTrack,
+        GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>::ColorMode::TrackVoices,
+        GetModulatorColor(VoiceModulator::Random6)))
+
+H(
+    VoiceModulator::Random7,
+    std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(
+        uiState->m_squiggleBoyUIState.m_gangedRandomLFOUIState[6],
+        SquiggleBoy::x_numTracks,
+        &uiState->m_squiggleBoyUIState.m_activeTrack,
+        GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>::ColorMode::TrackVoices,
+        GetModulatorColor(VoiceModulator::Random7)))
+
+H(
+    VoiceModulator::Random8,
+    std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(
+        uiState->m_squiggleBoyUIState.m_gangedRandomLFOUIState[7],
+        SquiggleBoy::x_numTracks,
+        &uiState->m_squiggleBoyUIState.m_activeTrack,
+        GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>::ColorMode::TrackVoices,
+        GetModulatorColor(VoiceModulator::Random8)))
+
+H(
+    VoiceModulator::Random9,
+    std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(
+        uiState->m_squiggleBoyUIState.m_gangedRandomLFOUIState[8],
+        SquiggleBoy::x_numTracks,
+        &uiState->m_squiggleBoyUIState.m_activeTrack,
+        GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>::ColorMode::TrackVoices,
+        GetModulatorColor(VoiceModulator::Random9)))
+
+H(
+    VoiceModulator::Random10,
+    std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(
+        uiState->m_squiggleBoyUIState.m_gangedRandomLFOUIState[9],
+        SquiggleBoy::x_numTracks,
+        &uiState->m_squiggleBoyUIState.m_activeTrack,
+        GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>::ColorMode::TrackVoices,
+        GetModulatorColor(VoiceModulator::Random10)))
+
+H(
+    QuadModulator::Random5,
+    std::make_unique<GangedRandomLFOComponent<4>>(
+        &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[4],
+        1,
+        nullptr,
+        GangedRandomLFOComponent<4>::ColorMode::Voices,
+        GetModulatorColor(QuadModulator::Random5)))
+
+H(
+    QuadModulator::Random6,
+    std::make_unique<GangedRandomLFOComponent<4>>(
+        &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[5],
+        1,
+        nullptr,
+        GangedRandomLFOComponent<4>::ColorMode::Voices,
+        GetModulatorColor(QuadModulator::Random6)))
+
+H(
+    QuadModulator::Random7,
+    std::make_unique<GangedRandomLFOComponent<4>>(
+        &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[6],
+        1,
+        nullptr,
+        GangedRandomLFOComponent<4>::ColorMode::Voices,
+        GetModulatorColor(QuadModulator::Random7)))
+
+H(
+    QuadModulator::Random8,
+    std::make_unique<GangedRandomLFOComponent<4>>(
+        &uiState->m_squiggleBoyUIState.m_quadGangedRandomLFOUIState[7],
+        1,
+        nullptr,
+        GangedRandomLFOComponent<4>::ColorMode::Voices,
+        GetModulatorColor(QuadModulator::Random8)))

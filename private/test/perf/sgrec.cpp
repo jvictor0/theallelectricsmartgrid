@@ -51,6 +51,11 @@ struct ControlReplay
             {
                 random.m_draws = GangedRandomLFODrawSource(seed++);
             }
+
+            for (auto& random : track.m_source.m_dualWaveShapingVCO.m_morphRandom)
+            {
+                random.m_draws = GangedRandomLFODrawSource(seed++);
+            }
         }
 
         for (auto& random : synth.m_quadGangedRandomLFO)

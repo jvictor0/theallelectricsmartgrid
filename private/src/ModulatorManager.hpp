@@ -20,6 +20,7 @@ struct ModulatorManager
         QuadFloat m_hostValue;
         QuadFloat m_amplitude = QuadFloat::Splat(1.0f);
         Decimator m_decimator;
+        bool m_requiresDownsampling = true;
     };
 
     struct Group
@@ -88,6 +89,11 @@ struct ModulatorManager
     {
         for (auto& source : m_sources)
         {
+            if (!source.m_requiresDownsampling)
+            {
+                continue;
+            }
+
             // The filter can overshoot; matrix inputs stay normalized.
             //
             QuadFloat value = source.m_decimator.Process(source.m_value);
@@ -97,6 +103,14 @@ struct ModulatorManager
 
     void Gather()
     {
+        for (auto& source : m_sources)
+        {
+            if (!source.m_requiresDownsampling)
+            {
+                source.m_hostValue = source.m_value;
+            }
+        }
+
         for (auto& group : m_groups)
         {
             for (size_t slot = 0; slot < x_numSlots; ++slot)
