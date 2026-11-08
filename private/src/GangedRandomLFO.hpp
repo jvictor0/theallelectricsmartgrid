@@ -190,17 +190,27 @@ struct GangedRandomLFOVoiceUIState
 };
 
 template<size_t x_voiceCount>
-struct GangedRandomLFOHistory : SampleEventHistory<5 * x_voiceCount, 256>
+struct GangedRandomLFOHistory : SampleEventHistory<5 * x_voiceCount + 1, 256>
 {
-    using History = SampleEventHistory<5 * x_voiceCount, 256>;
+    using History = SampleEventHistory<5 * x_voiceCount + 1, 256>;
 
     void RecordRound(
         size_t sample,
         const GangedRandomLFOVoice* voices,
         const GangedRandomLFOVoiceInput* inputs)
     {
+        RecordRound(sample, voices, inputs, 0.0);
+    }
+
+    void RecordRound(
+        size_t sample,
+        const GangedRandomLFOVoice* voices,
+        const GangedRandomLFOVoiceInput* inputs,
+        double elapsedSamples)
+    {
         typename History::Event event;
         event.m_sample = sample;
+        event.m_values[5 * x_voiceCount] = elapsedSamples;
         for (size_t voice = 0; voice < x_voiceCount; ++voice)
         {
             size_t offset = voice * 5;
@@ -242,7 +252,7 @@ struct GangedRandomLFOHistory : SampleEventHistory<5 * x_voiceCount, 256>
         double waitingSamples = std::ceil(1.0 / event.m_values[offset + 2]);
         double movingIncrement = event.m_values[offset + 3];
         float shape = static_cast<float>(event.m_values[offset + 4]);
-        double elapsed = sample - static_cast<double>(event.m_sample);
+        double elapsed = sample - static_cast<double>(event.m_sample) + event.m_values[5 * x_voiceCount];
         return GangedRandomLFOFrameInterpolate(source, target, shape, waitingSamples, movingIncrement, elapsed);
     }
 
@@ -255,7 +265,7 @@ struct GangedRandomLFOHistory : SampleEventHistory<5 * x_voiceCount, 256>
             return false;
         }
 
-        start = static_cast<double>(event.m_sample);
+        start = static_cast<double>(event.m_sample) - event.m_values[5 * x_voiceCount];
         end = start;
         for (size_t lane = 0; lane < x_voiceCount; ++lane)
         {
@@ -415,7 +425,26 @@ struct GangedRandomLFO
 
             if (allDone)
             {
+                if (!m_frameInitialized)
+                {
+                    std::array<float, x_voiceCount> sources = SampleTargets(input);
+                    for (size_t voice = 0; voice < x_voiceCount; ++voice)
+                    {
+                        m_voices[voice].m_target = sources[voice];
+                    }
+                }
+
                 SampleAndResetRound(input);
+                if (!m_frameInitialized)
+                {
+                    RandomizeInitialRoundPosition();
+                }
+
+                if (m_history)
+                {
+                    m_history->RecordRound(
+                        SampleTimer::GetSample(), m_voices, m_voiceInputs, m_roundElapsedSamples);
+                }
             }
 
             for (size_t voice = 0; voice < x_voiceCount; ++voice)
@@ -475,16 +504,10 @@ struct GangedRandomLFO
         return increments;
     }
 
-    void SampleAndResetRound(const GangedRandomLFOInput& input)
+    std::array<float, x_voiceCount> SampleTargets(const GangedRandomLFOInput& input)
     {
-        std::array<double, x_voiceCount> waitingIncrements =
-            SampleCorrelatedIncrements(input.m_waiting);
-        std::array<double, x_voiceCount> movingIncrements =
-            SampleCorrelatedIncrements(input.m_moving);
         float targetCenter = std::clamp(m_draws.Uniform01(), 0.0f, 1.0f);
-
-        float targets[x_voiceCount];
-        float shapes[x_voiceCount];
+        std::array<float, x_voiceCount> targets{};
         for (size_t voice = 0; voice < x_voiceCount; ++voice)
         {
             double sampledTarget = m_draws.Normal(
@@ -493,6 +516,17 @@ struct GangedRandomLFO
             targets[voice] = static_cast<float>(std::clamp(sampledTarget, 0.0, 1.0));
         }
 
+        return targets;
+    }
+
+    void SampleAndResetRound(const GangedRandomLFOInput& input)
+    {
+        std::array<double, x_voiceCount> waitingIncrements =
+            SampleCorrelatedIncrements(input.m_waiting);
+        std::array<double, x_voiceCount> movingIncrements =
+            SampleCorrelatedIncrements(input.m_moving);
+        std::array<float, x_voiceCount> targets = SampleTargets(input);
+        float shapes[x_voiceCount];
         for (size_t voice = 0; voice < x_voiceCount; ++voice)
         {
             shapes[voice] = std::clamp(m_draws.Uniform01(), 0.0f, 1.0f);
@@ -507,9 +541,31 @@ struct GangedRandomLFO
         }
 
         m_roundElapsedSamples = 0.0;
-        if (m_history)
+    }
+
+    void RandomizeInitialRoundPosition()
+    {
+        double durationSamples = 0.0;
+        for (const GangedRandomLFOVoiceInput& input : m_voiceInputs)
         {
-            m_history->RecordRound(SampleTimer::GetSample(), m_voices, m_voiceInputs);
+            durationSamples = std::max(durationSamples,
+                std::ceil(1.0 / input.m_waitingIncrement) + std::ceil(1.0 / input.m_movingIncrement));
+        }
+
+        durationSamples = std::ceil(durationSamples / x_gangedRandomFrameSamples) * x_gangedRandomFrameSamples;
+        double position = std::clamp(static_cast<double>(m_draws.Uniform01()), 0.0, 1.0);
+        size_t elapsedSamples = static_cast<size_t>(std::min(
+            std::floor(position * durationSamples), durationSamples - 1.0));
+        m_roundElapsedSamples = static_cast<double>(elapsedSamples);
+        m_framePosition = elapsedSamples % x_gangedRandomFrameSamples;
+
+        // Keep the enclosing frame so startup uses the same interpolated curve
+        // as an already-running gang, including the holds of completed voices.
+        //
+        size_t frameStart = elapsedSamples - m_framePosition;
+        for (size_t voice = 0; voice < x_voiceCount; ++voice)
+        {
+            m_voices[voice].Process(m_voiceInputs[voice], frameStart);
         }
     }
 

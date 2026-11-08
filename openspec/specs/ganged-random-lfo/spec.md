@@ -33,6 +33,17 @@ The processor SHALL then sample one shared uniform target center, normally distr
 - **THEN** it holds its target until every voice is Done
 - **AND** only then does the processor sample and reset the complete gang for the next round
 
+### Requirement: Randomized Startup
+On the first valid processing sample, the processor SHALL independently draw a correlated source state and a correlated target state using the normal target distribution. It SHALL sample the first round's timing and shapes normally, then choose one shared uniform sample position within that round, including waiting, moving, and completed-voice holds through the final 32-sample frame. Subsequent rounds SHALL start from the preceding targets as usual.
+
+This removes the initial zero state and synchronized round start. It approximates stationary startup by randomizing the position within an ordinarily sampled round; it does not length-weight the first round's timing distribution.
+
+#### Scenario: Startup within an existing round
+- **WHEN** the initial random position falls inside a wait, move, or completed-voice hold
+- **THEN** every voice starts at that same elapsed round time between its sampled source and target
+- **AND** audio uses the enclosing 32-sample interpolation frame
+- **AND** history and predictive snapshots report the same elapsed time and output without inventing negative sample timestamps
+
 ### Requirement: Standard Random Presets
 The four Voice-bank and four Quad-bank random modulators SHALL share timing presets with waiting means `W = 1, 4, 12, 32` seconds, waiting sigma `0.3W`, waiting internal sigma `0.2/W`, moving mean `W/2`, moving sigma `0.15W`, moving internal sigma `0.4/W`, and target internal sigma `0.1, 0.3, 0.2, 0.1` respectively.
 
