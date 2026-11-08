@@ -29,7 +29,7 @@ add_custom_target(perf_build_info
 add_library(perf_codec STATIC "${REPO_ROOT}/private/src/RecordingFlacCodec.cpp")
 target_compile_definitions(perf_codec PRIVATE SMARTGRID_RECORDING_SYSTEM_FLAC=1)
 target_link_libraries(perf_codec PUBLIC PkgConfig::FLAC)
-foreach(kind voices effects extra auxiliary encoders)
+foreach(kind voices effects extra auxiliary encoders sgrec)
     add_executable(perf_${kind} ${kind}.cpp)
     add_dependencies(perf_${kind} perf_build_info)
     target_include_directories(perf_${kind} PRIVATE
@@ -47,4 +47,6 @@ add_test(NAME perf_smoke COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE
     --output "${REPO_ROOT}/build/results/perf-smoke")
 add_test(NAME perf_protocol COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_protocol.py"
     "${CMAKE_CURRENT_BINARY_DIR}")
-set_tests_properties(perf_smoke perf_protocol PROPERTIES RUN_SERIAL TRUE TIMEOUT 600)
+add_test(NAME perf_sgrec_protocol COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_sgrec_replay.py"
+    "$<TARGET_FILE:perf_sgrec>")
+set_tests_properties(perf_smoke perf_protocol perf_sgrec_protocol PROPERTIES RUN_SERIAL TRUE TIMEOUT 600)

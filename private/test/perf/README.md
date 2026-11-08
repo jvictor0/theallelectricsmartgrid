@@ -239,6 +239,49 @@ synthetic stress tests. JSON reports the selected fader bitmask and initial/fina
 blend along with loaded parameter counts. Protocol checks exercise nonzero saved
 blend preservation, repeatability, unchanged input files, and the no-gesture case.
 
+## SGREC control-timeline replay
+
+The experimental `perf_sgrec` executable replays v6 assignments and transport
+through the complete SynthRig, with the ordinary encoder and fader smoothing.
+Prepare the timeline with the shared SGREC reader, then run it serially:
+
+```sh
+python3 scripts/prepare_sgrec_replay.py performance.sgrec build/results/replay.json
+make perf-build
+build/tools/perf/Release/perf_sgrec build/results/replay.json 960 build/results/replay.jsonl
+```
+
+The seconds argument limits rendering from recording frame zero; it does not
+skip ahead. Add a final path to save the final patch for comparison with
+`extract_recording.py patch --sample`. Preparation refuses an existing output;
+the native executable replaces its explicitly named result files.
+
+Preparation checks every block CRC, frame continuity, event framing and clean
+completion. It decodes the first sampled phase block, and skips audio. It
+rejects bulk patch load/reset events rather than approximating their semantics.
+Native replay rejects unknown controls, invalid paths, and out-of-order events.
+
+Each output row measures one second of audio with calling-thread CPU seconds,
+wall seconds, event count, current clock phase and the last delay grain's active
+PVDR bin count (four channels combined). Timing includes SynthRig output capture,
+finite checks, control application and the test grid wrapper. It excludes JSON
+preparation, result writing, recording compression, device I/O, and GUI rendering.
+The last-grain bin count is a snapshot, not an average for the timing window.
+
+This is **control replay, not deterministic audio reconstruction**. It restores
+the initial patch, settles patch-load controls for half a second, initializes
+the clock from the first recorded unmodulated phase, then follows recorded event
+times at host-frame resolution. It does not force subsequent recorded phases.
+Delay/history buffers, oscillators, envelopes, and random state at recording
+start are not recoverable from SGREC. Random sources use reproducible harness
+seeds. Raw external input and sample assets are not replayed; the default audio
+input is silent. UI selection and MIDI output work are also omitted.
+
+Build against the recording's revision when comparing behavior. An embedded
+SHA does not establish whether the original app had uncommitted changes.
+Compare relative workload changes rather than equating desktop throughput with
+the iPad's smoothed callback-budget meter.
+
 ## Historical reference
 
 [reference/README.md](reference/README.md) and its small JSON summaries retain
