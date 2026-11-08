@@ -9,6 +9,7 @@ struct PathDrawer
     static constexpr size_t x_numPoints = 1024;
     static constexpr float x_minFrequency = 1.0f / (2.0f * WindowedFFT::Transform::x_tableSize);
     static constexpr float x_maxFrequency = 0.5f;
+    static constexpr double x_maxScopeMarkerFrequency = 10.0;
 
     float m_height;
     float m_width;
@@ -245,6 +246,28 @@ struct PathDrawer
         g.strokePath(path, juce::PathStrokeType(1.0f));
     }
 
+    static bool ShouldDrawScopeMarker(double durationSeconds)
+    {
+        return durationSeconds > 1.0 / x_maxScopeMarkerFrequency;
+    }
+
+    static bool ShouldDrawScopeMarker(const ScopeReader& scopeReader)
+    {
+        if (scopeReader.m_empty)
+        {
+            return false;
+        }
+
+        double extent = scopeReader.m_transferIndex - scopeReader.m_startIndex;
+        if (scopeReader.m_transferXSample < scopeReader.m_numXSamples)
+        {
+            extent += scopeReader.m_postTransferEndIndex - scopeReader.m_postTransferIndex;
+        }
+
+        return ShouldDrawScopeMarker(extent * scopeReader.m_scopeWriter->m_decimation
+            / SampleTimer::x_sampleRate);
+    }
+
     void DrawScopeMarker(
         juce::Graphics& g,
         juce::Colour colour,
@@ -252,6 +275,11 @@ struct PathDrawer
         float yScale,
         float yOffset)
     {
+        if (!ShouldDrawScopeMarker(scopeReader))
+        {
+            return;
+        }
+
         double transferSample = std::max(0.0, scopeReader.m_transferXSample - 1.0);
         double lastSample = static_cast<double>(scopeReader.m_numXSamples - 1);
         double clampedSample = std::min(transferSample, lastSample);

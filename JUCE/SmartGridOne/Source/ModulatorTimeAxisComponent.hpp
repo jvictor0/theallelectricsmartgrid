@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "SmartGridInclude.hpp"
 #include "SmartGridOneMainVisualizerComponent.hpp"
+#include "PathDrawer.hpp"
 
 struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
 {
@@ -187,6 +188,11 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
                 : m_historyMode == Mode::Quad && random ? TheNonagonSmartGrid::VoiceColor(voice) : sourceColor;
             g.setColour(J(curveColor));
             g.strokePath(path, juce::PathStrokeType(1.4f));
+            if (!PathDrawer::ShouldDrawScopeMarker(axis.GetExtent() / SampleTimer::x_sampleRate))
+            {
+                continue;
+            }
+
             auto marker = pointAt(axis.m_present);
             float radius = std::min({3.0f, bounds.getWidth() * 0.5f, bounds.getHeight() * 0.5f});
             marker.x = std::clamp(marker.x, bounds.getX() + radius, bounds.getRight() - radius);

@@ -284,7 +284,8 @@ struct GangedRandomLFOComponent : public ModulatorTimeAxisComponent
                 plot.getWidth() * 0.5f,
                 plot.getHeight() * 0.5f,
             });
-            if (radius > 0.0f)
+            if (radius > 0.0f
+                && PathDrawer::ShouldDrawScopeMarker(sharedDurationSamples / snapshot.m_sampleRate))
             {
                 float centerX = std::clamp(dot.x, bounds.getX() + radius, bounds.getRight() - radius);
                 float centerY = std::clamp(dot.y, bounds.getY() + radius, bounds.getBottom() - radius);

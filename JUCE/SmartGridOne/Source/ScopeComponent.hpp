@@ -106,17 +106,19 @@ struct ScopeComponent : public ModulatorTimeAxisComponent
             juce::Colour juceColor(color.m_red, color.m_green, color.m_blue);
             pathDrawer.DrawScopePath(g, juceColor, scopeReader, yScale, yOffset);
 
+            SmartGrid::Color markerColor = color;
             if (m_scopeType == ScopeType::Control)
             {
                 size_t modulatorIx = SmartGridOne::ControlScopeToModulatorIndex(m_scopeIx);
-                SmartGrid::Color markerColor = GetModulatorColor(static_cast<VoiceModulator>(modulatorIx));
+                markerColor = GetModulatorColor(static_cast<VoiceModulator>(modulatorIx));
                 if (markerColor == SmartGrid::Color::Off)
                 {
                     markerColor = color;
                 }
-                juce::Colour markerJuceColor(markerColor.m_red, markerColor.m_green, markerColor.m_blue);
-                pathDrawer.DrawScopeMarker(g, markerJuceColor, scopeReader, yScale, yOffset);
             }
+
+            juce::Colour markerJuceColor(markerColor.m_red, markerColor.m_green, markerColor.m_blue);
+            pathDrawer.DrawScopeMarker(g, markerJuceColor, scopeReader, yScale, yOffset);
         }
     }
 
@@ -657,7 +659,12 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
             g.drawLine(bounds.getX(), yScreen, bounds.getX() + width, yScreen, 1.0f);
         }
 
-        pathDrawer.DrawPath(g, juce::Colours::white, drawFn);        
+        pathDrawer.DrawPath(g, juce::Colours::white, drawFn);
+
+        if (!PathDrawer::ShouldDrawScopeMarker(drawFn.m_scopeReader))
+        {
+            return;
+        }
 
         float markerX = bounds.getX() + (drawFn.m_scopeReader.m_transferXSample / static_cast<double>(PathDrawer::x_numPoints - 1)) * width;
         float y = drawFn(drawFn.m_scopeReader.m_transferXSample);

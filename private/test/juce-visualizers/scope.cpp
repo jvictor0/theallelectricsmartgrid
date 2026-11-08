@@ -298,12 +298,12 @@ DOCTEST_TEST_CASE("Quad analyser: mix draws five separate colored spectra withou
 
 DOCTEST_TEST_CASE("Scope: reduced point counts preserve the time axis and end marker")
 {
-    auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(1, 4096);
+    auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(256, 4096);
     writer->RecordStart(0, 0);
     for (size_t sample = 0; sample < 128; ++sample)
     {
         writer->Write(0, static_cast<float>(sample) / 127.0f);
-        writer->AdvanceIndex();
+        AdvanceStoredSample(*writer);
     }
 
     writer->Publish();

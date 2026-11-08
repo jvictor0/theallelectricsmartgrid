@@ -76,7 +76,7 @@ template<size_t Voices>
 void CheckRandomMarkers(typename GangedRandomLFOComponent<Voices>::ColorMode mode)
 {
     GangedRandomLFOUIState<Voices> state;
-    state.m_sampleRate.store(48000);
+    state.m_sampleRate.store(1000);
     state.m_roundElapsedSamples.store(50);
     for (size_t voice = 0; voice < Voices; ++voice)
     {
@@ -138,17 +138,17 @@ DOCTEST_TEST_CASE("Modulator markers: random dots use the source color in every 
 
 DOCTEST_TEST_CASE("Modulator markers: unipolar and bipolar scopes draw dots in their source color")
 {
-    auto writer = std::make_unique<ScopeWriterGeneric<4, 1>>(1, 4096);
+    auto writer = std::make_unique<ScopeWriterGeneric<4, 1>>(256, 4096);
     for (size_t voice = 0; voice < 4; ++voice)
     {
         writer->RecordStart(0, voice);
     }
 
-    for (size_t sample = 0; sample < 2; ++sample)
+    for (size_t sample = 0; sample < 128; ++sample)
     {
         writer->Write(0, QuadFloat(0.2f, 0.4f, 0.6f, 0.8f));
 
-        writer->AdvanceIndex();
+        AdvanceControlIndex(*writer);
     }
 
     writer->Publish();
@@ -520,14 +520,15 @@ DOCTEST_TEST_CASE("Encoder weighted curves: longest axis hosts the normalized mi
     juce::Image mixed(juce::Image::ARGB, 200, 200, true);
     juce::Graphics mixedGraphics(mixed);
     selected->Draw(mixedGraphics, mixed.getBounds());
-    DOCTEST_CHECK(mixed.getPixelAt(197, 127) == J(GetModulatorColor(VoiceModulator::LFO1)));
+    DOCTEST_CHECK(mixed.getPixelAt(197, 125) == juce::Colours::black);
     DOCTEST_CHECK(mixed.getPixelAt(100, 127) != juce::Colours::black);
     DOCTEST_CHECK(mixed.getPixelAt(100, 154) == juce::Colours::black);
     selected->ClearWeightedModulators();
     juce::Image solo(juce::Image::ARGB, 200, 200, true);
     juce::Graphics soloGraphics(solo);
     selected->Draw(soloGraphics, solo.getBounds());
-    DOCTEST_CHECK(solo.getPixelAt(197, 154) == J(GetModulatorColor(VoiceModulator::LFO1)));
+    DOCTEST_CHECK(solo.getPixelAt(197, 152) == juce::Colours::black);
+    DOCTEST_CHECK(solo.getPixelAt(100, 154) != juce::Colours::black);
     DOCTEST_CHECK(solo.getPixelAt(100, 127) == juce::Colours::black);
 
     for (size_t voice = 0; voice < 3; ++voice)
@@ -662,7 +663,7 @@ DOCTEST_TEST_CASE("Encoder weighted curves: random time axes keep other sources 
     juce::Image image(juce::Image::ARGB, 208, 208, true);
     juce::Graphics g(image);
     selected->Draw(g, image.getBounds());
-    DOCTEST_CHECK(image.getPixelAt(33, 134) == J(GetModulatorColor(QuadModulator::Random1)));
+    DOCTEST_CHECK(image.getPixelAt(33, 132) == juce::Colours::black);
     bool futureCurve = false;
     for (int y = 115; y < 125; ++y)
     {
