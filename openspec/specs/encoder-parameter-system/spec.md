@@ -183,7 +183,7 @@ The current evaluator SHALL preserve the same modulation and gesture arithmetic 
 
 An interior blend change (`m_changed` without `m_changedScene`) SHALL refresh every root's evaluation for that pass without requiring a topology rebuild. Scene-index changes and transitions to or from blend endpoints SHALL refresh the scene-dependent values and affecting masks. A settled tree needs one fresh host evaluation; trees with moving values SHALL continue advancing those values through completion.
 
-Changes outside the normal source-input path, including reset, gesture deletion, absolute set and JSON load, SHALL invalidate affected outputs even if all their dependency masks become empty. Target changes currently set a `TickDistributor::x_maxSamplesToDistribute` countdown (50 ms of host samples), and edit/reset callers propagate it to ancestors. Advancing recursive computation decrements the countdown once per host frame and refreshes dependency masks at its start and completion. `SetStateRecursive` uses a one-frame countdown for a settled scene refresh and the full window otherwise. Correctness requires timely reevaluation and ramp completion, rather than an unconditional 50 ms countdown for every refresh.
+Changes outside the normal source-input path, including reset, gesture deletion, absolute set and JSON load, SHALL invalidate affected outputs even if all their dependency masks become empty. Target changes set a conservative `TickDistributor::x_maxSamplesToDistribute` progress budget (15001 host frames), and edit/reset callers propagate invalidation to ancestors. Advancing recursive computation updates only moving scenes and refreshes dependency masks at the start and completion. A cell SHALL retire early after its own controls and relevant descendants settle, computing and publishing the final value before returning to prepared evaluation. `SetStateRecursive` uses a one-frame countdown for a settled scene refresh and the full window otherwise. Correctness requires timely reevaluation and ramp completion, rather than waiting out a progress budget after settlement.
 
 #### Scenario: Unaffected parameter reuses its output
 - **WHEN** a parameter's relevant source, amplitude and gesture inputs, scene blend, stored values and configuration are unchanged, and no target ramp remains active
@@ -198,7 +198,7 @@ Changes outside the normal source-input path, including reset, gesture deletion,
 #### Scenario: Settled scene refresh takes effect immediately
 - **WHEN** scene assignment or endpoint activation changes while a parameter tree has no moving targets
 - **THEN** the next host evaluation uses the new scene values and dependency masks
-- **AND** the tree may return to prepared evaluation after that refresh without a full 50 ms countdown
+- **AND** the tree may return to prepared evaluation after that refresh without waiting out the conservative convergence budget
 
 #### Scenario: Clearing modulation invalidates an empty dependency mask
 - **WHEN** a modulated parameter is reset and its modulation targets become neutral
@@ -255,17 +255,27 @@ The matrix SHALL write root outputs through `SetOutput(output, hostSample)`, sta
 `SmartGridOneEncoders::Process` SHALL select the current sub-sample cache before DSP parameter reads. Its `GetValue` overloads SHALL read that cache, mapping Voice parameters to trio `voice / 3` and local channel `voice % 3`, with direct channels for Quad and Global parameters. The cell-level `GetValue(channel)` helper SHALL provide equivalent interpolation for direct callers. Bipolar conversion SHALL occur once at publication or direct read. Matrix calculations and UI publication SHALL use latest values without output interpolation; deferred visible child values SHALL be synchronized before UI publication.
 
 Smoothing SHALL happen where values enter the encoder system:
-- Stored edits: `SetTarget` writes a per-scene target (`m_targets[scene]`) and records the change in the cell's `TickDistributor`. While the cell's force-update countdown runs, `MoveValuesTowardsTargets` moves each current scene value (`m_values[scene]`) linearly toward its target over the interval since the previous change, clamped to `TickDistributor::x_minSamplesToDistribute`..`x_maxSamplesToDistribute` (2–50 ms of host samples), and lands exactly on the target at the last step. A further edit during a ramp SHALL accumulate against the target and restart the ramp over the new interval; target writes in the same host sample SHALL share the current ramp duration. Patch JSON SHALL save targets.
+- Stored edits: `SetTarget` SHALL retain a per-scene target and preserve the ongoing filter state. Moving scene values SHALL advance at host rate through a one-pole with a 20 ms time constant, using `alpha = 1-exp(-1/(0.020*hostSampleRate))`. Internal filter state SHALL use double precision. After a filter step, a normalized residual at most `1e-6` SHALL snap both the internal and published scene value exactly to the target. New edits SHALL accumulate against targets without changing the coefficient or restarting filter state. Patch JSON SHALL save targets. Settled scene values SHALL perform no further pole arithmetic; after the final output/dependency refresh, a tree with no moving descendants SHALL return to the cached evaluation path. Live modulation SHALL bypass this control filter.
 - Scene blend and faders: blend and fader parameter-set messages SHALL set `SettlingSlew` targets that `ProcessInputSlews` advances every sample with a 500 Hz one-pole low-pass, before the scene manager and encoders run, stopping once the value settles on its target. Restoring a blend factor or saved fader positions SHALL snap the corresponding slew to the restored value.
 
-#### Scenario: Encoder edit ramps to its target
-- **WHEN** a cell has had no change for at least 50 ms and an edit moves a scene target from 0.25 to 0.35
-- **THEN** that scene's current value moves linearly toward 0.35 over 2400 samples at 48 kHz, reaching about 0.27 after 480 samples
-- **AND** it lands exactly on 0.35 at the end of the ramp
+#### Scenario: Encoder edit follows a fixed response
+- **WHEN** a settled scene changes from 0.25 to 0.35
+- **THEN** after 20 ms its value is approximately `0.35 - 0.10/e`
+- **AND** it lands exactly on 0.35 once the residual reaches the settling threshold
 
-#### Scenario: Rapid edits shorten the ramp
-- **WHEN** a second edit arrives 480 samples after the first
-- **THEN** the target accumulates the second edit and the remaining ramp is 480 samples
+#### Scenario: Burst edits preserve filter state
+- **WHEN** a small correction arrives 1 ms after a larger edit
+- **THEN** the target incorporates the correction and the filter keeps its current state and fixed coefficient
+- **AND** the correction does not compress unfinished movement into a new linear ramp
+
+#### Scenario: Settled controls stop smoothing
+- **WHEN** all moving values in a control tree reach their targets
+- **THEN** the final values are published and the tree becomes eligible for cached evaluation
+- **AND** subsequent host frames perform no pole arithmetic for those settled values
+
+#### Scenario: Modulation retains its bandwidth
+- **WHEN** an audio-rate source modulates a parameter with settled manual controls
+- **THEN** the source continues through the existing matrix and output interpolation without the manual-control one-pole
 
 #### Scenario: DSP reads follow the computed output
 - **WHEN** a cell's output changes during a matrix pass at ratio 1
