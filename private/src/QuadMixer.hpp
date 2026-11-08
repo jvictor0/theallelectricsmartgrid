@@ -25,6 +25,11 @@ struct QuadMixerInternal
     static constexpr size_t x_externalInputLanes = 2;
     static constexpr size_t x_oversample = SampleTimer::x_oversample;
 
+    // Half amplitude reserves about 6 dB for decimator overshoot in every
+    // recorded audio lane. Coordinates and live audio retain their own levels.
+    //
+    static constexpr float x_recordingGain = 0.5f;
+
     // Recording tracks: one panned track per voice, then per external lane,
     // then one mono track per sub, then the returns and the two masters.
     //
@@ -138,9 +143,8 @@ struct QuadMixerInternal
         }
     };
 
-    // Saturates a group of panned lanes, then feeds the faded saturated signal to
-    // bus and the stereo mixdown when monitored, and the unfaded saturated signal
-    // to the sends when sendGains is set. Returns the faded signal for recording.
+    // Applies gain then saturation to the live buses and recording tap.
+    // Sends tap the raw input before both gain and saturation.
     //
     template <size_t Size>
     MultiChannelNumber<float, Size> Mix(
@@ -153,20 +157,19 @@ struct QuadMixerInternal
         MeterGeneric<float, Size>& meter,
         QuadFloat& bus)
     {
-        MultiChannelNumber<float, Size> saturated = meter.ProcessAndSaturate(input);
-        MultiChannelNumber<float, Size> faded = saturated * gain;
+        MultiChannelNumber<float, Size> saturated = meter.ProcessAndSaturate(input * gain);
         for (size_t i = 0; i < Size; ++i)
         {
             QuadFloat pan = QuadFloat::Pan(x[i], y[i], 1.0f);
             if (monitor)
             {
-                bus += pan * faded[i];
-                m_quadToStereoMixdown.MixSample(x[i], y[i], faded[i]);
+                bus += pan * saturated[i];
+                m_quadToStereoMixdown.MixSample(x[i], y[i], saturated[i]);
             }
 
             if (sendGains != nullptr)
             {
-                QuadFloat panned = pan * saturated[i];
+                QuadFloat panned = pan * input[i];
                 for (size_t j = 0; j < x_numSends; ++j)
                 {
                     m_send[j] += panned * sendGains[j].m_expParam[i];
@@ -174,7 +177,7 @@ struct QuadMixerInternal
             }
         }
 
-        return faded;
+        return saturated;
     }
 
     // Noise mode replaces panning with an unsaturated center mix of each lane.
@@ -199,7 +202,7 @@ struct QuadMixerInternal
         for (size_t i = 0; i < Size; ++i)
         {
             size_t track = firstTrack + i;
-            TrioFloat panned = m_pannedRecordingDecimators[track].Process(TrioFloat(signal[i], x[i], y[i]));
+            TrioFloat panned = m_pannedRecordingDecimators[track].Process(TrioFloat(signal[i] * x_recordingGain, x[i], y[i]));
             if (m_recordingFrameActive)
             {
                 m_recorder->Submit(track, panned.m_values, 3);
@@ -209,7 +212,7 @@ struct QuadMixerInternal
 
     void RecordSub(size_t track, const TrioFloat& signal)
     {
-        TrioFloat sub = m_subRecordingDecimators[track].Process(signal);
+        TrioFloat sub = m_subRecordingDecimators[track].Process(signal * x_recordingGain);
         if (m_recordingFrameActive)
         {
             for (size_t i = 0; i < x_voicesPerTrack; ++i)
@@ -346,10 +349,10 @@ struct QuadMixerInternal
             for (size_t i = 0; i < x_numTracks; ++i)
             {
                 const TrackInput& track = input.m_tracks[i];
-                TrioFloat faded = Mix(track.m_input, track.m_gain.m_expParam, track.m_x, track.m_y, track.m_sendGain, true, m_trackMeters[i], m_dryOutput);
+                TrioFloat saturated = Mix(track.m_input, track.m_gain.m_expParam, track.m_x, track.m_y, track.m_sendGain, true, m_trackMeters[i], m_dryOutput);
                 if (recording)
                 {
-                    RecordPanned(i * x_voicesPerTrack, faded, track.m_x, track.m_y);
+                    RecordPanned(i * x_voicesPerTrack, saturated, track.m_x, track.m_y);
                 }
             }
 
@@ -394,7 +397,7 @@ struct QuadMixerInternal
 
                 if (IsRecording())
                 {
-                    QuadFloat recorded = m_returnRecordingDecimators[j].Process(postReturn);
+                    QuadFloat recorded = m_returnRecordingDecimators[j].Process(postReturn * x_recordingGain);
                     if (m_recordingFrameActive)
                     {
                         m_recorder->Submit(x_firstReturnRecordingTrack + j, recorded.m_values, 4);
@@ -408,8 +411,10 @@ struct QuadMixerInternal
 
         if (m_recordingFrameActive)
         {
-            m_recorder->Submit(x_masterQuadRecordingTrack, m_output.m_output.m_values, 4);
-            m_recorder->Submit(x_masterStereoRecordingTrack, m_output.m_stereoOutput.m_values, 2);
+            QuadFloat recordedQuad = m_output.m_output * x_recordingGain;
+            StereoFloat recordedStereo = m_output.m_stereoOutput * x_recordingGain;
+            m_recorder->Submit(x_masterQuadRecordingTrack, recordedQuad.m_values, 4);
+            m_recorder->Submit(x_masterStereoRecordingTrack, recordedStereo.m_values, 2);
             m_recorder->CommitFrame();
         }
 

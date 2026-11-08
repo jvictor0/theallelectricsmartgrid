@@ -3,8 +3,10 @@
 Performance recordings use `.sgrec` files. They contain separate input stems,
 mono sub lanes, quad effect returns, and the actual mastered stereo and quad
 outputs. Both masters are recorded **before the global listening-volume knob**.
-Turning that knob down does not quiet the recording. No mastering or spatial
-reconstruction is applied during extraction.
+Turning that knob down does not quiet the recording. Every recorded audio lane
+is scaled by 0.5 (about -6 dB) to leave headroom for downsampling-filter overshoot.
+Stereo extraction peak-normalizes the captured master without recomputing
+mastering or spatial reconstruction.
 
 Sampler-looper WAV recording is unchanged.
 
@@ -33,10 +35,18 @@ table. Panned-mono extraction writes just the audio stream as mono; coordinates
 remain available through `scripts/sgrec.py`. Existing outputs are refused unless
 `--overwrite` is supplied.
 
-Exports preserve exact PCM24 integers, sample rate, channel order and frame count.
-Small outputs use RIFF WAV; large outputs become RF64. The writer reserves the
-RF64 header space as a JUNK chunk so extraction needs only one pass. Quad WAVs
-have an unspecified speaker mask and preserve engine order.
+Stereo master exports normalize the largest absolute sample across both channels
+to 8388607 (0 dBFS), using one gain for the whole recording to preserve stereo
+balance and dynamics. Silence stays silent. Add `--raw` to preserve the original
+PCM24 codes. Quad and individual-track exports preserve exact PCM24 by default.
+The Python `extract()` API remains raw by default; `normalize_peak=True` enables
+normalization. Normalization scans the selected track twice with bounded memory,
+using only validated blocks, including for an incomplete recording.
+
+All exports preserve sample rate, channel order and frame count. Small outputs
+use RIFF WAV; large outputs become RF64. The writer reserves RF64 header space
+as a JUNK chunk so raw extraction needs only one pass. Quad WAVs have an
+unspecified speaker mask and preserve engine order.
 
 On corruption, truncation or missing completion, extraction retains a playable
 WAV containing only whole validated blocks, reports the frame count and reason,
@@ -45,7 +55,9 @@ The reader never skips damaged blocks or invents silence for missing blocks.
 A clean empty recording produces an empty WAV.
 
 `scripts/sync_ipad.py` detects new files by `SMRTGRID` magic and extracts their
-stereo master. Legacy RIFF/RF64 recordings keep the existing SoX extraction path.
+stereo master through the shared USB/LAN export helper. Both paths normalize
+the stereo peak. Legacy RIFF/RF64 recordings select the last two channels through
+SoX and then apply its `gain -n` effect.
 Only a successful, complete extraction permits deletion of the remote original;
 a playable partial WAV is insufficient.
 
@@ -142,7 +154,9 @@ Quad corners are `(0,1)`, `(1,1)`, `(1,0)`, `(0,0)`. Master roles are uniquely
 Audio conversion preserves the previous WAV writer:
 `lround(clamp(sample, -1, 1) * 8388607)` using a double intermediate. Thus the
 writer emits -8388607 through 8388607, while the codec supports the full signed
-24-bit range -8388608 through 8388607. There is no dither or normalization.
+24-bit range -8388608 through 8388607. Capture uses no dither or peak
+normalization; the mixer applies the fixed 0.5 audio gain before submission.
+Pan coordinates and parameter/event data are not attenuated.
 
 Coordinates use `lround(clamp(position, 0, 1) * 8388607)`. Divide by 8388607 to
 decode a position. Coordinates 0, 0.5 and 1 produce 0, 4194304 and 8388607.
@@ -430,8 +444,11 @@ drains/joins before storage destruction.
 
 Panned inputs are captured after their mixer gain and independent saturation
 (`post_fader_post_saturation`). Mono sub lanes use their own saturation
-(`post_saturation`), with no mixer gain or effect sends. Both taps are captured
-regardless of their independent live-monitor flags.
+(`post_saturation`), with no mixer gain or effect sends. Voice gain precedes
+saturation, and effect sends take the raw voice signal before both. Panned and sub recording audio receives the fixed 0.5 gain before
+decimation; return recordings use the same attenuation, and the masters are
+halved after the shared output decimator. External inputs record regardless of
+their live-monitor flags.
 
 The current mixer has 31 tracks / 78 streams: 17 panned inputs, 9 mono lanes,
 3 quad returns and the two masters. Its ring holds about 0.68 seconds; storage

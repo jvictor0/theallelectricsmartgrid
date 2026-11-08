@@ -12,7 +12,7 @@ def extract_stereo_recording(local_path: Path, output_path: Path | None = None) 
     with local_path.open('rb') as source:
         magic = source.read(12)
     if magic[:8] == x_magic:
-        result = extract(local_path, output_path=output_path, master='stereo', overwrite=True)
+        result = extract(local_path, output_path=output_path, master='stereo', overwrite=True, normalize_peak=True)
         print(f'  Extracted {result.m_frames} frames: {result.m_output.name}')
         if not result.m_complete:
             print(f'  Incomplete recording: {result.m_error}')
@@ -28,6 +28,6 @@ def extract_stereo_recording(local_path: Path, output_path: Path | None = None) 
     command = ['sox', str(local_path)]
     if output_path is not None:
         command.extend(['-t', 'wav'])
-    command.extend([str(stereo_path), 'remix', str(channel_count - 1), str(channel_count)])
+    command.extend([str(stereo_path), 'remix', str(channel_count - 1), str(channel_count), 'gain', '-n'])
     subprocess.run(command, check=True)
     return 0

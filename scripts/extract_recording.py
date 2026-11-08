@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Inspect SmartGrid recordings and extract exact PCM24 masters or stems.
+"""Inspect SmartGrid recordings and extract PCM24 masters or stems.
+
+Stereo master exports are peak-normalized; --raw preserves exact PCM codes.
 
 Examples:
     python scripts/extract_recording.py info session.sgrec --verify
@@ -22,13 +24,16 @@ from sgrec import Reader, RecordingError, x_quad_corners, x_stream_names
 
 x_pcm_guid = bytes.fromhex('0100000000001000800000aa00389b71')
 x_chunk_frames = 8192
+x_pcm_peak = 8388607
 
 
-def pack_pcm24(streams, start, end):
+def pack_pcm24(streams, start, end, gain=1.0):
     channels = len(streams)
     interleaved = array('i', [0]) * ((end - start) * channels)
     for channel, values in enumerate(streams):
         interleaved[channel::channels] = values[start:end]
+    if gain != 1.0:
+        interleaved = array('i', (round(sample * gain) for sample in interleaved))
     if sys.byteorder != 'little':
         interleaved.byteswap()
     payload = bytearray(interleaved.tobytes())
@@ -77,11 +82,11 @@ class Pcm24Wav:
         self.m_frames = 0
         output.write(wav_header(sample_rate, channels, 0))
 
-    def WriteBlock(self, streams, frames):
+    def WriteBlock(self, streams, frames, gain=1.0):
         streams = streams[:self.m_channels]
         for start in range(0, frames, x_chunk_frames):
             end = min(frames, start + x_chunk_frames)
-            self.m_output.write(pack_pcm24(streams, start, end))
+            self.m_output.write(pack_pcm24(streams, start, end, gain))
             self.m_frames += end - start
 
     def Finalize(self):
@@ -107,9 +112,25 @@ def select_track(reader, master=None, track_id=None):
     return reader.m_tracks_by_id[track_id]
 
 
-def extract(input_path, output_path=None, *, master=None, track_id=None, overwrite=False):
+def selected_peak(reader, track_id, channels):
+    """Find one peak across all selected channels in the validated prefix."""
+    peak = 0
+    try:
+        for block in reader.Blocks({track_id}):
+            for stream in block.m_tracks[track_id][:channels]:
+                peak = max(peak, abs(min(stream, default=0)), abs(max(stream, default=0)))
+            del stream, block
+    except RecordingError:
+        # The export pass retains the same playable prefix and reports the error.
+        pass
+    return peak
+
+
+def extract(input_path, output_path=None, *, master=None, track_id=None, overwrite=False, normalize_peak=False):
     """Export validated blocks, returning completion status even for damaged tails.
 
+    Optional peak normalization uses one gain across all selected channels and
+    two bounded streaming passes. Silence stays silent. The default preserves PCM.
     Header/selection errors raise RecordingError before an output is created.
     Filesystem failures raise OSError, including an existing output unless the
     caller explicitly supplies overwrite=True.
@@ -125,11 +146,17 @@ def extract(input_path, output_path=None, *, master=None, track_id=None, overwri
         if output_path.resolve() == input_path.resolve() or (output_path.exists() and output_path.samefile(input_path)):
             raise ValueError('Output must differ from the input recording')
         with output_path.open('wb' if overwrite else 'xb') as output:
+            gain = 1.0
+            if normalize_peak:
+                peak = selected_peak(reader, track['id'], channels)
+                gain = x_pcm_peak / peak if peak else 1.0
+                source.seek(0)
+                reader = Reader(source)
             writer = Pcm24Wav(output, reader.m_header['sample_rate'], channels)
             error = None
             try:
                 for block in reader.Blocks({track['id']}):
-                    writer.WriteBlock(block.m_tracks[track['id']], block.m_frame_count)
+                    writer.WriteBlock(block.m_tracks[track['id']], block.m_frame_count, gain)
                     del block
             except RecordingError as failure:
                 error = str(failure)
@@ -143,7 +170,7 @@ def inspect(input_path, verify=False):
         header = reader.m_header
         for field in ('format_version', 'recorded_at_utc', 'git_commit_sha', 'sample_rate', 'block_frames'):
             print(f'{field}: {header[field]}')
-        print('Audio: signed PCM24 integers, scale 8388607; direct extraction preserves codes.')
+        print('Audio: signed PCM24 integers, scale 8388607; raw extraction preserves codes, stereo exports peak-normalize.')
         print(f'Quad q0, q1, q2, q3 corners: {x_quad_corners}; unspecified WAV speaker mask.')
         for track in header['tracks']:
             print(f'{track["id"]}: {track["name"]} | {track["type"]} | role={track["role"]} | tap={track["tap"]}')
@@ -169,13 +196,14 @@ def main(argv=None):
     info = commands.add_parser('info', help='Show metadata without decoding audio')
     info.add_argument('input', type=Path)
     info.add_argument('--verify', action='store_true', help='Scan every block and the completion marker')
-    export = commands.add_parser('extract', help='Extract direct PCM24 audio; incomplete files keep a playable prefix and exit nonzero')
+    export = commands.add_parser('extract', help='Extract PCM24 audio, normalizing stereo masters; incomplete files keep a playable prefix and exit nonzero')
     export.add_argument('input', type=Path)
     selectors = export.add_mutually_exclusive_group(required=True)
     selectors.add_argument('--master', choices=('stereo', 'quad'))
     selectors.add_argument('--track', type=int)
     export.add_argument('-o', '--output', type=Path)
     export.add_argument('--overwrite', action='store_true')
+    export.add_argument('--raw', action='store_true', help='Preserve PCM codes instead of peak-normalizing the stereo master')
     patch = commands.add_parser('patch', help='Reconstruct the patch through a recording sample')
     patch.add_argument('input', type=Path)
     patch.add_argument('--sample', type=int, required=True)
@@ -195,7 +223,8 @@ def main(argv=None):
                     json.dump(reconstructed, output, separators=(',', ':'))
                     output.write('\n')
             return 0
-        result = extract(args.input, args.output, master=args.master, track_id=args.track, overwrite=args.overwrite)
+        result = extract(args.input, args.output, master=args.master, track_id=args.track, overwrite=args.overwrite,
+                         normalize_peak=args.master == 'stereo' and not args.raw)
         if not result.m_complete:
             print(f'Incomplete: extracted {result.m_frames} frames to {result.m_output}: {result.m_error}', file=sys.stderr)
             return 1

@@ -618,6 +618,88 @@ class ExtractionTests(unittest.TestCase):
         self.m_source = x_fixtures / 'golden.sgrec'
         self.m_expected = json.loads((x_fixtures / 'golden.json').read_text())
 
+    def stereo_source(self, blocks, tail=None):
+        header = copy.deepcopy(self.m_expected['header'])
+        header['block_frames'] = max((len(block[0]) for block in blocks), default=4)
+        data = bytearray(header_bytes(header))
+        frames = 0
+        for left, right in blocks:
+            self.assertEqual(len(left), len(right))
+            payload = b''.join(struct.pack('<i', sample)[:3] for stream in (left, right) for sample in stream)
+            data.extend(data_record(frames, len(left), struct.pack('<I', 7) + bytes([0, 24, 0, 24]), payload, 1))
+            frames += len(left)
+        data.extend(completion(frames) if tail is None else tail)
+        source = self.m_root / 'normalization.sgrec'
+        source.write_bytes(data)
+        return source
+
+    def pcm_samples(self, output):
+        _, chunks = wav_chunks(output)
+        payload = chunks[b'data']
+        return [int.from_bytes(payload[index:index + 3], 'little', signed=True) for index in range(0, len(payload), 3)]
+
+    def test_normalization_uses_one_peak_across_channels_and_blocks(self):
+        extractor = load_extractor(self)
+        source = self.stereo_source([([1, -2, 0, 4], [2, 1, -4, 0]), ([2, 0, -4, 0], [-8, 2, 0, 1])])
+        output = self.m_root / 'normalized.wav'
+        result = extractor.extract(source, output, master='stereo', normalize_peak=True)
+        self.assertTrue(result.m_complete)
+        self.assertEqual(result.m_frames, 8)
+        self.assertEqual(self.pcm_samples(output), [1048576, 2097152, -2097152, 1048576, 0, -4194304, 4194304, 0,
+                                                  2097152, -8388607, 0, 2097152, -4194304, 0, 0, 1048576])
+
+    def test_normalization_preserves_silent_and_empty_recordings(self):
+        extractor = load_extractor(self)
+        for blocks, frames in (([], 0), ([([0] * 4, [0] * 4)], 4)):
+            with self.subTest(frames=frames):
+                source = self.stereo_source(blocks)
+                output = self.m_root / 'silent.wav'
+                result = extractor.extract(source, output, master='stereo', normalize_peak=True, overwrite=True)
+                self.assertTrue(result.m_complete)
+                self.assertEqual(result.m_frames, frames)
+                self.assertEqual(self.pcm_samples(output), [0] * frames * 2)
+
+    def test_normalization_handles_negative_pcm_endpoint_and_chunk_boundary(self):
+        extractor = load_extractor(self)
+        frames = extractor.x_chunk_frames + 1
+        source = self.stereo_source([([0] * (frames - 1) + [-8388608], [4194304] * frames)])
+        output = self.m_root / 'endpoint.wav'
+        result = extractor.extract(source, output, master='stereo', normalize_peak=True)
+        self.assertTrue(result.m_complete)
+        samples = self.pcm_samples(output)
+        self.assertEqual(samples[-2], -8388607)
+        self.assertEqual(samples[1::2], [4194304] * frames)
+        self.assertEqual(max(abs(sample) for sample in samples), 8388607)
+
+    def test_normalization_excludes_corrupt_tail_peaks_and_keeps_valid_prefix(self):
+        extractor = load_extractor(self)
+        payload = struct.pack('<i', 8388607)[:3] * 8
+        corrupt = bytearray(data_record(4, 4, struct.pack('<I', 7) + bytes([0, 24, 0, 24]), payload, 1))
+        corrupt[-1] ^= 1
+        source = self.stereo_source([([1, 0, -2, 0], [0, -4, 0, 1])], bytes(corrupt))
+        output = self.m_root / 'prefix.wav'
+        result = extractor.extract(source, output, master='stereo', normalize_peak=True)
+        self.assertFalse(result.m_complete)
+        self.assertEqual(result.m_frames, 4)
+        self.assertIn('CRC', result.m_error)
+        self.assertEqual(self.pcm_samples(output), [2097152, 0, 0, -8388607, -4194304, 0, 0, 2097152])
+
+    def test_stereo_cli_and_shared_export_normalize_while_raw_preserves_codes(self):
+        extractor = load_extractor(self)
+        export = importlib.import_module('recording_export')
+        source = self.stereo_source([([1, 0, -2, 0], [0, -4, 0, 1])])
+        output = self.m_root / 'export.wav'
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(export.extract_stereo_recording(source, output), 0)
+        self.assertEqual(max(abs(sample) for sample in self.pcm_samples(output)), 8388607)
+        for raw in (False, True):
+            args = ['extract', str(source), '--master', 'stereo', '-o', str(output), '--overwrite']
+            if raw:
+                args.append('--raw')
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(extractor.main(args), 0)
+            self.assertEqual(max(abs(sample) for sample in self.pcm_samples(output)), 4 if raw else 8388607)
+
     def test_pcm24_packing_interleaves_signed_channels(self):
         extractor = load_extractor(self)
         streams = (
@@ -886,7 +968,7 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
             def run_sox(command, check):
                 calls.append(command)
                 self.assertTrue(check)
-                self.assertEqual(command, ['sox', str(source), str(source.with_stem(source.stem+'_stereo')), 'remix', '5', '6'])
+                self.assertEqual(command, ['sox', str(source), str(source.with_stem(source.stem+'_stereo')), 'remix', '5', '6', 'gain', '-n'])
                 return subprocess.CompletedProcess(command, 0)
             with mock.patch.object(self.m_sync.subprocess, 'check_output', return_value='6'), mock.patch.object(self.m_sync.subprocess, 'run', side_effect=run_sox), redirect_stdout(io.StringIO()):
                 status = self.m_sync.extract_stereo_recording(source)

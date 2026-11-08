@@ -196,3 +196,16 @@ Each queued patch reference SHALL retain its backing arena until the worker has 
 - **THEN** it serializes the patch and releases the arena immediately, retaining owned bytes until block writing
 
 Sample-directory edits and sample assets remain intentionally outside capture coverage while the sample-recording feature is unfinished. The encoder path limit remains 16 hops.
+
+### Requirement: Peak-Normalized Stereo Export
+The stereo extraction command and shared USB/LAN stereo-export helper SHALL normalize the largest absolute sample across both stereo channels to 0 dBFS with one gain for the whole validated recording. Stereo balance and relative dynamics SHALL be preserved; silent and empty recordings SHALL remain silent and empty. SGREC normalization SHALL use bounded streaming memory and retain the existing incomplete-prefix behavior and failure status. Legacy RIFF/RF64 export SHALL normalize after selecting the last two channels. The command's `--raw` option, quad/stem export defaults, and the low-level Python `extract()` default SHALL preserve exact PCM24 codes.
+
+#### Scenario: Peak occurs in a later block on one channel
+- **WHEN** one channel reaches the recording's largest absolute peak in a later block
+- **THEN** every exported stereo sample uses the gain determined by that peak
+- **AND** neither channels nor blocks are normalized independently
+
+#### Scenario: Damaged tail does not affect normalization
+- **WHEN** a recording contains valid blocks followed by a corrupt block
+- **THEN** the playable prefix is normalized using only its valid samples
+- **AND** extraction reports incomplete status and does not authorize deleting the original

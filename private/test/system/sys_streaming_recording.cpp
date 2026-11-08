@@ -259,14 +259,14 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
         process();
         for (size_t channel = 0; channel < 4; ++channel)
         {
-            DOCTEST_CHECK(sample(29, channel) == engine.m_mixer.m_output.m_output[channel]);
-            DOCTEST_CHECK(engine.m_output.m_output[channel] == sample(29, channel) * 0.25f);
+            DOCTEST_CHECK(sample(29, channel) == engine.m_mixer.m_output.m_output[channel] * 0.5f);
+            DOCTEST_CHECK(engine.m_output.m_output[channel] == sample(29, channel) * 2.0f * 0.25f);
         }
 
         for (size_t channel = 0; channel < 2; ++channel)
         {
-            DOCTEST_CHECK(sample(30, channel) == engine.m_mixer.m_output.m_stereoOutput[channel]);
-            DOCTEST_CHECK(engine.m_output.m_stereoOutput[channel] == sample(30, channel) * 0.25f);
+            DOCTEST_CHECK(sample(30, channel) == engine.m_mixer.m_output.m_stereoOutput[channel] * 0.5f);
+            DOCTEST_CHECK(engine.m_output.m_stereoOutput[channel] == sample(30, channel) * 2.0f * 0.25f);
         }
     }
 
@@ -285,7 +285,7 @@ DOCTEST_TEST_CASE("recording engine: source widths stay stable and listening vol
     //
     Meter tailMeter;
     const float filteredTail = synth.m_sourceMixer.m_sources[0].m_output[1];
-    DOCTEST_CHECK(sample(10) == doctest::Approx(tailMeter.ProcessAndSaturate(filteredTail)).epsilon(0.02));
+    DOCTEST_CHECK(sample(10) == doctest::Approx(tailMeter.ProcessAndSaturate(filteredTail) * 0.5f).epsilon(0.02));
     DOCTEST_CHECK(sample(10, 1) == doctest::Approx(0.5f));
     DOCTEST_CHECK(sample(10, 2) == doctest::Approx(0.5f));
     DOCTEST_REQUIRE(recorder.m_session.m_tracks.size() == tracks.size());

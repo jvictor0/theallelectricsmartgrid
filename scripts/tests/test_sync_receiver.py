@@ -328,6 +328,13 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(json.loads(payload)['state'], 'complete')
         stereo = self.m_root / 'recordings/legacy_stereo.wav'
         self.assertEqual(subprocess.check_output(['soxi', '-c', str(stereo)], text=True).strip(), '2')
+        with wave.open(str(stereo), 'rb') as output:
+            self.assertEqual(output.getsampwidth(), 2)
+            samples = struct.unpack('<4h', output.readframes(2))
+        self.assertGreaterEqual(max(samples), 32766)
+        for sample, fraction in zip(samples, (3 / 8, 4 / 8, 7 / 8, 1)):
+            self.assertAlmostEqual(sample / 32767, fraction, delta=2 / 32767)
+
 
     def test_incomplete_recording_is_retained_with_failed_receipt(self):
         fixture = Path(__file__).resolve().parents[2] / 'private/test/fixtures/streaming-recording/golden.sgrec'
