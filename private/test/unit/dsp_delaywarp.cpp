@@ -506,10 +506,11 @@ DOCTEST_TEST_CASE("DelayWarp: missing grain lanes are silent while valid lanes a
     auto grains = std::make_unique<QuadGrainManager<GrainHistoryProbe>>(&audio);
     QuadGrainManager<GrainHistoryProbe>::Input input;
     constexpr size_t x_frame = QuadGrainManager<GrainHistoryProbe>::Resynth::x_synthesisFrameSize;
+    constexpr size_t x_latency = QuadGrainManager<GrainHistoryProbe>::SynthesisOLA::x_latency;
     double missingEnergy = 0;
     double validEnergy = 0;
     double tailEnergy = 0;
-    for (size_t n = 0; n < 4 * x_frame; ++n)
+    for (size_t n = 0; n < 4 * x_frame + x_latency; ++n)
     {
         QuadDouble times = QuadDouble::Splat(static_cast<double>(n) / SampleTimer::x_oversample);
         if (n >= x_frame)
@@ -523,12 +524,15 @@ DOCTEST_TEST_CASE("DelayWarp: missing grain lanes are silent while valid lanes a
         }
 
         QuadFloat output = grains->Process(times, QuadFloat(), input);
-        if (2 * x_frame <= n && n < 3 * x_frame)
+        // Observe the same output windows after the OLA's declared latency.
+        // Previously scheduled tails must finish before checking exact silence.
+        //
+        if (2 * x_frame + x_latency <= n && n < 3 * x_frame + x_latency)
         {
             missingEnergy += output[0] * output[0];
             validEnergy += output[1] * output[1];
         }
-        else if (3 * x_frame + x_frame / 4 <= n)
+        else if (3 * x_frame + x_frame / 4 + x_latency <= n)
         {
             tailEnergy += output[1] * output[1];
         }
