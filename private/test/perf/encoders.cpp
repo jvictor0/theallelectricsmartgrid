@@ -66,7 +66,7 @@ float Blend(const std::string& mode, size_t hostFrame)
 {
     float phase =
         static_cast<float>(hostFrame % SampleTimer::x_hostSampleRate) / SampleTimer::x_hostSampleRate;
-    return mode == "fixed"
+    return mode == "fixed" || mode == "knobs"
                ? 0
                : mode == "right" ? 1 : mode == "mid" ? 0.5f : phase < 0.5f ? phase * 2 : 2 - phase * 2;
 }
@@ -283,6 +283,20 @@ void Matrix(synthrig::SynthRig& rig, const std::string& mode, double seconds, co
         scene.m_blendFactor = Blend(mode, frame);
         scene.Process();
         SampleTimer::s_instance->m_sample = firstSample + frame * SampleTimer::x_oversample;
+        if (mode == "knobs" && (frame % 1600 == 0 || frame % 1600 == 48))
+        {
+            bank.ForEachNamedEncoder([&](size_t index, Cell* cell)
+            {
+                if (index % 16 == 0)
+                {
+                    float target = (frame / 1600) % 2 ? 0.3f : 0.7f;
+                    target += frame % 1600 == 48 ? 0.02f : 0.0f;
+                    cell->SetAndRecordValue(target, scene.m_scene1);
+                    cell->SetForceUpdateRecursive();
+                }
+            });
+        }
+
         bank.ProcessHostFrame();
         if (consumer)
         {
@@ -334,7 +348,7 @@ int main(int argc, char** argv)
     try
     {
         Require(argc >= 5, "Usage: perf_encoders full|full_gestures|full_saved_gestures|record|matrix|matrix_gestures|consumer|consumer_gestures PATCH "
-                           "hold|fixed|right|mid|sweep|scenes SECONDS [REPLAY] [DUMP]");
+                           "hold|fixed|right|mid|sweep|scenes|knobs SECONDS [REPLAY] [DUMP]");
         std::string kind(argv[1]);
         std::string mode(argv[3]);
         bool full = kind == "full" || kind == "full_gestures" || kind == "full_saved_gestures";
@@ -343,6 +357,7 @@ int main(int argc, char** argv)
         Require(full || consumer || kind == "record" || kind == "matrix" || kind == "matrix_gestures",
                 "Unknown encoder workload");
         Require(mode == "fixed" || mode == "right" || mode == "mid" || mode == "sweep" ||
+                    (mode == "knobs" && !full && kind != "record") ||
                     ((mode == "scenes" || mode == "hold") && full),
                 "Unknown scene mode");
         Require(full ? (argc == 5 || argc == 6)

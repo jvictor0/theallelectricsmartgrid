@@ -67,6 +67,8 @@ def main():
             assert all(value in original[name]['values']['values']
                        for node in assigned for value in node['values']['values'])
         workloads = [('matrix', 'matrix', FIXTURE, 'sweep'),
+                     ('matrix_fixed', 'matrix', FIXTURE, 'fixed'),
+                     ('matrix_knobs', 'matrix', FIXTURE, 'knobs'),
                      ('matrix_gestures', 'matrix_gestures', patches['gestures'], 'sweep'),
                      ('matrix_mixed', 'matrix_gestures', patches['mixed'], 'sweep'),
                      ('consumer', 'consumer', FIXTURE, 'sweep'),
@@ -78,6 +80,7 @@ def main():
                        ('mixed_both', 'full_gestures', 'sweep'),
                        ('mixed_scenes', 'full_gestures', 'scenes')]]
         gesture_checksums = {}
+        loaded_roots = None
         for name, kind, patch, mode in workloads:
             dumps = []
             for repeat in range(2):
@@ -88,14 +91,21 @@ def main():
                 row = execute(command + [dump])
                 if kind in ('consumer', 'consumer_gestures'):
                     assert row['parameter_updates'] == 3840
+                if name == 'full':
+                    loaded_roots = row['roots']
+                    assert loaded_roots >= len(roots)
                 if name.startswith('mixed_'):
-                    assert row['roots'] == 329 and row['gesture_roots'] == 165 and row['modulated_roots'] == 164
+                    # Parameters added since this fixture load at their defaults.
+                    # Both full-rig fixtures must contain the same current catalogue.
+                    assert row['roots'] == loaded_roots
+                    assert row['gesture_roots'] == len(gestures) and row['modulated_roots'] == len(modulators)
                     assert row['gesture_sweep'] == (kind == 'full_gestures')
                     gesture_checksums[name] = row['gesture_checksum']
                 dumps.append(dump)
             assert dumps[0].stat().st_size > 0
             assert digest(dumps[0]) == digest(dumps[1]), f'{name} output changed between runs'
         assert digest(folder / 'matrix-0.f32') == digest(folder / 'consumer-0.f32')
+        assert digest(folder / 'matrix_fixed-0.f32') != digest(folder / 'matrix_knobs-0.f32')
         assert digest(folder / 'matrix_mixed-0.f32') == digest(folder / 'consumer_gestures-0.f32')
         assert gesture_checksums['mixed_fixed'] != gesture_checksums['mixed_gestures']
         assert gesture_checksums['mixed_blend'] != gesture_checksums['mixed_both']

@@ -1,6 +1,9 @@
 #include "doctest.h"
 #include "support/SynthRig.hpp"
 
+static constexpr size_t x_settleFrames = (SmartGrid::TickDistributor::x_maxSamplesToDistribute * SampleTimer::x_oversample
+    + SampleTimer::x_samplesPerProcessFrame - 1) / SampleTimer::x_samplesPerProcessFrame + 1;
+
 DOCTEST_TEST_CASE("Tuning: adjacent Nyquist suboctaves bracket middle C and tempo retains eight octaves")
 {
     SquiggleBoyWithEncoderBank::Input input;
@@ -55,7 +58,7 @@ DOCTEST_TEST_CASE("SynthRig: master tuning moves held notes in every trio and pu
         Setting{Tuning::x_defaultMasterTune, Tuning::x_middleCHz}})
     {
         rig.SetEncoder(0, 1, setting.m_knob);
-        rig.RunFrames(24);
+        rig.RunFrames(x_settleFrames);
         DOCTEST_CHECK(SampleTimer::CycPerSampToHz(input.m_masterTune.m_expParam)
             == doctest::Approx(setting.m_hz).epsilon(0.0001));
         DOCTEST_CHECK(system.m_uiState.m_masterTuneHz.load()
@@ -99,7 +102,7 @@ DOCTEST_TEST_CASE("SynthRig: master tuning precedes DV selection and the visuali
         rig.StopSequencer();
         synth.m_encoders.SelectBank(SmartGridOneEncoders::Bank::TheoryOfTime);
         rig.SetEncoder(0, 1, setting.m_knob);
-        rig.RunFrames(24);
+        rig.RunFrames(x_settleFrames);
 
         constexpr size_t x_voice = 6;
         auto& vocoderInput = synth.m_deepVocoderState;
@@ -163,17 +166,17 @@ DOCTEST_TEST_CASE("SynthRig: master tuning survives patch save and load and rese
     encoders.SelectBank(SmartGridOneEncoders::Bank::TheoryOfTime);
     rig.RunFrames(2);
     rig.SetEncoder(0, 1, 0.75f);
-    rig.RunFrames(24);
+    rig.RunFrames(x_settleFrames);
     std::string patch = rig.SavePatch();
     DOCTEST_REQUIRE(patch.find("\"MasterTune\"") != std::string::npos);
     rig.SetEncoder(0, 1, 0.0f);
-    rig.RunFrames(24);
+    rig.RunFrames(x_settleFrames);
     DOCTEST_REQUIRE(rig.LoadPatch(patch));
-    rig.RunFrames(24);
+    rig.RunFrames(x_settleFrames);
     DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::MasterTune)
         == doctest::Approx(0.75f).epsilon(0.0001));
     rig.ResetToDefaults();
-    rig.RunFrames(24);
+    rig.RunFrames(x_settleFrames);
     DOCTEST_CHECK(rig.Internal().m_uiState.m_masterTuneHz.load()
         == doctest::Approx(261.6256).epsilon(0.0001));
 }

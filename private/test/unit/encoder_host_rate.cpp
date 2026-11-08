@@ -247,9 +247,9 @@ DOCTEST_TEST_CASE("encoder host rate: target ramps and nested ancestors advance 
         DOCTEST_REQUIRE(nested.m_tickDistributor.m_samplesToDistribute == remaining);
         rig.Step();
         size_t elapsed = SampleTimer::GetHostSample() - startHost;
-        DOCTEST_REQUIRE(nested.m_values[0] == doctest::Approx(0.5f + 0.25f * elapsed / Distributor::x_maxSamplesToDistribute));
-        DOCTEST_REQUIRE(nested.m_tickDistributor.m_samplesToDistribute == Distributor::x_maxSamplesToDistribute - elapsed);
-        DOCTEST_REQUIRE(root.m_samplesForceUpdate == Distributor::x_maxSamplesToDistribute - elapsed);
+        double expected = 0.75 - 0.25 * std::exp(-static_cast<double>(elapsed) / 960.0);
+        DOCTEST_REQUIRE(nested.m_values[0] == doctest::Approx(expected).epsilon(0.000002));
+        DOCTEST_REQUIRE((root.m_samplesForceUpdate == 0) == nested.m_tickDistributor.IsDone());
         DOCTEST_REQUIRE(depth.m_samplesForceUpdate == root.m_samplesForceUpdate);
     }
 
@@ -260,29 +260,20 @@ DOCTEST_TEST_CASE("encoder host rate: target ramps and nested ancestors advance 
     DOCTEST_CHECK(root.m_modulatorsAffecting.IsZero());
 }
 
-DOCTEST_TEST_CASE("encoder host rate: repeated target edits retain host-time ramp durations")
+DOCTEST_TEST_CASE("encoder host rate: repeated edits keep the same 20 ms pole")
 {
     HostRateRig rig;
     rig.Settle();
     Cell& cell = rig.Carrier();
     cell.Increment(0.25f);
     rig.RunHostFrames(480);
-    DOCTEST_CHECK(cell.m_values[0] == doctest::Approx(0.55f));
+    DOCTEST_CHECK(cell.m_values[0] == doctest::Approx(0.75 - 0.25 * std::exp(-0.5)));
+    double before = cell.m_smoothedValues[0];
     cell.Increment(0.1f);
-    DOCTEST_CHECK(cell.m_targets[0] == doctest::Approx(0.85f));
-    DOCTEST_REQUIRE(cell.m_tickDistributor.m_samplesToDistribute == 480);
-    rig.RunHostFrames(479);
+    rig.RunHostFrames(480);
+    DOCTEST_CHECK(cell.m_values[0] == doctest::Approx(0.85 + (before - 0.85) * std::exp(-0.5)));
     DOCTEST_CHECK(cell.m_values[0] < cell.m_targets[0]);
-    rig.RunHostFrames(1);
-    DOCTEST_CHECK(cell.m_values[0] == cell.m_targets[0]);
-
-    cell.Increment(-0.1f);
-    rig.RunHostFrames(1);
-    cell.Increment(-0.1f);
-    DOCTEST_REQUIRE(cell.m_tickDistributor.m_samplesToDistribute == Distributor::x_minSamplesToDistribute);
-    rig.RunHostFrames(Distributor::x_minSamplesToDistribute - 1);
-    DOCTEST_CHECK(cell.m_values[0] != cell.m_targets[0]);
-    rig.RunHostFrames(1);
+    rig.Settle();
     DOCTEST_CHECK(cell.m_values[0] == cell.m_targets[0]);
 }
 

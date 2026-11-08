@@ -15,7 +15,7 @@ make perf-run PERF_ARGS='--suite encoders --seconds 6 --repeats 3'
 
 Builds reuse `build/tools/perf/Release/` (Release, NDEBUG, LTO, loop unrolling).
 Core correctness tests retain their separate configuration and assertions.
-`perf-test` smoke-runs all 130 workload/configuration combinations, exercises
+`perf-test` smoke-runs all workload/configuration combinations, exercises
 bad arguments/replay files, and checks deterministic capture/output. It has **no
 timing thresholds**. This validates the harness, not DSP equivalence or quality.
 
@@ -246,3 +246,9 @@ selected component and evaluator experiments. They are historical evidence, not
 thresholds for this harness. The larger raw traces, flamegraph viewers and
 one-off experiments remain in ignored `build/results/`; they are not dependencies
 of these benchmarks. Do not commit raw profiler exports or inherited environments.
+
+The `matrix/{flat,nested,gestures}/knobs` cases keep the scene blend fixed and
+retarget every sixteenth named control at 30 Hz, with a second tick 1 ms later.
+They measure moving manual controls alongside the same replayed live sources;
+`fixed` measures the corresponding settled controls. Both include input updates
+and matrix publication.

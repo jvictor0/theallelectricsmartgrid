@@ -1,8 +1,8 @@
 {
   "description": "Reviewed C++ snapshot for the Lean model. Hashes detect drift; they do not prove C++ refinement. Review correspondence before changing hashes.",
   "files": {
-    "private/src/Encoder.hpp": "b64a863c53080d6e61fa1b2296e13166d99f57651d3190952a032b27f9996216",
-    "private/src/EncoderBank.hpp": "da97c9e6e5a8457d3d9ae55da63884ed8b9bb319472d0dc7be5398de66f6980f",
+    "private/src/Encoder.hpp": "0f4b7d409b360ed1c7f1c17e9209e70ae07ed6f23b981c2121394124ceab8c76",
+    "private/src/EncoderBank.hpp": "8018877e8086bdee756b6e676d29afbf595800d1af2a6041cb0e4c1a03a50387",
     "private/src/EncoderBankBank.hpp": "86d47c7bcf6c0f199c712ebb13834c7be201e8da5ca4f07bfabeb38047edf604",
     "private/src/EncoderMatrix.hpp": "1d56d1885b1db806e92dfe5ed2ccc43c0bc02aab3ad28c13d634fc062549f9f8",
     "private/src/QuadUtils.hpp": "eb287a8dd5c2f88979153018a2b246aa7056979ae252773cccb92182c293a69b",

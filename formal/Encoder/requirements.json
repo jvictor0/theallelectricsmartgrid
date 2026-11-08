@@ -47,11 +47,10 @@
   {
     "id": "E05",
     "status": "proved",
-    "requirement": "While several target writes occur in the same host sample, they shall preserve current filter values and the existing progress budget. The current one-pole coefficient is independent of edit cadence.",
+    "requirement": "While several target writes occur in the same host sample, they shall preserve current filter values and the existing progress budget.",
     "theorems": [
       "Encoder.same_sample_edits_keep_duration",
-      "Encoder.target_changes_do_not_jump",
-      "Encoder.Settling.cadence_independent"
+      "Encoder.target_changes_do_not_jump"
     ],
     "anchors": [
       "ramp",
@@ -1002,7 +1001,8 @@
       "Encoder.OnePole.near_target_lands",
       "Encoder.Settling.tick_matches_pole",
       "Encoder.Settling.landing_retires",
-      "Encoder.target_changes_do_not_jump"
+      "Encoder.target_changes_do_not_jump",
+      "Encoder.Settling.cadence_independent"
     ],
     "anchors": [
       "target",

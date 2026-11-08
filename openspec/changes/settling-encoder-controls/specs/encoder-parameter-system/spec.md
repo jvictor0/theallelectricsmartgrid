@@ -36,3 +36,35 @@ Smoothing SHALL happen where values enter the encoder system:
 - **WHEN** the oversampling ratio is 4 and a matrix pass moves a cell's output from 0.2 to 1.0
 - **THEN** `GetValue` returns 0.4, 0.6, 0.8, and 1.0 on the four engine samples of that host frame
 
+
+### Requirement: Change-Driven Evaluation Every Host Frame
+The system SHALL run `EncoderBankBank::Process` once per engine sample, before encoder values are applied to DSP inputs. Every call SHALL run `ModulatorValues::ProcessSample()` for every bank mode, filtering every slot's raw value (`m_value`) through a second-order Butterworth `DownsamplerGeneric` at ratio `SampleTimer::x_oversample` (a passthrough at ratio 1) and clamping its matrix input (`m_hostValue`) to [0, 1]. Modulator amplitudes SHALL NOT be decimated.
+
+On host frames only, `ProcessHostFrame` SHALL detect changed source values, amplitudes and gestures, handle the scene-manager flags, and evaluate all named roots, including hidden ones, through `EncoderMatrix`. Outputs SHALL reflect the current relevant inputs and advancing target ramps at that host boundary. The evaluator MAY reuse an output when its relevant inputs and stored values are unchanged; it need not traverse every editable cell or invoke recursive `Compute` on every named root.
+
+The current evaluator SHALL preserve the same modulation and gesture arithmetic in its recursive and prepared paths. Settled simple routes cache scalar depths, while nested routes and gestures use a child-before-parent graph. An active force-update countdown, a revision mismatch, or a root awaiting preparation SHALL take the recursive path. Before editing or exposing deferred child values, `SynchronizePreparedState` SHALL materialize the last evaluated state without advancing a ramp or changing the root's output history. DSP cache reads SHALL NOT evaluate the graph.
+
+An interior blend change (`m_changed` without `m_changedScene`) SHALL refresh every root's evaluation for that pass without requiring a topology rebuild. Scene-index changes and transitions to or from blend endpoints SHALL refresh the scene-dependent values and affecting masks. A settled tree needs one fresh host evaluation; trees with moving values SHALL continue advancing those values through completion.
+
+Changes outside the normal source-input path, including reset, gesture deletion, absolute set and JSON load, SHALL invalidate affected outputs even if all their dependency masks become empty. Target changes set a conservative `TickDistributor::x_maxSamplesToDistribute` progress budget (15001 host frames), and edit/reset callers propagate invalidation to ancestors. Advancing recursive computation updates only moving scenes and refreshes dependency masks at the start and completion. A cell SHALL retire early after its own controls and relevant descendants settle, computing and publishing the final value before returning to prepared evaluation. `SetStateRecursive` uses a one-frame countdown for a settled scene refresh and the full window otherwise. Correctness requires timely reevaluation and ramp completion, rather than waiting out a progress budget after settlement.
+
+#### Scenario: Unaffected parameter reuses its output
+- **WHEN** a parameter's relevant source, amplitude and gesture inputs, scene blend, stored values and configuration are unchanged, and no target ramp remains active
+- **THEN** the evaluator may reuse its latest output
+- **AND** the current host frame's output caches still contain the correct published values
+
+#### Scenario: Source change recomputes routed parameters
+- **WHEN** a PolyXFader LFO routed to a parameter produces a changed decimated value on a host frame
+- **THEN** that slot's bit is set in the bank mode's changed-modulator bitmask
+- **AND** every affected named root evaluates the changed value in that matrix pass, using either the prepared or recursive path
+
+#### Scenario: Settled scene refresh takes effect immediately
+- **WHEN** scene assignment or endpoint activation changes while a parameter tree has no moving targets
+- **THEN** the next host evaluation uses the new scene values and dependency masks
+- **AND** the tree may return to prepared evaluation after that refresh without waiting out the conservative convergence budget
+
+#### Scenario: Clearing modulation invalidates an empty dependency mask
+- **WHEN** a modulated parameter is reset and its modulation targets become neutral
+- **THEN** the affected tree continues advancing and evaluating until those targets are reached even if sources remain unchanged
+- **AND** once the reset has settled, its output is the configured default and the next UI publication reports the corrected values and masks
+

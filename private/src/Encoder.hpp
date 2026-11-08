@@ -133,23 +133,17 @@ struct EncoderCell
 
 struct TickDistributor
 {
-    static constexpr size_t x_minSamplesToDistribute = static_cast<size_t>(SampleTimer::SecondsToHostSamples(0.002));
-    static constexpr size_t x_maxSamplesToDistribute = static_cast<size_t>(SampleTimer::SecondsToHostSamples(0.050));
+    // 20 ms time constant at the fixed host rate. The maximum is a conservative
+    // convergence budget proved in Lean, not a required period of active work.
+    //
+    static_assert(SampleTimer::SecondsToHostSamples(0.020) == 960.0);
+    static constexpr double x_alpha = 0x1.10ecaba069c94p-10;
+    static constexpr double x_settleThreshold = 0.000001;
+    static constexpr size_t x_maxSamplesToDistribute = 15001;
 
-    size_t m_samplesSinceLastChange;
-    size_t m_samplesToDistribute;
-
-    TickDistributor()
-        : m_samplesSinceLastChange(x_maxSamplesToDistribute)
-        , m_samplesToDistribute(0)
-    {
-    }
-
-    float GetStep(float target, float value)
-    {
-        assert(m_samplesToDistribute > 0);
-        return (target - value) / static_cast<float>(m_samplesToDistribute);
-    }
+    size_t m_samplesSinceLastChange = x_maxSamplesToDistribute;
+    size_t m_samplesToDistribute = 0;
+    uint8_t m_movingScenes = 0;
 
     void RecordSample()
     {
@@ -162,22 +156,27 @@ struct TickDistributor
         {
             --m_samplesToDistribute;
         }
+
+        if (IsDone())
+        {
+            m_samplesToDistribute = 0;
+            m_samplesSinceLastChange = x_maxSamplesToDistribute;
+        }
     }
 
     void RecordChange()
     {
         if (m_samplesSinceLastChange > 0)
         {
-            m_samplesToDistribute = std::clamp(m_samplesSinceLastChange,
-                x_minSamplesToDistribute, x_maxSamplesToDistribute);
+            m_samplesToDistribute = x_maxSamplesToDistribute;
         }
 
         m_samplesSinceLastChange = 0;
     }
 
-    bool IsDone()
+    bool IsDone() const
     {
-        return x_maxSamplesToDistribute <= m_samplesSinceLastChange && m_samplesToDistribute == 0;
+        return m_movingScenes == 0;
     }
 };
 
@@ -242,6 +241,7 @@ struct StateEncoderCell : public EncoderCell
 
     float m_values[SceneManager::x_numScenes];
     float m_targets[SceneManager::x_numScenes];
+    double m_smoothedValues[SceneManager::x_numScenes]{};
     float* m_state;
     SmartGridOneContext* m_context;
     TickDistributor m_tickDistributor;
@@ -287,6 +287,20 @@ struct StateEncoderCell : public EncoderCell
         }
 
         m_targets[scene] = value;
+        for (size_t s = 0; s < SceneManager::x_numScenes; ++s)
+        {
+            const uint8_t bit = static_cast<uint8_t>(1u << s);
+            if ((m_tickDistributor.m_movingScenes & bit) == 0)
+            {
+                m_smoothedValues[s] = m_values[s];
+            }
+
+            if (m_smoothedValues[s] != m_targets[s])
+            {
+                m_tickDistributor.m_movingScenes |= bit;
+            }
+        }
+
         m_tickDistributor.RecordChange();
         m_samplesForceUpdate = TickDistributor::x_maxSamplesToDistribute;
     }
@@ -467,9 +481,22 @@ struct StateEncoderCell : public EncoderCell
         SetState();
     }
 
+    // Capture current state without starting an idle gesture's unchanged target.
+    // An existing moving gesture continues from the newly captured value.
+    //
+    void CaptureCurrentValue(float value, size_t scene)
+    {
+        m_values[scene] = value;
+        m_smoothedValues[scene] = value;
+        if (m_tickDistributor.m_samplesToDistribute > 0 && value != m_targets[scene])
+        {
+            m_tickDistributor.m_movingScenes |= static_cast<uint8_t>(1u << scene);
+        }
+    }
+
     void MoveValuesTowardsTargets()
     {
-        if (m_tickDistributor.m_samplesToDistribute == 0)
+        if (m_tickDistributor.IsDone())
         {
             m_tickDistributor.RecordSample();
             return;
@@ -477,21 +504,29 @@ struct StateEncoderCell : public EncoderCell
 
         for (size_t s = 0; s < SceneManager::x_numScenes; ++s)
         {
-            if (m_tickDistributor.m_samplesToDistribute == 1)
+            const uint8_t bit = static_cast<uint8_t>(1u << s);
+            if ((m_tickDistributor.m_movingScenes & bit) == 0)
             {
-                m_values[s] = m_targets[s];
+                continue;
             }
-            else if (0 < m_tickDistributor.m_samplesToDistribute)
+
+            double target = m_targets[s];
+            double next = m_smoothedValues[s] + TickDistributor::x_alpha * (target - m_smoothedValues[s]);
+            if (std::abs(next - target) <= TickDistributor::x_settleThreshold)
             {
-                float step = m_tickDistributor.GetStep(m_targets[s], m_values[s]);
-                m_values[s] = std::max(0.0f, std::min(1.0f, m_values[s] + step));
+                next = target;
+                m_tickDistributor.m_movingScenes &= static_cast<uint8_t>(~bit);
             }
+
+            m_smoothedValues[s] = next;
+            m_values[s] = static_cast<float>(next);
         }
 
         m_tickDistributor.RecordSample();
-
+        assert(m_tickDistributor.IsDone() || m_tickDistributor.m_samplesToDistribute > 0);
         SetState();
     }
+
 };
 
 struct EncoderGrid

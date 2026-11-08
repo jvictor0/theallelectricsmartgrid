@@ -424,7 +424,7 @@ DOCTEST_TEST_CASE("encoder matrix: gestures edits scenes and UI preserve recursi
     std::mt19937 random(717);
     std::uniform_real_distribution<float> value(0.0f, 1.0f);
     size_t preparedFrames = 0;
-    for (size_t frame = 0; frame < 36000; ++frame)
+    for (size_t frame = 0; frame < 35000 + SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++frame)
     {
         DOCTEST_CAPTURE(frame);
         float blend = frame < 100 ? 0.0f : 0.1f + 0.8f * static_cast<float>(frame % 173) / 172.0f;
@@ -620,7 +620,7 @@ DOCTEST_TEST_CASE("encoder matrix: identical patch reload preserves full modulat
 
         rig.Process(false);
     };
-    for (size_t frame = 0; frame < 2402; ++frame)
+    for (size_t frame = 0; frame < SmartGrid::TickDistributor::x_maxSamplesToDistribute + 2; ++frame)
     {
         process();
     }
@@ -630,7 +630,7 @@ DOCTEST_TEST_CASE("encoder matrix: identical patch reload preserves full modulat
     JSON patch = rig.Root().ToJSON(saved);
     rig.Root().FromJSON(patch);
     double maximumError = 0;
-    for (size_t frame = 0; frame < 2402; ++frame)
+    for (size_t frame = 0; frame < SmartGrid::TickDistributor::x_maxSamplesToDistribute + 2; ++frame)
     {
         process();
         for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
@@ -679,7 +679,7 @@ DOCTEST_TEST_CASE("encoder matrix: reload preserves nested modulation gestures a
             actual.Process(false);
             untouched.Process(false);
         };
-        for (size_t frame = 0; frame < 2402; ++frame)
+        for (size_t frame = 0; frame < SmartGrid::TickDistributor::x_maxSamplesToDistribute + 2; ++frame)
         {
             process();
         }
@@ -714,11 +714,17 @@ DOCTEST_TEST_CASE("encoder matrix: reload preserves nested modulation gestures a
                 JsonArena moving(JsonArena::kDefaultCapacity);
                 float targets[SmartGrid::SceneManager::x_numScenes];
                 std::copy(std::begin(depth->m_targets), std::end(depth->m_targets), targets);
+                double state[SmartGrid::SceneManager::x_numScenes];
+                std::copy(std::begin(depth->m_smoothedValues), std::end(depth->m_smoothedValues), state);
+                auto movingScenes = depth->m_tickDistributor.m_movingScenes;
                 actual.Root().FromJSON(actual.Root().ToJSON(moving));
                 for (size_t scene = 0; scene < SmartGrid::SceneManager::x_numScenes; ++scene)
                 {
                     DOCTEST_CHECK(depth->m_targets[scene] == targets[scene]);
+                    DOCTEST_CHECK(depth->m_smoothedValues[scene] == state[scene]);
                 }
+
+                DOCTEST_CHECK(depth->m_tickDistributor.m_movingScenes == movingScenes);
             }
 
             process();
@@ -779,7 +785,7 @@ DOCTEST_TEST_CASE("encoder matrix: changed patch reuses matching paths and repla
     DOCTEST_CHECK(depth.m_modulators.GetGestureIndex(0) == 3);
     DOCTEST_CHECK(depth.m_modulators.GetGestureIndex(1) == 7);
 
-    for (size_t frame = 0; frame < 2402; ++frame)
+    for (size_t frame = 0; frame < SmartGrid::TickDistributor::x_maxSamplesToDistribute + 2; ++frame)
     {
         for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
         {
@@ -837,7 +843,7 @@ DOCTEST_TEST_CASE("encoder matrix: visible value readers follow nested graphs ed
         actual.Root().m_modulators.m_modulators[7].get(),
         actual.Root().m_modulators.m_gestures[1].get()
     };
-    for (size_t frame = 0; frame < 6000; ++frame)
+    for (size_t frame = 0; frame < 6000 + SmartGrid::TickDistributor::x_maxSamplesToDistribute; ++frame)
     {
         for (auto* rig : {&actual, &reference})
         {

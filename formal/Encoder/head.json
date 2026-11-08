@@ -459,10 +459,6 @@
     },
     {
       "path": "private/src/EncoderBank.hpp",
-      "symbol": "void Compute(ModulatorValues* modulatorValues, bool advanceState)"
-    },
-    {
-      "path": "private/src/EncoderBank.hpp",
       "symbol": "void RecursivelyIncrementModulatorsTowardsZero(float delta)"
     },
     {
@@ -520,10 +516,6 @@
     {
       "path": "private/src/EncoderBank.hpp",
       "symbol": "void AddGesture(BankedEncoderCell* parent, size_t gestureIx)"
-    },
-    {
-      "path": "private/src/EncoderBank.hpp",
-      "symbol": "void SetActive(bool active)"
     },
     {
       "path": "private/src/EncoderBank.hpp",
@@ -1219,7 +1211,7 @@
       "anchors": [
         "gesture_allocate"
       ],
-      "reason": "Gesture allocation retains its operations and initialization values. The constructor initializer list is reordered for the new member layout, with the same initializer expressions and body; the shared definitions and proofs still apply."
+      "reason": "Gesture allocation retains its operations and initialization values. The constructor initializer list is reordered for the new member layout, with the same initializer expressions and body; the shared definitions and proofs still apply. Current capture additionally synchronizes its double accumulator; it retains the unchanged-target idle defect and logical current/target copy semantics."
     },
     {
       "id": "E59",
@@ -1233,7 +1225,7 @@
         "gesture_order",
         "gesture_capture"
       ],
-      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both. Current capture additionally synchronizes its double accumulator; it retains the unchanged-target idle defect and logical current/target copy semantics."
     },
     {
       "id": "E60",
@@ -1257,7 +1249,7 @@
         "gesture_flag",
         "recording"
       ],
-      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both. Current capture additionally synchronizes its double accumulator; it retains the unchanged-target idle defect and logical current/target copy semantics."
     },
     {
       "id": "E61",
@@ -1271,7 +1263,7 @@
         "gesture_capture",
         "gesture_flag"
       ],
-      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both. Current capture additionally synchronizes its double accumulator; it retains the unchanged-target idle defect and logical current/target copy semantics."
     },
     {
       "id": "E62",
@@ -1285,7 +1277,7 @@
         "gesture_order",
         "gestures"
       ],
-      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both. Current capture additionally synchronizes its double accumulator; it retains the unchanged-target idle defect and logical current/target copy semantics."
     },
     {
       "id": "E63",
@@ -1309,7 +1301,7 @@
         "gesture_clear",
         "compute"
       ],
-      "reason": "Separate current and HEAD Veil lifecycle machines check the same invariants. Gesture operations retain their semantics; the constructor only reorders unchanged initializer expressions to match its member layout."
+      "reason": "Separate current and HEAD Veil lifecycle machines check the same invariants. Gesture operations retain their semantics; the constructor only reorders unchanged initializer expressions to match its member layout. Current capture additionally synchronizes its double accumulator; it retains the unchanged-target idle defect and logical current/target copy semantics."
     },
     {
       "id": "E64",
@@ -1420,7 +1412,7 @@
         "scene_edit",
         "ramp"
       ],
-      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both. The defect is accepted for now in both versions; the E60 conditional convergence theorem and its necessary-and-sufficient precondition remain proved."
+      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both. The defect is accepted for now in both versions; the E60 conditional convergence theorem and its necessary-and-sufficient precondition remain proved. Current capture additionally synchronizes its double accumulator; it retains the unchanged-target idle defect and logical current/target copy semantics."
     },
     {
       "id": "E71",

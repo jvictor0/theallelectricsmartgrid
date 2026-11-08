@@ -20,7 +20,9 @@
 //
 // Note: SynthRig::EncoderValue() reads the UNSLEWED published m_output
 // (PopulateUIState copies cell->m_output[k]); so once Compute runs, the value
-// settles to the expected target within a control frame, no slew lag.
+// follows the stored-value smoother; wait for its convergence bound before
+// asserting settled values and dependency masks.
+//
 
 #include "doctest.h"
 
@@ -34,7 +36,8 @@ namespace
 
 using synthrig::SynthRig;
 
-constexpr int kSettleFrames = 8 * static_cast<int>(SampleTimer::x_oversample);
+constexpr size_t kSettleFrames = (SmartGrid::TickDistributor::x_maxSamplesToDistribute * SampleTimer::x_oversample
+    + SampleTimer::x_samplesPerProcessFrame - 1) / SampleTimer::x_samplesPerProcessFrame + 1;
 constexpr float kTol = 1e-2f;
 
 // Locate the first connected encoder in the visible 4x4 bank.

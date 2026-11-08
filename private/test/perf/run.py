@@ -72,7 +72,7 @@ def cases(suite):
             add("auxiliary", kind, (4,), (0,))
     if suite in ("encoders", "all"):
         for topology in ("flat", "nested", "gestures"):
-            for mode in ("fixed", "right", "mid", "sweep"):
+            for mode in ("fixed", "right", "mid", "sweep", "knobs"):
                 result.append((f"matrix/{topology}/{mode}", "encoders", "matrix", topology, mode))
         for mode in ("fixed", "right", "mid", "sweep", "scenes"):
             result.append((f"full/{mode}", "encoders", "full", "flat", mode))

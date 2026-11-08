@@ -42,7 +42,8 @@
 namespace
 {
 
-constexpr int kSettleFrames = 8 * static_cast<int>(SampleTimer::x_oversample);
+constexpr size_t kSettleFrames = (SmartGrid::TickDistributor::x_maxSamplesToDistribute * SampleTimer::x_oversample
+    + SampleTimer::x_samplesPerProcessFrame - 1) / SampleTimer::x_samplesPerProcessFrame + 1;
 constexpr float kTol = 5e-3f;
 
 // Simple deterministic pseudo-random float in [lo, hi] using a seed.

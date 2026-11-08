@@ -356,7 +356,10 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
             {
                 if (GetModulator(i)->m_modulatorsAffecting.IsZero())
                 {
-                    break;
+                    // Children can retire at different times while editing.
+                    // Their order is compacted again when the tree settles.
+                    //
+                    continue;
                 }
 
                 BankedEncoderCell* cell = GetModulator(i);
@@ -958,6 +961,23 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         if (advanceState && m_samplesForceUpdate > 0)
         {
             --m_samplesForceUpdate;
+            bool settled = m_tickDistributor.IsDone();
+            for (size_t i = 0; i < m_modulators.m_numActiveModulators && settled; ++i)
+            {
+                auto* child = m_modulators.GetModulator(i);
+                settled = child->m_modulatorsAffecting.IsZero() || child->m_samplesForceUpdate == 0;
+            }
+
+            for (size_t i = 0; i < m_modulators.m_numActiveGestures && settled; ++i)
+            {
+                settled = m_modulators.GetGesture(i)->m_samplesForceUpdate == 0;
+            }
+
+            if (settled)
+            {
+                m_samplesForceUpdate = 0;
+            }
+
             if (m_samplesForceUpdate == 0)
             {
                 SetModulatorsAffecting();
@@ -1197,7 +1217,8 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         {
             if (active && !m_isActive[m_context->m_sceneManager.m_scene2])
             {
-                m_values[m_context->m_sceneManager.m_scene2] = m_parent->m_values[m_context->m_sceneManager.m_scene2];
+                CaptureCurrentValue(m_parent->m_values[m_context->m_sceneManager.m_scene2],
+                    m_context->m_sceneManager.m_scene2);
                 SetAndRecordValue(m_parent->m_targets[m_context->m_sceneManager.m_scene2],
                     m_context->m_sceneManager.m_scene2);
                 SetState();
@@ -1210,7 +1231,8 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         {
             if (active && !m_isActive[m_context->m_sceneManager.m_scene1])
             {
-                m_values[m_context->m_sceneManager.m_scene1] = m_parent->m_values[m_context->m_sceneManager.m_scene1];
+                CaptureCurrentValue(m_parent->m_values[m_context->m_sceneManager.m_scene1],
+                    m_context->m_sceneManager.m_scene1);
                 SetAndRecordValue(m_parent->m_targets[m_context->m_sceneManager.m_scene1],
                     m_context->m_sceneManager.m_scene1);
                 SetState();

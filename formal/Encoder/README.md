@@ -477,3 +477,10 @@ The source audit also reviewed the earlier UI-only additions in `9d6a7fb`: visib
 encoder revision/spread updates and bound matrix readers. They observe existing
 outputs and do not change leaf control arithmetic or publication. Their previously
 stale file fingerprints are updated with this review.
+
+One-pole children can retire at different host frames. The recursive route loop
+therefore skips individual neutral children instead of stopping at the first one;
+settlement rebuilds the sorted dependency list before preparing the graph. This
+preserves active route order and arithmetic while preventing a retired sibling
+from blocking a moving route. The shared pure evaluation/schedule proofs still
+apply; native sibling and randomized tree regressions cover this integration.
