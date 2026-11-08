@@ -14,4 +14,6 @@
 
 - [x] 3.1 Review source/model correspondence, update documentation and pass formal/core checks.
 - [x] 3.2 Replay the recorded knob events and compare audible artifacts and audio-rate modulation.
-- [ ] 3.3 Measure settled and moving encoder CPU, preserve results, and finish the change through the repository workflow.
+- [x] 3.3 Measure settled and moving encoder CPU, preserve results, and finish the change through the repository workflow.
+
+Validation and measurements: [report](../../../docs/encoder-control-smoothing-validation.md).

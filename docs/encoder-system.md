@@ -229,3 +229,6 @@ When a source machine changes, `UpdateEncodersForMachine()` uses the precomputed
 ## Related
 - [DSP Overview](dsp-overview.md)
 - [Theory of Time](theory-of-time.md)
+
+The [control-smoothing validation report](encoder-control-smoothing-validation.md) records
+the Lean-first checkpoint, native regressions, recorded-event audio replay and CPU comparisons.
