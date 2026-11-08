@@ -87,7 +87,7 @@ BASELINE_PARAM(DelayReverbSend, REV, Delay, 3, 1, 0, "Reverb Send", SmartGrid::C
 BASELINE_PARAM(DelayRotate, ROT, Delay, 1, 2, 0.25, "Delay Rotate", SmartGrid::Color::Pink, 0xFF, 0xFF, 5, false)
 BASELINE_PARAM(ResynthUnison, UNIS, Delay, 2, 2, 0.0, "Resynth Unison", SmartGrid::Color::Pink, 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(DelayPartialMachineSend, PRTM, Delay, 3, 2, 0, "Partial Machine Send", SmartGrid::Color::Cyan, 0xFF, 0xFF, 0, false)
-BASELINE_PARAM(DelayPhaseModulation, PHAS, Delay, 0, 3, 0, "Delay Phase Modulation", SmartGrid::Color::Pink, 0xFF, 0xFF, 0, true)
+BASELINE_PARAM(DelayPhaseModulation, OFFS, Delay, 0, 3, 0, "Delay Phase Modulation", SmartGrid::Color::Pink, 0xFF, 0xFF, 0, true)
 BASELINE_PARAM(ResynthShiftFade, SHFT, Delay, 1, 3, 0.0, "Resynth Shift Fade", SmartGrid::Color::Pink, 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(ResynthShiftInterval, PIT, Delay, 2, 3, 1.0, "Resynth Shift Interval", SmartGrid::Color::Pink, 0xFF, 0xFF, 10, false)
 BASELINE_PARAM(DelayReturn, RTN, Delay, 3, 3, 1.0, "Delay Return", SmartGrid::Color::Pink, 0xFF, 0xFF, 0, false)

@@ -77,3 +77,37 @@ enabled, and `make visualizers-test` passed. The rebase preserved the feature
 patch without conflicts. Main's subsequent documentation-only formatting
 commit was also included. Strict OpenSpec validation and `git diff --check`
 passed. No deployment was performed.
+
+## 10. One-Hertz Phase Input Experiment
+
+- [x] 10.1 Apply an independent 1 Hz OPLowPassFilter per channel to the combined PHAS value, with double state and engine-rate coefficients; update its response check and documentation.
+- [x] 10.2 Validate the affected delay controls, build the signed iOS Release app, and install and launch it on the paired iPad for listening.
+
+One-hertz validation: `make core-test` passed both suites with assertions
+enabled, including the PHAS response check. Strict OpenSpec validation and
+`git diff --check` passed. `make ios-deploy` built and signed the app, upgraded
+the paired iPad over Wi-Fi, launched it, and reported `Deploy complete`.
+Logs are retained at `build/results/delay-phase-1hz-core-test.log` and
+`build/results/ipad-phase-1hz-deploy.log`.
+
+## 11. Offset Label
+
+- [x] 11.1 Rename the delay's displayed label to OFFS to match Reverb and update the catalogue expectations and documentation.
+- [x] 11.2 Run the existing catalogue and delay-control checks for the label change.
+
+Offset-label validation: `make core-build` succeeded and the existing catalogue
+and delay PM cases passed. Strict OpenSpec validation and `git diff --check`
+passed. The 1 Hz filter remains unchanged and the label has not been redeployed.
+
+## 12. Restore Raw Offset Modulation
+
+- [x] 12.1 Remove the experimental 1 Hz offset filter, retain OFFS and manual encoder smoothing, and restore direct-mapping checks and documentation.
+- [x] 12.2 Validate the affected controls and DSP, then build, install, and launch the raw-modulation build on the paired iPad.
+
+Raw-modulation validation: `make core-build` succeeded, and 25 existing catalogue,
+delay, OLA, and rate-boundary cases passed with 2,766,440 assertions. Strict
+OpenSpec validation and `git diff --check` passed. `make ios-deploy` built and
+signed the app, upgraded the paired iPad, launched it, and reported
+`Deploy complete`. This deployment includes the OFFS label. Logs are retained
+at `build/results/delay-offset-raw-tests.log` and
+`build/results/ipad-offset-raw-deploy.log`.

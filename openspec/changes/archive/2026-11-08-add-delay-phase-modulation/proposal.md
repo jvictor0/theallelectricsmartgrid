@@ -7,6 +7,7 @@ Quad Delay needs audio-rate phase modulation of its reconstructed output. Retain
 - Use a 6H accumulation ring for Quad Delay's 4H synthesis frames, with H of nominal added latency.
 - Add per-channel cubic-interpolated output reads with a linear PM range of `[-H + 2, H - 2]` engine samples. The two-sample margin protects the interpolation stencil.
 - Place a bipolar, zero-default PM knob in the delay page's cell `(0, 3)`, using the existing modulation-depth system.
+- Label the delay offset control OFFS to match Reverb, with live modulation passed directly to the offset read.
 - Retire old samples independently of the PM read position and preserve other OLA clients' existing timing.
 - Remove the Quad Delay Widen knob and its channel-dependent delay-length scaling. Leave its former cell `(0, 2)` empty.
 - Give the four delay channels distinct maximum unison detunes of 40, 45, 50, and 55 cents through a generic unison-base helper.

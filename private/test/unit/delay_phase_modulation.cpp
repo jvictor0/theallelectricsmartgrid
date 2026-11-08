@@ -37,7 +37,7 @@ DOCTEST_TEST_CASE("Delay PM: the last empty slot is bipolar and maps linearly in
     DOCTEST_CHECK(cell->m_bipolar);
     DOCTEST_CHECK(cell->m_switchValues == 0);
     DOCTEST_CHECK(cell->m_defaultValue == 0.5f);
-    DOCTEST_CHECK(std::string(cell->m_shortName) == "PHAS");
+    DOCTEST_CHECK(std::string(cell->m_shortName) == "OFFS");
     for (size_t channel = 0; channel < 4; ++channel)
     {
         DOCTEST_CHECK(cell->GetValue(channel) == 0.0f);

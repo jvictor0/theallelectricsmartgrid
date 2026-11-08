@@ -83,7 +83,7 @@ F(DelayReverbSend, REV, Quad, 0, "Reverb Send", SmartGrid::Color::Purple, 0, fal
 F(DelayRotate, ROT, Quad, 0.25, "Delay Rotate", SmartGrid::Color::Pink, 5, false)
 F(ResynthUnison, UNIS, Quad, 0.0, "Resynth Unison", SmartGrid::Color::Pink, 0, false)
 F(DelayPartialMachineSend, PRTM, Quad, 0, "Partial Machine Send", SmartGrid::Color::Cyan, 0, false)
-F(DelayPhaseModulation, PHAS, Quad, 0, "Delay Phase Modulation", SmartGrid::Color::Pink, 0, true)
+F(DelayPhaseModulation, OFFS, Quad, 0, "Delay Phase Modulation", SmartGrid::Color::Pink, 0, true)
 F(ResynthShiftFade, SHFT, Quad, 0.0, "Resynth Shift Fade", SmartGrid::Color::Pink, 0, false)
 F(ResynthShiftInterval, PIT, Quad, 1.0, "Resynth Shift Interval", SmartGrid::Color::Pink, 10, false)
 F(DelayReturn, RTN, Quad, 1.0, "Delay Return", SmartGrid::Color::Pink, 0, false)

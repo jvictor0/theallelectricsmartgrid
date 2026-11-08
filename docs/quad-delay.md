@@ -90,7 +90,7 @@ To preserve the original pitch while allowing the time-warping to stretch and co
 
 ## Output Phase Modulation
 
-The **PHAS** knob occupies the delay page's bottom-left cell `(0, 3)`. It is a
+The **OFFS** knob occupies the delay page's bottom-left cell `(0, 3)`. It is a
 continuous bipolar control, centered at zero, with independent modulation per
 quad channel. Its mapping is linear; modulation depth uses the existing
 exponential depth controls.
@@ -98,8 +98,9 @@ exponential depth controls.
 The shared encoder path smooths manual scene values with a one-pole filter
 whose time constant is 20 ms, then interpolates host-frame values across the
 engine samples. Live modulation stays outside that manual-control filter.
-The delay adds no further smoothing to this value. This control smoothing is
-separate from the cubic interpolation of audio samples.
+The delay adds no further smoothing to this value, so live modulation reaches
+the offset read directly. Manual control smoothing is separate from the cubic
+interpolation of audio samples.
 
 Let `H = 1024 * x_oversample` engine samples. Synthesis frames remain 4H long
 and launch every H samples. Quad Delay accumulates them in a 6H ring, retaining

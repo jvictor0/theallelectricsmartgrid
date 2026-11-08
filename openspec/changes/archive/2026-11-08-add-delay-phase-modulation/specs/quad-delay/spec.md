@@ -38,7 +38,7 @@ The system SHALL read the delay line through one packed four-channel `GrainManag
 - **THEN** their output accumulates in one preallocated overlap-add ring of `6144 * x_oversample` quad samples (6H, where H is the synthesis hop), with no per-grain allocation
 
 ### Requirement: Pitch Shift, Unison, and Per-Partial Slew Controls
-The system SHALL forward per-channel resynthesis controls to the grain resynthesizer: a pitch-shift ratio selected from ten just-intonation ratios {1/2, 2/3, 3/4, 3/5, 4/5, 5/3, 4/3, 3/2, 2/1}, a shift fade amount crossfading shifted synthesis against unshifted, a unison detune ratio `2^(C*u/1200)` with maximum spread C = 40, 45, 50, and 55 cents on channels 1–4 and normalized knob u, a unison gain `(20^min(1, 3*u) - 1) / 19` that reaches full level at one third of the unison knob's travel, and a per-partial slew-up rate mapped exponentially from 0.5 down to 0.25/1024 cycles per analysis hop as the slew-up knob increases (higher knob values produce a slower spectral bloom). The unison copies SHALL use the center pitch and reciprocal upward/downward detune ratios.
+The system SHALL forward per-channel resynthesis controls to the grain resynthesizer: a pitch-shift ratio selected from ten just-intonation ratios {1/2, 2/3, 3/4, 3/5, 4/5, 5/4, 5/3, 4/3, 3/2, 2/1}, a shift fade amount crossfading shifted synthesis against unshifted, a unison detune ratio `2^(C*u/1200)` with maximum spread C = 40, 45, 50, and 55 cents on channels 1–4 and normalized knob u, a unison gain `(20^min(1, 3*u) - 1) / 19` that reaches full level at one third of the unison knob's travel, and a per-partial slew-up rate mapped exponentially from 0.5 down to 0.25/1024 cycles per analysis hop as the slew-up knob increases (higher knob values produce a slower spectral bloom). The unison copies SHALL use the center pitch and reciprocal upward/downward detune ratios.
 
 #### Scenario: Shift selection is a musical ratio
 - **WHEN** the resynthesis shift switch selects index 8
@@ -85,13 +85,16 @@ Quad Delay SHALL add H engine samples of nominal output latency and read the sum
 - **THEN** its queued output and retained history are silent at every PM setting and other channels are unaffected
 
 ### Requirement: Linear PM Knob
-The delay page SHALL expose a continuous bipolar Quad knob named DelayPhaseModulation, short label PHAS, in cell `(0, 3)`. Its default SHALL be zero. Its bipolar value SHALL map linearly to `pm = value * (H - 2)` engine samples with no additional depth curve or slew. Existing modulation depth controls SHALL apply normally.
+The delay page SHALL expose a continuous bipolar Quad knob named DelayPhaseModulation, short label OFFS to match Reverb, in cell `(0, 3)`. Its default SHALL be zero. The combined bipolar value, including live modulation, SHALL map directly and linearly to `pm = value * (H - 2)` engine samples without an additional filter or depth curve. The shared manual encoder smoothing SHALL remain outside the live modulation path. Existing modulation depth controls SHALL apply normally.
 
 #### Scenario: Endpoint and center mapping
-- **WHEN** the PM knob is at minimum, center, or maximum
+- **WHEN** the processed PM knob value is at minimum, center, or maximum
 - **THEN** its offset is respectively `-H + 2`, zero, or `H - 2` engine samples
+
+#### Scenario: Live offset modulation is unfiltered
+- **WHEN** a channel's combined OFFS value steps to a new constant target
+- **THEN** its offset reflects that value on the next engine sample without additional delay-input filtering
 
 #### Scenario: Existing patch has no PM field
 - **WHEN** a patch omits DelayPhaseModulation
 - **THEN** the PM knob defaults to zero on all channels
-
