@@ -215,10 +215,23 @@ F(
 // Sub bank
 //
 F(
-    SubAnalyzer,
+    SubScope,
     Sub,
     0,
-    3,
+    1,
+    Full,
+    std::make_unique<ScopeComponent>(
+        static_cast<size_t>(SmartGridOne::VoiceScopes::Sub),
+        m_nonagon->GetVoiceScopeWriter(),
+        &m_scopeVoiceOffset,
+        ScopeComponent::ScopeType::Audio,
+        uiState),
+    VoiceMachine::SourceMachineFlags::All())
+F(
+    SubAnalyzer,
+    Sub,
+    1,
+    2,
     Full,
     std::make_unique<AnalyserComponent>(
         TrioWindowedFFT(m_nonagon->GetVoiceScopeWriter(), static_cast<size_t>(SmartGridOne::VoiceScopes::Sub)),

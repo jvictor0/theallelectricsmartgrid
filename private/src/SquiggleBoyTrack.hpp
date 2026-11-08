@@ -21,7 +21,7 @@
 #include "RecordingBuffer.hpp"
 #include "SquiggleBoyVoiceConfig.hpp"
 #include "RecordingManager.hpp"
-#include "Saturator.hpp"
+#include "Wavefolder.hpp"
 #include "VCO.hpp"
 
 #include <algorithm>
@@ -100,7 +100,7 @@ struct SquiggleBoyTrackGeneric
     {
         using Envelope = AHDGeneric<Size>;
         using MutingEnvelope = ASDGeneric<Size>;
-        using Saturator = TanhSaturatorGeneric<float, Size, true>;
+        using Wavefolder = WavefolderGeneric<Size>;
 
         static constexpr float x_subSlewMinSeconds = 0.001f;
         static constexpr float x_subRiseMaxSeconds = 1.0f;
@@ -117,6 +117,7 @@ struct SquiggleBoyTrackGeneric
         Vector m_freqDependentGainTarget;
 
         BiDirectionalSlewGeneric<Size> m_subSlew;
+        Wavefolder m_subWavefolder;
 
         ScopeWriterHolderGeneric<Size> m_scopeWriter;
         ScopeWriterHolderGeneric<Size> m_subScopeWriter;
@@ -136,7 +137,8 @@ struct SquiggleBoyTrackGeneric
 
             PhaseUtils::ZeroedExpParamGeneric<float, Size> m_gain;
             PhaseUtils::ZeroedExpParamGeneric<float, Size> m_subGain;
-            PhaseUtils::ExpParamGeneric<float, Size> m_subTanhGain;
+            PhaseUtils::ExpParamGeneric<float, Size> m_subDrive;
+            Vector m_subShape;
             PhaseUtils::ExpParamGeneric<float, Size> m_subRiseSeconds;
             PhaseUtils::ExpParamGeneric<float, Size> m_subFallSeconds;
 
@@ -155,7 +157,8 @@ struct SquiggleBoyTrackGeneric
             Input()
                 : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
                 , m_vcoTargetFreq(Vector::Splat(0))
-                , m_subTanhGain(0.125f, 32.0f)
+                , m_subDrive(0.125f, 8.0f)
+                , m_subShape(Vector::Splat(0))
                 , m_subRiseSeconds(x_subSlewMinSeconds, x_subRiseMaxSeconds)
                 , m_subFallSeconds(x_subSlewMinSeconds, x_subFallMaxSeconds)
             {
@@ -279,10 +282,10 @@ struct SquiggleBoyTrackGeneric
             }
 
             Vector subEnvelope = m_subSlew.Process(subTarget);
-            Vector subDrive = input.m_subTanhGain.m_expParam;
-            Vector saturatedSub = Saturator::Tanh(sub * subEnvelope * subDrive) / Saturator::Tanh(subDrive);
+            m_subWavefolder.SetGain(input.m_subDrive.m_expParam);
+            Vector shapedSub = m_subWavefolder.Process(sub * subEnvelope, input.m_subShape);
             Vector mainOut = freqDependentGain * ahdEnv * filterOutput;
-            Vector subOut = freqDependentGain * saturatedSub * input.m_subGain.m_expParam;
+            Vector subOut = freqDependentGain * shapedSub * input.m_subGain.m_expParam;
             m_scopeWriter.Write(mainOut);
             m_subScopeWriter.Write(subOut);
 
@@ -503,7 +506,8 @@ struct SquiggleBoyTrackGeneric
         input.m_subInput.m_baseFreq = baseFreq;
 
         input.m_ampInput.m_subGain.Update(encoders.GetValue<Size>(Param::SubOscillator, track));
-        input.m_ampInput.m_subTanhGain.Update(encoders.GetValue<Size>(Param::SubTanhGain, track));
+        input.m_ampInput.m_subDrive.Update(encoders.GetValue<Size>(Param::SubTanhGain, track));
+        input.m_ampInput.m_subShape = encoders.GetValue<Size>(Param::SubShape, track);
         input.m_ampInput.m_subRiseSeconds.Update(encoders.GetValue<Size>(Param::SubSlewRise, track));
         input.m_ampInput.m_subFallSeconds.Update(encoders.GetValue<Size>(Param::SubSlewFall, track));
 
@@ -599,6 +603,14 @@ struct SquiggleBoyTrackGeneric
 
         Vector sub = m_sub.Process(input.m_subInput.m_baseFreq * 0.5f);
         m_output = m_amp.Process(input.m_ampInput, shaped, sub);
+        for (size_t i = 0; i < Size; ++i)
+        {
+            if (m_sub.m_top[i])
+            {
+                m_amp.m_subScopeWriter.RecordStartAtVoice(i, m_sub.m_top[i].m_offset);
+            }
+        }
+
         m_pan.Process(input.m_panInput);
         m_squiggleLFO[0].Process(input.m_squiggleLFOInput[0]);
         m_squiggleLFO[1].Process(input.m_squiggleLFOInput[1]);

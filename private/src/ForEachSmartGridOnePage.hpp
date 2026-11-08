@@ -67,6 +67,7 @@ F(Sub, SubOscillator, 0, 0)
 F(Sub, SubTanhGain, 1, 0)
 F(Sub, SubSlewRise, 2, 0)
 F(Sub, SubSlewFall, 3, 0)
+F(Sub, SubShape, 1, 1)
 
 F(PanAndMelody, PanRadius, 0, 0)
 F(PanAndMelody, PanPhaseShift, 1, 0)

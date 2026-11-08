@@ -88,6 +88,7 @@ F(SubOscillator, SubAnalyzer)
 F(SubTanhGain, SubAnalyzer)
 F(SubSlewRise, SubAnalyzer)
 F(SubSlewFall, SubAnalyzer)
+F(SubShape, SubAnalyzer)
 
 // Panning and melody. Portamento follows the pitch display.
 //

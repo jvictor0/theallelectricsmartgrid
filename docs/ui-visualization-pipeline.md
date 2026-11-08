@@ -135,6 +135,7 @@ The producers of fractional tops and their scope capture are:
 | --- | --- |
 | VPS | On a wrap, `SampleTop::FromWrap(wrapped, freq)` sets the offset to `-wrapped / freq` engine samples. Phase advancement and wrap detection do not depend on the offset. |
 | Dual VCO | Each oscillator's scope calls `RecordStart(top.m_offset)` on its wrap. VCO 1's top becomes the source top. |
+| Sub VCO | The sine VCO exposes each lane's fractional wrap top; the track passes its offset to the shaped sub scope's `RecordStartAtVoice`. |
 | Sample source | `SampleTop::FromPhases` applies the floor-crossing test between the previous and current total phase and adds its fractional timing. |
 | Theory of Time base | `SetCrossings` sets each loop's crossing flags, then calls `InterpolatePhases` once per domain; the start sample keeps offset zero. Crossings are set before topology acceptance, so timing travels with the event that made an edit eligible. |
 | PolyXFader | Initializes each lane with `AndIdentity`, so the `&&` combination retains the latest fractional crossing when all active loops cross. With zero total weight the lane keeps a true event at offset zero. |

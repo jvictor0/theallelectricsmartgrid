@@ -17,7 +17,7 @@ DOCTEST_TEST_CASE("AHD: scope starts and retriggers end once at an idle voice cr
     input.m_vcoTargetFreq = 50.0f / 48000.0f;
     input.m_gain.Update(1.0f);
     input.m_subGain.Update(0.0f);
-    input.m_subTanhGain.Update(0.5f);
+    input.m_subDrive.Update(0.5f);
     amp.m_subOut = 0.0f;
     amp.m_scopeWriter = ScopeWriterHolder(scopes.get(), 0);
     amp.m_ampEnvelopeScopeWriter = ScopeWriterHolder(scopes.get(), 1);
