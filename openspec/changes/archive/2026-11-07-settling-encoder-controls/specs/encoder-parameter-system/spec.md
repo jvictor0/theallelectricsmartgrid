@@ -67,4 +67,3 @@ Changes outside the normal source-input path, including reset, gesture deletion,
 - **WHEN** a modulated parameter is reset and its modulation targets become neutral
 - **THEN** the affected tree continues advancing and evaluating until those targets are reached even if sources remain unchanged
 - **AND** once the reset has settled, its output is the configured default and the next UI publication reports the corrected values and masks
-
