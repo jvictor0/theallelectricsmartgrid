@@ -155,7 +155,7 @@ struct Delay
             m_knobs.m_delayTimeFactorSwitchVal[c] = 3;
             m_knobs.m_readHeadSpeedSwitchVal[c] = 10;
             m_knobs.m_rotateSwitchVal[c] = static_cast<int>(c + 1);
-            m_knobs.m_resynthShiftSwitchVal[c] = Mode >= 2 ? 12 : 9;
+            m_knobs.m_resynthShiftSwitchVal[c] = Mode >= 2 ? 0 : 9;
         }
     }
 

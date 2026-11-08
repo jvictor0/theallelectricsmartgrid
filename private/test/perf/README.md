@@ -101,7 +101,9 @@ internal coefficient calculations. Exceptions matter when reading a comparison:
 - Reverb mode 0 uses fixed explicit delay times/damping rather than the mode 1
   knob mapping. Delay mode 0 uses explicit read/write positions; modes 2/3 also
   enable shift/unison processing. These are different DSP workloads, not pure
-  setter-overhead comparisons. Delay clock snapshots are prepared outside timing.
+  setter-overhead comparisons. Modes 2/3 use octave-down shift index 0;
+  historical measurements using index 12 are invalid because the interval
+  table has ten entries. Delay clock snapshots are prepared outside timing.
 - Master crossover/gain controls are shared across channels: mode 2 changes the
   same shared controls as mode 3, rather than one independent channel.
 - Random: 0 uses long waits, 1/2 normal random motion, 3 sustained movement.

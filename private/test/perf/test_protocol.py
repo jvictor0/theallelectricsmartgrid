@@ -30,6 +30,12 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output) as temporary:
         folder = Path(temporary)
+        delay_captures = []
+        for repeat in range(2):
+            capture = folder / f'delay-{repeat}.f32'
+            execute([binaries / 'perf_effects', 'delay', 4, 3, '.02', capture])
+            delay_captures.append(capture)
+        assert digest(delay_captures[0]) == digest(delay_captures[1]), 'Delay output is not repeatable'
         replay = folder / 'replay.bin'
         execute([encoder, 'record', FIXTURE, 'sweep', '.01', replay])
         other = folder / 'other.bin'
@@ -54,6 +60,8 @@ def main():
         roots = mixed['squiggleBoy']
         gestures = {name for name, node in roots.items() if any(node.get('gestures', []))}
         modulators = {name for name, node in roots.items() if any(node.get('modulators', []))}
+        # Saved fixtures retain DelayWiden, which the phase-control patch retired.
+        retired_roots = {'DelayWiden'}
         assert len(roots) == 329 and len(gestures) == 165 and len(modulators) == 164
         assert gestures.isdisjoint(modulators) and gestures | modulators == roots.keys()
         assert mixed['faders'] == [0.5] * 16
@@ -98,7 +106,8 @@ def main():
                     # Parameters added since this fixture load at their defaults.
                     # Both full-rig fixtures must contain the same current catalogue.
                     assert row['roots'] == loaded_roots
-                    assert row['gesture_roots'] == len(gestures) and row['modulated_roots'] == len(modulators)
+                    assert row['gesture_roots'] == len(gestures - retired_roots)
+                    assert row['modulated_roots'] == len(modulators - retired_roots)
                     assert row['gesture_sweep'] == (kind == 'full_gestures')
                     gesture_checksums[name] = row['gesture_checksum']
                 dumps.append(dump)
