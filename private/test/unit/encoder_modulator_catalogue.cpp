@@ -16,17 +16,17 @@ struct ExpectedSkin
 
 const ExpectedSkin x_voice[] =
 {
-    {Glyph::SmoothRandom, {255, 30, 18}}, {Glyph::SmoothRandom, {127, 84, 139}},
+    {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
     {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
     {Glyph::ADSR, {255, 108, 29}}, {Glyph::ADSR, {0, 247, 167}},
     {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {134, 63, 249}},
     {Glyph::Sheaf, {0, 255, 255}}, {Glyph::Sheaf, {56, 61, 249}},
     {Glyph::Sheaf, {9, 246, 59}}, {Glyph::Spread, {143, 143, 143}},
-    {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {253, 253, 253}}
+    {Glyph::LFO, {134, 63, 249}}, {Glyph::LFO, {255, 108, 29}}, {Glyph::Noise, {253, 253, 253}}
 };
 const ExpectedSkin x_quad[] =
 {
-    {Glyph::SmoothRandom, {255, 30, 18}}, {Glyph::SmoothRandom, {127, 84, 139}},
+    {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
     {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
     {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {134, 63, 249}},
@@ -187,6 +187,26 @@ DOCTEST_TEST_CASE("modulator catalogue: every mode presents preserved sources an
     }
 }
 
+DOCTEST_TEST_CASE("modulator catalogue: page groups reuse the original slot colors and short random names")
+{
+    using namespace SmartGridOneModulators;
+    for (size_t group = 0; group < x_numGroups; ++group)
+    {
+        DOCTEST_CAPTURE(group);
+        const auto first = GetSkin(static_cast<Group>(group), 2);
+        const auto second = GetSkin(static_cast<Group>(group), 3);
+        DOCTEST_CHECK(first.m_color == SmartGrid::Color(255, 248, 63));
+        DOCTEST_CHECK(second.m_color == SmartGrid::Color(255, 71, 250));
+        DOCTEST_CHECK(std::string(first.m_shortName) == "RND1");
+        DOCTEST_CHECK(std::string(second.m_shortName) == "RND2");
+        if (x_groupLanes[group] == 3)
+        {
+            DOCTEST_CHECK(GetSkin(static_cast<Group>(group), 0).m_color == SmartGrid::Color(255, 30, 18));
+            DOCTEST_CHECK(GetSkin(static_cast<Group>(group), 1).m_color == SmartGrid::Color(127, 84, 139));
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("modulator catalogue: legacy global empty depths survive patch load and UI processing")
 {
     for (size_t index : {6, 7, 11})
@@ -324,7 +344,7 @@ DOCTEST_TEST_CASE("modulator catalogue: DSP sources retain numeric destinations 
     for (size_t channel = 0; channel < 4; ++channel)
     {
         DOCTEST_CHECK(quad.m_value[4][channel] == 0.0f);
-        DOCTEST_CHECK(quad.m_value[5][channel] == 0.0f);
+        DOCTEST_CHECK(quad.m_value[5][channel] == 0.5f);
         for (size_t lfo = 0; lfo < 2; ++lfo)
         {
             DOCTEST_CHECK(quad.m_value[6 + lfo][channel] == doctest::Approx(0.15f + 0.1f * channel + 0.2f * lfo));

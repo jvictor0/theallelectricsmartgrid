@@ -16,21 +16,16 @@ namespace SmartGridOne
         Sub = 4,
         LFO1 = 5,
         LFO2 = 6,
-        GangedRandom1 = 7,
-        GangedRandom2 = 8,
-        GangedRandom3 = 9,
-        GangedRandom4 = 10,
-        ModulationEnvelope = 11,
-        AmpEnvelope = 12,
-        NumScopes = 13
+        PhysicalModelingEnvelope = 7,
+        ModulationEnvelope = 8,
+        AmpEnvelope = 9,
+        NumScopes = 10
     };
 
     inline size_t ControlScopeToModulatorIndex(size_t scopeIx)
     {
-        static constexpr size_t x_scopeToModulator[] = { 6, 7, 0, 1, 2, 3, 4, 5 };
-        constexpr size_t x_firstControl = static_cast<size_t>(VoiceScopes::LFO1);
-        return scopeIx >= x_firstControl && scopeIx < static_cast<size_t>(VoiceScopes::NumScopes)
-            ? x_scopeToModulator[scopeIx - x_firstControl] : 0;
+        static constexpr size_t x_scopeToModulator[] = { 21, 22, 0, 13, 12, 6, 7, 22, 4, 5 };
+        return scopeIx < static_cast<size_t>(VoiceScopes::NumScopes) ? x_scopeToModulator[scopeIx] : 0;
     }
 
     enum class MonoScopes : size_t
@@ -57,7 +52,10 @@ namespace SmartGridOne
         QuadLFO2 = 10,
         SourcePreFilter = 11,
         SourcePostFilter = 12,
-        NumScopes = 13
+#define F(tap, envelope, audio) envelope, audio,
+#include "ForEachMixerModulationTap.hpp"
+#undef F
+        NumScopes
     };
 
     enum class ModulationGlyphs : size_t

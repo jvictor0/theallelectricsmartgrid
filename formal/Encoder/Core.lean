@@ -273,8 +273,9 @@ def readOutput (s : Output) (host slot ratio : Nat) (bipolar : Bool) (lane : Lan
     s.current lane + (s.previous lane - s.current lane) * previousWeight slot ratio
     else s.current lane)
 
--- @cpp publish: EncoderMatrix::Publish; no separate cache traversal.
+-- @cpp publish: EncoderMatrix::Publish interpolation, after its root clamp.
 -- @head publish: shared arithmetic/control operation at the pinned revision.
+-- The supplied Output abstracts the clamp boundary; this model does not apply it.
 def publish (s : Output) (host ratio : Nat) (bipolar : Bool) : Nat → Lane → Rat :=
   fun slot lane => readOutput s host slot ratio bipolar lane
 

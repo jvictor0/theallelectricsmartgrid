@@ -154,6 +154,49 @@ DOCTEST_TEST_CASE("Sub: volume scales folded audio without changing the envelope
     DOCTEST_CHECK(rig.m_input.m_subDrive.m_expParam == 8.0f);
 }
 
+DOCTEST_TEST_CASE("Sub: modulation follows the envelope and shaper before every volume gain")
+{
+    GlobalEnv::ResetPerTest();
+    SubAmpRig rig;
+    SubAmpRig reference;
+    auto writer = std::make_unique<ScopeWriterGeneric<1,
+        3 * static_cast<size_t>(SmartGridOne::VoiceScopes::NumScopes)>>(1, 512);
+    const size_t subScope = SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::Sub), 0);
+    const size_t voiceScope = SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::PostAmp), 0);
+    rig.m_amp.m_subScopeWriter = ScopeWriterHolderGeneric<1>(writer.get(), subScope);
+    rig.m_amp.m_scopeWriter = ScopeWriterHolderGeneric<1>(writer.get(), voiceScope);
+    rig.m_input.m_subDrive.Update(0.8f);
+    reference.m_input.m_subDrive.Update(0.8f);
+    for (float shape : {0.0f, 0.5f, 1.0f})
+    {
+        rig.m_input.m_subShape = shape;
+        reference.m_input.m_subShape = shape;
+        for (float volume : {0.0f, 0.5f, 1.0f})
+        {
+            rig.m_input.m_subGain.Update(volume);
+            rig.m_input.m_gain.Update(volume);
+            rig.m_amp.m_freqDependentGainTarget = 0.25f;
+            rig.m_amp.m_freqDependentGainSlew.m_output = 0.25f;
+            for (size_t sample = 0; sample < 64; ++sample)
+            {
+                rig.RunSamples(1);
+                reference.RunSamples(1);
+                DOCTEST_CHECK(writer->ReadSample(subScope, 0, writer->m_index) == rig.m_amp.m_subModOut[0]);
+                DOCTEST_CHECK(writer->ReadSample(voiceScope, 0, writer->m_index) == rig.m_amp.m_voiceModOut[0]);
+                DOCTEST_CHECK(rig.m_amp.m_voiceModOut[0] == doctest::Approx(0.25f));
+                DOCTEST_CHECK(rig.m_amp.m_output == doctest::Approx(rig.m_amp.m_voiceModOut[0] * rig.m_input.m_gain.m_expParam[0]));
+                writer->AdvanceIndex();
+                DOCTEST_CHECK(rig.m_amp.m_subModOut == reference.m_amp.m_subOut);
+                DOCTEST_CHECK(rig.m_amp.m_subModOut == rig.m_amp.m_subWavefolder.m_output);
+                DOCTEST_CHECK(rig.m_amp.m_subOut == doctest::Approx(rig.m_amp.m_subModOut[0]
+                    * 0.25f * rig.m_input.m_subGain.m_expParam[0] * rig.m_input.m_gain.m_expParam[0]));
+            }
+
+            DOCTEST_CHECK(std::abs(rig.m_amp.m_subModOut[0]) > 0.0001f);
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("Sub: page controls reach each trio independently and round trip in patches")
 {
     synthrig::SynthRig rig;
@@ -217,7 +260,7 @@ DOCTEST_TEST_CASE("Sub: page controls reach each trio independently and round tr
 DOCTEST_TEST_CASE("Sub: analyzer feed separates the shaped sub from main audio and retains its tail")
 {
     GlobalEnv::ResetPerTest();
-    auto writer = std::make_unique<ScopeWriterGeneric<1, 15>>(1, 4096);
+    auto writer = std::make_unique<ScopeWriterGeneric<1, 3 * static_cast<size_t>(SmartGridOne::VoiceScopes::NumScopes)>>(1, 4096);
     auto voice = std::make_unique<SquiggleBoyTrackGeneric<1>>();
     voice->SetupAudioScopeWriters(writer.get(), 0);
     SubAmpRig rig;
@@ -231,6 +274,8 @@ DOCTEST_TEST_CASE("Sub: analyzer feed separates the shaped sub from main audio a
     DOCTEST_CHECK(writer->ReadSample(mainScope * 3, 0, 0) == doctest::Approx(1.0f));
     DOCTEST_CHECK(writer->ReadSample(subScope * 3, 0, 0) == doctest::Approx(rig.m_amp.m_subOut / 0.5f));
     DOCTEST_CHECK(writer->ReadSample(subScope * 3, 0, 0) > 0.0f);
+    DOCTEST_CHECK(writer->ReadSample(subScope * 3, 0, 0) == rig.m_amp.m_subModOut[0]);
+    DOCTEST_CHECK(writer->ReadSample(mainScope * 3, 0, 0) == rig.m_amp.m_voiceModOut[0]);
     rig.m_amp.m_subRunning[0] = false;
     rig.m_input.m_subFallSeconds.Update(0.0f);
     const size_t idleSample = 48 * SampleTimer::x_oversample;
@@ -259,7 +304,7 @@ DOCTEST_TEST_CASE("Sub: scope starts on each lane's fractional oscillator wrap")
     const size_t subScope = SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::Sub), 0);
     for (size_t decimation : {1, 4})
     {
-        auto writer = std::make_unique<ScopeWriterGeneric<3, 15>>(decimation, 4096);
+        auto writer = std::make_unique<ScopeWriterGeneric<3, 3 * static_cast<size_t>(SmartGridOne::VoiceScopes::NumScopes)>>(decimation, 4096);
         track.SetupAudioScopeWriters(writer.get(), 0);
         writer->m_index = 100;
         track.m_sub.m_phase = TrioFloat(63.0f / 64, 61.0f / 64, 55.0f / 64);

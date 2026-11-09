@@ -144,6 +144,14 @@ struct SampleSourceGeneric : SampleSourceBase
 
     Vector Process(Input& input)
     {
+        Vector modOut[2];
+        return Process(input, modOut);
+    }
+
+    Vector Process(Input& input, Vector (&modOut)[2])
+    {
+        modOut[0] = Vector();
+        modOut[1] = Vector();
         input.m_phasorPlayHeadInput.m_theoryOfTime = input.m_theoryOfTime;
         TimeVector totalPhaseTime = m_phasorPlayHead.Process(input.m_phasorPlayHeadInput).template Convert<double>();
         Vector output = m_grainManager.Process(totalPhaseTime, Vector::Splat(0), input.m_grainManagerInput);

@@ -132,6 +132,12 @@ assume the final outputs are equal. It also does not prove that the C++
 
 ## Numeric and implementation boundary
 
+- Production preserves source excursions and clamps each root in `EncoderMatrix::Publish` before
+  interpolation. `Encoder.publish` and the pinned-head publication comparison
+  model the interpolation stage with the same supplied `Output`; they do not
+  model this new clamp or prove end-to-end equivalence with the old unclamped
+  publication for out-of-range signals. `encoder_output_clamps.cpp` checks the
+  clamp boundary, output history, and caches across all three evaluation paths.
 - Runtime numbers are exact rationals. `Curve.ideal` uses Mathlib real numbers
   to prove properties of the intended exponential law. `Curve.approximate`
   separately models nearest-integer range reduction, the actual binary32
@@ -141,6 +147,8 @@ assume the final outputs are equal. It also does not prove that the C++
   NaNs/infinities, denormals or SIMD instruction selection. The two curves are
   not equated. Schedule equivalence allows any pure curve; signed mixing stays
   bounded for any finite effective depths if base/source values are normalized.
+  Audio modulation sources no longer satisfy that precondition in general;
+  final parameter saturation is a separate runtime boundary.
 - Target-setting safety requires a normalized target and initialization requires
   a normalized default. C++ `SetTarget` does not clamp arbitrary input; this is
   a caller/input-validation precondition, not a proved JSON-parser property.

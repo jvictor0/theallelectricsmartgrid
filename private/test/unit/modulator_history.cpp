@@ -399,7 +399,7 @@ DOCTEST_TEST_CASE("Modulator history: UI reconstructs every random lane and inte
     DOCTEST_CHECK(ui.GetModulatorValue(x_noise[0], 20.0) != ui.GetModulatorValue(x_noise[2], 20.0));
     DOCTEST_CHECK(ui.GetModulatorValue(ModulatorRef(VoiceModulator::Spread, 9), 20.0) == 0.0f);
     DOCTEST_CHECK(ui.GetModulatorValue(ModulatorRef(QuadModulator::Spread, 4), 20.0) == 0.0f);
-    DOCTEST_CHECK(ui.GetModulatorValue(ModulatorRef(static_cast<VoiceModulator>(12), 0), 20.0) == 0.0f);
+    DOCTEST_CHECK(ui.GetModulatorValue(ModulatorRef(static_cast<VoiceModulator>(SmartGridOneModulators::x_numSourceIndices), 0), 20.0) == 0.0f);
 
     auto& writer = rig.Internal().m_nonagon.m_nonagon.m_noteWriter;
     NonagonNoteWriter::EventData note;
@@ -436,9 +436,9 @@ DOCTEST_TEST_CASE("Modulator history: prepared mixtures keep one LOD across long
     size_t storage = state.m_voiceScopeWriter.SampleStorageBytes()
         + state.m_quadScopeWriter.SampleStorageBytes()
         + state.m_monoScopeWriter.SampleStorageBytes();
-    DOCTEST_CHECK(storage == 212 * sizeof(float) * ScopeWriter::x_baseCapacity * ScopeWriter::x_numLevels);
-    DOCTEST_CHECK(state.m_voiceScopeWriter.m_scopes == 39);
-    DOCTEST_CHECK(state.m_quadScopeWriter.m_scopes == 13);
+    DOCTEST_CHECK(storage == 232 * sizeof(float) * ScopeWriter::x_baseCapacity * ScopeWriter::x_numLevels);
+    DOCTEST_CHECK(state.m_voiceScopeWriter.m_scopes == 30);
+    DOCTEST_CHECK(state.m_quadScopeWriter.m_scopes == 27);
     DOCTEST_CHECK(state.m_monoScopeWriter.m_scopes == 4);
     DOCTEST_CHECK(state.m_voiceScopeWriter.m_voices == 3);
     DOCTEST_CHECK(state.m_quadScopeWriter.m_voices == 4);

@@ -7,7 +7,8 @@ namespace Encoder.Head
 def revision : String := "0a0d206529be45b6ff3ac82824c65ebe73b49003"
 
 -- @head publish: EncoderBankBank::ProcessHostFrame directly fills each slot.
--- @cpp publish: the working tree factors the same operation into Matrix::Publish.
+-- @cpp publish: Matrix::Publish interpolation after its new root clamp.
+-- Equality below uses the same supplied Output; it excludes the new clamp.
 def publish (o : Output) (host ratio : Nat) (bipolar : Bool) : Nat → Lane → Rat :=
   if o.stamp = host then
     fun slot lane =>

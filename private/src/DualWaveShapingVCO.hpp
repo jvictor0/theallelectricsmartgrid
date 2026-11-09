@@ -79,6 +79,12 @@ struct DualWaveShapingVCOGeneric
 
     Vector Process(const Input& input)
     {
+        Vector modOut[2];
+        return Process(input, modOut);
+    }
+
+    Vector Process(const Input& input, Vector (&modOut)[2])
+    {
         typename VCO::Input vcoInput[2];
         for (int j = 0; j < 2; ++j)
         {
@@ -101,6 +107,11 @@ struct DualWaveShapingVCOGeneric
         m_vco[0].Process(vcoInput[0]);
         vcoInput[1].m_phaseMod = m_vco[0].m_out * input.m_crossModIndex[1];
         m_vco[1].Process(vcoInput[1]);
+
+        for (size_t i = 0; i < 2; ++i)
+        {
+            modOut[i] = m_vco[i].m_out * 0.5f + 0.5f;
+        }
 
         Vector quarterFade = input.m_fade * 0.25;
         Vector mixed = m_vco[0].m_out * Math::Cos2pi(quarterFade) + m_vco[1].m_out * Math::Cos2pi(quarterFade + 0.75);

@@ -143,6 +143,12 @@ struct PhysicalModelingSourceGeneric : PhysicalModelingSourceBase
 
     Vector Process(const Input& input)
     {
+        Vector modOut[2];
+        return Process(input, modOut);
+    }
+
+    Vector Process(const Input& input, Vector (&modOut)[2])
+    {
         static constexpr float x_envelopeBase = 10.0f;
 
         Vector noise = m_noise.Generate();
@@ -153,6 +159,9 @@ struct PhysicalModelingSourceGeneric : PhysicalModelingSourceBase
         m_mainSVF.Process(noise);
         m_mainSVFMorph = input.m_mainSVFMorph;
         Vector svfOut = m_mainSVF.GetMorphedOutput(m_mainSVFMorph);
+
+        modOut[0] = svfOut * 0.5f + 0.5f;
+        modOut[1] = input.m_envelope;
 
         // The envelope is inverted (like the amp section): at 0 amplitude the
         // output is at full. An exponential curve gives natural modulation.
@@ -173,8 +182,14 @@ struct PhysicalModelingSourceGeneric : PhysicalModelingSourceBase
     //
     Vector ProcessWithAHD(Input& input)
     {
+        Vector modOut[2];
+        return ProcessWithAHD(input, modOut);
+    }
+
+    Vector ProcessWithAHD(Input& input, Vector (&modOut)[2])
+    {
         input.m_envelope = m_ahd.Process(input.m_ahdInput);
-        return Process(input);
+        return Process(input, modOut);
     }
 
     void PopulateUIState(UIState* uiState, size_t channel) const

@@ -169,7 +169,7 @@ DOCTEST_TEST_CASE("encoder host rate: connected matrix computes only on host fra
     }
 }
 
-DOCTEST_TEST_CASE("encoder host rate: decimated steps stay normalized through the matrix and bit reduction")
+DOCTEST_TEST_CASE("encoder host rate: decimated steps preserve excursions until final parameter clamping")
 {
     HostRateRig rig;
     rig.Connect(0);
@@ -206,8 +206,10 @@ DOCTEST_TEST_CASE("encoder host rate: decimated steps stay normalized through th
             undershot = undershot || filtered[lane] < -0.001f;
             for (size_t slot = 0; slot < Cell::x_numModulators; ++slot)
             {
-                DOCTEST_REQUIRE(rig.Sources().m_hostValue[slot][lane] >= 0.0f);
-                DOCTEST_REQUIRE(rig.Sources().m_hostValue[slot][lane] <= 1.0f);
+                if (SampleTimer::IsHostFrame())
+                {
+                    DOCTEST_REQUIRE(rig.Sources().m_hostValue[slot][lane] == doctest::Approx(filtered[lane]));
+                }
             }
 
             amount[lane] = rig.Carrier().GetValue(lane);

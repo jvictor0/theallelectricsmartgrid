@@ -34,6 +34,8 @@ struct SquiggleBoySourceGeneric
     SampleSourceType m_sampleSource;
 
     Vector m_output;
+    Vector m_modOut[2];
+    ScopeWriterHolderGeneric<Size> m_physicalEnvelopeScopeWriter;
     SampleTop m_top[Size];
 
     struct Input
@@ -74,6 +76,8 @@ struct SquiggleBoySourceGeneric
     void SetScopeWriters(ScopeWriterInput<Size>* scopeWriter, size_t track)
     {
         m_dualWaveShapingVCO.SetScopeWriters(scopeWriter, track);
+        m_physicalEnvelopeScopeWriter = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::PhysicalModelingEnvelope), track));
     }
 
     void ClearTops()
@@ -91,7 +95,7 @@ struct SquiggleBoySourceGeneric
         {
             case SourceMachine::DualWaveShapingVCO:
             {
-                m_output = m_dualWaveShapingVCO.Process(input.m_dualWaveShapingVCOInput);
+                m_output = m_dualWaveShapingVCO.Process(input.m_dualWaveShapingVCOInput, m_modOut);
                 for (size_t i = 0; i < Size; ++i)
                 {
                     m_top[i] = m_dualWaveShapingVCO.m_vco[0].m_top[i];
@@ -102,6 +106,8 @@ struct SquiggleBoySourceGeneric
 
             case SourceMachine::Thru:
             {
+                m_modOut[0] = Vector();
+                m_modOut[1] = Vector();
                 for (size_t i = 0; i < Size; ++i)
                 {
                     m_output[i] = GetThruSample(input, i);
@@ -112,7 +118,7 @@ struct SquiggleBoySourceGeneric
 
             case SourceMachine::PhysicalModeling:
             {
-                m_output = m_physicalModeling.ProcessWithAHD(input.m_physicalModelingInput);
+                m_output = m_physicalModeling.ProcessWithAHD(input.m_physicalModelingInput, m_modOut);
                 break;
             }
 
@@ -124,7 +130,7 @@ struct SquiggleBoySourceGeneric
                 }
 
                 input.m_sampleSourceInput.m_theoryOfTime = input.m_theoryOfTime;
-                m_output = m_sampleSource.Process(input.m_sampleSourceInput);
+                m_output = m_sampleSource.Process(input.m_sampleSourceInput, m_modOut);
                 for (size_t i = 0; i < Size; ++i)
                 {
                     m_top[i] = m_sampleSource.m_top[i];
@@ -135,6 +141,35 @@ struct SquiggleBoySourceGeneric
 
             default:
                 break;
+        }
+
+        if (input.m_sourceMachine == SourceMachine::PhysicalModeling)
+        {
+            m_physicalEnvelopeScopeWriter.Write(m_modOut[1]);
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                const auto& envelope = m_physicalModeling.m_ahd.m_channels[lane];
+                if (envelope.m_triggered)
+                {
+                    m_physicalEnvelopeScopeWriter.RecordStartAtVoice(lane, 0.0);
+                }
+
+                if (envelope.m_voiceCellCrossed && envelope.m_state == AHD::State::Idle
+                    && m_physicalEnvelopeScopeWriter.IsStartedAtVoice(lane))
+                {
+                    m_physicalEnvelopeScopeWriter.RecordEndAtVoice(lane);
+                }
+            }
+        }
+        else
+        {
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                if (m_physicalEnvelopeScopeWriter.IsStartedAtVoice(lane))
+                {
+                    m_physicalEnvelopeScopeWriter.RecordEndAtVoice(lane);
+                }
+            }
         }
 
         return m_output;

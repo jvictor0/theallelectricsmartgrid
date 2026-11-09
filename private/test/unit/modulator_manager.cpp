@@ -24,7 +24,6 @@ DOCTEST_TEST_CASE("modulator manager: shared sources filter once and gather into
         manager.GetSource(0).m_amplitude = amplitude;
         manager.Set(1, QuadFloat::Splat(0.25f));
         QuadFloat filtered = reference.Process(raw);
-        filtered = QuadFloat::Min(QuadFloat::Splat(1), QuadFloat::Max(QuadFloat(), filtered));
         auto previous = manager.m_groups[0].m_values.m_hostValue[8];
         manager.ProcessSample();
         DOCTEST_CHECK(manager.m_groups[0].m_values.m_hostValue[8] == previous);
@@ -113,7 +112,7 @@ DOCTEST_TEST_CASE("modulator manager: instrument groups expose distinct pairs an
     {
         for (size_t slot = 0; slot < x_numSlots; ++slot)
         {
-            if (group != static_cast<size_t>(Group::Global) && slot < 2)
+            if (group == static_cast<size_t>(Group::QuadLFO) && (slot < 2 || slot == 4 || slot == 5))
             {
                 DOCTEST_CHECK(x_groups[group][slot] == Source::NumSources);
             }
@@ -196,8 +195,6 @@ DOCTEST_TEST_CASE("modulator manager: page families bind to independent random p
     {
         size_t index = static_cast<size_t>(group);
         DOCTEST_CHECK(x_groupLanes[index] == lanes);
-        DOCTEST_CHECK(x_groups[index][0] == Source::NumSources);
-        DOCTEST_CHECK(x_groups[index][1] == Source::NumSources);
         DOCTEST_CHECK(x_groups[index][2] == first);
         DOCTEST_CHECK(x_groups[index][3] == second);
         for (Source source : {first, second})
@@ -212,6 +209,11 @@ DOCTEST_TEST_CASE("modulator manager: page families bind to independent random p
         {
             checkPair(tracks[track][family], GetSource(GetVoiceRandom(family * 2), track),
                 GetSource(GetVoiceRandom(family * 2 + 1), track), 3);
+            size_t group = static_cast<size_t>(tracks[track][family]);
+            DOCTEST_CHECK(x_groups[group][0] == GetSource(VoiceModulator::SourceMod1, track));
+            DOCTEST_CHECK(x_groups[group][1] == GetSource(VoiceModulator::SourceMod2, track));
+            DOCTEST_CHECK(x_groups[group][12] == GetSource(VoiceModulator::Sub, track));
+            DOCTEST_CHECK(x_groups[group][13] == GetSource(VoiceModulator::Voice, track));
         }
     }
 
@@ -285,7 +287,12 @@ DOCTEST_TEST_CASE("modulator manager: only declared sources are downsampled")
     for (size_t source = 0; source < x_numSources; ++source)
     {
         auto glyph = x_sources[source].m_skin.m_glyph;
-        bool expected = glyph == SmartGridOne::ModulationGlyphs::ADSR || glyph == SmartGridOne::ModulationGlyphs::LFO;
+        auto ref = GetRef(static_cast<Source>(source), 0);
+        auto quad = static_cast<QuadModulator>(ref.m_index);
+        bool mixerEnvelope = ref.m_mode == SmartGridOneLayout::ParamMode::Quad
+            && GetMixerScope(quad) != SmartGridOne::QuadScopes::NumScopes && !IsMixerAudio(quad);
+        bool expected = !mixerEnvelope
+            && (glyph == SmartGridOne::ModulationGlyphs::ADSR || glyph == SmartGridOne::ModulationGlyphs::LFO);
         DOCTEST_CHECK(x_sources[source].m_requiresDownsampling == expected);
         DOCTEST_CHECK(encoders.GetModulatorManager().GetSource(source).m_requiresDownsampling == expected);
     }

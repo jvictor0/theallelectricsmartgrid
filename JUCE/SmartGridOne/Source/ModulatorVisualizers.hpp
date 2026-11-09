@@ -8,16 +8,19 @@
 #include <array>
 #include <memory>
 #include <optional>
+#include <utility>
 
 struct ModulatorVisualizers
 {
-    std::array<std::unique_ptr<SmartGridOneMainVisualizerComponent>, SmartGridOneModulators::x_numSources> m_views;
+    using Views = std::array<std::unique_ptr<SmartGridOneMainVisualizerComponent>, SmartGridOneModulators::x_numSources>;
+    Views m_views;
+    std::array<Views, static_cast<size_t>(VoiceMachine::SourceMachine::NumSourceMachines)> m_sourceMachineViews;
     int m_scopeVoiceOffset = -1;
     TheNonagonSquiggleBoyInternal::UIState* m_uiState = nullptr;
     ModulatorTimeAxisComponent m_recentHistory;
 
     template<typename Modulator, typename Factory>
-    void Add(Modulator modulator, Factory&& factory)
+    void AddTo(Views& views, Modulator modulator, Factory&& factory)
     {
         for (size_t index = 0; index < SmartGridOneModulators::x_numSources; ++index)
         {
@@ -29,7 +32,7 @@ struct ModulatorVisualizers
                 continue;
             }
 
-            auto& view = m_views[index];
+            auto& view = views[index];
             jassert(!view);
             view = factory(&m_scopeVoiceOffset);
             view->SetVoiceTrack(ref.m_voice / 3);
@@ -40,9 +43,48 @@ struct ModulatorVisualizers
         }
     }
 
+    template<typename Modulator, typename Factory>
+    void Add(Modulator modulator, Factory&& factory)
+    {
+        AddTo(m_views, modulator, std::forward<Factory>(factory));
+    }
+
+    template<typename Factory>
+    void Add(VoiceMachine::SourceMachine machine, VoiceModulator modulator, Factory&& factory)
+    {
+        assert(modulator == VoiceModulator::SourceMod1 || modulator == VoiceModulator::SourceMod2);
+        AddTo(m_sourceMachineViews[static_cast<size_t>(machine)], modulator, std::forward<Factory>(factory));
+    }
+
     template<typename Factory>
     void Add(std::nullopt_t, Factory&&)
     {
+    }
+
+    SmartGridOneMainVisualizerComponent* Get(SmartGridOneModulators::Source source) const
+    {
+        size_t index = static_cast<size_t>(source);
+        if (index >= m_views.size())
+        {
+            return nullptr;
+        }
+
+        auto ref = SmartGridOneModulators::GetRef(source, 0);
+        if (ref.m_mode == SmartGridOneLayout::ParamMode::Voice
+            && (ref.m_index == static_cast<size_t>(VoiceModulator::SourceMod1)
+                || ref.m_index == static_cast<size_t>(VoiceModulator::SourceMod2)))
+        {
+            if (!m_uiState)
+            {
+                return nullptr;
+            }
+
+            size_t machine = static_cast<size_t>(m_uiState->m_squiggleBoyUIState
+                .m_voiceSourceUIState[ref.m_voice].m_sourceMachine.load());
+            return machine < m_sourceMachineViews.size() ? m_sourceMachineViews[machine][index].get() : nullptr;
+        }
+
+        return m_views[index].get();
     }
 
     SmartGridOneMainVisualizerComponent* Get(SmartGridOne::EncoderBankMode mode, int index) const
@@ -53,8 +95,7 @@ struct ModulatorVisualizers
             return nullptr;
         }
 
-        size_t source = static_cast<size_t>(SmartGridOneModulators::x_sourceIds[static_cast<size_t>(mode)][index]);
-        return source < m_views.size() ? m_views[source].get() : nullptr;
+        return Get(SmartGridOneModulators::x_sourceIds[static_cast<size_t>(mode)][index]);
     }
 
     SmartGridOneMainVisualizerComponent* Get(SmartGridOneModulators::Group group, int slot) const
@@ -65,8 +106,7 @@ struct ModulatorVisualizers
             return nullptr;
         }
 
-        size_t source = static_cast<size_t>(SmartGridOneModulators::x_groups[static_cast<size_t>(group)][slot]);
-        return source < m_views.size() ? m_views[source].get() : nullptr;
+        return Get(SmartGridOneModulators::x_groups[static_cast<size_t>(group)][slot]);
     }
 
     SmartGridOneMainVisualizerComponent* GetForParameter(const EncoderUIState& encoder)

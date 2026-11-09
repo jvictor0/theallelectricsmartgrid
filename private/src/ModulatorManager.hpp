@@ -94,10 +94,7 @@ struct ModulatorManager
                 continue;
             }
 
-            // The filter can overshoot; matrix inputs stay normalized.
-            //
-            QuadFloat value = source.m_decimator.Process(source.m_value);
-            source.m_hostValue = QuadFloat::Min(QuadFloat::Splat(1), QuadFloat::Max(QuadFloat(), value));
+            source.m_hostValue = source.m_decimator.Process(source.m_value);
         }
     }
 

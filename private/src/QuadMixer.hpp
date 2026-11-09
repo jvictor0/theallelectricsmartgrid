@@ -7,6 +7,8 @@
 #include "QuadMasterChain.hpp"
 #include "QuadToStereoMixdown.hpp"
 #include "Metering.hpp"
+#include "EnvelopeFollower.hpp"
+#include "MixerModulation.hpp"
 #include "Oversample.hpp"
 #include "TrioUtils.hpp"
 #include "RecordingFormat.hpp"
@@ -87,6 +89,7 @@ struct QuadMixerInternal
     TrioMeter m_subMeters[x_numTracks];
     StereoMeter m_externalMeters[x_numExternalInputs];
     QuadMeter m_returnMeters[x_numSends];
+    EnvelopeFollowerGeneric<4> m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::NumTaps)];
     QuadMeter m_masterMeter;
     StereoMeter m_stereoMeter;
 
@@ -380,12 +383,17 @@ struct QuadMixerInternal
 
         m_output.m_output = m_dryOutput + m_subOutput;
         ProcessReturnSends(input);
+        for (size_t send = 0; send < x_numSends; ++send)
+        {
+            m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::DelaySend) + send].Process(m_send[send]);
+        }
     }
 
     QuadFloatWithStereoAndSub ProcessReturns(const Input& input)
     {
         for (size_t j = 0; j < x_numSends; ++j)
         {
+            m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::DelayReturn) + j].Process(input.m_return[j]);
             QuadFloat& postReturn = m_returnOutput[j];
             postReturn = QuadFloat();
             if (!input.m_noiseMode)
@@ -407,6 +415,7 @@ struct QuadMixerInternal
         }
 
         m_engineOutput = m_masterChain.Process(input.m_masterChainInput, m_output.m_output, m_quadToStereoMixdown.m_output);
+        m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::Output)].Process(m_engineOutput.m_output * x_recordingGain);
         m_output = m_outputDecimator.Process(m_engineOutput);
 
         if (m_recordingFrameActive)

@@ -225,7 +225,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: catalogue supplies only supported source
             DOCTEST_CAPTURE(index);
             bool expected = index == 14 || (mode == Mode::Global ? index == 2 || index == 3
                 : index < 4 || index == 6 || index == 7 || index == 11
-                    || (SmartGridOneEncoders::IsVoiceMode(mode) && index < 11));
+                    || SmartGridOneEncoders::IsVoiceMode(mode));
             DOCTEST_CHECK((visualizers.Get(mode, index) != nullptr) == expected);
         }
     }
@@ -235,7 +235,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: catalogue supplies only supported source
         auto* source = visualizers.Get(Mode::Voice, index);
         DOCTEST_REQUIRE(source != nullptr);
         DOCTEST_CHECK(visualizers.GetSingle(Mode::Voice, 1 << index) == source);
-        DOCTEST_CHECK(visualizers.GetSingle(Mode::Voice, (1 << index) | (1 << 12) | (1 << 13)) == source);
+        DOCTEST_CHECK(visualizers.GetSingle(Mode::Voice, (1 << index) | (1 << 12) | (1 << 13)) == nullptr);
         DOCTEST_CHECK(visualizers.GetSingle(Mode::Voice, (1 << index) | (1 << 6)) == nullptr);
     }
 
@@ -268,6 +268,121 @@ DOCTEST_TEST_CASE("Encoder visualizers: catalogue supplies only supported source
         auto* random = dynamic_cast<GangedRandomLFOComponent<3>*>(visualizers.Get(SmartGridOneEncoders::VoiceModeForTrio(trio), 0));
         DOCTEST_REQUIRE(random != nullptr);
         DOCTEST_CHECK(random->GetGangIndex() == trio);
+    }
+}
+
+DOCTEST_TEST_CASE("Encoder visualizers: audio taps render time histories and source views follow their owning trio")
+{
+    using namespace SmartGridOneModulators;
+    using Machine = VoiceMachine::SourceMachine;
+    using Scope = SmartGridOne::VoiceScopes;
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& state = ui->m_squiggleBoyUIState;
+    auto& writer = state.m_voiceScopeWriter;
+    state.m_firstScopeSample.store(0);
+    for (auto& muted : ui->m_nonagonUIState.m_muted)
+    {
+        muted.store(false);
+    }
+
+    constexpr Scope x_scopes[] = {Scope::VCO1, Scope::VCO2, Scope::Sub, Scope::PostAmp};
+    constexpr size_t x_slots[] = {0, 1, 12, 13};
+    constexpr VoiceModulator x_modulators[] = {VoiceModulator::SourceMod1, VoiceModulator::SourceMod2,
+        VoiceModulator::Sub, VoiceModulator::Voice};
+    for (size_t trio = 0; trio < 3; ++trio)
+    {
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            writer.RecordStart(SmartGridOne::VoiceScopeIndex(static_cast<size_t>(Scope::PhysicalModelingEnvelope), trio), lane);
+        }
+
+        for (auto scope : x_scopes)
+        {
+            for (size_t lane = 0; lane < 3; ++lane)
+            {
+                writer.RecordStart(SmartGridOne::VoiceScopeIndex(static_cast<size_t>(scope), trio), lane);
+            }
+        }
+    }
+
+    for (size_t sample = 0; sample < 128; ++sample)
+    {
+        for (size_t trio = 0; trio < 3; ++trio)
+        {
+            for (auto scope : x_scopes)
+            {
+                writer.Write(SmartGridOne::VoiceScopeIndex(static_cast<size_t>(scope), trio), TrioFloat(-0.6f, -0.2f, 0.4f));
+            }
+
+            writer.Write(SmartGridOne::VoiceScopeIndex(static_cast<size_t>(Scope::PhysicalModelingEnvelope), trio), TrioFloat(0.2f, 0.4f, 0.7f));
+        }
+
+        writer.AdvanceIndex();
+    }
+
+    writer.Publish();
+    writer.AcceptSamples();
+    ModulatorVisualizers visualizers;
+    InitializeEncoderModulatorVisualizers(visualizers, ui.get());
+    for (size_t trio = 0; trio < 3; ++trio)
+    {
+        DOCTEST_CAPTURE(trio);
+        state.m_activeTrack.store((trio + 1) % 3);
+        auto group = static_cast<Group>(trio * 5);
+        for (size_t voice = 0; voice < 9; ++voice)
+        {
+            state.m_voiceSourceUIState[voice].m_sourceMachine.store(Machine::Thru);
+        }
+
+        state.m_voiceSourceUIState[trio * 3].m_sourceMachine.store(Machine::DualWaveShapingVCO);
+        for (size_t tap = 0; tap < 4; ++tap)
+        {
+            auto* scope = dynamic_cast<ScopeComponent*>(visualizers.Get(group, x_slots[tap]));
+            DOCTEST_REQUIRE(scope != nullptr);
+            DOCTEST_CHECK(scope->m_scopeIx == static_cast<size_t>(x_scopes[tap]));
+            DOCTEST_CHECK(scope->GetFirstVoice() == trio * 3);
+            DOCTEST_CHECK(scope->GetSource(2).m_index == static_cast<size_t>(x_modulators[tap]));
+            DOCTEST_CHECK(scope->GetSource(2).m_voice == trio * 3 + 2);
+            DOCTEST_CHECK(scope->GetTimeAxis(0).GetExtent() > 0.0);
+            juce::Image image(juce::Image::ARGB, 100, 100, true);
+            juce::Graphics g(image);
+            scope->Draw(g, image.getBounds());
+            constexpr int x_rows[] = {77, 59, 32};
+            for (size_t lane = 0; lane < 3; ++lane)
+            {
+                auto pixel = image.getPixelAt(50, x_rows[lane]);
+                auto color = J(TheNonagonSmartGrid::VoiceColor(trio * 3 + lane));
+                DOCTEST_CHECK(pixel.getBrightness() > color.getBrightness() * 0.6f);
+                DOCTEST_CHECK(pixel.getHue() == doctest::Approx(color.getHue()).epsilon(0.02));
+                DOCTEST_CHECK(pixel.getSaturation() == doctest::Approx(color.getSaturation()).epsilon(0.02));
+            }
+        }
+
+        auto* dualFirst = visualizers.Get(group, 0);
+        auto* dualSecond = visualizers.Get(group, 1);
+        auto* sub = visualizers.Get(group, 12);
+        auto* voice = visualizers.Get(group, 13);
+        state.m_voiceSourceUIState[trio * 3].m_sourceMachine.store(Machine::PhysicalModeling);
+        DOCTEST_REQUIRE(dynamic_cast<NoiseModulatorComponent*>(visualizers.Get(group, 0)) != nullptr);
+        auto* envelope = dynamic_cast<ScopeComponent*>(visualizers.Get(group, 1));
+        DOCTEST_REQUIRE(envelope != nullptr);
+        DOCTEST_CHECK(envelope != dualSecond);
+        DOCTEST_CHECK(envelope->m_scopeIx == static_cast<size_t>(Scope::PhysicalModelingEnvelope));
+        DOCTEST_CHECK(ui->GetModulatorValue(envelope->GetSource(0), 127) == doctest::Approx(0.2f));
+        DOCTEST_CHECK(envelope->GetFirstVoice() == trio * 3);
+        DOCTEST_CHECK(envelope->GetTimeAxis(0).GetExtent() > 0.0);
+        for (auto placeholder : {Machine::Sample, Machine::Thru})
+        {
+            state.m_voiceSourceUIState[trio * 3].m_sourceMachine.store(placeholder);
+            DOCTEST_CHECK(visualizers.Get(group, 0) == nullptr);
+            DOCTEST_CHECK(visualizers.Get(group, 1) == nullptr);
+            DOCTEST_CHECK(visualizers.Get(group, 12) == sub);
+            DOCTEST_CHECK(visualizers.Get(group, 13) == voice);
+        }
+
+        state.m_voiceSourceUIState[trio * 3].m_sourceMachine.store(Machine::DualWaveShapingVCO);
+        DOCTEST_CHECK(visualizers.Get(group, 0) == dualFirst);
+        DOCTEST_CHECK(visualizers.Get(group, 1) == dualSecond);
     }
 }
 
@@ -980,4 +1095,115 @@ DOCTEST_TEST_CASE("Encoder visualizers: group identity selects source track inde
     auto* sheaf = dynamic_cast<SheafyModulatorDialComponent*>(visualizers.Get(SmartGridOneModulators::Group::FireSource, 8));
     DOCTEST_REQUIRE(sheaf);
     DOCTEST_CHECK(sheaf->m_trackOverride == 1);
+}
+
+DOCTEST_TEST_CASE("Encoder visualizers: mixer audio uses a trailing window and envelopes use independent follower VUs")
+{
+    using namespace SmartGridOneModulators;
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& state = ui->m_squiggleBoyUIState;
+    state.m_firstScopeSample.store(0);
+    ModulatorVisualizers visualizers;
+    InitializeEncoderModulatorVisualizers(visualizers, ui.get());
+    constexpr QuadModulator x_envelopes[] =
+    {
+        QuadModulator::DelayDryEnvelope, QuadModulator::ReverbDryEnvelope, QuadModulator::PartialMachineDryEnvelope,
+        QuadModulator::DelayWetEnvelope, QuadModulator::ReverbWetEnvelope, QuadModulator::PartialMachineWetEnvelope,
+        QuadModulator::OutputEnvelope
+    };
+    constexpr QuadModulator x_audio[] =
+    {
+        QuadModulator::DelayDryAudio, QuadModulator::ReverbDryAudio, QuadModulator::PartialMachineDryAudio,
+        QuadModulator::DelayWetAudio, QuadModulator::ReverbWetAudio, QuadModulator::PartialMachineWetAudio,
+        QuadModulator::OutputAudio
+    };
+    const QuadFloat audio(-0.8f, -0.4f, 0.2f, 0.6f);
+    const QuadFloat envelope(0.001f, 0.01f, 0.1f, 2.0f);
+    const size_t count = static_cast<size_t>(SampleTimer::SecondsToSamples(0.125));
+    for (size_t sample = 0; sample < count; ++sample)
+    {
+        for (size_t tap = 0; tap < 7; ++tap)
+        {
+            state.m_quadScopeWriter.Write(static_cast<size_t>(GetMixerScope(x_audio[tap])), audio);
+            state.m_quadScopeWriter.Write(static_cast<size_t>(GetMixerScope(x_envelopes[tap])), envelope);
+        }
+
+        state.AdvanceScopeIndices();
+    }
+
+    state.m_voiceScopeWriter.Publish();
+    state.m_quadScopeWriter.Publish();
+    state.AcceptScopeSamples();
+    for (size_t tap = 0; tap < 7; ++tap)
+    {
+        DOCTEST_CAPTURE(tap);
+        auto* scope = dynamic_cast<RecentScopeComponent*>(visualizers.Get(SmartGridOne::EncoderBankMode::Quad, static_cast<size_t>(x_audio[tap])));
+        auto* vu = dynamic_cast<EnvelopeFollowerComponent*>(visualizers.Get(SmartGridOne::EncoderBankMode::Quad, static_cast<size_t>(x_envelopes[tap])));
+        DOCTEST_REQUIRE(scope);
+        DOCTEST_REQUIRE(vu);
+        auto axis = scope->GetTimeAxis(0);
+        DOCTEST_CHECK(axis.m_end == count - 1);
+        DOCTEST_CHECK(axis.GetExtent() == doctest::Approx(SampleTimer::SecondsToSamples(0.1)));
+        DOCTEST_CHECK(scope->GetVoiceCount() == 4);
+        for (size_t lane = 0; lane < 4; ++lane)
+        {
+            DOCTEST_CHECK(vu->GetEnvelope(lane) == envelope[lane]);
+            DOCTEST_CHECK(ui->GetModulatorValue(scope->GetSource(lane), count - 1) == doctest::Approx(0.5f + 0.5f * audio[lane]));
+        }
+
+        juce::Image image(juce::Image::ARGB, 100, 100, true);
+        juce::Graphics g(image);
+        scope->Draw(g, image.getBounds());
+        constexpr int x_rows[] = {86, 68, 41, 23};
+        auto color = J(x_skins[static_cast<size_t>(SmartGridOneLayout::ParamMode::Quad)][static_cast<size_t>(x_audio[tap])].m_color);
+        for (int row : x_rows)
+        {
+            auto pixel = image.getPixelAt(50, row);
+            DOCTEST_CHECK(pixel.getBrightness() > color.getBrightness() * 0.6f);
+            DOCTEST_CHECK(pixel.getHue() == doctest::Approx(color.getHue()).epsilon(0.02));
+        }
+
+        // The VU needles use host-rate RMS from the follower; compare the
+        // rendered result with the shared drawing math, without a peak needle.
+        //
+        juce::Image actual(juce::Image::ARGB, 200, 160, true);
+        juce::Image expected(juce::Image::ARGB, 200, 160, true);
+        juce::Graphics actualGraphics(actual), expectedGraphics(expected);
+        vu->Draw(actualGraphics, actual.getBounds());
+        expectedGraphics.fillAll(juce::Colours::black);
+        for (size_t lane = 0; lane < 4; ++lane)
+        {
+            MeterDrawer drawer{80.0f, 100.0f, static_cast<float>((lane % 2) * 100), static_cast<float>((lane / 2) * 80)};
+            drawer.DrawRadialMeter(expectedGraphics, 20.0f * std::log10(envelope[lane]), 0.0f,
+                J(TheNonagonSmartGrid::VoiceColor(lane)), false);
+        }
+
+        DOCTEST_CHECK(std::memcmp(juce::Image::BitmapData(actual, juce::Image::BitmapData::readOnly).data,
+            juce::Image::BitmapData(expected, juce::Image::BitmapData::readOnly).data, 200 * 160 * 4) == 0);
+        state.m_quadScopeWriter.Write(static_cast<size_t>(GetMixerScope(x_envelopes[tap])), QuadFloat::Splat(99.0f));
+        DOCTEST_CHECK(vu->GetEnvelope(0) == envelope[0]);
+    }
+
+    auto* scope = dynamic_cast<RecentScopeComponent*>(visualizers.Get(Group::QuadDelay, 1));
+    DOCTEST_REQUIRE(scope);
+    scope->m_windowMilliseconds = 25.0;
+    DOCTEST_CHECK(scope->GetTimeAxis(0).GetExtent() == doctest::Approx(SampleTimer::SecondsToSamples(0.025)));
+    state.AdvanceScopeIndices();
+    state.m_voiceScopeWriter.Publish();
+    state.m_quadScopeWriter.Publish();
+    state.AcceptScopeSamples();
+    DOCTEST_CHECK(scope->GetTimeAxis(0).m_end == count);
+    auto* vu = dynamic_cast<EnvelopeFollowerComponent*>(visualizers.Get(Group::QuadDelay, 0));
+    DOCTEST_REQUIRE(vu);
+    DOCTEST_CHECK(vu->GetEnvelope(0) == 99.0f);
+    for (Group group : {Group::QuadDelay, Group::QuadReverb, Group::QuadPartialMachine, Group::QuadLFO})
+    {
+        DOCTEST_CHECK(visualizers.Get(group, 12) == visualizers.Get(Group::QuadDelay, 12));
+        DOCTEST_CHECK(visualizers.Get(group, 13) == visualizers.Get(Group::QuadDelay, 13));
+    }
+
+    for (size_t slot : {0, 1, 4, 5})
+    {
+        DOCTEST_CHECK(visualizers.Get(Group::QuadLFO, slot) == nullptr);
+    }
 }

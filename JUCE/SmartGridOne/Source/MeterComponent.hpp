@@ -15,6 +15,17 @@ struct MeterDrawer
 
     void DrawRadialVUMeter(juce::Graphics& g, float rmsdBFS, float peakdBFS, juce::Colour needleColor)
     {
+        DrawRadialMeter(g, rmsdBFS, peakdBFS, needleColor, true);
+    }
+
+    void DrawRadialEnvelope(juce::Graphics& g, float rms, juce::Colour needleColor)
+    {
+        float db = 20.0f * std::log10(std::max(1.0e-6f, rms));
+        DrawRadialMeter(g, db, db, needleColor, false);
+    }
+
+    void DrawRadialMeter(juce::Graphics& g, float rmsdBFS, float peakdBFS, juce::Colour needleColor, bool drawPeak)
+    {
         // Calculate the center and radius for the arc
         //
         float centerX = m_xMin + m_width / 2.0f;
@@ -105,6 +116,11 @@ struct MeterDrawer
         
         g.setColour(needleColor);
         g.drawLine(centerX, centerY, needleX, needleY, 2.0f);
+
+        if (!drawPeak)
+        {
+            return;
+        }
 
         float normalizedPeakDb = (peakdBFS + 30.0f) / 36.0f;
         normalizedPeakDb = juce::jlimit(0.0f, 1.0f, normalizedPeakDb);

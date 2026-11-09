@@ -200,6 +200,17 @@ H(VoiceModulator::Noise, std::make_unique<NoiseModulatorComponent>(GetModulatorC
 H(QuadModulator::Noise, std::make_unique<NoiseModulatorComponent>(GetModulatorColor(QuadModulator::Noise)))
 H(GlobalModulator::Noise, std::make_unique<NoiseModulatorComponent>(GetModulatorColor(GlobalModulator::Noise)))
 
+H(VoiceModulator::Sub,
+    std::make_unique<ScopeComponent>(
+        static_cast<size_t>(SmartGridOne::VoiceScopes::Sub),
+        &uiState->m_squiggleBoyUIState.m_voiceScopeWriter,
+        scopeVoiceOffset, ScopeComponent::ScopeType::Control, uiState))
+H(VoiceModulator::Voice,
+    std::make_unique<ScopeComponent>(
+        static_cast<size_t>(SmartGridOne::VoiceScopes::PostAmp),
+        &uiState->m_squiggleBoyUIState.m_voiceScopeWriter,
+        scopeVoiceOffset, ScopeComponent::ScopeType::Control, uiState))
+
 H(
     VoiceModulator::Random5,
     std::make_unique<GangedRandomLFOComponent<SquiggleBoy::x_voicesPerTrack>>(

@@ -432,6 +432,9 @@ struct EncoderMatrix
     static void Publish(const Root& root, const OutputView& caches, size_t host)
     {
         Cell* cell = root.m_cell;
+        // Clamp only published roots, before interpolation and bipolar mapping.
+        //
+        cell->m_output = QuadFloat::Min(QuadFloat::Splat(1), QuadFloat::Max(QuadFloat(), cell->m_output));
         size_t index = root.m_index;
         if (cell->m_outputHostSample != host)
         {

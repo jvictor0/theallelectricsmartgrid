@@ -811,6 +811,14 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::Stereo)] = ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::Stereo));
         m_mixerState.m_scopeWriter[static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine)] = ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::PartialMachine));
 
+#define F(tap, envelope, audio) \
+        m_mixer.m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::tap)].m_audioScopeWriter = \
+            ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::audio)); \
+        m_mixer.m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::tap)].m_envelopeScopeWriter = \
+            ScopeWriterHolderGeneric<4>(&uiState->m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::envelope));
+#include "ForEachMixerModulationTap.hpp"
+#undef F
+
         m_partialMachine.SetupAudioScopeWriter(&uiState->m_monoScopeWriter);
 
         m_sourceMixer.SetupScopeWriters(&uiState->m_quadScopeWriter);
@@ -1037,6 +1045,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             for (size_t trackVoice = 0; trackVoice < x_voicesPerTrack; ++trackVoice)
             {
                 size_t voice = track * x_voicesPerTrack + trackVoice;
+                modulatorManager.Set(GetSource(VoiceModulator::SourceMod1, track), trackVoice, squiggleBoyTrack.m_source.m_modOut[0][trackVoice]);
+                modulatorManager.Set(GetSource(VoiceModulator::SourceMod2, track), trackVoice, squiggleBoyTrack.m_source.m_modOut[1][trackVoice]);
+                modulatorManager.Set(GetSource(VoiceModulator::Sub, track), trackVoice, 0.5f + 0.5f * squiggleBoyTrack.m_amp.m_subModOut[trackVoice]);
+                modulatorManager.Set(GetSource(VoiceModulator::Voice, track), trackVoice, 0.5f + 0.5f * squiggleBoyTrack.m_amp.m_voiceModOut[trackVoice]);
                 for (size_t j = 0; j < x_numGangedRandomLFOs; ++j)
                 {
                     modulatorManager.Set(GetSource(SmartGridOneModulators::GetVoiceRandom(j), track), trackVoice, squiggleBoyTrack.m_gangedRandomLFO[j].Output(trackVoice));
@@ -1073,6 +1085,12 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         using SmartGridOneModulators::GetSource;
         auto& modulatorManager = m_encoders.GetModulatorManager();
     
+#define F(tap, envelope, audio) \
+        modulatorManager.Set(GetSource(QuadModulator::envelope), m_mixer.m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::tap)].m_envelope); \
+        modulatorManager.Set(GetSource(QuadModulator::audio), m_mixer.m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::tap)].m_audio * 0.5f + 0.5f);
+#include "ForEachMixerModulationTap.hpp"
+#undef F
+
         for (size_t i = 0; i < 4; ++i)
         {
             for (size_t random = 0; random < x_numQuadGangedRandomLFOs; ++random)

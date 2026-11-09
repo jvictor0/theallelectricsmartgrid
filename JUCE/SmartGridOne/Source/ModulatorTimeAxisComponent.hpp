@@ -57,7 +57,7 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
         return source;
     }
 
-    ModulatorTimeAxis GetTimeAxis(size_t voice) const
+    virtual ModulatorTimeAxis GetTimeAxis(size_t voice) const
     {
         if (!m_historyUIState)
         {

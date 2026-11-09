@@ -4,6 +4,7 @@
 #include "SmartGridOneLayout.hpp"
 #include "SmartGridOneScopeEnums.hpp"
 #include <array>
+#include <algorithm>
 
 enum class VoiceModulator : size_t
 {
@@ -19,13 +20,17 @@ enum class VoiceModulator : size_t
     Sheaf2 = 9,
     Sheaf3 = 10,
     Spread = 11,
+    Sub = 12,
+    Voice = 13,
     Noise = 14,
     Random5 = 15,
     Random6 = 16,
     Random7 = 17,
     Random8 = 18,
     Random9 = 19,
-    Random10 = 20
+    Random10 = 20,
+    SourceMod1 = 21,
+    SourceMod2 = 22
 };
 
 enum class QuadModulator : size_t
@@ -41,7 +46,10 @@ enum class QuadModulator : size_t
     Random5 = 15,
     Random6 = 16,
     Random7 = 17,
-    Random8 = 18
+    Random8 = 18,
+#define F(tap, envelope, audio) envelope, audio,
+#include "ForEachMixerModulationTap.hpp"
+#undef F
 };
 
 enum class GlobalModulator : size_t
@@ -107,7 +115,8 @@ constexpr Mode GetMode(GlobalModulator)
     return Mode::Global;
 }
 
-static constexpr size_t x_numSourceIndices = static_cast<size_t>(VoiceModulator::Random10) + 1;
+static constexpr size_t x_numSourceIndices = std::max(
+    static_cast<size_t>(VoiceModulator::SourceMod2), static_cast<size_t>(QuadModulator::OutputAudio)) + 1;
 static constexpr size_t x_numVoiceRandoms = 10;
 static constexpr size_t x_numQuadRandoms = 8;
 static constexpr size_t x_noRandom = static_cast<size_t>(-1);
@@ -134,6 +143,30 @@ inline size_t GetRandomIndex(ModulatorRef source)
     size_t count = source.m_mode == Mode::Voice ? x_numVoiceRandoms : x_numQuadRandoms;
     return source.m_index < 4 ? source.m_index
         : source.m_index >= 15 && source.m_index < count + 11 ? source.m_index - 11 : x_noRandom;
+}
+
+constexpr SmartGridOne::QuadScopes GetMixerScope(QuadModulator modulator)
+{
+    switch (modulator)
+    {
+#define F(tap, envelope, audio) \
+        case QuadModulator::envelope: return SmartGridOne::QuadScopes::envelope; \
+        case QuadModulator::audio: return SmartGridOne::QuadScopes::audio;
+#include "ForEachMixerModulationTap.hpp"
+#undef F
+        default: return SmartGridOne::QuadScopes::NumScopes;
+    }
+}
+
+constexpr bool IsMixerAudio(QuadModulator modulator)
+{
+    switch (modulator)
+    {
+#define F(tap, envelope, audio) case QuadModulator::audio: return true;
+#include "ForEachMixerModulationTap.hpp"
+#undef F
+        default: return false;
+    }
 }
 
 constexpr auto BuildSkins()

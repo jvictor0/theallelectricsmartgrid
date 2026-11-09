@@ -112,6 +112,8 @@ struct SquiggleBoyTrackGeneric
 
         Vector m_output;
         Vector m_subOut;
+        Vector m_subModOut;
+        Vector m_voiceModOut;
 
         OPLowPassFilterGeneric<float, Size> m_freqDependentGainSlew;
         Vector m_freqDependentGainTarget;
@@ -172,6 +174,8 @@ struct SquiggleBoyTrackGeneric
         AmpSection()
             : m_output(Vector::Splat(0))
             , m_subOut(Vector::Splat(0))
+            , m_subModOut(Vector::Splat(0))
+            , m_voiceModOut(Vector::Splat(0))
             , m_freqDependentGainTarget(Vector::Splat(1))
         {
             m_freqDependentGainSlew.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(250.0));
@@ -284,10 +288,11 @@ struct SquiggleBoyTrackGeneric
             Vector subEnvelope = m_subSlew.Process(subTarget);
             m_subWavefolder.SetGain(input.m_subDrive.m_expParam);
             Vector shapedSub = m_subWavefolder.Process(sub * subEnvelope, input.m_subShape);
-            Vector mainOut = freqDependentGain * ahdEnv * filterOutput;
+            m_subModOut = shapedSub;
+            m_voiceModOut = freqDependentGain * ahdEnv * filterOutput;
             Vector subOut = freqDependentGain * shapedSub * input.m_subGain.m_expParam;
-            m_scopeWriter.Write(mainOut);
-            m_subScopeWriter.Write(subOut);
+            m_scopeWriter.Write(m_voiceModOut);
+            m_subScopeWriter.Write(m_subModOut);
 
             for (size_t i = 0; i < Size; ++i)
             {
@@ -307,7 +312,7 @@ struct SquiggleBoyTrackGeneric
             WriteEnvelopeScopes();
 
             m_subOut = subOut * input.m_gain.m_expParam;
-            m_output = mainOut * input.m_gain.m_expParam;
+            m_output = m_voiceModOut * input.m_gain.m_expParam;
 
             return m_output;
         }

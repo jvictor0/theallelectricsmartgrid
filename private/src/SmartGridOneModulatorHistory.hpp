@@ -91,9 +91,47 @@ inline float Noise(ModulatorRef modulator, double sample)
     return static_cast<float>(hash >> 40) / 16777216.0f;
 }
 
+template<typename UIState>
+SmartGridOne::VoiceScopes GetVoiceScope(const UIState& uiState, ModulatorRef modulator)
+{
+    using Scope = SmartGridOne::VoiceScopes;
+    using Machine = VoiceMachine::SourceMachine;
+    assert(modulator.m_mode == SmartGridOneLayout::ParamMode::Voice && modulator.m_voice < 9);
+    switch (static_cast<VoiceModulator>(modulator.m_index))
+    {
+        case VoiceModulator::ModulationEnvelope: return Scope::ModulationEnvelope;
+        case VoiceModulator::AmpEnvelope: return Scope::AmpEnvelope;
+        case VoiceModulator::LFO1: return Scope::LFO1;
+        case VoiceModulator::LFO2: return Scope::LFO2;
+        case VoiceModulator::Sub: return Scope::Sub;
+        case VoiceModulator::Voice: return Scope::PostAmp;
+        case VoiceModulator::SourceMod1:
+        case VoiceModulator::SourceMod2:
+        {
+            auto machine = uiState.m_squiggleBoyUIState.m_voiceSourceUIState[modulator.m_voice / 3 * 3].m_sourceMachine.load();
+            bool first = modulator.m_index == static_cast<size_t>(VoiceModulator::SourceMod1);
+            if (machine == Machine::DualWaveShapingVCO)
+            {
+                return first ? Scope::VCO1 : Scope::VCO2;
+            }
+
+            if (machine == Machine::PhysicalModeling && !first)
+            {
+                return Scope::PhysicalModelingEnvelope;
+            }
+
+            break;
+        }
+        default: break;
+    }
+
+    return Scope::NumScopes;
+}
+
 // Sample positions use SampleTimer's absolute audio timeline. Scope-backed
 // sources return the recorded display signal, interpolated at its selected LOD,
-// including the bipolar delay/reverb scopes. Notes hold until the next note;
+// including the bipolar delay/reverb scopes. Shared voice audio scopes are
+// mapped into the modulation domain on read. Notes hold until the next note;
 // random rounds reconstruct their curves; noise is stable UI-only noise.
 // Unavailable, overwritten, unaccepted, or invalid queries return zero.
 //
@@ -132,20 +170,34 @@ bool ReadModulatorValue(const UIState& uiState, ModulatorRef modulator, double s
             }
 
             using Scope = SmartGridOne::VoiceScopes;
+            Scope scope = GetVoiceScope(uiState, modulator);
+            if (scope != Scope::NumScopes)
+            {
+                if (!state.m_voiceScopeWriter.ReadHistory(
+                    SmartGridOne::VoiceScopeIndex(static_cast<size_t>(scope), track), voice, scopeIndex, lod, value))
+                {
+                    return false;
+                }
+
+                if (scope == Scope::VCO1 || scope == Scope::VCO2 || scope == Scope::Sub || scope == Scope::PostAmp)
+                {
+                    value = 0.5f + 0.5f * value;
+                }
+
+                return true;
+            }
+
             switch (static_cast<VoiceModulator>(modulator.m_index))
             {
-                case VoiceModulator::ModulationEnvelope:
-                    return state.m_voiceScopeWriter.ReadHistory(
-                        SmartGridOne::VoiceScopeIndex(static_cast<size_t>(Scope::ModulationEnvelope), track), voice, scopeIndex, lod, value);
-                case VoiceModulator::AmpEnvelope:
-                    return state.m_voiceScopeWriter.ReadHistory(
-                        SmartGridOne::VoiceScopeIndex(static_cast<size_t>(Scope::AmpEnvelope), track), voice, scopeIndex, lod, value);
-                case VoiceModulator::LFO1:
-                    return state.m_voiceScopeWriter.ReadHistory(
-                        SmartGridOne::VoiceScopeIndex(static_cast<size_t>(Scope::LFO1), track), voice, scopeIndex, lod, value);
-                case VoiceModulator::LFO2:
-                    return state.m_voiceScopeWriter.ReadHistory(
-                        SmartGridOne::VoiceScopeIndex(static_cast<size_t>(Scope::LFO2), track), voice, scopeIndex, lod, value);
+                case VoiceModulator::SourceMod1:
+                    if (state.m_voiceSourceUIState[track * 3].m_sourceMachine.load() == VoiceMachine::SourceMachine::PhysicalModeling)
+                    {
+                        value = Noise(modulator, sample);
+                    }
+
+                    return true;
+                case VoiceModulator::SourceMod2:
+                    return true;
                 case VoiceModulator::Sheaf1:
                 case VoiceModulator::Sheaf2:
                 case VoiceModulator::Sheaf3:
@@ -185,6 +237,23 @@ bool ReadModulatorValue(const UIState& uiState, ModulatorRef modulator, double s
             {
                 return state.m_quadGangedRandomLFOUIState[random]
                     .m_history.ReadValue(modulator.m_voice, sample, value);
+            }
+
+            auto mixerModulator = static_cast<QuadModulator>(modulator.m_index);
+            auto mixerScope = SmartGridOneModulators::GetMixerScope(mixerModulator);
+            if (mixerScope != SmartGridOne::QuadScopes::NumScopes)
+            {
+                if (!state.m_quadScopeWriter.ReadHistory(static_cast<size_t>(mixerScope), modulator.m_voice, scopeIndex, lod, value))
+                {
+                    return false;
+                }
+
+                if (SmartGridOneModulators::IsMixerAudio(mixerModulator))
+                {
+                    value = 0.5f + 0.5f * value;
+                }
+
+                return true;
             }
 
             using Scope = SmartGridOne::QuadScopes;
@@ -274,17 +343,21 @@ ControlScope GetControlScope(const UIState& uiState, ModulatorRef modulator)
     using Mode = SmartGridOneLayout::ParamMode;
     if (modulator.m_mode == Mode::Voice && modulator.m_voice < 9)
     {
-        switch (static_cast<VoiceModulator>(modulator.m_index))
+        auto scope = GetVoiceScope(uiState, modulator);
+        if (scope != SmartGridOne::VoiceScopes::NumScopes)
         {
-            case VoiceModulator::ModulationEnvelope: return {&state.m_voiceScopeWriter, SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::ModulationEnvelope), modulator.m_voice / 3), modulator.m_voice % 3};
-            case VoiceModulator::AmpEnvelope: return {&state.m_voiceScopeWriter, SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::AmpEnvelope), modulator.m_voice / 3), modulator.m_voice % 3};
-            case VoiceModulator::LFO1: return {&state.m_voiceScopeWriter, SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO1), modulator.m_voice / 3), modulator.m_voice % 3};
-            case VoiceModulator::LFO2: return {&state.m_voiceScopeWriter, SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO2), modulator.m_voice / 3), modulator.m_voice % 3};
-            default: break;
+            return {&state.m_voiceScopeWriter,
+                SmartGridOne::VoiceScopeIndex(static_cast<size_t>(scope), modulator.m_voice / 3), modulator.m_voice % 3};
         }
     }
     else if (modulator.m_mode == Mode::Quad && modulator.m_voice < 4)
     {
+        auto mixerScope = SmartGridOneModulators::GetMixerScope(static_cast<QuadModulator>(modulator.m_index));
+        if (mixerScope != SmartGridOne::QuadScopes::NumScopes)
+        {
+            return {&state.m_quadScopeWriter, static_cast<size_t>(mixerScope), modulator.m_voice};
+        }
+
         switch (static_cast<QuadModulator>(modulator.m_index))
         {
             case QuadModulator::LFO1: return {&state.m_quadScopeWriter, static_cast<size_t>(SmartGridOne::QuadScopes::QuadLFO1), modulator.m_voice};
