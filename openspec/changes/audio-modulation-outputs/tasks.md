@@ -54,6 +54,8 @@
 ## 7. Host-rate RMS and main comparison
 
 - [x] 7.1 Keep engine-rate power smoothing, publish host-rate RMS envelopes without extra downsampling, and update scope/VU contracts and tests.
-- [ ] 7.2 Compare the complete SynthRig against current main using isolated Release builds, matching fixtures, serial repeated timings, and preserved results.
+- [x] 7.2 Compare the complete SynthRig against current main using isolated Release builds, matching fixtures, serial repeated timings, and preserved results.
 
 - Host-rate RMS validation: all 870 core cases (four manual performance skips), 39 passthrough-rate cases, 80 visualizer cases, and all three benchmark smoke/protocol tests passed. Follower tests verify per-engine-sample power smoothing, square root only on host frames, held RMS scope values, and direct envelope publication. The seven mixer audio sources retain downsampling; their seven RMS counterparts bypass it. Main benchmark smoke/protocol tests also passed. Logs are under `build/results/host-rms-*` and `build/results/modulator-main-perf-*`.
+
+- Main comparison: benchmarked code checkpoint `c7eaf6b` against local/remote main `e7afa97`, already the branch base (no rebase needed). Isolated managed worktrees used the same AppleClang 17 Release/LTO build and byte-identical fixtures. Five alternating serial repeats per revision rendered eight seconds each for saved hold/moving controls, modulation-stress fixed/sweep, and mixed gestures/modulation. Branch medians were 5.29%–9.07% higher CPU, or +52.37–82.41 ms per audio second. This measures the complete branch and its changed DSP workloads, not isolated follower cost. All 50 runs produced finite output with matching loaded-parameter/route counts. Exact commands, hashes, individual timings, ranges, and summaries are in ignored `build/results/modulator-vs-main-20261109/`. Main was neither modified nor pushed.
