@@ -255,7 +255,7 @@ struct EncoderBankBank
     {
         for (auto& group : m_modulatorManager.m_groups)
         {
-            group.m_values.ComputeChanged();
+            group.m_values.DetectChanges();
         }
 
         ProcessGatheredHostFrame();
@@ -288,6 +288,14 @@ struct EncoderBankBank
         if (blendChanged)
         {
             SetBlendChanged(false);
+        }
+
+        // Reconstruction during evaluation still needs the preceding snapshot.
+        // Publish the completed inputs only after every root has consumed them.
+        //
+        for (auto& group : m_modulatorManager.m_groups)
+        {
+            group.m_values.SaveEvaluatedSources();
         }
     }
 

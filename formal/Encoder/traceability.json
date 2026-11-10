@@ -2,8 +2,8 @@
   "description": "Reviewed C++ snapshot for the Lean model. Hashes detect drift; they do not prove C++ refinement. Review correspondence before changing hashes.",
   "files": {
     "private/src/Encoder.hpp": "0f4b7d409b360ed1c7f1c17e9209e70ae07ed6f23b981c2121394124ceab8c76",
-    "private/src/EncoderBank.hpp": "9f22e007f122a1f451cac2ab5018b8687b31e713b79cb920002e208d8392f84d",
-    "private/src/EncoderBankBank.hpp": "cb102e63750a3c0444c10f72a309a60b379ee73c2028036c13a7da66e4217e18",
+    "private/src/EncoderBank.hpp": "b4a1867b40669691c778e01049b46670a352042d2e3c18c2418a3410c91c9c4d",
+    "private/src/EncoderBankBank.hpp": "ece51e5bbfc0099069e81e2a92a0527564cc93d7b5e3e68f0ca8ab340cf297f1",
     "private/src/EncoderMatrix.hpp": "bd12fa09cd088b6412e7114a656d30c5bf7472d575fe1260a9067af4ff1d901f",
     "private/src/QuadUtils.hpp": "eb287a8dd5c2f88979153018a2b246aa7056979ae252773cccb92182c293a69b",
     "private/src/SampleTimer.hpp": "d55157bec9215ac2d96da5cff2307ee19f7c2c2145a7a2775186be31f39d10b9",
@@ -161,7 +161,7 @@
     "changed": [
       {
         "path": "private/src/EncoderBank.hpp",
-        "symbol": "void ComputeChanged()\n        {\n            m_changedModulators.Clear();"
+        "symbol": "void DetectChanges()\n        {\n            m_changedModulators.Clear();"
       },
       {
         "path": "private/src/EncoderBank.hpp",
@@ -478,6 +478,16 @@
       {
         "path": "private/src/Encoder.hpp",
         "symbol": "void FromJSON(JSON root)"
+      }
+    ],
+    "source_snapshot": [
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void SaveEvaluatedSources()"
+      },
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ProcessGatheredHostFrame()"
       }
     ]
   }

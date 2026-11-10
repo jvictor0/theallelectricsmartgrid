@@ -72,3 +72,11 @@ The mixer SHALL own seven independent quad envelope followers: one at each effec
 - **WHEN** monitor volume changes
 - **THEN** the final-output modulation tap remains the mastered quad signal without recording headroom attenuation
 - **AND** every Quad group shares the same final-output envelope and audio sources
+
+### Requirement: Completed host-frame source snapshots
+The manager SHALL compare each global source once per host frame and gather its current values, amplitudes, and change flags without replacing the groups' reconstruction snapshots. After matrix evaluation completes, each group SHALL save the source values and amplitudes used by that evaluation. Direct host-frame replay SHALL use the same save boundary. Deferred child reconstruction SHALL use these saved inputs during UI-state publication, editing, or rebuilding, and SHALL preserve the current inputs and root output history.
+
+#### Scenario: Held nested modulation is published and edited
+- **WHEN** a nested modulation source changes value or amplitude and then remains unchanged through UI-state publication and a knob edit
+- **THEN** published depths and parameter outputs agree with eager recursive evaluation
+- **AND** gathering the following frame does not replace the reconstruction inputs before that frame has been evaluated

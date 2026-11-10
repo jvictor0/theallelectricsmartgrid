@@ -68,7 +68,7 @@ theorem direct_and_global_change_flags_agree {sources groups : Nat}
       (gatherDirect (project (binding g) s.live) (s.group g)).changed slot := by
   simpa [gatherDirect, previous] using gathered_changes_match_local_comparison binding s g slot
 
--- @cpp host_gate: the host pass commits sources only after matrix evaluation.
+-- @cpp source_snapshot: the host pass commits sources only after matrix evaluation.
 def commit {sources groups : Nat} (s : Manager sources groups) : Manager sources groups :=
   { s with group := fun g => { s.group g with saved := (s.group g).live } }
 

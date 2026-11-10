@@ -260,7 +260,8 @@
     ],
     "anchors": [
       "synchronization",
-      "snapshot"
+      "snapshot",
+      "source_snapshot"
     ]
   },
   {
@@ -381,7 +382,8 @@
     ],
     "anchors": [
       "synchronization",
-      "rebuild"
+      "rebuild",
+      "source_snapshot"
     ]
   },
   {

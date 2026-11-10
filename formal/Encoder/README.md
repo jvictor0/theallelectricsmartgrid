@@ -515,14 +515,23 @@ the parent's fixed group pointer, and prepared roots cache that same pointer.
 The manager optimization preserved the synchronization swaps but omitted their
 group snapshot updates. The landed `d0c9461` therefore violates E25/E35: after
 prepared evaluation, reconstructing a held nested depth reads startup values or
-amplitudes. `SourceSnapshots` models a correction before its native implementation:
+amplitudes. `SourceSnapshots` models the corrected handoff:
 gathering advances global comparison history and group live inputs, reconstruction
 continues to use the last completed evaluation, and a completed host pass commits
 the group values and amplitudes for subsequent UI publication, edits and rebuilds.
 It proves global/local change-mask equivalence, correct reconstruction after the
 commit, preservation of the previous snapshot across a pending gather, and
-counterexamples for omitting either value or amplitude updates. These proofs do
-not certify the still-unfixed C++ integration at this model-first checkpoint.
+counterexamples for omitting either value or amplitude updates.
+
+`ProcessGatheredHostFrame` now calls `SaveEvaluatedSources` after matrix processing
+for every group. Both production manager processing and direct replay use that
+boundary; replay calls `DetectChanges` without advancing the reconstruction
+snapshot first. `ComputeChanged` retains its combined detect/save operation for
+standalone callers. Native regressions first failed on the landed code and cover
+held source values, amplitude-only changes, actual UI-state publication, a knob
+edit, and reconstruction between gathering and matrix evaluation. The model and
+tests cover complementary parts of this handoff; the source audit remains a
+reviewed correspondence check, not a C++ refinement proof.
 The clamp now accompanies each computed root write instead of every publication;
 existing clamp tests cover simple, graph and editing paths, output history and
 stationary roots. These integration changes do not alter the Lean definitions.

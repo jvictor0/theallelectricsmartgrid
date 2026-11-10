@@ -74,6 +74,12 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
 
         void ComputeChanged()
         {
+            DetectChanges();
+            SaveEvaluatedSources();
+        }
+
+        void DetectChanges()
+        {
             m_changedModulators.Clear();
             for (size_t i = 0; i < x_numModulators; ++i)
             {
@@ -81,9 +87,16 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
                     m_amplitude[i] != m_amplitudePrev[i])
                 {
                     m_changedModulators.Set(i, true);
-                    m_valuePrev[i] = m_hostValue[i];
-                    m_amplitudePrev[i] = m_amplitude[i];
                 }
+            }
+        }
+
+        void SaveEvaluatedSources()
+        {
+            for (size_t i = 0; i < x_numModulators; ++i)
+            {
+                m_valuePrev[i] = m_hostValue[i];
+                m_amplitudePrev[i] = m_amplitude[i];
             }
         }
 
