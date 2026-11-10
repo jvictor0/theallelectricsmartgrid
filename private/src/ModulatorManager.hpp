@@ -20,8 +20,11 @@ struct ModulatorManager
         QuadFloat m_value;
         QuadFloat m_hostValue;
         QuadFloat m_amplitude = QuadFloat::Splat(1.0f);
+        QuadFloat m_hostValuePrev;
+        QuadFloat m_amplitudePrev = QuadFloat::Splat(1.0f);
         Decimator m_decimator;
         bool m_requiresDownsampling = true;
+        bool m_changed = false;
     };
 
     struct Group
@@ -108,10 +111,19 @@ struct ModulatorManager
             {
                 source.m_hostValue = source.m_value;
             }
+
+            source.m_changed = source.m_hostValue != source.m_hostValuePrev
+                || source.m_amplitude != source.m_amplitudePrev;
+            if (source.m_changed)
+            {
+                source.m_hostValuePrev = source.m_hostValue;
+                source.m_amplitudePrev = source.m_amplitude;
+            }
         }
 
         for (auto& group : m_groups)
         {
+            group.m_values.m_changedModulators.Clear();
             for (size_t slot = 0; slot < x_numSlots; ++slot)
             {
                 size_t index = group.m_sources[slot];
@@ -121,6 +133,7 @@ struct ModulatorManager
                     group.m_values.m_value[slot] = source.m_value;
                     group.m_values.m_hostValue[slot] = source.m_hostValue;
                     group.m_values.m_amplitude[slot] = source.m_amplitude;
+                    group.m_values.m_changedModulators.m_bits |= static_cast<uint16_t>(source.m_changed) << slot;
                 }
             }
         }

@@ -3,12 +3,13 @@
   "files": {
     "private/src/Encoder.hpp": "0f4b7d409b360ed1c7f1c17e9209e70ae07ed6f23b981c2121394124ceab8c76",
     "private/src/EncoderBank.hpp": "9f22e007f122a1f451cac2ab5018b8687b31e713b79cb920002e208d8392f84d",
-    "private/src/EncoderBankBank.hpp": "531b1be2d8757a8ea930ffafc01e5c13794a64ec52e5acc6ebb8e4473cf9231f",
-    "private/src/EncoderMatrix.hpp": "004a7cec1a6fcd0f2adf146cf7cccf178b97fc24d99824257c83a624e14bcecc",
+    "private/src/EncoderBankBank.hpp": "cb102e63750a3c0444c10f72a309a60b379ee73c2028036c13a7da66e4217e18",
+    "private/src/EncoderMatrix.hpp": "bd12fa09cd088b6412e7114a656d30c5bf7472d575fe1260a9067af4ff1d901f",
     "private/src/QuadUtils.hpp": "eb287a8dd5c2f88979153018a2b246aa7056979ae252773cccb92182c293a69b",
     "private/src/SampleTimer.hpp": "d55157bec9215ac2d96da5cff2307ee19f7c2c2145a7a2775186be31f39d10b9",
     "private/src/SceneManager.hpp": "87e9c88e2257a56f9ae392178d9976152ae74b54f67d892d829fc4df10c75e8e",
-    "private/src/MultiChannelNumber.hpp": "8b9668e36f98ba97ec14661a51c58207871ea509a0b79b5011cbb8fb83bf0893"
+    "private/src/MultiChannelNumber.hpp": "8b9668e36f98ba97ec14661a51c58207871ea509a0b79b5011cbb8fb83bf0893",
+    "private/src/ModulatorManager.hpp": "9203a414105f7234fbfe1dc3d6a940531a747f3fd014dab4c40c46243b85633b"
   },
   "anchors": {
     "dimensions": [
@@ -100,6 +101,10 @@
     "publish": [
       {
         "path": "private/src/EncoderMatrix.hpp",
+        "symbol": "static QuadFloat ClampRootOutput(QuadFloat output)"
+      },
+      {
+        "path": "private/src/EncoderMatrix.hpp",
         "symbol": "static void Publish(const Root& root, const OutputView& caches, size_t host)"
       }
     ],
@@ -161,6 +166,10 @@
       {
         "path": "private/src/EncoderBank.hpp",
         "symbol": "void ComputeChanged()\n        {\n            m_changedGestures.Clear();"
+      },
+      {
+        "path": "private/src/ModulatorManager.hpp",
+        "symbol": "void Gather()"
       }
     ],
     "dirty": [
@@ -211,6 +220,10 @@
       {
         "path": "private/src/SampleTimer.hpp",
         "symbol": "static constexpr size_t x_oversample = 4;"
+      },
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ProcessGatheredHostFrame()"
       }
     ],
     "roots": [
@@ -227,6 +240,10 @@
       {
         "path": "private/src/EncoderBank.hpp",
         "symbol": "void Compute(bool advanceState)"
+      },
+      {
+        "path": "private/src/EncoderBankBank.hpp",
+        "symbol": "void ProcessGatheredHostFrame()"
       }
     ],
     "snapshot": [

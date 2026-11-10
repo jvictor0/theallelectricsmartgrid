@@ -421,7 +421,7 @@ struct EncoderMatrix
             node.m_output = baseValue + (sum + offset) / QuadFloat::Max(one, weight);
             if (i + 1 == end)
             {
-                root.m_cell->SetOutput(node.m_output, host);
+                root.m_cell->SetOutput(ClampRootOutput(node.m_output), host);
                 root.m_cell->m_minValue = baseValue;
                 root.m_cell->m_maxValue = baseValue + QuadFloat::Min(one, weight);
                 root.m_cell->m_gestureWeightSum = node.m_gestureWeight;
@@ -430,12 +430,14 @@ struct EncoderMatrix
         }
     }
 
+    static QuadFloat ClampRootOutput(QuadFloat output)
+    {
+        return QuadFloat::Min(QuadFloat::Splat(1), QuadFloat::Max(QuadFloat(), output));
+    }
+
     static void Publish(const Root& root, const OutputView& caches, size_t host)
     {
         Cell* cell = root.m_cell;
-        // Clamp only published roots, before interpolation and bipolar mapping.
-        //
-        cell->m_output = QuadFloat::Min(QuadFloat::Splat(1), QuadFloat::Max(QuadFloat(), cell->m_output));
         size_t index = root.m_index;
         if (cell->m_outputHostSample != host)
         {
@@ -520,6 +522,7 @@ struct EncoderMatrix
                 cell->SynchronizePreparedState();
                 root.m_path = Path::Editing;
                 cell->Compute(true);
+                cell->m_output = ClampRootOutput(cell->m_output);
                 if (cell->m_samplesForceUpdate == 0 && CanPrepare(cell))
                 {
                     m_rebuild = true;
@@ -559,7 +562,7 @@ struct EncoderMatrix
 
                 float base = root.m_left * leftWeight + root.m_right * blend;
                 QuadFloat baseValue = QuadFloat::Splat(base) * QuadFloat::Max(QuadFloat(), one - weight);
-                cell->SetOutput(baseValue + (sum + offset) / QuadFloat::Max(one, weight), host);
+                cell->SetOutput(ClampRootOutput(baseValue + (sum + offset) / QuadFloat::Max(one, weight)), host);
                 cell->m_minValue = baseValue;
                 cell->m_maxValue = baseValue + QuadFloat::Min(one, weight);
                 cell->m_brightness = std::clamp(1.0f - weight[0], 0.0f, 1.0f);

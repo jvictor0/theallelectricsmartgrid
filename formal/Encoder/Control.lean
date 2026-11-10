@@ -7,7 +7,9 @@ namespace Encoder
 abbrev Source := Fin 15
 abbrev Gesture := Fin 16
 
--- @cpp changed: ModulatorValues::ComputeChanged and GestureValues::ComputeChanged
+-- @cpp changed: manager gathering maps shared source changes into local slots;
+-- direct replay uses ModulatorValues::ComputeChanged, and gesture changes use
+-- GestureValues::ComputeChanged.
 -- @head changed: shared arithmetic/control operation at the pinned revision.
 structure Inputs where
   source : Source → Lane → Rat

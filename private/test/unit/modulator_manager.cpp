@@ -110,6 +110,71 @@ DOCTEST_TEST_CASE("modulator manager: parameters in one bank mode use independen
     DOCTEST_CHECK(second->m_modulators.m_modulators[8]->m_modulators.m_gestures[2]->m_gestureValues == first->m_gestureValues);
 }
 
+DOCTEST_TEST_CASE("modulator manager: shared value and amplitude changes reach every assigned parameter")
+{
+    GlobalEnv::ResetPerTest();
+    SmartGridOneContext context;
+    EncoderBankBank banks(1, 1, 2, 1, 2, &context);
+    banks.InitMode(0, 4);
+    banks.m_modulatorManager.GetSource(0).m_requiresDownsampling = false;
+    for (size_t group = 0; group < 2; ++group)
+    {
+        size_t slot = group == 0 ? 8 : 3;
+        banks.m_modulatorManager.Bind(group, slot, 0);
+        banks.GetModulatorValues(group).SetModulatorSkin(slot, SmartGrid::Color::Red, "SRC");
+        banks.CreateEncoder(group, 0, group, 0.2f, group == 0 ? "First" : "Second", "TEST", SmartGrid::Color::Red, 0, false);
+        Cell& cell = *banks.GetEncoder(group);
+        cell.FillModulators(&context);
+        cell.m_modulators.m_modulators[slot]->SetValue(1.0f, true);
+        cell.SetModulatorsAffecting();
+    }
+
+    auto advance = [&banks]()
+    {
+        for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+        {
+            SampleTimer::IncrementSample();
+            banks.Process();
+        }
+    };
+    banks.m_modulatorManager.Set(0, QuadFloat::Splat(0.25f));
+    for (size_t frame = 0; frame < SmartGrid::TickDistributor::x_maxSamplesToDistribute + 2; ++frame)
+    {
+        advance();
+    }
+
+    DOCTEST_CHECK(banks.GetModulatorValues(0).m_changedModulators.IsZero());
+    DOCTEST_CHECK(banks.GetModulatorValues(1).m_changedModulators.IsZero());
+    banks.m_modulatorManager.Set(0, QuadFloat(0.3f, 0.4f, 0.5f, 0.6f));
+    advance();
+    DOCTEST_CHECK(banks.GetModulatorValues(0).m_changedModulators.m_bits == (1 << 8));
+    DOCTEST_CHECK(banks.GetModulatorValues(1).m_changedModulators.m_bits == (1 << 3));
+    for (size_t group = 0; group < 2; ++group)
+    {
+        DOCTEST_CHECK(banks.GetEncoder(group)->m_output == QuadFloat(0.3f, 0.4f, 0.5f, 0.6f));
+    }
+
+    advance();
+    DOCTEST_CHECK(banks.GetModulatorValues(0).m_changedModulators.IsZero());
+    DOCTEST_CHECK(banks.GetModulatorValues(1).m_changedModulators.IsZero());
+    banks.m_modulatorManager.GetSource(0).m_amplitude = QuadFloat::Splat(0.5f);
+    advance();
+    DOCTEST_CHECK(banks.GetModulatorValues(0).m_changedModulators.m_bits == (1 << 8));
+    DOCTEST_CHECK(banks.GetModulatorValues(1).m_changedModulators.m_bits == (1 << 3));
+    for (size_t group = 0; group < 2; ++group)
+    {
+        for (size_t lane = 0; lane < 4; ++lane)
+        {
+            float expected = 0.1f + banks.m_modulatorManager.GetSource(0).m_value[lane] * 0.5f;
+            DOCTEST_CHECK(banks.GetEncoder(group)->m_output[lane] == doctest::Approx(expected));
+        }
+    }
+
+    advance();
+    DOCTEST_CHECK(banks.GetModulatorValues(0).m_changedModulators.IsZero());
+    DOCTEST_CHECK(banks.GetModulatorValues(1).m_changedModulators.IsZero());
+}
+
 DOCTEST_TEST_CASE("modulator manager: instrument groups expose distinct pairs and preserve other sources")
 {
     SmartGridOneContext context;

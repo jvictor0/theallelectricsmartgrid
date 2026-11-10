@@ -247,18 +247,23 @@ struct EncoderBankBank
         if (SampleTimer::IsHostFrame())
         {
             m_modulatorManager.Gather();
-            ProcessHostFrame();
+            ProcessGatheredHostFrame();
         }
     }
 
     void ProcessHostFrame()
     {
-        GetGestureValues().ComputeChanged();
         for (auto& group : m_modulatorManager.m_groups)
         {
             group.m_values.ComputeChanged();
         }
 
+        ProcessGatheredHostFrame();
+    }
+
+    void ProcessGatheredHostFrame()
+    {
+        GetGestureValues().ComputeChanged();
         SmartGrid::SceneManager& sceneManager = m_context->m_sceneManager;
         bool blendChanged = sceneManager.m_changed && !sceneManager.m_changedScene;
         if (blendChanged)

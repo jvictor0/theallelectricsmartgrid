@@ -132,8 +132,11 @@ assume the final outputs are equal. It also does not prove that the C++
 
 ## Numeric and implementation boundary
 
-- Production preserves source excursions and clamps each root in `EncoderMatrix::Publish` before
-  interpolation. `Encoder.publish` and the pinned-head publication comparison
+- Production preserves source excursions and clamps each root through
+  `EncoderMatrix::ClampRootOutput` before publication and interpolation. Prepared
+  paths clamp the computed value before `SetOutput`; the editing path clamps
+  after recursive computation. Child node outputs remain unclamped.
+  `Encoder.publish` and the pinned-head publication comparison
   model the interpolation stage with the same supplied `Output`; they do not
   model this new clamp or prove end-to-end equivalence with the old unclamped
   publication for out-of-range signals. `encoder_output_clamps.cpp` checks the
@@ -497,12 +500,21 @@ The global modulator manager refactor retains the encoder model's 15 local sourc
 slots. `Control.Inputs` is the assigned group's host-frame snapshot, not the
 global source catalogue. Declared manager-owned filters advance before the host
 gate; other sources are sampled directly on host frames. Gathering copies values
-and unfiltered amplitudes into each group before its unchanged change detection.
+and unfiltered amplitudes into each group. The manager compares each source's
+host value and amplitude once, then gathers its change flag into every assigned
+local slot. With fixed instrument bindings this retains the modeled per-slot
+invalidation condition. Direct snapshot replay still computes local change masks
+in `ProcessHostFrame`; both entry paths use `ProcessGatheredHostFrame` for gesture
+change detection, scene handling and matrix processing. Native tests cover shared
+value changes, amplitude-only changes and clearing flags on unchanged frames.
 Filter dynamics, the static source/group tables and
 binding construction remain native integration boundaries. Child cells inherit
 the parent's fixed group pointer, and prepared roots cache that same pointer.
 The reviewed changes leave mixing, synchronization swaps, gesture arithmetic,
-patch representation/loading, reset, ramps and output publication unchanged.
+patch representation/loading, reset, ramps and output interpolation unchanged.
+The clamp now accompanies each computed root write instead of every publication;
+existing clamp tests cover simple, graph and editing paths, output history and
+stationary roots. These integration changes do not alter the Lean definitions.
 The initial manager refactor retained all pinned shared C++ bodies. Native tests cover
 shared filtering, separate groups within a bank mode, child binding through
 patch load, and group-aware UI identity; this review adds no formal verification
