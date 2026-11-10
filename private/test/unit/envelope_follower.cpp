@@ -81,7 +81,7 @@ DOCTEST_TEST_CASE("Mixer followers: power slews at engine rate and RMS updates o
     CheckFollower<4>();
 }
 
-DOCTEST_TEST_CASE("Mixer followers: sends include feedback and wet taps precede gain while final tap matches recording")
+DOCTEST_TEST_CASE("Mixer followers: sends include feedback and wet taps precede gain while final tap excludes recording headroom")
 {
     GlobalEnv::ResetPerTest();
     SmartGridOneContext context;
@@ -129,11 +129,11 @@ DOCTEST_TEST_CASE("Mixer followers: sends include feedback and wet taps precede 
         }
 
         const auto& output = mixer->m_envelopeFollowers[6];
-        QuadFloat recorded = recordingReference.Process(output.m_audio);
+        QuadFloat recorded = recordingReference.Process(output.m_audio * QuadMixerInternal::x_recordingGain);
         for (size_t lane = 0; lane < 4; ++lane)
         {
             sawOutput |= std::abs(output.m_audio[lane]) > 0.00001f;
-            DOCTEST_CHECK(output.m_audio[lane] == mixer->m_engineOutput.m_output[lane] * QuadMixerInternal::x_recordingGain);
+            DOCTEST_CHECK(output.m_audio[lane] == mixer->m_engineOutput.m_output[lane]);
             DOCTEST_CHECK(recorded[lane] == doctest::Approx(mixer->m_output.m_output[lane] * QuadMixerInternal::x_recordingGain));
         }
 

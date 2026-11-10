@@ -415,7 +415,7 @@ struct QuadMixerInternal
         }
 
         m_engineOutput = m_masterChain.Process(input.m_masterChainInput, m_output.m_output, m_quadToStereoMixdown.m_output);
-        m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::Output)].Process(m_engineOutput.m_output * x_recordingGain);
+        m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::Output)].Process(m_engineOutput.m_output);
         m_output = m_outputDecimator.Process(m_engineOutput);
 
         if (m_recordingFrameActive)

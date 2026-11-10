@@ -52,7 +52,7 @@ Each global source SHALL declare its downsampling requirement in ForEach metadat
 - **AND** publication retains the existing previous-engine-sample ordering
 
 ### Requirement: Engine-rate mixer envelope followers
-The mixer SHALL own seven independent quad envelope followers: one at each effect send after return-to-send feedback, one at each effect return before return gain and saturation, and one at the mastered output before monitor gain. The final tap SHALL include the recording headroom gain and precede output decimation, so its downsampled audio matches the recorded quad master. Each follower SHALL slew squared input using a one-pole engine-rate time constant, defaulting to 10 ms, and retain independent per-lane audio and mean-square state without clipping. Once per host frame, each follower SHALL take the square root of that state as its RMS envelope and hold it between host frames. Each SHALL own an audio scope writer and an envelope scope writer. These followers SHALL be independent of the existing level/peak/saturation meters. Fourteen distinct globally indexed sources SHALL expose their RMS envelopes directly and audio as 0.5 + 0.5*sample, using the existing causal previous-engine-sample publication order.
+The mixer SHALL own seven independent quad envelope followers: one at each effect send after return-to-send feedback, one at each effect return before return gain and saturation, and one at the mastered output before monitor gain. The final tap SHALL precede recording headroom gain and output decimation, preserving the mastered quad signal at unity gain. Each follower SHALL slew squared input using a one-pole engine-rate time constant, defaulting to 10 ms, and retain independent per-lane audio and mean-square state without clipping. Once per host frame, each follower SHALL take the square root of that state as its RMS envelope and hold it between host frames. Each SHALL own an audio scope writer and an envelope scope writer. These followers SHALL be independent of the existing level/peak/saturation meters. Fourteen distinct globally indexed sources SHALL expose their RMS envelopes directly and audio as 0.5 + 0.5*sample, using the existing causal previous-engine-sample publication order.
 
 #### Scenario: Muted return remains observable
 - **WHEN** an effect produces audio while its return gain is zero
@@ -70,5 +70,5 @@ The mixer SHALL own seven independent quad envelope followers: one at each effec
 
 #### Scenario: Recorded-output modulation
 - **WHEN** monitor volume changes
-- **THEN** the final-output modulation tap remains the mastered recording signal including recording headroom gain
+- **THEN** the final-output modulation tap remains the mastered quad signal without recording headroom attenuation
 - **AND** every Quad group shares the same final-output envelope and audio sources
