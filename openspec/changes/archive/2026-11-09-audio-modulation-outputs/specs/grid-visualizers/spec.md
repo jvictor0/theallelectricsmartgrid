@@ -57,7 +57,7 @@ The metering strip SHALL split each voice's original meter footprint into four e
 ## ADDED Requirements
 
 ### Requirement: Mixer follower visualizers
-Each mixer audio modulator SHALL show a configurable trailing scope window, defaulting to 100 ms, ending at the latest accepted scope sample without requiring cycle or envelope markers. Each mixer envelope modulator SHALL show four lane-colored VU needles using the latest accepted RMS envelope history, converted with 20*log10 for display. These VUs SHALL share drawing math with existing meters but SHALL read only the new follower data, without adding peak hold or deriving envelopes from existing meter values. Both histories SHALL use the existing scope publication and LOD pipeline. The new send/return/final-output histories SHALL coexist with existing audio analyzers and meters.
+Each mixer audio modulator SHALL show a configurable trailing scope window, defaulting to 100 ms, ending at the latest accepted scope sample without requiring cycle or envelope markers. Each mixer envelope modulator SHALL show four lane-colored VU needles on one shared dial and pivot using the latest accepted RMS envelope history, converted with 20*log10 for display. These VUs SHALL share drawing math with existing meters but SHALL read only the new follower data, without adding peak hold or deriving envelopes from existing meter values. Both histories SHALL use the existing scope publication and LOD pipeline. The new send/return/final-output histories SHALL coexist with existing audio analyzers and meters.
 
 #### Scenario: Continuous recent audio
 - **WHEN** a mixer audio source has no cycle markers

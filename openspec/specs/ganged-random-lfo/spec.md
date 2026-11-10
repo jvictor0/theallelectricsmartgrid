@@ -65,7 +65,7 @@ Each displayed gang SHALL publish sample rate, elapsed round samples, and each v
 - **THEN** it draws only its background and center axis
 
 ### Requirement: Random Modulator Routing
-Voice and Quad random outputs SHALL feed slots 2 and 3 of their assigned groups, leaving slots 0 and 1 empty. Each random source SHALL have correctly routed history, glyph/color metadata, and an encoder visualizer. Global sources SHALL retain their existing slots. DualWaveShapingVCO SHALL own two additional internal random generators for wavetable blending and replacement visibility, using Standard(6, 0.1) for both, without receiving track random inputs through source parameter wiring.
+Voice and Quad random outputs SHALL feed slots 2 and 3 of their assigned groups, with other slots assigned by the instrument group metadata. Each random source SHALL have correctly routed history, glyph/color metadata, and an encoder visualizer. Global sources SHALL retain their existing slots. DualWaveShapingVCO SHALL own two additional internal random generators for wavetable blending and replacement visibility, using Standard(6, 0.1) for both, without receiving track random inputs through source parameter wiring.
 
 #### Scenario: Independent modulation and wavetable morphing
 - **WHEN** a parameter group uses its random pair
