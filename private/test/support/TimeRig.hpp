@@ -174,7 +174,7 @@ struct TimeRig
 
     bool CycleCrossed(size_t loop, PhaseDomain domain = PhaseDomain::Modulated) const
     {
-        return m_tot.CrossedCycleBoundary(loop, domain).m_triggered;
+        return m_tot.CrossedCycleBoundary(loop, domain);
     }
 
     bool Gate(size_t loop) const

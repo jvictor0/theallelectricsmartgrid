@@ -469,7 +469,7 @@ ModulatorTimeAxis GetTimeAxis(const UIState& uiState, ModulatorRef modulator)
         return axis;
     }
 
-    ScopeReader reader(scope.m_writer, scope.m_voice, scope.m_lane, 256, 1);
+    ScopeReader reader(scope.m_writer, scope.m_voice, scope.m_lane, 256);
     if (reader.m_empty)
     {
         return axis;
@@ -561,7 +561,7 @@ struct PreparedModulatorReader
         if (!std::isfinite(sample) || m_now < 0.0
             || sample < static_cast<double>(m_uiState.m_squiggleBoyUIState.m_firstScopeSample.load()))
         {
-            return 0.0f;
+            return std::numeric_limits<float>::quiet_NaN();
         }
 
         float result = 0.0f;
@@ -569,10 +569,12 @@ struct PreparedModulatorReader
         {
             const auto& entry = m_modulators.m_entries[i];
             float value = 0.0f;
-            if (ReadDisplayValue(m_uiState, entry.m_modulator, sample, m_now, m_lods[i], value))
+            if (!ReadDisplayValue(m_uiState, entry.m_modulator, sample, m_now, m_lods[i], value))
             {
-                result += std::abs(entry.m_weight) * (entry.m_weight < 0.0f ? 1.0f - value : value);
+                return std::numeric_limits<float>::quiet_NaN();
             }
+
+            result += std::abs(entry.m_weight) * (entry.m_weight < 0.0f ? 1.0f - value : value);
         }
 
         return result;

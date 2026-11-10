@@ -41,9 +41,9 @@ DOCTEST_TEST_CASE("AHD: scope starts and retriggers end once at an idle voice cr
     for (size_t scope = 0; scope < 3; ++scope)
     {
         const auto& markers = scopes->GetMarkers(scope, 0);
-        DOCTEST_CHECK(markers.m_advanceStartIndices == 0);
+        DOCTEST_CHECK(markers.m_startIndexIndex == 0);
         DOCTEST_CHECK(markers.m_endIndices[ScopeWriter::x_numStartIndices - 1] == 0);
-        DOCTEST_CHECK_FALSE(markers.m_started);
+        DOCTEST_CHECK_FALSE(markers.IsStarted());
     }
 
     control.m_trig = true;
@@ -65,10 +65,10 @@ DOCTEST_TEST_CASE("AHD: scope starts and retriggers end once at an idle voice cr
     DOCTEST_CHECK(control.m_release);
     for (size_t scope = 0; scope < 3; ++scope)
     {
-        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_advanceStartIndices == 1);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_startIndexIndex == 1);
         DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_startIndices[0] == 10.0);
         DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_endIndices[0] == 0);
-        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_started);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).IsStarted());
     }
 
     time.m_sample.m_modulatedPhase = 0.5;
@@ -80,7 +80,7 @@ DOCTEST_TEST_CASE("AHD: scope starts and retriggers end once at an idle voice cr
     DOCTEST_CHECK_FALSE(modulationAHD.m_voiceCellCrossed);
     for (size_t scope = 0; scope < 3; ++scope)
     {
-        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_advanceStartIndices == 1);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_startIndexIndex == 1);
     }
 
     ahdInput.Set(control);
@@ -92,7 +92,7 @@ DOCTEST_TEST_CASE("AHD: scope starts and retriggers end once at an idle voice cr
     DOCTEST_CHECK(scopes->GetMarkers(0, 0).m_endIndices[0] == 15);
     for (size_t scope = 0; scope < 3; ++scope)
     {
-        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_advanceStartIndices == 2);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_startIndexIndex == 2);
         DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_startIndices[1] == 15.0);
     }
 
@@ -106,9 +106,9 @@ DOCTEST_TEST_CASE("AHD: scope starts and retriggers end once at an idle voice cr
     DOCTEST_CHECK(modulationAHD.m_state == AHD::State::Idle);
     for (size_t scope = 0; scope < 3; ++scope)
     {
-        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_advanceStartIndices == 2);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_startIndexIndex == 2);
         DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_endIndices[1] == 0);
-        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_started);
+        DOCTEST_CHECK(scopes->GetMarkers(scope, 0).IsStarted());
     }
 
     control.m_release = false;
@@ -124,7 +124,7 @@ DOCTEST_TEST_CASE("AHD: scope starts and retriggers end once at an idle voice cr
         for (size_t scope = 0; scope < 3; ++scope)
         {
             DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_endIndices[1] == 20);
-            DOCTEST_CHECK_FALSE(scopes->GetMarkers(scope, 0).m_started);
+            DOCTEST_CHECK_FALSE(scopes->GetMarkers(scope, 0).IsStarted());
         }
     }
 
@@ -145,6 +145,6 @@ DOCTEST_TEST_CASE("AHD: scope starts and retriggers end once at an idle voice cr
     {
         DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_startIndices[2] == 28.0);
         DOCTEST_CHECK(scopes->GetMarkers(scope, 0).m_endIndices[2] == 29);
-        DOCTEST_CHECK_FALSE(scopes->GetMarkers(scope, 0).m_started);
+        DOCTEST_CHECK_FALSE(scopes->GetMarkers(scope, 0).IsStarted());
     }
 }

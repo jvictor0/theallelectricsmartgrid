@@ -6,18 +6,19 @@
     "private/src/PeriodicPhaseAxis.hpp": "b096ac7757d8eaad83ab2d1134d2e8bdb9288dcfcbe5c4e1d63bfa48a522951f",
     "private/src/PhaseClock.hpp": "c25af523a36008d891388900b52b44e27398973bee1aa3c40f6e552509379c95",
     "private/src/PhaseUtils.hpp": "5e569f67e8b6a1c9ee143400caef8916383bbfc1f5d72ba1e021f9ec88652368",
-    "private/src/PolyXFader.hpp": "5d35d05feaefdaa9675b5d92d79f1c54ed7739a398f2f585977f907cfc364f3e",
+    "private/src/PolyXFader.hpp": "ed902e89b6ac9cb0cfd3f8fad9a8699db6ef984b6faee35e172a1f78be9cf4d3",
     "private/src/QuadDelay.hpp": "072d7cb473376f967b4dbfaed636d14316940250f09a2d4d8022d1d4fc8b48dd",
-    "private/src/ScopeWriter.hpp": "aa6026bac66cf8da96724fa6937de818d569229b7bccc9b622bde01a5a44d0ff",
-    "private/src/SmartGridOneModulatorHistory.hpp": "85b8f94e4c0590017ee5854b3f6c325fade7c168d509c3a261f7bfbdb46e77c1",
-    "private/src/SquiggleBoyTrack.hpp": "3829ce401d2c3f26d14b88e13e0c982570a0f5f5695c32383a81cc4f0d995c5f",
+    "private/src/ScopeWriter.hpp": "d567768335118202cec6add7f61d123d3de5d968267627cd9a19abbd4e46b0a3",
+    "private/src/SmartGridOneModulatorHistory.hpp": "f54b7df907a699ffba51f6a04100bd39449947201484f5f4b85a91ce26d4fa02",
+    "private/src/SquiggleBoyTrack.hpp": "da7838ddc61f9d2e4200d205c30e181e48704ba16d05ef783d0144e8ea7e2ca1",
     "private/src/TapeHead.hpp": "fd7e94c9eca576ba8ed19bc0df9100970657c1683b96c8685ab1283f825a999f",
-    "private/src/TheoryOfTime.hpp": "143607fa867c5f83b603e28266bdb25319732e72eea8513890e7387ae32fc59e",
-    "private/src/TheoryOfTimeBase.hpp": "b3ef358e4b3970d93c09876e17f958f02d6f90d4c75d2bea11d71d902cafd0aa",
-    "private/src/TimeWarpInverter.hpp": "0d92406a6ef512b2bf7ea3e4945b788fb55df0e5af5050b50e446a22587c363b",
+    "private/src/TheoryOfTime.hpp": "653250fa379a48326b44439fc57eb5b037654462257a5cab6b04c717905a85e4",
+    "private/src/TheoryOfTimeBase.hpp": "753a7ae7c1d173261a46b307c38611c4883f715d4e42cfa4e50d5ad2d227bf9c",
+    "private/src/TimeWarpInverter.hpp": "275f50f0b275d827bbf53c93404e1ae2a94251449fd19320265f53100ca00dcd",
     "private/src/TimeWarpView.hpp": "d6787c25d2229d1437c57fa96d99302542508654c925c3a7192c909c0ae178e4",
-    "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "5e728d5fabe59c82e8058c41abacb8dcdf5c322f390e19b2e3e7deb5cc4e87a3",
-    "private/src/Resynthesis.hpp": "01663ac984d85a5570e024e0a50760471b0c5d7ae20073c5babf66cab1f04e16"
+    "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "02da1ed16ebcd53a3dab06ef34cf9b67f6644373bc80e647ec695aef83211f24",
+    "private/src/Resynthesis.hpp": "01663ac984d85a5570e024e0a50760471b0c5d7ae20073c5babf66cab1f04e16",
+    "private/src/SquiggleBoy.hpp": "ed2f581977a4c8a13f8b0c8931f98d28287f156fef41a5850c9dcfc0602641e3"
   },
   "anchors": {
     "clock_init": [
@@ -110,6 +111,18 @@
       {
         "path": "private/src/QuadDelay.hpp",
         "symbol": "void SetupScopeWriter(UIState* uiState)"
+      },
+      {
+        "path": "private/src/PolyXFader.hpp",
+        "symbol": "DoubleVector ComputeLogicalPeriods(const TheoryOfTimeBase& time) const"
+      },
+      {
+        "path": "private/src/SquiggleBoy.hpp",
+        "symbol": "void PopulateUIState(UIState* uiState)"
+      },
+      {
+        "path": "private/src/TheoryOfTime.hpp",
+        "symbol": "void PopulateUIState(UIState* uiState, const Input& input)"
       }
     ],
     "read_head": [
@@ -252,6 +265,28 @@
       {
         "path": "private/src/TimeWarpInverter.hpp",
         "symbol": "bool sameVisit = std::isfinite(oldTurn) && m_frontierPhase.load() <= floorPhase + 1.0;"
+      }
+    ],
+    "snapshot_write": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "void BeginWrite()"
+      },
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "void EndWrite()"
+      }
+    ],
+    "snapshot_read": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "double ReadInverse(double warpedTime, double latestRealTime) const override"
+      }
+    ],
+    "snapshot_retry": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "double ReadInverse(double warpedTime, double latestRealTime) const override"
       }
     ]
   }

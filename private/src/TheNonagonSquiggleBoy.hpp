@@ -412,8 +412,6 @@ struct TheNonagonSquiggleBoyInternal
             trackInput.m_sourceInput.m_theoryOfTime = &m_nonagon.m_nonagon.m_theoryOfTime;
         }
 
-        m_squiggleBoyState.m_top = m_nonagon.m_nonagon.m_theoryOfTime.CrossedCycleBoundary(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated);
-
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
             m_squiggleBoyState.m_sourceMonitor[i] = m_configGrid.m_sourceMonitor[i];

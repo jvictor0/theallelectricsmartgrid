@@ -71,7 +71,7 @@ DOCTEST_TEST_CASE("Phase scopes: explicit startup extent and origin survive temp
 
     writer.Publish();
     writer.AcceptSamples();
-    ScopeReader reader(&writer, 0, 0, 256, 1);
+    ScopeReader reader(&writer, 0, 0, 256);
     DOCTEST_REQUIRE_FALSE(reader.m_empty);
     DOCTEST_CHECK(writer.GetAcceptedMarkers(0, 0).m_startIndexIndex == 0);
     DOCTEST_CHECK(reader.m_transferXSample == 192.0);
@@ -84,7 +84,7 @@ DOCTEST_TEST_CASE("Phase scopes: explicit startup extent and origin survive temp
     writer.AdvanceIndex();
     writer.Publish();
     writer.AcceptSamples();
-    ScopeReader rewound(&writer, 0, 0, 256, 1);
+    ScopeReader rewound(&writer, 0, 0, 256);
     DOCTEST_CHECK(rewound.m_transferXSample == 96.0);
     DOCTEST_CHECK(rewound.Get(64) == doctest::Approx(1.0).epsilon(1e-4));
     DOCTEST_CHECK(rewound.m_periodic.m_period == 0.5);
@@ -189,7 +189,7 @@ DOCTEST_TEST_CASE("Phase slew: forward warped LFO reconstructs the same logical 
 
         writer.Publish();
         writer.AcceptSamples();
-        ScopeReader reader(&writer, 0, 0, x_points, 1);
+        ScopeReader reader(&writer, 0, 0, x_points);
         double maxError = 0;
         for (size_t point = 0; point < x_points; ++point)
         {

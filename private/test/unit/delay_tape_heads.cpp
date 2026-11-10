@@ -187,7 +187,7 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
     ui.m_scopeWriter.AcceptSamples();
     constexpr size_t x_points = 1024;
     std::array<float, x_points> stopped{};
-    ScopeReader stoppedReader(&ui.m_scopeWriter, 0, 0, x_points, 1);
+    ScopeReader stoppedReader(&ui.m_scopeWriter, 0, 0, x_points);
     DOCTEST_REQUIRE_FALSE(stoppedReader.m_empty);
     for (size_t point = 0; point < x_points; ++point)
     {
@@ -196,7 +196,7 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
 
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        ScopeReader reader(&ui.m_scopeWriter, channel, 0, x_points, 1);
+        ScopeReader reader(&ui.m_scopeWriter, channel, 0, x_points);
         DOCTEST_CHECK(reader.Get(5 * x_points / 16) == doctest::Approx(0.5));
         DOCTEST_CHECK(reader.Get(3 * x_points / 4) == doctest::Approx(0.0));
     }
@@ -212,7 +212,7 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
     ui.m_scopeWriter.AcceptSamples();
     DOCTEST_CHECK(output.m_writeHeadPhase == stoppedWrite);
     DOCTEST_CHECK(ui.m_writeHeadPhase.load() == stoppedWrite);
-    ScopeReader restarted(&ui.m_scopeWriter, 0, 0, x_points, 1);
+    ScopeReader restarted(&ui.m_scopeWriter, 0, 0, x_points);
     DOCTEST_CHECK(restarted.m_transferXSample == stoppedReader.m_transferXSample);
     for (size_t point = 0; point < x_points; ++point)
     {
@@ -311,7 +311,7 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
     envelope.AcceptSamples();
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        ScopeReader reader(&envelope, channel, 0, 1024, 1);
+        ScopeReader reader(&envelope, channel, 0, 1024);
         DOCTEST_REQUIRE_FALSE(reader.m_empty);
         DOCTEST_REQUIRE(reader.ReadCoordinate(displayedHeads[channel]) > 0.1f);
     }

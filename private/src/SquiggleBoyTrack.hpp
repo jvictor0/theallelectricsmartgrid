@@ -62,13 +62,23 @@ struct SquiggleLFOGeneric
         m_output = m_polyXFader.m_rawOutput;
 
         m_scopeWriter.Write(m_polyXFader.m_output);
+
+        return m_output;
+    }
+
+    void PopulateScopeState(const TheoryOfTimeBase& time)
+    {
+        if (!m_scopeWriter.m_scopeWriter)
+        {
+            return;
+        }
+
+        auto periods = m_polyXFader.ComputeLogicalPeriods(time);
         for (size_t i = 0; i < Size; ++i)
         {
             m_scopeWriter.SetPeriodicAtVoice(i,
-                {input.m_polyXFaderInput.m_theoryOfTime->m_phaseClock.m_offset, m_polyXFader.m_logicalPeriod[i]});
+                {time.m_phaseClock.m_offset, periods[i]});
         }
-
-        return m_output;
     }
 
     SquiggleLFOGeneric()

@@ -311,7 +311,7 @@ DOCTEST_TEST_CASE("Scope: reduced point counts preserve the time axis and end ma
     for (size_t points : {128, 256, 1024})
     {
         DOCTEST_CAPTURE(points);
-        ScopeReader reader(writer.get(), 0, 0, points, 1);
+        ScopeReader reader(writer.get(), 0, 0, points);
         PathDrawer drawer(100, 200, 0, 0);
         juce::Image image(juce::Image::ARGB, 204, 104, true);
         juce::Graphics g(image);
@@ -419,5 +419,88 @@ DOCTEST_TEST_CASE("Time warp scope: unwarped periodic axis, cursor, and disconne
         int markerY = reverse ? 100 : 50;
         DOCTEST_CHECK(image.getPixelAt(255, markerY - 2).getRed() > 200);
         DOCTEST_CHECK(image.getPixelAt(640, 175).getRed() > 50);
+    }
+}
+
+DOCTEST_TEST_CASE("Scope gaps: missing history draws neither zero nor the time-warp diagonal")
+{
+    struct CountingInverse : TimeWarpInverter<8192>
+    {
+        mutable size_t m_reads = 0;
+
+        CountingInverse() : TimeWarpInverter(1024.0)
+        {
+        }
+
+        double ReadInverse(double phase, double cutoff) const override
+        {
+            ++m_reads;
+            return TimeWarpInverter::ReadInverse(phase, cutoff);
+        }
+    } inverse;
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& mono = ui->m_squiggleBoyUIState.m_monoScopeWriter;
+    auto& delay = ui->m_squiggleBoyUIState.m_delayUIState.m_scopeWriter;
+    size_t scope = static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime);
+    ui->m_nonagonUIState.m_loopMultiplier[0].store(1);
+    mono.SetTimeWarp(scope, &inverse);
+    mono.SetPeriodic(scope, 0, {0.0, 1.0});
+    delay.SetTimeWarp(0, &inverse);
+    for (size_t lane = 0; lane < 4; ++lane)
+    {
+        delay.SetPeriodic(0, lane, {0.0, 1.0});
+    }
+
+    for (size_t sample = 0; sample <= 1280; ++sample)
+    {
+        inverse.Write(static_cast<double>(sample) / 1024.0, static_cast<double>(sample));
+        mono.Write(scope, -0.25f);
+        delay.Write(0, QuadFloat::Splat(0.1f));
+        mono.AdvanceIndex();
+        delay.AdvanceIndex();
+    }
+
+    mono.Publish();
+    mono.AcceptSamples();
+    delay.Publish();
+    delay.AcceptSamples();
+    ScopeReaderFactory factory(&mono, 0, scope, 256);
+    TheoryOfTimeScopeComponent::DrawFn fn(&factory);
+    inverse.m_reads = 0;
+    DOCTEST_CHECK(fn.PhaseAt(192.0) == 0.5);
+    DOCTEST_CHECK(inverse.m_reads == 1);
+    for (size_t cell = 450; cell <= 575; ++cell)
+    {
+        inverse.ClearCell(cell);
+    }
+
+    DOCTEST_CHECK_FALSE(std::isfinite(fn.PhaseAt(128.0)));
+    juce::Image warpImage(juce::Image::ARGB, 512, 200, true);
+    juce::Graphics warpGraphics(warpImage);
+    TheoryOfTimeScopeComponent warp(ui.get());
+    warp.Draw(warpGraphics, warpImage.getBounds());
+    for (int y = 5; y < 195; ++y)
+    {
+        DOCTEST_CHECK(warpImage.getPixelAt(256, y) == juce::Colours::black);
+    }
+
+    juce::Image delayImage(juce::Image::ARGB, 512, 200, true);
+    juce::Graphics delayGraphics(delayImage);
+    QuadDelayEnvelopeVisualizerComponent waveform(ui.get());
+    waveform.Draw(delayGraphics, delayImage.getBounds());
+    for (int y = 0; y < 200; ++y)
+    {
+        DOCTEST_CHECK(delayImage.getPixelAt(256, y) == juce::Colours::black);
+    }
+
+    ScopeReader reader(&mono, 0, scope, 256);
+    juce::Image scopeImage(juce::Image::ARGB, 512, 200, true);
+    juce::Graphics scopeGraphics(scopeImage);
+    PathDrawer drawer(200, 512, 0, 0);
+    drawer.DrawScopePath(scopeGraphics, juce::Colours::white, reader, 1.0f, 1.0f);
+    DOCTEST_CHECK(scopeImage.getPixelAt(200, 50).getAlpha() > 0);
+    for (int y = 0; y < 200; ++y)
+    {
+        DOCTEST_CHECK(scopeImage.getPixelAt(256, y).getAlpha() == 0);
     }
 }

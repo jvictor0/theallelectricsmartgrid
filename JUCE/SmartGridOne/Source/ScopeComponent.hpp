@@ -38,7 +38,7 @@ struct ScopeComponent : public ModulatorTimeAxisComponent
         TheNonagonSquiggleBoyInternal::UIState* uiState)
         : ModulatorTimeAxisComponent()
         , m_scopeReaderFactory(scopeWriter, uiState->m_squiggleBoyUIState.m_activeTrack.load(), scopeIx,
-            scopeType == ScopeType::Control ? x_numControlSamples : x_numAudioSamples, 1)
+            scopeType == ScopeType::Control ? x_numControlSamples : x_numAudioSamples)
         , m_voiceIx(&uiState->m_squiggleBoyUIState.m_activeTrack)
         , m_scopeIx(scopeIx)
         , m_scopeWriter(scopeWriter)
@@ -188,7 +188,7 @@ struct PolyphonicScopeComponent : public ModulatorTimeAxisComponent
 
         for (size_t voiceIx = 0; voiceIx < m_numVoices; ++voiceIx)
         {
-            ScopeReaderFactory factory(m_scopeWriter, voiceIx, m_scopeIx, x_numXSamples, 1);
+            ScopeReaderFactory factory(m_scopeWriter, voiceIx, m_scopeIx, x_numXSamples);
             ScopeReader scopeReader = factory.Create();
             pathDrawer.DrawScopePath(g, juceColor, scopeReader, m_yScale, m_yOffset);
             pathDrawer.DrawScopeMarker(g, juceColor, scopeReader, m_yScale, m_yOffset);
@@ -620,19 +620,8 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
         double PhaseAt(double x) const
         {
             double coordinate = m_scopeReader.Coordinate(x);
-            if (!std::isfinite(m_scopeReader.RealIndex(coordinate)))
-            {
-                return std::numeric_limits<double>::quiet_NaN();
-            }
-
-            return (coordinate - m_scopeReader.m_periodic.m_origin + m_scopeReader.Get(x))
+            return (coordinate - m_scopeReader.m_periodic.m_origin + m_scopeReader.ReadCoordinate(coordinate))
                 / m_scopeReader.m_periodic.m_period;
-        }
-
-        float operator()(double x) const
-        {
-            double phase = PhaseAt(x);
-            return static_cast<float>(phase - std::floor(phase));
         }
     };
 
@@ -648,8 +637,7 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
             &m_uiState->m_squiggleBoyUIState.m_monoScopeWriter, 
             0, 
             static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime), 
-            PathDrawer::x_numPoints, 
-            1);
+            PathDrawer::x_numPoints);
         DrawFn drawFn(&scopeReaderFactory);
         const auto& reader = drawFn.m_scopeReader;
         if (reader.m_empty || reader.m_periodic.m_period <= 0.0)
@@ -708,7 +696,7 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
         }
 
         float markerX = bounds.getX() + cursor / reader.m_numXSamples * width;
-        float y = drawFn(cursor);
+        float y = static_cast<float>(cursorPhase - std::floor(cursorPhase));
         float markerY = bounds.getY() + height * (1.0 - y);
         g.setColour(juce::Colours::white);
         float markerRadius = 3.0f;

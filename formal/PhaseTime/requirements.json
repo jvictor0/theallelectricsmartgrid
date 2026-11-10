@@ -393,5 +393,50 @@
       "grid_frontier",
       "cell_finish"
     ]
+  },
+  {
+    "id": "P29",
+    "status": "proved",
+    "requirement": "With one writer, sequentially consistent atomic scalar accesses, and no counter wrap during an attempt, an unchanged even revision makes every observed field and the resulting lookup equal one committed snapshot. The writer brackets bounded cell/frontier transitions, not the scatter loop.",
+    "theorems": [
+      "PhaseTime.Concurrency.accepted_fields_coherent",
+      "PhaseTime.Concurrency.accepted_computation_coherent",
+      "PhaseTime.Concurrency.returned_attempt_valid"
+    ],
+    "anchors": [
+      "snapshot_write",
+      "snapshot_read"
+    ]
+  },
+  {
+    "id": "P30",
+    "status": "proved",
+    "requirement": "Busy or changed revisions retry without returning a missing value. A quiet read returns its lookup, including genuine absent history. The retry loop returns if an eventual attempt observes an unchanged even revision; no scheduler or wall-clock bound is claimed.",
+    "theorems": [
+      "PhaseTime.Concurrency.busy_retries",
+      "PhaseTime.Concurrency.changed_retries",
+      "PhaseTime.Concurrency.quiet_returns",
+      "PhaseTime.Concurrency.absent_history_finishes",
+      "PhaseTime.Concurrency.eventual_quiet_attempt_returns"
+    ],
+    "anchors": [
+      "snapshot_retry"
+    ]
+  },
+  {
+    "id": "P31",
+    "status": "proved",
+    "requirement": "Writing samples before publishing their exclusive end and accepting that boundary preserves accepted <= published <= completed. Reads below the accepted end refer to completed writes; coherent inverse reads separately obey the captured cutoff. This does not pin circular slots against later reuse.",
+    "theorems": [
+      "PhaseTime.Concurrency.write_preserves_publication",
+      "PhaseTime.Concurrency.publish_preserves_publication",
+      "PhaseTime.Concurrency.accept_preserves_publication",
+      "PhaseTime.Concurrency.accepted_sample_completed",
+      "PhaseTime.Concurrency.coherent_history_read"
+    ],
+    "anchors": [
+      "publication",
+      "snapshot_read"
+    ]
   }
 ]

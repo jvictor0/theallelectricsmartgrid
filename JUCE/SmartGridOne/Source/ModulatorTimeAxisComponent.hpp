@@ -168,20 +168,30 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
                     plot.getBottom() - plot.getHeight() * (value * yScale + yOffset)};
             };
             juce::Path path;
+            bool connected = false;
             for (size_t point = 0; point < x_numPoints; ++point)
             {
                 double position = static_cast<double>(point) / x_numPoints;
                 double previous = static_cast<double>(point == 0 ? 0 : point - 1) / x_numPoints;
                 bool gap = (previous < axis.m_transfer && axis.m_transfer <= position)
                     || (axis.m_predictive && position > axis.m_present && (point / 4) % 2 == 0);
-                if (point == 0 || gap)
+                auto location = pointAt(position);
+                if (!std::isfinite(location.y))
                 {
-                    path.startNewSubPath(pointAt(position));
+                    connected = false;
+                    continue;
+                }
+
+                if (!connected || gap)
+                {
+                    path.startNewSubPath(location);
                 }
                 else
                 {
-                    path.lineTo(pointAt(position));
+                    path.lineTo(location);
                 }
+
+                connected = true;
             }
 
             SmartGrid::Color curveColor = m_historyMode == Mode::Voice
@@ -195,6 +205,11 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
             }
 
             auto marker = pointAt(axis.m_present);
+            if (!std::isfinite(marker.y))
+            {
+                continue;
+            }
+
             float radius = std::min({3.0f, bounds.getWidth() * 0.5f, bounds.getHeight() * 0.5f});
             marker.x = std::clamp(marker.x, bounds.getX() + radius, bounds.getRight() - radius);
             marker.y = std::clamp(marker.y, bounds.getY() + radius, bounds.getBottom() - radius);

@@ -2,6 +2,49 @@
 #include "../support/SynthRig.hpp"
 #include "Saturator.hpp"
 
+DOCTEST_TEST_CASE("LFO scopes: UI publication refreshes all voice, quad and warp axes")
+{
+    synthrig::SynthRig rig;
+    rig.RunFrames(1);
+    // RunFrames can finish after the last publication. Publish again without
+    // advancing the clock so the snapshot and expected axis share a sample.
+    //
+    rig.Internal().ProcessFrame();
+    auto& synth = rig.Internal().m_squiggleBoy;
+    auto& state = rig.UIState().m_squiggleBoyUIState;
+    auto& time = *synth.m_theoryOfTime;
+    state.AcceptScopeSamples();
+    auto checkLFO = [&](const auto& lfo)
+    {
+        auto periods = lfo.m_polyXFader.ComputeLogicalPeriods(time);
+        const auto& holder = lfo.m_scopeWriter;
+        for (size_t lane = 0; lane < holder.m_scopeWriter->m_voices; ++lane)
+        {
+            const auto& markers = holder.m_scopeWriter->GetAcceptedMarkers(holder.m_scopeIx, lane);
+            DOCTEST_CHECK(markers.m_periodic.m_period == periods[lane]);
+            DOCTEST_CHECK(markers.m_periodic.m_origin == time.m_phaseClock.m_offset);
+            DOCTEST_CHECK(markers.m_startIndexIndex == 0);
+        }
+    };
+    for (const auto& track : synth.m_tracks)
+    {
+        for (const auto& lfo : track.m_squiggleLFO)
+        {
+            checkLFO(lfo);
+        }
+    }
+
+    for (const auto& lfo : synth.m_quadSquiggleLFO)
+    {
+        checkLFO(lfo);
+    }
+
+    const auto& warp = state.m_monoScopeWriter.GetAcceptedMarkers(time.m_scopeWriter.m_scopeIx, 0);
+    DOCTEST_CHECK(warp.m_periodic.m_period == time.m_phaseModLFO.ComputeLogicalPeriods(time)[0]);
+    DOCTEST_CHECK(warp.m_periodic.m_origin == time.m_unmodulatedPhaseClock.m_offset);
+    DOCTEST_CHECK(warp.m_startIndexIndex == 0);
+}
+
 DOCTEST_TEST_CASE("Quad scopes: all effects follow return gain and saturation before mastering")
 {
     synthrig::SynthRig rig;

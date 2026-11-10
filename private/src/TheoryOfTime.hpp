@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
-#include <numeric>
 
 #include "Phasor2Tick.hpp"
 #include "TheoryOfTimeBase.hpp"
@@ -90,6 +89,8 @@ struct TheoryOfTime : public TheoryOfTimeBase
     void PopulateUIState(UIState* uiState, const Input& input)
     {
         TheoryOfTimeBase::PopulateUIState(*uiState, input);
+        m_scopeWriter.SetPeriodicAtVoice(0,
+            {m_unmodulatedPhaseClock.m_offset, m_phaseModLFO.ComputeLogicalPeriods(*this)[0]});
     }
 
     // Reads the previous sample, which m_sample still holds until Process
@@ -190,9 +191,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
             m_scopeWriter.Write(MultiChannelNumber<float, 1>(
                 m_sample.m_modulatedPhase - m_sample.m_unmodulatedPhase));
         }
-
-        m_scopeWriter.SetPeriodicAtVoice(0,
-            {m_unmodulatedPhaseClock.m_offset, m_phaseModLFO.m_logicalPeriod[0]});
     }
 
     void PrintState()

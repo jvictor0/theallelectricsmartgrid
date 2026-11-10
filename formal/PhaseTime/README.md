@@ -50,6 +50,7 @@ reversal. Stopped transport continues at nominal positive phase speed.
 | [InverseGrid.lean](InverseGrid.lean) | Generic interpolation/frontier/codec bounds and declared spectral range; historical multi-boundary reference lemmas |
 | [FixedCell.lean](FixedCell.lean) | Fallback/replacement selection, causal phase bounds, exact preimage existence, island reassignment, confined startup traversal, and constant storage |
 | [AnalysisStability.lean](AnalysisStability.lean) | Stationary-partial common-shift invariance, phase-controlled window-feature bounds, and a conditional criterion for coalescing tiny reversals |
+| [Concurrency.lean](Concurrency.lean) | Coherent scalar reads under one sequence counter; publication ordering; retry completion under an explicit eventual-quiet-attempt hypothesis |
 | [Slew.lean](Slew.lean) | Ideal phase-distance decay is bounded and contractive, holds at zero, depends on absolute travel, and composes under forward constant-input subdivision; forward chain rule |
 | [StateMachine.lean](StateMachine.lean), [Reachability.lean](Reachability.lean) | Veil transition obligations and a reachable-state safety theorem |
 
@@ -67,8 +68,21 @@ width as a later one; missing history stays unavailable. The delay uses origin
 zero and period one. An LFO uses the current musical-to-continuous offset and
 the common period of its participating loops (`1 / gcd(cycleRatios)`). Fractional
 LFO multipliers reshape lobes inside that period and do not shorten it.
+`ComputeLogicalPeriods` evaluates this metadata during audio-thread
+`PopulateUIState`, before scope publication, using the latest processed weights
+and current cycle ratios. Sample processing still calculates the fastest active
+ratio for slew; it no longer aggregates unused top events or computes GCDs.
 Envelope/event scopes retain their existing reversible start/end markers.
 Modulation overlays copy the same periodic axis and query the same inverse.
+
+The writer's marker count is ordinary audio-thread state. It equals the sum of
+the former published writer count and pending count at every event transition;
+`Publish` copies it to the independent atomic snapshot. Deriving open-start
+status from the latest end flag preserves the rewind/reopen behavior without a
+cached flag. These are implementation simplifications, not changes to the
+mathematical publication or periodic-axis contracts. Theory of Time loop
+crossings now store only their boolean result: remaining consumers use no
+fractional offset. Oscillator/sample-source scope offsets remain interpolated.
 
 The time-warp visualizer instantiates the same clock/inverse/periodic machinery
 on unwarped phase `U`, with inverse `H`. It records displacement
@@ -168,12 +182,48 @@ observation error by (1+B*A)*step/2, where step is the unmodulated-phase distanc
 between engine observations. Adding this to the grid residual bounds continuous
 phase error when u is interpolated within that interval. Neither the proof nor
 the measurements establish exact continuous reconstruction or selection of a
-hidden continuous branch between engine observations. Finite retention, concurrency,
-and the reviewed C++ correspondence remain implementation boundaries. Shared
-payloads and a global revision use lock-free sequentially consistent atomics;
-readers use bounded retries and may return unavailable during a write. UI views
-also enforce retention and a captured real-time cutoff; they are not frozen
-inverse snapshots. The host audio ring independently retains 2^24 host samples.
+hidden continuous branch between engine observations. Finite retention and the
+reviewed C++ correspondence remain implementation boundaries. The host audio
+ring independently retains 2^24 host samples.
+
+## Concurrent reads
+
+`Concurrency.lean` models atomic scalar accesses in one sequentially consistent
+order. A single writer increments a counter before and after changing shared
+fields. Even means committed; odd means being changed. Every field read occurs
+between two counter loads. An unchanged even counter proves all the loaded fields,
+and the computation using them, equal one committed snapshot. Natural-number
+revisions assume the native 64-bit counter does not wrap during one read attempt.
+
+`TimeWarpInverter::ReadInverse` implements exactly that loop, busy-waiting on odd
+or changed revisions without an attempt limit. The audio thread never waits for
+readers and calls its own lookups outside write sections. Each section covers a
+bounded branch/seed transition, one crossed-grid boundary, or the final frontier
+pair. In a grid crossing, the old cell's endpoint, the new cell's entry and the
+frontier commit together. Interpolation arithmetic and the scatter loop lie
+outside these sections, so an intermediate committed state represents a completed
+prefix of the forward traversal. Storage remains 32 MiB for G and 16 MiB for H.
+
+The progress theorem assumes an eventual attempt fits between writer sections.
+It proves no nanosecond bound and cannot guarantee scheduling fairness. A paused
+writer can leave a reader waiting. This concurrency model is not a proof of C++
+compilation or hardware behavior; sequential consistency and lock-free scalar
+atomics are the implementation correspondence.
+
+Publication happens after G and scope samples are written. Acceptance captures
+an exclusive sample end; the model preserves `accepted <= published <= completed`.
+This orders completed writes without pinning circular slots against later reuse.
+Scope metadata retains its separate bounded snapshot attempts and previous-frame
+fallback. Its counter covers the metadata copy, not the inverse's short sections.
+
+A coherent inverse lookup can still be absent: history may be unwritten, expired,
+ahead of the captured phase, or replaced with a timestamp after the accepted scope
+end. Absence is the lookup result, not a failed concurrency attempt, and is not
+retried. The real-time cutoff applies to the interpolated timestamp; a newer right
+endpoint may locate an older readable timestamp. Renderers preserve absence as a
+path gap. They never substitute zero displacement or drop an unavailable weighted
+source's contribution. The time-warp renderer uses one inverse lookup per point
+and reuses its cursor value. UI views are not frozen inverse snapshots.
 
 The LFO is a pure function for the composition theorem. Its hypothesis is
 explicit: the recorded signal must be `S = L ∘ F` over the queried history.

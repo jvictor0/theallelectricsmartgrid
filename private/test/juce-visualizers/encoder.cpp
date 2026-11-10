@@ -782,6 +782,11 @@ DOCTEST_TEST_CASE("Encoder weighted curves: multiple sources without time axes u
     juce::Image image(juce::Image::ARGB, 200, 200, true);
     juce::Graphics g(image);
     selected->Draw(g, image.getBounds());
+    DOCTEST_CHECK(image.getPixelAt(197, 145) == juce::Colours::black);
+    auto notes = std::make_unique<NonagonNoteWriter>();
+    ui->m_nonagonUIState.m_noteWriter = notes.get();
+    notes->m_timbreHistory[visualizers.m_recentHistory.GetFirstVoice() + 1].Record({0, {0.0, 0.0, 0.0}});
+    selected->Draw(g, image.getBounds());
     DOCTEST_CHECK(image.getPixelAt(197, 145) == J(SmartGrid::Color::White));
     DOCTEST_REQUIRE(visualizers.m_recentHistory.m_weightedModulators[1].m_count == 2);
     DOCTEST_CHECK(visualizers.m_recentHistory.m_weightedModulators[1].m_entries[1].m_weight == -0.5f);

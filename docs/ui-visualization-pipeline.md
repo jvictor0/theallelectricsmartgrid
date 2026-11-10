@@ -17,9 +17,9 @@ from the sample carrying the event. VPS derives the offset from the wrapped phas
 and frequency (`SampleTop::FromWrap`); the dual VCO records each oscillator's top
 on its own scope and forwards VCO 1's top to the source, whose post-filter scope
 uses it. These values travel through their existing top members and buffers.
-Theory of Time stores it in each loop's crossing events; PolyXFader combines
-those events for the Theory of Time scope. Periodic LFO scopes publish origin
-and period instead. Event-scope producers pass the interpolated crossing offset
+Theory of Time loop crossings need only boolean events. Periodic LFO scopes,
+including the Theory of Time scope, publish origin and period instead.
+Event-scope producers pass the interpolated crossing offset
 to `RecordStart`; other start events are recorded at the current sample.
 
 ## Write helpers: `ScopeWriterHolder`
@@ -34,7 +34,8 @@ Modules write with minimal overhead:
 - `Write(vector)` captures all lanes together
 - `IsWriteSample()`, so a producer can skip computing a value the writer would drop
 - `SetPeriodicAtVoice(voiceIx, {origin, period})` for LFO and delay axes
-- `RecordStart()` / `RecordStart(sampleOffset)` / `RecordStartAtVoice(voiceIx, sampleOffset)` / `RecordEnd()`
+- `RecordStartAtVoice(voiceIx, sampleOffset)` / `RecordEndAtVoice(voiceIx)`
+- `IsStartedAtVoice(voiceIx)` derives whether the most recent retained start lacks an end
 
 This is how voice VCO/filter/amp/LFO and quad buses push data into visualization buffers.
 
@@ -88,8 +89,7 @@ at the current/previous-cycle join, and after unavailable history. The curve can
 therefore bend backwards without changing the horizontal coordinate or drawing
 a line across a wrap. Its cursor uses the same real-duration rule as other scopes.
 
-`SampleTop` owns phase interpolation, top combination, and conversion to sample
-positions (`GetPosition`). Offsets are always in engine samples. Producers pass
+`SampleTop` owns phase-crossing interpolation. Offsets are always in engine samples. Producers pass
 them unchanged to `RecordStart`, and the writer converts them to its own index
 units by dividing by its decimation. The reader converts inverse timestamps through the writer’s origin and decimation.
 
@@ -97,28 +97,39 @@ All production scope banks advance at engine rate and share `m_firstScopeSample`
 
 Voice LFOs, voice envelopes, quad LFOs, and the delay magnitude scope bind to the shared `TimeWarpInverter` owned by Theory of Time. A captured `TimeWarpView` supplies `G`, the chosen forward-history inverse of the continuous write-head coordinate `F`. `ScopeReader` uses explicit origin/period metadata for LFOs and delay, or reversible starts/ends for envelopes, then reads `S(G(w))` from its selected existing LOD. Periodic queries ahead of the cursor move back one period; this preserves full axis width during startup. Absolute inverse timestamps are converted through the writer's origin and decimation. Modulation overlays map each axis point through the same view before reading their real-time histories. Unbound scopes retain real-time axes.
 
-The inverse has a fixed lifetime and atomic payloads. Each cell stores both fallback timestamps and one replacement with an exact double phase cut and relative float timestamps. A separate visit reassigns older islands below its cut to the fallback; turns within a closed-cell visit retain the minimum cut and its earlier timestamp. Main G occupies 32 MiB; unmodulated H occupies 16 MiB. The forward frontier closes a partial cell and freezes during reverse travel. Readers validate an unchanged even revision with bounded retries. Captured views reject coordinates outside retention, ahead of the cursor, or with interpolation endpoints newer than the real-time cutoff. Live writes may cause gaps; reversal count no longer exhausts cell storage. Marker metadata remains coherent, and neither publication nor painting locks the audio thread. Transport rebasing in phase units prevents musical resets from undoing history.
+The inverse has a fixed lifetime and atomic payloads. Each cell stores both fallback timestamps and one replacement with an exact double phase cut and relative float timestamps. A separate visit reassigns older islands below its cut to the fallback; turns within a closed-cell visit retain the minimum cut and its earlier timestamp. Main G occupies 32 MiB; unmodulated H occupies 16 MiB. The forward frontier closes a partial cell and freezes during reverse travel.
+
+Readers busy-wait until they observe an unchanged even revision. Writer sections cover bounded cell/frontier transitions, with the scatter loop outside; the audio writer never waits for readers. Captured views reject coordinates outside retention, ahead of the cursor, or whose interpolated timestamp is newer than the real-time cutoff. A newer right endpoint can locate an older accepted timestamp.
+
+Contention does not produce missing points; genuinely absent history breaks the path, including weighted curves with an unavailable contributor. The warp renderer reads the inverse only once per point. Scheduling progress, not a fixed waiting duration, is assumed; reversal count no longer exhausts cell storage. Marker metadata remains coherent, and neither publication nor painting locks the audio thread. Transport rebasing in phase units prevents musical resets from undoing history.
 
 The delay scope stores the absolute value of each completed saturated, decimated delay-line write, held on the engine grid between host writes. Its explicit axis has origin zero and period one master cycle, without start markers. Existing FIR LODs form its envelope; the UI converts magnitude to dB and draws it symmetrically about each lane center, with read/write markers in the same phase axis. The old delay min/max buckets and positional recorder are removed. Signed delay-return audio remains available for spectra.
 
-Theory of Time's own mono phase scope remains unbound. Fractional `SampleTop` offsets continue to travel unchanged from producers to the writer, which converts them to stored-sample units and, for bound streams, interpolates the observed warped step.
+LFO common periods are computed by `PolyXFader::ComputeLogicalPeriods` during
+`PopulateUIState`, using the most recently processed weights and current loop
+ratios. Voice and quad LFOs populate their axes before their banks publish;
+Theory of Time does the same for its unmodulated axis. No GCD or top-event
+aggregation runs in the per-sample LFO path.
 
-The producers of fractional tops and their scope capture are:
+Writer-owned marker state uses one ordinary count. Publication copies it into
+the separate atomic snapshot; accepted UI state remains unchanged until
+acceptance. Open-start status is derived from that count and the latest end flag,
+including after rewind. There is no separate pending count or cached started flag.
+
+Cycle crossings and scope capture work as follows:
 
 | Location | Behavior |
 | --- | --- |
 | VPS | On a wrap, `SampleTop::FromWrap(wrapped, freq)` sets the offset to `-wrapped / freq` engine samples. Phase advancement and wrap detection do not depend on the offset. |
-| Dual VCO | Each oscillator's scope calls `RecordStart(top.m_offset)` on its wrap. VCO 1's top becomes the source top. |
+| Dual VCO | Each oscillator's scope calls `RecordStartAtVoice(voice, top.m_offset)` on its wrap. VCO 1's top becomes the source top. |
 | Sub VCO | The sine VCO exposes each lane's fractional wrap top; the track passes its offset to the shaped sub scope's `RecordStartAtVoice`. |
 | Sample source | `SampleTop::FromPhases` applies the floor-crossing test between the previous and current total phase and adds its fractional timing. |
-| Theory of Time base | `SetCrossings` sets each loop's crossing flags, then calls `InterpolatePhases` once per domain; the start sample keeps offset zero. Crossings are set before topology acceptance, so timing travels with the event that made an edit eligible. |
-| PolyXFader | Initializes each lane with `AndIdentity`, so the `&&` combination retains the latest fractional crossing when all active loops cross. With zero total weight the lane keeps a true event at offset zero. |
-| QuadLFO | Retains the unwrapped phase so `SampleTop::FromPhases` can interpolate the actual step, including phase synchronization, and records it with `RecordStartAtVoice(i, offset)`. |
+| Theory of Time base | Stores boolean crossings in both phase domains, computed before topology acceptance. No remaining consumer needs a fractional offset. |
 | Filter scopes | Pass the source top's offset to `RecordStart`. |
 | SquiggleLFO scopes | Publish the clock offset and common participating loop period; no start events. |
-| Theory of Time scope | Writes the modulated phase only when `IsWriteSample()` is true and records the phase-modulation PolyXFader's top with `RecordStart(offset)`. |
-| Boolean-only delay trigger | Reads `m_triggered` from the crossing result; timing is irrelevant to sample-and-hold triggering. |
-| Scope writer | Stores double start positions and integer end positions. The pending-marker counter starts at zero so the first event has a defined slot. |
+| Theory of Time scope | Writes warp displacement when `IsWriteSample()` is true and publishes an unmodulated periodic axis; no start events. |
+| Boolean-only delay trigger | Uses the loop-crossing flag for sample-and-hold triggering. |
+| Scope writer | Stores double start positions and integer end positions. Its writer-owned marker count starts at zero and is copied into the atomic publication. |
 
 Reader interpolation, readable-history checks, and drawing execute on the UI
 side. Integer buffer addresses and publication counters remain integers.

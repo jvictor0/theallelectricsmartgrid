@@ -32,9 +32,10 @@ struct TimeWarpInverter : TimeWarpSource
     std::atomic<float> m_turnTime[MaxSamples];
     std::atomic<float> m_currentRightTime[MaxSamples];
 
-    // All payload accesses and the revision are sequentially consistent. A
-    // reader accepts one unchanged even revision, with at most two attempts.
-    // The single audio writer neither waits for readers nor allocates memory.
+    // All shared accesses are sequentially consistent. Readers retry until
+    // they see one unchanged even revision. Each write section covers one
+    // cell transition and its frontier, never the scatter loop. The single
+    // audio writer does not wait for readers. See PhaseTime/Concurrency.lean.
     //
     std::atomic<uint64_t> m_revision{0};
     uint64_t m_writerRevision = 0;
@@ -67,6 +68,18 @@ struct TimeWarpInverter : TimeWarpSource
     static size_t WrapIndex(int64_t index)
     {
         return static_cast<size_t>(PhaseUtils::FloorMod(index, static_cast<int64_t>(MaxSamples)));
+    }
+
+    void BeginWrite()
+    {
+        assert((m_writerRevision & 1) == 0);
+        m_revision.store(++m_writerRevision);
+    }
+
+    void EndWrite()
+    {
+        assert((m_writerRevision & 1) != 0);
+        m_revision.store(++m_writerRevision);
     }
 
     void ClearCell(size_t slot)
@@ -140,6 +153,7 @@ struct TimeWarpInverter : TimeWarpSource
         double seed = m_seedPhase.load();
         bool retained = m_highestWrittenIndex - static_cast<double>(MaxSamples - 1) <= floorPhase
             && floorPhase <= m_highestWrittenIndex;
+        BeginWrite();
         if (!retained || !std::isfinite(m_writeHeadInverse[slot].load())
             || (std::floor(seed) == floorPhase && phase < seed))
         {
@@ -162,6 +176,10 @@ struct TimeWarpInverter : TimeWarpSource
             //
             m_currentRightTime[slot].store(static_cast<float>(x_missing));
         }
+
+        m_frontierPhase.store(phase);
+        m_frontierTime.store(time);
+        EndWrite();
     }
 
     // Caller holds the writer revision or validates it after reading. Fallback
@@ -208,13 +226,14 @@ struct TimeWarpInverter : TimeWarpSource
             return lowTime;
         }
 
-        if (!std::isfinite(highTime) || highTime > cutoff || gridPhase > highPhase || lowPhase >= highPhase)
+        if (!std::isfinite(highTime) || gridPhase > highPhase || lowPhase >= highPhase)
         {
             return x_missing;
         }
 
         double alpha = (gridPhase - lowPhase) / (highPhase - lowPhase);
-        return lowTime + alpha * (highTime - lowTime);
+        double time = lowTime + alpha * (highTime - lowTime);
+        return time <= cutoff ? time : x_missing;
     }
 
     void ScatterBufferToInverse(double low, double high, double lowTime, double highTime)
@@ -225,12 +244,16 @@ struct TimeWarpInverter : TimeWarpSource
         {
             double alpha = (static_cast<double>(index) - low) / (high - low);
             double time = lowTime + alpha * (highTime - lowTime);
+            BeginWrite();
             if (static_cast<double>(index) > low)
             {
                 FinishCell(index - 1, time);
             }
 
             EnterCell(index, time);
+            m_frontierPhase.store(static_cast<double>(index));
+            m_frontierTime.store(time);
+            EndWrite();
         }
 
         m_highestWrittenIndex = std::max(m_highestWrittenIndex, std::floor(high));
@@ -240,7 +263,6 @@ struct TimeWarpInverter : TimeWarpSource
     void Write(double warpedTime, double realTime)
     {
         assert(std::isfinite(warpedTime) && std::isfinite(realTime));
-        m_revision.store(++m_writerRevision);
         bool previousObservation = m_hasObservation;
         m_previousObservedRealTime = previousObservation ? m_observedRealTime : realTime;
         m_previousObservedWarpedTime = previousObservation ? m_observedWarpedTime : warpedTime;
@@ -257,8 +279,10 @@ struct TimeWarpInverter : TimeWarpSource
             }
 
             ScatterBufferToInverse(low, high, m_previousRealTime, realTime);
+            BeginWrite();
             m_frontierPhase.store(high);
             m_frontierTime.store(realTime);
+            EndWrite();
             m_hasForward = true;
             m_descending = false;
         }
@@ -269,13 +293,12 @@ struct TimeWarpInverter : TimeWarpSource
 
         m_lastWarpedTime = warpedTime;
         m_previousRealTime = realTime;
-        m_revision.store(++m_writerRevision);
     }
 
     double ReadInverse(double warpedTime, double latestRealTime) const override
     {
         assert(std::isfinite(warpedTime));
-        for (size_t attempt = 0; attempt < 2; ++attempt)
+        for (;;)
         {
             uint64_t revision = m_revision.load();
             if (revision & 1)
@@ -289,8 +312,6 @@ struct TimeWarpInverter : TimeWarpSource
                 return result;
             }
         }
-
-        return x_missing;
     }
 
     double GetRealTime(double warpedTime) const

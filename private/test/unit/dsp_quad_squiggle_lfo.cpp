@@ -52,7 +52,6 @@ DOCTEST_TEST_CASE("Quad SquiggleLFO: four-lane instance matches mono lanes with 
         monoInput[lane].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
     }
 
-    size_t tops[4] = {0, 0, 0, 0};
     for (size_t sample = 0; sample < 4800; ++sample)
     {
         QuadFloat mult;
@@ -98,20 +97,56 @@ DOCTEST_TEST_CASE("Quad SquiggleLFO: four-lane instance matches mono lanes with 
             DOCTEST_CHECK(quad.m_output[lane] == doctest::Approx(mono[lane].m_output[0]).epsilon(0.00001).scale(1.0));
             DOCTEST_CHECK(quad.m_polyXFader.m_output[lane] == doctest::Approx(mono[lane].m_polyXFader.m_output[0]).epsilon(0.00001).scale(1.0));
             DOCTEST_CHECK(quad.m_polyXFader.m_amplitude[lane] == mono[lane].m_polyXFader.m_amplitude[0]);
-            DOCTEST_CHECK(quad.m_polyXFader.m_top[lane].m_triggered == mono[lane].m_polyXFader.m_top[0].m_triggered);
-            if (quad.m_polyXFader.m_top[lane].m_triggered)
-            {
-                ++tops[lane];
-                DOCTEST_CHECK(quad.m_polyXFader.m_top[lane].m_offset == doctest::Approx(mono[lane].m_polyXFader.m_top[0].m_offset));
-            }
         }
 
         clock.m_unmodulatedPhase += 1.0 / 4800.0;
         time.Process(clock);
     }
 
-    for (size_t lane = 0; lane < 4; ++lane)
+}
+
+DOCTEST_TEST_CASE("Quad SquiggleLFO: published periods cover each lane's participating loops")
+{
+    GlobalEnv::ResetPerTest();
+    TheoryOfTimeBase time;
+    TheoryOfTimeBase::Input clock = LoopClock(0.25);
+    clock.m_input[0].m_parentMult = 6;
+    clock.m_input[1].m_parentMult = 10;
+    time.Process(clock);
+    time.m_globalPeriodSamples = 4800.0;
+
+    SquiggleLFOGeneric<4> lfo;
+    SquiggleLFOGeneric<4>::Input input;
+    auto& mix = input.m_polyXFaderInput;
+    mix.m_theoryOfTime = &time;
+    mix.m_size = 2;
+    mix.m_center = QuadFloat(0.0f, 0.5f, 0.25f, 0.25f);
+    mix.m_slope = QuadFloat(0.0f, 0.0f, 0.5f, 0.5f);
+    ScopeWriterGeneric<4, 1> writer(1, 128);
+    lfo.m_scopeWriter = {&writer, 0};
+
+    for (size_t step = 0; step < 2; ++step)
     {
-        DOCTEST_CHECK(0 < tops[lane]);
+        lfo.Process(input);
+        writer.AdvanceIndex();
+        lfo.PopulateScopeState(time);
+        writer.Publish();
+        writer.AcceptSamples();
+        double expected[] = {step == 0 ? 1.0 / 6 : 1.0 / 9, 0.1, step == 0 ? 0.5 : 1.0, step == 0 ? 0.5 : 1.0};
+        for (size_t lane = 0; lane < 4; ++lane)
+        {
+            const auto& markers = writer.GetAcceptedMarkers(0, lane);
+            DOCTEST_CHECK(markers.m_periodic.m_period == doctest::Approx(expected[lane]));
+            DOCTEST_CHECK(markers.m_periodic.m_origin == time.m_phaseClock.m_offset);
+            DOCTEST_CHECK(markers.m_startIndexIndex == 0);
+        }
+
+        clock.m_input[0].m_parentMult = 9;
+        clock.m_unmodulatedPhase += 1.0;
+        time.Process(clock);
     }
+
+    mix.m_size = 0;
+    lfo.Process(input);
+    DOCTEST_CHECK(lfo.m_polyXFader.ComputeLogicalPeriods(time) == QuadDouble::Splat(1.0));
 }

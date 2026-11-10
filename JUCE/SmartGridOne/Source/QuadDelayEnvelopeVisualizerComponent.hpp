@@ -43,7 +43,7 @@ struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerC
         float pointWidth = bounds.getWidth() / x_numPoints;
         for (size_t channel = 0; channel < 4; ++channel)
         {
-            ScopeReader reader(&state.m_scopeWriter, channel, 0, x_numPoints, 1);
+            ScopeReader reader(&state.m_scopeWriter, channel, 0, x_numPoints);
             if (reader.m_empty)
             {
                 continue;
@@ -54,6 +54,11 @@ struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerC
             for (size_t point = 0; point < x_numPoints; ++point)
             {
                 float magnitude = reader.Get(static_cast<double>(point));
+                if (!std::isfinite(magnitude))
+                {
+                    continue;
+                }
+
                 float level = std::clamp(PathDrawer::AmpToDbNormalized(magnitude), 0.0f, 1.0f);
                 float height = laneHeight * level;
                 float center = top + laneHeight * 0.5f;

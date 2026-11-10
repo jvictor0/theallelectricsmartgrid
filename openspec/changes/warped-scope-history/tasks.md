@@ -53,6 +53,19 @@
 - [x] 8.2 Implement minimum-cut coalescing, including boundary touches and separate visits, without extra storage.
 - [x] 8.3 Rerun regressions, full density correctness, source/proof audits and documentation checks. Timing remains deferred under 6.5.
 
+## 9. Publication and scope cleanup
+
+- [x] 9.1 Review the unmodulated inverse and retain only necessary cycle-crossing consumers.
+- [x] 9.2 Compute LFO common periods at UI-state publication, outside sample processing.
+- [x] 9.3 Simplify writer-owned marker state and remove unused scope reader APIs and values.
+- [x] 9.4 Validate native and visualizer behavior, review proof correspondence, and update documentation. Timing remains deferred under 6.5.
+
+## 10. Scope read concurrency
+
+- [x] 10.1 Prove coherent scalar reads, publication ordering, and retry progress with explicit scheduling assumptions before changing native reads.
+- [x] 10.2 Replace bounded inverse retries with a simple busy-wait; bracket bounded cell/frontier updates rather than the entire scatter loop. Preserve missing history as gaps and use one inverse lookup per plotted point.
+- [x] 10.3 Add controlled overlap and rendering regressions, run native and proof checks, and refresh source correspondence and documentation. Timing remains deferred under 6.5; no deployment.
+
 ## Initial implementation validation
 
 - `make core-test`: 851 main cases and 36 alternate-rate cases passed; four existing main cases skipped.
@@ -109,3 +122,21 @@
 - All 120 density correctness cases completed with no raw/settled inverse gaps or spurious mappings, no measured noncausal returns, and maximum sampled-phase residual 0.890204318 cells. The four existing real-time SafeStart boundary disagreements remain.
 - The discussed slow-reversal witness stays on the recent visit: 4.677 ms from the latest-forward timestamp and 0.7494 cells maximum paired-window phase difference. Separate visits still permit older branch selection; these diagnostics are not a general audibility result.
 - Storage remains 32 MiB for G and 16 MiB for H. No timing benchmarks, band-limit filter, or deployment. Results: `build/results/time-warp-review/coalesced-inverse/`.
+
+## Publication and scope cleanup validation
+
+- Retained H for the time-warp view's unmodulated phase-to-history mapping through tempo edits and MIDI corrections; its 16 MiB storage is unchanged.
+- Moved common-period GCDs and periodic-axis updates to UI-state publication. Removed unused LFO/global top events, Theory of Time fractional crossing offsets, and the resulting dead SampleTop helpers.
+- Writer markers now share one plain state layout and use one count; open-start status is derived. Removed unused reader cycle arguments, cached endpoint values, holder conveniences and unused overloads.
+- `make core-test`: 882 main cases and 36 alternate-rate cases passed; four existing skips. The focused publication, rewind and scope run passed all 31 cases.
+- `make visualizers-test`: all 78 cases passed. `make lean-test`: both source audits and both proof/axiom audits passed (28 PhaseTime contracts, 483 theorems). Reviewed correspondence now covers the period-publication callers.
+- Strict OpenSpec validation and diff whitespace checks passed. No timing benchmarks or deployment. Logs: `build/results/time-warp-review/cleanup-*`.
+
+## Scope read concurrency validation
+
+- Added and checked `Concurrency.lean` before changing native reads. It proves scalar snapshot coherence, publication ordering (including an earlier captured end), and retry completion given an eventual quiet attempt. Native 64-bit revisions must not wrap during one attempt; scheduler timing and C++ compilation remain explicit boundaries.
+- Inverse readers now busy-wait on an odd/changed counter. The writer commits bounded branch/seed, crossed-cell/frontier, and final-frontier transitions; the scatter loop and interpolation arithmetic are outside these sections. G/H payloads remain 32/16 MiB. Scope metadata keeps its separate bounded capture and previous-frame fallback.
+- Cutoffs now apply to the interpolated timestamp. Missing history propagates as gaps through scope, weighted-modulator, delay and warp renderers. Warp points use one inverse lookup; the cursor reuses its sampled value.
+- Controlled overlap waits for writer completion without producing zero; a concurrent forward scatter retains all old queried points. New pixel tests cover LFO, envelope, delay and warp gaps. Updated prior expectations that rejected a readable interpolated time or silently omitted a missing weighted source; a real zero-valued source still produces the expected curve.
+- `make core-test`: 886 main cases and 36 alternate-rate cases passed; four existing main skips. `make visualizers-test`: all 80 cases passed. `make lean-test`: both source and axiom audits passed, with 31 PhaseTime contracts and 520 theorems. Strict OpenSpec validation and diff whitespace checks passed.
+- No timing benchmarks or deployment. Final logs are `build/results/time-warp-review/ui-concurrency-core-final.log`, `ui-concurrency-visualizers-verified.log`, and `ui-concurrency-lean-complete.log`, with full native test logs alongside them.

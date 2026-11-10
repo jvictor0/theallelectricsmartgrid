@@ -887,7 +887,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         float m_faders[x_numFaders];
         bool m_sourceMonitor[SourceMixer::x_numSources];
         bool m_transportRunning = false;
-        SampleTop m_top;
 
         PhaseUtils::ExpParam m_tempo;
         PhaseUtils::ExpParam m_masterTune;
@@ -919,8 +918,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             {
                 m_sourceMonitor[i] = true;
             }
-
-            m_top = false;
         }
     };
 
@@ -1216,7 +1213,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             delayLoopTop[i] = m_theoryOfTime->CrossedCycleBoundary(
                 m_delayInputSetter.m_readTapeHead[i].m_loopSelector,
-                PhaseDomain::Modulated).m_triggered;
+                PhaseDomain::Modulated);
         }
 
         for (size_t lfo = 0; lfo < 2; ++lfo)
@@ -1403,6 +1400,22 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             m_globalGangedRandomLFO[random].PopulateUIState(
                 &uiState->m_globalGangedRandomLFOUIState[random]);
+        }
+
+        if (m_theoryOfTime)
+        {
+            for (auto& track : m_tracks)
+            {
+                for (auto& lfo : track.m_squiggleLFO)
+                {
+                    lfo.PopulateScopeState(*m_theoryOfTime);
+                }
+            }
+
+            for (auto& lfo : m_quadSquiggleLFO)
+            {
+                lfo.PopulateScopeState(*m_theoryOfTime);
+            }
         }
 
         uiState->m_voiceScopeWriter.Publish();

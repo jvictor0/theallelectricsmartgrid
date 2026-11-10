@@ -35,29 +35,28 @@ struct ScopeWriter
         double m_warpedStartIndices[x_numStartIndices]{};
         double m_warpedEndIndices[x_numStartIndices]{};
         bool m_hasEnd[x_numStartIndices]{};
+        size_t m_startIndexIndex = 0;
         size_t m_oldestStartIndex = 0;
+
+        bool IsStarted() const
+        {
+            return m_startIndexIndex > m_oldestStartIndex
+                && !m_hasEnd[(m_startIndexIndex - 1) % x_numStartIndices];
+        }
+    };
+
+    // Writer-owned state needs no atomics. Publish copies it to the separate
+    // shared snapshot; UI acceptance copies that snapshot into plain Markers.
+    //
+    struct WriterMarkers : Markers
+    {
         std::bitset<x_numStartIndices> m_dirty;
-        std::atomic<size_t> m_startIndexIndex{0};
-        size_t m_advanceStartIndices = 0;
-        bool m_started = false;
     };
 
     struct Level
     {
         size_t m_acceptedIndex = 0;
         size_t m_oldestIndex = 0;
-    };
-
-    struct AcceptedMarkers
-    {
-        PeriodicPhaseAxis m_periodic;
-        double m_startIndices[x_numStartIndices]{};
-        size_t m_endIndices[x_numStartIndices]{};
-        double m_warpedStartIndices[x_numStartIndices]{};
-        double m_warpedEndIndices[x_numStartIndices]{};
-        bool m_hasEnd[x_numStartIndices]{};
-        size_t m_startIndexIndex = 0;
-        size_t m_oldestStartIndex = 0;
     };
 
     struct PublishedMarkers
@@ -82,9 +81,9 @@ struct ScopeWriter
     std::atomic<size_t> m_publishedIndex{0};
     size_t m_acceptedIndex = 0;
     size_t m_oldestHistoryIndex = 0;
-    std::unique_ptr<Markers[]> m_markers;
-    std::unique_ptr<AcceptedMarkers[]> m_acceptedMarkers;
-    std::unique_ptr<AcceptedMarkers[]> m_pendingMarkers;
+    std::unique_ptr<WriterMarkers[]> m_markers;
+    std::unique_ptr<Markers[]> m_acceptedMarkers;
+    std::unique_ptr<Markers[]> m_pendingMarkers;
     std::unique_ptr<PublishedMarkers[]> m_publishedMarkers;
     std::unique_ptr<bool[]> m_warpedScopes;
     std::atomic<size_t> m_publicationRevision{0};
@@ -107,9 +106,9 @@ struct ScopeWriter
         , m_scopes(scopes)
         , m_decimation(decimation)
         , m_capacity(capacity)
-        , m_markers(std::make_unique<Markers[]>(voices * scopes))
-        , m_acceptedMarkers(std::make_unique<AcceptedMarkers[]>(voices * scopes))
-        , m_pendingMarkers(std::make_unique<AcceptedMarkers[]>(voices * scopes))
+        , m_markers(std::make_unique<WriterMarkers[]>(voices * scopes))
+        , m_acceptedMarkers(std::make_unique<Markers[]>(voices * scopes))
+        , m_pendingMarkers(std::make_unique<Markers[]>(voices * scopes))
         , m_publishedMarkers(std::make_unique<PublishedMarkers[]>(voices * scopes))
         , m_warpedScopes(std::make_unique<bool[]>(scopes))
     {
@@ -173,8 +172,8 @@ struct ScopeWriter
                 continue;
             }
 
-            Markers& markers = m_markers[stream];
-            size_t count = markers.m_startIndexIndex.load() + markers.m_advanceStartIndices;
+            WriterMarkers& markers = m_markers[stream];
+            size_t& count = markers.m_startIndexIndex;
             while (count > markers.m_oldestStartIndex)
             {
                 size_t slot = (count - 1) % x_numStartIndices;
@@ -193,15 +192,6 @@ struct ScopeWriter
                 --count;
             }
 
-            size_t published = std::min(count, markers.m_startIndexIndex.load());
-            if (published != markers.m_startIndexIndex.load())
-            {
-                markers.m_startIndexIndex.store(published);
-            }
-
-            markers.m_advanceStartIndices = count - published;
-            markers.m_started = count > markers.m_oldestStartIndex
-                && !markers.m_hasEnd[(count - 1) % x_numStartIndices];
             if (count > markers.m_oldestStartIndex)
             {
                 size_t slot = (count - 1) % x_numStartIndices;
@@ -211,19 +201,19 @@ struct ScopeWriter
         }
     }
 
-    Markers& GetMarkers(size_t scope, size_t voice)
+    WriterMarkers& GetMarkers(size_t scope, size_t voice)
     {
         assert(scope < m_scopes && voice < m_voices);
         return m_markers[scope * m_voices + voice];
     }
 
-    const Markers& GetMarkers(size_t scope, size_t voice) const
+    const WriterMarkers& GetMarkers(size_t scope, size_t voice) const
     {
         assert(scope < m_scopes && voice < m_voices);
         return m_markers[scope * m_voices + voice];
     }
 
-    const AcceptedMarkers& GetAcceptedMarkers(size_t scope, size_t voice) const
+    const Markers& GetAcceptedMarkers(size_t scope, size_t voice) const
     {
         assert(scope < m_scopes && voice < m_voices);
         return m_acceptedMarkers[scope * m_voices + voice];
@@ -246,12 +236,6 @@ struct ScopeWriter
     size_t MaxIndexes() const
     {
         return m_capacity;
-    }
-
-    size_t MaxIndexes(size_t lod) const
-    {
-        assert(lod < x_numLevels);
-        return m_capacity * Stride(lod);
     }
 
     size_t AcceptedCount(size_t lod) const
@@ -317,11 +301,6 @@ struct ScopeWriter
         return ReadStored(scope, voice, index, 0);
     }
 
-    float ReadSample(size_t scope, size_t voice, size_t index, size_t lod) const
-    {
-        return Read(scope, voice, static_cast<double>(index), lod);
-    }
-
     bool ReadHistory(size_t scope, size_t voice, double index, size_t lod, float& value) const
     {
         value = 0.0f;
@@ -338,12 +317,13 @@ struct ScopeWriter
     float ReadDisplay(size_t scope, size_t voice, double index, size_t lod) const
     {
         float value = 0.0f;
-        if (lod < x_numLevels)
+        if (lod < x_numLevels
+            && ReadHistory(scope, voice, std::min(index, LatestIndex(lod)), lod, value))
         {
-            ReadHistory(scope, voice, std::min(index, LatestIndex(lod)), lod, value);
+            return value;
         }
 
-        return value;
+        return std::numeric_limits<float>::quiet_NaN();
     }
 
     void AcceptSamples()
@@ -385,7 +365,7 @@ struct ScopeWriter
             for (size_t stream = 0; stream < m_scopes * m_voices; ++stream)
             {
                 const PublishedMarkers& source = m_publishedMarkers[stream];
-                AcceptedMarkers& target = m_pendingMarkers[stream];
+                Markers& target = m_pendingMarkers[stream];
                 target.m_periodic = {source.m_periodicOrigin.load(), source.m_periodicPeriod.load()};
                 target.m_oldestStartIndex = source.m_oldestStartIndex.load();
                 size_t count = source.m_startIndexIndex.load();
@@ -456,17 +436,11 @@ struct ScopeWriter
         m_publicationRevision.fetch_add(1);
         for (size_t i = 0; i < m_scopes * m_voices; ++i)
         {
-            Markers& markers = m_markers[i];
-            if (markers.m_advanceStartIndices > 0)
-            {
-                markers.m_startIndexIndex.store(markers.m_startIndexIndex.load() + markers.m_advanceStartIndices);
-                markers.m_advanceStartIndices = 0;
-            }
-
+            WriterMarkers& markers = m_markers[i];
             PublishedMarkers& target = m_publishedMarkers[i];
             target.m_periodicOrigin.store(markers.m_periodic.m_origin);
             target.m_periodicPeriod.store(markers.m_periodic.m_period);
-            target.m_startIndexIndex.store(markers.m_startIndexIndex.load());
+            target.m_startIndexIndex.store(markers.m_startIndexIndex);
             target.m_oldestStartIndex.store(markers.m_oldestStartIndex);
             if (markers.m_dirty.any())
             {
@@ -515,8 +489,8 @@ struct ScopeWriter
             return;
         }
 
-        Markers& markers = GetMarkers(scope, voice);
-        size_t count = markers.m_startIndexIndex.load() + markers.m_advanceStartIndices;
+        WriterMarkers& markers = GetMarkers(scope, voice);
+        size_t count = markers.m_startIndexIndex;
         size_t index = count % x_numStartIndices;
         markers.m_startIndices[index] = static_cast<double>(m_index)
             + (static_cast<double>(m_subIndex) + sampleOffset) / m_decimation;
@@ -534,15 +508,14 @@ struct ScopeWriter
             m_nextUndoTime = std::max(m_nextUndoTime, markers.m_warpedStartIndices[index]);
         }
 
-        ++markers.m_advanceStartIndices;
-        markers.m_started = true;
+        ++markers.m_startIndexIndex;
     }
 
     void RecordEnd(size_t scope, size_t voice)
     {
         ObserveTime();
-        Markers& markers = GetMarkers(scope, voice);
-        size_t count = markers.m_startIndexIndex.load() + markers.m_advanceStartIndices;
+        WriterMarkers& markers = GetMarkers(scope, voice);
+        size_t count = markers.m_startIndexIndex;
         if (count <= markers.m_oldestStartIndex || (IsWarped(scope) && m_warpedStep < 0.0))
         {
             return;
@@ -557,8 +530,6 @@ struct ScopeWriter
         {
             m_nextUndoTime = std::max(m_nextUndoTime, m_warpedTime);
         }
-
-        markers.m_started = false;
     }
 };
 
@@ -777,7 +748,7 @@ struct ScopeWriterHolderGeneric
             m_scopeWriter->ObserveTime();
         }
 
-        return m_scopeWriter && m_scopeWriter->GetMarkers(m_scopeIx, voice).m_started;
+        return m_scopeWriter && m_scopeWriter->GetMarkers(m_scopeIx, voice).IsStarted();
     }
 
     void RecordEndAtVoice(size_t voice)
@@ -786,21 +757,6 @@ struct ScopeWriterHolderGeneric
         {
             m_scopeWriter->RecordEnd(m_scopeIx, voice);
         }
-    }
-
-    void RecordStart()
-    {
-        RecordStartAtVoice(0, 0.0);
-    }
-
-    void RecordStart(double offset)
-    {
-        RecordStartAtVoice(0, offset);
-    }
-
-    void RecordEnd()
-    {
-        RecordEndAtVoice(0);
     }
 };
 
@@ -1034,13 +990,11 @@ struct ScopeReader
     // Bound scopes measure the available displayed points through their inverse.
     //
     double m_sampleExtent = 0.0;
-    float m_startY = 0.0f;
-    float m_prevStartY = 0.0f;
     bool m_empty = false;
     size_t m_lod = 0;
 
     ScopeReader(const ScopeWriter* scopeWriter, size_t voiceIx, size_t scopeIx,
-        size_t numXSamples, size_t numCycles)
+        size_t numXSamples)
         : m_scopeWriter(scopeWriter)
         , m_voiceIx(voiceIx)
         , m_scopeIx(scopeIx)
@@ -1157,11 +1111,6 @@ struct ScopeReader
 
         m_lod = scopeWriter->GetLod(acceptedIndex - 1.0 - oldestRequired, scopeWriter->m_acceptedIndex);
         m_empty = m_lod == ScopeWriter::x_numLevels;
-        if (!m_empty)
-        {
-            m_startY = ReadCoordinate(m_startIndex);
-            m_prevStartY = ReadCoordinate(prevStartIndex);
-        }
     }
 
     double Coordinate(double sample) const
@@ -1192,12 +1141,13 @@ struct ScopeReader
     {
         double index = RealIndex(coordinate);
         return std::isfinite(index)
-            ? m_scopeWriter->ReadDisplay(m_scopeIx, m_voiceIx, index, m_lod) : 0.0f;
+            ? m_scopeWriter->ReadDisplay(m_scopeIx, m_voiceIx, index, m_lod)
+            : std::numeric_limits<float>::quiet_NaN();
     }
 
     float Get(double sample) const
     {
-        return m_empty ? 0.0f : ReadCoordinate(Coordinate(sample));
+        return m_empty ? std::numeric_limits<float>::quiet_NaN() : ReadCoordinate(Coordinate(sample));
     }
 };
 
@@ -1207,19 +1157,16 @@ struct ScopeReaderFactory
     size_t m_voiceIx;
     size_t m_scopeIx;
     size_t m_numXSamples;
-    size_t m_numCycles;
 
     ScopeReaderFactory(
         ScopeWriter* scopeWriter, 
         size_t voiceIx, 
         size_t scopeIx, 
-        size_t numXSamples, 
-        size_t numCycles)
+        size_t numXSamples)
         : m_scopeWriter(scopeWriter)
         , m_voiceIx(voiceIx)
         , m_scopeIx(scopeIx)
         , m_numXSamples(numXSamples)
-        , m_numCycles(numCycles)
     {
     }
 
@@ -1235,7 +1182,7 @@ struct ScopeReaderFactory
 
     ScopeReader Create()
     {
-        return ScopeReader(m_scopeWriter, m_voiceIx, m_scopeIx, m_numXSamples, m_numCycles);
+        return ScopeReader(m_scopeWriter, m_voiceIx, m_scopeIx, m_numXSamples);
     }
 };
 

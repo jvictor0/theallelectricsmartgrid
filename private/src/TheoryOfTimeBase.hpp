@@ -10,7 +10,6 @@
 
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
-#include "SampleTop.hpp"
 #include "TheoryOfTimeRhythm.hpp"
 #include "PhaseClock.hpp"
 
@@ -35,8 +34,8 @@ struct TimeLoop
     int64_t m_periodTicks = 1;
 
     bool m_gate = false;
-    SampleTop m_unmodulatedCycleCrossed;
-    SampleTop m_modulatedCycleCrossed;
+    bool m_unmodulatedCycleCrossed = false;
+    bool m_modulatedCycleCrossed = false;
 };
 
 struct TheoryOfTimeBase
@@ -141,7 +140,7 @@ struct TheoryOfTimeBase
         return GetLoop(loopIndex).m_cycleRatio;
     }
 
-    SampleTop CrossedCycleBoundary(size_t loopIndex, PhaseDomain domain) const
+    bool CrossedCycleBoundary(size_t loopIndex, PhaseDomain domain) const
     {
         const TimeLoop& loop = GetLoop(loopIndex);
         return domain == PhaseDomain::Unmodulated ? loop.m_unmodulatedCycleCrossed : loop.m_modulatedCycleCrossed;
@@ -210,7 +209,7 @@ struct TheoryOfTimeBase
 
     bool AnyTick(size_t loopIndex) const
     {
-        return GetLoop(loopIndex).m_modulatedCycleCrossed.m_triggered;
+        return GetLoop(loopIndex).m_modulatedCycleCrossed;
     }
 
     static void SetLoopPeriods(Sample& sample)
@@ -318,9 +317,6 @@ struct TheoryOfTimeBase
             loop.m_unmodulatedCycleCrossed = started ||
                 PhaseUtils::FloorDiv(sample.m_unmodulatedGlobalTickPosition, loop.m_periodTicks)
                     != PhaseUtils::FloorDiv(previousUnmodulatedGlobalTickPosition, loop.m_periodTicks);
-
-            loop.m_modulatedCycleCrossed.InterpolatePhases(previousModulatedPhase, sample.m_modulatedPhase, loop.m_cycleRatio, started);
-            loop.m_unmodulatedCycleCrossed.InterpolatePhases(previousUnmodulatedPhase, sample.m_unmodulatedPhase, loop.m_cycleRatio, started);
         }
     }
 

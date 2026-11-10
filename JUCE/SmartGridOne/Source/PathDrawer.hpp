@@ -230,14 +230,21 @@ struct PathDrawer
         ScopeReaderFn fn(&scopeReader, yScale, yOffset);
         double transferSample = scopeReader.m_transferXSample;
         size_t numPoints = scopeReader.m_numXSamples;
+        bool connected = false;
 
         for (size_t j = 0; j < numPoints; ++j)
         {
             double sample = static_cast<double>(j);
             float y = fn(sample);
+            if (!std::isfinite(y))
+            {
+                connected = false;
+                continue;
+            }
+
             float screenY = m_height * (1.0f - y);
             float screenX = m_width * static_cast<float>(j) / static_cast<float>(numPoints);
-            if (j == 0 || (sample - 1.0 < transferSample && transferSample <= sample))
+            if (!connected || (sample - 1.0 < transferSample && transferSample <= sample))
             {
                 path.startNewSubPath(m_xMin + screenX, m_yMin + screenY);
             }
@@ -245,6 +252,8 @@ struct PathDrawer
             {
                 path.lineTo(m_xMin + screenX, m_yMin + screenY);
             }
+
+            connected = true;
         }
 
         g.setColour(colour);
@@ -284,6 +293,11 @@ struct PathDrawer
         double xFrac = clampedSample / lastSample;
         float screenX = m_xMin + m_width * xFrac;
         float y = ScopeReaderFn(&scopeReader, yScale, yOffset)(clampedSample);
+        if (!std::isfinite(y))
+        {
+            return;
+        }
+
         float screenY = m_yMin + m_height * (1.0f - y);
         float markerRadius = 3.0f;
         g.setColour(colour);

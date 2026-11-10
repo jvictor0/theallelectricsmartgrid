@@ -88,7 +88,7 @@ DOCTEST_TEST_CASE("Scope LOD: cycle transfer selects one level for both cycle po
 
     writer.Publish();
     writer.AcceptSamples();
-    ScopeReader reader(&writer, 0, 0, 256, 1);
+    ScopeReader reader(&writer, 0, 0, 256);
     DOCTEST_REQUIRE_FALSE(reader.m_empty);
     DOCTEST_CHECK(reader.m_lod == 2);
     DOCTEST_CHECK(reader.m_startIndex == 2500.25);
@@ -235,7 +235,7 @@ DOCTEST_TEST_CASE("Scope acceptance: only UI acceptance advances FIRs, bounds, a
     DOCTEST_REQUIRE(writer.ReadHistory(0, 0, 15.0, 1, value));
     DOCTEST_CHECK(value == doctest::Approx(15.0f));
     DOCTEST_CHECK_FALSE(writer.ReadHistory(0, 0, 24.0, 0, value));
-    ScopeReader first(&writer, 0, 0, 256, 1);
+    ScopeReader first(&writer, 0, 0, 256);
     DOCTEST_CHECK(first.m_startIndex == 0.0);
     DOCTEST_CHECK(first.m_transferIndex == 23.0);
     auto filterIndex = writer.m_storage[0].m_downsamplers[0].m_index;
@@ -244,11 +244,11 @@ DOCTEST_TEST_CASE("Scope acceptance: only UI acceptance advances FIRs, bounds, a
 
     writer.RecordEnd(0, 0);
     writer.Publish();
-    ScopeReader stillFirst(&writer, 0, 0, 256, 1);
+    ScopeReader stillFirst(&writer, 0, 0, 256);
     DOCTEST_CHECK(stillFirst.m_startIndex == first.m_startIndex);
     DOCTEST_CHECK(stillFirst.m_transferIndex == first.m_transferIndex);
     writer.AcceptSamples();
-    ScopeReader second(&writer, 0, 0, 256, 1);
+    ScopeReader second(&writer, 0, 0, 256);
     DOCTEST_CHECK(second.m_startIndex == 24.0);
     DOCTEST_CHECK(second.m_transferIndex == 47.0);
 }
@@ -281,18 +281,18 @@ DOCTEST_TEST_CASE("Scope acceptance: fractional starts beyond the captured last 
     writer.Publish();
 
     writer.AcceptSamples(capturedEnd);
-    ScopeReader previous(&writer, 0, 0, 256, 1);
+    ScopeReader previous(&writer, 0, 0, 256);
     DOCTEST_REQUIRE_FALSE(previous.m_empty);
     DOCTEST_CHECK(previous.m_startIndex == 12.0);
     DOCTEST_CHECK(previous.m_transferIndex == 23.0);
     DOCTEST_CHECK(previous.Get(0) == doctest::Approx(12.0f));
 
-    ScopeReader exactBoundary(&writer, 1, 0, 256, 1);
+    ScopeReader exactBoundary(&writer, 1, 0, 256);
     DOCTEST_REQUIRE_FALSE(exactBoundary.m_empty);
     DOCTEST_CHECK(exactBoundary.m_startIndex == 23.0);
 
     writer.AcceptSamples();
-    ScopeReader next(&writer, 0, 0, 256, 1);
+    ScopeReader next(&writer, 0, 0, 256);
     DOCTEST_REQUIRE_FALSE(next.m_empty);
     DOCTEST_CHECK(next.m_startIndex == 23.75);
     DOCTEST_CHECK(next.m_transferIndex == 24.0);

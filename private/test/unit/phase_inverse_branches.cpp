@@ -135,7 +135,8 @@ DOCTEST_TEST_CASE("Phase inverse branches: deeper minima replace the cut and equ
     DOCTEST_CHECK(inverse.GetRealTime(.4) == 4);
     DOCTEST_CHECK(inverse.GetRealTime(.6) == doctest::Approx(6.5));
     DOCTEST_CHECK(inverse.GetRealTime(.3) == doctest::Approx(.3 / 1.1));
-    DOCTEST_CHECK(std::isnan(inverse.ReadInverse(.6, 8)));
+    DOCTEST_CHECK(inverse.ReadInverse(.6, 8) == doctest::Approx(6.5));
+    DOCTEST_CHECK(std::isnan(inverse.ReadInverse(.6, 6)));
 }
 
 DOCTEST_TEST_CASE("Phase inverse branches: boundary touches coalesce but crossing outside ends the visit")

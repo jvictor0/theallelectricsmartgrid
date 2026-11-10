@@ -58,7 +58,7 @@ struct ScopeReaderFixture
 DOCTEST_TEST_CASE("ScopeReader: fractional reads interpolate on both sides of the transfer")
 {
     ScopeReaderFixture fixture(100.0f);
-    ScopeReader reader(fixture.m_writer.get(), 0, 0, 8, 1);
+    ScopeReader reader(fixture.m_writer.get(), 0, 0, 8);
 
     DOCTEST_CHECK(reader.m_transferXSample == doctest::Approx(3.2));
     DOCTEST_CHECK(reader.Get(1.5) == doctest::Approx(101.875));
@@ -73,7 +73,7 @@ DOCTEST_TEST_CASE("ScopeReader: advancing the transfer does not move a repeating
     for (size_t index = 24; index <= 29; ++index)
     {
         fixture.PublishThrough(index);
-        ScopeReader reader(fixture.m_writer.get(), 0, 0, 8, 1);
+        ScopeReader reader(fixture.m_writer.get(), 0, 0, 8);
         DOCTEST_INFO("published sample: " << index);
         DOCTEST_CHECK(reader.Get(1) == doctest::Approx(1.25));
         DOCTEST_CHECK(reader.Get(2) == doctest::Approx(2.5));
@@ -85,7 +85,7 @@ DOCTEST_TEST_CASE("ScopeReader: fractional reads work without a previous-cycle t
 {
     ScopeReaderFixture fixture(100.0f);
     fixture.PublishThrough(34);
-    ScopeReader reader(fixture.m_writer.get(), 0, 0, 8, 1);
+    ScopeReader reader(fixture.m_writer.get(), 0, 0, 8);
 
     DOCTEST_CHECK(reader.Get(1.5) == doctest::Approx(102.625));
     DOCTEST_CHECK(reader.Get(6.5) == doctest::Approx(111.375));
@@ -133,7 +133,7 @@ DOCTEST_TEST_CASE("ScopeReader: the unfinished trace uses the previous cycle bef
             {
                 DOCTEST_CAPTURE(elapsed);
                 writer.AcceptSamples(currentStart + elapsed + 1);
-                ScopeReader reader(&writer, 0, 0, 8, 1);
+                ScopeReader reader(&writer, 0, 0, 8);
                 DOCTEST_REQUIRE_FALSE(reader.m_empty);
                 double previousLength = 16.0 - fraction;
                 DOCTEST_CHECK(reader.m_transferXSample
@@ -177,7 +177,7 @@ DOCTEST_TEST_CASE("ScopeReader: an ended short cycle borrows the previous cycle 
 
     writer.Publish();
     writer.AcceptSamples();
-    ScopeReader reader(&writer, 0, 0, 8, 1);
+    ScopeReader reader(&writer, 0, 0, 8);
     DOCTEST_REQUIRE_FALSE(reader.m_empty);
     DOCTEST_CHECK(reader.m_transferIndex == 61.0);
     DOCTEST_CHECK(reader.Get(1.0) == doctest::Approx(102.0));
@@ -190,7 +190,7 @@ DOCTEST_TEST_CASE("ScopeReader: the right endpoint stays finite at a full transf
 {
     ScopeReaderFixture fixture(100.0f);
     fixture.PublishThrough(30);
-    ScopeReader reader(fixture.m_writer.get(), 0, 0, 8, 1);
+    ScopeReader reader(fixture.m_writer.get(), 0, 0, 8);
 
     DOCTEST_CHECK(reader.Get(8.0) == doctest::Approx(110.0));
 }
@@ -203,7 +203,7 @@ DOCTEST_TEST_CASE("ScopeReader: one published sample has a finite display")
     writer->AdvanceIndex();
     writer->Publish();
     writer->AcceptSamples();
-    ScopeReader reader(writer.get(), 0, 0, 8, 1);
+    ScopeReader reader(writer.get(), 0, 0, 8);
 
     DOCTEST_CHECK(reader.Get(0.0) == doctest::Approx(0.5));
     DOCTEST_CHECK(reader.Get(4.5) == doctest::Approx(0.5));
@@ -260,7 +260,7 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
         constexpr double x_expectedStarts[] = {99.125, 99.375, 99.625, 99.875};
         for (size_t scope = 0; scope < 3; ++scope)
         {
-            ScopeReader reader(writer.get(), 0, scope, 1024, 1);
+            ScopeReader reader(writer.get(), 0, scope, 1024);
             DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(x_expectedStarts[topOversample]));
         }
     }
@@ -280,7 +280,7 @@ DOCTEST_TEST_CASE("ScopeReader: interpolated cycle length and reads survive buff
     writer->m_index += 25;
     writer->Publish();
     writer->AcceptSamples();
-    ScopeReader reader(writer.get(), 0, 0, 8, 1);
+    ScopeReader reader(writer.get(), 0, 0, 8);
 
     DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(static_cast<double>(writer->MaxIndexes()) + 4.25));
     DOCTEST_CHECK(reader.Get(1.5) == doctest::Approx(22.21875));
@@ -294,7 +294,7 @@ DOCTEST_TEST_CASE("ScopeReader: a top beyond the accepted boundary keeps the pre
     fixture.m_writer->RecordStart(0, 0);
     fixture.m_writer->Publish();
     fixture.m_writer->AcceptSamples();
-    ScopeReader reader(fixture.m_writer.get(), 0, 0, 8, 1);
+    ScopeReader reader(fixture.m_writer.get(), 0, 0, 8);
 
     DOCTEST_CHECK_FALSE(reader.m_empty);
     DOCTEST_CHECK(reader.m_startIndex == 20.0);
@@ -309,10 +309,10 @@ DOCTEST_TEST_CASE("ScopeReader: a first top before sample zero has no readable h
     writer->AdvanceIndex();
     writer->Publish();
     writer->AcceptSamples();
-    ScopeReader reader(writer.get(), 0, 0, 8, 1);
+    ScopeReader reader(writer.get(), 0, 0, 8);
 
     DOCTEST_CHECK(reader.m_empty);
-    DOCTEST_CHECK(reader.Get(0.0) == 0.0f);
+    DOCTEST_CHECK_FALSE(std::isfinite(reader.Get(0.0)));
 }
 
 DOCTEST_TEST_CASE("ScopeReader: LFO publishes a periodic axis between stored samples")
@@ -347,9 +347,10 @@ DOCTEST_TEST_CASE("ScopeReader: LFO publishes a periodic axis between stored sam
     lfo.m_scopeWriter = ScopeWriterHolder(writer.get(), 0);
     lfo.Process(input);
     AdvanceTo(*writer, 11);
+    lfo.PopulateScopeState(time);
     writer->Publish();
     writer->AcceptSamples();
-    ScopeReader reader(writer.get(), 0, 0, 1024, 1);
+    ScopeReader reader(writer.get(), 0, 0, 1024);
 
     const auto& markers = writer->GetAcceptedMarkers(0, 0);
     DOCTEST_CHECK(markers.m_startIndexIndex == 0);
@@ -438,6 +439,7 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time publishes fractional periodic pos
         auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(x_decimation, 4096);
         writer->m_index = 100;
         time.SetupMonoScopeWriter(writer.get());
+        TheoryOfTime::UIState ui;
         SampleTimer::s_instance->m_sample = 100 * x_decimation;
         for (size_t block = 0; block < 2; ++block)
         {
@@ -448,6 +450,7 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time publishes fractional periodic pos
                 SampleTimer::s_instance->m_sample++;
             }
 
+            time.PopulateUIState(&ui, input);
             writer->Publish();
             writer->AcceptSamples();
             DOCTEST_CHECK(writer->GetAcceptedMarkers(0, 0).m_startIndexIndex == 0);
@@ -458,14 +461,14 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time publishes fractional periodic pos
             input.m_freq = 1.0 / 256.0;
         }
 
-        ScopeReader reader(writer.get(), 0, 0, 1024, 1);
+        ScopeReader reader(writer.get(), 0, 0, 1024);
         DOCTEST_CHECK_FALSE(reader.m_empty);
         DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(item.m_startPhase));
         DOCTEST_CHECK(reader.m_transferXSample == doctest::Approx(item.m_cursor));
     }
 }
 
-DOCTEST_TEST_CASE("ScopeReader: LFO publishes the same axis on a stored sample")
+DOCTEST_TEST_CASE("ScopeReader: LFO publishes its axis with UI state")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTimeBase time;
@@ -492,9 +495,11 @@ DOCTEST_TEST_CASE("ScopeReader: LFO publishes the same axis on a stored sample")
     lfo.m_scopeWriter = ScopeWriterHolder(writer.get(), 0);
     lfo.Process(input);
     AdvanceTo(*writer, 21);
+    DOCTEST_CHECK(writer->GetMarkers(0, 0).m_periodic.m_period == 0.0);
+    lfo.PopulateScopeState(time);
     writer->Publish();
     writer->AcceptSamples();
-    ScopeReader reader(writer.get(), 0, 0, 1024, 1);
+    ScopeReader reader(writer.get(), 0, 0, 1024);
 
     const auto& markers = writer->GetAcceptedMarkers(0, 0);
     DOCTEST_CHECK(markers.m_startIndexIndex == 0);

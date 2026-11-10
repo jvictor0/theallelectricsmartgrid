@@ -3,6 +3,7 @@ import PhaseTime.Slew
 import PhaseTime.InverseGrid
 import PhaseTime.AnalysisStability
 import PhaseTime.FixedCell
+import PhaseTime.Concurrency
 import Lean.Util.CollectAxioms
 
 open Lean in

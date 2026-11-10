@@ -22,7 +22,7 @@ Scope cursor visibility and longest modulation-source selection SHALL use real d
 - **AND** the same logical period with a shorter real duration remains subject to the existing threshold
 
 ### Requirement: Unwarped time-warp visualization
-The Theory of Time visualizer SHALL use an explicit periodic unmodulated-phase axis with an accepted inverse. It SHALL record bounded warp displacement and add the unmodulated musical coordinate when drawing. Vertical wraps and the join between current and previous cycles SHALL begin a new path rather than draw a connecting segment.
+The Theory of Time visualizer SHALL use an explicit periodic unmodulated-phase axis with an accepted inverse. It SHALL record bounded warp displacement and add the unmodulated musical coordinate when drawing. Each plotted value SHALL use one inverse lookup; its cursor SHALL reuse its already-read value. Missing history, vertical wraps and the join between current and previous cycles SHALL begin a new path rather than draw a connecting segment.
 
 #### Scenario: Warp reversal
 - **WHEN** modulated phase reverses while unmodulated phase advances

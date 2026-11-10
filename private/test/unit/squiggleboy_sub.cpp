@@ -329,8 +329,8 @@ DOCTEST_TEST_CASE("Sub: scope starts on each lane's fractional oscillator wrap")
         for (size_t lane = 0; lane < 3; ++lane)
         {
             const auto& markers = writer->GetMarkers(subScope, lane);
-            DOCTEST_CHECK(markers.m_startIndexIndex.load() == 1);
-            ScopeReader reader(writer.get(), lane, subScope, 1024, 1);
+            DOCTEST_CHECK(markers.m_startIndexIndex == 1);
+            ScopeReader reader(writer.get(), lane, subScope, 1024);
             DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(100 + x_wrapSamples[lane] / decimation));
         }
     }

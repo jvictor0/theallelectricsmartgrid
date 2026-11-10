@@ -29,7 +29,7 @@ LOD filters, transport generations, or UI locking on the audio thread.
   the fallback. Within a closed-cell visit, keep the minimum cut and its first
   timestamp; boundary touches reopen the endpoint without discarding that minimum. Partial first traversals use their confined entry/frontier interval.
   There is no pool or reversal-count limit. UI views reject coordinates ahead of
-  the cursor, outside retention, or with endpoints newer than the real cutoff.
+  the cursor, outside retention, or with returned timestamps newer than the real cutoff.
 - Read heads project continuous phase at their selected speed and wrap into the
   selected loop strictly behind q. No independent restart rephasing occurs.
   DelayLine maps through G and converts only its output to host samples. Grain
@@ -39,6 +39,8 @@ LOD filters, transport generations, or UI locking on the audio thread.
   otherwise the previous-cycle coordinate is used. No startup stretching or
   inferred period is needed. Delay uses origin 0, period 1. LFOs use the clock
   offset and the common participating loop period. They do not record starts.
+  The GCD calculation and axis update run during `PopulateUIState`, using the
+  latest processed weights and loop ratios, before scope-bank publication.
 - Envelope/event scopes retain real and warped starts/ends. Descending movement
   undoes crossed boundaries generically; backward callbacks do not append starts.
 - The time-warp scope uses a separate unmodulated PhaseClock/inverse and the
@@ -52,6 +54,8 @@ LOD filters, transport generations, or UI locking on the audio thread.
   coherent view with a bounded retry budget. Level-zero samples are atomic;
   higher levels belong to the UI thread. Overlays share the same periodic axis
   and inverse as their primary scope. Unbound scopes retain real-time behavior.
+  Writer-owned markers use one plain count; only the separate publication is
+  atomic. Whether the latest start is open is derived from its end flag.
 - LFO mix slew scales with absolute modulated phase increment. The warp generator
   uses nominal unmodulated increments; stopped oscillators settle at nominal rate.
   Small coefficients keep the stable approximation; large phase steps use expm1
@@ -65,8 +69,12 @@ LOD filters, transport generations, or UI locking on the audio thread.
 
 ## Risks / Trade-offs
 
-- Live inverse changes during paint can create unavailable points. Timestamp
-  cutoffs prevent newer writes from being treated as accepted history.
+- Inverse readers busy-wait on an odd or changed sequence counter. Each writer
+  section covers a bounded cell/frontier transition, never the full scatter loop.
+  A coherent lookup may still be absent because of retention, startup or a newer
+  replacement; renderers preserve that absence as a gap. The cutoff checks the
+  interpolated timestamp. Lean proves coherent reads and publication ordering;
+  retry progress assumes an eventual quiet attempt, without a wall-clock bound.
 - Inverse phase capacity and sample-history capacity are separate bounds.
 - Real-time FIR filtering does not commute with nonlinear time warping; the pure
   composition theorem states its S = L composed with F hypothesis explicitly.

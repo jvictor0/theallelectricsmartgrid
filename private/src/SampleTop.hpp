@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cmath>
 
 struct SampleTop
@@ -32,36 +31,9 @@ struct SampleTop
         return m_triggered;
     }
 
-    static SampleTop AndIdentity(bool hasInputs)
-    {
-        // Real offsets are in [-1, 0]; zero would discard every fractional top.
-        // With no inputs, retain the original true event at the current sample.
-        //
-        return {true, hasInputs ? -1.0 : 0.0};
-    }
-
-    SampleTop operator&&(const SampleTop& other) const
-    {
-        return m_triggered && other.m_triggered
-            ? SampleTop(true, std::max(m_offset, other.m_offset)) : SampleTop();
-    }
-
     static SampleTop FromWrap(double phase, double frequency)
     {
         return {true, -phase / frequency};
-    }
-
-    void InterpolatePhases(double previous, double current, double cycleRatio, bool started)
-    {
-        if (m_triggered && !started)
-        {
-            m_offset = FromPhases(previous * cycleRatio, current * cycleRatio).m_offset;
-        }
-    }
-
-    double GetPosition(double sampleIndex) const
-    {
-        return sampleIndex + m_offset;
     }
 
     static SampleTop FromPhases(double previous, double current)

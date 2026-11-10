@@ -196,7 +196,7 @@ struct FrontendRig
             const auto& rhythm = request.m_rhythm[bit];
             DOCTEST_REQUIRE(loop.m_cycleRatio == ratios[bit]);
             DOCTEST_REQUIRE(loop.m_periodTicks == common / ratios[bit]);
-            DOCTEST_REQUIRE(static_cast<bool>(loop.m_modulatedCycleCrossed) == ticks[bit]);
+            DOCTEST_REQUIRE(loop.m_modulatedCycleCrossed == ticks[bit]);
             bool expectedGate = previous.m_loops[bit].m_gate;
             if (ticks[bit])
             {
@@ -248,7 +248,7 @@ struct FrontendRig
         uint8_t bits = 0;
         for (size_t bit = 0; bit < x_bits; ++bit)
         {
-            ticks[bit] = current.m_loops[bit].m_modulatedCycleCrossed.m_triggered;
+            ticks[bit] = current.m_loops[bit].m_modulatedCycleCrossed;
             bits |= static_cast<uint8_t>(current.m_loops[bit].m_gate ? 1u << bit : 0);
             m_ticks[bit] += ticks[bit];
         }

@@ -135,7 +135,6 @@ struct PolyXFaderGeneric
         , m_mixSlewFreq()
         , m_rawOutput()
         , m_output()
-        , m_top{}
         , m_shValue()
     {
         m_shSlew.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(500.0));
@@ -153,11 +152,9 @@ struct PolyXFaderGeneric
     //
     OPLowPassFilterGeneric<double, Size> m_mixSlew;
     DoubleVector m_mixSlewFreq;
-    DoubleVector m_logicalPeriod = DoubleVector::Splat(1.0);
     OPLowPassFilterGeneric<float, Size> m_shSlew;
     Vector m_rawOutput;
     Vector m_output;
-    SampleTop m_top[Size];
     Vector m_shValue;
 
     static bool AnyNonZero(const Vector& values)
@@ -171,6 +168,33 @@ struct PolyXFaderGeneric
         }
 
         return false;
+    }
+
+    // Display metadata is computed only when publishing UI state. Weights
+    // come from the most recently processed sample; tempo is not involved.
+    //
+    DoubleVector ComputeLogicalPeriods(const TheoryOfTimeBase& time) const
+    {
+        int64_t commonCycleRatio[Size] = {};
+        for (size_t i = 0; i < m_size; ++i)
+        {
+            int64_t cycleRatio = time.GetCycleRatio(i);
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                if (m_weights[i][lane] != 0)
+                {
+                    commonCycleRatio[lane] = std::gcd(commonCycleRatio[lane], cycleRatio);
+                }
+            }
+        }
+
+        DoubleVector periods;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            periods[lane] = commonCycleRatio[lane] > 0 ? 1.0 / commonCycleRatio[lane] : 1.0;
+        }
+
+        return periods;
     }
 
     void Process(Input& input)
@@ -213,13 +237,7 @@ struct PolyXFaderGeneric
 
         typename Input::Prepared prepared(input);
 
-        for (size_t lane = 0; lane < Size; ++lane)
-        {
-            m_top[lane] = SampleTop::AndIdentity(m_totalWeight[lane] > 0.0f);
-        }
-
         int64_t maxCycleRatio[Size] = {};
-        int64_t commonCycleRatio[Size] = {};
         Vector output;
         for (size_t i = 0; i < m_size; ++i)
         {
@@ -229,14 +247,11 @@ struct PolyXFaderGeneric
             }
 
             int64_t cycleRatio = input.m_theoryOfTime->GetCycleRatio(i);
-            SampleTop crossed = input.m_theoryOfTime->CrossedCycleBoundary(i, input.m_phaseDomain);
             for (size_t lane = 0; lane < Size; ++lane)
             {
                 if (m_weights[i][lane] != 0)
                 {
                     maxCycleRatio[lane] = std::max(maxCycleRatio[lane], cycleRatio);
-                    commonCycleRatio[lane] = std::gcd(commonCycleRatio[lane], cycleRatio);
-                    m_top[lane] = m_top[lane] && crossed;
                 }
             }
 
@@ -257,7 +272,6 @@ struct PolyXFaderGeneric
         DoubleVector slewFreq;
         for (size_t lane = 0; lane < Size; ++lane)
         {
-            m_logicalPeriod[lane] = commonCycleRatio[lane] > 0 ? 1.0 / commonCycleRatio[lane] : 1.0;
             slewFreq[lane] = 8.0 * input.m_mult[lane] * maxCycleRatio[lane] * increment;
             assert(slewFreq[lane] >= 0.0);
         }

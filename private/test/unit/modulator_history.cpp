@@ -81,17 +81,17 @@ DOCTEST_TEST_CASE("Weighted modulators: normalized signed depths mix recorded si
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 104.0 + 1.5) == doctest::Approx(0.575f));
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 107.0) == doctest::Approx(0.65f));
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 10000.0) == doctest::Approx(0.65f));
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 103.0) == 0.0f);
+    DOCTEST_CHECK_FALSE(std::isfinite(GetWeightedModulatorValue(*ui, weights, 103.0)));
     state.m_voiceScopeWriter.m_oldestHistoryIndex = 2;
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, weights, 104.0 + 1.0) == 0.0f);
+    DOCTEST_CHECK_FALSE(std::isfinite(GetWeightedModulatorValue(*ui, weights, 104.0 + 1.0)));
 
     WeightedModulators bipolar;
     bipolar.Add(ModulatorRef(QuadModulator::LFO1, 0), -1.0f);
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, bipolar, 104.0 + 2.0) == doctest::Approx(0.75f));
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, bipolar, 103.0) == 0.0f);
+    DOCTEST_CHECK_FALSE(std::isfinite(GetWeightedModulatorValue(*ui, bipolar, 103.0)));
     WeightedModulators missing;
     missing.Add(ModulatorRef(VoiceModulator::Sheaf1, 0), -1.0f);
-    DOCTEST_CHECK(GetWeightedModulatorValue(*ui, missing, 104.0 + 2.0) == 0.0f);
+    DOCTEST_CHECK_FALSE(std::isfinite(GetWeightedModulatorValue(*ui, missing, 104.0 + 2.0)));
     WeightedModulators noise;
     noise.Add(ModulatorRef(GlobalModulator::Noise), 1.0f);
     DOCTEST_CHECK(GetWeightedModulatorValue(*ui, noise, 10000.0)
@@ -159,7 +159,7 @@ DOCTEST_TEST_CASE("Modulator time axes: scope wrapping maps every point to its o
     auto axis = SmartGridOneModulatorHistory::GetTimeAxis(*ui, source);
     DOCTEST_CHECK(axis.GetExtent() == 8.0);
     DOCTEST_CHECK(axis.m_transfer == doctest::Approx(3.0 / 8.0));
-    ScopeReader reader(&scope, 0, x_lfo1Scope, 256, 1);
+    ScopeReader reader(&scope, 0, x_lfo1Scope, 256);
     for (size_t point = 0; point < 256; ++point)
     {
         double sample = axis.GetSample(static_cast<double>(point) / 256.0);

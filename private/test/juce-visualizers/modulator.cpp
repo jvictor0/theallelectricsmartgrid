@@ -60,7 +60,7 @@ DOCTEST_TEST_CASE("LFO cursors: phase axes use real duration for visibility and 
         state.m_voiceScopeWriter.AcceptSamples();
         state.m_quadScopeWriter.AcceptSamples();
         bool slow = periodSamples == 32768;
-        ScopeReader reader(&state.m_voiceScopeWriter, 0, voiceScope, 256, 1);
+        ScopeReader reader(&state.m_voiceScopeWriter, 0, voiceScope, 256);
         DOCTEST_CHECK(PathDrawer::ShouldDrawScopeMarker(reader) == slow);
         int selectedVoice = 0;
         for (auto mode : {SmartGridOneLayout::ParamMode::Voice, SmartGridOneLayout::ParamMode::Quad})
@@ -77,6 +77,56 @@ DOCTEST_TEST_CASE("LFO cursors: phase axes use real duration for visibility and 
             component.Draw(graphics, image.getBounds());
             int markerY = 145;
             DOCTEST_CHECK((image.getPixelAt(126, markerY - 2) != juce::Colours::black) == slow);
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("LFO and envelope paths: unavailable inverse points break the trace")
+{
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& writer = ui->m_squiggleBoyUIState.m_voiceScopeWriter;
+    ui->m_squiggleBoyUIState.m_firstScopeSample.store(0);
+    TimeWarpInverter<8192> inverse(1024.0);
+    size_t lfo = SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO1), 0);
+    size_t env = SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::AmpEnvelope), 0);
+    writer.SetTimeWarp(lfo, &inverse);
+    writer.SetTimeWarp(env, &inverse);
+    writer.SetPeriodic(lfo, 0, {0.0, 1.0});
+    for (size_t sample = 0; sample <= 1280; ++sample)
+    {
+        inverse.Write(static_cast<double>(sample) / 1024.0, static_cast<double>(sample));
+        if (sample % 1024 == 0)
+        {
+            writer.RecordStart(env, 0);
+        }
+
+        writer.Write(lfo, TrioFloat::Splat(0.75f));
+        writer.Write(env, TrioFloat::Splat(0.75f));
+        writer.AdvanceIndex();
+    }
+
+    writer.Publish();
+    writer.AcceptSamples();
+    for (size_t cell = 450; cell <= 575; ++cell)
+    {
+        inverse.ClearCell(cell);
+    }
+
+    int selected = 0;
+    for (auto source : {VoiceModulator::LFO1, VoiceModulator::AmpEnvelope})
+    {
+        ModulatorTimeAxisComponent component;
+        component.Configure(ui.get(), SmartGridOneLayout::ParamMode::Voice, static_cast<size_t>(source), &selected);
+        juce::Image image(juce::Image::ARGB, 512, 200, true);
+        juce::Graphics graphics(image);
+        component.Draw(graphics, image.getBounds());
+        DOCTEST_CHECK(image.getPixelAt(200, 55) != juce::Colours::black);
+        for (int y = 0; y < 200; ++y)
+        {
+            if (y != 100)
+            {
+                DOCTEST_CHECK(image.getPixelAt(256, y) == juce::Colours::black);
+            }
         }
     }
 }

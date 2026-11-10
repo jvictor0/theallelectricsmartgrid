@@ -22,12 +22,18 @@ Event-scope markers SHALL retain real and warped positions. Backward travel SHAL
 - **WHEN** musical phase resets while the continuous coordinate stays unchanged
 - **THEN** the existing restart start is accepted without undoing older scope history
 
-### Requirement: Bounded concurrent publication
-UI inverse and scope reads SHALL use race-free shared payload access and a published real-time cutoff. Reused inverse coordinates outside the retained span and interpolation endpoints newer than the cutoff SHALL be rejected. Marker acceptance SHALL use a coherent publication while the writer remains nonblocking.
+### Requirement: Concurrent publication and inverse reads
+UI inverse and scope reads SHALL use race-free shared payload access and a published real-time cutoff. Reused inverse coordinates outside the retained span and returned timestamps newer than the cutoff SHALL be rejected. Inverse readers SHALL busy-wait until the shared revision is unchanged and even; contention SHALL NOT return an unavailable point. Writer sections SHALL contain bounded cell/frontier transitions with the scatter loop outside, and the audio writer SHALL NOT wait for readers. Marker acceptance SHALL use a coherent publication while the writer remains nonblocking. Genuine absent history SHALL remain unavailable without retrying.
 
 #### Scenario: Writer advances during display
-- **WHEN** an inverse endpoint is overwritten with a timestamp after the accepted publication
-- **THEN** the UI query is unavailable rather than interpolating that endpoint into accepted history
+- **WHEN** the inverse writer overlaps a UI lookup
+- **THEN** the lookup retries until it reads a committed snapshot
+- **AND** the returned timestamp SHALL NOT exceed the accepted publication, even when an interpolation endpoint does
+
+#### Scenario: Absent history
+- **WHEN** a coherent lookup has no retained timestamp within the captured bounds
+- **THEN** the reader returns an unavailable point without retrying
+- **AND** the renderer breaks its path instead of drawing zero or a partially summed weighted value
 
 ### Requirement: Continuous phase clock and delay reads
 The continuous coordinate SHALL equal modulated musical phase plus a constant offset while running. Tempo edits SHALL affect future travel without rescaling stored coordinates. Stopped samples SHALL advance by the nominal phase increment. Restart SHALL rebase the offset while preserving continuous phase. Delay read heads SHALL project and wrap continuous phase into their selected loop strictly behind the write head, with real-time analysis-window safety applied after inversion.
@@ -60,7 +66,7 @@ Modulated LFO mix slew SHALL use the magnitude of the published modulated phase 
 - **THEN** the slew follows phase distance, up to coefficient and discrete integration error
 
 ### Requirement: Checked phase model
-The repository SHALL provide Lean proofs of clock coherence, restart continuity, chosen-inverse soundness, periodic sampling, read-head bounds and ideal phase slew, with reachable-state Veil invariants. Source anchors SHALL associate transitions with C++ operations and reject unreviewed drift. Proof documentation SHALL state the floating-point, interpolation, finite-storage, concurrency and pure-signal boundaries.
+The repository SHALL provide Lean proofs of clock coherence, restart continuity, chosen-inverse soundness, periodic sampling, read-head bounds and ideal phase slew, with reachable-state Veil invariants. It SHALL additionally prove coherent scalar reads under the sequence-counter protocol and accepted-sample publication ordering; retry progress SHALL explicitly assume an eventual quiet attempt and SHALL NOT claim a scheduling or nanosecond bound. Source anchors SHALL associate transitions with C++ operations and reject unreviewed drift. Proof documentation SHALL state the floating-point, interpolation, finite-storage, atomic-memory-order, scheduling and pure-signal boundaries.
 
 #### Scenario: Verification run
 - **WHEN** make lean-test succeeds

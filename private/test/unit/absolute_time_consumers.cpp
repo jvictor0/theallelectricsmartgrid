@@ -310,21 +310,21 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader sample-and-hold captures on delay-lo
 
     clock.m_unmodulatedPhase = 0.1;
     time.Process(clock);
-    input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, PhaseDomain::Modulated).m_triggered;
+    input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, PhaseDomain::Modulated);
     DOCTEST_REQUIRE(input.m_trig[0]);
     lfo.Process(input);
     float captured = lfo.m_shValue;
 
     clock.m_unmodulatedPhase = 0.4;
     time.Process(clock);
-    input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, PhaseDomain::Modulated).m_triggered;
+    input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, PhaseDomain::Modulated);
     DOCTEST_CHECK_FALSE(input.m_trig[0]);
     lfo.Process(input);
     DOCTEST_CHECK(lfo.m_shValue == doctest::Approx(captured));
 
     clock.m_unmodulatedPhase = 1.3;
     time.Process(clock);
-    input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, PhaseDomain::Modulated).m_triggered;
+    input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, PhaseDomain::Modulated);
     DOCTEST_REQUIRE(input.m_trig[0]);
     lfo.Process(input);
     DOCTEST_CHECK(std::abs(lfo.m_shValue - captured) > 1e-4f);

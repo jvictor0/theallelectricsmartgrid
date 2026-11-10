@@ -195,10 +195,12 @@ DOCTEST_TEST_CASE("AbsoluteTime: time warp scope keeps an unwarped period throug
     }
 
     DOCTEST_REQUIRE(reversed);
+    TheoryOfTime::UIState ui;
+    time.PopulateUIState(&ui, input);
     writer.Publish();
     writer.AcceptSamples();
     size_t scope = static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime);
-    ScopeReader reader(&writer, 0, scope, 256, 1);
+    ScopeReader reader(&writer, 0, scope, 256);
     DOCTEST_REQUIRE_FALSE(reader.m_empty);
     DOCTEST_CHECK(reader.m_periodic.m_period == 0.5);
     DOCTEST_CHECK(writer.GetAcceptedMarkers(scope, 0).m_startIndexIndex == 0);
