@@ -1118,7 +1118,7 @@ DOCTEST_TEST_CASE("Encoder visualizers: mixer audio uses a trailing window and e
         QuadModulator::OutputAudio
     };
     const QuadFloat audio(-0.8f, -0.4f, 0.2f, 0.6f);
-    const QuadFloat envelope(0.001f, 0.01f, 0.1f, 2.0f);
+    const QuadFloat envelope(0.001f, 0.1f, 0.5f, 2.0f);
     const size_t count = static_cast<size_t>(SampleTimer::SecondsToSamples(0.125));
     for (size_t sample = 0; sample < count; ++sample)
     {
@@ -1163,23 +1163,42 @@ DOCTEST_TEST_CASE("Encoder visualizers: mixer audio uses a trailing window and e
             DOCTEST_CHECK(pixel.getHue() == doctest::Approx(color.getHue()).epsilon(0.02));
         }
 
-        // The VU needles use host-rate RMS from the follower; compare the
-        // rendered result with the shared drawing math, without a peak needle.
+        // All four RMS needles share the full dial's pivot at (100, 144).
+        // Sample each colored ray away from the scale and the other needles.
         //
         juce::Image actual(juce::Image::ARGB, 200, 160, true);
-        juce::Image expected(juce::Image::ARGB, 200, 160, true);
-        juce::Graphics actualGraphics(actual), expectedGraphics(expected);
+        juce::Graphics actualGraphics(actual);
         vu->Draw(actualGraphics, actual.getBounds());
-        expectedGraphics.fillAll(juce::Colours::black);
+        const juce::Point<int> needlePoints[] = {{55, 99}, {78, 84}, {116, 83}, {145, 99}};
         for (size_t lane = 0; lane < 4; ++lane)
         {
-            MeterDrawer drawer{80.0f, 100.0f, static_cast<float>((lane % 2) * 100), static_cast<float>((lane / 2) * 80)};
-            drawer.DrawRadialMeter(expectedGraphics, 20.0f * std::log10(envelope[lane]), 0.0f,
-                J(TheNonagonSmartGrid::VoiceColor(lane)), false);
+            DOCTEST_CAPTURE(lane);
+            auto needleColor = J(TheNonagonSmartGrid::VoiceColor(lane));
+            bool found = false;
+            for (int y = -2; y <= 2; ++y)
+            {
+                for (int x = -2; x <= 2; ++x)
+                {
+                    auto point = needlePoints[lane] + juce::Point<int>(x, y);
+                    auto pixel = actual.getPixelAt(point.x, point.y);
+                    found |= pixel.getBrightness() > needleColor.getBrightness() * 0.6f
+                        && std::abs(pixel.getHue() - needleColor.getHue()) < 0.02f;
+                }
+            }
+
+            DOCTEST_CHECK(found);
         }
 
-        DOCTEST_CHECK(std::memcmp(juce::Image::BitmapData(actual, juce::Image::BitmapData::readOnly).data,
-            juce::Image::BitmapData(expected, juce::Image::BitmapData::readOnly).data, 200 * 160 * 4) == 0);
+        if (tap == 0)
+        {
+            if (const char* path = std::getenv("SMARTGRID_ENVELOPE_PREVIEW"))
+            {
+                juce::FileOutputStream output{juce::File(path)};
+                DOCTEST_REQUIRE(output.openedOk());
+                DOCTEST_CHECK(juce::PNGImageFormat().writeImageToStream(actual, output));
+            }
+        }
+
         state.m_quadScopeWriter.Write(static_cast<size_t>(GetMixerScope(x_envelopes[tap])), QuadFloat::Splat(99.0f));
         DOCTEST_CHECK(vu->GetEnvelope(0) == envelope[0]);
     }

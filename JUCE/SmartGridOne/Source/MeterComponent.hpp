@@ -15,22 +15,35 @@ struct MeterDrawer
 
     void DrawRadialVUMeter(juce::Graphics& g, float rmsdBFS, float peakdBFS, juce::Colour needleColor)
     {
-        DrawRadialMeter(g, rmsdBFS, peakdBFS, needleColor, true);
+        DrawRadialScale(g);
+        DrawRadialNeedle(g, rmsdBFS, needleColor, 0.0f, 0.7f);
+        DrawRadialNeedle(g, peakdBFS, needleColor, 0.8f, 0.9f);
     }
 
-    void DrawRadialEnvelope(juce::Graphics& g, float rms, juce::Colour needleColor)
+    juce::Point<float> GetCenter() const
+    {
+        return {m_xMin + m_width / 2.0f, m_yMin + m_height * 0.9f};
+    }
+
+    float GetRadius() const
+    {
+        return std::min(m_width / std::sqrt(2.0f), m_height * 0.8f) * 0.9f;
+    }
+
+    void DrawRadialEnvelopeNeedle(juce::Graphics& g, float rms, juce::Colour needleColor)
     {
         float db = 20.0f * std::log10(std::max(1.0e-6f, rms));
-        DrawRadialMeter(g, db, db, needleColor, false);
+        DrawRadialNeedle(g, db, needleColor, 0.0f, 0.7f);
     }
 
-    void DrawRadialMeter(juce::Graphics& g, float rmsdBFS, float peakdBFS, juce::Colour needleColor, bool drawPeak)
+    void DrawRadialScale(juce::Graphics& g)
     {
         // Calculate the center and radius for the arc
         //
-        float centerX = m_xMin + m_width / 2.0f;
-        float centerY = m_yMin + m_height * 0.9f;
-        float radius = std::min(m_width / std::sqrt(2.0f), m_height * 0.8f) * 0.9f;
+        auto center = GetCenter();
+        float centerX = center.getX();
+        float centerY = center.getY();
+        float radius = GetRadius();
         
         // Define the arc bounds (top 90 degrees, rotated 45 degrees clockwise)
         // Start at -45 degrees, end at +45 degrees (90 degree span)
@@ -88,7 +101,7 @@ struct MeterDrawer
                 g.setColour(juce::Colours::white);
             }
 
-            float normalizedDb = (db + 30.0f) / 36.0f; // Normalize to 0-1 range
+            float normalizedDb = (db + 30.0f) / 36.0f;
             float angle = startAngle + normalizedDb * totalAngle;
             
             // Calculate tick mark positions
@@ -103,39 +116,16 @@ struct MeterDrawer
             
             g.drawLine(x1, y1, x2, y2, 1.0f);
         }
-        
-        // Draw the needle
-        //
-        float normalizedDb = (rmsdBFS + 30.0f) / 36.0f; // Normalize to 0-1 range
-        normalizedDb = juce::jlimit(0.0f, 1.0f, normalizedDb); // Clamp to valid range
-        float needleAngle = startAngle + normalizedDb * totalAngle;
-        
-        float needleLength = radius * 0.7f;
-        float needleX = centerX + std::cos(needleAngle) * needleLength;
-        float needleY = centerY - std::sin(needleAngle) * needleLength;
-        
+    }
+
+    void DrawRadialNeedle(juce::Graphics& g, float db, juce::Colour needleColor, float innerRadius, float outerRadius)
+    {
+        float normalizedDb = juce::jlimit(0.0f, 1.0f, (db + 30.0f) / 36.0f);
+        float angle = juce::MathConstants<float>::pi * (0.75f - normalizedDb * 0.5f);
+        auto center = GetCenter();
+        auto direction = juce::Point<float>(std::cos(angle), -std::sin(angle)) * GetRadius();
         g.setColour(needleColor);
-        g.drawLine(centerX, centerY, needleX, needleY, 2.0f);
-
-        if (!drawPeak)
-        {
-            return;
-        }
-
-        float normalizedPeakDb = (peakdBFS + 30.0f) / 36.0f;
-        normalizedPeakDb = juce::jlimit(0.0f, 1.0f, normalizedPeakDb);
-        float peakNeedleAngle = startAngle + normalizedPeakDb * totalAngle;
-      
-        float peakNeedleTip = radius * 0.9f;
-        float peakNeedleTipX = centerX + std::cos(peakNeedleAngle) * peakNeedleTip;
-        float peakNeedleTipY = centerY - std::sin(peakNeedleAngle) * peakNeedleTip;
-
-        float peakNeedleTail = radius * 0.8f;
-        float peakNeedleTailX = centerX + std::cos(peakNeedleAngle) * peakNeedleTail;
-        float peakNeedleTailY = centerY - std::sin(peakNeedleAngle) * peakNeedleTail;
-
-        g.setColour(needleColor);
-        g.drawLine(peakNeedleTailX, peakNeedleTailY, peakNeedleTipX, peakNeedleTipY, 2.0f);
+        g.drawLine(juce::Line<float>(center + direction * innerRadius, center + direction * outerRadius), 2.0f);
     }
 };
 

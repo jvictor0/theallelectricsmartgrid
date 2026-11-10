@@ -30,12 +30,12 @@ struct EnvelopeFollowerComponent : SmartGridOneMainVisualizerComponent
     void Draw(juce::Graphics& g, juce::Rectangle<int> bounds) override
     {
         g.fillAll(juce::Colours::black);
+        MeterDrawer drawer{static_cast<float>(bounds.getHeight()), static_cast<float>(bounds.getWidth()),
+            static_cast<float>(bounds.getX()), static_cast<float>(bounds.getY())};
+        drawer.DrawRadialScale(g);
         for (size_t lane = 0; lane < 4; ++lane)
         {
-            float width = bounds.getWidth() * 0.5f;
-            float height = bounds.getHeight() * 0.5f;
-            MeterDrawer drawer{height, width, bounds.getX() + (lane % 2) * width, bounds.getY() + (lane / 2) * height};
-            drawer.DrawRadialEnvelope(g, GetEnvelope(lane), J(TheNonagonSmartGrid::VoiceColor(lane)));
+            drawer.DrawRadialEnvelopeNeedle(g, GetEnvelope(lane), J(TheNonagonSmartGrid::VoiceColor(lane)));
         }
     }
 };
