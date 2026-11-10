@@ -143,14 +143,14 @@ DOCTEST_TEST_CASE("GangedRandomLFO samples a correlated round in canonical order
     lfo.m_sampleRate = 10.0;
     lfo.SampleAndResetRound(input);
 
-    DOCTEST_CHECK(lfo.m_voiceInputs[0].m_waitingIncrement == doctest::Approx(0.04));
-    DOCTEST_CHECK(lfo.m_voiceInputs[1].m_waitingIncrement == doctest::Approx(0.06));
-    DOCTEST_CHECK(lfo.m_voiceInputs[0].m_movingIncrement == doctest::Approx(0.02));
-    DOCTEST_CHECK(lfo.m_voiceInputs[1].m_movingIncrement == doctest::Approx(0.03));
-    DOCTEST_CHECK(lfo.m_voices[0].m_target == doctest::Approx(0.0f));
-    DOCTEST_CHECK(lfo.m_voices[1].m_target == doctest::Approx(1.0f));
-    DOCTEST_CHECK(lfo.m_voiceInputs[0].m_shape == doctest::Approx(0.1f));
-    DOCTEST_CHECK(lfo.m_voiceInputs[1].m_shape == doctest::Approx(0.9f));
+    DOCTEST_CHECK(lfo.m_waitingIncrement[0] == doctest::Approx(0.04));
+    DOCTEST_CHECK(lfo.m_waitingIncrement[1] == doctest::Approx(0.06));
+    DOCTEST_CHECK(lfo.m_movingIncrement[0] == doctest::Approx(0.02));
+    DOCTEST_CHECK(lfo.m_movingIncrement[1] == doctest::Approx(0.03));
+    DOCTEST_CHECK(lfo.m_target[0] == doctest::Approx(0.0f));
+    DOCTEST_CHECK(lfo.m_target[1] == doctest::Approx(1.0f));
+    DOCTEST_CHECK(lfo.m_shape[0] == doctest::Approx(0.1f));
+    DOCTEST_CHECK(lfo.m_shape[1] == doctest::Approx(0.9f));
     DOCTEST_CHECK(lfo.m_draws.m_nextNormal == 8);
     DOCTEST_CHECK(lfo.m_draws.m_nextUniform == 3);
 }
@@ -218,10 +218,10 @@ DOCTEST_TEST_CASE("GangedRandomLFO starts at a shared random time between two ra
             DOCTEST_CHECK(lfo.m_roundElapsedSamples == static_cast<double>(elapsed));
             DOCTEST_CHECK(lfo.m_draws.m_nextNormal == 10);
             DOCTEST_CHECK(lfo.m_draws.m_nextUniform == 5);
-            DOCTEST_CHECK(lfo.m_voices[0].m_source == doctest::Approx(0.2f));
-            DOCTEST_CHECK(lfo.m_voices[1].m_source == doctest::Approx(0.8f));
-            DOCTEST_CHECK(lfo.m_voices[0].m_target == doctest::Approx(0.9f));
-            DOCTEST_CHECK(lfo.m_voices[1].m_target == doctest::Approx(0.1f));
+            DOCTEST_CHECK(lfo.m_source[0] == doctest::Approx(0.2f));
+            DOCTEST_CHECK(lfo.m_source[1] == doctest::Approx(0.8f));
+            DOCTEST_CHECK(lfo.m_target[0] == doctest::Approx(0.9f));
+            DOCTEST_CHECK(lfo.m_target[1] == doctest::Approx(0.1f));
             for (size_t voice = 0; voice < 2; ++voice)
             {
                 DOCTEST_CHECK(lfo.Output(voice) == doctest::Approx(reference.Output(voice)));
@@ -272,10 +272,13 @@ DOCTEST_TEST_CASE("GangedRandomLFO holds completed lanes until the slowest lane'
     GangedRandomLFOInput input = GangedRandomLFOInput::Standard(1.0, 0.1f);
     for (size_t lane = 0; lane < 2; ++lane)
     {
-        lfo.m_voices[lane].Reset(1.0f);
-        lfo.m_voiceInputs[lane] = {1.0 / 16.0, lane == 0 ? 1.0 / 8.0 : 1.0 / 64.0, 1.0f};
+        lfo.m_target[lane] = 1.0f;
+        lfo.m_waitingIncrement[lane] = 1.0 / 16.0;
+        lfo.m_movingIncrement[lane] = lane == 0 ? 1.0 / 8.0 : 1.0 / 64.0;
+        lfo.m_shape[lane] = 1.0f;
     }
 
+    lfo.ResetRound();
     for (size_t sample = 0; sample < 96; ++sample)
     {
         lfo.Process(1.0 / kSampleRate, input);
@@ -284,8 +287,8 @@ DOCTEST_TEST_CASE("GangedRandomLFO holds completed lanes until the slowest lane'
             DOCTEST_CHECK(lfo.Output(0) == 1.0f);
         }
 
-        DOCTEST_CHECK(lfo.m_voices[0].m_target == 1.0f);
-        DOCTEST_CHECK(lfo.m_voices[1].m_target == 1.0f);
+        DOCTEST_CHECK(lfo.m_target[0] == 1.0f);
+        DOCTEST_CHECK(lfo.m_target[1] == 1.0f);
         if (sample == 48)
         {
             // The chord between the cosine curve's samples at 32 and 64.
@@ -298,7 +301,7 @@ DOCTEST_TEST_CASE("GangedRandomLFO holds completed lanes until the slowest lane'
     DOCTEST_CHECK(lfo.m_roundElapsedSamples == 0.0);
     DOCTEST_CHECK(lfo.Output(0) == 1.0f);
     DOCTEST_CHECK(lfo.Output(1) == 1.0f);
-    DOCTEST_CHECK(lfo.m_voices[1].m_target != 1.0f);
+    DOCTEST_CHECK(lfo.m_target[1] != 1.0f);
 }
 
 DOCTEST_TEST_CASE("GangedRandomLFO is bounded NaN clean and deterministic")
@@ -342,12 +345,12 @@ DOCTEST_TEST_CASE("GangedRandomLFO publishes a coherent predictive snapshot")
     DOCTEST_CHECK(snapshot.m_roundElapsedSamples == doctest::Approx(initialElapsed + 1.0));
     for (size_t voice = 0; voice < 2; ++voice)
     {
-        DOCTEST_CHECK(snapshot.m_voices[voice].m_state == lfo.m_voices[voice].m_state);
-        DOCTEST_CHECK(snapshot.m_voices[voice].m_source == lfo.m_voices[voice].m_source);
-        DOCTEST_CHECK(snapshot.m_voices[voice].m_target == lfo.m_voices[voice].m_target);
+        DOCTEST_CHECK(snapshot.m_voices[voice].m_state == lfo.GetVoiceState(voice).m_state);
+        DOCTEST_CHECK(snapshot.m_voices[voice].m_source == lfo.m_source[voice]);
+        DOCTEST_CHECK(snapshot.m_voices[voice].m_target == lfo.m_target[voice]);
         DOCTEST_CHECK(
             snapshot.m_voices[voice].m_waitingIncrement ==
-            lfo.m_voiceInputs[voice].m_waitingIncrement);
+            lfo.m_waitingIncrement[voice]);
     }
 
     uiState.m_revision.store(1, std::memory_order_release);
@@ -372,5 +375,111 @@ DOCTEST_TEST_CASE("GangedRandomLFO history matches frame interpolation across no
         }
 
         SampleTimer::IncrementSample();
+    }
+}
+
+template<size_t Size>
+static void CheckPackedGangedRandomRound(size_t timingOffset)
+{
+    GangedRandomLFO<Size> lfo(123u);
+    std::array<GangedRandomLFOVoice, Size> voices;
+    std::array<GangedRandomLFOVoiceInput, Size> inputs;
+    std::array<float, Size> starts;
+    std::array<float, Size> ends;
+    const double waiting[] = {15.0, 100.0, 1.0, 64.0};
+    const double moving[] = {49.0, 28.0, 1.0, 127.0};
+    for (size_t lane = 0; lane < Size; ++lane)
+    {
+        size_t timing = (lane + timingOffset) % 4;
+        lfo.m_source[lane] = 0.1f + 0.2f * lane;
+        lfo.m_target[lane] = 0.9f - 0.2f * lane;
+        lfo.m_shape[lane] = static_cast<float>(timing) / 3.0f;
+        lfo.m_waitingIncrement[lane] = 1.0 / waiting[timing];
+        lfo.m_movingIncrement[lane] = 1.0 / moving[timing];
+        inputs[lane] = lfo.GetVoiceInput(lane);
+        voices[lane].m_target = lfo.m_source[lane];
+        voices[lane].Reset(lfo.m_target[lane]);
+    }
+
+    lfo.ResetRound();
+    const auto input = GangedRandomLFOInput::Standard(1.0, 0.1f);
+    for (size_t sample = 0; sample < 512; ++sample)
+    {
+        DOCTEST_CAPTURE(Size);
+        DOCTEST_CAPTURE(timingOffset);
+        DOCTEST_CAPTURE(sample);
+        if (sample % x_gangedRandomFrameSamples == 0)
+        {
+            bool allDone = true;
+            for (const auto& voice : voices)
+            {
+                allDone = allDone && voice.m_state == GangedRandomLFOVoice::State::Done;
+            }
+
+            if (allDone)
+            {
+                DOCTEST_CHECK(lfo.m_roundSamples == static_cast<double>(sample));
+                lfo.Process(input);
+                DOCTEST_CHECK(lfo.m_roundElapsedSamples == 0.0);
+                for (size_t lane = 0; lane < Size; ++lane)
+                {
+                    DOCTEST_CHECK(lfo.Output(lane) == voices[lane].m_target);
+                }
+
+                return;
+            }
+
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                starts[lane] = voices[lane].m_output;
+                ends[lane] = voices[lane].Process(inputs[lane], x_gangedRandomFrameSamples);
+            }
+        }
+
+        lfo.Process(input);
+        DOCTEST_CHECK(lfo.m_roundElapsedSamples == static_cast<double>(sample));
+        float fraction = static_cast<float>(sample % x_gangedRandomFrameSamples) / x_gangedRandomFrameSamples;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            float expected = starts[lane] + (ends[lane] - starts[lane]) * fraction;
+            DOCTEST_CHECK(lfo.Output(lane) == doctest::Approx(expected).epsilon(1e-6).scale(1));
+        }
+    }
+
+    DOCTEST_FAIL("The round did not finish");
+}
+
+DOCTEST_TEST_CASE("GangedRandomLFO packed forecasts preserve scalar lane completion and round cadence")
+{
+    for (size_t offset = 0; offset < 4; ++offset)
+    {
+        CheckPackedGangedRandomRound<1>(offset);
+        CheckPackedGangedRandomRound<2>(offset);
+        CheckPackedGangedRandomRound<3>(offset);
+        CheckPackedGangedRandomRound<4>(offset);
+    }
+}
+
+DOCTEST_TEST_CASE("GangedRandomLFO vector cosine curve stays within three millionths of cosine")
+{
+    using Vector = MultiChannelNumber<float, 4>;
+    using DoubleVector = MultiChannelNumber<double, 4>;
+    const Vector source(0.0f, 1.0f, 0.3f, 0.8f);
+    const Vector target(1.0f, 0.0f, 0.7f, 0.2f);
+    const Vector shape(1.0f, 0.0f, 0.25f, 0.75f);
+    for (size_t sample = 0; sample <= 10000; ++sample)
+    {
+        double progress = -0.1 + 1.2 * sample / 10000.0;
+        auto output = GangedRandomLFOShapedInterpolate(source, target, shape, DoubleVector::Splat(progress));
+        for (size_t lane = 0; lane < 4; ++lane)
+        {
+            double p = std::clamp(progress, 0.0, 1.0);
+            double smooth = 0.5 - 0.5 * std::cos(M_PI * p);
+            double shaped = shape[lane] * smooth + (1.0 - shape[lane]) * p;
+            double expected = target[lane] * shaped + source[lane] * (1.0 - shaped);
+            DOCTEST_CHECK(std::abs(output[lane] - expected) < 3e-6);
+            DOCTEST_CHECK(output[lane] >= std::min(source[lane], target[lane]));
+            DOCTEST_CHECK(output[lane] <= std::max(source[lane], target[lane]));
+        }
     }
 }

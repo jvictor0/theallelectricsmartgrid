@@ -147,14 +147,14 @@ DOCTEST_TEST_CASE("Quad random LFOs publish all eight sources and each group dis
         auto& lfo = synth.m_quadGangedRandomLFO[slot];
         for (size_t channel = 0; channel < 4; ++channel)
         {
-            auto& voice = lfo.m_voices[channel];
-            voice.m_state = GangedRandomLFOVoice::State::Moving;
-            voice.m_source = 0.1f * static_cast<float>(slot + 1);
-            voice.m_target = voice.m_source + 0.2f;
-            voice.m_output = voice.m_source;
-            lfo.m_voiceInputs[channel].m_movingIncrement = 0.01 * static_cast<double>(channel + 1);
-            lfo.m_voiceInputs[channel].m_shape = 0.0f;
+            lfo.m_source[channel] = 0.1f * static_cast<float>(slot + 1);
+            lfo.m_target[channel] = lfo.m_source[channel] + 0.2f;
+            lfo.m_waitingIncrement[channel] = INFINITY;
+            lfo.m_movingIncrement[channel] = 0.01 * static_cast<double>(channel + 1);
+            lfo.m_shape[channel] = 0.0f;
         }
+
+        lfo.ResetRound();
     }
 
     rig.RunSamples(2);

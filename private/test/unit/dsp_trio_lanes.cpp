@@ -280,12 +280,22 @@ DOCTEST_TEST_CASE("Trio: dual wave shaping VCO channels match mono cores")
             // Hold matching owned morph sources while comparing vector DSP.
             //
             auto& random = trio->m_morphRandom[j];
-            random.m_frameInitialized = true;
-            random.m_nextVoices[i].m_target = 0.3f * i;
-            random.m_nextVoices[i].Reset(0.3f * i);
-            mono[i]->m_morphRandom[j].m_frameInitialized = true;
-            mono[i]->m_morphRandom[j].m_nextVoices[0] = random.m_nextVoices[i];
+            random.m_source[i] = 0.3f * i;
+            random.m_target[i] = 0.3f * i;
+            random.m_waitingIncrement[i] = 1.0 / 100000.0;
+            random.m_movingIncrement[i] = 1.0 / 32.0;
+            auto& monoRandom = mono[i]->m_morphRandom[j];
+            monoRandom.m_source[0] = random.m_source[i];
+            monoRandom.m_target[0] = random.m_target[i];
+            monoRandom.m_waitingIncrement[0] = random.m_waitingIncrement[i];
+            monoRandom.m_movingIncrement[0] = random.m_movingIncrement[i];
+            monoRandom.ResetRound();
         }
+    }
+
+    for (auto& random : trio->m_morphRandom)
+    {
+        random.ResetRound();
     }
 
     TrioDualWaveShapingVCO::Input trioInput;

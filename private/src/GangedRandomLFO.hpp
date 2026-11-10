@@ -14,6 +14,26 @@
 
 inline constexpr size_t x_gangedRandomFrameSamples = 32;
 
+// Match the scalar voice's completion test at a frame boundary, including
+// reciprocal rounding close to an integer number of samples.
+//
+inline double GangedRandomLFOLaneEnd(double waitingSamples, double movingIncrement)
+{
+    double end = std::ceil((waitingSamples + std::ceil(1.0 / movingIncrement))
+        / x_gangedRandomFrameSamples) * x_gangedRandomFrameSamples;
+    if ((end - waitingSamples) * movingIncrement < 1.0)
+    {
+        end += x_gangedRandomFrameSamples;
+    }
+
+    if ((end - x_gangedRandomFrameSamples - waitingSamples) * movingIncrement >= 1.0)
+    {
+        end -= x_gangedRandomFrameSamples;
+    }
+
+    return end;
+}
+
 struct GangedRandomLFOTiming
 {
     double m_muSeconds{0.0};
@@ -41,19 +61,32 @@ struct GangedRandomLFOInput
     }
 };
 
+template<size_t Size>
+[[gnu::always_inline]]
+inline MultiChannelNumber<float, Size> GangedRandomLFOShapedInterpolate(
+    const MultiChannelNumber<float, Size>& source,
+    const MultiChannelNumber<float, Size>& target,
+    const MultiChannelNumber<float, Size>& shape,
+    const MultiChannelNumber<double, Size>& progress)
+{
+    using Vector = MultiChannelNumber<float, Size>;
+    using DoubleVector = MultiChannelNumber<double, Size>;
+    Vector p = DoubleVector::Min(DoubleVector::Splat(1), DoubleVector::Max(DoubleVector(), progress)).template Convert<float>();
+    Vector s = Vector::Min(Vector::Splat(1), Vector::Max(Vector(), shape));
+    Vector smooth = Vector::Splat(0.5f) - Math::Cos2pi(p * 0.5f) * 0.5f;
+    Vector shaped = s * smooth + (Vector::Splat(1) - s) * p;
+    return target * shaped + source * (Vector::Splat(1) - shaped);
+}
+
 inline float GangedRandomLFOShapedInterpolate(
     float source,
     float target,
     float shape,
     double progress)
 {
-    static constexpr double x_pi = 3.14159265358979323846;
-    double clampedProgress = std::clamp(progress, 0.0, 1.0);
-    float narrowedProgress = static_cast<float>(clampedProgress);
-    float clampedShape = std::clamp(shape, 0.0f, 1.0f);
-    float smoothProgress = 0.5f - 0.5f * std::cos(static_cast<float>(x_pi) * narrowedProgress);
-    float shapedProgress = clampedShape * smoothProgress + (1.0f - clampedShape) * narrowedProgress;
-    return target * shapedProgress + source * (1.0f - shapedProgress);
+    using Vector = MultiChannelNumber<float, 1>;
+    return GangedRandomLFOShapedInterpolate<1>(Vector(source), Vector(target), Vector(shape),
+        MultiChannelNumber<double, 1>(progress))[0];
 }
 
 inline float GangedRandomLFOFrameInterpolate(
@@ -269,8 +302,8 @@ struct GangedRandomLFOHistory : SampleEventHistory<5 * x_voiceCount + 1, 256>
         end = start;
         for (size_t lane = 0; lane < x_voiceCount; ++lane)
         {
-            double duration = std::ceil(1.0 / event.m_values[lane * 5 + 2])
-                + std::ceil(1.0 / event.m_values[lane * 5 + 3]);
+            double duration = GangedRandomLFOLaneEnd(std::ceil(1.0 / event.m_values[lane * 5 + 2]),
+                event.m_values[lane * 5 + 3]);
             end = std::max(end, start + duration);
         }
 
@@ -371,15 +404,22 @@ struct GangedRandomLFO
 {
     static_assert(x_voiceCount > 0, "a ganged random LFO requires at least one voice");
     using Vector = MultiChannelNumber<float, x_voiceCount>;
+    using DoubleVector = MultiChannelNumber<double, x_voiceCount>;
 
-    GangedRandomLFOVoice m_voices[x_voiceCount];
-    GangedRandomLFOVoice m_nextVoices[x_voiceCount];
+    Vector m_source;
+    Vector m_target;
+    Vector m_shape;
+    DoubleVector m_waitingIncrement;
+    DoubleVector m_movingIncrement;
+    DoubleVector m_waitingSamples;
+    DoubleVector m_laneEndSamples;
     Vector m_frameStart;
     Vector m_frameEnd;
     Vector m_output;
     size_t m_framePosition = 0;
     bool m_frameInitialized = false;
-    GangedRandomLFOVoiceInput m_voiceInputs[x_voiceCount];
+    bool m_hasRound = false;
+    double m_roundSamples = 0.0;
     DrawSource m_draws;
     double m_sampleRate{0.0};
     double m_roundElapsedSamples{0.0};
@@ -397,6 +437,14 @@ struct GangedRandomLFO
     {
     }
 
+    [[gnu::always_inline]]
+    Vector EvaluateRound(double elapsed) const
+    {
+        DoubleVector movingSamples = DoubleVector::Max(DoubleVector(), DoubleVector::Splat(elapsed) - m_waitingSamples);
+        return GangedRandomLFOShapedInterpolate(m_source, m_target, m_shape, movingSamples * m_movingIncrement);
+    }
+
+    [[gnu::always_inline]]
     void Process(double dt, const GangedRandomLFOInput& input)
     {
         if (!std::isfinite(dt) || dt <= 0.0)
@@ -412,48 +460,17 @@ struct GangedRandomLFO
         if (m_framePosition == 0)
         {
             m_sampleRate = 1.0 / dt;
-            bool allDone = true;
-            for (size_t voice = 0; voice < x_voiceCount; ++voice)
+            if (!m_hasRound || m_roundElapsedSamples >= m_roundSamples)
             {
-                if (m_frameInitialized)
-                {
-                    m_voices[voice] = m_nextVoices[voice];
-                }
-
-                allDone = allDone && m_voices[voice].m_state == GangedRandomLFOVoice::State::Done;
+                BeginRound(input);
+            }
+            else if (m_frameInitialized)
+            {
+                m_frameStart = m_frameEnd;
             }
 
-            if (allDone)
-            {
-                if (!m_frameInitialized)
-                {
-                    std::array<float, x_voiceCount> sources = SampleTargets(input);
-                    for (size_t voice = 0; voice < x_voiceCount; ++voice)
-                    {
-                        m_voices[voice].m_target = sources[voice];
-                    }
-                }
-
-                SampleAndResetRound(input);
-                if (!m_frameInitialized)
-                {
-                    RandomizeInitialRoundPosition();
-                }
-
-                if (m_history)
-                {
-                    m_history->RecordRound(
-                        SampleTimer::GetSample(), m_voices, m_voiceInputs, m_roundElapsedSamples);
-                }
-            }
-
-            for (size_t voice = 0; voice < x_voiceCount; ++voice)
-            {
-                m_frameStart[voice] = m_voices[voice].m_output;
-                m_nextVoices[voice] = m_voices[voice];
-                m_frameEnd[voice] = m_nextVoices[voice].Process(m_voiceInputs[voice], x_gangedRandomFrameSamples);
-            }
-
+            double frameStart = m_roundElapsedSamples - static_cast<double>(m_framePosition);
+            m_frameEnd = EvaluateRound(frameStart + x_gangedRandomFrameSamples);
             m_frameInitialized = true;
         }
 
@@ -464,6 +481,7 @@ struct GangedRandomLFO
 
     // One engine sample, the same Process shape as the other per-voice DSP.
     //
+    [[gnu::always_inline]]
     Vector Process(const GangedRandomLFOInput& input)
     {
         Process(SampleTimer::x_samplePeriod, input);
@@ -519,6 +537,7 @@ struct GangedRandomLFO
         return targets;
     }
 
+    [[gnu::noinline]]
     void SampleAndResetRound(const GangedRandomLFOInput& input)
     {
         std::array<double, x_voiceCount> waitingIncrements =
@@ -532,24 +551,78 @@ struct GangedRandomLFO
             shapes[voice] = std::clamp(m_draws.Uniform01(), 0.0f, 1.0f);
         }
 
+        m_source = m_target;
         for (size_t voice = 0; voice < x_voiceCount; ++voice)
         {
-            m_voiceInputs[voice].m_waitingIncrement = waitingIncrements[voice];
-            m_voiceInputs[voice].m_movingIncrement = movingIncrements[voice];
-            m_voiceInputs[voice].m_shape = shapes[voice];
-            m_voices[voice].Reset(targets[voice]);
+            m_waitingIncrement[voice] = waitingIncrements[voice];
+            m_movingIncrement[voice] = movingIncrements[voice];
+            m_shape[voice] = shapes[voice];
+            m_target[voice] = targets[voice];
         }
 
+        ResetRound();
+    }
+
+    // Cache lane boundaries once per round.
+    //
+    void ResetRound()
+    {
+        m_roundSamples = 0.0;
+        for (size_t voice = 0; voice < x_voiceCount; ++voice)
+        {
+            m_waitingSamples[voice] = std::ceil(1.0 / m_waitingIncrement[voice]);
+            m_laneEndSamples[voice] = GangedRandomLFOLaneEnd(m_waitingSamples[voice], m_movingIncrement[voice]);
+            m_roundSamples = std::max(m_roundSamples, m_laneEndSamples[voice]);
+        }
+
+        m_hasRound = true;
+        m_frameInitialized = false;
+        m_framePosition = 0;
         m_roundElapsedSamples = 0.0;
+        m_frameStart = m_source;
+        m_frameEnd = m_source;
+        m_output = m_source;
+    }
+
+    [[gnu::noinline]]
+    void BeginRound(const GangedRandomLFOInput& input)
+    {
+        bool initial = !m_hasRound;
+        if (initial)
+        {
+            auto sources = SampleTargets(input);
+            m_target = Vector(sources.data());
+        }
+
+        SampleAndResetRound(input);
+        if (initial)
+        {
+            RandomizeInitialRoundPosition();
+        }
+
+        m_frameStart = EvaluateRound(m_roundElapsedSamples - static_cast<double>(m_framePosition));
+        if (m_history)
+        {
+            GangedRandomLFOVoice voices[x_voiceCount];
+            GangedRandomLFOVoiceInput inputs[x_voiceCount];
+            for (size_t voice = 0; voice < x_voiceCount; ++voice)
+            {
+                voices[voice].m_source = m_source[voice];
+                voices[voice].m_target = m_target[voice];
+                inputs[voice] = GetVoiceInput(voice);
+            }
+
+            m_history->RecordRound(SampleTimer::GetSample(), voices, inputs, m_roundElapsedSamples);
+        }
     }
 
     void RandomizeInitialRoundPosition()
     {
         double durationSamples = 0.0;
-        for (const GangedRandomLFOVoiceInput& input : m_voiceInputs)
+        for (size_t voice = 0; voice < x_voiceCount; ++voice)
         {
             durationSamples = std::max(durationSamples,
-                std::ceil(1.0 / input.m_waitingIncrement) + std::ceil(1.0 / input.m_movingIncrement));
+                m_waitingSamples[voice] + std::ceil(1.0 / m_movingIncrement[voice]));
         }
 
         durationSamples = std::ceil(durationSamples / x_gangedRandomFrameSamples) * x_gangedRandomFrameSamples;
@@ -558,15 +631,28 @@ struct GangedRandomLFO
             std::floor(position * durationSamples), durationSamples - 1.0));
         m_roundElapsedSamples = static_cast<double>(elapsedSamples);
         m_framePosition = elapsedSamples % x_gangedRandomFrameSamples;
+    }
 
-        // Keep the enclosing frame so startup uses the same interpolated curve
-        // as an already-running gang, including the holds of completed voices.
-        //
-        size_t frameStart = elapsedSamples - m_framePosition;
-        for (size_t voice = 0; voice < x_voiceCount; ++voice)
+    GangedRandomLFOVoiceInput GetVoiceInput(size_t voice) const
+    {
+        return {m_waitingIncrement[voice], m_movingIncrement[voice], m_shape[voice]};
+    }
+
+    GangedRandomLFOVoice GetVoiceState(size_t voice) const
+    {
+        GangedRandomLFOVoice source;
+        if (m_hasRound)
         {
-            m_voices[voice].Process(m_voiceInputs[voice], frameStart);
+            source.m_target = m_source[voice];
+            source.Reset(m_target[voice]);
+            double frameStart = std::floor(m_roundElapsedSamples / x_gangedRandomFrameSamples) * x_gangedRandomFrameSamples;
+            auto input = GetVoiceInput(voice);
+            source.Process(input, static_cast<size_t>(std::min(frameStart, m_laneEndSamples[voice])));
+            source.Process(input, static_cast<size_t>(m_roundElapsedSamples - frameStart));
         }
+
+        source.m_output = m_output[voice];
+        return source;
     }
 
     void PopulateUIState(GangedRandomLFOUIState<x_voiceCount>* uiState) const
@@ -581,14 +667,8 @@ struct GangedRandomLFO
         uiState->m_roundElapsedSamples.store(m_roundElapsedSamples, std::memory_order_relaxed);
         for (size_t voice = 0; voice < x_voiceCount; ++voice)
         {
-            GangedRandomLFOVoice source = m_voices[voice];
-            const GangedRandomLFOVoiceInput& input = m_voiceInputs[voice];
-            if (m_frameInitialized)
-            {
-                source.Process(input, (m_framePosition + x_gangedRandomFrameSamples - 1) % x_gangedRandomFrameSamples);
-            }
-
-            source.m_output = m_output[voice];
+            GangedRandomLFOVoice source = GetVoiceState(voice);
+            GangedRandomLFOVoiceInput input = GetVoiceInput(voice);
             GangedRandomLFOVoiceUIState& destination = uiState->m_voices[voice];
             destination.m_state.store(source.m_state, std::memory_order_relaxed);
             destination.m_currentStateProgress.store(
