@@ -52,6 +52,11 @@ struct MatrixRig
         return m_bank.GetModulatorValues(0);
     }
 
+    Cell::GestureValues& Gestures()
+    {
+        return m_bank.GetGestureValues();
+    }
+
     static void SetSettled(Cell& cell, float left, float right)
     {
         for (size_t scene = 0; scene < SmartGrid::SceneManager::x_numScenes; ++scene)
@@ -137,6 +142,7 @@ struct MatrixRig
         }
 
         Sources().ComputeChanged();
+        Gestures().ComputeChanged();
         auto& scene = m_context.m_sceneManager;
         bool blendChanged = scene.m_changed && !scene.m_changedScene;
         if (blendChanged)
@@ -234,7 +240,7 @@ DOCTEST_TEST_CASE("encoder matrix: short settled refresh matches the legacy full
         for (size_t gesture = 0; gesture < Cell::x_numGestureParams; ++gesture)
         {
             float weight = value(random);
-            actual.Sources().m_gestureWeights[gesture] = reference.Sources().m_gestureWeights[gesture] = weight;
+            actual.Gestures().m_gestureWeights[gesture] = reference.Gestures().m_gestureWeights[gesture] = weight;
         }
 
         for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
@@ -433,7 +439,7 @@ DOCTEST_TEST_CASE("encoder matrix: gestures edits scenes and UI preserve recursi
             rig->m_context.m_sceneManager.m_blendFactor = blend;
             if (frame == 5000 || frame == 10000)
             {
-                rig->Sources().m_selectedGestures.Set(1, true);
+                rig->Gestures().m_selectedGestures.Set(1, true);
                 rig->Root().Increment(frame == 5000 ? 0.13f : -0.17f);
             }
 
@@ -475,7 +481,7 @@ DOCTEST_TEST_CASE("encoder matrix: gestures edits scenes and UI preserve recursi
         for (size_t gesture = 0; gesture < Cell::x_numGestureParams; ++gesture)
         {
             float weight = frame % 100 < 50 ? value(random) : 0.0f;
-            actual.Sources().m_gestureWeights[gesture] = reference.Sources().m_gestureWeights[gesture] = weight;
+            actual.Gestures().m_gestureWeights[gesture] = reference.Gestures().m_gestureWeights[gesture] = weight;
         }
 
         for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
@@ -527,10 +533,10 @@ DOCTEST_TEST_CASE("encoder matrix: sparse input changes rebuilds and patch repla
     for (auto* rig : {&actual, &reference})
     {
         rig->m_context.m_sceneManager.m_blendFactor = 0.35f;
-        rig->Sources().m_gestureWeights[1] = 0.7f;
-        rig->Sources().m_gestureWeights[3] = 0.1f;
-        rig->Sources().m_gestureWeights[5] = 0.4f;
-        rig->Sources().m_gestureWeights[7] = 0.9f;
+        rig->Gestures().m_gestureWeights[1] = 0.7f;
+        rig->Gestures().m_gestureWeights[3] = 0.1f;
+        rig->Gestures().m_gestureWeights[5] = 0.4f;
+        rig->Gestures().m_gestureWeights[7] = 0.9f;
     }
 
     std::mt19937 random(991);
@@ -557,7 +563,7 @@ DOCTEST_TEST_CASE("encoder matrix: sparse input changes rebuilds and patch repla
         if (frame % 17 == 0)
         {
             float weight = value(random);
-            actual.Sources().m_gestureWeights[7] = reference.Sources().m_gestureWeights[7] = weight;
+            actual.Gestures().m_gestureWeights[7] = reference.Gestures().m_gestureWeights[7] = weight;
         }
 
         if (frame == 5000)
@@ -665,7 +671,7 @@ DOCTEST_TEST_CASE("encoder matrix: reload preserves nested modulation gestures a
 
             for (size_t i = 0; i < Cell::x_numGestureParams; ++i)
             {
-                rig->Sources().m_gestureWeights[i] = 0.7f;
+                rig->Gestures().m_gestureWeights[i] = 0.7f;
             }
         }
 
@@ -868,7 +874,7 @@ DOCTEST_TEST_CASE("encoder matrix: visible value readers follow nested graphs ed
 
             for (size_t gesture = 0; gesture < Cell::x_numGestureParams; ++gesture)
             {
-                rig->Sources().m_gestureWeights[gesture] = static_cast<float>((frame + gesture * 11) % 101) / 100.0f;
+                rig->Gestures().m_gestureWeights[gesture] = static_cast<float>((frame + gesture * 11) % 101) / 100.0f;
             }
         }
 

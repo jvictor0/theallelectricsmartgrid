@@ -43,6 +43,7 @@ struct EncoderMatrix
     {
         Cell* m_cell;
         Sources* m_sources;
+        Cell::GestureValues* m_gestureValues;
         size_t m_index;
         size_t m_start;
         size_t m_count;
@@ -295,7 +296,7 @@ struct EncoderMatrix
             cell->SynchronizePreparedState();
             cell->m_preparedScene1 = scene.m_scene1;
             cell->m_preparedScene2 = scene.m_scene2;
-            Root root{cell, cell->m_modulatorValues, index,
+            Root root{cell, cell->m_modulatorValues, cell->m_gestureValues, index,
                 m_routes.size(), 0, cell->m_evaluationRevision,
                 cell->m_values[scene.m_scene1], cell->m_values[scene.m_scene2],
                 CanPrepare(cell) ? Path::Simple : Path::Editing};
@@ -361,7 +362,7 @@ struct EncoderMatrix
         for (size_t i = root.m_start; i < end; ++i)
         {
             Node& node = m_nodes[i];
-            bool gestureChanged = !node.m_gestures.Intersect(root.m_sources->m_changedGestures).IsZero();
+            bool gestureChanged = !node.m_gestures.Intersect(root.m_gestureValues->m_changedGestures).IsZero();
             if (!root.m_sources->m_blendChanged && !gestureChanged
                 && node.m_sources.Intersect(root.m_sources->m_changedModulators).IsZero())
             {
@@ -376,7 +377,7 @@ struct EncoderMatrix
                 for (size_t g = node.m_gestureStart; g < node.m_gestureStart + node.m_gestureCount; ++g)
                 {
                     const Gesture& gesture = m_gestures[g];
-                    float input = root.m_sources->m_gestureWeights[gesture.m_index];
+                    float input = root.m_gestureValues->m_gestureWeights[gesture.m_index];
                     float left = gesture.m_activeLeft ? input : 0;
                     float right = gesture.m_activeRight ? input : 0;
                     double w = left * leftWeight + right * blend;
@@ -526,7 +527,7 @@ struct EncoderMatrix
             }
             else if (root.m_sources->m_blendChanged
                 || !cell->m_modulatorsAffecting.Intersect(root.m_sources->m_changedModulators).IsZero()
-                || !cell->m_gesturesAffecting.Intersect(root.m_sources->m_changedGestures).IsZero())
+                || !cell->m_gesturesAffecting.Intersect(root.m_gestureValues->m_changedGestures).IsZero())
             {
                 cell->m_preparedValues = true;
                 cell->m_preparedBlend = blend;

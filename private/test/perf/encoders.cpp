@@ -190,7 +190,8 @@ void Record(synthrig::SynthRig& rig, const std::string& mode, double seconds, co
                 }
             }
 
-            std::copy(std::begin(source.m_gestureWeights), std::end(source.m_gestureWeights),
+            const auto& gestures = bank.GetGestureValues();
+            std::copy(std::begin(gestures.m_gestureWeights), std::end(gestures.m_gestureWeights),
                       input.m_gestures);
             output.write(reinterpret_cast<const char*>(&input), sizeof(input));
         }
@@ -238,6 +239,16 @@ std::vector<ModeInput> ReadReplay(const char* path, size_t modes)
         }
     }
 
+    for (size_t frame = 0; frame < frames.size(); frame += modes)
+    {
+        for (size_t group = 1; group < modes; ++group)
+        {
+            Require(std::equal(std::begin(frames[frame].m_gestures), std::end(frames[frame].m_gestures),
+                               std::begin(frames[frame + group].m_gestures)),
+                    "Replay groups must share gesture weights");
+        }
+    }
+
     return frames;
 }
 
@@ -281,10 +292,9 @@ void Matrix(synthrig::SynthRig& rig, const std::string& mode, double seconds, co
                 source.m_hostValue[index] = QuadFloat(input.m_values[index]);
                 source.m_amplitude[index] = QuadFloat(input.m_amplitudes[index]);
             }
-
-            std::copy(std::begin(input.m_gestures), std::end(input.m_gestures), source.m_gestureWeights);
         }
 
+        bank.m_modulatorManager.SetGestureWeights(inputs[(frame % inputFrames) * bank.m_modulatorManager.m_groups.size()].m_gestures);
         scene.m_blendFactor = Blend(mode, frame);
         scene.Process();
         SampleTimer::s_instance->m_sample = firstSample + frame * SampleTimer::x_oversample;

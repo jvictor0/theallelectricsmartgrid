@@ -61,8 +61,6 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
             , m_modulatorConnected{}
             , m_modulatorColor{}
             , m_modulatorShortName{}
-            , m_gestureWeights{}
-            , m_gestureWeightsPrev{}
             , m_blendChanged(false)
         {
             for (size_t i = 0; i < x_numModulators; ++i)
@@ -72,18 +70,11 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
                 m_modulatorColor[i] = Color::Off;
                 m_modulatorConnected[i] = false;
             }
-
-            for (size_t i = 0; i < x_numGestureParams; ++i)
-            {
-                m_gestureWeights[i] = 0;
-                m_gestureWeightsPrev[i] = 0;
-            }
         }
 
         void ComputeChanged()
         {
             m_changedModulators.Clear();
-            m_changedGestures.Clear();
             for (size_t i = 0; i < x_numModulators; ++i)
             {
                 if (m_hostValue[i] != m_valuePrev[i] ||
@@ -94,7 +85,44 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
                     m_amplitudePrev[i] = m_amplitude[i];
                 }
             }
+        }
 
+        void SetModulatorSkin(size_t index, Color color, const char* shortName)
+        {
+            m_modulatorColor[index] = color;
+            m_modulatorShortName[index] = shortName;
+            m_modulatorConnected[index] = true;
+        }
+        
+        size_t m_groupIx = static_cast<size_t>(-1);
+        QuadFloat m_value[x_numModulators];
+        QuadFloat m_hostValue[x_numModulators];
+        QuadFloat m_valuePrev[x_numModulators];
+        QuadFloat m_amplitude[x_numModulators];
+        QuadFloat m_amplitudePrev[x_numModulators];
+        bool m_modulatorConnected[x_numModulators];
+        Color m_modulatorColor[x_numModulators];
+        const char* m_modulatorShortName[x_numModulators];
+
+        BitSet16 m_changedModulators;
+
+        // Set for one Compute pass when only the scene blend moved: every cell re-reads
+        // its scene value and recomputes, with no change to the topology.
+        //
+        bool m_blendChanged;
+    };
+
+    struct GestureValues
+    {
+        float m_gestureWeights[x_numGestureParams]{};
+        float m_gestureWeightsPrev[x_numGestureParams]{};
+        BitSet16 m_selectedGestures;
+        BitSet16 m_selectedGesturesPrev;
+        BitSet16 m_changedGestures;
+
+        void ComputeChanged()
+        {
+            m_changedGestures.Clear();
             for (size_t i = 0; i < x_numGestureParams; ++i)
             {
                 if (m_gestureWeights[i] != m_gestureWeightsPrev[i])
@@ -115,39 +143,8 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
                 }
 
                 m_selectedGesturesPrev = m_selectedGestures;
-            }                    
+            }
         }
-
-        void SetModulatorSkin(size_t index, Color color, const char* shortName)
-        {
-            m_modulatorColor[index] = color;
-            m_modulatorShortName[index] = shortName;
-            m_modulatorConnected[index] = true;
-        }
-        
-        size_t m_groupIx = static_cast<size_t>(-1);
-        QuadFloat m_value[x_numModulators];
-        QuadFloat m_hostValue[x_numModulators];
-        QuadFloat m_valuePrev[x_numModulators];
-        QuadFloat m_amplitude[x_numModulators];
-        QuadFloat m_amplitudePrev[x_numModulators];
-        bool m_modulatorConnected[x_numModulators];
-        Color m_modulatorColor[x_numModulators];
-        const char* m_modulatorShortName[x_numModulators];
-
-        float m_gestureWeights[x_numGestureParams];
-        float m_gestureWeightsPrev[x_numGestureParams];
-
-        BitSet16 m_selectedGestures;
-        BitSet16 m_selectedGesturesPrev;
-
-        BitSet16 m_changedModulators;
-        BitSet16 m_changedGestures;
-
-        // Set for one Compute pass when only the scene blend moved: every cell re-reads
-        // its scene value and recomputes, with no change to the topology.
-        //
-        bool m_blendChanged;
     };
 
     virtual ~BankedEncoderCell()
@@ -293,7 +290,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
             m_numActiveGestures = kept;
         }
 
-        void ComputePostGestureValues(ModulatorValues* modulatorValues, bool advanceState)
+        void ComputePostGestureValues(GestureValues* gestureValues, bool advanceState)
         {
             double gestureWeightSum = 0;
             double gestureValue = 0;
@@ -302,7 +299,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
             {
                 BankedEncoderCell* cell = GetGesture(i);
                 cell->Compute(advanceState);
-                cell->SetEffectiveModulatorWeight(modulatorValues->m_gestureWeights[GetGestureIndex(i)]);
+                cell->SetEffectiveModulatorWeight(gestureValues->m_gestureWeights[GetGestureIndex(i)]);
                 double w = cell->m_effectiveModulatorWeight;
                 gestureWeightSum += w;
                 float bankedValue = m_owner->m_bankedValue;
@@ -379,6 +376,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         , m_parent(nullptr)
         , m_sharedEncoderState(nullptr)
         , m_modulatorValues(nullptr)
+        , m_gestureValues(nullptr)
         , m_name(nullptr)
         , m_shortName(nullptr)
         , m_modulators(this)
@@ -412,6 +410,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         , m_gestureWeightSum(1)
         , m_sharedEncoderState(parent ? parent->m_sharedEncoderState : nullptr)
         , m_modulatorValues(parent ? parent->m_modulatorValues : nullptr)
+        , m_gestureValues(parent ? parent->m_gestureValues : nullptr)
         , m_shortName(nullptr)
         , m_modulators(this)
         , m_bankedValue(0)
@@ -506,6 +505,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         }
 
         ModulatorValues* sources = root->m_modulatorValues;
+        GestureValues* gestures = root->m_gestureValues;
         bool blendChanged = sources->m_blendChanged;
         auto& scene = root->m_context->m_sceneManager;
 
@@ -518,17 +518,17 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         std::swap(scene.m_blendFactor, root->m_preparedBlend);
         std::swap(sources->m_hostValue, sources->m_valuePrev);
         std::swap(sources->m_amplitude, sources->m_amplitudePrev);
-        std::swap(sources->m_gestureWeights, sources->m_gestureWeightsPrev);
+        std::swap(gestures->m_gestureWeights, gestures->m_gestureWeightsPrev);
         sources->m_blendChanged = true;
         root->SetState();
-        root->m_modulators.ComputePostGestureValues(sources, false);
+        root->m_modulators.ComputePostGestureValues(gestures, false);
         for (size_t i = 0; i < root->m_modulators.m_numActiveModulators; ++i)
         {
             root->GetModulator(i)->Compute(false);
         }
 
         sources->m_blendChanged = blendChanged;
-        std::swap(sources->m_gestureWeights, sources->m_gestureWeightsPrev);
+        std::swap(gestures->m_gestureWeights, gestures->m_gestureWeightsPrev);
         std::swap(sources->m_amplitude, sources->m_amplitudePrev);
         std::swap(sources->m_hostValue, sources->m_valuePrev);
         std::swap(scene.m_blendFactor, root->m_preparedBlend);
@@ -575,7 +575,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
 
             // Include newly activated gestures before distributing this edit.
             //
-            m_modulators.ComputePostGestureValues(m_modulatorValues, false);
+            m_modulators.ComputePostGestureValues(m_gestureValues, false);
         }
 
         float mainWeight = 0;
@@ -915,13 +915,13 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         else if (blendChanged ||
                  m_samplesForceUpdate ||
                  !m_modulatorsAffecting.Intersect(modulatorValues->m_changedModulators).IsZero() ||
-                 !m_gesturesAffecting.Intersect(modulatorValues->m_changedGestures).IsZero())
+                 !m_gesturesAffecting.Intersect(m_gestureValues->m_changedGestures).IsZero())
         {
             if (blendChanged ||
                 m_samplesForceUpdate ||
-                !m_gesturesAffecting.Intersect(modulatorValues->m_changedGestures).IsZero())
+                !m_gesturesAffecting.Intersect(m_gestureValues->m_changedGestures).IsZero())
             {
-                m_modulators.ComputePostGestureValues(modulatorValues, advanceState);
+                m_modulators.ComputePostGestureValues(m_gestureValues, advanceState);
             }
 
             m_modulators.Compute(modulatorValues, advanceState);
@@ -1332,7 +1332,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
 
     BitSet16 GetSelectedGestures()
     {
-        return m_modulatorValues->m_selectedGestures;
+        return m_gestureValues->m_selectedGestures;
     }
         
     // Keep the state touched by each prepared host frame together, before the
@@ -1357,6 +1357,7 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
     size_t m_preparedScene2 = 1;
     SharedEncoderState* m_sharedEncoderState;
     ModulatorValues* m_modulatorValues;
+    GestureValues* m_gestureValues;
     Color m_color;
     const char* m_name;
     const char* m_shortName;

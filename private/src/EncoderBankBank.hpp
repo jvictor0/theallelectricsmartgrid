@@ -109,6 +109,7 @@ struct EncoderBankBank
         SmartGrid::BankedEncoderCell* cell = m_encoders[index].get();
         cell->m_sharedEncoderState = &m_bankModes[modeIx];
         cell->m_modulatorValues = &GetModulatorValues(groupIx);
+        cell->m_gestureValues = &GetGestureValues();
         cell->m_bipolar = bipolar;
         cell->m_defaultValue = cell->ToNormalized(defaultValue);
         for (size_t scene = 0; scene < SmartGrid::SceneManager::x_numScenes; ++scene)
@@ -183,10 +184,7 @@ struct EncoderBankBank
 
     void SelectGesture(const BitSet16& gesture)
     {
-        for (auto& group : m_modulatorManager.m_groups)
-        {
-            group.m_values.m_selectedGestures = gesture;
-        }
+        GetGestureValues().m_selectedGestures = gesture;
     }
 
     bool EncoderBelongsToMode(size_t encoderIx, size_t modeIx)
@@ -255,6 +253,7 @@ struct EncoderBankBank
 
     void ProcessHostFrame()
     {
+        GetGestureValues().ComputeChanged();
         for (auto& group : m_modulatorManager.m_groups)
         {
             group.m_values.ComputeChanged();
@@ -467,6 +466,11 @@ struct EncoderBankBank
     {
         assert(groupIx < m_modulatorManager.m_groups.size());
         return m_modulatorManager.m_groups[groupIx].m_values;
+    }
+
+    SmartGrid::BankedEncoderCell::GestureValues& GetGestureValues()
+    {
+        return m_modulatorManager.m_gestureValues;
     }
 
     size_t GetModeForBank(size_t bankIx)

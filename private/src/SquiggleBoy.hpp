@@ -1496,7 +1496,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         SetGlobalModulators();
         SetQuadModulators();
 
-        m_encoders.GetModulatorManager().SetGestureWeights(input.m_faders);
+        if (SampleTimer::IsHostFrame())
+        {
+            m_encoders.GetModulatorManager().SetGestureWeights(input.m_faders);
+        }
+
         m_encoders.Process();
 
         SetEncoderParameters(input);

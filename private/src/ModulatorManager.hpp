@@ -9,6 +9,7 @@
 struct ModulatorManager
 {
     using Values = SmartGrid::BankedEncoderCell::ModulatorValues;
+    using Gestures = SmartGrid::BankedEncoderCell::GestureValues;
     static constexpr size_t x_numSlots = SmartGrid::BankedEncoderCell::x_numModulators;
     static constexpr size_t x_noSource = static_cast<size_t>(-1);
     static constexpr size_t x_decimatorOrder = 2;
@@ -38,6 +39,7 @@ struct ModulatorManager
     //
     std::vector<Source> m_sources;
     std::vector<Group> m_groups;
+    Gestures m_gestureValues;
 
     ModulatorManager(size_t numSources, size_t numGroups)
         : m_sources(numSources)
@@ -126,9 +128,6 @@ struct ModulatorManager
 
     void SetGestureWeights(const float* weights)
     {
-        for (auto& group : m_groups)
-        {
-            std::copy_n(weights, SmartGrid::BankedEncoderCell::x_numGestureParams, group.m_values.m_gestureWeights);
-        }
+        std::copy_n(weights, SmartGrid::BankedEncoderCell::x_numGestureParams, m_gestureValues.m_gestureWeights);
     }
 };

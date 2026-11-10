@@ -431,19 +431,11 @@
     },
     {
       "path": "private/src/EncoderBank.hpp",
-      "symbol": "void ComputePostGestureValues(ModulatorValues* modulatorValues, bool advanceState)"
-    },
-    {
-      "path": "private/src/EncoderBank.hpp",
       "symbol": "void SetEffectiveModulatorWeight(float weight)"
     },
     {
       "path": "private/src/Encoder.hpp",
       "symbol": "void IncrementInternal(float delta, bool towardsZero)"
-    },
-    {
-      "path": "private/src/EncoderBank.hpp",
-      "symbol": "void ComputeChanged()"
     },
     {
       "path": "private/src/Encoder.hpp",
@@ -748,7 +740,7 @@
       "anchors": [
         "gestures"
       ],
-      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations. Current ComputePostGestureValues reads the same weights through a GestureValues pointer; its arithmetic is unchanged, but its signature and pointer name differ from the pinned body."
     },
     {
       "id": "E20",
@@ -771,7 +763,7 @@
         "changed",
         "dirty"
       ],
-      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
+      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations. Current change detection is split between group ModulatorValues and manager-owned GestureValues; the source/amplitude comparisons and gesture weight/selection comparisons are unchanged, with reviewed source correspondence rather than body equality."
     },
     {
       "id": "E22",
@@ -1139,7 +1131,7 @@
         "reset_evaluate",
         "publish"
       ],
-      "reason": "Identical scoped reset operations use shared definitions; source-body equality and the pinned HEAD anchors are checked."
+      "reason": "Scoped reset operations use shared definitions; unchanged bodies and pinned HEAD anchors are checked. Current ComputePostGestureValues reads the same weights through a GestureValues pointer; its arithmetic is unchanged, but its signature and pointer name differ from the pinned body."
     },
     {
       "id": "E54",
@@ -1197,7 +1189,7 @@
         "mix",
         "gestures"
       ],
-      "reason": "Identical scoped reset operations use shared definitions; source-body equality and the pinned HEAD anchors are checked."
+      "reason": "Scoped reset operations use shared definitions; unchanged bodies and pinned HEAD anchors are checked. Current ComputePostGestureValues reads the same weights through a GestureValues pointer; its arithmetic is unchanged, but its signature and pointer name differ from the pinned body."
     },
     {
       "id": "E58",
@@ -1277,7 +1269,7 @@
         "gesture_order",
         "gestures"
       ],
-      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both. Current capture additionally synchronizes its double accumulator; it retains the unchanged-target idle defect and logical current/target copy semantics."
+      "reason": "The same gesture definitions and kernel-checked theorems apply to both models, with reviewed C++ correspondence. Current capture additionally synchronizes its double accumulator; it retains the unchanged-target idle defect and logical current/target copy semantics. Current ComputePostGestureValues reads the same weights through a GestureValues pointer; its arithmetic is unchanged, but its signature and pointer name differ from the pinned body."
     },
     {
       "id": "E63",
@@ -1330,7 +1322,7 @@
         "gesture_flag",
         "gestures"
       ],
-      "reason": "Shared gesture operations are identical in the pinned HEAD and working tree; the same definitions and kernel-checked theorems apply to both."
+      "reason": "The same gesture definitions and kernel-checked theorems apply to both models, with reviewed C++ correspondence. Current ComputePostGestureValues reads the same weights through a GestureValues pointer; its arithmetic is unchanged, but its signature and pointer name differ from the pinned body."
     },
     {
       "id": "E66",
@@ -1450,7 +1442,7 @@
         "gestures",
         "numeric"
       ],
-      "reason": "The same leaf ramp and scene/gesture arithmetic applies to both models. These bounds describe observable control motion without constraining evaluation path."
+      "reason": "The same leaf ramp and scene/gesture arithmetic applies to both models. These bounds describe observable control motion without constraining evaluation path. Current ComputePostGestureValues reads the same weights through a GestureValues pointer; its arithmetic is unchanged, but its signature and pointer name differ from the pinned body."
     },
     {
       "id": "E74",

@@ -43,6 +43,10 @@ def main():
         assert digest(replay) == digest(other), 'Seeded capture changed between runs'
         payload = replay.read_bytes()
         assert payload[:8] == b'SGPERF1\0'
+        inconsistent_gestures = bytearray(payload)
+        gesture_offset = 64 + 2 * 15 * 4 * 4
+        weight = struct.unpack_from('<f', payload, gesture_offset)[0]
+        struct.pack_into('<f', inconsistent_gestures, gesture_offset, weight + 0.25)
         bad = folder / 'bad.bin'
         variants = [
             (b'', 'Cannot read replay header'),
@@ -50,6 +54,7 @@ def main():
             (payload[:-1], 'Truncated replay payload'),
             (payload + b'\0', 'Trailing replay data'),
             (payload[:64] + struct.pack('<f', float('nan')) + payload[68:], 'Nonfinite replay input'),
+            (inconsistent_gestures, 'Replay groups must share gesture weights'),
         ]
         for data, expected in variants:
             bad.write_bytes(data)

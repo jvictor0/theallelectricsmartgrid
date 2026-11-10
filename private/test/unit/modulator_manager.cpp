@@ -80,6 +80,8 @@ DOCTEST_TEST_CASE("modulator manager: parameters in one bank mode use independen
     auto* second = banks.GetEncoder(1);
     DOCTEST_CHECK(first->GetSharedEncoderState() == second->GetSharedEncoderState());
     DOCTEST_CHECK(first->m_modulatorValues != second->m_modulatorValues);
+    DOCTEST_CHECK(first->m_gestureValues == &banks.m_modulatorManager.m_gestureValues);
+    DOCTEST_CHECK(second->m_gestureValues == first->m_gestureValues);
     for (size_t lane = 0; lane < 4; ++lane)
     {
         DOCTEST_CHECK(first->GetLatestValue(lane) == doctest::Approx(0.25f));
@@ -93,6 +95,9 @@ DOCTEST_TEST_CASE("modulator manager: parameters in one bank mode use independen
     DOCTEST_CHECK(depth->m_modulatorValues == first->m_modulatorValues);
     DOCTEST_CHECK(depth->m_modulators.m_modulators[8]->m_modulatorValues == first->m_modulatorValues);
     DOCTEST_CHECK(depth->m_modulators.m_gestures[2]->m_modulatorValues == first->m_modulatorValues);
+    DOCTEST_CHECK(depth->m_gestureValues == first->m_gestureValues);
+    DOCTEST_CHECK(depth->m_modulators.m_modulators[8]->m_gestureValues == first->m_gestureValues);
+    DOCTEST_CHECK(depth->m_modulators.m_gestures[2]->m_gestureValues == first->m_gestureValues);
     JsonArena arena(1024 * 1024);
     JSON patch = first->ToJSON(arena);
     DOCTEST_CHECK(patch.Get("modulators").Size() == 15);
@@ -102,6 +107,7 @@ DOCTEST_TEST_CASE("modulator manager: parameters in one bank mode use independen
     DOCTEST_CHECK(second->m_modulators.m_modulators[8]->m_modulatorValues == second->m_modulatorValues);
     DOCTEST_REQUIRE(second->m_modulators.m_modulators[8]->m_modulators.m_gestures[2]);
     DOCTEST_CHECK(second->m_modulators.m_modulators[8]->m_modulators.m_gestures[2]->m_modulatorValues == second->m_modulatorValues);
+    DOCTEST_CHECK(second->m_modulators.m_modulators[8]->m_modulators.m_gestures[2]->m_gestureValues == first->m_gestureValues);
 }
 
 DOCTEST_TEST_CASE("modulator manager: instrument groups expose distinct pairs and preserve other sources")
@@ -144,12 +150,101 @@ DOCTEST_TEST_CASE("modulator manager: instrument groups expose distinct pairs an
     selected.Set(2, true);
     encoders.m_encoderBankBank.SelectGesture(selected);
     encoders.m_encoderBankBank.SetBlendChanged(true);
+    DOCTEST_CHECK(encoders.GetGestureValues().m_gestureWeights[2] == 0.75f);
+    DOCTEST_CHECK(encoders.GetGestureValues().m_selectedGestures.Get(2));
+    encoders.m_encoderBankBank.ForEachNamedEncoder([&](size_t, Cell* cell)
+    {
+        DOCTEST_CHECK(cell->m_gestureValues == &encoders.GetGestureValues());
+    });
+
     for (const auto& group : encoders.GetModulatorManager().m_groups)
     {
-        DOCTEST_CHECK(group.m_values.m_gestureWeights[2] == 0.75f);
-        DOCTEST_CHECK(group.m_values.m_selectedGestures.Get(2));
         DOCTEST_CHECK(group.m_values.m_blendChanged);
     }
+}
+
+DOCTEST_TEST_CASE("modulator manager: gesture changes reach every group once per host frame")
+{
+    GlobalEnv::ResetPerTest();
+    SmartGridOneContext context;
+    EncoderBankBank banks(2, 2, 2, 0, 2, &context);
+    for (size_t group = 0; group < 2; ++group)
+    {
+        banks.InitMode(group, 4);
+        banks.CreateEncoder(group, group, group, 0.2f, "Param", "P", SmartGrid::Color::Red, 0, false);
+        auto* root = banks.GetEncoder(group);
+        root->m_modulators.AddGesture(root, 2);
+        auto* gesture = root->m_modulators.m_gestures[2].get();
+        gesture->SetActive(true);
+        gesture->SetValue(group == 0 ? 0.6f : 1.0f, true);
+        root->SetModulatorsAffecting();
+    }
+
+    for (size_t sample = 0; sample < (SmartGrid::TickDistributor::x_maxSamplesToDistribute + 2) * SampleTimer::x_oversample; ++sample)
+    {
+        SampleTimer::IncrementSample();
+        banks.Process();
+    }
+
+    auto& gestures = banks.GetGestureValues();
+    float weights[Cell::x_numGestureParams]{};
+    weights[2] = 0.5f;
+    banks.m_modulatorManager.SetGestureWeights(weights);
+    BitSet16 selected;
+    selected.Set(2, true);
+    banks.SelectGesture(selected);
+    for (size_t sample = 1; sample <= SampleTimer::x_oversample; ++sample)
+    {
+        SampleTimer::IncrementSample();
+        banks.Process();
+        DOCTEST_CHECK(gestures.m_changedGestures.Get(2) == (sample == SampleTimer::x_oversample));
+    }
+
+    DOCTEST_REQUIRE(banks.m_matrix.m_roots.size() == 2);
+    for (size_t group = 0; group < 2; ++group)
+    {
+        auto* root = banks.GetEncoder(group);
+        DOCTEST_CHECK(root->m_gestureValues == &gestures);
+        DOCTEST_CHECK(banks.m_matrix.m_roots[group].m_gestureValues == &gestures);
+        DOCTEST_CHECK(banks.m_matrix.m_roots[group].m_path == EncoderMatrix::Path::Graph);
+        DOCTEST_CHECK(root->GetSelectedGestures().Get(2));
+        for (size_t lane = 0; lane < 4; ++lane)
+        {
+            DOCTEST_CHECK(root->m_output[lane] == doctest::Approx(group == 0 ? 0.4f : 0.6f));
+        }
+    }
+
+    for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+    {
+        SampleTimer::IncrementSample();
+        banks.Process();
+    }
+
+    DOCTEST_CHECK(gestures.m_changedGestures.IsZero());
+    banks.SelectGesture(BitSet16());
+    for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+    {
+        SampleTimer::IncrementSample();
+        banks.Process();
+    }
+
+    DOCTEST_CHECK(gestures.m_changedGestures.Get(2));
+    DOCTEST_CHECK(banks.GetEncoder(0)->GetSelectedGestures().IsZero());
+    DOCTEST_CHECK(banks.GetEncoder(1)->GetSelectedGestures().IsZero());
+
+    weights[2] = 0.75f;
+    banks.m_modulatorManager.SetGestureWeights(weights);
+    banks.GetEncoder(0)->SynchronizePreparedState();
+    DOCTEST_CHECK(gestures.m_gestureWeights[2] == 0.75f);
+    DOCTEST_CHECK(gestures.m_gestureWeightsPrev[2] == 0.5f);
+    for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+    {
+        SampleTimer::IncrementSample();
+        banks.Process();
+    }
+
+    DOCTEST_CHECK(banks.GetEncoder(0)->m_output[0] == doctest::Approx(0.5f));
+    DOCTEST_CHECK(banks.GetEncoder(1)->m_output[0] == doctest::Approx(0.8f));
 }
 
 DOCTEST_TEST_CASE("modulator manager: configured sources match each parameter's lane count")

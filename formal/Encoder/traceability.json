@@ -2,9 +2,9 @@
   "description": "Reviewed C++ snapshot for the Lean model. Hashes detect drift; they do not prove C++ refinement. Review correspondence before changing hashes.",
   "files": {
     "private/src/Encoder.hpp": "0f4b7d409b360ed1c7f1c17e9209e70ae07ed6f23b981c2121394124ceab8c76",
-    "private/src/EncoderBank.hpp": "d3fdc31f2e61839fbf804315b4fec514cbad37c2bd0c434341c83cd3aaf69398",
-    "private/src/EncoderBankBank.hpp": "912c4e51d6b678d0a1cde345f91de22c268719ad96b03f53fa359cc3135c0dcd",
-    "private/src/EncoderMatrix.hpp": "4fed96fe516304efd7d8bf5f92f0a084ca83a27ab9d4e9242a470364addc97c9",
+    "private/src/EncoderBank.hpp": "9f22e007f122a1f451cac2ab5018b8687b31e713b79cb920002e208d8392f84d",
+    "private/src/EncoderBankBank.hpp": "531b1be2d8757a8ea930ffafc01e5c13794a64ec52e5acc6ebb8e4473cf9231f",
+    "private/src/EncoderMatrix.hpp": "004a7cec1a6fcd0f2adf146cf7cccf178b97fc24d99824257c83a624e14bcecc",
     "private/src/QuadUtils.hpp": "eb287a8dd5c2f88979153018a2b246aa7056979ae252773cccb92182c293a69b",
     "private/src/SampleTimer.hpp": "d55157bec9215ac2d96da5cff2307ee19f7c2c2145a7a2775186be31f39d10b9",
     "private/src/SceneManager.hpp": "87e9c88e2257a56f9ae392178d9976152ae74b54f67d892d829fc4df10c75e8e",
@@ -116,7 +116,7 @@
     "gestures": [
       {
         "path": "private/src/EncoderBank.hpp",
-        "symbol": "void ComputePostGestureValues(ModulatorValues* modulatorValues, bool advanceState)"
+        "symbol": "void ComputePostGestureValues(GestureValues* gestureValues, bool advanceState)"
       },
       {
         "path": "private/src/EncoderBank.hpp",
@@ -156,7 +156,11 @@
     "changed": [
       {
         "path": "private/src/EncoderBank.hpp",
-        "symbol": "void ComputeChanged()"
+        "symbol": "void ComputeChanged()\n        {\n            m_changedModulators.Clear();"
+      },
+      {
+        "path": "private/src/EncoderBank.hpp",
+        "symbol": "void ComputeChanged()\n        {\n            m_changedGestures.Clear();"
       }
     ],
     "dirty": [
@@ -374,7 +378,7 @@
       },
       {
         "path": "private/src/EncoderBank.hpp",
-        "symbol": "void ComputePostGestureValues(ModulatorValues* modulatorValues, bool advanceState)"
+        "symbol": "void ComputePostGestureValues(GestureValues* gestureValues, bool advanceState)"
       },
       {
         "path": "private/src/EncoderMatrix.hpp",

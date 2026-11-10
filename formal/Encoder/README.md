@@ -503,7 +503,7 @@ binding construction remain native integration boundaries. Child cells inherit
 the parent's fixed group pointer, and prepared roots cache that same pointer.
 The reviewed changes leave mixing, synchronization swaps, gesture arithmetic,
 patch representation/loading, reset, ramps and output publication unchanged.
-All pinned shared C++ bodies remain literally identical. Native tests cover
+The initial manager refactor retained all pinned shared C++ bodies. Native tests cover
 shared filtering, separate groups within a bank mode, child binding through
 patch load, and group-aware UI identity; this review adds no formal verification
 claim for those integration boundaries.
@@ -513,3 +513,18 @@ default, matching `StateMachine.after_init`. Scene values, targets, and the
 initial forced update still match `initialFrom`. Pre-publication cache reads
 and UI min/max initialization remain native integration boundaries; the
 delay-phase tests cover the bipolar default before processing.
+
+The shared-gesture refactor stores weights, selection and their change masks once
+in manager-owned `GestureValues`, alongside each group's `ModulatorValues`.
+`Control.Inputs` now combines a group's source/amplitude snapshot with this shared
+gesture snapshot. Change detection is split into two functions with the same
+comparisons and previous-value updates; gesture detection runs once per host
+frame. `ComputePostGestureValues` changes only its argument type and pointer
+name. Those two operations therefore use reviewed correspondence instead of
+literal equality with the pinned bodies; all remaining shared-body checks stay
+enabled. The prepared and recursive evaluators read the same weights through
+direct pointers. Synchronization still temporarily swaps current/previous weights
+and restores them before processing another root. Native regressions cover shared
+identity, child inheritance and cross-group restoration, and full SynthRig audio
+captures match before/after this refactor. Ownership, pointer binding and host
+sampling remain integration obligations; no Lean definitions or proofs change.

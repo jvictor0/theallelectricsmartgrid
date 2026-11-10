@@ -61,6 +61,11 @@ struct EncoderRig
         return m_banks.GetModulatorValues(0);
     }
 
+    Cell::GestureValues& Gestures()
+    {
+        return m_banks.GetGestureValues();
+    }
+
     Cell& Depth(Cell& parent, size_t source)
     {
         parent.m_modulators.FillModulators(&parent, &m_context);
@@ -326,7 +331,7 @@ DOCTEST_TEST_CASE("encoder shift-turn: gesture weights distribute edits between 
         Cell& target = *depth.m_modulators.m_gestures[0];
         target.SetActive(true);
         target.SetValue(0.25f, true);
-        rig.Sources().m_gestureWeights[0] = weight;
+        rig.Gestures().m_gestureWeights[0] = weight;
         rig.Compute();
 
         rig.Turn(0, 0, -100, true);
@@ -347,8 +352,8 @@ DOCTEST_TEST_CASE("encoder shift-turn: selected gestures capture existing depths
     Cell& depth = rig.Depth(rig.Carrier(), 3);
     depth.SetValue(0.75f, true);
     rig.Carrier().GarbageCollectModulators();
-    rig.Sources().m_selectedGestures.Set(0, true);
-    rig.Sources().m_gestureWeights[0] = 0.5f;
+    rig.Gestures().m_selectedGestures.Set(0, true);
+    rig.Gestures().m_gestureWeights[0] = 0.5f;
     rig.Compute();
 
     rig.Turn(0, 0, -100, true);
@@ -437,6 +442,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: publishing live depth brightness does not re
     rig.InputSource(0).m_value[0] = 0.8f;
     rig.m_banks.m_modulatorManager.Gather();
     rig.Sources().ComputeChanged();
+    rig.Gestures().ComputeChanged();
     auto& depth = *rig.Carrier().m_modulators.m_modulators[0];
     DOCTEST_CHECK(depth.GetBrightness() == doctest::Approx(0.8f));
     EncoderBankUIState ui;
@@ -775,11 +781,13 @@ DOCTEST_TEST_CASE("encoder_bipolar: amplitude alone invalidates the modulation o
     rig.Depth(rig.Carrier(), 0).SetValue(1.0f, true);
     rig.InputSource(0).m_value[0] = 0.8f;
     rig.Sources().ComputeChanged();
+    rig.Gestures().ComputeChanged();
     rig.Compute();
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.8f));
     rig.InputSource(0).m_amplitude[0] = 0.0f;
     rig.m_banks.m_modulatorManager.Gather();
     rig.Sources().ComputeChanged();
+    rig.Gestures().ComputeChanged();
     rig.Carrier().Compute(false);
     DOCTEST_CHECK(rig.Carrier().m_output[0] == doctest::Approx(0.3f));
 }
@@ -886,7 +894,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: recursive patches preserve signed gesture ta
     rig.Depth(depth, 1).SetValue(0.75f, true);
     rig.InputSource(0).m_value[0] = 0.8f;
     rig.InputSource(1).m_value[0] = 0.25f;
-    rig.Sources().m_gestureWeights[0] = 1.0f;
+    rig.Gestures().m_gestureWeights[0] = 1.0f;
     rig.Compute();
     const float expected = rig.Carrier().m_output[0];
 
@@ -927,8 +935,8 @@ DOCTEST_TEST_CASE("encoder gestures: first edit uses the newly activated gesture
     {
         DOCTEST_CAPTURE(weight);
         EncoderRig rig(false, 0.3f);
-        rig.Sources().m_gestureWeights[0] = weight;
-        rig.Sources().m_selectedGestures.Set(0, true);
+        rig.Gestures().m_gestureWeights[0] = weight;
+        rig.Gestures().m_selectedGestures.Set(0, true);
         rig.Compute();
 
         rig.Carrier().Increment(0.1f);
@@ -955,8 +963,9 @@ DOCTEST_TEST_CASE("encoder_bipolar: gesture sweeps a bipolar parameter across ze
     const float expected[] = {-0.5f, -0.25f, 0.0f, 0.25f, 0.5f, -0.5f};
     for (size_t i = 0; i < 6; ++i)
     {
-        rig.Sources().m_gestureWeights[0] = weights[i];
+        rig.Gestures().m_gestureWeights[0] = weights[i];
         rig.Sources().ComputeChanged();
+        rig.Gestures().ComputeChanged();
         carrier.Compute(false);
         for (size_t voice = 0; voice < 2; ++voice)
         {
@@ -1019,7 +1028,7 @@ DOCTEST_TEST_CASE("encoder_bipolar: reset with an active gesture restores the si
     Cell& gesture = *carrier.m_modulators.m_gestures[0];
     gesture.SetActive(true);
     gesture.SetValue(1.0f, true);
-    rig.Sources().m_gestureWeights[0] = 1.0f;
+    rig.Gestures().m_gestureWeights[0] = 1.0f;
     rig.Compute();
     DOCTEST_REQUIRE(carrier.GetValue(0) == 1.0f);
     DOCTEST_REQUIRE(carrier.m_gesturesAffecting.Get(0));
@@ -1035,8 +1044,9 @@ DOCTEST_TEST_CASE("encoder_bipolar: reset with an active gesture restores the si
     const float weights[] = {0.0f, 0.5f, 1.0f};
     for (float weight : weights)
     {
-        rig.Sources().m_gestureWeights[0] = weight;
+        rig.Gestures().m_gestureWeights[0] = weight;
         rig.Sources().ComputeChanged();
+        rig.Gestures().ComputeChanged();
         carrier.Compute(false);
         DOCTEST_CHECK(carrier.GetValue(0) == -0.5f);
     }

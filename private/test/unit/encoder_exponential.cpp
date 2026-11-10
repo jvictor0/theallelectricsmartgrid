@@ -194,9 +194,9 @@ DOCTEST_TEST_CASE("encoder shift-turn: exponential MIDI adjusts descendants and 
 DOCTEST_TEST_CASE("exponential encoder: ignored values do not activate gestures and valid edits do")
 {
     ExponentialEncoderRig rig;
-    auto& sources = rig.m_banks.GetModulatorValues(0);
-    sources.m_selectedGestures.Set(0, true);
-    sources.m_gestureWeights[0] = 0.5f;
+    auto& gestures = rig.m_banks.GetGestureValues();
+    gestures.m_selectedGestures.Set(0, true);
+    gestures.m_gestureWeights[0] = 0.5f;
     rig.Turn(64, 1);
     for (int value : {-1, 64, 128})
     {

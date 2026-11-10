@@ -15,7 +15,7 @@
 //      This calls GestureSelectorCell::OnPress →
 //      m_squiggleBoy.SelectGesture(gesture, true) →
 //      m_encoders.SelectGesture(m_selectedGesture) →
-//      sets modulatorValues.m_selectedGestures bit N.
+//      sets gestureValues.m_selectedGestures bit N.
 //
 //   2. MOVE an encoder (via IncEncoder, NOT SetEncoder):
 //      BankedEncoderCell::Increment sees !GetSelectedGestures().IsZero() →
@@ -30,8 +30,8 @@
 //
 //   4. SET gesture WEIGHT: SetFader(gestureIndex, weight) →
 //      ParamSet14 x=(gestureIndex+1) → m_squiggleBoyState.m_faders[gestureIndex] →
-//      on the next ProcessFrame, SetXxxModulators() copies faders[i] to
-//      modulatorValues.m_gestureWeights[i].
+//      on the next host sample, ModulatorManager::SetGestureWeights copies
+//      faders[i] to the shared gestureValues.m_gestureWeights[i].
 //      weight=0 → base value; weight=1 → gesture value.
 //
 //   Interpolation formula (from ComputePostGestureValues, one gesture):

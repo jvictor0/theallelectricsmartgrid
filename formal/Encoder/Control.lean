@@ -7,7 +7,7 @@ namespace Encoder
 abbrev Source := Fin 15
 abbrev Gesture := Fin 16
 
--- @cpp changed: BankedEncoderCell::ModulatorValues::ComputeChanged
+-- @cpp changed: ModulatorValues::ComputeChanged and GestureValues::ComputeChanged
 -- @head changed: shared arithmetic/control operation at the pinned revision.
 structure Inputs where
   source : Source → Lane → Rat

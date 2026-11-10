@@ -412,6 +412,11 @@ struct SmartGridOneEncoders
         return m_encoderBankBank.m_modulatorManager;
     }
 
+    SmartGrid::BankedEncoderCell::GestureValues& GetGestureValues()
+    {
+        return m_encoderBankBank.GetGestureValues();
+    }
+
     // Initialization
     //
     static SmartGrid::Color GetRouteColor(size_t route)
