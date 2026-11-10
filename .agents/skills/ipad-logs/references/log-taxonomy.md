@@ -1,6 +1,6 @@
 # SmartGridOne iPad diagnostic taxonomy
 
-The `app` and `system` snapshot commands in the skill are implemented and
+The `app`, `system`, and local `decode` commands in the skill are implemented and
 verified by this repository. Other sources below are investigation recipes.
 Check their prerequisites and verification status before promising a capture.
 
@@ -24,7 +24,7 @@ Check their prerequisites and verification status before promising a capture.
 | --- | --- | --- | --- |
 | SmartGridOne persisted app log | **Verified:** `ipad_logs.py app`; House Arrest `/Documents/SmartGridOne/logs/*.log` | Requested/actual rate and block size; channels and routes; timing gaps, overruns/xruns; MIDI counters; thermal state; recording/FileWriter events | Messages depend on the installed build. Aggregate counters and older detailed experiment logs differ. Missing messages do not prove nothing happened. |
 | App stdout or debugger console | Attach a compatible launch/debug console; the app's async logger mirrors drained lines to stdout | Immediate messages while attached; complements the persisted log | **Recipe, unverified over this Wi-Fi path.** Attach can require a fresh launch and disturb the session. Console output is not an iPad unified archive. |
-| Historical iPad unified system log | **Verified:** `ipad_logs.py system` creates a `.logarchive`; query with `/usr/bin/log show --archive` | Kernel USB errors/enumeration, `usbaudiod` transfer/recovery, `audiomxd` session changes, process lifecycle, storage, power, thermal | Retention and size limits constrain coverage. Establish actual first/last timestamps. This is the iPad archive, not the Mac unified log. |
+| Historical iPad unified system log | **Verified:** `ipad_logs.py system` creates a `.logarchive`; `ipad_logs.py decode` reads it with the pinned v6-capable reader | Kernel USB errors/enumeration, `usbaudiod` transfer/recovery, `audiomxd` session changes, process lifecycle, storage, power, thermal | Retention, log loss, and decoding gaps constrain coverage. Establish actual first/last timestamps from `summary.json`; inspect reader diagnostics and missing-message markers. JSONL is not globally sorted. This is the iPad archive, not the Mac unified log. |
 | Live iPad unified log | `OsTraceService.syslog`, historically with `stream_flags=0x184`, saved with device and host-receipt timestamps | Events during a reproduction | **Recipe, not a CLI mode and not reverified.** It starts at attachment, is not historical replay, and may lose messages. Bound duration and output size. |
 | Crash, watchdog, jetsam, analytics | `CrashReportsManager`; copy selected `.ips` and diagnostic files without deleting them | Exceptions, watchdog termination, memory pressure kills, process/OS identity, available stacks | **Recipe, historically used by older USB tooling; pinned Wi-Fi retrieval unverified.** Reports cover recorded incidents rather than continuous runtime. |
 | Sysdiagnose | Retrieve an existing bundle from diagnostic storage, or initiate Apple sysdiagnose separately | Broad retrospective system context | **Recipe.** Creation is intrusive, large, and slow. A listing does not establish creation or retrieval; this differs from `OsTraceService.collect`. |

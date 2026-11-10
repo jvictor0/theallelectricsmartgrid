@@ -99,20 +99,25 @@ reader mismatch. Preserve the archive's original version metadata.
 
 [Mandiant unifiedlog_iterator v0.7.0](https://github.com/mandiant/macos-UnifiedLogs/releases/tag/v0.7.0)
 adds iOS 27 support. Its released Apple Silicon binary successfully decoded
-the original v6 archive on this Mac. Download
-`unifiedlog_iterator-v0.7.0-aarch64-apple-darwin.tar.gz` from that release,
-verify its SHA-256
-`bf5c4a3418b133fbd403ca7893a2280acb8c2c3605b4ad6f87f9fc75b35a20b7`,
-and extract under ignored `build/tools/unifiedlogs-0.7.0/`. Run:
+the original v6 archive on this Mac. Use the maintained command:
 
 ```bash
-build/tools/unifiedlogs-0.7.0/unifiedlog_iterator-v0.7.0-aarch64-apple-darwin/unifiedlog_iterator \
-  --mode log-archive --input CAPTURE.logarchive \
-  --output build/results/system-decoded.jsonl \
-  --bookmark-path build/results/log-reader-bookmark.json
+scripts/.venv-ios/bin/python scripts/ipad_logs.py decode CAPTURE.logarchive \
+  --output build/results/incident-decoded
 ```
 
-Choose distinct output paths for each capture; decoded JSONL can be large.
+The command downloads the pinned release on first use (network access required),
+verifies package SHA-256
+`bf5c4a3418b133fbd403ca7893a2280acb8c2c3605b4ad6f87f9fc75b35a20b7`,
+and installs it under ignored `build/tools/unifiedlogs-0.7.0/`. Each run checks
+the binary's pinned checksum too. It requires an Apple Silicon Mac and does not
+modify the archive. No manual installation or archive metadata edits are needed.
+
+Choose a new output directory for each decode; decoded JSONL can be large.
+It contains `records.jsonl`, `summary.json` (UTC coverage, loss-record count,
+archive version, reader provenance), the bookmark, and reader stdout/stderr.
+Failed decoding retains `.partial` output and does not publish a completed
+directory. Existing complete or partial output is never overwritten.
 Records are not globally time-sorted. Check timestamp coverage, loss records,
 and missing-message markers before drawing conclusions. This reader reproduced
 the previous day's 2,241 invalid-number messages and both thermal-transition

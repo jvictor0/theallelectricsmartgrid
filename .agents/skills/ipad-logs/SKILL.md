@@ -29,13 +29,26 @@ Use a timezone-qualified start when an incident time is known:
 scripts/.venv-ios/bin/python scripts/ipad_logs.py system --since 2026-09-15T12:00:00-07:00
 ```
 
-Query a completed archive on the Mac:
+Decode a completed archive on the Mac, including iPadOS 27 v6 archives that
+older Apple log tools reject:
 
 ```bash
-/usr/bin/log show --archive CAPTURE.logarchive --style compact --info --debug
-/usr/bin/log show --archive CAPTURE.logarchive --style compact --info --debug \
-  --predicate 'process == "usbaudiod" OR process == "audiomxd" OR eventMessage CONTAINS[c] "MAYA"'
+scripts/.venv-ios/bin/python scripts/ipad_logs.py decode CAPTURE.logarchive \
+  --output build/results/incident-decoded
 ```
+
+This installs the checksum-pinned reader under `build/tools/` on its first run
+(network access required), then verifies the cached binary on each run. It reads
+the original archive without changing its metadata. The new output directory
+contains `records.jsonl`, `summary.json` with retained UTC coverage and loss count,
+and reader stdout/stderr. Records are not globally sorted. Use the `timestamp`,
+`process`, and `message` fields to select incident windows. Inspect reader
+diagnostics and missing-message markers as well as loss records.
+
+See [the maintained reader documentation](../../../docs/ipad-tools.md#reading-newer-system-log-archives)
+for provenance and limits. Apple's `/usr/bin/log show --archive` remains useful
+on compatible Macs, but its version-6 rejection is a known reader mismatch;
+use the documented decode command, not a changed archive version field.
 
 If collection fails, report the error and the `.partial` directory. Fix the
 cause and start a fresh invocation. Do not repair, rename, or present a partial

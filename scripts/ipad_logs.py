@@ -130,7 +130,7 @@ async def capture_system(args, udid, host):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Capture SmartGridOne or iPad system logs over Wi-Fi")
+    parser = argparse.ArgumentParser(description="Capture iPad logs over Wi-Fi or decode a local archive")
     parser.add_argument("--udid", default=None)
     parser.add_argument("--host", default=None)
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -144,6 +144,10 @@ def build_parser():
     window.add_argument("--last", default="15m")
     window.add_argument("--since")
     system.add_argument("--output", type=Path)
+
+    decode = subparsers.add_parser("decode", help="decode a completed archive with the pinned v6-capable reader")
+    decode.add_argument("archive", type=Path)
+    decode.add_argument("--output", type=Path, required=True, help="new directory for records, coverage, and reader diagnostics")
     return parser
 
 
@@ -154,8 +158,11 @@ def main():
     try:
         if args.mode == "app":
             asyncio.run(capture_app(args, udid, host))
-        else:
+        elif args.mode == "system":
             asyncio.run(capture_system(args, udid, host))
+        else:
+            from ipad_log_reader import decode_archive
+            decode_archive(args.archive, args.output)
     except Exception as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
