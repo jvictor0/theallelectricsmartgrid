@@ -12,6 +12,7 @@
 #include "SampleEventHistory.hpp"
 #include "SampleTimer.hpp"
 #include "TimeWarpView.hpp"
+#include "PeriodicPhaseAxis.hpp"
 
 // Common scalar read interface. Storage uses the original sample timeline;
 // bound streams also retain warped cycle markers. Level l has spacing 4^l and a known FIR
@@ -28,6 +29,7 @@ struct ScopeWriter
 
     struct Markers
     {
+        PeriodicPhaseAxis m_periodic;
         double m_startIndices[x_numStartIndices]{};
         size_t m_endIndices[x_numStartIndices]{};
         double m_warpedStartIndices[x_numStartIndices]{};
@@ -48,6 +50,7 @@ struct ScopeWriter
 
     struct AcceptedMarkers
     {
+        PeriodicPhaseAxis m_periodic;
         double m_startIndices[x_numStartIndices]{};
         size_t m_endIndices[x_numStartIndices]{};
         double m_warpedStartIndices[x_numStartIndices]{};
@@ -59,6 +62,8 @@ struct ScopeWriter
 
     struct PublishedMarkers
     {
+        std::atomic<double> m_periodicOrigin{0.0};
+        std::atomic<double> m_periodicPeriod{0.0};
         std::atomic<double> m_startIndices[x_numStartIndices]{};
         std::atomic<size_t> m_endIndices[x_numStartIndices]{};
         std::atomic<double> m_warpedStartIndices[x_numStartIndices]{};
@@ -122,6 +127,13 @@ struct ScopeWriter
         assert(!m_timeWarpSource || m_timeWarpSource == source);
         m_timeWarpSource = source;
         m_warpedScopes[scope] = true;
+    }
+
+    void SetPeriodic(size_t scope, size_t voice, PeriodicPhaseAxis axis)
+    {
+        assert(scope < m_scopes && voice < m_voices);
+        assert(std::isfinite(axis.m_origin) && std::isfinite(axis.m_period) && axis.m_period > 0.0);
+        GetMarkers(scope, voice).m_periodic = axis;
     }
 
     bool IsWarped(size_t scope) const
@@ -374,6 +386,7 @@ struct ScopeWriter
             {
                 const PublishedMarkers& source = m_publishedMarkers[stream];
                 AcceptedMarkers& target = m_pendingMarkers[stream];
+                target.m_periodic = {source.m_periodicOrigin.load(), source.m_periodicPeriod.load()};
                 target.m_oldestStartIndex = source.m_oldestStartIndex.load();
                 size_t count = source.m_startIndexIndex.load();
                 for (size_t marker = 0; marker < x_numStartIndices; ++marker)
@@ -451,6 +464,8 @@ struct ScopeWriter
             }
 
             PublishedMarkers& target = m_publishedMarkers[i];
+            target.m_periodicOrigin.store(markers.m_periodic.m_origin);
+            target.m_periodicPeriod.store(markers.m_periodic.m_period);
             target.m_startIndexIndex.store(markers.m_startIndexIndex.load());
             target.m_oldestStartIndex.store(markers.m_oldestStartIndex);
             if (markers.m_dirty.any())
@@ -739,6 +754,14 @@ struct ScopeWriterHolderGeneric
         return m_scopeWriter && m_scopeWriter->IsWriteSample();
     }
 
+    void SetPeriodicAtVoice(size_t voice, PeriodicPhaseAxis axis)
+    {
+        if (m_scopeWriter)
+        {
+            m_scopeWriter->SetPeriodic(m_scopeIx, voice, axis);
+        }
+    }
+
     void RecordStartAtVoice(size_t voice, double offset)
     {
         if (m_scopeWriter)
@@ -1001,11 +1024,16 @@ struct ScopeReader
     size_t m_scopeIx;
     size_t m_numXSamples;
     TimeWarpView m_timeWarp;
+    PeriodicPhaseAxis m_periodic;
     double m_startIndex = 0.0;
     double m_transferXSample = 0.0;
     double m_transferIndex = 0.0;
     double m_postTransferIndex = 0.0;
     double m_postTransferEndIndex = 0.0;
+    // Real engine-sample span for duration comparisons, independent of axis units.
+    // Bound scopes measure the available displayed points through their inverse.
+    //
+    double m_sampleExtent = 0.0;
     float m_startY = 0.0f;
     float m_prevStartY = 0.0f;
     bool m_empty = false;
@@ -1024,83 +1052,107 @@ struct ScopeReader
         }
 
         const auto& markers = scopeWriter->GetAcceptedMarkers(scopeIx, voiceIx);
+        m_periodic = markers.m_periodic;
         size_t count = markers.m_startIndexIndex;
         double acceptedIndex = static_cast<double>(scopeWriter->m_acceptedIndex);
         if (acceptedIndex == 0.0 || numXSamples == 0
-            || (m_timeWarp.m_source && count <= markers.m_oldestStartIndex))
+            || (m_timeWarp.m_source && m_periodic.m_period == 0.0 && count <= markers.m_oldestStartIndex))
         {
             m_empty = true;
             return;
         }
 
-        size_t current = (count - 1) % ScopeWriter::x_numStartIndices;
-        size_t previous = (count - 2) % ScopeWriter::x_numStartIndices;
-        m_startIndex = m_timeWarp.m_source ? markers.m_warpedStartIndices[current] : markers.m_startIndices[current];
-        double prevStartIndex = m_timeWarp.m_source ? markers.m_warpedStartIndices[previous] : markers.m_startIndices[previous];
-        if (m_timeWarp.m_source && count - markers.m_oldestStartIndex < 2)
+        double prevStartIndex = 0.0;
+        if (m_periodic.m_period > 0.0 && m_timeWarp.m_source)
         {
-            prevStartIndex = m_startIndex;
-        }
-
-        m_transferIndex = m_timeWarp.m_source ? m_timeWarp.m_warpedTime : acceptedIndex - 1.0;
-        if ((!m_timeWarp.m_source && m_startIndex < 0.0) || m_startIndex > m_transferIndex)
-        {
-            m_empty = true;
-            return;
-        }
-
-        if (m_timeWarp.m_source)
-        {
-            if (markers.m_hasEnd[current])
-            {
-                m_transferIndex = std::min(m_transferIndex, markers.m_warpedEndIndices[current]);
-            }
-        }
-        else if (m_startIndex < markers.m_endIndices[current])
-        {
-            m_transferIndex = markers.m_endIndices[current] - 1.0;
-        }
-
-        double prevNumSamples = m_startIndex - prevStartIndex;
-        if (m_timeWarp.m_source)
-        {
-            if (count - markers.m_oldestStartIndex >= 2 && markers.m_hasEnd[previous])
-            {
-                prevNumSamples = markers.m_warpedEndIndices[previous] - prevStartIndex;
-            }
-        }
-        else if (prevStartIndex < markers.m_endIndices[previous])
-        {
-            prevNumSamples = markers.m_endIndices[previous] - prevStartIndex;
-        }
-
-        if (prevNumSamples <= 0.0 || prevNumSamples <= m_transferIndex - m_startIndex)
-        {
-            m_transferXSample = m_numXSamples;
+            m_transferIndex = m_timeWarp.m_warpedTime;
+            m_startIndex = m_periodic.Start(m_transferIndex);
+            prevStartIndex = m_startIndex - m_periodic.m_period;
+            double progress = m_transferIndex - m_startIndex;
+            m_transferXSample = progress / m_periodic.m_period * m_numXSamples;
+            m_postTransferIndex = prevStartIndex + progress;
+            m_postTransferEndIndex = m_startIndex;
         }
         else
         {
-            m_transferXSample = (m_transferIndex - m_startIndex) / prevNumSamples * m_numXSamples;
-            m_postTransferIndex = prevStartIndex + (m_transferIndex - m_startIndex);
-            m_postTransferEndIndex = prevStartIndex + prevNumSamples;
+            size_t current = (count - 1) % ScopeWriter::x_numStartIndices;
+            size_t previous = (count - 2) % ScopeWriter::x_numStartIndices;
+            m_startIndex = m_timeWarp.m_source ? markers.m_warpedStartIndices[current] : markers.m_startIndices[current];
+            prevStartIndex = m_timeWarp.m_source ? markers.m_warpedStartIndices[previous] : markers.m_startIndices[previous];
+            if (m_timeWarp.m_source && count - markers.m_oldestStartIndex < 2)
+            {
+                prevStartIndex = m_startIndex;
+            }
+
+            m_transferIndex = m_timeWarp.m_source ? m_timeWarp.m_warpedTime : acceptedIndex - 1.0;
+            if ((!m_timeWarp.m_source && m_startIndex < 0.0) || m_startIndex > m_transferIndex)
+            {
+                m_empty = true;
+                return;
+            }
+
+            if (m_timeWarp.m_source)
+            {
+                if (markers.m_hasEnd[current])
+                {
+                    m_transferIndex = std::min(m_transferIndex, markers.m_warpedEndIndices[current]);
+                }
+            }
+            else if (m_startIndex < markers.m_endIndices[current])
+            {
+                m_transferIndex = markers.m_endIndices[current] - 1.0;
+            }
+
+            double prevNumSamples = m_startIndex - prevStartIndex;
+            if (m_timeWarp.m_source)
+            {
+                if (count - markers.m_oldestStartIndex >= 2 && markers.m_hasEnd[previous])
+                {
+                    prevNumSamples = markers.m_warpedEndIndices[previous] - prevStartIndex;
+                }
+            }
+            else if (prevStartIndex < markers.m_endIndices[previous])
+            {
+                prevNumSamples = markers.m_endIndices[previous] - prevStartIndex;
+            }
+
+            if (prevNumSamples <= 0.0 || prevNumSamples <= m_transferIndex - m_startIndex)
+            {
+                m_transferXSample = m_numXSamples;
+            }
+            else
+            {
+                m_transferXSample = (m_transferIndex - m_startIndex) / prevNumSamples * m_numXSamples;
+                m_postTransferIndex = prevStartIndex + (m_transferIndex - m_startIndex);
+                m_postTransferEndIndex = prevStartIndex + prevNumSamples;
+            }
+
         }
 
         double oldestRequired = m_transferXSample < m_numXSamples
             ? std::min(m_startIndex, m_postTransferIndex) : m_startIndex;
+        m_sampleExtent = (m_transferIndex - m_startIndex
+            + (m_transferXSample < m_numXSamples ? m_postTransferEndIndex - m_postTransferIndex : 0.0))
+            * scopeWriter->m_decimation;
         if (m_timeWarp.m_source)
         {
             // LOD still uses retained real-time history. Unmapped points remain
             // gaps and do not prevent the rest of the cycle from being drawn.
             //
             oldestRequired = std::numeric_limits<double>::infinity();
+            double newestRequired = -std::numeric_limits<double>::infinity();
             for (size_t point = 0; point < m_numXSamples; ++point)
             {
                 double index = RealIndex(Coordinate(static_cast<double>(point)));
                 if (std::isfinite(index))
                 {
                     oldestRequired = std::min(oldestRequired, index);
+                    newestRequired = std::max(newestRequired, index);
                 }
             }
+
+            m_sampleExtent = std::isfinite(oldestRequired)
+                ? (newestRequired - oldestRequired) * scopeWriter->m_decimation : 0.0;
         }
 
         m_lod = scopeWriter->GetLod(acceptedIndex - 1.0 - oldestRequired, scopeWriter->m_acceptedIndex);
@@ -1114,6 +1166,11 @@ struct ScopeReader
 
     double Coordinate(double sample) const
     {
+        if (m_periodic.m_period > 0.0 && m_timeWarp.m_source)
+        {
+            return m_periodic.Coordinate(m_transferIndex, sample / m_numXSamples);
+        }
+
         if (sample < m_transferXSample || m_transferXSample == static_cast<double>(m_numXSamples))
         {
             return m_startIndex + sample / m_transferXSample * (m_transferIndex - m_startIndex);

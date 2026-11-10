@@ -20,7 +20,7 @@ DOCTEST_TEST_CASE("Warped scope: inverse views reject unpublished endpoints and 
     view = {&inverse, 40.0, 40.0, inverse.m_oldestWarpedTime};
     DOCTEST_CHECK(view.GetRealTime(30.5) == 30.5);
     DOCTEST_CHECK_FALSE(std::isfinite(view.GetRealTime(14.5)));
-    DOCTEST_CHECK_FALSE(std::isfinite(view.GetRealTime(39.5)));
+    DOCTEST_CHECK(view.GetRealTime(39.5) == 39.5);
 }
 
 DOCTEST_TEST_CASE("Warped scope: nonuniform time composes current and previous cycles")

@@ -90,15 +90,16 @@ See [the benchmark guide](../private/test/perf/README.md) for workload selection
 input captures, measurement boundaries, and before/after comparisons. These
 targets do not change the core tests' assertion-enabled configuration.
 
-## Lean encoder specification
+## Lean specifications
 
 Run `make lean-setup` once, optionally `make lean-cache` to download the pinned
-Mathlib proof cache, then `make lean-test` to check the encoder's Lean/Veil
-state machines, EARS contract proofs, proof axioms and C++ source references.
+Mathlib proof cache, then `make lean-test` to check the encoder and phase-time Lean/Veil
+state machines, contract proofs, proof axioms and C++ source references.
 Toolchains, dependencies and incremental proof artifacts stay in `build/lean/`;
 the small Lake configuration cache is ignored at `.lake/`. This target does not
 build or launch the audio app. Setup requirements, model coverage and proof
-boundaries are documented in [formal/Encoder/README.md](../formal/Encoder/README.md).
+boundaries are documented in [formal/Encoder/README.md](../formal/Encoder/README.md)
+and [formal/PhaseTime/README.md](../formal/PhaseTime/README.md).
 
 ## Cleanup and completion
 

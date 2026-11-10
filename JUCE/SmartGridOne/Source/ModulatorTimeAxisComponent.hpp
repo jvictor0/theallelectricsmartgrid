@@ -78,7 +78,7 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
         double extent = 0.0;
         for (size_t voice = 0; voice < GetVoiceCount(); ++voice)
         {
-            extent = std::max(extent, GetTimeAxis(voice).GetExtent());
+            extent = std::max(extent, GetTimeAxis(voice).GetSampleExtent());
         }
 
         return extent;
@@ -189,7 +189,7 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
                 : m_historyMode == Mode::Quad && random ? TheNonagonSmartGrid::VoiceColor(voice) : sourceColor;
             g.setColour(J(curveColor));
             g.strokePath(path, juce::PathStrokeType(1.4f));
-            if (!PathDrawer::ShouldDrawScopeMarker(axis.GetExtent() / SampleTimer::x_sampleRate))
+            if (!PathDrawer::ShouldDrawScopeMarker(axis.GetSampleExtent() / SampleTimer::x_sampleRate))
             {
                 continue;
             }

@@ -330,6 +330,14 @@ baseline operations also carry `@head key:` references.
 [traceability.json](traceability.json) resolves the key to unique C++ symbols
 and records SHA-256 hashes of the reviewed source files. The source audit rejects
 missing/ambiguous symbols, unknown model anchors, and changed source files.
+The phase-time integration review also reconciles commit `6abcf50`'s
+`CreateEncoder` initialization: after `SetState`, post-gesture value, current
+and previous outputs, and min/max are initialized to the normalized configured
+default. Scene values/targets and the forced first evaluation are unchanged.
+This agrees with `initialFrom` and the `StateMachine` initializer's default-valued
+output; no theorem or assumption changes. The current source hash is refreshed;
+the pinned historical snapshot remains unchanged.
+
 Whole-file hashes deliberately make unrelated changes require review too.
 They are a drift alarm, not a semantic extraction or equivalence proof.
 

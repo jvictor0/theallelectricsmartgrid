@@ -60,7 +60,14 @@ struct ModulatorTimeAxis
     double m_present = 1.0;
     bool m_predictive = false;
     TimeWarpView m_timeWarp;
+    PeriodicPhaseAxis m_periodic;
     double m_wrappedEnd = std::numeric_limits<double>::quiet_NaN();
+    double m_sampleExtent = std::numeric_limits<double>::quiet_NaN();
+
+    double GetSampleExtent() const
+    {
+        return std::isfinite(m_sampleExtent) ? m_sampleExtent : GetExtent();
+    }
 
     double GetExtent() const
     {
@@ -75,6 +82,11 @@ struct ModulatorTimeAxis
 
     double GetCoordinate(double position) const
     {
+        if (m_periodic.m_period > 0.0)
+        {
+            return m_periodic.Coordinate(m_end, position);
+        }
+
         if (position < m_transfer || m_transfer == 1.0)
         {
             return m_start + position / m_transfer * (m_end - m_start);
@@ -464,6 +476,8 @@ ModulatorTimeAxis GetTimeAxis(const UIState& uiState, ModulatorRef modulator)
     }
 
     axis.m_timeWarp = reader.m_timeWarp;
+    axis.m_periodic = reader.m_periodic;
+    axis.m_sampleExtent = reader.m_sampleExtent;
     double origin = axis.m_timeWarp.m_source ? 0.0
         : static_cast<double>(uiState.m_squiggleBoyUIState.m_firstScopeSample.load());
     axis.m_start = origin + reader.m_startIndex;

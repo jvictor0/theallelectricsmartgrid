@@ -1,5 +1,6 @@
 #include "doctest.h"
 #include "EncoderModulatorComponents.hpp"
+#include "ModulatorTimeAxisComponent.hpp"
 #include <memory>
 
 namespace
@@ -23,6 +24,61 @@ bool HasColorNear(const juce::Image& image, int x, int y, juce::Colour color)
 
     return false;
 }
+}
+
+DOCTEST_TEST_CASE("LFO cursors: phase axes use real duration for visibility and source selection")
+{
+    for (size_t periodSamples : {32768, 8192})
+    {
+        DOCTEST_CAPTURE(periodSamples);
+        auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+        auto& state = ui->m_squiggleBoyUIState;
+        state.m_firstScopeSample.store(0);
+        state.m_activeTrack.store(0);
+        TimeWarpInverter<8192> inverse(4096.0);
+        size_t voiceScope = SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::LFO1), 0);
+        size_t quadScope = static_cast<size_t>(SmartGridOne::QuadScopes::QuadLFO1);
+        state.m_voiceScopeWriter.SetTimeWarp(voiceScope, &inverse);
+        state.m_voiceScopeWriter.SetPeriodic(voiceScope, 0, {0.0, 1.0});
+        state.m_quadScopeWriter.SetTimeWarp(quadScope, &inverse);
+        for (size_t voice = 0; voice < 4; ++voice)
+        {
+            state.m_quadScopeWriter.SetPeriodic(quadScope, voice, {0.0, 1.0});
+        }
+
+        for (size_t sample = 0; sample <= periodSamples * 5 / 4; ++sample)
+        {
+            inverse.Write(static_cast<double>(sample) / periodSamples, static_cast<double>(sample));
+            state.m_voiceScopeWriter.Write(voiceScope, TrioFloat::Splat(0.25f));
+            state.m_quadScopeWriter.Write(quadScope, QuadFloat::Splat(0.25f));
+            state.m_voiceScopeWriter.AdvanceIndex();
+            state.m_quadScopeWriter.AdvanceIndex();
+        }
+
+        state.m_voiceScopeWriter.Publish();
+        state.m_quadScopeWriter.Publish();
+        state.m_voiceScopeWriter.AcceptSamples();
+        state.m_quadScopeWriter.AcceptSamples();
+        bool slow = periodSamples == 32768;
+        ScopeReader reader(&state.m_voiceScopeWriter, 0, voiceScope, 256, 1);
+        DOCTEST_CHECK(PathDrawer::ShouldDrawScopeMarker(reader) == slow);
+        int selectedVoice = 0;
+        for (auto mode : {SmartGridOneLayout::ParamMode::Voice, SmartGridOneLayout::ParamMode::Quad})
+        {
+            DOCTEST_CAPTURE(mode);
+            bool voice = mode == SmartGridOneLayout::ParamMode::Voice;
+            ModulatorTimeAxisComponent component;
+            component.Configure(ui.get(), mode, voice ? static_cast<size_t>(VoiceModulator::LFO1)
+                : static_cast<size_t>(QuadModulator::LFO1), &selectedVoice);
+            DOCTEST_CHECK(component.GetTimeExtent() > 0.99 * periodSamples);
+            DOCTEST_CHECK(component.GetTimeExtent() <= periodSamples);
+            juce::Image image(juce::Image::ARGB, 512, 200, true);
+            juce::Graphics graphics(image);
+            component.Draw(graphics, image.getBounds());
+            int markerY = 145;
+            DOCTEST_CHECK((image.getPixelAt(126, markerY - 2) != juce::Colours::black) == slow);
+        }
+    }
 }
 
 DOCTEST_TEST_CASE("Sheafy dial: spokes follow the active lens time slice and selected axis")

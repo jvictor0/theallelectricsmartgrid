@@ -111,7 +111,7 @@ The engine supports 16 rhythm slots. The grid edits slots 0 through 7 and sizes 
 
 `TheoryOfTime::Process` runs once per engine sample. It advances the unmodulated phase by `m_freq` (or sets it to zero when stopped), evaluates the phase-modulation LFO from the previous sample's phases, advances the base sample, emits transport start and stop messages, emits a MIDI clock message on any sample where `Phasor2Tick` sees a division crossing, and writes the mono scope.
 
-When stopped, all phases and positions are zero and gates and crossing flags are false. The stop transition and any accepted stopped topology edit raise the change flag for that sample. Accepted topology remains available for the next start.
+When stopped, musical phases and positions are zero and gates and crossing flags are false. The stop transition and any accepted stopped topology edit raise the change flag for that sample. Accepted topology remains available for the next start.
 
 ## Consumers
 
@@ -120,6 +120,9 @@ When stopped, all phases and positions are zero and gates and crossing flags are
 - PolyXFader selects an explicit phase domain and evaluates a periodic waveform in double precision before narrowing to float. Voice LFOs use modulated phase; the clock's own modulation LFO uses unmodulated phase.
 - AHD captures a source/global cycle ratio and envelope period at trigger and follows only absolute modulated global phase during the note.
 - Recording timestamps and outgoing MIDI clock use unmodulated global phase. Recording does not inherit phase-offset excursions.
-- Delay heads use absolute sample coordinates, retaining their transport/tempo glue and wrapping only to the buffer's read window. Scopes and UI indicators explicitly reduce their displayed phase.
+- Delay heads use continuous master phase. `PhaseClock` follows musical phase plus a constant offset while running, advances at nominal speed while stopped, and rebases only the offset on restart. Tempo changes do not reinterpret retained phase history. Read heads wrap within one selected loop behind the writer.
+- TheoryOfTime records that phase into its fixed-grid inverse G, mapping to absolute engine samples. G retains four master cycles at 2^18 cells per cycle, with a 32 MiB payload with two fallback endpoints and one replacement per cell. The last forward endpoint closes the partial cell. LFO/delay scopes publish explicit periods and compose reads through G; envelope scopes retain reversible event markers. See the [inverse model](../formal/PhaseTime/README.md) for phase-error bounds and island reassignment and separate spectral/conditioning assumptions.
+- The time-warp visualizer uses a second `PhaseClock` and inverse for unmodulated phase. Its explicit period is the warp LFO's common loop period. The mono scope records the warp displacement, and the UI adds the unwarped musical coordinate before wrapping vertically and breaking the path. This inverse uses two master cycles at the same resolution (16 MiB including branch storage); external MIDI corrections can reverse even this clock. The scope needs at most one cycle under normal forward unmodulated travel. It uses the same clock transport transitions and accepted publication as other periodic scopes.
+- `GetModulatedGlobalPhaseIncrement()` exposes signed phase travel for LFO slew; `GetUnmodulatedGlobalPhaseIncrement()` supplies nominal travel, including while stopped.
 
 See [PolyXFader LFOs](polyxfader-lfos.md), [AHD envelopes](ahd-envelopes.md), [Multi-Phasor Gate](multi-phasor-gate.md), and [Controller Integrations](ui-controller-integrations.md).

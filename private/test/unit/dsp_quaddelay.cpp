@@ -9,8 +9,8 @@
 // write position into the time warp inverter, as the theory of time would.
 //
 // Wiring discovered:
-//   - Input::m_writeHeadPosition (double, shared by all channels) and
-//     m_readHeadPosition (QuadDouble) are "warped time" (monotonically
+//   - Input::m_writeHeadPhase (double, shared by all channels) and
+//     m_readHeadPhase (QuadDouble) are "warped time" (monotonically
 //     increasing write position, read = write - delay).
 //   - Input::m_relativeWriteHeadPosition (float) / m_relativeReadHeadPosition
 //     (QuadFloat) are normalised [0,1]; used for UI only.
@@ -48,7 +48,7 @@ DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothin
     QuadDelayInputSetter::Input input;
     input.m_theoryOfTime = clock.Get();
     QuadDelay::Input delayInput;
-    delayInput.m_writeHeadPosition = 0;
+    delayInput.m_writeHeadPhase = 0;
     auto synth = std::make_unique<Resynthesizer>();
     const float settings[] = {0.0f, std::nextafter(0.05f, 0.0f), 0.05f, 0.75f, 0.02f};
     for (size_t pass = 0; pass < 5; ++pass)
@@ -58,7 +58,7 @@ DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothin
             input.m_resynthSlewUpKnob[channel] = settings[(pass + channel) % 5];
         }
 
-        setter.Process(input, delayInput, nullptr);
+        setter.Process(input, delayInput);
         for (size_t channel = 0; channel < 4; ++channel)
         {
             const float knob = input.m_resynthSlewUpKnob[channel];
@@ -133,8 +133,8 @@ QuadDelay::Input MakeBasicInput(double writePos, QuadDouble readPos,
     inp.m_return             = QuadFloat(0.0f, 0.0f, 0.0f, 0.0f);
     inp.m_feedback           = QuadFloat(feedback, feedback, feedback, feedback);
     inp.m_rotate             = QuadFloat(0.0f, 0.0f, 0.0f, 0.0f);
-    inp.m_writeHeadPosition  = writePos;
-    inp.m_readHeadPosition   = readPos;
+    inp.m_writeHeadPhase  = writePos;
+    inp.m_readHeadPhase   = readPos;
     // Default relative positions (UI, does not affect audio path).
     //
     inp.m_relativeWriteHeadPosition = -1.0f;

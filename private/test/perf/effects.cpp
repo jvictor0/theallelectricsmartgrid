@@ -53,7 +53,7 @@ struct ClockViews
     {
         TheoryOfTimeBase::Sample m_sample;
         double m_globalPeriodSamples;
-        WriteTapeHead m_writeTapeHead;
+        PhaseClock m_phaseClock;
     };
 
     TheoryOfTime m_clock;
@@ -81,7 +81,7 @@ struct ClockViews
             m_clock.Process(m_input);
             view.m_sample = m_clock.m_sample;
             view.m_globalPeriodSamples = m_clock.m_globalPeriodSamples;
-            view.m_writeTapeHead = m_clock.m_writeTapeHead;
+            view.m_phaseClock = m_clock.m_phaseClock;
             m_messages.Clear();
         }
     }
@@ -91,14 +91,14 @@ struct ClockViews
         const Snapshot& snapshot = m_views[(n % (128 * x_ratio)) / x_stride];
         m_view.m_sample = snapshot.m_sample;
         m_view.m_globalPeriodSamples = snapshot.m_globalPeriodSamples;
-        m_view.m_writeTapeHead = snapshot.m_writeTapeHead;
-        RecordWritePosition(m_view.m_writeTapeHead.m_actualPosition);
+        m_view.m_phaseClock = snapshot.m_phaseClock;
+        RecordWritePosition(m_view.m_phaseClock.m_phase);
         return &m_view;
     }
 
-    void RecordWritePosition(double enginePosition)
+    void RecordWritePosition(double phase)
     {
-        m_view.m_timeWarpInverter->Write(enginePosition, static_cast<double>(SampleTimer::GetSample()));
+        m_view.m_timeWarpInverter->Write(phase, static_cast<double>(SampleTimer::GetSample()));
     }
 };
 
@@ -210,16 +210,16 @@ struct Delay
             }
 
             m_knobs.m_theoryOfTime = m_clock.Advance(n);
-            m_setter.Process(m_knobs, m_input, &m_core);
+            m_setter.Process(m_knobs, m_input);
         }
         else
         {
-            double write = static_cast<double>(n) / x_ratio;
-            m_clock.RecordWritePosition(static_cast<double>(n));
-            m_input.m_writeHeadPosition = write;
+            double write = static_cast<double>(n) / x_rate;
+            m_clock.RecordWritePosition(write);
+            m_input.m_writeHeadPhase = write;
             for (size_t c = 0; c < 4; ++c)
             {
-                m_input.m_readHeadPosition[c] = write - (12000 + 2000 * c);
+                m_input.m_readHeadPhase[c] = write - static_cast<double>(12000 + 2000 * c) / 48000.0;
             }
         }
 

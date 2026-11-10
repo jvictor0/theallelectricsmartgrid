@@ -40,12 +40,14 @@ lean-setup:
 	"$(REPO_ROOT)/scripts/lean.sh" setup
 
 lean-cache:
-	"$(REPO_ROOT)/scripts/lean.sh" exe cache get Mathlib.Analysis.SpecialFunctions.Pow.Real Mathlib.Tactic.Linarith Mathlib.Tactic.SplitIfs Mathlib.Tactic.NormNum Mathlib.Tactic.Ring
+	"$(REPO_ROOT)/scripts/lean.sh" exe cache get Mathlib.Analysis.SpecialFunctions.Pow.Real Mathlib.Tactic.Linarith Mathlib.Tactic.SplitIfs Mathlib.Tactic.NormNum Mathlib.Tactic.Ring Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 
 lean-test:
 	python3 "$(REPO_ROOT)/scripts/check_encoder_spec.py"
+	python3 "$(REPO_ROOT)/scripts/check_phase_spec.py"
 	"$(REPO_ROOT)/scripts/lean.sh" build
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/Encoder/Audit.lean"
+	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/PhaseTime/Audit.lean"
 
 PERF_DIR := $(REPO_ROOT)/build/tools/perf/Release
 .PHONY: perf-configure perf-build perf-test perf-run

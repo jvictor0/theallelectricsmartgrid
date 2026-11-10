@@ -315,7 +315,7 @@ DOCTEST_TEST_CASE("ScopeReader: a first top before sample zero has no readable h
     DOCTEST_CHECK(reader.Get(0.0) == 0.0f);
 }
 
-DOCTEST_TEST_CASE("ScopeReader: PolyXFader top reaches its control-rate scope between samples")
+DOCTEST_TEST_CASE("ScopeReader: LFO publishes a periodic axis between stored samples")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTimeBase time;
@@ -351,10 +351,13 @@ DOCTEST_TEST_CASE("ScopeReader: PolyXFader top reaches its control-rate scope be
     writer->AcceptSamples();
     ScopeReader reader(writer.get(), 0, 0, 1024, 1);
 
-    DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(9.1875));
+    const auto& markers = writer->GetAcceptedMarkers(0, 0);
+    DOCTEST_CHECK(markers.m_startIndexIndex == 0);
+    DOCTEST_CHECK(markers.m_periodic.m_period == 1.0);
+    DOCTEST_CHECK(markers.m_periodic.m_origin == time.m_phaseClock.m_offset);
 }
 
-DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one phase per control sample")
+DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one displacement per control sample")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTime time;
@@ -371,7 +374,7 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one phase per control sa
 
     writer->m_index = 100;
     time.SetupMonoScopeWriter(writer.get());
-    constexpr float x_phases[] = {0.03125f, 0.28125f, 0.53125f, 0.78125f, 0.03125f};
+    SampleTimer::s_instance->m_sample = 100 * x_decimation;
     for (size_t block = 0; block < 5; ++block)
     {
         DOCTEST_CAPTURE(block);
@@ -379,12 +382,13 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one phase per control sa
         {
             time.Process(input);
             writer->AdvanceIndex();
+            SampleTimer::s_instance->m_sample++;
         }
 
         DOCTEST_CHECK(writer->ReadSample(0, 0, 99) == -1.0f);
         for (size_t previous = 0; previous <= block; ++previous)
         {
-            DOCTEST_CHECK(writer->ReadSample(0, 0, 100 + previous) == doctest::Approx(x_phases[previous]));
+            DOCTEST_CHECK(writer->ReadSample(0, 0, 100 + previous) == 0.0f);
         }
 
         for (size_t future = 101 + block; future < 113; ++future)
@@ -394,26 +398,25 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one phase per control sa
     }
 }
 
-DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into decimated control samples across blocks")
+DOCTEST_TEST_CASE("ScopeReader: Theory of Time publishes fractional periodic positions across decimated blocks")
 {
     struct Case
     {
         double m_initialPhase;
-        double m_startIndex;
-        size_t m_firstBlockStarts;
+        double m_startPhase;
+        double m_cursor;
     };
 
-    // At 1/8 cycle per audio sample, these crossings land 1.5, 6.5, 7, 7.5
-    // and 8 samples after the first stored sample. The last two fall after
-    // the first block's final sample, so the second block records them.
+    // Starting at these musical phases gives different fractional cursor
+    // positions on the same full-period axis, without recording a crossing.
     //
     constexpr Case x_cases[] =
     {
-        {0.8125, 100.1875, 2},
-        {0.1875, 100.8125, 2},
-        {0.125, 100.875, 2},
-        {0.0625, 100.9375, 1},
-        {0.0, 101.0, 1},
+        {0.8125, 0.0625, 864.0},
+        {0.1875, 0.6875, 224.0},
+        {0.125, 0.75, 160.0},
+        {0.0625, 0.8125, 96.0},
+        {0.0, 0.875, 32.0},
     };
 
     for (const Case& item : x_cases)
@@ -435,32 +438,34 @@ DOCTEST_TEST_CASE("ScopeReader: Theory of Time maps fractional tops into decimat
         auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(x_decimation, 4096);
         writer->m_index = 100;
         time.SetupMonoScopeWriter(writer.get());
+        SampleTimer::s_instance->m_sample = 100 * x_decimation;
         for (size_t block = 0; block < 2; ++block)
         {
             for (size_t sample = 0; sample < x_decimation; ++sample)
             {
                 time.Process(input);
                 writer->AdvanceIndex();
+                SampleTimer::s_instance->m_sample++;
             }
 
             writer->Publish();
             writer->AcceptSamples();
-            DOCTEST_CHECK(writer->GetMarkers(0, 0).m_startIndexIndex.load() == (block == 0 ? item.m_firstBlockStarts : 2));
+            DOCTEST_CHECK(writer->GetAcceptedMarkers(0, 0).m_startIndexIndex == 0);
+            DOCTEST_CHECK(writer->GetAcceptedMarkers(0, 0).m_periodic.m_period == 1.0);
 
-            // Keep the second block below the next crossing while making its
-            // first-sample phase available for the reader's fractional lookup.
+            // A tempo change affects cursor travel, not the logical width.
             //
             input.m_freq = 1.0 / 256.0;
         }
 
-        DOCTEST_CHECK(writer->GetMarkers(0, 0).m_startIndices[0] == doctest::Approx(100.125));
         ScopeReader reader(writer.get(), 0, 0, 1024, 1);
         DOCTEST_CHECK_FALSE(reader.m_empty);
-        DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(item.m_startIndex));
+        DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(item.m_startPhase));
+        DOCTEST_CHECK(reader.m_transferXSample == doctest::Approx(item.m_cursor));
     }
 }
 
-DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top on a stored sample keeps the preceding fractional time")
+DOCTEST_TEST_CASE("ScopeReader: LFO publishes the same axis on a stored sample")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTimeBase time;
@@ -491,5 +496,8 @@ DOCTEST_TEST_CASE("ScopeReader: a PolyXFader top on a stored sample keeps the pr
     writer->AcceptSamples();
     ScopeReader reader(writer.get(), 0, 0, 1024, 1);
 
-    DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(19.9375));
+    const auto& markers = writer->GetAcceptedMarkers(0, 0);
+    DOCTEST_CHECK(markers.m_startIndexIndex == 0);
+    DOCTEST_CHECK(markers.m_periodic.m_period == 1.0);
+    DOCTEST_CHECK(markers.m_periodic.m_origin == time.m_phaseClock.m_offset);
 }

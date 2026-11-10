@@ -102,6 +102,38 @@ struct OPLowPassFilterGeneric
         return alpha;
     }
 
+    // Phase-distance decay has no Nyquist cutoff. Keep the accurate small
+    // coefficient path, and use the exponential for large phase steps.
+    //
+    static Vector AlphaFromPhaseTravel(const Vector& cycles)
+    {
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            assert(std::isfinite(cycles[lane]) && cycles[lane] >= 0);
+        }
+
+        Vector safe = Vector::Max(cycles, Vector::Splat(static_cast<Number>(1e-20)));
+        Vector small = AlphaFromNatFreqApprox(safe);
+        if (cycles == Vector::Min(cycles, Vector::Splat(x_maxCutoff)))
+        {
+            return Vector::IfLess(Vector(), cycles, small, Vector());
+        }
+
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            if (cycles[lane] > x_maxCutoff)
+            {
+                small[lane] = -std::expm1(static_cast<Number>(-2 * M_PI) * cycles[lane]);
+            }
+            else if (cycles[lane] == 0)
+            {
+                small[lane] = 0;
+            }
+        }
+
+        return small;
+    }
+
     static std::complex<float> TransferFunction(float alpha, float freq)
     {
         // Calculate normalized frequency (omega)

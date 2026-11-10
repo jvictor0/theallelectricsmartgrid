@@ -151,8 +151,8 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-
             input.m_rotateSwitchVal[lane] = static_cast<int>((lane + sample / 64) % 4);
         }
 
-        time.ProcessWriteTapeHead();
-        setter.Process(input, output, nullptr);
+        time.ObservePhase();
+        setter.Process(input, output);
         for (size_t lane = 0; lane < 4; ++lane)
         {
             DOCTEST_CAPTURE(sample);
@@ -203,7 +203,7 @@ DOCTEST_TEST_CASE("QuadDelayInputSetter: equal unison knobs produce channel-spec
     for (float knob : {0.0f, 0.1f, 1.0f / 6.0f, 1.0f / 3.0f, 0.5f, 1.0f, 0.5f, 0.0f})
     {
         input.m_resynthUnisonKnob = QuadFloat::Splat(knob);
-        setter.Process(input, output, nullptr);
+        setter.Process(input, output);
         for (size_t channel = 0; channel < 4; ++channel)
         {
             DOCTEST_CAPTURE(knob);

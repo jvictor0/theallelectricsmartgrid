@@ -56,10 +56,11 @@ struct QuadDelayEnvelopeVisualizerComponent : public SmartGridOneMainVisualizerC
                 float magnitude = reader.Get(static_cast<double>(point));
                 float level = std::clamp(PathDrawer::AmpToDbNormalized(magnitude), 0.0f, 1.0f);
                 float height = laneHeight * level;
-                g.fillRect(bounds.getX() + point * pointWidth, top + laneHeight - height, pointWidth + 0.5f, height);
+                float center = top + laneHeight * 0.5f;
+                g.fillRect(bounds.getX() + point * pointWidth, center - height * 0.5f, pointWidth + 0.5f, height);
             }
 
-            double read = HeadPosition(reader, state.m_readHeadPosition[channel].load());
+            double read = HeadPosition(reader, state.m_readHeadPhase[channel].load());
             if (std::isfinite(read))
             {
                 float x = bounds.getX() + static_cast<float>(read) * bounds.getWidth();

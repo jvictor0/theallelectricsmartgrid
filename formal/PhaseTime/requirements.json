@@ -1,0 +1,397 @@
+[
+  {
+    "id": "P01",
+    "status": "proved",
+    "requirement": "Clock initialization and every transition preserve phase = musical phase + offset.",
+    "theorems": [
+      "PhaseTime.initial_valid",
+      "PhaseTime.advance_valid",
+      "PhaseTime.resume_valid",
+      "PhaseTime.free_valid"
+    ],
+    "anchors": [
+      "clock_init",
+      "clock_run",
+      "clock_rebase",
+      "clock_free"
+    ]
+  },
+  {
+    "id": "P02",
+    "status": "proved",
+    "requirement": "A transport restart preserves continuous phase and the following travel is exactly the musical phase increment.",
+    "theorems": [
+      "PhaseTime.resume_continuous",
+      "PhaseTime.restart_then_advance"
+    ],
+    "anchors": [
+      "clock_rebase"
+    ]
+  },
+  {
+    "id": "P03",
+    "status": "proved",
+    "requirement": "Running travel preserves the offset and follows signed musical travel, including genuine reversal.",
+    "theorems": [
+      "PhaseTime.advance_offset",
+      "PhaseTime.advance_travel",
+      "PhaseTime.genuine_rewind"
+    ],
+    "anchors": [
+      "clock_run"
+    ]
+  },
+  {
+    "id": "P04",
+    "status": "proved",
+    "requirement": "Stopped transport advances at the positive nominal phase increment.",
+    "theorems": [
+      "PhaseTime.free_travel",
+      "PhaseTime.stopped_progress"
+    ],
+    "anchors": [
+      "clock_free"
+    ]
+  },
+  {
+    "id": "P05",
+    "status": "proved",
+    "requirement": "Tempo changes affect subsequent travel, not the coordinate system of retained history.",
+    "theorems": [
+      "PhaseTime.tempo_changes_only_travel",
+      "PhaseTime.tempo_independent_read"
+    ],
+    "anchors": [
+      "clock_run",
+      "inverse_read"
+    ]
+  },
+  {
+    "id": "P06",
+    "status": "proved",
+    "requirement": "Every readable inverse entry refers to an observation at that phase and no later than the observed real time.",
+    "theorems": [
+      "PhaseTime.history_initial_valid",
+      "PhaseTime.record_valid",
+      "PhaseTime.retreat_valid",
+      "PhaseTime.right_inverse",
+      "PhaseTime.reassign_valid"
+    ],
+    "anchors": [
+      "inverse_forward",
+      "inverse_reverse",
+      "inverse_read",
+      "inverse_reassign"
+    ]
+  },
+  {
+    "id": "P07",
+    "status": "proved",
+    "requirement": "A forward point observation selects that visit. Cell-island reassignment may subsequently choose another causal historical preimage without changing the clock.",
+    "theorems": [
+      "PhaseTime.latest_forward_wins",
+      "PhaseTime.reassign_selects_history",
+      "PhaseTime.reassign_preserves_clock"
+    ],
+    "anchors": [
+      "inverse_forward",
+      "inverse_reassign"
+    ]
+  },
+  {
+    "id": "P08",
+    "status": "proved",
+    "requirement": "Backwards travel preserves the chosen forward inverse; coordinates ahead of the current cursor are unavailable.",
+    "theorems": [
+      "PhaseTime.rewind_keeps_inverse",
+      "PhaseTime.future_unavailable"
+    ],
+    "anchors": [
+      "inverse_reverse",
+      "inverse_read"
+    ]
+  },
+  {
+    "id": "P09",
+    "status": "proved",
+    "requirement": "Published reads reject overwritten entries newer than their real-time cutoff.",
+    "theorems": [
+      "PhaseTime.published_read_sound",
+      "PhaseTime.overwritten_after_publication",
+      "PhaseTime.captured_read_sound",
+      "PhaseRuntime.reachable_published_read_sound"
+    ],
+    "anchors": [
+      "inverse_read",
+      "publication"
+    ]
+  },
+  {
+    "id": "P10",
+    "status": "proved",
+    "requirement": "For S = L composed with F, reading an available chosen inverse reconstructs the pure logical signal L.",
+    "theorems": [
+      "PhaseTime.scope_composition"
+    ],
+    "anchors": [
+      "inverse_read",
+      "scope_read"
+    ]
+  },
+  {
+    "id": "P11",
+    "status": "proved",
+    "requirement": "The explicit cycle start brackets current logical time within one positive period.",
+    "theorems": [
+      "PhaseTime.cycle_start_bounds"
+    ],
+    "anchors": [
+      "periodic_axis"
+    ]
+  },
+  {
+    "id": "P12",
+    "status": "proved",
+    "requirement": "Each periodic display query selects the current or previous cycle at the same phase and lies in the most recent period.",
+    "theorems": [
+      "PhaseTime.periodic_point_bounds",
+      "PhaseTime.periodic_point_phase",
+      "PhaseTime.periodic_waveform"
+    ],
+    "anchors": [
+      "periodic_axis"
+    ]
+  },
+  {
+    "id": "P13",
+    "status": "proved",
+    "requirement": "A read head is wrapped into the selected logical loop strictly behind the write head.",
+    "theorems": [
+      "PhaseTime.read_head_bounds",
+      "PhaseTime.read_head_behind"
+    ],
+    "anchors": [
+      "read_head"
+    ]
+  },
+  {
+    "id": "P14",
+    "status": "proved",
+    "requirement": "A restart preserves the read head for every fixed speed, delay, loop period, and safety gap.",
+    "theorems": [
+      "PhaseTime.read_head_restart_continuous"
+    ],
+    "anchors": [
+      "read_head",
+      "clock_rebase"
+    ]
+  },
+  {
+    "id": "P15",
+    "status": "proved",
+    "requirement": "Ideal phase-distance slew holds at zero travel, is bounded, and contracts towards its input.",
+    "theorems": [
+      "PhaseTime.Slew.pause_holds",
+      "PhaseTime.Slew.decay_bounds",
+      "PhaseTime.Slew.bounded",
+      "PhaseTime.Slew.contraction"
+    ],
+    "anchors": [
+      "phase_slew"
+    ]
+  },
+  {
+    "id": "P16",
+    "status": "proved",
+    "requirement": "Ideal phase slew depends on travelled distance; constant-input forward steps compose independently of their subdivision.",
+    "theorems": [
+      "PhaseTime.Slew.equal_distance_equal_slew",
+      "PhaseTime.Slew.subdivision",
+      "PhaseTime.Slew.tempo_invariance",
+      "PhaseTime.Slew.forward_chain_rule"
+    ],
+    "anchors": [
+      "phase_slew"
+    ]
+  },
+  {
+    "id": "P17",
+    "status": "proved",
+    "requirement": "Clock coherence and inverse soundness hold for all states reachable through the generated Veil transition relation.",
+    "theorems": [
+      "PhaseRuntime.reachable_safe"
+    ],
+    "anchors": [
+      "runtime"
+    ]
+  },
+  {
+    "id": "P18",
+    "status": "proved",
+    "requirement": "With a fixed musical origin, reading the recorded warp displacement through the unwarped inverse and adding that coordinate reconstructs the modulated phase.",
+    "theorems": [
+      "PhaseTime.warp_scope_composition"
+    ],
+    "anchors": [
+      "warp_scope",
+      "inverse_read"
+    ]
+  },
+  {
+    "id": "P19",
+    "status": "proved",
+    "requirement": "A valid fixed cell selects one certified fallback or replacement traversal. Its interpolated time is causal and has at most one cell of sampled-phase residual. Every selected traversal also contains an exact historical preimage.",
+    "theorems": [
+      "PhaseTime.FixedCell.selected_certified",
+      "PhaseTime.FixedCell.read_sound",
+      "PhaseTime.FixedCell.selected_right_inverse_exists"
+    ],
+    "anchors": [
+      "cell_select"
+    ]
+  },
+  {
+    "id": "P20",
+    "status": "proved",
+    "requirement": "Replacing a cell after a separate visit preserves its full fallback endpoints, reassigns older islands below the new cut to that fallback, and selects the new traversal above the cut. Repeated certified construction preserves causal reads and the cell phase bound; partial first traversals may contain reversals confined to the cell.",
+    "theorems": [
+      "PhaseTime.FixedCell.replacement_valid",
+      "PhaseTime.FixedCell.replacement_preserves_fallback",
+      "PhaseTime.FixedCell.island_reattributed",
+      "PhaseTime.FixedCell.fresh_interval_wins",
+      "PhaseTime.FixedCell.first_traversal_valid",
+      "PhaseTime.FixedCell.built_valid",
+      "PhaseTime.FixedCell.built_read_sound",
+      "PhaseTime.FixedCell.confined_join",
+      "PhaseTime.FixedCell.affine_phase_confined"
+    ],
+    "anchors": [
+      "cell_replace",
+      "cell_enter",
+      "cell_finish"
+    ]
+  },
+  {
+    "id": "P21",
+    "status": "proved",
+    "requirement": "The last forward endpoint is exactly readable and closes a partial cell; queries beyond it are unavailable.",
+    "theorems": [
+      "PhaseTime.InverseGrid.frontier_exact",
+      "PhaseTime.InverseGrid.overwrite_frontier",
+      "PhaseTime.InverseGrid.frontier_rejects_future"
+    ],
+    "anchors": [
+      "grid_frontier"
+    ]
+  },
+  {
+    "id": "P22",
+    "status": "proved",
+    "requirement": "Relative storage is independent of absolute origin; bounded endpoint errors are not amplified by interpolation on the same selected branch.",
+    "theorems": [
+      "PhaseTime.InverseGrid.delta_roundtrip",
+      "PhaseTime.InverseGrid.delta_error",
+      "PhaseTime.InverseGrid.interpolation_endpoint_error",
+      "PhaseTime.InverseGrid.stored_phase_error"
+    ],
+    "anchors": [
+      "grid_codec"
+    ]
+  },
+  {
+    "id": "P23",
+    "status": "proved",
+    "requirement": "A declared finite band and amplitude budget bound forward slope. Band limitation does not supply a positive lower speed at a turnaround. Between observed samples, the continuous warp differs from its linear chord by at most (1+B*A)*step/2; this adds to the grid phase residual.",
+    "theorems": [
+      "PhaseTime.InverseGrid.bandlimited_slope",
+      "PhaseTime.InverseGrid.bandlimited_forward_slope",
+      "PhaseTime.InverseGrid.bandlimited_zero_speed",
+      "PhaseTime.InverseGrid.no_positive_speed_at_turn",
+      "PhaseTime.InverseGrid.bandlimited_chord_error",
+      "PhaseTime.InverseGrid.continuous_phase_error"
+    ],
+    "anchors": [
+      "grid_forward"
+    ]
+  },
+  {
+    "id": "P24",
+    "status": "proved",
+    "requirement": "Given a separately identified monotone branch, the inverse has branch-duration and conditioned time bounds. Fixed-cell reassignment does not guarantee latest-branch timestamp accuracy. Logical Lipschitz signals inherit the sampled-phase residual bound.",
+    "theorems": [
+      "PhaseTime.InverseGrid.branch_time_error",
+      "PhaseTime.InverseGrid.conditioned_time_error",
+      "PhaseTime.InverseGrid.scope_error"
+    ],
+    "anchors": [
+      "grid_lookup",
+      "scope_read"
+    ]
+  },
+  {
+    "id": "P25",
+    "status": "proved",
+    "requirement": "Every fixed cell has at most two pieces independent of reversal count. Three double arrays and two relative float arrays use 32 MiB for the main inverse; there is no boundary pool or per-cell exhaustion.",
+    "theorems": [
+      "PhaseTime.FixedCell.at_most_two_pieces",
+      "PhaseTime.FixedCell.fixed_payload_budget"
+    ],
+    "anchors": [
+      "cell_capacity",
+      "grid_memory"
+    ]
+  },
+  {
+    "id": "P26",
+    "status": "proved",
+    "requirement": "For a stationary resolved partial, shifting both analysis frames equally preserves measured phase advance, wrapped frequency estimate, within-partial relative phase, and a non-triggered leader synthesis update from equal prior state. This does not assert general PVDR or triggered-phase invariance.",
+    "theorems": [
+      "PhaseTime.AnalysisStability.common_shift_advance",
+      "PhaseTime.AnalysisStability.stationary_estimate_shift",
+      "PhaseTime.AnalysisStability.stationary_relative_phase",
+      "PhaseTime.AnalysisStability.stationary_step_shift"
+    ],
+    "anchors": [
+      "analysis_pair",
+      "analysis_frequency",
+      "analysis_steady_step"
+    ]
+  },
+  {
+    "id": "P27",
+    "status": "proved",
+    "requirement": "If the entire interpolated time interval is confined to a phase band, linear interpolation stays within that phase error even across reversals. If the expanded analysis support is confined, normalized Lipschitz phase-controlled features differ by at most their gain times the phase-band width. Fixed-cell startup and within-visit coalescing use this confinement relaxation. This is not an unconditional FFT/audio bound.",
+    "theorems": [
+      "PhaseTime.AnalysisStability.confined_interpolation",
+      "PhaseTime.AnalysisStability.shifted_windows_confined",
+      "PhaseTime.AnalysisStability.phase_feature_bound",
+      "PhaseTime.AnalysisStability.confined_feature_bound"
+    ],
+    "anchors": [
+      "grid_lookup",
+      "analysis_pair"
+    ]
+  },
+  {
+    "id": "P28",
+    "status": "proved",
+    "requirement": "During a visit confined to the closed cell, restarting keeps the minimum phase cut and the earlier timestamp on ties, while updating the forward frontier. Joining the confined intervals preserves causal reads and one-cell phase error. A separate visit uses the new start.",
+    "theorems": [
+      "PhaseTime.FixedCell.minimum_start_phase",
+      "PhaseTime.FixedCell.restart_minimum",
+      "PhaseTime.FixedCell.restart_never_raises_cut",
+      "PhaseTime.FixedCell.restart_keeps_origin",
+      "PhaseTime.FixedCell.restart_new_minimum",
+      "PhaseTime.FixedCell.restart_separate_visit",
+      "PhaseTime.FixedCell.restart_uses_frontier",
+      "PhaseTime.FixedCell.restart_certified",
+      "PhaseTime.FixedCell.restart_cell_valid",
+      "PhaseTime.FixedCell.restart_read_sound"
+    ],
+    "anchors": [
+      "cell_coalesce",
+      "grid_frontier",
+      "cell_finish"
+    ]
+  }
+]

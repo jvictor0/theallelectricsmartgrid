@@ -89,8 +89,8 @@ QuadDelay::Input MakeDelayInput(double writePosition, double readPosition, QuadF
     result.m_return = QuadFloat::Splat(0.0f);
     result.m_feedback = QuadFloat::Splat(feedback);
     result.m_rotate = QuadFloat::Splat(0.0f);
-    result.m_writeHeadPosition = writePosition;
-    result.m_readHeadPosition = QuadDouble::Splat(readPosition);
+    result.m_writeHeadPhase = writePosition;
+    result.m_readHeadPhase = QuadDouble::Splat(readPosition);
     result.m_bffBase = QuadFloat::Splat(static_cast<float>(SampleTimer::HzToCycPerSamp(0.5)));
     result.m_bffWidth = QuadFloat::Splat(65536.0f);
 
@@ -385,7 +385,7 @@ DOCTEST_TEST_CASE("Rate boundaries: the delay stays finite through maximum feedb
     DOCTEST_CHECK(peak < 8.0f);
 }
 
-DOCTEST_TEST_CASE("Rate boundaries: delay tape heads count host samples")
+DOCTEST_TEST_CASE("Rate boundaries: delay tape heads count cycles at either engine rate")
 {
     GlobalEnv::ResetPerTest();
     TimeRig clock;
@@ -395,19 +395,18 @@ DOCTEST_TEST_CASE("Rate boundaries: delay tape heads count host samples")
     input.m_theoryOfTime = clock.Get();
     QuadDelay::Input delayInput;
     clock.AdvanceSample();
-    setter.Process(input, delayInput, nullptr);
-    double start = delayInput.m_writeHeadPosition;
+    setter.Process(input, delayInput);
+    double start = delayInput.m_writeHeadPhase;
     const size_t numSamples = 4800 * x_ratio;
     for (size_t n = 0; n < numSamples; ++n)
     {
         clock.AdvanceSample();
-        setter.Process(input, delayInput, nullptr);
+        setter.Process(input, delayInput);
     }
 
-    DOCTEST_CHECK(delayInput.m_writeHeadPosition - start == doctest::Approx(4800.0));
-    double globalPeriodSamples = ReadTapeHead::ToHostSamples(clock.Get()->m_writeTapeHead.m_globalPeriodSamples);
-    DOCTEST_CHECK(clock.Get()->m_writeTapeHead.m_globalPeriodSamples == doctest::Approx(48000.0 * x_ratio));
-    DOCTEST_CHECK(ReadTapeHead::ComputeLoopSamples(clock.Get(), TheoryOfTimeBase::x_globalLoop, globalPeriodSamples) == doctest::Approx(48000.0));
+    DOCTEST_CHECK(delayInput.m_writeHeadPhase - start == doctest::Approx(0.1));
+    DOCTEST_CHECK(clock.Get()->m_globalPeriodSamples == doctest::Approx(48000.0 * x_ratio));
+    DOCTEST_CHECK(ReadTapeHead::ComputeLoopPeriod(*clock.Get(), TheoryOfTimeBase::x_globalLoop) == 1.0);
 }
 
 DOCTEST_TEST_CASE("Rate boundaries: the partial machine analyzes decimated mono input every host hop")

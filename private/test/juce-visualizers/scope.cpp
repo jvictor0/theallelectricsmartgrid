@@ -333,20 +333,20 @@ DOCTEST_TEST_CASE("Scope: reduced point counts preserve the time axis and end ma
     }
 }
 
-DOCTEST_TEST_CASE("Delay waveform: the shared magnitude scope draws a decibel envelope")
+DOCTEST_TEST_CASE("Delay waveform: the shared magnitude scope draws a symmetric decibel envelope")
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& state = ui->m_squiggleBoyUIState.m_delayUIState;
-    TimeWarpInverter<8192> inverse;
+    TimeWarpInverter<8192> inverse(1024.0);
     state.m_scopeWriter.SetTimeWarp(0, &inverse);
     for (size_t sample = 0; sample <= 2304; ++sample)
     {
-        inverse.Write(static_cast<double>(sample), static_cast<double>(sample));
+        inverse.Write(static_cast<double>(sample) / 1024.0, static_cast<double>(sample));
         if (sample % 1024 == 0)
         {
             for (size_t channel = 0; channel < 4; ++channel)
             {
-                state.m_scopeWriter.RecordStart(0, channel);
+                state.m_scopeWriter.SetPeriodic(0, channel, {0.0, 1.0});
             }
         }
 
@@ -365,10 +365,59 @@ DOCTEST_TEST_CASE("Delay waveform: the shared magnitude scope draws a decibel en
     {
         int top = channel * 100;
         DOCTEST_CHECK(image.getPixelAt(128, top + 5).getRed() > 100);
-        DOCTEST_CHECK(image.getPixelAt(384, top + 20) == juce::Colours::black);
+        DOCTEST_CHECK(image.getPixelAt(384, top + 5) == juce::Colours::black);
+        DOCTEST_CHECK(image.getPixelAt(384, top + 20).getRed() > 100);
         DOCTEST_CHECK(image.getPixelAt(384, top + 50).getRed() > 100);
-        DOCTEST_CHECK(image.getPixelAt(640, top + 50) == juce::Colours::black);
-        DOCTEST_CHECK(image.getPixelAt(640, top + 85).getRed() > 100);
+        DOCTEST_CHECK(image.getPixelAt(640, top + 20) == juce::Colours::black);
+        DOCTEST_CHECK(image.getPixelAt(640, top + 50).getRed() > 100);
+        DOCTEST_CHECK(image.getPixelAt(640, top + 85) == juce::Colours::black);
         DOCTEST_CHECK(image.getPixelAt(896, top + 95) == juce::Colours::black);
+        for (int x : {128, 384, 640, 896})
+        {
+            for (int y = 0; y < 50; ++y)
+            {
+                DOCTEST_CHECK(image.getPixelAt(x, top + y) == image.getPixelAt(x, top + 99 - y));
+            }
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("Time warp scope: unwarped periodic axis, cursor, and disconnected vertical wraps")
+{
+    for (bool reverse : {false, true})
+    {
+        DOCTEST_CAPTURE(reverse);
+        auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+        ui->m_squiggleBoyUIState.m_activeTrack.store(0);
+        ui->m_nonagonUIState.m_loopMultiplier[0].store(1);
+        auto& writer = ui->m_squiggleBoyUIState.m_monoScopeWriter;
+        size_t scope = static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime);
+        TimeWarpInverter<8192> inverse(4096.0);
+        writer.SetTimeWarp(scope, &inverse);
+        writer.SetPeriodic(scope, 0, {0.0, 1.0});
+        for (size_t sample = 0; sample <= 40960; ++sample)
+        {
+            double phase = static_cast<double>(sample) / 32768.0;
+            inverse.Write(phase, static_cast<double>(sample));
+            float displacement = reverse ? -0.25 - 2.0 * (phase - std::floor(phase)) : -0.5;
+            writer.Write(scope, displacement);
+            writer.AdvanceIndex();
+        }
+
+        writer.Publish();
+        writer.AcceptSamples();
+        TheoryOfTimeScopeComponent component(ui.get());
+        juce::Image image(juce::Image::ARGB, 1024, 200, true);
+        juce::Graphics graphics(image);
+        component.Draw(graphics, image.getBounds());
+        int wrapX = reverse ? 768 : 512;
+        for (int y = 10; y < 190; ++y)
+        {
+            DOCTEST_CHECK(image.getPixelAt(wrapX, y) == juce::Colours::black);
+        }
+
+        int markerY = reverse ? 100 : 50;
+        DOCTEST_CHECK(image.getPixelAt(255, markerY - 2).getRed() > 200);
+        DOCTEST_CHECK(image.getPixelAt(640, 175).getRed() > 50);
     }
 }

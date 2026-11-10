@@ -134,8 +134,8 @@ using QuadDelayLine = DelayLineGeneric<float, 4, MaxDelaySamples>;
 // envelopes are interleaved per channel.
 //
 // Audio is stored once per host sample. The inverter is owned elsewhere and
-// written every engine sample, Oversample per host sample, in engine-sample
-// warped and real time. It must record each engine sample before the delay
+// written every engine sample, Oversample per host sample, mapping continuous
+// phase to real engine-sample time. It must record each sample before the delay
 // line is written or read during that sample.
 //
 template <typename Number, size_t Size, size_t MaxDelaySamples, size_t Oversample>
@@ -147,7 +147,7 @@ struct DelayLineMovableWriterGeneric
     static constexpr size_t x_oversample = Oversample;
 
     Vector m_delayLine[x_maxDelaySamples];
-    Inverter* m_inverter;
+    TimeWarpSource* m_inverter;
     double m_firstSampleTime;
     double m_latestSampleTime;
 
@@ -236,18 +236,25 @@ struct DelayLineMovableWriterGeneric
         return std::isfinite(realTime) ? ReadAtIndex(realTime) : Vector::Splat(0);
     }
 
-    // Warped and real times here are in host samples.
+    // Input is continuous master phase; the inverse returns engine time, which
+    // is converted to host time for the audio buffer.
     //
     double GetRealTime(double warpedTime)
     {
         assert(m_inverter);
-        return ToHostTime(m_inverter->GetRealTime(warpedTime * static_cast<double>(Oversample)));
+        return ToHostTime(m_inverter->ReadInverse(warpedTime, std::numeric_limits<double>::infinity()));
     }
 
     MultiChannelNumber<double, Size> GetRealTime(const MultiChannelNumber<double, Size>& warpedTime)
     {
         assert(m_inverter);
-        return ToHostTime(m_inverter->GetRealTime(warpedTime * static_cast<double>(Oversample)));
+        MultiChannelNumber<double, Size> result;
+        for (size_t channel = 0; channel < Size; ++channel)
+        {
+            result[channel] = GetRealTime(warpedTime[channel]);
+        }
+
+        return result;
     }
 
     Vector ReadRealTime(double realTime)
@@ -280,7 +287,8 @@ using QuadDelayLineMovableWriter = DelayLineMovableWriterGeneric<float, 4, MaxDe
 // their own times and resynthesize independently.
 //
 // The audio buffer holds host-rate samples and provides GetRealTime and
-// ReadRealTime, both taking MultiChannelNumber<double, Size> host-sample times.
+// ReadRealTime. GetRealTime maps logical coordinates to host-sample times;
+// ReadRealTime reads those host-sample times.
 // Analysis reads host-rate windows every analysis hop; synthesized frames
 // overlap-add at the engine rate, launching every synthesis hop.
 //

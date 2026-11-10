@@ -1,0 +1,258 @@
+{
+  "description": "Reviewed mathematical correspondence. Full-file hashes detect drift; they do not prove C++ refinement. Review before updating.",
+  "files": {
+    "private/src/DelayLine.hpp": "dcc793e32b70391e24a5ed7d56740512aa742515153e5c78240f465d2a16c178",
+    "private/src/Filter.hpp": "1a9ebc27eaac3ce5e05a792be7aca10d0f723a63695f39aa30fb45d061787cc0",
+    "private/src/PeriodicPhaseAxis.hpp": "b096ac7757d8eaad83ab2d1134d2e8bdb9288dcfcbe5c4e1d63bfa48a522951f",
+    "private/src/PhaseClock.hpp": "c25af523a36008d891388900b52b44e27398973bee1aa3c40f6e552509379c95",
+    "private/src/PhaseUtils.hpp": "5e569f67e8b6a1c9ee143400caef8916383bbfc1f5d72ba1e021f9ec88652368",
+    "private/src/PolyXFader.hpp": "5d35d05feaefdaa9675b5d92d79f1c54ed7739a398f2f585977f907cfc364f3e",
+    "private/src/QuadDelay.hpp": "072d7cb473376f967b4dbfaed636d14316940250f09a2d4d8022d1d4fc8b48dd",
+    "private/src/ScopeWriter.hpp": "aa6026bac66cf8da96724fa6937de818d569229b7bccc9b622bde01a5a44d0ff",
+    "private/src/SmartGridOneModulatorHistory.hpp": "85b8f94e4c0590017ee5854b3f6c325fade7c168d509c3a261f7bfbdb46e77c1",
+    "private/src/SquiggleBoyTrack.hpp": "3829ce401d2c3f26d14b88e13e0c982570a0f5f5695c32383a81cc4f0d995c5f",
+    "private/src/TapeHead.hpp": "fd7e94c9eca576ba8ed19bc0df9100970657c1683b96c8685ab1283f825a999f",
+    "private/src/TheoryOfTime.hpp": "143607fa867c5f83b603e28266bdb25319732e72eea8513890e7387ae32fc59e",
+    "private/src/TheoryOfTimeBase.hpp": "b3ef358e4b3970d93c09876e17f958f02d6f90d4c75d2bea11d71d902cafd0aa",
+    "private/src/TimeWarpInverter.hpp": "0d92406a6ef512b2bf7ea3e4945b788fb55df0e5af5050b50e446a22587c363b",
+    "private/src/TimeWarpView.hpp": "d6787c25d2229d1437c57fa96d99302542508654c925c3a7192c909c0ae178e4",
+    "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "5e728d5fabe59c82e8058c41abacb8dcdf5c322f390e19b2e3e7deb5cc4e87a3",
+    "private/src/Resynthesis.hpp": "01663ac984d85a5570e024e0a50760471b0c5d7ae20073c5babf66cab1f04e16"
+  },
+  "anchors": {
+    "clock_init": [
+      {
+        "path": "private/src/PhaseClock.hpp",
+        "symbol": "struct PhaseClock"
+      }
+    ],
+    "clock_run": [
+      {
+        "path": "private/src/PhaseClock.hpp",
+        "symbol": "void Advance(double musicalPhase)"
+      }
+    ],
+    "clock_rebase": [
+      {
+        "path": "private/src/PhaseClock.hpp",
+        "symbol": "void Resume(double musicalPhase)"
+      }
+    ],
+    "clock_free": [
+      {
+        "path": "private/src/PhaseClock.hpp",
+        "symbol": "void FreeRun(double increment)"
+      }
+    ],
+    "inverse_forward": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "void ScatterBufferToInverse(double low, double high, double lowTime, double highTime)"
+      }
+    ],
+    "inverse_reverse": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "void Write(double warpedTime, double realTime)"
+      }
+    ],
+    "inverse_read": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "double ReadInverse(double warpedTime, double latestRealTime) const override"
+      },
+      {
+        "path": "private/src/TimeWarpView.hpp",
+        "symbol": "double GetRealTime(double warpedTime) const"
+      },
+      {
+        "path": "private/src/DelayLine.hpp",
+        "symbol": "double GetRealTime(double warpedTime)"
+      }
+    ],
+    "publication": [
+      {
+        "path": "private/src/ScopeWriter.hpp",
+        "symbol": "void Publish()"
+      },
+      {
+        "path": "private/src/ScopeWriter.hpp",
+        "symbol": "void AcceptSamples(size_t endIndex)"
+      }
+    ],
+    "scope_read": [
+      {
+        "path": "private/src/ScopeWriter.hpp",
+        "symbol": "float ReadCoordinate(double coordinate) const"
+      },
+      {
+        "path": "private/src/SmartGridOneModulatorHistory.hpp",
+        "symbol": "double GetSample(double position) const"
+      }
+    ],
+    "periodic_axis": [
+      {
+        "path": "private/src/PeriodicPhaseAxis.hpp",
+        "symbol": "double Start(double now) const"
+      },
+      {
+        "path": "private/src/PeriodicPhaseAxis.hpp",
+        "symbol": "double Coordinate(double now, double position) const"
+      },
+      {
+        "path": "private/src/ScopeWriter.hpp",
+        "symbol": "struct ScopeReader\n"
+      },
+      {
+        "path": "private/src/SquiggleBoyTrack.hpp",
+        "symbol": "m_scopeWriter.SetPeriodicAtVoice(i,"
+      },
+      {
+        "path": "private/src/QuadDelay.hpp",
+        "symbol": "void SetupScopeWriter(UIState* uiState)"
+      }
+    ],
+    "read_head": [
+      {
+        "path": "private/src/TapeHead.hpp",
+        "symbol": "void Update(const Input& input)"
+      },
+      {
+        "path": "private/src/PhaseUtils.hpp",
+        "symbol": "inline double WrapMod(double a, double b, double x)"
+      },
+      {
+        "path": "private/src/QuadDelay.hpp",
+        "symbol": "void Process(Input& input, QuadDelay::Input& delayInput)"
+      }
+    ],
+    "phase_slew": [
+      {
+        "path": "private/src/PolyXFader.hpp",
+        "symbol": "void Process(Input& input)"
+      },
+      {
+        "path": "private/src/Filter.hpp",
+        "symbol": "static Vector AlphaFromPhaseTravel(const Vector& cycles)"
+      }
+    ],
+    "runtime": [
+      {
+        "path": "private/src/TheoryOfTime.hpp",
+        "symbol": "void ObservePhase()"
+      },
+      {
+        "path": "private/src/TheoryOfTime.hpp",
+        "symbol": "void Process(Input& input)"
+      },
+      {
+        "path": "private/src/TheoryOfTimeBase.hpp",
+        "symbol": "void Process(const Input& input)"
+      },
+      {
+        "path": "private/src/PhaseClock.hpp",
+        "symbol": "void Update(double musicalPhase, bool running, double nominalIncrement)"
+      }
+    ],
+    "warp_scope": [
+      {
+        "path": "private/src/TheoryOfTime.hpp",
+        "symbol": "m_sample.m_modulatedPhase - m_sample.m_unmodulatedPhase));"
+      },
+      {
+        "path": "JUCE/SmartGridOne/Source/ScopeComponent.hpp",
+        "symbol": "double PhaseAt(double x) const"
+      }
+    ],
+    "grid_lookup": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "double ReadPayload(double gridPhase, double cutoff) const"
+      }
+    ],
+    "grid_forward": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "void ScatterBufferToInverse(double low, double high, double lowTime, double highTime)"
+      }
+    ],
+    "grid_frontier": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "m_frontierPhase.store(high);"
+      }
+    ],
+    "grid_codec": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "m_turnTime[slot].store(static_cast<float>(time - base));"
+      }
+    ],
+    "grid_memory": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "static constexpr size_t x_payloadBytes ="
+      }
+    ],
+    "analysis_pair": [
+      {
+        "path": "private/src/DelayLine.hpp",
+        "symbol": "void StartGrain(typename Resynth::Input* input, const TimeVector& startTime)"
+      }
+    ],
+    "analysis_frequency": [
+      {
+        "path": "private/src/Resynthesis.hpp",
+        "symbol": "void SetAnalysisOmega(int bin)"
+      }
+    ],
+    "analysis_steady_step": [
+      {
+        "path": "private/src/Resynthesis.hpp",
+        "symbol": "void FixupPhases(const Vector& detune, PVDR* pvdr)"
+      }
+    ],
+    "cell_select": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "double ReadPayload(double gridPhase, double cutoff) const"
+      }
+    ],
+    "cell_replace": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "void BeginBranch(double phase, double time)"
+      }
+    ],
+    "cell_enter": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "void EnterCell(int64_t index, double time)"
+      }
+    ],
+    "cell_finish": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "void FinishCell(int64_t index, double time)"
+      }
+    ],
+    "cell_capacity": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "static constexpr size_t x_maxCellPieces = 2;"
+      }
+    ],
+    "inverse_reassign": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "void BeginBranch(double phase, double time)"
+      }
+    ],
+    "cell_coalesce": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "bool sameVisit = std::isfinite(oldTurn) && m_frontierPhase.load() <= floorPhase + 1.0;"
+      }
+    ]
+  }
+}

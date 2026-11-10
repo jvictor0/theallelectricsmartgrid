@@ -12,6 +12,7 @@
 #include "SampleTimer.hpp"
 #include "SampleTop.hpp"
 #include "TheoryOfTimeRhythm.hpp"
+#include "PhaseClock.hpp"
 
 enum class PhaseDomain
 {
@@ -82,6 +83,7 @@ struct TheoryOfTimeBase
     };
 
     Sample m_sample;
+    PhaseClock m_phaseClock;
     double m_globalPeriodSamples = 1.0;
 
     static int64_t ComputeGlobalTickPosition(double phase, int64_t globalPeriodTicks)
@@ -348,6 +350,7 @@ struct TheoryOfTimeBase
             }
 
             sample.m_anyChange = wasRunning || changed;
+            m_phaseClock.Update(0.0, false, GetUnmodulatedGlobalPhaseIncrement());
             return;
         }
 
@@ -375,6 +378,7 @@ struct TheoryOfTimeBase
         }
 
         SetGates(sample, input);
+        m_phaseClock.Update(sample.m_modulatedPhase, true, GetUnmodulatedGlobalPhaseIncrement());
     }
 
     void PopulateUIState(TheoryOfTimeBaseUIState& uiState, const Input& input) const;

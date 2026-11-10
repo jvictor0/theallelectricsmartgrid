@@ -3,6 +3,8 @@
 These are maintained versions of the component and encoder experiments from
 October/November 2026. They build against **this checkout's production headers**;
 there is no alternate DSP implementation or source editing in the runner.
+The explicit inverse-density comparison below additionally compiles a frozen
+historical inverse for a controlled before/after comparison.
 Requires the same compiler/CMake/Python/pkg-config/libFLAC dependencies as the
 core tests. No app, JUCE build, audio device, or iPad is required.
 
@@ -285,6 +287,79 @@ Compare relative workload changes rather than equating desktop throughput with
 the iPad's smoothed callback-budget meter.
 
 ## Historical reference
+
+### Inverse density comparison
+
+`perf_density` compares three implementations: the sample-coordinate inverse
+frozen from commit `a8a6ca1` (`legacy`), the preceding phase grid with no branch
+knots (`phase_grid`), and the current compact branch-aware inverse (`current`).
+The frozen headers differ from their source versions only in type name and
+provenance comment. All three receive identical engine-sampled trajectories,
+isolating inverse storage from other phase slew and transport changes.
+Constant-tempo traces make the old coordinate exactly
+`phase * engineSamplesPerMasterCycle`.
+
+```sh
+make perf-build
+build/tools/perf/Release/perf_density self-test
+build/tools/perf/Release/perf_density correctness 3 24
+build/tools/perf/Release/perf_density performance 14 16 5
+python3 private/test/perf/run_density.py --mode correctness --output build/results/inverse-comparison
+python3 private/test/perf/run_density.py --mode performance --output build/results/inverse-comparison
+```
+
+The native arguments are `MODE SETTING PERIOD_BITS [REPEATS] [CYCLES]`. The
+setting table is in `density.cpp`; period bits may be fractional, within 16–24.
+The serial runner covers 120 cases: 17 production settings plus five finite
+Fourier warps at four tempos, and eight production settings at four off-grid
+tempos. Traces cover 3.25 master cycles and at least two seconds. No production
+settings are changed. Fourier cases include gentle, reversing, high-frequency,
+and degree-three clustered-turn inputs; they declare a spectral range without
+assuming that today's production oscillator satisfies it. Source snapshots,
+hashes, compiler/binary metadata, and raw rows are retained separately by mode.
+The runner refuses to replace an existing combined result file.
+
+Correctness queries all 16 supported read speeds, five delay fractions and six
+loop selections at every PV hop, plus periodic scope queries. It reports raw
+and window-constrained timestamps in host frames, including a settled subset
+after two master cycles. Missing/spurious mappings and old-accurate/new-inaccurate
+intersections are reported separately. Rows prefixed `prior_` compare the preceding
+phase grid against the compact inverse; other error rows compare legacy against
+compact. Storage rows record payload size, fixed piece capacity, island reassignments,
+noncausal returns and reconstructed phase error in cell widths. Latest-forward
+timestamp differences are diagnostic: fixed-cell reassignment deliberately permits
+an older valid traversal. Availability and phase errors must be evaluated separately. No universal
+error or performance acceptance threshold is silently inferred from the results.
+
+The independent oracle retains complete sampled forward runs and clips their
+overwritten intervals. It does not grid the inverse. Its self-test compares
+against a backwards exhaustive search through randomized samples, and checks
+the production trajectory generator against `TheoryOfTime::Process`. Forward
+endpoints are included and stationary observations do not advance them; at a
+shared endpoint the latest forward visit wins. This corrects the half-open
+endpoint convention in the earlier density experiment, so its old result counts
+need not match exactly. `inspect SETTING PERIOD_BITS SAMPLE PHASE` also checks
+a full-size query by backwards search. It prints the selected one-sided endpoints,
+compares them with oracle endpoints only when the result is in that latest run,
+and reports whether fallback or replacement was selected. It also measures the
+phase difference over paired analysis support. This inspection performs no timing measurements.
+Upstream oscillator aliasing is shared by all implementations, not counted as
+an inverse regression. These measurements concern the sampled trajectory;
+the Lean chord bound separately covers an assumed continuous spectral model.
+
+Performance excludes trajectory generation, initialization, oracle work and
+output. It includes every inverse write and four reads per PV hop, with calling-
+thread CPU measurements over 1024-host-frame blocks (one PV hop, not necessarily
+the device's callback size) after half a second of warmup. Five repetitions rotate
+all three implementation orders. JSONL includes CPU ms/audio-second,
+block p50/p99/max CPU time, maximum wall time, and separate counts of
+visited grid edges and peak edge visits per engine sample/block. Fixed-cell visits
+include the upper endpoint and perform entry/completion stores, so these counts
+are not atomic-store counts. It includes unsupported
+inputs and repeated-reassignment paths; unavailable reads do not exempt a case from timing.
+These are isolated desktop inverse costs, not whole-app or iPad deadline
+measurements. Run serially without competing builds or tests. `work` computes
+only the grid-edge counts.
 
 [reference/README.md](reference/README.md) and its small JSON summaries retain
 selected component and evaluator experiments. They are historical evidence, not

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <numeric>
+
 #include "Filter.hpp"
 #include "PolyXFaderTables.hpp"
 #include "MultiChannelNumber.hpp"
@@ -151,6 +153,7 @@ struct PolyXFaderGeneric
     //
     OPLowPassFilterGeneric<double, Size> m_mixSlew;
     DoubleVector m_mixSlewFreq;
+    DoubleVector m_logicalPeriod = DoubleVector::Splat(1.0);
     OPLowPassFilterGeneric<float, Size> m_shSlew;
     Vector m_rawOutput;
     Vector m_output;
@@ -216,6 +219,7 @@ struct PolyXFaderGeneric
         }
 
         int64_t maxCycleRatio[Size] = {};
+        int64_t commonCycleRatio[Size] = {};
         Vector output;
         for (size_t i = 0; i < m_size; ++i)
         {
@@ -231,6 +235,7 @@ struct PolyXFaderGeneric
                 if (m_weights[i][lane] != 0)
                 {
                     maxCycleRatio[lane] = std::max(maxCycleRatio[lane], cycleRatio);
+                    commonCycleRatio[lane] = std::gcd(commonCycleRatio[lane], cycleRatio);
                     m_top[lane] = m_top[lane] && crossed;
                 }
             }
@@ -243,10 +248,17 @@ struct PolyXFaderGeneric
         //
         output = Vector::IfLess(Vector(), m_totalWeight, output / m_totalWeight, output);
 
+        // Slew per unit of phase travel. The warp-producing oscillator uses
+        // the unmodulated clock to avoid feeding its own derivative back in.
+        //
+        const auto& time = *input.m_theoryOfTime;
+        double increment = input.m_phaseDomain == PhaseDomain::Unmodulated || !time.m_sample.m_running
+            ? time.GetUnmodulatedGlobalPhaseIncrement() : std::abs(time.GetModulatedGlobalPhaseIncrement());
         DoubleVector slewFreq;
         for (size_t lane = 0; lane < Size; ++lane)
         {
-            slewFreq[lane] = 8.0 * input.m_mult[lane] * maxCycleRatio[lane] / input.m_theoryOfTime->m_globalPeriodSamples;
+            m_logicalPeriod[lane] = commonCycleRatio[lane] > 0 ? 1.0 / commonCycleRatio[lane] : 1.0;
+            slewFreq[lane] = 8.0 * input.m_mult[lane] * maxCycleRatio[lane] * increment;
             assert(slewFreq[lane] >= 0.0);
         }
 
@@ -254,15 +266,8 @@ struct PolyXFaderGeneric
         {
             m_mixSlewFreq = slewFreq;
 
-            // A zero slew frequency holds the mix. Stand in a valid cutoff for
-            // those lanes so the alpha computation stays in range.
-            //
-            DoubleVector validFreq = DoubleVector::IfLess(DoubleVector(), slewFreq, slewFreq, DoubleVector::Splat(0.25));
-            // Compute alpha directly in float SIMD, then retain double state.
-            // Unlike 1 - exp(-omega), this preserves tiny positive coefficients.
-            //
-            Vector alpha = OPLowPassFilterGeneric<float, Size>::AlphaFromNatFreqApprox(validFreq.template Convert<float>());
-            m_mixSlew.m_alpha = DoubleVector::IfLess(DoubleVector(), slewFreq, alpha.template Convert<double>(), DoubleVector());
+            m_mixSlew.m_alpha = OPLowPassFilterGeneric<float, Size>::AlphaFromPhaseTravel(
+                slewFreq.template Convert<float>()).template Convert<double>();
         }
 
         output = m_mixSlew.Process(output.template Convert<double>()).template Convert<float>();

@@ -28,15 +28,11 @@ DOCTEST_TEST_CASE("Modulator time axes: warped scope and overlays read the same 
     TimeWarpInverter<1024> inverse;
     auto& writer = state.m_voiceScopeWriter;
     writer.SetTimeWarp(x_lfo1Scope, &inverse);
+    writer.SetPeriodic(x_lfo1Scope, 0, {0.0, 20.0});
     for (size_t sample = 0; sample <= 80; ++sample)
     {
         double warped = sample <= 40 ? sample * 0.5 : 20.0 + (sample - 40) * 0.25;
         inverse.Write(warped, 1000.0 + sample);
-        if (sample == 0 || sample == 40)
-        {
-            writer.RecordStart(x_lfo1Scope, 0);
-        }
-
         writer.Write(x_lfo1Scope, TrioFloat(static_cast<float>(sample) / 100.0f, 0, 0));
         writer.Write(x_lfo2Scope, TrioFloat(static_cast<float>(sample) / 200.0f, 0, 0));
         writer.AdvanceIndex();

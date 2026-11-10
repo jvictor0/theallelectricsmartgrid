@@ -20,22 +20,32 @@
 #include "SampleTimer.hpp"
 #include "TheoryOfTimeBaseUIState.hpp"
 #include "TimeWarpInverter.hpp"
-#include "WriteTapeHead.hpp"
 
 struct TheoryOfTime : public TheoryOfTimeBase
 {
-    // The delay write head's inverse in engine samples, covering 2^24 host
-    // samples of delay.
+    // The audio ring retains 2^24 host samples independently of the phase grid.
+    // Four master cycles at 2^18 cells/cycle use 32 MiB including the shared
+    // fixed fallback/replacement traversals. This does not band-limit the LFO.
     //
     static constexpr size_t x_timeWarpInverterSamples = SampleTimer::x_oversample << 24;
-    using Inverter = TimeWarpInverter<x_timeWarpInverterSamples>;
+    static constexpr double x_phaseResolution = 1 << 18;
+    static constexpr size_t x_phaseHistoryCells = 1 << 20;
+    using Inverter = TimeWarpInverter<x_phaseHistoryCells>;
+    static_assert(Inverter::x_payloadBytes == (32 << 20));
+
+    // The unwarped scope needs one period, at most one master cycle. MIDI
+    // clock corrections can move backwards, so it also retains branch data.
+    // Two cycles with fixed cell storage occupy 16 MiB.
+    //
+    using UnmodulatedInverter = TimeWarpInverter<1 << 19>;
 
     Phasor2Tick m_phasor2Tick;
     SmartGrid::MessageOutBuffer* m_messageOutBuffer;
     PolyXFaderInternal m_phaseModLFO;
     ScopeWriterHolder m_scopeWriter;
-    WriteTapeHead m_writeTapeHead;
     std::unique_ptr<Inverter> m_timeWarpInverter;
+    PhaseClock m_unmodulatedPhaseClock;
+    std::unique_ptr<UnmodulatedInverter> m_unmodulatedPhaseInverter;
 
     struct Input : public TheoryOfTimeBase::Input
     {
@@ -75,35 +85,11 @@ struct TheoryOfTime : public TheoryOfTimeBase
         PhaseUtils::ExpParam m_lfoMult;
     };
 
-    struct UIState : public TheoryOfTimeBaseUIState
-    {
-        std::atomic<int> m_timeYModAmount;
-
-        double GetTimeYModAmount()
-        {
-            return m_timeYModAmount.load();
-        }
-
-        void SetTimeYModAmount(double value)
-        {
-            m_timeYModAmount.store(value);
-        }
-    };
+    using UIState = TheoryOfTimeBaseUIState;
 
     void PopulateUIState(UIState* uiState, const Input& input)
     {
         TheoryOfTimeBase::PopulateUIState(*uiState, input);
-
-        int64_t lfoPeriod = 1;
-        for (size_t i = 0; i < x_numLoops; ++i)
-        {
-            if (m_phaseModLFO.m_weights[i] > 0)
-            {
-                lfoPeriod = std::lcm(lfoPeriod, GetPeriodTicks(i));
-            }
-        }
-
-        uiState->SetTimeYModAmount(GetPeriodTicks(x_globalLoop) / lfoPeriod);
     }
 
     // Reads the previous sample, which m_sample still holds until Process
@@ -128,6 +114,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
     void SetupMonoScopeWriter(ScopeWriterInput<1>* scopeWriter)
     {
         m_scopeWriter = ScopeWriterHolder(scopeWriter, static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime));
+        scopeWriter->SetTimeWarp(m_scopeWriter.m_scopeIx, m_unmodulatedPhaseInverter.get());
     }
 
     void SetupMessageOutBuffer(SmartGrid::MessageOutBuffer* messageOutBuffer)
@@ -137,21 +124,16 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
     TheoryOfTime()
         : m_messageOutBuffer(nullptr)
-        , m_timeWarpInverter(std::make_unique<Inverter>())
+        , m_timeWarpInverter(std::make_unique<Inverter>(x_phaseResolution))
+        , m_unmodulatedPhaseInverter(std::make_unique<UnmodulatedInverter>(x_phaseResolution))
     {
     }
 
-    // Advances the delay write head from the current modulated phase and records
-    // it in the inverter. Process calls this every engine sample.
+    // Record the phase clock already advanced by TheoryOfTimeBase::Process.
     //
-    void ProcessWriteTapeHead()
+    void ObservePhase()
     {
-        WriteTapeHead::Input writeInput;
-        writeInput.m_theoryPhase = GetPhase(x_globalLoop, PhaseDomain::Modulated);
-        writeInput.m_running = m_sample.m_running;
-        writeInput.m_globalPeriodSamples = m_globalPeriodSamples;
-        m_writeTapeHead.Update(writeInput);
-        m_timeWarpInverter->Write(m_writeTapeHead.m_actualPosition, static_cast<double>(SampleTimer::GetSample()));
+        m_timeWarpInverter->Write(m_phaseClock.m_phase, static_cast<double>(SampleTimer::GetSample()));
     }
 
     void Process(Input& input)
@@ -170,7 +152,11 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
         ProcessPhaseModLFO(input);
         TheoryOfTimeBase::Process(input);
-        ProcessWriteTapeHead();
+        ObservePhase();
+        m_unmodulatedPhaseClock.Update(m_sample.m_unmodulatedPhase,
+            input.m_running, GetUnmodulatedGlobalPhaseIncrement());
+        m_unmodulatedPhaseInverter->Write(m_unmodulatedPhaseClock.m_phase,
+            static_cast<double>(SampleTimer::GetSample()));
 
         if (wasRunning != input.m_running)
         {
@@ -198,14 +184,15 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
         if (m_scopeWriter.IsWriteSample())
         {
-            double phase = GetPhase(x_globalLoop, PhaseDomain::Modulated);
-            m_scopeWriter.Write(MultiChannelNumber<float, 1>(phase - std::floor(phase)));
+            // Store the bounded displacement, not a wrapped phase. The UI
+            // adds its unwarped coordinate before wrapping the drawn value.
+            //
+            m_scopeWriter.Write(MultiChannelNumber<float, 1>(
+                m_sample.m_modulatedPhase - m_sample.m_unmodulatedPhase));
         }
 
-        if (m_phaseModLFO.m_top[0])
-        {
-            m_scopeWriter.RecordStart(m_phaseModLFO.m_top[0].m_offset);
-        }
+        m_scopeWriter.SetPeriodicAtVoice(0,
+            {m_unmodulatedPhaseClock.m_offset, m_phaseModLFO.m_logicalPeriod[0]});
     }
 
     void PrintState()

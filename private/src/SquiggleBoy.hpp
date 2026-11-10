@@ -1197,7 +1197,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         delayInputSetterInput.m_phaseModulationKnob = m_encoders.GetValue<4>(Param::DelayPhaseModulation, 0);
 
         delayInputSetterInput.m_theoryOfTime = m_theoryOfTime;
-        m_delayInputSetter.Process(delayInputSetterInput, m_delayState, &m_delay);
+        m_delayInputSetter.Process(delayInputSetterInput, m_delayState);
         m_mixerState.m_returnSendGain[0][1].Update(m_encoders.GetValue(Param::DelayReverbSend));
         m_mixerState.m_returnSendGain[0][2].Update(m_encoders.GetValue(Param::DelayPartialMachineSend));
         m_mixerState.m_returnGain[0].Update(m_encoders.GetValue(Param::DelayReturn));

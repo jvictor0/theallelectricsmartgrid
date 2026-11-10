@@ -263,14 +263,7 @@ struct PathDrawer
             return false;
         }
 
-        double extent = scopeReader.m_transferIndex - scopeReader.m_startIndex;
-        if (scopeReader.m_transferXSample < scopeReader.m_numXSamples)
-        {
-            extent += scopeReader.m_postTransferEndIndex - scopeReader.m_postTransferIndex;
-        }
-
-        return ShouldDrawScopeMarker(extent * scopeReader.m_scopeWriter->m_decimation
-            / SampleTimer::x_sampleRate);
+        return ShouldDrawScopeMarker(scopeReader.m_sampleExtent / SampleTimer::x_sampleRate);
     }
 
     void DrawScopeMarker(

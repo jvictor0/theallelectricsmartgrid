@@ -77,6 +77,7 @@ DOCTEST_TEST_CASE("DelayWarp: fractional inverse lookup stays between its adjace
     inverter.m_writeHeadInverse[x_testSize - 1] = -1000;
     inverter.m_writeHeadInverse[0] = 100;
     inverter.m_writeHeadInverse[1] = 101;
+    inverter.m_fallbackRightTime[0] = 101;
     inverter.m_writeHeadInverse[2] = 9000;
     DOCTEST_CHECK(inverter.GetRealTime(0.5) == doctest::Approx(100.5));
     DOCTEST_CHECK(inverter.GetRealTime(-65535.5) == doctest::Approx(100.5));
@@ -294,7 +295,7 @@ DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without los
         QuadDelayInputSetter::Input setterInput;
         setterInput.m_theoryOfTime = rig.Get();
         QuadDelay::Input delayInput;
-        delayInput.m_writeHeadPosition = 0;
+        delayInput.m_writeHeadPhase = 0;
         for (size_t channel = 0; channel < 4; ++channel)
         {
             setterInput.m_loopSelectorSwitchVal[channel] = 5;
@@ -320,8 +321,8 @@ DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without los
         for (int n = 0; n < 576000; ++n)
         {
             rig.AdvanceSample();
-            setter.Process(setterInput, delayInput, nullptr);
-            double head = delayInput.m_writeHeadPosition;
+            setter.Process(setterInput, delayInput);
+            double head = delayInput.m_writeHeadPhase;
             if (n > 0)
             {
                 reversed = reversed || head < lastHead;
@@ -337,7 +338,7 @@ DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without los
                 storage->Write(QuadFloat::Splat(sample), SampleTimer::GetHostSample());
             }
 
-            QuadFloat output = grains->Process(delayInput.m_readHeadPosition, QuadFloat(0, 0, 0, 0), grainInput, storage->GetLatestSampleTime());
+            QuadFloat output = grains->Process(delayInput.m_readHeadPhase, QuadFloat(0, 0, 0, 0), grainInput, storage->GetLatestSampleTime());
             finite = finite && std::isfinite(output[0]);
             if (n >= 384000)
             {
@@ -377,7 +378,7 @@ DOCTEST_TEST_CASE("DelayWarp: unavailable history and fractional reads use expli
     inverse.Write(0.0, 1000000000.0);
     inverse.Write(1.0, 1000000004.0);
     DOCTEST_CHECK(inverse.GetRealTime(0.0) == 1000000000.0);
-    DOCTEST_CHECK_FALSE(std::isfinite(inverse.GetRealTime(0.5)));
+    DOCTEST_CHECK(inverse.GetRealTime(0.5) == 1000000002.0);
     inverse.Write(4.0, 1000000016.0);
     DOCTEST_CHECK(inverse.GetRealTime(2.5) == doctest::Approx(1000000010.0).epsilon(1e-12));
     inverse.Write(2.0, 1000000100.0);
@@ -406,9 +407,9 @@ DOCTEST_TEST_CASE("DelayWarp: the clock inverse and host audio share absolute en
         }
     }
 
-    double realEngine = clock.Get()->m_timeWarpInverter->GetRealTime(10.5);
+    double realEngine = clock.Get()->m_timeWarpInverter->GetRealTime(10.5 / 256.0);
     DOCTEST_CHECK(realEngine == static_cast<double>(x_origin) + 10.5);
-    double hostTime = line->GetRealTime(10.5 / SampleTimer::x_oversample);
+    double hostTime = line->GetRealTime(10.5 / 256.0);
     DOCTEST_CHECK(hostTime == realEngine / SampleTimer::x_oversample);
     DOCTEST_CHECK(line->ReadRealTime(hostTime)[0] == doctest::Approx(10.5).epsilon(1e-7));
     DOCTEST_CHECK(line->GetLatestSampleTime() == static_cast<double>(SampleTimer::GetHostSample()));
@@ -436,7 +437,7 @@ void CheckColdStartDelay()
         const double host = static_cast<double>(n) / x_ratio;
         if constexpr (InverseRate != 1)
         {
-            inverse->Write(static_cast<double>(n), static_cast<double>(n));
+            inverse->Write(host, static_cast<double>(n));
         }
 
         if (n % x_ratio == 0)

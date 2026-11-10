@@ -6,13 +6,6 @@
 #include <cmath>
 #include <memory>
 
-namespace
-{
-
-constexpr double x_ratio = static_cast<double>(SampleTimer::x_oversample);
-
-}
-
 DOCTEST_TEST_CASE("Delay heads: audio and display share a position at every speed and loop")
 {
     GlobalEnv::ResetPerTest();
@@ -24,49 +17,42 @@ DOCTEST_TEST_CASE("Delay heads: audio and display share a position at every spee
         -4, -3, -2, -1.5, -4.0 / 3.0, -1, -0.5, -0.25,
         0.25, 0.5, 1, 4.0 / 3.0, 1.5, 2, 3, 4
     };
-    constexpr double x_period = 65536;
     for (int loop = 0; loop < TheoryOfTimeBase::x_numLoops; ++loop)
     {
         for (double phase : {-2.375, 0.0, 3.375, 128.125})
         {
-            for (double glue : {-7919.25, 0.0, 11713.5})
+            for (double speed : speeds)
             {
-                for (double speed : speeds)
-                {
-                    DOCTEST_CAPTURE(loop);
-                    DOCTEST_CAPTURE(phase);
-                    DOCTEST_CAPTURE(glue);
-                    DOCTEST_CAPTURE(speed);
-                    // The write head runs in engine samples; read heads in host samples.
-                    //
-                    WriteTapeHead& writer = clock.Get()->m_writeTapeHead;
-                    writer.m_globalPeriodSamples = x_period * x_ratio;
-                    writer.m_relativePosition = phase;
-                    writer.m_actualPosition = (phase * x_period + glue) * x_ratio;
-                    writer.m_glue = glue * x_ratio;
-                    ReadTapeHead reader;
-                    reader.m_loopSelector = loop;
-                    ReadTapeHead::Input input;
-                    input.m_theoryOfTime = clock.Get();
-                    input.m_requestedLoopSelector = loop;
-                    input.m_bufferFraction = 0.75;
-                    input.m_readHeadSpeed = speed;
-                    reader.Update(input);
-
-                    const double audioDelay = ReadTapeHead::ToHostSamples(writer.m_actualPosition) - reader.m_actualPosition;
-                    const double displayDelay = (writer.m_relativePosition - reader.m_relativePosition) * x_period;
-                    DOCTEST_CHECK(audioDelay == doctest::Approx(displayDelay).epsilon(1e-10));
-                    const double hop = Resynthesizer::GetGrainLaunchSamples();
-                    const double loopSamples = ReadTapeHead::ComputeLoopSamples(clock.Get(), loop, x_period);
-                    DOCTEST_CHECK(audioDelay >= hop - 1e-8);
-                    DOCTEST_CHECK(audioDelay <= hop + loopSamples + 1e-8);
-                }
+                DOCTEST_CAPTURE(loop);
+                DOCTEST_CAPTURE(phase);
+                DOCTEST_CAPTURE(speed);
+                clock.Get()->m_phaseClock.m_phase = phase;
+                ReadTapeHead reader;
+                reader.m_loopSelector = loop;
+                ReadTapeHead::Input input;
+                input.m_theoryOfTime = clock.Get();
+                input.m_requestedLoopSelector = loop;
+                input.m_bufferFraction = 0.75;
+                input.m_readHeadSpeed = speed;
+                reader.Update(input);
+                double period = ReadTapeHead::ComputeLoopPeriod(*clock.Get(), loop);
+                DOCTEST_CHECK(reader.m_phase >= phase - period);
+                DOCTEST_CHECK(reader.m_phase < phase);
+                double wrapped = (reader.m_phase - (phase * speed - period * 0.75)) / period;
+                DOCTEST_CHECK(wrapped == doctest::Approx(std::round(wrapped)));
+                double before = reader.m_phase;
+                clock.Get()->m_globalPeriodSamples *= 2.0;
+                reader.Update(input);
+                DOCTEST_CHECK(reader.m_phase == before);
+                clock.Get()->m_phaseClock.Resume(-700.25);
+                reader.Update(input);
+                DOCTEST_CHECK(reader.m_phase == before);
             }
         }
     }
 }
 
-DOCTEST_TEST_CASE("Delay heads: transport and tempo glue keep the audio aligned with the display")
+DOCTEST_TEST_CASE("Delay heads: transport and tempo changes keep the audio aligned with the display")
 {
     GlobalEnv::ResetPerTest();
     TimeRig clock;
@@ -93,20 +79,19 @@ DOCTEST_TEST_CASE("Delay heads: transport and tempo glue keep the audio aligned 
         for (int sample = 0; sample < samples; ++sample)
         {
             clock.AdvanceSample();
-            setter.Process(input, output, nullptr);
-            const auto& writer = clock.Get()->m_writeTapeHead;
+            setter.Process(input, output);
             for (size_t channel = 0; channel < 4; ++channel)
             {
                 DOCTEST_CAPTURE(stage);
                 DOCTEST_CAPTURE(channel);
                 const double audioPhase = output.m_relativeWriteHeadPosition +
-                    (output.m_readHeadPosition[channel] - output.m_writeHeadPosition) / ReadTapeHead::ToHostSamples(writer.m_globalPeriodSamples);
+                    (output.m_readHeadPhase[channel] - output.m_writeHeadPhase);
                 const double phaseDifference = audioPhase - output.m_relativeReadHeadPosition[channel];
                 DOCTEST_CHECK(std::abs(phaseDifference - std::round(phaseDifference)) < 1e-6);
             }
         }
 
-        DOCTEST_REQUIRE(std::abs(clock.Get()->m_writeTapeHead.m_glue) > 1000.0);
+        DOCTEST_CHECK(std::isfinite(clock.Get()->m_phaseClock.m_offset));
     }
 }
 
@@ -134,26 +119,26 @@ DOCTEST_TEST_CASE("Delay heads: stopped transport retains every selected playbac
         }
 
         clock.AdvanceSample();
-        setter.Process(input, output, nullptr);
-        const double startWrite = output.m_writeHeadPosition;
+        setter.Process(input, output);
+        const double startWrite = output.m_writeHeadPhase;
         const float startDisplayWrite = output.m_relativeWriteHeadPosition;
-        const QuadDouble startRead = output.m_readHeadPosition;
+        const QuadDouble startRead = output.m_readHeadPhase;
         const QuadFloat startDisplayRead = output.m_relativeReadHeadPosition;
         constexpr size_t x_hostSamples = 128;
         for (size_t sample = 0; sample < x_hostSamples * SampleTimer::x_oversample; ++sample)
         {
             clock.AdvanceSample();
-            setter.Process(input, output, nullptr);
+            setter.Process(input, output);
         }
 
         DOCTEST_REQUIRE(clock.GlobalPhase() == 0.0);
-        DOCTEST_CHECK(output.m_writeHeadPosition - startWrite == doctest::Approx(x_hostSamples));
+        DOCTEST_CHECK(output.m_writeHeadPhase - startWrite == doctest::Approx(x_hostSamples / x_period));
         DOCTEST_CHECK(output.m_relativeWriteHeadPosition - startDisplayWrite == doctest::Approx(x_hostSamples / x_period));
         for (size_t channel = 0; channel < 4; ++channel)
         {
             const double speed = speeds[group * 4 + channel];
             DOCTEST_CAPTURE(speed);
-            DOCTEST_CHECK(output.m_readHeadPosition[channel] - startRead[channel] == doctest::Approx(speed * x_hostSamples));
+            DOCTEST_CHECK(output.m_readHeadPhase[channel] - startRead[channel] == doctest::Approx(speed * x_hostSamples / x_period));
             DOCTEST_CHECK(output.m_relativeReadHeadPosition[channel] - startDisplayRead[channel] ==
                 doctest::Approx(speed * x_hostSamples / x_period).epsilon(1e-4));
         }
@@ -178,10 +163,10 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
     for (size_t sample = 0; sample < samples; ++sample)
     {
         clock.AdvanceSample();
-        setter.Process(input, output, delay.get());
+        setter.Process(input, output);
         if ((sample + 1) % SampleTimer::x_oversample == 0)
         {
-            const double phase = output.m_writeHeadPosition / x_period;
+            const double phase = output.m_writeHeadPhase;
             const double wrappedPhase = phase - std::floor(phase);
             const float audio = 0.25 <= wrappedPhase && wrappedPhase < 0.375 ? 0.5f : 0.0f;
             delay->WriteAudio(QuadFloat::Splat(audio), SampleTimer::GetHostSample());
@@ -219,14 +204,14 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
     // Starting resets the musical phase. The displayed waveform must keep its
     // coordinate origin, so that reset cannot draw a false segment across it.
     //
-    const double stoppedWrite = output.m_writeHeadPosition;
+    const double stoppedWrite = output.m_writeHeadPhase;
     clock.SetRunning(true);
     clock.AdvanceSample();
-    setter.Process(input, output, delay.get());
+    setter.Process(input, output);
     delay->PopulateUIState(&ui, output);
     ui.m_scopeWriter.AcceptSamples();
-    DOCTEST_CHECK(output.m_writeHeadPosition == stoppedWrite);
-    DOCTEST_CHECK(ui.m_writeHeadPosition.load() == stoppedWrite * SampleTimer::x_oversample);
+    DOCTEST_CHECK(output.m_writeHeadPhase == stoppedWrite);
+    DOCTEST_CHECK(ui.m_writeHeadPhase.load() == stoppedWrite);
     ScopeReader restarted(&ui.m_scopeWriter, 0, 0, x_points, 1);
     DOCTEST_CHECK(restarted.m_transferXSample == stoppedReader.m_transferXSample);
     for (size_t point = 0; point < x_points; ++point)
@@ -237,28 +222,26 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
     for (bool running : {true, false, true, false})
     {
         const float previousDisplay = output.m_relativeWriteHeadPosition;
-        const double previousWrite = output.m_writeHeadPosition;
+        const double previousWrite = output.m_writeHeadPhase;
         clock.SetRunning(running);
         clock.AdvanceSample();
-        setter.Process(input, output, delay.get());
-        const double movement = output.m_writeHeadPosition - previousWrite;
-        DOCTEST_CHECK(output.m_relativeWriteHeadPosition == doctest::Approx(previousDisplay + movement / x_period).epsilon(1e-6));
+        setter.Process(input, output);
+        const double movement = output.m_writeHeadPhase - previousWrite;
+        DOCTEST_CHECK(output.m_relativeWriteHeadPosition == doctest::Approx(previousDisplay + movement).epsilon(1e-6));
     }
 
     // Tempo edits while stopped change the sweep rate without moving the
     // display origin or changing the real-time write speed.
     //
-    const double previousPhase = clock.Get()->m_writeTapeHead.m_relativePosition;
-    const double previousWrite = output.m_writeHeadPosition;
+    const double previousWrite = output.m_writeHeadPhase;
     clock.SetGlobalPeriodSamples(2.0 * x_period * SampleTimer::x_oversample);
     for (size_t sample = 0; sample < 1024 * SampleTimer::x_oversample; ++sample)
     {
         clock.AdvanceSample();
-        setter.Process(input, output, delay.get());
+        setter.Process(input, output);
     }
 
-    DOCTEST_CHECK(output.m_writeHeadPosition - previousWrite == doctest::Approx(1024.0));
-    DOCTEST_CHECK(clock.Get()->m_writeTapeHead.m_relativePosition - previousPhase == doctest::Approx(1024.0 / (2.0 * x_period)));
+    DOCTEST_CHECK(output.m_writeHeadPhase - previousWrite == doctest::Approx(1024.0 / (2.0 * x_period)));
 }
 
 DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches grain playback")
@@ -268,22 +251,18 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
     clock.SetRunning(true);
     clock.AdvanceSample();
     constexpr size_t x_period = 65536;
-    constexpr double x_glue = 30000.75;
     // A host-rate inverter, recorded once per written sample.
     //
     using Storage = DelayLineMovableWriterGeneric<float, 4, x_period, 1>;
     auto storage = std::make_unique<Storage>();
-    auto inverter = std::make_unique<Storage::Inverter>();
+    auto inverter = std::make_unique<Storage::Inverter>(x_period);
     storage->m_inverter = inverter.get();
     auto grains = std::make_unique<QuadGrainManager<Storage>>(storage.get());
     QuadGrainManager<Storage>::Input grainInput;
     ScopeWriterGeneric<4, 1> envelope(1, x_period);
     envelope.SetTimeWarp(0, inverter.get());
-    WriteTapeHead& writer = clock.Get()->m_writeTapeHead;
-    writer.m_globalPeriodSamples = x_period * x_ratio;
-    writer.m_relativePosition = 3.375;
-    writer.m_actualPosition = (writer.m_relativePosition * x_period + x_glue) * x_ratio;
-    writer.m_glue = x_glue * x_ratio;
+    clock.Get()->m_phaseClock.m_phase = 3.375;
+    const double writePhase = clock.Get()->m_phaseClock.m_phase;
     const double speeds[] = {1, 0.5, 2, -1};
     std::array<ReadTapeHead, 4> readers;
     QuadDouble audioHeads;
@@ -295,8 +274,8 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
         input.m_bufferFraction = 0.75;
         input.m_readHeadSpeed = speeds[channel];
         readers[channel].Update(input);
-        audioHeads[channel] = readers[channel].m_actualPosition;
-        displayedHeads[channel] = readers[channel].m_relativePosition * x_period + x_glue;
+        audioHeads[channel] = readers[channel].m_phase;
+        displayedHeads[channel] = readers[channel].m_phase;
     }
 
     // Record one sparse tone burst per channel at the position shown by its
@@ -304,11 +283,11 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
     //
     for (size_t sample = 0; sample < x_period; ++sample)
     {
-        const double position = ReadTapeHead::ToHostSamples(writer.m_actualPosition) - x_period + sample;
+        const double position = writePhase - 1.0 + static_cast<double>(sample) / x_period;
         QuadFloat audio;
         for (size_t channel = 0; channel < 4; ++channel)
         {
-            const double offset = position - displayedHeads[channel];
+            const double offset = (position - displayedHeads[channel]) * x_period;
             audio[channel] = -1024 <= offset && offset < 2048
                 ? 0.2f * std::cos(2.0 * M_PI * 18.0 * offset / 4096.0)
                 : 0.0f;
@@ -320,7 +299,7 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
         {
             for (size_t channel = 0; channel < 4; ++channel)
             {
-                envelope.RecordStart(0, channel);
+                envelope.SetPeriodic(0, channel, {0.0, 1.0});
             }
         }
 

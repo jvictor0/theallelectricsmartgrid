@@ -64,10 +64,8 @@ struct SquiggleLFOGeneric
         m_scopeWriter.Write(m_polyXFader.m_output);
         for (size_t i = 0; i < Size; ++i)
         {
-            if (m_polyXFader.m_top[i])
-            {
-                m_scopeWriter.RecordStartAtVoice(i, m_polyXFader.m_top[i].m_offset);
-            }
+            m_scopeWriter.SetPeriodicAtVoice(i,
+                {input.m_polyXFaderInput.m_theoryOfTime->m_phaseClock.m_offset, m_polyXFader.m_logicalPeriod[i]});
         }
 
         return m_output;

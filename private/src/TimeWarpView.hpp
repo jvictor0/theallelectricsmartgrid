@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <cassert>
 
 // The observation fields belong to the audio thread. UI readers use a captured
 // view and the atomic inverse lookup, never these live observation fields.
@@ -10,6 +11,7 @@
 struct TimeWarpSource
 {
     const size_t m_capacity;
+    const double m_resolution;
     double m_observedRealTime = 0.0;
     double m_previousObservedRealTime = 0.0;
     double m_observedWarpedTime = 0.0;
@@ -18,8 +20,15 @@ struct TimeWarpSource
     bool m_hasObservation = false;
 
     explicit TimeWarpSource(size_t capacity)
-        : m_capacity(capacity)
+        : TimeWarpSource(capacity, 1.0)
     {
+    }
+
+    TimeWarpSource(size_t capacity, double resolution)
+        : m_capacity(capacity)
+        , m_resolution(resolution)
+    {
+        assert(resolution > 0.0 && std::isfinite(resolution));
     }
 
     virtual ~TimeWarpSource() = default;
@@ -36,8 +45,10 @@ struct TimeWarpView
     double GetRealTime(double warpedTime) const
     {
         if (!m_source || !std::isfinite(warpedTime)
-            || std::floor(warpedTime) < m_oldestWarpedTime || warpedTime > m_warpedTime
-            || std::ceil(warpedTime) > m_oldestWarpedTime + static_cast<double>(m_source->m_capacity - 1))
+            || std::floor(warpedTime * m_source->m_resolution) / m_source->m_resolution < m_oldestWarpedTime
+            || warpedTime > m_warpedTime
+            || std::floor(warpedTime * m_source->m_resolution) / m_source->m_resolution
+                > m_oldestWarpedTime + static_cast<double>(m_source->m_capacity - 1) / m_source->m_resolution)
         {
             return std::numeric_limits<double>::quiet_NaN();
         }

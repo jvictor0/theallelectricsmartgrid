@@ -611,18 +611,28 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
     struct DrawFn
     {
         ScopeReader m_scopeReader;
-        float m_mod;
 
-        DrawFn(ScopeReaderFactory* scopeReaderFactory, float mod)
+        explicit DrawFn(ScopeReaderFactory* scopeReaderFactory)
             : m_scopeReader(scopeReaderFactory->Create())
-            , m_mod(mod)
         {
         }
 
-        float operator()(double x)
+        double PhaseAt(double x) const
         {
-            float y = m_scopeReader.Get(x);
-            return std::fmod(y, m_mod) / m_mod;
+            double coordinate = m_scopeReader.Coordinate(x);
+            if (!std::isfinite(m_scopeReader.RealIndex(coordinate)))
+            {
+                return std::numeric_limits<double>::quiet_NaN();
+            }
+
+            return (coordinate - m_scopeReader.m_periodic.m_origin + m_scopeReader.Get(x))
+                / m_scopeReader.m_periodic.m_period;
+        }
+
+        float operator()(double x) const
+        {
+            double phase = PhaseAt(x);
+            return static_cast<float>(phase - std::floor(phase));
         }
     };
 
@@ -640,34 +650,65 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
             static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime), 
             PathDrawer::x_numPoints, 
             1);
-        DrawFn drawFn(&scopeReaderFactory, 1.0 / m_uiState->m_nonagonUIState.m_theoryOfTimeUIState.m_timeYModAmount.load());
-        PathDrawer pathDrawer(height, width, 0, 0);
-        pathDrawer.m_logX = false;
+        DrawFn drawFn(&scopeReaderFactory);
+        const auto& reader = drawFn.m_scopeReader;
+        if (reader.m_empty || reader.m_periodic.m_period <= 0.0)
+        {
+            return;
+        }
 
         size_t trioIx = m_uiState->m_squiggleBoyUIState.m_activeTrack.load();
-        int yMod = m_uiState->m_nonagonUIState.m_theoryOfTimeUIState.GetTimeYModAmount();
+        double period = reader.m_periodic.m_period;
         int loopMultiplier = m_uiState->m_nonagonUIState.GetLoopMultiplier(trioIx);
-        float drawPos = drawFn.m_scopeReader.Get(drawFn.m_scopeReader.m_transferXSample);
-        int offset = floor(drawPos * yMod);
+        double cursor = std::clamp(reader.m_transferXSample - 1.0, 0.0,
+            static_cast<double>(reader.m_numXSamples - 1));
+        double cursorPhase = drawFn.PhaseAt(cursor);
+        double offset = std::isfinite(cursorPhase) ? std::floor(cursorPhase) : 0.0;
 
-        for (int i = offset * loopMultiplier / yMod; i <= (offset + 1) * loopMultiplier / yMod; ++i)
+        for (int64_t i = static_cast<int64_t>(std::ceil(offset * period * loopMultiplier));
+            i <= static_cast<int64_t>(std::floor((offset + 1.0) * period * loopMultiplier)); ++i)
         {
-            float y = std::fmod(static_cast<float>(i) / loopMultiplier, 1.0 / yMod) * yMod;
+            float y = static_cast<float>(static_cast<double>(i) / loopMultiplier / period - offset);
             float yScreen = bounds.getY() + height * (1.0 - y);
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(trioIx);
             g.setColour(juce::Colour(color.m_red, color.m_green, color.m_blue));
             g.drawLine(bounds.getX(), yScreen, bounds.getX() + width, yScreen, 1.0f);
         }
 
-        pathDrawer.DrawPath(g, juce::Colours::white, drawFn);
+        juce::Path path;
+        double previousPhase = std::numeric_limits<double>::quiet_NaN();
+        for (size_t point = 0; point < reader.m_numXSamples; ++point)
+        {
+            double phase = drawFn.PhaseAt(static_cast<double>(point));
+            if (std::isfinite(phase))
+            {
+                float x = bounds.getX() + width * static_cast<float>(point) / reader.m_numXSamples;
+                float y = bounds.getY() + height * static_cast<float>(1.0 - (phase - std::floor(phase)));
+                bool transfer = point > 0 && point - 1.0 < reader.m_transferXSample
+                    && reader.m_transferXSample <= point;
+                if (!std::isfinite(previousPhase) || transfer || std::floor(phase) != std::floor(previousPhase))
+                {
+                    path.startNewSubPath(x, y);
+                }
+                else
+                {
+                    path.lineTo(x, y);
+                }
+            }
 
-        if (!PathDrawer::ShouldDrawScopeMarker(drawFn.m_scopeReader))
+            previousPhase = phase;
+        }
+
+        g.setColour(juce::Colours::white);
+        g.strokePath(path, juce::PathStrokeType(1.0f));
+
+        if (!std::isfinite(cursorPhase) || !PathDrawer::ShouldDrawScopeMarker(reader))
         {
             return;
         }
 
-        float markerX = bounds.getX() + (drawFn.m_scopeReader.m_transferXSample / static_cast<double>(PathDrawer::x_numPoints - 1)) * width;
-        float y = drawFn(drawFn.m_scopeReader.m_transferXSample);
+        float markerX = bounds.getX() + cursor / reader.m_numXSamples * width;
+        float y = drawFn(cursor);
         float markerY = bounds.getY() + height * (1.0 - y);
         g.setColour(juce::Colours::white);
         float markerRadius = 3.0f;

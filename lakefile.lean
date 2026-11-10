@@ -13,3 +13,8 @@ require mathlib from git "https://github.com/leanprover-community/mathlib4.git" 
 lean_lib Encoder where
   globs := #[.submodules `Encoder]
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`warningAsError, true⟩]
+
+@[default_target]
+lean_lib PhaseTime where
+  globs := #[.submodules `PhaseTime]
+  leanOptions := #[⟨`autoImplicit, false⟩, ⟨`warningAsError, true⟩]

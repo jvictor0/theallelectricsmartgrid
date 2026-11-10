@@ -109,7 +109,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: physical-model hold scales with captured period
     }
 }
 
-DOCTEST_TEST_CASE("AbsoluteTime: delay setter follows per-sample phase and tempo glue")
+DOCTEST_TEST_CASE("AbsoluteTime: delay setter follows phase without rescaling history")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTime time;
@@ -119,22 +119,21 @@ DOCTEST_TEST_CASE("AbsoluteTime: delay setter follows per-sample phase and tempo
     QuadDelayInputSetter setter;
     QuadDelayInputSetter::Input input;
     QuadDelay::Input output;
-    const double ratio = static_cast<double>(SampleTimer::x_oversample);
     input.m_theoryOfTime = &time;
     input.m_readHeadSpeedSwitchVal[1] = 6;
     for (size_t sample = 0; sample < 16; ++sample)
     {
         SampleTimer::s_instance->m_sample = sample;
-        time.ProcessWriteTapeHead();
-        setter.Process(input, output, nullptr);
-        DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(static_cast<double>(sample) / ratio));
+        time.ObservePhase();
+        setter.Process(input, output);
+        DOCTEST_CHECK(output.m_writeHeadPhase == doctest::Approx(static_cast<double>(sample) / 64.0));
         DOCTEST_CHECK(output.m_relativeWriteHeadPosition >= 0.0f);
         DOCTEST_CHECK(output.m_relativeWriteHeadPosition < 1.0f);
-        double top = output.m_writeHeadPosition - Resynthesizer::GetGrainLaunchSamples();
+        double top = output.m_writeHeadPhase;
         for (size_t channel = 0; channel < 4; ++channel)
         {
-            DOCTEST_CHECK(output.m_readHeadPosition[channel] >= top - 64.0 / ratio);
-            DOCTEST_CHECK(output.m_readHeadPosition[channel] < top);
+            DOCTEST_CHECK(output.m_readHeadPhase[channel] >= top - 1.0);
+            DOCTEST_CHECK(output.m_readHeadPhase[channel] < top);
             DOCTEST_CHECK(output.m_relativeReadHeadPosition[channel] >= 0.0f);
             DOCTEST_CHECK(output.m_relativeReadHeadPosition[channel] < 1.0f);
         }
@@ -145,27 +144,86 @@ DOCTEST_TEST_CASE("AbsoluteTime: delay setter follows per-sample phase and tempo
 
     time.m_globalPeriodSamples = 128.0;
     SampleTimer::s_instance->m_sample = 16;
-    time.ProcessWriteTapeHead();
-    setter.Process(input, output, nullptr);
-    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(15.0 / ratio));
+    time.ObservePhase();
+    setter.Process(input, output);
+    DOCTEST_CHECK(output.m_writeHeadPhase == doctest::Approx(16.0 / 64.0));
     clock.m_unmodulatedPhase += 1.0 / 128.0;
     Step(time, clock);
     SampleTimer::s_instance->m_sample = 17;
-    time.ProcessWriteTapeHead();
-    setter.Process(input, output, nullptr);
-    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(16.0 / ratio));
+    time.ObservePhase();
+    setter.Process(input, output);
+    DOCTEST_CHECK(output.m_writeHeadPhase == doctest::Approx(16.0 / 64.0 + 1.0 / 128.0));
 
     clock.m_running = false;
     Step(time, clock);
     SampleTimer::s_instance->m_sample = 18;
-    time.ProcessWriteTapeHead();
-    setter.Process(input, output, nullptr);
-    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(17.0 / ratio));
+    time.ObservePhase();
+    setter.Process(input, output);
+    DOCTEST_CHECK(output.m_writeHeadPhase == doctest::Approx(16.0 / 64.0 + 2.0 / 128.0));
     Step(time, clock);
     SampleTimer::s_instance->m_sample = 19;
-    time.ProcessWriteTapeHead();
-    setter.Process(input, output, nullptr);
-    DOCTEST_CHECK(output.m_writeHeadPosition == doctest::Approx(18.0 / ratio));
+    time.ObservePhase();
+    setter.Process(input, output);
+    DOCTEST_CHECK(output.m_writeHeadPhase == doctest::Approx(16.0 / 64.0 + 3.0 / 128.0));
+}
+
+DOCTEST_TEST_CASE("AbsoluteTime: time warp scope keeps an unwarped period through tempo changes and reversal")
+{
+    GlobalEnv::ResetPerTest();
+    TheoryOfTime time;
+    ScopeWriterGeneric<1, static_cast<size_t>(SmartGridOne::MonoScopes::NumScopes)> writer(1, 8192);
+    time.SetupMonoScopeWriter(&writer);
+    TheoryOfTime::Input input;
+    input.m_running = true;
+    input.m_modIndex.m_expParam = 1.0;
+    for (size_t i = 0; i < TheoryOfTimeBase::x_globalLoop; ++i)
+    {
+        input.m_input[i].m_parentIndex = TheoryOfTimeBase::x_globalLoop;
+        input.m_input[i].m_parentMult = i == 0 ? 2 : 1;
+    }
+
+    std::vector<double> phases;
+    bool reversed = false;
+    for (size_t sample = 0; sample <= 5120; ++sample)
+    {
+        SampleTimer::s_instance->m_sample = sample;
+        input.m_freq = sample < 2048 ? 1.0 / 4096.0 : 1.0 / 8192.0;
+        time.Process(input);
+        phases.push_back(time.m_sample.m_modulatedPhase);
+        reversed |= time.m_phaseClock.m_increment < 0.0;
+        writer.AdvanceIndex();
+    }
+
+    DOCTEST_REQUIRE(reversed);
+    writer.Publish();
+    writer.AcceptSamples();
+    size_t scope = static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime);
+    ScopeReader reader(&writer, 0, scope, 256, 1);
+    DOCTEST_REQUIRE_FALSE(reader.m_empty);
+    DOCTEST_CHECK(reader.m_periodic.m_period == 0.5);
+    DOCTEST_CHECK(writer.GetAcceptedMarkers(scope, 0).m_startIndexIndex == 0);
+    DOCTEST_CHECK(reader.m_timeWarp.m_source == time.m_unmodulatedPhaseInverter.get());
+    for (size_t point = 0; point < 256; ++point)
+    {
+        double coordinate = reader.Coordinate(point);
+        double sample = reader.RealIndex(coordinate);
+        DOCTEST_REQUIRE(std::isfinite(sample));
+        size_t index = static_cast<size_t>(sample);
+        double expected = phases[index] + (sample - index) * (phases[index + 1] - phases[index]);
+        double reconstructed = coordinate - reader.m_periodic.m_origin + reader.Get(point);
+        DOCTEST_CHECK(reconstructed == doctest::Approx(expected).epsilon(1e-5));
+    }
+
+    double beforeStop = time.m_unmodulatedPhaseClock.m_phase;
+    input.m_running = false;
+    SampleTimer::s_instance->m_sample++;
+    time.Process(input);
+    double stopped = time.m_unmodulatedPhaseClock.m_phase;
+    DOCTEST_CHECK(stopped > beforeStop);
+    input.m_running = true;
+    SampleTimer::s_instance->m_sample++;
+    time.Process(input);
+    DOCTEST_CHECK(time.m_unmodulatedPhaseClock.m_phase == stopped);
 }
 
 DOCTEST_TEST_CASE("WholeTick: voice timing uses undoubled clock and read LCM and captures it at trigger")

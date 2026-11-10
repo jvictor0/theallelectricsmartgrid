@@ -27,9 +27,9 @@ struct QuadDelay
         }
     };
     
-    // The delay line and its positions are in host samples. The saturated input and feedback are decimated and written
-    // once per host frame; grains play back at the engine rate. The write head's inverse belongs to the theory of time,
-    // wired into m_delayLine.m_inverter at startup.
+    // The delay line stores host samples; heads use continuous master phase.
+    // Input and feedback are decimated once per host frame; grains play at
+    // engine rate. TheoryOfTime owns the inverse wired into the line at startup.
     //
     static constexpr size_t x_oversample = SampleTimer::x_oversample;
     static constexpr size_t x_delayLineSize = TheoryOfTime::x_timeWarpInverterSamples / x_oversample;
@@ -64,8 +64,8 @@ struct QuadDelay
         QuadFloat m_feedback;
         QuadFloat m_rotate;
 
-        double m_writeHeadPosition;
-        QuadDouble m_readHeadPosition;
+        double m_writeHeadPhase;
+        QuadDouble m_readHeadPhase;
         float m_relativeWriteHeadPosition;
         QuadFloat m_relativeReadHeadPosition;
 
@@ -77,7 +77,7 @@ struct QuadDelay
         Input()
             : m_feedback(0.5, 0.5, 0.5, 0.5)
             , m_rotate(0, 0, 0, 0)
-            , m_writeHeadPosition(0)
+            , m_writeHeadPhase(0)
             , m_relativeWriteHeadPosition(-1.0f)
             , m_relativeReadHeadPosition(-1.0f, -1.0f, -1.0f, -1.0f)
         {
@@ -93,8 +93,8 @@ struct QuadDelay
     {
         DampingFilter::UIState m_dampingFilter[4];
         ScopeWriterGeneric<4, 1> m_scopeWriter;
-        std::atomic<double> m_readHeadPosition[4]{};
-        std::atomic<double> m_writeHeadPosition{0.0};
+        std::atomic<double> m_readHeadPhase[4]{};
+        std::atomic<double> m_writeHeadPhase{0.0};
     };
 
     void SetupScopeWriter(UIState* uiState)
@@ -102,6 +102,11 @@ struct QuadDelay
         assert(m_delayLine.m_inverter);
         uiState->m_scopeWriter.SetTimeWarp(0, m_delayLine.m_inverter);
         m_envelopeScopeWriter = ScopeWriterHolderGeneric<4>(&uiState->m_scopeWriter, 0);
+        for (size_t channel = 0; channel < 4; ++channel)
+        {
+            uiState->m_scopeWriter.SetPeriodic(0, channel, {0.0, 1.0});
+        }
+
     }
 
     void PopulateUIState(UIState* uiState, Input& input)
@@ -110,10 +115,10 @@ struct QuadDelay
         {
             uiState->m_dampingFilter[channel].m_hpAlpha.store(m_postFeedbackFilter.m_bff.m_highPassFilter.m_alpha[channel]);
             uiState->m_dampingFilter[channel].m_lpAlpha.store(m_postFeedbackFilter.m_bff.m_lowPassFilter.m_alpha[channel]);
-            uiState->m_readHeadPosition[channel].store(input.m_readHeadPosition[channel] * x_oversample);
+            uiState->m_readHeadPhase[channel].store(input.m_readHeadPhase[channel]);
         }
 
-        uiState->m_writeHeadPosition.store(input.m_writeHeadPosition * x_oversample);
+        uiState->m_writeHeadPhase.store(input.m_writeHeadPhase);
         uiState->m_scopeWriter.Publish();
     }
 
@@ -149,7 +154,7 @@ struct QuadDelay
 
         WriteEnvelopeScope();
 
-        QuadFloat delayedSignal = m_grainManager.Process(input.m_readHeadPosition, QuadFloat(), input.m_grainManagerInput,
+        QuadFloat delayedSignal = m_grainManager.Process(input.m_readHeadPhase, QuadFloat(), input.m_grainManagerInput,
             m_delayLine.GetOldestSampleTime(), m_delayLine.GetLatestSampleTime());
 
         m_output = m_postFeedbackFilter.Process(input.TransformOutput(delayedSignal));
@@ -179,7 +184,6 @@ struct QuadDelayInputSetter
     QuadExpParam m_slewUp;
 
     float m_bufferFrac[4];
-    double m_previousDisplayPhase = std::numeric_limits<double>::quiet_NaN();
     ReadTapeHead m_readTapeHead[4];
 
     struct Input
@@ -236,28 +240,12 @@ struct QuadDelayInputSetter
         }
     }
 
-    // The theory of time has already advanced its write tape head this sample.
+    // TheoryOfTime has already advanced continuous phase this sample.
     //
-    void Process(Input& input, QuadDelay::Input& delayInput, QuadDelay* delay)
+    void Process(Input& input, QuadDelay::Input& delayInput)
     {
-        const WriteTapeHead& writeTapeHead = input.m_theoryOfTime->m_writeTapeHead;
-        double writeHeadPosition = ReadTapeHead::ToHostSamples(writeTapeHead.m_actualPosition);
-        if (std::abs(writeHeadPosition - delayInput.m_writeHeadPosition) >= 64)
-        {
-            INFO("writeHeadPosition: %f -> %f (diff %f) external loop", 
-                delayInput.m_writeHeadPosition,
-                writeHeadPosition, 
-                std::abs(writeHeadPosition - delayInput.m_writeHeadPosition));
-            INFO("time loop %d modulated %f unmodulated %f global %f ratio %lld",
-                m_readTapeHead[0].m_loopSelector,
-                input.m_theoryOfTime->GetPhase(m_readTapeHead[0].m_loopSelector, PhaseDomain::Modulated),
-                input.m_theoryOfTime->GetPhase(m_readTapeHead[0].m_loopSelector, PhaseDomain::Unmodulated),
-                input.m_theoryOfTime->GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated),
-                static_cast<long long>(input.m_theoryOfTime->GetCycleRatio(m_readTapeHead[0].m_loopSelector)));
-        }
-
-        delayInput.m_writeHeadPosition = writeHeadPosition;
-        double writePhase = writeTapeHead.GetDisplayPosition();
+        double writePhase = input.m_theoryOfTime->m_phaseClock.m_phase;
+        delayInput.m_writeHeadPhase = writePhase;
         delayInput.m_relativeWriteHeadPosition = static_cast<float>(writePhase - std::floor(writePhase));
 
         QuadFloat rotate;
@@ -314,9 +302,8 @@ struct QuadDelayInputSetter
             readInput.m_readHeadSpeed = possibleReadHeadSpeeds[input.m_readHeadSpeedSwitchVal[i]];
             readInput.m_requestedLoopSelector = totLoopSelector;
             m_readTapeHead[i].Update(readInput);
-            delayInput.m_readHeadPosition[i] = m_readTapeHead[i].m_actualPosition;
-            double readPhase = writePhase +
-                (m_readTapeHead[i].m_relativePosition - writeTapeHead.m_relativePosition);
+            double readPhase = m_readTapeHead[i].m_phase;
+            delayInput.m_readHeadPhase[i] = readPhase;
             delayInput.m_relativeReadHeadPosition[i] = static_cast<float>(readPhase - std::floor(readPhase));
 
             // Resynth parameters
@@ -347,17 +334,5 @@ struct QuadDelayInputSetter
                 : slewUp[i];
         }
 
-        if (delay && (!std::isfinite(m_previousDisplayPhase)
-            || std::floor(writePhase) > std::floor(m_previousDisplayPhase)))
-        {
-            double offset = std::isfinite(m_previousDisplayPhase)
-                ? SampleTop::FromPhases(m_previousDisplayPhase, writePhase).m_offset : 0.0;
-            for (size_t channel = 0; channel < 4; ++channel)
-            {
-                delay->m_envelopeScopeWriter.RecordStartAtVoice(channel, offset);
-            }
-        }
-
-        m_previousDisplayPhase = writePhase;
     }
 };

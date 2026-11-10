@@ -159,7 +159,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader evaluates accepted reparenting witho
     DOCTEST_CHECK(lfo.m_values[3] == doctest::Approx(0.15));
 }
 
-DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while the scope captures modulated phase")
+DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while the scope captures warp displacement")
 {
     GlobalEnv::ResetPerTest();
     TheoryOfTime plain;
@@ -177,12 +177,12 @@ DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while the scope capture
     plain.SetupMessageOutBuffer(&plainMessages);
     modulated.SetupMessageOutBuffer(&modulatedMessages);
     auto scope = std::make_unique<ScopeWriterGeneric<1, 1>>(1, 4096);
-    scope->GetMarkers(0, 0).m_advanceStartIndices = 0;
-    modulated.m_scopeWriter = ScopeWriterHolder(scope.get(), 0);
+    modulated.SetupMonoScopeWriter(scope.get());
     double largestOffset = 0.0;
     int clocks = 0;
     for (size_t sample = 0; sample < 512; ++sample)
     {
+        SampleTimer::s_instance->m_sample = sample;
         scope->Write(0, -1.0f);
         plain.Process(plainInput);
         modulated.Process(modulatedInput);
@@ -197,7 +197,8 @@ DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while the scope capture
         modulatedMessages.Clear();
         double phase = modulated.GetPhase(5, PhaseDomain::Modulated);
         largestOffset = std::max(largestOffset, std::abs(modulatedInput.m_phaseOffset));
-        DOCTEST_CHECK(scope->ReadSample(0, 0, sample) == doctest::Approx(phase - std::floor(phase)));
+        DOCTEST_CHECK(scope->ReadSample(0, 0, sample) + modulated.GetPhase(5, PhaseDomain::Unmodulated)
+            == doctest::Approx(phase));
         scope->AdvanceIndex();
     }
 
