@@ -195,6 +195,155 @@ void CheckOutputs(MatrixRig& actual, MatrixRig& reference)
     }
 }
 
+struct SnapshotRig
+{
+    MatrixRig m_actual;
+    MatrixRig m_reference;
+
+    SnapshotRig()
+    {
+        for (auto* rig : {&m_actual, &m_reference})
+        {
+            auto& root = rig->Root();
+            root.FillModulators(&rig->m_context);
+            auto& amount = *root.m_modulators.m_modulators[2];
+            amount.FillModulators(&rig->m_context);
+            for (size_t slot = 0; slot < Cell::x_numModulators; ++slot)
+            {
+                MatrixRig::SetSettled(*root.m_modulators.m_modulators[slot], 0.5f, 0.5f);
+                MatrixRig::SetSettled(*amount.m_modulators.m_modulators[slot], 0.5f, 0.5f);
+            }
+
+            MatrixRig::SetSettled(root, 0.2f, 0.2f);
+            MatrixRig::SetSettled(*amount.m_modulators.m_modulators[4], 1.0f, 1.0f);
+            root.SetModulatorsAffecting();
+            MatrixRig::ForceLegacyRefresh(root);
+        }
+
+        auto& manager = m_actual.m_bank.m_modulatorManager;
+        for (size_t slot = 0; slot < Cell::x_numModulators; ++slot)
+        {
+            manager.Bind(0, slot, slot);
+            manager.GetSource(slot).m_requiresDownsampling = false;
+        }
+
+        SetSource(2, QuadFloat::Splat(0.8f), QuadFloat::Splat(1.0f));
+        SetSource(4, QuadFloat::Splat(0.75f), QuadFloat::Splat(1.0f));
+    }
+
+    void SetSource(size_t slot, QuadFloat value, QuadFloat amplitude)
+    {
+        auto& manager = m_actual.m_bank.m_modulatorManager;
+        manager.Set(slot, value);
+        manager.GetSource(slot).m_amplitude = amplitude;
+        m_reference.Sources().m_hostValue[slot] = value;
+        m_reference.Sources().m_amplitude[slot] = amplitude;
+    }
+
+    void EvaluateReference()
+    {
+        // The reference eagerly computes every child from the current inputs.
+        //
+        MatrixRig::ForceLegacyRefresh(m_reference.Root());
+        m_reference.Process(true);
+    }
+
+    void AdvanceHosts(size_t count)
+    {
+        for (size_t sample = 0; sample < count * SampleTimer::x_oversample; ++sample)
+        {
+            SampleTimer::IncrementSample();
+            if (SampleTimer::IsHostFrame())
+            {
+                m_actual.m_context.m_sceneManager.Process();
+            }
+
+            m_actual.m_bank.Process();
+            if (SampleTimer::IsHostFrame())
+            {
+                EvaluateReference();
+            }
+        }
+    }
+
+    void CheckPublishedDepths()
+    {
+        EncoderBankUIState actualUI;
+        EncoderBankUIState referenceUI;
+        m_actual.m_bank.m_banks[0].PopulateUIState(&actualUI);
+        m_reference.m_bank.m_banks[0].PopulateUIState(&referenceUI);
+        for (size_t lane = 0; lane < 4; ++lane)
+        {
+            DOCTEST_CHECK(actualUI.m_states[0][0].m_modulatorWeights[lane][2].load()
+                == doctest::Approx(referenceUI.m_states[0][0].m_modulatorWeights[lane][2].load()).epsilon(1e-6));
+            DOCTEST_CHECK(m_actual.Root().m_modulators.m_modulators[2]->m_output[lane]
+                == doctest::Approx(m_reference.Root().m_modulators.m_modulators[2]->m_output[lane]).epsilon(1e-6));
+        }
+    }
+};
+
+}
+
+DOCTEST_TEST_CASE("encoder matrix: manager snapshots survive held-source UI publication and edits")
+{
+    GlobalEnv::ResetPerTest();
+    SnapshotRig rig;
+    rig.AdvanceHosts(64);
+    DOCTEST_SUBCASE("source value changes")
+    {
+        rig.SetSource(4, QuadFloat(0.9f, 0.8f, 0.7f, 0.6f), QuadFloat::Splat(1.0f));
+    }
+
+    DOCTEST_SUBCASE("only source amplitude changes")
+    {
+        rig.SetSource(4, QuadFloat::Splat(0.75f), QuadFloat(0.25f, 0.5f, 0.75f, 0.9f));
+    }
+
+    rig.AdvanceHosts(2);
+    DOCTEST_REQUIRE(rig.m_actual.m_bank.m_matrix.m_roots[0].m_path == EncoderMatrix::Path::Graph);
+    DOCTEST_REQUIRE(rig.m_actual.Root().m_preparedValues);
+    DOCTEST_REQUIRE(rig.m_actual.Sources().m_changedModulators.IsZero());
+    CheckOutputs(rig.m_actual, rig.m_reference);
+    rig.CheckPublishedDepths();
+    CheckOutputs(rig.m_actual, rig.m_reference);
+
+    rig.m_actual.Root().Increment(0.01f);
+    rig.m_reference.Root().Increment(0.01f);
+    for (size_t frame = 0; frame < 8; ++frame)
+    {
+        rig.AdvanceHosts(1);
+        CheckOutputs(rig.m_actual, rig.m_reference);
+    }
+}
+
+DOCTEST_TEST_CASE("encoder matrix: pending manager gather preserves the evaluated snapshot")
+{
+    GlobalEnv::ResetPerTest();
+    SnapshotRig rig;
+    rig.AdvanceHosts(64);
+    rig.SetSource(4, QuadFloat::Splat(0.9f), QuadFloat::Splat(0.5f));
+    rig.AdvanceHosts(2);
+    DOCTEST_REQUIRE(rig.m_actual.Root().m_preparedValues);
+    CheckOutputs(rig.m_actual, rig.m_reference);
+
+    // Stage a new host frame, then materialize the previous one before the
+    // matrix consumes the staged inputs, as its rebuild path can do.
+    //
+    rig.SetSource(4, QuadFloat::Splat(0.1f), QuadFloat::Splat(0.25f));
+    for (size_t sample = 0; sample < SampleTimer::x_oversample; ++sample)
+    {
+        SampleTimer::IncrementSample();
+    }
+
+    rig.m_actual.m_context.m_sceneManager.Process();
+    rig.m_actual.m_bank.m_modulatorManager.Gather();
+    rig.CheckPublishedDepths();
+    CheckOutputs(rig.m_actual, rig.m_reference);
+    rig.m_actual.m_bank.m_matrix.m_rebuild = true;
+    rig.m_actual.m_bank.ProcessGatheredHostFrame();
+    rig.EvaluateReference();
+    CheckOutputs(rig.m_actual, rig.m_reference);
+    rig.CheckPublishedDepths();
 }
 
 DOCTEST_TEST_CASE("encoder matrix: short settled refresh matches the legacy full window through live ramps")
