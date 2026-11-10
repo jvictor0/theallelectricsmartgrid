@@ -50,6 +50,7 @@ from its own location, including when invoked from another working directory.
 | [Reachability.lean](Reachability.lean) | Arbitrary action sequences in **Veil's generated transition relation** | `EncoderRuntime.reachable_safe` |
 | [Evaluation.lean](Evaluation.lean) | Ordered signed modulation sums, gestures, depth caching and compensated scene edits | `mix_bounded`, endpoint/gesture/compensation theorems |
 | [Control.lean](Control.lean) | Dependency predicates, ancestor invalidation, prepared eligibility, deferred synchronization and host gating | `prepared_requires_settled`, `synchronization_preserves_live_and_history` |
+| [SourceSnapshots.lean](SourceSnapshots.lean) | Global comparisons, group gathering, completed-host snapshot commits and reconstruction | `committed_host_then_synchronize_is_coherent`, `pending_gather_uses_last_evaluated_inputs` |
 | [Prepared.lean](Prepared.lean) | Veil protocol for live/evaluated snapshots, materialized tree state, revisions and fallback/prepared transitions | Generated theorems for snapshot coherence and schedule validity |
 | [Schedule.lean](Schedule.lean) | Child-before-parent graph evaluation, with arbitrary nesting and pure operations | `prepared_equals_recursive` |
 | [Crossfade.lean](Crossfade.lean) | Scene-manager change flags and ordinary distinct-scene increment arithmetic | `no_blend_change_is_lost`, `distinct_scene_increment` |
@@ -160,10 +161,11 @@ assume the final outputs are equal. It also does not prove that the C++
   modeled; a trio uses its first three lanes. Cache functions are total in Lean,
   but out-of-range slots have no C++ correspondence.
 - The control model assumes correct active dependency sets, complete ancestor
-  paths, immutable snapshots of the last evaluation, and no concurrent mutation
-  during an action. These are obligations on the C++ integration. In particular,
-  source references do not prove the lifetime of pointers or that each snapshot
-  captures exactly the intended input version.
+  paths, and no concurrent mutation during an action. `SourceSnapshots` refines
+  the source/amplitude part of the saved snapshot with explicit global comparison,
+  group gathering and completed-host commit operations. Scene/gesture snapshots
+  remain separate integration obligations. Source references do not prove pointer
+  lifetimes or that C++ executes the modeled assignments at the modeled boundaries.
 - Initialization, edits, compute and publication are modeled separately from
   allocator ownership, UI atomic synchronization, MIDI hardware mapping,
   recording serialization/filtering, and JSON/schema migration. Persisted
@@ -510,8 +512,17 @@ value changes, amplitude-only changes and clearing flags on unchanged frames.
 Filter dynamics, the static source/group tables and
 binding construction remain native integration boundaries. Child cells inherit
 the parent's fixed group pointer, and prepared roots cache that same pointer.
-The reviewed changes leave mixing, synchronization swaps, gesture arithmetic,
-patch representation/loading, reset, ramps and output interpolation unchanged.
+The manager optimization preserved the synchronization swaps but omitted their
+group snapshot updates. The landed `d0c9461` therefore violates E25/E35: after
+prepared evaluation, reconstructing a held nested depth reads startup values or
+amplitudes. `SourceSnapshots` models a correction before its native implementation:
+gathering advances global comparison history and group live inputs, reconstruction
+continues to use the last completed evaluation, and a completed host pass commits
+the group values and amplitudes for subsequent UI publication, edits and rebuilds.
+It proves global/local change-mask equivalence, correct reconstruction after the
+commit, preservation of the previous snapshot across a pending gather, and
+counterexamples for omitting either value or amplitude updates. These proofs do
+not certify the still-unfixed C++ integration at this model-first checkpoint.
 The clamp now accompanies each computed root write instead of every publication;
 existing clamp tests cover simple, graph and editing paths, output history and
 stationary roots. These integration changes do not alter the Lean definitions.

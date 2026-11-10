@@ -2,6 +2,7 @@ import Encoder.Reachability
 import Encoder.Prepared
 import Encoder.Evaluation
 import Encoder.Control
+import Encoder.SourceSnapshots
 import Encoder.Schedule
 import Encoder.Crossfade
 import Encoder.Curve
@@ -37,6 +38,10 @@ run_cmd do
     ``EncoderRuntime.publish_published_cache,
     ``EncoderPrepared.host_output_matches_evaluated,
     ``EncoderPrepared.synchronize_materialized_matches_evaluated,
+    ``Encoder.SourceSnapshots.committed_host_then_synchronize_is_coherent,
+    ``Encoder.SourceSnapshots.pending_gather_uses_last_evaluated_inputs,
+    ``Encoder.SourceSnapshots.missing_commit_breaks_reconstruction,
+    ``Encoder.SourceSnapshots.missing_amplitude_commit_breaks_reconstruction,
     ``EncoderBehavior.host_frame_current_inputs,
     ``EncoderBehavior.host_frame_current_ramp,
     ``EncoderBehavior.host_frame_published_cache,

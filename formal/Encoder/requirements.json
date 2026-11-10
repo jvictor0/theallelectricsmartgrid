@@ -228,7 +228,9 @@
     "requirement": "When an affecting source changes amplitude or an affecting gesture changes selection, the dependency predicate shall require recomputation.",
     "theorems": [
       "Encoder.amplitude_change_invalidates",
-      "Encoder.gesture_selection_invalidates"
+      "Encoder.gesture_selection_invalidates",
+      "Encoder.SourceSnapshots.gathered_changes_match_local_comparison",
+      "Encoder.SourceSnapshots.direct_and_global_change_flags_agree"
     ],
     "anchors": [
       "changed",
@@ -252,7 +254,9 @@
     "requirement": "When deferred tree values are synchronized, synchronization shall evaluate the last evaluated snapshot and preserve live inputs, ramp state and root output history.",
     "theorems": [
       "Encoder.synchronization_uses_evaluated_snapshot",
-      "Encoder.synchronization_preserves_live_and_history"
+      "Encoder.synchronization_preserves_live_and_history",
+      "Encoder.SourceSnapshots.pending_gather_uses_last_evaluated_inputs",
+      "Encoder.SourceSnapshots.synchronization_preserves_output"
     ],
     "anchors": [
       "synchronization",
@@ -371,7 +375,9 @@
     "requirement": "When synchronization or rebuilding completes in the connected-root protocol, materialized state shall agree with the evaluated snapshot.",
     "theorems": [
       "EncoderPrepared.synchronize_materialized_matches_evaluated",
-      "EncoderPrepared.rebuild_materialized_matches_evaluated"
+      "EncoderPrepared.rebuild_materialized_matches_evaluated",
+      "Encoder.SourceSnapshots.committed_snapshot_contains_values_and_amplitudes",
+      "Encoder.SourceSnapshots.committed_host_then_synchronize_is_coherent"
     ],
     "anchors": [
       "synchronization",
