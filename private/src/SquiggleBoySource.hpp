@@ -35,7 +35,6 @@ struct SquiggleBoySourceGeneric
 
     Vector m_output;
     Vector m_modOut[2];
-    ScopeWriterHolderGeneric<Size> m_physicalEnvelopeScopeWriter;
     SampleTop m_top[Size];
 
     struct Input
@@ -76,8 +75,7 @@ struct SquiggleBoySourceGeneric
     void SetScopeWriters(ScopeWriterInput<Size>* scopeWriter, size_t track)
     {
         m_dualWaveShapingVCO.SetScopeWriters(scopeWriter, track);
-        m_physicalEnvelopeScopeWriter = ScopeWriterHolderGeneric<Size>(scopeWriter,
-            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::PhysicalModelingEnvelope), track));
+        m_physicalModeling.SetScopeWriters(scopeWriter, track);
     }
 
     void ClearTops()
@@ -141,35 +139,6 @@ struct SquiggleBoySourceGeneric
 
             default:
                 break;
-        }
-
-        if (input.m_sourceMachine == SourceMachine::PhysicalModeling)
-        {
-            m_physicalEnvelopeScopeWriter.Write(m_modOut[1]);
-            for (size_t lane = 0; lane < Size; ++lane)
-            {
-                const auto& envelope = m_physicalModeling.m_ahd.m_channels[lane];
-                if (envelope.m_triggered)
-                {
-                    m_physicalEnvelopeScopeWriter.RecordStartAtVoice(lane, 0.0);
-                }
-
-                if (envelope.m_voiceCellCrossed && envelope.m_state == AHD::State::Idle
-                    && m_physicalEnvelopeScopeWriter.IsStartedAtVoice(lane))
-                {
-                    m_physicalEnvelopeScopeWriter.RecordEndAtVoice(lane);
-                }
-            }
-        }
-        else
-        {
-            for (size_t lane = 0; lane < Size; ++lane)
-            {
-                if (m_physicalEnvelopeScopeWriter.IsStartedAtVoice(lane))
-                {
-                    m_physicalEnvelopeScopeWriter.RecordEndAtVoice(lane);
-                }
-            }
         }
 
         return m_output;

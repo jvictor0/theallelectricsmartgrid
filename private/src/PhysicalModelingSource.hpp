@@ -9,7 +9,9 @@
 #include "Noise.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
+#include "ScopeWriter.hpp"
 #include "SmartGridOneEncoders.hpp"
+#include "SmartGridOneScopeEnums.hpp"
 #include "StateVariableFilter.hpp"
 #include <algorithm>
 #include <atomic>
@@ -80,6 +82,7 @@ struct PhysicalModelingSourceGeneric : PhysicalModelingSourceBase
     // Amplitude envelope for ProcessWithAHD
     //
     Envelope m_ahd;
+    ScopeWriterHolderGeneric<Size> m_envelopeScopeWriter;
 
     // Encoder mappings. Cutoff and sample rate reduction are in cycles per
     // host sample; the AHD allows 100 us minimum attack and 500 us minimum
@@ -130,6 +133,12 @@ struct PhysicalModelingSourceGeneric : PhysicalModelingSourceBase
         , m_ahdInputSetter(0.0001f, 2.5f, 0.0005f, 2.5f)
     {
         m_mainSVFResonanceParam.SetBaseByCenter(0.125);
+    }
+
+    void SetScopeWriters(ScopeWriterInput<Size>* scopeWriter, size_t track)
+    {
+        m_envelopeScopeWriter = ScopeWriterHolderGeneric<Size>(scopeWriter,
+            SmartGridOne::VoiceScopeIndex(static_cast<size_t>(SmartGridOne::VoiceScopes::PhysicalModelingEnvelope), track));
     }
 
     void SetCombParams(const Vector& normalizedFrequency, const Vector& decayKnob, const Vector& dampKnob, double sampleRate)
@@ -189,6 +198,22 @@ struct PhysicalModelingSourceGeneric : PhysicalModelingSourceBase
     Vector ProcessWithAHD(Input& input, Vector (&modOut)[2])
     {
         input.m_envelope = m_ahd.Process(input.m_ahdInput);
+        m_envelopeScopeWriter.Write(input.m_envelope);
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            const auto& envelope = m_ahd.m_channels[lane];
+            if (envelope.m_triggered)
+            {
+                m_envelopeScopeWriter.RecordStartAtVoice(lane, 0.0);
+            }
+
+            if (envelope.m_voiceCellCrossed && envelope.m_state == AHD::State::Idle
+                && m_envelopeScopeWriter.IsStartedAtVoice(lane))
+            {
+                m_envelopeScopeWriter.RecordEndAtVoice(lane);
+            }
+        }
+
         return Process(input, modOut);
     }
 
