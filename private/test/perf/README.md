@@ -1,5 +1,63 @@
 # Reusable performance benchmarks
 
+## Isolated benchmarks on iPad
+
+`SmartGrid Perf` is one development app for named C++ benchmarks. It does not
+link JUCE or initialize audio. The selected case runs on one worker thread;
+the main thread displays a static label and records thermal transitions.
+The app saves a report and exits to the home screen after success, failure,
+or its timeout, even if the Mac disconnects. Keep the iPad unlocked for launch.
+
+```sh
+# Incrementally build, install, and run the current inverter (linear, fast tempo).
+make perf-ipad PERF_ARGS='--notes "Initial iPad inverse baseline"'
+
+# Original plain-double tape versus current, both written at 192 kHz.
+make perf-ipad PERF_ARGS='--notes "Compare tape and phase-grid cost" -- tape-performance 3 16 5'
+
+# Run the already installed build, without rebuilding or installing.
+scripts/.venv-ios/bin/python scripts/ipad_perf.py --skip-install \
+  --case inverter --notes 'Heavy reversal case' -- current-performance 16 16 5
+```
+
+The first registered case is `inverter`. Its arguments are
+`current-performance|tape-performance|write-performance SETTING PERIOD_BITS [REPEATS] [CYCLES]`,
+or `self-test`. Defaults are `current-performance 0 16 3`. Settings are the table
+in `density.cpp`; period bits range from 16 to 24. `write-performance` compares
+the pre-optimization phase inverse against current. This is the same workload
+and timing code as desktop `perf_density`, including initialization outside
+timing and the half-second warmup. The device entry point excludes the
+multi-threaded contention test. Slow cases retain large precomputed traces;
+the historical tape alone uses 512 MiB, and implementations run sequentially.
+
+The Mac writes one row per invocation to `~/Documents/SmartGridOne/perf.sqlite3`.
+`--db PATH` overrides this. The `runs` table stores the selected case, arguments,
+embedded build commit and dirty flag, built-in case description, supplied notes,
+status/error, arbitrary case result objects, and device/build telemetry.
+The app reports its own compiled commit, including with `--skip-install`.
+Thermal state is Apple's enum: 0 nominal, 1 fair, 2 serious, 3 critical. Telemetry
+includes start/end samples, thermal transitions, battery/power state, and loss
+of foreground status. These offline timings do not establish audio deadlines.
+
+```sh
+sqlite3 ~/Documents/SmartGridOne/perf.sqlite3 \
+  'select started_at, case_name, substr(git_commit,1,8), status, notes from runs order by started_at desc limit 10;'
+```
+
+`--timeout SECONDS` defaults to 600. Failed launches/transfers remain in the
+database as failures. Device JSON reports remain under the benchmark app's
+`Documents/perf/` for inspection if collection fails. No recording/patch sync
+is performed. Device selection uses the existing `--udid` / `--host` options.
+
+To add a case, implement a function taking `const std::vector<std::string>&`
+and `std::ostream&`, add its name/description/function to `device/Cases.cpp`,
+and add its source to `device/CMakeLists.txt`. Emit one JSON object per line;
+choose any metrics or units, and throw on failure. The case owns setup, warmup,
+repetitions, and timed regions. Do not spawn workload threads. Reporting belongs
+outside measured regions. No host-script or database-schema change is needed.
+
+## Desktop runner
+
 These are maintained versions of the component and encoder experiments from
 October/November 2026. They build against **this checkout's production headers**;
 there is no alternate DSP implementation or source editing in the runner.

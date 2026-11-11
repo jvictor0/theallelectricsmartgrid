@@ -63,5 +63,18 @@ perf-test: perf-build
 perf-run: perf-build
 	python3 "$(REPO_ROOT)/private/test/perf/run.py" --bin-dir "$(PERF_DIR)" $(PERF_ARGS)
 
+PERF_IPAD_DIR := $(REPO_ROOT)/build/tools/perf-ipad/Release
+PERF_TEAM ?= 84DCGNY7JA
+.PHONY: perf-ipad-build perf-ipad
+perf-ipad-build:
+	cmake -S "$(REPO_ROOT)/private/test/perf/device" -B "$(PERF_IPAD_DIR)" -G Xcode \
+		-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=18.0 \
+		-DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM="$(PERF_TEAM)"
+	cmake --build "$(PERF_IPAD_DIR)" --config Release --parallel "$(JOBS)" -- -allowProvisioningUpdates
+
+perf-ipad: perf-ipad-build
+	@test -x "$(REPO_ROOT)/scripts/.venv-ios/bin/python" || $(MAKE) -C "$(REPO_ROOT)" ios-setup
+	"$(REPO_ROOT)/scripts/.venv-ios/bin/python" "$(REPO_ROOT)/scripts/ipad_perf.py" $(PERF_ARGS)
+
 perf-sgrec: perf-build
 	python3 "$(REPO_ROOT)/private/test/perf/run_sgrec.py" --bin-dir "$(PERF_DIR)" $(SGREC_ARGS)

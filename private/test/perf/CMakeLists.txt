@@ -39,6 +39,7 @@ foreach(kind voices effects extra auxiliary encoders sgrec density audio_diagnos
     target_compile_options(perf_${kind} PRIVATE -funroll-loops)
     target_link_libraries(perf_${kind} PRIVATE perf_codec Threads::Threads)
 endforeach()
+target_sources(perf_density PRIVATE density_main.cpp)
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/build.json" CONTENT
 "{\"compiler\":\"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\"configuration\":\"${CMAKE_BUILD_TYPE}\",\"lto\":true,\"flags\":\"${CMAKE_CXX_FLAGS_RELEASE} -funroll-loops\"}\n")
 enable_testing()
@@ -52,6 +53,7 @@ add_test(NAME perf_sgrec_protocol COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRE
 add_test(NAME perf_sgrec_runner COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_sgrec_runner.py"
     "$<TARGET_FILE:perf_sgrec>")
 add_test(NAME perf_density_reference COMMAND "$<TARGET_FILE:perf_density>" self-test)
+add_test(NAME perf_ipad_protocol COMMAND "${Python3_EXECUTABLE}" "${REPO_ROOT}/scripts/tests/test_ipad_perf.py")
 add_test(NAME perf_audio_diagnostics COMMAND "$<TARGET_FILE:perf_audio_diagnostics>" 1000)
 set_tests_properties(perf_smoke perf_protocol perf_sgrec_protocol perf_sgrec_runner PROPERTIES RUN_SERIAL TRUE TIMEOUT 600)
 set_tests_properties(perf_density_reference PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)

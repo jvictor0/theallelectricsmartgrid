@@ -1,0 +1,4 @@
+#pragma once
+
+inline constexpr char x_perfCommit[] = "@PERF_COMMIT@";
+inline constexpr bool x_perfDirty = @PERF_DIRTY@;

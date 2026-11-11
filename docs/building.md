@@ -34,6 +34,7 @@ the same command; if it fails, the build stops before compiling or deploying.
 | `make ios-build` / `make ios-install` / `make ios-deploy` | `build/xcode/ios/Release/` |
 | `make core-test` | `build/core/RelWithDebInfo/` |
 | `make perf-build` / `make perf-test` / `make perf-run` / `make perf-sgrec` | `build/tools/perf/Release/` (results in `build/results/`) |
+| `make perf-ipad-build` / `make perf-ipad` | `build/tools/perf-ipad/Release/` (results in `~/Documents/SmartGridOne/perf.sqlite3`) |
 | `make visualizers-test` | `build/visualizers/Release/` |
 | `make midi-test` | `build/midi/Release/` |
 | `make clang-tidy` | `build/clang-tidy/report.txt` |

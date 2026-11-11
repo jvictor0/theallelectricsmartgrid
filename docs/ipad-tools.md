@@ -1,5 +1,10 @@
 # iPad Wi-Fi tools
 
+For isolated performance tests, `make perf-ipad` builds and launches the separate
+SmartGrid Perf app, collects arbitrary case metrics and device telemetry into
+`~/Documents/SmartGridOne/perf.sqlite3`, and leaves the iPad on its home screen.
+It initializes no audio. See [the benchmark guide](../private/test/perf/README.md#isolated-benchmarks-on-ipad).
+
 The repository can build, install, launch, sync, and collect logs from the paired
 SmartGridOne iPad without a USB cable.
 

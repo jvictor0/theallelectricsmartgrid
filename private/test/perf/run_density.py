@@ -22,7 +22,7 @@ SETTINGS = ['linear', 'gentle', 'blend', 'default_full_mult', 'slow_reversal',
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--mode', choices=['correctness', 'performance', 'write-correctness', 'write-performance'], required=True)
+    parser.add_argument('--mode', choices=['correctness', 'performance', 'original-performance', 'tape-performance', 'write-correctness', 'write-performance'], required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--repeats', type=int, default=5)
     args = parser.parse_args()
@@ -39,8 +39,9 @@ def main():
     random.Random(20261109).shuffle(cases)
     sources = list((ROOT / 'private/src').glob('*.hpp'))
     sources += [ROOT / 'private/test/perf' / name for name in [
-        'density.cpp', 'run_density.py', 'reference/LegacyTimeWarpInverter.hpp',
-        'reference/PhaseGridTimeWarpInverter.hpp', 'reference/LandedTimeWarpInverter.hpp']]
+        'density.cpp', 'density_main.cpp', 'DensityCase.hpp', 'run_density.py', 'reference/LegacyTimeWarpInverter.hpp',
+        'reference/PhaseGridTimeWarpInverter.hpp', 'reference/LandedTimeWarpInverter.hpp',
+        'reference/OriginalTimeWarpInverter.hpp']]
     sources += list((ROOT / 'formal/PhaseTime').glob('*.lean'))
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
               for p in sources}
@@ -54,6 +55,26 @@ def main():
                 'repeats': args.repeats, 'cycles': 3.25,
                 'oracle': ('frozen landed inverse; exact values and availability' if args.mode.startswith('write-')
                            else 'latest closed forward crossing; stationary observations do not advance endpoints')}
+    if args.mode == 'original-performance':
+        metadata['baseline_commit'] = '5c3cb419952ff0dee4cfa9c18cb0e1b18874dbd2'
+        metadata['oracle'] = 'performance only; historical implementations have different behavior'
+        metadata['implementations'] = {
+            'original': {'source': '5c3cb41:private/src/DelayLine.hpp', 'write_hz': 48000,
+                         'grid': 'host samples', 'entries': 2**24, 'payload_bytes': 2**27},
+            'legacy': {'source': 'a8a6ca1:private/src/TimeWarpInverter.hpp', 'write_hz': 192000,
+                       'grid': 'engine samples', 'entries': 2**26, 'payload_bytes': 2**29},
+            'current': {'source': 'd157dd5:private/src/TimeWarpInverter.hpp', 'write_hz': 192000,
+                        'grid': '2^18 cells per master cycle', 'entries': 2**20, 'payload_bytes': 2**25}}
+    elif args.mode == 'tape-performance':
+        metadata['baseline_commit'] = '5c3cb419952ff0dee4cfa9c18cb0e1b18874dbd2'
+        metadata['oracle'] = 'performance only; original tape algorithm and current inverse both at 192 kHz'
+        metadata['implementations'] = {
+            'tape192': {'source': '5c3cb41:private/src/DelayLine.hpp inverse-only extraction',
+                        'write_hz': 192000, 'grid': 'engine samples', 'entries': 2**26,
+                        'payload_bytes': 2**29, 'storage': 'original plain doubles',
+                        'configuration': 'one write per engine sample; capacity and coordinates scaled to engine samples'},
+            'current': {'source': 'd157dd5:private/src/TimeWarpInverter.hpp', 'write_hz': 192000,
+                        'grid': '2^18 cells per master cycle', 'entries': 2**20, 'payload_bytes': 2**25}}
     (out / (args.mode + '-metadata.json')).write_text(json.dumps(metadata, indent=2) + '\n')
     (out / (args.mode + '-source-diff.patch')).write_bytes(subprocess.check_output(['git', 'diff', '--binary'], cwd=ROOT))
     for source in sources:
@@ -86,6 +107,14 @@ def main():
                     assert row['old_max'] < 1e-5 and row['new_max'] < 1e-5, (name, row)
         elif args.mode == 'write-correctness':
             assert len(rows) == 1 and rows[0]['mismatches'] == 0, (name, rows)
+        elif args.mode == 'original-performance':
+            assert len(rows) == 3 * args.repeats, name
+            for repeat in range(args.repeats):
+                assert {r['implementation'] for r in rows if r['repeat'] == repeat} == {'original', 'legacy', 'current'}
+        elif args.mode == 'tape-performance':
+            assert len(rows) == 2 * args.repeats, name
+            for repeat in range(args.repeats):
+                assert {r['implementation'] for r in rows if r['repeat'] == repeat} == {'tape192', 'current'}
         elif args.mode == 'write-performance':
             for repeat in range(args.repeats):
                 pair = [r for r in rows if r['repeat'] == repeat]
